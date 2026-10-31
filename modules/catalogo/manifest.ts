@@ -1,16 +1,23 @@
 import { defineModule } from '@macuxi/platform-sdk';
 
+/** Consulta (busca, ficha, "pergunte ao catálogo"): campo (vendedor, promotor), gestão (supervisor, gerente) e BKO (analista, assistente, admin). */
+const PERFIS_CONSULTA = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
+/** Doc 03 §2 (padrão dos cadastros do BKO): conteúdo, sinônimos e destaques só analista e admin. */
+const PERFIS_CONTEUDO = ['analista', 'admin'] as const;
+
 /**
  * Manifesto do Catálogo (ADR-0005): dono de preço (tabela de preço e itens), estoque (depósito e saldo),
- * conteúdo, mídia, sinônimos e busca. O cadastro base de produto (`produto`) é do Core.
- * `assistente` entra nos perfis porque o Vendedor depende do Catálogo (RN-CORE-03) e o assistente de BKO
- * trabalha com pedidos.
+ * conteúdo, mídia, sinônimos e busca. O cadastro base de produto (`produto`) é do Core e não é sincronizado aqui;
+ * o Catálogo reage só a preço e estoque do Hub (o evento de produto do ERP é consumido pelo Core).
+ * `assistente` entra nos perfis porque o Vendedor depende do Catálogo (RN-CORE-03) e o assistente de BKO trabalha
+ * com pedidos; `admin` entra para cadastrar conteúdo, sinônimos e destaques no BKO.
+ * Nenhuma ação de pedido aqui: "Adicionar ao pedido" é do Vendedor, registrado na extensão `produto.acoes`.
  */
 export const manifest = defineModule({
   id: 'catalogo',
   versao: '0.1.0',
   depende: ['core'],
-  perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente'],
+  perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
   apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo'] } },
   sync: [
     // preço
@@ -28,8 +35,18 @@ export const manifest = defineModule({
     'sinonimo',
   ],
   publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
-  consome: ['integracao.produto.atualizado@1', 'integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'catalogo.busca.realizada@1'],
+  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'catalogo.busca.realizada@1'],
   ofereceExtensoes: ['produto.acoes'],
+  acoes: {
+    // --- consulta (app Macuxi Campo e Gestão; BKO) ---
+    'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },
+    'produto.perguntar': { perfis: [...PERFIS_CONSULTA], descricao: 'Pergunte ao catálogo: resposta só com conteúdo cadastrado e fonte citada (RF-CAT-05, RN-CAT-02)' },
+    // --- conteúdo, sinônimos e destaques (BKO; RF-CAT-07) ---
+    'produto.enriquecer': { perfis: [...PERFIS_CONTEUDO], descricao: 'Enriquecer conteúdo: fotos, vídeos, argumentos, FAQ e PDFs técnicos (RF-CAT-07)' },
+    'sinonimo.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Cadastrar sinônimos do tenant para a busca (RF-CAT-02, RF-CAT-07)' },
+    'destaque.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Marcar produtos de campanha e destaques que ganham boost na busca (RF-CAT-01)' },
+    'busca.ver_sem_resultado': { perfis: [...PERFIS_CONTEUDO], descricao: 'Ver os termos buscados sem resultado (RF-CAT-07)' },
+  },
 });
 
 export default manifest;

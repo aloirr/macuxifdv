@@ -1,0 +1,98 @@
+/**
+ * Laço de execução do serviço (`conector rodar`): agenda a leitura de cada entidade pela periodicidade configurada,
+ * esvazia a fila, trata pedidos, manda o sinal de vida (1 min), a reconciliação diária e a manutenção.
+ * O relógio e a espera são injetáveis; `ciclo()` é uma passada (testável), `rodar()` repete até o sinal de parada.
+ */
+import { ORDEM_CARGA, type Entidade } from './config/entidades';
+import { periodicidadeDe } from './config/esquema';
+import { type Contexto, resumoErro } from './contexto';
+import { cicloPedidos } from './pedidos';
+import { processarFila } from './remetente';
+import { reconciliacaoVencida, reconciliarTudo } from './reconciliacao';
+import { sincronizarEntidade } from './sincronizador';
+import { montarStatus } from './status';
+import { dormir } from './util/retry';
+import { VERSAO_CONECTOR } from './versao';
+import { VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
+
+interface Tarefa {
+  nome: string;
+  intervaloMs: number;
+  proxima: number;
+  executar(): Promise<number | void>;
+}
+
+export class Executor {
+  private readonly tarefas: Tarefa[] = [];
+
+  constructor(private readonly ctx: Contexto, private readonly opcoes: { tickMs?: number; dormir?: (ms: number) => Promise<void> } = {}) {
+    const { config } = ctx;
+    const agora = ctx.relogio.agora();
+    for (const e of ORDEM_CARGA) {
+      if (!config.entidades[e]?.ativa) continue;
+      this.tarefas.push({
+        nome: `entidade:${e}`,
+        intervaloMs: periodicidadeDe(config, e) * 1000,
+        proxima: agora,
+        executar: async () => {
+          const r = await sincronizarEntidade(ctx, e as Entidade);
+          // fila cheia/limite de páginas/Hub fora na partida: volta logo, sem esperar a periodicidade inteira
+          if (r.maisParaLer) return 3_000;
+          if (r.adiado?.startsWith('Hub indisponível')) return 30_000;
+          return undefined;
+        },
+      });
+    }
+    this.tarefas.push({ nome: 'fila', intervaloMs: Math.max(1, Math.min(config.fila.consultaResultadoSegundos, 5)) * 1000, proxima: agora, executar: async () => void (await processarFila(ctx)) });
+    if (config.pedidos?.ativo) {
+      this.tarefas.push({ nome: 'pedidos', intervaloMs: config.pedidos.consultaSegundos * 1000, proxima: agora, executar: async () => void (await cicloPedidos(ctx, { buscar: true, status: false })) });
+      this.tarefas.push({ nome: 'pedidos_status', intervaloMs: config.pedidos.statusSegundos * 1000, proxima: agora, executar: async () => void (await cicloPedidos(ctx, { buscar: false, status: true })) });
+    }
+    this.tarefas.push({ nome: 'sinal', intervaloMs: config.sinalSegundos * 1000, proxima: agora, executar: () => this.sinal() });
+    this.tarefas.push({
+      nome: 'reconciliacao', intervaloMs: 5 * 60_000, proxima: agora,
+      executar: async () => {
+        if (reconciliacaoVencida(ctx)) await reconciliarTudo(ctx);
+      },
+    });
+    this.tarefas.push({ nome: 'manutencao', intervaloMs: 3_600_000, proxima: agora, executar: async () => ctx.store.limpar(ctx.relogio.agora(), config.fila.retencaoDias) });
+  }
+
+  private async sinal(): Promise<void> {
+    const s = montarStatus(this.ctx.store, this.ctx.config);
+    await this.ctx.hub.enviarSinal({
+      versao_conector: VERSAO_CONECTOR,
+      versao_contrato: VERSAO_CONTRATO,
+      em: new Date(this.ctx.relogio.agora()).toISOString(),
+      fila: s.fila,
+      entidades: s.entidades.map((e) => ({ entidade: e.entidade, fase: e.fase, ultimo_sucesso: e.ultimoSucesso, bloqueada: e.bloqueio !== null, lotes_na_fila: e.lotesNaFila })),
+    });
+  }
+
+  /** Uma passada: roda o que está vencido. Erro de uma tarefa nunca derruba as outras. */
+  async ciclo(): Promise<string[]> {
+    const executadas: string[] = [];
+    for (const t of this.tarefas) {
+      if (t.proxima > this.ctx.relogio.agora()) continue;
+      executadas.push(t.nome);
+      let volta: number | void = undefined;
+      try {
+        volta = await t.executar();
+      } catch (e) {
+        this.ctx.log.aviso('tarefa_falhou', { tarefa: t.nome, erro: resumoErro(e) });
+      }
+      t.proxima = this.ctx.relogio.agora() + (typeof volta === 'number' ? volta : t.intervaloMs);
+    }
+    return executadas;
+  }
+
+  async rodar(parar: AbortSignal): Promise<void> {
+    const espera = this.opcoes.dormir ?? dormir;
+    this.ctx.log.info('conector_iniciado', { versao: VERSAO_CONECTOR, entidades: this.tarefas.filter((t) => t.nome.startsWith('entidade:')).map((t) => t.nome.slice(9)) });
+    while (!parar.aborted) {
+      await this.ciclo();
+      await espera(this.opcoes.tickMs ?? 1000);
+    }
+    this.ctx.log.info('conector_parado');
+  }
+}

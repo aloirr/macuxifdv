@@ -1,0 +1,330 @@
+import { describe, expect, it } from 'vitest';
+import { PainelDia } from '../contracts';
+import { CLIENTE_A, CLIENTE_B, CLIENTE_C, checkin, checkout, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR } from './fixtures';
+import { calcularMeta, diaLocal, montarPainelDia, painelDoMes, statusDoDia, tradeDoPeriodo, vendasDoPeriodo, visitasDoPeriodo } from './painel';
+import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
+
+const montar = (eventos: EventoRecebido[]) => aplicarEventos(estadoInicial(), eventos).estado;
+const TODOS = new Set(['core', 'vendedor', 'promotor', 'pesquisa', 'treinamento']);
+const AGORA = '2026-10-30T20:00:00Z';
+const vend = { id: VENDEDOR, perfil: 'vendedor' } as const;
+const prom = { id: PROMOTOR, perfil: 'promotor' } as const;
+const trade = (st: ReturnType<typeof estadoInicial>, p: Parameters<typeof tradeDoPeriodo>[4] = {}) => tradeDoPeriodo(st, PROMOTOR, '2026-10-30', '2026-10-30', p);
+
+/** Pedido criado e aprovado no instante `em`. */
+function venda(n: number, o: { total: number; tabela?: number; cliente?: string; em: string; vendedor?: string; visita?: string | null }): EventoRecebido[] {
+  return [
+    pedidoCriado({ pedido: u(1000 + n), total: o.total, tabela: o.tabela ?? o.total, cliente: o.cliente, vendedor: o.vendedor, em: o.em, visita: o.visita }),
+    statusAlterado({ pedido: u(1000 + n), vendedor: o.vendedor, para: 'aprovado', em: o.em }),
+  ];
+}
+
+describe('RF-GES-02: vendas do dia — positivação, ticket médio e desconto', () => {
+  const s = montar([
+    ...venda(1, { total: 10_000, tabela: 10_000, cliente: CLIENTE_A, em: '2026-10-30T15:00:00Z' }),
+    ...venda(2, { total: 9_000, tabela: 10_000, cliente: CLIENTE_A, em: '2026-10-30T16:00:00Z' }),
+    ...venda(3, { total: 6_000, cliente: CLIENTE_B, em: '2026-10-29T16:00:00Z' }),
+  ]);
+
+  it('RN-CORE-20: soma o dia, positiva cliente distinto 1 vez, ticket = vendas ÷ pedidos', () => {
+    expect(vendasDoPeriodo(s, VENDEDOR, '2026-10-30', '2026-10-30')).toEqual({
+      vendas_cents: 19_000,
+      pedidos: 2,
+      clientes_positivados: 1,
+      ticket_medio_cents: 9_500,
+      desconto_medio_pct: 5,
+    });
+  });
+
+  it('RN-VEN-03: desconto médio ponderado = 1 − Σ final ÷ Σ tabela (no dia 19.000 de 20.000 = 5%; em 2 dias 25.000 de 26.000 = 3,85%)', () => {
+    expect(vendasDoPeriodo(s, VENDEDOR, '2026-10-29', '2026-10-30').desconto_medio_pct).toBe(3.85); // 1 − 25.000 ÷ 26.000
+  });
+
+  it('RN-VEN-02: ticket médio arredonda meio para cima em centavos', () => {
+    const p = montar([...venda(1, { total: 100, em: '2026-10-30T15:00:00Z' }), ...venda(2, { total: 101, em: '2026-10-30T15:30:00Z', cliente: CLIENTE_B })]);
+    expect(vendasDoPeriodo(p, VENDEDOR, '2026-10-30', '2026-10-30').ticket_medio_cents).toBe(101); // 100,5
+  });
+
+  it('dia sem venda: zeros e ticket/desconto null (nunca divide por zero)', () => {
+    expect(vendasDoPeriodo(s, VENDEDOR, '2026-10-28', '2026-10-28')).toEqual({ vendas_cents: 0, pedidos: 0, clientes_positivados: 0, ticket_medio_cents: null, desconto_medio_pct: null });
+  });
+
+  it('datas armazenadas em UTC, dia no fuso do tenant: 02:00Z de 31/10 ainda é 30/10 em Manaus', () => {
+    const p = montar(venda(1, { total: 7_000, em: '2026-10-31T02:00:00Z' }));
+    expect(diaLocal('2026-10-31T02:00:00Z', 'America/Manaus')).toBe('2026-10-30');
+    expect(vendasDoPeriodo(p, VENDEDOR, '2026-10-30', '2026-10-30').vendas_cents).toBe(7_000);
+    expect(vendasDoPeriodo(p, VENDEDOR, '2026-10-31', '2026-10-31').vendas_cents).toBe(0);
+    expect(vendasDoPeriodo(p, VENDEDOR, '2026-10-31', '2026-10-31', { fuso: 'UTC' }).vendas_cents).toBe(7_000);
+  });
+
+  it('RN-CORE-21: base de apuração configurável — faturado só conta quando faturar', () => {
+    const p = montar(venda(1, { total: 7_000, em: '2026-10-30T15:00:00Z' }));
+    expect(vendasDoPeriodo(p, VENDEDOR, '2026-10-30', '2026-10-30', { base_apuracao: 'faturado' }).vendas_cents).toBe(0);
+    const f = aplicarEventos(p, [statusAlterado({ pedido: u(1001), para: 'faturado_total', em: '2026-11-03T12:00:00Z' })]).estado;
+    expect(vendasDoPeriodo(f, VENDEDOR, '2026-11-03', '2026-11-03', { base_apuracao: 'faturado' }).vendas_cents).toBe(7_000);
+  });
+
+  it('RN-CORE-21: o pedido feito pelo gestor em nome do vendedor aparece no painel do vendedor, não no do gestor', () => {
+    const p = montar([
+      pedidoCriado({ pedido: u(1001), vendedor: VENDEDOR, autor: u(300), total: 8_000, em: '2026-10-30T15:00:00Z' }),
+      statusAlterado({ pedido: u(1001), para: 'aprovado', em: '2026-10-30T15:05:00Z' }),
+    ]);
+    expect(vendasDoPeriodo(p, VENDEDOR, '2026-10-30', '2026-10-30').vendas_cents).toBe(8_000);
+    expect(vendasDoPeriodo(p, u(300), '2026-10-30', '2026-10-30').vendas_cents).toBe(0);
+  });
+});
+
+describe('RN-CORE-21/22: meta, falta e necessidade por dia útil', () => {
+  // Outubro/2026 tem 22 dias úteis; em 20/10: 13 decorridos (1–19), 9 restantes (20–30).
+  const dias = { dias_uteis_total: 22, dias_uteis_decorridos: 13, dias_uteis_restantes: 9 };
+
+  it('RN-CORE-22: necessidade diária = (meta − realizado) ÷ dias úteis restantes (R$ 22.000 − R$ 10.000 ÷ 9 = R$ 1.333,33)', () => {
+    expect(calcularMeta({ meta_cents: 2_200_000, realizado_cents: 1_000_000, realizado_ate_ontem_cents: 900_000, ...dias })).toEqual({
+      atingimento_pct: 45.45,
+      falta_cents: 1_200_000,
+      necessidade_diaria_cents: 133_333,
+      ritmo_pct: 69.23, // 900.000 ÷ (2.200.000 × 13/22 = 1.300.000)
+    });
+  });
+
+  it('meta batida: falta 0 e necessidade 0', () => {
+    const r = calcularMeta({ meta_cents: 1_000_000, realizado_cents: 1_200_000, realizado_ate_ontem_cents: 1_100_000, ...dias });
+    expect(r).toMatchObject({ atingimento_pct: 120, falta_cents: 0, necessidade_diaria_cents: 0 });
+  });
+
+  it('sem meta (ou meta 0): tudo null, sem erro', () => {
+    expect(calcularMeta({ meta_cents: null, realizado_cents: 5, realizado_ate_ontem_cents: 0, ...dias })).toEqual({ atingimento_pct: null, falta_cents: null, necessidade_diaria_cents: null, ritmo_pct: null });
+    expect(calcularMeta({ meta_cents: 0, realizado_cents: 5, realizado_ate_ontem_cents: 0, ...dias }).atingimento_pct).toBeNull();
+  });
+
+  it('sem dia útil restante: necessidade null; no 1º dia útil não há ritmo (0 decorridos)', () => {
+    expect(calcularMeta({ meta_cents: 1000, realizado_cents: 0, realizado_ate_ontem_cents: 0, dias_uteis_total: 22, dias_uteis_decorridos: 22, dias_uteis_restantes: 0 }).necessidade_diaria_cents).toBeNull();
+    expect(calcularMeta({ meta_cents: 1000, realizado_cents: 0, realizado_ate_ontem_cents: 0, dias_uteis_total: 22, dias_uteis_decorridos: 0, dias_uteis_restantes: 22 }).ritmo_pct).toBeNull();
+  });
+
+  it('painelDoMes soma o mês até o dia, lê a meta do mês e usa o calendário do tenant (feriado tira dia útil)', () => {
+    const s = montar([
+      ev('core.meta.definida@1', '2026-10-01T08:00:00Z', { usuario_id: VENDEDOR, mes: '2026-10', meta_cents: 2_200_000 }),
+      ...venda(1, { total: 900_000, em: '2026-10-15T15:00:00Z' }),
+      ...venda(2, { total: 100_000, em: '2026-10-20T15:00:00Z', cliente: CLIENTE_B }),
+      ...venda(3, { total: 999_999, em: '2026-10-21T15:00:00Z' }), // depois do dia consultado: fora
+    ]);
+    const m = painelDoMes(s, VENDEDOR, '2026-10-20');
+    expect(m).toMatchObject({ mes: '2026-10', vendas_cents: 1_000_000, pedidos: 2, clientes_positivados: 2, meta_cents: 2_200_000, falta_cents: 1_200_000, dias_uteis_restantes: 9, necessidade_diaria_cents: 133_333, ritmo_pct: 69.23 });
+    const comFeriado = painelDoMes(s, VENDEDOR, '2026-10-20', { feriados: ['2026-10-23'] });
+    expect(comFeriado.dias_uteis_restantes).toBe(8);
+    expect(comFeriado.necessidade_diaria_cents).toBe(150_000);
+  });
+
+  it('meta de outro mês não vale; sem meta definida o mês vem com meta null', () => {
+    const s = montar([ev('core.meta.definida@1', '2026-09-01T08:00:00Z', { usuario_id: VENDEDOR, mes: '2026-09', meta_cents: 5_000_000 })]);
+    expect(painelDoMes(s, VENDEDOR, '2026-10-20')).toMatchObject({ meta_cents: null, atingimento_pct: null, necessidade_diaria_cents: null });
+  });
+});
+
+describe('RF-GES-01/02: visitas planejadas × realizadas, tempo em cliente e status do dia', () => {
+  const rota = ev('core.rota.dia_planejado@1', '2026-10-30T10:00:00Z', { usuario_id: VENDEDOR, data: '2026-10-30', cliente_ids: [CLIENTE_A, CLIENTE_B, CLIENTE_C, u(504)] });
+
+  it('RN-CORE-20: realizadas = clientes distintos com check-in; cobertura = realizadas ÷ planejadas', () => {
+    const s = montar([
+      rota,
+      checkin({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-30T13:00:00Z' }),
+      checkout({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-30T13:20:00Z' }),
+      checkin({ visita: u(2001), cliente: CLIENTE_A, em: '2026-10-30T14:00:00Z' }), // 2ª visita no mesmo cliente
+      checkout({ visita: u(2001), cliente: CLIENTE_A, em: '2026-10-30T14:10:00Z' }),
+      checkin({ visita: u(2002), cliente: CLIENTE_B, em: '2026-10-30T15:00:00Z' }), // aberta
+    ]);
+    const v = visitasDoPeriodo(s, vend, '2026-10-30', '2026-10-30');
+    expect(v).toMatchObject({ planejadas: 4, realizadas: 2, em_andamento: 1, cobertura_pct: 50, tempo_total_min: 30, tempo_medio_min: 15, curtas: 0 });
+    expect(statusDoDia(s, VENDEDOR, '2026-10-30')).toBe('em_visita');
+  });
+
+  it('status do dia: sem check-in → em visita → em rota (RF-GES-01)', () => {
+    expect(statusDoDia(montar([rota]), VENDEDOR, '2026-10-30')).toBe('sem_checkin');
+    const aberta = montar([rota, checkin({ cliente: CLIENTE_A, em: '2026-10-30T13:00:00Z' })]);
+    expect(statusDoDia(aberta, VENDEDOR, '2026-10-30')).toBe('em_visita');
+    const fechada = aplicarEventos(aberta, [checkout({ cliente: CLIENTE_A, em: '2026-10-30T13:30:00Z' })]).estado;
+    expect(statusDoDia(fechada, VENDEDOR, '2026-10-30')).toBe('em_rota');
+    expect(statusDoDia(fechada, VENDEDOR, '2026-10-29')).toBe('sem_checkin');
+  });
+
+  it('sem rota planejada a cobertura é null (sem dados), não 0 nem erro', () => {
+    const s = montar([checkin({ em: '2026-10-30T13:00:00Z' })]);
+    expect(visitasDoPeriodo(s, vend, '2026-10-30', '2026-10-30')).toMatchObject({ planejadas: 0, realizadas: 1, cobertura_pct: null });
+  });
+
+  it('RN-CORE-11: visita fechada automaticamente na virada do dia conta como visita mas não entra no tempo em cliente', () => {
+    const s = montar([
+      checkin({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-30T13:00:00Z' }),
+      checkout({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-31T04:00:00Z', encerramento: 'automatico' }),
+      checkin({ visita: u(2001), cliente: CLIENTE_B, em: '2026-10-30T14:00:00Z' }),
+      checkout({ visita: u(2001), cliente: CLIENTE_B, em: '2026-10-30T14:30:00Z' }),
+    ]);
+    expect(visitasDoPeriodo(s, vend, '2026-10-30', '2026-10-30')).toMatchObject({ realizadas: 2, em_andamento: 0, tempo_total_min: 30, tempo_medio_min: 30 });
+  });
+
+  it('o dia da visita é o do check-in no fuso do tenant (23h30 em Manaus = 03:30Z do dia seguinte)', () => {
+    const s = montar([checkin({ em: '2026-10-31T03:30:00Z' })]);
+    expect(visitasDoPeriodo(s, vend, '2026-10-30', '2026-10-30').realizadas).toBe(1);
+    expect(visitasDoPeriodo(s, vend, '2026-10-31', '2026-10-31').realizadas).toBe(0);
+  });
+
+  it('RF-GES-02: conversão de visita em pedido = visitas com pedido ativo ÷ visitas (cancelado/rejeitado não conta)', () => {
+    const s = montar([
+      checkin({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-30T13:00:00Z' }),
+      checkout({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-30T13:20:00Z' }),
+      checkin({ visita: u(2001), cliente: CLIENTE_B, em: '2026-10-30T14:00:00Z' }),
+      checkout({ visita: u(2001), cliente: CLIENTE_B, em: '2026-10-30T14:20:00Z' }),
+      checkin({ visita: u(2002), cliente: CLIENTE_C, em: '2026-10-30T15:00:00Z' }),
+      checkout({ visita: u(2002), cliente: CLIENTE_C, em: '2026-10-30T15:20:00Z' }),
+      ...venda(1, { total: 1000, em: '2026-10-30T13:10:00Z', visita: u(2000) }),
+      ...venda(2, { total: 1000, em: '2026-10-30T14:10:00Z', visita: u(2001), cliente: CLIENTE_B }),
+      statusAlterado({ pedido: u(1002), para: 'cancelado', em: '2026-10-30T14:15:00Z' }),
+    ]);
+    expect(visitasDoPeriodo(s, vend, '2026-10-30', '2026-10-30', {}, true).conversao_pedido_pct).toBe(33.33);
+    expect(visitasDoPeriodo(s, vend, '2026-10-30', '2026-10-30', {}, false).conversao_pedido_pct).toBeNull();
+  });
+});
+
+describe('RN-PRO-07 / RF-GES-10: trade do promotor', () => {
+  const lj = (n: number, o: { visita: string; cliente: string; min: number; em: string; fotos?: [number, number] | null }) =>
+    ev('promotor.visita_loja.concluida@1', o.em, {
+      visita_loja_id: u(3000 + n),
+      visita_id: o.visita,
+      promotor_id: PROMOTOR,
+      cliente_id: o.cliente,
+      checkin_em: o.em,
+      checkout_em: new Date(Date.parse(o.em) + o.min * 60_000).toISOString(),
+      permanencia_min: o.min,
+      fotos_total: o.fotos ? o.fotos[0] : null,
+      fotos_sem_gps: o.fotos ? o.fotos[1] : null,
+    });
+  const gond = (n: number, loja: number, c: 'conforme' | 'parcial' | 'nao_conforme') =>
+    ev('promotor.gondola.registrada@1', '2026-10-30T13:10:00Z', { gondola_id: u(4000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: CLIENTE_A, conformidade: c, registrado_em: '2026-10-30T13:10:00Z' });
+  const share = (n: number, loja: number, s: number | null, m: number | null) =>
+    ev('promotor.share.medido@1', '2026-10-30T13:12:00Z', { medicao_id: u(5000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: CLIENTE_A, share_pct: s, meta_pct: m, medido_em: '2026-10-30T13:12:00Z' });
+  const rup = (n: number, loja: number, st: 'presente' | 'ruptura_gondola' | 'ruptura_total') =>
+    ev('promotor.ruptura.registrada@1', '2026-10-30T13:15:00Z', { registro_id: u(6000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: CLIENTE_A, produto_id: u(7000 + n), status: st, registrado_em: '2026-10-30T13:15:00Z' });
+  const preco = (n: number, loja: number, i: number | null) =>
+    ev('promotor.preco.coletado@1', '2026-10-30T13:18:00Z', { coleta_id: u(8000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: CLIENTE_A, indice_preco: i, coletado_em: '2026-10-30T13:18:00Z' });
+
+  const eventos: EventoRecebido[] = [
+    lj(1, { visita: u(2000), cliente: CLIENTE_A, min: 35, em: '2026-10-30T13:00:00Z', fotos: [10, 2] }),
+    lj(2, { visita: u(2001), cliente: CLIENTE_B, min: 6, em: '2026-10-30T15:00:00Z', fotos: [4, 1] }), // curta: fora dos indicadores
+    gond(1, 1, 'conforme'),
+    gond(2, 1, 'conforme'),
+    gond(3, 1, 'parcial'),
+    gond(4, 1, 'nao_conforme'),
+    gond(5, 2, 'nao_conforme'), // da visita curta: não conta
+    share(1, 1, 30, 40),
+    share(2, 1, 20, 20),
+    share(3, 1, 10, null),
+    rup(1, 1, 'presente'),
+    rup(2, 1, 'presente'),
+    rup(3, 1, 'presente'),
+    rup(4, 1, 'presente'),
+    rup(5, 1, 'presente'),
+    rup(6, 1, 'presente'),
+    rup(7, 1, 'presente'),
+    rup(8, 1, 'ruptura_gondola'),
+    rup(9, 1, 'ruptura_total'),
+    rup(10, 1, 'ruptura_total'),
+    rup(11, 2, 'ruptura_total'), // visita curta: fora
+    preco(1, 1, 109),
+    preco(2, 1, 125),
+    preco(3, 1, null),
+    ev('promotor.tarefa.concluida@1', '2026-10-30T16:00:00Z', { tarefa_id: u(9001), promotor_id: PROMOTOR, concluida_em: '2026-10-30T16:00:00Z' }),
+  ];
+  const s = montar(eventos);
+
+  it('RN-PRO-07: só visitas com 10 min ou mais contam; a curta é sinalizada ao gestor', () => {
+    const t = trade(s);
+    expect(t.lojas_visitadas).toBe(1);
+    const v = visitasDoPeriodo(montar([...eventos, checkin({ visita: u(2000), usuario: PROMOTOR, cliente: CLIENTE_A, em: '2026-10-30T13:00:00Z' }), checkout({ visita: u(2000), usuario: PROMOTOR, cliente: CLIENTE_A, em: '2026-10-30T13:35:00Z' }), checkin({ visita: u(2001), usuario: PROMOTOR, cliente: CLIENTE_B, em: '2026-10-30T15:00:00Z' }), checkout({ visita: u(2001), usuario: PROMOTOR, cliente: CLIENTE_B, em: '2026-10-30T15:06:00Z' })]), prom, '2026-10-30', '2026-10-30');
+    expect(v).toMatchObject({ realizadas: 1, curtas: 1, tempo_total_min: 35, tempo_medio_min: 35 });
+  });
+
+  it('RN-PRO-11: conformidade = (conformes + parciais × peso) ÷ gôndolas × 100; parciais à parte', () => {
+    expect(trade(s)).toMatchObject({ conformidade_pct: 50, conformidade_parciais: 1 });
+    expect(trade(s, { peso_parcial_conformidade: 0.5 }).conformidade_pct).toBe(62.5);
+  });
+
+  it('RN-PRO-03: share médio 20, meta média 30, atingimento 83,33% (só quem tem share e meta)', () => {
+    expect(trade(s)).toMatchObject({ share_medio_pct: 20, meta_share_media_pct: 30, atingimento_share_pct: 83.33 });
+  });
+
+  it('RN-PRO-05: ruptura 30% (10 itens: 7 presentes, 1 na gôndola, 2 totais) e falha de reposição 10% à parte', () => {
+    expect(trade(s)).toMatchObject({ ruptura_pct: 30, falha_reposicao_pct: 10 });
+  });
+
+  it('RN-PRO-04: índice de preço médio ignora coletas sem índice', () => {
+    expect(trade(s).indice_preco_medio).toBe(117);
+  });
+
+  it('RN-PRO-02: % de fotos sem GPS considera TODAS as visitas do dia (14 fotos, 3 sem GPS = 21,43%)', () => {
+    expect(trade(s)).toMatchObject({ fotos_total: 14, fotos_sem_gps: 3, fotos_sem_gps_pct: 21.43, tarefas_concluidas: 1 });
+  });
+
+  it('Promotor que não informa as fotos: fotos_* null (sem dado), sem quebrar o painel', () => {
+    const p = montar([lj(1, { visita: u(2000), cliente: CLIENTE_A, min: 20, em: '2026-10-30T13:00:00Z', fotos: null })]);
+    expect(trade(p)).toMatchObject({ fotos_total: null, fotos_sem_gps: null, fotos_sem_gps_pct: null });
+  });
+
+  it('sem coletas: percentuais null e contagens 0', () => {
+    expect(trade(estadoInicial())).toMatchObject({ lojas_visitadas: 0, conformidade_pct: null, share_medio_pct: null, ruptura_pct: null, indice_preco_medio: null, tarefas_concluidas: 0 });
+  });
+});
+
+describe('módulos opcionais desativados: o indicador some (null), o painel continua válido (RN-CORE-03)', () => {
+  const s = montar([
+    ...venda(1, { total: 10_000, em: '2026-10-30T15:00:00Z' }),
+    checkin({ em: '2026-10-30T13:00:00Z' }),
+    ev('pesquisa.resposta.registrada@1', '2026-10-30T13:10:00Z', { resposta_id: u(9100), questionario_id: u(9101), usuario_id: VENDEDOR, respondida_em: '2026-10-30T13:10:00Z', suspeita: true }),
+    ev('treinamento.licao.concluida@1', '2026-10-30T12:00:00Z', { progresso_id: u(9200), usuario_id: VENDEDOR, trilha_id: u(9201), licao_id: u(9202), concluida_em: '2026-10-30T12:00:00Z', xp_ganho: 15, trilha_concluida: true }),
+    ev('treinamento.medalha.conquistada@1', '2026-10-30T12:01:00Z', { medalha_usuario_id: u(9300), usuario_id: VENDEDOR, medalha_codigo: 'primeira_trilha', conquistada_em: '2026-10-30T12:01:00Z' }),
+  ]);
+
+  it('com todos os módulos: vendas, mês, pesquisa e treinamento preenchidos e o contrato PainelDia aceita a linha', () => {
+    const p = montar([]);
+    expect(p.pedidos).toEqual({});
+    const linha = montarPainelDia(s, vend, '2026-10-30', { modulos: TODOS, agora: AGORA });
+    expect(PainelDia.parse(linha)).toEqual(linha);
+    expect(linha.vendas?.vendas_cents).toBe(10_000);
+    expect(linha.mes?.vendas_cents).toBe(10_000);
+    expect(linha.pesquisa).toEqual({ respostas: 1, suspeitas: 1 });
+    expect(linha.treinamento).toEqual({ licoes_concluidas: 1, trilhas_concluidas: 1, xp_ganho: 15, medalhas: 1 });
+    expect(linha.trade).toBeNull(); // perfil vendedor não tem trade
+    expect(linha.status_dia).toBe('em_visita');
+  });
+
+  it('sem Vendedor: vendas e mês null; as visitas do Core continuam', () => {
+    const linha = montarPainelDia(s, vend, '2026-10-30', { modulos: new Set(['core', 'pesquisa']), agora: AGORA });
+    expect(PainelDia.parse(linha)).toEqual(linha);
+    expect(linha.vendas).toBeNull();
+    expect(linha.mes).toBeNull();
+    expect(linha.visitas.realizadas).toBe(1);
+    expect(linha.visitas.conversao_pedido_pct).toBeNull();
+    expect(linha.treinamento).toBeNull();
+    expect(linha.pesquisa).not.toBeNull();
+  });
+
+  it('só Core: pesquisa, treinamento, vendas e trade todos null', () => {
+    const linha = montarPainelDia(s, vend, '2026-10-30', { modulos: new Set(['core']), agora: AGORA });
+    expect(PainelDia.parse(linha)).toEqual(linha);
+    expect([linha.vendas, linha.mes, linha.trade, linha.pesquisa, linha.treinamento]).toEqual([null, null, null, null, null]);
+  });
+
+  it('RN-PRO-01: o promotor nunca tem seção de vendas, mesmo com o Vendedor ativo', () => {
+    const linha = montarPainelDia(s, prom, '2026-10-30', { modulos: TODOS, agora: AGORA });
+    expect(linha.vendas).toBeNull();
+    expect(linha.mes).toBeNull();
+    expect(linha.trade).not.toBeNull();
+  });
+
+  it('sem Promotor: o promotor aparece sem trade', () => {
+    const linha = montarPainelDia(s, prom, '2026-10-30', { modulos: new Set(['core', 'vendedor']), agora: AGORA });
+    expect(linha.trade).toBeNull();
+    expect(PainelDia.parse(linha)).toEqual(linha);
+  });
+});
+

@@ -4,6 +4,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 export const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -101,6 +102,9 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
 
   const dono = donoDe(rel, regras);
   if (dono === agente) return { ok: true, dono };
+  // Alexandre (dono do produto) altera arquivo de qualquer dono, como no `verificar`;
+  // sem-dono, congelado e as regras de recado/diário/lidos acima continuam valendo.
+  if (agente === 'alexandre' && dono !== 'congelado' && dono !== 'sem-dono') return { ok: true, dono };
   const dica =
     dono === 'alexandre'
       ? 'só o Alexandre altera este arquivo: mande recado para "alexandre"'
@@ -270,4 +274,105 @@ export function agenteDosTrailers(commits) {
       mensagem: `commit(s) sem o trailer "Agente: ${nomes[0]}": ${semTrailer.map((c) => `${String(c.sha).slice(0, 7)}${c.assunto ? ` (${c.assunto})` : ''}`).join(', ')}`,
     };
   return { agente: nomes[0] };
+}
+
+/** Nomes dos trailers "Agente: <nome>" de uma mensagem de commit (minúsculos, sem repetição). */
+export function trailersAgente(corpo) {
+  const nomes = [];
+  for (const a of String(corpo || '').matchAll(/^Agente:[ \t]*(\S+)[ \t]*$/gim)) {
+    const n = a[1].toLowerCase();
+    if (!nomes.includes(n)) nomes.push(n);
+  }
+  return nomes;
+}
+
+// ───────────────────── identificação do agente da sessão (guardião v3, T-0005) ─────────────────────
+
+/**
+ * Agente da sessão para os guardiões (.claude/hooks/guarda-donos.mjs e guarda-bash.mjs). Função pura.
+ * Ordem (a primeira fonte que responde vence):
+ *  1. variável MACUXI_AGENTE;
+ *  2. o agente que o guardião já usava, numa sessão LOCAL de agente ou num subagente:
+ *     argumento do hook (frontmatter); agent_type de subagente (agent_id no JSON do hook, ou
+ *     agent_type diferente do "agent" do .claude/settings.json); agent_type fora da nuvem
+ *     (CLAUDE_CODE_REMOTE != "true");
+ *  3. branch atual: <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente>, alexandre/* → alexandre,
+ *     nuvem/* → trailer "Agente: <nome>" do último commit do branch que o tem (commits desde o main);
+ *  4. fonte ausente ou ambígua (branch de alguém fora do time, trailers com agentes diferentes ou
+ *     desconhecidos, nenhum commit com trailer) → comportamento anterior: argumento || agent_type,
+ *     e '' (sessão manual) libera.
+ * Na nuvem (claude.ai/code) a sessão principal recebe o agent_type do "agent" do settings.json
+ * (gerente-projetos) seja qual for a tarefa; por isso lá o branch vem antes dele.
+ * @param {object} p
+ * @param {string} [p.argumento]      process.argv[2] do hook
+ * @param {{agent_type?: string, agent_id?: string}} [p.entrada]  JSON do hook
+ * @param {Record<string, string|undefined>} [p.env]
+ * @param {string|null} [p.agentePadrao]  "agent" do .claude/settings.json
+ * @param {() => (string|null)} [p.branch]   branch atual (null com HEAD destacado)
+ * @param {() => {sha: string, corpo: string}[]} [p.commitsDoBranch]  do mais novo ao mais velho, sem merges
+ * @returns {{agente: string, origem: string}}
+ */
+export function identificarAgente({ argumento = '', entrada = {}, env = {}, agentePadrao = null, branch = () => null, commitsDoBranch = () => [] } = {}) {
+  const arg = String(argumento || '').trim();
+  const tipo = String(entrada?.agent_type || '').trim();
+  const doEnv = String(env.MACUXI_AGENTE || '').trim().toLowerCase();
+  if (doEnv) return { agente: doEnv, origem: 'variável MACUXI_AGENTE' };
+  if (arg) return { agente: arg, origem: 'argumento do hook' };
+  const nuvem = String(env.CLAUDE_CODE_REMOTE || '').trim().toLowerCase() === 'true';
+  if (tipo && entrada?.agent_id) return { agente: tipo, origem: 'subagente (agent_type)' };
+  if (tipo && !nuvem) return { agente: tipo, origem: 'sessão local (agent_type)' };
+  if (tipo && agentePadrao && tipo !== agentePadrao) return { agente: tipo, origem: 'subagente (agent_type)' };
+  let b = null;
+  try { b = branch(); } catch { b = null; }
+  if (b) {
+    const r = agenteDoBranch(b);
+    if (r.agente) return { agente: r.agente, origem: `branch ${b}` };
+    if (r.nuvem) {
+      let commits = [];
+      try { commits = commitsDoBranch() || []; } catch { commits = []; }
+      const nomes = new Set(commits.flatMap((c) => trailersAgente(c.corpo)));
+      const [nome] = [...nomes];
+      if (nomes.size === 1 && PESSOAS.includes(nome)) return { agente: nome, origem: `trailer "Agente:" do branch ${b}` };
+    }
+  }
+  return { agente: arg || tipo, origem: tipo ? 'agent_type (fonte ausente ou ambígua)' : 'sessão manual' };
+}
+
+function gitSilencioso(raiz, args) {
+  try {
+    return execFileSync('git', args, { cwd: raiz, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, maxBuffer: 16 * 1024 * 1024 });
+  } catch { return null; }
+}
+
+/** Branch atual do repositório (null com HEAD destacado ou fora do git). */
+export function branchAtual(raiz = RAIZ) {
+  const b = gitSilencioso(raiz, ['rev-parse', '--abbrev-ref', 'HEAD'])?.trim();
+  return b && b !== 'HEAD' ? b : null;
+}
+
+/**
+ * Commits do branch (sem merges, do mais novo ao mais velho): desde origin/main (ou main);
+ * sem essas refs, só o último commit.
+ */
+export function commitsDoBranch(raiz = RAIZ) {
+  const base = ['origin/main', 'main'].find((r) => gitSilencioso(raiz, ['rev-parse', '--verify', '-q', `${r}^{commit}`]));
+  const intervalo = base ? [`${base}..HEAD`] : ['-1', 'HEAD'];
+  const out = gitSilencioso(raiz, ['log', '--no-merges', '--format=%H%x1f%B%x1e', ...intervalo]) || '';
+  return out.split('\x1e').map((s) => s.replace(/^\n/, '')).filter(Boolean).map((s) => {
+    const [sha, corpo] = s.split('\x1f');
+    return { sha, corpo: corpo || '' };
+  });
+}
+
+/** "agent" do .claude/settings.json (agente padrão da sessão principal), ou null. */
+export function agentePadraoDaConfig(raiz = RAIZ) {
+  try { return JSON.parse(readFileSync(join(raiz, '.claude', 'settings.json'), 'utf8')).agent || null; } catch { return null; }
+}
+
+/** identificarAgente com o git e o settings.json reais do repositório `raiz` (uso nos hooks). */
+export function agenteDaSessao({ argumento, entrada, env = process.env, raiz = RAIZ } = {}) {
+  return identificarAgente({
+    argumento, entrada, env, agentePadrao: agentePadraoDaConfig(raiz),
+    branch: () => branchAtual(raiz), commitsDoBranch: () => commitsDoBranch(raiz),
+  });
 }

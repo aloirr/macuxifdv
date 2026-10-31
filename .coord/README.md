@@ -25,6 +25,7 @@ node scripts/coord.mjs verificar modulo-core --base origin/main  # diff do branc
 node scripts/coord.mjs verificar --base origin/main              # agente inferido do branch ou dos trailers
 node scripts/coord.mjs verificar                                 # sem agente: lista agrupada por dono
 node scripts/coord.mjs verificar --por-dono                      # idem, mesmo com agente no branch
+node scripts/coord.mjs verificar --por-commit origin/main..HEAD  # cada commit × o agente do próprio trailer
 ```
 
 | Situação | Sem `--base` | Com `--base <ref>` |
@@ -49,3 +50,27 @@ node scripts/coord.mjs verificar --por-dono                      # idem, mesmo c
 - Código de saída: **0** sem violação · **1** com violação · **2** erro de uso ou de git (agente desconhecido ou ambíguo, ref não encontrada, trailer faltando).
 - No CI (checkout limpo) a base precisa existir localmente: `actions/checkout` com `fetch-depth: 0` ou `git fetch origin main` antes de rodar `node scripts/coord.mjs verificar --base origin/main`.
 - Testes do script: `node --test scripts/coord-verificar.test.mjs` (casos A1–A11 e B1–B12 do engenheiro, R-20261031-071802-engenheiro-software).
+
+### Por commit (`--por-commit <de>..<até>`) — push direto ao `main`
+
+Os agentes locais enviam direto ao `main`, um commit por tarefa, cada um com o trailer `Agente: <nome>`. O `--base` olha o branch inteiro como de um só agente; o `--por-commit` confere **cada** commit de `git log <de>..<até>` contra o agente do trailer **daquele** commit, com as mesmas regras e exceções do `--base` (tabela acima, coluna "Com `--base`").
+
+- Commit de merge (mais de um pai) é ignorado.
+- Commit sem o trailer, com agente fora do time ou com dois agentes diferentes → código **2** com a lista desses commits (os demais são conferidos e aparecem na saída).
+- `alexandre` nunca viola por dono (sem-dono, congelado e recado alterado continuam violação).
+- Intervalo vazio → OK (0). Início `000…0` (push que cria o branch), ref inexistente ou combinar com agente/`--base`/`--por-dono` → 2.
+- Saída: um bloco por commit (`== <sha> <assunto> — agente: <nome> (trailer)` + OK/Exceções/Outros donos/VIOLAÇÃO) e o resultado; **0** sem violação · **1** com violação · **2** erro.
+- No CI, no push ao `main`: `actions/checkout` com `fetch-depth: 0` e os SHAs por variável de ambiente (sem interpolar `${{ }}` no shell): `env: { ANTES: ${{ github.event.before }}, DEPOIS: ${{ github.sha }} }` → `node scripts/coord.mjs verificar --por-commit "$ANTES..$DEPOIS"`.
+
+## Identificação do agente nos guardiões (guardião v3)
+
+Os guardiões (`.claude/hooks/guarda-donos.mjs` para Edit/Write e `guarda-bash.mjs` para o Bash) descobrem o agente da sessão nesta ordem (`identificarAgente` em `scripts/coord-lib.mjs`):
+
+1. Variável **`MACUXI_AGENTE`** (ex.: `MACUXI_AGENTE=alexandre`).
+2. O agente de sempre numa **sessão local de agente** ou num **subagente**: argumento do hook (frontmatter) ou `agent_type` do JSON do hook. Na nuvem (`CLAUDE_CODE_REMOTE=true`) o `agent_type` só vale se for de subagente (`agent_id` presente ou diferente do `"agent"` do `.claude/settings.json`), porque a sessão principal da nuvem sempre recebe `gerente-projetos` dali.
+3. **Branch atual**: `<agente>/T-nnnn-...`, `agente/T-nnnn-<agente>`, `alexandre/*` → `alexandre`; `nuvem/*` → trailer `Agente: <nome>` do último commit do branch (desde o `origin/main`) que o tenha.
+4. Fonte ausente ou ambígua (trailers com agentes diferentes ou desconhecidos, branch `nuvem/*` ainda sem commit com trailer, branch de alguém fora do time) → comportamento anterior (`argumento || agent_type`; sem agente = sessão manual, liberada).
+
+- Na nuvem, numa tarefa `nuvem/*`, o **primeiro commit** com o trailer `Agente: <nome>` é o que identifica a sessão; antes dele o guardião trata a sessão como `gerente-projetos`. Use um branch `<agente>/T-nnnn-...` ou `alexandre/...` para ser identificado desde o início.
+- `alexandre` identificado altera arquivo de qualquer dono; `sem-dono`, `congelado`, recado existente e diário/lidos de outro continuam barrados.
+- Testes: `node --test .claude/hooks/*.test.mjs`.
