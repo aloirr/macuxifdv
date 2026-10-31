@@ -4,9 +4,11 @@
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
- * colunas daqui batem com o banco migrado.
+ * colunas daqui batem com o banco migrado. Perfis vêm de @macuxi/platform-sdk (fonte única); o CHECK
+ * do SQL é comparado com eles em db/testes/estatico.test.ts.
  */
 import { boolean, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { PERFIS } from '@macuxi/platform-sdk';
 
 export const plataforma = pgSchema('plataforma');
 
@@ -46,8 +48,6 @@ export const tenantModulo = plataforma.table('tenant_modulo', {
   ativado_em: timestamp('ativado_em', { withTimezone: true }),
   desativado_em: timestamp('desativado_em', { withTimezone: true }),
 });
-
-export const PERFIS = ['admin', 'analista', 'assistente', 'supervisor', 'gerente', 'vendedor', 'promotor'] as const;
 
 export const perfilModulo = plataforma.table('perfil_modulo', {
   ...comuns(),

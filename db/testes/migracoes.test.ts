@@ -77,4 +77,21 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       await expect(migrarUp(c)).rejects.toThrow(/foi editada/);
     });
   });
+
+  it('down de migração aplicada editado (checksum_down diferente) aborta o up e o down; linha antiga é completada', async () => {
+    const b = await bancoVazio();
+    await comAdmin(b.nome, async (c) => {
+      await migrarUp(c);
+      const migs = lerMigracoes();
+      expect((await listarAplicadas(c)).map((a) => a.checksum_down)).toEqual(migs.map((m) => m.checksumDown));
+      await c.query("update public.macuxi_migracao set checksum_down = null where versao = '0001'");
+      await migrarUp(c);
+      expect((await listarAplicadas(c))[0]?.checksum_down).toBe(migs[0]?.checksumDown);
+      await c.query("update public.macuxi_migracao set checksum_down = 'adulterado' where versao = '0002'");
+      await expect(migrarUp(c)).rejects.toThrow(/down da migração aplicada 0002_core foi editado/);
+      await expect(migrarDown(c)).rejects.toThrow(/down da migração aplicada 0002_core foi editado/);
+      const r = await c.query("select count(*)::int as n from pg_namespace where nspname = 'core'");
+      expect(r.rows[0].n).toBe(1);
+    });
+  });
 });

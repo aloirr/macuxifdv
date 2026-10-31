@@ -72,9 +72,12 @@ Fora do índice de sync `(tenant_id, updated_at, id)` (não são puxadas pelo ap
   `SECURITY DEFINER` (roda como o dono, que ignora RLS) e devolve só `id, nome, fuso, status`. Depois a
   API abre transação com o tenant resolvido e busca o usuário por `lower(email)`.
   Premissa: o dono das funções é superusuário ou tem `BYPASSRLS` (em nuvem gerenciada, conceder ao papel migrador).
-- **Despacho do outbox (pg-boss)**: ainda não implementado. Proposta: papel `macuxi_worker` com
-  `BYPASSRLS` restrito a `plataforma.evento`, **ou** worker que itera por tenant com `comTenant`. Decidir com o
-  `engenheiro-software` quando o pg-boss entrar.
+- **Despacho do outbox (pg-boss)**: ainda não implementado (T-0004, depois da ADR do engenheiro). Desenho
+  aceito em [docs/desenho/T-0002.md §5](../desenho/T-0002.md): papel `macuxi_worker` **NOBYPASSRLS** (`BYPASSRLS`
+  vale para o papel inteiro, não dá para restringir a uma tabela) com **política própria** só em
+  `plataforma.evento` e grants por coluna (ler o envelope; atualizar `publicado_em`, `tentativas`, `ultimo_erro`),
+  sem grant em `core.*` nem nos schemas dos módulos. O handler do consumidor roda como `macuxi_app` em
+  `comTenant(envelope.tenant_id)`, com o RLS normal. Plano B: funções `SECURITY DEFINER`.
 
 ## Testes que provam
 | ID | Onde |

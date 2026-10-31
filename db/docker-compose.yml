@@ -19,11 +19,14 @@ services:
       - timezone=UTC
       - -c
       - log_timezone=UTC
-      # registra consultas lentas (> 300 ms, meta p95 do doc 04) para EXPLAIN depois
+      # registra consultas lentas (> 300 ms, meta p95 do doc 04) para EXPLAIN depois. Inclui os parâmetros
+      # (aqui só dados fictícios); em nuvem: log_parameter_max_length=0 e log_parameter_max_length_on_error=0
+      # (docs/banco/README.md, "Logs do Postgres").
       - -c
       - log_min_duration_statement=300
     ports:
-      - "${MACUXI_PG_PORTA:-5432}:5432"
+      # só na interface local: o superusuário local (postgres/postgres) não fica exposto na rede
+      - "127.0.0.1:${MACUXI_PG_PORTA:-5432}:5432"
     volumes:
       - macuxi-pgdata:/var/lib/postgresql/data
     healthcheck:

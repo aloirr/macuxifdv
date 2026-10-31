@@ -11,19 +11,17 @@
  */
 import type { TestProject } from 'vitest/node';
 import { criarBancoDeTeste, postgresDisponivel } from '../src/banco-teste';
-import { lerConfig, type ConfigBanco } from '../src/config';
+import { HOSTS_LOCAIS, lerConfig, type ConfigBanco } from '../src/config';
 import { dockerRodando, subirPostgres } from '../src/docker';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
 import { VAR_MOTIVO_PULO } from './aviso-pulos';
-
-const HOSTS_LOCAIS = new Set(['localhost', '127.0.0.1', '::1']);
 
 /** Motivo pelo qual o banco não está acessível (null = acessível, possivelmente após subir o Docker). */
 async function garantirPostgres(cfg: ConfigBanco): Promise<string | null> {
   const d = await postgresDisponivel(cfg);
   if (d.ok) return null;
   const semPostgres = `Postgres indisponível em ${cfg.host}:${cfg.porta} (${d.motivo})`;
-  if (!HOSTS_LOCAIS.has(cfg.host)) return semPostgres;
+  if (!HOSTS_LOCAIS.includes(cfg.host)) return semPostgres;
   const docker = dockerRodando();
   if (!docker.ok) return `Docker não está rodando (${docker.motivo})`;
   if (process.env.MACUXI_PG_AUTO_SUBIR === '0') return `${semPostgres}; Docker rodando, mas MACUXI_PG_AUTO_SUBIR=0`;

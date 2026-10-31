@@ -10,7 +10,7 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
    `export PATH="$PATH:/c/Program Files/Docker/Docker/resources/bin"` (no PowerShell:
-   `$env:Path += ";C:Program FilesDockerDockeresourcesin"`). O CLI e os testes acham esse
+   `$env:Path += ";C:\Program Files\Docker\Docker\resources\bin"`). O CLI e os testes acham esse
    caminho sozinhos; o PATH só importa para usar `docker` à mão.
 2. **Subir** (baixa `pgvector/pgvector:pg16` na 1ª vez, cria o banco `macuxi` e migra):
    `pnpm --filter @macuxi/db banco subir` → `[banco] pronto: localhost:5432/macuxi`.
@@ -30,7 +30,23 @@ o CLI usam a mesma variável.
 - Node >= 24.7 para os seeds/fixtures (usam `crypto.argon2Sync` nativo para o hash argon2id).
 - `db` registrado no `pnpm-workspace.yaml` e `pnpm install` rodado (traz `pg`, `drizzle-orm`, `drizzle-kit`).
 - Opcional: copiar `db/.env.example` para `db/.env` (ou para a `.env` da raiz). Sem `.env`, valem os
-  padrões locais (porta 5432, admin `postgres`/`postgres`, banco `macuxi`, papel `macuxi_app`).
+  padrões locais (porta 5432 só em `127.0.0.1`, admin `postgres`/`postgres`, banco `macuxi`, papel `macuxi_app`).
+
+## Banco que não é o local (homologação, nuvem)
+Os padrões acima são **públicos** e valem só para o Postgres local: host `localhost`, `127.0.0.1`, `::1` ou
+`macuxi-postgres` (lista `HOSTS_LOCAIS` em `db/src/config.ts`, a mesma do `global-setup`) **e** `NODE_ENV`
+diferente de `production`. Fora disso:
+- `lerConfig` **falha** se faltar `MACUXI_PG_ADMIN_SENHA` ou `MACUXI_PG_APP_SENHA` (ou se vierem com a senha
+  pública local), com a mensagem `[db] Banco fora do ambiente local (...): defina ... no .env`. Assim
+  `banco papeis`/`migrar`/`criar-teste` nunca gravam a senha pública no papel `macuxi_app`;
+  `garantirPapelApp` ainda recusa a senha pública se o cliente não estiver num host local (segunda trava).
+- `banco seed fase-m` (`carregarFaseM`: senha `demo-macuxi` e usuários fictícios) **recusa** rodar.
+- Segredos só no `.env` (CLAUDE.md regra 8). Testes: `db/testes/ambiente-local.test.ts`.
+
+## Logs do Postgres
+O compose local liga `log_min_duration_statement=300` (consultas lentas para EXPLAIN), que registra também os
+parâmetros da consulta (aqui só dados fictícios). Em nuvem, para não levar dado pessoal ao log (regra 8), use
+`log_parameter_max_length=0` e `log_parameter_max_length_on_error=0`.
 
 ## Comandos (rodar na raiz)
 | O quê | Comando |
@@ -103,9 +119,9 @@ await pool.end(); await banco.apagar();
 ## Arquivos
 | Caminho | Conteúdo |
 |---|---|
-| `db/docker-compose.yml` | serviço `postgres` (pgvector/pgvector:pg16), volume `macuxi-pgdata`, porta 5432, UTC |
+| `db/docker-compose.yml` | serviço `postgres` (pgvector/pgvector:pg16), volume `macuxi-pgdata`, porta 5432 só em `127.0.0.1`, UTC |
 | `db/migrations/NNNN_nome.up.sql` / `.down.sql` | migrações versionadas (SQL), sempre com caminho de volta |
-| `db/src/migrador.ts` | executor up/down com checksum (migração aplicada não pode ser editada) e advisory lock |
+| `db/src/migrador.ts` | executor up/down com checksum do up e do down (migração aplicada não pode ser editada) e advisory lock |
 | `db/src/contexto.ts` | `comTenant` / `definirTenant` (contexto do tenant por transação) |
 | `db/src/papeis.ts` | papel `macuxi_app` e diagnóstico (S0-028) |
 | `db/src/banco-teste.ts` | banco efêmero, disponibilidade do Postgres |
@@ -120,15 +136,23 @@ await pool.end(); await banco.apagar();
 
 ## Migrações: regras
 1. Uma migração = `NNNN_nome.up.sql` + `NNNN_nome.down.sql`, numeração contínua (o executor recusa buraco).
-2. **Nunca edite migração aplicada** — o checksum (sha256, fim de linha normalizado) diferente aborta o `up`. Crie a próxima.
+2. **Nunca edite migração aplicada** — checksum (sha256, fim de linha normalizado) do `.up.sql` diferente aborta o `up`;
+   o do `.down.sql` diferente aborta o `up` e o `down`. Crie a próxima.
 3. Toda tabela nova: campos comuns, `enable` + `force row level security`, política `isolamento_tenant`
    para `macuxi_app`, grant explícito, índice `(tenant_id, updated_at, id)` se for sincronizada. O teste
    estático reprova o `create table` que esquecer algum.
 4. O `down` apaga dados (DROP SCHEMA ... CASCADE). Em produção, só com backup e decisão registrada.
 5. Drizzle é espelho: ao mudar o SQL, ajuste `db/esquema/*.ts` ou `modules/<m>/db/nuvem.ts` (o teste Drizzle x banco acusa).
+6. Perfis: a fonte única é `PERFIS` de `@macuxi/platform-sdk`. O Drizzle importa de lá; os `check (perfil in (...))`
+   das migrações são comparados com ela em `db/testes/estatico.test.ts` (perfil novo = migração nova trocando o CHECK).
 
 Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataforma.md), [core.md](core.md).
 
 ## Pendências
-- Índice para o pull da carteira por usuário incluindo excluídas (ver [desempenho-sync.md](desempenho-sync.md)) — entra junto com a rota de sync (T-0003+).
-- Desenho do despacho da outbox entre tenants (pg-boss) com o engenheiro.
+Registradas para a **T-0004** em [docs/desenho/T-0002.md §6](../desenho/T-0002.md):
+- Índice para o pull da carteira por usuário incluindo excluídas, `carteira_usuario_sync_ix (tenant_id, usuario_id,
+  updated_at, id)` sem filtro de `deleted_at` (ver [desempenho-sync.md](desempenho-sync.md)) — migração nova junto
+  com a rota `/v1/sync/pull`.
+- Despacho da outbox entre tenants (pg-boss): desenho aceito em [§5](../desenho/T-0002.md) (papel `macuxi_worker`
+  **NOBYPASSRLS** com política própria em `plataforma.evento`); implementação na T-0004, depois da ADR do engenheiro.
+- Cursor do pull com transação longa (`updated_at = now()` é o início da transação): tratado na rota de pull (T-0004).

@@ -7,7 +7,7 @@
  *   tabelas têm FORCE ROW LEVEL SECURITY. É o único papel com que a API conecta.
  */
 import type { ClientBase } from 'pg';
-import { PAPEL_APP } from './config';
+import { exigirBancoLocal, hostDoCliente, PAPEL_APP, SENHA_APP_LOCAL } from './config';
 
 /** Chave do advisory lock que serializa CREATE/ALTER ROLE (diferente da chave do migrador). */
 const CHAVE_LOCK_PAPEL = 0x6d6163757870;
@@ -21,6 +21,8 @@ const CHAVE_LOCK_PAPEL = 0x6d6163757870;
  */
 export async function garantirPapelApp(admin: ClientBase, senha: string): Promise<void> {
   if (!senha) throw new Error('Senha do papel de aplicação vazia (MACUXI_PG_APP_SENHA).');
+  // Segunda trava (a primeira é lerConfig): a senha pública local nunca vai para o papel de um banco não local.
+  if (senha === SENHA_APP_LOCAL) exigirBancoLocal(hostDoCliente(admin), 'Gravar a senha pública local no papel macuxi_app');
   const atributos = 'login nosuperuser nobypassrls nocreatedb nocreaterole noreplication';
   const senhaSql = admin.escapeLiteral(senha);
   await admin.query('begin');

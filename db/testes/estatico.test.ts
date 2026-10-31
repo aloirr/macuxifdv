@@ -3,6 +3,7 @@
  * Drizzle, a fixture dois-tenants e o seed da Fase M contra as regras (CLAUDE.md regra 5, RN-CORE-05).
  */
 import * as crypto from 'node:crypto';
+import { PERFIS } from '@macuxi/platform-sdk';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 import * as nuvemCore from '../../modules/core/db/nuvem';
@@ -107,6 +108,21 @@ describe('Drizzle x migrações (estático)', () => {
       expect(cfg.columns.map((c) => c.name).sort()).toEqual(doSql);
     });
   }
+});
+
+describe('perfis: SQL e Drizzle x @macuxi/platform-sdk (fonte única)', () => {
+  const doSdk = [...PERFIS].sort();
+
+  it('todo CHECK de perfil das migrações tem exatamente os PERFIS do platform-sdk', () => {
+    const checks = [...sqlUp.matchAll(/check \(perfil in \(([^)]*)\)\)/g)].map((m) => [...m[1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!).sort());
+    expect(checks.length, 'CHECKs de perfil (plataforma.perfil_modulo e core.usuario)').toBe(2);
+    for (const lista of checks) expect(lista).toEqual(doSdk);
+  });
+
+  it('colunas perfil do Drizzle usam os PERFIS do platform-sdk', () => {
+    expect([...(esquemaPlataforma.perfilModulo.perfil.enumValues ?? [])].sort()).toEqual(doSdk);
+    expect([...(nuvemCore.usuario.perfil.enumValues ?? [])].sort()).toEqual(doSdk);
+  });
 });
 
 describe('fixture dois-tenants (estático)', () => {

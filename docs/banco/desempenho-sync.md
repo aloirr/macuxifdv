@@ -33,7 +33,7 @@ Volume: tenants 10 · produtos 200003 · clientes 5004 · carteira 1505 (por ten
    `tenant_id = tenant_atual()` como primeira coluna do `Index Cond` de `produto_sync_ix`; a comparação de
    linha `(updated_at, id) > ($1, $2)` entra na mesma condição. Paginação por cursor sem `OFFSET`, custo
    constante em qualquer página (Q1 ≈ Q2, ~500 buffers).
-3. **Contrato do pull para a API (T-0003+)**: `where (updated_at, id) > ($cursor_ts, $cursor_id) order by
+3. **Contrato do pull para a API (T-0004, rota `/v1/sync/pull`)**: `where (updated_at, id) > ($cursor_ts, $cursor_id) order by
    updated_at, id limit N` — exatamente nessa forma (comparação de LINHA, não `updated_at > x or (...)`),
    para casar com o índice `(tenant_id, updated_at, id)`. Não repetir `tenant_id = $t` é opcional: o RLS já
    põe a condição; repetir não atrapalha o plano.
@@ -45,7 +45,8 @@ Volume: tenants 10 · produtos 200003 · clientes 5004 · carteira 1505 (por ten
 6. **Pendência anotada — carteira com excluídas (Q6)**: o pull da carteira do vendedor precisa trazer
    também as linhas excluídas (tombstones), e o índice `carteira_usuario_ix` é parcial (`deleted_at is
    null`), então hoje é `Seq Scan` (1,5 mil linhas, 1,7 ms — irrelevante agora). Quando a rota de sync
-   existir, criar em migração nova `carteira_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`.
+   existir (T-0004), criar em migração nova `carteira_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`
+   (docs/desenho/T-0002.md §6.2).
    `core.usuario` (Q7) também faz Seq Scan por ter poucas linhas — esperado.
 
 ## Planos (EXPLAIN ANALYZE, BUFFERS)

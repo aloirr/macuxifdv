@@ -2,8 +2,9 @@
  * Executor de migrações up/down (dono: banco-dados).
  *
  * Convenção: db/migrations/NNNN_nome.up.sql + NNNN_nome.down.sql (toda migração tem caminho de volta).
- * Controle em public.macuxi_migracao (versão, nome, checksum). Migração aplicada NÃO pode ser editada:
- * o checksum diferente aborta o `up` (crie uma nova migração).
+ * Controle em public.macuxi_migracao (versão, nome, checksum do up e do down). Migração aplicada NÃO pode
+ * ser editada: checksum do up diferente aborta o `up`; checksum do down diferente aborta o `up` e o
+ * `down` (crie uma nova migração). Linhas antigas sem checksum_down recebem o atual no próximo `up`.
  * Cada migração roda numa transação; um advisory lock impede dois executores ao mesmo tempo.
  */
 import { createHash } from 'node:crypto';
@@ -18,12 +19,14 @@ export interface Migracao {
   up: string;
   down: string;
   checksum: string;
+  checksumDown: string;
 }
 
 export interface MigracaoAplicada {
   versao: string;
   nome: string;
   checksum: string;
+  checksum_down: string | null;
   aplicada_em: Date;
 }
 
@@ -60,7 +63,7 @@ export function lerMigracoes(pasta = PASTA_MIGRACOES): Migracao[] {
     const item = porVersao.get(versao)!;
     if (!item.up) throw new Error(`Migração ${versao}_${item.nome} sem .up.sql`);
     if (!item.down) throw new Error(`Migração ${versao}_${item.nome} sem .down.sql (toda migração precisa de caminho de volta)`);
-    return { versao, nome: item.nome, up: item.up, down: item.down, checksum: checksum(item.up) };
+    return { versao, nome: item.nome, up: item.up, down: item.down, checksum: checksum(item.up), checksumDown: checksum(item.down) };
   });
 }
 
@@ -72,13 +75,22 @@ async function garantirControle(c: ClientBase): Promise<void> {
       checksum    text not null,
       aplicada_em timestamptz not null default now()
     )`);
+  // coluna nova (revisão T-0002): add column if not exists mantém compatível o controle já criado
+  await c.query('alter table public.macuxi_migracao add column if not exists checksum_down text');
   await c.query('revoke all on public.macuxi_migracao from public');
 }
 
 export async function listarAplicadas(c: ClientBase): Promise<MigracaoAplicada[]> {
   await garantirControle(c);
-  const r = await c.query<MigracaoAplicada>('select versao, nome, checksum, aplicada_em from public.macuxi_migracao order by versao');
+  const r = await c.query<MigracaoAplicada>('select versao, nome, checksum, checksum_down, aplicada_em from public.macuxi_migracao order by versao');
   return r.rows;
+}
+
+/** O .down.sql de migração aplicada também não pode mudar (linha antiga sem checksum_down passa). */
+function conferirDown(arquivo: Migracao, a: MigracaoAplicada): void {
+  if (a.checksum_down !== null && a.checksum_down !== arquivo.checksumDown) {
+    throw new Error(`O down da migração aplicada ${a.versao}_${a.nome} foi editado (checksum_down diferente). Nunca edite migração aplicada: crie uma nova.`);
+  }
 }
 
 async function comLock<T>(c: ClientBase, fn: () => Promise<T>): Promise<T> {
@@ -105,6 +117,10 @@ export async function migrarUp(c: ClientBase, opcoes: { ate?: string; pasta?: st
       if (arquivo.checksum !== a.checksum) {
         throw new Error(`Migração aplicada ${versao}_${a.nome} foi editada (checksum diferente). Nunca edite migração aplicada: crie uma nova.`);
       }
+      conferirDown(arquivo, a);
+      if (a.checksum_down === null) {
+        await c.query('update public.macuxi_migracao set checksum_down = $1 where versao = $2', [arquivo.checksumDown, versao]);
+      }
     }
     const feitas: string[] = [];
     for (const m of todas) {
@@ -113,7 +129,7 @@ export async function migrarUp(c: ClientBase, opcoes: { ate?: string; pasta?: st
       await c.query('begin');
       try {
         await c.query(m.up);
-        await c.query('insert into public.macuxi_migracao (versao, nome, checksum) values ($1, $2, $3)', [m.versao, m.nome, m.checksum]);
+        await c.query('insert into public.macuxi_migracao (versao, nome, checksum, checksum_down) values ($1, $2, $3, $4)', [m.versao, m.nome, m.checksum, m.checksumDown]);
         await c.query('commit');
       } catch (e) {
         await c.query('rollback');
@@ -135,6 +151,7 @@ export async function migrarDown(c: ClientBase, opcoes: { passos?: number; tudo?
     for (const a of alvo) {
       const m = todas.get(a.versao);
       if (!m) throw new Error(`Não há arquivo para desfazer ${a.versao}_${a.nome}`);
+      conferirDown(m, a);
       await c.query('begin');
       try {
         await c.query(m.down);

@@ -7,8 +7,10 @@
  * Mapeamento de perfis Fase M -> plataforma: seller->vendedor, manager->gerente, analyst->analista,
  * bko_assistant->assistente, admin->admin. A Fase M não tinha supervisor nem promotor.
  * Senha de todos: MACUXI_SENHA_DEMO (padrão "demo-macuxi", só para demonstração local), argon2id.
+ * Só roda contra o Postgres local (exigirBancoLocal): senha pública + usuários fake nunca vão para banco compartilhado.
  */
 import type { ClientBase } from 'pg';
+import { exigirBancoLocal, hostDoCliente } from '../../src/config';
 import { gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
 import { hashSenha } from '../../src/senha';
@@ -197,6 +199,7 @@ export function dadosFaseM(senhaHash: string): DadosFaseM {
 
 /** Carrega o seed com cliente ADMIN, numa transação. Rodar 2× não duplica (S0-033). */
 export async function carregarFaseM(admin: ClientBase, opcoes: { senha?: string } = {}): Promise<DadosFaseM> {
+  exigirBancoLocal(hostDoCliente(admin), 'Seed de demonstração da Fase M');
   const senha = opcoes.senha ?? process.env.MACUXI_SENHA_DEMO ?? 'demo-macuxi';
   const dados = dadosFaseM(hashSenha(senha));
   await admin.query('begin');
