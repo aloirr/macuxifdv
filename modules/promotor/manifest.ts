@@ -1,12 +1,23 @@
 import { defineModule } from '@macuxi/platform-sdk';
 
-// RN-PRO-01: o promotor nunca cria/edita/exclui pedido; este manifesto não declara nenhuma ação de pedido.
+/** Doc 03 §2: coletas de trade (gôndola, share, preço, ruptura, validade, pontos extras) = só o promotor. */
+const PERFIL_COLETA = ['promotor'] as const;
+/** Doc 03 §2: cadastros de trade (mix, metas de share, concorrentes, planogramas, checklists, tarefas) = analista e admin. */
+const PERFIS_CADASTRO = ['analista', 'admin'] as const;
+
+/**
+ * Manifesto do Promotor.
+ * RN-PRO-01: o promotor nunca cria/edita/exclui pedido (UI e API); este manifesto não declara nenhuma
+ * ação do tipo e o teste `domain/rn-pro-01.test.ts` garante isso.
+ * Supervisor, gerente e analista só LEEM coletas e relatórios (perfis do módulo, sem ação de escrita);
+ * `admin` entra em `perfis` para o BKO de cadastros de trade (doc 03 §2).
+ */
 export const manifest = defineModule({
   id: 'promotor',
   versao: '0.1.0',
   depende: ['core'],
   opcionais: ['catalogo', 'pesquisa', 'vendedor'],
-  perfis: ['promotor', 'supervisor', 'gerente', 'analista'],
+  perfis: ['promotor', 'supervisor', 'gerente', 'analista', 'admin'],
   apps: { campo: { abas: ['Loja'] }, gestao: { abas: ['Trade'] }, web: { menus: ['Trade marketing'] } },
   sync: ['checklist_loja', 'mix_obrigatorio', 'meta_share', 'concorrente', 'produto_concorrente', 'foto_referencia', 'tarefa_trade'],
   publica: [
@@ -19,6 +30,28 @@ export const manifest = defineModule({
   ],
   consome: ['core.visita.checkin@1', 'core.visita.checkout@1'],
   usaExtensoes: ['cliente.abas', 'visita.etapas_checkout', 'inicio.cards'],
+  acoes: {
+    // --- coletas (app Macuxi Campo; só com check-in aberto, RN-PRO-02) ---
+    'coleta.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Registrar a visita de loja e as fotos da coleta (RN-PRO-02)' },
+    'checklist_loja.responder': { perfis: [...PERFIL_COLETA], descricao: 'Responder o checklist do dia da loja (RF-PRO-02)' },
+    'gondola.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Fotos antes/depois e conformidade da gôndola (RF-PRO-03)' },
+    'share.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Medir o share de gôndola por categoria (RF-PRO-04)' },
+    'preco.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Coletar preço de prateleira e promoção (RF-PRO-05)' },
+    'ruptura.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Registrar presença e ruptura do mix obrigatório (RF-PRO-06)' },
+    'validade.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Registrar validade próxima e avarias (RF-PRO-07)' },
+    'ponto_extra.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Registrar e conferir pontos extras e material de PDV (RF-PRO-08)' },
+    'concorrencia.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Registrar ações e lançamentos da concorrência (RF-PRO-09)' },
+    'tarefa_trade.concluir': { perfis: [...PERFIL_COLETA], descricao: 'Concluir tarefa de campanha com foto de comprovação (RF-PRO-10)' },
+    // --- cadastros de trade (BKO; RF-PRO-11) ---
+    'mix_obrigatorio.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Mix obrigatório por loja, rede ou canal, com vigência (RN-PRO-10)' },
+    'meta_share.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Metas de share por loja/categoria, com vigência (RN-PRO-10)' },
+    'categoria_gondola.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Categorias de gôndola' },
+    'concorrente.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Concorrentes e seus produtos' },
+    'foto_referencia.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Fotos e planogramas de referência' },
+    'checklist_modelo.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Checklists por loja, rede ou canal, com vigência (RN-PRO-10)' },
+    'ponto_extra_negociado.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Pontos extras negociados com a loja' },
+    'tarefa_trade.gerenciar': { perfis: [...PERFIS_CADASTRO], descricao: 'Criar e acompanhar tarefas pontuais de trade' },
+  },
 });
 
 export default manifest;
