@@ -1,1 +1,14 @@
-export {};
+/**
+ * Domain do módulo Integracao: regras puras do Hub `/integracao/v1` (RN-INT-01..09).
+ * Sem I/O: a API grava/lê; aqui só decide.
+ */
+export * from './parametros';
+export * from './envelope';
+export * from './erros';
+export * from './idempotencia';
+export * from './ordem';
+export * from './cursor';
+export * from './sessao';
+export * from './reconciliacao';
+export * from './estados';
+export * from './versao';
