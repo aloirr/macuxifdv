@@ -11,7 +11,9 @@ const PERFIS_GESTAO = ['supervisor', 'gerente', 'analista', 'admin'] as const;
  * Manifesto do Treinamento.
  * Publica `treinamento.licao.concluida@1` e `treinamento.medalha.conquistada@1` (doc 02); outros fatos (trilha
  * concluída, nível) viajam dentro de `licao.concluida` (`trilha_concluida`) e não têm evento próprio.
- * Consome `vendedor.pedido.criado@1` só como opcional (desafios de vendas, RF-TRE-06): o módulo funciona sem o Vendedor.
+ * Consome só `vendedor.pedido.faturado@1`, e como opcional (desafios de vendas, RF-TRE-06; paga no faturamento vindo
+ * do ERP, total ou parcial): o módulo funciona sem o Vendedor. Não consome `vendedor.pedido.criado@1`. Contrato do evento em
+ * .coord/contratos/eventos.md e docs/desenho/T-0011.md (idempotente por `evento_id`, itens somados).
  * O escopo do dado (equipe/regional no ranking, adesão da equipe) fica no domain + API (RN-CORE-04), não nas ações.
  */
 export const manifest = defineModule({
@@ -23,7 +25,7 @@ export const manifest = defineModule({
   apps: { campo: { abas: ['Treinar'] }, gestao: { abas: ['Treinar'] }, web: { menus: ['Trilhas'] } },
   sync: ['trilha', 'modulo_trilha', 'licao', 'quiz', 'questao', 'alternativa', 'progresso', 'tentativa', 'medalha', 'xp_lancamento', 'medalha_usuario', 'ranking_periodo'],
   publica: ['treinamento.licao.concluida@1', 'treinamento.medalha.conquistada@1'],
-  consome: ['vendedor.pedido.criado@1'],
+  consome: ['vendedor.pedido.faturado@1'],
   usaExtensoes: ['inicio.cards'],
   acoes: {
     // --- aluno (apps Campo e Gestão; funciona offline, a API revalida: RN-TRE-02/04) ---

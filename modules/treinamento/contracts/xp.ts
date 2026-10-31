@@ -13,8 +13,8 @@ export const LancamentoXp = z
     tenant_id: Uuid,
     usuario_id: Uuid,
     origem: OrigemXpContrato,
-    /** Lição, quiz ou trilha; data do streak (AAAA-MM-DD); `desafio_id:pedido_id` no desafio de vendas. */
-    referencia_id: z.string().min(1).max(100),
+    /** Lição, quiz ou trilha; data do streak (AAAA-MM-DD); `desafio_id:pedido_id:evento_id` (parcial) ou `desafio_id:pedido_id:total` no desafio de vendas. */
+    referencia_id: z.string().min(1).max(128),
     /** Pontos concedidos (já com o teto diário). */
     pontos: Pontos,
     /** Pontos antes do teto diário. */

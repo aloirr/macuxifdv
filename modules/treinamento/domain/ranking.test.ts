@@ -139,7 +139,7 @@ describe('RN-TRE-03 / RF-TRE-04: quem entra no ranking', () => {
     expect(r.map((l) => l.usuario_id)).toEqual(['u1']);
   });
 
-  it('premissa T-0011: só perfis do público do ranking (vendedor e promotor por padrão)', () => {
+  it('decisão 31/10: só perfis do público do ranking (vendedor e promotor por padrão)', () => {
     const us = [usuario('u1', 'Ana'), usuario('u2', 'Bruno', { perfil: 'promotor' }), usuario('u3', 'Carla', { perfil: 'supervisor' })];
     expect(calcularRanking({ ...base, usuarios: us, lancamentos: [], conclusoes: [] }).map((l) => l.usuario_id)).toEqual(['u1', 'u2']);
     const r = calcularRanking({ ...base, usuarios: us, lancamentos: [], conclusoes: [], perfis: ['supervisor'] });

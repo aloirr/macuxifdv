@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diasComAtividade, maiorSequencia, sequenciaAtual, sequenciaNaData } from './streak';
+import { atividadesQueContam, diasComAtividade, maiorSequencia, sequenciaAtual, sequenciaNaData } from './streak';
 
 describe('RF-TRE-03: streak (dias consecutivos com atividade, no fuso do tenant)', () => {
   it('RF-TRE-03: atividade perto da meia-noite UTC cai no dia do fuso do tenant (Manaus, UTC−4)', () => {
@@ -42,5 +42,32 @@ describe('RF-TRE-03: streak (dias consecutivos com atividade, no fuso do tenant)
   it('RF-TRE-03: maior sequência histórica (base da medalha de sequência)', () => {
     expect(maiorSequencia(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-10', '2026-10-11'])).toBe(3);
     expect(maiorSequencia([])).toBe(0);
+  });
+});
+
+describe('Ajuste B: o streak só conta lição concluída ou quiz respondido até o fim', () => {
+  it('RN-TRE-01: lição concluída e quiz finalizado contam; abrir e abandonar não', () => {
+    const registros = [
+      { tipo: 'licao_concluida', em: '2026-10-29T13:00:00Z' },
+      { tipo: 'quiz_finalizado', em: '2026-10-30T13:00:00Z' },
+      { tipo: 'licao_aberta', em: '2026-10-31T13:00:00Z' },
+      { tipo: 'quiz_iniciado', em: '2026-10-31T14:00:00Z' },
+      { tipo: 'quiz_abandonado', em: '2026-10-31T15:00:00Z' },
+    ] as const;
+    expect(atividadesQueContam(registros)).toEqual(['2026-10-29T13:00:00Z', '2026-10-30T13:00:00Z']);
+  });
+
+  it('RN-TRE-01: dia só com quiz abandonado quebra a sequência (abrir e sair não mantém o streak)', () => {
+    const contam = atividadesQueContam([
+      { tipo: 'licao_concluida', em: '2026-10-29T13:00:00Z' },
+      { tipo: 'licao_concluida', em: '2026-10-30T13:00:00Z' },
+      { tipo: 'quiz_abandonado', em: '2026-10-31T13:00:00Z' },
+    ]);
+    const dias = diasComAtividade(contam);
+    expect(sequenciaAtual(dias, '2026-10-31')).toEqual({ dias: 2, ativa_hoje: false, em_risco: true });
+  });
+
+  it('RN-TRE-01: tipo de atividade desconhecido não conta (padrão seguro)', () => {
+    expect(atividadesQueContam([{ tipo: 'qualquer_coisa', em: '2026-10-31T13:00:00Z' }])).toEqual([]);
   });
 });
