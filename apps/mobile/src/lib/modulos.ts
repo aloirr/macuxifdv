@@ -9,6 +9,7 @@
  * Enquanto o módulo não exporta `moduloApp`, o shell usa só o manifesto (sem telas).
  * Instalados: os 8 módulos (T-0004, lista em `instalados.ts`). Quem ainda não tem `app/` entra só pelo manifesto
  * (licença, sync e ações valem; nenhuma tela aparece) e ganha telas quando exportar `moduloApp`.
+ * O Catálogo é obrigatório desde a T-0007: o Vendedor depende dele (ADR-0005), senão `criarShell` recusa o Vendedor.
  */
 import type { ComponentType } from 'react';
 import * as appCatalogo from '@macuxi/catalogo/app';

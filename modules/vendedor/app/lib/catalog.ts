@@ -2,7 +2,8 @@
  * Busca local de produtos e clientes (funciona sem sinal) e textos de estoque. Puro.
  */
 import type { CustomerSummary } from '@macuxi/core/contracts';
-import type { DiscountPolicy as ApiDiscountPolicy, Product } from '../../contracts';
+import type { DiscountPolicy as ApiDiscountPolicy } from '../../contracts';
+import type { Product } from '@macuxi/catalogo/contracts';
 import type { CreditInput, DiscountPolicy } from '../../domain/order';
 
 const ACCENTS: Record<string, string> = { á: 'a', à: 'a', â: 'a', ã: 'a', ä: 'a', é: 'e', ê: 'e', è: 'e', í: 'i', ì: 'i', î: 'i', ó: 'o', ô: 'o', õ: 'o', ò: 'o', ú: 'u', ù: 'u', û: 'u', ü: 'u', ç: 'c', ñ: 'n' };

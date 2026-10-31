@@ -411,6 +411,9 @@ importers:
       '@fastify/cors':
         specifier: ^11.1.0
         version: 11.3.1
+      '@macuxi/catalogo':
+        specifier: workspace:*
+        version: link:../../modules/catalogo
       '@macuxi/comum':
         specifier: workspace:*
         version: link:../../packages/comum
@@ -781,6 +784,9 @@ importers:
 
   modules/vendedor:
     dependencies:
+      '@macuxi/catalogo':
+        specifier: workspace:*
+        version: link:../catalogo
       '@macuxi/comum':
         specifier: workspace:*
         version: link:../../packages/comum

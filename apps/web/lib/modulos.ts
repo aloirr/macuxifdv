@@ -8,6 +8,7 @@
  * Enquanto o módulo não exporta `moduloWeb`, o shell usa só o manifesto (sem páginas).
  * Instalados: os 8 módulos (T-0004). Módulo novo: manifesto em `instalados.ts` e o `web` dele em PAGINAS.
  * Quem ainda não tem `web/` entra só pelo manifesto (licença e ações valem; nenhuma página aparece).
+ * O Catálogo é obrigatório desde a T-0007: o Vendedor depende dele (ADR-0005), senão `criarShell` recusa o Vendedor.
  */
 import type { ComponentType } from 'react';
 import * as webCatalogo from '@macuxi/catalogo/web';
