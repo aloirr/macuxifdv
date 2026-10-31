@@ -80,13 +80,30 @@ describe('RN-CORE-04: escopo por perfil', () => {
   });
 });
 
-const linha = (usuario_id: string, perfil: 'vendedor' | 'promotor', status: PainelDia['status_dia'], o: { vendas?: number; meta?: number | null; mesVendas?: number; real?: number; plan?: number } = {}): PainelDia =>
+const linha = (
+  usuario_id: string,
+  perfil: 'vendedor' | 'promotor',
+  status: PainelDia['status_dia'],
+  o: { vendas?: number; meta?: number | null; mesVendas?: number; real?: number; plan?: number; planReal?: number; extras?: number | null; vendido?: number; faturado?: number } = {},
+): PainelDia =>
   ({
     usuario_id,
     perfil,
     data: '2026-10-30',
     status_dia: status,
-    visitas: { planejadas: o.plan ?? 0, realizadas: o.real ?? 0, em_andamento: 0, cobertura_pct: null, tempo_total_min: 0, tempo_medio_min: null, curtas: 0, conversao_pedido_pct: null },
+    visitas: {
+      planejadas: o.plan ?? 0,
+      realizadas: o.real ?? 0,
+      planejadas_realizadas: o.planReal ?? Math.min(o.real ?? 0, o.plan ?? 0),
+      visitas_extras: o.extras === undefined ? (o.plan ? Math.max(0, (o.real ?? 0) - (o.plan ?? 0)) : null) : o.extras,
+      em_andamento: 0,
+      cobertura_pct: null,
+      tempo_total_min: 0,
+      tempo_medio_min: null,
+      curtas: 0,
+      conversao_pedido_pct: null,
+    },
+    faturamento: o.vendas === undefined ? null : { vendido_cents: o.vendido ?? o.vendas, faturado_cents: o.faturado ?? 0, a_faturar_cents: (o.vendido ?? o.vendas) - (o.faturado ?? 0) },
     vendas: o.vendas === undefined ? null : { vendas_cents: o.vendas, pedidos: 1, clientes_positivados: 1, ticket_medio_cents: o.vendas, desconto_medio_pct: null },
     mes:
       o.vendas === undefined
@@ -120,8 +137,31 @@ describe('RF-GES-01: resumo da equipe do dia', () => {
       atingimento_pct: 35, // (50.000 + 20.000) ÷ 200.000
       visitas_realizadas: 7,
       visitas_planejadas: 11,
+      visitas_planejadas_realizadas: 7,
+      visitas_extras: 0,
       cobertura_pct: 63.64,
+      vendido_cents: 22_000,
+      faturado_cents: 0,
+      a_faturar_cents: 22_000,
     });
+  });
+
+  it('RN-GES-05: a cobertura da equipe usa só as visitas da rota (máx. 100%) e soma as extras à parte', () => {
+    const r = resumirEquipe(S1, ROSTER, [
+      linha(V1, 'vendedor', 'em_rota', { vendas: 0, real: 12, plan: 10, planReal: 10, extras: 2 }),
+      linha(V2, 'vendedor', 'em_rota', { vendas: 0, real: 5, plan: 10, planReal: 4, extras: 1 }),
+    ]);
+    expect(r).toMatchObject({ visitas_realizadas: 17, visitas_planejadas: 20, visitas_planejadas_realizadas: 14, visitas_extras: 3, cobertura_pct: 70 });
+    const semRota = resumirEquipe(S1, ROSTER, [linha(V1, 'vendedor', 'em_rota', { vendas: 0, real: 3, extras: null })]);
+    expect(semRota).toMatchObject({ cobertura_pct: null, visitas_extras: null });
+  });
+
+  it('RN-GES-06: vendido, faturado e a faturar somados na equipe', () => {
+    const r = resumirEquipe(S1, ROSTER, [
+      linha(V1, 'vendedor', 'em_rota', { vendas: 10_000, vendido: 10_000, faturado: 3_000 }),
+      linha(V2, 'vendedor', 'em_rota', { vendas: 5_000, vendido: 6_000, faturado: 6_000 }),
+    ]);
+    expect(r).toMatchObject({ vendido_cents: 16_000, faturado_cents: 9_000, a_faturar_cents: 7_000 });
   });
 
   it('membro sem linha de painel no dia conta como sem check-in; inativo não conta', () => {
@@ -133,7 +173,7 @@ describe('RF-GES-01: resumo da equipe do dia', () => {
 
   it('sem Vendedor ativo (nenhuma linha com vendas) o resumo não inventa zero: vendas/meta null', () => {
     const r = resumirEquipe(S1, ROSTER, [linha(P1, 'promotor', 'em_rota', { real: 1, plan: 2 })]);
-    expect(r).toMatchObject({ vendas_cents: null, pedidos: null, meta_cents: null, atingimento_pct: null });
+    expect(r).toMatchObject({ vendas_cents: null, pedidos: null, meta_cents: null, atingimento_pct: null, vendido_cents: null, faturado_cents: null, a_faturar_cents: null });
   });
 
   it('equipesAbaixo: um resumo por supervisor subordinado ao gerente', () => {

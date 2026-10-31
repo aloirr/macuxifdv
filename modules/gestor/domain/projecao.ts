@@ -20,6 +20,7 @@ import {
   type MedalhaConquistadaV1,
   type MetaDefinidaV1,
   type PedidoCriadoV1,
+  type PedidoFaturadoV1,
   type PrecoColetadoV1,
   type RespostaRegistradaV1,
   type RotaDiaPlanejadoV1,
@@ -52,10 +53,19 @@ export interface EntradaHistoricoPedido {
   em: string;
 }
 
+/** Um retorno de faturamento do ERP (`vendedor.pedido.faturado@1`), guardado por `evento_id`. */
+export interface FaturamentoPedido {
+  parcial: boolean;
+  faturado_em: string;
+  itens: PedidoFaturadoV1['itens'];
+}
+
 export interface PedidoFato {
   criado?: Versionado<PedidoCriadoV1>;
   /** Conjunto por `evento_id` (ordem de chegada irrelevante). */
   historico: Record<string, EntradaHistoricoPedido>;
+  /** RN-GES-06: faturamentos recebidos, conjunto por `evento_id` (o consumidor soma os itens). */
+  faturamentos?: Record<string, FaturamentoPedido>;
 }
 
 export interface VisitaFato {
@@ -69,6 +79,11 @@ export interface EstadoProjecao {
   /** `evento_id` já aplicados (idempotência). A persistência pode podar por retenção: as chaves de negócio protegem. */
   processados: Record<string, true>;
   clientes: Tabela<ClienteAtualizadoV1>;
+  /**
+   * RN-GES-02: chave `<cliente_id>|<vendedor_id>` → primeiro instante (UTC) em que o cliente apareceu na carteira
+   * desse vendedor. Mínimo dos `ocorrido_em`, então independe da ordem de chegada.
+   */
+  entradas_carteira: Record<string, string>;
   /** Chave `<usuario_id>|<AAAA-MM-DD>`. */
   planejadas: Tabela<RotaDiaPlanejadoV1>;
   /** Chave `<usuario_id>|<AAAA-MM>`. */
@@ -91,6 +106,7 @@ export function estadoInicial(): EstadoProjecao {
   return {
     processados: {},
     clientes: {},
+    entradas_carteira: {},
     planejadas: {},
     metas: {},
     pedidos: {},
@@ -152,7 +168,13 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
   switch (evento.nome) {
     case 'core.cliente.atualizado@1': {
       const d = p as ClienteAtualizadoV1;
-      return ok({ ...base, clientes: gravar(base.clientes, d.cliente_id, { ...d, v }) });
+      let entradas = base.entradas_carteira;
+      if (d.vendedor_id) {
+        const k = `${d.cliente_id}|${d.vendedor_id}`;
+        const atual = entradas[k];
+        if (!atual || instanteMs(evento.ocorrido_em) < instanteMs(atual)) entradas = { ...entradas, [k]: evento.ocorrido_em };
+      }
+      return ok({ ...base, entradas_carteira: entradas, clientes: gravar(base.clientes, d.cliente_id, { ...d, v }) });
     }
     case 'core.visita.checkin@1': {
       const d = p as VisitaCheckinV1;
@@ -193,6 +215,12 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
       const vSolic = `${String(instanteMs(d.solicitada_em)).padStart(15, '0')}|${evento.evento_id}`;
       return ok({ ...base, aprovacoes: gravar(base.aprovacoes, d.pedido_id, { ...d, v: vSolic }) });
     }
+    case 'vendedor.pedido.faturado@1': {
+      const d = p as PedidoFaturadoV1;
+      const atual = pedidoDe(base, d.pedido_id);
+      const faturamentos = { ...(atual.faturamentos ?? {}), [evento.evento_id]: { parcial: d.parcial, faturado_em: d.faturado_em, itens: d.itens } };
+      return ok({ ...base, pedidos: { ...base.pedidos, [d.pedido_id]: { ...atual, faturamentos } } });
+    }
     case 'promotor.visita_loja.concluida@1': {
       const d = p as VisitaLojaConcluidaV1;
       return ok({ ...base, visitas_loja: gravar(base.visitas_loja, d.visita_loja_id, { ...d, v }) });
@@ -232,6 +260,16 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
     default:
       return { estado, situacao: 'ignorado' };
   }
+}
+
+/**
+ * RN-GES-02: quando o cliente entrou na carteira do vendedor ATUAL: `na_carteira_desde` do evento (se o Core informar)
+ * ou o primeiro evento visto do cliente com esse vendedor. `null` = sem carteira ou cliente desconhecido.
+ */
+export function entradaNaCarteira(estado: EstadoProjecao, clienteId: string): string | null {
+  const c = estado.clientes[clienteId];
+  if (!c || !c.vendedor_id) return null;
+  return c.na_carteira_desde ?? estado.entradas_carteira[`${clienteId}|${c.vendedor_id}`] ?? null;
 }
 
 function ok(estado: EstadoProjecao): ResultadoAplicacao {

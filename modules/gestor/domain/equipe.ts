@@ -92,6 +92,7 @@ const soma = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
 /**
  * Resumo do dia de tudo que está abaixo de `gestorId` (só vendedores e promotores ativos). Quem não tem linha de
  * painel no dia conta como "sem check-in". Seções nulas (módulo desativado) não viram zero: o total fica `null`.
+ * Cobertura (RN-GES-05) = Σ clientes da rota visitados ÷ Σ planejados, no máximo 100%; extras à parte.
  */
 export function resumirEquipe(gestorId: string, membros: readonly MembroEquipe[], paineis: readonly PainelDia[]): ResumoEquipe {
   const campo = subordinadosDe(membros, gestorId).filter((x) => x.ativo && (x.perfil === 'vendedor' || x.perfil === 'promotor'));
@@ -103,6 +104,12 @@ export function resumirEquipe(gestorId: string, membros: readonly MembroEquipe[]
   const meta = soma(comMeta.map((l) => l!.mes!.meta_cents!));
   const planejadas = soma(linhas.map((l) => l?.visitas.planejadas ?? 0));
   const realizadas = soma(linhas.map((l) => l?.visitas.realizadas ?? 0));
+  // RN-GES-05: a cobertura usa só os clientes DA ROTA visitados; as visitas fora da rota somam à parte
+  const daRota = soma(linhas.map((l) => l?.visitas.planejadas_realizadas ?? 0));
+  const comExtras = linhas.filter((l) => l?.visitas.visitas_extras != null);
+  const cobertura = percentual(daRota, planejadas);
+  // RN-GES-06: vendido × faturado só de quem tem a seção (Vendedor ativo)
+  const comFat = linhas.filter((l): l is PainelDia & { faturamento: NonNullable<PainelDia['faturamento']> } => !!l?.faturamento);
   return {
     gestor_id: gestorId,
     membros: campo.length,
@@ -115,7 +122,12 @@ export function resumirEquipe(gestorId: string, membros: readonly MembroEquipe[]
     atingimento_pct: comMeta.length > 0 ? percentual(soma(comMeta.map((l) => l!.mes!.vendas_cents)), meta) : null,
     visitas_realizadas: realizadas,
     visitas_planejadas: planejadas,
-    cobertura_pct: percentual(realizadas, planejadas),
+    visitas_planejadas_realizadas: daRota,
+    visitas_extras: comExtras.length > 0 ? soma(comExtras.map((l) => l!.visitas.visitas_extras!)) : null,
+    cobertura_pct: cobertura === null ? null : Math.min(100, cobertura),
+    vendido_cents: comFat.length > 0 ? soma(comFat.map((l) => l.faturamento.vendido_cents)) : null,
+    faturado_cents: comFat.length > 0 ? soma(comFat.map((l) => l.faturamento.faturado_cents)) : null,
+    a_faturar_cents: comFat.length > 0 ? soma(comFat.map((l) => l.faturamento.a_faturar_cents)) : null,
   };
 }
 

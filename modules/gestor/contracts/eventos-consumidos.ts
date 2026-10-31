@@ -9,18 +9,29 @@
  *  - PROPOSTO (não está no registro; pedido ao engenheiro-software na T-0014): `core.rota.dia_planejado@1`,
  *    `core.meta.definida@1`. Por isso NÃO estão em `consome` do manifesto até o registro existir.
  *  - Campos marcados "PEDIDO" são acréscimos opcionais pedidos ao publicador; ausentes ⇒ indicador `null`.
+ *  - CÓPIA PROVISÓRIA: `vendedor.pedido.faturado@1` espelha `PedidoFaturadoEvento` (modules/vendedor/contracts/eventos.ts).
+ *    O engenheiro-software vai publicar o formato de cada evento no contracts do dono; aí o Gestor importa de lá.
  * O envelope (`evento_id`, `ocorrido_em`…) é do platform-sdk; `evento_id` é a chave de idempotência.
  */
 import { z } from 'zod';
 import { Cents, CentsNaoNeg, ContagemNaoNeg, InstanteUtc, IsoDate, NivelAprovacao, MotivoAprovacao, PctNumero, StatusPedido, Uuid } from './base';
 
 // ---------- Core ----------
+/** RN-GES-01: frequência de visita do cliente (semanal = 7 dias, quinzenal = 14, mensal = 30). */
+export const FREQUENCIAS_VISITA = ['semanal', 'quinzenal', 'mensal'] as const;
+export const FrequenciaVisita = z.enum(FREQUENCIAS_VISITA);
+export type FrequenciaVisita = z.infer<typeof FrequenciaVisita>;
+
 export const ClienteAtualizadoV1 = z.object({
   cliente_id: Uuid,
   /** Vendedor da carteira (RN-CORE-04); `null` = sem carteira. */
   vendedor_id: Uuid.nullable(),
   ativo: z.boolean().default(true),
   nome: z.string().min(1).max(200).optional(),
+  /** RN-GES-01: frequência de visita do cliente. PEDIDO ao Core; ausente ⇒ limite `dias_sem_visita_padrao`. */
+  frequencia_visita: FrequenciaVisita.nullable().default(null),
+  /** RN-GES-02: quando o cliente entrou na carteira do vendedor atual. PEDIDO ao Core; ausente ⇒ 1º evento visto com este vendedor. */
+  na_carteira_desde: InstanteUtc.nullable().default(null),
 });
 export type ClienteAtualizadoV1 = z.infer<typeof ClienteAtualizadoV1>;
 
@@ -62,6 +73,14 @@ export type MetaDefinidaV1 = z.infer<typeof MetaDefinidaV1>;
 
 // ---------- Vendedor ----------
 export const TIPOS_PEDIDO = ['pedido', 'orcamento'] as const;
+
+/** Linha do pedido: quantidade na unidade de venda e total final da linha em centavos (RN-VEN-02). */
+export const ItemPedidoV1 = z.object({
+  produto_id: Uuid,
+  quantidade: z.number().int().positive(),
+  total_cents: CentsNaoNeg,
+});
+export type ItemPedidoV1 = z.infer<typeof ItemPedidoV1>;
 export const PedidoCriadoV1 = z.object({
   pedido_id: Uuid,
   /** RN-VEN-35: o pedido em nome conta para o vendedor; `autor_id` = quem digitou (gestor). */
@@ -76,8 +95,26 @@ export const PedidoCriadoV1 = z.object({
   /** Total pela tabela, sem descontos, em centavos; base do desconto efetivo (RN-VEN-03). PEDIDO ao Vendedor. */
   total_tabela_cents: CentsNaoNeg.nullable().default(null),
   criado_em: InstanteUtc,
+  /**
+   * RN-GES-06: itens com o total final da linha (centavos), para valorizar o faturamento parcial pelos itens faturados.
+   * PEDIDO ao Vendedor; ausente ⇒ o parcial fica sem valor até o faturamento total.
+   */
+  itens: z.array(ItemPedidoV1).nullable().default(null),
 });
 export type PedidoCriadoV1 = z.infer<typeof PedidoCriadoV1>;
+
+/**
+ * `vendedor.pedido.faturado@1` (CÓPIA de `PedidoFaturadoEvento` do Vendedor): um por retorno do ERP aceito;
+ * `itens` = o que foi faturado NESTE retorno (o consumidor soma); `parcial: false` = faturamento total (cobre o saldo).
+ */
+export const PedidoFaturadoV1 = z.object({
+  pedido_id: Uuid,
+  vendedor_id: Uuid,
+  faturado_em: InstanteUtc,
+  parcial: z.boolean(),
+  itens: z.array(z.object({ produto_id: Uuid, quantidade: z.number().int().positive() })).min(1),
+});
+export type PedidoFaturadoV1 = z.infer<typeof PedidoFaturadoV1>;
 
 export const PedidoStatusAlteradoV1 = z.object({
   pedido_id: Uuid,
@@ -238,6 +275,7 @@ export const EVENTOS_CONSUMIDOS = {
   'vendedor.pedido.criado@1': PedidoCriadoV1,
   'vendedor.pedido.status_alterado@1': PedidoStatusAlteradoV1,
   'vendedor.pedido.aprovacao_solicitada@1': AprovacaoSolicitadaV1,
+  'vendedor.pedido.faturado@1': PedidoFaturadoV1,
   'promotor.visita_loja.concluida@1': VisitaLojaConcluidaV1,
   'promotor.gondola.registrada@1': GondolaRegistradaV1,
   'promotor.share.medido@1': ShareMedidoV1,
