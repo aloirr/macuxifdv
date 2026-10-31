@@ -36,3 +36,4 @@ R-20261031-130832-gerente-projetos
 R-20261031-131537-gerente-projetos
 R-20261031-145337-modulo-treinamento
 R-20261031-172600-modulo-treinamento
+R-20261031-192157-modulo-integracao
