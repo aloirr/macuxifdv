@@ -1,6 +1,7 @@
 /**
- * Preço visível (RF-CAT-03, RN-VEN-01, RN-VEN-02): tabela da condição → tabela do cliente → tabela padrão (só
- * sem cliente), vigência por período em UTC e promoção vigente. Dinheiro em centavos inteiros, arredondamento
+ * Preço visível (RF-CAT-03, RN-CAT-06, RN-VEN-01, RN-VEN-02): tabela da condição → tabela do cliente → tabela
+ * padrão (só sem cliente), vigência por período em UTC e promoção vigente. Cliente em contexto e item fora da
+ * tabela dele ⇒ "Sem preço para este cliente." e não vendável (RN-CAT-06), sem cair na tabela padrão. Dinheiro em centavos inteiros, arredondamento
  * meia para cima. A API revalida; o Vendedor usa o mesmo resultado para montar o pedido.
  */
 import type { PrecoVisivel } from '../contracts';
@@ -37,6 +38,11 @@ export interface ContextoPreco {
   /** Tabela do cliente em contexto; nula/ausente = sem cliente, vale a tabela padrão. */
   tabela_cliente_id?: string | null;
 }
+
+/** RN-CAT-06: item fora da tabela do cliente em contexto. */
+export const MENSAGEM_SEM_PRECO_CLIENTE = 'Sem preço para este cliente.';
+/** Sem cliente em contexto e sem preço na tabela padrão do tenant. */
+export const MENSAGEM_SEM_PRECO = 'Sem preço cadastrado para este produto.';
 
 /** Desconto percentual em centavos inteiros, meia para cima (RN-VEN-02). `pct` entre 0 e 100, até 2 casas. */
 export function descontoPct(cents: number, pct: number): number {
@@ -86,7 +92,10 @@ function precoDaPromocao(base: number, p: Promocao): number | null {
   return preco > 0 && preco < base ? preco : null;
 }
 
-/** Preço que o usuário vê/usa agora para o produto. Sem preço na tabela aplicável ⇒ não vendável (RN-VEN-01). */
+/**
+ * Preço que o usuário vê/usa agora para o produto. Sem preço na tabela aplicável ⇒ não vendável (RN-VEN-01);
+ * com cliente em contexto, a tabela padrão nunca é usada (RN-CAT-06). Quem pode ver o preço é `visibilidade.ts`.
+ */
 export function precoVisivel(produtoId: string, itens: readonly ItemTabelaPreco[], promocoes: readonly Promocao[], ctx: ContextoPreco): PrecoVisivel {
   const agora = Date.parse(ctx.agora);
   if (Number.isNaN(agora)) throw new RangeError('Informe o instante da consulta em ISO 8601 UTC.');
@@ -102,6 +111,7 @@ export function precoVisivel(produtoId: string, itens: readonly ItemTabelaPreco[
     source: null,
     sellable: false,
     reason: 'sem_preco',
+    notice: ctx.tabela_cliente_id ? MENSAGEM_SEM_PRECO_CLIENTE : MENSAGEM_SEM_PRECO,
   };
 
   let escolhido: { item: ItemTabelaPreco; source: 'condicao' | 'cliente' | 'padrao' } | null = null;
@@ -142,5 +152,6 @@ export function precoVisivel(produtoId: string, itens: readonly ItemTabelaPreco[
     source: escolhido.source,
     sellable: true,
     reason: null,
+    notice: null,
   };
 }

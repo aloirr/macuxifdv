@@ -6,6 +6,7 @@
  */
 import { FiltrosInterpretados } from '../contracts';
 import { gtinValido, interpretarConsulta, type VocabularioTenant } from './consulta';
+import { consomeCotaIa, type DesfechoIa } from './limite-ia';
 import { chaveDeTermo, tokensDeBusca } from './texto';
 
 // ---------- portas ----------
@@ -30,6 +31,34 @@ export interface PortaRespostaLlm {
 /** Porta de embeddings (modelo multilíngue). A busca vetorial usa as notas devolvidas em `rankear({ semantica })`. */
 export interface PortaEmbeddings {
   gerar(textos: readonly string[]): Promise<number[][]>;
+}
+
+/** Erro que a porta (ou `tempo_limite_ms`) usa para tempo esgotado no provedor (RN-CAT-03: não consome). */
+export class ErroTempoEsgotadoIa extends Error {
+  constructor(mensagem = 'O provedor de IA não respondeu a tempo.') {
+    super(mensagem);
+    this.name = 'ErroTempoEsgotadoIa';
+  }
+}
+
+/** Classifica a falha da porta: tempo esgotado (nosso erro, `TimeoutError`/`AbortError` do fetch) ou erro. */
+export function classificarFalhaIa(erro: unknown): 'erro' | 'tempo_esgotado' {
+  if (erro instanceof ErroTempoEsgotadoIa) return 'tempo_esgotado';
+  const nome = erro instanceof Error ? erro.name : '';
+  return nome === 'TimeoutError' || nome === 'AbortError' ? 'tempo_esgotado' : 'erro';
+}
+
+async function comTempoLimite<T>(promessa: Promise<T>, ms: number | undefined): Promise<T> {
+  if (ms === undefined) return promessa;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limite = new Promise<never>((_, falha) => {
+    timer = setTimeout(() => falha(new ErroTempoEsgotadoIa()), ms);
+  });
+  try {
+    return await Promise.race([promessa, limite]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ---------- avisos (português, com a ação seguinte) ----------
@@ -82,8 +111,10 @@ export interface EntradaInterpretarBusca {
   /** `null` = sem provedor configurado (ou app offline). */
   porta: PortaInterpretacaoLlm | null;
   online: boolean;
-  /** Resultado de `registrarConsultaIa` (RN-CAT-03). */
+  /** Resultado de `verificarConsultaIa` (RN-CAT-03; não consome). */
   ia: { permitido: boolean; mensagem: string | null };
+  /** Tempo máximo de espera pelo provedor, em ms; estourou ⇒ `tempo_esgotado` (não consome). */
+  tempo_limite_ms?: number;
 }
 
 export interface ResultadoInterpretacao {
@@ -91,27 +122,37 @@ export interface ResultadoInterpretacao {
   origem: 'llm' | 'regras';
   /** Aviso discreto para a tela (offline, limite, falha); nulo quando tudo certo. */
   aviso: string | null;
-  /** O provedor foi chamado (a API deve ter consumido uma consulta do limite). */
+  /** O provedor foi chamado (com ou sem resposta). */
   chamouProvedor: boolean;
+  /** RN-CAT-03: o que aconteceu com a tentativa; passe para `registrarDesfechoIa`. */
+  desfecho: DesfechoIa;
+  /** RN-CAT-03: true só quando o provedor respondeu (`desfecho = respondida`). */
+  consomeCota: boolean;
 }
 
 /**
  * Interpreta a consulta. Nunca lança por falha do provedor: cai para as regras locais e avisa.
- * Ordem na API: cache (não consome) → `registrarConsultaIa` → esta função.
+ * Ordem na API: cache (não consome) → `verificarConsultaIa` → esta função → `registrarDesfechoIa(desfecho)`.
  */
 export async function interpretarBusca(e: EntradaInterpretarBusca): Promise<ResultadoInterpretacao> {
   const regras = interpretarConsulta(e.texto, e.vocabulario);
-  if (!e.online) return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_OFFLINE, chamouProvedor: false };
-  if (!e.ia.permitido) return { filtros: regras, origem: 'regras', aviso: e.ia.mensagem, chamouProvedor: false };
-  if (!e.porta) return { filtros: regras, origem: 'regras', aviso: null, chamouProvedor: false };
+  const semChamar = (aviso: string | null): ResultadoInterpretacao => ({ filtros: regras, origem: 'regras', aviso, chamouProvedor: false, desfecho: 'nao_chamada', consomeCota: false });
+  if (!e.online) return semChamar(AVISO_BUSCA_OFFLINE);
+  if (!e.ia.permitido) return semChamar(e.ia.mensagem);
+  if (!e.porta) return semChamar(null);
 
   let bruto: unknown;
   try {
-    bruto = await e.porta.interpretar({ tenant_id: e.tenant_id, texto: e.texto, marcas: [...e.vocabulario.marcas], linhas: [...e.vocabulario.linhas] });
-  } catch {
-    return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, chamouProvedor: true };
+    bruto = await comTempoLimite(
+      e.porta.interpretar({ tenant_id: e.tenant_id, texto: e.texto, marcas: [...e.vocabulario.marcas], linhas: [...e.vocabulario.linhas] }),
+      e.tempo_limite_ms,
+    );
+  } catch (erro) {
+    const desfecho = classificarFalhaIa(erro);
+    return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, chamouProvedor: true, desfecho, consomeCota: consomeCotaIa(desfecho) };
   }
+  const respondida = { chamouProvedor: true, desfecho: 'respondida' as const, consomeCota: true };
   const validado = validarFiltrosLlm(bruto, e.vocabulario);
-  if (!validado) return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, chamouProvedor: true };
-  return { filtros: mesclarFiltros(regras, validado), origem: 'llm', aviso: null, chamouProvedor: true };
+  if (!validado) return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, ...respondida };
+  return { filtros: mesclarFiltros(regras, validado), origem: 'llm', aviso: null, ...respondida };
 }
