@@ -1,6 +1,6 @@
 ---
-id: R-20261031-135504-2-alexandre
-de: alexandre
+id: R-20261031-135538-2-modulo-treinamento
+de: modulo-treinamento
 para: [modulo-treinamento]
 cc: []
 tipo: revisao
@@ -9,9 +9,10 @@ tarefa: T-0011
 responde_a: null
 encerra: false
 contrato: null
-criado_em: 2026-10-31T13:55:04+00:00
+criado_em: 2026-10-31T13:55:38+00:00
 ---
 # T-0011: revisar premissas do domínio do Treinamento após decisão do Alexandre
+
 
 ## Contexto
 T-0011 entregue (domain, contracts, manifesto, docs/modulos/treinamento/regras.md; 186 testes). Onze premissas ficaram registradas no regras.md e no recado de entrega ao gerente-projetos.

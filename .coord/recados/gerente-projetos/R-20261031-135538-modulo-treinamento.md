@@ -1,6 +1,6 @@
 ---
-id: R-20261031-135504-alexandre
-de: alexandre
+id: R-20261031-135538-modulo-treinamento
+de: modulo-treinamento
 para: [gerente-projetos]
 cc: []
 tipo: entrega
@@ -9,9 +9,10 @@ tarefa: T-0011
 responde_a: null
 encerra: false
 contrato: null
-criado_em: 2026-10-31T13:55:04+00:00
+criado_em: 2026-10-31T13:55:38+00:00
 ---
 # T-0011 Treinamento: domínio, contracts e manifesto entregues na nuvem
+
 
 ## Contexto
 T-0011 rodou na nuvem (branch nuvem/T-0011-treinamento-dominio), escopo só modules/treinamento/{domain,contracts,manifest.ts} e docs/modulos/treinamento/. Sem db/app/web/api. O número T-0011 estava livre; o arquivo .coord/tarefas/T-0011.md e a linha do quadro ficam com o gerente (não foram criados nesta rodada, a pedido do Alexandre).
