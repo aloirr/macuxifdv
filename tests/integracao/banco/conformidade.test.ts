@@ -1,0 +1,253 @@
+/**
+ * T-0002 — conformidade do banco que sustenta o isolamento (cenários S0-023 e S0-028 do plano).
+ *
+ * - Regra 5 do CLAUDE.md: toda tabela tem id uuid, tenant_id, created_at, updated_at, deleted_at,
+ *   external_id e RLS ligado e FORÇADO, com política por tenant para o papel da aplicação; exceções só
+ *   as declaradas pelo banco-dados (TABELAS_SEM_TENANT_ID).
+ * - S0-028: o papel da API (macuxi_app) não é superusuário, não ignora RLS, não é dono de nada, não
+ *   herda papel privilegiado e não tem atalho que dispense a política (TRUNCATE, SET ROLE,
+ *   row_security = off, ALTER TABLE, função SECURITY DEFINER fora da lista, view sem security_invoker).
+ * - Perfis: o CHECK do banco aceita exatamente os PERFIS do @macuxi/platform-sdk ("gerente", nunca
+ *   "manager" da Fase M) — provado com INSERT real, não lendo o SQL.
+ */
+import { DOIS_TENANTS, TABELAS_SEM_TENANT_ID } from '@macuxi/db/teste';
+import { banco, semBanco } from '@macuxi/db/teste/estado';
+import { PERFIS } from '@macuxi/platform-sdk';
+import type pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { conectar, schemasDeDominio, tabelasDoCatalogo, tentar, type Tabela } from '../apoio/banco';
+
+const A = DOIS_TENANTS.A.tenantId;
+const PAPEL = 'macuxi_app';
+
+/** Funções SECURITY DEFINER que o papel da aplicação pode chamar, revisadas pelo agente testes. */
+const DEFINER_REVISADAS: Record<string, string> = {
+  'plataforma.tenant_por_codigo(p_codigo text)': 'login: resolve o tenant pelo código antes do contexto; devolve só id, nome, fuso, status',
+};
+
+const COLUNAS_COMUNS: Record<string, string> = {
+  id: 'uuid',
+  tenant_id: 'uuid',
+  created_at: 'timestamp with time zone',
+  updated_at: 'timestamp with time zone',
+  deleted_at: 'timestamp with time zone',
+  external_id: 'text',
+};
+
+describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamento multi-tenant', () => {
+  let admin: pg.Client;
+  let app: pg.Client;
+  let tabelas: Tabela[] = [];
+  let schemas: string[] = [];
+
+  beforeAll(async () => {
+    admin = await conectar(banco().urlAdmin);
+    app = await conectar(banco().urlApp);
+    tabelas = await tabelasDoCatalogo(admin);
+    schemas = await schemasDeDominio(admin);
+  });
+  afterAll(async () => {
+    await app?.end();
+    await admin?.end();
+  });
+
+  describe('S0-023 regra 5: campos comuns, RLS forçado e política por tenant', () => {
+    it('schemas plataforma e core existem', () => {
+      expect(schemas).toEqual(expect.arrayContaining(['plataforma', 'core']));
+    });
+
+    it('tabela sem tenant_id só se declarada em TABELAS_SEM_TENANT_ID', () => {
+      const sem = tabelas.filter((t) => !t.temTenant).map((t) => t.nome);
+      expect(sem.filter((n) => !(n in TABELAS_SEM_TENANT_ID))).toEqual([]);
+    });
+
+    it('toda tabela tem os campos comuns com o tipo certo (tenant_id e id NOT NULL)', async () => {
+      const faltas: string[] = [];
+      for (const t of tabelas) {
+        const r = await admin.query<{ attname: string; tipo: string; nn: boolean }>(
+          `select a.attname, format_type(a.atttypid, a.atttypmod) as tipo, a.attnotnull as nn
+             from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped`,
+          [t.sql],
+        );
+        const cols = new Map(r.rows.map((x) => [x.attname, x]));
+        for (const [col, tipo] of Object.entries(COLUNAS_COMUNS)) {
+          if (col === 'tenant_id' && !t.temTenant) continue;
+          const c = cols.get(col);
+          if (!c) faltas.push(`${t.nome}.${col} ausente`);
+          else if (c.tipo !== tipo) faltas.push(`${t.nome}.${col} é ${c.tipo}, esperado ${tipo}`);
+          else if ((col === 'id' || col === 'tenant_id') && !c.nn) faltas.push(`${t.nome}.${col} aceita NULL`);
+        }
+      }
+      expect(faltas).toEqual([]);
+    });
+
+    it('toda tabela tem RLS ligado E forçado (o dono também obedece)', async () => {
+      const r = await admin.query<{ nome: string; rls: boolean; force: boolean }>(
+        `select n.nspname || '.' || c.relname as nome, c.relrowsecurity as rls, c.relforcerowsecurity as force
+           from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where c.relkind in ('r', 'p') and n.nspname = any($1)`,
+        [schemas],
+      );
+      expect(r.rows.filter((x) => !x.rls || !x.force).map((x) => x.nome)).toEqual([]);
+      expect(r.rows.length).toBe(tabelas.length);
+    });
+
+    it('toda tabela tem política para o papel da aplicação, comparando tenant_id (ou id, no tenant) com plataforma.tenant_atual(), no USING e no WITH CHECK', async () => {
+      const r = await admin.query<{ nome: string; roles: string[]; cmd: string; qual: string | null; wc: string | null; permissiva: string }>(
+        `select schemaname || '.' || tablename as nome, roles::text[] as roles, cmd, qual, with_check as wc, permissive as permissiva
+           from pg_policies where schemaname = any($1)`,
+        [schemas],
+      );
+      const problemas: string[] = [];
+      for (const t of tabelas) {
+        const pols = r.rows.filter((p) => p.nome === t.nome && (p.roles.includes(PAPEL) || p.roles.includes('public')));
+        const coluna = t.temTenant ? 'tenant_id' : 'id';
+        const boa = (txt: string | null) => !!txt && txt.includes(coluna) && txt.includes('tenant_atual()');
+        if (pols.length === 0) problemas.push(`${t.nome}: sem política para ${PAPEL}`);
+        for (const p of pols) {
+          if (p.permissiva !== 'PERMISSIVE' && p.permissiva !== 'RESTRICTIVE') problemas.push(`${t.nome}: tipo de política ${p.permissiva}`);
+          if (!boa(p.qual)) problemas.push(`${t.nome}: USING não filtra por ${coluna} = tenant_atual(): ${p.qual}`);
+          if (p.cmd !== 'SELECT' && p.cmd !== 'DELETE' && !boa(p.wc ?? p.qual)) problemas.push(`${t.nome}: WITH CHECK sem tenant: ${p.wc}`);
+          if (/\btrue\b|\bor\b/i.test(`${p.qual ?? ''} ${p.wc ?? ''}`)) problemas.push(`${t.nome}: política com "true"/"or" pode abrir a tabela: ${p.qual}`);
+        }
+      }
+      expect(problemas).toEqual([]);
+    });
+
+    it('índices únicos das tabelas de tenant incluem tenant_id (exceto a chave primária id)', async () => {
+      const r = await admin.query<{ nome: string; indice: string; def: string; pk: boolean }>(
+        `select n.nspname || '.' || c.relname as nome, i.relname as indice, pg_get_indexdef(x.indexrelid) as def, x.indisprimary as pk
+           from pg_index x join pg_class i on i.oid = x.indexrelid join pg_class c on c.oid = x.indrelid
+           join pg_namespace n on n.oid = c.relnamespace
+          where x.indisunique and n.nspname = any($1)`,
+        [schemas],
+      );
+      const comTenant = new Set(tabelas.filter((t) => t.temTenant).map((t) => t.nome));
+      const globais = r.rows.filter((x) => comTenant.has(x.nome) && !x.pk && !/\(tenant_id[,)]/.test(x.def)).map((x) => x.def);
+      // um único global entre tenants deixa A descobrir dado de B por colisão (e impede A de cadastrar)
+      expect(globais).toEqual([]);
+    });
+  });
+
+  describe('S0-028 o papel da aplicação não tem como contornar o RLS', () => {
+    it('atributos: sem SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB, REPLICATION', async () => {
+      const r = await admin.query('select rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolreplication, rolinherit from pg_roles where rolname = $1', [PAPEL]);
+      expect(r.rows[0]).toMatchObject({ rolsuper: false, rolbypassrls: false, rolcreaterole: false, rolcreatedb: false, rolreplication: false });
+    });
+
+    it('não herda papel privilegiado (pertença a papéis, recursiva)', async () => {
+      const r = await admin.query<{ rolname: string }>(
+        `with recursive acima(oid) as (
+           select roleid from pg_auth_members where member = (select oid from pg_roles where rolname = $1)
+           union select m.roleid from pg_auth_members m join acima on m.member = acima.oid)
+         select r.rolname from acima join pg_roles r on r.oid = acima.oid
+          where r.rolsuper or r.rolbypassrls or r.rolcreaterole or r.rolname in ('pg_read_all_data', 'pg_write_all_data', 'pg_database_owner')`,
+        [PAPEL],
+      );
+      expect(r.rows.map((x) => x.rolname)).toEqual([]);
+    });
+
+    it('não é dono de schema, tabela, view, sequência ou função dos schemas de domínio', async () => {
+      const r = await admin.query<{ objeto: string }>(
+        `select 'schema ' || nspname as objeto from pg_namespace where nspowner = (select oid from pg_roles where rolname = $1) and nspname = any($2)
+         union all
+         select 'rel ' || n.nspname || '.' || c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where c.relowner = (select oid from pg_roles where rolname = $1) and n.nspname = any($2)
+         union all
+         select 'fn ' || n.nspname || '.' || p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where p.proowner = (select oid from pg_roles where rolname = $1) and n.nspname = any($2)`,
+        [PAPEL, schemas],
+      );
+      expect(r.rows.map((x) => x.objeto)).toEqual([]);
+    });
+
+    it('sem TRUNCATE (ignora RLS), REFERENCES nem TRIGGER em nenhuma tabela; sem CREATE nos schemas', async () => {
+      const problemas: string[] = [];
+      for (const t of tabelas) {
+        for (const priv of ['TRUNCATE', 'REFERENCES', 'TRIGGER']) {
+          const r = await admin.query<{ tem: boolean }>('select has_table_privilege($1, $2, $3) as tem', [PAPEL, t.sql, priv]);
+          if (r.rows[0]!.tem) problemas.push(`${priv} em ${t.nome}`);
+        }
+      }
+      for (const s of [...schemas, 'public']) {
+        const r = await admin.query<{ tem: boolean }>('select has_schema_privilege($1, $2, $3) as tem', [PAPEL, s, 'CREATE']);
+        if (r.rows[0]!.tem) problemas.push(`CREATE no schema ${s}`);
+      }
+      expect(problemas).toEqual([]);
+      const truncar = await tentar(app, A, () => app.query('truncate core.carteira'));
+      expect(truncar.ok ? 'TRUNCATE passou!' : truncar.codigo).toBe('42501');
+    });
+
+    it.each([
+      ['SET ROLE para o admin', 'set local role postgres'],
+      ['SET SESSION AUTHORIZATION', 'set session authorization postgres'],
+      ['desligar RLS da tabela', 'alter table core.usuario disable row level security'],
+      ['tirar o FORCE', 'alter table core.usuario no force row level security'],
+      ['trocar a política', 'alter policy isolamento_tenant on core.usuario using (true)'],
+      ['criar política aberta', 'create policy aberta on core.usuario for select to macuxi_app using (true)'],
+      ['redefinir tenant_atual()', "create or replace function plataforma.tenant_atual() returns uuid language sql as $$ select null::uuid $$"],
+      ['criar view no schema', 'create view core.todos as select * from core.usuario'],
+    ])('atalho negado: %s', async (_r, sql) => {
+      const r = await tentar(app, A, () => app.query(sql));
+      expect(r.ok ? `passou: ${sql}` : r.codigo).toBe('42501');
+    });
+
+    it('row_security = off não devolve tudo: a consulta afetada por política dá erro', async () => {
+      const r = await tentar(app, A, async () => {
+        await app.query('set local row_security = off');
+        return (await app.query<{ n: number }>('select count(*)::int as n from core.usuario')).rows[0]!.n;
+      });
+      expect(r.ok ? `devolveu ${r.valor} linhas` : r.codigo).toBe('42501');
+    });
+
+    it('funções SECURITY DEFINER executáveis pelo papel: só as revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
+      const r = await admin.query<{ assinatura: string; config: string[] | null; publico: boolean }>(
+        `select n.nspname || '.' || p.proname || '(' || pg_get_function_arguments(p.oid) || ')' as assinatura,
+                p.proconfig as config,
+                coalesce(exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0 and a.privilege_type = 'EXECUTE'), false) as publico
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where p.prosecdef and n.nspname = any($2) and has_function_privilege($1, p.oid, 'EXECUTE')`,
+        [PAPEL, schemas],
+      );
+      expect(r.rows.map((x) => x.assinatura).sort()).toEqual(Object.keys(DEFINER_REVISADAS).sort());
+      for (const f of r.rows) {
+        expect(f.config?.some((c) => c.startsWith('search_path=')), `${f.assinatura} sem search_path fixo`).toBe(true);
+        expect(f.publico, `${f.assinatura} executável por PUBLIC`).toBe(false);
+      }
+    });
+
+    it('views legíveis pelo papel usam security_invoker (senão rodam como o dono e ignoram RLS); matviews não são legíveis', async () => {
+      const r = await admin.query<{ nome: string; tipo: string; opcoes: string[] | null }>(
+        `select n.nspname || '.' || c.relname as nome, c.relkind::text as tipo, c.reloptions as opcoes
+           from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where c.relkind in ('v', 'm') and n.nspname = any($2) and has_table_privilege($1, c.oid, 'SELECT')`,
+        [PAPEL, schemas],
+      );
+      const inseguras = r.rows.filter((v) => v.tipo === 'm' || !(v.opcoes ?? []).some((o) => /^security_invoker=(true|on|1)$/i.test(o)));
+      expect(inseguras.map((v) => v.nome)).toEqual([]);
+    });
+  });
+
+  describe('perfis do banco = PERFIS do @macuxi/platform-sdk', () => {
+    it('platform-sdk tem os 7 perfis do doc 03 e não tem os nomes da Fase M', () => {
+      expect([...PERFIS].sort()).toEqual(['admin', 'analista', 'assistente', 'gerente', 'promotor', 'supervisor', 'vendedor']);
+      for (const faseM of ['manager', 'seller', 'analyst', 'bko_assistant']) expect(PERFIS as readonly string[]).not.toContain(faseM);
+    });
+
+    it.each([
+      ['core.usuario', (perfil: string, i: number) => [`insert into core.usuario (tenant_id, nome, email, perfil) values ($1, 'Perfil', $2, $3)`, [A, `perfil-${i}@exemplo.com.br`, perfil]] as const],
+      ['plataforma.perfil_modulo', (perfil: string, i: number) => [`insert into plataforma.perfil_modulo (tenant_id, perfil, modulo) values ($1, $2, $3)`, [A, perfil, `modulo-perfil-${i}`]] as const],
+    ])('%s aceita cada perfil do platform-sdk e recusa os da Fase M (23514)', async (_t, montar) => {
+      for (const [i, perfil] of PERFIS.entries()) {
+        const [sql, params] = montar(perfil, i);
+        const r = await tentar(app, A, () => app.query(sql, [...params]));
+        expect(r.ok, `${perfil}: ${r.ok ? '' : r.mensagem}`).toBe(true);
+      }
+      for (const [i, perfil] of ['manager', 'seller', 'analyst', 'bko_assistant', 'Gerente', ''].entries()) {
+        const [sql, params] = montar(perfil, 100 + i);
+        const r = await tentar(app, A, () => app.query(sql, [...params]));
+        expect(r.ok ? `aceitou ${perfil}` : r.codigo, perfil).toBe('23514');
+      }
+    });
+  });
+});
