@@ -14,6 +14,7 @@
   "dependencies": {
     "@macuxi/integracao": "workspace:*",
     "mssql": "^12.7.13",
+    "oracledb": "^26.0.0",
     "pg": "8.23.1",
     "yaml": "^2.9.1",
     "zod": "^3.25.76"
@@ -22,6 +23,7 @@
     "@macuxi/config": "workspace:*",
     "@types/mssql": "^12.3.0",
     "@types/node": "^22.20.5",
+    "@types/oracledb": "^26.0.1",
     "@types/pg": "8.23.1",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.15",

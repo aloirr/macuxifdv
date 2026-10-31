@@ -16,6 +16,8 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
   "@tailwindcss/oxide": true
+  # oracledb em modo thin (JS puro): o install.js só verifica binários do modo thick; não roda.
+  oracledb: false
 
 # pnpm 10 (equivalente)
 onlyBuiltDependencies:
