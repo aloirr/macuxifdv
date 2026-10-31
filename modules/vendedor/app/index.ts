@@ -10,6 +10,7 @@ import NewOrderScreen from './screens/new-order-screen';
 import OrderDetailScreen from './screens/order-detail-screen';
 import OrdersScreen from './screens/orders-screen';
 
+/** @deprecated Ponte temporária (T-0001 A3): o módulo já usa o ambiente do SDK. Sai quando apps/mobile/src/state/plataforma.tsx parar de importar. */
 export { definirAmbienteVendedor, limparAmbienteVendedor, ErroSemConexao } from './ambiente';
 export type { AmbienteVendedor, OpcoesRequisicao } from './ambiente';
 export { mergeOrders, pedidosNaFila, upsertOrder } from './lib/pedidos';

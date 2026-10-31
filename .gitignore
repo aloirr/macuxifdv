@@ -10,3 +10,6 @@ build/
 coverage/
 *.log
 *.lnk
+
+# Configuração local do Claude Code (por máquina; nunca vai para o GitHub)
+.claude/settings.local.json

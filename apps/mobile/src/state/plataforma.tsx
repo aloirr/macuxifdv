@@ -9,15 +9,11 @@
  * Telas de módulo acessam isto por `@macuxi/platform-sdk/react` (`useMotorSync`, `usePode`,
  * `useVisaoShell`, `useAmbiente`/`useHttp`) — o shell monta o `ShellProvider` em app/_layout.tsx.
  * O AMBIENTE do aparelho (HTTP com a sessão, sinal, UUID, usuário — `services/ambiente.ts`) vai ao motor
- * (etapas recebem `ctx.http`) e ao `ShellProvider` (telas).
- *
- * Transição (T-0001 A3): o Vendedor ainda lê o próprio `definirAmbienteVendedor`; o shell o alimenta com o
- * MESMO ambiente até o módulo migrar para `ctx.http`/`useAmbiente()` (recado R-20261031-065603).
+ * (etapas recebem `ctx.http`) e ao `ShellProvider` (telas). Nenhum módulo recebe ambiente por outra via.
  */
 import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
   criarMotorSync,
-  ehSemConexao,
   modulosEfetivos,
   perfilDaFaseM,
   type AmbienteAparelho,
@@ -27,7 +23,6 @@ import {
   type Perfil,
   type VisaoShell,
 } from '@macuxi/platform-sdk';
-import { definirAmbienteVendedor, ErroSemConexao as ErroSemConexaoVendedor, limparAmbienteVendedor } from '@macuxi/vendedor/app';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
@@ -118,23 +113,6 @@ function usePlataformaValor() {
     [],
   );
 
-  /** Transição: ponte para o `definirAmbienteVendedor` até o Vendedor usar `ctx.http`/`useAmbiente()`. */
-  const ligarAmbienteVendedor = useCallback(() => {
-    definirAmbienteVendedor({
-      requisitar: async (metodo, caminho, opcoes) => {
-        try {
-          return await ambiente.http.requisitar(metodo, caminho, opcoes);
-        } catch (e) {
-          if (ehSemConexao(e)) throw new ErroSemConexaoVendedor(e.message);
-          throw e;
-        }
-      },
-      online: ambiente.online,
-      novoId: ambiente.novoId,
-      nomeDoUsuario: () => ambiente.usuario()?.nome ?? '',
-    });
-  }, [ambiente]);
-
   const abrirMotor = useCallback(
     async (s: Sessao) => {
       const m = criarMotorSync({
@@ -146,7 +124,6 @@ function usePlataformaValor() {
         etapas: [etapaMe, ...shell.etapasSync],
         mensagemDeErro: errorMessage,
       });
-      ligarAmbienteVendedor();
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
       const ativos = m.estado().modulosAtivos;
@@ -156,7 +133,7 @@ function usePlataformaValor() {
       motorRef.current = m;
       setMotor(m);
     },
-    [shell, api, ambiente, etapaMe, ligarAmbienteVendedor],
+    [shell, api, ambiente, etapaMe],
   );
 
   useEffect(() => {
@@ -224,7 +201,6 @@ function usePlataformaValor() {
   );
 
   const logout = useCallback(async () => {
-    limparAmbienteVendedor();
     desassinarRef.current?.();
     desassinarRef.current = null;
     sessaoRef.current = null;

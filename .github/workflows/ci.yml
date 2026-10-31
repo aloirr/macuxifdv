@@ -43,6 +43,8 @@ jobs:
     env:
       # Teste de banco FALHA (em vez de pular) se o Postgres não responder. O turbo.json repassa MACUXI_PG_*.
       MACUXI_PG_EXIGIR: '1'
+      # O Postgres do CI é o service container: nunca tentar subir o docker compose no runner.
+      MACUXI_PG_AUTO_SUBIR: '0'
       MACUXI_PG_HOST: localhost
       MACUXI_PG_PORTA: '5432'
       MACUXI_PG_ADMIN_USUARIO: postgres
@@ -80,6 +82,8 @@ jobs:
 
       # lint inclui `pnpm fronteiras` (dependency-cruiser): módulo só importa packages/*,
       # modules/core/contracts e modules/<outro>/contracts
+      # lint/typecheck/test da raiz incluem tests/ (agente testes, T-0006) como tarefas raiz do turbo
+      # (//#lint:tests, //#typecheck:tests, //#test:tests). Sem a Fase M no runner, S0-006/007 pulam sozinhos.
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

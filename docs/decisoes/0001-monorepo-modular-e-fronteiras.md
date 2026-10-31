@@ -45,3 +45,10 @@ A Fase M (`C:\Users\domon\dev\forca-vendas`) é um monorepo pnpm + turbo com `pa
 - Todo módulo novo segue o modelo de `docs/desenho/T-0001.md` (package.json, tsconfig, manifest.ts).
 - Precisa de algo interno de outro módulo → pedir ao dono para expor em `contracts` (recado).
 - `pnpm lint` falha no CI se a fronteira for violada; a revisão do engenheiro confere também.
+
+## Adendo (2026-10-31, revisão final da T-0001)
+- O workspace inclui também `db` (`@macuxi/db`, T-0002).
+- `tests/` (agente `testes`, T-0006) não é pacote do workspace: roda como **tarefas raiz do turbo**
+  (`//#lint:tests`, `//#typecheck:tests`, `//#test:tests`, scripts `lint:tests`/`typecheck:tests`/`test:tests` do
+  `package.json` da raiz), chamadas por `pnpm lint`, `pnpm typecheck` e `pnpm test` e, portanto, pelo CI.
+  `tests/fixtures/**` fica fora do lint (são violações de propósito).
