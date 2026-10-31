@@ -9,6 +9,13 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CORE-04** Escopo de dados: vendedor/promotor veem a própria carteira; supervisor vê a carteira da equipe; gerente vê as equipes abaixo; analista/assistente/admin veem o tenant.
 - **RN-CORE-05** Isolamento total entre tenants (`tenant_id` do token + Row Level Security).
 
+> **Esclarecimentos (gerente-projetos, 2026-10-30, T-0003/T-0006)**
+> - **RN-CORE-01 — exceções só restringem.** Na Sprint 0 a exceção do usuário só **remove** módulos; nunca acrescenta módulo que o perfil não tem. Exceção que acrescenta vai para o backlog. A licença é checada **a cada requisição**, não fica congelada no JWT.
+> - **RN-PRO-01 vale pelo perfil, não pelo módulo.** Mesmo que um promotor ganhe o Vendedor, as ações de pedido continuam negadas (UI e API).
+> - **RN-CORE-02 — fila offline de módulo desativado.** Antes de apagar os dados locais, o app tenta enviar a fila (outbox) do módulo. A API rejeita os itens com 403 `MODULO_INATIVO`, e eles aparecem na tela de sync como "não enviado — módulo desativado". Os dados locais do módulo só são apagados depois que o usuário confirma que viu (nada some em silêncio).
+> - **Login e e-mail (premissa).** O e-mail é único **por tenant** (`unique(tenant_id, email)`). A tela de login pede **código da empresa + e-mail + senha**; o código da empresa fica salvo no aparelho depois do primeiro login.
+> - **Promotor e vendedor não acessam o BKO** na Sprint 0; usam só o app Macuxi Campo. O BKO é para admin, analista, assistente, supervisor e gerente.
+
 ## 2. Matriz de permissões (perfil × ação)
 | Ação | Vendedor | Promotor | Supervisor/Gerente | Analista | Assistente | Admin |
 |---|---|---|---|---|---|---|

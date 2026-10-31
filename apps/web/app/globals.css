@@ -1,0 +1,115 @@
+@import 'tailwindcss';
+
+/* Classes usadas pelo kit de UI e pelas páginas dos módulos (montadas por este shell). */
+@source '../../../packages/ui/src';
+@source '../../../modules/*/web';
+
+/* Tokens do backoffice (docs/07-web-bko.md e mockups Bko*.dc.html). */
+@theme inline {
+  --color-ground: #f3f4f1;
+  --color-surface: #ffffff;
+  --color-ink: #16202a;
+  --color-ink-2: #4a5562;
+  --color-ink-3: #34404d;
+  --color-line: #e1e4de;
+  --color-line-2: #eceee9;
+  --color-field: #c9cec6;
+  --color-accent: #c2540a;
+  --color-accent-light: #f59a52;
+  --color-accent-ink: #8f3d06;
+  --color-accent-soft: #fbe9dc;
+  --color-success: #1d6b4f;
+  --color-success-soft: #e2f1ea;
+  --color-warning: #7a4f00;
+  --color-warning-soft: #fff1d6;
+  --color-danger: #a8261b;
+  --color-danger-soft: #fde8e6;
+  --color-neutral-soft: #e6e9e2;
+  --color-nav-active: #2b3743;
+  --color-nav-text: #c9d0d8;
+  --color-nav-muted: #8b96a3;
+  --color-disabled: #8b96a3;
+
+  --font-sans: var(--font-plex-sans), 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: var(--font-archivo), 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: var(--color-ground);
+    color: var(--color-ink);
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  /* números financeiros sempre alinhados */
+  .tabular-nums,
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type='number']::-webkit-inner-spin-button {
+    opacity: 0.6;
+  }
+}
+
+/* ---------- mapa de rotas (Leaflet) ---------- */
+.fv-map.leaflet-container {
+  /* fundo neutro: o mapa continua útil se os tiles não carregarem */
+  background: #e9ece6;
+  font-family: var(--font-sans);
+}
+
+.fv-stop-icon {
+  background: transparent;
+  border: 0;
+}
+
+.fv-stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 2.5px solid;
+  border-radius: 999px;
+  font: 700 11px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.fv-stop--dim {
+  opacity: 0.35;
+}
+
+.fv-start {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 3px solid #ffffff;
+  border-radius: 9px;
+  background: var(--color-ink);
+  color: #ffffff;
+  font: 800 12px/1 var(--font-display);
+  box-shadow: 0 1px 4px rgb(22 32 42 / 0.45);
+}
+
+.fv-map .leaflet-popup-content {
+  margin: 10px 12px;
+}

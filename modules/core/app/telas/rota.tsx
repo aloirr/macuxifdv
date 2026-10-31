@@ -1,0 +1,235 @@
+/**
+ * Rota do dia: "mapa" em SVG com as paradas posicionadas pela lat/lng normalizada,
+ * atalho para navegar até a próxima e lista com status (feita, em atendimento, próxima, pendente).
+ * Check-in único: com um atendimento aberto, o check-in das outras paradas fica bloqueado (cadeado).
+ */
+import { formatBRL0 } from '@macuxi/comum';
+import { Card, colors, fonts, formatHHMM, Icon, radius, Screen, type as t } from '@macuxi/ui/mobile';
+import { useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-svg';
+
+import type { RouteStop } from '../../contracts';
+import { visitDuration } from '../../domain';
+import { OpenVisitBar } from '../components/open-visit-bar';
+import { useVisitSheets } from '../components/visit-sheets';
+import { abrirCliente } from '../lib/navegacao';
+import { mapsUrl, projectPoints } from '../lib/route';
+import { useCore } from '../lib/usar-core';
+
+/** a faixa de baixo do mapa fica livre para o botão "Ir para a parada" */
+const MAP_H = 220;
+
+export function TelaRota() {
+  const core = useCore();
+  const { rota: route, tz, atendimentoAberto: openVisit } = core;
+  const sheets = useVisitSheets();
+  const [mapW, setMapW] = useState(350);
+
+  if (!route || route.stops.length === 0) {
+    return (
+      <Screen>
+        <Text style={t.h1}>Rota de hoje</Text>
+        <Card style={{ padding: 14 }}>
+          <Text style={t.sub}>Nenhuma rota definida para hoje. O analista define a rota na web do BKO.</Text>
+        </Card>
+      </Screen>
+    );
+  }
+
+  const stops = route.stops;
+  const next = stops.find((s) => s.status === 'next') ?? null;
+  const points = projectPoints(
+    stops.map((s) => ({ lat: s.customer.lat, lng: s.customer.lng })),
+    mapW,
+    MAP_H - 58,
+    24,
+    { minDist: 30 },
+  );
+  const current = stops.find((s) => s.status === 'in_progress') ?? next;
+  const nextIdx = current ? stops.indexOf(current) : stops.length - 1;
+  const solid = points.slice(0, nextIdx + 1);
+  const dashed = points.slice(nextIdx);
+  const order = stops.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s));
+
+  const openCustomer = (s: RouteStop) => abrirCliente(s.customer.id, 'Rota de hoje');
+  const isOpenStop = (s: RouteStop) => s.status === 'in_progress' && (!openVisit || openVisit.customer_id === s.customer.id);
+  const onAction = (s: RouteStop) => {
+    if (s.status === 'in_progress') {
+      if (openVisit && openVisit.customer_id === s.customer.id) sheets.askCheckout();
+      else openCustomer(s);
+    } else if (openVisit && openVisit.customer_id !== s.customer.id) sheets.showBlocked(s.customer.trade_name);
+    else abrirCliente(s.customer.id, 'Rota de hoje', true);
+  };
+
+  return (
+    <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} testID="route">
+      <View style={styles.header}>
+        <View style={{ gap: 2, flex: 1 }}>
+          <Text style={t.h1}>Rota de hoje</Text>
+          <Text style={t.sub}>
+            {stops.length} visitas · {Math.round(route.total_km).toLocaleString('pt-BR')} km · {route.region}
+          </Text>
+        </View>
+        <Text style={styles.doneCount}>{route.done_count} feitas</Text>
+      </View>
+
+      <OpenVisitBar from="Rota de hoje" />
+
+      <View style={styles.map} onLayout={(e) => {
+          const w = Math.round(e.nativeEvent.layout.width) - 2;
+          if (w > 50) setMapW(w);
+        }}>
+        <Svg width={mapW} height={MAP_H} viewBox="0 0 350 220" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
+          <Path d="M-10 60 C80 40 140 90 220 70 S330 30 370 50" stroke="#FFFFFF" strokeWidth={10} fill="none" />
+          <Path d="M40 -10 C60 70 30 140 70 230" stroke="#FFFFFF" strokeWidth={8} fill="none" />
+          <Path d="M-10 170 C90 150 180 190 260 160 S340 140 370 150" stroke="#FFFFFF" strokeWidth={8} fill="none" />
+          <Path d="M250 -10 C240 60 280 120 250 230" stroke="#FFFFFF" strokeWidth={6} fill="none" />
+          <Path d="M150 -10 L170 230" stroke="#FFFFFF" strokeWidth={5} fill="none" />
+        </Svg>
+        <Svg width={mapW} height={MAP_H} style={StyleSheet.absoluteFill}>
+          {solid.length > 1 ? <Polyline points={solid.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.ink} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" /> : null}
+          {dashed.length > 1 ? <Polyline points={dashed.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.accent} strokeWidth={3} strokeDasharray="6 6" strokeLinecap="round" strokeLinejoin="round" fill="none" /> : null}
+          {order.map(({ s, i }) => {
+            const p = points[i]!;
+            if (s.status === 'in_progress') {
+              return (
+                <G key={s.id}>
+                  <Circle cx={p.x} cy={p.y} r={16} fill={colors.accent} stroke="#FFFFFF" strokeWidth={3} />
+                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontFamily={fonts.display} fill="#FFFFFF" textAnchor="middle">
+                    {String(s.sequence)}
+                  </SvgText>
+                </G>
+              );
+            }
+            if (s.status === 'next') {
+              return (
+                <G key={s.id}>
+                  <Circle cx={p.x} cy={p.y} r={16} fill={colors.ink} stroke="#FFFFFF" strokeWidth={3} />
+                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontFamily={fonts.display} fill="#FFFFFF" textAnchor="middle">
+                    {String(s.sequence)}
+                  </SvgText>
+                </G>
+              );
+            }
+            const done = s.status === 'done';
+            return (
+              <G key={s.id}>
+                <Circle cx={p.x} cy={p.y} r={done ? 12 : 11} fill={done ? colors.success : '#FFFFFF'} stroke={done ? colors.success : colors.ink} strokeWidth={done ? 0 : 2} />
+                <SvgText x={p.x} y={p.y + 4} fontSize={12} fontFamily={fonts.bold} fill={done ? '#FFFFFF' : colors.ink} textAnchor="middle">
+                  {String(s.sequence)}
+                </SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+        {next ? (
+          <Pressable testID="go-next" accessibilityRole="button" onPress={() => void Linking.openURL(mapsUrl(next.customer.lat, next.customer.lng, next.customer.address))} style={({ pressed }) => [styles.goBtn, pressed && { opacity: 0.8 }]}>
+            <Icon name="navigate" size={16} color="#FFFFFF" />
+            <Text style={styles.goText}>Ir para a parada {next.sequence}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <Card style={{ overflow: 'hidden' }}>
+        {stops.map((s, i) => (
+          <StopRow
+            key={s.id}
+            stop={s}
+            last={i === stops.length - 1}
+            tz={tz}
+            locked={Boolean(openVisit) && !isOpenStop(s) && s.status !== 'done'}
+            onPress={() => openCustomer(s)}
+            onAction={() => onAction(s)}
+          />
+        ))}
+      </Card>
+    </Screen>
+  );
+}
+
+function rank(s: RouteStop) {
+  return s.status === 'pending' ? 0 : s.status === 'done' ? 1 : s.status === 'next' ? 2 : 3;
+}
+
+function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteStop; last: boolean; tz: string; locked: boolean; onPress: () => void; onAction: () => void }) {
+  const c = stop.customer;
+  const done = stop.status === 'done';
+  const inProgress = stop.status === 'in_progress';
+  const isNext = stop.status === 'next';
+  let subtitle: string;
+  if (done) {
+    const v = stop.visit;
+    const at = v ? formatHHMM(v.checkin_at, tz) : '';
+    if (v?.outcome === 'order') subtitle = `Pedido ${stop.order_total_cents !== null ? formatBRL0(stop.order_total_cents) : ''} · ${at}${v.checkout_at ? ` · ${visitDuration(v.checkin_at, v.checkout_at)}` : ''}`;
+    else if (v?.outcome === 'no_order') subtitle = `Sem pedido · motivo: ${v.no_order_reason.toLowerCase()}`;
+    else if (v?.closed_by === 'auto') subtitle = `Check-in ${at} · fechado na virada do dia`;
+    else subtitle = `Check-in ${at}`;
+  } else if (inProgress) {
+    subtitle = `Em atendimento · check-in às ${stop.visit ? formatHHMM(stop.visit.checkin_at, tz) : '--:--'}`;
+  } else if (isNext) {
+    subtitle = `Próxima · ${stop.window_start} · ${stop.distance_km.toLocaleString('pt-BR')} km`;
+  } else {
+    subtitle = `${stop.window_start} · ${hint(c)}`;
+  }
+  const actionLabel = inProgress ? 'Checkout' : 'Check-in';
+  return (
+    <View testID={`stop-${stop.sequence}`} style={[styles.row, !last && styles.divider, inProgress && { backgroundColor: colors.accentTint }]}>
+      {done ? (
+        <View style={[styles.num, { backgroundColor: colors.successBg }]}>
+          <Icon name="check" size={14} color={colors.success} strokeWidth={2.4} />
+        </View>
+      ) : inProgress || isNext ? (
+        <View style={[styles.num, { backgroundColor: inProgress ? colors.accent : colors.ink }]}>
+          <Text style={[styles.numText, { color: '#FFFFFF', fontFamily: fonts.display, fontSize: 13 }]}>{stop.sequence}</Text>
+        </View>
+      ) : (
+        <View style={[styles.num, { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: colors.ink }]}>
+          <Text style={styles.numText}>{stop.sequence}</Text>
+        </View>
+      )}
+      <Pressable testID={`stop-open-${stop.sequence}`} accessibilityRole="button" onPress={onPress} style={({ pressed }) => [{ flex: 1, gap: 1, justifyContent: 'center', minHeight: 44 }, pressed && { opacity: 0.7 }]}>
+        <Text style={[t.bodyStrong, done && { color: colors.ink2 }]} numberOfLines={1}>
+          {c.trade_name}
+        </Text>
+        <Text style={[t.small, inProgress && { color: colors.accentInk }]} numberOfLines={1}>
+          {subtitle}
+        </Text>
+      </Pressable>
+      {!done ? (
+        <Pressable
+          testID={`stop-action-${stop.sequence}`}
+          accessibilityRole="button"
+          accessibilityLabel={inProgress ? `Fazer checkout em ${c.trade_name}` : locked ? `Check-in bloqueado em ${c.trade_name}` : `Fazer check-in em ${c.trade_name}`}
+          onPress={onAction}
+          hitSlop={4}
+          style={({ pressed }) => [styles.action, { backgroundColor: inProgress ? colors.accent : locked ? colors.lineSoft : colors.ink }, pressed && { opacity: 0.75 }]}>
+          {locked && !inProgress ? <Icon name="lock" size={13} color={colors.ink3} strokeWidth={2.2} /> : null}
+          <Text style={[styles.actionText, { color: locked && !inProgress ? colors.ink3 : '#FFFFFF' }]}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function hint(c: RouteStop['customer']): string {
+  if (c.days_since_purchase === null) return 'nunca comprou';
+  if (c.days_since_purchase >= 45) return `${c.days_since_purchase} dias sem comprar`;
+  if (c.overdue_count > 0) return `${c.overdue_count} ${c.overdue_count === 1 ? 'título vencido' : 'títulos vencidos'}`;
+  if (!c.positivated_this_month) return 'positivar no mês';
+  return `Curva ${c.abc_curve} · ${c.district}`;
+}
+
+const styles = StyleSheet.create({
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
+  doneCount: { fontFamily: fonts.semibold, fontSize: 13, color: colors.success },
+  map: { height: MAP_H, borderRadius: radius.xxl, overflow: 'hidden', backgroundColor: colors.mapBg, borderWidth: 1, borderColor: colors.mapBorder },
+  goBtn: { position: 'absolute', left: 12, bottom: 12, height: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  goText: { fontFamily: fonts.semibold, fontSize: 14, color: '#FFFFFF' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingLeft: 14, paddingRight: 12, minHeight: 56 },
+  action: { height: 36, paddingHorizontal: 10, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actionText: { fontFamily: fonts.semibold, fontSize: 12 },
+  divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  num: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  numText: { fontFamily: fonts.bold, fontSize: 12, color: colors.ink },
+});

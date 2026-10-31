@@ -1,0 +1,76 @@
+# git --no-optional-locks status --porcelain da Fase M em 2026-10-30 (HEAD 41283b7). Linha de base para T-0001 criterio 2.
+ M CLAUDE.md
+ M apps/mobile/app.json
+ M apps/mobile/package.json
+ M apps/mobile/src/app/(tabs)/customer/[id].tsx
+ M apps/mobile/src/app/(tabs)/index.tsx
+ M apps/mobile/src/app/(tabs)/order/[id].tsx
+ M apps/mobile/src/app/(tabs)/orders.tsx
+ M apps/mobile/src/app/(tabs)/route.tsx
+ M apps/mobile/src/app/_layout.tsx
+ M apps/mobile/src/app/new-order.tsx
+ M apps/mobile/src/components/checkin-sheet.tsx
+ M apps/mobile/src/components/icon.tsx
+ M apps/mobile/src/components/ui.tsx
+ M apps/mobile/src/lib/catalog.ts
+ M apps/mobile/src/lib/helpers.test.ts
+ M apps/mobile/src/lib/order-status.ts
+ M apps/mobile/src/lib/outbox.test.ts
+ M apps/mobile/src/lib/outbox.ts
+ M apps/mobile/src/lib/route.ts
+ M apps/mobile/src/services/api.ts
+ M apps/mobile/src/state/app-store.tsx
+ M apps/mock-api/src/app.ts
+ M apps/mock-api/src/excel/rows.ts
+ M apps/mock-api/src/excel/tables.ts
+ M apps/mock-api/src/seed/generate.ts
+ M apps/mock-api/src/services/orders.ts
+ M apps/mock-api/src/services/routes.ts
+ M apps/mock-api/test/api.test.ts
+ M apps/web/app/(bko)/rotas/page.tsx
+ M apps/web/app/globals.css
+ M apps/web/components/app-shell.tsx
+ M apps/web/components/overlay.tsx
+ M apps/web/lib/queries.ts
+ M apps/web/package.json
+ M docs/01-produto.md
+ M docs/04-api.md
+ M docs/05-app-mobile.md
+ M docs/06-backlog.md
+ M docs/07-web-bko.md
+ M iniciar-demo.cmd
+ M package.json
+ M packages/contracts/src/index.ts
+ M packages/domain/src/index.ts
+ M packages/domain/src/order.test.ts
+ M packages/domain/src/order.ts
+ M pnpm-lock.yaml
+ M pnpm-workspace.yaml
+?? _agente-android/agents/macuxi-android.md
+?? _agente-android/commands/android-analisar.md
+?? _agente-android/commands/android-construir.md
+?? _agente-android/commands/android-reparar.md
+?? _agente-android/commands/android-testar.md
+?? _agente-android/instalar.cmd
+?? apps/mobile/src/components/open-visit-bar.tsx
+?? apps/mobile/src/components/order-sheets.tsx
+?? apps/mobile/src/components/visit-sheets.tsx
+?? apps/mobile/src/lib/order-pdf.test.ts
+?? apps/mobile/src/lib/order-pdf.ts
+?? apps/mobile/src/lib/order-prefill.test.ts
+?? apps/mobile/src/lib/order-prefill.ts
+?? apps/mobile/src/lib/visit.test.ts
+?? apps/mobile/src/lib/visit.ts
+?? apps/mobile/src/services/pdf.ts
+?? apps/web/components/routes/copy-day-dialog.tsx
+?? apps/web/components/routes/route-editor.tsx
+?? apps/web/components/routes/route-map.tsx
+?? apps/web/components/routes/routes-page.tsx
+?? apps/web/lib/routes.test.ts
+?? apps/web/lib/routes.ts
+?? docs/android/checklist-aparelho.md
+?? docs/android/diario.md
+?? packages/domain/src/route.test.ts
+?? packages/domain/src/route.ts
+?? packages/domain/src/visit.test.ts
+?? packages/domain/src/visit.ts

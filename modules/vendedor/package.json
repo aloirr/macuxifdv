@@ -1,0 +1,68 @@
+{
+  "name": "@macuxi/vendedor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contracts": "./contracts/index.ts",
+    "./manifest": "./manifest.ts",
+    "./api": "./api/index.ts",
+    "./app": "./app/index.ts",
+    "./web": "./web/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.web.json && tsc -p tsconfig.app.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@macuxi/comum": "workspace:*",
+    "@macuxi/core": "workspace:*",
+    "@macuxi/platform-sdk": "workspace:*",
+    "zod": "^3.25.76",
+    "@macuxi/ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.0"
+  },
+  "devDependencies": {
+    "@macuxi/config": "workspace:*",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4",
+    "@types/react": "~19.2.2",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "expo-router": "~57.0.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4",
+    "expo-print": "~57.0.2",
+    "expo-sharing": "~57.0.22"
+  },
+  "peerDependencies": {
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "expo-router": "~57.0.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "expo-print": "~57.0.2",
+    "expo-sharing": "~57.0.22",
+    "react-native-svg": "15.15.4"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    },
+    "expo-router": {
+      "optional": true
+    },
+    "react-native-safe-area-context": {
+      "optional": true
+    },
+    "expo-print": {
+      "optional": true
+    },
+    "expo-sharing": {
+      "optional": true
+    },
+    "react-native-svg": {
+      "optional": true
+    }
+  }
+}

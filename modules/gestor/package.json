@@ -1,0 +1,29 @@
+{
+  "name": "@macuxi/gestor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contracts": "./contracts/index.ts",
+    "./manifest": "./manifest.ts",
+    "./api": "./api/index.ts",
+    "./app": "./app/index.ts",
+    "./web": "./web/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@macuxi/comum": "workspace:*",
+    "@macuxi/core": "workspace:*",
+    "@macuxi/platform-sdk": "workspace:*",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@macuxi/config": "workspace:*",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

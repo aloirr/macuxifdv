@@ -1,0 +1,30 @@
+{
+  "name": "@macuxi/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Configurações compartilhadas: tsconfig, eslint e regras de fronteira (dependency-cruiser).",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.web.json": "./tsconfig.web.json",
+    "./tsconfig.mobile.json": "./tsconfig.mobile.json",
+    "./eslint": "./eslint.mjs",
+    "./dependency-cruiser": "./dependency-cruiser.cjs"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.39.0",
+    "globals": "^16.5.0",
+    "typescript-eslint": "^8.46.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "dependency-cruiser": "^17.0.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

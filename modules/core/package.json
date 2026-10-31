@@ -1,0 +1,74 @@
+{
+  "name": "@macuxi/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Módulo Core: clientes, carteira, rotas, visitas, metas/RV, usuários e licenças.",
+  "main": "./manifest.ts",
+  "types": "./manifest.ts",
+  "exports": {
+    ".": "./manifest.ts",
+    "./manifest": "./manifest.ts",
+    "./contracts": "./contracts/index.ts",
+    "./api": "./api/index.ts",
+    "./app": "./app/index.ts",
+    "./web": "./web/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.web.json && tsc -p tsconfig.mobile.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@macuxi/comum": "workspace:*",
+    "@macuxi/platform-sdk": "workspace:*",
+    "@macuxi/ui": "workspace:*",
+    "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.90.0",
+    "expo-crypto": "~57.0.0",
+    "expo-location": "~57.0.0",
+    "expo-router": "~57.0.0",
+    "leaflet": "^1.9.4",
+    "next": "^16.0.0",
+    "react": "19.2.3",
+    "react-leaflet": "^5.0.0",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4"
+  },
+  "peerDependenciesMeta": {
+    "@tanstack/react-query": { "optional": true },
+    "expo-crypto": { "optional": true },
+    "expo-location": { "optional": true },
+    "expo-router": { "optional": true },
+    "leaflet": { "optional": true },
+    "next": { "optional": true },
+    "react-leaflet": { "optional": true },
+    "react-native": { "optional": true },
+    "react-native-safe-area-context": { "optional": true },
+    "react-native-svg": { "optional": true }
+  },
+  "devDependencies": {
+    "@macuxi/config": "workspace:*",
+    "@tanstack/react-query": "^5.90.0",
+    "@types/leaflet": "^1.9.20",
+    "@types/node": "^22.18.0",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.2",
+    "expo-crypto": "~57.0.0",
+    "expo-location": "~57.0.0",
+    "expo-router": "~57.0.0",
+    "leaflet": "^1.9.4",
+    "next": "^16.0.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-leaflet": "^5.0.0",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

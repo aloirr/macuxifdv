@@ -1,0 +1,25 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "campo": {
+      "env": { "APP_VARIANT": "campo" },
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "gestao": {
+      "env": { "APP_VARIANT": "gestao" },
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "campo-producao": {
+      "env": { "APP_VARIANT": "campo" },
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" }
+    },
+    "gestao-producao": {
+      "env": { "APP_VARIANT": "gestao" },
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" }
+    }
+  }
+}

@@ -104,8 +104,8 @@ Campos comuns: `id uuid`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`,
 | Schema | Tabelas principais |
 |---|---|
 | `plataforma` | tenant, tenant_modulo (ativo, plano, licenças), perfil_modulo, usuario_modulo (exceção), evento (outbox), parametro, auditoria, dispositivo |
-| `core` | usuario, equipe (árvore), cliente, cliente_contato, carteira (cliente, usuario, papel), cliente_financeiro, titulo, historico_compra (resumo), rota, rota_parada, visita, visita_etapa, motivo, meta, indicador_diario, notificacao |
-| `catalogo` | produto, categoria, marca, produto_atributo, produto_midia, produto_conteudo (argumentos, FAQ, docs), sinonimo, produto_embedding (pgvector), tabela_preco, tabela_preco_item, deposito, estoque_saldo, busca_log |
+| `core` | usuario, equipe (árvore), produto (cadastro base: sku, ean, nome, marca, categoria, unidade, ativo), cliente, cliente_contato, carteira (cliente, usuario, papel), cliente_financeiro, titulo, historico_compra (resumo), rota, rota_parada, visita, visita_etapa, motivo, meta, indicador_diario, notificacao |
+| `catalogo` | produto_atributo, produto_midia, produto_conteudo (argumentos, FAQ, docs), sinonimo, produto_embedding (pgvector), tabela_preco, tabela_preco_item, deposito, estoque_saldo, busca_log |
 | `vendedor` | pedido, pedido_item, pedido_evento, aprovacao, condicao_pagamento, cliente_condicao, reserva_estoque, alerta_ruptura |
 | `promotor` | cadastros de trade: categoria_gondola, mix_obrigatorio, concorrente, produto_concorrente, meta_share, foto_referencia (planograma), checklist_modelo, checklist_item, tarefa_trade · coletas: visita_loja (permanência), checklist_resposta, gondola_registro (antes/depois, conformidade), medicao_share, coleta_preco, ruptura_item, validade_item, ponto_extra, ponto_extra_negociado, acao_concorrencia, tarefa_execucao, foto · read-model: indicador_promotor_dia |
 | `gestor` | read-models: painel_vendedor_dia, alerta, alerta_regra |
@@ -113,7 +113,7 @@ Campos comuns: `id uuid`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`,
 | `treinamento` | trilha, modulo_trilha, licao, quiz, questao, alternativa, publico_alvo, progresso, tentativa, xp_lancamento, medalha, medalha_usuario, ranking_periodo |
 | `integracao` | conector, credencial, lote, lote_linha_erro, mapeamento, cursor_entidade, staging_<entidade>, reconciliacao |
 
-> Premissa: produto, preço e estoque ficam no schema `catalogo` (dono da informação de produto) e o Vendedor consome via contrato. Se o tenant não tiver Catálogo, o Core expõe o cadastro mínimo de produto para o seletor do pedido — **decisão a confirmar em ADR** (alternativa: produto no Core).
+> Decisão (ADR-0005): o cadastro base de produto fica no schema `core` (tabela `produto`); preço, estoque, conteúdo e busca ficam no schema `catalogo`. O Vendedor depende do Catálogo e consome produto, preço e estoque por contrato; Promotor, Pesquisa e Gestor usam só o produto do Core.
 
 ## Segurança e não funcionais
 - JWT de acesso 15 min + refresh rotativo 30 dias; argon2; RBAC + escopo de carteira + licença de módulo em toda rota.

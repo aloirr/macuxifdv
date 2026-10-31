@@ -1,0 +1,72 @@
+'use client';
+
+/**
+ * Consultas do SHELL web (copiadas de lib/queries.ts da Fase M). As consultas de tela de módulo
+ * (faróis de pedidos e clientes, metas, planos, alçadas, rotas…) vão para `modules/<m>/web` na B2
+ * (desenho T-0001 §5 e §14).
+ */
+import { useQuery } from '@tanstack/react-query';
+import type { AuditEntry, Me } from '@macuxi/core/contracts';
+import { modulosEfetivos, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
+import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
+import { MANIFESTOS_WEB } from './modulos';
+import { useSessao } from './session';
+
+/** Faróis: atualizam sozinhos a cada ~10 s. */
+export const LIVE_REFETCH_MS = 10_000;
+
+export interface ListResponse<T> {
+  items: T[];
+  next_cursor: string | null;
+}
+
+export const qk = {
+  me: ['me'] as const,
+  modulos: ['me', 'modulos'] as const,
+  audit: (entity: string) => ['audit-log', entity] as const,
+};
+
+function useAuthed() {
+  return useSessao().status === 'authenticated';
+}
+
+export function useMe() {
+  const enabled = useAuthed();
+  return useQuery({ queryKey: qk.me, queryFn: () => api<Me>('/me'), enabled, staleTime: 60_000 });
+}
+
+/**
+ * Módulos efetivos do usuário (RN-CORE-01/03) — `GET /v1/me/modulos`, checado a cada carga (não fica no token).
+ * O mock-api da Fase M não tem a rota (404): enquanto isso o shell calcula com `modulosEfetivos`
+ * supondo todos os módulos instalados ativos no tenant e o padrão do perfil (`manifest.perfis`).
+ */
+export function useModulosEfetivos(perfil: Perfil | null) {
+  const enabled = useAuthed() && !!perfil;
+  return useQuery({
+    queryKey: [...qk.modulos, perfil],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async (): Promise<ModuloId[]> => {
+      try {
+        return (await api<{ modulos: ModuloId[] }>('/me/modulos')).modulos;
+      } catch (e) {
+        if (!(e instanceof ApiRequestError) || e.status !== 404 || !perfil) throw e;
+        return modulosEfetivos({
+          manifestos: MANIFESTOS_WEB,
+          ativosNoTenant: MANIFESTOS_WEB.map((m) => m.id),
+          doPerfil: MANIFESTOS_WEB.filter((m) => m.perfis.includes(perfil)).map((m) => m.id),
+        });
+      }
+    },
+  });
+}
+
+export function useAuditLog(entity: string) {
+  const enabled = useAuthed();
+  return useQuery({
+    queryKey: qk.audit(entity),
+    queryFn: () => api<ListResponse<AuditEntry>>('/audit-log', { query: { entity, limit: 300 } }).then((r) => r.items),
+    enabled,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}

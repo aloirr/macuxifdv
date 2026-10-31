@@ -1,0 +1,6 @@
+{
+  "extends": "@macuxi/config/tsconfig.base.json",
+  "compilerOptions": { "types": [] },
+  "include": ["src"],
+  "exclude": ["src/web", "src/react"]
+}

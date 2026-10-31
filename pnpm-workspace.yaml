@@ -1,0 +1,24 @@
+# Expo/React Native funciona melhor com node_modules "achatado" no monorepo (herdado da Fase M).
+nodeLinker: hoisted
+
+# Segurança da cadeia de suprimentos: não instala versões publicadas há menos de 24 h (em minutos).
+minimumReleaseAge: 1440
+
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "modules/*"
+
+# pnpm 11+: dependências autorizadas a rodar script de instalação
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  "@tailwindcss/oxide": true
+
+# pnpm 10 (equivalente)
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - unrs-resolver
+  - "@tailwindcss/oxide"

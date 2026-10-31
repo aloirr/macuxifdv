@@ -1,0 +1,143 @@
+import { describe, expect, it } from 'vitest';
+import { canTransition, checkDiscount, orderActions, computeOrderTotals, type DiscountPolicy, validateOrder } from './order';
+
+const policy: DiscountPolicy = { seller_pct: 5, supervisor_pct: 8, manager_pct: 12, above_manager: 'block', exceptions: { 'seller-x': 6 } };
+const credit = { credit_limit_cents: 2_000_000, open_receivables_cents: 0, overdue_cents: 0, open_orders_cents: 0 };
+
+describe('computeOrderTotals', () => {
+  it('pedido do mockup: 10 pastilhas, 24 filtros, 4 amortecedores, 4%', () => {
+    const t = computeOrderTotals(
+      [
+        { product_id: 'a', quantity: 10, unit_price_cents: 8990 },
+        { product_id: 'b', quantity: 24, unit_price_cents: 2450 },
+        { product_id: 'c', quantity: 4, unit_price_cents: 21800 },
+      ],
+      4,
+    );
+    expect(t.units).toBe(38);
+    expect(t.subtotal_cents).toBe(89900 + 58800 + 87200);
+    expect(t.subtotal_cents - t.discount_cents).toBe(t.total_cents);
+    expect(t.discount_cents).toBe(3596 + 2352 + 3488);
+  });
+
+  it('ignora linha com quantidade zero', () => {
+    const t = computeOrderTotals([{ product_id: 'a', quantity: 0, unit_price_cents: 100 }], 0);
+    expect(t.lines).toHaveLength(0);
+    expect(t.total_cents).toBe(0);
+  });
+
+  it('desconto negativo vira zero e acima de 100 vira 100', () => {
+    expect(computeOrderTotals([{ product_id: 'a', quantity: 1, unit_price_cents: 1000 }], -5).total_cents).toBe(1000);
+    expect(computeOrderTotals([{ product_id: 'a', quantity: 1, unit_price_cents: 1000 }], 150).total_cents).toBe(0);
+  });
+});
+
+describe('checkDiscount (alçada)', () => {
+  it.each([
+    [0, 'within'],
+    [5, 'within'],
+    [5.01, 'needs_approval'],
+    [7, 'needs_approval'],
+    [12, 'needs_approval'],
+    [12.5, 'blocked'],
+  ])('desconto %s%% → %s', (pct, level) => {
+    expect(checkDiscount(pct, policy, 'seller-1').level).toBe(level);
+  });
+
+  it('usa a exceção do vendedor', () => {
+    expect(checkDiscount(6, policy, 'seller-x').level).toBe('within');
+    expect(checkDiscount(6, policy, 'seller-1').level).toBe('needs_approval');
+  });
+
+  it('acima do gestor vai para a diretoria quando configurado', () => {
+    const c = checkDiscount(15, { ...policy, above_manager: 'director' }, 'seller-1');
+    expect(c).toMatchObject({ level: 'needs_approval', approver: 'director' });
+  });
+
+  it('aprovador conforme a faixa', () => {
+    expect(checkDiscount(7, policy, 'seller-1')).toMatchObject({ approver: 'supervisor', exceeded_by_pct: 2 });
+    expect(checkDiscount(10, policy, 'seller-1')).toMatchObject({ approver: 'manager' });
+  });
+});
+
+describe('validateOrder', () => {
+  const lines = [{ product_id: 'a', quantity: 10, unit_price_cents: 10000 }];
+
+  it('dentro da alçada e do crédito: ok', () => {
+    const v = validateOrder({ seller_id: 's', discount_pct: 4, lines, policy, credit });
+    expect(v.outcome).toBe('ok');
+    expect(v.issues).toHaveLength(0);
+    expect(v.totals.total_cents).toBe(96000);
+  });
+
+  it('desconto acima da alçada: aprovação', () => {
+    const v = validateOrder({ seller_id: 's', discount_pct: 7, lines, policy, credit });
+    expect(v.outcome).toBe('pending_approval');
+    expect(v.issues[0]?.code).toBe('discount_above_limit');
+    expect(v.issues[0]?.message).toContain('7,0%');
+  });
+
+  it('desconto acima do máximo: rejeitado', () => {
+    expect(validateOrder({ seller_id: 's', discount_pct: 20, lines, policy, credit }).outcome).toBe('rejected');
+  });
+
+  it('limite de crédito excedido: aprovação com valor excedido', () => {
+    const v = validateOrder({
+      seller_id: 's',
+      discount_pct: 0,
+      lines,
+      policy,
+      credit: { credit_limit_cents: 100000, open_receivables_cents: 10000, overdue_cents: 0, open_orders_cents: 2000 },
+    });
+    expect(v.available_credit_cents).toBe(88000);
+    expect(v.outcome).toBe('pending_approval');
+    expect(v.issues[0]?.message).toContain('R$ 120,00');
+  });
+
+  it('cliente com título vencido: aprovação', () => {
+    const v = validateOrder({ seller_id: 's', discount_pct: 0, lines, policy, credit: { ...credit, overdue_cents: 500 } });
+    expect(v.issues.map((i) => i.code)).toContain('overdue_receivables');
+  });
+
+  it('pedido vazio e quantidade inválida: rejeitado', () => {
+    expect(validateOrder({ seller_id: 's', discount_pct: 0, lines: [], policy, credit }).outcome).toBe('rejected');
+    const v = validateOrder({ seller_id: 's', discount_pct: 0, lines: [{ product_id: 'a', quantity: 1.5, unit_price_cents: 100 }], policy, credit });
+    expect(v.issues.map((i) => i.code)).toContain('invalid_quantity');
+  });
+
+  it('produto sem preço: rejeitado', () => {
+    const v = validateOrder({ seller_id: 's', discount_pct: 0, lines: [{ product_id: 'a', quantity: 1, unit_price_cents: null }], policy, credit });
+    expect(v.outcome).toBe('rejected');
+  });
+});
+
+describe('máquina de status', () => {
+  it.each([
+    ['queued', 'received', true],
+    ['pending_approval', 'approved', true],
+    ['pending_approval', 'integrated', false],
+    ['integrated', 'cancelled', false],
+    ['sent_to_erp', 'integrated', true],
+  ] as const)('%s → %s = %s', (a, b, ok) => expect(canTransition(a, b)).toBe(ok));
+});
+
+describe('ações do pedido (duplicar, editar, excluir)', () => {
+  it.each([
+    ['queued', true],
+    ['pending_approval', true],
+    ['rejected', true],
+    ['received', true],
+    ['sent_to_erp', false],
+    ['integrated', false],
+    ['cancelled', false],
+  ] as const)('%s → editar/excluir = %s', (st, ok) => {
+    const a = orderActions(st);
+    expect(a.can_edit).toBe(ok);
+    expect(a.can_cancel).toBe(ok);
+    expect(a.can_duplicate).toBe(true);
+    expect(a.locked_reason === '').toBe(ok);
+  });
+  it('integrado explica que é preciso duplicar', () => {
+    expect(orderActions('integrated').locked_reason).toContain('duplique');
+  });
+});
