@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 
 import { defaultApiUrl } from '@/lib/api-url';
+import { lerModoApi, PORTA_API } from '@/lib/modo-api';
 
 /** UUID v4 gerado no aparelho (expo-crypto; reserva para navegador em http sem contexto seguro). */
 export function uuid(): string {
@@ -26,6 +27,11 @@ export function uuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+/** Modo da API do build (`EXPO_PUBLIC_API_MODO`; o Expo embute EXPO_PUBLIC_* no bundle). */
+export function modoApi() {
+  return lerModoApi({ EXPO_PUBLIC_API_MODO: process.env.EXPO_PUBLIC_API_MODO });
+}
+
 export function platformDefaultApiUrl(): string {
   const w = globalThis as { location?: { hostname?: string } };
   const c = Constants as unknown as { expoConfig?: { hostUri?: string } | null; expoGoConfig?: { debuggerHost?: string } | null; linkingUri?: string };
@@ -35,6 +41,7 @@ export function platformDefaultApiUrl(): string {
     platform: Platform.OS,
     browserHost: Platform.OS === 'web' ? (w.location?.hostname ?? null) : null,
     hostUri,
+    porta: PORTA_API[modoApi()],
   });
 }
 

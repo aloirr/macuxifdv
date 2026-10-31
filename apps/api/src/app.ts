@@ -8,17 +8,20 @@
  * Toda rota autenticada passa por `prepararRequisicao` (401 → licença 403 MODULO_INATIVO → perfil/ação
  * 403 PERFIL_SEM_ACESSO → Zod 400 → carteira 403 FORA_DA_CARTEIRA). Os módulos efetivos são calculados
  * por requisição (RN-CORE-01/03, `modulosEfetivos` do SDK) a partir da fonte de licenças. Banco só por
- * `comTenant` com o tenant do token (papel macuxi_app). Corpo de erro: `ErroApiSchema` `{ codigo, mensagem, detalhes? }`.
+ * `comTenant` com o tenant do token (papel macuxi_app). Corpo de erro: `ErroApiSchema` `{ codigo, mensagem, detalhes? }`;
+ * o status do erro do módulo é o do `ErroHttpModulo` (401/403/404/409/410/422/423/503) e `ctx.dependencias` traz o
+ * `depende` de todos os manifestos instalados (RN-CORE-03).
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { erroModuloInativo, MeusModulosRespostaSchema, ROTA_ME_MODULOS, type MeusModulosResposta } from '@macuxi/core/contracts';
 import {
   corpoDoErro,
+  corpoDoErroModulo,
   criarPermissoes,
+  dependenciasDosManifestos,
   ehAcaoDePedido,
   ehCaminhoDePedido,
-  ErroNaoEncontrado,
-  ErroRegraNegocio,
+  ErroHttpModulo,
   escopoDoPerfil,
   modulosEfetivos,
   validarConjunto,
@@ -105,6 +108,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const problemas = validarConjunto(manifestos);
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
+  const dependencias = dependenciasDosManifestos(manifestos);
   const porId = new Map(modulos.map((m) => [m.manifesto.id, m] as const));
   const core = porId.get('core');
   const banco = op.banco ?? null;
@@ -131,10 +135,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   app.setErrorHandler((erro, req, reply) => {
     if (erro instanceof ErroHttp) return reply.code(erro.status).send(erro.corpo());
-    if (erro instanceof ErroRegraNegocio) {
-      return reply.code(422).send({ codigo: erro.codigo, mensagem: erro.message, ...(erro.detalhes ? { detalhes: erro.detalhes } : {}) } satisfies ErroApi);
-    }
-    if (erro instanceof ErroNaoEncontrado) return reply.code(404).send({ codigo: erro.codigo, mensagem: erro.message } satisfies ErroApi);
+    // erro do módulo (ErroHttpModulo e os casos ErroRegraNegocio 422 / ErroNaoEncontrado 404): status e código do módulo
+    if (erro instanceof ErroHttpModulo) return reply.code(erro.status).send(corpoDoErroModulo(erro) satisfies ErroApi);
     if (erro instanceof ZodError) return reply.code(400).send({ codigo: 'VALIDACAO', mensagem: 'Dados inválidos.' } satisfies ErroApi);
     const status = (erro as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) {
@@ -160,6 +162,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     let carteira: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     const contexto = (m: ModuloId | null): ContextoBase => ({
       usuario,
+      dependencias,
       requestId: req.id,
       agora: relogio,
       comTenant: (fn) =>

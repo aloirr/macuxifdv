@@ -11,7 +11,11 @@
  *   4. validação Zod de params, query e corpo (400 VALIDACAO);
  *   5. escopo de carteira quando a rota diz qual cliente toca (403 FORA_DA_CARTEIRA, RN-CORE-04);
  *   6. `executar`, com o banco só por `ctx.comTenant` (tenant do token, papel macuxi_app, RLS).
- * Erro de regra de negócio: `throw new ErroRegraNegocio('RN-VEN-03', 'mensagem')` → 422 `{ codigo, mensagem }`.
+ * Erros do módulo (corpo sempre `{ codigo, mensagem, detalhes? }`, ErroApiSchema):
+ *   - regra de negócio: `throw new ErroRegraNegocio('RN-VEN-03', 'mensagem')` → 422;
+ *   - não encontrado/fora do escopo: `throw new ErroNaoEncontrado('PEDIDO_NAO_ENCONTRADO', '...')` → 404;
+ *   - outro status de negócio (401 login, 423 bloqueado, 409 conflito, 503 indisponível…):
+ *     `throw new ErroHttpModulo(423, 'USUARIO_BLOQUEADO', 'mensagem')`.
  */
 import type { z } from 'zod';
 import type { MetodoHttp } from './ambiente';
@@ -57,8 +61,17 @@ export interface TransacaoTenant {
 }
 
 /** O que toda rota (e todo provedor de sync) recebe. */
+/** Módulo → módulos de que ele depende (`depende` do manifesto), de TODOS os módulos instalados (RN-CORE-03). */
+export type DependenciasModulos = Readonly<Partial<Record<ModuloId, readonly ModuloId[]>>>;
+
 export interface ContextoBase {
   usuario: UsuarioDaRequisicao;
+  /**
+   * Dependências entre os módulos instalados (RN-CORE-03), para quem precisa explicar o efeito de desligar um
+   * módulo (ex.: tela de licenças do BKO: "desligar o Catálogo também desliga o Vendedor") sem importar o
+   * manifesto de outro módulo (fronteiras). Só leitura; igual para todos os usuários do processo.
+   */
+  dependencias: DependenciasModulos;
   requestId: string;
   /** Relógio injetável (testes). Datas sempre em UTC. */
   agora(): Date;
@@ -182,15 +195,36 @@ export interface ModuloApi {
   servicos?: ServicosCore;
 }
 
-/** Erro de regra de negócio: a API responde 422 `{ codigo, mensagem, detalhes? }` (codigo = id da RN). */
-export class ErroRegraNegocio extends Error {
-  readonly status = 422;
+/**
+ * Status que um módulo pode devolver por erro próprio. Ficam de fora os da plataforma: 400 (Zod, o createApp
+ * valida), 429 (limite das rotas públicas) e 5xx além de 503 (erro inesperado vira 500 sem detalhes).
+ */
+export const STATUS_ERRO_MODULO = [401, 403, 404, 409, 410, 422, 423, 503] as const;
+export type StatusErroModulo = (typeof STATUS_ERRO_MODULO)[number];
+
+/**
+ * Erro HTTP de módulo (rota autenticada ou pública): a API responde `status` com `{ codigo, mensagem, detalhes? }`.
+ * Ex.: login — `throw new ErroHttpModulo(401, 'CREDENCIAIS_INVALIDAS', '...')`; `(423, 'USUARIO_BLOQUEADO', ...)`;
+ * `(503, 'AUTENTICACAO_INDISPONIVEL', ...)`. `detalhes` vai ao cliente: nunca coloque dado pessoal nem segredo.
+ */
+export class ErroHttpModulo extends Error {
   constructor(
+    readonly status: StatusErroModulo,
     readonly codigo: string,
     mensagem: string,
     readonly detalhes?: Record<string, unknown>,
   ) {
     super(mensagem);
+    this.name = 'ErroHttpModulo';
+    if (!(STATUS_ERRO_MODULO as readonly number[]).includes(status)) throw new Error(`ErroHttpModulo: status ${String(status)} não é de módulo (${STATUS_ERRO_MODULO.join(', ')})`);
+  }
+}
+
+/** Erro de regra de negócio: a API responde 422 `{ codigo, mensagem, detalhes? }` (codigo = id da RN). */
+export class ErroRegraNegocio extends ErroHttpModulo {
+  declare readonly status: 422;
+  constructor(codigo: string, mensagem: string, detalhes?: Record<string, unknown>) {
+    super(422, codigo, mensagem, detalhes);
     this.name = 'ErroRegraNegocio';
   }
 }
@@ -199,15 +233,24 @@ export class ErroRegraNegocio extends Error {
  * Recurso inexistente OU fora do escopo do usuário: a API responde 404 `{ codigo, mensagem }` e não revela se existe
  * (RN-CORE-04). Ex.: `throw new ErroNaoEncontrado('PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado na sua carteira.')`.
  */
-export class ErroNaoEncontrado extends Error {
-  readonly status = 404;
-  constructor(
-    readonly codigo: string,
-    mensagem: string,
-  ) {
-    super(mensagem);
+export class ErroNaoEncontrado extends ErroHttpModulo {
+  declare readonly status: 404;
+  constructor(codigo: string, mensagem: string) {
+    super(404, codigo, mensagem);
     this.name = 'ErroNaoEncontrado';
   }
+}
+
+/** Corpo `ErroApiSchema` do erro do módulo (o mesmo que a API envia). */
+export function corpoDoErroModulo(e: ErroHttpModulo): { codigo: string; mensagem: string; detalhes?: Record<string, unknown> } {
+  return { codigo: e.codigo, mensagem: e.message, ...(e.detalhes ? { detalhes: e.detalhes } : {}) };
+}
+
+/** Módulo → `depende` do manifesto, para `ctx.dependencias` (RN-CORE-03). */
+export function dependenciasDosManifestos(manifestos: readonly Pick<Manifesto, 'id' | 'depende'>[]): DependenciasModulos {
+  const d: Partial<Record<ModuloId, readonly ModuloId[]>> = {};
+  for (const m of manifestos) d[m.id] = Object.freeze([...m.depende]);
+  return Object.freeze(d);
 }
 
 const CAMINHO_RE = /^(?:[a-z0-9_-]+|:[a-z][a-zA-Z0-9_]*)(?:\/(?:[a-z0-9_-]+|:[a-z][a-zA-Z0-9_]*))*$/;

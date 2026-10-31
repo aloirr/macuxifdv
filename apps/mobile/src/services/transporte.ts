@@ -3,21 +3,25 @@
  *
  * - `v1`: contrato do doc 04 — `POST /v1/sync/push { itens }` e `GET /v1/sync/pull?entidade&cursor`
  *   (apps/api, T-0004). Erro de rede/5xx = exceção (o motor tenta de novo); 4xx no lote = rejeição por item.
- * - `fase-m` (padrão enquanto o servidor de desenvolvimento é o mock-api): traduz a fila para o
+ * - `fase-m` (demonstração, `EXPO_PUBLIC_API_MODO=demo` — mock-api): traduz a fila para o
  *   `POST /v1/sync/push { items: [{ kind }] }` da Fase M (pedido → order; visita → visit ou checkout)
  *   e não tem pull genérico (as cargas vêm das `etapasSync` REST dos módulos, B2).
  */
 import type { ItemPush, LinhaSync, PaginaSync, ResultadoItemPush, TransporteSync } from '@macuxi/platform-sdk';
 
+import type { ModoApi } from '@/lib/modo-api';
+
 import { HttpError, type ApiClient } from './api';
 
 export type ModoSync = 'fase-m' | 'v1';
 
-export function modoSync(): ModoSync {
-  return process.env.EXPO_PUBLIC_SYNC === 'v1' ? 'v1' : 'fase-m';
+/** Segue o modo da API: API real → v1; demonstração (mock-api) → fase-m. */
+export function modoSync(modo: ModoApi): ModoSync {
+  return modo === 'demo' ? 'fase-m' : 'v1';
 }
 
-const retentavel = (e: unknown) => !(e instanceof HttpError) || e.status >= 500 || e.status === 408 || e.status === 429;
+// 401 = sessão (o item não tem culpa): o motor tenta de novo depois do novo login, sem rejeitar a fila
+const retentavel = (e: unknown) => !(e instanceof HttpError) || e.status >= 500 || e.status === 401 || e.status === 408 || e.status === 429;
 
 /** Lote inteiro recusado com 4xx (ex.: 403 MODULO_INATIVO na rota): vira rejeição de cada item. */
 function rejeitarLote(itens: ItemPush[], e: unknown): ResultadoItemPush[] {

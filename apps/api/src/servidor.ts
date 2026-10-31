@@ -1,14 +1,21 @@
 /**
  * Sobe a API (`pnpm --filter api dev`). Porta `MACUXI_API_PORTA` (padrão 8100; o mock-api da Fase M fica na 8000
  * até a API cobrir as rotas). Conecta com o papel `macuxi_app` (`urlApp` do @macuxi/db, senha só no `.env`).
- * Sem o Core Fase 2 (JWT), nenhuma requisição autentica: a API sobe, responde `/v1/saude` e devolve 401 no resto.
+ * Segredo do JWT do Core: `MACUXI_JWT_SEGREDO` (mín. 32 caracteres, só no .env). Fora do ambiente local a API não sobe
+ * sem ele (falha fechada); no local sobe com aviso e o login responde 503 (`config.ts`).
  */
 import { lerConfig, urlApp } from '@macuxi/db';
 import pg from 'pg';
 import { createApp } from './app';
 import { criarBancoApp } from './banco';
+import { conferirSegredoJwt } from './config';
 
-const cfg = lerConfig();
+const cfg = lerConfig(); // carrega o .env (raiz e db/) antes de ler as variáveis abaixo
+const segredoJwt = conferirSegredoJwt(process.env, cfg.host);
+if (!segredoJwt.ok && segredoJwt.fatal) {
+  console.error(`[api] ${segredoJwt.mensagem}`);
+  process.exit(1);
+}
 const pool = new pg.Pool({
   connectionString: urlApp(cfg),
   max: Number(process.env.MACUXI_API_POOL ?? 10),
@@ -27,6 +34,8 @@ const app = createApp({
     },
   },
 });
+
+if (!segredoJwt.ok) app.log.warn(segredoJwt.mensagem);
 
 const porta = Number(process.env.MACUXI_API_PORTA ?? 8100);
 const host = process.env.MACUXI_API_HOST ?? '127.0.0.1';

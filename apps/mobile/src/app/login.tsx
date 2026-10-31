@@ -1,12 +1,14 @@
 /**
- * Login de demonstração (copiado da Fase M): escolher o usuário numa lista, sem senha, contra o mock-api.
- * O papel em inglês da Fase M vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis da variante
- * (Campo: vendedor e promotor; Gestão: supervisor e gerente — `PERFIS_DO_APP`). Os demais aparecem
- * como "usa outro app". O login definitivo (código da empresa + e-mail + senha, Q3) chega com a T-0003.
- * Embaixo, o endereço do servidor (mock-api) pode ser editado.
+ * Login do app (T-0003 F2).
+ * - API real (padrão): a tela do Core (`TelaLogin`: código da empresa + e-mail + senha; o código fica salvo no
+ *   aparelho). Perfil de outro app (ex.: supervisor no Campo) não entra: a sessão é encerrada e o aviso diz qual app usar.
+ * - Demonstração (`EXPO_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher o usuário numa lista, sem senha. O papel
+ *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis da variante (`PERFIS_DO_APP`).
+ * Embaixo, o endereço do servidor pode ser editado (testado na rota de saúde de cada servidor).
  */
+import { TelaLogin, type CamposLogin } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
-import { PERFIS_DO_APP, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
+import { ErroHttp, PERFIS_DO_APP, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -20,13 +22,113 @@ const ORDEM: Perfil[] = ['vendedor', 'promotor', 'supervisor', 'gerente', 'anali
 const ordem = (p: Perfil | null) => (p ? ORDEM.indexOf(p) : ORDEM.length);
 
 export default function LoginScreen() {
-  const { apiUrl, defaultApiUrl, apiOverride, setApiUrl, testApiUrl, login, variante } = usePlataforma();
-  const [users, setUsers] = useState<FakeUser[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const { modo } = usePlataforma();
+  return modo === 'demo' ? <LoginDemo /> : <LoginReal />;
+}
+
+/** Login real: tela do Core + aviso de perfil de outro app + servidor. */
+function LoginReal() {
+  const { codigoSalvo, loginComSenha, variante } = usePlataforma();
+  const [aviso, setAviso] = useState<string | null>(null);
+  const entrar = async (campos: CamposLogin) => {
+    setAviso(null);
+    try {
+      await loginComSenha(campos);
+      router.replace('/sync');
+    } catch (e) {
+      if (e instanceof ErroHttp && e.codigo === 'PERFIL_FORA_DO_APP') {
+        setAviso(e.message);
+        return;
+      }
+      throw e;
+    }
+  };
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.ground }}>
+      <TelaLogin codigoSalvo={codigoSalvo} onEntrar={entrar} rodape={variante === 'gestao' ? 'Macuxi Gestão · supervisores e gerentes' : 'Macuxi Campo · vendedores e promotores'} />
+      <View style={styles.rodape}>
+        {aviso ? (
+          <Banner icon="alert" tone="warning" testID="login.perfil-fora-do-app">
+            {aviso}
+          </Banner>
+        ) : null}
+        <CartaoServidor />
+      </View>
+    </View>
+  );
+}
+
+/** Endereço do servidor: mostra, edita, testa e salva (vale para os dois modos). */
+function CartaoServidor() {
+  const { apiUrl, defaultApiUrl, apiOverride, setApiUrl, testApiUrl } = usePlataforma();
   const [editing, setEditing] = useState(false);
   const [urlDraft, setUrlDraft] = useState(apiUrl);
   const [urlMsg, setUrlMsg] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const saveUrl = async () => {
+    const res = await testApiUrl(normalize(urlDraft));
+    setUrlMsg(res);
+    if (res.ok) {
+      await setApiUrl(normalize(urlDraft) === defaultApiUrl ? null : normalize(urlDraft));
+      setEditing(false);
+    }
+  };
+
+  return (
+    <Card style={{ padding: 14, gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Icon name="server" size={16} color={colors.ink2} />
+        <Text style={[t.label, { flex: 1 }]}>Servidor</Text>
+        {!editing ? (
+          <Pressable testID="edit-server" accessibilityRole="button" onPress={() => setEditing(true)} hitSlop={12}>
+            <Text style={styles.link}>Alterar</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {editing ? (
+        <>
+          <TextInput
+            testID="server-input"
+            value={urlDraft}
+            onChangeText={setUrlDraft}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            style={styles.input}
+            placeholder="http://192.168.0.10:8100/v1"
+            placeholderTextColor={colors.ink3}
+          />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button label="Testar e salvar" onPress={() => void saveUrl()} variant="dark" style={{ flex: 1 }} />
+            <Button
+              label="Padrão"
+              variant="outline"
+              onPress={() => {
+                setUrlDraft(defaultApiUrl);
+                void setApiUrl(null);
+                setUrlMsg(null);
+                setEditing(false);
+              }}
+            />
+          </View>
+          {urlMsg ? <Text style={[t.small, { color: urlMsg.ok ? colors.success : colors.danger }]}>{urlMsg.message}</Text> : null}
+        </>
+      ) : (
+        <Text style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]} selectable>
+          {apiUrl}
+          {apiOverride ? '' : '  (padrão)'}
+        </Text>
+      )}
+    </Card>
+  );
+}
+
+/** Demonstração (mock-api da Fase M): escolher um usuário fictício, sem senha. */
+function LoginDemo() {
+  const { apiUrl, loginDemo, variante } = usePlataforma();
+  const [users, setUsers] = useState<FakeUser[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async (url: string) => {
     setError(null);
@@ -48,21 +150,12 @@ export default function LoginScreen() {
     setBusy(u.id);
     setError(null);
     try {
-      await login(u);
+      await loginDemo(u);
       router.replace('/sync');
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setBusy(null);
-    }
-  };
-
-  const saveUrl = async () => {
-    const res = await testApiUrl(normalize(urlDraft));
-    setUrlMsg(res);
-    if (res.ok) {
-      await setApiUrl(normalize(urlDraft) === defaultApiUrl ? null : normalize(urlDraft));
-      setEditing(false);
     }
   };
 
@@ -133,51 +226,7 @@ export default function LoginScreen() {
         </View>
       ) : null}
 
-      <Card style={{ padding: 14, gap: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Icon name="server" size={16} color={colors.ink2} />
-          <Text style={[t.label, { flex: 1 }]}>Servidor</Text>
-          {!editing ? (
-            <Pressable testID="edit-server" accessibilityRole="button" onPress={() => setEditing(true)} hitSlop={12}>
-              <Text style={styles.link}>Alterar</Text>
-            </Pressable>
-          ) : null}
-        </View>
-        {editing ? (
-          <>
-            <TextInput
-              testID="server-input"
-              value={urlDraft}
-              onChangeText={setUrlDraft}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              style={styles.input}
-              placeholder="http://192.168.0.10:8000/v1"
-              placeholderTextColor={colors.ink3}
-            />
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Button label="Testar e salvar" onPress={() => void saveUrl()} variant="dark" style={{ flex: 1 }} />
-              <Button
-                label="Padrão"
-                variant="outline"
-                onPress={() => {
-                  setUrlDraft(defaultApiUrl);
-                  void setApiUrl(null);
-                  setUrlMsg(null);
-                  setEditing(false);
-                }}
-              />
-            </View>
-            {urlMsg ? <Text style={[t.small, { color: urlMsg.ok ? colors.success : colors.danger }]}>{urlMsg.message}</Text> : null}
-          </>
-        ) : (
-          <Text style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]} selectable>
-            {apiUrl}
-            {apiOverride ? '' : '  (padrão)'}
-          </Text>
-        )}
-      </Card>
+      <CartaoServidor />
     </Screen>
   );
 }
@@ -191,5 +240,6 @@ const styles = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontFamily: fonts.displayBold, fontSize: 14, color: '#FFFFFF' },
   link: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accent },
+  rodape: { gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
   input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
 });

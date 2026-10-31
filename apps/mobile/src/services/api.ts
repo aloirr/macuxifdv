@@ -3,6 +3,7 @@
  * Legado da Fase M no shell (desenho T-0001 §6/§13): as chamadas de tela migram para `modules/<m>/app` na B2;
  * o shell usa `request` (transporte do motor de sync) e as rotas de sessão (users, login, me, health).
  * Erros: HttpError (resposta da API, formato { code, message, details }) e NetworkError (sem rede/timeout).
+ * Sessão da API real: com `renovar`, um 401 troca o acesso pelo refresh (uma vez) e repete a chamada.
  */
 import type {
   CheckoutVisitRequest,
@@ -39,10 +40,13 @@ export class NetworkError extends Error {
   }
 }
 
-/** Erro que justifica guardar na fila e tentar depois (sem rede, timeout, 5xx, arquivo aberto no Excel). */
+/**
+ * Erro que justifica guardar na fila e tentar depois (sem rede, timeout, 5xx, arquivo aberto no Excel, sessão
+ * expirada — 401 é problema da sessão, não do item: depois de entrar de novo a fila segue).
+ */
 export function isRetryable(e: unknown): boolean {
   if (e instanceof NetworkError) return true;
-  if (e instanceof HttpError) return e.status >= 500 || e.status === 408 || e.status === 429;
+  if (e instanceof HttpError) return e.status >= 500 || e.status === 401 || e.status === 408 || e.status === 429;
   return false;
 }
 
@@ -70,6 +74,8 @@ export class ApiClient {
   constructor(
     public readonly baseUrl: string,
     private readonly token: string | null,
+    /** API real: troca o acesso vencido pelo refresh; devolve o novo token de acesso ou `null` (sessão encerrada). */
+    private readonly renovar?: () => Promise<string | null>,
   ) {}
 
   private url(path: string, query?: Query): string {
@@ -83,10 +89,21 @@ export class ApiClient {
   }
 
   async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<{ status: number; data: T }> {
+    try {
+      return await this.enviar<T>(method, path, opts, this.token);
+    } catch (e) {
+      if (!(e instanceof HttpError) || e.status !== 401 || !this.token || !this.renovar) throw e;
+      const novo = await this.renovar();
+      if (!novo) throw e;
+      return this.enviar<T>(method, path, opts, novo);
+    }
+  }
+
+  private async enviar<T>(method: string, path: string, opts: RequestOptions, token: string | null): Promise<{ status: number; data: T }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 12_000);
     const headers: Record<string, string> = { Accept: 'application/json', ...opts.headers };
-    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
     if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
     let res: Response;
     try {
@@ -124,8 +141,9 @@ export class ApiClient {
   }
 
   // ---------- autenticação (fase M: login fake) ----------
-  health() {
-    return this.get<{ ok: boolean }>('/health', undefined, 5000);
+  /** Saúde do servidor: `/saude` na API real, `/health` no mock-api (`rotaDeSaude`). */
+  health(caminho = '/health') {
+    return this.get<{ ok: boolean }>(caminho, undefined, 5000);
   }
   users() {
     return this.get<{ items: FakeUser[] }>('/auth/users');

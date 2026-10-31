@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { perfilDaFaseM, perfilUsaApp } from './perfis';
+import { mensagemPerfilForaDoApp, perfilDaFaseM, perfilUsaApp } from './perfis';
 
 describe('perfis por app e conversão da Fase M', () => {
   it('converte os papéis em inglês da Fase M para os perfis do doc 03', () => {
@@ -16,5 +16,13 @@ describe('perfis por app e conversão da Fase M', () => {
     expect(perfilUsaApp('gerente', 'campo')).toBe(false);
     expect(perfilUsaApp('gerente', 'gestao')).toBe(true);
     expect(perfilUsaApp(null, 'gestao')).toBe(false);
+  });
+
+  it('doc 03: perfil fora do app recebe mensagem com o app certo; perfil do app não recebe nada', () => {
+    expect(mensagemPerfilForaDoApp('promotor', 'web')).toBe('O perfil promotor não usa o backoffice (web). Entre pelo app Macuxi Campo.');
+    expect(mensagemPerfilForaDoApp('supervisor', 'campo')).toBe('O perfil supervisor não usa o app Macuxi Campo. Entre pelo app Macuxi Gestão ou pelo backoffice (web).');
+    expect(mensagemPerfilForaDoApp('admin', 'gestao')).toBe('O perfil admin não usa o app Macuxi Gestão. Entre pelo backoffice (web).');
+    expect(mensagemPerfilForaDoApp('gerente', 'web')).toBeNull();
+    expect(mensagemPerfilForaDoApp(null, 'web')).toMatch(/não foi reconhecido/);
   });
 });

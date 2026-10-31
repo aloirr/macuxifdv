@@ -2,7 +2,8 @@
  * createApp (T-0004 critério 3): monta os 8 módulos pelo manifesto e checa, em toda rota,
  * autenticação, licença do módulo (RN-CORE-02), perfil/ação (ADR 0004, RN-PRO-01) e carteira (RN-CORE-04).
  */
-import { definirModuloApi, ErroApiSchema } from '@macuxi/platform-sdk';
+import { definirModuloApi, ErroApiSchema, ErroHttpModulo, type StatusErroModulo } from '@macuxi/platform-sdk';
+import { z } from 'zod';
 import { ErroModuloInativoSchema, MeusModulosRespostaSchema } from '@macuxi/core/contracts';
 import { manifest as core } from '@macuxi/core/manifest';
 import { describe, expect, it } from 'vitest';
@@ -181,5 +182,64 @@ describe('GET /v1/me/modulos (contrato do Core)', () => {
     expect(corpo.modulos[0]!.parametros).toEqual({ raio_checkin_m: 150 });
     const outra = MeusModulosRespostaSchema.parse((await app.inject({ method: 'GET', url: '/v1/me/modulos', headers: cab('promotor') })).json());
     expect(outra.versao_licencas).not.toBe(corpo.versao_licencas);
+  });
+});
+
+describe('ErroHttpModulo: status e código do módulo (T-0003 F2)', () => {
+  const STATUS: StatusErroModulo[] = [401, 403, 404, 409, 410, 422, 423, 503];
+  const coreDeTeste = definirModuloApi({
+    manifesto: core,
+    rotas: [
+      {
+        metodo: 'GET',
+        caminho: 'erro/:status',
+        carteira: 'nao_se_aplica',
+        params: z.object({ status: z.coerce.number() }),
+        executar: async (ctx) => {
+          throw new ErroHttpModulo(ctx.params.status as StatusErroModulo, `ERRO_${ctx.params.status}`, 'mensagem do módulo', ctx.params.status === 409 ? { versao: 2 } : undefined);
+        },
+      },
+      { metodo: 'GET', caminho: 'dependencias', carteira: 'nao_se_aplica', executar: async (ctx) => ctx.dependencias },
+    ],
+    rotasPublicas: [
+      {
+        metodo: 'POST',
+        caminho: 'auth/login',
+        limite: { max: 50, janelaMs: 60_000 },
+        corpo: z.object({ caso: z.enum(['credenciais', 'bloqueado', 'sem_segredo']) }),
+        executar: async (ctx) => {
+          if (ctx.corpo.caso === 'credenciais') throw new ErroHttpModulo(401, 'CREDENCIAIS_INVALIDAS', 'Dados incorretos.');
+          if (ctx.corpo.caso === 'bloqueado') throw new ErroHttpModulo(423, 'USUARIO_BLOQUEADO', 'Acesso bloqueado.');
+          throw new ErroHttpModulo(503, 'AUTENTICACAO_INDISPONIVEL', 'Login indisponível.');
+        },
+      },
+    ],
+  });
+  const app = () => createApp(opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ core: coreDeTeste }) }));
+
+  it('rota autenticada: cada status de módulo sai com ele mesmo e o corpo ErroApi (detalhes quando houver)', async () => {
+    const a = app();
+    for (const st of STATUS) {
+      const r = await a.inject({ method: 'GET', url: `/v1/core/erro/${st}`, headers: cab('vendedor') });
+      expect(r.statusCode).toBe(st);
+      expect(ErroApiSchema.parse(r.json())).toEqual({ codigo: `ERRO_${st}`, mensagem: 'mensagem do módulo', ...(st === 409 ? { detalhes: { versao: 2 } } : {}) });
+    }
+  });
+
+  it('rota pública (login): 401 CREDENCIAIS_INVALIDAS, 423 USUARIO_BLOQUEADO e 503 AUTENTICACAO_INDISPONIVEL (antes saíam 422)', async () => {
+    const a = app();
+    const caso = async (c: string) => a.inject({ method: 'POST', url: '/v1/auth/login', payload: { caso: c } });
+    expect(((r) => [r.statusCode, r.json().codigo])(await caso('credenciais'))).toEqual([401, 'CREDENCIAIS_INVALIDAS']);
+    expect(((r) => [r.statusCode, r.json().codigo])(await caso('bloqueado'))).toEqual([423, 'USUARIO_BLOQUEADO']);
+    expect(((r) => [r.statusCode, r.json().codigo])(await caso('sem_segredo'))).toEqual([503, 'AUTENTICACAO_INDISPONIVEL']);
+  });
+
+  it('RN-CORE-03: ctx.dependencias traz o "depende" de todos os manifestos instalados', async () => {
+    const r = await app().inject({ method: 'GET', url: '/v1/core/dependencias', headers: cab('vendedor') });
+    expect(r.statusCode).toBe(200);
+    const d = r.json() as Record<string, string[]>;
+    expect(Object.keys(d).sort()).toEqual(['catalogo', 'core', 'gestor', 'integracao', 'pesquisa', 'promotor', 'treinamento', 'vendedor']);
+    expect(d.core).toEqual([]);
+    expect(d.vendedor).toEqual(expect.arrayContaining(['core', 'catalogo']));
   });
 });

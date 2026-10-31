@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { definirModuloApi, ehCaminhoDePedido, ErroNaoEncontrado, ErroRegraNegocio, type RotaModulo } from './api';
+import { corpoDoErroModulo, definirModuloApi, dependenciasDosManifestos, ehCaminhoDePedido, ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type RotaModulo } from './api';
 import { defineModule } from './manifesto';
 import { definirEntidadeSync } from './sync';
 
@@ -80,5 +80,23 @@ describe('definirModuloApi (desenho T-0004 §3)', () => {
     const e = new ErroRegraNegocio('RN-VEN-03', 'Desconto acima da alçada');
     expect(e).toMatchObject({ status: 422, codigo: 'RN-VEN-03', message: 'Desconto acima da alçada' });
     expect(new ErroNaoEncontrado('PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado.')).toMatchObject({ status: 404, codigo: 'PEDIDO_NAO_ENCONTRADO' });
+  });
+
+  it('ErroHttpModulo: status de módulo (401/423/503…) com corpo ErroApi; 422 e 404 são casos dele', () => {
+    const e = new ErroHttpModulo(423, 'USUARIO_BLOQUEADO', 'Acesso bloqueado.');
+    expect(e).toMatchObject({ status: 423, codigo: 'USUARIO_BLOQUEADO', message: 'Acesso bloqueado.' });
+    expect(corpoDoErroModulo(e)).toEqual({ codigo: 'USUARIO_BLOQUEADO', mensagem: 'Acesso bloqueado.' });
+    expect(corpoDoErroModulo(new ErroRegraNegocio('RN-VEN-03', 'x', { limite: 10 }))).toEqual({ codigo: 'RN-VEN-03', mensagem: 'x', detalhes: { limite: 10 } });
+    expect(new ErroRegraNegocio('RN-VEN-03', 'x')).toBeInstanceOf(ErroHttpModulo);
+    expect(new ErroNaoEncontrado('X', 'x')).toBeInstanceOf(ErroHttpModulo);
+    // 400/429/500 são da plataforma: o módulo não usa
+    expect(() => new ErroHttpModulo(500 as never, 'X', 'x')).toThrow(/não é de módulo/);
+  });
+
+  it('RN-CORE-03: dependenciasDosManifestos devolve o "depende" de cada módulo instalado', () => {
+    const core = defineModule({ id: 'core', versao: '1.0.0', perfis: ['admin'] });
+    const d = dependenciasDosManifestos([core, vendedor]);
+    expect(d).toEqual({ core: [], vendedor: ['core'] });
+    expect(Object.isFrozen(d)).toBe(true);
   });
 });

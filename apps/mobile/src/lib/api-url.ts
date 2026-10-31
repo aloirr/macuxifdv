@@ -1,5 +1,5 @@
 /**
- * URL padrão da API (mock-api na fase M). Puro para teste.
+ * URL padrão da API. Puro para teste. Porta conforme o modo (`modo-api.ts`): 8100 na API real, 8000 no mock-api.
  * Ordem: EXPO_PUBLIC_API_URL → navegador (mesmo host da página) → IP do PC que serve o Metro (Expo Go) → localhost.
  */
 export const API_PORT = 8000;
@@ -11,6 +11,8 @@ export interface ApiUrlInput {
   browserHost?: string | null;
   /** Constants.expoConfig.hostUri, ex.: "192.168.0.12:8081" */
   hostUri?: string | null;
+  /** Porta do servidor (padrão: API_PORT, a do mock-api). */
+  porta?: number;
 }
 
 export function normalizeApiUrl(url: string): string {
@@ -32,13 +34,14 @@ export function hostFromHostUri(hostUri: string | null | undefined): string | nu
 }
 
 export function defaultApiUrl(input: ApiUrlInput): string {
+  const porta = input.porta ?? API_PORT;
   if (input.envUrl && input.envUrl.trim()) return normalizeApiUrl(input.envUrl);
   if (input.platform === 'web') {
     const h = input.browserHost && input.browserHost.trim() ? input.browserHost : 'localhost';
-    return `http://${h}:${API_PORT}/v1`;
+    return `http://${h}:${porta}/v1`;
   }
   const host = hostFromHostUri(input.hostUri);
-  // túnel do Expo (exp.direct) não alcança a porta 8000 do PC: cai em localhost e o usuário edita
-  if (host && !host.endsWith('.exp.direct')) return `http://${host}:${API_PORT}/v1`;
-  return `http://localhost:${API_PORT}/v1`;
+  // túnel do Expo (exp.direct) não alcança a porta da API no PC: cai em localhost e o usuário edita
+  if (host && !host.endsWith('.exp.direct')) return `http://${host}:${porta}/v1`;
+  return `http://localhost:${porta}/v1`;
 }

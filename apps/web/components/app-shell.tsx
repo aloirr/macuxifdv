@@ -15,7 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { ItemMenu } from '@macuxi/core/contracts';
 import { perfilUsaApp, ROTULO_PERFIL, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
-import { errorMessage } from '@macuxi/platform-sdk/web';
+import { errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
 import { Button, cx, ErrorBlock, IconLogout, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { criarAmbienteWeb } from '@/lib/ambiente';
 import { SHELL_WEB, type ComponentePagina } from '@/lib/modulos';
@@ -111,8 +111,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const product = me.data?.tenant.product_name ?? '…';
-  const company = me.data?.tenant.name ?? '';
+  // API real: empresa do login (Core); demonstração: `GET /me` do mock-api
+  const product = MODO_API === 'demo' ? (me.data?.tenant.product_name ?? '…') : 'Macuxi FDV';
+  const company = MODO_API === 'demo' ? (me.data?.tenant.name ?? '') : (session.user?.empresa ?? '');
   const user = session.user;
   const roleLabel = perfil ? ROTULO_PERFIL[perfil] : '';
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -166,7 +167,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <main className="flex min-w-0 flex-1 flex-col gap-5 px-4 pt-5 pb-10 md:px-8 md:pt-7">
-        {me.isError ? (
+        {MODO_API === 'demo' && me.isError ? (
           <ErrorBlock message={errorMessage(me.error)} onRetry={() => void me.refetch()} />
         ) : !perfilUsaApp(perfil, 'web') ? (
           <Notice tone="info">

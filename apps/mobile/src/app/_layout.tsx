@@ -21,9 +21,12 @@ import { useEffect } from 'react';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import type { VisaoShell } from '@macuxi/platform-sdk';
 import { colors } from '@macuxi/ui/mobile';
+import { registrarCameraNosModulos } from '@/services/camera';
 import { PlataformaProvider, usePlataforma } from '@/state/plataforma';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+// câmera do aparelho para a foto da fachada do cliente fechado (RN-CORE-14): o Core só recebe a referência
+registrarCameraNosModulos();
 
 const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.ground, card: colors.surface, primary: colors.accent, text: colors.ink, border: colors.line } };
 

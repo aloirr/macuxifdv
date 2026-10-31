@@ -24,7 +24,8 @@ export default function ProfileScreen() {
   const [confirmExit, setConfirmExit] = useState(false);
 
   if (!sessao) return <Redirect href="/login" />;
-  const tz = me?.tenant.timezone ?? 'America/Manaus';
+  const tz = me?.tenant.timezone ?? sessao.tenant?.fuso ?? 'America/Manaus';
+  const empresa = me?.tenant.name ?? sessao.tenant?.nome ?? null;
   const name = me?.seller?.name ?? sessao.user.name;
   const fila = estado.fila;
 
@@ -53,7 +54,7 @@ export default function ProfileScreen() {
           </Text>
           <Text style={t.small}>
             {sessao.user.email}
-            {me ? ` · ${me.tenant.name}` : ''}
+            {empresa ? ` · ${empresa}` : ''}
           </Text>
         </View>
       </View>
@@ -97,6 +98,14 @@ export default function ProfileScreen() {
               accessibilityLabel="Modo sem sinal"
             />
           </View>
+        </Card>
+      </View>
+
+      <View style={{ gap: 8 }}>
+        <SectionHeader title="Módulos" />
+        <Card style={{ padding: 14, gap: 8 }}>
+          <Text style={t.small}>Os módulos ativos para você, as versões e o que ficou sem enviar de módulo desativado.</Text>
+          <Button testID="abrir-meus-modulos" label="Meus módulos" icon="chevron" variant="outline" onPress={() => router.push('/m/meus-modulos')} />
         </Card>
       </View>
 

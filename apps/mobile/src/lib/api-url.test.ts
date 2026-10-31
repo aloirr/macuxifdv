@@ -14,4 +14,7 @@ describe('URL da API', () => {
     expect(hostFromHostUri('exp://10.0.0.5:8081/--/x')).toBe('10.0.0.5');
     expect(defaultApiUrl({ platform: 'android', hostUri: null })).toBe('http://localhost:8000/v1');
   });
+  it('porta do modo: 8100 na API real', () => {
+    expect(defaultApiUrl({ platform: 'android', hostUri: '192.168.0.12:8081', porta: 8100 })).toBe('http://192.168.0.12:8100/v1');
+  });
 });

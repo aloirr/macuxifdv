@@ -43,3 +43,17 @@ const DA_FASE_M: Readonly<Record<string, Perfil>> = {
 export function perfilDaFaseM(papel: string | null | undefined): Perfil | null {
   return (papel && DA_FASE_M[papel]) || null;
 }
+
+const NOME_DO_APP: Readonly<Record<keyof typeof PERFIS_DO_APP, string>> = { campo: 'o app Macuxi Campo', gestao: 'o app Macuxi Gestão', web: 'o backoffice (web)' };
+
+/**
+ * Login certo num app que não é do perfil (ex.: promotor no BKO): mensagem com a ação seguinte, ou `null` se o perfil
+ * usa este app. O shell recusa a entrada e encerra a sessão recém-criada (doc 03: promotor e vendedor não usam o BKO).
+ */
+export function mensagemPerfilForaDoApp(perfil: Perfil | null | undefined, app: keyof typeof PERFIS_DO_APP): string | null {
+  if (perfilUsaApp(perfil, app)) return null;
+  if (!perfil) return 'Seu perfil não foi reconhecido. Fale com o administrador da sua empresa.';
+  const certo = (Object.keys(PERFIS_DO_APP) as (keyof typeof PERFIS_DO_APP)[]).filter((a) => a !== app && PERFIS_DO_APP[a].includes(perfil));
+  const onde = certo.map((a) => NOME_DO_APP[a]).join(' ou ');
+  return `O perfil ${ROTULO_PERFIL[perfil].toLowerCase()} não usa ${NOME_DO_APP[app]}.${onde ? ` Entre pelo ${onde.replace(/^o /, '').replace(/ ou o /g, ' ou pelo ')}.` : ''}`;
+}

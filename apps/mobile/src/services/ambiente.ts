@@ -18,15 +18,20 @@ export interface FontesAmbiente {
   usuario: () => UsuarioAmbiente | null;
 }
 
+/** Erro do `ApiClient` no contrato do SDK (o que módulos e a tela de login do Core entendem). */
+export function traduzirErro(e: unknown): unknown {
+  if (e instanceof NetworkError) return new ErroSemConexao(e.message);
+  if (e instanceof HttpError) return new ErroHttp(e.status, e.code, e.message, e.details);
+  return e;
+}
+
 export function criarAmbienteDoAparelho(f: FontesAmbiente): AmbienteAparelho {
   const http = criarClienteHttp(
     async <T,>(metodo: string, caminho: string, opcoes: { query?: Record<string, string | number | boolean | undefined | null>; body?: unknown; headers?: Record<string, string>; timeoutMs?: number }) => {
       try {
         return (await f.api().request<T>(metodo, caminho, opcoes)).data;
       } catch (e) {
-        if (e instanceof NetworkError) throw new ErroSemConexao(e.message);
-        if (e instanceof HttpError) throw new ErroHttp(e.status, e.code, e.message, e.details);
-        throw e;
+        throw traduzirErro(e);
       }
     },
     { online: f.online },

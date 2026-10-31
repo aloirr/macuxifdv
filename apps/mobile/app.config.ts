@@ -60,13 +60,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
-      permissions: ['android.permission.ACCESS_COARSE_LOCATION', 'android.permission.ACCESS_FINE_LOCATION'],
+      permissions: ['android.permission.ACCESS_COARSE_LOCATION', 'android.permission.ACCESS_FINE_LOCATION', 'android.permission.CAMERA'],
+      // sem gravação de áudio (a câmera só tira foto: fachada do cliente fechado, RN-CORE-14)
+      blockedPermissions: ['android.permission.RECORD_AUDIO'],
     },
     web: { output: 'single', favicon: './assets/images/favicon.png', name: v.nome },
     plugins: [
       'expo-router',
       ['expo-splash-screen', { backgroundColor: '#F3F4F1', image: './assets/images/splash-icon.png', imageWidth: 76 }],
       ['expo-location', { locationWhenInUsePermission: `O ${v.nome} usa a localização para registrar o check-in na visita ao cliente.` }],
+      // câmera: foto da fachada do cliente fechado (RN-CORE-14); sem galeria e sem microfone
+      ['expo-image-picker', { cameraPermission: `O ${v.nome} usa a câmera para fotografar a fachada do cliente quando a loja está fechada.`, photosPermission: false, microphonePermission: false }],
+      // tokens da sessão no armazenamento seguro do Android (Keystore)
+      'expo-secure-store',
     ],
     experiments: { typedRoutes: true, reactCompiler: true },
     extra: {

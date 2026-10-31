@@ -1,20 +1,24 @@
 'use client';
 
 /**
- * Login do BKO (copiado de components/login-screen.tsx da Fase M): ambiente de demonstração contra o
- * mock-api, escolhendo um usuário fictício sem senha. O papel em inglês da Fase M é convertido para o
- * perfil do doc 03 (`perfilDaFaseM`); só aparecem perfis do BKO (Q6: admin, analista, assistente,
- * supervisor, gerente). O login definitivo — código da empresa + e-mail + senha (Q3) — chega com a
- * API de auth da T-0003 e troca só esta tela e `salvarSessao`.
+ * Login do BKO (T-0003 F2).
+ * - API real (padrão): código da empresa + e-mail + senha (`POST /v1/auth/login` do Core, contrato
+ *   `LoginSenhaRequestSchema`/`SessaoRespostaSchema`). Só entram admin, analista, assistente, supervisor e gerente:
+ *   promotor e vendedor recebem o aviso do app certo e a sessão recém-criada é encerrada (doc 03). O código da
+ *   empresa fica salvo no navegador. Mensagens: `lib/login.ts`.
+ * - Demonstração (`NEXT_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher um usuário fictício sem senha; o papel
+ *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`) e só aparecem perfis do BKO.
+ * testIDs do login real: login.tela, login.codigo-empresa, login.email, login.senha, login.entrar, login.erro.
  */
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { FakeUser, LoginResponse } from '@macuxi/core/contracts';
-import { PERFIS_DO_APP, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
-import { api, errorMessage } from '@macuxi/platform-sdk/web';
-import { ErrorBlock, IconChevronRight, LoadingBlock } from '@macuxi/ui/web';
-import { salvarSessao, usuarioDaFaseM } from '@/lib/session';
+import { LoginSenhaRequestSchema, SessaoRespostaSchema, type FakeUser, type LoginResponse } from '@macuxi/core/contracts';
+import { mensagemPerfilForaDoApp, PERFIS_DO_APP, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
+import { api, errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
+import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin, validarCampos, type CamposLogin } from '@/lib/login';
+import { salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';
 
 const DICA: Partial<Record<Perfil, string>> = {
   gerente: 'Aprova pedidos fora da alçada, acompanha a equipe e fecha o mês.',
@@ -32,6 +36,122 @@ function safeNext(next: string | null): string {
 }
 
 export function LoginScreen() {
+  return MODO_API === 'demo' ? <LoginDemo /> : <LoginReal />;
+}
+
+function Marca() {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-accent font-display text-[17px] font-extrabold text-white">M</span>
+      <div className="flex flex-col">
+        <span className="font-display text-[15px] font-bold">Backoffice Macuxi</span>
+        <span className="text-[12px] text-ink-2">Força de vendas · web do BKO</span>
+      </div>
+    </div>
+  );
+}
+
+const campoCss = 'h-11 rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent';
+
+/** Login real: código da empresa + e-mail + senha. */
+function LoginReal() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const qc = useQueryClient();
+  const [campos, setCampos] = useState<CamposLogin>({ codigo_empresa: '', email: '', senha: '' });
+  const [erros, setErros] = useState<Partial<Record<keyof CamposLogin, string>>>({});
+  const [erro, setErro] = useState<string | null>(null);
+  const [entrando, setEntrando] = useState(false);
+
+  useEffect(() => {
+    try {
+      const salvo = window.localStorage.getItem(CHAVE_CODIGO_EMPRESA);
+      if (salvo) setCampos((c) => (c.codigo_empresa ? c : { ...c, codigo_empresa: salvo }));
+    } catch {
+      // navegador sem storage
+    }
+  }, []);
+
+  const mudar = (campo: keyof CamposLogin) => (e: { target: { value: string } }) => setCampos((c) => ({ ...c, [campo]: e.target.value }));
+
+  const entrar = async (ev: FormEvent) => {
+    ev.preventDefault();
+    if (entrando) return;
+    const e = validarCampos(campos);
+    setErros(e);
+    setErro(null);
+    if (Object.keys(e).length > 0) return;
+    setEntrando(true);
+    try {
+      const corpo = LoginSenhaRequestSchema.parse({ codigo_empresa: campos.codigo_empresa.trim(), email: campos.email.trim(), senha: campos.senha });
+      const sessao = SessaoRespostaSchema.parse(await api<unknown>('/auth/login', { method: 'POST', body: corpo }));
+      try {
+        window.localStorage.setItem(CHAVE_CODIGO_EMPRESA, sessao.tenant.codigo);
+      } catch {
+        // navegador sem storage
+      }
+      const fora = mensagemPerfilForaDoApp(sessao.usuario.perfil, 'web');
+      if (fora) {
+        // promotor e vendedor não usam o BKO: encerra a sessão que acabou de nascer
+        await api('/auth/logout', { method: 'POST', body: { refresh_token: sessao.refresh_token } }).catch(() => undefined);
+        setErro(fora);
+        setCampos((c) => ({ ...c, senha: '' }));
+        return;
+      }
+      qc.clear();
+      salvarSessaoReal(sessao);
+      router.replace(safeNext(params.get('next')));
+    } catch (x) {
+      setErro(mensagemDoLogin(x));
+      setCampos((c) => ({ ...c, senha: '' }));
+    } finally {
+      setEntrando(false);
+    }
+  };
+
+  const campo = (nome: keyof CamposLogin, rotulo: string, props: { type: string; autoComplete: string }) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-[13px] font-semibold text-ink">{rotulo}</span>
+      <input
+        data-testid={`login.${nome === 'codigo_empresa' ? 'codigo-empresa' : nome}`}
+        name={nome}
+        value={campos[nome]}
+        onChange={mudar(nome)}
+        aria-invalid={erros[nome] ? true : undefined}
+        className={campoCss}
+        {...props}
+      />
+      {erros[nome] && <span className="text-[12px] text-danger">{erros[nome]}</span>}
+    </label>
+  );
+
+  return (
+    <div data-testid="login.tela" className="flex min-h-screen flex-col items-center bg-ground px-4 py-10 sm:py-16">
+      <form onSubmit={(e) => void entrar(e)} noValidate className="flex w-full max-w-[400px] flex-col gap-5">
+        <Marca />
+        <div className="flex flex-col gap-1">
+          <h1 className="m-0 font-display text-[28px] font-extrabold">Entrar</h1>
+          <span className="text-[13px] text-ink-2">Use o código da sua empresa, o seu e-mail e a sua senha.</span>
+        </div>
+        {erro && (
+          <div data-testid="login.erro">
+            <Notice tone="danger">{erro}</Notice>
+          </div>
+        )}
+        {campo('codigo_empresa', 'Código da empresa', { type: 'text', autoComplete: 'organization' })}
+        {campo('email', 'E-mail', { type: 'email', autoComplete: 'username' })}
+        {campo('senha', 'Senha', { type: 'password', autoComplete: 'current-password' })}
+        <Button data-testid="login.entrar" type="submit" variant="primary" disabled={entrando}>
+          {entrando ? 'Entrando…' : 'Entrar'}
+        </Button>
+        <span className="text-[12px] text-ink-2">Vendedores e promotores usam o app Macuxi Campo no celular.</span>
+      </form>
+    </div>
+  );
+}
+
+/** Demonstração (mock-api da Fase M): escolher um usuário fictício, sem senha. */
+function LoginDemo() {
   const router = useRouter();
   const params = useSearchParams();
   const qc = useQueryClient();
@@ -55,13 +175,7 @@ export function LoginScreen() {
   return (
     <div className="flex min-h-screen flex-col items-center bg-ground px-4 py-10 sm:py-16">
       <div className="flex w-full max-w-[1060px] flex-col gap-6">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-accent font-display text-[17px] font-extrabold text-white">M</span>
-          <div className="flex flex-col">
-            <span className="font-display text-[15px] font-bold">Backoffice Macuxi</span>
-            <span className="text-[12px] text-ink-2">Força de vendas · web do BKO</span>
-          </div>
-        </div>
+        <Marca />
         <div className="flex flex-col gap-1">
           <h1 className="m-0 font-display text-[28px] font-extrabold">Escolha um perfil para entrar</h1>
           <span className="text-[13px] text-ink-2">Ambiente de demonstração: sem senha e com dados fictícios. Cada perfil vê o que pode fazer.</span>

@@ -16,7 +16,7 @@ import {
   compararCursor,
   criarRegistroSync,
   decodificarCursor,
-  ErroRegraNegocio,
+  ErroHttpModulo,
   PushRequestSchema,
   rejeitarItensInvalidos,
   TAMANHO_PAGINA_SYNC,
@@ -96,7 +96,8 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
       try {
         for (const r of await prov.receber!(doModulo(prov.entidade.modulo), itens)) porId.set(r.id, r);
       } catch (e) {
-        if (!(e instanceof ErroRegraNegocio)) throw e; // 5xx: o motor tenta o lote de novo, na mesma ordem
+        // 4xx do módulo (regra, não encontrado, conflito) rejeita os itens; 5xx/503: o motor tenta o lote de novo, na mesma ordem
+        if (!(e instanceof ErroHttpModulo) || e.status >= 500) throw e;
         for (const i of itens) porId.set(i.id, { id: i.id, status: 'rejeitado', codigo: e.codigo, mensagem: e.message });
       }
     }

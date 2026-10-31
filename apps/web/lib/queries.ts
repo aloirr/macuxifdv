@@ -6,9 +6,9 @@
  * (desenho T-0001 §5 e §14).
  */
 import { useQuery } from '@tanstack/react-query';
-import type { AuditEntry, Me } from '@macuxi/core/contracts';
+import { MeusModulosRespostaSchema, type AuditEntry, type Me } from '@macuxi/core/contracts';
 import { modulosEfetivos, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
-import { api, ApiRequestError } from '@macuxi/platform-sdk/web';
+import { api, ApiRequestError, MODO_API } from '@macuxi/platform-sdk/web';
 import { MANIFESTOS_WEB } from './modulos';
 import { useSessao } from './session';
 
@@ -30,8 +30,9 @@ function useAuthed() {
   return useSessao().status === 'authenticated';
 }
 
+/** `GET /v1/me` do mock-api (demonstração). Na API real o usuário e a empresa vêm do login (`useSessao`). */
 export function useMe() {
-  const enabled = useAuthed();
+  const enabled = useAuthed() && MODO_API === 'demo';
   return useQuery({ queryKey: qk.me, queryFn: () => api<Me>('/me'), enabled, staleTime: 60_000 });
 }
 
@@ -48,7 +49,7 @@ export function useModulosEfetivos(perfil: Perfil | null) {
     staleTime: 60_000,
     queryFn: async (): Promise<ModuloId[]> => {
       try {
-        return (await api<{ modulos: ModuloId[] }>('/me/modulos')).modulos;
+        return MeusModulosRespostaSchema.parse(await api<unknown>('/me/modulos')).modulos.map((m) => m.id);
       } catch (e) {
         if (!(e instanceof ApiRequestError) || e.status !== 404 || !perfil) throw e;
         return modulosEfetivos({
