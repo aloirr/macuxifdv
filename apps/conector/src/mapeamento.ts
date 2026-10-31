@@ -201,13 +201,20 @@ export interface ResultadoMapeamento {
   /** Linhas descartadas por falta de external_id/alterado_em (sem eles não há cursor). */
   descartadas: number;
   invalidas: number;
+  /** Linhas já lidas antes (par não maior que o cursor de leitura): ignoradas. */
+  repetidas: number;
 }
 
-export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linhas: Linha[]): ResultadoMapeamento {
+/**
+ * `depoisDe`: linhas cujo par (alterado_em, external_id) não é maior que ele já foram lidas e são ignoradas. Cobre a linha
+ * cujo `alterado_em` tem precisão maior que milissegundos: o filtro do SQL a devolveria de novo a cada ciclo.
+ */
+export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linhas: Linha[], depoisDe: Cursor | null = null): ResultadoMapeamento {
   const registros: Record<string, unknown>[] = [];
   const problemas: ProblemaLinha[] = [];
   let descartadas = 0;
   let invalidas = 0;
+  let repetidas = 0;
   let cursor: Cursor | null = null;
   let ultimo: Cursor | null = null;
   for (const [posicao, linha] of linhas.entries()) {
@@ -230,6 +237,10 @@ export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linha
       continue;
     }
     const par: Cursor = { alterado_em: new Date(m.alterado_ms).toISOString(), external_id: m.external_id };
+    if (depoisDe && compararCursor(par, depoisDe) <= 0) {
+      repetidas++;
+      continue;
+    }
     if (cursor === null || compararCursor(par, cursor) > 0) cursor = par;
     ultimo = par;
     const v = validarLinha(entidade, m);
@@ -241,7 +252,7 @@ export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linha
       if (config.linhasInvalidas === 'enviar') registros.push(v.registro);
     }
   }
-  return { registros, cursor, ultimo, problemas, descartadas, invalidas };
+  return { registros, cursor, ultimo, problemas, descartadas, invalidas, repetidas };
 }
 
 /** Mesma ordem do Hub (RN-INT-05): instante, depois `external_id` em ordem ordinal. */

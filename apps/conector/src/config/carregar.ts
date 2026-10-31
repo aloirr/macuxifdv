@@ -56,5 +56,5 @@ export function carregarConfig(caminho: string): ConfigConector {
     throw new ErroConfig(`Arquivo de configuração não encontrado: ${caminho}. Informe com --config <arquivo> ou MACUXI_CONECTOR_CONFIG.`);
   }
   const ext = extname(caminho).toLowerCase();
-  return interpretarConfig(texto.replace(/^﻿/, ''), ext === '.yaml' || ext === '.yml' ? 'yaml' : 'json');
+  return interpretarConfig(texto.charCodeAt(0) === 0xfeff ? texto.slice(1) : texto, ext === '.yaml' || ext === '.yml' ? 'yaml' : 'json');
 }

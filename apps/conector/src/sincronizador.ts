@@ -111,7 +111,8 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
     return false;
   }
 
-  const m = mapearEValidar(entidade, cfg, pagina);
+  const m = mapearEValidar(entidade, cfg, pagina, estado.lido);
+  if (m.repetidas === pagina.length) return false; // só linhas já lidas (precisão de alterado_em): sem novidade
   if (m.ultimo === null) {
     const motivo = 'nenhuma linha lida tem external_id e alterado_em legíveis; confira o mapeamento de colunas e a consulta';
     store.atualizarEstado(entidade, { bloqueio: motivo });

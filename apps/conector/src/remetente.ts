@@ -46,16 +46,12 @@ export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
   // 1) resultados dos lotes já aceitos; 2) envio dos pendentes (ordem da fila)
   const fila = [...store.lotesProntos('aguardando', ctx.relogio.agora()), ...store.lotesProntos('pendente', ctx.relogio.agora())];
   const ordenada = fila.sort((a, b) => (a.estado === b.estado ? a.id - b.id : a.estado === 'aguardando' ? -1 : 1));
-  const entidadesComFalha = new Set<string>();
 
   for (const lote of ordenada) {
     if (bloqueadas.has(lote.entidade)) continue;
-    // mantém a ordem dentro da entidade: se um lote anterior falhou por rede, não passa à frente
-    if (entidadesComFalha.has(lote.entidade)) continue;
     try {
       if (lote.estado === 'pendente') {
-        const ok = await enviar(ctx, lote, r);
-        if (!ok) entidadesComFalha.add(lote.entidade);
+        await enviar(ctx, lote, r);
       } else {
         await consultar(ctx, lote, r);
       }
@@ -72,10 +68,11 @@ export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
         const t = lote.tentativas + 1;
         store.atualizarLote(lote.id, { tentativas: t, proximaMs: proximaTentativa(ctx, t), erro: resumoErro(e) }, ctx.relogio.agora());
         r.adiados++;
-        entidadesComFalha.add(lote.entidade);
         ctx.log.aviso('envio_adiado', { entidade: lote.entidade, lote_local: lote.id, tentativas: t, erro: resumoErro(e) });
         r.interrompido ??= resumoErro(e);
-        continue;
+        // Hub fora do ar/limitando: os demais lotes falhariam do mesmo jeito (e cada um custaria os retries). O lote que falhou
+        // fica com a espera persistida, então no próximo ciclo a fila segue com os outros.
+        break;
       }
       throw e;
     }
@@ -83,8 +80,7 @@ export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
   return r;
 }
 
-/** Devolve `false` se o lote não saiu (a entidade espera). */
-async function enviar(ctx: Contexto, lote: LoteLocal, r: ResultadoFila): Promise<boolean> {
+async function enviar(ctx: Contexto, lote: LoteLocal, r: ResultadoFila): Promise<void> {
   const { store, log } = ctx;
   const resp = await ctx.hub.enviarLote(lote.envelope, lote.chave);
   const agora = ctx.relogio.agora();
@@ -93,7 +89,7 @@ async function enviar(ctx: Contexto, lote: LoteLocal, r: ResultadoFila): Promise
     r.enviados++;
     log.info('lote_enviado', { entidade: lote.entidade, lote_local: lote.id, lote_id: resp.aceito.lote_id, linhas: lote.linhas, parte: lote.parte, ultimo: lote.ultimo });
     await consultar(ctx, { ...lote, estado: 'aguardando', loteId: resp.aceito.lote_id }, r);
-    return true;
+    return;
   }
   const codigos = resp.recusa?.erros.map((e) => e.codigo).join(', ') ?? `http_${resp.status}`;
   const detalhe = resp.recusa?.erros.map((e) => `${e.codigo}${e.campo ? ` (${e.campo})` : ''}: ${e.mensagem}`).join(' | ') ?? `Hub respondeu HTTP ${resp.status}`;
@@ -105,7 +101,6 @@ async function enviar(ctx: Contexto, lote: LoteLocal, r: ResultadoFila): Promise
   });
   r.recusados++;
   log.erro('lote_recusado', { entidade: lote.entidade, lote_local: lote.id, codigos, detalhe });
-  return false;
 }
 
 async function consultar(ctx: Contexto, lote: LoteLocal, r: ResultadoFila): Promise<void> {

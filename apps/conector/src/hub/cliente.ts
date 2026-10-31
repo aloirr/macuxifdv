@@ -78,7 +78,8 @@ export class ClienteHub {
             signal: AbortSignal.timeout(this.o.timeoutMs ?? 30_000),
           });
         } catch (e) {
-          const causa = (e as { cause?: { code?: string } }).cause?.code ?? (e as Error).name;
+          const c = (e as { cause?: { code?: string; errors?: { code?: string }[]; name?: string; message?: string } }).cause;
+          const causa = c?.code ?? c?.errors?.find((x) => x.code)?.code ?? c?.message?.slice(0, 80) ?? c?.name ?? (e as Error).name;
           throw new ErroHubTransitorio(`Sem conexão com o Hub (${causa}).`);
         }
         const texto = await res.text().catch(() => '');

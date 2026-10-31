@@ -165,16 +165,42 @@ const dataIso = (v: unknown): string | undefined => {
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 };
 
+interface FatoStatus {
+  linha: Linha;
+  status: 'integrado' | 'rejeitado_erp' | 'faturado_parcial' | 'faturado_total' | 'cancelado';
+  nota?: string;
+  serie?: string;
+  emitidaEm?: string;
+}
+
+/**
+ * Cada linha da consulta de status descreve um fato do pedido (integração, uma nota, cancelamento). Como o `status` do ERP
+ * costuma ser do PEDIDO, só a última nota pode ser `faturado_total`; as anteriores contam como `faturado_parcial`.
+ * Ordem de envio: integrado → notas (da mais antiga à mais nova) → cancelado/rejeitado.
+ */
+function fatosDoStatus(cfg: PedidosConfig, linhas: Linha[]): FatoStatus[] {
+  const fatos: FatoStatus[] = [];
+  for (const linha of linhas) {
+    const codigo = texto(col(linha, 'status'));
+    const status = codigo === undefined ? undefined : cfg.status.mapaStatus[codigo];
+    if (!status) continue; // situação do ERP sem equivalente no contrato (ex.: "em separação"): nada a informar
+    fatos.push({ linha, status, nota: texto(col(linha, 'nota_numero')), serie: texto(col(linha, 'nota_serie')), emitidaEm: dataIso(col(linha, 'nota_emitida_em')) });
+  }
+  const ehNota = (f: FatoStatus) => (f.status === 'faturado_parcial' || f.status === 'faturado_total') && f.nota !== undefined;
+  const notas = fatos.filter(ehNota).sort((a, b) => (a.emitidaEm ?? '').localeCompare(b.emitidaEm ?? '') || (a.nota ?? '').localeCompare(b.nota ?? '', 'pt', { numeric: true }));
+  notas.slice(0, -1).forEach((f) => (f.status = 'faturado_parcial'));
+  const unicas = new Map<string, FatoStatus>();
+  for (const f of notas) unicas.set(`${f.nota}|${f.serie ?? ''}`, f); // a mesma nota repetida em várias linhas conta uma vez
+  const outros = fatos.filter((f) => !ehNota(f));
+  return [...outros.filter((f) => f.status === 'integrado'), ...unicas.values(), ...outros.filter((f) => f.status !== 'integrado')];
+}
+
 export async function acompanharStatus(ctx: Contexto, cfg: PedidosConfig, r: ResultadoPedidos = novoResultado()): Promise<ResultadoPedidos> {
   const abertos = ctx.store.pedidosPorEstado(['gravado', 'faturado_parcial'], ctx.relogio.agora());
   for (const local of abertos) {
     const linhas = await ctx.erp.consultar(cfg.status.consulta, { pedido_uuid: local.pedidoUuid });
-    for (const linha of linhas) {
-      const codigo = texto(col(linha, 'status'));
-      const status = codigo === undefined ? undefined : cfg.status.mapaStatus[codigo];
-      if (!status) continue; // situação do ERP sem equivalente no contrato (ex.: "em separação"): nada a informar
-      const nota = texto(col(linha, 'nota_numero'));
-      const serie = texto(col(linha, 'nota_serie'));
+    for (const fato of fatosDoStatus(cfg, linhas)) {
+      const { linha, status, nota, serie } = fato;
       const assinatura = status === 'integrado' ? 'integrado' : status === 'cancelado' || status === 'rejeitado_erp' ? status : `${status}|${nota ?? ''}|${serie ?? ''}`;
       if (ctx.store.retornoExiste(local.pedidoUuid, assinatura)) continue;
       const corpo: CorpoRetorno = {
@@ -185,7 +211,7 @@ export async function acompanharStatus(ctx: Contexto, cfg: PedidosConfig, r: Res
       };
       if ((status === 'faturado_parcial' || status === 'faturado_total') && nota) {
         const total = Number(col(linha, 'nota_total_cents'));
-        corpo.nota = { numero: nota, serie, emitida_em: dataIso(col(linha, 'nota_emitida_em')) ?? corpo.ocorrido_em, total_cents: Number.isFinite(total) ? Math.max(0, Math.round(total)) : 0 };
+        corpo.nota = { numero: nota, serie, emitida_em: fato.emitidaEm ?? corpo.ocorrido_em, total_cents: Number.isFinite(total) ? Math.max(0, Math.round(total)) : 0 };
         const itens = cfg.status.consultaItensNota ? await itensDaNota(ctx, cfg, local.pedidoUuid, nota, serie) : undefined;
         if (itens) corpo.itens_faturados = itens;
       }

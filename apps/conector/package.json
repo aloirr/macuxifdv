@@ -4,8 +4,6 @@
   "private": true,
   "type": "module",
   "description": "Conector on-premise do Hub de Integração: lê o ERP do cliente e empurra os dados ao Hub por delta (T-0013).",
-    "conector": "./src/cli.ts"
-  },
   "scripts": {
     "start": "tsx src/cli.ts",
     "build": "node scripts/empacotar.mjs",

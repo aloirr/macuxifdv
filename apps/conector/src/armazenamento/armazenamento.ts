@@ -158,9 +158,13 @@ export class Armazenamento {
     this.db.close();
   }
 
-  /** Executa `fn` numa transação (BEGIN IMMEDIATE); desfaz se lançar. */
+  private profundidade = 0;
+
+  /** Executa `fn` numa transação (BEGIN IMMEDIATE); desfaz se lançar. Aninhada, junta-se à transação externa. */
   transacao<T>(fn: () => T): T {
+    if (this.profundidade > 0) return fn();
     this.db.exec('BEGIN IMMEDIATE');
+    this.profundidade++;
     try {
       const r = fn();
       this.db.exec('COMMIT');
@@ -168,6 +172,8 @@ export class Armazenamento {
     } catch (e) {
       this.db.exec('ROLLBACK');
       throw e;
+    } finally {
+      this.profundidade--;
     }
   }
 
@@ -241,8 +247,14 @@ export class Armazenamento {
     const vals: unknown[] = [];
     const add = (c: string, v: unknown) => (cols.push(`${c} = ?`), vals.push(v));
     if (p.fase !== undefined) add('fase', p.fase);
-    if (p.lido !== undefined) (add('lido_em', p.lido?.alterado_em ?? null), add('lido_id', p.lido?.external_id ?? null));
-    if (p.confirmado !== undefined) (add('confirmado_em', p.confirmado?.alterado_em ?? null), add('confirmado_id', p.confirmado?.external_id ?? null));
+    if (p.lido !== undefined) {
+      add('lido_em', p.lido?.alterado_em ?? null);
+      add('lido_id', p.lido?.external_id ?? null);
+    }
+    if (p.confirmado !== undefined) {
+      add('confirmado_em', p.confirmado?.alterado_em ?? null);
+      add('confirmado_id', p.confirmado?.external_id ?? null);
+    }
     if (p.sessaoId !== undefined) add('sessao_id', p.sessaoId);
     if (p.sessaoParte !== undefined) add('sessao_parte', p.sessaoParte);
     if (p.cargaIniciadaMs !== undefined) add('carga_iniciada_ms', p.cargaIniciadaMs);
