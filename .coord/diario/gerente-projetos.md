@@ -24,3 +24,4 @@
 2026-10-31 — T-0002 — infra/migrações/RLS recebidos (71 verdes em PG provisório); engenheiro disparado para incluir db no workspace
 2026-10-31 — frentes (versão final): .claude/** travado, branches nuvem/alexandre/agente, push após merge da T-0005; Docker instalado; aviso a todos
 2026-10-31 — retomada após reinício — vendedor e engenheiro tinham parado no meio; raiz verde; commits T-0001 (A3 + vendedor), T-0002 (banco) e T-0003 (fase 1); Docker respondendo
+2026-10-31 — T-0005 — merge da nuvem recebido no pull (verificar --base, push liberado); caminhos destravados
