@@ -1,0 +1,191 @@
+/**
+ * RN-CORE-05 — isolamento entre tenants por RLS (T-0002 critério 2; plano S0-024 a S0-027).
+ * Conecta como o papel de APLICAÇÃO (macuxi_app: sem SUPERUSER/BYPASSRLS, não dono) sobre a fixture
+ * dois-tenants. Tabelas descobertas dinamicamente: tabela nova com tenant_id fica coberta sozinha.
+ * Pula (com aviso do globalSetup) se o Postgres não estiver de pé.
+ */
+import pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
+import { comTenant } from '../src/contexto';
+import { banco, semBanco } from './estado';
+import { comCliente, emTransacao, erroDe, tabelasComTenant, type TabelaInfo } from './util';
+
+const A = DOIS_TENANTS.A.tenantId;
+const B = DOIS_TENANTS.B.tenantId;
+const SEM_TENANT = '00000000-0000-4000-8000-000000000000';
+
+describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)', () => {
+  let app: pg.Client;
+  let tabelas: TabelaInfo[] = [];
+  /** id de uma linha de B por tabela (lido como admin), para tentar acesso direto por id. */
+  const idDeB = new Map<string, string>();
+
+  beforeAll(async () => {
+    tabelas = await comCliente(banco().urlAdmin, async (admin) => {
+      const ts = await tabelasComTenant(admin);
+      for (const t of ts) {
+        const r = await admin.query<{ id: string }>(`select id from ${t.nome} where tenant_id = $1 limit 1`, [B]);
+        if (r.rows[0]) idDeB.set(t.nome, r.rows[0].id);
+      }
+      return ts;
+    });
+    app = new pg.Client({ connectionString: banco().urlApp });
+    await app.connect();
+  });
+  afterAll(async () => {
+    await app?.end();
+  });
+
+  it('a conexão de teste é o papel de aplicação, não o admin', async () => {
+    const r = await app.query<{ usuario: string; super: string }>("select current_user as usuario, current_setting('is_superuser') as super");
+    expect(r.rows[0]).toEqual({ usuario: 'macuxi_app', super: 'off' });
+  });
+
+  it('descobre as tabelas com tenant_id de plataforma e core (e a fixture tem linha de B em todas)', () => {
+    const nomes = tabelas.map((t) => t.nome);
+    expect(nomes).toEqual(expect.arrayContaining(['plataforma.tenant_modulo', 'plataforma.evento', 'plataforma.auditoria', 'core.usuario', 'core.produto', 'core.carteira']));
+    expect(nomes.filter((n) => !idDeB.has(n))).toEqual([]);
+  });
+
+  describe('S0-024 leitura: cada tenant só enxerga as próprias linhas', () => {
+    it.each([
+      ['A', A],
+      ['B', B],
+    ])('contexto %s', async (_rotulo, tenant) => {
+      for (const t of tabelas) {
+        const r = await emTransacao(app, tenant, () =>
+          app.query<{ total: number; alheias: number }>(
+            `select count(*)::int as total, count(*) filter (where tenant_id <> $1)::int as alheias from ${t.nome}`,
+            [tenant],
+          ),
+        );
+        expect(r.rows[0]!.total, `${t.nome}: fixture deveria ter linhas do tenant`).toBeGreaterThan(0);
+        expect(r.rows[0]!.alheias, `${t.nome}: vazou linha de outro tenant`).toBe(0);
+      }
+    });
+
+    it('no contexto de A, filtro explícito por tenant_id = B e acesso por id de B retornam 0', async () => {
+      for (const t of tabelas) {
+        const porTenant = await emTransacao(app, A, () => app.query<{ n: number }>(`select count(*)::int as n from ${t.nome} where tenant_id = $1`, [B]));
+        expect(porTenant.rows[0]!.n, t.nome).toBe(0);
+        const porId = await emTransacao(app, A, () => app.query<{ n: number }>(`select count(*)::int as n from ${t.nome} where id = $1`, [idDeB.get(t.nome)]));
+        expect(porId.rows[0]!.n, t.nome).toBe(0);
+      }
+    });
+
+    it('plataforma.tenant (exceção sem tenant_id): A vê só o próprio registro', async () => {
+      const r = await emTransacao(app, A, () => app.query<{ id: string }>('select id from plataforma.tenant'));
+      expect(r.rows.map((x) => x.id)).toEqual([A]);
+    });
+  });
+
+  describe('S0-026 falha fechada: sem contexto válido, nenhuma linha', () => {
+    it.each([
+      ['sem set_config', null],
+      ['contexto vazio', ''],
+      ['tenant inexistente', SEM_TENANT],
+    ])('%s => 0 linhas em toda tabela', async (_rotulo, ctx) => {
+      for (const t of [...tabelas, { nome: 'plataforma.tenant' } as TabelaInfo]) {
+        const r = await emTransacao(app, ctx, () => app.query<{ n: number }>(`select count(*)::int as n from ${t.nome}`));
+        expect(r.rows[0]!.n, `${t.nome} (${String(ctx)})`).toBe(0);
+      }
+    });
+
+    it('contexto que não é UUID => erro (nunca "todas as linhas")', async () => {
+      const e = await erroDe(emTransacao(app, 'nao-e-uuid', () => app.query('select count(*) from core.usuario')));
+      expect(e?.code).toBe('22P02');
+    });
+
+    it('fora de transação (conexão "crua"), nenhuma linha', async () => {
+      const r = await app.query<{ n: number }>('select count(*)::int as n from core.usuario');
+      expect(r.rows[0]!.n).toBe(0);
+    });
+  });
+
+  describe('S0-025 escrita cruzada', () => {
+    it('INSERT com tenant_id de B no contexto de A é rejeitado pela política (WITH CHECK)', async () => {
+      for (const t of tabelas) {
+        const e = await erroDe(
+          emTransacao(app, A, () =>
+            app.query(
+              `insert into ${t.nome}
+               select (jsonb_populate_record(null::${t.nome}, to_jsonb(r) || jsonb_build_object('id', gen_random_uuid(), 'tenant_id', $2::uuid))).*
+                 from ${t.nome} r where r.tenant_id = $1 limit 1`,
+              [A, B],
+            ),
+          ),
+        );
+        expect(e?.code, `${t.nome}: ${e?.message ?? 'INSERT passou!'}`).toBe('42501');
+        expect(e?.message, t.nome).toMatch(/row-level security/);
+      }
+    });
+
+    it('UPDATE e DELETE em linhas de B no contexto de A afetam 0 linhas (ou são negados)', async () => {
+      for (const t of tabelas) {
+        for (const sql of [`update ${t.nome} set updated_at = updated_at where tenant_id = $1`, `delete from ${t.nome} where tenant_id = $1`]) {
+          const r = await emTransacao(app, A, () => app.query(sql, [B]).then((x) => ({ linhas: x.rowCount, erro: null }), (err: { code?: string }) => ({ linhas: 0, erro: err.code ?? '?' })));
+          // auditoria não tem UPDATE/DELETE para a aplicação: "permission denied" (42501) também é isolamento
+          expect(r.erro === null || r.erro === '42501', `${t.nome}: erro inesperado ${r.erro}`).toBe(true);
+          expect(r.linhas, `${t.nome}: ${sql}`).toBe(0);
+        }
+      }
+    });
+
+    it('UPDATE que troca tenant_id de A para B é rejeitado', async () => {
+      for (const t of tabelas) {
+        const e = await erroDe(
+          emTransacao(app, A, () => app.query(`update ${t.nome} set tenant_id = $2 where id = (select id from ${t.nome} where tenant_id = $1 limit 1)`, [A, B])),
+        );
+        expect(e?.code, `${t.nome}: ${e?.message ?? 'UPDATE passou!'}`).toBe('42501');
+      }
+    });
+
+    it('FK composta impede referenciar linha de outro tenant (carteira A -> cliente B)', async () => {
+      const e = await erroDe(
+        emTransacao(app, A, () =>
+          app.query('insert into core.carteira (tenant_id, cliente_id, usuario_id, papel) values ($1, $2, $3, $4)', [
+            A,
+            DOIS_TENANTS.B.clientes.c1,
+            DOIS_TENANTS.A.usuarios.vendedor1,
+            'vendedor',
+          ]),
+        ),
+      );
+      expect(e?.code).toBe('23503');
+    });
+
+    it('escrita no próprio tenant funciona (controle positivo)', async () => {
+      const r = await emTransacao(app, A, () =>
+        app.query('insert into core.produto (tenant_id, sku, nome) values ($1, $2, $3) returning tenant_id', [A, 'CONTROLE-1', 'Controle']),
+      );
+      expect(r.rows[0]).toEqual({ tenant_id: A });
+    });
+
+    it('login: plataforma.tenant_por_codigo resolve o tenant sem contexto, só pelo código', async () => {
+      const r = await app.query<{ id: string }>('select id from plataforma.tenant_por_codigo($1)', ['ALFA']);
+      expect(r.rows.map((x) => x.id)).toEqual([A]);
+      const nada = await app.query('select id from plataforma.tenant_por_codigo($1)', ['nao-existe']);
+      expect(nada.rowCount).toBe(0);
+    });
+  });
+
+  describe('S0-027 pool: o contexto é por transação e não vaza para a próxima', () => {
+    it('pool de 1 conexão alternando A, B, A e depois sem contexto', async () => {
+      const pool = new pg.Pool({ connectionString: banco().urlApp, max: 1 });
+      try {
+        const usuarios = (t: string) => comTenant(pool, t, async (c) => (await c.query<{ tenant_id: string }>('select distinct tenant_id from core.usuario')).rows.map((x) => x.tenant_id));
+        expect(await usuarios(A)).toEqual([A]);
+        expect(await usuarios(B)).toEqual([B]);
+        expect(await usuarios(A)).toEqual([A]);
+        const solto = await pool.query<{ ctx: string | null; n: number }>(
+          "select current_setting('app.tenant_id', true) as ctx, (select count(*)::int from core.usuario) as n",
+        );
+        expect(solto.rows[0]!.n).toBe(0);
+        expect(solto.rows[0]!.ctx ?? '').toBe('');
+      } finally {
+        await pool.end();
+      }
+    });
+  });
+});

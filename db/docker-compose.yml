@@ -1,0 +1,35 @@
+# Postgres local do Macuxi FDV (dono: banco-dados). Mesma imagem do CI (T-0005): pgvector/pgvector:pg16.
+# Subir/derrubar: pnpm --filter @macuxi/db banco subir | banco derrubar [--limpar]  (docs/banco/README.md)
+# As credenciais abaixo são SÓ do ambiente local; em outro ambiente, defina-as no .env (MACUXI_PG_*).
+name: macuxi
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: macuxi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${MACUXI_PG_ADMIN_USUARIO:-postgres}
+      POSTGRES_PASSWORD: ${MACUXI_PG_ADMIN_SENHA:-postgres}
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    command:
+      - postgres
+      - -c
+      - timezone=UTC
+      - -c
+      - log_timezone=UTC
+      # registra consultas lentas (> 300 ms, meta p95 do doc 04) para EXPLAIN depois
+      - -c
+      - log_min_duration_statement=300
+    ports:
+      - "${MACUXI_PG_PORTA:-5432}:5432"
+    volumes:
+      - macuxi-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  macuxi-pgdata:
