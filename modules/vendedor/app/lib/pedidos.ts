@@ -3,7 +3,8 @@
  * fila com os pedidos do servidor. A validação é a MESMA do servidor (`validateOrder`, RN-VEN-*): a API revalida.
  */
 import type { CustomerSummary, Me } from '@macuxi/core/contracts';
-import type { CreateOrderRequest, DiscountPolicy, Order, OrderDetail, Product } from '../../contracts';
+import type { CreateOrderRequest, DiscountPolicy, Order, OrderDetail } from '../../contracts';
+import type { Product } from '@macuxi/catalogo/contracts';
 import { validateOrder, type OrderValidation } from '../../domain/order';
 import { CREDIT_OPEN_STATUSES, creditInput, toDomainPolicy } from './catalog';
 import type { PrefillLine } from './order-prefill';

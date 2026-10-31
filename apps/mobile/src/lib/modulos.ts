@@ -7,9 +7,12 @@
  * Ponto de extensão da B2: cada módulo exporta de `modules/<m>/app/index.ts`
  *   export const moduloApp = definirModuloShell<ComponentType>({ manifesto, paginas, entidadesSync, etapasSync });
  * Enquanto o módulo não exporta `moduloApp`, o shell usa só o manifesto (sem telas).
- * Instalados (T-0001 A3): core e vendedor. Os demais entram na T-0004.
+ * Instalados (T-0001 A3): core e vendedor; catálogo desde a T-0007 (o Vendedor depende dele, ADR-0005).
+ * Os demais entram na T-0004.
  */
 import type { ComponentType } from 'react';
+import * as appCatalogo from '@macuxi/catalogo/app';
+import { manifest as manifestoCatalogo } from '@macuxi/catalogo/manifest';
 import * as appCore from '@macuxi/core/app';
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import { criarShell, type Manifesto, type ModuloShell } from '@macuxi/platform-sdk';
@@ -28,6 +31,7 @@ function registroApp(manifesto: Manifesto, exportado: unknown): ModuloShell<Comp
 
 export const MODULOS_APP: readonly ModuloShell<ComponenteTela>[] = [
   registroApp(manifestoCore, appCore),
+  registroApp(manifestoCatalogo, appCatalogo),
   registroApp(manifestoVendedor, appVendedor),
 ];
 

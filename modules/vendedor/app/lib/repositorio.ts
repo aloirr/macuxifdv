@@ -5,7 +5,8 @@
  */
 import type { ArmazenamentoSync } from '@macuxi/platform-sdk';
 import type { CustomerSummary, Me } from '@macuxi/core/contracts';
-import type { DiscountPolicy, MixSuggestion, Order, OrderDetail, Product } from '../../contracts';
+import type { DiscountPolicy, Order, OrderDetail } from '../../contracts';
+import type { MixSuggestion, Product } from '@macuxi/catalogo/contracts';
 import type { OrderDisplay, Rascunho } from './pedidos';
 
 export interface TabelaDePrecos {

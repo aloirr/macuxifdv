@@ -50,6 +50,7 @@
     "@macuxi/comum": "workspace:*",
     "@macuxi/platform-sdk": "workspace:*",
     "@macuxi/ui": "workspace:*",
+    "@macuxi/catalogo": "workspace:*",
     "@macuxi/core": "workspace:*",
     "@macuxi/vendedor": "workspace:*"
   },

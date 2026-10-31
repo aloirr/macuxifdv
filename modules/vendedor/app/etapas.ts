@@ -6,7 +6,8 @@
 import type { CustomerSummary, Me } from '@macuxi/core/contracts';
 import type { EtapaSync } from '@macuxi/platform-sdk';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
-import type { DiscountPolicy, Order, Product } from '../contracts';
+import type { DiscountPolicy, Order } from '../contracts';
+import type { Product } from '@macuxi/catalogo/contracts';
 import { criarRepositorio, type DadosVendedor } from './lib/repositorio';
 
 interface Pagina<T> {

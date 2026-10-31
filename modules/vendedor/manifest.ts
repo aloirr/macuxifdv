@@ -5,12 +5,12 @@ const PERFIS_PEDIDO = ['vendedor', 'supervisor', 'gerente', 'analista', 'assiste
 /**
  * Manifesto do Vendedor. RN-PRO-01: o perfil promotor NUNCA entra em `perfis`
  * (promotor não cria/edita/exclui pedido, na UI e na API).
+ * ADR-0005: depende do Catálogo (preço e estoque); RN-CORE-03: Catálogo desativado ⇒ Vendedor desativado.
  */
 export const manifest = defineModule({
   id: 'vendedor',
   versao: '0.1.0',
-  depende: ['core'],
-  opcionais: ['catalogo'],
+  depende: ['core', 'catalogo'],
   perfis: ['vendedor', 'analista', 'assistente'],
   apps: { campo: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas'] } },
   sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'alerta_ruptura'],
