@@ -22,6 +22,7 @@
 |---|---|---|---|
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | aberta |
 | [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho | engenheiro-software | aberta |
+| [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | em_andamento |
 
 ## Próximas sprints
 Ver `docs/produto/05-roadmap.md`.
