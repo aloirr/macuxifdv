@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { criarPermissoes, ehAcaoDePedido } from '@macuxi/platform-sdk';
+import { criarPermissoes, defineModule, ehAcaoDePedido } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import * as dominio from './index';
 
@@ -25,7 +25,16 @@ describe('RN-PRO-01: o módulo Promotor não tem nenhuma operação de pedido', 
   });
 
   it('RN-PRO-01: mesmo com o Vendedor ativo, o promotor continua sem ação de pedido (negada pela plataforma, 403 na API)', () => {
-    const permissoes = criarPermissoes([manifest]);
+    // Manifesto sintético do Vendedor com `pedido.*`: prova que a negação ao promotor não é trivial.
+    const vendedor = defineModule({
+      id: 'vendedor',
+      versao: '0.0.0',
+      depende: ['core'],
+      perfis: ['vendedor'],
+      acoes: Object.fromEntries(['criar', 'editar', 'cancelar', 'duplicar', 'excluir'].map((v) => [`pedido.${v}`, { perfis: ['vendedor'], descricao: 'sintética' }])),
+    });
+    const permissoes = criarPermissoes([manifest, vendedor]);
+    expect(permissoes.pode('pedido.criar', { perfil: 'vendedor', modulosAtivos: ['core', 'vendedor', 'promotor'] })).toBe(true);
     for (const verbo of ['criar', 'editar', 'cancelar', 'duplicar', 'excluir']) {
       expect(permissoes.pode(`pedido.${verbo}`, { perfil: 'promotor', modulosAtivos: ['core', 'vendedor', 'promotor'] })).toBe(false);
     }

@@ -8,11 +8,12 @@
  */
 import { z } from 'zod';
 import { DESFECHOS_VISITA } from '../domain/checklist';
+import { permanenciaMinutos, PERMANENCIA_TOLERANCIA_MIN } from '../domain/permanencia';
 import { CONFORMIDADES, validarConformidade } from '../domain/gondola';
 import { conferirPontoExtra, TIPOS_PONTO_EXTRA } from '../domain/pontos-extras';
 import { validarPrecoObservado, precoEfetivoCents, indicePreco } from '../domain/preco';
 import { quantidadeRepostaValida, STATUS_PRESENCA } from '../domain/ruptura';
-import { calcularShare } from '../domain/share';
+import { atingimentoShare, calcularShare } from '../domain/share';
 import { ehDataCivil } from '../domain/numeros';
 import { ClienteId, InstanteUtc, IsoDate, Latitude, Longitude, PctNumero, PrecoCents, ProdutoId, TextoCurto, Uuid } from './base';
 
@@ -56,7 +57,10 @@ export const VisitaLoja = z
     checklist_modelo_id: Uuid.nullable(),
     checkin_em: InstanteUtc,
     checkout_em: InstanteUtc.nullable(),
-    /** Derivado de check-in/checkout (RN-PRO-07); guardado para relatórios. */
+    /**
+     * Derivado de check-in/checkout (RN-PRO-07); guardado para relatórios. O aparelho NÃO é fonte da verdade:
+     * o contrato recusa valor que diverge de `permanenciaMinutos(checkin_em, checkout_em)`.
+     */
     permanencia_min: z.number().nonnegative().nullable(),
     desfecho: DesfechoVisita.nullable(),
     /** RN-PRO-06: loja fechada / acesso negado exigem a foto da fachada. */
@@ -67,6 +71,9 @@ export const VisitaLoja = z
   .superRefine((v, ctx) => {
     if (v.checkout_em !== null) {
       if (Date.parse(v.checkout_em) < Date.parse(v.checkin_em)) issue(ctx, ['checkout_em'], 'O checkout não pode ser anterior ao check-in.');
+      else if (v.permanencia_min === null || Math.abs(v.permanencia_min - permanenciaMinutos(v.checkin_em, v.checkout_em)) > PERMANENCIA_TOLERANCIA_MIN) {
+        issue(ctx, ['permanencia_min'], 'RN-PRO-07: a permanência informada não confere com o check-in e o checkout.');
+      }
       if (v.desfecho === null) issue(ctx, ['desfecho'], 'Informe o desfecho da visita no checkout.');
     } else if (v.desfecho !== null || v.permanencia_min !== null) {
       issue(ctx, ['checkout_em'], 'Desfecho e permanência só existem depois do checkout.');
@@ -141,6 +148,10 @@ export const MedicaoShare = z
     if (r.status === 'inconsistente') issue(ctx, ['frentes_nossas'], r.motivo ?? 'Medição inconsistente.');
     else if (r.share_pct !== m.share_pct) issue(ctx, ['share_pct'], 'O share informado não confere com as frentes (ou centímetros) medidos.');
     if (m.meta_pct === null && m.meta_share_id !== null) issue(ctx, ['meta_pct'], 'Meta vigente informada sem o valor da meta.');
+    if (m.meta_pct !== null && m.meta_share_id === null) issue(ctx, ['meta_share_id'], 'RN-PRO-10: informe a meta vigente usada no atingimento.');
+    // RN-PRO-03: o atingimento é sempre recalculado de share e meta; o do aparelho só passa se conferir.
+    const esperado = atingimentoShare(r.status === 'inconsistente' ? null : r.share_pct, m.meta_pct).atingimento_pct;
+    if (m.atingimento_pct !== esperado) issue(ctx, ['atingimento_pct'], 'RN-PRO-03: o atingimento informado não confere com o share e a meta.');
   });
 export type MedicaoShare = z.infer<typeof MedicaoShare>;
 
