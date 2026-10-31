@@ -50,7 +50,7 @@ export function fabricaEmMemoria(e: EstadoMemoria): FabricaRepositorios {
           u.tentativas_falhas = 0;
           u.bloqueio_ate = null;
         },
-        dispositivoBloqueado: async (usuarioId, d) => e.dispositivos.get(d)?.usuario_id === usuarioId && e.dispositivos.get(d)!.bloqueado,
+        dispositivoBloqueado: async (d) => e.dispositivos.get(d)?.bloqueado ?? false,
         upsertDispositivo: async (usuarioId, d) => {
           if (!e.dispositivos.has(d)) e.dispositivos.set(d, { usuario_id: usuarioId, bloqueado: false });
         },

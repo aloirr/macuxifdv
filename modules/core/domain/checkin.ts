@@ -66,21 +66,34 @@ export interface FechamentoAutomatico {
   motivo: 'dia_virou' | 'outro_cliente';
 }
 
+/** Check-in que está entrando. No servidor traz `id` e `checkin_em` do aparelho; na tela, só o cliente. */
+export interface NovoCheckin {
+  cliente_id: string;
+  /** Id (UUID do aparelho) do check-in novo: serve à idempotência (reenvio) e a distinguir "outro" check-in no mesmo cliente. */
+  id?: string;
+  /** Instante do check-in no aparelho; referência de "hoje" e do fechamento da anterior (push atrasado). */
+  checkin_em?: string;
+}
+
 /**
- * RN-CORE-11: ao entrar um check-in, decide o que fecha sozinho.
- * - aberta de um dia anterior (no fuso): fecha na virada do dia, como `nao_finalizado`;
- * - aberta hoje em outro cliente: fecha agora, como `nao_finalizado`;
- * - aberta hoje no mesmo cliente: reaproveita (retorna o id) em vez de abrir outra;
- * - mais de uma aberta hoje (dado antigo): só a mais recente do mesmo cliente é reaproveitada, as outras fecham.
+ * RN-CORE-11: ao entrar um check-in, decide o que fecha sozinho. A referência de tempo é o `checkin_em` do novo
+ * (push atrasado não pode fechar a anterior depois do novo check-in); sem ele usa-se `agora` (tela).
+ * - aberta de um dia anterior (no fuso, em relação à referência): fecha na virada do dia, `nao_finalizado`;
+ * - aberta hoje em outro cliente: fecha na referência (nunca antes do próprio check-in), `nao_finalizado`;
+ * - aberta hoje com o MESMO `id` do novo: reenvio idempotente, retorna o id em `reaproveitar` e não fecha nada;
+ * - aberta hoje no mesmo cliente: sem `id` no novo (tela), reaproveita a aberta para evitar 2º check-in;
+ *   com `id` diferente (servidor), fecha a anterior como `auto` e aceita a nova (o checkout seguinte usa o id novo);
+ * - mais de uma aberta hoje (dado antigo): só a mais recente do mesmo cliente é reaproveitada na tela, as outras fecham.
  */
 export function resolverCheckin(
   abertas: VisitaAbertaLike[],
-  novo: { cliente_id: string },
+  novo: NovoCheckin,
   agora: Date,
   fuso: string,
 ): { fechar: FechamentoAutomatico[]; reaproveitar: string | null } {
   const fechar: FechamentoAutomatico[] = [];
-  const hoje = dataLocal(agora, fuso);
+  const ref = novo.checkin_em ? new Date(novo.checkin_em) : agora;
+  const hoje = dataLocal(ref, fuso);
   const doDia: VisitaAbertaLike[] = [];
   for (const v of abertas) {
     if (v.checkout_em) continue;
@@ -88,11 +101,13 @@ export function resolverCheckin(
       fechar.push({ id: v.id, checkout_em: autoCheckoutAt(v.checkin_em, fuso), resultado: 'nao_finalizado', fechada_por: 'auto', motivo: 'dia_virou' });
     } else doDia.push(v);
   }
+  const reenvio = novo.id ? doDia.find((v) => v.id === novo.id) : undefined;
   const mesmoCliente = doDia.filter((v) => v.cliente_id === novo.cliente_id).sort((a, b) => b.checkin_em.localeCompare(a.checkin_em));
-  const reaproveitar = mesmoCliente[0]?.id ?? null;
+  const reaproveitar = reenvio?.id ?? (novo.id ? null : (mesmoCliente[0]?.id ?? null));
   for (const v of doDia) {
     if (v.id === reaproveitar) continue;
-    fechar.push({ id: v.id, checkout_em: agora.toISOString(), resultado: 'nao_finalizado', fechada_por: 'auto', motivo: 'outro_cliente' });
+    const instante = ref.getTime() >= Date.parse(v.checkin_em) ? ref.toISOString() : v.checkin_em;
+    fechar.push({ id: v.id, checkout_em: instante, resultado: 'nao_finalizado', fechada_por: 'auto', motivo: 'outro_cliente' });
   }
   return { fechar, reaproveitar };
 }

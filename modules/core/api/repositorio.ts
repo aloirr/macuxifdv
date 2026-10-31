@@ -77,7 +77,8 @@ export interface RepositorioTenant {
   gravarTentativas(usuarioId: string, falhas: number, bloqueioAte: Date | null): Promise<void>;
   registrarLoginOk(usuarioId: string, agora: Date): Promise<void>;
   /** `bloqueado` = aparelho bloqueado remotamente (RF-CORE-01). */
-  dispositivoBloqueado(usuarioId: string, dispositivoId: string): Promise<boolean>;
+  /** RN-CORE-15: o bloqueio vale para o tenant inteiro (o RLS isola o tenant) — qualquer usuário no aparelho bloqueado é recusado. */
+  dispositivoBloqueado(dispositivoId: string): Promise<boolean>;
   upsertDispositivo(usuarioId: string, dispositivoId: string, nome: string | null, agora: Date): Promise<void>;
   criarSessao(s: NovaSessao): Promise<void>;
   sessaoPorHash(hash: string): Promise<SessaoRefresh | null>;
@@ -128,8 +129,8 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
     async registrarLoginOk(usuarioId, agora) {
       await db.query('update core.usuario set tentativas_falhas = 0, bloqueio_ate = null, ultimo_login_em = $2 where id = $1', [usuarioId, agora]);
     },
-    async dispositivoBloqueado(usuarioId, dispositivoId) {
-      const r = await db.query('select 1 from core.dispositivo where id = $1 and usuario_id = $2 and bloqueado_em is not null and deleted_at is null', [dispositivoId, usuarioId]);
+    async dispositivoBloqueado(dispositivoId) {
+      const r = await db.query('select 1 from core.dispositivo where id = $1 and bloqueado_em is not null and deleted_at is null', [dispositivoId]);
       return r.rows.length > 0;
     },
     async upsertDispositivo(usuarioId, dispositivoId, nome, agora) {

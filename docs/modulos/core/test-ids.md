@@ -47,3 +47,14 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 - Item de menu e página só para `admin`; a API revalida (`modulo.gerir_licencas`).
 - Desligar módulo com dependentes mostra `licencas.aviso-dependencia` antes de confirmar.
 - Alvos de toque do app ≥ 48 dp.
+
+## Tela Aparelhos do BKO (RN-CORE-15) e Cliente 360 do app (T-0017)
+| testID | Onde |
+|---|---|
+| `aparelhos.tela` · `aparelhos.exportar-csv` · `aparelhos.filtro-situacao` · `aparelhos.busca` | página Aparelhos |
+| `aparelhos.linha.<id>` · `aparelhos.alternar.<id>` | linha e botão Bloquear/Liberar |
+| `aparelhos.confirmar` · `aparelhos.cancelar` | diálogo de confirmação |
+| `clientes-locais` | lista de Clientes do app lida do aparelho |
+| `filter-vencidos` · `filter-sem_compra` · `filter-bloqueados` | filtros da lista local |
+| `cliente-360` · `cliente-financeiro` · `cliente-historico` | seções da ficha (app) |
+| `cliente-acoes-contato` · `cliente-ligar` · `cliente-whatsapp` · `cliente-mapa` | ligar, WhatsApp e mapa em 1 toque (48 dp) |

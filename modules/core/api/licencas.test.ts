@@ -161,13 +161,14 @@ describe('RN-CORE-04: carteira por perfil', () => {
 describe('T-0004 §5: provedores de pull do Core', () => {
   const pedido = { desde: { updated_at: '2026-10-31T10:00:00.123456Z', id: '0c000000-0000-4000-8000-000000000001' }, ate: '2026-10-31T11:59:58.000Z', limite: 1001 };
 
-  it('registra cliente, carteira e produto, só pull, todos no sync do manifesto', () => {
-    expect(provedoresSyncCore.map((p) => p.entidade.nome).sort()).toEqual(['carteira', 'cliente', 'produto']);
+  it('registra cliente, carteira, produto e as de Cliente 360, só pull, todos no sync do manifesto e com escopo declarado', () => {
+    expect(provedoresSyncCore.map((p) => p.entidade.nome).sort()).toEqual(['carteira', 'cliente', 'cliente_contato', 'cliente_financeiro', 'historico_compra', 'produto', 'titulo']);
+    for (const p of provedoresSyncCore) expect(p.escopo, p.entidade.nome).toBe(p.entidade.nome === 'produto' ? 'tenant' : 'carteira');
     for (const p of provedoresSyncCore) {
       expect(p.entidade.direcao).toBe('pull');
       expect(manifest.sync).toContain(p.entidade.nome);
     }
-    expect(moduloApi.sync).toHaveLength(3);
+    expect(moduloApi.sync).toHaveLength(7);
   });
 
   it('pull usa horizonte, cursor (updated_at, id), ordem, limite e microssegundos', () => {

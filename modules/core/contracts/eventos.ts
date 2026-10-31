@@ -8,18 +8,20 @@
 import { z } from 'zod';
 import { definirEvento } from '@macuxi/platform-sdk';
 import { ModulosAlteradosSchema } from './licencas';
+import { RESULTADOS_VISITA, TIPOS_NOTIFICACAO } from './sync';
 
 export const EVENTO_MODULOS_ALTERADOS = definirEvento('core.usuario.modulos_alterados@1', ModulosAlteradosSchema);
 
 const Uuid = z.string().uuid();
+const DATA_CIVIL = /^\d{4}-\d{2}-\d{2}$/;
 
 export const VisitaCheckinSchema = z.object({
   visita_id: Uuid,
   usuario_id: Uuid,
   cliente_id: Uuid,
   rota_parada_id: Uuid.nullable(),
-  checkin_em: z.string(),
-  data_local: z.string(),
+  checkin_em: z.string().datetime(),
+  data_local: z.string().regex(DATA_CIVIL),
   fora_do_raio: z.boolean(),
   distancia_m: z.number().nullable(),
   sem_gps: z.boolean(),
@@ -31,10 +33,10 @@ export const VisitaCheckoutSchema = z.object({
   visita_id: Uuid,
   usuario_id: Uuid,
   cliente_id: Uuid,
-  checkin_em: z.string(),
-  checkout_em: z.string(),
-  data_local: z.string(),
-  resultado: z.enum(['atendido', 'pedido', 'sem_pedido', 'cliente_fechado', 'nao_finalizado']),
+  checkin_em: z.string().datetime(),
+  checkout_em: z.string().datetime(),
+  data_local: z.string().regex(DATA_CIVIL),
+  resultado: z.enum([...RESULTADOS_VISITA, 'nao_finalizado']),
   motivo_codigo: z.string().nullable(),
   pedido_id: Uuid.nullable(),
   fechada_por: z.enum(['usuario', 'auto']),
@@ -52,7 +54,7 @@ export const EVENTO_CLIENTE_ATUALIZADO = definirEvento('core.cliente.atualizado@
 export const NotificacaoCriadaSchema = z.object({
   notificacao_id: Uuid,
   usuario_id: Uuid,
-  tipo: z.enum(['recado', 'sistema', 'pedido', 'treinamento', 'trade']),
+  tipo: z.enum(TIPOS_NOTIFICACAO),
   prioridade: z.enum(['normal', 'alta']),
 });
 export const EVENTO_NOTIFICACAO_CRIADA = definirEvento('core.notificacao.criada@1', NotificacaoCriadaSchema);

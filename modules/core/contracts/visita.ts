@@ -10,7 +10,7 @@ export const CheckinVisitaSchema = z
     id: z.string().uuid(),
     cliente_id: z.string().uuid(),
     rota_parada_id: z.string().uuid().nullable().optional(),
-    checkin_em: z.string(),
+    checkin_em: z.string().datetime(),
     lat: z.number().min(-90).max(90).nullable().optional(),
     lng: z.number().min(-180).max(180).nullable().optional(),
     precisao_m: z.number().min(0).nullable().optional(),
@@ -34,7 +34,7 @@ export const CheckoutVisitaSchema = z
   .object({
     id: z.string().uuid(),
     visita_id: z.string().uuid(),
-    checkout_em: z.string(),
+    checkout_em: z.string().datetime(),
     lat: z.number().min(-90).max(90).nullable().optional(),
     lng: z.number().min(-180).max(180).nullable().optional(),
     resultado: z.enum(RESULTADOS_VISITA),

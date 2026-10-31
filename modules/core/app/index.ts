@@ -5,6 +5,7 @@ import { CheckoutVisitRequest, CreateVisitRequest, Id } from '../contracts';
 import { manifest } from '../manifest';
 import { comVisitas } from './components/visit-sheets';
 import { etapasCore } from './lib/cargas';
+import { entidadesCliente } from './lib/entidades-cliente';
 import { TelaCliente } from './telas/cliente';
 import { TelaClientes } from './telas/clientes';
 import { TelaMetas } from './telas/metas';
@@ -31,6 +32,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'cliente', caminho: 'cliente', titulo: 'Ficha do cliente', apps: ['campo', 'gestao'], componente: comVisitas(TelaCliente) },
   ],
   entidadesSync: [
+    // Cliente 360 offline (T-0017): pull filtrado pela carteira no servidor; a ficha e a lista leem do aparelho
+    ...entidadesCliente,
     definirEntidadeSync({
       nome: 'visita',
       modulo: 'core',
@@ -45,3 +48,4 @@ export const moduloApp = definirModuloShell<ComponentType>({
 
 export { TelaLogin, type PropsTelaLogin } from './components/tela-login';
 export { entrarComSenha, mensagemDeErroDeLogin, validarLogin, type CamposLogin } from './lib/login';
+export { ehAparelhoBloqueado, tratarAparelhoBloqueado, type AcoesAparelhoBloqueado } from './lib/aparelho-bloqueado';

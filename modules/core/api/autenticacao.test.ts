@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CODIGOS_AUTH, LoginSenhaRequestSchema, SessaoRespostaSchema } from '../contracts';
+import { CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, SessaoRespostaSchema } from '../contracts';
 import { criarAutenticacao } from './autenticacao';
 import { bancoDeTeste, contextoPublico, estadoInicial, fabricaEmMemoria, logSilencioso, SEGREDO, TENANT_A, type EstadoMemoria } from './apoio-teste';
 import { ErroHttpModulo } from '@macuxi/platform-sdk';
@@ -238,5 +238,50 @@ describe('aparelho de outro tenant (23503)', () => {
     }
     const outro = repositorioTenantSql({ query: () => Promise.reject(Object.assign(new Error('x'), { code: '57014' })) });
     await expect(outro.upsertDispositivo('u', 'd', null, new Date())).rejects.not.toMatchObject({ status: 403 });
+  });
+});
+
+describe('RN-CORE-15: aparelho bloqueado vale para o tenant inteiro', () => {
+  const d = '5d000000-0000-4000-8000-000000000015';
+  const outroUsuario = (corpo: Partial<{ senha: string }> = {}) => login({ email: 'promotor@exemplo.com.br', dispositivo_id: d, ...corpo });
+
+  it('RN-CORE-15: outro usuário do mesmo tenant também não entra no aparelho bloqueado (423 DISPOSITIVO_BLOQUEADO)', async () => {
+    await login({ dispositivo_id: d }); // o aparelho nasce no login do vendedor
+    e.dispositivos.get(d)!.bloqueado = true;
+    const erro = await falha(outroUsuario());
+    expect(erro.status).toBe(423);
+    expect(erro.codigo).toBe(CODIGO_DISPOSITIVO_BLOQUEADO);
+  });
+
+  it('RN-CORE-15: o 423 só se revela a quem acertou a senha (senha errada continua 401, sem pista do bloqueio)', async () => {
+    await login({ dispositivo_id: d });
+    e.dispositivos.get(d)!.bloqueado = true;
+    const erro = await falha(outroUsuario({ senha: 'errada' }));
+    expect(erro.status).toBe(401);
+    expect(erro.codigo).toBe(CODIGOS_AUTH.credenciais);
+  });
+
+  it('RN-CORE-15: desbloqueado, qualquer usuário volta a entrar', async () => {
+    await login({ dispositivo_id: d });
+    e.dispositivos.get(d)!.bloqueado = true;
+    await falha(outroUsuario());
+    e.dispositivos.get(d)!.bloqueado = false;
+    expect((await outroUsuario()).usuario.perfil).toBe('promotor');
+  });
+
+  it('RN-CORE-15: refresh num aparelho bloqueado responde 423 DISPOSITIVO_BLOQUEADO (o app limpa os dados) e revoga a família', async () => {
+    const sessao = await login({ dispositivo_id: d });
+    e.dispositivos.get(d)!.bloqueado = true;
+    const erro = await falha(auth.refresh(contextoPublico({ refresh_token: sessao.refresh_token }, banco, relogio)));
+    expect(erro.status).toBe(423);
+    expect(erro.codigo).toBe(CODIGO_DISPOSITIVO_BLOQUEADO);
+    expect(e.sessoes.every((x) => x.revogado_em !== null)).toBe(true);
+  });
+
+  it('RN-CORE-15: refresh inválido num aparelho bloqueado segue 401 (não revela o bloqueio a quem não tem sessão)', async () => {
+    await login({ dispositivo_id: d });
+    e.dispositivos.get(d)!.bloqueado = true;
+    const erro = await falha(auth.refresh(contextoPublico({ refresh_token: 'lixo-lixo-lixo-lixo', dispositivo_id: d }, banco, relogio)));
+    expect(erro.status).toBe(401);
   });
 });

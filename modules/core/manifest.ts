@@ -11,7 +11,7 @@ export const manifest = defineModule({
   apps: {
     campo: { abas: ['Início', 'Rota', 'Clientes', 'Metas'] },
     gestao: { abas: ['Início', 'Clientes'] },
-    web: { menus: ['Clientes', 'Rotas', 'Metas', 'Plano de RV', 'Usuários e módulos'] },
+    web: { menus: ['Clientes', 'Rotas', 'Metas', 'Plano de RV', 'Usuários e módulos', 'Aparelhos'] },
   },
   sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_etapa', 'motivo', 'meta', 'indicador_diario', 'notificacao', 'produto'],
   publica: ['core.cliente.atualizado@1', 'core.visita.checkin@1', 'core.visita.checkout@1', 'core.usuario.modulos_alterados@1'],
@@ -21,6 +21,8 @@ export const manifest = defineModule({
     'rota.editar': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Montar e alterar a rota da semana (BKO)' },
     'meta.fechar_periodo': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Fechar/reabrir o mês e exportar para o RH' },
     'modulo.gerir_licencas': { perfis: ['admin'], descricao: 'Ativar/desativar módulos por tenant, perfil e usuário (tela Usuários e módulos)' },
+    'carteira.editar': { perfis: ['analista', 'admin'], descricao: 'Vincular/desvincular clientes a vendedor ou promotor, com vigência e frequência de visita (BKO)' },
+    'dispositivo.bloquear': { perfis: ['admin', 'analista'], descricao: 'Bloquear/desbloquear aparelho no BKO; vale para o tenant inteiro (RN-CORE-15)' },
     'plano_rv.editar': { perfis: ['analista'], descricao: 'Editar o plano de RV (vigência futura)' },
   },
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],

@@ -27,3 +27,24 @@ export const ClienteListaQuerySchema = z.object({
   cursor: z.string().optional(),
 });
 export type ClienteListaQuery = z.infer<typeof ClienteListaQuerySchema>;
+
+/** Item da lista de clientes online (BKO e Gestão). O app lê a lista local (entidade `cliente`). */
+export const ClienteListaItemSchema = z
+  .object({
+    id: z.string().uuid(),
+    documento: z.string().nullable(),
+    razao_social: z.string(),
+    nome_fantasia: z.string().nullable(),
+    segmento: z.string().nullable(),
+    cidade: z.string().nullable(),
+    uf: z.string().nullable(),
+    ativo: z.boolean(),
+    bloqueado: z.boolean(),
+    vencidos_qtd: z.number().int(),
+  })
+  .strict();
+export type ClienteListaItem = z.infer<typeof ClienteListaItemSchema>;
+
+/** Paginação por deslocamento opaco (`proximo_cursor` = próximo deslocamento; `null` = acabou). */
+export const ClienteListaRespostaSchema = z.object({ itens: z.array(ClienteListaItemSchema), proximo_cursor: z.string().nullable() }).strict();
+export type ClienteListaResposta = z.infer<typeof ClienteListaRespostaSchema>;

@@ -3,6 +3,7 @@ import { definirModuloShell } from '@macuxi/platform-sdk';
 export { entrarComSenha, mensagemDeErroDeLogin, validarLogin } from '../app/lib/login';
 import { manifest } from '../manifest';
 import { CustomersPage } from './components/customers/customers-page';
+import { AparelhosPage } from './components/aparelhos/aparelhos-page';
 import { LicencasPage } from './components/licencas/licencas-page';
 import { GoalsPage } from './components/goals/goals-page';
 import { PlanoRvPage } from './components/params/plan-page';
@@ -32,6 +33,16 @@ export const moduloWeb = definirModuloShell<ComponentType>({
       ordem: 10,
       acao: 'modulo.gerir_licencas',
       componente: LicencasPage,
+    },
+    {
+      id: 'aparelhos',
+      caminho: 'aparelhos',
+      titulo: 'Aparelhos',
+      navegacao: 'Aparelhos',
+      grupo: 'administracao',
+      ordem: 20,
+      acao: 'dispositivo.bloquear',
+      componente: AparelhosPage,
     },
   ],
 });

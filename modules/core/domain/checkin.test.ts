@@ -110,6 +110,46 @@ describe('um atendimento aberto por vez (RN-CORE-11)', () => {
   });
 });
 
+describe('RN-CORE-11 no servidor (push atrasado e id novo)', () => {
+  const aberta = (id: string, cliente_id: string, checkin_em: string) => ({ id, cliente_id, checkin_em, checkout_em: null });
+  const auto = (id: string, checkout_em: string, motivo: 'outro_cliente' | 'dia_virou') => ({ id, checkout_em, resultado: 'nao_finalizado', fechada_por: 'auto', motivo });
+
+  it('RN-CORE-11: mesmo cliente com id novo fecha a anterior como auto e aceita a nova (não reaproveita)', () => {
+    const r = resolverCheckin([aberta('a', 'c1', '2026-10-12T13:00:00Z')], { id: 'novo', cliente_id: 'c1', checkin_em: '2026-10-12T14:00:00Z' }, new Date('2026-10-12T15:00:00Z'), MANAUS);
+    expect(r.reaproveitar).toBeNull();
+    expect(r.fechar).toEqual([auto('a', '2026-10-12T14:00:00.000Z', 'outro_cliente')]);
+  });
+
+  it('RN-CORE-11: reenvio do mesmo id é idempotente (nada fecha)', () => {
+    const r = resolverCheckin([aberta('a', 'c1', '2026-10-12T13:00:00Z')], { id: 'a', cliente_id: 'c1', checkin_em: '2026-10-12T13:00:00Z' }, new Date('2026-10-12T15:00:00Z'), MANAUS);
+    expect(r).toEqual({ fechar: [], reaproveitar: 'a' });
+  });
+
+  it('RN-CORE-11: push atrasado fecha a anterior no checkin_em do novo, não na chegada do lote', () => {
+    const r = resolverCheckin([aberta('a', 'c1', '2026-10-12T13:00:00Z')], { id: 'n', cliente_id: 'c2', checkin_em: '2026-10-12T14:30:00Z' }, new Date('2026-10-12T20:00:00Z'), MANAUS);
+    expect(r.fechar[0]?.checkout_em).toBe('2026-10-12T14:30:00.000Z');
+  });
+
+  it('RN-CORE-11: novo com checkin_em antes da anterior não fecha antes do check-in dela', () => {
+    const r = resolverCheckin([aberta('a', 'c1', '2026-10-12T15:00:00Z')], { id: 'n', cliente_id: 'c2', checkin_em: '2026-10-12T14:00:00Z' }, new Date('2026-10-12T20:00:00Z'), MANAUS);
+    expect(r.fechar[0]?.checkout_em).toBe('2026-10-12T15:00:00Z');
+  });
+
+  it('RN-CORE-11: lote chegando no dia seguinte usa o dia do check-in novo (Manaus)', () => {
+    const r = resolverCheckin([aberta('a', 'c1', '2026-10-12T13:00:00Z')], { id: 'n', cliente_id: 'c2', checkin_em: '2026-10-12T22:00:00Z' }, new Date('2026-10-13T12:00:00Z'), MANAUS);
+    expect(r.fechar).toEqual([auto('a', '2026-10-12T22:00:00.000Z', 'outro_cliente')]);
+  });
+
+  it('RN-CORE-11: o mesmo par de instantes cruza a virada em São Paulo (03:00Z) mas não em Manaus', () => {
+    const entrada = [aberta('a', 'c1', '2026-10-12T02:30:00Z')];
+    const novo = { id: 'n', cliente_id: 'c2', checkin_em: '2026-10-12T03:30:00Z' };
+    const agora = new Date('2026-10-12T20:00:00Z');
+    expect(resolverCheckin(entrada, novo, agora, MANAUS).fechar[0]?.motivo).toBe('outro_cliente');
+    const sp = resolverCheckin(entrada, novo, agora, SP);
+    expect(sp.fechar).toEqual([auto('a', '2026-10-12T03:00:00.000Z', 'dia_virou')]);
+  });
+});
+
 describe('sobreposição da fila (ADR 0009 §3)', () => {
   const base: VisitaLinha = {
     id: 'v1',

@@ -3,7 +3,8 @@
  * - Serviços de plataforma (só o Core): `autenticar` (JWT + usuário ativo) e `carteira` (RN-CORE-04).
  * - Rotas públicas: `auth/login`, `auth/refresh`, `auth/logout`, com limite por IP + código da empresa.
  * - Rotas: licenças por tenant → perfil → usuário (admin). `GET /v1/me/modulos` é da plataforma (T-0004).
- * - Sync (pull): `cliente`, `carteira`, `produto`.
+ * - Rotas da T-0017: `clientes`, `clientes/:id` (Cliente 360), `carteira`, `equipe/hierarquia`; aparelhos (RN-CORE-15).
+ * - Sync (pull): `cliente`, `carteira`, `produto`, `cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra`.
  * Segredo do JWT: `MACUXI_JWT_SEGREDO` (mín. 32 caracteres); sem ele o login responde 503 e ninguém autentica (falha fechada).
  */
 import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
@@ -11,8 +12,11 @@ import { LoginSenhaRequestSchema, LogoutRequestSchema, RefreshRequestSchema } fr
 import { manifest } from '../manifest';
 import { criarAutenticacao, type DepsAutenticacao } from './autenticacao';
 import { carteiraDoUsuario } from './carteira';
+import { rotasDeClientes } from './clientes';
+import { rotasDeDispositivos } from './dispositivos';
 import { rotasDeLicencas } from './licencas';
 import { provedoresSyncCore } from './sync';
+import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
 
 const CINCO_MINUTOS = 5 * 60_000;
 
@@ -20,7 +24,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
   const auth = criarAutenticacao(deps);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: rotasDeLicencas,
+    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos],
     sync: provedoresSyncCore,
     rotasPublicas: [
       {
@@ -50,6 +54,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
     servicos: {
       autenticar: (cabecalhos, banco) => auth.autenticar(cabecalhos, banco),
       carteira: (usuario, banco) => carteiraDoUsuario(usuario, banco),
+      usuariosVisiveis: (usuario, banco) => usuariosVisiveisDoUsuario(usuario, banco),
     },
   });
 }

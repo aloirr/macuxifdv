@@ -15,7 +15,7 @@ import {
   type Perfil,
   type UsuarioAutenticado,
 } from '@macuxi/platform-sdk';
-import { CODIGOS_AUTH, MENSAGEM_CREDENCIAIS, type LoginSenhaRequest, type LogoutRequestSchema, type RefreshRequest, type RefreshResposta, type SessaoResposta } from '../contracts';
+import { CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, MENSAGEM_APARELHO_BLOQUEADO, MENSAGEM_CREDENCIAIS, type LoginSenhaRequest, type LogoutRequestSchema, type RefreshRequest, type RefreshResposta, type SessaoResposta } from '../contracts';
 import type { z } from 'zod';
 import {
   estadoDoLogin,
@@ -41,7 +41,9 @@ const MENSAGEM_SESSAO = 'Sua sessão expirou. Entre de novo com o código da emp
 type ResultadoLogin =
   | { tipo: 'ok'; sessao: Omit<SessaoResposta, 'tenant'>; tenantId: string }
   | { tipo: 'credenciais' }
-  | { tipo: 'bloqueado' };
+  | { tipo: 'bloqueado' }
+  /** RN-CORE-15: aparelho bloqueado (vale para o tenant inteiro); só chega aqui quem acertou a senha. */
+  | { tipo: 'aparelho' };
 
 export function criarAutenticacao(deps: DepsAutenticacao) {
   const repos = deps.repos ?? fabricaSql;
@@ -92,7 +94,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
         return { tipo: 'credenciais' };
       }
       if (estado !== 'ok') return { tipo: 'bloqueado' };
-      if (ctx.corpo.dispositivo_id && (await r.dispositivoBloqueado(u.id, ctx.corpo.dispositivo_id))) return { tipo: 'bloqueado' };
+      if (ctx.corpo.dispositivo_id && (await r.dispositivoBloqueado(ctx.corpo.dispositivo_id))) return { tipo: 'aparelho' };
       await r.registrarLoginOk(u.id, agoraData);
       if (ctx.corpo.dispositivo_id) await r.upsertDispositivo(u.id, ctx.corpo.dispositivo_id, ctx.corpo.dispositivo_nome ?? null, agoraData);
       const tokens = await emitir(r, tenant.id, u, randomUUID(), ctx.corpo.dispositivo_id ?? null, agoraData);
@@ -105,6 +107,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
 
     if (resultado.tipo === 'credenciais') throw erroHttp(401, CODIGOS_AUTH.credenciais, MENSAGEM_CREDENCIAIS);
     if (resultado.tipo === 'bloqueado') throw erroHttp(423, CODIGOS_AUTH.bloqueado, MENSAGEM_BLOQUEADO);
+    if (resultado.tipo === 'aparelho') throw erroHttp(423, CODIGO_DISPOSITIVO_BLOQUEADO, MENSAGEM_APARELHO_BLOQUEADO);
     // senha validada: agora sim os dados da empresa
     const exib = await publico.tenantParaExibicao(codigo);
     if (!exib) throw erroHttp(401, CODIGOS_AUTH.credenciais, MENSAGEM_CREDENCIAIS);
@@ -112,7 +115,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     return { ...resultado.sessao, tenant: { id: exib.id, codigo: exib.codigo, nome: exib.nome, fuso: exib.fuso } };
   }
 
-  type ResultadoRefresh = { tipo: 'ok'; resposta: RefreshResposta } | { tipo: 'invalido' };
+  type ResultadoRefresh = { tipo: 'ok'; resposta: RefreshResposta } | { tipo: 'invalido' } | { tipo: 'aparelho' };
 
   async function refresh(ctx: ContextoPublico<RefreshRequest>): Promise<RefreshResposta> {
     segredo();
@@ -137,14 +140,16 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
         return { tipo: 'invalido' };
       }
       const dispositivo = ctx.corpo.dispositivo_id ?? s.dispositivo_id;
-      if (dispositivo && (await r.dispositivoBloqueado(u.id, dispositivo))) {
+      if (dispositivo && (await r.dispositivoBloqueado(dispositivo))) {
+        // RN-CORE-15: quem tem um refresh válido já se autenticou neste aparelho; só a ele se revela o bloqueio (o app limpa os dados)
         await r.revogarFamilia(s.familia_id, agoraData);
-        return { tipo: 'invalido' };
+        return { tipo: 'aparelho' };
       }
       await r.marcarSessaoUsada(s.id, agoraData);
       const tokens = await emitir(r, lido.tenantId, u, s.familia_id, s.dispositivo_id, agoraData);
       return { tipo: 'ok', resposta: tokens };
     });
+    if (resultado.tipo === 'aparelho') throw erroHttp(423, CODIGO_DISPOSITIVO_BLOQUEADO, MENSAGEM_APARELHO_BLOQUEADO);
     if (resultado.tipo !== 'ok') throw erroHttp(401, CODIGOS_AUTH.sessao, MENSAGEM_SESSAO);
     return resultado.resposta;
   }

@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AbaCliente, AcaoCliente, ContextoCliente } from '../../contracts';
 import { isVisitOpen } from '../../domain';
+import { AcoesContato, CabecalhoCliente, SecoesCliente360 } from '../components/cliente360';
+import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
 import { useVisitSheets } from '../components/visit-sheets';
@@ -37,6 +39,9 @@ export function TelaCliente() {
   const abas = useExtensoes<AbaCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.abas');
   const acoes = useExtensoes<AcaoCliente>('cliente.acoes');
   const { estado, rota, tz, atendimentoAberto: openVisit, motor, armazem } = core;
+  const { dados: locais, hoje } = useClientesLocais();
+  // Cliente 360 montado só com as linhas do aparelho (offline); a carga antiga da Fase M segue para o check-in até a T-0018
+  const ficha = montarFichaLocal(locais, id, hoje);
   const customer = estado.clientes.find((c) => c.id === id) ?? null;
   const detail = estado.extras[id]?.detalhe ?? null;
   const stop = rota?.stops.find((s) => s.customer.id === id) ?? null;
@@ -93,6 +98,29 @@ export function TelaCliente() {
     }
   }, [params.checkin, customer, id, locked, openHere, visited, startCheckin, sheets]);
 
+  if (!customer && ficha) {
+    return (
+      <View style={styles.root}>
+        <ScrollView contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
+          <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
+          <OpenVisitBar from={ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social} />
+          <CabecalhoCliente ficha={ficha} />
+          <AcoesContato ficha={ficha} />
+          <SecoesCliente360 ficha={ficha} />
+          {abas.map((a) => {
+            const Aba = a.payload.componente;
+            return (
+              <View key={`${a.modulo}-${a.id}`} testID={a.payload.testID} style={{ gap: 8 }}>
+                <SectionHeader title={a.payload.rotulo} />
+                <Aba contexto={{ clienteId: id, nomeCliente: ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social, visitaId: null, paradaId: null }} />
+              </View>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  }
+
   if (!customer) {
     return (
       <View style={[styles.root, { paddingTop: insets.top + 16, paddingHorizontal: 20 }]}>
@@ -141,11 +169,15 @@ export function TelaCliente() {
           </View>
         ) : null}
 
+        {ficha ? (
+          <AcoesContato ficha={ficha} />
+        ) : (
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Action icon="phone" label="Ligar" onPress={() => void Linking.openURL(telUrl(customer.phone))} />
           <Action icon="chat" label="WhatsApp" onPress={() => void Linking.openURL(whatsappUrl(customer.phone))} />
           <Action icon="navigate" label="Navegar" onPress={() => void Linking.openURL(mapsUrl(customer.lat, customer.lng, customer.address))} />
         </View>
+        )}
 
         <View style={styles.grid}>
           <Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} />
@@ -158,6 +190,8 @@ export function TelaCliente() {
           />
         </View>
 
+        {ficha ? <SecoesCliente360 ficha={ficha} /> : null}
+
         {abas.map((a) => {
           const Aba = a.payload.componente;
           return (
@@ -168,7 +202,7 @@ export function TelaCliente() {
           );
         })}
 
-        {overdueRecs.length > 0 ? (
+        {!ficha && overdueRecs.length > 0 ? (
           <View style={{ gap: 8 }}>
             <SectionHeader title="Títulos vencidos" />
             <Card>

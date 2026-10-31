@@ -2,7 +2,7 @@
 import { z } from 'zod';
 
 export const LeituraNotificacaoSchema = z
-  .object({ id: z.string().uuid(), notificacao_id: z.string().uuid(), lida_em: z.string() })
+  .object({ id: z.string().uuid(), notificacao_id: z.string().uuid(), lida_em: z.string().datetime() })
   .strict();
 export type LeituraNotificacao = z.infer<typeof LeituraNotificacaoSchema>;
 

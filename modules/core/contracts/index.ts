@@ -486,3 +486,5 @@ export * from './carteira';
 export * from './cliente360';
 export * from './notificacao';
 export * from './meta';
+export * from './hierarquia';
+export * from './dispositivo';
