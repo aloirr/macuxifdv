@@ -7,9 +7,12 @@
  *   export const moduloWeb = definirModuloShell<ComponentType>({ manifesto, paginas: [...] });
  * Enquanto o módulo não exporta `moduloWeb`, o shell usa só o manifesto (sem páginas).
  * Para instalar um módulo novo: importe o manifesto e o `web` dele aqui e acrescente na lista.
- * Instalados (T-0001 A3): core e vendedor. Os demais entram na T-0004.
+ * Instalados (T-0001 A3): core e vendedor; catálogo desde a T-0007 (o Vendedor depende dele, ADR-0005).
+ * Os demais entram na T-0004.
  */
 import type { ComponentType } from 'react';
+import { manifest as manifestoCatalogo } from '@macuxi/catalogo/manifest';
+import * as webCatalogo from '@macuxi/catalogo/web';
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import * as webCore from '@macuxi/core/web';
 import { criarShell, type Manifesto, type ModuloShell } from '@macuxi/platform-sdk';
@@ -26,6 +29,7 @@ function registroWeb(manifesto: Manifesto, exportado: unknown): ModuloShell<Comp
 
 export const MODULOS_WEB: readonly ModuloShell<ComponentePagina>[] = [
   registroWeb(manifestoCore, webCore),
+  registroWeb(manifestoCatalogo, webCatalogo),
   registroWeb(manifestoVendedor, webVendedor),
 ];
 

@@ -3,7 +3,7 @@
  * usando o catálogo ATUAL da tabela do cliente (preço de hoje). Puro, testado com Vitest.
  * Itens sem preço na tabela ou fora do catálogo (inativos) saem e são avisados.
  */
-import type { Product } from '../../contracts';
+import type { Product } from '@macuxi/catalogo/contracts';
 
 export interface PrefillLine {
   product_id: string;

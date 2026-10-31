@@ -1,7 +1,8 @@
 /**
  * Contratos públicos do módulo Vendedor (pedidos, alçadas, painel de pedidos, push de sync).
- * Tipos de produto ficam aqui provisoriamente (desenho T-0001 §12; ADR de produto pendente).
- * O que é do core (Id, Cents, cliente, visita) vem de `@macuxi/core/contracts`.
+ * O que é do core (Id, Cents, cliente, visita, cadastro base de produto) vem de `@macuxi/core/contracts`;
+ * produto com preço e estoque, consulta de produtos e sugestão de mix vêm de `@macuxi/catalogo/contracts`
+ * (ADR-0005, T-0007). O Vendedor não define tipo de produto: o pedido só referencia `product_id`.
  */
 import { z } from 'zod';
 import {
@@ -111,32 +112,6 @@ export const OrderListQuery = z.object({
 
 export const DecisionRequest = z.object({ reason: z.string().max(500).optional() });
 export const RejectRequest = z.object({ reason: z.string().min(3, 'Informe o motivo da recusa.').max(500) });
-
-// ---------- produtos ----------
-export const StockByBranch = z.object({ branch_id: Id, branch_name: z.string(), quantity: z.number().int() });
-export const Product = z.object({
-  id: Id,
-  erp_code: z.string(),
-  description: z.string(),
-  brand: z.string(),
-  line: z.string(),
-  unit: z.string(),
-  applications: z.string(),
-  is_campaign: z.boolean(),
-  price_cents: Cents.nullable(),
-  stock_total: z.number().int(),
-  stock: z.array(StockByBranch),
-});
-export type Product = z.infer<typeof Product>;
-export const ProductListQuery = z.object({
-  q: z.string().optional(),
-  customer_id: Id.optional(),
-  line: z.string().optional(),
-  limit: z.coerce.number().int().optional(),
-});
-
-export const MixSuggestion = z.object({ product: Product, reason: z.string() });
-export type MixSuggestion = z.infer<typeof MixSuggestion>;
 
 export const CustomerDetail = CustomerSummary.extend({
   receivables: z.array(Receivable),

@@ -13,7 +13,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { OrderDetail, Product } from '../../contracts';
+import type { OrderDetail } from '../../contracts';
+import type { Product } from '@macuxi/catalogo/contracts';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { validateOrder } from '../../domain/order';
 import { CREDIT_OPEN_STATUSES, creditInput, filterCustomers, parsePct, PAYMENT_TERMS, searchProducts, stockInfo, toDomainPolicy } from '../lib/catalog';

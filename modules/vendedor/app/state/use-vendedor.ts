@@ -8,7 +8,8 @@ import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CreateOrderRequest, CustomerDetail, MixSuggestion, Order, OrderDetail, Product, UpdateOrderRequest } from '../../contracts';
+import type { CreateOrderRequest, CustomerDetail, Order, OrderDetail, UpdateOrderRequest } from '../../contracts';
+import type { MixSuggestion, Product } from '@macuxi/catalogo/contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import {
