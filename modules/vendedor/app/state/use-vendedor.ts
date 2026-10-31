@@ -4,12 +4,12 @@
  * Nada aqui espera a rede para mostrar dados: a rede só confirma o envio.
  */
 import type { CustomerSummary } from '@macuxi/core/contracts';
-import { useMotorSync } from '@macuxi/platform-sdk/react';
-import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile';
+import { ehSemConexao } from '@macuxi/platform-sdk';
+import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
+import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CreateOrderRequest, CustomerDetail, MixSuggestion, Order, OrderDetail, Product, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
-import { ambienteVendedor, ErroSemConexao, exigirAmbiente } from '../ambiente';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import {
   draftKeyFor,
@@ -33,6 +33,7 @@ export type ResultadoAlteracao = { kind: 'local' } | { kind: 'server'; order: Or
 
 export function useVendedor() {
   const { motor, estado } = useMotorSync();
+  const ambiente = useAmbiente();
   const repo = useMemo(() => (motor ? criarRepositorio(motor.armazenamentoDoModulo('vendedor')) : null), [motor]);
   const [dados, setDados] = useState<DadosVendedor>(DADOS_VAZIOS);
   const [carregado, setCarregado] = useState(false);
@@ -65,51 +66,48 @@ export function useVendedor() {
     [dados.pedidos, fila, vendedor],
   );
 
-  const offline = !(ambienteVendedor()?.online() ?? true);
+  const offline = !ambiente.online();
 
   // ---------- leituras com rede (melhor esforço; sem rede, fica o que está no aparelho) ----------
   const atualizarPedidos = useCallback(async () => {
-    const amb = ambienteVendedor();
-    if (!amb || !amb.online() || !repo) return;
+    if (!ambiente.online() || !repo) return;
     try {
-      const r = await amb.requisitar<{ items: Order[] }>('GET', '/orders', { query: { from: monthStart(new Date(), tz), limit: 1000 } });
+      const r = await ambiente.http.requisitar<{ items: Order[] }>('GET', '/orders', { query: { from: monthStart(new Date(), tz), limit: 1000 } });
       await repo.gravar('pedidos', r.items);
       await recarregar();
     } catch {
       // sem rede: continua com o cache
     }
-  }, [repo, recarregar, tz]);
+  }, [repo, recarregar, tz, ambiente]);
 
   const carregarPedido = useCallback(
     async (id: string) => {
-      const amb = ambienteVendedor();
-      if (!amb || !amb.online() || !repo) return;
+      if (!ambiente.online() || !repo) return;
       try {
-        const detalhe = await amb.requisitar<OrderDetail>('GET', `/orders/${encodeURIComponent(id)}`);
+        const detalhe = await ambiente.http.requisitar<OrderDetail>('GET', `/orders/${encodeURIComponent(id)}`);
         await repo.guardarPedido(detalhe);
         await recarregar();
       } catch {
         // sem rede: continua com o cache
       }
     },
-    [repo, recarregar],
+    [repo, recarregar, ambiente],
   );
 
   /** Mix sugerido e últimos pedidos do cliente para a ficha; sem sinal fica o que já está no aparelho. */
   const carregarFicha = useCallback(
     async (customerId: string) => {
-      const amb = ambienteVendedor();
-      if (!amb || !amb.online() || !repo) return;
+      if (!ambiente.online() || !repo) return;
       const id = encodeURIComponent(customerId);
       const [mix, detalhe] = await Promise.allSettled([
-        amb.requisitar<{ items: MixSuggestion[] }>('GET', `/customers/${id}/mix-suggestions`),
-        amb.requisitar<CustomerDetail>('GET', `/customers/${id}`),
+        ambiente.http.requisitar<{ items: MixSuggestion[] }>('GET', `/customers/${id}/mix-suggestions`),
+        ambiente.http.requisitar<CustomerDetail>('GET', `/customers/${id}`),
       ]);
       if (mix.status === 'fulfilled') await repo.alterar('mix', (m) => ({ ...m, [customerId]: mix.value.items }));
       if (detalhe.status === 'fulfilled') await repo.alterar('ultimos', (u) => ({ ...u, [customerId]: detalhe.value.recent_orders }));
       await recarregar();
     },
-    [repo, recarregar],
+    [repo, recarregar, ambiente],
   );
 
   const tabelaDe = useCallback(
@@ -121,10 +119,9 @@ export function useVendedor() {
   const garantirProdutos = useCallback(
     async (cliente: CustomerSummary): Promise<Product[]> => {
       const atual = tabelaDe(cliente);
-      const amb = ambienteVendedor();
-      if (atual.length > 0 || !amb || !amb.online() || !repo) return atual;
+      if (atual.length > 0 || !ambiente.online() || !repo) return atual;
       try {
-        const r = await amb.requisitar<{ items: Product[] }>('GET', '/products', { query: { customer_id: cliente.price_table_id ? cliente.id : undefined, limit: 5000 } });
+        const r = await ambiente.http.requisitar<{ items: Product[] }>('GET', '/products', { query: { customer_id: cliente.price_table_id ? cliente.id : undefined, limit: 5000 } });
         await repo.alterar('produtos', (p) => ({ ...p, [cliente.price_table_id ?? 'default']: { items: r.items, synced_at: new Date().toISOString() } }));
         await recarregar();
         return r.items;
@@ -132,7 +129,7 @@ export function useVendedor() {
         return atual;
       }
     },
-    [repo, recarregar, tabelaDe],
+    [repo, recarregar, tabelaDe, ambiente],
   );
 
   // ---------- rascunho ----------
@@ -175,15 +172,14 @@ export function useVendedor() {
   const enviarPedido = useCallback(
     async (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoEnvio> => {
       if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
-      const amb = exigirAmbiente();
       const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo);
-      const id = amb.novoId();
+      const id = ambiente.novoId();
       const agora = new Date().toISOString();
-      const payload: CreateOrderRequest = montarPedido({ id, cliente, rascunho, v, semSinal: !amb.online(), agora });
+      const payload: CreateOrderRequest = montarPedido({ id, cliente, rascunho, v, semSinal: !ambiente.online(), agora });
       await repo.guardarExibicao(id, display);
       await motor.enfileirar({ id, entidade: 'pedido', payload, rotulo: `Pedido · ${cliente.trade_name}`, detalhe: `${(display.total_cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · ${display.items_count} ${display.items_count === 1 ? 'item' : 'itens'}` });
       await repo.limparRascunho(draftKeyFor(cliente.id));
-      if (!amb.online()) {
+      if (!ambiente.online()) {
         await recarregar();
         return { kind: 'queued', message: 'Modo sem sinal: o pedido será enviado quando o sinal voltar.' };
       }
@@ -208,7 +204,7 @@ export function useVendedor() {
       const item = motor.estado().fila.find((i) => i.id === id);
       return { kind: 'queued', message: item?.ultimo_erro || 'Sem conexão: o pedido será enviado quando o sinal voltar.' };
     },
-    [motor, repo, prepararDoRascunho, recarregar, carregarPedido],
+    [motor, repo, prepararDoRascunho, recarregar, carregarPedido, ambiente],
   );
 
   /** Duplicar (`duplicate`) ou editar (`edit`): rascunho com o mesmo cliente/itens e os preços de hoje (RN-VEN preço). */
@@ -248,7 +244,6 @@ export function useVendedor() {
   const salvarEdicao = useCallback(
     async (orderId: string, rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoAlteracao> => {
       if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
-      const amb = exigirAmbiente();
       const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo, orderId);
       const itens = v.totals.lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity }));
       const chave = draftKeyFor(cliente.id, orderId);
@@ -258,16 +253,16 @@ export function useVendedor() {
         await motor.alterar(orderId, { payload: { ...naFila.payload, discount_pct: rascunho.discount_pct, payment_terms: rascunho.payment_terms, total_cents: display.total_cents, items: itens } satisfies CreateOrderRequest });
         await repo.limparRascunho(chave);
         await recarregar();
-        if (amb.online()) void motor.enviar({ incluirFalhos: true });
+        if (ambiente.online()) void motor.enviar({ incluirFalhos: true });
         return { kind: 'local' };
       }
-      if (!amb.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL} Desligue no Perfil quando tiver sinal.`);
+      if (!ambiente.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL} Desligue no Perfil quando tiver sinal.`);
       const corpo: UpdateOrderRequest = { customer_id: cliente.id, discount_pct: rascunho.discount_pct, payment_terms: rascunho.payment_terms, items: itens };
       let order: OrderDetail;
       try {
-        order = await amb.requisitar<OrderDetail>('PUT', `/orders/${encodeURIComponent(orderId)}`, { body: corpo });
+        order = await ambiente.http.requisitar<OrderDetail>('PUT', `/orders/${encodeURIComponent(orderId)}`, { body: corpo });
       } catch (e) {
-        if (e instanceof ErroSemConexao) throw new Error(`Sem conexão: ${PRECISA_SINAL} Suas alterações continuam aqui; tente de novo.`);
+        if (ehSemConexao(e)) throw new Error(`Sem conexão: ${PRECISA_SINAL} Suas alterações continuam aqui; tente de novo.`);
         throw e;
       }
       await repo.guardarPedido(order);
@@ -275,7 +270,7 @@ export function useVendedor() {
       await recarregar();
       return { kind: 'server', order };
     },
-    [motor, repo, prepararDoRascunho, recarregar],
+    [motor, repo, prepararDoRascunho, recarregar, ambiente],
   );
 
   /** Excluir = cancelar (nunca apaga no servidor). Pedido ainda na fila: sai da fila do aparelho. */
@@ -289,20 +284,19 @@ export function useVendedor() {
         await recarregar();
         return { kind: 'local' };
       }
-      const amb = exigirAmbiente();
-      if (!amb.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL}`);
+      if (!ambiente.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL}`);
       let order: OrderDetail;
       try {
-        order = await amb.requisitar<OrderDetail>('POST', `/orders/${encodeURIComponent(orderId)}/cancel`, { body: motivo.trim() ? { reason: motivo.trim() } : {} });
+        order = await ambiente.http.requisitar<OrderDetail>('POST', `/orders/${encodeURIComponent(orderId)}/cancel`, { body: motivo.trim() ? { reason: motivo.trim() } : {} });
       } catch (e) {
-        if (e instanceof ErroSemConexao) throw new Error(`Sem conexão: ${PRECISA_SINAL}`);
+        if (ehSemConexao(e)) throw new Error(`Sem conexão: ${PRECISA_SINAL}`);
         throw e;
       }
       await repo.guardarPedido(order);
       await recarregar();
       return { kind: 'server', order };
     },
-    [motor, repo, recarregar],
+    [motor, repo, recarregar, ambiente],
   );
 
   const reenviarFila = useCallback(async () => {

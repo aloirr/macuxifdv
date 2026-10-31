@@ -51,14 +51,14 @@ export default function RootLayout() {
 
 /** Só renderiza as rotas depois de carregar fontes, sessão e fila do aparelho. */
 function Gate({ fontsReady }: { fontsReady: boolean }) {
-  const { ready, visao, motor } = usePlataforma();
+  const { ready, visao, motor, ambiente } = usePlataforma();
   const show = fontsReady && ready;
   useEffect(() => {
     if (show) void SplashScreen.hideAsync().catch(() => {});
   }, [show]);
   if (!show) return null;
   return (
-    <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor}>
+    <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor} ambiente={ambiente}>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />

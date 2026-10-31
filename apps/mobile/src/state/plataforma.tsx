@@ -7,15 +7,33 @@
  * módulo (`motor.armazenamentoDoModulo`), apagado junto se o módulo for desativado (RN-CORE-02).
  *
  * Telas de módulo acessam isto por `@macuxi/platform-sdk/react` (`useMotorSync`, `usePode`,
- * `useVisaoShell`) — o shell monta o `ShellProvider` em app/_layout.tsx.
+ * `useVisaoShell`, `useAmbiente`/`useHttp`) — o shell monta o `ShellProvider` em app/_layout.tsx.
+ * O AMBIENTE do aparelho (HTTP com a sessão, sinal, UUID, usuário — `services/ambiente.ts`) vai ao motor
+ * (etapas recebem `ctx.http`) e ao `ShellProvider` (telas).
+ *
+ * Transição (T-0001 A3): o Vendedor ainda lê o próprio `definirAmbienteVendedor`; o shell o alimenta com o
+ * MESMO ambiente até o módulo migrar para `ctx.http`/`useAmbiente()` (recado R-20261031-065603).
  */
 import type { FakeUser, Me } from '@macuxi/core/contracts';
-import { criarMotorSync, modulosEfetivos, perfilDaFaseM, type EtapaSync, type ModuloId, type MotorSync, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
+import {
+  criarMotorSync,
+  ehSemConexao,
+  modulosEfetivos,
+  perfilDaFaseM,
+  type AmbienteAparelho,
+  type EtapaSync,
+  type ModuloId,
+  type MotorSync,
+  type Perfil,
+  type VisaoShell,
+} from '@macuxi/platform-sdk';
+import { definirAmbienteVendedor, ErroSemConexao as ErroSemConexaoVendedor, limparAmbienteVendedor } from '@macuxi/vendedor/app';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
 import { MANIFESTOS_APP, shellDaVariante, type ComponenteTela } from '@/lib/modulos';
 import { varianteAtual } from '@/lib/variante';
+import { criarAmbienteDoAparelho } from '@/services/ambiente';
 import { ApiClient, errorMessage, HttpError, NetworkError } from '@/services/api';
 import { armazenamentoDoUsuario } from '@/services/armazenamento';
 import { platformDefaultApiUrl } from '@/services/device';
@@ -71,6 +89,20 @@ function usePlataformaValor() {
 
   const api = useCallback(() => new ApiClient(apiUrlRef.current, sessaoRef.current?.token ?? null), []);
 
+  /** Ambiente do aparelho para módulos: um só por instância do app (lê sessão, servidor e sinal por ref). */
+  const ambiente = useMemo<AmbienteAparelho>(
+    () =>
+      criarAmbienteDoAparelho({
+        api,
+        online: () => !offlineRef.current && sessaoRef.current !== null,
+        usuario: () => {
+          const u = sessaoRef.current?.user;
+          return u ? { id: u.id, nome: u.name, perfil: u.perfil } : null;
+        },
+      }),
+    [api],
+  );
+
   /** Etapa de plataforma: perfil/tenant do usuário (`GET /v1/me`), guardado no armazenamento do core. */
   const etapaMe = useMemo<EtapaSync>(
     () => ({
@@ -78,13 +110,30 @@ function usePlataformaValor() {
       rotulo: 'Seu perfil',
       modulo: 'core',
       executar: async (ctx) => {
-        const dados = await api().me();
+        const dados = await ctx.http.get<Me>('/me');
         await ctx.armazenamento.gravar('me', dados);
         setMe(dados);
       },
     }),
-    [api],
+    [],
   );
+
+  /** Transição: ponte para o `definirAmbienteVendedor` até o Vendedor usar `ctx.http`/`useAmbiente()`. */
+  const ligarAmbienteVendedor = useCallback(() => {
+    definirAmbienteVendedor({
+      requisitar: async (metodo, caminho, opcoes) => {
+        try {
+          return await ambiente.http.requisitar(metodo, caminho, opcoes);
+        } catch (e) {
+          if (ehSemConexao(e)) throw new ErroSemConexaoVendedor(e.message);
+          throw e;
+        }
+      },
+      online: ambiente.online,
+      novoId: ambiente.novoId,
+      nomeDoUsuario: () => ambiente.usuario()?.nome ?? '',
+    });
+  }, [ambiente]);
 
   const abrirMotor = useCallback(
     async (s: Sessao) => {
@@ -93,9 +142,11 @@ function usePlataformaValor() {
         armazenamento: armazenamentoDoUsuario(s.user.id),
         transporte: modoSync() === 'v1' ? transporteV1(api) : transporteFaseM(api),
         online: () => !offlineRef.current,
+        ambiente,
         etapas: [etapaMe, ...shell.etapasSync],
         mensagemDeErro: errorMessage,
       });
+      ligarAmbienteVendedor();
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
       const ativos = m.estado().modulosAtivos;
@@ -105,7 +156,7 @@ function usePlataformaValor() {
       motorRef.current = m;
       setMotor(m);
     },
-    [shell, api, etapaMe],
+    [shell, api, ambiente, etapaMe, ligarAmbienteVendedor],
   );
 
   useEffect(() => {
@@ -173,6 +224,7 @@ function usePlataformaValor() {
   );
 
   const logout = useCallback(async () => {
+    limparAmbienteVendedor();
     desassinarRef.current?.();
     desassinarRef.current = null;
     sessaoRef.current = null;
@@ -237,6 +289,9 @@ function usePlataformaValor() {
 
   const perfil = sessao?.user.perfil ?? null;
   const visao: VisaoShell<ComponenteTela> = useMemo(() => shell.montar({ perfil, modulosAtivos }), [shell, perfil, modulosAtivos]);
+  /** Mesmo ambiente com identidade nova quando sinal/sessão mudam: telas que leem `online()` re-renderizam. */
+  // `offline` e `sessao` entram só nas dependências, para trocar a identidade (as funções leem por ref)
+  const ambienteTela = useMemo<AmbienteAparelho>(() => ({ ...ambiente }), [ambiente, offline, sessao]);
 
   return {
     ready,
@@ -249,6 +304,7 @@ function usePlataformaValor() {
     me,
     offline,
     motor,
+    ambiente: ambienteTela,
     visao,
     modulosAtivos,
     login,

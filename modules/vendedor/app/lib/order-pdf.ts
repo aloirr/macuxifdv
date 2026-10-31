@@ -12,7 +12,7 @@
 import { formatBRL } from '@macuxi/comum';
 
 import { statusBadge } from './order-status';
-import { zonedParts } from '@macuxi/ui/mobile';
+import { zonedParts } from '@macuxi/ui/mobile/puro';
 
 export type OrderPdfView = 'customer' | 'bko';
 
