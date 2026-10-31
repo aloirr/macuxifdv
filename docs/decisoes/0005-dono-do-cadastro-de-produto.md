@@ -36,14 +36,37 @@ colocava `produto` no schema `catalogo`. As duas posições quebram o modelo mod
 
    A tabela de schemas do doc 04 passou `produto` (cadastro base) da linha `catalogo` para a linha `core`.
 
-## Transição (até a T-0007)
-- **Ninguém move tipos de produto antes da T-0007.** A cópia da Fase M fica como está em
-  `modules/vendedor/contracts` para manter os 277 testes da T-0001 verdes.
-- T-0007 (Sprint 1): mover `Product`/`ProductListQuery`/`StockByBranch`/`MixSuggestion` para `core/contracts`
-  (cadastro base) e `catalogo/contracts` (preço e estoque); manifesto do Vendedor com `depende: ['core','catalogo']`.
-  Critérios: os 277 continuam verdes; `pnpm fronteiras` sem violação; nenhum tipo de produto definido no vendedor.
-- Migrações: `core.produto` nasce na T-0002 (banco-dados); as tabelas de preço/estoque do Catálogo entram com o
-  módulo Catálogo, depois do adaptador SQLite do aparelho (T-0008, busca offline FTS5).
+## Transição (concluída na T-0007)
+- Até a T-0007 a cópia da Fase M ficou em `modules/vendedor/contracts` para manter os 277 testes da T-0001 verdes.
+- Migrações: `core.produto` nasceu na T-0002 (`db/migrations/0002_core.up.sql`); as tabelas de preço/estoque do Catálogo
+  entram com o módulo Catálogo, depois do adaptador SQLite do aparelho (T-0008, busca offline FTS5).
+
+## Adendo (2026-10-31) — o que a T-0007 entregou
+Entregue na nuvem (merge 6fba044), revisado pelo engenheiro no fechamento da rodada local (R-20261031-121124).
+- **Core**: `ProductBase` em `modules/core/contracts` (`id`, `sku`, `ean`, `nome`, `marca`, `categoria`, `unidade`,
+  `ativo`, `external_id`).
+- **Catálogo**: `ProductPrice`, `StockByBranch`, `ProductStock`, `Product` (= `ProductBase` + preço e estoque),
+  `ProductListQuery` e `MixSuggestion` em `modules/catalogo/contracts`. O manifesto saiu com `produto` fora do sync e
+  ganhou `assistente` em `perfis` (o assistente de BKO trabalha com pedidos e o Vendedor depende do Catálogo).
+- **Vendedor**: `depende: ['core', 'catalogo']`. Nenhum tipo de produto é definido no módulo; app e web importam
+  `@macuxi/catalogo/contracts`.
+- **Shells**: `apps/web/lib/modulos.ts` e `apps/mobile/src/lib/modulos.ts` instalam o manifesto do Catálogo. Sem ele,
+  `criarShell` recusa o Vendedor (dependência não instalada). A ordem de montagem é core → catalogo → vendedor.
+- **Testes**: `tests/modulos/produto-dono.test.ts` cobre RN-CORE-03 com os manifestos reais (Catálogo desligado ⇒ Vendedor
+  desligado). O espelho `packages/platform-sdk/src/manifestos-referencia.test.ts` e `.coord/contratos/modulos.md` foram
+  alinhados depois do merge.
+- **Fixture** `db/seeds/fixtures/dois-tenants.ts`: passou a licenciar o Catálogo onde licencia o Vendedor. Antes disso o
+  vendedor da fixture perdia o Vendedor por RN-CORE-03, e `apps/api/test/banco.test.ts` ficava vermelho com banco real.
+  Na nuvem, sem Postgres, esses testes são pulados.
+
+Decisões tomadas na revisão:
+1. **Eventos de produto do ERP**: `integracao.produto.atualizado@1` passa a ser consumido pelo **Core**, que é o dono de
+   `core.produto`. O Catálogo deixa de consumi-lo e reage só a `integracao.preco.atualizado@1` e
+   `integracao.estoque.atualizado@1`. Se a busca precisar reindexar quando o nome do produto mudar (T-0008), o Catálogo
+   consome um evento do Core (`core.produto.atualizado@1`, a criar quando houver o consumidor), nunca o do Hub. Recados:
+   modulo-core (declarar e implementar) e modulo-catalogo (retirar do `consome`).
+2. **Categoria e marca** continuam no sync do Catálogo como taxonomia de navegação e busca. O texto `marca`/`categoria`
+   em `core.produto` continua sendo o cadastro base. Reavaliar na T-0008 (FTS5).
 
 ## Alternativas consideradas
 - **Produto inteiro no Catálogo** (premissa anterior do doc 04): Promotor, Pesquisa e Gestor passariam a depender

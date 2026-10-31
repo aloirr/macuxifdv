@@ -79,16 +79,19 @@ Um por (`tenant_id`, `conector_id`, `entidade`): `cursor_alterado_em`, `cursor_e
 Por (`tenant_id`, `entidade`, `data_referencia`): `contagem_erp`, `soma_erp`, `contagem_macuxi`, `soma_macuxi`, `diferenca_contagem`, `diferenca_soma`, `diferenca_pct`, `divergente`, `motivos[]`, `calculada_em`. Soma de controle por entidade (`CAMPO_SOMA_CONTROLE`): preço → `preco_cents`; estoque → `saldo`; título → `saldo_cents`; nota → `total_cents`; vendedor, cliente, produto, rota → só contagem.
 
 ### 2.8 `pedido_fila_erp` — fila de pedido ao ERP (RN-INT-08)
-`pedido_uuid` (único por tenant; idempotência), `estado` (`pendente` \| `enviado` \| `integrado` \| `rejeitado_erp` \| `faturado_parcial` \| `faturado_total`), `payload` (`PedidoParaErp`), `enviado_em`, `tentativas`, `numero_erp`, `motivo`, `nota_numero`, `nota_serie`, `nota_emitida_em`, `nota_total_cents`, `ultimo_retorno_em`. Alimentada pelo evento consumido `vendedor.pedido.status_alterado@1` quando o novo status é `aprovado` (`podeEntrarNaFila`).
+`pedido_uuid` (único por tenant; idempotência), `estado` (`pendente` \| `enviado` \| `integrado` \| `rejeitado_erp` \| `faturado_parcial` \| `faturado_total` \| `cancelado`), `payload` (`PedidoParaErp`), `enviado_em`, `tentativas`, `numero_erp`, `motivo`, `nota_numero`, `nota_serie`, `nota_emitida_em`, `nota_total_cents`, `ultimo_retorno_em`. Alimentada pelo evento consumido `vendedor.pedido.status_alterado@1` quando o novo status é `aprovado` (`podeEntrarNaFila`).
 
 **Estados do pedido no ERP** (`transicionarPedidoErp`):
 ```
 pendente ─► enviado ─► integrado ─► faturado_parcial ─► faturado_total
+              │             └─ (enviado, integrado, faturado_parcial e faturado_total) ──► cancelado (final, só vindo do ERP)
               │  │         └──────────────────────────────► faturado_total   (nota única)
               │  └──► rejeitado_erp (final)
               └──► pendente  (sem confirmação em [10 min]: aplicarTimeoutEnvio)
 ```
-Repetir o mesmo estado é idempotente (`repetida: true`): o Conector pode reenviar o retorno sem erro. `pendente`/`enviado` são do Hub; o ERP informa só `integrado`, `rejeitado_erp`, `faturado_parcial`, `faturado_total`.
+Repetir o mesmo estado é idempotente (`repetida: true`): o Conector pode reenviar o retorno sem erro. `pendente`/`enviado` são do Hub; o ERP informa só `integrado`, `rejeitado_erp`, `faturado_parcial`, `faturado_total`, `cancelado`.
+
+**Cancelamento (decisão do Alexandre, R-20261031-100601, opção b)**: o Macuxi nunca escreve cancelamento no ERP; não existe transição de saída. O cancelamento feito no ERP chega no retorno normal (`status: cancelado`, `motivo` opcional, guardado em `motivo`) e é publicado em `integracao.pedido.retorno_erp@1` (o `status` do evento ganhou o valor `cancelado`: acréscimo compatível no enum, sem nova versão). `cancelado` é final; repetir é idempotente; antes do envio (`pendente`) e após `rejeitado_erp` o cancelamento é recusado. A opção (a) (Macuxi devolve o cancelamento ao ERP) fica no backlog.
 
 ## 3. Ciclo carga inicial → delta → reconciliação (RF-INT-01/06, RN-INT-05/06/07)
 
@@ -178,7 +181,7 @@ Decisão: **preço e estoque são um registro por item/saldo** (com o cabeçalho
 
 Pedido ao ERP e retorno (RN-INT-08):
 - `PedidoParaErp` — `pedido_uuid`, `cliente_external_id`, `vendedor_external_id`, `condicao_pagamento_erp?`, `criado_em`, `aprovado_em`, `itens[] {sequencia, produto_external_id, quantidade, preco_unitario_cents, desconto_cents, total_cents}`, `desconto_total_cents`, `total_cents`, `tentativa`.
-- `RetornoErp` — `pedido_uuid`, `status` (`integrado` \| `rejeitado_erp` \| `faturado_parcial` \| `faturado_total`), `numero_erp` (obrigatório ao integrar/faturar), `motivo` (obrigatório ao rejeitar), `nota` (obrigatória ao faturar), `ocorrido_em`. Cada retorno aceito publica `integracao.pedido.retorno_erp@1`.
+- `RetornoErp` — `pedido_uuid`, `status` (`integrado` \| `rejeitado_erp` \| `faturado_parcial` \| `faturado_total` \| `cancelado`), `numero_erp` (obrigatório ao integrar/faturar), `motivo` (obrigatório ao rejeitar), `nota` (obrigatória ao faturar), `ocorrido_em`. Cada retorno aceito publica `integracao.pedido.retorno_erp@1`.
 
 ## 9. Versionamento do `/integracao/v1` (RN-INT-09)
 
@@ -255,4 +258,4 @@ Rotas Fastify, persistência, fila (pg-boss), telas do monitor/mapeamento/upload
   - (2) **Trava de inativação em massa**: `calcularInativacao` não inativa se a carga completa fosse inativar mais de `limiteInativacaoPct` (padrão 30 %) dos ativos; devolve `motivo: excede_limite_inativacao` e `candidatos`; o operador confirma no BKO (`confirmado: true`). Implementado e testado.
   - (3) **Quantidade/saldo fracionário**: mantém `number` no contrato (o ERP define a precisão). A soma de controle de estoque é comparada com a tolerância de 0,5 %, que absorve ruído de ponto flutuante; a API deve somar em milésimos (`Math.round(x*1000)`) antes de enviar ao `reconciliar`. Sem mudança de contrato.
   - Revisão: precisão do cursor — `Date.parse` trunca a milissegundos; o Conector deve enviar `alterado_em` em ms (ex.: `datetime2(3)` ou `rowversion` convertido). Entra no guia do Conector e nas views-modelo.
-- **Abertas, de produto/outro dono (não decididas aqui)**: (1) pedido cancelado no Vendedor depois de `enviado` — o ERP deve ser avisado? Exige regra no doc 03 (RN do Vendedor/Integração) e possivelmente estado `cancelado` em RN-INT-08 e evento consumido novo; decisão do Alexandre com o `modulo-vendedor`.
+- **Abertas, de produto/outro dono (não decididas aqui)**: (1) ~~pedido cancelado no Vendedor depois de `enviado`~~ — decidido: opção (b), o Macuxi não escreve no ERP; só recebe `cancelado` pelo retorno. Opção (a) no backlog. (Histórico: exigia regra no doc 03 (RN do Vendedor/Integração) e possivelmente estado `cancelado` em RN-INT-08 e evento consumido novo; decisão do Alexandre com o `modulo-vendedor`.)

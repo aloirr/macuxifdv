@@ -7,7 +7,7 @@
  *   derrubar [--limpar]           para o container (--limpar também apaga o volume de dados)
  *   recriar                       derrubar --limpar + subir (banco de dev do zero, migrado e vazio)
  *   status                        conexão, bancos de teste esquecidos e migrações aplicadas
- *   papeis                        cria/corrige o papel macuxi_app (LOGIN, sem SUPERUSER/BYPASSRLS)
+ *   papeis                        cria/corrige os papéis macuxi_app e macuxi_worker (LOGIN, sem SUPERUSER/BYPASSRLS)
  *   migrar up [--ate NNNN]        aplica migrações pendentes
  *   migrar down [--passos N|--tudo]  desfaz migrações (padrão: a última)
  *   seed fase-m                   carrega o seed de demonstração da Fase M
@@ -23,7 +23,7 @@ import { lerConfig, type ConfigBanco } from '../src/config';
 import { compose } from '../src/docker';
 import { apagarBanco, comAdmin, criarBanco, criarBancoDeTeste, listarBancosDeTeste, postgresDisponivel } from '../src/banco-teste';
 import { listarAplicadas, migrarDown, migrarUp } from '../src/migrador';
-import { garantirPapelApp } from '../src/papeis';
+import { garantirPapelApp, garantirPapelWorker } from '../src/papeis';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
 import { carregarFaseM } from '../seeds/fase-m/fase-m';
 
@@ -94,6 +94,12 @@ export async function executar(argv: string[]): Promise<void> {
       await exigir();
       await comAdmin('postgres', (c) => garantirPapelApp(c, cfg.appSenha), cfg);
       console.log('[banco] papel macuxi_app pronto (LOGIN, NOSUPERUSER, NOBYPASSRLS).');
+      if (cfg.workerSenha) {
+        await comAdmin('postgres', (c) => garantirPapelWorker(c, cfg.workerSenha), cfg);
+        console.log('[banco] papel macuxi_worker pronto (LOGIN, NOSUPERUSER, NOBYPASSRLS).');
+      } else {
+        console.log('[banco] MACUXI_PG_WORKER_SENHA não definida: macuxi_worker fica NOLOGIN.');
+      }
       return;
     case 'migrar': {
       await exigir();

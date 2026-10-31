@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canTransition, checkDiscount, orderActions, computeOrderTotals, type DiscountPolicy, validateOrder } from './order';
+import { canTransition, checkDiscount, orderActions, verificarCancelamento, computeOrderTotals, type DiscountPolicy, validateOrder } from './order';
 
 const policy: DiscountPolicy = { seller_pct: 5, supervisor_pct: 8, manager_pct: 12, above_manager: 'block', exceptions: { 'seller-x': 6 } };
 const credit = { credit_limit_cents: 2_000_000, open_receivables_cents: 0, overdue_cents: 0, open_orders_cents: 0 };
@@ -137,7 +137,21 @@ describe('ações do pedido (duplicar, editar, excluir)', () => {
     expect(a.can_duplicate).toBe(true);
     expect(a.locked_reason === '').toBe(ok);
   });
-  it('integrado explica que é preciso duplicar', () => {
-    expect(orderActions('integrated').locked_reason).toContain('duplique');
+  it('RN-VEN-31 / matriz §2: integrado mostra a mensagem de cancelar no ERP e continua duplicável', () => {
+    expect(orderActions('integrated').locked_reason).toBe('Pedido já enviado ao ERP — cancele no ERP');
+    expect(orderActions('integrated').can_duplicate).toBe(true);
+  });
+});
+
+describe('pedido.cancelar depois do envio ao ERP (doc 03 §4, matriz §2)', () => {
+  it.each(['sent_to_erp', 'integrated', 'enviado', 'integrado_erp', 'faturado_parcial', 'faturado_total'])(
+    'RN-VEN-CANCELAR-APOS-ENVIO: %s é negado com 422 e a mensagem',
+    (st) => {
+      expect(verificarCancelamento(st)).toEqual({ ok: false, codigo: 'RN-VEN-CANCELAR-APOS-ENVIO', status: 422, mensagem: 'Pedido já enviado ao ERP — cancele no ERP' });
+      expect(orderActions(st as never).can_cancel).toBe(false);
+    },
+  );
+  it.each(['draft', 'queued', 'received', 'pending_approval', 'approved', 'rejected'])('RN-VEN-31: %s ainda pode ser cancelado pela regra', (st) => {
+    expect(verificarCancelamento(st)).toEqual({ ok: true });
   });
 });

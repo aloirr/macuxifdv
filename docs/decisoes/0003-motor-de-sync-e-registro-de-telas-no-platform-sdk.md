@@ -64,8 +64,9 @@ desativado de deixar dados no aparelho (RN-CORE-02). O mesmo vale para menus e a
 - A outbox legada do shell (`apps/mobile/src/lib/outbox.ts`) saiu; 4 dos 6 casos da Fase M foram reescritos sobre o
   motor (`motor-sync.fase-m.test.ts`) e os 2 de pedido foram para `modules/vendedor/app/lib`.
 - Alternativa descartada: um "ambiente" por módulo (`definirAmbienteVendedor`, estado global do módulo) — cada
-  módulo reinventaria sessão/sinal/UUID e o shell teria de conhecer todos. Fica só como ponte de transição até o
-  Vendedor migrar.
+  módulo reinventaria sessão/sinal/UUID e o shell teria de conhecer todos. A ponte saiu do shell na revisão final da
+  T-0001 e o Vendedor apagou `modules/vendedor/app/ambiente.ts` e os exports `@deprecated` (R-20261031-110005);
+  nenhum módulo tem mais ambiente próprio (correção de 2026-10-31, T-0004).
 
 ## Adendo 2026-10-31 — Troca do armazenamento chave→JSON por SQLite com FTS5 (gatilho da T-0008)
 Decisão do Alexandre (R-20261031-021714): o armazenamento chave→JSON (AsyncStorage) não atende o volume e a busca

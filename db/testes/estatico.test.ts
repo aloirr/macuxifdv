@@ -19,10 +19,13 @@ const COMUNS = ['id', 'created_at', 'updated_at', 'deleted_at', 'external_id'];
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
-/** Blocos `create table x.y ( ... );` das migrações up. */
+/** Blocos `create table x.y ( ... );` das migrações up, mais as colunas de `alter table x.y add column` posteriores. */
 function tabelasCriadas(): Map<string, string> {
   const mapa = new Map<string, string>();
   for (const m of /create table ([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g[Symbol.matchAll](sqlUp)) mapa.set(m[1]!, m[2]!);
+  for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column ([a-z_]+) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
+    mapa.set(m[1]!, `${mapa.get(m[1]!) ?? ''}\n  ${m[2]!} ${m[3]!}`);
+  }
   return mapa;
 }
 
@@ -41,7 +44,7 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual(['0001_plataforma', '0002_core']);
+    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual(['0001_plataforma', '0002_core', '0003_plataforma_worker']);
   });
 
   it('down de cada migração remove os schemas que o up cria', () => {
@@ -57,7 +60,7 @@ describe('migrações (estático)', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
-        'plataforma.evento', 'plataforma.parametro', 'plataforma.auditoria',
+        'plataforma.evento', 'plataforma.evento_consumo', 'plataforma.parametro', 'plataforma.auditoria',
         'core.usuario', 'core.equipe', 'core.produto', 'core.cliente', 'core.carteira',
       ].sort(),
     );
@@ -90,6 +93,44 @@ describe('migrações (estático)', () => {
     const semComentarios = sqlUp.replace(/--.*$/gm, '');
     expect(semComentarios.match(/(?<!no)bypassrls/gi)).toBeNull();
     expect(sqlUp).toMatch(/create role macuxi_app nologin nosuperuser nobypassrls/);
+  });
+});
+
+describe('0003 macuxi_worker (estático, ADR 0007)', () => {
+  const m = migracoes.find((x) => x.versao === '0003')!;
+  const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
+
+  it('papel sem BYPASSRLS e políticas despacho_outbox só para macuxi_worker', () => {
+    expect(m.up).toMatch(/create role macuxi_worker nologin nosuperuser nobypassrls nocreatedb nocreaterole noreplication;/);
+    expect(m.up).toMatch(/create policy despacho_outbox on plataforma\.evento for select to macuxi_worker\s+using \(true\);/);
+    expect(m.up).toMatch(/create policy despacho_outbox_marcar on plataforma\.evento for update to macuxi_worker\s+using \(true\) with check \(true\);/);
+  });
+
+  it('grants do worker: só usage em plataforma e colunas de plataforma.evento', () => {
+    const grants = [...semComentarios(sqlUp).matchAll(/grant ([^;]*?) to macuxi_worker;/g)].map((g) => g[1]!.replace(/\s+/g, ' '));
+    expect(grants).toEqual([
+      'usage on schema plataforma',
+      'select (id, tenant_id, nome, modulo, agregado_id, payload, ocorrido_em, publicado_em, tentativas, usuario_id, request_id) on plataforma.evento',
+      'update (publicado_em, tentativas, ultimo_erro) on plataforma.evento',
+    ]);
+  });
+
+  it('carteira_usuario_sync_ix sem filtro de deleted_at (o pull devolve removidos)', () => {
+    expect(m.up).toMatch(/create index carteira_usuario_sync_ix on core\.carteira \(tenant_id, usuario_id, updated_at, id\);/);
+  });
+
+  it('down desfaz tudo o que o up cria', () => {
+    for (const trecho of [
+      'drop index if exists core.carteira_usuario_sync_ix;',
+      'drop table if exists plataforma.evento_consumo;',
+      'drop policy if exists despacho_outbox_marcar on plataforma.evento;',
+      'drop policy if exists despacho_outbox on plataforma.evento;',
+      'revoke all on plataforma.evento from macuxi_worker;',
+      'drop index if exists plataforma.evento_tenant_id_uk;',
+      'alter table plataforma.evento drop column if exists request_id;',
+      'alter table plataforma.evento drop column if exists usuario_id;',
+      'revoke usage on schema plataforma from macuxi_worker;',
+    ]) expect(m.down).toContain(trecho);
   });
 });
 
@@ -160,13 +201,23 @@ describe('fixture dois-tenants (estático)', () => {
     expect(us.every((u) => String(u.email).endsWith('@exemplo.com.br'))).toBe(true);
     expect(us.filter((u) => u.email === DOIS_TENANTS.emailRepetido).map((u) => u.tenant_id).sort()).toEqual([A, B].sort());
     const mods = (t: string) => dados['plataforma.tenant_modulo'].filter((m) => m.tenant_id === t).map((m) => m.modulo);
-    expect(mods(A)).toEqual(['core', 'vendedor', 'promotor', 'teste', 'teste-dependente']);
-    expect(mods(B)).toEqual(['core', 'vendedor']);
+    expect(mods(A)).toEqual(['core', 'vendedor', 'promotor', 'teste', 'teste-dependente', 'catalogo']);
+    expect(mods(B)).toEqual(['core', 'vendedor', 'catalogo']);
     const pm = (perfil: string) => dados['plataforma.perfil_modulo'].filter((p) => p.tenant_id === A && p.perfil === perfil).map((p) => p.modulo).sort();
-    expect(pm('vendedor')).toEqual(['core', 'teste', 'vendedor']);
+    expect(pm('vendedor')).toEqual(['catalogo', 'core', 'teste', 'vendedor']);
     expect(pm('promotor')).toEqual(['core', 'promotor', 'teste']);
-    expect(pm('supervisor')).toEqual(['core', 'promotor', 'vendedor']);
-    expect(pm('gerente')).toEqual(['core', 'promotor', 'vendedor']);
+    expect(pm('supervisor')).toEqual(['catalogo', 'core', 'promotor', 'vendedor']);
+    expect(pm('gerente')).toEqual(['catalogo', 'core', 'promotor', 'vendedor']);
+    expect(pm('analista')).toEqual(['catalogo', 'core', 'promotor', 'vendedor']);
+    expect(pm('assistente')).toEqual(['catalogo', 'core', 'vendedor']);
+    // ADR 0005 / RN-CORE-03: em A e B, todo perfil com 'vendedor' também tem 'catalogo' (senão o Vendedor some)
+    for (const t of [A, B]) {
+      const linhas = dados['plataforma.perfil_modulo'].filter((p) => p.tenant_id === t);
+      for (const { perfil } of linhas.filter((p) => p.modulo === 'vendedor')) {
+        expect(linhas.some((p) => p.perfil === perfil && p.modulo === 'catalogo'), `${String(t).slice(0, 8)}/${String(perfil)}`).toBe(true);
+      }
+      expect(mods(t)).toContain('catalogo');
+    }
     const exA = dados['plataforma.usuario_modulo'].filter((e) => e.tenant_id === A);
     expect(exA).toEqual([expect.objectContaining({ usuario_id: DOIS_TENANTS.A.usuarios.vendedor2, modulo: 'teste', efeito: 'remover' })]);
   });

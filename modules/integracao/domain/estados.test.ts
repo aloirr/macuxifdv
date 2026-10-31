@@ -42,6 +42,23 @@ describe('RN-INT-08: máquina de estados do retorno do pedido', () => {
     expect(transicionarPedidoErp('integrado', 'faturado_total').ok).toBe(true);
   });
 
+  it('RN-INT-08: o ERP pode cancelar a partir de enviado, integrado, faturado_parcial e faturado_total', () => {
+    for (const de of ['enviado', 'integrado', 'faturado_parcial', 'faturado_total'] as const) {
+      expect(transicionarPedidoErp(de, 'cancelado'), de).toMatchObject({ ok: true, estado: 'cancelado', repetida: false });
+    }
+  });
+
+  it('RN-INT-08: cancelado é final e repetir o cancelamento é idempotente', () => {
+    expect(transicionarPedidoErp('cancelado', 'cancelado')).toMatchObject({ ok: true, estado: 'cancelado', repetida: true });
+    for (const para of ESTADOS_PEDIDO_ERP.filter((e) => e !== 'cancelado')) expect(transicionarPedidoErp('cancelado', para).ok, para).toBe(false);
+  });
+
+  it('RN-INT-08: cancelamento recusado antes do envio e depois de rejeitado, com mensagem em português', () => {
+    const r = transicionarPedidoErp('pendente', 'cancelado');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.mensagem).toMatch(/pendente.*cancelado/);
+  });
+
   it('RN-INT-08: enviado sem confirmação pode voltar a pendente (timeout)', () => {
     expect(transicionarPedidoErp('enviado', 'pendente').ok).toBe(true);
   });
@@ -54,6 +71,11 @@ describe('RN-INT-08: máquina de estados do retorno do pedido', () => {
       ['integrado', 'enviado'],
       ['integrado', 'pendente'],
       ['faturado_total', 'faturado_parcial'],
+      ['pendente', 'cancelado'],
+      ['cancelado', 'integrado'],
+      ['cancelado', 'faturado_total'],
+      ['cancelado', 'pendente'],
+      ['rejeitado_erp', 'cancelado'],
       ['faturado_total', 'pendente'],
       ['rejeitado_erp', 'integrado'],
       ['rejeitado_erp', 'pendente'],
@@ -86,7 +108,7 @@ describe('RN-INT-08: fila de pendentes e timeout de reenvio', () => {
 
   it('RN-INT-08: o prazo é parâmetro; só estado enviado é afetado', () => {
     expect(aplicarTimeoutEnvio(enviado, '2026-10-31T10:05:00Z', { timeoutMin: 5 }).estado).toBe('pendente');
-    for (const estado of ['pendente', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total'] as const) {
+    for (const estado of ['pendente', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total', 'cancelado'] as const) {
       const item = { estado, enviado_em: null, tentativas: 1 };
       expect(aplicarTimeoutEnvio(item, '2030-01-01T00:00:00Z')).toEqual({ ...item, reenviado: false });
     }

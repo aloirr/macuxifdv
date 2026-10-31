@@ -8,6 +8,7 @@ import { etapasCore } from './lib/cargas';
 import { TelaCliente } from './telas/cliente';
 import { TelaClientes } from './telas/clientes';
 import { TelaMetas } from './telas/metas';
+import { TelaMeusModulos } from './telas/meus-modulos';
 import { TelaRota } from './telas/rota';
 
 export { OpenVisitBar } from './components/open-visit-bar';
@@ -25,6 +26,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'rota', caminho: 'rota', titulo: 'Rota de hoje', navegacao: 'Rota', icone: 'pin', apps: ['campo'], ordem: 20, componente: comVisitas(TelaRota) },
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },
     { id: 'metas', caminho: 'metas', titulo: 'Metas', navegacao: 'Metas', icone: 'target', apps: ['campo'], ordem: 50, componente: TelaMetas },
+    { id: 'meus-modulos', caminho: 'meus-modulos', titulo: 'Meus módulos', apps: ['campo', 'gestao'], componente: TelaMeusModulos },
     { id: 'cliente', caminho: 'cliente', titulo: 'Ficha do cliente', apps: ['campo', 'gestao'], componente: comVisitas(TelaCliente) },
   ],
   entidadesSync: [
@@ -39,3 +41,6 @@ export const moduloApp = definirModuloShell<ComponentType>({
   ],
   etapasSync: etapasCore,
 });
+
+export { TelaLogin, type PropsTelaLogin } from './components/tela-login';
+export { entrarComSenha, mensagemDeErroDeLogin, validarLogin, type CamposLogin } from './lib/login';

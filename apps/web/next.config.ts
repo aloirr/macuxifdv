@@ -4,7 +4,20 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/v1').
 
 const nextConfig: NextConfig = {
   // pacotes e módulos do monorepo são publicados como TypeScript puro (sem build)
-  transpilePackages: ['@macuxi/comum', '@macuxi/platform-sdk', '@macuxi/ui', '@macuxi/core', '@macuxi/vendedor'],
+  transpilePackages: [
+    '@macuxi/comum',
+    '@macuxi/platform-sdk',
+    '@macuxi/ui',
+    // os 8 módulos (T-0004)
+    '@macuxi/core',
+    '@macuxi/catalogo',
+    '@macuxi/vendedor',
+    '@macuxi/promotor',
+    '@macuxi/gestor',
+    '@macuxi/pesquisa',
+    '@macuxi/treinamento',
+    '@macuxi/integracao',
+  ],
   reactStrictMode: true,
   // não gerar AGENTS.md no `next dev`
   agentRules: false,

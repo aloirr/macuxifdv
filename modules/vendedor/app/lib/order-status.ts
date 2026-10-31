@@ -2,6 +2,7 @@
  * Apresentação de status de pedido (rótulos vêm de @fv/domain; aqui só cor e filtro da lista).
  */
 import { ORDER_STATUS_LABEL, type OrderStatus } from '../../contracts';
+import { normalizarStatus } from '../../domain/order';
 
 export interface BadgeStyle {
   label: string;
@@ -17,6 +18,8 @@ const STYLE: Record<OrderStatus, { fg: string; bg: string }> = {
   approved: { fg: '#1D6B4F', bg: '#E2F1EA' },
   sent_to_erp: { fg: '#34404D', bg: '#E6E9E2' },
   integrated: { fg: '#1D6B4F', bg: '#E2F1EA' },
+  invoiced_partial: { fg: '#1D6B4F', bg: '#E2F1EA' },
+  invoiced: { fg: '#1D6B4F', bg: '#E2F1EA' },
   rejected: { fg: '#A8261B', bg: '#FDE8E6' },
   cancelled: { fg: '#A8261B', bg: '#F1E4E2' },
 };
@@ -28,7 +31,8 @@ const STYLE: Record<OrderStatus, { fg: string; bg: string }> = {
 const LABEL_OVERRIDE: Record<string, string> = { cancelled: 'Excluído', edited: 'Editado' };
 const EVENT_STYLE: Record<string, { fg: string; bg: string }> = { edited: { fg: '#8F3D06', bg: '#FBE9DC' } };
 
-export function statusBadge(status: string): BadgeStyle {
+export function statusBadge(statusErp: string): BadgeStyle {
+  const status = normalizarStatus(statusErp);
   const extra = EVENT_STYLE[status];
   if (extra) return { label: LABEL_OVERRIDE[status] ?? status, ...extra };
   const s = (status in STYLE ? status : 'received') as OrderStatus;
@@ -55,7 +59,7 @@ export function matchesFilter(status: string, filter: OrderFilter): boolean {
     case 'pending':
       return status === 'pending_approval';
     case 'integrated':
-      return status === 'integrated';
+      return status === 'integrated' || status === 'invoiced_partial' || status === 'invoiced';
     case 'rejected':
       return status === 'rejected';
     case 'cancelled':

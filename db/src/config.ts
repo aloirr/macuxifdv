@@ -6,6 +6,8 @@
  * Fora do local (host fora de HOSTS_LOCAIS ou NODE_ENV=production) não há padrão de senha: faltar
  * MACUXI_PG_ADMIN_SENHA ou MACUXI_PG_APP_SENHA, ou usar a senha pública local, é ERRO em lerConfig —
  * assim a senha pública nunca é gravada no papel da API (garantirPapelApp) de um banco compartilhado.
+ * O papel do worker da outbox (macuxi_worker, ADR 0007) usa MACUXI_PG_WORKER_SENHA: fora do local ela é
+ * opcional (sem ela o papel fica NOLOGIN e workerSenha = ''), mas a senha pública local é recusada.
  */
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -18,6 +20,9 @@ export const PASTA_MIGRACOES = join(PASTA_DB, 'migrations');
 /** Nome fixo do papel de aplicação (as migrações concedem privilégios a ele). */
 export const PAPEL_APP = 'macuxi_app';
 
+/** Papel do despachante da outbox (ADR 0007): sem BYPASSRLS, só lê/marca plataforma.evento de todos os tenants. */
+export const PAPEL_WORKER = 'macuxi_worker';
+
 export interface ConfigBanco {
   host: string;
   porta: number;
@@ -28,11 +33,14 @@ export interface ConfigBanco {
   banco: string;
   /** Senha do papel de aplicação macuxi_app (sem SUPERUSER, sem BYPASSRLS). */
   appSenha: string;
+  /** Senha do papel macuxi_worker ('' = não configurada; o papel fica NOLOGIN). */
+  workerSenha: string;
 }
 
 /** Senhas públicas do Postgres local (db/docker-compose.yml). Só valem quando ehBancoLocal() é verdadeiro. */
 export const SENHA_ADMIN_LOCAL = 'postgres';
 export const SENHA_APP_LOCAL = 'macuxi_app_local';
+export const SENHA_WORKER_LOCAL = 'macuxi_worker_local';
 
 /**
  * Hosts do Postgres local de desenvolvimento: a máquina do dev e o nome do container do
@@ -84,7 +92,7 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): ConfigBanco {
           'As senhas padrão só valem para o Postgres local do db/docker-compose.yml.',
       );
     }
-    if (env.MACUXI_PG_ADMIN_SENHA === SENHA_ADMIN_LOCAL || env.MACUXI_PG_APP_SENHA === SENHA_APP_LOCAL) {
+    if (env.MACUXI_PG_ADMIN_SENHA === SENHA_ADMIN_LOCAL || env.MACUXI_PG_APP_SENHA === SENHA_APP_LOCAL || env.MACUXI_PG_WORKER_SENHA === SENHA_WORKER_LOCAL) {
       throw new Error(`[db] Banco fora do ambiente local (${onde}): a senha pública do Postgres local não pode ser usada.`);
     }
   }
@@ -95,6 +103,7 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): ConfigBanco {
     adminSenha: env.MACUXI_PG_ADMIN_SENHA || SENHA_ADMIN_LOCAL,
     banco: env.MACUXI_PG_BANCO || 'macuxi',
     appSenha: env.MACUXI_PG_APP_SENHA || SENHA_APP_LOCAL,
+    workerSenha: env.MACUXI_PG_WORKER_SENHA || (ehBancoLocal(host, env) ? SENHA_WORKER_LOCAL : ''),
   };
 }
 
@@ -110,6 +119,12 @@ export function urlAdmin(cfg: ConfigBanco, banco = cfg.banco): string {
 /** URL do papel de aplicação — é a que a API e os testes de RLS usam. */
 export function urlApp(cfg: ConfigBanco, banco = cfg.banco): string {
   return url(PAPEL_APP, cfg.appSenha, cfg, banco);
+}
+
+/** URL do papel do worker da outbox (macuxi_worker, ADR 0007). Exige MACUXI_PG_WORKER_SENHA fora do local. */
+export function urlWorker(cfg: ConfigBanco, banco = cfg.banco): string {
+  if (!cfg.workerSenha) throw new Error('[db] MACUXI_PG_WORKER_SENHA não definida: o papel macuxi_worker não tem login neste ambiente.');
+  return url(PAPEL_WORKER, cfg.workerSenha, cfg, banco);
 }
 
 /** Nome de banco válido e seguro para interpolar em DDL (CREATE/DROP DATABASE). */

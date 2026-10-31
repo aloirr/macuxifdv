@@ -6,18 +6,21 @@
  * Ponto de extensão da B2: cada módulo exporta de `modules/<m>/web/index.ts`
  *   export const moduloWeb = definirModuloShell<ComponentType>({ manifesto, paginas: [...] });
  * Enquanto o módulo não exporta `moduloWeb`, o shell usa só o manifesto (sem páginas).
- * Para instalar um módulo novo: importe o manifesto e o `web` dele aqui e acrescente na lista.
- * Instalados (T-0001 A3): core e vendedor; catálogo desde a T-0007 (o Vendedor depende dele, ADR-0005).
- * Os demais entram na T-0004.
+ * Instalados: os 8 módulos (T-0004). Módulo novo: manifesto em `instalados.ts` e o `web` dele em PAGINAS.
+ * Quem ainda não tem `web/` entra só pelo manifesto (licença e ações valem; nenhuma página aparece).
+ * O Catálogo é obrigatório desde a T-0007: o Vendedor depende dele (ADR-0005), senão `criarShell` recusa o Vendedor.
  */
 import type { ComponentType } from 'react';
-import { manifest as manifestoCatalogo } from '@macuxi/catalogo/manifest';
 import * as webCatalogo from '@macuxi/catalogo/web';
-import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import * as webCore from '@macuxi/core/web';
-import { criarShell, type Manifesto, type ModuloShell } from '@macuxi/platform-sdk';
-import { manifest as manifestoVendedor } from '@macuxi/vendedor/manifest';
+import * as webGestor from '@macuxi/gestor/web';
+import * as webIntegracao from '@macuxi/integracao/web';
+import * as webPesquisa from '@macuxi/pesquisa/web';
+import { criarShell, type Manifesto, type ModuloId, type ModuloShell } from '@macuxi/platform-sdk';
+import * as webPromotor from '@macuxi/promotor/web';
+import * as webTreinamento from '@macuxi/treinamento/web';
 import * as webVendedor from '@macuxi/vendedor/web';
+import { MANIFESTOS_INSTALADOS } from './instalados';
 
 export type ComponentePagina = ComponentType;
 
@@ -27,11 +30,19 @@ function registroWeb(manifesto: Manifesto, exportado: unknown): ModuloShell<Comp
   return m ?? { manifesto, paginas: [] };
 }
 
-export const MODULOS_WEB: readonly ModuloShell<ComponentePagina>[] = [
-  registroWeb(manifestoCore, webCore),
-  registroWeb(manifestoCatalogo, webCatalogo),
-  registroWeb(manifestoVendedor, webVendedor),
-];
+/** Páginas de cada módulo (o módulo sem `web/` exporta `{}`). */
+const PAGINAS: Record<ModuloId, unknown> = {
+  core: webCore,
+  catalogo: webCatalogo,
+  vendedor: webVendedor,
+  promotor: webPromotor,
+  gestor: webGestor,
+  pesquisa: webPesquisa,
+  treinamento: webTreinamento,
+  integracao: webIntegracao,
+};
+
+export const MODULOS_WEB: readonly ModuloShell<ComponentePagina>[] = MANIFESTOS_INSTALADOS.map((m) => registroWeb(m, PAGINAS[m.id]));
 
 export const MANIFESTOS_WEB: readonly Manifesto[] = MODULOS_WEB.map((m) => m.manifesto);
 

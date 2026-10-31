@@ -7,6 +7,7 @@ import type { Role } from '@macuxi/core/contracts';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, Drawer, ErrorBlock, formatDateTime, LoadingBlock, Notice, td, tdNum, th, thNum, useToast } from '@macuxi/ui/web';
 import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../../contracts';
+import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { useOrderDetail } from '../../lib/queries';
 import { OrderStatusBadge } from './status';
 
@@ -55,6 +56,7 @@ export function OrderDrawer({ order, tz, role, onClose }: { order: Order | null;
               </Button>
             )}
           </div>
+          {enviadoAoErp(o.status) && <Notice tone="info">{MSG_CANCELAR_APOS_ENVIO}</Notice>}
           {o.status === 'pending_approval' && o.pending_reason && <Notice tone="warning">{o.pending_reason}</Notice>}
           {o.status === 'rejected' && o.rejection_reason && <Notice tone="danger">Motivo: {o.rejection_reason}</Notice>}
 

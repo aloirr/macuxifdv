@@ -123,7 +123,7 @@ await pool.end(); await banco.apagar();
 | `db/migrations/NNNN_nome.up.sql` / `.down.sql` | migrações versionadas (SQL), sempre com caminho de volta |
 | `db/src/migrador.ts` | executor up/down com checksum do up e do down (migração aplicada não pode ser editada) e advisory lock |
 | `db/src/contexto.ts` | `comTenant` / `definirTenant` (contexto do tenant por transação) |
-| `db/src/papeis.ts` | papel `macuxi_app` e diagnóstico (S0-028) |
+| `db/src/papeis.ts` | papéis `macuxi_app` e `macuxi_worker` (`garantirPapelApp`, `garantirPapelWorker`) e diagnóstico (S0-028) |
 | `db/src/banco-teste.ts` | banco efêmero, disponibilidade do Postgres |
 | `db/esquema/plataforma.ts`, `modules/core/db/nuvem.ts` | espelho Drizzle (tipado) das tabelas |
 | `drizzle.config.ts` | Drizzle Kit; `drizzle:rascunho` gera só rascunho em `db/drizzle-rascunho/` (ignorado) |
@@ -149,10 +149,9 @@ await pool.end(); await banco.apagar();
 Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataforma.md), [core.md](core.md).
 
 ## Pendências
-Registradas para a **T-0004** em [docs/desenho/T-0002.md §6](../desenho/T-0002.md):
-- Índice para o pull da carteira por usuário incluindo excluídas, `carteira_usuario_sync_ix (tenant_id, usuario_id,
-  updated_at, id)` sem filtro de `deleted_at` (ver [desempenho-sync.md](desempenho-sync.md)) — migração nova junto
-  com a rota `/v1/sync/pull`.
-- Despacho da outbox entre tenants (pg-boss): desenho aceito em [§5](../desenho/T-0002.md) (papel `macuxi_worker`
-  **NOBYPASSRLS** com política própria em `plataforma.evento`); implementação na T-0004, depois da ADR do engenheiro.
+Feitas na **T-0004** (migração `0003_plataforma_worker`): `carteira_usuario_sync_ix`, papel `macuxi_worker` com as
+políticas `despacho_outbox*` (ADR 0007), `plataforma.evento_consumo` e colunas `usuario_id`/`request_id` em
+`plataforma.evento`. Pendentes:
+- pg-boss (schema `pgboss`, criado pelo migrador) junto do primeiro consumidor real (ADR 0007 item 5).
+- `MACUXI_PG_WORKER_SENHA` nos `.env.example` (raiz: engenheiro-software; `db/.env.example`: sem permissão de leitura nesta sessão).
 - Cursor do pull com transação longa (`updated_at = now()` é o início da transação): tratado na rota de pull (T-0004).

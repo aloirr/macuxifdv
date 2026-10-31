@@ -22,3 +22,11 @@ R-20261031-094657-modulo-vendedor
 R-20261031-094825-modulo-core
 R-20261031-125125-alexandre
 R-20261031-100606-banco-dados
+R-20261031-102322-gerente-projetos
+R-20261031-103502-alexandre
+R-20261031-104652-gerente-projetos
+R-20261031-110005-modulo-vendedor
+R-20261031-111813-testes
+R-20261031-122329-modulo-vendedor
+R-20261031-123346-banco-dados
+R-20261031-123347-banco-dados

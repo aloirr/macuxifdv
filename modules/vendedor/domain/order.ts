@@ -204,6 +204,8 @@ export const ORDER_STATUSES = [
   'approved',
   'sent_to_erp',
   'integrated',
+  'invoiced_partial',
+  'invoiced',
   'rejected',
   'cancelled',
 ] as const;
@@ -216,13 +218,22 @@ const transitions: Record<OrderStatus, OrderStatus[]> = {
   pending_approval: ['approved', 'rejected', 'cancelled'],
   approved: ['sent_to_erp'],
   sent_to_erp: ['integrated', 'rejected'],
-  integrated: [],
+  integrated: ['invoiced_partial', 'invoiced'],
+  invoiced_partial: ['invoiced_partial', 'invoiced'],
+  invoiced: [],
   rejected: ['sent_to_erp', 'pending_approval', 'cancelled'],
   cancelled: [],
 };
 
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   return transitions[from].includes(to);
+}
+
+/**
+ * RN-INT-08: o 'cancelado' do ERP vem pelo Hub (não é ação do vendedor) e vale de enviado em diante.
+ */
+export function aceitaCancelamentoDoErp(from: OrderStatus): boolean {
+  return enviadoAoErp(from);
 }
 
 /**
@@ -233,6 +244,31 @@ export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
  */
 const EDITABLE: ReadonlySet<OrderStatus> = new Set(['draft', 'queued', 'received', 'pending_approval', 'rejected']);
 
+/**
+ * Cancelamento depois do envio ao ERP (doc 03 §4; matriz §2 `pedido.cancelar`): a partir de 'enviado'
+ * o pedido não é cancelado no Macuxi; o cancelamento é feito no ERP e volta como 'cancelado' pelo Hub.
+ * Aceita os nomes do contrato (sent_to_erp, integrated) e os do ERP/doc (enviado, integrado_erp, faturado_*).
+ */
+export const CODIGO_CANCELAR_APOS_ENVIO = 'RN-VEN-CANCELAR-APOS-ENVIO';
+export const MSG_CANCELAR_APOS_ENVIO = 'Pedido já enviado ao ERP — cancele no ERP';
+export const HTTP_CANCELAR_APOS_ENVIO = 422;
+const ENVIADO_OU_POSTERIOR: ReadonlySet<string> = new Set([
+  'sent_to_erp', 'integrated', 'invoiced_partial', 'invoiced', 'invoiced_total',
+  'enviado', 'integrado', 'integrado_erp', 'faturado_parcial', 'faturado_total', 'faturado',
+]);
+export function enviadoAoErp(status: string): boolean {
+  return ENVIADO_OU_POSTERIOR.has(status);
+}
+/** Status do ERP/doc (EstadoPedidoErp da integração) -> OrderStatus do contrato; o que já é OrderStatus passa direto. */
+const ALIAS_STATUS: Record<string, OrderStatus> = { enviado: 'sent_to_erp', integrado: 'integrated', integrado_erp: 'integrated', faturado_parcial: 'invoiced_partial', faturado_total: 'invoiced', faturado: 'invoiced', cancelado: 'cancelled' };
+export function normalizarStatus(status: string): string {
+  return ALIAS_STATUS[status] ?? status;
+}
+export type VerificacaoCancelamento = { ok: true } | { ok: false; codigo: string; status: number; mensagem: string };
+export function verificarCancelamento(status: string): VerificacaoCancelamento {
+  return enviadoAoErp(status) ? { ok: false, codigo: CODIGO_CANCELAR_APOS_ENVIO, status: HTTP_CANCELAR_APOS_ENVIO, mensagem: MSG_CANCELAR_APOS_ENVIO } : { ok: true };
+}
+
 export interface OrderActions {
   can_duplicate: boolean;
   can_edit: boolean;
@@ -242,13 +278,15 @@ export interface OrderActions {
 }
 
 export function orderActions(status: OrderStatus): OrderActions {
-  const editable = EDITABLE.has(status);
+  const editable = EDITABLE.has(status) && !enviadoAoErp(status);
   const locked_reason = editable
     ? ''
     : status === 'cancelled'
-      ? 'Pedido excluído.'
-      : status === 'integrated' || status === 'sent_to_erp' || status === 'approved'
-        ? 'Pedido já está no ERP: para mudar, duplique e faça um novo, ou peça ao BKO.'
+      ? 'Pedido cancelado.'
+      : enviadoAoErp(status)
+        ? MSG_CANCELAR_APOS_ENVIO
+        : status === 'approved'
+          ? 'Pedido aprovado: aguardando envio ao ERP.'
         : 'Este pedido não pode mais ser alterado.';
   return { can_duplicate: status !== 'draft', can_edit: editable, can_cancel: editable, locked_reason };
 }
@@ -261,6 +299,8 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   approved: 'Aprovado',
   sent_to_erp: 'Enviado ao ERP',
   integrated: 'Integrado',
+  invoiced_partial: 'Faturado parcialmente',
+  invoiced: 'Faturado',
   rejected: 'Rejeitado',
   cancelled: 'Cancelado',
 };

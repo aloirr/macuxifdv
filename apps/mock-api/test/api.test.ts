@@ -315,7 +315,8 @@ describe('editar, excluir e duplicar pedido', () => {
     const integrated = (await call('GET', '/orders?status=integrated', 'Rafael')).body.items[0];
     const r = await call('POST', `/orders/${integrated.id}/cancel`, 'Rafael', {});
     expect(r.status).toBe(409);
-    expect(r.body.message).toContain('duplique');
+    // decisão do Alexandre (aviso R-20261031-102322): depois do envio, cancela-se no ERP (antes: "duplique")
+    expect(r.body.message).toContain('cancele no ERP');
     // outro vendedor não mexe no pedido do Rafael
     expect((await call('POST', `/orders/${id}/cancel`, 'Bruna', {})).status).toBe(403);
   });

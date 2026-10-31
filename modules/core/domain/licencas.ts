@@ -38,3 +38,52 @@ export function modulosRemovidos(antes: Iterable<ModuloId>, depois: Iterable<Mod
   const d = new Set(depois);
   return [...antes].filter((m) => !d.has(m));
 }
+
+/** Módulo → módulos de que ele depende (obrigatórios). Vem da plataforma (`dependencias` de `GET /v1/core/licencas`). */
+export type Dependencias = Readonly<Partial<Record<ModuloId, readonly ModuloId[]>>>;
+
+export interface EstadoParaEfetivos {
+  /** Módulos instalados. */
+  modulos: readonly ModuloId[];
+  dependencias: Dependencias;
+  ativosNoTenant: readonly ModuloId[];
+  doPerfil: readonly ModuloId[];
+  removidosDoUsuario: readonly ModuloId[];
+}
+
+/**
+ * RN-CORE-01/03 para a tela de licenças (que não tem os manifestos): mesma regra de `calcularModulosEfetivos`
+ * com o mapa de dependências recebido da API. Core sempre; dependência fora derruba o dependente, em cascata.
+ */
+export function efetivosPelasDependencias(e: EstadoParaEfetivos): ModuloId[] {
+  const tenant = new Set(e.ativosNoTenant);
+  const perfil = new Set(e.doPerfil);
+  for (const r of e.removidosDoUsuario) perfil.delete(r);
+  const efetivos = new Set<ModuloId>(e.modulos.filter((m) => m === 'core' || (tenant.has(m) && perfil.has(m))));
+  for (let mudou = true; mudou; ) {
+    mudou = false;
+    for (const m of [...efetivos]) {
+      if ((e.dependencias[m] ?? []).some((d) => d !== m && !efetivos.has(d))) {
+        efetivos.delete(m);
+        mudou = true;
+      }
+    }
+  }
+  return e.modulos.filter((m) => efetivos.has(m));
+}
+
+/** RN-CORE-03: módulos que também saem do ar quando `modulo` é desligado (dependentes diretos e indiretos). */
+export function dependentesDe(modulo: ModuloId, modulos: readonly ModuloId[], dependencias: Dependencias): ModuloId[] {
+  const saem = new Set<ModuloId>([modulo]);
+  for (let mudou = true; mudou; ) {
+    mudou = false;
+    for (const m of modulos) {
+      if (!saem.has(m) && (dependencias[m] ?? []).some((d) => saem.has(d))) {
+        saem.add(m);
+        mudou = true;
+      }
+    }
+  }
+  saem.delete(modulo);
+  return modulos.filter((m) => saem.has(m));
+}

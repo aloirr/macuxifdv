@@ -27,7 +27,9 @@ const referencia = JSON.parse(readFileSync(join(__dirname, 'fase-m', 'referencia
 
 /**
  * Mapa executável: arquivo de origem (Fase M) → [destino, nº de casos da Fase M nesse destino].
- * Cada destino listado contém SÓ casos da Fase M (por isso a contagem estática do arquivo tem de bater).
+ * No aceite da T-0001 (Fase D) cada destino tinha SÓ casos da Fase M. Depois disso os módulos evoluem:
+ * o destino pode GANHAR casos (contagem >= n), mas nenhum título da Fase M some sem estar em
+ * SUBSTITUIDOS_POR_DECISAO com a decisão que mudou o comportamento e o título do teste que o substitui.
  */
 const MAPA: Record<string, [string, number][]> = {
   'packages/domain/src/money.test.ts': [['packages/comum/src/money.test.ts', 11]],
@@ -68,6 +70,20 @@ const MAPA: Record<string, [string, number][]> = {
   'apps/mock-api/test/api.test.ts': [['apps/mock-api/test/api.test.ts', 18]],
 };
 
+/**
+ * Casos da Fase M cujo comportamento mudou por decisão registrada depois da T-0001.
+ * [origem, título da Fase M] → título do teste que o substitui no destino e a decisão.
+ */
+const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; decisao: string }[] = [
+  {
+    origem: 'packages/domain/src/order.test.ts',
+    titulo: 'integrado explica que é preciso duplicar',
+    novo: 'RN-VEN-31 / matriz §2: integrado mostra a mensagem de cancelar no ERP e continua duplicável',
+    decisao: 'doc 03 §4 — a partir de enviado, cancelar só no ERP ("Pedido já enviado ao ERP — cancele no ERP"); R-20261031-102322',
+  },
+];
+const substituido = (arquivo: string, titulo: string) => SUBSTITUIDOS_POR_DECISAO.some((x) => x.origem === arquivo && x.titulo === titulo);
+
 const destinos = Object.values(MAPA).flat();
 
 function contagemEstatica(arquivos: string[]): Map<string, { casos: number; avisos: string[] }> {
@@ -99,21 +115,29 @@ describe('S0-001 — referência da Fase M', () => {
 describe('S0-002 / S0-005 — os 277 estão nos novos locais', () => {
   const estatico = contagemEstatica(destinos.map(([d]) => d));
 
-  it.each(destinos)('%s tem %i casos da Fase M (contagem estática com it.each expandido)', (destino, n) => {
-    expect(estatico.get(destino)?.casos, destino).toBe(n);
+  it.each(destinos)('%s tem ao menos %i casos (os da Fase M; contagem estática com it.each expandido)', (destino, n) => {
+    expect(estatico.get(destino)?.casos, destino).toBeGreaterThanOrEqual(n);
   });
 
-  it('soma nos destinos = 277', () => {
-    expect(destinos.reduce((s, [d]) => s + (estatico.get(d)?.casos ?? 0), 0)).toBe(277);
+  it('soma nos destinos >= 277', () => {
+    expect(destinos.reduce((s, [d]) => s + (estatico.get(d)?.casos ?? 0), 0)).toBeGreaterThanOrEqual(277);
   });
 
-  it('todo título literal da Fase M aparece no(s) destino(s) do seu arquivo de origem', () => {
+  it('todo título literal da Fase M aparece no(s) destino(s) do seu arquivo de origem (ou foi substituído por decisão registrada)', () => {
     const faltando: string[] = [];
     for (const c of referencia.casos.filter((x) => x.literal)) {
       const fontes = (MAPA[c.arquivo] ?? []).map(([d]) => readFileSync(join(raiz, d), 'utf8'));
-      if (!fontes.some((f) => f.includes(c.titulo))) faltando.push(`${c.arquivo}: ${c.titulo}`);
+      if (!fontes.some((f) => f.includes(c.titulo)) && !substituido(c.arquivo, c.titulo)) faltando.push(`${c.arquivo}: ${c.titulo}`);
     }
     expect(faltando).toEqual([]);
+  });
+
+  it.each(SUBSTITUIDOS_POR_DECISAO.map((x) => [x.titulo, x]))('substituído por decisão: "%s" — o teste novo existe no destino', (_t, x) => {
+    const ref = referencia.casos.find((c) => c.arquivo === x.origem && c.titulo === x.titulo);
+    expect(ref, 'o caso precisa existir na referência da Fase M').toBeDefined();
+    expect(x.decisao).toMatch(/R-\d{8}-\d{6}/);
+    const fontes = (MAPA[x.origem] ?? []).map(([d]) => readFileSync(join(raiz, d), 'utf8'));
+    expect(fontes.some((f) => f.includes(x.novo)), x.novo).toBe(true);
   });
 
   it('cada describe de origem continua existindo no destino (exceção registrada: outbox → "outbox (pedidos)")', () => {

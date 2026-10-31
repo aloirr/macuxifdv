@@ -1,0 +1,165 @@
+/**
+ * T-0002 C2.2 — RN-CORE-05, escrita cruzada (cenário S0-025 do plano tests/plano/sprint-0.md).
+ *
+ * Complementa db/testes/vazamento.test.ts com caminhos que a escrita idempotente da API vai usar
+ * (regra 4: UUID do aparelho + upsert) e com as chaves estrangeiras descobertas pelo catálogo:
+ * - upsert (`on conflict (id) do update`) com o id de uma linha de B, no contexto de A: erro e B intacto;
+ * - UPDATE/DELETE por id de B: 0 linhas e B intacto;
+ * - toda FK entre tabelas de tenant inclui tenant_id (composta) — e, na prática, apontar para linha
+ *   de B a partir de linha de A é recusado (23503).
+ * Conexão: papel macuxi_app. Tudo em transação desfeita (não suja a fixture compartilhada).
+ */
+import { banco, semBanco } from '@macuxi/db/teste/estado';
+import { DOIS_TENANTS } from '@macuxi/db/teste';
+import type pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { conectar, tabelasDoCatalogo, tentar, type Tabela } from '../apoio/banco';
+
+const A = DOIS_TENANTS.A.tenantId;
+const B = DOIS_TENANTS.B.tenantId;
+
+interface Fk {
+  nome: string;
+  filha: string;
+  colunasFilha: string[];
+  mae: string;
+  colunasMae: string[];
+}
+
+describe.skipIf(semBanco())('S0-025 escrita cruzada entre tenants (papel macuxi_app)', () => {
+  let admin: pg.Client;
+  let app: pg.Client;
+  let tabelas: Tabela[] = [];
+  /** Uma linha de A e uma de B por tabela (id), lidas como admin. */
+  const linha = new Map<string, { A: string; B: string }>();
+  /** Retrato (jsonb) de todas as linhas de B, para provar que nada mudou no fim. */
+  let retratoB = '';
+
+  const retratarB = async () => {
+    const partes: string[] = [];
+    for (const t of tabelas) {
+      const r = await admin.query<{ j: string }>(`select coalesce(jsonb_agg(to_jsonb(x) order by x.id), '[]')::text as j from ${t.sql} x where tenant_id = $1`, [B]);
+      partes.push(`${t.nome}=${r.rows[0]!.j}`);
+    }
+    return partes.join('\n');
+  };
+
+  beforeAll(async () => {
+    admin = await conectar(banco().urlAdmin);
+    app = await conectar(banco().urlApp);
+    tabelas = (await tabelasDoCatalogo(admin)).filter((t) => t.temTenant);
+    for (const t of tabelas) {
+      const um = async (tenant: string) =>
+        (await admin.query<{ id: string }>(`select id::text as id from ${t.sql} where tenant_id = $1 order by id limit 1`, [tenant])).rows[0]?.id;
+      const [a, b] = [await um(A), await um(B)];
+      if (a && b) linha.set(t.nome, { A: a, B: b });
+    }
+    retratoB = await retratarB();
+  });
+  afterAll(async () => {
+    await app?.end();
+    await admin?.end();
+  });
+
+  it('pré-condição: há linha de A e de B em toda tabela com tenant_id', () => {
+    expect(tabelas.filter((t) => !linha.has(t.nome)).map((t) => t.nome)).toEqual([]);
+  });
+
+  it('upsert (on conflict (id) do update) com id de linha de B no contexto de A é recusado (42501)', async () => {
+    for (const t of tabelas) {
+      const { A: idA, B: idB } = linha.get(t.nome)!;
+      const r = await tentar(app, A, () =>
+        app.query(
+          `insert into ${t.sql}
+           select (jsonb_populate_record(null::${t.sql}, to_jsonb(r) || jsonb_build_object('id', $2::uuid))).*
+             from ${t.sql} r where r.id = $1
+           on conflict (id) do update set updated_at = excluded.updated_at`,
+          [idA, idB],
+        ),
+      );
+      // 42501 = violação de política (USING do UPDATE) ou falta de privilégio (auditoria só tem INSERT)
+      expect(r.ok ? 'upsert passou!' : r.codigo, `${t.nome}: ${r.ok ? '' : r.mensagem}`).toBe('42501');
+    }
+  });
+
+  it('UPDATE e DELETE por id de B, no contexto de A, afetam 0 linhas (ou são negados)', async () => {
+    for (const t of tabelas) {
+      const idB = linha.get(t.nome)!.B;
+      for (const sql of [`update ${t.sql} set external_id = 'invadido' where id = $1`, `delete from ${t.sql} where id = $1`]) {
+        const r = await tentar(app, A, async () => (await app.query(sql, [idB])).rowCount);
+        if (r.ok) expect(r.valor, `${t.nome}: ${sql}`).toBe(0);
+        else expect(r.codigo, `${t.nome}: ${r.mensagem}`).toBe('42501');
+      }
+    }
+  });
+
+  it('INSERT de linha nova com tenant_id de B no contexto de A é recusado; no próprio tenant passa (controle)', async () => {
+    for (const t of tabelas) {
+      const idA = linha.get(t.nome)!.A;
+      const copia = (tenant: string) =>
+        app.query(
+          `insert into ${t.sql}
+           select (jsonb_populate_record(null::${t.sql}, to_jsonb(r) || jsonb_build_object('id', gen_random_uuid(), 'tenant_id', $2::uuid))).*
+             from ${t.sql} r where r.id = $1`,
+          [idA, tenant],
+        );
+      const cruzado = await tentar(app, A, () => copia(B));
+      expect(cruzado.ok ? 'INSERT cruzado passou!' : cruzado.codigo, t.nome).toBe('42501');
+    }
+    // controle positivo numa tabela sem índice único além do id
+    const proprio = await tentar(app, A, async () =>
+      (await app.query<{ tenant_id: string }>(
+        "insert into plataforma.auditoria (tenant_id, modulo, acao, entidade) values ($1, 'core', 'teste', 'controle') returning tenant_id::text",
+        [A],
+      )).rows[0]!.tenant_id,
+    );
+    expect(proprio).toEqual({ ok: true, valor: A });
+  });
+
+  describe('chaves estrangeiras entre tabelas de tenant', () => {
+    let fks: Fk[] = [];
+
+    beforeAll(async () => {
+      const r = await admin.query<{ nome: string; filha: string; cf: string[]; mae: string; cm: string[] }>(`
+        select k.conname as nome,
+               fn.nspname || '.' || fc.relname as filha,
+               array(select a.attname from unnest(k.conkey) with ordinality u(n, o) join pg_attribute a on a.attrelid = k.conrelid and a.attnum = u.n order by u.o)::text[] as cf,
+               mn.nspname || '.' || mc.relname as mae,
+               array(select a.attname from unnest(k.confkey) with ordinality u(n, o) join pg_attribute a on a.attrelid = k.confrelid and a.attnum = u.n order by u.o)::text[] as cm
+          from pg_constraint k
+          join pg_class fc on fc.oid = k.conrelid join pg_namespace fn on fn.oid = fc.relnamespace
+          join pg_class mc on mc.oid = k.confrelid join pg_namespace mn on mn.oid = mc.relnamespace
+         where k.contype = 'f'
+         order by 1`);
+      fks = r.rows.map((x) => ({ nome: x.nome, filha: x.filha, colunasFilha: x.cf, mae: x.mae, colunasMae: x.cm }));
+    });
+
+    it('toda FK de tabela de tenant para outra tabela de tenant é composta com tenant_id (o banco impede apontar para B)', () => {
+      const comTenant = new Set(tabelas.map((t) => t.nome));
+      const entreTenants = fks.filter((f) => comTenant.has(f.filha) && comTenant.has(f.mae));
+      expect(entreTenants.length, 'esperava FKs entre tabelas de tenant (ex.: core.carteira -> core.cliente)').toBeGreaterThan(0);
+      const simples = entreTenants.filter((f) => f.colunasFilha[0] !== 'tenant_id' || f.colunasMae[0] !== 'tenant_id').map((f) => `${f.nome} (${f.filha} -> ${f.mae})`);
+      expect(simples).toEqual([]);
+      // as que apontam para plataforma.tenant usam a própria coluna tenant_id (protegida pelo WITH CHECK)
+      const paraTenant = fks.filter((f) => comTenant.has(f.filha) && f.mae === 'plataforma.tenant');
+      expect(paraTenant.filter((f) => f.colunasFilha.join() !== 'tenant_id').map((f) => f.nome)).toEqual([]);
+    });
+
+    it('em cada FK composta, apontar uma linha de A para a linha-mãe de B é recusado (23503)', async () => {
+      const comTenant = new Set(tabelas.map((t) => t.nome));
+      const compostas = fks.filter((f) => comTenant.has(f.filha) && comTenant.has(f.mae) && f.colunasFilha.length === 2);
+      for (const f of compostas) {
+        const coluna = f.colunasFilha[1]!;
+        const sqlFilha = f.filha.split('.').map((p) => `"${p}"`).join('.');
+        const idFilhaA = linha.get(f.filha)!.A;
+        const idMaeB = linha.get(f.mae)!.B;
+        const r = await tentar(app, A, () => app.query(`update ${sqlFilha} set "${coluna}" = $2 where id = $1`, [idFilhaA, idMaeB]));
+        expect(r.ok ? 'UPDATE passou!' : r.codigo, `${f.nome}: ${r.ok ? '' : r.mensagem}`).toBe('23503');
+      }
+    });
+  });
+
+  it('nenhuma linha de B mudou depois de todas as tentativas', async () => {
+    expect(await retratarB()).toBe(retratoB);
+  });
+});

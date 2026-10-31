@@ -9,8 +9,10 @@ export interface ParametrosPromotor {
   permanencia_min_min: number;
   /** RN-PRO-08: validade próxima = vencimento em até N dias ([30]). */
   validade_proxima_dias: number;
-  /** RN-PRO-08 (faixa de risco, definida pelo Promotor): até N dias = crítico (padrão 7). */
+  /** RN-PRO-08: até N dias = crítico ([7]). */
   validade_critica_dias: number;
+  /** RN-PRO-11: peso do parcial no % de conformidade da gôndola, de 0 a 1 (padrão 0). */
+  peso_parcial_conformidade: number;
 }
 
 export const PARAMETROS_PADRAO: Readonly<ParametrosPromotor> = Object.freeze({
@@ -18,6 +20,7 @@ export const PARAMETROS_PADRAO: Readonly<ParametrosPromotor> = Object.freeze({
   permanencia_min_min: 10,
   validade_proxima_dias: 30,
   validade_critica_dias: 7,
+  peso_parcial_conformidade: 0,
 });
 
 /** Mistura os parâmetros do tenant com o padrão e recusa valores inválidos (negativos ou não numéricos). */
@@ -28,6 +31,9 @@ export function resolverParametros(parcial: Partial<ParametrosPromotor> = {}): P
   }
   if (p.validade_critica_dias > p.validade_proxima_dias) {
     throw new RangeError('O limite de validade crítica não pode ser maior que o de validade próxima.');
+  }
+  if (p.peso_parcial_conformidade > 1) {
+    throw new RangeError('O peso do parcial na conformidade deve ficar entre 0 e 1.');
   }
   return p;
 }

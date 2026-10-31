@@ -18,6 +18,8 @@ export const IndicadorPromotorDia = z
     cobertura_pct: PctOuNulo,
     tempo_medio_min: z.number().nonnegative().nullable(),
     conformidade_pct: PctOuNulo,
+    /** RN-PRO-11: gôndolas parciais, à parte do %. */
+    conformidade_parciais: z.number().int().nonnegative(),
     share_medio_pct: PctOuNulo,
     meta_share_media_pct: PctOuNulo,
     atingimento_share_pct: PctOuNulo,
@@ -25,6 +27,10 @@ export const IndicadorPromotorDia = z
     /** Ruptura na gôndola com produto no depósito, contada à parte (RN-PRO-05). */
     falha_reposicao_pct: PctOuNulo,
     indice_preco_medio: PctOuNulo,
+    /** RN-PRO-02: fotos do dia e as sem coordenada; o gestor vê o % por promotor. */
+    fotos_total: z.number().int().nonnegative(),
+    fotos_sem_gps: z.number().int().nonnegative(),
+    fotos_sem_gps_pct: PctOuNulo,
     calculado_em: InstanteUtc,
   })
   .strict();
@@ -37,6 +43,7 @@ export const ParametrosPromotorSchema = z
     permanencia_min_min: z.number().nonnegative().default(10),
     validade_proxima_dias: z.number().int().nonnegative().default(30),
     validade_critica_dias: z.number().int().nonnegative().default(7),
+    peso_parcial_conformidade: z.number().min(0).max(1).default(0),
   })
   .strict()
   .refine((p) => p.validade_critica_dias <= p.validade_proxima_dias, { path: ['validade_critica_dias'], message: 'A validade crítica não pode passar da validade próxima.' });

@@ -155,7 +155,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 `;
 
 function badgeClass(status: string): string {
-  if (status === 'integrated' || status === 'approved') return 'badge ok';
+  if (status === 'integrated' || status === 'invoiced_partial' || status === 'invoiced' || status === 'approved') return 'badge ok';
   if (status === 'pending_approval' || status === 'queued') return 'badge warn';
   if (status === 'rejected' || status === 'cancelled') return 'badge bad';
   return 'badge';

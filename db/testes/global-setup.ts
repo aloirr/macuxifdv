@@ -46,7 +46,7 @@ export default async function setup(project: TestProject): Promise<(() => Promis
   }
   delete process.env[VAR_MOTIVO_PULO];
   const t = await criarBancoDeTeste({ cfg, preparar: (c) => carregarDoisTenants(c).then(() => undefined) });
-  project.provide('banco', { disponivel: true, nome: t.nome, urlAdmin: t.urlAdmin, urlApp: t.urlApp });
+  project.provide('banco', { disponivel: true, nome: t.nome, urlAdmin: t.urlAdmin, urlApp: t.urlApp, urlWorker: t.urlWorker });
   return async () => {
     await t.apagar();
   };

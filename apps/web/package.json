@@ -13,10 +13,15 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@macuxi/comum": "workspace:*",
     "@macuxi/catalogo": "workspace:*",
+    "@macuxi/comum": "workspace:*",
     "@macuxi/core": "workspace:*",
+    "@macuxi/gestor": "workspace:*",
+    "@macuxi/integracao": "workspace:*",
+    "@macuxi/pesquisa": "workspace:*",
     "@macuxi/platform-sdk": "workspace:*",
+    "@macuxi/promotor": "workspace:*",
+    "@macuxi/treinamento": "workspace:*",
     "@macuxi/ui": "workspace:*",
     "@macuxi/vendedor": "workspace:*",
     "@tanstack/react-query": "^5.90.0",

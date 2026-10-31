@@ -34,6 +34,26 @@ const base: EntradaIndicadorDia = {
   ],
 };
 
+describe('RN-PRO-02 e RN-PRO-11: fotos sem GPS e parciais no indicador do dia', () => {
+  it('RN-PRO-02: conta fotos totais, sem GPS e o percentual', () => {
+    const r = consolidarIndicadorDia({ ...base, fotos: [{ sem_gps: false }, { sem_gps: true }, { sem_gps: false }, { sem_gps: false }] });
+    expect(r.fotos_total).toBe(4);
+    expect(r.fotos_sem_gps).toBe(1);
+    expect(r.fotos_sem_gps_pct).toBe(25);
+  });
+  it('RN-PRO-02: sem fotos, o percentual é nulo', () => {
+    const r = consolidarIndicadorDia(base);
+    expect(r.fotos_total).toBe(0);
+    expect(r.fotos_sem_gps_pct).toBeNull();
+  });
+  it('RN-PRO-11: peso do parcial vem do tenant e o total de parciais sai à parte', () => {
+    const e: EntradaIndicadorDia = { ...base, conformidades: [{ visita_id: 'v1', conformidade: 'conforme' }, { visita_id: 'v2', conformidade: 'parcial' }] };
+    expect(consolidarIndicadorDia(e).conformidade_pct).toBe(50);
+    expect(consolidarIndicadorDia(e).conformidade_parciais).toBe(1);
+    expect(consolidarIndicadorDia(e, { peso_parcial_conformidade: 0.5 }).conformidade_pct).toBe(75);
+  });
+});
+
 describe('RF-PRO-12: indicador do dia do promotor', () => {
   it('RN-PRO-07: só visitas com 10 min ou mais contam como visitadas; curtas são sinalizadas', () => {
     const r = consolidarIndicadorDia(base);
