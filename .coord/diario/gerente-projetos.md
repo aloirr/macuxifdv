@@ -72,3 +72,16 @@
 2026-10-31 — T-0011 CONCLUÍDA (revisão sem 🔴); RN-TRE-08 ajustada; 🟡 e tabela de XP no backlog
 2026-10-31 — T-0003 — ajustes finais do core (245 testes; API 51); aguardando validação do testes
 2026-10-31 — T-0003 e T-0006 CONCLUÍDAS; T-0004 bloqueada só pelo build EAS (Alexandre); docs/status/sprint-0.md; entrega da Sprint 0 ao Alexandre
+2026-10-31 — rodada fechada e pushada; .claude/settings.json (ganchos do guardião de Bash removidos) NÃO commitado, pergunta ao Alexandre
+2026-10-31 — settings.json commitado (Agente: alexandre); guardião v2 recebido; T-0013/T-0014 nuvem travadas; passo a passo EAS; Sprint 1 planejada (T-0015..T-0020, T-0008 p2)
+2026-10-31 — T-0015 — vendedor parcial (aguarda o SDK diferenciar leitura de escrita)
+2026-10-31 — T-0016 aprovada (decisões: T-0021, T-0020 fase 1, cookie/trustProxy antes do deploy); onda 1 liberada para banco e core
+2026-10-31 — T-0015 — plataforma pronta; vendedor disparado (manifesto + limit); testes na próxima vaga
+2026-10-31 — aviso ao Alexandre: guardião v2 sem 🔴, pode religar o PostToolUse
+2026-10-31 — T-0015 — vendedor concluiu; testes disparado
+2026-10-31 — onda 1 do core recebida (328 testes); engenheiro disparado (E1–E3, P1 da T-0008, revisão dos contratos)
+2026-10-31 — T-0015 CONCLUÍDA (O-3 e D-1 provados); D-1/O-3 saem do backlog
+2026-10-31 — schema da onda 1 recebido (0005–0007, 223 testes); pedido ao engenheiro: parâmetros em fonte única e timeout do mock-api
+2026-10-31 — doc 04: seção Ambiente e versões (Node >=24.7, Expo SDK 57, aparelho de referência, pg16)
+2026-10-31 — D-2 fechado no motor (testes 238/238); fechamento da onda 1
+2026-10-31 — T-0021 renumerada para T-0022 (despachante); T-0021 = Catálogo da nuvem

@@ -22,17 +22,15 @@
 - **ADR 0003, linhas 66-67**: ainda citam a ponte do vendedor; o engenheiro edita quando a T-0008 (nuvem) destravar a ADR.
 - **Cancelamento por integração — para ERPs que aceitam** (sem data): evento `vendedor.pedido.cancelado@1` consumido pelo Hub e cancelamento devolvido ao ERP (opção (a) da decisão de 2026-10-31; no Essencial vale a (b)).
 - **Schema `vendedor` (pedido, pedido_item…)**: o vendedor pediu `vendedor.pedido` ao banco-dados para a rota de cancelamento (T-0009); entra com o pedido ponta a ponta (Sprints 4–5), não na Sprint 0.
-- **Despachante da outbox (worker com macuxi_worker)**: precisa de tarefa própria para o engenheiro (ADR 0007, migração 0003 pronta).
 - **Campo "canal" no cliente do Core**: necessário para o público-alvo da Pesquisa (RN-PES-05); hoje fica fora.
 - **Persistir visita com motivo de cliente fechado e foto da fachada** (RN-CORE-14): tabelas core.visita/visita_etapa e armazenamento de foto entram com rotas e visitas reais (Sprint 1).
 - **Pesquisa: colunas suspeita, motivos_suspeita, largura_px e altura_px** (RN-PES-04/06): pedir ao banco-dados junto com a API da pesquisa.
 - **Aparelho bloqueado por tenant e erro 23503 no criarSessao** (T-0003): decidir se o bloqueio de aparelho vale para todos os usuários do tenant; tratar aparelho de outro tenant como erro de cliente. Sugestão do banco-dados ao core.
 - **Job de limpeza de sessões expiradas** (core.sessao).
 - **Telas que ainda chamam rotas da Fase M** (/me, /customers): ficam vazias com a API real; migrar para as rotas novas na Sprint 1.
-- **Refresh do BKO no localStorage** (passar para cookie httpOnly na Sprint 1) e **trustProxy no Fastify** (antes do deploy).
+- **Antes do primeiro deploy (obrigatório)**: refresh do BKO em cookie httpOnly (hoje localStorage) e trustProxy no Fastify.
 - **Treinamento — 🟡 da revisão final**: unificar `PedidoFaturadoLido` (domain/desafio.ts × contracts/pedido-lido.ts) e os 3 🟢 (xp.ts:109, fuso em dois lugares, arredondamento por evento).
 - **Tabela de lançamento de XP** (banco-dados): `referencia_id` com ≥ 128 caracteres e chave única do lançamento; a API processa o XP de um vendedor por vez (tenant + usuário).
-- **D-1** (T-0006): push de entidade de módulo inativo responde ENTIDADE_DESCONHECIDA em vez de 403 MODULO_INATIVO (engenheiro).
-- **D-2** (T-0006): "Sincronizar" do Campo na API real termina em erro — pull de pedido e visita dá 501 (engenheiro; visita entra na Sprint 1).
-- **O-3**: liberar ao promotor a leitura de pedidos da carteira (matriz §2), mantendo toda escrita negada (vendedor + engenheiro).
 - **O-4**: p95 da carga S0-110 em 1–2 s na máquina local (meta 300 ms) — linha de base para a Sprint 9.
+
+

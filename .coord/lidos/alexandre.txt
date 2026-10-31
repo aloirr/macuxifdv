@@ -19,3 +19,8 @@ R-20261031-123858-engenheiro-software
 R-20261031-124958-2-modulo-core
 R-20261031-130833-gerente-projetos
 R-20261031-135947-engenheiro-software
+R-20261031-145202-gerente-projetos
+R-20261031-145712-gerente-projetos
+R-20261031-150856-gerente-projetos
+R-20261031-152949-engenheiro-software
+R-20261031-154226-gerente-projetos

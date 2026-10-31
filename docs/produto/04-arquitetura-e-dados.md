@@ -23,6 +23,11 @@
                                  └────────────────────────────┘
 ```
 
+## Ambiente e versões (decisão do Alexandre, 2026-10-31)
+- **Node 24 LTS** no PC e no CI; `engines` do monorepo `>=24.7` (o argon2id nativo do login e do seed exige 24.7) e `.nvmrc` na raiz.
+- **Expo SDK 57**; aparelho de referência **Android 10+ com 3 GB de RAM**; meta de busca offline p95 < 300 ms no aparelho (T-0008).
+- PostgreSQL 16 + pgvector (`pgvector/pgvector:pg16`) no Docker local e no CI.
+
 ## Por que monólito modular (e não microserviços)
 Um deploy só, uma base só, transações locais simples e custo baixo — mas com fronteiras rígidas entre módulos (schemas separados, contratos públicos e regras de importação verificadas no CI). Se um módulo precisar escalar sozinho no futuro (ex.: busca do Catálogo), ele já está isolado para ser extraído.
 
