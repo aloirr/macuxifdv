@@ -3,9 +3,15 @@
  * `plataforma.evento` na MESMA transação do fato (`ctx.comTenant`), com o RLS do tenant. A validação (nome,
  * `publica` do manifesto, schema do payload) é a do barramento do platform-sdk. O despacho entre tenants
  * (papel `macuxi_worker`, ADR 0007) lê daqui depois.
+ *
+ * Na mesma transação, o comando que referencia uma foto registra a linha `aguardando` em `plataforma.arquivo`
+ * (`registrarArquivo`, ADR 0010); o upload (`arquivos.ts`) só a completa.
  */
 import {
+  CODIGOS_ARQUIVO,
   criarBarramento,
+  ErroHttpModulo,
+  validarNovoArquivo,
   type ClienteBanco,
   type EnvelopeEvento,
   type Manifesto,
@@ -60,6 +66,31 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
         agora: o.agora,
       });
       return barramento.publicar(o.modulo, def, payload, { tenant_id: o.tenantId, usuario_id: o.usuarioId, request_id: o.requestId });
+    },
+    async registrarArquivo(a) {
+      if (!o.modulo) throw new Error('Rota da plataforma não registra arquivo de módulo');
+      const problemas = validarNovoArquivo(a);
+      if (problemas.length > 0) throw new Error(`registrarArquivo: ${problemas.join('; ')}`);
+      const id = a.id.toLowerCase();
+      const entidadeId = a.entidade_id.toLowerCase();
+      // id = UUID do aparelho: repetir o comando (lote reenviado) não cria outra linha
+      const r = await db.query(
+        `insert into plataforma.arquivo (id, tenant_id, modulo, finalidade, entidade, entidade_id, cliente_id, enviado_por, tipo)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         on conflict (id) do nothing`,
+        [id, o.tenantId, o.modulo, a.finalidade, a.entidade, entidadeId, a.cliente_id?.toLowerCase() ?? null, o.usuarioId, a.tipo ?? 'image/jpeg'],
+      );
+      if (r.rowCount) return { criado: true };
+      // já existe: mesma referência = idempotente; outra (ou de outro tenant, invisível pelo RLS) = conflito
+      const atual = (
+        await db.query<{ modulo: string; entidade: string; entidade_id: string; enviado_por: string }>(
+          'select modulo, entidade, entidade_id, enviado_por from plataforma.arquivo where id = $1',
+          [id],
+        )
+      ).rows[0];
+      if (atual && atual.modulo === o.modulo && atual.entidade === a.entidade && atual.entidade_id === entidadeId && atual.enviado_por === o.usuarioId)
+        return { criado: false };
+      throw new ErroHttpModulo(409, CODIGOS_ARQUIVO.jaReferenciado, 'Esta foto já está ligada a outro registro. Tire a foto de novo.');
     },
   };
 }

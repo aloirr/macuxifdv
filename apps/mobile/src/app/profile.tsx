@@ -4,7 +4,7 @@
  * módulos) e mostra os itens de módulo desativado como "não enviado — módulo desativado"; os dados do
  * módulo só são apagados depois que o usuário confirma (RN-CORE-02, Q4).
  */
-import { ROTULO_PERFIL, rotuloDoItem } from '@macuxi/platform-sdk';
+import { ROTULO_PERFIL, rotuloDoArquivo, rotuloDoItem } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Button, Card, colors, dateTimeLabel, fonts, Icon, initials, ProgressBar, radius, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { Redirect, router } from 'expo-router';
@@ -28,6 +28,8 @@ export default function ProfileScreen() {
   const empresa = me?.tenant.name ?? sessao.tenant?.nome ?? null;
   const name = me?.seller?.name ?? sessao.user.name;
   const fila = estado.fila;
+  // ADR 0010 §4: fotos ainda não aceitas pelo servidor (as enviadas ficam 7 dias só para a tela offline)
+  const fotos = estado.arquivos.filter((a) => a.situacao !== 'enviado');
 
   const saveUrl = async () => {
     const u = normalizeApiUrl(url);
@@ -158,7 +160,27 @@ export default function ProfileScreen() {
             </View>
           ))}
         </Card>
-        {fila.length > 0 ? (
+        {fotos.length > 0 ? (
+          <Card testID="fotos-pendentes" style={{ padding: 14, gap: 6 }}>
+            <Text style={t.bodyStrong}>Fotos pendentes: {fotos.length}</Text>
+            {fotos.map((a) => (
+              <View key={a.id} testID={`foto-${a.id}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={t.small} numberOfLines={1}>
+                    {a.rotulo} · {offline && a.situacao === 'pendente' ? 'aguardando sinal' : rotuloDoArquivo(a)}
+                  </Text>
+                  {a.ultimo_erro ? <Text style={[t.small, { color: a.situacao === 'pendente' ? colors.warning : colors.danger }]}>{a.ultimo_erro}</Text> : null}
+                </View>
+                {a.situacao === 'falhou' ? (
+                  <Pressable accessibilityRole="button" testID={`descartar-foto-${a.id}`} onPress={() => void motor?.descartarArquivo(a.id)} hitSlop={8} style={styles.discard}>
+                    <Text style={[t.smallStrong, { color: colors.danger }]}>Descartar</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+          </Card>
+        ) : null}
+        {fila.length > 0 || fotos.length > 0 ? (
           <Button
             testID="send-now"
             label={offline ? 'Desligue o modo sem sinal para enviar' : 'Enviar agora'}

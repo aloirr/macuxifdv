@@ -136,10 +136,11 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
   });
 
   app.post('/v1/sync/push', async (req): Promise<{ resultados: ResultadoItemPush[] }> => {
+    // sessão ANTES do schema: sem login, o lote nem é validado (GHSA-mrhx-c7xc-m3w5; o teto de elementos é do createApp)
+    const { ctx, doModulo } = await p.preparar(req, null);
     const corpo = PushRequestSchema.safeParse(req.body);
     if (!corpo.success)
       throw new ErroHttp(400, 'VALIDACAO', `Lote inválido (máx. 500 itens, id UUID do aparelho).`);
-    const { ctx, doModulo } = await p.preparar(req, null);
     const { validos, rejeitados } = rejeitarItensInvalidos(corpo.data, registro, ctx.usuario.modulos, {
       perfil: ctx.usuario.perfil,
     });

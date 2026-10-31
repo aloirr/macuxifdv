@@ -20,6 +20,7 @@
  */
 import type { z } from 'zod';
 import type { MetodoHttp } from './ambiente';
+import type { NovoArquivo } from './arquivos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
 import {
@@ -79,6 +80,14 @@ export interface TransacaoTenant {
     payload: z.input<S>,
     agregadoId?: string | null,
   ): Promise<EnvelopeEvento<z.output<S>>>;
+  /**
+   * ADR 0010: o comando que referencia uma foto (ex.: checkout com `foto_fachada_id`) cria, NA MESMA transação, a linha
+   * `aguardando` em `plataforma.arquivo` (módulo = o da rota, `enviado_por` = usuário da sessão). O upload
+   * (`PUT /v1/arquivos/:id`) só completa essa linha. Idempotente pelo `id`: repetir com a mesma entidade devolve
+   * `{ criado: false }`; o mesmo `id` em outra entidade, outro módulo ou outro usuário → `ErroHttpModulo` 409
+   * `ARQUIVO_JA_REFERENCIADO`. Dados inválidos (`validarNovoArquivo`) = erro de programação (exceção).
+   */
+  registrarArquivo(arquivo: NovoArquivo): Promise<{ criado: boolean }>;
 }
 
 /** O que toda rota (e todo provedor de sync) recebe. */
@@ -397,7 +406,7 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     problemas.push('só o core declara rotas públicas e serviços de plataforma');
   for (const r of m.rotasPublicas ?? []) {
     if (!CAMINHO_RE.test(r.caminho)) problemas.push(`${r.metodo} /v1/${r.caminho}: caminho inválido`);
-    if (/^(sync|saude|me)(\/|$)/.test(r.caminho))
+    if (/^(sync|saude|me|arquivos)(\/|$)/.test(r.caminho))
       problemas.push(`${r.metodo} /v1/${r.caminho}: prefixo reservado à plataforma`);
     if (!(r.limite?.max > 0) || !(r.limite?.janelaMs > 0))
       problemas.push(`${r.metodo} /v1/${r.caminho}: rota pública exige limite de tentativas`);

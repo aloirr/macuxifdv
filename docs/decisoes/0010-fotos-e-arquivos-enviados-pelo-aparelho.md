@@ -57,3 +57,14 @@ recebem corpo binário.
 - Linha `aguardando` há mais de 7 dias aparece no monitor do BKO (foto não chegou) — tarefa futura; nada é rejeitado por isso.
 - Backup dos arquivos fica com a ADR do armazenamento de objetos; no disco local, o diretório entra no backup do servidor.
 - Retenção/exclusão por tenant (LGPD) apaga linhas e bytes pela chave `<tenant_id>/…`.
+
+## Implementação (E4, Sprint 1 onda 2 — 2026-10-31)
+- SDK: `packages/platform-sdk/src/arquivos.ts` (constantes, códigos, `caminhoFoto`, `ehJpeg`, `dimensoesJpeg`, `validarNovoArquivo`),
+  `tx.registrarArquivo` (`api.ts`), fila de arquivos no motor (`enfileirarArquivo`, `descartarArquivo`, `arquivosPendentes`,
+  `rotuloDoArquivo`, `sync:arquivos`, `TransporteSync.enviarArquivo`, `OpcoesMotorSync.arquivos`).
+- API: `apps/api/src/arquivos.ts` (rotas num escopo Fastify próprio com o parser `image/jpeg`; sessão no `onRequest`, antes do corpo;
+  415 `TIPO_NAO_ACEITO` para outro tipo; 201 no primeiro recebimento, 200 no repetido), `registrarArquivo` em `outbox.ts`
+  (`on conflict (id) do nothing`; mesmo id em outra referência → 409 `ARQUIVO_JA_REFERENCIADO`), disco em `MACUXI_ARQUIVOS_DIR`.
+  Upload de outro usuário responde como "sem referência" (não revela o id). Foto sem `cliente_id` no GET: escopo de usuários.
+- App: `apps/mobile/src/services/arquivos.ts` (`expo-file-system`), `PUT` binário no `ApiClient`, "Fotos pendentes: N" no Perfil.
+  O módulo chama `motor.enfileirarArquivo({ id, modulo, rotulo })` depois de `enfileirar` o comando (T-0018, modulo-core).

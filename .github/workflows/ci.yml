@@ -1,7 +1,8 @@
 name: CI
 
-# T-0005: lint (inclui fronteiras), typecheck, testes (com Postgres de verdade), testes do coord,
-# verificação de donos no PR e build do Backoffice Web.
+# T-0005: lint (inclui fronteiras), typecheck, testes (com Postgres de verdade), testes do coord e dos guardiões,
+# verificação de donos no PR (--base) e por commit no push ao main (--por-commit), e build do Backoffice Web.
+# Node 24 (.nvmrc e engines >=24.7 do package.json): o setup-node resolve "24" para a 24.x mais recente.
 
 on:
   pull_request:
@@ -62,16 +63,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          # Node 24 (mín. 24.7: engines do package.json; crypto.argon2 e node:sqlite). Fonte única: .nvmrc.
+          node-version-file: .nvmrc
           cache: pnpm
 
       # Testes do scripts/coord.mjs verificar (node:test, sem dependência). Em todo push e PR.
       - name: testes do coord (verificar)
         run: node --test scripts/coord-verificar.test.mjs
 
-      # Testes do guardião de donos para o Bash (.claude/hooks/guarda-bash*.mjs, T-0005; node:test, sem dependência).
-      - name: testes do guardião do Bash
-        run: node --test .claude/hooks/guarda-bash.test.mjs
+      # Testes de TODOS os guardiões (.claude/hooks/*.test.mjs: guarda-bash, guarda-agente — guardião v3, T-0005;
+      # node:test, sem dependência). Em todo push e PR. O glob é expandido pelo bash do runner.
+      - name: testes dos guardiões (.claude/hooks)
+        run: node --test .claude/hooks/*.test.mjs
 
       # Só no PR: arquivo fora dos caminhos do agente = violação (saída 1); erro de uso/git = 2.
       # Agente: do branch <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente> ou alexandre/... (GITHUB_HEAD_REF);
@@ -81,6 +84,17 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: node scripts/coord.mjs verificar --base "origin/$BASE_REF"
+
+      # Só no push ao main: cada commit novo (git log ANTES..DEPOIS, sem merges) × o agente do trailer "Agente:" dele
+      # (guardião v3, .coord/README.md "Por commit"). SHAs por variável de ambiente, nunca interpolados no shell.
+      # ANTES = 000…0 (push que cria o branch) não tem intervalo: o passo pula (o coord sairia com 2).
+      # Saída 1 = violação de dono; 2 = commit sem trailer, agente desconhecido/ambíguo ou ref ausente — ambos falham o CI.
+      - name: verificar donos por commit (push ao main)
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        env:
+          ANTES: ${{ github.event.before }}
+          DEPOIS: ${{ github.sha }}
+        run: node scripts/coord.mjs verificar --por-commit "$ANTES..$DEPOIS"
 
       - run: pnpm install --frozen-lockfile
 

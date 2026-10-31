@@ -1,0 +1,18 @@
+# GitGuardian (ggshield e GitHub App) — configuração do repositório Macuxi FDV.
+# Dono: engenheiro-software (arquivo da raiz). Pedido do Alexandre: R-20261031-172619-alexandre, item 3.
+#
+# A verificação de segredos continua LIGADA em todo o repositório. Só ficam de fora os arquivos de TESTE que
+# trazem senhas, chaves e strings de conexão FALSAS de propósito (fixtures de login, de Credential Manager e do
+# mascaramento de log). Nada aqui vale para código de produção, configs de exemplo nem .env.
+#
+# Regra para crescer esta lista: só arquivo de teste (*.test.ts / test/**), com valor sabidamente falso, e com
+# recado ao engenheiro-software explicando o porquê. Segredo real continua indo só para o .env (CLAUDE.md regra 8).
+version: 2
+
+secret:
+  ignored_paths:
+    # Conector on-premise (T-0013): senhas de ERP, chave de API do Hub e DSN de teste, todos falsos;
+    # os testes provam justamente que o Conector mascara esses valores no log e no status.
+    - "apps/conector/test/**"
+    # Core (T-0003): login com e-mail + senha de fixture ("Teste@1234" e afins), sem uso fora do teste.
+    - "modules/core/api/autenticacao.test.ts"

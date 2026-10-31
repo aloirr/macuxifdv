@@ -61,6 +61,8 @@ type Query = Record<string, string | number | boolean | undefined | null>;
 interface RequestOptions {
   query?: Query;
   body?: unknown;
+  /** Corpo binário cru (upload de foto, ADR 0010); exclui `body`. */
+  bytes?: { dados: Uint8Array; tipo: string };
   headers?: Record<string, string>;
   timeoutMs?: number;
 }
@@ -104,13 +106,14 @@ export class ApiClient {
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 12_000);
     const headers: Record<string, string> = { Accept: 'application/json', ...opts.headers };
     if (token) headers.Authorization = `Bearer ${token}`;
-    if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+    if (opts.bytes) headers['Content-Type'] = opts.bytes.tipo;
+    else if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
     let res: Response;
     try {
       res = await fetch(this.url(path, opts.query), {
         method,
         headers,
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        body: opts.bytes ? (opts.bytes.dados as unknown as BodyInit) : opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
         signal: controller.signal,
       });
     } catch (e) {

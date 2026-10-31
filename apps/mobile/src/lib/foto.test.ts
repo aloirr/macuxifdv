@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { nomeArquivoFoto, redimensionamento } from './foto';
+import { caminhoFoto } from '@macuxi/platform-sdk';
+import { caminhoLocalValido, nomeArquivoFoto, PASTA_FOTOS, redimensionamento } from './foto';
 
 describe('foto da fachada (RN-CORE-14; tamanho da RN-PES-06)', () => {
   it('reduz o maior lado para 1600 px mantendo a proporção', () => {
@@ -17,5 +18,13 @@ describe('foto da fachada (RN-CORE-14; tamanho da RN-PES-06)', () => {
   it('o arquivo local é <uuid>.jpg; id fora do formato é recusado (sem caminho arbitrário)', () => {
     expect(nomeArquivoFoto('0E000000-0000-4000-8000-000000000001')).toBe('0e000000-0000-4000-8000-000000000001.jpg');
     expect(() => nomeArquivoFoto('../x')).toThrow();
+  });
+
+  it('ADR 0010: o caminho da fila de arquivos (platform-sdk) é o mesmo onde a câmera grava; caminho arbitrário é recusado', () => {
+    const id = '0e000000-0000-4000-8000-000000000001';
+    expect(caminhoFoto(id)).toBe(`${PASTA_FOTOS}/${nomeArquivoFoto(id)}`);
+    expect(caminhoLocalValido(caminhoFoto(id))).toBe(true);
+    for (const ruim of ['../x.jpg', '/fotos/x.jpg', 'fotos/../x.jpg', 'fotos\\a.jpg', 'fotos/x.png', ''])
+      expect(caminhoLocalValido(ruim)).toBe(false);
   });
 });

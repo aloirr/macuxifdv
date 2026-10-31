@@ -45,6 +45,7 @@ import { gravarTokens, lerTokens } from '@/services/credenciais';
 import { modoApi, platformDefaultApiUrl, uuid } from '@/services/device';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { modoSync, transporteFaseM, transporteV1 } from '@/services/transporte';
+import { arquivosLocais } from '@/services/arquivos';
 
 /** Usuário da sessão no shell: o do login real (Core) ou o fictício da Fase M (`role`, `team_name`...). */
 export interface UsuarioSessao extends Partial<Omit<FakeUser, 'id' | 'name' | 'email'>> {
@@ -162,6 +163,8 @@ function usePlataformaValor() {
         // `GET /v1/me` é do mock-api; na API real o perfil e o tenant vêm do login
         etapas: modo === 'demo' ? [etapaMe, ...shell.etapasSync] : shell.etapasSync,
         mensagemDeErro: errorMessage,
+        // ADR 0010 §4: bytes das fotos da fila de arquivos (o transporte v1 faz o PUT /v1/arquivos/:id)
+        arquivos: arquivosLocais(),
       });
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));

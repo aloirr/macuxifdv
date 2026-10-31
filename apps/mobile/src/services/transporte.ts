@@ -3,11 +3,13 @@
  *
  * - `v1`: contrato do doc 04 — `POST /v1/sync/push { itens }` e `GET /v1/sync/pull?entidade&cursor`
  *   (apps/api, T-0004). Erro de rede/5xx = exceção (o motor tenta de novo); 4xx no lote = rejeição por item.
+ *   Fotos (ADR 0010): `PUT /v1/arquivos/:id` com o JPEG cru; 4xx vira rejeição com o código da API
+ *   (`ARQUIVO_SEM_REFERENCIA` o motor mantém na fila).
  * - `fase-m` (demonstração, `EXPO_PUBLIC_API_MODO=demo` — mock-api): traduz a fila para o
  *   `POST /v1/sync/push { items: [{ kind }] }` da Fase M (pedido → order; visita → visit ou checkout)
  *   e não tem pull genérico (as cargas vêm das `etapasSync` REST dos módulos, B2).
  */
-import type { ItemPush, LinhaSync, PaginaSync, ResultadoItemPush, TransporteSync } from '@macuxi/platform-sdk';
+import type { ItemPush, LinhaSync, PaginaSync, ResultadoEnvioArquivo, ResultadoItemPush, TransporteSync } from '@macuxi/platform-sdk';
 
 import type { ModoApi } from '@/lib/modo-api';
 
@@ -42,6 +44,17 @@ export function transporteV1(api: () => ApiClient): TransporteSync {
     },
     async pull(entidade, cursor) {
       return (await api().request<PaginaSync<LinhaSync>>('GET', '/sync/pull', { query: { entidade, cursor } })).data;
+    },
+    async enviarArquivo(a): Promise<ResultadoEnvioArquivo> {
+      try {
+        // até 2 MB em rede de campo: prazo maior que o das chamadas JSON
+        await api().request('PUT', `/arquivos/${encodeURIComponent(a.id)}`, { bytes: { dados: a.bytes, tipo: a.tipo }, timeoutMs: 60_000 });
+        return { status: 'aceito' };
+      } catch (e) {
+        if (retentavel(e)) throw e;
+        const err = e as HttpError;
+        return { status: 'rejeitado', codigo: err.code, mensagem: err.message };
+      }
     },
   };
 }

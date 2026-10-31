@@ -8,6 +8,8 @@ build/
 .expo/
 .turbo/
 coverage/
+# Bytes das fotos enviadas pelo aparelho no adaptador de disco da API (ADR 0010; MACUXI_ARQUIVOS_DIR)
+.dados/
 *.log
 *.lnk
 

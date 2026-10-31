@@ -77,6 +77,7 @@ const ESTADO_VAZIO: EstadoMotorSync = {
   modulosAtivos: [],
   limpezaPendente: [],
   avisos: [],
+  arquivos: [],
 };
 
 const semMotor = () => () => {};
