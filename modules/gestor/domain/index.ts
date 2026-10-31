@@ -5,6 +5,7 @@
  */
 export * from './numeros';
 export * from './parametros';
+export * from './horario-comercial';
 export * from './projecao';
 export * from './apuracao';
 export * from './painel';

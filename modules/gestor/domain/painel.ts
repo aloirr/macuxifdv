@@ -5,11 +5,11 @@
  * Módulo opcional desativado (ou seção que não se aplica ao perfil) ⇒ a seção é `null`, o painel continua válido.
  */
 import { businessDays, localDate } from '@macuxi/comum';
-import type { PainelDia, PainelMes, PainelPesquisa, PainelTrade, PainelTreinamento, PainelVendas, PainelVisitas, StatusDia } from '../contracts';
+import type { PainelDia, PainelFaturamento, PainelMes, PainelPesquisa, PainelTrade, PainelTreinamento, PainelVendas, PainelVisitas, StatusDia } from '../contracts';
 import { statusAtual, vendasApuradas } from './apuracao';
 import { arredondar, dividirCents, instanteMs, percentual, somarDias } from './numeros';
 import { resolverParametros, type ParametrosGestor } from './parametros';
-import type { EstadoProjecao } from './projecao';
+import type { EstadoProjecao, PedidoFato } from './projecao';
 
 export type PerfilPainel = PainelDia['perfil'];
 
@@ -38,6 +38,8 @@ const soma = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
 interface VisitaDoUsuario {
   visita_id: string;
   cliente_id: string;
+  /** Dia civil do check-in no fuso do tenant. */
+  dia: string;
   /** `null` = aberta ou sem permanência confiável (fechada automaticamente). */
   permanencia_min: number | null;
   aberta: boolean;
@@ -50,7 +52,8 @@ function visitasDoUsuario(estado: EstadoProjecao, usuarioId: string, inicio: str
   const out: VisitaDoUsuario[] = [];
   for (const [visita_id, f] of Object.entries(estado.visitas)) {
     if (!f.checkin || f.checkin.usuario_id !== usuarioId) continue;
-    if (!dentro(diaLocal(f.checkin.checkin_em, fuso), inicio, fim)) continue;
+    const dia = diaLocal(f.checkin.checkin_em, fuso);
+    if (!dentro(dia, inicio, fim)) continue;
     const co = f.checkout;
     const automatica = co?.encerramento === 'automatico';
     let permanencia: number | null = null;
@@ -58,7 +61,7 @@ function visitasDoUsuario(estado: EstadoProjecao, usuarioId: string, inicio: str
       const doPromotor = lojaPorVisita.get(visita_id);
       permanencia = doPromotor ?? Math.max(0, (instanteMs(co.checkout_em) - instanteMs(f.checkin.checkin_em)) / 60_000);
     }
-    out.push({ visita_id, cliente_id: f.checkin.cliente_id, permanencia_min: permanencia, aberta: !co, automatica });
+    out.push({ visita_id, cliente_id: f.checkin.cliente_id, dia, permanencia_min: permanencia, aberta: !co, automatica });
   }
   return out;
 }
@@ -71,11 +74,32 @@ export function statusDoDia(estado: EstadoProjecao, usuarioId: string, dia: stri
   return vs.length > 0 ? 'em_rota' : 'sem_checkin';
 }
 
-/** Visitas planejadas (rota) somadas no período: um registro de rota por (usuário, dia). */
-function planejadasNoPeriodo(estado: EstadoProjecao, usuarioId: string, inicio: string, fim: string): number {
-  let n = 0;
-  for (const r of Object.values(estado.planejadas)) if (r.usuario_id === usuarioId && dentro(r.data, inicio, fim)) n += new Set(r.cliente_ids).size;
-  return n;
+/** Rotas do período por dia: um registro de rota por (usuário, dia) → clientes distintos planejados. */
+function rotasNoPeriodo(estado: EstadoProjecao, usuarioId: string, inicio: string, fim: string): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const r of Object.values(estado.planejadas)) if (r.usuario_id === usuarioId && dentro(r.data, inicio, fim)) out.set(r.data, new Set(r.cliente_ids));
+  return out;
+}
+
+/**
+ * RN-GES-05: por dia, clientes da rota visitados (`planejadas_realizadas`) e clientes visitados fora da rota
+ * (`visitas_extras`; num dia sem rota, todo cliente visitado é extra). Sem nenhuma rota no período, extras = `null`.
+ */
+function coberturaDeRota(rotas: Map<string, Set<string>>, visitas: readonly VisitaDoUsuario[]): { planejadas: number; planejadas_realizadas: number; visitas_extras: number | null } {
+  const porDia = new Map<string, Set<string>>();
+  for (const v of visitas) porDia.set(v.dia, (porDia.get(v.dia) ?? new Set<string>()).add(v.cliente_id));
+  let planejadas = 0;
+  for (const r of rotas.values()) planejadas += r.size;
+  let feitas = 0;
+  let extras = 0;
+  for (const [dia, clientes] of porDia) {
+    const rota = rotas.get(dia);
+    for (const c of clientes) {
+      if (rota?.has(c)) feitas += 1;
+      else extras += 1;
+    }
+  }
+  return { planejadas, planejadas_realizadas: feitas, visitas_extras: rotas.size > 0 ? extras : null };
 }
 
 /**
@@ -97,7 +121,8 @@ export function visitasDoPeriodo(
   const promotor = usuario.perfil === 'promotor';
   const curtas = promotor ? todas.filter((v) => v.permanencia_min !== null && v.permanencia_min < params.permanencia_min_min) : [];
   const contam = promotor ? todas.filter((v) => v.permanencia_min !== null && v.permanencia_min >= params.permanencia_min_min) : todas;
-  const planejadas = planejadasNoPeriodo(estado, usuario.id, inicio, fim);
+  const rota = coberturaDeRota(rotasNoPeriodo(estado, usuario.id, inicio, fim), contam);
+  const planejadas = rota.planejadas;
   const realizadas = new Set(contam.map((v) => v.cliente_id)).size;
   const comTempo = contam.filter((v) => v.permanencia_min !== null);
   const tempo_total = arredondar(soma(comTempo.map((v) => v.permanencia_min!)));
@@ -116,11 +141,14 @@ export function visitasDoPeriodo(
     conversao = percentual(comPedido.size, contam.length);
   }
 
+  const cobertura = percentual(rota.planejadas_realizadas, planejadas);
   return {
     planejadas,
     realizadas,
+    planejadas_realizadas: rota.planejadas_realizadas,
+    visitas_extras: rota.visitas_extras,
     em_andamento: todas.filter((v) => v.aberta).length,
-    cobertura_pct: percentual(realizadas, planejadas),
+    cobertura_pct: cobertura === null ? null : Math.min(100, cobertura),
     tempo_total_min: tempo_total,
     tempo_medio_min: comTempo.length > 0 ? arredondar(tempo_total / comTempo.length) : null,
     curtas: curtas.length,
@@ -144,6 +172,53 @@ export function vendasDoPeriodo(estado: EstadoProjecao, vendedorId: string, inic
     ticket_medio_cents: dividirCents(total, vs.length),
     desconto_medio_pct: somaTabela > 0 ? arredondar((1 - somaFinalComTabela / somaTabela) * 100) : null,
   };
+}
+
+/**
+ * RN-GES-06: quanto o ERP já faturou do pedido, em centavos. Faturamento total (evento com `parcial: false` ou status
+ * `faturado_total`) = total do pedido. Parcial = Σ por item de (quantidade faturada acumulada, limitada à pedida) ÷
+ * quantidade pedida × total da linha, centavos meio para cima. Pedido sem itens no `criado` = 0 até o total.
+ */
+export function faturadoDoPedido(p: PedidoFato): number {
+  const c = p.criado;
+  if (!c) return 0;
+  const fats = Object.values(p.faturamentos ?? {});
+  const total = fats.some((f) => !f.parcial) || Object.values(p.historico).some((h) => h.para === 'faturado_total');
+  if (total) return c.total_cents;
+  if (!c.itens || fats.length === 0) return 0;
+  const faturada = new Map<string, number>();
+  for (const f of fats) for (const i of f.itens) faturada.set(i.produto_id, (faturada.get(i.produto_id) ?? 0) + i.quantidade);
+  const pedido = new Map<string, { quantidade: number; total_cents: number }>();
+  for (const i of c.itens) {
+    const g = pedido.get(i.produto_id) ?? { quantidade: 0, total_cents: 0 };
+    pedido.set(i.produto_id, { quantidade: g.quantidade + i.quantidade, total_cents: g.total_cents + i.total_cents });
+  }
+  let valor = 0;
+  for (const [produto, linha] of pedido) {
+    const q = Math.min(faturada.get(produto) ?? 0, linha.quantidade);
+    if (q <= 0) continue;
+    valor += q === linha.quantidade ? linha.total_cents : (dividirCents(linha.total_cents * q, linha.quantidade) ?? 0);
+  }
+  return Math.min(valor, c.total_cents);
+}
+
+/**
+ * RN-GES-06: vendido × faturado dos pedidos do vendedor CRIADOS no período (dia da criação no fuso do tenant).
+ * Orçamento não é venda (RN-VEN-32); cancelado e rejeitado saem do vendido (e do faturado). a_faturar = vendido − faturado.
+ */
+export function faturamentoDoPeriodo(estado: EstadoProjecao, vendedorId: string, inicio: string, fim: string, paramsParciais: Partial<ParametrosGestor> = {}): PainelFaturamento {
+  const { fuso } = resolverParametros(paramsParciais);
+  let vendido = 0;
+  let faturado = 0;
+  for (const p of Object.values(estado.pedidos)) {
+    const c = p.criado;
+    if (!c || c.tipo !== 'pedido' || c.vendedor_id !== vendedorId || !dentro(diaLocal(c.criado_em, fuso), inicio, fim)) continue;
+    const st = statusAtual(p);
+    if (st === 'cancelado' || st === 'rejeitado') continue;
+    vendido += c.total_cents;
+    faturado += faturadoDoPedido(p);
+  }
+  return { vendido_cents: vendido, faturado_cents: faturado, a_faturar_cents: vendido - faturado };
 }
 
 export interface EntradaMeta {
@@ -207,6 +282,7 @@ export function painelDoMes(estado: EstadoProjecao, vendedorId: string, data: st
     dias_uteis_restantes: dias.remaining,
     necessidade_diaria_cents: r.necessidade_diaria_cents,
     ritmo_pct: r.ritmo_pct,
+    faturamento: faturamentoDoPeriodo(estado, vendedorId, primeiro, data, params),
   };
 }
 
@@ -290,6 +366,7 @@ export function montarPainelDia(estado: EstadoProjecao, usuario: UsuarioPainel, 
     status_dia: statusDoDia(estado, usuario.id, data, params),
     visitas: visitasDoPeriodo(estado, usuario, data, data, params, vendedorOn),
     vendas: vendedorOn ? vendasDoPeriodo(estado, usuario.id, data, data, params) : null,
+    faturamento: vendedorOn ? faturamentoDoPeriodo(estado, usuario.id, data, data, params) : null,
     mes: vendedorOn ? painelDoMes(estado, usuario.id, data, params) : null,
     trade: promotorOn ? tradeDoPeriodo(estado, usuario.id, data, data, params) : null,
     pesquisa: ctx.modulos.has('pesquisa') ? pesquisaDoPeriodo(estado, usuario.id, data, data, params.fuso) : null,

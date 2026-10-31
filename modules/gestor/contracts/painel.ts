@@ -4,7 +4,7 @@
  * (RN-CORE-03). Dinheiro em centavos; percentuais com 2 casas (4.5 = 4,5%).
  */
 import { z } from 'zod';
-import { CentsNaoNeg, ContagemNaoNeg, InstanteUtc, IsoDate, PctOuNulo, PerfilContrato, Uuid } from './base';
+import { CentsNaoNeg, ContagemNaoNeg, InstanteUtc, IsoDate, PctNumero, PctOuNulo, PerfilContrato, Uuid } from './base';
 
 export const STATUS_DIA = ['sem_checkin', 'em_rota', 'em_visita'] as const;
 export const StatusDia = z.enum(STATUS_DIA);
@@ -14,10 +14,15 @@ export type StatusDia = z.infer<typeof StatusDia>;
 export const PainelVisitas = z
   .object({
     planejadas: ContagemNaoNeg,
+    /** Todos os clientes distintos com check-in (da rota ou não). */
     realizadas: ContagemNaoNeg,
+    /** RN-GES-05: clientes DA ROTA com check-in no dia da rota. */
+    planejadas_realizadas: ContagemNaoNeg,
+    /** RN-GES-05: clientes visitados fora da rota do dia; `null` sem rota planejada (sem dado). */
+    visitas_extras: ContagemNaoNeg.nullable(),
     em_andamento: ContagemNaoNeg,
-    /** realizadas ÷ planejadas × 100; `null` sem rota planejada. Pode passar de 100 (visita fora da rota). */
-    cobertura_pct: PctOuNulo,
+    /** RN-GES-05: planejadas_realizadas ÷ planejadas × 100, no máximo 100; `null` sem rota planejada. */
+    cobertura_pct: PctNumero.min(0).max(100).nullable(),
     tempo_total_min: z.number().nonnegative(),
     tempo_medio_min: z.number().nonnegative().nullable(),
     /** RN-PRO-07 (só promotor): visitas encerradas abaixo da permanência mínima, sinalizadas ao gestor. */
@@ -42,6 +47,21 @@ export const PainelVendas = z
   .strict();
 export type PainelVendas = z.infer<typeof PainelVendas>;
 
+/**
+ * RN-GES-06: os dois números do painel. `vendido` = valor dos pedidos CRIADOS no período (líquido de cancelados e
+ * rejeitados; orçamento não entra); `faturado` = quanto o ERP já faturou DESSES pedidos (parcial pelos itens);
+ * `a_faturar` = vendido − faturado.
+ */
+export const PainelFaturamento = z
+  .object({
+    vendido_cents: CentsNaoNeg,
+    faturado_cents: CentsNaoNeg,
+    a_faturar_cents: CentsNaoNeg,
+  })
+  .strict()
+  .refine((f) => f.a_faturar_cents === f.vendido_cents - f.faturado_cents, { path: ['a_faturar_cents'], message: 'RN-GES-06: a faturar = vendido − faturado.' });
+export type PainelFaturamento = z.infer<typeof PainelFaturamento>;
+
 /** Acumulado do mês até o dia + meta (RN-CORE-21/22). `meta_cents` nulo = meta não definida. */
 export const PainelMes = z
   .object({
@@ -60,6 +80,8 @@ export const PainelMes = z
     necessidade_diaria_cents: CentsNaoNeg.nullable(),
     /** Realizado até ontem ÷ (meta × dias úteis decorridos ÷ dias úteis do mês) × 100. */
     ritmo_pct: PctOuNulo,
+    /** RN-GES-06: vendido × faturado do mês até o dia. */
+    faturamento: PainelFaturamento,
   })
   .strict();
 export type PainelMes = z.infer<typeof PainelMes>;
@@ -102,6 +124,8 @@ export const PainelDia = z
     status_dia: StatusDia,
     visitas: PainelVisitas,
     vendas: PainelVendas.nullable(),
+    /** RN-GES-06: vendido × faturado do dia; `null` sem Vendedor ou perfil que não vende. */
+    faturamento: PainelFaturamento.nullable(),
     mes: PainelMes.nullable(),
     trade: PainelTrade.nullable(),
     pesquisa: PainelPesquisa.nullable(),
@@ -126,7 +150,16 @@ export const ResumoEquipe = z
     atingimento_pct: PctOuNulo,
     visitas_realizadas: ContagemNaoNeg,
     visitas_planejadas: ContagemNaoNeg,
-    cobertura_pct: PctOuNulo,
+    /** RN-GES-05: soma dos clientes da rota visitados. */
+    visitas_planejadas_realizadas: ContagemNaoNeg,
+    /** RN-GES-05: soma das visitas fora da rota; `null` se ninguém tinha rota. */
+    visitas_extras: ContagemNaoNeg.nullable(),
+    /** RN-GES-05: Σ planejadas realizadas ÷ Σ planejadas (máximo 100). */
+    cobertura_pct: PctNumero.min(0).max(100).nullable(),
+    /** RN-GES-06: somas do dia; `null` sem nenhuma linha com Vendedor. */
+    vendido_cents: CentsNaoNeg.nullable(),
+    faturado_cents: CentsNaoNeg.nullable(),
+    a_faturar_cents: CentsNaoNeg.nullable(),
   })
   .strict();
 export type ResumoEquipe = z.infer<typeof ResumoEquipe>;
