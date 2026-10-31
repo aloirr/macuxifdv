@@ -14,6 +14,8 @@ import { globParaRegex } from '../../scripts/coord-lib.mjs';
 import {
   tokenizar, analisarComando, absoluto, relativoDaRaiz, lerStatus, fotografar, compararFotos, statDe,
   violacoesDasMudancas, atualizarAcusados, permitidosDe, mensagemPos, descontarDesfeitos,
+  separarAcusacoes, mensagemAviso, comoDesfazer, ehAlvoEvidente, arquivosDoPatch, ambienteReal, arquivoFoto,
+  TEXTO_AVISO,
 } from './guarda-bash-lib.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -26,10 +28,15 @@ const DONOS = {
     { padrao: 'scripts/coord*.mjs', dono: 'alexandre' },
     { padrao: 'legado/**', dono: 'congelado' },
     { padrao: '.coord/**', dono: 'gerente-projetos' },
+    { padrao: 'docs/banco/**', dono: 'banco-dados' },
+    { padrao: 'docs/modulos/promotor/**', dono: 'modulo-promotor' },
     { padrao: 'docs/**', dono: 'gerente-projetos' },
     { padrao: 'modules/core/**', dono: 'modulo-core' },
     { padrao: 'modules/catalogo/**', dono: 'modulo-catalogo' },
+    { padrao: 'modules/pesquisa/**', dono: 'modulo-pesquisa' },
+    { padrao: 'modules/promotor/**', dono: 'modulo-promotor' },
     { padrao: 'apps/**', dono: 'engenheiro-software' },
+    { padrao: '*', dono: 'engenheiro-software' },
   ],
   somente_leitura: ['C:/Users/domon/dev/fase-m-exemplo'],
 };
@@ -41,7 +48,7 @@ const REGRAS = DONOS.regras.map((r) => ({ ...r, re: globParaRegex(r.padrao) }));
  * Disco/git simulados. `arquivos`: rastreados existentes; `pastas`; `sujos`: [{xy, rel}].
  * Caminhos relativos à raiz.
  */
-function ambiente({ raiz = '/repo', arquivos = [], pastas = [], sujos = [] } = {}) {
+function ambiente({ raiz = '/repo', arquivos = [], pastas = [], sujos = [], conteudos = {} } = {}) {
   const relDe = (abs) => relativoDaRaiz(abs, raiz);
   const todas = new Set(pastas);
   for (const f of [...arquivos, ...sujos.map((s) => s.rel)]) {
@@ -53,6 +60,7 @@ function ambiente({ raiz = '/repo', arquivos = [], pastas = [], sujos = [] } = {
     ehDiretorio: (abs) => { const r = relDe(abs); return r !== null && (r === '' || todas.has(r)); },
     sujos: () => sujos,
     rastreadosSob: (rel) => arquivos.filter((f) => rel === '' || f === rel || f.startsWith(rel + '/')),
+    ler: (abs) => conteudos[abs] ?? conteudos[relDe(abs)] ?? null,
   };
 }
 
@@ -66,10 +74,10 @@ const ARQUIVOS = [
   '.coord/diario/testes.md',
 ];
 
-function analisar(comando, { agente = 'modulo-core', cwd = '/repo', raiz = '/repo', sujos = [], arquivos = ARQUIVOS, permitidos } = {}) {
+function analisar(comando, { agente = 'modulo-core', cwd = '/repo', raiz = '/repo', sujos = [], arquivos = ARQUIVOS, permitidos, conteudos } = {}) {
   return analisarComando({
     comando, agente, cwd, raiz, regras: REGRAS, somenteLeitura: DONOS.somente_leitura, permitidos,
-    amb: ambiente({ raiz, arquivos, sujos }),
+    amb: ambiente({ raiz, arquivos, sujos, conteudos }),
   });
 }
 const bloqueia = (cmd, opts) => {
@@ -266,7 +274,7 @@ function escrever(dir, rel, conteudo = `${rel}\n`) {
 }
 
 /** Repositório com donos.json, um arquivo de cada dono e (opcional) cópia do hook. */
-function criarRepo({ comHook = false } = {}) {
+function criarRepo({ comHook = false, extras = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'guarda-bash-'));
   temporarios.push(dir);
   git(dir, 'init', '-q', '-b', 'main');
@@ -275,7 +283,7 @@ function criarRepo({ comHook = false } = {}) {
   git(dir, 'config', 'commit.gpgsign', 'false');
   escrever(dir, '.coord/donos.json', JSON.stringify(DONOS, null, 2));
   escrever(dir, '.coord/recados/testes/R-20261031-000000-modulo-core.md', '---\nde: modulo-core\n---\n');
-  for (const f of ['modules/core/a.ts', 'modules/catalogo/b.ts', 'apps/api/x.ts', 'docs/produto/01.md', 'docs/meu doc.md']) escrever(dir, f);
+  for (const f of ['modules/core/a.ts', 'modules/catalogo/b.ts', 'apps/api/x.ts', 'docs/produto/01.md', 'docs/meu doc.md', ...extras]) escrever(dir, f);
   if (comHook) {
     mkdirSync(join(dir, 'scripts'), { recursive: true });
     mkdirSync(join(dir, '.claude', 'hooks'), { recursive: true });
@@ -397,7 +405,7 @@ function rodarHook(dir, evento, comando, { agente, sessao = 's-teste', id, env =
   const args = [join(dir, '.claude', 'hooks', 'guarda-bash.mjs'), ...(viaArgumento && agente ? [agente] : [])];
   const t0 = performance.now();
   const r = spawnSync(process.execPath, args, { cwd: dir, input: JSON.stringify(entrada), encoding: 'utf8', env: { ...process.env, MACUXI_GUARDA: '', ...env } });
-  return { codigo: r.status, erro: r.stderr, ms: performance.now() - t0, id: entrada.tool_use_id };
+  return { codigo: r.status, erro: r.stderr, saida: r.stdout, ms: performance.now() - t0, id: entrada.tool_use_id, entrada };
 }
 function rodarBash(dir, comando) {
   execFileSync('bash', ['-c', comando], { cwd: dir, stdio: 'ignore' });
@@ -413,7 +421,17 @@ test('hook: sessão sem agente é liberada; agente pelo argumento ou por agent_t
   assert.equal(rodarHook(dir, 'PreToolUse', 'echo x > apps/api/x.ts', { agente: 'modulo-core', env: { MACUXI_GUARDA: 'off' } }).codigo, 0);
 });
 
-test('hook: Pre + Post de ponta a ponta (comando permitido que alterou arquivo alheio sem ser evidente)', () => {
+/** Contexto adicional devolvido pelo PostToolUse que não bloqueia (stdout JSON, exit 0). */
+function contexto(r) {
+  if (!r.saida.trim()) return '';
+  return JSON.parse(r.saida).hookSpecificOutput.additionalContext;
+}
+const SUGERE_DESFAZER = /git restore|git checkout|rm -- /;
+
+// Atualizado na T-0005 (guardião v2): o script (node -e) que escreve em caminho alheio NÃO é alvo
+// evidente; com agentes em paralelo não dá para saber se foi ele ou outro agente. Antes bloqueava
+// e mandava "git restore"; agora é aviso não bloqueante e o desfazer não é liberado.
+test('hook: Pre + Post de ponta a ponta (escrita alheia que não é alvo evidente vira aviso, sem mandar desfazer)', () => {
   const dir = criarRepo({ comHook: true });
   appendFileSync(join(dir, 'apps/api/x.ts'), 'engenheiro trabalhando\n'); // outro agente
   const cmd = `node -e "require('fs').appendFileSync('docs/meu doc.md','x')" && echo ok >> modules/core/a.ts`;
@@ -421,30 +439,59 @@ test('hook: Pre + Post de ponta a ponta (comando permitido que alterou arquivo a
   assert.equal(pre.codigo, 0, pre.erro);
   rodarBash(dir, cmd);
   const pos = rodarHook(dir, 'PostToolUse', cmd, { agente: 'modulo-core', id: pre.id });
+  assert.equal(pos.codigo, 0, pos.erro);
+  const aviso = contexto(pos);
+  assert.match(aviso, /AVISO \(não bloqueia\)/);
+  assert.match(aviso, /docs\/meu doc\.md \(alterado; dono: gerente-projetos\) → mudou durante o comando, provavelmente outro agente; não desfaça/);
+  assert.doesNotMatch(aviso, SUGERE_DESFAZER);
+  assert.ok(!aviso.includes('apps/api/x.ts'));
+  assert.ok(!aviso.includes('modules/core/a.ts'));
+  // aviso não libera desfazer: o restore do arquivo alheio continua bloqueado no PreToolUse
+  assert.equal(rodarHook(dir, 'PreToolUse', 'git restore -- "docs/meu doc.md"', { agente: 'modulo-core' }).codigo, 2);
+});
+
+test('hook: alvo evidente alterado em caminho alheio continua bloqueado (Pre e, se escapar, Post) e o desfazer é liberado', () => {
+  const dir = criarRepo({ comHook: true });
+  const cmd = 'echo x >> "docs/meu doc.md"';
+  assert.equal(rodarHook(dir, 'PreToolUse', cmd, { agente: 'modulo-core' }).codigo, 2, 'PreToolUse bloqueia a escrita evidente');
+  // Se a escrita escapar do PreToolUse (ex.: hook desligado por um instante), a foto com os alvos
+  // evidentes que o analisador extraiu faz o PostToolUse bloquear e indicar o desfazer.
+  const amb = ambienteReal(dir);
+  const { alvos } = analisarComando({ comando: cmd, agente: 'modulo-core', cwd: dir, raiz: dir, regras: REGRAS, amb });
+  assert.deepEqual(alvos, [{ rel: 'docs/meu doc.md', sub: false }]);
+  const entrada = { session_id: 's-teste', tool_use_id: `toolu_escapou_${++seq}` };
+  mkdirSync(dirname(arquivoFoto(entrada)), { recursive: true });
+  writeFileSync(arquivoFoto(entrada), JSON.stringify({ agente: 'modulo-core', estado: fotografar(dir, lerStatus(dir)), alvos, instala: false }));
+  rodarBash(dir, cmd);
+  const pos = rodarHook(dir, 'PostToolUse', cmd, { agente: 'modulo-core', id: entrada.tool_use_id });
   assert.equal(pos.codigo, 2);
   assert.match(pos.erro, /docs\/meu doc\.md \(alterado; dono: gerente-projetos\) → desfaça com: git restore -- "docs\/meu doc\.md"/);
-  assert.ok(!pos.erro.includes('apps/api/x.ts'));
-  assert.ok(!pos.erro.includes('modules/core/a.ts'));
   // o desfazer indicado é liberado pelo PreToolUse e, depois dele, nada mais é acusado
   const undo = 'git restore -- "docs/meu doc.md"';
   const pre2 = rodarHook(dir, 'PreToolUse', undo, { agente: 'modulo-core' });
   assert.equal(pre2.codigo, 0, pre2.erro);
   rodarBash(dir, undo);
-  assert.equal(rodarHook(dir, 'PostToolUse', undo, { agente: 'modulo-core', id: pre2.id }).codigo, 0);
+  const pos2 = rodarHook(dir, 'PostToolUse', undo, { agente: 'modulo-core', id: pre2.id });
+  assert.equal(pos2.codigo, 0, pos2.erro);
+  assert.equal(pos2.saida.trim(), '');
   // ...e, já desfeito, o mesmo comando volta a ser bloqueado para o arquivo do outro dono
   appendFileSync(join(dir, 'docs/meu doc.md'), 'gerente\n');
   assert.equal(rodarHook(dir, 'PreToolUse', undo, { agente: 'modulo-core' }).codigo, 2);
 });
 
-test('hook: PostToolUseFailure também confere; Post sem foto (comando só de leitura) sai 0', () => {
+// Atualizado na T-0005: "pnpm qualquer-coisa" não tem alvo evidente → aviso (exit 0), não bloqueio.
+test('hook: PostToolUseFailure também confere (aviso não bloqueante); Post sem foto (comando só de leitura) sai 0', () => {
   const dir = criarRepo({ comHook: true });
   const cmd = 'pnpm qualquer-coisa';
   const pre = rodarHook(dir, 'PreToolUse', cmd, { agente: 'modulo-catalogo' });
   assert.equal(pre.codigo, 0);
+  assert.ok(existsSync(arquivoFoto(pre.entrada)), 'comando que pode escrever tira foto');
   escrever(dir, 'modules/core/invasao.ts');
   const pos = rodarHook(dir, 'PostToolUseFailure', cmd, { agente: 'modulo-catalogo', id: pre.id });
-  assert.equal(pos.codigo, 2);
-  assert.match(pos.erro, /modules\/core\/invasao\.ts \(criado; dono: modulo-core\)/);
+  assert.equal(pos.codigo, 0, pos.erro);
+  assert.equal(JSON.parse(pos.saida).hookSpecificOutput.hookEventName, 'PostToolUseFailure');
+  assert.match(contexto(pos), /modules\/core\/invasao\.ts \(criado; dono: modulo-core\) → mudou durante o comando/);
+  assert.doesNotMatch(contexto(pos), SUGERE_DESFAZER);
   const ler = rodarHook(dir, 'PreToolUse', 'git status', { agente: 'modulo-catalogo' });
   assert.equal(rodarHook(dir, 'PostToolUse', 'git status', { agente: 'modulo-catalogo', id: ler.id }).codigo, 0);
 });
@@ -470,12 +517,220 @@ test('desempenho: Pre e Post abaixo de 1 s com ~1.000 arquivos alterados', () =>
   assert.match(bloq.erro, /e mais \d+ arquivo/);
 });
 
-test('settings.json registra o guardião do Bash no PreToolUse e no PostToolUse', () => {
+// Atualizado na T-0005: o PreToolUse é obrigatório; o PostToolUse/PostToolUseFailure pode estar
+// desligado (o Alexandre desliga localmente até o merge do guardião v2), mas, se estiver ligado,
+// tem de apontar para o mesmo hook.
+test('settings.json registra o guardião do Bash no PreToolUse (e no PostToolUse, quando ligado)', () => {
   const s = JSON.parse(readFileSync(join(RAIZ_REAL, '.claude', 'settings.json'), 'utf8'));
   const comando = (ev) => (s.hooks[ev] || []).filter((h) => h.matcher === 'Bash').flatMap((h) => h.hooks.map((x) => x.command));
   assert.deepEqual(comando('PreToolUse'), ['node .claude/hooks/guarda-bash.mjs']);
-  assert.deepEqual(comando('PostToolUse'), ['node .claude/hooks/guarda-bash.mjs']);
-  assert.deepEqual(comando('PostToolUseFailure'), ['node .claude/hooks/guarda-bash.mjs']);
+  for (const ev of ['PostToolUse', 'PostToolUseFailure']) {
+    const lista = comando(ev);
+    assert.ok(lista.length === 0 || (lista.length === 1 && lista[0] === 'node .claude/hooks/guarda-bash.mjs'), `${ev}: ${lista}`);
+  }
   assert.ok(existsSync(join(AQUI, 'guarda-bash.mjs')));
   assert.ok(readdirSync(AQUI).includes('guarda-donos.mjs'), 'o guardião de Edit/Write continua');
+});
+
+// ───────────────────────── Parte 4: guardião v2 (T-0005) ─────────────────────────
+
+test('T-0005: comandos só de leitura não tiram foto (coord de leitura, pnpm/npm view, git, ls, cat, grep, rg...)', () => {
+  for (const cmd of [
+    'node scripts/coord.mjs caixa engenheiro-software; ls',
+    'node scripts/coord.mjs ler R-20261031-000000-modulo-core',
+    'node scripts/coord.mjs fio R-20261031-000000-modulo-core',
+    'node ./scripts/coord.mjs dono apps/api/x.ts',
+    'node scripts/coord.mjs pendencias',
+    'node scripts/coord.mjs verificar modulo-core --base origin/main',
+    'pnpm view expo-image-picker dist-tags', 'npm view react version', 'pnpm why zod', 'pnpm --version',
+    'git status', 'git log --oneline -5', 'git diff --stat', 'git show HEAD:apps/api/x.ts', 'git stash list',
+    'ls -la apps', 'cat docs/produto/01.md', 'grep -rn foo modules', 'rg -n "x" apps', 'find apps -name "*.ts"',
+    'sort apps/api/x.ts | uniq -c', 'tar -tzf /tmp/pacote.tgz', 'unzip -l /tmp/pacote.zip',
+    'git apply --check /tmp/x.patch', 'node --version',
+  ]) assert.equal(libera(cmd).soLeitura, true, cmd);
+  for (const cmd of [
+    'node scripts/coord.mjs enviar --de modulo-core --para testes --tipo aviso --assunto a --corpo b',
+    'node scripts/coord.mjs lido modulo-core R-1', 'node scripts/gerar.mjs', 'pnpm install', 'pnpm test', 'npx tsc',
+    'find apps -name "*.tmp" -delete', 'sort -o /tmp/y apps/api/x.ts', 'pnpm view zod > modules/core/versao.txt',
+  ]) assert.equal(analisar(cmd).soLeitura, false, cmd);
+});
+
+const PATCH = 'diff --git a/apps/api/x.ts b/apps/api/x.ts\n--- a/apps/api/x.ts\n+++ b/apps/api/x.ts\n@@ -1 +1 @@\n-a\n+b\n';
+const CONTEUDOS = {
+  '/tmp/x.patch': PATCH,
+  '/tmp/meu.patch': PATCH.replaceAll('apps/api/x.ts', 'modules/core/a.ts'),
+  'mbox.patch': `From abc Mon Sep 17 00:00:00 2001\nSubject: [PATCH] x\n\n---\n ${'apps/api/x.ts'} | 2 +-\n\n${PATCH}`,
+};
+
+test('T-0005: escritas evidentes novas são bloqueadas antes (ln, chmod/chown, dd, curl, wget, tar, unzip, patch, git apply/am, rsync)', () => {
+  const conteudos = CONTEUDOS;
+  bloqueia('ln -s ../core/a.ts modules/catalogo/link.ts');
+  assert.deepEqual(bloqueia('ln -sf modules/core/a.ts -t docs').map((v) => v.rel), ['docs/a.ts']);
+  bloqueia('chmod +x apps/api/x.ts');
+  bloqueia('chmod -x apps/api/x.ts'); // "-x" é modo, não opção
+  assert.deepEqual(bloqueia('chmod -R 755 apps').map((v) => v.rel), ['apps/api/x.ts']);
+  bloqueia('chown -R eu:eu docs/produto');
+  bloqueia('chgrp eu docs/produto/01.md');
+  bloqueia('dd if=/dev/zero of=apps/api/x.ts bs=1 count=0');
+  bloqueia('curl -sSL https://exemplo.invalid/a -o apps/api/x.ts');
+  bloqueia('curl --output docs/a.html https://exemplo.invalid');
+  bloqueia('curl -sSLo docs/b.html https://exemplo.invalid');
+  bloqueia('wget -q -O docs/a.html https://exemplo.invalid');
+  bloqueia('wget --output-document=apps/api/x.ts https://exemplo.invalid');
+  assert.deepEqual(bloqueia('tar -xzf /tmp/pacote.tgz -C apps/api').map((v) => v.rel), ['apps/api/x.ts']);
+  bloqueia('tar xzf /tmp/pacote.tgz -C modules/catalogo'); // forma antiga, sem "-"
+  bloqueia('tar -czf docs/pacote.tgz modules/core');
+  bloqueia('unzip -o /tmp/pacote.zip -d docs/produto');
+  assert.deepEqual(bloqueia('patch -p1 < /tmp/x.patch', { conteudos }).map((v) => v.rel), ['apps/api/x.ts']);
+  bloqueia('patch -p1 -i /tmp/x.patch', { conteudos });
+  bloqueia('patch apps/api/x.ts /tmp/x.patch');
+  assert.deepEqual(bloqueia('patch -o docs/saida.md modules/core/a.ts /tmp/x.patch').map((v) => v.rel), ['docs/saida.md']);
+  assert.deepEqual(bloqueia('git apply /tmp/x.patch', { conteudos }).map((v) => v.rel), ['apps/api/x.ts']);
+  bloqueia('git apply --index -p1 /tmp/x.patch', { conteudos });
+  bloqueia('git am mbox.patch', { conteudos });
+  assert.deepEqual(bloqueia('rsync -a modules/core/ apps/api/').map((v) => v.rel), ['apps/api/x.ts']);
+  assert.deepEqual(bloqueia('rsync -av modules/core/a.ts docs/').map((v) => v.rel), ['docs/a.ts']);
+  bloqueia('rsync -a --remove-source-files apps/api/x.ts /tmp/');
+  // no próprio caminho, fora do repositório ou sem escrita: libera
+  libera('ln -s a.ts modules/core/link.ts');
+  libera('chmod +x modules/core/a.ts');
+  libera('dd if=/dev/zero of=/tmp/x bs=1 count=1');
+  libera('curl -sSL https://exemplo.invalid');
+  libera('curl -o /tmp/a.html https://exemplo.invalid');
+  libera('curl -o - https://exemplo.invalid');
+  libera('wget -O - https://exemplo.invalid');
+  libera('tar -xzf /tmp/p.tgz -C modules/core');
+  libera('unzip /tmp/p.zip -d /tmp/saida');
+  libera('patch -p1 < /tmp/meu.patch', { conteudos });
+  libera('git apply /tmp/meu.patch', { conteudos });
+  libera('git apply --cached /tmp/x.patch', { conteudos });
+  libera('patch -p1 --dry-run < /tmp/x.patch', { conteudos });
+  libera('patch -p1 < /tmp/nao-existe.patch', { conteudos }); // patch ilegível: em dúvida, o PostToolUse confere
+  libera('rsync -a modules/core/ /tmp/copia/');
+  libera('rsync -a apps/ servidor:/backup/');
+  assert.deepEqual(arquivosDoPatch('--- /dev/null\n+++ b/novo/arq.ts\n', 1), ['novo/arq.ts']);
+  assert.deepEqual(arquivosDoPatch('--- x/a.ts\t2026-01-01\n+++ y/a.ts\t2026-01-02\n', 0), ['x/a.ts', 'y/a.ts']);
+});
+
+test('T-0005: analisarComando devolve os alvos evidentes (arquivo exato ou pasta inteira) e o sinal de install', () => {
+  assert.deepEqual(analisar('echo x > modules/core/a.ts && rm -rf modules/catalogo; touch "docs/meu doc.md"').alvos, [
+    { rel: 'modules/core/a.ts', sub: false }, { rel: 'modules/catalogo', sub: true }, { rel: 'docs/meu doc.md', sub: false },
+  ]);
+  const sujos = [{ xy: ' M', rel: 'apps/api/x.ts' }, { xy: ' M', rel: 'modules/core/a.ts' }, { xy: '??', rel: 'docs/novo.md' }];
+  // git checkout .: só os arquivos sujos de agora (não a árvore inteira, que outro agente pode estar editando)
+  assert.deepEqual(analisar('git checkout .', { sujos }).alvos.map((a) => a.rel).sort(), ['apps/api/x.ts', 'modules/core/a.ts']);
+  assert.deepEqual(analisar('pnpm test').alvos, []);
+  assert.deepEqual(analisar('echo x > $ARQ').alvos, []);
+  assert.deepEqual(analisar('echo x > /tmp/fora.txt').alvos, []);
+  assert.equal(analisar('pnpm install').instala, true);
+  assert.equal(analisar('pnpm --filter @macuxi/api add zod').instala, true);
+  assert.equal(analisar('cd apps/api && npm i').instala, true);
+  assert.equal(analisar('pnpm test').instala, false);
+  assert.ok(ehAlvoEvidente('modules/catalogo/x/y.ts', [{ rel: 'modules/catalogo', sub: true }]));
+  assert.ok(!ehAlvoEvidente('modules/catalogo2/y.ts', [{ rel: 'modules/catalogo', sub: true }]));
+  assert.ok(!ehAlvoEvidente('modules/core/a.ts.bak', [{ rel: 'modules/core/a.ts', sub: false }]));
+  assert.ok(!ehAlvoEvidente('apps/api/x.ts', undefined));
+});
+
+test('T-0005: separarAcusacoes — só alvo evidente limpo antes bloqueia; recado novo de outro remetente nunca vira rm', () => {
+  const v = (caminho, status, antes, dono = 'outro') => ({ caminho, status, antes, dono, motivo: 'fora dos caminhos' });
+  const recadoAlheio = '.coord/recados/testes/R-20261031-120000-testes.md';
+  const recadoNovo = '.coord/recados/gerente-projetos/R-20261031-120001-banco-dados.md';
+  const alvos = [{ rel: 'docs/produto/01.md', sub: false }, { rel: 'apps', sub: true }, { rel: recadoAlheio, sub: false }];
+  const lista = [
+    v('docs/produto/01.md', 'M', 'limpo'), // alvo evidente, limpo antes → bloqueia
+    v('apps/novo.ts', 'A', 'limpo'), // dentro de pasta alvo → bloqueia
+    v('apps/api/x.ts', 'M', 'sujo'), // alvo, mas já tinha trabalho de outro → aviso
+    v('docs/outro.md', 'M', 'limpo'), // não é alvo → aviso
+    v(recadoAlheio, 'A', 'limpo'), // alvo evidente, mas recado novo: nunca rm → aviso
+    v(recadoNovo, 'A', 'limpo'),
+  ];
+  const { bloqueantes, avisos } = separarAcusacoes({ violacoes: lista, alvos });
+  assert.deepEqual(caminhos(bloqueantes), ['apps/novo.ts', 'docs/produto/01.md']);
+  assert.deepEqual(caminhos(avisos), [recadoAlheio, recadoNovo, 'apps/api/x.ts', 'docs/outro.md'].sort());
+  assert.equal(comoDesfazer(v(recadoAlheio, 'A', 'limpo')), null);
+  assert.equal(comoDesfazer(v(recadoNovo, 'A', 'limpo')), null);
+  assert.equal(comoDesfazer(v('apps/novo.ts', 'A', 'limpo')), 'rm -- "apps/novo.ts"');
+  const msg = mensagemAviso('modulo-core', avisos);
+  assert.doesNotMatch(msg, SUGERE_DESFAZER);
+  assert.equal(msg.split(TEXTO_AVISO).length - 1, avisos.length);
+  assert.match(mensagemPos('modulo-core', bloqueantes), /git restore -- "docs\/produto\/01\.md"[\s\S]*rm -- "apps\/novo\.ts"/);
+  assert.deepEqual(separarAcusacoes({ violacoes: lista }).bloqueantes, [], 'foto sem alvos (hook antigo): nada bloqueia');
+});
+
+test('T-0005: PostToolUse num repositório de verdade — alvo evidente alheio bloqueia; mudança paralela de outro agente vira aviso', () => {
+  const dir = criarRepo();
+  const cmd = 'echo invasao >> docs/produto/01.md && echo meu >> modules/core/a.ts';
+  const { alvos, violacoes: pre } = analisarComando({ comando: cmd, agente: 'modulo-core', cwd: dir, raiz: dir, regras: REGRAS, amb: ambienteReal(dir) });
+  assert.deepEqual(pre.map((x) => x.rel), ['docs/produto/01.md'], 'o PreToolUse já bloquearia');
+  const antes = fotoAntes(dir);
+  rodarBash(dir, cmd); // escapou do PreToolUse
+  appendFileSync(join(dir, 'modules/catalogo/b.ts'), 'modulo-catalogo em paralelo\n'); // outro agente, durante
+  const v = violacoesDasMudancas({ agente: 'modulo-core', mudancas: mudancasDepois(dir, antes), regras: REGRAS });
+  const { bloqueantes, avisos } = separarAcusacoes({ violacoes: v, alvos });
+  assert.deepEqual(caminhos(bloqueantes), ['docs/produto/01.md']);
+  assert.deepEqual(caminhos(avisos), ['modules/catalogo/b.ts']);
+  assert.deepEqual(atualizarAcusados({}, bloqueantes, lerStatus(dir)), { 'docs/produto/01.md': { status: 'M' } }, 'só o alvo evidente fica liberado para desfazer');
+});
+
+/**
+ * Os 9 falsos positivos da revisão do engenheiro-software (R-20261031-135947-engenheiro-software):
+ * o agente A (engenheiro-software) roda um comando que não toca os arquivos; o agente B altera ou
+ * cria arquivos DURANTE o comando. Antes, A recebia "blocking error" mandando git restore/rm.
+ */
+const FALSOS_POSITIVOS = [
+  { cmd: 'node scripts/coord.mjs caixa engenheiro-software; ls', leitura: true, altera: ['modules/pesquisa/domain/checkout.test.ts'] },
+  { cmd: 'node scripts/coord.mjs caixa engenheiro-software; ls', leitura: true, altera: ['modules/pesquisa/domain/resultados.test.ts'] },
+  { cmd: 'pnpm view expo-image-picker dist-tags', leitura: true, altera: ['modules/pesquisa/domain/parametros.test.ts'] },
+  { cmd: 'npx tsc -p apps/api --noEmit', altera: ['docs/modulos/promotor/regras.md'] },
+  { cmd: 'npx tsc -p apps/api --noEmit', altera: ['modules/promotor/domain/checklist.test.ts'] },
+  { cmd: 'npx vitest run apps/api', altera: ['docs/banco/README.md', 'docs/banco/core.md', 'docs/banco/fixture-dois-tenants.md'] },
+  { cmd: 'pnpm install', cria: ['.coord/recados/engenheiro-software/R-20261031-131000-banco-dados.md'] },
+  { cmd: 'pnpm --filter @macuxi/api test', altera: ['.coord/tarefas/T-0010.md'] },
+  { cmd: 'pnpm test', altera: ['modules/pesquisa/domain/checkout.ts'], cria: ['docs/banco/novo.md'] }, // comando longo
+];
+
+test('T-0005: os 9 falsos positivos da revisão — outro agente altera arquivo durante o comando: sem bloqueio e sem sugestão de desfazer', () => {
+  const extras = [...new Set(FALSOS_POSITIVOS.flatMap((c) => c.altera || []))];
+  const dir = criarRepo({ comHook: true, extras });
+  FALSOS_POSITIVOS.forEach((caso, n) => {
+    const nome = `caso ${n + 1} (${caso.cmd})`;
+    const agente = 'engenheiro-software';
+    const pre = rodarHook(dir, 'PreToolUse', caso.cmd, { agente });
+    assert.equal(pre.codigo, 0, `${nome}: ${pre.erro}`);
+    assert.equal(existsSync(arquivoFoto(pre.entrada)), !caso.leitura, `${nome}: comando só de leitura não tira foto`);
+    // agente B, em paralelo, durante o comando de A
+    for (const f of caso.altera || []) appendFileSync(join(dir, f), `outro agente, caso ${n + 1}\n`);
+    for (const f of caso.cria || []) escrever(dir, f, '---\nde: banco-dados\n---\n');
+    const pos = rodarHook(dir, 'PostToolUse', caso.cmd, { agente, id: pre.id });
+    assert.equal(pos.codigo, 0, `${nome}: não bloqueia — ${pos.erro}`);
+    assert.equal(pos.erro, '', nome);
+    const aviso = contexto(pos);
+    assert.doesNotMatch(aviso, SUGERE_DESFAZER, nome);
+    if (caso.leitura) assert.equal(aviso, '', nome);
+    else for (const f of [...(caso.altera || []), ...(caso.cria || [])]) assert.ok(aviso.includes(`${f} (`) && aviso.includes(TEXTO_AVISO), `${nome}: avisa ${f}`);
+    // nada fica liberado para desfazer: restaurar/apagar o trabalho do colega continua bloqueado
+    for (const f of caso.altera || []) assert.equal(rodarHook(dir, 'PreToolUse', `git restore -- "${f}"`, { agente }).codigo, 2, `${nome}: restore de ${f}`);
+    for (const f of caso.cria || []) assert.equal(rodarHook(dir, 'PreToolUse', `rm -- "${f}"`, { agente }).codigo, 2, `${nome}: rm de ${f}`);
+  });
+});
+
+test('T-0005: pnpm install que reescreve o pnpm-lock.yaml avisa (sem bloquear) quem não é o engenheiro-software', () => {
+  const dir = criarRepo({ comHook: true, extras: ['pnpm-lock.yaml'] });
+  const pre = rodarHook(dir, 'PreToolUse', 'pnpm install', { agente: 'modulo-core' });
+  appendFileSync(join(dir, 'pnpm-lock.yaml'), 'novo: 1\n');
+  const pos = rodarHook(dir, 'PostToolUse', 'pnpm install', { agente: 'modulo-core', id: pre.id });
+  assert.equal(pos.codigo, 0, pos.erro);
+  assert.match(contexto(pos), /pnpm-lock\.yaml \(alterado; dono: engenheiro-software\) → reescrito pelo install deste comando: não desfaça e não faça commit dele; avise o engenheiro-software/);
+  assert.doesNotMatch(contexto(pos), SUGERE_DESFAZER);
+  // comando que não instala e viu o lock mudar: aviso genérico (provavelmente outro agente)
+  const pre2 = rodarHook(dir, 'PreToolUse', 'pnpm test', { agente: 'modulo-core' });
+  appendFileSync(join(dir, 'pnpm-lock.yaml'), 'mais: 2\n');
+  assert.match(contexto(rodarHook(dir, 'PostToolUse', 'pnpm test', { agente: 'modulo-core', id: pre2.id })), /pnpm-lock\.yaml \(alterado; dono: engenheiro-software\) → mudou durante o comando/);
+  // o engenheiro-software (dono do lock) não recebe aviso
+  const pre3 = rodarHook(dir, 'PreToolUse', 'pnpm install', { agente: 'engenheiro-software' });
+  appendFileSync(join(dir, 'pnpm-lock.yaml'), 'dono: 3\n');
+  const pos3 = rodarHook(dir, 'PostToolUse', 'pnpm install', { agente: 'engenheiro-software', id: pre3.id });
+  assert.equal(pos3.codigo, 0);
+  assert.equal(pos3.saida.trim(), '');
 });
