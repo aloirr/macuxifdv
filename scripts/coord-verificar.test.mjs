@@ -750,3 +750,118 @@ test('funções puras: agenteDoBranch, agenteDosTrailers e remetenteDoRecado', (
   assert.equal(remetenteDoRecado('R-20261031-071802-2-alexandre.md'), 'alexandre');
   assert.equal(remetenteDoRecado('R-20261031-071802.md'), null);
 });
+
+// ───────────── verificar --por-commit (guardião v3, T-0005): cada commit × o agente do próprio trailer ─────────────
+
+/** Commit com a mensagem "<assunto>\n\nAgente: <agente>" (sem trailer se agente for null). */
+function commitarComo(dir, agente, assunto) {
+  commitar(dir, agente ? `${assunto}\n\nAgente: ${agente}` : assunto);
+  return git(dir, 'rev-parse', '--short', 'HEAD').trim();
+}
+/** Bloco da saída de um commit ("== <sha> ..." até o próximo "== " ou o resultado). */
+function blocoDoCommit(saida, sha) {
+  const i = saida.indexOf(`== ${sha}`);
+  assert.ok(i >= 0, `commit ${sha} não aparece na saída:\n${saida}`);
+  const resto = saida.slice(i);
+  const fim = resto.slice(3).search(/\n== |\nVIOLAÇÃO em |\nResultado:/);
+  return fim < 0 ? resto : resto.slice(0, fim + 3);
+}
+
+test('--por-commit: 3 commits de agentes diferentes, um invadindo caminho alheio → código 1 só nele', () => {
+  const dir = criarRepo();
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  escrever(dir, 'modules/core/a.ts', 'core\n');
+  escrever(dir, '.coord/diario/modulo-core.md');
+  const c1 = commitarComo(dir, 'modulo-core', 'T-0003: core');
+  escrever(dir, 'apps/api/x.ts', 'engenheiro\n');
+  escrever(dir, 'modules/core/a.ts', 'engenheiro invadiu\n');
+  const c2 = commitarComo(dir, 'engenheiro-software', 'T-0004: api');
+  escrever(dir, 'docs/status.md');
+  escrever(dir, 'scripts/coord-lib.mjs', readFileSync(join(dir, 'scripts', 'coord-lib.mjs'), 'utf8') + '\n');
+  const c3 = commitarComo(dir, 'alexandre', 'T-0005: alexandre mexe em tudo');
+  const r = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(r.codigo, 1, r.tudo);
+  assert.match(r.saida, /Verificação de donos por commit — [0-9a-f]+\.\.HEAD \(3 commit\(s\)\)/);
+  const b1 = blocoDoCommit(r.saida, c1);
+  assert.match(b1, /agente: modulo-core \(trailer\)/);
+  assert.doesNotMatch(b1, /VIOLAÇÃO/);
+  assert.match(b1, /\.coord\/diario\/modulo-core\.md — diário do próprio agente/);
+  const b2 = blocoDoCommit(r.saida, c2);
+  assert.match(b2, /agente: engenheiro-software/);
+  assert.match(b2, /M modules\/core\/a\.ts → dono: modulo-core/);
+  assert.doesNotMatch(b2, /apps\/api\/x\.ts → dono/);
+  const b3 = blocoDoCommit(r.saida, c3);
+  assert.match(b3, /agente: alexandre/);
+  assert.doesNotMatch(b3, /VIOLAÇÃO/, 'alexandre nunca viola por dono');
+  assert.match(b3, /A docs\/status\.md → gerente-projetos/);
+  assert.match(r.saida, new RegExp(`VIOLAÇÃO em 1 commit\\(s\\):\\n  ${c2} \\(engenheiro-software\\)`));
+  assert.match(r.saida, /Resultado: VIOLAÇÃO — 1 de 3 commit\(s\) conferido\(s\)/);
+});
+
+test('--por-commit: sem invasão → 0; commit de merge é ignorado', () => {
+  const dir = criarRepo();
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  git(dir, 'checkout', '-q', '-b', 'modulo-core/T-0003');
+  escrever(dir, 'modules/core/b.ts');
+  const c1 = commitarComo(dir, 'modulo-core', 'T-0003: core');
+  git(dir, 'checkout', '-q', 'main');
+  escrever(dir, 'apps/api/y.ts');
+  const c2 = commitarComo(dir, 'engenheiro-software', 'T-0004: api');
+  git(dir, 'merge', '-q', '--no-ff', '--no-edit', '-m', 'Merge sem trailer', 'modulo-core/T-0003');
+  const merge = git(dir, 'rev-parse', '--short', 'HEAD').trim();
+  const r = rodar(dir, ['verificar', '--por-commit', `${inicio}..main`]);
+  assert.equal(r.codigo, 0, r.tudo);
+  assert.match(blocoDoCommit(r.saida, merge), /commit de merge — ignorado/);
+  assert.match(blocoDoCommit(r.saida, c1), /agente: modulo-core/);
+  assert.match(blocoDoCommit(r.saida, c2), /agente: engenheiro-software/);
+  assert.match(r.saida, /Resultado: OK — 2 commit\(s\) conferido\(s\), nenhuma violação/);
+});
+
+test('--por-commit: commit sem trailer (ou agente desconhecido/ambíguo) → código 2 com a lista', () => {
+  const dir = criarRepo();
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  escrever(dir, 'modules/core/a.ts', '1\n');
+  const ok = commitarComo(dir, 'modulo-core', 'T-0003: com trailer');
+  escrever(dir, 'modules/core/a.ts', '2\n');
+  const sem = commitarComo(dir, null, 'T-0003: esqueceu o trailer');
+  escrever(dir, 'modules/core/a.ts', '3\n');
+  const fulano = commitarComo(dir, 'fulano', 'T-0003: agente de fora');
+  escrever(dir, 'modules/core/a.ts', '4\n');
+  commitar(dir, 'T-0003: dois agentes\n\nAgente: modulo-core\nAgente: testes');
+  const dois = git(dir, 'rev-parse', '--short', 'HEAD').trim();
+  const r = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(r.codigo, 2, r.tudo);
+  assert.match(r.erro, /3 commit\(s\) sem agente identificável/);
+  assert.match(r.erro, new RegExp(`${sem} T-0003: esqueceu o trailer — sem o trailer "Agente: <nome>"`));
+  assert.match(r.erro, new RegExp(`${fulano} T-0003: agente de fora — trailer "Agente: fulano" não é um agente do time`));
+  assert.match(r.erro, new RegExp(`${dois} T-0003: dois agentes — agente ambíguo: modulo-core, testes`));
+  assert.doesNotMatch(r.erro, new RegExp(ok));
+  assert.match(blocoDoCommit(r.saida, ok), /agente: modulo-core/);
+});
+
+test('--por-commit: intervalo vazio → 0; intervalo inválido, ref inexistente ou combinação de modos → 2', () => {
+  const dir = criarRepo();
+  const vazio = rodar(dir, ['verificar', '--por-commit', 'HEAD..HEAD']);
+  assert.equal(vazio.codigo, 0, vazio.tudo);
+  assert.match(vazio.saida, /Resultado: OK — nenhum commit no intervalo/);
+  assert.equal(rodar(dir, ['verificar', '--por-commit=HEAD..HEAD']).codigo, 0);
+  assert.match(rodar(dir, ['verificar', '--por-commit', 'HEAD']).erro, /exige um intervalo <de>\.\.<até>/);
+  assert.equal(rodar(dir, ['verificar', '--por-commit']).codigo, 2);
+  assert.match(rodar(dir, ['verificar', '--por-commit', 'naoexiste..HEAD']).erro, /ref não encontrada: naoexiste/);
+  assert.match(rodar(dir, ['verificar', '--por-commit', `${'0'.repeat(40)}..HEAD`]).erro, /início do intervalo/);
+  assert.match(rodar(dir, ['verificar', 'modulo-core', '--por-commit', 'HEAD..HEAD']).erro, /não se combina/);
+  assert.equal(rodar(dir, ['verificar', '--base', 'main', '--por-commit', 'HEAD..HEAD']).codigo, 2);
+});
+
+test('--por-commit: recado existente alterado é violação mesmo para alexandre; recado novo do próprio agente é exceção', () => {
+  const dir = criarRepo();
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  escrever(dir, '.coord/recados/gerente-projetos/R-20261031-120000-modulo-core.md', RECADO);
+  const novo = commitarComo(dir, 'modulo-core', 'T-0003: recado');
+  appendFileSync(join(dir, '.coord/recados/testes/R-20261031-000000-modulo-core.md'), 'editado\n');
+  const editou = commitarComo(dir, 'alexandre', 'T-0005: editou recado');
+  const r = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(r.codigo, 1, r.tudo);
+  assert.match(blocoDoCommit(r.saida, novo), /recado novo para gerente-projetos/);
+  assert.match(blocoDoCommit(r.saida, editou), /VIOLAÇÃO[\s\S]*recados são imutáveis/);
+});

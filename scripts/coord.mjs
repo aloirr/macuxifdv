@@ -28,13 +28,19 @@
 //        sem agente e sem --base: lista agrupada por dono (recados pelo remetente).
 //        --por-dono   lista as alterações agrupadas por dono (sem agente).
 //        saída: 0 = sem violação · 1 = violação · 2 = erro de uso ou de git.
+//   node scripts/coord.mjs verificar --por-commit <de>..<até>
+//        confere CADA commit do intervalo (git log <de>..<até>) contra o agente do trailer
+//        "Agente: <nome>" DAQUELE commit, com as regras e exceções do --base (estrito).
+//        commit de merge é ignorado; commit sem trailer (ou com agente desconhecido ou
+//        ambíguo) → código 2 com a lista; alexandre nunca viola por dono; intervalo vazio = OK.
+//        uso no CI, no push ao main: verificar --por-commit "$ANTES..$DEPOIS".
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   RAIZ, AGENTES, DESTINOS, TIPOS, TIPOS_QUE_EXIGEM_ENCERRAMENTO,
   carregarDonos, donoDe, caminhoRelativo, podeAlterar,
-  PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers,
+  PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -131,6 +137,7 @@ function abertosPara(agente, recs, fechados) {
 // ---------------------------------------------------------------- verificar
 const USO_VERIFICAR = [
   'uso: node scripts/coord.mjs verificar [agente] [--base <ref>] [--por-dono]',
+  '     node scripts/coord.mjs verificar --por-commit <de>..<até>   (cada commit contra o agente do próprio trailer)',
   `  agente: ${PESSOAS.join(', ')}`,
   '  sem agente: inferido do branch <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente> ou alexandre/... (ou GITHUB_HEAD_REF);',
   '              com --base, também do trailer "Agente: <nome>" de todos os commits do PR (obrigatório em nuvem/*);',
@@ -249,14 +256,92 @@ function listarPorDono(mudancas, descricao, regras) {
   process.exit(0);
 }
 
+/** Arquivos alterados por um commit contra o primeiro pai (commit raiz: contra a árvore vazia). */
+function mudancasDoCommit(sha) {
+  return lerNameStatusZ(git(['-c', 'core.quotepath=off', 'diff-tree', '--root', '--no-commit-id', '--name-status', '--no-renames', '-r', '-z', sha, '--']));
+}
+
+/**
+ * `verificar --por-commit <de>..<até>`: cada commit (sem merges) contra o agente do próprio trailer.
+ * Saída 0 = sem violação · 1 = violação · 2 = commit sem trailer/agente inválido ou ambíguo, ou erro de git.
+ */
+function verificarPorCommit(intervalo, regras) {
+  const m = String(intervalo).match(/^([^.\s]+)\.\.([^.\s]+)$/);
+  if (!m) erroUso(`--por-commit exige um intervalo <de>..<até> (ex.: --por-commit origin/main..HEAD); recebido: ${intervalo}`);
+  if (git(['rev-parse', '--is-inside-work-tree'], { falha: null }) === null) erroUso('não é um repositório git', false);
+  const [, de, ate] = m;
+  if (/^0+$/.test(de)) erroUso(`o início do intervalo é ${de} (push que criou o branch?): informe um commit existente como <de>`, false);
+  for (const ref of [de, ate]) {
+    if (!git(['rev-parse', '--verify', '-q', `${ref}^{commit}`], { falha: null })?.trim())
+      erroUso(`ref não encontrada: ${ref}. No CI use actions/checkout com fetch-depth: 0 (ou git fetch do commit)`, false);
+  }
+  const out = git(['log', '--reverse', '--format=%H%x1f%P%x1f%s%x1f%B%x1e', `${de}..${ate}`]);
+  const commits = String(out).split('\x1e').map((s) => s.replace(/^\n/, '')).filter(Boolean).map((s) => {
+    const [sha, pais, assunto, corpo] = s.split('\x1f');
+    return { sha, curto: sha.slice(0, 7), merge: pais.trim().split(/\s+/).filter(Boolean).length > 1, assunto, corpo: corpo || '' };
+  });
+  console.log(`Verificação de donos por commit — ${de}..${ate} (${commits.length} commit(s))`);
+  if (!commits.length) {
+    console.log('\nResultado: OK — nenhum commit no intervalo.');
+    process.exit(0);
+  }
+  const semAgente = [];
+  const comViolacao = [];
+  let conferidos = 0;
+  for (const c of commits) {
+    const cab = `\n== ${c.curto} ${c.assunto}`;
+    if (c.merge) { console.log(`${cab}\n   commit de merge — ignorado`); continue; }
+    const nomes = trailersAgente(c.corpo);
+    const invalidos = nomes.filter((n) => !PESSOAS.includes(n));
+    if (!nomes.length || invalidos.length || nomes.length > 1) {
+      const motivo = !nomes.length ? 'sem o trailer "Agente: <nome>"'
+        : invalidos.length ? `trailer "Agente: ${invalidos.join(', ')}" não é um agente do time`
+          : `agente ambíguo: ${[...nomes].sort().join(', ')}`;
+      console.log(`${cab}\n   ERRO: ${motivo}`);
+      semAgente.push({ ...c, motivo });
+      continue;
+    }
+    const agente = nomes[0];
+    conferidos++;
+    const r = classificarMudancas({ agente, mudancas: mudancasDoCommit(c.sha), regras, estrito: true });
+    console.log(`${cab} — agente: ${agente} (trailer)`);
+    imprimirLista('  OK', r.ok, () => '');
+    imprimirLista('  Exceções do protocolo', r.excecoes, (i) => ` — ${i.motivo}`);
+    imprimirLista('  Outros donos (informativo — alexandre pode alterar)', r.outros, (i) => ` → ${i.dono}`);
+    imprimirLista('  VIOLAÇÃO', r.violacoes, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
+    if (r.violacoes.length) comViolacao.push({ ...c, agente, n: r.violacoes.length });
+  }
+  if (comViolacao.length) {
+    console.log(`\nVIOLAÇÃO em ${comViolacao.length} commit(s):`);
+    for (const c of comViolacao) console.log(`  ${c.curto} (${c.agente}) — ${c.n} arquivo(s) fora das regras`);
+  }
+  if (semAgente.length) {
+    console.error(`\nErro: ${semAgente.length} commit(s) sem agente identificável pelo trailer "Agente: <nome>":`);
+    for (const c of semAgente) console.error(`  ${c.curto} ${c.assunto} — ${c.motivo}`);
+    process.exit(2);
+  }
+  if (comViolacao.length) {
+    console.log(`\nResultado: VIOLAÇÃO — ${comViolacao.length} de ${conferidos} commit(s) conferido(s).`);
+    process.exit(1);
+  }
+  console.log(`\nResultado: OK — ${conferidos} commit(s) conferido(s), nenhuma violação.`);
+  process.exit(0);
+}
+
 function verificar(args) {
   try {
     const o = opcoes(args.flatMap((a) => (/^--[^=]+=/.test(a) ? [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)] : [a])));
-    for (const k of Object.keys(o)) if (k !== '_' && k !== 'base' && k !== 'por-dono') erroUso(`opção desconhecida: --${k}`);
+    for (const k of Object.keys(o)) if (k !== '_' && k !== 'base' && k !== 'por-dono' && k !== 'por-commit') erroUso(`opção desconhecida: --${k}`);
     if (o._.length > 1) erroUso(`argumentos demais: ${o._.join(' ')}`);
     if (o.base === true || o.base === '') erroUso('--base exige uma ref (ex.: --base origin/main)');
     const base = o.base || null;
     const regras = carregarDonos();
+
+    if ('por-commit' in o) {
+      if (o['por-commit'] === true || o['por-commit'] === '') erroUso('--por-commit exige um intervalo <de>..<até>');
+      if (o._.length || base || o['por-dono']) erroUso('--por-commit não se combina com agente, --base ou --por-dono (o agente vem do trailer de cada commit)');
+      verificarPorCommit(o['por-commit'], regras);
+    }
 
     if (o['por-dono']) {
       const { mudancas, descricao } = coletarMudancas(base);
