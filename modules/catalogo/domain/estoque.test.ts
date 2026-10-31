@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EstoqueVisivel } from '../contracts';
-import { faixaDeEstoque, estoqueVisivel } from './estoque';
+import { AVISO_ESTOQUE_DESATUALIZADO, faixaDeEstoque, estoqueVisivel, rotuloAtualizacaoEstoque } from './estoque';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
 
 const AGORA = '2026-10-31T15:00:00Z';
@@ -93,5 +93,49 @@ describe('RF-CAT-03 / RN-VEN-20: estoque visível por filial/depósito do usuár
   it('a ordem das filiais é por nome e depois por id (determinística)', () => {
     const r = ver([saldo('f9', 1), saldo('f2', 1), saldo('f5', 1)], null);
     expect(r.by_branch.map((b) => b.branch_id)).toEqual(['f2', 'f5', 'f9']);
+  });
+});
+
+describe('RN-CAT-07: estoque baixo, zerado e desatualizado (padrões parametrizáveis)', () => {
+  it('RN-CAT-07: padrão — "baixo" até 10 unidades e o número exato visível', () => {
+    expect(PARAMETROS_PADRAO).toMatchObject({ estoque_baixo_ate: 10, estoque_mostrar_quantidade: true, estoque_defasado_horas: 24 });
+    expect(ver([saldo('f1', 10)], null)).toMatchObject({ band: 'baixo', quantity: 10 });
+    expect(ver([saldo('f1', 1)], null)).toMatchObject({ band: 'baixo', quantity: 1 });
+    expect(ver([saldo('f1', 11)], null)).toMatchObject({ band: 'disponivel', quantity: 11 });
+    expect(ver([saldo('f1', 10)], null).by_branch[0]).toMatchObject({ band: 'baixo', quantity: 10 });
+  });
+
+  it('RN-CAT-07: estoque zerado = "sem estoque", com o zero visível e a hora da atualização', () => {
+    const r = ver([saldo('f1', 0, '2026-10-31T14:30:00Z')], null);
+    expect(r).toMatchObject({ band: 'sem_estoque', quantity: 0, updated_at: '2026-10-31T14:30:00.000Z', stale: false });
+  });
+
+  it('RN-CAT-07: depois de 24 h sem atualizar é "desatualizado" e continua trazendo o instante da atualização', () => {
+    const r = ver([saldo('f1', 30, '2026-10-30T14:00:00Z')], null);
+    expect(r).toMatchObject({ band: 'disponivel', quantity: 30, stale: true, updated_at: '2026-10-30T14:00:00.000Z' });
+    expect(AVISO_ESTOQUE_DESATUALIZADO).toBe('Estoque desatualizado');
+  });
+
+  it('RN-CAT-07: o resultado sempre traz o instante da atualização quando há saldo com hora (fresco, baixo, zerado ou desatualizado)', () => {
+    for (const [q, t] of [[50, '2026-10-31T14:00:00Z'], [3, '2026-10-31T14:00:00Z'], [0, '2026-10-31T14:00:00Z'], [50, '2026-10-01T14:00:00Z']] as const) {
+      const r = ver([saldo('f1', q, t)], null);
+      expect(r.updated_at, `${q} ${t}`).toBe(new Date(t).toISOString());
+      expect(Object.hasOwn(r, 'updated_at')).toBe(true);
+    }
+  });
+
+  it('RN-CAT-07: "atualizado às hh:mm" no fuso do tenant; em outro dia, com a data', () => {
+    // 14:30Z = 10:30 em Manaus (UTC−4); a consulta é às 15:00Z (11:00 em Manaus, mesmo dia)
+    expect(rotuloAtualizacaoEstoque(ver([saldo('f1', 5, '2026-10-31T14:30:00Z')], null), AGORA, 'America/Manaus')).toBe('Atualizado às 10:30');
+    expect(rotuloAtualizacaoEstoque(ver([saldo('f1', 5, '2026-10-31T14:30:00Z')], null), AGORA, 'UTC')).toBe('Atualizado às 14:30');
+    // 30/10 às 23:00 em Manaus (31/10 03:00Z) é o dia anterior no fuso do tenant
+    expect(rotuloAtualizacaoEstoque(ver([saldo('f1', 5, '2026-10-31T03:00:00Z')], null), AGORA, 'America/Manaus')).toBe('Atualizado em 30/10 às 23:00');
+    expect(rotuloAtualizacaoEstoque(ver([saldo('f1', 5, null)], null), AGORA, 'America/Manaus')).toBe('Sem hora de atualização');
+  });
+
+  it('RN-CAT-07: os três padrões são parâmetros do tenant', () => {
+    const p = resolverParametros({ estoque_baixo_ate: 3, estoque_mostrar_quantidade: false, estoque_defasado_horas: 2 });
+    const r = ver([saldo('f1', 5, '2026-10-31T12:30:00Z')], null, p);
+    expect(r).toMatchObject({ band: 'disponivel', quantity: null, stale: true, updated_at: '2026-10-31T12:30:00.000Z' });
   });
 });

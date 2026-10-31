@@ -1,6 +1,6 @@
 /**
  * Contratos da vitrine, da busca (inteligente e offline), de preço e estoque visíveis, de sinônimos e do
- * "Pergunte ao catálogo" (RF-CAT-01..05, RF-CAT-07; RN-CAT-01..03).
+ * "Pergunte ao catálogo" (RF-CAT-01..05, RF-CAT-07; RN-CAT-01..08).
  * Convenções: dinheiro em centavos inteiros (ADR 0002); instantes em ISO 8601 UTC; campos em snake_case como
  * o restante dos contratos de produto; valores de enum em português.
  * O que for regra (normalização, ranking, preço, estoque, limite) mora em `../domain`; aqui só a forma.
@@ -14,27 +14,29 @@ export const InstanteUtc = z.string().datetime({ message: 'Informe a data e hora
 // ---------- parâmetros do tenant (doc 03, tabela de parâmetros; docs/modulos/catalogo/regras.md) ----------
 export const ParametrosCatalogo = z
   .object({
-    /** RN-CAT-03: limite de consultas de IA por usuário/dia ([200]); 0 desliga a busca inteligente. */
+    /** RN-CAT-03: limite de consultas de IA por usuário/dia ([200]); 0 desliga a busca inteligente. Só consulta respondida conta. */
     limite_consultas_ia_dia: z.number().int().min(0).default(200),
-    /** Fuso do tenant: define a virada do dia do limite (doc 03: America/Manaus). */
+    /** Fuso do tenant: define a virada do dia do limite e o "atualizado às hh:mm" (doc 03: America/Manaus). */
     fuso: z.string().min(1).default('America/Manaus'),
-    /** RF-CAT-03: faixa "baixo" = saldo de 1 até este valor (premissa: 10). */
+    /** RN-CAT-05: false (padrão) = promotor vê ficha e fotos sem preço de tabela e sem estoque; true = vê como o vendedor. */
+    promotor_ve_preco_estoque: z.boolean().default(false),
+    /** RN-CAT-07: faixa "baixo" = saldo de 1 até este valor ([10]). */
     estoque_baixo_ate: z.number().int().min(0).default(10),
-    /** RF-CAT-03: false esconde o número exato e mostra só a faixa (premissa: mostra). */
+    /** RN-CAT-07: true (padrão) mostra o número exato; false mostra só a faixa. */
     estoque_mostrar_quantidade: z.boolean().default(true),
-    /** RF-CAT-03: horas sem atualização para avisar "estoque desatualizado" (premissa: 24). */
+    /** RN-CAT-07: horas sem atualização para marcar "estoque desatualizado" ([24]). */
     estoque_defasado_horas: z.number().int().min(1).default(24),
-    /** Validade do cache de consultas frequentes, em segundos (premissa: 600). */
+    /** RN-CAT-08: validade do cache de consultas frequentes, em segundos ([600]; 0 desliga). */
     cache_ttl_s: z.number().int().min(0).default(600),
-    /** A consulta só entra no cache a partir da N-ésima ocorrência (premissa: 2). */
+    /** RN-CAT-08: a consulta só entra no cache a partir da N-ésima ocorrência ([2]). */
     cache_min_ocorrencias: z.number().int().min(1).default(2),
-    /** Ranking híbrido (RF-CAT-01): peso da nota semântica quando existe (0..1). */
+    /** RN-CAT-08: peso da nota semântica no ranking híbrido quando existe (0..1, [0,4]); calibrado na Sprint 3. */
     peso_semantico: z.number().min(0).max(1).default(0.4),
-    /** Boost aditivo por ter estoque (0..1). */
+    /** RN-CAT-08: boost aditivo por ter estoque (0..1, [0,10]). */
     peso_estoque: z.number().min(0).max(1).default(0.1),
-    /** Boost aditivo proporcional ao mais vendido (0..1). */
+    /** RN-CAT-08: boost aditivo proporcional ao mais vendido (0..1, [0,10]). */
     peso_mais_vendido: z.number().min(0).max(1).default(0.1),
-    /** Boost aditivo para produto de campanha/destaque (0..1). */
+    /** RN-CAT-08: boost aditivo para produto de campanha/destaque (0..1, [0,05]). */
     peso_campanha: z.number().min(0).max(1).default(0.05),
     /** RN-CAT-02: máximo de fontes enviadas ao LLM no "Pergunte ao catálogo". */
     pergunte_max_fontes: z.number().int().min(1).default(6),
@@ -44,13 +46,14 @@ export const ParametrosCatalogo = z
   .strict();
 export type ParametrosCatalogo = z.infer<typeof ParametrosCatalogo>;
 
-// ---------- preço visível (RF-CAT-03, RN-VEN-01) ----------
+// ---------- preço visível (RF-CAT-03, RN-CAT-06, RN-VEN-01) ----------
 export const OrigemPreco = z.enum(['condicao', 'cliente', 'padrao']);
 export type OrigemPreco = z.infer<typeof OrigemPreco>;
 
 /**
  * Preço que a pessoa pode ver/usar agora: tabela da condição ou do cliente (ou a padrão do tenant), com a
- * promoção vigente aplicada. Sem preço ⇒ `sellable=false` e `price_cents=null` (RN-VEN-01).
+ * promoção vigente aplicada. Sem preço ⇒ `sellable=false` e `price_cents=null` (RN-VEN-01). Cliente em contexto e
+ * item fora da tabela dele ⇒ "sem preço para este cliente", sem cair na tabela padrão (RN-CAT-06).
  */
 export const PrecoVisivel = z
   .object({
@@ -67,12 +70,14 @@ export const PrecoVisivel = z
     source: OrigemPreco.nullable(),
     sellable: z.boolean(),
     reason: z.enum(['sem_preco']).nullable(),
+    /** Texto para a tela quando não há preço (RN-CAT-06: "Sem preço para este cliente."); nulo quando vendável. */
+    notice: z.string().nullable().default(null),
   })
   .strict()
   .refine((p) => (p.sellable ? p.price_cents !== null : p.price_cents === null), 'Item vendável tem preço; item sem preço não é vendável.');
 export type PrecoVisivel = z.infer<typeof PrecoVisivel>;
 
-// ---------- estoque visível (RF-CAT-03, RN-VEN-20) ----------
+// ---------- estoque visível (RF-CAT-03, RN-CAT-07, RN-VEN-20) ----------
 export const FaixaEstoque = z.enum(['disponivel', 'baixo', 'sem_estoque']);
 export type FaixaEstoque = z.infer<typeof FaixaEstoque>;
 
@@ -91,23 +96,38 @@ export const EstoqueVisivel = z.object({
   /** Soma das filiais/depósitos visíveis ao usuário; nulo quando o tenant esconde o número. */
   quantity: z.number().int().nullable(),
   by_branch: z.array(EstoqueFilialVisivel),
-  /** Hora da última atualização do saldo (a mais antiga entre as filiais visíveis). */
+  /**
+   * RN-CAT-07: instante da última atualização do saldo (a mais antiga entre as filiais visíveis), sempre presente
+   * na resposta para a tela mostrar "atualizado às hh:mm" (`rotuloAtualizacaoEstoque`); nulo só quando nenhum
+   * saldo visível tem hora (aí `stale` é true).
+   */
   updated_at: InstanteUtc.nullable(),
-  /** Passou de `estoque_defasado_horas` sem atualizar. */
+  /** RN-CAT-07: passou de `estoque_defasado_horas` sem atualizar (ou há saldo sem hora): "estoque desatualizado". */
   stale: z.boolean(),
 });
 export type EstoqueVisivel = z.infer<typeof EstoqueVisivel>;
 
 // ---------- vitrine ----------
-/** Cartão de produto na vitrine/lista/resultado de busca: cadastro base do Core + preço e estoque visíveis. */
-export const ItemVitrine = ProductBase.pick({ id: true, erp_code: true, description: true, brand: true, line: true, unit: true, ean: true }).extend({
-  thumbnail_url: z.string().nullable(),
-  is_campaign: z.boolean(),
-  price: PrecoVisivel,
-  availability: EstoqueVisivel,
-  /** Nota final do ranking (0..~1,3); só na busca. */
-  score: z.number().optional(),
-});
+/**
+ * Cartão de produto na vitrine/lista/resultado de busca: cadastro base do Core + preço e estoque visíveis.
+ * RN-CAT-05: para quem não vê preço e estoque (promotor com `promotor_ve_preco_estoque=false`), `price` e
+ * `availability` vêm nulos e `price_stock_visible=false` — a ficha e as fotos continuam.
+ */
+export const ItemVitrine = ProductBase.pick({ id: true, erp_code: true, description: true, brand: true, line: true, unit: true, ean: true })
+  .extend({
+    thumbnail_url: z.string().nullable(),
+    is_campaign: z.boolean(),
+    price: PrecoVisivel.nullable(),
+    availability: EstoqueVisivel.nullable(),
+    /** RN-CAT-05: false = o perfil não vê preço de tabela nem estoque deste tenant. */
+    price_stock_visible: z.boolean().default(true),
+    /** Nota final do ranking (0..~1,3); só na busca. */
+    score: z.number().optional(),
+  })
+  .refine((i) => (i.price_stock_visible ? i.price !== null && i.availability !== null : i.price === null && i.availability === null), {
+    message: 'Com preço e estoque visíveis, o item traz os dois; sem, não traz nenhum.',
+    path: ['price_stock_visible'],
+  });
 export type ItemVitrine = z.infer<typeof ItemVitrine>;
 
 // ---------- sinônimos do tenant (RF-CAT-02, RF-CAT-07) ----------

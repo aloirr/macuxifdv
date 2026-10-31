@@ -1,10 +1,16 @@
 /**
- * Estoque visível (RF-CAT-03): saldo só das filiais/depósitos do usuário, em faixas (disponível, baixo, sem
- * estoque) parametrizáveis, com a hora da atualização e, se o tenant preferir, sem o número exato.
+ * Estoque visível (RF-CAT-03, RN-CAT-07): saldo só das filiais/depósitos do usuário, em faixas (disponível, baixo
+ * até [10], sem estoque), número exato visível por padrão, "desatualizado" depois de [24] h e sempre com o
+ * instante da atualização para a tela mostrar "atualizado às hh:mm" (`rotuloAtualizacaoEstoque`).
  * O saldo é o do ERP; reservas de pedido são descontadas pelo Vendedor (RN-VEN-20), não aqui.
  */
 import type { EstoqueVisivel, FaixaEstoque, StockByBranch } from '../contracts';
+import { localDate } from '@macuxi/comum';
 import type { ParametrosCatalogo } from './parametros';
+
+/** RN-CAT-07: aviso discreto quando `stale` é true. */
+export const AVISO_ESTOQUE_DESATUALIZADO = 'Estoque desatualizado';
+export const ROTULO_SEM_HORA = 'Sem hora de atualização';
 
 export interface OpcoesEstoque {
   /** Filiais/depósitos do usuário. `null` = todas (analista, assistente, admin: escopo do tenant, RN-CORE-04). */
@@ -59,4 +65,19 @@ export function estoqueVisivel(produtoId: string, saldos: readonly StockByBranch
     updated_at: maisAntiga === null ? null : new Date(maisAntiga).toISOString(),
     stale: filiais.length > 0 && (algumSemHora || (maisAntiga !== null && agora - maisAntiga > horas * 3_600_000)),
   };
+}
+
+/**
+ * RN-CAT-07: "Atualizado às hh:mm" no fuso do tenant; se a atualização foi em outro dia (no fuso do tenant),
+ * "Atualizado em dd/mm às hh:mm". Sem hora conhecida: "Sem hora de atualização".
+ */
+export function rotuloAtualizacaoEstoque(estoque: Pick<EstoqueVisivel, 'updated_at'>, agora: string, fuso: string): string {
+  if (estoque.updated_at === null) return ROTULO_SEM_HORA;
+  const t = new Date(estoque.updated_at);
+  const a = new Date(agora);
+  if (Number.isNaN(t.getTime()) || Number.isNaN(a.getTime())) throw new RangeError('Informe os instantes em ISO 8601 UTC.');
+  const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
+  if (localDate(t, fuso) === localDate(a, fuso)) return `Atualizado às ${hora}`;
+  const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit' }).format(t);
+  return `Atualizado em ${dia} às ${hora}`;
 }

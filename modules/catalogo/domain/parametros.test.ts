@@ -7,9 +7,21 @@ describe('parâmetros do tenant do Catálogo (doc 03, tabela de parâmetros)', (
     expect(PARAMETROS_PADRAO.fuso).toBe('America/Manaus');
   });
 
-  it('RF-CAT-03: estoque mostra o número exato por padrão (premissa) e a faixa baixo vai até 10', () => {
+  it('RN-CAT-07: estoque mostra o número exato por padrão e a faixa baixo vai até 10', () => {
     expect(PARAMETROS_PADRAO.estoque_mostrar_quantidade).toBe(true);
     expect(PARAMETROS_PADRAO.estoque_baixo_ate).toBe(10);
+  });
+
+  it('RN-CAT-05: por padrão o promotor não vê preço de tabela nem estoque; o tenant pode liberar', () => {
+    expect(PARAMETROS_PADRAO.promotor_ve_preco_estoque).toBe(false);
+    expect(resolverParametros({ promotor_ve_preco_estoque: true }).promotor_ve_preco_estoque).toBe(true);
+  });
+
+  it('RN-CAT-08: pesos e cache do ranking — padrões atuais, parametrizáveis por tenant (calibração na Sprint 3)', () => {
+    expect(PARAMETROS_PADRAO).toMatchObject({ peso_semantico: 0.4, peso_estoque: 0.1, peso_mais_vendido: 0.1, peso_campanha: 0.05, cache_ttl_s: 600, cache_min_ocorrencias: 2 });
+    const p = resolverParametros({ peso_semantico: 0.6, peso_campanha: 0, cache_ttl_s: 0 });
+    expect(p).toMatchObject({ peso_semantico: 0.6, peso_campanha: 0, cache_ttl_s: 0, peso_estoque: 0.1 });
+    expect(() => resolverParametros({ peso_estoque: 1.5 })).toThrow(/peso_estoque/);
   });
 
   it('resolverParametros mistura o parcial do tenant com o padrão', () => {

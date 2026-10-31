@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PrecoVisivel } from '../contracts';
-import { descontoPct, precoVisivel, type ItemTabelaPreco, type Promocao } from './preco';
+import { descontoPct, MENSAGEM_SEM_PRECO, MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel, type ItemTabelaPreco, type Promocao } from './preco';
 
 const AGORA = '2026-10-31T15:00:00Z';
 const item = (o: Partial<ItemTabelaPreco> = {}): ItemTabelaPreco => ({ price_table_id: 't-cli', product_id: 'p1', price_cents: 1000, valid_from: null, valid_to: null, ...o });
@@ -28,6 +28,25 @@ describe('RN-VEN-01 / RF-CAT-03: preço visível (tabela do cliente e da condiç
     const r = ver([item({ price_table_id: null, price_cents: 900 })]);
     expect(r).toMatchObject({ price_cents: null, base_cents: null, sellable: false, reason: 'sem_preco', source: null });
     expect(PrecoVisivel.safeParse(r).success).toBe(true);
+  });
+
+  it('RN-CAT-06: item fora da tabela do cliente — "sem preço para este cliente", não vendável, sem cair na tabela padrão', () => {
+    const itens = [item({ price_table_id: null, price_cents: 900 }), item({ price_table_id: 't-outro', price_cents: 800 }), item({ product_id: 'p2', price_cents: 700 })];
+    const r = ver(itens);
+    expect(r).toMatchObject({ product_id: 'p1', price_cents: null, base_cents: null, price_table_id: null, source: null, sellable: false, reason: 'sem_preco' });
+    expect(r.notice).toBe(MENSAGEM_SEM_PRECO_CLIENTE);
+    expect(MENSAGEM_SEM_PRECO_CLIENTE).toBe('Sem preço para este cliente.');
+    expect(PrecoVisivel.safeParse(r).success).toBe(true);
+  });
+
+  it('RN-CAT-06: item fora da tabela do cliente continua sem preço mesmo com promoção vigente e com a condição sem o item', () => {
+    const r = ver([item({ price_table_id: null, price_cents: 900 })], [promo({ tipo: 'preco_fixo', valor: 500 })], { tabela_condicao_id: 't-cond' });
+    expect(r).toMatchObject({ price_cents: null, sellable: false, on_promotion: false, notice: MENSAGEM_SEM_PRECO_CLIENTE });
+  });
+
+  it('RN-CAT-06: item vendável não traz aviso; sem cliente e sem preço na padrão o aviso é genérico', () => {
+    expect(ver([item({ price_cents: 1590 })]).notice).toBeNull();
+    expect(ver([item({ price_cents: 1590 })], [], { tabela_cliente_id: null })).toMatchObject({ sellable: false, notice: MENSAGEM_SEM_PRECO });
   });
 
   it('RF-CAT-03: sem cliente em contexto vale a tabela padrão do tenant', () => {

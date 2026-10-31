@@ -11,3 +11,4 @@ export * from './estoque';
 export * from './limite-ia';
 export * from './ia';
 export * from './pergunte';
+export * from './visibilidade';
