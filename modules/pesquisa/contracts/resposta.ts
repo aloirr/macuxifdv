@@ -12,6 +12,9 @@ export const FotoResposta = z
     /** Chave no storage (depois do upload) ou caminho local do aparelho (antes). Nunca vazia. */
     referencia: z.string().trim().min(1, 'A foto precisa de uma referência.').max(500),
     capturada_em: InstanteUtc,
+    /** RN-PES-06: maior lado final <= [1600 px], JPEG qualidade [80] (o app comprime; a API confere se informado). */
+    largura_px: z.number().int().positive().optional(),
+    altura_px: z.number().int().positive().optional(),
   })
   .strict();
 export type FotoResposta = z.infer<typeof FotoResposta>;
@@ -55,5 +58,8 @@ export const RespostaPesquisa = RespostaEnvio.extend({
   /** Equipe direta do usuário quando respondeu (base do filtro por equipe nos resultados). */
   equipe_id: Uuid.nullable().default(null),
   recebida_em: InstanteUtc,
+  /** RN-PES-04: relógio adiantado ou fora da vigência — aceita e sinalizada; visível no resultado. */
+  suspeita: z.boolean().default(false),
+  motivos_suspeita: z.array(z.enum(['RELOGIO_ADIANTADO', 'ANTES_DA_VIGENCIA', 'APOS_A_VIGENCIA'])).default([]),
 }).strict();
 export type RespostaPesquisa = z.infer<typeof RespostaPesquisa>;

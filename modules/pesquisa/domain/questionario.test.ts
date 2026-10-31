@@ -133,7 +133,7 @@ describe('RF-PES-01: validação do questionário para publicar', () => {
     expect(codigos(validarVersao(w, PARAMETROS_PADRAO).erros)).toContain('IDS_REPETIDOS');
   });
 
-  it('premissa T-0012: limite de perguntas e de opções vem dos parâmetros do tenant', () => {
+  it('RN-PES-07: limite de perguntas e de opções vem dos parâmetros do tenant', () => {
     const muitas = Array.from({ length: 51 }, (_, i) => sim_nao(i + 1));
     expect(codigos(validarVersao(versao({ perguntas: muitas }), PARAMETROS_PADRAO).erros)).toContain('LIMITE_PERGUNTAS');
     const opcoes = Array.from({ length: 21 }, (_, i) => 100 + i);
@@ -141,7 +141,7 @@ describe('RF-PES-01: validação do questionário para publicar', () => {
     expect(codigos(validarVersao(versao({ perguntas: [unica(1, opcoes)] }), { ...PARAMETROS_PADRAO, max_opcoes_por_pergunta: 25 }).erros)).not.toContain('LIMITE_OPCOES');
   });
 
-  it('premissa T-0012: escala com amplitude acima do limite e foto com mais fotos que o tenant permite são recusadas', () => {
+  it('RN-PES-07: escala com amplitude acima do limite e foto com mais fotos que o tenant permite são recusadas', () => {
     expect(codigos(validarVersao(versao({ perguntas: [escala(1, { minimo: 0, maximo: 11 })] }), PARAMETROS_PADRAO).erros)).toContain('ESCALA_AMPLITUDE');
     expect(codigos(validarVersao(versao({ perguntas: [escala(1, { minimo: 0, maximo: 10 })] }), PARAMETROS_PADRAO).erros)).not.toContain('ESCALA_AMPLITUDE');
     expect(codigos(validarVersao(versao({ perguntas: [foto(1, { max_fotos: 11 })] }), PARAMETROS_PADRAO).erros)).toContain('FOTOS_ACIMA_DO_LIMITE');

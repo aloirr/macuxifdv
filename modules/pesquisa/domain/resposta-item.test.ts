@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codigoDeBarrasValido, itemRespondido, validarItem } from './resposta-item';
+import { avisarItem, codigoDeBarrasValido, dimensoesDaFoto, gs1Confere, itemRespondido, validarItem } from './resposta-item';
 import { codigo, data, escala, foto, item, multipla, numero, sim_nao, texto, u, unica } from './util-teste';
 
 const codigos = (es: ReturnType<typeof validarItem>) => es.map((e) => e.codigo);
@@ -88,25 +88,45 @@ describe('RF-PES-01: validação da resposta por tipo', () => {
     expect(codigos(validarItem(p, semRef))).toEqual(['FOTO_SEM_REFERENCIA']);
   });
 
-  it('premissa T-0012: máximo de fotos do tenant (10) limita o configurado na pergunta', () => {
+  it('RN-PES-07: máximo de fotos do tenant (10) limita o configurado na pergunta', () => {
     const p = foto(1, { min_fotos: 1, max_fotos: 20 });
     expect(codigos(validarItem(p, item.foto(1, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])))).toEqual(['FOTOS_FORA_DO_LIMITE']);
   });
 
-  it('RF-PES-01: código de barras — EAN com dígito verificador certo', () => {
+  it('RN-PES-06: código de barras com dígito GS1 inválido gera AVISO, não bloqueio', () => {
     expect(validarItem(codigo(1), item.codigo(1, '4006381333931'))).toEqual([]);
-    expect(codigos(validarItem(codigo(1), item.codigo(1, '4006381333932')))).toEqual(['CODIGO_INVALIDO']);
+    expect(avisarItem(codigo(1), item.codigo(1, '4006381333931'))).toEqual([]);
+    expect(validarItem(codigo(1), item.codigo(1, '4006381333932'))).toEqual([]);
+    expect(avisarItem(codigo(1), item.codigo(1, '4006381333932')).map((a) => a.codigo)).toEqual(['CODIGO_GS1_INVALIDO']);
+  });
+
+  it('RN-PES-06: código fora do formato (curto ou com espaço) continua sendo erro', () => {
+    expect(codigos(validarItem(codigo(1), item.codigo(1, 'AB')))).toEqual(['CODIGO_INVALIDO']);
+  });
+
+  it('RN-PES-06: foto com maior lado acima de 1600 px é recusada; até 1600 passa', () => {
+    const p = foto(1);
+    const com = (largura_px: number, altura_px: number) => ({ pergunta_id: u(1), tipo: 'foto' as const, fotos: [{ id: u(10), referencia: 'f.jpg', capturada_em: '2026-10-31T13:00:00Z', largura_px, altura_px }] });
+    expect(validarItem(p, com(1600, 1200))).toEqual([]);
+    expect(codigos(validarItem(p, com(1200, 1601)))).toEqual(['FOTO_GRANDE_DEMAIS']);
+  });
+
+  it('RN-PES-06: dimensoesDaFoto reduz o maior lado para 1600 mantendo a proporção e não amplia', () => {
+    expect(dimensoesDaFoto(4000, 3000, 1600)).toEqual({ largura: 1600, altura: 1200 });
+    expect(dimensoesDaFoto(3000, 4000, 1600)).toEqual({ largura: 1200, altura: 1600 });
+    expect(dimensoesDaFoto(800, 600, 1600)).toEqual({ largura: 800, altura: 600 });
   });
 });
 
-describe('RF-PES-01: código de barras (premissa T-0012)', () => {
-  it('EAN-8, UPC-A (12), EAN-13 e DUN-14 conferem o dígito verificador', () => {
-    expect(codigoDeBarrasValido('96385074')).toBe(true);
-    expect(codigoDeBarrasValido('96385075')).toBe(false);
-    expect(codigoDeBarrasValido('036000291452')).toBe(true);
-    expect(codigoDeBarrasValido('036000291453')).toBe(false);
-    expect(codigoDeBarrasValido('4006381333931')).toBe(true);
-    expect(codigoDeBarrasValido('14006381333938')).toBe(true);
+describe('RN-PES-06: código de barras', () => {
+  it('RN-PES-06: EAN-8, UPC-A (12), EAN-13 e DUN-14 têm o dígito GS1 conferido (gs1Confere)', () => {
+    expect(gs1Confere('96385074')).toBe(true);
+    expect(gs1Confere('96385075')).toBe(false);
+    expect(gs1Confere('036000291452')).toBe(true);
+    expect(gs1Confere('036000291453')).toBe(false);
+    expect(gs1Confere('4006381333931')).toBe(true);
+    expect(gs1Confere('14006381333938')).toBe(true);
+    expect(gs1Confere('LOJA-0042')).toBe(true);
   });
   it('código que não é EAN (ex.: Code 128 interno) vale se tiver de 3 a 48 caracteres sem espaço', () => {
     expect(codigoDeBarrasValido('LOJA-0042')).toBe(true);

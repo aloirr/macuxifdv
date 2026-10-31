@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { avaliarEtapaCheckout, type EntradaCheckout } from './checkout';
+import { avaliarEtapaCheckout, clienteFechadoNoContexto, type EntradaCheckout } from './checkout';
 import type { Questionario } from '../contracts';
 import { QUEST, TENANT, publicada, u } from './util-teste';
 
@@ -7,7 +7,7 @@ const q = (id: string): Questionario => ({ id, tenant_id: TENANT, criado_em: '20
 const entrada = (extra: Partial<EntradaCheckout> = {}): EntradaCheckout => ({
   pesquisas: [{ questionario: q(QUEST), versoes: [publicada({ modo: 'checkout_obrigatoria', titulo: 'Gôndola do mês' })] }],
   usuario: { id: u(1), perfil: 'promotor', equipe_ids: [] },
-  cliente: { id: u(60), segmento: null, canal: null, regiao: null },
+  cliente: { id: u(60), segmento: null, regiao: null },
   visita_id: u(70),
   agora: '2026-10-31T15:00:00Z',
   respostas: [],
@@ -54,7 +54,7 @@ describe('RN-PES-03 / RF-PES-03: pesquisa obrigatória no checkout', () => {
   });
 
   it('RF-PES-03: pesquisa fora do público (perfil), da vigência ou rascunho não bloqueia', () => {
-    const outroPerfil = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: ['vendedor'], equipes: [], segmentos: [], canais: [], regioes: [], clientes: [] } });
+    const outroPerfil = publicada({ modo: 'checkout_obrigatoria', publico_alvo: { perfis: ['vendedor'], equipes: [], segmentos: [], regioes: [], clientes: [] } });
     expect(avaliarEtapaCheckout(entrada({ pesquisas: [{ questionario: q(QUEST), versoes: [outroPerfil] }] })).bloqueia_checkout).toBe(false);
     const vencida = publicada({ modo: 'checkout_obrigatoria', vigencia: { inicio: '2026-09-01T00:00:00Z', fim: '2026-10-01T00:00:00Z' } });
     expect(avaliarEtapaCheckout(entrada({ pesquisas: [{ questionario: q(QUEST), versoes: [vencida] }] })).bloqueia_checkout).toBe(false);
@@ -92,5 +92,20 @@ describe('RN-PES-03 / RF-PES-03: pesquisa obrigatória no checkout', () => {
   it('RN-CORE-12: sem pesquisa obrigatória o checkout está liberado e a mensagem vem vazia', () => {
     const r = avaliarEtapaCheckout(entrada({ pesquisas: [] }));
     expect(r).toMatchObject({ bloqueia_checkout: false, concluida: true, mensagem: null });
+  });
+});
+
+describe('RN-PES-03 / RN-CORE-14: cliente fechado vindo do ContextoCheckout do Core', () => {
+  it('RN-CORE-14: clienteFechado ou motivo loja_fechada/acesso_negado dispensam; contexto sem o campo não', () => {
+    expect(clienteFechadoNoContexto({})).toBe(false);
+    expect(clienteFechadoNoContexto({ clienteFechado: false, motivoClienteFechado: null })).toBe(false);
+    expect(clienteFechadoNoContexto({ clienteFechado: true })).toBe(true);
+    expect(clienteFechadoNoContexto({ motivoClienteFechado: 'loja_fechada' })).toBe(true);
+    expect(clienteFechadoNoContexto({ motivoClienteFechado: 'acesso_negado' })).toBe(true);
+  });
+  it('RN-PES-03: com o contexto de cliente fechado a etapa conclui sem a pesquisa', () => {
+    const r = avaliarEtapaCheckout(entrada({ cliente_fechado: clienteFechadoNoContexto({ motivoClienteFechado: 'acesso_negado' }) }));
+    expect(r.bloqueia_checkout).toBe(false);
+    expect(r.concluida).toBe(true);
   });
 });

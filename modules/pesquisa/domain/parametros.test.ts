@@ -7,7 +7,12 @@ describe('parâmetros do tenant da Pesquisa', () => {
     expect(PARAMETROS_PADRAO.fuso).toBe('America/Manaus');
   });
 
-  it('premissa T-0012: limites do construtor têm padrão', () => {
+  it('RN-PES-06: foto até 1600 px no maior lado, JPEG qualidade 80, como parâmetros do tenant', () => {
+    expect(PARAMETROS_PADRAO).toMatchObject({ foto_max_lado_px: 1600, foto_jpeg_qualidade: 80 });
+    expect(resolverParametros({ foto_max_lado_px: 1280 }).foto_max_lado_px).toBe(1280);
+  });
+
+  it('RN-PES-07: limites do construtor (50 perguntas, 20 opções, 10 fotos, 2000 caracteres) são parâmetros do tenant', () => {
     expect(PARAMETROS_PADRAO).toMatchObject({ max_perguntas: 50, max_opcoes_por_pergunta: 20, max_fotos_por_pergunta: 10, texto_max_caracteres: 2000, escala_amplitude_max: 10 });
   });
 

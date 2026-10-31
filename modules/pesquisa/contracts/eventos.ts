@@ -25,6 +25,8 @@ export const RespostaRegistradaV1 = z
     respondida_em: InstanteUtc,
     recebida_em: InstanteUtc,
     total_itens: z.number().int().min(1),
+    /** RN-PES-04: resposta aceita mas sinalizada (relógio adiantado ou fora da vigência). */
+    suspeita: z.boolean().default(false),
   })
   .strict();
 export type RespostaRegistradaV1 = z.infer<typeof RespostaRegistradaV1>;

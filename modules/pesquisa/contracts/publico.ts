@@ -1,6 +1,6 @@
 /**
  * Público-alvo, vigência, frequência e modo da pesquisa (RF-PES-02, RF-PES-03, RN-PES-02).
- * Critério vazio = sem restrição; critérios de usuário (perfis, equipes) e de cliente (segmentos, canais,
+ * Critério vazio = sem restrição; critérios de usuário (perfis, equipes) e de cliente (segmentos,
  * regiões, lista) valem juntos (E). Ver docs/modulos/pesquisa/regras.md §4.
  */
 import { z } from 'zod';
@@ -12,9 +12,8 @@ export const PublicoAlvo = z
     /** Ids de equipe; vale a equipe do usuário e as acima dela na árvore (o Core informa a lista). */
     equipes: z.array(Uuid).default([]),
     segmentos: z.array(TextoCurto).default([]),
-    canais: z.array(TextoCurto).default([]),
     regioes: z.array(TextoCurto).default([]),
-    /** Lista explícita de clientes: entram além dos que casam por segmento/canal/região. */
+    /** Lista explícita de clientes: entram além dos que casam por segmento/região (sem canal até o Core ter o campo: RN-PES-05). */
     clientes: z.array(Uuid).default([]),
   })
   .strict();

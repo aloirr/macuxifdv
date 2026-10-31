@@ -3,7 +3,7 @@
  * número e escala, filtrável por período (dia civil no fuso do tenant) e equipe. Por VERSÃO (RN-PES-01): respostas
  * de outras versões ficam de fora e aparecem em `ignoradas_outra_versao`. Percentuais com 2 casas; sem dados = null.
  */
-import type { FiltroResultado, ItemResposta, Pergunta, QuestionarioVersao, ResultadoPergunta, ResultadoPesquisa, RespostaPesquisa } from '../contracts';
+import type { FiltroResultado, ItemResposta, Pergunta, QuestionarioVersao, ResultadoConsolidado, ResultadoPergunta, ResultadoPesquisa, RespostaPesquisa } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
 import { itemRespondido } from './resposta-item';
 import { arredondar, diaLocal, percentual } from './util';
@@ -126,10 +126,84 @@ export function agregarResultados(entrada: EntradaResultado): ResultadoPesquisa 
     filtro,
     total_respostas: escolhidas.length,
     ignoradas_outra_versao: ignoradas,
+    respostas_suspeitas: escolhidas.filter((r) => r.suspeita).length,
     base,
     respondentes_distintos: respondentes.size,
     publico_total: universo ? new Set(universo.map((a) => a.id)).size : null,
     taxa_resposta_pct: universo ? percentual(noUniverso, new Set(universo.map((a) => a.id)).size) : null,
     por_pergunta: versao.perguntas.map((p) => resumirPergunta(p, escolhidas)),
+  };
+}
+
+export interface EntradaConsolidacao {
+  versoes: readonly QuestionarioVersao[];
+  respostas: readonly RespostaPesquisa[];
+  filtro?: FiltroResultado;
+  fuso?: string;
+}
+
+/** Pergunta "somada" das versões: opções em união (rótulo da mais recente) e escala pela união das pontas. */
+function perguntaUnida(defs: readonly Pergunta[]): Pergunta {
+  const ultima = defs[defs.length - 1]!;
+  if (ultima.tipo === 'unica' || ultima.tipo === 'multipla') {
+    const porId = new Map<string, { id: string; rotulo: string }>();
+    for (const d of defs) for (const o of (d as typeof ultima).opcoes) porId.set(o.id, { ...(porId.get(o.id) ?? {}), ...o });
+    return { ...ultima, opcoes: [...porId.values()] } as Pergunta;
+  }
+  if (ultima.tipo === 'escala') {
+    const escalas = defs as Extract<Pergunta, { tipo: 'escala' }>[];
+    return { ...ultima, minimo: Math.min(...escalas.map((e) => e.minimo)), maximo: Math.max(...escalas.map((e) => e.maximo)) };
+  }
+  return ultima;
+}
+
+/**
+ * RN-PES-01: resultado entre versões. Só perguntas com o mesmo identificador estável (mesmo `id` e mesmo `tipo`) em
+ * mais de uma versão publicada são consolidadas; as demais (nova, removida, ou com tipo alterado) aparecem por versão.
+ * Nunca junta perguntas por texto do enunciado. Versões em rascunho ficam de fora; respostas de versão desconhecida
+ * são ignoradas; o mesmo id de resposta conta uma vez.
+ */
+export function consolidarEntreVersoes(entrada: EntradaConsolidacao): ResultadoConsolidado {
+  const filtro = entrada.filtro ?? {};
+  const fuso = entrada.fuso ?? PARAMETROS_PADRAO.fuso;
+  const versoes = entrada.versoes.filter((v) => v.status === 'publicada').slice().sort((a, b) => a.numero - b.numero);
+  const ids = new Set(versoes.map((v) => v.id));
+  const vistos = new Set<string>();
+  const porVersao = new Map<string, RespostaPesquisa[]>(versoes.map((v) => [v.id, []]));
+  for (const r of entrada.respostas) {
+    if (!ids.has(r.versao_id) || vistos.has(r.id)) continue;
+    vistos.add(r.id);
+    if (dentroDoFiltro(r, filtro, fuso)) porVersao.get(r.versao_id)!.push(r);
+  }
+
+  // Grupos por (id, tipo) com 2+ versões.
+  const grupos = new Map<string, { versao: QuestionarioVersao; pergunta: Pergunta }[]>();
+  for (const v of versoes) for (const p of v.perguntas) grupos.set(`${p.id}|${p.tipo}`, [...(grupos.get(`${p.id}|${p.tipo}`) ?? []), { versao: v, pergunta: p }]);
+  const consolidaveis = new Set([...grupos].filter(([, g]) => g.length > 1).map(([k]) => k));
+
+  const consolidadas: ResultadoConsolidado['consolidadas'] = [];
+  const emOrdem = new Set<string>();
+  for (const v of versoes.slice().reverse()) {
+    for (const p of v.perguntas) {
+      const chave = `${p.id}|${p.tipo}`;
+      if (!consolidaveis.has(chave) || emOrdem.has(chave)) continue;
+      emOrdem.add(chave);
+      const g = grupos.get(chave)!;
+      const respostas = g.flatMap((x) => porVersao.get(x.versao.id)!);
+      consolidadas.push({ pergunta: resumirPergunta(perguntaUnida(g.map((x) => x.pergunta)), respostas), versoes_ids: g.map((x) => x.versao.id), total_respostas: respostas.length });
+    }
+  }
+
+  return {
+    questionario_id: versoes[0]?.questionario_id ?? '00000000-0000-0000-0000-000000000000',
+    filtro,
+    versoes: versoes.map((v) => ({ versao_id: v.id, numero: v.numero, respostas: porVersao.get(v.id)!.length })),
+    respostas_suspeitas: [...porVersao.values()].flat().filter((r) => r.suspeita).length,
+    consolidadas,
+    por_versao: versoes.map((v) => ({
+      versao_id: v.id,
+      numero: v.numero,
+      perguntas: v.perguntas.filter((p) => !consolidaveis.has(`${p.id}|${p.tipo}`)).map((p) => resumirPergunta(p, porVersao.get(v.id)!)),
+    })),
   };
 }

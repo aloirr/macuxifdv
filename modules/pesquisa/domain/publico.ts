@@ -17,7 +17,6 @@ export interface UsuarioAlvo {
 export interface ClienteAlvo {
   id: string;
   segmento: string | null;
-  canal: string | null;
   regiao: string | null;
 }
 
@@ -48,19 +47,18 @@ export function publicoContemUsuario(publico: PublicoAlvo, usuario: UsuarioAlvo)
 }
 
 /**
- * RF-PES-02: critérios de cliente. Segmento, canal e região preenchidos valem juntos (E); a lista de clientes soma a
+ * RF-PES-02: critérios de cliente. Segmento e região preenchidos (sem canal: RN-PES-05) valem juntos (E); a lista de clientes soma a
  * eles (OU). Sem nenhum critério, vale para qualquer cliente e também para pesquisa sem cliente (avulsa);
  * com critério e sem cliente em contexto, não se aplica.
  */
 export function publicoContemCliente(publico: PublicoAlvo, cliente: ClienteAlvo | null): boolean {
-  const temAtributos = publico.segmentos.length + publico.canais.length + publico.regioes.length > 0;
+  const temAtributos = publico.segmentos.length + publico.regioes.length > 0;
   const temLista = publico.clientes.length > 0;
   if (!temAtributos && !temLista) return true;
   if (cliente === null) return false;
   const porAtributo =
     temAtributos &&
     (publico.segmentos.length === 0 || contem(publico.segmentos, cliente.segmento)) &&
-    (publico.canais.length === 0 || contem(publico.canais, cliente.canal)) &&
     (publico.regioes.length === 0 || contem(publico.regioes, cliente.regiao));
   return porAtributo || (temLista && publico.clientes.includes(cliente.id));
 }
@@ -103,7 +101,7 @@ function primeiroDiaDoProximoMes(dia: string): string {
 
 /**
  * RN-PES-02: a frequência controla quando a pesquisa reaparece para o mesmo cliente/usuário. A chave é o cliente
- * quando há cliente em contexto (qualquer usuário conta) e o usuário quando não há (premissa T-0012). Semana = segunda
+ * quando há cliente em contexto (qualquer usuário conta, RN-PES-02) e o usuário quando não há (premissa). Semana = segunda
  * a domingo e mês = mês civil, no fuso do tenant. A frequência controla a OFERTA; resposta recebida nunca é recusada por ela.
  */
 export function frequenciaPermite(frequencia: Frequencia, anteriores: readonly RespostaAnterior[], ctx: ContextoFrequencia): ResultadoFrequencia {

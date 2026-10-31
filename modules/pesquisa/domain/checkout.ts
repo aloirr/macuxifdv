@@ -77,3 +77,17 @@ export function avaliarEtapaCheckout(entrada: EntradaCheckout): ResultadoEtapaCh
     : null;
   return { itens, pendentes, bloqueia_checkout, concluida: !bloqueia_checkout, mensagem };
 }
+
+/** Parte do `ContextoCheckout` do Core (RN-CORE-14) de que a Pesquisa precisa; tipo estrutural, sem importar o Core. */
+export interface ContextoClienteFechado {
+  clienteFechado?: boolean;
+  motivoClienteFechado?: 'loja_fechada' | 'acesso_negado' | null;
+}
+
+/**
+ * RN-PES-03 / RN-CORE-14: visita sem atendimento por cliente fechado (`loja_fechada` ou `acesso_negado`) dispensa a
+ * pesquisa obrigatória. Usado na entrada `cliente_fechado` de `avaliarEtapaCheckout` e no `concluida()` da etapa.
+ */
+export function clienteFechadoNoContexto(ctx: ContextoClienteFechado): boolean {
+  return ctx.clienteFechado === true || ctx.motivoClienteFechado === 'loja_fechada' || ctx.motivoClienteFechado === 'acesso_negado';
+}

@@ -25,7 +25,14 @@ export type CodigoErroResposta =
   | 'FOTOS_FORA_DO_LIMITE'
   | 'FOTO_REPETIDA'
   | 'FOTO_SEM_REFERENCIA'
-  | 'CODIGO_INVALIDO';
+  | 'CODIGO_INVALIDO'
+  | 'FOTO_GRANDE_DEMAIS';
+
+export interface AvisoResposta {
+  codigo: 'CODIGO_GS1_INVALIDO';
+  pergunta_id: string;
+  mensagem: string;
+}
 
 export interface ErroResposta {
   codigo: CodigoErroResposta;
@@ -69,13 +76,37 @@ function gs1Valido(digitos: string): boolean {
   return (10 - (soma % 10)) % 10 === Number(digitos[n - 1]);
 }
 
-/**
- * Premissa T-0012: só dígitos com 8, 12, 13 ou 14 posições são EAN/UPC e precisam do dígito verificador certo;
- * qualquer outro código (ex.: Code 128 interno da loja) vale com 3 a 48 caracteres, sem espaço.
- */
+/** RN-PES-06: formato aceito = 3 a 48 caracteres, sem espaço (inclui EAN/UPC e códigos internos como Code 128). */
 export function codigoDeBarrasValido(codigo: string): boolean {
-  if (/^\d+$/.test(codigo) && [8, 12, 13, 14].includes(codigo.length)) return gs1Valido(codigo);
   return /^\S{3,48}$/.test(codigo);
+}
+
+/**
+ * RN-PES-06: só dígitos com 8, 12, 13 ou 14 posições são EAN-8, UPC-A, EAN-13 e DUN-14 e têm dígito GS1 para conferir.
+ * Dígito errado gera AVISO, não bloqueio (o código digitado/lido vale mesmo assim).
+ */
+export function gs1Confere(codigo: string): boolean {
+  if (/^\d+$/.test(codigo) && [8, 12, 13, 14].includes(codigo.length)) return gs1Valido(codigo);
+  return true;
+}
+
+/** RN-PES-06: avisos do item que não impedem o envio (hoje, código com dígito GS1 inválido). */
+export function avisarItem(pergunta: Pergunta, item: ItemResposta): AvisoResposta[] {
+  if (pergunta.tipo !== 'codigo_barras' || item.tipo !== 'codigo_barras') return [];
+  const c = item.codigo.trim();
+  if (!codigoDeBarrasValido(c) || gs1Confere(c)) return [];
+  return [{ codigo: 'CODIGO_GS1_INVALIDO', pergunta_id: pergunta.id, mensagem: `O dígito verificador do código de "${pergunta.enunciado}" não confere. Confira a leitura; se estiver certo, pode seguir.` }];
+}
+
+/**
+ * RN-PES-06: tamanho final de uma foto = no máximo `max_lado_px` ([1600]) no maior lado, mantendo a proporção. O app
+ * redimensiona e grava em JPEG com `foto_jpeg_qualidade` ([80]) antes de enfileirar.
+ */
+export function dimensoesDaFoto(largura: number, altura: number, max_lado_px: number): { largura: number; altura: number } {
+  const maior = Math.max(largura, altura);
+  if (maior <= max_lado_px) return { largura, altura };
+  const f = max_lado_px / maior;
+  return { largura: Math.max(1, Math.round(largura * f)), altura: Math.max(1, Math.round(altura * f)) };
 }
 
 /** RF-PES-01: valida o item contra a definição da pergunta (tipo, limites, opções). */
@@ -138,6 +169,7 @@ export function validarItem(pergunta: Pergunta, item: ItemResposta, parametros: 
       const fotos = (item as Extract<ItemResposta, { tipo: 'foto' }>).fotos;
       if (fotos.some((f) => f.referencia.trim().length === 0)) return erro('FOTO_SEM_REFERENCIA', `Uma foto de ${rotulo} não foi salva. Tire a foto de novo.`);
       if (new Set(fotos.map((f) => f.id)).size !== fotos.length) return erro('FOTO_REPETIDA', `A mesma foto aparece duas vezes em ${rotulo}. Remova a repetida.`);
+      if (fotos.some((f) => Math.max(f.largura_px ?? 0, f.altura_px ?? 0) > parametros.foto_max_lado_px)) return erro('FOTO_GRANDE_DEMAIS', `Uma foto de ${rotulo} passa de ${parametros.foto_max_lado_px} px no maior lado. Tire a foto de novo (o app reduz sozinho).`);
       const max = Math.min(pergunta.max_fotos, parametros.max_fotos_por_pergunta);
       if (fotos.length < pergunta.min_fotos || fotos.length > max) return erro('FOTOS_FORA_DO_LIMITE', `Em ${rotulo}, envie de ${pergunta.min_fotos} a ${max} fotos (agora são ${fotos.length}).`);
       return [];

@@ -1,6 +1,6 @@
 /**
  * Parâmetros do tenant da Pesquisa. O padrão e a validação vêm do contrato (`ParametrosPesquisaSchema`), para app,
- * web e API usarem os mesmos valores. Valor de RN: tolerância de 24 h (RN-PES-04); o resto é premissa T-0012.
+ * web e API usarem os mesmos valores. Valores de RN: tolerância de 24 h (RN-PES-04), foto 1600 px/JPEG 80 (RN-PES-06) e limites do construtor (RN-PES-07); só a amplitude da escala é premissa.
  */
 import { ParametrosPesquisaSchema, type ParametrosPesquisa } from '../contracts';
 

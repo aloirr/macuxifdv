@@ -66,6 +66,8 @@ export const ResultadoPesquisa = z
     total_respostas: z.number().int().nonnegative(),
     /** Respostas de outras versões que ficaram de fora desta apuração. */
     ignoradas_outra_versao: z.number().int().nonnegative(),
+    /** RN-PES-04: respostas aceitas com flag de suspeita (relógio adiantado / fora da vigência), visíveis no resultado. */
+    respostas_suspeitas: z.number().int().nonnegative().default(0),
     base: z.enum(['usuario', 'cliente']),
     /** Quem respondeu (usuários ou clientes, conforme `base`), ao menos uma vez. */
     respondentes_distintos: z.number().int().nonnegative(),
@@ -77,3 +79,22 @@ export const ResultadoPesquisa = z
   })
   .strict();
 export type ResultadoPesquisa = z.infer<typeof ResultadoPesquisa>;
+
+/**
+ * RN-PES-01: resultado entre versões. Só perguntas com o MESMO identificador estável (e o mesmo tipo) em mais de uma
+ * versão são consolidadas; as demais aparecem por versão.
+ */
+export const ResultadoConsolidado = z
+  .object({
+    questionario_id: Uuid,
+    filtro: FiltroResultado,
+    /** Versões consideradas, em ordem crescente de número. */
+    versoes: z.array(z.object({ versao_id: Uuid, numero: z.number().int().positive(), respostas: z.number().int().nonnegative() }).strict()),
+    respostas_suspeitas: z.number().int().nonnegative(),
+    consolidadas: z.array(
+      z.object({ pergunta: ResultadoPergunta, versoes_ids: z.array(Uuid), total_respostas: z.number().int().nonnegative() }).strict(),
+    ),
+    por_versao: z.array(z.object({ versao_id: Uuid, numero: z.number().int().positive(), perguntas: z.array(ResultadoPergunta) }).strict()),
+  })
+  .strict();
+export type ResultadoConsolidado = z.infer<typeof ResultadoConsolidado>;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { validarResposta, validarVigenciaDaResposta } from './resposta';
+import type { Vigencia } from '../contracts';
+import { avaliarRecebimentoDaResposta, validarResposta } from './resposta';
 import { PARAMETROS_PADRAO } from './parametros';
 import { codigo, data, envio, escala, foto, item, multipla, numero, publicada, regra, sim_nao, texto, u, unica, versao } from './util-teste';
 
@@ -12,7 +13,7 @@ describe('RF-PES-01: validação da resposta contra a versão', () => {
 
   it('RF-PES-01: resposta completa e válida passa', () => {
     const r = validarResposta(v, envio([item.simNao(1, true), item.numero(3, 5)]));
-    expect(r).toEqual({ valida: true, erros: [] });
+    expect(r).toEqual({ valida: true, erros: [], avisos: [] });
   });
 
   it('RF-PES-01: obrigatória sem resposta é recusada, apontando a pergunta', () => {
@@ -54,7 +55,7 @@ describe('RF-PES-01: validação da resposta contra a versão', () => {
       w,
       envio([item.simNao(1, true), item.unica(2, 101), item.multipla(3, [201, 202]), item.numero(4, 3), item.texto(5, 'ok'), item.escala(6, 4), item.data(7, '2026-10-31'), item.foto(8, [10]), item.codigo(9, '4006381333931')]),
     );
-    expect(r).toEqual({ valida: true, erros: [] });
+    expect(r).toEqual({ valida: true, erros: [], avisos: [] });
   });
 });
 
@@ -111,39 +112,54 @@ describe('RN-PES-01: resposta é validada contra a versão que ela cita', () => 
   });
 });
 
-describe('RN-PES-04: vigência pela hora do aparelho, com tolerância', () => {
-  const vig = { inicio: '2026-10-01T04:00:00Z', fim: '2026-10-31T03:59:59Z' };
+describe('RN-PES-04: hora do aparelho x vigência — aceita e sinaliza, nunca recusa', () => {
+  const vig: Vigencia = { inicio: '2026-10-01T04:00:00Z', fim: '2026-10-31T03:59:59Z' };
   const tol = PARAMETROS_PADRAO.tolerancia_vigencia_h;
+  const av = (respondida_em: string, recebida_em: string, v = vig, t = tol) => avaliarRecebimentoDaResposta(v, { respondida_em, recebida_em }, t);
 
-  it('RN-PES-04: resposta feita no aparelho dentro da vigência é aceita, mesmo recebida depois', () => {
-    const r = validarVigenciaDaResposta(vig, { respondida_em: '2026-10-30T20:00:00Z', recebida_em: '2026-11-05T10:00:00Z' }, tol);
-    expect(r.valida).toBe(true);
+  it('RN-PES-04: resposta feita no aparelho dentro da vigência, mesmo recebida depois, não é suspeita', () => {
+    expect(av('2026-10-30T20:00:00Z', '2026-11-05T10:00:00Z')).toEqual({ aceita: true, suspeita: false, motivos: [], mensagem: null });
   });
 
-  it('RN-PES-04: até 24 h depois do fim ainda vale (tolerância); passou disso, APOS_A_VIGENCIA', () => {
-    expect(validarVigenciaDaResposta(vig, { respondida_em: '2026-11-01T03:59:59Z', recebida_em: '2026-11-01T04:00:00Z' }, tol).valida).toBe(true);
-    const r = validarVigenciaDaResposta(vig, { respondida_em: '2026-11-01T04:00:00Z', recebida_em: '2026-11-01T05:00:00Z' }, tol);
-    expect(r).toMatchObject({ valida: false, codigo: 'APOS_A_VIGENCIA' });
+  it('RN-PES-04: até 24 h depois do fim ainda vale (tolerância); passou disso é ACEITA com suspeita APOS_A_VIGENCIA', () => {
+    expect(av('2026-11-01T03:59:59Z', '2026-11-01T04:00:00Z').suspeita).toBe(false);
+    const r = av('2026-11-01T04:00:00Z', '2026-11-01T05:00:00Z');
+    expect(r).toMatchObject({ aceita: true, suspeita: true, motivos: ['APOS_A_VIGENCIA'] });
     expect(r.mensagem).toMatch(/vigência/);
   });
 
-  it('RN-PES-04: antes do início vale a mesma tolerância (relógio atrasado)', () => {
-    expect(validarVigenciaDaResposta(vig, { respondida_em: '2026-09-30T04:00:00Z', recebida_em: '2026-10-02T00:00:00Z' }, tol).valida).toBe(true);
-    expect(validarVigenciaDaResposta(vig, { respondida_em: '2026-09-30T03:59:59Z', recebida_em: '2026-10-02T00:00:00Z' }, tol)).toMatchObject({ valida: false, codigo: 'ANTES_DA_VIGENCIA' });
+  it('RN-PES-04: antes do início vale a mesma tolerância; além dela é aceita com suspeita ANTES_DA_VIGENCIA', () => {
+    expect(av('2026-09-30T04:00:00Z', '2026-10-02T00:00:00Z').suspeita).toBe(false);
+    expect(av('2026-09-30T03:59:59Z', '2026-10-02T00:00:00Z')).toMatchObject({ aceita: true, suspeita: true, motivos: ['ANTES_DA_VIGENCIA'] });
   });
 
   it('RN-PES-04: vigência sem fim nunca expira', () => {
-    expect(validarVigenciaDaResposta({ inicio: vig.inicio, fim: null }, { respondida_em: '2030-01-01T00:00:00Z', recebida_em: '2030-01-01T00:00:01Z' }, tol).valida).toBe(true);
+    expect(av('2030-01-01T00:00:00Z', '2030-01-01T00:00:01Z', { inicio: vig.inicio, fim: null }).suspeita).toBe(false);
   });
 
-  it('RN-PES-04: relógio do aparelho adiantado além da tolerância em relação ao servidor é recusado (RELOGIO_ADIANTADO)', () => {
-    const r = validarVigenciaDaResposta({ inicio: vig.inicio, fim: null }, { respondida_em: '2026-10-20T12:00:00Z', recebida_em: '2026-10-18T11:59:59Z' }, tol);
-    expect(r).toMatchObject({ valida: false, codigo: 'RELOGIO_ADIANTADO' });
-    expect(validarVigenciaDaResposta({ inicio: vig.inicio, fim: null }, { respondida_em: '2026-10-19T12:00:00Z', recebida_em: '2026-10-18T12:00:00Z' }, tol).valida).toBe(true);
+  it('RN-PES-04: relógio adiantado mais de 24 h em relação ao servidor é ACEITO com suspeita RELOGIO_ADIANTADO (nunca recusado)', () => {
+    const sem = { inicio: vig.inicio, fim: null };
+    expect(av('2026-10-20T12:00:00Z', '2026-10-18T11:59:59Z', sem)).toMatchObject({ aceita: true, suspeita: true, motivos: ['RELOGIO_ADIANTADO'] });
+    expect(av('2026-10-19T12:00:00Z', '2026-10-18T12:00:00Z', sem).suspeita).toBe(false);
   });
 
-  it('RN-PES-04: tolerância 0 vale exatamente o fim da vigência', () => {
-    expect(validarVigenciaDaResposta(vig, { respondida_em: '2026-10-31T04:00:00Z', recebida_em: '2026-10-31T05:00:00Z' }, 0).valida).toBe(false);
-    expect(validarVigenciaDaResposta(vig, { respondida_em: '2026-10-31T03:59:59Z', recebida_em: '2026-10-31T05:00:00Z' }, 0).valida).toBe(true);
+  it('RN-PES-04: relógio adiantado e fora da vigência ao mesmo tempo acumulam os dois motivos', () => {
+    const r = av('2026-12-20T12:00:00Z', '2026-10-18T12:00:00Z');
+    expect(r.aceita).toBe(true);
+    expect(r.motivos).toEqual(['RELOGIO_ADIANTADO', 'APOS_A_VIGENCIA']);
+  });
+
+  it('RN-PES-04: a tolerância é parâmetro do tenant (0 = exatamente o fim da vigência)', () => {
+    expect(av('2026-10-31T04:00:00Z', '2026-10-31T05:00:00Z', vig, 0).suspeita).toBe(true);
+    expect(av('2026-10-31T03:59:59Z', '2026-10-31T05:00:00Z', vig, 0).suspeita).toBe(false);
+  });
+});
+
+describe('RN-PES-06: validarResposta devolve aviso (não erro) para GS1 inválido', () => {
+  it('RN-PES-06: resposta com código de dígito errado continua válida e traz o aviso', () => {
+    const v = publicada({ perguntas: [codigo(1)] });
+    const r = validarResposta(v, envio([item.codigo(1, '4006381333932')]));
+    expect(r.valida).toBe(true);
+    expect(r.avisos.map((a) => a.codigo)).toEqual(['CODIGO_GS1_INVALIDO']);
   });
 });

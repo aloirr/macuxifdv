@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agregarResultados } from './resultados';
+import { agregarResultados, consolidarEntreVersoes } from './resultados';
 import type { RespostaPesquisa } from '../contracts';
 import { codigo, data, envio, escala, foto, item, multipla, numero, publicada, sim_nao, texto, u, unica } from './util-teste';
 import type { ItemResposta } from '../contracts';
@@ -10,6 +10,8 @@ const resp = (n: number, itens: ItemResposta[], extra: Partial<RespostaPesquisa>
   usuario_id: u(100 + n),
   equipe_id: u(50),
   recebida_em: '2026-10-31T14:00:00Z',
+  suspeita: false,
+  motivos_suspeita: [],
   ...extra,
 });
 
@@ -184,5 +186,65 @@ describe('RN-PES-01: resultados são por versão', () => {
     expect(r.por_pergunta[0]).toMatchObject({ respondentes: 0, pct_das_respostas: null });
     const p = r.por_pergunta[1]!;
     if (p.tipo === 'unica') expect(p.opcoes.every((o) => o.contagem === 0 && o.pct === null)).toBe(true);
+  });
+});
+
+describe('RN-PES-04: resposta suspeita aparece no resultado', () => {
+  it('RN-PES-04: respostas aceitas com flag de suspeita são contadas em respostas_suspeitas (e continuam no total)', () => {
+    const v = publicada({ perguntas: [sim_nao(1)] });
+    const r = agregarResultados({
+      versao: v,
+      respostas: [resp(1, [item.simNao(1, true)]), resp(2, [item.simNao(1, true)], { suspeita: true, motivos_suspeita: ['RELOGIO_ADIANTADO'] })],
+    });
+    expect(r.total_respostas).toBe(2);
+    expect(r.respostas_suspeitas).toBe(1);
+  });
+});
+
+describe('RN-PES-01: consolidação entre versões só por identificador estável', () => {
+  const v1 = publicada({ id: u(701), numero: 1, perguntas: [sim_nao(1), unica(2, [101, 102]), texto(3)] });
+  // v2: P1 mantida; P2 mantida com nova opção 103; P3 removida; P4 nova; P5 reaproveita o enunciado de P3 com outro id.
+  const v2 = publicada({ id: u(702), numero: 2, perguntas: [sim_nao(1), unica(2, [101, 102, 103]), sim_nao(4), texto(5, { enunciado: 'Pergunta 3' })] });
+  const r1 = (n: number, itens: ItemResposta[]) => resp(n, itens, { versao_id: u(701) });
+  const r2 = (n: number, itens: ItemResposta[]) => resp(n, itens, { versao_id: u(702) });
+  const respostas = [
+    r1(1, [item.simNao(1, true), item.unica(2, 101), item.texto(3, 'a')]),
+    r1(2, [item.simNao(1, false), item.unica(2, 102)]),
+    r2(3, [item.simNao(1, true), item.unica(2, 103), item.simNao(4, true), item.texto(5, 'b')]),
+  ];
+  const c = consolidarEntreVersoes({ versoes: [v2, v1], respostas });
+
+  it('RN-PES-01: pergunta com o mesmo id nas duas versões soma as respostas das duas', () => {
+    const p1 = c.consolidadas.find((x) => x.pergunta.pergunta_id === u(1))!;
+    expect(p1.versoes_ids).toEqual([u(701), u(702)]);
+    expect(p1.total_respostas).toBe(3);
+    expect(p1.pergunta).toMatchObject({ tipo: 'sim_nao', respondentes: 3 });
+  });
+
+  it('RN-PES-01: única com opção nova na v2 consolida pela união das opções (por id da opção)', () => {
+    const p2 = c.consolidadas.find((x) => x.pergunta.pergunta_id === u(2))!.pergunta;
+    if (p2.tipo !== 'unica') throw new Error('tipo');
+    expect(p2.opcoes.map((o) => [o.opcao_id, o.contagem])).toEqual([[u(101), 1], [u(102), 1], [u(103), 1]]);
+  });
+
+  it('RN-PES-01: pergunta removida, nova ou com id diferente aparece por versão, mesmo com o mesmo enunciado', () => {
+    expect(c.consolidadas.map((x) => x.pergunta.pergunta_id)).toEqual([u(1), u(2)]);
+    expect(c.por_versao.map((x) => [x.numero, x.perguntas.map((p) => p.pergunta_id)])).toEqual([
+      [1, [u(3)]],
+      [2, [u(4), u(5)]],
+    ]);
+  });
+
+  it('RN-PES-01: pergunta com o mesmo id mas outro tipo não é consolidada', () => {
+    const v3 = publicada({ id: u(703), numero: 3, perguntas: [texto(1)] });
+    const x = consolidarEntreVersoes({ versoes: [v1, v3], respostas: [] });
+    expect(x.consolidadas).toEqual([]);
+    expect(x.por_versao[1]!.perguntas.map((p) => p.tipo)).toEqual(['texto']);
+  });
+
+  it('RN-PES-01: versão em rascunho e resposta de versão desconhecida ficam de fora; id de resposta repetido conta uma vez', () => {
+    const rasc = publicada({ id: u(704), numero: 3, status: 'rascunho' });
+    const x = consolidarEntreVersoes({ versoes: [v1, v2, rasc], respostas: [...respostas, respostas[0]!, resp(9, [item.simNao(1, true)], { versao_id: u(999) })] });
+    expect(x.versoes.map((v) => [v.numero, v.respostas])).toEqual([[1, 2], [2, 1]]);
   });
 });

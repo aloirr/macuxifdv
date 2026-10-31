@@ -3,9 +3,9 @@ import { frequenciaPermite, pesquisaAplicavel, publicoContemCliente, publicoCont
 import type { PublicoAlvo, Questionario } from '../contracts';
 import { QUEST, TENANT, publicada, u, versao } from './util-teste';
 
-const publico = (p: Partial<PublicoAlvo> = {}): PublicoAlvo => ({ perfis: [], equipes: [], segmentos: [], canais: [], regioes: [], clientes: [], ...p });
+const publico = (p: Partial<PublicoAlvo> = {}): PublicoAlvo => ({ perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [], ...p });
 const usuario = (perfil = 'vendedor', equipe_ids: string[] = [u(50)]) => ({ id: u(1), perfil, equipe_ids });
-const cliente = (extra: Partial<{ segmento: string | null; canal: string | null; regiao: string | null }> = {}) => ({ id: u(60), segmento: 'Atacado', canal: 'Tradicional', regiao: 'Norte', ...extra });
+const cliente = (extra: Partial<{ segmento: string | null; regiao: string | null }> = {}) => ({ id: u(60), segmento: 'Atacado', regiao: 'Norte', ...extra });
 const q: Questionario = { id: QUEST, tenant_id: TENANT, criado_em: '2026-10-01T00:00:00Z', arquivado_em: null };
 
 describe('RF-PES-02: público-alvo do usuário (perfis e equipes)', () => {
@@ -35,10 +35,10 @@ describe('RF-PES-02: público-alvo do cliente (segmento, canal, região, lista)'
     expect(publicoContemCliente(publico(), cliente())).toBe(true);
     expect(publicoContemCliente(publico(), null)).toBe(true);
   });
-  it('RF-PES-02: segmento, canal e região são lidos sem diferenciar maiúsculas e valem juntos (E)', () => {
-    const p = publico({ segmentos: ['atacado', 'varejo'], canais: ['Tradicional'] });
+  it('RN-PES-05: segmento e região são lidos sem diferenciar maiúsculas e valem juntos (E); canal fica fora do público', () => {
+    const p = publico({ segmentos: ['atacado', 'varejo'], regioes: ['norte'] });
     expect(publicoContemCliente(p, cliente())).toBe(true);
-    expect(publicoContemCliente(p, cliente({ canal: 'Moderno' }))).toBe(false);
+    expect(publicoContemCliente(p, cliente({ regiao: 'Sul' }))).toBe(false);
     expect(publicoContemCliente(p, cliente({ segmento: null }))).toBe(false);
     expect(publicoContemCliente(publico({ regioes: ['Sul'] }), cliente())).toBe(false);
   });
