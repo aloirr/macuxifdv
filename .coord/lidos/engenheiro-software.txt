@@ -14,3 +14,11 @@ R-20261031-071538-modulo-core
 R-20261031-071648-gerente-projetos
 R-20261031-071811-gerente-projetos
 R-20261031-073621-gerente-projetos
+R-20261031-092828-modulo-promotor
+R-20261031-093034-banco-dados
+R-20261031-093259-2-alexandre
+R-20261031-093946-gerente-projetos
+R-20261031-094657-modulo-vendedor
+R-20261031-094825-modulo-core
+R-20261031-125125-alexandre
+R-20261031-100606-banco-dados

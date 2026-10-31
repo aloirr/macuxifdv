@@ -30,3 +30,11 @@ R-20261031-091543-engenheiro-software
 R-20261031-092830-modulo-promotor
 R-20261031-093136-banco-dados
 R-20261031-093222-testes
+R-20261031-094121-engenheiro-software
+R-20261031-094658-modulo-vendedor
+R-20261031-094826-modulo-core
+R-20261031-095555-modulo-integracao
+R-20261031-100825-banco-dados
+R-20261031-100315-engenheiro-software
+R-20261031-100951-engenheiro-software
+R-20261031-101016-engenheiro-software

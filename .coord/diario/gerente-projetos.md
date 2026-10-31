@@ -32,3 +32,14 @@
 2026-10-31 — T-0002 — rodada no Docker: critérios 1–3 cumpridos, vazamento verde (74/74); em_teste
 2026-10-31 — T-0001 — Fase D recebida (C1 277/277, C2 pasta intacta, C3 fronteiras); em_revisao
 2026-10-31 — T-0009 — aberta (RN-INT-01..09 registradas no doc 03), delegada ao modulo-integracao; entregue com 97 testes; recados de entrega, revisão e eventos novos enviados; em revisão
+2026-10-31 — rodada fechada: push c741423 (T-0005 CI, T-0002 Docker, T-0010, T-0001 D, merge T-0009 da nuvem); repositório privado, run do CI não visível daqui
+2026-10-31 — pedido do Alexandre R-093259-3: T-0011 criada (nuvem), T-0008 parte 1 e T-0005 casos A–B na nuvem, travas no quadro, regra de escrita da nuvem no doc 07, aviso a todos; settings.local.json nunca commitado (pedido de .gitignore ao engenheiro)
+2026-10-31 — resposta ao Alexandre (R-093259-3); vendedor (ctx.http) e core (delegar ao SDK) disparados
+2026-10-31 — T-0002 — revisão aprovada sem 🔴; banco-dados disparado para os 4 🟡; §6 citada na T-0004
+2026-10-31 — T-0001 — vendedor item 4 recebido; raiz vermelha por trabalho do core em andamento (aguardando)
+2026-10-31 — T-0003 — core delegou as 2 funções ao SDK; raiz typecheck verde; revisão final da T-0001 disparada
+2026-10-31 — T-0009 — revisão do dono 🟢; pergunta de produto (cancelamento após envio ao ERP) ao Alexandre
+2026-10-31 — doc 03: premissa da trava de inativação em massa ([30%]) sob RN-INT-06
+2026-10-31 — T-0002 — 🟡 corrigidos (94 testes); T-0002 CONCLUÍDA
+2026-10-31 — T-0002 — entrega ao Alexandre
+2026-10-31 — T-0001 — revisão final aprovada sem 🔴; T-0001 CONCLUÍDA
