@@ -94,6 +94,7 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     await admin.query(SCHEMA_ERP);
 
     hub = await HubFalso.iniciar();
+    hub.conectorIdEsperado = 'cnx-pg-teste'; // chave por Conector (T-0023): o Hub confere o identificador
     dir = mkdtempSync(join(tmpdir(), 'conector-pg-'));
     erp = criarConexaoPostgres({ host: cfgPg.host, porta: cfgPg.port, banco: nomeBanco, usuario: cfgPg.user, senha: cfgPg.password, ssl: false });
     cfg = ConfigConector.parse({
@@ -151,7 +152,7 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     ctx = {
       config: cfg,
       erp,
-      hub: new ClienteHub({ url: hub.url, token: async () => hub.token, retry: { tentativas: 2, baseMs: 1, maxMs: 2 } }),
+      hub: new ClienteHub({ url: hub.url, token: async () => hub.token, conectorId: cfg.hub.conectorId, retry: { tentativas: 2, baseMs: 1, maxMs: 2 } }),
       store: Armazenamento.abrir(join(dir, 'fila.sqlite')),
       log: criarLogger({ nivel: 'debug', escrever: () => undefined }),
       relogio: relogioReal,
@@ -199,6 +200,8 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
       ['completo', 1, false, 5], ['completo', 2, false, 5], ['completo', 3, true, 2],
     ]);
     expect(hub.linhasDe('cliente')).toHaveLength(12);
+    expect(hub.envelopes.every((e) => e.conector_id === 'cnx-pg-teste' && typeof e.versao_conector === 'string' && e.versao_conector.length > 0)).toBe(true);
+    expect(hub.chamadas.every((c) => c.conectorId === 'cnx-pg-teste')).toBe(true);
     const c3 = hub.registros.get('cliente')?.get('C03');
     expect(c3).toMatchObject({ razao_social: 'Mercadinho 3', limite_credito_cents: 300150, bloqueado: false, endereco: { uf: 'RR' }, vendedor_external_id: 'V1', ativo: true });
     expect(c3?.alterado_em).toBe('2026-03-01T10:00:03.300Z'); // timestamp sem fuso lido como UTC, em milissegundos
