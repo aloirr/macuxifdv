@@ -54,8 +54,25 @@ Módulos efetivos = ativos do tenant ∩ perfil − exceções (calculado no `do
 | ocorrido_em | timestamptz not null | |
 | publicado_em | timestamptz | NULL = pendente para o pg-boss |
 | tentativas, ultimo_erro | integer, text | controle de entrega |
+| usuario_id | uuid | autor do fato (envelope do SDK; 0003). Sem FK (o evento pode vir do Hub/sistema) |
+| request_id | text | requisição de origem (rastreio ponta a ponta; 0003) |
 
-Índices: `(ocorrido_em) where publicado_em is null` (fila), `(tenant_id, ocorrido_em, id)`. Gravado na mesma transação do fato.
+Índices: `(ocorrido_em) where publicado_em is null` (fila), `(tenant_id, ocorrido_em, id)`, único `(tenant_id, id)`
+(`evento_tenant_id_uk`, alvo da FK de `evento_consumo`). Gravado na mesma transação do fato.
+Acesso: `macuxi_app` pelo RLS do tenant; `macuxi_worker` (ADR 0007) lê todos os tenants e só atualiza
+`publicado_em`, `tentativas`, `ultimo_erro` (ver [rls.md](rls.md)).
+
+## evento_consumo — consumo idempotente da outbox (ADR 0007, migração 0003)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| consumidor | text not null | `<modulo>.<nome>` (check de formato, minúsculas) |
+| evento_id | uuid not null | FK composta `(tenant_id, evento_id)` -> `evento (tenant_id, id)`, `on delete cascade` |
+| processado_em | timestamptz not null | default `now()` |
+
+Único `evento_consumo_uk (tenant_id, consumidor, evento_id)` (sem predicado: chave de idempotência absoluta); índice
+`(tenant_id, evento_id)`. O handler grava na transação do efeito com
+`on conflict (tenant_id, consumidor, evento_id) do nothing` (0 linhas = já processado). RLS por tenant para
+`macuxi_app`; nenhum acesso do `macuxi_worker`. Fora do sync do app.
 
 ## parametro — parâmetros do tenant (doc 03, tabela de padrões)
 | Coluna | Tipo | Regra |

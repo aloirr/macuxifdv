@@ -2,9 +2,11 @@
  * Fixture "dois-tenants" para os testes de RLS/vazamento e de licenças (pedido R-20261030-235502-testes,
  * tests/plano/sprint-0.md §3). SEPARADA do seed da Fase M. Dono: banco-dados.
  *
- * - Tenant A "Distribuidora Alfa" (America/Manaus): core, vendedor, promotor, teste, teste-dependente;
+ * - Tenant A "Distribuidora Alfa" (America/Manaus): core, vendedor, promotor, teste, teste-dependente, catalogo;
  *   8 usuários (admin, analista, assistente, gerente, supervisor, vendedor-1 equipe 1, vendedor-2 equipe 2, promotor).
- * - Tenant B "Comercial Beta" (America/Sao_Paulo): core, vendedor; admin-B, vendedor-B.
+ * - Tenant B "Comercial Beta" (America/Sao_Paulo): core, vendedor, catalogo; admin-B, vendedor-B.
+ * - O Vendedor depende do Catálogo (ADR 0005, T-0007; RN-CORE-03): todo perfil com 'vendedor' também tem 'catalogo'.
+ *   'catalogo' vai NO FIM das listas para não deslocar os UUIDs sequenciais já gravados (upsert por id + únicos).
  * - UUIDs fixos: prefixo aaaaaaaa- (A) e bbbbbbbb- (B); formato <prefixo>-<grupo>-4000-8000-<seq>.
  * - Pelo menos 1 linha em TODA tabela com tenant_id, nos dois tenants (o teste de vazamento confere).
  * - Caso de borda S0-072: vendedor-1 (A) e vendedor-B (B) têm o MESMO e-mail (único por tenant, Q3).
@@ -28,6 +30,7 @@ const G = {
   evento: 0x13,
   parametro: 0x14,
   auditoria: 0x15,
+  evento_consumo: 0x16,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -39,7 +42,7 @@ export const DOIS_TENANTS = {
     tenantId: a('tenant', 1),
     codigo: 'alfa',
     fuso: 'America/Manaus',
-    modulos: ['core', 'vendedor', 'promotor', 'teste', 'teste-dependente'],
+    modulos: ['core', 'vendedor', 'promotor', 'teste', 'teste-dependente', 'catalogo'],
     usuarios: {
       admin: a('usuario', 1),
       analista: a('usuario', 2),
@@ -57,7 +60,7 @@ export const DOIS_TENANTS = {
     tenantId: b('tenant', 1),
     codigo: 'beta',
     fuso: 'America/Sao_Paulo',
-    modulos: ['core', 'vendedor'],
+    modulos: ['core', 'vendedor', 'catalogo'],
     usuarios: { admin: b('usuario', 1), vendedor: b('usuario', 2) },
     equipes: { equipe: b('equipe', 1) },
     clientes: { c1: b('cliente', 1) },
@@ -78,6 +81,7 @@ export const ORDEM_TABELAS = [
   'core.cliente',
   'core.carteira',
   'plataforma.evento',
+  'plataforma.evento_consumo',
   'plataforma.parametro',
   'plataforma.auditoria',
 ] as const;
@@ -114,6 +118,10 @@ export function dadosDoisTenants(senhaHash: string): DadosFixture {
     [tA, 'assistente', 'core'], [tA, 'assistente', 'vendedor'],
     [tB, 'vendedor', 'core'], [tB, 'vendedor', 'vendedor'],
     [tB, 'admin', 'core'], [tB, 'admin', 'vendedor'],
+    // Catálogo junto de todo perfil com 'vendedor' (ADR 0005); no fim para manter os ids anteriores.
+    [tA, 'vendedor', 'catalogo'], [tA, 'supervisor', 'catalogo'], [tA, 'gerente', 'catalogo'],
+    [tA, 'analista', 'catalogo'], [tA, 'assistente', 'catalogo'],
+    [tB, 'vendedor', 'catalogo'], [tB, 'admin', 'catalogo'],
   ];
   const seqPerfil = { [tA]: 0, [tB]: 0 } as Record<string, number>;
 
@@ -176,6 +184,10 @@ export function dadosDoisTenants(senhaHash: string): DadosFixture {
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
       evento(b('evento', 1), tB, B.usuarios.admin),
     ],
+    'plataforma.evento_consumo': [
+      { id: a('evento_consumo', 1), tenant_id: tA, consumidor: 'core.fixture', evento_id: a('evento', 1), external_id: null },
+      { id: b('evento_consumo', 1), tenant_id: tB, consumidor: 'core.fixture', evento_id: b('evento', 1), external_id: null },
+    ],
     'plataforma.parametro': [
       { id: a('parametro', 1), tenant_id: tA, modulo: 'core', chave: 'raio_checkin_m', valor: '200', external_id: null },
       { id: a('parametro', 2), tenant_id: tA, modulo: 'vendedor', chave: 'alcada.vendedor_pct', valor: '5', external_id: null },
@@ -198,7 +210,8 @@ function cliente(id: string, tenant_id: string, documento: string, nome: string,
 function evento(id: string, tenant_id: string, usuarioId: string): Linha {
   return {
     id, tenant_id, nome: 'core.usuario.modulos_alterados@1', modulo: 'core', agregado_id: usuarioId,
-    payload: { usuario_id: usuarioId, fixture: true }, publicado_em: null, tentativas: 0, ultimo_erro: null, external_id: null,
+    payload: { usuario_id: usuarioId, fixture: true }, publicado_em: null, tentativas: 0, ultimo_erro: null,
+    usuario_id: usuarioId, request_id: 'fixture', external_id: null,
   };
 }
 

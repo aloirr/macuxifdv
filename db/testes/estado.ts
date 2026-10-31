@@ -2,7 +2,7 @@
 import { inject } from 'vitest';
 
 export type EstadoBanco =
-  | { disponivel: true; nome: string; urlAdmin: string; urlApp: string }
+  | { disponivel: true; nome: string; urlAdmin: string; urlApp: string; urlWorker: string | null }
   | { disponivel: false; motivo: string };
 
 declare module 'vitest' {

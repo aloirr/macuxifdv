@@ -1,6 +1,6 @@
 /**
  * Schema `plataforma` em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas pela
- * migração db/migrations/0001_plataforma.up.sql, para consultas da API.
+ * migrações db/migrations/0001_plataforma.up.sql e 0003_plataforma_worker.up.sql, para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -75,6 +75,20 @@ export const evento = plataforma.table('evento', {
   publicado_em: timestamp('publicado_em', { withTimezone: true }),
   tentativas: integer('tentativas').notNull().default(0),
   ultimo_erro: text('ultimo_erro'),
+  /** Envelope do SDK (0003): autor e requisição de origem, para rastreio ponta a ponta. */
+  usuario_id: uuid('usuario_id'),
+  request_id: text('request_id'),
+});
+
+/**
+ * Consumo idempotente da outbox (ADR 0007): uma linha por (tenant_id, consumidor, evento_id), gravada pelo
+ * handler na transação do efeito (`on conflict (tenant_id, consumidor, evento_id) do nothing`).
+ */
+export const eventoConsumo = plataforma.table('evento_consumo', {
+  ...comuns(),
+  consumidor: text('consumidor').notNull(),
+  evento_id: uuid('evento_id').notNull(),
+  processado_em: timestamp('processado_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const parametro = plataforma.table('parametro', {

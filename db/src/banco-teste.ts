@@ -1,13 +1,13 @@
 /**
  * Banco de teste efêmero (dono: banco-dados). Cria `macuxi_teste_<sufixo>` no Postgres do Docker,
- * garante o papel de aplicação, aplica as migrações e (opcional) carrega uma fixture. `apagar()` remove.
+ * garante os papéis macuxi_app e macuxi_worker, aplica as migrações e (opcional) carrega uma fixture. `apagar()` remove.
  * Usado pelos testes de db/ e pelo agente `testes` (via `@macuxi/db/teste`).
  */
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
-import { lerConfig, urlAdmin, urlApp, validarNomeBanco, type ConfigBanco } from './config';
+import { lerConfig, urlAdmin, urlApp, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
 import { migrarUp } from './migrador';
-import { garantirPapelApp } from './papeis';
+import { garantirPapelApp, garantirPapelWorker } from './papeis';
 
 export interface BancoDeTeste {
   nome: string;
@@ -15,6 +15,8 @@ export interface BancoDeTeste {
   urlAdmin: string;
   /** Conexão do papel macuxi_app (sujeito a RLS) — é a que os testes de vazamento usam. */
   urlApp: string;
+  /** Conexão do papel macuxi_worker (despacho da outbox, ADR 0007); null se MACUXI_PG_WORKER_SENHA não existir. */
+  urlWorker: string | null;
   apagar(): Promise<void>;
 }
 
@@ -59,6 +61,8 @@ export async function criarBanco(nome: string, cfg: ConfigBanco = lerConfig()): 
   validarNomeBanco(nome);
   await comAdmin('postgres', async (c) => {
     await garantirPapelApp(c, cfg.appSenha);
+    // Antes da migração 0003: com o papel já criado (e com LOGIN), o "create role" da migração não corre em paralelo.
+    if (cfg.workerSenha) await garantirPapelWorker(c, cfg.workerSenha);
     const existe = await c.query('select 1 from pg_database where datname = $1', [nome]);
     if (existe.rowCount === 0) await c.query(`create database ${nome}`);
   }, cfg);
@@ -102,6 +106,7 @@ export async function criarBancoDeTeste(opcoes: OpcoesBancoDeTeste = {}): Promis
     nome,
     urlAdmin: urlAdmin(cfg, nome),
     urlApp: urlApp(cfg, nome),
+    urlWorker: cfg.workerSenha ? urlWorker(cfg, nome) : null,
     apagar: () => apagarBanco(nome, cfg),
   };
 }

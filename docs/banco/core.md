@@ -56,7 +56,9 @@ Preço, estoque, conteúdo, mídia, sinônimos e embeddings ficam no schema `cat
 | papel | text not null | `vendedor` \| `promotor` |
 | inicio, fim | date | `fim >= inicio` |
 
-Índices: único `(tenant_id, cliente_id, usuario_id, papel)` ativo; `(tenant_id, usuario_id)` (escopo do vendedor/promotor); `(tenant_id, cliente_id)`.
+Índices: único `(tenant_id, cliente_id, usuario_id, papel)` ativo; `(tenant_id, usuario_id)` (escopo do vendedor/promotor); `(tenant_id, cliente_id)`;
+`carteira_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)` **sem** filtro de `deleted_at` (migração 0003): pull
+da carteira por usuário inclusive removidas (Q6 de [desempenho-sync.md](desempenho-sync.md)).
 
 ## Volume e consultas principais (para EXPLAIN quando houver dados)
 - Sync pull por entidade: `where tenant_id = $t and (updated_at, id) > ($cursor_ts, $cursor_id) order by updated_at, id limit 1000` — índice de sync.

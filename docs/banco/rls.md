@@ -7,9 +7,13 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
 |---|---|---|
 | admin / migrador (`postgres` no Docker local) | superusuário, dono de todos os objetos | aplica migrações, cria bancos de teste, carrega seed/fixture. **Ignora RLS** — nunca é usado pela API nem para provar isolamento |
 | `macuxi_app` | `LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION`, não é dono de nada | **único** papel da API e dos testes de vazamento |
+| `macuxi_worker` | mesmos atributos (**NOBYPASSRLS**), não é dono de nada | despachante da outbox (ADR 0007): só lê e marca `plataforma.evento` de todos os tenants |
 
 - A migração 0001 cria `macuxi_app` como `NOLOGIN` se não existir; o executor (`db/src/papeis.ts`)
   liga o `LOGIN` e define a senha a partir de `MACUXI_PG_APP_SENHA`. Papéis são do cluster: o `down` não os remove.
+- A migração 0003 cria `macuxi_worker` como `NOLOGIN`; `garantirPapelWorker` (`@macuxi/db`) liga o `LOGIN` com
+  `MACUXI_PG_WORKER_SENHA` (local: `macuxi_worker_local`; fora do local é opcional — sem ela o papel fica `NOLOGIN`
+  e `urlWorker(cfg)` lança erro; a senha pública local é recusada). O `down` da 0003 revoga tudo do papel no banco.
 - Todas as tabelas têm `ENABLE` **e** `FORCE ROW LEVEL SECURITY` (defesa extra caso um dia o dono não seja superusuário).
 - Grants explícitos por tabela. `plataforma.tenant`: só `SELECT`. `plataforma.auditoria`: só `SELECT, INSERT` (RN-AUD-01).
   `public.macuxi_migracao`: nenhum acesso.
@@ -65,19 +69,23 @@ Nunca "todas as linhas". Coberto por S0-026 em `db/testes/vazamento.test.ts`.
 | `public.macuxi_migracao` | controle do executor de migrações; sem RLS e sem acesso do `macuxi_app` |
 
 Fora do índice de sync `(tenant_id, updated_at, id)` (não são puxadas pelo app): `plataforma.evento`
-(índices próprios: pendentes e por tenant/ocorrido_em) e `plataforma.auditoria`.
+(índices próprios: pendentes e por tenant/ocorrido_em), `plataforma.evento_consumo` (único por consumidor/evento)
+e `plataforma.auditoria`.
 
 ## Acesso sem contexto (casos previstos)
 - **Login** (código da empresa + e-mail + senha): `plataforma.tenant_por_codigo(codigo)` é
   `SECURITY DEFINER` (roda como o dono, que ignora RLS) e devolve só `id, nome, fuso, status`. Depois a
   API abre transação com o tenant resolvido e busca o usuário por `lower(email)`.
   Premissa: o dono das funções é superusuário ou tem `BYPASSRLS` (em nuvem gerenciada, conceder ao papel migrador).
-- **Despacho do outbox (pg-boss)**: ainda não implementado (T-0004, depois da ADR do engenheiro). Desenho
-  aceito em [docs/desenho/T-0002.md §5](../desenho/T-0002.md): papel `macuxi_worker` **NOBYPASSRLS** (`BYPASSRLS`
-  vale para o papel inteiro, não dá para restringir a uma tabela) com **política própria** só em
-  `plataforma.evento` e grants por coluna (ler o envelope; atualizar `publicado_em`, `tentativas`, `ultimo_erro`),
-  sem grant em `core.*` nem nos schemas dos módulos. O handler do consumidor roda como `macuxi_app` em
-  `comTenant(envelope.tenant_id)`, com o RLS normal. Plano B: funções `SECURITY DEFINER`.
+- **Despacho do outbox** (ADR 0007, migração 0003): papel `macuxi_worker` **NOBYPASSRLS** (`BYPASSRLS` vale para o
+  papel inteiro, não dá para restringir a uma tabela) com **políticas próprias** só em `plataforma.evento`:
+  `despacho_outbox` (`for select to macuxi_worker using (true)`) e `despacho_outbox_marcar`
+  (`for update to macuxi_worker using (true) with check (true)`). Grants por coluna: `select (id, tenant_id, nome,
+  modulo, agregado_id, payload, ocorrido_em, publicado_em, tentativas, usuario_id, request_id)` e
+  `update (publicado_em, tentativas, ultimo_erro)`; `usage` no schema `plataforma`; **nada** em `core.*`, nos schemas
+  dos módulos nem nas outras tabelas da plataforma (42501). O handler do consumidor roda como `macuxi_app` em
+  `comTenant(envelope.tenant_id)` e registra o consumo em `plataforma.evento_consumo` (RLS por tenant).
+  pg-boss (schema `pgboss`) entra com o primeiro consumidor real. Plano B: funções `SECURITY DEFINER`.
 
 ## Testes que provam
 | ID | Onde |
@@ -88,3 +96,4 @@ Fora do índice de sync `(tenant_id, updated_at, id)` (não são puxadas pelo ap
 | S0-026 falha fechada | idem |
 | S0-027 pool de 1 conexão A/B/A | idem |
 | S0-028 papel sem SUPERUSER/BYPASSRLS, não dono | `db/testes/conformidade.test.ts` |
+| macuxi_worker: lê A e B, 42501 fora das colunas/tabelas concedidas, só marca 3 colunas, sem BYPASSRLS; app sem contexto = 0 | `db/testes/worker.test.ts` |

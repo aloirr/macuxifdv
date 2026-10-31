@@ -23,7 +23,7 @@ Volume: tenants 10 · produtos 200003 · clientes 5004 · carteira 1505 (por ten
 | Q3 | produto: incremental (cursor nas ~50 últimas alterações) | 52 | produto_sync_ix | 0.264 | 6.27 | 7.30 |
 | Q4 | produto: quantas alterações desde o cursor (contagem do meio) | 1 | produto_sync_ix | 15.651 | 15.50 | 16.95 |
 | Q5 | cliente: pull no escopo da carteira do vendedor-1 (cursor zero) | 252 | cliente_tenant_id_uk + carteira_usuario_ix | 2.451 | 16.80 | 31.89 |
-| Q6 | carteira: pull das linhas do vendedor-1, inclusive excluídas (cursor zero) | 252 | Seq Scan | 1.704 | 16.57 | 38.31 |
+| Q6 | carteira: pull das linhas do vendedor-1, inclusive excluídas (cursor zero) | 252 | carteira_usuario_sync_ix (0003) | 0.744 | 22.61 | 34.50 |
 | Q7 | usuario: pull completo do tenant (cursor zero) | 8 | Seq Scan | 0.171 | 4.20 | 12.69 |
 
 ## Leitura
@@ -42,11 +42,10 @@ Volume: tenants 10 · produtos 200003 · clientes 5004 · carteira 1505 (por ten
 5. **Escopo de carteira (Q5)**: semi-join com `carteira_usuario_ix` (parcial, `deleted_at is null`) +
    ordenação em memória. Com 500 clientes por vendedor é trivial; acima de ~10 mil clientes por vendedor,
    reavaliar.
-6. **Pendência anotada — carteira com excluídas (Q6)**: o pull da carteira do vendedor precisa trazer
-   também as linhas excluídas (tombstones), e o índice `carteira_usuario_ix` é parcial (`deleted_at is
-   null`), então hoje é `Seq Scan` (1,5 mil linhas, 1,7 ms — irrelevante agora). Quando a rota de sync
-   existir (T-0004), criar em migração nova `carteira_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`
-   (docs/desenho/T-0002.md §6.2).
+6. **Carteira com excluídas (Q6) — resolvido na T-0004**: o pull da carteira do vendedor traz também as
+   linhas excluídas (tombstones) e o índice `carteira_usuario_ix` é parcial (`deleted_at is null`); antes era
+   `Seq Scan` (1,5 mil linhas, 1,7 ms). A migração 0003 criou `carteira_usuario_sync_ix (tenant_id, usuario_id,
+   updated_at, id)` sem predicado: agora `Bitmap Index Scan` com as três condições no índice (0,74 ms, 14 buffers).
    `core.usuario` (Q7) também faz Seq Scan por ter poucas linhas — esperado.
 
 ## Planos (EXPLAIN ANALYZE, BUFFERS)
@@ -167,7 +166,7 @@ Planning Time: 7.446 ms
 Execution Time: 2.451 ms
 ```
 
-### Q6 — carteira: pull das linhas do vendedor-1, inclusive excluídas (cursor zero)
+### Q6 — carteira: pull das linhas do vendedor-1, inclusive excluídas (cursor zero) — com `carteira_usuario_sync_ix` (0003, remedido em 2026-10-31)
 
 ```sql
 select * from core.carteira
@@ -176,18 +175,21 @@ select * from core.carteira
 ```
 
 ```text
-Limit (actual time=1.503..1.616 rows=252 loops=1)
-  Buffers: shared hit=25
-  ->  Sort (actual time=1.501..1.556 rows=252 loops=1)
+Limit (actual time=0.493..0.613 rows=252 loops=1)
+  Buffers: shared hit=14
+  ->  Sort (actual time=0.490..0.543 rows=252 loops=1)
         Sort Key: updated_at, id
         Sort Method: quicksort  Memory: 58kB
-        Buffers: shared hit=25
-        ->  Seq Scan on carteira (actual time=0.031..1.320 rows=252 loops=1)
-              Filter: ((usuario_id = 'aaaaaaaa-0001-4000-8000-000000000006'::uuid) AND (ROW(updated_at, id) > ROW('1970-01-01 00:00:00+00'::timestamp with time zone, '00000000-0000-0000-0000-000000000000'::uuid)) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
-              Rows Removed by Filter: 1253
-              Buffers: shared hit=25
-Planning Time: 0.405 ms
-Execution Time: 1.704 ms
+        Buffers: shared hit=14
+        ->  Bitmap Heap Scan on carteira (actual time=0.176..0.291 rows=252 loops=1)
+              Recheck Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (usuario_id = 'aaaaaaaa-0001-4000-8000-000000000006'::uuid) AND (ROW(updated_at, id) > ROW('1970-01-01 00:00:00+00'::timestamp with time zone, '00000000-0000-0000-0000-000000000000'::uuid)))
+              Heap Blocks: exact=9
+              Buffers: shared hit=14
+              ->  Bitmap Index Scan on carteira_usuario_sync_ix (actual time=0.158..0.158 rows=252 loops=1)
+                    Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (usuario_id = 'aaaaaaaa-0001-4000-8000-000000000006'::uuid) AND (ROW(updated_at, id) > ROW('1970-01-01 00:00:00+00'::timestamp with time zone, '00000000-0000-0000-0000-000000000000'::uuid)))
+                    Buffers: shared hit=5
+Planning Time: 0.527 ms
+Execution Time: 0.744 ms
 ```
 
 ### Q7 — usuario: pull completo do tenant (cursor zero)

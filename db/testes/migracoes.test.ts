@@ -50,8 +50,10 @@ describe.skipIf(semBanco())('migrações up/down', () => {
     const b = await bancoVazio();
     await comAdmin(b.nome, async (c) => {
       expect((await migrarUp(c, { ate: '0001' })).aplicadas).toEqual(['0001_plataforma']);
-      expect((await migrarUp(c)).aplicadas).toEqual(['0002_core']);
+      expect((await migrarUp(c, { ate: '0002' })).aplicadas).toEqual(['0002_core']);
+      expect((await migrarUp(c)).aplicadas).toEqual(['0003_plataforma_worker']);
       expect((await migrarUp(c)).aplicadas).toEqual([]);
+      expect((await migrarDown(c)).aplicadas).toEqual(['0003_plataforma_worker']);
       expect((await migrarDown(c)).aplicadas).toEqual(['0002_core']);
       const r = await c.query("select count(*)::int as n from pg_namespace where nspname in ('core', 'plataforma')");
       expect(r.rows[0].n).toBe(1);
@@ -87,9 +89,13 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       await c.query("update public.macuxi_migracao set checksum_down = null where versao = '0001'");
       await migrarUp(c);
       expect((await listarAplicadas(c))[0]?.checksum_down).toBe(migs[0]?.checksumDown);
-      await c.query("update public.macuxi_migracao set checksum_down = 'adulterado' where versao = '0002'");
-      await expect(migrarUp(c)).rejects.toThrow(/down da migração aplicada 0002_core foi editado/);
-      await expect(migrarDown(c)).rejects.toThrow(/down da migração aplicada 0002_core foi editado/);
+      // adultera o down da ÚLTIMA migração (é a que o próximo down desfaria)
+      const ultima = migs[migs.length - 1]!;
+      const rotulo = new RegExp(`down da migração aplicada ${ultima.versao}_${ultima.nome} foi editado`);
+      await c.query("update public.macuxi_migracao set checksum_down = 'adulterado' where versao = $1", [ultima.versao]);
+      await expect(migrarUp(c)).rejects.toThrow(rotulo);
+      await expect(migrarDown(c)).rejects.toThrow(rotulo);
+      expect((await listarAplicadas(c)).map((a) => a.versao)).toEqual(migs.map((m) => m.versao));
       const r = await c.query("select count(*)::int as n from pg_namespace where nspname = 'core'");
       expect(r.rows[0].n).toBe(1);
     });

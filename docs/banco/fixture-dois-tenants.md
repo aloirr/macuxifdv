@@ -6,22 +6,25 @@ Código: `db/seeds/fixtures/dois-tenants.ts` e `db/seeds/fase-m/fase-m.ts`. Ambo
 ## Fixture dois-tenants (testes de RLS, licenças e perfis — pedido R-20261030-235502-testes)
 UUID: `<prefixo>-<grupo>-4000-8000-<seq>`; prefixo `aaaaaaaa` (A) / `bbbbbbbb` (B). Grupos:
 `0000` tenant · `0001` usuario · `0002` equipe · `0003` produto · `0004` cliente · `0005` carteira ·
-`0010` tenant_modulo · `0011` perfil_modulo · `0012` usuario_modulo · `0013` evento · `0014` parametro · `0015` auditoria.
+`0010` tenant_modulo · `0011` perfil_modulo · `0012` usuario_modulo · `0013` evento · `0014` parametro · `0015` auditoria ·
+`0016` evento_consumo. Linhas novas entram **no fim** das listas (ids sequenciais estáveis; upsert por id + índices únicos).
 Constantes em `DOIS_TENANTS` (`@macuxi/db/teste`).
 
 | | Tenant A — Distribuidora Alfa | Tenant B — Comercial Beta |
 |---|---|---|
 | id / código / fuso | `aaaaaaaa-0000-4000-8000-000000000001` / `alfa` / America/Manaus | `bbbbbbbb-0000-4000-8000-000000000001` / `beta` / America/Sao_Paulo |
-| tenant_modulo (ativos) | core, vendedor, promotor, teste, teste-dependente | core, vendedor |
+| tenant_modulo (ativos) | core, vendedor, promotor, teste, teste-dependente, catalogo | core, vendedor, catalogo |
 | usuários (seq) | 1 admin, 2 analista, 3 assistente, 4 gerente, 5 supervisor, 6 vendedor-1, 7 vendedor-2, 8 promotor | 1 admin-B, 2 vendedor-B |
 | equipes | 1 Regional Alfa (resp. gerente) → 2 Equipe 1 (resp. supervisor), 3 Equipe 2 (sem resp.) | 1 Equipe Beta (resp. admin-B) |
 | equipe do usuário | gerente→Regional; supervisor, vendedor-1, promotor→Equipe 1; vendedor-2→Equipe 2 | vendedor-B→Equipe Beta |
-| perfil_modulo | vendedor: core, vendedor, teste · promotor: core, promotor, teste · supervisor e gerente: core, vendedor, promotor · admin: core · analista: core, vendedor, promotor · assistente: core, vendedor | vendedor: core, vendedor · admin: core, vendedor |
+| perfil_modulo | vendedor: core, catalogo, vendedor, teste · promotor: core, promotor, teste · supervisor e gerente: core, catalogo, vendedor, promotor · admin: core · analista: core, catalogo, vendedor, promotor · assistente: core, catalogo, vendedor | vendedor: core, catalogo, vendedor · admin: core, catalogo, vendedor |
 | usuario_modulo | vendedor-2 **remove** `teste` | admin-B remove `vendedor` (só para B ter linha) |
 | clientes / carteira | c1 (vendedor-1 + promotor), c2 (vendedor-2), c3 (vendedor-1) | c1 (vendedor-B) |
 | produto | ALFA-001, ALFA-002 | BETA-001 |
-| evento / parametro / auditoria | 1 / 2 / 1 | 1 / 1 / 1 |
+| evento / evento_consumo / parametro / auditoria | 1 / 1 / 2 / 1 | 1 / 1 / 1 / 1 |
 
+- **Vendedor depende do Catálogo** (ADR 0005, T-0007; RN-CORE-03): todo perfil com `vendedor` tem `catalogo`, senão o
+  Vendedor some dos módulos efetivos (o teste estático confere).
 - **Toda tabela com `tenant_id` tem pelo menos 1 linha em cada tenant** (o teste estático e o de vazamento conferem).
 - **E-mail repetido de propósito** (S0-072): vendedor-1 (A) e vendedor-B (B) = `vendedor@exemplo.com.br`.
 - Senha de todos: `MACUXI_SENHA_TESTE` (padrão `Teste@1234`, só teste), hash argon2id PHC.
