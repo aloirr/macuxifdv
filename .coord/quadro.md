@@ -22,6 +22,7 @@
 |---|---|---|---|
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | aberta |
 | [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho | engenheiro-software | aberta |
+| [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | em_andamento |
 
 ## Próximas sprints
 Ver `docs/produto/05-roadmap.md`.
