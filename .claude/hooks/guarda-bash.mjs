@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 // Guardião de donos para o Bash — hook PreToolUse e PostToolUse/PostToolUseFailure (matcher "Bash").
 // Uso: node .claude/hooks/guarda-bash.mjs [nome-do-agente]
-//  - agente: argumento (frontmatter do agente) ou "agent_type" no JSON do hook, como no guarda-donos.mjs.
+//  - agente (guardião v3, T-0005), igual ao guarda-donos.mjs (identificarAgente em scripts/coord-lib.mjs):
+//      1. variável MACUXI_AGENTE;
+//      2. o de antes, numa sessão local de agente ou subagente: argumento (frontmatter do agente)
+//         ou "agent_type" do JSON do hook (na nuvem, CLAUDE_CODE_REMOTE=true, só se for subagente:
+//         agent_id presente ou agent_type diferente do "agent" do .claude/settings.json);
+//      3. branch atual: <agente>/T-nnnn-..., agente/T-nnnn-<agente>, alexandre/* → alexandre,
+//         nuvem/* → trailer "Agente: <nome>" do último commit do branch (desde o main) que o tem;
+//      4. fonte ausente ou ambígua → comportamento anterior (argumento || agent_type).
+//    "alexandre" altera arquivo de qualquer dono (sem-dono, congelado e recados continuam valendo).
 //  - sessão sem agente (uso manual do Alexandre) → liberado. Desligar tudo: MACUXI_GUARDA=off.
 //  - PreToolUse: bloqueia (exit 2) escrita evidente em caminho de outro dono e tira a foto do
 //    git status (+ data/tamanho) para o PostToolUse.
@@ -16,7 +24,7 @@
 // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { RAIZ, carregarDonos } from '../../scripts/coord-lib.mjs';
+import { RAIZ, carregarDonos, agenteDaSessao } from '../../scripts/coord-lib.mjs';
 import {
   analisarComando, ambienteReal, mensagemPre, lerStatus, fotografar, compararFotos, statDe,
   violacoesDasMudancas, mensagemPos, mensagemAviso, separarAcusacoes, atualizarAcusados, descontarDesfeitos, permitidosDe,
@@ -38,9 +46,9 @@ function lerEntrada() {
 if ((process.env.MACUXI_GUARDA || '').toLowerCase() === 'off') process.exit(0);
 
 const entrada = await lerEntrada();
-const agente = process.argv[2] || entrada.agent_type || '';
-if (!agente) process.exit(0); // sessão manual, sem agente
 if (entrada.tool_name && entrada.tool_name !== 'Bash') process.exit(0);
+const { agente } = agenteDaSessao({ argumento: process.argv[2], entrada });
+if (!agente) process.exit(0); // sessão manual, sem agente
 
 const comando = String(entrada.tool_input?.command || '');
 const evento = entrada.hook_event_name || 'PreToolUse';

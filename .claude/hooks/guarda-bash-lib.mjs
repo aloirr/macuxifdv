@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { posix, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { AGENTES, podeAlterar, classificarMudancas } from '../../scripts/coord-lib.mjs';
+import { PESSOAS, podeAlterar, classificarMudancas } from '../../scripts/coord-lib.mjs';
 
 // ───────────────────────────── caminhos ─────────────────────────────
 
@@ -677,7 +677,7 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
   const acusar = (rel, motivo) => {
     if (!vistos.has(rel)) { vistos.add(rel); violacoes.push({ rel, motivo }); }
   };
-  const doTime = AGENTES.includes(agente);
+  const doTime = PESSOAS.includes(agente); // time + alexandre
   const conferir = (rel, acao) => {
     if (!doTime) return acusar(rel, `o agente "${agente}" não faz parte do time; só os agentes de .claude/agents podem alterar o repositório.`);
     if (permitidos.has(`${acao}:${rel}`)) return;
@@ -852,7 +852,7 @@ export function compararFotos(antes, depois, statAtual) {
 
 /** Mudanças fora dos caminhos do agente (mesma regra do `verificar --base`). */
 export function violacoesDasMudancas({ agente, mudancas, regras }) {
-  const doTime = AGENTES.includes(agente);
+  const doTime = PESSOAS.includes(agente); // time + alexandre
   const { violacoes } = classificarMudancas({ agente: doTime ? agente : '\u0000nenhum', mudancas, regras, estrito: true });
   const antes = new Map(mudancas.map((m) => [m.caminho, m.antes]));
   return violacoes.map((v) => ({
