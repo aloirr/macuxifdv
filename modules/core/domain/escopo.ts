@@ -2,7 +2,7 @@
  * Escopo de dados por perfil (RN-CORE-04). A API filtra a consulta por este escopo; o `domain` decide qual é
  * e confere se um cliente está dentro. O Core resolve o conjunto de clientes a partir de carteira/equipe.
  */
-import { escopoDoPerfil, type Escopo, type Perfil } from '@macuxi/platform-sdk';
+import { escopoDoPerfil, verificarCarteira, type Escopo, type Perfil } from '@macuxi/platform-sdk';
 
 export type { Escopo };
 
@@ -35,5 +35,5 @@ export function clientesVisiveis(perfil: Perfil, c: ConjuntosDoUsuario): Readonl
 }
 
 export function clienteNoEscopo(clienteId: string, visiveis: ReadonlySet<string> | 'tenant'): boolean {
-  return visiveis === 'tenant' || visiveis.has(clienteId);
+  return verificarCarteira(clienteId, visiveis).ok;
 }

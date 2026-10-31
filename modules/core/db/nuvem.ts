@@ -4,9 +4,12 @@
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs compostas, índices, RLS e grants ficam lá); aqui ficam
- * colunas e chave primária. db/testes/drizzle-x-banco.test.ts confere colunas x banco migrado.
+ * colunas e chave primária. Perfis vêm de @macuxi/platform-sdk (fonte única); o CHECK do SQL é
+ * comparado com eles em db/testes/estatico.test.ts.
+ * db/testes/drizzle-x-banco.test.ts confere colunas x banco migrado.
  */
 import { boolean, date, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { PERFIS } from '@macuxi/platform-sdk';
 
 export const core = pgSchema('core');
 
@@ -19,8 +22,6 @@ const comuns = () => ({
   deleted_at: timestamp('deleted_at', { withTimezone: true }),
   external_id: text('external_id'),
 });
-
-export const PERFIS = ['admin', 'analista', 'assistente', 'supervisor', 'gerente', 'vendedor', 'promotor'] as const;
 
 /** Árvore de equipes: gerente responde pelo nó de cima; supervisor pela equipe (RN-CORE-04). */
 export const equipe = core.table('equipe', {

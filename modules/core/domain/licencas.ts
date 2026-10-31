@@ -5,7 +5,7 @@
  * `modules/*` (fronteiras). O Core a consome aqui, com o vocabulário do módulo, e tem os testes de regra
  * (S0-040). A API chama esta função A CADA REQUISIÇÃO: o resultado nunca é gravado no JWT (S0-055).
  */
-import { modulosEfetivos, type Manifesto, type ModuloId } from '@macuxi/platform-sdk';
+import { modulosEfetivos, verificarAcesso, type Manifesto, type ModuloId } from '@macuxi/platform-sdk';
 
 export interface EntradaLicencas {
   manifestos: readonly Manifesto[];
@@ -24,7 +24,8 @@ export function calcularModulosEfetivos(e: EntradaLicencas): ModuloId[] {
 
 /** O módulo está efetivo para o usuário? É o que a API checa por requisição (403 MODULO_INATIVO se não). */
 export function moduloEstaAtivo(efetivos: Iterable<ModuloId>, modulo: ModuloId): boolean {
-  return modulo === 'core' || [...efetivos].includes(modulo);
+  // Delega a checagem ao SDK (fonte única com a verificação de rota); o perfil não entra na decisão de módulo.
+  return modulo === 'core' || verificarAcesso({ id: '-', tenant_id: '-', perfil: 'admin', modulos: efetivos }, { modulo, perfis: ['admin'] }).ok;
 }
 
 /** RN-CORE-01: o core não pode ser desativado em nenhum nível (tenant, perfil ou usuário). */
