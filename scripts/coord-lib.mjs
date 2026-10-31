@@ -109,3 +109,65 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
           : `deixe um recado: node scripts/coord.mjs enviar --de ${agente} --para ${dono} --tipo pedido --assunto "..." --corpo "..."`;
   return { ok: false, dono, motivo: `"${rel}" pertence a ${dono}. ${dica}` };
 }
+
+/** Normaliza caminho vindo do git ou do Windows: barras "/", sem "./" no início. */
+export function normalizarCaminho(caminho) {
+  return String(caminho).replace(/\\/g, '/').replace(/^(\.\/)+/, '');
+}
+
+/** Pode responder pelo próprio diário/lidos e aparecer como dono em `verificar`. */
+export const PESSOAS = [...AGENTES, 'alexandre'];
+
+/**
+ * Classifica as mudanças do git para `coord.mjs verificar` (função pura, sem ler disco).
+ * - estrito (com --base): arquivo de outro dono é VIOLAÇÃO.
+ * - não estrito (sem --base, árvore compartilhada): arquivo de outro dono é informativo.
+ * - "alexandre" (dono do produto) nunca viola por mexer em arquivo de outro dono.
+ * - sem-dono, congelado, recado alterado/apagado ou fora do padrão: sempre VIOLAÇÃO.
+ * Exceções universais (iguais às do guardião): recado NOVO em .coord/recados/<destino>/,
+ * .coord/diario/<agente>.md e .coord/lidos/<agente>.txt do próprio agente.
+ * @param {{agente: string, mudancas: {status: string, caminho: string}[], regras: any[], estrito?: boolean}} p
+ * @returns {{ok: any[], excecoes: any[], outros: any[], violacoes: any[]}}
+ */
+export function classificarMudancas({ agente, mudancas, regras, estrito = false }) {
+  const res = { ok: [], excecoes: [], outros: [], violacoes: [] };
+  const vistos = new Set();
+  for (const m of mudancas) {
+    const caminho = normalizarCaminho(m.caminho);
+    if (!caminho || vistos.has(caminho)) continue;
+    vistos.add(caminho);
+    const status = String(m.status || 'M').charAt(0).toUpperCase();
+    const item = { status, caminho };
+    const violar = (dono, motivo) => res.violacoes.push({ ...item, dono, motivo });
+
+    const mRecado = caminho.match(/^\.coord\/recados\/([^/]+)\/([^/]+)$/i);
+    if (mRecado) {
+      const destino = mRecado[1];
+      if (status !== 'A') violar('ninguém', `recados são imutáveis (${status === 'D' ? 'apagado' : 'alterado'}): responda com um recado novo`);
+      else if (!DESTINOS.includes(destino)) violar('ninguém', `destino de recado inválido: ${destino}`);
+      else res.excecoes.push({ ...item, motivo: `recado novo para ${destino}` });
+      continue;
+    }
+    if (/^\.coord\/recados\//i.test(caminho)) {
+      violar('ninguém', 'fora do padrão .coord/recados/<destino>/<id>.md (use node scripts/coord.mjs enviar)');
+      continue;
+    }
+
+    let dono;
+    const mDiario = caminho.match(/^\.coord\/(diario|lidos)\/([^/.]+)\.(md|txt)$/i);
+    if (mDiario && PESSOAS.includes(mDiario[2])) {
+      if (mDiario[2] === agente) {
+        res.excecoes.push({ ...item, motivo: mDiario[1] === 'diario' ? 'diário do próprio agente' : 'lidos do próprio agente' });
+        continue;
+      }
+      dono = mDiario[2];
+    } else dono = donoDe(caminho, regras);
+
+    if (dono === 'sem-dono') violar(dono, 'caminho sem dono em .coord/donos.json: mande recado ao gerente-projetos');
+    else if (dono === 'congelado') violar(dono, 'área congelada: ninguém altera');
+    else if (dono === agente) res.ok.push({ ...item, dono });
+    else if (!estrito || agente === 'alexandre') res.outros.push({ ...item, dono });
+    else violar(dono, `fora dos caminhos de ${agente}; peça ao dono por recado (node scripts/coord.mjs enviar --de ${agente} --para ${dono} --tipo pedido ...)`);
+  }
+  return res;
+}

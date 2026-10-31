@@ -16,14 +16,27 @@
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",
-      "Bash(git branch*)"
+      "Bash(git branch*)",
+      "Bash(git push origin main)",
+      "Bash(git push -u origin main)",
+      "Bash(git push origin nuvem/*)",
+      "Bash(git push -u origin nuvem/*)",
+      "Bash(git push origin alexandre/*)",
+      "Bash(git push -u origin alexandre/*)",
+      "Bash(git push origin agente/*)",
+      "Bash(git push -u origin agente/*)"
     ],
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./**/.env)",
       "Read(./**/.env.*)",
-      "Bash(git push*)",
+      "Bash(git push*--force*)",
+      "Bash(git push* -f*)",
+      "Bash(git push*--delete*)",
+      "Bash(git push* -d*)",
+      "Bash(git push* :*)",
+      "Bash(git push* +*)",
       "Bash(pnpm exec drizzle-kit push*)"
     ],
     "additionalDirectories": [

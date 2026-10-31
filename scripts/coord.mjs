@@ -10,13 +10,26 @@
 //   node scripts/coord.mjs fio <id>                 mostra a conversa (recado + respostas)
 //   node scripts/coord.mjs pendencias               visão geral para o gerente (abertos por destinatário)
 //   node scripts/coord.mjs dono <caminho>           quem é o dono do caminho
-//   node scripts/coord.mjs verificar [agente]       confere o diff do git contra .coord/donos.json
+//   node scripts/coord.mjs verificar [agente] [--base <ref>] [--por-dono]
+//        confere os arquivos alterados contra .coord/donos.json (primeira regra vence):
+//        sem --base   árvore de trabalho × HEAD; arquivo de outro dono é só informativo
+//                     ("Outros donos"), porque vários agentes dividem a mesma árvore
+//        --base <ref> diff do branch: merge-base(HEAD, <ref>)...HEAD + não commitados e não
+//                     rastreados; arquivo de outro dono é VIOLAÇÃO (uso no CI: --base origin/main)
+//        sempre VIOLAÇÃO: caminho sem-dono ou congelado, recado existente alterado/apagado.
+//        exceções (iguais às do guardião): recado NOVO em .coord/recados/<destino>/ e
+//        .coord/diario/<agente>.md e .coord/lidos/<agente>.txt do próprio agente.
+//        agente omitido: inferido do branch agente/T-nnnn-<agente> (ou alexandre/...),
+//        de GITHUB_HEAD_REF no CI, ou do trailer "Agente: <nome>" no último commit.
+//        --por-dono   lista as alterações agrupadas por dono (sem agente).
+//        saída: 0 = sem violação · 1 = violação · 2 = erro de uso ou de git.
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import {
   RAIZ, AGENTES, DESTINOS, TIPOS, TIPOS_QUE_EXIGEM_ENCERRAMENTO,
   carregarDonos, donoDe, caminhoRelativo, podeAlterar,
+  PESSOAS, normalizarCaminho, classificarMudancas,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -90,7 +103,7 @@ function lidosDe(agente) {
   const arq = join(RAIZ, '.coord', 'lidos', `${agente}.txt`);
   return existsSync(arq) ? new Set(readFileSync(arq, 'utf8').split(/\r?\n/).filter(Boolean)) : new Set();
 }
-const titulo = (r) => (r.corpo.match(/^#\s+(.+)$/m) || [, '(sem assunto)'])[1];
+const titulo = (r) => (r.corpo.match(/^#\s+(.+)$/m) || [null, '(sem assunto)'])[1];
 const idade = (r) => {
   const h = (Date.now() - new Date(r.meta.criado_em).getTime()) / 36e5;
   return h < 24 ? `${Math.max(0, Math.round(h))}h` : `${Math.round(h / 24)}d`;
@@ -109,6 +122,160 @@ function abertosPara(agente, recs, fechados) {
     return !lidos.has(r.meta.id); // informativo ou cópia: some ao marcar como lido
   });
 }
+
+// ---------------------------------------------------------------- verificar
+const USO_VERIFICAR = [
+  'uso: node scripts/coord.mjs verificar [agente] [--base <ref>] [--por-dono]',
+  `  agente: ${PESSOAS.join(', ')}`,
+  '  sem agente: inferido do branch agente/T-nnnn-<agente> ou alexandre/..., ou do trailer "Agente: <nome>" do último commit',
+  '  exemplos: node scripts/coord.mjs verificar modulo-core',
+  '            node scripts/coord.mjs verificar modulo-core --base origin/main',
+].join('\n');
+
+class ErroUso extends Error {}
+const erroUso = (m, uso = true) => { throw new ErroUso(uso ? `${m}\n${USO_VERIFICAR}` : m); };
+
+function git(args, { falha } = {}) {
+  try {
+    return execFileSync('git', args, { cwd: RAIZ, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+  } catch (e) {
+    if (falha === null) return null;
+    erroUso(`${falha || 'falha no git'} (git ${args.join(' ')}: ${String(e.stderr || e.message).trim()})`, false);
+  }
+}
+
+/** "A\0caminho\0M\0outro\0" → [{status, caminho}] */
+function lerNameStatusZ(out) {
+  const t = String(out || '').split('\0');
+  const r = [];
+  for (let i = 0; i + 1 < t.length; i += 2) if (t[i]) r.push({ status: t[i], caminho: t[i + 1] });
+  return r;
+}
+
+/** Arquivos alterados contra `base` (merge-base) ou contra HEAD, somando os não rastreados. */
+function coletarMudancas(base) {
+  if (git(['rev-parse', '--is-inside-work-tree'], { falha: null }) === null) erroUso('não é um repositório git', false);
+  const VAZIA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'; // árvore vazia do git
+  const head = git(['rev-parse', '--verify', '-q', 'HEAD'], { falha: null })?.trim() || null;
+  let ref;
+  let descricao;
+  if (base) {
+    if (!head) erroUso('--base exige ao menos um commit no HEAD', false);
+    const alvo = git(['rev-parse', '--verify', '-q', `${base}^{commit}`], { falha: null })?.trim();
+    if (!alvo) erroUso(`ref "${base}" não encontrada. Num checkout limpo (CI) busque a base antes: git fetch origin main (ou actions/checkout com fetch-depth: 0)`, false);
+    const mb = git(['merge-base', 'HEAD', alvo], { falha: null })?.trim();
+    if (!mb) {
+      const raso = git(['rev-parse', '--is-shallow-repository'], { falha: null })?.trim() === 'true';
+      erroUso(`sem merge-base entre HEAD e "${base}"${raso ? ': o clone é raso (shallow); use git fetch --unshallow ou actions/checkout com fetch-depth: 0' : ''}`, false);
+    }
+    ref = mb;
+    descricao = `merge-base de HEAD com ${base} (${mb.slice(0, 7)}) + não commitados`;
+  } else {
+    ref = head || VAZIA;
+    descricao = head ? 'árvore de trabalho × HEAD' : 'árvore de trabalho (repositório sem commits)';
+  }
+  // `git diff <ref>` compara a árvore de trabalho (inclui o que está no índice) com <ref>;
+  // com <ref> = merge-base equivale a <merge-base>...HEAD somado ao que não foi commitado.
+  const rastreados = lerNameStatusZ(git(['-c', 'core.quotepath=off', 'diff', '--name-status', '--no-renames', '-z', ref, '--']));
+  const novos = String(git(['ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter(Boolean).map((caminho) => ({ status: 'A', caminho }));
+  return { mudancas: [...rastreados, ...novos], descricao };
+}
+
+function agenteDoBranch(branch) {
+  if (!branch) return null;
+  const m = branch.match(/^agente\/T-\d+-(.+)$/i);
+  if (m) {
+    if (!PESSOAS.includes(m[1])) erroUso(`o branch "${branch}" indica o agente "${m[1]}", que não faz parte do time`);
+    return m[1];
+  }
+  return /^alexandre\//i.test(branch) ? 'alexandre' : null;
+}
+
+function agenteDoTrailer(rev) {
+  const msg = git(['log', '-1', '--format=%B', rev], { falha: null });
+  if (!msg) return null;
+  const achados = [...msg.matchAll(/^Agente:[ \t]*(\S+)[ \t]*$/gim)];
+  if (!achados.length) return null;
+  const nome = achados[achados.length - 1][1];
+  if (!PESSOAS.includes(nome)) erroUso(`o trailer "Agente: ${nome}" do commit ${rev} não é um agente do time`);
+  return nome;
+}
+
+function inferirAgente() {
+  const local = git(['rev-parse', '--abbrev-ref', 'HEAD'], { falha: null })?.trim();
+  const branch = local && local !== 'HEAD' ? local : null;
+  let a = agenteDoBranch(branch);
+  if (a) return { agente: a, origem: `branch ${branch}` };
+  const ci = process.env.GITHUB_HEAD_REF || '';
+  a = agenteDoBranch(ci);
+  if (a) return { agente: a, origem: `branch ${ci} (GITHUB_HEAD_REF)` };
+  a = agenteDoTrailer('HEAD');
+  if (a) return { agente: a, origem: 'trailer Agente: do último commit' };
+  // No CI o HEAD de um pull_request é o merge sintético: o último commit do PR é o 2º pai.
+  if (git(['rev-parse', '--verify', '-q', 'HEAD^2'], { falha: null })) {
+    a = agenteDoTrailer('HEAD^2');
+    if (a) return { agente: a, origem: 'trailer Agente: do último commit do PR' };
+  }
+  erroUso(`não deu para inferir o agente (branch: ${branch || ci || 'nenhum'}; sem trailer "Agente:" no último commit). Informe o agente`);
+}
+
+function imprimirLista(tituloSecao, itens, fmt) {
+  if (!itens.length) return;
+  console.log(`\n${tituloSecao} (${itens.length}):`);
+  for (const i of itens) console.log(`  ${i.status} ${i.caminho}${fmt(i)}`);
+}
+
+function verificar(args) {
+  try {
+    const o = opcoes(args.flatMap((a) => (/^--[^=]+=/.test(a) ? [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)] : [a])));
+    for (const k of Object.keys(o)) if (k !== '_' && k !== 'base' && k !== 'por-dono') erroUso(`opção desconhecida: --${k}`);
+    if (o._.length > 1) erroUso(`argumentos demais: ${o._.join(' ')}`);
+    if (o.base === true || o.base === '') erroUso('--base exige uma ref (ex.: --base origin/main)');
+    const base = o.base || null;
+    const regras = carregarDonos();
+
+    if (o['por-dono']) {
+      const { mudancas, descricao } = coletarMudancas(base);
+      console.log(`Alterações por dono — ${descricao}`);
+      const grupos = {};
+      for (const m of mudancas) {
+        const f = normalizarCaminho(m.caminho);
+        const g = /^\.coord\/(recados|diario|lidos)\//.test(f) ? '(recados e diários — livres pelo protocolo)' : donoDe(f, regras);
+        (grupos[g] ||= []).push(`${m.status.charAt(0)} ${f}`);
+      }
+      for (const [d, fs] of Object.entries(grupos).sort()) console.log(`${d} (${fs.length}):\n` + fs.map((f) => '  ' + f).join('\n'));
+      const ruins = (grupos['sem-dono']?.length || 0) + (grupos.congelado?.length || 0);
+      console.log(ruins ? `\nResultado: VIOLAÇÃO — ${ruins} arquivo(s) sem-dono ou congelado.` : `\nResultado: OK — ${mudancas.length} arquivo(s), nenhum sem-dono ou congelado.`);
+      process.exit(ruins ? 1 : 0);
+    }
+
+    let agente = o._[0];
+    let origem = 'informado';
+    if (agente && !PESSOAS.includes(agente)) erroUso(`agente desconhecido: ${agente}`);
+    if (!agente) ({ agente, origem } = inferirAgente());
+
+    const { mudancas, descricao } = coletarMudancas(base);
+    const r = classificarMudancas({ agente, mudancas, regras, estrito: Boolean(base) });
+    console.log(`Verificação de donos — agente: ${agente} (${origem})`);
+    console.log(`Comparação: ${descricao}`);
+    imprimirLista('OK', r.ok, () => '');
+    imprimirLista('Exceções do protocolo', r.excecoes, (i) => ` — ${i.motivo}`);
+    imprimirLista(base ? 'Outros donos (informativo — alexandre pode alterar)' : 'Outros donos (informativo — não muda o resultado)', r.outros, (i) => ` → ${i.dono}`);
+    imprimirLista('VIOLAÇÃO', r.violacoes, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
+    const total = mudancas.length ? `${r.ok.length + r.excecoes.length + r.outros.length + r.violacoes.length} arquivo(s) alterado(s)` : 'nenhum arquivo alterado';
+    if (r.violacoes.length) {
+      console.log(`\nResultado: VIOLAÇÃO — ${r.violacoes.length} de ${total} fora das regras para ${agente}.`);
+      process.exit(1);
+    }
+    console.log(`\nResultado: OK — ${total}, nenhuma violação para ${agente}.`);
+    process.exit(0);
+  } catch (e) {
+    if (!(e instanceof ErroUso)) throw e;
+    console.error(`Erro: ${e.message}`);
+    process.exit(2);
+  }
+}
+
 
 switch (cmd) {
   case 'enviar': {
@@ -237,28 +404,17 @@ switch (cmd) {
   }
 
   case 'verificar': {
-    const agente = resto[0];
-    let arquivos = [];
-    try {
-      const out = execSync('git diff --name-only HEAD && git ls-files --others --exclude-standard', { cwd: RAIZ, encoding: 'utf8' });
-      arquivos = [...new Set(out.split(/\r?\n/).filter(Boolean))];
-    } catch { falhar('não foi possível ler o git (o repositório tem ao menos um commit?)'); }
-    const regras = carregarDonos();
-    if (agente) {
-      const fora = arquivos.filter((f) => !podeAlterar({ agente, ferramenta: 'Write', rel: f, regras }).ok && !f.startsWith('.coord/recados/') && !f.startsWith('.coord/lidos/'));
-      if (!fora.length) console.log(`OK: ${arquivos.length} arquivo(s) alterado(s), todos dentro dos caminhos de ${agente}.`);
-      else { console.log(`VIOLAÇÃO: ${fora.length} arquivo(s) fora dos caminhos de ${agente}:`); for (const f of fora) console.log(`  ${f} → dono: ${donoDe(f, regras)}`); process.exit(3); }
-    } else {
-      const grupos = {};
-      for (const f of arquivos) {
-        const g = /^\.coord\/(recados|diario|lidos)\//.test(f) ? '(recados e diários — livres pelo protocolo)' : donoDe(f, regras);
-        (grupos[g] ||= []).push(f);
-      }
-      for (const [d, fs] of Object.entries(grupos).sort()) console.log(`${d} (${fs.length}):\n` + fs.map((f) => '  ' + f).join('\n'));
-    }
+    verificar(resto);
     break;
   }
 
   default:
-    console.log(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 15).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+    console.log(ajuda());
+}
+
+/** Ajuda = bloco de comentários do topo deste arquivo. */
+function ajuda() {
+  const linhas = readFileSync(new URL(import.meta.url), 'utf8').split(/\r?\n/).slice(1);
+  const fim = linhas.findIndex((l) => !l.startsWith('//'));
+  return linhas.slice(0, fim < 0 ? linhas.length : fim).map((l) => l.replace(/^\/\/ ?/, '')).join('\n');
 }
