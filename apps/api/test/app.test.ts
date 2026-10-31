@@ -2,11 +2,12 @@
  * createApp (T-0004 critério 3): monta os 8 módulos pelo manifesto e checa, em toda rota,
  * autenticação, licença do módulo (RN-CORE-02), perfil/ação (ADR 0004, RN-PRO-01) e carteira (RN-CORE-04).
  */
-import { ErroApiSchema } from '@macuxi/platform-sdk';
+import { definirModuloApi, ErroApiSchema } from '@macuxi/platform-sdk';
 import { ErroModuloInativoSchema, MeusModulosRespostaSchema } from '@macuxi/core/contracts';
+import { manifest as core } from '@macuxi/core/manifest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
-import { bancoFalso, cab, CLIENTE_DA_CARTEIRA, CLIENTE_FORA, LICENCAS_PADRAO, opcoesDeTeste } from './apoio';
+import { bancoFalso, cab, CLIENTE_DA_CARTEIRA, CLIENTE_FORA, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste } from './apoio';
 
 const ID = '0d000000-0000-4000-8000-000000000001';
 const pedido = (cliente = CLIENTE_DA_CARTEIRA, total_centavos = 1500) => ({ id: ID, cliente_id: cliente, total_centavos });
@@ -137,7 +138,9 @@ describe('validação, carteira, regra de negócio e banco', () => {
   });
 
   it('sem serviço de carteira do Core, quem não é escopo tenant não vê cliente nenhum (falha fechada)', async () => {
-    const r = await createApp({ ...opcoesDeTeste(), carteira: undefined }).inject({ method: 'POST', url: '/v1/vendedor/pedidos', headers: cab('vendedor'), payload: pedido() });
+    // Core só com o manifesto (sem `servicos`): o Core real (T-0003 Fase 2) já oferece a carteira
+    const semServicos = modulosDeTeste({ core: definirModuloApi({ manifesto: core }) });
+    const r = await createApp({ ...opcoesDeTeste(), modulos: semServicos, carteira: undefined }).inject({ method: 'POST', url: '/v1/vendedor/pedidos', headers: cab('vendedor'), payload: pedido() });
     expect(r.statusCode).toBe(403);
     expect(r.json().codigo).toBe('FORA_DA_CARTEIRA');
   });

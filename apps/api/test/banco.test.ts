@@ -64,10 +64,11 @@ describe.skipIf(semBanco())('API × Postgres (papel macuxi_app)', () => {
   it('RN-CORE-01/05: licenças lidas por comTenant, só do tenant do token (exceção do usuário remove)', async () => {
     const b = criarBancoApp(pool);
     const v1 = await licencasDoBanco(quem.vendedor1!, b);
-    expect(v1.ativosNoTenant.sort()).toEqual(['core', 'promotor', 'vendedor']); // "teste" da fixture não é módulo do produto
-    expect(v1.doPerfil.sort()).toEqual(['core', 'vendedor']);
+    // "teste" da fixture não é módulo do produto; o Catálogo vem junto do Vendedor (ADR 0005, RN-CORE-03)
+    expect(v1.ativosNoTenant.sort()).toEqual(['catalogo', 'core', 'promotor', 'vendedor']);
+    expect(v1.doPerfil.sort()).toEqual(['catalogo', 'core', 'vendedor']);
     const adminB = await licencasDoBanco(quem.adminB!, b);
-    expect(adminB.ativosNoTenant.sort()).toEqual(['core', 'vendedor']);
+    expect(adminB.ativosNoTenant.sort()).toEqual(['catalogo', 'core', 'vendedor']);
     expect(adminB.removidosDoUsuario).toEqual(['vendedor']);
   });
 
@@ -78,9 +79,11 @@ describe.skipIf(semBanco())('API × Postgres (papel macuxi_app)', () => {
       expect(r.statusCode).toBe(200);
       return MeusModulosRespostaSchema.parse(r.json()).modulos.map((m) => m.id);
     };
-    expect(await ids('vendedor1')).toEqual(['core', 'vendedor']);
+    // ADR 0005: o Vendedor depende do Catálogo, que entra antes dele na ordem de dependência
+    expect(await ids('vendedor1')).toEqual(['core', 'catalogo', 'vendedor']);
     expect(await ids('promotor')).toEqual(['core', 'promotor']);
-    expect(await ids('adminB')).toEqual(['core']);
+    // a exceção do usuário remove só o Vendedor; o Catálogo do perfil admin de B continua (não depende do Vendedor)
+    expect(await ids('adminB')).toEqual(['core', 'catalogo']);
     await app.close();
   });
 
@@ -186,12 +189,16 @@ describe.skipIf(semBanco())('API × Postgres (papel macuxi_app)', () => {
     expect((await app.inject({ method: 'POST', url: '/v1/vendedor/pedidos', headers: h, payload: { id: ok, falhar: false } })).statusCode).toBe(201);
     expect((await app.inject({ method: 'POST', url: '/v1/vendedor/pedidos', headers: h, payload: { id: falha, falhar: true } })).statusCode).toBe(422);
     const eventos = await bancoApp.comTenant(A.tenantId, (db) =>
-      db.query<{ agregado_id: string; nome: string; modulo: string; tenant_id: string }>(
-        'select agregado_id, nome, modulo, tenant_id from plataforma.evento where agregado_id = any($1::uuid[])',
+      db.query<{ agregado_id: string; nome: string; modulo: string; tenant_id: string; usuario_id: string; tem_request_id: boolean }>(
+        `select agregado_id, nome, modulo, tenant_id, usuario_id, request_id is not null and request_id <> '' as tem_request_id
+           from plataforma.evento where agregado_id = any($1::uuid[])`,
         [[ok, falha]],
       ),
     );
-    expect(eventos.rows).toEqual([{ agregado_id: ok, nome: 'vendedor.pedido.criado@1', modulo: 'vendedor', tenant_id: A.tenantId }]);
+    // envelope completo (ADR 0007 §4): quem publicou e o request_id do rastreio
+    expect(eventos.rows).toEqual([
+      { agregado_id: ok, nome: 'vendedor.pedido.criado@1', modulo: 'vendedor', tenant_id: A.tenantId, usuario_id: A.usuarios.vendedor1, tem_request_id: true },
+    ]);
     await app.close();
   });
 });

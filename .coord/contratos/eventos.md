@@ -24,14 +24,14 @@
 | `treinamento.licao.concluida@1` | treinamento | gestor |
 | `treinamento.medalha.conquistada@1` | treinamento | gestor, core (notificação) |
 | `integracao.cliente.atualizado@1` | integracao | core |
-| `integracao.produto.atualizado@1` | integracao | catalogo (core após a T-0007, ADR 0005) |
+| `integracao.produto.atualizado@1` | integracao | core (dono de `core.produto`, ADR 0005; a declarar). O catálogo deixa de consumir |
 | `integracao.preco.atualizado@1` | integracao | catalogo |
 | `integracao.estoque.atualizado@1` | integracao | catalogo |
 | `integracao.vendedor.atualizado@1` | integracao | core (usuários/carteira; a declarar no manifesto do core) |
 | `integracao.titulo.atualizado@1` | integracao | vendedor (financeiro do cliente; a declarar) |
 | `integracao.nota.atualizado@1` | integracao | vendedor (nota do pedido; a declarar) |
 | `integracao.rota.atualizado@1` | integracao | core (roteiro de visitas; a declarar) |
-| `integracao.pedido.retorno_erp@1` | integracao | vendedor |
+| `integracao.pedido.retorno_erp@1` | integracao | vendedor (aplica o status e publica `vendedor.pedido.faturado@1`; desenho T-0011) |
 | `integracao.lote.concluido@1` | integracao | integracao (monitor do BKO, RF-INT-04) |
 | `integracao.reconciliacao.divergente@1` | integracao | integracao (monitor do BKO), gestor (alertas; a declarar) |
 
@@ -46,4 +46,8 @@
 > — `itens` = o que foi faturado NESTE retorno (o consumidor soma; quantidade na unidade de venda; sem valores). Um evento por
 > retorno aceito (o retorno já é idempotente no Hub); o consumidor é idempotente por `evento_id`. Sem estorno nesta fase.
 > Não se usa `retorno_erp@1` para isso: ele não tem `vendedor_id` nem itens, fala a língua do ERP e só existe com o Hub.
-> Schema em `modules/vendedor/contracts/eventos.ts` depois do merge da T-0007 (contracts e manifesto do Vendedor travados pela nuvem). Desenho: `docs/desenho/T-0004.md` §8.
+> Schema em `modules/vendedor/contracts/eventos.ts` (`PedidoFaturadoEvento`); o manifesto do Vendedor já declara o `publica`.
+> Desenho: `docs/desenho/T-0004.md` §8 (o evento) e `docs/desenho/T-0011.md` (a publicação na outbox).
+> Origem dos itens (T-0011 §2): `integracao.pedido.retorno_erp@1` e o `RetornoErp` do Conector ganham `itens_faturados`
+> opcional (`[{ sequencia, quantidade }]`, a sequência do `PedidoParaErp`). É um campo novo opcional, então continua `@1`
+> (RN-INT-09). Um `faturado_parcial` sem `itens_faturados` **não publica** o evento; o `faturado_total` cobre o saldo.

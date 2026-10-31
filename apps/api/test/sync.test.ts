@@ -69,7 +69,8 @@ describe('GET /v1/sync/pull', () => {
     expect(inativo.statusCode).toBe(403);
     expect(inativo.json()).toMatchObject({ codigo: 'MODULO_INATIVO', detalhes: { modulo: 'promotor' } });
     expect((await app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=nao_existe', headers: cab('vendedor') })).statusCode).toBe(404);
-    const semProvedor = await app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=cliente', headers: cab('vendedor') });
+    // `rota` é do Core e ainda sem provedor (o Core da T-0003 Fase 2 provê cliente, carteira e produto)
+    const semProvedor = await app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=rota', headers: cab('vendedor') });
     expect(semProvedor.statusCode).toBe(501);
   });
 

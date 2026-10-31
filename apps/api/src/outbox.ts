@@ -16,9 +16,20 @@ import {
 
 export async function gravarEvento(db: ClienteBanco, envelope: EnvelopeEvento, agregadoId: string | null): Promise<void> {
   await db.query(
-    `insert into plataforma.evento (id, tenant_id, nome, modulo, agregado_id, payload, ocorrido_em)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
-    [envelope.evento_id, envelope.tenant_id, envelope.nome, envelope.origem, agregadoId, JSON.stringify(envelope.payload), envelope.ocorrido_em],
+    // usuario_id/request_id: envelope completo no banco para o rastreio ponta a ponta (ADR 0007 §4, migração 0003)
+    `insert into plataforma.evento (id, tenant_id, nome, modulo, agregado_id, payload, ocorrido_em, usuario_id, request_id)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)`,
+    [
+      envelope.evento_id,
+      envelope.tenant_id,
+      envelope.nome,
+      envelope.origem,
+      agregadoId,
+      JSON.stringify(envelope.payload),
+      envelope.ocorrido_em,
+      envelope.usuario_id,
+      envelope.request_id,
+    ],
   );
 }
 
