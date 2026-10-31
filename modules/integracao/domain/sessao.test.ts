@@ -53,7 +53,7 @@ describe('RN-INT-06: inativação da carga completa', () => {
   const aberta = () => registrarParte(base(), { parte: 1, ultimo: false, status: 'concluido' });
 
   it('RN-INT-06: com a sessão completa, inativa os ativos ausentes da carga (nunca apaga)', () => {
-    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ['A', 'B', 'C', 'D'], recebidosNaSessao: ['A', 'C'] });
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ['A', 'B', 'C', 'D'], recebidosNaSessao: ['A', 'C'], limitePct: 100 });
     expect(r).toEqual({ permitido: true, inativar: ['B', 'D'], motivo: null });
   });
 
@@ -83,5 +83,26 @@ describe('RN-INT-06: inativação da carga completa', () => {
     const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ['A', 'B'], recebidosNaSessao: ['A', 'B'] });
     expect(r.inativar).toEqual([]);
     expect(r.permitido).toBe(true);
+  });
+
+  it('RN-INT-06: inativação em massa acima do limite (padrão 30%) exige confirmação do operador', () => {
+    const ativos = Array.from({ length: 10 }, (_, i) => `A${i}`);
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ativos, recebidosNaSessao: ['A0', 'A1', 'A2'] });
+    expect(r).toMatchObject({ permitido: false, inativar: [], motivo: 'excede_limite_inativacao' });
+    expect(r.candidatos).toHaveLength(7);
+  });
+
+  it('RN-INT-06: com confirmação do operador a inativação em massa é liberada', () => {
+    const ativos = Array.from({ length: 10 }, (_, i) => `A${i}`);
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ativos, recebidosNaSessao: ['A0', 'A1', 'A2'], confirmado: true });
+    expect(r.permitido).toBe(true);
+    expect(r.inativar).toHaveLength(7);
+  });
+
+  it('RN-INT-06: exatamente no limite (30%) ainda inativa sem confirmação', () => {
+    const ativos = Array.from({ length: 10 }, (_, i) => `A${i}`);
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ativos, recebidosNaSessao: ativos.slice(0, 7) });
+    expect(r.permitido).toBe(true);
+    expect(r.inativar).toHaveLength(3);
   });
 });

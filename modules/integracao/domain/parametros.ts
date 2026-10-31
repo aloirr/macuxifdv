@@ -20,6 +20,8 @@ export interface ParametrosHub {
   janelaVersaoAnteriorMeses: number;
   /** RN-INT-06: minutos até uma sessão de carga completa sem fechar expirar. */
   ttlSessaoMin: number;
+  /** RN-INT-06: % de ativos que a carga completa pode inativar sem confirmação do operador. */
+  limiteInativacaoPct: number;
 }
 
 export const PARAMETROS_PADRAO: Readonly<ParametrosHub> = Object.freeze({
@@ -30,4 +32,5 @@ export const PARAMETROS_PADRAO: Readonly<ParametrosHub> = Object.freeze({
   timeoutEnvioMin: 10,
   janelaVersaoAnteriorMeses: 6,
   ttlSessaoMin: 24 * 60,
+  limiteInativacaoPct: 30,
 });

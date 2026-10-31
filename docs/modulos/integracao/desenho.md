@@ -1,6 +1,6 @@
 # Integração — desenho do Hub `/integracao/v1`
 
-> Tarefa T-0009 · módulo `integracao` · 2026-10-31 · status: proposto (revisão do engenheiro-software pendente)
+> Tarefa T-0009 · módulo `integracao` · 2026-10-31 · status: revisado pelo modulo-integracao (dono) em 2026-10-31; revisão do engenheiro-software pendente
 > Escopo: núcleo do Hub em funções puras e contratos Zod. **Sem banco, sem rotas, sem Conector** nesta tarefa.
 > Requisitos: RF-INT-01 (Hub REST), RF-INT-02 (Conector), RF-INT-03 (carga por arquivo), RF-INT-04 (monitor), RF-INT-06 (reconciliação). Regras: RN-INT-01..09 (`docs/produto/03`, seção 9). Fonte do fluxo: `docs/produto/06-integracao-erp.md`.
 > Código: `modules/integracao/contracts` (formato) e `modules/integracao/domain` (decisões).
@@ -155,6 +155,7 @@ Dono dos dados (ADR-0005): produto → `core.produto`; cliente/vendedor/rota/tí
 | Reenvio de pedido `enviado` | 10 min | `timeoutEnvioMin` |
 | Convivência da versão anterior | 6 meses | `janelaVersaoAnteriorMeses` |
 | TTL da sessão de carga completa | 24 h | `ttlSessaoMin` |
+| Inativação em massa sem confirmação | 30 % dos ativos | `limiteInativacaoPct` (RN-INT-06) |
 
 Todos entram nas funções como argumento opcional com padrão em `PARAMETROS_PADRAO`; a API lê os valores do tenant (`plataforma.parametro`). Recusa do envelope (`validarEnvelope`, HTTP 4xx, **sem lote criado**): `envelope_invalido`, `versao_nao_suportada`, `entidade_desconhecida`, `lote_vazio`, `acima_do_limite`, `sessao_ausente` (completo sem sessão), `sessao_nao_se_aplica` (delta com sessão). Todos os problemas do envelope voltam juntos.
 
@@ -250,4 +251,8 @@ Rotas Fastify, persistência, fila (pg-boss), telas do monitor/mapeamento/upload
 ## 13. Decisões e perguntas em aberto
 - **Decididas (gerente, T-0009)**: última ocorrência vence no lote; cursor `(alterado_em, external_id)`; tolerância 0 / 0,5 %; reenvio ao ERP após 10 min.
 - **Assumidas aqui** (revisar): `alterado_em` fora do hash; `null` = ausente no hash; `integrado → faturado_total` direto aceito; `rejeitado_erp` final (reenfileirar um pedido rejeitado exigiria nova aprovação gerando novo ciclo — a regra não prevê); unidade de preço/estoque por item; `external_id` ≤ 100 caracteres; sessão expira em 24 h; carga completa vazia nunca inativa.
-- **Abertas**: (1) pedido cancelado no Vendedor depois de `enviado` — o ERP precisa ser avisado? (estado `cancelado` não existe em RN-INT-08); (2) trava de segurança para inativação em massa (ex.: pedir confirmação se > X % dos ativos); (3) quantidade/saldo fracionário: manter `number` ou usar milésimos inteiros para a soma de controle exata.
+- **Decididas na revisão do dono (2026-10-31)**:
+  - (2) **Trava de inativação em massa**: `calcularInativacao` não inativa se a carga completa fosse inativar mais de `limiteInativacaoPct` (padrão 30 %) dos ativos; devolve `motivo: excede_limite_inativacao` e `candidatos`; o operador confirma no BKO (`confirmado: true`). Implementado e testado.
+  - (3) **Quantidade/saldo fracionário**: mantém `number` no contrato (o ERP define a precisão). A soma de controle de estoque é comparada com a tolerância de 0,5 %, que absorve ruído de ponto flutuante; a API deve somar em milésimos (`Math.round(x*1000)`) antes de enviar ao `reconciliar`. Sem mudança de contrato.
+  - Revisão: precisão do cursor — `Date.parse` trunca a milissegundos; o Conector deve enviar `alterado_em` em ms (ex.: `datetime2(3)` ou `rowversion` convertido). Entra no guia do Conector e nas views-modelo.
+- **Abertas, de produto/outro dono (não decididas aqui)**: (1) pedido cancelado no Vendedor depois de `enviado` — o ERP deve ser avisado? Exige regra no doc 03 (RN do Vendedor/Integração) e possivelmente estado `cancelado` em RN-INT-08 e evento consumido novo; decisão do Alexandre com o `modulo-vendedor`.

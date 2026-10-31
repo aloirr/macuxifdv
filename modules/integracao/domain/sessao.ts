@@ -50,7 +50,7 @@ export function situacaoSessao(sessao: SessaoCargaEstado, agora: string, opcoes:
   return Date.parse(agora) - Date.parse(sessao.iniciadaEm) > ttl * 60_000 ? 'expirada' : 'aberta';
 }
 
-export type MotivoSemInativacao = 'sessao_incompleta' | 'linhas_sem_external_id' | 'carga_vazia';
+export type MotivoSemInativacao = 'sessao_incompleta' | 'linhas_sem_external_id' | 'carga_vazia' | 'excede_limite_inativacao';
 
 export interface EntradaInativacao {
   sessao: SessaoCargaEstado;
@@ -62,11 +62,17 @@ export interface EntradaInativacao {
   /** Linhas da sessão sem external_id legível: sem elas não dá para saber o que faltou. */
   linhasSemExternalId?: number;
   ttlMin?: number;
+  /** Percentual máximo de ativos inativados sem confirmação (padrão `limiteInativacaoPct`). */
+  limitePct?: number;
+  /** Operador confirmou a inativação em massa no BKO. */
+  confirmado?: boolean;
 }
 
 export interface ResultadoInativacao {
   permitido: boolean;
   inativar: string[];
+  /** Só quando `excede_limite_inativacao`: o que seria inativado se o operador confirmar. */
+  candidatos?: string[];
   motivo: MotivoSemInativacao | null;
 }
 
@@ -77,5 +83,10 @@ export function calcularInativacao(e: EntradaInativacao): ResultadoInativacao {
   const recebidos = new Set(e.recebidosNaSessao);
   if (recebidos.size === 0) return nega('carga_vazia');
   const inativar = [...new Set(e.ativosNoMacuxi)].filter((id) => !recebidos.has(id));
+  const ativos = new Set(e.ativosNoMacuxi).size;
+  const limite = e.limitePct ?? PARAMETROS_PADRAO.limiteInativacaoPct;
+  if (!e.confirmado && ativos > 0 && (inativar.length / ativos) * 100 > limite) {
+    return { permitido: false, inativar: [], candidatos: inativar, motivo: 'excede_limite_inativacao' };
+  }
   return { permitido: true, inativar, motivo: null };
 }
