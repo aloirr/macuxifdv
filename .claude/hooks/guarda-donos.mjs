@@ -39,7 +39,7 @@ const rel = caminhoRelativo(alvo, RAIZ);
 if (rel === null) {
   // Fora do repositório: só bloqueia as pastas marcadas como somente leitura (ex.: Fase M).
   let somenteLeitura = [];
-  try { somenteLeitura = JSON.parse(readFileSync(join(RAIZ, '.coord', 'donos.json'), 'utf8')).somente_leitura || []; } catch {}
+  try { somenteLeitura = JSON.parse(readFileSync(join(RAIZ, '.coord', 'donos.json'), 'utf8')).somente_leitura || []; } catch { /* donos.json ilegível: sem pastas somente leitura */ }
   const norm = (p) => p.replace(/\\/g, '/').toLowerCase().replace(/\/+$/, '');
   const a = norm(alvo);
   const pasta = somenteLeitura.find((p) => a === norm(p) || a.startsWith(norm(p) + '/'));
