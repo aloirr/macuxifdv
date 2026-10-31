@@ -55,3 +55,9 @@
 2026-10-31 — T-0006 — testes entregou vazamento via tests/ (164/164); aceita a substituição de 1 teste da Fase M pela regra nova de cancelamento
 2026-10-31 — aviso ao Alexandre sobre o teste da Fase M substituído
 2026-10-31 — T-0004 entregue (em_teste); T-0009 concluída; fechamento da rodada
+2026-10-31 — pull trouxe T-0007, T-0012 e guardião Bash; conflito em apps/ resolvido pelo engenheiro; 2 testes de banco da API vermelhos (fixture sem Catálogo): merge commitado SEM push; banco-dados disparado; travas T-0007/T-0012/.claude/hooks removidas
+2026-10-31 — T-0012 — revisão do dono sem 🔴; CONCLUÍDA; perguntas de produto ao Alexandre
+2026-10-31 — T-0009/T-0011 — vendedor: status do ERP no contrato e evento pedido.faturado publicado (104 testes)
+2026-10-31 — T-0007/T-0004 — fixture corrigida e migração 0003 (worker + índice); raiz ainda vermelha por trabalho em andamento do engenheiro (banco.test) e do core (Fase 2)
+2026-10-31 — T-0007 CONCLUÍDA; aviso ao treinamento (manifesto travado); pedido ao Alexandre: .env.example bloqueado e consumo do evento na sessão da nuvem da T-0011
+2026-10-31 — T-0003 — Fase 2 entregue (237 testes, banco simulado); raiz vermelha só por timeout do argon2 sob carga; core corrigindo antes do push

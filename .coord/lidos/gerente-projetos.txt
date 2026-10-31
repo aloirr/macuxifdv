@@ -56,3 +56,11 @@ R-20261031-111901-testes
 R-20261031-114048-engenheiro-software
 R-20261031-114109-engenheiro-software
 R-20261031-115533-engenheiro-software
+R-20261031-121124-engenheiro-software
+R-20261031-121145-engenheiro-software
+R-20261031-121524-modulo-pesquisa
+R-20261031-150512-modulo-pesquisa
+R-20261031-122330-modulo-vendedor
+R-20261031-123422-banco-dados
+R-20261031-124824-engenheiro-software
+R-20261031-125016-modulo-core
