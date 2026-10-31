@@ -180,6 +180,15 @@ export const NO_ORDER_REASONS = [
   'Outro',
 ] as const;
 
+/** RN-CORE-14: cliente fechado (lista fechada do core). Exige foto da fachada e dispensa as etapas obrigatórias do checkout. */
+export const MOTIVOS_CLIENTE_FECHADO = ['loja_fechada', 'acesso_negado'] as const;
+export const MotivoClienteFechado = z.enum(MOTIVOS_CLIENTE_FECHADO);
+export type MotivoClienteFechado = z.infer<typeof MotivoClienteFechado>;
+export const ROTULO_CLIENTE_FECHADO: Record<MotivoClienteFechado, string> = {
+  loja_fechada: 'Loja fechada',
+  acesso_negado: 'Acesso negado',
+};
+
 export const Visit = z.object({
   id: Id,
   seller_id: Id,
@@ -206,10 +215,18 @@ export const CheckoutVisitRequest = z
     outcome: VisitOutcome,
     no_order_reason: z.string().optional(),
     order_id: Id.nullable().optional(),
+    /** RN-CORE-14: preenchido quando o cliente estava fechado; exige `foto_fachada_ref`. */
+    motivo_cliente_fechado: MotivoClienteFechado.optional(),
+    /** Referência (id) da foto da fachada já capturada/enfileirada. */
+    foto_fachada_ref: z.string().min(1).optional(),
   })
   .refine((b) => b.outcome === 'order' || (b.no_order_reason ?? '').trim().length > 0, {
     message: 'Informe o motivo de não venda.',
     path: ['no_order_reason'],
+  })
+  .refine((b) => !b.motivo_cliente_fechado || (b.outcome === 'no_order' && Boolean(b.foto_fachada_ref)), {
+    message: 'Cliente fechado exige a foto da fachada. Tire a foto e conclua o checkout de novo.',
+    path: ['foto_fachada_ref'],
   });
 export type CheckoutVisitRequest = z.infer<typeof CheckoutVisitRequest>;
 

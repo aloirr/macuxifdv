@@ -1,6 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
- * db/migrations/0002_core.up.sql, para uso INTERNO do módulo Core (modules/core/api).
+ * db/migrations/0002_core.up.sql (e 0004: sessao, dispositivo, tentativas de login), para uso
+ * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs compostas, índices, RLS e grants ficam lá); aqui ficam
@@ -8,7 +9,7 @@
  * comparado com eles em db/testes/estatico.test.ts.
  * db/testes/drizzle-x-banco.test.ts confere colunas x banco migrado.
  */
-import { boolean, date, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, date, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { PERFIS } from '@macuxi/platform-sdk';
 
 export const core = pgSchema('core');
@@ -44,6 +45,10 @@ export const usuario = core.table('usuario', {
   ativo: boolean('ativo').notNull().default(true),
   bloqueado_em: timestamp('bloqueado_em', { withTimezone: true }),
   ultimo_login_em: timestamp('ultimo_login_em', { withTimezone: true }),
+  /** Falhas de senha seguidas (0004). 5 falhas => bloqueio_ate = agora + 15 min; login certo zera. */
+  tentativas_falhas: smallint('tentativas_falhas').notNull().default(0),
+  /** Bloqueio TEMPORÁRIO por tentativas (0004). bloqueado_em é o bloqueio manual do admin. */
+  bloqueio_ate: timestamp('bloqueio_ate', { withTimezone: true }),
 });
 
 /** Cadastro base de produto (ADR-0005). Preço/estoque/conteúdo/busca: schema catalogo. */
@@ -85,4 +90,29 @@ export const carteira = core.table('carteira', {
   papel: text('papel', { enum: ['vendedor', 'promotor'] }).notNull(),
   inicio: date('inicio'),
   fim: date('fim'),
+});
+
+/** Aparelho do usuário (0004; RF-CORE-01 bloqueio remoto). id = UUID gerado no aparelho. Fora do sync. */
+export const dispositivo = core.table('dispositivo', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  nome: text('nome'),
+  plataforma: text('plataforma'),
+  ultimo_acesso_em: timestamp('ultimo_acesso_em', { withTimezone: true }),
+  bloqueado_em: timestamp('bloqueado_em', { withTimezone: true }),
+});
+
+/**
+ * Refresh token rotativo (0004; doc 04). token_hash = sha256 hex do segredo, único por tenant.
+ * familia_id agrupa os refresh de um login (reuso de refresh usado revoga a família). Fora do sync.
+ */
+export const sessao = core.table('sessao', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  familia_id: uuid('familia_id').notNull(),
+  token_hash: text('token_hash').notNull(),
+  dispositivo_id: uuid('dispositivo_id'),
+  expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
+  usado_em: timestamp('usado_em', { withTimezone: true }),
+  revogado_em: timestamp('revogado_em', { withTimezone: true }),
 });

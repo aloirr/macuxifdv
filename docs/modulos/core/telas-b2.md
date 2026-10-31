@@ -25,3 +25,10 @@ A `params-page` da Fase M foi dividida: plano de RV aqui; alçadas de desconto n
 - RN-CORE-12 como função de domínio com teste (hoje a regra está na folha de checkout); motivo sem pedido só "se o Vendedor estiver ativo".
 - Tela "Meus módulos" (app) e licenças (BKO): T-0003 (precisam de `GET /v1/me/modulos` e da API de licenças).
 - Total do pedido na fila: `pedidosDaFila` lê `payload.total_cents` (opcional) do pedido do Vendedor; sem ele a visita mostra R$ 0,00 até a sincronização.
+
+## Checkout de cliente fechado (RN-CORE-14)
+- Motivos `loja_fechada` e `acesso_negado` (lista fechada, `MOTIVOS_CLIENTE_FECHADO` em `contracts`) exigem foto da fachada e dispensam todas as etapas obrigatórias do slot `visita.etapas_checkout`.
+- Regra pura: `avaliarCheckout`/`ehClienteFechado` em `domain/checkout.ts` (RN-CORE-12 + RN-CORE-14).
+- `ContextoCheckout` ganhou `clienteFechado?: boolean` e `motivoClienteFechado?` (opcionais, compatível).
+- `CheckoutVisitRequest` ganhou `motivo_cliente_fechado` e `foto_fachada_ref` (a API recusa o motivo sem a foto).
+- App: a folha de checkout lista os dois motivos, mostra "Tirar foto da fachada" (testIDs `checkout-foto-fachada`, `checkout-tirar-foto`) e oculta as etapas. A câmera real é registrada pelo shell via `definirCapturaFoto` (`app/lib/foto-fachada.ts`).

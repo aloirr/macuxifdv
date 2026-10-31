@@ -14,7 +14,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NO_ORDER_REASONS, type ContextoCheckout, type EtapaCheckout } from '../../contracts';
+import { MOTIVOS_CLIENTE_FECHADO, NO_ORDER_REASONS, ROTULO_CLIENTE_FECHADO, type ContextoCheckout, type EtapaCheckout, type MotivoClienteFechado } from '../../contracts';
+import { avaliarCheckout, ehClienteFechado } from '../../domain';
+import { capturarFotoFachada } from '../lib/foto-fachada';
 import { fazerCheckout } from '../lib/acoes-visita';
 import { abrirRota } from '../lib/navegacao';
 import { useCore } from '../lib/usar-core';
@@ -181,6 +183,8 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
   const etapas = useExtensoes<EtapaCheckout<ComponentType<{ contexto: ContextoCheckout }>>>('visita.etapas_checkout');
   const [result, setResult] = useState<'order' | 'no_order' | null>(null);
   const [reason, setReason] = useState<string | null>(null);
+  const [fotoFachada, setFotoFachada] = useState<string | null>(null);
+  const [erroFoto, setErroFoto] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const orders = useMemo(() => (open ? ordersInVisit(open, core.pedidos) : []), [open, core.pedidos]);
   const hasOrder = orders.length > 0;
@@ -196,6 +200,8 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
       openedFor.current = open.id;
       setResult(hasOrder ? 'order' : null);
       setReason(null);
+      setFotoFachada(null);
+      setErroFoto(null);
     }
   }, [visible, open, hasOrder]);
 
@@ -209,9 +215,35 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
   const name = open.customer_name;
   const since = formatHHMM(open.checkin_at, core.tz);
   // RN-CORE-12: etapas obrigatórias registradas por módulos ativos (ex.: pesquisa) precisam estar cumpridas
-  const contexto: ContextoCheckout = { clienteId: open.customer_id, nomeCliente: name, visitaId: open.id, paradaId: open.route_stop_id };
-  const pendentes = etapas.filter((e) => e.payload.obrigatoria && !e.payload.concluida(contexto));
-  const canConfirm = !salvando && pendentes.length === 0 && ((result === 'order' && hasOrder) || (result === 'no_order' && Boolean(reason)));
+  // RN-CORE-14: cliente fechado (loja fechada / acesso negado) dispensa as etapas e exige a foto da fachada
+  const fechado = result === 'no_order' && ehClienteFechado(reason);
+  const motivoFechado = fechado ? (reason as MotivoClienteFechado) : null;
+  const contexto: ContextoCheckout = {
+    clienteId: open.customer_id,
+    nomeCliente: name,
+    visitaId: open.id,
+    paradaId: open.route_stop_id,
+    clienteFechado: fechado,
+    motivoClienteFechado: motivoFechado,
+  };
+  const avaliacao = avaliarCheckout({
+    resultado: result === 'order' && !hasOrder ? null : result,
+    motivo: reason,
+    fotoFachada: Boolean(fotoFachada),
+    etapas: etapas.map((e) => ({ rotulo: e.payload.rotulo, obrigatoria: e.payload.obrigatoria, concluida: e.payload.concluida(contexto) })),
+  });
+  const pendentes = etapas.filter((e) => !avaliacao.etapasDispensadas && e.payload.obrigatoria && !e.payload.concluida(contexto));
+  const canConfirm = !salvando && avaliacao.pode;
+
+  const tirarFoto = async () => {
+    const ref = await capturarFotoFachada();
+    if (ref) {
+      setFotoFachada(ref);
+      setErroFoto(null);
+    } else {
+      setErroFoto('Não foi possível abrir a câmera. Confira a permissão de câmera e tente de novo.');
+    }
+  };
 
   const confirm = async () => {
     if (!canConfirm || !core.motor || !core.armazem) return;
@@ -221,7 +253,11 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
       const done =
         result === 'order'
           ? await fazerCheckout(acao, open.id, { outcome: 'order', order_id: open.order_id ?? orders[0]!.id, order_total_cents: orders.reduce((s, o) => s + o.total_cents, 0) })
-          : await fazerCheckout(acao, open.id, { outcome: 'no_order', no_order_reason: reason ?? '' });
+          : await fazerCheckout(acao, open.id, {
+              outcome: 'no_order',
+              no_order_reason: motivoFechado ? ROTULO_CLIENTE_FECHADO[motivoFechado] : (reason ?? ''),
+              ...(motivoFechado && fotoFachada ? { motivo_cliente_fechado: motivoFechado, foto_fachada_ref: fotoFachada } : {}),
+            });
       if (done) onDone(name);
     } finally {
       setSalvando(false);
@@ -258,7 +294,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
       </Pressable>
       {result === 'no_order' ? (
         <View style={styles.reasons} accessibilityLabel="Motivo de não venda">
-          {NO_ORDER_REASONS.map((r) => {
+          {[...NO_ORDER_REASONS.filter((x) => x !== 'Loja fechada'), ...MOTIVOS_CLIENTE_FECHADO].map((r) => {
             const on = reason === r;
             return (
               <Pressable
@@ -268,13 +304,21 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
                 accessibilityState={{ checked: on }}
                 onPress={() => setReason(r)}
                 style={[styles.reason, on ? { backgroundColor: colors.ink, borderColor: colors.ink } : null]}>
-                <Text style={[styles.reasonText, on ? { color: '#FFFFFF' } : null]}>{r}</Text>
+                <Text style={[styles.reasonText, on ? { color: '#FFFFFF' } : null]}>{ehClienteFechado(r) ? ROTULO_CLIENTE_FECHADO[r as MotivoClienteFechado] : r}</Text>
               </Pressable>
             );
           })}
         </View>
       ) : null}
-      {etapas.map((e) => {
+      {fechado ? (
+        <View testID="checkout-foto-fachada" style={styles.etapa}>
+          <Text style={[t.bodyStrong, { flex: 1 }]}>Foto da fachada (obrigatória)</Text>
+          <Text style={t.small}>Cliente fechado: as etapas obrigatórias da visita ficam dispensadas.</Text>
+          <SheetButton testID="checkout-tirar-foto" label={fotoFachada ? 'Foto tirada · refazer' : 'Tirar foto da fachada'} bg={colors.surface} fg={colors.ink} border={colors.lineStrong} height={48} onPress={() => void tirarFoto()} />
+          {erroFoto ? <Text style={styles.pendencia}>{erroFoto}</Text> : null}
+        </View>
+      ) : null}
+      {(fechado ? [] : etapas).map((e) => {
         const Etapa = e.payload.componente;
         const ok = e.payload.concluida(contexto);
         return (

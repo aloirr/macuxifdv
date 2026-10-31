@@ -54,6 +54,14 @@ export interface AcaoCliente {
 export interface ContextoCheckout extends ContextoCliente {
   /** Id da visita sendo encerrada (sempre presente no checkout). */
   visitaId: string;
+  /**
+   * RN-CORE-14: o checkout é de cliente fechado (`loja_fechada` ou `acesso_negado`, com foto da fachada).
+   * Quando `true`, TODAS as etapas obrigatórias estão dispensadas (pesquisa RN-PES-03, checklist RN-PRO-06):
+   * a etapa deve se tratar como cumprida/oculta. Ausente = `false` (compatível com quem monta o contexto à mão).
+   */
+  clienteFechado?: boolean;
+  /** Motivo de cliente fechado escolhido, ou `null`/ausente. */
+  motivoClienteFechado?: 'loja_fechada' | 'acesso_negado' | null;
 }
 
 /**

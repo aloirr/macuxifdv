@@ -7,7 +7,7 @@
  */
 import type { MotorSync } from '@macuxi/platform-sdk';
 
-import type { CheckoutVisitRequest, CreateVisitRequest, CustomerSummary } from '../../contracts';
+import type { CheckoutVisitRequest, CreateVisitRequest, CustomerSummary, MotivoClienteFechado } from '../../contracts';
 import { checkCheckin } from '../../domain';
 import { currentPosition, uuid } from './dispositivo';
 import type { ArmazemCore } from './estado';
@@ -23,6 +23,9 @@ export type CheckinResult =
 export interface CheckoutInput {
   outcome: 'order' | 'no_order';
   no_order_reason?: string;
+  /** RN-CORE-14 */
+  motivo_cliente_fechado?: MotivoClienteFechado;
+  foto_fachada_ref?: string;
   order_id?: string | null;
   order_total_cents?: number | null;
 }
@@ -77,7 +80,12 @@ export async function fazerCheckout(c: ContextoAcao, visitId: string, input: Che
   const corpo: CheckoutVisitRequest =
     input.outcome === 'order'
       ? { checkout_at: at, outcome: 'order', order_id: input.order_id ?? v.order_id ?? null }
-      : { checkout_at: at, outcome: 'no_order', no_order_reason: (input.no_order_reason ?? '').trim() };
+      : {
+          checkout_at: at,
+          outcome: 'no_order',
+          no_order_reason: (input.no_order_reason ?? '').trim(),
+          ...(input.motivo_cliente_fechado ? { motivo_cliente_fechado: input.motivo_cliente_fechado, foto_fachada_ref: input.foto_fachada_ref } : {}),
+        };
   await c.motor.enfileirar({
     id: uuid(),
     entidade: 'visita',

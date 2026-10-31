@@ -1,6 +1,7 @@
 export * from './analytics';
 export * from './incentive';
 export * from './visit';
+export * from './checkout';
 export * from './route';
 export * from './licencas';
 export * from './matriz';
