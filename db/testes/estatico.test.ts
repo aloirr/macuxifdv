@@ -44,7 +44,7 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual(['0001_plataforma', '0002_core', '0003_plataforma_worker']);
+    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual(['0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao']);
   });
 
   it('down de cada migração remove os schemas que o up cria', () => {
@@ -56,12 +56,12 @@ describe('migrações (estático)', () => {
   });
 
   const criadas = tabelasCriadas();
-  it('cria as tabelas pedidas na T-0002 (plataforma + core com produto, ADR-0005)', () => {
+  it('cria as tabelas pedidas na T-0002 (plataforma + core com produto, ADR-0005) e na T-0003 F2 (sessao, dispositivo)', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
         'plataforma.evento', 'plataforma.evento_consumo', 'plataforma.parametro', 'plataforma.auditoria',
-        'core.usuario', 'core.equipe', 'core.produto', 'core.cliente', 'core.carteira',
+        'core.usuario', 'core.equipe', 'core.produto', 'core.cliente', 'core.carteira', 'core.sessao', 'core.dispositivo',
       ].sort(),
     );
   });
@@ -131,6 +131,50 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'alter table plataforma.evento drop column if exists usuario_id;',
       'revoke usage on schema plataforma from macuxi_worker;',
     ]) expect(m.down).toContain(trecho);
+  });
+});
+
+describe('0004 core.sessao / core.dispositivo / tentativas (estático, T-0003 F2)', () => {
+  const m = migracoes.find((x) => x.versao === '0004')!;
+  const criadas = tabelasCriadas();
+
+  it('core.usuario ganha tentativas_falhas (not null default 0, >= 0) e bloqueio_ate', () => {
+    expect(m.up).toContain('alter table core.usuario add column tentativas_falhas smallint not null default 0;');
+    expect(m.up).toContain('alter table core.usuario add column bloqueio_ate timestamptz;');
+    expect(m.up).toContain('check (tentativas_falhas >= 0)');
+  });
+
+  it('FKs compostas por tenant (usuário e aparelho do MESMO tenant) e hash sha256 hex', () => {
+    expect(criadas.get('core.dispositivo')).toContain('foreign key (tenant_id, usuario_id) references core.usuario (tenant_id, id)');
+    expect(criadas.get('core.sessao')).toContain('foreign key (tenant_id, usuario_id) references core.usuario (tenant_id, id)');
+    expect(criadas.get('core.sessao')).toContain('foreign key (tenant_id, dispositivo_id) references core.dispositivo (tenant_id, id)');
+    expect(criadas.get('core.sessao')).toContain("check (token_hash ~ '^[0-9a-f]{64}$')");
+  });
+
+  it('índices das consultas do repositório do Core (modules/core/api/repositorio.ts)', () => {
+    for (const idx of [
+      'create unique index sessao_token_uk on core.sessao (tenant_id, token_hash);',
+      'create index sessao_usuario_ativa_ix on core.sessao (tenant_id, usuario_id) where revogado_em is null;',
+      'create index sessao_familia_ix on core.sessao (tenant_id, familia_id);',
+      'create index dispositivo_usuario_ix on core.dispositivo (tenant_id, usuario_id);',
+      'create index equipe_responsavel_ix on core.equipe (tenant_id, responsavel_id);',
+    ]) expect(m.up).toContain(idx);
+  });
+
+  it('sessao e dispositivo ficam fora do sync (nunca vão ao aparelho)', () => {
+    expect(TABELAS_FORA_DO_SYNC).toEqual(expect.arrayContaining(['core.sessao', 'core.dispositivo']));
+  });
+
+  it('down desfaz tudo o que o up cria (sessao antes de dispositivo, por causa da FK)', () => {
+    for (const trecho of [
+      'drop index if exists core.equipe_responsavel_ix;',
+      'drop table if exists core.sessao;',
+      'drop table if exists core.dispositivo;',
+      'alter table core.usuario drop constraint if exists usuario_tentativas_nao_negativas;',
+      'alter table core.usuario drop column if exists bloqueio_ate;',
+      'alter table core.usuario drop column if exists tentativas_falhas;',
+    ]) expect(m.down).toContain(trecho);
+    expect(m.down.indexOf('drop table if exists core.sessao;')).toBeLessThan(m.down.indexOf('drop table if exists core.dispositivo;'));
   });
 });
 
@@ -220,6 +264,19 @@ describe('fixture dois-tenants (estático)', () => {
     }
     const exA = dados['plataforma.usuario_modulo'].filter((e) => e.tenant_id === A);
     expect(exA).toEqual([expect.objectContaining({ usuario_id: DOIS_TENANTS.A.usuarios.vendedor2, modulo: 'teste', efeito: 'remover' })]);
+  });
+
+  it('login (0004): sessões com sha256 hex do segredo exportado, aparelho do próprio usuário e tentativas zeradas', () => {
+    for (const X of [DOIS_TENANTS.A, DOIS_TENANTS.B]) {
+      expect(X.refresh.token).toBe(`${X.tenantId}.${X.refresh.segredo}`);
+      expect(X.refresh.hash).toBe(crypto.createHash('sha256').update(X.refresh.segredo).digest('hex'));
+      const s = dados['core.sessao'].filter((l) => l.tenant_id === X.tenantId);
+      expect(s.map((l) => l.token_hash)).toEqual([X.refresh.hash]);
+    }
+    const aparelhos = new Map(dados['core.dispositivo'].map((d) => [d.id, d]));
+    for (const s of dados['core.sessao']) expect(aparelhos.get(s.dispositivo_id)?.usuario_id).toBe(s.usuario_id);
+    expect(aparelhos.get(DOIS_TENANTS.A.dispositivos.promotorBloqueado)?.bloqueado_em).not.toBeNull();
+    expect(dados['core.usuario'].every((u) => u.tentativas_falhas === 0 && u.bloqueio_ate === null)).toBe(true);
   });
 
   it('vendedor-1 na equipe 1 e vendedor-2 na equipe 2, sob a regional do gerente', () => {

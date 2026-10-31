@@ -4,6 +4,7 @@
  */
 import { afterAll, describe, expect, it } from 'vitest';
 import { carregarFaseM } from '../seeds/fase-m/fase-m';
+import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { listarAplicadas, lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { semBanco } from './estado';
@@ -51,8 +52,10 @@ describe.skipIf(semBanco())('migrações up/down', () => {
     await comAdmin(b.nome, async (c) => {
       expect((await migrarUp(c, { ate: '0001' })).aplicadas).toEqual(['0001_plataforma']);
       expect((await migrarUp(c, { ate: '0002' })).aplicadas).toEqual(['0002_core']);
-      expect((await migrarUp(c)).aplicadas).toEqual(['0003_plataforma_worker']);
+      expect((await migrarUp(c, { ate: '0003' })).aplicadas).toEqual(['0003_plataforma_worker']);
+      expect((await migrarUp(c)).aplicadas).toEqual(['0004_core_sessao']);
       expect((await migrarUp(c)).aplicadas).toEqual([]);
+      expect((await migrarDown(c)).aplicadas).toEqual(['0004_core_sessao']);
       expect((await migrarDown(c)).aplicadas).toEqual(['0003_plataforma_worker']);
       expect((await migrarDown(c)).aplicadas).toEqual(['0002_core']);
       const r = await c.query("select count(*)::int as n from pg_namespace where nspname in ('core', 'plataforma')");
@@ -98,6 +101,32 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect((await listarAplicadas(c)).map((a) => a.versao)).toEqual(migs.map((m) => m.versao));
       const r = await c.query("select count(*)::int as n from pg_namespace where nspname = 'core'");
       expect(r.rows[0].n).toBe(1);
+    });
+  });
+
+  it('0004 com a fixture carregada: up -> down -> up volta ao catálogo da 0003 e a fixture recarrega', async () => {
+    const b = await bancoVazio();
+    await comAdmin(b.nome, async (c) => {
+      await migrarUp(c, { ate: '0003' });
+      const ate0003 = await retratoDoCatalogo(c);
+      expect((await migrarUp(c)).aplicadas).toEqual(['0004_core_sessao']);
+      const com0004 = await retratoDoCatalogo(c);
+      await carregarDoisTenants(c, { senha: 'x' });
+      const n = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
+      expect(n.rows[0]).toEqual({ s: 2, d: 3 });
+      // down com dados: apaga sessões e aparelhos (documentado no .down.sql) e volta exatamente à 0003
+      expect((await migrarDown(c)).aplicadas).toEqual(['0004_core_sessao']);
+      expect(await retratoDoCatalogo(c)).toEqual(ate0003);
+      const col = await c.query("select count(*)::int as n from information_schema.columns where table_schema = 'core' and table_name = 'usuario' and column_name in ('tentativas_falhas', 'bloqueio_ate')");
+      expect(col.rows[0].n).toBe(0);
+      // up de novo: mesmo catálogo e a fixture volta a carregar (usuários existentes recebem os defaults)
+      await migrarUp(c);
+      expect(await retratoDoCatalogo(c)).toEqual(com0004);
+      const t = await c.query('select count(*)::int as n from core.usuario where tentativas_falhas <> 0 or bloqueio_ate is not null');
+      expect(t.rows[0].n).toBe(0);
+      await carregarDoisTenants(c, { senha: 'x' });
+      const n2 = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
+      expect(n2.rows[0]).toEqual({ s: 2, d: 3 });
     });
   });
 });

@@ -151,7 +151,9 @@ Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataform
 ## Pendências
 Feitas na **T-0004** (migração `0003_plataforma_worker`): `carteira_usuario_sync_ix`, papel `macuxi_worker` com as
 políticas `despacho_outbox*` (ADR 0007), `plataforma.evento_consumo` e colunas `usuario_id`/`request_id` em
-`plataforma.evento`. Pendentes:
+`plataforma.evento`. Feitas na **T-0003 Fase 2** (migração `0004_core_sessao`): `core.sessao`, `core.dispositivo`,
+`core.usuario.tentativas_falhas`/`bloqueio_ate` e `equipe_responsavel_ix` ([core.md](core.md)). Pendentes:
+- Limpeza de `core.sessao` expirada (job no worker ou por tenant; índice `sessao_expira_ix` pronto).
 - pg-boss (schema `pgboss`, criado pelo migrador) junto do primeiro consumidor real (ADR 0007 item 5).
 - `MACUXI_PG_WORKER_SENHA` nos `.env.example` (raiz: engenheiro-software; `db/.env.example`: sem permissão de leitura nesta sessão).
 - Cursor do pull com transação longa (`updated_at = now()` é o início da transação): tratado na rota de pull (T-0004).

@@ -10,4 +10,11 @@ export const TABELAS_SEM_TENANT_ID = {
 } as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
-export const TABELAS_FORA_DO_SYNC = ['plataforma.evento', 'plataforma.evento_consumo', 'plataforma.auditoria'] as const;
+export const TABELAS_FORA_DO_SYNC = [
+  'plataforma.evento',
+  'plataforma.evento_consumo',
+  'plataforma.auditoria',
+  /** Autenticação do Core (0004): ficam só na nuvem, nunca vão ao aparelho. */
+  'core.sessao',
+  'core.dispositivo',
+] as const;

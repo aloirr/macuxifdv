@@ -11,7 +11,12 @@
  * - Pelo menos 1 linha em TODA tabela com tenant_id, nos dois tenants (o teste de vazamento confere).
  * - Caso de borda S0-072: vendedor-1 (A) e vendedor-B (B) têm o MESMO e-mail (único por tenant, Q3).
  * - Senha de todos: MACUXI_SENHA_TESTE (padrão "Teste@1234", só para teste), hash argon2id.
+ * - Login (T-0003 F2, 0004): código da empresa 'alfa'/'beta'; todos com tentativas_falhas = 0 e sem bloqueio_ate
+ *   (recarregar a fixture ZERA o bloqueio por tentativas). Aparelhos: vendedor-1 (A, liberado), promotor (A,
+ *   BLOQUEADO remotamente) e vendedor-B. Sessões (refresh) válidas até 2099 para vendedor-1 e vendedor-B; o token
+ *   entregue ao cliente é DOIS_TENANTS.X.refresh.token (o banco guarda só o sha256 hex do segredo).
  */
+import { createHash } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { gravarLinhas, type Linha } from '../../src/gravar';
 import { idFixo } from '../../src/ids';
@@ -24,6 +29,8 @@ const G = {
   produto: 0x03,
   cliente: 0x04,
   carteira: 0x05,
+  dispositivo: 0x06,
+  sessao: 0x07,
   tenant_modulo: 0x10,
   perfil_modulo: 0x11,
   usuario_modulo: 0x12,
@@ -35,6 +42,17 @@ const G = {
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
 const b = (grupo: keyof typeof G, seq: number) => idFixo('bbbbbbbb', G[grupo], seq);
+
+/** Datas FIXAS (fixture idempotente: recarregar não muda nada). */
+const DATA_FIXA_ACESSO = '2026-10-31T12:00:00Z';
+const VALIDADE_FIXA_REFRESH = '2099-12-31T00:00:00Z';
+
+/** Refresh da fixture: segredo fixo (só teste), token `<tenant_id>.<segredo>` e sha256 hex gravado em core.sessao. */
+const refreshFixture = (tenantId: string, segredo: string) => ({
+  segredo,
+  token: `${tenantId}.${segredo}`,
+  hash: createHash('sha256').update(segredo).digest('hex'),
+});
 
 /** IDs para asserts determinísticos nos testes. */
 export const DOIS_TENANTS = {
@@ -55,6 +73,10 @@ export const DOIS_TENANTS = {
     },
     equipes: { regional: a('equipe', 1), equipe1: a('equipe', 2), equipe2: a('equipe', 3) },
     clientes: { c1: a('cliente', 1), c2: a('cliente', 2), c3: a('cliente', 3) },
+    dispositivos: { vendedor1: a('dispositivo', 1), promotorBloqueado: a('dispositivo', 2) },
+    sessoes: { vendedor1: a('sessao', 1) },
+    familias: { vendedor1: a('sessao', 101) },
+    refresh: refreshFixture(a('tenant', 1), 'fixture-refresh-alfa-vendedor1'),
   },
   B: {
     tenantId: b('tenant', 1),
@@ -64,6 +86,10 @@ export const DOIS_TENANTS = {
     usuarios: { admin: b('usuario', 1), vendedor: b('usuario', 2) },
     equipes: { equipe: b('equipe', 1) },
     clientes: { c1: b('cliente', 1) },
+    dispositivos: { vendedor: b('dispositivo', 1) },
+    sessoes: { vendedor: b('sessao', 1) },
+    familias: { vendedor: b('sessao', 101) },
+    refresh: refreshFixture(b('tenant', 1), 'fixture-refresh-beta-vendedor'),
   },
   /** E-mail repetido de propósito em A (vendedor-1) e B (vendedor-B). */
   emailRepetido: 'vendedor@exemplo.com.br',
@@ -80,6 +106,8 @@ export const ORDEM_TABELAS = [
   'core.produto',
   'core.cliente',
   'core.carteira',
+  'core.dispositivo',
+  'core.sessao',
   'plataforma.evento',
   'plataforma.evento_consumo',
   'plataforma.parametro',
@@ -98,6 +126,8 @@ const usuario = (id: string, tenant_id: string, nome: string, email: string, per
   equipe_id,
   senha_hash,
   ativo: true,
+  tentativas_falhas: 0,
+  bloqueio_ate: null,
   external_id: null,
 });
 
@@ -180,6 +210,15 @@ export function dadosDoisTenants(senhaHash: string): DadosFixture {
       { id: a('carteira', 4), tenant_id: tA, cliente_id: A.clientes.c3, usuario_id: A.usuarios.vendedor1, papel: 'vendedor', inicio: null, fim: null, external_id: null },
       { id: b('carteira', 1), tenant_id: tB, cliente_id: B.clientes.c1, usuario_id: B.usuarios.vendedor, papel: 'vendedor', inicio: null, fim: null, external_id: null },
     ],
+    'core.dispositivo': [
+      { id: A.dispositivos.vendedor1, tenant_id: tA, usuario_id: A.usuarios.vendedor1, nome: 'Aparelho Vendedor Um', plataforma: 'android', ultimo_acesso_em: DATA_FIXA_ACESSO, bloqueado_em: null, external_id: null },
+      { id: A.dispositivos.promotorBloqueado, tenant_id: tA, usuario_id: A.usuarios.promotor, nome: 'Aparelho Promotor', plataforma: 'android', ultimo_acesso_em: DATA_FIXA_ACESSO, bloqueado_em: DATA_FIXA_ACESSO, external_id: null },
+      { id: B.dispositivos.vendedor, tenant_id: tB, usuario_id: B.usuarios.vendedor, nome: 'Aparelho Vendedor Beta', plataforma: 'android', ultimo_acesso_em: DATA_FIXA_ACESSO, bloqueado_em: null, external_id: null },
+    ],
+    'core.sessao': [
+      sessao(A.sessoes.vendedor1, tA, A.usuarios.vendedor1, A.familias.vendedor1, A.refresh.hash, A.dispositivos.vendedor1),
+      sessao(B.sessoes.vendedor, tB, B.usuarios.vendedor, B.familias.vendedor, B.refresh.hash, B.dispositivos.vendedor),
+    ],
     'plataforma.evento': [
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
       evento(b('evento', 1), tB, B.usuarios.admin),
@@ -205,6 +244,10 @@ function cliente(id: string, tenant_id: string, documento: string, nome: string,
     id, tenant_id, documento, razao_social: `${nome} Ltda`, nome_fantasia: nome, segmento: 'Linha leve', telefone: null, email: null,
     logradouro: null, numero: null, bairro: null, cidade, uf, cep: null, latitude: null, longitude: null, ativo: true, external_id: null,
   };
+}
+
+function sessao(id: string, tenant_id: string, usuario_id: string, familia_id: string, token_hash: string, dispositivo_id: string): Linha {
+  return { id, tenant_id, usuario_id, familia_id, token_hash, dispositivo_id, expira_em: VALIDADE_FIXA_REFRESH, usado_em: null, revogado_em: null, external_id: null };
 }
 
 function evento(id: string, tenant_id: string, usuarioId: string): Linha {

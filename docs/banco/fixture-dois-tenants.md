@@ -5,7 +5,7 @@ Código: `db/seeds/fixtures/dois-tenants.ts` e `db/seeds/fase-m/fase-m.ts`. Ambo
 
 ## Fixture dois-tenants (testes de RLS, licenças e perfis — pedido R-20261030-235502-testes)
 UUID: `<prefixo>-<grupo>-4000-8000-<seq>`; prefixo `aaaaaaaa` (A) / `bbbbbbbb` (B). Grupos:
-`0000` tenant · `0001` usuario · `0002` equipe · `0003` produto · `0004` cliente · `0005` carteira ·
+`0000` tenant · `0001` usuario · `0002` equipe · `0003` produto · `0004` cliente · `0005` carteira · `0006` dispositivo · `0007` sessao (famílias: seq 101+) ·
 `0010` tenant_modulo · `0011` perfil_modulo · `0012` usuario_modulo · `0013` evento · `0014` parametro · `0015` auditoria ·
 `0016` evento_consumo. Linhas novas entram **no fim** das listas (ids sequenciais estáveis; upsert por id + índices únicos).
 Constantes em `DOIS_TENANTS` (`@macuxi/db/teste`).
@@ -22,12 +22,16 @@ Constantes em `DOIS_TENANTS` (`@macuxi/db/teste`).
 | clientes / carteira | c1 (vendedor-1 + promotor), c2 (vendedor-2), c3 (vendedor-1) | c1 (vendedor-B) |
 | produto | ALFA-001, ALFA-002 | BETA-001 |
 | evento / evento_consumo / parametro / auditoria | 1 / 1 / 2 / 1 | 1 / 1 / 1 / 1 |
+| dispositivo (0004) | 1 vendedor-1 (liberado), 2 promotor (**bloqueado** remotamente) | 1 vendedor-B |
+| sessao (0004) | 1 vendedor-1, aparelho 1, família `…-0007-…-000000000101`, expira 2099 | 1 vendedor-B, aparelho 1, expira 2099 |
 
 - **Vendedor depende do Catálogo** (ADR 0005, T-0007; RN-CORE-03): todo perfil com `vendedor` tem `catalogo`, senão o
   Vendedor some dos módulos efetivos (o teste estático confere).
 - **Toda tabela com `tenant_id` tem pelo menos 1 linha em cada tenant** (o teste estático e o de vazamento conferem).
 - **E-mail repetido de propósito** (S0-072): vendedor-1 (A) e vendedor-B (B) = `vendedor@exemplo.com.br`.
-- Senha de todos: `MACUXI_SENHA_TESTE` (padrão `Teste@1234`, só teste), hash argon2id PHC.
+- Senha de todos: `MACUXI_SENHA_TESTE` (padrão `Teste@1234`, só teste), hash argon2id PHC. Login: código `alfa`/`beta` + e-mail + senha.
+- Refresh da fixture: `DOIS_TENANTS.A.refresh.token` / `DOIS_TENANTS.B.refresh.token` (`<tenant_id>.<segredo>`; o banco guarda `refresh.hash`).
+- Recarregar a fixture **zera** o estado de login: `tentativas_falhas = 0`, `bloqueio_ate` nulo, sessões não usadas/revogadas, aparelhos como acima (teste `db/testes/sessao.test.ts`).
 - admin/analista/assistente em `perfil_modulo` e a exceção de B são complemento do banco (o plano não fixava).
 
 ## Seed Fase M (demonstração)
