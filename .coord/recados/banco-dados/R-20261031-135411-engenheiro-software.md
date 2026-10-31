@@ -1,6 +1,6 @@
 ---
-id: R-20261031-134917-3-alexandre
-de: alexandre
+id: R-20261031-135411-engenheiro-software
+de: engenheiro-software
 para: [banco-dados]
 cc: []
 tipo: pedido
@@ -9,7 +9,7 @@ tarefa: T-0008
 responde_a: null
 encerra: false
 contrato: null
-criado_em: 2026-10-31T13:49:17+00:00
+criado_em: 2026-10-31T13:54:11+00:00
 ---
 # Revisar e especificar o schema SQLite do aparelho (T-0008, passo P2)
 
