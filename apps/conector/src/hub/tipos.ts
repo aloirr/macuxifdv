@@ -1,5 +1,5 @@
 /** Tipos do Conector que estendem o contrato com campos OPCIONAIS combinados no desenho (compatíveis com `/v1`, RN-INT-09). */
-import { LoteResultado, RetornoErp } from '@macuxi/integracao/contracts';
+import { LoteResultado, type RetornoErp } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
 
 /**
@@ -18,8 +18,5 @@ export const ResultadoLote = LoteResultado.extend({
 });
 export type ResultadoLoteHub = z.infer<typeof ResultadoLote>;
 
-/** Itens faturados NESTA nota (pedido de T-0011; campo opcional novo em `RetornoErp`, ainda fora de contracts/pedido.ts). */
-export const ItemFaturado = z.object({ sequencia: z.number().int().positive(), quantidade: z.number().int().positive() });
-export type ItemFaturado = z.infer<typeof ItemFaturado>;
-
-export type RetornoParaHub = RetornoErp & { itens_faturados?: ItemFaturado[] };
+/** O retorno do pedido é o do contrato (inclui `itens_faturados`, T-0023); este alias mantém os imports do Conector. */
+export type RetornoParaHub = RetornoErp;

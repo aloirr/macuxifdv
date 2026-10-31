@@ -6,10 +6,13 @@
  */
 import {
   API_PREFIX_INTEGRACAO,
+  CABECALHO_CONECTOR_ID,
+  CABECALHO_CONECTOR_VERSAO,
   CursorEntidade,
   LoteAceito,
   PedidosPendentes,
   RecusaEnvelope,
+  RespostaSinal,
   RetornoAceito,
   type ReconciliacaoEnvio,
 } from '@macuxi/integracao/contracts';
@@ -42,7 +45,12 @@ export type RespostaRetorno = { tipo: 'aceito'; aceito: RetornoAceito } | { tipo
 
 export interface OpcoesHub {
   url: string;
+  /** Chave de API deste Conector (relida a cada chamada: rotacionar a chave vale sem reiniciar). */
   token: () => Promise<string>;
+  /** Identificador do Conector (cabeçalho `X-Macuxi-Conector-Id`); a chave é única por Conector. */
+  conectorId?: string;
+  /** Versão informada ao Hub (padrão: `VERSAO_CONECTOR`). */
+  versao?: string;
   timeoutMs?: number;
   retry?: Partial<Pick<OpcoesRetry, 'tentativas' | 'baseMs' | 'maxMs' | 'dormir' | 'aleatorio'>>;
   fetch?: typeof fetch;
@@ -69,8 +77,9 @@ export class ClienteHub {
             headers: {
               Authorization: `Bearer ${await this.o.token()}`,
               Accept: 'application/json',
-              'User-Agent': `macuxi-conector/${VERSAO_CONECTOR}`,
-              'X-Macuxi-Conector-Versao': VERSAO_CONECTOR,
+              'User-Agent': `macuxi-conector/${this.o.versao ?? VERSAO_CONECTOR}`,
+              [CABECALHO_CONECTOR_VERSAO]: this.o.versao ?? VERSAO_CONECTOR,
+              ...(this.o.conectorId ? { [CABECALHO_CONECTOR_ID]: this.o.conectorId } : {}),
               ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
               ...cabecalhos,
             },
@@ -92,7 +101,7 @@ export class ClienteHub {
           }
         }
         if (res.status === 401 || res.status === 403) {
-          throw new ErroHubAutenticacao('O Hub recusou a credencial do Conector (verifique o token; ele pode ter sido rotacionado ou revogado).', res.status);
+          throw new ErroHubAutenticacao('O Hub recusou a credencial do Conector (verifique o identificador e a chave de API; ela pode ter sido rotacionada ou revogada: conector trocar-chave).', res.status);
         }
         if (res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500) {
           const ra = Number(res.headers.get('retry-after'));
@@ -158,10 +167,15 @@ export class ClienteHub {
     return { tipo: 'recusado', status, codigo: primeiro?.codigo ?? j.codigo ?? `http_${status}`, mensagem: primeiro?.mensagem ?? j.mensagem ?? 'retorno recusado pelo Hub' };
   }
 
-  /** `POST /sinal` — batimento de vida (1 min). */
-  async enviarSinal(corpo: Record<string, unknown>): Promise<void> {
-    const { status } = await this.chamar('sinal', 'POST', '/sinal', corpo);
+  /**
+   * `POST /sinal` — batimento de vida (1 min). A resposta traz a política de versão (mínima/recomendada); resposta fora do
+   * formato é ignorada (devolve `null`): um Hub mais antigo ou com defeito nunca deve parar o Conector.
+   */
+  async enviarSinal(corpo: Record<string, unknown>): Promise<RespostaSinal | null> {
+    const { status, json } = await this.chamar('sinal', 'POST', '/sinal', corpo);
     if (status >= 400) throw new ErroHubTransitorio(`O Hub recusou o sinal de vida (HTTP ${status}).`, status);
+    const r = RespostaSinal.safeParse(json);
+    return r.success ? r.data : null;
   }
 
   /** `POST /reconciliacoes` (RN-INT-07). */

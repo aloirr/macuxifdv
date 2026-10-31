@@ -11,13 +11,14 @@
  *    o pedido é devolvido ao Hub como `rejeitado_erp` com o motivo (sem dado pessoal).
  *  - Cada retorno é persistido numa fila local e reenviado até o Hub aceitar (o Hub é idempotente); recusa por regra (4xx) não repete.
  */
-import { PedidoParaErp, RetornoErp, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
+import { type ItemFaturado, PedidoParaErp, RetornoErp, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
 import type { PedidoLocal } from './armazenamento/armazenamento';
 import type { PedidosConfig } from './config/esquema';
 import { type Contexto, resumoErro } from './contexto';
 import { ehErroDeConexao, type Linha } from './erp/driver';
 import { ErroHubAutenticacao, ErroHubTransitorio } from './hub/cliente';
-import type { ItemFaturado, RetornoParaHub } from './hub/tipos';
+import type { RetornoParaHub } from './hub/tipos';
+import { bloqueioPorVersao } from './politica';
 import { mascararTexto } from './log/mascara';
 import { calcularEspera } from './util/retry';
 import { iso } from './util/relogio';
@@ -46,6 +47,11 @@ export async function cicloPedidos(ctx: Contexto, partes: { buscar?: boolean; st
   const cfg = ctx.config.pedidos;
   const r = novoResultado();
   if (!cfg?.ativo) return r;
+  const parado = bloqueioPorVersao(ctx);
+  if (parado) {
+    r.erro = parado.mensagem;
+    return r;
+  }
   // cada etapa é independente: o ERP fora do ar não impede de enviar os retornos já guardados, e o Hub fora não impede de gravar
   const etapa = async (nome: string, fn: () => Promise<unknown>) => {
     try {
@@ -223,20 +229,41 @@ export async function acompanharStatus(ctx: Contexto, cfg: PedidosConfig, r: Res
   return r;
 }
 
+/**
+ * Itens faturados NESTA nota (RN-INT-08): colunas OBRIGATÓRIAS `sequencia`, `quantidade` (inteiros > 0), `valor_cents` (centavos
+ * inteiros >= 0) e `produto_external_id` (chave do produto no ERP; decisão do Alexandre na T-0023). Linhas da mesma sequência somam
+ * (o ERP pode partir o item em lotes) e devem trazer o mesmo produto. Nunca inventa valor nem produto: se qualquer linha vier sem
+ * um deles ou fora do formato, o retorno segue SEM `itens_faturados` (campo opcional do retorno) e o aviso `itens_faturados_omitidos`
+ * traz o motivo e a linha, para o operador corrigir a consulta `consultaItensNota`.
+ */
 async function itensDaNota(ctx: Contexto, cfg: PedidosConfig, uuid: string, nota: string, serie: string | undefined): Promise<ItemFaturado[] | undefined> {
   const linhas = await ctx.erp.consultar(cfg.status.consultaItensNota as string, { pedido_uuid: uuid, nota_numero: nota, nota_serie: serie ?? null });
-  const itens: ItemFaturado[] = [];
-  for (const l of linhas) {
+  const porSequencia = new Map<number, ItemFaturado>();
+  const invalida = (indice: number, motivo: string): undefined => {
+    ctx.log.aviso('itens_faturados_omitidos', { pedido_uuid: uuid, nota, linha: indice + 1, motivo });
+    return undefined;
+  };
+  for (const [i, l] of linhas.entries()) {
     const sequencia = Number(col(l, 'sequencia'));
     const quantidade = Number(col(l, 'quantidade'));
-    // o campo é inteiro > 0 por item; quantidade fracionária ou item sem sequência: melhor omitir o campo que mandar errado
-    if (!Number.isInteger(sequencia) || sequencia < 1 || !Number.isInteger(quantidade) || quantidade < 1) {
-      ctx.log.aviso('itens_faturados_omitidos', { pedido_uuid: uuid, motivo: 'sequência/quantidade fora do esperado (inteiros > 0)' });
-      return undefined;
+    if (!Number.isInteger(sequencia) || sequencia < 1) return invalida(i, 'sequencia ausente ou inválida (esperado inteiro > 0, a sequência do pedido enviado)');
+    if (!Number.isInteger(quantidade) || quantidade < 1) return invalida(i, 'quantidade ausente ou fora do esperado (inteiro > 0, faturado nesta nota)');
+    const bruto = col(l, 'valor_cents');
+    if (bruto === null || bruto === undefined || String(bruto).trim() === '') return invalida(i, 'valor_cents ausente: a consulta de itens da nota deve devolver o valor faturado do item em centavos');
+    const valor = Number(bruto);
+    if (!Number.isInteger(valor) || valor < 0) return invalida(i, 'valor_cents deve ser inteiro em centavos, >= 0');
+    const produto = texto(col(l, 'produto_external_id'));
+    if (!produto) return invalida(i, 'produto_external_id ausente: a consulta de itens da nota deve devolver o código do produto no ERP');
+    const atual = porSequencia.get(sequencia);
+    if (atual) {
+      if (atual.produto_external_id !== produto) return invalida(i, `sequencia ${sequencia} com produtos diferentes na mesma nota`);
+      atual.quantidade += quantidade;
+      atual.valor_cents += valor;
+    } else {
+      porSequencia.set(sequencia, { sequencia, produto_external_id: produto, quantidade, valor_cents: valor });
     }
-    itens.push({ sequencia, quantidade });
   }
-  return itens.length > 0 ? itens : undefined;
+  return porSequencia.size > 0 ? [...porSequencia.values()].sort((a, b) => a.sequencia - b.sequencia) : undefined;
 }
 
 export async function enviarRetornos(ctx: Contexto, r: ResultadoPedidos = novoResultado()): Promise<ResultadoPedidos> {

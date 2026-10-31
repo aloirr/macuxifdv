@@ -1,0 +1,59 @@
+{
+  "dadosDir": "C:\\ProgramData\\Macuxi\\Conector\\dados",
+  "hub": {
+    "conectorId": "cnx-cliente-exemplo-01",
+    "url": "https://hub.macuxi.example",
+    "timeoutSegundos": 30
+  },
+  "erp": {
+    "tipo": "oracle",
+    "host": "erp-ora01",
+    "porta": 1521,
+    "banco": "ERPPRD",
+    "usuario": "MACUXI_LEITURA",
+    "criptografar": false,
+    "paginacao": "offset",
+    "timeoutSegundos": 30
+  },
+  "segredos": { "provedor": "auto" },
+  "lote": { "maxLinhas": 5000, "maxBytes": 4194304, "maxLinhasInvalidas": 500 },
+  "entidades": {
+    "cliente": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT codigo AS external_id, alterado_em, DECODE(ativo, 'S', 1, 0) AS ativo, razao_social, DECODE(bloqueado, 'S', 1, 0) AS bloqueado, limite_credito FROM macuxi.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY alterado_em, codigo",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": { "coluna": "ativo", "transformar": "booleano" },
+        "razao_social": "razao_social",
+        "bloqueado": { "coluna": "bloqueado", "transformar": "booleano" },
+        "limite_credito_cents": { "coluna": "limite_credito", "transformar": "centavos_de_decimal" }
+      },
+      "linhasInvalidas": "enviar",
+      "reconciliacao": { "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM macuxi.vw_macuxi_cliente WHERE ativo = 'S'" }
+    },
+    "produto": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT codigo AS external_id, alterado_em, sku, nome, unidade FROM macuxi.vw_macuxi_produto WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY alterado_em, codigo",
+      "campos": { "external_id": "external_id", "alterado_em": "alterado_em", "sku": "sku", "nome": "nome", "unidade": "unidade" }
+    }
+  },
+  "pedidos": {
+    "ativo": true,
+    "consultaSegundos": 60,
+    "statusSegundos": 120,
+    "maxTentativasGravacao": 3,
+    "gravacao": {
+      "cabecalho": "INSERT INTO macuxi.ped_entrada (pedido_uuid, cliente_codigo, vendedor_codigo, cond_pagto, criado_em, aprovado_em, observacao, desconto_total_cents, total_cents) SELECT :pedido_uuid, :cliente_external_id, :vendedor_external_id, :condicao_pagamento_erp, :criado_em, :aprovado_em, :observacao, :desconto_total_cents, :total_cents FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM macuxi.ped_entrada WHERE pedido_uuid = :pedido_uuid)",
+      "itens": "INSERT INTO macuxi.ped_item (pedido_uuid, sequencia, produto_codigo, quantidade, preco_unitario_cents, desconto_cents, total_cents) SELECT :pedido_uuid, :sequencia, :produto_external_id, :quantidade, :preco_unitario_cents, :desconto_cents, :total_cents FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM macuxi.ped_item WHERE pedido_uuid = :pedido_uuid AND sequencia = :sequencia)",
+      "numeroErp": "SELECT TO_CHAR(numero) AS numero_erp FROM macuxi.ped_entrada WHERE pedido_uuid = :pedido_uuid"
+    },
+    "status": {
+      "consulta": "SELECT situacao AS status, TO_CHAR(numero) AS numero_erp, motivo, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, atualizado_em AS ocorrido_em FROM macuxi.vw_macuxi_pedido_status WHERE pedido_uuid = :pedido_uuid",
+      "consultaItensNota": "SELECT sequencia, quantidade, valor_cents, produto_codigo AS produto_external_id FROM macuxi.vw_macuxi_nota_item WHERE pedido_uuid = :pedido_uuid AND nota_numero = :nota_numero AND NVL(nota_serie, ' ') = NVL(:nota_serie, ' ')",
+      "mapaStatus": { "I": "integrado", "R": "rejeitado_erp", "P": "faturado_parcial", "F": "faturado_total", "C": "cancelado" }
+    }
+  }
+}

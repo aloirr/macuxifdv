@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { DataHoraUtc, Uuid } from './base';
 import { ENTIDADES, SCHEMA_REGISTRO, type Entidade } from './entidades';
 import { EstadoLote, ModoCarga } from './lote';
-import { EstadoPedidoErp, NotaRetorno } from './pedido';
+import { EstadoPedidoErp, ItemFaturado, NotaRetorno } from './pedido';
 
 export const AcaoRegistro = z.enum(['criado', 'atualizado', 'inativado']);
 export type AcaoRegistro = z.infer<typeof AcaoRegistro>;
@@ -48,6 +48,8 @@ export const PedidoRetornoErpEvento = z.object({
   numero_erp: z.string().nullable(),
   motivo: z.string().nullable(),
   nota: NotaRetorno.nullable(),
+  /** Itens faturados nesta nota (campo opcional novo, compatível com @1; RN-INT-08). */
+  itens_faturados: z.array(ItemFaturado).nullish(),
   ocorrido_em: DataHoraUtc,
 });
 export type PedidoRetornoErpEvento = z.infer<typeof PedidoRetornoErpEvento>;

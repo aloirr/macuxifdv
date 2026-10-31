@@ -4,7 +4,7 @@
  * `SCHEMA_REGISTRO[entidade]` — por isso `registros` é `unknown[]` aqui.
  */
 import { z } from 'zod';
-import { DataCivil, DataHoraUtc, ExternalId, Uuid } from './base';
+import { DataCivil, DataHoraUtc, ExternalId, LIMITE_REGISTROS_LOTE, Uuid } from './base';
 import { Entidade } from './entidades';
 
 export const ModoCarga = z.enum(['completo', 'delta']);
@@ -25,6 +25,29 @@ export const SessaoCarga = z.object({
 });
 export type SessaoCarga = z.infer<typeof SessaoCarga>;
 
+/** Padrão de linhas inválidas informadas por lote (decisão do Alexandre, T-0023); o Conector parametriza até `LIMITE_REGISTROS_LOTE`. */
+export const LIMITE_LINHAS_INVALIDAS_PADRAO = 500;
+
+/**
+ * Linha que o Conector não conseguiu mapear ou que não passou na validação local (RN-INT-03). Vai ao Hub com o motivo, SEM o
+ * valor da linha (nem dado pessoal): o BKO mostra `external_id`, campo e mensagem. Códigos iguais aos de `LinhaErro`.
+ */
+export const LinhaInvalidaConector = z.object({
+  external_id: z.string().max(200).nullish(),
+  codigo: z.enum([
+    'registro_invalido',
+    'campo_obrigatorio',
+    'tipo_invalido',
+    'formato_invalido',
+    'valor_fora_da_faixa',
+    'valor_nao_permitido',
+    'regra_invalida',
+  ]),
+  campo: z.string().max(100).nullish(),
+  mensagem: z.string().min(1).max(300),
+});
+export type LinhaInvalidaConector = z.infer<typeof LinhaInvalidaConector>;
+
 export const LoteEnvelope = z.object({
   versao_contrato: z.string().min(1, 'versao_contrato é obrigatória'),
   entidade: z.string().min(1, 'entidade é obrigatória'),
@@ -35,6 +58,17 @@ export const LoteEnvelope = z.object({
   cursor: Cursor.nullish(),
   /** Instante em que o Conector montou o lote. */
   enviado_em: DataHoraUtc.nullish(),
+  /** Identificador do Conector (o mesmo do cabeçalho `X-Macuxi-Conector-Id`). Informativo; o Hub confia na credencial. */
+  conector_id: z.string().min(1).max(100).nullish(),
+  /** Versão do Conector que montou o lote (semver, ex.: `1.1.0`); ver `conector.ts` (política de versão). */
+  versao_conector: z.string().min(1).max(40).nullish(),
+  /**
+   * Linhas que o Conector recusou localmente, com o motivo (no máximo [500] por lote, parametrizável). Campo opcional novo:
+   * compatível com `v1` (RN-INT-09). Não substitui `registros`: o lote continua precisando de pelo menos 1 registro.
+   */
+  linhas_invalidas: z.array(LinhaInvalidaConector).max(LIMITE_REGISTROS_LOTE).nullish(),
+  /** Quantas linhas inválidas passaram do limite e foram contadas sem detalhe (só a contagem). */
+  linhas_invalidas_omitidas: z.number().int().nonnegative().nullish(),
   registros: z.array(z.unknown(), { required_error: 'registros é obrigatório', invalid_type_error: 'registros deve ser uma lista' }),
 });
 export type LoteEnvelope = z.infer<typeof LoteEnvelope>;
@@ -107,6 +141,8 @@ export const LinhaErro = z.object({
   campo: z.string().nullable(),
   mensagem: z.string(),
   reprocessavel: z.boolean(),
+  /** `conector` = linha informada pelo Conector em `linhas_invalidas`; ausente = validada pelo Hub. */
+  origem: z.enum(['hub', 'conector']).nullish(),
 });
 export type LinhaErro = z.infer<typeof LinhaErro>;
 
@@ -140,6 +176,8 @@ export const LoteResultado = z.object({
   avisos: z.array(AvisoLinha),
   /** Cursor da entidade depois do lote (só avança em `concluido`/`concluido_com_erros`). */
   cursor: Cursor.nullable(),
+  /** Linhas inválidas do Conector que passaram do limite do lote e só foram contadas (campo opcional novo). */
+  invalidas_omitidas: z.number().int().nonnegative().nullish(),
   /** Registros inativados ao fechar a sessão de carga completa (RN-INT-06). */
   inativadas: z.number().int().nonnegative().default(0),
   recebido_em: DataHoraUtc,

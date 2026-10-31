@@ -4,7 +4,13 @@ import {
   EVENTOS_ATUALIZADO,
   ENTIDADES,
   EstoquePayload,
+  ChaveConectorCriada,
+  LIMITE_LINHAS_INVALIDAS_PADRAO,
   LoteEnvelope,
+  PedidoRetornoErpEvento,
+  PoliticaVersaoConector,
+  RespostaSinal,
+  SinalConector,
   LoteResultado,
   NOMES_EVENTO_ATUALIZADO,
   NotaPayload,
@@ -132,5 +138,104 @@ describe('RN-INT-08: pedido ao ERP e retorno', () => {
     // RN-INT-08: cancelado vem do ERP, motivo e número são opcionais
     expect(RetornoErp.safeParse({ ...ret, status: 'cancelado' }).success).toBe(true);
     expect(RetornoErp.safeParse({ ...ret, status: 'cancelado', motivo: 'Cliente desistiu' }).success).toBe(true);
+  });
+});
+
+describe('RN-INT-08: itens faturados no retorno (campo opcional, continua v1)', () => {
+  const ret = { versao_contrato: 'v1', pedido_uuid: UUID, numero_erp: '778', ocorrido_em: '2026-10-31T11:00:00Z' };
+  const nota = { numero: '123', emitida_em: '2026-10-31T11:00:00Z', total_cents: 2000 };
+  const itens = [{ sequencia: 1, produto_external_id: 'P1', quantidade: 2, valor_cents: 2000 }];
+
+  it('RN-INT-08: faturado_parcial e faturado_total aceitam itens_faturados (sequência, quantidade e valor em centavos)', () => {
+    for (const status of ['faturado_parcial', 'faturado_total'] as const) {
+      const r = RetornoErp.safeParse({ ...ret, status, nota, itens_faturados: itens });
+      expect(r.success).toBe(true);
+    }
+    // sem o campo continua valendo (compatível com v1)
+    expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota }).success).toBe(true);
+  });
+
+  it('RN-INT-08: itens_faturados em outro status, vazio, com quantidade fracionária ou valor fracionário é recusado', () => {
+    expect(RetornoErp.safeParse({ ...ret, status: 'integrado', itens_faturados: itens }).success).toBe(false);
+    expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [] }).success).toBe(false);
+    expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 1.5, valor_cents: 100 }] }).success).toBe(false);
+    expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 1, valor_cents: 10.5 }] }).success).toBe(false);
+    expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 0, valor_cents: 100 }] }).success).toBe(false);
+  });
+
+  it('RN-INT-08: item faturado sem produto_external_id ou sem valor_cents é recusado (obrigatórios)', () => {
+    const faturado = (item: object) => RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [item] });
+    expect(faturado({ sequencia: 1, produto_external_id: 'P1', quantidade: 2, valor_cents: 2000 }).success).toBe(true);
+    expect(faturado({ sequencia: 1, quantidade: 2, valor_cents: 2000 }).success).toBe(false);
+    expect(faturado({ sequencia: 1, produto_external_id: null, quantidade: 2, valor_cents: 2000 }).success).toBe(false);
+    expect(faturado({ sequencia: 1, produto_external_id: 'P1', quantidade: 2 }).success).toBe(false);
+    expect(faturado({ sequencia: 1, produto_external_id: 'P1', quantidade: 2, valor_cents: null }).success).toBe(false);
+    expect(faturado({ sequencia: 1, produto_external_id: 'P1', quantidade: 2, valor_cents: 0 }).success).toBe(true);
+  });
+
+  it('RN-INT-08: sequência repetida na mesma nota é recusada, com mensagem legível', () => {
+    const r = RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [...itens, ...itens] });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toContain('sequência repetida');
+  });
+
+  it('RN-INT-08: o evento integracao.pedido.retorno_erp@1 repete itens_faturados como opcional', () => {
+    const base = { pedido_uuid: UUID, status: 'faturado_parcial', numero_erp: '778', motivo: null, nota, ocorrido_em: '2026-10-31T11:00:00Z' };
+    expect(PedidoRetornoErpEvento.safeParse(base).success).toBe(true);
+    expect(PedidoRetornoErpEvento.safeParse({ ...base, itens_faturados: itens }).success).toBe(true);
+  });
+});
+
+describe('RN-INT-03: linhas inválidas do Conector no lote (campo opcional, continua v1)', () => {
+  const env = { versao_contrato: 'v1', entidade: 'cliente', modo: 'delta', registros: [{ external_id: 'C1' }] };
+  it('RN-INT-03: o lote sem linhas_invalidas continua válido e o padrão é 500 por lote', () => {
+    expect(LoteEnvelope.safeParse(env).success).toBe(true);
+    expect(LIMITE_LINHAS_INVALIDAS_PADRAO).toBe(500);
+  });
+  it('RN-INT-03: linha inválida leva external_id, campo e mensagem; omitidas vira só contagem', () => {
+    const r = LoteEnvelope.safeParse({
+      ...env,
+      conector_id: 'cnx-loja-01',
+      versao_conector: '1.1.0',
+      linhas_invalidas: [{ external_id: 'C9', codigo: 'campo_obrigatorio', campo: 'razao_social', mensagem: 'campo obrigatório sem valor' }],
+      linhas_invalidas_omitidas: 37,
+    });
+    expect(r.success).toBe(true);
+    expect(LoteEnvelope.safeParse({ ...env, linhas_invalidas: [{ codigo: 'falha_processamento', mensagem: 'x' }] }).success).toBe(false);
+    expect(LoteEnvelope.safeParse({ ...env, linhas_invalidas_omitidas: -1 }).success).toBe(false);
+  });
+  it('RN-INT-03: o resultado do lote marca a origem do erro e as omitidas', () => {
+    const r = LoteResultado.parse({
+      lote_id: UUID, entidade: 'cliente', modo: 'delta', status: 'concluido_com_erros',
+      contagens: { recebidas: 1, duplicadas_no_lote: 0, com_erro: 1, novas: 0, atualizadas: 0, inalteradas: 0 },
+      erros: [{ indice: 0, external_id: 'C9', codigo: 'campo_obrigatorio', campo: 'razao_social', mensagem: 'campo obrigatório sem valor', reprocessavel: false, origem: 'conector' }],
+      avisos: [], cursor: null, invalidas_omitidas: 12, recebido_em: '2026-10-31T10:00:00Z', concluido_em: null,
+    });
+    expect(r.erros[0]?.origem).toBe('conector');
+    expect(r.invalidas_omitidas).toBe(12);
+  });
+});
+
+describe('RN-INT-09: política de versão do Conector e chave por Conector (aditivo, continua v1)', () => {
+  it('RN-INT-09: política exige semver; resposta do sinal aceita ausência de política', () => {
+    const p = { versao_minima: '1.0.0', versao_recomendada: '1.2.0', mensagem: 'Atualize.' };
+    expect(PoliticaVersaoConector.safeParse(p).success).toBe(true);
+    expect(PoliticaVersaoConector.safeParse({ ...p, versao_minima: '1.0' }).success).toBe(false);
+    expect(PoliticaVersaoConector.safeParse({ ...p, versao_recomendada: 'v1.2.0' }).success).toBe(false);
+    expect(RespostaSinal.safeParse({}).success).toBe(true);
+    expect(RespostaSinal.parse({ politica_versao: p }).politica_versao?.versao_minima).toBe('1.0.0');
+  });
+  it('RN-INT-09: pacote assinado exige SHA-256 de 64 hexadecimais', () => {
+    const ok = { versao_minima: '1.0.0', versao_recomendada: '1.2.0', pacote: { versao: '1.2.0', sha256: 'a'.repeat(64), assinatura: 'YXNzaW5hdHVyYQ==' } };
+    expect(PoliticaVersaoConector.safeParse(ok).success).toBe(true);
+    expect(PoliticaVersaoConector.safeParse({ ...ok, pacote: { ...ok.pacote, sha256: 'xyz' } }).success).toBe(false);
+  });
+  it('RN-INT-09: sinal informa o Conector e a versão dele; chave nasce com escopo só da integração', () => {
+    const sinal = { conector_id: 'cnx-1', versao_conector: '1.1.0', versao_contrato: 'v1', em: '2026-10-31T10:00:00Z', fila: [], entidades: [] };
+    expect(SinalConector.safeParse(sinal).success).toBe(true);
+    expect(SinalConector.safeParse({ ...sinal, versao_conector: 'abc' }).success).toBe(false);
+    const chave = { conector_id: 'cnx-1', tenant_id: UUID, escopo: 'integracao.v1', chave: 'x'.repeat(40), prefixo: 'mxk_1234', criada_em: '2026-10-31T10:00:00Z' };
+    expect(ChaveConectorCriada.safeParse(chave).success).toBe(true);
+    expect(ChaveConectorCriada.safeParse({ ...chave, escopo: 'api.tudo' }).success).toBe(false);
   });
 });

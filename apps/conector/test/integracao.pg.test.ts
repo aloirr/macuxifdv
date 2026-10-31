@@ -69,7 +69,7 @@ CREATE TABLE erp_estoque(chave text PRIMARY KEY, deposito text NOT NULL, produto
 CREATE TABLE erp_pedido_entrada(numero serial PRIMARY KEY, pedido_uuid uuid UNIQUE NOT NULL, cliente text, total_cents bigint, status char(1) NOT NULL DEFAULT 'I', motivo text, atualizado_em timestamptz NOT NULL DEFAULT now());
 CREATE TABLE erp_pedido_item(pedido_uuid uuid NOT NULL, sequencia int NOT NULL, produto text NOT NULL, quantidade numeric NOT NULL, PRIMARY KEY (pedido_uuid, sequencia));
 CREATE TABLE erp_nota(numero text PRIMARY KEY, serie text, pedido_uuid uuid NOT NULL, emitida_em timestamptz NOT NULL, total_cents bigint NOT NULL);
-CREATE TABLE erp_nota_item(nota text NOT NULL, sequencia int NOT NULL, quantidade numeric NOT NULL);
+CREATE TABLE erp_nota_item(nota text NOT NULL, sequencia int NOT NULL, quantidade numeric NOT NULL, produto text NOT NULL, valor_cents bigint NOT NULL);
 `;
 
 const paginar = (cols: string, tabela: string, id: string) =>
@@ -98,7 +98,7 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     erp = criarConexaoPostgres({ host: cfgPg.host, porta: cfgPg.port, banco: nomeBanco, usuario: cfgPg.user, senha: cfgPg.password, ssl: false });
     cfg = ConfigConector.parse({
       dadosDir: dir,
-      hub: { url: hub.url, retry: { tentativas: 2, baseMs: 1, maxMs: 2 } },
+      hub: { url: hub.url, conectorId: 'cnx-pg-teste', retry: { tentativas: 2, baseMs: 1, maxMs: 2 } },
       erp: { tipo: 'postgres', host: cfgPg.host, porta: cfgPg.port, banco: nomeBanco, usuario: cfgPg.user, criptografar: false },
       lote: { maxLinhas: 5 },
       fila: { backoffBaseSegundos: 1, backoffMaxSegundos: 2, consultaResultadoSegundos: 1 },
@@ -143,7 +143,7 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
           consulta: `SELECT p.status, p.numero AS numero_erp, p.motivo, n.numero AS nota_numero, n.serie AS nota_serie, n.emitida_em AS nota_emitida_em,
                      n.total_cents AS nota_total_cents, COALESCE(n.emitida_em, p.atualizado_em) AS ocorrido_em
                      FROM erp_pedido_entrada p LEFT JOIN erp_nota n ON n.pedido_uuid = p.pedido_uuid WHERE p.pedido_uuid = :pedido_uuid::uuid ORDER BY n.emitida_em`,
-          consultaItensNota: 'SELECT sequencia, quantidade FROM erp_nota_item WHERE nota = :nota_numero ORDER BY sequencia',
+          consultaItensNota: 'SELECT sequencia, quantidade, valor_cents, produto AS produto_external_id FROM erp_nota_item WHERE nota = :nota_numero ORDER BY sequencia',
           mapaStatus: { I: 'integrado', P: 'faturado_parcial', F: 'faturado_total', C: 'cancelado' },
         },
       },
@@ -266,18 +266,18 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     // faturamento parcial (nota 1) e depois total (nota 2)
     await admin.query(`UPDATE erp_pedido_entrada SET status = 'P' WHERE pedido_uuid = $1`, [uuid]);
     await admin.query(`INSERT INTO erp_nota VALUES ('NF501', '1', $1, '2026-03-11T10:00:00Z', 2000)`, [uuid]);
-    await admin.query(`INSERT INTO erp_nota_item VALUES ('NF501', 1, 2)`);
+    await admin.query(`INSERT INTO erp_nota_item VALUES ('NF501', 1, 2, 'P1', 2000)`);
     await cicloPedidos(ctx);
     await admin.query(`UPDATE erp_pedido_entrada SET status = 'F' WHERE pedido_uuid = $1`, [uuid]);
     await admin.query(`INSERT INTO erp_nota VALUES ('NF502', '1', $1, '2026-03-12T10:00:00Z', 1000)`, [uuid]);
-    await admin.query(`INSERT INTO erp_nota_item VALUES ('NF502', 2, 1)`);
+    await admin.query(`INSERT INTO erp_nota_item VALUES ('NF502', 2, 1, 'P2', 1000)`);
     await cicloPedidos(ctx);
     r = await cicloPedidos(ctx);
     expect(r.retornosEnfileirados).toBe(0);
     const sequencia = hub.retornos.map((x) => x as { status: string; nota?: { numero: string }; itens_faturados?: unknown });
     expect(sequencia.map((x) => [x.status, x.nota?.numero])).toEqual([['integrado', undefined], ['faturado_parcial', 'NF501'], ['faturado_total', 'NF502']]);
-    expect(sequencia[1]?.itens_faturados).toEqual([{ sequencia: 1, quantidade: 2 }]);
-    expect(sequencia[2]?.itens_faturados).toEqual([{ sequencia: 2, quantidade: 1 }]);
+    expect(sequencia[1]?.itens_faturados).toEqual([{ sequencia: 1, produto_external_id: 'P1', quantidade: 2, valor_cents: 2000 }]);
+    expect(sequencia[2]?.itens_faturados).toEqual([{ sequencia: 2, produto_external_id: 'P2', quantidade: 1, valor_cents: 1000 }]);
   });
 
   it('pedido que o ERP recusa (violação de restrição) volta como rejeitado_erp depois das tentativas', async () => {
@@ -314,7 +314,7 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     const erro: string[] = [];
     const codigo = await executarCli(['testar-conexao', '--config', arquivo], {
       saida: (t) => void saida.push(t), erro: (t) => void erro.push(t), lerEntrada: async () => '',
-      env: { MACUXI_CONECTOR_ERP_SENHA: cfgPg.password, MACUXI_CONECTOR_HUB_TOKEN: hub.token },
+      env: { MACUXI_CONECTOR_ERP_SENHA: cfgPg.password, MACUXI_CONECTOR_HUB_CHAVE: hub.token },
     });
     const tudo = [...saida, ...erro].join('\n');
     expect(codigo, tudo).toBe(0);

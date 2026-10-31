@@ -7,7 +7,7 @@
  *   quando receber a mesma chave (cabeçalho `Idempotency-Key`).
  */
 import { createHash } from 'node:crypto';
-import { VERSAO_CONTRATO, type Cursor, type LoteEnvelope } from '@macuxi/integracao/contracts';
+import { VERSAO_CONTRATO, type Cursor, type LinhaInvalidaConector, type LoteEnvelope } from '@macuxi/integracao/contracts';
 import { jsonCanonico } from './util/json';
 
 export interface SessaoEnvio {
@@ -31,6 +31,15 @@ export interface EntradaLotes {
   maxBytes: number;
   sessao?: SessaoEnvio;
   enviadoEm: string;
+  /** Identificador e versão deste Conector, informados em todo lote (T-0023). */
+  conectorId?: string;
+  versaoConector?: string;
+  /**
+   * Linhas recusadas localmente (já limitadas por lote, sem valores) e quantas passaram do limite. Vão SÓ no primeiro lote da
+   * página; se a página não tem nenhum registro válido não há lote para levá-las (ficam no log/erros locais).
+   */
+  linhasInvalidas?: LinhaInvalidaConector[];
+  linhasInvalidasOmitidas?: number;
 }
 
 export interface LoteMontado {
@@ -66,9 +75,20 @@ export function dividirRegistros(registros: Record<string, unknown>[], maxLinhas
   return fatias;
 }
 
-export function chaveDoLote(e: { entidade: string; modo: string; geracao: number; sessaoId?: string | null; parte?: number | null; registros: unknown[] }): string {
+export function chaveDoLote(e: {
+  entidade: string;
+  modo: string;
+  geracao: number;
+  sessaoId?: string | null;
+  parte?: number | null;
+  registros: unknown[];
+  linhasInvalidas?: unknown[];
+  linhasInvalidasOmitidas?: number;
+}): string {
+  // as linhas inválidas só entram na chave quando existem: lotes sem elas mantêm a chave de antes (idempotência estável)
+  const extras = e.linhasInvalidas?.length || e.linhasInvalidasOmitidas ? { invalidas: e.linhasInvalidas ?? [], omitidas: e.linhasInvalidasOmitidas ?? 0 } : {};
   return createHash('sha256')
-    .update(jsonCanonico({ entidade: e.entidade, modo: e.modo, geracao: e.geracao, sessao: e.sessaoId ?? null, parte: e.parte ?? null, registros: e.registros }))
+    .update(jsonCanonico({ entidade: e.entidade, modo: e.modo, geracao: e.geracao, sessao: e.sessaoId ?? null, parte: e.parte ?? null, registros: e.registros, ...extras }))
     .digest('hex');
 }
 
@@ -78,6 +98,8 @@ export function montarLotes(e: EntradaLotes): LoteMontado[] {
     const ehUltimaFatia = i === fatias.length - 1;
     const parte = e.sessao ? e.sessao.primeiraParte + i : null;
     const ultimo = Boolean(e.sessao && e.sessao.ultimaPagina && ehUltimaFatia);
+    const invalidas = i === 0 && e.linhasInvalidas && e.linhasInvalidas.length > 0 ? e.linhasInvalidas : undefined;
+    const omitidas = i === 0 && e.linhasInvalidasOmitidas ? e.linhasInvalidasOmitidas : undefined;
     const envelope: LoteEnvelope = {
       versao_contrato: VERSAO_CONTRATO,
       entidade: e.entidade,
@@ -85,13 +107,17 @@ export function montarLotes(e: EntradaLotes): LoteMontado[] {
       sessao: e.sessao && parte !== null ? { id: e.sessao.id, parte, ultimo } : undefined,
       cursor: e.cursorDeclarado ?? undefined,
       enviado_em: e.enviadoEm,
+      ...(e.conectorId ? { conector_id: e.conectorId } : {}),
+      ...(e.versaoConector ? { versao_conector: e.versaoConector } : {}),
+      ...(invalidas ? { linhas_invalidas: invalidas } : {}),
+      ...(omitidas ? { linhas_invalidas_omitidas: omitidas } : {}),
       registros,
     };
     const corpo = JSON.stringify(envelope);
     return {
       envelope,
       corpo,
-      chave: chaveDoLote({ entidade: e.entidade, modo: e.modo, geracao: e.geracao, sessaoId: e.sessao?.id, parte, registros }),
+      chave: chaveDoLote({ entidade: e.entidade, modo: e.modo, geracao: e.geracao, sessaoId: e.sessao?.id, parte, registros, linhasInvalidas: invalidas, linhasInvalidasOmitidas: omitidas }),
       linhas: registros.length,
       bytes: Buffer.byteLength(corpo, 'utf8'),
       parte,

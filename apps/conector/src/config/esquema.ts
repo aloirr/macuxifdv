@@ -4,7 +4,7 @@
  * (chaves `senha`, `password`, `token`… são recusadas com orientação); a consulta de cada entidade precisa dos
  * parâmetros do cursor (`:cursor_alterado_em`, `:cursor_external_id`) e do `:limite`.
  */
-import { LIMITE_REGISTROS_LOTE } from '@macuxi/integracao/contracts';
+import { LIMITE_LINHAS_INVALIDAS_PADRAO, LIMITE_REGISTROS_LOTE } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
 import { camposDoContrato, ehEntidade, PERIODICIDADE_PADRAO, type Entidade } from './entidades';
 
@@ -131,15 +131,21 @@ export type PedidosConfig = z.infer<typeof PedidosConfig>;
 
 const Erp = z
   .object({
-    tipo: z.enum(['sqlserver', 'postgres']),
+    tipo: z.enum(['sqlserver', 'postgres', 'oracle']),
     host: z.string().min(1),
+    /** Padrões: SQL Server 1433, PostgreSQL 5432, Oracle 1521 (TLS: 2484). */
     porta: z.number().int().positive().optional(),
+    /** Banco (SQL Server/PostgreSQL) ou NOME DO SERVIÇO (Oracle, ex.: `ORCLPDB1`; não é o SID). */
     banco: z.string().min(1),
     usuario: z.string().min(1),
-    /** SQL Server: `encrypt`; PostgreSQL: `ssl`. */
+    /** SQL Server: `encrypt`; PostgreSQL: `ssl`; Oracle: `tcps://` (TLS). Oracle on-premise sem TLS: `false`. */
     criptografar: z.boolean().default(true),
     confiarCertificado: z.boolean().default(false),
     instancia: z.string().optional(),
+    /** Só Oracle: `offset` (12c+, `OFFSET/FETCH`) ou `rownum` (11g). Vale quando a consulta NÃO traz `:limite`. */
+    paginacao: z.enum(['offset', 'rownum']).default('offset'),
+    /** Só Oracle: pasta do wallet PEM (`ewallet.pem`) para TLS com certificado próprio. */
+    carteira: z.string().min(1).optional(),
     timeoutSegundos: z.number().int().positive().default(30),
   })
   .strict();
@@ -147,6 +153,15 @@ const Erp = z
 const Hub = z
   .object({
     /** Raiz do Hub (o prefixo `/integracao/v1` é do contrato). HTTPS obrigatório; HTTP só para localhost (testes). */
+    /**
+     * Identificador deste Conector no Hub (cadastrado no BKO junto com a chave de API). Vai no cabeçalho `X-Macuxi-Conector-Id`,
+     * no lote e no sinal de vida. Não é segredo; a chave fica fora do arquivo (`hub_chave`).
+     */
+    conectorId: z
+      .string()
+      .min(1, 'informe o identificador do Conector (hub.conectorId)')
+      .max(100)
+      .regex(/^[A-Za-z0-9._-]+$/, 'use só letras, números, ponto, hífen e sublinhado em hub.conectorId'),
     url: z
       .string()
       .url('url do Hub inválida')
@@ -176,6 +191,8 @@ export const ConfigConector = z
       .object({
         maxLinhas: z.number().int().positive().max(LIMITE_REGISTROS_LOTE).default(LIMITE_REGISTROS_LOTE),
         maxBytes: z.number().int().min(10_000).default(4 * 1024 * 1024),
+        /** Linhas inválidas informadas ao Hub por lote (com o motivo); as que passarem disso só entram na contagem. */
+        maxLinhasInvalidas: z.number().int().min(0).max(LIMITE_REGISTROS_LOTE).default(LIMITE_LINHAS_INVALIDAS_PADRAO),
       })
       .strict()
       .default({}),
@@ -208,6 +225,11 @@ export const ConfigConector = z
   })
   .strict()
   .superRefine((cfg, ctx) => {
+    if (cfg.erp.tipo !== 'oracle') {
+      for (const campo of ['carteira'] as const) {
+        if (cfg.erp[campo] !== undefined) ctx.addIssue({ code: 'custom', path: ['erp', campo], message: `erp.${campo} só vale para o Oracle` });
+      }
+    }
     for (const [nome, e] of Object.entries(cfg.entidades)) {
       const caminho = ['entidades', nome];
       if (!ehEntidade(nome)) {
@@ -215,7 +237,9 @@ export const ConfigConector = z
         continue;
       }
       const params = parametrosDaConsulta(e.consulta);
-      for (const p of PARAMS_CURSOR) {
+      // Oracle: sem `:limite` o Conector aplica a paginação (erp.paginacao); com `:limite` a consulta pagina por conta própria
+      const exigidos = cfg.erp.tipo === 'oracle' ? PARAMS_CURSOR.filter((p) => p !== 'limite') : PARAMS_CURSOR;
+      for (const p of exigidos) {
         if (!params.includes(p)) {
           ctx.addIssue({ code: 'custom', path: [...caminho, 'consulta'], message: `a consulta precisa do parâmetro :${p} (cursor do delta; veja o exemplo)` });
         }

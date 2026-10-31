@@ -1,7 +1,7 @@
 /**
  * Segredos (senha do banco do ERP, token do Hub) ficam FORA do arquivo de configuração e nunca vão para log.
  * Provedores:
- *  - `env`: variável de ambiente `MACUXI_CONECTOR_<NOME>` (ex.: MACUXI_CONECTOR_ERP_SENHA, MACUXI_CONECTOR_HUB_TOKEN);
+ *  - `env`: variável de ambiente `MACUXI_CONECTOR_<NOME>` (ex.: MACUXI_CONECTOR_ERP_SENHA, MACUXI_CONECTOR_HUB_CHAVE);
  *  - `windows`: Windows Credential Manager (credencial genérica `Macuxi.Conector/<nome>`), lida e gravada por
  *    PowerShell com P/Invoke de advapi32 (CredRead/CredWrite). Sem módulo nativo do Node. A credencial é do USUÁRIO
  *    sob o qual o serviço roda; por isso o serviço deve rodar com a mesma conta que gravou o segredo;
@@ -11,7 +11,8 @@
 import { spawn } from 'node:child_process';
 import { registrarSegredo } from '../log/mascara';
 
-export const NOMES_SEGREDO = ['erp_senha', 'hub_token'] as const;
+/** `hub_chave` = chave de API deste Conector (uma por Conector, escopo só `/integracao/v1`; rotacionável com `conector trocar-chave`). */
+export const NOMES_SEGREDO = ['erp_senha', 'hub_chave'] as const;
 export type NomeSegredo = (typeof NOMES_SEGREDO)[number];
 
 export interface ProvedorSegredos {

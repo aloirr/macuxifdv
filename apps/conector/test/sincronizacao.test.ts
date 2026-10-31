@@ -269,10 +269,12 @@ describe('respostas do Hub: erro por linha, recusa de envelope e trava de inativ
     expect(amb.hub.linhasDe('cliente').map((r) => r.external_id)).toEqual(['c1']);
     expect(amb.hub.envelopes).toHaveLength(1); // nenhum reenvio
     expect(amb.ctx.store.estado('cliente')?.confirmado?.external_id).toBe('c2');
+    // RN-INT-03 (T-0023): a linha inválida foi ao Hub em `linhas_invalidas` (com o motivo); o Hub a devolve com origem `conector`
+    // e o Conector não duplica esse erro como se fosse do Hub: fica um erro local, com campo e sem valor
+    expect(amb.hub.envelopes[0]?.linhas_invalidas).toEqual([{ external_id: 'c2', codigo: 'campo_obrigatorio', campo: 'razao_social', mensagem: 'campo obrigatório sem valor' }]);
     const erros = amb.ctx.store.errosRecentes('cliente');
-    expect(erros.filter((e) => e.origem === 'hub')).toHaveLength(1);
-    expect(erros.find((e) => e.origem === 'hub')).toMatchObject({ externalId: 'c2', reprocessavel: false });
-    expect(erros.find((e) => e.origem === 'local')).toMatchObject({ externalId: 'c2', campo: 'razao_social' });
+    expect(erros.filter((e) => e.origem === 'hub')).toHaveLength(0);
+    expect(erros.find((e) => e.origem === 'local')).toMatchObject({ externalId: 'c2', campo: 'razao_social', codigo: 'mapeamento' });
   });
 
   it('quando o ERP corrige a linha (novo alterado_em), ela volta no delta seguinte', async () => {

@@ -40,7 +40,8 @@ export async function abrirContexto(amb: Ambiente): Promise<Contexto> {
   const store = Armazenamento.abrir(resolve(amb.dadosDir, 'fila.sqlite'));
   const hub = new ClienteHub({
     url: amb.config.hub.url,
-    token: () => amb.segredos.exigir('hub_token'),
+    token: () => amb.segredos.exigir('hub_chave'),
+    conectorId: amb.config.hub.conectorId,
     timeoutMs: amb.config.hub.timeoutSegundos * 1000,
     retry: amb.config.hub.retry,
     aoRetentar: (i) => amb.log.aviso('hub_retry', i),

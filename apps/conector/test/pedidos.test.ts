@@ -116,21 +116,84 @@ describe('retorno de pedidos ao ERP (RN-INT-08)', () => {
     ];
     amb.erp.onConsulta = (sql) => {
       if (sql.includes('/*st*/')) return linhasStatus;
-      if (sql.includes('/*itn*/')) return [{ sequencia: 1, quantidade: 2 }];
+      if (sql.includes('/*itn*/')) return [{ sequencia: 1, produto_external_id: 'p1', quantidade: 2, valor_cents: 2000 }];
       return undefined;
     };
     amb.relogio.avancar(120_000);
     await cicloPedidos(amb.ctx);
     const parcial = amb.hub.retornos.find((r) => (r as { status: string }).status === 'faturado_parcial');
-    expect(parcial).toMatchObject({ numero_erp: 'PV-1001', nota: { numero: '501', serie: '1', total_cents: 2000 }, itens_faturados: [{ sequencia: 1, quantidade: 2 }] });
+    expect(parcial).toMatchObject({ numero_erp: 'PV-1001', nota: { numero: '501', serie: '1', total_cents: 2000 }, itens_faturados: [{ sequencia: 1, produto_external_id: 'p1', quantidade: 2, valor_cents: 2000 }] });
 
     // segunda nota fecha o pedido
     linhasStatus.push({ status: 'F', numero_erp: 'PV-1001', nota_numero: '502', nota_serie: '1', nota_emitida_em: new Date('2026-03-12T10:00:00Z'), nota_total_cents: 1000, ocorrido_em: new Date('2026-03-12T10:00:00Z') });
-    amb.erp.onConsulta = (sql) => (sql.includes('/*st*/') ? linhasStatus : sql.includes('/*itn*/') ? [{ sequencia: 2, quantidade: 1 }] : undefined);
+    amb.erp.onConsulta = (sql) => (sql.includes('/*st*/') ? linhasStatus : sql.includes('/*itn*/') ? [{ sequencia: 2, produto_external_id: 'p2', quantidade: 1, valor_cents: 1000 }] : undefined);
     await cicloPedidos(amb.ctx);
     await cicloPedidos(amb.ctx); // repetir o ciclo não reenvia nada
     expect(amb.hub.retornos.map((r) => (r as { status: string }).status)).toEqual(['integrado', 'faturado_parcial', 'faturado_total']);
     expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'faturado_total', final: true });
+  });
+
+  it('RN-INT-08: itens_faturados leva sequência, quantidade, valor em centavos e o produto do ERP; sequência repetida soma', async () => {
+    await preparar();
+    await cicloPedidos(amb.ctx);
+    amb.erp.onConsulta = (sql) => {
+      if (sql.includes('/*st*/')) return [{ status: 'P', numero_erp: 'PV-1001', nota_numero: '601', nota_serie: '1', nota_total_cents: 2500, nota_emitida_em: new Date('2026-03-11T10:00:00Z') }];
+      // Oracle devolve colunas em minúsculas após o adaptador; maiúsculas também funcionam (busca sem diferenciar caixa)
+      if (sql.includes('/*itn*/')) {
+        return [
+          { SEQUENCIA: 1, QUANTIDADE: 1, VALOR_CENTS: 1000, PRODUTO_EXTERNAL_ID: 'p1' },
+          { SEQUENCIA: 1, QUANTIDADE: 1, VALOR_CENTS: 1000, PRODUTO_EXTERNAL_ID: 'p1' },
+          { SEQUENCIA: 2, QUANTIDADE: 1, VALOR_CENTS: 500, PRODUTO_EXTERNAL_ID: 'p2' },
+        ];
+      }
+      return undefined;
+    };
+    await cicloPedidos(amb.ctx);
+    const parcial = amb.hub.retornos.find((r) => (r as { status: string }).status === 'faturado_parcial');
+    expect(parcial).toMatchObject({
+      nota: { numero: '601', total_cents: 2500 },
+      itens_faturados: [
+        { sequencia: 1, produto_external_id: 'p1', quantidade: 2, valor_cents: 2000 },
+        { sequencia: 2, produto_external_id: 'p2', quantidade: 1, valor_cents: 500 },
+      ],
+    });
+  });
+
+  it('RN-INT-08: item sem valor, com valor fracionário ou sem produto invalida os itens da nota com motivo claro; nunca inventa valor', async () => {
+    const casos: { linha: Record<string, unknown>; motivo: string }[] = [
+      { linha: { sequencia: 1, quantidade: 1, produto_external_id: 'p1', valor_cents: 10.5 }, motivo: 'valor_cents deve ser inteiro' },
+      { linha: { sequencia: 1, quantidade: 1, produto_external_id: 'p1' }, motivo: 'valor_cents ausente' },
+      { linha: { sequencia: 1, quantidade: 1, produto_external_id: 'p1', valor_cents: '' }, motivo: 'valor_cents ausente' },
+      { linha: { sequencia: 1, quantidade: 1, valor_cents: 100 }, motivo: 'produto_external_id ausente' },
+    ];
+    for (const caso of casos) {
+      await preparar();
+      await cicloPedidos(amb.ctx);
+      amb.erp.onConsulta = (sql) => {
+        if (sql.includes('/*st*/')) return [{ status: 'P', numero_erp: 'PV-1001', nota_numero: '602', nota_total_cents: 100 }];
+        if (sql.includes('/*itn*/')) return [caso.linha];
+        return undefined;
+      };
+      await cicloPedidos(amb.ctx);
+      const parcial = amb.hub.retornos.find((r) => (r as { status: string }).status === 'faturado_parcial') as Record<string, unknown>;
+      expect(parcial.itens_faturados).toBeUndefined();
+      expect(amb.logs.join('\n')).toContain('itens_faturados_omitidos');
+      expect(amb.logs.join('\n')).toContain(caso.motivo);
+    }
+  });
+
+  it('RN-INT-08: duas notas parciais do mesmo pedido são dois retornos (a 2ª nota parcial não some)', async () => {
+    await preparar();
+    await cicloPedidos(amb.ctx);
+    const linhas = [
+      { status: 'P', numero_erp: 'PV-1001', nota_numero: '701', nota_serie: '1', nota_total_cents: 1000, nota_emitida_em: new Date('2026-03-11T10:00:00Z') },
+      { status: 'P', numero_erp: 'PV-1001', nota_numero: '702', nota_serie: '1', nota_total_cents: 1000, nota_emitida_em: new Date('2026-03-12T10:00:00Z') },
+    ];
+    // o ERP ainda não fechou o pedido: as duas notas são parciais (o status do ERP é do pedido, e aqui nenhuma é a última)
+    amb.erp.onConsulta = (sql) => (sql.includes('/*st*/') ? linhas : undefined);
+    await cicloPedidos(amb.ctx);
+    const parciais = amb.hub.retornos.filter((r) => (r as { status: string }).status === 'faturado_parcial') as { nota: { numero: string } }[];
+    expect(parciais.map((r) => r.nota.numero)).toEqual(['701', '702']);
   });
 
   it('itens faturados fracionários ou inválidos são omitidos (o campo é opcional) em vez de mandar errado', async () => {
@@ -138,7 +201,7 @@ describe('retorno de pedidos ao ERP (RN-INT-08)', () => {
     await cicloPedidos(amb.ctx);
     amb.erp.onConsulta = (sql) => {
       if (sql.includes('/*st*/')) return [{ status: 'F', numero_erp: 'PV-1001', nota_numero: '9', nota_total_cents: 3000 }];
-      if (sql.includes('/*itn*/')) return [{ sequencia: 1, quantidade: 1.5 }];
+      if (sql.includes('/*itn*/')) return [{ sequencia: 1, quantidade: 1.5, produto_external_id: 'p1', valor_cents: 100 }];
       return undefined;
     };
     await cicloPedidos(amb.ctx);
