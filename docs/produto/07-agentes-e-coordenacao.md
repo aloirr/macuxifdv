@@ -92,6 +92,8 @@ criado_em: 2026-10-31T14:05:12-04:00
 
 **Escrita da nuvem**: a sessão da nuvem só altera os caminhos travados da tarefa e cria recados novos. Não edita `.coord/quadro.md`, `.coord/tarefas/`, `docs/backlog.md` nem `docs/produto/`; isso é do gerente-projetos, quando o merge chega. Commits da nuvem levam o trailer `Agente: <dono do caminho>` (convenção no R-20261031-093259-2-alexandre).
 
+**Recados da nuvem**: recado criado por uma sessão da nuvem sai com o remetente (`--de`) igual ao agente do trailer `Agente:` do commit (exigência do CI desde o PR #4).
+
 **GitHub CLI (`gh`)**: o gerente-projetos acompanha CI e PRs pelo `gh` (`gh auth status`, `gh run list --limit 5`, `gh run view <id> --log-failed`, `gh pr list`), em vez de pedir ao Alexandre para abrir o navegador. Sem pedido do Alexandre, o `gh` **não** é usado para merge, fechar PR, apagar branch ou mudar configuração do repositório.
 
 **3. Git automático** (executado pelo gerente-projetos, sem pedir confirmação; os demais agentes não fazem commit)

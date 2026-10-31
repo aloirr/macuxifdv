@@ -81,10 +81,15 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-PES-04** Resposta offline guarda a hora do aparelho e a hora de recebimento; prazo de vigência considera a do aparelho com tolerância de [24 h].
 
 ## 7. Treinamento
-- **RN-TRE-01** XP: lição concluída [10]; acerto no quiz [5 por questão]; trilha concluída [50]; streak diário [2 × dias, até 20].
-- **RN-TRE-02** Quiz: nota mínima [70%] para concluir; até [3] tentativas por dia; XP de acerto só na 1ª tentativa.
-- **RN-TRE-03** Ranking por XP no período; empate → quem atingiu primeiro. Ranking visível apenas dentro do mesmo tenant.
-- **RN-TRE-04** Progresso feito offline sincroniza e é validado no servidor (tempo mínimo de lição [30 s] para contar).
+> Decisões do Alexandre em 2026-10-31 (R-20261031-103502), a partir das premissas da T-0011. Valores entre colchetes são parâmetros do tenant.
+- **RN-TRE-01** XP: lição concluída [10]; acerto no quiz [5 por questão]; trilha concluída [50]; streak diário [2 × dias, até 20]. Teto diário de [200] XP somando lição, quiz, trilha e streak; com o teto estourado, grava lançamento de 0. XP é append-only e idempotente.
+- **RN-TRE-02** Quiz: nota mínima [70%] para concluir; até [3] tentativas por dia no fuso do tenant; XP de acerto só na 1ª tentativa, mesmo reprovada. Refazer quiz aprovado é permitido, sem XP; vale a melhor nota (configurável); intervalo entre tentativas [0] (desligado).
+- **RN-TRE-03** Ranking por XP no período; desempate: XP → quem atingiu primeiro → trilhas concluídas → nome → id. Ranking visível apenas dentro do mesmo tenant; padrão só vendedor e promotor (configurável). Semana do ranking: segunda a domingo no fuso do tenant.
+- **RN-TRE-04** Progresso feito offline sincroniza e é validado no servidor. Tempo mínimo da lição para contar = o maior entre [30 s] e [50%] da duração estimada (quando informada).
+- **RN-TRE-05** Streak: o dia conta com lição concluída ou quiz respondido até o fim (abrir e abandonar não conta); paga 1 vez por dia.
+- **RN-TRE-06** Níveis: faixas [0/100/250/450/700/1000/1400/1900/2500/3200] XP. Medalhas padrão: primeira trilha, nota 100, 7 dias seguidos.
+- **RN-TRE-07** Público-alvo: perfis e equipes; com os dois preenchidos vale a interseção, com um só vale esse, vazio = tenant todo.
+- **RN-TRE-08** Desafio de vendas: paga XP quando o pedido é **faturado** (status vindo do ERP pelo Hub), não quando é criado; idempotente por pedido; fora do teto diário, com teto próprio [`xp_max_por_desafio`]. Payload consumido: pedido_id, vendedor_id, faturado_em, itens[produto_id, quantidade]. Sem estorno nesta fase.
 
 ## 8. Catálogo
 - **RN-CAT-01** Busca inteligente só responde com produtos do tenant e respeita o escopo (preço da tabela do cliente em contexto).
@@ -99,7 +104,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-INT-04** Ordem de dependência da carga: vendedor → cliente → (rota, título, nota/histórico); produto → (preço, estoque). Linha que cita `external_id` de outra entidade ainda inexistente fica com erro `referencia_ausente` (reprocessável), nunca cria registro órfão.
 - **RN-INT-05** Delta por cursor: o cursor é por (tenant, conector, entidade) e vale o maior par (`alterado_em`, `external_id`) das linhas aceitas; só avança quando o lote termina (`concluido` ou `concluido_com_erros`) e nunca retrocede (reenvio antigo é aceito sem voltar o cursor).
 - **RN-INT-06** Carga completa: pode ocupar vários lotes da mesma sessão (parte n, último = sim); só ao concluir o último lote os registros da entidade ausentes da carga são inativados (`deleted_at`), nunca apagados. Sessão incompleta não inativa nada.
-  - *Premissa (2026-10-31, revisão da T-0009)*: se a inativação ao fim da carga completa passar de [30%] dos registros ativos da entidade, ela fica suspensa até o operador confirmar no monitor (proteção contra carga parcial ou view errada). Parâmetro do tenant `limiteInativacaoPct`; a confirmar com o Alexandre.
+  - **Trava de inativação em massa** (confirmada pelo Alexandre em 2026-10-31): se uma carga for inativar mais de [30%] dos registros ativos de uma entidade, o lote fica parado aguardando confirmação no BKO. Parâmetro `limite_inativacao_pct`.
 - **RN-INT-07** Reconciliação diária por entidade: compara contagem de registros ativos e soma de controle (centavos ou quantidades) informadas pelo ERP com as do Macuxi; divergência acima da tolerância [contagem 0; soma 0,5%] gera alerta no monitor.
 - **RN-INT-08** Devolução de pedido ao ERP: só pedido `aprovado` entra na fila de pendentes; a entrega é idempotente pelo UUID do pedido. Retorno: `pendente` → `enviado` (Conector retirou) → `integrado` (nº ERP) | `rejeitado_erp` (motivo); `integrado` → `faturado_parcial` → `faturado_total`. `enviado` sem confirmação em [10 min] volta a `pendente`. Cancelamento feito no ERP volta pelo retorno como `enviado`/`integrado`/`faturado_*` → `cancelado`, com o motivo quando o ERP informar; o Macuxi nunca escreve cancelamento no ERP. Cada retorno publica `integracao.pedido.retorno_erp@1`.
 - **RN-INT-09** Contrato `/integracao/v1`: dinheiro em centavos inteiros, datas ISO 8601 UTC, `external_id` obrigatório; campo novo opcional é compatível; mudança incompatível vira `/v2` com ADR e a versão anterior fica ativa por [6 meses].
@@ -130,4 +135,11 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Registros por lote de integração | 5.000 |
 | Tolerância da reconciliação (contagem / soma) | 0 / 0,5% |
 | Reenvio de pedido ao ERP sem confirmação | 10 min |
+| Teto diário de XP (`xp_teto_diario`) | 200 |
+| Teto de XP por desafio de vendas (`xp_max_por_desafio`) | definido no desafio |
+| Tempo mínimo da lição (`licao_tempo_min_s` / `licao_tempo_min_pct`) | 30 s / 50% da duração |
+| Nota mínima do quiz / tentativas por dia | 70% / 3 |
+| Intervalo entre tentativas de quiz | 0 (desligado) |
+| Ranking padrão (perfis) | vendedor, promotor |
+| Limite de inativação em massa na integração (`limite_inativacao_pct`) | 30% |
 | Fuso horário | America/Manaus |

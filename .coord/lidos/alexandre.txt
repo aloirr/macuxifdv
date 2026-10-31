@@ -4,3 +4,8 @@ R-20261031-091159-engenheiro-software
 R-20261031-092829-modulo-promotor
 R-20261031-094005-gerente-projetos
 R-20261031-095551-modulo-integracao
+R-20261031-100330-engenheiro-software
+R-20261031-100919-gerente-projetos
+R-20261031-102328-gerente-projetos
+R-20261031-102328-2-gerente-projetos
+R-20261031-102355-gerente-projetos

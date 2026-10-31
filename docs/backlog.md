@@ -18,7 +18,8 @@
 - **Índice da carteira do vendedor incluindo excluídos** (T-0002, EXPLAIN do sync): criar junto com a rota de sync (T-0004).
 - **db sem dependência declarada do platform-sdk** (T-0002): `db/package.json` deve declarar `@macuxi/platform-sdk: workspace:*` (hoje resolve só pelo nodeLinker hoisted); o pnpm-lock é do engenheiro.
 - **🟢 6 e 7 da revisão da T-0002**: entram na próxima migração da plataforma.
-- **Remover `modules/vendedor/app/ambiente.ts` e os exports `@deprecated`** (🟡 da revisão final da T-0001; a ponte já saiu do shell).
 - **Demo web da Fase M (S0-008)**: confirmada só pela premissa "pasta inalterada"; falta o roteiro manual M-01 com o Alexandre.
 - **ADR 0003, linhas 66-67**: ainda citam a ponte do vendedor; o engenheiro edita quando a T-0008 (nuvem) destravar a ADR.
 - **Cancelamento por integração — para ERPs que aceitam** (sem data): evento `vendedor.pedido.cancelado@1` consumido pelo Hub e cancelamento devolvido ao ERP (opção (a) da decisão de 2026-10-31; no Essencial vale a (b)).
+- **OrderStatus do vendedor com os status do ERP** (enviado, integrado, faturado_parcial, faturado_total, cancelado): o contrato está travado pela T-0007; o vendedor ajusta logo após o merge (hoje há mapeamento tolerante na tela).
+- **Schema `vendedor` (pedido, pedido_item…)**: o vendedor pediu `vendedor.pedido` ao banco-dados para a rota de cancelamento (T-0009); entra com o pedido ponta a ponta (Sprints 4–5), não na Sprint 0.

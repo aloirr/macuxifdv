@@ -46,3 +46,13 @@ R-20261031-125125-alexandre
 R-20261031-134528-alexandre
 R-20261031-135410-engenheiro-software
 R-20261031-135538-modulo-treinamento
+R-20261031-104626-alexandre
+R-20261031-105142-modulo-treinamento
+R-20261031-105209-modulo-promotor
+R-20261031-105707-modulo-integracao
+R-20261031-110006-modulo-vendedor
+R-20261031-110347-modulo-vendedor
+R-20261031-111901-testes
+R-20261031-114048-engenheiro-software
+R-20261031-114109-engenheiro-software
+R-20261031-115533-engenheiro-software
