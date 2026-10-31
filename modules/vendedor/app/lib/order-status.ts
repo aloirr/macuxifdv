@@ -18,6 +18,8 @@ const STYLE: Record<OrderStatus, { fg: string; bg: string }> = {
   approved: { fg: '#1D6B4F', bg: '#E2F1EA' },
   sent_to_erp: { fg: '#34404D', bg: '#E6E9E2' },
   integrated: { fg: '#1D6B4F', bg: '#E2F1EA' },
+  invoiced_partial: { fg: '#1D6B4F', bg: '#E2F1EA' },
+  invoiced: { fg: '#1D6B4F', bg: '#E2F1EA' },
   rejected: { fg: '#A8261B', bg: '#FDE8E6' },
   cancelled: { fg: '#A8261B', bg: '#F1E4E2' },
 };
@@ -57,7 +59,7 @@ export function matchesFilter(status: string, filter: OrderFilter): boolean {
     case 'pending':
       return status === 'pending_approval';
     case 'integrated':
-      return status === 'integrated';
+      return status === 'integrated' || status === 'invoiced_partial' || status === 'invoiced';
     case 'rejected':
       return status === 'rejected';
     case 'cancelled':

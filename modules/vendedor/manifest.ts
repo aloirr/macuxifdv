@@ -14,7 +14,7 @@ export const manifest = defineModule({
   perfis: ['vendedor', 'analista', 'assistente'],
   apps: { campo: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas'] } },
   sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'alerta_ruptura'],
-  publica: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1'],
+  publica: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'vendedor.pedido.faturado@1'],
   consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1'],
   acoes: {
     'pedido.criar': { perfis: [...PERFIS_PEDIDO] },

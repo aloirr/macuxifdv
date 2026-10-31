@@ -204,6 +204,8 @@ export const ORDER_STATUSES = [
   'approved',
   'sent_to_erp',
   'integrated',
+  'invoiced_partial',
+  'invoiced',
   'rejected',
   'cancelled',
 ] as const;
@@ -216,13 +218,22 @@ const transitions: Record<OrderStatus, OrderStatus[]> = {
   pending_approval: ['approved', 'rejected', 'cancelled'],
   approved: ['sent_to_erp'],
   sent_to_erp: ['integrated', 'rejected'],
-  integrated: [],
+  integrated: ['invoiced_partial', 'invoiced'],
+  invoiced_partial: ['invoiced_partial', 'invoiced'],
+  invoiced: [],
   rejected: ['sent_to_erp', 'pending_approval', 'cancelled'],
   cancelled: [],
 };
 
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   return transitions[from].includes(to);
+}
+
+/**
+ * RN-INT-08: o 'cancelado' do ERP vem pelo Hub (não é ação do vendedor) e vale de enviado em diante.
+ */
+export function aceitaCancelamentoDoErp(from: OrderStatus): boolean {
+  return enviadoAoErp(from);
 }
 
 /**
@@ -248,8 +259,8 @@ const ENVIADO_OU_POSTERIOR: ReadonlySet<string> = new Set([
 export function enviadoAoErp(status: string): boolean {
   return ENVIADO_OU_POSTERIOR.has(status);
 }
-/** Mapeamento tolerante dos status do ERP/doc para os do contrato (o contrato ainda não os tem; T-0007). */
-const ALIAS_STATUS: Record<string, OrderStatus> = { enviado: 'sent_to_erp', integrado: 'integrated', integrado_erp: 'integrated', faturado_parcial: 'integrated', faturado_total: 'integrated', faturado: 'integrated', cancelado: 'cancelled' };
+/** Status do ERP/doc (EstadoPedidoErp da integração) -> OrderStatus do contrato; o que já é OrderStatus passa direto. */
+const ALIAS_STATUS: Record<string, OrderStatus> = { enviado: 'sent_to_erp', integrado: 'integrated', integrado_erp: 'integrated', faturado_parcial: 'invoiced_partial', faturado_total: 'invoiced', faturado: 'invoiced', cancelado: 'cancelled' };
 export function normalizarStatus(status: string): string {
   return ALIAS_STATUS[status] ?? status;
 }
@@ -288,6 +299,8 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   approved: 'Aprovado',
   sent_to_erp: 'Enviado ao ERP',
   integrated: 'Integrado',
+  invoiced_partial: 'Faturado parcialmente',
+  invoiced: 'Faturado',
   rejected: 'Rejeitado',
   cancelled: 'Cancelado',
 };

@@ -17,10 +17,14 @@ import {
   Receivable,
 } from '@macuxi/core/contracts';
 
+import { ORDER_STATUSES } from '../domain/order';
+
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
+export * from './eventos';
 
 // ---------- pedidos ----------
-export const OrderStatus = z.enum(['draft', 'queued', 'received', 'pending_approval', 'approved', 'sent_to_erp', 'integrated', 'rejected', 'cancelled']);
+/** Inclui os status do retorno do ERP (EstadoPedidoErp): enviado=sent_to_erp, integrado=integrated, faturado_parcial=invoiced_partial, faturado_total=invoiced, cancelado=cancelled. */
+export const OrderStatus = z.enum(ORDER_STATUSES);
 export type OrderStatus = z.infer<typeof OrderStatus>;
 
 export const OrderItem = z.object({
