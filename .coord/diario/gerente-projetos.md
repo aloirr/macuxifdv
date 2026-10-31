@@ -26,3 +26,4 @@
 2026-10-31 — retomada após reinício — vendedor e engenheiro tinham parado no meio; raiz verde; commits T-0001 (A3 + vendedor), T-0002 (banco) e T-0003 (fase 1); Docker respondendo
 2026-10-31 — T-0005 — merge da nuvem recebido no pull (verificar --base, push liberado); caminhos destravados
 2026-10-31 — T-0010 — aberta e delegada ao modulo-promotor; entrega validada (lint, fronteiras, verificar, 131 testes; 2 arquivos dependem do ambiente.ts ausente); recados de entrega/revisão (de alexandre) e pedido ao engenheiro; PR para main
+2026-10-31 — T-0009 — aberta (RN-INT-01..09 registradas no doc 03), delegada ao modulo-integracao; entregue com 97 testes; recados de entrega, revisão e eventos novos enviados; em revisão

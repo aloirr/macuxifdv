@@ -1,0 +1,99 @@
+import { describe, expect, it } from 'vitest';
+import { ESTADOS_LOTE, ESTADOS_PEDIDO_ERP, type EstadoLote, type EstadoPedidoErp } from '../contracts';
+import { aplicarTimeoutEnvio, podeEntrarNaFila, transicionarLote, transicionarPedidoErp } from './estados';
+
+describe('RN-INT-08: máquina de estados do lote', () => {
+  it('RN-INT-08: fluxo normal recebido → processando → concluído/com erros/falhou', () => {
+    expect(transicionarLote('recebido', 'processando')).toMatchObject({ ok: true, estado: 'processando' });
+    for (const fim of ['concluido', 'concluido_com_erros', 'falhou'] as const) expect(transicionarLote('processando', fim).ok).toBe(true);
+    expect(transicionarLote('recebido', 'falhou').ok).toBe(true);
+  });
+
+  it('RN-INT-08/03: reprocessar volta de concluido_com_erros e falhou para processando; concluído é final', () => {
+    expect(transicionarLote('concluido_com_erros', 'processando').ok).toBe(true);
+    expect(transicionarLote('falhou', 'processando').ok).toBe(true);
+    for (const para of ESTADOS_LOTE) expect(transicionarLote('concluido', para).ok).toBe(false);
+  });
+
+  it('RN-INT-08: transições inválidas são rejeitadas com mensagem em português', () => {
+    const r = transicionarLote('recebido', 'concluido');
+    expect(r).toMatchObject({ ok: false, codigo: 'transicao_invalida', de: 'recebido', para: 'concluido' });
+    if (!r.ok) expect(r.mensagem).toMatch(/recebido.*concluido/);
+    const invalidas: [EstadoLote, EstadoLote][] = [
+      ['processando', 'recebido'],
+      ['processando', 'processando'],
+      ['concluido_com_erros', 'concluido'],
+      ['falhou', 'concluido'],
+    ];
+    for (const [de, para] of invalidas) expect(transicionarLote(de, para).ok).toBe(false);
+  });
+});
+
+describe('RN-INT-08: máquina de estados do retorno do pedido', () => {
+  it('RN-INT-08: pendente → enviado → integrado | rejeitado_erp', () => {
+    expect(transicionarPedidoErp('pendente', 'enviado')).toMatchObject({ ok: true, estado: 'enviado', repetida: false });
+    expect(transicionarPedidoErp('enviado', 'integrado').ok).toBe(true);
+    expect(transicionarPedidoErp('enviado', 'rejeitado_erp').ok).toBe(true);
+  });
+
+  it('RN-INT-08: integrado → faturado_parcial → faturado_total (e integrado → faturado_total direto)', () => {
+    expect(transicionarPedidoErp('integrado', 'faturado_parcial').ok).toBe(true);
+    expect(transicionarPedidoErp('faturado_parcial', 'faturado_total').ok).toBe(true);
+    expect(transicionarPedidoErp('integrado', 'faturado_total').ok).toBe(true);
+  });
+
+  it('RN-INT-08: enviado sem confirmação pode voltar a pendente (timeout)', () => {
+    expect(transicionarPedidoErp('enviado', 'pendente').ok).toBe(true);
+  });
+
+  it('RN-INT-08: transições inválidas são rejeitadas (pular etapa, voltar, sair de estado final)', () => {
+    const invalidas: [EstadoPedidoErp, EstadoPedidoErp][] = [
+      ['pendente', 'integrado'],
+      ['pendente', 'faturado_total'],
+      ['enviado', 'faturado_parcial'],
+      ['integrado', 'enviado'],
+      ['integrado', 'pendente'],
+      ['faturado_total', 'faturado_parcial'],
+      ['faturado_total', 'pendente'],
+      ['rejeitado_erp', 'integrado'],
+      ['rejeitado_erp', 'pendente'],
+      ['faturado_parcial', 'integrado'],
+    ];
+    for (const [de, para] of invalidas) {
+      const r = transicionarPedidoErp(de, para);
+      expect(r.ok, `${de} → ${para}`).toBe(false);
+    }
+  });
+
+  it('RN-INT-08: repetir o mesmo estado é idempotente (retorno repetido do Conector não é erro)', () => {
+    for (const e of ESTADOS_PEDIDO_ERP) expect(transicionarPedidoErp(e, e)).toMatchObject({ ok: true, estado: e, repetida: true });
+  });
+});
+
+describe('RN-INT-08: fila de pendentes e timeout de reenvio', () => {
+  it('RN-INT-08: só pedido aprovado entra na fila de pendentes', () => {
+    expect(podeEntrarNaFila('aprovado')).toBe(true);
+    for (const s of ['rascunho', 'pendente', 'em_aprovacao', 'reprovado', 'cancelado', 'faturado']) expect(podeEntrarNaFila(s)).toBe(false);
+  });
+
+  const enviado = { estado: 'enviado' as const, enviado_em: '2026-10-31T10:00:00Z', tentativas: 1 };
+
+  it('RN-INT-08: enviado sem confirmação em 10 min volta a pendente e conta a tentativa', () => {
+    expect(aplicarTimeoutEnvio(enviado, '2026-10-31T10:09:59Z')).toEqual({ ...enviado, reenviado: false });
+    const r = aplicarTimeoutEnvio(enviado, '2026-10-31T10:10:00Z');
+    expect(r).toEqual({ estado: 'pendente', enviado_em: null, tentativas: 1, reenviado: true });
+  });
+
+  it('RN-INT-08: o prazo é parâmetro; só estado enviado é afetado', () => {
+    expect(aplicarTimeoutEnvio(enviado, '2026-10-31T10:05:00Z', { timeoutMin: 5 }).estado).toBe('pendente');
+    for (const estado of ['pendente', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total'] as const) {
+      const item = { estado, enviado_em: null, tentativas: 1 };
+      expect(aplicarTimeoutEnvio(item, '2030-01-01T00:00:00Z')).toEqual({ ...item, reenviado: false });
+    }
+  });
+
+  it('RN-INT-08: o timeout não mexe em tentativas (quem conta é a retirada pelo Conector)', () => {
+    const r = aplicarTimeoutEnvio({ ...enviado, tentativas: 3 }, '2026-10-31T11:00:00Z');
+    expect(r).toMatchObject({ estado: 'pendente', tentativas: 3, reenviado: true });
+  });
+});
