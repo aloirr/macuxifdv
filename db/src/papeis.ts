@@ -9,16 +9,30 @@
 import type { ClientBase } from 'pg';
 import { PAPEL_APP } from './config';
 
-/** Cria (ou corrige) o papel de aplicação com LOGIN e a senha do ambiente. Idempotente. */
+/** Chave do advisory lock que serializa CREATE/ALTER ROLE (diferente da chave do migrador). */
+const CHAVE_LOCK_PAPEL = 0x6d6163757870;
+
+/**
+ * Cria (ou corrige) o papel de aplicação com LOGIN e a senha do ambiente. Idempotente e seguro com
+ * vários processos ao mesmo tempo (ex.: suítes de teste em paralelo criando bancos efêmeros): papel é
+ * objeto do cluster (pg_authid), e dois ALTER ROLE simultâneos dão "tuple concurrently updated".
+ * Por isso a operação roda numa transação com advisory lock (chame sempre conectado ao banco
+ * "postgres", para o lock ser o mesmo entre processos).
+ */
 export async function garantirPapelApp(admin: ClientBase, senha: string): Promise<void> {
   if (!senha) throw new Error('Senha do papel de aplicação vazia (MACUXI_PG_APP_SENHA).');
-  const existe = await admin.query('select 1 from pg_roles where rolname = $1', [PAPEL_APP]);
   const atributos = 'login nosuperuser nobypassrls nocreatedb nocreaterole noreplication';
   const senhaSql = admin.escapeLiteral(senha);
-  if (existe.rowCount === 0) {
-    await admin.query(`create role ${PAPEL_APP} ${atributos} password ${senhaSql}`);
-  } else {
-    await admin.query(`alter role ${PAPEL_APP} ${atributos} password ${senhaSql}`);
+  await admin.query('begin');
+  try {
+    await admin.query('select pg_advisory_xact_lock($1)', [CHAVE_LOCK_PAPEL]);
+    const existe = await admin.query('select 1 from pg_roles where rolname = $1', [PAPEL_APP]);
+    const verbo = existe.rowCount === 0 ? 'create' : 'alter';
+    await admin.query(`${verbo} role ${PAPEL_APP} ${atributos} password ${senhaSql}`);
+    await admin.query('commit');
+  } catch (e) {
+    await admin.query('rollback').catch(() => undefined);
+    throw e;
   }
 }
 

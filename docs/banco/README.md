@@ -3,9 +3,27 @@
 Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Docker Desktop
 (imagem `pgvector/pgvector:pg16`, a mesma do CI — T-0005).
 
-> **Situação em 2026-10-31:** o Docker ainda não está instalado nesta máquina. Tudo abaixo está
-> escrito e os testes estáticos rodam; os testes que precisam de Postgres **pulam com aviso** até o
-> Docker subir. Ver "O que falta executar" no fim.
+> **Situação em 2026-10-31:** Docker Desktop instalado (motor 29.9.2). Migrações up/down/up, seed
+> Fase M, fixture dois-tenants e a suíte inteira de `db/testes/` rodam no container `macuxi-postgres`
+> (74 testes, 0 pulados). Medição do sync em [desempenho-sync.md](desempenho-sync.md).
+
+## Windows: subir, derrubar e recriar o banco de teste (5 passos)
+1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
+   `export PATH="$PATH:/c/Program Files/Docker/Docker/resources/bin"` (no PowerShell:
+   `$env:Path += ";C:Program FilesDockerDockeresourcesin"`). O CLI e os testes acham esse
+   caminho sozinhos; o PATH só importa para usar `docker` à mão.
+2. **Subir** (baixa `pgvector/pgvector:pg16` na 1ª vez, cria o banco `macuxi` e migra):
+   `pnpm --filter @macuxi/db banco subir` → `[banco] pronto: localhost:5432/macuxi`.
+3. **Carregar dados**: `pnpm --filter @macuxi/db banco seed fase-m` e/ou
+   `pnpm --filter @macuxi/db banco fixture dois-tenants` (idempotentes; `banco status` confere).
+4. **Testar**: `pnpm --filter @macuxi/db test` (ou `pnpm test` na raiz). Cada execução cria e apaga um
+   banco efêmero `macuxi_teste_*`; se o container estiver parado e o Docker aberto, o teste o sobe sozinho.
+5. **Derrubar ou recriar**: `banco derrubar` (para o container, mantém o volume),
+   `banco derrubar --limpar` (apaga também o volume) ou `banco recriar` (apaga volume e sobe do zero,
+   migrado e vazio). Bancos de teste esquecidos por execução interrompida: `banco apagar-teste --todos`.
+
+Porta ocupada (outro Postgres em 5432)? Defina `MACUXI_PG_PORTA=5433` no `.env` da raiz: o compose e
+o CLI usam a mesma variável.
 
 ## Pré-requisitos
 - Docker Desktop instalado e aberto (`docker version` responde).
@@ -26,11 +44,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 | Criar banco de teste efêmero (migrado) | `pnpm --filter @macuxi/db banco criar-teste [--fixture dois-tenants\|fase-m]` |
 | Apagar banco(s) de teste | `pnpm --filter @macuxi/db banco apagar-teste <nome> \| --todos` |
 | (Re)criar o papel de aplicação | `pnpm --filter @macuxi/db banco papeis` |
+| Recriar do zero (apaga volume, sobe e migra) | `pnpm --filter @macuxi/db banco recriar` |
+| Medir o sync com volume (EXPLAIN + p50/p95) | `pnpm --filter @macuxi/db exec tsx scripts/medir-sync.ts` |
 | Parar o container (mantém os dados) | `pnpm --filter @macuxi/db banco derrubar` |
 | Parar e APAGAR o volume de dados | `pnpm --filter @macuxi/db banco derrubar --limpar` |
 | Testes do banco | `pnpm --filter @macuxi/db test` |
 
-Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`). Sem Docker, use `docker compose -f db/docker-compose.yml up -d --wait` só depois de instalar.
+Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 
 ## Testes
 `pnpm --filter @macuxi/db test` (também roda no `pnpm test` da raiz):
@@ -40,11 +60,32 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`). Sem Doc
   carrega a fixture dois-tenants e apaga o banco no fim. Arquivos:
   `migracoes.test.ts` (S0-020/021/022), `conformidade.test.ts` (S0-023/028), `vazamento.test.ts`
   (S0-024/025/026/027), `seed-fase-m.test.ts` (S0-031..034), `drizzle-x-banco.test.ts`.
-- **Sem Postgres:** esses arquivos são **pulados** e o setup imprime
-  `[db] Postgres indisponível ... Testes de banco ... PULADOS`.
+- **Postgres parado, Docker aberto:** o `globalSetup` roda `docker compose up -d --wait` e os testes
+  **rodam** (desligue com `MACUXI_PG_AUTO_SUBIR=0`; só vale para host local).
+- **Sem Docker/Postgres:** esses arquivos são **pulados** e, no fim, aparece
+  `[db] Docker não está rodando: N testes de banco pulados.` (relator `db/testes/aviso-pulos.ts`).
 - **CI:** defina `MACUXI_PG_EXIGIR=1` — aí a ausência do banco é **erro** (não pula).
+- Vários processos ao mesmo tempo (ex.: `pnpm test` da raiz + `tests/`) são seguros: cada um usa o
+  próprio banco efêmero; a criação do papel `macuxi_app` é serializada por advisory lock.
 
 ## Para o agente `testes` (tests/)
+
+**Opção 1 — mesmo setup do db/ (recomendada para o vazamento):** em `tests/vitest.config.ts`:
+```ts
+import AvisoPulos from '@macuxi/db/teste/aviso-pulos';
+// ...
+test: {
+  globalSetup: ['../db/testes/global-setup.ts'],   // relativo ao root (tests/): sobe o Docker se preciso,
+  reporters: ['default', new AvisoPulos()],         // cria macuxi_teste_*, migra, carrega dois-tenants e apaga no fim
+  hookTimeout: 120_000,
+}
+```
+E no teste: `import { banco, semBanco } from '@macuxi/db/teste/estado'` +
+`describe.skipIf(semBanco())(...)`; `banco().urlApp` (papel `macuxi_app`, RLS) e `banco().urlAdmin`.
+Utilitários do vazamento (`tabelasComTenant`, `emTransacao`, `erroDe`, `comCliente`) em
+`@macuxi/db/teste/util`. O próprio `db/testes/vazamento.test.ts` é o modelo.
+
+**Opção 2 — banco por arquivo, sem globalSetup:**
 ```ts
 import { criarBancoDeTeste, carregarDoisTenants, comTenant, DOIS_TENANTS, TABELAS_SEM_TENANT_ID } from '@macuxi/db/teste';
 import pg from 'pg';
@@ -73,6 +114,9 @@ await pool.end(); await banco.apagar();
 | `db/seeds/fase-m/fase-m.ts` | seed de demonstração da Fase M |
 | `db/seeds/fixtures/dois-tenants.ts` | fixture dos testes de RLS e licenças |
 | `db/scripts/banco.ts` | CLI acima |
+| `db/src/docker.ts` | acha o Docker (inclusive fora do PATH no Windows), diz se está rodando, sobe o compose |
+| `db/testes/global-setup.ts`, `db/testes/aviso-pulos.ts` | setup dos testes de banco (sobe/pula/exige) e aviso de pulados |
+| `db/scripts/medir-sync.ts` | medição do sync com volume ([desempenho-sync.md](desempenho-sync.md)) |
 
 ## Migrações: regras
 1. Uma migração = `NNNN_nome.up.sql` + `NNNN_nome.down.sql`, numeração contínua (o executor recusa buraco).
@@ -85,8 +129,6 @@ await pool.end(); await banco.apagar();
 
 Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataforma.md), [core.md](core.md).
 
-## O que falta executar (quando o Docker estiver de pé)
-1. `pnpm --filter @macuxi/db banco subir` (baixa a imagem, cria `macuxi`, aplica 0001 e 0002).
-2. `pnpm --filter @macuxi/db test` sem pulos (todos os arquivos com Postgres) — inclusive o de pgvector.
-3. `pnpm --filter @macuxi/db banco seed fase-m` e conferir `banco status`.
-4. EXPLAIN das consultas de sync pull por `(tenant_id, updated_at, id)` com volume (meta p95 < 300 ms) — fica para quando houver a rota de sync com dados.
+## Pendências
+- Índice para o pull da carteira por usuário incluindo excluídas (ver [desempenho-sync.md](desempenho-sync.md)) — entra junto com a rota de sync (T-0003+).
+- Desenho do despacho da outbox entre tenants (pg-boss) com o engenheiro.

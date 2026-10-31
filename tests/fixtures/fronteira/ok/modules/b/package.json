@@ -1,0 +1,1 @@
+{ "name": "@macuxi/b", "private": true, "exports": { ".": "./manifest.ts", "./manifest": "./manifest.ts", "./contracts": "./contracts/index.ts", "./api": "./api/index.ts", "./app": "./app/index.ts", "./web": "./web/index.ts" } }

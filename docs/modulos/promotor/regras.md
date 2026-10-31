@@ -19,6 +19,7 @@ Convenções: percentuais com 2 casas (meio para cima); dinheiro em centavos int
 - **Atingimento (%)** = share ÷ meta de share da loja/categoria × 100. **Desvio (pp)** = share − meta. Situação: `atingiu` (share ≥ meta) | `abaixo` | `sem_meta` (meta ausente/zero) | `sem_dados`.
 - Casos de borda: total 0 → `sem_dados` (share `null`); nossas > total, valores negativos, frentes fracionadas ou cm informado só pela metade → `inconsistente` com mensagem em português.
 - Exemplo: 12 frentes nossas de 40 → 30%. Meta 40% → atingimento 75%, desvio −10 pp. Com 90 cm de 300 cm → 30% (base cm). 1 de 3 frentes → 33,33%.
+- **Revalidação (contrato `MedicaoShare`)**: `share_pct` e `atingimento_pct` do aparelho só passam se conferirem com o recálculo (`calcularShare` e `atingimentoShare`); sem meta, `atingimento_pct` tem de ser nulo; meta informada exige `meta_share_id` (RN-PRO-10). Ex.: share 30 e meta 40 com atingimento 150 é recusado.
 - **Média do dia** (`mediaShare`): share médio = média simples das categorias medidas; meta média e atingimento usam só as categorias que têm share **e** meta (mesmo conjunto). Ex.: (30 meta 40), (20 meta 20), (sem meta 10) → share médio 20; meta média 30; atingimento 83,33%.
 
 ## 2. Preço e índice de preço — RF-PRO-05, RN-PRO-04 (`preco.ts`)
@@ -51,6 +52,7 @@ Convenções: percentuais com 2 casas (meio para cima); dinheiro em centavos int
 
 ## 7. Permanência e coleta com check-in aberto — RN-PRO-07, RN-PRO-02 (`permanencia.ts`)
 - **Permanência (min)** = (checkout − check-in) em minutos, instantes UTC. Checkout anterior ao check-in é erro.
+- **Revalidação (contrato `VisitaLoja`)**: o `permanencia_min` que vem do aparelho não é confiável. O contrato recalcula com `permanenciaMinutos(checkin_em, checkout_em)` e **recusa** a visita se o valor divergir mais que `PERMANENCIA_TOLERANCIA_MIN` (0,5 min, arredondamento) ou vier nulo com checkout. Ex.: 40 min reais com 600 informado é recusado. A API grava o valor recalculado.
 - **Conta nos indicadores** quando ≥ 10 min; **visita curta** (< 10 min, encerrada) é sinalizada ao gestor; visita aberta não conta nem é "curta". Ex.: 9,99 min não conta; 10 conta.
 - `coletaPermitida(visita)`: só com check-in feito e sem checkout (RN-PRO-02). A origem da foto (câmera, data/hora, coordenada) é validada em `FotoColeta`.
 
@@ -73,7 +75,7 @@ Convenções: percentuais com 2 casas (meio para cima); dinheiro em centavos int
 - Exemplo: 5 planejadas; visitas de 40, 20, 6 min e uma aberta → visitadas 2 (40%), tempo médio 30 min, 1 visita curta, 1 aberta; só as duas primeiras entram nos demais indicadores.
 
 ## 12. RN-PRO-01 — sem pedido
-Teste `domain/rn-pro-01.test.ts`: nenhum export do `domain` tem nome ligado a pedido; nenhuma chave de `manifest.acoes` é ação de pedido (`ehAcaoDePedido` do platform-sdk); e `criarPermissoes(...).pode('pedido.*', promotor)` é sempre `false`. O JSON do manifesto não contém a palavra "pedido" (`manifest.test.ts`).
+Teste `domain/rn-pro-01.test.ts`: nenhum export do `domain` tem nome ligado a pedido; nenhuma chave de `manifest.acoes` é ação de pedido (`ehAcaoDePedido` do platform-sdk); e, com um manifesto sintético do Vendedor declarando `pedido.*`, `pode(...)` é `true` para o vendedor e `false` para o promotor. O JSON do manifesto não contém a palavra "pedido" (`manifest.test.ts`).
 
 ## Permissões por ação (manifesto, doc 03 §2)
 - **Coletas** (`coleta.registrar`, `checklist_loja.responder`, `gondola.registrar`, `share.registrar`, `preco.registrar`, `ruptura.registrar`, `validade.registrar`, `ponto_extra.registrar`, `concorrencia.registrar`, `tarefa_trade.concluir`): **só o promotor**. Supervisor, gerente e analista apenas leem (estão em `perfis`, sem ação de escrita).
@@ -83,4 +85,6 @@ Teste `domain/rn-pro-01.test.ts`: nenhum export do `domain` tem nome ligado a pe
 - Produto nosso referenciado por `produto_id` (UUID do cadastro base do Core, ADR-0005); quando a T-0007 publicar `Produto` em `@macuxi/core/contracts`, o Promotor passa a importar o contrato.
 - Faixas de risco da validade (crítico ≤ 7 dias) e peso do parcial na conformidade (0) são definições do Promotor, não do doc 03 — confirmar com o negócio.
 - Interpretação de "contada à parte" da ruptura (§3) a confirmar.
-- Contratos dos payloads de evento `promotor.*@1` ainda não foram escritos (só os nomes estão no manifesto).
+- Contratos dos payloads de evento `promotor.*@1` ainda não foram escritos (só os nomes); serão criados com o primeiro consumidor.
+- **Pergunta de produto (aberta)**: GPS obrigatório na foto (`FotoColeta.latitude/longitude`). Dentro da loja o GPS pode faltar; decidir com o Alexandre se aceita coordenada nula com flag `sem_gps`.
+- `contracts` não reexporta mais os primitivos de `base.ts` (`Uuid`, `InstanteUtc`…); só os schemas de negócio.

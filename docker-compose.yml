@@ -1,0 +1,8 @@
+# Atalho da raiz (dono: engenheiro-software; decisão em docs/desenho/T-0002.md).
+# NÃO define serviço: só inclui db/docker-compose.yml (dono: banco-dados), a única definição do Postgres.
+# `name: macuxi` é o mesmo projeto de `pnpm --filter @macuxi/db banco subir`, então os dois caminhos usam o
+# MESMO contêiner (macuxi-postgres) e o MESMO volume (macuxi_macuxi-pgdata): nunca há dois Postgres.
+# Requer Docker Compose >= 2.20 (include).
+name: macuxi
+include:
+  - db/docker-compose.yml
