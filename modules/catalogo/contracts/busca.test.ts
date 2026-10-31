@@ -54,8 +54,20 @@ describe('contracts da busca e da vitrine (RF-CAT-01..05)', () => {
   });
 
   it('RF-CAT-01: item de vitrine = cadastro base do Core + preço e estoque visíveis', () => {
-    expect(ItemVitrine.parse(item).price.price_cents).toBe(1590);
+    expect(ItemVitrine.parse(item).price?.price_cents).toBe(1590);
+    expect(ItemVitrine.parse(item).price_stock_visible).toBe(true);
     expect(ItemVitrine.safeParse({ ...item, availability: undefined }).success).toBe(false);
+  });
+
+  it('RN-CAT-05: item sem preço e estoque visíveis (promotor) traz os dois nulos; nunca só um deles', () => {
+    expect(ItemVitrine.safeParse({ ...item, price: null, availability: null, price_stock_visible: false }).success).toBe(true);
+    expect(ItemVitrine.safeParse({ ...item, price: null, availability: estoque, price_stock_visible: false }).success).toBe(false);
+    expect(ItemVitrine.safeParse({ ...item, price: null, availability: null }).success).toBe(false);
+  });
+
+  it('RN-CAT-05: o promotor não vê preço e estoque por padrão (parâmetro do tenant)', () => {
+    expect(ParametrosCatalogo.parse({}).promotor_ve_preco_estoque).toBe(false);
+    expect(ParametrosCatalogo.parse({ promotor_ve_preco_estoque: true }).promotor_ve_preco_estoque).toBe(true);
   });
 
   it('RF-CAT-01: filtros interpretados têm padrão vazio e recusam faixa de preço invertida', () => {

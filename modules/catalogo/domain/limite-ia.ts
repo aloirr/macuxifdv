@@ -1,7 +1,10 @@
 /**
  * Limite diário de consultas inteligentes por usuário (RN-CAT-03) e cache de consultas frequentes (RF-CAT-01).
- * Regras puras: quem guarda o contador e o cache (Postgres/Redis) é a API. Consulta que o cache responde não
- * consome o limite; chamada ao provedor de LLM consome (mesmo se falhar: o custo é do provedor).
+ * Regras puras: quem guarda o contador e o cache (Postgres/Redis) é a API.
+ * RN-CAT-03: só consulta RESPONDIDA pelo provedor consome a cota. Falha do provedor (erro ou tempo esgotado),
+ * resposta do cache, busca offline e busca simples não consomem.
+ * Ordem na API: cache → `verificarConsultaIa` (barra sem consumir) → `interpretarBusca` (ou a pergunte) →
+ * `registrarDesfechoIa(…, desfecho)` (consome só se `respondida`, com incremento atômico no banco).
  */
 import { localDate } from '@macuxi/comum';
 import type { ParametrosCatalogo } from './parametros';
@@ -42,7 +45,47 @@ export function consultasRestantes(uso: UsoIa | null, agora: string, p: Pick<Par
   return Math.max(0, p.limite_consultas_ia_dia - usoDeHoje(uso, agora, p).consultas);
 }
 
-/** Tenta consumir uma consulta de IA. Barrado ⇒ o app/API cai para a busca simples e mostra `mensagem`. */
+/**
+ * Desfecho de uma tentativa de IA (RN-CAT-03): `respondida` = o provedor devolveu uma resposta (mesmo fora do
+ * formato, que cai na contingência: houve custo); `erro` / `tempo_esgotado` = falha do provedor;
+ * `nao_chamada` = cache, offline, limite, IA desligada, sem provedor ou busca simples.
+ */
+export type DesfechoIa = 'respondida' | 'erro' | 'tempo_esgotado' | 'nao_chamada';
+
+/** RN-CAT-03: só a consulta respondida consome a cota. */
+export function consomeCotaIa(desfecho: DesfechoIa): boolean {
+  return desfecho === 'respondida';
+}
+
+/** RN-CAT-03: confere se ainda pode chamar o provedor, sem consumir. Use antes da chamada. */
+export function verificarConsultaIa(uso: UsoIa | null, agora: string, p: Pick<ParametrosCatalogo, 'fuso' | 'limite_consultas_ia_dia'>): ResultadoLimite {
+  const hoje = usoDeHoje(uso, agora, p);
+  if (p.limite_consultas_ia_dia === 0) return { permitido: false, uso: hoje, restantes: 0, motivo: 'ia_desligada', mensagem: MENSAGEM_IA_DESLIGADA };
+  if (hoje.consultas >= p.limite_consultas_ia_dia) return { permitido: false, uso: hoje, restantes: 0, motivo: 'limite_atingido', mensagem: MENSAGEM_LIMITE_ATINGIDO };
+  return { permitido: true, uso: hoje, restantes: p.limite_consultas_ia_dia - hoje.consultas, motivo: null, mensagem: null };
+}
+
+export interface ResultadoDesfecho {
+  /** Estado a gravar. */
+  uso: UsoIa;
+  restantes: number;
+  consumiu: boolean;
+}
+
+/**
+ * RN-CAT-03: grava o desfecho da tentativa. `respondida` consome uma (sem passar do limite, caso duas consultas
+ * tenham passado juntas pela verificação); qualquer outro desfecho devolve o uso como estava.
+ */
+export function registrarDesfechoIa(uso: UsoIa | null, agora: string, p: Pick<ParametrosCatalogo, 'fuso' | 'limite_consultas_ia_dia'>, desfecho: DesfechoIa): ResultadoDesfecho {
+  if (consomeCotaIa(desfecho)) {
+    const r = registrarConsultaIa(uso, agora, p);
+    return { uso: r.uso, restantes: r.restantes, consumiu: r.permitido };
+  }
+  const hoje = usoDeHoje(uso, agora, p);
+  return { uso: hoje, restantes: Math.max(0, p.limite_consultas_ia_dia - hoje.consultas), consumiu: false };
+}
+
+/** Consome uma consulta de IA (use `registrarDesfechoIa`, que só chama esta quando o provedor respondeu). Barrado ⇒ o app/API cai para a busca simples e mostra `mensagem`. */
 export function registrarConsultaIa(uso: UsoIa | null, agora: string, p: Pick<ParametrosCatalogo, 'fuso' | 'limite_consultas_ia_dia'>): ResultadoLimite {
   const hoje = usoDeHoje(uso, agora, p);
   if (p.limite_consultas_ia_dia === 0) {

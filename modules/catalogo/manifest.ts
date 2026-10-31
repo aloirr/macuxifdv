@@ -1,8 +1,14 @@
 import { defineModule } from '@macuxi/platform-sdk';
 
-/** Consulta (busca, ficha, "pergunte ao catálogo"): campo (vendedor, promotor), gestão (supervisor, gerente) e BKO (analista, assistente, admin). */
+/** RN-CAT-04: consulta (busca, ficha, fotos, "pergunte ao catálogo") para todos: campo (vendedor, promotor), gestão (supervisor, gerente) e BKO (analista, assistente, admin). */
 const PERFIS_CONSULTA = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
-/** Doc 03 §2 (padrão dos cadastros do BKO): conteúdo, sinônimos e destaques só analista e admin. */
+/**
+ * RN-CAT-05: preço de tabela e estoque — todos os perfis de consulta menos o promotor (padrão
+ * `promotor_ve_preco_estoque = false`). Com o parâmetro ligado, o domínio (`podeVerPrecoEstoque`) libera o
+ * promotor; mantenha igual a `PERFIS_PRECO_ESTOQUE` de domain/visibilidade.ts (o teste confere).
+ */
+const PERFIS_PRECO_ESTOQUE = ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
+/** RN-CAT-04: conteúdo, sinônimos, destaques e termos sem resultado só analista e admin. */
 const PERFIS_CONTEUDO = ['analista', 'admin'] as const;
 
 /**
@@ -40,6 +46,10 @@ export const manifest = defineModule({
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },
+    'produto.ver_preco_estoque': {
+      perfis: [...PERFIS_PRECO_ESTOQUE],
+      descricao: 'Ver preço de tabela e estoque na vitrine, na busca e na ficha; o promotor só com promotor_ve_preco_estoque = true (RN-CAT-05)',
+    },
     'produto.perguntar': { perfis: [...PERFIS_CONSULTA], descricao: 'Pergunte ao catálogo: resposta só com conteúdo cadastrado e fonte citada (RF-CAT-05, RN-CAT-02)' },
     // --- conteúdo, sinônimos e destaques (BKO; RF-CAT-07) ---
     'produto.enriquecer': { perfis: [...PERFIS_CONTEUDO], descricao: 'Enriquecer conteúdo: fotos, vídeos, argumentos, FAQ e PDFs técnicos (RF-CAT-07)' },
