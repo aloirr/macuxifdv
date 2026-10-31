@@ -211,6 +211,9 @@ importers:
       '@expo/ui':
         specifier: ~57.0.0
         version: 57.0.26(@babel/core@7.29.7(supports-color@8.1.1))(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(expo@57.0.31)(react-dom@19.2.3(react@19.2.3))(react-native-worklets@0.10.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)(supports-color@8.1.1))(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
+      '@macuxi/catalogo':
+        specifier: workspace:*
+        version: link:../../modules/catalogo
       '@macuxi/comum':
         specifier: workspace:*
         version: link:../../packages/comum
@@ -329,6 +332,9 @@ importers:
       '@fastify/cors':
         specifier: ^11.1.0
         version: 11.3.1
+      '@macuxi/catalogo':
+        specifier: workspace:*
+        version: link:../../modules/catalogo
       '@macuxi/comum':
         specifier: workspace:*
         version: link:../../packages/comum
@@ -366,6 +372,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@macuxi/catalogo':
+        specifier: workspace:*
+        version: link:../../modules/catalogo
       '@macuxi/comum':
         specifier: workspace:*
         version: link:../../packages/comum
@@ -681,6 +690,9 @@ importers:
 
   modules/vendedor:
     dependencies:
+      '@macuxi/catalogo':
+        specifier: workspace:*
+        version: link:../catalogo
       '@macuxi/comum':
         specifier: workspace:*
         version: link:../../packages/comum
