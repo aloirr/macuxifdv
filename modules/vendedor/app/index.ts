@@ -2,7 +2,10 @@ import type { ComponentType } from 'react';
 import { definirEntidadeSync, definirModuloShell } from '@macuxi/platform-sdk';
 import { CreateOrderRequest } from '../contracts';
 import { manifest } from '../manifest';
+import type { AbaCliente, AcaoCliente, ContextoCliente } from '@macuxi/core/contracts';
+import { AbaMix, AbaUltimosPedidos } from './components/ficha-cliente';
 import { etapasVendedor } from './etapas';
+import { irParaNovoPedido } from './rotas';
 import NewOrderScreen from './screens/new-order-screen';
 import OrderDetailScreen from './screens/order-detail-screen';
 import OrdersScreen from './screens/orders-screen';
@@ -25,7 +28,30 @@ export const moduloApp = definirModuloShell<ComponentType>({
   entidadesSync: [definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'app_edita_ate_status', schema: CreateOrderRequest })],
   etapasSync: etapasVendedor,
   extensoes: [
-    // Botão "Novo pedido" na ficha do cliente (slot do Core). Payload provisório até o core publicar o tipo no contracts.
-    { slot: 'cliente.acoes', id: 'novo-pedido', acao: 'pedido.criar', payload: { rotulo: 'Novo pedido', testID: 'pedido-novo', caminho: 'novo-pedido', parametro: 'customerId' } },
+    // Ficha do cliente (slots do Core, B2). RN-PRO-01: `acao: 'pedido.criar'` esconde os itens do promotor.
+    {
+      slot: 'cliente.abas',
+      id: 'mix',
+      acao: 'pedido.criar',
+      payload: { rotulo: 'Sugestão de mix', testID: 'ficha-mix', componente: AbaMix } satisfies AbaCliente<ComponentType<{ contexto: ContextoCliente }>>,
+    },
+    {
+      slot: 'cliente.abas',
+      id: 'ultimos-pedidos',
+      acao: 'pedido.criar',
+      payload: { rotulo: 'Últimos pedidos', testID: 'ficha-ultimos-pedidos', componente: AbaUltimosPedidos } satisfies AbaCliente<ComponentType<{ contexto: ContextoCliente }>>,
+    },
+    {
+      slot: 'cliente.acoes',
+      id: 'novo-pedido',
+      acao: 'pedido.criar',
+      payload: {
+        rotulo: 'Novo pedido',
+        testID: 'pedido-novo',
+        icone: 'plus',
+        destaque: true,
+        abrir: (ctx) => irParaNovoPedido({ customerId: ctx.clienteId, visitId: ctx.visitaId ?? undefined, stopId: ctx.paradaId ?? undefined }),
+      } satisfies AcaoCliente,
+    },
   ],
 });

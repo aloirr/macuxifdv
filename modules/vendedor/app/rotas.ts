@@ -18,8 +18,8 @@ const rota = (caminho: string, params: Record<string, string | undefined> = {}) 
 
 export const hrefPedidos = () => rota(CAMINHO_PEDIDOS);
 export const hrefPedido = (id: string) => rota(CAMINHO_PEDIDO, { id });
-export const hrefNovoPedido = (params: { customerId?: string; editId?: string } = {}) => rota(CAMINHO_NOVO_PEDIDO, params);
+export const hrefNovoPedido = (params: { customerId?: string; editId?: string; visitId?: string; stopId?: string } = {}) => rota(CAMINHO_NOVO_PEDIDO, params);
 
 export const irParaPedidos = () => router.navigate(hrefPedidos() as never);
 export const irParaPedido = (id: string) => router.navigate(hrefPedido(id) as never);
-export const irParaNovoPedido = (params: { customerId?: string; editId?: string } = {}) => router.push(hrefNovoPedido(params) as never);
+export const irParaNovoPedido = (params: { customerId?: string; editId?: string; visitId?: string; stopId?: string } = {}) => router.push(hrefNovoPedido(params) as never);

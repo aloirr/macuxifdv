@@ -6,7 +6,8 @@
   "description": "Design system compartilhado: kit web (BKO) e kit mobile (Campo/Gestão), copiados da Fase M.",
   "exports": {
     "./web": "./src/web/index.ts",
-    "./mobile": "./src/mobile/index.ts"
+    "./mobile": "./src/mobile/index.ts",
+    "./mobile/puro": "./src/mobile/puro.ts"
   },
   "scripts": {
     "lint": "eslint src",
@@ -24,10 +25,18 @@
     "react-native-svg": "15.15.4"
   },
   "peerDependenciesMeta": {
-    "expo-router": { "optional": true },
-    "react-native": { "optional": true },
-    "react-native-safe-area-context": { "optional": true },
-    "react-native-svg": { "optional": true }
+    "expo-router": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-safe-area-context": {
+      "optional": true
+    },
+    "react-native-svg": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@macuxi/config": "workspace:*",

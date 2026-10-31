@@ -13,6 +13,7 @@ export * from './sync';
 export * from './acesso';
 export * from './permissoes';
 export * from './perfis';
+export * from './ambiente';
 export * from './motor-sync';
 export * from './shell';
 export * from './sync-simulado';

@@ -19,17 +19,17 @@ import { validateOrder } from '../../domain/order';
 import { CREDIT_OPEN_STATUSES, creditInput, filterCustomers, parsePct, PAYMENT_TERMS, searchProducts, stockInfo, toDomainPolicy } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
-import { draftKeyFor, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
+import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
 import { hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
 export default function NewOrderScreen() {
-  const { customerId, editId } = useLocalSearchParams<{ customerId?: string; editId?: string }>();
+  const { customerId, editId, visitId, stopId } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string }>();
   const { carregado, dados } = useVendedor();
   if (!carregado) return <Empty text="Carregando os dados do aparelho…" />;
   if (!dados.me || !dados.politica) return <Empty text="Faltam dados no aparelho. Abra a tela Sincronizar, com sinal, e tente de novo." />;
   if (!customerId) return <CustomerPicker />;
-  return <OrderEditor key={`${customerId}:${editId ?? ''}`} customerId={customerId} editId={editId || null} />;
+  return <OrderEditor key={`${customerId}:${editId ?? ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +78,7 @@ interface Snapshot {
   payment_terms: string;
 }
 
-function OrderEditor({ customerId, editId }: { customerId: string; editId: string | null }) {
+function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null }) {
   const app = useVendedor();
   const insets = useSafeAreaInsets();
   const sheets = useAviso();
@@ -99,6 +99,11 @@ function OrderEditor({ customerId, editId }: { customerId: string; editId: strin
   const [error, setError] = useState<string | null>(null);
   const draft: Draft = dados.rascunhos[draftKey] ?? rascunhoVazio(customerId);
   const [discountText, setDiscountText] = useState(fmtPctInput(draft.discount_pct));
+
+  // pedido aberto pela ficha do cliente: liga o rascunho à visita e à parada da rota
+  useEffect(() => {
+    if (!editId && (visitId || stopId)) updateDraft(customerId, (d) => ligarRascunho(d, visitId, stopId));
+  }, [visitId, stopId, editId, customerId]);
 
   useEffect(() => {
     if (customer && catalog.length === 0) void ensureProducts(customer);

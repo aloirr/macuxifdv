@@ -16,6 +16,7 @@
  *   tenta enviar e só apaga depois que o usuário confirma (`confirmarLimpeza`). Nada some em silêncio.
  * - Pull por entidade de módulo efetivo, cursor `(updated_at, id)` persistido, inclui removidos.
  */
+import { ambienteIndisponivel, type AmbienteAparelho } from './ambiente';
 import type { ModuloId } from './nomes';
 import type { ItemPush, LinhaSync, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
 import { codificarCursor, MAX_ITENS_PUSH } from './sync';
@@ -102,7 +103,10 @@ export interface NovoItemOutbox {
   detalhe?: string;
 }
 
-/** Etapa de carga própria de um módulo (ex.: carga REST da Fase M enquanto `/v1/sync/pull` não existe). */
+/**
+ * Etapa de carga própria de um módulo (ex.: carga REST da Fase M enquanto `/v1/sync/pull` não existe).
+ * Recebe o ambiente do aparelho (`ctx.http`, `ctx.online()`, `ctx.novoId()`, `ctx.usuario()`) — ver `ambiente.ts`.
+ */
 export interface EtapaSync {
   id: string;
   rotulo: string;
@@ -110,7 +114,7 @@ export interface EtapaSync {
   executar(ctx: ContextoEtapaSync): Promise<void>;
 }
 
-export interface ContextoEtapaSync {
+export interface ContextoEtapaSync extends AmbienteAparelho {
   /** Armazenamento do módulo (prefixo `mod:<modulo>:`): apagado quando o módulo é desativado. */
   armazenamento: ArmazenamentoSync;
   agora: () => Date;
@@ -136,8 +140,13 @@ export interface OpcoesMotorSync {
   armazenamento: ArmazenamentoSync;
   transporte: TransporteSync;
   agora?: () => Date;
-  /** `false` = sem sinal / modo sem sinal: nada sai do aparelho. */
+  /** `false` = sem sinal / modo sem sinal: nada sai do aparelho. Padrão: `ambiente.online` ou sempre `true`. */
   online?: () => boolean;
+  /**
+   * Ambiente do aparelho (HTTP com sessão, sinal, UUID, usuário) entregue às etapas (`ctx`) e às telas
+   * (`motor.ambiente`). Sem ele, `ctx.http` falha com mensagem em português (`ambienteIndisponivel`).
+   */
+  ambiente?: AmbienteAparelho;
   /** Etapas extras de carga, por módulo; rodam depois do pull genérico, só de módulos efetivos. */
   etapas?: readonly EtapaSync[];
   /** Mensagem legível de um erro de transporte (o shell traduz HttpError etc.). */
@@ -164,7 +173,8 @@ type Linhas = Record<string, LinhaSync>;
 
 export function criarMotorSync(op: OpcoesMotorSync) {
   const agora = op.agora ?? (() => new Date());
-  const online = op.online ?? (() => true);
+  const ambiente: AmbienteAparelho = op.ambiente ?? ambienteIndisponivel();
+  const online = op.online ?? (op.ambiente ? () => ambiente.online() : () => true);
   const msg = op.mensagemDeErro ?? ((e: unknown) => (e instanceof Error ? e.message : String(e)));
   const ouvintes = new Set<(e: EstadoMotorSync) => void>();
 
@@ -282,6 +292,11 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   };
 
   const motor = {
+    /** Ambiente do aparelho (o mesmo que as etapas recebem): telas usam via `useAmbiente()`. */
+    ambiente,
+    /** Atalho para `ambiente.http` (cliente HTTP com a sessão; respeita o modo sem sinal). */
+    http: ambiente.http,
+
     /** Lê do armazenamento a fila, os módulos e as pendências (chamar uma vez ao abrir o app / trocar de usuário). */
     async carregar(): Promise<void> {
       const [fila, modulos, limpeza, sincronizadoEm] = await Promise.all([
@@ -374,7 +389,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           }
           for (const e of etapas) {
             mudar({ etapa: e.rotulo, progresso: feito / total });
-            await e.executar({ armazenamento: comPrefixo(op.armazenamento, CHAVE.modulo(e.modulo)), agora });
+            await e.executar({
+              armazenamento: comPrefixo(op.armazenamento, CHAVE.modulo(e.modulo)),
+              agora,
+              http: ambiente.http,
+              online,
+              novoId: () => ambiente.novoId(),
+              usuario: () => ambiente.usuario(),
+            });
             feito++;
           }
           const quando = agora().toISOString();
