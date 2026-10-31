@@ -7,11 +7,11 @@ const permissoes = criarPermissoes([manifest]);
 const pode = (acao: string, perfil: Parameters<typeof permissoes.pode>[1]['perfil']) => permissoes.pode(acao, { perfil, modulosAtivos: ativos });
 
 describe('manifesto do treinamento', () => {
-  it('é válido no platform-sdk, publica licao/medalha e consome pedido.criado como opcional', () => {
+  it('é válido no platform-sdk, publica licao/medalha e consome o pedido faturado (nome provisório) como opcional', () => {
     expect(manifest.id).toBe('treinamento');
     expect(manifest.publica).toContain('treinamento.licao.concluida@1');
     expect(manifest.publica).toContain('treinamento.medalha.conquistada@1');
-    expect(manifest.consome).toContain('vendedor.pedido.criado@1');
+    expect(manifest.consome).toEqual(['vendedor.pedido.faturado@1']);
     expect(manifest.opcionais).toContain('vendedor');
   });
 

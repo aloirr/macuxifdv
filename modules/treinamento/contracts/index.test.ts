@@ -9,7 +9,7 @@ import {
   MedalhaConquistadaV1,
   MedalhaUsuario,
   ParametrosTreinamentoSchema,
-  PedidoCriadoLido,
+  PedidoFaturadoLido,
   ProgressoLicao,
   ProgressoLicaoEnvio,
   RankingPeriodo,
@@ -77,7 +77,7 @@ describe('RN-TRE-01: lançamento de XP', () => {
     expect(LancamentoXp.safeParse({ ...l, pontos: -1, pontos_base: -1 }).success).toBe(false);
     expect(LancamentoXp.safeParse({ ...l, pontos: 2.5, pontos_base: 2.5 }).success).toBe(false);
   });
-  it('premissa T-0011: corte pelo teto precisa estar marcado e coerente', () => {
+  it('decisão 31/10: corte pelo teto precisa estar marcado e coerente', () => {
     expect(LancamentoXp.safeParse({ ...l, pontos: 5, limitado_pelo_teto: true }).success).toBe(true);
     expect(LancamentoXp.safeParse({ ...l, pontos: 5, limitado_pelo_teto: false }).success).toBe(false);
     expect(LancamentoXp.safeParse({ ...l, pontos: 12 }).success).toBe(false);
@@ -148,27 +148,47 @@ describe('eventos publicados treinamento.*@1', () => {
   });
 });
 
-describe('RF-TRE-06: leitura tolerante de vendedor.pedido.criado@1', () => {
-  const p = { pedido_id: u(1), vendedor_id: u(2), criado_em: T0, itens: [{ produto_id: u(3), quantidade: 2 }] };
+describe('RF-TRE-06: leitura tolerante do pedido FATURADO (evento do Vendedor/Integração, nome pendente)', () => {
+  const p = { pedido_id: u(1), vendedor_id: u(2), faturado_em: T0, itens: [{ produto_id: u(3), quantidade: 2 }] };
   it('lê o que precisa e ignora campos a mais do Vendedor', () => {
-    const r = PedidoCriadoLido.parse({ ...p, total_cents: 12345, cliente_id: u(9), itens: [{ produto_id: u(3), quantidade: 2, preco_cents: 500 }] });
+    const r = PedidoFaturadoLido.parse({ ...p, total_cents: 12345, cliente_id: u(9), itens: [{ produto_id: u(3), quantidade: 2, preco_cents: 500 }] });
     expect(r).toEqual({ ...p });
+  });
+  it('Ajuste C: pedido apenas criado (sem faturado_em) é recusado e não pontua; o antigo criado_em não vale', () => {
+    const { faturado_em: _f, ...criado } = p;
+    expect(PedidoFaturadoLido.safeParse(criado).success).toBe(false);
+    expect(PedidoFaturadoLido.safeParse({ ...criado, criado_em: T0 }).success).toBe(false);
+    expect(PedidoFaturadoLido.safeParse({ ...p, faturado_em: null }).success).toBe(false);
   });
   it('payload sem o necessário (ex.: sem itens) é recusado e não pontua', () => {
     const { itens: _i, ...semItens } = p;
-    expect(PedidoCriadoLido.safeParse(semItens).success).toBe(false);
-    expect(PedidoCriadoLido.safeParse({ ...p, itens: [{ produto_id: u(3), quantidade: 0 }] }).success).toBe(false);
+    expect(PedidoFaturadoLido.safeParse(semItens).success).toBe(false);
+    expect(PedidoFaturadoLido.safeParse({ ...p, itens: [{ produto_id: u(3), quantidade: 0 }] }).success).toBe(false);
   });
   it('desafio: vigência com fim antes do início é recusada', () => {
     const d = { id: u(1), tenant_id: u(2), nome: 'Semana do Café', ativo: true, produto_ids: [u(3)], vigencia_inicio: '2026-10-26', vigencia_fim: '2026-11-01', xp_por_unidade: 2, xp_max_por_pedido: 20 };
     expect(DesafioVendasContrato.safeParse(d).success).toBe(true);
     expect(DesafioVendasContrato.safeParse({ ...d, vigencia_fim: '2026-10-01' }).success).toBe(false);
   });
+  it('Ajuste A: xp_max_por_desafio é opcional (vale o padrão do tenant), aceita 0 (= sem teto) e recusa negativo/fracionado', () => {
+    const d = { id: u(1), tenant_id: u(2), nome: 'Semana do Café', ativo: true, produto_ids: [u(3)], vigencia_inicio: '2026-10-26', vigencia_fim: '2026-11-01', xp_por_unidade: 2, xp_max_por_pedido: 20 };
+    expect(DesafioVendasContrato.parse({ ...d, xp_max_por_desafio: 300 }).xp_max_por_desafio).toBe(300);
+    expect(DesafioVendasContrato.safeParse({ ...d, xp_max_por_desafio: 0 }).success).toBe(true);
+    expect(DesafioVendasContrato.safeParse({ ...d, xp_max_por_desafio: -1 }).success).toBe(false);
+    expect(DesafioVendasContrato.safeParse({ ...d, xp_max_por_desafio: 1.5 }).success).toBe(false);
+  });
 });
 
 describe('parâmetros do tenant', () => {
   it('RN-TRE-01/02/04: vazio assume os padrões do doc 03', () => {
-    expect(ParametrosTreinamentoSchema.parse({})).toMatchObject({ nota_minima_pct: 70, tentativas_max_dia: 3, tempo_min_licao_seg: 30, xp_licao: 10, xp_acerto_questao: 5, xp_trilha: 50, xp_streak_por_dia: 2, xp_streak_teto: 20, fuso: 'America/Manaus' });
+    expect(ParametrosTreinamentoSchema.parse({})).toMatchObject({ nota_minima_pct: 70, tentativas_max_dia: 3, segundos_minimos_licao: 30, pct_minimo_duracao_licao: 50, xp_max_por_desafio: 500, xp_licao: 10, xp_acerto_questao: 5, xp_trilha: 50, xp_streak_por_dia: 2, xp_streak_teto: 20, fuso: 'America/Manaus' });
+  });
+  it('Ajustes A e D: recusa negativos e percentual fora de 0–100', () => {
+    expect(ParametrosTreinamentoSchema.safeParse({ xp_max_por_desafio: -1 }).success).toBe(false);
+    expect(ParametrosTreinamentoSchema.safeParse({ segundos_minimos_licao: -5 }).success).toBe(false);
+    expect(ParametrosTreinamentoSchema.safeParse({ pct_minimo_duracao_licao: 101 }).success).toBe(false);
+    expect(ParametrosTreinamentoSchema.safeParse({ pct_minimo_duracao_licao: -0.1 }).success).toBe(false);
+    expect(ParametrosTreinamentoSchema.safeParse({ pct_minimo_duracao_licao: 100, xp_max_por_desafio: 0 }).success).toBe(true);
   });
   it('faixas de nível que não crescem são recusadas', () => {
     expect(ParametrosTreinamentoSchema.safeParse({ niveis_xp_min: [0, 100, 100] }).success).toBe(false);

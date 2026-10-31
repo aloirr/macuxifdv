@@ -1,35 +1,39 @@
 # Treinamento — regras de cálculo (domain)
 
-Implementação: `modules/treinamento/domain/` (funções puras, sem I/O; rodam no app offline, na web e na API). Cada arquivo tem um `*.test.ts` com os casos abaixo (`it('RN-TRE-xx: ...')`). Contratos Zod: `modules/treinamento/contracts/` (reaproveitam estas funções nos refinamentos; a API sempre revalida). Tarefa: T-0011 (domínio, sem banco e sem telas).
+Implementação: `modules/treinamento/domain/` (funções puras, sem I/O; rodam no app offline, na web e na API). Cada arquivo tem um `*.test.ts` com os casos abaixo (`it('RN-TRE-xx: ...')`). Contratos Zod: `modules/treinamento/contracts/` (reaproveitam estas funções nos refinamentos; a API sempre revalida). Tarefa: T-0011 (domínio, sem banco e sem telas; ajustes de decisão do Alexandre aplicados em 31/10/2026).
 
-Convenções: nota e percentuais com 2 casas (meio para cima); XP sempre inteiro; instantes em UTC (ISO com `Z`), **"dia" = data civil no fuso do tenant** (`America/Manaus` por padrão, via `localDate` de `@macuxi/comum`, ADR 0002); ids UUID gerados no aparelho; "sem dados" devolve `null`, nunca divide por zero. Regra sem texto nos docs 02/03 está marcada **premissa T-0011** (a decidir pelo Alexandre; lista no fim).
+Convenções: nota e percentuais com 2 casas (meio para cima); XP sempre inteiro; instantes em UTC (ISO com `Z`), **"dia" = data civil no fuso do tenant** (`America/Manaus` por padrão, via `localDate` de `@macuxi/comum`, ADR 0002); ids UUID gerados no aparelho; "sem dados" devolve `null`, nunca divide por zero. Regras que não têm texto nos docs 02/03 foram **decididas pelo Alexandre** (31/10/2026) e valem como regra; todas são padrão **parametrizável por tenant** (tabela abaixo). Origem marcada como "decisão 31/10" + o RN-TRE relacionado.
 
 ## Parâmetros do tenant (`parametros.ts`, `resolverParametros(parcial)`)
 | Parâmetro | Padrão | Onde entra | Origem |
 |---|---|---|---|
 | `nota_minima_pct` | 70 | `aprovado`, `registrarTentativaQuiz` | RN-TRE-02 |
 | `tentativas_max_dia` | 3 | `validarTentativa` | RN-TRE-02 |
-| `intervalo_min_tentativas_min` | 0 (sem intervalo) | `validarTentativa` | premissa T-0011 |
-| `nota_que_vale` | `melhor` (ou `ultima`) | `notaQueVale` | premissa T-0011 |
-| `tempo_min_licao_seg` | 30 | `validarConclusaoLicao` | RN-TRE-04 |
+| `intervalo_min_tentativas_min` | 0 (sem intervalo) | `validarTentativa` | decisão 31/10 (RN-TRE-02) |
+| `nota_que_vale` | `melhor` (ou `ultima`) | `notaQueVale` | decisão 31/10 (RN-TRE-02) |
+| `segundos_minimos_licao` | 30 | `tempoMinimoDaLicao` | RN-TRE-04 |
+| `pct_minimo_duracao_licao` | 50 (0–100; 0 = só o piso) | `tempoMinimoDaLicao` | decisão 31/10 (RN-TRE-04) |
 | `xp_licao` | 10 | `xpDaLicao` | RN-TRE-01 |
 | `xp_acerto_questao` | 5 | `xpDoQuiz` | RN-TRE-01 |
 | `xp_trilha` | 50 | `xpDaTrilha` | RN-TRE-01 |
 | `xp_streak_por_dia` / `xp_streak_teto` | 2 / 20 | `xpDoStreak` | RN-TRE-01 |
-| `xp_teto_diario` | 200 (0 = sem teto) | `proporLancamento` | premissa T-0011 |
-| `niveis_xp_min` | 0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200 (10 níveis) | `nivelDoXp` | premissa T-0011 |
-| `streak_medalha_dias` | 7 | `medalhasPadrao` | premissa T-0011 |
-| `perfis_ranking` | vendedor, promotor | `calcularRanking` | premissa T-0011 |
+| `xp_teto_diario` | 200 (0 = sem teto) | `proporLancamento` | decisão 31/10 (RN-TRE-01) |
+| `xp_max_por_desafio` | 500 por vendedor e desafio (0 = sem teto) | `candidatoDoDesafio` / `proporLancamento` | decisão 31/10 (ajuste A, RF-TRE-06) |
+| `niveis_xp_min` | 0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200 (10 níveis) | `nivelDoXp` | decisão 31/10 (RF-TRE-03) |
+| `streak_medalha_dias` | 7 | `medalhasPadrao` | decisão 31/10 (RF-TRE-03) |
+| `perfis_ranking` | vendedor, promotor | `calcularRanking` | decisão 31/10 (RN-TRE-03) |
 | `fuso` | `America/Manaus` | tudo que usa "dia" | doc 03, tabela de parâmetros |
 
-`resolverParametros` recusa valores inválidos (nota fora de 0–100, tentativas < 1, XP negativo/fracionado, faixas que não começam em 0 ou não crescem, fuso inexistente). O desempate do ranking e a ordem dos critérios **não** são parâmetros (fixos, abaixo).
+Também por cadastro do desafio (RF-TRE-06, não por tenant): `xp_por_unidade`, `xp_max_por_pedido` e, opcionalmente, `xp_max_por_desafio` (tem prioridade sobre o do tenant).
+
+`resolverParametros` recusa valores inválidos (nota fora de 0–100, tentativas < 1, XP negativo/fracionado, `pct_minimo_duracao_licao` fora de 0–100, `segundos_minimos_licao`/`xp_max_por_desafio` negativos ou fracionados, faixas que não começam em 0 ou não crescem, fuso inexistente). O desempate do ranking e a ordem dos critérios **não** são parâmetros (fixos, abaixo).
 
 ## 1. Trilha, módulos, lições e pré-requisitos — RF-TRE-01, RF-TRE-02 (`trilha.ts`)
 - **Progresso** = lições concluídas ÷ total de lições × 100 (só contam lições da trilha). Trilha concluída = todas concluídas; trilha sem lições nunca é concluída (0%). Exemplo: 1 de 3 → 33,33%; por módulo também (`modulos[]`).
 - **Pré-requisitos** (lição bloqueada até concluir os exigidos): trilha `sequencial` (padrão) exige a **lição anterior do módulo** e **todas as lições do módulo anterior**; além disso, `pre_requisitos` explícitos de lição (ids de lição) e de módulo (ids de módulo). Módulo bloqueado = algum módulo exigido ainda incompleto. `statusDaLicao` → `concluida | liberada | bloqueada` (+ `pendentes`); `statusDoModulo` → `concluido | liberado | bloqueado`.
 - **Retomar de onde parou** (`proximaLicao`): primeira lição, na ordem módulo → lição, que está liberada e não concluída; `null` se a trilha acabou.
 - **Validação para publicar** (`validarTrilha`): ids repetidos, pré-requisito inexistente e ciclo (a lição nunca liberaria).
-- **Público-alvo** (`usuarioNoPublico`): `perfis` e `equipes`; critério vazio = sem restrição; os dois preenchidos valem juntos (E); os dois vazios = todo o tenant. Usuário sem equipe não entra em trilha restrita por equipe. Só trilha **publicada** é visível (`trilhasDisponiveis`).
+- **Público-alvo** (`usuarioNoPublico`): `perfis` e `equipes`; critério vazio = sem restrição; com os **dois preenchidos vale a interseção** (perfil E equipe); com **só um**, vale esse; **ambos vazios = todo o tenant** (decisão 31/10). Usuário sem equipe não entra em trilha restrita por equipe. Exemplo: perfis [vendedor] + equipes [Norte] → só vendedor da equipe Norte; perfis [vendedor] sozinho → todo vendedor. Só trilha **publicada** é visível (`trilhasDisponiveis`).
 - **Obrigatórias pendentes** (`trilhasPendentes`): publicada + `obrigatoria` + usuário no público + não concluída. Ordem: prazo crescente (sem prazo por último), depois id. `atrasada` = hoje > prazo; `dias_para_prazo` = prazo − hoje (negativo = vencido). Exemplo: hoje 31/10; prazo 30/10 → atrasada (−1); prazo 31/10 → não atrasada (0).
 
 ## 2. Quiz: nota, aprovação, tentativas — RN-TRE-02 (`quiz.ts`)
@@ -37,27 +41,27 @@ Convenções: nota e percentuais com 2 casas (meio para cima); XP sempre inteiro
 - **Nota (0–100)** = acertos ÷ questões × 100, **2 casas, meio para cima**. Exemplo: 2/3 → 66,67; 7/10 → 70.
 - **Aprovação**: nota ≥ [70%], limite inclusivo. A comparação é **exata** (`acertos × 100 ≥ mínimo × total`): arredondar para exibir nunca aprova quem ficou abaixo (69,996% aparece como 70 e continua reprovado).
 - **Tentativas**: até [3] por dia, o dia no fuso do tenant. 4ª tentativa → recusada (`LIMITE_DIARIO`) com `proxima_em` = início do dia seguinte no fuso. Exemplo: 3 tentativas às 22:00 Manaus de 31/10 → liberada a partir de 01/11 04:00Z. A validação offline considera só as tentativas **anteriores** à nova (por `realizada_em`).
-- **Intervalo mínimo** entre tentativas: `intervalo_min_tentativas_min` (padrão 0 = desligado); abaixo dele → `INTERVALO_MINIMO` com `proxima_em`. (premissa T-0011)
-- **Nota que vale** (`notaQueVale`): `melhor` (padrão) ou `ultima` por `realizada_em`. (premissa T-0011) **Aprovado uma vez, aprovado sempre** (`quizAprovado`): tentativa posterior pior não revoga (progresso só por inserção). Refazer depois de aprovado é permitido dentro do limite diário, sem XP novo.
+- **Intervalo mínimo** entre tentativas: `intervalo_min_tentativas_min` (padrão 0 = desligado); abaixo dele → `INTERVALO_MINIMO` com `proxima_em`. (decisão 31/10, RN-TRE-02)
+- **Nota que vale** (`notaQueVale`): `melhor` (padrão) ou `ultima` por `realizada_em` (decisão 31/10; padrão **melhor nota**). Exemplo: tentativas 60, 80, 70 → vale 80. **Aprovado uma vez, aprovado sempre** (`quizAprovado`): tentativa posterior pior não revoga (progresso só por inserção). **Refazer depois de aprovado** é permitido dentro do limite diário, **sem XP novo** (o XP de acerto é só da 1ª tentativa) e a melhor nota é a que vale (decisão 31/10).
 - **Lição com quiz** só conclui com o quiz aprovado (`QUIZ_PENDENTE`).
 
 ## 3. XP — RN-TRE-01, RN-TRE-02, RN-TRE-04 (`xp.ts`)
 | Evento | XP | Referência do lançamento (`referencia_id`) | Exemplo |
 |---|---|---|---|
 | Lição concluída | 10 | `licao_id` | 10 |
-| Acerto no quiz | 5 por questão, **só na 1ª tentativa** do quiz (aprovada ou não) | `quiz_id` | 4 acertos na 1ª tentativa → 20; 2ª tentativa → 0 |
+| Acerto no quiz | 5 por questão, **só na 1ª tentativa** do quiz, **mesmo reprovada** (decisão 31/10; RN-TRE-02) | `quiz_id` | 4 acertos na 1ª tentativa → 20; 2ª tentativa → 0 |
 | Trilha concluída | 50 | `trilha_id` | pago junto com a última lição |
-| Streak diário | 2 × dias consecutivos, até 20 | data do dia (`AAAA-MM-DD`) | 1º dia 2, 3º dia 6, 10º dia em diante 20 |
-| Desafio de vendas | ver §8 | `desafio_id:pedido_id` | — |
+| Streak diário (lição concluída ou quiz respondido até o fim) | 2 × dias consecutivos, até 20 | data do dia (`AAAA-MM-DD`) | 1º dia 2, 3º dia 6, 10º dia em diante 20 |
+| Desafio de vendas (pedido faturado) | ver §8 | `desafio_id:pedido_id` | — |
 
 - **Lançamentos são append-only**: nunca se edita nem apaga; o **saldo é a soma** (`saldoXp`). Correção futura = novo lançamento (hoje não há ajuste manual; pendência).
 - **Idempotência em duas camadas** (`proporLancamento`): (1) mesmo `id` (UUID do aparelho) → `duplicado/ID`; (2) mesma **chave natural** (usuário + origem + referência) com outro `id` → `duplicado/EVENTO` (mesma lição concluída em dois aparelhos paga uma vez). Evento sem pontos (ex.: quiz fora da 1ª tentativa) não gera lançamento.
-- **Teto diário** [200] por usuário e dia do fuso do tenant: o que passa é cortado e marcado (`limitado_pelo_teto`, `pontos` < `pontos_base`); com o teto esgotado grava-se lançamento de **0 ponto** (mantém idempotência e auditoria). Exemplo com teto 25: 20 + 10 → 20 e 5. **Desafio de vendas não consome nem sofre o teto.** Teto 0 = sem teto. (premissa T-0011)
+- **Teto diário** [200] (decisão 31/10) por usuário e dia do fuso do tenant, para **lição, quiz, trilha e streak**: o que passa é cortado e marcado (`limitado_pelo_teto`, `pontos` < `pontos_base`); com o teto esgotado grava-se lançamento de **0 ponto** (mantém idempotência e auditoria). Exemplo com teto 25: 20 + 10 → 20 e 5. **Desafio de vendas não consome nem sofre o teto diário** (tem teto próprio, §8). Teto 0 = sem teto.
 - **Lote offline** (`processarLote`): processa por `ocorrido_em` (e id no empate), para o teto valer para o que aconteceu primeiro; reenviar o lote não muda o saldo (RN-TRE-04).
-- **Concluir lição** (`concluirLicao`): valida (§6) e devolve lição [10] + trilha [50] se foi a última + streak do dia. **Tentativa de quiz** (`registrarTentativaQuiz`): confere limite, corrige, aprova e devolve acertos (1ª tentativa) + streak do dia.
+- **Concluir lição** (`concluirLicao`): valida (§6) e devolve lição [10] + trilha [50] se foi a última + streak do dia. **Tentativa de quiz** (`registrarTentativaQuiz`): confere limite, corrige, aprova e devolve acertos (1ª tentativa) + streak do dia **só se o quiz foi respondido até o fim** (§4).
 
 ## 4. Streak — RF-TRE-03, RN-TRE-01 (`streak.ts`)
-- **Atividade** = lição concluída ou tentativa de quiz. **Dia** = data civil no fuso do tenant (01/11 02:00Z é 31/10 em Manaus).
+- **Atividade que conta** (decisão 31/10, ajuste B; RN-TRE-01) = **lição concluída** ou **quiz respondido até o fim** (toda questão com ao menos uma alternativa marcada: `quizRespondidoAteOFim`). **Abrir e abandonar não conta**: lição aberta, quiz iniciado ou abandonado, e quiz enviado com questão em branco não mantêm nem pagam o streak. `atividadesQueContam(registros)` filtra os registros do aparelho pelo tipo (`licao_concluida`, `quiz_finalizado`; qualquer outro tipo não conta). Exemplo: lições concluídas em 29 e 30/10 e quiz abandonado em 31/10 → sequência de 2 dias "em risco" no dia 31 (não 3). A tentativa de quiz incompleta ainda conta para o limite de tentativas do dia (RN-TRE-02) e paga o XP de acerto da 1ª tentativa, mas não o streak. **Dia** = data civil no fuso do tenant (01/11 02:00Z é 31/10 em Manaus).
 - `sequenciaNaData(dias, d)` = dias consecutivos terminando em `d` (0 se `d` não teve atividade). `sequenciaAtual(dias, hoje)`: termina hoje, ou ontem com `em_risco: true` (ainda dá para manter); parou há 2+ dias → 0. `maiorSequencia` alimenta a medalha.
 - O XP de streak é pago **uma vez por dia**, na primeira atividade do dia, com os dias consecutivos até aquele dia.
 
@@ -66,17 +70,24 @@ Convenções: nota e percentuais com 2 casas (meio para cima); XP sempre inteiro
 - `subiuDeNivel(antes, depois)` indica a celebração discreta (pode pular níveis).
 
 ## 6. Validação do progresso no servidor — RN-TRE-04, RN-TRE-02, RF-TRE-01 (`progresso.ts`)
-`validarConclusaoLicao` revalida o que o aparelho enviou, nesta ordem: lição existe na trilha (`LICAO_DESCONHECIDA`) → **já concluída = `duplicado`** (idempotente, aceito sem efeito) → trilha publicada (`TRILHA_NAO_PUBLICADA`) → pré-requisitos (`LICAO_BLOQUEADA`) → **tempo na lição ≥ [30 s]** (`TEMPO_MINIMO`; 29 s não conta, 30 s conta) → quiz aprovado quando a lição tem quiz (`QUIZ_PENDENTE`). Mensagens em português com a ação seguinte. Na sincronização o servidor aplica as conclusões na ordem de `concluida_em`, acumulando as lições aceitas.
+`validarConclusaoLicao` revalida o que o aparelho enviou, nesta ordem: lição existe na trilha (`LICAO_DESCONHECIDA`) → **já concluída = `duplicado`** (idempotente, aceito sem efeito) → trilha publicada (`TRILHA_NAO_PUBLICADA`) → pré-requisitos (`LICAO_BLOQUEADA`) → **tempo mínimo da lição** (`TEMPO_MINIMO`, ver abaixo) → quiz aprovado quando a lição tem quiz (`QUIZ_PENDENTE`). Mensagens em português com a ação seguinte (a de tempo diz quantos segundos são exigidos). Na sincronização o servidor aplica as conclusões na ordem de `concluida_em`, acumulando as lições aceitas.
+
+**Tempo mínimo da lição** (decisão 31/10, ajuste D; RN-TRE-04) — `tempoMinimoDaLicao(duracao_estimada_seg, params)`:
+`tempo_minimo = max(segundos_minimos_licao, ceil(pct_minimo_duracao_licao% × duracao_estimada_seg))`, em segundos inteiros; sem duração informada (`duracao_estimada_seg` ausente, nula ou ≤ 0) vale só o piso. Padrões: 30 s e 50%. Exemplos: lição sem duração → 30 s (29 s não conta, 30 s conta); lição de 10 min (600 s) → 300 s (299 s não conta); lição de 40 s → 20 s < piso → 30 s; 61 s → 30,5 → 31 s. O cálculo usa inteiros para evitar erro de ponto flutuante (70% de 100 s = 70 s). `pct = 0` desliga a parte proporcional; `pct = 100` exige a duração inteira. `LicaoDef.duracao_estimada_seg` é opcional.
 
 ## 7. Medalhas — RF-TRE-03 (`medalhas.ts`)
-- Regras: `trilhas_concluidas` (≥ N), `nota_maxima` (nota = 100 em algum quiz; 99,99 não vale), `sequencia_dias` (maior sequência ≥ N). Catálogo padrão (premissa T-0011): **primeira trilha concluída**, **nota máxima no quiz**, **sequência de 7 dias** (`sequencia_7_dias`; o código acompanha o N em `medalhasPadrao(n)`).
+- Regras: `trilhas_concluidas` (≥ N), `nota_maxima` (nota = 100 em algum quiz; 99,99 não vale), `sequencia_dias` (maior sequência ≥ N). Catálogo padrão (decisão 31/10): **primeira trilha concluída**, **nota máxima no quiz**, **sequência de 7 dias** (`sequencia_7_dias`; o código acompanha o N em `medalhasPadrao(n)`).
 - `avaliarMedalhas(catálogo, estado, jáConquistadas)` devolve só as **novas** — nunca em duplicidade (`medalha_usuario` único por usuário + medalha). Quem grava gera o UUID da conquista e publica `treinamento.medalha.conquistada@1`.
 
 ## 8. Desafio de vendas — RF-TRE-06 (P1) (`desafio.ts`)
-- Entrada só pelo **evento** `vendedor.pedido.criado@1`, lido de forma tolerante por `PedidoCriadoLido` (contracts): `pedido_id`, `vendedor_id`, `criado_em`, `itens[{produto_id, quantidade}]`; campos a mais do Vendedor são ignorados e o Treinamento não importa nada do Vendedor.
-- **XP do pedido** = unidades dos itens da campanha × `xp_por_unidade`, inteiro (para baixo), limitado a `xp_max_por_pedido`. Exemplo: 3 un. × 2 = 6; 50 un. × 2 = 100 → 20 (teto do desafio). Quantidade ≤ 0 é ignorada.
-- **Vigência**: dia do pedido no fuso do tenant entre `vigencia_inicio` e `vigencia_fim`, **inclusivo** (26/10 00:00 Manaus = 04:00Z entra; 03:59Z não). Desafio inativo ou de outro tenant não pontua.
-- **Idempotente por pedido**: referência `desafio_id:pedido_id`; evento repetido não pontua de novo; dois desafios diferentes podem pontuar o mesmo pedido. O XP vai ao `vendedor_id` do pedido (em pedido "em nome", o vendedor, não o gestor). Pedido cancelado depois **não estorna** (append-only; pendência).
+- **Paga no FATURAMENTO** (decisão 31/10, ajuste C): o XP sai quando o pedido é **faturado** (status vindo do ERP pelo Hub), **não** quando é criado. Pedido apenas criado, sem `faturado_em`, não gera XP (`PEDIDO_NAO_FATURADO`).
+- Entrada só pelo **evento de pedido faturado**, lido de forma tolerante por `PedidoFaturadoLido` (contracts): `pedido_id`, `vendedor_id`, `faturado_em`, `itens[{produto_id, quantidade}]`; campos a mais são ignorados e o Treinamento não importa nada do Vendedor nem da Integração. Payload sem `faturado_em` é recusado.
+- **EVENTO PENDENTE**: o nome e o publicador do evento (hoje o manifesto declara, **provisoriamente**, `vendedor.pedido.faturado@1`) serão definidos por Vendedor + Integração + engenheiro-software. Quando sair, trocam-se o `consome` do manifesto e, se o payload divergir, o `PedidoFaturadoLido` — o domínio não muda. Enquanto isso o desafio fica sem entrada em produção (o módulo funciona sem ele).
+- **XP do pedido** = unidades dos itens da campanha × `xp_por_unidade`, inteiro (para baixo), limitado a `xp_max_por_pedido`. Exemplo: 3 un. × 2 = 6; 50 un. × 2 = 100 → 20. Quantidade ≤ 0 é ignorada.
+- **Teto por desafio** (decisão 31/10, ajuste A): `xp_max_por_desafio` = máximo de XP **por vendedor em cada desafio** (soma dos lançamentos do vendedor com referência `desafio_id:*`). Padrão do tenant **500**; o cadastro do desafio pode trazer o seu (prioridade); 0 = sem teto. O pedido que cruza o teto paga **só o saldo**; esgotado, grava-se lançamento de **0 ponto** (`limitado_pelo_teto`, idempotência e auditoria). Exemplo com teto 30 e pedidos de 20 XP: 20, depois 10 (de 20), depois 0. Vale também dentro de um mesmo lote. Outro vendedor ou outro desafio têm o seu teto.
+- **Fora do teto diário**: o desafio continua sem consumir nem sofrer o `xp_teto_diario` de 200.
+- **Vigência**: dia do **faturamento** no fuso do tenant entre `vigencia_inicio` e `vigencia_fim`, **inclusivo** (26/10 00:00 Manaus = 04:00Z entra; 03:59Z não). Desafio inativo ou de outro tenant não pontua. O lançamento fica no dia do faturamento (conta no ranking desse dia).
+- **Idempotente por pedido**: referência `desafio_id:pedido_id`; evento repetido não pontua de novo; dois desafios diferentes podem pontuar o mesmo pedido. O XP vai ao `vendedor_id` do pedido (em pedido "em nome", o vendedor, não o gestor). **Sem estorno nesta fase**: pedido cancelado depois do faturamento não retira o XP (append-only; fica para uma fase futura).
 
 ## 9. Ranking — RF-TRE-04, RN-TRE-03 (`ranking.ts`)
 - **Períodos** (`intervaloDoPeriodo`): semanal = segunda a domingo da semana da data (31/10/2026, sábado → 26/10 a 01/11); mensal = mês civil; acumulado = sem limites. Conta o `dia` do lançamento (fuso do tenant).
@@ -90,16 +101,13 @@ Convenções: nota e percentuais com 2 casas (meio para cima); XP sempre inteiro
 
 ## 11. Eventos e contratos
 - Publica `treinamento.licao.concluida@1` (`LicaoConcluidaV1`: progresso, usuário, trilha, lição, nota do quiz, `xp_ganho`, `trilha_concluida`) e `treinamento.medalha.conquistada@1` (`MedalhaConquistadaV1`). O doc 02 não lista outros eventos; trilha concluída e nível viajam dentro de `licao.concluida`.
-- Consome (opcional) `vendedor.pedido.criado@1` pela leitura tolerante `PedidoCriadoLido`.
+- Consome (opcional) o evento de **pedido faturado** (nome pendente; provisório `vendedor.pedido.faturado@1`) pela leitura tolerante `PedidoFaturadoLido`.
 
-## Premissas T-0011 (para o Alexandre decidir)
-1. **Teto diário de XP** [200], aplicado a lição, quiz, trilha e streak; desafio de vendas fica fora do teto.
-2. **Quiz paga XP de acerto na 1ª tentativa mesmo se reprovada** (RN-TRE-02 diz "só na 1ª tentativa", sem exigir aprovação).
-3. **Streak** = lição concluída ou tentativa de quiz; paga na 1ª atividade do dia, `min(2 × dias, 20)`.
-4. **Refazer quiz após aprovado** é permitido (dentro do limite diário, sem XP); aprovado uma vez continua aprovado. Nota que vale padrão = **melhor**.
-5. **Intervalo entre tentativas** desligado (0) por padrão; o doc não define.
-6. **Desempate**: segue a RN-TRE-03 (quem atingiu primeiro vem antes de trilhas concluídas), depois trilhas, nome e id.
-7. **Faixas de nível** padrão (10 níveis, até 3.200 XP) e **medalhas padrão** (primeira trilha, nota máxima, 7 dias).
-8. **Público-alvo**: perfis e equipes valem juntos (E); ambos vazios = todo o tenant. **Ranking** só com vendedor e promotor (parâmetro).
-9. **Semana do ranking** = segunda a domingo; **dia** do ranking e do teto = fuso do tenant.
-10. **Desafio de vendas**: `xp_por_unidade` com teto `xp_max_por_pedido`; payload do pedido lido por nomes `pedido_id/vendedor_id/criado_em/itens[produto_id, quantidade]` (a confirmar com o Vendedor).
+## Decisões do Alexandre (31/10/2026)
+Premissas 1 a 11 da entrega da T-0011 decididas e incorporadas acima como regra: teto diário de 200 XP (lição, quiz, trilha, streak) com lançamento de 0 ao estourar; XP de acerto na 1ª tentativa mesmo reprovada; refazer quiz aprovado sem XP e valendo a melhor nota; intervalo entre tentativas 0; desempate XP → quem atingiu primeiro → trilhas → nome → id; faixas de nível e 3 medalhas padrão; público-alvo (interseção quando os dois critérios estão preenchidos); semana de segunda a domingo e dia no fuso do tenant. Ajustes: **A** teto por desafio (`xp_max_por_desafio`, §8), **B** streak só com lição concluída ou quiz respondido até o fim (§4), **C** desafio paga no faturamento, evento pendente (§8), **D** tempo mínimo = maior entre 30 s e 50% da duração (§6).
+
+## Pendências
+- Nome/publicador do evento de pedido faturado (Vendedor + Integração + engenheiro-software); o Treinamento só ajusta o `consome` e o `PedidoFaturadoLido`.
+- Estorno de XP do desafio (pedido cancelado após faturado): fora desta fase.
+- Ajuste manual de XP pelo BKO (lançamento corretivo): não existe ainda.
+- Tabelas `desafio_vendas` e `publico_alvo` e os campos novos (`xp_max_por_desafio` no desafio; `duracao_estimada_seg` na lição): a pedir ao banco-dados quando a API for escrita.

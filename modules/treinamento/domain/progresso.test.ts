@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolverParametros } from './parametros';
-import { concluirLicao, registrarTentativaQuiz, validarConclusaoLicao, type ConclusaoLicaoEntrada } from './progresso';
+import { concluirLicao, registrarTentativaQuiz, tempoMinimoDaLicao, validarConclusaoLicao, type ConclusaoLicaoEntrada } from './progresso';
 import type { TrilhaDef } from './trilha';
 import type { LancamentoXp } from './xp';
 
@@ -33,7 +33,7 @@ describe('RN-TRE-04: validação do progresso feito offline', () => {
   });
 
   it('RN-TRE-04: tempo mínimo configurável pelo tenant', () => {
-    expect(validarConclusaoLicao(entrada({ tempo_gasto_seg: 45 }), ctx(), resolverParametros({ tempo_min_licao_seg: 60 }))).toMatchObject({ codigo: 'TEMPO_MINIMO' });
+    expect(validarConclusaoLicao(entrada({ tempo_gasto_seg: 45 }), ctx(), resolverParametros({ segundos_minimos_licao: 60 }))).toMatchObject({ codigo: 'TEMPO_MINIMO' });
   });
 
   it('RN-TRE-04: lição já concluída (reenvio do aparelho) é duplicada — idempotente, sem erro', () => {
@@ -112,7 +112,7 @@ describe('RN-TRE-01: concluir lição gera XP, streak e trilha concluída', () =
     expect(concluirLicao({ ...base, licao_id: 'L1', concluidas: ['L1'], concluida_em: '2026-10-31T13:00:00Z' })).toEqual({ resultado: 'duplicado' });
   });
 
-  it('premissa T-0011: o teto diário também corta o XP da conclusão', () => {
+  it('decisão 31/10: o teto diário também corta o XP da conclusão', () => {
     const r = concluirLicao({ ...base, licao_id: 'L1', concluidas: [], concluida_em: '2026-10-31T13:00:00Z', params: resolverParametros({ xp_teto_diario: 11 }) });
     if (r.resultado !== 'aceito') throw new Error('esperava aceito');
     expect(r.lancamentos.map((l) => [l.origem, l.pontos, l.limitado_pelo_teto])).toEqual([['licao', 10, false], ['streak', 1, true]]);
@@ -169,5 +169,77 @@ describe('RN-TRE-02: registrar tentativa de quiz', () => {
 
   it('RN-TRE-02: resposta a questão de outro quiz é erro (API devolve 422)', () => {
     expect(() => registrarTentativaQuiz({ ...base, respostas: [{ questao_id: 'ZZ', alternativa_ids: ['A'] }], realizada_em: '2026-10-31T13:00:00Z' })).toThrow(/não pertence/);
+  });
+});
+
+describe('Ajuste D: tempo mínimo da lição = o maior entre 30 s e 50% da duração estimada', () => {
+  const comDuracao = (seg: number | null | undefined) => trilha({ modulos: [{ id: 'M1', ordem: 1, licoes: [{ id: 'L1', ordem: 1, duracao_estimada_seg: seg }] }] });
+
+  it('RN-TRE-04: padrões do tenant — 50% da duração e 30 s', () => {
+    expect(p).toMatchObject({ pct_minimo_duracao_licao: 50, segundos_minimos_licao: 30 });
+  });
+
+  it('RN-TRE-04: lição sem duração informada exige 30 s (29 s não conta, 30 s conta)', () => {
+    expect(tempoMinimoDaLicao(undefined, p)).toBe(30);
+    expect(tempoMinimoDaLicao(null, p)).toBe(30);
+    expect(validarConclusaoLicao(entrada({ tempo_gasto_seg: 29 }), ctx({ trilha: comDuracao(undefined) }), p)).toMatchObject({ codigo: 'TEMPO_MINIMO' });
+    expect(validarConclusaoLicao(entrada({ tempo_gasto_seg: 30 }), ctx({ trilha: comDuracao(undefined) }), p)).toEqual({ resultado: 'aceito' });
+  });
+
+  it('RN-TRE-04: lição de 10 min (600 s) exige 5 min (300 s); 299 s não conta', () => {
+    expect(tempoMinimoDaLicao(600, p)).toBe(300);
+    expect(validarConclusaoLicao(entrada({ tempo_gasto_seg: 299 }), ctx({ trilha: comDuracao(600) }), p)).toMatchObject({ resultado: 'rejeitado', codigo: 'TEMPO_MINIMO', regra: 'RN-TRE-04' });
+    expect(validarConclusaoLicao(entrada({ tempo_gasto_seg: 300 }), ctx({ trilha: comDuracao(600) }), p)).toEqual({ resultado: 'aceito' });
+  });
+
+  it('RN-TRE-04: lição curta (40 s → 20 s) cai no piso de 30 s', () => {
+    expect(tempoMinimoDaLicao(40, p)).toBe(30);
+  });
+
+  it('RN-TRE-04: o percentual arredonda para cima em segundos inteiros (61 s → 31 s) e sem erro de ponto flutuante (100 s a 70% → 70 s)', () => {
+    expect(tempoMinimoDaLicao(61, p)).toBe(31);
+    expect(tempoMinimoDaLicao(100, resolverParametros({ pct_minimo_duracao_licao: 70 }))).toBe(70);
+  });
+
+  it('RN-TRE-04: percentual 0 desliga a regra proporcional (vale só o piso); 100 exige a duração inteira', () => {
+    expect(tempoMinimoDaLicao(600, resolverParametros({ pct_minimo_duracao_licao: 0 }))).toBe(30);
+    expect(tempoMinimoDaLicao(600, resolverParametros({ pct_minimo_duracao_licao: 100 }))).toBe(600);
+  });
+
+  it('RN-TRE-04: a mensagem diz o tempo exigido e a ação seguinte', () => {
+    const r = validarConclusaoLicao(entrada({ tempo_gasto_seg: 100 }), ctx({ trilha: comDuracao(600) }), p);
+    expect(r.resultado === 'rejeitado' && r.mensagem).toMatch(/300 s.*(leia|assista)/i);
+  });
+
+  it('RN-TRE-04: concluirLicao aplica a mesma regra (lição de 10 min com 4 min é rejeitada, sem lançamentos)', () => {
+    const r = concluirLicao({ tenant_id: T, usuario_id: U, trilha: comDuracao(600), licao_id: 'L1', concluidas: [], quiz_aprovado: false, tempo_gasto_seg: 240, concluida_em: '2026-10-31T13:00:00Z', atividades: [], lancamentos: [], gerarId: () => 'x', params: p });
+    expect(r).toMatchObject({ resultado: 'rejeitado', codigo: 'TEMPO_MINIMO' });
+  });
+});
+
+describe('Ajuste B: quiz abandonado não conta para a sequência de dias', () => {
+  let n = 0;
+  const gerarId = () => `s-${++n}`;
+  const questoes = [{ id: 'Q1', corretas: ['A'] }, { id: 'Q2', corretas: ['B'] }];
+  const base = { tenant_id: T, usuario_id: U, quiz_id: 'Z2', questoes, anteriores: [] as { realizada_em: string; nota_pct: number; aprovada: boolean }[], atividades: [] as string[], lancamentos: [] as LancamentoXp[], gerarId, params: p };
+
+  it('RN-TRE-01: quiz respondido até o fim (todas as questões) paga o streak do dia', () => {
+    const r = registrarTentativaQuiz({ ...base, respostas: [{ questao_id: 'Q1', alternativa_ids: ['A'] }, { questao_id: 'Q2', alternativa_ids: ['X'] }], realizada_em: '2026-10-31T13:00:00Z' });
+    if (r.resultado !== 'aceita') throw new Error('esperava aceita');
+    expect(r.quiz_finalizado).toBe(true);
+    expect(r.lancamentos.map((l) => l.origem)).toEqual(['quiz', 'streak']);
+  });
+
+  it('RN-TRE-01: quiz enviado com questão sem resposta (abandonado no meio) não paga streak', () => {
+    const r = registrarTentativaQuiz({ ...base, respostas: [{ questao_id: 'Q1', alternativa_ids: ['A'] }], realizada_em: '2026-10-31T13:00:00Z' });
+    if (r.resultado !== 'aceita') throw new Error('esperava aceita');
+    expect(r.quiz_finalizado).toBe(false);
+    expect(r.lancamentos.map((l) => l.origem)).toEqual(['quiz']);
+  });
+
+  it('RN-TRE-01: questão com alternativas vazias também é "não respondida"', () => {
+    const r = registrarTentativaQuiz({ ...base, respostas: [{ questao_id: 'Q1', alternativa_ids: ['A'] }, { questao_id: 'Q2', alternativa_ids: [] }], realizada_em: '2026-10-31T13:00:00Z' });
+    if (r.resultado !== 'aceita') throw new Error('esperava aceita');
+    expect(r.lancamentos.some((l) => l.origem === 'streak')).toBe(false);
   });
 });

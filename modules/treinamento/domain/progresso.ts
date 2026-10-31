@@ -4,7 +4,7 @@
  */
 import { localDate } from '@macuxi/comum';
 import { PARAMETROS_PADRAO, type ParametrosTreinamento } from './parametros';
-import { aprovado, corrigirQuiz, ehPrimeiraTentativa, validarTentativa, type CorrecaoQuiz, type QuestaoDef, type RespostaQuestao, type TentativaComNota } from './quiz';
+import { aprovado, corrigirQuiz, ehPrimeiraTentativa, quizRespondidoAteOFim, validarTentativa, type CorrecaoQuiz, type QuestaoDef, type RespostaQuestao, type TentativaComNota } from './quiz';
 import { diasComAtividade, sequenciaNaData } from './streak';
 import { licoesOrdenadas, progressoDaTrilha, statusDaLicao, type TrilhaDef } from './trilha';
 import { processarLote, xpDaLicao, xpDaTrilha, xpDoQuiz, xpDoStreak, type CandidatoXp, type LancamentoXp } from './xp';
@@ -32,13 +32,27 @@ export type ResultadoConclusao =
   | { resultado: 'rejeitado'; codigo: CodigoRejeicao; regra: 'RN-TRE-04' | 'RN-TRE-02' | 'RF-TRE-01'; mensagem: string };
 
 /**
- * RN-TRE-04: o servidor revalida a conclusão enviada pelo aparelho — tempo mínimo na lição [30 s], pré-requisitos
+ * RN-TRE-04: tempo mínimo na lição = o maior entre o piso [30 s] e [50%] da duração estimada (quando informada),
+ * em segundos inteiros (para cima). Ex.: sem duração → 30 s; 600 s → 300 s; 40 s → 30 s (20 s < piso).
+ * Conta em inteiros (pct × 100) para não errar com ponto flutuante (70% de 100 s = 70 s, não 71).
+ */
+export function tempoMinimoDaLicao(
+  duracaoEstimadaSeg: number | null | undefined,
+  params: Pick<ParametrosTreinamento, 'segundos_minimos_licao' | 'pct_minimo_duracao_licao'> = PARAMETROS_PADRAO,
+): number {
+  if (duracaoEstimadaSeg === null || duracaoEstimadaSeg === undefined || !Number.isFinite(duracaoEstimadaSeg) || duracaoEstimadaSeg <= 0) return params.segundos_minimos_licao;
+  const proporcional = Math.ceil((Math.round(params.pct_minimo_duracao_licao * 100) * duracaoEstimadaSeg) / 10_000);
+  return Math.max(params.segundos_minimos_licao, proporcional);
+}
+
+/**
+ * RN-TRE-04: o servidor revalida a conclusão enviada pelo aparelho — tempo mínimo na lição (`tempoMinimoDaLicao`), pré-requisitos
  * (RF-TRE-01) e quiz aprovado quando a lição tem quiz (RN-TRE-02). Lição já concluída = `duplicado` (idempotente).
  */
 export function validarConclusaoLicao(
   e: ConclusaoLicaoEntrada,
   ctx: ContextoConclusao,
-  params: Pick<ParametrosTreinamento, 'tempo_min_licao_seg'> = PARAMETROS_PADRAO,
+  params: Pick<ParametrosTreinamento, 'segundos_minimos_licao' | 'pct_minimo_duracao_licao'> = PARAMETROS_PADRAO,
 ): ResultadoConclusao {
   const feitas = ctx.concluidas instanceof Set ? ctx.concluidas : new Set(ctx.concluidas);
   const licao = licoesOrdenadas(ctx.trilha).find((l) => l.id === e.licao_id);
@@ -48,12 +62,13 @@ export function validarConclusaoLicao(
   if (statusDaLicao(ctx.trilha, e.licao_id, feitas).status === 'bloqueada') {
     return { resultado: 'rejeitado', codigo: 'LICAO_BLOQUEADA', regra: 'RF-TRE-01', mensagem: 'Conclua as lições anteriores da trilha antes de fazer esta.' };
   }
-  if (e.tempo_gasto_seg < params.tempo_min_licao_seg) {
+  const minimo = tempoMinimoDaLicao(licao.duracao_estimada_seg, params);
+  if (e.tempo_gasto_seg < minimo) {
     return {
       resultado: 'rejeitado',
       codigo: 'TEMPO_MINIMO',
       regra: 'RN-TRE-04',
-      mensagem: `A lição precisa de pelo menos ${params.tempo_min_licao_seg} s de leitura ou vídeo para contar. Leia ou assista com calma e conclua de novo.`,
+      mensagem: `A lição precisa de pelo menos ${minimo} s de leitura ou vídeo para contar. Leia ou assista com calma e conclua de novo.`,
     };
   }
   if (licao.quiz_id && !ctx.quiz_aprovado) {
@@ -65,7 +80,7 @@ export function validarConclusaoLicao(
 interface EntradaXpComum {
   tenant_id: string;
   usuario_id: string;
-  /** Instantes UTC de atividades anteriores (lições concluídas e tentativas de quiz). */
+  /** Instantes UTC de atividades anteriores que contam para o streak: só lição concluída e quiz finalizado (`atividadesQueContam`). */
   atividades: readonly string[];
   lancamentos: readonly LancamentoXp[];
   /** Gera o UUID de cada lançamento criado. */
@@ -118,12 +133,12 @@ export function concluirLicao(
 }
 
 export type ResultadoTentativaQuiz =
-  | { resultado: 'aceita'; correcao: CorrecaoQuiz; aprovada: boolean; primeira_tentativa: boolean; lancamentos: LancamentoXp[]; xp_ganho: number }
+  | { resultado: 'aceita'; correcao: CorrecaoQuiz; aprovada: boolean; primeira_tentativa: boolean; quiz_finalizado: boolean; lancamentos: LancamentoXp[]; xp_ganho: number }
   | { resultado: 'recusada'; motivo: 'LIMITE_DIARIO' | 'INTERVALO_MINIMO'; regra: 'RN-TRE-02'; proxima_em: string; mensagem: string };
 
 /**
  * RN-TRE-02: registra a tentativa de quiz — confere limite diário/intervalo, corrige, aprova pela nota mínima e
- * devolve os lançamentos: [5] por acerto só na 1ª tentativa e o streak do dia.
+ * devolve os lançamentos: [5] por acerto só na 1ª tentativa e o streak do dia (este só se o quiz foi respondido até o fim).
  */
 export function registrarTentativaQuiz(
   e: EntradaXpComum & {
@@ -142,8 +157,12 @@ export function registrarTentativaQuiz(
   const primeira = ehPrimeiraTentativa(e.anteriores);
   const base = { tenant_id: e.tenant_id, usuario_id: e.usuario_id, ocorrido_em: e.realizada_em };
   const candidatos: CandidatoXp[] = [{ ...base, id: e.gerarId(), origem: 'quiz', referencia_id: e.quiz_id, pontos_base: xpDoQuiz(correcao.acertos, primeira, params) }];
-  const streak = candidatoStreak(e, e.realizada_em, params);
-  if (streak.candidato) candidatos.push(streak.candidato);
+  // Ajuste B: só quiz respondido até o fim mantém a sequência de dias (abrir e abandonar não conta).
+  const finalizado = quizRespondidoAteOFim(e.questoes, e.respostas);
+  if (finalizado) {
+    const streak = candidatoStreak(e, e.realizada_em, params);
+    if (streak.candidato) candidatos.push(streak.candidato);
+  }
 
   const { lancamentos } = processarLote(e.lancamentos, candidatos, params);
   return {
@@ -151,6 +170,7 @@ export function registrarTentativaQuiz(
     correcao,
     aprovada: aprovado(correcao.acertos, correcao.total, params.nota_minima_pct),
     primeira_tentativa: primeira,
+    quiz_finalizado: finalizado,
     lancamentos,
     xp_ganho: lancamentos.reduce((s, l) => s + l.pontos, 0),
   };

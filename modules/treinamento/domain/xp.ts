@@ -12,7 +12,7 @@ import { PARAMETROS_PADRAO, type ParametrosTreinamento } from './parametros';
 export const ORIGENS_XP = ['licao', 'quiz', 'trilha', 'streak', 'desafio_vendas'] as const;
 export type OrigemXp = (typeof ORIGENS_XP)[number];
 
-/** Origens que não passam pelo teto diário (incentivo de vendas, premissa T-0011). */
+/** Origens que não passam pelo teto diário (incentivo de vendas; têm teto próprio por desafio). */
 const ORIGENS_SEM_TETO: readonly OrigemXp[] = ['desafio_vendas'];
 
 /** Fato que merece XP, ainda sem teto aplicado. `referencia_id`: lição/quiz/trilha, data do streak ou `desafio:pedido`. */
@@ -26,6 +26,11 @@ export interface CandidatoXp {
   pontos_base: number;
   /** Instante UTC do fato (hora do aparelho). */
   ocorrido_em: string;
+  /**
+   * Teto próprio do desafio de vendas (RF-TRE-06): máximo de XP do usuário nesse desafio (soma dos lançamentos
+   * `desafio_vendas` com referência `desafio_id:*`). Só vale para a origem `desafio_vendas`; 0/ausente = sem teto.
+   */
+  teto_desafio?: { desafio_id: string; max: number };
 }
 
 export interface LancamentoXp {
@@ -90,6 +95,13 @@ export function proporLancamento(existentes: readonly LancamentoXp[], c: Candida
 
   const dia = localDate(new Date(c.ocorrido_em), params.fuso);
   let pontos = c.pontos_base;
+  if (c.origem === 'desafio_vendas' && c.teto_desafio && c.teto_desafio.max > 0) {
+    const prefixo = `${c.teto_desafio.desafio_id}:`;
+    const jaNoDesafio = existentes
+      .filter((l) => l.usuario_id === c.usuario_id && l.origem === 'desafio_vendas' && l.referencia_id.startsWith(prefixo))
+      .reduce((s, l) => s + l.pontos, 0);
+    pontos = Math.max(0, Math.min(pontos, c.teto_desafio.max - jaNoDesafio));
+  }
   if (params.xp_teto_diario > 0 && !ORIGENS_SEM_TETO.includes(c.origem)) {
     const jaNoDia = existentes
       .filter((l) => l.usuario_id === c.usuario_id && l.dia === dia && !ORIGENS_SEM_TETO.includes(l.origem))

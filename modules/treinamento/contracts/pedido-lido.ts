@@ -1,5 +1,8 @@
 /**
- * Leitura TOLERANTE do evento `vendedor.pedido.criado@1`, só com o que o desafio de vendas (RF-TRE-06) precisa.
+ * Leitura TOLERANTE do fato "pedido faturado", só com o que o desafio de vendas (RF-TRE-06) precisa. O XP é pago
+ * no FATURAMENTO (status vindo do ERP pelo Hub), não na criação do pedido.
+ * PENDENTE: o nome final do evento (hoje provisório `vendedor.pedido.faturado@1` no manifesto) será definido por
+ * Vendedor + Integração + engenheiro-software; quando sair, só o manifesto e este schema (se o payload divergir) mudam.
  * O Treinamento não importa nada do módulo Vendedor (nem seus contracts): este schema é a "visão" que o consumidor
  * tem do payload. Campos a mais são ignorados (objeto não estrito) e o Treinamento segue funcionando sem o Vendedor.
  * Se o Vendedor mudar nomes ou tipos, o evento é recusado aqui (não pontua) até alinharmos o contrato.
@@ -14,14 +17,15 @@ export const PedidoItemLido = z.object({
 });
 export type PedidoItemLido = z.infer<typeof PedidoItemLido>;
 
-export const PedidoCriadoLido = z.object({
+export const PedidoFaturadoLido = z.object({
   pedido_id: Uuid,
   /** Vendedor dono do pedido (quem recebe o XP); em pedido "em nome", é o vendedor, não o gestor. */
   vendedor_id: Uuid,
-  criado_em: InstanteUtc,
+  /** Instante UTC do faturamento (define o dia da vigência e do XP). Pedido sem este campo (só criado) é recusado. */
+  faturado_em: InstanteUtc,
   itens: z.array(PedidoItemLido).max(500),
 });
-export type PedidoCriadoLido = z.infer<typeof PedidoCriadoLido>;
+export type PedidoFaturadoLido = z.infer<typeof PedidoFaturadoLido>;
 
 /** Desafio de vendas (campanha com XP) cadastrado no BKO (RF-TRE-06). */
 export const DesafioVendasContrato = z
@@ -35,6 +39,8 @@ export const DesafioVendasContrato = z
     vigencia_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     xp_por_unidade: z.number().int().positive(),
     xp_max_por_pedido: z.number().int().positive(),
+    /** Teto de XP por vendedor neste desafio; ausente = padrão do tenant (`xp_max_por_desafio`, 500); 0 = sem teto. */
+    xp_max_por_desafio: z.number().int().nonnegative().optional(),
   })
   .strict()
   .refine((d) => d.vigencia_fim >= d.vigencia_inicio, { path: ['vigencia_fim'], message: 'O fim da vigência não pode ser anterior ao início.' });
