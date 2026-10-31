@@ -1,0 +1,185 @@
+{
+  "versao": 1,
+  "descricao": "Mapa de donos do repositório. A PRIMEIRA regra que casa com o caminho define o dono. Só o Alexandre altera este arquivo. Exceções universais (no código do guardião): qualquer agente cria recado novo em .coord/recados/<destino>/ e escreve no próprio .coord/diario/<agente>.md e .coord/lidos/<agente>.txt. 'congelado' = ninguém altera; 'sem-dono' = caminho não mapeado (bloqueado). 'somente_leitura' = pastas fora do repositório que nenhum agente pode alterar (Fase M).",
+  "regras": [
+    {
+      "padrao": "_instalar/**",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "instalar-claude.cmd",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": ".claude/**",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": ".coord/donos.json",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": "scripts/coord*.mjs",
+      "dono": "alexandre"
+    },
+    {
+      "padrao": ".coord/contratos/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": ".coord/**",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "CLAUDE.md",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "docs/produto/**",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "docs/status/**",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "docs/backlog.md",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "docs/decisoes/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "docs/desenho/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "docs/banco/**",
+      "dono": "banco-dados"
+    },
+    {
+      "padrao": "docs/testes/**",
+      "dono": "testes"
+    },
+    {
+      "padrao": "docs/modulos/core/**",
+      "dono": "modulo-core"
+    },
+    {
+      "padrao": "docs/modulos/catalogo/**",
+      "dono": "modulo-catalogo"
+    },
+    {
+      "padrao": "docs/modulos/vendedor/**",
+      "dono": "modulo-vendedor"
+    },
+    {
+      "padrao": "docs/modulos/promotor/**",
+      "dono": "modulo-promotor"
+    },
+    {
+      "padrao": "docs/modulos/gestor/**",
+      "dono": "modulo-gestor"
+    },
+    {
+      "padrao": "docs/modulos/pesquisa/**",
+      "dono": "modulo-pesquisa"
+    },
+    {
+      "padrao": "docs/modulos/treinamento/**",
+      "dono": "modulo-treinamento"
+    },
+    {
+      "padrao": "docs/modulos/integracao/**",
+      "dono": "modulo-integracao"
+    },
+    {
+      "padrao": "docs/**",
+      "dono": "gerente-projetos"
+    },
+    {
+      "padrao": "modules/*/db/**",
+      "dono": "banco-dados"
+    },
+    {
+      "padrao": "db/**",
+      "dono": "banco-dados"
+    },
+    {
+      "padrao": "drizzle.config.*",
+      "dono": "banco-dados"
+    },
+    {
+      "padrao": "modules/core/**",
+      "dono": "modulo-core"
+    },
+    {
+      "padrao": "modules/catalogo/**",
+      "dono": "modulo-catalogo"
+    },
+    {
+      "padrao": "modules/vendedor/**",
+      "dono": "modulo-vendedor"
+    },
+    {
+      "padrao": "modules/promotor/**",
+      "dono": "modulo-promotor"
+    },
+    {
+      "padrao": "modules/gestor/**",
+      "dono": "modulo-gestor"
+    },
+    {
+      "padrao": "modules/pesquisa/**",
+      "dono": "modulo-pesquisa"
+    },
+    {
+      "padrao": "modules/treinamento/**",
+      "dono": "modulo-treinamento"
+    },
+    {
+      "padrao": "modules/integracao/**",
+      "dono": "modulo-integracao"
+    },
+    {
+      "padrao": "apps/conector/**",
+      "dono": "modulo-integracao"
+    },
+    {
+      "padrao": "apps/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "packages/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "tests/**",
+      "dono": "testes"
+    },
+    {
+      "padrao": "playwright.config.*",
+      "dono": "testes"
+    },
+    {
+      "padrao": "vitest.workspace.*",
+      "dono": "testes"
+    },
+    {
+      "padrao": ".github/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "scripts/**",
+      "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "*",
+      "dono": "engenheiro-software"
+    }
+  ],
+  "somente_leitura": [
+    "C:/Users/domon/dev/forca-vendas"
+  ]
+}

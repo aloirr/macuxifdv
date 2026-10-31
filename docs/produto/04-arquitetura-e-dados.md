@@ -1,0 +1,124 @@
+# 04 — Arquitetura modular e dados
+
+## Visão geral
+```
+ ┌──────────────── Android ────────────────┐      ┌─── Navegador ───┐
+ │ Macuxi Campo        Macuxi Gestão       │      │  Backoffice Web │
+ │ (variante campo)    (variante gestao)   │      │  (Next.js)      │
+ │  shell + módulos ativos + SQLite local  │      │ shell + módulos │
+ └───────────────┬─────────────────────────┘      └────────┬────────┘
+                 │ HTTPS  /v1/<modulo>/*  /v1/sync/*        │
+                 ▼                                          ▼
+        ┌──────────────────── apps/api (Fastify) — monólito modular ───────────────────┐
+        │ plataforma: auth, licenças, sync, eventos (outbox + pg-boss), extensões       │
+        │ core │ catalogo │ vendedor │ promotor │ gestor │ pesquisa │ treinamento │ integracao │
+        └───────┬───────────────────────────────┬───────────────────────────┬──────────┘
+                ▼                               ▼                           ▼
+     PostgreSQL gerenciado            Storage S3 (fotos, vídeos,       LLM + embeddings
+     1 schema por módulo + RLS        PDFs, importações)              (busca do Catálogo)
+     + pgvector                                ▲
+                                               │ HTTPS de saída  /integracao/v1/*
+                                 ┌─────────────┴─────────────┐
+                                 │ Conector Macuxi (no cliente)│──► views SQL / API do ERP
+                                 └────────────────────────────┘
+```
+
+## Por que monólito modular (e não microserviços)
+Um deploy só, uma base só, transações locais simples e custo baixo — mas com fronteiras rígidas entre módulos (schemas separados, contratos públicos e regras de importação verificadas no CI). Se um módulo precisar escalar sozinho no futuro (ex.: busca do Catálogo), ele já está isolado para ser extraído.
+
+## Estrutura do monorepo
+```
+apps/
+  mobile/        shell Expo; variantes "campo" e "gestao" (app.config.ts + perfis EAS)
+  web/           shell Next.js do Backoffice
+  api/           bootstrap Fastify: carrega os plugins dos módulos ativos
+  conector/      Conector on-premise (Node empacotado como serviço Windows)
+modules/<modulo>/            core | catalogo | vendedor | promotor | gestor | pesquisa | treinamento | integracao
+  manifest.ts    id, versão, depende, perfis, telas, abas, menus, entidades de sync, eventos, extensões
+  domain/        regras puras + testes (RN-<MOD>-nn)
+  contracts/     Zod: API pública, eventos publicados, payloads de extensão  ← única parte importável por outros módulos
+  api/           plugin Fastify (/v1/<modulo>), handlers de eventos, jobs
+  app/           telas React Native e serviços locais (registrados no shell)
+  web/           páginas do BKO (registradas no shell)
+  db/            schema na nuvem (Drizzle) e schema local (SQLite) — dono: agente de banco
+packages/
+  platform-sdk/  ModuleManifest, barramento de eventos, registro de extensões, motor de sync, permissões
+  ui/            design system compartilhado (tokens, componentes)
+  config/        eslint, tsconfig, regras de fronteira (dependency-cruiser)
+db/              migrações geradas, políticas RLS, seeds, views-modelo para o Conector
+tests/           e2e, integração entre módulos, carga
+.coord/          coordenação dos agentes (ver 07)
+docs/            produto, decisões (ADR), planos, módulos
+```
+
+### Regras de fronteira (checadas no CI)
+1. Um módulo importa apenas `packages/*`, `modules/core/contracts` e `modules/<outro>/contracts`.
+2. Nenhum módulo lê ou escreve tabela de outro schema; dados de outro módulo chegam por API pública, evento ou read-model próprio.
+3. Mudança incompatível em contrato = nova versão (`@2`), convivência com a anterior por 1 sprint, ADR e recado aos consumidores.
+
+## Instalação de módulos (como "instalar/desinstalar" funciona)
+> **Crítica**: no Android, APKs separados por módulo (ou *dynamic feature modules* do Google Play) exigem app nativo em Kotlin, vários logins/sincronizações e dobram o custo. **Recomendação: instalação lógica.** O código dos módulos vem no app (é pequeno, só JavaScript), mas **nada aparece, sincroniza ou ocupa espaço** sem licença; conteúdos pesados (fotos, vídeos de treinamento) só baixam se o módulo estiver ativo.
+
+Fluxo:
+1. Admin ativa o módulo no BKO (tenant → perfil → usuário). Evento `core.usuario.modulos_alterados@1`.
+2. App recebe no próximo sync `GET /v1/me/modulos` (lista + versões + parâmetros).
+3. Shell monta só abas, menus e extensões dos módulos efetivos; o motor de sync passa a puxar as entidades declaradas no `manifest` do módulo.
+4. Desativação: shell desmonta, sync apaga as tabelas locais do módulo, API responde 403 `MODULO_INATIVO`.
+5. Versão mínima por módulo: se o app estiver antigo, pede atualização só quando o módulo exigir.
+
+### Manifesto (exemplo)
+```ts
+export const manifest = defineModule({
+  id: 'promotor', versao: '1.0.0',
+  depende: ['core'], opcionais: ['catalogo', 'pesquisa', 'vendedor'],
+  perfis: ['promotor', 'supervisor', 'gerente', 'analista'],
+  apps: { campo: { abas: ['Loja'] }, gestao: { abas: ['Trade'] }, web: { menus: ['Trade marketing'] } },
+  sync: ['checklist_loja', 'mix_obrigatorio', 'meta_share', 'concorrente', 'produto_concorrente', 'foto_referencia', 'tarefa_trade'],
+  publica: ['promotor.share.medido@1', 'promotor.preco.coletado@1', 'promotor.ruptura.registrada@1'],
+  consome: ['core.visita.checkin@1', 'core.visita.checkout@1'],
+  usaExtensoes: ['cliente.abas', 'visita.etapas_checkout', 'inicio.cards'],
+});
+```
+
+## Comunicação entre módulos (em tempo de execução)
+- **Eventos de domínio**: gravados na tabela `plataforma.evento` (outbox) na mesma transação; pg-boss entrega aos consumidores; consumo idempotente por `evento_id`. Nome `<modulo>.<entidade>.<fato>@vN`.
+- **API pública síncrona**: serviço exposto em `contracts` (ex.: `vendedor.criarPedidoEmNome()`), usado quando a resposta é necessária na hora.
+- **Pontos de extensão (UI)**: o dono declara o slot (`produto.acoes`, `cliente.abas`, `visita.etapas_checkout`, `inicio.cards`, `menu.itens`, `pedido.criar_em_nome`); outros módulos registram componentes; o shell só renderiza o que está ativo.
+> É o mesmo princípio do protocolo de recados entre os agentes (doc 07): cada um mexe só no que é seu e conversa por mensagens com formato padrão.
+
+## Sincronização offline
+- **Pull**: `GET /v1/sync/pull?entidades=...&cursor=...` por entidade registrada pelos módulos ativos; cursor `(updated_at, id)`; inclui removidos; páginas de 1.000; escopo da carteira.
+- **Push**: `POST /v1/sync/push` com lote da outbox (pedidos, visitas, execuções, respostas, progresso de treinamento), idempotente por UUID; resposta por item: aceito | rejeitado (código RN) | conflito.
+- **Conflitos**: dados vindos do ERP → servidor vence; pedido → app edita até `recebido`; respostas de pesquisa e progresso → somente inserção.
+- **Volume alvo**: 20 mil SKUs, 500 clientes, 12 meses de histórico resumido no aparelho.
+
+## Busca em linguagem natural (Catálogo)
+- **Online**: o LLM transforma a frase em filtros estruturados + texto; a consulta combina busca textual (Postgres FTS) e semântica (pgvector) com filtros de estoque/preço; resultado reordenado. Cache de consultas frequentes; limite por usuário (RN-CAT-03).
+- **Offline**: SQLite FTS5 com sinônimos do tenant, correção de digitação e atributos.
+- **Pergunte ao catálogo**: RAG somente sobre fichas, FAQs e PDFs do tenant, com citação da fonte.
+- Provedor de LLM e de embeddings atrás de interface (troca sem mexer no módulo). Premissa: Claude para interpretação/respostas e um modelo de embeddings multilíngue.
+
+## Dados (1 schema por módulo)
+Campos comuns: `id uuid`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id`.
+
+| Schema | Tabelas principais |
+|---|---|
+| `plataforma` | tenant, tenant_modulo (ativo, plano, licenças), perfil_modulo, usuario_modulo (exceção), evento (outbox), parametro, auditoria, dispositivo |
+| `core` | usuario, equipe (árvore), cliente, cliente_contato, carteira (cliente, usuario, papel), cliente_financeiro, titulo, historico_compra (resumo), rota, rota_parada, visita, visita_etapa, motivo, meta, indicador_diario, notificacao |
+| `catalogo` | produto, categoria, marca, produto_atributo, produto_midia, produto_conteudo (argumentos, FAQ, docs), sinonimo, produto_embedding (pgvector), tabela_preco, tabela_preco_item, deposito, estoque_saldo, busca_log |
+| `vendedor` | pedido, pedido_item, pedido_evento, aprovacao, condicao_pagamento, cliente_condicao, reserva_estoque, alerta_ruptura |
+| `promotor` | cadastros de trade: categoria_gondola, mix_obrigatorio, concorrente, produto_concorrente, meta_share, foto_referencia (planograma), checklist_modelo, checklist_item, tarefa_trade · coletas: visita_loja (permanência), checklist_resposta, gondola_registro (antes/depois, conformidade), medicao_share, coleta_preco, ruptura_item, validade_item, ponto_extra, ponto_extra_negociado, acao_concorrencia, tarefa_execucao, foto · read-model: indicador_promotor_dia |
+| `gestor` | read-models: painel_vendedor_dia, alerta, alerta_regra |
+| `pesquisa` | questionario, questionario_versao, pergunta, opcao, regra_condicional, publico_alvo, resposta, resposta_item, resposta_foto |
+| `treinamento` | trilha, modulo_trilha, licao, quiz, questao, alternativa, publico_alvo, progresso, tentativa, xp_lancamento, medalha, medalha_usuario, ranking_periodo |
+| `integracao` | conector, credencial, lote, lote_linha_erro, mapeamento, cursor_entidade, staging_<entidade>, reconciliacao |
+
+> Premissa: produto, preço e estoque ficam no schema `catalogo` (dono da informação de produto) e o Vendedor consome via contrato. Se o tenant não tiver Catálogo, o Core expõe o cadastro mínimo de produto para o seletor do pedido — **decisão a confirmar em ADR** (alternativa: produto no Core).
+
+## Segurança e não funcionais
+- JWT de acesso 15 min + refresh rotativo 30 dias; argon2; RBAC + escopo de carteira + licença de módulo em toda rota.
+- RLS por `tenant_id` em todos os schemas; teste automático de vazamento entre tenants por módulo.
+- App abre em < 2 s; busca offline < 300 ms; API p95 < 300 ms; Android 10+.
+- LGPD: localização só em check-in/checkout com consentimento; fotos sem rostos como orientação; exportação e exclusão por tenant.
+- Observabilidade: logs pino com `tenant_id`, `modulo`, `request_id`; Sentry; métricas de sync e integração.
+- Backups diários, retenção 30 dias; RPO 24 h, RTO 4 h.

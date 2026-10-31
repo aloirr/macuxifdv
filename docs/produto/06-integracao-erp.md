@@ -1,0 +1,48 @@
+# 06 — Integração com o ERP do cliente
+
+## Sua proposta
+Banco em nuvem do Macuxi conectando-se ao banco do cliente via API REST, extraindo todos os dados necessários.
+
+## Crítica
+| Ponto | Risco | Recomendação |
+|---|---|---|
+| **REST como padrão** | Correto: é universal, fácil de testar, documentar (OpenAPI) e proteger. | **Manter REST** — mas com o Macuxi como **dono do contrato** (Hub de Integração), não adaptando o Macuxi a cada API de cliente. |
+| **Quem expõe a API?** | A maioria dos ERPs instalados localmente não tem API REST; pedir ao cliente para criar uma atrasa a venda em meses. | **Conector Macuxi** instalado no servidor do cliente, que lê o banco do ERP (views SQL somente leitura) e **empurra** os dados ao Hub. |
+| **Nuvem acessando o banco do cliente** | Exige abrir firewall/VPN, expõe o banco na internet, trava em TI do cliente. | Conexão **sempre de saída** (do cliente para a nuvem, HTTPS 443). Nada de porta aberta no cliente. |
+| **"Extrair todos os dados"** | Cargas completas repetidas são lentas, caras e pesam no ERP. | **Delta**: carga inicial completa uma vez; depois só o que mudou (data de alteração/rowversion), mais reconciliação diária por contagem e totais. |
+| **ERPs na nuvem** | Já têm API própria. | **Adaptador nuvem-a-nuvem** no Hub (o Hub chama a API do ERP), sem Conector. |
+| **Clientes pequenos** | Sem TI, sem servidor. | **Carga por arquivo** (Excel/CSV no BKO ou SFTP) com modelo padrão. |
+
+**Conclusão**: REST sim, em três caminhos sobre o **mesmo contrato canônico** — Conector (padrão), API nuvem-a-nuvem e arquivo.
+
+## Fluxos
+```
+ERP local ──views SQL──► Conector ──HTTPS POST /integracao/v1/lotes──► Hub ──► staging ──validação──► schemas dos módulos ──► eventos ──► apps
+ERP local ◄──tabela de entrada/API do ERP── Conector ◄──GET /integracao/v1/pedidos/pendentes── Hub ◄── pedidos aprovados
+                                            Conector ──POST /integracao/v1/pedidos/{id}/retorno (nº ERP, status, faturamento)──► Hub
+```
+
+## Contrato canônico (entidades e frequência sugerida)
+| Entidade | Direção | Frequência | Observação |
+|---|---|---|---|
+| Clientes, contatos, carteira | ERP → Macuxi | 1 h | carteira pode ser mantida no Macuxi se o ERP não tiver |
+| Produtos, categorias, marcas | ERP → Macuxi | 1 h | conteúdo rico (fotos, argumentos) é do Macuxi |
+| Tabelas de preço | ERP → Macuxi | 15 min | vigência |
+| Estoque por depósito | ERP → Macuxi | 5–15 min | só saldo; reservas são do Macuxi |
+| Financeiro (limite, saldo) e títulos | ERP → Macuxi | 1 h | títulos abertos + baixados recentes |
+| Condições de pagamento | ERP → Macuxi | diário | |
+| Faturamento / devoluções | ERP → Macuxi | 15 min | alimenta metas e status |
+| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID |
+| Retorno do pedido (nº ERP, status, nota) | ERP → Macuxi | contínuo | |
+
+## Regras técnicas
+- **Lote**: `POST /integracao/v1/lotes` com `entidade`, `modo` (completo | delta), `cursor`, até 5.000 registros; resposta 202 com id do lote; processamento assíncrono em staging; resultado por linha.
+- **Idempotência**: chave `external_id` + hash do registro; reenvio não duplica.
+- **Validação** com os schemas Zod de `modules/integracao/contracts`; linhas com erro vão para `lote_linha_erro` com motivo legível no BKO; não travam o lote inteiro.
+- **Segurança**: credencial por Conector (OAuth2 client credentials ou chave de API rotacionável), escopo por tenant, opção de lista de IPs; usuário do banco do ERP **somente leitura nas views** (e escrita só na tabela de entrada de pedidos).
+- **Resiliência**: Conector com fila local em disco, reenvio com backoff, sinal de vida a cada 1 min; alerta no BKO se ficar 15 min sem sinal.
+- **Mapeamento**: tela no BKO para de-para de códigos (condição de pagamento, depósito, status).
+- **Views-modelo**: `db/conector/views-modelo.sql` com as colunas esperadas por entidade — o técnico do cliente adapta o `SELECT` ao ERP dele.
+
+## Conector Macuxi
+Node + TypeScript empacotado como executável e serviço Windows; configuração por arquivo + tela local simples; drivers SQL Server, PostgreSQL, Oracle, MySQL e Firebird (prioridade pela base de clientes); atualização automática; logs locais por 30 dias.

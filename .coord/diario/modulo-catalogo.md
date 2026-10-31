@@ -1,0 +1,2 @@
+# Diário — modulo-catalogo
+
