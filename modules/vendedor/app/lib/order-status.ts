@@ -2,6 +2,7 @@
  * Apresentação de status de pedido (rótulos vêm de @fv/domain; aqui só cor e filtro da lista).
  */
 import { ORDER_STATUS_LABEL, type OrderStatus } from '../../contracts';
+import { normalizarStatus } from '../../domain/order';
 
 export interface BadgeStyle {
   label: string;
@@ -28,7 +29,8 @@ const STYLE: Record<OrderStatus, { fg: string; bg: string }> = {
 const LABEL_OVERRIDE: Record<string, string> = { cancelled: 'Excluído', edited: 'Editado' };
 const EVENT_STYLE: Record<string, { fg: string; bg: string }> = { edited: { fg: '#8F3D06', bg: '#FBE9DC' } };
 
-export function statusBadge(status: string): BadgeStyle {
+export function statusBadge(statusErp: string): BadgeStyle {
+  const status = normalizarStatus(statusErp);
   const extra = EVENT_STYLE[status];
   if (extra) return { label: LABEL_OVERRIDE[status] ?? status, ...extra };
   const s = (status in STYLE ? status : 'received') as OrderStatus;
