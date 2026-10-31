@@ -4,11 +4,11 @@
 
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
-| [T-0001](tarefas/T-0001.md) | Reestruturar o monorepo em modules/ + platform-sdk | engenheiro-software | local | em_andamento (A/B/C/A2/B2/A3 ✅ · 2 testes da outbox recuperados · próximo: D (testes) · pendente: vendedor migrar para ctx.http e engenheiro tirar a ponte) |
-| [T-0002](tarefas/T-0002.md) | Banco: schemas plataforma e core, RLS e migrações | banco-dados | local | em_andamento (migrações, RLS, seed e fixture ✅ · db no workspace ✅ · Docker ✅ respondendo · próximo: rodar no Docker + vazamento) |
+| [T-0001](tarefas/T-0001.md) | Reestruturar o monorepo em modules/ + platform-sdk | engenheiro-software | local | em_revisao (D ✅ 277/277 · Fase M intacta · fronteiras ✅ · rodando: revisão final do engenheiro) |
+| [T-0002](tarefas/T-0002.md) | Banco: schemas plataforma e core, RLS e migrações | banco-dados | local | em_teste (critérios 1–3 ✅ no Docker · 74 testes de banco, 0 pulados · vazamento verde · falta: validação do testes e revisão do engenheiro) |
 | [T-0003](tarefas/T-0003.md) | Auth, perfis e licenças de módulos | modulo-core | local | em_andamento (Fase 1 ✅ · Fase 2 aguarda T-0002 e T-0004) |
 | [T-0004](tarefas/T-0004.md) | Shells mobile (campo/gestao), web e api montando módulos pelo manifesto | engenheiro-software | local | aberta |
-| [T-0005](tarefas/T-0005.md) | CI e verificação de donos | engenheiro-software | local (CI `.github/`, engenheiro) | em_andamento (verificar/settings/entrega ✅ via nuvem, merge 23b4192 · falta: CI no `ci.yml`) |
+| [T-0005](tarefas/T-0005.md) | CI e verificação de donos | engenheiro-software | local (CI `.github/`, engenheiro) | em_teste (verificar/settings/entrega ✅ via nuvem · CI ✅ local · falta: primeiro run real no GitHub) |
 | [T-0006](tarefas/T-0006.md) | Plano de testes da fundação | testes | local | em_andamento (plano entregue; execução aguarda T-0001..T-0005) |
 
 ## Travado pela nuvem
@@ -32,7 +32,7 @@ Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho
 |---|---|---|---|---|
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | local (candidata à nuvem após fechar a T-0001) | aberta |
 | [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho | engenheiro-software | local (desenho candidato à nuvem após a A3) | aberta |
-| [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | nuvem (merge 3352d2e) | em_revisao (domínio/contratos/manifesto entregues; aguarda revisão do engenheiro e `ambiente.ts` no platform-sdk) |
+| [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (147 testes · revisão sem 🔴 · 4 decisões de regra aguardam o Alexandre como premissas) |
 
 ## Próximas sprints
 Ver `docs/produto/05-roadmap.md`.
