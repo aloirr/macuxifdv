@@ -14,7 +14,13 @@ export type ProductPrice = z.infer<typeof ProductPrice>;
 
 // ---------- estoque (deposito, estoque_saldo) ----------
 /** Saldo de estoque por filial/depósito (na Fase M cada filial é um depósito). */
-export const StockByBranch = z.object({ branch_id: Id, branch_name: z.string(), quantity: z.number().int() });
+export const StockByBranch = z.object({
+  branch_id: Id,
+  branch_name: z.string(),
+  quantity: z.number().int(),
+  /** Hora da última atualização do saldo (ISO UTC; RF-CAT-03). Opcional: contratos antigos não traziam. */
+  updated_at: z.string().datetime().nullable().optional(),
+});
 export type StockByBranch = z.infer<typeof StockByBranch>;
 
 export const ProductStock = z.object({ product_id: Id, stock_total: z.number().int(), stock: z.array(StockByBranch) });
@@ -45,3 +51,5 @@ export type ProductListQuery = z.infer<typeof ProductListQuery>;
 /** Sugestão de mix para o cliente (GET /customers/:id/mix-suggestions): produto com preço/estoque e motivo. */
 export const MixSuggestion = z.object({ product: Product, reason: z.string() });
 export type MixSuggestion = z.infer<typeof MixSuggestion>;
+
+export * from './busca';
