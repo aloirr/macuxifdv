@@ -31,3 +31,4 @@
 2026-10-31 — T-0010 — 🟡 corrigidos pelo promotor; T-0010 concluída; entrega + 4 decisões de regra ao Alexandre
 2026-10-31 — T-0002 — rodada no Docker: critérios 1–3 cumpridos, vazamento verde (74/74); em_teste
 2026-10-31 — T-0001 — Fase D recebida (C1 277/277, C2 pasta intacta, C3 fronteiras); em_revisao
+2026-10-31 — T-0009 — aberta (RN-INT-01..09 registradas no doc 03), delegada ao modulo-integracao; entregue com 97 testes; recados de entrega, revisão e eventos novos enviados; em revisão

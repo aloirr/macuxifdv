@@ -32,6 +32,7 @@ Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho
 |---|---|---|---|---|
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | local (candidata à nuvem após fechar a T-0001) | aberta |
 | [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho | engenheiro-software | local (desenho candidato à nuvem após a A3) | aberta |
+| [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | em_revisao (desenho/contratos/domínio entregues, 98 testes; aguarda revisão do engenheiro e registro de 2 eventos) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (147 testes · revisão sem 🔴 · 4 decisões de regra aguardam o Alexandre como premissas) |
 
 ## Próximas sprints
