@@ -1,4 +1,5 @@
 /** Checklist do dia por loja (RF-PRO-02) e bloqueio de checkout (RN-PRO-06). */
+import type { ContextoCheckout } from '@macuxi/core/contracts';
 import { arredondar } from './numeros';
 
 export interface EtapaChecklist {
@@ -40,16 +41,15 @@ export interface AvaliacaoCheckout {
 }
 
 /**
- * RN-PRO-06: o checkout exige as etapas obrigatórias do checklist, exceto "loja fechada" ou "acesso negado",
- * que exigem a foto da fachada (e dispensam o checklist).
+ * RN-PRO-06: o checkout exige as etapas obrigatórias do checklist da loja, exceto cliente fechado.
+ * A regra de cliente fechado (motivos, foto da fachada) é única e vive no core (RN-CORE-14): aqui só se
+ * consome `clienteFechado` do `ContextoCheckout`; a exigência da foto é validada pelo core.
  */
-export function avaliarCheckout(e: { desfecho: DesfechoVisita; etapas: readonly EtapaChecklist[]; tem_foto_fachada: boolean }): AvaliacaoCheckout {
-  if (e.desfecho === 'loja_fechada' || e.desfecho === 'acesso_negado') {
-    if (!e.tem_foto_fachada) {
-      return { pode: false, pendentes: [], motivo_bloqueio: 'Tire a foto da fachada para registrar loja fechada ou acesso negado.' };
-    }
-    return { pode: true, pendentes: [], motivo_bloqueio: null };
-  }
+export function avaliarCheckout(e: {
+  contexto: Pick<ContextoCheckout, 'clienteFechado' | 'motivoClienteFechado'>;
+  etapas: readonly EtapaChecklist[];
+}): AvaliacaoCheckout {
+  if (e.contexto.clienteFechado === true) return { pode: true, pendentes: [], motivo_bloqueio: null };
   const pendentes = progressoChecklist(e.etapas).obrigatorias_pendentes.map((x) => x.rotulo);
   if (pendentes.length > 0) {
     return { pode: false, pendentes, motivo_bloqueio: `Faltam etapas obrigatórias: ${pendentes.join('; ')}. Conclua-as para fazer o checkout.` };

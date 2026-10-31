@@ -20,9 +20,12 @@ describe('RF-PRO-02: checklist do dia por loja', () => {
   });
 });
 
+const aberto = { clienteFechado: false, motivoClienteFechado: null } as const;
+const fechado = (motivo: 'loja_fechada' | 'acesso_negado') => ({ clienteFechado: true, motivoClienteFechado: motivo }) as const;
+
 describe('RN-PRO-06: checkout exige as etapas obrigatórias', () => {
   it('bloqueia o checkout com etapa obrigatória pendente e diz qual é', () => {
-    const r = avaliarCheckout({ desfecho: 'realizada', etapas, tem_foto_fachada: false });
+    const r = avaliarCheckout({ contexto: aberto, etapas });
     expect(r.pode).toBe(false);
     expect(r.pendentes).toEqual(['Medir o share de massas']);
     expect(r.motivo_bloqueio).toMatch(/Medir o share de massas/);
@@ -31,25 +34,22 @@ describe('RN-PRO-06: checkout exige as etapas obrigatórias', () => {
 
   it('libera o checkout quando só faltam etapas opcionais', () => {
     const ok = etapas.map((e) => (e.obrigatoria ? { ...e, concluida: true } : e));
-    expect(avaliarCheckout({ desfecho: 'realizada', etapas: ok, tem_foto_fachada: false })).toMatchObject({ pode: true, pendentes: [], motivo_bloqueio: null });
+    expect(avaliarCheckout({ contexto: aberto, etapas: ok })).toMatchObject({ pode: true, pendentes: [], motivo_bloqueio: null });
   });
 
-  it('RN-PRO-06: loja fechada com foto da fachada libera o checkout mesmo com etapas pendentes', () => {
-    expect(avaliarCheckout({ desfecho: 'loja_fechada', etapas, tem_foto_fachada: true }).pode).toBe(true);
+  it('RN-PRO-06 + RN-CORE-14: loja fechada dispensa as etapas obrigatórias', () => {
+    expect(avaliarCheckout({ contexto: fechado('loja_fechada'), etapas })).toMatchObject({ pode: true, pendentes: [] });
   });
 
-  it('RN-PRO-06: acesso negado com foto da fachada libera o checkout', () => {
-    expect(avaliarCheckout({ desfecho: 'acesso_negado', etapas, tem_foto_fachada: true }).pode).toBe(true);
+  it('RN-PRO-06 + RN-CORE-14: acesso negado dispensa as etapas obrigatórias', () => {
+    expect(avaliarCheckout({ contexto: fechado('acesso_negado'), etapas }).pode).toBe(true);
   });
 
-  it('RN-PRO-06: loja fechada/acesso negado sem foto da fachada bloqueia, pedindo a foto', () => {
-    const r = avaliarCheckout({ desfecho: 'loja_fechada', etapas, tem_foto_fachada: false });
-    expect(r.pode).toBe(false);
-    expect(r.motivo_bloqueio).toMatch(/foto da fachada/i);
-    expect(avaliarCheckout({ desfecho: 'acesso_negado', etapas, tem_foto_fachada: false }).pode).toBe(false);
+  it('RN-PRO-06: contexto sem o campo clienteFechado (montado à mão) conta como cliente aberto', () => {
+    expect(avaliarCheckout({ contexto: {}, etapas }).pode).toBe(false);
   });
 
   it('RN-PRO-06: sem checklist cadastrado o checkout é livre', () => {
-    expect(avaliarCheckout({ desfecho: 'realizada', etapas: [], tem_foto_fachada: false }).pode).toBe(true);
+    expect(avaliarCheckout({ contexto: aberto, etapas: [] }).pode).toBe(true);
   });
 });

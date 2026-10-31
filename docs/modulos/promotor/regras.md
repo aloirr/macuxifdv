@@ -58,7 +58,7 @@ Convenções: percentuais com 2 casas (meio para cima); dinheiro em centavos int
 
 ## 8. Checklist do dia e checkout — RF-PRO-02, RN-PRO-06 (`checklist.ts`)
 - `progressoChecklist`: concluídas × pendentes, obrigatórias pendentes e % concluído (checklist vazio = 100%).
-- `avaliarCheckout`: **bloqueia** se faltam etapas obrigatórias (mensagem lista as etapas e diz "Conclua-as para fazer o checkout"). **Exceção**: desfecho `loja_fechada` ou `acesso_negado` libera o checkout sem checklist, mas **exige a foto da fachada** (sem ela, bloqueia pedindo a foto). Ex.: obrigatória "Medir o share de massas" pendente → bloqueado; loja fechada com fachada → liberado.
+- `avaliarCheckout({ contexto, etapas })`: **bloqueia** se faltam etapas obrigatórias (mensagem lista as etapas e diz "Conclua-as para fazer o checkout"). **Exceção**: `contexto.clienteFechado = true` (`ContextoCheckout` de `@macuxi/core/contracts`) dispensa o checklist. A regra de cliente fechado (motivos `loja_fechada`/`acesso_negado`, foto da fachada obrigatória) é **única e vive no core (RN-CORE-14)**; o Promotor só consome e não valida a fachada. Ex.: obrigatória "Medir o share de massas" pendente → bloqueado; `clienteFechado` → liberado.
 
 ## 9. Vigência — RN-PRO-10 (`vigencia.ts`)
 - `vigenteEm(v, data)`: início ≤ data ≤ fim (inclusivos; fim `null` = sem prazo). `versaoVigente(versoes, data)`: a de início mais recente entre as vigentes. A coleta grava o id da versão vigente no momento (checklist, mix, meta, foto de referência) — campos `*_id` em `contracts/coletas.ts`.
