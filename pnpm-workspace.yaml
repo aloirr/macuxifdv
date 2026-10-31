@@ -8,6 +8,7 @@ packages:
   - "apps/*"
   - "packages/*"
   - "modules/*"
+  - "db"
 
 # pnpm 11+: dependências autorizadas a rodar script de instalação
 allowBuilds:

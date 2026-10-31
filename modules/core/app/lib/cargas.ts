@@ -4,7 +4,7 @@
  * atendimento aberto vêm do REST da Fase M e são gravados no armazenamento do módulo (`ctx.armazenamento`).
  * Quando o pull genérico existir (T-0004), estas etapas saem e as entidades `cliente`, `rota`, `meta`… entram.
  */
-import { monthStart } from '@macuxi/ui/mobile';
+import { monthStart } from '@macuxi/ui/mobile/puro';
 import type { EtapaSync } from '@macuxi/platform-sdk';
 
 import type { CustomerSummary, OpenVisit, RouteDay, SellerGoals } from '../../contracts';

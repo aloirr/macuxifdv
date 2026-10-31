@@ -7,3 +7,9 @@ R-20261031-005818-modulo-gestor
 R-20261031-010132-modulo-treinamento
 R-20261031-010424-modulo-integracao
 R-20261031-010459-modulo-pesquisa
+R-20261031-023035-modulo-vendedor
+R-20261031-023432-modulo-core
+R-20261031-023717-gerente-projetos
+R-20261031-071538-modulo-core
+R-20261031-071648-gerente-projetos
+R-20261031-071811-gerente-projetos

@@ -4,7 +4,7 @@
  * só enquanto o pedido não está no ERP, e só com a permissão por ação do manifesto (ADR 0004).
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
-import { usePode } from '@macuxi/platform-sdk/react';
+import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Button, Card, colors, dateTimeLabel, fonts, Icon, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderEvent } from '../../contracts';
 import { sellerDiscountLimit } from '../../domain/order';
-import { ambienteVendedor } from '../ambiente';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { toDomainPolicy } from '../lib/catalog';
@@ -36,6 +35,7 @@ interface Line {
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const app = useVendedor();
+  const ambiente = useAmbiente();
   const { dados, pedidos: orders, fila, tz, offline, carregarPedido: loadOrder, reenviarFila, enviando: flushing } = app;
   const sheets = useAviso();
   const podeEditar = usePode('pedido.editar');
@@ -157,7 +157,7 @@ export default function OrderDetailScreen() {
         city: cu?.city ?? '',
         erp_code: cu?.erp_code ?? '',
       },
-      seller_name: mine?.name ?? (queued ? (ambienteVendedor()?.nomeDoUsuario() ?? '') : base!.seller_name),
+      seller_name: mine?.name ?? (queued ? (ambiente.usuario()?.nome ?? '') : base!.seller_name),
       payment_terms: terms,
       discount_pct: discountPct,
       items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents })),

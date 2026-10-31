@@ -16,6 +16,7 @@ import type {
   SellerGoals,
   Visit,
 } from '@macuxi/core/contracts';
+import { ErroHttp } from '@macuxi/platform-sdk';
 import type { CreateOrderRequest, CustomerDetail, DiscountPolicy, MixSuggestion, Order, OrderDetail, Product, UpdateOrderRequest } from '@macuxi/vendedor/contracts';
 
 export class HttpError extends Error {
@@ -45,7 +46,7 @@ export function isRetryable(e: unknown): boolean {
 }
 
 export function errorMessage(e: unknown): string {
-  if (e instanceof HttpError && e.code === 'file_locked') return 'Planilha aberta no Excel do servidor: o pedido ficou guardado e será reenviado.';
+  if ((e instanceof HttpError && e.code === 'file_locked') || (e instanceof ErroHttp && e.codigo === 'file_locked')) return 'Planilha aberta no Excel do servidor: o pedido ficou guardado e será reenviado.';
   if (e instanceof Error) return e.message;
   return String(e);
 }

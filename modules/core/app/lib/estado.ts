@@ -8,7 +8,7 @@
  * `me` é gravado pelo shell; as demais, pelas etapas de `cargas.ts` e pelas ações de visita abaixo.
  */
 import type { ItemOutbox, MotorSync } from '@macuxi/platform-sdk';
-import { DEFAULT_TZ } from '@macuxi/ui/mobile';
+import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
 
 import type { CustomerSummary, Me, OpenVisit, Receivable, RouteDay, SellerGoals } from '../../contracts';
 import type { LocalVisit } from './route';

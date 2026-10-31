@@ -2,7 +2,7 @@
 
 - **Status**: aceita
 - **Data**: 2026-10-31
-- **Tarefa**: T-0001 (Fase A2) · prepara T-0004
+- **Tarefa**: T-0001 (Fase A2; adendos da A3) · prepara T-0004 e T-0008
 - **Autor**: engenheiro-software
 
 ## Contexto
@@ -46,6 +46,41 @@ desativado de deixar dados no aparelho (RN-CORE-02). O mesmo vale para menus e a
   só ganha uma linha em `lib/modulos.ts` (instalação).
 - Enquanto `apps/api` não tem `/v1/sync/*`, o app usa o transporte `fase-m` (mapeia pedido/visita para o
   push legado do mock-api) e as `etapasSync` REST dos módulos; `EXPO_PUBLIC_SYNC=v1` liga o contrato novo.
-- Armazenamento chave→JSON (AsyncStorage) atende a Sprint 0; a troca por SQLite é só um adaptador.
+- Armazenamento chave→JSON (AsyncStorage) atende a Sprint 0; a troca por SQLite é só um adaptador
+  (gatilho e critérios no adendo "Troca do armazenamento" abaixo — T-0008).
 - Testes de componente montam o shell com `criarShell(...).montar(...)` + `ShellProvider` (registro
   injetável), sem rede nem aparelho.
+
+## Adendo 2026-10-31 (T-0001 A3) — ambiente do aparelho no contexto do SDK
+- `ContextoEtapaSync` estende `AmbienteAparelho` (`packages/platform-sdk/src/ambiente.ts`): as etapas recebem
+  `ctx.http` (`get`/`requisitar`, com a sessão do shell), `ctx.online()`, `ctx.novoId()` (UUID do aparelho) e
+  `ctx.usuario()`. As telas recebem o mesmo por `useAmbiente()`/`useHttp()` (`@macuxi/platform-sdk/react`) e
+  `motor.ambiente`/`motor.http`. O shell injeta o ambiente em `criarMotorSync({ ambiente })` e no `ShellProvider`.
+- Modo sem sinal: o `http` lança `ErroSemConexao` sem tocar a rede (nada sai do aparelho). Erro da API vira
+  `ErroHttp` (`status`, `codigo`, `detalhes`). Sem ambiente (antes do login, testes), vale o "indisponível":
+  offline e `http` falhando com mensagem em português.
+- Escrita de negócio continua pela fila (`enfileirar`); `requisitar` com POST/PUT é só para o que exige resposta
+  na hora (editar/cancelar pedido já enviado) e o módulo trata `ErroSemConexao`.
+- A outbox legada do shell (`apps/mobile/src/lib/outbox.ts`) saiu; 4 dos 6 casos da Fase M foram reescritos sobre o
+  motor (`motor-sync.fase-m.test.ts`) e os 2 de pedido foram para `modules/vendedor/app/lib`.
+- Alternativa descartada: um "ambiente" por módulo (`definirAmbienteVendedor`, estado global do módulo) — cada
+  módulo reinventaria sessão/sinal/UUID e o shell teria de conhecer todos. Fica só como ponte de transição até o
+  Vendedor migrar.
+
+## Adendo 2026-10-31 — Troca do armazenamento chave→JSON por SQLite com FTS5 (gatilho da T-0008)
+Decisão do Alexandre (R-20261031-021714): o armazenamento chave→JSON (AsyncStorage) não atende o volume e a busca
+offline do doc 04 (20 mil SKUs, 500 clientes, busca < 300 ms). A troca é feita na **T-0008 (Sprint 1)**, como novo
+adaptador de `ArmazenamentoSync`, sem mudar a interface do motor nem os módulos.
+
+- **Gatilho**: antes de o módulo Catálogo (busca offline) entrar no aparelho; a T-0008 é pré-requisito dele. Também
+  dispara antes se, na T-0004, a carga de produto/cliente no aparelho de teste travar a UI ou passar de 2 s para
+  abrir o app.
+- **O que muda**: adaptador SQLite (`expo-sqlite`) com uma tabela por entidade de sync (linhas indexadas por `id` e
+  `(updated_at, id)`), tabela da fila (outbox) e tabela chave→valor para o resto; índice **FTS5** para a busca
+  offline do Catálogo (sinônimos do tenant, correção de digitação e atributos — doc 04 "Busca"). O schema SQLite do
+  aparelho é desenhado com o banco-dados.
+- **O que não muda**: `ArmazenamentoSync`, `criarMotorSync`, `etapasSync`, `armazenamentoDoModulo` e RN-CORE-02
+  (dados de módulo desativado apagados junto). O chave→JSON fica para testes e para o navegador.
+- **Critérios (T-0008)**: carga de 20 mil SKUs e 500 clientes sem travar a UI; busca offline por texto < 300 ms;
+  os mesmos testes do motor verdes nos dois adaptadores (chave→JSON e SQLite).
+- Nova dependência (`expo-sqlite`) entra com este adendo; nenhuma biblioteca de sync pronta (ver Alternativas).

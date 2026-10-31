@@ -1,0 +1,37 @@
+{
+  "name": "@macuxi/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Banco do Macuxi FDV (dono: banco-dados): migrações up/down, RLS, papéis, seeds, fixture dois-tenants e utilitários de banco de teste.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./teste": "./src/teste/index.ts",
+    "./esquema/plataforma": "./esquema/plataforma.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "banco": "tsx scripts/banco.ts",
+    "banco:subir": "tsx scripts/banco.ts subir",
+    "banco:derrubar": "tsx scripts/banco.ts derrubar",
+    "migrar": "tsx scripts/banco.ts migrar up",
+    "migrar:desfazer": "tsx scripts/banco.ts migrar down",
+    "seed:fase-m": "tsx scripts/banco.ts seed fase-m",
+    "drizzle:rascunho": "drizzle-kit generate --config ../drizzle.config.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@macuxi/config": "workspace:*",
+    "@types/node": "^22.18.0",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

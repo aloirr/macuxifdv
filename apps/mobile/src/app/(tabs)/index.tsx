@@ -1,12 +1,13 @@
 /**
- * Início do shell: saudação, estado da fila e atalhos para as telas dos módulos efetivos.
- * Os cards de início dos módulos (extensão `inicio.cards` do core) entram na B2.
+ * Início do shell: saudação, estado da fila, cards dos módulos (slot `inicio.cards` do Core — ex.: "EM
+ * ATENDIMENTO" do Core) e atalhos para as telas dos módulos efetivos.
  */
 import { useMotorSync, useVisaoShell } from '@macuxi/platform-sdk/react';
 import { Banner, Card, Empty, firstName, Screen, SectionHeader, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { Pressable, Text } from 'react-native';
 
+import { CardsDoInicio } from '@/components/extensoes-shell';
 import { usePlataforma } from '@/state/plataforma';
 
 export default function Inicio() {
@@ -27,9 +28,10 @@ export default function Inicio() {
           Um módulo foi desativado e há itens não enviados. Veja em Perfil › Fila do aparelho.
         </Banner>
       ) : null}
+      <CardsDoInicio />
       <SectionHeader title="Seus módulos" />
       {visao.navegacao.length === 0 ? (
-        <Empty text="Nenhuma tela de módulo registrada ainda (as telas de Core e Vendedor entram na Fase B2 da T-0001)." />
+        <Empty text="Nenhuma tela de módulo disponível para o seu perfil nesta variante do app." />
       ) : (
         visao.navegacao.map((n) => (
           <Pressable key={n.testID} testID={`inicio-${n.testID}`} accessibilityRole="button" onPress={() => router.navigate(`/m/${n.caminho}` as never)}>

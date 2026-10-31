@@ -16,5 +16,14 @@
 2026-10-31 — T-0001 — B2 vendedor recebida (200/277); aguardando B2 core para a ligação nos shells
 2026-10-31 — T-0001/T-0002/T-0005 — recebido o pedido do Alexandre (prioridades e ADR-0005); doc 04, T-0002/4/5 atualizados; T-0007/T-0008 abertas; docs/backlog.md criado; aviso a todos
 2026-10-31 — T-0001/T-0002 — rodada (engenheiro A3, vendedor slots, banco infra) caiu por limite da API sem alterar arquivos; redisparada após o reset
+2026-10-31 — T-0001 — ajuste do vendedor recebido; T-0003 (domínio) disparada para o core
+2026-10-31 — frentes local × nuvem — doc 07, CLAUDE.md, coluna Onde no quadro, trava de scripts/coord*.mjs, aviso a todos
+2026-10-31 — frentes local × nuvem (versão revisada: merge automático, git automático, destrava no pull) — doc 07, CLAUDE.md, quadro 'Travado pela nuvem', aviso a todos
+2026-10-31 — T-0003 — Fase 1 recebida (domínio + contrato /v1/me/modulos)
+2026-10-31 — T-0001 — A3 recebida (275/277); vendedor disparado para os 2 testes restantes
+2026-10-31 — T-0002 — infra/migrações/RLS recebidos (71 verdes em PG provisório); engenheiro disparado para incluir db no workspace
+2026-10-31 — frentes (versão final): .claude/** travado, branches nuvem/alexandre/agente, push após merge da T-0005; Docker instalado; aviso a todos
+2026-10-31 — retomada após reinício — vendedor e engenheiro tinham parado no meio; raiz verde; commits T-0001 (A3 + vendedor), T-0002 (banco) e T-0003 (fase 1); Docker respondendo
+2026-10-31 — T-0005 — merge da nuvem recebido no pull (verificar --base, push liberado); caminhos destravados
 2026-10-31 — T-0010 — aberta e delegada ao modulo-promotor; entrega validada (lint, fronteiras, verificar, 131 testes; 2 arquivos dependem do ambiente.ts ausente); recados de entrega/revisão (de alexandre) e pedido ao engenheiro; PR para main
 2026-10-31 — T-0009 — aberta (RN-INT-01..09 registradas no doc 03), delegada ao modulo-integracao; entregue com 97 testes; recados de entrega, revisão e eventos novos enviados; em revisão

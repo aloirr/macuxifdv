@@ -2,3 +2,7 @@ export * from './analytics';
 export * from './incentive';
 export * from './visit';
 export * from './route';
+export * from './licencas';
+export * from './matriz';
+export * from './escopo';
+export * from './fila-modulo-desativado';

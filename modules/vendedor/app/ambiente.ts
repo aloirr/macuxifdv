@@ -1,4 +1,7 @@
 /**
+ * PONTE DE TRANSIÇÃO (obsoleta): o módulo já usa o ambiente do SDK (`ctx.http`, `useAmbiente()`); este arquivo só
+ * existe porque o shell (apps/mobile) ainda chama `definirAmbienteVendedor`. Sai quando o shell tirar a ponte.
+ *
  * Ambiente do aparelho que o shell entrega ao Vendedor: chamadas REST da Fase M (alçadas, carteira, tabela de
  * preços, pedidos do mês, editar/cancelar pedido já enviado), estado de sinal e gerador de UUID.
  *

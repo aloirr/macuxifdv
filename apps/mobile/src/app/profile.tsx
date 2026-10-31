@@ -11,6 +11,7 @@ import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
+import { ItensDoMenu } from '@/components/extensoes-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { usePlataforma } from '@/state/plataforma';
 
@@ -98,6 +99,8 @@ export default function ProfileScreen() {
           </View>
         </Card>
       </View>
+
+      <ItensDoMenu />
 
       {estado.limpezaPendente.map((modulo) => (
         <Card key={modulo} testID={`limpeza-${modulo}`} style={{ padding: 14, gap: 10 }}>

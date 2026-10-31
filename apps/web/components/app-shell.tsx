@@ -4,16 +4,20 @@
  * Layout do BKO (copiado de components/app-shell.tsx da Fase M). O menu deixou de ser fixo: vem do
  * registro dos módulos efetivos do usuário (lib/modulos.ts → `criarShell`), filtrado por perfil e por
  * permissão por ação (ADR 0004), mais as páginas da plataforma (Auditoria). Promotor e vendedor não
- * usam o BKO (Q6, doc 03). Cada item tem `data-testid` estável (`nav-<modulo>-<id>`).
+ * usam o BKO (Q6, doc 03). Cada item tem `data-testid` estável (`nav-<modulo>-<id>`). Itens do slot
+ * `menu.itens` do Core (`ItemMenu`, modules/core/contracts/extensoes.ts) entram no grupo "Mais".
+ * As páginas recebem o ambiente do navegador (`useHttp()`/`useAmbiente()` — lib/ambiente.ts).
  */
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { ItemMenu } from '@macuxi/core/contracts';
 import { perfilUsaApp, ROTULO_PERFIL, type Perfil, type VisaoShell } from '@macuxi/platform-sdk';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, cx, ErrorBlock, IconLogout, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { criarAmbienteWeb } from '@/lib/ambiente';
 import { SHELL_WEB, type ComponentePagina } from '@/lib/modulos';
 import { useMe, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
@@ -69,6 +73,8 @@ function gruposDoMenu(visao: VisaoShell<ComponentePagina>, perfil: Perfil | null
     grupos.set(n.grupo, lista);
   }
   const saida: { titulo: string; itens: NavItem[] }[] = [...grupos].map(([g, itens]) => ({ titulo: ROTULO_GRUPO[g as keyof typeof ROTULO_GRUPO], itens }));
+  const mais = visao.extensoes<ItemMenu>('menu.itens').map((i) => ({ href: `/${i.payload.caminho.replace(/^\/+/, '')}`, label: i.payload.rotulo, testId: i.payload.testID }));
+  if (mais.length > 0) saida.push({ titulo: 'Mais', itens: mais });
   const plataforma = PLATAFORMA.filter((p) => perfil && p.perfis.includes(perfil));
   if (plataforma.length > 0) saida.push({ titulo: 'Plataforma', itens: plataforma });
   return saida;
@@ -88,6 +94,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [session.status, router, pathname]);
 
   const visao = useMemo(() => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'] }), [perfil, modulos.data]);
+  const usuario = session.user;
+  const ambiente = useMemo(() => criarAmbienteWeb(() => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null)), [usuario]);
 
   const switchProfile = () => {
     encerrarSessao();
@@ -171,7 +179,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : modulos.isError ? (
           <ErrorBlock message={errorMessage(modulos.error)} onRetry={() => void modulos.refetch()} />
         ) : (
-          <ShellProvider visao={visao as VisaoShell<unknown>}>{children}</ShellProvider>
+          <ShellProvider visao={visao as VisaoShell<unknown>} ambiente={ambiente}>
+            {children}
+          </ShellProvider>
         )}
       </main>
     </div>

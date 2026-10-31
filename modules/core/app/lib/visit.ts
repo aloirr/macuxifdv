@@ -3,7 +3,7 @@
  * Pura. A regra em si (um check-in aberto por vendedor, fechamento na virada do dia) vem de modules/core/domain.
  */
 import { formatBRL } from '@macuxi/comum';
-import { DEFAULT_TZ } from '@macuxi/ui/mobile';
+import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
 
 import type { OpenVisit, Visit } from '../../contracts';
 import { autoCheckoutAt, findOpenVisit, isVisitOpen, visitDuration } from '../../domain';
