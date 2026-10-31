@@ -1,5 +1,7 @@
 /**
  * T-0003 C3.3 "promotor não vê nenhuma ação de pedido" — lado UI (RN-PRO-01), cenários S0-061, S0-062 e S0-066.
+ * T-0015 (O-3, doc 03 §2 "Ver pedidos": promotor = carteira, leitura): o promotor PODE `pedido.ver` (somente leitura,
+ * quando tem o Vendedor) e NUNCA pode uma ação de ESCRITA de pedido (criar, editar, cancelar, excluir, aprovar, em nome).
  *
  * - BKO: o shell web REAL (apps/web/lib/modulos.ts, com as páginas reais dos 8 módulos) e o veto de perfil do login.
  * - App Campo: o shell mobile importa React Native e não roda em Node; por isso as páginas e extensões do Vendedor são
@@ -14,7 +16,7 @@ import { manifest as catalogo } from '@macuxi/catalogo/manifest';
 import { manifest as core } from '@macuxi/core/manifest';
 import { manifest as promotor } from '@macuxi/promotor/manifest';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
-import { criarShell, ehAcaoDePedido, mensagemPerfilForaDoApp, type ModuloShell, type PaginaShell } from '@macuxi/platform-sdk';
+import { criarShell, ehAcaoDeEscritaDePedido, ehAcaoDeLeituraDePedido, ehAcaoDePedido, mensagemPerfilForaDoApp, type ModuloShell, type PaginaShell } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { SHELL_WEB } from '../../apps/web/lib/modulos';
 
@@ -22,6 +24,8 @@ const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
 const TODOS = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const;
 const ACOES_DE_PEDIDO = Object.keys(vendedor.acoes).filter(ehAcaoDePedido);
+/** RN-PRO-01: o que o promotor nunca pode. A leitura (`pedido.ver`) é liberada pela matriz §2 (O-3). */
+const ACOES_DE_ESCRITA = ACOES_DE_PEDIDO.filter(ehAcaoDeEscritaDePedido);
 
 interface ItemLido {
   tipo: 'pagina' | 'extensao';
@@ -69,10 +73,17 @@ describe('C3.3 no BKO (shell web real)', () => {
     expect(ler('apps/web/components/login-screen.tsx')).toMatch(/mensagemPerfilForaDoApp\(sessao\.usuario\.perfil, 'web'\)[\s\S]{0,400}\/auth\/logout/);
   });
 
-  it('S0-066: mesmo que o promotor chegasse ao shell com TODOS os módulos ativos, nenhuma ação de pedido é permitida', () => {
+  it('manifesto do Vendedor (O-3): a única ação de leitura é pedido.ver, com o promotor; nenhuma ação de escrita tem o promotor', () => {
+    expect(ACOES_DE_PEDIDO.filter(ehAcaoDeLeituraDePedido)).toEqual(['pedido.ver']);
+    expect(vendedor.acoes['pedido.ver']!.perfis).toContain('promotor');
+    expect(ACOES_DE_ESCRITA).toEqual(expect.arrayContaining(['pedido.criar', 'pedido.editar', 'pedido.cancelar', 'pedido.excluir', 'pedido.aprovar', 'pedido.criar_em_nome']));
+    for (const a of ACOES_DE_ESCRITA) expect(vendedor.acoes[a]!.perfis, a).not.toContain('promotor');
+  });
+
+  it('S0-066: mesmo que o promotor chegasse ao shell com TODOS os módulos ativos, nenhuma ação de ESCRITA de pedido é permitida', () => {
     const v = SHELL_WEB.montar({ perfil: 'promotor', modulosAtivos: [...TODOS] });
-    for (const a of ACOES_DE_PEDIDO) expect(v.pode(a), a).toBe(false);
-    expect(v.navegacao.filter((n) => n.pagina.acao && ehAcaoDePedido(n.pagina.acao))).toEqual([]);
+    for (const a of ACOES_DE_ESCRITA) expect(v.pode(a), a).toBe(false);
+    expect(v.navegacao.filter((n) => n.pagina.acao && ehAcaoDeEscritaDePedido(n.pagina.acao))).toEqual([]);
     // controle positivo: o analista pode criar pedido no mesmo shell
     expect(SHELL_WEB.montar({ perfil: 'analista', modulosAtivos: [...TODOS] }).pode('pedido.criar')).toBe(true);
   });
@@ -89,7 +100,7 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     expect(acoes.length).toBeGreaterThanOrEqual(4);
     for (const i of acoes) {
       expect(i.acao, `${i.tipo} ${i.id}`).toBeDefined();
-      expect(ehAcaoDePedido(i.acao!), `${i.tipo} ${i.id}`).toBe(true);
+      expect(ehAcaoDeEscritaDePedido(i.acao!), `${i.tipo} ${i.id}`).toBe(true);
       expect(vendedor.acoes[i.acao!]!.perfis, `${i.tipo} ${i.id}`).not.toContain('promotor');
     }
   });
@@ -108,20 +119,36 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     expect(v.pagina('novo-pedido')).toBeNull();
     expect(v.extensoes('cliente.acoes')).toEqual([]);
     expect(v.extensoes('cliente.abas')).toEqual([]);
-    for (const a of ACOES_DE_PEDIDO) expect(v.pode(a), a).toBe(false);
+    for (const a of ACOES_DE_ESCRITA) expect(v.pode(a), a).toBe(false);
+    expect(v.pode('pedido.ver')).toBe(true); // O-3: leitura liberada
     // controle positivo: o vendedor vê tudo
     const vend = shellCampo().montar({ perfil: 'vendedor', modulosAtivos: ['core', 'catalogo', 'vendedor'] });
     expect(vend.pagina('novo-pedido')).not.toBeNull();
     expect(vend.extensoes('cliente.acoes').map((e) => e.id)).toEqual(['novo-pedido']);
   });
 
-  // OBSERVAÇÃO O-3 (relatório): se o admin licenciar o Vendedor para o PERFIL promotor (a rota de licenças permite),
-  // o app Campo mostra a aba "Pedidos" (lista e detalhe, SEM botões de ação), enquanto a API recusa ao promotor até a
-  // leitura de pedido (createApp veta todo caminho de pedido). Não há ação exposta (C3.3 ok), mas a aba abre vazia/erro.
-  it('O-3: promotor com o Vendedor licenciado vê a aba Pedidos só de leitura (sem nenhuma ação)', () => {
+  // O-3 RESOLVIDO (T-0015; doc 03 §2 e esclarecimento abaixo da matriz): com o Vendedor licenciado o promotor vê a aba
+  // "Pedidos" só de leitura (lista e detalhe), e a API agora responde a leitura na carteira (200) e 404 fora dela
+  // (tests/integracao/api/promotor-pedido.test.ts). Escrita: nenhuma, nem na UI nem na API.
+  it('O-3: promotor com o Vendedor licenciado vê a aba Pedidos e o detalhe, só de leitura (sem nenhuma ação de escrita)', () => {
     const v = shellCampo().montar({ perfil: 'promotor', modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor'] });
     expect(v.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo)).toEqual(['Pedidos']);
-    expect(v.navegacao.every((n) => !n.pagina.acao || !ehAcaoDePedido(n.pagina.acao))).toBe(true);
+    expect(v.pagina('pedidos')).not.toBeNull();
+    expect(v.pagina('pedido')).not.toBeNull();
+    expect(v.navegacao.every((n) => !n.pagina.acao || !ehAcaoDeEscritaDePedido(n.pagina.acao))).toBe(true);
+  });
+
+  it('O-3 / RN-PRO-01: o detalhe do pedido fica somente leitura sem permissão de escrita (botões não renderizam)', () => {
+    const detalhe = ler('modules/vendedor/app/screens/order-detail-screen.tsx');
+    expect(detalhe).toMatch(/pedidoSomenteLeitura\(\{ criar: podeCriar, editar: podeEditar, cancelar: podeCancelar \}\)/);
+    expect(detalhe).toMatch(/\{somenteLeitura \? null : \(/);
+    const lib = ler('modules/vendedor/app/lib/somente-leitura.ts');
+    expect(lib).toContain('!pode.criar && !pode.editar && !pode.cancelar');
+  });
+
+  it('S0-061 sem o Vendedor: o promotor não pode nem pedido.ver (módulo inativo)', () => {
+    const v = shellCampo().montar({ perfil: 'promotor', modulosAtivos: ['core', 'promotor'] });
+    for (const a of ACOES_DE_PEDIDO) expect(v.pode(a), a).toBe(false);
   });
 
   it('S0-061: na licença padrão o promotor não tem o Vendedor, e o app não monta nada do Vendedor', () => {

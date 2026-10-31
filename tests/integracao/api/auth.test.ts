@@ -216,6 +216,7 @@ describe.skipIf(semBanco())('S0-073 — logs sem dado pessoal (regra 8), com o l
       } finally {
         await api.fechar();
       }
-    });
+      // cria o banco efêmero (migrações + fixture) DENTRO do teste: com a raiz inteira rodando em paralelo passa de 30 s
+    }, 120_000);
   }
 });

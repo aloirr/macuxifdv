@@ -23,6 +23,9 @@ import {
   type PaginaSync,
   type ResultadoItemPush,
   type TransporteSync,
+  MENSAGEM_PULL_INDISPONIVEL,
+  rotuloDoItem,
+  SYNC_NAO_IMPLEMENTADO,
 } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -254,14 +257,30 @@ describe.skipIf(semBanco())('C3.1 com o registro de sync que o app Campo declara
     }
   });
 
-  // DEFEITO D-2 (relatório; recado ao engenheiro-software): o "Sincronizar" do app Campo na API real termina em erro,
-  // porque o pull de `pedido`/`visita` responde 501 e o motor para no primeiro erro. Quando houver provedor (ou o
-  // motor/registro tratar a entidade sem provedor), este teste fica vermelho de propósito — troque por `it`.
-  it.fails('DEFEITO D-2: o sync completo do app Campo termina sem erro na API real', async () => {
+  // D-2 (corrigido no motor e na API, ADR 0009 §7; recado R-20261031-163405): entidade do manifesto de módulo ativo
+  // sem provedor no servidor → pull 501 `SYNC_NAO_IMPLEMENTADO` vira AVISO (cursor intacto) e o sync termina; o push
+  // dela volta `rejeitado/SYNC_NAO_IMPLEMENTADO` e o item fica `pendente` na fila. O pull real de visita/pedido vem na T-0018.
+  it('D-2: o "Sincronizar" do app Campo termina sem erro; entidade sem provedor vira aviso e o item fica pendente', async () => {
     const t = (await api.sessao('vendedor2@exemplo.com.br')).access_token;
     const motor = novoMotor(t);
+    const id = '0e000000-0000-4000-8000-0000000000d2';
+    await motor.enfileirar({ id, entidade: 'pedido', payload: { id } });
     const ok = await sincronizarComoOShell(motor, t);
-    expect(motor.estado().erro).toBeNull();
+    const e = motor.estado();
+    expect(e.erro).toBeNull();
     expect(ok).toBe(true);
+    expect(e.sincronizado_em).not.toBeNull();
+    // sem provedor de pull de pedido (nem de visita, hoje): aviso, não erro
+    expect(e.avisos.map((a) => a.entidade)).toContain('pedido');
+    for (const a of e.avisos) expect(a).toMatchObject({ codigo: SYNC_NAO_IMPLEMENTADO, mensagem: MENSAGEM_PULL_INDISPONIVEL });
+    expect(await motor.linhas('pedido')).toEqual([]);
+    // o pedido feito no aparelho continua na fila, pendente, com o código retentável e o rótulo de "na fila"
+    const naFila = e.fila.find((i) => i.id === id);
+    expect(naFila, 'o item continua na fila').toBeDefined();
+    expect(naFila).toMatchObject({ situacao: 'pendente', codigo: SYNC_NAO_IMPLEMENTADO, tentativas: 1 });
+    expect(rotuloDoItem(naFila!)).toBe('na fila — envio ainda não disponível no servidor');
+    // o próximo sync tenta de novo, sem erro e sem duplicar o item
+    expect(await sincronizarComoOShell(motor, t)).toBe(true);
+    expect(motor.estado().fila.filter((i) => i.id === id)).toMatchObject([{ situacao: 'pendente', tentativas: 2 }]);
   });
 });

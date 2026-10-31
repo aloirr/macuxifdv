@@ -73,7 +73,7 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     expect(pull.statusCode).toBe(403);
     expect(erroDe(pull)).toMatchObject({ codigo: 'MODULO_INATIVO', detalhes: { modulo: 'promotor' } });
     // push de item do módulo desligado: rejeitado por item (nunca aceito nem descartado em silêncio). O código
-    // certo (MODULO_INATIVO) está no teste "DEFEITO D-1" abaixo.
+    // (MODULO_INATIVO, D-1 corrigido na T-0015) está no teste "D-1 / S0-048" abaixo.
     const push = await api.chamar(promotor, { method: 'POST', url: '/v1/sync/push', payload: { itens: [itemChecklist] } });
     expect(push.statusCode, push.body).toBe(200);
     expect(push.json().resultados).toEqual([expect.objectContaining({ id: itemChecklist.id, status: 'rejeitado' })]);
@@ -84,20 +84,23 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     expect(religado.versao_licencas).toBe(antes.versao_licencas);
   });
 
-  // DEFEITO D-1 (relatório da Sprint 0; recado ao engenheiro-software): entidade do manifesto de um módulo INATIVO
-  // que ainda não tem provedor no servidor volta ENTIDADE_DESCONHECIDA, e não MODULO_INATIVO (desenho T-0004 §5;
-  // o pull já usa o dono pelo manifesto). No app o item vira "falhou" em vez de "não enviado — módulo desativado"
-  // e não volta sozinho para a fila quando o módulo é religado. `it.fails`: quando corrigirem, este teste fica
-  // vermelho de propósito — troque por `it`.
-  it.fails('DEFEITO D-1 / S0-048: push de entidade de módulo inativo deveria voltar MODULO_INATIVO', async () => {
+  // D-1 (relatório da Sprint 0) CORRIGIDO na T-0015: entidade do manifesto de um módulo INATIVO, com ou sem provedor
+  // no servidor, volta `rejeitado/MODULO_INATIVO` POR ITEM (desenho T-0004 §5; RN-CORE-02). O HTTP fica 200 porque o
+  // lote do push pode misturar módulos; o app guarda o item e o reenvia quando o módulo volta.
+  it('D-1 / S0-048 (RN-CORE-02): push de entidade de módulo inativo volta rejeitado/MODULO_INATIVO por item; religado, não é mais MODULO_INATIVO', async () => {
     const promotor = (await api.sessao('promotor@exemplo.com.br')).access_token;
     expect((await licenca(api, admin, 'tenant', 'promotor', false)).statusCode).toBe(200);
     try {
       const push = await api.chamar(promotor, { method: 'POST', url: '/v1/sync/push', payload: { itens: [itemChecklist] } });
+      expect(push.statusCode, push.body).toBe(200);
       expect(push.json().resultados).toEqual([expect.objectContaining({ id: itemChecklist.id, status: 'rejeitado', codigo: 'MODULO_INATIVO' })]);
     } finally {
       expect((await licenca(api, admin, 'tenant', 'promotor', true)).statusCode).toBe(200);
     }
+    // controle: com o Promotor religado o mesmo item não cai mais em MODULO_INATIVO (sem provedor ainda, outro código)
+    const religado = await api.chamar(promotor, { method: 'POST', url: '/v1/sync/push', payload: { itens: [itemChecklist] } });
+    expect(religado.statusCode, religado.body).toBe(200);
+    expect(religado.json().resultados[0].codigo).not.toBe('MODULO_INATIVO');
   });
 
   it('S0-042/S0-053/S0-055: PERFIL vendedor sem o Vendedor → vendedores perdem, supervisor mantém; rota real dá 403 MODULO_INATIVO no mesmo token', async () => {
