@@ -6,3 +6,5 @@ export * from './licencas';
 export * from './matriz';
 export * from './escopo';
 export * from './fila-modulo-desativado';
+export * from './auth';
+export * from './produto';

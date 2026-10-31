@@ -459,3 +459,7 @@ export const ERROR_CODES = {
 } as const;
 export * from './extensoes';
 export * from './modulos';
+export * from './auth';
+export * from './licencas';
+export * from './sync';
+export * from './eventos';

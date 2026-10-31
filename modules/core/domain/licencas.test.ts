@@ -1,6 +1,6 @@
 import { defineModule, PERFIS, type ModuloId } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { calcularModulosEfetivos, moduloEstaAtivo, modulosRemovidos, podeDesativarModulo } from './licencas';
+import { calcularModulosEfetivos, dependentesDe, efetivosPelasDependencias, moduloEstaAtivo, modulosRemovidos, podeDesativarModulo } from './licencas';
 
 const todos = [...PERFIS];
 const manifestos = [
@@ -81,5 +81,28 @@ describe('licenças: apoio à API e à tela', () => {
   it('RN-CORE-02: módulos removidos entre dois cálculos são os que perdem dados locais', () => {
     expect(modulosRemovidos(['core', 'vendedor', 'pesquisa'], ['core', 'pesquisa'])).toEqual(['vendedor']);
     expect(modulosRemovidos(['core'], ['core', 'vendedor'])).toEqual([]);
+  });
+});
+
+
+describe('RN-CORE-01/03: efetivos e dependentes na tela de licenças (sem manifestos)', () => {
+  const modulos = ['core', 'catalogo', 'vendedor', 'promotor', 'treinamento'] as const;
+  const dependencias = { catalogo: ['core'], vendedor: ['core', 'catalogo'], promotor: ['core'], treinamento: ['core'] } as const;
+  const base = { modulos, dependencias, ativosNoTenant: ['core', 'catalogo', 'vendedor', 'promotor'] as const, doPerfil: ['core', 'catalogo', 'vendedor'] as const, removidosDoUsuario: [] as const };
+
+  it('RN-CORE-01: tenant ∩ perfil − exceções; core sempre', () => {
+    expect(efetivosPelasDependencias(base)).toEqual(['core', 'catalogo', 'vendedor']);
+    expect(efetivosPelasDependencias({ ...base, removidosDoUsuario: ['vendedor'] })).toEqual(['core', 'catalogo']);
+    expect(efetivosPelasDependencias({ ...base, ativosNoTenant: [], doPerfil: [] })).toEqual(['core']);
+  });
+
+  it('RN-CORE-03: tirar o Catálogo derruba o Vendedor (dependência inativa derruba o dependente)', () => {
+    expect(efetivosPelasDependencias({ ...base, removidosDoUsuario: ['catalogo'] })).toEqual(['core']);
+  });
+
+  it('RN-CORE-03: dependentes diretos e indiretos que também desligam', () => {
+    expect(dependentesDe('catalogo', modulos, dependencias)).toEqual(['vendedor']);
+    expect(dependentesDe('core', modulos, dependencias)).toEqual(['catalogo', 'vendedor', 'promotor', 'treinamento']);
+    expect(dependentesDe('vendedor', modulos, dependencias)).toEqual([]);
   });
 });
