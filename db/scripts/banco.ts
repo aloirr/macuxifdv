@@ -5,6 +5,7 @@
  * Comandos:
  *   subir                         sobe o Postgres (Docker, db/docker-compose.yml), cria o banco de dev e migra
  *   derrubar [--limpar]           para o container (--limpar também apaga o volume de dados)
+ *   recriar                       derrubar --limpar + subir (banco de dev do zero, migrado e vazio)
  *   status                        conexão, bancos de teste esquecidos e migrações aplicadas
  *   papeis                        cria/corrige o papel macuxi_app (LOGIN, sem SUPERUSER/BYPASSRLS)
  *   migrar up [--ate NNNN]        aplica migrações pendentes
@@ -15,27 +16,19 @@
  *   apagar-teste <nome> | --todos apaga banco(s) de teste
  * Opção comum: --banco <nome> (padrão MACUXI_PG_BANCO ou "macuxi").
  */
-import { spawnSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { PASTA_DB, lerConfig, type ConfigBanco } from '../src/config';
+import { lerConfig, type ConfigBanco } from '../src/config';
+import { compose } from '../src/docker';
 import { apagarBanco, comAdmin, criarBanco, criarBancoDeTeste, listarBancosDeTeste, postgresDisponivel } from '../src/banco-teste';
 import { listarAplicadas, migrarDown, migrarUp } from '../src/migrador';
 import { garantirPapelApp } from '../src/papeis';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
 import { carregarFaseM } from '../seeds/fase-m/fase-m';
 
-const COMPOSE = join(PASTA_DB, 'docker-compose.yml');
-
 function docker(args: string[]): void {
-  const r = spawnSync('docker', ['compose', '-f', COMPOSE, ...args], { stdio: 'inherit', shell: process.platform === 'win32' });
-  if (r.error || r.status !== 0) {
-    throw new Error(
-      `docker compose ${args.join(' ')} falhou${r.error ? `: ${r.error.message}` : ` (código ${r.status})`}. ` +
-        'O Docker Desktop está instalado e aberto? Ver docs/banco/README.md.',
-    );
-  }
+  compose(args, { herdarSaida: true });
 }
 
 async function exigirPostgres(cfg: ConfigBanco): Promise<void> {
@@ -63,7 +56,10 @@ export async function executar(argv: string[]): Promise<void> {
   const exigir = () => exigirPostgres(cfg);
   const [comando, sub] = positionals;
   switch (comando) {
+    case 'recriar':
     case 'subir': {
+      // recriar = banco de dev do zero: apaga container e volume e sobe de novo (migrado, sem dados).
+      if (comando === 'recriar') docker(['down', '-v']);
       docker(['up', '-d', '--wait']);
       await exigir();
       await criarBanco(banco, cfg);
@@ -156,7 +152,7 @@ export async function executar(argv: string[]): Promise<void> {
       return;
     }
     default:
-      console.log('Comandos: subir | derrubar [--limpar] | status | papeis | migrar up|down | seed fase-m | fixture dois-tenants | criar-teste | apagar-teste');
+      console.log('Comandos: subir | derrubar [--limpar] | recriar | status | papeis | migrar up|down | seed fase-m | fixture dois-tenants | criar-teste | apagar-teste');
       if (comando) process.exitCode = 1;
   }
 }

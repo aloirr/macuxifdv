@@ -59,6 +59,11 @@ describe('RN-PRO-06: visita de loja', () => {
   it('checkout anterior ao check-in é recusado', () => {
     expect(VisitaLoja.safeParse({ ...v, checkout_em: '2026-10-31T12:00:00Z' }).success).toBe(false);
   });
+  it('RN-PRO-07: permanência inflada vinda do aparelho é recusada; a recalculada passa', () => {
+    expect(VisitaLoja.safeParse({ ...v, permanencia_min: 600 }).success).toBe(false);
+    expect(VisitaLoja.safeParse({ ...v, permanencia_min: 40.4 }).success).toBe(true);
+    expect(VisitaLoja.safeParse({ ...v, permanencia_min: null }).success).toBe(false);
+  });
   it('visita aberta: sem checkout, desfecho nem permanência', () => {
     expect(VisitaLoja.safeParse({ ...v, checkout_em: null, desfecho: null, permanencia_min: null }).success).toBe(true);
     expect(VisitaLoja.safeParse({ ...v, checkout_em: null }).success).toBe(false);
@@ -87,6 +92,18 @@ describe('RN-PRO-03: medição de share', () => {
   });
   it('RN-PRO-03: recusa share que não confere (a API recalcula)', () => {
     expect(MedicaoShare.safeParse({ ...m, share_pct: 35 }).success).toBe(false);
+  });
+  it('RN-PRO-03: atingimento inflado vindo do aparelho é recusado', () => {
+    expect(MedicaoShare.safeParse({ ...m, atingimento_pct: 150 }).success).toBe(false);
+    expect(MedicaoShare.safeParse({ ...m, atingimento_pct: null }).success).toBe(false);
+  });
+  it('RN-PRO-03: sem meta, o atingimento tem de ser nulo', () => {
+    const sem = { ...m, meta_share_id: null, meta_pct: null };
+    expect(MedicaoShare.safeParse({ ...sem, atingimento_pct: null }).success).toBe(true);
+    expect(MedicaoShare.safeParse({ ...sem, atingimento_pct: 100 }).success).toBe(false);
+  });
+  it('RN-PRO-10: meta informada exige o id da meta vigente', () => {
+    expect(MedicaoShare.safeParse({ ...m, meta_share_id: null }).success).toBe(false);
   });
   it('RN-PRO-03: recusa nossas > total', () => {
     expect(MedicaoShare.safeParse({ ...m, frentes_nossas: 41, share_pct: null }).success).toBe(false);

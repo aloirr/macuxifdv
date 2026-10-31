@@ -1,9 +1,15 @@
 name: CI
 
+# T-0005: lint (inclui fronteiras), typecheck, testes (com Postgres de verdade), testes do coord,
+# verificação de donos no PR e build do Backoffice Web.
+
 on:
   pull_request:
   push:
     branches: [main]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -11,11 +17,44 @@ concurrency:
 
 jobs:
   verificar:
-    name: lint, fronteiras, typecheck e testes
+    name: donos, lint, fronteiras, typecheck, testes e build web
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    # Mesma imagem do db/docker-compose.yml (T-0002). Os testes de db/ criam um banco efêmero
+    # macuxi_teste_*, aplicam as migrações e a fixture dois-tenants.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+          TZ: UTC
+          PGTZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    env:
+      # Teste de banco FALHA (em vez de pular) se o Postgres não responder. O turbo.json repassa MACUXI_PG_*.
+      MACUXI_PG_EXIGIR: '1'
+      MACUXI_PG_HOST: localhost
+      MACUXI_PG_PORTA: '5432'
+      MACUXI_PG_ADMIN_USUARIO: postgres
+      MACUXI_PG_ADMIN_SENHA: postgres
+      NEXT_TELEMETRY_DISABLED: '1'
+      TURBO_TELEMETRY_DISABLED: '1'
+
     steps:
+      # Histórico completo: o verificar --base precisa de origin/main e do merge-base.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -24,6 +63,19 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # Testes do scripts/coord.mjs verificar (node:test, sem dependência). Em todo push e PR.
+      - name: testes do coord (verificar)
+        run: node --test scripts/coord-verificar.test.mjs
+
+      # Só no PR: arquivo fora dos caminhos do agente = violação (saída 1); erro de uso/git = 2.
+      # Agente: do branch agente/T-nnnn-<agente> ou alexandre/... (GITHUB_HEAD_REF) ou do trailer
+      # "Agente: <nome>" do último commit do PR (obrigatório em branch fora do padrão, ex.: nuvem/*).
+      - name: verificar donos do PR
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/coord.mjs verificar --base "origin/$BASE_REF"
+
       - run: pnpm install --frozen-lockfile
 
       # lint inclui `pnpm fronteiras` (dependency-cruiser): módulo só importa packages/*,
@@ -31,3 +83,6 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+      - name: build do Backoffice Web (next build)
+        run: pnpm --filter web build

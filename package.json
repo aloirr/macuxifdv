@@ -11,7 +11,10 @@
     "test": "turbo run test",
     "fronteiras": "node scripts/fronteiras.mjs",
     "contar-testes": "node scripts/contar-testes.mjs",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "db:subir": "pnpm --filter @macuxi/db banco subir",
+    "db:derrubar": "pnpm --filter @macuxi/db banco derrubar",
+    "db:migrar": "pnpm --filter @macuxi/db migrar"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

@@ -6,6 +6,7 @@
     "dev": { "cache": false, "persistent": true },
     "lint": {},
     "typecheck": {},
-    "test": { "outputs": [] }
+    "test": { "outputs": [], "env": ["MACUXI_PG_*"] },
+    "@macuxi/db#test": { "cache": false, "env": ["MACUXI_PG_*"], "passThroughEnv": ["DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG"] }
   }
 }
