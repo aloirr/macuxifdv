@@ -155,3 +155,12 @@ describe('pedido.cancelar depois do envio ao ERP (doc 03 §4, matriz §2)', () =
     expect(verificarCancelamento(st)).toEqual({ ok: true });
   });
 });
+
+import { ehStatusFinal as _ehFinal, ORDER_STATUSES as _TODOS } from './order';
+describe('janela do pull de pedido', () => {
+  it('RN-VEN-30: só faturado e cancelado são finais; os demais status seguem no aparelho além dos 90 dias', () => {
+    expect(_TODOS.filter(_ehFinal)).toEqual(['invoiced', 'cancelled']);
+    expect(_ehFinal('rejected')).toBe(false);
+    expect(_ehFinal('qualquer')).toBe(false);
+  });
+});

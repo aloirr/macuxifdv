@@ -21,6 +21,7 @@ import { ORDER_STATUSES } from '../domain/order';
 
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
 export * from './eventos';
+export * from './sync';
 
 // ---------- pedidos ----------
 /** Inclui os status do retorno do ERP (EstadoPedidoErp): enviado=sent_to_erp, integrado=integrated, faturado_parcial=invoiced_partial, faturado_total=invoiced, cancelado=cancelled. */

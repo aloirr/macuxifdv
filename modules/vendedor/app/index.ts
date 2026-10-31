@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import { definirEntidadeSync, definirModuloShell } from '@macuxi/platform-sdk';
-import { CreateOrderRequest } from '../contracts';
+import { CreateOrderRequest, PedidoItemSyncSchema, PedidoSyncSchema } from '../contracts';
 import { manifest } from '../manifest';
 import type { AbaCliente, AcaoCliente, ContextoCliente } from '@macuxi/core/contracts';
 import { AbaMix, AbaUltimosPedidos } from './components/ficha-cliente';
@@ -23,7 +23,10 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'pedido', caminho: 'pedido', titulo: 'Pedido', apps: ['campo'], componente: OrderDetailScreen },
     { id: 'novo-pedido', caminho: 'novo-pedido', titulo: 'Novo pedido', acao: 'pedido.criar', apps: ['campo'], componente: NewOrderScreen },
   ],
-  entidadesSync: [definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'app_edita_ate_status', schema: CreateOrderRequest })],
+  entidadesSync: [
+    definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'app_edita_ate_status', schema: CreateOrderRequest, schemaLinha: PedidoSyncSchema }),
+    definirEntidadeSync({ nome: 'pedido_item', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: PedidoItemSyncSchema }),
+  ],
   etapasSync: etapasVendedor,
   extensoes: [
     // Ficha do cliente (slots do Core, B2). RN-PRO-01: `acao: 'pedido.criar'` esconde os itens do promotor.

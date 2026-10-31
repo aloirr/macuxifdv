@@ -304,3 +304,12 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   rejected: 'Rejeitado',
   cancelled: 'Cancelado',
 };
+
+/**
+ * Status finais para a janela do pull (desenho T-0016 §2): o pedido entra no aparelho se foi criado nos últimos 90
+ * dias OU se ainda não terminou. `rejected` não é final (pode ser reenviado, ver `transitions`).
+ */
+export const ORDER_STATUSES_FINAIS: readonly OrderStatus[] = ['invoiced', 'cancelled'];
+export function ehStatusFinal(status: string): boolean {
+  return (ORDER_STATUSES_FINAIS as readonly string[]).includes(status);
+}
