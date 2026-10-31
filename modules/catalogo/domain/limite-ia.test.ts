@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cacheValido, chaveCache, consultasRestantes, deveGuardarNoCache, diaDoTenant, registrarConsultaIa } from './limite-ia';
+import { cacheValido, chaveCache, consomeCotaIa, consultasRestantes, deveGuardarNoCache, diaDoTenant, registrarConsultaIa, registrarDesfechoIa, verificarConsultaIa } from './limite-ia';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
 
 const P = PARAMETROS_PADRAO;
@@ -55,6 +55,54 @@ describe('RN-CAT-03: limite de consultas de IA por usuário/dia', () => {
     expect(consultasRestantes({ dia: '2026-10-30', consultas: 150 }, '2026-10-31T15:00:00Z', P)).toBe(200);
     expect(consultasRestantes(null, '2026-10-31T15:00:00Z', P)).toBe(200);
     expect(consultasRestantes({ dia: '2026-10-31', consultas: 999 }, '2026-10-31T15:00:00Z', P)).toBe(0);
+  });
+});
+
+describe('RN-CAT-03: só consulta respondida pelo provedor consome a cota', () => {
+  const AGORA = '2026-10-31T15:00:00Z';
+  const uso = { dia: '2026-10-31', consultas: 10 };
+
+  it('RN-CAT-03: verificarConsultaIa só confere (antes de chamar o provedor) e nunca consome', () => {
+    expect(verificarConsultaIa(uso, AGORA, P)).toMatchObject({ permitido: true, uso, restantes: 190, motivo: null });
+    expect(verificarConsultaIa({ dia: '2026-10-31', consultas: 200 }, AGORA, P)).toMatchObject({ permitido: false, motivo: 'limite_atingido', restantes: 0 });
+    expect(verificarConsultaIa(null, AGORA, resolverParametros({ limite_consultas_ia_dia: 0 }))).toMatchObject({ permitido: false, motivo: 'ia_desligada' });
+    expect(verificarConsultaIa({ dia: '2026-10-30', consultas: 200 }, AGORA, P)).toMatchObject({ permitido: true, uso: { dia: '2026-10-31', consultas: 0 }, restantes: 200 });
+  });
+
+  it('RN-CAT-03: falha do provedor (erro) não consome a cota', () => {
+    const r = registrarDesfechoIa(uso, AGORA, P, 'erro');
+    expect(r).toMatchObject({ uso, restantes: 190, consumiu: false });
+  });
+
+  it('RN-CAT-03: tempo esgotado no provedor não consome a cota', () => {
+    const r = registrarDesfechoIa(uso, AGORA, P, 'tempo_esgotado');
+    expect(r).toMatchObject({ uso, restantes: 190, consumiu: false });
+  });
+
+  it('RN-CAT-03: consulta respondida pelo provedor consome uma da cota', () => {
+    const r = registrarDesfechoIa(uso, AGORA, P, 'respondida');
+    expect(r).toMatchObject({ uso: { dia: '2026-10-31', consultas: 11 }, restantes: 189, consumiu: true });
+  });
+
+  it('RN-CAT-03: provedor não chamado (cache, offline, limite, busca simples) não consome', () => {
+    expect(registrarDesfechoIa(uso, AGORA, P, 'nao_chamada')).toMatchObject({ uso, consumiu: false });
+    expect(consomeCotaIa('nao_chamada')).toBe(false);
+    expect(consomeCotaIa('erro')).toBe(false);
+    expect(consomeCotaIa('tempo_esgotado')).toBe(false);
+    expect(consomeCotaIa('respondida')).toBe(true);
+  });
+
+  it('RN-CAT-03: dez falhas seguidas no fim da cota não tiram a última consulta do usuário', () => {
+    let u = { dia: '2026-10-31', consultas: 199 };
+    for (let i = 0; i < 10; i++) u = registrarDesfechoIa(u, AGORA, P, i % 2 ? 'erro' : 'tempo_esgotado').uso;
+    expect(verificarConsultaIa(u, AGORA, P)).toMatchObject({ permitido: true, restantes: 1 });
+    u = registrarDesfechoIa(u, AGORA, P, 'respondida').uso;
+    expect(verificarConsultaIa(u, AGORA, P)).toMatchObject({ permitido: false, motivo: 'limite_atingido' });
+  });
+
+  it('RN-CAT-03: resposta que chegou no limite (corrida entre duas consultas) é gravada sem passar do limite', () => {
+    const r = registrarDesfechoIa({ dia: '2026-10-31', consultas: 200 }, AGORA, P, 'respondida');
+    expect(r).toMatchObject({ uso: { dia: '2026-10-31', consultas: 200 }, restantes: 0, consumiu: false });
   });
 });
 

@@ -8,20 +8,22 @@
  * O "dia" é a data civil no fuso do tenant. Funções puras e idempotentes.
  */
 import { businessDays, diffDays } from '@macuxi/comum';
-import { RegraAlerta, TIPOS_ALERTA, type CondicaoAlerta, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
+import { RegraAlerta, TIPOS_ALERTA, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
 import { pedidoPendenteDeAprovacao } from './aprovacoes';
-import { arredondar, horasEntre, percentual, somarDias } from './numeros';
+import { horasUteisEntre } from './horario-comercial';
+import { arredondar, percentual, somarDias } from './numeros';
 import { diaLocal, painelDoMes } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
-import type { EstadoProjecao } from './projecao';
+import { entradaNaCarteira, type EstadoProjecao } from './projecao';
 
 /** Regra padrão de cada tipo (valores entre colchetes do doc 02/03 e premissas da T-0014, em regras.md). */
 export const REGRAS_PADRAO: Readonly<Record<TipoAlerta, RegraAlerta>> = Object.freeze({
-  // RF-GES-07: "cliente sem compra há [30] dias" — aqui por VISITA; mesmo padrão de 30
-  cliente_sem_visita: { tipo: 'cliente_sem_visita', ativa: true, limiar: 30, janela_dias: null, amostra_min: null, severidade: 'atencao' },
+  // RN-GES-01/02: o limite é do CLIENTE (frequência × tolerância) e a carência do cliente novo, ambos parâmetros do
+  // tenant (`pct_tolerancia_frequencia`, `dias_sem_visita_padrao`, `dias_carencia_cliente_novo`); a regra só liga/desliga
+  cliente_sem_visita: { tipo: 'cliente_sem_visita', ativa: true, limiar: null, janela_dias: null, amostra_min: null, severidade: 'atencao' },
   // limiar = % do ritmo esperado; amostra_min = dias úteis decorridos mínimos
   ritmo_abaixo_meta: { tipo: 'ritmo_abaixo_meta', ativa: true, limiar: 80, janela_dias: null, amostra_min: 3, severidade: 'atencao' },
-  // limiar = horas de espera
+  // limiar = horas ÚTEIS de espera (RN-GES-03: horário comercial do tenant)
   pedido_aguardando_aprovacao: { tipo: 'pedido_aguardando_aprovacao', ativa: true, limiar: 24, janela_dias: null, amostra_min: null, severidade: 'critica' },
   // limiar = nº de visitas da loja com ruptura dentro da janela
   ruptura_recorrente: { tipo: 'ruptura_recorrente', ativa: true, limiar: 3, janela_dias: 14, amostra_min: null, severidade: 'atencao' },
@@ -52,9 +54,26 @@ export function resolverRegras(ajustes: Partial<Record<TipoAlerta, Partial<Regra
       const i = r.error.issues[0]!;
       throw new RangeError(`Regra de alerta ${tipo} inválida em "${i.path.join('.')}": ${i.message}`);
     }
+    if (tipo === 'cliente_sem_visita' && r.data.limiar !== null) {
+      throw new RangeError(
+        'Regra de alerta cliente_sem_visita: o limite vem da frequência de visita do cliente (RN-GES-01). Ajuste pct_tolerancia_frequencia, dias_sem_visita_padrao ou dias_carencia_cliente_novo nos parâmetros do tenant.',
+      );
+    }
     out[tipo] = r.data;
   }
   return out;
+}
+
+/** RN-GES-01: frequência de visita do cliente em dias. */
+export const FREQUENCIA_EM_DIAS: Readonly<Record<FrequenciaVisita, number>> = Object.freeze({ semanal: 7, quinzenal: 14, mensal: 30 });
+
+/**
+ * RN-GES-01: dias sem visita tolerados para o cliente = ⌊frequência × (1 + pct_tolerancia_frequencia ÷ 100)⌋
+ * (semanal 10, quinzenal 21, mensal 45 com 50%); sem frequência = `dias_sem_visita_padrao` (30). Alerta quando PASSA do limite.
+ */
+export function limiteDiasSemVisita(frequencia: FrequenciaVisita | null | undefined, params: Pick<ParametrosGestor, 'pct_tolerancia_frequencia' | 'dias_sem_visita_padrao'>): number {
+  if (!frequencia) return params.dias_sem_visita_padrao;
+  return Math.floor(arredondar(FREQUENCIA_EM_DIAS[frequencia] * (1 + params.pct_tolerancia_frequencia / 100), 6));
 }
 
 /** Tipos que valem agora: regra ligada E módulo de origem ativo (RN-CORE-03). */
@@ -88,7 +107,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
     return !m || m.ativo; // fora do cadastro: não bloqueia (o cadastro pode estar defasado)
   };
 
-  // --- cliente da carteira sem visita há X dias ---
+  // --- RN-GES-01/02: cliente da carteira sem visita além do limite do cliente; nunca visitado só depois da carência ---
   if (ativos.has('cliente_sem_visita')) {
     const r = e.regras.cliente_sem_visita;
     const ultima = new Map<string, string>(); // cliente → último dia com check-in (qualquer usuário)
@@ -99,20 +118,35 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
     }
     for (const [clienteId, c] of Object.entries(e.estado.clientes)) {
       if (!c.ativo || !ativoNoCadastro(c.vendedor_id)) continue;
-      const dia = ultima.get(clienteId);
-      const dias = dia ? diffDays(dia, hoje) : null;
-      if (dias !== null && dias < r.limiar!) continue;
       const nome = c.nome ?? 'Cliente';
+      const dia = ultima.get(clienteId);
+      let valor: number | null;
+      let limiar: number;
+      let mensagem: string;
+      if (dia) {
+        valor = diffDays(dia, hoje);
+        limiar = limiteDiasSemVisita(c.frequencia_visita, params);
+        if (valor <= limiar) continue;
+        const freq = c.frequencia_visita ? `frequência ${c.frequencia_visita}` : 'sem frequência definida';
+        mensagem = `${nome} está sem visita há ${valor} dias (${freq}, limite ${limiar}).`;
+      } else {
+        const desde = entradaNaCarteira(e.estado, clienteId);
+        const naCarteira = desde ? diffDays(diaLocal(desde, params.fuso), hoje) : null;
+        limiar = params.dias_carencia_cliente_novo;
+        if (naCarteira === null || naCarteira < limiar) continue;
+        valor = null;
+        mensagem = `${nome} nunca foi visitado (${naCarteira} dias na carteira; carência ${limiar}).`;
+      }
       out.push({
         chave: chaveDe('cliente_sem_visita', clienteId),
         tipo: 'cliente_sem_visita',
         alvo_tipo: 'cliente',
         alvo_id: clienteId,
         responsavel_id: c.vendedor_id,
-        valor: dias,
-        limiar: r.limiar,
+        valor,
+        limiar,
         severidade: r.severidade,
-        mensagem: dias === null ? `${nome} nunca foi visitado.` : `${nome} está sem visita há ${dias} dias (limite ${r.limiar}).`,
+        mensagem,
       });
     }
   }
@@ -146,7 +180,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
     const r = e.regras.pedido_aguardando_aprovacao;
     for (const [pedidoId, a] of Object.entries(e.estado.aprovacoes)) {
       if (!pedidoPendenteDeAprovacao(e.estado, pedidoId)) continue;
-      const horas = horasEntre(a.solicitada_em, e.agora);
+      const horas = horasUteisEntre(a.solicitada_em, e.agora, params);
       if (horas < r.limiar!) continue;
       out.push({
         chave: chaveDe('pedido_aguardando_aprovacao', pedidoId),
@@ -157,7 +191,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
         valor: horas,
         limiar: r.limiar,
         severidade: r.severidade,
-        mensagem: `Pedido aguardando aprovação há ${horas} h (limite ${r.limiar} h).`,
+        mensagem: `Pedido aguardando aprovação há ${horas} horas úteis (limite ${r.limiar} h).`,
       });
     }
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CondicaoAlerta, RegraAlerta, TIPOS_ALERTA, type MembroEquipe } from '../contracts';
-import { avaliarAlertas, REGRAS_PADRAO, reconciliarAlertas, resolverRegras, tiposAtivos, type AlertaExistente } from './alertas';
+import { avaliarAlertas, FREQUENCIA_EM_DIAS, limiteDiasSemVisita, REGRAS_PADRAO, reconciliarAlertas, resolverRegras, tiposAtivos, type AlertaExistente } from './alertas';
+import { PARAMETROS_PADRAO } from './parametros';
 import { CLIENTE_A, CLIENTE_B, checkin, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR } from './fixtures';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
@@ -10,8 +11,11 @@ const MEMBROS: MembroEquipe[] = [
   { id: VENDEDOR, nome: 'Vera', perfil: 'vendedor', superior_id: null, ativo: true },
   { id: PROMOTOR, nome: 'Paula', perfil: 'promotor', superior_id: null, ativo: true },
 ];
-const avaliar = (estado: ReturnType<typeof montar>, agora: string, extra: { modulos?: Set<string>; regras?: Parameters<typeof resolverRegras>[0]; membros?: MembroEquipe[] } = {}) =>
-  avaliarAlertas({ estado, membros: extra.membros ?? MEMBROS, agora, modulos: extra.modulos ?? TODOS, regras: resolverRegras(extra.regras) });
+const avaliar = (
+  estado: ReturnType<typeof montar>,
+  agora: string,
+  extra: { modulos?: Set<string>; regras?: Parameters<typeof resolverRegras>[0]; membros?: MembroEquipe[]; params?: Parameters<typeof avaliarAlertas>[0]['params'] } = {},
+) => avaliarAlertas({ estado, membros: extra.membros ?? MEMBROS, agora, modulos: extra.modulos ?? TODOS, regras: resolverRegras(extra.regras), params: extra.params });
 const doTipo = (cs: ReturnType<typeof avaliar>, tipo: string) => cs.filter((c) => c.tipo === tipo);
 
 const cliente = (id: string, vendedor: string | null = VENDEDOR, ativo = true) => ev('core.cliente.atualizado@1', '2026-10-01T10:00:00Z', { cliente_id: id, vendedor_id: vendedor, ativo, nome: 'Mercado ' + id.slice(-3) });
@@ -23,7 +27,7 @@ describe('regras de alerta: padrões e validação (RF-GES-07)', () => {
       expect(RegraAlerta.parse(r)).toEqual(r);
       expect(r.ativa).toBe(true);
     }
-    expect(REGRAS_PADRAO.cliente_sem_visita).toMatchObject({ limiar: 30 });
+    expect(REGRAS_PADRAO.cliente_sem_visita).toMatchObject({ limiar: null }); // RN-GES-01: limite vem da frequência do cliente
     expect(REGRAS_PADRAO.ritmo_abaixo_meta).toMatchObject({ limiar: 80, amostra_min: 3 });
     expect(REGRAS_PADRAO.pedido_aguardando_aprovacao).toMatchObject({ limiar: 24 });
     expect(REGRAS_PADRAO.ruptura_recorrente).toMatchObject({ limiar: 3, janela_dias: 14 });
@@ -32,8 +36,8 @@ describe('regras de alerta: padrões e validação (RF-GES-07)', () => {
   });
 
   it('o tenant ajusta limiar, janela e liga/desliga cada regra; o resto fica no padrão', () => {
-    const r = resolverRegras({ cliente_sem_visita: { limiar: 15 }, fotos_sem_gps: { ativa: false } });
-    expect(r.cliente_sem_visita).toMatchObject({ limiar: 15, ativa: true, severidade: 'atencao' });
+    const r = resolverRegras({ ruptura_recorrente: { limiar: 4 }, fotos_sem_gps: { ativa: false } });
+    expect(r.ruptura_recorrente).toMatchObject({ limiar: 4, janela_dias: 14, ativa: true, severidade: 'atencao' });
     expect(r.fotos_sem_gps.ativa).toBe(false);
     expect(r.visita_curta).toEqual(REGRAS_PADRAO.visita_curta);
   });
@@ -54,41 +58,110 @@ describe('regras de alerta: padrões e validação (RF-GES-07)', () => {
   });
 });
 
-describe('RF-GES-07: cliente da carteira sem visita há X dias', () => {
+describe('RF-GES-07 / RN-GES-01: cliente da carteira sem visita além do limite do cliente', () => {
   const AGORA = '2026-10-30T20:00:00Z'; // 30/10 em Manaus
+  const comFreq = (id: string, frequencia_visita: 'semanal' | 'quinzenal' | 'mensal' | null) =>
+    ev('core.cliente.atualizado@1', '2026-09-01T10:00:00Z', { cliente_id: id, vendedor_id: VENDEDOR, ativo: true, nome: 'Mercado ' + id.slice(-3), frequencia_visita });
+  /** Check-in às 09:00 de Manaus do dia civil informado. */
+  const visitaEm = (n: number, cliente: string, dia: string) => checkin({ visita: u(2000 + n), cliente, em: `${dia}T13:00:00Z` });
+  const limiteDe = (frequencia: 'semanal' | 'quinzenal' | 'mensal' | null, diasAtras: number, extra: Parameters<typeof avaliar>[2] = {}) => {
+    const dia = new Date(Date.parse('2026-10-30T12:00:00Z') - diasAtras * 86_400_000).toISOString().slice(0, 10);
+    return doTipo(avaliar(montar([comFreq(CLIENTE_A, frequencia), visitaEm(1, CLIENTE_A, dia)]), AGORA, extra), 'cliente_sem_visita');
+  };
 
-  it('30 dias exatos já alertam (limiar inclusivo); 29 não', () => {
-    const s = montar([cliente(CLIENTE_A), cliente(CLIENTE_B), checkin({ visita: u(2000), cliente: CLIENTE_A, em: '2026-09-30T13:00:00Z' }), checkin({ visita: u(2001), cliente: CLIENTE_B, em: '2026-10-01T13:00:00Z' })]);
-    const cs = doTipo(avaliar(s, AGORA), 'cliente_sem_visita');
+  it('limite = frequência × (1 + 50%), arredondado para baixo: semanal 10, quinzenal 21, mensal 45; sem frequência 30', () => {
+    expect(limiteDiasSemVisita('semanal', PARAMETROS_PADRAO)).toBe(10);
+    expect(limiteDiasSemVisita('quinzenal', PARAMETROS_PADRAO)).toBe(21);
+    expect(limiteDiasSemVisita('mensal', PARAMETROS_PADRAO)).toBe(45);
+    expect(limiteDiasSemVisita(null, PARAMETROS_PADRAO)).toBe(30);
+    expect(FREQUENCIA_EM_DIAS).toEqual({ semanal: 7, quinzenal: 14, mensal: 30 });
+  });
+
+  it('cliente quinzenal: 21 dias sem visita ainda está no limite (não alerta); 22 alerta com valor 22 e limiar 21', () => {
+    expect(limiteDe('quinzenal', 21)).toHaveLength(0);
+    const cs = limiteDe('quinzenal', 22);
     expect(cs).toHaveLength(1);
-    expect(cs[0]).toMatchObject({ chave: `cliente_sem_visita:${CLIENTE_A}`, alvo_tipo: 'cliente', alvo_id: CLIENTE_A, responsavel_id: VENDEDOR, valor: 30, limiar: 30, severidade: 'atencao' });
+    expect(cs[0]).toMatchObject({ chave: `cliente_sem_visita:${CLIENTE_A}`, alvo_tipo: 'cliente', alvo_id: CLIENTE_A, responsavel_id: VENDEDOR, valor: 22, limiar: 21, severidade: 'atencao' });
+    expect(cs[0]!.mensagem).toContain('quinzenal');
     expect(CondicaoAlerta.parse(cs[0])).toEqual(cs[0]);
   });
 
+  it('cliente semanal alerta no 11º dia; mensal no 46º; sem frequência no 31º', () => {
+    expect([limiteDe('semanal', 10).length, limiteDe('semanal', 11).length]).toEqual([0, 1]);
+    expect([limiteDe('mensal', 45).length, limiteDe('mensal', 46).length]).toEqual([0, 1]);
+    expect([limiteDe(null, 30).length, limiteDe(null, 31).length]).toEqual([0, 1]);
+    expect(limiteDe(null, 31)[0]).toMatchObject({ valor: 31, limiar: 30 });
+  });
+
+  it('parâmetros do tenant: tolerância 100% (quinzenal → 28) e 20 dias para quem não tem frequência', () => {
+    expect(limiteDe('quinzenal', 22, { params: { pct_tolerancia_frequencia: 100 } })).toHaveLength(0);
+    expect(limiteDe('quinzenal', 29, { params: { pct_tolerancia_frequencia: 100 } })[0]).toMatchObject({ valor: 29, limiar: 28 });
+    expect(limiteDe(null, 21, { params: { dias_sem_visita_padrao: 20 } })[0]).toMatchObject({ valor: 21, limiar: 20 });
+    expect(limiteDe('quinzenal', 15, { params: { pct_tolerancia_frequencia: 0 } })[0]).toMatchObject({ valor: 15, limiar: 14 });
+  });
+
+  it('o limite é do cliente e de parâmetro do tenant: a regra não aceita limiar próprio', () => {
+    expect(REGRAS_PADRAO.cliente_sem_visita.limiar).toBeNull();
+    expect(() => resolverRegras({ cliente_sem_visita: { limiar: 15 } })).toThrow(/cliente_sem_visita/);
+    expect(resolverRegras({ cliente_sem_visita: { ativa: false } }).cliente_sem_visita.ativa).toBe(false);
+  });
+
   it('conta a última visita de QUALQUER usuário ao cliente, no dia do fuso do tenant', () => {
-    // 01/10 02:00Z é 30/09 em Manaus → 30 dias até 30/10 → alerta; 01/10 05:00Z é 01/10 → 29 dias → não
-    const a = montar([cliente(CLIENTE_A), checkin({ cliente: CLIENTE_A, usuario: PROMOTOR, em: '2026-10-01T02:00:00Z' })]);
+    // 30/09 02:00Z é 29/09 em Manaus → 31 dias até 30/10 → alerta; 30/09 05:00Z é 30/09 → 30 dias → não
+    const a = montar([cliente(CLIENTE_A), checkin({ cliente: CLIENTE_A, usuario: PROMOTOR, em: '2026-09-30T02:00:00Z' })]);
     expect(doTipo(avaliar(a, AGORA), 'cliente_sem_visita')).toHaveLength(1);
-    const b = montar([cliente(CLIENTE_A), checkin({ cliente: CLIENTE_A, usuario: PROMOTOR, em: '2026-10-01T05:00:00Z' })]);
+    const b = montar([cliente(CLIENTE_A), checkin({ cliente: CLIENTE_A, usuario: PROMOTOR, em: '2026-09-30T05:00:00Z' })]);
     expect(doTipo(avaliar(b, AGORA), 'cliente_sem_visita')).toHaveLength(0);
   });
 
-  it('cliente nunca visitado alerta com valor null (documentado); sem carteira ou inativo não alerta', () => {
-    const s = montar([cliente(CLIENTE_A), cliente(CLIENTE_B, null), cliente(u(504), VENDEDOR, false)]);
-    const cs = doTipo(avaliar(s, AGORA), 'cliente_sem_visita');
-    expect(cs.map((c) => [c.alvo_id, c.valor])).toEqual([[CLIENTE_A, null]]);
-  });
-
-  it('limiar do tenant: com 15 dias, cliente visitado há 20 dias alerta', () => {
-    const s = montar([cliente(CLIENTE_A), checkin({ cliente: CLIENTE_A, em: '2026-10-10T13:00:00Z' })]);
-    expect(doTipo(avaliar(s, AGORA), 'cliente_sem_visita')).toHaveLength(0);
-    expect(doTipo(avaliar(s, AGORA, { regras: { cliente_sem_visita: { limiar: 15 } } }), 'cliente_sem_visita')[0]!.valor).toBe(20);
+  it('sem carteira ou cliente inativo não alerta', () => {
+    const s = montar([cliente(CLIENTE_B, null), cliente(u(504), VENDEDOR, false)]);
+    expect(doTipo(avaliar(s, AGORA), 'cliente_sem_visita')).toEqual([]);
   });
 
   it('vendedor da carteira inativo no cadastro não gera alerta', () => {
     const s = montar([cliente(CLIENTE_A)]);
     const membros = MEMBROS.map((x) => (x.id === VENDEDOR ? { ...x, ativo: false } : x));
     expect(doTipo(avaliar(s, AGORA, { membros }), 'cliente_sem_visita')).toHaveLength(0);
+  });
+});
+
+describe('RN-GES-02: cliente nunca visitado só alerta depois de 15 dias na carteira', () => {
+  const AGORA = '2026-10-30T20:00:00Z'; // 30/10 em Manaus
+  const naCarteira = (id: string, desde: string | null, ocorrido = '2026-10-01T10:00:00Z', vendedor = VENDEDOR) =>
+    ev('core.cliente.atualizado@1', ocorrido, { cliente_id: id, vendedor_id: vendedor, ativo: true, nome: 'Mercado ' + id.slice(-3), na_carteira_desde: desde });
+
+  it('14 dias na carteira: ainda não alerta; 15 dias: alerta com valor null (nunca visitado) e limiar 15', () => {
+    expect(doTipo(avaliar(montar([naCarteira(CLIENTE_A, '2026-10-16T14:00:00Z')]), AGORA), 'cliente_sem_visita')).toHaveLength(0);
+    const cs = doTipo(avaliar(montar([naCarteira(CLIENTE_A, '2026-10-15T14:00:00Z')]), AGORA), 'cliente_sem_visita');
+    expect(cs).toHaveLength(1);
+    expect(cs[0]).toMatchObject({ alvo_id: CLIENTE_A, valor: null, limiar: 15 });
+    expect(cs[0]!.mensagem).toMatch(/nunca foi visitado.*15 dias na carteira/);
+  });
+
+  it('a entrada na carteira usa o dia no fuso do tenant (16/10 03:00Z ainda é 15/10 em Manaus → 15 dias)', () => {
+    expect(doTipo(avaliar(montar([naCarteira(CLIENTE_A, '2026-10-16T03:00:00Z')]), AGORA), 'cliente_sem_visita')).toHaveLength(1); // 15/10 em Manaus
+  });
+
+  it('sem a data no evento, vale o primeiro evento do cliente com este vendedor (fora de ordem dá o mesmo); troca de carteira reinicia a carência', () => {
+    const primeiro = naCarteira(CLIENTE_A, null, '2026-10-16T14:00:00Z');
+    const depois = naCarteira(CLIENTE_A, null, '2026-10-29T14:00:00Z');
+    expect(doTipo(avaliar(montar([primeiro, depois]), AGORA), 'cliente_sem_visita')).toHaveLength(0); // 14 dias desde 16/10
+    const antigo = naCarteira(CLIENTE_A, null, '2026-10-01T14:00:00Z');
+    expect(doTipo(avaliar(montar([depois, antigo]), AGORA), 'cliente_sem_visita')).toHaveLength(1); // 29 dias desde 01/10
+    const trocou = naCarteira(CLIENTE_A, null, '2026-10-20T14:00:00Z', u(105));
+    expect(doTipo(avaliar(montar([antigo, trocou]), AGORA), 'cliente_sem_visita')).toHaveLength(0); // novo vendedor há 10 dias
+  });
+
+  it('carência é parâmetro do tenant (0 = alerta desde o primeiro dia)', () => {
+    const s = montar([naCarteira(CLIENTE_A, '2026-10-30T14:00:00Z')]);
+    expect(doTipo(avaliar(s, AGORA), 'cliente_sem_visita')).toHaveLength(0);
+    expect(doTipo(avaliar(s, AGORA, { params: { dias_carencia_cliente_novo: 0 } }), 'cliente_sem_visita')[0]).toMatchObject({ valor: null, limiar: 0 });
+  });
+
+  it('cliente já visitado não usa a carência, usa o limite da frequência (RN-GES-01)', () => {
+    const s = montar([naCarteira(CLIENTE_A, '2026-10-29T14:00:00Z'), checkin({ cliente: CLIENTE_A, em: '2026-09-01T13:00:00Z' })]);
+    expect(doTipo(avaliar(s, AGORA), 'cliente_sem_visita')[0]).toMatchObject({ valor: 59, limiar: 30 });
   });
 });
 
@@ -120,25 +193,33 @@ describe('RF-GES-07: ritmo abaixo da meta', () => {
   });
 });
 
-describe('RF-GES-07: pedido aguardando aprovação há X horas', () => {
+describe('RF-GES-07 / RN-GES-03: pedido aguardando aprovação há X horas úteis', () => {
   const solicita = (n: number, em: string, vendedor = VENDEDOR) =>
     ev('vendedor.pedido.aprovacao_solicitada@1', em, { pedido_id: u(1000 + n), vendedor_id: vendedor, cliente_id: CLIENTE_A, solicitada_em: em, nivel: 'supervisor', motivos: ['desconto'], desconto_efetivo_pct: 11, total_cents: 100_000 });
 
-  it('24 h exatas já alertam (inclusivo); 23,99 h não; a chave é o pedido', () => {
-    const s = montar([solicita(1, '2026-10-29T12:00:00Z'), solicita(2, '2026-10-29T12:01:00Z')]);
-    const cs = doTipo(avaliar(s, '2026-10-30T12:00:00Z'), 'pedido_aguardando_aprovacao');
+  it('24 h úteis exatas já alertam (inclusivo); 23,98 h não; a chave é o pedido', () => {
+    // quarta 28/10 08:00 (Manaus) → sexta 30/10 12:00 = 10 + 10 + 4 = 24 h úteis
+    const s = montar([solicita(1, '2026-10-28T12:00:00Z'), solicita(2, '2026-10-28T12:01:00Z')]);
+    const cs = doTipo(avaliar(s, '2026-10-30T16:00:00Z'), 'pedido_aguardando_aprovacao');
     expect(cs.map((c) => [c.chave, c.valor])).toEqual([[`pedido_aguardando_aprovacao:${u(1001)}`, 24]]);
     expect(cs[0]).toMatchObject({ alvo_tipo: 'pedido', responsavel_id: VENDEDOR, severidade: 'critica' });
+    expect(cs[0]!.mensagem).toContain('horas úteis');
+  });
+
+  it('o fim de semana não conta: pedido de sexta 17:00 não alerta no domingo (seriam 43 h corridas, mas é 1 h útil)', () => {
+    const s = montar([solicita(1, '2026-10-30T21:00:00Z')]);
+    expect(doTipo(avaliar(s, '2026-11-01T16:00:00Z'), 'pedido_aguardando_aprovacao')).toHaveLength(0);
   });
 
   it('pedido decidido deixa de ser condição', () => {
-    const s = montar([solicita(1, '2026-10-29T12:00:00Z'), statusAlterado({ pedido: u(1001), para: 'aprovado', em: '2026-10-30T09:00:00Z' })]);
-    expect(doTipo(avaliar(s, '2026-10-30T12:00:00Z'), 'pedido_aguardando_aprovacao')).toHaveLength(0);
+    const s = montar([solicita(1, '2026-10-27T12:00:00Z'), statusAlterado({ pedido: u(1001), para: 'aprovado', em: '2026-10-30T09:00:00Z' })]);
+    expect(doTipo(avaliar(s, '2026-10-30T16:00:00Z'), 'pedido_aguardando_aprovacao')).toHaveLength(0);
   });
 
-  it('limiar em horas é parâmetro da regra', () => {
-    const s = montar([solicita(1, '2026-10-30T08:00:00Z')]);
-    expect(doTipo(avaliar(s, '2026-10-30T12:00:00Z', { regras: { pedido_aguardando_aprovacao: { limiar: 4 } } }), 'pedido_aguardando_aprovacao')).toHaveLength(1);
+  it('limiar em horas úteis é parâmetro da regra', () => {
+    const s = montar([solicita(1, '2026-10-30T12:00:00Z')]); // sexta 08:00 → 12:00 = 4 h úteis
+    expect(doTipo(avaliar(s, '2026-10-30T16:00:00Z'), 'pedido_aguardando_aprovacao')).toHaveLength(0);
+    expect(doTipo(avaliar(s, '2026-10-30T16:00:00Z', { regras: { pedido_aguardando_aprovacao: { limiar: 4 } } }), 'pedido_aguardando_aprovacao')).toHaveLength(1);
   });
 });
 
