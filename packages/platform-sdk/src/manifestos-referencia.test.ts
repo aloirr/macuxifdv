@@ -54,7 +54,8 @@ export const REFERENCIA: ManifestoEntrada[] = [
   },
   {
     // ADR 0005 (T-0007): depende do Catálogo (RN-CORE-03). Publica `vendedor.pedido.faturado@1` a partir do retorno do
-    // ERP (desenho T-0011). RN-PRO-01: `promotor` nunca entra em `perfis` nem em ação de pedido.
+    // ERP (desenho T-0011). RN-PRO-01: `promotor` nunca entra em `perfis` nem em ação de ESCRITA de pedido; lê pedidos
+    // da carteira por `pedido.ver` (doc 03 §2 "Ver pedidos", O-3, T-0015 — recado R-20261031-151439 ao modulo-vendedor).
     id: 'vendedor',
     versao: '0.1.0',
     depende: ['core', 'catalogo'],
@@ -64,6 +65,7 @@ export const REFERENCIA: ManifestoEntrada[] = [
     publica: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'vendedor.pedido.faturado@1'],
     consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1'],
     acoes: {
+      'pedido.ver': { perfis: [...PEDIDO, 'promotor'] },
       'pedido.criar': { perfis: [...PEDIDO] },
       'pedido.editar': { perfis: [...PEDIDO] },
       'pedido.cancelar': { perfis: [...PEDIDO] },

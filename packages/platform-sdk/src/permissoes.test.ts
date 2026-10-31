@@ -42,6 +42,33 @@ describe('permissão por ação (ADR 0004)', () => {
     expect(perms.regraDaAcao('pedido.criar').perfis).not.toContain('promotor');
   });
 
+  it('O-3 (doc 03 §2 "Ver pedidos"): a leitura pedido.ver vem do manifesto — concedida ao promotor, ele lê; escrita continua negada', () => {
+    const comVer = defineModule({
+      id: 'vendedor',
+      versao: '1.0.0',
+      depende: ['core'],
+      perfis: ['vendedor'],
+      acoes: { 'pedido.ver': { perfis: ['vendedor', 'promotor'] }, 'pedido.criar': { perfis: ['vendedor'] } },
+    });
+    const p = criarPermissoes([core, comVer]);
+    expect(p.acoesPermitidas(ctx('promotor'))).toEqual(['pedido.ver']);
+    expect(p.pode('pedido.ver', ctx('promotor', ['core']))).toBe(false);
+    expect(p.regraDaAcao('pedido.ver').perfis).toContain('promotor');
+    const promotor = { id: 'u', tenant_id: 't', perfil: 'promotor' as const, modulos: ['core', 'vendedor'] as const };
+    expect(verificarAcao(promotor, p, 'pedido.ver')).toEqual({ ok: true });
+    expect(verificarAcao(promotor, p, 'pedido.criar')).toMatchObject({ status: 403, codigo: 'PERFIL_SEM_ACESSO' });
+    // sem a concessão no manifesto, nada de leitura (falha fechada)
+    expect(perms.pode('pedido.ver', ctx('promotor'))).toBe(false);
+  });
+
+  it('RN-PRO-01: manifesto que dá ao promotor qualquer ação de ESCRITA de pedido é recusado (inclui pedido_item.*)', () => {
+    for (const acao of ['pedido.editar', 'pedido.duplicar', 'pedido_item.ver_e_editar', 'pedido_item.criar']) {
+      expect(() => defineModule({ id: 'vendedor', versao: '1.0.0', depende: ['core'], perfis: ['vendedor'], acoes: { [acao]: { perfis: ['promotor'] } } }), acao).toThrow(
+        /RN-PRO-01/,
+      );
+    }
+  });
+
   it('API: verificarAcao devolve 401, 403 MODULO_INATIVO e 403 PERFIL_SEM_ACESSO', () => {
     const u = (perfil: 'vendedor' | 'promotor', modulos: ('core' | 'vendedor')[]) => ({ id: 'u', tenant_id: 't', perfil, modulos });
     expect(verificarAcao(null, perms, 'pedido.criar')).toMatchObject({ status: 401 });

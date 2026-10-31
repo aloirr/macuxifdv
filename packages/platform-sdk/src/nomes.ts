@@ -24,9 +24,34 @@ export const EXTENSAO_RE = new RegExp(`^${SEG}\\.${SEG}$`);
 /** Ação com permissão por perfil `<entidade>.<verbo>` — ex.: `pedido.criar`, `pedido.criar_em_nome`. */
 export const ACAO_RE = new RegExp(`^${SEG}\\.${SEG}$`);
 
-/** Ações de pedido (`pedido.*`, `pedido_item.*`…): o promotor nunca as executa (RN-PRO-01). */
+/** Ações de pedido (`pedido.*`, `pedido_item.*`…), de leitura ou de escrita. */
 export function ehAcaoDePedido(acao: string): boolean {
   return /^pedido(_[a-z0-9_]+)?\./.test(acao);
+}
+
+/**
+ * Verbos de LEITURA de uma ação (`<entidade>.ver`). Leitura de pedido segue a matriz do doc 03 §2 ("Ver pedidos":
+ * promotor = carteira, leitura; esclarecimento O-3 de 2026-10-31): quem lê é decidido pelo `perfis` da ação no
+ * manifesto (ADR 0004), não por exceção no código.
+ */
+export const VERBOS_DE_LEITURA = ['ver'] as const;
+
+/** Ação que dá a leitura de pedidos (lista, detalhe e pull de `pedido*`); quem a tem é o `perfis` do manifesto. */
+export const ACAO_VER_PEDIDO = 'pedido.ver';
+
+/** Ação de pedido somente de leitura (`pedido.ver`, `pedido_item.ver`…): pode ser concedida ao promotor pelo manifesto. */
+export function ehAcaoDeLeituraDePedido(acao: string): boolean {
+  return ehAcaoDePedido(acao) && (VERBOS_DE_LEITURA as readonly string[]).includes(acao.slice(acao.indexOf('.') + 1));
+}
+
+/** Ação de pedido que cria/edita/cancela/duplica/exclui/aprova…: o promotor nunca a executa (RN-PRO-01). */
+export function ehAcaoDeEscritaDePedido(acao: string): boolean {
+  return ehAcaoDePedido(acao) && !ehAcaoDeLeituraDePedido(acao);
+}
+
+/** Entidade de sync de pedido (`pedido`, `pedido_item`, `pedido_evento`…): o promotor nunca envia push (RN-PRO-01). */
+export function ehEntidadeDePedido(nome: string): boolean {
+  return /^pedido(_[a-z0-9_]+)?$/.test(nome);
 }
 
 /** Entidade de sync em snake_case — ex.: `checklist_loja`. */

@@ -8,6 +8,9 @@
 | `core.visita.checkin@1` | core | promotor, pesquisa, gestor |
 | `core.visita.checkout@1` | core | gestor, promotor |
 | `core.usuario.modulos_alterados@1` | core | todos (shell) |
+| `core.notificacao.criada@1` | core | core (envio do push pela Expo; **planejado**, T-0016/T-0019) |
+| `core.rota.dia_planejado@1` | core | gestor (cobertura de rota, RN-GES; **planejado** — pedido do modulo-gestor via R-20261031-165536; payload a definir pelo modulo-core na T-0018, quando o BKO publica/gera a rota do dia) |
+| `core.meta.definida@1` | core | gestor (meta × realizado; **planejado** — idem; payload a definir pelo modulo-core na T-0020, no `PUT metas`) |
 | `catalogo.produto.visualizado@1` | catalogo | gestor (P2) |
 | `catalogo.busca.realizada@1` | catalogo | catalogo (analytics) |
 | `vendedor.pedido.criado@1` | vendedor | gestor, core (metas) |
@@ -28,7 +31,7 @@
 | `integracao.preco.atualizado@1` | integracao | catalogo |
 | `integracao.estoque.atualizado@1` | integracao | catalogo |
 | `integracao.vendedor.atualizado@1` | integracao | core (usuários/carteira; a declarar no manifesto do core) |
-| `integracao.titulo.atualizado@1` | integracao | vendedor (financeiro do cliente; a declarar) |
+| `integracao.titulo.atualizado@1` | integracao | core (dono de `core.titulo`, doc 04; a declarar — T-0016 corrige a sugestão anterior "vendedor": o Vendedor lê o título do Core por contrato/sync) |
 | `integracao.nota.atualizado@1` | integracao | vendedor (nota do pedido; a declarar) |
 | `integracao.rota.atualizado@1` | integracao | core (roteiro de visitas; a declarar) |
 | `integracao.pedido.retorno_erp@1` | integracao | vendedor (aplica o status e publica `vendedor.pedido.faturado@1`; desenho T-0011) |
@@ -51,3 +54,17 @@
 > Origem dos itens (T-0011 §2): `integracao.pedido.retorno_erp@1` e o `RetornoErp` do Conector ganham `itens_faturados`
 > opcional (`[{ sequencia, quantidade }]`, a sequência do `PedidoParaErp`). É um campo novo opcional, então continua `@1`
 > (RN-INT-09). Um `faturado_parcial` sem `itens_faturados` **não publica** o evento; o `faturado_total` cobre o saldo.
+
+> **Sprint 1 — contratos planejados (desenho [T-0016](../../docs/desenho/T-0016.md), aguardando OK do gerente)**. Schemas em
+> `modules/core/contracts/eventos.ts` (modulo-core). Sem consumidor rodando até existir o despachante da outbox (ADR 0007).
+> - `core.visita.checkin@1` (payload definido agora):
+>   `{ visita_id, usuario_id, cliente_id, rota_parada_id, checkin_em, data_local, fora_do_raio, distancia_m, sem_gps, extra }`.
+> - `core.visita.checkout@1` (payload definido agora):
+>   `{ visita_id, usuario_id, cliente_id, checkin_em, checkout_em, data_local, resultado, motivo_codigo, pedido_id, fechada_por, permanencia_s }`
+>   — `resultado`: `atendido | pedido | sem_pedido | cliente_fechado | nao_finalizado`; `fechada_por`: `usuario | auto`.
+>   O Promotor usa `permanencia_s` (RN-PRO-07).
+> - `core.cliente.atualizado@1` (payload definido agora): `{ cliente_id, campos: string[], origem: 'erp' | 'bko' | 'campo' }`.
+> - `core.notificacao.criada@1` (novo): `{ notificacao_id, usuario_id, tipo, prioridade }` — sem título/corpo (dado pessoal fica no banco).
+> - O Core passa a consumir, quando houver despachante: `vendedor.pedido.faturado@1` e `vendedor.pedido.status_alterado@1`
+>   (metas, RN-CORE-21), `vendedor.pedido.criado@1` (notificação do pedido em nome, RN-VEN-35) e
+>   `treinamento.medalha.conquistada@1` (notificação).

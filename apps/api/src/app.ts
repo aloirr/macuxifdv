@@ -19,11 +19,10 @@ import {
   corpoDoErroModulo,
   criarPermissoes,
   dependenciasDosManifestos,
-  ehAcaoDePedido,
-  ehCaminhoDePedido,
   ErroHttpModulo,
   escopoDoPerfil,
   modulosEfetivos,
+  promotorBarradoNaRota,
   validarConjunto,
   verificarAcao,
   verificarAcesso,
@@ -34,7 +33,6 @@ import {
   type Manifesto,
   type ModuloApi,
   type ModuloId,
-  type Perfil,
   type RotaModulo,
   type RotaPublica,
   type ServicosCore,
@@ -65,6 +63,8 @@ export interface OpcoesApp {
   autenticar?: ServicosCore['autenticar'];
   /** Escopo de carteira (padrão: o do Core; sem ele, só perfis de escopo `tenant` veem clientes). */
   carteira?: ServicosCore['carteira'];
+  /** Usuários visíveis (padrão: o do Core; sem ele, só o próprio — ou `'tenant'` nos perfis de escopo tenant). */
+  usuariosVisiveis?: ServicosCore['usuariosVisiveis'];
   relogio?: () => Date;
   logger?: FastifyServerOptions['logger'];
 }
@@ -118,6 +118,11 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const autenticar = op.autenticar ?? core?.servicos?.autenticar ?? (async () => null);
   const carteiraDe =
     op.carteira ?? core?.servicos?.carteira ?? (async (u: UsuarioAutenticado) => (escopoDoPerfil(u.perfil) === 'tenant' ? ('tenant' as const) : new Set<string>()));
+  // falha fechada (ADR 0009 §6): sem o serviço do Core, supervisor e gerente veem só os próprios dados
+  const usuariosDe =
+    op.usuariosVisiveis ??
+    core?.servicos?.usuariosVisiveis ??
+    (async (u: UsuarioAutenticado) => (escopoDoPerfil(u.perfil) === 'tenant' ? ('tenant' as const) : new Set<string>([u.id])));
 
   const app = Fastify({
     logger: op.logger ?? false,
@@ -160,6 +165,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     const efetivos = modulosEfetivos({ manifestos, ...licencas });
     const usuario: UsuarioDaRequisicao = { id: token.id, tenant_id: token.tenant_id, perfil: token.perfil, modulos: efetivos };
     let carteira: Promise<ReadonlySet<string> | 'tenant'> | null = null;
+    let usuariosVisiveis: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     const contexto = (m: ModuloId | null): ContextoBase => ({
       usuario,
       dependencias,
@@ -170,12 +176,14 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
           fn(db, transacaoTenant(db, { manifestos, modulo: m, tenantId: usuario.tenant_id, usuarioId: usuario.id, requestId: req.id, agora: relogio })),
         ),
       carteira: () => (carteira ??= carteiraDe(token, acesso)),
+      // o próprio usuário sempre está no conjunto, mesmo que o serviço o omita
+      usuariosVisiveis: () => (usuariosVisiveis ??= usuariosDe(token, acesso).then((v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])))),
       log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id }),
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto };
   };
 
-  const plataforma: Plataforma = { manifestos, modulos, preparar, relogio, banco };
+  const plataforma: Plataforma = { manifestos, modulos, permissoes, preparar, relogio, banco };
 
   // ---------- plataforma ----------
   app.get('/v1/saude', async () => ({ ok: true, modulos: manifestos.map((m) => m.id) }));
@@ -198,11 +206,6 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   return app;
 }
 
-/** RN-PRO-01 na API, independentemente do que a rota declarou: promotor nunca toca rota/ação de pedido. */
-function vetadaAoPromotor(perfil: Perfil, rota: Pick<RotaModulo, 'caminho' | 'acao'>): boolean {
-  return perfil === 'promotor' && (ehCaminhoDePedido(rota.caminho) || (!!rota.acao && ehAcaoDePedido(rota.acao)));
-}
-
 function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<typeof criarPermissoes>, manifesto: Manifesto, rota: RotaModulo): void {
   const modulo = manifesto.id;
   const url = `/v1/${modulo}${rota.caminho ? `/${rota.caminho}` : ''}`;
@@ -215,8 +218,9 @@ function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<
       // 1) licença do módulo da rota (403 MODULO_INATIVO)
       const lic = verificarAcesso(u, { modulo, perfis: [u.perfil] });
       if (!lic.ok) negar(lic, modulo);
-      // 2) perfil: RN-PRO-01, depois ação do manifesto (ADR 0004) ou lista de perfis
-      if (vetadaAoPromotor(u.perfil, rota)) throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
+      // 2) perfil: RN-PRO-01 (escrita de pedido sempre barrada; leitura GET pedido.ver segue o manifesto — O-3),
+      //    depois ação do manifesto (ADR 0004) ou lista de perfis
+      if (u.perfil === 'promotor' && promotorBarradoNaRota(rota)) throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
       const perfil = rota.acao ? verificarAcao(u, permissoes, rota.acao) : verificarAcesso(u, { modulo, perfis: rota.perfis ?? manifesto.perfis });
       if (!perfil.ok) negar(perfil, rota.acao ? permissoes.regraDaAcao(rota.acao).modulo : modulo);
       // 3) entrada validada por Zod

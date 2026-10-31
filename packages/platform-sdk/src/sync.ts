@@ -11,7 +11,7 @@
  */
 import { z } from 'zod';
 import type { Manifesto } from './manifesto';
-import type { ModuloId } from './nomes';
+import { ehEntidadeDePedido, type ModuloId, type Perfil } from './nomes';
 import { ENTIDADE_SYNC_RE } from './nomes';
 
 export const TAMANHO_PAGINA_SYNC = 1000;
@@ -30,11 +30,48 @@ export interface DefinicaoEntidadeSync<S extends z.ZodTypeAny = z.ZodTypeAny> {
   modulo: ModuloId;
   direcao: DirecaoSync;
   conflito: PoliticaConflito;
-  /** Schema do registro (pull) e do payload aceito no push. */
+  /**
+   * Schema do payload aceito no push. Entidade só de pull (ou sem `schemaLinha`) usa o mesmo para a linha do pull.
+   * ADR 0009 §2: em entidade de escrita, o payload (comando) e a linha do servidor têm formatos diferentes.
+   */
   schema: S;
+  /** Schema Zod da linha do pull (ADR 0009 §2). Os provedores validam a linha em teste; o app tipa a leitura local. */
+  schemaLinha?: z.ZodTypeAny;
 }
 
-export function definirEntidadeSync<S extends z.ZodTypeAny>(def: DefinicaoEntidadeSync<S>): DefinicaoEntidadeSync<S> {
+/**
+ * Conjunto que filtra as linhas de um provedor de pull e do qual sai a `versao_escopo` (ADR 0009 §4):
+ * - `carteira`: clientes visíveis (`ctx.carteira()`, RN-CORE-04) — títulos, contatos, histórico;
+ * - `usuarios`: usuários visíveis (`ctx.usuariosVisiveis()`, RN-CORE-04) — visitas, rotas, metas, pedidos;
+ * - `proprio`: só o usuário da sessão (notificações) — sem versão (nunca muda no aparelho);
+ * - `tenant`: cadastro do tenant inteiro (produto, motivo) — sem versão.
+ */
+export const ESCOPOS_SYNC = ['carteira', 'usuarios', 'proprio', 'tenant'] as const;
+export type EscopoSync = (typeof ESCOPOS_SYNC)[number];
+
+/**
+ * ADR 0009 §7 (D-2): a entidade é de módulo efetivo, mas o servidor ainda não a serve. No pull a API responde
+ * 501 com este código e o motor pula a entidade; no push o item volta `rejeitado` com este código e o motor o
+ * mantém `pendente` (retentável).
+ */
+export const SYNC_NAO_IMPLEMENTADO = 'SYNC_NAO_IMPLEMENTADO';
+
+/** Códigos de rejeição de item que NÃO são culpa do item: o motor deixa o item `pendente` e tenta no próximo envio. */
+export const CODIGOS_RETENTAVEIS: readonly string[] = [SYNC_NAO_IMPLEMENTADO];
+
+/**
+ * Erro de transporte que significa "entidade ainda não disponível no servidor" (ADR 0009 §7): `status` 501 ou
+ * `codigo`/`code` `SYNC_NAO_IMPLEMENTADO` (o `HttpError` do app usa `code`). Qualquer outro erro continua erro.
+ */
+export function ehSyncNaoImplementado(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const x = e as { status?: unknown; codigo?: unknown; code?: unknown };
+  return x.status === 501 || x.codigo === SYNC_NAO_IMPLEMENTADO || x.code === SYNC_NAO_IMPLEMENTADO;
+}
+
+export function definirEntidadeSync<S extends z.ZodTypeAny>(
+  def: DefinicaoEntidadeSync<S>,
+): DefinicaoEntidadeSync<S> {
   if (!ENTIDADE_SYNC_RE.test(def.nome)) throw new Error(`Entidade de sync inválida: ${def.nome}`);
   return def;
 }
@@ -46,7 +83,8 @@ export function criarRegistroSync(manifestos: readonly Manifesto[]) {
     registrar(def: DefinicaoEntidadeSync): void {
       const m = porId.get(def.modulo);
       if (!m) throw new Error(`Módulo ${def.modulo} não está instalado`);
-      if (!m.sync.includes(def.nome)) throw new Error(`${def.nome} não está em "sync" do manifesto de ${def.modulo}`);
+      if (!m.sync.includes(def.nome))
+        throw new Error(`${def.nome} não está em "sync" do manifesto de ${def.modulo}`);
       const atual = entidades.get(def.nome);
       if (atual) throw new Error(`Entidade de sync ${def.nome} já registrada por ${atual.modulo}`);
       entidades.set(def.nome, def);
@@ -61,6 +99,10 @@ export function criarRegistroSync(manifestos: readonly Manifesto[]) {
     },
     entidade(nome: string): DefinicaoEntidadeSync | undefined {
       return entidades.get(nome);
+    },
+    /** Módulo que declara a entidade em `sync` do manifesto, mesmo sem definição registrada (RN-CORE-02 no push). */
+    dono(nome: string): ModuloId | undefined {
+      return entidades.get(nome)?.modulo ?? manifestos.find((m) => m.sync.includes(nome))?.id;
     },
   };
 }
@@ -105,10 +147,19 @@ export interface LinhaSync extends CursorSync {
 export interface PaginaSync<L> {
   itens: L[];
   proximo_cursor: string | null;
+  /**
+   * Hash curto do conjunto visível do escopo do provedor (ADR 0009 §4), igual em todas as páginas da mesma
+   * requisição. Ausente em escopo `proprio`/`tenant`. Mudou desde a última passada = o motor ressincroniza a entidade.
+   */
+  versao_escopo?: string;
 }
 
 /** Página após o cursor (inclui removidos). Usado no motor em memória e como referência do SQL. */
-export function paginar<L extends LinhaSync>(linhas: readonly L[], cursor: string | null, limite = TAMANHO_PAGINA_SYNC): PaginaSync<L> {
+export function paginar<L extends LinhaSync>(
+  linhas: readonly L[],
+  cursor: string | null,
+  limite = TAMANHO_PAGINA_SYNC,
+): PaginaSync<L> {
   const desde = decodificarCursor(cursor);
   const ordenadas = [...linhas].sort(compararCursor);
   const depois = desde ? ordenadas.filter((l) => compararCursor(l, desde) > 0) : ordenadas;
@@ -118,6 +169,10 @@ export function paginar<L extends LinhaSync>(linhas: readonly L[], cursor: strin
 }
 
 // ---------- push ----------
+
+/** Texto do item retido por `SYNC_NAO_IMPLEMENTADO` (fila do app e resposta da API). */
+export const MENSAGEM_ENVIO_INDISPONIVEL =
+  'Envio ainda não disponível no servidor; fica na fila e vai sozinho quando estiver.';
 
 const Uuid = z.string().uuid('id precisa ser UUID gerado no aparelho');
 
@@ -138,25 +193,39 @@ export type ResultadoItemPush =
   | { id: string; status: 'rejeitado'; codigo: string; mensagem: string }
   | { id: string; status: 'conflito'; mensagem: string; atual?: unknown };
 
-/** Item de entidade desconhecida ou de módulo inativo é rejeitado com código, nunca descartado em silêncio. */
+/**
+ * Item rejeitado com código, nunca descartado em silêncio. Ordem (desenho T-0004 §5; D-1 da T-0003):
+ *  1. dono da entidade (pelo `sync` do manifesto) inativo → `MODULO_INATIVO` (RN-CORE-02; o app guarda o item e o
+ *     reenvia quando o módulo volta), mesmo que a entidade ainda não tenha definição/provedor;
+ *  2. promotor enviando entidade de pedido → `RN-PRO-01`;
+ *  3. só de pull, ou fora de todos os manifestos → `ENTIDADE_DESCONHECIDA`;
+ *  4. do manifesto de módulo ativo mas sem definição/provedor → `SYNC_NAO_IMPLEMENTADO` (retentável, ADR 0009 §7);
+ *  5. payload fora do schema → `PAYLOAD_INVALIDO`.
+ */
 export function rejeitarItensInvalidos(
   req: PushRequest,
   registro: RegistroSync,
   modulosAtivos: Iterable<ModuloId>,
+  opcoes: { perfil?: Perfil } = {},
 ): { validos: ItemPush[]; rejeitados: ResultadoItemPush[] } {
   const ativos = new Set(modulosAtivos);
   const validos: ItemPush[] = [];
   const rejeitados: ResultadoItemPush[] = [];
+  const rejeitar = (item: ItemPush, codigo: string, mensagem: string) =>
+    rejeitados.push({ id: item.id, status: 'rejeitado', codigo, mensagem });
   for (const item of req.itens) {
+    const dono = registro.dono(item.entidade);
     const def = registro.entidade(item.entidade);
-    if (!def || def.direcao === 'pull') {
-      rejeitados.push({ id: item.id, status: 'rejeitado', codigo: 'ENTIDADE_DESCONHECIDA', mensagem: `Entidade ${item.entidade} não aceita push` });
-    } else if (!ativos.has(def.modulo)) {
-      rejeitados.push({ id: item.id, status: 'rejeitado', codigo: 'MODULO_INATIVO', mensagem: `Módulo ${def.modulo} inativo` });
-    } else {
+    if (dono && !ativos.has(dono)) rejeitar(item, 'MODULO_INATIVO', `Módulo ${dono} inativo`);
+    else if (opcoes.perfil === 'promotor' && ehEntidadeDePedido(item.entidade))
+      rejeitar(item, 'RN-PRO-01', 'Promotor não cria nem altera pedido.');
+    else if (!def && dono) rejeitar(item, SYNC_NAO_IMPLEMENTADO, MENSAGEM_ENVIO_INDISPONIVEL);
+    else if (!def || def.direcao === 'pull')
+      rejeitar(item, 'ENTIDADE_DESCONHECIDA', `Entidade ${item.entidade} não aceita push`);
+    else {
       const p = def.schema.safeParse(item.payload);
       if (p.success) validos.push({ ...item, payload: p.data });
-      else rejeitados.push({ id: item.id, status: 'rejeitado', codigo: 'PAYLOAD_INVALIDO', mensagem: p.error.issues.map((i) => i.message).join('; ') });
+      else rejeitar(item, 'PAYLOAD_INVALIDO', p.error.issues.map((i) => i.message).join('; '));
     }
   }
   return { validos, rejeitados };

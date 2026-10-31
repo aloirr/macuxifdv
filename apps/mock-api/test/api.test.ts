@@ -11,6 +11,8 @@ import type { Store } from '../src/store';
 
 /** Relógio fixo: segunda, 12/10/2026, 10:00 em Manaus. */
 const NOW = new Date('2026-10-12T14:00:00Z');
+/** Gerar as planilhas da Fase M leva ~30 s sozinho; com a raiz toda em paralelo (turbo), bem mais. Folga para não ficar instável. */
+const LENTO_MS = 180_000;
 let app: FastifyInstance;
 let store: Store;
 let dir: string;
@@ -31,7 +33,7 @@ beforeAll(async () => {
   ({ app, store } = await buildApp({ dataDir: dir, logger: false, clock: () => NOW }));
   const list = (await call('GET', '/auth/users')).body.items as Array<{ id: string; name: string }>;
   for (const u of list) users[u.name.split(' ')[0]!] = u.id;
-}, 60_000);
+}, LENTO_MS);
 
 afterAll(async () => {
   await app.close();
@@ -276,7 +278,7 @@ describe('check-in esquecido', () => {
     expect(ok.json()).toMatchObject({ closed_by: 'seller', checkout_at: '2026-10-12T22:30:00Z' });
     await app2.close();
     rmSync(dir2, { recursive: true, force: true });
-  }, 60_000);
+  }, LENTO_MS);
 });
 
 describe('editar, excluir e duplicar pedido', () => {

@@ -33,11 +33,33 @@ export const usuarios: Record<string, UsuarioAutenticado> = {
 
 export const cab = (quem: keyof typeof usuarios) => ({ 'x-teste-usuario': quem });
 
-/** Rotas de exemplo do Vendedor (as reais chegam com o módulo; o manifesto e as ações são os reais). */
+export const PEDIDO_DA_CARTEIRA = '0d000000-0000-4000-8000-0000000000c1';
+export const PEDIDO_FORA = '0d000000-0000-4000-8000-0000000000f1';
+/** Pedidos de exemplo: um de cliente da carteira, outro de cliente fora dela (RN-CORE-04). */
+const PEDIDOS = [
+  { id: PEDIDO_DA_CARTEIRA, cliente_id: CLIENTE_DA_CARTEIRA },
+  { id: PEDIDO_FORA, cliente_id: CLIENTE_FORA },
+];
+const naCarteira = (c: ReadonlySet<string> | 'tenant', clienteId: string) => c === 'tenant' || c.has(clienteId);
+
+/**
+ * Rotas de exemplo do Vendedor (as reais chegam com o módulo; o manifesto e as ações são os reais). Leitura por
+ * `pedido.ver` (ADR 0004; O-3): quem lê é o `perfis` da ação no manifesto; o escopo é a carteira, filtrada no domínio
+ * (lista) ou 404 no detalhe fora dela (RN-CORE-04).
+ */
 export const vendedorApi = definirModuloApi({
   manifesto: vendedor,
   rotas: [
-    { metodo: 'GET', caminho: 'pedidos', carteira: 'filtrar_no_dominio', executar: async (ctx) => ({ itens: [], quem: ctx.usuario.perfil }) },
+    {
+      metodo: 'GET',
+      caminho: 'pedidos',
+      acao: 'pedido.ver',
+      carteira: 'filtrar_no_dominio',
+      executar: async (ctx) => {
+        const c = await ctx.carteira();
+        return { itens: PEDIDOS.filter((p) => naCarteira(c, p.cliente_id)), quem: ctx.usuario.perfil };
+      },
+    },
     {
       metodo: 'POST',
       caminho: 'pedidos',
@@ -54,9 +76,13 @@ export const vendedorApi = definirModuloApi({
     {
       metodo: 'GET',
       caminho: 'pedidos/:id',
+      acao: 'pedido.ver',
       carteira: 'filtrar_no_dominio',
-      executar: async () => {
-        throw new ErroNaoEncontrado('PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado na sua carteira.');
+      params: z.object({ id: z.string().uuid() }),
+      executar: async (ctx) => {
+        const p = PEDIDOS.find((x) => x.id === ctx.params.id);
+        if (!p || !naCarteira(await ctx.carteira(), p.cliente_id)) throw new ErroNaoEncontrado('PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado na sua carteira.');
+        return p;
       },
     },
   ],

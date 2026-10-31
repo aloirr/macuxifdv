@@ -4,7 +4,7 @@
  * O shell e a API leem só o manifesto para montar o módulo (docs/produto/04 "Manifesto").
  */
 import { z } from 'zod';
-import { ACAO_RE, ehAcaoDePedido, ENTIDADE_SYNC_RE, EVENTO_RE, EXTENSAO_RE, lerNomeEvento, MODULOS, PERFIS } from './nomes';
+import { ACAO_RE, ehAcaoDeEscritaDePedido, ENTIDADE_SYNC_RE, EVENTO_RE, EXTENSAO_RE, lerNomeEvento, MODULOS, PERFIS } from './nomes';
 
 const ModuloIdSchema = z.enum(MODULOS);
 const PerfilSchema = z.enum(PERFIS);
@@ -74,8 +74,9 @@ export const ManifestoSchema = z
       if (lerNomeEvento(ev)?.modulo !== m.id) erro(['publica', i], `módulo ${m.id} só publica eventos ${m.id}.*`);
     });
     for (const [acao, def] of Object.entries(m.acoes)) {
-      // RN-PRO-01 vale pelo perfil (doc 03, esclarecimento de 2026-10-30): nenhum módulo concede ação de pedido ao promotor.
-      if (ehAcaoDePedido(acao) && def.perfis.includes('promotor')) erro(['acoes', acao], 'RN-PRO-01: promotor nunca recebe ação de pedido');
+      // RN-PRO-01 vale pelo perfil (doc 03, esclarecimentos de 2026-10-30 e O-3 de 2026-10-31): nenhum módulo concede ao
+      // promotor ação de ESCRITA de pedido; a leitura (`pedido.ver`) pode ser concedida (matriz §2 "Ver pedidos": carteira).
+      if (ehAcaoDeEscritaDePedido(acao) && def.perfis.includes('promotor')) erro(['acoes', acao], 'RN-PRO-01: promotor nunca recebe ação de escrita de pedido');
     }
     // consumir evento de módulo fora de depende/opcionais é permitido: se o publicador
     // estiver inativo, simplesmente não chegam eventos (desacoplamento por evento).

@@ -4,7 +4,7 @@
  * módulos) e mostra os itens de módulo desativado como "não enviado — módulo desativado"; os dados do
  * módulo só são apagados depois que o usuário confirma (RN-CORE-02, Q4).
  */
-import { ROTULO_PERFIL, ROTULO_SITUACAO } from '@macuxi/platform-sdk';
+import { ROTULO_PERFIL, rotuloDoItem } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Button, Card, colors, dateTimeLabel, fonts, Icon, initials, ProgressBar, radius, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { Redirect, router } from 'expo-router';
@@ -121,6 +121,16 @@ export default function ProfileScreen() {
         </Card>
       ))}
 
+      {estado.avisos.length > 0 ? (
+        <Card testID="avisos-sync" style={{ padding: 14, gap: 6 }}>
+          <Text style={t.bodyStrong}>Ainda não disponível no servidor</Text>
+          <Text style={t.small}>
+            {estado.avisos.map((a) => a.entidade).join(', ')}: o resto foi sincronizado. O que você registrar fica no aparelho e na fila até o
+            servidor receber.
+          </Text>
+        </Card>
+      ) : null}
+
       <View style={{ gap: 8 }}>
         <SectionHeader title="Fila do aparelho" right={fila.length === 0 ? 'vazia' : `${fila.length} ${fila.length === 1 ? 'item' : 'itens'}`} />
         <Card testID="outbox-card">
@@ -143,7 +153,7 @@ export default function ProfileScreen() {
                   <Text style={[t.smallStrong, { color: colors.danger }]}>Descartar</Text>
                 </Pressable>
               ) : (
-                <Badge label={it.situacao === 'pendente' && offline ? 'aguardando sinal' : ROTULO_SITUACAO[it.situacao]} tone={it.situacao === 'modulo_inativo' ? 'danger' : 'warning'} />
+                <Badge label={it.situacao === 'pendente' && offline ? 'aguardando sinal' : rotuloDoItem(it)} tone={it.situacao === 'modulo_inativo' ? 'danger' : 'warning'} />
               )}
             </View>
           ))}

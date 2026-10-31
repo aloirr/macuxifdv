@@ -51,7 +51,7 @@ export function useVisaoShell<C = unknown>(): VisaoShell<C> {
   return useValor().visao as VisaoShell<C>;
 }
 
-/** Permissão por ação (ADR 0004). Promotor nunca recebe ação de pedido (RN-PRO-01). */
+/** Permissão por ação (ADR 0004). Promotor nunca recebe ação de escrita de pedido (RN-PRO-01); leitura segue o manifesto. */
 export function usePode(acao: string): boolean {
   return useValor().visao.pode(acao);
 }
@@ -76,6 +76,7 @@ const ESTADO_VAZIO: EstadoMotorSync = {
   sincronizado_em: null,
   modulosAtivos: [],
   limpezaPendente: [],
+  avisos: [],
 };
 
 const semMotor = () => () => {};

@@ -116,3 +116,14 @@ critérios continuam valendo) e não reescreve nada acima.
 - **Alternativas descartadas**: uma tabela com colunas próprias por entidade (DDL por entidade, migração a cada campo novo);
   só chave→JSON no SQLite (não resolve o pull por página); `better-sqlite3` nos testes (addon nativo e aprovação de build no pnpm);
   sinônimos gravados no índice (reindexar 20 mil a cada mudança); FTS contentless (sem `rebuild` nem valores).
+
+## Adendo de 2026-10-31 — Node 24.7 e P1 da T-0008 implementada
+- **Node mínimo 24.7** (decisão do Alexandre, R-20261031-151810): o Core usa `crypto.argon2`, que exige Node >= 24.7; o
+  `node:sqlite` (item 5 acima) também é atendido. Vale no lugar do `>=22.13`: `engines.node` da raiz `>=24.7`, `.nvmrc` 24, CI em
+  Node 24, EAS em 24.21.0.
+- **P1 da T-0008 implementada** (`packages/platform-sdk/src/motor-sync.ts`): extensões opcionais `linhas`, `emTransacao` e
+  `removerModulo` (a `busca` entra com a P5), `motor.linhasPorIds`, `comLinhasEmChaveJson` e a suíte do motor parametrizada
+  (`motor-sync.fabricas.ts`). `LinhasSync` ganhou `ids(entidade)` para a ressincronização por versão de escopo da ADR 0009 §4
+  (apagar o que não veio sem materializar as linhas). `confirmarLimpeza` agora grava antes de publicar o estado (risco do desenho
+  T-0008 §7).
+

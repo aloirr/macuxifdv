@@ -10,7 +10,7 @@
     "seed": "tsx src/seed/run.ts",
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --testTimeout=30000"
+    "test": "vitest run --testTimeout=120000 --hookTimeout=180000"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",

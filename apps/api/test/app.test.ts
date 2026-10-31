@@ -2,16 +2,33 @@
  * createApp (T-0004 critério 3): monta os 8 módulos pelo manifesto e checa, em toda rota,
  * autenticação, licença do módulo (RN-CORE-02), perfil/ação (ADR 0004, RN-PRO-01) e carteira (RN-CORE-04).
  */
-import { definirModuloApi, ErroApiSchema, ErroHttpModulo, type StatusErroModulo } from '@macuxi/platform-sdk';
+import { defineModule, definirModuloApi, ErroApiSchema, ErroHttpModulo, type Manifesto, type StatusErroModulo } from '@macuxi/platform-sdk';
+import { manifest as vendedor } from '@macuxi/vendedor/manifest';
 import { z } from 'zod';
 import { ErroModuloInativoSchema, MeusModulosRespostaSchema } from '@macuxi/core/contracts';
 import { manifest as core } from '@macuxi/core/manifest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
-import { bancoFalso, cab, CLIENTE_DA_CARTEIRA, CLIENTE_FORA, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste } from './apoio';
+import { parametrosPorModulo } from '../src/licencas';
+import {
+  bancoFalso,
+  cab,
+  CLIENTE_DA_CARTEIRA,
+  CLIENTE_FORA,
+  LICENCAS_PADRAO,
+  modulosDeTeste,
+  opcoesDeTeste,
+  PEDIDO_DA_CARTEIRA,
+  PEDIDO_FORA,
+  vendedorApi,
+  type Licencas,
+} from './apoio';
 
 const ID = '0d000000-0000-4000-8000-000000000001';
 const pedido = (cliente = CLIENTE_DA_CARTEIRA, total_centavos = 1500) => ({ id: ID, cliente_id: cliente, total_centavos });
+/** Opções de teste com o Vendedor de exemplo montado sobre outro manifesto (variações de `pedido.ver`). */
+const comVendedor = (manifesto: Manifesto, l: Licencas = LICENCAS_PADRAO) =>
+  opcoesDeTeste(l, { modulos: modulosDeTeste({ vendedor: definirModuloApi({ ...vendedorApi, manifesto }) }) });
 
 describe('createApp monta os 8 módulos pelo manifesto', () => {
   it('instala os 8 módulos (sem rotas próprias ainda: só manifesto) e responde /v1/saude', async () => {
@@ -80,8 +97,9 @@ describe('perfil e ação (ADR 0004) — promotor sem rota de pedido (RN-PRO-01)
     expect(r.json().codigo).toBe('PERFIL_SEM_ACESSO');
   });
 
-  it('RN-PRO-01: promotor também não lista pedidos (rota de pedido, mesmo de leitura)', async () => {
-    const r = await createApp(opcoesDeTeste()).inject({ method: 'GET', url: '/v1/vendedor/pedidos', headers: cab('promotor') });
+  it('O-3: a leitura de pedido vem do manifesto — sem promotor em pedido.ver, o promotor não lê (falha fechada)', async () => {
+    const semLeitura = defineModule({ ...vendedor, acoes: { ...vendedor.acoes, 'pedido.ver': { perfis: ['vendedor', 'supervisor'] } } });
+    const r = await createApp(comVendedor(semLeitura)).inject({ method: 'GET', url: '/v1/vendedor/pedidos', headers: cab('promotor') });
     expect(r.statusCode).toBe(403);
     expect(r.json().codigo).toBe('PERFIL_SEM_ACESSO');
   });
@@ -113,6 +131,42 @@ describe('perfil e ação (ADR 0004) — promotor sem rota de pedido (RN-PRO-01)
     expect(r.statusCode).toBe(403);
     expect(r.json().codigo).toBe('PERFIL_SEM_ACESSO');
     expect((await app.inject({ method: 'POST', url: `/v1/vendedor/pedidos/${ID}/aprovar`, headers: cab('supervisor') })).statusCode).toBe(200);
+  });
+});
+
+describe('O-3 (doc 03 §2 "Ver pedidos"): promotor LÊ pedidos da carteira; escrita sempre 403 (RN-PRO-01)', () => {
+  /** Manifesto do Vendedor concedendo `pedido.ver` ao promotor (o real passa a conceder na T-0015, modulo-vendedor). */
+  const comLeitura = defineModule({
+    ...vendedor,
+    acoes: { ...vendedor.acoes, 'pedido.ver': { perfis: [...new Set([...(vendedor.acoes['pedido.ver']?.perfis ?? []), 'vendedor', 'promotor'] as const)] } },
+  });
+  const app = () => createApp(comVendedor(comLeitura));
+
+  it('GET /pedidos → 200 só com os pedidos da carteira (RN-CORE-04, filtrado no domínio)', async () => {
+    const r = await app().inject({ method: 'GET', url: '/v1/vendedor/pedidos', headers: cab('promotor') });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json()).toEqual({ itens: [{ id: PEDIDO_DA_CARTEIRA, cliente_id: CLIENTE_DA_CARTEIRA }], quem: 'promotor' });
+  });
+
+  it('GET /pedidos/:id → 200 na carteira; fora da carteira → 404 (não revela que existe)', async () => {
+    const dentro = await app().inject({ method: 'GET', url: `/v1/vendedor/pedidos/${PEDIDO_DA_CARTEIRA}`, headers: cab('promotor') });
+    expect(dentro.statusCode, dentro.body).toBe(200);
+    const fora = await app().inject({ method: 'GET', url: `/v1/vendedor/pedidos/${PEDIDO_FORA}`, headers: cab('promotor') });
+    expect(fora.statusCode).toBe(404);
+    expect(fora.json().codigo).toBe('PEDIDO_NAO_ENCONTRADO');
+  });
+
+  it('RN-PRO-01: toda escrita de pedido continua 403 PERFIL_SEM_ACESSO, com a leitura concedida', async () => {
+    const criar = await app().inject({ method: 'POST', url: '/v1/vendedor/pedidos', headers: cab('promotor'), payload: pedido() });
+    expect([criar.statusCode, criar.json().codigo]).toEqual([403, 'PERFIL_SEM_ACESSO']);
+    const aprovar = await app().inject({ method: 'POST', url: `/v1/vendedor/pedidos/${PEDIDO_DA_CARTEIRA}/aprovar`, headers: cab('promotor') });
+    expect([aprovar.statusCode, aprovar.json().codigo]).toEqual([403, 'PERFIL_SEM_ACESSO']);
+  });
+
+  it('RN-CORE-02: Vendedor fora do perfil do promotor → 403 MODULO_INATIVO (a leitura também exige a licença)', async () => {
+    const op = comVendedor(comLeitura, { ...LICENCAS_PADRAO, perfil: { ...LICENCAS_PADRAO.perfil, promotor: ['core', 'catalogo', 'promotor'] } });
+    const r = await createApp(op).inject({ method: 'GET', url: '/v1/vendedor/pedidos', headers: cab('promotor') });
+    expect([r.statusCode, r.json().codigo]).toEqual([403, 'MODULO_INATIVO']);
   });
 });
 
@@ -241,5 +295,17 @@ describe('ErroHttpModulo: status e código do módulo (T-0003 F2)', () => {
     expect(Object.keys(d).sort()).toEqual(['catalogo', 'core', 'gestor', 'integracao', 'pesquisa', 'promotor', 'treinamento', 'vendedor']);
     expect(d.core).toEqual([]);
     expect(d.vendedor).toEqual(expect.arrayContaining(['core', 'catalogo']));
+  });
+});
+
+describe('parâmetros do tenant: fonte única plataforma.parametro (desenho T-0016 §7)', () => {
+  it('agrupa chave → valor por módulo, só de módulos do produto ativos no tenant; ativo sem linha = {}', () => {
+    const linhas = [
+      { modulo: 'core', chave: 'checkin.raio_m', valor: 200 },
+      { modulo: 'core', chave: 'metas.base_apuracao', valor: 'aprovado' },
+      { modulo: 'promotor', chave: 'permanencia_min', valor: 5 },
+      { modulo: 'teste', chave: 'x', valor: 1 },
+    ];
+    expect(parametrosPorModulo(linhas, ['core', 'vendedor'])).toEqual({ core: { 'checkin.raio_m': 200, 'metas.base_apuracao': 'aprovado' }, vendedor: {} });
   });
 });

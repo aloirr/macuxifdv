@@ -7,7 +7,8 @@
  *   1. autenticação (401 NAO_AUTENTICADO);
  *   2. licença do módulo da rota, calculada por requisição (403 MODULO_INATIVO, RN-CORE-02);
  *   3. perfil — pela ação do manifesto (ADR 0004) ou pela lista `perfis` (403 PERFIL_SEM_ACESSO);
- *      RN-PRO-01: promotor nunca passa em rota de pedido, mesmo que a rota se declare errada;
+ *      RN-PRO-01: promotor nunca passa em rota de pedido de escrita, mesmo que a rota se declare errada; na
+ *      leitura (GET com ação `pedido.ver`), quem decide é o `perfis` da ação no manifesto (O-3, `promotorBarradoNaRota`);
  *   4. validação Zod de params, query e corpo (400 VALIDACAO);
  *   5. escopo de carteira quando a rota diz qual cliente toca (403 FORA_DA_CARTEIRA, RN-CORE-04);
  *   6. `executar`, com o banco só por `ctx.comTenant` (tenant do token, papel macuxi_app, RLS).
@@ -21,9 +22,22 @@ import type { z } from 'zod';
 import type { MetodoHttp } from './ambiente';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
-import { ehAcaoDePedido, type ModuloId, type Perfil } from './nomes';
-import type { CursorSync, DefinicaoEntidadeSync, ItemPush, LinhaSync, ResultadoItemPush } from './sync';
-
+import {
+  ehAcaoDeEscritaDePedido,
+  ehAcaoDeLeituraDePedido,
+  ehAcaoDePedido,
+  type ModuloId,
+  type Perfil,
+} from './nomes';
+import {
+  ESCOPOS_SYNC,
+  type CursorSync,
+  type DefinicaoEntidadeSync,
+  type EscopoSync,
+  type ItemPush,
+  type LinhaSync,
+  type ResultadoItemPush,
+} from './sync';
 
 /** Usuário do token (o `tenant_id` vem SÓ do token; nunca do corpo ou da query). */
 export interface UsuarioAutenticado {
@@ -42,7 +56,10 @@ export interface UsuarioDaRequisicao extends UsuarioAutenticado {
  * O SDK não depende de `pg`; o adaptador fica em `apps/api`.
  */
 export interface ClienteBanco {
-  query<R = Record<string, unknown>>(sql: string, valores?: readonly unknown[]): Promise<{ rows: R[]; rowCount: number | null }>;
+  query<R = Record<string, unknown>>(
+    sql: string,
+    valores?: readonly unknown[],
+  ): Promise<{ rows: R[]; rowCount: number | null }>;
 }
 
 export interface LogRota {
@@ -57,7 +74,11 @@ export interface TransacaoTenant {
    * Grava o evento na outbox (`plataforma.evento`) NA MESMA transação do fato (doc 04): se a transação
    * desfaz, o evento some junto. Só eventos em `publica` do manifesto do módulo da rota; payload validado pelo schema.
    */
-  publicar<S extends z.ZodTypeAny>(def: DefinicaoEvento<S>, payload: z.input<S>, agregadoId?: string | null): Promise<EnvelopeEvento<z.output<S>>>;
+  publicar<S extends z.ZodTypeAny>(
+    def: DefinicaoEvento<S>,
+    payload: z.input<S>,
+    agregadoId?: string | null,
+  ): Promise<EnvelopeEvento<z.output<S>>>;
 }
 
 /** O que toda rota (e todo provedor de sync) recebe. */
@@ -82,6 +103,12 @@ export interface ContextoBase {
   comTenant<T>(fn: (db: ClienteBanco, tx: TransacaoTenant) => Promise<T>): Promise<T>;
   /** Clientes visíveis ao usuário (RN-CORE-04): conjunto de ids ou `'tenant'` (tudo). */
   carteira(): Promise<ReadonlySet<string> | 'tenant'>;
+  /**
+   * Usuários cujos dados (visitas, rotas, metas, pedidos) o usuário vê (RN-CORE-04; ADR 0009 §6): ele mesmo;
+   * supervisor + a equipe; gerente + as equipes abaixo; analista/assistente/admin `'tenant'`. Sempre contém o próprio
+   * id quando é conjunto. Calculado uma vez por requisição.
+   */
+  usuariosVisiveis(): Promise<ReadonlySet<string> | 'tenant'>;
   /** Logger da requisição (já leva tenant_id, modulo e request_id; nunca registre dado pessoal). */
   log: LogRota;
 }
@@ -105,9 +132,14 @@ export interface EntradaRota {
  * - `'filtrar_no_dominio'`: listas/consultas que filtram por `ctx.carteira()` no próprio módulo;
  * - `'nao_se_aplica'`: rota sem dado de cliente (ex.: catálogo de produtos, trilhas de treinamento).
  */
-export type EscopoCarteiraRota = ((e: EntradaRota) => string | null | undefined) | 'filtrar_no_dominio' | 'nao_se_aplica';
+export type EscopoCarteiraRota =
+  ((e: EntradaRota) => string | null | undefined) | 'filtrar_no_dominio' | 'nao_se_aplica';
 
-export interface RotaModulo<C extends z.ZodTypeAny = z.ZodTypeAny, Q extends z.ZodTypeAny = z.ZodTypeAny, P extends z.ZodTypeAny = z.ZodTypeAny> {
+export interface RotaModulo<
+  C extends z.ZodTypeAny = z.ZodTypeAny,
+  Q extends z.ZodTypeAny = z.ZodTypeAny,
+  P extends z.ZodTypeAny = z.ZodTypeAny,
+> {
   metodo: MetodoHttp;
   /** Relativo a `/v1/<modulo>`, sem barra inicial; parâmetros no formato `:id`. `''` = a raiz do módulo. */
   caminho: string;
@@ -135,7 +167,15 @@ export interface PedidoPull {
 /** Quem serve uma entidade de sync na API (pull e/ou push). Definição igual à do app (mesmo schema). */
 export interface ProvedorSync {
   entidade: DefinicaoEntidadeSync;
-  /** Pull: linhas em ordem `(updated_at, id)`, incluindo removidas, no escopo da carteira. */
+  /**
+   * Conjunto que filtra o pull (ADR 0009 §4): a API devolve `versao_escopo` (hash desse conjunto) em toda página e o
+   * aparelho ressincroniza a entidade quando ela muda (cliente que entra na carteira traz o histórico; o que sai some).
+   * Declare em todo provedor com `puxar`; a validação passa a exigir quando os provedores atuais declararem (T-0017).
+   * Lista = o filtro depende de mais de um conjunto (ex.: `pedido`: `['usuarios', 'carteira']` — o vendedor vê os
+   * próprios, o promotor lê os da carteira, O-3); a versão combina os conjuntos.
+   */
+  escopo?: EscopoSync | readonly EscopoSync[];
+  /** Pull: linhas em ordem `(updated_at, id)`, incluindo removidas, filtradas pelo `escopo` (RN-CORE-04). */
   puxar?(ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]>;
   /** Push: itens já validados pelo schema; idempotente pelo `id` (UUID do aparelho). */
   receber?(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]>;
@@ -165,7 +205,11 @@ export interface ContextoPublico<C = unknown, Q = unknown, P = unknown> {
  * limite de tentativas por IP + chave (ex.: código da empresa) obrigatório; 429 `MUITAS_TENTATIVAS`.
  * Nunca devolva dado do tenant (nome, fuso) antes de validar a senha.
  */
-export interface RotaPublica<C extends z.ZodTypeAny = z.ZodTypeAny, Q extends z.ZodTypeAny = z.ZodTypeAny, P extends z.ZodTypeAny = z.ZodTypeAny> {
+export interface RotaPublica<
+  C extends z.ZodTypeAny = z.ZodTypeAny,
+  Q extends z.ZodTypeAny = z.ZodTypeAny,
+  P extends z.ZodTypeAny = z.ZodTypeAny,
+> {
   metodo: MetodoHttp;
   /** Montada em `/v1/<caminho>` (ex.: `auth/login`). */
   caminho: string;
@@ -180,9 +224,17 @@ export interface RotaPublica<C extends z.ZodTypeAny = z.ZodTypeAny, Q extends z.
 /** Serviços de plataforma que só o Core fornece (T-0003 Fase 2). Sem eles a API falha fechada (401 / carteira vazia). */
 export interface ServicosCore {
   /** Token → usuário (JWT do Core). `null` = não autenticado. Os cabeçalhos chegam em minúsculas. */
-  autenticar?(cabecalhos: Readonly<Record<string, string | undefined>>, banco: AcessoBanco): Promise<UsuarioAutenticado | null>;
+  autenticar?(
+    cabecalhos: Readonly<Record<string, string | undefined>>,
+    banco: AcessoBanco,
+  ): Promise<UsuarioAutenticado | null>;
   /** Clientes visíveis (RN-CORE-04) para o usuário: carteira, equipe, equipes abaixo ou `'tenant'`. */
   carteira?(usuario: UsuarioAutenticado, banco: AcessoBanco): Promise<ReadonlySet<string> | 'tenant'>;
+  /**
+   * Usuários visíveis (RN-CORE-04; ADR 0009 §6): o próprio; supervisor + equipe; gerente + equipes abaixo; `'tenant'`
+   * para analista/assistente/admin. Sem o serviço a API falha fechada: só o próprio (ou `'tenant'` nos perfis de escopo tenant).
+   */
+  usuariosVisiveis?(usuario: UsuarioAutenticado, banco: AcessoBanco): Promise<ReadonlySet<string> | 'tenant'>;
 }
 
 export interface ModuloApi {
@@ -216,7 +268,10 @@ export class ErroHttpModulo extends Error {
   ) {
     super(mensagem);
     this.name = 'ErroHttpModulo';
-    if (!(STATUS_ERRO_MODULO as readonly number[]).includes(status)) throw new Error(`ErroHttpModulo: status ${String(status)} não é de módulo (${STATUS_ERRO_MODULO.join(', ')})`);
+    if (!(STATUS_ERRO_MODULO as readonly number[]).includes(status))
+      throw new Error(
+        `ErroHttpModulo: status ${String(status)} não é de módulo (${STATUS_ERRO_MODULO.join(', ')})`,
+      );
   }
 }
 
@@ -242,12 +297,18 @@ export class ErroNaoEncontrado extends ErroHttpModulo {
 }
 
 /** Corpo `ErroApiSchema` do erro do módulo (o mesmo que a API envia). */
-export function corpoDoErroModulo(e: ErroHttpModulo): { codigo: string; mensagem: string; detalhes?: Record<string, unknown> } {
+export function corpoDoErroModulo(e: ErroHttpModulo): {
+  codigo: string;
+  mensagem: string;
+  detalhes?: Record<string, unknown>;
+} {
   return { codigo: e.codigo, mensagem: e.message, ...(e.detalhes ? { detalhes: e.detalhes } : {}) };
 }
 
 /** Módulo → `depende` do manifesto, para `ctx.dependencias` (RN-CORE-03). */
-export function dependenciasDosManifestos(manifestos: readonly Pick<Manifesto, 'id' | 'depende'>[]): DependenciasModulos {
+export function dependenciasDosManifestos(
+  manifestos: readonly Pick<Manifesto, 'id' | 'depende'>[],
+): DependenciasModulos {
   const d: Partial<Record<ModuloId, readonly ModuloId[]>> = {};
   for (const m of manifestos) d[m.id] = Object.freeze([...m.depende]);
   return Object.freeze(d);
@@ -261,9 +322,22 @@ export function ehCaminhoDePedido(caminho: string): boolean {
 }
 
 /**
+ * RN-PRO-01 na API, valendo mesmo que a rota se declare errada: o promotor é barrado em toda ação de escrita de
+ * pedido e em todo caminho de pedido, EXCETO `GET` com ação de leitura de pedido (`pedido.ver`). Nesse caso a
+ * leitura não é liberada aqui: segue para a permissão por ação do manifesto (ADR 0004) e o escopo de carteira
+ * (RN-CORE-04) — doc 03 §2 "Ver pedidos" e esclarecimento O-3.
+ */
+export function promotorBarradoNaRota(rota: Pick<RotaModulo, 'metodo' | 'caminho' | 'acao'>): boolean {
+  if (rota.acao && ehAcaoDeEscritaDePedido(rota.acao)) return true;
+  const leitura = rota.metodo === 'GET' && !!rota.acao && ehAcaoDeLeituraDePedido(rota.acao);
+  return ehCaminhoDePedido(rota.caminho) && !leitura;
+}
+
+/**
  * Valida e devolve a definição da API do módulo. Falha cedo (no import) se:
  * caminho fora do padrão ou repetido; rota de escrita sem `acao`; ação não declarada no manifesto do
- * próprio módulo; `perfis` fora dos perfis do módulo; rota de pedido aceitando promotor (RN-PRO-01);
+ * próprio módulo; `perfis` fora dos perfis do módulo; rota de pedido aceitando promotor por `perfis` (RN-PRO-01;
+ * a leitura do promotor só vem por `acao` de leitura); ação de leitura de pedido em método que não é GET;
  * entidade de sync fora do `sync` do manifesto ou de outro módulo.
  */
 export function definirModuloApi(m: ModuloApi): ModuloApi {
@@ -272,35 +346,61 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
   const vistas = new Set<string>();
   for (const r of m.rotas ?? []) {
     const rotulo = `${r.metodo} /v1/${id}${r.caminho ? `/${r.caminho}` : ''}`;
-    if (r.caminho !== '' && !CAMINHO_RE.test(r.caminho)) problemas.push(`${rotulo}: caminho inválido (sem barra inicial, minúsculas, parâmetros :nome)`);
+    if (r.caminho !== '' && !CAMINHO_RE.test(r.caminho))
+      problemas.push(`${rotulo}: caminho inválido (sem barra inicial, minúsculas, parâmetros :nome)`);
     const chave = `${r.metodo} ${r.caminho.replace(/:[^/]+/g, ':')}`;
     if (vistas.has(chave)) problemas.push(`${rotulo}: rota repetida`);
     vistas.add(chave);
-    if (r.metodo !== 'GET' && !r.acao) problemas.push(`${rotulo}: rota de escrita precisa de "acao" do manifesto (ADR 0004)`);
-    if (r.acao && !Object.hasOwn(m.manifesto.acoes, r.acao)) problemas.push(`${rotulo}: ação ${r.acao} não está em "acoes" do manifesto de ${id}`);
+    if (r.metodo !== 'GET' && !r.acao)
+      problemas.push(`${rotulo}: rota de escrita precisa de "acao" do manifesto (ADR 0004)`);
+    if (r.acao && !Object.hasOwn(m.manifesto.acoes, r.acao))
+      problemas.push(`${rotulo}: ação ${r.acao} não está em "acoes" do manifesto de ${id}`);
     if (r.acao && r.perfis) problemas.push(`${rotulo}: use "acao" ou "perfis", não os dois`);
-    for (const p of r.perfis ?? []) if (!m.manifesto.perfis.includes(p)) problemas.push(`${rotulo}: perfil ${p} fora dos perfis do módulo`);
-    if ((ehCaminhoDePedido(r.caminho) || (r.acao && ehAcaoDePedido(r.acao))) && r.perfis?.includes('promotor')) {
-      problemas.push(`${rotulo}: RN-PRO-01 — promotor nunca acessa rota de pedido`);
+    for (const p of r.perfis ?? [])
+      if (!m.manifesto.perfis.includes(p)) problemas.push(`${rotulo}: perfil ${p} fora dos perfis do módulo`);
+    if (
+      (ehCaminhoDePedido(r.caminho) || (r.acao && ehAcaoDePedido(r.acao))) &&
+      r.perfis?.includes('promotor')
+    ) {
+      problemas.push(
+        `${rotulo}: RN-PRO-01 — promotor nunca acessa rota de pedido por "perfis" (leitura só por "acao" pedido.ver)`,
+      );
     }
+    if (r.acao && ehAcaoDeLeituraDePedido(r.acao) && r.metodo !== 'GET')
+      problemas.push(`${rotulo}: ação de leitura ${r.acao} só em GET (RN-PRO-01)`);
     if (r.carteira === undefined) problemas.push(`${rotulo}: declare o escopo de carteira (RN-CORE-04)`);
   }
   const entidades = new Set<string>();
   for (const p of m.sync ?? []) {
     const e = p.entidade;
     if (e.modulo !== id) problemas.push(`sync ${e.nome}: entidade de ${e.modulo} servida por ${id}`);
-    if (!m.manifesto.sync.includes(e.nome)) problemas.push(`sync ${e.nome}: não está em "sync" do manifesto de ${id}`);
+    if (!m.manifesto.sync.includes(e.nome))
+      problemas.push(`sync ${e.nome}: não está em "sync" do manifesto de ${id}`);
     if (entidades.has(e.nome)) problemas.push(`sync ${e.nome}: provedor repetido`);
     entidades.add(e.nome);
     if (!p.puxar && !p.receber) problemas.push(`sync ${e.nome}: informe puxar e/ou receber`);
     if (p.receber && e.direcao === 'pull') problemas.push(`sync ${e.nome}: direção pull não recebe push`);
     if (p.puxar && e.direcao === 'push') problemas.push(`sync ${e.nome}: direção push não serve pull`);
+    const escopos: readonly unknown[] =
+      p.escopo === undefined ? [] : typeof p.escopo === 'string' ? [p.escopo] : p.escopo;
+    for (const x of escopos)
+      if (!(ESCOPOS_SYNC as readonly unknown[]).includes(x))
+        problemas.push(`sync ${e.nome}: escopo ${String(x)} inválido (${ESCOPOS_SYNC.join(', ')})`);
+    if (p.escopo !== undefined && escopos.length === 0)
+      problemas.push(`sync ${e.nome}: lista de escopo vazia`);
+    if (p.escopo !== undefined && !p.puxar)
+      problemas.push(`sync ${e.nome}: escopo só vale para provedor com puxar`);
+    if (e.schemaLinha && e.direcao === 'push')
+      problemas.push(`sync ${e.nome}: schemaLinha só vale para entidade com pull`);
   }
-  if (id !== 'core' && (m.rotasPublicas?.length || m.servicos)) problemas.push('só o core declara rotas públicas e serviços de plataforma');
+  if (id !== 'core' && (m.rotasPublicas?.length || m.servicos))
+    problemas.push('só o core declara rotas públicas e serviços de plataforma');
   for (const r of m.rotasPublicas ?? []) {
     if (!CAMINHO_RE.test(r.caminho)) problemas.push(`${r.metodo} /v1/${r.caminho}: caminho inválido`);
-    if (/^(sync|saude|me)(\/|$)/.test(r.caminho)) problemas.push(`${r.metodo} /v1/${r.caminho}: prefixo reservado à plataforma`);
-    if (!(r.limite?.max > 0) || !(r.limite?.janelaMs > 0)) problemas.push(`${r.metodo} /v1/${r.caminho}: rota pública exige limite de tentativas`);
+    if (/^(sync|saude|me)(\/|$)/.test(r.caminho))
+      problemas.push(`${r.metodo} /v1/${r.caminho}: prefixo reservado à plataforma`);
+    if (!(r.limite?.max > 0) || !(r.limite?.janelaMs > 0))
+      problemas.push(`${r.metodo} /v1/${r.caminho}: rota pública exige limite de tentativas`);
   }
   if (problemas.length > 0) throw new Error(`API do módulo ${id} inválida: ${problemas.join('; ')}`);
   return m;

@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { corpoDoErroModulo, definirModuloApi, dependenciasDosManifestos, ehCaminhoDePedido, ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type RotaModulo } from './api';
+import {
+  corpoDoErroModulo,
+  definirModuloApi,
+  dependenciasDosManifestos,
+  ehCaminhoDePedido,
+  ErroHttpModulo,
+  ErroNaoEncontrado,
+  ErroRegraNegocio,
+  promotorBarradoNaRota,
+  type RotaModulo,
+} from './api';
 import { defineModule } from './manifesto';
 import { definirEntidadeSync } from './sync';
 
@@ -10,7 +20,7 @@ const vendedor = defineModule({
   depende: ['core'],
   perfis: ['vendedor', 'promotor', 'supervisor', 'gerente'],
   sync: ['pedido', 'politica'],
-  acoes: { 'pedido.criar': { perfis: ['vendedor', 'supervisor'] } },
+  acoes: { 'pedido.criar': { perfis: ['vendedor', 'supervisor'] }, 'pedido.ver': { perfis: ['vendedor', 'promotor', 'supervisor'] } },
 });
 
 const ok = async () => ({});
@@ -41,6 +51,22 @@ describe('definirModuloApi (desenho T-0004 §3)', () => {
     expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ perfis: ['vendedor', 'promotor'] })] })).toThrow(/RN-PRO-01/);
   });
 
+  it('RN-PRO-01 / O-3: ação de leitura de pedido só em GET', () => {
+    expect(definirModuloApi({ manifesto: vendedor, rotas: [rota({ acao: 'pedido.ver' })] }).rotas).toHaveLength(1);
+    expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ metodo: 'POST', acao: 'pedido.ver' })] })).toThrow(/só em GET/);
+  });
+
+  it('RN-PRO-01 / O-3: promotor barrado em escrita e caminho de pedido; GET com pedido.ver segue para o manifesto', () => {
+    expect(promotorBarradoNaRota({ metodo: 'GET', caminho: 'pedidos', acao: 'pedido.ver' })).toBe(false);
+    expect(promotorBarradoNaRota({ metodo: 'GET', caminho: 'pedidos/:id', acao: 'pedido.ver' })).toBe(false);
+    expect(promotorBarradoNaRota({ metodo: 'GET', caminho: 'pedidos' })).toBe(true); // leitura sem ação: só por manifesto
+    expect(promotorBarradoNaRota({ metodo: 'GET', caminho: 'pedidos', acao: 'cliente.ver' })).toBe(true);
+    expect(promotorBarradoNaRota({ metodo: 'POST', caminho: 'pedidos', acao: 'pedido.ver' })).toBe(true);
+    expect(promotorBarradoNaRota({ metodo: 'POST', caminho: 'pedidos', acao: 'pedido.criar' })).toBe(true);
+    expect(promotorBarradoNaRota({ metodo: 'GET', caminho: 'relatorios', acao: 'pedido.aprovar' })).toBe(true);
+    expect(promotorBarradoNaRota({ metodo: 'POST', caminho: 'gondolas', acao: 'gondola.registrar' })).toBe(false);
+  });
+
   it('caminho com barra inicial ou repetido é recusado', () => {
     expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ caminho: '/pedidos' })] })).toThrow(/caminho inválido/);
     expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ caminho: 'pedidos/:id' }), rota({ caminho: 'pedidos/:pedidoId' })] })).toThrow(/repetida/);
@@ -57,6 +83,18 @@ describe('definirModuloApi (desenho T-0004 §3)', () => {
     expect(() => definirModuloApi({ manifesto: vendedor, sync: [{ entidade: politica, receber: async () => [] }] })).toThrow(/não recebe push/);
     const alheia = definirEntidadeSync({ nome: 'cliente', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: z.unknown() });
     expect(() => definirModuloApi({ manifesto: vendedor, sync: [{ entidade: alheia, puxar: async () => [] }] })).toThrow(/servida por vendedor/);
+  });
+
+  it('ADR 0009 §2/§4: escopo do provedor só entre os quatro e só com puxar; schemaLinha só em entidade com pull', () => {
+    const pedido = definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'app_edita_ate_status', schema: z.unknown(), schemaLinha: z.object({ id: z.string() }) });
+    expect(definirModuloApi({ manifesto: vendedor, sync: [{ entidade: pedido, escopo: 'usuarios', puxar: async () => [] }] }).sync?.[0]?.escopo).toBe('usuarios');
+    expect(() => definirModuloApi({ manifesto: vendedor, sync: [{ entidade: pedido, escopo: 'equipe' as never, puxar: async () => [] }] })).toThrow(/escopo equipe inválido/);
+    expect(definirModuloApi({ manifesto: vendedor, sync: [{ entidade: pedido, escopo: ['usuarios', 'carteira'], puxar: async () => [] }] }).sync).toHaveLength(1);
+    expect(() => definirModuloApi({ manifesto: vendedor, sync: [{ entidade: pedido, escopo: ['usuarios', 'equipe' as never], puxar: async () => [] }] })).toThrow(/escopo equipe inválido/);
+    expect(() => definirModuloApi({ manifesto: vendedor, sync: [{ entidade: pedido, escopo: [], puxar: async () => [] }] })).toThrow(/lista de escopo vazia/);
+    expect(() => definirModuloApi({ manifesto: vendedor, sync: [{ entidade: pedido, escopo: 'carteira', receber: async () => [] }] })).toThrow(/escopo só vale para provedor com puxar/);
+    const soEnvio = definirEntidadeSync({ nome: 'politica', modulo: 'vendedor', direcao: 'push', conflito: 'somente_insercao', schema: z.unknown(), schemaLinha: z.unknown() });
+    expect(() => definirModuloApi({ manifesto: vendedor, sync: [{ entidade: soEnvio, receber: async () => [] }] })).toThrow(/schemaLinha só vale/);
   });
 
   it('reconhece caminhos de pedido', () => {

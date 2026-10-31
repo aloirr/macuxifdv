@@ -7,6 +7,7 @@ import {
   criarRegistroSync,
   decodificarCursor,
   definirEntidadeSync,
+  ehSyncNaoImplementado,
   paginar,
   PushRequestSchema,
   rejeitarItensInvalidos,
@@ -14,7 +15,8 @@ import {
 
 const manifestos = [
   defineModule({ id: 'core', versao: '1.0.0', perfis: ['admin'], sync: ['cliente', 'visita'] }),
-  defineModule({ id: 'vendedor', versao: '1.0.0', depende: ['core'], perfis: ['vendedor'], sync: ['pedido'] }),
+  defineModule({ id: 'vendedor', versao: '1.0.0', depende: ['core'], perfis: ['vendedor'], sync: ['pedido', 'pedido_item'] }),
+  defineModule({ id: 'promotor', versao: '1.0.0', depende: ['core'], perfis: ['promotor'], sync: ['checklist_loja'] }),
 ];
 
 function registro() {
@@ -99,5 +101,43 @@ describe('push idempotente por UUID do aparelho', () => {
     expect(r.rejeitados.map((x) => (x.status === 'rejeitado' ? x.codigo : x.status))).toEqual(['ENTIDADE_DESCONHECIDA', 'MODULO_INATIVO']);
     const inval = rejeitarItensInvalidos(PushRequestSchema.parse({ itens: [{ entidade: 'visita', id: U1, payload: {} }] }), registro(), ['core']);
     expect(inval.rejeitados[0]).toMatchObject({ status: 'rejeitado', codigo: 'PAYLOAD_INVALIDO' });
+  });
+
+  it('D-1 / RN-CORE-02: entidade do manifesto de módulo inativo volta MODULO_INATIVO mesmo sem definição registrada', () => {
+    const r = registro();
+    expect(r.dono('checklist_loja')).toBe('promotor');
+    expect(r.dono('nao_existe')).toBeUndefined();
+    const req = PushRequestSchema.parse({ itens: [{ entidade: 'checklist_loja', id: U1, payload: {} }, { entidade: 'nao_existe', id: U2, payload: {} }] });
+    expect(rejeitarItensInvalidos(req, r, ['core']).rejeitados).toEqual([
+      { id: U1, status: 'rejeitado', codigo: 'MODULO_INATIVO', mensagem: 'Módulo promotor inativo' },
+      { id: U2, status: 'rejeitado', codigo: 'ENTIDADE_DESCONHECIDA', mensagem: 'Entidade nao_existe não aceita push' },
+    ]);
+    // ADR 0009 §7 (D-2): módulo ativo e sem definição = ainda não implementado no servidor (retentável no app)
+    expect(rejeitarItensInvalidos(req, r, ['core', 'promotor']).rejeitados.map((x) => (x.status === 'rejeitado' ? x.codigo : x.status))).toEqual(['SYNC_NAO_IMPLEMENTADO', 'ENTIDADE_DESCONHECIDA']);
+  });
+
+  it('RN-PRO-01: promotor enviando entidade de pedido → RN-PRO-01 (antes de desconhecida), mas módulo inativo vem primeiro', () => {
+    const req = PushRequestSchema.parse({
+      itens: [
+        { entidade: 'pedido', id: U1, payload: { total_cents: 10 } },
+        { entidade: 'pedido_item', id: U2, payload: {} },
+      ],
+    });
+    const codigos = (ativos: ('core' | 'vendedor')[], perfil?: 'promotor' | 'vendedor') =>
+      rejeitarItensInvalidos(req, registro(), ativos, { perfil }).rejeitados.map((x) => (x.status === 'rejeitado' ? x.codigo : x.status));
+    expect(codigos(['core', 'vendedor'], 'promotor')).toEqual(['RN-PRO-01', 'RN-PRO-01']);
+    expect(codigos(['core'], 'promotor')).toEqual(['MODULO_INATIVO', 'MODULO_INATIVO']);
+    expect(codigos(['core', 'vendedor'], 'vendedor')).toEqual(['SYNC_NAO_IMPLEMENTADO']); // pedido_item sem definição (ADR 0009 §7)
+  });
+});
+
+describe('ADR 0009 §7 (D-2): entidade ainda não implementada no servidor', () => {
+  it('reconhece o 501 / SYNC_NAO_IMPLEMENTADO do transporte (codigo da API de teste, code do HttpError do app)', () => {
+    expect(ehSyncNaoImplementado({ status: 501 })).toBe(true);
+    expect(ehSyncNaoImplementado({ status: 400, codigo: 'SYNC_NAO_IMPLEMENTADO' })).toBe(true);
+    expect(ehSyncNaoImplementado(Object.assign(new Error('x'), { status: 501, code: 'SYNC_NAO_IMPLEMENTADO' }))).toBe(true);
+    for (const e of [new Error('Sem conexão'), { status: 500, codigo: 'ERRO_INTERNO' }, { status: 403, code: 'MODULO_INATIVO' }, null, 'x']) {
+      expect(ehSyncNaoImplementado(e)).toBe(false);
+    }
   });
 });

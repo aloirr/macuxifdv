@@ -6,12 +6,13 @@
  *  - ao SHELL, que esconde botões, abas, menus e itens de extensão de quem não pode (`pode`);
  *  - à API, que revalida a rota com `verificarAcao` (401 / 403 MODULO_INATIVO / 403 PERFIL_SEM_ACESSO).
  * Ação desconhecida = negada (falha fechada). RN-PRO-01 é aplicada de novo aqui, pelo perfil, mesmo que
- * um manifesto escape da validação: promotor nunca executa ação de pedido.
+ * um manifesto escape da validação: promotor nunca executa ação de ESCRITA de pedido; a leitura (`pedido.ver`)
+ * segue o `perfis` do manifesto (doc 03 §2 "Ver pedidos", esclarecimento O-3).
  * O escopo do dado (próprio / equipe / tenant) não mora aqui: fica no domain do módulo + `verificarCarteira`.
  */
 import { verificarAcesso, type RegraRota, type ResultadoAcesso, type UsuarioAcesso } from './acesso';
 import type { Manifesto } from './manifesto';
-import { ehAcaoDePedido, type ModuloId, type Perfil } from './nomes';
+import { ehAcaoDeEscritaDePedido, type ModuloId, type Perfil } from './nomes';
 
 export interface ContextoPermissao {
   perfil: Perfil | null | undefined;
@@ -24,9 +25,9 @@ interface DefAcao {
   perfis: readonly Perfil[];
 }
 
-/** RN-PRO-01: vale pelo perfil, independentemente do módulo que declarou a ação. */
+/** RN-PRO-01: vale pelo perfil, independentemente do módulo que declarou a ação (só escrita; leitura = manifesto). */
 function vetadaPeloPerfil(acao: string, perfil: Perfil): boolean {
-  return perfil === 'promotor' && ehAcaoDePedido(acao);
+  return perfil === 'promotor' && ehAcaoDeEscritaDePedido(acao);
 }
 
 export function criarPermissoes(manifestos: readonly Manifesto[]) {
@@ -61,7 +62,7 @@ export function criarPermissoes(manifestos: readonly Manifesto[]) {
     regraDaAcao(acao: string): RegraRota {
       const def = porAcao.get(acao);
       if (!def) throw new Error(`Ação ${acao} não declarada em nenhum manifesto`);
-      const perfis = ehAcaoDePedido(acao) ? def.perfis.filter((p) => p !== 'promotor') : def.perfis;
+      const perfis = ehAcaoDeEscritaDePedido(acao) ? def.perfis.filter((p) => p !== 'promotor') : def.perfis;
       return { modulo: def.modulo, perfis };
     },
   };
