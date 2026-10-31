@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PainelDia } from '../contracts';
 import { CLIENTE_A, CLIENTE_B, CLIENTE_C, checkin, checkout, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR } from './fixtures';
-import { calcularMeta, diaLocal, montarPainelDia, painelDoMes, statusDoDia, tradeDoPeriodo, vendasDoPeriodo, visitasDoPeriodo } from './painel';
+import { calcularMeta, diaLocal, faturadoDoPedido, faturamentoDoPeriodo, montarPainelDia, painelDoMes, statusDoDia, tradeDoPeriodo, vendasDoPeriodo, visitasDoPeriodo } from './painel';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
 const montar = (eventos: EventoRecebido[]) => aplicarEventos(estadoInicial(), eventos).estado;
@@ -275,6 +275,111 @@ describe('RN-PRO-07 / RF-GES-10: trade do promotor', () => {
   });
 });
 
+describe('RN-GES-05: cobertura de rota limitada a 100% e visitas extras à parte', () => {
+  const planejados = Array.from({ length: 10 }, (_, i) => u(600 + i));
+  const extras = [u(700), u(701)];
+  const rota = ev('core.rota.dia_planejado@1', '2026-10-30T10:00:00Z', { usuario_id: VENDEDOR, data: '2026-10-30', cliente_ids: planejados });
+  const visitas = (clientes: string[], base = 0) =>
+    clientes.flatMap((c, i) => [
+      checkin({ visita: u(2100 + base + i), cliente: c, em: `2026-10-30T${String(12 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}:00Z` }),
+      checkout({ visita: u(2100 + base + i), cliente: c, em: `2026-10-30T${String(12 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '45' : '15'}:00Z` }),
+    ]);
+
+  it('12 visitas para 10 planejadas (10 da rota + 2 fora): cobertura 100% e 2 visitas extras', () => {
+    const v = visitasDoPeriodo(montar([rota, ...visitas([...planejados, ...extras])]), vend, '2026-10-30', '2026-10-30');
+    expect(v).toMatchObject({ planejadas: 10, realizadas: 12, planejadas_realizadas: 10, cobertura_pct: 100, visitas_extras: 2 });
+  });
+
+  it('a cobertura conta só clientes da rota: 8 da rota + 4 fora = 80% (não 120%) e 4 extras', () => {
+    const v = visitasDoPeriodo(montar([rota, ...visitas([...planejados.slice(0, 8), ...extras, u(702), u(703)])]), vend, '2026-10-30', '2026-10-30');
+    expect(v).toMatchObject({ planejadas: 10, realizadas: 12, planejadas_realizadas: 8, cobertura_pct: 80, visitas_extras: 4 });
+  });
+
+  it('duas visitas no mesmo cliente da rota contam uma vez; sem rota, cobertura e extras são null (sem dado)', () => {
+    const v = visitasDoPeriodo(montar([rota, ...visitas([planejados[0]!, planejados[0]!])]), vend, '2026-10-30', '2026-10-30');
+    expect(v).toMatchObject({ planejadas_realizadas: 1, cobertura_pct: 10, visitas_extras: 0 });
+    const sem = visitasDoPeriodo(montar(visitas(extras)), vend, '2026-10-30', '2026-10-30');
+    expect(sem).toMatchObject({ planejadas: 0, realizadas: 2, planejadas_realizadas: 0, cobertura_pct: null, visitas_extras: null });
+  });
+
+  it('no painel do dia a linha continua válida com os campos novos', () => {
+    const linha = montarPainelDia(montar([rota, ...visitas([...planejados, ...extras])]), vend, '2026-10-30', { modulos: new Set(['core']), agora: AGORA });
+    expect(PainelDia.parse(linha)).toEqual(linha);
+    expect(linha.visitas.cobertura_pct).toBe(100);
+  });
+});
+
+describe('RN-GES-06: vendido × faturado (inclusive parcial pelos itens) e a faturar', () => {
+  const P_A = u(800), P_B = u(801), P_C = u(802);
+  const criado = (pedido: string, total: number, itens: { produto_id: string; quantidade: number; total_cents: number }[] | null, em = '2026-10-30T14:00:00Z', extra: Record<string, unknown> = {}) =>
+    ev('vendedor.pedido.criado@1', em, { pedido_id: pedido, vendedor_id: VENDEDOR, autor_id: VENDEDOR, cliente_id: CLIENTE_A, visita_id: null, tipo: 'pedido', total_cents: total, total_tabela_cents: total, criado_em: em, itens, ...extra });
+  const faturou = (pedido: string, parcial: boolean, itens: { produto_id: string; quantidade: number }[], em = '2026-10-31T14:00:00Z', id?: string) =>
+    ev('vendedor.pedido.faturado@1', em, { pedido_id: pedido, vendedor_id: VENDEDOR, faturado_em: em, parcial, itens }, id);
+  const ITENS_A = [
+    { produto_id: u(901), quantidade: 10, total_cents: 6_000 },
+    { produto_id: u(902), quantidade: 4, total_cents: 4_000 },
+  ];
+  const dia = (s: ReturnType<typeof montar>) => faturamentoDoPeriodo(s, VENDEDOR, '2026-10-30', '2026-10-30');
+
+  it('vendido = valor do pedido criado; nada faturado ainda → a faturar = vendido', () => {
+    expect(dia(montar([criado(P_A, 10_000, ITENS_A)]))).toEqual({ vendido_cents: 10_000, faturado_cents: 0, a_faturar_cents: 10_000 });
+  });
+
+  it('faturamento parcial pelos itens faturados: 5 de 10 do item 1 (R$ 30,00); depois 1 de 4 do item 2 (+ R$ 10,00)', () => {
+    const um = montar([criado(P_A, 10_000, ITENS_A), faturou(P_A, true, [{ produto_id: u(901), quantidade: 5 }])]);
+    expect(dia(um)).toEqual({ vendido_cents: 10_000, faturado_cents: 3_000, a_faturar_cents: 7_000 });
+    const dois = montar([criado(P_A, 10_000, ITENS_A), faturou(P_A, true, [{ produto_id: u(901), quantidade: 5 }]), faturou(P_A, true, [{ produto_id: u(902), quantidade: 1 }], '2026-11-02T14:00:00Z')]);
+    expect(dia(dois)).toEqual({ vendido_cents: 10_000, faturado_cents: 4_000, a_faturar_cents: 6_000 });
+  });
+
+  it('faturamento total cobre o saldo (evento com parcial=false ou status faturado_total)', () => {
+    const porEvento = montar([criado(P_A, 10_000, ITENS_A), faturou(P_A, true, [{ produto_id: u(901), quantidade: 5 }]), faturou(P_A, false, [{ produto_id: u(902), quantidade: 4 }], '2026-11-03T14:00:00Z')]);
+    expect(dia(porEvento)).toEqual({ vendido_cents: 10_000, faturado_cents: 10_000, a_faturar_cents: 0 });
+    const porStatus = montar([criado(P_A, 10_000, ITENS_A), statusAlterado({ pedido: P_A, para: 'faturado_total', em: '2026-11-03T14:00:00Z' })]);
+    expect(dia(porStatus).faturado_cents).toBe(10_000);
+  });
+
+  it('proporcional por item, centavos meio para cima; quantidade além da pedida não passa do total do item', () => {
+    const itens = [{ produto_id: u(903), quantidade: 3, total_cents: 1_000 }];
+    expect(faturadoDoPedido(montar([criado(P_B, 1_000, itens), faturou(P_B, true, [{ produto_id: u(903), quantidade: 1 }])]).pedidos[P_B]!)).toBe(333);
+    expect(faturadoDoPedido(montar([criado(P_B, 1_000, itens), faturou(P_B, true, [{ produto_id: u(903), quantidade: 2 }])]).pedidos[P_B]!)).toBe(667);
+    expect(faturadoDoPedido(montar([criado(P_B, 1_000, itens), faturou(P_B, true, [{ produto_id: u(903), quantidade: 5 }])]).pedidos[P_B]!)).toBe(1_000);
+    expect(faturadoDoPedido(montar([criado(P_B, 1_000, itens), faturou(P_B, true, [{ produto_id: u(999), quantidade: 5 }])]).pedidos[P_B]!)).toBe(0); // item que não está no pedido
+  });
+
+  it('reentrega do mesmo evento de faturamento não soma duas vezes', () => {
+    const e = faturou(P_A, true, [{ produto_id: u(901), quantidade: 5 }], '2026-10-31T14:00:00Z', 'fat-1');
+    expect(dia(montar([criado(P_A, 10_000, ITENS_A), e, e])).faturado_cents).toBe(3_000);
+  });
+
+  it('pedido sem itens no evento criado: parcial fica sem valor (0) até o faturamento total', () => {
+    const s = montar([criado(P_C, 5_000, null), faturou(P_C, true, [{ produto_id: u(901), quantidade: 1 }])]);
+    expect(dia(s)).toEqual({ vendido_cents: 5_000, faturado_cents: 0, a_faturar_cents: 5_000 });
+  });
+
+  it('cancelado/rejeitado e orçamento não entram no vendido; o dia do vendido é o da criação no fuso do tenant', () => {
+    const s = montar([
+      criado(P_A, 10_000, ITENS_A),
+      criado(P_B, 2_000, null),
+      statusAlterado({ pedido: P_B, para: 'cancelado', em: '2026-10-30T18:00:00Z' }),
+      criado(P_C, 3_000, null, '2026-10-30T14:00:00Z', { tipo: 'orcamento' }),
+      criado(u(803), 4_000, null, '2026-10-31T02:00:00Z'), // 30/10 22:00 em Manaus
+      criado(u(804), 9_000, null, '2026-10-31T05:00:00Z'), // 31/10 em Manaus
+    ]);
+    expect(dia(s)).toEqual({ vendido_cents: 14_000, faturado_cents: 0, a_faturar_cents: 14_000 });
+  });
+
+  it('o painel do dia e o do mês trazem os dois números; sem Vendedor a seção é null', () => {
+    const s = montar([criado(P_A, 10_000, ITENS_A), faturou(P_A, true, [{ produto_id: u(901), quantidade: 5 }])]);
+    const linha = montarPainelDia(s, vend, '2026-10-30', { modulos: TODOS, agora: AGORA });
+    expect(PainelDia.parse(linha)).toEqual(linha);
+    expect(linha.faturamento).toEqual({ vendido_cents: 10_000, faturado_cents: 3_000, a_faturar_cents: 7_000 });
+    expect(linha.mes?.faturamento).toEqual({ vendido_cents: 10_000, faturado_cents: 3_000, a_faturar_cents: 7_000 });
+    expect(montarPainelDia(s, vend, '2026-10-30', { modulos: new Set(['core']), agora: AGORA }).faturamento).toBeNull();
+    expect(montarPainelDia(s, prom, '2026-10-30', { modulos: TODOS, agora: AGORA }).faturamento).toBeNull(); // RN-PRO-01
+  });
+});
+
 describe('módulos opcionais desativados: o indicador some (null), o painel continua válido (RN-CORE-03)', () => {
   const s = montar([
     ...venda(1, { total: 10_000, em: '2026-10-30T15:00:00Z' }),
@@ -311,7 +416,7 @@ describe('módulos opcionais desativados: o indicador some (null), o painel cont
   it('só Core: pesquisa, treinamento, vendas e trade todos null', () => {
     const linha = montarPainelDia(s, vend, '2026-10-30', { modulos: new Set(['core']), agora: AGORA });
     expect(PainelDia.parse(linha)).toEqual(linha);
-    expect([linha.vendas, linha.mes, linha.trade, linha.pesquisa, linha.treinamento]).toEqual([null, null, null, null, null]);
+    expect([linha.vendas, linha.mes, linha.faturamento, linha.trade, linha.pesquisa, linha.treinamento]).toEqual([null, null, null, null, null, null]);
   });
 
   it('RN-PRO-01: o promotor nunca tem seção de vendas, mesmo com o Vendedor ativo', () => {

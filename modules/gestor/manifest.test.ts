@@ -22,6 +22,19 @@ describe('manifesto do gestor', () => {
     for (const a of ['painel_equipe.ver', 'ranking_equipe.ver', 'alerta_equipe.ver']) expect(manifest.acoes[a]!.perfis).toEqual(expect.arrayContaining(['supervisor', 'gerente']));
   });
 
+  it('RN-GES-07: analista e admin veem os painéis do tenant em modo leitura; nunca decidem aprovação nem dispensam alerta', () => {
+    expect(manifest.acoes['painel_tenant.ver']!.perfis).toEqual(['analista', 'admin']);
+    for (const a of ['fila_aprovacao.decidir', 'alerta_equipe.dispensar']) {
+      expect(manifest.acoes[a]!.perfis).not.toContain('analista');
+      expect(manifest.acoes[a]!.perfis).not.toContain('admin');
+    }
+    for (const a of ['painel_equipe.ver', 'ranking_equipe.ver', 'alerta_equipe.ver', 'fila_aprovacao.ver']) expect(manifest.acoes[a]!.perfis).toEqual(['supervisor', 'gerente']);
+  });
+
+  it('RN-GES-06: consome o faturamento do Vendedor (vendido × faturado)', () => {
+    expect(manifest.consome).toContain('vendedor.pedido.faturado@1');
+  });
+
   it('RN-PRO-01 e fronteira com o Vendedor: nenhuma ação de pedido nem de alçada é declarada aqui', () => {
     expect(Object.keys(manifest.acoes).filter((a) => a.startsWith('pedido'))).toEqual([]);
     for (const def of Object.values(manifest.acoes)) expect(def.perfis).not.toContain('promotor');
