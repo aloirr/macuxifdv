@@ -72,3 +72,9 @@ R-20261031-132148-modulo-pesquisa
 R-20261031-132543-modulo-promotor
 R-20261031-133449-banco-dados
 R-20261031-140141-engenheiro-software
+R-20261031-145337-2-modulo-treinamento
+R-20261031-170855-modulo-treinamento
+R-20261031-172550-modulo-treinamento
+R-20261031-141636-engenheiro-software
+R-20261031-141737-modulo-core
+R-20261031-145043-testes

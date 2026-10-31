@@ -5,7 +5,19 @@
  * (`teste/memoria.ts`); este SQL é conferido com o banco quando a migração existir.
  * Nada daqui entra em log (e-mail e hash são dado pessoal/segredo).
  */
-import type { AcessoBanco, ClienteBanco, Perfil } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, type AcessoBanco, type ClienteBanco, type Perfil } from '@macuxi/platform-sdk';
+
+/** Aparelho que pertence a outro tenant/usuário (FK 23503, unicidade 23505, RLS 42501): erro de cliente, não 500. */
+const CODIGOS_APARELHO_INVALIDO = new Set(['23503', '23505', '42501']);
+const aparelhoInvalido = (): ErroHttpModulo => new ErroHttpModulo(403, 'DISPOSITIVO_INVALIDO', 'Este aparelho não pode ser usado com este acesso. Fale com o administrador da sua empresa.');
+async function comAparelho(consulta: Promise<unknown>): Promise<void> {
+  try {
+    await consulta;
+  } catch (e) {
+    if (CODIGOS_APARELHO_INVALIDO.has(String((e as { code?: unknown } | null)?.code))) throw aparelhoInvalido();
+    throw e;
+  }
+}
 
 export interface UsuarioLogin {
   id: string;
@@ -121,20 +133,20 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
       return r.rows.length > 0;
     },
     async upsertDispositivo(usuarioId, dispositivoId, nome, agora) {
-      await db.query(
+      await comAparelho(db.query(
         `insert into core.dispositivo (id, tenant_id, usuario_id, nome, ultimo_acesso_em)
          values ($1, plataforma.tenant_atual(), $2, $3, $4)
          on conflict (id) do update set ultimo_acesso_em = excluded.ultimo_acesso_em, nome = coalesce(excluded.nome, core.dispositivo.nome)
            where core.dispositivo.usuario_id = excluded.usuario_id`,
         [dispositivoId, usuarioId, nome, agora],
-      );
+      ));
     },
     async criarSessao(s) {
-      await db.query(
+      await comAparelho(db.query(
         `insert into core.sessao (id, tenant_id, usuario_id, familia_id, token_hash, dispositivo_id, expira_em)
          values ($1, plataforma.tenant_atual(), $2, $3, $4, $5, $6)`,
         [s.id, s.usuario_id, s.familia_id, s.token_hash, s.dispositivo_id, s.expira_em],
-      );
+      ));
     },
     async sessaoPorHash(hash) {
       const r = await db.query<Record<string, unknown>>(

@@ -4,11 +4,27 @@
 > Legenda do resultado: `pendente` (ainda não rodou) · `✅` passou · `❌` falhou (ver Defeitos) · `bloqueado` (dependência; ver coluna) · `parcial` (provado só em parte; ver nota).
 > Atualizar a cada rodada: data, commit, comando e saída resumida.
 
+## Resumo (rodada 3, 2026-10-31) — Sprint 0: pronta para fechar?
+
+**Quase: SIM para T-0001, T-0002, T-0003, T-0005 e T-0006; a T-0004 fecha quando o Alexandre gerar os 2 APKs no EAS (critério 1, roteiro M-02).** Nenhum defeito reprova critério.
+
+| Tarefa | Veredito | O que falta |
+|---|---|---|
+| T-0001 Monorepo + platform-sdk | ✅ concluída (rodada 1) | — |
+| T-0002 Banco, RLS, migrações | ✅ (rodada 2) + S0-029/030/111 pela API ✅ nesta rodada | — |
+| T-0003 Auth, perfis e licenças | ✅ C3.1, C3.2, C3.3 com banco real (login, bloqueio, refresh, logs sem PII também) | 2 defeitos 🟡 (D-1, D-2) e 1 conflito de desenho (O-3) por recado; roteiros manuais M-03 e M-05 no aparelho |
+| T-0004 Shells e createApp | C4.2 ✅ · C4.3 ✅ · C4.1 **configuração ✅, build pendente Alexandre** | login na Expo e `eas build --profile campo|gestao` (M-02); ícone da Gestão |
+| T-0005 CI e donos | ✅ (verificar 48/49 + 1 pulado; CI do main verde) | — |
+| T-0006 Plano e relatório | ✅ este relatório (T-0001..T-0005) | — |
+
+Comandos da rodada 3 (árvore de trabalho sobre 44e82c9, depois da entrega do core R-20261031-141737): `pnpm lint` ✅ (18/18 + fronteiras 0 violações) · `pnpm typecheck` ✅ (18/18) · `pnpm test` ✅ (18/18 tarefas, 1.689 casos) · `MACUXI_PG_EXIGIR=1 pnpm test:tests` ✅ **18 arquivos, 230 casos, 0 pulados** · `node --test scripts/coord-verificar.test.mjs` ✅ 48 + 1 pulado.
+
 | Rodada | Data | Commit | Ambiente | Comando |
 |---|---|---|---|---|
 | 0 | 2026-10-30 | — | plano (sem código) | — |
 | 1 (T-0001 Fase D) | 2026-10-31 | 87460de + árvore de trabalho (engenheiro e banco-dados alterando em paralelo) | Windows 11, Node 24.21, pnpm 12.11.2, Docker de pé | ver "T-0001 — evidências da Fase D" abaixo |
 | 2 (T-0002 + S0-014) | 2026-10-31 | 303b739 + árvore de trabalho (engenheiro em packages/platform-sdk e apps/ pela T-0004; vendedor em modules/vendedor) | Windows 11, Node 24.21, pnpm 12.11.2, container `macuxi-postgres` (Postgres 16.15 + pgvector) | `MACUXI_PG_EXIGIR=1 pnpm test:tests` e `MACUXI_PG_EXIGIR=1 pnpm --filter @macuxi/db test` — ver "T-0002 — evidências" abaixo |
+| 3 (validação final T-0003/T-0004 + S0-029/030/111) | 2026-10-31 | 44e82c9 + árvore de trabalho (core: ErroHttpModulo e definirCapturaFoto entregues; engenheiro revisando T-0011) | Windows 11, Node 24.21, pnpm 12.11.2, container `macuxi-postgres` (migrações 0001–0004) | `MACUXI_PG_EXIGIR=1 pnpm test:tests` + raiz `pnpm lint`/`typecheck`/`test` — ver "Rodada 3 — evidências" abaixo |
 
 ## Critério → teste → resultado
 
@@ -18,17 +34,19 @@
 | T-0001 | C1.2 Fase M não alterada e demo funcionando | S0-006, S0-007, S0-008, S0-009 | estático, e2e | ✅ (S0-008 parcial) | pasta idêntica à linha de base; demo na cópia: API ok, web dev não subiu (ver S0-008) |
 | T-0001 | C1.3 dependency-cruiser falha em import interno entre módulos | S0-010, S0-011, S0-012, S0-013, S0-014 | estático | ✅ | 18 variantes de violação falham e os imports permitidos passam; S0-014 (SQL/Drizzle entre schemas) ✅ na rodada 2 |
 | T-0002 | C2.1 Migração sobe e desce sem erro | S0-020, S0-021, S0-022, S0-023 | integ | ✅ | S0-020/021/022 pela suíte do banco-dados (6/6) + ciclo up → down --tudo → up → down --tudo → up pela CLI num banco efêmero; S0-023 também em tests/ (independente) |
-| T-0002 | C2.2 Tenant A não lê dados do tenant B em nenhuma tabela | S0-024, S0-025, S0-026, S0-027, S0-028, S0-029, S0-030, S0-111 | integ, carga | ✅ (parte de banco) | S0-024..028 ✅ em tests/ como `macuxi_app` (e na suíte do banco-dados); parte de banco do S0-111 ✅ (concorrência no pool). S0-029, S0-030 e S0-111 pela API: pendente (T-0003/T-0004 em andamento) |
+| T-0002 | C2.2 Tenant A não lê dados do tenant B em nenhuma tabela | S0-024, S0-025, S0-026, S0-027, S0-028, S0-029, S0-030, S0-111 | integ, carga | ✅ | S0-024..028 ✅ em tests/ como `macuxi_app` (rodada 2). Rodada 3: S0-029 e S0-030 ✅ pela API real (tests/integracao/multitenant/api.test.ts); S0-111 ✅ com HTTP real, 50 conexões alternando tokens de A e B, 0 respostas de outro tenant (tests/carga/fundacao.test.ts) |
 | T-0002 | C2.3 Seed carrega os usuários fake da Fase M | S0-031, S0-032, S0-033, S0-034 | integ | ✅ | S0-031..034 em tests/ (lista escrita a partir da Fase M, lida como `macuxi_app`, junto com dois-tenants) e na suíte do banco-dados (4/4) |
-| T-0003 | C3.1 Ativar/desativar módulo de teste reflete no app no próximo sync | S0-040 a S0-051 | unit, integ, sync, e2e, comp | pendente | T-0003 + T-0004 em andamento: não validado nesta rodada |
-| T-0003 | C3.2 Rota de módulo inativo → 403 `MODULO_INATIVO` | S0-052, S0-053, S0-054, S0-055, S0-056 | integ | pendente | T-0003 em andamento: não validado nesta rodada |
-| T-0003 | C3.3 Promotor não vê nenhuma ação de pedido | S0-060 a S0-066 | unit, comp, integ, sync, e2e | pendente | T-0003 + T-0004 em andamento: não validado nesta rodada; API definitiva na Sprint 4 (R7) |
-| T-0003 | (base) Auth, logs sem PII, escopo de carteira | S0-070 a S0-074, S0-110 | integ, carga | pendente | T-0003 em andamento: não validado nesta rodada |
-| T-0004 | C4.1 Dois builds Android do mesmo código | S0-080, S0-081 (manual M-02), S0-082 | unit, manual, comp | pendente | T-0004 em andamento: não validado nesta rodada; Android SDK/EAS (R2) |
-| T-0004 | C4.2 Extensão de exemplo só com módulo ativo | S0-083 a S0-087 | comp, e2e, integ | pendente | T-0004 em andamento: não validado nesta rodada |
-| T-0005 | C5.1 PR fora do dono é sinalizado | S0-090, S0-091, S0-092, S0-093 | integ | pendente | T-0005; modo `--base` do verificar (R4) |
-| T-0005 | C5.2 Pipeline verde no branch principal | S0-094, S0-095, S0-096 (manual M-04) | estático, integ, manual | pendente | T-0005; nome do branch (R5) |
-| transversal | Offline básico | S0-100 a S0-105 (manual M-03) | comp, sync, manual | pendente | T-0001 Fase A + T-0003 + T-0004 |
+| T-0003 | C3.1 Ativar/desativar módulo de teste reflete no app no próximo sync | S0-040 a S0-051 | unit, integ, sync, e2e, comp | ✅ | Com módulos reais (o `teste` da fixture não está instalado): tenant (Promotor), perfil e usuário (Vendedor), dependência (Catálogo) → `/v1/me/modulos` muda na requisição seguinte com o MESMO token, `versao_licencas` muda e volta; o motor de sync REAL do SDK, falando com o createApp real, aplica no próximo sync, apaga o armazenamento do módulo, segura a fila até a confirmação (RN-CORE-02) e mantém o estado sem sinal. S0-050 (Playwright no BKO) não rodou: sem Playwright instalado → roteiro M-06. Defeitos 🟡 D-1 e D-2 não reprovam |
+| T-0003 | C3.2 Rota de módulo inativo → 403 `MODULO_INATIVO` | S0-052, S0-053, S0-054, S0-055, S0-056 | integ | ✅ | Varredura de TODAS as rotas montadas de módulos não-core e de TODAS as entidades de sync dos manifestos: 403 `MODULO_INATIVO` com `detalhes.modulo`; os dois motivos (tenant e usuário) dão o mesmo código; precedência 401 → 403 MODULO_INATIVO → 403 PERFIL_SEM_ACESSO → 400 → 404; JWT só com sub/tid/perfil/iat/exp. Push de item de módulo inativo: rejeitado, mas com o código errado (D-1) |
+| T-0003 | C3.3 Promotor não vê nenhuma ação de pedido | S0-060 a S0-066 | unit, comp, integ, sync, e2e | ✅ | API: varredura de toda rota de pedido montada → 403, inclusive com Vendedor e Catálogo no PERFIL do promotor (PERFIL_SEM_ACESSO); push de pedido/pedido_item/pedido_evento rejeitado. UI: shell web real (nenhuma ação `pedido.*`; promotor fora do BKO) e shell do app Campo com o que o Vendedor declara no fonte (sem "Novo pedido", sem abas/ações na ficha; botões das telas atrás de `usePode`). Conflito de desenho O-3 (API veta até a LEITURA que a matriz permite) por recado. No aparelho: M-05 |
+| T-0003 | (base) Auth, logs sem PII, escopo de carteira | S0-070 a S0-074, S0-110 | integ, carga | ✅ (S0-110 medido) | Login com código da empresa; mesma resposta para código/e-mail/senha errados; bloqueio por 5 falhas (423 só com a senha certa) e remoto (derruba acesso e refresh na hora); aparelho bloqueado e de outro tenant; limite 5/5 min por IP + código (429 + Retry-After); refresh rotativo com queda da família no reuso; JWT expirado/none/adulterado/outro segredo → 401; logs em trace sem e-mail, senha, token ou refresh. S0-074 (carteira) pelo pull: vendedor só a própria carteira. S0-110: p95 acima da meta de 300 ms neste ambiente (O-4) |
+| T-0004 | C4.1 Dois builds Android do mesmo código | S0-080, S0-081 (manual M-02), S0-082 | unit, manual, comp | parcial — **build pendente Alexandre** | Configuração ✅: `app.config.ts` nas duas variantes (nome, pacote, scheme, variante distintos; mesmo projeto EAS), `expo config` real conferido, `eas.json` com `campo`/`gestao` (dev client, APK, interna) e `*-preview`; `expo-dev-client` no shell. Os 2 APKs dependem do login do Alexandre na Expo (M-02). Ícone da Gestão = do Campo (pendência de arte) |
+| T-0004 | C4.2 Extensão de exemplo só com módulo ativo | S0-083 a S0-087 | comp, e2e, integ | ✅ | "Novo pedido" real do Vendedor no slot `cliente.acoes` (lido do fonte) aparece com o Vendedor efetivo e some sem erro com o Vendedor ou o Catálogo inativos; card de exemplo no `inicio.cards` aparece/some nas duas variantes; menu do BKO real só com módulos efetivos. S0-086 (error boundary por extensão) não verificado (desejável) |
+| T-0004 | C4.3 Shells com os 8 módulos e createApp montando só os efetivos | S0-087, S0-052 | integ, comp | ✅ | Web (shell real), mobile (`instalados.ts`) e API (`MODULOS_API`, `/v1/saude`) com os mesmos 8; sem Core/banco tudo falha fechado (401); rotas montadas por manifesto e bloqueadas por requisição (varredura S0-052) |
+| T-0005 | C5.1 PR fora do dono é sinalizado | S0-090, S0-091, S0-092, S0-093 | integ | ✅ | `node --test scripts/coord-verificar.test.mjs`: 49 casos (A1–A11, B1–B12), 48 ✅ + 1 pulado; passo "verificar donos" com `--base` no PR (ci.yml) |
+| T-0005 | C5.2 Pipeline verde no branch principal | S0-094, S0-095, S0-096 (manual M-04) | estático, integ, manual | ✅ | CI do main verde (runs 41208133979, 41209930842, 41210242610, conferidos pelo gerente com gh; T-0005, Histórico); Postgres no CI com `MACUXI_PG_EXIGIR=1` |
+| T-0006 | C6.1 Relatório critério → teste → resultado de T-0001 a T-0005 | todos | — | ✅ | Este arquivo (rodadas 1–3) |
+| transversal | Offline básico | S0-100 a S0-105 (manual M-03) | comp, sync, manual | parcial | S0-104 (acesso inválido no meio do push, fila preservada, envia depois do refresh) e S0-105 (pull por tenant e carteira) ✅ com o motor real; S0-047 (sem sinal) ✅. S0-101..103 cobertos pelos testes do dono (motor-sync, sync e banco da API), não refeitos aqui; S0-100 no aparelho (M-03) |
 
 ## Detalhe por cenário (preencher na execução)
 
@@ -57,11 +75,49 @@
 | S0-026 | tests/integracao/multitenant/vazamento-leitura.test.ts | ✅ | Sem set_config, contexto vazio ou UUID que não é tenant → 0 linhas em toda tabela (inclusive plataforma.tenant). Contexto inválido (texto, espaço, dois UUIDs, injeção) → erro, nunca linhas. Contexto de transação desfeita não vale na seguinte. |
 | S0-027 | tests/integracao/multitenant/pool.test.ts | ✅ | `comTenant` (caminho da API): pool de 1 conexão A → B → A → solta (solta vê 0 e contexto nulo); depois de exceção do código (escrita desfeita) e de erro SQL (22012) a conexão volta limpa; tenant inválido recusado antes de ir ao banco. Concorrência: 60 requisições A/B em 4 conexões com pausas aleatórias, cada uma vê só o próprio tenant antes e depois da pausa (parte de banco do S0-111). |
 | S0-028 | tests/integracao/banco/conformidade.test.ts + db/testes/conformidade.test.ts | ✅ | `macuxi_app`: sem SUPERUSER/BYPASSRLS/CREATEROLE/CREATEDB/REPLICATION; não herda papel privilegiado (pertença recursiva); não é dono de schema, tabela ou função; sem TRUNCATE (que ignora RLS), REFERENCES ou TRIGGER; sem CREATE em nenhum schema (nem public). Atalhos negados com 42501: SET ROLE, SET SESSION AUTHORIZATION, DISABLE/NO FORCE RLS, ALTER/CREATE POLICY, redefinir `tenant_atual()`, criar view; `row_security = off` dá erro em vez de devolver tudo. SECURITY DEFINER executável: só `plataforma.tenant_por_codigo(p_codigo text)`, com search_path fixo e sem EXECUTE para PUBLIC. Nenhuma view sem `security_invoker` nem matview legível (hoje não há views; o teste já cobre as do Conector quando vierem). |
-| S0-029, S0-030 | — | pendente | API da T-0003 (em andamento). |
+| S0-029 | tests/integracao/multitenant/api.test.ts | ✅ | Admin de A alterando licença de usuário de B → 404 `USUARIO_NAO_ENCONTRADO` com status e corpo IDÊNTICOS aos de um id inexistente; retrato jsonb de usuario_modulo/tenant_modulo/perfil_modulo de B igual antes e depois. `tenant_id` em cabeçalho (`x-tenant-id`), query ou corpo: ignorado (200 no próprio tenant ou 400), B intacto; `GET /v1/core/licencas` e pull de cliente com cabeçalho/query de B devolvem só A; admin de B não vê nada de A. |
+| S0-030 | idem | ✅ | Evento `core.usuario.modulos_alterados@1` e auditoria `licenca.alterar` gerados pela rota em A: visíveis no contexto de A, nenhum id deles no contexto de B (lido como `macuxi_app`). O despacho entre tenants pelo `macuxi_worker` é da suíte do banco-dados (worker.test.ts). |
 | S0-031 | tests/integracao/banco/seed-fase-m.test.ts + db/testes/seed-fase-m.test.ts | ✅ | Banco efêmero próprio com dois-tenants + Fase M (3 tenants), lido como `macuxi_app`: os 12 usuários com nome, e-mail e perfil esperados (lista escrita a partir do generate.ts da Fase M, lido só para consulta): 8 vendedor, Fernando Lima = **gerente** (manager → gerente; R-20261031-093112), Juliana = analista, Ana = assistente, Patrícia = admin; todos os perfis ∈ `PERFIS` do platform-sdk; nenhum supervisor ou promotor. |
 | S0-032 | idem | ✅ | As 6 equipes da Fase M; cada vendedor na equipe da Fase M (Bruna Zona Sul, Rafael e Paula Zona Norte, Diego Centro, Carla e Thiago Interior, Marcos Zona Leste, Lívia Zona Oeste); as 6 sob um só nó cujo responsável é Fernando Lima. |
 | S0-033 | idem | ✅ | Seed rodado mais 2 vezes: contagens de usuario, equipe, cliente, carteira, produto, tenant_modulo, perfil_modulo e parametro iguais; hashes de senha preservados; 12 usuários. |
 | S0-034 | idem | ✅ | Senhas em argon2id (`$argon2id$v=19$m=…,t=…,p=…$`), nenhuma em texto; todos os e-mails em `@exemplo.com.br`. Os três tenants veem só os próprios usuários. |
+| S0-040, S0-060 | modules/core/domain (modulo-core) e packages/platform-sdk (modulos-efetivos, permissoes) | ✅ | Testes unitários dos donos, verdes no `pnpm test` (core 245, platform-sdk 95). |
+| S0-041 | tests/integracao/api/licencas.test.ts | ✅ | Efetivos de partida pela API para 6 perfis de A e o vendedor de B (core sempre; `teste` da fixture, não instalado, ignorado; versões semânticas). Tenant desliga o Promotor → `/v1/me/modulos` do promotor = `[core]`, supervisor perde o Promotor; religa → volta, com o mesmo `versao_licencas` de antes. |
+| S0-042, S0-053 | idem | ✅ | Perfil `vendedor` sem o Vendedor: vendedores perdem, supervisor mantém. Exceção do usuário: só o vendedor2 perde. Os dois motivos dão 403 `MODULO_INATIVO` na rota real. |
+| S0-043 | idem | ✅ | Desliga + religa + repete: +2 eventos `core.usuario.modulos_alterados@1` (nada mudou na 3ª → sem evento) e +3 auditorias; evento com `modulo=core`, `usuario_id` do admin, `request_id` e payload `{ nivel, modulo }`. |
+| S0-044 | idem | ✅ | RN-CORE-03: Catálogo desligado no tenant → o Vendedor sai junto (efetivos `[core]`), rota do Vendedor 403 `MODULO_INATIVO`; religa → os dois voltam. |
+| S0-045 | idem | ✅ | Core não desliga em tenant, perfil nem usuário (422 `RN-CORE-01`); analista, assistente, gerente e vendedor: 403 `PERFIL_SEM_ACESSO` para alterar e 403 para ler licenças. Tela do BKO: roteiro M-06. |
+| S0-046 | tests/integracao/api/sync-app.test.ts | ✅ | Motor real do SDK × createApp real: vendedor2 sincroniza, grava rascunho do Vendedor; admin desliga; antes do sync o aparelho continua igual; no sync seguinte `modulosAtivos` = `[core, catalogo]` e `mod:vendedor:*` apagado; clientes do Core continuam; religa → volta. Com o registro de sync que o app Campo declara hoje, a lista de módulos é aplicada mesmo com o pull falhando (D-2). |
+| S0-047 | idem | ✅ | Sem sinal: `sincronizar()` = false com "Sem sinal…", estado anterior mantido; na reconexão aplica a desativação. |
+| S0-048 | idem + licencas.test.ts | ✅ (com D-1) | Item de pedido na fila de módulo desativado: continua visível na fila com código, `limpezaPendente = [vendedor]`, armazenamento do módulo só sai depois de `confirmarLimpeza`. O código devolvido pelo servidor é `ENTIDADE_DESCONHECIDA`, e não `MODULO_INATIVO` (D-1): no app aparece "não enviado — corrija ou descarte" em vez de "módulo desativado". |
+| S0-049 | licencas.test.ts | ✅ | Desligar o Vendedor no tenant não altera contagens de cliente/carteira/produto (dados na nuvem ficam). |
+| S0-050 | — (Playwright não instalado) | manual | Roteiro M-06 (tela de licenças do BKO). API da tela coberta por S0-041..045. |
+| S0-051 | modules/core/app/lib/meus-modulos.test.ts (modulo-core) | ✅ | Teste do dono, verde. No aparelho: M-03. |
+| S0-052, S0-087 | licencas.test.ts | ✅ | Varredura de todas as rotas montadas dos 7 módulos não-core (hoje: o cancelar do Vendedor) e de todas as entidades de `sync` dos manifestos no pull, com o admin (só core): 403 `MODULO_INATIVO` + `detalhes.modulo`. Rota inexistente de módulo instalado → 404. |
+| S0-054 | idem | ✅ | Sem token e token lixo → 401 `NAO_AUTENTICADO`; módulo inativo → 403 `MODULO_INATIVO`; ação do Core sem perfil → 403 `PERFIL_SEM_ACESSO`; id inválido → 400 `VALIDACAO`; rota inexistente → 404. |
+| S0-055 | idem | ✅ | Mesmo token antes/depois da desativação (tenant, perfil e usuário): a chamada seguinte já é 403. Payload do JWT = `exp, iat, perfil, sub, tid`. Troca de perfil no banco vale na hora (auth.test.ts). |
+| S0-056 | idem | ✅ (com D-1) | Pull de entidade de módulo inativo → 403 `MODULO_INATIVO` (ativo e sem provedor → 501 `SYNC_NAO_IMPLEMENTADO`). Push → rejeitado por item, código errado (D-1). |
+| S0-061, S0-062 | tests/modulos/promotor-sem-pedido.test.ts | ✅ | Páginas e extensões do Vendedor lidas do fonte (`modules/vendedor/app/index.ts`) e montadas no `criarShell('campo')` com os manifestos reais: promotor COM o Vendedor licenciado → `pagina('novo-pedido')` nula (deep link bloqueado), `cliente.acoes` e `cliente.abas` vazios, `pode('pedido.*')` falso; toda ação de pedido declarada no app exige `pedido.*` sem `promotor`; botões de editar/cancelar/criar atrás de `usePode`/`SePode`. Controle positivo com o vendedor. |
+| S0-063 | tests/integracao/api/promotor-pedido.test.ts | ✅ | Toda rota montada com caminho ou ação de pedido → 403 para o promotor (fixture: `MODULO_INATIVO`). |
+| S0-064 | idem | ✅ | Admin põe Vendedor e Catálogo no perfil promotor (`/me/modulos` passa a ter o Vendedor) → toda rota de pedido continua 403 `PERFIL_SEM_ACESSO`; contraprova: o vendedor passa da checagem de perfil. |
+| S0-065 | idem | ✅ | Push de `pedido`, `pedido_item`, `pedido_evento` pelo promotor: os 3 rejeitados, nenhum evento `vendedor.pedido.*` gravado (código `ENTIDADE_DESCONHECIDA` por falta de provedor; RN-PRO-01 no push está nos testes do dono, apps/api/test/sync.test.ts). |
+| S0-066 | tests/modulos/promotor-sem-pedido.test.ts | ✅ | Shell web REAL com os 8 módulos ativos para o promotor: nenhuma ação `pedido.*`, nenhum item de menu com ação de pedido; o login do BKO recusa promotor e vendedor (`mensagemPerfilForaDoApp` + logout da sessão recém-criada). |
+| S0-070 | tests/integracao/api/auth.test.ts | ✅ | Login `alfa` + e-mail + senha → `expires_in` 900 (exp − iat = 900), refresh `<tenant>.<segredo>`, usuário e tenant (nome/fuso). Código errado, e-mail inexistente, senha errada e e-mail de outro tenant: status e corpo idênticos (401 `CREDENCIAIS_INVALIDAS`), sem nome nem fuso do tenant. |
+| S0-071 | idem | ✅ | Refresh devolve par novo; reuso do antigo → 401 `SESSAO_INVALIDA` e o refresh NOVO também cai (família); refresh lixo, de A com prefixo de B, e após logout → 401; logout responde igual sempre. Bloqueio: 5 falhas → 423 só com a senha certa; bloqueio remoto derruba acesso (401) e refresh na hora; aparelho bloqueado 423; aparelho de outro tenant 403 `DISPOSITIVO_INVALIDO` (entrega do core desta rodada); 6ª tentativa no mesmo IP + código → 429 com `Retry-After`. JWT expirado, `alg: none`, outro segredo, perfil adulterado, `tid` de outro tenant → 401. |
+| S0-072 | idem | ✅ | `vendedor@exemplo.com.br` existe em A e B: o código da empresa decide (ids de usuário e tenant certos); o pull de cada token só traz o próprio tenant. |
+| S0-073 | idem | ✅ | Logger em `trace` capturado, com os serializadores do servidor.ts e com os padrão do Fastify: login ok/errado, login em B, `/me/modulos`, pull, rota com e-mail no corpo, refresh e reuso → nenhum e-mail, senha, access, refresh ou segredo do refresh no log; nada de `authorization`/`bearer`. |
+| S0-074 | tests/integracao/api/sync-app.test.ts (S0-105) | ✅ (parte da Sprint 0) | Pull de cliente: vendedor1 = c1 e c3; vendedor2 = c2; vendedor de B = só o cliente de B. Supervisor/gerente pela equipe: testes do core (carteira). Observação O-5 na carteira. |
+| S0-080 | tests/modulos/shells.test.ts + `npx expo config` | ✅ | `app.config.ts` avaliado com APP_VARIANT campo/gestao: Macuxi Campo/br.com.macuxi.campo/macuxicampo × Macuxi Gestão/br.com.macuxi.gestao/macuxigestao, mesmo slug e projectId; variante inválida lança erro. `APP_VARIANT=… npx expo config --type public` confirma os mesmos valores e os plugins (router, splash, location, image-picker, secure-store). `eas.json`: `campo`/`gestao` com `developmentClient`, `distribution: internal`, `buildType: apk`, `APP_VARIANT` certo; `*-preview` idem sem dev client. |
+| S0-081 | — | **pendente Alexandre** | Roteiro M-02 (login na Expo com acesso à organização `macuxifdv` ou `eas init`; `eas build --profile campo|gestao --platform android`). |
+| S0-082 | shells.test.ts | ✅ | Campo nunca monta Gestor nem Integração; Gestão nunca monta Vendedor nem Integração. |
+| S0-083, S0-085 | shells.test.ts | ✅ | "Novo pedido" (Vendedor, `cliente.acoes`, lido do fonte) aparece com o Vendedor efetivo e some sem erro com Vendedor ou Catálogo inativos; card do Treinamento em `inicio.cards` aparece/some no Campo e na Gestão. |
+| S0-084 | shells.test.ts | ✅ (shell) | Menu do BKO real: Vendedor some quando sai dos efetivos e `pagina('pedidos')` fica nula. Clique no BKO: M-06. |
+| S0-090..S0-093 | scripts/coord-verificar.test.mjs (alexandre/engenheiro) | ✅ | `node --test`: 49 casos, 48 ✅, 1 pulado. |
+| S0-094..S0-096 | .github/workflows/ci.yml | ✅ | Passos: lint, typecheck, testes com Postgres (`MACUXI_PG_EXIGIR=1`), testes do coord, verificar `--base` no PR, next build. Runs verdes no main (T-0005, Histórico). |
+| S0-104 | sync-app.test.ts | ✅ | Acesso inválido durante o push: o item fica `pendente` com 1 tentativa (401 não rejeita a fila); com o acesso novo do `/v1/auth/refresh` o servidor responde por item. |
+| S0-105 | sync-app.test.ts | ✅ | Ver S0-074. |
+| S0-110 | tests/carga/fundacao.test.ts | medido (meta não atingida aqui, O-4) | HTTP real, 50 conexões × 5 s, sozinho: `/v1/me/modulos` p50 664 / p95 1.065 ms; pull de cliente p50 1.742 / p95 1.960 ms; `/v1/core/licencas` p95 1.397 ms; 45 req/s; 0 erros. Com a suíte inteira em paralelo: p95 até 4,7 s. Em série: `/v1/saude` 6 ms, `/v1/me/modulos` 45 ms, pull 74 ms; `select 1` no Postgres do Docker = 3,3 ms por ida e volta. Login (argon2id) em série: p50 135–189 ms, máx. 234 ms. O teste reprova só acima de 8 s (teto anti-patologia). |
+| S0-111 | idem | ✅ | Mesma carga alternando 4 tokens (vendedor e admin de A e de B) com `x-tenant-id` do OUTRO tenant em toda requisição: 0 respostas com dado do outro tenant, 0 não-200. |
 
 
 ## T-0001 — evidências da Fase D (2026-10-31)
@@ -100,12 +156,50 @@ Observações da rodada 2 (não reprovam critério):
 - **Bancos de teste esquecidos** no container: `banco status` mostra `macuxi_teste_mvwfojxp_*`, `mvwforit_*` e `mvwfoyvk_*`, de execuções interrompidas mais cedo. Não apaguei, porque `apagar-teste --todos` derrubaria execuções de outros agentes em andamento. Sugestão ao banco-dados: limpeza por idade.
 - **comTenant** (db/src/contexto.ts): se o ROLLBACK falhar (conexão quebrada), a conexão volta ao pool com `release()` em vez de `release(erro)`. Não vaza contexto (o servidor descarta a transação), mas pode devolver ao pool uma conexão morta. Melhoria 🟢 para o banco-dados; não é defeito de isolamento.
 
+## Rodada 3 — evidências (2026-10-31, validação final de T-0003/T-0004)
+
+| Verificação | Comando | Resultado |
+|---|---|---|
+| Testes do agente testes com banco obrigatório | `MACUXI_PG_EXIGIR=1 pnpm test:tests` | ✅ **18 arquivos, 230 casos, 0 pulados** (164 da rodada 2 + 6 do produto-dono da T-0007 + 60 novos) |
+| Lint / typecheck da raiz | `pnpm lint`, `pnpm typecheck` | ✅ 18/18 cada; fronteiras: 0 violações (508 módulos, 1.276 dependências) |
+| Testes da raiz | `pnpm test` | ✅ 18/18 tarefas: core 245, api 51, db 150, platform-sdk 95, vendedor 104, promotor 155, pesquisa 215, treinamento 230, integracao 104, ui 38, comum 16, config 8, web 11, mobile 13, mock-api 18, catalogo 5, gestor 1, tests 230 |
+| Verificar de donos | `node --test scripts/coord-verificar.test.mjs` | ✅ 48 + 1 pulado |
+| Config do Expo real | `APP_VARIANT=campo|gestao npx expo config --type public --json` (em apps/mobile) | ✅ nomes, pacotes, scheme, variante, owner `macuxifdv` e projectId iguais ao esperado |
+
+Arquivos novos (todos do agente testes):
+
+| Arquivo | Casos | Cobre |
+|---|---|---|
+| tests/integracao/apoio/api.ts | — | sobe o createApp REAL (8 módulos, Core com JWT, `macuxi_app`) num banco efêmero próprio com dois-tenants; login com IP único por chamada |
+| tests/integracao/api/licencas.test.ts | 12 (1 `it.fails` = D-1) | C3.1/C3.2: S0-041..045, S0-049, S0-052..056 |
+| tests/integracao/api/sync-app.test.ts | 7 (1 `it.fails` = D-2) | C3.1 no motor real: S0-046..048, S0-104, S0-105 |
+| tests/integracao/api/promotor-pedido.test.ts | 4 | C3.3 API: S0-063..065 |
+| tests/integracao/api/auth.test.ts | 14 | S0-070..073 + bloqueios, limite, aparelho, JWT |
+| tests/integracao/multitenant/api.test.ts | 4 | S0-029, S0-030 |
+| tests/carga/fundacao.test.ts | 2 | S0-110 (medido), S0-111 |
+| tests/modulos/promotor-sem-pedido.test.ts | 8 | C3.3 UI: S0-061, S0-062, S0-066, O-3 |
+| tests/modulos/shells.test.ts | 9 | T-0004: S0-080, S0-082..085, S0-087 |
+
+Também: `tests/tsconfig.json` ganhou `jsx: react-jsx` e as libs `DOM` (o shell web real é importado nos testes).
+
+`it.fails` = teste do comportamento CERTO que hoje falha por defeito conhecido: a suíte fica verde e, quando o dono corrigir, o teste fica vermelho de propósito (trocar por `it`).
+
+Observações da rodada 3 (não reprovam critério):
+- **O-4 (desempenho, linha de base da Sprint 9)**: cada requisição autenticada abre várias transações (autenticar, licenças, carteira, horizonte, pull), cerca de 14–22 idas e voltas ao banco; com o Postgres do Docker no Windows (3,3 ms por ida e volta) o p95 sob 50 conexões fica entre 1 e 2 s (meta do plano: 300 ms). Em nuvem com o banco na mesma rede deve cair muito; mesmo assim, uma transação por requisição é a melhoria natural (engenheiro-software, Sprint 9).
+- **O-5 (carteira no pull)**: o vendedor recebe TODOS os vínculos de carteira dos clientes dele, inclusive o do promotor que atende o mesmo cliente (só o UUID do usuário, sem dado pessoal). Coerente com "quem mais atende meu cliente"; registrar se for intencional (modulo-core).
+- **O-6**: o cancelar do Vendedor com id válido ainda dá 500 no banco real (falta a tabela `vendedor.pedido`, R-20261031-110346 ao banco-dados) e `PEDIDO_NAO_ENCONTRADO` sai 422 (R-20261031-132736 ao vendedor). Os testes evitam esse caminho (id inválido → 400).
+- **O-7 (já conhecido do engenheiro)**: sem `trustProxy`, atrás de um balanceador o limite de 5 logins/5 min por IP + código da empresa passa a valer para a EMPRESA inteira (todos com o IP do proxy). Resolver antes de publicar a API.
+- **Guardião de Bash, falso positivo**: no meu `npx expo config` (14:16) ele acusou `.coord/diario/engenheiro-software.md`, `.coord/lidos/engenheiro-software.txt` e dois recados novos do engenheiro, que estava gravando em paralelo. Não desfiz nada (aviso R-20261031-131537 do gerente).
+
 ## Defeitos
 
 | # | Cenário | Passos para reproduzir | Esperado × obtido | Arquivo provável | Dono | Recado |
 |---|---|---|---|---|---|---|
 | — | T-0001 | Nenhum defeito que reprove critério da T-0001 nesta rodada | — | — | — | — |
 | — | T-0002 | Nenhum defeito que reprove critério da T-0002 na rodada 2 (as melhorias 🟢 estão nas Observações da rodada 2) | — | — | — | — |
+| D-1 🟡 | S0-048, S0-056, S0-065 | Admin desliga o Promotor no tenant; com o token do promotor, `POST /v1/sync/push` com item `checklist_loja` | Esperado `rejeitado/MODULO_INATIVO` (desenho T-0004 §5); obtido `rejeitado/ENTIDADE_DESCONHECIDA`. No app o item vira "falhou" e não volta sozinho quando o módulo é religado. Teste: licencas.test.ts "DEFEITO D-1" (`it.fails`) | apps/api/src/sync.ts (`registrarSync`), packages/platform-sdk/src/sync.ts (`rejeitarItensInvalidos`) | engenheiro-software | R-20261031-144832-testes |
+| D-2 🟡 | S0-046 | Motor real com o registro que o app Campo declara (`visita` do core, `pedido` do vendedor) contra a API real | Esperado: sync termina; obtido: pull de `pedido`/`visita` → 501 `SYNC_NAO_IMPLEMENTADO` e o motor para no primeiro erro (todo "Sincronizar" mostra erro). A lista de módulos é aplicada antes, então C3.1 vale. Teste: sync-app.test.ts "DEFEITO D-2" (`it.fails`) | packages/platform-sdk/src/motor-sync.ts e/ou apps/api/src/sync.ts; provedores: modulo-core/modulo-vendedor (Sprint 1) | engenheiro-software | R-20261031-144846-testes |
+| O-3 🟡 (desenho) | S0-063, S0-064 | Admin licencia o Vendedor para o perfil promotor | Matriz do doc 03 dá ao promotor "Ver pedidos: carteira (leitura)"; o app mostra a aba Pedidos só de leitura, mas o createApp veta ao promotor até o GET de pedido. Sem rota de leitura hoje: decidir antes da Sprint 4 | apps/api/src/app.ts (`vetadaAoPromotor`), desenho T-0004 §3 | engenheiro-software | R-20261031-144858-testes (pergunta) |
 
 ## Testes manuais
 
@@ -118,7 +212,40 @@ Roteiro **M-01** para o Alexandre confirmar a demo web da Fase M (premissa do ge
 
 | Roteiro | Executado por | Data | Resultado | Evidência |
 |---|---|---|---|---|
+Roteiro **M-02** (T-0004 C4.1 — os 2 APKs de desenvolvimento; **pendente Alexandre**):
+1. PowerShell em `C:\macuxifdv\apps\mobile`: `npm i -g eas-cli` e `eas login` com uma conta que tenha acesso à organização `macuxifdv` (ou `eas init` para trocar `owner`/`projectId` pelo seu projeto).
+2. `eas build --profile campo --platform android` e `eas build --profile gestao --platform android` (APK de desenvolvimento). Anotar os 2 links de build.
+3. Instalar os dois APKs no mesmo aparelho Android 10+: devem aparecer como **Macuxi Campo** e **Macuxi Gestão**, lado a lado (pacotes `br.com.macuxi.campo` e `br.com.macuxi.gestao`). Ícone igual nos dois é esperado até a arte da Gestão chegar.
+4. No PC, na mesma rede: `npx expo start --dev-client`; abrir cada app e conectar ao Metro.
+5. Campo: entrar com `alfa` + `vendedor@exemplo.com.br` (senha da fixture/seed) → abas do Campo, sem aba de Gestor. Gestão: entrar com `alfa` + `gerente@exemplo.com.br` → sem aba Pedidos do Vendedor. Promotor no Gestão e gerente no Campo: mensagem "use o app …".
+6. Mandar prints e os links dos builds ao agente testes.
+
+Roteiro **M-03** (offline e licença no aparelho; S0-046, S0-047, S0-100): API real no ar (`pnpm --filter api dev`, com `MACUXI_JWT_SEGREDO` no `.env`) e o APK Campo apontando para ela.
+1. Entrar como `vendedor2@exemplo.com.br` (`alfa`) com sinal; abrir "Meus módulos" (core, catálogo, vendedor).
+2. Modo avião; fechar e reabrir o app: abre em menos de 2 s, com a sessão e os mesmos módulos (sem tela de erro).
+3. No BKO (admin `alfa`), em Usuários e módulos, desligar o Vendedor só para o vendedor2.
+4. Tirar do modo avião e sincronizar: a aba Pedidos e o "Novo pedido" da ficha do cliente somem; "Meus módulos" sem o Vendedor. Hoje o "Sincronizar" vai mostrar erro por causa do D-2 — anotar a mensagem.
+5. Religar no BKO, sincronizar: tudo volta. Vídeo curto.
+
+Roteiro **M-05** (promotor no aparelho; C3.3): APK Campo, entrar como `promotor@exemplo.com.br` (`alfa`, aparelho NÃO bloqueado).
+1. Início, Clientes e ficha do cliente: nenhum botão/aba "Novo pedido", "Sugestão de mix", "Últimos pedidos".
+2. No BKO, admin liga o Vendedor e o Catálogo no perfil promotor; sincronizar no app: pode aparecer a aba Pedidos (leitura, O-3), mas sem nenhum botão de criar, editar, cancelar, duplicar ou excluir. Desligar de novo no fim.
+3. Tentar abrir o deep link `macuxicampo://m/novo-pedido`: tela de bloqueio, nada na fila de sincronização.
+
+Roteiro **M-06** (BKO, tela de licenças; S0-045, S0-050, S0-084 — Playwright ainda não instalado): `pnpm dev` com a API real.
+1. Entrar no BKO como admin `alfa`: em Usuários e módulos, o Core aparece ligado e sem controle de desligar.
+2. Desligar o Promotor no tenant: some do perfil e dos usuários; religar.
+3. Entrar como analista e como assistente: o item de menu de licenças não aparece; abrir a URL direta mostra bloqueio (a API responde 403).
+4. Tentar entrar como promotor e como vendedor: mensagem para usar o app Macuxi Campo.
+
+Roteiro **M-07** (câmera da fachada, RN-CORE-14; só com APK novo, a lib nativa entrou depois do último build): no Campo, visita → check-out → "Loja fechada" → a câmera abre, a foto sai ≤ 1600 px; sem foto o check-out não fecha.
+
+| Roteiro | Executado por | Data | Resultado | Evidência |
+|---|---|---|---|---|
 | M-01 (S0-008: web da demo da Fase M) | Alexandre | | pendente | prints |
-| M-02 | | | pendente | |
-| M-03 | | | pendente | |
-| M-04 | | | pendente | |
+| M-02 (S0-081: 2 APKs EAS) | Alexandre | | **pendente Alexandre** (login na Expo) | links dos builds + prints |
+| M-03 (offline e licença no aparelho) | Alexandre | | pendente (depende de M-02) | vídeo |
+| M-04 (CI verde no main) | gerente-projetos | 2026-10-31 | ✅ | runs 41208133979, 41209930842, 41210242610 (T-0005, Histórico) |
+| M-05 (promotor no aparelho) | Alexandre | | pendente (depende de M-02) | prints |
+| M-06 (BKO licenças) | Alexandre ou engenheiro | | pendente | prints |
+| M-07 (câmera da fachada) | Alexandre | | pendente (depende de M-02) | prints |

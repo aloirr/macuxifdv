@@ -1,5 +1,6 @@
 import { createElement, Suspense, type ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
+export { entrarComSenha, mensagemDeErroDeLogin, validarLogin } from '../app/lib/login';
 import { manifest } from '../manifest';
 import { CustomersPage } from './components/customers/customers-page';
 import { LicencasPage } from './components/licencas/licencas-page';

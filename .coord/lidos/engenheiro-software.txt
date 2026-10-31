@@ -34,3 +34,5 @@ R-20261031-124912-gerente-projetos
 R-20261031-124958-modulo-core
 R-20261031-130832-gerente-projetos
 R-20261031-131537-gerente-projetos
+R-20261031-145337-modulo-treinamento
+R-20261031-172600-modulo-treinamento
