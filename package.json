@@ -2,7 +2,7 @@
   "name": "macuxi-fdv",
   "private": true,
   "packageManager": "pnpm@12.11.2",
-  "engines": { "node": ">=20.19" },
+  "engines": { "node": ">=22.13" },
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",

@@ -8,6 +8,7 @@
     "typecheck": {},
     "test": { "outputs": [], "env": ["MACUXI_PG_*"] },
     "@macuxi/db#test": { "cache": false, "env": ["MACUXI_PG_*"], "passThroughEnv": ["DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG"] },
+    "api#test": { "cache": false, "env": ["MACUXI_PG_*"], "passThroughEnv": ["DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG"] },
     "//#lint:tests": { "inputs": ["tests/**", "!tests/node_modules/**", "eslint.config.mjs", "packages/config/**"] },
     "//#typecheck:tests": { "inputs": ["tests/**", "!tests/node_modules/**", "packages/config/**"] },
     "//#test:tests": { "cache": false, "env": ["MACUXI_FASE_M"] }

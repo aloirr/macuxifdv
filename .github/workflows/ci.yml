@@ -70,8 +70,8 @@ jobs:
         run: node --test scripts/coord-verificar.test.mjs
 
       # Só no PR: arquivo fora dos caminhos do agente = violação (saída 1); erro de uso/git = 2.
-      # Agente: do branch agente/T-nnnn-<agente> ou alexandre/... (GITHUB_HEAD_REF) ou do trailer
-      # "Agente: <nome>" do último commit do PR (obrigatório em branch fora do padrão, ex.: nuvem/*).
+      # Agente: do branch <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente> ou alexandre/... (GITHUB_HEAD_REF);
+      # em nuvem/* e branch fora do padrão, do trailer "Agente: <nome>" de TODOS os commits do PR (sem merges).
       - name: verificar donos do PR
         if: github.event_name == 'pull_request'
         env:

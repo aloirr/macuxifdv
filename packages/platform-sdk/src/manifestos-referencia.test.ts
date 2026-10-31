@@ -37,7 +37,8 @@ export const REFERENCIA: ManifestoEntrada[] = [
     perfis: ['vendedor', 'analista', 'assistente'],
     apps: { campo: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas'] } },
     sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'alerta_ruptura'],
-    publica: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1'],
+    // vendedor.pedido.faturado@1: decisão T-0004 (registro em .coord/contratos/eventos.md); entra no manifesto real depois da T-0007
+    publica: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'vendedor.pedido.faturado@1'],
     consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1'],
     ofereceExtensoes: ['pedido.criar_em_nome'],
     usaExtensoes: ['produto.acoes', 'cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards'],
@@ -101,16 +102,33 @@ export const REFERENCIA: ManifestoEntrada[] = [
     usaExtensoes: ['visita.etapas_checkout', 'cliente.abas'],
   },
   {
+    // Espelho de modules/treinamento/manifest.ts (T-0011; atualizado na T-0004): admin + ações do aluno, da gestão e do BKO.
+    // consome: `vendedor.pedido.faturado@1` (decisão T-0004, R-20261031-103502 item 10: o desafio paga no FATURADO);
+    // o manifesto real troca `vendedor.pedido.criado@1` por ele quando o Vendedor publicar o evento (pedido ao modulo-treinamento).
     id: 'treinamento',
     versao: '0.1.0',
     depende: ['core'],
     opcionais: ['vendedor'],
-    perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista'],
+    perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'admin'],
     apps: { campo: { abas: ['Treinar'] }, gestao: { abas: ['Treinar'] }, web: { menus: ['Trilhas'] } },
-    sync: ['trilha', 'modulo_trilha', 'licao', 'quiz', 'questao', 'alternativa', 'progresso', 'tentativa', 'medalha'],
+    sync: ['trilha', 'modulo_trilha', 'licao', 'quiz', 'questao', 'alternativa', 'progresso', 'tentativa', 'medalha', 'xp_lancamento', 'medalha_usuario', 'ranking_periodo'],
     publica: ['treinamento.licao.concluida@1', 'treinamento.medalha.conquistada@1'],
-    consome: ['vendedor.pedido.criado@1'],
+    consome: ['vendedor.pedido.faturado@1'],
     usaExtensoes: ['inicio.cards'],
+    acoes: {
+      'trilha.baixar_offline': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente'] },
+      'licao.concluir': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente'] },
+      'quiz.responder': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente'] },
+      'ranking.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'admin'] },
+      'adesao.ver': { perfis: ['supervisor', 'gerente', 'analista', 'admin'] },
+      'notas.ver': { perfis: ['supervisor', 'gerente', 'analista', 'admin'] },
+      'trilha.criar': { perfis: ['analista', 'admin'] },
+      'trilha.editar': { perfis: ['analista', 'admin'] },
+      'trilha.publicar': { perfis: ['analista', 'admin'] },
+      'quiz.gerenciar': { perfis: ['analista', 'admin'] },
+      'desafio.gerenciar': { perfis: ['analista', 'admin'] },
+      'medalha.gerenciar': { perfis: ['analista', 'admin'] },
+    },
   },
   {
     id: 'integracao',

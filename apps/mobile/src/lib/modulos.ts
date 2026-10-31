@@ -7,15 +7,21 @@
  * Ponto de extensão da B2: cada módulo exporta de `modules/<m>/app/index.ts`
  *   export const moduloApp = definirModuloShell<ComponentType>({ manifesto, paginas, entidadesSync, etapasSync });
  * Enquanto o módulo não exporta `moduloApp`, o shell usa só o manifesto (sem telas).
- * Instalados (T-0001 A3): core e vendedor. Os demais entram na T-0004.
+ * Instalados: os 8 módulos (T-0004, lista em `instalados.ts`). Quem ainda não tem `app/` entra só pelo manifesto
+ * (licença, sync e ações valem; nenhuma tela aparece) e ganha telas quando exportar `moduloApp`.
  */
 import type { ComponentType } from 'react';
+import * as appCatalogo from '@macuxi/catalogo/app';
 import * as appCore from '@macuxi/core/app';
-import { manifest as manifestoCore } from '@macuxi/core/manifest';
-import { criarShell, type Manifesto, type ModuloShell } from '@macuxi/platform-sdk';
+import * as appGestor from '@macuxi/gestor/app';
+import * as appIntegracao from '@macuxi/integracao/app';
+import * as appPesquisa from '@macuxi/pesquisa/app';
+import { criarShell, type Manifesto, type ModuloId, type ModuloShell } from '@macuxi/platform-sdk';
+import * as appPromotor from '@macuxi/promotor/app';
+import * as appTreinamento from '@macuxi/treinamento/app';
 import * as appVendedor from '@macuxi/vendedor/app';
-import { manifest as manifestoVendedor } from '@macuxi/vendedor/manifest';
 
+import { MANIFESTOS_INSTALADOS } from './instalados';
 import type { Variante } from './variante';
 
 export type ComponenteTela = ComponentType;
@@ -26,10 +32,19 @@ function registroApp(manifesto: Manifesto, exportado: unknown): ModuloShell<Comp
   return m ?? { manifesto, paginas: [] };
 }
 
-export const MODULOS_APP: readonly ModuloShell<ComponenteTela>[] = [
-  registroApp(manifestoCore, appCore),
-  registroApp(manifestoVendedor, appVendedor),
-];
+/** Telas de cada módulo (o módulo sem `app/` exporta `{}`). */
+const TELAS: Record<ModuloId, unknown> = {
+  core: appCore,
+  catalogo: appCatalogo,
+  vendedor: appVendedor,
+  promotor: appPromotor,
+  gestor: appGestor,
+  pesquisa: appPesquisa,
+  treinamento: appTreinamento,
+  integracao: appIntegracao,
+};
+
+export const MODULOS_APP: readonly ModuloShell<ComponenteTela>[] = MANIFESTOS_INSTALADOS.map((m) => registroApp(m, TELAS[m.id]));
 
 export const MANIFESTOS_APP: readonly Manifesto[] = MODULOS_APP.map((m) => m.manifesto);
 

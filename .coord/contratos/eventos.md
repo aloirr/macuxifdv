@@ -10,9 +10,10 @@
 | `core.usuario.modulos_alterados@1` | core | todos (shell) |
 | `catalogo.produto.visualizado@1` | catalogo | gestor (P2) |
 | `catalogo.busca.realizada@1` | catalogo | catalogo (analytics) |
-| `vendedor.pedido.criado@1` | vendedor | gestor, treinamento, core (metas) |
+| `vendedor.pedido.criado@1` | vendedor | gestor, core (metas); treinamento troca por `faturado@1` |
 | `vendedor.pedido.status_alterado@1` | vendedor | gestor, integracao, core (metas) |
 | `vendedor.pedido.aprovacao_solicitada@1` | vendedor | gestor |
+| `vendedor.pedido.faturado@1` | vendedor | treinamento (desafio de vendas, RN-TRE), gestor e core (metas; a declarar) |
 | `promotor.visita_loja.concluida@1` | promotor | gestor |
 | `promotor.gondola.registrada@1` | promotor | gestor |
 | `promotor.share.medido@1` | promotor | gestor |
@@ -37,3 +38,12 @@
 > Integração (T-0009): a antiga linha curinga `integracao.<entidade>.atualizado@1` virou uma linha por entidade,
 > para que cada consumidor seja explícito. "a declarar" = consumidor sugerido que ainda não está no `consome` do manifesto;
 > o dono do módulo declara quando for usar (e o registro passa a valer como contrato).
+
+> **`vendedor.pedido.faturado@1`** (T-0004, decisão do engenheiro sobre o pedido do Alexandre R-20261031-103502 item 10).
+> Publicado pelo Vendedor a cada retorno do ERP aceito (`integracao.pedido.retorno_erp@1`) com status `faturado_parcial` ou
+> `faturado_total` (ESTADOS_PEDIDO_ERP da integração). Payload:
+> `{ pedido_id: uuid, vendedor_id: uuid, faturado_em: ISO UTC, parcial: boolean, itens: [{ produto_id: uuid, quantidade: inteiro > 0 }] }`
+> — `itens` = o que foi faturado NESTE retorno (o consumidor soma; quantidade na unidade de venda; sem valores). Um evento por
+> retorno aceito (o retorno já é idempotente no Hub); o consumidor é idempotente por `evento_id`. Sem estorno nesta fase.
+> Não se usa `retorno_erp@1` para isso: ele não tem `vendedor_id` nem itens, fala a língua do ERP e só existe com o Hub.
+> Schema em `modules/vendedor/contracts/eventos.ts` depois do merge da T-0007 (contracts e manifesto do Vendedor travados pela nuvem). Desenho: `docs/desenho/T-0004.md` §8.

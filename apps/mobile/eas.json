@@ -1,22 +1,44 @@
 {
   "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
   "build": {
+    "base": {
+      "node": "24.21.0",
+      "pnpm": "12.11.2"
+    },
     "campo": {
-      "env": { "APP_VARIANT": "campo" },
+      "extends": "base",
+      "developmentClient": true,
       "distribution": "internal",
+      "env": { "APP_VARIANT": "campo" },
       "android": { "buildType": "apk" }
     },
     "gestao": {
-      "env": { "APP_VARIANT": "gestao" },
+      "extends": "base",
+      "developmentClient": true,
       "distribution": "internal",
+      "env": { "APP_VARIANT": "gestao" },
+      "android": { "buildType": "apk" }
+    },
+    "campo-preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "env": { "APP_VARIANT": "campo" },
+      "android": { "buildType": "apk" }
+    },
+    "gestao-preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "env": { "APP_VARIANT": "gestao" },
       "android": { "buildType": "apk" }
     },
     "campo-producao": {
+      "extends": "base",
       "env": { "APP_VARIANT": "campo" },
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" }
     },
     "gestao-producao": {
+      "extends": "base",
       "env": { "APP_VARIANT": "gestao" },
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" }

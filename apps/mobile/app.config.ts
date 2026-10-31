@@ -3,15 +3,33 @@
  *  - APP_VARIANT=campo  → "Macuxi Campo"  (vendedor/promotor)
  *  - APP_VARIANT=gestao → "Macuxi Gestão" (supervisor/gerente)
  * Mesmo código e mesmo projeto EAS; nome, pacote Android e scheme diferentes para conviverem no aparelho.
- * Perfis de build em eas.json. Base copiada do app.json da Fase M.
+ * Perfis de build em eas.json (desenho T-0004 §7): `campo`/`gestao` = build de desenvolvimento (APK com
+ * expo-dev-client, JS servido pelo `expo start`); `*-preview` = APK interno sem Metro; `*-producao` = AAB.
+ * Ícone por variante: hoje a mesma arte nas duas (a da Gestão é pendência de design); troca só aqui.
+ * Base copiada do app.json da Fase M.
  */
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 type Variante = 'campo' | 'gestao';
 
-const VARIANTES: Record<Variante, { nome: string; pacote: string; scheme: string }> = {
-  campo: { nome: 'Macuxi Campo', pacote: 'br.com.macuxi.campo', scheme: 'macuxicampo' },
-  gestao: { nome: 'Macuxi Gestão', pacote: 'br.com.macuxi.gestao', scheme: 'macuxigestao' },
+interface DadosVariante {
+  nome: string;
+  pacote: string;
+  scheme: string;
+  icone: string;
+  iconeFrente: string;
+  iconeFundo: string;
+}
+
+const ICONE_PADRAO = {
+  icone: './assets/images/icon.png',
+  iconeFrente: './assets/images/android-icon-foreground.png',
+  iconeFundo: './assets/images/android-icon-background.png',
+};
+
+const VARIANTES: Record<Variante, DadosVariante> = {
+  campo: { nome: 'Macuxi Campo', pacote: 'br.com.macuxi.campo', scheme: 'macuxicampo', ...ICONE_PADRAO },
+  gestao: { nome: 'Macuxi Gestão', pacote: 'br.com.macuxi.gestao', scheme: 'macuxigestao', ...ICONE_PADRAO },
 };
 
 function variante(): Variante {
@@ -29,7 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'macuxi-fdv',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/images/icon.png',
+    icon: v.icone,
     scheme: v.scheme,
     userInterfaceStyle: 'light',
     ios: { icon: './assets/expo.icon' },
@@ -37,8 +55,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: v.pacote,
       adaptiveIcon: {
         backgroundColor: '#F3F4F1',
-        foregroundImage: './assets/images/android-icon-foreground.png',
-        backgroundImage: './assets/images/android-icon-background.png',
+        foregroundImage: v.iconeFrente,
+        backgroundImage: v.iconeFundo,
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
