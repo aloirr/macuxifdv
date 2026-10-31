@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./teste": "./src/teste/index.ts",
+    "./teste/global-setup": "./testes/global-setup.ts",
+    "./teste/aviso-pulos": "./testes/aviso-pulos.ts",
+    "./teste/estado": "./testes/estado.ts",
+    "./teste/util": "./testes/util.ts",
     "./esquema/plataforma": "./esquema/plataforma.ts"
   },
   "scripts": {

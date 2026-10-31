@@ -20,6 +20,16 @@ export interface BancoDeTeste {
 
 export type Disponibilidade = { ok: true; versao: string } | { ok: false; motivo: string };
 
+/** Mensagem legível de erro de conexão (o pg devolve AggregateError sem mensagem quando ::1 e 127.0.0.1 recusam). */
+function descreverErro(e: unknown): string {
+  const lista = e instanceof AggregateError ? e.errors : [e];
+  const partes = lista.map((x) => {
+    const err = x as { code?: string; message?: string };
+    return [err.code, err.message].filter(Boolean).join(' ') || String(x);
+  });
+  return [...new Set(partes)].join('; ') || String(e);
+}
+
 /** Tenta conectar como admin com timeout curto. Nunca lança. */
 export async function postgresDisponivel(cfg: ConfigBanco = lerConfig(), timeoutMs = 2_000): Promise<Disponibilidade> {
   const c = new pg.Client({ connectionString: urlAdmin(cfg, 'postgres'), connectionTimeoutMillis: timeoutMs });
@@ -28,7 +38,7 @@ export async function postgresDisponivel(cfg: ConfigBanco = lerConfig(), timeout
     const r = await c.query<{ server_version: string }>('show server_version');
     return { ok: true, versao: r.rows[0]?.server_version ?? '?' };
   } catch (e) {
-    return { ok: false, motivo: (e as Error).message || String(e) };
+    return { ok: false, motivo: descreverErro(e) };
   } finally {
     await c.end().catch(() => undefined);
   }
