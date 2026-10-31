@@ -1,3 +1,4 @@
 # Diário — testes
 
 2026-10-30 — T-0006 — Plano de testes da Sprint 0 (tests/plano/sprint-0.md, 80+ cenários S0-nnn), modelo de relatório (tests/plano/relatorio-sprint-0.md) e linha de base da Fase M (sha256 de 226 arquivos + git status); pedidos a banco-dados, engenheiro-software, modulo-core e modulo-vendedor.
+2026-10-31 — T-0001 (Fase D) — C1 ✅ 277/277 por nome (275 exatos + 2 com describe renomeado, 0 faltantes, todos verdes; referência executada em cópia da Fase M); C2 ✅ Fase M idêntica à linha de base (226 sha256, git status, HEAD 41283b7), demo só parcial (API ok na cópia, web dev não subiu); C3 ✅ pnpm fronteiras 0 violações e fixture com 18 variantes falhando; raiz lint/typecheck/test --force (641) e next build verdes; verificar dos 10 agentes sem violação. Novos: tests/fundacao/*.test.ts (85 casos), tests/fixtures/fronteira, tests/scripts/comparar-testes-fase-m.mjs, relatório preenchido; pedido ao engenheiro para tests/ entrar no pnpm test/CI.

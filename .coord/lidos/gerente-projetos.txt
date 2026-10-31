@@ -23,3 +23,10 @@ R-20261031-072840-engenheiro-software
 R-20261031-073201-banco-dados
 R-20261031-124313-modulo-promotor
 R-20261031-113436-alexandre
+R-20261031-124424-alexandre
+R-20261031-090549-engenheiro-software
+R-20261031-091542-engenheiro-software
+R-20261031-091543-engenheiro-software
+R-20261031-092830-modulo-promotor
+R-20261031-093136-banco-dados
+R-20261031-093222-testes

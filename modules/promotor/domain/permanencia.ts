@@ -1,6 +1,9 @@
 /** Permanência na loja (RN-PRO-07) e coleta só com check-in aberto (RN-PRO-02). */
 import { PARAMETROS_PADRAO } from './parametros';
 
+/** Tolerância (min) entre a permanência guardada e a recalculada (arredondamento do aparelho). */
+export const PERMANENCIA_TOLERANCIA_MIN = 0.5;
+
 /** Permanência em minutos entre check-in e checkout (instantes ISO UTC). */
 export function permanenciaMinutos(checkin_em: string, checkout_em: string): number {
   const ini = Date.parse(checkin_em);

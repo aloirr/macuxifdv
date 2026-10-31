@@ -47,7 +47,8 @@ export const REFERENCIA: ManifestoEntrada[] = [
     versao: '0.1.0',
     depende: ['core'],
     opcionais: ['catalogo', 'pesquisa', 'vendedor'],
-    perfis: ['promotor', 'supervisor', 'gerente', 'analista'],
+    // admin: cadastros de trade no BKO (doc 03 §2; T-0010, ADR 0004)
+    perfis: ['promotor', 'supervisor', 'gerente', 'analista', 'admin'],
     apps: { campo: { abas: ['Loja'] }, gestao: { abas: ['Trade'] }, web: { menus: ['Trade marketing'] } },
     sync: ['checklist_loja', 'mix_obrigatorio', 'meta_share', 'concorrente', 'produto_concorrente', 'foto_referencia', 'tarefa_trade'],
     publica: [

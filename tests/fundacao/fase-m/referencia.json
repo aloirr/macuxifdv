@@ -1,0 +1,2500 @@
+{
+ "origem": "C:/Users/domon/dev/forca-vendas (árvore de trabalho, HEAD 41283b7) copiada para pasta temporária",
+ "geradoEm": "2026-10-31T13:11:44.751Z",
+ "total": 277,
+ "casos": [
+  {
+   "arquivo": "packages/domain/src/analytics.test.ts",
+   "describes": [
+    "abcCurve"
+   ],
+   "titulo": "80/15/5: classifica pelo acumulado ANTES do cliente (o maior é sempre A)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/analytics.test.ts",
+   "describes": [
+    "positivação"
+   ],
+   "titulo": "conta cliente uma vez, no mês, pelo vendedor da nota",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/analytics.test.ts",
+   "describes": [
+    "mix e inadimplência"
+   ],
+   "titulo": "média de linhas",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/analytics.test.ts",
+   "describes": [
+    "mix e inadimplência"
+   ],
+   "titulo": "vencidos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/analytics.test.ts",
+   "describes": [
+    "mix e inadimplência"
+   ],
+   "titulo": "inadimplência acima de 30 dias",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/analytics.test.ts",
+   "describes": [
+    "mix e inadimplência"
+   ],
+   "titulo": "sem títulos = 0",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/calendar.test.ts",
+   "describes": [
+    "businessDays"
+   ],
+   "titulo": "outubro/2026 com feriado de 12/10: 21 úteis, 14 restantes no dia 12",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/calendar.test.ts",
+   "describes": [
+    "businessDays"
+   ],
+   "titulo": "sem feriados: 22 úteis",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/calendar.test.ts",
+   "describes": [
+    "businessDays"
+   ],
+   "titulo": "mês encerrado: nada restante",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/calendar.test.ts",
+   "describes": [
+    "datas"
+   ],
+   "titulo": "localDate em Manaus (UTC-4)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/calendar.test.ts",
+   "describes": [
+    "datas"
+   ],
+   "titulo": "diffDays",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "faturamento com 79.9% paga 0% do peso",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "faturamento com 80% paga 80% do peso",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "faturamento com 95.5% paga 95.5% do peso",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "faturamento com 100% paga 100% do peso",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "faturamento com 109% paga 100% do peso",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "faturamento com 110% paga 120% do peso",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "faturamento com 150% paga 120% do peso",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "descrição curta",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "faixas"
+   ],
+   "titulo": "validação das faixas",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "atingimento e projeção"
+   ],
+   "titulo": "maior é melhor",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "atingimento e projeção"
+   ],
+   "titulo": "menor é melhor (inadimplência 2,1% com limite 3,0%)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "atingimento e projeção"
+   ],
+   "titulo": "meta zero não divide por zero",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "atingimento e projeção"
+   ],
+   "titulo": "projeção linear por dias úteis",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "atingimento e projeção"
+   ],
+   "titulo": "sem dia encerrado, projeção = atingimento",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "computeIncentive (caso do mockup do Rafael)"
+   ],
+   "titulo": "RV projetada R$ 3.188,40 com gatilho liberado",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "computeIncentive (caso do mockup do Rafael)"
+   ],
+   "titulo": "gatilho estourado zera a RV",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "computeIncentive (caso do mockup do Rafael)"
+   ],
+   "titulo": "no fechamento paga pelo realizado, não pela projeção",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "computeIncentive (caso do mockup do Rafael)"
+   ],
+   "titulo": "mudar o peso muda a RV",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "validatePlanWeights"
+   ],
+   "titulo": "soma 100 sem contar gatilho",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/incentive.test.ts",
+   "describes": [
+    "validatePlanWeights"
+   ],
+   "titulo": "soma diferente de 100 é inválida",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "toCents(89.9) = 8990",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "toCents(1.005) = 101",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "toCents(24,50) = 2450",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "toCents(0) = 0",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "toCents(null) = 0",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "toCents(abc) = 0",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "fromCents volta para decimal",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "applyPct(10000, 4) = 400",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "applyPct(8990, 4) = 360",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "applyPct(12345, 7.5) = 926",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/money.test.ts",
+   "describes": [
+    "money"
+   ],
+   "titulo": "formata em reais",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "computeOrderTotals"
+   ],
+   "titulo": "pedido do mockup: 10 pastilhas, 24 filtros, 4 amortecedores, 4%",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "computeOrderTotals"
+   ],
+   "titulo": "ignora linha com quantidade zero",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "computeOrderTotals"
+   ],
+   "titulo": "desconto negativo vira zero e acima de 100 vira 100",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "desconto 0% → within",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "desconto 5% → within",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "desconto 5.01% → needs_approval",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "desconto 7% → needs_approval",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "desconto 12% → needs_approval",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "desconto 12.5% → blocked",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "usa a exceção do vendedor",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "acima do gestor vai para a diretoria quando configurado",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "checkDiscount (alçada)"
+   ],
+   "titulo": "aprovador conforme a faixa",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "validateOrder"
+   ],
+   "titulo": "dentro da alçada e do crédito: ok",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "validateOrder"
+   ],
+   "titulo": "desconto acima da alçada: aprovação",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "validateOrder"
+   ],
+   "titulo": "desconto acima do máximo: rejeitado",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "validateOrder"
+   ],
+   "titulo": "limite de crédito excedido: aprovação com valor excedido",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "validateOrder"
+   ],
+   "titulo": "cliente com título vencido: aprovação",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "validateOrder"
+   ],
+   "titulo": "pedido vazio e quantidade inválida: rejeitado",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "validateOrder"
+   ],
+   "titulo": "produto sem preço: rejeitado",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "máquina de status"
+   ],
+   "titulo": "queued → received = true",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "máquina de status"
+   ],
+   "titulo": "pending_approval → approved = true",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "máquina de status"
+   ],
+   "titulo": "pending_approval → integrated = false",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "máquina de status"
+   ],
+   "titulo": "integrated → cancelled = false",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "máquina de status"
+   ],
+   "titulo": "sent_to_erp → integrated = true",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "ações do pedido (duplicar, editar, excluir)"
+   ],
+   "titulo": "queued → editar/excluir = true",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "ações do pedido (duplicar, editar, excluir)"
+   ],
+   "titulo": "pending_approval → editar/excluir = true",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "ações do pedido (duplicar, editar, excluir)"
+   ],
+   "titulo": "rejected → editar/excluir = true",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "ações do pedido (duplicar, editar, excluir)"
+   ],
+   "titulo": "received → editar/excluir = true",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "ações do pedido (duplicar, editar, excluir)"
+   ],
+   "titulo": "sent_to_erp → editar/excluir = false",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "ações do pedido (duplicar, editar, excluir)"
+   ],
+   "titulo": "integrated → editar/excluir = false",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "ações do pedido (duplicar, editar, excluir)"
+   ],
+   "titulo": "cancelled → editar/excluir = false",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "packages/domain/src/order.test.ts",
+   "describes": [
+    "ações do pedido (duplicar, editar, excluir)"
+   ],
+   "titulo": "integrado explica que é preciso duplicar",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/route.test.ts",
+   "describes": [
+    "roteirização"
+   ],
+   "titulo": "distância: 0,01° de latitude ≈ 1,1 km; rua ×1,3",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/route.test.ts",
+   "describes": [
+    "roteirização"
+   ],
+   "titulo": "sem coordenada não soma distância",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/route.test.ts",
+   "describes": [
+    "roteirização"
+   ],
+   "titulo": "vizinho mais próximo a partir do CD; sem coordenada vai para o fim",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/route.test.ts",
+   "describes": [
+    "roteirização"
+   ],
+   "titulo": "ordenar reduz (ou mantém) o km total",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/route.test.ts",
+   "describes": [
+    "roteirização"
+   ],
+   "titulo": "2-opt desfaz cruzamento e nunca piora",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/route.test.ts",
+   "describes": [
+    "roteirização"
+   ],
+   "titulo": "optimizeRoute: mais curta entre sugestão e ordem atual; sem coordenada no fim",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "virada do dia"
+   ],
+   "titulo": "meia-noite de Manaus = 04:00 UTC",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "virada do dia"
+   ],
+   "titulo": "check-in às 17:51 de 12/10 fecha na meia-noite de 13/10",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "virada do dia"
+   ],
+   "titulo": "check-in às 23:30 local (03:30 UTC do dia seguinte) usa o dia local",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "virada do dia"
+   ],
+   "titulo": "aberto até a virada, fechado depois",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "um check-in por vez"
+   ],
+   "titulo": "acha o check-in aberto do vendedor",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "um check-in por vez"
+   ],
+   "titulo": "proíbe check-in em outro cliente com um aberto",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "um check-in por vez"
+   ],
+   "titulo": "no mesmo cliente devolve o check-in existente (não duplica)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "um check-in por vez"
+   ],
+   "titulo": "sem check-in aberto, libera",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "um check-in por vez"
+   ],
+   "titulo": "outro vendedor com check-in aberto não interfere",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "um check-in por vez"
+   ],
+   "titulo": "check-in esquecido de ontem não bloqueia hoje",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "fechamento automático"
+   ],
+   "titulo": "fecha o de ontem na meia-noite e o duplicado de hoje na hora",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/domain/src/visit.test.ts",
+   "describes": [
+    "fechamento automático"
+   ],
+   "titulo": "duração",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/contracts/src/index.test.ts",
+   "describes": [
+    "contracts"
+   ],
+   "titulo": "pedido válido recebe prazo padrão",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/contracts/src/index.test.ts",
+   "describes": [
+    "contracts"
+   ],
+   "titulo": "pedido sem item ou com quantidade zero é inválido",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/contracts/src/index.test.ts",
+   "describes": [
+    "contracts"
+   ],
+   "titulo": "id do pedido precisa ser UUID gerado no aparelho",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/contracts/src/index.test.ts",
+   "describes": [
+    "contracts"
+   ],
+   "titulo": "recusa exige motivo",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/contracts/src/index.test.ts",
+   "describes": [
+    "contracts"
+   ],
+   "titulo": "push aceita pedido e visita",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "packages/contracts/src/index.test.ts",
+   "describes": [
+    "contracts"
+   ],
+   "titulo": "plano com peso acima de 100 é inválido",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/api.test.ts",
+   "describes": [
+    "cliente da API"
+   ],
+   "titulo": "monta a URL ignorando filtros vazios",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/api.test.ts",
+   "describes": [
+    "cliente da API"
+   ],
+   "titulo": "PUT passa pelo proxy same-origin (CORS do mock-api)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/api.test.ts",
+   "describes": [
+    "cliente da API"
+   ],
+   "titulo": "lê o nome do arquivo do Content-Disposition",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/api.test.ts",
+   "describes": [
+    "cliente da API"
+   ],
+   "titulo": "reconhece planilha aberta no Excel (503 file_locked)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/audit.test.ts",
+   "describes": [
+    "resumo da auditoria"
+   ],
+   "titulo": "mostra só o que mudou, com rótulos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/audit.test.ts",
+   "describes": [
+    "resumo da auditoria"
+   ],
+   "titulo": "criação lista os campos do \"depois\" formatados",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/audit.test.ts",
+   "describes": [
+    "resumo da auditoria"
+   ],
+   "titulo": "plano: diferença de peso por indicador, ignorando textos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/audit.test.ts",
+   "describes": [
+    "resumo da auditoria"
+   ],
+   "titulo": "regra isolada diz o indicador",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/audit.test.ts",
+   "describes": [
+    "resumo da auditoria"
+   ],
+   "titulo": "limita a quantidade de mudanças",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/audit.test.ts",
+   "describes": [
+    "resumo da auditoria"
+   ],
+   "titulo": "rota: quantidade de paradas",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/audit.test.ts",
+   "describes": [
+    "resumo da auditoria"
+   ],
+   "titulo": "rótulos de entidade e ação, com fallback",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/csv.test.ts",
+   "describes": [
+    "csv"
+   ],
+   "titulo": "escapa ; aspas e quebra de linha",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/csv.test.ts",
+   "describes": [
+    "csv"
+   ],
+   "titulo": "usa BOM, ; e CRLF",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/csv.test.ts",
+   "describes": [
+    "csv"
+   ],
+   "titulo": "número com vírgula decimal e sem milhar",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/csv.test.ts",
+   "describes": [
+    "csv"
+   ],
+   "titulo": "gera a tabela de pedidos com o motivo certo por status",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "datas e meses"
+   ],
+   "titulo": "addMonths(2026-10, 1) = 2026-11",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "datas e meses"
+   ],
+   "titulo": "addMonths(2026-12, 1) = 2027-01",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "datas e meses"
+   ],
+   "titulo": "addMonths(2026-01, -1) = 2025-12",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "datas e meses"
+   ],
+   "titulo": "addMonths(2026-10, 14) = 2027-12",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "datas e meses"
+   ],
+   "titulo": "rótulos de mês e dia",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "datas e meses"
+   ],
+   "titulo": "hora e data no fuso de Manaus (UTC−4)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "datas e meses"
+   ],
+   "titulo": "coluna Recebido: hora hoje, \"ontem\" ou dd/mm",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "formatAge"
+   ],
+   "titulo": "0 min → 0 min",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "formatAge"
+   ],
+   "titulo": "47 min → 47 min",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "formatAge"
+   ],
+   "titulo": "60 min → 1 h",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "formatAge"
+   ],
+   "titulo": "192 min → 3 h 12 min",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "formatAge"
+   ],
+   "titulo": "1440 min → 1 dia",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "formatAge"
+   ],
+   "titulo": "4298 min → 2 dias",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "campos digitados em pt-BR"
+   ],
+   "titulo": "parseDecimalInput(\"3.900,00\") = 3900",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "campos digitados em pt-BR"
+   ],
+   "titulo": "parseDecimalInput(\"3900,5\") = 3900.5",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "campos digitados em pt-BR"
+   ],
+   "titulo": "parseDecimalInput(\"3900.5\") = 3900.5",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "campos digitados em pt-BR"
+   ],
+   "titulo": "parseDecimalInput(\"R$ 3.900\") = 3900",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "campos digitados em pt-BR"
+   ],
+   "titulo": "parseDecimalInput(\"5,5%\") = 5.5",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "campos digitados em pt-BR"
+   ],
+   "titulo": "parseDecimalInput(\"\") = null",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "campos digitados em pt-BR"
+   ],
+   "titulo": "parseDecimalInput(\"abc\") = null",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/format.test.ts",
+   "describes": [
+    "campos digitados em pt-BR"
+   ],
+   "titulo": "formata valores para os campos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "ida e volta sem mudança gera o mesmo corpo do PUT",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "valida a soma dos pesos com a regra do domínio (gatilho não conta)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "virar gatilho tira o peso da soma e manda peso 0 e sem faixas",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "acusa faixas inválidas e teto inválido",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "gatilho que deixa de ser gatilho precisa de faixas",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "faixas: texto do servidor enquanto não muda; senão describeBands",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "faixas são enviadas em ordem crescente",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "nova faixa sugerida e meses de vigência",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "formulário do plano de RV"
+   ],
+   "titulo": "teto em reais vira centavos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "textos da tela de metas"
+   ],
+   "titulo": "linha dos pesos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/plan-form.test.ts",
+   "describes": [
+    "textos da tela de metas"
+   ],
+   "titulo": "cartão do gatilho",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/policy-form.test.ts",
+   "describes": [
+    "formulário das alçadas"
+   ],
+   "titulo": "converte para a tela e de volta para o PUT",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/policy-form.test.ts",
+   "describes": [
+    "formulário das alçadas"
+   ],
+   "titulo": "erro: {\"seller\":\"9\"}",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/policy-form.test.ts",
+   "describes": [
+    "formulário das alçadas"
+   ],
+   "titulo": "erro: {\"manager\":\"120\"}",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/policy-form.test.ts",
+   "describes": [
+    "formulário das alçadas"
+   ],
+   "titulo": "erro: {\"supervisor\":\"\"}",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/policy-form.test.ts",
+   "describes": [
+    "formulário das alçadas"
+   ],
+   "titulo": "erro: {\"exceptions\":[{\"seller_id\":\"\",\"pct\":\"5\"}]}",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/policy-form.test.ts",
+   "describes": [
+    "formulário das alçadas"
+   ],
+   "titulo": "erro: {\"exceptions\":[{\"seller_id\":\"a\",\"pct\":\"5\"},{\"seller_id\":\"a\",\"pct\":\"6\"}]}",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/policy-form.test.ts",
+   "describes": [
+    "formulário das alçadas"
+   ],
+   "titulo": "erro: {\"exceptions\":[{\"seller_id\":\"a\",\"pct\":\"15\"}]}",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "dia: de = até = a data",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "semana de 2026-10-12 = 2026-10-12 a 2026-10-16 (segunda a sexta)",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "semana de 2026-10-15 = 2026-10-12 a 2026-10-16 (segunda a sexta)",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "semana de 2026-10-18 = 2026-10-12 a 2026-10-16 (segunda a sexta)",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "semana de 2026-10-01 = 2026-09-28 a 2026-10-02 (segunda a sexta)",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "mês de 2026-10-12 = 2026-10-01 a 2026-10-31",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "mês de 2026-02-10 = 2026-02-01 a 2026-02-28",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "mês de 2028-02-10 = 2028-02-01 a 2028-02-29",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "mês de 2026-11-30 = 2026-11-01 a 2026-11-30",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "navegação: dia pula fim de semana, semana anda 7 dias, mês vira o ano",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "rótulos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "dias úteis, mesmo dia nas próximas semanas e \"contém hoje\"",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "período"
+   ],
+   "titulo": "valida data da URL",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "cores"
+   ],
+   "titulo": "cor segue o vendedor pela ordem do cadastro; do 9º em diante, cinza",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "cores"
+   ],
+   "titulo": "dia da semana: cada dia útil tem cor própria",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "cores"
+   ],
+   "titulo": "um vendedor em semana/mês pinta por dia; senão por vendedor",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "cores"
+   ],
+   "titulo": "modo denso: todos no mês ou mais de 60 rotas",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "linhas do mapa"
+   ],
+   "titulo": "CD → paradas na ordem, sem as paradas sem coordenada",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "linhas do mapa"
+   ],
+   "titulo": "destaque: escolhida por último (por cima), outras esmaecidas; modo denso mostra só a linha destacada",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "linhas do mapa"
+   ],
+   "titulo": "cor por dia da semana",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "linhas do mapa"
+   ],
+   "titulo": "rascunho substitui as paradas da rota; dia sem rota vira rota nova destacada",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "linhas do mapa"
+   ],
+   "titulo": "pontos do enquadramento incluem o CD; com foco, só a rota focada",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "indicadores"
+   ],
+   "titulo": "soma rotas, visitas, km e status; média por rota ignora rotas vazias",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "visitadas ficam travadas na frente",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "ordenar por proximidade parte da última visitada e reduz o km",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "ordenar nunca piora: quando o vizinho mais próximo erra, o 2-opt acerta",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "janelas: refaz em sequência depois da última visitada; sugere a próxima; aponta problemas",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada 8 → 08:00",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada 830 → 08:30",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada 0830 → 08:30",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada 8:3 → 08:03",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada 8h30 → 08:30",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada 13:45 → 13:45",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada 24:00 → null",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada 12:60 → null",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada abc → null",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "hora digitada  → null",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "editor da rota"
+   ],
+   "titulo": "corpo do PUT e comparação com o salvo",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "busca na carteira"
+   ],
+   "titulo": "sugestão: curva A ou 45+ dias sem compra",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/routes.test.ts",
+   "describes": [
+    "busca na carteira"
+   ],
+   "titulo": "sugestões primeiro (curva A parada à frente), sem acento, por nome, bairro ou código; tira quem já está na rota",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "permissões por perfil"
+   ],
+   "titulo": "manager",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "permissões por perfil"
+   ],
+   "titulo": "admin",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "permissões por perfil"
+   ],
+   "titulo": "analyst",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "permissões por perfil"
+   ],
+   "titulo": "bko_assistant",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "permissões por perfil"
+   ],
+   "titulo": "seller",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "positivação 81% → success",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "positivação 70% → success",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "positivação 69.9% → accent",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "positivação 55% → accent",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "positivação 54% → danger",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "projeção 121% → success",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "projeção 100% → success",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "projeção 98% → ink",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "projeção 90% → ink",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "projeção 89% → danger",
+   "status": "passed",
+   "literal": false
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "cores dos faróis"
+   ],
+   "titulo": "integrado sem intervenção vs meta",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "ordenação da tabela de metas"
+   ],
+   "titulo": "projeção: maior primeiro, empate por nome",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "ordenação da tabela de metas"
+   ],
+   "titulo": "RV projetada: maior primeiro",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/web/lib/rules.test.ts",
+   "describes": [
+    "ordenação da tabela de metas"
+   ],
+   "titulo": "nome: ordem alfabética, sem mudar a lista original",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "URL da API"
+   ],
+   "titulo": "prioriza EXPO_PUBLIC_API_URL e normaliza /v1",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "URL da API"
+   ],
+   "titulo": "no navegador usa o host da página; no Expo Go, o IP do Metro",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "catálogo e carteira (busca local, sem sinal)"
+   ],
+   "titulo": "busca por código, descrição e aplicação, sem acento",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "catálogo e carteira (busca local, sem sinal)"
+   ],
+   "titulo": "texto de estoque por local",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "catálogo e carteira (busca local, sem sinal)"
+   ],
+   "titulo": "filtros da carteira",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "catálogo e carteira (busca local, sem sinal)"
+   ],
+   "titulo": "alçada da API vira mapa do domínio; crédito considera pedidos em aberto e a fila",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "Precisa de atenção"
+   ],
+   "titulo": "intercala sem compra, vencidos e pedidos aguardando/rejeitados",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "status de pedido"
+   ],
+   "titulo": "contagem dos chips e observação",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "rota"
+   ],
+   "titulo": "visita com checkout no aparelho marca a parada como feita e avança a próxima",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "rota"
+   ],
+   "titulo": "check-in aberto deixa a parada em atendimento (não conta como feita)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "rota"
+   ],
+   "titulo": "status 'in_progress' do servidor: aberto até a virada do dia; depois conta como feita",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "rota"
+   ],
+   "titulo": "projeta dentro do retângulo, norte para cima, e afasta marcadores sobrepostos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/helpers.test.ts",
+   "describes": [
+    "rota"
+   ],
+   "titulo": "links de WhatsApp e iniciais",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão cliente"
+   ],
+   "titulo": "não mostra nenhum percentual nem desconto",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão cliente"
+   ],
+   "titulo": "mostra preço unitário final (total ÷ quantidade), total do item e total do pedido",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão cliente"
+   ],
+   "titulo": "cabeçalho com empresa, cliente, número, data no fuso de Manaus, vendedor e prazo",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão cliente"
+   ],
+   "titulo": "escapa HTML dos textos",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão cliente"
+   ],
+   "titulo": "pedido ainda na fila aparece como \"no aparelho\"",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão BKO"
+   ],
+   "titulo": "mostra preço de tabela, desconto %, líquido e total por item",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão BKO"
+   ],
+   "titulo": "mostra subtotal de tabela, desconto em R$ e %, total, alçada, status, motivo e histórico",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão BKO"
+   ],
+   "titulo": "subtotal − desconto = total",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "PDF do pedido · versão BKO"
+   ],
+   "titulo": "pedido excluído mostra \"Excluído\" e o motivo",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-pdf.test.ts",
+   "describes": [
+    "utilitários do PDF"
+   ],
+   "titulo": "nome do arquivo, data e escape",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-prefill.test.ts",
+   "describes": [
+    "duplicar/editar: prefill das linhas"
+   ],
+   "titulo": "mantém itens com preço, tira sem preço e inativos, avisa estoque",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/order-prefill.test.ts",
+   "describes": [
+    "duplicar/editar: prefill das linhas"
+   ],
+   "titulo": "sem mudanças não gera aviso; ignora quantidade zero",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/outbox.test.ts",
+   "describes": [
+    "outbox"
+   ],
+   "titulo": "enfileira em ordem (FIFO) e não duplica a mesma idempotency_key",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/outbox.test.ts",
+   "describes": [
+    "outbox"
+   ],
+   "titulo": "marca tentativa com erro e separa erro definitivo (failed) do envio automático",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/outbox.test.ts",
+   "describes": [
+    "outbox"
+   ],
+   "titulo": "remove pela chave depois do envio",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/outbox.test.ts",
+   "describes": [
+    "outbox"
+   ],
+   "titulo": "junta fila e servidor: fila primeiro como \"Na fila\"; se o servidor já tem o id, vale o do servidor",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/outbox.test.ts",
+   "describes": [
+    "outbox"
+   ],
+   "titulo": "upsertOrder substitui pelo id ou insere no topo",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/outbox.test.ts",
+   "describes": [
+    "outbox"
+   ],
+   "titulo": "check-in e checkout da visita: ids pendentes, descarte (409) e troca de id",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/time.test.ts",
+   "describes": [
+    "datas no fuso America/Manaus (UTC−4)"
+   ],
+   "titulo": "converte instante UTC para hora local",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/time.test.ts",
+   "describes": [
+    "datas no fuso America/Manaus (UTC−4)"
+   ],
+   "titulo": "saudação e data longa em pt-BR",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/time.test.ts",
+   "describes": [
+    "datas no fuso America/Manaus (UTC−4)"
+   ],
+   "titulo": "\"hoje\", \"ontem\" ou dd/mm",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/time.test.ts",
+   "describes": [
+    "datas no fuso America/Manaus (UTC−4)"
+   ],
+   "titulo": "primeiro dia do mês e dias desde a última compra",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "normalizeVisits"
+   ],
+   "titulo": "formato antigo: visita com resultado conta como checkout feito; sem resultado continua aberta",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "normalizeVisits"
+   ],
+   "titulo": "check-in esquecido fecha sozinho na meia-noite seguinte (fuso da empresa)",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "atendimento aberto no aparelho"
+   ],
+   "titulo": "um aberto por vendedor; fechado não conta; virada do dia fecha",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "atendimento aberto no aparelho"
+   ],
+   "titulo": "visita mais recente do cliente",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "pedido no atendimento"
+   ],
+   "titulo": "pedido para o cliente em atendimento só vincula (não fecha); outro cliente não mexe; só o primeiro",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "pedido no atendimento"
+   ],
+   "titulo": "pedidos feitos durante a visita: do cliente, depois do check-in, local ou do servidor, sem rejeitados",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "checkout no aparelho"
+   ],
+   "titulo": "com pedido guarda o pedido; sem pedido guarda o motivo; fechado não muda",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "checkout no aparelho"
+   ],
+   "titulo": "rótulos de tempo",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "conciliação com GET /visits/open"
+   ],
+   "titulo": "aberto no servidor e desconhecido no aparelho (outro aparelho) → entra como aberto",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "conciliação com GET /visits/open"
+   ],
+   "titulo": "aberto no aparelho, já enviado, e servidor sem aberto → fechado fora do aparelho",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "conciliação com GET /visits/open"
+   ],
+   "titulo": "check-in ainda na fila ou feito depois da consulta: vale o aparelho",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "conciliação com GET /visits/open"
+   ],
+   "titulo": "checkout na fila: continua fechado mesmo com o servidor dizendo aberto; checkout descartado: reabre",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mobile/src/lib/visit.test.ts",
+   "describes": [
+    "conciliação com GET /visits/open"
+   ],
+   "titulo": "mesmo atendimento aberto nos dois lados: traz o pedido vinculado pelo servidor",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "autenticação e escopo"
+   ],
+   "titulo": "sem token: 401 com mensagem legível",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "autenticação e escopo"
+   ],
+   "titulo": "/me do vendedor traz a alçada",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "autenticação e escopo"
+   ],
+   "titulo": "vendedor só vê a própria carteira",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "dados coerentes com os mockups"
+   ],
+   "titulo": "rota de hoje do Rafael: 3 feitas e a próxima é Auto Peças Rio Negro",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "dados coerentes com os mockups"
+   ],
+   "titulo": "metas: 14 dias úteis restantes (12/10 é feriado) e gatilho liberado",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "dados coerentes com os mockups"
+   ],
+   "titulo": "farol de pedidos tem 10482, 10494 e 10501 aguardando aprovação",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "pedido"
+   ],
+   "titulo": "dentro da alçada: vai ao ERP, grava em saida/pedidos.xlsx e na auditoria; reenvio não duplica",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "pedido"
+   ],
+   "titulo": "acima da alçada: aguarda aprovação; gestor aprova; assistente não pode",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "pedido"
+   ],
+   "titulo": "desconto acima do máximo: rejeitado com motivo",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "pedido"
+   ],
+   "titulo": "pedido inválido: 400 em português",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "pedido"
+   ],
+   "titulo": "pedidos.xlsx aberto no Excel: 503 legível, pedido não se perde e é gravado depois",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "plano de RV"
+   ],
+   "titulo": "pesos precisam somar 100%; mudar o peso muda a parcial do vendedor",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "plano de RV"
+   ],
+   "titulo": "fechar o mês congela; exportação para o RH em CSV",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "visitas e rota"
+   ],
+   "titulo": "check-in sem pedido conclui a parada",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "visitas e rota"
+   ],
+   "titulo": "analista inclui cliente na rota da semana",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "check-in único (um atendimento por vez)"
+   ],
+   "titulo": "abre, bloqueia outro cliente, libera pedido para outro, vincula pedido e faz checkout",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "check-in esquecido"
+   ],
+   "titulo": "fecha sozinho na virada do dia; checkout feito sem sinal antes da meia-noite ainda vale",
+   "status": "passed",
+   "literal": true
+  },
+  {
+   "arquivo": "apps/mock-api/test/api.test.ts",
+   "describes": [
+    "editar, excluir e duplicar pedido"
+   ],
+   "titulo": "edita pedido aguardando aprovação (volta ao ERP ao tirar o desconto) e exclui outro; integrado é imutável",
+   "status": "passed",
+   "literal": true
+  }
+ ]
+}
