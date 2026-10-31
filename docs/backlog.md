@@ -5,7 +5,7 @@
 ## Sprint 1 (abertas no quadro)
 - [T-0007](../.coord/tarefas/T-0007.md) — Produto no dono definitivo (ADR-0005)
 - [T-0008](../.coord/tarefas/T-0008.md) — Adaptador SQLite no aparelho
-- [T-0009](../.coord/tarefas/T-0009.md) — Integração: domínio e contratos do Hub (sem banco, sem Conector)
+- [T-0009](../.coord/tarefas/T-0009.md) — Integração: domínio e contratos do Hub (em revisão)
 - [T-0010](../.coord/tarefas/T-0010.md) — Promotor: domínio de trade marketing (em revisão)
 
 ## Futuro

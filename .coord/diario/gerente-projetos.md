@@ -17,3 +17,4 @@
 2026-10-31 — T-0001/T-0002/T-0005 — recebido o pedido do Alexandre (prioridades e ADR-0005); doc 04, T-0002/4/5 atualizados; T-0007/T-0008 abertas; docs/backlog.md criado; aviso a todos
 2026-10-31 — T-0001/T-0002 — rodada (engenheiro A3, vendedor slots, banco infra) caiu por limite da API sem alterar arquivos; redisparada após o reset
 2026-10-31 — T-0010 — aberta e delegada ao modulo-promotor; entrega validada (lint, fronteiras, verificar, 131 testes; 2 arquivos dependem do ambiente.ts ausente); recados de entrega/revisão (de alexandre) e pedido ao engenheiro; PR para main
+2026-10-31 — T-0009 — aberta (RN-INT-01..09 registradas no doc 03), delegada ao modulo-integracao; entregue com 97 testes; recados de entrega, revisão e eventos novos enviados; em revisão
