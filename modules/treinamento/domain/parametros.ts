@@ -1,6 +1,6 @@
 /**
  * Parâmetros do tenant do Treinamento (doc 03 §7 e tabela de parâmetros). Os valores entre colchetes das
- * RN-TRE entram como padrão; os marcados "premissa T-0011" não existem no doc e estão em docs/modulos/treinamento/regras.md.
+ * RN-TRE entram como padrão; os marcados "decisão 31/10" não existem no doc e estão em docs/modulos/treinamento/regras.md.
  */
 
 export type NotaQueVale = 'melhor' | 'ultima';
@@ -10,12 +10,14 @@ export interface ParametrosTreinamento {
   nota_minima_pct: number;
   /** RN-TRE-02: tentativas de quiz por dia ([3]). */
   tentativas_max_dia: number;
-  /** Premissa T-0011: intervalo mínimo, em minutos, entre tentativas do mesmo quiz (0 = sem intervalo). */
+  /** decisão 31/10: intervalo mínimo, em minutos, entre tentativas do mesmo quiz (0 = sem intervalo). */
   intervalo_min_tentativas_min: number;
-  /** Premissa T-0011: qual nota vale nos relatórios — a melhor ou a última tentativa. */
+  /** decisão 31/10: qual nota vale nos relatórios — a melhor ou a última tentativa. */
   nota_que_vale: NotaQueVale;
-  /** RN-TRE-04: tempo mínimo, em segundos, na lição para a conclusão contar ([30]). */
-  tempo_min_licao_seg: number;
+  /** RN-TRE-04: piso do tempo na lição, em segundos, para a conclusão contar ([30]). */
+  segundos_minimos_licao: number;
+  /** RN-TRE-04: % da duração estimada da lição que o aluno precisa gastar ([50]); o tempo exigido é o maior entre este e o piso. 0 = só o piso. */
+  pct_minimo_duracao_licao: number;
   /** RN-TRE-01: XP por lição concluída ([10]). */
   xp_licao: number;
   /** RN-TRE-01: XP por questão acertada na 1ª tentativa do quiz ([5]). */
@@ -26,13 +28,15 @@ export interface ParametrosTreinamento {
   xp_streak_por_dia: number;
   /** RN-TRE-01: teto do XP de streak num dia ([20]). */
   xp_streak_teto: number;
-  /** Premissa T-0011: teto de XP por dia (dia no fuso do tenant); 0 = sem teto. */
+  /** decisão 31/10: teto de XP por dia (dia no fuso do tenant); 0 = sem teto. */
   xp_teto_diario: number;
-  /** Premissa T-0011: XP mínimo de cada nível; o 1º é sempre 0 e a lista é estritamente crescente. */
+  /** Desafio de vendas (RF-TRE-06): teto de XP por vendedor em cada desafio ([500]); 0 = sem teto. O cadastro do desafio pode trazer o seu e tem prioridade. */
+  xp_max_por_desafio: number;
+  /** decisão 31/10: XP mínimo de cada nível; o 1º é sempre 0 e a lista é estritamente crescente. */
   niveis_xp_min: readonly number[];
-  /** Premissa T-0011: dias consecutivos para a medalha de sequência. */
+  /** decisão 31/10: dias consecutivos para a medalha de sequência. */
   streak_medalha_dias: number;
-  /** Premissa T-0011: perfis que entram no ranking. */
+  /** decisão 31/10: perfis que entram no ranking. */
   perfis_ranking: readonly string[];
   /** Doc 03, tabela de parâmetros: fuso horário do tenant (define o "dia"). */
   fuso: string;
@@ -45,13 +49,15 @@ export const PARAMETROS_PADRAO: Readonly<ParametrosTreinamento> = Object.freeze(
   tentativas_max_dia: 3,
   intervalo_min_tentativas_min: 0,
   nota_que_vale: 'melhor',
-  tempo_min_licao_seg: 30,
+  segundos_minimos_licao: 30,
+  pct_minimo_duracao_licao: 50,
   xp_licao: 10,
   xp_acerto_questao: 5,
   xp_trilha: 50,
   xp_streak_por_dia: 2,
   xp_streak_teto: 20,
   xp_teto_diario: 200,
+  xp_max_por_desafio: 500,
   niveis_xp_min: FAIXAS_NIVEL_PADRAO,
   streak_medalha_dias: 7,
   perfis_ranking: Object.freeze(['vendedor', 'promotor']),
@@ -60,13 +66,14 @@ export const PARAMETROS_PADRAO: Readonly<ParametrosTreinamento> = Object.freeze(
 
 const NUMERICOS_NAO_NEGATIVOS = [
   'intervalo_min_tentativas_min',
-  'tempo_min_licao_seg',
+  'segundos_minimos_licao',
   'xp_licao',
   'xp_acerto_questao',
   'xp_trilha',
   'xp_streak_por_dia',
   'xp_streak_teto',
   'xp_teto_diario',
+  'xp_max_por_desafio',
 ] as const;
 
 /** Mistura os parâmetros do tenant com o padrão e recusa valores inválidos (mensagens em português). */
@@ -78,6 +85,9 @@ export function resolverParametros(parcial: Partial<ParametrosTreinamento> = {})
   }
   if (typeof p.nota_minima_pct !== 'number' || !Number.isFinite(p.nota_minima_pct) || p.nota_minima_pct < 0 || p.nota_minima_pct > 100) {
     throw new RangeError('Parâmetro nota_minima_pct inválido: informe um valor entre 0 e 100.');
+  }
+  if (typeof p.pct_minimo_duracao_licao !== 'number' || !Number.isFinite(p.pct_minimo_duracao_licao) || p.pct_minimo_duracao_licao < 0 || p.pct_minimo_duracao_licao > 100) {
+    throw new RangeError('Parâmetro pct_minimo_duracao_licao inválido: informe um valor entre 0 e 100.');
   }
   if (!Number.isInteger(p.tentativas_max_dia) || p.tentativas_max_dia < 1) {
     throw new RangeError('Parâmetro tentativas_max_dia inválido: informe pelo menos 1 tentativa por dia.');

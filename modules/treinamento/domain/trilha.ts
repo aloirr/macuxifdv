@@ -12,6 +12,8 @@ export interface LicaoDef {
   pre_requisitos?: readonly string[];
   /** Quiz que precisa ser aprovado para concluir a lição (RN-TRE-02). */
   quiz_id?: string | null;
+  /** Duração estimada da lição, em segundos (opcional): base do tempo mínimo proporcional (RN-TRE-04). */
+  duracao_estimada_seg?: number | null;
 }
 
 export interface ModuloDef {

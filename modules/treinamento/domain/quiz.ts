@@ -61,6 +61,12 @@ export function aprovado(acertos: number, total: number, notaMinimaPct: number =
   return acertos * 100 >= notaMinimaPct * total;
 }
 
+/** Ajuste B: o quiz foi respondido até o fim? Toda questão tem ao menos uma alternativa marcada. */
+export function quizRespondidoAteOFim(questoes: readonly QuestaoDef[], respostas: readonly RespostaQuestao[]): boolean {
+  const respondidas = new Set(respostas.filter((r) => r.alternativa_ids.length > 0).map((r) => r.questao_id));
+  return questoes.length > 0 && questoes.every((q) => respondidas.has(q.id));
+}
+
 export interface TentativaRegistrada {
   /** Instante UTC em que o aluno enviou a tentativa (hora do aparelho). */
   realizada_em: string;
@@ -83,7 +89,7 @@ export function inicioDoProximoDia(instante: string, fuso: string): string {
 
 /**
  * RN-TRE-02: pode fazer nova tentativa? No máximo [3] por dia (dia no fuso do tenant) e, se o tenant
- * definir, um intervalo mínimo desde a tentativa anterior (premissa T-0011). `realizada_em` é a hora da nova
+ * definir, um intervalo mínimo desde a tentativa anterior (decisão 31/10). `realizada_em` é a hora da nova
  * tentativa: a validação offline (RN-TRE-04) considera só as tentativas anteriores a ela.
  */
 export function validarTentativa(
@@ -133,7 +139,7 @@ export interface TentativaComNota extends TentativaRegistrada {
   aprovada: boolean;
 }
 
-/** Premissa T-0011: nota que vale nos relatórios — a melhor (padrão) ou a da última tentativa; null sem tentativas. */
+/** decisão 31/10: nota que vale nos relatórios — a melhor (padrão) ou a da última tentativa; null sem tentativas. */
 export function notaQueVale(tentativas: readonly TentativaComNota[], modo: NotaQueVale = PARAMETROS_PADRAO.nota_que_vale): number | null {
   if (tentativas.length === 0) return null;
   if (modo === 'melhor') return Math.max(...tentativas.map((t) => t.nota_pct));

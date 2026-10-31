@@ -107,7 +107,7 @@ describe('RN-TRE-02: tentativas por dia e intervalo', () => {
     expect(validarTentativa([em('2026-10-31T13:00:00Z')], '2026-10-31T14:00:00Z', p1)).toMatchObject({ permitida: false, motivo: 'LIMITE_DIARIO' });
   });
 
-  it('premissa T-0011: intervalo mínimo entre tentativas, contado a partir da anterior', () => {
+  it('decisão 31/10: intervalo mínimo entre tentativas, contado a partir da anterior', () => {
     const p10 = resolverParametros({ intervalo_min_tentativas_min: 10 });
     const r = validarTentativa([em('2026-10-31T13:00:00Z')], '2026-10-31T13:04:00Z', p10);
     expect(r).toMatchObject({ permitida: false, motivo: 'INTERVALO_MINIMO', proxima_em: '2026-10-31T13:10:00.000Z' });
@@ -115,7 +115,7 @@ describe('RN-TRE-02: tentativas por dia e intervalo', () => {
     expect(validarTentativa([em('2026-10-31T13:00:00Z')], '2026-10-31T13:10:00Z', p10)).toMatchObject({ permitida: true });
   });
 
-  it('premissa T-0011: padrão sem intervalo — tentativas seguidas são permitidas', () => {
+  it('decisão 31/10: padrão sem intervalo — tentativas seguidas são permitidas', () => {
     expect(validarTentativa([em('2026-10-31T13:00:00Z')], '2026-10-31T13:00:30Z', p)).toMatchObject({ permitida: true });
   });
 
@@ -130,7 +130,7 @@ describe('RN-TRE-02: tentativas por dia e intervalo', () => {
   });
 });
 
-describe('premissa T-0011: nota que vale', () => {
+describe('decisão 31/10: nota que vale', () => {
   const tent = [
     { realizada_em: '2026-10-31T13:00:00Z', nota_pct: 60, aprovada: false },
     { realizada_em: '2026-10-31T14:00:00Z', nota_pct: 90, aprovada: true },

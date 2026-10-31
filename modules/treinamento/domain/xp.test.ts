@@ -109,28 +109,28 @@ describe('RN-TRE-04: lançamento de XP — append-only e idempotente', () => {
   });
 });
 
-describe('premissa T-0011: teto diário de XP (dia no fuso do tenant)', () => {
+describe('decisão 31/10: teto diário de XP (dia no fuso do tenant)', () => {
   const pTeto = resolverParametros({ xp_teto_diario: 25 });
 
-  it('premissa T-0011: lançamentos até o teto passam inteiros', () => {
+  it('decisão 31/10: lançamentos até o teto passam inteiros', () => {
     const l1 = aceito(proporLancamento([], cand({ pontos_base: 20 }), pTeto));
     expect(l1).toMatchObject({ pontos: 20, limitado_pelo_teto: false });
   });
 
-  it('premissa T-0011: o que passa do teto é cortado e marcado (20 + 10 → 5 de 10)', () => {
+  it('decisão 31/10: o que passa do teto é cortado e marcado (20 + 10 → 5 de 10)', () => {
     const l1 = aceito(proporLancamento([], cand({ pontos_base: 20 }), pTeto));
     const l2 = aceito(proporLancamento([l1], cand({ id: 'id-2', referencia_id: 'L2' }), pTeto));
     expect(l2).toMatchObject({ pontos: 5, pontos_base: 10, limitado_pelo_teto: true });
   });
 
-  it('premissa T-0011: teto já esgotado grava lançamento de 0 ponto (mantém a idempotência e a auditoria)', () => {
+  it('decisão 31/10: teto já esgotado grava lançamento de 0 ponto (mantém a idempotência e a auditoria)', () => {
     const l1 = aceito(proporLancamento([], cand({ pontos_base: 25 }), pTeto));
     const l2 = aceito(proporLancamento([l1], cand({ id: 'id-2', referencia_id: 'L2' }), pTeto));
     expect(l2).toMatchObject({ pontos: 0, pontos_base: 10, limitado_pelo_teto: true });
     expect(proporLancamento([l1, l2], cand({ id: 'id-2', referencia_id: 'L2' }), pTeto)).toEqual({ resultado: 'duplicado', motivo: 'ID' });
   });
 
-  it('premissa T-0011: o teto zera à meia-noite do fuso do tenant, não do UTC', () => {
+  it('decisão 31/10: o teto zera à meia-noite do fuso do tenant, não do UTC', () => {
     // 01/11 03:00Z = 31/10 23:00 Manaus (mesmo dia do l1); 01/11 04:00Z = 01/11 00:00 Manaus (dia novo).
     const l1 = aceito(proporLancamento([], cand({ pontos_base: 25, ocorrido_em: '2026-10-31T15:00:00Z' }), pTeto));
     const mesmoDia = aceito(proporLancamento([l1], cand({ id: 'id-2', referencia_id: 'L2', ocorrido_em: '2026-11-01T03:00:00Z' }), pTeto));
@@ -139,7 +139,7 @@ describe('premissa T-0011: teto diário de XP (dia no fuso do tenant)', () => {
     expect(diaNovo).toMatchObject({ pontos: 10, dia: '2026-11-01' });
   });
 
-  it('premissa T-0011: teto 0 = sem teto', () => {
+  it('decisão 31/10: teto 0 = sem teto', () => {
     const livre = resolverParametros({ xp_teto_diario: 0 });
     expect(aceito(proporLancamento([], cand({ pontos_base: 5000 }), livre)).pontos).toBe(5000);
   });

@@ -6,7 +6,9 @@ describe('parâmetros do tenant do Treinamento', () => {
     expect(PARAMETROS_PADRAO).toMatchObject({
       nota_minima_pct: 70,
       tentativas_max_dia: 3,
-      tempo_min_licao_seg: 30,
+      segundos_minimos_licao: 30,
+      pct_minimo_duracao_licao: 50,
+      xp_max_por_desafio: 500,
       xp_licao: 10,
       xp_acerto_questao: 5,
       xp_trilha: 50,
@@ -35,5 +37,20 @@ describe('parâmetros do tenant do Treinamento', () => {
 
   it('recusa fuso inexistente', () => {
     expect(() => resolverParametros({ fuso: 'Marte/Olympus' })).toThrow(/Fuso/);
+  });
+
+  it('Ajustes A e D: recusa negativos e fracionados nos parâmetros novos', () => {
+    expect(() => resolverParametros({ xp_max_por_desafio: -1 })).toThrow(/xp_max_por_desafio/);
+    expect(() => resolverParametros({ xp_max_por_desafio: 1.5 })).toThrow(/xp_max_por_desafio/);
+    expect(() => resolverParametros({ segundos_minimos_licao: -1 })).toThrow(/segundos_minimos_licao/);
+    expect(() => resolverParametros({ segundos_minimos_licao: 10.5 })).toThrow(/segundos_minimos_licao/);
+  });
+
+  it('Ajuste D: pct_minimo_duracao_licao fica entre 0 e 100 (bordas valem)', () => {
+    expect(() => resolverParametros({ pct_minimo_duracao_licao: -1 })).toThrow(/pct_minimo_duracao_licao/);
+    expect(() => resolverParametros({ pct_minimo_duracao_licao: 101 })).toThrow(/pct_minimo_duracao_licao/);
+    expect(() => resolverParametros({ pct_minimo_duracao_licao: Number.NaN })).toThrow(/pct_minimo_duracao_licao/);
+    expect(resolverParametros({ pct_minimo_duracao_licao: 0 }).pct_minimo_duracao_licao).toBe(0);
+    expect(resolverParametros({ pct_minimo_duracao_licao: 100 }).pct_minimo_duracao_licao).toBe(100);
   });
 });

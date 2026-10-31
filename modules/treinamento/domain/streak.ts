@@ -1,9 +1,27 @@
 /**
- * Streak: dias consecutivos com atividade (lição concluída ou tentativa de quiz), no fuso do tenant
+ * Streak: dias consecutivos com atividade (lição concluída ou quiz respondido até o fim), no fuso do tenant
  * (RF-TRE-03, RN-TRE-01). Instantes em UTC; o "dia" é a data civil no fuso.
  */
 import { diffDays, localDate } from '@macuxi/comum';
 import { PARAMETROS_PADRAO } from './parametros';
+
+/** Tipos de atividade que o app/API registram; só os dois primeiros mantêm o streak (ajuste B). */
+export type TipoAtividade = 'licao_concluida' | 'quiz_finalizado' | 'licao_aberta' | 'quiz_iniciado' | 'quiz_abandonado';
+export const TIPOS_QUE_CONTAM_NO_STREAK: readonly string[] = Object.freeze(['licao_concluida', 'quiz_finalizado']);
+
+export interface AtividadeRegistrada {
+  tipo: TipoAtividade | (string & {});
+  /** Instante UTC. */
+  em: string;
+}
+
+/**
+ * RN-TRE-01 (ajuste B): o streak conta só lição concluída ou quiz respondido até o fim; abrir e abandonar não
+ * conta. Devolve os instantes das atividades que valem (tipo desconhecido não vale).
+ */
+export function atividadesQueContam(registros: readonly AtividadeRegistrada[]): string[] {
+  return registros.filter((r) => TIPOS_QUE_CONTAM_NO_STREAK.includes(r.tipo)).map((r) => r.em);
+}
 
 /** Datas civis distintas e ordenadas em que houve atividade. */
 export function diasComAtividade(instantes: readonly string[], fuso: string = PARAMETROS_PADRAO.fuso): string[] {

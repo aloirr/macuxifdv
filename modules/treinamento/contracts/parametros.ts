@@ -1,4 +1,4 @@
-/** Parâmetros do tenant do Treinamento (padrões = doc 03 §7 e premissas da T-0011 em docs/modulos/treinamento/regras.md). */
+/** Parâmetros do tenant do Treinamento (padrões = doc 03 §7 e decisões de 31/10 em docs/modulos/treinamento/regras.md). */
 import { z } from 'zod';
 import { FAIXAS_NIVEL_PADRAO, PARAMETROS_PADRAO } from '../domain/parametros';
 
@@ -10,13 +10,15 @@ export const ParametrosTreinamentoSchema = z
     tentativas_max_dia: z.number().int().min(1).default(PARAMETROS_PADRAO.tentativas_max_dia),
     intervalo_min_tentativas_min: inteiro0(PARAMETROS_PADRAO.intervalo_min_tentativas_min),
     nota_que_vale: z.enum(['melhor', 'ultima']).default(PARAMETROS_PADRAO.nota_que_vale),
-    tempo_min_licao_seg: inteiro0(PARAMETROS_PADRAO.tempo_min_licao_seg),
+    segundos_minimos_licao: inteiro0(PARAMETROS_PADRAO.segundos_minimos_licao),
+    pct_minimo_duracao_licao: z.number().min(0).max(100).default(PARAMETROS_PADRAO.pct_minimo_duracao_licao),
     xp_licao: inteiro0(PARAMETROS_PADRAO.xp_licao),
     xp_acerto_questao: inteiro0(PARAMETROS_PADRAO.xp_acerto_questao),
     xp_trilha: inteiro0(PARAMETROS_PADRAO.xp_trilha),
     xp_streak_por_dia: inteiro0(PARAMETROS_PADRAO.xp_streak_por_dia),
     xp_streak_teto: inteiro0(PARAMETROS_PADRAO.xp_streak_teto),
     xp_teto_diario: inteiro0(PARAMETROS_PADRAO.xp_teto_diario),
+    xp_max_por_desafio: inteiro0(PARAMETROS_PADRAO.xp_max_por_desafio),
     niveis_xp_min: z
       .array(z.number().int().nonnegative())
       .min(2)

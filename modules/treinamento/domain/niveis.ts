@@ -1,4 +1,4 @@
-/** Níveis por faixas de XP (RF-TRE-03). As faixas são do tenant (premissa T-0011: padrão em `FAIXAS_NIVEL_PADRAO`). */
+/** Níveis por faixas de XP (RF-TRE-03). As faixas são do tenant (decisão 31/10: padrão em `FAIXAS_NIVEL_PADRAO`). */
 import { arredondar } from './numeros';
 import { FAIXAS_NIVEL_PADRAO, validarFaixasDeNivel } from './parametros';
 

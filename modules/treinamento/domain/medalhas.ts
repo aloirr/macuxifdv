@@ -14,7 +14,7 @@ export interface Medalha {
   regra: RegraMedalha;
 }
 
-/** Catálogo padrão (premissa T-0011): primeira trilha, 100% num quiz e N dias seguidos (`streak_medalha_dias`, padrão 7). */
+/** Catálogo padrão (decisão 31/10): primeira trilha, 100% num quiz e N dias seguidos (`streak_medalha_dias`, padrão 7). */
 export function medalhasPadrao(sequenciaDias = 7): readonly Medalha[] {
   return [
     { codigo: 'primeira_trilha', nome: 'Primeira trilha concluída', regra: { tipo: 'trilhas_concluidas', quantidade: 1 } },
