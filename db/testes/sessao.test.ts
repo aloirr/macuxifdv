@@ -208,8 +208,9 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
         expect(await r.usuarioAtual(A.usuarios.vendedor1)).toMatchObject({ id: A.usuarios.vendedor1, perfil: 'vendedor', ativo: true });
         expect(await r.usuarioAtual(B.usuarios.vendedor)).toBeNull();
 
-        expect(await r.dispositivoBloqueado(A.usuarios.promotor, A.dispositivos.promotorBloqueado)).toBe(true);
-        expect(await r.dispositivoBloqueado(A.usuarios.vendedor1, A.dispositivos.vendedor1)).toBe(false);
+        // RN-CORE-15: a consulta é só pelo aparelho (vale para o tenant inteiro, não só para o dono registrado)
+        expect(await r.dispositivoBloqueado(A.dispositivos.promotorBloqueado)).toBe(true);
+        expect(await r.dispositivoBloqueado(A.dispositivos.vendedor1)).toBe(false);
         const novo = 'aaaaaaaa-0006-4000-8000-000000000099';
         await r.upsertDispositivo(A.usuarios.vendedor1, novo, 'Moto G', new Date());
         await r.upsertDispositivo(A.usuarios.vendedor1, novo, null, new Date());
@@ -229,6 +230,39 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
         // a sessão da fixture (outra família) segue viva; o hash de B não é visto em A
         expect((await r.sessaoPorHash(A.refresh.hash))?.revogado_em).toBeNull();
         expect(await r.sessaoPorHash(B.refresh.hash)).toBeNull();
+      });
+    });
+
+    it('RN-CORE-15: aparelho bloqueado recusa outro usuário do mesmo tenant e não vaza para o outro tenant', async () => {
+      await emTransacao(app, A.tenantId, async () => {
+        const r = repositorioTenantSql(cliente(app));
+        // o vendedor1 (não é o dono) entra no aparelho bloqueado do promotor: o upsert não troca o dono nem desbloqueia
+        await r.upsertDispositivo(A.usuarios.vendedor1, A.dispositivos.promotorBloqueado, null, new Date());
+        expect(await r.dispositivoBloqueado(A.dispositivos.promotorBloqueado)).toBe(true);
+        const ap = await app.query('select usuario_id, bloqueado_em is not null as bloqueado from core.dispositivo where id = $1', [A.dispositivos.promotorBloqueado]);
+        expect(ap.rows[0]).toEqual({ usuario_id: A.usuarios.promotor, bloqueado: true });
+      });
+      await emTransacao(app, B.tenantId, async () => {
+        const r = repositorioTenantSql(cliente(app));
+        // vazamento: o aparelho bloqueado de A não existe para B (RLS), e o aparelho de B segue livre
+        expect(await r.dispositivoBloqueado(A.dispositivos.promotorBloqueado)).toBe(false);
+        expect(await r.dispositivoBloqueado(B.dispositivos.vendedor)).toBe(false);
+        // e B não toma o id do aparelho de A: o upsert é descartado (0 linhas) e a sessão nele cai em 403 DISPOSITIVO_INVALIDO
+        await r.upsertDispositivo(B.usuarios.vendedor, A.dispositivos.promotorBloqueado, 'invasor', new Date());
+        await expect(
+          r.criarSessao({ id: 'bbbbbbbb-0007-4000-8000-000000000098', usuario_id: B.usuarios.vendedor, familia_id: 'bbbbbbbb-0007-4000-8000-000000000199', token_hash: 'd'.repeat(64), dispositivo_id: A.dispositivos.promotorBloqueado, expira_em: new Date('2026-11-30T12:00:00Z') }),
+        ).rejects.toMatchObject({ codigo: 'DISPOSITIVO_INVALIDO' });
+      });
+      const linhaA = await comAdmin(b.nome, (c) => c.query('select tenant_id, usuario_id, nome, bloqueado_em is not null as bloqueado from core.dispositivo where id = $1', [A.dispositivos.promotorBloqueado]));
+      expect(linhaA.rows).toEqual([{ tenant_id: A.tenantId, usuario_id: A.usuarios.promotor, nome: 'Aparelho Promotor', bloqueado: true }]);
+      await emTransacao(app, A.tenantId, async () => {
+        // bloquear em B não afeta A
+        await app.query("select set_config('app.tenant_id', $1, true)", [B.tenantId]);
+        await app.query('update core.dispositivo set bloqueado_em = now() where id = $1', [B.dispositivos.vendedor]);
+        await app.query("select set_config('app.tenant_id', $1, true)", [A.tenantId]);
+        const r = repositorioTenantSql(cliente(app));
+        expect(await r.dispositivoBloqueado(A.dispositivos.vendedor1)).toBe(false);
+        expect(await r.dispositivoBloqueado(B.dispositivos.vendedor)).toBe(false);
       });
     });
 
