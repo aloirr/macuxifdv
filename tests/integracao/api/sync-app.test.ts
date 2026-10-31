@@ -32,7 +32,7 @@ import { z } from 'zod';
 import { A, B, comToken, licenca, subirApi, type ApiDeTeste, type Tenant } from '../apoio/api';
 
 const MANIFESTOS = [manifestoCore, manifestoCatalogo, manifestoVendedor, manifestoPromotor];
-/** Entidade do Vendedor só de envio (o servidor ainda não tem provedor de pedido; o pull daria 501). */
+/** Pedido só de envio nos cenários de licença (o pull real de pedido é provado no bloco do registro do Campo; o push segue sem `receber` na Sprint 1). */
 const entidadePedido = definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'push', conflito: 'app_edita_ate_status', schema: z.object({ id: z.string() }).passthrough() });
 
 class ErroTransporte extends Error {
@@ -208,23 +208,33 @@ describe.skipIf(semBanco())('T-0003 C3.1 — o app reflete a licença no próxim
     expect(r.statusCode, r.body).toBe(200);
     ap.token.valor = (r.json() as { access_token: string }).access_token;
     await ap.motor.enviar();
-    // o servidor responde por item (sem provedor de pedido ainda: rejeitado com código), nunca 401 de novo
+    // o servidor responde por item (pedido ainda sem `receber` na Sprint 1: rejeitado com código), nunca 401 de novo
     expect(ap.motor.estado().fila[0]!.codigo).not.toBeNull();
     expect(ap.motor.estado().fila[0]!.tentativas).toBe(2);
   });
 });
 
 /**
- * O registro de sync REAL do app Campo hoje (modules/core/app: `visita` ambos; modules/vendedor/app: `pedido` ambos)
- * contra a API real: o servidor ainda não tem provedor de pull dessas entidades (501 SYNC_NAO_IMPLEMENTADO).
+ * O registro de sync REAL do app Campo hoje contra a API real: modules/core/app (`visita` ambos) e modules/vendedor/app
+ * (`pedido` ambos e `pedido_item` pull, com as definições que o servidor publica: mesmas `schemaLinha`). Desde a T-0018
+ * do Vendedor o pull de `pedido`/`pedido_item` responde 200 (escopo por usuários visíveis; janela de 90 dias ou status não
+ * final). `visita` depende da T-0018 do Core (em andamento) e não é afirmada aqui. Para provar o D-2 (501 vira aviso,
+ * item fica pendente) o teste registra também `alerta_ruptura`: está no manifesto do Vendedor e, pelo desenho T-0016 §3
+ * ("Sem provedor nesta sprint"), segue sem provedor na Sprint 1.
  */
 describe.skipIf(semBanco())('C3.1 com o registro de sync que o app Campo declara hoje', () => {
   let api: ApiDeTeste;
   let admin: string;
+  /** Entidade do manifesto do Vendedor sem provedor no servidor nesta sprint (desenho T-0016 §3). */
+  const SEM_PROVEDOR = 'alerta_ruptura';
   const registroDoCampo = () => {
     const r = criarRegistroSync(MANIFESTOS);
     r.registrar(definirEntidadeSync({ nome: 'visita', modulo: 'core', direcao: 'ambos', conflito: 'servidor_vence', schema: z.unknown() }));
-    r.registrar(definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'app_edita_ate_status', schema: z.unknown() }));
+    for (const p of api.modulos.find((m) => m.manifesto.id === 'vendedor')!.sync ?? [])
+      if (['pedido', 'pedido_item'].includes(p.entidade.nome)) r.registrar(p.entidade);
+    r.registrar(
+      definirEntidadeSync({ nome: SEM_PROVEDOR, modulo: 'vendedor', direcao: 'ambos', conflito: 'servidor_vence', schema: z.object({ id: z.string() }).passthrough() }),
+    );
     return r;
   };
   const novoMotor = (token: string) =>
@@ -238,6 +248,8 @@ describe.skipIf(semBanco())('C3.1 com o registro de sync que o app Campo declara
   beforeAll(async () => {
     api = await subirApi();
     admin = (await api.sessao('admin@exemplo.com.br')).access_token;
+    // horizonte seguro do pull (updated_at < now() − 2 s): a fixture de pedidos acabou de entrar
+    await new Promise((r) => setTimeout(r, 2_500));
   });
   afterAll(async () => {
     await api?.fechar();
@@ -257,24 +269,49 @@ describe.skipIf(semBanco())('C3.1 com o registro de sync que o app Campo declara
     }
   });
 
+  it('T-0018: o "Sincronizar" do app Campo termina sem erro e traz pedido e pedido_item de verdade, no escopo do vendedor', async () => {
+    const t = (await api.sessao('vendedor2@exemplo.com.br')).access_token;
+    const motor = novoMotor(t);
+    expect(await sincronizarComoOShell(motor, t)).toBe(true);
+    const e = motor.estado();
+    expect(e.erro).toBeNull();
+    expect(e.sincronizado_em).not.toBeNull();
+    // pedido e pedido_item não viram mais aviso (o 501 acabou)
+    expect(e.avisos.map((a) => a.entidade)).not.toContain('pedido');
+    expect(e.avisos.map((a) => a.entidade)).not.toContain('pedido_item');
+    // vendedor-2 vê só o próprio pedido (p2, digitado pelo supervisor em nome dele, RN-VEN-35); p1 e p3 são do vendedor-1
+    const pedidos = await motor.linhas<LinhaSync & { vendedor_id: string; cliente_id: string; status: string }>('pedido');
+    expect(idsDe(pedidos)).toEqual([A.pedidos.p2]);
+    expect(pedidos[0]).toMatchObject({ vendedor_id: A.usuarios.vendedor2, cliente_id: A.clientes.c2, status: 'pending_approval' });
+    const itens = await motor.linhas<LinhaSync & { pedido_id: string }>('pedido_item');
+    expect(itens.length).toBeGreaterThan(0);
+    expect(new Set(itens.map((i) => i.pedido_id))).toEqual(new Set([A.pedidos.p2]));
+    // o próximo sync é incremental: nada novo, nada duplicado
+    expect(await sincronizarComoOShell(motor, t)).toBe(true);
+    expect(idsDe(await motor.linhas('pedido'))).toEqual([A.pedidos.p2]);
+    expect(await motor.linhas('pedido_item')).toHaveLength(itens.length);
+  });
+
   // D-2 (corrigido no motor e na API, ADR 0009 §7; recado R-20261031-163405): entidade do manifesto de módulo ativo
   // sem provedor no servidor → pull 501 `SYNC_NAO_IMPLEMENTADO` vira AVISO (cursor intacto) e o sync termina; o push
-  // dela volta `rejeitado/SYNC_NAO_IMPLEMENTADO` e o item fica `pendente` na fila. O pull real de visita/pedido vem na T-0018.
+  // dela volta `rejeitado/SYNC_NAO_IMPLEMENTADO` e o item fica `pendente` na fila. Provado com `alerta_ruptura`.
   it('D-2: o "Sincronizar" do app Campo termina sem erro; entidade sem provedor vira aviso e o item fica pendente', async () => {
     const t = (await api.sessao('vendedor2@exemplo.com.br')).access_token;
     const motor = novoMotor(t);
     const id = '0e000000-0000-4000-8000-0000000000d2';
-    await motor.enfileirar({ id, entidade: 'pedido', payload: { id } });
+    await motor.enfileirar({ id, entidade: SEM_PROVEDOR, payload: { id } });
     const ok = await sincronizarComoOShell(motor, t);
     const e = motor.estado();
     expect(e.erro).toBeNull();
     expect(ok).toBe(true);
     expect(e.sincronizado_em).not.toBeNull();
-    // sem provedor de pull de pedido (nem de visita, hoje): aviso, não erro
-    expect(e.avisos.map((a) => a.entidade)).toContain('pedido');
+    // sem provedor de pull: aviso, não erro; o pedido (com provedor) não aparece entre os avisos e chega de verdade
+    expect(e.avisos.map((a) => a.entidade)).toContain(SEM_PROVEDOR);
+    expect(e.avisos.map((a) => a.entidade)).not.toContain('pedido');
     for (const a of e.avisos) expect(a).toMatchObject({ codigo: SYNC_NAO_IMPLEMENTADO, mensagem: MENSAGEM_PULL_INDISPONIVEL });
-    expect(await motor.linhas('pedido')).toEqual([]);
-    // o pedido feito no aparelho continua na fila, pendente, com o código retentável e o rótulo de "na fila"
+    expect(await motor.linhas(SEM_PROVEDOR)).toEqual([]);
+    expect(idsDe(await motor.linhas('pedido'))).toEqual([A.pedidos.p2]);
+    // o item feito no aparelho continua na fila, pendente, com o código retentável e o rótulo de "na fila"
     const naFila = e.fila.find((i) => i.id === id);
     expect(naFila, 'o item continua na fila').toBeDefined();
     expect(naFila).toMatchObject({ situacao: 'pendente', codigo: SYNC_NAO_IMPLEMENTADO, tentativas: 1 });

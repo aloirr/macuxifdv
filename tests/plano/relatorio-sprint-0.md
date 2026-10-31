@@ -4,6 +4,16 @@
 > Legenda do resultado: `pendente` (ainda não rodou) · `✅` passou · `❌` falhou (ver Defeitos) · `bloqueado` (dependência; ver coluna) · `parcial` (provado só em parte; ver nota).
 > Atualizar a cada rodada: data, commit, comando e saída resumida.
 
+## Rodada 6 (T-0018, 2026-10-31) — pull real de pedido; D-2 provado com entidade sem provedor; RN-CORE-15
+
+| Critério | Teste | Resultado |
+|---|---|---|
+| "Sincronizar" do app Campo traz `pedido` e `pedido_item` de verdade (provedores do Vendedor, R-20261031-174822) | tests/integracao/api/sync-app.test.ts "T-0018: o Sincronizar do app Campo termina sem erro e traz pedido e pedido_item de verdade..." (novo) | ✅ Registro do Campo com as definições que o servidor publica (`pedido` ambos, `pedido_item` pull, mesmas `schemaLinha`) × createApp real × Postgres: `sincronizar()` = true, `erro` nulo, nenhum aviso de `pedido`/`pedido_item`; vendedor-2 recebe só o p2 (dele, `pending_approval`, cliente c2) e só itens do p2; o segundo sync não duplica |
+| D-2 (501 vira aviso, item fica pendente) continua provado | idem "D-2: ..." (ajustado) | ✅ Agora com `alerta_ruptura` (manifesto do Vendedor, sem provedor na Sprint 1 pelo desenho T-0016 §3), registrada só no teste: pull 501 → aviso `SYNC_NAO_IMPLEMENTADO`/`MENSAGEM_PULL_INDISPONIVEL`, item `pendente` com rótulo "na fila — envio ainda não disponível no servidor", tentativas 1 → 2 sem duplicar; `pedido` fora dos avisos e com linhas. `visita` (T-0018 do Core, em andamento) não é afirmada |
+| RN-CORE-15: aparelho bloqueado vale para o tenant inteiro | tests/integracao/api/auth.test.ts "aparelho bloqueado (RN-CORE-15)..." (ajustado) | ✅ Login pelo aparelho bloqueado → 423 `DISPOSITIVO_BLOQUEADO` (era `USUARIO_BLOQUEADO`; contrato `CODIGO_DISPOSITIVO_BLOQUEADO` do core) para o promotor e também para outro usuário de A; por outro aparelho → 200 |
+
+Rodada 6 — comandos (com core e engenheiro alterando em paralelo): `MACUXI_PG_EXIGIR=1 pnpm test:tests` ✅ **18 arquivos, 239 casos, 0 pulados** · `pnpm lint:tests` ✅ · `pnpm typecheck:tests` ✅. Na primeira rodada o caso de aparelho bloqueado ficou vermelho pela mudança de código da RN-CORE-15 (entrega do core em andamento); teste ajustado ao contrato novo e verde na segunda.
+
 ## Rodada 5 (T-0018, 2026-10-31) — D-2 corrigido do lado do motor
 
 | Critério | Teste | Resultado |
@@ -197,7 +207,7 @@ Arquivos novos (todos do agente testes):
 |---|---|---|
 | tests/integracao/apoio/api.ts | — | sobe o createApp REAL (8 módulos, Core com JWT, `macuxi_app`) num banco efêmero próprio com dois-tenants; login com IP único por chamada |
 | tests/integracao/api/licencas.test.ts | 12 (o `it.fails` do D-1 virou `it` na T-0015) | C3.1/C3.2: S0-041..045, S0-049, S0-052..056 |
-| tests/integracao/api/sync-app.test.ts | 7 (D-2 agora `it`, rodada 5) | C3.1 no motor real: S0-046..048, S0-104, S0-105 |
+| tests/integracao/api/sync-app.test.ts | 8 (D-2 agora `it`, rodada 5; pull real de pedido, rodada 6) | C3.1 no motor real: S0-046..048, S0-104, S0-105; T-0018 pedido/pedido_item; D-2 com `alerta_ruptura` |
 | tests/integracao/api/promotor-pedido.test.ts | 9 (T-0015) | C3.3 API + O-3: S0-063..065 |
 | tests/integracao/api/auth.test.ts | 14 | S0-070..073 + bloqueios, limite, aparelho, JWT |
 | tests/integracao/multitenant/api.test.ts | 4 | S0-029, S0-030 |
