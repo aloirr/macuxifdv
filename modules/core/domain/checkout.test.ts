@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { avaliarCheckout, ehClienteFechado, type EtapaCheckoutAvaliavel } from './checkout';
+import { avaliarCheckout, ehClienteFechado, type EtapaCheckoutAvaliavel, avaliarCheckoutVisita } from './checkout';
 
 const pesquisa: EtapaCheckoutAvaliavel = { rotulo: 'Pesquisa', obrigatoria: true, concluida: false };
 const checklist: EtapaCheckoutAvaliavel = { rotulo: 'Checklist da loja', obrigatoria: true, concluida: false };
@@ -39,5 +39,47 @@ describe('RN-CORE-12: etapas obrigatórias do checkout', () => {
   });
   it('RN-CORE-12: resultado ainda não escolhido bloqueia', () => {
     expect(avaliarCheckout({ resultado: null, motivo: null, fotoFachada: false, etapas: [] }).pode).toBe(false);
+  });
+});
+
+describe('avaliarCheckoutVisita — resultado × Vendedor efetivo (RN-CORE-12 e RN-CORE-14)', () => {
+  const etapaPendente = { rotulo: 'Pesquisa', obrigatoria: true, concluida: false };
+  const base = { vendedorEfetivo: true, temMotivo: false, motivoClienteFechado: false, fotoFachada: false, temPedido: false, etapas: [] };
+
+  it('RN-CORE-12: sem pedido exige motivo quando o Vendedor está ativo', () => {
+    const r = avaliarCheckoutVisita({ ...base, resultado: 'sem_pedido' });
+    expect(r.pode).toBe(false);
+    expect(r.pendencias).toEqual(['motivo']);
+    expect(avaliarCheckoutVisita({ ...base, resultado: 'sem_pedido', temMotivo: true }).pode).toBe(true);
+  });
+
+  it('RN-CORE-12: promotor (sem Vendedor efetivo) fecha como atendido sem motivo', () => {
+    expect(avaliarCheckoutVisita({ ...base, vendedorEfetivo: false, resultado: 'atendido' }).pode).toBe(true);
+  });
+
+  it('RN-CORE-12: com Vendedor efetivo, "atendido" não vale — escolha pedido ou sem pedido', () => {
+    expect(avaliarCheckoutVisita({ ...base, resultado: 'atendido' }).pendencias).toEqual(['resultado']);
+  });
+
+  it('RN-CORE-12: resultado com pedido exige o pedido feito na visita', () => {
+    expect(avaliarCheckoutVisita({ ...base, resultado: 'pedido' }).pendencias).toEqual(['pedido']);
+    expect(avaliarCheckoutVisita({ ...base, resultado: 'pedido', temPedido: true }).pode).toBe(true);
+  });
+
+  it('RN-CORE-12: etapa obrigatória pendente de módulo ativo bloqueia o checkout', () => {
+    const r = avaliarCheckoutVisita({ ...base, resultado: 'sem_pedido', temMotivo: true, etapas: [etapaPendente] });
+    expect(r.pendencias).toEqual(['Pesquisa']);
+  });
+
+  it('RN-CORE-14: cliente fechado exige motivo da lista fechada e foto da fachada', () => {
+    const r = avaliarCheckoutVisita({ ...base, resultado: 'cliente_fechado' });
+    expect(r.pendencias).toEqual(['motivo', 'foto_fachada']);
+    expect(avaliarCheckoutVisita({ ...base, resultado: 'cliente_fechado', motivoClienteFechado: true, fotoFachada: true }).pode).toBe(true);
+  });
+
+  it('RN-CORE-14: cliente fechado dispensa as etapas obrigatórias (pesquisa, checklist)', () => {
+    const r = avaliarCheckoutVisita({ ...base, vendedorEfetivo: false, resultado: 'cliente_fechado', motivoClienteFechado: true, fotoFachada: true, etapas: [etapaPendente] });
+    expect(r.pode).toBe(true);
+    expect(r.etapasDispensadas).toBe(true);
   });
 });

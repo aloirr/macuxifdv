@@ -1,0 +1,82 @@
+/**
+ * Lista de clientes no escopo da carteira e escopo de usuários (RN-CORE-04). O recorte por perfil vem do SDK
+ * (`escopoDoPerfil` via `escopo.ts`); aqui só se compõe a lista, a busca e os filtros da tela Clientes (RF-CORE-02).
+ * Busca em memória (carteira típica de ~500 clientes), sem acento e sem diferença de caixa.
+ */
+import type { Perfil } from '@macuxi/platform-sdk';
+import { clienteNoEscopo, clientesVisiveis, escopoDeCarteira, type ConjuntosDoUsuario } from './escopo';
+
+export interface ClienteLista {
+  id: string;
+  razao_social: string;
+  nome_fantasia: string | null;
+  documento: string | null;
+  cidade: string | null;
+  segmento: string | null;
+}
+
+export interface FiltroClientes {
+  q?: string;
+  cidade?: string;
+  segmento?: string;
+  bloqueado?: boolean;
+  comVencidos?: boolean;
+}
+
+/** Conjuntos calculados do financeiro (`resumoFinanceiro`) para os filtros "bloqueados" e "vencidos". */
+export interface ConjuntosFinanceiros {
+  bloqueados?: ReadonlySet<string>;
+  comVencidos?: ReadonlySet<string>;
+}
+
+const norm = (s: string | null | undefined): string =>
+  (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const soDigitos = (s: string | null | undefined): string => (s ?? '').replace(/\D/g, '');
+const rotulo = (c: ClienteLista): string => c.nome_fantasia?.trim() || c.razao_social;
+
+/** Clientes do escopo do perfil (RN-CORE-04) + busca e filtros. O filtro nunca amplia o escopo. */
+export function listarClientes<C extends ClienteLista>(
+  clientes: C[],
+  perfil: Perfil,
+  conjuntos: ConjuntosDoUsuario,
+  filtro: FiltroClientes = {},
+  fin: ConjuntosFinanceiros = {},
+): C[] {
+  const visiveis = clientesVisiveis(perfil, conjuntos);
+  const q = norm(filtro.q);
+  const qDigitos = soDigitos(filtro.q);
+  return clientes
+    .filter((c) => clienteNoEscopo(c.id, visiveis))
+    .filter((c) => !filtro.cidade || norm(c.cidade) === norm(filtro.cidade))
+    .filter((c) => !filtro.segmento || norm(c.segmento) === norm(filtro.segmento))
+    .filter((c) => !filtro.bloqueado || (fin.bloqueados?.has(c.id) ?? false))
+    .filter((c) => !filtro.comVencidos || (fin.comVencidos?.has(c.id) ?? false))
+    .filter((c) => {
+      if (!q) return true;
+      if ([c.razao_social, c.nome_fantasia, c.cidade].some((t) => norm(t).includes(q))) return true;
+      return qDigitos.length >= 3 && soDigitos(c.documento).includes(qDigitos);
+    })
+    .sort((a, b) => rotulo(a).localeCompare(rotulo(b), 'pt-BR', { sensitivity: 'base' }));
+}
+
+export interface UsuariosDoUsuario {
+  proprio: string;
+  /** Usuários da equipe direta (supervisor). */
+  equipe: ReadonlySet<string>;
+  /** Usuários das equipes abaixo (gerente). */
+  equipesAbaixo: ReadonlySet<string>;
+}
+
+/** De quem o usuário vê dados (visitas, rotas, metas, pedidos): gêmeo de `clientesVisiveis`. `'tenant'` = sem filtro (RLS isola o tenant). */
+export function escopoDeUsuarios(perfil: Perfil, u: UsuariosDoUsuario): ReadonlySet<string> | 'tenant' {
+  switch (escopoDeCarteira(perfil)) {
+    case 'carteira':
+      return new Set([u.proprio]);
+    case 'equipe':
+      return new Set([u.proprio, ...u.equipe]);
+    case 'equipes_abaixo':
+      return new Set([u.proprio, ...u.equipe, ...u.equipesAbaixo]);
+    case 'tenant':
+      return 'tenant';
+  }
+}

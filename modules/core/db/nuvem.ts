@@ -1,6 +1,6 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
- * db/migrations/0002_core.up.sql (e 0004: sessao, dispositivo, tentativas de login), para uso
+ * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -9,7 +9,7 @@
  * comparado com eles em db/testes/estatico.test.ts.
  * db/testes/drizzle-x-banco.test.ts confere colunas x banco migrado.
  */
-import { boolean, date, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, date, integer, numeric, pgSchema, smallint, text, time, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { PERFIS } from '@macuxi/platform-sdk';
 
 export const core = pgSchema('core');
@@ -90,6 +90,9 @@ export const carteira = core.table('carteira', {
   papel: text('papel', { enum: ['vendedor', 'promotor'] }).notNull(),
   inicio: date('inicio'),
   fim: date('fim'),
+  /** Agenda por frequência (0006, RF-CORE-05): a cada 1, 2 ou 4 semanas, no dia ISO 1 (segunda) a 7 (domingo). */
+  frequencia_semanas: smallint('frequencia_semanas'),
+  dia_semana: smallint('dia_semana'),
 });
 
 /** Aparelho do usuário (0004; RF-CORE-01 bloqueio remoto). id = UUID gerado no aparelho. Fora do sync. */
@@ -100,6 +103,10 @@ export const dispositivo = core.table('dispositivo', {
   plataforma: text('plataforma'),
   ultimo_acesso_em: timestamp('ultimo_acesso_em', { withTimezone: true }),
   bloqueado_em: timestamp('bloqueado_em', { withTimezone: true }),
+  /** Token de push Expo do aparelho (0006, T-0019). push_token e push_plataforma andam juntos. */
+  push_token: text('push_token'),
+  push_plataforma: text('push_plataforma', { enum: ['android'] }),
+  push_atualizado_em: timestamp('push_atualizado_em', { withTimezone: true }),
 });
 
 /**
@@ -115,4 +122,195 @@ export const sessao = core.table('sessao', {
   expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
   usado_em: timestamp('usado_em', { withTimezone: true }),
   revogado_em: timestamp('revogado_em', { withTimezone: true }),
+});
+
+// ---------------------------------------------------------------------------------------------
+// Lote A da Sprint 1 (0006; desenho T-0016 §7). Dinheiro em centavos: bigint lido como number (mode 'number');
+// no `pg` cru o int8 chega como string — converta no provedor (Number(x)) ou faça cast na consulta.
+// As listas fechadas abaixo espelham os CHECKs da 0006 e são comparadas com os contratos do Core em
+// db/testes/estatico.test.ts.
+
+/** Contatos do cliente (Cliente 360). Um `principal` vivo por cliente. */
+export const clienteContato = core.table('cliente_contato', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  nome: text('nome').notNull(),
+  cargo: text('cargo'),
+  telefone: text('telefone'),
+  whatsapp: text('whatsapp'),
+  email: text('email'),
+  principal: boolean('principal').notNull().default(false),
+});
+
+/** Financeiro do cliente: um vivo por cliente. credito_disponivel_cents nulo = domínio calcula limite − saldo. */
+export const clienteFinanceiro = core.table('cliente_financeiro', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  limite_cents: bigint('limite_cents', { mode: 'number' }).notNull().default(0),
+  saldo_aberto_cents: bigint('saldo_aberto_cents', { mode: 'number' }).notNull().default(0),
+  credito_disponivel_cents: bigint('credito_disponivel_cents', { mode: 'number' }),
+  bloqueado: boolean('bloqueado').notNull().default(false),
+  motivo_bloqueio: text('motivo_bloqueio'),
+  atualizado_erp_em: timestamp('atualizado_erp_em', { withTimezone: true }),
+});
+
+export const SITUACOES_TITULO = ['aberto', 'liquidado', 'cancelado'] as const;
+
+/** Títulos a receber do cliente. Pull: abertos + vencimento >= hoje − 90. */
+export const titulo = core.table('titulo', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  documento: text('documento').notNull(),
+  parcela: text('parcela'),
+  emissao: date('emissao').notNull(),
+  vencimento: date('vencimento').notNull(),
+  valor_cents: bigint('valor_cents', { mode: 'number' }).notNull(),
+  saldo_cents: bigint('saldo_cents', { mode: 'number' }).notNull(),
+  situacao: text('situacao', { enum: SITUACOES_TITULO }).notNull().default('aberto'),
+  liquidado_em: timestamp('liquidado_em', { withTimezone: true }),
+});
+
+/** Consolidado mensal de compras (AAAA-MM), um vivo por cliente e mês. */
+export const historicoCompra = core.table('historico_compra', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  ano_mes: text('ano_mes').notNull(),
+  valor_cents: bigint('valor_cents', { mode: 'number' }).notNull().default(0),
+  pedidos: integer('pedidos').notNull().default(0),
+  itens: integer('itens').notNull().default(0),
+  ultima_compra_em: date('ultima_compra_em'),
+  origem: text('origem', { enum: ['erp', 'macuxi'] }).notNull().default('erp'),
+});
+
+export const TIPOS_MOTIVO = ['nao_venda', 'cliente_fechado', 'fora_do_raio'] as const;
+
+/**
+ * Motivos (não venda, cliente fechado, fora do raio). RN-CORE-14: todo tenant tem loja_fechada e acesso_negado
+ * (sistema, exige_foto), semeados pelo gatilho core.semear_tenant; motivo de sistema não é removido nem desativado.
+ */
+export const motivo = core.table('motivo', {
+  ...comuns(),
+  tipo: text('tipo', { enum: TIPOS_MOTIVO }).notNull(),
+  codigo: text('codigo').notNull(),
+  descricao: text('descricao').notNull(),
+  exige_foto: boolean('exige_foto').notNull().default(false),
+  sistema: boolean('sistema').notNull().default(false),
+  ativo: boolean('ativo').notNull().default(true),
+  ordem: integer('ordem').notNull().default(0),
+});
+
+/** Rota do dia (uma viva por usuário e data). */
+export const rota = core.table('rota', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  data: date('data').notNull(),
+  situacao: text('situacao', { enum: ['planejada', 'publicada', 'cancelada'] }).notNull().default('planejada'),
+  origem: text('origem', { enum: ['bko', 'frequencia', 'erp'] }).notNull().default('bko'),
+  regiao: text('regiao'),
+  observacao: text('observacao'),
+});
+
+/**
+ * Parada da rota. usuario_id e data iguais aos da rota (FK composta com on update cascade). Sequência única por rota
+ * entre as vivas, conferida no COMMIT (reordenar numa transação). janela_* em `time` (formatar HH:MM no provedor).
+ */
+export const rotaParada = core.table('rota_parada', {
+  ...comuns(),
+  rota_id: uuid('rota_id').notNull(),
+  usuario_id: uuid('usuario_id').notNull(),
+  data: date('data').notNull(),
+  cliente_id: uuid('cliente_id').notNull(),
+  sequencia: integer('sequencia').notNull(),
+  janela_inicio: time('janela_inicio'),
+  janela_fim: time('janela_fim'),
+});
+
+/** Resultados aceitos pelo banco: os do contrato (RESULTADOS_VISITA) + 'nao_finalizado' (só servidor/auto, RN-CORE-11). */
+export const RESULTADOS_VISITA_BANCO = ['atendido', 'pedido', 'sem_pedido', 'cliente_fechado', 'nao_finalizado'] as const;
+
+/**
+ * Visita (check-in/checkout). RN-CORE-11: uma aberta (checkout_em nulo) e viva por usuário (índice único parcial
+ * visita_aberta_uk). checkout_id único (idempotência do checkout). RN-CORE-10: fora_do_raio ⇒ justificativa.
+ * RN-CORE-14: cliente_fechado ⇒ motivo_id e foto_fachada_id. checkout_em, resultado e fechada_por andam juntos.
+ * pedido_id sem FK (schema vendedor).
+ */
+export const visita = core.table('visita', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  cliente_id: uuid('cliente_id').notNull(),
+  rota_parada_id: uuid('rota_parada_id'),
+  data_local: date('data_local').notNull(),
+  checkin_em: timestamp('checkin_em', { withTimezone: true }).notNull(),
+  checkin_lat: numeric('checkin_lat', { precision: 9, scale: 6 }),
+  checkin_lng: numeric('checkin_lng', { precision: 9, scale: 6 }),
+  checkin_precisao_m: integer('checkin_precisao_m'),
+  sem_gps: boolean('sem_gps').notNull().default(false),
+  distancia_m: integer('distancia_m'),
+  fora_do_raio: boolean('fora_do_raio').notNull().default(false),
+  justificativa_fora_raio: text('justificativa_fora_raio'),
+  sugere_coordenada: boolean('sugere_coordenada').notNull().default(false),
+  extra: boolean('extra').notNull().default(false),
+  checkout_id: uuid('checkout_id'),
+  checkout_em: timestamp('checkout_em', { withTimezone: true }),
+  checkout_lat: numeric('checkout_lat', { precision: 9, scale: 6 }),
+  checkout_lng: numeric('checkout_lng', { precision: 9, scale: 6 }),
+  resultado: text('resultado', { enum: RESULTADOS_VISITA_BANCO }),
+  motivo_id: uuid('motivo_id'),
+  motivo_texto: text('motivo_texto'),
+  pedido_id: uuid('pedido_id'),
+  foto_fachada_id: uuid('foto_fachada_id'),
+  fechada_por: text('fechada_por', { enum: ['usuario', 'auto'] }),
+  recebido_em: timestamp('recebido_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Etapa do checkout registrada por módulo (única por visita + módulo + etapa). */
+export const visitaEtapa = core.table('visita_etapa', {
+  ...comuns(),
+  visita_id: uuid('visita_id').notNull(),
+  modulo: text('modulo').notNull(),
+  etapa: text('etapa').notNull(),
+  situacao: text('situacao', { enum: ['concluida', 'dispensada'] }).notNull(),
+  referencia_id: uuid('referencia_id'),
+  registrada_em: timestamp('registrada_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const TIPOS_NOTIFICACAO_BANCO = ['recado', 'sistema', 'pedido', 'treinamento', 'trade'] as const;
+
+/** Notificação do usuário. Únicos parciais por (usuário, origem_evento_id) e (usuário, envio_id). */
+export const notificacao = core.table('notificacao', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  tipo: text('tipo', { enum: TIPOS_NOTIFICACAO_BANCO }).notNull(),
+  titulo: text('titulo').notNull(),
+  corpo: text('corpo').notNull(),
+  link: text('link'),
+  origem_modulo: text('origem_modulo').notNull().default('core'),
+  origem_evento_id: uuid('origem_evento_id'),
+  envio_id: uuid('envio_id'),
+  autor_id: uuid('autor_id'),
+  prioridade: text('prioridade', { enum: ['normal', 'alta'] }).notNull().default('normal'),
+  lida_em: timestamp('lida_em', { withTimezone: true }),
+  expira_em: timestamp('expira_em', { withTimezone: true }),
+  push_enviado_em: timestamp('push_enviado_em', { withTimezone: true }),
+});
+
+export const INDICADORES_META_BANCO = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;
+
+/** Meta mensal (AAAA-MM) por usuário e indicador; cobertura_pct em pontos-base (0–10000). */
+export const meta = core.table('meta', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  periodo: text('periodo').notNull(),
+  indicador: text('indicador', { enum: INDICADORES_META_BANCO }).notNull(),
+  valor: bigint('valor', { mode: 'number' }).notNull(),
+});
+
+/** Read-model diário de vendas por vendedor (lote B; alimentado pelo consumidor de vendedor.pedido.* futuro). */
+export const indicadorDiario = core.table('indicador_diario', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  data: date('data').notNull(),
+  pedidos: integer('pedidos').notNull().default(0),
+  vendido_cents: bigint('vendido_cents', { mode: 'number' }).notNull().default(0),
+  cancelado_cents: bigint('cancelado_cents', { mode: 'number' }).notNull().default(0),
 });
