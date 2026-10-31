@@ -12,8 +12,8 @@ const PERFIS_GESTAO = ['supervisor', 'gerente', 'analista', 'admin'] as const;
  * Publica `treinamento.licao.concluida@1` e `treinamento.medalha.conquistada@1` (doc 02); outros fatos (trilha
  * concluída, nível) viajam dentro de `licao.concluida` (`trilha_concluida`) e não têm evento próprio.
  * Consome só `vendedor.pedido.faturado@1`, e como opcional (desafios de vendas, RF-TRE-06; paga no faturamento vindo
- * do ERP, total ou parcial): o módulo funciona sem o Vendedor. Não consome `vendedor.pedido.criado@1`. O publicador e o
- * registro do evento em .coord/contratos/eventos.md são do engenheiro-software.
+ * do ERP, total ou parcial): o módulo funciona sem o Vendedor. Não consome `vendedor.pedido.criado@1`. Contrato do evento em
+ * .coord/contratos/eventos.md e docs/desenho/T-0011.md (idempotente por `evento_id`, itens somados).
  * O escopo do dado (equipe/regional no ranking, adesão da equipe) fica no domain + API (RN-CORE-04), não nas ações.
  */
 export const manifest = defineModule({

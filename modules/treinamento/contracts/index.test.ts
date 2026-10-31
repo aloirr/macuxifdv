@@ -73,6 +73,11 @@ describe('RN-TRE-01: lançamento de XP', () => {
   it('lançamento válido', () => {
     expect(LancamentoXp.safeParse(l).success).toBe(true);
   });
+  it('RN-TRE-08: a referência do desafio (desafio:pedido:evento, 3 UUIDs) cabe no lançamento', () => {
+    const ref = `${u(1)}:${u(2)}:${u(3)}`;
+    expect(LancamentoXp.safeParse({ ...l, origem: 'desafio_vendas', referencia_id: ref }).success).toBe(true);
+    expect(LancamentoXp.safeParse({ ...l, origem: 'desafio_vendas', referencia_id: 'x'.repeat(129) }).success).toBe(false);
+  });
   it('RN-TRE-04: lançamento só soma — pontos negativos ou fracionados são recusados', () => {
     expect(LancamentoXp.safeParse({ ...l, pontos: -1, pontos_base: -1 }).success).toBe(false);
     expect(LancamentoXp.safeParse({ ...l, pontos: 2.5, pontos_base: 2.5 }).success).toBe(false);

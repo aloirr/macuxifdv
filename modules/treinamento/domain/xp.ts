@@ -15,7 +15,7 @@ export type OrigemXp = (typeof ORIGENS_XP)[number];
 /** Origens que não passam pelo teto diário (incentivo de vendas; têm teto próprio por desafio). */
 const ORIGENS_SEM_TETO: readonly OrigemXp[] = ['desafio_vendas'];
 
-/** Fato que merece XP, ainda sem teto aplicado. `referencia_id`: lição/quiz/trilha, data do streak ou `desafio:pedido`. */
+/** Fato que merece XP, ainda sem teto aplicado. `referencia_id`: lição/quiz/trilha, data do streak ou `desafio:pedido:evento` / `desafio:pedido:total`. */
 export interface CandidatoXp {
   /** UUID gerado no aparelho. */
   id: string;
