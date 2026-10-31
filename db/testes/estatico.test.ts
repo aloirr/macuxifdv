@@ -6,12 +6,15 @@ import * as crypto from 'node:crypto';
 import { PERFIS } from '@macuxi/platform-sdk';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
+import { INDICADORES_META, RESULTADOS_VISITA, TIPOS_NOTIFICACAO } from '../../modules/core/contracts/sync';
 import * as nuvemCore from '../../modules/core/db/nuvem';
+import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
+import { ORDER_STATUSES } from '../../modules/vendedor/domain/order';
 import * as esquemaPlataforma from '../esquema/plataforma';
 import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS } from '../seeds/fixtures/dois-tenants';
 import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
-import { idDeterministico, idFixo } from '../src/ids';
+import { idDeChave, idDeterministico, idFixo } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { hashSenha, verificarSenha } from '../src/senha';
 
@@ -31,7 +34,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemVendedor)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -44,7 +47,9 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual(['0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao']);
+    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual([
+      '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
+    ]);
   });
 
   it('down de cada migração remove os schemas que o up cria', () => {
@@ -56,12 +61,16 @@ describe('migrações (estático)', () => {
   });
 
   const criadas = tabelasCriadas();
-  it('cria as tabelas pedidas na T-0002 (plataforma + core com produto, ADR-0005) e na T-0003 F2 (sessao, dispositivo)', () => {
+  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo) e na Sprint 1 (lote A, arquivo, vendedor mínimo)', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
         'plataforma.evento', 'plataforma.evento_consumo', 'plataforma.parametro', 'plataforma.auditoria',
         'core.usuario', 'core.equipe', 'core.produto', 'core.cliente', 'core.carteira', 'core.sessao', 'core.dispositivo',
+        'plataforma.arquivo',
+        'core.cliente_contato', 'core.cliente_financeiro', 'core.titulo', 'core.historico_compra', 'core.motivo', 'core.rota', 'core.rota_parada',
+        'core.visita', 'core.visita_etapa', 'core.notificacao', 'core.meta', 'core.indicador_diario',
+        'vendedor.pedido', 'vendedor.pedido_item',
       ].sort(),
     );
   });
@@ -178,6 +187,94 @@ describe('0004 core.sessao / core.dispositivo / tentativas (estático, T-0003 F2
   });
 });
 
+describe('Sprint 1: 0005 arquivo, 0006 lote A do core, 0007 vendedor mínimo (estático, desenho T-0016 §7)', () => {
+  const m5 = migracoes.find((x) => x.versao === '0005')!;
+  const m6 = migracoes.find((x) => x.versao === '0006')!;
+  const m7 = migracoes.find((x) => x.versao === '0007')!;
+  const criadas = tabelasCriadas();
+  /** Valores de um `check (col in ('a', 'b'))` (ou `col is null or col in (...)`) no corpo da tabela. */
+  const valoresDoCheck = (tabela: string, coluna: string): string[] => {
+    const m = new RegExp(`check \\((?:${coluna} is null or )?${coluna} in \\(([^)]*)\\)\\)`).exec(criadas.get(tabela) ?? '');
+    return m ? [...m[1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!) : [];
+  };
+
+  it('RN-CORE-11: único parcial de visita aberta por usuário (checkout nulo e viva) e checkout_id único', () => {
+    expect(m6.up).toContain('create unique index visita_aberta_uk on core.visita (tenant_id, usuario_id) where checkout_em is null and deleted_at is null;');
+    expect(m6.up).toContain('create unique index visita_checkout_uk on core.visita (tenant_id, checkout_id) where checkout_id is not null;');
+  });
+
+  it('RN-CORE-10 e RN-CORE-14: checks da visita (justificativa fora do raio; cliente fechado com motivo e foto)', () => {
+    const v = criadas.get('core.visita')!;
+    expect(v).toContain("check (not fora_do_raio or nullif(btrim(justificativa_fora_raio), '') is not null)");
+    expect(v).toContain("check (resultado is distinct from 'cliente_fechado' or (motivo_id is not null and foto_fachada_id is not null))");
+    expect(v).toContain('check (checkout_em is null or checkout_em >= checkin_em)');
+    expect(v).toContain('foreign key (tenant_id, foto_fachada_id) references plataforma.arquivo (tenant_id, id)');
+    expect(v).not.toMatch(/pedido_id[^\n]*references/);
+  });
+
+  it('listas fechadas do banco = contratos (core: resultado, tipo de notificação, indicador de meta; vendedor: status)', () => {
+    expect(valoresDoCheck('core.visita', 'resultado')).toEqual([...RESULTADOS_VISITA, 'nao_finalizado']);
+    expect([...nuvemCore.RESULTADOS_VISITA_BANCO]).toEqual([...RESULTADOS_VISITA, 'nao_finalizado']);
+    expect(valoresDoCheck('core.notificacao', 'tipo')).toEqual([...TIPOS_NOTIFICACAO]);
+    expect([...nuvemCore.TIPOS_NOTIFICACAO_BANCO]).toEqual([...TIPOS_NOTIFICACAO]);
+    expect(valoresDoCheck('core.meta', 'indicador')).toEqual([...INDICADORES_META]);
+    expect([...nuvemCore.INDICADORES_META_BANCO]).toEqual([...INDICADORES_META]);
+    expect(valoresDoCheck('vendedor.pedido', 'status')).toEqual([...ORDER_STATUSES]);
+    expect([...(nuvemVendedor.pedido.status.enumValues ?? [])]).toEqual([...ORDER_STATUSES]);
+  });
+
+  it('rota_parada: usuario_id/data presos à rota (FK com on update cascade) e sequência única ADIÁVEL entre as vivas', () => {
+    const rp = criadas.get('core.rota_parada')!;
+    expect(rp).toMatch(/foreign key \(tenant_id, rota_id, usuario_id, data\)\s+references core\.rota \(tenant_id, id, usuario_id, data\) on update cascade/);
+    expect(rp).toMatch(/exclude using btree \(tenant_id with =, rota_id with =, sequencia with =\)\s+where \(deleted_at is null\) deferrable initially deferred/);
+  });
+
+  it('pull por usuário: rota, rota_parada, visita, notificacao, meta com (tenant_id, usuario_id, updated_at, id); pedido por vendedor', () => {
+    for (const t of ['rota', 'rota_parada', 'visita', 'notificacao', 'meta']) {
+      expect(m6.up).toContain(`on core.${t} (tenant_id, usuario_id, updated_at, id);`);
+    }
+    expect(m7.up).toContain('create index pedido_vendedor_sync_ix on vendedor.pedido (tenant_id, vendedor_id, updated_at, id);');
+    expect(m7.up).toContain('create index pedido_cliente_ix on vendedor.pedido (tenant_id, cliente_id, created_at desc);');
+    expect(criadas.get('vendedor.pedido_item')).toContain('constraint pedido_item_sequencia_uk unique (tenant_id, pedido_id, sequencia)');
+  });
+
+  it('fronteira: vendedor.* sem FK para core.* (só plataforma.tenant e dentro do schema)', () => {
+    expect(m7.up).not.toMatch(/references core\./);
+    expect(m7.down).toContain('drop schema if exists vendedor cascade;');
+  });
+
+  it('RN-CORE-14: motivos de sistema e parâmetros do Core semeados em todo tenant (existentes e novos, gatilho)', () => {
+    expect(m6.up).toContain("('cliente_fechado', 'loja_fechada',");
+    expect(m6.up).toContain("('cliente_fechado', 'acesso_negado',");
+    expect(m6.up).toContain("('checkin.raio_m',       '200'::jsonb)");
+    expect(m6.up).toContain("('metas.base_apuracao',  '\"aprovado\"'::jsonb)");
+    expect(m6.up).toContain('create trigger tenant_semear_core after insert on plataforma.tenant');
+    expect(m6.up).toContain('select core.semear_padroes(t.id) from plataforma.tenant t;');
+    // a semeadura não é SECURITY DEFINER (o macuxi_app não insere tenant; nada de função que ignore RLS)
+    expect(m6.up.replace(/--.*$/gm, '')).not.toMatch(/security definer/i);
+  });
+
+  it('plataforma.arquivo (ADR 0010): índices por entidade e parcial dos aguardando; fora do sync', () => {
+    expect(m5.up).toContain('create index arquivo_entidade_ix on plataforma.arquivo (tenant_id, entidade, entidade_id);');
+    expect(m5.up).toContain("create index arquivo_aguardando_ix on plataforma.arquivo (tenant_id, situacao) where situacao = 'aguardando';");
+    expect(TABELAS_FORA_DO_SYNC).toContain('plataforma.arquivo');
+  });
+
+  it('downs desfazem o que os ups criam', () => {
+    expect(m5.down).toContain('drop table if exists plataforma.arquivo;');
+    expect(m5.down).toContain('drop function if exists plataforma.uuid_de_chave(text);');
+    for (const t of ['cliente_contato', 'cliente_financeiro', 'titulo', 'historico_compra', 'motivo', 'rota', 'rota_parada', 'visita', 'visita_etapa', 'notificacao', 'meta', 'indicador_diario']) {
+      expect(m6.down).toContain(`drop table if exists core.${t};`);
+    }
+    for (const c of ['frequencia_semanas', 'dia_semana']) expect(m6.down).toContain(`alter table core.carteira drop column if exists ${c};`);
+    for (const c of ['push_token', 'push_plataforma', 'push_atualizado_em']) expect(m6.down).toContain(`alter table core.dispositivo drop column if exists ${c};`);
+    expect(m6.down).toContain('drop trigger if exists tenant_semear_core on plataforma.tenant;');
+    // visita antes de rota_parada/motivo (FKs), parada antes de rota
+    expect(m6.down.indexOf('drop table if exists core.visita;')).toBeLessThan(m6.down.indexOf('drop table if exists core.rota_parada;'));
+    expect(m6.down.indexOf('drop table if exists core.rota_parada;')).toBeLessThan(m6.down.indexOf('drop table if exists core.rota;'));
+  });
+});
+
 describe('Drizzle x migrações (estático)', () => {
   const drizzle = tabelasDrizzle();
   const criadas = tabelasCriadas();
@@ -189,7 +286,7 @@ describe('Drizzle x migrações (estático)', () => {
   for (const [tabela, cfg] of drizzle) {
     it(`${tabela}: mesmas colunas do SQL`, () => {
       const corpo = criadas.get(tabela) ?? '';
-      const doSql = [...corpo.matchAll(/^ {2}([a-z_]+) +[a-z]/gm)].map((m) => m[1]!).filter((c) => c !== 'constraint').sort();
+      const doSql = [...corpo.matchAll(/^ {2}([a-z_][a-z0-9_]*) +[a-z]/gm)].map((m) => m[1]!).filter((c) => c !== 'constraint').sort();
       expect(cfg.columns.map((c) => c.name).sort()).toEqual(doSql);
     });
   }
@@ -287,6 +384,61 @@ describe('fixture dois-tenants (estático)', () => {
     expect(e.get(DOIS_TENANTS.A.equipes.equipe1)?.equipe_pai_id).toBe(DOIS_TENANTS.A.equipes.regional);
     expect(e.get(DOIS_TENANTS.A.equipes.regional)?.responsavel_id).toBe(DOIS_TENANTS.A.usuarios.gerente);
   });
+
+  describe('Sprint 1 (com "hoje" fixo)', () => {
+    const HOJE = '2026-11-03';
+    const d = dadosDoisTenants('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA', { hoje: HOJE });
+    const X = DOIS_TENANTS.A;
+
+    it('cliente sem coordenada (c3) e com coordenada (c1, c2); carteiras sem mudança', () => {
+      const c = new Map(d['core.cliente'].map((x) => [x.id, x]));
+      expect(c.get(X.clientes.c3)?.latitude).toBeNull();
+      expect(c.get(X.clientes.c1)?.latitude).not.toBeNull();
+      expect(d['core.carteira']).toHaveLength(5);
+    });
+
+    it('rota de hoje com paradas; vendedor-1 com 2 paradas na própria carteira, em sequência', () => {
+      expect(d['core.rota'].every((r) => r.data === HOJE)).toBe(true);
+      const p = d['core.rota_parada'].filter((x) => x.rota_id === X.rotas.vendedor1).map((x) => [x.cliente_id, x.sequencia]);
+      expect(p).toEqual([[X.clientes.c1, 1], [X.clientes.c3, 2]]);
+      const carteira = new Set(d['core.carteira'].map((x) => `${x.usuario_id}:${x.cliente_id}`));
+      for (const parada of d['core.rota_parada']) expect(carteira.has(`${parada.usuario_id}:${parada.cliente_id}`)).toBe(true);
+    });
+
+    it('títulos vencidos, a vencer e vencendo hoje; histórico de 12 meses de c1', () => {
+      const t = d['core.titulo'].filter((x) => x.tenant_id === X.tenantId && x.situacao === 'aberto');
+      expect(t.some((x) => String(x.vencimento) < HOJE)).toBe(true);
+      expect(t.some((x) => String(x.vencimento) > HOJE)).toBe(true);
+      expect(t.some((x) => x.vencimento === HOJE)).toBe(true);
+      const h = d['core.historico_compra'].filter((x) => x.cliente_id === X.clientes.c1).map((x) => x.ano_mes);
+      expect(h).toHaveLength(12);
+      expect(h[0]).toBe('2025-12');
+      expect(h[11]).toBe('2026-11');
+    });
+
+    it('uma visita aberta no máximo por usuário; cliente fechado com motivo de sistema e foto; uma notificação por usuário', () => {
+      const abertas = d['core.visita'].filter((v) => v.checkout_em === null).map((v) => v.usuario_id);
+      expect(new Set(abertas).size).toBe(abertas.length);
+      const fechadas = d['core.visita'].filter((v) => v.resultado === 'cliente_fechado');
+      expect(fechadas.map((v) => v.motivo_id).sort()).toEqual([X.motivos.lojaFechada, DOIS_TENANTS.B.motivos.acessoNegado].sort());
+      expect(fechadas.every((v) => v.foto_fachada_id !== null)).toBe(true);
+      const comNotificacao = new Set(d['core.notificacao'].map((n) => n.usuario_id));
+      for (const u of d['core.usuario']) expect(comNotificacao.has(u.id), String(u.email)).toBe(true);
+    });
+
+    it('motivos padrão não estão nas listas (vêm do gatilho); ids batem com idDeChave', () => {
+      expect(d['core.motivo'].map((m) => m.codigo)).toEqual(['obra_na_via', 'cliente_inadimplente']);
+      expect(X.motivos.lojaFechada).toBe(idDeChave(`${X.tenantId}:core.motivo:cliente_fechado:loja_fechada`));
+    });
+
+    it('pedidos: totais = soma dos itens; status da lista do contrato', () => {
+      for (const p of d['vendedor.pedido']) {
+        const itens = d['vendedor.pedido_item'].filter((i) => i.pedido_id === p.id);
+        expect(itens.reduce((s, i) => s + Number(i.total_cents), 0), String(p.id)).toBe(p.total_cents);
+        expect(ORDER_STATUSES as readonly string[]).toContain(p.status);
+      }
+    });
+  });
 });
 
 describe('seed Fase M (estático)', () => {
@@ -325,6 +477,12 @@ describe('seed Fase M (estático)', () => {
 });
 
 describe('utilitários', () => {
+  it('idDeChave: UUID v5 com variante RFC 4122, estável (gêmeo de plataforma.uuid_de_chave)', () => {
+    // valor de referência calculado pelo Postgres: select plataforma.uuid_de_chave('x')
+    expect(idDeChave('x')).toBe('7f29305d-fba6-5e0d-a7cc-1ec3291e82ef');
+    expect(idDeChave('y')).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
   it('idFixo e idDeterministico geram UUID válido e estável', () => {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
     expect(idFixo('aaaaaaaa', 1, 7)).toBe('aaaaaaaa-0001-4000-8000-000000000007');

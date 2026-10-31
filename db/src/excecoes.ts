@@ -17,4 +17,6 @@ export const TABELAS_FORA_DO_SYNC = [
   /** Autenticação do Core (0004): ficam só na nuvem, nunca vão ao aparelho. */
   'core.sessao',
   'core.dispositivo',
+  /** Metadados de arquivo (0005, ADR 0010): a foto vai pela fila de arquivos, a linha nunca é puxada. */
+  'plataforma.arquivo',
 ] as const;

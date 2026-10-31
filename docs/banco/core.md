@@ -1,6 +1,6 @@
 # Dicionário de dados — schema `core`
 
-Migrações `db/migrations/0002_core.up.sql`, `0003_plataforma_worker` (índice da carteira) e `0004_core_sessao` (sessão, aparelho, tentativas; volta: `.down.sql` de cada uma). Drizzle: `modules/core/db/nuvem.ts` (uso interno do Core).
+Migrações `db/migrations/0002_core.up.sql`, `0003_plataforma_worker` (índice da carteira), `0004_core_sessao` (sessão, aparelho, tentativas) e `0006_core_lote_a` (Sprint 1, no fim deste arquivo); volta: `.down.sql` de cada uma. Drizzle: `modules/core/db/nuvem.ts` (uso interno do Core).
 Campos comuns e RLS como em [plataforma.md](plataforma.md). Toda FK entre tabelas do tenant é composta
 `(tenant_id, x_id) → (tenant_id, id)`; toda tabela sincronizada tem índice de sync `(tenant_id, updated_at, id)` (`sessao` e `dispositivo` ficam fora do sync) e
 `external_id` único por tenant (quando preenchido).
@@ -100,3 +100,135 @@ já é de OUTRO usuário (mesmo tenant) ou de outro tenant, o `where` descarta (
 - Carteira do vendedor: `carteira where tenant_id = $t and usuario_id = $u and deleted_at is null` — `carteira_usuario_ix`.
 - Volume alvo por tenant: 500 clientes por vendedor, 20 mil SKUs (doc 04).
 - Login/refresh (`modules/core/api/repositorio.ts`): `usuario where lower(email) = lower($1)` (`usuario_email_uk`); `sessao where token_hash = $1` (`sessao_token_uk`); revogar família (`sessao_familia_ix`); aparelho por `id` (PK).
+
+---
+
+# Sprint 1 — lote A (migração `0006_core_lote_a`; desenho T-0016 §2 e §7)
+Volta: `0006_core_lote_a.down.sql` (apaga as tabelas abaixo, as colunas novas de `carteira`/`dispositivo` e os
+parâmetros semeados). Drizzle: `modules/core/db/nuvem.ts`. Todas com campos comuns, RLS forçado (`isolamento_tenant`),
+gatilho de `updated_at`, índice de sync `(tenant_id, updated_at, id)`, `external_id` único por tenant quando preenchido e
+FKs compostas `(tenant_id, x_id)`. Dinheiro em centavos `bigint` (no `pg` cru o int8 chega como **string**: converta no
+provedor). "Vivo" = `deleted_at is null`.
+
+## Alterações
+| Tabela | Coluna | Regra |
+|---|---|---|
+| carteira | frequencia_semanas smallint | `1, 2, 4` ou nulo (agenda por frequência, RF-CORE-05) |
+| carteira | dia_semana smallint | 1 (segunda) a 7 (domingo, ISO) ou nulo |
+| dispositivo | push_token, push_plataforma, push_atualizado_em | token Expo (T-0019); `push_plataforma in ('android')`; token e plataforma juntos. Fora do sync |
+
+## cliente_contato — contatos do cliente (RF-CORE-04). Pull por carteira
+`cliente_id` (FK) · `nome` not null · `cargo`, `telefone`, `whatsapp`, `email` · `principal` boolean.
+Índices: `(tenant_id, cliente_id)`; único parcial `cliente_contato_principal_uk (tenant_id, cliente_id) where principal and vivo`.
+
+## cliente_financeiro — um vivo por cliente. Pull por carteira
+`cliente_id` (FK) · `limite_cents` ≥ 0 · `saldo_aberto_cents` ≥ 0 · `credito_disponivel_cents` (nulo = o domínio calcula
+limite − saldo; pode ser negativo) · `bloqueado`, `motivo_bloqueio` · `atualizado_erp_em`.
+Índice: único `cliente_financeiro_cliente_uk (tenant_id, cliente_id)` vivo.
+
+## titulo — títulos a receber (dono: Core). Pull por carteira, janela: abertos + vencimento ≥ hoje − 90
+`cliente_id` (FK) · `documento` not null · `parcela` · `emissao`, `vencimento` date · `valor_cents`, `saldo_cents` ≥ 0 ·
+`situacao` `aberto | liquidado | cancelado` · `liquidado_em`.
+Índices: `titulo_cliente_vencimento_ix (tenant_id, cliente_id, vencimento)`; parcial `titulo_abertos_ix` (mesmas colunas)
+`where situacao = 'aberto' and vivo` (filtro "vencidos").
+
+## historico_compra — consolidado mensal. Pull por carteira, janela: `ano_mes` ≥ 12 meses atrás
+`cliente_id` (FK) · `ano_mes` text `AAAA-MM` (check) · `valor_cents` · `pedidos`, `itens` ≥ 0 · `ultima_compra_em` date ·
+`origem` `erp | macuxi`. Índice: único `historico_compra_mes_uk (tenant_id, cliente_id, ano_mes)` vivo.
+
+## motivo — não venda, cliente fechado, fora do raio. Pull do tenant
+`tipo` `nao_venda | cliente_fechado | fora_do_raio` · `codigo` `^[a-z][a-z0-9_]*$` · `descricao` · `exige_foto` · `sistema` ·
+`ativo` · `ordem`. Único `motivo_codigo_uk (tenant_id, tipo, codigo)` vivo; único `(tenant_id, id)` (alvo da FK da visita).
+Checks: `cliente_fechado ⇒ exige_foto`; **motivo de sistema só pode ser `cliente_fechado` `loja_fechada`/`acesso_negado`,
+com foto, ativo e vivo** (RN-CORE-14: não é removido, desativado nem muda de código — 23514; a API responde 422 antes).
+
+**Padrões em todo tenant** (`core.semear_padroes(tenant)`: nos existentes pela migração, nos novos pelo gatilho
+`tenant_semear_core` AFTER INSERT em `plataforma.tenant`; `on conflict do nothing`, não sobrescreve edição do tenant):
+
+| tipo | codigo | sistema | exige_foto | ordem |
+|---|---|---|---|---|
+| cliente_fechado | loja_fechada (Loja fechada) | sim | sim | 1 |
+| cliente_fechado | acesso_negado (Acesso negado) | sim | sim | 2 |
+| nao_venda | estoque_alto, comprador_ausente, sem_limite_credito, preco_concorrente, outro (os `NO_ORDER_REASONS` da Fase M, sem "Loja fechada") | não (editáveis) | não | 1–4, 9 |
+
+Id determinístico: `plataforma.uuid_de_chave('<tenant_id>:core.motivo:<tipo>:<codigo>')` = `idMotivoPadrao(tenant, codigo)`
+de `@macuxi/db/teste` (fixtures e testes referenciam sem consultar). A mesma função semeia em `plataforma.parametro`
+(módulo `core`): `checkin.raio_m = 200` e `metas.base_apuracao = "aprovado"` ([plataforma.md](plataforma.md)).
+
+## rota — rota do dia. Pull por usuários visíveis, janela `data ∈ [hoje − 40, hoje + 30]`
+`usuario_id` (FK) · `data` date · `situacao` `planejada | publicada | cancelada` · `origem` `bko | frequencia | erp` · `regiao`, `observacao`.
+Índices: único `rota_usuario_dia_uk (tenant_id, usuario_id, data)` vivo; `rota_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`;
+único `(tenant_id, id, usuario_id, data)` (alvo da FK da parada).
+
+## rota_parada — cliente na rota. Pull por usuários visíveis (sem join)
+`rota_id` · `usuario_id`, `data` (**desnormalizados**) · `cliente_id` (FK) · `sequencia` ≥ 1 · `janela_inicio`, `janela_fim`
+`time` (fim > início; formatar `HH:MM` no provedor).
+- FK `(tenant_id, rota_id, usuario_id, data) → rota (tenant_id, id, usuario_id, data) on update cascade`: a parada sempre tem o
+  usuário e a data da rota (diferente = 23503) e acompanha a mudança da rota (o cascade também move o `updated_at` da parada).
+- Sequência única por rota entre as vivas: `exclude ... where (deleted_at is null) deferrable initially deferred` — reordenar
+  numa transação; repetição só falha no COMMIT (23P01). Não serve de alvo de `on conflict`.
+- Únicos/índices: `rota_parada_cliente_uk (tenant_id, rota_id, cliente_id)` vivo; `rota_parada_usuario_sync_ix
+  (tenant_id, usuario_id, updated_at, id)`; `(tenant_id, cliente_id)`.
+- Substituir as paradas (PUT do BKO): marque `deleted_at` nas que saem (o pull leva a remoção; visita pode apontar para a parada).
+
+## visita — check-in/checkout. Push e pull por usuários visíveis, janela `data_local ≥ hoje − 40`
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid | UUID do aparelho (push idempotente: `on conflict (id) do nothing`) |
+| usuario_id, cliente_id | uuid not null | FKs compostas |
+| rota_parada_id | uuid | FK composta para `rota_parada` (nulo = visita extra) |
+| data_local | date not null | dia do check-in no fuso do tenant |
+| checkin_em | timestamptz not null | instante do aparelho |
+| checkin_lat, checkin_lng | numeric(9,6) | par (os dois ou nenhum); `sem_gps ⇒` sem coordenada |
+| checkin_precisao_m, distancia_m | integer ≥ 0 | |
+| sem_gps, fora_do_raio, sugere_coordenada, extra | boolean not null | RN-CORE-13 / RN-CORE-10 |
+| justificativa_fora_raio | text | **obrigatória (não vazia) se `fora_do_raio`** (RN-CORE-10) |
+| checkout_id | uuid | UUID do comando de checkout; **único** `(tenant_id, checkout_id)` (idempotência) |
+| checkout_em, checkout_lat, checkout_lng | | `checkout_em ≥ checkin_em`; par lat/lng |
+| resultado | text | `atendido, pedido, sem_pedido, cliente_fechado, nao_finalizado` (`nao_finalizado` só servidor/auto) |
+| fechada_por | text | `usuario`, `auto` |
+| motivo_id | uuid | FK composta para `motivo` |
+| motivo_texto | text | |
+| pedido_id | uuid | **sem FK** (schema vendedor: fronteira) |
+| foto_fachada_id | uuid | FK composta para `plataforma.arquivo`, **adiável** (inicialmente imediata): para gravar a visita antes do arquivo, `set constraints core.visita_foto_fachada_fk deferred` na transação |
+| recebido_em | timestamptz not null | chegada ao servidor (default `now()`) |
+
+Checks: `checkout_em`, `resultado` e `fechada_por` andam juntos (os três nulos = aberta); **`resultado = 'cliente_fechado' ⇒
+motivo_id e foto_fachada_id`** (RN-CORE-14). O tipo do motivo (cliente_fechado) é conferido pela API.
+Índices: **único parcial `visita_aberta_uk (tenant_id, usuario_id) where checkout_em is null and deleted_at is null`** (RN-CORE-11,
+trava final); `visita_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`; `visita_cliente_ix (tenant_id, cliente_id, checkin_em desc)`
+(últimas visitas do Cliente 360); `visita_usuario_dia_ix (tenant_id, usuario_id, data_local)` (rota do dia, cobertura);
+parcial `visita_sugere_coordenada_ix (tenant_id, cliente_id, checkin_em desc) where sugere_coordenada and vivo` (BKO);
+`(tenant_id, rota_parada_id)`.
+
+## visita_etapa — etapas do checkout por módulo. Sem pull na Sprint 1
+`visita_id` (FK) · `modulo` · `etapa` · `situacao` `concluida | dispensada` · `referencia_id` · `registrada_em`.
+Único **constraint** `visita_etapa_uk (tenant_id, visita_id, modulo, etapa)` (serve de alvo de `on conflict`).
+
+## notificacao — caixa do usuário (RF-CORE-09). Pull só do próprio usuário
+`usuario_id` (FK) · `tipo` `recado | sistema | pedido | treinamento | trade` · `titulo` 1–120 · `corpo` ≤ 1000 ·
+`link` `^/m/[a-z0-9-]+` · `origem_modulo` · `origem_evento_id` · `envio_id` · `autor_id` (FK usuário) · `prioridade`
+`normal | alta` · `lida_em` · `expira_em` · `push_enviado_em`.
+Índices: `notificacao_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`; parcial `notificacao_nao_lidas_ix
+(tenant_id, usuario_id, created_at desc) where lida_em is null and vivo`; únicos parciais `notificacao_evento_uk
+(tenant_id, usuario_id, origem_evento_id)` e `notificacao_envio_uk (tenant_id, usuario_id, envio_id)` quando preenchidos.
+
+## meta — meta mensal (RN-CORE-20..22). Pull por usuários visíveis, `periodo ≥ mês anterior`
+`usuario_id` (FK) · `periodo` `AAAA-MM` · `indicador` `venda_cents | positivacao | cobertura_pct | visitas` · `valor` bigint ≥ 0
+(`cobertura_pct` em pontos-base, ≤ 10000). Índices: único `meta_uk (tenant_id, usuario_id, periodo, indicador)` vivo; `meta_usuario_sync_ix`.
+
+## indicador_diario — read-model diário de vendas (lote B do §7, criado a pedido do gerente). Sem pull na Sprint 1
+`usuario_id` (= vendedor, RN-CORE-21) · `data` (fuso do tenant) · `pedidos`, `vendido_cents`, `cancelado_cents` ≥ 0.
+Único `indicador_diario_uk (tenant_id, usuario_id, data)` vivo. Alimentado pelo consumidor de `vendedor.pedido.*` quando
+houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
+
+## Consultas principais da Sprint 1 (índice que atende)
+- Pull por usuário (`rota`, `rota_parada`, `visita`, `notificacao`, `meta`): `where tenant_id = $t and usuario_id = any($u)
+  and (updated_at, id) > ($c, $i) order by updated_at, id limit 1000` — `*_usuario_sync_ix`.
+- Pull por carteira (`cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra`): `cliente_id = any($carteira)` +
+  cursor — índices `(tenant_id, cliente_id, …)` e de sync.
+- Check-in: aberta do usuário `where usuario_id = $u and checkout_em is null and deleted_at is null` — `visita_aberta_uk`.
+- Checkout idempotente: `where checkout_id = $1` — `visita_checkout_uk`.
+- Rota do dia: `rota where usuario_id and data` (`rota_usuario_dia_uk`); visitas do dia `visita_usuario_dia_ix`.
+- Volume da Sprint 1 por vendedor (T-0016 §8): 2 mil títulos, 6 mil linhas de histórico, 1 mil paradas, 1,5 mil visitas
+  (40 dias). EXPLAIN com volume: pendente, junto da medição P6 da T-0008.

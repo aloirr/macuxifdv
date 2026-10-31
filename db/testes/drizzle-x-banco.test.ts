@@ -5,17 +5,18 @@
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 import * as nuvemCore from '../../modules/core/db/nuvem';
+import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as esquemaPlataforma from '../esquema/plataforma';
 import { banco, semBanco } from './estado';
 import { comCliente, tabelasDeDominio } from './util';
 
-const valores: unknown[] = [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore)];
+const valores: unknown[] = [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemVendedor)];
 const tabelas = valores.filter((v): v is PgTable => v instanceof PgTable).map((t) => getTableConfig(t));
 
 describe.skipIf(semBanco())('Drizzle x banco migrado', () => {
-  it('mesmo conjunto de tabelas em plataforma e core', async () => {
+  it('mesmo conjunto de tabelas em plataforma, core e vendedor', async () => {
     const doBanco = await comCliente(banco().urlAdmin, (c) => tabelasDeDominio(c));
-    expect(doBanco.filter((t) => ['plataforma', 'core'].includes(t.schema)).map((t) => t.nome).sort()).toEqual(tabelas.map((t) => `${t.schema}.${t.name}`).sort());
+    expect(doBanco.filter((t) => ['plataforma', 'core', 'vendedor'].includes(t.schema)).map((t) => t.nome).sort()).toEqual(tabelas.map((t) => `${t.schema}.${t.name}`).sort());
   });
 
   it('colunas e NOT NULL iguais', async () => {

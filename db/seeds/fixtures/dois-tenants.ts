@@ -15,11 +15,20 @@
  *   (recarregar a fixture ZERA o bloqueio por tentativas). Aparelhos: vendedor-1 (A, liberado), promotor (A,
  *   BLOQUEADO remotamente) e vendedor-B. Sessões (refresh) válidas até 2099 para vendedor-1 e vendedor-B; o token
  *   entregue ao cliente é DOIS_TENANTS.X.refresh.token (o banco guarda só o sha256 hex do segredo).
+ * - Sprint 1 (0005–0007; desenho T-0016 §7): contatos, financeiro, títulos vencidos/a vencer/vencendo hoje, histórico
+ *   de 12 meses, rota de HOJE com paradas, visitas (feita, aberta fora do raio, cliente fechado com foto, esquecida
+ *   fechada "auto"), etapas, motivos, notificação por usuário, metas do mês, indicador diário, arquivos e pedidos.
+ *   c1/c2 (A) e c1 (B) têm coordenada; c3 (A) NÃO tem (RN-CORE-10: coordenada sugerida). Carteiras sem mudança.
+ *   Datas RELATIVAS a "hoje" no fuso de cada tenant (opção `hoje` fixa a data para teste determinístico): recarregar
+ *   no mesmo dia não muda nada; em outro dia só move datas (mesmos ids, nada duplica).
+ *   Motivos padrão (os de sistema da RN-CORE-14 e os de não venda) e os parâmetros do Core NÃO estão nas listas: o
+ *   gatilho core.semear_tenant cria no INSERT do tenant (ids em DOIS_TENANTS.X.motivos, via idMotivoPadrao).
  */
 import { createHash } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { gravarLinhas, type Linha } from '../../src/gravar';
-import { idFixo } from '../../src/ids';
+import { idFixo, idMotivoPadrao } from '../../src/ids';
+import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
 
 const G = {
@@ -38,6 +47,21 @@ const G = {
   parametro: 0x14,
   auditoria: 0x15,
   evento_consumo: 0x16,
+  cliente_contato: 0x20,
+  cliente_financeiro: 0x21,
+  titulo: 0x22,
+  historico_compra: 0x23,
+  motivo: 0x24,
+  rota: 0x25,
+  rota_parada: 0x26,
+  visita: 0x27,
+  visita_etapa: 0x28,
+  notificacao: 0x29,
+  meta: 0x2a,
+  indicador_diario: 0x2b,
+  arquivo: 0x2c,
+  pedido: 0x30,
+  pedido_item: 0x31,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -77,6 +101,32 @@ export const DOIS_TENANTS = {
     sessoes: { vendedor1: a('sessao', 1) },
     familias: { vendedor1: a('sessao', 101) },
     refresh: refreshFixture(a('tenant', 1), 'fixture-refresh-alfa-vendedor1'),
+    /** Sprint 1 (0006): motivos padrão semeados pelo gatilho + o motivo próprio da fixture. */
+    motivos: {
+      lojaFechada: idMotivoPadrao(a('tenant', 1), 'loja_fechada'),
+      acessoNegado: idMotivoPadrao(a('tenant', 1), 'acesso_negado'),
+      estoqueAlto: idMotivoPadrao(a('tenant', 1), 'estoque_alto'),
+      obraNaVia: a('motivo', 1),
+    },
+    /** Rotas de HOJE: vendedor-1 (c1, c3), vendedor-2 (c2), promotor (c1). */
+    rotas: { vendedor1: a('rota', 1), vendedor2: a('rota', 2), promotor: a('rota', 3) },
+    paradas: { v1c1: a('rota_parada', 1), v1c3: a('rota_parada', 2), v2c2: a('rota_parada', 3), promotorC1: a('rota_parada', 4) },
+    visitas: {
+      /** hoje, vendedor-1 em c1: fechada com pedido (pedidos.p1). */
+      v1c1Hoje: a('visita', 1),
+      /** ontem, vendedor-1 em c3 (sem coordenada, extra): cliente fechado, loja_fechada + foto (arquivos.fachadaV1). */
+      v1c3Ontem: a('visita', 2),
+      /** hoje, vendedor-2 em c2: ABERTA, fora do raio com justificativa (RN-CORE-10/11). */
+      v2c2Aberta: a('visita', 3),
+      /** hoje, promotor em c1: fechada, atendido. */
+      promotorC1Hoje: a('visita', 4),
+      /** anteontem, vendedor-1 em c1: esquecida, fechada auto como nao_finalizado (RN-CORE-11). */
+      v1c1Esquecida: a('visita', 5),
+    },
+    /** checkout_id (UUID do comando de checkout) das visitas fechadas pelo usuário. */
+    checkouts: { v1c1Hoje: a('visita', 101), v1c3Ontem: a('visita', 102), promotorC1Hoje: a('visita', 104) },
+    arquivos: { fachadaV1: a('arquivo', 1) },
+    pedidos: { p1: a('pedido', 1), p2: a('pedido', 2), p3: a('pedido', 3) },
   },
   B: {
     tenantId: b('tenant', 1),
@@ -90,12 +140,44 @@ export const DOIS_TENANTS = {
     sessoes: { vendedor: b('sessao', 1) },
     familias: { vendedor: b('sessao', 101) },
     refresh: refreshFixture(b('tenant', 1), 'fixture-refresh-beta-vendedor'),
+    motivos: {
+      lojaFechada: idMotivoPadrao(b('tenant', 1), 'loja_fechada'),
+      acessoNegado: idMotivoPadrao(b('tenant', 1), 'acesso_negado'),
+      estoqueAlto: idMotivoPadrao(b('tenant', 1), 'estoque_alto'),
+      inadimplente: b('motivo', 1),
+    },
+    rotas: { vendedor: b('rota', 1) },
+    paradas: { c1: b('rota_parada', 1) },
+    visitas: { c1Hoje: b('visita', 1), c1OntemFechado: b('visita', 2) },
+    checkouts: { c1Hoje: b('visita', 101), c1OntemFechado: b('visita', 102) },
+    /** foto da fachada AINDA NÃO enviada (situacao aguardando, ADR 0010). */
+    arquivos: { fachadaAguardando: b('arquivo', 1) },
+    pedidos: { p1: b('pedido', 1) },
   },
   /** E-mail repetido de propósito em A (vendedor-1) e B (vendedor-B). */
   emailRepetido: 'vendedor@exemplo.com.br',
 } as const;
 
 /** Ordem de gravação (respeita as FKs). */
+/** Tabelas da Sprint 1 (0005–0007), na ordem das FKs (arquivo antes de visita: FK da foto da fachada). */
+const ORDEM_SPRINT1 = [
+  'core.cliente_contato',
+  'core.cliente_financeiro',
+  'core.titulo',
+  'core.historico_compra',
+  'core.motivo',
+  'core.rota',
+  'core.rota_parada',
+  'plataforma.arquivo',
+  'core.visita',
+  'core.visita_etapa',
+  'core.notificacao',
+  'core.meta',
+  'core.indicador_diario',
+  'vendedor.pedido',
+  'vendedor.pedido_item',
+] as const;
+
 export const ORDEM_TABELAS = [
   'plataforma.tenant',
   'plataforma.tenant_modulo',
@@ -112,6 +194,7 @@ export const ORDEM_TABELAS = [
   'plataforma.evento_consumo',
   'plataforma.parametro',
   'plataforma.auditoria',
+  ...ORDEM_SPRINT1,
 ] as const;
 
 export type DadosFixture = Record<(typeof ORDEM_TABELAS)[number], Linha[]>;
@@ -131,11 +214,21 @@ const usuario = (id: string, tenant_id: string, nome: string, email: string, per
   external_id: null,
 });
 
-export function dadosDoisTenants(senhaHash: string): DadosFixture {
+export interface OpcoesDadosFixture {
+  /** Data (AAAA-MM-DD) usada como "hoje" nos DOIS tenants; padrão: hoje no fuso de cada tenant. */
+  hoje?: string;
+}
+
+/** Coordenadas fictícias (c3 de A fica sem, de propósito). */
+const COORDENADAS = { a1: [-3.1019, -60.025], a2: [-3.0874, -60.0172], b1: [-23.5505, -46.6333] } as const;
+
+export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture = {}): DadosFixture {
   const A = DOIS_TENANTS.A;
   const B = DOIS_TENANTS.B;
   const tA = A.tenantId;
   const tB = B.tenantId;
+  const hojeA = opcoes.hoje ?? hojeNoFuso(A.fuso);
+  const hojeB = opcoes.hoje ?? hojeNoFuso(B.fuso);
 
   const perfilModulo: Array<[string, string, string]> = [
     // tenant, perfil, módulo — A conforme o plano §3 (+ admin/analista/assistente, complemento do banco)
@@ -198,10 +291,11 @@ export function dadosDoisTenants(senhaHash: string): DadosFixture {
       { id: b('produto', 1), tenant_id: tB, sku: 'BETA-001', ean: '7890000000028', nome: 'Óleo 5W30 1 L', marca: 'Lubrion', categoria: 'Lubrificantes', unidade: 'UN', ativo: true, external_id: 'ERP-B-001' },
     ],
     'core.cliente': [
-      cliente(A.clientes.c1, tA, '33333333000191', 'Auto Peças Um', 'Manaus', 'AM'),
-      cliente(A.clientes.c2, tA, '44444444000191', 'Auto Peças Dois', 'Manaus', 'AM'),
-      cliente(A.clientes.c3, tA, '55555555000191', 'Auto Peças Três', 'Manacapuru', 'AM'),
-      cliente(B.clientes.c1, tB, '66666666000191', 'Mecânica Beta', 'São Paulo', 'SP'),
+      cliente(A.clientes.c1, tA, '33333333000191', 'Auto Peças Um', 'Manaus', 'AM', COORDENADAS.a1),
+      cliente(A.clientes.c2, tA, '44444444000191', 'Auto Peças Dois', 'Manaus', 'AM', COORDENADAS.a2),
+      // c3 SEM coordenada: o 1º check-in sugere a coordenada ao BKO (RN-CORE-10)
+      cliente(A.clientes.c3, tA, '55555555000191', 'Auto Peças Três', 'Manacapuru', 'AM', null),
+      cliente(B.clientes.c1, tB, '66666666000191', 'Mecânica Beta', 'São Paulo', 'SP', COORDENADAS.b1),
     ],
     'core.carteira': [
       { id: a('carteira', 1), tenant_id: tA, cliente_id: A.clientes.c1, usuario_id: A.usuarios.vendedor1, papel: 'vendedor', inicio: null, fim: null, external_id: null },
@@ -236,13 +330,244 @@ export function dadosDoisTenants(senhaHash: string): DadosFixture {
       auditoria(a('auditoria', 1), tA, A.usuarios.admin, A.usuarios.vendedor2),
       auditoria(b('auditoria', 1), tB, B.usuarios.admin, B.usuarios.admin),
     ],
+    ...dadosSprint1(hojeA, hojeB),
   };
 }
 
-function cliente(id: string, tenant_id: string, documento: string, nome: string, cidade: string, uf: string): Linha {
+type TabelaSprint1 = (typeof ORDEM_SPRINT1)[number];
+
+/**
+ * Tabelas da Sprint 1 (0005–0007). Instantes em UTC: A (Manaus, UTC−4) 13:00Z = 09:00 local; B (São Paulo, UTC−3)
+ * 12:00Z = 09:00 local — data_local da visita = data do check-in no fuso do tenant.
+ */
+function dadosSprint1(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaSprint1> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const tA = A.tenantId;
+  const tB = B.tenantId;
+  const ontemA = somarDias(hojeA, -1);
+  const anteontemA = somarDias(hojeA, -2);
+  const ontemB = somarDias(hojeB, -1);
+  const comuns = { deleted_at: null, external_id: null };
+
+  const contato = (id: string, tenant_id: string, cliente_id: string, nome: string, cargo: string | null, telefone: string | null, whatsapp: string | null, email: string | null, principal: boolean): Linha => ({
+    id, tenant_id, cliente_id, nome, cargo, telefone, whatsapp, email, principal, ...comuns,
+  });
+  const financeiro = (id: string, tenant_id: string, cliente_id: string, limite: number, saldo: number, credito: number | null, bloqueado: boolean, motivo: string | null): Linha => ({
+    id, tenant_id, cliente_id, limite_cents: limite, saldo_aberto_cents: saldo, credito_disponivel_cents: credito, bloqueado, motivo_bloqueio: motivo,
+    atualizado_erp_em: DATA_FIXA_ACESSO, ...comuns,
+  });
+  const titulo = (id: string, tenant_id: string, cliente_id: string, documento: string, parcela: string | null, emissao: string, vencimento: string, valor: number, saldo: number, situacao: string, liquidado_em: string | null): Linha => ({
+    id, tenant_id, cliente_id, documento, parcela, emissao, vencimento, valor_cents: valor, saldo_cents: saldo, situacao, liquidado_em, ...comuns,
+  });
+  /** n meses de histórico até o mês de `hoje` (inclusive); o mês corrente com a última compra até hoje. */
+  const historico = (pre: typeof a, seq0: number, tenant_id: string, cliente_id: string, hoje: string, meses: number, base: number, ateMesAnterior = false): Linha[] =>
+    Array.from({ length: meses }, (_, i) => {
+      const desloc = i - meses + (ateMesAnterior ? 0 : 1);
+      const am = anoMes(hoje, desloc);
+      return {
+        id: pre('historico_compra', seq0 + i), tenant_id, cliente_id, ano_mes: am, valor_cents: base + i * 25_000, pedidos: 2 + (i % 3), itens: 10 + i,
+        ultima_compra_em: menorData(`${am}-05`, hoje), origem: 'erp', ...comuns,
+      };
+    });
+  const rota = (id: string, tenant_id: string, usuario_id: string, data: string, regiao: string): Linha => ({
+    id, tenant_id, usuario_id, data, situacao: 'publicada', origem: 'bko', regiao, observacao: null, ...comuns,
+  });
+  const parada = (id: string, tenant_id: string, rota_id: string, usuario_id: string, data: string, cliente_id: string, sequencia: number, janela: [string, string] | null): Linha => ({
+    id, tenant_id, rota_id, usuario_id, data, cliente_id, sequencia, janela_inicio: janela?.[0] ?? null, janela_fim: janela?.[1] ?? null, ...comuns,
+  });
+  const visita = (v: Partial<Linha> & { id: string; tenant_id: string; usuario_id: string; cliente_id: string; data_local: string; checkin_em: string }): Linha => ({
+    rota_parada_id: null, checkin_lat: null, checkin_lng: null, checkin_precisao_m: null, sem_gps: false, distancia_m: null, fora_do_raio: false,
+    justificativa_fora_raio: null, sugere_coordenada: false, extra: false, checkout_id: null, checkout_em: null, checkout_lat: null, checkout_lng: null,
+    resultado: null, motivo_id: null, motivo_texto: null, pedido_id: null, foto_fachada_id: null, fechada_por: null, recebido_em: v.checkin_em,
+    ...comuns, ...v,
+  });
+  const notificacao = (id: string, tenant_id: string, usuario_id: string, extra: Partial<Linha> = {}): Linha => ({
+    id, tenant_id, usuario_id, tipo: 'sistema', titulo: 'Bem-vindo ao Macuxi', corpo: 'Sua conta está pronta. Sincronize o aparelho antes de sair para a rota.',
+    link: null, origem_modulo: 'core', origem_evento_id: null, envio_id: null, autor_id: null, prioridade: 'normal', lida_em: null, expira_em: null,
+    push_enviado_em: null, ...comuns, ...extra,
+  });
+  const meta = (id: string, tenant_id: string, usuario_id: string, periodo: string, indicador: string, valor: number): Linha => ({
+    id, tenant_id, usuario_id, periodo, indicador, valor, ...comuns,
+  });
+  const pedido = (p: Partial<Linha> & { id: string; tenant_id: string; cliente_id: string; vendedor_id: string; status: string }): Linha => ({
+    autor_id: p.vendedor_id, condicao_pagamento: '28 dias', desconto_pct: 0, total_tabela_cents: 0, total_cents: 0, observacao: null, visita_id: null,
+    rota_parada_id: null, criado_no_aparelho_em: null, recebido_em: null, numero_erp: null, motivo_cancelamento: null, ...comuns, ...p,
+  });
+  const item = (id: string, tenant_id: string, pedido_id: string, sequencia: number, produto_id: string, quantidade: number, tabela: number, desconto: number): Linha => {
+    const unitario = Math.round((tabela * (100 - desconto)) / 100);
+    return {
+      id, tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents: tabela, preco_unitario_cents: unitario, desconto_pct: desconto,
+      total_cents: unitario * quantidade, ...comuns,
+    };
+  };
+
+  return {
+    'core.cliente_contato': [
+      contato(a('cliente_contato', 1), tA, A.clientes.c1, 'Marcos Compras', 'Comprador', '9232220001', '92999990001', 'compras.um@exemplo.com.br', true),
+      contato(a('cliente_contato', 2), tA, A.clientes.c1, 'Rita Financeiro', 'Financeiro', '9232220002', null, null, false),
+      contato(a('cliente_contato', 3), tA, A.clientes.c2, 'João Balcão', 'Gerente da loja', '9232220003', '92999990003', null, true),
+      contato(a('cliente_contato', 4), tA, A.clientes.c3, 'Pedro Dono', 'Proprietário', null, '92999990004', null, true),
+      contato(b('cliente_contato', 1), tB, B.clientes.c1, 'Sônia Compras', 'Compradora', '1130000001', '11999990001', 'compras.beta@exemplo.com.br', true),
+    ],
+    'core.cliente_financeiro': [
+      financeiro(a('cliente_financeiro', 1), tA, A.clientes.c1, 5_000_000, 1_000_000, null, false, null),
+      financeiro(a('cliente_financeiro', 2), tA, A.clientes.c2, 2_000_000, 2_100_000, null, true, 'Títulos vencidos há mais de 30 dias'),
+      financeiro(a('cliente_financeiro', 3), tA, A.clientes.c3, 1_000_000, 300_000, 700_000, false, null),
+      financeiro(b('cliente_financeiro', 1), tB, B.clientes.c1, 3_000_000, 300_000, null, false, null),
+    ],
+    'core.titulo': [
+      // c1: um vencido, um a vencer e um liquidado
+      titulo(a('titulo', 1), tA, A.clientes.c1, 'NF-1001', '1/2', somarDias(hojeA, -40), somarDias(hojeA, -10), 500_000, 500_000, 'aberto', null),
+      titulo(a('titulo', 2), tA, A.clientes.c1, 'NF-1001', '2/2', somarDias(hojeA, -40), somarDias(hojeA, 20), 500_000, 500_000, 'aberto', null),
+      titulo(a('titulo', 3), tA, A.clientes.c1, 'NF-0950', '1/1', somarDias(hojeA, -70), somarDias(hojeA, -40), 250_000, 0, 'liquidado', instante(somarDias(hojeA, -38), '15:00')),
+      // c2: vencido há 45 dias (cliente bloqueado)
+      titulo(a('titulo', 4), tA, A.clientes.c2, 'NF-1010', '1/1', somarDias(hojeA, -75), somarDias(hojeA, -45), 2_100_000, 2_100_000, 'aberto', null),
+      // c3: vencendo HOJE (borda do fuso) e um cancelado antigo, fora da janela do pull
+      titulo(a('titulo', 5), tA, A.clientes.c3, 'NF-1020', '1/1', somarDias(hojeA, -5), hojeA, 300_000, 300_000, 'aberto', null),
+      titulo(a('titulo', 6), tA, A.clientes.c3, 'NF-0800', '1/1', somarDias(hojeA, -150), somarDias(hojeA, -120), 90_000, 0, 'cancelado', null),
+      titulo(b('titulo', 1), tB, B.clientes.c1, 'NF-B-01', '1/2', somarDias(hojeB, -33), somarDias(hojeB, -3), 150_000, 150_000, 'aberto', null),
+      titulo(b('titulo', 2), tB, B.clientes.c1, 'NF-B-01', '2/2', somarDias(hojeB, -33), somarDias(hojeB, 15), 150_000, 150_000, 'aberto', null),
+    ],
+    'core.historico_compra': [
+      ...historico(a, 1, tA, A.clientes.c1, hojeA, 12, 800_000),
+      // c2: 6 meses, sem compra no mês corrente; c3 sem histórico (borda)
+      ...historico(a, 13, tA, A.clientes.c2, hojeA, 6, 400_000, true),
+      ...historico(b, 1, tB, B.clientes.c1, hojeB, 12, 600_000),
+    ],
+    'core.motivo': [
+      { id: A.motivos.obraNaVia, tenant_id: tA, tipo: 'fora_do_raio', codigo: 'obra_na_via', descricao: 'Obra na via de acesso', exige_foto: false, sistema: false, ativo: true, ordem: 1, ...comuns },
+      { id: B.motivos.inadimplente, tenant_id: tB, tipo: 'nao_venda', codigo: 'cliente_inadimplente', descricao: 'Cliente inadimplente', exige_foto: false, sistema: false, ativo: true, ordem: 5, ...comuns },
+    ],
+    'core.rota': [
+      rota(A.rotas.vendedor1, tA, A.usuarios.vendedor1, hojeA, 'Manaus Centro'),
+      rota(A.rotas.vendedor2, tA, A.usuarios.vendedor2, hojeA, 'Manaus Norte'),
+      rota(A.rotas.promotor, tA, A.usuarios.promotor, hojeA, 'Manaus Centro'),
+      rota(B.rotas.vendedor, tB, B.usuarios.vendedor, hojeB, 'São Paulo Centro'),
+    ],
+    'core.rota_parada': [
+      parada(A.paradas.v1c1, tA, A.rotas.vendedor1, A.usuarios.vendedor1, hojeA, A.clientes.c1, 1, ['08:00', '10:00']),
+      parada(A.paradas.v1c3, tA, A.rotas.vendedor1, A.usuarios.vendedor1, hojeA, A.clientes.c3, 2, null),
+      parada(A.paradas.v2c2, tA, A.rotas.vendedor2, A.usuarios.vendedor2, hojeA, A.clientes.c2, 1, null),
+      parada(A.paradas.promotorC1, tA, A.rotas.promotor, A.usuarios.promotor, hojeA, A.clientes.c1, 1, ['10:00', '12:00']),
+      parada(B.paradas.c1, tB, B.rotas.vendedor, B.usuarios.vendedor, hojeB, B.clientes.c1, 1, null),
+    ],
+    'plataforma.arquivo': [
+      {
+        id: A.arquivos.fachadaV1, tenant_id: tA, modulo: 'core', finalidade: 'fachada', entidade: 'visita', entidade_id: A.visitas.v1c3Ontem,
+        cliente_id: A.clientes.c3, enviado_por: A.usuarios.vendedor1, tipo: 'image/jpeg', tamanho_bytes: 245_760,
+        sha256: createHash('sha256').update('fixture-fachada-alfa').digest('hex'), largura_px: 1600, altura_px: 1200, situacao: 'recebido',
+        recebido_em: instante(ontemA, '14:20'), chave_armazenamento: `${tA}/core/${anoMes(ontemA)}/${A.arquivos.fachadaV1}.jpg`, ...comuns,
+      },
+      {
+        id: B.arquivos.fachadaAguardando, tenant_id: tB, modulo: 'core', finalidade: 'fachada', entidade: 'visita', entidade_id: B.visitas.c1OntemFechado,
+        cliente_id: B.clientes.c1, enviado_por: B.usuarios.vendedor, tipo: 'image/jpeg', tamanho_bytes: null, sha256: null, largura_px: null, altura_px: null,
+        situacao: 'aguardando', recebido_em: null, chave_armazenamento: null, ...comuns,
+      },
+    ],
+    'core.visita': [
+      visita({
+        id: A.visitas.v1c1Hoje, tenant_id: tA, usuario_id: A.usuarios.vendedor1, cliente_id: A.clientes.c1, rota_parada_id: A.paradas.v1c1, data_local: hojeA,
+        checkin_em: instante(hojeA, '13:05'), checkin_lat: -3.1021, checkin_lng: -60.0252, checkin_precisao_m: 12, distancia_m: 32,
+        checkout_id: A.checkouts.v1c1Hoje, checkout_em: instante(hojeA, '13:40'), checkout_lat: -3.1021, checkout_lng: -60.0252,
+        resultado: 'pedido', pedido_id: A.pedidos.p1, fechada_por: 'usuario',
+      }),
+      visita({
+        id: A.visitas.v1c3Ontem, tenant_id: tA, usuario_id: A.usuarios.vendedor1, cliente_id: A.clientes.c3, data_local: ontemA,
+        checkin_em: instante(ontemA, '14:00'), checkin_lat: -3.29, checkin_lng: -60.6206, checkin_precisao_m: 20, sugere_coordenada: true, extra: true,
+        checkout_id: A.checkouts.v1c3Ontem, checkout_em: instante(ontemA, '14:10'), resultado: 'cliente_fechado', motivo_id: A.motivos.lojaFechada,
+        foto_fachada_id: A.arquivos.fachadaV1, fechada_por: 'usuario',
+      }),
+      visita({
+        id: A.visitas.v2c2Aberta, tenant_id: tA, usuario_id: A.usuarios.vendedor2, cliente_id: A.clientes.c2, rota_parada_id: A.paradas.v2c2, data_local: hojeA,
+        checkin_em: instante(hojeA, '14:00'), checkin_lat: -3.095, checkin_lng: -60.0225, checkin_precisao_m: 15, distancia_m: 850, fora_do_raio: true,
+        justificativa_fora_raio: 'Cliente atendeu na filial ao lado',
+      }),
+      visita({
+        id: A.visitas.promotorC1Hoje, tenant_id: tA, usuario_id: A.usuarios.promotor, cliente_id: A.clientes.c1, rota_parada_id: A.paradas.promotorC1, data_local: hojeA,
+        checkin_em: instante(hojeA, '15:00'), sem_gps: true, checkout_id: A.checkouts.promotorC1Hoje, checkout_em: instante(hojeA, '15:30'),
+        resultado: 'atendido', fechada_por: 'usuario',
+      }),
+      visita({
+        id: A.visitas.v1c1Esquecida, tenant_id: tA, usuario_id: A.usuarios.vendedor1, cliente_id: A.clientes.c1, data_local: anteontemA,
+        checkin_em: instante(anteontemA, '19:00'), checkin_lat: -3.1019, checkin_lng: -60.025, distancia_m: 0,
+        // virada do dia em Manaus (UTC−4): 00:00 local = 04:00Z do dia seguinte
+        checkout_em: instante(ontemA, '04:00'), resultado: 'nao_finalizado', fechada_por: 'auto',
+      }),
+      visita({
+        id: B.visitas.c1Hoje, tenant_id: tB, usuario_id: B.usuarios.vendedor, cliente_id: B.clientes.c1, rota_parada_id: B.paradas.c1, data_local: hojeB,
+        checkin_em: instante(hojeB, '12:00'), checkin_lat: -23.5507, checkin_lng: -46.6331, distancia_m: 30, checkout_id: B.checkouts.c1Hoje,
+        checkout_em: instante(hojeB, '12:30'), resultado: 'sem_pedido', motivo_id: B.motivos.estoqueAlto, fechada_por: 'usuario',
+      }),
+      visita({
+        id: B.visitas.c1OntemFechado, tenant_id: tB, usuario_id: B.usuarios.vendedor, cliente_id: B.clientes.c1, data_local: ontemB,
+        checkin_em: instante(ontemB, '13:00'), checkin_lat: -23.5506, checkin_lng: -46.6334, distancia_m: 12, checkout_id: B.checkouts.c1OntemFechado,
+        checkout_em: instante(ontemB, '13:05'), resultado: 'cliente_fechado', motivo_id: B.motivos.acessoNegado, foto_fachada_id: B.arquivos.fachadaAguardando,
+        fechada_por: 'usuario',
+      }),
+    ],
+    'core.visita_etapa': [
+      { id: a('visita_etapa', 1), tenant_id: tA, visita_id: A.visitas.v1c1Hoje, modulo: 'vendedor', etapa: 'pedido', situacao: 'concluida', referencia_id: A.pedidos.p1, registrada_em: instante(hojeA, '13:40'), ...comuns },
+      { id: a('visita_etapa', 2), tenant_id: tA, visita_id: A.visitas.promotorC1Hoje, modulo: 'promotor', etapa: 'checklist', situacao: 'concluida', referencia_id: null, registrada_em: instante(hojeA, '15:30'), ...comuns },
+      { id: a('visita_etapa', 3), tenant_id: tA, visita_id: A.visitas.v1c3Ontem, modulo: 'pesquisa', etapa: 'pesquisa_obrigatoria', situacao: 'dispensada', referencia_id: null, registrada_em: instante(ontemA, '14:10'), ...comuns },
+      { id: b('visita_etapa', 1), tenant_id: tB, visita_id: B.visitas.c1Hoje, modulo: 'core', etapa: 'motivo_nao_venda', situacao: 'concluida', referencia_id: null, registrada_em: instante(hojeB, '12:30'), ...comuns },
+    ],
+    'core.notificacao': [
+      ...Object.values(A.usuarios).map((usuario_id, i) => notificacao(a('notificacao', i + 1), tA, usuario_id, usuario_id === A.usuarios.admin ? { lida_em: DATA_FIXA_ACESSO } : {})),
+      notificacao(a('notificacao', 9), tA, A.usuarios.vendedor1, {
+        tipo: 'recado', titulo: 'Visite o Auto Peças Três', corpo: 'Cliente com título vencendo hoje: confirme o pagamento na visita.', link: '/m/core-rota',
+        origem_modulo: 'core', envio_id: a('notificacao', 109), autor_id: A.usuarios.supervisor, prioridade: 'alta',
+      }),
+      ...Object.values(B.usuarios).map((usuario_id, i) => notificacao(b('notificacao', i + 1), tB, usuario_id)),
+    ],
+    'core.meta': [
+      meta(a('meta', 1), tA, A.usuarios.vendedor1, anoMes(hojeA), 'venda_cents', 15_000_000),
+      meta(a('meta', 2), tA, A.usuarios.vendedor1, anoMes(hojeA), 'visitas', 80),
+      meta(a('meta', 3), tA, A.usuarios.vendedor1, anoMes(hojeA), 'positivacao', 30),
+      meta(a('meta', 4), tA, A.usuarios.vendedor1, anoMes(hojeA), 'cobertura_pct', 9_000),
+      meta(a('meta', 5), tA, A.usuarios.vendedor2, anoMes(hojeA), 'venda_cents', 12_000_000),
+      meta(a('meta', 6), tA, A.usuarios.promotor, anoMes(hojeA), 'visitas', 100),
+      meta(b('meta', 1), tB, B.usuarios.vendedor, anoMes(hojeB), 'venda_cents', 8_000_000),
+    ],
+    'core.indicador_diario': [
+      { id: a('indicador_diario', 1), tenant_id: tA, usuario_id: A.usuarios.vendedor1, data: ontemA, pedidos: 3, vendido_cents: 450_000, cancelado_cents: 0, ...comuns },
+      { id: b('indicador_diario', 1), tenant_id: tB, usuario_id: B.usuarios.vendedor, data: ontemB, pedidos: 1, vendido_cents: 45_000, cancelado_cents: 0, ...comuns },
+    ],
+    'vendedor.pedido': [
+      pedido({
+        id: A.pedidos.p1, tenant_id: tA, cliente_id: A.clientes.c1, vendedor_id: A.usuarios.vendedor1, status: 'received', desconto_pct: 5,
+        total_tabela_cents: 300_000, total_cents: 285_000, visita_id: A.visitas.v1c1Hoje, rota_parada_id: A.paradas.v1c1,
+        criado_no_aparelho_em: instante(hojeA, '13:30'), recebido_em: instante(hojeA, '13:35'),
+      }),
+      // em nome do vendedor-2, digitado pelo supervisor (RN-VEN-35; conta para o vendedor, RN-CORE-21)
+      pedido({
+        id: A.pedidos.p2, tenant_id: tA, cliente_id: A.clientes.c2, vendedor_id: A.usuarios.vendedor2, autor_id: A.usuarios.supervisor,
+        status: 'pending_approval', desconto_pct: 12, total_tabela_cents: 500_000, total_cents: 440_000, recebido_em: instante(ontemA, '16:00'),
+      }),
+      pedido({
+        id: A.pedidos.p3, tenant_id: tA, cliente_id: A.clientes.c3, vendedor_id: A.usuarios.vendedor1, status: 'invoiced', total_tabela_cents: 150_000,
+        total_cents: 150_000, recebido_em: instante(somarDias(hojeA, -20), '15:00'), numero_erp: 'PV1003',
+      }),
+      pedido({
+        id: B.pedidos.p1, tenant_id: tB, cliente_id: B.clientes.c1, vendedor_id: B.usuarios.vendedor, status: 'approved', total_tabela_cents: 45_000,
+        total_cents: 45_000, recebido_em: instante(ontemB, '14:00'),
+      }),
+    ],
+    'vendedor.pedido_item': [
+      item(a('pedido_item', 1), tA, A.pedidos.p1, 1, a('produto', 1), 2, 100_000, 5),
+      item(a('pedido_item', 2), tA, A.pedidos.p1, 2, a('produto', 2), 1, 100_000, 5),
+      item(a('pedido_item', 3), tA, A.pedidos.p2, 1, a('produto', 1), 5, 100_000, 12),
+      item(a('pedido_item', 4), tA, A.pedidos.p3, 1, a('produto', 2), 3, 50_000, 0),
+      item(b('pedido_item', 1), tB, B.pedidos.p1, 1, b('produto', 1), 10, 4_500, 0),
+    ],
+  };
+}
+
+function cliente(id: string, tenant_id: string, documento: string, nome: string, cidade: string, uf: string, coord: readonly [number, number] | null): Linha {
   return {
     id, tenant_id, documento, razao_social: `${nome} Ltda`, nome_fantasia: nome, segmento: 'Linha leve', telefone: null, email: null,
-    logradouro: null, numero: null, bairro: null, cidade, uf, cep: null, latitude: null, longitude: null, ativo: true, external_id: null,
+    logradouro: null, numero: null, bairro: null, cidade, uf, cep: null, latitude: coord?.[0] ?? null, longitude: coord?.[1] ?? null,
+    ativo: true, external_id: null,
   };
 }
 
@@ -269,9 +594,9 @@ function auditoria(id: string, tenant_id: string, autor: string, alvo: string): 
  * Carrega a fixture com um cliente ADMIN (o papel de aplicação não pode criar tenant). Idempotente.
  * Roda numa transação: ou entra tudo, ou nada.
  */
-export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: string } = {}): Promise<DadosFixture> {
+export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: string } & OpcoesDadosFixture = {}): Promise<DadosFixture> {
   const senha = opcoes.senha ?? process.env.MACUXI_SENHA_TESTE ?? 'Teste@1234';
-  const dados = dadosDoisTenants(hashSenha(senha));
+  const dados = dadosDoisTenants(hashSenha(senha), { hoje: opcoes.hoje });
   await admin.query('begin');
   try {
     for (const tabela of ORDEM_TABELAS) {

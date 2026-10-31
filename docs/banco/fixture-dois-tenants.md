@@ -34,6 +34,37 @@ Constantes em `DOIS_TENANTS` (`@macuxi/db/teste`).
 - Recarregar a fixture **zera** o estado de login: `tentativas_falhas = 0`, `bloqueio_ate` nulo, sessões não usadas/revogadas, aparelhos como acima (teste `db/testes/sessao.test.ts`).
 - admin/analista/assistente em `perfil_modulo` e a exceção de B são complemento do banco (o plano não fixava).
 
+### Sprint 1 (migrações 0005–0007; desenho T-0016 §7)
+Grupos novos: `0020` cliente_contato · `0021` cliente_financeiro · `0022` titulo · `0023` historico_compra · `0024` motivo ·
+`0025` rota · `0026` rota_parada · `0027` visita (checkout_id: seq 101+) · `0028` visita_etapa · `0029` notificacao (envio_id: seq 109) ·
+`002a` meta · `002b` indicador_diario · `002c` arquivo · `0030` pedido · `0031` pedido_item. Constantes em `DOIS_TENANTS.X.{motivos,
+rotas, paradas, visitas, checkouts, arquivos, pedidos}`.
+
+**Datas relativas a "hoje"** no fuso de cada tenant (A Manaus, B São Paulo). Para teste determinístico:
+`carregarDoisTenants(admin, { hoje: 'AAAA-MM-DD' })` (vale para os dois tenants). Recarregar no mesmo dia não muda nada;
+em outro dia só move as datas (mesmos ids). Instantes: A 13:00Z = 09:00 local; B 12:00Z = 09:00 local.
+
+| | Tenant A | Tenant B |
+|---|---|---|
+| coordenada do cliente | c1 e c2 com; **c3 sem** (RN-CORE-10: 1º check-in sugere) | c1 com |
+| contatos | c1 (principal + financeiro), c2, c3 | c1 |
+| financeiro | c1 (limite 50 mil, saldo 10 mil); **c2 bloqueado** (saldo > limite); c3 com crédito informado pelo ERP | c1 |
+| títulos | c1: vencido (hoje−10), a vencer (hoje+20), liquidado; c2: vencido há 45 dias; **c3: vencendo HOJE** e um cancelado antigo (fora da janela) | c1: vencido (hoje−3) e a vencer |
+| histórico | c1: 12 meses (até o mês corrente); c2: 6 meses (sem compra no mês); c3: nenhum | c1: 12 meses |
+| motivos | padrão do gatilho (7, ids `motivos.lojaFechada`/`acessoNegado`/`estoqueAlto`) + `obra_na_via` (fora_do_raio) | padrão + `cliente_inadimplente` (não venda) |
+| rota de HOJE | vendedor-1: c1 (seq 1, janela 08–10) e c3 (seq 2); vendedor-2: c2; promotor: c1 | vendedor-B: c1 |
+| visitas | v1/c1 hoje fechada com pedido p1; v1/c3 ontem **cliente fechado** (loja_fechada + foto recebida, extra, sugere coordenada); **v2/c2 hoje ABERTA fora do raio** com justificativa; promotor/c1 hoje `atendido` sem GPS; v1/c1 anteontem esquecida, fechada `auto` como `nao_finalizado` | hoje `sem_pedido` (estoque_alto); ontem **cliente fechado** (acesso_negado) com foto **aguardando** |
+| etapas | pedido (vendedor), checklist (promotor), pesquisa dispensada (cliente fechado) | motivo de não venda |
+| notificações | 1 por usuário (admin já lida) + recado do supervisor ao vendedor-1 (alta, `envio_id`) | 1 por usuário |
+| metas (mês corrente) | vendedor-1: venda, visitas, positivação, cobertura; vendedor-2: venda; promotor: visitas | vendedor-B: venda |
+| indicador_diario | vendedor-1 ontem | vendedor-B ontem |
+| arquivos | fachada da visita v1/c3 (`recebido`) | fachada da visita de ontem (`aguardando`) |
+| pedidos | p1 v1/c1 `received` (2 itens, desconto 5%); p2 v2/c2 `pending_approval` **em nome** (autor = supervisor); p3 v1/c3 `invoiced` | p1 `approved` |
+
+Carteiras **não mudaram** (testes de sync contam os clientes de cada vendedor): por isso a rota de hoje do vendedor-1 tem
+2 paradas (os 2 clientes da carteira dele), e não 3. Motivos padrão e parâmetros `core.checkin.raio_m`/`metas.base_apuracao`
+não estão nas listas da fixture: o gatilho `core.semear_tenant` cria no INSERT do tenant.
+
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
 (mesmo id da Fase M). IDs determinísticos (UUID v5 de `fase-m:<tipo>:<chave>`).
@@ -50,3 +81,10 @@ E-mail = primeiro nome sem acento `@exemplo.com.br`. A Fase M não tinha supervi
 Também carrega: 60 produtos (cadastro base; preço/estoque vão para o Catálogo), 18 clientes nomeados com
 carteira do vendedor, módulos `core, catalogo, vendedor, gestor` e os parâmetros padrão do doc 03.
 Senha: `MACUXI_SENHA_DEMO` (padrão `demo-macuxi`, só demonstração local).
+
+**Sprint 1** (datas relativas a hoje em America/Manaus; `carregarFaseM(admin, { hoje })` fixa a data): para cada um dos
+18 clientes, 1 contato, financeiro (1 em cada 7 bloqueado), 3 títulos (vencido em 1 a cada 3 clientes, a vencer, liquidado)
+e 12 meses de histórico; **rota de hoje** de cada vendedor com carteira (paradas na ordem da carteira — Rafael S. tem 7);
+4 pedidos do Rafael S. (`received`, `approved`, `invoiced`, `pending_approval`) com itens dos produtos da Fase M. Rotas e
+paradas têm id pela data (cada dia de demonstração ganha a sua; as anteriores ficam como histórico). Motivos e parâmetros
+padrão do Core vêm do gatilho do tenant.

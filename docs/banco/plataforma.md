@@ -1,6 +1,6 @@
 # Dicionário de dados — schema `plataforma`
 
-Migração `db/migrations/0001_plataforma.up.sql` (volta: `.down.sql`). Drizzle: `db/esquema/plataforma.ts`.
+Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker` e `0005_plataforma_arquivo` (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
 Campos comuns em toda tabela (regra 5): `id uuid pk default gen_random_uuid()`, `tenant_id uuid not null → plataforma.tenant`,
 `created_at`, `updated_at` (trigger `definir_updated_at`, cursor do sync), `deleted_at` (exclusão lógica), `external_id text` (código no ERP).
 RLS: política `isolamento_tenant` em todas (ver [rls.md](rls.md)).
@@ -92,3 +92,35 @@ Acesso: `macuxi_app` pelo RLS do tenant; `macuxi_worker` (ADR 0007) lê todos os
 | ocorrido_em | timestamptz not null | |
 
 Aplicação só faz `SELECT` e `INSERT`. Índices `(tenant_id, ocorrido_em, id)` e `(tenant_id, entidade, entidade_id)`.
+
+**Parâmetros padrão do Core** (0006): `core.semear_padroes` grava em todo tenant (existentes e novos, gatilho
+`tenant_semear_core`) `core / checkin.raio_m = 200` (RN-CORE-10) e `core / metas.base_apuracao = "aprovado"` (RN-CORE-21),
+com id `uuid_de_chave('<tenant_id>:plataforma.parametro:core:<chave>')` e `on conflict do nothing` (valor editado pelo
+tenant é mantido). As chaves antigas `raio_checkin_m` / `base_apuracao_metas` do seed Fase M e da fixture ficam como legado
+(não são lidas pelo Core novo).
+
+## arquivo — fotos/arquivos enviados pelo aparelho (0005, ADR 0010). Fora do sync
+| Coluna | Tipo | Regra |
+|---|---|---|
+| id | uuid | UUID do aparelho (o mesmo gravado na coluna que referencia, ex.: `core.visita.foto_fachada_id`) |
+| modulo | text not null | dono (licença checada no GET) |
+| finalidade | text not null | ex.: `fachada`, `gondola_antes` |
+| entidade, entidade_id | text, uuid not null | dono lógico (ex.: `visita` / id) |
+| cliente_id | uuid | FK composta para `core.cliente` (escopo de carteira do GET) |
+| enviado_por | uuid not null | FK composta para `core.usuario` (o upload só completa linha do mesmo usuário) |
+| tipo | text not null | só `image/jpeg` |
+| tamanho_bytes | integer | 1 a 2.097.152 (2 MB) |
+| sha256 | text | hex 64 (idempotência do upload) |
+| largura_px, altura_px | integer | > 0 |
+| situacao | text not null | `aguardando` (criada pelo módulo na transação do comando) → `recebido` (rota `PUT /v1/arquivos/:id`) |
+| recebido_em, chave_armazenamento | | `recebido` exige `recebido_em`, `sha256`, `tamanho_bytes` e `chave_armazenamento` (`<tenant_id>/<modulo>/<aaaa-mm>/<id>.jpg`) |
+
+Índices: `arquivo_entidade_ix (tenant_id, entidade, entidade_id)`; parcial `arquivo_aguardando_ix (tenant_id, situacao) where
+situacao = 'aguardando'` (monitor de fotos que não chegaram); `(tenant_id, cliente_id)`; único `(tenant_id, id)` (alvo de FK).
+Os bytes NUNCA ficam no banco (porta `ArmazenamentoArquivos`); o down da 0005 deixa os bytes órfãos.
+
+## Funções
+- `plataforma.tenant_atual()` (0001): contexto do tenant (falha fechada).
+- `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada.
+- `plataforma.uuid_de_chave(text)` (0005): UUID determinístico (md5 de `macuxi:<chave>` com versão 5 e variante RFC 4122),
+  gêmeo de `idDeChave` em `db/src/ids.ts`. Usado nas linhas padrão semeadas em todo tenant.

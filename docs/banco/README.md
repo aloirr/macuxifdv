@@ -125,7 +125,8 @@ await pool.end(); await banco.apagar();
 | `db/src/contexto.ts` | `comTenant` / `definirTenant` (contexto do tenant por transação) |
 | `db/src/papeis.ts` | papéis `macuxi_app` e `macuxi_worker` (`garantirPapelApp`, `garantirPapelWorker`) e diagnóstico (S0-028) |
 | `db/src/banco-teste.ts` | banco efêmero, disponibilidade do Postgres |
-| `db/esquema/plataforma.ts`, `modules/core/db/nuvem.ts` | espelho Drizzle (tipado) das tabelas |
+| `db/esquema/plataforma.ts`, `modules/core/db/nuvem.ts`, `modules/vendedor/db/nuvem.ts` | espelho Drizzle (tipado) das tabelas |
+| `db/src/ids.ts`, `db/src/datas.ts` | ids fixos/determinísticos (`idDeChave` = `plataforma.uuid_de_chave`, `idMotivoPadrao`) e datas relativas a hoje no fuso |
 | `drizzle.config.ts` | Drizzle Kit; `drizzle:rascunho` gera só rascunho em `db/drizzle-rascunho/` (ignorado) |
 | `db/seeds/fase-m/fase-m.ts` | seed de demonstração da Fase M |
 | `db/seeds/fixtures/dois-tenants.ts` | fixture dos testes de RLS e licenças |
@@ -146,7 +147,12 @@ await pool.end(); await banco.apagar();
 6. Perfis: a fonte única é `PERFIS` de `@macuxi/platform-sdk`. O Drizzle importa de lá; os `check (perfil in (...))`
    das migrações são comparados com ela em `db/testes/estatico.test.ts` (perfil novo = migração nova trocando o CHECK).
 
-Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataforma.md), [core.md](core.md).
+Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataforma.md), [core.md](core.md), [vendedor.md](vendedor.md).
+
+Migrações: 0001 plataforma · 0002 core · 0003 worker/outbox · 0004 sessão e aparelho · **0005 `plataforma.arquivo` +
+`uuid_de_chave`** · **0006 lote A do core** (Cliente 360, rotas, visitas, motivos, notificações, metas, indicador diário;
+padrões em todo tenant por gatilho) · **0007 schema `vendedor`** (pedido e pedido_item, mínimo do pull).
+O executor roda como admin (superusuário no Docker/CI): a semeadura dos padrões e as fixtures dependem disso (FORCE RLS).
 
 ## Pendências
 Feitas na **T-0004** (migração `0003_plataforma_worker`): `carteira_usuario_sync_ix`, papel `macuxi_worker` com as

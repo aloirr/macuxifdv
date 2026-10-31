@@ -53,8 +53,11 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect((await migrarUp(c, { ate: '0001' })).aplicadas).toEqual(['0001_plataforma']);
       expect((await migrarUp(c, { ate: '0002' })).aplicadas).toEqual(['0002_core']);
       expect((await migrarUp(c, { ate: '0003' })).aplicadas).toEqual(['0003_plataforma_worker']);
-      expect((await migrarUp(c)).aplicadas).toEqual(['0004_core_sessao']);
+      expect((await migrarUp(c)).aplicadas).toEqual(['0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido']);
       expect((await migrarUp(c)).aplicadas).toEqual([]);
+      expect((await migrarDown(c)).aplicadas).toEqual(['0007_vendedor_pedido']);
+      expect((await migrarDown(c)).aplicadas).toEqual(['0006_core_lote_a']);
+      expect((await migrarDown(c)).aplicadas).toEqual(['0005_plataforma_arquivo']);
       expect((await migrarDown(c)).aplicadas).toEqual(['0004_core_sessao']);
       expect((await migrarDown(c)).aplicadas).toEqual(['0003_plataforma_worker']);
       expect((await migrarDown(c)).aplicadas).toEqual(['0002_core']);
@@ -109,24 +112,58 @@ describe.skipIf(semBanco())('migrações up/down', () => {
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c, { ate: '0003' });
       const ate0003 = await retratoDoCatalogo(c);
-      expect((await migrarUp(c)).aplicadas).toEqual(['0004_core_sessao']);
+      expect((await migrarUp(c, { ate: '0004' })).aplicadas).toEqual(['0004_core_sessao']);
       const com0004 = await retratoDoCatalogo(c);
+      await migrarUp(c);
       await carregarDoisTenants(c, { senha: 'x' });
       const n = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
       expect(n.rows[0]).toEqual({ s: 2, d: 3 });
-      // down com dados: apaga sessões e aparelhos (documentado no .down.sql) e volta exatamente à 0003
-      expect((await migrarDown(c)).aplicadas).toEqual(['0004_core_sessao']);
+      // down com dados (0007..0004): apaga sessões e aparelhos (documentado no .down.sql) e volta exatamente à 0003
+      expect((await migrarDown(c, { passos: 4 })).aplicadas).toEqual(['0007_vendedor_pedido', '0006_core_lote_a', '0005_plataforma_arquivo', '0004_core_sessao']);
       expect(await retratoDoCatalogo(c)).toEqual(ate0003);
       const col = await c.query("select count(*)::int as n from information_schema.columns where table_schema = 'core' and table_name = 'usuario' and column_name in ('tentativas_falhas', 'bloqueio_ate')");
       expect(col.rows[0].n).toBe(0);
       // up de novo: mesmo catálogo e a fixture volta a carregar (usuários existentes recebem os defaults)
-      await migrarUp(c);
+      await migrarUp(c, { ate: '0004' });
       expect(await retratoDoCatalogo(c)).toEqual(com0004);
       const t = await c.query('select count(*)::int as n from core.usuario where tentativas_falhas <> 0 or bloqueio_ate is not null');
       expect(t.rows[0].n).toBe(0);
+      await migrarUp(c);
       await carregarDoisTenants(c, { senha: 'x' });
       const n2 = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
       expect(n2.rows[0]).toEqual({ s: 2, d: 3 });
+    });
+  });
+
+  it('Sprint 1 (0005–0007) com a fixture: up -> down -> up volta ao catálogo da 0004; padrões semeados nos tenants existentes', async () => {
+    const b = await bancoVazio();
+    await comAdmin(b.nome, async (c) => {
+      await migrarUp(c, { ate: '0004' });
+      const ate0004 = await retratoDoCatalogo(c);
+      // tenants que já existem ANTES da 0006 (só as tabelas até a 0004)
+      await c.query("insert into plataforma.tenant (id, codigo, nome) values ('cccccccc-0000-4000-8000-000000000001', 'antigo', 'Tenant antigo')");
+      await c.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ('cccccccc-0000-4000-8000-000000000001', 'core', 'outro', '1')");
+      expect((await migrarUp(c)).aplicadas).toEqual(['0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido']);
+      const completo = await retratoDoCatalogo(c);
+      const padroes = async () =>
+        (await c.query<{ m: number; s: number; p: number }>(`
+          select (select count(*) from core.motivo where tenant_id = 'cccccccc-0000-4000-8000-000000000001')::int as m,
+                 (select count(*) from core.motivo where tenant_id = 'cccccccc-0000-4000-8000-000000000001' and sistema)::int as s,
+                 (select count(*) from plataforma.parametro where tenant_id = 'cccccccc-0000-4000-8000-000000000001')::int as p`)).rows[0];
+      expect(await padroes()).toEqual({ m: 7, s: 2, p: 3 });
+      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
+      // down com dados: apaga as tabelas novas e os parâmetros semeados (o parâmetro do próprio tenant fica)
+      expect((await migrarDown(c, { passos: 3 })).aplicadas).toEqual(['0007_vendedor_pedido', '0006_core_lote_a', '0005_plataforma_arquivo']);
+      expect(await retratoDoCatalogo(c)).toEqual(ate0004);
+      const p = await c.query("select chave from plataforma.parametro where tenant_id = 'cccccccc-0000-4000-8000-000000000001'");
+      expect(p.rows.map((x) => x.chave)).toEqual(['outro']);
+      // up de novo: mesmo catálogo, padrões de volta e a fixture recarrega
+      await migrarUp(c);
+      expect(await retratoDoCatalogo(c)).toEqual(completo);
+      expect(await padroes()).toEqual({ m: 7, s: 2, p: 3 });
+      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
+      const v = await c.query('select (select count(*) from core.visita)::int as v, (select count(*) from vendedor.pedido)::int as p');
+      expect(v.rows[0]).toEqual({ v: 7, p: 4 });
     });
   });
 });

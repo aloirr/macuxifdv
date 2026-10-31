@@ -8,9 +8,12 @@
  * bko_assistant->assistente, admin->admin. A Fase M não tinha supervisor nem promotor.
  * Senha de todos: MACUXI_SENHA_DEMO (padrão "demo-macuxi", só para demonstração local), argon2id.
  * Só roda contra o Postgres local (exigirBancoLocal): senha pública + usuários fake nunca vão para banco compartilhado.
+ * Sprint 1 (0006–0007): Cliente 360 dos 18 clientes, rota de hoje de cada vendedor e pedidos do Rafael S.
+ * (dadosSprint1FaseM; datas relativas a hoje em America/Manaus, opção `hoje` para fixar).
  */
 import type { ClientBase } from 'pg';
 import { exigirBancoLocal, hostDoCliente } from '../../src/config';
+import { anoMes, hojeNoFuso, menorData, somarDias } from '../../src/datas';
 import { gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
 import { hashSenha } from '../../src/senha';
@@ -126,6 +129,21 @@ const PARAMETROS: Array<[string, string, unknown]> = [
   ['promotor', 'fotos_so_camera', true], ['core', 'base_apuracao_metas', 'aprovado'],
 ];
 
+/**
+ * Sprint 1 (0006–0007). Motivos (de sistema e de não venda) e os parâmetros core checkin.raio_m / metas.base_apuracao
+ * NÃO estão aqui: vêm do gatilho core.semear_tenant no INSERT do tenant.
+ */
+const ORDEM_SPRINT1_FASE_M = [
+  'core.cliente_contato',
+  'core.cliente_financeiro',
+  'core.titulo',
+  'core.historico_compra',
+  'core.rota',
+  'core.rota_parada',
+  'vendedor.pedido',
+  'vendedor.pedido_item',
+] as const;
+
 export const ORDEM_FASE_M = [
   'plataforma.tenant',
   'plataforma.tenant_modulo',
@@ -136,11 +154,126 @@ export const ORDEM_FASE_M = [
   'core.produto',
   'core.cliente',
   'core.carteira',
+  ...ORDEM_SPRINT1_FASE_M,
 ] as const;
 
 export type DadosFaseM = Record<(typeof ORDEM_FASE_M)[number], Linha[]>;
 
-export function dadosFaseM(senhaHash: string): DadosFaseM {
+export interface OpcoesFaseM {
+  /** "Hoje" (AAAA-MM-DD) da demonstração; padrão: hoje em America/Manaus. */
+  hoje?: string;
+}
+
+const FUSO_FASE_M = 'America/Manaus';
+
+/**
+ * Sprint 1: Cliente 360 (contato, financeiro, 3 títulos e 12 meses de histórico por cliente), rota de HOJE de cada
+ * vendedor com as paradas da carteira e alguns pedidos do Rafael S. Datas relativas a hoje. Rotas e paradas têm id
+ * pela data (cada dia de demonstração ganha a sua rota; as de dias anteriores ficam como histórico); o resto tem
+ * id estável e só move as datas.
+ */
+function dadosSprint1FaseM(hoje: string, vendedorPorApelido: Map<string, string>): Pick<DadosFaseM, (typeof ORDEM_SPRINT1_FASE_M)[number]> {
+  const comuns = { deleted_at: null, external_id: null };
+  const clienteId = (nome: string) => id(`cliente:${nome}`);
+  const contatos: Linha[] = [];
+  const financeiros: Linha[] = [];
+  const titulos: Linha[] = [];
+  const historico: Linha[] = [];
+  CLIENTES.forEach(([nome], i) => {
+    const c = clienteId(nome);
+    const limite = 1_000_000 + (i % 5) * 1_000_000;
+    const vencido = i % 3 === 0 ? 180_000 + i * 1_000 : 0;
+    const aVencer = 250_000 + i * 5_000;
+    const bloqueado = i % 7 === 6;
+    contatos.push({
+      id: id(`cliente_contato:${nome}:1`), tenant_id: T, cliente_id: c, nome: `Comprador ${i + 1}`, cargo: 'Comprador', telefone: `92332${String(i).padStart(5, '0')}`,
+      whatsapp: `929${String(90000000 + i).padStart(8, '0')}`, email: null, principal: true, ...comuns,
+    });
+    financeiros.push({
+      id: id(`cliente_financeiro:${nome}`), tenant_id: T, cliente_id: c, limite_cents: limite, saldo_aberto_cents: vencido + aVencer, credito_disponivel_cents: null,
+      bloqueado, motivo_bloqueio: bloqueado ? 'Bloqueio comercial (demonstração)' : null, atualizado_erp_em: `${hoje}T10:00:00Z`, ...comuns,
+    });
+    const doc = `NF-${String(20000 + i * 10)}`;
+    titulos.push(
+      { id: id(`titulo:${nome}:1`), tenant_id: T, cliente_id: c, documento: doc, parcela: '1/2', emissao: somarDias(hoje, -45), vencimento: somarDias(hoje, -15),
+        valor_cents: vencido || 180_000, saldo_cents: vencido, situacao: vencido ? 'aberto' : 'liquidado', liquidado_em: vencido ? null : `${somarDias(hoje, -14)}T15:00:00Z`, ...comuns },
+      { id: id(`titulo:${nome}:2`), tenant_id: T, cliente_id: c, documento: doc, parcela: '2/2', emissao: somarDias(hoje, -45), vencimento: somarDias(hoje, 15 + (i % 10)),
+        valor_cents: aVencer, saldo_cents: aVencer, situacao: 'aberto', liquidado_em: null, ...comuns },
+      { id: id(`titulo:${nome}:3`), tenant_id: T, cliente_id: c, documento: `NF-${String(19000 + i * 10)}`, parcela: '1/1', emissao: somarDias(hoje, -80),
+        vencimento: somarDias(hoje, -50), valor_cents: 320_000, saldo_cents: 0, situacao: 'liquidado', liquidado_em: `${somarDias(hoje, -49)}T15:00:00Z`, ...comuns },
+    );
+    for (let m = 0; m < 12; m++) {
+      const am = anoMes(hoje, m - 11);
+      historico.push({
+        id: id(`historico_compra:${nome}:${m}`), tenant_id: T, cliente_id: c, ano_mes: am, valor_cents: 300_000 + ((i * 37 + m * 53) % 20) * 25_000,
+        pedidos: 1 + ((i + m) % 4), itens: 6 + ((i * 3 + m) % 15), ultima_compra_em: menorData(`${am}-${String(5 + (i % 20)).padStart(2, '0')}`, hoje),
+        origem: 'erp', ...comuns,
+      });
+    }
+  });
+
+  // rota de hoje: uma por vendedor com carteira, paradas na ordem da carteira
+  const rotas: Linha[] = [];
+  const paradas: Linha[] = [];
+  for (const [nomeVend, apelido] of VENDEDORES) {
+    const clientes = CLIENTES.filter(([, ap]) => ap === apelido).map(([nome]) => nome);
+    if (clientes.length === 0) continue;
+    const usuario_id = vendedorPorApelido.get(apelido)!;
+    const rota_id = id(`rota:${emailDe(nomeVend)}:${hoje}`);
+    rotas.push({ id: rota_id, tenant_id: T, usuario_id, data: hoje, situacao: 'publicada', origem: 'bko', regiao: null, observacao: null, ...comuns });
+    clientes.forEach((nome, i) => {
+      paradas.push({
+        id: id(`rota_parada:${emailDe(nomeVend)}:${hoje}:${nome}`), tenant_id: T, rota_id, usuario_id, data: hoje, cliente_id: clienteId(nome), sequencia: i + 1,
+        janela_inicio: null, janela_fim: null, ...comuns,
+      });
+    });
+  }
+
+  // alguns pedidos do Rafael S. (estados diferentes) com itens dos produtos da Fase M
+  const rafael = vendedorPorApelido.get('Rafael S.')!;
+  const pedidos: Linha[] = [];
+  const itens: Linha[] = [];
+  const PEDIDOS: Array<[string, string, number, Array<[string, number, number]>]> = [
+    ['Auto Peças Rio Negro', 'received', 0, [['PST-4410', 4, 8_990], ['FLT-0207', 10, 2_450]]],
+    ['Mecânica Tarumã', 'approved', 5, [['AMT-1132', 2, 31_900], ['BCJ-0331', 6, 3_800]]],
+    ['Center Car Ponta Negra', 'invoiced', 0, [['OLE-5W30', 24, 4_290]]],
+    ['Freios & Cia Cidade Nova', 'pending_approval', 12, [['DSC-2210', 4, 15_900], ['PST-4420', 4, 9_490]]],
+  ];
+  PEDIDOS.forEach(([cliente, status, desconto, linhas], n) => {
+    const pedido_id = id(`pedido:${cliente}:1`);
+    let tabela = 0;
+    let total = 0;
+    linhas.forEach(([sku, qtd, preco], s) => {
+      const unitario = Math.round((preco * (100 - desconto)) / 100);
+      tabela += preco * qtd;
+      total += unitario * qtd;
+      itens.push({
+        id: id(`pedido_item:${cliente}:1:${s + 1}`), tenant_id: T, pedido_id, sequencia: s + 1, produto_id: id(`produto:${sku}`), quantidade: qtd,
+        preco_tabela_cents: preco, preco_unitario_cents: unitario, desconto_pct: desconto, total_cents: unitario * qtd, ...comuns,
+      });
+    });
+    pedidos.push({
+      id: pedido_id, tenant_id: T, cliente_id: clienteId(cliente), vendedor_id: rafael, autor_id: rafael, status, condicao_pagamento: '28 dias',
+      desconto_pct: desconto, total_tabela_cents: tabela, total_cents: total, observacao: null, visita_id: null, rota_parada_id: null,
+      criado_no_aparelho_em: `${somarDias(hoje, -n)}T14:00:00Z`, recebido_em: `${somarDias(hoje, -n)}T14:05:00Z`,
+      numero_erp: status === 'invoiced' ? `PV${30000 + n}` : null, motivo_cancelamento: null, ...comuns,
+    });
+  });
+
+  return {
+    'core.cliente_contato': contatos,
+    'core.cliente_financeiro': financeiros,
+    'core.titulo': titulos,
+    'core.historico_compra': historico,
+    'core.rota': rotas,
+    'core.rota_parada': paradas,
+    'vendedor.pedido': pedidos,
+    'vendedor.pedido_item': itens,
+  };
+}
+
+export function dadosFaseM(senhaHash: string, opcoes: OpcoesFaseM = {}): DadosFaseM {
+  const hoje = opcoes.hoje ?? hojeNoFuso(FUSO_FASE_M);
   const gerenteId = id('usuario:fernando@exemplo.com.br');
   const gerencia = id('equipe:Gerência Comercial');
   const equipeId = (nome: Equipe) => id(`equipe:${nome}`);
@@ -194,14 +327,15 @@ export function dadosFaseM(senhaHash: string): DadosFaseM {
       id: id(`carteira:${nome}`), tenant_id: T, cliente_id: id(`cliente:${nome}`), usuario_id: vendedorPorApelido.get(apelido)!,
       papel: 'vendedor', inicio: null, fim: null, external_id: null,
     })),
+    ...dadosSprint1FaseM(hoje, vendedorPorApelido),
   };
 }
 
 /** Carrega o seed com cliente ADMIN, numa transação. Rodar 2× não duplica (S0-033). */
-export async function carregarFaseM(admin: ClientBase, opcoes: { senha?: string } = {}): Promise<DadosFaseM> {
+export async function carregarFaseM(admin: ClientBase, opcoes: { senha?: string } & OpcoesFaseM = {}): Promise<DadosFaseM> {
   exigirBancoLocal(hostDoCliente(admin), 'Seed de demonstração da Fase M');
   const senha = opcoes.senha ?? process.env.MACUXI_SENHA_DEMO ?? 'demo-macuxi';
-  const dados = dadosFaseM(hashSenha(senha));
+  const dados = dadosFaseM(hashSenha(senha), { hoje: opcoes.hoje });
   await admin.query('begin');
   try {
     for (const tabela of ORDEM_FASE_M) {

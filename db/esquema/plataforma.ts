@@ -1,6 +1,6 @@
 /**
  * Schema `plataforma` em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas pela
- * migrações db/migrations/0001_plataforma.up.sql e 0003_plataforma_worker.up.sql, para consultas da API.
+ * migrações db/migrations/0001_plataforma.up.sql, 0003_plataforma_worker.up.sql e 0005_plataforma_arquivo.up.sql, para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -110,4 +110,27 @@ export const auditoria = plataforma.table('auditoria', {
   depois: jsonb('depois'),
   request_id: text('request_id'),
   ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Metadados de arquivo enviado pelo aparelho (0005, ADR 0010). id = UUID do aparelho. O módulo cria a linha
+ * 'aguardando' na transação do comando que referencia o arquivo; a rota PUT /v1/arquivos/:id completa
+ * ('recebido', sha256, tamanho, chave_armazenamento). Os bytes ficam atrás da porta ArmazenamentoArquivos. Fora do sync.
+ */
+export const arquivo = plataforma.table('arquivo', {
+  ...comuns(),
+  modulo: text('modulo').notNull(),
+  finalidade: text('finalidade').notNull(),
+  entidade: text('entidade').notNull(),
+  entidade_id: uuid('entidade_id').notNull(),
+  cliente_id: uuid('cliente_id'),
+  enviado_por: uuid('enviado_por').notNull(),
+  tipo: text('tipo', { enum: ['image/jpeg'] }).notNull().default('image/jpeg'),
+  tamanho_bytes: integer('tamanho_bytes'),
+  sha256: text('sha256'),
+  largura_px: integer('largura_px'),
+  altura_px: integer('altura_px'),
+  situacao: text('situacao', { enum: ['aguardando', 'recebido'] }).notNull().default('aguardando'),
+  recebido_em: timestamp('recebido_em', { withTimezone: true }),
+  chave_armazenamento: text('chave_armazenamento'),
 });

@@ -45,6 +45,13 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
   it('descobre as tabelas com tenant_id de plataforma e core (e a fixture tem linha de B em todas)', () => {
     const nomes = tabelas.map((t) => t.nome);
     expect(nomes).toEqual(expect.arrayContaining(['plataforma.tenant_modulo', 'plataforma.evento', 'plataforma.auditoria', 'core.usuario', 'core.produto', 'core.carteira']));
+    // Sprint 1 (0005–0007): toda tabela nova entra no teste de vazamento (com linha de A e de B na fixture)
+    expect(nomes).toEqual(
+      expect.arrayContaining([
+        'plataforma.arquivo', 'core.cliente_contato', 'core.cliente_financeiro', 'core.titulo', 'core.historico_compra', 'core.motivo', 'core.rota',
+        'core.rota_parada', 'core.visita', 'core.visita_etapa', 'core.notificacao', 'core.meta', 'core.indicador_diario', 'vendedor.pedido', 'vendedor.pedido_item',
+      ]),
+    );
     expect(nomes.filter((n) => !idDeB.has(n))).toEqual([]);
   });
 
