@@ -185,7 +185,7 @@ function concluirCargaCompleta(ctx: Contexto, entidade: Entidade, fim: Cursor | 
 }
 
 /** `conector carga-completa <entidade>`: descarta o que estiver na fila da entidade e recomeça com nova sessão. */
-export function reiniciarCargaCompleta(ctx: Contexto, entidade: Entidade): void {
+export function reiniciarCargaCompleta(ctx: Pick<Contexto, 'store' | 'log' | 'relogio' | 'uuid'>, entidade: Entidade): void {
   ctx.store.transacao(() => {
     ctx.store.substituirLotesAbertos(entidade, ctx.relogio.agora());
     ctx.store.iniciarEstado(entidade, 'completo', { sessaoId: ctx.uuid(), agoraMs: ctx.relogio.agora() });
@@ -197,7 +197,7 @@ export function reiniciarCargaCompleta(ctx: Contexto, entidade: Entidade): void 
  * `conector retomar <entidade>`: depois de corrigir a configuração ou a causa de um bloqueio. Delta: relê a partir do cursor
  * CONFIRMADO (nada se perde); carga completa: recomeça a sessão.
  */
-export function retomarEntidade(ctx: Contexto, entidade: Entidade): void {
+export function retomarEntidade(ctx: Pick<Contexto, 'store' | 'log' | 'relogio' | 'uuid'>, entidade: Entidade): void {
   const estado = ctx.store.estado(entidade);
   if (!estado) return;
   if (estado.fase === 'completo') {

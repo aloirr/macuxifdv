@@ -112,7 +112,7 @@ export class ClienteHub {
     );
   }
 
-  private interpretar<T>(schema: z.ZodType<T>, json: unknown, operacao: string): T {
+  private interpretar<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, json: unknown, operacao: string): T {
     const r = schema.safeParse(json);
     if (!r.success) throw new ErroHubTransitorio(`Resposta inesperada do Hub em ${operacao} (formato fora do contrato).`);
     return r.data;
