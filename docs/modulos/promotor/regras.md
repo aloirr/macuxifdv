@@ -31,18 +31,18 @@ Convenções: percentuais com 2 casas (meio para cima); dinheiro em centavos int
 ## 3. Presença e ruptura do mix — RF-PRO-06, RN-PRO-05 (`ruptura.ts`)
 - **Status**: na gôndola → `presente`; fora da gôndola **com** produto no depósito → `ruptura_gondola` (falha de reposição); fora da gôndola e **sem** produto → `ruptura_total`. Fora da gôndola sem conferir o depósito não classifica.
 - **Ruptura (%)** = itens do mix em ruptura ÷ itens do mix obrigatório × 100. Por padrão "em ruptura" = ruptura total + ruptura na gôndola (o consumidor não acha o produto). A **ruptura na gôndola com produto no depósito é contada à parte**: `falha_reposicao_pct` = ruptura_gondola ÷ mix × 100; `ruptura_total_pct` = ruptura_total ÷ mix × 100.
-- **Premissa a confirmar**: o texto "contada à parte" pode ser lido também como "fora do %"; `resumirRuptura(itens, { incluirFalhaDeReposicao: false })` entrega esse outro cálculo. Padrão = incluir.
+- **Confirmado (RN-PRO-05)**: a falha de reposição entra no % de ruptura e também é mostrada à parte. `resumirRuptura(itens, { incluirFalhaDeReposicao: false })` existe só para análises que a excluam.
 - **Quantidade reposta**: inteiro ≥ 0, soma por visita; em ruptura total é sempre 0.
 - Exemplo: mix de 10 itens (7 presentes, 1 ruptura na gôndola, 2 ruptura total) → ruptura 30%; falha de reposição 10%; ruptura total 20%.
 
 ## 4. Conformidade da gôndola — RF-PRO-03 (`gondola.ts`)
 - Valores: `conforme | parcial | nao_conforme`. **Motivo obrigatório quando `nao_conforme`** (vazio/espaços não valem); em `parcial` é opcional. Fotos antes e depois são exigidas no contrato.
-- **% conformidade** = (conformes + parciais × peso) ÷ gôndolas registradas × 100; peso do parcial = 0 por padrão (configurável). Ex.: conforme, conforme, parcial, não conforme → 50%; com peso 0,5 → 62,5%.
+- **% conformidade (RN-PRO-11)** = (conformes + parciais × peso) ÷ gôndolas registradas × 100. O peso vem do parâmetro do tenant `peso_parcial_conformidade` (padrão 0, entre 0 e 1) via `resolverParametros`. O **total de parciais aparece à parte** (`resumirConformidade` → `parciais`; indicador → `conformidade_parciais`). Ex.: conforme, conforme, parcial, não conforme → 50% e 1 parcial; com peso 0,5 → 62,5%.
 
 ## 5. Validade próxima e avarias — RF-PRO-07, RN-PRO-08 (`validade.ts`)
 - **Dias até vencer** = validade − hoje (dias civis; negativo = vencido). "Hoje" = data civil no fuso do tenant (`dataLocal(instante, fuso)`; 01/11 02:00Z é 31/10 em Manaus).
-- **Validade próxima** = dias ≤ 30 (inclui o já vencido).
-- **Faixa de risco** (limites definidos pelo Promotor sobre a RN-PRO-08, configuráveis): `vencido` (< 0) · `crítico` (0 a 7) · `atenção` (8 a 30) · `ok` (> 30).
+- **Faixa de risco (RN-PRO-08)**, com limites do tenant (`validade_critica_dias` 7, `validade_proxima_dias` 30, lidos de `resolverParametros`): `vencido` (< 0) · `crítico` (0 a 7) · `atenção` (8 a 30) · `ok` (> 30).
+- **Validade próxima** = vencido + crítico + atenção (dias ≤ `validade_proxima_dias`).
 - Resumo (`resumirValidade`): itens e unidades por faixa e total de validade próxima. Ex.: hoje 31/10; vencimentos 25/10 (3 un.), 03/11 (10 un.), 20/11 (5 un.), 01/03/2027 (100 un.) → vencido 3, crítico 10, atenção 5, ok 100; validade próxima = 3 itens / 18 unidades.
 - **Avaria**: quantidade inteira ≥ 1, motivo e foto obrigatórios; resumo por motivo (`resumirAvarias`).
 
@@ -54,7 +54,7 @@ Convenções: percentuais com 2 casas (meio para cima); dinheiro em centavos int
 - **Permanência (min)** = (checkout − check-in) em minutos, instantes UTC. Checkout anterior ao check-in é erro.
 - **Revalidação (contrato `VisitaLoja`)**: o `permanencia_min` que vem do aparelho não é confiável. O contrato recalcula com `permanenciaMinutos(checkin_em, checkout_em)` e **recusa** a visita se o valor divergir mais que `PERMANENCIA_TOLERANCIA_MIN` (0,5 min, arredondamento) ou vier nulo com checkout. Ex.: 40 min reais com 600 informado é recusado. A API grava o valor recalculado.
 - **Conta nos indicadores** quando ≥ 10 min; **visita curta** (< 10 min, encerrada) é sinalizada ao gestor; visita aberta não conta nem é "curta". Ex.: 9,99 min não conta; 10 conta.
-- `coletaPermitida(visita)`: só com check-in feito e sem checkout (RN-PRO-02). A origem da foto (câmera, data/hora, coordenada) é validada em `FotoColeta`.
+- `coletaPermitida(visita)`: só com check-in feito e sem checkout (RN-PRO-02). A origem da foto (câmera, data/hora) é validada em `FotoColeta`. **RN-PRO-02**: `latitude`/`longitude` são opcionais (nulas) e `sem_gps` é obrigatório; coordenada presente => `sem_gps = false`, ausente => `sem_gps = true`, e o contrato recusa qualquer combinação inconsistente (inclusive só uma das duas coordenadas). A prova de presença é o check-in.
 
 ## 8. Checklist do dia e checkout — RF-PRO-02, RN-PRO-06 (`checklist.ts`)
 - `progressoChecklist`: concluídas × pendentes, obrigatórias pendentes e % concluído (checklist vazio = 100%).
@@ -69,6 +69,7 @@ Convenções: percentuais com 2 casas (meio para cima); dinheiro em centavos int
 ## 11. Indicador do dia — RF-PRO-12 (`indicador.ts`)
 `consolidarIndicadorDia(entrada, parametros?)` devolve o que alimenta `indicador_promotor_dia`:
 - **Lojas visitadas** = lojas distintas com visita que **conta** (RN-PRO-07). **Cobertura** = visitadas ÷ planejadas × 100.
+- **Fotos (RN-PRO-02)**: `fotos_total`, `fotos_sem_gps` e `fotos_sem_gps_pct` = sem GPS ÷ total × 100 (nulo sem fotos); o gestor vê o % por promotor. **Parciais (RN-PRO-11)**: `conformidade_parciais`.
 - **Tempo médio** = média da permanência das visitas que contam (1 casa). Visitas curtas e abertas são contadas à parte.
 - **Coletas de visitas que não contam ficam fora** de conformidade, share, ruptura e preço.
 - **% conformidade** (§4), **share médio × meta média e atingimento** (§1), **% ruptura** agregada (soma de itens em ruptura ÷ soma de itens do mix de todas as visitas válidas — não a média dos % por loja) e **falha de reposição** (§3), **índice de preço médio** = média simples dos índices (§2).
@@ -83,8 +84,6 @@ Teste `domain/rn-pro-01.test.ts`: nenhum export do `domain` tem nome ligado a pe
 
 ## Premissas e pendências
 - Produto nosso referenciado por `produto_id` (UUID do cadastro base do Core, ADR-0005); quando a T-0007 publicar `Produto` em `@macuxi/core/contracts`, o Promotor passa a importar o contrato.
-- Faixas de risco da validade (crítico ≤ 7 dias) e peso do parcial na conformidade (0) são definições do Promotor, não do doc 03 — confirmar com o negócio.
-- Interpretação de "contada à parte" da ruptura (§3) a confirmar.
+- Decisões do Alexandre incorporadas ao doc 03: RN-PRO-05 (ruptura inclui falha de reposição e a mostra à parte), RN-PRO-08 (faixas), RN-PRO-11 (peso do parcial) e RN-PRO-02 (foto sem GPS aceita). Parâmetros do tenant: `validade_critica_dias`, `validade_proxima_dias`, `peso_parcial_conformidade`.
 - Contratos dos payloads de evento `promotor.*@1` ainda não foram escritos (só os nomes); serão criados com o primeiro consumidor.
-- **Pergunta de produto (aberta)**: GPS obrigatório na foto (`FotoColeta.latitude/longitude`). Dentro da loja o GPS pode faltar; decidir com o Alexandre se aceita coordenada nula com flag `sem_gps`.
 - `contracts` não reexporta mais os primitivos de `base.ts` (`Uuid`, `InstanteUtc`…); só os schemas de negócio.

@@ -35,13 +35,22 @@ export const FotoColeta = z
     tipo: TipoFoto,
     origem: z.literal('camera'),
     tirada_em: InstanteUtc,
-    latitude: Latitude,
-    longitude: Longitude,
+    /** RN-PRO-02: coordenada quando disponível; sem sinal de GPS a foto é aceita com `sem_gps = true`. */
+    latitude: Latitude.nullable(),
+    longitude: Longitude.nullable(),
+    sem_gps: z.boolean(),
     /** Referência do arquivo no armazenamento (preenchida após o upload). */
     arquivo_ref: z.string().min(1).nullable().default(null),
     enviada_em: InstanteUtc.nullable().default(null),
   })
-  .strict();
+  .strict()
+  .superRefine((v, ctx) => {
+    const lat = v.latitude !== null;
+    const lon = v.longitude !== null;
+    if (lat !== lon) issue(ctx, [lat ? 'longitude' : 'latitude'], 'RN-PRO-02: informe latitude e longitude juntas, ou nenhuma.');
+    else if (lat && v.sem_gps) issue(ctx, ['sem_gps'], 'RN-PRO-02: a foto tem coordenada, então sem_gps deve ser falso.');
+    else if (!lat && !v.sem_gps) issue(ctx, ['sem_gps'], 'RN-PRO-02: foto sem coordenada deve ser marcada com sem_gps verdadeiro.');
+  });
 export type FotoColeta = z.infer<typeof FotoColeta>;
 
 // ---------- visita de loja (RF-PRO-02, RN-PRO-06/07) ----------

@@ -3,7 +3,7 @@
  * share médio × meta, % ruptura e índice de preço. RN-PRO-07: só entram visitas com a permanência mínima;
  * as coletas de visitas que não contam ficam fora dos indicadores.
  */
-import { CONFORMIDADES, pctConformidade, type Conformidade } from './gondola';
+import { CONFORMIDADES, resumirConformidade, type Conformidade } from './gondola';
 import { arredondar, media, percentual } from './numeros';
 import { resolverParametros, type ParametrosPromotor } from './parametros';
 import { visitaConta, visitaCurta } from './permanencia';
@@ -24,6 +24,8 @@ export interface EntradaIndicadorDia {
   shares: readonly { visita_id: string; share_pct: number | null; meta_pct: number | null }[];
   presencas: readonly { visita_id: string; status: StatusPresenca }[];
   indices_preco: readonly { visita_id: string; indice_preco: number | null }[];
+  /** RN-PRO-02: fotos do dia (todas as visitas); `sem_gps` = tirada sem coordenada. */
+  fotos?: readonly { sem_gps: boolean }[];
 }
 
 export interface IndicadorDia {
@@ -35,6 +37,12 @@ export interface IndicadorDia {
   visitas_abertas: number;
   tempo_medio_min: number | null;
   conformidade_pct: number | null;
+  /** RN-PRO-11: gôndolas parciais, à parte do %. */
+  conformidade_parciais: number;
+  /** RN-PRO-02: fotos do dia e as tiradas sem GPS (gestor vê o % por promotor). */
+  fotos_total: number;
+  fotos_sem_gps: number;
+  fotos_sem_gps_pct: number | null;
   share_medio_pct: number | null;
   meta_share_media_pct: number | null;
   atingimento_share_pct: number | null;
@@ -51,6 +59,8 @@ export function consolidarIndicadorDia(e: EntradaIndicadorDia, parametros: Parti
   const dasValidas = <T extends { visita_id: string }>(xs: readonly T[]) => xs.filter((x) => idsValidos.has(x.visita_id));
 
   const conf = dasValidas(e.conformidades).map((c) => c.conformidade).filter((c) => (CONFORMIDADES as readonly string[]).includes(c));
+  const conformidade = resumirConformidade(conf, p.peso_parcial_conformidade);
+  const fotos = e.fotos ?? [];
   const shares = mediaShare(dasValidas(e.shares));
   const ruptura = resumirRuptura(dasValidas(e.presencas));
   const indices = dasValidas(e.indices_preco).flatMap((i) => (i.indice_preco === null ? [] : [i.indice_preco]));
@@ -62,7 +72,11 @@ export function consolidarIndicadorDia(e: EntradaIndicadorDia, parametros: Parti
     visitas_curtas: e.visitas.filter((v) => visitaCurta(v.permanencia_min, p.permanencia_min_min)).length,
     visitas_abertas: e.visitas.filter((v) => v.permanencia_min === null).length,
     tempo_medio_min: media(validas.map((v) => v.permanencia_min as number), 1),
-    conformidade_pct: pctConformidade(conf),
+    conformidade_pct: conformidade.conformidade_pct,
+    conformidade_parciais: conformidade.parciais,
+    fotos_total: fotos.length,
+    fotos_sem_gps: fotos.filter((f) => f.sem_gps).length,
+    fotos_sem_gps_pct: percentual(fotos.filter((f) => f.sem_gps).length, fotos.length),
     share_medio_pct: shares.share_medio_pct,
     meta_share_media_pct: shares.meta_media_pct,
     atingimento_share_pct: shares.atingimento_pct === null ? null : arredondar(shares.atingimento_pct),

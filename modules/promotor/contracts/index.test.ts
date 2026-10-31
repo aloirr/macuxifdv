@@ -33,16 +33,22 @@ describe('contratos do Promotor: ids, datas e dinheiro', () => {
 });
 
 describe('RN-PRO-02: foto da coleta', () => {
-  const foto = { id: u(1), visita_loja_id: u(2), tipo: 'gondola_antes', origem: 'camera', tirada_em: T0, latitude: -3.1, longitude: -60.0 };
+  const foto = { id: u(1), visita_loja_id: u(2), tipo: 'gondola_antes', origem: 'camera', tirada_em: T0, latitude: -3.1, longitude: -60.0, sem_gps: false };
   it('aceita foto de câmera com data/hora e coordenada', () => {
     expect(FotoColeta.parse(foto)).toMatchObject({ arquivo_ref: null, enviada_em: null });
   });
   it('RN-PRO-02: foto da galeria é recusada', () => {
     expect(FotoColeta.safeParse({ ...foto, origem: 'galeria' }).success).toBe(false);
   });
-  it('RN-PRO-02: sem coordenada é recusada', () => {
-    const { latitude: _l, ...semLat } = foto;
-    expect(FotoColeta.safeParse(semLat).success).toBe(false);
+  it('RN-PRO-02: sem sinal de GPS a foto é aceita com sem_gps verdadeiro', () => {
+    expect(FotoColeta.safeParse({ ...foto, latitude: null, longitude: null, sem_gps: true }).success).toBe(true);
+  });
+  it('RN-PRO-02: combinação inconsistente de coordenada e sem_gps é recusada', () => {
+    expect(FotoColeta.safeParse({ ...foto, sem_gps: true }).success).toBe(false);
+    expect(FotoColeta.safeParse({ ...foto, latitude: null, longitude: null, sem_gps: false }).success).toBe(false);
+    expect(FotoColeta.safeParse({ ...foto, longitude: null }).success).toBe(false);
+    const { sem_gps: _s, ...semFlag } = foto;
+    expect(FotoColeta.safeParse(semFlag).success).toBe(false);
   });
 });
 
@@ -207,14 +213,15 @@ describe('RF-PRO-12: indicador do dia e parâmetros', () => {
   const i = {
     id: u(1), promotor_id: u(2), data: '2026-10-31', lojas_planejadas: 5, lojas_visitadas: 2, visitas_curtas: 1, visitas_abertas: 1,
     cobertura_pct: 40, tempo_medio_min: 30, conformidade_pct: 50, share_medio_pct: 25, meta_share_media_pct: 30, atingimento_share_pct: 83.33,
-    ruptura_pct: 50, falha_reposicao_pct: 25, indice_preco_medio: 100, calculado_em: T0,
+    ruptura_pct: 50, falha_reposicao_pct: 25, indice_preco_medio: 100, conformidade_parciais: 1, fotos_total: 8, fotos_sem_gps: 2, fotos_sem_gps_pct: 25, calculado_em: T0,
   };
   it('indicador completo e indicador vazio (tudo nulo)', () => {
     expect(IndicadorPromotorDia.safeParse(i).success).toBe(true);
     expect(IndicadorPromotorDia.safeParse({ ...i, tempo_medio_min: null, conformidade_pct: null, share_medio_pct: null, ruptura_pct: null, indice_preco_medio: null }).success).toBe(true);
   });
   it('parâmetros têm os padrões do doc 03 ([50%], [10 min], [30] dias)', () => {
-    expect(ParametrosPromotorSchema.parse({})).toEqual({ variacao_preco_max_pct: 50, permanencia_min_min: 10, validade_proxima_dias: 30, validade_critica_dias: 7 });
+    expect(ParametrosPromotorSchema.parse({})).toEqual({ variacao_preco_max_pct: 50, permanencia_min_min: 10, validade_proxima_dias: 30, validade_critica_dias: 7, peso_parcial_conformidade: 0 });
+    expect(ParametrosPromotorSchema.safeParse({ peso_parcial_conformidade: 1.5 }).success).toBe(false);
     expect(ParametrosPromotorSchema.safeParse({ validade_critica_dias: 40 }).success).toBe(false);
   });
 });
