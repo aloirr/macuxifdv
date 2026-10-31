@@ -43,3 +43,5 @@
 2026-10-31 — T-0002 — 🟡 corrigidos (94 testes); T-0002 CONCLUÍDA
 2026-10-31 — T-0002 — entrega ao Alexandre
 2026-10-31 — T-0001 — revisão final aprovada sem 🔴; T-0001 CONCLUÍDA
+2026-10-31 — decisões do Alexandre aplicadas no doc 03 (RN-PRO-02/05/08/11, parâmetros, cancelamento após ERP, RN-INT-08) e no backlog; uso do gh no doc 07; T-0011/T-0008/T-0005 da nuvem registradas e destravadas; revisões registradas para a próxima rodada; pedidos 021714 e 093259-3 encerrados
+2026-10-31 — pausa para reinício do VS Code (gh): rodada fechada; recado PRONTO PARA REINICIAR ao Alexandre

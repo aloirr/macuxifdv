@@ -21,7 +21,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 |---|---|---|---|---|---|---|
 | Ver Cliente 360 (inclui financeiro) | carteira | carteira | equipe | tenant | tenant | tenant |
 | Criar/editar pedido | ✅ próprio | ❌ | ✅ em nome do vendedor | ✅ | ✅ | ❌ |
-| Cancelar pedido (antes do ERP) | ✅ próprio | ❌ | ✅ equipe | ✅ | ✅ | ❌ |
+| Cancelar pedido (antes do envio ao ERP; depois, só no ERP) | ✅ próprio | ❌ | ✅ equipe | ✅ | ✅ | ❌ |
 | Excluir rascunho | ✅ próprio | ❌ | ✅ próprio | ✅ | ✅ | ❌ |
 | Ver pedidos | próprios | carteira (leitura) | equipe | tenant | tenant | tenant |
 | Aprovar desconto/crédito | ❌ | ❌ | ✅ até a alçada | ✅ acima | ❌ | ❌ |
@@ -59,18 +59,20 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-VEN-34** Pedido pode ser para cliente diferente do check-in aberto ("fora de visita").
 - **RN-VEN-35** Pedido em nome: `vendedor_id` = vendedor, `autor_id` = gestor; vendedor recebe notificação.
 - **RN-VEN-36** Alerta de ruptura do promotor aparece para o vendedor responsável por [7] dias ou até o próximo pedido do cliente.
+- **Cancelamento depois do envio ao ERP**: a partir do status 'enviado', o pedido não pode ser cancelado no Macuxi (UI e API respondem 422 com o código da regra e a mensagem "Pedido já enviado ao ERP — cancele no ERP"); o cancelamento é feito no ERP e chega pelo retorno do Hub como status 'cancelado'.
 
 ## 5. Promotor (trade marketing)
 - **RN-PRO-01** Promotor nunca cria, edita, cancela, duplica ou exclui pedido — regra aplicada na UI **e** na API (403).
-- **RN-PRO-02** Coletas (fotos, gôndola, share, preço, ruptura, validade) só com check-in aberto na loja; fotos tiradas na hora pela câmera do app [galeria bloqueada], com data/hora e coordenada.
+- **RN-PRO-02** Coletas (fotos, gôndola, share, preço, ruptura, validade) só com check-in aberto na loja; fotos tiradas na hora pela câmera do app [galeria bloqueada], com data/hora. A coordenada é registrada quando disponível; sem sinal de GPS a foto é aceita com `sem_gps = true`. A prova de presença é o check-in da visita. O gestor vê o % de fotos sem GPS por promotor.
 - **RN-PRO-03** Share (%) = frentes nossas ÷ frentes totais da categoria × 100 (ou cm nossos ÷ cm totais, quando medido em centímetros). Atingimento = share ÷ meta de share da loja/categoria.
 - **RN-PRO-04** Índice de preço = preço nosso ÷ preço do concorrente de referência × 100. Preço que varia mais de [50%] em relação à última coleta pede confirmação (evita erro de digitação).
-- **RN-PRO-05** Ruptura (%) = itens do mix obrigatório em ruptura ÷ itens do mix obrigatório. "Ruptura na gôndola com produto no depósito" é contada à parte (falha de reposição).
+- **RN-PRO-05** Ruptura (%) = itens do mix obrigatório em ruptura (ruptura total + ruptura na gôndola com produto no depósito) ÷ itens do mix obrigatório × 100. A ruptura na gôndola com produto no depósito também é mostrada à parte (falha de reposição).
 - **RN-PRO-06** Checkout da visita exige as etapas obrigatórias do checklist da loja, exceto "loja fechada" ou "acesso negado" (exigem foto da fachada).
 - **RN-PRO-07** Visita só conta nos indicadores com permanência mínima de [10 min]; abaixo disso é sinalizada ao gestor.
-- **RN-PRO-08** Validade próxima = vencimento em até [30] dias.
+- **RN-PRO-08** Validade: vencido (dias < 0) · crítico ≤ [7] dias · atenção ≤ [30] dias · ok. Validade próxima = vencido + crítico + atenção.
 - **RN-PRO-09** Alerta de ruptura vai ao vendedor responsável pelo cliente; se houver mais de um, ao da [linha do produto] ou ao primeiro da carteira.
 - **RN-PRO-10** Checklist, mix obrigatório e metas de share valem por vigência; a coleta guarda a versão vigente no momento.
+- **RN-PRO-11** Conformidade da gôndola (%) = (conformes + parciais × [peso do parcial]) ÷ gôndolas registradas × 100; peso padrão [0]. Motivo obrigatório quando não conforme; o total de parciais aparece à parte.
 
 ## 6. Pesquisa
 - **RN-PES-01** Pesquisa publicada é imutável; mudanças geram nova versão; respostas guardam a versão.
@@ -99,7 +101,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-INT-06** Carga completa: pode ocupar vários lotes da mesma sessão (parte n, último = sim); só ao concluir o último lote os registros da entidade ausentes da carga são inativados (`deleted_at`), nunca apagados. Sessão incompleta não inativa nada.
   - *Premissa (2026-10-31, revisão da T-0009)*: se a inativação ao fim da carga completa passar de [30%] dos registros ativos da entidade, ela fica suspensa até o operador confirmar no monitor (proteção contra carga parcial ou view errada). Parâmetro do tenant `limiteInativacaoPct`; a confirmar com o Alexandre.
 - **RN-INT-07** Reconciliação diária por entidade: compara contagem de registros ativos e soma de controle (centavos ou quantidades) informadas pelo ERP com as do Macuxi; divergência acima da tolerância [contagem 0; soma 0,5%] gera alerta no monitor.
-- **RN-INT-08** Devolução de pedido ao ERP: só pedido `aprovado` entra na fila de pendentes; a entrega é idempotente pelo UUID do pedido. Retorno: `pendente` → `enviado` (Conector retirou) → `integrado` (nº ERP) | `rejeitado_erp` (motivo); `integrado` → `faturado_parcial` → `faturado_total`. `enviado` sem confirmação em [10 min] volta a `pendente`. Cada retorno publica `integracao.pedido.retorno_erp@1`.
+- **RN-INT-08** Devolução de pedido ao ERP: só pedido `aprovado` entra na fila de pendentes; a entrega é idempotente pelo UUID do pedido. Retorno: `pendente` → `enviado` (Conector retirou) → `integrado` (nº ERP) | `rejeitado_erp` (motivo); `integrado` → `faturado_parcial` → `faturado_total`. `enviado` sem confirmação em [10 min] volta a `pendente`. Cancelamento feito no ERP volta pelo retorno como `enviado`/`integrado`/`faturado_*` → `cancelado`, com o motivo quando o ERP informar; o Macuxi nunca escreve cancelamento no ERP. Cada retorno publica `integracao.pedido.retorno_erp@1`.
 - **RN-INT-09** Contrato `/integracao/v1`: dinheiro em centavos inteiros, datas ISO 8601 UTC, `external_id` obrigatório; campo novo opcional é compatível; mudança incompatível vira `/v2` com ADR e a versão anterior fica ativa por [6 meses].
 
 ## 10. Auditoria
@@ -117,7 +119,9 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Validade do orçamento | 7 dias |
 | Alerta de ruptura ao vendedor | 7 dias |
 | Permanência mínima na loja (promotor) | 10 min |
-| Janela de validade próxima | 30 dias |
+| Validade crítica (`validade_critica_dias`) | 7 dias |
+| Janela de validade próxima (`validade_proxima_dias`) | 30 dias |
+| Peso do parcial na conformidade de gôndola (`peso_parcial_conformidade`) | 0 |
 | Tolerância de variação de preço | 50% |
 | Fotos de trade só pela câmera | sim |
 | Base de apuração de metas | aprovado |
