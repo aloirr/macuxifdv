@@ -19,8 +19,13 @@
 //        sempre VIOLAÇÃO: caminho sem-dono ou congelado, recado existente alterado/apagado.
 //        exceções (iguais às do guardião): recado NOVO em .coord/recados/<destino>/ e
 //        .coord/diario/<agente>.md e .coord/lidos/<agente>.txt do próprio agente.
-//        agente omitido: inferido do branch agente/T-nnnn-<agente> (ou alexandre/...),
-//        de GITHUB_HEAD_REF no CI, ou do trailer "Agente: <nome>" no último commit.
+//        recado novo com o nome de outro remetente e diário/lidos de outro agente são desse
+//        outro (informativo sem --base, VIOLAÇÃO com --base).
+//        agente omitido: do branch <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente> ou
+//        alexandre/... (local ou GITHUB_HEAD_REF no CI); com --base, senão, do trailer
+//        "Agente: <nome>" — todos os commits do PR com o mesmo agente (nuvem/* exige o trailer;
+//        sem trailer, faltando em algum commit ou agentes diferentes → erro 2).
+//        sem agente e sem --base: lista agrupada por dono (recados pelo remetente).
 //        --por-dono   lista as alterações agrupadas por dono (sem agente).
 //        saída: 0 = sem violação · 1 = violação · 2 = erro de uso ou de git.
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, appendFileSync } from 'node:fs';
@@ -29,7 +34,7 @@ import { execFileSync } from 'node:child_process';
 import {
   RAIZ, AGENTES, DESTINOS, TIPOS, TIPOS_QUE_EXIGEM_ENCERRAMENTO,
   carregarDonos, donoDe, caminhoRelativo, podeAlterar,
-  PESSOAS, normalizarCaminho, classificarMudancas,
+  PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -127,7 +132,9 @@ function abertosPara(agente, recs, fechados) {
 const USO_VERIFICAR = [
   'uso: node scripts/coord.mjs verificar [agente] [--base <ref>] [--por-dono]',
   `  agente: ${PESSOAS.join(', ')}`,
-  '  sem agente: inferido do branch agente/T-nnnn-<agente> ou alexandre/..., ou do trailer "Agente: <nome>" do último commit',
+  '  sem agente: inferido do branch <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente> ou alexandre/... (ou GITHUB_HEAD_REF);',
+  '              com --base, também do trailer "Agente: <nome>" de todos os commits do PR (obrigatório em nuvem/*);',
+  '              sem --base e sem agente: lista as alterações agrupadas por dono',
   '  exemplos: node scripts/coord.mjs verificar modulo-core',
   '            node scripts/coord.mjs verificar modulo-core --base origin/main',
 ].join('\n');
@@ -162,7 +169,7 @@ function coletarMudancas(base) {
   if (base) {
     if (!head) erroUso('--base exige ao menos um commit no HEAD', false);
     const alvo = git(['rev-parse', '--verify', '-q', `${base}^{commit}`], { falha: null })?.trim();
-    if (!alvo) erroUso(`ref "${base}" não encontrada. Num checkout limpo (CI) busque a base antes: git fetch origin main (ou actions/checkout com fetch-depth: 0)`, false);
+    if (!alvo) erroUso(`ref não encontrada: ${base}. Num checkout limpo (CI) busque a base antes: git fetch origin main (ou actions/checkout com fetch-depth: 0)`, false);
     const mb = git(['merge-base', 'HEAD', alvo], { falha: null })?.trim();
     if (!mb) {
       const raso = git(['rev-parse', '--is-shallow-repository'], { falha: null })?.trim() === 'true';
@@ -177,52 +184,69 @@ function coletarMudancas(base) {
   // `git diff <ref>` compara a árvore de trabalho (inclui o que está no índice) com <ref>;
   // com <ref> = merge-base equivale a <merge-base>...HEAD somado ao que não foi commitado.
   const rastreados = lerNameStatusZ(git(['-c', 'core.quotepath=off', 'diff', '--name-status', '--no-renames', '-z', ref, '--']));
-  const novos = String(git(['ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter(Boolean).map((caminho) => ({ status: 'A', caminho }));
-  return { mudancas: [...rastreados, ...novos], descricao };
+  const novos = String(git(['-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard', '-z'])).split('\0').filter(Boolean).map((caminho) => ({ status: 'A', caminho }));
+  return { mudancas: [...rastreados, ...novos], descricao, mb: base ? ref : null };
 }
 
-function agenteDoBranch(branch) {
-  if (!branch) return null;
-  const m = branch.match(/^agente\/T-\d+-(.+)$/i);
-  if (m) {
-    if (!PESSOAS.includes(m[1])) erroUso(`o branch "${branch}" indica o agente "${m[1]}", que não faz parte do time`);
-    return m[1];
-  }
-  return /^alexandre\//i.test(branch) ? 'alexandre' : null;
-}
-
-function agenteDoTrailer(rev) {
-  const msg = git(['log', '-1', '--format=%B', rev], { falha: null });
-  if (!msg) return null;
-  const achados = [...msg.matchAll(/^Agente:[ \t]*(\S+)[ \t]*$/gim)];
-  if (!achados.length) return null;
-  const nome = achados[achados.length - 1][1];
-  if (!PESSOAS.includes(nome)) erroUso(`o trailer "Agente: ${nome}" do commit ${rev} não é um agente do time`);
-  return nome;
-}
-
-function inferirAgente() {
+/** Branch atual (nulo com HEAD destacado) e o do PR no CI (GITHUB_HEAD_REF). */
+function branches() {
   const local = git(['rev-parse', '--abbrev-ref', 'HEAD'], { falha: null })?.trim();
-  const branch = local && local !== 'HEAD' ? local : null;
-  let a = agenteDoBranch(branch);
-  if (a) return { agente: a, origem: `branch ${branch}` };
-  const ci = process.env.GITHUB_HEAD_REF || '';
-  a = agenteDoBranch(ci);
-  if (a) return { agente: a, origem: `branch ${ci} (GITHUB_HEAD_REF)` };
-  a = agenteDoTrailer('HEAD');
-  if (a) return { agente: a, origem: 'trailer Agente: do último commit' };
-  // No CI o HEAD de um pull_request é o merge sintético: o último commit do PR é o 2º pai.
-  if (git(['rev-parse', '--verify', '-q', 'HEAD^2'], { falha: null })) {
-    a = agenteDoTrailer('HEAD^2');
-    if (a) return { agente: a, origem: 'trailer Agente: do último commit do PR' };
+  return { local: local && local !== 'HEAD' ? local : null, ci: process.env.GITHUB_HEAD_REF || null };
+}
+
+/** Agente pelo branch local ou pelo do CI; erro de uso se o branch indica alguém fora do time. */
+function agentePeloBranch({ local, ci }) {
+  let nuvem = null;
+  for (const [b, rotulo] of [[local, ''], [ci, ' (GITHUB_HEAD_REF)']]) {
+    if (!b) continue;
+    const r = agenteDoBranch(b);
+    if (r.erro) erroUso(r.erro);
+    if (r.agente) return { agente: r.agente, origem: `branch ${b}${rotulo}` };
+    if (r.nuvem && !nuvem) nuvem = b;
   }
-  erroUso(`não deu para inferir o agente (branch: ${branch || ci || 'nenhum'}; sem trailer "Agente:" no último commit). Informe o agente`);
+  return { agente: null, nuvem };
+}
+
+/** Commits do PR (sem merges) entre o merge-base e HEAD, com o corpo da mensagem. */
+function commitsDoPr(mb) {
+  const out = git(['log', '--no-merges', '--format=%H%x1f%s%x1f%B%x1e', `${mb}..HEAD`]);
+  return String(out).split('\x1e').map((s) => s.replace(/^\n/, '')).filter(Boolean).map((s) => {
+    const [sha, assunto, corpo] = s.split('\x1f');
+    return { sha, assunto, corpo };
+  });
+}
+
+function agentePelosTrailers(mb, nuvem) {
+  const commits = commitsDoPr(mb);
+  const r = agenteDosTrailers(commits);
+  if (r.agente) return { agente: r.agente, origem: `trailer "Agente:" de ${commits.length} commit(s) do PR` };
+  if (nuvem) {
+    const det = r.erro === 'sem-trailer' ? '' : `: ${r.mensagem}`;
+    erroUso(`o branch ${nuvem} exige o trailer "Agente: <nome>" em todos os commits do PR${det}`);
+  }
+  if (r.erro === 'sem-trailer') erroUso('informe o agente ou use branch <agente>/T-nnnn (ou o trailer "Agente: <nome>" em todos os commits do PR)');
+  erroUso(r.mensagem);
 }
 
 function imprimirLista(tituloSecao, itens, fmt) {
   if (!itens.length) return;
   console.log(`\n${tituloSecao} (${itens.length}):`);
   for (const i of itens) console.log(`  ${i.status} ${i.caminho}${fmt(i)}`);
+}
+
+/** Lista agrupada por dono (sem agente): recados pelo remetente, diário/lidos pelo agente. */
+function listarPorDono(mudancas, descricao, regras) {
+  const { grupos, violacoes } = agruparPorDono({ mudancas, regras });
+  console.log(`Alterações por dono — ${descricao}`);
+  for (const [d, itens] of Object.entries(grupos).sort()) console.log(`${d} (${itens.length}):\n` + itens.map((i) => `  ${i.status} ${i.caminho}`).join('\n'));
+  imprimirLista('VIOLAÇÃO', violacoes, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
+  const total = mudancas.length ? `${Object.values(grupos).flat().length + violacoes.length} arquivo(s) alterado(s)` : 'nenhum arquivo alterado';
+  if (violacoes.length) {
+    console.log(`\nResultado: VIOLAÇÃO — ${violacoes.length} de ${total} fora das regras (sem-dono, congelado ou recado).`);
+    process.exit(1);
+  }
+  console.log(`\nResultado: OK — ${total}, nenhum sem-dono, congelado ou recado alterado.`);
+  process.exit(0);
 }
 
 function verificar(args) {
@@ -236,25 +260,27 @@ function verificar(args) {
 
     if (o['por-dono']) {
       const { mudancas, descricao } = coletarMudancas(base);
-      console.log(`Alterações por dono — ${descricao}`);
-      const grupos = {};
-      for (const m of mudancas) {
-        const f = normalizarCaminho(m.caminho);
-        const g = /^\.coord\/(recados|diario|lidos)\//.test(f) ? '(recados e diários — livres pelo protocolo)' : donoDe(f, regras);
-        (grupos[g] ||= []).push(`${m.status.charAt(0)} ${f}`);
-      }
-      for (const [d, fs] of Object.entries(grupos).sort()) console.log(`${d} (${fs.length}):\n` + fs.map((f) => '  ' + f).join('\n'));
-      const ruins = (grupos['sem-dono']?.length || 0) + (grupos.congelado?.length || 0);
-      console.log(ruins ? `\nResultado: VIOLAÇÃO — ${ruins} arquivo(s) sem-dono ou congelado.` : `\nResultado: OK — ${mudancas.length} arquivo(s), nenhum sem-dono ou congelado.`);
-      process.exit(ruins ? 1 : 0);
+      listarPorDono(mudancas, descricao, regras);
     }
 
+    // Ordem: agente informado > branch (local ou GITHUB_HEAD_REF) > trailers dos commits (só com --base).
     let agente = o._[0];
     let origem = 'informado';
+    let nuvem = null;
     if (agente && !PESSOAS.includes(agente)) erroUso(`agente desconhecido: ${agente}`);
-    if (!agente) ({ agente, origem } = inferirAgente());
+    if (!agente) ({ agente, origem, nuvem } = agentePeloBranch(branches()));
 
-    const { mudancas, descricao } = coletarMudancas(base);
+    const { mudancas, descricao, mb } = coletarMudancas(base);
+    if (!agente) {
+      // Sem --base a árvore é compartilhada: sem agente, só a lista por dono (os commits não dizem quem mexeu nela).
+      if (!base) listarPorDono(mudancas, descricao, regras);
+      if (!mudancas.length) {
+        console.log(`Verificação de donos — sem agente\nComparação: ${descricao}\n\nResultado: OK — nenhum arquivo alterado.`);
+        process.exit(0);
+      }
+      ({ agente, origem } = agentePelosTrailers(mb, nuvem));
+    }
+
     const r = classificarMudancas({ agente, mudancas, regras, estrito: Boolean(base) });
     console.log(`Verificação de donos — agente: ${agente} (${origem})`);
     console.log(`Comparação: ${descricao}`);
