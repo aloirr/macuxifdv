@@ -2,11 +2,19 @@
 // Guardião de donos — hook PreToolUse (Edit|Write|MultiEdit|NotebookEdit).
 // Bloqueia (exit 2) quando um agente do time tenta alterar arquivo que não é dele.
 // Uso: node .claude/hooks/guarda-donos.mjs [nome-do-agente]
-//  - nome do agente vem do argumento (frontmatter do agente) ou de "agent_type" no JSON do hook.
+//  - Agente (guardião v3, T-0005; mesma regra do guarda-bash.mjs — identificarAgente em scripts/coord-lib.mjs):
+//      1. variável MACUXI_AGENTE;
+//      2. o de antes, numa sessão local de agente ou subagente: argumento (frontmatter do agente)
+//         ou "agent_type" do JSON do hook (na nuvem, CLAUDE_CODE_REMOTE=true, só se for subagente:
+//         agent_id presente ou agent_type diferente do "agent" do .claude/settings.json);
+//      3. branch atual: <agente>/T-nnnn-..., agente/T-nnnn-<agente>, alexandre/* → alexandre,
+//         nuvem/* → trailer "Agente: <nome>" do último commit do branch (desde o main) que o tem;
+//      4. fonte ausente ou ambígua → comportamento anterior (argumento || agent_type).
+//  - "alexandre" altera arquivo de qualquer dono (sem-dono, congelado e recados continuam valendo).
 //  - sessão sem agente (uso manual) → liberado. Desligar tudo: variável MACUXI_GUARDA=off.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AGENTES, RAIZ, caminhoRelativo, podeAlterar } from '../../scripts/coord-lib.mjs';
+import { PESSOAS, RAIZ, caminhoRelativo, podeAlterar, agenteDaSessao } from '../../scripts/coord-lib.mjs';
 
 function lerEntrada() {
   return new Promise((ok) => {
@@ -27,7 +35,7 @@ const bloquear = (msg) => {
 if ((process.env.MACUXI_GUARDA || '').toLowerCase() === 'off') process.exit(0);
 
 const entrada = await lerEntrada();
-const agente = process.argv[2] || entrada.agent_type || '';
+const { agente } = agenteDaSessao({ argumento: process.argv[2], entrada });
 const ferramenta = entrada.tool_name || '';
 const ti = entrada.tool_input || {};
 const alvo = ti.file_path || ti.notebook_path || ti.path;
@@ -47,7 +55,7 @@ if (rel === null) {
   process.exit(0);
 }
 
-if (!AGENTES.includes(agente)) {
+if (!PESSOAS.includes(agente)) {
   bloquear(`o agente "${agente}" não faz parte do time; só os agentes de .claude/agents podem alterar o repositório.`);
 }
 

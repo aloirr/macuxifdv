@@ -404,7 +404,11 @@ function rodarHook(dir, evento, comando, { agente, sessao = 's-teste', id, env =
   };
   const args = [join(dir, '.claude', 'hooks', 'guarda-bash.mjs'), ...(viaArgumento && agente ? [agente] : [])];
   const t0 = performance.now();
-  const r = spawnSync(process.execPath, args, { cwd: dir, input: JSON.stringify(entrada), encoding: 'utf8', env: { ...process.env, MACUXI_GUARDA: '', ...env } });
+  // Sem herdar a identificação da sessão que roda os testes (guardião v3: MACUXI_AGENTE, nuvem).
+  const base = { ...process.env };
+  delete base.MACUXI_AGENTE;
+  delete base.CLAUDE_CODE_REMOTE;
+  const r = spawnSync(process.execPath, args, { cwd: dir, input: JSON.stringify(entrada), encoding: 'utf8', env: { ...base, MACUXI_GUARDA: '', ...env } });
   return { codigo: r.status, erro: r.stderr, saida: r.stdout, ms: performance.now() - t0, id: entrada.tool_use_id, entrada };
 }
 function rodarBash(dir, comando) {
