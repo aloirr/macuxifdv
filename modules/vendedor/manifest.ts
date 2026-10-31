@@ -17,6 +17,8 @@ export const manifest = defineModule({
   publica: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'vendedor.pedido.faturado@1'],
   consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1'],
   acoes: {
+    // RN-PRO-01 / O-3: o promotor só LÊ pedidos (carteira). Escrita continua só para PERFIS_PEDIDO.
+    'pedido.ver': { perfis: [...PERFIS_PEDIDO, 'promotor'] },
     'pedido.criar': { perfis: [...PERFIS_PEDIDO] },
     'pedido.editar': { perfis: [...PERFIS_PEDIDO] },
     'pedido.cancelar': { perfis: [...PERFIS_PEDIDO] },

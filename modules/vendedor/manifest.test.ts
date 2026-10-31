@@ -5,8 +5,9 @@ import manifest from './manifest';
 describe('manifesto do vendedor', () => {
   it('RN-PRO-01: nenhuma ação de pedido tem promotor e promotor não é perfil do módulo', () => {
     const acoes = Object.entries(manifest.acoes);
-    expect(acoes.map(([nome]) => nome).sort()).toEqual(['pedido.aprovar', 'pedido.cancelar', 'pedido.criar', 'pedido.criar_em_nome', 'pedido.editar', 'pedido.excluir']);
-    for (const [, def] of acoes) expect(def.perfis).not.toContain('promotor');
+    expect(acoes.map(([nome]) => nome).sort()).toEqual(['pedido.aprovar', 'pedido.cancelar', 'pedido.criar', 'pedido.criar_em_nome', 'pedido.editar', 'pedido.excluir', 'pedido.ver']);
+    // RN-PRO-01 / O-3: só a leitura (pedido.ver) pode incluir promotor, com escopo de carteira; escrita nunca.
+    for (const [nome, def] of acoes) if (nome !== 'pedido.ver') expect(def.perfis).not.toContain('promotor');
     expect(manifest.perfis).not.toContain('promotor');
   });
 

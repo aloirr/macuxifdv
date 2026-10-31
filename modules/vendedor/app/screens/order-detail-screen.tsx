@@ -18,6 +18,7 @@ import { DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { toDomainPolicy } from '../lib/catalog';
 import { buildOrderPdfHtml, orderPdfFileName, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
+import { pedidoSomenteLeitura } from '../lib/somente-leitura';
 import { orderNote, statusBadge } from '../lib/order-status';
 import { exportPdf } from '../lib/pdf-export';
 import { hrefPedidos, irParaNovoPedido, irParaPedidos } from '../rotas';
@@ -41,6 +42,7 @@ export default function OrderDetailScreen() {
   const podeEditar = usePode('pedido.editar');
   const podeCancelar = usePode('pedido.cancelar');
   const podeCriar = usePode('pedido.criar');
+  const somenteLeitura = pedidoSomenteLeitura({ criar: podeCriar, editar: podeEditar, cancelar: podeCancelar });
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState<'duplicate' | 'edit' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -271,6 +273,7 @@ export default function OrderDetailScreen() {
         </Card>
       </View>
 
+      {somenteLeitura ? null : (
       <View style={{ gap: 8 }} testID="order-actions">
         <SectionHeader title="Ações" />
         <Card style={{ padding: 14, gap: 10 }}>
@@ -328,6 +331,7 @@ export default function OrderDetailScreen() {
           ) : null}
         </Card>
       </View>
+      )}
 
       <DeleteOrderSheet visible={sheet === 'delete'} title={title} queued={isQueued} busy={deleting} error={sheetError} onClose={() => setSheet(null)} onConfirm={(r) => void confirmDelete(r)} />
       <PdfSheet visible={sheet === 'pdf'} busy={pdfBusy} error={sheetError} onClose={() => setSheet(null)} onPick={(v) => void exportPdfFor(v)} />

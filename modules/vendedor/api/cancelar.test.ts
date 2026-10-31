@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ErroRegraNegocio, verificarAcao, criarPermissoes, type ContextoRota } from '@macuxi/platform-sdk';
+import { ErroNaoEncontrado, ErroRegraNegocio, verificarAcao, criarPermissoes, type ContextoRota } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import apiVendedor, { rotaCancelarPedido } from './index';
 
@@ -36,7 +36,9 @@ describe('POST /v1/vendedor/pedidos/:id/cancelar', () => {
 
   it('RN-CORE-04: pedido de cliente fora da carteira é tratado como não encontrado', async () => {
     const { c } = ctx('draft', new Set(['outro']));
-    await expect(rotaCancelarPedido.executar(c)).rejects.toMatchObject({ codigo: 'PEDIDO_NAO_ENCONTRADO' });
+    const erro = await rotaCancelarPedido.executar(c).catch((e) => e);
+    expect(erro).toBeInstanceOf(ErroNaoEncontrado);
+    expect(erro).toMatchObject({ status: 404, codigo: 'PEDIDO_NAO_ENCONTRADO' });
   });
 
   it('RN-PRO-01: promotor recebe 403 PERFIL_SEM_ACESSO na ação pedido.cancelar', () => {
@@ -51,6 +53,6 @@ describe('POST /v1/vendedor/pedidos/:id/cancelar', () => {
   });
 
   it('a API do módulo é válida para o SDK', () => {
-    expect(apiVendedor.rotas).toHaveLength(1);
+    expect(apiVendedor.rotas).toHaveLength(3);
   });
 });
