@@ -437,3 +437,4 @@ export const ERROR_CODES = {
   visit_closed: 'visit_closed',
 } as const;
 export * from './extensoes';
+export * from './modulos';

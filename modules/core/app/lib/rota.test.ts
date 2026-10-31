@@ -1,4 +1,4 @@
-import { initials } from '@macuxi/ui/mobile';
+import { initials } from '@macuxi/ui/mobile/puro';
 import { describe, expect, it } from 'vitest';
 
 import type { CustomerSummary, RouteDay } from '../../contracts';

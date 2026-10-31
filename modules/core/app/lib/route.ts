@@ -2,7 +2,7 @@
  * Rota do dia: aplica as visitas do aparelho (check-in aberto ou já com checkout, ainda na fila ou não)
  * sobre a rota sincronizada e projeta as paradas no "mapa" desenhado em SVG. Pura.
  */
-import { DEFAULT_TZ } from '@macuxi/ui/mobile';
+import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
 
 import type { RouteDay, RouteStop, Visit } from '../../contracts';
 import { isVisitOpen } from '../../domain';
