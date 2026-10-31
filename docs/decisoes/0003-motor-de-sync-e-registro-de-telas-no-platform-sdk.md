@@ -84,3 +84,34 @@ adaptador de `ArmazenamentoSync`, sem mudar a interface do motor nem os módulos
 - **Critérios (T-0008)**: carga de 20 mil SKUs e 500 clientes sem travar a UI; busca offline por texto < 300 ms;
   os mesmos testes do motor verdes nos dois adaptadores (chave→JSON e SQLite).
 - Nova dependência (`expo-sqlite`) entra com este adendo; nenhuma biblioteca de sync pronta (ver Alternativas).
+
+## Adendo 2026-10-31 (T-0008, desenho) — Decisão do adaptador SQLite e da busca FTS5
+Detalhes, medições e plano: [docs/desenho/T-0008.md](../desenho/T-0008.md). Este adendo **refina** o anterior (gatilho e
+critérios continuam valendo) e não reescreve nada acima.
+
+- **Gatilho (confirmado)**: volume alvo do doc 04 — 20 mil SKUs, 500 clientes, 12 meses de histórico resumido — e a busca offline
+  do Catálogo (FTS5, < 300 ms). Medido no código: o pull atual relê e regrava o mapa inteiro `ent:<e>` a cada página (≈ 210 mil
+  linhas serializadas para 20 mil produtos) e não há índice textual; o AsyncStorage do Android tem teto padrão de 6 MB.
+- **Decisão**:
+  1. **SQLite via `expo-sqlite` ~57.0.4** (Expo 57; SQLite 3.50.3 embutido, FTS5 ligado por padrão — declarado mesmo assim com
+     `enableFTS: true` no plugin) no app. **Chave→JSON mantido** (memória nos testes; AsyncStorage como fallback e durante a migração;
+     navegador).
+  2. **Esquema híbrido**, um arquivo por usuário: tabela `kv` para tudo que a interface base grava (estado, cursores, `mod:<m>:*` e a
+     fila `sync:fila` como uma linha JSON); uma tabela genérica `ent_<entidade>(id, updated_at, deleted_at, dados)` por entidade com
+     pull; tabelas próprias de módulo com prefixo `<m>__`; controle em `_esquema` (versão por dono: plataforma e cada módulo) e
+     `_entidades`. Outbox em tabela própria só se a fila passar de 300 itens ou 1 MB por gravação (nova ADR).
+  3. **Interface `ArmazenamentoSync` inalterada**, com extensões **opcionais** (`linhas`, `emTransacao`, `removerModulo`, `busca`):
+     o motor usa se existirem; sem elas, o caminho de hoje. `comPrefixo` continua expondo só a base aos módulos.
+  4. **FTS5 do Catálogo**: content externo sobre `catalogo__busca_doc`, `unicode61 remove_diacritics 2`, sem `tokenchars` extra
+     (códigos em forma compacta numa coluna própria), `prefix='2 3'`, `bm25` com pesos por coluna, sinônimos por expansão da consulta
+     no domínio do Catálogo, sanitização obrigatória no SDK (`montarConsultaFts`, `AND` explícito). O SDK dá a capacidade; a DDL é do
+     Catálogo (`modules/catalogo/db/aparelho.ts`) e a declaração do índice também (`modules/catalogo/app`), respeitando a ADR 0005
+     (produto base vem da entidade do Core por contrato).
+  5. **Testes no Node com `node:sqlite`** (embutido, FTS5 verificado; sem flag a partir do Node 22.13 — `engines` sobe para
+     `>=22.13`), atrás de um `DriverSqlite` mínimo; `better-sqlite3` é a reserva sem mudar o adaptador. A suíte do motor vira suíte de
+     contrato parametrizada (memória, memória com `linhas`, SQLite).
+  6. **Migração AsyncStorage → SQLite** antes de criar o motor, com marcador, fila copiada e conferida primeiro (quantidade, ids,
+     ordem) e o antigo apagado só após sync bem-sucedido (ou 7 dias).
+- **Alternativas descartadas**: uma tabela com colunas próprias por entidade (DDL por entidade, migração a cada campo novo);
+  só chave→JSON no SQLite (não resolve o pull por página); `better-sqlite3` nos testes (addon nativo e aprovação de build no pnpm);
+  sinônimos gravados no índice (reindexar 20 mil a cada mudança); FTS contentless (sem `rebuild` nem valores).
