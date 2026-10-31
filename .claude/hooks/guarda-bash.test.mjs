@@ -31,7 +31,7 @@ const DONOS = {
     { padrao: 'modules/catalogo/**', dono: 'modulo-catalogo' },
     { padrao: 'apps/**', dono: 'engenheiro-software' },
   ],
-  somente_leitura: ['C:/Users/domon/dev/forca-vendas'],
+  somente_leitura: ['C:/Users/domon/dev/fase-m-exemplo'],
 };
 const REGRAS = DONOS.regras.map((r) => ({ ...r, re: globParaRegex(r.padrao) }));
 
@@ -226,7 +226,7 @@ test('caminhos com espaço e barra invertida do Windows', () => {
   bloqueia('mv "C:\\macuxifdv\\modules\\core\\a.ts" "C:\\macuxifdv\\modules\\catalogo\\a.ts"', win);
   libera('echo x > c:/MACUXIFDV/modules/core/a.ts', win); // drive e caixa diferentes: mesmo arquivo
   libera('echo x > "C:\\Users\\domon\\AppData\\Local\\Temp\\x.txt"', win);
-  assert.match(bloqueia('echo x > "C:\\Users\\domon\\dev\\forca-vendas\\planilha teste.xlsx"', win)[0].motivo, /somente leitura/);
+  assert.match(bloqueia('echo x > "C:\\Users\\domon\\dev\\fase-m-exemplo\\planilha teste.xlsx"', win)[0].motivo, /somente leitura/);
   assert.equal(absoluto('modules\\core\\a.ts', 'C:\\macuxifdv', 'C:/macuxifdv'), 'C:/macuxifdv/modules/core/a.ts');
 });
 
