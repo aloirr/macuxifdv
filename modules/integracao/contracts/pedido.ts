@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { CentavosNaoNegativos, DataHoraUtc, ExternalId, Quantidade, Texto, TextoOpcional, Uuid, VERSAO_CONTRATO } from './base';
 
-export const ESTADOS_PEDIDO_ERP = ['pendente', 'enviado', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total'] as const;
+export const ESTADOS_PEDIDO_ERP = ['pendente', 'enviado', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total', 'cancelado'] as const;
 export const EstadoPedidoErp = z.enum(ESTADOS_PEDIDO_ERP);
 export type EstadoPedidoErp = z.infer<typeof EstadoPedidoErp>;
 
@@ -44,8 +44,8 @@ export const PedidosPendentes = z.object({
 });
 export type PedidosPendentes = z.infer<typeof PedidosPendentes>;
 
-/** Estados que o ERP pode informar (`pendente` e `enviado` são do Hub). */
-export const StatusRetornoErp = z.enum(['integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total']);
+/** Estados que o ERP pode informar (`pendente` e `enviado` são do Hub). `cancelado` vem só do ERP; o Macuxi nunca escreve cancelamento no ERP (RN-INT-08). `motivo` é opcional nele. */
+export const StatusRetornoErp = z.enum(['integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total', 'cancelado']);
 export type StatusRetornoErp = z.infer<typeof StatusRetornoErp>;
 
 export const NotaRetorno = z.object({

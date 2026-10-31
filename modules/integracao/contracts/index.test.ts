@@ -129,5 +129,8 @@ describe('RN-INT-08: pedido ao ERP e retorno', () => {
     const nota = { numero: '123', emitida_em: '2026-10-31T11:00:00Z', total_cents: 2000 };
     expect(RetornoErp.safeParse({ ...ret, status: 'faturado_total', numero_erp: '778', nota }).success).toBe(true);
     expect(RetornoErp.safeParse({ ...ret, status: 'enviado', numero_erp: '778' }).success).toBe(false);
+    // RN-INT-08: cancelado vem do ERP, motivo e número são opcionais
+    expect(RetornoErp.safeParse({ ...ret, status: 'cancelado' }).success).toBe(true);
+    expect(RetornoErp.safeParse({ ...ret, status: 'cancelado', motivo: 'Cliente desistiu' }).success).toBe(true);
   });
 });

@@ -37,15 +37,18 @@ export function transicionarLote(de: EstadoLote, para: EstadoLote): ResultadoTra
 /**
  * Pedido no ERP: pendente → enviado → integrado | rejeitado_erp; integrado → faturado_parcial → faturado_total.
  * Decisões: integrado → faturado_total direto é aceito (nota única); enviado → pendente é o timeout.
+ * `cancelado` só vem do ERP (enviado/integrado/faturado_* → cancelado; final; motivo opcional guardado pelo Hub).
+ * O Macuxi nunca escreve cancelamento no ERP: não há transição de saída para o ERP.
  * Repetir o mesmo estado é idempotente (`repetida: true`).
  */
 export const TRANSICOES_PEDIDO_ERP: Readonly<Record<EstadoPedidoErp, readonly EstadoPedidoErp[]>> = {
   pendente: ['enviado'],
-  enviado: ['integrado', 'rejeitado_erp', 'pendente'],
-  integrado: ['faturado_parcial', 'faturado_total'],
+  enviado: ['integrado', 'rejeitado_erp', 'pendente', 'cancelado'],
+  integrado: ['faturado_parcial', 'faturado_total', 'cancelado'],
   rejeitado_erp: [],
-  faturado_parcial: ['faturado_total'],
-  faturado_total: [],
+  faturado_parcial: ['faturado_total', 'cancelado'],
+  faturado_total: ['cancelado'],
+  cancelado: [],
 };
 
 export function transicionarPedidoErp(de: EstadoPedidoErp, para: EstadoPedidoErp): ResultadoTransicao<EstadoPedidoErp> {
