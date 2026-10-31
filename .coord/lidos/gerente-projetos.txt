@@ -21,4 +21,5 @@ R-20261031-065647-modulo-vendedor
 R-20261031-071726-modulo-core
 R-20261031-072840-engenheiro-software
 R-20261031-073201-banco-dados
+R-20261031-124313-modulo-promotor
 R-20261031-113436-alexandre

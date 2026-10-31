@@ -32,6 +32,7 @@ Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho
 |---|---|---|---|---|
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | local (candidata à nuvem após fechar a T-0001) | aberta |
 | [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho | engenheiro-software | local (desenho candidato à nuvem após a A3) | aberta |
+| [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | nuvem (merge 3352d2e) | em_revisao (domínio/contratos/manifesto entregues; aguarda revisão do engenheiro e `ambiente.ts` no platform-sdk) |
 
 ## Próximas sprints
 Ver `docs/produto/05-roadmap.md`.
