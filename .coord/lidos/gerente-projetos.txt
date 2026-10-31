@@ -120,3 +120,6 @@ R-20261031-182547-2-engenheiro-software
 R-20261031-183817-engenheiro-software
 R-20261031-183845-engenheiro-software
 R-20261031-184905-2-banco-dados
+R-20261031-214803-modulo-catalogo
+R-20261031-220007-modulo-gestor
+R-20261031-220022-modulo-gestor

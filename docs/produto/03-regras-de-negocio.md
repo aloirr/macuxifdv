@@ -29,7 +29,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Coletas de trade (gôndola, share, preço, ruptura, validade, pontos extras) | ❌ | ✅ | leitura | leitura | leitura | ❌ |
 | Cadastros de trade (mix, metas de share, concorrentes, planogramas, checklists, tarefas) | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Consultar catálogo (vitrine, busca, ficha) | ✅ com preço e estoque | ✅ sem preço de tabela e sem estoque [`promotor_ve_preco_estoque` = não] | ✅ | ✅ | ✅ | ✅ |
-| Conteúdo, sinônimos e destaques do catálogo | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Conteúdo, sinônimos, destaques e termos sem resultado do catálogo | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Responder pesquisa | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Criar pesquisa / trilha | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Ativar/desativar módulos e usuários | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
@@ -102,14 +102,15 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-TRE-08** Desafio de vendas: paga XP quando o pedido é **faturado** (evento `vendedor.pedido.faturado@1`), não quando é criado; idempotente pelo `evento_id` do envelope (faturamento parcial soma os itens de cada retorno; um segundo faturamento total do mesmo pedido não paga); faturamento parcial sem itens é ignorado; fora do teto diário, com teto próprio [`xp_max_por_desafio`] e `xp_max_por_pedido` acumulado entre eventos. Sem estorno nesta fase. O XP de um mesmo vendedor é processado um de cada vez (tenant + usuário).
 
 ## 8. Catálogo
-> Decisões do Alexandre em 2026-10-31 (R-20261031-172619), a partir das premissas da T-0021.
+> Decisões do Alexandre em 2026-10-31 (R-20261031-172619), aplicadas no módulo pela T-0021 (texto de `docs/modulos/catalogo/regras.md` §9).
 - **RN-CAT-01** Busca inteligente só responde com produtos do tenant e respeita o escopo (preço da tabela do cliente em contexto).
 - **RN-CAT-02** "Pergunte ao catálogo" responde só com conteúdo cadastrado e cita a fonte; sem base → informa que não encontrou.
-- **RN-CAT-03** Limite de consultas de IA por usuário/dia [200] para controle de custo. Falha do provedor (erro ou tempo esgotado) **não conta** no limite; só conta consulta respondida.
-- **RN-CAT-04** Acesso: consulta para todos os perfis; conteúdo, sinônimos e destaques só analista e admin. O promotor vê ficha e fotos, mas sem preço de tabela e sem estoque [`promotor_ve_preco_estoque` = não].
-- **RN-CAT-05** Preço: item fora da tabela do cliente aparece "sem preço para este cliente" e não pode entrar no pedido (não cai na tabela padrão).
-- **RN-CAT-06** Estoque: "baixo" até [10] unidades; número exato visível por padrão; "desatualizado" após [24 h]; sempre mostra "atualizado às hh:mm".
-- **RN-CAT-07** Ranking da busca: pesos de partida semântico [0,4], estoque [0,10], mais vendido [0,10], campanha [0,05]; cache de [10 min]. Calibrar no critério da Sprint 3 (20 consultas de teste).
+- **RN-CAT-03** Limite de consultas de IA por usuário/dia [200] para controle de custo; só consulta respondida pelo provedor conta. Falha do provedor (erro ou tempo esgotado), resposta do cache, busca offline e busca simples não consomem. O dia vira no fuso do tenant.
+- **RN-CAT-04** Consulta do catálogo (busca, ficha, fotos, "pergunte ao catálogo") para todos os perfis; conteúdo, sinônimos, destaques e termos sem resultado só analista e admin.
+- **RN-CAT-05** O promotor vê a ficha e as fotos, mas não vê preço de tabela nem estoque, nem filtra/ordena por eles [`promotor_ve_preco_estoque` = não]; com o parâmetro ligado, vê como o vendedor.
+- **RN-CAT-06** Item fora da tabela de preço do cliente em contexto aparece como "Sem preço para este cliente" e não é vendável; nunca cai na tabela padrão do tenant.
+- **RN-CAT-07** Estoque: "baixo" de 1 até [10] unidades, número exato visível [sim], "desatualizado" depois de [24 h] sem atualização; a tela sempre mostra "atualizado às hh:mm" (fuso do tenant).
+- **RN-CAT-08** Ranking da busca: pesos [semântico 0,4; estoque 0,10; mais vendido 0,10; campanha 0,05] e cache [10 min, a partir da 2ª repetição] são parâmetros do tenant; serão calibrados no critério de aceite da Sprint 3.
 
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.
@@ -131,9 +132,9 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 
 ## 11. Gestor
 > Decisões do Alexandre em 2026-10-31 (R-20261031-165536), a partir das premissas da T-0014.
-- **RN-GES-01** Alerta "cliente sem visita": frequência de visita do cliente + [50%] (semanal → 10 dias; mensal → 45); [30] dias só para cliente sem frequência. Outros alertas: ritmo mínimo da meta [80%], aprovação pendente há [24 h], [3] rupturas em [14] dias, [20%] de fotos sem GPS.
-- **RN-GES-02** Cliente nunca visitado só gera alerta depois de [15] dias na carteira.
-- **RN-GES-03** Prazo da aprovação conta em horário comercial do tenant (dias úteis e horário configurado, no fuso do tenant).
+- **RN-GES-01** Alerta "cliente sem visita": frequência de visita do cliente + [50%] (semanal → 10 dias; quinzenal → 21; mensal → 45); [30] dias só para cliente sem frequência. O alerta dispara quando **passa** do limite (quinzenal: dia 21 não alerta, dia 22 alerta). Outros alertas: ritmo mínimo da meta [80%], aprovação parada além do prazo da RN-GES-03, [3] rupturas em [14] dias, [20%] de fotos sem GPS.
+- **RN-GES-02** Cliente nunca visitado só gera alerta depois de **passar** da carência de [15] dias na carteira (dia 15 não alerta, dia 16 alerta).
+- **RN-GES-03** Prazo da aprovação em **dias úteis** [1] (não em horas): pedido de sexta 17:00 vence segunda 17:00. Dias úteis pelo calendário de ${BT}packages/comum${BT} (herdado da Fase M), com feriados nacionais e os feriados cadastrados pelo tenant, no fuso do tenant. O alerta de aprovação parada usa o mesmo prazo.
 - **RN-GES-04** O gerente pode decidir item do nível do supervisor; fica na auditoria e o supervisor é avisado.
 - **RN-GES-05** Cobertura de rota = visitas planejadas realizadas ÷ planejadas (máximo 100%); visitas fora da rota viram o indicador "visitas extras".
 - **RN-GES-06** Dois números de venda: "vendido" (valor do pedido) e "faturado" (o que o ERP faturou); a diferença aparece como "a faturar".
@@ -174,10 +175,12 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Tolerância do relógio do aparelho (pesquisa) | 24 h (acima disso, sinaliza) |
 | Foto (maior lado / qualidade JPEG) | 1600 px / 80 |
 | Promotor vê preço de tabela e estoque no catálogo (`promotor_ve_preco_estoque`) | não |
-| Estoque "baixo" / "desatualizado" | 10 unidades / 24 h |
-| Ranking da busca (semântico / estoque / mais vendido / campanha) e cache | 0,4 / 0,10 / 0,10 / 0,05 · 10 min |
+| Estoque baixo até (`estoque_baixo_ate`) / mostrar quantidade (`estoque_mostrar_quantidade`) / desatualizado após (`estoque_defasado_horas`) | 10 / sim / 24 h |
+| Cache da busca (`cache_ttl_s` / `cache_min_ocorrencias`) | 600 s / 2 |
+| Ranking da busca (semântico / estoque / mais vendido / campanha) | 0,4 / 0,10 / 0,10 / 0,05 |
 | Linhas inválidas enviadas pelo Conector por entidade e lote | 500 |
-| Alertas do gestor: sem visita (folga sobre a frequência / sem frequência) | +50% / 30 dias |
-| Alertas do gestor: nunca visitado / ritmo mínimo / aprovação pendente / rupturas / fotos sem GPS | 15 dias / 80% / 24 h / 3 em 14 dias / 20% |
-| Horário comercial do tenant (prazo de aprovação) | dias úteis, horário configurado |
+| Alertas do gestor: tolerância sobre a frequência (`pct_tolerancia_frequencia`) / sem frequência (`dias_sem_visita_padrao`) | 50% / 30 dias |
+| Alertas do gestor: carência de cliente novo (`dias_carencia_cliente_novo`) / ritmo mínimo / rupturas / fotos sem GPS | 15 dias / 80% / 3 em 14 dias / 20% |
+| Prazo da aprovação (`prazo_aprovacao_dias_uteis`) | 1 dia útil |
+| Horário comercial (`horario_comercial`) | seg–sex 08:00–18:00, fuso do tenant, feriados nacionais + do tenant |
 | Fuso horário | America/Manaus |

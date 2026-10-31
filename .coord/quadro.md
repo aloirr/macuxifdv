@@ -14,12 +14,11 @@
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| `modules/catalogo/domain/**`, `modules/catalogo/contracts/**`, `modules/catalogo/manifest.ts`, `docs/modulos/catalogo/**` | T-0021 (ajustes das decisões) | `nuvem/T-0021-ajustes` | 2026-10-31 |
 | `apps/conector/**`, `modules/integracao/contracts/**`, `docs/modulos/integracao/**` | T-0023 | `nuvem/T-0023-conector-oracle` | 2026-10-31 |
-| `modules/gestor/domain/**`, `modules/gestor/contracts/**`, `modules/gestor/manifest.ts`, `docs/modulos/gestor/**` | T-0014 (ajustes das decisões) | `nuvem/T-0014-ajustes-decisoes` | 2026-10-31 |
+| `modules/gestor/domain/**`, `modules/gestor/contracts/**`, `modules/gestor/manifest.ts`, `docs/modulos/gestor/**` | T-0014 (ajustes v2: prazo em dias úteis, "passou do limite", feriados) | `nuvem/T-0014-ajustes-v2` | 2026-10-31 |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
-Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
+Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
 Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho: local e nuvem".
 
 ## Meta: fechar a Sprint 0 até sexta, 06/11 (Alexandre, R-20261031-103502)
@@ -48,8 +47,8 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0011](tarefas/T-0011.md) | Treinamento — domínio (trilhas, XP, níveis, medalhas, ranking) | modulo-treinamento | nuvem → local (merge 9f06e77) | concluida (230 testes · revisão sem 🔴 · RN-TRE-01..08 aplicadas) |
 | [T-0012](tarefas/T-0012.md) | Pesquisa — domínio | modulo-pesquisa | nuvem → local (merge f4fdbe5) | concluida (215 testes · revisão sem 🔴 · decisões do Alexandre aplicadas · cliente fechado via RN-CORE-14) |
 | [T-0013](tarefas/T-0013.md) | Conector v1 (lado do cliente) — Sprint 2 | modulo-integracao | nuvem → local (merges a7cd2fe, 588da33) | em_revisao (118 testes · ajustes e Oracle na T-0023) |
-| [T-0014](tarefas/T-0014.md) | Gestor — domínio — Sprint 6 | modulo-gestor | nuvem (merge b379fe6; ajustes na nuvem) | em_revisao (162 testes · RN-GES-01..08 · ajustes na nuvem) |
-| [T-0021](tarefas/T-0021.md) | Catálogo — domínio — Sprint 3 | modulo-catalogo | nuvem (merge 706a31e; ajustes na nuvem) | em_revisao (RN-CAT-03..07 · ajustes na nuvem) |
+| [T-0014](tarefas/T-0014.md) | Gestor — domínio — Sprint 6 | modulo-gestor | nuvem (ajustes v2) | em_andamento (ajustes v1 mergeados · v2 na nuvem: prazo em dias úteis, limite, feriados) |
+| [T-0021](tarefas/T-0021.md) | Catálogo — domínio — Sprint 3 | modulo-catalogo | nuvem → local (merges 706a31e, 7b3bb50) | em_revisao (236 testes · RN-CAT-03..08 aplicadas · falta: revisão do engenheiro e do modulo-catalogo) |
 | [T-0023](tarefas/T-0023.md) | Conector: ajustes v1.1 e adaptador Oracle — Sprint 2 | modulo-integracao | nuvem | em_andamento (sessão da nuvem) |
 | [T-0024](tarefas/T-0024.md) | Payload dos eventos no contracts de cada módulo — Sprint 2 | engenheiro-software | local | aberta |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |

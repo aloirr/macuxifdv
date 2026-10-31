@@ -92,3 +92,4 @@
 2026-10-31 — T-0017 — onda 2 do core recebida (409; API 84); alerta ao engenheiro sobre o lockfile (-165)
 2026-10-31 — onda 2 do engenheiro recebida (E4, CI, zod mitigado, GitGuardian, guardião v3, lockfile OK); 1 teste do banco vermelho pela RN-CORE-15
 2026-10-31 — teste do banco ajustado à RN-CORE-15 (224/224); fechamento da rodada 2 da Sprint 1
+2026-10-31 — T-0021 ajustes e T-0014 ajustes recebidos; doc 03 RN-CAT renumerada e RN-GES-01..03 corrigidas; Gestor travado (v2); Catálogo destravado
