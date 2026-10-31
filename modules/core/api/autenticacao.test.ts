@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { CODIGOS_AUTH, LoginSenhaRequestSchema, SessaoRespostaSchema } from '../contracts';
 import { criarAutenticacao } from './autenticacao';
 import { bancoDeTeste, contextoPublico, estadoInicial, fabricaEmMemoria, logSilencioso, SEGREDO, TENANT_A, type EstadoMemoria } from './apoio-teste';
-import { ErroHttpCore } from './erros';
+import { ErroHttpModulo } from '@macuxi/platform-sdk';
 import { lerRefresh, verificarJwtAcesso } from './seguranca';
 
 let t0 = new Date('2026-10-31T12:00:00Z');
@@ -18,12 +18,12 @@ const { banco } = bancoDeTeste();
 const login = (corpo: Partial<{ codigo_empresa: string; email: string; senha: string; dispositivo_id: string }> = {}) =>
   auth.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'vendedor@exemplo.com.br', senha: 'Teste@1234', ...corpo }), banco, relogio));
 
-async function falha(p: Promise<unknown>): Promise<ErroHttpCore> {
+async function falha(p: Promise<unknown>): Promise<ErroHttpModulo> {
   try {
     await p;
   } catch (x) {
-    expect(x).toBeInstanceOf(ErroHttpCore);
-    return x as ErroHttpCore;
+    expect(x).toBeInstanceOf(ErroHttpModulo);
+    return x as ErroHttpModulo;
   }
   throw new Error('deveria ter falhado');
 }
@@ -62,7 +62,7 @@ describe('RF-CORE-01: login com código da empresa + e-mail + senha', () => {
       await falha(login({ senha: 'errada' })),
     ];
     for (const r of respostas) {
-      expect(r.statusPretendido).toBe(401);
+      expect(r.status).toBe(401);
       expect(r.codigo).toBe(CODIGOS_AUTH.credenciais);
     }
     expect(new Set(respostas.map((r) => r.message)).size).toBe(1);
@@ -82,7 +82,7 @@ describe('RF-CORE-01: login com código da empresa + e-mail + senha', () => {
     const semSegredo = criarAutenticacao({ segredo: () => undefined, repos: fabricaEmMemoria(e) });
     const { banco: b2, tenantsUsados } = bancoDeTeste();
     const erro = await falha(semSegredo.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'a@b.com', senha: 'x' }), b2, relogio)));
-    expect(erro.statusPretendido).toBe(503);
+    expect(erro.status).toBe(503);
     expect(tenantsUsados).toEqual([]);
   });
 
@@ -98,10 +98,10 @@ describe('RF-CORE-01: login com código da empresa + e-mail + senha', () => {
 
 describe('RF-CORE-01: bloqueio por tentativas', () => {
   it('RF-CORE-01: 5 senhas erradas bloqueiam; com a senha certa a resposta é 423; após 15 min entra e zera a contagem', async () => {
-    for (let i = 0; i < 5; i++) expect((await falha(login({ senha: 'errada' }))).statusPretendido).toBe(401);
+    for (let i = 0; i < 5; i++) expect((await falha(login({ senha: 'errada' }))).status).toBe(401);
     expect(e.usuarios.get('u-vend')!.tentativas_falhas).toBe(5);
     const bloqueado = await falha(login());
-    expect(bloqueado.statusPretendido).toBe(423);
+    expect(bloqueado.status).toBe(423);
     expect(bloqueado.codigo).toBe(CODIGOS_AUTH.bloqueado);
     // bloqueado + senha errada: continua parecendo credencial errada (não revela o estado) e não estende o bloqueio
     const ate = e.usuarios.get('u-vend')!.bloqueio_ate;
@@ -120,18 +120,18 @@ describe('RF-CORE-01: bloqueio por tentativas', () => {
 
   it('RF-CORE-01: bloqueio remoto do admin e usuário inativo: 423 só com a senha certa', async () => {
     e.usuarios.get('u-vend')!.bloqueado_em = t0;
-    expect((await falha(login())).statusPretendido).toBe(423);
-    expect((await falha(login({ senha: 'errada' }))).statusPretendido).toBe(401);
+    expect((await falha(login())).status).toBe(423);
+    expect((await falha(login({ senha: 'errada' }))).status).toBe(401);
     e.usuarios.get('u-vend')!.bloqueado_em = null;
     e.usuarios.get('u-vend')!.ativo = false;
-    expect((await falha(login())).statusPretendido).toBe(423);
+    expect((await falha(login())).status).toBe(423);
   });
 
   it('RF-CORE-01: aparelho bloqueado remotamente não entra, mesmo com a senha certa', async () => {
     const d = '5d000000-0000-4000-8000-000000000001';
     await login({ dispositivo_id: d });
     e.dispositivos.get(d)!.bloqueado = true;
-    expect((await falha(login({ dispositivo_id: d }))).statusPretendido).toBe(423);
+    expect((await falha(login({ dispositivo_id: d }))).status).toBe(423);
   });
 });
 
@@ -150,7 +150,7 @@ describe('RF-CORE-01: refresh rotativo', () => {
     const s = await login();
     const novo = await refresh(s.refresh_token);
     await falha(refresh(s.refresh_token)); // reuso
-    expect((await falha(refresh(novo.refresh_token))).statusPretendido).toBe(401);
+    expect((await falha(refresh(novo.refresh_token))).status).toBe(401);
     expect(e.sessoes.every((x) => x.revogado_em !== null)).toBe(true);
   });
 
@@ -224,5 +224,19 @@ describe('RF-CORE-01: autenticar (token → usuário, a cada requisição)', () 
     const [, corpo] = s.access_token.split('.');
     const none = `${Buffer.from('{"alg":"none","typ":"JWT"}').toString('base64url')}.${corpo}.`;
     expect(await auth.autenticar(cab(none), banco, t0)).toBeNull();
+  });
+});
+
+describe('aparelho de outro tenant (23503)', () => {
+  it('RF-CORE-01: FK/unicidade/RLS do aparelho vira 403 DISPOSITIVO_INVALIDO, não 500', async () => {
+    const { repositorioTenantSql } = await import('./repositorio');
+    for (const code of ['23503', '23505', '42501']) {
+      const repo = repositorioTenantSql({ query: () => Promise.reject(Object.assign(new Error('pg'), { code })) });
+      const s = { id: 'a', usuario_id: 'u', familia_id: 'f', token_hash: 'h', dispositivo_id: 'd', expira_em: new Date() };
+      await expect(repo.criarSessao(s)).rejects.toMatchObject({ status: 403, codigo: 'DISPOSITIVO_INVALIDO' });
+      await expect(repo.upsertDispositivo('u', 'd', null, new Date())).rejects.toMatchObject({ status: 403, codigo: 'DISPOSITIVO_INVALIDO' });
+    }
+    const outro = repositorioTenantSql({ query: () => Promise.reject(Object.assign(new Error('x'), { code: '57014' })) });
+    await expect(outro.upsertDispositivo('u', 'd', null, new Date())).rejects.not.toMatchObject({ status: 403 });
   });
 });
