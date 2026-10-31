@@ -2,6 +2,8 @@
 
 > Para o Alexandre, no PC. Fecha o critério 1 da T-0004 e a Sprint 0. Fonte técnica: `docs/desenho/T-0004.md` §7.
 
+> **Atalho**: `_instalar\gerar-apks.cmd` (do Alexandre) confere Node/pnpm, faz o login na Expo se precisar e oferece um menu com os builds (Campo + Gestão, demonstração, só Campo) e o `expo start --dev-client`. Os passos abaixo são o caminho manual.
+
 ## Antes (uma vez)
 1. Abra o **PowerShell** e instale o EAS CLI: `npm i -g eas-cli`
 2. Entre na conta Expo: `eas login` (a conta precisa ter acesso à organização **macuxifdv**, dona do projeto `48bb6c9b…` herdado da Fase M).

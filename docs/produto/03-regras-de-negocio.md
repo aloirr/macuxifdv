@@ -8,6 +8,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CORE-03** Um módulo só aparece se suas dependências estão ativas; funcionalidades que usam extensão opcional (ex.: "pedido em nome" precisa do Vendedor) somem sem erro quando o módulo provedor está inativo.
 - **RN-CORE-04** Escopo de dados: vendedor/promotor veem a própria carteira; supervisor vê a carteira da equipe; gerente vê as equipes abaixo; analista/assistente/admin veem o tenant.
 - **RN-CORE-05** Isolamento total entre tenants (`tenant_id` do token + Row Level Security).
+- **RN-CORE-15** Bloqueio de aparelho vale para o **tenant inteiro** (decisão do Alexandre, 2026-10-31): aparelho bloqueado (perda, roubo, desligamento) não autentica nenhum usuário daquele tenant; a resposta segue a regra do login (423 só revelado a quem acertou a senha). Na próxima conexão o app apaga os dados locais do tenant e a fila não enviada, com aviso na tela, e volta ao login. Bloqueio e desbloqueio no BKO por admin ou analista, com auditoria.
 
 > **Esclarecimentos (gerente-projetos, 2026-10-30, T-0003/T-0006)**
 > - **RN-CORE-01 — exceções só restringem.** Na Sprint 0 a exceção do usuário só **remove** módulos; nunca acrescenta módulo que o perfil não tem. Exceção que acrescenta vai para o backlog. A licença é checada **a cada requisição**, não fica congelada no JWT.
@@ -27,6 +28,8 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Aprovar desconto/crédito | ❌ | ❌ | ✅ até a alçada | ✅ acima | ❌ | ❌ |
 | Coletas de trade (gôndola, share, preço, ruptura, validade, pontos extras) | ❌ | ✅ | leitura | leitura | leitura | ❌ |
 | Cadastros de trade (mix, metas de share, concorrentes, planogramas, checklists, tarefas) | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Consultar catálogo (vitrine, busca, ficha) | ✅ com preço e estoque | ✅ sem preço de tabela e sem estoque [`promotor_ve_preco_estoque` = não] | ✅ | ✅ | ✅ | ✅ |
+| Conteúdo, sinônimos e destaques do catálogo | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Responder pesquisa | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Criar pesquisa / trilha | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Ativar/desativar módulos e usuários | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
@@ -99,9 +102,14 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-TRE-08** Desafio de vendas: paga XP quando o pedido é **faturado** (evento `vendedor.pedido.faturado@1`), não quando é criado; idempotente pelo `evento_id` do envelope (faturamento parcial soma os itens de cada retorno; um segundo faturamento total do mesmo pedido não paga); faturamento parcial sem itens é ignorado; fora do teto diário, com teto próprio [`xp_max_por_desafio`] e `xp_max_por_pedido` acumulado entre eventos. Sem estorno nesta fase. O XP de um mesmo vendedor é processado um de cada vez (tenant + usuário).
 
 ## 8. Catálogo
+> Decisões do Alexandre em 2026-10-31 (R-20261031-172619), a partir das premissas da T-0021.
 - **RN-CAT-01** Busca inteligente só responde com produtos do tenant e respeita o escopo (preço da tabela do cliente em contexto).
 - **RN-CAT-02** "Pergunte ao catálogo" responde só com conteúdo cadastrado e cita a fonte; sem base → informa que não encontrou.
-- **RN-CAT-03** Limite de consultas de IA por usuário/dia [200] para controle de custo.
+- **RN-CAT-03** Limite de consultas de IA por usuário/dia [200] para controle de custo. Falha do provedor (erro ou tempo esgotado) **não conta** no limite; só conta consulta respondida.
+- **RN-CAT-04** Acesso: consulta para todos os perfis; conteúdo, sinônimos e destaques só analista e admin. O promotor vê ficha e fotos, mas sem preço de tabela e sem estoque [`promotor_ve_preco_estoque` = não].
+- **RN-CAT-05** Preço: item fora da tabela do cliente aparece "sem preço para este cliente" e não pode entrar no pedido (não cai na tabela padrão).
+- **RN-CAT-06** Estoque: "baixo" até [10] unidades; número exato visível por padrão; "desatualizado" após [24 h]; sempre mostra "atualizado às hh:mm".
+- **RN-CAT-07** Ranking da busca: pesos de partida semântico [0,4], estoque [0,10], mais vendido [0,10], campanha [0,05]; cache de [10 min]. Calibrar no critério da Sprint 3 (20 consultas de teste).
 
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.
@@ -116,8 +124,21 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-INT-08** Devolução de pedido ao ERP: só pedido `aprovado` entra na fila de pendentes; a entrega é idempotente pelo UUID do pedido. Retorno: `pendente` → `enviado` (Conector retirou) → `integrado` (nº ERP) | `rejeitado_erp` (motivo); `integrado` → `faturado_parcial` → `faturado_total`. `enviado` sem confirmação em [10 min] volta a `pendente`. Cancelamento feito no ERP volta pelo retorno como `enviado`/`integrado`/`faturado_*` → `cancelado`, com o motivo quando o ERP informar; o Macuxi nunca escreve cancelamento no ERP. Cada retorno publica `integracao.pedido.retorno_erp@1`.
 - **RN-INT-09** Contrato `/integracao/v1`: dinheiro em centavos inteiros, datas ISO 8601 UTC, `external_id` obrigatório; campo novo opcional é compatível; mudança incompatível vira `/v2` com ADR e a versão anterior fica ativa por [6 meses].
 
+> **Conector (decisões do Alexandre em 2026-10-31, T-0013)**: linhas inválidas vão ao Hub com o motivo, até [500] por entidade por lote (acima disso, só a contagem). Atualização na v1 = pacote assinado para baixar + aviso no monitor do Hub quando o Conector estiver abaixo da versão mínima ou recomendada (atualização automática na v2). Uma chave de API por Conector (não por tenant), rotacionável no BKO, escopo só `/integracao/v1`, guardada no Windows Credential Manager. Bancos: Oracle primeiro, Firebird depois, MySQL sob demanda.
+
 ## 10. Auditoria
 - **RN-AUD-01** Ficam na auditoria: alterações de preço, limite, alçada, status de pedido, licenças de módulos, perfis, parâmetros e publicações de pesquisa/trilha (quem, quando, antes/depois).
+
+## 11. Gestor
+> Decisões do Alexandre em 2026-10-31 (R-20261031-165536), a partir das premissas da T-0014.
+- **RN-GES-01** Alerta "cliente sem visita": frequência de visita do cliente + [50%] (semanal → 10 dias; mensal → 45); [30] dias só para cliente sem frequência. Outros alertas: ritmo mínimo da meta [80%], aprovação pendente há [24 h], [3] rupturas em [14] dias, [20%] de fotos sem GPS.
+- **RN-GES-02** Cliente nunca visitado só gera alerta depois de [15] dias na carteira.
+- **RN-GES-03** Prazo da aprovação conta em horário comercial do tenant (dias úteis e horário configurado, no fuso do tenant).
+- **RN-GES-04** O gerente pode decidir item do nível do supervisor; fica na auditoria e o supervisor é avisado.
+- **RN-GES-05** Cobertura de rota = visitas planejadas realizadas ÷ planejadas (máximo 100%); visitas fora da rota viram o indicador "visitas extras".
+- **RN-GES-06** Dois números de venda: "vendido" (valor do pedido) e "faturado" (o que o ERP faturou); a diferença aparece como "a faturar".
+- **RN-GES-07** Analista e admin veem os painéis do tenant em modo leitura no BKO.
+- **RN-GES-08** Comentário obrigatório só na rejeição; aprovar continua em 1 toque.
 
 ## Parâmetros do tenant (padrões)
 | Parâmetro | Padrão |
@@ -152,4 +173,11 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Limites do construtor de pesquisa (perguntas / opções / fotos / caracteres) | 50 / 20 / 10 / 2000 |
 | Tolerância do relógio do aparelho (pesquisa) | 24 h (acima disso, sinaliza) |
 | Foto (maior lado / qualidade JPEG) | 1600 px / 80 |
+| Promotor vê preço de tabela e estoque no catálogo (`promotor_ve_preco_estoque`) | não |
+| Estoque "baixo" / "desatualizado" | 10 unidades / 24 h |
+| Ranking da busca (semântico / estoque / mais vendido / campanha) e cache | 0,4 / 0,10 / 0,10 / 0,05 · 10 min |
+| Linhas inválidas enviadas pelo Conector por entidade e lote | 500 |
+| Alertas do gestor: sem visita (folga sobre a frequência / sem frequência) | +50% / 30 dias |
+| Alertas do gestor: nunca visitado / ritmo mínimo / aprovação pendente / rupturas / fotos sem GPS | 15 dias / 80% / 24 h / 3 em 14 dias / 20% |
+| Horário comercial do tenant (prazo de aprovação) | dias úteis, horário configurado |
 | Fuso horário | America/Manaus |

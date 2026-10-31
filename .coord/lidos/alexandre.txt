@@ -24,3 +24,11 @@ R-20261031-145712-gerente-projetos
 R-20261031-150856-gerente-projetos
 R-20261031-152949-engenheiro-software
 R-20261031-154226-gerente-projetos
+R-20261031-193757-2-modulo-catalogo
+R-20261031-173526-gerente-projetos
+R-20261031-173528-gerente-projetos
+R-20261031-173530-gerente-projetos
+R-20261031-173532-gerente-projetos
+R-20261031-181602-modulo-integracao
+R-20261031-182013-engenheiro-software
+R-20261031-182056-engenheiro-software

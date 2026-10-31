@@ -28,3 +28,6 @@ R-20261031-152942-engenheiro-software
 R-20261031-153122-engenheiro-software
 R-20261031-153154-gerente-projetos
 R-20261031-163405-engenheiro-software
+R-20261031-174822-modulo-vendedor
+R-20261031-173439-gerente-projetos
+R-20261031-171441-gerente-projetos

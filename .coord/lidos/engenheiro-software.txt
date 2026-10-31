@@ -60,3 +60,10 @@ R-20261031-164240-banco-dados
 R-20261031-164330-banco-dados
 R-20261031-165536-alexandre
 R-20261031-192157-modulo-integracao
+R-20261031-171441-gerente-projetos
+R-20261031-172619-alexandre
+R-20261031-173439-gerente-projetos
+R-20261031-192144-2-modulo-integracao
+R-20261031-193757-modulo-catalogo
+R-20261031-182152-modulo-core
+R-20261031-174821-modulo-vendedor

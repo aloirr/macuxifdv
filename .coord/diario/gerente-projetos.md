@@ -85,3 +85,10 @@
 2026-10-31 — doc 04: seção Ambiente e versões (Node >=24.7, Expo SDK 57, aparelho de referência, pg16)
 2026-10-31 — D-2 fechado no motor (testes 238/238); fechamento da onda 1
 2026-10-31 — T-0021 renumerada para T-0022 (despachante); T-0021 = Catálogo da nuvem
+2026-10-31 — entregas da nuvem registradas (T-0013, T-0014, T-0021, guardião v3); travas T-0021/T-0023/T-0014 ajustes; RN-CORE-15, RN-CAT-03..07, RN-GES-01..08; T-0023 e T-0024 criadas
+2026-10-31 — T-0018 — pull de pedido do vendedor recebido (123 testes); pedido ao engenheiro: conferir o pnpm-lock
+2026-10-31 — T-0018 — testes ajustados (239/239)
+2026-10-31 — T-0013 — revisão do dono sem 🔴; intermitência com causa conhecida, correção na T-0023 (nuvem)
+2026-10-31 — T-0017 — onda 2 do core recebida (409; API 84); alerta ao engenheiro sobre o lockfile (-165)
+2026-10-31 — onda 2 do engenheiro recebida (E4, CI, zod mitigado, GitGuardian, guardião v3, lockfile OK); 1 teste do banco vermelho pela RN-CORE-15
+2026-10-31 — teste do banco ajustado à RN-CORE-15 (224/224); fechamento da rodada 2 da Sprint 1
