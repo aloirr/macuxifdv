@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { avaliarPedidoNoDesafio, candidatoDoDesafio, type DesafioVendas, type PedidoFaturadoLido } from './desafio';
+import { avaliarPedidoNoDesafio, candidatoDoDesafio, candidatosDoDesafio, type DesafioVendas, type PedidoFaturadoLido } from './desafio';
 import { resolverParametros } from './parametros';
 import { processarLote, type LancamentoXp } from './xp';
 
@@ -182,5 +182,100 @@ describe('Ajuste A: teto próprio por desafio (xp_max_por_desafio), fora do teto
     const l1 = lancar([], livre, pedidoDe('P1'));
     const l2 = lancar(l1, livre, pedidoDe('P2'));
     expect(l2[0]!.pontos).toBe(20);
+  });
+});
+
+describe('Ajuste C (v2): faturamento parcial — idempotência por item (premissa registrada em regras.md §8)', () => {
+  // Premissa (desenho docs/desenho/T-0011.md não encontrado): total → chave por pedido_id (`D:P`); parcial → chave por
+  // (pedido_id, produto_id) (`D:P:produto`); item já pago não paga de novo; sem estorno.
+  let n = 0;
+  const id = () => `Q${++n}`;
+  const parcial = (itens: PedidoFaturadoLido['itens'], extra: Partial<PedidoFaturadoLido> = {}) => pedido({ parcial: true, itens, ...extra });
+  /** Processa um evento como a API faz: gera candidatos vendo os lançamentos já gravados e grava os aceitos. */
+  const processar = (existentes: LancamentoXp[], ped: PedidoFaturadoLido, d: DesafioVendas = desafio) => {
+    const cands = candidatosDoDesafio(d, ped, id, { lancamentos: existentes });
+    const r = processarLote(existentes, cands);
+    return { cands, novos: r.lancamentos, todos: [...existentes, ...r.lancamentos] };
+  };
+
+  it('RF-TRE-06: pedido sem faturamento (apenas criado) não gera XP nem candidato', () => {
+    expect(candidatosDoDesafio(desafio, pedido({ faturado_em: null }), id)).toEqual([]);
+    expect(candidatosDoDesafio(desafio, pedido({ faturado_em: null, parcial: true }), id)).toEqual([]);
+  });
+
+  it('RF-TRE-06: faturamento parcial sem itens (vazio) é ignorado — PARCIAL_SEM_ITENS, sem XP nem lançamento', () => {
+    const p = parcial([]);
+    expect(avaliarPedidoNoDesafio(desafio, p)).toEqual({ elegivel: false, motivo: 'PARCIAL_SEM_ITENS' });
+    expect(candidatosDoDesafio(desafio, p, id)).toEqual([]);
+    expect(processar([], p).novos).toEqual([]);
+  });
+
+  it('RF-TRE-06: faturamento total (parcial ausente ou false) com itens vazios segue como SEM_ITENS_DA_CAMPANHA', () => {
+    expect(avaliarPedidoNoDesafio(desafio, pedido({ itens: [] }))).toEqual({ elegivel: false, motivo: 'SEM_ITENS_DA_CAMPANHA' });
+    expect(avaliarPedidoNoDesafio(desafio, pedido({ itens: [], parcial: false }))).toEqual({ elegivel: false, motivo: 'SEM_ITENS_DA_CAMPANHA' });
+  });
+
+  it('RF-TRE-06: parcial paga por item, com a chave desafio:pedido:produto e o dia do faturamento', () => {
+    const { cands, novos } = processar([], parcial([{ produto_id: 'cafe-250', quantidade: 2 }, { produto_id: 'cafe-500', quantidade: 1 }, { produto_id: 'outro', quantidade: 9 }]));
+    expect(cands.map((c) => [c.referencia_id, c.pontos_base])).toEqual([['D1:P1:cafe-250', 4], ['D1:P1:cafe-500', 2]]);
+    expect(novos.map((l) => l.pontos)).toEqual([4, 2]);
+    expect(novos[0]).toMatchObject({ origem: 'desafio_vendas', usuario_id: 'u1', ocorrido_em: '2026-10-28T14:00:00Z' });
+  });
+
+  it('RF-TRE-06: o mesmo pedido faturado duas vezes não paga duas vezes (total e parcial)', () => {
+    const t1 = processar([], pedido());
+    expect(t1.novos).toHaveLength(1);
+    expect(processar(t1.todos, pedido({ faturado_em: '2026-10-29T10:00:00Z' })).novos).toEqual([]);
+    const itens = [{ produto_id: 'cafe-250', quantidade: 2 }];
+    const p1 = processar([], parcial(itens));
+    expect(p1.novos).toHaveLength(1);
+    expect(processar(p1.todos, parcial(itens, { faturado_em: '2026-10-29T10:00:00Z' })).cands).toEqual([]);
+  });
+
+  it('RF-TRE-06: parcial seguido de total paga só o restante (itens ainda não pagos)', () => {
+    const a = processar([], parcial([{ produto_id: 'cafe-250', quantidade: 2 }]));
+    expect(a.novos.map((l) => l.pontos)).toEqual([4]);
+    // O total traz o pedido inteiro (3 de cafe-250 e 4 de cafe-500); cafe-250 já foi pago na parcial.
+    const b = processar(a.todos, pedido({ faturado_em: '2026-10-30T10:00:00Z', itens: [{ produto_id: 'cafe-250', quantidade: 3 }, { produto_id: 'cafe-500', quantidade: 4 }] }));
+    expect(b.cands.map((c) => [c.referencia_id, c.pontos_base])).toEqual([['D1:P1', 8]]);
+    expect(b.novos[0]).toMatchObject({ pontos: 8, dia: '2026-10-30' });
+  });
+
+  it('RF-TRE-06: o máximo por pedido vale para o pedido todo — o que a parcial já pagou desconta do total (cap 20)', () => {
+    const a = processar([], parcial([{ produto_id: 'cafe-250', quantidade: 6 }])); // 12 XP
+    const b = processar(a.todos, pedido({ itens: [{ produto_id: 'cafe-500', quantidade: 50 }] })); // 100 → resta 8
+    expect(b.novos[0]).toMatchObject({ pontos: 8, pontos_base: 8 });
+  });
+
+  it('RF-TRE-06: total já pago, depois uma parcial do mesmo pedido, não paga nada', () => {
+    const a = processar([], pedido());
+    expect(processar(a.todos, parcial([{ produto_id: 'cafe-250', quantidade: 3 }, { produto_id: 'cafe-500', quantidade: 5 }])).cands).toEqual([]);
+  });
+
+  it('RF-TRE-06: total depois de parciais que já pagaram todos os itens da campanha não paga nada', () => {
+    const a = processar([], parcial([{ produto_id: 'cafe-250', quantidade: 3 }]));
+    expect(processar(a.todos, pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 3 }] })).cands).toEqual([]);
+  });
+
+  it('RF-TRE-06: item já pago não paga de novo numa 2ª parcial, mas item novo paga; a quantidade é a faturada no evento', () => {
+    const a = processar([], parcial([{ produto_id: 'cafe-250', quantidade: 1 }]));
+    const b = processar(a.todos, parcial([{ produto_id: 'cafe-250', quantidade: 5 }, { produto_id: 'cafe-500', quantidade: 2 }], { faturado_em: '2026-10-29T10:00:00Z' }));
+    expect(b.cands.map((c) => [c.referencia_id, c.pontos_base])).toEqual([['D1:P1:cafe-500', 4]]);
+  });
+
+  it('RF-TRE-06: o histórico é do vendedor e do desafio — outro vendedor ou outro desafio pagam o mesmo pedido', () => {
+    const a = processar([], pedido());
+    expect(processar(a.todos, pedido({ vendedor_id: 'u2' })).novos).toHaveLength(1);
+    expect(processar(a.todos, pedido(), { ...desafio, id: 'D2' }).novos).toHaveLength(1);
+  });
+
+  it('RF-TRE-06: teto do desafio atingido no meio de um pedido parcial paga só o saldo e depois 0 (30 de 20 + 20)', () => {
+    const comTeto = { ...desafio, xp_max_por_pedido: 100, xp_max_por_desafio: 30 };
+    const { novos } = processar([], parcial([{ produto_id: 'cafe-250', quantidade: 10 }, { produto_id: 'cafe-500', quantidade: 10 }]), comTeto);
+    expect(novos.map((l) => [l.pontos, l.pontos_base, l.limitado_pelo_teto])).toEqual([[20, 20, false], [10, 20, true]]);
+  });
+
+  it('RF-TRE-06: candidatoDoDesafio (atalho do faturamento total) recusa o evento parcial — use candidatosDoDesafio', () => {
+    expect(() => candidatoDoDesafio(desafio, parcial([{ produto_id: 'cafe-250', quantidade: 1 }]), 'x')).toThrow(RangeError);
   });
 });

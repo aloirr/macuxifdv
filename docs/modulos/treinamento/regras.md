@@ -1,8 +1,8 @@
 # Treinamento — regras de cálculo (domain)
 
-Implementação: `modules/treinamento/domain/` (funções puras, sem I/O; rodam no app offline, na web e na API). Cada arquivo tem um `*.test.ts` com os casos abaixo (`it('RN-TRE-xx: ...')`). Contratos Zod: `modules/treinamento/contracts/` (reaproveitam estas funções nos refinamentos; a API sempre revalida). Tarefa: T-0011 (domínio, sem banco e sem telas; ajustes de decisão do Alexandre aplicados em 31/10/2026).
+Implementação: `modules/treinamento/domain/` (funções puras, sem I/O; rodam no app offline, na web e na API). Cada arquivo tem um `*.test.ts` com os casos abaixo (`it('RN-TRE-xx: ...')`). Contratos Zod: `modules/treinamento/contracts/` (reaproveitam estas funções nos refinamentos; a API sempre revalida). Tarefa: T-0011 (domínio, sem banco e sem telas; ajustes A–D e faturamento parcial, v2).
 
-Convenções: nota e percentuais com 2 casas (meio para cima); XP sempre inteiro; instantes em UTC (ISO com `Z`), **"dia" = data civil no fuso do tenant** (`America/Manaus` por padrão, via `localDate` de `@macuxi/comum`, ADR 0002); ids UUID gerados no aparelho; "sem dados" devolve `null`, nunca divide por zero. Regras que não têm texto nos docs 02/03 foram **decididas pelo Alexandre** (31/10/2026) e valem como regra; todas são padrão **parametrizável por tenant** (tabela abaixo). Origem marcada como "decisão 31/10" + o RN-TRE relacionado.
+Convenções: nota e percentuais com 2 casas (meio para cima); XP sempre inteiro; instantes em UTC (ISO com `Z`), **"dia" = data civil no fuso do tenant** (`America/Manaus` por padrão, via `localDate` de `@macuxi/comum`, ADR 0002); ids UUID gerados no aparelho; "sem dados" devolve `null`, nunca divide por zero. O doc 03 só tem RN-TRE-01 a 04; cada regra abaixo cita a RN-TRE mais próxima (ou o RF-TRE, quando não há RN) e vale como regra, não como premissa em aberto. Todo número é padrão **parametrizável por tenant** (tabela abaixo). "Decisão 31/10" na coluna Origem indica que o Alexandre fixou o valor nessa data.
 
 ## Parâmetros do tenant (`parametros.ts`, `resolverParametros(parcial)`)
 | Parâmetro | Padrão | Onde entra | Origem |
@@ -18,13 +18,13 @@ Convenções: nota e percentuais com 2 casas (meio para cima); XP sempre inteiro
 | `xp_trilha` | 50 | `xpDaTrilha` | RN-TRE-01 |
 | `xp_streak_por_dia` / `xp_streak_teto` | 2 / 20 | `xpDoStreak` | RN-TRE-01 |
 | `xp_teto_diario` | 200 (0 = sem teto) | `proporLancamento` | decisão 31/10 (RN-TRE-01) |
-| `xp_max_por_desafio` | 500 por vendedor e desafio (0 = sem teto) | `candidatoDoDesafio` / `proporLancamento` | decisão 31/10 (ajuste A, RF-TRE-06) |
+| `xp_max_por_desafio` | 500 por vendedor e desafio (0 = sem teto) | `candidatosDoDesafio` / `proporLancamento` | decisão 31/10 (ajuste A; RF-TRE-06, RN-TRE-01) |
 | `niveis_xp_min` | 0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200 (10 níveis) | `nivelDoXp` | decisão 31/10 (RF-TRE-03) |
 | `streak_medalha_dias` | 7 | `medalhasPadrao` | decisão 31/10 (RF-TRE-03) |
 | `perfis_ranking` | vendedor, promotor | `calcularRanking` | decisão 31/10 (RN-TRE-03) |
 | `fuso` | `America/Manaus` | tudo que usa "dia" | doc 03, tabela de parâmetros |
 
-Também por cadastro do desafio (RF-TRE-06, não por tenant): `xp_por_unidade`, `xp_max_por_pedido` e, opcionalmente, `xp_max_por_desafio` (tem prioridade sobre o do tenant).
+Também por cadastro do desafio (RF-TRE-06, não por tenant): `xp_por_unidade`, `xp_max_por_pedido` (sem padrão: obrigatório no cadastro) e, opcionalmente, `xp_max_por_desafio` (tem prioridade sobre o do tenant; ausente = padrão 500).
 
 `resolverParametros` recusa valores inválidos (nota fora de 0–100, tentativas < 1, XP negativo/fracionado, `pct_minimo_duracao_licao` fora de 0–100, `segundos_minimos_licao`/`xp_max_por_desafio` negativos ou fracionados, faixas que não começam em 0 ou não crescem, fuso inexistente). O desempate do ranking e a ordem dos critérios **não** são parâmetros (fixos, abaixo).
 
@@ -79,15 +79,21 @@ Também por cadastro do desafio (RF-TRE-06, não por tenant): `xp_por_unidade`, 
 - Regras: `trilhas_concluidas` (≥ N), `nota_maxima` (nota = 100 em algum quiz; 99,99 não vale), `sequencia_dias` (maior sequência ≥ N). Catálogo padrão (decisão 31/10): **primeira trilha concluída**, **nota máxima no quiz**, **sequência de 7 dias** (`sequencia_7_dias`; o código acompanha o N em `medalhasPadrao(n)`).
 - `avaliarMedalhas(catálogo, estado, jáConquistadas)` devolve só as **novas** — nunca em duplicidade (`medalha_usuario` único por usuário + medalha). Quem grava gera o UUID da conquista e publica `treinamento.medalha.conquistada@1`.
 
-## 8. Desafio de vendas — RF-TRE-06 (P1) (`desafio.ts`)
-- **Paga no FATURAMENTO** (decisão 31/10, ajuste C): o XP sai quando o pedido é **faturado** (status vindo do ERP pelo Hub), **não** quando é criado. Pedido apenas criado, sem `faturado_em`, não gera XP (`PEDIDO_NAO_FATURADO`).
-- Entrada só pelo **evento de pedido faturado**, lido de forma tolerante por `PedidoFaturadoLido` (contracts): `pedido_id`, `vendedor_id`, `faturado_em`, `itens[{produto_id, quantidade}]`; campos a mais são ignorados e o Treinamento não importa nada do Vendedor nem da Integração. Payload sem `faturado_em` é recusado.
-- **EVENTO PENDENTE**: o nome e o publicador do evento (hoje o manifesto declara, **provisoriamente**, `vendedor.pedido.faturado@1`) serão definidos por Vendedor + Integração + engenheiro-software. Quando sair, trocam-se o `consome` do manifesto e, se o payload divergir, o `PedidoFaturadoLido` — o domínio não muda. Enquanto isso o desafio fica sem entrada em produção (o módulo funciona sem ele).
-- **XP do pedido** = unidades dos itens da campanha × `xp_por_unidade`, inteiro (para baixo), limitado a `xp_max_por_pedido`. Exemplo: 3 un. × 2 = 6; 50 un. × 2 = 100 → 20. Quantidade ≤ 0 é ignorada.
-- **Teto por desafio** (decisão 31/10, ajuste A): `xp_max_por_desafio` = máximo de XP **por vendedor em cada desafio** (soma dos lançamentos do vendedor com referência `desafio_id:*`). Padrão do tenant **500**; o cadastro do desafio pode trazer o seu (prioridade); 0 = sem teto. O pedido que cruza o teto paga **só o saldo**; esgotado, grava-se lançamento de **0 ponto** (`limitado_pelo_teto`, idempotência e auditoria). Exemplo com teto 30 e pedidos de 20 XP: 20, depois 10 (de 20), depois 0. Vale também dentro de um mesmo lote. Outro vendedor ou outro desafio têm o seu teto.
-- **Fora do teto diário**: o desafio continua sem consumir nem sofrer o `xp_teto_diario` de 200.
+## 8. Desafio de vendas — RF-TRE-06 (P1), RN-TRE-01, RN-TRE-04 (`desafio.ts`)
+- **Paga no FATURAMENTO** (ajuste C; RN-TRE-01, RF-TRE-06): o XP sai quando o pedido é **faturado** (status vindo do ERP pelo Hub), **não** quando é criado. Pedido apenas criado, sem `faturado_em`, não gera XP (`PEDIDO_NAO_FATURADO`).
+- **Entrada**: o Treinamento consome **somente `vendedor.pedido.faturado@1`** (opcional; não consome `vendedor.pedido.criado@1`). Leitura tolerante por `PedidoFaturadoLido` (contracts): `pedido_id`, `vendedor_id`, `faturado_em`, `itens[{produto_id, quantidade}]` e `parcial` (boolean, **padrão false** se ausente); campos a mais são ignorados e o Treinamento não importa nada do Vendedor nem da Integração. Payload sem `faturado_em` ou sem os ids é recusado; `itens` ausente vira lista vazia. O publicador e o registro do evento em `.coord/contratos/eventos.md` são do engenheiro-software.
+- **XP do pedido** = unidades dos itens da campanha × `xp_por_unidade`, inteiro (para baixo), limitado a `xp_max_por_pedido` (o máximo vale para o **pedido todo**: o que parciais anteriores já pagaram é descontado). Exemplo: 3 un. × 2 = 6; 50 un. × 2 = 100 → 20. Quantidade ≤ 0 é ignorada.
+- **Faturamento parcial e idempotência** (PREMISSA do Treinamento, RN-TRE-04 "sincroniza e é validado no servidor" + RF-TRE-06; o desenho `docs/desenho/T-0011.md` citado pelo Alexandre **não foi encontrado no repositório**; se ele divergir, muda `candidatosDoDesafio` e o engenheiro-software deve avisar):
+  - **Total** (`parcial` ausente/false): chave `desafio_id:pedido_id`. **Parcial** (`parcial: true`): uma chave por item, `desafio_id:pedido_id:produto_id`; em cada evento parcial, `quantidade` é a **faturada naquele evento**.
+  - **Item já pago** (em parcial ou total) **não paga de novo**: o mesmo evento repetido, ou o mesmo produto numa 2ª parcial (a quantidade nova desse produto não é paga: um pagamento por produto e pedido), não gera XP.
+  - **Total depois de parciais** paga só os itens da campanha ainda não pagos; se não sobrou nenhum, não paga nada. **Parcial depois do total** não paga nada. **Total repetido** não paga de novo.
+  - **Parcial sem itens** (vazio ou ausente) é **ignorada**: sem XP e sem lançamento (`PARCIAL_SEM_ITENS`).
+  - O histórico é do **vendedor e do desafio** (outro vendedor ou outro desafio pagam o mesmo pedido). Eventos de um mesmo lote que ainda não viram lançamento não enxergam uns aos outros pelo histórico; a chave natural (usuário + origem + referência) de `proporLancamento` continua barrando a repetição exata, e a API deve processar os eventos do pedido na ordem de `faturado_em`.
+  - **Sem estorno**: cancelamento depois do faturamento não retira XP (append-only).
+- **Teto por desafio** (ajuste A; RN-TRE-01, RF-TRE-06): `xp_max_por_desafio` = máximo de XP **por vendedor em cada desafio** (soma dos lançamentos do vendedor com referência `desafio_id:*`, de pedidos totais e parciais). Padrão do tenant **500**; o cadastro do desafio pode trazer o seu (prioridade); 0 = sem teto. O pedido (ou item parcial) que cruza o teto paga **só o saldo**; esgotado, grava-se lançamento de **0 ponto** (`limitado_pelo_teto`, idempotência e auditoria). Exemplo com teto 30 e pedidos de 20 XP: 20, depois 10 (de 20), depois 0. Vale também dentro de um mesmo lote. Outro vendedor ou outro desafio têm o seu teto.
+- **Fora do teto diário**: o desafio continua sem consumir nem sofrer o `xp_teto_diario` de 200 (RN-TRE-01).
 - **Vigência**: dia do **faturamento** no fuso do tenant entre `vigencia_inicio` e `vigencia_fim`, **inclusivo** (26/10 00:00 Manaus = 04:00Z entra; 03:59Z não). Desafio inativo ou de outro tenant não pontua. O lançamento fica no dia do faturamento (conta no ranking desse dia).
-- **Idempotente por pedido**: referência `desafio_id:pedido_id`; evento repetido não pontua de novo; dois desafios diferentes podem pontuar o mesmo pedido. O XP vai ao `vendedor_id` do pedido (em pedido "em nome", o vendedor, não o gestor). **Sem estorno nesta fase**: pedido cancelado depois do faturamento não retira o XP (append-only; fica para uma fase futura).
+- O XP vai ao `vendedor_id` do pedido (em pedido "em nome", o vendedor, não o gestor). `candidatoDoDesafio` é o atalho do faturamento total (recusa evento parcial); a API usa `candidatosDoDesafio` com os lançamentos do vendedor.
 
 ## 9. Ranking — RF-TRE-04, RN-TRE-03 (`ranking.ts`)
 - **Períodos** (`intervaloDoPeriodo`): semanal = segunda a domingo da semana da data (31/10/2026, sábado → 26/10 a 01/11); mensal = mês civil; acumulado = sem limites. Conta o `dia` do lançamento (fuso do tenant).
@@ -101,13 +107,16 @@ Também por cadastro do desafio (RF-TRE-06, não por tenant): `xp_por_unidade`, 
 
 ## 11. Eventos e contratos
 - Publica `treinamento.licao.concluida@1` (`LicaoConcluidaV1`: progresso, usuário, trilha, lição, nota do quiz, `xp_ganho`, `trilha_concluida`) e `treinamento.medalha.conquistada@1` (`MedalhaConquistadaV1`). O doc 02 não lista outros eventos; trilha concluída e nível viajam dentro de `licao.concluida`.
-- Consome (opcional) o evento de **pedido faturado** (nome pendente; provisório `vendedor.pedido.faturado@1`) pela leitura tolerante `PedidoFaturadoLido`.
+- Consome (opcional) **somente `vendedor.pedido.faturado@1`** pela leitura tolerante `PedidoFaturadoLido` (payload e `parcial` em §8). Não consome `vendedor.pedido.criado@1`.
 
-## Decisões do Alexandre (31/10/2026)
-Premissas 1 a 11 da entrega da T-0011 decididas e incorporadas acima como regra: teto diário de 200 XP (lição, quiz, trilha, streak) com lançamento de 0 ao estourar; XP de acerto na 1ª tentativa mesmo reprovada; refazer quiz aprovado sem XP e valendo a melhor nota; intervalo entre tentativas 0; desempate XP → quem atingiu primeiro → trilhas → nome → id; faixas de nível e 3 medalhas padrão; público-alvo (interseção quando os dois critérios estão preenchidos); semana de segunda a domingo e dia no fuso do tenant. Ajustes: **A** teto por desafio (`xp_max_por_desafio`, §8), **B** streak só com lição concluída ou quiz respondido até o fim (§4), **C** desafio paga no faturamento, evento pendente (§8), **D** tempo mínimo = maior entre 30 s e 50% da duração (§6).
+## Mapa das regras por RN-TRE
+- **RN-TRE-01** (XP): valores de XP (§3), teto diário de 200 (§3), streak só com lição concluída ou quiz respondido até o fim — ajuste B (§4), desafio de vendas: teto por desafio — ajuste A, paga no faturamento — ajuste C e parcial (§8).
+- **RN-TRE-02** (quiz): nota mínima, tentativas, intervalo, nota que vale, XP só na 1ª tentativa mesmo reprovada, refazer sem XP novo (§2).
+- **RN-TRE-03** (ranking): período, escopo, desempate XP → quem atingiu primeiro → trilhas → nome → id (§9).
+- **RN-TRE-04** (offline/servidor): validação do progresso e tempo mínimo da lição = maior entre 30 s e 50% da duração — ajuste D (§6), idempotência de lançamentos e lote (§3).
+- **RF-TRE-01 a 05**: trilha, público-alvo, níveis, medalhas, adesão (§1, §5, §7, §10).
 
-## Pendências
-- Nome/publicador do evento de pedido faturado (Vendedor + Integração + engenheiro-software); o Treinamento só ajusta o `consome` e o `PedidoFaturadoLido`.
-- Estorno de XP do desafio (pedido cancelado após faturado): fora desta fase.
+## Fora desta fase
+- Estorno de XP do desafio (pedido cancelado após faturado): não há.
 - Ajuste manual de XP pelo BKO (lançamento corretivo): não existe ainda.
-- Tabelas `desafio_vendas` e `publico_alvo` e os campos novos (`xp_max_por_desafio` no desafio; `duracao_estimada_seg` na lição): a pedir ao banco-dados quando a API for escrita.
+- Tabelas `desafio_vendas` e `publico_alvo`, o histórico de itens pagos por pedido (já derivável de `xp_lancamento.referencia_id`) e os campos novos (`xp_max_por_desafio` no desafio; `duracao_estimada_seg` na lição): a pedir ao banco-dados quando a API for escrita.

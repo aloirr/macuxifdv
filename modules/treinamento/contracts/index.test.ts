@@ -148,11 +148,11 @@ describe('eventos publicados treinamento.*@1', () => {
   });
 });
 
-describe('RF-TRE-06: leitura tolerante do pedido FATURADO (evento do Vendedor/Integração, nome pendente)', () => {
+describe('RF-TRE-06: leitura tolerante do pedido FATURADO (`vendedor.pedido.faturado@1`)', () => {
   const p = { pedido_id: u(1), vendedor_id: u(2), faturado_em: T0, itens: [{ produto_id: u(3), quantidade: 2 }] };
   it('lê o que precisa e ignora campos a mais do Vendedor', () => {
     const r = PedidoFaturadoLido.parse({ ...p, total_cents: 12345, cliente_id: u(9), itens: [{ produto_id: u(3), quantidade: 2, preco_cents: 500 }] });
-    expect(r).toEqual({ ...p });
+    expect(r).toEqual({ ...p, parcial: false });
   });
   it('Ajuste C: pedido apenas criado (sem faturado_em) é recusado e não pontua; o antigo criado_em não vale', () => {
     const { faturado_em: _f, ...criado } = p;
@@ -160,10 +160,18 @@ describe('RF-TRE-06: leitura tolerante do pedido FATURADO (evento do Vendedor/In
     expect(PedidoFaturadoLido.safeParse({ ...criado, criado_em: T0 }).success).toBe(false);
     expect(PedidoFaturadoLido.safeParse({ ...p, faturado_em: null }).success).toBe(false);
   });
-  it('payload sem o necessário (ex.: sem itens) é recusado e não pontua', () => {
-    const { itens: _i, ...semItens } = p;
-    expect(PedidoFaturadoLido.safeParse(semItens).success).toBe(false);
+  it('payload sem o necessário (ids, faturado_em) ou com quantidade inválida é recusado e não pontua', () => {
+    const { vendedor_id: _v, ...semVendedor } = p;
+    expect(PedidoFaturadoLido.safeParse(semVendedor).success).toBe(false);
     expect(PedidoFaturadoLido.safeParse({ ...p, itens: [{ produto_id: u(3), quantidade: 0 }] }).success).toBe(false);
+  });
+  it('Ajuste C v2: `parcial` é opcional (padrão false); itens ausentes viram lista vazia (o domínio ignora o parcial sem itens)', () => {
+    expect(PedidoFaturadoLido.parse(p).parcial).toBe(false);
+    expect(PedidoFaturadoLido.parse({ ...p, parcial: true }).parcial).toBe(true);
+    expect(PedidoFaturadoLido.safeParse({ ...p, parcial: 'sim' }).success).toBe(false);
+    const { itens: _i, ...semItens } = p;
+    expect(PedidoFaturadoLido.parse({ ...semItens, parcial: true })).toMatchObject({ itens: [], parcial: true });
+    expect(PedidoFaturadoLido.parse({ ...p, parcial: true, itens: [] }).itens).toEqual([]);
   });
   it('desafio: vigência com fim antes do início é recusada', () => {
     const d = { id: u(1), tenant_id: u(2), nome: 'Semana do Café', ativo: true, produto_ids: [u(3)], vigencia_inicio: '2026-10-26', vigencia_fim: '2026-11-01', xp_por_unidade: 2, xp_max_por_pedido: 20 };

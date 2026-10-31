@@ -1,11 +1,12 @@
 /**
- * Leitura TOLERANTE do fato "pedido faturado", só com o que o desafio de vendas (RF-TRE-06) precisa. O XP é pago
- * no FATURAMENTO (status vindo do ERP pelo Hub), não na criação do pedido.
- * PENDENTE: o nome final do evento (hoje provisório `vendedor.pedido.faturado@1` no manifesto) será definido por
- * Vendedor + Integração + engenheiro-software; quando sair, só o manifesto e este schema (se o payload divergir) mudam.
+ * Leitura TOLERANTE do evento `vendedor.pedido.faturado@1` ("pedido faturado"), só com o que o desafio de vendas
+ * (RF-TRE-06) precisa. O XP é pago no FATURAMENTO (status vindo do ERP pelo Hub), não na criação do pedido.
+ * O publicador e o registro do evento em .coord/contratos/eventos.md são do engenheiro-software.
  * O Treinamento não importa nada do módulo Vendedor (nem seus contracts): este schema é a "visão" que o consumidor
  * tem do payload. Campos a mais são ignorados (objeto não estrito) e o Treinamento segue funcionando sem o Vendedor.
  * Se o Vendedor mudar nomes ou tipos, o evento é recusado aqui (não pontua) até alinharmos o contrato.
+ * `parcial` (padrão false) marca faturamento parcial: `itens` traz só o que foi faturado naquele evento; parcial sem
+ * itens (vazio ou ausente) é lido, mas ignorado pelo domínio (`PARCIAL_SEM_ITENS`).
  */
 import { z } from 'zod';
 import { InstanteUtc, Uuid } from './base';
@@ -23,7 +24,10 @@ export const PedidoFaturadoLido = z.object({
   vendedor_id: Uuid,
   /** Instante UTC do faturamento (define o dia da vigência e do XP). Pedido sem este campo (só criado) é recusado. */
   faturado_em: InstanteUtc,
-  itens: z.array(PedidoItemLido).max(500),
+  /** Itens faturados NESTE evento (ausente = vazio). */
+  itens: z.array(PedidoItemLido).max(500).default([]),
+  /** Faturamento parcial (padrão false = total). Na parcial, `quantidade` é a faturada naquele evento. */
+  parcial: z.boolean().default(false),
 });
 export type PedidoFaturadoLido = z.infer<typeof PedidoFaturadoLido>;
 
