@@ -78,6 +78,26 @@ criado_em: 2026-10-31T14:05:12-04:00
 2. Durante: trabalhar só nos seus caminhos; dúvidas e pedidos → recado.
 3. Ao terminar: recado `entrega` ao gerente (o que fez, testes, pendências) + linha no diário `.coord/diario/<eu>.md`.
 
+## Frentes de trabalho: local e nuvem
+> Decisão do Alexandre, 2026-10-31 (versão final; vale a partir de agora, sem pedir confirmação).
+
+**1. Frentes**
+- **Local** (este VS Code, agentes de `.claude/`): tudo que precisa do Docker/Postgres, da pasta da Fase M, de build ou aparelho Android, ou que mexe em arquivos de um agente ativo.
+- **Nuvem** (claude.ai/code, sessões abertas pelo Alexandre sobre o GitHub `aloirr/macuxifdv`): tarefas só de código e testes, sem dependência local, cada uma no seu branch (`nuvem/*`, `alexandre/*` ou `agente/*`), com **merge automático no `main` quando os testes passam**.
+
+**2. Trava de arquivos**
+- O quadro tem a coluna **Onde** (`local` | `nuvem`) em cada tarefa e a seção **Travado pela nuvem** com os caminhos travados.
+- Nenhum agente local altera caminho travado. Nenhuma tarefa roda nas duas frentes ao mesmo tempo.
+- Quando o merge da nuvem chega no pull, o gerente-projetos **destrava** os caminhos daquela tarefa.
+
+**3. Git automático** (executado pelo gerente-projetos, sem pedir confirmação; os demais agentes não fazem commit)
+- **Início de cada rodada**: `git pull --no-rebase origin main`. Se vieram commits da nuvem: `pnpm install`, registrar a entrega no quadro e na tarefa, destravar os caminhos e mandar recado de revisão ao dono do caminho.
+- **Fim de cada rodada**, com `pnpm lint`, `pnpm typecheck` e `pnpm test` da raiz verdes: commit no `main` (`T-nnnn: <resumo>` + trailer `Agente: <nome>`) → `git pull --no-rebase origin main` → lint, typecheck e test de novo → `git push origin main` se verde.
+- **Vermelho depois do pull**: não fazer push; disparar a correção para o dono e fazer o push quando ficar verde.
+- **Conflito no pull**: o gerente resolve só se o arquivo for dele (`.coord/`, `docs/produto/`); se for de outro dono, chama o dono para resolver e só então faz o push. O Alexandre é avisado por recado só se o conflito durar mais de uma rodada.
+- **Proibido**: force push, rebase do `main`, push com teste vermelho, apagar histórico.
+- **Permissão de push**: a regra do `.claude/settings.json` permite push para `main`, `nuvem/*`, `alexandre/*` e `agente/*` e nega force e delete (entregue pela T-0005 na nuvem). Enquanto a regra não chegar pelo pull, o gerente faz só o commit local e segue.
+
 ## Contratos entre módulos
 `.coord/contratos/` (dono: engenheiro-software) registra eventos, extensões e dependências. O módulo publicador é dono do schema do evento em `modules/<m>/contracts`; mudança incompatível = nova versão + recado a todos os consumidores.
 

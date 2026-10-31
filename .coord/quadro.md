@@ -2,14 +2,25 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
-| Tarefa | Título | Responsável | Status |
+| Tarefa | Título | Responsável | Onde | Status |
+|---|---|---|---|---|
+| [T-0001](tarefas/T-0001.md) | Reestruturar o monorepo em modules/ + platform-sdk | engenheiro-software | local | em_andamento (A/B/C/A2/B2/A3 ✅ — 275/277 · rodando: vendedor recupera 2 testes e migra para ctx.http · depois: D, revisão) |
+| [T-0002](tarefas/T-0002.md) | Banco: schemas plataforma e core, RLS e migrações | banco-dados | local | em_andamento (migrações, RLS, seed e fixture ✅ · db no workspace ✅ · Docker ✅ respondendo · próximo: rodar no Docker + vazamento) |
+| [T-0003](tarefas/T-0003.md) | Auth, perfis e licenças de módulos | modulo-core | local | em_andamento (Fase 1 ✅ · Fase 2 aguarda T-0002 e T-0004) |
+| [T-0004](tarefas/T-0004.md) | Shells mobile (campo/gestao), web e api montando módulos pelo manifesto | engenheiro-software | local | aberta |
+| [T-0005](tarefas/T-0005.md) | CI e verificação de donos | engenheiro-software | nuvem (verificar, settings, /entrega, guardião: `scripts/coord*.mjs` e `.claude/**`) · local (CI `.github/`, engenheiro, depois da A3) | aberta |
+| [T-0006](tarefas/T-0006.md) | Plano de testes da fundação | testes | local | em_andamento (plano entregue; execução aguarda T-0001..T-0005) |
+
+## Travado pela nuvem
+| Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| [T-0001](tarefas/T-0001.md) | Reestruturar o monorepo em modules/ + platform-sdk | engenheiro-software | em_andamento (A/B/C/A2/B2 ✅ — 277/277 copiados · rodando: ligação nos shells e slots do vendedor · depois: D, revisão) |
-| [T-0002](tarefas/T-0002.md) | Banco: schemas plataforma e core, RLS e migrações | banco-dados | em_andamento (infra Docker/compose/migrações; aguarda Docker instalado) |
-| [T-0003](tarefas/T-0003.md) | Auth, perfis e licenças de módulos | modulo-core | aberta |
-| [T-0004](tarefas/T-0004.md) | Shells mobile (campo/gestao), web e api montando módulos pelo manifesto | engenheiro-software | aberta |
-| [T-0005](tarefas/T-0005.md) | CI e verificação de donos | engenheiro-software | aberta |
-| [T-0006](tarefas/T-0006.md) | Plano de testes da fundação | testes | em_andamento (plano entregue; execução aguarda T-0001..T-0005) |
+| `scripts/coord*.mjs` | T-0005 (verificar `--base`) | `alexandre/T-0005-verificar` | 2026-10-31 |
+| `.claude/**` | T-0005 (regra de push no settings.json, skill /entrega, lint do guardião) | nuvem | 2026-10-31 |
+
+Nenhum agente local altera esses caminhos. Destravar quando o merge chegar no pull do `main`.
+**Push**: bloqueado pelo settings até o merge da T-0005 na nuvem trazer a regra nova; até lá, só commit local ao fim da rodada.
+Próximas para a nuvem: CI da T-0005 (`.github/`) e desenho da T-0008 depois que a A3 fechar; T-0007 depois que a T-0001 fechar.
+Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho: local e nuvem".
 
 ## Prioridades da semana 02–06/11 (Alexandre, R-20261031-021714)
 1. **Ambiente e git (até seg 02/11)**: Docker com `pgvector/pgvector:pg16`; EAS para Android; `main` com commit inicial do Alexandre; commit ao fim de cada rodada.
@@ -18,10 +29,10 @@
 - T-0004 e o resto da T-0005 ficam para a semana de 09/11.
 
 ## Sprint 1 — backlog aberto
-| Tarefa | Título | Responsável | Status |
-|---|---|---|---|
-| [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | aberta |
-| [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho | engenheiro-software | aberta |
+| Tarefa | Título | Responsável | Onde | Status |
+|---|---|---|---|---|
+| [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | local (candidata à nuvem após fechar a T-0001) | aberta |
+| [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho | engenheiro-software | local (desenho candidato à nuvem após a A3) | aberta |
 
 ## Próximas sprints
 Ver `docs/produto/05-roadmap.md`.

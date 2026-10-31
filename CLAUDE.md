@@ -27,12 +27,15 @@ Coordenação: `node scripts/coord.mjs` (caixa, enviar, pendencias, dono, verifi
 5. Toda tabela: `id`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id`; RLS ligado.
 6. Offline-first no app; toda rota checa perfil, escopo de carteira e **licença do módulo**.
 7. Promotor (trade marketing: gôndola, share, preço, ruptura, validade) nunca cria/edita/exclui pedido (UI e API).
-8. Segredos só em `.env`; sem dado pessoal em log; sem commit/push sem pedido do Alexandre.
+8. Segredos só em `.env`; sem dado pessoal em log; commit/push só pelo gerente-projetos, pela regra de rodada abaixo.
 
 ## Time de agentes
 A sessão principal roda como **`gerente-projetos`** (definido em `.claude/settings.json`), que comanda: `engenheiro-software`, `banco-dados`, `testes` e os agentes `modulo-core`, `modulo-catalogo`, `modulo-vendedor`, `modulo-promotor`, `modulo-gestor`, `modulo-pesquisa`, `modulo-treinamento`, `modulo-integracao`.
 **Cada agente altera só os próprios caminhos (`.coord/donos.json`) e fala com os outros por recados** (`.coord/recados/`, skill `protocolo-recados`). O guardião (`.claude/hooks/guarda-donos.mjs`) bloqueia o resto. Para trabalhar sem o guardião (uso manual): variável `MACUXI_GUARDA=off`.
 Skills: `/status`, `/feature <RF ou descrição>`, `/entrega`.
+
+## Frentes local × nuvem e git
+Cada tarefa roda **local** (este VS Code) ou na **nuvem** (claude.ai/code, branch `nuvem/*`, `alexandre/*` ou `agente/*`, merge automático no `main` com testes verdes), nunca nas duas: veja a coluna **Onde** do quadro. Caminhos em **Travado pela nuvem** (`.coord/quadro.md`) não são alterados por agentes locais. Git só pelo gerente-projetos, sem pedir confirmação: **início da rodada** `git pull --no-rebase origin main` (+ `pnpm install` se veio commit da nuvem); **fim da rodada**, com lint/typecheck/test da raiz verdes, commit no `main` (`T-nnnn: <resumo>` + trailer `Agente: <nome>`) → pull → checks de novo → `git push origin main` só se verde. Vermelho ou conflito em arquivo de outro dono: o dono corrige antes do push. Proibido: force push, rebase do `main`, push vermelho, apagar histórico. Detalhes: `docs/produto/07-agentes-e-coordenacao.md`.
 
 ## Definição de pronto
 Lint + typecheck + testes verdes · critérios da tarefa demonstrados · revisão do engenheiro sem 🔴 · `node scripts/coord.mjs verificar` sem violações · quadro, backlog e docs atualizados.
