@@ -17,7 +17,8 @@ import type {
   Visit,
 } from '@macuxi/core/contracts';
 import { ErroHttp } from '@macuxi/platform-sdk';
-import type { CreateOrderRequest, CustomerDetail, DiscountPolicy, MixSuggestion, Order, OrderDetail, Product, UpdateOrderRequest } from '@macuxi/vendedor/contracts';
+import type { CreateOrderRequest, CustomerDetail, DiscountPolicy, Order, OrderDetail, UpdateOrderRequest } from '@macuxi/vendedor/contracts';
+import type { MixSuggestion, Product } from '@macuxi/catalogo/contracts';
 
 export class HttpError extends Error {
   constructor(

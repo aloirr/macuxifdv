@@ -1,7 +1,7 @@
 import type { CustomerSummary } from '@macuxi/core/contracts';
 import { describe, expect, it } from 'vitest';
 
-import type { Product } from '../../contracts';
+import type { Product } from '@macuxi/catalogo/contracts';
 import { buildAttention } from './attention';
 import { creditInput, filterCustomers, parsePct, searchProducts, stockInfo, toDomainPolicy } from './catalog';
 import { filterCounts, orderNote, statusBadge } from './order-status';

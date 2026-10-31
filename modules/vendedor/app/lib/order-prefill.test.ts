@@ -1,4 +1,4 @@
-import type { Product } from '../../contracts';
+import type { Product } from '@macuxi/catalogo/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { prefillLines, prefillNotice } from './order-prefill';

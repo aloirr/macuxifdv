@@ -15,6 +15,7 @@
   "dependencies": {
     "@fastify/cors": "^11.1.0",
     "@macuxi/comum": "workspace:*",
+    "@macuxi/catalogo": "workspace:*",
     "@macuxi/core": "workspace:*",
     "@macuxi/vendedor": "workspace:*",
     "exceljs": "^4.4.0",

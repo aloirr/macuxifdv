@@ -1,6 +1,7 @@
 /**
- * Contratos do módulo Core (API /v1/core). Copiado da Fase M; pedidos, produtos, alçadas e sync de pedido
- * foram para o Vendedor. Fonte da verdade para a API e os clientes (app e web).
+ * Contratos do módulo Core (API /v1/core). Copiado da Fase M; pedidos, alçadas e sync de pedido foram para o
+ * Vendedor. O cadastro base de produto é do Core e preço/estoque são do Catálogo (ADR-0005, T-0007).
+ * Fonte da verdade para a API e os clientes (app e web).
  *
  * Convenções:
  * - campos em snake_case, iguais ao modelo de dados (docs/03-modelo-de-dados.md);
@@ -78,6 +79,26 @@ export type Me = z.infer<typeof Me>;
 // ---------- cadastros ----------
 export const Branch = z.object({ id: Id, erp_code: z.string(), name: z.string(), city: z.string(), uf: z.string(), is_distribution_center: z.boolean() });
 export type Branch = z.infer<typeof Branch>;
+
+/**
+ * Cadastro base de produto (ADR-0005): dono é o Core (tabela `core.produto`). Promotor, Pesquisa e Gestor usam
+ * só este tipo; preço, estoque, conteúdo e busca são do Catálogo (`@macuxi/catalogo/contracts`).
+ * Campos da API (nomes da Fase M) × colunas de `core.produto`: `erp_code` = `sku`, `description` = `nome`,
+ * `brand` = `marca`, `line` = `categoria`, `unit` = `unidade`. `ean`, `active` (= `ativo`) e `external_id` são
+ * opcionais enquanto o mock-api da Fase M não os envia.
+ */
+export const ProductBase = z.object({
+  id: Id,
+  erp_code: z.string(),
+  description: z.string(),
+  brand: z.string(),
+  line: z.string(),
+  unit: z.string(),
+  ean: z.string().nullable().optional(),
+  active: z.boolean().optional(),
+  external_id: z.string().nullable().optional(),
+});
+export type ProductBase = z.infer<typeof ProductBase>;
 export const Team = z.object({ id: Id, name: z.string(), manager_user_id: Id.nullable() });
 export type Team = z.infer<typeof Team>;
 export const Seller = z.object({
