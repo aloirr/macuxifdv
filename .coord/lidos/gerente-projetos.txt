@@ -64,3 +64,11 @@ R-20261031-122330-modulo-vendedor
 R-20261031-123422-banco-dados
 R-20261031-124824-engenheiro-software
 R-20261031-125016-modulo-core
+R-20261031-125833-alexandre
+R-20261031-145213-alexandre
+R-20261031-150204-alexandre
+R-20261031-131421-modulo-core
+R-20261031-132148-modulo-pesquisa
+R-20261031-132543-modulo-promotor
+R-20261031-133449-banco-dados
+R-20261031-140141-engenheiro-software

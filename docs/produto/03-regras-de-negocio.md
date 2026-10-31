@@ -35,6 +35,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CORE-10** Check-in só dentro de [200 m] do cliente; fora do raio exige justificativa e fica sinalizado. Cliente sem coordenada: o 1º check-in sugere a coordenada para o BKO aprovar.
 - **RN-CORE-11** Um atendimento aberto por vez; o esquecido fecha sozinho na virada do dia (fuso do tenant) como "não finalizado".
 - **RN-CORE-12** Checkout exige as etapas obrigatórias registradas pelos módulos ativos (ex.: pesquisa obrigatória) e motivo quando não houve pedido (se Vendedor ativo).
+- **RN-CORE-14** Visita sem atendimento por **cliente fechado**: motivos `loja_fechada` e `acesso_negado`, com foto da fachada obrigatória, valem para vendedor e promotor. Eles dispensam as etapas obrigatórias do checkout (inclui a pesquisa obrigatória, RN-PES-03, e o checklist da loja, RN-PRO-06). O core informa o motivo às etapas do slot `visita.etapas_checkout`.
 - **RN-CORE-13** GPS só no check-in/checkout; sem rastreamento contínuo.
 - **RN-CORE-20** Visitado = check-in no dia; positivado = ≥ 1 pedido na [base de apuração] no período; cobertura = visitados ÷ planejados.
 - **RN-CORE-21** Realizado da meta = soma dos pedidos na [base de apuração: aprovado | faturado], líquido de cancelamentos; o pedido feito pelo gestor em nome do vendedor conta para o **vendedor**.
@@ -67,7 +68,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-PRO-03** Share (%) = frentes nossas ÷ frentes totais da categoria × 100 (ou cm nossos ÷ cm totais, quando medido em centímetros). Atingimento = share ÷ meta de share da loja/categoria.
 - **RN-PRO-04** Índice de preço = preço nosso ÷ preço do concorrente de referência × 100. Preço que varia mais de [50%] em relação à última coleta pede confirmação (evita erro de digitação).
 - **RN-PRO-05** Ruptura (%) = itens do mix obrigatório em ruptura (ruptura total + ruptura na gôndola com produto no depósito) ÷ itens do mix obrigatório × 100. A ruptura na gôndola com produto no depósito também é mostrada à parte (falha de reposição).
-- **RN-PRO-06** Checkout da visita exige as etapas obrigatórias do checklist da loja, exceto "loja fechada" ou "acesso negado" (exigem foto da fachada).
+- **RN-PRO-06** Checkout da visita exige as etapas obrigatórias do checklist da loja, exceto cliente fechado (`loja_fechada` ou `acesso_negado`, com foto da fachada — RN-CORE-14).
 - **RN-PRO-07** Visita só conta nos indicadores com permanência mínima de [10 min]; abaixo disso é sinalizada ao gestor.
 - **RN-PRO-08** Validade: vencido (dias < 0) · crítico ≤ [7] dias · atenção ≤ [30] dias · ok. Validade próxima = vencido + crítico + atenção.
 - **RN-PRO-09** Alerta de ruptura vai ao vendedor responsável pelo cliente; se houver mais de um, ao da [linha do produto] ou ao primeiro da carteira.
@@ -75,10 +76,14 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-PRO-11** Conformidade da gôndola (%) = (conformes + parciais × [peso do parcial]) ÷ gôndolas registradas × 100; peso padrão [0]. Motivo obrigatório quando não conforme; o total de parciais aparece à parte.
 
 ## 6. Pesquisa
-- **RN-PES-01** Pesquisa publicada é imutável; mudanças geram nova versão; respostas guardam a versão.
-- **RN-PES-02** Frequência controla quando reaparece para o mesmo cliente/usuário.
-- **RN-PES-03** Pesquisa obrigatória no checkout bloqueia o checkout até ser respondida (exceto "cliente fechado").
-- **RN-PES-04** Resposta offline guarda a hora do aparelho e a hora de recebimento; prazo de vigência considera a do aparelho com tolerância de [24 h].
+> Decisões do Alexandre em 2026-10-31 (R-20261031-125833), a partir das premissas da T-0012. As demais premissas de `docs/modulos/pesquisa/regras.md` ficam aceitas.
+- **RN-PES-01** Pesquisa publicada é imutável; mudanças geram nova versão; respostas guardam a versão. Resultado consolidado entre versões só para perguntas com o mesmo identificador estável; as demais aparecem por versão.
+- **RN-PES-02** Frequência conta **por cliente** (não por cliente + usuário), em períodos civis (semana ou mês) no fuso do tenant.
+- **RN-PES-03** Pesquisa obrigatória no checkout bloqueia o checkout até ser respondida, exceto cliente fechado (RN-CORE-14).
+- **RN-PES-04** Resposta offline guarda a hora do aparelho e o servidor grava `recebido_em`. Relógio do aparelho adiantado mais de [24 h] ou resposta fora da vigência: **aceita e sinalizada** (flag de suspeita visível no resultado), nunca recusada.
+- **RN-PES-05** Regras condicionais: "mostrar" combina com OU; "ocultar" vence. Público-alvo: a lista de clientes soma (OU) aos segmentos. "Canal" fica fora do público-alvo até o Core ter esse campo.
+- **RN-PES-06** Código de barras com dígito GS1 inválido: aviso, não bloqueio. Foto: no máximo [1600 px] no maior lado, JPEG qualidade [80] (mesma regra do Promotor).
+- **RN-PES-07** Limites do construtor (parâmetros do tenant): [50] perguntas, [20] opções por pergunta, [10] fotos, [2000] caracteres por resposta de texto.
 
 ## 7. Treinamento
 > Decisões do Alexandre em 2026-10-31 (R-20261031-103502), a partir das premissas da T-0011. Valores entre colchetes são parâmetros do tenant.
@@ -142,4 +147,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Intervalo entre tentativas de quiz | 0 (desligado) |
 | Ranking padrão (perfis) | vendedor, promotor |
 | Limite de inativação em massa na integração (`limite_inativacao_pct`) | 30% |
+| Limites do construtor de pesquisa (perguntas / opções / fotos / caracteres) | 50 / 20 / 10 / 2000 |
+| Tolerância do relógio do aparelho (pesquisa) | 24 h (acima disso, sinaliza) |
+| Foto (maior lado / qualidade JPEG) | 1600 px / 80 |
 | Fuso horário | America/Manaus |

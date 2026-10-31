@@ -61,3 +61,10 @@
 2026-10-31 — T-0007/T-0004 — fixture corrigida e migração 0003 (worker + índice); raiz ainda vermelha por trabalho em andamento do engenheiro (banco.test) e do core (Fase 2)
 2026-10-31 — T-0007 CONCLUÍDA; aviso ao treinamento (manifesto travado); pedido ao Alexandre: .env.example bloqueado e consumo do evento na sessão da nuvem da T-0011
 2026-10-31 — T-0003 — Fase 2 entregue (237 testes, banco simulado); raiz vermelha só por timeout do argon2 sob carga; core corrigindo antes do push
+2026-10-31 — rodada fechada e pushada (47fb6e3); decisões da Pesquisa e RN-CORE-14 no doc 03; aviso a todos; próxima rodada: core (RN-CORE-14), pesquisa (ajustes), banco (0004)
+2026-10-31 — T-0003 — RN-CORE-14 no core (244 testes); engenheiro disparado (HTTP, login no shell, e2e, câmera)
+2026-10-31 — guardião de Bash: falso positivo (mandou restaurar arquivo do modulo-pesquisa em edição); NÃO restaurei; aviso a todos e pedido ao Alexandre
+2026-10-31 — T-0012 — ajustes das decisões recebidos (215 testes)
+2026-10-31 — T-0010 — promotor passou a consumir o cliente fechado do core (155 testes); guardião segue com falso positivo, ninguém restaurou
+2026-10-31 — T-0003 — migração 0004 recebida (150/150; core 244/244 no Postgres)
+2026-10-31 — T-0003/T-0004 — engenheiro entregou ligações finais e e2e (6 testes no Postgres); fechamento da rodada

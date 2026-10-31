@@ -23,3 +23,10 @@
 - **Cancelamento por integração — para ERPs que aceitam** (sem data): evento `vendedor.pedido.cancelado@1` consumido pelo Hub e cancelamento devolvido ao ERP (opção (a) da decisão de 2026-10-31; no Essencial vale a (b)).
 - **Schema `vendedor` (pedido, pedido_item…)**: o vendedor pediu `vendedor.pedido` ao banco-dados para a rota de cancelamento (T-0009); entra com o pedido ponta a ponta (Sprints 4–5), não na Sprint 0.
 - **Despachante da outbox (worker com macuxi_worker)**: precisa de tarefa própria para o engenheiro (ADR 0007, migração 0003 pronta).
+- **Campo "canal" no cliente do Core**: necessário para o público-alvo da Pesquisa (RN-PES-05); hoje fica fora.
+- **Persistir visita com motivo de cliente fechado e foto da fachada** (RN-CORE-14): tabelas core.visita/visita_etapa e armazenamento de foto entram com rotas e visitas reais (Sprint 1).
+- **Pesquisa: colunas suspeita, motivos_suspeita, largura_px e altura_px** (RN-PES-04/06): pedir ao banco-dados junto com a API da pesquisa.
+- **Aparelho bloqueado por tenant e erro 23503 no criarSessao** (T-0003): decidir se o bloqueio de aparelho vale para todos os usuários do tenant; tratar aparelho de outro tenant como erro de cliente. Sugestão do banco-dados ao core.
+- **Job de limpeza de sessões expiradas** (core.sessao).
+- **Telas que ainda chamam rotas da Fase M** (/me, /customers): ficam vazias com a API real; migrar para as rotas novas na Sprint 1.
+- **Refresh do BKO no localStorage** (passar para cookie httpOnly na Sprint 1) e **trustProxy no Fastify** (antes do deploy).

@@ -14,7 +14,7 @@
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| `modules/treinamento/domain/**`, `modules/treinamento/contracts/**`, `modules/treinamento/manifest.ts`, `docs/modulos/treinamento/**` | T-0011 (ajustes das decisões) | `nuvem/T-0011-ajustes-decisoes` | 2026-10-31 |
+| `modules/treinamento/domain/**`, `modules/treinamento/contracts/**`, `modules/treinamento/manifest.ts`, `docs/modulos/treinamento/**` | T-0011 (ajustes das decisões + consumo de vendedor.pedido.faturado@1) | `nuvem/T-0011-ajustes-v2` | 2026-10-31 |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
 Destravados em 2026-10-31: `scripts/coord*.mjs` e `.claude/**` (merge 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (merges dcc044d, 0d1c8a1 e 3215b2f). Também: T-0007, T-0012 e `.claude/hooks/**` (merges 6fba044, f4fdbe5, d277a55). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
@@ -30,8 +30,8 @@ Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho
 |---|---|---|---|---|
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | nuvem → local (merge 6fba044) | concluida (🔴 da fixture corrigido · 🟡 aplicados · API 37/37 com banco) |
 | [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho | engenheiro-software | local | em_andamento (desenho ✅ e revisado · falta: implementação, parte 2) |
-| [T-0011](tarefas/T-0011.md) | Treinamento — domínio (trilhas, XP, níveis, medalhas, ranking) | modulo-treinamento | nuvem (ajustes, branch nuvem/T-0011-ajustes-decisoes) | em_andamento (revisão do dono 🟡 sem 🔴 · ajustes RN-TRE na nuvem · depois: revisão do engenheiro) |
-| [T-0012](tarefas/T-0012.md) | Pesquisa — domínio | modulo-pesquisa | nuvem → local (merge f4fdbe5) | concluida (200 testes · revisão sem 🔴 · 🟡 cliente fechado no checkout com o core · perguntas de produto com o Alexandre) |
+| [T-0011](tarefas/T-0011.md) | Treinamento — domínio (trilhas, XP, níveis, medalhas, ranking) | modulo-treinamento | nuvem (ajustes, branch nuvem/T-0011-ajustes-v2) | em_andamento (revisão do dono 🟡 sem 🔴 · ajustes RN-TRE na nuvem · depois: revisão do engenheiro) |
+| [T-0012](tarefas/T-0012.md) | Pesquisa — domínio | modulo-pesquisa | nuvem → local (merge f4fdbe5) | concluida (215 testes · revisão sem 🔴 · decisões do Alexandre aplicadas · cliente fechado via RN-CORE-14) |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (155 testes · revisão sem 🔴 · decisões do Alexandre aplicadas) |
 
