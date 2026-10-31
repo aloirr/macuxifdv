@@ -10,7 +10,7 @@
 | `core.usuario.modulos_alterados@1` | core | todos (shell) |
 | `catalogo.produto.visualizado@1` | catalogo | gestor (P2) |
 | `catalogo.busca.realizada@1` | catalogo | catalogo (analytics) |
-| `vendedor.pedido.criado@1` | vendedor | gestor, core (metas); treinamento troca por `faturado@1` |
+| `vendedor.pedido.criado@1` | vendedor | gestor, core (metas) |
 | `vendedor.pedido.status_alterado@1` | vendedor | gestor, integracao, core (metas) |
 | `vendedor.pedido.aprovacao_solicitada@1` | vendedor | gestor |
 | `vendedor.pedido.faturado@1` | vendedor | treinamento (desafio de vendas, RN-TRE), gestor e core (metas; a declarar) |

@@ -11,6 +11,7 @@ import { TelaMetas } from './telas/metas';
 import { TelaMeusModulos } from './telas/meus-modulos';
 import { TelaRota } from './telas/rota';
 
+export { definirCapturaFoto, type CapturaFoto } from './lib/foto-fachada';
 export { OpenVisitBar } from './components/open-visit-bar';
 export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
 

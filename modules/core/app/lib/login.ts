@@ -32,7 +32,7 @@ export function validarLogin(c: CamposLogin): ErrosLogin {
 /** Mensagem para o usuário a partir do erro da API (códigos de `CODIGOS_AUTH`) ou de rede. */
 export function mensagemDeErroDeLogin(e: unknown): string {
   if (ehSemConexao(e)) return 'Sem conexão com o servidor. O primeiro login precisa de internet: conecte-se e tente de novo.';
-  const x = e as { codigo?: unknown } | null;
+  const x = e as { codigo?: unknown; message?: unknown } | null;
   switch (x?.codigo) {
     case CODIGOS_AUTH.credenciais:
       return 'Código da empresa, e-mail ou senha incorretos. Confira os dados e tente de novo.';
@@ -42,6 +42,8 @@ export function mensagemDeErroDeLogin(e: unknown): string {
       return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
     case CODIGOS_AUTH.sessao:
       return 'Sua sessão expirou. Entre de novo com o código da empresa, o e-mail e a senha.';
+    case 'PERFIL_FORA_DO_APP':
+      return typeof x?.message === 'string' && x.message ? x.message : 'Este perfil não usa este aplicativo. Use o aplicativo ou o painel indicado pela sua empresa.';
     case 'AUTENTICACAO_INDISPONIVEL':
       return 'O login está indisponível no momento. Tente de novo em alguns minutos; se continuar, avise o suporte.';
     default:

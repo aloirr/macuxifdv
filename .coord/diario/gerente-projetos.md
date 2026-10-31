@@ -68,3 +68,7 @@
 2026-10-31 — T-0010 — promotor passou a consumir o cliente fechado do core (155 testes); guardião segue com falso positivo, ninguém restaurou
 2026-10-31 — T-0003 — migração 0004 recebida (150/150; core 244/244 no Postgres)
 2026-10-31 — T-0003/T-0004 — engenheiro entregou ligações finais e e2e (6 testes no Postgres); fechamento da rodada
+2026-10-31 — rodada fechada e pushada (44e82c9: migração 0004, e2e, login real, RN-CORE-14, RN-PES, T-0011 v2 da nuvem); treinamento destravado; próxima rodada: testes (validação T-0003/T-0004), engenheiro (revisão T-0011), core (erro 401 e definirCapturaFoto)
+2026-10-31 — T-0011 CONCLUÍDA (revisão sem 🔴); RN-TRE-08 ajustada; 🟡 e tabela de XP no backlog
+2026-10-31 — T-0003 — ajustes finais do core (245 testes; API 51); aguardando validação do testes
+2026-10-31 — T-0003 e T-0006 CONCLUÍDAS; T-0004 bloqueada só pelo build EAS (Alexandre); docs/status/sprint-0.md; entrega da Sprint 0 ao Alexandre

@@ -163,9 +163,8 @@ export const REFERENCIA: ManifestoEntrada[] = [
     },
   },
   {
-    // Espelho de modules/treinamento/manifest.ts (T-0011). Alvo: consome `vendedor.pedido.faturado@1` (o desafio paga no
-    // FATURADO, RN-TRE-08), que o Vendedor já publica; o manifesto real ainda consome `vendedor.pedido.criado@1`
-    // (pedido R-20261031-114024-engenheiro-software ao modulo-treinamento).
+    // Espelho de modules/treinamento/manifest.ts (T-0011, conferido na revisão final): consome só
+    // `vendedor.pedido.faturado@1` (o desafio paga no FATURADO, RN-TRE-08; desenho T-0011), não `vendedor.pedido.criado@1`.
     id: 'treinamento',
     versao: '0.1.0',
     depende: ['core'],

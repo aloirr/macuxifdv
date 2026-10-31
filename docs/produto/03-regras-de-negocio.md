@@ -31,6 +31,8 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Criar pesquisa / trilha | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Ativar/desativar módulos e usuários | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
+> **Esclarecimento (gerente-projetos, 2026-10-31, observação O-3 da T-0006)**: pela matriz acima, o promotor **lê** os pedidos da própria carteira (somente leitura) e nunca cria, edita, cancela, duplica ou exclui (RN-PRO-01). A API deve liberar a leitura com escopo de carteira e continuar negando toda escrita.
+
 ## 3. Core — visita, rota, metas
 - **RN-CORE-10** Check-in só dentro de [200 m] do cliente; fora do raio exige justificativa e fica sinalizado. Cliente sem coordenada: o 1º check-in sugere a coordenada para o BKO aprovar.
 - **RN-CORE-11** Um atendimento aberto por vez; o esquecido fecha sozinho na virada do dia (fuso do tenant) como "não finalizado".
@@ -94,7 +96,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-TRE-05** Streak: o dia conta com lição concluída ou quiz respondido até o fim (abrir e abandonar não conta); paga 1 vez por dia.
 - **RN-TRE-06** Níveis: faixas [0/100/250/450/700/1000/1400/1900/2500/3200] XP. Medalhas padrão: primeira trilha, nota 100, 7 dias seguidos.
 - **RN-TRE-07** Público-alvo: perfis e equipes; com os dois preenchidos vale a interseção, com um só vale esse, vazio = tenant todo.
-- **RN-TRE-08** Desafio de vendas: paga XP quando o pedido é **faturado** (status vindo do ERP pelo Hub), não quando é criado; idempotente por pedido; fora do teto diário, com teto próprio [`xp_max_por_desafio`]. Payload consumido: pedido_id, vendedor_id, faturado_em, itens[produto_id, quantidade]. Sem estorno nesta fase.
+- **RN-TRE-08** Desafio de vendas: paga XP quando o pedido é **faturado** (evento `vendedor.pedido.faturado@1`), não quando é criado; idempotente pelo `evento_id` do envelope (faturamento parcial soma os itens de cada retorno; um segundo faturamento total do mesmo pedido não paga); faturamento parcial sem itens é ignorado; fora do teto diário, com teto próprio [`xp_max_por_desafio`] e `xp_max_por_pedido` acumulado entre eventos. Sem estorno nesta fase. O XP de um mesmo vendedor é processado um de cada vez (tenant + usuário).
 
 ## 8. Catálogo
 - **RN-CAT-01** Busca inteligente só responde com produtos do tenant e respeita o escopo (preço da tabela do cliente em contexto).

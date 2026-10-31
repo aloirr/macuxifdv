@@ -5,15 +5,22 @@
 //  - sessão sem agente (uso manual do Alexandre) → liberado. Desligar tudo: MACUXI_GUARDA=off.
 //  - PreToolUse: bloqueia (exit 2) escrita evidente em caminho de outro dono e tira a foto do
 //    git status (+ data/tamanho) para o PostToolUse.
-//  - PostToolUse: compara com a foto e devolve ao agente (exit 2, stderr) a lista do que ele alterou
-//    fora dos seus caminhos e como desfazer. Não desfaz nada sozinho.
+//    A foto guarda também os ALVOS EVIDENTES do comando (os mesmos que o analisador extraiu).
+//    Comando só de leitura (ls, cat, git status/log/diff, coord.mjs caixa/ler/fio/dono/pendencias/
+//    verificar, pnpm/npm view...) não tira foto.
+//  - PostToolUse: compara com a foto. Só bloqueia (exit 2, stderr) e só sugere desfazer o que for
+//    alvo evidente do comando e estava limpo antes. Qualquer outra mudança fora dos caminhos do
+//    agente (outro agente trabalhando em paralelo na mesma árvore) vira aviso NÃO bloqueante
+//    (exit 0, additionalContext): "mudou durante o comando, provavelmente outro agente; não desfaça".
+//    Não desfaz nada sozinho.
 // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { RAIZ, carregarDonos } from '../../scripts/coord-lib.mjs';
 import {
   analisarComando, ambienteReal, mensagemPre, lerStatus, fotografar, compararFotos, statDe,
-  violacoesDasMudancas, mensagemPos, atualizarAcusados, descontarDesfeitos, permitidosDe, arquivoFoto, arquivoAcusados,
+  violacoesDasMudancas, mensagemPos, mensagemAviso, separarAcusacoes, atualizarAcusados, descontarDesfeitos, permitidosDe,
+  arquivoFoto, arquivoAcusados,
   lerJson, gravarJson, apagarArquivo, limparAntigos,
 } from './guarda-bash-lib.mjs';
 
@@ -49,7 +56,7 @@ try {
 if (evento === 'PreToolUse') {
   const amb = ambienteReal(RAIZ);
   const acusados = lerJson(arquivoAcusados(entrada, agente), {});
-  const { violacoes, soLeitura } = analisarComando({
+  const { violacoes, soLeitura, alvos, instala } = analisarComando({
     comando, agente, cwd: entrada.cwd || process.cwd(), raiz: RAIZ, regras, somenteLeitura,
     permitidos: permitidosDe(acusados), amb,
   });
@@ -60,7 +67,7 @@ if (evento === 'PreToolUse') {
   if (!soLeitura) {
     const status = amb.status();
     // A data do próprio arquivo da foto é o "início" (mesmo relógio do sistema de arquivos).
-    if (status) gravarJson(arquivoFoto(entrada), { agente, estado: fotografar(RAIZ, status) });
+    if (status) gravarJson(arquivoFoto(entrada), { agente, estado: fotografar(RAIZ, status), alvos, instala });
     limparAntigos();
   }
   process.exit(0);
@@ -82,12 +89,19 @@ if (evento === 'PostToolUse' || evento === 'PostToolUseFailure') {
     antes, status,
   );
   const violacoes = violacoesDasMudancas({ agente, mudancas, regras });
-  const acusados = atualizarAcusados(antes, violacoes, status);
+  // Foto sem "alvos" (versão antiga do hook): nada é evidente → tudo vira aviso.
+  const { bloqueantes, avisos } = separarAcusacoes({ violacoes, alvos: foto.alvos || [] });
+  const acusados = atualizarAcusados(antes, bloqueantes, status);
   if (Object.keys(acusados).length) gravarJson(arqAcusados, acusados);
   else if (Object.keys(antes).length) apagarArquivo(arqAcusados);
-  if (violacoes.length) {
-    process.stderr.write(mensagemPos(agente, violacoes) + '\n');
+  const aviso = avisos.length ? mensagemAviso(agente, avisos, { instala: !!foto.instala }) : '';
+  if (bloqueantes.length) {
+    process.stderr.write(mensagemPos(agente, bloqueantes) + (aviso ? `\n${aviso}` : '') + '\n');
     process.exit(2);
+  }
+  if (aviso) {
+    // Não bloqueante: o texto chega ao agente como contexto adicional (stdout JSON, exit 0).
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: evento, additionalContext: aviso } }) + '\n');
   }
 }
 process.exit(0);
