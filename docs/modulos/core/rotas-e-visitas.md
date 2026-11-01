@@ -22,7 +22,7 @@ Desenho: `docs/desenho/T-0016.md` §2, §4 e §9; ADR 0009 (sync de escrita, esc
 `GET rotas` · `GET rotas/:usuarioId/:data` · `PUT rotas/:usuarioId/:data` (`rota.editar`) · `POST rotas/:usuarioId/:data/copiar` · `POST rotas/gerar` (idempotente, semana = segunda-feira) · `GET usuarios/:id/clientes` (carteira vigente do usuário) · `GET visitas` · `GET coordenadas-sugeridas` e `PUT clientes/:id/coordenada` (`cliente.aprovar_coordenada`) · `GET motivos`, `PUT/DELETE motivos/:id` (`motivo.editar`).
 
 ## App
-O estado (clientes, rota do dia, visitas) é montado só das linhas do aparelho ⊕ fila (`app/lib/rota-local.ts`); check-in e checkout entram na fila (`visita`, `visita_checkout`) e a foto da fachada na fila de arquivos depois do comando. Cargas REST da Fase M: só `metas` e `pedidos-da-visita` (saem na T-0020 e com o Vendedor).
+A folha de checkout aplica a RN-CORE-12 com `prepararCheckoutVisita` (domain, T-0037; detalhes em `telas-b2.md`). O estado (clientes, rota do dia, visitas) é montado só das linhas do aparelho ⊕ fila (`app/lib/rota-local.ts`); check-in e checkout entram na fila (`visita`, `visita_checkout`) e a foto da fachada na fila de arquivos depois do comando. Cargas REST da Fase M: só `metas` e `pedidos-da-visita` (saem na T-0020 e com o Vendedor).
 
 ## BKO
 Rotas (editor herdado da Fase M sobre `/v1/core/rotas`: reordenar, adicionar da carteira, 2-opt, copiar dia), Visitas (filtros na URL, CSV, foto da fachada), Coordenadas sugeridas, Motivos, Carteira e Cliente 360 (T-0017).
