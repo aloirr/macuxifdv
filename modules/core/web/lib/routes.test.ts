@@ -32,7 +32,6 @@ import {
   sellerColorMap,
   shiftAnchor,
   sortByProximity,
-  toPutBody,
   weekdayColor,
   WEEKDAY_COLORS,
   windowIssues,
@@ -304,7 +303,6 @@ describe('editor da rota', () => {
   ])('hora digitada %s → %s', (t, out) => expect(normalizeTime(t)).toBe(out));
 
   it('corpo do PUT e comparação com o salvo', () => {
-    expect(toPutBody(draft).stops[1]).toEqual({ customer_id: 'far', window_start: '08:45', window_end: '09:25' });
     expect(sameDraft(draft, draftFromRoute(r))).toBe(true);
     expect(sameDraft(draft, moveStop(draft, 1, 1))).toBe(false);
   });

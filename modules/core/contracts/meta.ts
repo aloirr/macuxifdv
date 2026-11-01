@@ -21,3 +21,34 @@ export const IndicadoresSchema = z.object({
   necessidade_diaria_cents: z.number().int().nullable().optional(),
 });
 export type Indicadores = z.infer<typeof IndicadoresSchema>;
+
+export const MetasQuerySchema = z.object({ periodo: AnoMes.optional(), usuario_id: z.string().uuid().optional() }).strict();
+export type MetasQuery = z.infer<typeof MetasQuerySchema>;
+export const MetaParamsSchema = z.object({ usuarioId: z.string().uuid(), periodo: AnoMes });
+export const MetasListaSchema = z.object({
+  periodo: AnoMes,
+  itens: z.array(z.object({ usuario_id: z.string().uuid(), indicador: z.enum(INDICADORES_META), valor: z.number().int() })),
+});
+export type MetasLista = z.infer<typeof MetasListaSchema>;
+
+export const LinhaPainelSchema = z.object({
+  indicador: z.enum(INDICADORES_META),
+  meta: z.number().int(),
+  realizado: z.number().int().nullable(),
+  /** Pontos-base (10000 = 100,00%). */
+  atingimento_pct: z.number().int().nullable(),
+});
+export const PainelMetasSchema = z.object({
+  usuario_id: z.string().uuid(),
+  usuario_nome: z.string(),
+  indicadores: IndicadoresSchema,
+  metas: z.array(LinhaPainelSchema),
+});
+export type PainelMetas = z.infer<typeof PainelMetasSchema>;
+export const IndicadoresListaSchema = z.object({
+  periodo: AnoMes,
+  /** Base de apuração do tenant (`metas.base_apuracao`); vale para pedidos individuais, o read-model diário já vem apurado. */
+  base_apuracao: z.enum(['aprovado', 'faturado']),
+  itens: z.array(PainelMetasSchema),
+});
+export type IndicadoresLista = z.infer<typeof IndicadoresListaSchema>;

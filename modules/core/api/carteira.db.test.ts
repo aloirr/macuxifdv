@@ -10,6 +10,8 @@ import { ErroNaoEncontrado, ErroRegraNegocio, type AcessoBanco, type ClienteBanc
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Cliente360Schema, HierarquiaEquipeSchema, TituloSyncSchema, ClienteFinanceiroSyncSchema, ClienteContatoSyncSchema, HistoricoCompraSyncSchema, CarteiraSyncSchema } from '../contracts';
+import { criarAutenticacao } from './autenticacao';
+import { assinarAcesso } from './seguranca';
 import { fabricaSql } from './repositorio';
 import { carteiraDoUsuario } from './carteira';
 import { rotasDeClientes } from './clientes';
@@ -363,6 +365,31 @@ describe.skipIf(semBanco())('Core T-0017 × Postgres: escopo da carteira, Client
       await chamar('DELETE', 'dispositivos/:id/bloqueio', analista, { params: { id } });
       expect(await bloqueado(A.tenantId, id)).toBe(false);
       expect((await auditorias('dispositivo.desbloquear')).some((l) => l.usuario_id === U.analista)).toBe(true);
+    });
+
+    it('RN-CORE-15 (O-5): bloquear no BKO corta a próxima requisição do MESMO token (423) e o tenant B não é afetado', async () => {
+      const segredo = 'segredo-de-teste-com-mais-de-32-caracteres!!';
+      const auth = criarAutenticacao({ segredo: () => segredo });
+      const agora = new Date();
+      const ate = new Date(agora.getTime() + 15 * 60_000);
+      const id = A.dispositivos.vendedor1;
+      const tokenA = assinarAcesso({ sub: U.vendedor1, tid: A.tenantId, perfil: 'vendedor', did: id }, agora, ate, segredo);
+      const tokenB = assinarAcesso({ sub: B.usuarios.vendedor, tid: B.tenantId, perfil: 'vendedor', did: id }, agora, ate, segredo);
+      const semAparelho = assinarAcesso({ sub: U.vendedor1, tid: A.tenantId, perfil: 'vendedor' }, agora, ate, segredo);
+      const chamarAuth = (t: string) => auth.autenticar({ authorization: `Bearer ${t}` }, acesso, agora);
+
+      expect((await chamarAuth(tokenA))?.id).toBe(U.vendedor1);
+      await chamar('PUT', 'dispositivos/:id/bloqueio', analista, { params: { id } });
+      try {
+        await expect(chamarAuth(tokenA)).rejects.toMatchObject({ status: 423, codigo: 'DISPOSITIVO_BLOQUEADO' });
+        // outro tenant com o mesmo id de aparelho: o RLS não enxerga o bloqueio do A
+        expect((await chamarAuth(tokenB))?.id).toBe(B.usuarios.vendedor);
+        // sessão sem aparelho (login sem dispositivo_id) não é afetada
+        expect((await chamarAuth(semAparelho))?.id).toBe(U.vendedor1);
+      } finally {
+        await chamar('DELETE', 'dispositivos/:id/bloqueio', analista, { params: { id } });
+      }
+      expect((await chamarAuth(tokenA))?.id).toBe(U.vendedor1);
     });
 
     it('RN-CORE-15: só admin e analista têm as rotas de aparelho', () => {

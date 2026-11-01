@@ -183,6 +183,35 @@ describe('sobreposição da fila (ADR 0009 §3)', () => {
     expect(r).toHaveLength(1);
   });
 
+  it('devolve o MESMO tipo das linhas (campos extras como distancia_m não se perdem)', () => {
+    const comExtra = { ...base, distancia_m: 42 };
+    const r = aplicarPendentesVisita([comExtra], [], { usuario_id: 'u1', fuso: MANAUS });
+    expect(r[0]?.distancia_m).toBe(42);
+  });
+
+  it('RN-CORE-11: check-in pendente em outro cliente fecha a aberta anterior como auto (só uma aberta na tela)', () => {
+    const r = aplicarPendentesVisita([base], [{ tipo: 'checkin', id: 'v2', cliente_id: 'c2', checkin_em: '2026-10-12T14:00:00Z' }], { usuario_id: 'u1', fuso: MANAUS });
+    const abertas = r.filter((v) => !v.checkout_em);
+    expect(abertas.map((v) => v.id)).toEqual(['v2']);
+    expect(r.find((v) => v.id === 'v1')).toMatchObject({ resultado: 'nao_finalizado', fechada_por: 'auto', checkout_em: '2026-10-12T14:00:00.000Z' });
+  });
+
+  it('RN-CORE-11: checkout pendente da primeira visita vem antes do 2º check-in e não é tratado como auto', () => {
+    const r = aplicarPendentesVisita<VisitaLinha>([], [
+      { tipo: 'checkin', id: 'v1', cliente_id: 'c1', checkin_em: '2026-10-12T13:00:00Z' },
+      { tipo: 'checkout', visita_id: 'v1', checkout_em: '2026-10-12T13:30:00Z', resultado: 'pedido', pedido_id: 'p1' },
+      { tipo: 'checkin', id: 'v2', cliente_id: 'c2', checkin_em: '2026-10-12T14:00:00Z' },
+    ], { usuario_id: 'u1', fuso: MANAUS });
+    expect(r.find((v) => v.id === 'v1')).toMatchObject({ resultado: 'pedido', fechada_por: 'usuario' });
+    expect(r.find((v) => v.id === 'v2')?.checkout_em).toBeNull();
+  });
+
+  it('ADR 0009 §3: checkout pendente cujo id já está em checkout_id da linha do servidor não é reaplicado', () => {
+    const doServidor = { ...base, checkout_em: '2026-10-12T13:40:00Z', resultado: 'sem_pedido', fechada_por: 'usuario' as const, checkout_id: 'cmd-1' };
+    const r = aplicarPendentesVisita([doServidor], [{ tipo: 'checkout', id: 'cmd-1', visita_id: 'v1', checkout_em: '2026-10-12T13:30:00Z', resultado: 'pedido' }], { usuario_id: 'u1', fuso: MANAUS });
+    expect(r[0]).toMatchObject({ resultado: 'sem_pedido', checkout_em: '2026-10-12T13:40:00Z' });
+  });
+
   it('sem pendentes devolve as linhas como vieram', () => {
     expect(aplicarPendentesVisita([base], [], { usuario_id: 'u1', fuso: MANAUS })).toEqual([base]);
   });

@@ -1,14 +1,14 @@
 /**
- * Cargas do Core para o aparelho (etapas de sync do módulo — `moduloApp.etapasSync`). Enquanto o servidor de
- * desenvolvimento é o mock-api da Fase M (sem `/v1/sync/pull`), a carteira, a rota do dia, as metas e o
- * atendimento aberto vêm do REST da Fase M e são gravados no armazenamento do módulo (`ctx.armazenamento`).
- * Quando o pull genérico existir (T-0004), estas etapas saem e as entidades `cliente`, `rota`, `meta`… entram.
+ * Cargas do Core para o aparelho que ainda vêm do REST da Fase M (etapas de sync do módulo — `moduloApp.etapasSync`):
+ * só `metas` (T-0020) e `pedidos-da-visita` (ligação do pedido com a visita; o pedido real vem do Vendedor).
+ * Carteira, rota do dia e visitas saíram daqui na T-0018: chegam pelo pull genérico (`entidades-cliente.ts`,
+ * `entidades-rota.ts`) e a tela lê só o aparelho.
  */
 import { monthStart } from '@macuxi/ui/mobile/puro';
 import type { EtapaSync } from '@macuxi/platform-sdk';
 
-import type { CustomerSummary, OpenVisit, RouteDay, SellerGoals } from '../../contracts';
-import { CHAVES, fusoDe, type VisitaServidor } from './estado';
+import type { SellerGoals } from '../../contracts';
+import { CHAVES, fusoDe } from './estado';
 import { erroDeCliente, exigirHttp } from './http';
 import type { OrderLike } from './visit';
 
@@ -27,40 +27,6 @@ async function ou4xxNulo<T>(f: () => Promise<T>): Promise<T | null> {
 }
 
 export const etapasCore: readonly EtapaSync[] = [
-  {
-    id: 'clientes',
-    rotulo: 'Carteira de clientes',
-    modulo: 'core',
-    async executar(ctx) {
-      const http = exigirHttp(ctx);
-      const r = await http.get<Pagina<CustomerSummary>>('/customers', { limit: 5000 });
-      await ctx.armazenamento.gravar(CHAVES.clientes, r.items);
-      await ctx.armazenamento.gravar(CHAVES.carregadoEm, ctx.agora().toISOString());
-    },
-  },
-  {
-    id: 'rota',
-    rotulo: 'Rota do dia',
-    modulo: 'core',
-    async executar(ctx) {
-      const http = exigirHttp(ctx);
-      const rota = await ou4xxNulo(() => http.get<RouteDay>('/routes/today'));
-      await ctx.armazenamento.gravar(CHAVES.rota, rota);
-    },
-  },
-  {
-    id: 'visita-aberta',
-    rotulo: 'Atendimento em aberto',
-    modulo: 'core',
-    async executar(ctx) {
-      const http = exigirHttp(ctx);
-      const buscado_em = ctx.agora().toISOString();
-      const aberta = await http.get<OpenVisit>('/visits/open');
-      const valor: VisitaServidor = { aberta, buscado_em };
-      // a conciliação com as visitas do aparelho (e da fila) acontece ao carregar o estado (ArmazemCore)
-      await ctx.armazenamento.gravar(CHAVES.visitaServidor, valor);
-    },
-  },
   {
     id: 'metas',
     rotulo: 'Metas e RV',

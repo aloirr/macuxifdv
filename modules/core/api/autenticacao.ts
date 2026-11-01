@@ -59,7 +59,7 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
   const emitir = async (r: RepositorioTenant, tenantId: string, u: { id: string; perfil: Perfil }, familiaId: string, dispositivoId: string | null, agora: Date) => {
     const refresh = novoRefresh(tenantId);
     await r.criarSessao({ id: randomUUID(), usuario_id: u.id, familia_id: familiaId, token_hash: refresh.hash, dispositivo_id: dispositivoId, expira_em: expiracaoDoRefresh(agora) });
-    const access = assinarAcesso({ sub: u.id, tid: tenantId, perfil: u.perfil }, agora, expiracaoDoAcesso(agora), segredo());
+    const access = assinarAcesso({ sub: u.id, tid: tenantId, perfil: u.perfil, did: dispositivoId }, agora, expiracaoDoAcesso(agora), segredo());
     return { access_token: access, token_type: 'Bearer' as const, expires_in: SEGUNDOS_DO_ACESSO, refresh_token: refresh.token };
   };
 
@@ -174,8 +174,14 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     if (!token) return null;
     const claims = verificarJwtAcesso(token, agora, s);
     if (!claims) return null;
-    const u = await banco.comTenant(claims.tid, (db) => repos.doTenant(db).usuarioAtual(claims.sub));
+    const { u, aparelhoBloqueado } = await banco.comTenant(claims.tid, async (db) => {
+      const r = repos.doTenant(db);
+      const usuario = await r.usuarioAtual(claims.sub);
+      // RN-CORE-15: corte imediato; consulta pela chave primária (sem cache, sem janela de acesso residual)
+      return { u: usuario, aparelhoBloqueado: claims.did ? await r.dispositivoBloqueado(claims.did) : false };
+    });
     if (!u || !u.ativo || u.bloqueado_em) return null;
+    if (aparelhoBloqueado) throw erroHttp(423, CODIGO_DISPOSITIVO_BLOQUEADO, MENSAGEM_APARELHO_BLOQUEADO);
     return { id: u.id, tenant_id: claims.tid, perfil: u.perfil };
   }
 

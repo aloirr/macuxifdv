@@ -14,8 +14,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MOTIVOS_CLIENTE_FECHADO, NO_ORDER_REASONS, ROTULO_CLIENTE_FECHADO, type ContextoCheckout, type EtapaCheckout, type MotivoClienteFechado } from '../../contracts';
-import { avaliarCheckout, ehClienteFechado } from '../../domain';
+import type { CheckoutVisita, ContextoCheckout, EtapaCheckout, MotivoClienteFechado } from '../../contracts';
+import { avaliarCheckoutVisita } from '../../domain';
 import { capturarFotoFachada } from '../lib/foto-fachada';
 import { fazerCheckout } from '../lib/acoes-visita';
 import { abrirRota } from '../lib/navegacao';
@@ -41,10 +41,10 @@ export function useVisitSheets(): VisitSheetsApi {
   return v;
 }
 
-/** Itens de visita na fila do motor (para tratar rejeições do servidor). */
+/** Itens de visita (check-in e checkout) na fila do motor, para tratar rejeições do servidor. */
 function useFilaDeVisitas() {
   const { estado } = useMotorSync();
-  return useMemo(() => estado.fila.filter((i) => i.entidade === 'visita'), [estado.fila]);
+  return useMemo(() => estado.fila.filter((i) => i.entidade === 'visita' || i.entidade === 'visita_checkout'), [estado.fila]);
 }
 
 export function VisitSheetsProvider({ children }: { children: ReactNode }) {
@@ -66,25 +66,19 @@ export function VisitSheetsProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // avisos do servidor: item de visita REJEITADO na fila (check-in recusado porque há outro atendimento aberto,
-  // por exemplo em outro aparelho; ou checkout de visita que o servidor já fechou na virada do dia).
+  // avisos do servidor: item de visita REJEITADO na fila. Check-in recusado (cliente fora da carteira, regra do raio…):
+  // o item sai da fila, a visita some da tela e o aviso mostra o motivo. Checkout recusado: o item sai e o atendimento
+  // volta a ficar aberto para refazer, com a mensagem do servidor (a tela recalcula das linhas ⊕ fila).
   const { motor, armazem } = core;
   const fila = useFilaDeVisitas();
   useEffect(() => {
     if (!motor || !armazem) return;
     for (const item of fila) {
       if (item.situacao !== 'falhou') continue;
-      const p = (item.payload ?? {}) as { id?: string; visit_id?: string };
-      if (p.visit_id) {
-        // checkout recusado: o servidor já fechou o atendimento; vale o fechamento automático
-        const visitId = p.visit_id;
-        void armazem.atualizarVisitas((l) => l.map((v) => (v.id === visitId ? { ...v, closed_by: 'auto' as const } : v)));
-        toast(item.ultimo_erro || 'O servidor já havia fechado este atendimento na virada do dia.', 'warning');
-      } else if (p.id) {
-        // check-in recusado: sai do aparelho e mostra o bloqueio com a mensagem do servidor
-        const visitId = p.id;
-        const minha = armazem.obter().visitas.find((v) => v.id === visitId);
-        void armazem.atualizarVisitas((l) => l.filter((v) => v.id !== visitId));
+      if (item.entidade === 'visita_checkout') {
+        toast(item.ultimo_erro || 'O servidor não aceitou o checkout. Confira os dados e conclua de novo.', 'warning');
+      } else {
+        const minha = armazem.obter().visitas.find((v) => v.id === item.id);
         setSheet({ kind: 'blocked', target: minha?.customer_name || item.detalhe, serverMessage: item.ultimo_erro });
       }
       void motor.descartar(item.id);
@@ -177,19 +171,30 @@ function BlockedSheet({ sheet, onClose, onCheckout }: { sheet: Extract<Sheet, { 
   );
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ETAPA_MODULO_RE = /^[a-z][a-z0-9-]*$/;
+const ETAPA_ID_RE = /^[a-z][a-z0-9_.-]*$/;
+
 function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose: () => void; onDone: (customerName: string) => void }) {
   const core = useCore();
+  const { estado: estadoMotor } = useMotorSync();
   const open = core.atendimentoAberto;
   const etapas = useExtensoes<EtapaCheckout<ComponentType<{ contexto: ContextoCheckout }>>>('visita.etapas_checkout');
-  const [result, setResult] = useState<'order' | 'no_order' | null>(null);
+  // RN-CORE-12: com o Vendedor efetivo o resultado é pedido / sem pedido; sem ele (promotor) é "atendido"
+  const vendedorEfetivo = estadoMotor.modulosAtivos.includes('vendedor');
+  const [result, setResult] = useState<'order' | 'no_order' | 'atendido' | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [fotoFachada, setFotoFachada] = useState<string | null>(null);
   const [erroFoto, setErroFoto] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const orders = useMemo(() => (open ? ordersInVisit(open, core.pedidos) : []), [open, core.pedidos]);
   const hasOrder = orders.length > 0;
+  const motivos = core.estado.motivos;
+  const naoVenda = motivos.filter((m) => m.tipo === 'nao_venda').sort((x, y) => x.ordem - y.ordem);
+  const fechados = motivos.filter((m) => m.tipo === 'cliente_fechado').sort((x, y) => x.ordem - y.ordem);
 
-  // ao abrir: "Com pedido" já marcado se houver pedido na visita
+  // ao abrir: "Com pedido" já marcado se houver pedido na visita; promotor começa em "atendido"
   const openedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!visible) {
@@ -198,12 +203,13 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
     }
     if (open && openedFor.current !== open.id) {
       openedFor.current = open.id;
-      setResult(hasOrder ? 'order' : null);
+      setResult(vendedorEfetivo ? (hasOrder ? 'order' : null) : 'atendido');
       setReason(null);
       setFotoFachada(null);
       setErroFoto(null);
+      setErro(null);
     }
-  }, [visible, open, hasOrder]);
+  }, [visible, open, hasOrder, vendedorEfetivo]);
 
   // atendimento fechado por fora (virada do dia, servidor): fecha a folha
   useEffect(() => {
@@ -214,22 +220,26 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
 
   const name = open.customer_name;
   const since = formatHHMM(open.checkin_at, core.tz);
-  // RN-CORE-12: etapas obrigatórias registradas por módulos ativos (ex.: pesquisa) precisam estar cumpridas
-  // RN-CORE-14: cliente fechado (loja fechada / acesso negado) dispensa as etapas e exige a foto da fachada
-  const fechado = result === 'no_order' && ehClienteFechado(reason);
-  const motivoFechado = fechado ? (reason as MotivoClienteFechado) : null;
+  // RN-CORE-14: cliente fechado (motivo do tipo cliente_fechado) dispensa as etapas e exige a foto da fachada
+  const motivoSel = motivos.find((m) => m.id === reason) ?? null;
+  const fechado = motivoSel?.tipo === 'cliente_fechado';
+  const resultado = fechado ? 'cliente_fechado' : result === 'order' ? 'pedido' : result === 'no_order' ? 'sem_pedido' : result === 'atendido' ? 'atendido' : null;
   const contexto: ContextoCheckout = {
     clienteId: open.customer_id,
     nomeCliente: name,
     visitaId: open.id,
     paradaId: open.route_stop_id,
     clienteFechado: fechado,
-    motivoClienteFechado: motivoFechado,
+    motivoClienteFechado: fechado ? (motivoSel!.codigo as MotivoClienteFechado) : null,
   };
-  const avaliacao = avaliarCheckout({
-    resultado: result === 'order' && !hasOrder ? null : result,
-    motivo: reason,
+  // RN-CORE-12: etapas obrigatórias registradas por módulos ativos (ex.: pesquisa) precisam estar cumpridas
+  const avaliacao = avaliarCheckoutVisita({
+    resultado: resultado === 'pedido' && !hasOrder ? null : resultado,
+    vendedorEfetivo,
+    temMotivo: Boolean(reason),
+    motivoClienteFechado: fechado,
     fotoFachada: Boolean(fotoFachada),
+    temPedido: hasOrder,
     etapas: etapas.map((e) => ({ rotulo: e.payload.rotulo, obrigatoria: e.payload.obrigatoria, concluida: e.payload.concluida(contexto) })),
   });
   const pendentes = etapas.filter((e) => !avaliacao.etapasDispensadas && e.payload.obrigatoria && !e.payload.concluida(contexto));
@@ -237,7 +247,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
 
   const tirarFoto = async () => {
     const ref = await capturarFotoFachada();
-    if (ref) {
+    if (ref && UUID_RE.test(ref)) {
       setFotoFachada(ref);
       setErroFoto(null);
     } else {
@@ -246,19 +256,29 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
   };
 
   const confirm = async () => {
-    if (!canConfirm || !core.motor || !core.armazem) return;
+    if (!canConfirm || !core.motor || !core.armazem || !resultado) return;
     setSalvando(true);
+    setErro(null);
     try {
       const acao = { motor: core.motor, armazem: core.armazem, tz: core.tz, vendedorId: core.vendedorId };
-      const done =
-        result === 'order'
-          ? await fazerCheckout(acao, open.id, { outcome: 'order', order_id: open.order_id ?? orders[0]!.id, order_total_cents: orders.reduce((s, o) => s + o.total_cents, 0) })
-          : await fazerCheckout(acao, open.id, {
-              outcome: 'no_order',
-              no_order_reason: motivoFechado ? ROTULO_CLIENTE_FECHADO[motivoFechado] : (reason ?? ''),
-              ...(motivoFechado && fotoFachada ? { motivo_cliente_fechado: motivoFechado, foto_fachada_ref: fotoFachada } : {}),
-            });
+      // etapas do slot: concluídas vão como "concluida"; as obrigatórias dispensadas pelo cliente fechado, como "dispensada"
+      const etapasPayload: CheckoutVisita['etapas'] = [];
+      for (const e of etapas) {
+        if (!ETAPA_MODULO_RE.test(e.modulo) || !ETAPA_ID_RE.test(e.id)) continue;
+        if (e.payload.concluida(contexto)) etapasPayload.push({ modulo: e.modulo, etapa: e.id, situacao: 'concluida' });
+        else if (fechado && e.payload.obrigatoria) etapasPayload.push({ modulo: e.modulo, etapa: e.id, situacao: 'dispensada' });
+      }
+      const done = await fazerCheckout(acao, open.id, {
+        resultado,
+        motivo_id: reason,
+        pedido_id: resultado === 'pedido' ? (open.order_id ?? orders[0]?.id ?? null) : null,
+        foto_fachada_id: fechado ? fotoFachada : null,
+        etapas: etapasPayload,
+        cliente: name,
+      });
       if (done) onDone(name);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível concluir o checkout. Confira os dados e tente de novo.');
     } finally {
       setSalvando(false);
     }
@@ -274,37 +294,48 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
         </Text>
       </View>
       <Text style={[t.bodyStrong, { fontSize: 13 }]}>Como terminou a visita?</Text>
-      <Pressable
-        testID="checkout-with-order"
-        accessibilityRole="radio"
-        accessibilityState={{ checked: result === 'order', disabled: !hasOrder }}
-        disabled={!hasOrder}
-        onPress={() => setResult('order')}
-        style={[styles.option, { minHeight: 56, gap: 2 }, result === 'order' ? styles.optionOrderOn : null, !hasOrder && { opacity: 0.55 }]}>
-        <Text style={styles.optionTitle}>Com pedido</Text>
-        <Text style={t.small}>{hasOrder ? `${visitOrdersLabel(orders)} ${orders.length > 1 ? 'feitos' : 'feito'} nesta visita` : 'Nenhum pedido feito nesta visita ainda'}</Text>
-      </Pressable>
-      <Pressable
-        testID="checkout-no-order"
-        accessibilityRole="radio"
-        accessibilityState={{ checked: result === 'no_order' }}
-        onPress={() => setResult('no_order')}
-        style={[styles.option, { minHeight: 52, justifyContent: 'center' }, result === 'no_order' ? styles.optionNoOrderOn : null]}>
-        <Text style={styles.optionTitle}>Sem pedido</Text>
-      </Pressable>
-      {result === 'no_order' ? (
-        <View style={styles.reasons} accessibilityLabel="Motivo de não venda">
-          {[...NO_ORDER_REASONS.filter((x) => x !== 'Loja fechada'), ...MOTIVOS_CLIENTE_FECHADO].map((r) => {
-            const on = reason === r;
+      {vendedorEfetivo ? (
+        <>
+          <Pressable
+            testID="checkout-with-order"
+            accessibilityRole="radio"
+            accessibilityState={{ checked: result === 'order', disabled: !hasOrder }}
+            disabled={!hasOrder}
+            onPress={() => {
+              setResult('order');
+              setReason(null);
+            }}
+            style={[styles.option, { minHeight: 56, gap: 2 }, result === 'order' ? styles.optionOrderOn : null, !hasOrder && { opacity: 0.55 }]}>
+            <Text style={styles.optionTitle}>Com pedido</Text>
+            <Text style={t.small}>{hasOrder ? `${visitOrdersLabel(orders)} ${orders.length > 1 ? 'feitos' : 'feito'} nesta visita` : 'Nenhum pedido feito nesta visita ainda'}</Text>
+          </Pressable>
+          <Pressable
+            testID="checkout-no-order"
+            accessibilityRole="radio"
+            accessibilityState={{ checked: result === 'no_order' }}
+            onPress={() => setResult('no_order')}
+            style={[styles.option, { minHeight: 52, justifyContent: 'center' }, result === 'no_order' ? styles.optionNoOrderOn : null]}>
+            <Text style={styles.optionTitle}>Sem pedido</Text>
+          </Pressable>
+        </>
+      ) : (
+        <View testID="checkout-atendido" style={[styles.option, styles.optionOrderOn, { minHeight: 52, justifyContent: 'center' }]}>
+          <Text style={styles.optionTitle}>Atendimento concluído</Text>
+        </View>
+      )}
+      {result === 'no_order' || !vendedorEfetivo ? (
+        <View style={styles.reasons} accessibilityLabel={vendedorEfetivo ? 'Motivo de não venda' : 'Cliente fechado?'}>
+          {[...(vendedorEfetivo ? naoVenda : []), ...fechados].map((m) => {
+            const on = reason === m.id;
             return (
               <Pressable
-                key={r}
-                testID={`reason-${r}`}
+                key={m.id}
+                testID={`reason-${m.codigo}`}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: on }}
-                onPress={() => setReason(r)}
+                onPress={() => setReason(on && !vendedorEfetivo ? null : m.id)}
                 style={[styles.reason, on ? { backgroundColor: colors.ink, borderColor: colors.ink } : null]}>
-                <Text style={[styles.reasonText, on ? { color: '#FFFFFF' } : null]}>{ehClienteFechado(r) ? ROTULO_CLIENTE_FECHADO[r as MotivoClienteFechado] : r}</Text>
+                <Text style={[styles.reasonText, on ? { color: '#FFFFFF' } : null]}>{m.descricao}</Text>
               </Pressable>
             );
           })}
@@ -334,6 +365,11 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
       {pendentes.length > 0 ? (
         <Text testID="checkout-pendencias" style={styles.pendencia}>
           Falta concluir: {pendentes.map((e) => e.payload.rotulo).join(', ')}.
+        </Text>
+      ) : null}
+      {erro ? (
+        <Text testID="checkout-erro" style={styles.pendencia}>
+          {erro}
         </Text>
       ) : null}
       <SheetButton testID="checkout-confirm" label="Concluir checkout" bg={canConfirm ? colors.accent : '#B9C0C8'} fg="#FFFFFF" height={50} disabled={!canConfirm} onPress={() => void confirm()} />

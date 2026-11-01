@@ -41,7 +41,8 @@ export function statusDasParadas<P extends ParadaLike>(
   const porClienteDia = new Map<string, VisitaDaParada>();
   for (const v of [...visitas].sort((a, b) => a.checkin_em.localeCompare(b.checkin_em))) {
     if (v.rota_parada_id) porParada.set(v.rota_parada_id, v);
-    porClienteDia.set(`${v.cliente_id}|${v.data_local}`, v);
+    // por cliente+dia só a visita SEM parada (visita extra): a ligada a outra parada não marca esta
+    else porClienteDia.set(`${v.cliente_id}|${v.data_local}`, v);
   }
   let proximaAtribuida = false;
   return [...paradas]

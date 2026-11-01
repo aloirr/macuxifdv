@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { definirEvento } from '@macuxi/platform-sdk';
 import { ModulosAlteradosSchema } from './licencas';
-import { RESULTADOS_VISITA, TIPOS_NOTIFICACAO } from './sync';
+import { INDICADORES_META, RESULTADOS_VISITA, TIPOS_NOTIFICACAO } from './sync';
 
 export const EVENTO_MODULOS_ALTERADOS = definirEvento('core.usuario.modulos_alterados@1', ModulosAlteradosSchema);
 
@@ -58,3 +58,15 @@ export const NotificacaoCriadaSchema = z.object({
   prioridade: z.enum(['normal', 'alta']),
 });
 export const EVENTO_NOTIFICACAO_CRIADA = definirEvento('core.notificacao.criada@1', NotificacaoCriadaSchema);
+
+/** Meta definida ou alterada no BKO (`PUT metas/:usuarioId/:periodo`). O Gestor consome para meta × realizado. */
+export const MetaDefinidaSchema = z.object({
+  usuario_id: Uuid,
+  periodo: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  indicador: z.enum(INDICADORES_META),
+  /** Inteiro: centavos (`venda_cents`), contagem ou pontos-base (`cobertura_pct`). */
+  valor: z.number().int().min(0),
+  valor_anterior: z.number().int().min(0).nullable(),
+  definido_por: Uuid,
+});
+export const EVENTO_META_DEFINIDA = definirEvento('core.meta.definida@1', MetaDefinidaSchema);

@@ -72,15 +72,17 @@ export interface ClaimsAcesso {
   sub: string;
   tid: string;
   perfil: Perfil;
+  /** Aparelho da sessão (RN-CORE-15): conferido a cada requisição; ausente em sessão sem aparelho. */
+  did?: string;
   iat: number;
   exp: number;
 }
 
 const assinar = (dados: string, segredo: string) => crypto.createHmac('sha256', segredo).update(dados).digest();
 
-export function assinarAcesso(c: { sub: string; tid: string; perfil: Perfil }, agora: Date, expiraEm: Date, segredo: string): string {
+export function assinarAcesso(c: { sub: string; tid: string; perfil: Perfil; did?: string | null }, agora: Date, expiraEm: Date, segredo: string): string {
   const cab = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const corpo = b64url(JSON.stringify({ sub: c.sub, tid: c.tid, perfil: c.perfil, iat: Math.floor(agora.getTime() / 1000), exp: Math.floor(expiraEm.getTime() / 1000) }));
+  const corpo = b64url(JSON.stringify({ sub: c.sub, tid: c.tid, perfil: c.perfil, ...(c.did ? { did: c.did } : {}), iat: Math.floor(agora.getTime() / 1000), exp: Math.floor(expiraEm.getTime() / 1000) }));
   return `${cab}.${corpo}.${b64url(assinar(`${cab}.${corpo}`, segredo))}`;
 }
 
@@ -100,6 +102,7 @@ export function verificarJwtAcesso(token: string, agora: Date, segredo: string):
     const c = JSON.parse(Buffer.from(corpo, 'base64url').toString('utf8')) as Partial<ClaimsAcesso>;
     if (typeof c.sub !== 'string' || !UUID_RE.test(c.sub) || typeof c.tid !== 'string' || !UUID_RE.test(c.tid)) return null;
     if (typeof c.perfil !== 'string' || !(PERFIS as readonly string[]).includes(c.perfil)) return null;
+    if (c.did !== undefined && (typeof c.did !== 'string' || !UUID_RE.test(c.did))) return null;
     if (typeof c.exp !== 'number' || typeof c.iat !== 'number' || c.exp * 1000 <= agora.getTime()) return null;
     return c as ClaimsAcesso;
   } catch {

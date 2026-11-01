@@ -1,6 +1,6 @@
 /**
  * Ficha do cliente (Cliente.dc.html): ligar, WhatsApp, navegar, indicadores, títulos vencidos e
- * check-in/checkout. Lê do aparelho (offline-first); atualiza em segundo plano quando o shell libera a conexão.
+ * check-in/checkout. Lê só do aparelho (offline-first, linhas do sync: sem carga REST da Fase M desde a T-0018).
  * Check-in único: com atendimento aberto em outro cliente o check-in fica bloqueado; o pedido continua liberado.
  *
  * Pontos de extensão que o Core oferece aqui (contracts/extensoes.ts):
@@ -10,8 +10,8 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Button, Card, colors, daysAgoLabel, fonts, formatHHMM, Icon, MONTHS_SHORT, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
-import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
+import { BackLink, Badge, Button, colors, daysAgoLabel, fonts, formatHHMM, Icon, MONTHS_SHORT, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,8 +24,7 @@ import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
 import { useVisitSheets } from '../components/visit-sheets';
 import { fazerCheckin } from '../lib/acoes-visita';
-import type { ClienteDetalhe } from '../lib/estado';
-import { httpDe } from '../lib/http';
+import type { PosicaoGps } from '../lib/visita-payload';
 import { mapsUrl, telUrl, whatsappUrl } from '../lib/route';
 import { useCore } from '../lib/usar-core';
 import { latestVisitFor } from '../lib/visit';
@@ -40,10 +39,9 @@ export function TelaCliente() {
   const acoes = useExtensoes<AcaoCliente>('cliente.acoes');
   const { estado, rota, tz, atendimentoAberto: openVisit, motor, armazem } = core;
   const { dados: locais, hoje } = useClientesLocais();
-  // Cliente 360 montado só com as linhas do aparelho (offline); a carga antiga da Fase M segue para o check-in até a T-0018
+  // Cliente 360 e resumo do check-in montados só com as linhas do aparelho (offline)
   const ficha = montarFichaLocal(locais, id, hoje);
   const customer = estado.clientes.find((c) => c.id === id) ?? null;
-  const detail = estado.extras[id]?.detalhe ?? null;
   const stop = rota?.stops.find((s) => s.customer.id === id) ?? null;
   const localVisit = latestVisitFor(estado.visitas, id);
   const visit = localVisit ?? stop?.visit ?? null;
@@ -53,33 +51,25 @@ export function TelaCliente() {
   const [phase, setPhase] = useState<CheckinPhase | null>(null);
   const autoStarted = useRef<string | null>(null);
 
-  // ficha detalhada (títulos) em segundo plano, quando há conexão liberada pelo shell
-  useFocusEffect(
-    useCallback(() => {
-      const http = httpDe(motor);
-      if (!http || !armazem || !id) return;
-      void http
-        .get<ClienteDetalhe>(`/customers/${encodeURIComponent(id)}`)
-        .then((d) => armazem.gravarDetalhe(id, d))
-        .catch(() => {
-          // sem rede: usa o resumo guardado no aparelho
-        });
-    }, [id, motor, armazem]),
-  );
-
   const contexto: ContextoCliente = { clienteId: id, nomeCliente: customer?.trade_name ?? '', visitaId: openHere && openVisit ? openVisit.id : null, paradaId: stop?.id ?? null };
 
-  const startCheckin = useCallback(async () => {
+  const posicaoDoToque = useRef<PosicaoGps | null | undefined>(undefined);
+  const startCheckin = useCallback(async (justificativa?: string) => {
     if (!customer || !motor || !armazem) return;
     setPhase({ kind: 'locating' });
-    const res = await fazerCheckin({ motor, armazem, tz, vendedorId: core.vendedorId }, customer, stop?.id ?? null);
-    if (res.kind === 'blocked') {
+    // RN-CORE-13: o GPS é lido uma vez; ao pedir a justificativa reaproveita a posição do 1º toque
+    const res = await fazerCheckin({ motor, armazem, tz, vendedorId: core.vendedorId }, customer, stop?.id ?? null, justificativa === undefined ? {} : { justificativa, posicao: posicaoDoToque.current });
+    if (res.kind === 'justificar') {
+      posicaoDoToque.current = res.posicao;
+      setPhase({ kind: 'justificar', distancia_m: res.distancia_m, raio_m: res.raio_m });
+    } else if (res.kind === 'blocked') {
       setPhase(null);
       sheets.showBlocked(customer.trade_name);
     } else if (res.kind === 'existing') {
       setPhase(null);
     } else {
-      setPhase({ kind: 'done', visitId: res.visit.id, at: formatHHMM(res.visit.checkin_at, tz), gps: res.gps });
+      posicaoDoToque.current = undefined;
+      setPhase({ kind: 'done', visitId: res.visit.id, at: formatHHMM(res.visit.checkin_at, tz), gps: res.gps, foraDoRaio: res.foraDoRaio, sugereCoordenada: res.sugereCoordenada });
     }
   }, [customer, stop, motor, armazem, tz, core.vendedorId, sheets]);
 
@@ -132,7 +122,6 @@ export function TelaCliente() {
 
   const monthShort = MONTHS_SHORT[Number((estado.me?.today ?? new Date().toISOString()).slice(5, 7)) - 1] ?? '';
   const since = customer.customer_since.slice(0, 4);
-  const overdueRecs = (detail?.receivables ?? []).filter((r) => r.days_overdue > 0);
   const visitLabel = openHere ? 'Checkout' : visited ? 'Visitado' : 'Check-in';
   // ação de destaque (ex.: "Novo pedido") também aparece na folha do check-in
   const acaoDestaque = acoes.find((a) => a.payload.destaque) ?? acoes[0] ?? null;
@@ -202,24 +191,6 @@ export function TelaCliente() {
           );
         })}
 
-        {!ficha && overdueRecs.length > 0 ? (
-          <View style={{ gap: 8 }}>
-            <SectionHeader title="Títulos vencidos" />
-            <Card>
-              {overdueRecs.map((r, i) => (
-                <View key={r.id} style={[styles.row, { minHeight: 48 }, i < overdueRecs.length - 1 && styles.divider]}>
-                  <View style={{ flex: 1, gap: 1 }}>
-                    <Text style={[t.bodyStrong, { fontFamily: fonts.mono, fontSize: 13 }]}>{r.document}</Text>
-                    <Text style={[t.small, { color: colors.danger }]}>
-                      venceu {r.due_date.slice(8, 10)}/{r.due_date.slice(5, 7)} · {r.days_overdue} dias
-                    </Text>
-                  </View>
-                  <Text style={t.bodyStrong}>{formatBRL0(r.open_amount_cents)}</Text>
-                </View>
-              ))}
-            </Card>
-          </View>
-        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -256,6 +227,7 @@ export function TelaCliente() {
         phase={phase}
         customerName={customer.trade_name}
         onClose={() => setPhase(null)}
+        onJustificar={(texto) => void startCheckin(texto)}
         acao={
           acaoDestaque
             ? {

@@ -6,6 +6,7 @@
  * Mesma definição no app (`app/index.ts`) e na API (`api/sync.ts`) — o motor valida o schema dos dois lados.
  */
 import { z } from 'zod';
+import { ModuloIdSchema } from './modulos';
 
 const Base = {
   id: z.string().uuid(),
@@ -145,6 +146,17 @@ export const MotivoSyncSchema = z
   .strict();
 export type MotivoSync = z.infer<typeof MotivoSyncSchema>;
 
+/** Parâmetro do tenant (`plataforma.parametro`, fonte única) que o app precisa offline: `checkin.raio_m` (RN-CORE-10). */
+export const ParametroSyncSchema = z
+  .object({
+    ...Base,
+    modulo: z.string(),
+    chave: z.string(),
+    valor: z.unknown(),
+  })
+  .strict();
+export type ParametroSync = z.infer<typeof ParametroSyncSchema>;
+
 export const RotaSyncSchema = z
   .object({
     ...Base,
@@ -200,6 +212,8 @@ export const VisitaSyncSchema = z
     pedido_id: z.string().uuid().nullable().optional(),
     foto_fachada_id: z.string().uuid().nullable().optional(),
     fechada_por: z.enum(['usuario', 'auto']).nullable().optional(),
+    /** UUID do comando de checkout já aplicado no servidor (idempotência; a sobreposição da fila o usa). */
+    checkout_id: z.string().uuid().nullable().optional(),
   })
   .strict();
 export type VisitaSync = z.infer<typeof VisitaSyncSchema>;
@@ -213,7 +227,7 @@ export const NotificacaoSyncSchema = z
     titulo: z.string().max(120),
     corpo: z.string().max(1000),
     link: z.string().regex(/^\/m\/[a-z0-9-]+/).nullable().optional(),
-    origem_modulo: z.string(),
+    origem_modulo: ModuloIdSchema,
     autor_id: z.string().uuid().nullable().optional(),
     prioridade: z.enum(['normal', 'alta']),
     lida_em: z.string().nullable().optional(),
@@ -234,3 +248,17 @@ export const MetaSyncSchema = z
   })
   .strict();
 export type MetaSync = z.infer<typeof MetaSyncSchema>;
+
+/** Vendas do vendedor por dia (read-model `core.indicador_diario`; RN-CORE-21): líquido = vendido − cancelado. Pull `usuarios`. */
+export const IndicadorDiarioSyncSchema = z
+  .object({
+    ...Base,
+    usuario_id: z.string().uuid(),
+    /** Dia civil no fuso do tenant (AAAA-MM-DD). */
+    data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    pedidos: z.number().int(),
+    vendido_cents: z.number().int(),
+    cancelado_cents: z.number().int(),
+  })
+  .strict();
+export type IndicadorDiarioSync = z.infer<typeof IndicadorDiarioSyncSchema>;

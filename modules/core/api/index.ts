@@ -4,7 +4,9 @@
  * - Rotas públicas: `auth/login`, `auth/refresh`, `auth/logout`, com limite por IP + código da empresa.
  * - Rotas: licenças por tenant → perfil → usuário (admin). `GET /v1/me/modulos` é da plataforma (T-0004).
  * - Rotas da T-0017: `clientes`, `clientes/:id` (Cliente 360), `carteira`, `equipe/hierarquia`; aparelhos (RN-CORE-15).
- * - Sync (pull): `cliente`, `carteira`, `produto`, `cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra`.
+ * - Rotas da T-0018: `rotas` (leitura/edição/copiar/gerar), `visitas`, `motivos`, `coordenadas-sugeridas`, `clientes/:id/coordenada`.
+ * - Sync: pull de `cliente`, `carteira`, `produto`, `cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra`, `motivo`,
+ *   `rota`, `rota_parada`, `visita`; push de `visita` e `visita_checkout`.
  * Segredo do JWT: `MACUXI_JWT_SEGREDO` (mín. 32 caracteres); sem ele o login responde 503 e ninguém autentica (falha fechada).
  */
 import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
@@ -14,7 +16,11 @@ import { criarAutenticacao, type DepsAutenticacao } from './autenticacao';
 import { carteiraDoUsuario } from './carteira';
 import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
+import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
+import { consumidorPushNotificacao } from './consumidores';
 import { rotasDeLicencas } from './licencas';
+import { rotasDeMetas } from './metas';
+import { rotasDeRotasEVisitas } from './rotas';
 import { provedoresSyncCore } from './sync';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
 
@@ -24,8 +30,9 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
   const auth = criarAutenticacao(deps);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos],
-    sync: provedoresSyncCore,
+    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeNotificacoes],
+    sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
+    consumidores: [consumidorPushNotificacao],
     rotasPublicas: [
       {
         metodo: 'POST',

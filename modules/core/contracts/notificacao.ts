@@ -23,5 +23,38 @@ export const EnviarNotificacaoSchema = z
   });
 export type EnviarNotificacao = z.infer<typeof EnviarNotificacaoSchema>;
 
-export const PushTokenSchema = z.object({ token: z.string().min(1), plataforma: z.literal('android') }).strict();
+export const PushTokenSchema = z
+  .object({ dispositivo_id: z.string().uuid(), token: z.string().min(1).max(300), plataforma: z.literal('android') })
+  .strict();
 export type PushToken = z.infer<typeof PushTokenSchema>;
+
+/** `GET notificacoes`: caixa do usuário no BKO/Gestão online (as do app vêm do pull `notificacao`). */
+export const NotificacaoListaQuerySchema = z
+  .object({
+    nao_lidas: z.enum(['true', 'false']).optional(),
+    limite: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict();
+export type NotificacaoListaQuery = z.infer<typeof NotificacaoListaQuerySchema>;
+
+/** Resposta de `POST notificacoes`: quantas foram criadas e quantas já existiam (reenvio com o mesmo `id`). */
+export const EnviarNotificacaoRespostaSchema = z.object({ criadas: z.number().int(), ja_existentes: z.number().int() }).strict();
+export type EnviarNotificacaoResposta = z.infer<typeof EnviarNotificacaoRespostaSchema>;
+
+/** `GET notificacoes/enviadas`: recados que o usuário enviou ou que foram a pessoas do seu escopo, com a leitura por destinatário. */
+export const RecadoEnviadoSchema = z
+  .object({
+    id: z.string().uuid(),
+    envio_id: z.string().uuid().nullable(),
+    titulo: z.string(),
+    prioridade: z.enum(['normal', 'alta']),
+    autor_id: z.string().uuid().nullable(),
+    destinatario_id: z.string().uuid(),
+    destinatario_nome: z.string(),
+    enviada_em: z.string(),
+    lida_em: z.string().nullable(),
+  })
+  .strict();
+export type RecadoEnviado = z.infer<typeof RecadoEnviadoSchema>;
+export const RecadosEnviadosQuerySchema = z.object({ limite: z.coerce.number().int().min(1).max(200).default(100) }).strict();
+export const RecadosEnviadosRespostaSchema = z.object({ itens: z.array(RecadoEnviadoSchema) }).strict();

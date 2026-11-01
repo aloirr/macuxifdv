@@ -23,8 +23,8 @@ export type CheckinVisita = z.infer<typeof CheckinVisitaSchema>;
 
 export const EtapaCheckoutPayloadSchema = z
   .object({
-    modulo: z.string().min(1),
-    etapa: z.string().min(1),
+    modulo: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    etapa: z.string().regex(/^[a-z][a-z0-9_.-]*$/),
     situacao: z.enum(['concluida', 'dispensada']),
     referencia_id: z.string().nullable().optional(),
   })
@@ -56,3 +56,71 @@ export const CheckoutVisitaSchema = z
     if (v.resultado === 'sem_pedido' && !temMotivo) falta('motivo_id', 'Informe o motivo de não venda.');
   });
 export type CheckoutVisita = z.infer<typeof CheckoutVisitaSchema>;
+
+const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** `GET visitas` (BKO): sem datas, os últimos 7 dias. */
+export const VisitasQuerySchema = z
+  .object({
+    usuario_id: z.string().uuid().optional(),
+    cliente_id: z.string().uuid().optional(),
+    de: Data.optional(),
+    ate: Data.optional(),
+    fora_do_raio: z.enum(['true', 'false']).optional(),
+    limite: z.coerce.number().int().min(1).max(1000).optional(),
+  })
+  .strict();
+export type VisitasQuery = z.infer<typeof VisitasQuerySchema>;
+
+export const VisitaBkoSchema = z.object({
+  id: z.string().uuid(),
+  usuario_id: z.string().uuid(),
+  usuario_nome: z.string(),
+  cliente_id: z.string().uuid(),
+  cliente_nome: z.string(),
+  data_local: Data,
+  checkin_em: z.string(),
+  checkout_em: z.string().nullable(),
+  fora_do_raio: z.boolean(),
+  distancia_m: z.number().nullable(),
+  justificativa_fora_raio: z.string().nullable(),
+  sem_gps: z.boolean(),
+  sugere_coordenada: z.boolean(),
+  extra: z.boolean(),
+  resultado: z.string().nullable(),
+  fechada_por: z.string().nullable(),
+  motivo_codigo: z.string().nullable(),
+  motivo_descricao: z.string().nullable(),
+  motivo_texto: z.string().nullable(),
+  foto_fachada_id: z.string().uuid().nullable(),
+  etapas: z.array(z.object({ modulo: z.string(), etapa: z.string(), situacao: z.string() })),
+});
+export type VisitaBko = z.infer<typeof VisitaBkoSchema>;
+export const VisitasListaSchema = z.object({ itens: z.array(VisitaBkoSchema) });
+export type VisitasLista = z.infer<typeof VisitasListaSchema>;
+
+/** `PUT motivos/:id` (cadastro de motivos). Motivo de sistema não muda (RN-CORE-14). */
+export const MotivoPutSchema = z
+  .object({
+    tipo: z.enum(['nao_venda', 'cliente_fechado', 'fora_do_raio']),
+    codigo: z.string().regex(/^[a-z][a-z0-9_]*$/, 'Use só letras minúsculas, números e _ (começando por letra).').max(60),
+    descricao: z.string().trim().min(2).max(120),
+    exige_foto: z.boolean().default(false),
+    ativo: z.boolean().default(true),
+    ordem: z.number().int().min(0).max(9999).default(0),
+  })
+  .strict();
+export type MotivoPut = z.infer<typeof MotivoPutSchema>;
+
+/** `GET coordenadas-sugeridas`: clientes sem coordenada com check-ins que a sugeriram (RN-CORE-10). */
+export const CoordenadaSugeridaSchema = z.object({
+  cliente_id: z.string().uuid(),
+  cliente_nome: z.string(),
+  cidade: z.string().nullable(),
+  visitas: z.array(z.object({ visita_id: z.string().uuid(), usuario_nome: z.string(), checkin_em: z.string(), lat: z.number(), lng: z.number(), precisao_m: z.number().nullable() })),
+});
+export const CoordenadasSugeridasSchema = z.object({ itens: z.array(CoordenadaSugeridaSchema) });
+export type CoordenadasSugeridas = z.infer<typeof CoordenadasSugeridasSchema>;
+
+export const AprovarCoordenadaSchema = z.object({ visita_id: z.string().uuid() }).strict();
+export type AprovarCoordenada = z.infer<typeof AprovarCoordenadaSchema>;
