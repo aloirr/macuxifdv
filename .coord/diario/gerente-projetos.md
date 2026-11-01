@@ -145,3 +145,4 @@
 2026-11-01 — T-0026 login: parte do core recebida (olho na senha, mensagens)
 2026-11-01 — T-0029 onda 2 do vendedor recebida; testes disparado (onda 3)
 2026-11-01 — T-0027/T-0031/T-0032 — engenheiro-apps registrado (commit b1fb099 do Alexandre, CLAUDE.md, doc 07, diário); T-0027 concluída (fa837c4); abertas T-0031 (CI rápido) e T-0032 (Hub rotas e banco); nuvem P-3/P-4 usa T-0033+
+2026-11-01 — T-0029 — rodada fechada localmente (11 commits por dono, verificar --por-commit OK); pull trouxe T-0027 e T-0031 da nuvem; meu CI rápido renumerado T-0031→T-0033
