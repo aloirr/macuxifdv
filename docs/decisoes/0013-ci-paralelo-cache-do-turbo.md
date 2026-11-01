@@ -25,9 +25,9 @@ já podia devolver "verde" velho; no CI com cache seria certo.
    |---|---|---|---|
    | `governanca` | testes do coord e dos guardiões, guarda do cache (`scripts/ci`), `verificar --base` (PR) / `--por-commit` (push) | — | — |
    | `lint` | `turbo run lint lint:tests --continue` + `pnpm fronteiras` | — | sim |
-   | `typecheck` | `turbo run typecheck typecheck:tests --continue` | — | sim |
+   | `typecheck` ×2 | `turbo run typecheck typecheck:tests --continue` em 2 grupos: `core-vendedor` (~30% do tsc) e `demais` (por exclusão; inclui o `//#typecheck:tests`) | — | sim |
    | `testes-pacotes` ×2 | `turbo run test --continue` em 2 grupos: `core-db-api-mock` e `demais` (por **exclusão**: pacote novo cai nele sozinho) | sim | sim |
-   | `testes-integracao` ×3 | `pnpm test:tests --shard=i/3` (Vitest divide por arquivo; a união é a suíte inteira) | sim | — (cache false) |
+   | `testes-integracao` ×3 | `pnpm test:tests` em 3 partes: `visitas-campo` sozinho (~60 s, 40% da suíte) e o resto com `--exclude` dele + `--shard=1/2` e `2/2` (a união é a suíte inteira; arquivo novo cai no resto) | sim | — (cache false) |
    | `build` | `next build` do BKO (com `.next/cache`) + bundle Metro das variantes campo e gestao | — | — |
    | `ci-ok` | `needs` de todos, `if: always()`; verde **só** se todos terminaram em `success` | — | — |
 2. **Check obrigatório = `ci-ok`**. Pulado, cancelado ou falho em qualquer job = vermelho. A regra "merge da nuvem só com CI
@@ -62,8 +62,9 @@ já podia devolver "verde" velho; no CI com cache seria certo.
 - **Um job só com mais paralelismo do turbo/Vitest** (`--concurrency`, `--maxWorkers`): o gargalo é a CPU do runner (2 vCPU);
   mais concorrência no mesmo runner só aumenta a disputa. Runner maior (4+ vCPU) é pago à parte.
 - **`turbo --affected`** em vez de cache: precisa de histórico completo e base certa em cada evento; errar a base pula teste.
-- **Sharding por tempo** (arquivos pesados separados à mão): melhor equilíbrio, mas lista à mão envelhece; fica como ajuste se o
-  shard mais pesado virar o caminho crítico (o `visitas-campo` leva ~66 s sozinho).
+- **Só `--shard=i/3` do Vitest**: foi a 1ª versão; o Vitest divide por hash do caminho, não por tempo, e o shard com o
+  `visitas-campo` e o `notificacoes` ficou com ~100 s contra 20–31 s dos outros. Ficou o arquivo pesado isolado + shard do resto
+  por exclusão (sem lista de arquivos à mão para envelhecer; se ele mudar de nome, o job dele falha com "No test files found").
 - **Cache remoto do turbo** (Vercel/servidor próprio): compartilharia com as máquinas locais, mas é serviço externo com
   credencial; não precisa agora.
 

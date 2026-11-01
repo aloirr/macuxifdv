@@ -2,7 +2,7 @@ name: CI
 
 # T-0005 → T-0033 (ADR 0013): o CI roda em jobs PARALELOS, cada um num runner próprio:
 #   governanca (coord, guardiões, guarda do cache do turbo, donos do PR / por commit) · lint (+ fronteiras) ·
-#   typecheck · testes-pacotes (2 grupos, com Postgres) · testes-integracao (tests/ em 3 shards do Vitest, com Postgres) ·
+#   typecheck (2 grupos) · testes-pacotes (2 grupos, com Postgres) · testes-integracao (tests/ em 3 partes, com Postgres) ·
 #   build (Backoffice Web + bundle do app nas duas variantes) · ci-ok (agrega todos: é o check obrigatório).
 # Nenhum job cancela os outros (sem fail-fast) e, dentro de cada job, todos os passos rodam mesmo depois de uma falha
 # (R-20261101-014652): nada quebra escondido atrás da primeira falha.
@@ -113,22 +113,34 @@ jobs:
           cache-turbo: lint
 
   typecheck:
-    name: typecheck
+    name: typecheck (${{ matrix.grupo }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # core e vendedor são ~30% do tsc; TODO o resto (inclusive o //#typecheck:tests da raiz) no outro grupo,
+          # por exclusão: pacote novo cai nele sozinho.
+          - grupo: core-vendedor
+            filtro: --filter=@macuxi/core --filter=@macuxi/vendedor
+          - grupo: demais
+            filtro: --filter=!@macuxi/core --filter=!@macuxi/vendedor
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/preparar
         with:
-          cache-turbo: typecheck
+          cache-turbo: typecheck-${{ matrix.grupo }}
 
       - name: typecheck
-        run: pnpm exec turbo run typecheck typecheck:tests --continue
+        env:
+          FILTRO: ${{ matrix.filtro }}
+        run: pnpm exec turbo run typecheck typecheck:tests --continue $FILTRO
 
       - uses: ./.github/actions/salvar-turbo
         if: ${{ !cancelled() }}
         with:
-          cache-turbo: typecheck
+          cache-turbo: typecheck-${{ matrix.grupo }}
 
   testes-pacotes:
     name: testes dos pacotes (${{ matrix.grupo }})
@@ -180,13 +192,23 @@ jobs:
           cache-turbo: testes-${{ matrix.grupo }}
 
   testes-integracao:
-    name: testes de integração (tests/, shard ${{ matrix.shard }}/3)
+    name: testes de integração (tests/, ${{ matrix.parte }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        include:
+          # O shard do Vitest divide por hash do caminho, não por tempo: o visitas-campo (~60 s, 40% da suíte) caía junto
+          # com o notificacoes e deixava um shard com ~100 s e os outros com 20–30 s. Ele roda sozinho; o RESTO é dividido
+          # em 2 shards por exclusão (arquivo novo cai neles sozinho). Se o arquivo mudar de nome, o 1º job falha com
+          # "No test files found" — nunca some em silêncio.
+          - parte: visitas-campo
+            args: integracao/api/visitas-campo.test.ts
+          - parte: resto 1/2
+            args: --exclude=**/integracao/api/visitas-campo.test.ts --shard=1/2
+          - parte: resto 2/2
+            args: --exclude=**/integracao/api/visitas-campo.test.ts --shard=2/2
 
     services:
       postgres:
@@ -209,11 +231,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/preparar
 
-      # //#test:tests (agente testes) dividido por ARQUIVO em 3 partes (vitest --shard): cada shard tem o próprio
-      # Postgres e o próprio globalSetup; a união dos 3 é a suíte inteira. Sem cache (cache false no turbo.json).
-      # Sem a Fase M no runner, S0-006/007 pulam sozinhos.
-      - name: testes de tests/ (shard ${{ matrix.shard }}/3)
-        run: pnpm test:tests --shard=${{ matrix.shard }}/3
+      # //#test:tests (agente testes) dividido por ARQUIVO em 3 partes: cada parte tem o próprio Postgres e o próprio
+      # globalSetup; a união das 3 é a suíte inteira. Sem cache (cache false no turbo.json).
+      # Sem a Fase M no runner, S0-006/007 pulam sozinhos. $ARGS sem aspas para separar as opções; set -f desliga a
+      # expansão de glob do bash, então o "**/..." do --exclude chega literal ao Vitest.
+      - name: testes de tests/ (${{ matrix.parte }})
+        env:
+          ARGS: ${{ matrix.args }}
+        run: |
+          set -f
+          pnpm test:tests $ARGS
 
   build:
     name: build do Backoffice Web e bundle do app
