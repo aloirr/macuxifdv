@@ -1,4 +1,4 @@
-// Testes do escopo/matrizes do CI (T-0033, ADR 0013 §custo). node --test scripts/ci/*.test.mjs
+// Testes do escopo/matrizes do CI (T-0033, ADR 0014 §custo). node --test scripts/ci/*.test.mjs
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

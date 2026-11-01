@@ -1,6 +1,7 @@
-# ADR 0013 — CI em jobs paralelos, cache do Turborepo e check obrigatório `ci-ok`
+# ADR 0014 — CI em jobs paralelos, cache do Turborepo e check obrigatório `ci-ok`
 
-- **Status**: proposta (2026-11-01, PR da T-0033; vira aceita com o merge do Alexandre). Item 7 (custo) revisto em 01/11 a
+- **Status**: proposta (2026-11-01, PR da T-0033; vira aceita com o merge do Alexandre). Numerada 0014 porque a 0013 (rotas do
+  Conector, T-0032) entrou no `main` antes; recados anteriores da T-0033 citam "ADR 0013" para esta. Item 7 (custo) revisto em 01/11 a
   pedido do Alexandre: escopo de coordenação ampliado, matriz enxuta também no push ao `main` e matriz completa só no run diário.
 - **Data**: 2026-11-01
 - **Tarefa**: T-0033 (pedido do Alexandre, R-20261101-073742, item 2)

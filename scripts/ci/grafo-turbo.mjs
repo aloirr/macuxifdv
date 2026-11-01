@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Guarda do cache do Turborepo (T-0033, ADR 0013). Sem dependência: só node:fs/node:path.
+ * Guarda do cache do Turborepo (T-0033, ADR 0014). Sem dependência: só node:fs/node:path.
  *
  * O turbo só invalida o cache de uma tarefa quando muda (a) um arquivo do próprio pacote, (b) o hash de uma
  * dependência DECLARADA no package.json (via a tarefa `transit`) ou (c) um arquivo listado em `inputs`.
@@ -185,7 +185,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     else {
       console.error(`[grafo-turbo] ${problemas.length} problema(s) — o cache do turbo poderia devolver resultado velho:`);
       for (const p of problemas) console.error(`  - ${p}`);
-      console.error('Corrija declarando a dependência no package.json do pacote ou cobrindo a pasta nos inputs da tarefa no turbo.json (ADR 0013).');
+      console.error('Corrija declarando a dependência no package.json do pacote ou cobrindo a pasta nos inputs da tarefa no turbo.json (ADR 0014).');
     }
     process.exit(problemas.length ? 1 : 0);
   } catch (e) {

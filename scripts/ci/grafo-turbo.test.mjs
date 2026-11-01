@@ -1,4 +1,4 @@
-// Testes da guarda do cache do turbo (T-0033, ADR 0013). node --test scripts/ci/*.test.mjs
+// Testes da guarda do cache do turbo (T-0033, ADR 0014). node --test scripts/ci/*.test.mjs
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

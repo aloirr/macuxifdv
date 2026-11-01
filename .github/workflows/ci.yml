@@ -1,6 +1,6 @@
 name: CI
 
-# T-0005 → T-0033 (ADR 0013). Jobs PARALELOS, cada um num runner próprio, sem fail-fast; dentro de cada job todos os
+# T-0005 → T-0033 (ADR 0014). Jobs PARALELOS, cada um num runner próprio, sem fail-fast; dentro de cada job todos os
 # passos rodam mesmo depois de uma falha (R-20261101-014652): nada quebra escondido atrás da primeira falha.
 #   governanca  coord, guardiões, guardas de scripts/ci, donos do PR / por commit; e DECIDE o escopo e as matrizes
 #               (scripts/ci/escopo.mjs): commit/PR só de COORDENAÇÃO (.coord/**, docs/status/**, docs/backlog.md,
@@ -8,7 +8,7 @@ name: CI
 #               código lê os caminhos de coordenação).
 #   lint · typecheck · testes-pacotes (Postgres) · testes-integracao (tests/, Postgres) · build (BKO + bundle do app)
 #   ci-ok       agrega todos: é o check a olhar.
-# Matrizes (ADR 0013 §custo; repositório privado no plano gratuito, minuto cobrado por job arredondado para cima):
+# Matrizes (ADR 0014 §custo; repositório privado no plano gratuito, minuto cobrado por job arredondado para cima):
 #   PR e push ao main          → ENXUTA: typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes.
 #   agendado (07:00 UTC) e manual → COMPLETA: typecheck e testes de pacotes em 2 grupos; tests/ em 3 partes.
 # Cache do Turborepo (.turbo/cache) em lint, typecheck e testes-pacotes: no PR só roda o que mudou; no main (push,
@@ -89,7 +89,7 @@ jobs:
         run: node --test .claude/hooks/*.test.mjs
 
       # Cache do turbo só é seguro se toda dependência fora do grafo declarado estiver nos inputs; e pular a matriz
-      # em commit só de coordenação só é seguro se nenhum código ler esses caminhos (R4). Testes do escopo também (ADR 0013).
+      # em commit só de coordenação só é seguro se nenhum código ler esses caminhos (R4). Testes do escopo também (ADR 0014).
       - name: guardas do CI (scripts/ci)
         if: ${{ !cancelled() }}
         run: |
@@ -310,7 +310,7 @@ jobs:
           APP_VARIANT: gestao
         run: pnpm --filter mobile bundle:android
 
-  # Check obrigatório (ADR 0013). Escopo completo: verde só se TODOS os jobs terminarem em success. Escopo coordenacao: verde
+  # Check obrigatório (ADR 0014). Escopo completo: verde só se TODOS os jobs terminarem em success. Escopo coordenacao: verde
   # só se a governança passar e TODOS os outros forem "skipped". Qualquer outra combinação (falha, cancelado, pulado
   # sem motivo, escopo vazio) = vermelho. Roda sempre (if: always()) para nunca ficar "pulado".
   ci-ok:

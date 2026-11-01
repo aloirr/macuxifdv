@@ -1,6 +1,6 @@
 name: salvar-turbo
 description: >-
-  Poda e salva o cache local do Turborepo (.turbo/cache) do job (T-0033, ADR 0013). Roda mesmo com falha
+  Poda e salva o cache local do Turborepo (.turbo/cache) do job (T-0033, ADR 0014). Roda mesmo com falha
   (if: !cancelled() no job): o turbo só grava tarefa que passou, então o que estiver lá é resultado verde.
 
 inputs:

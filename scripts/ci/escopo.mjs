@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Escopo e matrizes do CI (T-0033, ADR 0013 §custo). Sem dependência: só node:child_process/node:fs.
+ * Escopo e matrizes do CI (T-0033, ADR 0014 §custo). Sem dependência: só node:child_process/node:fs.
  *
  * escopo:
  *   - "coordenacao" → TODO arquivo alterado está em COORDENACAO (.coord/**, docs/status/**, docs/backlog.md,
@@ -8,7 +8,7 @@
  *                     docs/** NÃO entra (o teste da Integração lê docs/modulos/, guarda grafo-turbo R2), e a guarda R4 prova
  *                     que nenhum código lê os caminhos de COORDENACAO.
  *   - "completo"    → qualquer outro caso, inclusive lista vazia, erro de git, agendado ou manual (padrão seguro).
- * matrizes (ADR 0013 §7):
+ * matrizes (ADR 0014 §7):
  *   - PR e push ao main         → ENXUTA (typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes): menos minutos.
  *   - agendado (cron) e manual  → COMPLETA (2 grupos; tests/ em 3 partes): 1×/dia, tudo forçado.
  *

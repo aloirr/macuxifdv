@@ -1,7 +1,7 @@
 name: preparar
 description: >-
   Node 24 (.nvmrc) + pnpm com cache do store + pnpm install --frozen-lockfile e, se pedido, restaura o cache
-  local do Turborepo (.turbo/cache) do job (T-0033, ADR 0013).
+  local do Turborepo (.turbo/cache) do job (T-0033, ADR 0014).
 
 inputs:
   cache-turbo:
