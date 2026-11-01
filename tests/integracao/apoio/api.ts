@@ -13,6 +13,7 @@ import { ErroApiSchema, type ErroApi, type ModuloApi } from '@macuxi/platform-sd
 import type { FastifyInstance, FastifyServerOptions, InjectOptions, LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
 import { createApp } from '../../../apps/api/src/app';
+import type { ArmazenamentoArquivos } from '../../../apps/api/src/arquivos';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { MODULOS_API } from '../../../apps/api/src/modulos';
 
@@ -52,13 +53,15 @@ export function erroDe(r: { json(): unknown }): ErroApi {
   return ErroApiSchema.parse(r.json());
 }
 
-export async function subirApi(opcoes: { logger?: FastifyServerOptions['logger']; poolMax?: number } = {}): Promise<ApiDeTeste> {
+export async function subirApi(
+  opcoes: { logger?: FastifyServerOptions['logger']; poolMax?: number; /** Bytes das fotos (ADR 0010); sem ele o upload responde 503. */ arquivos?: ArmazenamentoArquivos } = {},
+): Promise<ApiDeTeste> {
   const banco = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: SENHA }).then(() => undefined) });
   const pool = new pg.Pool({ connectionString: banco.urlApp, max: opcoes.poolMax ?? 6 });
   const admin = new pg.Pool({ connectionString: banco.urlAdmin, max: 2 });
   const coreApi = criarModuloApiCore({ segredo: () => SEGREDO_JWT });
   const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m));
-  const app = createApp({ banco: criarBancoApp(pool), modulos, logger: opcoes.logger ?? false });
+  const app = createApp({ banco: criarBancoApp(pool), modulos, logger: opcoes.logger ?? false, arquivos: opcoes.arquivos ?? null });
   await app.ready();
 
   const entrar: ApiDeTeste['entrar'] = (email, o = {}) =>
