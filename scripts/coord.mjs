@@ -34,6 +34,17 @@
 //        commit de merge é ignorado; commit sem trailer (ou com agente desconhecido ou
 //        ambíguo) → código 2 com a lista; alexandre nunca viola por dono; intervalo vazio = OK.
 //        uso no CI, no push ao main: verificar --por-commit "$ANTES..$DEPOIS".
+//        regra "o lock acompanha a dependência" (--base e --por-commit): pnpm-lock.yaml e
+//        allowBuilds/onlyBuiltDependencies do pnpm-workspace.yaml são aceitos para o agente quando,
+//        no mesmo PR/commit, ele alterou o package.json de um pacote que é dele; a saída lista
+//        "lock acompanhando dependência de <pacote>" para revisão do engenheiro-software.
+//        "alexandre" pelo trailer (ou pelo branch alexandre/*) é aceito e marcado na saída como
+//        "identidade alexandre declarada por trailer" (o CI de governança cobre o resto).
+//   node scripts/coord.mjs governanca --base <ref>
+//        caminhos de governança alterados no diff do branch (merge-base(HEAD, <ref>)...HEAD +
+//        não commitados): .claude/**, .coord/donos.json, scripts/coord*.mjs e .github/**.
+//        saída: 0 = nenhum · 1 = algum (com a lista; o PR exige revisão do Alexandre) · 2 = erro.
+//        uso no CI, só em pull_request: governanca --base origin/$BASE_REF.
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -41,6 +52,7 @@ import {
   RAIZ, AGENTES, DESTINOS, TIPOS, TIPOS_QUE_EXIGEM_ENCERRAMENTO,
   carregarDonos, donoDe, caminhoRelativo, podeAlterar,
   PESSOAS, classificarMudancas, agruparPorDono, agenteDoBranch, agenteDosTrailers, trailersAgente,
+  WORKSPACE_PNPM, workspaceMudouSoEmBuilds, mudancasDeGovernanca, CAMINHOS_DE_GOVERNANCA,
 } from './coord-lib.mjs';
 
 const PASTA = join(RAIZ, '.coord', 'recados');
@@ -235,6 +247,32 @@ function agentePelosTrailers(mb, nuvem) {
   erroUso(r.mensagem);
 }
 
+/** Conteúdo de <ref>:<caminho> no git ('' se não existir). */
+function conteudoNoGit(ref, caminho) {
+  return git(['show', `${ref}:${caminho}`], { falha: null }) ?? '';
+}
+
+/** O pnpm-workspace.yaml do --base mudou só em allowBuilds/onlyBuiltDependencies (merge-base × árvore)? */
+function workspaceSoBuildsBase(mb) {
+  return () => {
+    let depois = '';
+    try { depois = readFileSync(join(RAIZ, WORKSPACE_PNPM), 'utf8'); } catch { depois = ''; }
+    return workspaceMudouSoEmBuilds(conteudoNoGit(mb, WORKSPACE_PNPM), depois);
+  };
+}
+
+/** Idem, num commit (contra o primeiro pai). */
+function workspaceSoBuildsCommit(sha) {
+  return () => {
+    const pai = git(['rev-parse', '--verify', '-q', `${sha}^1`], { falha: null })?.trim();
+    return workspaceMudouSoEmBuilds(pai ? conteudoNoGit(pai, WORKSPACE_PNPM) : '', conteudoNoGit(sha, WORKSPACE_PNPM));
+  };
+}
+
+const TITULO_ACOMPANHANDO = 'Lock acompanhando dependência (aceito — revisão do engenheiro-software)';
+const DECLARADA_TRAILER = 'identidade alexandre declarada por trailer';
+const DECLARADA_BRANCH = 'identidade alexandre declarada por branch';
+
 function imprimirLista(tituloSecao, itens, fmt) {
   if (!itens.length) return;
   console.log(`\n${tituloSecao} (${itens.length}):`);
@@ -287,6 +325,8 @@ function verificarPorCommit(intervalo, regras) {
   }
   const semAgente = [];
   const comViolacao = [];
+  const declarados = [];
+  const acompanhando = [];
   let conferidos = 0;
   for (const c of commits) {
     const cab = `\n== ${c.curto} ${c.assunto}`;
@@ -303,13 +343,29 @@ function verificarPorCommit(intervalo, regras) {
     }
     const agente = nomes[0];
     conferidos++;
-    const r = classificarMudancas({ agente, mudancas: mudancasDoCommit(c.sha), regras, estrito: true });
+    const r = classificarMudancas({
+      agente, mudancas: mudancasDoCommit(c.sha), regras, estrito: true, lockAcompanha: true, workspaceSoBuilds: workspaceSoBuildsCommit(c.sha),
+    });
     console.log(`${cab} — agente: ${agente} (trailer)`);
+    if (agente === 'alexandre') {
+      console.log(`   Atenção: ${DECLARADA_TRAILER} (aceita aqui; o CI de governança cobre o resto)`);
+      declarados.push(c);
+    }
     imprimirLista('  OK', r.ok, () => '');
     imprimirLista('  Exceções do protocolo', r.excecoes, (i) => ` — ${i.motivo}`);
+    imprimirLista(`  ${TITULO_ACOMPANHANDO}`, r.acompanhando, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
+    if (r.acompanhando.length) acompanhando.push({ ...c, agente, itens: r.acompanhando });
     imprimirLista('  Outros donos (informativo — alexandre pode alterar)', r.outros, (i) => ` → ${i.dono}`);
     imprimirLista('  VIOLAÇÃO', r.violacoes, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
     if (r.violacoes.length) comViolacao.push({ ...c, agente, n: r.violacoes.length });
+  }
+  if (declarados.length) {
+    console.log(`\nAtenção: ${DECLARADA_TRAILER} em ${declarados.length} commit(s) (o CI de governança cobre o resto):`);
+    for (const c of declarados) console.log(`  ${c.curto} ${c.assunto}`);
+  }
+  if (acompanhando.length) {
+    console.log(`\nRevisão do engenheiro-software — lock acompanhando dependência em ${acompanhando.length} commit(s):`);
+    for (const c of acompanhando) console.log(`  ${c.curto} (${c.agente}) — ${[...new Set(c.itens.map((i) => i.motivo))].join('; ')}`);
   }
   if (comViolacao.length) {
     console.log(`\nVIOLAÇÃO em ${comViolacao.length} commit(s):`);
@@ -366,19 +422,25 @@ function verificar(args) {
       ({ agente, origem } = agentePelosTrailers(mb, nuvem));
     }
 
-    const r = classificarMudancas({ agente, mudancas, regras, estrito: Boolean(base) });
+    const r = classificarMudancas({
+      agente, mudancas, regras, estrito: Boolean(base), lockAcompanha: Boolean(base), workspaceSoBuilds: base ? workspaceSoBuildsBase(mb) : false,
+    });
+    const declarada = agente !== 'alexandre' ? '' : origem.startsWith('trailer') ? DECLARADA_TRAILER : origem.startsWith('branch') ? DECLARADA_BRANCH : '';
     console.log(`Verificação de donos — agente: ${agente} (${origem})`);
     console.log(`Comparação: ${descricao}`);
+    if (declarada) console.log(`Atenção: ${declarada} (aceita aqui; o CI de governança cobre o resto).`);
     imprimirLista('OK', r.ok, () => '');
     imprimirLista('Exceções do protocolo', r.excecoes, (i) => ` — ${i.motivo}`);
+    imprimirLista(TITULO_ACOMPANHANDO, r.acompanhando, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
     imprimirLista(base ? 'Outros donos (informativo — alexandre pode alterar)' : 'Outros donos (informativo — não muda o resultado)', r.outros, (i) => ` → ${i.dono}`);
     imprimirLista('VIOLAÇÃO', r.violacoes, (i) => ` → dono: ${i.dono} — ${i.motivo}`);
-    const total = mudancas.length ? `${r.ok.length + r.excecoes.length + r.outros.length + r.violacoes.length} arquivo(s) alterado(s)` : 'nenhum arquivo alterado';
+    const total = mudancas.length ? `${r.ok.length + r.excecoes.length + r.acompanhando.length + r.outros.length + r.violacoes.length} arquivo(s) alterado(s)` : 'nenhum arquivo alterado';
     if (r.violacoes.length) {
       console.log(`\nResultado: VIOLAÇÃO — ${r.violacoes.length} de ${total} fora das regras para ${agente}.`);
       process.exit(1);
     }
-    console.log(`\nResultado: OK — ${total}, nenhuma violação para ${agente}.`);
+    const revisao = r.acompanhando.length ? ` (${r.acompanhando.length} com lock acompanhando dependência: revisão do engenheiro-software)` : '';
+    console.log(`\nResultado: OK — ${total}, nenhuma violação para ${agente}${revisao}.`);
     process.exit(0);
   } catch (e) {
     if (!(e instanceof ErroUso)) throw e;
@@ -387,6 +449,37 @@ function verificar(args) {
   }
 }
 
+// ---------------------------------------------------------------- governanca
+const USO_GOVERNANCA = [
+  'uso: node scripts/coord.mjs governanca --base <ref>',
+  `  lista os caminhos de governança alterados no diff do branch: ${CAMINHOS_DE_GOVERNANCA.join(', ')}`,
+  '  saída: 0 = nenhum · 1 = algum (o PR exige revisão do Alexandre) · 2 = erro de uso ou de git',
+  '  exemplo (CI, só em pull_request): node scripts/coord.mjs governanca --base origin/$BASE_REF',
+].join('\n');
+
+function governanca(args) {
+  try {
+    const o = opcoes(args.flatMap((a) => (/^--[^=]+=/.test(a) ? [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)] : [a])));
+    for (const k of Object.keys(o)) if (k !== '_' && k !== 'base') throw new ErroUso(`opção desconhecida: --${k}\n${USO_GOVERNANCA}`);
+    if (o._.length) throw new ErroUso(`argumento inesperado: ${o._.join(' ')}\n${USO_GOVERNANCA}`);
+    if (!o.base || o.base === true) throw new ErroUso(`--base exige uma ref (ex.: --base origin/main)\n${USO_GOVERNANCA}`);
+    const { mudancas, descricao } = coletarMudancas(o.base);
+    const achados = mudancasDeGovernanca(mudancas);
+    console.log(`Governança — ${descricao}`);
+    console.log(`Caminhos de governança: ${CAMINHOS_DE_GOVERNANCA.join(', ')}`);
+    if (achados.length) {
+      imprimirLista('Caminhos de governança alterados', achados, () => '');
+      console.log(`\nResultado: GOVERNANÇA — ${achados.length} arquivo(s) de governança alterado(s): o PR exige revisão do Alexandre (sem merge automático).`);
+      process.exit(1);
+    }
+    console.log(`\nResultado: OK — nenhum caminho de governança alterado (${mudancas.length} arquivo(s) no diff).`);
+    process.exit(0);
+  } catch (e) {
+    if (!(e instanceof ErroUso)) throw e;
+    console.error(`Erro: ${e.message}`);
+    process.exit(2);
+  }
+}
 
 switch (cmd) {
   case 'enviar': {
@@ -516,6 +609,11 @@ switch (cmd) {
 
   case 'verificar': {
     verificar(resto);
+    break;
+  }
+
+  case 'governanca': {
+    governanca(resto);
     break;
   }
 

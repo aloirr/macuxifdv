@@ -725,7 +725,7 @@ test('T-0005: pnpm install que reescreve o pnpm-lock.yaml avisa (sem bloquear) q
   appendFileSync(join(dir, 'pnpm-lock.yaml'), 'novo: 1\n');
   const pos = rodarHook(dir, 'PostToolUse', 'pnpm install', { agente: 'modulo-core', id: pre.id });
   assert.equal(pos.codigo, 0, pos.erro);
-  assert.match(contexto(pos), /pnpm-lock\.yaml \(alterado; dono: engenheiro-software\) → reescrito pelo install deste comando: não desfaça e não faça commit dele; avise o engenheiro-software/);
+  assert.match(contexto(pos), /pnpm-lock\.yaml \(alterado; dono: engenheiro-software\) → reescrito pelo install deste comando: não desfaça; faça commit dele só junto com o package.json de um pacote seu \(regra "o lock acompanha a dependência", conferida pelo verificar\); senão, avise o engenheiro-software/);
   assert.doesNotMatch(contexto(pos), SUGERE_DESFAZER);
   // comando que não instala e viu o lock mudar: aviso genérico (provavelmente outro agente)
   const pre2 = rodarHook(dir, 'PreToolUse', 'pnpm test', { agente: 'modulo-core' });

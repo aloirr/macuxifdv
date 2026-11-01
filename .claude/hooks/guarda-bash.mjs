@@ -1,16 +1,21 @@
 #!/usr/bin/env node
 // Guardião de donos para o Bash — hook PreToolUse e PostToolUse/PostToolUseFailure (matcher "Bash").
 // Uso: node .claude/hooks/guarda-bash.mjs [nome-do-agente]
-//  - agente (guardião v3, T-0005), igual ao guarda-donos.mjs (identificarAgente em scripts/coord-lib.mjs):
-//      1. variável MACUXI_AGENTE;
-//      2. o de antes, numa sessão local de agente ou subagente: argumento (frontmatter do agente)
-//         ou "agent_type" do JSON do hook (na nuvem, CLAUDE_CODE_REMOTE=true, só se for subagente:
-//         agent_id presente ou agent_type diferente do "agent" do .claude/settings.json);
-//      3. branch atual: <agente>/T-nnnn-..., agente/T-nnnn-<agente>, alexandre/* → alexandre,
-//         nuvem/* → trailer "Agente: <nome>" do último commit do branch (desde o main) que o tem;
-//      4. fonte ausente ou ambígua → comportamento anterior (argumento || agent_type).
-//    "alexandre" altera arquivo de qualquer dono (sem-dono, congelado e recados continuam valendo).
-//  - sessão sem agente (uso manual do Alexandre) → liberado. Desligar tudo: MACUXI_GUARDA=off.
+//  - agente (guardião v4, T-0005), igual ao guarda-donos.mjs (identificarAgente em scripts/coord-lib.mjs):
+//      1. subagente (agent_id no JSON do hook): o próprio subagente (argumento ou agent_type);
+//         vence MACUXI_AGENTE, que vale só para a sessão principal;
+//      2. variável MACUXI_AGENTE;
+//      3. argumento (frontmatter do agente) ou "agent_type" numa sessão local (na nuvem,
+//         CLAUDE_CODE_REMOTE=true, só agent_type diferente do "agent" do .claude/settings.json);
+//      4. branch atual: <agente>/T-nnnn-..., agente/T-nnnn-<agente>; nuvem/* → trailer
+//         "Agente: <nome>" com um único nome em todos os commits do branch (desde o main) que o têm;
+//      5. fonte ausente, ambígua ou que declara alexandre → restrito (agent_type; sessão manual local
+//         = liberada; na nuvem sem agente, o "agent" do settings.json).
+//    "alexandre" só por MACUXI_AGENTE=alexandre ou sessão manual local (branch alexandre/* e trailer
+//    "Agente: alexandre" não dão a identidade); altera arquivo de qualquer dono (sem-dono,
+//    congelado e recados continuam valendo). O resultado do git rev-parse/log fica em cache por
+//    HEAD num arquivo temporário (commitsDoBranch em scripts/coord-lib.mjs).
+//  - sessão manual local (sem agente) → liberado. Desligar tudo: MACUXI_GUARDA=off.
 //  - PreToolUse: bloqueia (exit 2) escrita evidente em caminho de outro dono e tira a foto do
 //    git status (+ data/tamanho) para o PostToolUse.
 //    A foto guarda também os ALVOS EVIDENTES do comando (os mesmos que o analisador extraiu).
