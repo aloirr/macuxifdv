@@ -90,6 +90,19 @@ function Rodar-Cloudflared([string]$exe, [string[]]$argumentos, [int]$Segundos =
   return [pscustomobject]@{ Codigo = $p.ExitCode; Saida = $saida.Result; Erro = $erro.Result }
 }
 
+# Túnel apagado? O `cloudflared tunnel list --output json` devolve "deleted_at": "0001-01-01T00:00:00Z" (tempo zero do Go)
+# para túnel ATIVO; no PowerShell 7 o ConvertFrom-Json transforma isso num DateTime do ano 1. Apagado só quando o campo
+# existe, não é vazio e não é o tempo zero.
+function Tunel-Apagado($Tunel) {
+  if ($null -eq $Tunel -or -not ($Tunel.PSObject.Properties.Name -contains 'deleted_at')) { return $false }
+  $d = $Tunel.deleted_at
+  if ($null -eq $d) { return $false }
+  if ($d -is [datetime] -or $d -is [datetimeoffset]) { return ($d.Year -gt 1) }
+  $s = ([string]$d).Trim()
+  if (-not $s -or $s.StartsWith('0001-01-01')) { return $false }
+  return $true
+}
+
 # Túneis nomeados da conta (exige o `cloudflared tunnel login` feito). Devolve a lista ou lança erro com a saída do cloudflared.
 function Listar-Tuneis([string]$exe, [string]$Nome) {
   $r = Rodar-Cloudflared $exe @('tunnel', 'list', '--output', 'json', '--name', $Nome)
@@ -100,8 +113,9 @@ function Listar-Tuneis([string]$exe, [string]$Nome) {
   $dados = ConvertFrom-Json $texto
   $achados = @()
   foreach ($t in @($dados)) {
+    if ($null -eq $t) { continue }
     $nomes = $t.PSObject.Properties.Name
-    if (($nomes -contains 'name') -and $t.name -eq $Nome -and -not (($nomes -contains 'deleted_at') -and $t.deleted_at)) { $achados += $t }
+    if (($nomes -contains 'name') -and $t.name -eq $Nome -and -not (Tunel-Apagado $t)) { $achados += $t }
   }
   return $achados
 }

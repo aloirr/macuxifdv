@@ -69,10 +69,26 @@ if ($tuneis.Count -gt 0) {
   Ok "Já existe (id $($tuneis[0].id)): reaproveitado."
 } else {
   $r = Rodar-Cloudflared $exe @('tunnel', 'create', $DemoTunelNome)
-  if ($r.Codigo -ne 0) { Falha "cloudflared tunnel create falhou (código $($r.Codigo)): $($r.Erro.Trim())" }
-  try { $tuneis = @(Listar-Tuneis $exe $DemoTunelNome) } catch { Falha $_.Exception.Message }
-  if ($tuneis.Count -eq 0) { Falha "O túnel $DemoTunelNome foi criado, mas não aparece em cloudflared tunnel list. Rode de novo em 1 minuto." }
-  Ok "Criado (id $($tuneis[0].id))."
+  $texto = ($r.Saida + "`n" + $r.Erro).Trim()
+  $jaExiste = ($r.Codigo -ne 0) -and ($texto -match 'already exists')
+  if ($r.Codigo -ne 0 -and -not $jaExiste) { Falha "cloudflared tunnel create falhou (código $($r.Codigo)): $texto" }
+  # a lista pode demorar uns segundos para mostrar o túnel recém-criado: 3 tentativas
+  for ($tentativa = 1; $tentativa -le 3; $tentativa++) {
+    try { $tuneis = @(Listar-Tuneis $exe $DemoTunelNome) } catch { Falha $_.Exception.Message }
+    if ($tuneis.Count -gt 0 -or $jaExiste) { break }
+    if ($tentativa -lt 3) { Start-Sleep -Seconds 3 }
+  }
+  if ($tuneis.Count -eq 0 -and $jaExiste) {
+    Falha ("A Cloudflare respondeu que o túnel $DemoTunelNome JÁ EXISTE (cloudflared tunnel create: 'already exists'), mas " +
+      "cloudflared tunnel list --name $DemoTunelNome não o mostra como ativo. Esperar não resolve. Confira com " +
+      "'cloudflared tunnel list' e 'cloudflared tunnel info $DemoTunelNome' (login em outra conta? túnel apagado agora " +
+      'e com o nome ainda reservado?) e mande a saída para o engenheiro-software.')
+  }
+  if ($tuneis.Count -eq 0) {
+    Falha ("O túnel $DemoTunelNome foi criado, mas não aparece em cloudflared tunnel list --name $DemoTunelNome. " +
+      'Rode este script de novo: ele reaproveita o túnel pelo nome, sem criar outro.')
+  }
+  if ($jaExiste) { Ok "Já existia (id $($tuneis[0].id)): reaproveitado." } else { Ok "Criado (id $($tuneis[0].id))." }
 }
 $idTunel = [string]$tuneis[0].id
 
