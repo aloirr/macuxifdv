@@ -67,3 +67,12 @@ R-20261031-192144-2-modulo-integracao
 R-20261031-193757-modulo-catalogo
 R-20261031-182152-modulo-core
 R-20261031-174821-modulo-vendedor
+R-20261031-184905-banco-dados
+R-20261031-185627-gerente-projetos
+R-20261031-195334-modulo-core
+R-20261031-201850-modulo-catalogo
+R-20261031-205429-banco-dados
+R-20261031-205430-banco-dados
+R-20261031-205433-banco-dados
+R-20261031-210746-testes
+R-20261031-214136-modulo-core
