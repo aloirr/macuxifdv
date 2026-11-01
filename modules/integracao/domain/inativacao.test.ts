@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { avancarCursor } from './cursor';
+import { calcularResultadoLote } from './erros';
 import { calcularInativacao, novaSessao, registrarParte } from './sessao';
 import { criarPendencia, decidirPendencia, filtrarAtivosElegiveis, resultadoInativacaoDoLote, situacaoPendencia } from './inativacao';
 
@@ -100,5 +102,19 @@ describe('RN-INT-06: o que o Conector lê no resultado do último lote da sessã
 
   it('RN-INT-06: lote delta ou parte que não fecha a sessão → nao_aplicavel sem motivo', () => {
     expect(resultadoInativacaoDoLote(null, 10)).toEqual({ situacao: 'nao_aplicavel', motivo: null, candidatos: 0, percentual: 0 });
+  });
+});
+
+describe('RN-INT-06 (P-2, T-0027): "lote parado" = lote APLICADO, só as inativações aguardam confirmação', () => {
+  it('RN-INT-06 (P-2): o último lote da sessão termina concluido, o cursor avança e o resultado traz inativacao aguardando_confirmacao', () => {
+    const res = calcularResultadoLote({ recebidas: 5, duplicadas_no_lote: 0, erros: [], novas: 0, atualizadas: 0, inalteradas: 5 });
+    expect(res.status).toBe('concluido');
+    const candidato = { alterado_em: '2026-11-01T09:59:00.000Z', external_id: 'A4' };
+    expect(avancarCursor({ alterado_em: '2026-10-01T00:00:00.000Z', external_id: 'A0' }, candidato, res.status)).toEqual({ cursor: candidato, avancou: true });
+    const sessao = registrarParte(novaSessao('s1', 'cliente', t0), { parte: 1, ultimo: true, status: res.status });
+    const r = calcularInativacao({ sessao, agora: t0, ativosNoMacuxi: ativos, recebidosNaSessao: ativos.slice(0, 5) });
+    expect(resultadoInativacaoDoLote(r, 10)).toEqual({ situacao: 'aguardando_confirmacao', motivo: 'excede_limite_inativacao', candidatos: 5, percentual: 50 });
+    // nada foi inativado: só a pendência espera o operador (admin ou analista, P-3) no BKO
+    expect(r.inativar).toEqual([]);
   });
 });

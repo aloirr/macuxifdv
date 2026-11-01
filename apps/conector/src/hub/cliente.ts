@@ -2,13 +2,14 @@
  * Cliente HTTP do Hub `/integracao/v1` (ver docs/modulos/integracao/desenho.md §9 e conector.md §"O que o Hub precisa expor").
  * Conexão SEMPRE de saída (HTTPS). Autenticação: `Authorization: Bearer <token>` (chave de API rotacionável por Conector).
  * Falhas transitórias (rede, timeout, 408/425/429/5xx) fazem retry exponencial com jitter; recusas por regra (400/413/422)
- * viram `ErroHubRecusa` e NÃO são reenviadas; 401/403 viram `ErroHubAutenticacao`.
+ * viram `ErroHubRecusa` e NÃO são reenviadas; 401/403 viram `ErroHubAutenticacao`; 426 vira `ErroHubVersao` (pausa, T-0027).
  */
 import {
   API_PREFIX_INTEGRACAO,
   CABECALHO_CONECTOR_ID,
   CABECALHO_CONECTOR_VERSAO,
   CursorEntidade,
+  LIMITE_ERROS_RESPOSTA_MAX,
   LoteAceito,
   PedidosPendentes,
   RecusaEnvelope,
@@ -55,6 +56,26 @@ export class ErroHubAutenticacao extends Error {
     super(message);
     this.name = 'ErroHubAutenticacao';
   }
+}
+
+/**
+ * HTTP 426 `versao_conector_nao_suportada` (RN-INT-11, T-0027): o Hub recusa dados deste Conector por versão abaixo da mínima.
+ * É PAUSA, nunca recusa definitiva: nada se perde, nenhuma entidade é bloqueada. Quando o Hub informa a mínima (`detalhes`), o
+ * Conector a guarda como política e passa a se comportar como "abaixo da mínima" (só o sinal segue) até o Hub liberar.
+ */
+export class ErroHubVersao extends Error {
+  constructor(message: string, readonly versaoMinima: string | null, readonly mensagemHub: string | null) {
+    super(message);
+    this.name = 'ErroHubVersao';
+  }
+}
+
+/** Lê o corpo do 426 (`ErroHub`): `detalhes.versao_minima` (ou `minima`) e a mensagem, se vierem; nunca lança. */
+export function lerRecusaVersao(json: unknown): { versaoMinima: string | null; mensagem: string | null } {
+  const j = (json && typeof json === 'object' ? json : {}) as { mensagem?: unknown; detalhes?: Record<string, unknown> | null };
+  const d = j.detalhes && typeof j.detalhes === 'object' ? j.detalhes : {};
+  const min = [d.versao_minima, d.minima].find((v): v is string => typeof v === 'string' && v.trim() !== '');
+  return { versaoMinima: min?.trim() ?? null, mensagem: typeof j.mensagem === 'string' ? j.mensagem.slice(0, 300) : null };
 }
 
 export type RespostaEnvioLote = { tipo: 'aceito'; aceito: LoteAceito } | { tipo: 'recusado'; status: number; recusa: RecusaEnvelope | null };
@@ -122,6 +143,14 @@ export class ClienteHub {
         if (res.status === 401 || res.status === 403) {
           throw new ErroHubAutenticacao('O Hub recusou a credencial do Conector (verifique o identificador e a chave de API; ela pode ter sido rotacionada ou revogada: conector trocar-chave).', res.status);
         }
+        if (res.status === 426) {
+          const r = lerRecusaVersao(json);
+          throw new ErroHubVersao(
+            `O Hub recusou dados desta versão do Conector (HTTP 426${r.versaoMinima ? `, mínima ${r.versaoMinima}` : ''}). Atualize o Conector; os dados ficam na fila local.`,
+            r.versaoMinima,
+            r.mensagem,
+          );
+        }
         if (res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500) {
           throw new ErroHubTransitorio(`Hub indisponível (HTTP ${res.status}).`, res.status, esperaRetryAfter(res.headers.get('retry-after'), this.o.agora?.()));
         }
@@ -154,9 +183,13 @@ export class ClienteHub {
     return { tipo: 'recusado', status, recusa: recusa.success ? recusa.data : null };
   }
 
-  /** `GET /lotes/{id}` — resultado por linha. `null` se o Hub não conhece o lote (404). */
+  /**
+   * `GET /lotes/{id}` — resultado por linha. `null` se o Hub não conhece o lote (404). Pede o máximo de erros do contrato
+   * (`limite_erros`, 5.500 = 5.000 registros + 500 inválidas; D-5 da T-0027): o Hub devolve as `falha_processamento` primeiro e,
+   * assim, nenhuma linha transitória a reenviar fica de fora da resposta.
+   */
   async consultarLote(loteId: string): Promise<ResultadoLoteHub | null> {
-    const { status, json } = await this.chamar('consultar_lote', 'GET', `/lotes/${encodeURIComponent(loteId)}`);
+    const { status, json } = await this.chamar('consultar_lote', 'GET', `/lotes/${encodeURIComponent(loteId)}?limite_erros=${LIMITE_ERROS_RESPOSTA_MAX}`);
     if (status === 404) return null;
     if (status !== 200) throw new ErroHubTransitorio(`Resposta inesperada do Hub (HTTP ${status}) ao consultar o lote.`, status);
     return this.interpretar(ResultadoLote, json, 'consultar_lote');

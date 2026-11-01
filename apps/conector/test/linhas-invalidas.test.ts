@@ -14,6 +14,10 @@ afterEach(async () => {
 });
 
 const ruim = (id: string, seg: number) => ({ ...cliente(id, `2026-03-01T10:${String(Math.floor(seg / 60)).padStart(2, '0')}:${String(seg % 60).padStart(2, '0')}Z`), razao_social: null });
+/** O Hub já tem cursor: o Conector segue por delta (sem carga completa). */
+function emDelta(a: Ambiente) {
+  a.hub.cursores.set('cliente', { alterado_em: '2026-01-01T00:00:00.000Z', external_id: 'a0' });
+}
 async function volta(a: Ambiente) {
   await sincronizarEntidade(a.ctx, 'cliente');
   for (let i = 0; i < 4; i++) {
@@ -43,8 +47,9 @@ describe('RN-INT-03: linhas inválidas do Conector vão ao Hub com o motivo (dec
     expect(amb.hub.chamadas.find((c) => c.metodo === 'POST' && c.caminho.endsWith('/lotes'))).toMatchObject({ conectorId: 'cnx-teste-01', versao: VERSAO_CONECTOR });
   });
 
-  it('RN-INT-03: acima do limite por lote (padrão 500) vão só as 500 primeiras com motivo; as restantes só em contagem', async () => {
+  it('RN-INT-03 (delta): acima do limite por lote (padrão 500) vão só as 500 primeiras com motivo; as restantes só em contagem', async () => {
     amb = await criarAmbiente({ lote: { maxLinhas: 5000 } });
+    emDelta(amb);
     const linhas = [cliente('ok1', '2026-03-01T09:00:00Z'), ...Array.from({ length: 520 }, (_, i) => ruim(`r${String(i).padStart(3, '0')}`, i + 1))];
     amb.erp.definir('cliente', linhas);
     await volta(amb);
@@ -59,8 +64,9 @@ describe('RN-INT-03: linhas inválidas do Conector vão ao Hub com o motivo (dec
     expect(amb.ctx.store.contarErros().find((e) => e.entidade === 'cliente' && e.origem === 'local')?.total).toBe(200);
   });
 
-  it('RN-INT-03: o limite é parâmetro (lote.maxLinhasInvalidas) e 0 desliga o detalhe (só a contagem)', async () => {
+  it('RN-INT-03 (delta): o limite é parâmetro (lote.maxLinhasInvalidas) e 0 desliga o detalhe (só a contagem)', async () => {
     amb = await criarAmbiente({ lote: { maxLinhas: 10, maxLinhasInvalidas: 2 } });
+    emDelta(amb);
     amb.erp.definir('cliente', [cliente('c1', '2026-03-01T09:00:00Z'), ruim('c2', 1), ruim('c3', 2), ruim('c4', 3)]);
     await volta(amb);
     expect(amb.hub.envelopes[0]?.linhas_invalidas?.map((l) => l.external_id)).toEqual(['c2', 'c3']);
@@ -79,8 +85,9 @@ describe('RN-INT-03: linhas inválidas do Conector vão ao Hub com o motivo (dec
     expect(amb.ctx.store.estado('cliente')?.confirmado?.external_id).toBe('c2');
   });
 
-  it('RN-INT-03: com linhasInvalidas=descartar nada vai ao Hub (fica só no log e nos erros locais)', async () => {
+  it('RN-INT-03 (delta): com linhasInvalidas=descartar nada vai ao Hub (fica só no log e nos erros locais)', async () => {
     amb = await criarAmbiente();
+    emDelta(amb);
     (amb.ctx.config.entidades.cliente as { linhasInvalidas: string }).linhasInvalidas = 'descartar';
     amb.erp.definir('cliente', [cliente('c1', '2026-03-01T10:00:00Z'), ruim('c2', 1)]);
     await volta(amb);
@@ -88,13 +95,17 @@ describe('RN-INT-03: linhas inválidas do Conector vão ao Hub com o motivo (dec
     expect(amb.ctx.store.contarErros().find((e) => e.origem === 'local')?.total).toBe(1);
   });
 
-  it('RN-INT-03: página só com linhas inválidas não tem lote para levá-las: avisa no log e o cursor segue', async () => {
+  it('RN-INT-01 (exceção, D-2 da T-0027): página só com linhas inválidas vira lote SÓ com elas (registros vazio) e o cursor segue', async () => {
     amb = await criarAmbiente({ lote: { maxLinhas: 10 } });
+    emDelta(amb);
     amb.erp.definir('cliente', [ruim('c1', 1), ruim('c2', 2)]);
     await volta(amb);
-    expect(amb.hub.envelopes).toHaveLength(0);
-    expect(amb.logs.join('\n')).toContain('linhas_invalidas_sem_lote');
-    expect(amb.ctx.store.estado('cliente')?.lido?.external_id).toBe('c2');
+    expect(amb.hub.envelopes).toHaveLength(1);
+    expect(amb.hub.envelopes[0]).toMatchObject({ modo: 'delta', registros: [] });
+    expect(amb.hub.envelopes[0]?.linhas_invalidas?.map((l) => l.external_id)).toEqual(['c1', 'c2']);
+    expect([...amb.hub.lotes.values()][0]?.status).toBe('concluido_com_erros');
+    expect(amb.logs.join('\n')).not.toContain('linhas_invalidas_sem_lote');
+    expect(amb.ctx.store.estado('cliente')).toMatchObject({ bloqueio: null, confirmado: { external_id: 'c2' } });
   });
 
   it('uma linha com vários campos ruins vira UMA entrada, com o primeiro campo e a mensagem resumida, sem valores', () => {

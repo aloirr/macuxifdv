@@ -2,7 +2,7 @@
 import { CAMPO_SOMA_CONTROLE, VERSAO_CONTRATO, type ReconciliacaoEnvio } from '@macuxi/integracao/contracts';
 import { ORDEM_CARGA, type Entidade } from './config/entidades';
 import { type Contexto, resumoErro } from './contexto';
-import { bloqueioPorVersao } from './politica';
+import { bloqueioPorVersao, tratarRecusaPorVersao } from './politica';
 
 export function dataLocal(ms: number): string {
   const d = new Date(ms);
@@ -49,6 +49,8 @@ export async function reconciliarTudo(ctx: Contexto): Promise<{ enviadas: number
       if (await reconciliarEntidade(ctx, e, dia)) enviadas++;
     } catch (err) {
       falhas++;
+      // 426 (T-0027): pausa — as outras entidades também seriam recusadas; o dia não é marcado e volta a tentar depois
+      if (tratarRecusaPorVersao(ctx, err, 'reconciliacao')) break;
       ctx.log.aviso('reconciliacao_falhou', { entidade: e, erro: resumoErro(err) });
     }
   }

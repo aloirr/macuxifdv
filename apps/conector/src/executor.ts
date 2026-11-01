@@ -12,7 +12,7 @@ import { reconciliacaoVencida, reconciliarTudo } from './reconciliacao';
 import { sincronizarEntidade } from './sincronizador';
 import { montarStatus } from './status';
 import { dormir } from './util/retry';
-import { avaliarVersaoLocal, guardarPolitica } from './politica';
+import { avaliarVersaoLocal, guardarPolitica, tratarRecusaPorVersao } from './politica';
 import { VERSAO_CONECTOR } from './versao';
 import { VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
 
@@ -84,7 +84,7 @@ export class Executor {
   private async sinal(): Promise<void> {
     const s = montarStatus(this.ctx.store, this.ctx.config, this.versao);
     const parado = s.versao.deveParar;
-    const resposta = await this.ctx.hub.enviarSinal({
+    const resposta = await this.enviarSinal({
       conector_id: this.ctx.config.hub.conectorId,
       versao_conector: this.versao,
       versao_contrato: VERSAO_CONTRATO,
@@ -96,6 +96,16 @@ export class Executor {
     // a política do Hub vale a partir daqui (inclusive para liberar o envio quando o Hub baixa a mínima)
     if (resposta?.politica_versao) guardarPolitica(this.ctx.store, resposta.politica_versao, this.ctx.relogio.agora());
     this.registrarVersao();
+  }
+
+  /** O sinal é liberado abaixo da mínima; se um Hub fora do contrato responder 426 mesmo assim, vale como pausa (T-0027). */
+  private async enviarSinal(corpo: Record<string, unknown>) {
+    try {
+      return await this.ctx.hub.enviarSinal(corpo);
+    } catch (e) {
+      if (tratarRecusaPorVersao(this.ctx, e, 'sinal')) return null;
+      throw e;
+    }
   }
 
   /** Uma passada: roda o que está vencido. Erro de uma tarefa nunca derruba as outras. */

@@ -6,7 +6,9 @@
  */
 import { PoliticaVersaoConector } from '@macuxi/integracao/contracts';
 import type { Armazenamento } from './armazenamento/armazenamento';
-import { avaliarVersao, VERSAO_CONECTOR, type AvaliacaoVersao } from './versao';
+import { ErroHubVersao } from './hub/cliente';
+import type { Logger } from './log/logger';
+import { avaliarVersao, compararVersoes, lerSemver, VERSAO_CONECTOR, type AvaliacaoVersao } from './versao';
 
 const CHAVE_POLITICA = 'politica_versao';
 const CHAVE_POLITICA_EM = 'politica_versao_recebida_em';
@@ -43,4 +45,25 @@ export function avaliarVersaoLocal(store: Armazenamento, versao: string = VERSAO
 export function bloqueioPorVersao(ctx: { store: Armazenamento; versao?: string }): AvaliacaoVersao | null {
   const a = avaliarVersaoLocal(ctx.store, ctx.versao);
   return a.deveParar ? a : null;
+}
+
+/**
+ * HTTP 426 do Hub (RN-INT-11, T-0027): PAUSA, nunca bloqueio de entidade. Se a resposta trouxe a versão mínima, ela vira a
+ * política local (a recomendada sobe até ela, se preciso): o Conector passa a se comportar como "abaixo da mínima" — para de
+ * enviar, segue só com o sinal de vida (`parado_por_versao`) — e libera sozinho quando o sinal trouxer uma política que o aceite
+ * ou quando for atualizado. Sem a mínima na resposta, só registra; quem chamou adia a operação com backoff.
+ * Devolve `true` se o erro era um 426 (tratado aqui).
+ */
+export function tratarRecusaPorVersao(ctx: { store: Armazenamento; log: Logger; versao?: string; relogio: { agora(): number } }, e: unknown, operacao: string): boolean {
+  if (!(e instanceof ErroHubVersao)) return false;
+  const versao = ctx.versao ?? VERSAO_CONECTOR;
+  const min = e.versaoMinima && lerSemver(e.versaoMinima) ? e.versaoMinima : null;
+  if (min) {
+    const atual = lerPolitica(ctx.store)?.politica;
+    const recomendada = atual && lerSemver(atual.versao_recomendada) && compararVersoes(atual.versao_recomendada, min) >= 0 ? atual.versao_recomendada : min;
+    const candidata = PoliticaVersaoConector.safeParse({ ...(atual ?? {}), versao_minima: min, versao_recomendada: recomendada, mensagem: e.mensagemHub ?? atual?.mensagem ?? null });
+    if (candidata.success) guardarPolitica(ctx.store, candidata.data, ctx.relogio.agora());
+  }
+  ctx.log.erro('hub_recusou_versao', { operacao, status: 426, versao, versao_minima: min, motivo: 'versão do Conector abaixo da mínima do Hub: pausa sem perda (a fila local guarda tudo)' });
+  return true;
 }

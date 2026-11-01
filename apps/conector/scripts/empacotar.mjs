@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Empacota o Conector em um único arquivo (dist/conector.mjs) com esbuild: o técnico do cliente só precisa do Node 22+
- * e desse arquivo (mais o WinSW). `node:sqlite` fica de fora (é do próprio Node). Uso: pnpm --filter @macuxi/conector build
+ * Empacota o Conector em um único arquivo (dist/conector.mjs) com esbuild. O pacote entregue ao cliente leva o PRÓPRIO Node 24
+ * LTS portátil (>= 24.7, mínimo do projeto) junto do WinSW: não depende do Node instalado no servidor do cliente (decisão do
+ * Alexandre, R-20261031-233442 item 4; ver docs/modulos/integracao/conector.md, "Requisitos" e "Pacote"). `node:sqlite` fica de
+ * fora (é do próprio Node). Uso: pnpm --filter @macuxi/conector build
  */
 import { build } from 'esbuild';
 import { mkdirSync } from 'node:fs';
@@ -17,7 +19,7 @@ await build({
   bundle: true,
   platform: 'node',
   format: 'esm',
-  target: 'node22',
+  target: 'node24',
   sourcemap: true,
   minify: false,
   external: ['node:*'],

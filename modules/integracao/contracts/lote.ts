@@ -4,7 +4,7 @@
  * `SCHEMA_REGISTRO[entidade]` — por isso `registros` é `unknown[]` aqui.
  */
 import { z } from 'zod';
-import { DataCivil, DataHoraUtc, ExternalId, LIMITE_REGISTROS_LOTE, Uuid } from './base';
+import { DataCivil, DataHoraUtc, EXTERNAL_ID_MAX, ExternalId, LIMITE_REGISTROS_LOTE, Uuid } from './base';
 import { Entidade } from './entidades';
 
 export const ModoCarga = z.enum(['completo', 'delta']);
@@ -33,7 +33,8 @@ export const LIMITE_LINHAS_INVALIDAS_PADRAO = 500;
  * valor da linha (nem dado pessoal): o BKO mostra `external_id`, campo e mensagem. Códigos iguais aos de `LinhaErro`.
  */
 export const LinhaInvalidaConector = z.object({
-  external_id: z.string().max(200).nullish(),
+  /** Chave do ERP (até `EXTERNAL_ID_MAX`, a mesma do registro). Ausente/nula = não legível: impede a inativação da sessão (RN-INT-06). */
+  external_id: z.string().max(EXTERNAL_ID_MAX).nullish(),
   codigo: z.enum([
     'registro_invalido',
     'campo_obrigatorio',
@@ -64,7 +65,8 @@ export const LoteEnvelope = z.object({
   versao_conector: z.string().min(1).max(40).nullish(),
   /**
    * Linhas que o Conector recusou localmente, com o motivo (no máximo [500] por lote, parametrizável). Campo opcional novo:
-   * compatível com `v1` (RN-INT-09). Não substitui `registros`: o lote continua precisando de pelo menos 1 registro.
+   * compatível com `v1` (RN-INT-09). Exceção da RN-INT-01 (aprovada, P-1): lote com `registros` vazio é aceito quando traz linhas
+   * inválidas (ou omitidas) e termina `concluido_com_erros`. O `external_id` delas protege o registro da inativação (RN-INT-06).
    */
   linhas_invalidas: z.array(LinhaInvalidaConector).max(LIMITE_REGISTROS_LOTE).nullish(),
   /** Quantas linhas inválidas passaram do limite e foram contadas sem detalhe (só a contagem). */
@@ -109,6 +111,8 @@ export const CODIGOS_ERRO_ENVELOPE = [
   'chave_idempotencia_reutilizada',
   'corpo_grande',
   'versao_conector_nao_suportada',
+  // T-0027 (P-6, RN-INT-13): a entidade é alimentada por outro Conector da empresa (um Conector por entidade por empresa na v1).
+  'entidade_de_outro_conector',
 ] as const;
 export const CodigoErroEnvelope = z.enum(CODIGOS_ERRO_ENVELOPE);
 export type CodigoErroEnvelope = z.infer<typeof CodigoErroEnvelope>;
