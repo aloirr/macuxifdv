@@ -86,7 +86,10 @@ export const LoteAceito = z.object({
   status: z.literal('recebido'),
   entidade: Entidade,
   modo: ModoCarga,
+  /** Linhas lidas pelo Conector neste lote: `registros` + `linhas_invalidas` + `linhas_invalidas_omitidas` (sempre >= 1). */
   recebidos: z.number().int().positive(),
+  /** `true` quando a `Idempotency-Key` já tinha um lote: é a MESMA resposta de antes, sem reprocessar (T-0025). */
+  repetido: z.boolean().nullish(),
   /** Onde consultar o resultado: `GET /integracao/v1/lotes/{lote_id}`. */
   consulta: z.string(),
 });
@@ -101,6 +104,11 @@ export const CODIGOS_ERRO_ENVELOPE = [
   'acima_do_limite',
   'sessao_ausente',
   'sessao_nao_se_aplica',
+  // T-0025 (valores novos de enum: compatíveis com `v1`, RN-INT-09). O Conector v1.1 que não os conhece cai em `http_<status>`.
+  'chave_idempotencia_invalida',
+  'chave_idempotencia_reutilizada',
+  'corpo_grande',
+  'versao_conector_nao_suportada',
 ] as const;
 export const CodigoErroEnvelope = z.enum(CODIGOS_ERRO_ENVELOPE);
 export type CodigoErroEnvelope = z.infer<typeof CodigoErroEnvelope>;
@@ -165,6 +173,21 @@ export const ContagensLote = z.object({
 });
 export type ContagensLote = z.infer<typeof ContagensLote>;
 
+/**
+ * Situação da inativação da carga completa no resultado do último lote da sessão (RN-INT-06). Campo opcional novo
+ * (compatível com `v1`); é o formato que o Conector v1.1 já espera (`apps/conector/src/hub/tipos.ts`).
+ */
+export const InativacaoLote = z.object({
+  situacao: z.enum(['aplicada', 'aguardando_confirmacao', 'nao_aplicavel']),
+  /** Texto curto para o operador (ex.: `excede_limite_inativacao`). */
+  motivo: z.string().nullish(),
+  /** Quantos registros seriam (ou foram) inativados. */
+  candidatos: z.number().int().nonnegative().nullish(),
+  /** `candidatos` em % dos ativos (informativo, para o aviso do operador). */
+  percentual: z.number().nonnegative().nullish(),
+});
+export type InativacaoLote = z.infer<typeof InativacaoLote>;
+
 /** Resultado de `GET /integracao/v1/lotes/{id}` (RF-INT-04: monitor no BKO). */
 export const LoteResultado = z.object({
   lote_id: Uuid,
@@ -178,6 +201,11 @@ export const LoteResultado = z.object({
   cursor: Cursor.nullable(),
   /** Linhas inválidas do Conector que passaram do limite do lote e só foram contadas (campo opcional novo). */
   invalidas_omitidas: z.number().int().nonnegative().nullish(),
+  /** Total de linhas com erro do lote e quantas ficaram de fora de `erros` pelo limite da resposta (campos opcionais novos). */
+  erros_total: z.number().int().nonnegative().nullish(),
+  erros_omitidos: z.number().int().nonnegative().nullish(),
+  /** Trava de inativação em massa (RN-INT-06); presente no resultado do último lote da sessão completa. */
+  inativacao: InativacaoLote.nullish(),
   /** Registros inativados ao fechar a sessão de carga completa (RN-INT-06). */
   inativadas: z.number().int().nonnegative().default(0),
   recebido_em: DataHoraUtc,

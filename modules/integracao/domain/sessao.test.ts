@@ -106,3 +106,22 @@ describe('RN-INT-06: inativação da carga completa', () => {
     expect(r.inativar).toHaveLength(3);
   });
 });
+
+describe('RN-INT-06 (T-0025): linhas inválidas do Conector e a inativação da carga completa', () => {
+  const completa = () => registrarParte(base(), { parte: 1, ultimo: true, status: 'concluido' });
+
+  it('RN-INT-06: linhas inválidas omitidas (sem detalhe) impedem a inativação — não dá para saber quais registros elas representam', () => {
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ['A', 'B'], recebidosNaSessao: ['A'], linhasInvalidasOmitidas: 3 });
+    expect(r).toMatchObject({ permitido: false, inativar: [], motivo: 'linhas_invalidas_omitidas' });
+  });
+
+  it('RN-INT-06: linha inválida COM external_id conta como recebida (o registro continua no ERP e não é inativado)', () => {
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ['A', 'B'], recebidosNaSessao: ['A', 'B'], limitePct: 100 });
+    expect(r).toMatchObject({ permitido: true, inativar: [] });
+  });
+
+  it('RN-INT-06: zero omitidas não muda nada', () => {
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ['A', 'B'], recebidosNaSessao: ['A'], limitePct: 100, linhasInvalidasOmitidas: 0 });
+    expect(r.inativar).toEqual(['B']);
+  });
+});

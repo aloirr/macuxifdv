@@ -9,4 +9,21 @@ describe('manifesto da integracao', () => {
     expect(manifest.consome).toContain('vendedor.pedido.status_alterado@1');
     expect(manifest.depende).toContain('core');
   });
+
+  it('RN-INT-01: o lote recebido é um evento interno — o módulo o publica e o consome para aplicar em segundo plano', () => {
+    expect(manifest.publica).toContain('integracao.lote.recebido@1');
+    expect(manifest.consome).toContain('integracao.lote.recebido@1');
+  });
+
+  it('RN-INT-10 (proposta): credencial, política de versão e inativação em massa são só do admin; o monitor também é do analista', () => {
+    expect(manifest.acoes['conector.gerenciar']?.perfis).toEqual(['admin']);
+    expect(manifest.acoes['inativacao.decidir']?.perfis).toEqual(['admin']);
+    expect(manifest.acoes['monitor.ver']?.perfis).toEqual(['admin', 'analista']);
+    expect(manifest.acoes['lote.reprocessar']?.perfis).toContain('analista');
+  });
+
+  it('RN-PRO-01: nenhum perfil de campo (vendedor, promotor, supervisor, gerente) toca no Hub', () => {
+    const perfis = new Set(Object.values(manifest.acoes).flatMap((a) => a.perfis));
+    for (const p of ['vendedor', 'promotor', 'supervisor', 'gerente']) expect(perfis.has(p as never)).toBe(false);
+  });
 });

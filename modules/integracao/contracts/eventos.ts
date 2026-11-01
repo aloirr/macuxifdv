@@ -77,3 +77,18 @@ export const ReconciliacaoDivergenteEvento = z.object({
   motivos: z.array(z.string()).min(1),
 });
 export type ReconciliacaoDivergenteEvento = z.infer<typeof ReconciliacaoDivergenteEvento>;
+
+/**
+ * `integracao.lote.recebido@1` — evento INTERNO (T-0025): o `POST /lotes` o publica na mesma transação que grava o lote e o
+ * staging; o próprio módulo o consome para aplicar o lote em segundo plano (outbox como fila, ADR 0007). Não tem outro consumidor.
+ * O payload não leva linhas (nem dado pessoal): quem processa lê o staging do lote.
+ */
+export const LoteRecebidoEvento = z.object({
+  lote_id: Uuid,
+  conector_id: z.string().min(1),
+  entidade: z.enum(ENTIDADES),
+  modo: ModoCarga,
+  recebidas: z.number().int().positive(),
+  recebido_em: DataHoraUtc,
+});
+export type LoteRecebidoEvento = z.infer<typeof LoteRecebidoEvento>;

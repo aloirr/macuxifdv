@@ -114,3 +114,23 @@ export const RetornoAceito = z.object({
   repetido: z.boolean(),
 });
 export type RetornoAceito = z.infer<typeof RetornoAceito>;
+
+/**
+ * Pedido aprovado como o Hub o recebe do Vendedor para entrar na fila de exportação (RN-INT-08, T-0025). É o `PedidoParaErp`
+ * antes do de-para: traz o código da condição de pagamento do Macuxi (`condicao_pagamento_codigo`), que o Hub traduz pelo
+ * mapeamento (`tipo: condicao_pagamento`) em `condicao_pagamento_erp`. O Vendedor preenche os `*_external_id` (chaves do ERP)
+ * porque o Hub não conhece os ids internos do Core. O evento que carrega este payload é pedido ao `modulo-vendedor`.
+ */
+export const PedidoAprovadoParaFila = z.object({
+  pedido_uuid: Uuid,
+  cliente_external_id: ExternalId,
+  vendedor_external_id: ExternalId,
+  condicao_pagamento_codigo: TextoOpcional(60),
+  criado_em: DataHoraUtc,
+  aprovado_em: DataHoraUtc,
+  observacao: TextoOpcional(500),
+  itens: z.array(ItemPedidoErp).min(1, 'pedido sem itens'),
+  desconto_total_cents: CentavosNaoNegativos.default(0),
+  total_cents: CentavosNaoNegativos,
+});
+export type PedidoAprovadoParaFila = z.infer<typeof PedidoAprovadoParaFila>;
