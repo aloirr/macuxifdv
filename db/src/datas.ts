@@ -2,6 +2,21 @@
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Variável de ambiente que fixa o "agora" dos testes (instante ISO 8601, ex.: 2026-11-01T12:00:00Z). */
+export const VAR_AGORA = 'MACUXI_AGORA';
+
+/**
+ * "Agora" dos testes: o instante de MACUXI_AGORA, se definido; senão o relógio (que `vi.setSystemTime` também
+ * controla). Serve para provar que fixture e testes não dependem da hora do dia nem da virada de data no fuso.
+ */
+export function agoraDosTestes(env: Record<string, string | undefined> = process.env): Date {
+  const v = env[VAR_AGORA];
+  if (!v) return new Date();
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) throw new Error(`${VAR_AGORA} inválido (esperado instante ISO 8601): ${v}`);
+  return d;
+}
+
 /** Hoje (AAAA-MM-DD) no fuso IANA dado (ex.: America/Manaus). */
 export function hojeNoFuso(fuso: string, agora: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: fuso, year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora);

@@ -115,7 +115,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect((await migrarUp(c, { ate: '0004' })).aplicadas).toEqual(['0004_core_sessao']);
       const com0004 = await retratoDoCatalogo(c);
       await migrarUp(c);
-      await carregarDoisTenants(c, { senha: 'x' });
+      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
       const n = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
       expect(n.rows[0]).toEqual({ s: 2, d: 3 });
       // down com dados (0007..0004): apaga sessões e aparelhos (documentado no .down.sql) e volta exatamente à 0003
@@ -129,7 +129,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       const t = await c.query('select count(*)::int as n from core.usuario where tentativas_falhas <> 0 or bloqueio_ate is not null');
       expect(t.rows[0].n).toBe(0);
       await migrarUp(c);
-      await carregarDoisTenants(c, { senha: 'x' });
+      await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
       const n2 = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
       expect(n2.rows[0]).toEqual({ s: 2, d: 3 });
     });

@@ -10,7 +10,9 @@ export default defineConfig({
     environment: 'node',
     globalSetup: ['testes/global-setup.ts'],
     reporters: ['default', new AvisoPulos()],
-    testTimeout: 60_000,
-    hookTimeout: 120_000,
+    // Tempo de caso não mede desempenho (EXPLAIN mede): sob a carga do pnpm test da raiz (turbo com todos os
+    // pacotes + tests/ no mesmo Postgres) up/down/up, seeds e --recriar passam de 60 s; sozinhos levam segundos.
+    testTimeout: 300_000,
+    hookTimeout: 300_000,
   },
 });

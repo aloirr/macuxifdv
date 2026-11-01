@@ -20,7 +20,10 @@
  *   fechada "auto"), etapas, motivos, notificação por usuário, metas do mês, indicador diário, arquivos e pedidos.
  *   c1/c2 (A) e c1 (B) têm coordenada; c3 (A) NÃO tem (RN-CORE-10: coordenada sugerida). Carteiras sem mudança.
  *   Datas RELATIVAS a "hoje" no fuso de cada tenant (opção `hoje` fixa a data para teste determinístico): recarregar
- *   no mesmo dia não muda nada; em outro dia só move datas (mesmos ids, nada duplica).
+ *   no mesmo dia não muda nada; em outro dia só move datas (mesmos ids, nada duplica). Os instantes do dia (check-in,
+ *   checkout, recebido_em) são horas UTC FIXAS da data civil (ex.: v2c2Aberta às 14:00Z): conforme a hora do relógio
+ *   eles ficam no passado ou no futuro, então teste nenhum compara instante da fixture com now() — use instante
+ *   relativo ao da fixture (checkin_em + interval) ou fixo. `agora` (ou MACUXI_AGORA no global-setup) simula o relógio.
  *   Motivos padrão (os de sistema da RN-CORE-14 e os de não venda) e os parâmetros do Core NÃO estão nas listas: o
  *   gatilho core.semear_tenant cria no INSERT do tenant (ids em DOIS_TENANTS.X.motivos, via idMotivoPadrao).
  */
@@ -217,6 +220,8 @@ const usuario = (id: string, tenant_id: string, nome: string, email: string, per
 export interface OpcoesDadosFixture {
   /** Data (AAAA-MM-DD) usada como "hoje" nos DOIS tenants; padrão: hoje no fuso de cada tenant. */
   hoje?: string;
+  /** Instante de referência para o "hoje" de cada fuso quando `hoje` não vem (padrão: o relógio). */
+  agora?: Date;
 }
 
 /** Coordenadas fictícias (c3 de A fica sem, de propósito). */
@@ -227,8 +232,9 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
   const B = DOIS_TENANTS.B;
   const tA = A.tenantId;
   const tB = B.tenantId;
-  const hojeA = opcoes.hoje ?? hojeNoFuso(A.fuso);
-  const hojeB = opcoes.hoje ?? hojeNoFuso(B.fuso);
+  const agora = opcoes.agora ?? new Date();
+  const hojeA = opcoes.hoje ?? hojeNoFuso(A.fuso, agora);
+  const hojeB = opcoes.hoje ?? hojeNoFuso(B.fuso, agora);
 
   const perfilModulo: Array<[string, string, string]> = [
     // tenant, perfil, módulo — A conforme o plano §3 (+ admin/analista/assistente, complemento do banco)
@@ -596,7 +602,7 @@ function auditoria(id: string, tenant_id: string, autor: string, alvo: string): 
  */
 export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: string } & OpcoesDadosFixture = {}): Promise<DadosFixture> {
   const senha = opcoes.senha ?? process.env.MACUXI_SENHA_TESTE ?? 'Teste@1234';
-  const dados = dadosDoisTenants(hashSenha(senha), { hoje: opcoes.hoje });
+  const dados = dadosDoisTenants(hashSenha(senha), { hoje: opcoes.hoje, agora: opcoes.agora });
   await admin.query('begin');
   try {
     for (const tabela of ORDEM_TABELAS) {

@@ -8,12 +8,14 @@
  * 3. Sem Docker/Postgres -> os testes de banco PULAM e o relator (testes/aviso-pulos.ts) imprime no fim
  *    "Docker não está rodando: N testes de banco pulados".
  * Com MACUXI_PG_EXIGIR=1 (CI), o caso 3 é ERRO em vez de pulo.
+ * MACUXI_AGORA=<instante ISO> simula o relógio no "hoje" da fixture (prova de que nada depende da hora do dia).
  */
 import type { TestProject } from 'vitest/node';
 import { criarBancoDeTeste, postgresDisponivel } from '../src/banco-teste';
 import { HOSTS_LOCAIS, lerConfig, type ConfigBanco } from '../src/config';
 import { dockerRodando, subirPostgres } from '../src/docker';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
+import { agoraDosTestes } from '../src/datas';
 import { VAR_MOTIVO_PULO } from './aviso-pulos';
 
 /** Motivo pelo qual o banco não está acessível (null = acessível, possivelmente após subir o Docker). */
@@ -45,7 +47,7 @@ export default async function setup(project: TestProject): Promise<(() => Promis
     return;
   }
   delete process.env[VAR_MOTIVO_PULO];
-  const t = await criarBancoDeTeste({ cfg, preparar: (c) => carregarDoisTenants(c).then(() => undefined) });
+  const t = await criarBancoDeTeste({ cfg, preparar: (c) => carregarDoisTenants(c, { agora: agoraDosTestes() }).then(() => undefined) });
   project.provide('banco', { disponivel: true, nome: t.nome, urlAdmin: t.urlAdmin, urlApp: t.urlApp, urlWorker: t.urlWorker });
   return async () => {
     await t.apagar();

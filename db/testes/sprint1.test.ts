@@ -3,10 +3,16 @@
  * R-20261031-152927-engenheiro-software). Tudo como o papel de APLICAÇÃO (macuxi_app, sujeito a RLS) sobre a
  * fixture dois-tenants, em transações desfeitas no fim (não sujam a fixture). O vazamento entre tenants das
  * tabelas novas está em vazamento.test.ts (descoberta dinâmica de toda tabela com tenant_id).
+ *
+ * Nada aqui depende da hora do relógio (R-20261101-014652): sem now()/current_date em instante que se compara com
+ * instante da fixture. Check-in criado pelo teste usa INSTANTE_FIXO (passado) ou o checkout + N min; checkout é
+ * checkin_em + intervalo. O bloco "relógio simulado" roda a RN-CORE-11 com a fixture gerada às 08:00, 13:59, 14:01 e
+ * 23:59 de Manaus (vi.setSystemTime); a suíte inteira aceita MACUXI_AGORA (global-setup).
  */
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { dadosDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
+import { agoraDosTestes, hojeNoFuso } from '../src/datas';
 import { idDeChave, idMotivoPadrao } from '../src/ids';
 import { banco, semBanco } from './estado';
 import { comCliente, emTransacao, erroDe } from './util';
@@ -16,10 +22,18 @@ const B = DOIS_TENANTS.B;
 const tA = A.tenantId;
 const NOVO = '9d0c2f4e-1a2b-4c3d-8e9f-0000000000aa';
 
-/** Visita aberta mínima (check-in) do usuário no cliente (ids fixos do teste, sem entrada externa). */
-const checkin = (id: string, usuario: string, cliente: string) =>
-  `insert into core.visita (id, tenant_id, usuario_id, cliente_id, data_local, checkin_em)
-   values ('${id}', '${tA}', '${usuario}', '${cliente}', current_date, now())`;
+/** Instante fixo do passado (e a data civil dele em Manaus) para check-ins criados pelo teste. */
+const INSTANTE_FIXO = '2026-10-15T14:00:00.000Z';
+const DATA_FIXA = '2026-10-15';
+
+/** Visita aberta mínima (check-in) do usuário no cliente, no instante dado (padrão: INSTANTE_FIXO). */
+const checkin = (id: string, usuario: string, cliente: string, em = INSTANTE_FIXO, dataLocal = DATA_FIXA) => ({
+  text: `insert into core.visita (id, tenant_id, usuario_id, cliente_id, data_local, checkin_em)
+         values ($1, $2, $3, $4, $5::date, $6::timestamptz)`,
+  values: [id, tA, usuario, cliente, dataLocal, em],
+});
+
+const MIN = 60_000;
 
 describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de aplicação)', () => {
   let app: pg.Client;
@@ -33,6 +47,28 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
   });
 
   const comA = <T>(fn: () => Promise<T>) => emTransacao(app, tA, fn);
+
+  /**
+   * RN-CORE-11 a partir da visita aberta v2c2Aberta (dentro de comA): fecha (auto, nao_finalizado) em check-in + 30 min;
+   * novo check-in 15 min depois do checkout passa; removido (deleted_at) não conta; outro check-in passa e um segundo
+   * aberto é recusado. Instantes só relativos ao check-in da fixture.
+   */
+  const fluxoRnCore11 = async () => {
+    const f = await app.query<{ checkout_em: Date; data_local: string }>(
+      "update core.visita set checkout_em = checkin_em + interval '30 minutes', resultado = 'nao_finalizado', fechada_por = 'auto' where id = $1 returning checkout_em, data_local::text",
+      [A.visitas.v2c2Aberta],
+    );
+    expect(f.rowCount).toBe(1);
+    const { checkout_em, data_local } = f.rows[0]!;
+    const depois = (min: number) => new Date(checkout_em.getTime() + min * MIN).toISOString();
+    await app.query(checkin('aaaaaaaa-0027-4000-8000-000000000902', A.usuarios.vendedor2, A.clientes.c2, depois(15), data_local));
+    await app.query('update core.visita set deleted_at = $2 where id = $1', ['aaaaaaaa-0027-4000-8000-000000000902', depois(16)]);
+    await app.query(checkin('aaaaaaaa-0027-4000-8000-000000000903', A.usuarios.vendedor2, A.clientes.c2, depois(20), data_local));
+    await app.query('savepoint segunda_aberta');
+    const e = await erroDe(app.query(checkin('aaaaaaaa-0027-4000-8000-000000000905', A.usuarios.vendedor2, A.clientes.c2, depois(25), data_local)));
+    await app.query('rollback to savepoint segunda_aberta');
+    expect(e?.message).toMatch(/visita_aberta_uk/);
+  };
 
   describe('RN-CORE-14: motivos de sistema em todo tenant', () => {
     it.each([
@@ -101,10 +137,7 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
     it('fechando a aberta (auto, nao_finalizado) o novo check-in passa; visita removida (deleted_at) não conta', async () => {
       await comA(async () => {
         // checkout relativo ao check-in da fixture (14:00Z de hoje): now() reprovava antes das 10:00 de Manaus
-        await app.query("update core.visita set checkout_em = checkin_em + interval '30 minutes', resultado = 'nao_finalizado', fechada_por = 'auto' where id = $1", [A.visitas.v2c2Aberta]);
-        await app.query(checkin('aaaaaaaa-0027-4000-8000-000000000902', A.usuarios.vendedor2, A.clientes.c2));
-        await app.query('update core.visita set deleted_at = now() where id = $1', ['aaaaaaaa-0027-4000-8000-000000000902']);
-        await app.query(checkin('aaaaaaaa-0027-4000-8000-000000000903', A.usuarios.vendedor2, A.clientes.c2));
+        await fluxoRnCore11();
       });
     });
 
@@ -125,16 +158,51 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
       expect(e?.code).toBe('23505');
     });
 
-    it('checkout antes do check-in e fechamento incompleto são recusados (23514)', async () => {
-      for (const sql of [
-        "update core.visita set checkout_em = checkin_em - interval '1 minute', resultado = 'atendido', fechada_por = 'usuario' where id = $1",
-        'update core.visita set checkout_em = now() where id = $1',
-        "update core.visita set resultado = 'atendido' where id = $1",
-        "update core.visita set checkout_em = now(), resultado = 'outro', fechada_por = 'usuario' where id = $1",
-      ]) {
+    it('checkout antes do check-in e fechamento incompleto são recusados (23514, cada um pela sua regra)', async () => {
+      for (const [sql, regra] of [
+        ["update core.visita set checkout_em = checkin_em - interval '1 minute', resultado = 'atendido', fechada_por = 'usuario' where id = $1", 'visita_checkout_depois_do_checkin'],
+        ["update core.visita set checkout_em = checkin_em + interval '1 minute' where id = $1", 'visita_fechamento_completo'],
+        ["update core.visita set resultado = 'atendido' where id = $1", 'visita_fechamento_completo'],
+        ["update core.visita set checkout_em = checkin_em + interval '1 minute', resultado = 'outro', fechada_por = 'usuario' where id = $1", 'visita_resultado_valido'],
+      ] as const) {
         const e = await erroDe(comA(() => app.query(sql, [A.visitas.v2c2Aberta])));
         expect(e?.code, sql).toBe('23514');
+        expect(e?.message, sql).toMatch(regra);
       }
+    });
+  });
+
+  describe('RN-CORE-11 com o relógio simulado (fuso de Manaus): nada depende da hora do dia', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // [hora em Manaus (UTC-4), instante UTC, "hoje" esperado em Manaus]; 23:59 já é o dia seguinte em UTC
+    it.each([
+      ['08:00', '2026-11-03T12:00:00.000Z', '2026-11-03'],
+      ['13:59', '2026-11-03T17:59:00.000Z', '2026-11-03'],
+      ['14:01', '2026-11-03T18:01:00.000Z', '2026-11-03'],
+      ['23:59', '2026-11-04T03:59:00.000Z', '2026-11-03'],
+    ])('%s: a fixture gerada nesse relógio passa no fluxo da RN-CORE-11', async (_hora, agora, hojeManaus) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(agora));
+      const gerada = dadosDoisTenants('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA');
+      const hojeNoRelogio = hojeNoFuso(A.fuso);
+      vi.useRealTimers();
+      const aberta = gerada['core.visita'].find((v) => v.id === A.visitas.v2c2Aberta)!;
+      expect(hojeNoRelogio).toBe(hojeManaus);
+      expect(aberta).toMatchObject({ data_local: hojeManaus, checkout_em: null });
+      await comA(async () => {
+        await app.query('update core.visita set data_local = $2::date, checkin_em = $3::timestamptz where id = $1', [A.visitas.v2c2Aberta, aberta.data_local, aberta.checkin_em]);
+        await fluxoRnCore11();
+      });
+    });
+
+    it('MACUXI_AGORA fixa o "agora" dos testes (global-setup); inválido é erro', () => {
+      const virada = agoraDosTestes({ MACUXI_AGORA: '2026-11-04T03:59:00Z' });
+      expect(virada.toISOString()).toBe('2026-11-04T03:59:00.000Z');
+      expect(hojeNoFuso(A.fuso, virada)).toBe('2026-11-03');
+      expect(() => agoraDosTestes({ MACUXI_AGORA: 'ontem' })).toThrow(/MACUXI_AGORA/);
     });
   });
 
@@ -147,8 +215,8 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
         comA(() =>
           app.query(
             `insert into core.visita (tenant_id, usuario_id, cliente_id, data_local, checkin_em, fora_do_raio, distancia_m, justificativa_fora_raio)
-             values ($1, $2, $3, current_date, now(), true, 900, $4)`,
-            [tA, A.usuarios.vendedor1, A.clientes.c1, justificativa],
+             values ($1, $2, $3, $5::date, $6::timestamptz, true, 900, $4)`,
+            [tA, A.usuarios.vendedor1, A.clientes.c1, justificativa, DATA_FIXA, INSTANTE_FIXO],
           ),
         ),
       );
@@ -160,8 +228,8 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
       const r = await comA(async () => {
         await app.query(
           `insert into core.visita (tenant_id, usuario_id, cliente_id, data_local, checkin_em, fora_do_raio, distancia_m, justificativa_fora_raio)
-           values ($1, $2, $3, current_date, now(), true, 900, 'Atendido na filial')`,
-          [tA, A.usuarios.vendedor1, A.clientes.c1],
+           values ($1, $2, $3, $4::date, $5::timestamptz, true, 900, 'Atendido na filial')`,
+          [tA, A.usuarios.vendedor1, A.clientes.c1, DATA_FIXA, INSTANTE_FIXO],
         );
         return app.query<{ id: string }>('select id from core.visita where sugere_coordenada and deleted_at is null');
       });

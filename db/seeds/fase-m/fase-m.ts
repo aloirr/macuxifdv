@@ -191,7 +191,7 @@ function dadosSprint1FaseM(hoje: string, vendedorPorApelido: Map<string, string>
     });
     financeiros.push({
       id: id(`cliente_financeiro:${nome}`), tenant_id: T, cliente_id: c, limite_cents: limite, saldo_aberto_cents: vencido + aVencer, credito_disponivel_cents: null,
-      bloqueado, motivo_bloqueio: bloqueado ? 'Bloqueio comercial (demonstração)' : null, atualizado_erp_em: `${hoje}T10:00:00Z`, ...comuns,
+      bloqueado, motivo_bloqueio: bloqueado ? 'Bloqueio comercial (demonstração)' : null, atualizado_erp_em: `${somarDias(hoje, -1)}T23:00:00Z`, ...comuns, // ontem 19:00 em Manaus: nunca no futuro, qualquer que seja a hora
     });
     const doc = `NF-${String(20000 + i * 10)}`;
     titulos.push(

@@ -134,8 +134,14 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 - **Sem Docker/Postgres:** esses arquivos são **pulados** e, no fim, aparece
   `[db] Docker não está rodando: N testes de banco pulados.` (relator `db/testes/aviso-pulos.ts`).
 - **CI:** defina `MACUXI_PG_EXIGIR=1` — aí a ausência do banco é **erro** (não pula).
+- **Relógio simulado:** `MACUXI_AGORA=2026-11-04T03:59:00Z pnpm --filter @macuxi/db test` carrega a fixture como se
+  fosse esse instante (prova de que nada depende da hora do dia nem da virada de data no fuso). Regra: teste não
+  compara instante da fixture com `now()` — use `checkin_em + interval` ou instante fixo (ver fixture-dois-tenants.md).
 - Vários processos ao mesmo tempo (ex.: `pnpm test` da raiz + `tests/`) são seguros: cada um usa o
   próprio banco efêmero; a criação do papel `macuxi_app` é serializada por advisory lock.
+- **Timeouts:** `db/vitest.config.ts` usa `testTimeout` e `hookTimeout` de 300 s (o caso do aparelho SQLite tem 600 s
+  próprios). Tempo de caso não mede desempenho (quem mede é o EXPLAIN): up/down/up (S0-021), seeds e `--recriar`
+  levam segundos sozinhos, mas passam de 60 s com o `pnpm test` da raiz carregando todos os pacotes no mesmo Postgres.
 
 ## Para o agente `testes` (tests/)
 

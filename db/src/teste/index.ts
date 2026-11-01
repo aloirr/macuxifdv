@@ -11,4 +11,4 @@ export { carregarFaseM, dadosFaseM, TENANT_FASE_M } from '../../seeds/fase-m/fas
 export { carregarDemo, dadosDemo, TENANT_DEMO, CODIGO_DEMO, USUARIOS_DEMO } from '../../seeds/demo/demo';
 export { TABELAS_SEM_TENANT_ID, TABELAS_FORA_DO_SYNC } from '../excecoes';
 export { idDeChave, idMotivoPadrao, idParametroCore, MOTIVOS_PADRAO } from '../ids';
-export { hojeNoFuso, somarDias, anoMes } from '../datas';
+export { hojeNoFuso, somarDias, anoMes, agoraDosTestes, VAR_AGORA } from '../datas';

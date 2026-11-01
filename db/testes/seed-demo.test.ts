@@ -125,11 +125,16 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
   }
 
   let antesOutros: Record<string, string>;
+  /** "Hoje" da 1ª carga (padrão do seed: data de Manaus no relógio); as recargas fixam o mesmo dia (sem corrida na virada). */
+  let hojeCarga: string;
+  let hojesPossiveis: string[];
 
   beforeAll(async () => {
     b = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c).then(() => undefined) });
     antesOutros = await outrosTenants();
-    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA }));
+    const antes = hojeNoFuso('America/Manaus');
+    hojeCarga = (await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA }))).hoje;
+    hojesPossiveis = [...new Set([antes, hojeNoFuso('America/Manaus')])];
     pool = new pg.Pool({ connectionString: b.urlApp });
   });
   afterAll(async () => {
@@ -138,7 +143,9 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
   });
 
   it('carrega 30 clientes, rota de hoje (fuso do tenant) com 6 paradas e os motivos padrão do gatilho', async () => {
-    const hoje = hojeNoFuso('America/Manaus');
+    // padrão do seed = hoje em Manaus no momento da carga (se a carga cruzou a meia-noite, vale qualquer dos dois)
+    expect(hojesPossiveis).toContain(hojeCarga);
+    const hoje = hojeCarga;
     const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
       clientes: (await c.query<{ n: number }>('select count(*)::int as n from core.cliente')).rows[0]!.n,
       paradas: (await c.query<{ n: number }>(
@@ -167,7 +174,7 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     const antes = await contarDemo();
     const hash = () => comAdmin(b.nome, (c) => c.query('select id, senha_hash from core.usuario where tenant_id = $1 order by id', [TENANT_DEMO]));
     const hashAntes = (await hash()).rows;
-    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA }));
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
     expect(await contarDemo()).toEqual(antes);
     expect((await hash()).rows).toEqual(hashAntes);
   });
@@ -192,15 +199,15 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     await comTenant(pool, TENANT_DEMO, async (c) => {
       const cli = (await c.query<{ id: string }>('select id from core.cliente limit 1')).rows[0]!.id;
       await c.query(
-        "insert into core.visita (tenant_id, usuario_id, cliente_id, data_local, checkin_em) values (plataforma.tenant_atual(), $1, $2, current_date, now())",
-        [vendedorId, cli],
+        "insert into core.visita (tenant_id, usuario_id, cliente_id, data_local, checkin_em) values (plataforma.tenant_atual(), $1, $2, $3::date, $4::timestamptz)",
+        [vendedorId, cli, hojeCarga, `${hojeCarga}T14:00:00Z`],
       );
     });
     await comAdmin(b.nome, (c) => c.query('update core.usuario set tentativas_falhas = 5, bloqueio_ate = now() + interval \'1 hour\' where id = $1', [vendedorId]));
-    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, recriar: true }));
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, recriar: true, hoje: hojeCarga }));
     const n = await contarDemo();
     const limpo = await (async () => {
-      const outro = await criarBancoDeTeste({ preparar: (c) => carregarDemo(c, { senha: SENHA }).then(() => undefined) });
+      const outro = await criarBancoDeTeste({ preparar: (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }).then(() => undefined) });
       try {
         return await comAdmin(outro.nome, async (c) => {
           const out: Record<string, number> = {};
@@ -216,7 +223,7 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect(n).toEqual(limpo);
     const u = await comAdmin(b.nome, (c) => c.query<{ tentativas_falhas: number; bloqueio_ate: Date | null }>('select tentativas_falhas, bloqueio_ate from core.usuario where id = $1', [vendedorId]));
     expect(u.rows[0]).toEqual({ tentativas_falhas: 0, bloqueio_ate: null });
-  });
+  }, 300_000); // cria e migra um 2º banco dentro do teste: ~30 s sozinho, passa de 60 s com as outras suítes em paralelo
 
   it('isolamento: carga, recarga e --recriar não mudam nenhuma linha de outro tenant', async () => {
     expect(await outrosTenants()).toEqual(antesOutros);

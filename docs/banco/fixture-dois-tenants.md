@@ -44,6 +44,14 @@ rotas, paradas, visitas, checkouts, arquivos, pedidos}`.
 `carregarDoisTenants(admin, { hoje: 'AAAA-MM-DD' })` (vale para os dois tenants). Recarregar no mesmo dia não muda nada;
 em outro dia só move as datas (mesmos ids). Instantes: A 13:00Z = 09:00 local; B 12:00Z = 09:00 local.
 
+**Nada de hora do relógio nos testes.** Os instantes "de hoje" são horas UTC fixas da data civil (ex.: v2/c2 aberta
+com check-in às 14:00Z): dependendo da hora em que o teste roda, ficam no passado ou no futuro. Portanto nenhum teste
+compara instante da fixture com `now()`/`current_date`: checkout = `checkin_em + interval`, check-in novo = instante
+fixo do passado ou relativo ao da fixture. `carregarDoisTenants(admin, { agora })` / `dadosDoisTenants(h, { agora })`
+calculam o "hoje" de cada fuso a partir de um instante dado; o `globalSetup` usa `agoraDosTestes()` (variável
+`MACUXI_AGORA=<instante ISO>`, senão o relógio). `db/testes/sprint1.test.ts` roda a RN-CORE-11 com o relógio simulado
+(`vi.setSystemTime`) às 08:00, 13:59, 14:01 e 23:59 de Manaus (a última já é o dia seguinte em UTC).
+
 | | Tenant A | Tenant B |
 |---|---|---|
 | coordenada do cliente | c1 e c2 com; **c3 sem** (RN-CORE-10: 1º check-in sugere) | c1 com |

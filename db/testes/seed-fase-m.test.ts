@@ -4,15 +4,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carregarFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
+import { agoraDosTestes, hojeNoFuso } from '../src/datas';
 import { verificarSenha } from '../src/senha';
 import { semBanco } from './estado';
 
 const SENHA = 'senha-do-teste';
+/** Carga e recarga no mesmo "hoje" (sem corrida na virada do dia; respeita MACUXI_AGORA). */
+const HOJE = hojeNoFuso('America/Manaus', agoraDosTestes());
 
 describe.skipIf(semBanco())('seed Fase M', () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
-    b = await criarBancoDeTeste({ preparar: (c) => carregarFaseM(c, { senha: SENHA }).then(() => undefined) });
+    b = await criarBancoDeTeste({ preparar: (c) => carregarFaseM(c, { senha: SENHA, hoje: HOJE }).then(() => undefined) });
   });
   afterAll(async () => {
     await b?.apagar();
@@ -55,7 +58,7 @@ describe.skipIf(semBanco())('seed Fase M', () => {
       );
     const antes = (await contar()).rows;
     const hashAntes = await comAdmin(b.nome, (c) => c.query('select id, senha_hash from core.usuario order by id'));
-    await comAdmin(b.nome, (c) => carregarFaseM(c, { senha: SENHA }));
+    await comAdmin(b.nome, (c) => carregarFaseM(c, { senha: SENHA, hoje: HOJE }));
     expect((await contar()).rows).toEqual(antes);
     const hashDepois = await comAdmin(b.nome, (c) => c.query('select id, senha_hash from core.usuario order by id'));
     expect(hashDepois.rows).toEqual(hashAntes.rows);
