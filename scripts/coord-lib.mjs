@@ -13,6 +13,7 @@ export const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const AGENTES = [
   'gerente-projetos',
   'engenheiro-software',
+  'engenheiro-apps',
   'banco-dados',
   'testes',
   'modulo-core',
