@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
-import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, ErroTempoEsgotadoIa, interpretarBusca, mesclarFiltros, validarFiltrosLlm, type EntradaInterpretacao, type PortaInterpretacaoLlm } from './ia';
+import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, ErroTempoEsgotadoIa, interpretarBusca, mesclarFiltros, resumoDaInterpretacao, validarFiltrosLlm, type EntradaInterpretacao, type PortaInterpretacaoLlm } from './ia';
 import { interpretarConsulta, type VocabularioTenant } from './consulta';
 import { MENSAGEM_LIMITE_ATINGIDO, registrarDesfechoIa, verificarConsultaIa } from './limite-ia';
 import { PARAMETROS_PADRAO } from './parametros';
@@ -145,5 +145,32 @@ describe('RF-CAT-01 / RF-CAT-02: busca inteligente atrás da porta de LLM (com c
     const r = await interpretarBusca({ ...base, porta: new LlmFalso(llm({ brand: 'Inventada', text: 'detergente', stock: 'com' })), texto: 'detergente' });
     expect(r.origem).toBe('llm');
     expect(r.filtros).toMatchObject({ brand: null, stock: 'com' });
+  });
+});
+
+describe('RN-CAT-03: cancelamento e resumo para o contrato da busca', () => {
+  it('RN-CAT-03: o signal do chamador chega à porta (que o soma ao tempo limite)', async () => {
+    const recebidos: Array<AbortSignal | undefined> = [];
+    const porta: PortaInterpretacaoLlm = {
+      async interpretar(_e, opcoes) {
+        recebidos.push(opcoes?.signal);
+        return llm({});
+      },
+    };
+    const ctrl = new AbortController();
+    await interpretarBusca({ ...base, porta, texto: 'detergente', signal: ctrl.signal });
+    await interpretarBusca({ ...base, porta, texto: 'detergente' });
+    expect(recebidos[0]).toBe(ctrl.signal);
+    expect(recebidos[1]).toBeUndefined();
+  });
+
+  it('RN-CAT-03: falha ou tempo esgotado no provedor vira busca degradada (interpreted_by regras, aviso discreto), nunca erro', async () => {
+    const r = await interpretarBusca({ ...base, porta: new LlmFalso(new ErroTempoEsgotadoIa()), texto: 'detergente' });
+    expect(resumoDaInterpretacao(r)).toEqual({ interpreted_by: 'regras', degraded: true, notice: AVISO_BUSCA_FALHOU });
+  });
+
+  it('RN-CAT-03: com o provedor respondendo a busca não é degradada', async () => {
+    const r = await interpretarBusca({ ...base, porta: new LlmFalso(llm({ brand: 'Limpex' })), texto: 'detergente' });
+    expect(resumoDaInterpretacao(r)).toEqual({ interpreted_by: 'llm', degraded: false, notice: null });
   });
 });
