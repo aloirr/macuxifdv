@@ -37,8 +37,9 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
       {
         metodo: 'POST',
         caminho: 'auth/login',
-        // 5 tentativas / 5 min por IP + código da empresa (429 MUITAS_TENTATIVAS); o bloqueio por usuário é do domínio
-        limite: { max: 5, janelaMs: CINCO_MINUTOS, chave: (e) => (e.corpo as { codigo_empresa?: string } | null)?.codigo_empresa ?? '' },
+        // Teto geral contra abuso (conta tudo, inclusive acertos), folgado: atrás de túnel vários aparelhos dividem o IP.
+        // O limite de FALHAS (10/5 min por IP + empresa + e-mail) está em `limite-login.ts` (T-0026).
+        limite: { max: 300, janelaMs: CINCO_MINUTOS, chave: (e) => (e.corpo as { codigo_empresa?: string } | null)?.codigo_empresa ?? '' },
         corpo: LoginSenhaRequestSchema,
         executar: (ctx) => auth.login(ctx),
       },

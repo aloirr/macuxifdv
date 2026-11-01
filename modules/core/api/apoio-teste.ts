@@ -108,7 +108,7 @@ export const logSilencioso: LogRota & { linhas: string[] } = {
   },
 };
 
-export function contextoPublico<C>(corpo: C, banco: AcessoBanco, agora: () => Date): ContextoPublico<C> {
+export function contextoPublico<C>(corpo: C, banco: AcessoBanco, agora: () => Date, ip = '127.0.0.1'): ContextoPublico<C> {
   logSilencioso.linhas.length = 0;
-  return { corpo, query: {}, params: {}, requestId: 'req-1', ip: '127.0.0.1', agora, banco, log: logSilencioso };
+  return { corpo, query: {}, params: {}, requestId: 'req-1', ip, agora, banco, log: logSilencioso };
 }

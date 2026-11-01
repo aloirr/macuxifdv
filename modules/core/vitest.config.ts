@@ -13,6 +13,10 @@ export default defineConfig({
     environment: 'node',
     globalSetup: ['@macuxi/db/teste/global-setup'],
     reporters: ['default', new AvisoPulos()],
+    // Os *.db.test.ts compartilham o MESMO banco efêmero e alguns inserem linhas temporárias no tenant A (ex.: o cliente
+    // sem coordenada de visita.db.test.ts, RN-CORE-10). Em paralelo, a lista de clientes de carteira.db.test.ts (RN-CORE-04)
+    // via o cliente alheio: arquivos em série.
+    fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 120_000,
   },

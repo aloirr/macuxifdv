@@ -285,3 +285,28 @@ describe('RN-CORE-15: aparelho bloqueado vale para o tenant inteiro', () => {
     expect(erro.status).toBe(401);
   });
 });
+
+describe('RF-CORE-01 (T-0026): limite de falhas de login por IP real', () => {
+  const de = (ip: string, corpo: Partial<{ email: string; senha: string }> = {}) =>
+    auth.login(contextoPublico(LoginSenhaRequestSchema.parse({ codigo_empresa: 'alfa', email: 'ninguem@exemplo.com.br', senha: 'Teste@1234', ...corpo }), banco, relogio, ip));
+
+  it('RF-CORE-01: 10 logins certos seguidos do mesmo IP não dão 429', async () => {
+    for (let i = 0; i < 10; i++) await expect(de('203.0.113.1', { email: 'vendedor@exemplo.com.br' })).resolves.toBeTruthy();
+  });
+
+  it('RF-CORE-01: falhas seguidas do mesmo IP + e-mail bloqueiam com 429 e a janela reabre em 5 min', async () => {
+    for (let i = 0; i < 10; i++) expect((await falha(de('203.0.113.2'))).status).toBe(401);
+    const bloqueado = await falha(de('203.0.113.2'));
+    expect(bloqueado.status).toBe(429);
+    expect(bloqueado.codigo).toBe(CODIGOS_AUTH.muitasTentativas);
+    avancar(5);
+    expect((await falha(de('203.0.113.2'))).status).toBe(401);
+  });
+
+  it('RF-CORE-01: dois IPs diferentes atrás do mesmo proxy não se bloqueiam', async () => {
+    for (let i = 0; i < 10; i++) await falha(de('203.0.113.3'));
+    expect((await falha(de('203.0.113.3'))).status).toBe(429);
+    expect((await falha(de('203.0.113.4'))).status).toBe(401);
+    await expect(de('203.0.113.4', { email: 'vendedor@exemplo.com.br' })).resolves.toBeTruthy();
+  });
+});

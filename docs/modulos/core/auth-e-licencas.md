@@ -5,7 +5,7 @@ Fonte: `modules/core/{contracts,domain,api,app,web}`. Regras: RF-CORE-01/02, RN-
 ## Rotas
 | Rota | Quem | Observações |
 |---|---|---|
-| `POST /v1/auth/login` | público | `{ codigo_empresa, email, senha, dispositivo_id? }`; limite 5/5 min por IP + código da empresa (429 `MUITAS_TENTATIVAS`). Código, e-mail ou senha errados: a MESMA resposta (401 `CREDENCIAIS_INVALIDAS`). Nome e fuso do tenant só saem depois da senha validada |
+| `POST /v1/auth/login` | público | `{ codigo_empresa, email, senha, dispositivo_id? }`; limite de FALHAS 10/5 min por IP real + empresa + e-mail e teto geral 300/5 min por IP + empresa (429 `MUITAS_TENTATIVAS`; ver "Limite de tentativas"). Código, e-mail ou senha errados: a MESMA resposta (401 `CREDENCIAIS_INVALIDAS`). Nome e fuso do tenant só saem depois da senha validada |
 | `POST /v1/auth/refresh` | público | refresh rotativo (cada um vale uma vez); reuso de refresh já trocado revoga a família inteira (401 `SESSAO_INVALIDA`) |
 | `POST /v1/auth/logout` | público | revoga a família; resposta igual para token desconhecido |
 | `GET /v1/me/modulos` | plataforma (T-0004) | módulos efetivos por requisição; não é do Core |
@@ -23,6 +23,15 @@ Fonte: `modules/core/{contracts,domain,api,app,web}`. Regras: RF-CORE-01/02, RN-
 ## Pendências de outros donos (T-0003 Fase 2)
 - banco-dados: migração 0004 (`core.sessao`, `core.dispositivo`, `core.usuario.tentativas_falhas`/`bloqueio_ate`) — o SQL de `api/repositorio.ts` espera esses nomes; os testes do Core usam repositório em memória.
 - engenheiro-software: `ErroHttpModulo` (401/423/503 hoje saem 422 com o mesmo `codigo`); `ctx.dependencias`; `MACUXI_JWT_SEGREDO` no `.env.example`/servidor; ligar `TelaLogin`/`entrarComSenha` no shell e remover o login de demonstração; testes com `createApp` em `apps/api/test/core.test.ts`.
+
+## Limite de tentativas do login (T-0026, demo atrás do túnel)
+Problema: o limite antigo (5/5 min por IP + empresa) contava também as entradas certas e, atrás do cloudflared, todos os aparelhos chegam com o mesmo IP: a 6ª entrada dava 429 para todos.
+
+Decisão:
+- **IP real**: o Core usa `ctx.ip` (= `request.ip` do Fastify). Atrás de proxy confiável o servidor liga `trustProxy` (apps/api, do engenheiro; env `MACUXI_TRUST_PROXY`) e o IP vem de X-Forwarded-For/CF-Connecting-IP. Sem `trustProxy`, o IP é o do proxy e o limite se comporta como antes por aparelho único: **ligar na demo**.
+- **Só falhas contam**: `api/limite-login.ts`, chave `IP|empresa|e-mail`, **10 falhas em 5 min** (janela fixa, memória do processo) respondem 429 com `detalhes.retry_after_s`. Entrada certa zera a chave e nunca consome. Falha = credenciais inválidas (inclui empresa/e-mail inexistentes); 423 (bloqueio revelado só a quem acertou a senha) não conta. O bloqueio por usuário (5 falhas, 15 min, RF-CORE-01) continua no domínio e vale para qualquer IP; o limite por IP cobre quem erra e-mail/empresa e a tentativa de adivinhar muitos e-mails.
+- **Teto geral**: o limite da plataforma na rota (`index.ts`) passou a **300/5 min** por IP + empresa, contando tudo, só contra abuso.
+- Testes: `api/autenticacao.test.ts` (memória) e `api/login-limite.db.test.ts` (Postgres): 10 acertos seguidos sem 429; falhas do mesmo IP + e-mail bloqueiam; dois IPs atrás do mesmo proxy não se bloqueiam.
 
 ## RN-CORE-15 — aparelho bloqueado vale para o tenant inteiro (T-0017)
 Decisão do Alexandre (2026-10-31). Aparelho bloqueado (perda, roubo, desligamento) **não autentica nenhum usuário do tenant**, não só o dono registrado.

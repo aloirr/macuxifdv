@@ -26,6 +26,7 @@ import {
   SEGUNDOS_DO_ACESSO,
 } from '../domain';
 import { erroHttp } from './erros';
+import { chaveDeLogin, criarLimiteDeFalhas, type LimiteDeFalhas } from './limite-login';
 import { fabricaSql, type FabricaRepositorios, type RepositorioTenant } from './repositorio';
 import { assinarAcesso, exigirSegredo, gastarTempoDeSenha, lerRefresh, novoRefresh, SegredoInvalido, tokenDoCabecalho, verificarJwtAcesso, verificarSenha } from './seguranca';
 
@@ -33,6 +34,8 @@ export interface DepsAutenticacao {
   /** Segredo do JWT (lido a cada uso: `MACUXI_JWT_SEGREDO`). */
   segredo(): string | undefined;
   repos?: FabricaRepositorios;
+  /** Limite de falhas de login (T-0026); padrão: 10 falhas / 5 min por IP + empresa + e-mail. Testes injetam o seu. */
+  limiteLogin?: LimiteDeFalhas;
 }
 
 const MENSAGEM_BLOQUEADO = 'Seu acesso está bloqueado. Fale com o administrador da sua empresa ou tente de novo mais tarde.';
@@ -47,6 +50,7 @@ type ResultadoLogin =
 
 export function criarAutenticacao(deps: DepsAutenticacao) {
   const repos = deps.repos ?? fabricaSql;
+  const limiteLogin = deps.limiteLogin ?? criarLimiteDeFalhas();
   const segredo = (): string => {
     try {
       return exigirSegredo(deps.segredo());
@@ -68,10 +72,17 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
     const { banco, agora } = ctx;
     const { senha, email } = ctx.corpo;
     const codigo = ctx.corpo.codigo_empresa.toLowerCase();
+    // T-0026: só FALHAS contam (entrada certa não consome); chave por IP real + empresa + e-mail
+    const chave = chaveDeLogin(ctx.ip, codigo, email);
+    const espera = limiteLogin.bloqueadoPor(chave, agora());
+    if (espera > 0) {
+      throw erroHttp(429, CODIGOS_AUTH.muitasTentativas, 'Muitas tentativas de entrada. Aguarde alguns minutos e tente de novo.', { retry_after_s: espera });
+    }
     const publico = repos.publico(banco);
     const tenant = await publico.tenantPorCodigo(codigo);
     if (!tenant || tenant.status !== 'ativo') {
       await gastarTempoDeSenha(senha);
+      limiteLogin.registrarFalha(chave, agora());
       throw erroHttp(401, CODIGOS_AUTH.credenciais, MENSAGEM_CREDENCIAIS);
     }
     const agoraData = agora();
@@ -105,6 +116,8 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
       };
     });
 
+    if (resultado.tipo === 'credenciais') limiteLogin.registrarFalha(chave, agoraData);
+    else limiteLogin.zerar(chave);
     if (resultado.tipo === 'credenciais') throw erroHttp(401, CODIGOS_AUTH.credenciais, MENSAGEM_CREDENCIAIS);
     if (resultado.tipo === 'bloqueado') throw erroHttp(423, CODIGOS_AUTH.bloqueado, MENSAGEM_BLOQUEADO);
     if (resultado.tipo === 'aparelho') throw erroHttp(423, CODIGO_DISPOSITIVO_BLOQUEADO, MENSAGEM_APARELHO_BLOQUEADO);
