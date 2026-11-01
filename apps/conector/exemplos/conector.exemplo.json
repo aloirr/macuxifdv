@@ -1,6 +1,7 @@
 {
   "dadosDir": "C:\\ProgramData\\Macuxi\\Conector\\dados",
   "hub": {
+    "conectorId": "cnx-cliente-exemplo-01",
     "url": "https://hub.macuxi.example",
     "timeoutSegundos": 30,
     "retry": {
@@ -23,7 +24,8 @@
   },
   "lote": {
     "maxLinhas": 5000,
-    "maxBytes": 4194304
+    "maxBytes": 4194304,
+    "maxLinhasInvalidas": 500
   },
   "fila": {
     "maxLotesPendentesPorEntidade": 20,
@@ -305,7 +307,7 @@
     },
     "status": {
       "consulta": "SELECT situacao AS status, numero_pedido AS numero_erp, motivo, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, ocorrido_em FROM dbo.vw_macuxi_pedido_status WHERE pedido_uuid = :pedido_uuid ORDER BY ocorrido_em",
-      "consultaItensNota": "SELECT sequencia, quantidade FROM dbo.vw_macuxi_pedido_nota_item WHERE pedido_uuid = :pedido_uuid AND nota_numero = :nota_numero AND (nota_serie = :nota_serie OR (nota_serie IS NULL AND :nota_serie IS NULL))",
+      "consultaItensNota": "SELECT sequencia, quantidade, valor_cents, produto_codigo AS produto_external_id FROM dbo.vw_macuxi_pedido_nota_item WHERE pedido_uuid = :pedido_uuid AND nota_numero = :nota_numero AND (nota_serie = :nota_serie OR (nota_serie IS NULL AND :nota_serie IS NULL))",
       "mapaStatus": {
         "I": "integrado",
         "R": "rejeitado_erp",

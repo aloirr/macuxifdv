@@ -5,7 +5,7 @@
  * (`registrarSegredo`) são removidos de qualquer saída.
  */
 const CHAVES_SENSIVEIS = [
-  'senha', 'password', 'pwd', 'secret', 'segredo', 'token', 'authorization', 'apikey', 'api_key', 'chave', 'credencial',
+  'senha', 'password', 'pwd', 'secret', 'segredo', 'token', 'authorization', 'apikey', 'api_key', 'api-key', 'x-api-key', 'chave', 'hub_chave', 'credencial',
   'cpf', 'cnpj', 'documento', 'email', 'e_mail', 'telefone', 'celular', 'fone', 'nome', 'razao_social', 'nome_fantasia',
   'endereco', 'logradouro', 'contato', 'latitude', 'longitude', 'registro', 'registros', 'linha', 'linhas_dados', 'payload',
 ];
@@ -22,7 +22,7 @@ export function limparSegredosRegistrados(): void {
 
 const REGRAS: [RegExp, string][] = [
   [/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer ***'],
-  [/(password|pwd|senha|token|secret|apikey)\s*[=:]\s*[^;\s,&"']+/gi, '$1=***'],
+  [/(password|pwd|senha|token|secret|apikey|api[_-]key|x-api-key|chave(?:[_ -]?(?:de[_ -]?)?api)?|hub_chave)\s*[=:]\s*[^;\s,&"']+/gi, '$1=***'],
   [/(:\/\/[^:/\s@]+:)[^@\s]+@/g, '$1***@'],
   [/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g, '[cnpj]'],
   [/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, '[cpf]'],
@@ -44,7 +44,8 @@ function sensivel(chave: string): boolean {
 
 /** Copia o valor mascarando chaves sensíveis e textos; limita a profundidade e o tamanho. */
 export function mascararValor(valor: unknown, chave = '', profundidade = 0): unknown {
-  if (sensivel(chave) && valor !== null && valor !== undefined && typeof valor !== 'boolean' && typeof valor !== 'number') return '***';
+  // número também é mascarado (latitude, CPF/CNPJ/telefone guardados como número no ERP); só boolean passa
+  if (sensivel(chave) && valor !== null && valor !== undefined && typeof valor !== 'boolean') return '***';
   if (typeof valor === 'string') return mascararTexto(valor.length > 500 ? `${valor.slice(0, 500)}…` : valor);
   if (valor instanceof Error) return mascararTexto(`${valor.name}: ${valor.message}`);
   if (profundidade > 4) return '[…]';

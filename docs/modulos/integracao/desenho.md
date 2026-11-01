@@ -30,10 +30,10 @@ Instância do Conector (ou adaptador/arquivo) de um tenant.
 | `nome`, `tipo` | `conector` \| `nuvem` \| `arquivo` |
 | `ativo` | desativar revoga credenciais |
 | `ultimo_sinal_em` | batimento a cada 1 min; alerta no BKO se > 15 min sem sinal (doc 06) |
-| `versao` | versão do executável (atualização automática) |
+| `versao` | versão do Conector informada em todo lote/sinal (semver); a política mínima/recomendada vem do Hub na resposta do sinal (T-0023; `contracts/conector.ts`); atualização automática fica para a v2 |
 | `ips_permitidos` | opcional |
 
-`credencial` (separada): `conector_id`, `hash_segredo` (nunca o segredo), `escopos`, `expira_em`, `rotacionada_em`, `revogada_em`. Credencial rotacionável, escopo por tenant (doc 06 "Segurança").
+`credencial` (separada): `conector_id`, `hash_segredo` (nunca o segredo), `escopos`, `expira_em`, `rotacionada_em`, `revogada_em`. Credencial rotacionável, escopo por tenant (doc 06 "Segurança"). **T-0023**: uma chave de API por Conector (identificador `conector_id` no cabeçalho `X-Macuxi-Conector-Id` + chave `Authorization: Bearer`), escopo fixo `integracao.v1` (não abre outra rota), mostrada uma só vez na criação/rotação; na rotação a chave anterior fica válida até `anterior_valida_ate` (janela curta) para o Conector trocar com `conector trocar-chave` sem interrupção (`ChaveConectorCriada`).
 
 ### 2.2 `lote` (RN-INT-01/03/08)
 | Campo | Observação |
@@ -200,7 +200,7 @@ Pedido ao ERP e retorno (RN-INT-08):
 | `POST /integracao/v1/reconciliacoes` | Conector | `ReconciliacaoEnvio`; devolve `ResultadoReconciliacao` |
 | `GET /integracao/v1/pedidos/pendentes` | Conector | `PedidosPendentes`; marca como `enviado` (poll 1–2 min) |
 | `POST /integracao/v1/pedidos/{pedido_uuid}/retorno` | Conector | `RetornoErp` → `RetornoAceito` (idempotente) |
-| `POST /integracao/v1/sinal` | Conector | batimento (1 min), versão do Conector |
+| `POST /integracao/v1/sinal` | Conector | batimento (1 min) `SinalConector`; **responde `RespostaSinal` com a `politica_versao` (mínima/recomendada) do tenant** (T-0023) |
 
 Carga por arquivo (RF-INT-03): o BKO converte Excel/CSV em `LoteEnvelope` com o mesmo contrato; as colunas do modelo de planilha espelham os campos da seção 8.
 
@@ -247,6 +247,15 @@ Tabelas sugeridas do schema `integracao` (só texto; o desenho final e as migra�
 | `pedido_fila_erp` | único (`tenant_id`, `pedido_uuid`); (`tenant_id`, `estado`, `enviado_em`) | milhares/dia; consulta quente `estado = 'pendente'` (poll 1–2 min) e varredura de `enviado` vencido (timeout) |
 
 Pedidos ao `banco-dados` ainda a fazer em tarefa própria: views-modelo do Conector (`db/conector/views-modelo.sql`) com as colunas da seção 8; política de expurgo; RLS e teste de vazamento entre tenants para o schema `integracao`.
+
+## 11.1 Ajustes v1.1 (T-0023, decisões do Alexandre) — o que o Hub precisa fazer
+
+Todos os campos novos são **opcionais** (compatíveis com `v1`, RN-INT-09); nenhuma versão nova de contrato.
+- **Linhas inválidas do Conector** (`LoteEnvelope.linhas_invalidas` até 500 por lote + `linhas_invalidas_omitidas`): gravar em `lote_linha_erro` com `origem = 'conector'` (código, campo e mensagem, sem valor), contar em `com_erro`, resultado `concluido_com_erros`; `LoteResultado.erros[].origem` e `invalidas_omitidas` devolvem isso. O `registros` continua exigindo ≥ 1 linha (RN-INT-01): página só com inválidas não viaja (limitação documentada no `conector.md`).
+- **`itens_faturados`** no retorno `faturado_parcial`/`faturado_total`: `[{ sequencia, produto_external_id, quantidade, valor_cents }]` (`produto_external_id` e `valor_cents` **obrigatórios** no item, decisão do Alexandre; o primeiro é o "produto_id" na chave do ERP). O Hub resolve o `produto_id` interno pela `sequencia` do pedido enviado, confere pelo `external_id` e repassa ao Vendedor (`vendedor.pedido.faturado@1`); validar `sequência existe` e `soma faturada ≤ quantidade enviada` (pedido T-0011, ainda a fazer no domain). `integracao.pedido.retorno_erp@1` repete o campo (opcional).
+- **Idempotência do faturamento (RN-INT-08)**: usar `transicionarRetornoPedidoErp(estadoAtual, retorno, notasJaAplicadas)` (domain/estados): `faturado_parcial` repetido com **nota diferente** (número+série) é fato novo; com a mesma nota é `repetida: true`. O Hub guarda as notas aplicadas por pedido (tabela/coluna a pedir ao banco-dados).
+- **Política de versão**: `politica_versao` por tenant (`versao_minima`, `versao_recomendada`, `mensagem`, `pacote`) na resposta do sinal; o BKO destaca Conector `parado_por_versao`.
+- **Chave por Conector**: cadastro, rotação (janela `anterior_valida_ate`) e revogação no BKO; autenticação confere chave + `X-Macuxi-Conector-Id` + escopo `integracao.v1` + licença do módulo.
 
 ## 12. Fora desta tarefa
 Rotas Fastify, persistência, fila (pg-boss), telas do monitor/mapeamento/upload (BKO), Conector (`apps/conector`), adaptadores nuvem-a-nuvem (RF-INT-05) e geração do OpenAPI.

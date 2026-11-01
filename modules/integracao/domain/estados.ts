@@ -55,6 +55,36 @@ export function transicionarPedidoErp(de: EstadoPedidoErp, para: EstadoPedidoErp
   return transicionar(TRANSICOES_PEDIDO_ERP, de, para, true, 'pedido no ERP');
 }
 
+/** Nota fiscal como o retorno do ERP a identifica. */
+export interface NotaChave {
+  numero: string;
+  serie?: string | null;
+}
+
+/** Chave estável da nota (número + série, aparados; série ausente = vazia). */
+export function chaveNotaRetorno(nota: NotaChave): string {
+  return `${nota.numero.trim()}|${(nota.serie ?? '').trim()}`;
+}
+
+/**
+ * RN-INT-08: transição do pedido pelo retorno do ERP, levando em conta a nota. Repetir o mesmo estado é idempotente
+ * (`repetida: true`), EXCETO `faturado_parcial → faturado_parcial` com nota diferente das já aplicadas: uma 2ª nota parcial
+ * é fato novo (`repetida: false`) e deve ser aplicada e publicada. A idempotência do faturamento é por (pedido, status, nota).
+ * Sem nota no retorno cai na regra do estado.
+ */
+export function transicionarRetornoPedidoErp(
+  de: EstadoPedidoErp,
+  retorno: { status: EstadoPedidoErp; nota?: NotaChave | null },
+  notasAplicadas: readonly NotaChave[],
+): ResultadoTransicao<EstadoPedidoErp> {
+  if (de === 'faturado_parcial' && retorno.status === 'faturado_parcial' && retorno.nota) {
+    const chave = chaveNotaRetorno(retorno.nota);
+    const jaAplicada = notasAplicadas.some((n) => chaveNotaRetorno(n) === chave);
+    return { ok: true, estado: 'faturado_parcial', repetida: jaAplicada };
+  }
+  return transicionarPedidoErp(de, retorno.status);
+}
+
 /** RN-INT-08: só pedido `aprovado` (status do Vendedor) entra na fila de pendentes. */
 export function podeEntrarNaFila(statusPedido: string): boolean {
   return statusPedido === 'aprovado';

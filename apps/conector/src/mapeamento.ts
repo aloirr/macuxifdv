@@ -6,7 +6,7 @@
  * - Validação com `SCHEMA_REGISTRO[entidade]` do contrato. As mensagens de erro locais NUNCA carregam o valor da linha.
  * - Valores nulos são omitidos (equivale a campo ausente no Hub).
  */
-import { SCHEMA_REGISTRO, type Cursor, type Entidade } from '@macuxi/integracao/contracts';
+import { LIMITE_REGISTROS_LOTE, SCHEMA_REGISTRO, type Cursor, type Entidade, type LinhaInvalidaConector } from '@macuxi/integracao/contracts';
 import type { ColunaConfig, EntidadeConfig, Transformacao } from './config/esquema';
 import type { Linha } from './erp/driver';
 
@@ -25,6 +25,20 @@ function paraDataUtc(v: unknown): Date | null {
     return Number.isNaN(d.getTime()) ? null : d;
   }
   return null;
+}
+
+/**
+ * Texto decimal ("19.99", "-0.5", "1234") → centavos inteiros SEM ponto flutuante (aritmética de texto/BigInt). A terceira casa
+ * decimal arredonda para cima a partir de 5 (meio centavo sobe, em módulo). `null` se não for decimal simples ou passar do limite seguro.
+ */
+export function decimalParaCentavos(texto: string): number | null {
+  const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(texto.trim());
+  if (!m) return null;
+  const frac = (m[3] ?? '').padEnd(3, '0');
+  let centavos = BigInt(m[2] as string) * 100n + BigInt(frac.slice(0, 2));
+  if (Number(frac[2]) >= 5) centavos += 1n;
+  const n = Number(m[1] === '-' ? -centavos : centavos);
+  return Number.isSafeInteger(n) ? n : null;
 }
 
 function paraBooleano(v: unknown): boolean | null {
@@ -67,6 +81,11 @@ function transformar(v: unknown, t: Transformacao | undefined, campo: string): u
       return n === null ? v : n;
     }
     case 'centavos_de_decimal': {
+      // texto decimal exato (ex.: NUMBER do Oracle, "19.99") converte sem ponto flutuante; número usa o arredondamento comum
+      if (typeof v === 'string') {
+        const exato = decimalParaCentavos(v);
+        if (exato !== null) return exato;
+      }
       const n = paraNumero(v);
       return n === null ? v : Math.round(n * 100);
     }
@@ -142,15 +161,40 @@ export function mapearLinha(config: EntidadeConfig, linha: Linha, posicao: numbe
   return { posicao, external_id: externalId === '' ? null : externalId, alterado_ms: alteradoMs, registro };
 }
 
+export type CodigoProblema = LinhaInvalidaConector['codigo'];
+
 export interface ProblemaLinha {
   posicao: number;
   external_id: string | null;
   campo: string;
+  /** Código do contrato (`LinhaErro`): é o que o BKO mostra ao lado da mensagem. */
+  codigo: CodigoProblema;
   /** Texto sem valor de dado. */
   mensagem: string;
 }
 
-function descrever(i: { code: string; path: (string | number)[]; message: string; expected?: unknown; received?: unknown }): string {
+type IssueZod = { code: string; path: (string | number)[]; message: string; expected?: unknown; received?: unknown };
+
+function codificar(i: IssueZod): CodigoProblema {
+  switch (i.code) {
+    case 'invalid_type':
+      return i.received === 'undefined' || i.received === 'null' ? 'campo_obrigatorio' : 'tipo_invalido';
+    case 'invalid_enum_value':
+    case 'invalid_literal':
+      return 'valor_nao_permitido';
+    case 'invalid_string':
+      return 'formato_invalido';
+    case 'too_small':
+    case 'too_big':
+      return 'valor_fora_da_faixa';
+    case 'custom':
+      return 'regra_invalida';
+    default:
+      return 'registro_invalido';
+  }
+}
+
+function descrever(i: IssueZod): string {
   switch (i.code) {
     case 'invalid_type':
       return i.received === 'undefined' || i.received === 'null' ? 'campo obrigatório sem valor' : `tipo inválido (esperado ${String(i.expected)})`;
@@ -185,7 +229,7 @@ export function validarLinha(entidade: Entidade, m: LinhaMapeada): ResultadoVali
     const campo = i.path.join('.') || '(registro)';
     if (vistos.has(campo)) continue;
     vistos.add(campo);
-    problemas.push({ posicao: m.posicao, external_id: m.external_id, campo, mensagem: descrever(i as never) });
+    problemas.push({ posicao: m.posicao, external_id: m.external_id, campo, codigo: codificar(i as IssueZod), mensagem: descrever(i as IssueZod) });
   }
   return { ok: false, registro: m.registro, problemas };
 }
@@ -198,6 +242,11 @@ export interface ResultadoMapeamento {
   /** Par da última linha legível NA ORDEM DA CONSULTA: de onde a leitura continua (a colação do banco manda na ordem do SQL). */
   ultimo: Cursor | null;
   problemas: ProblemaLinha[];
+  /**
+   * Linhas recusadas localmente, UMA entrada por linha (campo e código do primeiro problema; a mensagem resume todos), sem valores.
+   * Só preenchida com `linhasInvalidas: enviar`; é o que vai em `linhas_invalidas` do lote (o limite por lote é aplicado depois).
+   */
+  linhasInvalidas: LinhaInvalidaConector[];
   /** Linhas descartadas por falta de external_id/alterado_em (sem eles não há cursor). */
   descartadas: number;
   invalidas: number;
@@ -212,28 +261,38 @@ export interface ResultadoMapeamento {
 export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linhas: Linha[], depoisDe: Cursor | null = null): ResultadoMapeamento {
   const registros: Record<string, unknown>[] = [];
   const problemas: ProblemaLinha[] = [];
+  const linhasInvalidas: LinhaInvalidaConector[] = [];
   let descartadas = 0;
   let invalidas = 0;
   let repetidas = 0;
   let cursor: Cursor | null = null;
   let ultimo: Cursor | null = null;
+  /** Registra os problemas de UMA linha e (se configurado) a entrada única que irá ao Hub. */
+  const recusar = (doLote: ProblemaLinha[]) => {
+    problemas.push(...doLote);
+    if (config.linhasInvalidas === 'enviar') linhasInvalidas.push(resumirLinha(doLote));
+  };
   for (const [posicao, linha] of linhas.entries()) {
     let m: LinhaMapeada;
     try {
       m = mapearLinha(config, linha, posicao);
     } catch (e) {
       descartadas++;
-      problemas.push({ posicao, external_id: null, campo: '(linha)', mensagem: e instanceof ErroMapeamento ? e.message : 'erro ao converter a linha' });
+      const conhecido = e instanceof ErroMapeamento;
+      recusar([{ posicao, external_id: null, campo: '(linha)', codigo: conhecido ? 'formato_invalido' : 'registro_invalido', mensagem: conhecido ? e.message : 'erro ao converter a linha' }]);
       continue;
     }
     if (m.external_id === null || m.alterado_ms === null) {
       descartadas++;
-      problemas.push({
-        posicao,
-        external_id: m.external_id,
-        campo: m.external_id === null ? 'external_id' : 'alterado_em',
-        mensagem: m.external_id === null ? 'external_id ausente: a linha não pode ser enviada' : 'alterado_em ausente ou ilegível: a linha não pode ser enviada',
-      });
+      recusar([
+        {
+          posicao,
+          external_id: m.external_id,
+          campo: m.external_id === null ? 'external_id' : 'alterado_em',
+          codigo: 'campo_obrigatorio',
+          mensagem: m.external_id === null ? 'external_id ausente: a linha não pode ser enviada' : 'alterado_em ausente ou ilegível: a linha não pode ser enviada',
+        },
+      ]);
       continue;
     }
     const par: Cursor = { alterado_em: new Date(m.alterado_ms).toISOString(), external_id: m.external_id };
@@ -247,12 +306,33 @@ export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linha
     if (v.ok) {
       registros.push(v.registro);
     } else {
+      // a linha inválida NÃO vai em `registros`: vai em `linhas_invalidas`, com o motivo e sem o valor (RN-INT-03)
       invalidas++;
-      problemas.push(...v.problemas);
-      if (config.linhasInvalidas === 'enviar') registros.push(v.registro);
+      recusar(v.problemas);
     }
   }
-  return { registros, cursor, ultimo, problemas, descartadas, invalidas, repetidas };
+  return { registros, cursor, ultimo, problemas, linhasInvalidas, descartadas, invalidas, repetidas };
+}
+
+/** Uma linha com vários campos ruins vira UMA entrada: campo e código do primeiro problema, mensagem resumindo todos (sem valores). */
+export function resumirLinha(problemas: ProblemaLinha[]): LinhaInvalidaConector {
+  const primeiro = problemas[0] as ProblemaLinha;
+  const mensagem =
+    problemas.length === 1
+      ? primeiro.mensagem
+      : problemas.map((p) => `${p.campo}: ${p.mensagem}`).join('; ');
+  return {
+    external_id: primeiro.external_id,
+    codigo: primeiro.codigo,
+    campo: primeiro.campo.slice(0, 100),
+    mensagem: mensagem.length > 300 ? `${mensagem.slice(0, 297)}...` : mensagem,
+  };
+}
+
+/** Aplica o limite de linhas inválidas por lote: as primeiras `max` vão com o motivo; o resto só na contagem. */
+export function limitarLinhasInvalidas(linhas: LinhaInvalidaConector[], max: number): { enviadas: LinhaInvalidaConector[]; omitidas: number } {
+  const teto = Math.min(Math.max(0, max), LIMITE_REGISTROS_LOTE);
+  return { enviadas: linhas.slice(0, teto), omitidas: Math.max(0, linhas.length - teto) };
 }
 
 /** Mesma ordem do Hub (RN-INT-05): instante, depois `external_id` em ordem ordinal. */

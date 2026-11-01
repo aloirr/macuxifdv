@@ -1,6 +1,6 @@
 {
   "name": "@macuxi/conector",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Conector on-premise do Hub de Integração: lê o ERP do cliente e empurra os dados ao Hub por delta (T-0013).",

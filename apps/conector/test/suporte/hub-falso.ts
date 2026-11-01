@@ -29,6 +29,7 @@ interface LoteGuardado {
   cursor: Cursor | null;
   contagens: { recebidas: number; com_erro: number; novas: number; atualizadas: number; inalteradas: number };
   consultasAntes: number;
+  invalidasOmitidas: number;
   inativacao?: { situacao: 'aplicada' | 'aguardando_confirmacao' | 'nao_aplicavel'; candidatos?: number };
 }
 
@@ -36,6 +37,9 @@ export interface Chamada {
   metodo: string;
   caminho: string;
   idempotencia?: string;
+  /** Cabeçalhos do Conector (T-0023). */
+  conectorId?: string;
+  versao?: string;
 }
 
 const CODIGO_ZOD: Record<string, LinhaErro['codigo']> = {
@@ -78,6 +82,12 @@ export class HubFalso {
   inativacaoNaSessaoCompleta: LoteGuardado['inativacao'] | undefined;
   /** Hub já tem cursor (Conector reinstalado): devolvido em GET /cursores. */
   tokenValido = true;
+  /** Identificador do Conector que o Hub aceita (cabeçalho `X-Macuxi-Conector-Id`); `null` = não confere. */
+  conectorIdEsperado: string | null = 'cnx-teste-01';
+  /** Política de versão devolvida na resposta do sinal (`null` = Hub sem política). */
+  politicaVersao: { versao_minima: string; versao_recomendada: string; mensagem?: string } | null = null;
+  /** Chaves aceitas além de `token` (rotação: a antiga e a nova valem juntas na janela). */
+  chavesExtras = new Set<string>();
 
   static async iniciar(): Promise<HubFalso> {
     const h = new HubFalso();
@@ -110,7 +120,13 @@ export class HubFalso {
   private async tratar(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const corpoTexto = await this.lerCorpo(req);
     const caminhoCompleto = req.url ?? '/';
-    this.chamadas.push({ metodo: req.method ?? '', caminho: caminhoCompleto, idempotencia: req.headers['idempotency-key'] as string | undefined });
+    this.chamadas.push({
+      metodo: req.method ?? '',
+      caminho: caminhoCompleto,
+      idempotencia: req.headers['idempotency-key'] as string | undefined,
+      conectorId: req.headers['x-macuxi-conector-id'] as string | undefined,
+      versao: req.headers['x-macuxi-conector-versao'] as string | undefined,
+    });
     if (this.caido) {
       req.socket.destroy();
       return;
@@ -120,7 +136,10 @@ export class HubFalso {
       this.responder(res, this.falhas.status, { erro: 'indisponivel' }, this.falhas.retryAfter ? { 'Retry-After': String(this.falhas.retryAfter) } : {});
       return;
     }
-    if (!this.tokenValido || req.headers.authorization !== `Bearer ${this.token}`) {
+    const bearer = String(req.headers.authorization ?? '');
+    const chaveOk = bearer === `Bearer ${this.token}` || [...this.chavesExtras].some((c) => bearer === `Bearer ${c}`);
+    const idOk = this.conectorIdEsperado === null || req.headers['x-macuxi-conector-id'] === this.conectorIdEsperado;
+    if (!this.tokenValido || !chaveOk || !idOk) {
       this.responder(res, 401, { erro: 'nao_autorizado' });
       return;
     }
@@ -158,7 +177,7 @@ export class HubFalso {
     }
     if (req.method === 'POST' && caminho === '/sinal') {
       this.sinais.push(corpo);
-      return this.responder(res, 200, { ok: true });
+      return this.responder(res, 200, { ...(this.politicaVersao ? { politica_versao: this.politicaVersao } : {}), recebido_em: new Date().toISOString() });
     }
     if (req.method === 'POST' && caminho === '/reconciliacoes') {
       this.reconciliacoes.push(corpo);
@@ -227,11 +246,18 @@ export class HubFalso {
     const atual = this.cursores.get(entidade);
     if (cursor && (!atual || compararCursor(cursor, atual) > 0)) this.cursores.set(entidade, cursor);
 
-    const status = lErros.length === 0 ? 'concluido' : lErros.length === e.registros.length ? 'falhou' : 'concluido_com_erros';
+    // linhas que o Conector recusou localmente (T-0023): viram erros com origem `conector`, sem processar nada
+    const invalidas = e.linhas_invalidas ?? [];
+    const doConector: LinhaErro[] = invalidas.map((l, i) => ({
+      indice: i, external_id: l.external_id ?? null, codigo: l.codigo, campo: l.campo ?? null, mensagem: l.mensagem, reprocessavel: false, origem: 'conector' as const,
+    }));
+    const status = lErros.length === 0 ? (doConector.length > 0 || (e.linhas_invalidas_omitidas ?? 0) > 0 ? 'concluido_com_erros' : 'concluido') : lErros.length === e.registros.length ? 'falhou' : 'concluido_com_erros';
+    lErros.push(...doConector);
     const id = randomUUID();
     const guardado: LoteGuardado = {
       id, chave, envelope: e, status, erros: lErros, cursor: this.cursores.get(entidade) ?? null,
       contagens: { recebidas: e.registros.length, com_erro: lErros.length, novas, atualizadas, inalteradas },
+      invalidasOmitidas: e.linhas_invalidas_omitidas ?? 0,
       consultasAntes: this.consultasProcessando,
       inativacao: e.sessao?.ultimo ? this.inativacaoNaSessaoCompleta : undefined,
     };
@@ -263,6 +289,7 @@ export class HubFalso {
       avisos: [],
       cursor: final ? l.cursor : null,
       inativadas: 0,
+      invalidas_omitidas: l.invalidasOmitidas || null,
       recebido_em: new Date().toISOString(),
       concluido_em: final ? new Date().toISOString() : null,
       inativacao: final ? (l.inativacao ?? null) : null,

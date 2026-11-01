@@ -15,8 +15,10 @@ import type { EntidadeConfig } from './config/esquema';
 import { ehErroDeConexao } from './erp/driver';
 import { type Contexto, resumoErro } from './contexto';
 import { montarLotes } from './lotes';
-import { compararCursor, mapearEValidar } from './mapeamento';
+import { compararCursor, limitarLinhasInvalidas, mapearEValidar } from './mapeamento';
+import { bloqueioPorVersao } from './politica';
 import { iso } from './util/relogio';
+import { VERSAO_CONECTOR } from './versao';
 import type { Entidade } from './config/entidades';
 
 const EPOCA: Cursor = { alterado_em: '1970-01-01T00:00:00.000Z', external_id: '' };
@@ -40,6 +42,8 @@ export async function sincronizarEntidade(ctx: Contexto, entidade: Entidade): Pr
   const cfg = ctx.config.entidades[entidade];
   const res: ResultadoSincronizacao = { entidade, fase: null, paginas: 0, linhasLidas: 0, lotesCriados: 0 };
   if (!cfg || !cfg.ativa) return { ...res, adiado: 'entidade desativada' };
+  // versão abaixo da mínima do Hub: não lê nem enfileira nada novo (a causa aparece em `conector status` e no log)
+  if (bloqueioPorVersao(ctx)) return { ...res, adiado: 'versão do Conector abaixo da mínima exigida pelo Hub: atualize o Conector' };
   const { store, log } = ctx;
   const agora = () => ctx.relogio.agora();
 
@@ -112,7 +116,16 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
   }
 
   const m = mapearEValidar(entidade, cfg, pagina, estado.lido);
-  if (m.repetidas === pagina.length) return false; // só linhas já lidas (precisão de alterado_em): sem novidade
+  const motivoSemAvanco = 'a leitura não avança (várias linhas com o mesmo alterado_em e external_id, ou alterado_em com precisão menor que a do filtro); use alterado_em em milissegundos e external_id único';
+  if (m.repetidas === pagina.length) {
+    // sem mais páginas: só linhas já lidas (precisão de alterado_em), sem novidade. Com mais páginas: a próxima leitura
+    // devolveria a mesma página para sempre; bloqueia com a causa visível em vez de parar em silêncio.
+    if (temMais) {
+      store.atualizarEstado(entidade, { bloqueio: motivoSemAvanco });
+      log.erro('entidade_bloqueada', { entidade, motivo: motivoSemAvanco });
+    }
+    return false;
+  }
   if (m.ultimo === null) {
     const motivo = 'nenhuma linha lida tem external_id e alterado_em legíveis; confira o mapeamento de colunas e a consulta';
     store.atualizarEstado(entidade, { bloqueio: motivo });
@@ -130,6 +143,8 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
   }
 
   const ultimaPagina = !temMais;
+  // linhas recusadas localmente vão ao Hub com o motivo (até lote.maxLinhasInvalidas; o resto só na contagem)
+  const inval = limitarLinhasInvalidas(m.linhasInvalidas, ctx.config.lote.maxLinhasInvalidas);
   const lotes = montarLotes({
     entidade,
     modo: completo ? 'completo' : 'delta',
@@ -141,12 +156,18 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
     maxBytes: ctx.config.lote.maxBytes,
     sessao: completo && estado.sessaoId ? { id: estado.sessaoId, primeiraParte: estado.sessaoParte + 1, ultimaPagina } : undefined,
     enviadoEm: iso(agora),
+    conectorId: ctx.config.hub.conectorId,
+    versaoConector: ctx.versao ?? VERSAO_CONECTOR,
+    linhasInvalidas: inval.enviadas,
+    linhasInvalidasOmitidas: inval.omitidas,
   });
+  if (m.linhasInvalidas.length > 0 && lotes.length === 0) {
+    log.aviso('linhas_invalidas_sem_lote', { entidade, linhas: m.linhasInvalidas.length, dica: 'a página só teve linhas inválidas; elas ficam nos erros locais (conector status) e voltam a ser avaliadas quando o ERP alterar a linha' });
+  }
 
   if (temMais && estado.lido && compararCursor(m.ultimo, estado.lido) <= 0) {
-    const motivo = 'a leitura não avança (várias linhas com o mesmo alterado_em e external_id, ou alterado_em com precisão menor que a do filtro); use alterado_em em milissegundos e external_id único';
-    store.atualizarEstado(entidade, { bloqueio: motivo });
-    log.erro('entidade_bloqueada', { entidade, motivo });
+    store.atualizarEstado(entidade, { bloqueio: motivoSemAvanco });
+    log.erro('entidade_bloqueada', { entidade, motivo: motivoSemAvanco });
     return false;
   }
 

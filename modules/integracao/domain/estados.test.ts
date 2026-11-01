@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ESTADOS_LOTE, ESTADOS_PEDIDO_ERP, type EstadoLote, type EstadoPedidoErp } from '../contracts';
-import { aplicarTimeoutEnvio, podeEntrarNaFila, transicionarLote, transicionarPedidoErp } from './estados';
+import { aplicarTimeoutEnvio, chaveNotaRetorno, podeEntrarNaFila, transicionarLote, transicionarPedidoErp, transicionarRetornoPedidoErp } from './estados';
 
 describe('RN-INT-08: máquina de estados do lote', () => {
   it('RN-INT-08: fluxo normal recebido → processando → concluído/com erros/falhou', () => {
@@ -89,6 +89,53 @@ describe('RN-INT-08: máquina de estados do retorno do pedido', () => {
 
   it('RN-INT-08: repetir o mesmo estado é idempotente (retorno repetido do Conector não é erro)', () => {
     for (const e of ESTADOS_PEDIDO_ERP) expect(transicionarPedidoErp(e, e)).toMatchObject({ ok: true, estado: e, repetida: true });
+  });
+});
+
+describe('RN-INT-08: retorno faturado — repetição é por (pedido, status, nota), não só pelo status', () => {
+  const nota1 = { numero: '100', serie: '1' };
+  const nota2 = { numero: '101', serie: '1' };
+
+  it('RN-INT-08: a chave da nota é número + série (série ausente equivale a vazia, sem diferenciar espaços)', () => {
+    expect(chaveNotaRetorno({ numero: '100', serie: '1' })).toBe('100|1');
+    expect(chaveNotaRetorno({ numero: ' 100 ', serie: null })).toBe('100|');
+    expect(chaveNotaRetorno({ numero: '100' })).toBe(chaveNotaRetorno({ numero: '100', serie: '' }));
+  });
+
+  it('RN-INT-08: o primeiro faturado_parcial (vindo de integrado) é fato novo', () => {
+    expect(transicionarRetornoPedidoErp('integrado', { status: 'faturado_parcial', nota: nota1 }, [])).toMatchObject({ ok: true, estado: 'faturado_parcial', repetida: false });
+  });
+
+  it('RN-INT-08: faturado_parcial repetido com nota DIFERENTE não é repetição (2ª nota parcial é fato novo)', () => {
+    const r = transicionarRetornoPedidoErp('faturado_parcial', { status: 'faturado_parcial', nota: nota2 }, [nota1]);
+    expect(r).toMatchObject({ ok: true, estado: 'faturado_parcial', repetida: false });
+  });
+
+  it('RN-INT-08: faturado_parcial repetido com a MESMA nota (mesma série) continua idempotente', () => {
+    const r = transicionarRetornoPedidoErp('faturado_parcial', { status: 'faturado_parcial', nota: { numero: '100', serie: '1' } }, [nota1]);
+    expect(r).toMatchObject({ ok: true, estado: 'faturado_parcial', repetida: true });
+  });
+
+  it('RN-INT-08: mesma numeração em série diferente é nota diferente', () => {
+    const r = transicionarRetornoPedidoErp('faturado_parcial', { status: 'faturado_parcial', nota: { numero: '100', serie: '2' } }, [nota1]);
+    expect(r).toMatchObject({ ok: true, repetida: false });
+  });
+
+  it('RN-INT-08: o parcial pode ser seguido de faturado_total (nota nova) e de cancelamento', () => {
+    expect(transicionarRetornoPedidoErp('faturado_parcial', { status: 'faturado_total', nota: nota2 }, [nota1])).toMatchObject({ ok: true, estado: 'faturado_total', repetida: false });
+    expect(transicionarRetornoPedidoErp('faturado_parcial', { status: 'cancelado' }, [nota1])).toMatchObject({ ok: true, estado: 'cancelado', repetida: false });
+  });
+
+  it('RN-INT-08: faturado_parcial sem nota informada segue a regra do estado (repetição idempotente); demais estados repetem pelo estado', () => {
+    expect(transicionarRetornoPedidoErp('faturado_parcial', { status: 'faturado_parcial' }, [nota1])).toMatchObject({ ok: true, repetida: true });
+    expect(transicionarRetornoPedidoErp('integrado', { status: 'integrado' }, [])).toMatchObject({ ok: true, repetida: true });
+    expect(transicionarRetornoPedidoErp('cancelado', { status: 'cancelado' }, [])).toMatchObject({ ok: true, repetida: true });
+  });
+
+  it('RN-INT-08: transições inválidas continuam inválidas (faturado_total não volta a parcial, mesmo com nota nova)', () => {
+    const r = transicionarRetornoPedidoErp('faturado_total', { status: 'faturado_parcial', nota: nota2 }, [nota1]);
+    expect(r).toMatchObject({ ok: false, codigo: 'transicao_invalida' });
+    expect(transicionarRetornoPedidoErp('enviado', { status: 'faturado_parcial', nota: nota1 }, []).ok).toBe(false);
   });
 });
 

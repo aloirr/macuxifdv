@@ -11,8 +11,8 @@ afterEach(() => limparSegredosRegistrados());
 describe('segredos fora do arquivo de configuração', () => {
   it('provedor por variável de ambiente: MACUXI_CONECTOR_<NOME>', async () => {
     expect(nomeVariavel('erp_senha')).toBe('MACUXI_CONECTOR_ERP_SENHA');
-    const p = new ProvedorEnv({ MACUXI_CONECTOR_HUB_TOKEN: 'tok-123456' });
-    expect(await p.obter('hub_token')).toBe('tok-123456');
+    const p = new ProvedorEnv({ MACUXI_CONECTOR_HUB_CHAVE: 'tok-123456' });
+    expect(await p.obter('hub_chave')).toBe('tok-123456');
     expect(await p.obter('erp_senha')).toBeUndefined();
   });
 
@@ -25,7 +25,7 @@ describe('segredos fora do arquivo de configuração', () => {
     const p = new ProvedorWindows(exec);
     expect(await p.obter('erp_senha')).toBe('senha-do-banco');
     expect(chamadas[0]?.script).toContain("'Macuxi.Conector/erp_senha'");
-    await p.definir('hub_token', 'segredo-super-secreto');
+    await p.definir('hub_chave', 'segredo-super-secreto');
     expect(chamadas[1]?.entrada).toBe('segredo-super-secreto');
     expect(chamadas[1]?.script).not.toContain('segredo-super-secreto');
     expect(scriptGravarCredencial("a'b")).toContain("'a''b'");
@@ -40,20 +40,20 @@ describe('segredos fora do arquivo de configuração', () => {
     const exec: ExecutarPowerShell = async () => ({ codigo: 0, saida: 'do-windows', erro: '' });
     const win = criarProvedor('auto', { env: { MACUXI_CONECTOR_ERP_SENHA: 'do-env' }, plataforma: 'win32', executar: exec });
     expect(await win.obter('erp_senha')).toBe('do-env');
-    expect(await win.obter('hub_token')).toBe('do-windows');
+    expect(await win.obter('hub_chave')).toBe('do-windows');
     const linux = criarProvedor('auto', { env: {}, plataforma: 'linux', executar: exec });
-    expect(await linux.obter('hub_token')).toBeUndefined();
+    expect(await linux.obter('hub_chave')).toBeUndefined();
   });
 
   it('rotação: o segredo é relido depois do TTL, sem reiniciar o serviço', async () => {
-    const env: NodeJS.ProcessEnv = { MACUXI_CONECTOR_HUB_TOKEN: 'token-antigo' };
+    const env: NodeJS.ProcessEnv = { MACUXI_CONECTOR_HUB_CHAVE: 'token-antigo' };
     let agora = 0;
     const s = new Segredos(new ProvedorEnv(env), 1000, () => agora);
-    expect(await s.exigir('hub_token')).toBe('token-antigo');
-    env.MACUXI_CONECTOR_HUB_TOKEN = 'token-novo!';
-    expect(await s.exigir('hub_token')).toBe('token-antigo');
+    expect(await s.exigir('hub_chave')).toBe('token-antigo');
+    env.MACUXI_CONECTOR_HUB_CHAVE = 'token-novo!';
+    expect(await s.exigir('hub_chave')).toBe('token-antigo');
     agora = 2000;
-    expect(await s.exigir('hub_token')).toBe('token-novo!');
+    expect(await s.exigir('hub_chave')).toBe('token-novo!');
   });
 
   it('segredo ausente: erro em português dizendo o que fazer, sem inventar valor', async () => {
@@ -81,6 +81,12 @@ describe('máscara de dados pessoais e segredos nos logs', () => {
   it('chaves sensíveis têm o valor trocado, em qualquer profundidade; contadores e booleanos passam', () => {
     const v = mascararValor({ entidade: 'cliente', linhas: 12, nome: 'Maria', cliente: { email: 'a@b.co', documento: '1', razao_social: 'X' }, erp_senha: 'x', ok: true, registros: [{ a: 1 }] }) as Record<string, unknown>;
     expect(v).toEqual({ entidade: 'cliente', linhas: 12, nome: '***', cliente: { email: '***', documento: '***', razao_social: '***' }, erp_senha: '***', ok: true, registros: '***' });
+  });
+
+  it('chave sensível com valor NUMÉRICO também é mascarada (latitude, CPF guardado como número); só boolean passa', () => {
+    const v = mascararValor({ latitude: -3.1, cpf: 12345678901, cliente: { telefone: 95991234567, longitude: -60.6 }, ativo: true, cpf_ok: false, linhas: 12 }) as Record<string, unknown>;
+    expect(v).toEqual({ latitude: '***', cpf: '***', cliente: { telefone: '***', longitude: '***' }, ativo: true, cpf_ok: false, linhas: 12 });
+    expect(JSON.stringify(v)).not.toMatch(/12345678901|-3\.1|9599123/);
   });
 
   it('o logger grava JSON mascarado por linha', () => {
