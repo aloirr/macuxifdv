@@ -27,9 +27,9 @@ export const ItemFilaAprovacao = z
     desconto_efetivo_pct: PctNumero.nonnegative(),
     credito: CreditoClienteV1.nullable(),
     historico: HistoricoClienteV1.nullable(),
-    /** solicitada_em + prazo do tenant. */
+    /** RN-GES-03: prazo em dias úteis — mesmo horário local do N-ésimo dia útil depois do início da contagem. */
     prazo_em: InstanteUtc,
-    /** Horas até o prazo (negativo = vencido há N horas), 2 casas. */
+    /** Horas ÚTEIS até o prazo (negativo = vencido há N horas úteis), 2 casas. */
     horas_restantes: z.number(),
     situacao: SituacaoPrazo,
     /** Quem consulta pode decidir (RN-GES-04: o gerente também decide o nível supervisor); senão é acompanhamento/leitura. */

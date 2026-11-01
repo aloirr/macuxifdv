@@ -26,20 +26,27 @@ const u = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}
 const T0 = '2026-10-31T13:00:00Z';
 
 describe('contratos do Gestor: parâmetros do tenant (doc 03)', () => {
-  it('padrões: Manaus, base aprovado, permanência 10 min, peso do parcial 0, prazo de aprovação 24 h', () => {
+  it('padrões: Manaus, base aprovado, permanência 10 min, peso do parcial 0, prazo de aprovação 1 dia útil', () => {
     expect(ParametrosGestorSchema.parse({})).toEqual({
       fuso: 'America/Manaus',
       base_apuracao: 'aprovado',
       feriados: [],
       permanencia_min_min: 10,
       peso_parcial_conformidade: 0,
-      aprovacao_prazo_horas: 24,
+      prazo_aprovacao_dias_uteis: 1,
       aprovacao_aviso_horas: 4,
       pct_tolerancia_frequencia: 50,
       dias_sem_visita_padrao: 30,
       dias_carencia_cliente_novo: 15,
       horario_comercial: { dias_semana: [1, 2, 3, 4, 5], inicio: '08:00', fim: '18:00' },
     });
+  });
+
+  it('RN-GES-03: prazo da aprovação em dias úteis inteiros e positivos; o parâmetro antigo em horas é chave desconhecida', () => {
+    expect(ParametrosGestorSchema.safeParse({ prazo_aprovacao_dias_uteis: 2 }).success).toBe(true);
+    expect(ParametrosGestorSchema.safeParse({ prazo_aprovacao_dias_uteis: 0 }).success).toBe(false);
+    expect(ParametrosGestorSchema.safeParse({ prazo_aprovacao_dias_uteis: 1.5 }).success).toBe(false);
+    expect(ParametrosGestorSchema.safeParse({ aprovacao_prazo_horas: 24 }).success).toBe(false);
   });
 
   it('chave desconhecida e base de apuração inválida são recusadas', () => {

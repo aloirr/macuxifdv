@@ -17,7 +17,7 @@ import {
   type StatusPedido,
 } from '../contracts';
 import { escopoDoUsuario, podeVer, type EscopoGestor } from './equipe';
-import { horasUteisEntre, somarHorasUteis } from './horario-comercial';
+import { horasUteisEntre, somarDiasUteis } from './horario-comercial';
 import { arredondar, instanteMs } from './numeros';
 import { resolverParametros, type ParametrosGestor } from './parametros';
 import { historicoOrdenado } from './apuracao';
@@ -30,10 +30,12 @@ const STATUS_DECISORIOS: ReadonlySet<StatusPedido> = new Set<StatusPedido>(['apr
 const NIVEIS_DO_GESTOR: ReadonlySet<NivelAprovacao> = new Set<NivelAprovacao>(['supervisor', 'gerente']);
 
 /**
- * RN-GES-03: prazo em HORAS ÚTEIS do horário comercial do tenant (dias da semana, janela HH:MM, feriados, fuso).
- * `prazo_em` = instante em que se completam `aprovacao_prazo_horas` úteis desde a solicitação; `horas_restantes` =
- * horas úteis até o prazo (negativo = vencido há N horas úteis). Vencido a partir do instante do prazo (inclusive);
- * vencendo quando faltam até `aprovacao_aviso_horas` úteis.
+ * RN-GES-03: prazo em DIAS ÚTEIS (`prazo_aprovacao_dias_uteis`, padrão 1). `prazo_em` = mesmo horário local do N-ésimo dia
+ * útil depois do início da contagem (sexta 17:00 vence segunda 17:00; pedido fora do expediente conta da próxima
+ * abertura); dias úteis = horário comercial do tenant sem feriados nacionais nem do tenant, no fuso do tenant.
+ * `horas_restantes` = horas ÚTEIS até o prazo (negativo = vencido há N horas úteis). Situação: **vencido** só depois do
+ * instante do prazo (passou do limite), **vencendo** quando faltam até `aprovacao_aviso_horas` horas úteis, senão
+ * **no_prazo**. O alerta de aprovação parada usa esta mesma função (alerta ⇔ vencido).
  */
 export function situacaoDoPrazo(
   solicitada_em: string,
@@ -41,9 +43,9 @@ export function situacaoDoPrazo(
   paramsParciais: Partial<ParametrosGestor> = {},
 ): { prazo_em: string; horas_restantes: number; situacao: SituacaoPrazo } {
   const p = resolverParametros(paramsParciais);
-  const prazo_em = somarHorasUteis(solicitada_em, p.aprovacao_prazo_horas, p);
+  const prazo_em = somarDiasUteis(solicitada_em, p.prazo_aprovacao_dias_uteis, p);
   const horas_restantes = horasUteisEntre(agora, prazo_em, p);
-  const situacao: SituacaoPrazo = instanteMs(agora) >= instanteMs(prazo_em) ? 'vencido' : horas_restantes <= p.aprovacao_aviso_horas ? 'vencendo' : 'no_prazo';
+  const situacao: SituacaoPrazo = instanteMs(agora) > instanteMs(prazo_em) ? 'vencido' : horas_restantes <= p.aprovacao_aviso_horas ? 'vencendo' : 'no_prazo';
   return { prazo_em, horas_restantes, situacao };
 }
 

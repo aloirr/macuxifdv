@@ -16,12 +16,14 @@ const PERFIS_TENANT = ['analista', 'admin'] as const;
  *   engenheiro-software): `core.rota.dia_planejado@1` (visitas planejadas) e `core.meta.definida@1` (meta mensal);
  *   entram aqui quando existirem.
  * - RN-GES-06: consome `vendedor.pedido.faturado@1` (itens faturados por retorno do ERP) para o "faturado" parcial.
+ * - RN-GES-03: o prazo da aprovação (`prazo_aprovacao_dias_uteis`, 1 dia útil) e o horário comercial são parâmetros do
+ *   tenant (contracts/parametros.ts); o manifesto não declara parâmetros.
  * - RN-GES-07: `painel_tenant.ver` é a leitura do tenant (painel, ranking, alertas e fila) para analista e admin; eles
  *   não têm `fila_aprovacao.decidir` nem `alerta_equipe.dispensar`.
  */
 export const manifest = defineModule({
   id: 'gestor',
-  versao: '0.3.0',
+  versao: '0.4.0',
   depende: ['core'],
   opcionais: ['vendedor', 'promotor', 'pesquisa', 'treinamento'],
   perfis: ['supervisor', 'gerente', 'analista', 'admin'],
@@ -48,7 +50,7 @@ export const manifest = defineModule({
   acoes: {
     'painel_equipe.ver': { perfis: [...PERFIS_GESTAO], descricao: 'Ver painel da equipe, ficha do vendedor e do promotor (RF-GES-01/02/10); o escopo vem da hierarquia (RN-CORE-04)' },
     'ranking_equipe.ver': { perfis: [...PERFIS_GESTAO], descricao: 'Ver o ranking da equipe por indicador e período (RF-GES-03)' },
-    'fila_aprovacao.ver': { perfis: [...PERFIS_GESTAO], descricao: 'Ver a fila de aprovações da equipe, com prazos em horas úteis (RF-GES-04, RN-GES-03)' },
+    'fila_aprovacao.ver': { perfis: [...PERFIS_GESTAO], descricao: 'Ver a fila de aprovações da equipe, com prazo em dias úteis (RF-GES-04, RN-GES-03)' },
     'fila_aprovacao.decidir': {
       perfis: [...PERFIS_GESTAO],
       descricao: 'Aprovar (sem comentário) ou rejeitar (com motivo); o gerente também decide o nível supervisor e o supervisor é avisado; a alçada é validada pela API do Vendedor (RN-GES-04/08, RN-VEN-10)',

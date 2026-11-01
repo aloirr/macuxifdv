@@ -52,3 +52,31 @@ describe('RN-INT-01: validar envelope do lote', () => {
     expect(JSON.stringify(r)).not.toContain('SEGREDO-123');
   });
 });
+
+describe('RN-INT-01 (exceção T-0025): lote só com linhas inválidas do Conector é aceito', () => {
+  const invalida = { external_id: 'C7', codigo: 'campo_obrigatorio', campo: 'razao_social', mensagem: 'razao_social ausente' };
+
+  it('RN-INT-01: registros vazios COM linhas_invalidas é aceito (os erros precisam chegar ao BKO)', () => {
+    const r = validarEnvelope(delta({ registros: [], linhas_invalidas: [invalida] }));
+    expect(r.ok).toBe(true);
+  });
+
+  it('RN-INT-01: registros vazios com apenas linhas_invalidas_omitidas > 0 também é aceito', () => {
+    expect(validarEnvelope(delta({ registros: [], linhas_invalidas_omitidas: 4 })).ok).toBe(true);
+  });
+
+  it('RN-INT-01: registros vazios sem nenhuma linha inválida continua sendo lote_vazio', () => {
+    expect(codigos(validarEnvelope(delta({ registros: [], linhas_invalidas: [] })))).toEqual(['lote_vazio']);
+    expect(codigos(validarEnvelope(delta({ registros: [], linhas_invalidas_omitidas: 0 })))).toEqual(['lote_vazio']);
+  });
+
+  it('RN-INT-01/06: carga completa só com linhas inválidas continua exigindo a sessão', () => {
+    expect(codigos(validarEnvelope(delta({ modo: 'completo', registros: [], linhas_invalidas: [invalida] })))).toEqual(['sessao_ausente']);
+    expect(validarEnvelope(delta({ modo: 'completo', registros: [], linhas_invalidas: [invalida], sessao: { id: UUID, parte: 2, ultimo: true } })).ok).toBe(true);
+  });
+
+  it('RN-INT-01: o limite de registros continua valendo mesmo com linhas inválidas', () => {
+    const muitos = Array.from({ length: 5001 }, (_, i) => ({ external_id: `C${i}` }));
+    expect(codigos(validarEnvelope(delta({ registros: muitos, linhas_invalidas: [invalida] })))).toEqual(['acima_do_limite']);
+  });
+});

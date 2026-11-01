@@ -37,7 +37,9 @@ export function validarEnvelope(entrada: unknown, opcoes: OpcoesEnvelope = {}): 
     erros.push({ codigo: 'entidade_desconhecida', campo: 'entidade', mensagem: `Entidade desconhecida. Use uma de: ${Entidade.options.join(', ')}.` });
   }
 
-  if (env.registros.length === 0) {
+  // Exceção da RN-INT-01 (T-0025): lote sem registros mas com linhas inválidas do Conector é aceito — os erros precisam chegar ao BKO.
+  const trazInvalidas = (env.linhas_invalidas?.length ?? 0) > 0 || (env.linhas_invalidas_omitidas ?? 0) > 0;
+  if (env.registros.length === 0 && !trazInvalidas) {
     erros.push({ codigo: 'lote_vazio', campo: 'registros', mensagem: 'O lote não tem registros. Envie ao menos um registro.' });
   } else if (env.registros.length > limite) {
     erros.push({ codigo: 'acima_do_limite', campo: 'registros', mensagem: `O lote tem ${env.registros.length} registros e o limite é ${limite}. Divida em lotes menores (na carga completa, use partes da mesma sessão).` });

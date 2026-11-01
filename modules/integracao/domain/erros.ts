@@ -128,6 +128,11 @@ export interface EntradaResultadoLote {
   inalteradas: number;
   /** Falha do lote inteiro (ex.: banco indisponível) — `falhou` mesmo sem erro por linha. */
   falhaProcessamento?: boolean;
+  /**
+   * T-0025: linhas que o Conector recusou localmente (detalhadas + omitidas). Contam como recebidas e com erro; os índices delas
+   * (posição em `linhas_invalidas`) não se misturam com os de `erros`. Lote só com elas termina `concluido_com_erros`.
+   */
+  invalidas_conector?: number;
 }
 
 export interface ResultadoLote {
@@ -138,19 +143,25 @@ export interface ResultadoLote {
 /**
  * RN-INT-03: `concluido` (nenhuma linha com erro), `concluido_com_erros` (parte) ou `falhou`
  * (todas as linhas efetivas com erro ou falha de processamento). Duplicadas no lote ficam de fora.
+ * Exceção (RN-INT-01, T-0025): lote que só traz linhas inválidas do Conector (nenhum registro a validar) é `concluido_com_erros`,
+ * porque os erros já estão reportados e `falhou` sem erro do Hub faria o Conector bloquear a entidade.
  */
 export function calcularResultadoLote(e: EntradaResultadoLote): ResultadoLote {
-  const linhasComErro = new Set(e.erros.map((x) => x.indice)).size;
-  const efetivas = e.recebidas - e.duplicadas_no_lote;
+  const doConector = Math.max(0, e.invalidas_conector ?? 0);
+  const linhasComErroHub = new Set(e.erros.map((x) => x.indice)).size;
+  const linhasComErro = linhasComErroHub + doConector;
+  const recebidas = e.recebidas + doConector;
+  const efetivasHub = e.recebidas - e.duplicadas_no_lote;
   let status: ResultadoLote['status'];
   if (e.falhaProcessamento) status = 'falhou';
   else if (linhasComErro === 0) status = 'concluido';
-  else if (linhasComErro >= efetivas) status = 'falhou';
+  else if (efetivasHub === 0 && doConector > 0) status = 'concluido_com_erros';
+  else if (linhasComErro >= efetivasHub + doConector) status = 'falhou';
   else status = 'concluido_com_erros';
   return {
     status,
     contagens: {
-      recebidas: e.recebidas,
+      recebidas,
       duplicadas_no_lote: e.duplicadas_no_lote,
       com_erro: linhasComErro,
       novas: e.novas,

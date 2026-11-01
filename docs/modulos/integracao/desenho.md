@@ -4,6 +4,7 @@
 > Escopo: núcleo do Hub em funções puras e contratos Zod. **Sem banco, sem rotas, sem Conector** nesta tarefa.
 > Requisitos: RF-INT-01 (Hub REST), RF-INT-02 (Conector), RF-INT-03 (carga por arquivo), RF-INT-04 (monitor), RF-INT-06 (reconciliação). Regras: RN-INT-01..09 (`docs/produto/03`, seção 9). Fonte do fluxo: `docs/produto/06-integracao-erp.md`.
 > Código: `modules/integracao/contracts` (formato) e `modules/integracao/domain` (decisões).
+> **T-0025 (2026-11-01)**: a especificação HTTP de cada endpoint, a autenticação por chave de Conector, os limites, a ingestão assíncrona, a trava de inativação, a fila de pedidos e as entregas por agente estão em [`hub-api.md`](hub-api.md). Onde este documento e o `hub-api.md` divergirem nas rotas (ex.: o reprocessamento passou para o BKO), vale o `hub-api.md`.
 
 ## 1. Visão
 
@@ -195,7 +196,7 @@ Pedido ao ERP e retorno (RN-INT-08):
 |---|---|---|
 | `POST /integracao/v1/lotes` | Conector / arquivo | envia lote (`LoteEnvelope`); 202 `LoteAceito` ou 4xx `RecusaEnvelope` |
 | `GET /integracao/v1/lotes/{id}` | Conector / BKO | `LoteResultado` com erros por linha |
-| `POST /integracao/v1/lotes/{id}/reprocessar` | BKO | reprocessa linhas reprocessáveis (RF-INT-04) |
+| ~~`POST /integracao/v1/lotes/{id}/reprocessar`~~ → `POST /v1/integracao/lotes/{id}/reprocessar` | BKO (JWT) | reprocessa linhas reprocessáveis (RF-INT-04); T-0025: saiu do prefixo do Hub, que é só do Conector (chave de API) |
 | `GET /integracao/v1/cursores/{entidade}` | Conector | `CursorEntidade` — de onde continuar o delta |
 | `POST /integracao/v1/reconciliacoes` | Conector | `ReconciliacaoEnvio`; devolve `ResultadoReconciliacao` |
 | `GET /integracao/v1/pedidos/pendentes` | Conector | `PedidosPendentes`; marca como `enviado` (poll 1–2 min) |
@@ -221,6 +222,7 @@ Publicados pelo manifesto (`modules/integracao/manifest.ts`), schemas em `contra
 | `integracao.pedido.retorno_erp@1` | cada retorno aceito do ERP | vendedor |
 | `integracao.lote.concluido@1` **(novo)** | lote chegou a `concluido`, `concluido_com_erros` ou `falhou` | monitor / notificações |
 | `integracao.reconciliacao.divergente@1` **(novo)** | divergência acima da tolerância | monitor / notificações |
+| `integracao.lote.recebido@1` **(interno, T-0025)** | `POST /lotes` gravou o lote e o staging | o próprio módulo (aplica o lote em segundo plano; outbox como fila, `hub-api.md` §8) |
 
 Payload de `*.atualizado@1`: `lote_id`, `entidade`, `external_id`, `acao` (`criado` \| `atualizado` \| `inativado`), `hash`, `registro?` (omitido em `inativado`), `ocorrido_em`. Um evento por registro que mudou; reenvio com hash igual **não** publica.
 

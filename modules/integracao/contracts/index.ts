@@ -7,4 +7,6 @@ export * from './entidades';
 export * from './lote';
 export * from './pedido';
 export * from './conector';
+export * from './hub';
+export * from './bko';
 export * from './eventos';
