@@ -4,22 +4,49 @@
  *   aparelho). Perfil de outro app (ex.: supervisor no Campo) não entra: a sessão é encerrada e o aviso diz qual app usar.
  * - Demonstração (`EXPO_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher o usuário numa lista, sem senha. O papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis da variante (`PERFIS_DO_APP`).
- * Embaixo, o endereço do servidor pode ser editado (testado na rota de saúde de cada servidor).
+ * Embaixo, o endereço do servidor pode ser editado. Ele é usado exatamente como digitado (R-20261101-065547-alexandre) e
+ * só é salvo se o servidor se identificar como Macuxi (`testarServidor`, R-20261101-023742-alexandre).
+ * Teclado e área segura (R-20261101-023401 e 023857): `KeyboardAvoidingView` (padding; o Android edge-to-edge não
+ * redimensiona a janela) e o espaço da barra de navegação embaixo do cartão quando o teclado está fechado.
  */
 import { ehAparelhoBloqueado, TelaLogin, type CamposLogin } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
 import { ErroHttp, PERFIS_DO_APP, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { normalizeApiUrl as normalize } from '@/lib/api-url';
+import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
 import { ApiClient, errorMessage } from '@/services/api';
 import { usePlataforma, usuarioDaFaseM } from '@/state/plataforma';
 
 const ORDEM: Perfil[] = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'];
 const ordem = (p: Perfil | null) => (p ? ORDEM.indexOf(p) : ORDEM.length);
+
+/** Teclado aberto? Com ele aberto a barra de navegação fica coberta e o espaço dela não é somado. */
+function useTecladoAberto() {
+  const [aberto, setAberto] = useState(false);
+  useEffect(() => {
+    const mostrou = Keyboard.addListener('keyboardDidShow', () => setAberto(true));
+    const escondeu = Keyboard.addListener('keyboardDidHide', () => setAberto(false));
+    return () => {
+      mostrou.remove();
+      escondeu.remove();
+    };
+  }, []);
+  return aberto;
+}
+
+/** Sobe o conteúdo acima do teclado. `padding` mede o quanto o teclado cobre: se a janela já encolheu, não soma nada. */
+function AcimaDoTeclado({ children }: { children: ReactNode }) {
+  return (
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.ground }} behavior="padding">
+      {children}
+    </KeyboardAvoidingView>
+  );
+}
 
 export default function LoginScreen() {
   const { modo } = usePlataforma();
@@ -30,6 +57,8 @@ export default function LoginScreen() {
 function LoginReal() {
   const { avisoLogin, codigoSalvo, loginComSenha, variante } = usePlataforma();
   const [aviso, setAviso] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
+  const teclado = useTecladoAberto();
   const entrar = async (campos: CamposLogin) => {
     setAviso(null);
     try {
@@ -46,9 +75,9 @@ function LoginReal() {
     }
   };
   return (
-    <View style={{ flex: 1, backgroundColor: colors.ground }}>
+    <AcimaDoTeclado>
       <TelaLogin codigoSalvo={codigoSalvo} onEntrar={entrar} rodape={variante === 'gestao' ? 'Macuxi Gestão · supervisores e gerentes' : 'Macuxi Campo · vendedores e promotores'} />
-      <View style={styles.rodape}>
+      <View style={[styles.rodape, { paddingBottom: 12 + (teclado ? 0 : insets.bottom) }]} testID="login.rodape">
         {avisoLogin ? (
           <Banner icon="alert" tone="danger" testID="login.aparelho-bloqueado">
             {avisoLogin}
@@ -61,7 +90,7 @@ function LoginReal() {
         ) : null}
         <CartaoServidor />
       </View>
-    </View>
+    </AcimaDoTeclado>
   );
 }
 
@@ -71,13 +100,23 @@ function CartaoServidor() {
   const [editing, setEditing] = useState(false);
   const [urlDraft, setUrlDraft] = useState(apiUrl);
   const [urlMsg, setUrlMsg] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testando, setTestando] = useState(false);
 
+  // o endereço é usado como digitado (só sem espaços nas pontas); só salva se o servidor for Macuxi
   const saveUrl = async () => {
-    const res = await testApiUrl(normalize(urlDraft));
-    setUrlMsg(res);
-    if (res.ok) {
-      await setApiUrl(normalize(urlDraft) === defaultApiUrl ? null : normalize(urlDraft));
-      setEditing(false);
+    if (testando) return;
+    const endereco = normalize(urlDraft);
+    setTestando(true);
+    setUrlMsg(null);
+    try {
+      const res = await testApiUrl(endereco);
+      setUrlMsg(res);
+      if (res.ok) {
+        await setApiUrl(endereco === defaultApiUrl ? null : endereco);
+        setEditing(false);
+      }
+    } finally {
+      setTestando(false);
     }
   };
 
@@ -87,7 +126,15 @@ function CartaoServidor() {
         <Icon name="server" size={16} color={colors.ink2} />
         <Text style={[t.label, { flex: 1 }]}>Servidor</Text>
         {!editing ? (
-          <Pressable testID="edit-server" accessibilityRole="button" onPress={() => setEditing(true)} hitSlop={12}>
+          <Pressable
+            testID="edit-server"
+            accessibilityRole="button"
+            onPress={() => {
+              setUrlDraft(apiUrl);
+              setUrlMsg(null);
+              setEditing(true);
+            }}
+            hitSlop={12}>
             <Text style={styles.link}>Alterar</Text>
           </Pressable>
         ) : null}
@@ -100,13 +147,21 @@ function CartaoServidor() {
             onChangeText={setUrlDraft}
             autoCapitalize="none"
             autoCorrect={false}
+            autoFocus
             keyboardType="url"
+            // várias linhas: o endereço longo (túnel) fica inteiro à vista; Enter testa em vez de quebrar linha
+            multiline
+            submitBehavior="blurAndSubmit"
+            returnKeyType="go"
+            onSubmitEditing={() => void saveUrl()}
+            accessibilityLabel="Endereço do servidor"
             style={styles.input}
-            placeholder="http://192.168.0.10:8100/v1"
+            placeholder={EXEMPLO_ENDERECO}
             placeholderTextColor={colors.ink3}
           />
+          <Text style={t.small}>Endereço completo da API, como recebido, terminando em /v1.</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Button label="Testar e salvar" onPress={() => void saveUrl()} variant="dark" style={{ flex: 1 }} />
+            <Button testID="server-save" label="Testar e salvar" loading={testando} onPress={() => void saveUrl()} variant="dark" style={{ flex: 1 }} />
             <Button
               label="Padrão"
               variant="outline"
@@ -118,14 +173,18 @@ function CartaoServidor() {
               }}
             />
           </View>
-          {urlMsg ? <Text style={[t.small, { color: urlMsg.ok ? colors.success : colors.danger }]}>{urlMsg.message}</Text> : null}
         </>
       ) : (
-        <Text style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]} selectable>
+        <Text testID="server-url" style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]} selectable>
           {apiUrl}
           {apiOverride ? '' : '  (padrão)'}
         </Text>
       )}
+      {urlMsg ? (
+        <Text testID="server-msg" accessibilityLiveRegion="polite" style={[t.small, { color: urlMsg.ok ? colors.success : colors.danger }]}>
+          {urlMsg.message}
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -133,6 +192,7 @@ function CartaoServidor() {
 /** Demonstração (mock-api da Fase M): escolher um usuário fictício, sem senha. */
 function LoginDemo() {
   const { apiUrl, loginDemo, variante } = usePlataforma();
+  const insets = useSafeAreaInsets();
   const [users, setUsers] = useState<FakeUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -173,68 +233,70 @@ function LoginDemo() {
   const rotulo = (p: Perfil | null) => (p ? ROTULO_PERFIL[p] : 'Perfil desconhecido');
 
   return (
-    <Screen gap={16} top={36}>
-      <View style={{ gap: 4 }}>
-        <Text style={styles.brand}>MACUXI FDV</Text>
-        <Text style={t.h1}>Quem está entrando?</Text>
-        <Text style={t.sub}>Demonstração: escolha um usuário fictício. Sem senha.</Text>
-      </View>
-
-      {error ? <Banner icon="alert" tone="danger">{`Não foi possível falar com o servidor. ${error}`}</Banner> : null}
-
-      <View style={{ gap: 8 }}>
-        <Text style={styles.group}>{variante === 'gestao' ? 'Supervisores e gerentes' : 'Vendedores e promotores'}</Text>
-        {users === null ? (
-          <ActivityIndicator color={colors.accent} style={{ paddingVertical: 20 }} />
-        ) : (
-          <Card>
-            {sellers.map((u, i) => (
-              <Pressable
-                key={u.id}
-                testID={`user-${u.name}`}
-                accessibilityRole="button"
-                accessibilityLabel={`Entrar como ${u.name}`}
-                onPress={() => void enter(u)}
-                disabled={Boolean(busy)}
-                style={({ pressed }) => [styles.userRow, i < sellers.length - 1 && styles.divider, pressed && { backgroundColor: colors.accentTint }]}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{initials(u.name)}</Text>
-                </View>
-                <View style={{ flex: 1, gap: 1 }}>
-                  <Text style={t.title16}>{u.name}</Text>
-                  <Text style={t.small}>
-                    {rotulo(u.perfil)}
-                    {u.team_name ? ` · ${u.team_name}` : ''}
-                  </Text>
-                </View>
-                {busy === u.id ? <ActivityIndicator color={colors.accent} /> : <Icon name="chevron" size={18} color={colors.ink2} />}
-              </Pressable>
-            ))}
-          </Card>
-        )}
-      </View>
-
-      {others.length > 0 ? (
-        <View style={{ gap: 8 }}>
-          <Text style={styles.group}>Outros perfis</Text>
-          <Card>
-            {others.map((u, i) => (
-              <View key={u.id} style={[styles.userRow, styles.muted, i < others.length - 1 && styles.divider]}>
-                <View style={[styles.avatar, { backgroundColor: colors.neutralBg }]}>
-                  <Text style={[styles.avatarText, { color: colors.neutralInk }]}>{initials(u.name)}</Text>
-                </View>
-                <View style={{ flex: 1, gap: 1 }}>
-                  <Text style={t.bodyStrong}>{u.name}</Text>
-                  <Text style={t.small}>{rotulo(u.perfil)} · usa {u.perfil === 'vendedor' || u.perfil === 'promotor' ? 'o Macuxi Campo' : u.perfil === 'supervisor' || u.perfil === 'gerente' ? 'o Macuxi Gestão ou a web do BKO' : 'a web do BKO'}</Text>
-                </View>
-              </View>
-            ))}
-          </Card>
+    <AcimaDoTeclado>
+      <Screen gap={16} top={36} contentStyle={{ paddingBottom: 20 + insets.bottom }}>
+        <View style={{ gap: 4 }}>
+          <Text style={styles.brand}>MACUXI FDV</Text>
+          <Text style={t.h1}>Quem está entrando?</Text>
+          <Text style={t.sub}>Demonstração: escolha um usuário fictício. Sem senha.</Text>
         </View>
-      ) : null}
 
-      <CartaoServidor />
-    </Screen>
+        {error ? <Banner icon="alert" tone="danger">{`Não foi possível falar com o servidor. ${error}`}</Banner> : null}
+
+        <View style={{ gap: 8 }}>
+          <Text style={styles.group}>{variante === 'gestao' ? 'Supervisores e gerentes' : 'Vendedores e promotores'}</Text>
+          {users === null ? (
+            <ActivityIndicator color={colors.accent} style={{ paddingVertical: 20 }} />
+          ) : (
+            <Card>
+              {sellers.map((u, i) => (
+                <Pressable
+                  key={u.id}
+                  testID={`user-${u.name}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Entrar como ${u.name}`}
+                  onPress={() => void enter(u)}
+                  disabled={Boolean(busy)}
+                  style={({ pressed }) => [styles.userRow, i < sellers.length - 1 && styles.divider, pressed && { backgroundColor: colors.accentTint }]}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{initials(u.name)}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text style={t.title16}>{u.name}</Text>
+                    <Text style={t.small}>
+                      {rotulo(u.perfil)}
+                      {u.team_name ? ` · ${u.team_name}` : ''}
+                    </Text>
+                  </View>
+                  {busy === u.id ? <ActivityIndicator color={colors.accent} /> : <Icon name="chevron" size={18} color={colors.ink2} />}
+                </Pressable>
+              ))}
+            </Card>
+          )}
+        </View>
+
+        {others.length > 0 ? (
+          <View style={{ gap: 8 }}>
+            <Text style={styles.group}>Outros perfis</Text>
+            <Card>
+              {others.map((u, i) => (
+                <View key={u.id} style={[styles.userRow, styles.muted, i < others.length - 1 && styles.divider]}>
+                  <View style={[styles.avatar, { backgroundColor: colors.neutralBg }]}>
+                    <Text style={[styles.avatarText, { color: colors.neutralInk }]}>{initials(u.name)}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text style={t.bodyStrong}>{u.name}</Text>
+                    <Text style={t.small}>{rotulo(u.perfil)} · usa {u.perfil === 'vendedor' || u.perfil === 'promotor' ? 'o Macuxi Campo' : u.perfil === 'supervisor' || u.perfil === 'gerente' ? 'o Macuxi Gestão ou a web do BKO' : 'a web do BKO'}</Text>
+                  </View>
+                </View>
+              ))}
+            </Card>
+          </View>
+        ) : null}
+
+        <CartaoServidor />
+      </Screen>
+    </AcimaDoTeclado>
   );
 }
 
@@ -248,5 +310,5 @@ const styles = StyleSheet.create({
   avatarText: { fontFamily: fonts.displayBold, fontSize: 14, color: '#FFFFFF' },
   link: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accent },
   rodape: { gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
-  input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
+  input: { minHeight: 46, paddingVertical: 10, textAlignVertical: 'center', borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
 });

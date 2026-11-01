@@ -7,7 +7,9 @@
  * montada por `criarShell(...).montar(...)` (registro injetável — pedido do agente de testes).
  */
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { ambienteIndisponivel, type AmbienteAparelho, type ClienteHttp } from '../ambiente';
+import { ambienteIndisponivel, type AmbienteAparelho, type AmbienteModulo, type ClienteHttp } from '../ambiente';
+import { completarAmbiente } from '../consultas';
+import type { ModuloId } from '../nomes';
 import type { EstadoMotorSync, MotorSync } from '../motor-sync';
 import type { VisaoShell } from '../shell';
 import type { ItemExtensao } from '../extensoes';
@@ -15,7 +17,7 @@ import type { ItemExtensao } from '../extensoes';
 interface ValorShell {
   visao: VisaoShell<unknown>;
   motor: MotorSync | null;
-  ambiente: AmbienteAparelho;
+  ambiente: AmbienteModulo;
 }
 
 const Ctx = createContext<ValorShell | null>(null);
@@ -24,7 +26,8 @@ const AMBIENTE_PADRAO = ambienteIndisponivel();
 
 /**
  * `ambiente` padrão: o do motor (app) ou "indisponível" (offline, `http` lança `ErroSemConexao`).
- * O shell web passa o próprio ambiente (sem motor).
+ * O shell web passa o próprio ambiente (sem motor). `consultar` e `parametros` vêm do ambiente dado ou, se ele não os
+ * tiver, do motor (ADR 0012; T-0029 E3); sem motor, consulta indisponível e parâmetros `{}`.
  */
 export function ShellProvider({
   visao,
@@ -37,7 +40,17 @@ export function ShellProvider({
   ambiente?: AmbienteAparelho | null;
   children: ReactNode;
 }) {
-  const valor = useMemo(() => ({ visao, motor, ambiente: ambiente ?? motor?.ambiente ?? AMBIENTE_PADRAO }), [visao, motor, ambiente]);
+  const valor = useMemo(
+    () => ({
+      visao,
+      motor,
+      ambiente: completarAmbiente(ambiente ?? motor?.ambiente ?? AMBIENTE_PADRAO, {
+        consultar: ambiente?.consultar ?? motor?.ambiente.consultar,
+        parametros: ambiente?.parametros ?? motor?.ambiente.parametros,
+      }),
+    }),
+    [visao, motor, ambiente],
+  );
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 
@@ -95,11 +108,17 @@ export function useMotorSync(): { motor: MotorSync | null; estado: EstadoMotorSy
 }
 
 /**
- * Ambiente do aparelho/navegador: `http` (sessão do shell; respeita o modo sem sinal), `online()`, `novoId()`
- * e `usuario()`. Sempre devolve um ambiente: antes do login é o "indisponível" (offline).
+ * Ambiente do aparelho/navegador: `http` (sessão do shell; respeita o modo sem sinal), `online()`, `novoId()`,
+ * `usuario()`, `consultar(def, entrada)` (ADR 0012) e `parametros(modulo)`. Sempre devolve um ambiente: antes do login
+ * é o "indisponível" (offline).
  */
-export function useAmbiente(): AmbienteAparelho {
+export function useAmbiente(): AmbienteModulo {
   return useValor().ambiente;
+}
+
+/** Parâmetros do tenant do módulo (ex.: alçadas do Vendedor), da última sessão: valem offline (T-0029 E3). */
+export function useParametros(modulo: ModuloId): Readonly<Record<string, unknown>> {
+  return useValor().ambiente.parametros(modulo);
 }
 
 /** Atalho para `useAmbiente().http`. */

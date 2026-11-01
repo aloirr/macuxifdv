@@ -13,8 +13,9 @@
 | `produto.acoes` | catalogo | (catálogo, T-0007+) | vendedor |
 | `pedido.criar_em_nome` | vendedor | (vendedor) | gestor |
 
-Itens só aparecem se o módulo registrante e o dono do slot forem efetivos, o perfil bater e a `acao` for permitida
-(ADR 0004); caso contrário somem sem erro (RN-CORE-03).
+Itens só aparecem se o módulo registrante e o dono do slot forem efetivos, o perfil bater, a `acao` for permitida
+(ADR 0004) e, quando o item declara `apps` (T-0029 E4), o app atual estiver na lista; caso contrário somem sem erro (RN-CORE-03).
+Ex.: "Novo pedido" do Vendedor em `cliente.acoes` com `apps: ['campo']` não aparece no Gestão.
 
 > **Sprint 1 — planejado (desenho [T-0016](../../docs/desenho/T-0016.md), aguardando OK do gerente)**
 > - `cliente.abas`: o Vendedor registra a aba **Pedidos** (últimos pedidos, a partir das entidades locais `pedido`/`pedido_item`) — opcional na Sprint 1.

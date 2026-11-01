@@ -5,19 +5,25 @@
  * (papel `macuxi_worker`, ADR 0007) lê daqui depois.
  *
  * Na mesma transação, o comando que referencia uma foto registra a linha `aguardando` em `plataforma.arquivo`
- * (`registrarArquivo`, ADR 0010); o upload (`arquivos.ts`) só a completa.
+ * (`registrarArquivo`, ADR 0010); o upload (`arquivos.ts`) só a completa. Também na mesma transação: a consulta a outro
+ * módulo (`consultar`, ADR 0012: mesmo `ClienteBanco`, tenant e RLS) e a auditoria (`auditar`, RN-AUD-01).
  */
 import {
   CODIGOS_ARQUIVO,
+  ConsultaIndisponivel,
   criarBarramento,
   ErroHttpModulo,
+  executarConsulta,
   validarNovoArquivo,
   type ClienteBanco,
   type EnvelopeEvento,
+  type ImplementacaoConsulta,
+  type LogRota,
   type Manifesto,
   type ModuloId,
   type RegistroConsumo,
   type TransacaoTenant,
+  type UsuarioDaRequisicao,
 } from '@macuxi/platform-sdk';
 
 export async function gravarEvento(db: ClienteBanco, envelope: EnvelopeEvento, agregadoId: string | null): Promise<void> {
@@ -45,6 +51,19 @@ const semConsumo: RegistroConsumo = {
   marcarProcessado: async () => undefined,
 };
 
+/** Consultas implementadas pelos módulos instalados (ADR 0012), por nome. */
+export type RegistroConsultasApi = ReadonlyMap<string, ImplementacaoConsulta>;
+
+/** Monta o registro (a montagem já foi validada por `definirModuloApi` e `validarConjunto`). */
+export function registroDeConsultas(modulos: readonly { consultas?: readonly ImplementacaoConsulta[] }[]): RegistroConsultasApi {
+  const r = new Map<string, ImplementacaoConsulta>();
+  for (const m of modulos) for (const c of m.consultas ?? []) r.set(c.consulta.nome, c);
+  return r;
+}
+
+/** Logger com `child` (pino); o tipo do SDK não exige. */
+type LogComFilho = LogRota & { child?: (b: Record<string, unknown>) => LogRota };
+
 export interface OrigemTransacao {
   manifestos: readonly Manifesto[];
   /** Módulo da rota (quem publica). `null` = rota da plataforma, que não publica evento de módulo. */
@@ -53,7 +72,15 @@ export interface OrigemTransacao {
   usuarioId: string;
   requestId: string;
   agora: () => Date;
+  /** Para `consultar` (ADR 0012): usuário com os módulos efetivos AGORA, consultas instaladas, parâmetros e log. */
+  usuario?: UsuarioDaRequisicao;
+  consultas?: RegistroConsultasApi;
+  parametros?: (modulo: ModuloId) => Readonly<Record<string, unknown>>;
+  log?: LogComFilho;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const logMudo: LogRota = { info: () => undefined, warn: () => undefined, error: () => undefined };
 
 export interface OrigemPublicacao {
   manifestos: readonly Manifesto[];
@@ -82,6 +109,43 @@ export function publicadorTenant(db: ClienteBanco, o: OrigemPublicacao): Transac
 export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): TransacaoTenant {
   return {
     publicar: publicadorTenant(db, o),
+    async consultar(def, entrada) {
+      if (!o.modulo) throw new Error('Rota da plataforma não usa consulta de módulo');
+      const quem = o.manifestos.find((m) => m.id === o.modulo);
+      if (!quem?.usaConsultas.includes(def.nome))
+        throw new Error(`Consulta ${def.nome}: ${o.modulo} não a declara em usaConsultas do manifesto (ADR 0012)`);
+      const impl = o.consultas?.get(def.nome);
+      // dono não instalado (opcional) ou inativo para o usuário agora (licença, RN-CORE-02/03)
+      if (!impl || !o.usuario || !o.usuario.modulos.includes(def.modulo)) throw new ConsultaIndisponivel(def.nome, def.modulo);
+      const usuario = o.usuario;
+      const base = o.log ?? logMudo;
+      // log da consulta: dono, consulta e request_id; nunca a entrada nem a saída
+      const log = (base as LogComFilho).child?.({ modulo: def.modulo, consulta: def.nome, consumidor: o.modulo }) ?? base;
+      return executarConsulta(def, entrada, (e) =>
+        impl.executar(e, { db, usuario, requestId: o.requestId, agora: o.agora, parametros: () => o.parametros?.(def.modulo) ?? {}, log }),
+      );
+    },
+    async auditar(r) {
+      if (!o.modulo) throw new Error('Rota da plataforma não audita fato de módulo');
+      if (!r.acao.trim() || !r.entidade.trim()) throw new Error('auditar: informe acao e entidade');
+      if (r.entidade_id !== null && !UUID_RE.test(r.entidade_id)) throw new Error('auditar: entidade_id precisa ser UUID (ou null)');
+      await db.query(
+        `insert into plataforma.auditoria (tenant_id, usuario_id, modulo, acao, entidade, entidade_id, antes, depois, request_id, ocorrido_em)
+         values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10)`,
+        [
+          o.tenantId,
+          o.usuarioId,
+          o.modulo,
+          r.acao,
+          r.entidade,
+          r.entidade_id?.toLowerCase() ?? null,
+          r.antes === undefined ? null : JSON.stringify(r.antes),
+          r.depois === undefined ? null : JSON.stringify(r.depois),
+          o.requestId,
+          o.agora().toISOString(),
+        ],
+      );
+    },
     async registrarArquivo(a) {
       if (!o.modulo) throw new Error('Rota da plataforma não registra arquivo de módulo');
       const problemas = validarNovoArquivo(a);

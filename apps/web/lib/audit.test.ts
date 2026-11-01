@@ -35,4 +35,11 @@ describe('resumo da auditoria', () => {
     expect(actionLabel('export_payout')).toBe('exportou para o RH');
     expect(entityLabel('xyz')).toBe('xyz');
   });
+
+  it('RN-AUD-01 (API nova): ação `<entidade>.<verbo>` e entidade em português', () => {
+    expect(actionLabel('rota.editar')).toBe('alterou');
+    expect(actionLabel('cliente.aprovar_coordenada')).toBe('aprovou a coordenada');
+    expect(actionLabel('x.desconhecida')).toBe('x.desconhecida');
+    expect(entityLabel('dispositivo')).toBe('Aparelho');
+  });
 });

@@ -19,6 +19,7 @@
 | `vendedor.pedido.status_alterado@1` | vendedor | gestor, integracao, core (metas) |
 | `vendedor.pedido.aprovacao_solicitada@1` | vendedor | gestor |
 | `vendedor.pedido.faturado@1` | vendedor | treinamento (desafio de vendas, RN-TRE), gestor e core (metas; a declarar) |
+| `vendedor.pedido.aprovado@1` | vendedor | integracao (fila de exportação ao ERP, RN-INT-08; a declarar). **Aprovado** (T-0029, ADR 0011 aceita em 2026-11-01; o manifesto do Vendedor passa a publicar na onda 2) |
 | `promotor.visita_loja.concluida@1` | promotor | gestor |
 | `promotor.gondola.registrada@1` | promotor | gestor |
 | `promotor.share.medido@1` | promotor | gestor |
@@ -82,3 +83,13 @@
 > - O Core passa a consumir, quando houver despachante: `vendedor.pedido.faturado@1` e `vendedor.pedido.status_alterado@1`
 >   (metas, RN-CORE-21), `vendedor.pedido.criado@1` (notificação do pedido em nome, RN-VEN-35) e
 >   `treinamento.medalha.conquistada@1` (notificação).
+
+> **Pedido no servidor — contratos aprovados (desenho [T-0029](../../docs/desenho/T-0029.md) §3.4, ADR 0011 aceita em 2026-11-01)**.
+> Schemas em `modules/vendedor/contracts/eventos.ts` (modulo-vendedor). Status sempre no vocabulário do doc 03 (RN-VEN-30), mapeado de
+> `ORDER_STATUSES` por `statusDoContrato`; nenhum nome, documento ou endereço no payload.
+> - `vendedor.pedido.criado@1`: formato do espelho do Gestor (`PedidoCriadoV1`) + `status`.
+> - `vendedor.pedido.status_alterado@1`: `{ pedido_id, vendedor_id, de, para, alterado_em, autor_id, motivo }`, um por transição
+>   (no recebimento: `null → recebido` e `recebido → aprovado | em_aprovacao`).
+> - `vendedor.pedido.aprovacao_solicitada@1`: formato do espelho do Gestor (`AprovacaoSolicitadaV1`); `credito` e `historico` nulos na fatia.
+> - `vendedor.pedido.aprovado@1` (novo): o `PedidoAprovadoParaFila` pedido pelo Hub (R-20261101-044224-3), publicado quando o pedido vira
+>   aprovado (automático dentro da alçada ou por decisão); chaves do ERP anuláveis.

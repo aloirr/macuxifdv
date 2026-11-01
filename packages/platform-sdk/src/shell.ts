@@ -9,7 +9,7 @@
  * Genérico no tipo do componente (`C`): React (web) e React Native (app) usam o mesmo registro;
  * aqui não há React — os testes rodam em Node.
  */
-import { ordenarPorDependencia, type Manifesto } from './manifesto';
+import { ordenarPorDependencia, problemasDasConsultas, type Manifesto } from './manifesto';
 import type { AppId, ModuloId, Perfil } from './nomes';
 import { criarPermissoes, type Permissoes } from './permissoes';
 import type { EtapaSync } from './motor-sync';
@@ -18,6 +18,7 @@ import { criarRegistroSync } from './sync';
 import { criarRegistroExtensoes, type ItemExtensao } from './extensoes';
 import type { IndiceBusca } from './busca';
 import { validarMigracoes, type MigracaoAparelho } from './sqlite/esquema';
+import { criarRegistroConsultasAparelho, type ImplementacaoConsultaAparelho } from './consultas';
 
 export type AppShell = Exclude<AppId, 'conector'>;
 
@@ -65,6 +66,12 @@ export interface ModuloShell<C> {
   migracoesAparelho?: readonly MigracaoAparelho[];
   /** Índices de busca textual do módulo (`definirIndiceBusca`; tabelas criadas pelas `migracoesAparelho`). */
   indicesBusca?: readonly IndiceBusca[];
+  /**
+   * Consultas que o módulo responde NO APARELHO (ADR 0012), sobre as próprias linhas locais: precisam estar em
+   * `ofereceConsultas`. Opcional por consulta: a que só existe na API (ex.: `core.cadastro_resumo@1`) dá
+   * `ConsultaIndisponivel` no aparelho.
+   */
+  consultas?: readonly ImplementacaoConsultaAparelho[];
 }
 
 /** Item de extensão de UI registrado por um módulo (o `payload` é tipado pelo contrato do slot, no contracts do dono). */
@@ -152,6 +159,8 @@ export function criarShell<C>(app: AppShell, modulos: readonly ModuloShell<C>[])
       }
       if (item.acao && !permissoes.conhece(item.acao)) problemas.push(`${m.manifesto.id}/${item.id}: ação ${item.acao} não declarada em nenhum manifesto`);
       if (!extensoes.donoDoSlot(slot)) continue;
+      // E4 (T-0029): item de outro app nem entra no registro desta variante
+      if (item.apps && !item.apps.includes(app)) continue;
       extensoes.registrar(slot, { ...resto, modulo: m.manifesto.id });
     }
   }
@@ -182,6 +191,10 @@ export function criarShell<C>(app: AppShell, modulos: readonly ModuloShell<C>[])
       indicesBusca.push(i);
     }
   }
+  // consultas entre módulos (ADR 0012): usadas × oferecidas no conjunto e implementações do aparelho
+  problemas.push(...problemasDasConsultas(manifestos));
+  const consultas = criarRegistroConsultasAparelho(modulos);
+  problemas.push(...consultas.problemas);
   if (problemas.length > 0) throw new Error(`Shell ${app} inconsistente: ${problemas.join('; ')}`);
 
   const etapas = modulos.flatMap((m) => m.etapasSync ?? []);
@@ -195,6 +208,8 @@ export function criarShell<C>(app: AppShell, modulos: readonly ModuloShell<C>[])
     /** Para o adaptador SQLite do aparelho (`criarArmazenamentoSqlite`). */
     migracoesAparelho,
     indicesBusca: indicesBusca as readonly IndiceBusca[],
+    /** Para o motor do aparelho (`criarMotorSync({ consultas })`): executa `ambiente.consultar`. */
+    consultas: consultas.registro,
     /** Visão do usuário: só módulos efetivos, desta variante, do perfil e com permissão. */
     montar(ctx: Omit<ContextoShell, 'app'>): VisaoShell<C> {
       return montarVisao(app, modulos, permissoes, extensoes, ctx);
@@ -263,6 +278,6 @@ function montarVisao<C>(
     pagina: (caminho) => visiveis.get(caminho.replace(/^\/+/, '')) ?? null,
     pode,
     extensoes: <P,>(slot: string) =>
-      extensoes.listar(slot, { modulosAtivos: ativos, perfil: ctx.perfil ?? undefined, pode }) as ItemExtensao<P>[],
+      extensoes.listar(slot, { app, modulosAtivos: ativos, perfil: ctx.perfil ?? undefined, pode }) as ItemExtensao<P>[],
   };
 }

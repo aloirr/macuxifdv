@@ -4,7 +4,7 @@
  * o shell LISTA só o que vem de módulos efetivos — se o dono ou o registrante estiver inativo, o item
  * some sem erro (RN-CORE-03). O tipo do payload de cada slot fica em `contracts` do dono.
  */
-import type { ModuloId, Perfil } from './nomes';
+import type { AppId, ModuloId, Perfil } from './nomes';
 import { EXTENSAO_RE } from './nomes';
 
 export interface ItemExtensao<P> {
@@ -17,6 +17,11 @@ export interface ItemExtensao<P> {
   /** Restringe a perfis (padrão: todos os perfis do módulo). */
   perfis?: readonly Perfil[];
   /**
+   * Só nestes apps (como `PaginaShell.apps`; padrão: todos). Ex.: "Novo pedido" em `cliente.acoes` com `['campo']`:
+   * no Gestão o supervisor tem `pedido.criar` (pedido em nome), mas a tela não é montada lá (desenho T-0029 §7).
+   */
+  apps?: readonly Exclude<AppId, 'conector'>[];
+  /**
    * Ação exigida (ADR 0004), ex.: 'pedido.criar'. O item só aparece se `filtro.pode(acao)` for verdadeiro;
    * sem `pode` no filtro, item com ação fica escondido (falha fechada — RN-PRO-01).
    */
@@ -27,6 +32,8 @@ export interface ItemExtensao<P> {
 
 export interface FiltroExtensao {
   modulosAtivos: Iterable<ModuloId>;
+  /** App que lista (o shell passa sempre); item com `apps` que não o inclui some. */
+  app?: Exclude<AppId, 'conector'>;
   perfil?: Perfil;
   /** Permissão por ação do usuário (`criarPermissoes(...).pode` já ligado ao contexto). */
   pode?: (acao: string) => boolean;
@@ -64,6 +71,7 @@ export function criarRegistroExtensoes<S extends Record<string, unknown> = Recor
       if (!dono || !ativos.has(dono)) return [];
       return (itens.get(slot) ?? [])
         .filter((i) => ativos.has(i.modulo))
+        .filter((i) => !filtro.app || !i.apps || i.apps.includes(filtro.app))
         .filter((i) => !filtro.perfil || !i.perfis || i.perfis.includes(filtro.perfil))
         .filter((i) => !i.acao || (filtro.pode ? filtro.pode(i.acao) : false))
         .sort((a, b) => (a.ordem ?? 100) - (b.ordem ?? 100) || a.modulo.localeCompare(b.modulo) || a.id.localeCompare(b.id))

@@ -8,6 +8,9 @@ build/
 .expo/
 .turbo/
 coverage/
+# Saída do Playwright (pnpm test:e2e, T-0030): traces e relatório locais
+test-results/
+playwright-report/
 # Bytes das fotos enviadas pelo aparelho no adaptador de disco da API (ADR 0010; MACUXI_ARQUIVOS_DIR)
 .dados/
 *.log

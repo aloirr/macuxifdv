@@ -3,22 +3,25 @@
  *
  * Monta, para cada módulo instalado (`MODULOS_API`), as rotas declaradas em `definirModuloApi` sob
  * `/v1/<modulo>/<caminho>`; as rotas públicas do Core sob `/v1/<caminho>`; e as rotas da plataforma:
- * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/pull`, `POST /v1/sync/push` e `PUT|GET /v1/arquivos/:id` (ADR 0010).
+ * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/pull`, `POST /v1/sync/push`, `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
  *
  * Toda rota autenticada passa por `prepararRequisicao` (401 → licença 403 MODULO_INATIVO → perfil/ação
  * 403 PERFIL_SEM_ACESSO → Zod 400 → carteira 403 FORA_DA_CARTEIRA). Os módulos efetivos são calculados
  * por requisição (RN-CORE-01/03, `modulosEfetivos` do SDK) a partir da fonte de licenças. Banco só por
  * `comTenant` com o tenant do token (papel macuxi_app). Corpo de erro: `ErroApiSchema` `{ codigo, mensagem, detalhes? }`;
  * o status do erro do módulo é o do `ErroHttpModulo` (401/403/404/409/410/422/423/503) e `ctx.dependencias` traz o
- * `depende` de todos os manifestos instalados (RN-CORE-03).
+ * `depende` de todos os manifestos instalados (RN-CORE-03). `ctx.parametros()` = parâmetros do tenant do módulo da rota;
+ * `tx.consultar` liga as consultas dos módulos instalados (ADR 0012) e `tx.auditar` grava a auditoria (RN-AUD-01).
  *
  * Proteção do Zod (GHSA-mrhx-c7xc-m3w5: o Zod acumula um problema por elemento inválido de array, sem teto): todo corpo
  * JSON com mais de `MAX_ELEMENTOS_CORPO` elementos de array (somados, em qualquer profundidade) é recusado com 413
  * ANTES de qualquer schema, e a resposta 400 lista no máximo `MAX_PROBLEMAS_RESPOSTA` problemas.
  */
 import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { erroModuloInativo, MeusModulosRespostaSchema, ROTA_ME_MODULOS, type MeusModulosResposta } from '@macuxi/core/contracts';
 import {
+  consultasSemImplementacao,
   corpoDoErro,
   corpoDoErroModulo,
   retryAfterDoErroModulo,
@@ -28,6 +31,8 @@ import {
   escopoDoPerfil,
   modulosEfetivos,
   promotorBarradoNaRota,
+  SaudeRespostaSchema,
+  SERVICO_API_MACUXI,
   validarConjunto,
   verificarAcao,
   verificarAcesso,
@@ -50,8 +55,9 @@ import type { BancoApp } from './banco';
 import { criarLimitador } from './limitador';
 import { licencasDoBanco, type FonteLicencas } from './licencas';
 import { MODULOS_API } from './modulos';
-import { transacaoTenant } from './outbox';
+import { registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
+import { registrarAuditoria } from './auditoria';
 import { registrarSync } from './sync';
 import type { Plataforma } from './tipos';
 import { ErroHttp } from './erros';
@@ -81,7 +87,12 @@ export interface OpcoesApp {
    * desligado (`req.ip` = quem abriu a conexão).
    */
   trustProxy?: FastifyServerOptions['trustProxy'];
+  /** Versão devolvida em `GET /v1/saude` (padrão: `MACUXI_VERSAO` ou a versão do package.json da API). */
+  versao?: string;
 }
+
+/** Versão do pacote da API (package.json), lida uma vez. */
+export const VERSAO_API: string = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** Teto de elementos de array num corpo JSON (push: 500 itens × payload; lote do Hub: até 5.000 linhas). */
 export const MAX_ELEMENTOS_CORPO = 50_000;
@@ -143,11 +154,13 @@ function versaoLicencas(r: Pick<MeusModulosResposta, 'modulos'>): string {
 export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const modulos = op.modulos ?? MODULOS_API;
   const manifestos = modulos.map((m) => m.manifesto);
-  const problemas = validarConjunto(manifestos);
+  // ADR 0012: na API real, toda consulta oferecida tem implementação (fixtures de teste podem trocar um módulo sem as dele)
+  const problemas = [...validarConjunto(manifestos), ...(op.modulos ? [] : consultasSemImplementacao(modulos))];
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
   const dependencias = dependenciasDosManifestos(manifestos);
   const porId = new Map(modulos.map((m) => [m.manifesto.id, m] as const));
+  const consultas = registroDeConsultas(modulos);
   const core = porId.get('core');
   const banco = op.banco ?? null;
   const acesso: AcessoBanco = banco ?? acessoIndisponivel;
@@ -214,6 +227,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     const usuario: UsuarioDaRequisicao = { id: token.id, tenant_id: token.tenant_id, perfil: token.perfil, modulos: efetivos };
     let carteira: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     let usuariosVisiveis: Promise<ReadonlySet<string> | 'tenant'> | null = null;
+    // parâmetros do tenant (`plataforma.parametro`) lidos junto com as licenças, por requisição (T-0029 E3)
+    const parametros = (m: ModuloId): Readonly<Record<string, unknown>> => licencas.parametros[m] ?? {};
     const contexto = (m: ModuloId | null): ContextoBase => ({
       usuario,
       dependencias,
@@ -221,11 +236,26 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       agora: relogio,
       comTenant: (fn) =>
         acesso.comTenant(usuario.tenant_id, (db) =>
-          fn(db, transacaoTenant(db, { manifestos, modulo: m, tenantId: usuario.tenant_id, usuarioId: usuario.id, requestId: req.id, agora: relogio })),
+          fn(
+            db,
+            transacaoTenant(db, {
+              manifestos,
+              modulo: m,
+              tenantId: usuario.tenant_id,
+              usuarioId: usuario.id,
+              requestId: req.id,
+              agora: relogio,
+              usuario,
+              consultas,
+              parametros,
+              log: req.log.child({ tenant_id: usuario.tenant_id, request_id: req.id }),
+            }),
+          ),
         ),
       carteira: () => (carteira ??= carteiraDe(token, acesso)),
       // o próprio usuário sempre está no conjunto, mesmo que o serviço o omita
       usuariosVisiveis: () => (usuariosVisiveis ??= usuariosDe(token, acesso).then((v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])))),
+      parametros: () => (m ? parametros(m) : {}),
       log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id }),
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto };
@@ -234,7 +264,9 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const plataforma: Plataforma = { manifestos, modulos, permissoes, preparar, relogio, banco };
 
   // ---------- plataforma ----------
-  app.get('/v1/saude', async () => ({ ok: true, modulos: manifestos.map((m) => m.id) }));
+  // identificação verificável (R-20261101-023742-alexandre): o app só salva o servidor e só envia o login se `servico` for macuxi-api
+  const saude = SaudeRespostaSchema.parse({ ok: true, servico: SERVICO_API_MACUXI, versao: op.versao ?? (process.env.MACUXI_VERSAO || VERSAO_API), modulos: manifestos.map((m) => m.id) });
+  app.get('/v1/saude', async () => saude);
 
   app.get(ROTA_ME_MODULOS, async (req) => {
     const { ctx, licencas } = await preparar(req, 'core');
@@ -245,6 +277,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   registrarSync(app, plataforma);
   registrarArquivos(app, plataforma, op.arquivos ?? null);
+  registrarAuditoria(app, plataforma);
 
   // ---------- rotas dos módulos ----------
   for (const m of modulos) {

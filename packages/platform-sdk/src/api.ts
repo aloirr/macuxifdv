@@ -21,6 +21,7 @@
 import type { z } from 'zod';
 import type { MetodoHttp } from './ambiente';
 import type { NovoArquivo } from './arquivos';
+import type { DefinicaoConsulta } from './consultas-tipos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
 import {
@@ -88,6 +89,28 @@ export interface TransacaoTenant {
    * `ARQUIVO_JA_REFERENCIADO`. Dados inválidos (`validarNovoArquivo`) = erro de programação (exceção).
    */
   registrarArquivo(arquivo: NovoArquivo): Promise<{ criado: boolean }>;
+  /**
+   * ADR 0012: consulta a outro módulo NA MESMA transação (mesmo tenant, RLS, papel macuxi_app). Só consultas em
+   * `usaConsultas` do manifesto do módulo da rota (fora disso = erro de programação). Entrada e saída validadas pelo
+   * contrato. Dono inativo para o usuário ou não instalado → `ConsultaIndisponivel` (503 se não tratada).
+   */
+  consultar<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(def: DefinicaoConsulta<E, S>, entrada: z.input<E>): Promise<z.output<S>>;
+  /**
+   * RN-AUD-01: grava em `plataforma.auditoria` NA MESMA transação do fato, com o módulo da rota, o usuário e o
+   * `request_id`. `antes`/`depois` só com ids, códigos, status e valores — nunca nome, documento, e-mail ou telefone.
+   */
+  auditar(registro: RegistroAuditoria): Promise<void>;
+}
+
+/** Linha de auditoria (RN-AUD-01). `entidade_id` = UUID da entidade (ou `null`). */
+export interface RegistroAuditoria {
+  /** O que foi feito, ex.: `pedido.aprovar`. */
+  acao: string;
+  /** Entidade tocada, ex.: `pedido`. */
+  entidade: string;
+  entidade_id: string | null;
+  antes?: unknown;
+  depois?: unknown;
 }
 
 /** O que toda rota (e todo provedor de sync) recebe. */
@@ -118,8 +141,40 @@ export interface ContextoBase {
    * id quando é conjunto. Calculado uma vez por requisição.
    */
   usuariosVisiveis(): Promise<ReadonlySet<string> | 'tenant'>;
+  /**
+   * Parâmetros do tenant para o módulo da rota/provedor (`plataforma.parametro`, lidos a cada requisição junto com as
+   * licenças; doc 03 "Parâmetros do tenant"). Ex.: alçadas do Vendedor. Rota da plataforma = `{}`.
+   */
+  parametros(): Readonly<Record<string, unknown>>;
   /** Logger da requisição (já leva tenant_id, modulo e request_id; nunca registre dado pessoal). */
   log: LogRota;
+}
+
+/**
+ * O que a implementação de uma consulta (ADR 0012) recebe na API: o MESMO `ClienteBanco` de quem consulta (mesma
+ * transação, tenant e RLS), o usuário e o relógio da requisição, os parâmetros do tenant para o módulo DONO e um log
+ * com `modulo` (dono), `consulta` e `request_id`. Faça SQL só no schema do próprio módulo; sem escrita e sem evento.
+ */
+export interface ContextoConsulta {
+  db: ClienteBanco;
+  usuario: UsuarioDaRequisicao;
+  requestId: string;
+  agora(): Date;
+  parametros(): Readonly<Record<string, unknown>>;
+  log: LogRota;
+}
+
+export interface ImplementacaoConsulta<E extends z.ZodTypeAny = z.ZodTypeAny, S extends z.ZodTypeAny = z.ZodTypeAny> {
+  consulta: DefinicaoConsulta<E, S>;
+  executar(entrada: z.output<E>, ctx: ContextoConsulta): Promise<z.input<S>>;
+}
+
+/** Implementação na API (`ModuloApi.consultas` do dono): `implementarConsulta(def, async (entrada, ctx) => saida)`. */
+export function implementarConsulta<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(
+  consulta: DefinicaoConsulta<E, S>,
+  executar: (entrada: z.output<E>, ctx: ContextoConsulta) => Promise<z.input<S>>,
+): ImplementacaoConsulta {
+  return { consulta, executar } as unknown as ImplementacaoConsulta;
 }
 
 export interface ContextoRota<C = unknown, Q = unknown, P = unknown> extends ContextoBase {
@@ -289,6 +344,8 @@ export interface ModuloApi {
   servicos?: ServicosCore;
   /** Eventos que o módulo consome, entregues pelo despachante da outbox (ADR 0007; `apps/api/src/despachante.ts`). */
   consumidores?: readonly ConsumidorEvento[];
+  /** Consultas que o módulo oferece (ADR 0012): uma por nome de `ofereceConsultas`, todas implementadas. */
+  consultas?: readonly ImplementacaoConsulta[];
 }
 
 /**
@@ -359,6 +416,18 @@ export function retryAfterDoErroModulo(e: ErroHttpModulo): number | null {
   return typeof s === 'number' && Number.isInteger(s) && s > 0 ? s : null;
 }
 
+/**
+ * ADR 0012: consultas em `ofereceConsultas` sem implementação em `ModuloApi.consultas`, no conjunto instalado. A API real
+ * (`createApp` com os módulos do produto) não sobe com alguma; com módulos de fixture, a consulta faltante só fica
+ * `ConsultaIndisponivel` em tempo de execução.
+ */
+export function consultasSemImplementacao(modulos: readonly Pick<ModuloApi, 'manifesto' | 'consultas'>[]): string[] {
+  return modulos.flatMap((m) => {
+    const feitas = new Set((m.consultas ?? []).map((c) => c.consulta.nome));
+    return m.manifesto.ofereceConsultas.filter((n) => !feitas.has(n)).map((n) => `${m.manifesto.id}: consulta ${n} oferecida no manifesto sem implementação em "consultas"`);
+  });
+}
+
 /** Módulo → `depende` do manifesto, para `ctx.dependencias` (RN-CORE-03). */
 export function dependenciasDosManifestos(
   manifestos: readonly Pick<Manifesto, 'id' | 'depende'>[],
@@ -392,7 +461,10 @@ export function promotorBarradoNaRota(rota: Pick<RotaModulo, 'metodo' | 'caminho
  * caminho fora do padrão ou repetido; rota de escrita sem `acao`; ação não declarada no manifesto do
  * próprio módulo; `perfis` fora dos perfis do módulo; rota de pedido aceitando promotor por `perfis` (RN-PRO-01;
  * a leitura do promotor só vem por `acao` de leitura); ação de leitura de pedido em método que não é GET;
- * entidade de sync fora do `sync` do manifesto ou de outro módulo; consumidor de evento fora de `consome` ou repetido.
+ * entidade de sync fora do `sync` do manifesto ou de outro módulo; consumidor de evento fora de `consome` ou repetido;
+ * consulta implementada fora de `ofereceConsultas`, de outro módulo ou repetida (ADR 0012). Consulta oferecida sem
+ * implementação é checada na montagem da API real (`consultasSemImplementacao`), não aqui: teste que troca um módulo por
+ * uma fixture com rotas de exemplo não precisa reimplementar as consultas dele.
  */
 export function definirModuloApi(m: ModuloApi): ModuloApi {
   const id = m.manifesto.id;
@@ -453,6 +525,14 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     if (!m.manifesto.consome.includes(nome)) problemas.push(`consumidor ${nome}: não está em "consome" do manifesto de ${id}`);
     if (assinados.has(nome)) problemas.push(`consumidor ${nome}: repetido (um por evento e módulo)`);
     assinados.add(nome);
+  }
+  const implementadas = new Set<string>();
+  for (const c of m.consultas ?? []) {
+    const nome = c.consulta.nome;
+    if (c.consulta.modulo !== id) problemas.push(`consulta ${nome}: é de ${c.consulta.modulo}, implementada por ${id}`);
+    else if (!m.manifesto.ofereceConsultas.includes(nome)) problemas.push(`consulta ${nome}: não está em "ofereceConsultas" do manifesto de ${id}`);
+    if (implementadas.has(nome)) problemas.push(`consulta ${nome}: implementação repetida`);
+    implementadas.add(nome);
   }
   if (id !== 'core' && (m.rotasPublicas?.length || m.servicos))
     problemas.push('só o core declara rotas públicas e serviços de plataforma');

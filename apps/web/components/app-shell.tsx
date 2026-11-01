@@ -18,6 +18,7 @@ import { ShellProvider } from '@macuxi/platform-sdk/react';
 import { errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
 import { Button, cx, ErrorBlock, IconLogout, LoadingBlock, Notice } from '@macuxi/ui/web';
 import { criarAmbienteWeb } from '@/lib/ambiente';
+import { estadoDoConteudo } from '@/lib/estado-shell';
 import { SHELL_WEB, type ComponentePagina } from '@/lib/modulos';
 import { useMe, useModulosEfetivos } from '@/lib/queries';
 import { encerrarSessao, useSessao } from '@/lib/session';
@@ -93,6 +94,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (session.status === 'anonymous') router.replace(`/login?next=${encodeURIComponent(pathname)}`);
   }, [session.status, router, pathname]);
 
+  // menu: só o Core enquanto `/v1/me/modulos` carrega; o miolo (páginas, que decidem 404) espera os efetivos (D-B30)
   const visao = useMemo(() => SHELL_WEB.montar({ perfil, modulosAtivos: modulos.data ?? ['core'] }), [perfil, modulos.data]);
   const usuario = session.user;
   const ambiente = useMemo(() => criarAmbienteWeb(() => (usuario ? { id: usuario.id, nome: usuario.name, perfil: usuario.perfil } : null)), [usuario]);
@@ -119,6 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const grupos = gruposDoMenu(visao, perfil);
   const todos = grupos.flatMap((g) => g.itens);
+  const conteudo = estadoDoConteudo({ erroMe: MODO_API === 'demo' && me.isError, perfilUsaWeb: perfilUsaApp(perfil, 'web'), modulos });
 
   return (
     <div className="flex min-h-screen flex-col bg-ground md:flex-row">
@@ -167,9 +170,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <main className="flex min-w-0 flex-1 flex-col gap-5 px-4 pt-5 pb-10 md:px-8 md:pt-7">
-        {MODO_API === 'demo' && me.isError ? (
+        {conteudo === 'erro_me' ? (
           <ErrorBlock message={errorMessage(me.error)} onRetry={() => void me.refetch()} />
-        ) : !perfilUsaApp(perfil, 'web') ? (
+        ) : conteudo === 'perfil_fora_do_bko' ? (
           <Notice tone="info">
             {perfil ? `O perfil ${roleLabel.toLowerCase()} usa o app Macuxi Campo no celular.` : 'Perfil não reconhecido.'} O backoffice é para admin, analista, assistente,
             supervisor e gerente.{' '}
@@ -177,8 +180,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               Trocar perfil
             </Button>
           </Notice>
-        ) : modulos.isError ? (
+        ) : conteudo === 'erro_modulos' ? (
           <ErrorBlock message={errorMessage(modulos.error)} onRetry={() => void modulos.refetch()} />
+        ) : conteudo === 'carregando_modulos' ? (
+          <div data-testid="shell-carregando-modulos">
+            <LoadingBlock label="Carregando…" />
+          </div>
         ) : (
           <ShellProvider visao={visao as VisaoShell<unknown>} ambiente={ambiente}>
             {children}

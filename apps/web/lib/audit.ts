@@ -13,6 +13,18 @@ export const ENTITY_LABEL: Record<string, string> = {
   goal: 'Meta',
   route_plan: 'Rota',
   visit: 'Visita',
+  // API nova (`tx.auditar` / auditoria do Core, RN-AUD-01): entidades em português
+  pedido: 'Pedido',
+  alcada: 'Alçadas de desconto',
+  rota: 'Rota',
+  meta: 'Meta',
+  carteira: 'Carteira',
+  cliente: 'Cliente',
+  motivo: 'Motivo de não venda',
+  dispositivo: 'Aparelho',
+  notificacao: 'Notificação',
+  licenca: 'Licença de módulo',
+  parametro: 'Parâmetro',
 };
 
 export const ACTION_LABEL: Record<string, string> = {
@@ -26,10 +38,25 @@ export const ACTION_LABEL: Record<string, string> = {
   export_payout: 'exportou para o RH',
   create_version: 'criou nova versão',
   checkin: 'fez check-in',
+  // API nova: `<entidade>.<verbo>` → rótulo do verbo
+  criar: 'criou',
+  editar: 'alterou',
+  remover: 'removeu',
+  aprovar: 'aprovou',
+  recusar: 'recusou',
+  copiar: 'copiou',
+  gerar: 'gerou',
+  vincular: 'vinculou',
+  desvincular: 'desvinculou',
+  bloquear: 'bloqueou',
+  desbloquear: 'desbloqueou',
+  enviar: 'enviou',
+  aprovar_coordenada: 'aprovou a coordenada',
 };
 
 export const entityLabel = (e: string) => ENTITY_LABEL[e] ?? e;
-export const actionLabel = (a: string) => ACTION_LABEL[a] ?? a;
+/** Fase M (`approve`) ou API nova (`pedido.aprovar` → rótulo de `aprovar`). */
+export const actionLabel = (a: string) => ACTION_LABEL[a] ?? ACTION_LABEL[a.split('.').at(-1) ?? ''] ?? a;
 
 const KEY_LABEL: Record<string, string> = {
   status: 'status',
@@ -63,12 +90,19 @@ const KEY_LABEL: Record<string, string> = {
   mix: 'mix',
   campaign: 'campanha',
   delinquency: 'inadimplência',
+  paradas: 'paradas',
+  destinatarios: 'destinatários',
+  prioridade: 'prioridade',
+  semana: 'semana',
+  criadas: 'criadas',
+  ignoradas: 'ignoradas',
+  motivo: 'motivo',
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
 
 /** Campos que não ajudam a ler a mudança. */
-const IGNORED = new Set(['id', 'tenant_id', 'updated_at', 'updated_by', 'last_change', 'bands_text', 'rule_text', 'kpi_name', 'seller_name', 'received_at', 'checkin_at', 'seller_id', 'customer_id', 'route_stop_id', 'lat', 'lng', 'idempotency_key', 'closed_at', 'closed_by']);
+const IGNORED = new Set(['id', 'tenant_id', 'updated_at', 'updated_by', 'last_change', 'bands_text', 'rule_text', 'kpi_name', 'seller_name', 'received_at', 'checkin_at', 'seller_id', 'customer_id', 'route_stop_id', 'lat', 'lng', 'idempotency_key', 'closed_at', 'closed_by', 'usuario_id', 'visita_id']);
 
 type Flat = Map<string, unknown>;
 

@@ -135,8 +135,10 @@ export async function buildApp(opts: AppOptions): Promise<{ app: FastifyInstance
 
   // ---------- saúde e documentação ----------
   app.get('/', async () => ({ ok: true, servico: 'mock-api (fase M)', api: '/v1', saude: '/health', rotas: '/v1/openapi.json' }));
-  app.get('/health', async () => ({ ok: true, version: store.version, pending_files: [...store.dirty] }));
-  app.get('/v1/health', async () => ({ ok: true, version: store.version, pending_files: [...store.dirty] }));
+  // mesma identificação da API (SaudeRespostaSchema): o app no modo demo também só aceita um servidor Macuxi
+  const saude = () => ({ ok: true, servico: 'macuxi-api', versao: 'mock-fase-m', version: store.version, pending_files: [...store.dirty] });
+  app.get('/health', async () => saude());
+  app.get('/v1/health', async () => saude());
   app.get('/v1/openapi.json', async () => ({
     openapi: '3.1.0',
     info: { title: 'API v1 — mock (fase M)', version: '0.1.0', description: 'Mesmas rotas e contratos da API real (packages/contracts), servidas a partir de mock-data/*.xlsx.' },

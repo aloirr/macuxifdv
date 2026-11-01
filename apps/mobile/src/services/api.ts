@@ -21,6 +21,8 @@ import { ErroHttp } from '@macuxi/platform-sdk';
 import type { CreateOrderRequest, CustomerDetail, DiscountPolicy, Order, OrderDetail, UpdateOrderRequest } from '@macuxi/vendedor/contracts';
 import type { MixSuggestion, Product } from '@macuxi/catalogo/contracts';
 
+import { erroDoTesteServidor, testarServidor } from '@/lib/servidor';
+
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -155,9 +157,15 @@ export class ApiClient {
   }
 
   // ---------- autenticação (fase M: login fake) ----------
-  /** Saúde do servidor: `/saude` na API real, `/health` no mock-api (`rotaDeSaude`). */
-  health(caminho = '/health') {
-    return this.get<{ ok: boolean }>(caminho, undefined, 5000);
+  /**
+   * Saúde do servidor: `/saude` na API real, `/health` no mock-api (`rotaDeSaude`). Só passa um servidor Macuxi
+   * (200, JSON, `servico: macuxi-api` — `testarServidor`, R-20261101-023742-alexandre); senão lança
+   * `ErroSemConexao` ou `ErroHttp` `SERVIDOR_INVALIDO` com a mensagem do que falhou.
+   */
+  async health(caminho = '/health', opcoes: { exigirHttps?: boolean } = {}) {
+    const r = await testarServidor(this.baseUrl, { rota: caminho, exigirHttps: opcoes.exigirHttps ?? false, buscar: (url, init) => fetch(url, init) });
+    if (!r.ok) throw erroDoTesteServidor(r);
+    return r;
   }
   users() {
     return this.get<{ items: FakeUser[] }>('/auth/users');

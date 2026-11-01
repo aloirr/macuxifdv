@@ -12,6 +12,7 @@
     "lint:tests": "eslint tests --ignore-pattern \"tests/fixtures/**\"",
     "typecheck:tests": "tsc -p tests/tsconfig.json",
     "test:tests": "vitest run --config tests/vitest.config.ts",
+    "test:e2e": "playwright test -c playwright.config.ts",
     "fronteiras": "node scripts/fronteiras.mjs",
     "contar-testes": "node scripts/contar-testes.mjs",
     "format": "prettier --write .",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "@macuxi/config": "workspace:*",
+    "@playwright/test": "~1.56.1",
     "dependency-cruiser": "^17.0.0",
     "eslint": "^9.39.0",
     "globals": "^16.5.0",

@@ -4,10 +4,11 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { actionLabel, ENTITY_LABEL, entityLabel, summarizeChange } from '@/lib/audit';
 import { DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, LoadingBlock, PageHeader, Panel, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
-import { useAuditLog, useMe } from '@/lib/queries';
+import { useAuditoria, useMe } from '@/lib/queries';
+import { useSessao } from '@/lib/session';
 
-/** Entidades no filtro (as de plano aparecem juntas). */
-const ENTITY_OPTIONS = ['sales_order', 'incentive_plan', 'discount_policy', 'goal_period', 'goal', 'route_plan', 'visit'];
+/** Entidades no filtro: as que os módulos gravam com `tx.auditar` (RN-AUD-01). */
+const ENTITY_OPTIONS = ['pedido', 'alcada', 'rota', 'meta', 'carteira', 'cliente', 'motivo', 'dispositivo', 'notificacao', 'licenca', 'parametro'];
 
 export function AuditPage() {
   const params = useSearchParams();
@@ -15,8 +16,10 @@ export function AuditPage() {
   const pathname = usePathname();
   const entity = params.get('entity') ?? '';
   const me = useMe();
-  const tz = me.data?.tenant.timezone ?? DEFAULT_TZ;
-  const q = useAuditLog(entity);
+  const sessao = useSessao();
+  // fuso do tenant: o do login (API real) ou o do `GET /me` (demonstração)
+  const tz = sessao.user?.fuso ?? me.data?.tenant.timezone ?? DEFAULT_TZ;
+  const q = useAuditoria(entity);
   const rows = q.data ?? [];
 
   const setEntity = (v: string) => router.replace(v ? `${pathname}?entity=${encodeURIComponent(v)}` : pathname);
@@ -52,11 +55,11 @@ export function AuditPage() {
             <tbody>
               {rows.map((a) => (
                 <tr key={a.id}>
-                  <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(a.at, tz)}</td>
-                  <td className={`${td} font-semibold whitespace-nowrap`}>{a.user_name}</td>
-                  <td className={`${td} whitespace-nowrap`}>{entityLabel(a.entity)}</td>
-                  <td className={`${td} whitespace-nowrap`}>{actionLabel(a.action)}</td>
-                  <td className={`${td} text-ink-3`}>{summarizeChange(a.before, a.after)}</td>
+                  <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(a.ocorrido_em, tz)}</td>
+                  <td className={`${td} font-semibold whitespace-nowrap`}>{a.usuario_nome ?? (a.usuario_id ? 'Usuário removido' : 'Sistema')}</td>
+                  <td className={`${td} whitespace-nowrap`}>{entityLabel(a.entidade)}</td>
+                  <td className={`${td} whitespace-nowrap`}>{actionLabel(a.acao)}</td>
+                  <td className={`${td} text-ink-3`}>{summarizeChange(a.antes, a.depois)}</td>
                 </tr>
               ))}
             </tbody>

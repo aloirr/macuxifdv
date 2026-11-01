@@ -18,6 +18,21 @@ const SEG = '[a-z][a-z0-9_]*';
 /** `<modulo>.<entidade>.<fato>@vN` — ex.: `vendedor.pedido.criado@1`. */
 export const EVENTO_RE = new RegExp(`^(${SEG})\\.(${SEG})\\.(${SEG})@([1-9][0-9]*)$`);
 
+/** Consulta entre módulos `<modulo>.<consulta>@vN` (ADR 0012) — ex.: `catalogo.precos_cliente@1`. */
+export const CONSULTA_RE = new RegExp(`^(${SEG})\\.(${SEG})@([1-9][0-9]*)$`);
+
+export interface NomeConsulta {
+  modulo: string;
+  consulta: string;
+  versao: number;
+}
+
+export function lerNomeConsulta(nome: string): NomeConsulta | null {
+  const m = CONSULTA_RE.exec(nome);
+  if (!m) return null;
+  return { modulo: m[1]!, consulta: m[2]!, versao: Number(m[3]) };
+}
+
 /** Slot de extensão de UI `<entidade>.<ponto>` — ex.: `cliente.abas`, `pedido.criar_em_nome`. */
 export const EXTENSAO_RE = new RegExp(`^${SEG}\\.${SEG}$`);
 

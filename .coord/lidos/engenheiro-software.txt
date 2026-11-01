@@ -81,3 +81,11 @@ R-20261031-232700-gerente-projetos
 R-20261031-232704-gerente-projetos
 R-20261031-233442-alexandre
 R-20261101-003933-banco-dados
+R-20261101-020623-alexandre
+R-20261101-015017-gerente-projetos
+R-20261101-044224-3-modulo-integracao
+R-20261101-042340-gerente-projetos
+R-20261101-045236-testes
+R-20261101-024029-alexandre
+R-20261101-023857-alexandre
+R-20261101-073742-alexandre

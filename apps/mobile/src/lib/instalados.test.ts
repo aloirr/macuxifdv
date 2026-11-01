@@ -2,7 +2,7 @@
  * T-0004 critérios 2 e 3 no shell mobile, sem React Native: os 8 módulos instalados pelo manifesto, os módulos
  * possíveis de cada variante e a extensão de exemplo que só aparece com o módulo ativo (RN-CORE-03).
  */
-import { criarShell, modulosEfetivos, type ModuloId, type ModuloShell } from '@macuxi/platform-sdk';
+import { criarShell, defineModule, definirModuloShell, modulosEfetivos, type ModuloId, type ModuloShell } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { MANIFESTOS_INSTALADOS, modulosDaVariante } from './instalados';
@@ -24,7 +24,49 @@ describe('shell mobile com os 8 módulos (T-0004)', () => {
 
   it('módulos possíveis por variante: Campo (vendedor/promotor) e Gestão (supervisor/gerente); Integração só no BKO', () => {
     expect(modulosDaVariante('campo')).toEqual(['core', 'catalogo', 'vendedor', 'promotor', 'pesquisa', 'treinamento']);
-    expect(modulosDaVariante('gestao')).toEqual(['core', 'catalogo', 'promotor', 'gestor', 'pesquisa', 'treinamento']);
+    // o Vendedor entra no Gestão quando o manifesto declarar apps.gestao (T-0029 §7, modulo-vendedor)
+    expect(modulosDaVariante('gestao').filter((m) => m !== 'vendedor')).toEqual(['core', 'catalogo', 'promotor', 'gestor', 'pesquisa', 'treinamento']);
+    expect(modulosDaVariante('gestao')).not.toContain('integracao');
+  });
+});
+
+describe('T-0029 §7: a variante Gestão monta o Vendedor só pelo manifesto (apps.gestao), sem código no shell', () => {
+  const real = MANIFESTOS_INSTALADOS.find((m) => m.id === 'vendedor')!;
+  // estado-alvo do manifesto do Vendedor na fatia (o real ganha isto na onda 2)
+  const vendedor = defineModule({
+    ...real,
+    perfis: [...new Set([...real.perfis, 'supervisor', 'gerente'] as const)],
+    apps: { ...real.apps, gestao: { abas: ['Pedidos'] } },
+  });
+  const telas = definirModuloShell<string>({
+    manifesto: vendedor,
+    paginas: [
+      { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', apps: ['campo', 'gestao'], componente: 'Pedidos' },
+      { id: 'pedido', caminho: 'pedido', titulo: 'Pedido', apps: ['campo', 'gestao'], componente: 'Pedido' },
+      { id: 'novo-pedido', caminho: 'novo-pedido', titulo: 'Novo pedido', acao: 'pedido.criar', apps: ['campo'], componente: 'NovoPedido' },
+    ],
+    extensoes: [{ slot: 'cliente.acoes', id: 'novo-pedido', acao: 'pedido.criar', apps: ['campo'], payload: { rotulo: 'Novo pedido' } }],
+  });
+  const comVendedor = MANIFESTOS_INSTALADOS.map((m): ModuloShell<string> => (m.id === 'vendedor' ? telas : { manifesto: m }));
+  const ativos = modulosEfetivos({ manifestos: comVendedor.map((m) => m.manifesto), ativosNoTenant: ['catalogo', 'vendedor', 'gestor'], doPerfil: ['catalogo', 'vendedor', 'gestor'] });
+
+  it('supervisor no Gestão: aba Pedidos e detalhe; sem Novo pedido nem a ação "Novo pedido" do cliente', () => {
+    const v = criarShell('gestao', comVendedor).montar({ perfil: 'supervisor', modulosAtivos: ativos });
+    expect(v.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo)).toEqual(['Pedidos']);
+    expect(v.pagina('pedido')?.modulo).toBe('vendedor');
+    expect(v.pagina('novo-pedido')).toBeNull();
+    expect(v.extensoes('cliente.acoes').filter((i) => i.modulo === 'vendedor')).toEqual([]);
+  });
+
+  it('vendedor no Campo continua com Novo pedido e a ação do cliente', () => {
+    const v = criarShell('campo', comVendedor).montar({ perfil: 'vendedor', modulosAtivos: ativos });
+    expect(v.pagina('novo-pedido')?.modulo).toBe('vendedor');
+    expect(v.extensoes('cliente.acoes').map((i) => i.id)).toContain('novo-pedido');
+  });
+
+  it('RN-CORE-03: Vendedor desligado para o supervisor → a aba some no Gestão', () => {
+    const v = criarShell('gestao', comVendedor).montar({ perfil: 'supervisor', modulosAtivos: ativos.filter((m) => m !== 'vendedor') });
+    expect(v.navegacao.some((n) => n.modulo === 'vendedor')).toBe(false);
   });
 });
 

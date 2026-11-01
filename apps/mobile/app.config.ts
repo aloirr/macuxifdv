@@ -60,6 +60,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
+      // teclado (R-20261101-023401-alexandre): adjustResize explícito; no edge-to-edge (Android 15+) a janela não
+      // encolhe, então as telas com campo embaixo usam KeyboardAvoidingView (login.tsx), que mede o quanto o teclado cobre
+      softwareKeyboardLayoutMode: 'resize',
       permissions: ['android.permission.ACCESS_COARSE_LOCATION', 'android.permission.ACCESS_FINE_LOCATION', 'android.permission.CAMERA'],
       // sem gravação de áudio (a câmera só tira foto: fachada do cliente fechado, RN-CORE-14)
       blockedPermissions: ['android.permission.RECORD_AUDIO'],

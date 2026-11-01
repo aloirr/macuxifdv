@@ -28,6 +28,7 @@ import {
   type EtapaSync,
   type ModuloId,
   type MotorSync,
+  type ParametrosModulos,
   type Perfil,
   type VisaoShell,
 } from '@macuxi/platform-sdk';
@@ -40,9 +41,11 @@ import { AppState } from 'react-native';
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
 import { MANIFESTOS_APP, shellDaVariante, type ComponenteTela } from '@/lib/modulos';
 import { varianteAtual } from '@/lib/variante';
+import { normalizeApiUrl } from '@/lib/api-url';
 import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
+import { testarServidor } from '@/lib/servidor';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
-import { ApiClient, errorMessage, HttpError, NetworkError } from '@/services/api';
+import { ApiClient, errorMessage, HttpError } from '@/services/api';
 import { armazenamentoDoUsuario } from '@/services/armazenamento';
 import { gravarTokens, lerTokens } from '@/services/credenciais';
 import { modoApi, platformDefaultApiUrl, uuid } from '@/services/device';
@@ -82,6 +85,8 @@ const CHAVE_CODIGO_EMPRESA = 'fv:codigo_empresa';
 const CHAVE_DISPOSITIVO = 'fv:dispositivo';
 
 const RETENTAR_FILA_MS = 15_000;
+/** Fora do desenvolvimento só https (R-20261101-023742-alexandre). */
+const EXIGIR_HTTPS = !__DEV__;
 const SYNC_AUTOMATICO_MS = 15 * 60_000;
 
 export function usuarioDaFaseM(u: FakeUser): UsuarioSessao & FakeUser {
@@ -181,6 +186,8 @@ function usePlataformaValor() {
         mensagemDeErro: errorMessage,
         // ADR 0010 §4: bytes das fotos da fila de arquivos (o transporte v1 faz o PUT /v1/arquivos/:id)
         arquivos: arquivosLocais(),
+        // ADR 0012: `ambiente.consultar` (ex.: preço do Catálogo para o Vendedor, offline) sobre as linhas locais do dono
+        consultas: shell.consultas,
       });
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
@@ -233,14 +240,17 @@ function usePlataformaValor() {
     const s = sessaoRef.current;
     if (!m || !s) return;
     let efetivos: ModuloId[];
+    // T-0029 E3: os parâmetros do tenant vêm na mesma resposta e ficam guardados (valem offline; somem com o módulo)
+    let parametros: ParametrosModulos | undefined;
     try {
       const r = MeusModulosRespostaSchema.parse((await api().request<unknown>('GET', '/me/modulos')).data);
       efetivos = r.modulos.map((m) => m.id);
+      parametros = Object.fromEntries(r.modulos.map((m) => [m.id, m.parametros ?? {}])) as ParametrosModulos;
     } catch (e) {
       if (!(e instanceof HttpError) || e.status !== 404) throw e;
       efetivos = efetivosLocais(s.user.perfil);
     }
-    await m.aplicarModulosAtivos(efetivos);
+    await m.aplicarModulosAtivos(efetivos, parametros);
   }, [api]);
 
   const sincronizar = useCallback(async (): Promise<boolean> => {
@@ -270,13 +280,28 @@ function usePlataformaValor() {
     [abrirMotor],
   );
 
+  /**
+   * Segurança (R-20261101-023742-alexandre): o login só sai do aparelho para um servidor que se identificou como Macuxi
+   * (`testarServidor`). Guarda o último endereço aprovado nesta execução do app; endereço novo (ou salvo por uma versão
+   * antiga do app) é testado antes. Falha: `ErroSemConexao` ou `ErroHttp` `SERVIDOR_INVALIDO` (mensagem no Core).
+   */
+  const servidorAprovadoRef = useRef<string | null>(null);
+  const garantirServidorMacuxi = useCallback(async () => {
+    const url = apiUrlRef.current;
+    if (servidorAprovadoRef.current === url) return url;
+    await new ApiClient(url, null).health(rotaDeSaude(modo), { exigirHttps: EXIGIR_HTTPS });
+    servidorAprovadoRef.current = url;
+    return url;
+  }, [modo]);
+
   /** Demonstração (mock-api): entra como um usuário fictício, sem senha. */
   const loginDemo = useCallback(
     async (user: FakeUser) => {
-      const res = await new ApiClient(apiUrlRef.current, null).login(user.id);
+      const url = await garantirServidorMacuxi();
+      const res = await new ApiClient(url, null).login(user.id);
       await abrirSessao({ token: res.access_token, user: usuarioDaFaseM(res.user), modo: 'demo' }, null);
     },
-    [abrirSessao],
+    [abrirSessao, garantirServidorMacuxi],
   );
 
   const dispositivoId = useCallback(async () => {
@@ -294,7 +319,8 @@ function usePlataformaValor() {
    */
   const loginComSenha = useCallback(
     async (campos: CamposLogin) => {
-      const cliente = new ApiClient(apiUrlRef.current, null);
+      // o login vai só para o endereço que acabou de passar no teste (nunca para o que mudar no meio)
+      const cliente = new ApiClient(await garantirServidorMacuxi(), null);
       const post = async (caminho: string, corpo: unknown) => {
         try {
           return (await cliente.request<unknown>('POST', caminho, { body: corpo })).data;
@@ -322,7 +348,7 @@ function usePlataformaValor() {
       const user: UsuarioSessao = { id: r.usuario.id, name: r.usuario.nome, email: r.usuario.email, perfil: r.usuario.perfil };
       await abrirSessao({ token: r.access_token, user, tenant: r.tenant, modo: 'v1' }, r.refresh_token);
     },
-    [abrirSessao, dispositivoId, variante],
+    [abrirSessao, dispositivoId, garantirServidorMacuxi, variante],
   );
 
   /** Fecha a sessão em memória (motor, usuário, módulos); quem chama cuida dos tokens e do disco. */
@@ -415,14 +441,16 @@ function usePlataformaValor() {
     await writeJson(keys.settings, { apiUrl: v });
   }, []);
 
-  const testApiUrl = useCallback(async (url: string) => {
-    try {
-      await new ApiClient(url, null).health(rotaDeSaude(modo));
-      return { ok: true, message: 'Servidor respondeu.' };
-    } catch (e) {
-      return { ok: false, message: e instanceof NetworkError ? e.message : errorMessage(e) };
-    }
-  }, [modo]);
+  /** Testa o endereço como digitado (só sem espaços nas pontas): só um servidor Macuxi passa; a mensagem diz o endereço testado. */
+  const testApiUrl = useCallback(
+    async (url: string) => {
+      const endereco = normalizeApiUrl(url);
+      const r = await testarServidor(endereco, { rota: rotaDeSaude(modo), exigirHttps: EXIGIR_HTTPS, buscar: (u, init) => fetch(u, init) });
+      if (r.ok) servidorAprovadoRef.current = endereco;
+      return { ok: r.ok, message: r.mensagem, testado: r.testado };
+    },
+    [modo],
+  );
 
   const setOffline = useCallback(
     async (valor: boolean) => {

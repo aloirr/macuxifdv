@@ -92,7 +92,10 @@ describe('ambiente do aparelho (ctx.http)', () => {
     expect(ctx?.usuario()?.nome).toBe('Rafael Souza');
     expect(t.chamadas.map((c) => c.caminho)).toEqual(['/customers']);
     expect(await motor.armazenamentoDoModulo('core').ler('clientes')).toEqual({ ok: '/customers' });
-    expect(motor.ambiente).toBe(ambiente);
+    // o motor completa o ambiente do shell (consultar e parametros, T-0029 E1/E3) sem trocar o resto
+    expect(motor.ambiente).toMatchObject({ http: ambiente.http, online: ambiente.online, novoId: ambiente.novoId, usuario: ambiente.usuario });
+    expect(typeof motor.ambiente.consultar).toBe('function');
+    expect(motor.ambiente.parametros('core')).toEqual({});
     expect(motor.http).toBe(ambiente.http);
   });
 

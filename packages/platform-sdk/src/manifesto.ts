@@ -4,7 +4,19 @@
  * O shell e a API leem só o manifesto para montar o módulo (docs/produto/04 "Manifesto").
  */
 import { z } from 'zod';
-import { ACAO_RE, ehAcaoDeEscritaDePedido, ENTIDADE_SYNC_RE, EVENTO_RE, EXTENSAO_RE, lerNomeEvento, MODULOS, PERFIS } from './nomes';
+import {
+  ACAO_RE,
+  CONSULTA_RE,
+  ehAcaoDeEscritaDePedido,
+  ENTIDADE_SYNC_RE,
+  EVENTO_RE,
+  EXTENSAO_RE,
+  lerNomeConsulta,
+  lerNomeEvento,
+  MODULOS,
+  PERFIS,
+  type ModuloId,
+} from './nomes';
 
 const ModuloIdSchema = z.enum(MODULOS);
 const PerfilSchema = z.enum(PERFIS);
@@ -14,6 +26,7 @@ const SlotSchema = z.string().regex(EXTENSAO_RE, 'extensão no formato <entidade
 const EntidadeSyncSchema = z.string().regex(ENTIDADE_SYNC_RE, 'entidade de sync em snake_case');
 const Rotulo = z.string().trim().min(1);
 const NomeAcaoSchema = z.string().regex(ACAO_RE, 'ação no formato <entidade>.<verbo> (ex.: pedido.criar)');
+const NomeConsultaSchema = z.string().regex(CONSULTA_RE, 'consulta no formato <modulo>.<consulta>@vN (ex.: catalogo.precos_cliente@1)');
 
 /**
  * Permissão por ação (ADR 0004): quem pode executar cada ação que o módulo expõe na UI e na API.
@@ -57,6 +70,13 @@ export const ManifestoSchema = z
     consome: semRepetidos(NomeEventoSchema),
     ofereceExtensoes: semRepetidos(SlotSchema),
     usaExtensoes: semRepetidos(SlotSchema),
+    /**
+     * Consultas entre módulos (ADR 0012): leitura síncrona com contrato `<modulo>.<consulta>@vN` no `contracts` do dono.
+     * `ofereceConsultas`: só `<este módulo>.*`, cada uma implementada em `ModuloApi.consultas` (API) e, se valer no
+     * aparelho, em `ModuloShell.consultas`. `usaConsultas`: só de módulos em `depende` ou `opcionais`.
+     */
+    ofereceConsultas: semRepetidos(NomeConsultaSchema),
+    usaConsultas: semRepetidos(NomeConsultaSchema),
     /** Ações com permissão por perfil (ex.: 'pedido.criar'). Opcional; padrão: nenhuma. */
     acoes: z.record(NomeAcaoSchema, AcaoSchema).default({}),
     /** Versão mínima do app exigida por este módulo (RF: pede atualização só quando o módulo exige). */
@@ -72,6 +92,15 @@ export const ManifestoSchema = z
     for (const o of m.opcionais) if (m.depende.includes(o)) erro(['opcionais'], `${o} está em depende e em opcionais`);
     m.publica.forEach((ev, i) => {
       if (lerNomeEvento(ev)?.modulo !== m.id) erro(['publica', i], `módulo ${m.id} só publica eventos ${m.id}.*`);
+    });
+    m.ofereceConsultas.forEach((c, i) => {
+      if (lerNomeConsulta(c)?.modulo !== m.id) erro(['ofereceConsultas', i], `módulo ${m.id} só oferece consultas ${m.id}.*`);
+    });
+    m.usaConsultas.forEach((c, i) => {
+      const dono = lerNomeConsulta(c)?.modulo as ModuloId | undefined;
+      if (dono === m.id) erro(['usaConsultas', i], `${c} é do próprio módulo (consulta é entre módulos)`);
+      else if (!dono || (!m.depende.includes(dono) && !m.opcionais.includes(dono)))
+        erro(['usaConsultas', i], `${c}: o módulo ${dono ?? '?'} precisa estar em depende ou opcionais (ADR 0012)`);
     });
     for (const [acao, def] of Object.entries(m.acoes)) {
       // RN-PRO-01 vale pelo perfil (doc 03, esclarecimentos de 2026-10-30 e O-3 de 2026-10-31): nenhum módulo concede ao
@@ -120,7 +149,7 @@ export function defineModule(entrada: ManifestoEntrada): Manifesto {
 
 /**
  * Valida o conjunto de módulos instalados num shell/API: ids únicos, dependências presentes,
- * sem ciclo e extensões usadas oferecidas por alguém. Devolve a lista de problemas (vazia = ok).
+ * sem ciclo, extensões usadas oferecidas por alguém e consultas usadas oferecidas pelo dono instalado (ADR 0012). Devolve a lista de problemas (vazia = ok).
  */
 export function validarConjunto(manifestos: readonly Manifesto[]): string[] {
   const problemas: string[] = [];
@@ -144,10 +173,28 @@ export function validarConjunto(manifestos: readonly Manifesto[]): string[] {
   for (const m of manifestos) {
     for (const s of m.usaExtensoes) if (!ofertas.has(s)) problemas.push(`${m.id} usa a extensão ${s}, que nenhum módulo oferece`);
   }
+  problemas.push(...problemasDasConsultas(manifestos));
   try {
     ordenarPorDependencia(manifestos);
   } catch (e) {
     problemas.push((e as Error).message);
+  }
+  return problemas;
+}
+
+/**
+ * Consultas entre módulos no conjunto instalado (ADR 0012): consulta usada cujo dono está instalado precisa estar em
+ * `ofereceConsultas` dele. Dono ausente só acontece com módulo de `opcionais` (o de `depende` já falha antes): a
+ * consulta fica indisponível em tempo de execução (`ConsultaIndisponivel`, RN-CORE-03).
+ */
+export function problemasDasConsultas(manifestos: readonly Pick<Manifesto, 'id' | 'ofereceConsultas' | 'usaConsultas'>[]): string[] {
+  const problemas: string[] = [];
+  const porId = new Map(manifestos.map((m) => [m.id, m] as const));
+  for (const m of manifestos) {
+    for (const c of m.usaConsultas) {
+      const dono = porId.get(lerNomeConsulta(c)?.modulo as ModuloId);
+      if (dono && !dono.ofereceConsultas.includes(c)) problemas.push(`${m.id} usa a consulta ${c}, que ${dono.id} não oferece`);
+    }
   }
   return problemas;
 }

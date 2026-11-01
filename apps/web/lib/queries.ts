@@ -6,8 +6,8 @@
  * (desenho T-0001 §5 e §14).
  */
 import { useQuery } from '@tanstack/react-query';
-import { MeusModulosRespostaSchema, type AuditEntry, type Me } from '@macuxi/core/contracts';
-import { modulosEfetivos, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
+import { MeusModulosRespostaSchema, type Me } from '@macuxi/core/contracts';
+import { AuditoriaRespostaSchema, modulosEfetivos, ROTA_AUDITORIA, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
 import { api, ApiRequestError, MODO_API } from '@macuxi/platform-sdk/web';
 import { MANIFESTOS_WEB } from './modulos';
 import { useSessao } from './session';
@@ -23,7 +23,7 @@ export interface ListResponse<T> {
 export const qk = {
   me: ['me'] as const,
   modulos: ['me', 'modulos'] as const,
-  audit: (entity: string) => ['audit-log', entity] as const,
+  auditoria: (entidade: string) => ['plataforma', 'auditoria', entidade] as const,
 };
 
 function useAuthed() {
@@ -62,11 +62,16 @@ export function useModulosEfetivos(perfil: Perfil | null) {
   });
 }
 
-export function useAuditLog(entity: string) {
+/**
+ * Trilha de auditoria (RN-AUD-01): `GET /v1/auditoria` da plataforma (T-0030 D-B29). A API filtra pela licença dos
+ * módulos e pelo escopo do perfil; aqui só a página mais recente (até 300 linhas).
+ */
+export function useAuditoria(entidade: string) {
   const enabled = useAuthed();
   return useQuery({
-    queryKey: qk.audit(entity),
-    queryFn: () => api<ListResponse<AuditEntry>>('/audit-log', { query: { entity, limit: 300 } }).then((r) => r.items),
+    queryKey: qk.auditoria(entidade),
+    queryFn: async () =>
+      AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { entidade, limite: 300 } })).itens,
     enabled,
     refetchInterval: LIVE_REFETCH_MS,
   });

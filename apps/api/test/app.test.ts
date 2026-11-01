@@ -2,13 +2,13 @@
  * createApp (T-0004 critério 3): monta os 8 módulos pelo manifesto e checa, em toda rota,
  * autenticação, licença do módulo (RN-CORE-02), perfil/ação (ADR 0004, RN-PRO-01) e carteira (RN-CORE-04).
  */
-import { defineModule, definirModuloApi, ErroApiSchema, ErroHttpModulo, type Manifesto, type StatusErroModulo } from '@macuxi/platform-sdk';
+import { defineModule, definirModuloApi, ErroApiSchema, ErroHttpModulo, SaudeRespostaSchema, type Manifesto, type StatusErroModulo } from '@macuxi/platform-sdk';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
 import { z } from 'zod';
 import { ErroModuloInativoSchema, MeusModulosRespostaSchema } from '@macuxi/core/contracts';
 import { manifest as core } from '@macuxi/core/manifest';
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../src/app';
+import { createApp, VERSAO_API } from '../src/app';
 import { parametrosPorModulo } from '../src/licencas';
 import {
   bancoFalso,
@@ -36,6 +36,14 @@ describe('createApp monta os 8 módulos pelo manifesto', () => {
     const r = await app.inject({ method: 'GET', url: '/v1/saude' });
     expect(r.statusCode).toBe(200);
     expect(r.json().modulos).toEqual(['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao']);
+  });
+
+  it('/v1/saude se identifica como servidor Macuxi (servico + versao, R-20261101-023742-alexandre)', async () => {
+    const r = await createApp({}).inject({ method: 'GET', url: '/v1/saude' });
+    const corpo = SaudeRespostaSchema.parse(r.json());
+    expect(corpo.servico).toBe('macuxi-api');
+    expect(corpo.versao).toBe(process.env.MACUXI_VERSAO || VERSAO_API);
+    expect((await createApp({ versao: '9.9.9' }).inject({ method: 'GET', url: '/v1/saude' })).json().versao).toBe('9.9.9');
   });
 
   it('sem autenticação do Core (Fase 2) ninguém entra: 401 (falha fechada)', async () => {

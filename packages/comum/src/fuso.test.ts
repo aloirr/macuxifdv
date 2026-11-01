@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { daysAgoLabel, formatHHMM, greeting, localIsoDate, longDateLabel, monthStart, relativeWhen } from './time';
+import { daysAgoLabel, formatHHMM, greeting, localIsoDate, longDateLabel, monthStart, relativeWhen } from './fuso';
 
 describe('datas no fuso America/Manaus (UTC−4)', () => {
   it('converte instante UTC para hora local', () => {

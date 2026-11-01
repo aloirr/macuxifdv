@@ -13,7 +13,9 @@
  * - Escritas de negócio vão pela fila do motor (`enfileirar`); `requisitar` com POST/PUT é só para o que exige
  *   resposta na hora (ex.: editar/cancelar pedido já enviado) e o módulo trata `ErroSemConexao`.
  */
-import type { Perfil } from './nomes';
+import type { z } from 'zod';
+import type { DefinicaoConsulta } from './consultas-tipos';
+import type { ModuloId, Perfil } from './nomes';
 
 export type MetodoHttp = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type ConsultaHttp = Record<string, string | number | boolean | undefined | null>;
@@ -74,6 +76,10 @@ export interface UsuarioAmbiente {
   fuso?: string;
 }
 
+/** Consulta entre módulos no aparelho (ADR 0012): mesmo contrato e mesmo resultado que `tx.consultar` na API. */
+export type FuncaoConsultar = <E extends z.ZodTypeAny, S extends z.ZodTypeAny>(def: DefinicaoConsulta<E, S>, entrada: z.input<E>) => Promise<z.output<S>>;
+
+/** O que o SHELL monta (HTTP, sinal, UUID, usuário). `consultar` e `parametros` quem completa é o motor (`completarAmbiente`, em `consultas.ts`). */
 export interface AmbienteAparelho {
   http: ClienteHttp;
   /** `false` = modo sem sinal ligado (nada sai do aparelho) ou sem sessão. */
@@ -82,6 +88,20 @@ export interface AmbienteAparelho {
   novoId(): string;
   /** Usuário logado (ou null antes do login). */
   usuario(): UsuarioAmbiente | null;
+  consultar?: FuncaoConsultar;
+  parametros?: (modulo: ModuloId) => Readonly<Record<string, unknown>>;
+}
+
+/**
+ * O que os MÓDULOS recebem (`useAmbiente()`, `ctx` das etapas, `motor.ambiente`): o ambiente do shell mais
+ * - `consultar(def, entrada)`: consulta a outro módulo sobre as linhas locais do dono (offline; ADR 0012). Dono sem
+ *   implementação no aparelho, inativo ou fora do app → `ConsultaIndisponivel`;
+ * - `parametros(modulo)`: parâmetros do tenant guardados do último `GET /v1/me/modulos` (valem offline; somem com o
+ *   módulo, RN-CORE-02). Sem nada guardado = `{}`.
+ */
+export interface AmbienteModulo extends AmbienteAparelho {
+  consultar: FuncaoConsultar;
+  parametros(modulo: ModuloId): Readonly<Record<string, unknown>>;
 }
 
 export type FuncaoRequisitar = <T>(metodo: MetodoHttp, caminho: string, opcoes: OpcoesHttp) => Promise<T>;

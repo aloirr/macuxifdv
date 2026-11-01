@@ -17,7 +17,7 @@ powershell -ExecutionPolicy Bypass -File scripts\demo\subir-demo.ps1
 ```
 Etapas: (1) confere o Docker; (2) `banco subir` (Postgres do `db/docker-compose.yml` + migrações); (3) `banco seed demo
 --recriar` (base de demo do zero); (4) API na porta 8100 e worker da outbox, com `MACUXI_TRUST_PROXY=loopback`; (5) túnel
-`cloudflared tunnel --url http://127.0.0.1:8100`; (6) imprime o endereço https e os logins. Leva ~1 min (a 1ª vez, mais).
+`cloudflared tunnel --url http://127.0.0.1:8100`; (6) imprime o endereço do app, `https://<nome>.trycloudflare.com/v1` (e copia para a área de transferência), e os logins. Leva ~1 min (a 1ª vez, mais).
 
 Opções: `-Manter` (não apaga a base: upsert; visitas e pedidos do ensaio ficam) · `-Reiniciar` (derruba a demo no ar e
 sobe de novo; o endereço muda) · `-SemWorker` · `-SemTunel` (só API local) · `-Portatil` (pula o winget e usa o
@@ -28,8 +28,11 @@ Sem administrador para o MSI do winget (UAC negado), o script baixa o `cloudflar
 e só usa se a assinatura digital da Cloudflare for válida.
 
 ## No celular
-1. Abra o app. Na tela de login, em **Servidor**, digite o endereço que o script imprimiu
-   (`https://<nome>.trycloudflare.com`; o app completa o `/v1`) e toque em **Testar e salvar**.
+1. Abra o app. Na tela de login, em **Servidor**, toque em **Alterar**, digite o endereço que o script imprimiu,
+   **com `/v1` no fim** (`https://<nome>.trycloudflare.com/v1`; o script também copia para a área de transferência), e
+   toque em **Testar e salvar**. O app usa o endereço exatamente como digitado (não completa `/v1` nem `https://`) e só
+   salva se o servidor se identificar como Macuxi: a mensagem diz "Testado: `<endereço>/saude`". Endereço errado não
+   salva e o login não é enviado.
 2. Código da empresa **`demo`**, senha **`demo-macuxi`** (ou a de `MACUXI_SENHA_DEMO`, se estiver no `.env`).
 
 | App | E-mail | Quem |
@@ -55,7 +58,10 @@ powershell -ExecutionPolicy Bypass -File scripts\demo\derrubar-demo.ps1 -PararBa
   (servidor.ts) que estiver escutando a porta da demo e o worker sem `watch`, mesmo órfãos.
 - **Cloudflared demora na 1ª vez** (antivírus examinando o exe novo): o script espera até 3 min pelo endereço.
 - **Túnel abriu mas `/v1/saude` não respondeu do PC**: o DNS do nome novo leva alguns segundos; teste no celular
-  (`<endereço>/v1/saude` no navegador deve mostrar `{"ok":true,...}`).
+  (`<endereço>/v1/saude` no navegador deve mostrar `{"ok":true,"servico":"macuxi-api",...}`).
+- **"Este endereço não é um servidor Macuxi"** ao testar: o endereço responde, mas não é a API (erro de digitação no
+  domínio, ou faltou o `/v1`, que dá 404). Confira letra por letra com o que o script imprimiu.
+- **"Sem resposta de ..."**: o túnel caiu, o endereço mudou (nova subida) ou o celular está sem internet.
 - **429 `MUITAS_TENTATIVAS` no login**: com `MACUXI_TRUST_PROXY=loopback` cada aparelho conta pelo próprio IP (o do
   `X-Forwarded-For` que a Cloudflare acrescenta), mas aparelhos na mesma rede Wi-Fi saem com o mesmo IP público.
 - Logs e PIDs: `.dados\demo\` (`api.log`, `worker.log`, `tunel.erro.log`, `processos.json`), fora do git.

@@ -126,7 +126,7 @@ if (Test-Path $ArquivoEstado) {
   if ($vivos.Count -gt 0 -and -not $Reiniciar) {
     Write-Host ''
     Write-Host 'Já há uma demonstração no ar (ou subindo) neste PC.' -ForegroundColor Yellow
-    if ($anterior.url) { Write-Host "  Endereço atual: $($anterior.url)" -ForegroundColor Green }
+    if ($anterior.url) { Write-Host "  Endereço atual (digite no app assim, com /v1): $($anterior.url)/v1" -ForegroundColor Green }
     Write-Host '  Para reiniciar (o endereço muda): subir-demo.ps1 -Reiniciar   Para encerrar: derrubar-demo.ps1' -ForegroundColor Yellow
     exit 2
   }
@@ -294,8 +294,16 @@ if ($senhaPorVariavel) { $senha = '(a de MACUXI_SENHA_DEMO no .env)' }
 
 Write-Host ''
 if ($urlPublica) {
-  Write-Host '  Endereço do servidor (digite no app, em "Servidor" na tela de login, e toque em "Testar e salvar"):' -ForegroundColor White
-  Write-Host "      $urlPublica" -ForegroundColor Green
+  # o endereço da API, com /v1: é exatamente o que o app usa (R-20261101-065230-alexandre); o app não completa nada
+  $enderecoApp = "$urlPublica/v1"
+  Write-Host '  Endereço do servidor (digite no app exatamente assim, com /v1, em "Servidor" na tela de login, e toque em "Testar e salvar"):' -ForegroundColor White
+  Write-Host "      $enderecoApp" -ForegroundColor Green
+  try {
+    Set-Clipboard -Value $enderecoApp -ErrorAction Stop
+    Write-Host '      (copiado para a área de transferência)' -ForegroundColor DarkGray
+  } catch {
+    Write-Host '      (não deu para copiar para a área de transferência: copie da linha acima)' -ForegroundColor DarkGray
+  }
 } else {
   Write-Host "  API local: http://127.0.0.1:$Porta (sem túnel)" -ForegroundColor White
 }

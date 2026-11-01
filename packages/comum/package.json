@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Utilitários transversais puros: dinheiro em centavos e calendário de dias úteis (ADR 0002).",
+  "description": "Utilitários transversais puros: dinheiro em centavos, calendário de dias úteis (ADR 0002) e datas no fuso do tenant (/fuso).",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
     "./money": "./src/money.ts",
-    "./calendar": "./src/calendar.ts"
+    "./calendar": "./src/calendar.ts",
+    "./fuso": "./src/fuso.ts"
   },
   "scripts": {
     "lint": "eslint src",

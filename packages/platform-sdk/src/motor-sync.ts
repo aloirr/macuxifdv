@@ -31,7 +31,8 @@
  *   chegou) mantém o arquivo `pendente`; aceito → `enviado` e o arquivo local é apagado depois de 7 dias. RN-CORE-02
  *   vale igual à fila de itens.
  */
-import { ambienteIndisponivel, type AmbienteAparelho } from './ambiente';
+import { ambienteIndisponivel, type AmbienteAparelho, type AmbienteModulo } from './ambiente';
+import { completarAmbiente, type RegistroConsultasAparelho } from './consultas';
 import {
   caminhoFoto,
   CODIGOS_ARQUIVO,
@@ -305,7 +306,7 @@ export interface EtapaSync {
   executar(ctx: ContextoEtapaSync): Promise<void>;
 }
 
-export interface ContextoEtapaSync extends AmbienteAparelho {
+export interface ContextoEtapaSync extends AmbienteModulo {
   /** Armazenamento do módulo (prefixo `mod:<modulo>:`): apagado quando o módulo é desativado. */
   armazenamento: ArmazenamentoSync;
   agora: () => Date;
@@ -350,7 +351,15 @@ export interface OpcoesMotorSync {
   mensagemDeErro?: (e: unknown) => string;
   /** Leitura (e remoção) dos arquivos locais da fila de arquivos. Sem ela, os arquivos ficam na fila sem envio. */
   arquivos?: ArquivosLocais;
+  /**
+   * Consultas entre módulos no aparelho (`criarShell(...).consultas`, ADR 0012): `ambiente.consultar`. Sem ele, toda
+   * consulta dá `ConsultaIndisponivel`.
+   */
+  consultas?: RegistroConsultasAparelho;
 }
+
+/** Parâmetros do tenant por módulo (`GET /v1/me/modulos`), guardados para valer offline (T-0029 E3). */
+export type ParametrosModulos = Partial<Record<ModuloId, Readonly<Record<string, unknown>>>>;
 
 const CHAVE = {
   fila: 'sync:fila',
@@ -359,6 +368,8 @@ const CHAVE = {
   /** Fila de arquivos (ADR 0010 §4), separada da fila de itens. */
   arquivos: 'sync:arquivos',
   modulos: 'sync:modulos',
+  /** Parâmetros do tenant dos módulos ativos (E3): só os de módulos ativos; somem com o módulo (RN-CORE-02). */
+  parametros: 'sync:parametros',
   limpeza: 'sync:limpeza_pendente',
   sincronizadoEm: 'sync:sincronizado_em',
   cursor: (e: string) => `sync:cursor:${e}`,
@@ -403,8 +414,34 @@ type Cobertura = { horizonte: string | null; inicio: string } | 'indisponivel';
 
 export function criarMotorSync(op: OpcoesMotorSync) {
   const agora = op.agora ?? (() => new Date());
-  const ambiente: AmbienteAparelho = op.ambiente ?? ambienteIndisponivel();
-  const online = op.online ?? (op.ambiente ? () => ambiente.online() : () => true);
+  const base: AmbienteAparelho = op.ambiente ?? ambienteIndisponivel();
+  const online = op.online ?? (op.ambiente ? () => base.online() : () => true);
+  let parametros: ParametrosModulos = {};
+  const SEM_PARAMETROS: Readonly<Record<string, unknown>> = Object.freeze({});
+  const parametrosDe = (m: ModuloId): Readonly<Record<string, unknown>> =>
+    (estado.modulosAtivos.includes(m) ? parametros[m] : undefined) ?? SEM_PARAMETROS;
+  /** Só dos módulos ativos, congelados (o módulo não altera o que é do tenant). */
+  const filtrarParametros = (p: ParametrosModulos, ativos: readonly ModuloId[]): ParametrosModulos => {
+    const saida: ParametrosModulos = {};
+    for (const m of ativos) if (p[m]) saida[m] = Object.freeze({ ...p[m] });
+    return saida;
+  };
+  // o motor completa o ambiente do shell: consulta sobre as linhas locais do dono e parâmetros da última sessão
+  const ambiente: AmbienteModulo = completarAmbiente(base, {
+    consultar: (def, entrada) => {
+      if (!op.consultas) return completarAmbiente(ambienteIndisponivel()).consultar(def, entrada);
+      return op.consultas.consultar(def, entrada, {
+        modulosAtivos: () => estado.modulosAtivos,
+        donoDaEntidade: (e) => op.registro.entidade(e)?.modulo,
+        linhas: (e) => motor.linhas(e) as never,
+        linhasPorIds: (e, ids) => motor.linhasPorIds(e, ids) as never,
+        agora,
+        usuario: () => base.usuario(),
+        parametros: parametrosDe,
+      });
+    },
+    parametros: parametrosDe,
+  });
   const msg = op.mensagemDeErro ?? ((e: unknown) => (e instanceof Error ? e.message : String(e)));
   const ouvintes = new Set<(e: EstadoMotorSync) => void>();
 
@@ -800,14 +837,16 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
     /** Lê do armazenamento a fila, os módulos e as pendências (chamar uma vez ao abrir o app / trocar de usuário). */
     async carregar(): Promise<void> {
-      const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos] = await Promise.all([
+      const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params] = await Promise.all([
         op.armazenamento.ler<ItemOutbox[]>(CHAVE.fila),
         op.armazenamento.ler<ModuloId[]>(CHAVE.modulos),
         op.armazenamento.ler<ModuloId[]>(CHAVE.limpeza),
         op.armazenamento.ler<string>(CHAVE.sincronizadoEm),
         op.armazenamento.ler<ItemArquivo[]>(CHAVE.arquivos),
         op.armazenamento.ler<ItemAceito[]>(CHAVE.aceitos),
+        op.armazenamento.ler<ParametrosModulos>(CHAVE.parametros),
       ]);
+      parametros = filtrarParametros(params ?? {}, modulos ?? []);
       mudar({
         fila: fila ?? [],
         aceitos: aceitos ?? [],
@@ -978,6 +1017,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
               online,
               novoId: () => ambiente.novoId(),
               usuario: () => ambiente.usuario(),
+              consultar: ambiente.consultar,
+              parametros: ambiente.parametros,
             });
             feito++;
           }
@@ -1003,10 +1044,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     /**
      * Novo conjunto de módulos efetivos (vindo de `GET /v1/me/modulos` no sync). RN-CORE-02: o que saiu
      * é apagado do aparelho — na hora se não há nada dele na fila; senão tenta enviar e aguarda confirmação.
+     * `novosParametros` (os `parametros` de cada módulo da mesma resposta, E3) substituem os guardados; sem eles, ficam
+     * os guardados dos módulos que continuam ativos. Os de módulo que saiu somem na hora.
      */
-    async aplicarModulosAtivos(modulos: readonly ModuloId[]): Promise<void> {
+    async aplicarModulosAtivos(modulos: readonly ModuloId[], novosParametros?: ParametrosModulos): Promise<void> {
       const anteriores = estado.modulosAtivos;
       const novos = new Set(modulos);
+      parametros = filtrarParametros(novosParametros ?? parametros, modulos);
+      await op.armazenamento.gravar(CHAVE.parametros, parametros);
       mudar({ modulosAtivos: [...modulos] });
       await op.armazenamento.gravar(CHAVE.modulos, [...modulos]);
       // módulo que voltou: itens marcados como "módulo desativado" voltam para a fila
@@ -1070,6 +1115,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         for (const m of MODULOS) await limparModulo(m, a);
         for (const k of await a.chaves('')) await a.remover(k);
       });
+      parametros = {};
       mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null });
       for (const x of arquivos) await removerLocal(x.caminho);
     },
@@ -1112,6 +1158,11 @@ export function criarMotorSync(op: OpcoesMotorSync) {
      */
     async buscar(indice: string, consulta: ConsultaTexto): Promise<ResultadoBusca[] | null> {
       return op.armazenamento.busca ? op.armazenamento.busca.buscar(indice, consulta) : null;
+    },
+
+    /** Parâmetros do tenant do módulo (último `GET /v1/me/modulos`; offline vale o guardado). Módulo inativo = `{}`. */
+    parametros(modulo: ModuloId): Readonly<Record<string, unknown>> {
+      return parametrosDe(modulo);
     },
 
     /** Armazenamento próprio do módulo (prefixo `mod:<m>:`), apagado junto com o módulo (RN-CORE-02). */
