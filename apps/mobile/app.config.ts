@@ -5,6 +5,10 @@
  * Mesmo código e mesmo projeto EAS; nome, pacote Android e scheme diferentes para conviverem no aparelho.
  * Perfis de build em eas.json (desenho T-0004 §7): `campo`/`gestao` = build de desenvolvimento (APK com
  * expo-dev-client, JS servido pelo `expo start`); `*-preview` = APK interno sem Metro; `*-producao` = AAB.
+ * Endereço da API por perfil (T-0038, doc 04 "Domínio e endereços"): `EXPO_PUBLIC_API_URL` (api-demo no dev e no
+ * preview; api.macuxifdv.com.br no producao) e `EXPO_PUBLIC_PERFIL_BUILD` (desenvolvimento|preview|producao), que
+ * decide se o login tem o campo Servidor (`src/lib/endereco-do-build.ts`). No dev o JS vem do Metro do PC: valem as
+ * variáveis de quem roda o `expo start`.
  * Ícone por variante: hoje a mesma arte nas duas (a da Gestão é pendência de design); troca só aqui.
  * Base copiada do app.json da Fase M.
  */

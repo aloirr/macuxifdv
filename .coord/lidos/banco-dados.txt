@@ -27,3 +27,6 @@ R-20261101-015017-gerente-projetos
 R-20261101-020623-alexandre
 R-20261101-042340-gerente-projetos
 R-20261101-044128-modulo-vendedor
+R-20261101-074143-alexandre
+R-20261101-112205-modulo-integracao
+R-20261101-150202-alexandre

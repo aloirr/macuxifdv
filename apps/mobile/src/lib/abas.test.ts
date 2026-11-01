@@ -75,6 +75,15 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(nav.map((n) => n.rotulo)).not.toContain('Pedidos');
   });
 
+  // Revisão T-0034 (R-20261101-161003): RN-PRO-01 vale pelo PERFIL, não pelo módulo (doc 03). Hoje a página `pedidos`
+  // (modules/vendedor/app/index.ts) não declara `perfis` e `modulosEfetivos` não filtra por `manifesto.perfis`; o pedido
+  // está no item 1 do R-20261101-155135 ao modulo-vendedor. Quando a página real ganhar `perfis`, espelhar em PAGINAS
+  // (acima) e trocar `it.fails` por `it`.
+  it.fails('RN-PRO-01: promotor com o Vendedor efetivo (licenciado e no perfil) também não vê Pedidos', () => {
+    const p = rotulos('campo', 'promotor', TODOS, TODOS);
+    expect(p.todas).not.toContain('Pedidos');
+  });
+
   it('"Mais" fica ativo nas telas que estão dentro dele; Início só na raiz', () => {
     const { barra, mais } = abasDoShell(criarShell('campo', MODULOS).montar({ perfil: 'vendedor', modulosAtivos: ['core', 'catalogo', 'vendedor'] }).navegacao);
     const abaMais = barra.find((a) => a.href === HREF_MAIS)!;

@@ -4,6 +4,34 @@ import type { NextConfig } from 'next';
 const DEMO = process.env.NEXT_PUBLIC_API_MODO?.trim().toLowerCase() === 'demo';
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? (DEMO ? 'http://localhost:8000/v1' : 'http://localhost:8100/v1')).replace(/\/$/, '');
 
+/**
+ * Hosts em que o BKO roda atrás de proxy/túnel (T-0038; doc 04, "Domínio e endereços"). O BKO da demo fica em
+ * `bko-demo.macuxifdv.com.br` (túnel nomeado `macuxi-demo` → `next start` na 127.0.0.1:3100, scripts/demo).
+ * `MACUXI_BKO_ORIGEM` (definida pelo scripts/demo no build e no start) acrescenta a origem em uso, ex.: o
+ * `https://<nome>.trycloudflare.com` do modo de reserva. Vale para o `next dev` (allowedDevOrigins) e para a checagem
+ * de origem das Server Actions (hoje o BKO não tem nenhuma; fica pronto). Endereço da API: o rewrite `/api-proxy`
+ * abaixo (no v1 o navegador só fala com a própria origem; a API não precisa de CORS para o BKO).
+ */
+export const HOSTS_DO_BKO_PADRAO = ['bko-demo.macuxifdv.com.br'] as const;
+
+/** Host (sem esquema, caminho nem porta padrão) de uma origem como `https://bko-demo.macuxifdv.com.br/`; vazio/inválido = null. */
+export function hostDaOrigem(origem: string | undefined | null): string | null {
+  const o = origem?.trim();
+  if (!o) return null;
+  const m = /^(?:https?:\/\/)?([a-z0-9.-]+)(?::(\d+))?(?:[/?#].*)?$/i.exec(o);
+  if (!m || !m[1]) return null;
+  const host = m[1].toLowerCase();
+  return m[2] && m[2] !== '443' && m[2] !== '80' ? `${host}:${m[2]}` : host;
+}
+
+/** Hosts permitidos: os fixos da demo + o de `MACUXI_BKO_ORIGEM` (sem repetir). */
+export function hostsDoBko(origem: string | undefined | null): string[] {
+  const extra = hostDaOrigem(origem);
+  return [...new Set<string>([...HOSTS_DO_BKO_PADRAO, ...(extra ? [extra] : [])])];
+}
+
+const HOSTS = hostsDoBko(process.env.MACUXI_BKO_ORIGEM);
+
 const nextConfig: NextConfig = {
   // pacotes e módulos do monorepo são publicados como TypeScript puro (sem build)
   transpilePackages: [
@@ -21,6 +49,9 @@ const nextConfig: NextConfig = {
     '@macuxi/integracao',
   ],
   reactStrictMode: true,
+  // BKO atrás do túnel (T-0038): origem permitida no `next dev` e nas Server Actions
+  allowedDevOrigins: HOSTS,
+  experimental: { serverActions: { allowedOrigins: HOSTS } },
   // não gerar AGENTS.md no `next dev`
   agentRules: false,
   devIndicators: false,

@@ -59,6 +59,15 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
         'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
       ]),
     );
+    // T-0032 (0010): schema integracao inteiro (chaves, lotes, espelho, fila do ERP, auditoria das decisões)
+    expect(nomes).toEqual(
+      expect.arrayContaining([
+        'integracao.conector', 'integracao.credencial', 'integracao.politica_versao', 'integracao.sessao_carga', 'integracao.sessao_carga_recebido',
+        'integracao.lote', 'integracao.lote_staging', 'integracao.lote_linha_erro', 'integracao.registro_atual', 'integracao.pendencia_inativacao',
+        'integracao.inativacao_auditoria', 'integracao.cursor_entidade', 'integracao.reconciliacao', 'integracao.mapeamento',
+        'integracao.pedido_fila_erp', 'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
+      ]),
+    );
     expect(nomes.filter((n) => !idDeB.has(n))).toEqual([]);
   });
 
@@ -139,7 +148,7 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
       for (const t of tabelas) {
         for (const sql of [`update ${t.nome} set updated_at = updated_at where tenant_id = $1`, `delete from ${t.nome} where tenant_id = $1`]) {
           const r = await emTransacao(app, A, () => app.query(sql, [B]).then((x) => ({ linhas: x.rowCount, erro: null }), (err: { code?: string }) => ({ linhas: 0, erro: err.code ?? '?' })));
-          // auditoria não tem UPDATE/DELETE para a aplicação: "permission denied" (42501) também é isolamento
+          // auditorias (plataforma e integracao) e trilhas sem UPDATE/DELETE para a aplicação: "permission denied" (42501) também é isolamento
           expect(r.erro === null || r.erro === '42501', `${t.nome}: erro inesperado ${r.erro}`).toBe(true);
           expect(r.linhas, `${t.nome}: ${sql}`).toBe(0);
         }

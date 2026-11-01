@@ -86,6 +86,11 @@ e `plataforma.auditoria`.
   dos módulos nem nas outras tabelas da plataforma (42501). O handler do consumidor roda como `macuxi_app` em
   `comTenant(envelope.tenant_id)` e registra o consumo em `plataforma.evento_consumo` (RLS por tenant).
   pg-boss (schema `pgboss`) entra com o primeiro consumidor real. Plano B: funções `SECURITY DEFINER`.
+- **Hub de Integração** (0010, T-0032): `integracao.autenticar_chave(hash)` (`SECURITY DEFINER`, só `macuxi_app`) é a única
+  leitura sem tenant: devolve no máximo a linha da chave (sem o hash) com o `tenant_id` e o Conector; depois a API abre
+  `comTenant` com o tenant da chave. `integracao.expurgar_retencao` e `plataforma.expurgar_outbox` (0011) são `SECURITY DEFINER`
+  com `execute` só ao `macuxi_worker` (que também ganha `usage` no schema `integracao`, sem nenhum grant de tabela). Dicionário:
+  [integracao.md](integracao.md).
 
 ## Testes que provam
 | ID | Onde |

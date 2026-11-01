@@ -65,3 +65,7 @@ R-20261101-115656-modulo-integracao
 R-20261101-112205-modulo-integracao
 R-20261101-152752-gerente-projetos
 R-20261101-152818-gerente-projetos
+R-20261101-173050-gerente-projetos
+R-20261101-174135-gerente-projetos
+R-20261101-203352-modulo-core
+R-20261101-203404-modulo-treinamento

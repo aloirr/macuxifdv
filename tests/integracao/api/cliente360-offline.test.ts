@@ -53,7 +53,8 @@ interface Aparelho {
 
 describe.skipIf(semBanco())('T-0017 critério 2 — modo avião: ficha do cliente com financeiro e histórico já sincronizados (motor real × API real)', () => {
   let api: ApiDeTeste;
-  const hoje = hojeEm(A.fuso);
+  /** "Hoje" da FIXTURE (data da rota de hoje do vendedor-1), não do relógio: a carga e o teste podem cair em dias diferentes. */
+  let hoje = hojeEm(A.fuso);
 
   async function aparelho(email: string, fabrica: () => ArmazenamentoSync): Promise<Aparelho> {
     const s = await api.sessao(email);
@@ -109,6 +110,8 @@ describe.skipIf(semBanco())('T-0017 critério 2 — modo avião: ficha do client
 
   beforeAll(async () => {
     api = await subirApi();
+    const r = await api.admin.query<{ d: string }>("select data::text as d from core.rota where id = $1", [A.rotas.vendedor1]);
+    hoje = r.rows[0]?.d ?? hoje;
     await esperar(HORIZONTE);
   });
   afterAll(async () => {

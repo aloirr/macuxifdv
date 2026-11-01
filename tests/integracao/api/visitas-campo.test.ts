@@ -508,14 +508,19 @@ describe.skipIf(semBanco())('T-0018 — rota e visitas reais no app Campo × API
     expect(c.ap.motor.arquivosPendentes().map((a) => a.id), '"Fotos pendentes: 1" na tela de sync').toEqual([foto]);
 
     c.ap.online.valor = true;
+    // a chave usa o mês UTC do relógio da API no envio: mede antes e depois (a virada do mês no meio não reprova)
+    const mesAntes = new Date().toISOString().slice(0, 7);
     expect(await c.ap.sincronizar()).toBe(true);
+    const mesesDoEnvio = new Set([mesAntes, new Date().toISOString().slice(0, 7)]);
     expect(c.ap.motor.estado().fila).toEqual([]);
     expect(c.ap.motor.arquivosPendentes()).toEqual([]);
     expect(await visita(ci.visit.id)).toMatchObject({ resultado: 'cliente_fechado', motivo_id: A.motivos.lojaFechada, foto_fachada_id: foto, fechada_por: 'usuario' });
     const arq = (await api.admin.query('select * from plataforma.arquivo where id = $1', [foto])).rows[0];
     expect(arq).toMatchObject({ tenant_id: A.tenantId, modulo: 'core', finalidade: 'fachada', entidade: 'visita', entidade_id: ci.visit.id, cliente_id: C.c1, enviado_por: U.vendedor1, situacao: 'recebido' });
     expect(Number(arq.tamanho_bytes)).toBe(bytes.length);
-    expect(fotosNoServidor.chaves().filter((k) => k.endsWith(`${foto}.jpg`))).toEqual([`${A.tenantId}/core/${new Date().toISOString().slice(0, 7)}/${foto}.jpg`]);
+    const chavesDaFoto = fotosNoServidor.chaves().filter((k) => k.endsWith(`${foto}.jpg`));
+    expect(chavesDaFoto).toHaveLength(1);
+    expect([...mesesDoEnvio].map((mes) => `${A.tenantId}/core/${mes}/${foto}.jpg`)).toContain(chavesDaFoto[0]);
 
     // reenvio da foto (mesmo UUID e mesmos bytes) → 200 repetido; bytes diferentes → 409 ARQUIVO_DIVERGENTE
     const de = (b: Uint8Array) =>

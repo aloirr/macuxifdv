@@ -87,6 +87,31 @@ Carteiras **não mudaram** (testes de sync contam os clientes de cada vendedor):
 2 paradas (os 2 clientes da carteira dele), e não 3. Motivos padrão e parâmetros `core.checkin.raio_m`/`metas.base_apuracao`
 não estão nas listas da fixture: o gatilho `core.semear_tenant` cria no INSERT do tenant.
 
+### T-0032 (migração 0010; schema `integracao`)
+Grupos novos: `0050` conector · `0051` credencial · `0052` politica_versao · `0053` sessao_carga · `0054` sessao_carga_recebido ·
+`0055` lote · `0056` lote_staging · `0057` lote_linha_erro · `0058` registro_atual · `0059` pendencia_inativacao ·
+`005a` inativacao_auditoria · `005b` cursor_entidade · `005c` reconciliacao · `005d` mapeamento · `005e` pedido_fila_erp ·
+`005f` pedido_retorno · `0060` pedido_retorno_erro. Constantes em `DOIS_TENANTS.X.integracao` e `PEPPER_HUB_FIXTURE`
+(`@macuxi/db/teste` via `dois-tenants`). Instantes **fixos** (2026-10-30): recarregar não muda nada.
+
+| Tabela | Tenant A | Tenant B |
+|---|---|---|
+| conector | `erp-alfa`, as 8 entidades, recebe pedidos, sem lista de IP | `erp-beta`, só `cliente` e `produto`, recebe pedidos, IP `203.0.113.0/24` |
+| credencial | `atual`, prefixo `alfa0001`; **chave em claro** `DOIS_TENANTS.A.integracao.chave.chave`; `hash_chave` = HMAC-SHA256(`PEPPER_HUB_FIXTURE`, chave) | idem `beta0001` |
+| politica_versao | mínima 1.1.0, recomendada 1.2.0 | mínima 1.0.0, recomendada 1.2.0 |
+| sessao_carga | produto (completa, 1 inativada) e cliente (completa) | cliente (completa) |
+| sessao_carga_recebido | `PRD-INVALIDO-9` na sessão de produto | `CLI-INVALIDO-9` |
+| lote | completo de produto (`concluido_com_erros`, 3 recebidas, 1 erro, 1 inativada), delta de produto (`recebido`, com staging), completo de cliente | completo de cliente, delta de cliente (`recebido`, com staging) |
+| lote_linha_erro | origem hub, `campo_obrigatorio`, com payload | origem conector, `formato_invalido`, sem payload |
+| registro_atual | `PRD-1` ativo e `PRD-2` **inativado** (hash nulo) | `CLI-1` |
+| pendencia_inativacao | produto **confirmada** pelo analista; cliente **aguardando** (expira 2099, decidível nos testes) | cliente **recusada** pelo admin-B |
+| inativacao_auditoria | confirmar (analista, inativadas 1) | recusar (admin, inativadas nulo) |
+| cursor_entidade / reconciliacao / mapeamento | produto `PRD-1` / divergente / À vista `001` e 28 dias `028` | cliente `CLI-1` / sem divergência / À vista `AV` |
+| pedido_fila_erp / pedido_retorno / pedido_retorno_erro | p3 `faturado_parcial` (nota 1001) / 1 retorno / 1 descartado `sequencia_inexistente` | p1 `faturado_total` (nota 2001) / 1 retorno / 1 descartado `produto_divergente` |
+
+A licença do módulo `integracao` **não** está em `tenant_modulo` da fixture (os módulos de A e B não mudaram; os testes de
+licença contam a lista). Quem precisar das rotas do Hub com licença ativa grava a linha no próprio teste (ou pede ao banco-dados).
+
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
 (mesmo id da Fase M). IDs determinísticos (UUID v5 de `fase-m:<tipo>:<chave>`).
