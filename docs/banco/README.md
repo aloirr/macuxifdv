@@ -6,6 +6,8 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **Situação em 2026-10-31:** Docker Desktop instalado (motor 29.9.2). Migrações up/down/up, seed
 > Fase M, fixture dois-tenants e a suíte inteira de `db/testes/` rodam no container `macuxi-postgres`
 > (74 testes, 0 pulados). Medição do sync em [desempenho-sync.md](desempenho-sync.md).
+> SQLite do aparelho (esquema local, FTS5 do Catálogo, limpeza RN-CORE-02/15 e medições da T-0008):
+> [aparelho-sqlite.md](aparelho-sqlite.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
