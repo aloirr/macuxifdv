@@ -14,7 +14,27 @@ interface Pagina<T> {
   items: T[];
 }
 
-export const etapasVendedor: readonly EtapaSync[] = [
+/** Rota inexistente (404) ou sync não implementado (501 / SYNC_NAO_IMPLEMENTADO). Os demais 4xx (401, 403, 423 DISPOSITIVO_BLOQUEADO...) seguem como erro (RN-CORE-15). */
+export function rotaInexistente(e: unknown): boolean {
+  const x = e as { status?: unknown; code?: unknown; codigo?: unknown } | null;
+  return x?.status === 404 || x?.status === 501 || x?.code === 'SYNC_NAO_IMPLEMENTADO' || x?.codigo === 'SYNC_NAO_IMPLEMENTADO';
+}
+
+/** Pula a etapa (sem derrubar a sincronização) quando a rota REST da Fase M não existe na API real. Rede e 5xx seguem como erro. */
+export function toleraSemRota(etapa: EtapaSync): EtapaSync {
+  return {
+    ...etapa,
+    executar: async (ctx) => {
+      try {
+        await etapa.executar(ctx);
+      } catch (e) {
+        if (!rotaInexistente(e)) throw e;
+      }
+    },
+  };
+}
+
+const etapasFaseM: readonly EtapaSync[] = [
   {
     id: 'alcadas',
     rotulo: 'Alçadas de desconto',
@@ -73,3 +93,6 @@ export const etapasVendedor: readonly EtapaSync[] = [
     },
   },
 ];
+
+/** Cargas REST da Fase M: valem no modo demo (mock-api); na API real viram "vazio" (pull de pedido/cliente/produto vem do sync genérico). */
+export const etapasVendedor: readonly EtapaSync[] = etapasFaseM.map(toleraSemRota);
