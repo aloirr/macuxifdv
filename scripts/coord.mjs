@@ -4,6 +4,8 @@
 //   node scripts/coord.mjs enviar --de <agente> --para <a,b> [--cc <c>] --tipo <tipo> --assunto "..."
 //        [--corpo "..." | --arquivo caminho.md] [--tarefa T-0001] [--prioridade alta|normal|baixa]
 //        [--responde-a <id>] [--encerra] [--contrato modulo.entidade.fato@1]
+//        --de alexandre só na sessão do Alexandre: MACUXI_AGENTE=alexandre ou terminal fora do Claude
+//        Code (sem CLAUDECODE); com MACUXI_AGENTE=<agente>, o --de tem de ser esse agente (v5, T-0044).
 //   node scripts/coord.mjs caixa <agente>           recados abertos/não lidos do agente
 //   node scripts/coord.mjs lido <agente> <id> [...]  marca avisos/entregas/respostas como lidos
 //   node scripts/coord.mjs ler <id>                 mostra um recado
@@ -489,6 +491,14 @@ switch (cmd) {
     const cc = lista(o.cc);
     const tipo = o.tipo || 'pedido';
     if (!AGENTES.includes(de) && de !== 'alexandre') falhar(`--de inválido. Use um de: ${AGENTES.join(', ')}, alexandre`);
+    // Guardião v5 (T-0044): recado como alexandre só da sessão dele — MACUXI_AGENTE=alexandre ou o
+    // terminal dele, fora do Claude Code (sem CLAUDECODE). O guarda-bash também barra o --de alheio,
+    // inclusive de subagente (que herda MACUXI_AGENTE).
+    const naSessao = String(process.env.MACUXI_AGENTE || '').trim().toLowerCase();
+    if (de === 'alexandre' && (naSessao ? naSessao !== 'alexandre' : Boolean(process.env.CLAUDECODE)))
+      falhar('--de alexandre só na sessão do Alexandre (MACUXI_AGENTE=alexandre ou o terminal dele, fora do Claude Code). Envie com o seu nome: --de <agente>');
+    if (naSessao && naSessao !== 'alexandre' && PESSOAS.includes(naSessao) && de !== naSessao)
+      falhar(`esta sessão é de ${naSessao} (MACUXI_AGENTE): envie com --de ${naSessao}`);
     if (!para.length) falhar('informe --para');
     for (const p of [...para, ...cc]) if (!DESTINOS.includes(p)) falhar(`destinatário inválido: ${p}`);
     if (!TIPOS.includes(tipo)) falhar(`--tipo inválido. Use: ${TIPOS.join(', ')}`);

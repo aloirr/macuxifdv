@@ -26,6 +26,18 @@
 //    agente (outro agente trabalhando em paralelo na mesma árvore) vira aviso NÃO bloqueante
 //    (exit 0, additionalContext): "mudou durante o comando, provavelmente outro agente; não desfaça".
 //    Não desfaz nada sozinho.
+//  - Guardião v5 (T-0044), PreToolUse, ANTES da liberação da sessão manual (vale para todas):
+//      · trava do `gh pr merge` (também encadeado com ; && || |, em subshell e em $(...)): só o
+//        gerente-projetos na sessão principal (subagente nunca; identidade por MACUXI_AGENTE ou
+//        agent_type local), só `gh pr merge N -R aloirr/macuxifdv --squash --match-head-commit <sha>`
+//        (+ --body/--subject), sem --admin/--auto/--merge/--rebase, sem prefixo nem $VAR; o hook
+//        consulta `gh pr view N --json files,headRefOid,changedFiles` e exige head = SHA e, em PR
+//        com caminho de governança, o recado do Alexandre "autorizo o merge do PR #N no commit <sha>"
+//        em .coord/recados/gerente-projetos. gh sem resposta = bloqueado (falha fechada). Merge
+//        escondido (bash -c, eval, xargs, node -e, gh api, alias) também é bloqueado.
+//      · recado falso: agente não envia recado em nome de outro (coord.mjs enviar --de alheio,
+//        "de: alexandre" no comando, script que escreve recado de alexandre).
+//    Mensagens e casos: .claude/hooks/guarda-merge-lib.mjs e guarda-merge.test.mjs.
 // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -36,6 +48,7 @@ import {
   arquivoFoto, arquivoAcusados,
   lerJson, gravarJson, apagarArquivo, limparAntigos,
 } from './guarda-bash-lib.mjs';
+import { conferirMerge, consultarPrGh, lerRecadosDoGerente, motivosRecadoFalso, mensagemRecadoFalso } from './guarda-merge-lib.mjs';
 
 function lerEntrada() {
   return new Promise((ok) => {
@@ -52,11 +65,24 @@ if ((process.env.MACUXI_GUARDA || '').toLowerCase() === 'off') process.exit(0);
 
 const entrada = await lerEntrada();
 if (entrada.tool_name && entrada.tool_name !== 'Bash') process.exit(0);
-const { agente } = agenteDaSessao({ argumento: process.argv[2], entrada });
-if (!agente) process.exit(0); // sessão manual, sem agente
-
+const { agente, origem } = agenteDaSessao({ argumento: process.argv[2], entrada });
 const comando = String(entrada.tool_input?.command || '');
 const evento = entrada.hook_event_name || 'PreToolUse';
+
+// Guardião v5 (T-0044): trava do gh pr merge — vale para TODA sessão, inclusive a manual e a do
+// alexandre; só o gerente-projetos na sessão principal passa, com as regras (guarda-merge-lib.mjs).
+if (evento === 'PreToolUse') {
+  const m = conferirMerge({
+    comando, agente, origem, subagente: Boolean(String(entrada.agent_id || '').trim()),
+    consultarPr: (pr) => consultarPrGh(pr), lerRecados: () => lerRecadosDoGerente(RAIZ),
+  });
+  if (!m.ok) {
+    process.stderr.write(m.mensagem + '\n');
+    process.exit(2);
+  }
+}
+
+if (!agente) process.exit(0); // sessão manual, sem agente
 let regras;
 let somenteLeitura = [];
 try {
@@ -75,6 +101,12 @@ if (evento === 'PreToolUse') {
   });
   if (violacoes.length) {
     process.stderr.write(mensagemPre(agente, violacoes) + '\n');
+    process.exit(2);
+  }
+  // Guardião v5: nenhum agente cria recado em nome de outro (sobretudo de: alexandre).
+  const motivos = motivosRecadoFalso({ comando, agente, soLeitura });
+  if (motivos.length) {
+    process.stderr.write(mensagemRecadoFalso(agente, motivos) + '\n');
     process.exit(2);
   }
   if (!soLeitura) {
