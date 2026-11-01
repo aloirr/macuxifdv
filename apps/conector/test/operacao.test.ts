@@ -23,7 +23,9 @@ afterEach(async () => {
 function io(env: NodeJS.ProcessEnv = {}, entrada = ''): ES & { saidas: string[]; erros: string[] } {
   const saidas: string[] = [];
   const erros: string[] = [];
-  return { saidas, erros, saida: (t) => void saidas.push(t), erro: (t) => void erros.push(t), lerEntrada: async () => entrada, env };
+  // Nunca chama o PowerShell real: credencial "não encontrada" (código 3), sem depender de tempo de máquina.
+  const executarPowerShell = async () => ({ codigo: 3, saida: '', erro: '' });
+  return { saidas, erros, saida: (t) => void saidas.push(t), erro: (t) => void erros.push(t), lerEntrada: async () => entrada, env, executarPowerShell };
 }
 
 const CONSULTA = 'SELECT * FROM v WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY 1 LIMIT :limite';

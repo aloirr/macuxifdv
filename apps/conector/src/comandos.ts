@@ -110,7 +110,7 @@ export async function executarCli(argv: string[], io: ES): Promise<number> {
       case 'trocar-chave':
         return await trocarChave(caminhoConfig, Boolean(o['sem-testar']), io);
       case 'instalar-servico': {
-        const amb = prepararAmbiente(caminhoConfig, { env: io.env });
+        const amb = prepararAmbiente(caminhoConfig, { env: io.env, plataforma: io.plataforma, executar: io.executarPowerShell });
         const pasta = resolve(o.pasta ?? resolve(amb.dadosDir, '..', 'servico'));
         const r = await instalarServico({ pasta, winsw: o.winsw, caminhoConfig: amb.caminhoConfig, script: process.argv[1] ?? 'conector.mjs', pastaLogs: resolve(amb.dadosDir, 'logs'), somenteGerar: Boolean(o['somente-gerar']) });
         r.mensagens.forEach((m) => io.saida(m));
@@ -118,7 +118,7 @@ export async function executarCli(argv: string[], io: ES): Promise<number> {
         return 0;
       }
       case 'desinstalar-servico': {
-        const amb = prepararAmbiente(caminhoConfig, { env: io.env });
+        const amb = prepararAmbiente(caminhoConfig, { env: io.env, plataforma: io.plataforma, executar: io.executarPowerShell });
         const pasta = resolve(o.pasta ?? resolve(amb.dadosDir, '..', 'servico'));
         (await desinstalarServico({ pasta })).forEach((m) => io.saida(m));
         return 0;
@@ -138,7 +138,7 @@ async function operarEntidade(comando: 'carga-completa' | 'retomar', alvo: strin
     io.erro(`Informe a entidade (${ORDEM_CARGA.join(', ')}${comando === 'carga-completa' ? ' ou todas' : ''}).`);
     return 2;
   }
-  const amb = prepararAmbiente(caminhoConfig, { env: io.env });
+  const amb = prepararAmbiente(caminhoConfig, { env: io.env, plataforma: io.plataforma, executar: io.executarPowerShell });
   const alvos = alvo === 'todas' && comando === 'carga-completa' ? ORDEM_CARGA.filter((e) => amb.config.entidades[e]) : [alvo];
   for (const a of alvos) {
     if (!ehEntidade(a) || !amb.config.entidades[a]) {
@@ -165,7 +165,7 @@ async function operarEntidade(comando: 'carga-completa' | 'retomar', alvo: strin
 }
 
 async function status(caminhoConfig: string, json: boolean, io: ES): Promise<number> {
-  const amb = prepararAmbiente(caminhoConfig, { env: io.env });
+  const amb = prepararAmbiente(caminhoConfig, { env: io.env, plataforma: io.plataforma, executar: io.executarPowerShell });
   mkdirSync(amb.dadosDir, { recursive: true });
   const store = Armazenamento.abrir(resolve(amb.dadosDir, 'fila.sqlite'));
   try {
@@ -178,7 +178,7 @@ async function status(caminhoConfig: string, json: boolean, io: ES): Promise<num
 }
 
 async function rodar(caminhoConfig: string, umaVez: boolean, io: ES): Promise<number> {
-  const amb = prepararAmbiente(caminhoConfig, { console: umaVez, env: io.env });
+  const amb = prepararAmbiente(caminhoConfig, { console: umaVez, env: io.env, plataforma: io.plataforma, executar: io.executarPowerShell });
   mkdirSync(amb.dadosDir, { recursive: true });
   const liberar = adquirirTrava(amb.dadosDir);
   const ctx = await abrirContexto(amb);
@@ -239,7 +239,7 @@ async function segredo(args: string[], caminhoConfig: string, io: ES): Promise<n
  * Códigos: 0 gravada; 1 recusada/erro; 2 uso; 4 validada mas NÃO gravada (provedor por variável de ambiente ou fora do Windows).
  */
 async function trocarChave(caminhoConfig: string, semTestar: boolean, io: ES): Promise<number> {
-  const amb = prepararAmbiente(caminhoConfig, { env: io.env });
+  const amb = prepararAmbiente(caminhoConfig, { env: io.env, plataforma: io.plataforma, executar: io.executarPowerShell });
   const nova = (await io.lerEntrada()).replace(/\r?\n$/, '');
   const invalida = validarFormatoChave(nova);
   if (invalida) {
@@ -286,7 +286,7 @@ async function trocarChave(caminhoConfig: string, semTestar: boolean, io: ES): P
 }
 
 async function testarConexao(caminhoConfig: string, io: ES): Promise<number> {
-  const amb = prepararAmbiente(caminhoConfig, { env: io.env });
+  const amb = prepararAmbiente(caminhoConfig, { env: io.env, plataforma: io.plataforma, executar: io.executarPowerShell });
   let falhas = 0;
   const ok = (m: string) => io.saida(`[ok]    ${m}`);
   const falha = (m: string) => {

@@ -35,6 +35,9 @@ export class ProvedorEnv implements ProvedorSegredos {
 /** Executa um script PowerShell (via -EncodedCommand) e devolve stdout; o valor sensível vai por stdin, nunca por argumento. */
 export type ExecutarPowerShell = (script: string, entrada?: string) => Promise<{ codigo: number; saida: string; erro: string }>;
 
+/** Tempo máximo de uma chamada ao PowerShell; passado disso o processo é encerrado e a leitura falha com mensagem clara. */
+export const TIMEOUT_POWERSHELL_MS = 10_000;
+
 export const executarPowerShellReal: ExecutarPowerShell = (script, entrada) =>
   new Promise((resolve, reject) => {
     const codificado = Buffer.from(script, 'utf16le').toString('base64');
@@ -43,10 +46,20 @@ export const executarPowerShellReal: ExecutarPowerShell = (script, entrada) =>
     });
     let saida = '';
     let erro = '';
+    const relogio = setTimeout(() => {
+      p.kill();
+      reject(new Error(`O PowerShell não respondeu em ${TIMEOUT_POWERSHELL_MS / 1000} s ao acessar o Gerenciador de Credenciais do Windows. Use o provedor "env" (variável de ambiente) ou tente de novo.`));
+    }, TIMEOUT_POWERSHELL_MS);
     p.stdout.on('data', (d: Buffer) => (saida += d.toString('utf8')));
     p.stderr.on('data', (d: Buffer) => (erro += d.toString('utf8')));
-    p.on('error', reject);
-    p.on('close', (codigo) => resolve({ codigo: codigo ?? 1, saida, erro }));
+    p.on('error', (e) => {
+      clearTimeout(relogio);
+      reject(e);
+    });
+    p.on('close', (codigo) => {
+      clearTimeout(relogio);
+      resolve({ codigo: codigo ?? 1, saida, erro });
+    });
     p.stdin.end(entrada ?? '');
   });
 

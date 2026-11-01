@@ -162,16 +162,29 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
   });
 
   afterAll(async () => {
-    ctx?.store.fechar();
-    await erp?.fechar();
-    await hub?.parar();
-    await admin?.end().catch(() => undefined);
-    const root = new pg.Client({ ...cfgPg, database: 'postgres' });
-    await root.connect();
-    await root.query(`DROP DATABASE IF EXISTS ${nomeBanco} WITH (FORCE)`);
-    await root.end();
-    if (dir) rmSync(dir, { recursive: true, force: true });
-  });
+    // Limpeza nunca reprova o teste: falha vira aviso.
+    const tentar = async (rotulo: string, f: () => unknown) => {
+      try {
+        await Promise.race([Promise.resolve(f()), new Promise((_, rej) => setTimeout(() => rej(new Error('tempo esgotado')), 10_000).unref())]);
+      } catch (e) {
+        console.warn(`[aviso] limpeza do teste (${rotulo}): ${(e as Error).message}`);
+      }
+    };
+    await tentar('fila', () => ctx?.store.fechar());
+    await tentar('pool do ERP', () => erp?.fechar());
+    await tentar('Hub falso', () => hub?.parar());
+    await tentar('conexão admin', () => admin?.end());
+    await tentar('DROP DATABASE', async () => {
+      const root = new pg.Client({ ...cfgPg, database: 'postgres' });
+      await root.connect();
+      try {
+        await root.query(`DROP DATABASE IF EXISTS ${nomeBanco} WITH (FORCE)`);
+      } finally {
+        await root.end().catch(() => undefined);
+      }
+    });
+    await tentar('pasta temporária', () => dir && rmSync(dir, { recursive: true, force: true }));
+  }, 40_000);
 
   const rodar = async (e: 'vendedor' | 'produto' | 'cliente' | 'preco' | 'estoque') => {
     await sincronizarEntidade(ctx, e);

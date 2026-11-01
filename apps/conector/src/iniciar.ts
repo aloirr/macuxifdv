@@ -8,7 +8,7 @@ import { abrirConexaoErp } from './erp/fabrica';
 import { avisoTransporteErp } from './erp/transporte';
 import { ClienteHub } from './hub/cliente';
 import { criarLogger, type Logger } from './log/logger';
-import { criarProvedor, Segredos } from './segredos/provedores';
+import { criarProvedor, type ExecutarPowerShell, Segredos } from './segredos/provedores';
 import { relogioReal } from './util/relogio';
 
 export interface Ambiente {
@@ -19,7 +19,7 @@ export interface Ambiente {
   log: Logger;
 }
 
-export function prepararAmbiente(caminhoConfig: string, opcoes: { console?: boolean; env?: NodeJS.ProcessEnv } = {}): Ambiente {
+export function prepararAmbiente(caminhoConfig: string, opcoes: { console?: boolean; env?: NodeJS.ProcessEnv; plataforma?: string; executar?: ExecutarPowerShell } = {}): Ambiente {
   const caminho = resolve(caminhoConfig);
   const config = carregarConfig(caminho);
   const dadosDir = isAbsolute(config.dadosDir) ? config.dadosDir : resolve(dirname(caminho), config.dadosDir);
@@ -30,7 +30,7 @@ export function prepararAmbiente(caminhoConfig: string, opcoes: { console?: bool
     maxBytes: Math.round(config.logs.maxMegabytes * 1024 * 1024),
     console: opcoes.console,
   });
-  const segredos = new Segredos(criarProvedor(config.segredos.provedor, { env: opcoes.env }));
+  const segredos = new Segredos(criarProvedor(config.segredos.provedor, { env: opcoes.env, plataforma: opcoes.plataforma, executar: opcoes.executar }));
   return { config, dadosDir, caminhoConfig: caminho, segredos, log };
 }
 
