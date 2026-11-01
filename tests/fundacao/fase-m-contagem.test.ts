@@ -59,7 +59,8 @@ const MAPA: Record<string, [string, number][]> = {
     ['modules/core/app/lib/rota.test.ts', 5],
     ['modules/vendedor/app/lib/helpers.test.ts', 6],
   ],
-  'apps/mobile/src/lib/time.test.ts': [['packages/ui/src/mobile/time.test.ts', 4]],
+  // T-0029 E5 (engenheiro-software): os casos de datas no fuso foram para `@macuxi/comum/fuso`
+  'apps/mobile/src/lib/time.test.ts': [['packages/comum/src/fuso.test.ts', 4]],
   'apps/mobile/src/lib/visit.test.ts': [['modules/core/app/lib/visit.test.ts', 13]],
   'apps/mobile/src/lib/order-pdf.test.ts': [['modules/vendedor/app/lib/order-pdf.test.ts', 10]],
   'apps/mobile/src/lib/order-prefill.test.ts': [['modules/vendedor/app/lib/order-prefill.test.ts', 2]],
@@ -80,6 +81,12 @@ const SUBSTITUIDOS_POR_DECISAO: { origem: string; titulo: string; novo: string; 
     titulo: 'integrado explica que é preciso duplicar',
     novo: 'RN-VEN-31 / matriz §2: integrado mostra a mensagem de cancelar no ERP e continua duplicável',
     decisao: 'doc 03 §4 — a partir de enviado, cancelar só no ERP ("Pedido já enviado ao ERP — cancele no ERP"); R-20261031-102322',
+  },
+  {
+    origem: 'apps/mobile/src/lib/helpers.test.ts',
+    titulo: 'prioriza EXPO_PUBLIC_API_URL e normaliza /v1',
+    novo: 'padrão do build: EXPO_PUBLIC_API_URL completado com /v1 (não foi digitado)',
+    decisao: 'R-20261101-065547-alexandre — endereço digitado fica exatamente como digitado; só o padrão do build (EXPO_PUBLIC_API_URL) é completado com /v1',
   },
 ];
 const substituido = (arquivo: string, titulo: string) => SUBSTITUIDOS_POR_DECISAO.some((x) => x.origem === arquivo && x.titulo === titulo);

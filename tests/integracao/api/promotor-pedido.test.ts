@@ -117,22 +117,22 @@ describe.skipIf(semBanco())('T-0003 C3.3 / T-0015 O-3 — promotor lê pedidos d
       expect((await licenca(api, admin, 'perfil', 'catalogo', false, 'promotor')).statusCode).toBe(200);
     });
 
-    it('O-3 leitura na carteira: GET pedidos 200 só com pedidos de clientes da carteira (c1); filtro por cliente fora dela vem vazio', async () => {
+    it('O-3 leitura na carteira: GET pedidos 200 só com pedidos de clientes da carteira (c1); filtro por cliente (customer_id, T-0029) fora dela vem vazio', async () => {
       const r = await api.chamar(promotor, { method: 'GET', url: '/v1/vendedor/pedidos' });
       expect(r.statusCode, r.body).toBe(200);
-      const itens = r.json().itens as { id: string; cliente_id: string }[];
+      const itens = r.json().itens as { id: string; customer_id: string }[];
       expect(itens.map((i) => i.id)).toContain(PED.c1);
       expect(itens.map((i) => i.id)).not.toContain(PED.c2);
       expect(itens.map((i) => i.id)).not.toContain(PED.b);
-      expect(itens.every((i) => i.cliente_id === A.clientes.c1)).toBe(true);
-      const fora = await api.chamar(promotor, { method: 'GET', url: `/v1/vendedor/pedidos?cliente_id=${A.clientes.c2}` });
+      expect(itens.every((i) => i.customer_id === A.clientes.c1)).toBe(true);
+      const fora = await api.chamar(promotor, { method: 'GET', url: `/v1/vendedor/pedidos?customer_id=${A.clientes.c2}` });
       expect([fora.statusCode, fora.json().itens]).toEqual([200, []]);
     });
 
     it('O-3 leitura: GET pedidos/:id da carteira 200; fora da carteira 404 PEDIDO_NAO_ENCONTRADO; de outro tenant 404', async () => {
       const dentro = await api.chamar(promotor, { method: 'GET', url: `/v1/vendedor/pedidos/${PED.c1}` });
       expect(dentro.statusCode, dentro.body).toBe(200);
-      expect(dentro.json()).toMatchObject({ id: PED.c1, cliente_id: A.clientes.c1, status: 'received' });
+      expect(dentro.json()).toMatchObject({ id: PED.c1, customer_id: A.clientes.c1, status: 'received' });
       for (const id of [PED.c2, PED.b, UM_UUID]) {
         const r = await api.chamar(promotor, { method: 'GET', url: `/v1/vendedor/pedidos/${id}` });
         expect([r.statusCode, erroDe(r).codigo], id).toEqual([404, 'PEDIDO_NAO_ENCONTRADO']);

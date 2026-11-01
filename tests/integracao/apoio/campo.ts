@@ -23,9 +23,11 @@ import { manifest as manifestoVendedor } from '@macuxi/vendedor/manifest';
 import {
   criarArmazenamentoEmMemoria,
   criarClienteHttp,
+  criarRegistroConsultasAparelho,
   criarMotorSync,
   criarRegistroSync,
   type AmbienteAparelho,
+  type DefinicaoEntidadeSync,
   type EtapaSync,
   type FuncaoRequisitar,
   type ItemPush,
@@ -36,9 +38,13 @@ import {
   type ResultadoItemPush,
   type TransporteSync,
 } from '@macuxi/platform-sdk';
+import { ENTIDADES_PRECO } from '@macuxi/catalogo/contracts';
+import { consultaPrecosClienteAparelho } from '../../../modules/catalogo/app/consultas';
 import { entidadesCliente } from '../../../modules/core/app/lib/entidades-cliente';
 import { entidadesNotificacao } from '../../../modules/core/app/lib/entidades-notificacao';
+import { entidadesProduto } from '../../../modules/core/app/lib/entidades-produto';
 import { entidadesRota } from '../../../modules/core/app/lib/entidades-rota';
+import { ENTIDADES_VENDEDOR } from '../../../modules/vendedor/contracts/entidades';
 import { A, comToken, type ApiDeTeste, type Tenant } from './api';
 
 export const MANIFESTOS_CAMPO = [manifestoCore, manifestoCatalogo, manifestoVendedor, manifestoPromotor];
@@ -80,9 +86,22 @@ export interface OpcoesAparelho {
   /** Etapas de carga dos módulos (as do shell real: `etapasCore`, `etapasVendedor`). Padrão: nenhuma. */
   etapas?: readonly EtapaSync[];
   dispositivo_id?: string;
+  /** Entidades do app além das de Cliente/Rota/Notificação (ex.: `entidadesMeta` do Core, T-0028). */
+  entidadesExtras?: readonly DefinicaoEntidadeSync[];
+  /**
+   * Aparelho no modo demonstração (mock-api): `usuario()` sem o fuso do tenant, como o login da Fase M. Na API v1 o login
+   * traz o fuso e as etapas REST da Fase M do Vendedor não rodam (`soNaDemonstracao`, T-0029 §8).
+   */
+  semFuso?: boolean;
 }
 
-const UTEIS = new Set(['pedido', 'pedido_item']);
+/**
+ * Consultas entre módulos no aparelho (ADR 0012), como o `criarShell(...).consultas` do app: o Catálogo responde
+ * `catalogo.precos_cliente@1` sobre as linhas locais (preço do cliente, offline, no novo pedido).
+ */
+const CONSULTAS_CAMPO = criarRegistroConsultasAparelho(
+  MANIFESTOS_CAMPO.map((m) => (m.id === 'catalogo' ? { manifesto: m, consultas: [consultaPrecosClienteAparelho] } : { manifesto: m })),
+).registro;
 
 export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAparelho = {}): Promise<AparelhoCampo> {
   const tenant = op.tenant ?? A;
@@ -98,8 +117,10 @@ export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAp
   const respostaEtapas: AparelhoCampo['respostaEtapas'] = { valor: null };
 
   const registro = criarRegistroSync(MANIFESTOS_CAMPO);
-  for (const e of [...entidadesCliente, ...entidadesRota, ...entidadesNotificacao]) registro.registrar(e);
-  for (const p of api.modulos.find((m) => m.manifesto.id === 'vendedor')!.sync ?? []) if (UTEIS.has(p.entidade.nome)) registro.registrar(p.entidade);
+  // extra já registrado pelo módulo (ex.: `produto` depois da correção do Core) não entra duas vezes
+  for (const e of [...entidadesCliente, ...entidadesProduto, ...entidadesRota, ...entidadesNotificacao, ...(op.entidadesExtras ?? [])]) if (!registro.entidade(e.nome)) registro.registrar(e);
+  // T-0029: o que o Vendedor e o Catálogo registram no app (`moduloApp.entidadesSync`): pedido, itens, histórico, condições e preço
+  for (const e of [...ENTIDADES_VENDEDOR, ...ENTIDADES_PRECO]) registro.registrar(e);
 
   const transporte: TransporteSync = {
     async push(itens: ItemPush[]): Promise<ResultadoItemPush[]> {
@@ -163,7 +184,7 @@ export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAp
     http: criarClienteHttp(requisitar, { online: () => online.valor }),
     online: () => online.valor,
     novoId: () => randomUUID(),
-    usuario: () => ({ id: sessao.usuario.id, nome: sessao.usuario.nome, perfil: sessao.usuario.perfil, fuso: sessao.tenant.fuso }),
+    usuario: () => ({ id: sessao.usuario.id, nome: sessao.usuario.nome, perfil: sessao.usuario.perfil, ...(op.semFuso ? {} : { fuso: sessao.tenant.fuso }) }),
   };
 
   const armazenamento = criarArmazenamentoEmMemoria();
@@ -175,6 +196,7 @@ export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAp
     ambiente,
     etapas: op.etapas ?? [],
     mensagemDeErro: (e) => (e instanceof Error ? e.message : String(e)),
+    consultas: CONSULTAS_CAMPO,
     arquivos: {
       ler: async (caminho) => fotos.get(caminho) ?? null,
       remover: async (caminho) => void fotos.delete(caminho),
@@ -196,7 +218,14 @@ export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAp
     async sincronizar() {
       if (online.valor) {
         const r = await api.app.inject({ method: 'GET', url: '/v1/me/modulos', headers: comToken(token.valor) });
-        if (r.statusCode === 200) await motor.aplicarModulosAtivos(MeusModulosRespostaSchema.parse(r.json()).modulos.map((m) => m.id));
+        if (r.statusCode === 200) {
+          // como o shell (apps/mobile/src/state/plataforma.tsx): módulos efetivos e parâmetros do tenant (E3, valem offline)
+          const mods = MeusModulosRespostaSchema.parse(r.json()).modulos;
+          await motor.aplicarModulosAtivos(
+            mods.map((m) => m.id),
+            Object.fromEntries(mods.map((m) => [m.id, m.parametros ?? {}])),
+          );
+        }
       }
       return motor.sincronizar();
     },

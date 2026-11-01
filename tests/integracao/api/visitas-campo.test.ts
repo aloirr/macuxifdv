@@ -272,16 +272,26 @@ describe.skipIf(semBanco())('T-0018 — rota e visitas reais no app Campo × API
     expect(new Set(pedidos.map((p) => p.vendedor_id))).toEqual(new Set([U.vendedor1]));
     expect((await c.ap.motor.linhas('rota')).map((r) => r.id)).toContain(A.rotas.vendedor1);
     expect((await c.ap.motor.linhas('motivo')).length).toBeGreaterThan(0);
-    // as etapas do Vendedor foram de fato chamadas e receberam 404 (pulo tolerado), nunca 5xx
+    // T-0029 §8: na API v1 (login com o fuso do tenant) as etapas da Fase M do Vendedor não chamam nada: o Campo lê o pull
+    // (GET /orders e /goals/me que sobram são das cargas do Core: O-3 da matriz da demo)
     const doVendedor = c.ap.chamadasEtapas.filter((x) => /^GET \/(me|discount-policy|customers|products)$/.test(x.caminho));
-    expect(doVendedor.length, JSON.stringify(c.ap.chamadasEtapas)).toBeGreaterThan(0);
-    expect(new Set(doVendedor.map((x) => x.status))).toEqual(new Set([404]));
+    expect(doVendedor, JSON.stringify(c.ap.chamadasEtapas)).toEqual([]);
+    const soVendedor = await noCampo('vendedor@exemplo.com.br', { etapas: etapasVendedor });
+    expect(await soVendedor.ap.sincronizar()).toBe(true);
+    expect(soVendedor.ap.chamadasEtapas, 'etapas do Vendedor na API v1').toEqual([]);
+    // no modo demonstração (sem o fuso, como o login da mock-api) elas rodam e o 404 da API real vira pulo, nunca 5xx
+    const demo = await noCampo('vendedor@exemplo.com.br', { etapas: etapasVendedor, semFuso: true });
+    expect(await demo.ap.sincronizar(), demo.ap.motor.estado().erro ?? '').toBe(true);
+    const daDemo = demo.ap.chamadasEtapas.filter((x) => /^GET \/(me|discount-policy|customers|products)$/.test(x.caminho));
+    expect(daDemo.length, JSON.stringify(demo.ap.chamadasEtapas)).toBeGreaterThan(0);
+    expect(new Set(daDemo.map((x) => x.status))).toEqual(new Set([404]));
   });
 
   // D-4, outro lado: o pulo vale só para "rota não existe" (404/501). Sessão (401), perfil (403) e aparelho bloqueado
   // (423, RN-CORE-15) e erro do servidor (5xx) têm de derrubar o "Sincronizar" com erro, sem apagar o que já está no aparelho.
-  it('S1-043c D-4 (RN-CORE-15): nas etapas da Fase M do Vendedor, 401, 403 e 423 (e 5xx) não são engolidos; 404 e 501 seguem pulados', async () => {
-    const c = await noCampo('vendedor@exemplo.com.br', { etapas: etapasVendedor });
+  // T-0029: essas etapas só rodam no modo demonstração (sem o fuso do tenant): o aparelho aqui é o da demonstração.
+  it('S1-043c D-4 (RN-CORE-15): nas etapas da Fase M do Vendedor (modo demonstração), 401, 403 e 423 (e 5xx) não são engolidos; 404 e 501 seguem pulados', async () => {
+    const c = await noCampo('vendedor@exemplo.com.br', { etapas: etapasVendedor, semFuso: true });
     expect(await c.ap.sincronizar()).toBe(true);
     const visitasAntes = (await c.ap.motor.linhas('visita')).length;
     expect(visitasAntes).toBeGreaterThan(0);

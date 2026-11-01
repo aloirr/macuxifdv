@@ -9,7 +9,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { criarShell, modulosEfetivos, type Manifesto, type ModuloId, type ModuloShell } from '@macuxi/platform-sdk';
+import { criarShell, modulosEfetivos, SaudeRespostaSchema, SERVICO_API_MACUXI, type Manifesto, type ModuloId, type ModuloShell } from '@macuxi/platform-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../apps/api/src/app';
 import { MODULOS_API } from '../../apps/api/src/modulos';
@@ -66,15 +66,20 @@ describe('C4.3 — os 8 módulos nos shells e na API', () => {
     expect(MODULOS_API.map((m) => m.manifesto.id)).toEqual(OITO);
     const app = createApp();
     const r = await app.inject({ method: 'GET', url: '/v1/saude' });
-    expect(r.json()).toEqual({ ok: true, modulos: OITO });
+    // R-20261101-023742-alexandre: /v1/saude se identifica (servico + versao) para o app só salvar um servidor Macuxi
+    const saude = SaudeRespostaSchema.parse(r.json());
+    expect(saude).toMatchObject({ ok: true, servico: SERVICO_API_MACUXI, modulos: OITO });
+    expect(saude.versao.length).toBeGreaterThan(0);
+    // corpo sem a identificação (outro serviço que responde { ok: true }) não passa no contrato do app
+    expect(SaudeRespostaSchema.safeParse({ ok: true, modulos: OITO }).success).toBe(false);
     // sem banco e sem Core configurado, tudo que é de usuário falha fechado
     expect((await app.inject({ method: 'GET', url: '/v1/me/modulos' })).statusCode).toBe(401);
     await app.close();
   });
 
-  it('S0-082: variante limita os módulos mesmo licenciados (Campo nunca monta Gestor; Gestão nunca monta Vendedor; Integração só no BKO)', () => {
+  it('S0-082: variante limita os módulos mesmo licenciados (Campo nunca monta Gestor; Integração só no BKO; T-0029 §7: o Gestão monta o Vendedor pela aba Pedidos)', () => {
     expect(modulosDaVariante('campo')).not.toContain('gestor');
-    expect(modulosDaVariante('gestao')).not.toContain('vendedor');
+    expect(modulosDaVariante('gestao')).toContain('vendedor');
     expect(modulosDaVariante('campo')).not.toContain('integracao');
     expect(modulosDaVariante('gestao')).not.toContain('integracao');
   });

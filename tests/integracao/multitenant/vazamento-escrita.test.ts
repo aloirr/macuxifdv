@@ -153,7 +153,18 @@ describe.skipIf(semBanco())('S0-025 escrita cruzada entre tenants (papel macuxi_
         const sqlFilha = f.filha.split('.').map((p) => `"${p}"`).join('.');
         const idFilhaA = linha.get(f.filha)!.A;
         const idMaeB = linha.get(f.mae)!.B;
-        const r = await tentar(app, A, () => app.query(`update ${sqlFilha} set "${coluna}" = $2 where id = $1`, [idFilhaA, idMaeB]));
+        const sql = `update ${sqlFilha} set "${coluna}" = $2 where id = $1`;
+        const podeAlterar = (await app.query<{ p: boolean }>("select has_table_privilege(current_user, $1, 'UPDATE') as p", [f.filha])).rows[0]!.p;
+        if (!podeAlterar) {
+          // tabela só de inserção para a aplicação (ex.: vendedor.pedido_evento, T-0029): o UPDATE já é negado (42501);
+          // a FK composta é provada como dono, em transação desfeita
+          const r = await tentar(app, A, () => app.query(sql, [idFilhaA, idMaeB]));
+          expect(r.ok ? 'UPDATE passou!' : r.codigo, `${f.nome} (app): ${r.ok ? '' : r.mensagem}`).toBe('42501');
+          const rd = await tentar(admin, A, () => admin.query(sql, [idFilhaA, idMaeB]));
+          expect(rd.ok ? 'UPDATE passou!' : rd.codigo, `${f.nome} (dono): ${rd.ok ? '' : rd.mensagem}`).toBe('23503');
+          continue;
+        }
+        const r = await tentar(app, A, () => app.query(sql, [idFilhaA, idMaeB]));
         expect(r.ok ? 'UPDATE passou!' : r.codigo, `${f.nome}: ${r.ok ? '' : r.mensagem}`).toBe('23503');
       }
     });
