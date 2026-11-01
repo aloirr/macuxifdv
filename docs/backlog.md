@@ -42,3 +42,4 @@
 - **Realizado de venda e positivação reais** (T-0020): consumidor de vendedor.pedido.* alimentando core.indicador_diario, quando o Vendedor publicar os eventos de pedido (Sprints 4–5).
 - **SDK (🟡 da revisão final da Sprint 1)**: poda local das entidades com janela; push enviado depois do commit (aposConfirmar) — Sprint 2.
 - **Job de desempenho no CI** (Sprint 9): rodar à parte MACUXI_PERF=1 (busca do SQLite, meta 300 ms) e MACUXI_CARGA_MEDIR=1 (S0-110); no pnpm test normal esses tempos só são impressos ou têm limite folgado.
+- **BKO do core na API nova (Sprint 2)**: Clientes com farol da carteira, Metas por equipe e Plano de RV — hoje 'em construção' (T-0030); precisam de rotas v1 novas no core.

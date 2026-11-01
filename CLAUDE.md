@@ -30,7 +30,7 @@ Coordenação: `node scripts/coord.mjs` (caixa, enviar, pendencias, dono, verifi
 8. Segredos só em `.env`; sem dado pessoal em log; commit/push só pelo gerente-projetos, pela regra de rodada abaixo.
 
 ## Time de agentes
-A sessão principal roda como **`gerente-projetos`** (definido em `.claude/settings.json`), que comanda: `engenheiro-software`, `banco-dados`, `testes` e os agentes `modulo-core`, `modulo-catalogo`, `modulo-vendedor`, `modulo-promotor`, `modulo-gestor`, `modulo-pesquisa`, `modulo-treinamento`, `modulo-integracao`.
+A sessão principal roda como **`gerente-projetos`** (definido em `.claude/settings.json`), que comanda: `engenheiro-software` (plataforma: API, SDK, contratos, CI, ADRs, revisão final), `engenheiro-apps` (shells mobile/web, `packages/ui`, EAS, revisão das telas; ativo quando o `donos.json` mudar), `banco-dados`, `testes` e os agentes `modulo-core`, `modulo-catalogo`, `modulo-vendedor`, `modulo-promotor`, `modulo-gestor`, `modulo-pesquisa`, `modulo-treinamento`, `modulo-integracao`.
 **Cada agente altera só os próprios caminhos (`.coord/donos.json`) e fala com os outros por recados** (`.coord/recados/`, skill `protocolo-recados`). O guardião (`.claude/hooks/guarda-donos.mjs`) bloqueia o resto. Para trabalhar sem o guardião (uso manual): variável `MACUXI_GUARDA=off`.
 Skills: `/status`, `/feature <RF ou descrição>`, `/entrega`.
 

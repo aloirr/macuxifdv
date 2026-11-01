@@ -7,11 +7,12 @@
                      ┌─────────────┴─────────────┐
                      │  GERENTE DE PROJETOS SÊNIOR │  ← sessão principal do Claude Code
                      └─────────────┬─────────────┘
-        ┌──────────────────────────┼──────────────────────────┐
-  Engenheiro de Software     Desenvolvedor de Banco       Testes Sênior
-  Sênior (arquitetura,       Sênior (schemas, migrações,  (e2e, integração,
-  plataforma, revisão)       RLS, desempenho, Conector)   carga, regressão)
-        └──────────────────────────┼──────────────────────────┘
+     ┌────────────────────┬───────┴────────────┬────────────────────┐
+  Engenheiro de        Engenheiro de        Desenvolvedor de     Testes Sênior
+  Software Sênior      Aplicativos          Banco Sênior         (e2e, integração,
+  (arquitetura, API,   (shells mobile/web,  (schemas, migrações, carga, regressão)
+  plataforma, revisão) ui, EAS, telas)      RLS, Conector)
+     └────────────────────┴───────┬────────────┴────────────────────┘
    ┌──────────┬──────────┬─────────┼─────────┬──────────┬──────────┬──────────┐
  modulo-   modulo-    modulo-   modulo-   modulo-   modulo-    modulo-     modulo-
  core      catalogo   vendedor  promotor  gestor    pesquisa   treinamento integracao
@@ -21,7 +22,8 @@
 | Agente | Responsabilidade | Não faz |
 |---|---|---|
 | **gerente-projetos** | Comanda o time: quebra demandas em tarefas `T-nnnn`, delega, acompanha recados e bloqueios, mantém quadro, roadmap e docs de produto, fecha sprints e reporta ao Alexandre | Não escreve código |
-| **engenheiro-software** | Arquitetura, `platform-sdk`, shells (mobile/web/api), contratos entre módulos, regras de fronteira, ADRs, revisão de código final | Não implementa regra de módulo |
+| **engenheiro-software** | Arquitetura e plataforma: `apps/api`, `platform-sdk`, `packages/comum` e `config`, contratos entre módulos, regras de fronteira, ADRs, desenhos de tarefa, CI (`.github/`), `scripts/`, raiz e lockfile; **revisão final de arquitetura** de toda tarefa | Não implementa regra de módulo |
+| **engenheiro-apps** | Telas e shells: `apps/mobile` (variantes campo/gestao, EAS), `apps/web` (shell do BKO), `packages/ui`, navegação, login e seleção de servidor, acessibilidade e "3 toques", builds EAS; **revisão das telas** dos módulos (`modules/<m>/app` e `modules/<m>/web`) | Não corrige código alheio (recado 🔴/🟡/🟢 ao dono); não mexe em API, SDK, CI nem raiz (recado ao engenheiro-software) |
 | **banco-dados** | Todos os schemas (nuvem e SQLite), migrações, RLS, índices, seeds, desempenho, views-modelo do Conector | Não escreve tela nem regra |
 | **testes** | Plano de testes, e2e (Playwright), integração entre módulos, sync offline, multi-tenant, carga; relatório critério → teste → resultado | Não corrige código de produção — abre recado com o defeito |
 | **modulo-core** | Login/perfis, carteira, Cliente 360, rotas/visitas, sync no app, metas, notificações | — |
@@ -32,6 +34,13 @@
 | **modulo-pesquisa** | Construtor, público-alvo, resposta offline, resultados | — |
 | **modulo-treinamento** | Trilhas, quiz, gamificação, ranking | — |
 | **modulo-integracao** | Hub REST, Conector, carga por arquivo, monitor | — |
+
+**Fronteira entre os dois engenheiros** (decisão do Alexandre, R-20261101-073742):
+- Dependência nova, ponto de extensão de UI no SDK, mudança no CI ou na raiz: o engenheiro-apps pede por recado ao engenheiro-software; ADR de UI ele redige como proposta e o engenheiro-software registra em `docs/decisoes/`.
+- **Quem revisa o quê**: telas de módulo e shells → engenheiro-apps (usabilidade, offline, `packages/ui`, sem regra na tela); arquitetura, contratos, API, segurança e fronteiras → engenheiro-software, que continua o revisor final antes do fechamento. Tarefa com tela passa pelas duas revisões.
+- **Transição**: até o Alexandre mudar o `.coord/donos.json` (`apps/mobile/**`, `apps/web/**` e `packages/ui/**` → engenheiro-apps), esses caminhos seguem com o engenheiro-software e o engenheiro-apps não é disparado. O gerente avisa o Alexandre com "pronto para a divisão" quando não houver nada em andamento nesses caminhos.
+
+**Testes em duas instâncias**: quando houver trabalho de teste em pastas separadas (ex.: `tests/integracao` e `tests/e2e`), o gerente dispara o agente `testes` em duas instâncias ao mesmo tempo, cada uma com a sua pasta escrita no pedido; o diário continua um só (só acrescentar linhas).
 
 Cada agente de módulo é dono da **fatia vertical** do seu módulo (domínio, contratos, API, telas do app e do BKO), exceto `db/`, que é do agente de banco.
 

@@ -132,3 +132,16 @@
 2026-11-01 — CI do main (41285701954): todas as suítes verdes; só o verificar --por-commit falhou porque o commit de coordenação do gerente levou diários, lidos e recados de outros agentes. Regra registrada no doc 07; fechamentos passam a separar .coord/ por autor
 2026-11-01 — MAIN VERDE (CI 41286326232); aviso ao Alexandre; retomando a rotina
 2026-11-01 — T-0028 (matriz da demo) e T-0029 (fatia do pedido) abertas a partir do R-20261101-020623
+2026-11-01 — T-0029: desenho aprovado; onda 1 disparada (engenheiro, vendedor); aviso ao Alexandre sobre o PDF no BKO
+2026-11-01 — T-0029 onda 1 do vendedor recebida; pedido de ajuste da P-2; banco-dados disparado
+2026-11-01 — T-0028 CONCLUÍDA (matriz); T-0030 aberta (BKO na API nova)
+2026-11-01 — T-0030: Rotas migrada, 3 páginas 'em construção' (backlog Sprint 2); cadastro_resumo@1 pronto
+2026-11-01 — T-0029 onda 1 do engenheiro recebida; engenheiro disparado para a parte dele na T-0030
+2026-11-01 — T-0029 banco recebido (0008/0009, base demo de pedido); catálogo disparado (onda 2)
+2026-11-01 — T-0029 catálogo recebido (262); vendedor disparado (onda 2)
+2026-11-01 — T-0030 parte do engenheiro recebida (F5, Auditoria, Playwright); pedido ao testes
+2026-11-01 — T-0030 CONCLUÍDA (e2e 34/34); 9 falhas em tests/ esperando o vendedor (T-0029)
+2026-11-01 — bugs de login (1 de segurança) disparados para engenheiro e core; demo.md com /v1
+2026-11-01 — T-0026 login: parte do core recebida (olho na senha, mensagens)
+2026-11-01 — T-0029 onda 2 do vendedor recebida; testes disparado (onda 3)
+2026-11-01 — T-0027/T-0031/T-0032 — engenheiro-apps registrado (commit b1fb099 do Alexandre, CLAUDE.md, doc 07, diário); T-0027 concluída (fa837c4); abertas T-0031 (CI rápido) e T-0032 (Hub rotas e banco); nuvem P-3/P-4 usa T-0033+

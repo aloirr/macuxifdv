@@ -33,8 +33,9 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
-| [T-0028](tarefas/T-0028.md) | Matriz de testes ponta a ponta da demo | testes | local | em_andamento |
-| [T-0029](tarefas/T-0029.md) | Fatia vertical do pedido para a demo (com PDF) | engenheiro-software | local | em_andamento (desenho) |
+| [T-0028](tarefas/T-0028.md) | Matriz de testes ponta a ponta da demo | testes | local | concluida (tests/plano/demo-matriz.md) |
+| [T-0030](tarefas/T-0030.md) | BKO: páginas da Fase M na API nova (Rotas, Clientes, Metas, RV, Auditoria) | modulo-core | local | concluida (Rotas migrada · 3 páginas "em construção" · Auditoria e F5 · Playwright na raiz) |
+| [T-0029](tarefas/T-0029.md) | Fatia vertical do pedido para a demo (com PDF) | engenheiro-software | local | em_revisao (implementação e testes prontos: 398/398 · falta revisão do engenheiro e APKs preview) |
 | [T-0026](tarefas/T-0026.md) | Demonstração com o gestor externo (prioridade) | engenheiro-software | local | concluida (APKs de preview + scripts + túnel · docs/status/demo.md) |
 | [T-0015](tarefas/T-0015.md) | Ajustes pós-Sprint 0: O-3 (promotor lê pedidos da carteira) e D-1 | engenheiro-software | local | concluida (O-3 e D-1 provados com Postgres) |
 | [T-0016](tarefas/T-0016.md) | Desenho técnico e contratos da Sprint 1 | engenheiro-software | local | concluida (aprovado; ADRs 0009/0010) |
@@ -57,7 +58,10 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0023](tarefas/T-0023.md) | Conector: ajustes v1.1 e adaptador Oracle — Sprint 2 | modulo-integracao | nuvem → local (merges bb308bf, e5cb1b9) | em_revisao (falta: revisão do modulo-integracao e do engenheiro) |
 | [T-0024](tarefas/T-0024.md) | Payload dos eventos no contracts de cada módulo — Sprint 2 | engenheiro-software | local | aberta |
 | [T-0025](tarefas/T-0025.md) | Hub /integracao/v1 — desenho, contratos e domínio — Sprint 2 | modulo-integracao | nuvem → local (merge c77278f) | em_revisao (falta: revisão do engenheiro e do banco-dados) |
-| [T-0027](tarefas/T-0027.md) | Conector ↔ Hub: alinhamento — Sprint 2 | modulo-integracao | nuvem (depois do main verde) | aberta |
+| [T-0027](tarefas/T-0027.md) | Conector ↔ Hub: alinhamento — Sprint 2 | modulo-integracao | nuvem (PR #24, fa837c4) | concluida (falta só a revisão do PR #24 pelo engenheiro, na T-0032) |
+| [T-0031](tarefas/T-0031.md) | CI e testes mais rápidos (paralelo, cache Turborepo, banco modelo) — Sprint 2 | engenheiro-software | local (depois da T-0029) | aberta |
+| [T-0032](tarefas/T-0032.md) | Hub /integracao/v1 — rotas e banco — Sprint 2 | engenheiro-software, banco-dados | local (depois da T-0029 e T-0030) | aberta |
+| — | Hub P-3/P-4 e mensagem do Conector conflitante (P-6) — Sprint 2 | modulo-integracao | nuvem (o Alexandre abre; número a confirmar, T-0033 ou seguinte) | aberta |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (155 testes · revisão sem 🔴 · decisões do Alexandre aplicadas) |
 
