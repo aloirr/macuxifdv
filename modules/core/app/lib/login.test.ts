@@ -1,6 +1,6 @@
 import { ErroSemConexao } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { entrarComSenha, mensagemDeErroDeLogin, validarLogin } from './login';
+import { entrarComSenha, ehServidorInvalido, mensagemDeErroDeLogin, rotuloOlhoSenha, validarLogin } from './login';
 
 const U = '0b000000-0000-4000-8000-000000000001';
 const resposta = {
@@ -28,7 +28,7 @@ describe('RF-CORE-01: login do app', () => {
     expect(mensagemDeErroDeLogin({ codigo: 'CREDENCIAIS_INVALIDAS' })).toContain('incorretos');
     expect(mensagemDeErroDeLogin({ codigo: 'USUARIO_BLOQUEADO' })).toContain('administrador');
     expect(mensagemDeErroDeLogin({ codigo: 'MUITAS_TENTATIVAS' })).toContain('Aguarde');
-    expect(mensagemDeErroDeLogin(new ErroSemConexao())).toContain('internet');
+    expect(mensagemDeErroDeLogin(new ErroSemConexao())).toContain('Sem conexão');
     expect(mensagemDeErroDeLogin(new Error('boom'))).toContain('Tente de novo');
   });
 
@@ -46,5 +46,24 @@ describe('RF-CORE-01: login do app', () => {
     expect(enviado).toEqual({ codigo_empresa: 'alfa', email: 'v@x.com', senha: 'segredo', dispositivo_id: U, dispositivo_nome: 'Moto G' });
     expect(r.tenant.fuso).toBe('America/Manaus');
     await expect(entrarComSenha(async () => ({ ...resposta, token_type: 'Basic' }), { codigo_empresa: 'alfa', email: 'v@x.com', senha: 'x' })).rejects.toThrow();
+  });
+
+  it('RF-CORE-01: três casos separados — sem conexão, servidor inválido, credencial incorreta', () => {
+    const semConexao = mensagemDeErroDeLogin(new ErroSemConexao());
+    const invalido = mensagemDeErroDeLogin({ codigo: 'SERVIDOR_INVALIDO' });
+    const credencial = mensagemDeErroDeLogin({ codigo: 'CREDENCIAIS_INVALIDAS' });
+    expect(invalido).toContain('não é um servidor Macuxi');
+    expect(semConexao).toContain('não respondeu');
+    expect(credencial).toContain('incorretos');
+    expect(new Set([semConexao, invalido, credencial]).size).toBe(3);
+    expect(mensagemDeErroDeLogin({ name: 'ZodError' })).toBe(invalido);
+    expect(mensagemDeErroDeLogin({ status: 404 })).toBe(invalido);
+    expect(ehServidorInvalido({ status: 401, codigo: 'CREDENCIAIS_INVALIDAS' })).toBe(false);
+    expect(mensagemDeErroDeLogin(new Error('boom'))).toContain('Não foi possível entrar agora');
+  });
+
+  it('RF-CORE-01: rótulo do botão de olho alterna entre mostrar e ocultar', () => {
+    expect(rotuloOlhoSenha(false)).toBe('Mostrar senha');
+    expect(rotuloOlhoSenha(true)).toBe('Ocultar senha');
   });
 });

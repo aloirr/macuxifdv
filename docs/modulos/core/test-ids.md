@@ -19,8 +19,9 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 |---|---|
 | `login.tela` | Tela inteira |
 | `login.codigo-empresa` · `login.email` · `login.senha` | Campos |
+| `login.senha-olho` | Botão de olho: mostra/oculta a senha (rótulo "Mostrar senha"/"Ocultar senha") |
 | `login.entrar` | Botão Entrar |
-| `login.erro` | Mensagem de erro em português (credencial, bloqueio, limite, sem conexão) |
+| `login.erro` | Mensagem de erro em português (credencial, bloqueio, limite, sem conexão/servidor não respondeu, servidor que não é Macuxi) |
 
 ## App — ações de pedido (RN-PRO-01; devem estar AUSENTES para o promotor, não só desabilitadas)
 `pedido.acao.criar` · `pedido.acao.editar` · `pedido.acao.cancelar` · `pedido.acao.duplicar` · `pedido.acao.excluir` · `pedido.acao.criar-em-nome` · `pedido.aba.novo` (aba/atalho "Novo pedido") · `pedido.card.inicio` (card de pedido no Início) · `pedido.tela.bloqueio` (tela exibida ao abrir a rota de novo pedido como promotor; nada vai para a fila).

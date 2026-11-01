@@ -2,13 +2,13 @@
  * Formulário do login real (RF-CORE-01): código da empresa + e-mail + senha. Componente de apresentação:
  * o shell (apps/mobile) passa `onEntrar` (que chama `entrarComSenha` com o transporte HTTP, guarda os tokens e abre
  * o app) e o `codigoSalvo` do aparelho. Alvos de toque >= 48 dp; erros em português com a ação seguinte.
- * testIDs: login.tela, login.codigo-empresa, login.email, login.senha, login.entrar, login.erro.
+ * testIDs: login.tela, login.codigo-empresa, login.email, login.senha, login.entrar, login.erro, login.senha-olho.
  */
 import { Banner, Button, colors, fonts, radius, Screen, type as t } from '@macuxi/ui/mobile';
 import { useRef, useState, type ComponentProps, type RefObject } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { mensagemDeErroDeLogin, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
+import { mensagemDeErroDeLogin, rotuloOlhoSenha, validarLogin, type CamposLogin, type ErrosLogin } from '../lib/login';
 
 export interface PropsTelaLogin {
   /** Código da empresa lembrado do último login neste aparelho. */
@@ -26,6 +26,7 @@ export function TelaLogin({ codigoSalvo, onEntrar, rodape }: PropsTelaLogin) {
   const [entrando, setEntrando] = useState(false);
   const email = useRef<TextInput>(null);
   const senha = useRef<TextInput>(null);
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
 
   const mudar = (campo: keyof CamposLogin) => (v: string) => setCampos((c) => ({ ...c, [campo]: v }));
 
@@ -89,7 +90,8 @@ export function TelaLogin({ codigoSalvo, onEntrar, rodape }: PropsTelaLogin) {
         erro={erros.senha}
         testID="login.senha"
         onChangeText={mudar('senha')}
-        secureTextEntry
+        secureTextEntry={!senhaVisivel}
+        olho={{ visivel: senhaVisivel, alternar: () => setSenhaVisivel((v) => !v) }}
         textContentType="password"
         returnKeyType="go"
         inputRef={senha}
@@ -107,21 +109,37 @@ interface PropsCampo extends Omit<ComponentProps<typeof TextInput>, 'value' | 's
   valor: string;
   erro?: string | undefined;
   inputRef?: RefObject<TextInput | null>;
+  /** Botão de olho (campo de senha). */
+  olho?: { visivel: boolean; alternar: () => void };
 }
 
-function Campo({ rotulo, valor, erro, inputRef, ...resto }: PropsCampo) {
+function Campo({ rotulo, valor, erro, inputRef, olho, ...resto }: PropsCampo) {
   return (
     <View style={{ gap: 4 }}>
       <Text style={styles.rotulo}>{rotulo}</Text>
-      <TextInput
-        ref={inputRef}
-        value={valor}
-        accessibilityLabel={rotulo}
-        autoCorrect={false}
-        style={[styles.entrada, erro ? { borderColor: colors.danger } : null]}
-        placeholderTextColor={colors.ink3}
-        {...resto}
-      />
+      <View>
+        <TextInput
+          ref={inputRef}
+          value={valor}
+          accessibilityLabel={rotulo}
+          autoCorrect={false}
+          style={[styles.entrada, olho ? { paddingRight: 56 } : null, erro ? { borderColor: colors.danger } : null]}
+          placeholderTextColor={colors.ink3}
+          {...resto}
+        />
+        {olho ? (
+          <Pressable
+            testID="login.senha-olho"
+            accessibilityRole="button"
+            accessibilityLabel={rotuloOlhoSenha(olho.visivel)}
+            hitSlop={4}
+            onPress={olho.alternar}
+            style={styles.olho}
+          >
+            <Text style={styles.olhoTexto}>{olho.visivel ? 'Ocultar' : 'Mostrar'}</Text>
+          </Pressable>
+        ) : null}
+      </View>
       {erro ? <Text style={[t.small, { color: colors.danger }]}>{erro}</Text> : null}
     </View>
   );
@@ -130,6 +148,8 @@ function Campo({ rotulo, valor, erro, inputRef, ...resto }: PropsCampo) {
 const styles = StyleSheet.create({
   marca: { fontFamily: fonts.display, fontSize: 12, letterSpacing: 1.6, color: colors.accent },
   rotulo: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  olho: { position: 'absolute', right: 0, top: 0, bottom: 0, minWidth: 52, minHeight: 52, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  olhoTexto: { fontFamily: fonts.semibold, fontSize: 12, color: colors.accent },
   entrada: {
     minHeight: 52,
     borderWidth: 1,

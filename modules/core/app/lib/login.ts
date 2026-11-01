@@ -29,9 +29,21 @@ export function validarLogin(c: CamposLogin): ErrosLogin {
   return erros;
 }
 
-/** Mensagem para o usuário a partir do erro da API (códigos de `CODIGOS_AUTH`) ou de rede. */
+/** Códigos que o shell/SDK usam quando o endereço respondeu, mas não é um servidor Macuxi (ou a resposta não bate com o contrato). */
+export const CODIGOS_SERVIDOR_INVALIDO = ['SERVIDOR_INVALIDO', 'RESPOSTA_INVALIDA'] as const;
+
+/** Resposta que não é de um servidor Macuxi: código dedicado, falha de contrato (Zod) ou 404/405 sem código da API. */
+export function ehServidorInvalido(e: unknown): boolean {
+  const x = e as { codigo?: unknown; name?: unknown; status?: unknown } | null;
+  if (typeof x?.codigo === 'string' && (CODIGOS_SERVIDOR_INVALIDO as readonly string[]).includes(x.codigo)) return true;
+  if (x?.name === 'ZodError') return true;
+  return (x?.status === 404 || x?.status === 405) && typeof x?.codigo !== 'string';
+}
+
+/** Mensagem para o usuário a partir do erro da API (códigos de `CODIGOS_AUTH`) ou de rede. Três casos distintos de conexão/servidor/credencial. */
 export function mensagemDeErroDeLogin(e: unknown): string {
-  if (ehSemConexao(e)) return 'Sem conexão com o servidor. O primeiro login precisa de internet: conecte-se e tente de novo.';
+  if (ehSemConexao(e)) return 'Sem conexão ou o servidor não respondeu. Confira a internet e o endereço do servidor e tente de novo.';
+  if (ehServidorInvalido(e)) return 'Este endereço não é um servidor Macuxi. Confira o endereço em Servidor, teste de novo e só então entre.';
   const x = e as { codigo?: unknown; message?: unknown } | null;
   switch (x?.codigo) {
     case CODIGOS_AUTH.credenciais:
@@ -51,6 +63,11 @@ export function mensagemDeErroDeLogin(e: unknown): string {
     default:
       return 'Não foi possível entrar agora. Tente de novo; se continuar, avise o suporte.';
   }
+}
+
+/** Rótulo acessível do botão de olho da senha. */
+export function rotuloOlhoSenha(visivel: boolean): string {
+  return visivel ? 'Ocultar senha' : 'Mostrar senha';
 }
 
 /** Transporte sem token (o shell entrega): POST do corpo no caminho `/auth/login` da API v1. */

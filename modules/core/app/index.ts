@@ -7,6 +7,7 @@ import { etapasCore } from './lib/cargas';
 import { entidadesCliente } from './lib/entidades-cliente';
 import { entidadesMeta } from './lib/entidades-meta';
 import { entidadesNotificacao } from './lib/entidades-notificacao';
+import { entidadesProduto } from './lib/entidades-produto';
 import { entidadesRota } from './lib/entidades-rota';
 import { TelaCliente } from './telas/cliente';
 import { TelaClientes } from './telas/clientes';
@@ -45,6 +46,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
     ...entidadesMeta,
     // Central de notificações (T-0019): pull do próprio usuário; push da leitura
     ...entidadesNotificacao,
+    // Produto (T-0029): catálogo mestre para o Novo pedido do Vendedor
+    ...entidadesProduto,
   ],
   extensoes: [{ slot: 'inicio.cards', id: 'notificacoes', payload: { testID: 'inicio.card-notificacoes', componente: CardNotificacoes } satisfies CardInicio<ComponentType> }],
   etapasSync: etapasCore,

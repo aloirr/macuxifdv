@@ -17,6 +17,7 @@ import { carteiraDoUsuario } from './carteira';
 import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
 import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
+import { consultaCadastroResumo } from './consultas';
 import { consumidorPushNotificacao } from './consumidores';
 import { rotasDeLicencas } from './licencas';
 import { rotasDeMetas } from './metas';
@@ -33,6 +34,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
     rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
     consumidores: [consumidorPushNotificacao],
+    consultas: [consultaCadastroResumo],
     rotasPublicas: [
       {
         metodo: 'POST',

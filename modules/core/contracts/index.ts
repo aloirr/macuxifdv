@@ -488,3 +488,4 @@ export * from './notificacao';
 export * from './meta';
 export * from './hierarquia';
 export * from './dispositivo';
+export * from './consultas';
