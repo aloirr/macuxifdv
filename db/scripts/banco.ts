@@ -11,8 +11,9 @@
  *   migrar up [--ate NNNN]        aplica migrações pendentes
  *   migrar down [--passos N|--tudo]  desfaz migrações (padrão: a última)
  *   seed fase-m                   carrega o seed de demonstração da Fase M
+ *   seed demo [--recriar] [--hoje AAAA-MM-DD]  base de demo (tenant "demo"); --recriar apaga o tenant demo e recarrega
  *   fixture dois-tenants          carrega a fixture dos testes de RLS
- *   criar-teste [--fixture dois-tenants|fase-m]  cria banco efêmero migrado e imprime o nome
+ *   criar-teste [--fixture dois-tenants|fase-m|demo]  cria banco efêmero migrado e imprime o nome
  *   apagar-teste <nome> | --todos apaga banco(s) de teste
  * Opção comum: --banco <nome> (padrão MACUXI_PG_BANCO ou "macuxi").
  */
@@ -26,6 +27,15 @@ import { listarAplicadas, migrarDown, migrarUp } from '../src/migrador';
 import { garantirPapelApp, garantirPapelWorker } from '../src/papeis';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
 import { carregarFaseM } from '../seeds/fase-m/fase-m';
+import { carregarDemo, type ResultadoDemo } from '../seeds/demo/demo';
+
+/** Resumo da base de demo: código da empresa e logins. A senha NUNCA é impressa (só de onde ela vem). */
+function imprimirDemo(r: ResultadoDemo, banco: string, recriada: boolean): void {
+  console.log(`[banco] base de demo ${recriada ? 'recriada' : 'carregada'} em ${banco} — hoje (America/Manaus): ${r.hoje}`);
+  console.log(`[banco] código da empresa: ${r.codigo}`);
+  for (const l of r.logins) console.log(`[banco]   ${l.perfil.padEnd(10)} ${l.email}  (${l.nome})`);
+  console.log(`[banco] senha: ${process.env.MACUXI_SENHA_DEMO ? 'a de MACUXI_SENHA_DEMO' : 'a padrão da demo (docs/banco/README.md, "Base de demo")'}`);
+}
 
 function docker(args: string[]): void {
   compose(args, { herdarSaida: true });
@@ -49,6 +59,8 @@ export async function executar(argv: string[]): Promise<void> {
       limpar: { type: 'boolean', default: false },
       todos: { type: 'boolean', default: false },
       fixture: { type: 'string' },
+      recriar: { type: 'boolean', default: false },
+      hoje: { type: 'string' },
     },
   });
   const cfg = lerConfig();
@@ -118,7 +130,14 @@ export async function executar(argv: string[]): Promise<void> {
       return;
     }
     case 'seed':
-      if (sub !== 'fase-m') throw new Error('use: seed fase-m');
+      if (sub === 'demo') {
+        if (values.hoje && !/^\d{4}-\d{2}-\d{2}$/.test(values.hoje)) throw new Error('--hoje: AAAA-MM-DD');
+        await exigir();
+        const r = await comAdmin(banco, (c) => carregarDemo(c, { recriar: values.recriar, hoje: values.hoje }), cfg);
+        imprimirDemo(r, banco, values.recriar);
+        return;
+      }
+      if (sub !== 'fase-m') throw new Error('use: seed fase-m | seed demo [--recriar]');
       await exigir();
       await comAdmin(banco, (c) => carregarFaseM(c), cfg);
       console.log(`[banco] seed Fase M carregado em ${banco}.`);
@@ -132,12 +151,13 @@ export async function executar(argv: string[]): Promise<void> {
     case 'criar-teste': {
       await exigir();
       const fixture = values.fixture;
-      if (fixture && fixture !== 'dois-tenants' && fixture !== 'fase-m') throw new Error('--fixture: dois-tenants | fase-m');
+      if (fixture && fixture !== 'dois-tenants' && fixture !== 'fase-m' && fixture !== 'demo') throw new Error('--fixture: dois-tenants | fase-m | demo');
       const t = await criarBancoDeTeste({
         cfg,
         preparar: fixture
           ? async (c) => {
               if (fixture === 'dois-tenants') await carregarDoisTenants(c);
+              else if (fixture === 'demo') await carregarDemo(c);
               else await carregarFaseM(c);
             }
           : undefined,
@@ -158,7 +178,7 @@ export async function executar(argv: string[]): Promise<void> {
       return;
     }
     default:
-      console.log('Comandos: subir | derrubar [--limpar] | recriar | status | papeis | migrar up|down | seed fase-m | fixture dois-tenants | criar-teste | apagar-teste');
+      console.log('Comandos: subir | derrubar [--limpar] | recriar | status | papeis | migrar up|down | seed fase-m | seed demo [--recriar] | fixture dois-tenants | criar-teste | apagar-teste');
       if (comando) process.exitCode = 1;
   }
 }

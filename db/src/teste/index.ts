@@ -8,6 +8,7 @@ export { comTenant, definirTenant } from '../contexto';
 export { lerConfig, PAPEL_APP, PAPEL_WORKER } from '../config';
 export { carregarDoisTenants, dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS } from '../../seeds/fixtures/dois-tenants';
 export { carregarFaseM, dadosFaseM, TENANT_FASE_M } from '../../seeds/fase-m/fase-m';
+export { carregarDemo, dadosDemo, TENANT_DEMO, CODIGO_DEMO, USUARIOS_DEMO } from '../../seeds/demo/demo';
 export { TABELAS_SEM_TENANT_ID, TABELAS_FORA_DO_SYNC } from '../excecoes';
 export { idDeChave, idMotivoPadrao, idParametroCore, MOTIVOS_PADRAO } from '../ids';
 export { hojeNoFuso, somarDias, anoMes } from '../datas';

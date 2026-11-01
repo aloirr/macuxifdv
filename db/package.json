@@ -23,6 +23,7 @@
     "migrar": "tsx scripts/banco.ts migrar up",
     "migrar:desfazer": "tsx scripts/banco.ts migrar down",
     "seed:fase-m": "tsx scripts/banco.ts seed fase-m",
+    "seed:demo": "tsx scripts/banco.ts seed demo",
     "drizzle:rascunho": "drizzle-kit generate --config ../drizzle.config.ts"
   },
   "dependencies": {

@@ -23,7 +23,7 @@ Função `tenant_por_codigo(codigo)` (SECURITY DEFINER) para o login. Aplicaçã
 | modulo | text not null | id do módulo (`core`, `vendedor`, ..., `teste`); único por tenant |
 | ativo | boolean not null | `core` não pode ficar inativo (check) |
 | plano, licencas | text, integer | licenças >= 0 |
-| parametros | jsonb not null | configuração do módulo no tenant |
+| parametros | jsonb not null | **legado, sem uso** (T-0016 §7, R-20261031-165647): parâmetros do tenant só em `plataforma.parametro`; a coluna sai (ou ganha comment 'legado') na próxima migração do banco |
 | ativado_em, desativado_em | timestamptz | retenção de 90 dias conta de `desativado_em` (RN-CORE-02) |
 
 Índices: único `(tenant_id, modulo)` ativo; sync `(tenant_id, updated_at, id)`.

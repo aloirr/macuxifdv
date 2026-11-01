@@ -34,6 +34,56 @@ o CLI usam a mesma variável.
 - Opcional: copiar `db/.env.example` para `db/.env` (ou para a `.env` da raiz). Sem `.env`, valem os
   padrões locais (porta 5432 só em `127.0.0.1`, admin `postgres`/`postgres`, banco `macuxi`, papel `macuxi_app`).
 
+## Base de demo
+Base para a demonstração com o gestor externo (app novo + API real; R-20261031-233442, item 1). Seed em
+`db/seeds/demo/demo.ts`, teste em `db/testes/seed-demo.test.ts`. O `scripts/demo/subir-demo.ps1` (engenheiro) chama o comando abaixo.
+
+| O quê | Comando (na raiz) |
+|---|---|
+| Carregar ou atualizar (preserva o que o app gravou no ensaio) | `pnpm --filter @macuxi/db banco seed demo` |
+| **Recarregar do zero** (apaga TODAS as linhas do tenant demo, inclusive visitas, pedidos e sessões do ensaio) | `pnpm --filter @macuxi/db banco seed demo --recriar` |
+| Fixar o "hoje" (ensaio de outro dia) | `... banco seed demo --hoje AAAA-MM-DD` |
+| Banco de teste efêmero com a base | `... banco criar-teste --fixture demo` |
+
+Pré-requisito: banco migrado até a `0007` (`banco subir` ou `banco migrar up`); sem isso o seed para com
+`rode "banco migrar up" antes`. Só roda no Postgres local (mesma trava do seed da Fase M: `exigirBancoLocal`).
+
+**Login no app** — código da empresa **`demo`** · senha de todos **`demo-macuxi`** (ou o valor de `MACUXI_SENHA_DEMO` no
+`.env`, que tem precedência). A senha só existe como hash argon2id; o CLI imprime os e-mails, nunca a senha.
+
+| Perfil | E-mail | Nome (fictício) | O que vê |
+|---|---|---|---|
+| vendedor | `vendedor@exemplo.com.br` | Lucas Andrade | 18 clientes; **rota de hoje com 6 paradas**; 7 pedidos (1 aguardando aprovação); recado do supervisor |
+| vendedor | `vendedor2@exemplo.com.br` | Camila Freitas | 12 clientes; rota de hoje com 4 paradas; 3 pedidos |
+| supervisor | `supervisor@exemplo.com.br` | Renata Barros | responsável pela "Equipe Manaus": carteira dos dois vendedores e do promotor (30 clientes), metas e indicadores, 2 pedidos para aprovar |
+| promotor | `promotor@exemplo.com.br` | Joana Prado | 7 supermercados/lojas na carteira de promotor; rota de hoje com 4 paradas; sem módulo Vendedor (RN-PRO-01) |
+| analista | `analista@exemplo.com.br` | Paulo Ribeiro | tenant inteiro (BKO) |
+| admin | `admin@exemplo.com.br` | Sérgio Moura | tenant inteiro (BKO) |
+
+Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo", fuso America/Manaus, plano `demonstracao`):
+- **Módulos licenciados:** core, catalogo, vendedor, promotor (`plataforma.tenant_modulo`) e módulos por perfil em
+  `plataforma.perfil_modulo` (vendedor: core/catalogo/vendedor; promotor: core/catalogo/promotor; supervisor, analista e
+  admin: os quatro). O **gestor não está licenciado**: no app Gestão o supervisor vê o que o Core, o Catálogo, o Vendedor
+  e o Promotor oferecem. Para licenciar, acrescente `'gestor'` em `MODULOS_DEMO` e nos perfis e rode de novo.
+- **30 clientes** de distribuição de alimentos em 30 bairros de Manaus (logradouro, número, CEP, coordenadas), contato
+  principal com telefone fictício (prefixos não atribuídos: fixo `92 3000-0xxx`, celular `92 9 0000-xxxx`), financeiro,
+  3 títulos por cliente (**8 com título vencido**, 1 bloqueado por atraso: Mini Box Japiim) e 12 meses de histórico.
+- **Rota de hoje** no fuso do tenant, calculada na hora do seed (vendedor 6 paradas, vendedor2 4, promotor 4), sem visita:
+  a demo faz os check-ins ao vivo. Raio de check-in 200 m (padrão): longe do cliente, o app pede justificativa de
+  fora do raio (motivos extras `gps_impreciso` e `endereco_desatualizado`).
+- **Pedidos** dos últimos dias úteis (faturado, aprovado, enviado ao ERP, recebido, aguardando aprovação, cancelado), com
+  itens e a visita que os gerou; visitas sem pedido com motivo; `core.indicador_diario` coerente com os pedidos.
+- **Metas do mês corrente** (venda, positivação, cobertura, visitas) dos vendedores e do promotor; 24 produtos com marcas
+  fictícias; 2 notificações (recado do supervisor ao vendedor, pedidos para aprovar ao supervisor).
+- Parâmetros: só os padrões do Core semeados pelo gatilho (`checkin.raio_m`, `metas.base_apuracao`), em `plataforma.parametro`.
+
+Idempotência: upsert por id determinístico. Rodar de novo no mesmo dia não muda nada (nem o hash da senha, que só é
+refeito se não conferir com a senha informada); zera `tentativas_falhas`/`bloqueio_ate` (ninguém fica travado por senha
+errada no ensaio). Em outro dia entra a rota do novo dia (as anteriores ficam como histórico, com paradas não
+visitadas) e as datas relativas andam; para a demo, prefira `--recriar`. `--recriar` usa
+`session_replication_role = replica` só na transação (precisa do superusuário do Docker) e apaga apenas `tenant_id = demo`.
+O teste confere que nenhuma linha de outro tenant muda e que, pelo `macuxi_app`, os tenants não se enxergam.
+
 ## Banco que não é o local (homologação, nuvem)
 Os padrões acima são **públicos** e valem só para o Postgres local: host `localhost`, `127.0.0.1`, `::1` ou
 `macuxi-postgres` (lista `HOSTS_LOCAIS` em `db/src/config.ts`, a mesma do `global-setup`) **e** `NODE_ENV`
@@ -58,6 +108,7 @@ parâmetros da consulta (aqui só dados fictícios). Em nuvem, para não levar d
 | Aplicar migrações pendentes | `pnpm --filter @macuxi/db banco migrar up [--ate 0001]` |
 | Desfazer a última / N / todas | `pnpm --filter @macuxi/db banco migrar down [--passos N \| --tudo]` |
 | Carregar o seed da Fase M | `pnpm --filter @macuxi/db banco seed fase-m` |
+| Carregar a base de demo (`--recriar` = do zero) | `pnpm --filter @macuxi/db banco seed demo [--recriar]` |
 | Carregar a fixture dois-tenants | `pnpm --filter @macuxi/db banco fixture dois-tenants` |
 | Criar banco de teste efêmero (migrado) | `pnpm --filter @macuxi/db banco criar-teste [--fixture dois-tenants\|fase-m]` |
 | Apagar banco(s) de teste | `pnpm --filter @macuxi/db banco apagar-teste <nome> \| --todos` |
@@ -77,7 +128,7 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 - **Com Postgres:** o `globalSetup` cria um banco efêmero `macuxi_teste_<...>`, aplica as migrações,
   carrega a fixture dois-tenants e apaga o banco no fim. Arquivos:
   `migracoes.test.ts` (S0-020/021/022), `conformidade.test.ts` (S0-023/028), `vazamento.test.ts`
-  (S0-024/025/026/027), `seed-fase-m.test.ts` (S0-031..034), `drizzle-x-banco.test.ts`.
+  (S0-024/025/026/027), `seed-fase-m.test.ts` (S0-031..034), `seed-demo.test.ts` (base de demo: idempotência, `--recriar`, isolamento), `drizzle-x-banco.test.ts`.
 - **Postgres parado, Docker aberto:** o `globalSetup` roda `docker compose up -d --wait` e os testes
   **rodam** (desligue com `MACUXI_PG_AUTO_SUBIR=0`; só vale para host local).
 - **Sem Docker/Postgres:** esses arquivos são **pulados** e, no fim, aparece
@@ -131,6 +182,7 @@ await pool.end(); await banco.apagar();
 | `db/src/ids.ts`, `db/src/datas.ts` | ids fixos/determinísticos (`idDeChave` = `plataforma.uuid_de_chave`, `idMotivoPadrao`) e datas relativas a hoje no fuso |
 | `drizzle.config.ts` | Drizzle Kit; `drizzle:rascunho` gera só rascunho em `db/drizzle-rascunho/` (ignorado) |
 | `db/seeds/fase-m/fase-m.ts` | seed de demonstração da Fase M |
+| `db/seeds/demo/demo.ts` | base de demo (tenant `demo`, seção "Base de demo") |
 | `db/seeds/fixtures/dois-tenants.ts` | fixture dos testes de RLS e licenças |
 | `db/scripts/banco.ts` | CLI acima |
 | `db/src/docker.ts` | acha o Docker (inclusive fora do PATH no Windows), diz se está rodando, sobe o compose |

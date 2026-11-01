@@ -100,7 +100,8 @@ describe.skipIf(semBanco())('Sprint 1: regras garantidas pelo banco (papel de ap
 
     it('fechando a aberta (auto, nao_finalizado) o novo check-in passa; visita removida (deleted_at) não conta', async () => {
       await comA(async () => {
-        await app.query("update core.visita set checkout_em = now(), resultado = 'nao_finalizado', fechada_por = 'auto' where id = $1", [A.visitas.v2c2Aberta]);
+        // checkout relativo ao check-in da fixture (14:00Z de hoje): now() reprovava antes das 10:00 de Manaus
+        await app.query("update core.visita set checkout_em = checkin_em + interval '30 minutes', resultado = 'nao_finalizado', fechada_por = 'auto' where id = $1", [A.visitas.v2c2Aberta]);
         await app.query(checkin('aaaaaaaa-0027-4000-8000-000000000902', A.usuarios.vendedor2, A.clientes.c2));
         await app.query('update core.visita set deleted_at = now() where id = $1', ['aaaaaaaa-0027-4000-8000-000000000902']);
         await app.query(checkin('aaaaaaaa-0027-4000-8000-000000000903', A.usuarios.vendedor2, A.clientes.c2));
