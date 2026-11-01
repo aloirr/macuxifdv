@@ -14,7 +14,7 @@
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| `apps/conector/**`, `modules/integracao/contracts/**`, `docs/modulos/integracao/**` | T-0023 | `nuvem/T-0023-conector-oracle` | 2026-10-31 |
+| `docs/modulos/integracao/**`, `modules/integracao/contracts/**`, `modules/integracao/domain/**`, `modules/integracao/manifest.ts` | T-0025 | `nuvem/T-0025-hub-api-desenho` | 2026-11-01 |
 | `modules/gestor/domain/**`, `modules/gestor/contracts/**`, `modules/gestor/manifest.ts`, `docs/modulos/gestor/**` | T-0014 (ajustes v2: prazo em dias úteis, "passou do limite", feriados) | `nuvem/T-0014-ajustes-v2` | 2026-10-31 |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
@@ -31,6 +31,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
+| [T-0026](tarefas/T-0026.md) | Demonstração com o gestor externo (prioridade) | engenheiro-software | local | em_andamento (base de demo ✅ · scripts, túnel e previews a seguir) |
 | [T-0015](tarefas/T-0015.md) | Ajustes pós-Sprint 0: O-3 (promotor lê pedidos da carteira) e D-1 | engenheiro-software | local | concluida (O-3 e D-1 provados com Postgres) |
 | [T-0016](tarefas/T-0016.md) | Desenho técnico e contratos da Sprint 1 | engenheiro-software | local | concluida (aprovado; ADRs 0009/0010) |
 | [T-0017](tarefas/T-0017.md) | Carteira e Cliente 360 | modulo-core | local | concluida (critérios ✅ · revisão final sem 🔴) |
@@ -49,8 +50,9 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0013](tarefas/T-0013.md) | Conector v1 (lado do cliente) — Sprint 2 | modulo-integracao | nuvem → local (merges a7cd2fe, 588da33) | concluida (revisões do dono e do engenheiro sem 🔴 · correções na T-0023) |
 | [T-0014](tarefas/T-0014.md) | Gestor — domínio — Sprint 6 | modulo-gestor | nuvem (ajustes v2) | em_andamento (ajustes v1 mergeados · v2 na nuvem: prazo em dias úteis, limite, feriados) |
 | [T-0021](tarefas/T-0021.md) | Catálogo — domínio — Sprint 3 | modulo-catalogo | nuvem → local (merges 706a31e, 7b3bb50) | concluida (236 testes · revisões do dono e do engenheiro sem 🔴) |
-| [T-0023](tarefas/T-0023.md) | Conector: ajustes v1.1 e adaptador Oracle — Sprint 2 | modulo-integracao | nuvem | em_andamento (sessão da nuvem) |
+| [T-0023](tarefas/T-0023.md) | Conector: ajustes v1.1 e adaptador Oracle — Sprint 2 | modulo-integracao | nuvem → local (merges bb308bf, e5cb1b9) | em_revisao (falta: revisão do modulo-integracao e do engenheiro) |
 | [T-0024](tarefas/T-0024.md) | Payload dos eventos no contracts de cada módulo — Sprint 2 | engenheiro-software | local | aberta |
+| [T-0025](tarefas/T-0025.md) | Hub /integracao/v1 — desenho, contratos e domínio — Sprint 2 | modulo-integracao | nuvem | em_andamento (sessão da nuvem) |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (155 testes · revisão sem 🔴 · decisões do Alexandre aplicadas) |
 

@@ -117,3 +117,5 @@
 2026-10-31 — recados lidos: causa do EAS repassada ao engenheiro; respostas encerrando 103502, 172619 e a revisão final
 2026-10-31 — EAS Fase 1 recebida; fechamento da rodada para liberar os builds
 2026-11-01 — Alexandre gerou os APKs de desenvolvimento (campo e gestao): T-0004 concluída, SPRINT 0 FECHADA; previews dependem do push da correção do declare
+2026-11-01 — T-0026 (demo) aberta; base de demo pronta (banco-dados)
+2026-11-01 — testes do Conector estabilizados; checagem final da raiz antes do push

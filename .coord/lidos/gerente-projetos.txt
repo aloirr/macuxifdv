@@ -155,3 +155,6 @@ R-20261031-231726-alexandre
 R-20261031-232602-alexandre
 R-20261031-234728-engenheiro-software
 R-20261031-233442-alexandre
+R-20261101-003959-banco-dados
+R-20261031-220811-modulo-integracao
+R-20261101-005608-modulo-integracao
