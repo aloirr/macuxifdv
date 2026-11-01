@@ -19,6 +19,7 @@ import {
   type LinhaErro,
 } from '@macuxi/integracao/contracts';
 import { compararCursor } from '../../src/mapeamento';
+import { compararVersoes, lerSemver } from '../../src/versao';
 
 interface LoteGuardado {
   id: string;
@@ -88,6 +89,18 @@ export class HubFalso {
   politicaVersao: { versao_minima: string; versao_recomendada: string; mensagem?: string } | null = null;
   /** Chaves aceitas além de `token` (rotação: a antiga e a nova valem juntas na janela). */
   chavesExtras = new Set<string>();
+  /**
+   * T-0027: o Hub responde 426 `versao_conector_nao_suportada` nas rotas de dados para Conector abaixo desta versão (o sinal
+   * passa). `informarMinima: false` simula um 426 sem `detalhes`.
+   */
+  exigirVersao: { minima: string; informarMinima?: boolean } | null = null;
+  /**
+   * T-0027: simula a inativação da carga completa como o domain do Hub (RN-INT-06): ao fechar a sessão, inativa os registros da
+   * entidade que não vieram NEM como aceitos NEM como inválidos; linha sem id ou omitida impede a inativação.
+   */
+  simularInativacao = false;
+  readonly inativados = new Map<string, Set<string>>();
+  private readonly sessoes = new Map<string, { vistos: Set<string>; semId: number; falhou: boolean }>();
 
   static async iniciar(): Promise<HubFalso> {
     const h = new HubFalso();
@@ -149,6 +162,11 @@ export class HubFalso {
     }
     const caminho = caminhoCompleto.slice(API_PREFIX_INTEGRACAO.length);
     const corpo = corpoTexto ? (JSON.parse(corpoTexto) as unknown) : undefined;
+    const versao = String(req.headers['x-macuxi-conector-versao'] ?? '');
+    if (this.exigirVersao && caminho !== '/sinal' && lerSemver(versao) && compararVersoes(versao, this.exigirVersao.minima) < 0) {
+      const detalhes = this.exigirVersao.informarMinima === false ? undefined : { versao_minima: this.exigirVersao.minima };
+      return this.responder(res, 426, { codigo: 'versao_conector_nao_suportada', mensagem: 'Atualize o Conector.', ...(detalhes ? { detalhes } : {}), erros: [{ codigo: 'versao_conector_nao_suportada', campo: null, mensagem: 'Atualize o Conector.' }] });
+    }
 
     if (req.method === 'POST' && caminho === '/lotes') return this.receberLote(req, res, corpo);
     let m = /^\/lotes\/([^/]+)$/.exec(caminho);
@@ -204,7 +222,9 @@ export class HubFalso {
     const erros: { codigo: string; campo: string | null; mensagem: string }[] = [];
     if (e.versao_contrato !== 'v1') erros.push({ codigo: 'versao_nao_suportada', campo: 'versao_contrato', mensagem: 'versão não suportada' });
     if (!(ENTIDADES as readonly string[]).includes(e.entidade)) erros.push({ codigo: 'entidade_desconhecida', campo: 'entidade', mensagem: 'entidade desconhecida' });
-    if (e.registros.length === 0) erros.push({ codigo: 'lote_vazio', campo: 'registros', mensagem: 'lote vazio' });
+    // exceção da RN-INT-01 (P-1, T-0025/T-0027): registros vazio com linhas inválidas do Conector é aceito
+    const trazInvalidas = (e.linhas_invalidas?.length ?? 0) > 0 || (e.linhas_invalidas_omitidas ?? 0) > 0;
+    if (e.registros.length === 0 && !trazInvalidas) erros.push({ codigo: 'lote_vazio', campo: 'registros', mensagem: 'lote vazio' });
     if (e.registros.length > LIMITE_REGISTROS_LOTE) erros.push({ codigo: 'acima_do_limite', campo: 'registros', mensagem: 'acima do limite' });
     if (e.modo === 'completo' && !e.sessao) erros.push({ codigo: 'sessao_ausente', campo: 'sessao', mensagem: 'sessão ausente' });
     if (e.modo === 'delta' && e.sessao) erros.push({ codigo: 'sessao_nao_se_aplica', campo: 'sessao', mensagem: 'delta não tem sessão' });
@@ -252,6 +272,7 @@ export class HubFalso {
       indice: i, external_id: l.external_id ?? null, codigo: l.codigo, campo: l.campo ?? null, mensagem: l.mensagem, reprocessavel: false, origem: 'conector' as const,
     }));
     const status = lErros.length === 0 ? (doConector.length > 0 || (e.linhas_invalidas_omitidas ?? 0) > 0 ? 'concluido_com_erros' : 'concluido') : lErros.length === e.registros.length ? 'falhou' : 'concluido_com_erros';
+    if (e.sessao && this.simularInativacao) this.acumularSessao(entidade, e, aceitas, lErros, status);
     lErros.push(...doConector);
     const id = randomUUID();
     const guardado: LoteGuardado = {
@@ -264,7 +285,24 @@ export class HubFalso {
     this.lotes.set(id, guardado);
     if (chave) this.porChave.set(chave, id);
     this.envelopes.push(e);
-    this.responder(res, 202, { lote_id: id, status: 'recebido', entidade, modo: e.modo, recebidos: e.registros.length, consulta: `${API_PREFIX_INTEGRACAO}/lotes/${id}` });
+    const recebidos = e.registros.length + invalidas.length + (e.linhas_invalidas_omitidas ?? 0);
+    this.responder(res, 202, { lote_id: id, status: 'recebido', entidade, modo: e.modo, recebidos, consulta: `${API_PREFIX_INTEGRACAO}/lotes/${id}` });
+  }
+
+  /** Igual ao domain (`idsDaSessaoNoLote` + `calcularInativacao`), sem a trava dos 30%: o que importa aqui é QUEM sairia. */
+  private acumularSessao(entidade: Entidade, e: LoteEnvelope, aceitas: Cursor[], errosHub: LinhaErro[], status: LoteGuardado['status']): void {
+    const id = e.sessao?.id as string;
+    const s = this.sessoes.get(id) ?? { vistos: new Set<string>(), semId: 0, falhou: false };
+    this.sessoes.set(id, s);
+    for (const a of aceitas) s.vistos.add(a.external_id);
+    for (const x of errosHub) if (x.external_id) s.vistos.add(x.external_id); else s.semId++;
+    for (const l of e.linhas_invalidas ?? []) if (l.external_id?.trim()) s.vistos.add(l.external_id.trim()); else s.semId++;
+    s.semId += e.linhas_invalidas_omitidas ?? 0;
+    if (status === 'falhou') s.falhou = true;
+    if (!e.sessao?.ultimo || s.falhou || s.semId > 0 || s.vistos.size === 0) return;
+    const fora = this.inativados.get(entidade) ?? new Set<string>();
+    for (const ext of this.registros.get(entidade)?.keys() ?? []) if (!s.vistos.has(ext)) fora.add(ext);
+    this.inativados.set(entidade, fora);
   }
 
   private resultadoLote(res: ServerResponse, id: string): void {

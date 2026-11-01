@@ -6,6 +6,7 @@
  *      └──► recusado  (entidade BLOQUEADA até `conector retomar`)     └─ erros por linha ficam no log local
  *
  *  - Falha de rede/5xx/429: o lote continua `pendente` com espera exponencial persistida (sobrevive a reinício).
+ *  - 401/403 (credencial) e 426 (versão abaixo da mínima, T-0027): PAUSA com espera longa; nada é descartado nem bloqueado.
  *  - Recusa do envelope por regra (versão, entidade, limite, sessão…): NÃO é reenviada; bloqueia a entidade.
  *  - Erro por linha: recusa por regra (`campo_obrigatorio`, `tipo_invalido`…) NUNCA é reenviada (exige correção no ERP; quando
  *    corrigida, o `alterado_em` novo a traz no próximo delta). `referencia_ausente` o Hub guarda no staging e reprocessa sozinho.
@@ -20,7 +21,7 @@ import { chaveDoLote } from './lotes';
 import { compararCursor } from './mapeamento';
 import { ErroHubAutenticacao, ErroHubTransitorio } from './hub/cliente';
 import type { ResultadoLoteHub } from './hub/tipos';
-import { bloqueioPorVersao } from './politica';
+import { bloqueioPorVersao, tratarRecusaPorVersao } from './politica';
 import { calcularEspera } from './util/retry';
 
 export interface ResultadoFila {
@@ -69,6 +70,14 @@ export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
         // espera longa: não adianta insistir a cada ciclo com credencial inválida
         const t = (lote.tentativas ?? 0) + 1;
         store.atualizarLote(lote.id, { tentativas: t, proximaMs: proximaTentativa(ctx, t), erro: 'credencial recusada pelo Hub' }, ctx.relogio.agora());
+        break;
+      }
+      if (tratarRecusaPorVersao(ctx, e, lote.estado === 'pendente' ? 'enviar_lote' : 'consultar_lote')) {
+        // 426 (T-0027): pausa como 401/403 — o lote continua na fila com espera, a entidade NÃO é bloqueada
+        r.interrompido = (e as Error).message;
+        const t = lote.tentativas + 1;
+        store.atualizarLote(lote.id, { tentativas: t, proximaMs: proximaTentativa(ctx, t), erro: 'versão do Conector recusada pelo Hub (426)' }, ctx.relogio.agora());
+        r.adiados++;
         break;
       }
       if (e instanceof ErroHubTransitorio) {
@@ -158,8 +167,10 @@ function finalizar(ctx: Contexto, lote: LoteLocal, res: ResultadoLoteHub): void 
       store.atualizarEstado(lote.entidade, { bloqueio: `O Hub marcou o lote como "falhou". Reprocesse no BKO (Integração) ou rode: conector retomar ${lote.entidade}` });
     }
     if (res.inativacao?.situacao === 'aguardando_confirmacao') {
+      // P-2: o lote foi APLICADO (o cursor avança); só as inativações esperam a confirmação no BKO
+      const pct = typeof res.inativacao.percentual === 'number' ? ` (${res.inativacao.percentual}% dos ativos)` : '';
       store.atualizarEstado(lote.entidade, {
-        aviso: `Trava de inativação em massa (RN-INT-06): o Hub não inativou ${res.inativacao.candidatos ?? '?'} registro(s) ausentes da carga completa. Confirme no BKO se a ausência é intencional.`,
+        aviso: `Trava de inativação em massa (RN-INT-06): a carga completa foi aplicada, mas o Hub não inativou ${res.inativacao.candidatos ?? '?'} registro(s) ausentes${pct}. Confirme no BKO (Integração ERP > Inativação em massa) se a ausência é intencional.`,
       });
     }
     store.esvaziarLote(lote.id);

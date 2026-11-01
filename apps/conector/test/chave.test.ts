@@ -113,6 +113,16 @@ describe('conector trocar-chave', () => {
     expect(a.powershell).toHaveLength(0);
   });
 
+  it('T-0027: 426 (versão abaixo da mínima) só sai depois da autenticação — a chave nova vale e é gravada, com aviso de atualizar', async () => {
+    const arquivo = arquivoConfig();
+    hub.exigirVersao = { minima: '9.0.0' };
+    const a = es(CHAVE_NOVA);
+    expect(await executarCli(['trocar-chave', '--config', arquivo], a.io), a.tudo()).toBe(0);
+    expect(a.powershell).toHaveLength(1);
+    expect(a.erros.join('\n')).toMatch(/\[aviso\].*aceita pelo Hub.*abaixo da mínima \(9\.0\.0\)/s);
+    expect(a.tudo()).not.toContain(CHAVE_NOVA);
+  });
+
   it('Hub fora do ar: não grava (a menos que --sem-testar)', async () => {
     const arquivo = arquivoConfig();
     hub.caido = true;

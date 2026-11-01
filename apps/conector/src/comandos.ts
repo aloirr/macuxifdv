@@ -12,7 +12,7 @@ import { mapearEValidar } from './mapeamento';
 import { validarFormatoChave } from './segredos/chave';
 import { criarProvedor, type ExecutarPowerShell, nomeVariavel, NOMES_SEGREDO, type NomeSegredo } from './segredos/provedores';
 import { registrarSegredo } from './log/mascara';
-import { ErroHubAutenticacao } from './hub/cliente';
+import { ErroHubAutenticacao, ErroHubVersao } from './hub/cliente';
 import { reiniciarCargaCompleta, retomarEntidade } from './sincronizador';
 import { desinstalarServico, instalarServico } from './servico';
 import { formatarStatus, montarStatus } from './status';
@@ -254,15 +254,20 @@ async function trocarChave(caminhoConfig: string, semTestar: boolean, io: ES): P
     try {
       await hub.consultarCursor(ORDEM_CARGA.find((e) => amb.config.entidades[e]) ?? 'cliente');
     } catch (e) {
-      if (e instanceof ErroHubAutenticacao) {
-        io.erro(
-          `O Hub recusou a chave nova para o Conector "${conectorId}" (HTTP ${e.status}). Nada foi gravado e a chave atual continua valendo. ` +
-            'Confira se copiou a chave inteira e se hub.conectorId é o mesmo identificador cadastrado no BKO.',
-        );
+      if (e instanceof ErroHubVersao) {
+        // 426 só sai DEPOIS da autenticação: a chave nova vale (segue para gravar); a versão é que está abaixo da mínima (T-0027)
+        io.erro(`[aviso] A chave nova foi aceita pelo Hub, mas esta versão do Conector está abaixo da mínima${e.versaoMinima ? ` (${e.versaoMinima})` : ''}: atualize o Conector (o envio fica parado até lá).`);
       } else {
-        io.erro(`Não consegui falar com o Hub para validar a chave (${mascararTexto(resumoErro(e))}). Nada foi gravado. Verifique a rede e tente de novo; se o Hub estiver fora do ar de propósito, use --sem-testar.`);
+        if (e instanceof ErroHubAutenticacao) {
+          io.erro(
+            `O Hub recusou a chave nova para o Conector "${conectorId}" (HTTP ${e.status}). Nada foi gravado e a chave atual continua valendo. ` +
+              'Confira se copiou a chave inteira e se hub.conectorId é o mesmo identificador cadastrado no BKO.',
+          );
+        } else {
+          io.erro(`Não consegui falar com o Hub para validar a chave (${mascararTexto(resumoErro(e))}). Nada foi gravado. Verifique a rede e tente de novo; se o Hub estiver fora do ar de propósito, use --sem-testar.`);
+        }
+        return 1;
       }
-      return 1;
     }
   }
   const nomeVar = nomeVariavel('hub_chave');

@@ -16,9 +16,9 @@ import type { PedidoLocal } from './armazenamento/armazenamento';
 import type { PedidosConfig } from './config/esquema';
 import { type Contexto, resumoErro } from './contexto';
 import { ehErroDeConexao, type Linha } from './erp/driver';
-import { ErroHubAutenticacao, ErroHubTransitorio } from './hub/cliente';
+import { ErroHubAutenticacao, ErroHubTransitorio, ErroHubVersao } from './hub/cliente';
 import type { RetornoParaHub } from './hub/tipos';
-import { bloqueioPorVersao } from './politica';
+import { bloqueioPorVersao, tratarRecusaPorVersao } from './politica';
 import { mascararTexto } from './log/mascara';
 import { calcularEspera } from './util/retry';
 import { iso } from './util/relogio';
@@ -59,7 +59,7 @@ export async function cicloPedidos(ctx: Contexto, partes: { buscar?: boolean; st
     } catch (e) {
       r.erro ??= resumoErro(e);
       if (e instanceof ErroHubAutenticacao) ctx.log.erro('hub_credencial_recusada', { status: e.status });
-      else ctx.log.aviso('etapa_pedidos_interrompida', { etapa: nome, erro: resumoErro(e) });
+      else if (!tratarRecusaPorVersao(ctx, e, `pedidos_${nome}`)) ctx.log.aviso('etapa_pedidos_interrompida', { etapa: nome, erro: resumoErro(e) });
     }
   };
   if (partes.buscar) await etapa('buscar', () => buscarPedidos(ctx, r));
@@ -304,7 +304,9 @@ export async function enviarRetornos(ctx: Contexto, r: ResultadoPedidos = novoRe
         log.erro('retorno_recusado_pelo_hub', { pedido_uuid: ret.pedidoUuid, status_http: resp.status, codigo: resp.codigo, mensagem: resp.mensagem });
       }
     } catch (e) {
-      if (e instanceof ErroHubTransitorio) {
+      if (e instanceof ErroHubTransitorio || e instanceof ErroHubVersao) {
+        // Hub fora ou 426 (versão abaixo da mínima, T-0027): o retorno espera na fila local; nunca vira "recusado"
+        tratarRecusaPorVersao(ctx, e, 'enviar_retorno');
         const t = ret.tentativas + 1;
         store.atualizarRetorno(ret.id, { tentativas: t, proximaMs: espera(ctx, t), erro: resumoErro(e) });
         r.erro = resumoErro(e);

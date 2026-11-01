@@ -8,6 +8,7 @@ import { Executor } from '../src/executor';
 import { reconciliacaoVencida, reconciliarTudo } from '../src/reconciliacao';
 import { sincronizarEntidade } from '../src/sincronizador';
 import { formatarStatus, montarStatus } from '../src/status';
+import { VERSAO_CONECTOR } from '../src/versao';
 import { adquirirTrava } from '../src/trava';
 import { type Ambiente, cliente, criarAmbiente } from './suporte/ambiente';
 
@@ -184,7 +185,7 @@ describe('executor (laço de execução)', () => {
     amb.relogio.avancar(61_000);
     expect(await exec.ciclo()).toContain('sinal');
     expect(amb.hub.sinais.length).toBe(2);
-    expect(amb.hub.sinais[0]).toMatchObject({ versao_conector: '1.1.0', versao_contrato: 'v1' });
+    expect(amb.hub.sinais[0]).toMatchObject({ versao_conector: VERSAO_CONECTOR, versao_contrato: 'v1' });
     expect(JSON.stringify(amb.hub.sinais)).not.toMatch(/razao|Cliente c1/);
   });
 

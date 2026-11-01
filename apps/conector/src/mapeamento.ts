@@ -6,7 +6,7 @@
  * - Validação com `SCHEMA_REGISTRO[entidade]` do contrato. As mensagens de erro locais NUNCA carregam o valor da linha.
  * - Valores nulos são omitidos (equivale a campo ausente no Hub).
  */
-import { LIMITE_REGISTROS_LOTE, SCHEMA_REGISTRO, type Cursor, type Entidade, type LinhaInvalidaConector } from '@macuxi/integracao/contracts';
+import { EXTERNAL_ID_MAX, LIMITE_REGISTROS_LOTE, SCHEMA_REGISTRO, type Cursor, type Entidade, type LinhaInvalidaConector } from '@macuxi/integracao/contracts';
 import type { ColunaConfig, EntidadeConfig, Transformacao } from './config/esquema';
 import type { Linha } from './erp/driver';
 
@@ -254,11 +254,31 @@ export interface ResultadoMapeamento {
   repetidas: number;
 }
 
+/** Melhor esforço para identificar a linha cujo mapeamento falhou (ex.: JSON inválido em outra coluna): só a coluna do external_id. */
+function externalIdBruto(config: EntidadeConfig, linha: Linha): string | null {
+  try {
+    const v = lerColuna(linha, config.campos.external_id as ColunaConfig, 'external_id');
+    const t = v === undefined || v === null ? '' : String(v).trim();
+    return t === '' ? null : t;
+  } catch {
+    return null;
+  }
+}
+
+export interface OpcoesMapeamento {
+  /**
+   * Força o envio das linhas inválidas ao Hub mesmo com `linhasInvalidas: descartar`. A carga completa SEMPRE envia (T-0027,
+   * RN-INT-06): o `external_id` da linha inválida é o que impede o Hub de inativar um registro que continua no ERP.
+   */
+  enviarInvalidas?: boolean;
+}
+
 /**
  * `depoisDe`: linhas cujo par (alterado_em, external_id) não é maior que ele já foram lidas e são ignoradas. Cobre a linha
  * cujo `alterado_em` tem precisão maior que milissegundos: o filtro do SQL a devolveria de novo a cada ciclo.
  */
-export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linhas: Linha[], depoisDe: Cursor | null = null): ResultadoMapeamento {
+export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linhas: Linha[], depoisDe: Cursor | null = null, opcoes: OpcoesMapeamento = {}): ResultadoMapeamento {
+  const enviar = opcoes.enviarInvalidas === true || config.linhasInvalidas === 'enviar';
   const registros: Record<string, unknown>[] = [];
   const problemas: ProblemaLinha[] = [];
   const linhasInvalidas: LinhaInvalidaConector[] = [];
@@ -270,7 +290,7 @@ export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linha
   /** Registra os problemas de UMA linha e (se configurado) a entrada única que irá ao Hub. */
   const recusar = (doLote: ProblemaLinha[]) => {
     problemas.push(...doLote);
-    if (config.linhasInvalidas === 'enviar') linhasInvalidas.push(resumirLinha(doLote));
+    if (enviar) linhasInvalidas.push(resumirLinha(doLote));
   };
   for (const [posicao, linha] of linhas.entries()) {
     let m: LinhaMapeada;
@@ -279,7 +299,7 @@ export function mapearEValidar(entidade: Entidade, config: EntidadeConfig, linha
     } catch (e) {
       descartadas++;
       const conhecido = e instanceof ErroMapeamento;
-      recusar([{ posicao, external_id: null, campo: '(linha)', codigo: conhecido ? 'formato_invalido' : 'registro_invalido', mensagem: conhecido ? e.message : 'erro ao converter a linha' }]);
+      recusar([{ posicao, external_id: externalIdBruto(config, linha), campo: '(linha)', codigo: conhecido ? 'formato_invalido' : 'registro_invalido', mensagem: conhecido ? e.message : 'erro ao converter a linha' }]);
       continue;
     }
     if (m.external_id === null || m.alterado_ms === null) {
@@ -321,8 +341,11 @@ export function resumirLinha(problemas: ProblemaLinha[]): LinhaInvalidaConector 
     problemas.length === 1
       ? primeiro.mensagem
       : problemas.map((p) => `${p.campo}: ${p.mensagem}`).join('; ');
+  // external_id acima do limite do contrato (200) não viaja: cortar inventaria outra chave e o envelope seria recusado inteiro.
+  // Sem id, o Hub não inativa nada na sessão (RN-INT-06), o que é o lado seguro.
+  const id = primeiro.external_id !== null && primeiro.external_id.length <= EXTERNAL_ID_MAX ? primeiro.external_id : null;
   return {
-    external_id: primeiro.external_id,
+    external_id: id,
     codigo: primeiro.codigo,
     campo: primeiro.campo.slice(0, 100),
     mensagem: mensagem.length > 300 ? `${mensagem.slice(0, 297)}...` : mensagem,
