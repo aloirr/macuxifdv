@@ -14,11 +14,12 @@
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| `.github/**`, `turbo.json`, `package.json` da raiz, `scripts/**` (exceto `scripts/coord*`) | T-0033 | nuvem/* | 2026-11-01 |
-| `modules/promotor/contracts/**`, `modules/promotor/domain/**`, `docs/modulos/promotor/**` | T-0040 | nuvem/T-0040-promotor-eventos | 2026-11-01 |
+| `.claude/hooks/**`, `.claude/settings.json`, `scripts/coord*.mjs` | T-0044 | nuvem (alexandre) | 2026-11-01 |
+| `modules/gestor/**`, `docs/modulos/gestor/**` | T-0046 | nuvem/T-0046-gestor-eventos-promotor | 2026-11-01 |
+| `packages/config/**`, `packages/comum/**`, `eslint.config.*` da raiz | T-0043 | nuvem/T-0043-relogio-de-teste | 2026-11-01 |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
-Destravados em 2026-11-01: T-0036 (`modules/treinamento/**`, 789a191) e T-0037 (`modules/core/domain|contracts/**`, 4c08b91). Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
+Destravados em 2026-11-01: T-0033 (`.github/**`, `turbo.json`, `package.json` da raiz, `scripts/**`; fa6d5fa) e T-0040 (`modules/promotor/contracts|domain/**`, 3090263); T-0036 (`modules/treinamento/**`, 789a191) e T-0037 (`modules/core/domain|contracts/**`, 4c08b91). Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
 Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho: local e nuvem".
 
 ## ✅ Main verde desde 2026-11-01 (CI 41286326232, todas as suítes rodando)
@@ -60,7 +61,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0024](tarefas/T-0024.md) | Payload dos eventos no contracts de cada módulo — Sprint 2 | engenheiro-software | local | aberta |
 | [T-0025](tarefas/T-0025.md) | Hub /integracao/v1 — desenho, contratos e domínio — Sprint 2 | modulo-integracao | nuvem → local (merge c77278f) | em_revisao (falta: revisão do engenheiro e do banco-dados) |
 | [T-0027](tarefas/T-0027.md) | Conector ↔ Hub: alinhamento — Sprint 2 | modulo-integracao | nuvem (PR #24, fa837c4) | concluida (falta só a revisão do PR #24 pelo engenheiro, na T-0032) |
-| [T-0033](tarefas/T-0033.md) | CI e testes mais rápidos (paralelo, cache Turborepo, banco modelo) — Sprint 2 | engenheiro-software | nuvem (merge de governança pelo gerente com autorização do Alexandre) | aberta |
+| [T-0033](tarefas/T-0033.md) | CI e testes mais rápidos (paralelo, cache Turborepo, banco modelo) — Sprint 2 | engenheiro-software | nuvem (PR #26, fa6d5fa) | concluida |
 | [T-0032](tarefas/T-0032.md) | Hub /integracao/v1 — rotas e banco — Sprint 2 | engenheiro-software, banco-dados | local | em_andamento |
 | [T-0031](tarefas/T-0031.md) | Hub P-3/P-4 e mensagem do Conector conflitante (P-6) — Sprint 2 | modulo-integracao | nuvem (PR #25, 697ab42) | concluida (rotas na T-0032) |
 | [T-0034](tarefas/T-0034.md) | engenheiro-apps: next-env definitivo, abas ⛔ dos shells, revisão das telas da T-0029 — Sprint 2 | engenheiro-apps | local | em_revisao (entregue; revisão do engenheiro-software em andamento) |
@@ -69,10 +70,14 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0037](tarefas/T-0037.md) | Core: RN-CORE-12 como função pura no domain — Sprint 2 | modulo-core | nuvem (PR #27, 4c08b91) | concluida |
 | [T-0038](tarefas/T-0038.md) | Domínio fixo da demo (api-demo/bko-demo.macuxifdv.com.br) — Sprint 2 | engenheiro-software, engenheiro-apps | local (depois do main verde) | aberta |
 | [T-0039](tarefas/T-0039.md) | Checkout validado na API (RN-CORE-12) — Sprint 2 | engenheiro-software, modulo-core | local (destravada; depois da T-0038) | aberta |
-| [T-0040](tarefas/T-0040.md) | Promotor: payloads Zod dos eventos promotor.*@1 — Sprint 2 | modulo-promotor | nuvem | aberta |
+| [T-0040](tarefas/T-0040.md) | Promotor: payloads Zod dos eventos promotor.*@1 — Sprint 2 | modulo-promotor | nuvem (PR #30, 3090263) | concluida |
 | [T-0041](tarefas/T-0041.md) | Catálogo: timeout real do provedor de IA — Sprint 2 | modulo-catalogo | nuvem (PR #29, b8cae16) | concluida |
 | [T-0042](tarefas/T-0042.md) | "Hoje" no fuso do tenant (C6, produção) e testes com hora fixa — Sprint 2 | modulo-core, banco-dados, modulo-vendedor | local | aberta |
-| [T-0043](tarefas/T-0043.md) | Prevenção de hora fixa: relógio de teste, lint e CI com relógio deslocado — Sprint 2 | engenheiro-software | local (+ job no CI agendado) | aberta |
+| [T-0043](tarefas/T-0043.md) | Prevenção de hora fixa: relógio de teste e lint (sem o job do CI) — Sprint 2 | engenheiro-software | nuvem | aberta |
+| [T-0044](tarefas/T-0044.md) | Guardião v5: gh pr merge só com trava — Sprint 2 | alexandre | nuvem | em_andamento |
+| [T-0045](tarefas/T-0045.md) | Revisões pendentes do engenheiro (T-0014, T-0023, T-0025) — Sprint 2 | engenheiro-software | nuvem | em_andamento |
+| [T-0046](tarefas/T-0046.md) | Gestor: espelho dos eventos promotor.*@1 — Sprint 2 | modulo-gestor | nuvem | em_andamento |
+| [T-0047](tarefas/T-0047.md) | Busca do Catálogo de ponta a ponta (próximo APK de demo) — Sprint 2 | modulo-catalogo (+ eng-software, banco, eng-apps, testes) | local (depois da T-0038) | aberta |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (155 testes · revisão sem 🔴 · decisões do Alexandre aplicadas) |
 

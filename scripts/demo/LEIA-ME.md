@@ -109,6 +109,12 @@ derrubada, `api-demo` e `bko-demo` respondem erro da Cloudflare (1033) e o app m
 - Logs e PIDs: `.dados\demo\` (`api.log`, `worker.log`, `bko.log`, `bko-build.log`, `tunel.erro.log`,
   `tunel-rapido*.erro.log`, `processos.json`), fora do git. O `config.yml` e o `tunel.json` ficam em
   `.dados\demo\cloudflared\` e não têm segredo. Se forem apagados, rode o `configurar-dominio.ps1` de novo.
+- **"já existe" no `configurar-dominio.ps1`**: o script reaproveita o `macuxi-demo` pelo nome. Ele só para quando a
+  Cloudflare diz que o túnel existe e o `cloudflared tunnel list --name macuxi-demo` não o mostra como ativo.
+  Nesse caso, esperar não resolve: confira `cloudflared tunnel list` e `cloudflared tunnel info macuxi-demo`.
+  Para o script, `deleted_at` igual a `0001-01-01T00:00:00Z` (o tempo zero do Go) quer dizer túnel ativo.
+- Testes dos scripts do túnel, com um cloudflared simulado que não fala com a Cloudflare:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\demo\teste\tunel.test.ps1`. Também rodam no `pwsh`.
 
 ## Segurança
 O túnel expõe a API e o BKO deste PC na internet enquanto estiver no ar: use só com a base de demo (dados fictícios),

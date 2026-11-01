@@ -69,3 +69,7 @@ R-20261101-173050-gerente-projetos
 R-20261101-174135-gerente-projetos
 R-20261101-203352-modulo-core
 R-20261101-203404-modulo-treinamento
+R-20261101-181143-gerente-projetos
+R-20261101-184129-gerente-projetos
+R-20261101-222233-modulo-catalogo
+R-20261101-190451-gerente-projetos
