@@ -29,6 +29,7 @@ import {
   dependenciasDosManifestos,
   ErroHttpModulo,
   escopoDoPerfil,
+  fusoDoTenantOuPadrao,
   modulosEfetivos,
   promotorBarradoNaRota,
   SaudeRespostaSchema,
@@ -229,6 +230,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     let usuariosVisiveis: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     // parâmetros do tenant (`plataforma.parametro`) lidos junto com as licenças, por requisição (T-0029 E3)
     const parametros = (m: ModuloId): Readonly<Record<string, unknown>> => licencas.parametros[m] ?? {};
+    // fuso do tenant (RN-CORE-11; T-0035): lido com as licenças; ausente ou inválido = America/Manaus
+    const fuso = fusoDoTenantOuPadrao(licencas.fuso);
     const contexto = (m: ModuloId | null): ContextoBase => ({
       usuario,
       dependencias,
@@ -256,6 +259,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
       // o próprio usuário sempre está no conjunto, mesmo que o serviço o omita
       usuariosVisiveis: () => (usuariosVisiveis ??= usuariosDe(token, acesso).then((v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])))),
       parametros: () => (m ? parametros(m) : {}),
+      fuso: () => fuso,
       log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id }),
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto };

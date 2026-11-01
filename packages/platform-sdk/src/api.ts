@@ -146,6 +146,12 @@ export interface ContextoBase {
    * licenças; doc 03 "Parâmetros do tenant"). Ex.: alçadas do Vendedor. Rota da plataforma = `{}`.
    */
   parametros(): Readonly<Record<string, unknown>>;
+  /**
+   * Fuso IANA do tenant (`plataforma.tenant.fuso`, lido pela API junto com as licenças, por requisição; RN-CORE-11).
+   * Use para a virada do dia e para datas civis (ex.: `localIsoDate(ctx.agora(), ctx.fuso())` de `@macuxi/comum/fuso`).
+   * Nunca lança: fuso ausente ou inválido = `America/Manaus` (`FUSO_PADRAO_TENANT`). O módulo não lê `plataforma.*`.
+   */
+  fuso(): string;
   /** Logger da requisição (já leva tenant_id, modulo e request_id; nunca registre dado pessoal). */
   log: LogRota;
 }
