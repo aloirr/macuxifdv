@@ -1,13 +1,13 @@
 /**
  * Pedido do Vendedor × Postgres real (fixture dois-tenants, papel macuxi_app, RLS) — T-0029: `receber` do push,
  * aprovar/rejeitar, cancelar, lista, detalhe, alçadas e pull de evento/condições. As consultas entre módulos são
- * simuladas AQUI (cadastro lê o Core com o mesmo SQL da consulta real; preço vem de um mapa por cliente): o ponta a
+ * simuladas AQUI (cadastro vem da fixture em memória, sem SQL em outro schema; preço vem de um mapa por cliente): o ponta a
  * ponta com `createApp` e as consultas reais é do agente `testes` (onda 3). Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha.
  */
 import { randomUUID } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
-import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
+import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import {
   criarRegistroSync,
@@ -31,6 +31,12 @@ const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const AGORA = new Date('2026-11-01T15:00:00.000Z');
 const id = (n: number) => `0f290000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+/** Cadastro do Core da fixture, em memória (a consulta real é do Core): o teste não faz SQL em schema de outro módulo. */
+const CADASTRO = (() => {
+  const d = dadosDoisTenants('hash-de-teste');
+  const tabela = (nome: string) => Object.entries(d).find(([k]) => k.endsWith(`.${nome}`) && k.startsWith('co'))![1];
+  return { cliente: tabela('cliente'), produto: tabela('produto'), usuario: tabela('usuario') };
+})();
 const IDS = Array.from({ length: 60 }, (_, i) => id(i + 1));
 
 const vendedor1: UsuarioAutenticado = { id: A.usuarios.vendedor1, tenant_id: A.tenantId, perfil: 'vendedor' };
@@ -64,6 +70,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       usuario: { ...u, modulos: ['core', 'catalogo', 'vendedor'] },
       requestId: 'r-teste',
       agora: () => AGORA,
+      fuso: () => 'America/Manaus',
       carteira: async () => o.carteira ?? 'tenant',
       usuariosVisiveis: async () => visiveis,
       parametros: () => o.parametros ?? {},
@@ -74,12 +81,15 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
             async consultar(def: { nome: string }, entrada: Record<string, unknown>) {
               if (def.nome === CONSULTA_CADASTRO_RESUMO.nome) {
                 const ent = CONSULTA_CADASTRO_RESUMO.entrada.parse(entrada);
-                const lista = async (ids: string[], sql: string) => (ids.length === 0 ? [] : (await c.query(sql, [ids])).rows);
-                return {
-                  clientes: await lista(ent.cliente_ids, 'select id, razao_social, nome_fantasia, documento, logradouro, numero, bairro, cidade, uf, ativo, external_id from core.cliente where deleted_at is null and id = any($1::uuid[])'),
-                  produtos: await lista(ent.produto_ids, 'select id, sku, nome, unidade, ativo, external_id from core.produto where deleted_at is null and id = any($1::uuid[])'),
-                  usuarios: await lista(ent.usuario_ids, 'select id, nome, perfil, external_id from core.usuario where deleted_at is null and id = any($1::uuid[])'),
-                };
+                const pegar = (tabela: 'cliente' | 'produto' | 'usuario', ids: string[], campos: string[]) =>
+                  CADASTRO[tabela]
+                    .filter((l) => ids.includes(l.id as string))
+                    .map((l) => Object.fromEntries(campos.map((k) => [k, l[k] ?? null])));
+                return CONSULTA_CADASTRO_RESUMO.saida.parse({
+                  clientes: pegar('cliente', ent.cliente_ids, ['id', 'razao_social', 'nome_fantasia', 'documento', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'ativo', 'external_id']),
+                  produtos: pegar('produto', ent.produto_ids, ['id', 'sku', 'nome', 'unidade', 'ativo', 'external_id']),
+                  usuarios: pegar('usuario', ent.usuario_ids, ['id', 'nome', 'perfil', 'external_id']),
+                });
               }
               if (def.nome === CONSULTA_PRECOS_CLIENTE.nome) {
                 const ent = CONSULTA_PRECOS_CLIENTE.entrada.parse(entrada);
@@ -145,11 +155,8 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 6 });
     await limpar();
-    await comTenant(pool, A.tenantId, async (c) => {
-      const r = await c.query<{ id: string; sku: string }>("select id, sku from core.produto where sku in ('ALFA-001', 'ALFA-002')");
-      prod1 = r.rows.find((x) => x.sku === 'ALFA-001')!.id;
-      prod2 = r.rows.find((x) => x.sku === 'ALFA-002')!.id;
-    });
+    prod1 = CADASTRO.produto.find((x) => x.sku === 'ALFA-001' && x.tenant_id === A.tenantId)!.id as string;
+    prod2 = CADASTRO.produto.find((x) => x.sku === 'ALFA-002' && x.tenant_id === A.tenantId)!.id as string;
   });
   afterAll(async () => {
     await limpar();
@@ -484,7 +491,8 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
 
   // ---------- pull ----------
   describe('pull das entidades novas', () => {
-    const pedidoPull = () => ({ desde: null, ate: new Date(AGORA.getTime() + 3_600_000).toISOString(), limite: 1000 });
+    // updated_at vem do relógio do banco (agora real), não do AGORA simulado: a janela do pull usa o relógio real
+    const pedidoPull = () => ({ desde: null, ate: new Date(Date.now() + 3_600_000).toISOString(), limite: 1000 });
     const prov = (nome: string) => provedoresSyncVendedor.find((p) => p.entidade.nome === nome)!;
 
     it('pedido, pedido_item e pedido_evento trazem as colunas novas e passam nos schemas do contrato', async () => {

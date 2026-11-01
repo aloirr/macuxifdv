@@ -147,8 +147,20 @@
       "dono": "modulo-integracao"
     },
     {
+      "padrao": "apps/mobile/**",
+      "dono": "engenheiro-apps"
+    },
+    {
+      "padrao": "apps/web/**",
+      "dono": "engenheiro-apps"
+    },
+    {
       "padrao": "apps/**",
       "dono": "engenheiro-software"
+    },
+    {
+      "padrao": "packages/ui/**",
+      "dono": "engenheiro-apps"
     },
     {
       "padrao": "packages/**",

@@ -26,6 +26,7 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.ground } }}>
       <Tabs.Screen name="index" options={{ title: 'Início' }} />
       <Tabs.Screen name="m/[...caminho]" options={{ title: 'Módulo' }} />
+      <Tabs.Screen name="mais" options={{ title: 'Mais' }} />
     </Tabs>
   );
 }

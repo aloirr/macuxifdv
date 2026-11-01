@@ -57,11 +57,6 @@ function decodificarCursor(c: string): { createdAt: string; id: string } | null 
 }
 const escaparLike = (q: string) => q.replace(/[\\%_]/g, (m) => `\\${m}`);
 
-async function fusoDoTenant(db: ClienteBanco): Promise<string> {
-  const r = await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()');
-  return r.rows[0]?.fuso ?? 'America/Sao_Paulo';
-}
-
 /** Carrega o pedido (se estiver no escopo de leitura do usuário) com itens e histórico. `null` = inexistente ou fora do escopo. */
 async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, bloquear = false): Promise<{ linha: LinhaPedido; detalhe: OrderDetail } | null> {
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
@@ -114,7 +109,7 @@ export const rotaListarPedidos: RotaModulo = {
     if ((q.seller_id && !UUID.test(q.seller_id)) || (q.customer_id && !UUID.test(q.customer_id))) return { itens: [], proximo_cursor: null };
     if (q.cursor && !cursor) throw new ErroRegraNegocio('CURSOR_INVALIDO', 'Cursor inválido: recarregue a lista.');
     return ctx.comTenant(async (db) => {
-      const fuso = await fusoDoTenant(db);
+      const fuso = ctx.fuso(); // fuso do tenant vem do SDK (sem ler plataforma.*)
       const busca = q.q?.trim() ? `%${escaparLike(q.q.trim())}%` : null;
       const { rows } = await db.query<LinhaPedido>(
         `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS}
@@ -159,11 +154,15 @@ export const rotaVerPedido: RotaModulo = {
   },
 };
 
-/** GET /v1/vendedor/alcadas — política vigente montada dos parâmetros (só leitura; mesma do aparelho). */
+/**
+ * GET /v1/vendedor/alcadas — política vigente montada dos parâmetros (só leitura; mesma do aparelho).
+ * RN-PRO-01 / T-0035: sem o promotor (a política de desconto de pedido não lhe diz respeito); por `perfis`, não por `pedido.ver`.
+ */
+export const PERFIS_ALCADAS = ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 export const rotaAlcadas: RotaModulo = {
   metodo: 'GET',
   caminho: 'alcadas',
-  acao: 'pedido.ver',
+  perfis: [...PERFIS_ALCADAS],
   carteira: 'nao_se_aplica',
   async executar(ctx): Promise<AlcadaApi> {
     const p = politicaDosParametros({ ...ctx.parametros() });

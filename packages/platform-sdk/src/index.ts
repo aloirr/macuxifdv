@@ -24,3 +24,4 @@ export * from './sync-simulado';
 export * from './busca';
 export * from './sqlite';
 export * from './saude';
+export * from './fuso';

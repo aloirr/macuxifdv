@@ -11,6 +11,8 @@
  * leitura de escrita pela mesma regra do SDK (`promotorBarradoNaRota`).
  * Pedidos: `vendedor.pedido` vem da migração 0007 do banco-dados; se o banco efêmero ainda não a tiver, o teste cria
  * uma tabela mínima equivalente SÓ no banco efêmero deste arquivo (nada em db/).
+ * T-0035: GET /v1/vendedor/alcadas (política de desconto) é barrado ao promotor pelo perfil (403 PERFIL_SEM_ACESSO), com
+ * ou sem o Vendedor licenciado; os demais perfis com o Vendedor leem (200).
  * O lado UI (shell/extensões/telas) está em tests/modulos/promotor-sem-pedido.test.ts.
  */
 import { semBanco } from '@macuxi/db/teste/estado';
@@ -160,6 +162,27 @@ describe.skipIf(semBanco())('T-0003 C3.3 / T-0015 O-3 — promotor lê pedidos d
       }
     });
 
+    it('T-0035 / RN-PRO-01: GET /v1/vendedor/alcadas dá 403 PERFIL_SEM_ACESSO ao promotor mesmo com o Vendedor licenciado; os outros perfis com o Vendedor leem a política (200)', async () => {
+      const r = await api.chamar(promotor, { method: 'GET', url: '/v1/vendedor/alcadas' });
+      expect([r.statusCode, erroDe(r).codigo], r.body).toEqual([403, 'PERFIL_SEM_ACESSO']);
+      // Tenant A: vendedor, supervisor, gerente, analista e assistente já têm o Vendedor. Nenhum admin da fixture o tem
+      // (A não licencia; B o remove por usuario_modulo), então o perfil admin de A recebe Catálogo + Vendedor só aqui e devolve no fim.
+      const lerAlcadas = async (email: string) => {
+        const ok = await api.chamar((await api.sessao(email)).access_token, { method: 'GET', url: '/v1/vendedor/alcadas' });
+        expect(ok.statusCode, `${email}: ${ok.body}`).toBe(200);
+        expect(ok.json(), email).toMatchObject({ seller_pct: expect.any(Number), supervisor_pct: expect.any(Number), manager_pct: expect.any(Number), exceptions: [] });
+      };
+      for (const email of ['vendedor@exemplo.com.br', 'supervisor@exemplo.com.br', 'gerente@exemplo.com.br', 'analista@exemplo.com.br', 'assistente@exemplo.com.br']) await lerAlcadas(email);
+      expect((await licenca(api, admin, 'perfil', 'catalogo', true, 'admin')).statusCode).toBe(200);
+      expect((await licenca(api, admin, 'perfil', 'vendedor', true, 'admin')).statusCode).toBe(200);
+      try {
+        await lerAlcadas('admin@exemplo.com.br');
+      } finally {
+        expect((await licenca(api, admin, 'perfil', 'vendedor', false, 'admin')).statusCode).toBe(200);
+        expect((await licenca(api, admin, 'perfil', 'catalogo', false, 'admin')).statusCode).toBe(200);
+      }
+    });
+
     it('contraprova: o vendedor passa da checagem de perfil na mesma rota de escrita (para no Zod com id inválido)', async () => {
       const v = (await api.sessao('vendedor@exemplo.com.br')).access_token;
       expect((await api.chamar(v, { method: 'POST', url: '/v1/vendedor/pedidos/x/cancelar', payload: {} })).statusCode).toBe(400);
@@ -177,6 +200,13 @@ describe.skipIf(semBanco())('T-0003 C3.3 / T-0015 O-3 — promotor lê pedidos d
       const resultados = r.json().resultados as { status: string; codigo?: string }[];
       expect(resultados.map((x) => [x.status, x.codigo])).toEqual(itens.map(() => ['rejeitado', 'RN-PRO-01']));
     });
+  });
+
+  it('T-0035: sem o Vendedor, GET /v1/vendedor/alcadas também recusa o promotor (403)', async () => {
+    expect(ids(await api.meusModulos(promotor))).toEqual(['core', 'promotor']);
+    const r = await api.chamar(promotor, { method: 'GET', url: '/v1/vendedor/alcadas' });
+    expect(r.statusCode, r.body).toBe(403);
+    expect(['MODULO_INATIVO', 'PERFIL_SEM_ACESSO']).toContain(erroDe(r).codigo);
   });
 
   it('S0-065 sem o Vendedor: push de pedido pelo promotor é rejeitado por item (MODULO_INATIVO, D-1); nada gravado', async () => {

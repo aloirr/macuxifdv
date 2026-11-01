@@ -22,7 +22,6 @@ import {
   criarMotorSync,
   ErroHttp,
   mensagemPerfilForaDoApp,
-  modulosEfetivos,
   perfilDaFaseM,
   type AmbienteAparelho,
   type EtapaSync,
@@ -39,7 +38,8 @@ import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
-import { MANIFESTOS_APP, shellDaVariante, type ComponenteTela } from '@/lib/modulos';
+import { efetivosSemServidor } from '@/lib/efetivos-locais';
+import { shellDaVariante, type ComponenteTela } from '@/lib/modulos';
 import { varianteAtual } from '@/lib/variante';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
@@ -91,16 +91,6 @@ const SYNC_AUTOMATICO_MS = 15 * 60_000;
 
 export function usuarioDaFaseM(u: FakeUser): UsuarioSessao & FakeUser {
   return { ...u, perfil: perfilDaFaseM(u.role) };
-}
-
-/** Efetivos sem `GET /v1/me/modulos` (mock-api): todos os instalados ativos no tenant + padrão do perfil. */
-function efetivosLocais(perfil: Perfil | null): ModuloId[] {
-  if (!perfil) return ['core'];
-  return modulosEfetivos({
-    manifestos: MANIFESTOS_APP,
-    ativosNoTenant: MANIFESTOS_APP.map((m) => m.id),
-    doPerfil: MANIFESTOS_APP.filter((m) => m.perfis.includes(perfil)).map((m) => m.id),
-  });
 }
 
 function usePlataformaValor() {
@@ -192,7 +182,8 @@ function usePlataformaValor() {
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
       const ativos = m.estado().modulosAtivos;
-      setModulosAtivos(ativos.length > 0 ? ativos : efetivosLocais(s.user.perfil));
+      // T-0034: sem resposta de /me/modulos guardada, na API real só o Core (nenhuma aba sem licença)
+      setModulosAtivos(ativos.length > 0 ? ativos : efetivosSemServidor(modo, s.user.perfil));
       desassinarRef.current?.();
       desassinarRef.current = m.assinar((e) => setModulosAtivos(e.modulosAtivos.length > 0 ? e.modulosAtivos : ['core']));
       motorRef.current = m;
@@ -247,11 +238,12 @@ function usePlataformaValor() {
       efetivos = r.modulos.map((m) => m.id);
       parametros = Object.fromEntries(r.modulos.map((m) => [m.id, m.parametros ?? {}])) as ParametrosModulos;
     } catch (e) {
-      if (!(e instanceof HttpError) || e.status !== 404) throw e;
-      efetivos = efetivosLocais(s.user.perfil);
+      // só o mock-api da demonstração não tem /me/modulos; na API real o erro sobe e vale a última resposta guardada
+      if (modo !== 'demo' || !(e instanceof HttpError) || e.status !== 404) throw e;
+      efetivos = efetivosSemServidor(modo, s.user.perfil);
     }
     await m.aplicarModulosAtivos(efetivos, parametros);
-  }, [api]);
+  }, [api, modo]);
 
   const sincronizar = useCallback(async (): Promise<boolean> => {
     const m = motorRef.current;

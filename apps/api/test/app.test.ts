@@ -330,6 +330,35 @@ describe('parâmetros do tenant: fonte única plataforma.parametro (desenho T-00
   });
 });
 
+describe('ctx.fuso(): fuso do tenant no contexto da rota (RN-CORE-11, T-0035)', () => {
+  const vendedorComFuso = definirModuloApi({
+    manifesto: vendedor,
+    rotas: [{ metodo: 'GET', caminho: 'fuso', acao: 'pedido.ver', carteira: 'filtrar_no_dominio', executar: async (ctx) => ({ fuso: ctx.fuso() }) }],
+  });
+  const fusoCom = async (fuso: string | null | undefined) => {
+    const base = opcoesDeTeste();
+    const app = createApp({
+      ...base,
+      modulos: modulosDeTeste({ vendedor: vendedorComFuso }),
+      licencas: async (u, b) => ({ ...(await base.licencas!(u, b)), fuso }),
+    });
+    const r = await app.inject({ method: 'GET', url: '/v1/vendedor/fuso', headers: cab('vendedor') });
+    expect(r.statusCode).toBe(200);
+    return (r.json() as { fuso: string }).fuso;
+  };
+
+  it('a rota recebe o fuso do tenant lido com as licenças', async () => {
+    expect(await fusoCom('America/Sao_Paulo')).toBe('America/Sao_Paulo');
+    expect(await fusoCom('America/Manaus')).toBe('America/Manaus');
+  });
+
+  it('sem fuso ou com fuso inválido: America/Manaus (falha segura, nunca 500)', async () => {
+    expect(await fusoCom(undefined)).toBe('America/Manaus');
+    expect(await fusoCom(null)).toBe('America/Manaus');
+    expect(await fusoCom('Marte/Olympus')).toBe('America/Manaus');
+  });
+});
+
 describe('trustProxy (túnel da demo, T-0026): limite das rotas públicas por IP real', () => {
   const coreComIp = definirModuloApi({
     manifesto: core,
