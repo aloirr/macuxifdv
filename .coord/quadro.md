@@ -14,7 +14,7 @@
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| — | — | — | — |
+| `.github/**`, `turbo.json`, `package.json` da raiz, `scripts/**` (exceto `scripts/coord*`) | T-0033 | nuvem/* | 2026-11-01 |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
 Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
@@ -59,9 +59,11 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0024](tarefas/T-0024.md) | Payload dos eventos no contracts de cada módulo — Sprint 2 | engenheiro-software | local | aberta |
 | [T-0025](tarefas/T-0025.md) | Hub /integracao/v1 — desenho, contratos e domínio — Sprint 2 | modulo-integracao | nuvem → local (merge c77278f) | em_revisao (falta: revisão do engenheiro e do banco-dados) |
 | [T-0027](tarefas/T-0027.md) | Conector ↔ Hub: alinhamento — Sprint 2 | modulo-integracao | nuvem (PR #24, fa837c4) | concluida (falta só a revisão do PR #24 pelo engenheiro, na T-0032) |
-| [T-0033](tarefas/T-0033.md) | CI e testes mais rápidos (paralelo, cache Turborepo, banco modelo) — Sprint 2 | engenheiro-software | local (depois da T-0029) | aberta |
-| [T-0032](tarefas/T-0032.md) | Hub /integracao/v1 — rotas e banco — Sprint 2 | engenheiro-software, banco-dados | local (depois da T-0029 e T-0030) | aberta |
+| [T-0033](tarefas/T-0033.md) | CI e testes mais rápidos (paralelo, cache Turborepo, banco modelo) — Sprint 2 | engenheiro-software | nuvem (merge de governança pelo gerente com autorização do Alexandre) | aberta |
+| [T-0032](tarefas/T-0032.md) | Hub /integracao/v1 — rotas e banco — Sprint 2 | engenheiro-software, banco-dados | local | em_andamento |
 | [T-0031](tarefas/T-0031.md) | Hub P-3/P-4 e mensagem do Conector conflitante (P-6) — Sprint 2 | modulo-integracao | nuvem (PR #25, 697ab42) | concluida (rotas na T-0032) |
+| [T-0034](tarefas/T-0034.md) | engenheiro-apps: next-env definitivo, abas ⛔ dos shells, revisão das telas da T-0029 — Sprint 2 | engenheiro-apps | local | em_andamento |
+| [T-0035](tarefas/T-0035.md) | Vendedor: 🟡 da T-0029 (fronteira do fuso, /alcadas sem promotor) — Sprint 2 | modulo-vendedor | local | em_andamento |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (155 testes · revisão sem 🔴 · decisões do Alexandre aplicadas) |
 

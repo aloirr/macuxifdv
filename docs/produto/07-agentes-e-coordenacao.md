@@ -103,6 +103,14 @@ criado_em: 2026-10-31T14:05:12-04:00
 
 **Commit de rodada por dono (verificar --por-commit no CI)**: cada commit leva o trailer `Agente:` de UM agente e só arquivos dele — inclusive o próprio `.coord/diario/<agente>.md`, `.coord/lidos/<agente>.txt` e os recados novos que ele enviou (`R-...-<agente>.md`). Recados e lidos do Alexandre vão num commit com `Agente: alexandre`. O gerente separa os arquivos de `.coord/` por autor no fechamento da rodada; nunca juntar arquivos de agentes diferentes num commit só.
 
+**Merge de PR de governança** (decisão do Alexandre, R-20261101-151135; vale desde a T-0033): PR que altera `.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs` ou `.github/**` não faz merge sozinho. O Alexandre decide e o gerente executa:
+1. A sessão da nuvem termina com "[PRONTO PARA MERGE]" e manda recado com o número do PR, o commit de topo (head SHA) e a lista de arquivos de governança alterados.
+2. O gerente confere e resume ao Alexandre por recado: CI do PR verde, CI do `main` verde, head SHA e o que cada arquivo de governança muda, em 1 linha cada (com destaque se algum check, guardião ou regra fica mais fraco).
+3. Só depois de um recado do Alexandre "autorizo o merge do PR #N no commit <sha>" o gerente confere os dois CIs de novo e executa `gh pr merge N -R aloirr/macuxifdv --squash --match-head-commit <sha> --body "Agente: alexandre"`.
+4. Se o head mudou, se um CI ficou vermelho ou se apareceu arquivo de governança fora da lista aprovada, não há merge: o gerente avisa o Alexandre.
+5. É proibido fazer o merge sem um recado do Alexandre que cite o número e o SHA. Aprovação genérica não vale, e nenhum agente aprova em nome dele. PR sem caminho de governança segue a regra normal: a sessão faz o merge com os dois CIs verdes.
+6. Depois do merge: `git pull`, linha no diário e recado curto ao Alexandre com o commit do squash.
+
 **Main vermelho = nuvem não faz merge** (decisão do Alexandre, 2026-11-01): enquanto o CI do `main` estiver vermelho, nenhuma sessão da nuvem faz merge; o PR fica com "[PRONTO PARA MERGE]" no título e espera. O gerente avisa o Alexandre quando o `main` voltar a ficar verde. O CI roda todas as suítes e reporta todas as falhas (não para na primeira).
 
 **Início de sessão da nuvem**: toda sessão da nuvem começa com um commit vazio que já leva o trailer `Agente: <dono>` no último bloco da mensagem (`git commit --allow-empty`), para o guardião v3 reconhecer o agente desde o primeiro passo.
