@@ -15,3 +15,4 @@ export * from './checklist';
 export * from './vigencia';
 export * from './tarefa';
 export * from './indicador';
+export * from './eventos';
