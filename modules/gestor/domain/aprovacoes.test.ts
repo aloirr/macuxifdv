@@ -30,53 +30,71 @@ const MODULOS = new Set(['core', 'vendedor']);
 const fila = (s: ReturnType<typeof montar>, viewer: { id: string; perfil: MembroEquipe['perfil'] }, modulos = MODULOS) =>
   filaDeAprovacoes({ estado: s, viewer, escopo: escopoDoUsuario(viewer, ROSTER), agora: AGORA, modulos });
 
-describe('RF-GES-04 / RN-GES-03: prazo da aprovação em horas úteis (fila com vencendo/vencido)', () => {
-  const SEXTA_17H = '2026-10-30T21:00:00Z'; // sexta 17:00 em Manaus
+describe('RF-GES-04 / RN-GES-03: prazo da aprovação em DIAS úteis (fila com vencendo/vencido)', () => {
+  const SEXTA_17H = '2026-11-06T21:00:00Z'; // sexta 17:00 em Manaus
 
-  it('prazo = solicitação + 24 h úteis; no prazo, vencendo (≤ 4 h úteis) e vencido (no instante do prazo)', () => {
-    // segunda 02/11 08:00 Manaus + 24 h úteis = quarta 04/11 12:00 (10 + 10 + 4)
-    expect(situacaoDoPrazo('2026-11-02T12:00:00Z', '2026-11-03T18:00:00Z')).toEqual({ prazo_em: '2026-11-04T16:00:00.000Z', horas_restantes: 8, situacao: 'no_prazo' });
-    expect(situacaoDoPrazo('2026-11-02T12:00:00Z', '2026-11-04T12:00:00Z')).toMatchObject({ horas_restantes: 4, situacao: 'vencendo' }); // limite do aviso inclusive
-    expect(situacaoDoPrazo('2026-11-02T12:00:00Z', '2026-11-04T16:00:00Z')).toMatchObject({ horas_restantes: 0, situacao: 'vencido' });
-    expect(situacaoDoPrazo('2026-11-02T12:00:00Z', '2026-11-05T16:00:00Z')).toMatchObject({ horas_restantes: -10, situacao: 'vencido' });
+  it('sexta 17:00 vence segunda 17:00; no prazo, vencendo (≤ 4 h úteis restantes) e vencido só DEPOIS do prazo', () => {
+    // sexta 17:00 + 1 dia útil = segunda 09/11 17:00 (21:00Z)
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-06T21:30:00Z')).toEqual({ prazo_em: '2026-11-09T21:00:00.000Z', horas_restantes: 9.5, situacao: 'no_prazo' });
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-09T16:00:00Z')).toMatchObject({ horas_restantes: 5, situacao: 'no_prazo' }); // segunda 12:00
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-09T17:00:00Z')).toMatchObject({ horas_restantes: 4, situacao: 'vencendo' }); // segunda 13:00: limite do aviso inclusive
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-09T21:00:00Z')).toMatchObject({ horas_restantes: 0, situacao: 'vencendo' }); // no instante do prazo ainda não passou
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-09T21:01:00Z')).toMatchObject({ situacao: 'vencido' });
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-10T21:00:00Z')).toMatchObject({ horas_restantes: -10, situacao: 'vencido' }); // terça 17:00
   });
 
-  it('sexta 17:00 com 24 h úteis: não vence no fim de semana (24 h corridas venceriam sábado 17:00); prazo na quarta 11:00', () => {
-    expect(situacaoDoPrazo(SEXTA_17H, '2026-10-31T22:00:00Z')).toEqual({ prazo_em: '2026-11-04T15:00:00.000Z', horas_restantes: 23, situacao: 'no_prazo' });
-    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-01T23:00:00Z')).toMatchObject({ horas_restantes: 23, situacao: 'no_prazo' }); // domingo: relógio parado
+  it('o fim de semana não corre: no sábado e no domingo a mesma solicitação segue no prazo, vencendo só na segunda', () => {
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-07T22:00:00Z')).toEqual({ prazo_em: '2026-11-09T21:00:00.000Z', horas_restantes: 9, situacao: 'no_prazo' });
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-08T23:00:00Z')).toMatchObject({ horas_restantes: 9, situacao: 'no_prazo' });
   });
 
-  it('sexta 17:00 vencendo na segunda (prazo do tenant de 8 h úteis): 5 h às 10:00, vencendo às 11:00, vencido às 15:00', () => {
-    const p = { aprovacao_prazo_horas: 8 };
-    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-02T14:00:00Z', p)).toEqual({ prazo_em: '2026-11-02T19:00:00.000Z', horas_restantes: 5, situacao: 'no_prazo' });
-    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-02T15:00:00Z', p)).toMatchObject({ horas_restantes: 4, situacao: 'vencendo' });
-    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-02T19:00:00Z', p)).toMatchObject({ horas_restantes: 0, situacao: 'vencido' });
-    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-03T13:00:00Z', p)).toMatchObject({ horas_restantes: -4, situacao: 'vencido' }); // seg 15–18 + ter 08–09
+  it('pedido de sábado 10:00 (fora do expediente) conta de segunda 08:00 e vence terça 08:00', () => {
+    expect(situacaoDoPrazo('2026-11-07T14:00:00Z', '2026-11-07T15:00:00Z')).toEqual({ prazo_em: '2026-11-10T12:00:00.000Z', horas_restantes: 10, situacao: 'no_prazo' });
+    expect(situacaoDoPrazo('2026-11-07T14:00:00Z', '2026-11-10T12:01:00Z').situacao).toBe('vencido');
   });
 
-  it('fuso do tenant: a mesma solicitação (sexta 21:30Z) vence em instantes diferentes em Manaus e em São Paulo', () => {
-    const p = { aprovacao_prazo_horas: 8 };
-    // Manaus: sexta 17:30 (0,5 h) + 7,5 h na segunda → 15:30 Manaus = 19:30Z
-    expect(situacaoDoPrazo('2026-10-30T21:30:00Z', '2026-11-02T12:00:00Z', p).prazo_em).toBe('2026-11-02T19:30:00.000Z');
-    // São Paulo: sexta 18:30 (fechado) → segunda 08:00 + 8 h = 16:00 SP = 19:00Z
-    expect(situacaoDoPrazo('2026-10-30T21:30:00Z', '2026-11-02T12:00:00Z', { ...p, fuso: 'America/Sao_Paulo' }).prazo_em).toBe('2026-11-02T19:00:00.000Z');
+  it('pedido de sexta 19:00 também só começa a correr na segunda 08:00 (vence terça 08:00)', () => {
+    expect(situacaoDoPrazo('2026-11-06T23:00:00Z', '2026-11-09T12:00:00Z')).toMatchObject({ prazo_em: '2026-11-10T12:00:00.000Z', horas_restantes: 10, situacao: 'no_prazo' });
   });
 
-  it('prazo, aviso e janela são parâmetros do tenant (janela 24×7 = horas corridas)', () => {
-    const corrido = { horario_comercial: { dias_semana: [1, 2, 3, 4, 5, 6, 7], inicio: '00:00', fim: '24:00' } };
+  it('feriado do tenant na segunda empurra o prazo para terça 17:00', () => {
+    const p = { feriados: ['2026-11-09'] };
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-06T21:30:00Z', p)).toMatchObject({ prazo_em: '2026-11-10T21:00:00.000Z', horas_restantes: 9.5, situacao: 'no_prazo' });
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-09T21:01:00Z', p).situacao).not.toBe('vencido');
+  });
+
+  it('feriado nacional na segunda (Finados, 02/11) empurra o prazo para terça sem cadastro no tenant', () => {
+    expect(situacaoDoPrazo('2026-10-30T21:00:00Z', '2026-11-02T21:01:00Z')).toMatchObject({ prazo_em: '2026-11-03T21:00:00.000Z', situacao: 'no_prazo' });
+    expect(situacaoDoPrazo('2026-10-30T21:00:00Z', '2026-11-03T21:01:00Z').situacao).toBe('vencido');
+  });
+
+  it('fuso do tenant: a mesma solicitação (sexta 21:00Z) vence segunda 21:00Z em Manaus e terça 11:00Z em São Paulo', () => {
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-06T21:30:00Z').prazo_em).toBe('2026-11-09T21:00:00.000Z');
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-06T21:30:00Z', { fuso: 'America/Sao_Paulo' }).prazo_em).toBe('2026-11-10T11:00:00.000Z');
+  });
+
+  it('fuso com horário de verão (Nova York): sexta 17:00 local vence segunda 17:00 local; a hora UTC muda com o verão', () => {
+    expect(situacaoDoPrazo('2027-03-12T22:00:00Z', '2027-03-12T22:30:00Z', { fuso: 'America/New_York' }).prazo_em).toBe('2027-03-15T21:00:00.000Z');
+  });
+
+  it('prazo de 2 dias úteis (parâmetro do tenant): sexta 17:00 vence terça 17:00; o aviso acompanha a jornada', () => {
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-06T21:30:00Z', { prazo_aprovacao_dias_uteis: 2 })).toMatchObject({ prazo_em: '2026-11-10T21:00:00.000Z', horas_restantes: 19.5, situacao: 'no_prazo' });
+    expect(situacaoDoPrazo(SEXTA_17H, '2026-11-10T19:00:00Z', { prazo_aprovacao_dias_uteis: 2, aprovacao_aviso_horas: 2 })).toMatchObject({ horas_restantes: 2, situacao: 'vencendo' });
+  });
+
+  it('janela 24×7 (todos os dias, 00:00–24:00): 1 dia útil = 24 h corridas no mesmo horário', () => {
+    const corrido = { horario_comercial: { dias_semana: [1, 2, 3, 4, 5, 6, 7], inicio: '00:00', fim: '24:00' }, aprovacao_aviso_horas: 4 };
     expect(situacaoDoPrazo('2026-10-29T06:00:00Z', '2026-10-31T12:00:00Z', corrido)).toMatchObject({ prazo_em: '2026-10-30T06:00:00.000Z', horas_restantes: -30, situacao: 'vencido' });
-    expect(situacaoDoPrazo('2026-11-02T12:00:00Z', '2026-11-02T20:00:00Z', { aprovacao_prazo_horas: 8 }).situacao).toBe('vencido');
-    expect(situacaoDoPrazo('2026-11-02T12:00:00Z', '2026-11-02T20:00:00Z', { aprovacao_prazo_horas: 48, aprovacao_aviso_horas: 41 }).situacao).toBe('vencendo');
   });
 });
 
 describe('RF-GES-04: fila de aprovações do gestor', () => {
   const s = montar([
-    solicita(1, { em: '2026-10-27T12:00:00Z' }), // ter 08:00 → prazo qui 12:00; vencido há 14 h úteis (qui 6 + sex 8)
-    solicita(2, { em: '2026-10-28T13:00:00Z', vendedor: V2 }), // qua 09:00 → prazo sex 13:00; vencido há 3 h úteis
-    solicita(3, { em: '2026-10-28T20:00:00Z' }), // qua 16:00 → prazo seg 10:00; vencendo (sex 2 + seg 2 = 4 h úteis)
-    solicita(4, { em: '2026-10-30T13:00:00Z', nivel: 'gerente' }), // sex 09:00 → no prazo, nível gerente
-    solicita(5, { em: '2026-10-30T13:00:00Z', vendedor: OUTRO }), // equipe do outro supervisor
+    solicita(1, { em: '2026-10-27T12:00:00Z' }), // ter 08:00 → prazo qua 08:00; vencido há 28 h úteis (qua 10 + qui 10 + sex 8)
+    solicita(2, { em: '2026-10-28T13:00:00Z', vendedor: V2 }), // qua 09:00 → prazo qui 09:00; vencido há 17 h úteis (qui 9 + sex 8)
+    solicita(3, { em: '2026-10-29T20:00:00Z' }), // qui 16:00 → prazo sex 16:00 = agora; ainda não passou: vencendo (0 h restantes)
+    solicita(4, { em: '2026-10-30T20:00:00Z', nivel: 'gerente' }), // sex 16:00 → prazo terça 16:00 (segunda 02/11 é Finados): 10 h úteis, no prazo, nível gerente
+    solicita(5, { em: '2026-10-30T13:00:00Z', vendedor: OUTRO }), // sex 09:00 → prazo ter 09:00 (3 h úteis, vencendo); equipe do outro supervisor
     solicita(6, { em: '2026-10-30T13:00:00Z', nivel: 'analista' }), // alçada do analista: fica na fila do BKO do Vendedor
     solicita(7, { em: '2026-10-27T14:00:00Z' }), // já decidida abaixo
     statusAlterado({ pedido: u(1007), vendedor: V1, para: 'aprovado', em: '2026-10-28T13:00:00Z' }),
@@ -100,7 +118,7 @@ describe('RF-GES-04: fila de aprovações do gestor', () => {
       total_cents: 500_000,
       credito: { limite_cents: 1_000_000, saldo_aberto_cents: 700_000, disponivel_cents: 300_000 },
       historico: { pedidos_90d: 4, ticket_medio_cents: 320_000 },
-      horas_restantes: -14,
+      horas_restantes: -28,
     });
   });
 
@@ -144,10 +162,10 @@ describe('RF-GES-04: fila de aprovações do gestor', () => {
     const rev = montar([
       solicita(1, { em: '2026-10-27T12:00:00Z' }),
       statusAlterado({ pedido: u(1001), para: 'aprovado', em: '2026-10-27T13:00:00Z' }),
-      solicita(1, { em: '2026-10-30T14:00:00Z' }),
+      solicita(1, { em: '2026-10-30T20:00:00Z' }),
     ]);
     const [item] = fila(rev, { id: SUP, perfil: 'supervisor' });
-    expect(item!.solicitada_em).toBe('2026-10-30T14:00:00Z');
+    expect(item!.solicitada_em).toBe('2026-10-30T20:00:00Z');
     expect(item!.situacao).toBe('no_prazo');
   });
 
@@ -166,7 +184,7 @@ describe('RF-GES-04: fila de aprovações do gestor', () => {
   it('RN-GES-07: analista e admin veem a fila do tenant em modo leitura (nunca decidem)', () => {
     for (const perfil of ['analista', 'admin'] as const) {
       const itens = fila(s, { id: u(50), perfil });
-      expect(itens.map((i) => i.pedido_id)).toEqual([u(1001), u(1002), u(1003), u(1004), u(1005)]);
+      expect(itens.map((i) => i.pedido_id)).toEqual([u(1001), u(1002), u(1003), u(1005), u(1004)]); // ordem do prazo: 1005 vence antes de 1004
       expect(itens.every((i) => !i.pode_decidir)).toBe(true);
       expect(resumirFila(itens).para_mim).toBe(0);
     }

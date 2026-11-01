@@ -42,6 +42,11 @@ export const HorarioComercial = z
   .refine((h) => minutosDaHora(h.inicio) < minutosDaHora(h.fim), { path: ['fim'], message: 'O fim do horário comercial deve ser depois do início.' });
 export type HorarioComercial = z.infer<typeof HorarioComercial>;
 
+/** Horas úteis de um dia do horário comercial (fim − início). */
+export function jornadaHoras(h: Pick<HorarioComercial, 'inicio' | 'fim'>): number {
+  return (minutosDaHora(h.fim) - minutosDaHora(h.inicio)) / 60;
+}
+
 export const HORARIO_COMERCIAL_PADRAO: Readonly<HorarioComercial> = { dias_semana: [1, 2, 3, 4, 5], inicio: '08:00', fim: '18:00' };
 
 export const ParametrosGestorSchema = z
@@ -55,9 +60,15 @@ export const ParametrosGestorSchema = z
     permanencia_min_min: z.number().nonnegative().default(10),
     /** RN-PRO-11: peso do parcial na conformidade de gôndola, 0 a 1. Mesmo parâmetro do Promotor. */
     peso_parcial_conformidade: z.number().min(0).max(1).default(0),
-    /** RF-GES-04 / RN-GES-03: prazo para o gestor decidir, em HORAS ÚTEIS (horário comercial do tenant). */
-    aprovacao_prazo_horas: z.number().positive().default(24),
-    /** Fila: "vencendo" quando faltam até N horas úteis para o prazo. */
+    /**
+     * RF-GES-04 / RN-GES-03: prazo para o gestor decidir, em DIAS ÚTEIS (inteiro ≥ 1; padrão 1). Vence no mesmo horário
+     * local do N-ésimo dia útil seguinte (sexta 17:00 vence segunda 17:00). Vale também para o alerta de aprovação parada.
+     */
+    prazo_aprovacao_dias_uteis: z.number().int().positive().default(1),
+    /**
+     * Fila: "vencendo" quando faltam até N horas ÚTEIS para o prazo (horas do horário comercial do tenant, não dias).
+     * Tem de ser menor que a jornada de 1 dia útil × `prazo_aprovacao_dias_uteis` (padrão: < 10 h).
+     */
     aprovacao_aviso_horas: z.number().nonnegative().default(4),
     /** RN-GES-01: tolerância sobre a frequência de visita do cliente, em % (limite = frequência × (1 + pct/100)). */
     pct_tolerancia_frequencia: z.number().nonnegative().default(50),
@@ -69,5 +80,8 @@ export const ParametrosGestorSchema = z
     horario_comercial: HorarioComercial.default(() => ({ ...HORARIO_COMERCIAL_PADRAO, dias_semana: [...HORARIO_COMERCIAL_PADRAO.dias_semana] })),
   })
   .strict()
-  .refine((p) => p.aprovacao_aviso_horas < p.aprovacao_prazo_horas, { path: ['aprovacao_aviso_horas'], message: 'O aviso deve ser menor que o prazo de aprovação.' });
+  .refine((p) => p.aprovacao_aviso_horas < p.prazo_aprovacao_dias_uteis * jornadaHoras(p.horario_comercial), {
+    path: ['aprovacao_aviso_horas'],
+    message: 'O aviso (em horas úteis) deve ser menor que o prazo de aprovação: dias úteis do prazo × horas do dia no horário comercial.',
+  });
 export type ParametrosGestorContrato = z.infer<typeof ParametrosGestorSchema>;
