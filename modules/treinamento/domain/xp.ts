@@ -106,7 +106,8 @@ export function proporLancamento(existentes: readonly LancamentoXp[], c: Candida
     const jaNoDia = existentes
       .filter((l) => l.usuario_id === c.usuario_id && l.dia === dia && !ORIGENS_SEM_TETO.includes(l.origem))
       .reduce((s, l) => s + l.pontos, 0);
-    pontos = Math.max(0, Math.min(c.pontos_base, params.xp_teto_diario - jaNoDia));
+    // Parte de `pontos` (já limitado acima), para um teto não desfazer o outro se outra origem ganhar teto próprio.
+    pontos = Math.max(0, Math.min(pontos, params.xp_teto_diario - jaNoDia));
   }
   return {
     resultado: 'aceito',

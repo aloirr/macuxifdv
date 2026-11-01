@@ -394,4 +394,43 @@ describe('trustProxy (túnel da demo, T-0026): limite das rotas públicas por IP
     // cliente que forja X-Forwarded-For: o proxy acrescenta o IP real no fim, e é ele que vale
     expect((await login(a, '10.9.9.9, 200.3.3.3')).json()).toEqual({ ip: '200.3.3.3' });
   });
+
+  describe('BKO em https://bko-demo.macuxifdv.com.br (T-0038): proxy same-origin do Next pelo loopback, sem CORS', () => {
+    const BKO = 'https://bko-demo.macuxifdv.com.br';
+    // o que o rewrite /api-proxy do Next entrega: conexão do loopback, Host trocado (changeOrigin), Origin e
+    // X-Forwarded-For do navegador/túnel repassados sem mudança
+    const peloBko = (a: ReturnType<typeof montar>, metodo: 'POST' | 'OPTIONS', xff: string) =>
+      a.inject({
+        method: metodo,
+        url: '/v1/auth/login',
+        payload: metodo === 'POST' ? {} : undefined,
+        remoteAddress: '127.0.0.1',
+        headers: {
+          host: '127.0.0.1:8100',
+          origin: BKO,
+          'x-forwarded-host': 'bko-demo.macuxifdv.com.br',
+          'x-forwarded-for': xff,
+          ...(metodo === 'OPTIONS' ? { 'access-control-request-method': 'POST' } : {}),
+        },
+      });
+
+    it('aceita a chamada com a origem do bko-demo e conta o limite pelo IP do navegador (MACUXI_TRUST_PROXY=loopback)', async () => {
+      const a = montar(['loopback']);
+      const r = await peloBko(a, 'POST', '200.4.4.4');
+      expect(r.statusCode).toBe(200);
+      expect(r.json()).toEqual({ ip: '200.4.4.4' });
+      expect((await peloBko(a, 'POST', '200.5.5.5')).statusCode).toBe(200);
+    });
+
+    it('não libera origem nenhuma (sem Access-Control-*) e não grava cookie: o navegador só fala com o próprio BKO', async () => {
+      const a = montar(['loopback']);
+      const r = await peloBko(a, 'POST', '200.6.6.6');
+      expect(r.headers['access-control-allow-origin']).toBeUndefined();
+      expect(r.headers['access-control-allow-credentials']).toBeUndefined();
+      expect(r.headers['set-cookie']).toBeUndefined();
+      const preflight = await peloBko(a, 'OPTIONS', '200.6.6.6');
+      expect(preflight.statusCode).toBeGreaterThanOrEqual(400);
+      expect(preflight.headers['access-control-allow-origin']).toBeUndefined();
+    });
+  });
 });

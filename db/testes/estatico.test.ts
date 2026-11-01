@@ -10,18 +10,38 @@ import { INDICADORES_META, RESULTADOS_VISITA, TIPOS_NOTIFICACAO } from '../../mo
 import * as nuvemCatalogo from '../../modules/catalogo/db/nuvem';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
+import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
+import {
+  CODIGOS_ERRO_LINHA,
+  CODIGOS_ITEM_DESCARTADO,
+  ENTIDADES,
+  ESTADOS_LOTE,
+  ESTADOS_PEDIDO_ERP,
+  ESTADOS_PENDENCIA_INATIVACAO,
+  ModoCarga,
+  StatusRetornoErp,
+  TIPOS_CONECTOR,
+  TIPOS_MAPEAMENTO,
+} from '../../modules/integracao/contracts';
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../../modules/vendedor/domain/aprovacao';
 import { ORDER_STATUSES } from '../../modules/vendedor/domain/order';
 import * as esquemaPlataforma from '../esquema/plataforma';
 import { ALCADAS_DEMO, dadosDemo } from '../seeds/demo/demo';
 import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
-import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS } from '../seeds/fixtures/dois-tenants';
+import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
 import { idDeChave, idDeterministico, idFixo } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { hashSenha, verificarSenha } from '../src/senha';
 
 const COMUNS = ['id', 'created_at', 'updated_at', 'deleted_at', 'external_id'];
+/** Tabelas do schema integracao (0010, T-0032). */
+const TABELAS_INTEGRACAO = [
+  'integracao.conector', 'integracao.credencial', 'integracao.politica_versao', 'integracao.sessao_carga', 'integracao.sessao_carga_recebido',
+  'integracao.lote', 'integracao.lote_staging', 'integracao.lote_linha_erro', 'integracao.registro_atual', 'integracao.pendencia_inativacao',
+  'integracao.inativacao_auditoria', 'integracao.cursor_entidade', 'integracao.reconciliacao', 'integracao.mapeamento', 'integracao.pedido_fila_erp',
+  'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
+] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -37,7 +57,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -52,7 +72,7 @@ describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
     expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
-      '0008_catalogo_preco', '0009_vendedor_pedido_completo',
+      '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
     ]);
   });
 
@@ -65,7 +85,7 @@ describe('migrações (estático)', () => {
   });
 
   const criadas = tabelasCriadas();
-  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo) e na T-0029', () => {
+  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029 e na T-0032', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
@@ -77,6 +97,7 @@ describe('migrações (estático)', () => {
         'vendedor.pedido', 'vendedor.pedido_item',
         'catalogo.tabela_preco', 'catalogo.tabela_preco_item', 'catalogo.cliente_tabela_preco',
         'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
+        ...TABELAS_INTEGRACAO,
       ].sort(),
     );
   });
@@ -121,12 +142,15 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
     expect(m.up).toMatch(/create policy despacho_outbox_marcar on plataforma\.evento for update to macuxi_worker\s+using \(true\) with check \(true\);/);
   });
 
-  it('grants do worker: só usage em plataforma e colunas de plataforma.evento', () => {
+  it('grants do worker: usage em plataforma, colunas de plataforma.evento e só EXECUTE nas funções de expurgo (0010, 0011)', () => {
     const grants = [...semComentarios(sqlUp).matchAll(/grant ([^;]*?) to macuxi_worker;/g)].map((g) => g[1]!.replace(/\s+/g, ' '));
     expect(grants).toEqual([
       'usage on schema plataforma',
       'select (id, tenant_id, nome, modulo, agregado_id, payload, ocorrido_em, publicado_em, tentativas, usuario_id, request_id) on plataforma.evento',
       'update (publicado_em, tentativas, ultimo_erro) on plataforma.evento',
+      'usage on schema integracao',
+      'execute on function integracao.expurgar_retencao(timestamptz, integer)',
+      'execute on function plataforma.expurgar_outbox(timestamptz, integer)',
     ]);
   });
 
@@ -367,6 +391,148 @@ describe('T-0029: 0008 preço do Catálogo e 0009 pedido completo do Vendedor (e
   });
 });
 
+describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático, desenho T-0032 §8)', () => {
+  const m10 = migracoes.find((x) => x.versao === '0010')!;
+  const m11 = migracoes.find((x) => x.versao === '0011')!;
+  const criadas = tabelasCriadas();
+  const sem = (sql: string) => sql.replace(/--.*$/gm, '');
+  const lista = (trecho: string) => [...trecho.matchAll(/'([a-z_0-9]+)'/g)].map((x) => x[1]!);
+  /** Valores de `check (col in (...))` ou `check (col is null or col in (...))` no corpo da tabela. */
+  const valoresDoCheck = (tabela: string, coluna: string): string[] => {
+    const m = new RegExp(`check \\((?:${coluna} is null or )?${coluna} in \\(([^)]*)\\)\\)`).exec(criadas.get(tabela) ?? '');
+    return m ? lista(m[1]!) : [];
+  };
+  /** Valores de `col <@ array[...]::text[]` no corpo da tabela. */
+  const valoresDoArray = (tabela: string, coluna: string): string[] => {
+    const m = new RegExp(`${coluna} <@ array\\[([^\\]]*)\\]::text\\[\\]`).exec(criadas.get(tabela) ?? '');
+    return m ? lista(m[1]!) : [];
+  };
+  const CODIGOS_DESCARTE_BANCO = [...new Set<string>([...CODIGOS_ITEM_DESCARTADO, 'sequencia_repetida'])];
+
+  it('todas as tabelas do schema integracao, fora do sync, com RLS forçado (o bloco S0-023 acima confere cada uma)', () => {
+    expect([...criadas.keys()].filter((t) => t.startsWith('integracao.')).sort()).toEqual([...TABELAS_INTEGRACAO].sort());
+    for (const t of TABELAS_INTEGRACAO) expect(TABELAS_FORA_DO_SYNC as readonly string[]).toContain(t);
+    expect(m10.up).toMatch(/^create schema integracao;$/m);
+    expect(m10.down).toContain('drop schema if exists integracao cascade;');
+  });
+
+  it('listas fechadas = contratos da Integração (entidade, modo, status, códigos, tipos, estados)', () => {
+    for (const t of ['sessao_carga', 'lote', 'registro_atual', 'pendencia_inativacao', 'inativacao_auditoria', 'cursor_entidade', 'reconciliacao']) {
+      expect(valoresDoCheck(`integracao.${t}`, 'entidade'), t).toEqual([...ENTIDADES]);
+    }
+    expect(valoresDoArray('integracao.conector', 'entidades')).toEqual([...ENTIDADES]);
+    expect(criadas.get('integracao.conector')).toContain(`default array[${ENTIDADES.map((e) => `'${e}'`).join(', ')}]::text[]`);
+    expect(valoresDoCheck('integracao.conector', 'tipo')).toEqual([...TIPOS_CONECTOR]);
+    expect(valoresDoCheck('integracao.lote', 'modo')).toEqual([...ModoCarga.options]);
+    expect(valoresDoCheck('integracao.lote', 'status')).toEqual([...ESTADOS_LOTE]);
+    expect(valoresDoCheck('integracao.lote_linha_erro', 'codigo')).toEqual([...CODIGOS_ERRO_LINHA]);
+    expect(valoresDoCheck('integracao.pendencia_inativacao', 'estado')).toEqual([...ESTADOS_PENDENCIA_INATIVACAO]);
+    expect(valoresDoCheck('integracao.pendencia_inativacao', 'decidida_por_perfil')).toEqual(['admin', 'analista']);
+    expect(valoresDoCheck('integracao.mapeamento', 'tipo')).toEqual([...TIPOS_MAPEAMENTO]);
+    expect(valoresDoCheck('integracao.pedido_fila_erp', 'estado')).toEqual([...ESTADOS_PEDIDO_ERP]);
+    expect(valoresDoCheck('integracao.pedido_fila_erp', 'retencao_codigo')).toEqual([...nuvemIntegracao.RETENCOES_PEDIDO_ERP]);
+    expect(valoresDoCheck('integracao.pedido_retorno', 'status')).toEqual([...StatusRetornoErp.options]);
+    expect(valoresDoCheck('integracao.pedido_retorno_erro', 'status')).toEqual([...StatusRetornoErp.options]);
+    // P-4 + decisão do gerente: o contrato + 'sequencia_repetida' (vale antes e depois de o contrato ganhar o código)
+    expect(valoresDoCheck('integracao.pedido_retorno_erro', 'codigo')).toEqual(CODIGOS_DESCARTE_BANCO);
+    expect(valoresDoArray('integracao.pedido_retorno_erro', 'codigos')).toEqual(CODIGOS_DESCARTE_BANCO);
+    expect([...nuvemIntegracao.CODIGOS_ITEM_DESCARTADO_BANCO]).toEqual(CODIGOS_DESCARTE_BANCO);
+    // Drizzle com as mesmas listas
+    expect([...(nuvemIntegracao.lote.status.enumValues ?? [])]).toEqual([...ESTADOS_LOTE]);
+    expect([...(nuvemIntegracao.lote.entidade.enumValues ?? [])]).toEqual([...ENTIDADES]);
+    expect([...(nuvemIntegracao.pedidoRetornoErro.codigo.enumValues ?? [])]).toEqual(CODIGOS_DESCARTE_BANCO);
+    expect([...(nuvemIntegracao.pedidoFilaErp.estado.enumValues ?? [])]).toEqual([...ESTADOS_PEDIDO_ERP]);
+  });
+
+  it('external_id do ERP até 200 caracteres onde há limite (T-0027)', () => {
+    expect(criadas.get('integracao.registro_atual')).toContain('check (char_length(external_id) between 1 and 200)');
+    expect(criadas.get('integracao.sessao_carga_recebido')).toContain('check (char_length(external_id) between 1 and 200)');
+    expect(criadas.get('integracao.lote_linha_erro')).toContain('check (external_id is null or char_length(external_id) between 1 and 200)');
+    expect(criadas.get('integracao.cursor_entidade')).toContain('check (cursor_external_id is null or char_length(cursor_external_id) between 1 and 200)');
+    expect(criadas.get('integracao.pedido_retorno_erro')).toContain('check (char_length(produto_external_id) between 1 and 200)');
+    expect(criadas.get('integracao.cursor_entidade')).toContain('cursor_external_id  text collate "C"');
+  });
+
+  it('unicidades e índices das consultas (idempotência, P-7, chave, fila, pendência, espelho)', () => {
+    for (const trecho of [
+      'create unique index conector_recebe_pedidos_uk on integracao.conector (tenant_id) where recebe_pedidos and ativo and deleted_at is null;',
+      'create unique index conector_identificador_uk on integracao.conector (tenant_id, identificador) where deleted_at is null;',
+      'create unique index credencial_hash_uk on integracao.credencial (hash_chave);',
+      'create unique index credencial_papel_uk on integracao.credencial (tenant_id, conector_id, papel) where revogada_em is null and deleted_at is null;',
+      "create unique index lote_processando_uk on integracao.lote (tenant_id, conector_id, entidade) where status = 'processando';",
+      "create index lote_fila_ix on integracao.lote (tenant_id, status, recebido_em) where status in ('recebido', 'processando');",
+      'create unique index registro_atual_chave_uk on integracao.registro_atual (tenant_id, entidade, external_id) include (hash, alterado_em);',
+      'create index registro_atual_ativos_ix on integracao.registro_atual (tenant_id, entidade, conector_id, visto_em) include (valor_controle) where ativo and deleted_at is null;',
+      "create unique index pendencia_inativacao_aguardando_uk on integracao.pendencia_inativacao (tenant_id, conector_id, entidade) where estado = 'aguardando';",
+      'create index inativacao_auditoria_decidida_ix on integracao.inativacao_auditoria (tenant_id, decidida_em desc);',
+      'create index inativacao_auditoria_pendencia_ix on integracao.inativacao_auditoria (tenant_id, pendencia_id);',
+      "create index pedido_fila_erp_poll_ix on integracao.pedido_fila_erp (tenant_id, aprovado_em) where estado = 'pendente' and retencao_codigo is null and deleted_at is null;",
+      'create unique index pedido_retorno_uk on integracao.pedido_retorno (tenant_id, pedido_uuid, status, nota_numero, nota_serie) nulls not distinct;',
+      'create index pedido_retorno_erro_criado_ix on integracao.pedido_retorno_erro (tenant_id, created_at desc);',
+      'create index pedido_retorno_erro_pedido_ix on integracao.pedido_retorno_erro (tenant_id, pedido_uuid);',
+      "create unique index mapeamento_codigo_macuxi_uk on integracao.mapeamento (tenant_id, tipo, codigo_macuxi) where tipo = 'condicao_pagamento' and ativo and deleted_at is null;",
+    ]) expect(m10.up).toContain(trecho);
+    expect(criadas.get('integracao.lote')).toContain('constraint lote_idempotencia_uk unique (tenant_id, conector_id, chave_idempotencia)');
+    expect(criadas.get('integracao.sessao_carga_recebido')).toContain('constraint sessao_carga_recebido_uk unique (tenant_id, sessao_id, external_id)');
+    expect(criadas.get('integracao.pedido_fila_erp')).toContain('constraint pedido_fila_erp_pedido_uk unique (tenant_id, pedido_uuid)');
+  });
+
+  it('auditoria da inativação append-only (só select e insert, sem gatilho de updated_at); pedido_retorno só insert', () => {
+    expect(m10.up).toContain('grant select, insert on integracao.inativacao_auditoria to macuxi_app;');
+    expect(m10.up).not.toMatch(/create trigger inativacao_auditoria_updated_at/);
+    expect(m10.up).toContain('grant select, insert on integracao.pedido_retorno to macuxi_app;');
+    expect(criadas.get('integracao.inativacao_auditoria')).toContain("check (acao = 'confirmar' or inativadas is null)");
+    expect(criadas.get('integracao.pendencia_inativacao')).toContain('check (char_length(motivo_decisao) <= 300)');
+  });
+
+  it('fronteira: nenhuma FK para schema de módulo; FKs compostas dentro do schema', () => {
+    expect(sem(m10.up)).not.toMatch(/references (core|vendedor|catalogo|promotor|gestor|pesquisa|treinamento)\./);
+    for (const t of TABELAS_INTEGRACAO) {
+      for (const [, ref] of (criadas.get(t) ?? '').matchAll(/references ([a-z_]+\.[a-z_]+) \(/g)) {
+        expect(['plataforma.tenant', ...TABELAS_INTEGRACAO], `${t} -> ${ref}`).toContain(ref);
+      }
+    }
+    expect(criadas.get('integracao.inativacao_auditoria')).toContain('foreign key (tenant_id, pendencia_id) references integracao.pendencia_inativacao (tenant_id, id)');
+    expect(criadas.get('integracao.pedido_retorno_erro')).toContain('foreign key (tenant_id, pedido_retorno_id) references integracao.pedido_retorno (tenant_id, id)');
+  });
+
+  it('funções SECURITY DEFINER com search_path fixo; autenticar_chave só ao app, expurgos só ao worker', () => {
+    expect(m10.up).toMatch(/create function integracao\.autenticar_chave\(p_hash text\)[\s\S]*?language sql stable security definer\s+set search_path = pg_catalog, integracao/);
+    expect(m10.up).toContain('revoke all on function integracao.autenticar_chave(text) from public;');
+    expect(m10.up).toContain('grant execute on function integracao.autenticar_chave(text) to macuxi_app;');
+    // devolve entidades e recebe_pedidos do Conector e nunca o hash
+    const corpo = /create function integracao\.autenticar_chave[\s\S]*?\$\$;/.exec(m10.up)![0];
+    expect(corpo).toContain('recebe_pedidos boolean, entidades text[]');
+    const select = corpo.split('$$')[1]!;
+    expect(select.slice(0, select.indexOf('from integracao.credencial'))).not.toContain('hash_chave');
+    expect(select).toContain('where k.hash_chave = p_hash');
+    expect(m10.up).toMatch(/create function integracao\.expurgar_retencao[\s\S]*?security definer\s+set search_path = pg_catalog, integracao/);
+    expect(m10.up).toContain('revoke all on function integracao.expurgar_retencao(timestamptz, integer) from public;');
+    expect(m11.up).toMatch(/create function plataforma\.expurgar_outbox[\s\S]*?security definer\s+set search_path = pg_catalog, plataforma/);
+    expect(m11.up).toContain('revoke all on function plataforma.expurgar_outbox(timestamptz, integer) from public;');
+  });
+
+  it('0011: índice dos publicados, comentário de legado e down que desfaz tudo', () => {
+    expect(m11.up).toContain('create index evento_publicado_ix on plataforma.evento (tenant_id, publicado_em) where publicado_em is not null;');
+    expect(m11.up).toContain("comment on column plataforma.tenant_modulo.parametros is 'LEGADO");
+    for (const trecho of [
+      'comment on column plataforma.tenant_modulo.parametros is null;',
+      'drop function if exists plataforma.expurgar_outbox(timestamptz, integer);',
+      'drop index if exists plataforma.evento_publicado_ix;',
+    ]) expect(m11.down).toContain(trecho);
+  });
+
+  it('fixture: chave do Conector como HMAC-SHA256(pepper da fixture, chave), sem a chave em claro no banco', () => {
+    const d = dadosDoisTenants('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA');
+    for (const X of [DOIS_TENANTS.A, DOIS_TENANTS.B]) {
+      const k = d['integracao.credencial'].find((l) => l.tenant_id === X.tenantId)!;
+      expect(k.hash_chave).toBe(crypto.createHmac('sha256', PEPPER_HUB_FIXTURE).update(X.integracao.chave.chave).digest('hex'));
+      expect(JSON.stringify(d['integracao.credencial'])).not.toContain(X.integracao.chave.chave);
+      expect(X.integracao.chave.chave).toMatch(/^mxk_[A-Za-z0-9]{8}_[A-Za-z0-9_-]{43}$/);
+    }
+  });
+});
+
 describe('base de demo x T-0029 (estático)', () => {
   const d = dadosDemo('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA', { hoje: '2026-11-04' });
 
@@ -408,10 +574,17 @@ describe('Drizzle x migrações (estático)', () => {
 describe('perfis: SQL e Drizzle x @macuxi/platform-sdk (fonte única)', () => {
   const doSdk = [...PERFIS].sort();
 
-  it('todo CHECK de perfil das migrações tem exatamente os PERFIS do platform-sdk', () => {
-    const checks = [...sqlUp.matchAll(/check \(perfil in \(([^)]*)\)\)/g)].map((m) => [...m[1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!).sort());
-    expect(checks.length, 'CHECKs de perfil (plataforma.perfil_modulo e core.usuario)').toBe(2);
-    for (const lista of checks) expect(lista).toEqual(doSdk);
+  it('todo CHECK de perfil das migrações tem exatamente os PERFIS do platform-sdk (decisão de inativação: subconjunto)', () => {
+    const criadas = tabelasCriadas();
+    const checksDe = (corpo: string) => [...corpo.matchAll(/check \(perfil in \(([^)]*)\)\)/g)].map((m) => [...m[1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!).sort());
+    const completos = [...checksDe(criadas.get('plataforma.perfil_modulo') ?? ''), ...checksDe(criadas.get('core.usuario') ?? '')];
+    expect(completos.length, 'CHECKs de perfil (plataforma.perfil_modulo e core.usuario)').toBe(2);
+    for (const lista of completos) expect(lista).toEqual(doSdk);
+    // integracao.inativacao_auditoria.perfil (P-3): só quem decide a inativação, e dentro dos PERFIS
+    const auditoria = checksDe(criadas.get('integracao.inativacao_auditoria') ?? '');
+    expect(auditoria).toEqual([['admin', 'analista']]);
+    expect(checksDe(sqlUp).length).toBe(3);
+    for (const p of auditoria[0]!) expect(doSdk).toContain(p);
   });
 
   it('colunas perfil do Drizzle usam os PERFIS do platform-sdk', () => {

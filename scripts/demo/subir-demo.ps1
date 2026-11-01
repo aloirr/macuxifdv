@@ -1,15 +1,20 @@
 ﻿<#
 .SYNOPSIS
-  Sobe a demonstração do Macuxi FDV (T-0026): Postgres + migrações, base de demo, API (+ worker) e túnel HTTPS.
+  Sobe a demonstração do Macuxi FDV (T-0026, T-0038): Postgres + migrações, base de demo, API (+ worker), BKO e túnel HTTPS.
 
 .DESCRIPTION
   1. confere o Docker (tenta abrir o Docker Desktop se estiver parado);
   2. sobe o Postgres (db/docker-compose.yml) e aplica as migrações (banco subir);
   3. carrega a base de demo (banco seed demo --recriar; com -Manter, upsert sem apagar o que o app gravou);
   4. sobe a API (porta 8100) e o worker da outbox, com MACUXI_TRUST_PROXY=loopback (limite de login por aparelho);
-  5. abre o túnel HTTPS (cloudflared tunnel --url), instalando o cloudflared com winget se faltar;
-  6. imprime o endereço https para digitar no app e os logins.
+  5. constrói o BKO (next build), que chama a API pelo proxy do próprio Next (/api-proxy -> 127.0.0.1:8100);
+  6. abre o túnel: o NOMEADO (macuxi-demo: https://api-demo.macuxifdv.com.br e https://bko-demo.macuxifdv.com.br) se o
+     configurar-dominio.ps1 já rodou neste PC; senão, ou se ele não conectar, o túnel rápido (trycloudflare, um
+     endereço que muda a cada subida), com aviso;
+  7. sobe o BKO (next start na porta 3100, só no loopback) e confere /v1/saude e a página do BKO, primeiro no PC e
+     depois pelos endereços públicos, antes de dizer "pronto".
   Para parar: scripts\demo\derrubar-demo.ps1. Processos e logs ficam em .dados\demo\ (fora do git).
+  Credenciais da Cloudflare (%USERPROFILE%\.cloudflared): este script não lê nem copia nada de lá; só chama o cloudflared.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\demo\subir-demo.ps1
@@ -21,13 +26,18 @@ param(
   [switch]$Manter,
   # Não sobe o worker da outbox (eventos entre módulos ficam na fila até ele subir).
   [switch]$SemWorker,
-  # Não abre o túnel (só API local, ex.: emulador ou aparelho na mesma rede).
+  # Não sobe o BKO (só a API e o túnel).
+  [switch]$SemBko,
+  # Não abre o túnel (só API e BKO locais, ex.: emulador ou aparelho na mesma rede).
   [switch]$SemTunel,
-  # Sem winget/administrador: usa (ou baixa) o cloudflared portátil em .dados\demoin.
+  # Usa o túnel rápido (trycloudflare) mesmo com o domínio fixo configurado.
+  [switch]$TunelRapido,
+  # Sem winget/administrador: usa (ou baixa) o cloudflared portátil em .dados\demo\bin.
   [switch]$Portatil,
   # Derruba a demo que estiver no ar e sobe de novo (sem isso, o script recusa para não derrubar a de outra janela).
   [switch]$Reiniciar,
-  [int]$Porta = 8100
+  [int]$Porta = 8100,
+  [int]$PortaBko = 3100
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,8 +46,11 @@ Set-StrictMode -Version Latest
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
+. (Join-Path $PSScriptRoot 'tunel.ps1')
+
 $Raiz = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $PastaDemo = Join-Path $Raiz '.dados\demo'
+$PastaCloudflared = Join-Path $PastaDemo 'cloudflared'
 $ArquivoEstado = Join-Path $PastaDemo 'processos.json'
 New-Item -ItemType Directory -Force -Path $PastaDemo | Out-Null
 
@@ -74,11 +87,12 @@ function Docker-Responde {
   finally { $ErrorActionPreference = $antes }
 }
 
+# 200 (depois dos redirecionamentos) dentro do prazo
 function Esperar-Http([string]$url, [int]$segundos) {
   $limite = (Get-Date).AddSeconds($segundos)
   while ((Get-Date) -lt $limite) {
     try {
-      $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
+      $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
       if ($r.StatusCode -eq 200) { return $true }
     } catch { }
     Start-Sleep -Milliseconds 1500
@@ -86,39 +100,46 @@ function Esperar-Http([string]$url, [int]$segundos) {
   return $false
 }
 
-# Sobe um processo em segundo plano (janela oculta) com saída num arquivo de log; devolve o PID.
-function Iniciar([string]$nome, [string]$exe, [string[]]$argumentos) {
+# /v1/saude que se identifica como a API do Macuxi (não basta um 200 de qualquer servidor no mesmo endereço)
+function Esperar-Saude([string]$url, [int]$segundos) {
+  $limite = (Get-Date).AddSeconds($segundos)
+  while ((Get-Date) -lt $limite) {
+    try {
+      $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
+      if ($r.StatusCode -eq 200 -and ($r.Content | ConvertFrom-Json).servico -eq 'macuxi-api') { return $true }
+    } catch { }
+    Start-Sleep -Milliseconds 1500
+  }
+  return $false
+}
+
+function Porta-Livre([int]$p, [string]$quem, [string]$opcao) {
+  $ocupada = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
+  if ($ocupada) {
+    $pidDono = ($ocupada | Select-Object -First 1).OwningProcess
+    Falha "A porta $p já está em uso (processo $pidDono). Feche $quem que estiver rodando (pnpm dev?) ou use $opcao."
+  }
+}
+
+# Roda um comando até o fim com a saída num log (build longo e barulhento); devolve o código de saída.
+function Rodar-ComLog([string]$nome, [string]$exe, [string[]]$argumentos) {
   $log = Join-Path $PastaDemo "$nome.log"
   $logErro = Join-Path $PastaDemo "$nome.erro.log"
   Remove-Item -Force -ErrorAction SilentlyContinue $log, $logErro
   $p = Start-Process -FilePath $exe -ArgumentList $argumentos -WorkingDirectory $Raiz -WindowStyle Hidden `
-    -RedirectStandardOutput $log -RedirectStandardError $logErro -PassThru
-  return $p.Id
-}
-
-$CloudflaredPortatil = Join-Path $PastaDemo 'bin\cloudflared.exe'
-
-# cloudflared no PATH, nos lugares do instalador/winget ou o portátil baixado antes; $null se não houver
-function Achar-Cloudflared {
-  $c = Get-Command cloudflared -ErrorAction SilentlyContinue
-  if ($c) { return $c.Source }
-  $candidatos = @(
-    (Join-Path ${env:ProgramFiles(x86)} 'cloudflared\cloudflared.exe'),
-    (Join-Path $env:ProgramFiles 'cloudflared\cloudflared.exe'),
-    (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links\cloudflared.exe'),
-    $CloudflaredPortatil
-  )
-  foreach ($x in $candidatos) { if (Test-Path $x) { return $x } }
-  return $null
+    -RedirectStandardOutput $log -RedirectStandardError $logErro -PassThru -Wait
+  return $p.ExitCode
 }
 
 function Salvar-Estado($estado) { $estado | ConvertTo-Json | Set-Content -Encoding UTF8 -Path $ArquivoEstado }
+
+$CamposDeProcesso = @('subindo', 'api', 'worker', 'bko', 'tunel', 'tunel_bko')
 
 # Uma demo por vez: se a registrada ainda roda (ou outra subida está em andamento), não derruba sem -Reiniciar.
 if (Test-Path $ArquivoEstado) {
   $anterior = Get-Content -Raw -Path $ArquivoEstado | ConvertFrom-Json
   $vivos = @()
-  foreach ($campo in @('subindo', 'api', 'worker', 'tunel')) {
+  foreach ($campo in $CamposDeProcesso) {
     $idAnterior = $null
     if ($anterior.PSObject.Properties.Name -contains $campo) { $idAnterior = $anterior.$campo }
     if ($idAnterior -and $idAnterior -ne $PID -and (Get-Process -Id $idAnterior -ErrorAction SilentlyContinue)) { $vivos += $campo }
@@ -126,18 +147,22 @@ if (Test-Path $ArquivoEstado) {
   if ($vivos.Count -gt 0 -and -not $Reiniciar) {
     Write-Host ''
     Write-Host 'Já há uma demonstração no ar (ou subindo) neste PC.' -ForegroundColor Yellow
-    if ($anterior.url) { Write-Host "  Endereço atual (digite no app assim, com /v1): $($anterior.url)/v1" -ForegroundColor Green }
-    Write-Host '  Para reiniciar (o endereço muda): subir-demo.ps1 -Reiniciar   Para encerrar: derrubar-demo.ps1' -ForegroundColor Yellow
+    if ($anterior.PSObject.Properties.Name -contains 'url' -and $anterior.url) { Write-Host "  App (com /v1): $($anterior.url)/v1" -ForegroundColor Green }
+    if ($anterior.PSObject.Properties.Name -contains 'url_bko' -and $anterior.url_bko) { Write-Host "  BKO: $($anterior.url_bko)" -ForegroundColor Green }
+    Write-Host '  Para reiniciar: subir-demo.ps1 -Reiniciar   Para encerrar: derrubar-demo.ps1' -ForegroundColor Yellow
     exit 2
   }
   if ($vivos.Count -gt 0) { Aviso 'Reiniciando: derrubando a demonstração que estava no ar.' }
   & (Join-Path $PSScriptRoot 'derrubar-demo.ps1') -Silencioso
 }
-$estado = [ordered]@{ iniciado_em = (Get-Date).ToUniversalTime().ToString('o'); porta = $Porta; subindo = $PID; api = $null; worker = $null; tunel = $null; url = $null }
+$estado = [ordered]@{
+  iniciado_em = (Get-Date).ToUniversalTime().ToString('o'); porta = $Porta; porta_bko = $PortaBko; modo = $null
+  subindo = $PID; api = $null; worker = $null; bko = $null; tunel = $null; tunel_bko = $null; url = $null; url_bko = $null
+}
 Salvar-Estado $estado
 
 # ---------- 1. Docker ----------
-Passo '1/6 Conferindo o Docker'
+Passo '1/7 Conferindo o Docker'
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
   Falha 'Docker não encontrado. Instale o Docker Desktop (https://www.docker.com/products/docker-desktop/) e rode de novo.'
 }
@@ -158,27 +183,24 @@ if (-not $dockerOk) { Falha 'O Docker não respondeu. Abra o Docker Desktop, esp
 Ok 'Docker respondendo.'
 
 # ---------- 2. Postgres + migrações ----------
-Passo '2/6 Subindo o Postgres e aplicando as migrações'
+Passo '2/7 Subindo o Postgres e aplicando as migrações'
 Rodar 'pnpm' @('--filter', '@macuxi/db', 'banco', 'subir') 'banco subir'
 Ok 'Postgres no ar e migrado.'
 
 # ---------- 3. Base de demo ----------
 if ($Manter) {
-  Passo '3/6 Atualizando a base de demo (upsert, sem apagar o ensaio)'
+  Passo '3/7 Atualizando a base de demo (upsert, sem apagar o ensaio)'
   Rodar 'pnpm' @('--filter', '@macuxi/db', 'banco', 'seed', 'demo') 'banco seed demo' -Tentativas 2
 } else {
-  Passo '3/6 Recriando a base de demo do zero'
+  Passo '3/7 Recriando a base de demo do zero'
   Rodar 'pnpm' @('--filter', '@macuxi/db', 'banco', 'seed', 'demo', '--recriar') 'banco seed demo --recriar' -Tentativas 2
 }
 Ok 'Base de demo carregada (Distribuidora Exemplo, código demo).'
 
 # ---------- 4. API (+ worker) ----------
-Passo "4/6 Subindo a API na porta $Porta"
-$ocupada = Get-NetTCPConnection -LocalPort $Porta -State Listen -ErrorAction SilentlyContinue
-if ($ocupada) {
-  $pidDono = ($ocupada | Select-Object -First 1).OwningProcess
-  Falha "A porta $Porta já está em uso (processo $pidDono). Feche a API que estiver rodando (pnpm dev?) ou use -Porta."
-}
+Passo "4/7 Subindo a API na porta $Porta"
+Porta-Livre $Porta 'a API' '-Porta'
+if (-not $SemBko) { Porta-Livre $PortaBko 'o BKO' '-PortaBko' }
 
 # segredo do JWT: o do .env (lido pela própria API); sem ele, um aleatório só desta sessão (o login exige 32+)
 $temSegredo = $false
@@ -199,90 +221,98 @@ if (-not $temSegredo) {
 
 $env:MACUXI_API_PORTA = "$Porta"
 $env:MACUXI_API_HOST = '127.0.0.1'
-# o cloudflared fala com a API pelo loopback: confiar nele faz req.ip = IP real do aparelho (X-Forwarded-For)
+# o cloudflared (e o proxy do BKO) falam com a API pelo loopback: confiar nele faz req.ip = IP real do aparelho
+# (X-Forwarded-For que a Cloudflare acrescenta; o proxy do Next repassa sem mexer)
 $env:MACUXI_TRUST_PROXY = 'loopback'
 
-$estado.api = Iniciar 'api' 'cmd.exe' @('/c', 'pnpm', '--filter', 'api', 'start')
+$estado.api = Iniciar-Processo $PastaDemo 'api' 'cmd.exe' @('/c', 'pnpm', '--filter', 'api', 'start') $Raiz
 Salvar-Estado $estado
-if (-not (Esperar-Http "http://127.0.0.1:$Porta/v1/saude" 90)) {
+if (-not (Esperar-Saude "http://127.0.0.1:$Porta/v1/saude" 90)) {
   Falha "A API não respondeu em http://127.0.0.1:$Porta/v1/saude em 90 s. Veja .dados\demo\api.log e api.erro.log."
 }
 Ok "API no ar: http://127.0.0.1:$Porta/v1/saude"
 
 if (-not $SemWorker) {
-  $estado.worker = Iniciar 'worker' 'cmd.exe' @('/c', 'pnpm', '--filter', 'api', 'worker')
+  $estado.worker = Iniciar-Processo $PastaDemo 'worker' 'cmd.exe' @('/c', 'pnpm', '--filter', 'api', 'worker') $Raiz
   Salvar-Estado $estado
   Ok 'Worker da outbox iniciado (log em .dados\demo\worker.log).'
 }
 
-# ---------- 5. Túnel HTTPS ----------
-$urlPublica = $null
-if ($SemTunel) {
-  Passo '5/6 Túnel desligado (-SemTunel)'
+# ---------- 5. BKO: build ----------
+# Combinado com o engenheiro-apps (R-20261101-173817): o navegador só fala com o próprio BKO; o Next repassa /api-proxy
+# para a API pelo loopback (destino gravado no build). MACUXI_BKO_ORIGEM entra no next.config (origens permitidas).
+$env:NEXT_PUBLIC_API_URL = "http://127.0.0.1:$Porta/v1"
+Remove-Item -Path Env:NEXT_PUBLIC_API_MODO -ErrorAction SilentlyContinue
+$env:NEXT_TELEMETRY_DISABLED = '1'
+if ($SemBko) {
+  Passo '5/7 BKO desligado (-SemBko)'
 } else {
-  Passo '5/6 Abrindo o túnel HTTPS (cloudflared)'
-  $exeCf = Achar-Cloudflared
-  if (-not $exeCf) {
-    if (-not $Portatil -and (Get-Command winget -ErrorAction SilentlyContinue)) {
-      Aviso 'cloudflared não encontrado: instalando com winget (Cloudflare.cloudflared; o Windows pede para autorizar)...'
-      $antes = $ErrorActionPreference
-      $ErrorActionPreference = 'Continue'
-      try { & winget install --id Cloudflare.cloudflared -e --accept-source-agreements --accept-package-agreements --disable-interactivity }
-      finally { $ErrorActionPreference = $antes }
-      $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
-      $exeCf = Achar-Cloudflared
-    }
+  Passo '5/7 Construindo o BKO (next build; 1 a 3 min)'
+  $codigo = Rodar-ComLog 'bko-build' 'cmd.exe' @('/c', 'pnpm', '--filter', 'web', 'build')
+  if ($codigo -ne 0) {
+    Get-Content -Tail 25 -Path (Join-Path $PastaDemo 'bko-build.log') -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+    Falha "next build do BKO falhou (código $codigo). Veja .dados\demo\bko-build.log e bko-build.erro.log."
   }
-  if (-not $exeCf) {
-    # sem winget ou sem permissão de administrador (o instalador MSI pede elevação): executável portátil oficial,
-    # só para este usuário, em .dados\demo\bin, conferindo a assinatura digital da Cloudflare antes de usar
-    Aviso 'Instalação pelo winget não concluída: baixando o cloudflared portátil (release oficial no GitHub)...'
-    New-Item -ItemType Directory -Force -Path (Split-Path $CloudflaredPortatil) | Out-Null
-    $temp = Join-Path (Split-Path $CloudflaredPortatil) 'cloudflared-baixando.exe'
-    try {
-      Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile $temp
-    } catch { Falha "Não consegui baixar o cloudflared ($($_.Exception.Message)). Instale manualmente: winget install Cloudflare.cloudflared" }
-    $assinatura = Get-AuthenticodeSignature -FilePath $temp
-    if ($assinatura.Status -ne 'Valid' -or $assinatura.SignerCertificate.Subject -notmatch 'Cloudflare') {
-      Remove-Item -Force $temp
-      Falha "O cloudflared baixado não tem assinatura válida da Cloudflare ($($assinatura.Status)). Instale manualmente: winget install Cloudflare.cloudflared"
-    }
-    Move-Item -Force $temp $CloudflaredPortatil
-    $exeCf = $CloudflaredPortatil
-  }
-  Ok "cloudflared: $exeCf"
-  $estado.tunel = Iniciar 'tunel' $exeCf @('tunnel', '--no-autoupdate', '--url', "http://127.0.0.1:$Porta")
-  Salvar-Estado $estado
-
-  # o cloudflared escreve o endereço (https://<nome>.trycloudflare.com) no stderr
-  $logTunel = Join-Path $PastaDemo 'tunel.erro.log'
-  # a 1ª execução do cloudflared pode levar mais de 1 min para escrever (antivírus examinando o exe novo)
-  $limite = (Get-Date).AddSeconds(180)
-  while (-not $urlPublica -and (Get-Date) -lt $limite) {
-    Start-Sleep -Seconds 1
-    if (Test-Path $logTunel) {
-      $m = Select-String -Path $logTunel -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' -AllMatches | Select-Object -First 1
-      if ($m) { $urlPublica = $m.Matches[0].Value }
-    }
-    if (-not (Get-Process -Id $estado.tunel -ErrorAction SilentlyContinue)) { break }
-  }
-  if (-not $urlPublica) { Falha 'O cloudflared não informou o endereço em 3 min. Veja .dados\demo\tunel.erro.log (internet? firewall?).' }
-  $estado.url = $urlPublica
-  Salvar-Estado $estado
-
-  # o nome novo leva alguns segundos para propagar no DNS
-  if (Esperar-Http "$urlPublica/v1/saude" 90) {
-    Ok "Túnel respondendo: $urlPublica/v1/saude"
-  } else {
-    Aviso "O túnel abriu ($urlPublica), mas /v1/saude ainda não respondeu daqui (DNS do PC?). Teste no celular antes de começar."
-  }
+  Ok 'BKO construído.'
 }
 
+# ---------- 6. Túnel HTTPS ----------
+$urlApi = $null
+$urlBko = $null
+$exeCf = $null
+if ($SemTunel) {
+  Passo '6/7 Túnel desligado (-SemTunel)'
+} else {
+  Passo '6/7 Abrindo o túnel HTTPS (cloudflared)'
+  try { $exeCf = Garantir-Cloudflared (Join-Path $PastaDemo 'bin\cloudflared.exe') -SoPortatil:$Portatil }
+  catch { Falha $_.Exception.Message }
+  Ok "cloudflared: $exeCf"
+
+  # nomeado (domínio fixo) se configurado e conectado; senão o rápido, com aviso (tunel.ps1, Abrir-TunelDemo)
+  $t = Abrir-TunelDemo $exeCf $PastaDemo $PastaCloudflared $Porta $PortaBko $Raiz -Rapido:$TunelRapido
+  if (-not $t) { Falha 'O cloudflared não informou o endereço em 3 min. Veja .dados\demo\tunel-rapido.erro.log (internet? firewall?).' }
+  $estado.tunel = $t.Pid; $estado.modo = $t.Modo; $urlApi = $t.Api; $urlBko = $t.Bko
+  Salvar-Estado $estado
+  if ($t.Modo -eq 'nomeado') { Ok "Conectado: $urlApi e $urlBko" } else { Ok "API: $urlApi (endereço temporário)" }
+}
+
+# ---------- 7. BKO no ar + conferência ----------
+if (-not $SemBko) {
+  if ($estado.modo -eq 'rapido') {
+    $t = Abrir-TunelRapido $exeCf $PastaDemo 'tunel-rapido-bko' $PortaBko $Raiz 180
+    if ($t) { $estado.tunel_bko = $t.Pid; $urlBko = $t.Url } else { Aviso 'O túnel rápido do BKO não abriu (veja .dados\demo\tunel-rapido-bko.erro.log): o BKO fica só no PC.' }
+  }
+  $env:MACUXI_BKO_ORIGEM = if ($urlBko) { $urlBko } else { "http://127.0.0.1:$PortaBko" }
+  Passo "7/7 Subindo o BKO na porta $PortaBko e conferindo"
+  $estado.bko = Iniciar-Processo $PastaDemo 'bko' 'cmd.exe' @('/c', 'pnpm', '--filter', 'web', 'exec', 'next', 'start', '-p', "$PortaBko", '-H', '127.0.0.1') $Raiz
+  Salvar-Estado $estado
+  if (-not (Esperar-Http "http://127.0.0.1:$PortaBko/login" 90)) {
+    Falha "O BKO não respondeu em http://127.0.0.1:$PortaBko/login em 90 s. Veja .dados\demo\bko.log e bko.erro.log."
+  }
+  if (-not (Esperar-Saude "http://127.0.0.1:$PortaBko/api-proxy/saude" 30)) {
+    Falha "O BKO subiu, mas o proxy dele não chega à API (http://127.0.0.1:$PortaBko/api-proxy/saude). Veja .dados\demo\bko.log."
+  }
+  Ok "BKO no ar: http://127.0.0.1:$PortaBko (proxy /api-proxy -> API ok)"
+} else {
+  Passo '7/7 Conferindo'
+}
+$estado.url = $urlApi
+$estado.url_bko = $urlBko
 $estado.subindo = $null
 Salvar-Estado $estado
 
-# ---------- 6. Resumo ----------
-Passo '6/6 Pronto para a demonstração'
+# conferência pelos endereços públicos (o que o celular e o navegador vão usar)
+$pendencias = @()
+if ($urlApi) {
+  if (Esperar-Saude "$urlApi/v1/saude" 90) { Ok "API pela internet: $urlApi/v1/saude" }
+  else { $pendencias += "$urlApi/v1/saude não respondeu daqui (DNS deste PC? internet?)" }
+}
+if ($urlBko) {
+  if (Esperar-Http "$urlBko/login" 60) { Ok "BKO pela internet: $urlBko" }
+  else { $pendencias += "$urlBko não respondeu daqui" }
+}
+
+# ---------- Resumo ----------
 $senha = 'demo-macuxi'
 $senhaPorVariavel = [bool]$env:MACUXI_SENHA_DEMO
 foreach ($arq in @((Join-Path $Raiz '.env'), (Join-Path $Raiz 'db\.env'))) {
@@ -293,10 +323,22 @@ foreach ($arq in @((Join-Path $Raiz '.env'), (Join-Path $Raiz 'db\.env'))) {
 if ($senhaPorVariavel) { $senha = '(a de MACUXI_SENHA_DEMO no .env)' }
 
 Write-Host ''
-if ($urlPublica) {
-  # o endereço da API, com /v1: é exatamente o que o app usa (R-20261101-065230-alexandre); o app não completa nada
-  $enderecoApp = "$urlPublica/v1"
-  Write-Host '  Endereço do servidor (digite no app exatamente assim, com /v1, em "Servidor" na tela de login, e toque em "Testar e salvar"):' -ForegroundColor White
+if ($pendencias.Count -eq 0) {
+  Write-Host '==> Pronto para a demonstração' -ForegroundColor Green
+} else {
+  Write-Host '==> No ar, mas SEM confirmação pelo endereço público:' -ForegroundColor Red
+  foreach ($p in $pendencias) { Write-Host "    - $p" -ForegroundColor Red }
+  Write-Host '    Teste no celular antes de começar. Os processos continuam rodando.' -ForegroundColor Yellow
+}
+Write-Host ''
+if ($estado.modo -eq 'nomeado') {
+  Write-Host "  App:  $urlApi/v1   (já vem nos APKs de preview; não precisa digitar)" -ForegroundColor Green
+  if ($urlBko) { Write-Host "  BKO:  $urlBko" -ForegroundColor Green }
+} elseif ($estado.modo -eq 'rapido') {
+  $enderecoApp = "$urlApi/v1"
+  Write-Host '  ATENÇÃO: túnel rápido, endereço temporário (muda a cada subida).' -ForegroundColor Yellow
+  Write-Host "  Os APKs de preview usam https://$DemoHostApi/v1 e NÃO conectam por ele: use o build de desenvolvimento" -ForegroundColor Yellow
+  Write-Host '  (login > Avançado > Servidor) e digite exatamente, com /v1:' -ForegroundColor Yellow
   Write-Host "      $enderecoApp" -ForegroundColor Green
   try {
     Set-Clipboard -Value $enderecoApp -ErrorAction Stop
@@ -304,8 +346,10 @@ if ($urlPublica) {
   } catch {
     Write-Host '      (não deu para copiar para a área de transferência: copie da linha acima)' -ForegroundColor DarkGray
   }
+  if ($urlBko) { Write-Host "  BKO:  $urlBko" -ForegroundColor Green }
 } else {
-  Write-Host "  API local: http://127.0.0.1:$Porta (sem túnel)" -ForegroundColor White
+  Write-Host "  API local: http://127.0.0.1:$Porta/v1 (sem túnel)" -ForegroundColor White
+  if (-not $SemBko) { Write-Host "  BKO local: http://127.0.0.1:$PortaBko" -ForegroundColor White }
 }
 Write-Host ''
 Write-Host '  Código da empresa: demo' -ForegroundColor White
@@ -317,10 +361,10 @@ Write-Host '    vendedor2@exemplo.com.br    Camila Freitas (vendedora, 4 paradas
 Write-Host '    promotor@exemplo.com.br     Joana Prado (promotora, 4 paradas, sem pedido)'
 Write-Host '  Macuxi Gestão'
 Write-Host '    supervisor@exemplo.com.br   Renata Barros (Equipe Manaus, 2 pedidos para aprovar)'
-Write-Host '  Outros perfis'
+Write-Host '  BKO e outros perfis'
 Write-Host '    analista@exemplo.com.br     analista'
 Write-Host '    admin@exemplo.com.br        administrador'
 Write-Host ''
 if ($segredoTemporario) { Aviso 'Segredo do JWT temporário (sem MACUXI_JWT_SEGREDO no .env).' }
 Write-Host '  Logs: .dados\demo\   Para encerrar: scripts\demo\derrubar-demo.ps1' -ForegroundColor DarkGray
-Write-Host '  O endereço muda a cada subida: digite o novo no app.' -ForegroundColor DarkGray
+if ($pendencias.Count -gt 0) { exit 3 }

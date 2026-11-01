@@ -22,13 +22,21 @@ A `params-page` da Fase M foi dividida: plano de RV aqui; alçadas de desconto n
 | `menu.itens` | menu/Perfil | `ItemMenu` |
 
 ## Pendências
-- RN-CORE-12 como função de domínio com teste (hoje a regra está na folha de checkout); motivo sem pedido só "se o Vendedor estiver ativo".
+- ~~RN-CORE-12 como função de domínio com teste~~ — feito na T-0037: `prepararCheckoutVisita` em `domain/checkout.ts` (ver "Checkout — RN-CORE-12" abaixo).
 - Tela "Meus módulos" (app) e licenças (BKO): T-0003 (precisam de `GET /v1/me/modulos` e da API de licenças).
 - Total do pedido na fila: `pedidosDaFila` lê `payload.total_cents` (opcional) do pedido do Vendedor; sem ele a visita mostra R$ 0,00 até a sincronização.
 
 ## Checkout de cliente fechado (RN-CORE-14)
 - Motivos `loja_fechada` e `acesso_negado` (lista fechada, `MOTIVOS_CLIENTE_FECHADO` em `contracts`) exigem foto da fachada e dispensam todas as etapas obrigatórias do slot `visita.etapas_checkout`.
-- Regra pura: `avaliarCheckout`/`ehClienteFechado` em `domain/checkout.ts` (RN-CORE-12 + RN-CORE-14).
+- Regra pura: `prepararCheckoutVisita` → `avaliarCheckoutVisita` em `domain/checkout.ts` (RN-CORE-12 + RN-CORE-14). `avaliarCheckout`/`ehClienteFechado` (contrato antigo `order`/`no_order`) seguem só por compatibilidade.
 - `ContextoCheckout` ganhou `clienteFechado?: boolean` e `motivoClienteFechado?` (opcionais, compatível).
 - `CheckoutVisitRequest` ganhou `motivo_cliente_fechado` e `foto_fachada_ref` (a API recusa o motivo sem a foto).
 - App: a folha de checkout lista os dois motivos, mostra "Tirar foto da fachada" (testIDs `checkout-foto-fachada`, `checkout-tirar-foto`) e oculta as etapas. A câmera real é registrada pelo shell via `definirCapturaFoto` (`app/lib/foto-fachada.ts`).
+
+## Checkout — RN-CORE-12 (T-0037)
+Toda a regra da folha está em `prepararCheckoutVisita` (`modules/core/domain/checkout.ts`), função pura, sem I/O e sem relógio (a regra não depende de hora; o `checkout_em` continua vindo de `agora` passado a `montarCheckout`).
+- Entrada: `escolha` (`pedido` | `sem_pedido` | `atendido` | `null`), `vendedorEfetivo`, `motivo` (`{ tipo }` da lista do tenant ou `null`), `fotoFachada`, `temPedido` e `etapas` do slot `visita.etapas_checkout` já avaliadas (`modulo`, `id`, `rotulo`, `obrigatoria`, `concluida`).
+- Saída: `resultado` do `CheckoutVisitaSchema`, `pode`, `pendencias` (`resultado`, `motivo`, `pedido`, `foto_fachada` ou rótulo da etapa), `etapasPendentes` (texto "Falta concluir"), `etapasRegistro` (`concluida`/`dispensada` para o payload), `clienteFechado` e `etapasDispensadas`.
+- Regras: motivo do tipo `cliente_fechado` vence a escolha (RN-CORE-14); com Vendedor efetivo, `pedido` exige o pedido da visita, `sem_pedido` exige motivo e `atendido` não vale; sem Vendedor, só `atendido`; etapa obrigatória pendente bloqueia, salvo cliente fechado.
+- "Módulos ativos": o slot já lista só itens de módulos efetivos (`platform-sdk`, `extensoes.listar`), então a função recebe as etapas como vieram.
+- A API (`api/visita-push.ts`) revalida com `avaliarCheckoutVisita`; as etapas de outros módulos ainda não são conferidas no servidor (desenho T-0016 §4.3).

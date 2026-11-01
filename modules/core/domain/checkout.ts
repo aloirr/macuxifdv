@@ -85,3 +85,72 @@ export function avaliarCheckoutVisita(e: EntradaCheckoutVisita): AvaliacaoChecko
   for (const et of e.etapas) if (et.obrigatoria && !et.concluida) pendencias.push(et.rotulo);
   return { pode: pendencias.length === 0, pendencias, etapasDispensadas: false };
 }
+
+/** Escolha do usuário na folha ("Como terminou a visita?"); `cliente_fechado` vem do tipo do motivo, não da escolha. */
+export type EscolhaCheckout = 'pedido' | 'sem_pedido' | 'atendido';
+
+/** Etapa do slot `visita.etapas_checkout` já avaliada pela folha (`concluida(contexto)` resolvido antes). */
+export interface EtapaCheckoutDaVisita extends EtapaCheckoutAvaliavel {
+  modulo: string;
+  id: string;
+}
+
+/** Registro da etapa no checkout (espelha `EtapaCheckoutPayloadSchema` de `contracts/visita.ts`). */
+export interface RegistroEtapaCheckout {
+  modulo: string;
+  etapa: string;
+  situacao: 'concluida' | 'dispensada';
+}
+
+export interface EntradaPrepararCheckout {
+  escolha: EscolhaCheckout | null;
+  /** O módulo Vendedor está efetivo para o usuário (RN-CORE-01/03). */
+  vendedorEfetivo: boolean;
+  /** Motivo escolhido na lista do tenant (`motivo.tipo` do pull); `null` = nenhum ou fora da lista. */
+  motivo: { tipo: 'nao_venda' | 'cliente_fechado' | 'fora_do_raio' } | null;
+  fotoFachada: boolean;
+  /** Há pedido feito nesta visita (inclui os da fila). */
+  temPedido: boolean;
+  /** Etapas registradas pelos módulos ativos, na ordem do slot. */
+  etapas: readonly EtapaCheckoutDaVisita[];
+}
+
+export interface PreparoCheckout extends AvaliacaoCheckout {
+  /** Valor de `resultado` do `CheckoutVisitaSchema`; `null` enquanto nada foi escolhido. */
+  resultado: ResultadoCheckout | null;
+  clienteFechado: boolean;
+  /** Etapas obrigatórias ainda não cumpridas (vazio quando dispensadas por cliente fechado). */
+  etapasPendentes: EtapaCheckoutDaVisita[];
+  /** O que vai no `etapas` do checkout: concluídas como `concluida`; obrigatórias dispensadas (RN-CORE-14) como `dispensada`. */
+  etapasRegistro: RegistroEtapaCheckout[];
+}
+
+/**
+ * RN-CORE-12 de ponta a ponta para a folha de checkout (função pura, sem I/O e sem relógio):
+ * converte a escolha + o motivo no `resultado` do contrato, avalia com `avaliarCheckoutVisita`
+ * e devolve as etapas pendentes (para "Falta concluir") e o registro das etapas (para o payload).
+ * - Motivo do tipo `cliente_fechado` vence a escolha e vira `cliente_fechado` (RN-CORE-14), para vendedor e promotor.
+ * - Com Vendedor efetivo: `pedido` exige o pedido da visita; `sem_pedido` exige motivo; `atendido` não vale.
+ * - Sem Vendedor efetivo: só `atendido` (ou cliente fechado).
+ * - Etapas obrigatórias dos módulos ativos bloqueiam, exceto quando dispensadas por cliente fechado.
+ */
+export function prepararCheckoutVisita(e: EntradaPrepararCheckout): PreparoCheckout {
+  const clienteFechado = e.motivo?.tipo === 'cliente_fechado';
+  const resultado: ResultadoCheckout | null = clienteFechado ? 'cliente_fechado' : e.escolha;
+  const avaliacao = avaliarCheckoutVisita({
+    resultado,
+    vendedorEfetivo: e.vendedorEfetivo,
+    temMotivo: e.motivo !== null,
+    motivoClienteFechado: clienteFechado,
+    fotoFachada: e.fotoFachada,
+    temPedido: e.temPedido,
+    etapas: e.etapas.map(({ rotulo, obrigatoria, concluida }) => ({ rotulo, obrigatoria, concluida })),
+  });
+  const etapasPendentes = clienteFechado ? [] : e.etapas.filter((et) => et.obrigatoria && !et.concluida);
+  const etapasRegistro: RegistroEtapaCheckout[] = [];
+  for (const et of e.etapas) {
+    if (et.concluida) etapasRegistro.push({ modulo: et.modulo, etapa: et.id, situacao: 'concluida' });
+    else if (clienteFechado && et.obrigatoria) etapasRegistro.push({ modulo: et.modulo, etapa: et.id, situacao: 'dispensada' });
+  }
+  return { ...avaliacao, resultado, clienteFechado, etapasPendentes, etapasRegistro };
+}

@@ -15,7 +15,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CheckoutVisita, ContextoCheckout, EtapaCheckout, MotivoClienteFechado } from '../../contracts';
-import { avaliarCheckoutVisita } from '../../domain';
+import { prepararCheckoutVisita } from '../../domain';
 import { capturarFotoFachada } from '../lib/foto-fachada';
 import { fazerCheckout } from '../lib/acoes-visita';
 import { abrirRota } from '../lib/navegacao';
@@ -223,7 +223,6 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
   // RN-CORE-14: cliente fechado (motivo do tipo cliente_fechado) dispensa as etapas e exige a foto da fachada
   const motivoSel = motivos.find((m) => m.id === reason) ?? null;
   const fechado = motivoSel?.tipo === 'cliente_fechado';
-  const resultado = fechado ? 'cliente_fechado' : result === 'order' ? 'pedido' : result === 'no_order' ? 'sem_pedido' : result === 'atendido' ? 'atendido' : null;
   const contexto: ContextoCheckout = {
     clienteId: open.customer_id,
     nomeCliente: name,
@@ -232,18 +231,17 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
     clienteFechado: fechado,
     motivoClienteFechado: fechado ? (motivoSel!.codigo as MotivoClienteFechado) : null,
   };
-  // RN-CORE-12: etapas obrigatórias registradas por módulos ativos (ex.: pesquisa) precisam estar cumpridas
-  const avaliacao = avaliarCheckoutVisita({
-    resultado: resultado === 'pedido' && !hasOrder ? null : resultado,
+  // RN-CORE-12 (e RN-CORE-14): resultado, motivo, pedido e etapas obrigatórias dos módulos ativos — regra pura no domain
+  const preparo = prepararCheckoutVisita({
+    escolha: result === 'order' ? 'pedido' : result === 'no_order' ? 'sem_pedido' : result,
     vendedorEfetivo,
-    temMotivo: Boolean(reason),
-    motivoClienteFechado: fechado,
+    motivo: motivoSel ? { tipo: motivoSel.tipo } : null,
     fotoFachada: Boolean(fotoFachada),
     temPedido: hasOrder,
-    etapas: etapas.map((e) => ({ rotulo: e.payload.rotulo, obrigatoria: e.payload.obrigatoria, concluida: e.payload.concluida(contexto) })),
+    etapas: etapas.map((e) => ({ modulo: e.modulo, id: e.id, rotulo: e.payload.rotulo, obrigatoria: e.payload.obrigatoria, concluida: e.payload.concluida(contexto) })),
   });
-  const pendentes = etapas.filter((e) => !avaliacao.etapasDispensadas && e.payload.obrigatoria && !e.payload.concluida(contexto));
-  const canConfirm = !salvando && avaliacao.pode;
+  const resultado = preparo.resultado;
+  const canConfirm = !salvando && preparo.pode;
 
   const tirarFoto = async () => {
     const ref = await capturarFotoFachada();
@@ -262,12 +260,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
     try {
       const acao = { motor: core.motor, armazem: core.armazem, tz: core.tz, vendedorId: core.vendedorId };
       // etapas do slot: concluídas vão como "concluida"; as obrigatórias dispensadas pelo cliente fechado, como "dispensada"
-      const etapasPayload: CheckoutVisita['etapas'] = [];
-      for (const e of etapas) {
-        if (!ETAPA_MODULO_RE.test(e.modulo) || !ETAPA_ID_RE.test(e.id)) continue;
-        if (e.payload.concluida(contexto)) etapasPayload.push({ modulo: e.modulo, etapa: e.id, situacao: 'concluida' });
-        else if (fechado && e.payload.obrigatoria) etapasPayload.push({ modulo: e.modulo, etapa: e.id, situacao: 'dispensada' });
-      }
+      const etapasPayload: CheckoutVisita['etapas'] = preparo.etapasRegistro.filter((e) => ETAPA_MODULO_RE.test(e.modulo) && ETAPA_ID_RE.test(e.etapa));
       const done = await fazerCheckout(acao, open.id, {
         resultado,
         motivo_id: reason,
@@ -362,9 +355,9 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
           </View>
         );
       })}
-      {pendentes.length > 0 ? (
+      {preparo.etapasPendentes.length > 0 ? (
         <Text testID="checkout-pendencias" style={styles.pendencia}>
-          Falta concluir: {pendentes.map((e) => e.payload.rotulo).join(', ')}.
+          Falta concluir: {preparo.etapasPendentes.map((e) => e.rotulo).join(', ')}.
         </Text>
       ) : null}
       {erro ? (

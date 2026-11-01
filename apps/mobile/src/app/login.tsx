@@ -4,8 +4,11 @@
  *   aparelho). Perfil de outro app (ex.: supervisor no Campo) não entra: a sessão é encerrada e o aviso diz qual app usar.
  * - Demonstração (`EXPO_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher o usuário numa lista, sem senha. O papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis da variante (`PERFIS_DO_APP`).
- * Embaixo, o endereço do servidor pode ser editado. Ele é usado exatamente como digitado (R-20261101-065547-alexandre) e
- * só é salvo se o servidor se identificar como Macuxi (`testarServidor`, R-20261101-023742-alexandre).
+ * Servidor (T-0038, `endereco-do-build.ts`): nos builds preview e producao NÃO há campo Servidor; o app usa sempre o
+ * endereço do build e, se a verificação de `/v1/saude` falhar, mostra só "Servidor indisponível — tente mais tarde".
+ * No build de desenvolvimento o cartão Servidor fica embaixo, fechado em "Avançado" (rede local). Lá o endereço é usado
+ * exatamente como digitado (R-20261101-065547-alexandre) e só é salvo se o servidor se identificar como Macuxi
+ * (`testarServidor`, R-20261101-023742-alexandre).
  * Teclado e área segura (R-20261101-023401 e 023857): `KeyboardAvoidingView` (padding; o Android edge-to-edge não
  * redimensiona a janela) e o espaço da barra de navegação embaixo do cartão quando o teclado está fechado.
  */
@@ -19,6 +22,7 @@ import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Pressable, StyleShee
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
+import { avisoDeServidorNoLogin, cartaoServidorNoLogin, mensagemServidorFalhou } from '@/lib/endereco-do-build';
 import { ApiClient, errorMessage } from '@/services/api';
 import { usePlataforma, usuarioDaFaseM } from '@/state/plataforma';
 
@@ -55,18 +59,26 @@ export default function LoginScreen() {
 
 /** Login real: tela do Core + aviso de perfil de outro app + aviso de aparelho bloqueado (RN-CORE-15) + servidor. */
 function LoginReal() {
-  const { avisoLogin, codigoSalvo, loginComSenha, variante } = usePlataforma();
+  const { avisoLogin, codigoSalvo, loginComSenha, perfilBuild, variante } = usePlataforma();
   const [aviso, setAviso] = useState<string | null>(null);
+  const [servidorFora, setServidorFora] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const teclado = useTecladoAberto();
   const entrar = async (campos: CamposLogin) => {
     setAviso(null);
+    setServidorFora(null);
     try {
       await loginComSenha(campos);
       router.replace('/sync');
     } catch (e) {
       if (e instanceof ErroHttp && e.codigo === 'PERFIL_FORA_DO_APP') {
         setAviso(e.message);
+        return;
+      }
+      // endereço fixo (T-0038): servidor fora do ar não pede endereço; a mensagem é só "tente mais tarde"
+      const fora = avisoDeServidorNoLogin(perfilBuild, e);
+      if (fora) {
+        setServidorFora(fora);
         return;
       }
       // RN-CORE-15: o aparelho já foi limpo; o aviso fica no banner abaixo (sem repetir no formulário)
@@ -88,13 +100,45 @@ function LoginReal() {
             {aviso}
           </Banner>
         ) : null}
-        <CartaoServidor />
+        {servidorFora ? (
+          <Banner icon="alert" tone="danger" testID="login.servidor-indisponivel">
+            {servidorFora}
+          </Banner>
+        ) : null}
+        <ServidorDoLogin />
       </View>
     </AcimaDoTeclado>
   );
 }
 
-/** Endereço do servidor: mostra, edita, testa e salva (vale para os dois modos). */
+/**
+ * Servidor no login conforme o build (T-0038): nada nos builds preview/producao; no desenvolvimento, o link "Avançado"
+ * abre o cartão Servidor (fechado por padrão; o rótulo avisa quando há endereço personalizado salvo).
+ */
+function ServidorDoLogin() {
+  const { apiOverride, perfilBuild } = usePlataforma();
+  const [aberto, setAberto] = useState(false);
+  if (cartaoServidorNoLogin(perfilBuild) === 'oculto') return null;
+  return (
+    <View style={{ gap: 8 }}>
+      <Pressable
+        testID="login.avancado"
+        accessibilityRole="button"
+        accessibilityState={{ expanded: aberto }}
+        accessibilityLabel={aberto ? 'Fechar opções avançadas' : 'Abrir opções avançadas: servidor'}
+        onPress={() => setAberto((a) => !a)}
+        style={styles.avancado}>
+        <Text style={styles.link}>{apiOverride ? 'Avançado · servidor personalizado' : 'Avançado'}</Text>
+        <View style={{ transform: [{ rotate: aberto ? '270deg' : '90deg' }] }}>
+          <Icon name="chevron" size={14} color={colors.accent} />
+        </View>
+      </Pressable>
+      {aberto ? <CartaoServidor /> : null}
+    </View>
+  );
+}
+
+/** Endereço do servidor (só no build de desenvolvimento): mostra, edita, testa e salva (vale para os dois modos). */
 function CartaoServidor() {
   const { apiUrl, defaultApiUrl, apiOverride, setApiUrl, testApiUrl } = usePlataforma();
   const [editing, setEditing] = useState(false);
@@ -191,8 +235,10 @@ function CartaoServidor() {
 
 /** Demonstração (mock-api da Fase M): escolher um usuário fictício, sem senha. */
 function LoginDemo() {
-  const { apiUrl, loginDemo, variante } = usePlataforma();
+  const { apiUrl, loginDemo, perfilBuild, variante } = usePlataforma();
   const insets = useSafeAreaInsets();
+  // endereço fixo (T-0038): falha de servidor vira "Servidor indisponível — tente mais tarde", sem detalhe de endereço
+  const falhaServidor = mensagemServidorFalhou(perfilBuild);
   const [users, setUsers] = useState<FakeUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -204,10 +250,10 @@ function LoginDemo() {
       const res = await new ApiClient(url, null).users();
       setUsers(res.items);
     } catch (e) {
-      setError(errorMessage(e));
+      setError(falhaServidor ?? `Não foi possível falar com o servidor. ${errorMessage(e)}`);
       setUsers([]);
     }
-  }, []);
+  }, [falhaServidor]);
 
   useEffect(() => {
     void load(apiUrl);
@@ -220,7 +266,7 @@ function LoginDemo() {
       await loginDemo(u);
       router.replace('/sync');
     } catch (e) {
-      setError(errorMessage(e));
+      setError(avisoDeServidorNoLogin(perfilBuild, e) ?? `Não foi possível falar com o servidor. ${errorMessage(e)}`);
     } finally {
       setBusy(null);
     }
@@ -241,7 +287,11 @@ function LoginDemo() {
           <Text style={t.sub}>Demonstração: escolha um usuário fictício. Sem senha.</Text>
         </View>
 
-        {error ? <Banner icon="alert" tone="danger">{`Não foi possível falar com o servidor. ${error}`}</Banner> : null}
+        {error ? (
+          <Banner icon="alert" tone="danger" testID="login.demo-erro">
+            {error}
+          </Banner>
+        ) : null}
 
         <View style={{ gap: 8 }}>
           <Text style={styles.group}>{variante === 'gestao' ? 'Supervisores e gerentes' : 'Vendedores e promotores'}</Text>
@@ -294,7 +344,7 @@ function LoginDemo() {
           </View>
         ) : null}
 
-        <CartaoServidor />
+        <ServidorDoLogin />
       </Screen>
     </AcimaDoTeclado>
   );
@@ -309,6 +359,8 @@ const styles = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontFamily: fonts.displayBold, fontSize: 14, color: '#FFFFFF' },
   link: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accent },
+  // alvo de toque >= 48 dp
+  avancado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48 },
   rodape: { gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
   input: { minHeight: 46, paddingVertical: 10, textAlignVertical: 'center', borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
 });

@@ -78,6 +78,9 @@ Convenções: percentuais com 2 casas (meio para cima); dinheiro em centavos int
 ## 12. RN-PRO-01 — sem pedido
 Teste `domain/rn-pro-01.test.ts`: nenhum export do `domain` tem nome ligado a pedido; nenhuma chave de `manifest.acoes` é ação de pedido (`ehAcaoDePedido` do platform-sdk); e, com um manifesto sintético do Vendedor declarando `pedido.*`, `pode(...)` é `true` para o vendedor e `false` para o promotor. O JSON do manifesto não contém a palavra "pedido" (`manifest.test.ts`).
 
+## 13. Eventos publicados — T-0040 (`eventos.ts`)
+Payloads Zod dos seis eventos `promotor.*@1` em `contracts/eventos.ts`; emissão em `domain/eventos.ts` (`montarEventoPromotor` e um montador por coleta): o payload é montado pelo tipo do contrato e validado antes de publicar; inválido = `ErroPayloadEvento`, nada publicado. Tabela com campos e consumidores: [eventos.md](eventos.md).
+
 ## Permissões por ação (manifesto, doc 03 §2)
 - **Coletas** (`coleta.registrar`, `checklist_loja.responder`, `gondola.registrar`, `share.registrar`, `preco.registrar`, `ruptura.registrar`, `validade.registrar`, `ponto_extra.registrar`, `concorrencia.registrar`, `tarefa_trade.concluir`): **só o promotor**. Supervisor, gerente e analista apenas leem (estão em `perfis`, sem ação de escrita).
 - **Cadastros de trade** (`mix_obrigatorio`, `meta_share`, `categoria_gondola`, `concorrente`, `foto_referencia`, `checklist_modelo`, `ponto_extra_negociado`, `tarefa_trade` `.gerenciar`): **analista e admin**. `admin` foi incluído em `manifest.perfis` para o módulo ficar efetivo para ele (RN-CORE-01).
@@ -85,5 +88,5 @@ Teste `domain/rn-pro-01.test.ts`: nenhum export do `domain` tem nome ligado a pe
 ## Premissas e pendências
 - Produto nosso referenciado por `produto_id` (UUID do cadastro base do Core, ADR-0005); quando a T-0007 publicar `Produto` em `@macuxi/core/contracts`, o Promotor passa a importar o contrato.
 - Decisões do Alexandre incorporadas ao doc 03: RN-PRO-05 (ruptura inclui falha de reposição e a mostra à parte), RN-PRO-08 (faixas), RN-PRO-11 (peso do parcial) e RN-PRO-02 (foto sem GPS aceita). Parâmetros do tenant: `validade_critica_dias`, `validade_proxima_dias`, `peso_parcial_conformidade`.
-- Contratos dos payloads de evento `promotor.*@1` ainda não foram escritos (só os nomes); serão criados com o primeiro consumidor.
+- Payloads dos eventos `promotor.*@1` escritos na T-0040 ([eventos.md](eventos.md)). A publicação na outbox (`tx.publicar` nas rotas de `modules/promotor/api`) entra quando as rotas de coleta existirem.
 - `contracts` não reexporta mais os primitivos de `base.ts` (`Uuid`, `InstanteUtc`…); só os schemas de negócio.

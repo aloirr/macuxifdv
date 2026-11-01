@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 
 import { defaultApiUrl } from '@/lib/api-url';
+import { lerPerfilBuild, type PerfilBuild } from '@/lib/endereco-do-build';
 import { lerModoApi, PORTA_API } from '@/lib/modo-api';
 
 /** UUID v4 gerado no aparelho (expo-crypto; reserva para navegador em http sem contexto seguro). */
@@ -30,6 +31,11 @@ export function uuid(): string {
 /** Modo da API do build (`EXPO_PUBLIC_API_MODO`; o Expo embute EXPO_PUBLIC_* no bundle). */
 export function modoApi() {
   return lerModoApi({ EXPO_PUBLIC_API_MODO: process.env.EXPO_PUBLIC_API_MODO });
+}
+
+/** Perfil do build (`EXPO_PUBLIC_PERFIL_BUILD` do eas.json; T-0038): decide se o endereço do servidor é fixo. */
+export function perfilBuildAtual(): PerfilBuild {
+  return lerPerfilBuild({ EXPO_PUBLIC_PERFIL_BUILD: process.env.EXPO_PUBLIC_PERFIL_BUILD }, __DEV__);
 }
 
 export function platformDefaultApiUrl(): string {

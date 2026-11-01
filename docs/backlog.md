@@ -56,3 +56,4 @@
   - Equipe e Aprovações no Gestão: o `moduloApp` do Gestor exporta `{}`, e o Gestor não está licenciado na demo (modulo-gestor; licença na demo é decisão do Alexandre).
   - Sugestão de `ordem` do engenheiro-apps: Equipe 10, Aprovações 20, Pedidos e Loja 40, Catálogo 60. A barra mostra no máximo 5 abas; as demais vão para "Mais".
 - **Revisão das telas da T-0029** (engenheiro-apps, R-20261101-155135): 16 🟡 e 12 🟢 ao modulo-vendedor, para a próxima passada dele.
+- **Catálogo — cota de IA atômica** (T-0041): incremento condicional por tenant, usuário e dia no fuso do tenant (banco-dados); campo `ia_timeout_ms` em `ParametrosCatalogo` (engenheiro-software).

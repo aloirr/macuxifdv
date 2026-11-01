@@ -7,16 +7,17 @@ import { describe, expect, it } from 'vitest';
 import * as nuvemCatalogo from '../../modules/catalogo/db/nuvem';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
+import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
 import * as esquemaPlataforma from '../esquema/plataforma';
 import { banco, semBanco } from './estado';
 import { comCliente, tabelasDeDominio } from './util';
 
-const valores: unknown[] = [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor)];
-const SCHEMAS = ['plataforma', 'core', 'catalogo', 'vendedor'];
+const valores: unknown[] = [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao)];
+const SCHEMAS = ['plataforma', 'core', 'catalogo', 'vendedor', 'integracao'];
 const tabelas = valores.filter((v): v is PgTable => v instanceof PgTable).map((t) => getTableConfig(t));
 
 describe.skipIf(semBanco())('Drizzle x banco migrado', () => {
-  it('mesmo conjunto de tabelas em plataforma, core, catalogo e vendedor', async () => {
+  it('mesmo conjunto de tabelas em plataforma, core, catalogo, vendedor e integracao', async () => {
     const doBanco = await comCliente(banco().urlAdmin, (c) => tabelasDeDominio(c));
     expect(doBanco.filter((t) => SCHEMAS.includes(t.schema)).map((t) => t.nome).sort()).toEqual(tabelas.map((t) => `${t.schema}.${t.name}`).sort());
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
+import { PARAMETROS_PADRAO, resolverParametros, resolverTimeoutIaMs, TIMEOUT_IA_MAX_MS, TIMEOUT_IA_MIN_MS, TIMEOUT_IA_PADRAO_MS } from './parametros';
 
 describe('parâmetros do tenant do Catálogo (doc 03, tabela de parâmetros)', () => {
   it('RN-CAT-03: o padrão do limite de consultas de IA é 200 por usuário/dia', () => {
@@ -37,5 +37,25 @@ describe('parâmetros do tenant do Catálogo (doc 03, tabela de parâmetros)', (
 
   it('os parâmetros padrão são imutáveis', () => {
     expect(Object.isFrozen(PARAMETROS_PADRAO)).toBe(true);
+  });
+});
+
+describe('tempo limite do provedor de IA (RN-CAT-03)', () => {
+  it('RN-CAT-03: sem valor no tenant vale o padrão de 8000 ms', () => {
+    expect(TIMEOUT_IA_PADRAO_MS).toBe(8000);
+    expect(resolverTimeoutIaMs()).toBe(8000);
+    expect(resolverTimeoutIaMs(null)).toBe(8000);
+  });
+
+  it('RN-CAT-03: o valor do tenant vale dentro de 1000 a 30000 ms, inclusive nos limites', () => {
+    expect(resolverTimeoutIaMs(TIMEOUT_IA_MIN_MS)).toBe(1000);
+    expect(resolverTimeoutIaMs(12_500)).toBe(12_500);
+    expect(resolverTimeoutIaMs(TIMEOUT_IA_MAX_MS)).toBe(30_000);
+  });
+
+  it('RN-CAT-03: valor fora da faixa, fracionado ou inválido é recusado com mensagem em português', () => {
+    for (const ruim of [0, 999, 30_001, -5, 1500.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => resolverTimeoutIaMs(ruim)).toThrow(/Tempo limite da IA inválido.*1000 a 30000/);
+    }
   });
 });

@@ -21,4 +21,22 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.arquivo',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
+  /** Hub de Integração (0010, T-0032): nada do schema integracao vai ao aparelho (o que o app vê chega pelos eventos). */
+  'integracao.conector',
+  'integracao.credencial',
+  'integracao.politica_versao',
+  'integracao.sessao_carga',
+  'integracao.sessao_carga_recebido',
+  'integracao.lote',
+  'integracao.lote_staging',
+  'integracao.lote_linha_erro',
+  'integracao.registro_atual',
+  'integracao.pendencia_inativacao',
+  'integracao.inativacao_auditoria',
+  'integracao.cursor_entidade',
+  'integracao.reconciliacao',
+  'integracao.mapeamento',
+  'integracao.pedido_fila_erp',
+  'integracao.pedido_retorno',
+  'integracao.pedido_retorno_erro',
 ] as const;

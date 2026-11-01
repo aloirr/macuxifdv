@@ -61,3 +61,5 @@ R-20261101-154851-engenheiro-software
 R-20261101-155708-modulo-vendedor
 R-20261101-160821-banco-dados
 R-20261101-160851-alexandre
+R-20261101-180628-engenheiro-software
+R-20261101-172531-engenheiro-software
