@@ -19,12 +19,31 @@
  *   rejeitado com código retentável (`CODIGOS_RETENTAVEIS`) continua `pendente` e não bloqueia o resto do lote.
  * - ADR 0009 §4: `versao_escopo` diferente da guardada = ressincronização da entidade (recomeça do cursor nulo e,
  *   no fim, apaga do aparelho as linhas que não vieram: cliente que saiu da carteira some).
- * - ADR 0009 §3: o pull nunca mexe na fila; a tela sobrepõe `motor.pendentes(entidade)` às linhas.
+ * - ADR 0009 §3: o pull nunca mexe na fila; a tela sobrepõe `motor.sobreposicao()` às linhas. D-3: item ACEITO sai da
+ *   fila mas fica em `aceitos` (ainda sobreposto) até um pull cobrir o aceite: horizonte da página (`PaginaSync.horizonte`)
+ *   posterior ao instante do aceite no servidor (`ResultadoItemPush.em`); servidor sem esses campos = relógio do aparelho
+ *   com `MARGEM_ACEITE_SEM_HORIZONTE_MS`. Assim o fato aceito não "desfaz" no aparelho entre o envio e a linha voltar.
  * - T-0008 P1: extensões opcionais do armazenamento (`linhas`, `emTransacao`, `removerModulo`); sem elas, o
- *   caminho chave→JSON de sempre.
+ *   caminho chave→JSON de sempre. P3/P5: adaptador SQLite (`sqlite/armazenamento.ts`) e busca textual (`busca`,
+ *   FTS5 no SQLite ou varredura em JS com `comBuscaEmJs`); `motor.buscar` e `busca.finalizar` no fim do sync.
+ * - ADR 0010 §4: fila de ARQUIVOS (fotos) separada da fila de itens (`sync:arquivos`), enviada DEPOIS do push dos itens,
+ *   um por vez, com os bytes lidos pelo leitor do shell (`arquivos.ler`). `ARQUIVO_SEM_REFERENCIA` (o comando ainda não
+ *   chegou) mantém o arquivo `pendente`; aceito → `enviado` e o arquivo local é apagado depois de 7 dias. RN-CORE-02
+ *   vale igual à fila de itens.
  */
 import { ambienteIndisponivel, type AmbienteAparelho } from './ambiente';
-import type { ModuloId } from './nomes';
+import {
+  caminhoFoto,
+  CODIGOS_ARQUIVO,
+  CODIGOS_ARQUIVO_RETENTAVEIS,
+  DIAS_RETENCAO_ARQUIVO_LOCAL,
+  TIPOS_ARQUIVO,
+  type EnvioArquivo,
+  type ResultadoEnvioArquivo,
+  type TipoArquivo,
+} from './arquivos';
+import type { BuscaTextoSync, ConsultaTexto, ResultadoBusca } from './busca-tipos';
+import { MODULOS, type ModuloId } from './nomes';
 import type { ItemPush, LinhaSync, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
 import {
   codificarCursor,
@@ -53,12 +72,15 @@ export interface ArmazenamentoSync {
   emTransacao?<T>(fn: (tx: ArmazenamentoSync) => Promise<T>): Promise<T>;
   /** RN-CORE-02: apaga as estruturas próprias do módulo (tabelas `<m>__*`, índices de busca, versão de esquema local). */
   removerModulo?(modulo: ModuloId): Promise<void>;
+  /** Busca textual (FTS5 no SQLite; varredura em JS com `comBuscaEmJs`) — desenho T-0008 §2. */
+  busca?: BuscaTextoSync;
 }
 
 /** Linhas das entidades de pull, por linha (desenho T-0008 §1.1). Toda operação é idempotente. */
 export interface LinhasSync {
   /** Uma página do pull, atômica: upsert das vivas, apaga as com `deleted_at` e grava o cursor (`null` = mantém o atual). */
   aplicar(entidade: string, linhas: readonly LinhaSync[], cursor: string | null): Promise<void>;
+  /** Sem ordem garantida entre adaptadores (SQLite: por `id`; chave→JSON: por chegada) — quem precisa, ordena. */
   listar<L extends LinhaSync>(entidade: string): Promise<L[]>;
   porIds<L extends LinhaSync>(entidade: string, ids: readonly string[]): Promise<L[]>;
   /** Ids das linhas guardadas (ressincronização do escopo, ADR 0009 §4). */
@@ -72,6 +94,19 @@ export interface LinhasSync {
 export interface TransporteSync {
   push(itens: ItemPush[]): Promise<ResultadoItemPush[]>;
   pull(entidade: string, cursor: string | null): Promise<PaginaSync<LinhaSync>>;
+  /**
+   * Upload de um arquivo (`PUT /v1/arquivos/:id`, ADR 0010). Exceção = falha de transporte (o motor tenta depois);
+   * 4xx vira `rejeitado` com o código da API. Sem ele (ex.: servidor da Fase M), os arquivos ficam na fila.
+   */
+  enviarArquivo?(arquivo: EnvioArquivo): Promise<ResultadoEnvioArquivo>;
+}
+
+/** Acesso do motor aos arquivos locais (shell: `expo-file-system`; testes: memória). Caminho relativo aos documentos do app. */
+export interface ArquivosLocais {
+  /** Bytes do arquivo ou `null` se não existe mais. */
+  ler(caminho: string): Promise<Uint8Array | null>;
+  /** Apaga o arquivo local (aceito há 7 dias, descartado ou de módulo desativado). Ausente = não apaga nada. */
+  remover?(caminho: string): Promise<void>;
 }
 
 /** Armazenamento em memória (testes e navegador sem storage). */
@@ -180,6 +215,76 @@ export interface AvisoSync {
   mensagem: string;
 }
 
+/**
+ * Item ACEITO pelo servidor que a tela continua sobrepondo às linhas até o pull trazer a linha (ADR 0009 §3, D-3).
+ * Não conta como "na fila" (`estado.fila`); fica em `estado.aceitos`.
+ */
+export interface ItemAceito extends Omit<ItemOutbox, 'situacao'> {
+  situacao: 'aceito';
+  /** Relógio do aparelho quando a resposta chegou. */
+  aceito_em: string;
+  /** Instante do servidor (banco) depois de gravar (`ResultadoItemPush.em`); `null` = servidor não informou. */
+  aceito_servidor_em: string | null;
+}
+
+/** O que a tela sobrepõe às linhas do pull: itens `pendente`/`falhou` da fila e os `aceito` ainda não cobertos. */
+export type ItemSobreposicao = ItemOutbox | ItemAceito;
+
+/**
+ * Sem `horizonte`/`em` do servidor (ex.: servidor da Fase M), o pull só cobre o aceite se começou esta margem depois
+ * dele no relógio do aparelho (o horizonte do servidor fica ao menos 2 s atrás do relógio dele; ADR 0006).
+ */
+export const MARGEM_ACEITE_SEM_HORIZONTE_MS = 5_000;
+
+/**
+ * Itens para a sobreposição (ADR 0009 §3), na ordem em que foram criados: aceitos ainda não cobertos pelo pull e
+ * `pendente`/`falhou` da fila (`modulo_inativo` fica de fora). Pura sobre o estado: use em `useMemo` com
+ * `[estado.fila, estado.aceitos]`. `entidades` filtra (ex.: `['visita', 'visita_checkout']`).
+ */
+export function itensParaSobrepor(
+  estado: Pick<EstadoMotorSync, 'fila' | 'aceitos'>,
+  entidades?: readonly string[],
+): ItemSobreposicao[] {
+  const quer = entidades ? new Set(entidades) : null;
+  const daFila = estado.fila.filter((i) => i.situacao === 'pendente' || i.situacao === 'falhou');
+  // sort estável: no empate de `criado_em`, o aceito (que estava antes na fila) vem primeiro
+  return [...estado.aceitos, ...daFila]
+    .filter((i) => !quer || quer.has(i.entidade))
+    .sort((a, b) => (a.criado_em < b.criado_em ? -1 : a.criado_em > b.criado_em ? 1 : 0));
+}
+
+// ---------- fila de arquivos (ADR 0010 §4) ----------
+
+/** `enviado` = aceito pelo servidor; fica na fila só até apagar o arquivo local (7 dias). */
+export type SituacaoArquivo = SituacaoItemOutbox | 'enviado';
+
+export interface ItemArquivo {
+  /** UUID gerado no aparelho (o mesmo que o comando do módulo referencia). */
+  id: string;
+  modulo: ModuloId;
+  /** Caminho relativo aos documentos do app (padrão `fotos/<id>.jpg`). */
+  caminho: string;
+  tipo: TipoArquivo;
+  rotulo: string;
+  criado_em: string;
+  tentativas: number;
+  ultimo_erro: string;
+  ultima_tentativa_em: string | null;
+  situacao: SituacaoArquivo;
+  codigo: string | null;
+  enviado_em: string | null;
+}
+
+export interface NovoArquivoFila {
+  id: string;
+  modulo: ModuloId;
+  /** Padrão: `caminhoFoto(id)` (`fotos/<id>.jpg`, onde a câmera do shell grava). */
+  caminho?: string;
+  tipo?: TipoArquivo;
+  /** Texto curto para a tela de sync (ex.: "Foto da fachada · Auto Peças Um"). */
+  rotulo?: string;
+}
+
 export interface NovoItemOutbox {
   id: string;
   entidade: string;
@@ -208,6 +313,8 @@ export interface ContextoEtapaSync extends AmbienteAparelho {
 
 export interface EstadoMotorSync {
   fila: readonly ItemOutbox[];
+  /** Aceitos pelo servidor e ainda sobrepostos até o pull trazer a linha (D-3). Não são "itens na fila". */
+  aceitos: readonly ItemAceito[];
   enviando: boolean;
   sincronizando: boolean;
   /** Rótulo da etapa em andamento da sincronização completa. */
@@ -221,6 +328,8 @@ export interface EstadoMotorSync {
   limpezaPendente: readonly ModuloId[];
   /** Avisos da última sincronização (ADR 0009 §7: "ainda não disponível no servidor"). */
   avisos: readonly AvisoSync[];
+  /** Fila de arquivos (ADR 0010 §4), incluindo os `enviado` ainda guardados no aparelho. */
+  arquivos: readonly ItemArquivo[];
 }
 
 export interface OpcoesMotorSync {
@@ -239,10 +348,16 @@ export interface OpcoesMotorSync {
   etapas?: readonly EtapaSync[];
   /** Mensagem legível de um erro de transporte (o shell traduz HttpError etc.). */
   mensagemDeErro?: (e: unknown) => string;
+  /** Leitura (e remoção) dos arquivos locais da fila de arquivos. Sem ela, os arquivos ficam na fila sem envio. */
+  arquivos?: ArquivosLocais;
 }
 
 const CHAVE = {
   fila: 'sync:fila',
+  /** Itens aceitos ainda sobrepostos (D-3, ADR 0009 §3). */
+  aceitos: 'sync:aceitos',
+  /** Fila de arquivos (ADR 0010 §4), separada da fila de itens. */
+  arquivos: 'sync:arquivos',
   modulos: 'sync:modulos',
   limpeza: 'sync:limpeza_pendente',
   sincronizadoEm: 'sync:sincronizado_em',
@@ -266,11 +381,25 @@ export function rotuloDoItem(item: Pick<ItemOutbox, 'situacao' | 'codigo'>): str
   return ROTULO_SITUACAO[item.situacao];
 }
 
+/** Situação do arquivo na tela de sync. */
+export function rotuloDoArquivo(a: Pick<ItemArquivo, 'situacao' | 'codigo'>): string {
+  if (a.situacao === 'enviado') return 'enviado';
+  if (a.situacao === 'pendente' && a.codigo && CODIGOS_ARQUIVO_RETENTAVEIS.includes(a.codigo))
+    return 'na fila — aguardando o registro chegar ao servidor';
+  return ROTULO_SITUACAO[a.situacao];
+}
+
+const UUID_ARQUIVO_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DIA_MS = 86_400_000;
+
 /** Mensagem do aviso de entidade sem provedor no servidor. */
 export const MENSAGEM_PULL_INDISPONIVEL =
   'Ainda não disponível no servidor; os outros dados foram sincronizados.';
 
 type Linhas = Record<string, LinhaSync>;
+
+/** Até onde a passada completa do pull da entidade garante ter trazido as linhas (D-3); `indisponivel` = 501. */
+type Cobertura = { horizonte: string | null; inicio: string } | 'indisponivel';
 
 export function criarMotorSync(op: OpcoesMotorSync) {
   const agora = op.agora ?? (() => new Date());
@@ -281,6 +410,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
   let estado: EstadoMotorSync = {
     fila: [],
+    aceitos: [],
     enviando: false,
     sincronizando: false,
     etapa: '',
@@ -290,6 +420,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     modulosAtivos: [],
     limpezaPendente: [],
     avisos: [],
+    arquivos: [],
   };
   let envioEmCurso: Promise<ResultadoItemPush[]> | null = null;
   let syncEmCurso: Promise<boolean> | null = null;
@@ -302,6 +433,78 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   const gravarFila = async (fila: ItemOutbox[]) => {
     mudar({ fila });
     await op.armazenamento.gravar(CHAVE.fila, fila);
+  };
+
+  const gravarAceitos = async (aceitos: ItemAceito[]) => {
+    mudar({ aceitos });
+    await op.armazenamento.gravar(CHAVE.aceitos, aceitos);
+  };
+
+  /**
+   * Fila e aceitos mudam juntos no estado (a tela nunca vê o item fora dos dois). No disco, aceitos primeiro: se o app
+   * cair entre as gravações, o item fica nos dois — é reenviado (idempotente) e a sobreposição repetida é inofensiva.
+   */
+  const gravarFilaEAceitos = async (fila: ItemOutbox[], aceitos: ItemAceito[]) => {
+    mudar({ fila, aceitos });
+    await op.armazenamento.gravar(CHAVE.aceitos, aceitos);
+    await op.armazenamento.gravar(CHAVE.fila, fila);
+  };
+
+  /** O pull cobre o aceite? Com os campos do servidor, compara no relógio do banco; sem eles, no do aparelho. */
+  const cobre = (item: ItemAceito, c: Cobertura | undefined): boolean => {
+    if (c === undefined) return false;
+    if (c === 'indisponivel') return true;
+    if (item.aceito_servidor_em && c.horizonte) return Date.parse(c.horizonte) > Date.parse(item.aceito_servidor_em);
+    return Date.parse(c.inicio) - MARGEM_ACEITE_SEM_HORIZONTE_MS > Date.parse(item.aceito_em);
+  };
+
+  /**
+   * Entidades de pull que precisam cobrir o aceite: a própria (estado, `ambos`) ou, num comando só de push
+   * (`visita_checkout`, `notificacao_leitura`), todas as de pull do mesmo módulo. Nenhuma = nada a esperar.
+   */
+  const alvosDoAceite = (item: ItemAceito): string[] => {
+    const def = op.registro.entidade(item.entidade);
+    if (def?.direcao === 'ambos') return [def.nome];
+    return op.registro.entidadesAtivas([item.modulo], 'pull').map((e) => e.nome);
+  };
+
+  /** Fim da sincronização: sai da sobreposição o aceito cuja linha o pull já trouxe (D-3). */
+  const liberarAceitos = async (coberturas: ReadonlyMap<string, Cobertura>) => {
+    if (estado.aceitos.length === 0) return;
+    const ficam = estado.aceitos.filter((i) => !alvosDoAceite(i).every((e) => cobre(i, coberturas.get(e))));
+    if (ficam.length !== estado.aceitos.length) await gravarAceitos(ficam);
+  };
+
+  /** RN-CORE-02: os aceitos do módulo desativado saem da sobreposição (os dados dele saem do aparelho). */
+  const descartarAceitosDoModulo = async (modulo: ModuloId) => {
+    if (estado.aceitos.some((i) => i.modulo === modulo))
+      await gravarAceitos(estado.aceitos.filter((i) => i.modulo !== modulo));
+  };
+
+  const gravarArquivos = async (arquivos: ItemArquivo[]) => {
+    mudar({ arquivos });
+    await op.armazenamento.gravar(CHAVE.arquivos, arquivos);
+  };
+
+  /** Apaga o arquivo local sem derrubar o fluxo (arquivo já ausente não é erro). */
+  const removerLocal = async (caminho: string) => {
+    try {
+      await op.arquivos?.remover?.(caminho);
+    } catch {
+      // o arquivo pode já não existir; a fila segue
+    }
+  };
+
+  /** Arquivo ainda não aceito do módulo (conta para a limpeza pendente, RN-CORE-02). */
+  const temArquivoPendente = (modulo: ModuloId) =>
+    estado.arquivos.some((a) => a.modulo === modulo && a.situacao !== 'enviado');
+
+  /** RN-CORE-02: os arquivos do módulo desativado saem da fila e do aparelho. */
+  const descartarArquivosDoModulo = async (modulo: ModuloId) => {
+    const doModulo = estado.arquivos.filter((a) => a.modulo === modulo);
+    if (doModulo.length === 0) return;
+    await gravarArquivos(estado.arquivos.filter((a) => a.modulo !== modulo));
+    for (const a of doModulo) await removerLocal(a.caminho);
   };
 
   const gravarLimpeza = async (limpezaPendente: ModuloId[]) => {
@@ -375,6 +578,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         resultados.push(...resposta);
         let parar = false;
         const fila: ItemOutbox[] = [];
+        const aceitos: ItemAceito[] = [];
         for (const it of estado.fila) {
           const r = porId.get(it.id);
           if (!lote.some((l) => l.id === it.id)) {
@@ -388,7 +592,17 @@ export function criarMotorSync(op: OpcoesMotorSync) {
               ultima_tentativa_em: quando,
             });
           } else if (r.status === 'aceito') {
-            // enviado: sai da fila
+            // enviado: sai da fila, mas continua sobreposto até o pull trazer a linha (D-3, ADR 0009 §3)
+            aceitos.push({
+              ...it,
+              situacao: 'aceito',
+              tentativas: it.tentativas + 1,
+              ultimo_erro: '',
+              ultima_tentativa_em: quando,
+              codigo: null,
+              aceito_em: agora().toISOString(),
+              aceito_servidor_em: r.em ?? null,
+            });
           } else if (r.status === 'rejeitado' && CODIGOS_RETENTAVEIS.includes(r.codigo)) {
             // ADR 0009 §7: o servidor ainda não recebe a entidade — o item não tem culpa, continua na fila
             fila.push({
@@ -420,7 +634,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
             });
           }
         }
-        await gravarFila(fila);
+        if (aceitos.length > 0) {
+          const novos = new Set(aceitos.map((x) => x.id));
+          await gravarFilaEAceitos(fila, [...estado.aceitos.filter((x) => !novos.has(x.id)), ...aceitos]);
+        } else await gravarFila(fila);
         if (parar) break;
       }
     } finally {
@@ -429,13 +646,87 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     return resultados;
   };
 
+  // ---------- envio de arquivos (ADR 0010 §4) ----------
+  const enviarArquivosAgora = async (incluirFalhos: boolean): Promise<void> => {
+    const ler = op.arquivos?.ler;
+    const enviarArquivo = op.transporte.enviarArquivo?.bind(op.transporte);
+    // aceitos há 7 dias ou mais: apaga o arquivo local e sai da fila (a tela já não precisa da foto offline)
+    const limite = agora().getTime() - DIAS_RETENCAO_ARQUIVO_LOCAL * DIA_MS;
+    const vencidos = estado.arquivos.filter(
+      (a) => a.situacao === 'enviado' && a.enviado_em !== null && Date.parse(a.enviado_em) <= limite,
+    );
+    if (vencidos.length > 0) {
+      const ids = new Set(vencidos.map((a) => a.id));
+      await gravarArquivos(estado.arquivos.filter((a) => !ids.has(a.id)));
+      for (const a of vencidos) await removerLocal(a.caminho);
+    }
+    if (incluirFalhos && estado.arquivos.some((a) => a.situacao === 'falhou'))
+      await gravarArquivos(
+        estado.arquivos.map((a) => (a.situacao === 'falhou' ? { ...a, situacao: 'pendente' as const } : a)),
+      );
+    if (!ler || !enviarArquivo || !online()) return;
+    const aEnviar = estado.arquivos.filter((a) => a.situacao === 'pendente').map((a) => a.id);
+    const atualizar = (id: string, mudanca: Partial<ItemArquivo>) =>
+      gravarArquivos(estado.arquivos.map((a) => (a.id === id ? { ...a, ...mudanca } : a)));
+    for (const id of aEnviar) {
+      if (!online()) break;
+      const item = estado.arquivos.find((a) => a.id === id);
+      if (!item || item.situacao !== 'pendente') continue; // descartado durante o envio
+      const quando = agora().toISOString();
+      const tentativas = item.tentativas + 1;
+      const bytes = await ler(item.caminho).catch(() => null);
+      if (!bytes) {
+        await atualizar(id, {
+          situacao: 'falhou',
+          codigo: CODIGOS_ARQUIVO.ausenteNoAparelho,
+          ultimo_erro: 'O arquivo não está mais no aparelho. Descarte e registre de novo.',
+          tentativas,
+          ultima_tentativa_em: quando,
+        });
+        continue;
+      }
+      let r: ResultadoEnvioArquivo;
+      try {
+        r = await enviarArquivo({ id: item.id, tipo: item.tipo, bytes });
+      } catch (e) {
+        // sem rede / 5xx: conta a tentativa e para (os próximos também falhariam)
+        await atualizar(id, { tentativas, ultimo_erro: msg(e), ultima_tentativa_em: quando });
+        break;
+      }
+      if (r.status === 'aceito') {
+        await atualizar(id, {
+          situacao: 'enviado',
+          enviado_em: quando,
+          codigo: null,
+          ultimo_erro: '',
+          tentativas,
+          ultima_tentativa_em: quando,
+        });
+        continue;
+      }
+      const situacao: SituacaoArquivo = CODIGOS_ARQUIVO_RETENTAVEIS.includes(r.codigo)
+        ? 'pendente'
+        : r.codigo === 'MODULO_INATIVO'
+          ? 'modulo_inativo'
+          : 'falhou';
+      await atualizar(id, { situacao, codigo: r.codigo, ultimo_erro: r.mensagem, tentativas, ultima_tentativa_em: quando });
+    }
+  };
+
   // ---------- recebimento (pull) ----------
   /**
    * Puxa todas as páginas da entidade. `'indisponivel'` = o servidor respondeu 501 `SYNC_NAO_IMPLEMENTADO` (nada
    * muda no aparelho). Ressincroniza quando a `versao_escopo` da página difere da guardada (ADR 0009 §4).
    */
-  const puxarEntidade = async (entidade: string): Promise<'ok' | 'indisponivel'> => {
+  const puxarEntidade = async (
+    entidade: string,
+    coberturas?: Map<string, Cobertura>,
+  ): Promise<'ok' | 'indisponivel'> => {
     const a = op.armazenamento;
+    const inicio = agora().toISOString();
+    /** Menor horizonte entre as páginas: a passada inteira trouxe toda linha com `updated_at` abaixo dele (D-3). */
+    let horizonte: string | null = null;
+    let semHorizonte = false;
     const versaoGuardada = await a.ler<string>(CHAVE.escopo(entidade));
     let cursor = await a.ler<string>(CHAVE.cursor(entidade));
     // caminho chave→JSON: o mapa é lido uma vez e regravado por página (com `linhas`, o adaptador grava por linha)
@@ -446,9 +737,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       try {
         pagina = await op.transporte.pull(entidade, cursor);
       } catch (e) {
-        if (ehSyncNaoImplementado(e) && !ressinc) return 'indisponivel';
+        if (ehSyncNaoImplementado(e) && !ressinc) {
+          coberturas?.set(entidade, 'indisponivel');
+          return 'indisponivel';
+        }
         throw e;
       }
+      if (!pagina.horizonte) semHorizonte = true;
+      else if (horizonte === null || Date.parse(pagina.horizonte) < Date.parse(horizonte)) horizonte = pagina.horizonte;
       const versao = pagina.versao_escopo;
       if (!ressinc && versao !== undefined && versao !== versaoGuardada) {
         ressinc = { versao, vistos: new Set() };
@@ -492,6 +788,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       // só agora: se o app cair no meio, a próxima passada ainda vê a versão antiga e ressincroniza de novo
       await a.gravar(CHAVE.escopo(entidade), versao);
     }
+    coberturas?.set(entidade, { horizonte: semHorizonte ? null : horizonte, inicio });
     return 'ok';
   };
 
@@ -503,14 +800,18 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
     /** Lê do armazenamento a fila, os módulos e as pendências (chamar uma vez ao abrir o app / trocar de usuário). */
     async carregar(): Promise<void> {
-      const [fila, modulos, limpeza, sincronizadoEm] = await Promise.all([
+      const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos] = await Promise.all([
         op.armazenamento.ler<ItemOutbox[]>(CHAVE.fila),
         op.armazenamento.ler<ModuloId[]>(CHAVE.modulos),
         op.armazenamento.ler<ModuloId[]>(CHAVE.limpeza),
         op.armazenamento.ler<string>(CHAVE.sincronizadoEm),
+        op.armazenamento.ler<ItemArquivo[]>(CHAVE.arquivos),
+        op.armazenamento.ler<ItemAceito[]>(CHAVE.aceitos),
       ]);
       mudar({
         fila: fila ?? [],
+        aceitos: aceitos ?? [],
+        arquivos: arquivos ?? [],
         modulosAtivos: modulos ?? [],
         limpezaPendente: limpeza ?? [],
         sincronizado_em: sincronizadoEm,
@@ -581,10 +882,59 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       await gravarFila(estado.fila.filter((i) => i.id !== id));
     },
 
-    /** Envia a fila em ordem. Uma execução por vez (chamadas simultâneas recebem a mesma promessa). */
+    /**
+     * Põe um arquivo (foto) na fila de arquivos (ADR 0010 §4). Mesmo id não entra duas vezes. Enfileire DEPOIS do
+     * comando que o referencia (`enfileirar`): o upload só é aceito quando o comando já chegou ao servidor.
+     */
+    async enfileirarArquivo(novo: NovoArquivoFila): Promise<ItemArquivo> {
+      const id = novo.id.toLowerCase();
+      const existente = estado.arquivos.find((a) => a.id === id);
+      if (existente) return existente;
+      if (!UUID_ARQUIVO_RE.test(id)) throw new Error('Arquivo: id precisa ser o UUID gerado no aparelho');
+      const tipo = novo.tipo ?? 'image/jpeg';
+      if (!(TIPOS_ARQUIVO as readonly string[]).includes(tipo)) throw new Error(`Arquivo: tipo ${tipo} não aceito`);
+      const item: ItemArquivo = {
+        id,
+        modulo: novo.modulo,
+        caminho: novo.caminho ?? caminhoFoto(id),
+        tipo,
+        rotulo: novo.rotulo ?? 'Foto',
+        criado_em: agora().toISOString(),
+        tentativas: 0,
+        ultimo_erro: '',
+        ultima_tentativa_em: null,
+        situacao: 'pendente',
+        codigo: null,
+        enviado_em: null,
+      };
+      await gravarArquivos([...estado.arquivos, item]);
+      return item;
+    },
+
+    /** Tira o arquivo da fila e apaga o arquivo local (o usuário desistiu dele ou vai registrar de novo). */
+    async descartarArquivo(id: string): Promise<void> {
+      const a = estado.arquivos.find((x) => x.id === id.toLowerCase());
+      if (!a) return;
+      await gravarArquivos(estado.arquivos.filter((x) => x.id !== a.id));
+      await removerLocal(a.caminho);
+    },
+
+    /** Arquivos ainda não aceitos pelo servidor ("Fotos pendentes: N" na tela de sync). */
+    arquivosPendentes(): readonly ItemArquivo[] {
+      return estado.arquivos.filter((a) => a.situacao !== 'enviado');
+    },
+
+    /**
+     * Envia a fila de itens em ordem e, depois, a fila de arquivos (ADR 0010 §4). Uma execução por vez (chamadas
+     * simultâneas recebem a mesma promessa). Devolve os resultados dos itens.
+     */
     enviar(opcoes: { incluirFalhos?: boolean } = {}): Promise<ResultadoItemPush[]> {
       if (envioEmCurso) return envioEmCurso;
-      envioEmCurso = enviarAgora(!!opcoes.incluirFalhos).finally(() => {
+      envioEmCurso = (async () => {
+        const r = await enviarAgora(!!opcoes.incluirFalhos);
+        await enviarArquivosAgora(!!opcoes.incluirFalhos);
+        return r;
+      })().finally(() => {
         envioEmCurso = null;
       });
       return envioEmCurso;
@@ -602,13 +952,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         const etapas = (op.etapas ?? []).filter((e) => ativos().has(e.modulo));
         const total = 1 + entidades.length + etapas.length;
         mudar({ sincronizando: true, erro: null, etapa: 'Enviando a fila', progresso: 0, avisos: [] });
+        const coberturas = new Map<string, Cobertura>();
         try {
           await motor.enviar();
           let feito = 1;
           const avisos: AvisoSync[] = [];
           for (const e of entidades) {
             mudar({ etapa: e, progresso: feito / total });
-            if ((await puxarEntidade(e)) === 'indisponivel') {
+            if ((await puxarEntidade(e, coberturas)) === 'indisponivel') {
               avisos.push({
                 entidade: e,
                 codigo: SYNC_NAO_IMPLEMENTADO,
@@ -630,11 +981,16 @@ export function criarMotorSync(op: OpcoesMotorSync) {
             });
             feito++;
           }
+          // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3)
+          await op.armazenamento.busca?.finalizar?.();
+          await liberarAceitos(coberturas);
           const quando = agora().toISOString();
           await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
           mudar({ sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: quando });
           return true;
         } catch (e) {
+          // o que já foi puxado nesta passada vale: sai da sobreposição o aceito que as entidades que chegaram cobrem
+          await liberarAceitos(coberturas).catch(() => undefined);
           mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
           return false;
         }
@@ -655,6 +1011,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       await op.armazenamento.gravar(CHAVE.modulos, [...modulos]);
       // módulo que voltou: itens marcados como "módulo desativado" voltam para a fila
       const voltaram = estado.fila.some((i) => i.situacao === 'modulo_inativo' && novos.has(i.modulo));
+      if (estado.arquivos.some((a) => a.situacao === 'modulo_inativo' && novos.has(a.modulo)))
+        await gravarArquivos(
+          estado.arquivos.map((a) =>
+            a.situacao === 'modulo_inativo' && novos.has(a.modulo)
+              ? { ...a, situacao: 'pendente' as const, codigo: null, ultimo_erro: '' }
+              : a,
+          ),
+        );
       if (voltaram)
         await gravarFila(
           estado.fila.map((i) =>
@@ -666,11 +1030,13 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       let limpeza = estado.limpezaPendente.filter((m) => !novos.has(m));
       let tentarEnviar = false;
       for (const m of anteriores.filter((x) => !novos.has(x))) {
-        if (estado.fila.some((i) => i.modulo === m)) {
+        if (estado.fila.some((i) => i.modulo === m) || temArquivoPendente(m)) {
           if (!limpeza.includes(m)) limpeza = [...limpeza, m];
           tentarEnviar = true;
         } else {
           await emTransacao((a) => limparModulo(m, a));
+          await descartarArquivosDoModulo(m);
+          await descartarAceitosDoModulo(m);
         }
       }
       await gravarLimpeza(limpeza);
@@ -689,6 +1055,23 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         await a.gravar(CHAVE.limpeza, limpeza);
       });
       mudar({ fila, limpezaPendente: limpeza });
+      await descartarArquivosDoModulo(modulo);
+      await descartarAceitosDoModulo(modulo);
+    },
+
+    /**
+     * RN-CORE-15 (aparelho bloqueado): apaga TUDO o que o motor guarda deste usuário — linhas, cursores, versões de
+     * escopo, chaves `mod:*`, estruturas próprias dos módulos, fila de itens e fila de arquivos (com os arquivos locais
+     * que ela conhece). Numa transação quando o adaptador sabe. Fotos ainda não enfileiradas são do shell (pasta `fotos/`).
+     */
+    async limparAparelho(): Promise<void> {
+      const arquivos = estado.arquivos;
+      await emTransacao(async (a) => {
+        for (const m of MODULOS) await limparModulo(m, a);
+        for (const k of await a.chaves('')) await a.remover(k);
+      });
+      mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null });
+      for (const x of arquivos) await removerLocal(x.caminho);
     },
 
     /** Registros locais de uma entidade (sem os removidos). */
@@ -709,13 +1092,26 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     },
 
     /**
-     * Itens ainda não aceitos da entidade (`pendente` e `falhou`), na ordem da fila: a tela os sobrepõe às linhas do
-     * pull com a função pura do módulo (ADR 0009 §3, ex.: `aplicarPendentesVisita`). O pull nunca os apaga.
+     * O que a tela sobrepõe às linhas do pull (ADR 0009 §3, ex.: `aplicarPendentesVisita`): `pendente`/`falhou` da fila
+     * e os aceitos que o pull ainda não trouxe (D-3), na ordem de criação. Igual a `itensParaSobrepor(estado, entidades)`.
      */
+    sobreposicao(entidades?: readonly string[]): ItemSobreposicao[] {
+      return itensParaSobrepor(estado, entidades);
+    },
+
+    /** Itens ainda não aceitos da entidade (`pendente` e `falhou`), na ordem da fila. Para sobrepor, use `sobreposicao`. */
     pendentes(entidade: string): readonly ItemOutbox[] {
       return estado.fila.filter(
         (i) => i.entidade === entidade && (i.situacao === 'pendente' || i.situacao === 'falhou'),
       );
+    },
+
+    /**
+     * Busca textual num índice registrado (`definirModuloShell({ indicesBusca })`): chaves por relevância. Sem a
+     * capacidade no armazenamento, `null` (a tela filtra em memória como antes). Entrada hostil nunca lança.
+     */
+    async buscar(indice: string, consulta: ConsultaTexto): Promise<ResultadoBusca[] | null> {
+      return op.armazenamento.busca ? op.armazenamento.busca.buscar(indice, consulta) : null;
     },
 
     /** Armazenamento próprio do módulo (prefixo `mod:<m>:`), apagado junto com o módulo (RN-CORE-02). */

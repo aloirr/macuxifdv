@@ -1,13 +1,18 @@
 import type { ComponentType } from 'react';
-import { definirEntidadeSync, definirModuloShell } from '@macuxi/platform-sdk';
-import { z } from 'zod';
-import { CheckoutVisitRequest, CreateVisitRequest, Id } from '../contracts';
+import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
+import type { CardInicio } from '../contracts';
 import { comVisitas } from './components/visit-sheets';
 import { etapasCore } from './lib/cargas';
+import { entidadesCliente } from './lib/entidades-cliente';
+import { entidadesMeta } from './lib/entidades-meta';
+import { entidadesNotificacao } from './lib/entidades-notificacao';
+import { entidadesRota } from './lib/entidades-rota';
 import { TelaCliente } from './telas/cliente';
 import { TelaClientes } from './telas/clientes';
 import { TelaMetas } from './telas/metas';
+import { CardNotificacoes } from './components/card-notificacoes';
+import { TelaNotificacoes } from './telas/notificacoes';
 import { TelaMeusModulos } from './telas/meus-modulos';
 import { TelaRota } from './telas/rota';
 
@@ -28,20 +33,23 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'clientes', caminho: 'clientes', titulo: 'Clientes', navegacao: 'Clientes', icone: 'users', apps: ['campo', 'gestao'], ordem: 30, componente: comVisitas(TelaClientes) },
     { id: 'metas', caminho: 'metas', titulo: 'Metas', navegacao: 'Metas', icone: 'target', apps: ['campo'], ordem: 50, componente: TelaMetas },
     { id: 'meus-modulos', caminho: 'meus-modulos', titulo: 'Meus módulos', apps: ['campo', 'gestao'], componente: TelaMeusModulos },
+    { id: 'notificacoes', caminho: 'notificacoes', titulo: 'Notificações', apps: ['campo', 'gestao'], componente: TelaNotificacoes },
     { id: 'cliente', caminho: 'cliente', titulo: 'Ficha do cliente', apps: ['campo', 'gestao'], componente: comVisitas(TelaCliente) },
   ],
   entidadesSync: [
-    definirEntidadeSync({
-      nome: 'visita',
-      modulo: 'core',
-      direcao: 'ambos',
-      conflito: 'servidor_vence',
-      // push: check-in (CreateVisitRequest) ou checkout ({ visit_id, ...CheckoutVisitRequest }); pull: visita do servidor
-      schema: z.union([CreateVisitRequest, z.intersection(z.object({ visit_id: Id }), CheckoutVisitRequest)]),
-    }),
+    // Cliente 360 offline (T-0017): pull filtrado pela carteira no servidor; a ficha e a lista leem do aparelho
+    ...entidadesCliente,
+    // Rota e visitas reais (T-0018): pull de motivo/rota/rota_parada/visita; push de visita (check-in) e visita_checkout
+    ...entidadesRota,
+    // Metas e vendas diárias (T-0020): pull dos usuários visíveis; o painel lê do aparelho
+    ...entidadesMeta,
+    // Central de notificações (T-0019): pull do próprio usuário; push da leitura
+    ...entidadesNotificacao,
   ],
+  extensoes: [{ slot: 'inicio.cards', id: 'notificacoes', payload: { testID: 'inicio.card-notificacoes', componente: CardNotificacoes } satisfies CardInicio<ComponentType> }],
   etapasSync: etapasCore,
 });
 
 export { TelaLogin, type PropsTelaLogin } from './components/tela-login';
 export { entrarComSenha, mensagemDeErroDeLogin, validarLogin, type CamposLogin } from './lib/login';
+export { ehAparelhoBloqueado, tratarAparelhoBloqueado, type AcoesAparelhoBloqueado } from './lib/aparelho-bloqueado';

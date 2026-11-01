@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RouteDay, Seller } from '../../../contracts';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { formatInt, IconChevronRight, IconPlus, Badge, Button, cx, ErrorBlock, FilterBar, KpiCard, KpiGrid, LoadingBlock, PageHeader, SelectField, SkeletonCards } from '@macuxi/ui/web';
-import { useMe, useRoutes, useSellers, useTeams } from '../../lib/queries';
+import { useMe, useRoutes, useSellersDeCampo, useTeamsDeCampo } from '../../lib/queries';
 import {
   buildMapRoutes,
   businessDaysIn,
@@ -118,8 +118,8 @@ export function RoutesPage() {
   const router = useRouter();
   const pathname = usePathname();
   const me = useMe();
-  const teams = useTeams();
-  const sellers = useSellers();
+  const teams = useTeamsDeCampo();
+  const sellers = useSellersDeCampo();
   const today = me.data?.today ?? '';
   const canEdit = usePode('rota.editar');
 

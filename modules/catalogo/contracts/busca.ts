@@ -16,8 +16,6 @@ export const ParametrosCatalogo = z
   .object({
     /** RN-CAT-03: limite de consultas de IA por usuário/dia ([200]); 0 desliga a busca inteligente. Só consulta respondida conta. */
     limite_consultas_ia_dia: z.number().int().min(0).default(200),
-    /** Fuso do tenant: define a virada do dia do limite e o "atualizado às hh:mm" (doc 03: America/Manaus). */
-    fuso: z.string().min(1).default('America/Manaus'),
     /** RN-CAT-05: false (padrão) = promotor vê ficha e fotos sem preço de tabela e sem estoque; true = vê como o vendedor. */
     promotor_ve_preco_estoque: z.boolean().default(false),
     /** RN-CAT-07: faixa "baixo" = saldo de 1 até este valor ([10]). */

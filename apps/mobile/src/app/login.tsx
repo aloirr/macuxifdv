@@ -6,7 +6,7 @@
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`); entram só os perfis da variante (`PERFIS_DO_APP`).
  * Embaixo, o endereço do servidor pode ser editado (testado na rota de saúde de cada servidor).
  */
-import { TelaLogin, type CamposLogin } from '@macuxi/core/app';
+import { ehAparelhoBloqueado, TelaLogin, type CamposLogin } from '@macuxi/core/app';
 import type { FakeUser } from '@macuxi/core/contracts';
 import { ErroHttp, PERFIS_DO_APP, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
 import { Banner, Button, Card, colors, fonts, Icon, initials, radius, Screen, type as t } from '@macuxi/ui/mobile';
@@ -26,9 +26,9 @@ export default function LoginScreen() {
   return modo === 'demo' ? <LoginDemo /> : <LoginReal />;
 }
 
-/** Login real: tela do Core + aviso de perfil de outro app + servidor. */
+/** Login real: tela do Core + aviso de perfil de outro app + aviso de aparelho bloqueado (RN-CORE-15) + servidor. */
 function LoginReal() {
-  const { codigoSalvo, loginComSenha, variante } = usePlataforma();
+  const { avisoLogin, codigoSalvo, loginComSenha, variante } = usePlataforma();
   const [aviso, setAviso] = useState<string | null>(null);
   const entrar = async (campos: CamposLogin) => {
     setAviso(null);
@@ -40,6 +40,8 @@ function LoginReal() {
         setAviso(e.message);
         return;
       }
+      // RN-CORE-15: o aparelho já foi limpo; o aviso fica no banner abaixo (sem repetir no formulário)
+      if (ehAparelhoBloqueado(e)) return;
       throw e;
     }
   };
@@ -47,6 +49,11 @@ function LoginReal() {
     <View style={{ flex: 1, backgroundColor: colors.ground }}>
       <TelaLogin codigoSalvo={codigoSalvo} onEntrar={entrar} rodape={variante === 'gestao' ? 'Macuxi Gestão · supervisores e gerentes' : 'Macuxi Campo · vendedores e promotores'} />
       <View style={styles.rodape}>
+        {avisoLogin ? (
+          <Banner icon="alert" tone="danger" testID="login.aparelho-bloqueado">
+            {avisoLogin}
+          </Banner>
+        ) : null}
         {aviso ? (
           <Banner icon="alert" tone="warning" testID="login.perfil-fora-do-app">
             {aviso}

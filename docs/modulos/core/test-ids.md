@@ -47,3 +47,41 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 - Item de menu e página só para `admin`; a API revalida (`modulo.gerir_licencas`).
 - Desligar módulo com dependentes mostra `licencas.aviso-dependencia` antes de confirmar.
 - Alvos de toque do app ≥ 48 dp.
+
+## Tela Aparelhos do BKO (RN-CORE-15) e Cliente 360 do app (T-0017)
+| testID | Onde |
+|---|---|
+| `aparelhos.tela` · `aparelhos.exportar-csv` · `aparelhos.filtro-situacao` · `aparelhos.busca` | página Aparelhos |
+| `aparelhos.linha.<id>` · `aparelhos.alternar.<id>` | linha e botão Bloquear/Liberar |
+| `aparelhos.confirmar` · `aparelhos.cancelar` | diálogo de confirmação |
+| `clientes-locais` | lista de Clientes do app lida do aparelho |
+| `filter-vencidos` · `filter-sem_compra` · `filter-bloqueados` | filtros da lista local |
+| `cliente-360` · `cliente-financeiro` · `cliente-historico` | seções da ficha (app) |
+| `cliente-acoes-contato` · `cliente-ligar` · `cliente-whatsapp` · `cliente-mapa` | ligar, WhatsApp e mapa em 1 toque (48 dp) |
+
+## T-0018 — rotas, visitas, motivos e coordenadas (BKO) · check-in e checkout (app)
+
+| testID | Onde |
+|---|---|
+| `visitas.tela` · `visitas.exportar-csv` · `visitas.filtro-de` · `visitas.filtro-ate` · `visitas.filtro-usuario` · `visitas.filtro-fora` | página Visitas |
+| `visitas.linha.<id>` · `visitas.justificativa.<id>` · `visitas.ver-foto.<id>` · `visitas.foto` · `visitas.fechar-foto` | linha, justificativa fora do raio, foto da fachada |
+| `coordenadas.tela` · `coordenadas.sugestao.<visita_id>` · `coordenadas.aprovar.<visita_id>` | página Coordenadas sugeridas |
+| `motivos.tela` · `motivos.novo` · `motivos.linha.<codigo>` · `motivos.editar.<codigo>` · `motivos.remover.<codigo>` · `motivos.descricao` · `motivos.ativo` · `motivos.salvar` | página Motivos |
+| `carteira.tela` · `carteira.exportar-csv` · `carteira.filtro-usuario` · `carteira.busca` · `carteira.vincular.<cliente_id>` · `carteira.linha.<cliente_id>` · `carteira.frequencia.<cliente_id>` · `carteira.dia.<cliente_id>` · `carteira.desvincular.<cliente_id>` | página Carteira |
+| `cliente360.tela` · `cliente360.contato.<id>` | página Cliente 360 (`/cliente?id=`) |
+| `checkin-justificar` · `checkin-justificativa` · `checkin-confirmar-justificativa` · `checkin-cancelar` | folha do check-in fora do raio (RN-CORE-10) |
+| `checkout-atendido` · `reason-<codigo>` · `checkout-erro` | folha do checkout (promotor "atendido"; chips de motivo vindos de `motivo`) |
+
+## T-0019 — notificações (app) e recados (BKO)
+
+| testID | Onde |
+|---|---|
+| `notificacoes.tela` · `notificacoes.resumo` · `notificacoes.vazio` · `notificacoes.item.<id>` | tela Notificações do app (`/m/notificacoes`, offline) |
+| `inicio.card-notificacoes` | card "N avisos não lidos" no Início (slot `inicio.cards`) |
+| `recados.tela` · `recados.titulo` · `recados.corpo` · `recados.prioridade` · `recados.destino.<usuario_id>` · `recados.enviar` · `recados.caixa` · `recados.item.<id>` · `recados.enviados` · `recados.enviado.<notificacao_id>` (por destinatário: lida/não lida e lida_em; só quem enviou ou tem escopo) | página Recados do BKO (ação `notificacao.enviar`) |
+
+## Contratos e regras desta onda (O-5, RN-CORE-10, T-0019)
+
+- **RN-CORE-15 (corte imediato)**: o JWT de acesso leva `did` (aparelho da sessão); `autenticar` consulta `core.dispositivo` pela chave primária a cada requisição e responde 423 `DISPOSITIVO_BLOQUEADO`. Sem cache: o bloqueio vale na próxima requisição. Sessão sem aparelho (login sem `dispositivo_id`) não tem `did`.
+- **RN-CORE-10 (raio)**: fonte única `plataforma.parametro` (`core`/`checkin.raio_m`, padrão 200). O servidor lê em `raioDoTenant`; o app recebe pelo pull `parametro` (somente essa chave) e usa `estado.raioCheckinM`; antes do primeiro sync vale `RAIO_CHECKIN_PADRAO_M` do domínio.
+- **T-0019**: pull `notificacao` (escopo `proprio`), push `notificacao_leitura` (`somente_insercao`), rotas `GET/POST notificacoes`, `POST notificacoes/:id/lida`, `PUT dispositivos/atual/push` (corpo com `dispositivo_id`), ação `notificacao.enviar`, evento `core.notificacao.criada@1` (sem título/corpo). Push real: `api/push.ts`, desligado até `MACUXI_PUSH_ATIVO=1` e o build EAS.

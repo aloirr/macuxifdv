@@ -5,7 +5,7 @@
  * Senha e token nunca vão para log, nem para o armazenamento do módulo (o shell guarda o token em área segura).
  */
 import { ehSemConexao } from '@macuxi/platform-sdk';
-import { CODIGOS_AUTH, LoginSenhaRequestSchema, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
 
 export interface CamposLogin {
   codigo_empresa: string;
@@ -38,6 +38,8 @@ export function mensagemDeErroDeLogin(e: unknown): string {
       return 'Código da empresa, e-mail ou senha incorretos. Confira os dados e tente de novo.';
     case CODIGOS_AUTH.bloqueado:
       return 'Seu acesso está bloqueado. Fale com o administrador da sua empresa ou tente de novo mais tarde.';
+    case CODIGO_DISPOSITIVO_BLOQUEADO:
+      return AVISO_APARELHO_LIMPO;
     case CODIGOS_AUTH.muitasTentativas:
       return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.';
     case CODIGOS_AUTH.sessao:

@@ -10,7 +10,7 @@ import { clientesVisiveis } from '../domain';
 
 const VIGENTE = '(c.inicio is null or c.inicio <= current_date) and (c.fim is null or c.fim >= current_date) and c.deleted_at is null';
 
-const EQUIPES_DO_RESPONSAVEL = `
+export const EQUIPES_DO_RESPONSAVEL = `
   with recursive eq as (
     select id, 0 as nivel from core.equipe where responsavel_id = $1 and deleted_at is null and ativo
     union all

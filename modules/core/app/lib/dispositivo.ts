@@ -1,6 +1,5 @@
 /**
- * Coisas que dependem do aparelho: UUID (idempotência, gerado no aparelho) e localização do check-in.
- * Copiado de services/device.ts da Fase M (o shell tem a própria cópia; o módulo não importa apps/*).
+ * Coisas que dependem do aparelho: UUID (idempotência, gerado no aparelho) e localização do check-in/checkout.
  * Não é importado pelos testes (depende de expo/react-native).
  */
 import * as Crypto from 'expo-crypto';
@@ -25,32 +24,29 @@ export function uuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export interface Position {
-  lat: number | null;
-  lng: number | null;
-  source: 'gps' | 'customer';
+export interface PosicaoDoAparelho {
+  lat: number;
+  lng: number;
+  precisao_m: number | null;
 }
 
 /**
- * Localização do check-in. No navegador, ou se a permissão for negada/demorar, usa a do cliente
- * (fase M: o mockup roda no PC, longe do cliente).
+ * Posição do check-in/checkout (RN-CORE-13): lida UMA vez, no momento da ação; nunca rastro. Sem permissão, sem sinal de
+ * GPS (8 s) ou no navegador devolve `null` e o atendimento segue marcado "sem GPS" — não se usa mais a coordenada do
+ * cliente como reserva (isso escondia o fora do raio, RN-CORE-10).
  */
-export async function currentPosition(fallback: { lat: number | null; lng: number | null }): Promise<Position> {
-  const fb: Position = { lat: fallback.lat, lng: fallback.lng, source: 'customer' };
-  if (Platform.OS === 'web') return fb;
+export async function gpsAgora(): Promise<PosicaoDoAparelho | null> {
+  if (Platform.OS === 'web') return null;
   try {
     const perm = await Location.requestForegroundPermissionsAsync();
-    if (perm.status !== 'granted') return fb;
+    if (perm.status !== 'granted') return null;
     const pos = await Promise.race([
       Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
     ]);
-    if (!pos) {
-      const last = await Location.getLastKnownPositionAsync();
-      return last ? { lat: last.coords.latitude, lng: last.coords.longitude, source: 'gps' } : fb;
-    }
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'gps' };
+    const p = pos ?? (await Location.getLastKnownPositionAsync());
+    return p ? { lat: p.coords.latitude, lng: p.coords.longitude, precisao_m: p.coords.accuracy ?? null } : null;
   } catch {
-    return fb;
+    return null;
   }
 }

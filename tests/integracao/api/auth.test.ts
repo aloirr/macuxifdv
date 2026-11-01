@@ -113,9 +113,12 @@ describe.skipIf(semBanco())('T-0003 — login, sessão e bloqueio pela API real 
     }
   });
 
-  it('aparelho bloqueado: login do promotor pelo aparelho bloqueado → 423; por outro aparelho → 200', async () => {
+  it('aparelho bloqueado (RN-CORE-15): login pelo aparelho bloqueado → 423 DISPOSITIVO_BLOQUEADO para qualquer usuário do tenant; por outro aparelho → 200', async () => {
     const r = await api.entrar('promotor@exemplo.com.br', { dispositivo_id: A.dispositivos.promotorBloqueado });
-    expect([r.statusCode, erroDe(r).codigo]).toEqual([423, 'USUARIO_BLOQUEADO']);
+    expect([r.statusCode, erroDe(r).codigo]).toEqual([423, 'DISPOSITIVO_BLOQUEADO']);
+    // o bloqueio é do aparelho no tenant inteiro: outro usuário de A também não entra por ele
+    const outro = await api.entrar('vendedor@exemplo.com.br', { dispositivo_id: A.dispositivos.promotorBloqueado });
+    expect([outro.statusCode, erroDe(outro).codigo]).toEqual([423, 'DISPOSITIVO_BLOQUEADO']);
     expect((await api.entrar('promotor@exemplo.com.br', { dispositivo_id: '0d000000-0000-4000-8000-0000000000f1' })).statusCode).toBe(200);
   });
 

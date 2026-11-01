@@ -10,7 +10,7 @@
                  │ HTTPS  /v1/<modulo>/*  /v1/sync/*        │
                  ▼                                          ▼
         ┌──────────────────── apps/api (Fastify) — monólito modular ───────────────────┐
-        │ plataforma: auth, licenças, sync, eventos (outbox + pg-boss), extensões       │
+        │ plataforma: auth, licenças, sync, eventos (outbox + despachante), extensões       │
         │ core │ catalogo │ vendedor │ promotor │ gestor │ pesquisa │ treinamento │ integracao │
         └───────┬───────────────────────────────┬───────────────────────────┬──────────┘
                 ▼                               ▼                           ▼
@@ -86,7 +86,7 @@ export const manifest = defineModule({
 ```
 
 ## Comunicação entre módulos (em tempo de execução)
-- **Eventos de domínio**: gravados na tabela `plataforma.evento` (outbox) na mesma transação; pg-boss entrega aos consumidores; consumo idempotente por `evento_id`. Nome `<modulo>.<entidade>.<fato>@vN`.
+- **Eventos de domínio**: gravados na tabela `plataforma.evento` (outbox) na mesma transação; o despachante (`apps/api/src/worker.ts`, papel `macuxi_worker`, ADR 0007) entrega aos consumidores licenciados com retentativa; consumo idempotente por `evento_id`. Nome `<modulo>.<entidade>.<fato>@vN`.
 - **API pública síncrona**: serviço exposto em `contracts` (ex.: `vendedor.criarPedidoEmNome()`), usado quando a resposta é necessária na hora.
 - **Pontos de extensão (UI)**: o dono declara o slot (`produto.acoes`, `cliente.abas`, `visita.etapas_checkout`, `inicio.cards`, `menu.itens`, `pedido.criar_em_nome`); outros módulos registram componentes; o shell só renderiza o que está ativo.
 > É o mesmo princípio do protocolo de recados entre os agentes (doc 07): cada um mexe só no que é seu e conversa por mensagens com formato padrão.

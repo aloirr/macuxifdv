@@ -52,6 +52,9 @@
   },
   "devDependencies": {
     "@macuxi/config": "workspace:*",
+    "@macuxi/db": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
     "@tanstack/react-query": "^5.90.0",
     "@types/leaflet": "^1.9.20",
     "@types/node": "^22.18.0",

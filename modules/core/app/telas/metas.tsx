@@ -6,6 +6,7 @@ import { Card, colors, dateTimeLabel, fonts, Icon, IconTile, monthName, Progress
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { KpiResult } from '../../contracts';
+import { PainelMetas } from '../components/painel-metas';
 import { abrirClientes } from '../lib/navegacao';
 import { useCore } from '../lib/usar-core';
 
@@ -18,6 +19,7 @@ export function TelaMetas() {
     return (
       <Screen>
         <Text style={t.h1}>Metas</Text>
+        <PainelMetas />
         <Card style={{ padding: 14 }}>
           <Text style={t.sub}>Sem metas para este perfil no mês.</Text>
         </Card>
@@ -45,6 +47,8 @@ export function TelaMetas() {
           </Text>
         </View>
       </View>
+
+      <PainelMetas />
 
       <View style={styles.dark}>
         <Text style={styles.darkLabel}>RV projetada no fechamento</Text>

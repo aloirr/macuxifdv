@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { definirModuloApi, ErroNaoEncontrado, ErroRegraNegocio, type ModuloApi, type RotaModulo } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import { verificarCancelamento } from '../domain/order';
+import { provedoresSyncVendedor } from './sync';
 
 const ParamsPedido = z.object({ id: z.string().uuid() });
 const CorpoCancelar = z.object({ motivo: z.string().max(500).optional() }).default({});
@@ -97,5 +98,5 @@ export const rotaVerPedido: RotaModulo = {
   },
 };
 
-export const apiVendedor: ModuloApi = definirModuloApi({ manifesto: manifest, rotas: [rotaListarPedidos, rotaVerPedido, rotaCancelarPedido] });
+export const apiVendedor: ModuloApi = definirModuloApi({ manifesto: manifest, rotas: [rotaListarPedidos, rotaVerPedido, rotaCancelarPedido], sync: provedoresSyncVendedor });
 export default apiVendedor;

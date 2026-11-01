@@ -70,7 +70,7 @@ da carteira por usuário inclusive removidas (Q6 de [desempenho-sync.md](desempe
 | usuario_id | uuid not null | FK composta para `usuario` |
 | nome, plataforma | text | ex.: `Moto G`, `android` |
 | ultimo_acesso_em | timestamptz | atualizado a cada login |
-| bloqueado_em | timestamptz | bloqueio remoto: o login recusa o aparelho |
+| bloqueado_em | timestamptz | bloqueio remoto: o login e o refresh recusam o aparelho para QUALQUER usuário do tenant (RN-CORE-15, consulta só por `id`; o RLS isola o tenant) |
 
 Índices: PK `id`; `dispositivo_usuario_ix (tenant_id, usuario_id)`; único `(tenant_id, id)` (alvo da FK de `sessao`).
 Volume: 1-2 por usuário.

@@ -67,6 +67,11 @@ export interface UsuarioAmbiente {
   id: string;
   nome: string;
   perfil: Perfil | null;
+  /**
+   * Fuso IANA do tenant (`plataforma.tenant.fuso`, vem no login): virada do dia e exibição de horários (RN-CORE-11).
+   * Ausente na demonstração (mock-api) — o módulo usa o padrão dele.
+   */
+  fuso?: string;
 }
 
 export interface AmbienteAparelho {

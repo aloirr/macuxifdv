@@ -455,10 +455,6 @@ export function sameDraft(a: DraftStop[], b: DraftStop[]): boolean {
   return a.length === b.length && a.every((s, i) => s.customer.id === b[i]!.customer.id && s.window_start === b[i]!.window_start && s.window_end === b[i]!.window_end);
 }
 
-export function toPutBody(stops: DraftStop[]) {
-  return { stops: stops.map((s) => ({ customer_id: s.customer.id, window_start: s.window_start, window_end: s.window_end })) };
-}
-
 export function draftToMapStops(stops: DraftStop[]): MapStop[] {
   return stops
     .map((s, i) => ({ s, i }))

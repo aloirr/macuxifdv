@@ -3,7 +3,8 @@
  * Aplica as mesmas regras da API real que já estão no SDK: `rejeitarItensInvalidos` (entidade
  * desconhecida, MODULO_INATIVO, payload inválido) e `paginar` (cursor `(updated_at, id)`, inclui removidos).
  * ADR 0009: `versoesEscopo` (versão do conjunto visível por entidade), `semProvedor` (pull 501) e `semReceptor`
- * (push `rejeitado/SYNC_NAO_IMPLEMENTADO`), como a API real.
+ * (push `rejeitado/SYNC_NAO_IMPLEMENTADO`), como a API real. D-3: com `relogio`, o aceito leva `em` e a página leva
+ * `horizonte` (`relogio() - margemHorizonteMs`), como a API real.
  */
 import type { ModuloId } from './nomes';
 import type { TransporteSync } from './motor-sync';
@@ -52,6 +53,10 @@ export interface ServidorSyncSimulado extends TransporteSync {
   semProvedor: Set<string>;
   /** Entidades sem `receber`: o push devolve `rejeitado/SYNC_NAO_IMPLEMENTADO` por item. */
   semReceptor: Set<string>;
+  /** Relógio do "banco" (D-3): com ele, o aceito leva `em` e a página `horizonte`. `null` = servidor sem os campos. */
+  relogio: (() => Date) | null;
+  /** Margem do horizonte (padrão 2 s, como a API). */
+  margemHorizonteMs: number;
 }
 
 export function criarServidorSyncSimulado(
@@ -69,6 +74,8 @@ export function criarServidorSyncSimulado(
     versoesEscopo: {},
     semProvedor: new Set(),
     semReceptor: new Set(),
+    relogio: null,
+    margemHorizonteMs: 2_000,
     async push(itens) {
       s.chamadas.push++;
       if (!s.online) throw new ErroRedeSimulada();
@@ -87,7 +94,7 @@ export function criarServidorSyncSimulado(
         else if (forcado) saida.push({ id: it.id, status: 'rejeitado', ...forcado });
         else {
           s.recebidos.set(it.id, it);
-          saida.push({ id: it.id, status: 'aceito' });
+          saida.push(s.relogio ? { id: it.id, status: 'aceito', em: s.relogio().toISOString() } : { id: it.id, status: 'aceito' });
         }
       }
       return itens.map((i) => saida.find((r) => r.id === i.id)!).filter(Boolean);
@@ -96,9 +103,16 @@ export function criarServidorSyncSimulado(
       s.chamadas.pull++;
       if (!s.online) throw new ErroRedeSimulada();
       if (s.semProvedor.has(entidade)) throw new ErroSyncNaoImplementadoSimulado(entidade);
-      const pagina = paginar(s.linhas[entidade] ?? [], cursor, s.tamanhoPagina);
+      const horizonte = s.relogio ? new Date(s.relogio().getTime() - s.margemHorizonteMs) : null;
+      // como a API: só linhas abaixo do horizonte
+      const visiveis = (s.linhas[entidade] ?? []).filter((l) => !horizonte || Date.parse(l.updated_at) < horizonte.getTime());
+      const pagina = paginar(visiveis, cursor, s.tamanhoPagina);
       const versao = s.versoesEscopo[entidade];
-      return versao === undefined ? pagina : { ...pagina, versao_escopo: versao };
+      return {
+        ...pagina,
+        ...(versao === undefined ? {} : { versao_escopo: versao }),
+        ...(horizonte ? { horizonte: horizonte.toISOString() } : {}),
+      };
     },
   };
   return s;

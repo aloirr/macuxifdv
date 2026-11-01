@@ -25,6 +25,10 @@ export interface LocalVisit {
   /** null = atendimento aberto (em atendimento) */
   checkout_at: string | null;
   closed_by: 'seller' | 'auto' | null;
+  /** Resultado do contrato novo (`pedido`, `sem_pedido`, `atendido`, `cliente_fechado`, `nao_finalizado`). */
+  resultado?: string | null;
+  motivo_id?: string | null;
+  foto_fachada_id?: string | null;
 }
 
 function toVisit(v: LocalVisit, stopId: string, server: Visit | null): Visit {

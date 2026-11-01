@@ -35,6 +35,12 @@ describe('status das paradas da rota do dia (RN-CORE-11)', () => {
     expect(r[0]?.status).toBe('proxima');
   });
 
+  it('RN-CORE-11: visita ligada a OUTRA parada do mesmo cliente não marca esta parada por cliente+dia', () => {
+    const ps = [p('p1', 'c1', 1), p('p2', 'c1', 2)];
+    const r = statusDasParadas(ps, [visita({ cliente_id: 'c1', rota_parada_id: 'p2', checkout_em: '2026-10-12T14:00:00Z' })], agora, MANAUS);
+    expect(r.map((x) => x.status)).toEqual(['proxima', 'feita']);
+  });
+
   it('virada do dia em São Paulo (03:00Z) fecha a aberta antes do que em Manaus', () => {
     const aberta = visita({ rota_parada_id: 'p1', checkin_em: '2026-10-12T20:00:00Z' });
     const t = new Date('2026-10-13T03:30:00Z');

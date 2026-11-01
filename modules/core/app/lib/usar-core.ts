@@ -5,7 +5,7 @@
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
-import { armazemDe, ESTADO_VAZIO, fusoDe, pedidosDaFila, vendedorDe, type ArmazemCore, type EstadoCore } from './estado';
+import { armazemDe, ESTADO_VAZIO, fusoDe, pedidosDaFila, type ArmazemCore, type EstadoCore } from './estado';
 import { effectiveRoute, type LocalVisit } from './route';
 import { openLocalVisit, type OrderLike } from './visit';
 
@@ -38,13 +38,13 @@ export function useCore(): UsoCore {
     () => ESTADO_VAZIO,
   );
 
-  // recarrega do armazenamento quando o motor termina uma sincronização
+  // recalcula das linhas do aparelho quando uma sincronização termina ou a fila muda (check-in/checkout enfileirado, aceito ou rejeitado)
   useEffect(() => {
     void armazem?.carregar();
-  }, [armazem, estadoMotor.sincronizado_em]);
+  }, [armazem, estadoMotor.sincronizado_em, estadoMotor.fila, estadoMotor.aceitos]);
 
   const tz = fusoDe(estado.me);
-  const vendedorId = vendedorDe(estado.me);
+  const vendedorId = armazem ? armazem.usuarioId(estado.me) : '';
 
   // relógio do atendimento: tempo decorrido e fechamento na virada do dia sem depender de rede
   const [nowMs, setNowMs] = useState(() => Date.now());

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { escopoDeUsuarios, listarClientes, type ClienteLista } from './clientes';
+import { escopoDeUsuarios, listarClientes, papelCompativel, type ClienteLista } from './clientes';
 
 const cli = (id: string, razao_social: string, extra: Partial<ClienteLista> = {}): ClienteLista => ({
   id,
@@ -73,5 +73,17 @@ describe('escopo de usuários — de quem são as visitas, rotas e metas (RN-COR
   });
   it('RN-CORE-04: analista, assistente e admin veem o tenant', () => {
     expect(escopoDeUsuarios('admin', c)).toBe('tenant');
+  });
+});
+
+describe('papel do vínculo da carteira (RN-CORE-04, RN-PRO-01)', () => {
+  it('RN-CORE-04: vendedor só recebe carteira no papel vendedor; promotor, no papel promotor', () => {
+    expect(papelCompativel('vendedor', 'vendedor')).toBe(true);
+    expect(papelCompativel('promotor', 'promotor')).toBe(true);
+  });
+  it('RN-PRO-01: promotor não pode ter vínculo no papel vendedor, nem o contrário; supervisor não carrega carteira', () => {
+    expect(papelCompativel('promotor', 'vendedor')).toBe(false);
+    expect(papelCompativel('vendedor', 'promotor')).toBe(false);
+    expect(papelCompativel('supervisor', 'vendedor')).toBe(false);
   });
 });

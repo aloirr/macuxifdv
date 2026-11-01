@@ -66,21 +66,34 @@ export interface FechamentoAutomatico {
   motivo: 'dia_virou' | 'outro_cliente';
 }
 
+/** Check-in que está entrando. No servidor traz `id` e `checkin_em` do aparelho; na tela, só o cliente. */
+export interface NovoCheckin {
+  cliente_id: string;
+  /** Id (UUID do aparelho) do check-in novo: serve à idempotência (reenvio) e a distinguir "outro" check-in no mesmo cliente. */
+  id?: string;
+  /** Instante do check-in no aparelho; referência de "hoje" e do fechamento da anterior (push atrasado). */
+  checkin_em?: string;
+}
+
 /**
- * RN-CORE-11: ao entrar um check-in, decide o que fecha sozinho.
- * - aberta de um dia anterior (no fuso): fecha na virada do dia, como `nao_finalizado`;
- * - aberta hoje em outro cliente: fecha agora, como `nao_finalizado`;
- * - aberta hoje no mesmo cliente: reaproveita (retorna o id) em vez de abrir outra;
- * - mais de uma aberta hoje (dado antigo): só a mais recente do mesmo cliente é reaproveitada, as outras fecham.
+ * RN-CORE-11: ao entrar um check-in, decide o que fecha sozinho. A referência de tempo é o `checkin_em` do novo
+ * (push atrasado não pode fechar a anterior depois do novo check-in); sem ele usa-se `agora` (tela).
+ * - aberta de um dia anterior (no fuso, em relação à referência): fecha na virada do dia, `nao_finalizado`;
+ * - aberta hoje em outro cliente: fecha na referência (nunca antes do próprio check-in), `nao_finalizado`;
+ * - aberta hoje com o MESMO `id` do novo: reenvio idempotente, retorna o id em `reaproveitar` e não fecha nada;
+ * - aberta hoje no mesmo cliente: sem `id` no novo (tela), reaproveita a aberta para evitar 2º check-in;
+ *   com `id` diferente (servidor), fecha a anterior como `auto` e aceita a nova (o checkout seguinte usa o id novo);
+ * - mais de uma aberta hoje (dado antigo): só a mais recente do mesmo cliente é reaproveitada na tela, as outras fecham.
  */
 export function resolverCheckin(
   abertas: VisitaAbertaLike[],
-  novo: { cliente_id: string },
+  novo: NovoCheckin,
   agora: Date,
   fuso: string,
 ): { fechar: FechamentoAutomatico[]; reaproveitar: string | null } {
   const fechar: FechamentoAutomatico[] = [];
-  const hoje = dataLocal(agora, fuso);
+  const ref = novo.checkin_em ? new Date(novo.checkin_em) : agora;
+  const hoje = dataLocal(ref, fuso);
   const doDia: VisitaAbertaLike[] = [];
   for (const v of abertas) {
     if (v.checkout_em) continue;
@@ -88,11 +101,13 @@ export function resolverCheckin(
       fechar.push({ id: v.id, checkout_em: autoCheckoutAt(v.checkin_em, fuso), resultado: 'nao_finalizado', fechada_por: 'auto', motivo: 'dia_virou' });
     } else doDia.push(v);
   }
+  const reenvio = novo.id ? doDia.find((v) => v.id === novo.id) : undefined;
   const mesmoCliente = doDia.filter((v) => v.cliente_id === novo.cliente_id).sort((a, b) => b.checkin_em.localeCompare(a.checkin_em));
-  const reaproveitar = mesmoCliente[0]?.id ?? null;
+  const reaproveitar = reenvio?.id ?? (novo.id ? null : (mesmoCliente[0]?.id ?? null));
   for (const v of doDia) {
     if (v.id === reaproveitar) continue;
-    fechar.push({ id: v.id, checkout_em: agora.toISOString(), resultado: 'nao_finalizado', fechada_por: 'auto', motivo: 'outro_cliente' });
+    const instante = ref.getTime() >= Date.parse(v.checkin_em) ? ref.toISOString() : v.checkin_em;
+    fechar.push({ id: v.id, checkout_em: instante, resultado: 'nao_finalizado', fechada_por: 'auto', motivo: 'outro_cliente' });
   }
   return { fechar, reaproveitar };
 }
@@ -116,12 +131,16 @@ export interface VisitaLinha {
   motivo_texto?: string | null;
   foto_fachada_id?: string | null;
   fechada_por?: 'usuario' | 'auto' | null;
+  /** UUID do comando de checkout já aplicado no servidor (ADR 0009 §3). */
+  checkout_id?: string | null;
 }
 
 export type PendenteVisita =
   | { tipo: 'checkin'; id: string; cliente_id: string; checkin_em: string; extra?: boolean; rota_parada_id?: string | null; fora_do_raio?: boolean; sem_gps?: boolean }
   | {
       tipo: 'checkout';
+      /** UUID do comando (id do item da fila); se a linha do servidor já o traz em `checkout_id`, o pendente não é reaplicado. */
+      id?: string;
       visita_id: string;
       checkout_em: string;
       resultado: string;
@@ -132,33 +151,42 @@ export type PendenteVisita =
     };
 
 /**
- * ADR 0009 §3: a tela lê `linhas do pull ⊕ itens pendentes da fila`; o pendente vence até ser aceito e o
- * pull nunca reabre uma visita cujo checkout ainda está na fila.
+ * ADR 0009 §3: a tela lê `linhas do pull + itens pendentes da fila`; o pendente vence até ser aceito e o
+ * pull nunca reabre uma visita cujo checkout ainda está na fila. Os pendentes entram NA ORDEM da fila:
+ * um check-in pendente fecha, como `auto`/`nao_finalizado`, as visitas ainda abertas (RN-CORE-11, `resolverCheckin`),
+ * para a tela nunca mostrar duas abertas. Devolve o mesmo tipo das linhas (campos extras ficam).
  */
-export function aplicarPendentesVisita<V extends VisitaLinha>(linhas: V[], pendentes: PendenteVisita[], ctx: { usuario_id: string; fuso: string }): VisitaLinha[] {
-  const porId = new Map<string, VisitaLinha>(linhas.map((l) => [l.id, { ...l }]));
+export function aplicarPendentesVisita<V extends VisitaLinha>(linhas: V[], pendentes: PendenteVisita[], ctx: { usuario_id: string; fuso: string }): V[] {
+  const porId = new Map<string, V>(linhas.map((l) => [l.id, { ...l }]));
   for (const p of pendentes) {
-    if (p.tipo !== 'checkin' || porId.has(p.id)) continue;
-    porId.set(p.id, {
-      id: p.id,
-      usuario_id: ctx.usuario_id,
-      cliente_id: p.cliente_id,
-      rota_parada_id: p.rota_parada_id ?? null,
-      data_local: dataLocal(p.checkin_em, ctx.fuso),
-      checkin_em: p.checkin_em,
-      sem_gps: p.sem_gps ?? false,
-      fora_do_raio: p.fora_do_raio ?? false,
-      sugere_coordenada: false,
-      extra: p.extra ?? false,
-      checkout_em: null,
-      resultado: null,
-      fechada_por: null,
-    });
-  }
-  for (const p of pendentes) {
-    if (p.tipo !== 'checkout') continue;
+    if (p.tipo === 'checkin') {
+      if (porId.has(p.id)) continue;
+      const abertas = [...porId.values()].filter((v) => !v.checkout_em).map((v) => ({ id: v.id, cliente_id: v.cliente_id, checkin_em: v.checkin_em, checkout_em: null }));
+      const { fechar } = resolverCheckin(abertas, { id: p.id, cliente_id: p.cliente_id, checkin_em: p.checkin_em }, new Date(p.checkin_em), ctx.fuso);
+      for (const f of fechar) {
+        const v = porId.get(f.id)!;
+        porId.set(f.id, { ...v, checkout_em: f.checkout_em, resultado: f.resultado, fechada_por: f.fechada_por });
+      }
+      porId.set(p.id, {
+        id: p.id,
+        usuario_id: ctx.usuario_id,
+        cliente_id: p.cliente_id,
+        rota_parada_id: p.rota_parada_id ?? null,
+        data_local: dataLocal(p.checkin_em, ctx.fuso),
+        checkin_em: p.checkin_em,
+        sem_gps: p.sem_gps ?? false,
+        fora_do_raio: p.fora_do_raio ?? false,
+        sugere_coordenada: false,
+        extra: p.extra ?? false,
+        checkout_em: null,
+        resultado: null,
+        fechada_por: null,
+      } as V);
+      continue;
+    }
     const v = porId.get(p.visita_id);
     if (!v) continue;
+    if (p.id && v.checkout_id === p.id) continue; // o servidor já aplicou este checkout
     porId.set(p.visita_id, {
       ...v,
       checkout_em: p.checkout_em,

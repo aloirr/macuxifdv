@@ -85,3 +85,27 @@
 2026-10-31 — doc 04: seção Ambiente e versões (Node >=24.7, Expo SDK 57, aparelho de referência, pg16)
 2026-10-31 — D-2 fechado no motor (testes 238/238); fechamento da onda 1
 2026-10-31 — T-0021 renumerada para T-0022 (despachante); T-0021 = Catálogo da nuvem
+2026-10-31 — entregas da nuvem registradas (T-0013, T-0014, T-0021, guardião v3); travas T-0021/T-0023/T-0014 ajustes; RN-CORE-15, RN-CAT-03..07, RN-GES-01..08; T-0023 e T-0024 criadas
+2026-10-31 — T-0018 — pull de pedido do vendedor recebido (123 testes); pedido ao engenheiro: conferir o pnpm-lock
+2026-10-31 — T-0018 — testes ajustados (239/239)
+2026-10-31 — T-0013 — revisão do dono sem 🔴; intermitência com causa conhecida, correção na T-0023 (nuvem)
+2026-10-31 — T-0017 — onda 2 do core recebida (409; API 84); alerta ao engenheiro sobre o lockfile (-165)
+2026-10-31 — onda 2 do engenheiro recebida (E4, CI, zod mitigado, GitGuardian, guardião v3, lockfile OK); 1 teste do banco vermelho pela RN-CORE-15
+2026-10-31 — teste do banco ajustado à RN-CORE-15 (224/224); fechamento da rodada 2 da Sprint 1
+2026-10-31 — T-0021 ajustes e T-0014 ajustes recebidos; doc 03 RN-CAT renumerada e RN-GES-01..03 corrigidas; Gestor travado (v2); Catálogo destravado
+2026-10-31 — T-0017 validada (304 casos); decisão O-5: aparelho bloqueado corta o acesso na hora (RN-CORE-15 atualizada; pedido ao core)
+2026-10-31 — T-0018 entregue pelo core (462 testes; 32 com Postgres); pendências: raio por parâmetro, O-5, 1 teste do engenheiro
+2026-10-31 — onda 3 do engenheiro recebida (423 no shell, T-0008 P3/P5, revisões); T-0013 CONCLUÍDA; disparados catalogo (revisão T-0021) e banco (T-0008 P2)
+2026-10-31 — T-0021 CONCLUÍDA (revisões sem 🔴)
+2026-10-31 — onda 4 do core recebida (O-5, raio por parâmetro, T-0019); T-0020 adiada
+2026-10-31 — T-0008 P2 recebida; 🔴 L-1 (índice vazio ao recriar o Catálogo) com o engenheiro; core disparado para a T-0020 fase 1
+2026-10-31 — T-0022 entregue; 🔴 D-3 (fila × pull) e 🔴 L-1 com o engenheiro; doc 04 sem pg-boss
+2026-10-31 — validação T-0017 ✅, T-0018 com D-4, T-0019 com D-3; decisão: lida_em no BKO para o remetente; vendedor disparado para o D-4
+2026-10-31 — T-0020 fase 1 recebida (500 testes); core disparado para lida_em, push e parte do D-3
+2026-10-31 — D-4 recebido; pedido ao vendedor para restringir a tolerância a 404/501
+2026-10-31 — D-4 ajustado (só 404/501)
+2026-10-31 — T-0019 — lida_em e push do core recebidos (505 testes); 2 falhas em sync.test.ts (engenheiro, em andamento)
+2026-10-31 — D-3 e L-1 corrigidos no SDK; disparados core (6 trocas do D-3), testes (S1-043/042/065) e engenheiro (teste do despachante)
+2026-10-31 — teste do despachante com push do core recebido (API 93)
+2026-10-31 — D-3 do core recebido (506 testes); aguardando testes
+2026-10-31 — D-3/D-4 fechados na suíte (325); D-5 aberto para o core; fechamento da rodada

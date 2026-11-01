@@ -5,7 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { RouteDay } from '../../../contracts';
 import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
 import { useRoutes } from '../../lib/queries';
-import { addDays, dayLabel, dayShortLabel, type DraftStop, isIsoDate, sameWeekdayNext, toPutBody } from '../../lib/routes';
+import { addDays, dayLabel, dayShortLabel, type DraftStop, isIsoDate, sameWeekdayNext } from '../../lib/routes';
+import { corpoDaRota } from '../../lib/rotas-api';
 import { IconAlert, IconCheck, Dialog, useToast, Button, cx, Notice } from '@macuxi/ui/web';
 
 const CANDIDATE_WEEKS = 6;
@@ -40,12 +41,12 @@ export function CopyDayDialog({ sellerId, sellerName, date, stops, today, onClos
   };
 
   const run = async () => {
-    const body = toPutBody(stops);
+    const body = corpoDaRota(stops);
     const out: Result[] = [];
     setRunning({ done: 0, total: selected.length });
     for (const [i, d] of selected.entries()) {
       try {
-        await api<RouteDay>(`/routes/${sellerId}/${d}`, { method: 'PUT', body });
+        await api(`/core/rotas/${sellerId}/${d}`, { method: 'PUT', body });
         out.push({ date: d, ok: true });
       } catch (e) {
         if (e instanceof ApiRequestError && e.isFileLocked) out.push({ date: d, ok: true, warn: true, message: e.message });

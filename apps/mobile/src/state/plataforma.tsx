@@ -16,7 +16,7 @@
  * perfil precisa ser da variante (Campo: vendedor/promotor; Gestão: supervisor/gerente). Na demonstração
  * (`EXPO_PUBLIC_API_MODO=demo`, mock-api) segue o login fake da Fase M (`loginDemo`).
  */
-import { entrarComSenha, type CamposLogin } from '@macuxi/core/app';
+import { ehAparelhoBloqueado, entrarComSenha, tratarAparelhoBloqueado, type CamposLogin } from '@macuxi/core/app';
 import { MeusModulosRespostaSchema, RefreshRespostaSchema, type FakeUser, type Me } from '@macuxi/core/contracts';
 import {
   criarMotorSync,
@@ -32,9 +32,12 @@ import {
   type VisaoShell,
 } from '@macuxi/platform-sdk';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
+import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
+import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
 import { MANIFESTOS_APP, shellDaVariante, type ComponenteTela } from '@/lib/modulos';
 import { varianteAtual } from '@/lib/variante';
 import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
@@ -45,6 +48,7 @@ import { gravarTokens, lerTokens } from '@/services/credenciais';
 import { modoApi, platformDefaultApiUrl, uuid } from '@/services/device';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { modoSync, transporteFaseM, transporteV1 } from '@/services/transporte';
+import { apagarFotosLocais, arquivosLocais } from '@/services/arquivos';
 
 /** Usuário da sessão no shell: o do login real (Core) ou o fictício da Fase M (`role`, `team_name`...). */
 export interface UsuarioSessao extends Partial<Omit<FakeUser, 'id' | 'name' | 'email'>> {
@@ -116,9 +120,19 @@ function usePlataformaValor() {
   const [modulosAtivos, setModulosAtivos] = useState<readonly ModuloId[]>(['core']);
   const [codigoSalvo, setCodigoSalvo] = useState<string | null>(null);
   const renovarRef = useRef<(() => Promise<string | null>) | null>(null);
+  /** RN-CORE-15: aviso de aparelho bloqueado (dados apagados) que fica visível na tela de login. */
+  const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
+  const aparelhoBloqueadoRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
 
   const api = useCallback(
-    () => new ApiClient(apiUrlRef.current, sessaoRef.current?.token ?? null, modo === 'v1' ? () => renovarRef.current?.() ?? Promise.resolve(null) : undefined),
+    () =>
+      new ApiClient(
+        apiUrlRef.current,
+        sessaoRef.current?.token ?? null,
+        modo === 'v1' ? () => renovarRef.current?.() ?? Promise.resolve(null) : undefined,
+        // qualquer chamada (fila, pull, etapas, telas) que receba 423 DISPOSITIVO_BLOQUEADO limpa o aparelho
+        (e) => void aparelhoBloqueadoRef.current?.(e).catch(() => undefined),
+      ),
     [modo],
   );
 
@@ -129,8 +143,11 @@ function usePlataformaValor() {
         api,
         online: () => !offlineRef.current && sessaoRef.current !== null,
         usuario: () => {
-          const u = sessaoRef.current?.user;
-          return u ? { id: u.id, nome: u.name, perfil: u.perfil } : null;
+          const s = sessaoRef.current;
+          const u = s?.user;
+          if (!u) return null;
+          // fuso do tenant do login v1 (RN-CORE-11: virada do dia); a demonstração não tem
+          return { id: u.id, nome: u.name, perfil: u.perfil, ...(s?.tenant?.fuso ? { fuso: s.tenant.fuso } : {}) };
         },
       }),
     [api],
@@ -162,6 +179,8 @@ function usePlataformaValor() {
         // `GET /v1/me` é do mock-api; na API real o perfil e o tenant vêm do login
         etapas: modo === 'demo' ? [etapaMe, ...shell.etapasSync] : shell.etapasSync,
         mensagemDeErro: errorMessage,
+        // ADR 0010 §4: bytes das fotos da fila de arquivos (o transporte v1 faz o PUT /v1/arquivos/:id)
+        arquivos: arquivosLocais(),
       });
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
@@ -241,6 +260,7 @@ function usePlataformaValor() {
   const abrirSessao = useCallback(
     async (s: Sessao, refresh: string | null) => {
       await gravarTokens({ access: s.token, refresh });
+      setAvisoLogin(null);
       const { token: _token, ...semToken } = s;
       await writeJson(keys.session, semToken);
       sessaoRef.current = s;
@@ -283,7 +303,14 @@ function usePlataformaValor() {
         }
       };
       const nome = (Device.modelName ?? Device.deviceName ?? '').slice(0, 80);
-      const r = await entrarComSenha(post, campos, { id: await dispositivoId(), ...(nome ? { nome } : {}) });
+      let r: Awaited<ReturnType<typeof entrarComSenha>>;
+      try {
+        r = await entrarComSenha(post, campos, { id: await dispositivoId(), ...(nome ? { nome } : {}) });
+      } catch (e) {
+        // RN-CORE-15: senha certa num aparelho bloqueado — limpa o aparelho; a tela de login mostra o aviso
+        await aparelhoBloqueadoRef.current?.(e);
+        throw e;
+      }
       const codigo = r.tenant.codigo;
       setCodigoSalvo(codigo);
       await writeJson(CHAVE_CODIGO_EMPRESA, codigo);
@@ -298,13 +325,8 @@ function usePlataformaValor() {
     [abrirSessao, dispositivoId, variante],
   );
 
-  const logout = useCallback(async () => {
-    const tokens = await lerTokens();
-    if (modo === 'v1' && tokens?.refresh) {
-      // revoga a família do refresh no servidor (melhor esforço: sem sinal, o refresh expira sozinho)
-      await new ApiClient(apiUrlRef.current, null).request('POST', '/auth/logout', { body: { refresh_token: tokens.refresh }, timeoutMs: 5000 }).catch(() => undefined);
-    }
-    await gravarTokens(null);
+  /** Fecha a sessão em memória (motor, usuário, módulos); quem chama cuida dos tokens e do disco. */
+  const fecharSessaoLocal = useCallback(() => {
     desassinarRef.current?.();
     desassinarRef.current = null;
     sessaoRef.current = null;
@@ -313,8 +335,46 @@ function usePlataformaValor() {
     setMotor(null);
     setMe(null);
     setModulosAtivos(['core']);
+  }, []);
+
+  const logout = useCallback(async () => {
+    const tokens = await lerTokens();
+    if (modo === 'v1' && tokens?.refresh) {
+      // revoga a família do refresh no servidor (melhor esforço: sem sinal, o refresh expira sozinho)
+      await new ApiClient(apiUrlRef.current, null).request('POST', '/auth/logout', { body: { refresh_token: tokens.refresh }, timeoutMs: 5000 }).catch(() => undefined);
+    }
+    await gravarTokens(null);
+    fecharSessaoLocal();
     await writeJson(keys.session, null);
-  }, [modo]);
+  }, [modo, fecharSessaoLocal]);
+
+  /**
+   * RN-CORE-15: 423 `DISPOSITIVO_BLOQUEADO` no login, no refresh ou em qualquer chamada. O Core decide a ordem
+   * (`tratarAparelhoBloqueado`): apaga tudo do aparelho (motor, chaves de todos os usuários, fotos), apaga os tokens,
+   * fecha a sessão (sem `/auth/logout`: a API já revogou a família), mostra o aviso no login e volta para lá.
+   */
+  aparelhoBloqueadoRef.current ??= criarTratadorAparelhoBloqueado(
+    {
+      motor: () => motorRef.current,
+      chavesLocais: async () => [...(await AsyncStorage.getAllKeys())],
+      removerChaves: async (chaves) => {
+        await Promise.all(chaves.map((k) => writeJson(k, null)));
+      },
+      apagarFotos: apagarFotosLocais,
+      apagarTokens: () => gravarTokens(null),
+      fecharSessao: () => fecharSessaoLocal(),
+      avisar: setAvisoLogin,
+      irParaLogin: () => {
+        try {
+          router.replace('/login');
+        } catch {
+          // navegação ainda não montada: sem sessão, as abas já redirecionam ao login
+        }
+      },
+    },
+    tratarAparelhoBloqueado,
+    ehAparelhoBloqueado,
+  );
 
   /** 401 na API real: troca o refresh por um par novo (uma troca por vez). Refresh recusado = sessão encerrada. */
   const renovando = useRef<Promise<string | null> | null>(null);
@@ -336,6 +396,8 @@ function usePlataformaValor() {
         }
         return r.access_token;
       } catch (e) {
+        // RN-CORE-15: aparelho bloqueado no refresh — a limpeza já fecha a sessão
+        if (await aparelhoBloqueadoRef.current?.(e).catch(() => false)) return null;
         // refresh recusado (expirado, reusado, usuário bloqueado): entrar de novo; a fila fica guardada no aparelho
         if (e instanceof HttpError && e.status < 500 && e.status !== 408 && e.status !== 429) await logout();
         return null;
@@ -414,6 +476,7 @@ function usePlataformaValor() {
     sessao,
     perfil,
     me,
+    avisoLogin,
     offline,
     motor,
     ambiente: ambienteTela,

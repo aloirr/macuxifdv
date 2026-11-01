@@ -9,3 +9,6 @@
 2026-10-31 — T-0009/T-0011 — OrderStatus com status do ERP (invoiced_partial/invoiced), PedidoFaturadoEvento + montarEventoFaturado, manifesto publica vendedor.pedido.faturado@1; 104 testes
 2026-10-31 — T-0015 — rotas GET de pedido com carteira e 404, pedido.ver no manifesto, tela somente leitura; falta SDK liberar promotor
 2026-10-31 — T-0015 — pedido.ver com promotor (O-3); lista filtra carteira antes do limit
+2026-10-31 — T-0018 — Vendedor: contracts/sync.ts (PedidoSync/PedidoItemSync), provedores de pull pedido/pedido_item (escopo usuarios+carteira, janela 90d), registro no app, teste com Postgres (api/sync.db.test.ts); 123 testes verdes
+2026-10-31 — T-0018 — D-4: etapas da Fase M do Vendedor toleram 4xx (pulam sem erro na API real); teste etapas.test.ts
+2026-10-31 — T-0018 — D-4: toleraSemRota só pula 404/501/SYNC_NAO_IMPLEMENTADO; 401/403/423 propagam

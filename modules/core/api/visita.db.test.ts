@@ -1,0 +1,444 @@
+/**
+ * T-0018 × Postgres real (fixture dois-tenants, papel macuxi_app, RLS): push de check-in e checkout com o servidor
+ * revalidando tudo (RN-CORE-10/11/12/13/14), idempotência pelo UUID do aparelho (modo avião: reenvio do lote não
+ * duplica), pull de rota/parada/motivo/visita por escopo de usuários (RN-CORE-04/05), rotas do BKO, coordenada
+ * sugerida e motivos. Pula sem Docker/Postgres (aviso no fim); com MACUXI_PG_EXIGIR=1 (CI) falha.
+ * O escopo vem dos serviços REAIS (`carteiraDoUsuario`, `usuariosVisiveisDoUsuario`); `tx.publicar` e
+ * `tx.registrarArquivo` são simulados aqui (a versão real é do `apps/api` e tem teste próprio).
+ */
+import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
+import { banco, semBanco } from '@macuxi/db/teste/estado';
+import { ErroNaoEncontrado, ErroRegraNegocio, type AcessoBanco, type ClienteBanco, type ContextoBase, type ItemPush, type LinhaSync, type ModuloId, type PedidoPull, type ResultadoItemPush, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CheckinVisitaSchema, CheckoutVisitaSchema, MotivoSyncSchema, ParametroSyncSchema, RotaParadaSyncSchema, RotaSyncSchema, VisitaSyncSchema } from '../contracts';
+import { carteiraDoUsuario } from './carteira';
+import { rotasDeRotasEVisitas } from './rotas';
+import { provedoresSyncCore } from './sync';
+import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
+
+const A = DOIS_TENANTS.A;
+const B = DOIS_TENANTS.B;
+const U = A.usuarios;
+const C = A.clientes;
+const SEMANA = '2030-03-04'; // segunda-feira, fora das janelas do pull
+const id = (n: number) => `0e300000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const PERTO = { lat: -3.1019, lng: -60.025 }; // coordenada de c1
+const LONGE = { lat: -3.11, lng: -60.025 }; // ~900 m de c1
+const hora = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+
+describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, motivos e coordenada sugerida', () => {
+  let pool: pg.Pool;
+  let acesso: AcessoBanco;
+  const eventos: Array<{ nome: string; payload: Record<string, unknown> }> = [];
+
+  const usuario = (uid: string, perfil: UsuarioAutenticado['perfil'], tenant = A.tenantId): UsuarioAutenticado => ({ id: uid, tenant_id: tenant, perfil });
+  const vendedor1 = usuario(U.vendedor1, 'vendedor');
+  const vendedor2 = usuario(U.vendedor2, 'vendedor');
+  const promotor = usuario(U.promotor, 'promotor');
+  const supervisor = usuario(U.supervisor, 'supervisor');
+  const gerente = usuario(U.gerente, 'gerente');
+  const analista = usuario(U.analista, 'analista');
+  const vendedorB = usuario(B.usuarios.vendedor, 'vendedor', B.tenantId);
+
+  function ctx(u: UsuarioAutenticado, modulos: ModuloId[] = ['core', 'vendedor']): ContextoBase {
+    const tx = {
+      publicar: async (def: { nome: string }, payload: Record<string, unknown>) => {
+        eventos.push({ nome: def.nome, payload });
+        return {};
+      },
+      // simula tx.registrarArquivo: linha 'aguardando', idempotente pelo id, 409 se for de outra entidade
+      registrarArquivo: async (a: { id: string; finalidade: string; entidade: string; entidade_id: string; cliente_id?: string | null }, c: pg.ClientBase) => {
+        const r = await c.query('select entidade_id from plataforma.arquivo where id = $1', [a.id]);
+        if (r.rows[0]) {
+          if (r.rows[0].entidade_id !== a.entidade_id) throw new ErroRegraNegocio('ARQUIVO_JA_REFERENCIADO', 'Este arquivo já pertence a outro registro.');
+          return { criado: false };
+        }
+        await c.query(
+          `insert into plataforma.arquivo (id, tenant_id, modulo, finalidade, entidade, entidade_id, cliente_id, enviado_por) values ($1, plataforma.tenant_atual(), 'core', $2, $3, $4, $5, $6)`,
+          [a.id, a.finalidade, a.entidade, a.entidade_id, a.cliente_id ?? null, u.id],
+        );
+        return { criado: true };
+      },
+    };
+    return {
+      usuario: { ...u, modulos },
+      requestId: 'req-teste',
+      agora: () => new Date(),
+      comTenant: (fn: (db: pg.ClientBase, t: unknown) => Promise<unknown>) => comTenant(pool, u.tenant_id, (c) => fn(c, { publicar: tx.publicar, registrarArquivo: (a: never) => tx.registrarArquivo(a, c) })),
+      carteira: () => carteiraDoUsuario(u, acesso),
+      usuariosVisiveis: () => usuariosVisiveisDoUsuario(u, acesso),
+    } as unknown as ContextoBase;
+  }
+  const prov = (nome: string) => provedoresSyncCore.find((p) => p.entidade.nome === nome)!;
+  const pedido = (): PedidoPull => ({ desde: null, ate: new Date(Date.now() + 60_000).toISOString(), limite: 1001 });
+  const puxar = (nome: string, u: UsuarioAutenticado): Promise<LinhaSync[]> => prov(nome).puxar!(ctx(u), pedido());
+  const item = (entidade: string, uid: string, payload: unknown): ItemPush => ({ entidade, id: uid, operacao: 'upsert', payload });
+  const checkin = (u: UsuarioAutenticado, vid: string, over: Record<string, unknown> = {}, modulos?: ModuloId[]): Promise<ResultadoItemPush[]> =>
+    prov('visita').receber!(ctx(u, modulos), [item('visita', vid, CheckinVisitaSchema.parse({ id: vid, cliente_id: C.c1, checkin_em: new Date().toISOString(), ...PERTO, ...over }))]);
+  const checkout = (u: UsuarioAutenticado, cmd: string, vid: string, over: Record<string, unknown> = {}, modulos?: ModuloId[], semSchema = false): Promise<ResultadoItemPush[]> => {
+    const bruto = { id: cmd, visita_id: vid, checkout_em: new Date().toISOString(), resultado: 'sem_pedido', motivo_texto: 'Sem necessidade hoje', etapas: [], ...over };
+    return prov('visita_checkout').receber!(ctx(u, modulos), [item('visita_checkout', cmd, semSchema ? bruto : CheckoutVisitaSchema.parse(bruto))]);
+  };
+  const linhaVisita = (vid: string) => comTenant(pool, A.tenantId, async (c) => (await c.query('select * from core.visita where id = $1', [vid])).rows[0]);
+  const contar = (sql: string, v: unknown[] = []) => comTenant(pool, A.tenantId, async (c) => Number((await c.query(sql, v)).rows[0].n));
+  const rota = (metodo: string, caminho: string): RotaModulo => rotasDeRotasEVisitas.find((r) => r.metodo === metodo && r.caminho === caminho)!;
+  const chamar = (metodo: string, caminho: string, u: UsuarioAutenticado, extra: { corpo?: unknown; query?: unknown; params?: unknown } = {}) => {
+    const r = rota(metodo, caminho);
+    return r.executar({ ...ctx(u), corpo: r.corpo ? r.corpo.parse(extra.corpo ?? {}) : {}, query: r.query ? r.query.parse(extra.query ?? {}) : {}, params: r.params ? r.params.parse(extra.params ?? {}) : {} } as never) as Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  };
+  const limpar = async () => {
+    await comTenant(pool, A.tenantId, async (c) => {
+      await c.query("delete from core.visita_etapa where visita_id::text like '0e300000%'");
+      await c.query("delete from core.visita where id::text like '0e300000%'");
+      await c.query("delete from plataforma.arquivo where id::text like '0e300000%'");
+      await c.query("delete from core.rota_parada where data >= '2030-01-01'");
+      await c.query("delete from core.rota where data >= '2030-01-01'");
+      await c.query("delete from core.carteira where id::text like '0e300000%'");
+      await c.query("update core.carteira set frequencia_semanas = null, dia_semana = null where cliente_id = $1 and usuario_id = $2 and papel = 'promotor'", [C.c1, U.promotor]);
+      await c.query("delete from core.cliente where id::text like '0e300000%'");
+      await c.query("delete from core.motivo where id::text like '0e300000%'");
+    });
+  };
+
+  beforeAll(async () => {
+    pool = new pg.Pool({ connectionString: banco().urlApp, max: 6 });
+    acesso = {
+      comTenant: (tenantId, fn) => comTenant(pool, tenantId, (c) => fn(c as unknown as ClienteBanco)),
+      semTenant: (fn) => fn({ query: async () => ({ rows: [], rowCount: 0 }) } as unknown as ClienteBanco),
+    };
+    await limpar();
+  });
+  afterAll(async () => {
+    if (pool) await limpar();
+    await pool?.end();
+  });
+
+  describe('check-in (RN-CORE-10, RN-CORE-13)', () => {
+    it('RN-CORE-10: dentro do raio é aceito, grava distância e data local; reenviar o mesmo id não duplica (modo avião)', async () => {
+      const vid = id(1);
+      expect(await checkin(vendedor1, vid)).toEqual([{ id: vid, status: 'aceito' }]);
+      expect(await checkin(vendedor1, vid)).toEqual([{ id: vid, status: 'aceito' }]);
+      expect(await contar('select count(*) as n from core.visita where id = $1', [vid])).toBe(1);
+      const v = await linhaVisita(vid);
+      expect(v).toMatchObject({ fora_do_raio: false, sem_gps: false, usuario_id: U.vendedor1, cliente_id: C.c1, checkout_em: null });
+      expect(v.distancia_m).toBeLessThan(200);
+      expect(eventos.filter((e) => e.nome === 'core.visita.checkin@1' && e.payload.visita_id === vid)).toHaveLength(1); // o reenvio não republica
+      await checkout(vendedor1, id(101), vid); // libera o único aberto para os próximos casos
+    });
+
+    it('RN-CORE-10: fora do raio SEM justificativa é rejeitado e nada é gravado', async () => {
+      const vid = id(2);
+      const r = await checkin(vendedor1, vid, LONGE);
+      expect(r[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-CORE-10' });
+      expect(await contar('select count(*) as n from core.visita where id = $1', [vid])).toBe(0);
+    });
+
+    it('RN-CORE-10: fora do raio COM justificativa é aceito e fica sinalizado', async () => {
+      const vid = id(3);
+      expect(await checkin(vendedor1, vid, { ...LONGE, justificativa_fora_raio: 'Cliente atendeu no depósito ao lado' })).toEqual([{ id: vid, status: 'aceito' }]);
+      expect(await linhaVisita(vid)).toMatchObject({ fora_do_raio: true, justificativa_fora_raio: 'Cliente atendeu no depósito ao lado' });
+      expect((await linhaVisita(vid)).distancia_m).toBeGreaterThan(200);
+      await checkout(vendedor1, id(103), vid);
+    });
+
+    it('RN-CORE-10: o raio vem do parâmetro do tenant (plataforma.parametro): com 2000 m o check-in a ~900 m é aceito sem justificativa, e o pull entrega só esse parâmetro', async () => {
+      const mudar = (v: number) => comTenant(pool, A.tenantId, (c) => c.query("update plataforma.parametro set valor = $1::jsonb where modulo = 'core' and chave = 'checkin.raio_m'", [JSON.stringify(v)]));
+      const vid = id(900);
+      await mudar(2000);
+      try {
+        expect(await checkin(vendedor1, vid, LONGE)).toEqual([{ id: vid, status: 'aceito' }]);
+        expect(await linhaVisita(vid)).toMatchObject({ fora_do_raio: false });
+        const linhas = await puxar('parametro', vendedor1);
+        for (const l of linhas) ParametroSyncSchema.parse(l);
+        expect(linhas.map((l) => (l as unknown as { chave: string }).chave)).toEqual(['checkin.raio_m']);
+        expect((linhas[0] as unknown as { valor: number }).valor).toBe(2000);
+        expect(await puxar('parametro', vendedorB)).not.toContainEqual(expect.objectContaining({ valor: 2000 }));
+      } finally {
+        await mudar(200);
+      }
+      await checkout(vendedor1, id(901), vid);
+    });
+
+    it('RN-CORE-13: sem GPS o atendimento segue, marcado sem_gps e sem coordenada gravada', async () => {
+      const vid = id(4);
+      expect(await checkin(vendedor1, vid, { lat: null, lng: null })).toEqual([{ id: vid, status: 'aceito' }]);
+      expect(await linhaVisita(vid)).toMatchObject({ sem_gps: true, checkin_lat: null, checkin_lng: null, distancia_m: null, fora_do_raio: false });
+      await checkout(vendedor1, id(104), vid);
+    });
+
+    it('RN-CORE-10: cliente sem coordenada (c3) aceita o 1º check-in e sugere a coordenada ao BKO', async () => {
+      const vid = id(5);
+      expect(await checkin(vendedor1, vid, { cliente_id: C.c3, lat: -3.29, lng: -60.62 })).toEqual([{ id: vid, status: 'aceito' }]);
+      expect(await linhaVisita(vid)).toMatchObject({ sugere_coordenada: true, fora_do_raio: false });
+      await checkout(vendedor1, id(105), vid);
+    });
+
+    it('RN-CORE-04: cliente fora da carteira (c2 do vendedor-2) é rejeitado; o promotor só faz check-in na sua carteira', async () => {
+      expect((await checkin(vendedor1, id(6), { cliente_id: C.c2 }))[0]).toMatchObject({ status: 'rejeitado', codigo: 'FORA_DA_CARTEIRA' });
+      expect((await checkin(promotor, id(7), { cliente_id: C.c3 }, ['core']))[0]).toMatchObject({ status: 'rejeitado', codigo: 'FORA_DA_CARTEIRA' });
+    });
+
+    it('idempotência: o mesmo id enviado por OUTRO usuário é ID_EM_USO (não vaza nem sobrescreve)', async () => {
+      const vid = id(8);
+      await checkin(vendedor1, vid);
+      expect((await checkin(promotor, vid, {}, ['core']))[0]).toMatchObject({ status: 'rejeitado', codigo: 'ID_EM_USO' });
+      await checkout(vendedor1, id(108), vid);
+    });
+
+    it('id do item diferente do id do payload é PAYLOAD_INVALIDO', async () => {
+      const r = await prov('visita').receber!(ctx(vendedor1), [item('visita', id(9), CheckinVisitaSchema.parse({ id: id(10), cliente_id: C.c1, checkin_em: new Date().toISOString() }))]);
+      expect(r[0]).toMatchObject({ status: 'rejeitado', codigo: 'PAYLOAD_INVALIDO' });
+    });
+  });
+
+  describe('um atendimento aberto (RN-CORE-11)', () => {
+    it('RN-CORE-11: novo check-in em outro cliente fecha o anterior como auto/nao_finalizado e publica o checkout automático', async () => {
+      await checkin(vendedor1, id(20), { checkin_em: hora(2) });
+      await checkin(vendedor1, id(21), { cliente_id: C.c3, lat: -3.29, lng: -60.62, checkin_em: hora(1) });
+      expect(await linhaVisita(id(20))).toMatchObject({ resultado: 'nao_finalizado', fechada_por: 'auto' });
+      expect(await linhaVisita(id(21))).toMatchObject({ checkout_em: null });
+      expect(await contar('select count(*) as n from core.visita where usuario_id = $1 and checkout_em is null and deleted_at is null', [U.vendedor1])).toBe(1);
+      expect(eventos.some((e) => e.nome === 'core.visita.checkout@1' && e.payload.visita_id === id(20) && e.payload.fechada_por === 'auto')).toBe(true);
+    });
+
+    it('RN-CORE-11: o esquecido de ontem fecha na virada do dia do fuso do tenant (Manaus) ao entrar o check-in de hoje', async () => {
+      const ontem = new Date(Date.now() - 26 * 3_600_000).toISOString();
+      await checkout(vendedor1, id(122), id(21)); // fecha a de c3 do caso anterior
+      await checkin(vendedor1, id(22), { checkin_em: ontem });
+      await checkin(vendedor1, id(23), { cliente_id: C.c3, lat: -3.29, lng: -60.62 });
+      const v = await linhaVisita(id(22));
+      expect(v).toMatchObject({ resultado: 'nao_finalizado', fechada_por: 'auto' });
+      expect(new Date(v.checkout_em).getTime()).toBeGreaterThan(new Date(ontem).getTime());
+      expect(new Date(v.checkout_em).getTime()).toBeLessThanOrEqual(Date.now());
+      await checkout(vendedor1, id(123), id(23));
+    });
+
+    it('RN-CORE-11: o checkout do usuário vence o fechamento automático (é o fato real)', async () => {
+      await checkin(vendedor1, id(24), { checkin_em: hora(3) });
+      await checkin(vendedor1, id(25), { cliente_id: C.c3, lat: -3.29, lng: -60.62, checkin_em: hora(2) }); // fecha id(24) como auto
+      expect((await checkout(vendedor1, id(124), id(24), { checkout_em: hora(2.5), resultado: 'sem_pedido', motivo_texto: 'Fechou o dia sem compra' }))[0]).toEqual({ id: id(124), status: 'aceito' });
+      expect(await linhaVisita(id(24))).toMatchObject({ resultado: 'sem_pedido', fechada_por: 'usuario', checkout_id: id(124) });
+      await checkout(vendedor1, id(125), id(25));
+    });
+  });
+
+  describe('checkout (RN-CORE-12, RN-CORE-14)', () => {
+    it('RN-CORE-12: com Vendedor efetivo, sem_pedido sem motivo é rejeitado; com motivo de não venda é aceito; reenvio do comando não duplica', async () => {
+      const vid = id(30);
+      await checkin(vendedor1, vid);
+      expect((await checkout(vendedor1, id(130), vid, { motivo_texto: null }, undefined, true))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-CORE-12' });
+      const m = await comTenant(pool, A.tenantId, async (c) => (await c.query("select id from core.motivo where tipo = 'nao_venda' and deleted_at is null order by ordem limit 1")).rows[0].id as string);
+      expect(await checkout(vendedor1, id(131), vid, { motivo_id: m, motivo_texto: null })).toEqual([{ id: id(131), status: 'aceito' }]);
+      expect(await checkout(vendedor1, id(131), vid, { motivo_id: m, motivo_texto: null })).toEqual([{ id: id(131), status: 'aceito' }]);
+      expect(await linhaVisita(vid)).toMatchObject({ resultado: 'sem_pedido', motivo_id: m, fechada_por: 'usuario', checkout_id: id(131) });
+      expect(eventos.filter((e) => e.nome === 'core.visita.checkout@1' && e.payload.visita_id === vid)).toHaveLength(1);
+    });
+
+    it('checkout de visita já encerrada por outro comando é conflito; visita de outro usuário é VISITA_NAO_ENCONTRADA (mesma resposta de inexistente)', async () => {
+      const r = await checkout(vendedor1, id(132), id(30), { motivo_texto: 'Outra tentativa' });
+      expect(r[0]).toMatchObject({ status: 'conflito' });
+      expect((await checkout(vendedor2, id(133), id(30)))[0]).toMatchObject({ status: 'rejeitado', codigo: 'VISITA_NAO_ENCONTRADA' });
+      expect((await checkout(vendedor1, id(134), id(999)))[0]).toMatchObject({ status: 'rejeitado', codigo: 'VISITA_NAO_ENCONTRADA' });
+    });
+
+    it('RN-CORE-12: promotor (sem Vendedor efetivo) fecha como "atendido" sem motivo; "sem_pedido" é rejeitado', async () => {
+      const vid = id(31);
+      await checkin(promotor, vid, {}, ['core']);
+      expect((await checkout(promotor, id(135), vid, { resultado: 'sem_pedido' }, ['core']))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-CORE-12' });
+      expect(await checkout(promotor, id(136), vid, { resultado: 'atendido', motivo_texto: null }, ['core'])).toEqual([{ id: id(136), status: 'aceito' }]);
+      expect(await linhaVisita(vid)).toMatchObject({ resultado: 'atendido', fechada_por: 'usuario' });
+    });
+
+    it('RN-CORE-12: as etapas do checkout são gravadas uma vez (idempotente)', async () => {
+      const vid = id(32);
+      await checkin(vendedor1, vid);
+      await checkout(vendedor1, id(137), vid, { etapas: [{ modulo: 'pesquisa', etapa: 'pesquisa.preco', situacao: 'concluida', referencia_id: id(500) }] });
+      expect(await contar("select count(*) as n from core.visita_etapa where visita_id = $1 and modulo = 'pesquisa'", [vid])).toBe(1);
+    });
+
+    it('RN-CORE-14: cliente fechado sem foto ou com motivo que não é de cliente fechado é rejeitado (servidor revalida mesmo com app adulterado)', async () => {
+      const vid = id(33);
+      await checkin(vendedor1, vid);
+      const loja = await comTenant(pool, A.tenantId, async (c) => (await c.query("select id from core.motivo where codigo = 'loja_fechada'")).rows[0].id as string);
+      const naoVenda = await comTenant(pool, A.tenantId, async (c) => (await c.query("select id from core.motivo where tipo = 'nao_venda' and deleted_at is null limit 1")).rows[0].id as string);
+      expect((await checkout(vendedor1, id(138), vid, { resultado: 'cliente_fechado', motivo_id: loja, motivo_texto: null }, undefined, true))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-CORE-14' });
+      expect((await checkout(vendedor1, id(139), vid, { resultado: 'cliente_fechado', motivo_id: naoVenda, foto_fachada_id: id(600), motivo_texto: null }, undefined, true))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-CORE-14' });
+      expect(await contar('select count(*) as n from plataforma.arquivo where id = $1', [id(600)])).toBe(0);
+      expect(await linhaVisita(vid)).toMatchObject({ checkout_em: null });
+    });
+
+    it('RN-CORE-14: cliente fechado com motivo loja_fechada e foto persiste motivo e foto; o arquivo nasce "aguardando" e o reenvio é idempotente', async () => {
+      const vid = id(33);
+      const loja = await comTenant(pool, A.tenantId, async (c) => (await c.query("select id from core.motivo where codigo = 'loja_fechada'")).rows[0].id as string);
+      const dados = { resultado: 'cliente_fechado', motivo_id: loja, foto_fachada_id: id(601), motivo_texto: null };
+      expect(await checkout(vendedor1, id(140), vid, dados)).toEqual([{ id: id(140), status: 'aceito' }]);
+      expect(await checkout(vendedor1, id(140), vid, dados)).toEqual([{ id: id(140), status: 'aceito' }]);
+      expect(await linhaVisita(vid)).toMatchObject({ resultado: 'cliente_fechado', motivo_id: loja, foto_fachada_id: id(601), fechada_por: 'usuario' });
+      const arq = await comTenant(pool, A.tenantId, async (c) => (await c.query('select situacao, finalidade, entidade, entidade_id, cliente_id, enviado_por from plataforma.arquivo where id = $1', [id(601)])).rows);
+      expect(arq).toEqual([{ situacao: 'aguardando', finalidade: 'fachada', entidade: 'visita', entidade_id: vid, cliente_id: C.c1, enviado_por: U.vendedor1 }]);
+      expect(eventos.find((e) => e.nome === 'core.visita.checkout@1' && e.payload.visita_id === vid)?.payload).toMatchObject({ resultado: 'cliente_fechado', motivo_codigo: 'loja_fechada', fechada_por: 'usuario' });
+    });
+
+    it('RN-CORE-14: foto já usada por outra visita rejeita só aquele item (ARQUIVO_JA_REFERENCIADO)', async () => {
+      const vid = id(34);
+      await checkin(vendedor1, vid);
+      const loja = await comTenant(pool, A.tenantId, async (c) => (await c.query("select id from core.motivo where codigo = 'acesso_negado'")).rows[0].id as string);
+      const r = await checkout(vendedor1, id(141), vid, { resultado: 'cliente_fechado', motivo_id: loja, foto_fachada_id: id(601), motivo_texto: null });
+      expect(r[0]).toMatchObject({ status: 'rejeitado', codigo: 'ARQUIVO_JA_REFERENCIADO' });
+      expect(await linhaVisita(vid)).toMatchObject({ checkout_em: null });
+      await checkout(vendedor1, id(142), vid);
+    });
+  });
+
+  describe('pull por escopo de usuários (RN-CORE-04, RN-CORE-05)', () => {
+    it('as 4 entidades novas declaram o escopo certo e as linhas validam o schema do contrato', async () => {
+      expect(prov('motivo').escopo).toBe('tenant');
+      for (const n of ['rota', 'rota_parada', 'visita']) expect(prov(n).escopo, n).toBe('usuarios');
+      for (const l of await puxar('motivo', vendedor1)) MotivoSyncSchema.parse(l);
+      for (const l of await puxar('rota', vendedor1)) RotaSyncSchema.parse(l);
+      for (const l of await puxar('rota_parada', vendedor1)) RotaParadaSyncSchema.parse(l);
+      const visitas = await puxar('visita', vendedor1);
+      expect(visitas.length).toBeGreaterThan(0);
+      for (const l of visitas) VisitaSyncSchema.parse(l);
+    });
+
+    it('RN-CORE-04: vendedor-1 só recebe as próprias visitas, rotas e paradas; o supervisor recebe a equipe e não o vendedor-2', async () => {
+      const usuariosDe = (l: LinhaSync[]) => [...new Set(l.map((x) => (x as unknown as { usuario_id: string }).usuario_id))].sort();
+      for (const n of ['visita', 'rota', 'rota_parada']) expect(usuariosDe(await puxar(n, vendedor1)), n).toEqual([U.vendedor1]);
+      const sup = usuariosDe(await puxar('visita', supervisor));
+      expect(sup).toContain(U.promotor);
+      expect(sup).not.toContain(U.vendedor2);
+      expect(usuariosDe(await puxar('visita', gerente))).toContain(U.vendedor2);
+    });
+
+    it('a visita criada pelo push chega no pull com checkout_id e foto (sobreposição da fila usa o checkout_id)', async () => {
+      const l = (await puxar('visita', vendedor1)).find((x) => x.id === id(33)) as unknown as { checkout_id: string; foto_fachada_id: string; resultado: string };
+      expect(l).toMatchObject({ checkout_id: id(140), foto_fachada_id: id(601), resultado: 'cliente_fechado' });
+    });
+
+    it('RN-CORE-05: vendedor do tenant B nunca recebe visita, rota ou parada do tenant A', async () => {
+      for (const n of ['visita', 'rota', 'rota_parada', 'motivo']) {
+        const linhas = await puxar(n, vendedorB);
+        expect(linhas.some((x) => x.id.startsWith('0e300000')), n).toBe(false);
+        expect(linhas.every((x) => !Object.values(A.visitas).includes(x.id) && !Object.values(A.rotas).includes(x.id)), n).toBe(true);
+      }
+      expect((await checkin(vendedorB, id(40), { cliente_id: C.c1 }))[0]).toMatchObject({ status: 'rejeitado', codigo: 'FORA_DA_CARTEIRA' });
+      expect(await contar('select count(*) as n from core.visita where id = $1', [id(40)])).toBe(0);
+    });
+
+    it('RN-CORE-05: o tenant B não consegue fechar visita do tenant A (VISITA_NAO_ENCONTRADA)', async () => {
+      expect((await checkout(vendedorB, id(143), id(33)))[0]).toMatchObject({ status: 'rejeitado', codigo: 'VISITA_NAO_ENCONTRADA' });
+    });
+  });
+
+  describe('rotas do BKO (RN-CORE-04)', () => {
+    it('PUT rota: monta a rota na ordem, rejeita cliente fora da carteira do usuário (422 RN-CORE-04) e reordenar mantém o id da parada', async () => {
+      await expect(chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA }, corpo: { paradas: [{ cliente_id: C.c2 }] } })).rejects.toMatchObject({ codigo: 'RN-CORE-04' });
+      const r1 = await chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA }, corpo: { paradas: [{ cliente_id: C.c1 }, { cliente_id: C.c3, janela_inicio: '09:00', janela_fim: '10:00' }] } });
+      expect(r1.paradas.map((p: { cliente_id: string }) => p.cliente_id)).toEqual([C.c1, C.c3]);
+      const idC1 = r1.paradas[0].id;
+      const r2 = await chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA }, corpo: { paradas: [{ cliente_id: C.c3 }, { cliente_id: C.c1 }] } });
+      expect(r2.paradas.map((p: { cliente_id: string; sequencia: number }) => [p.cliente_id, p.sequencia])).toEqual([[C.c3, 1], [C.c1, 2]]);
+      expect(r2.paradas.find((p: { cliente_id: string }) => p.cliente_id === C.c1).id).toBe(idC1);
+      expect(r2).toMatchObject({ total: 2, feitas: 0 });
+    });
+
+    it('o editor do BKO recebe o cliente de cada parada (nome, cidade e coordenada) e a carteira vigente do usuário com o vínculo', async () => {
+      const dia = await chamar('GET', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA } });
+      expect(dia.paradas.find((p: { cliente_id: string }) => p.cliente_id === C.c1)).toMatchObject({ cliente_nome: 'Auto Peças Um', lat: expect.any(Number), lng: expect.any(Number) });
+      expect(dia.paradas.find((p: { cliente_id: string }) => p.cliente_id === C.c3).lat).toBeNull();
+      const cart = await chamar('GET', 'usuarios/:id/clientes', supervisor, { params: { id: U.vendedor1 } });
+      expect(cart.itens.map((c: { id: string }) => c.id).sort()).toEqual([C.c1, C.c3].sort());
+      expect(cart.itens[0]).toMatchObject({ papel: 'vendedor', carteira_id: expect.any(String) });
+      await expect(chamar('GET', 'usuarios/:id/clientes', supervisor, { params: { id: U.vendedor2 } })).rejects.toBeInstanceOf(ErroNaoEncontrado);
+    });
+
+    it('RN-CORE-04: supervisor lê a rota da equipe e recebe 404 para usuário de outra equipe', async () => {
+      const ok = await chamar('GET', 'rotas/:usuarioId/:data', supervisor, { params: { usuarioId: U.vendedor1, data: SEMANA } });
+      expect(ok.total).toBe(2);
+      await expect(chamar('GET', 'rotas/:usuarioId/:data', supervisor, { params: { usuarioId: U.vendedor2, data: SEMANA } })).rejects.toBeInstanceOf(ErroNaoEncontrado);
+      const lista = await chamar('GET', 'rotas', supervisor, { query: { de: SEMANA, ate: SEMANA } });
+      expect(lista.itens.map((i: { usuario_id: string }) => i.usuario_id)).toEqual([U.vendedor1]);
+    });
+
+    it('copiar dia: copia para as datas livres e ignora a data que já tem visita', async () => {
+      await comTenant(pool, A.tenantId, async (c) => {
+        await c.query(
+          "insert into core.visita (id, tenant_id, usuario_id, cliente_id, data_local, checkin_em, checkout_em, resultado, fechada_por, motivo_texto) values ($1, $2, $3, $4, '2030-03-07', '2030-03-07T14:00:00Z', '2030-03-07T14:30:00Z', 'sem_pedido', 'usuario', 'x')",
+          [id(60), A.tenantId, U.vendedor1, C.c1],
+        );
+      });
+      const r = await chamar('POST', 'rotas/:usuarioId/:data/copiar', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA }, corpo: { para: ['2030-03-05', '2030-03-06', '2030-03-07'] } });
+      expect(r).toEqual({ copiadas: ['2030-03-05', '2030-03-06'], ignoradas: ['2030-03-07'] });
+      const copia = await chamar('GET', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: '2030-03-06' } });
+      expect(copia.paradas.map((p: { cliente_id: string }) => p.cliente_id)).toEqual([C.c3, C.c1]);
+    });
+
+    it('gerar pela frequência: cria a rota da semana uma vez e não sobrescreve a existente (idempotente)', async () => {
+      await comTenant(pool, A.tenantId, async (c) => {
+        await c.query("update core.carteira set frequencia_semanas = 1, dia_semana = 3 where cliente_id = $1 and usuario_id = $2 and papel = 'promotor'", [C.c1, U.promotor]);
+      });
+      const corpo = { semana: SEMANA, usuario_ids: [U.promotor] };
+      expect(await chamar('POST', 'rotas/gerar', gerente, { corpo })).toEqual({ criadas: 1, ignoradas: 0 });
+      expect(await chamar('POST', 'rotas/gerar', gerente, { corpo })).toEqual({ criadas: 0, ignoradas: 1 });
+      const dia = await chamar('GET', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.promotor, data: '2030-03-06' } });
+      expect(dia.rota).toMatchObject({ origem: 'frequencia', situacao: 'planejada' });
+    });
+  });
+
+  describe('coordenada sugerida (RN-CORE-10) e motivos (RN-CORE-14)', () => {
+    it('RN-CORE-10: aprova a coordenada sugerida, grava no cliente, audita e publica core.cliente.atualizado@1; só analista/admin veem a lista', async () => {
+      const novo = id(800);
+      await comTenant(pool, A.tenantId, async (c) => {
+        await c.query("insert into core.cliente (id, tenant_id, razao_social, nome_fantasia, cidade, uf) values ($1, $2, 'Sem Coordenada Ltda', 'Sem Coordenada', 'Manaus', 'AM')", [novo, A.tenantId]);
+        await c.query("insert into core.carteira (id, tenant_id, cliente_id, usuario_id, papel) values ($1, $2, $3, $4, 'vendedor')", [id(801), A.tenantId, novo, U.vendedor1]);
+      });
+      await checkin(vendedor1, id(50), { cliente_id: novo, lat: -3.2, lng: -60.7 });
+      await checkout(vendedor1, id(150), id(50));
+      const lista = await chamar('GET', 'coordenadas-sugeridas', analista);
+      const entrada = lista.itens.find((i: { cliente_id: string }) => i.cliente_id === novo);
+      expect(entrada.visitas[0]).toMatchObject({ visita_id: id(50), lat: -3.2, lng: -60.7 });
+      expect(rota('GET', 'coordenadas-sugeridas').acao).toBe('cliente.aprovar_coordenada');
+
+      await chamar('PUT', 'clientes/:id/coordenada', analista, { params: { id: novo }, corpo: { visita_id: id(50) } });
+      const cli = await comTenant(pool, A.tenantId, async (c) => (await c.query('select latitude::float8 as lat, longitude::float8 as lng from core.cliente where id = $1', [novo])).rows[0]);
+      expect(cli).toEqual({ lat: -3.2, lng: -60.7 });
+      expect((await linhaVisita(id(50))).sugere_coordenada).toBe(false);
+      expect(eventos.some((e) => e.nome === 'core.cliente.atualizado@1' && e.payload.cliente_id === novo && e.payload.origem === 'bko')).toBe(true);
+      const aud = await comTenant(pool, A.tenantId, async (c) => (await c.query("select usuario_id from plataforma.auditoria where acao = 'cliente.aprovar_coordenada' and entidade_id = $1", [novo])).rows);
+      expect(aud.map((l) => l.usuario_id)).toEqual([U.analista]);
+      await expect(chamar('PUT', 'clientes/:id/coordenada', analista, { params: { id: novo }, corpo: { visita_id: id(50) } })).rejects.toBeInstanceOf(ErroNaoEncontrado);
+      expect((await chamar('GET', 'coordenadas-sugeridas', analista)).itens.some((i: { cliente_id: string }) => i.cliente_id === novo)).toBe(false);
+    });
+
+    it('RN-CORE-14: motivo de sistema não se edita nem remove (422); motivo novo é criado, editado e removido, com código fixo', async () => {
+      const loja = await comTenant(pool, A.tenantId, async (c) => (await c.query("select id from core.motivo where codigo = 'loja_fechada'")).rows[0].id as string);
+      const corpoLoja = { tipo: 'cliente_fechado', codigo: 'loja_fechada', descricao: 'Mudou', ativo: false };
+      await expect(chamar('PUT', 'motivos/:id', analista, { params: { id: loja }, corpo: corpoLoja })).rejects.toMatchObject({ codigo: 'RN-CORE-14' });
+      await expect(chamar('DELETE', 'motivos/:id', analista, { params: { id: loja } })).rejects.toMatchObject({ codigo: 'RN-CORE-14' });
+      const mid = id(900);
+      await chamar('PUT', 'motivos/:id', analista, { params: { id: mid }, corpo: { tipo: 'nao_venda', codigo: 'sem_verba', descricao: 'Sem verba no mês', ordem: 50 } });
+      await expect(chamar('PUT', 'motivos/:id', analista, { params: { id: id(901) }, corpo: { tipo: 'nao_venda', codigo: 'sem_verba', descricao: 'Repetido' } })).rejects.toMatchObject({ codigo: 'MOTIVO_DUPLICADO' });
+      await expect(chamar('PUT', 'motivos/:id', analista, { params: { id: mid }, corpo: { tipo: 'nao_venda', codigo: 'outro', descricao: 'Trocou código' } })).rejects.toMatchObject({ codigo: 'MOTIVO_CODIGO_FIXO' });
+      await chamar('PUT', 'motivos/:id', analista, { params: { id: mid }, corpo: { tipo: 'nao_venda', codigo: 'sem_verba', descricao: 'Sem verba', ativo: false } });
+      const lista = await chamar('GET', 'motivos', vendedor1);
+      expect(lista.itens.find((m: { id: string }) => m.id === mid)).toMatchObject({ descricao: 'Sem verba', ativo: false, sistema: false });
+      await chamar('DELETE', 'motivos/:id', analista, { params: { id: mid } });
+      expect((await chamar('GET', 'motivos', vendedor1)).itens.some((m: { id: string }) => m.id === mid)).toBe(false);
+    });
+
+    it('as rotas de escrita exigem ação do manifesto e só analista/admin editam motivo e coordenada', () => {
+      for (const [m, c] of [['PUT', 'rotas/:usuarioId/:data'], ['POST', 'rotas/gerar'], ['PUT', 'motivos/:id'], ['PUT', 'clientes/:id/coordenada']] as const) expect(rota(m, c).acao, `${m} ${c}`).toBeTruthy();
+    });
+
+    it('visitas no BKO: supervisor vê a equipe com fora do raio sinalizado e etapas; não vê a de outra equipe', async () => {
+      const r = await chamar('GET', 'visitas', supervisor, { query: { fora_do_raio: 'true' } });
+      expect(r.itens.length).toBeGreaterThan(0);
+      expect(r.itens.every((v: { fora_do_raio: boolean; usuario_id: string }) => v.fora_do_raio && v.usuario_id !== U.vendedor2)).toBe(true);
+      const tudo = await chamar('GET', 'visitas', gerente, { query: { usuario_id: U.vendedor1 } });
+      expect(tudo.itens.find((v: { id: string }) => v.id === id(32)).etapas).toEqual([{ modulo: 'pesquisa', etapa: 'pesquisa.preco', situacao: 'concluida' }]);
+      expect((await chamar('GET', 'visitas', supervisor, { query: { usuario_id: U.vendedor2 } })).itens).toEqual([]);
+    });
+  });
+});

@@ -14,12 +14,11 @@
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| `apps/conector/**`, `docs/modulos/integracao/conector.md` | T-0013 | nuvem | 2026-10-31 |
-| `modules/gestor/domain/**`, `modules/gestor/contracts/**`, `modules/gestor/manifest.ts`, `docs/modulos/gestor/**` | T-0014 | nuvem | 2026-10-31 |
-| `.claude/settings.json` (religar o PostToolUse) | guardião v2 (Alexandre) | — | 2026-10-31 |
+| `apps/conector/**`, `modules/integracao/contracts/**`, `docs/modulos/integracao/**` | T-0023 | `nuvem/T-0023-conector-oracle` | 2026-10-31 |
+| `modules/gestor/domain/**`, `modules/gestor/contracts/**`, `modules/gestor/manifest.ts`, `docs/modulos/gestor/**` | T-0014 (ajustes v2: prazo em dias úteis, "passou do limite", feriados) | `nuvem/T-0014-ajustes-v2` | 2026-10-31 |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
-Destravados em 2026-10-31: `scripts/coord*.mjs` e `.claude/**` (merge 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (merges dcc044d, 0d1c8a1 e 3215b2f). Também: T-0007, T-0012 e `.claude/hooks/**` (merges 6fba044, f4fdbe5, d277a55). T-0011 v2 (merge 9f06e77). Guardião v2 (`.claude/hooks/**`, merge c2f0005). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
+Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
 Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho: local e nuvem".
 
 ## Meta: fechar a Sprint 0 até sexta, 06/11 (Alexandre, R-20261031-103502)
@@ -34,12 +33,12 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 |---|---|---|---|---|
 | [T-0015](tarefas/T-0015.md) | Ajustes pós-Sprint 0: O-3 (promotor lê pedidos da carteira) e D-1 | engenheiro-software | local | concluida (O-3 e D-1 provados com Postgres) |
 | [T-0016](tarefas/T-0016.md) | Desenho técnico e contratos da Sprint 1 | engenheiro-software | local | concluida (aprovado; ADRs 0009/0010) |
-| [T-0017](tarefas/T-0017.md) | Carteira e Cliente 360 | modulo-core | local | em_andamento (onda 1: contratos e domínio; banco lote A) |
-| [T-0018](tarefas/T-0018.md) | Rotas e visitas reais, sync de visita e pedido (D-2) | modulo-core | local | aberta |
-| [T-0019](tarefas/T-0019.md) | Central de notificações | modulo-core | local | aberta |
-| [T-0020](tarefas/T-0020.md) | Metas e indicadores básicos — só fase 1 (se sobrar) | modulo-core | local | aberta |
-| [T-0022](tarefas/T-0022.md) | Despachante da outbox (onda 4) | engenheiro-software | local | aberta |
-| [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho — parte 2 | engenheiro-software | local | aberta (depois da T-0016) |
+| [T-0017](tarefas/T-0017.md) | Carteira e Cliente 360 | modulo-core | local | em_revisao (todos os critérios ✅ · aguarda revisão final da Sprint 1) |
+| [T-0018](tarefas/T-0018.md) | Rotas e visitas reais, sync de visita e pedido (D-2) | modulo-core | local | em_andamento (critério 2 ❌ D-4 com o vendedor · 🔴 D-3 com o engenheiro) |
+| [T-0019](tarefas/T-0019.md) | Central de notificações | modulo-core | local | em_andamento (critérios ✅ · 🔴 D-3 · lida_em no BKO · push depende da T-0022 e do EAS) |
+| [T-0020](tarefas/T-0020.md) | Metas e indicadores básicos — só fase 1 | modulo-core | local | em_teste (fase 1 entregue · realizado de venda depende das Sprints 4–5) |
+| [T-0022](tarefas/T-0022.md) | Despachante da outbox (onda 4) | engenheiro-software | local | em_teste (entregue · 6 testes com Postgres · push do core pendente) |
+| [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho — parte 2 | engenheiro-software | local | em_andamento (P2/P3/P5 ✅ · 🔴 L-1 com o engenheiro · P4/P7 dependem do build EAS) |
 
 ## Adiantadas (domínio sem banco/telas) e backlog de outras sprints
 | Tarefa | Título | Responsável | Onde | Status |
@@ -47,8 +46,11 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0007](tarefas/T-0007.md) | Produto no dono definitivo (ADR-0005) | engenheiro-software | nuvem → local (merge 6fba044) | concluida (🔴 da fixture corrigido · 🟡 aplicados · API 37/37 com banco) |
 | [T-0011](tarefas/T-0011.md) | Treinamento — domínio (trilhas, XP, níveis, medalhas, ranking) | modulo-treinamento | nuvem → local (merge 9f06e77) | concluida (230 testes · revisão sem 🔴 · RN-TRE-01..08 aplicadas) |
 | [T-0012](tarefas/T-0012.md) | Pesquisa — domínio | modulo-pesquisa | nuvem → local (merge f4fdbe5) | concluida (215 testes · revisão sem 🔴 · decisões do Alexandre aplicadas · cliente fechado via RN-CORE-14) |
-| [T-0013](tarefas/T-0013.md) | Conector v1 (lado do cliente) — Sprint 2 | modulo-integracao | nuvem | em_andamento (sessão da nuvem) |
-| [T-0014](tarefas/T-0014.md) | Gestor — domínio — Sprint 6 | modulo-gestor | nuvem | em_andamento (sessão da nuvem) |
+| [T-0013](tarefas/T-0013.md) | Conector v1 (lado do cliente) — Sprint 2 | modulo-integracao | nuvem → local (merges a7cd2fe, 588da33) | concluida (revisões do dono e do engenheiro sem 🔴 · correções na T-0023) |
+| [T-0014](tarefas/T-0014.md) | Gestor — domínio — Sprint 6 | modulo-gestor | nuvem (ajustes v2) | em_andamento (ajustes v1 mergeados · v2 na nuvem: prazo em dias úteis, limite, feriados) |
+| [T-0021](tarefas/T-0021.md) | Catálogo — domínio — Sprint 3 | modulo-catalogo | nuvem → local (merges 706a31e, 7b3bb50) | concluida (236 testes · revisões do dono e do engenheiro sem 🔴) |
+| [T-0023](tarefas/T-0023.md) | Conector: ajustes v1.1 e adaptador Oracle — Sprint 2 | modulo-integracao | nuvem | em_andamento (sessão da nuvem) |
+| [T-0024](tarefas/T-0024.md) | Payload dos eventos no contracts de cada módulo — Sprint 2 | engenheiro-software | local | aberta |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (155 testes · revisão sem 🔴 · decisões do Alexandre aplicadas) |
 

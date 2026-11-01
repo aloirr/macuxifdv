@@ -3,6 +3,7 @@ import { cacheValido, chaveCache, consomeCotaIa, consultasRestantes, deveGuardar
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
 
 const P = PARAMETROS_PADRAO;
+const FUSO = 'America/Manaus';
 
 describe('RN-CAT-03: limite de consultas de IA por usuário/dia', () => {
   it('RN-CAT-03: o dia do limite é o dia civil no fuso do tenant (America/Manaus, UTC-4)', () => {
@@ -12,16 +13,16 @@ describe('RN-CAT-03: limite de consultas de IA por usuário/dia', () => {
   });
 
   it('RN-CAT-03: a primeira consulta do dia é permitida e conta 1', () => {
-    const r = registrarConsultaIa(null, '2026-10-31T15:00:00Z', P);
+    const r = registrarConsultaIa(null, '2026-10-31T15:00:00Z', FUSO, P);
     expect(r).toMatchObject({ permitido: true, restantes: 199, motivo: null, mensagem: null });
     expect(r.uso).toEqual({ dia: '2026-10-31', consultas: 1 });
   });
 
   it('RN-CAT-03: a 200ª consulta passa e a 201ª é barrada, com mensagem em português e ação seguinte', () => {
     const ate199 = { dia: '2026-10-31', consultas: 199 };
-    const a = registrarConsultaIa(ate199, '2026-10-31T15:00:00Z', P);
+    const a = registrarConsultaIa(ate199, '2026-10-31T15:00:00Z', FUSO, P);
     expect(a).toMatchObject({ permitido: true, restantes: 0 });
-    const b = registrarConsultaIa(a.uso, '2026-10-31T15:01:00Z', P);
+    const b = registrarConsultaIa(a.uso, '2026-10-31T15:01:00Z', FUSO, P);
     expect(b).toMatchObject({ permitido: false, restantes: 0, motivo: 'limite_atingido' });
     expect(b.mensagem).toMatch(/limite/i);
     expect(b.mensagem).toMatch(/busca simples/i);
@@ -31,9 +32,9 @@ describe('RN-CAT-03: limite de consultas de IA por usuário/dia', () => {
   it('RN-CAT-03: o contador zera na virada do dia no fuso do tenant, não em UTC', () => {
     const cheio = { dia: '2026-10-30', consultas: 200 };
     // 2026-10-31T02:00Z ainda é 30/10 em Manaus: continua barrado
-    expect(registrarConsultaIa(cheio, '2026-10-31T02:00:00Z', P).permitido).toBe(false);
+    expect(registrarConsultaIa(cheio, '2026-10-31T02:00:00Z', FUSO, P).permitido).toBe(false);
     // 2026-10-31T04:00Z já é 31/10 em Manaus: zera
-    const novo = registrarConsultaIa(cheio, '2026-10-31T04:00:00Z', P);
+    const novo = registrarConsultaIa(cheio, '2026-10-31T04:00:00Z', FUSO, P);
     expect(novo).toMatchObject({ permitido: true, restantes: 199 });
     expect(novo.uso.dia).toBe('2026-10-31');
   });
@@ -42,19 +43,19 @@ describe('RN-CAT-03: limite de consultas de IA por usuário/dia', () => {
     const p = resolverParametros({ limite_consultas_ia_dia: 2 });
     let uso = null as ReturnType<typeof registrarConsultaIa>['uso'] | null;
     const agora = '2026-10-31T15:00:00Z';
-    uso = registrarConsultaIa(uso, agora, p).uso;
-    uso = registrarConsultaIa(uso, agora, p).uso;
-    expect(registrarConsultaIa(uso, agora, p).permitido).toBe(false);
-    const off = registrarConsultaIa(null, agora, resolverParametros({ limite_consultas_ia_dia: 0 }));
+    uso = registrarConsultaIa(uso, agora, FUSO, p).uso;
+    uso = registrarConsultaIa(uso, agora, FUSO, p).uso;
+    expect(registrarConsultaIa(uso, agora, FUSO, p).permitido).toBe(false);
+    const off = registrarConsultaIa(null, agora, FUSO, resolverParametros({ limite_consultas_ia_dia: 0 }));
     expect(off).toMatchObject({ permitido: false, motivo: 'ia_desligada' });
     expect(off.mensagem).toMatch(/não está habilitada/);
   });
 
   it('RN-CAT-03: consultasRestantes não consome e trata uso de outro dia como zerado', () => {
-    expect(consultasRestantes({ dia: '2026-10-31', consultas: 150 }, '2026-10-31T15:00:00Z', P)).toBe(50);
-    expect(consultasRestantes({ dia: '2026-10-30', consultas: 150 }, '2026-10-31T15:00:00Z', P)).toBe(200);
-    expect(consultasRestantes(null, '2026-10-31T15:00:00Z', P)).toBe(200);
-    expect(consultasRestantes({ dia: '2026-10-31', consultas: 999 }, '2026-10-31T15:00:00Z', P)).toBe(0);
+    expect(consultasRestantes({ dia: '2026-10-31', consultas: 150 }, '2026-10-31T15:00:00Z', FUSO, P)).toBe(50);
+    expect(consultasRestantes({ dia: '2026-10-30', consultas: 150 }, '2026-10-31T15:00:00Z', FUSO, P)).toBe(200);
+    expect(consultasRestantes(null, '2026-10-31T15:00:00Z', FUSO, P)).toBe(200);
+    expect(consultasRestantes({ dia: '2026-10-31', consultas: 999 }, '2026-10-31T15:00:00Z', FUSO, P)).toBe(0);
   });
 });
 
@@ -63,29 +64,29 @@ describe('RN-CAT-03: só consulta respondida pelo provedor consome a cota', () =
   const uso = { dia: '2026-10-31', consultas: 10 };
 
   it('RN-CAT-03: verificarConsultaIa só confere (antes de chamar o provedor) e nunca consome', () => {
-    expect(verificarConsultaIa(uso, AGORA, P)).toMatchObject({ permitido: true, uso, restantes: 190, motivo: null });
-    expect(verificarConsultaIa({ dia: '2026-10-31', consultas: 200 }, AGORA, P)).toMatchObject({ permitido: false, motivo: 'limite_atingido', restantes: 0 });
-    expect(verificarConsultaIa(null, AGORA, resolverParametros({ limite_consultas_ia_dia: 0 }))).toMatchObject({ permitido: false, motivo: 'ia_desligada' });
-    expect(verificarConsultaIa({ dia: '2026-10-30', consultas: 200 }, AGORA, P)).toMatchObject({ permitido: true, uso: { dia: '2026-10-31', consultas: 0 }, restantes: 200 });
+    expect(verificarConsultaIa(uso, AGORA, FUSO, P)).toMatchObject({ permitido: true, uso, restantes: 190, motivo: null });
+    expect(verificarConsultaIa({ dia: '2026-10-31', consultas: 200 }, AGORA, FUSO, P)).toMatchObject({ permitido: false, motivo: 'limite_atingido', restantes: 0 });
+    expect(verificarConsultaIa(null, AGORA, FUSO, resolverParametros({ limite_consultas_ia_dia: 0 }))).toMatchObject({ permitido: false, motivo: 'ia_desligada' });
+    expect(verificarConsultaIa({ dia: '2026-10-30', consultas: 200 }, AGORA, FUSO, P)).toMatchObject({ permitido: true, uso: { dia: '2026-10-31', consultas: 0 }, restantes: 200 });
   });
 
   it('RN-CAT-03: falha do provedor (erro) não consome a cota', () => {
-    const r = registrarDesfechoIa(uso, AGORA, P, 'erro');
+    const r = registrarDesfechoIa(uso, AGORA, FUSO, P, 'erro');
     expect(r).toMatchObject({ uso, restantes: 190, consumiu: false });
   });
 
   it('RN-CAT-03: tempo esgotado no provedor não consome a cota', () => {
-    const r = registrarDesfechoIa(uso, AGORA, P, 'tempo_esgotado');
+    const r = registrarDesfechoIa(uso, AGORA, FUSO, P, 'tempo_esgotado');
     expect(r).toMatchObject({ uso, restantes: 190, consumiu: false });
   });
 
   it('RN-CAT-03: consulta respondida pelo provedor consome uma da cota', () => {
-    const r = registrarDesfechoIa(uso, AGORA, P, 'respondida');
+    const r = registrarDesfechoIa(uso, AGORA, FUSO, P, 'respondida');
     expect(r).toMatchObject({ uso: { dia: '2026-10-31', consultas: 11 }, restantes: 189, consumiu: true });
   });
 
   it('RN-CAT-03: provedor não chamado (cache, offline, limite, busca simples) não consome', () => {
-    expect(registrarDesfechoIa(uso, AGORA, P, 'nao_chamada')).toMatchObject({ uso, consumiu: false });
+    expect(registrarDesfechoIa(uso, AGORA, FUSO, P, 'nao_chamada')).toMatchObject({ uso, consumiu: false });
     expect(consomeCotaIa('nao_chamada')).toBe(false);
     expect(consomeCotaIa('erro')).toBe(false);
     expect(consomeCotaIa('tempo_esgotado')).toBe(false);
@@ -94,14 +95,14 @@ describe('RN-CAT-03: só consulta respondida pelo provedor consome a cota', () =
 
   it('RN-CAT-03: dez falhas seguidas no fim da cota não tiram a última consulta do usuário', () => {
     let u = { dia: '2026-10-31', consultas: 199 };
-    for (let i = 0; i < 10; i++) u = registrarDesfechoIa(u, AGORA, P, i % 2 ? 'erro' : 'tempo_esgotado').uso;
-    expect(verificarConsultaIa(u, AGORA, P)).toMatchObject({ permitido: true, restantes: 1 });
-    u = registrarDesfechoIa(u, AGORA, P, 'respondida').uso;
-    expect(verificarConsultaIa(u, AGORA, P)).toMatchObject({ permitido: false, motivo: 'limite_atingido' });
+    for (let i = 0; i < 10; i++) u = registrarDesfechoIa(u, AGORA, FUSO, P, i % 2 ? 'erro' : 'tempo_esgotado').uso;
+    expect(verificarConsultaIa(u, AGORA, FUSO, P)).toMatchObject({ permitido: true, restantes: 1 });
+    u = registrarDesfechoIa(u, AGORA, FUSO, P, 'respondida').uso;
+    expect(verificarConsultaIa(u, AGORA, FUSO, P)).toMatchObject({ permitido: false, motivo: 'limite_atingido' });
   });
 
   it('RN-CAT-03: resposta que chegou no limite (corrida entre duas consultas) é gravada sem passar do limite', () => {
-    const r = registrarDesfechoIa({ dia: '2026-10-31', consultas: 200 }, AGORA, P, 'respondida');
+    const r = registrarDesfechoIa({ dia: '2026-10-31', consultas: 200 }, AGORA, FUSO, P, 'respondida');
     expect(r).toMatchObject({ uso: { dia: '2026-10-31', consultas: 200 }, restantes: 0, consumiu: false });
   });
 });

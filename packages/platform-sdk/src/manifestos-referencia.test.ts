@@ -2,7 +2,7 @@
  * Manifestos de REFERÊNCIA dos 8 módulos (desenho T-0001, a partir de .coord/contratos/*.md e do doc 04).
  * Servem de modelo para os agentes de módulo e provam que o conjunto é consistente (dependências,
  * extensões oferecidas × usadas, sem ciclo). A fonte da verdade passa a ser `modules/<m>/manifest.ts`.
- * Espelho em dia com os manifestos reais em 2026-10-31 (T-0007/T-0010/T-0011/T-0012). Onde o espelho está à frente
+ * Espelho em dia com os manifestos reais em 2026-10-31 (T-0007/T-0010/T-0011/T-0012/T-0021). Onde o espelho está à frente
  * do manifesto real (estado-alvo já decidido), o comentário do módulo diz qual recado aplica a mudança.
  * O registro legível fica em `.coord/contratos/modulos.md` e `.coord/contratos/eventos.md`.
  */
@@ -15,6 +15,8 @@ const COLETA = ['promotor'] as const;
 const CADASTRO = ['analista', 'admin'] as const;
 const CAMPO = ['vendedor', 'promotor', 'supervisor', 'gerente'] as const;
 const GESTAO = ['supervisor', 'gerente', 'analista', 'admin'] as const;
+/** RN-CAT-04: consulta do catálogo para todos os perfis. */
+const CONSULTA_CATALOGO = ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const;
 
 export const REFERENCIA: ManifestoEntrada[] = [
   {
@@ -39,18 +41,28 @@ export const REFERENCIA: ManifestoEntrada[] = [
     ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
   },
   {
-    // ADR 0005 (T-0007): sem `produto` no sync (o cadastro base é do Core); `assistente` porque o Vendedor depende do
-    // Catálogo. Alvo: deixa de consumir `integracao.produto.atualizado@1` (só preço e estoque); o manifesto real ainda
-    // consome (pedido ao modulo-catalogo).
+    // Espelho de modules/catalogo/manifest.ts (T-0021, RN-CAT-04/05). ADR 0005: sem `produto` no sync (o cadastro base é do
+    // Core) e sem `integracao.produto.atualizado@1`; `assistente` porque o Vendedor depende do Catálogo; `admin` cadastra
+    // conteúdo, sinônimos e destaques. RN-CAT-05: o promotor fica fora de `produto.ver_preco_estoque`; com o parâmetro
+    // `promotor_ve_preco_estoque` ligado, o domínio do Catálogo (`podeVerPrecoEstoque`) o libera.
     id: 'catalogo',
     versao: '0.1.0',
     depende: ['core'],
-    perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente'],
+    perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
     apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo'] } },
     sync: ['tabela_preco', 'tabela_preco_item', 'deposito', 'estoque_saldo', 'categoria', 'marca', 'produto_atributo', 'produto_midia', 'produto_conteudo', 'sinonimo'],
     publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
     consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'catalogo.busca.realizada@1'],
     ofereceExtensoes: ['produto.acoes'],
+    acoes: {
+      'produto.consultar': { perfis: [...CONSULTA_CATALOGO] },
+      'produto.ver_preco_estoque': { perfis: CONSULTA_CATALOGO.filter((p) => p !== 'promotor') },
+      'produto.perguntar': { perfis: [...CONSULTA_CATALOGO] },
+      'produto.enriquecer': { perfis: [...CADASTRO] },
+      'sinonimo.gerenciar': { perfis: [...CADASTRO] },
+      'destaque.gerenciar': { perfis: [...CADASTRO] },
+      'busca.ver_sem_resultado': { perfis: [...CADASTRO] },
+    },
   },
   {
     // ADR 0005 (T-0007): depende do Catálogo (RN-CORE-03). Publica `vendedor.pedido.faturado@1` a partir do retorno do

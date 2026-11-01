@@ -1,6 +1,6 @@
 /**
  * Rotas de sincronização da plataforma (doc 04 "Sincronização offline"; desenho T-0004 §5):
- *   GET  /v1/sync/pull?entidade=<nome>&cursor=<updated_at|id>  → { itens, proximo_cursor }
+ *   GET  /v1/sync/pull?entidade=<nome>&cursor=<updated_at|id>  → { itens, proximo_cursor, versao_escopo?, horizonte }
  *   POST /v1/sync/push { itens }                                → { resultados } (um por item, na ordem)
  *
  * Pull — horizonte seguro: o módulo só devolve linhas com `updated_at < horizonte`, onde
@@ -17,6 +17,9 @@
  * ADR 0009: a página leva `versao_escopo` (sha256 curto dos ids visíveis do `escopo` do provedor, calculado uma vez
  * por requisição) para o aparelho ressincronizar a entidade quando a carteira ou a equipe mudam (§4). Entidade de
  * módulo efetivo sem provedor: pull 501 e push `rejeitado/SYNC_NAO_IMPLEMENTADO`, que o motor trata como retentável (§7).
+ *
+ * D-3 (ADR 0009 §3): a página leva `horizonte` e o item aceito leva `em` (relógio do banco, lido DEPOIS dos provedores
+ * gravarem). O aparelho mantém o item aceito sobreposto até um pull com `horizonte > em`: aí a linha já veio.
  */
 import { createHash } from 'node:crypto';
 import {
@@ -132,14 +135,16 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
       itens,
       proximo_cursor: validas.length > TAMANHO_PAGINA_SYNC && ultimo ? codificarCursor(ultimo) : null,
       ...(versao !== undefined ? { versao_escopo: versao } : {}),
+      horizonte: ate,
     };
   });
 
   app.post('/v1/sync/push', async (req): Promise<{ resultados: ResultadoItemPush[] }> => {
+    // sessão ANTES do schema: sem login, o lote nem é validado (GHSA-mrhx-c7xc-m3w5; o teto de elementos é do createApp)
+    const { ctx, doModulo } = await p.preparar(req, null);
     const corpo = PushRequestSchema.safeParse(req.body);
     if (!corpo.success)
       throw new ErroHttp(400, 'VALIDACAO', `Lote inválido (máx. 500 itens, id UUID do aparelho).`);
-    const { ctx, doModulo } = await p.preparar(req, null);
     const { validos, rejeitados } = rejeitarItensInvalidos(corpo.data, registro, ctx.usuario.modulos, {
       perfil: ctx.usuario.perfil,
     });
@@ -169,6 +174,10 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
           porId.set(i.id, { id: i.id, status: 'rejeitado', codigo: e.codigo, mensagem: e.message });
       }
     }
+    // D-3: instante do banco depois de todas as gravações (updated_at = início de cada transação, sempre antes dele)
+    const algumAceito = [...porId.values()].some((r) => r.status === 'aceito');
+    const em = p.banco && algumAceito ? (await p.banco.instanteSync()).toISOString() : undefined;
+    if (em) for (const [id, r] of porId) if (r.status === 'aceito') porId.set(id, { ...r, em });
     const resultados = corpo.data.itens.map(
       (i) =>
         porId.get(i.id) ?? {

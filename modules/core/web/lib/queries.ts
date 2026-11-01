@@ -7,7 +7,8 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import type { Branch, CustomerSummary, CustomersDashboard, IncentivePlan, Me, RouteDay, Seller, Team, TeamGoals } from '../../contracts';
+import { HierarquiaEquipeSchema, RotasListaSchema, type Branch, type CustomersDashboard, type IncentivePlan, type Me, type RouteDay, type Seller, type Team, type TeamGoals } from '../../contracts';
+import { clienteDaCarteira, equipesDaHierarquia, INICIO_PADRAO, paraRouteDay, type ClienteDaCarteira } from './rotas-api';
 
 /** Faróis: atualizam sozinhos a cada ~10 s. */
 export const LIVE_REFETCH_MS = 10_000;
@@ -37,6 +38,7 @@ export const qk = {
   plans: ['incentive-plans', 'list'] as const,
   routes: (f: object) => ['routes', f] as const,
   sellerCustomers: (sellerId: string) => ['customers', 'seller', sellerId] as const,
+  hierarquia: ['core', 'hierarquia'] as const,
 };
 
 function useAuthed() {
@@ -119,24 +121,49 @@ export interface RoutesFilter {
   team_id: string;
 }
 
-/** Rotas do período (até 62 dias). Atualiza a cada 30 s para acompanhar as visitas do dia. */
+/** Equipe de campo (vendedores e promotores) e "equipes" (o supervisor de cada um) da hierarquia do Core (T-0018). */
+function useEquipeDeCampo<T>(select: (e: { sellers: Seller[]; teams: Team[]; papeis: Record<string, 'vendedor' | 'promotor'> }) => T) {
+  const enabled = useAuthed();
+  return useQuery({
+    queryKey: qk.hierarquia,
+    queryFn: () => api<unknown>('/core/equipe/hierarquia').then((r) => equipesDaHierarquia(HierarquiaEquipeSchema.parse(r).membros)),
+    select,
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+export const useSellersDeCampo = () => useEquipeDeCampo((e) => e.sellers);
+export const useTeamsDeCampo = () => useEquipeDeCampo((e) => e.teams);
+/** Papel do vínculo da carteira por usuário (o do perfil, premissa da T-0017). */
+export const usePapeisDeCampo = () => useEquipeDeCampo((e) => e.papeis);
+
+const hojeIso = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Rotas do período (até 62 dias) de `GET /v1/core/rotas`, no formato do editor. Sem filtro de usuário, as dos
+ * usuários visíveis (a API filtra pelo escopo, RN-CORE-04). Atualiza a cada 30 s para acompanhar as visitas do dia.
+ */
 export function useRoutes(f: RoutesFilter, enabled = true) {
   const authed = useAuthed();
   return useQuery({
     queryKey: qk.routes(f),
-    queryFn: ({ signal }) => api<RoutesResponse>('/routes', { query: { ...f }, signal }),
+    queryFn: async ({ signal }): Promise<RoutesResponse> => {
+      const r = await api<unknown>('/core/rotas', { query: { de: f.from, ate: f.to, ...(f.seller_id ? { usuario_id: f.seller_id } : {}) }, signal });
+      const hoje = hojeIso();
+      return { start: { ...INICIO_PADRAO }, items: RotasListaSchema.parse(r).itens.map((i) => paraRouteDay(i, hoje)) };
+    },
     enabled: authed && enabled && !!f.from,
     refetchInterval: 30_000,
     placeholderData: (prev) => prev,
   });
 }
 
-/** Carteira do vendedor (com lat/lng) para incluir clientes na rota. */
+/** Carteira vigente do usuário (com lat/lng) para incluir clientes na rota. */
 export function useSellerCustomers(sellerId: string | null) {
   const enabled = useAuthed() && !!sellerId;
   return useQuery({
     queryKey: qk.sellerCustomers(sellerId ?? ''),
-    queryFn: ({ signal }) => api<ListResponse<CustomerSummary>>('/customers', { query: { seller_id: sellerId, limit: 2000 }, signal }).then((r) => r.items),
+    queryFn: ({ signal }) => api<{ itens: ClienteDaCarteira[] }>(`/core/usuarios/${encodeURIComponent(sellerId ?? '')}/clientes`, { signal }).then((r) => r.itens.map((c) => clienteDaCarteira(c, hojeIso()))),
     enabled,
     staleTime: 5 * 60_000,
   });

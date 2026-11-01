@@ -3,7 +3,7 @@
  *
  * Monta, para cada módulo instalado (`MODULOS_API`), as rotas declaradas em `definirModuloApi` sob
  * `/v1/<modulo>/<caminho>`; as rotas públicas do Core sob `/v1/<caminho>`; e as rotas da plataforma:
- * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/pull`, `POST /v1/sync/push`.
+ * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/pull`, `POST /v1/sync/push` e `PUT|GET /v1/arquivos/:id` (ADR 0010).
  *
  * Toda rota autenticada passa por `prepararRequisicao` (401 → licença 403 MODULO_INATIVO → perfil/ação
  * 403 PERFIL_SEM_ACESSO → Zod 400 → carteira 403 FORA_DA_CARTEIRA). Os módulos efetivos são calculados
@@ -11,6 +11,10 @@
  * `comTenant` com o tenant do token (papel macuxi_app). Corpo de erro: `ErroApiSchema` `{ codigo, mensagem, detalhes? }`;
  * o status do erro do módulo é o do `ErroHttpModulo` (401/403/404/409/410/422/423/503) e `ctx.dependencias` traz o
  * `depende` de todos os manifestos instalados (RN-CORE-03).
+ *
+ * Proteção do Zod (GHSA-mrhx-c7xc-m3w5: o Zod acumula um problema por elemento inválido de array, sem teto): todo corpo
+ * JSON com mais de `MAX_ELEMENTOS_CORPO` elementos de array (somados, em qualquer profundidade) é recusado com 413
+ * ANTES de qualquer schema, e a resposta 400 lista no máximo `MAX_PROBLEMAS_RESPOSTA` problemas.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { erroModuloInativo, MeusModulosRespostaSchema, ROTA_ME_MODULOS, type MeusModulosResposta } from '@macuxi/core/contracts';
@@ -46,6 +50,7 @@ import { criarLimitador } from './limitador';
 import { licencasDoBanco, type FonteLicencas } from './licencas';
 import { MODULOS_API } from './modulos';
 import { transacaoTenant } from './outbox';
+import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarSync } from './sync';
 import type { Plataforma } from './tipos';
 import { ErroHttp } from './erros';
@@ -65,8 +70,33 @@ export interface OpcoesApp {
   carteira?: ServicosCore['carteira'];
   /** Usuários visíveis (padrão: o do Core; sem ele, só o próprio — ou `'tenant'` nos perfis de escopo tenant). */
   usuariosVisiveis?: ServicosCore['usuariosVisiveis'];
+  /** Bytes dos arquivos (ADR 0010). `null`/ausente = upload/download respondem 503. */
+  arquivos?: ArmazenamentoArquivos | null;
   relogio?: () => Date;
   logger?: FastifyServerOptions['logger'];
+}
+
+/** Teto de elementos de array num corpo JSON (push: 500 itens × payload; lote do Hub: até 5.000 linhas). */
+export const MAX_ELEMENTOS_CORPO = 50_000;
+/** Teto de problemas devolvidos num 400 de validação. */
+export const MAX_PROBLEMAS_RESPOSTA = 50;
+
+/** `true` se o valor (JSON já lido) tem mais de `max` elementos de array somados. Bytes (Buffer) não contam. */
+export function excedeElementos(valor: unknown, max = MAX_ELEMENTOS_CORPO): boolean {
+  let total = 0;
+  const pilha: unknown[] = [valor];
+  while (pilha.length > 0) {
+    const v = pilha.pop();
+    if (v === null || typeof v !== 'object' || ArrayBuffer.isView(v)) continue;
+    if (Array.isArray(v)) {
+      total += v.length;
+      if (total > max) return true;
+      for (const x of v) if (x !== null && typeof x === 'object') pilha.push(x);
+    } else {
+      for (const x of Object.values(v)) if (x !== null && typeof x === 'object') pilha.push(x);
+    }
+  }
+  return false;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -91,7 +121,8 @@ function validar<S extends ZodTypeAny>(schema: S | undefined, valor: unknown, on
   const r = schema.safeParse(valor ?? (onde === 'corpo' ? undefined : {}));
   if (!r.success) {
     throw new ErroHttp(400, 'VALIDACAO', `Dados inválidos em ${onde}.`, {
-      problemas: r.error.issues.map((i) => ({ caminho: [onde, ...i.path].join('.'), mensagem: i.message })),
+      problemas: r.error.issues.slice(0, MAX_PROBLEMAS_RESPOSTA).map((i) => ({ caminho: [onde, ...i.path].join('.'), mensagem: i.message })),
+      ...(r.error.issues.length > MAX_PROBLEMAS_RESPOSTA ? { total_problemas: r.error.issues.length } : {}),
     });
   }
   return r.data;
@@ -137,6 +168,11 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   });
 
   if (banco) app.addHook('onReady', () => banco.verificar());
+
+  // antes de qualquer schema Zod (rotas de módulo, públicas e de sync): corpo com coleções gigantes é recusado
+  app.addHook('preValidation', async (req) => {
+    if (excedeElementos(req.body)) throw new ErroHttp(413, 'CORPO_GRANDE_DEMAIS', 'Envio grande demais. Divida em partes menores.');
+  });
 
   app.setErrorHandler((erro, req, reply) => {
     if (erro instanceof ErroHttp) return reply.code(erro.status).send(erro.corpo());
@@ -196,6 +232,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   });
 
   registrarSync(app, plataforma);
+  registrarArquivos(app, plataforma, op.arquivos ?? null);
 
   // ---------- rotas dos módulos ----------
   for (const m of modulos) {

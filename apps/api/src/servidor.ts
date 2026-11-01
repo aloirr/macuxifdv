@@ -3,10 +3,13 @@
  * até a API cobrir as rotas). Conecta com o papel `macuxi_app` (`urlApp` do @macuxi/db, senha só no `.env`).
  * Segredo do JWT do Core: `MACUXI_JWT_SEGREDO` (mín. 32 caracteres, só no .env). Fora do ambiente local a API não sobe
  * sem ele (falha fechada); no local sobe com aviso e o login responde 503 (`config.ts`).
+ * Fotos (ADR 0010): bytes no disco em `MACUXI_ARQUIVOS_DIR` (padrão `./.dados/arquivos`, relativo à pasta da API; fora
+ * do git). Em servidor, aponte para um volume que entra no backup.
  */
 import { lerConfig, urlApp } from '@macuxi/db';
 import pg from 'pg';
 import { createApp } from './app';
+import { criarArmazenamentoEmDisco, DIR_ARQUIVOS_PADRAO } from './arquivos';
 import { criarBancoApp } from './banco';
 import { conferirSegredoJwt } from './config';
 
@@ -25,6 +28,7 @@ const pool = new pg.Pool({
 
 const app = createApp({
   banco: criarBancoApp(pool),
+  arquivos: criarArmazenamentoEmDisco(process.env.MACUXI_ARQUIVOS_DIR || DIR_ARQUIVOS_PADRAO),
   logger: {
     level: process.env.MACUXI_API_LOG ?? 'info',
     // sem dado pessoal em log (CLAUDE.md regra 8): nada de cabeçalhos, IP, query string ou corpo

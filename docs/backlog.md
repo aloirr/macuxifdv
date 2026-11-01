@@ -32,5 +32,11 @@
 - **Treinamento — 🟡 da revisão final**: unificar `PedidoFaturadoLido` (domain/desafio.ts × contracts/pedido-lido.ts) e os 3 🟢 (xp.ts:109, fuso em dois lugares, arredondamento por evento).
 - **Tabela de lançamento de XP** (banco-dados): `referencia_id` com ≥ 128 caracteres e chave única do lançamento; a API processa o XP de um vendedor por vez (tenant + usuário).
 - **O-4**: p95 da carga S0-110 em 1–2 s na máquina local (meta 300 ms) — linha de base para a Sprint 9.
-
-
+- **Conector v2**: atualização automática (v1 = pacote assinado + aviso de versão no monitor).
+- **Conector: adaptadores Firebird** (depois do Oracle) e **MySQL** (sob demanda).
+- **Testes do Conector intermitentes sob carga** (T-0013 → correção na T-0023, nuvem): até o merge, a raiz pode falhar no @macuxi/conector; o gerente roda de novo antes do push.
+- **Migração para zod ≥ 4.6.6** (Sprint 2): o alerta afeta o push sem login; mitigado na API (teto de elementos com 413, máximo de 50 erros na resposta, login antes da validação).
+- **Feriados do tenant no calendário de dias úteis** (packages/comum): cadastro de feriados por tenant + nacionais, usado pelo prazo de aprovação do Gestor (RN-GES-03) — engenheiro, se o calendário ainda não tiver feriados.
+- **Modo demonstração (mock-api) sem carteira, rota e visita do Core** (decisão do engenheiro na onda 3): a demo do app novo deixou de mostrar essas telas; a demo da Fase M continua na pasta original. Revisar antes da demonstração com o gestor externo.
+- **API do Catálogo (Sprint 3)**: variacaoEscopo no sync (engenheiro), incremento atômico da cota de IA e timeout real do provedor em api/ia/ com AbortSignal.timeout (T-0021 🟡3/🟢6).
+- **Realizado de venda e positivação reais** (T-0020): consumidor de vendedor.pedido.* alimentando core.indicador_diario, quando o Vendedor publicar os eventos de pedido (Sprints 4–5).

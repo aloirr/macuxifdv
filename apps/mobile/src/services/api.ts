@@ -61,6 +61,8 @@ type Query = Record<string, string | number | boolean | undefined | null>;
 interface RequestOptions {
   query?: Query;
   body?: unknown;
+  /** Corpo binário cru (upload de foto, ADR 0010); exclui `body`. */
+  bytes?: { dados: Uint8Array; tipo: string };
   headers?: Record<string, string>;
   timeoutMs?: number;
 }
@@ -76,6 +78,8 @@ export class ApiClient {
     private readonly token: string | null,
     /** API real: troca o acesso vencido pelo refresh; devolve o novo token de acesso ou `null` (sessão encerrada). */
     private readonly renovar?: () => Promise<string | null>,
+    /** Toda resposta de erro da API passa aqui antes de subir (RN-CORE-15: 423 `DISPOSITIVO_BLOQUEADO` limpa o aparelho). */
+    private readonly aoErroHttp?: (e: HttpError) => void,
   ) {}
 
   private url(path: string, query?: Query): string {
@@ -90,12 +94,21 @@ export class ApiClient {
 
   async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<{ status: number; data: T }> {
     try {
-      return await this.enviar<T>(method, path, opts, this.token);
+      return await this.comAviso(() => this.enviar<T>(method, path, opts, this.token));
     } catch (e) {
       if (!(e instanceof HttpError) || e.status !== 401 || !this.token || !this.renovar) throw e;
       const novo = await this.renovar();
       if (!novo) throw e;
-      return this.enviar<T>(method, path, opts, novo);
+      return this.comAviso(() => this.enviar<T>(method, path, opts, novo));
+    }
+  }
+
+  private async comAviso<R>(fn: () => Promise<R>): Promise<R> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof HttpError) this.aoErroHttp?.(e);
+      throw e;
     }
   }
 
@@ -104,13 +117,14 @@ export class ApiClient {
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 12_000);
     const headers: Record<string, string> = { Accept: 'application/json', ...opts.headers };
     if (token) headers.Authorization = `Bearer ${token}`;
-    if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+    if (opts.bytes) headers['Content-Type'] = opts.bytes.tipo;
+    else if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
     let res: Response;
     try {
       res = await fetch(this.url(path, opts.query), {
         method,
         headers,
-        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        body: opts.bytes ? (opts.bytes.dados as unknown as BodyInit) : opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
         signal: controller.signal,
       });
     } catch (e) {

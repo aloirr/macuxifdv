@@ -4,31 +4,7 @@
  * tabela dele ⇒ "Sem preço para este cliente." e não vendável (RN-CAT-06), sem cair na tabela padrão. Dinheiro em centavos inteiros, arredondamento
  * meia para cima. A API revalida; o Vendedor usa o mesmo resultado para montar o pedido.
  */
-import type { PrecoVisivel } from '../contracts';
-
-/** Linha de `tabela_preco_item`. `price_table_id` nulo = tabela padrão do tenant. */
-export interface ItemTabelaPreco {
-  price_table_id: string | null;
-  product_id: string;
-  price_cents: number;
-  /** Início da vigência (inclusivo), ISO UTC; nulo = desde sempre. */
-  valid_from?: string | null;
-  /** Fim da vigência (exclusivo), ISO UTC; nulo = sem fim. */
-  valid_to?: string | null;
-}
-
-export interface Promocao {
-  id: string;
-  product_id: string;
-  /** Tabela a que a promoção se aplica; nulo = qualquer tabela (inclusive a padrão). */
-  price_table_id: string | null;
-  tipo: 'preco_fixo' | 'desconto_pct';
-  /** `preco_fixo`: centavos; `desconto_pct`: percentual (até 2 casas). */
-  valor: number;
-  /** Início (inclusivo) e fim (exclusivo), ISO UTC. */
-  valid_from: string;
-  valid_to: string;
-}
+import type { ItemTabelaPreco, PrecoVisivel, Promocao } from '../contracts';
 
 export interface ContextoPreco {
   /** Instante da consulta (ISO UTC). */

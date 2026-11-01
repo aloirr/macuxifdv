@@ -18,3 +18,12 @@ export function nomeArquivoFoto(id: string): string {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new Error('id de foto inválido');
   return `${id.toLowerCase()}.jpg`;
 }
+
+/**
+ * Caminho local aceito pela fila de arquivos (ADR 0010 §4): relativo aos documentos do app, segmentos simples, sem `..`,
+ * sem barra inicial e sem barra invertida (ex.: `fotos/<uuid>.jpg`, o mesmo de `caminhoFoto` do platform-sdk).
+ */
+export function caminhoLocalValido(caminho: string): boolean {
+  // segmentos só com [a-z0-9_-]: `.`, `..`, barra inicial e barra invertida não passam
+  return /^([a-z0-9_-]+\/)*[a-z0-9_-]+\.jpg$/i.test(caminho);
+}

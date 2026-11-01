@@ -152,6 +152,11 @@ export interface PaginaSync<L> {
    * requisição. Ausente em escopo `proprio`/`tenant`. Mudou desde a última passada = o motor ressincroniza a entidade.
    */
   versao_escopo?: string;
+  /**
+   * Horizonte usado nesta página (ISO, relógio do banco; ADR 0006): toda linha visível com `updated_at` abaixo dele
+   * e depois do cursor já veio. O motor compara com `ResultadoItemPush.em` para soltar o aceito da sobreposição (D-3).
+   */
+  horizonte?: string;
 }
 
 /** Página após o cursor (inclui removidos). Usado no motor em memória e como referência do SQL. */
@@ -189,7 +194,11 @@ export const PushRequestSchema = z.object({ itens: z.array(ItemPushSchema).min(1
 export type PushRequest = z.infer<typeof PushRequestSchema>;
 
 export type ResultadoItemPush =
-  | { id: string; status: 'aceito' }
+  /**
+   * `em` (ISO, relógio do BANCO, lido depois de gravar): o aparelho mantém o item sobreposto até um pull com
+   * `PaginaSync.horizonte` posterior a ele (D-3, ADR 0009 §3). Opcional: sem ele, o motor usa o relógio do aparelho.
+   */
+  | { id: string; status: 'aceito'; em?: string }
   | { id: string; status: 'rejeitado'; codigo: string; mensagem: string }
   | { id: string; status: 'conflito'; mensagem: string; atual?: unknown };
 

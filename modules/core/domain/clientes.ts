@@ -80,3 +80,12 @@ export function escopoDeUsuarios(perfil: Perfil, u: UsuariosDoUsuario): Readonly
       return 'tenant';
   }
 }
+
+/**
+ * RN-CORE-04 / RF-CORE-02: o papel do vínculo da carteira combina com o perfil do usuário — papel `vendedor` é de
+ * usuário vendedor e `promotor` de usuário promotor (o promotor nunca cria pedido, RN-PRO-01; carteira de vendedor
+ * dada a promotor liberaria o que o promotor não pode).
+ */
+export function papelCompativel(perfil: Perfil, papel: 'vendedor' | 'promotor'): boolean {
+  return perfil === papel;
+}
