@@ -1,8 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { PainelDia } from '../contracts';
-import { CLIENTE_A, CLIENTE_B, CLIENTE_C, checkin, checkout, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR } from './fixtures';
-import { calcularMeta, diaLocal, faturadoDoPedido, faturamentoDoPeriodo, montarPainelDia, painelDoMes, statusDoDia, tradeDoPeriodo, vendasDoPeriodo, visitasDoPeriodo } from './painel';
-import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
+import { ATENDIMENTO_POR_DESFECHO, PainelDia } from '../contracts';
+import {
+  CLIENTE_A,
+  CLIENTE_B,
+  CLIENTE_C,
+  checkin,
+  checkout,
+  ev,
+  gondola,
+  maisMin,
+  pedidoCriado,
+  precoColetado,
+  PROMOTOR,
+  rupturaRegistrada,
+  shareMedido,
+  statusAlterado,
+  tarefaConcluida,
+  u,
+  VENDEDOR,
+  visitaLoja,
+  type DesfechoTeste,
+} from './fixtures';
+import { atendida, calcularMeta, diaLocal, faturadoDoPedido, faturamentoDoPeriodo, montarPainelDia, painelDoMes, statusDoDia, tradeDoPeriodo, vendasDoPeriodo, visitasDoPeriodo } from './painel';
+import { aplicarEvento, aplicarEventos, estadoInicial, execucoesDaTarefa, type EventoRecebido } from './projecao';
 
 const montar = (eventos: EventoRecebido[]) => aplicarEventos(estadoInicial(), eventos).estado;
 const TODOS = new Set(['core', 'vendedor', 'promotor', 'pesquisa', 'treinamento']);
@@ -186,27 +206,12 @@ describe('RF-GES-01/02: visitas planejadas × realizadas, tempo em cliente e sta
   });
 });
 
-describe('RN-PRO-07 / RF-GES-10: trade do promotor', () => {
-  const lj = (n: number, o: { visita: string; cliente: string; min: number; em: string; fotos?: [number, number] | null }) =>
-    ev('promotor.visita_loja.concluida@1', o.em, {
-      visita_loja_id: u(3000 + n),
-      visita_id: o.visita,
-      promotor_id: PROMOTOR,
-      cliente_id: o.cliente,
-      checkin_em: o.em,
-      checkout_em: new Date(Date.parse(o.em) + o.min * 60_000).toISOString(),
-      permanencia_min: o.min,
-      fotos_total: o.fotos ? o.fotos[0] : null,
-      fotos_sem_gps: o.fotos ? o.fotos[1] : null,
-    });
-  const gond = (n: number, loja: number, c: 'conforme' | 'parcial' | 'nao_conforme') =>
-    ev('promotor.gondola.registrada@1', '2026-10-30T13:10:00Z', { gondola_id: u(4000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: CLIENTE_A, conformidade: c, registrado_em: '2026-10-30T13:10:00Z' });
-  const share = (n: number, loja: number, s: number | null, m: number | null) =>
-    ev('promotor.share.medido@1', '2026-10-30T13:12:00Z', { medicao_id: u(5000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: CLIENTE_A, share_pct: s, meta_pct: m, medido_em: '2026-10-30T13:12:00Z' });
-  const rup = (n: number, loja: number, st: 'presente' | 'ruptura_gondola' | 'ruptura_total') =>
-    ev('promotor.ruptura.registrada@1', '2026-10-30T13:15:00Z', { registro_id: u(6000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: CLIENTE_A, produto_id: u(7000 + n), status: st, registrado_em: '2026-10-30T13:15:00Z' });
-  const preco = (n: number, loja: number, i: number | null) =>
-    ev('promotor.preco.coletado@1', '2026-10-30T13:18:00Z', { coleta_id: u(8000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: CLIENTE_A, indice_preco: i, coletado_em: '2026-10-30T13:18:00Z' });
+describe('RN-PRO-07 / RF-GES-10: trade do promotor (payloads oficiais promotor.*@1)', () => {
+  const lj = (n: number, o: { visita: string; cliente: string; min: number; em: string; fotos?: [number, number]; desfecho?: DesfechoTeste }) => visitaLoja(n, o);
+  const gond = (n: number, loja: number, c: 'conforme' | 'parcial' | 'nao_conforme') => gondola(n, loja, c, '2026-10-30T13:10:00Z');
+  const share = (n: number, loja: number, s: number | null, m: number | null) => shareMedido(n, loja, s, m, '2026-10-30T13:12:00Z');
+  const rup = (n: number, loja: number, st: 'presente' | 'ruptura_gondola' | 'ruptura_total') => rupturaRegistrada(n, loja, st, '2026-10-30T13:15:00Z');
+  const preco = (n: number, loja: number, i: number | null) => precoColetado(n, loja, i, '2026-10-30T13:18:00Z');
 
   const eventos: EventoRecebido[] = [
     lj(1, { visita: u(2000), cliente: CLIENTE_A, min: 35, em: '2026-10-30T13:00:00Z', fotos: [10, 2] }),
@@ -233,9 +238,13 @@ describe('RN-PRO-07 / RF-GES-10: trade do promotor', () => {
     preco(1, 1, 109),
     preco(2, 1, 125),
     preco(3, 1, null),
-    ev('promotor.tarefa.concluida@1', '2026-10-30T16:00:00Z', { tarefa_id: u(9001), promotor_id: PROMOTOR, concluida_em: '2026-10-30T16:00:00Z' }),
+    tarefaConcluida({ execucao: 1, tarefa: 1, loja: 1, em: '2026-10-30T16:00:00Z' }),
   ];
   const s = montar(eventos);
+
+  it('T-0046: todos os payloads oficiais do Promotor são aceitos pela projeção (nenhum inválido)', () => {
+    expect(aplicarEventos(estadoInicial(), eventos).contagem).toMatchObject({ aplicado: eventos.length, invalido: 0 });
+  });
 
   it('RN-PRO-07: só visitas com 10 min ou mais contam; a curta é sinalizada ao gestor', () => {
     const t = trade(s);
@@ -257,21 +266,100 @@ describe('RN-PRO-07 / RF-GES-10: trade do promotor', () => {
     expect(trade(s)).toMatchObject({ ruptura_pct: 30, falha_reposicao_pct: 10 });
   });
 
-  it('RN-PRO-04: índice de preço médio ignora coletas sem índice', () => {
+  it('RN-PRO-04: índice de preço médio ignora coletas sem índice (preço do nosso item)', () => {
     expect(trade(s).indice_preco_medio).toBe(117);
   });
 
   it('RN-PRO-02: % de fotos sem GPS considera TODAS as visitas do dia (14 fotos, 3 sem GPS = 21,43%)', () => {
-    expect(trade(s)).toMatchObject({ fotos_total: 14, fotos_sem_gps: 3, fotos_sem_gps_pct: 21.43, tarefas_concluidas: 1 });
+    expect(trade(s)).toMatchObject({ fotos_total: 14, fotos_sem_gps: 3, fotos_sem_gps_pct: 21.43, tarefas_concluidas: 1, tarefas_distintas: 1 });
   });
 
-  it('Promotor que não informa as fotos: fotos_* null (sem dado), sem quebrar o painel', () => {
-    const p = montar([lj(1, { visita: u(2000), cliente: CLIENTE_A, min: 20, em: '2026-10-30T13:00:00Z', fotos: null })]);
-    expect(trade(p)).toMatchObject({ fotos_total: null, fotos_sem_gps: null, fotos_sem_gps_pct: null });
+  it('RN-PRO-02: visita sem nenhuma foto informa 0 (o Promotor sempre manda as contagens); sem visita no dia = null', () => {
+    expect(trade(montar([lj(1, { visita: u(2000), cliente: CLIENTE_A, min: 20, em: '2026-10-30T13:00:00Z', fotos: [0, 0] })]))).toMatchObject({ fotos_total: 0, fotos_sem_gps: 0, fotos_sem_gps_pct: null });
+    expect(trade(estadoInicial())).toMatchObject({ fotos_total: null, fotos_sem_gps: null, fotos_sem_gps_pct: null });
   });
 
   it('sem coletas: percentuais null e contagens 0', () => {
-    expect(trade(estadoInicial())).toMatchObject({ lojas_visitadas: 0, conformidade_pct: null, share_medio_pct: null, ruptura_pct: null, indice_preco_medio: null, tarefas_concluidas: 0 });
+    expect(trade(estadoInicial())).toMatchObject({ lojas_visitadas: 0, visitas_sem_atendimento: 0, conformidade_pct: null, share_medio_pct: null, ruptura_pct: null, indice_preco_medio: null, tarefas_concluidas: 0, tarefas_distintas: 0 });
+  });
+});
+
+describe('T-0046 / RN-CORE-14: desfecho da visita de loja (vocabulário do Promotor) nos indicadores do Gestor', () => {
+  const EM = '2026-10-30T13:00:00Z';
+  const comCore = (n: number, o: { cliente: string; min: number; em: string; desfecho: DesfechoTeste; fotos?: [number, number] }) => [
+    checkin({ visita: u(2000 + n), usuario: PROMOTOR, cliente: o.cliente, em: o.em }),
+    checkout({ visita: u(2000 + n), usuario: PROMOTOR, cliente: o.cliente, em: maisMin(o.em, o.min) }),
+    visitaLoja(n, { visita: u(2000 + n), cliente: o.cliente, min: o.min, em: o.em, desfecho: o.desfecho, fotos: o.fotos }),
+  ];
+  const s = montar([
+    ...comCore(1, { cliente: CLIENTE_A, min: 30, em: EM, desfecho: 'realizada', fotos: [6, 1] }),
+    ...comCore(2, { cliente: CLIENTE_B, min: 4, em: '2026-10-30T15:00:00Z', desfecho: 'loja_fechada', fotos: [1, 0] }),
+    ...comCore(3, { cliente: CLIENTE_C, min: 12, em: '2026-10-30T17:00:00Z', desfecho: 'acesso_negado', fotos: [1, 1] }),
+    // coleta (indevida) numa visita sem atendimento: não entra nos indicadores
+    rupturaRegistrada(1, 3, 'ruptura_total', '2026-10-30T17:05:00Z', CLIENTE_C),
+    rupturaRegistrada(2, 1, 'presente', '2026-10-30T13:10:00Z'),
+  ]);
+
+  it('`realizada` é atendimento; `loja_fechada` e `acesso_negado` são sem atendimento (mapa total do vocabulário)', () => {
+    expect(ATENDIMENTO_POR_DESFECHO).toEqual({ realizada: 'atendida', loja_fechada: 'sem_atendimento', acesso_negado: 'sem_atendimento' });
+    expect(atendida({ desfecho: 'realizada' })).toBe(true);
+    expect(atendida({ desfecho: 'loja_fechada' })).toBe(false);
+    expect(atendida({ desfecho: 'acesso_negado' })).toBe(false);
+  });
+
+  it('trade: sem atendimento não é loja visitada (nem com 12 min) e é contada em visitas_sem_atendimento', () => {
+    expect(trade(s)).toMatchObject({ lojas_visitadas: 1, visitas_sem_atendimento: 2, ruptura_pct: 0 });
+  });
+
+  it('visitas (Core) do promotor: sem atendimento não é realizada nem curta (a de 4 min não é sinalizada)', () => {
+    expect(visitasDoPeriodo(s, prom, '2026-10-30', '2026-10-30')).toMatchObject({ realizadas: 1, curtas: 0, tempo_total_min: 30 });
+  });
+
+  it('RN-PRO-02: a foto da fachada da visita sem atendimento entra no % de fotos sem GPS (8 fotos, 2 sem GPS)', () => {
+    expect(trade(s)).toMatchObject({ fotos_total: 8, fotos_sem_gps: 2, fotos_sem_gps_pct: 25 });
+  });
+
+  it('vocabulário antigo do espelho (`concluida`, `nao_finalizada`) é recusado como inválido, sem quebrar', () => {
+    for (const desfecho of ['concluida', 'nao_finalizada']) {
+      const e = visitaLoja(9, { em: EM });
+      const r = aplicarEvento(estadoInicial(), { ...e, payload: { ...(e.payload as object), desfecho } });
+      expect(r.situacao, desfecho).toBe('invalido');
+      expect(r.motivo).toMatch(/desfecho/);
+    }
+  });
+});
+
+describe('T-0046 / RF-PRO-10: tarefas de campanha por execução (execucao_id), agrupadas por tarefa_id', () => {
+  const EM = '2026-10-30T13:00:00Z';
+  // a MESMA tarefa (campanha 1) executada em 3 lojas + a tarefa 2 numa loja
+  const eventos = [
+    tarefaConcluida({ execucao: 1, tarefa: 1, loja: 1, cliente: CLIENTE_A, em: '2026-10-30T13:30:00Z' }),
+    tarefaConcluida({ execucao: 2, tarefa: 1, loja: 2, cliente: CLIENTE_B, em: '2026-10-30T15:30:00Z' }),
+    tarefaConcluida({ execucao: 3, tarefa: 1, loja: 3, cliente: CLIENTE_C, em: '2026-10-30T17:30:00Z' }),
+    tarefaConcluida({ execucao: 4, tarefa: 2, loja: 3, cliente: CLIENTE_C, em: '2026-10-30T17:40:00Z' }),
+  ];
+
+  it('várias execuções da mesma tarefa em lojas diferentes não se sobrescrevem: 4 execuções, 2 tarefas', () => {
+    const st = montar(eventos);
+    expect(Object.keys(st.tarefas)).toHaveLength(4);
+    expect(trade(st)).toMatchObject({ tarefas_concluidas: 4, tarefas_distintas: 2 });
+    expect(execucoesDaTarefa(st, u(9001)).map((t) => t.cliente_id)).toEqual([CLIENTE_A, CLIENTE_B, CLIENTE_C]);
+    expect(execucoesDaTarefa(st, u(9002)).map((t) => t.execucao_id)).toEqual([u(9104)]);
+    expect(execucoesDaTarefa(st, u(9001), u(999))).toEqual([]);
+  });
+
+  it('a ordem de chegada não muda o resultado e a mesma execução com evento_id novo não conta duas vezes', () => {
+    const invertido = montar([...eventos].reverse());
+    expect(trade(invertido)).toEqual(trade(montar(eventos)));
+    const repetida = tarefaConcluida({ execucao: 2, tarefa: 1, loja: 2, cliente: CLIENTE_B, em: '2026-10-30T15:30:00Z' });
+    expect(trade(montar([...eventos, repetida]))).toMatchObject({ tarefas_concluidas: 4, tarefas_distintas: 2 });
+  });
+
+  it('tarefa sem execucao_id (formato do espelho antigo) ou sem foto é inválida', () => {
+    const e = tarefaConcluida({ execucao: 1, tarefa: 1, loja: 1, em: EM });
+    const { execucao_id: _fora, ...semExecucao } = e.payload as Record<string, unknown>;
+    expect(aplicarEvento(estadoInicial(), { ...e, payload: semExecucao }).situacao).toBe('invalido');
+    expect(aplicarEvento(estadoInicial(), { ...e, payload: { ...(e.payload as object), fotos_total: 0 } }).situacao).toBe('invalido');
   });
 });
 

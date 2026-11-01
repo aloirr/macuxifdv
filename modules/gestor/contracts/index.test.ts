@@ -19,7 +19,6 @@ import {
   RegraAlerta,
   RegistroDecisaoAprovacao,
   VisitaCheckoutV1,
-  VisitaLojaConcluidaV1,
 } from './index';
 
 const u = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -101,12 +100,6 @@ describe('espelhos dos eventos consumidos', () => {
     const base = { visita_id: u(1), usuario_id: u(2), cliente_id: u(3), checkout_em: T0 };
     expect(VisitaCheckoutV1.parse(base).encerramento).toBe('normal');
     expect(VisitaCheckoutV1.parse({ ...base, encerramento: 'automatico' }).encerramento).toBe('automatico');
-  });
-
-  it('visita de loja: fotos são opcionais (null quando o Promotor não informa)', () => {
-    const v = VisitaLojaConcluidaV1.parse({ visita_loja_id: u(1), visita_id: u(2), promotor_id: u(3), cliente_id: u(4), checkin_em: T0, checkout_em: T0, permanencia_min: 12 });
-    expect(v.fotos_total).toBeNull();
-    expect(v.fotos_sem_gps).toBeNull();
   });
 
   it('aprovação solicitada: nível, motivos e desconto efetivo; crédito e histórico são opcionais', () => {

@@ -1,8 +1,8 @@
 /**
  * ESPELHO dos payloads dos eventos que o Gestor consome (`<modulo>.<entidade>.<fato>@vN`). O dono de cada
- * evento publica o schema oficial no próprio `contracts`; o Gestor não importa o contrato de módulo que não é
- * dependência declarada, então lê só o que precisa (campo novo opcional no publicador continua `@1` e é ignorado
- * aqui: o Zod descarta chave desconhecida). Divergência com o publicador = recado ao dono (T-0014).
+ * evento publica o schema oficial no próprio `contracts`; enquanto o dono não publica, o Gestor lê só o que precisa
+ * (campo novo opcional no publicador continua `@1` e é ignorado aqui: o Zod descarta chave desconhecida). Quando o
+ * schema oficial existe, o Gestor passa a validar com ele (Promotor, T-0046). Divergência = recado ao dono (T-0014).
  *
  * Situação de cada espelho (ver `.coord/contratos/eventos.md`):
  *  - EXISTE no registro, mas o payload ainda não tem schema do publicador: tudo abaixo, exceto o que está marcado;
@@ -11,9 +11,11 @@
  *  - Campos marcados "PEDIDO" são acréscimos opcionais pedidos ao publicador; ausentes ⇒ indicador `null`.
  *  - CÓPIA PROVISÓRIA: `vendedor.pedido.faturado@1` espelha `PedidoFaturadoEvento` (modules/vendedor/contracts/eventos.ts).
  *    O engenheiro-software vai publicar o formato de cada evento no contracts do dono; aí o Gestor importa de lá.
+ *  - OFICIAL (sem espelho): `promotor.*@1` usa os schemas do contrato do Promotor (T-0040/T-0046, seção abaixo).
  * O envelope (`evento_id`, `ocorrido_em`…) é do platform-sdk; `evento_id` é a chave de idempotência.
  */
 import { z } from 'zod';
+import { EVENTOS_PROMOTOR, type VisitaLojaConcluidaV1 as VisitaLojaConcluidaV1Promotor } from '../../promotor/contracts';
 import { Cents, CentsNaoNeg, ContagemNaoNeg, InstanteUtc, IsoDate, NivelAprovacao, MotivoAprovacao, PctNumero, StatusPedido, Uuid } from './base';
 
 // ---------- Core ----------
@@ -160,78 +162,36 @@ export const AprovacaoSolicitadaV1 = z.object({
 export type AprovacaoSolicitadaV1 = z.infer<typeof AprovacaoSolicitadaV1>;
 
 // ---------- Promotor ----------
-export const DESFECHOS_VISITA_LOJA = ['concluida', 'loja_fechada', 'acesso_negado', 'nao_finalizada'] as const;
-export const VisitaLojaConcluidaV1 = z.object({
-  visita_loja_id: Uuid,
-  /** Visita (check-in/checkout) do Core à qual esta visita de loja se refere. */
-  visita_id: Uuid,
-  promotor_id: Uuid,
-  cliente_id: Uuid,
-  checkin_em: InstanteUtc,
-  checkout_em: InstanteUtc,
-  /** RN-PRO-07; já calculada pelo Promotor. */
-  permanencia_min: z.number().nonnegative(),
-  desfecho: z.enum(DESFECHOS_VISITA_LOJA).default('concluida'),
-  /** RN-PRO-02: fotos da visita e as sem coordenada. PEDIDO ao Promotor; ausente ⇒ % de fotos sem GPS = `null`. */
-  fotos_total: ContagemNaoNeg.nullable().default(null),
-  fotos_sem_gps: ContagemNaoNeg.nullable().default(null),
-});
-export type VisitaLojaConcluidaV1 = z.infer<typeof VisitaLojaConcluidaV1>;
+/**
+ * `promotor.*@1` NÃO tem espelho próprio (T-0046): o Gestor valida com os schemas OFICIAIS publicados pelo Promotor
+ * na T-0040 (`modules/promotor/contracts/eventos.ts`) — os mesmos que o SDK usa na publicação; payload completo e
+ * `.strict()`, com as revalidações de RN-PRO-02/03/04/05/06/07. Import relativo à pasta `contracts` do Promotor
+ * (fronteira permitida); o Promotor é dependência OPCIONAL no manifesto, então não entra no package.json (o pacote
+ * só lê o contrato, não precisa do módulo ativo). Aqui só se reexportam os TIPOS, para o domain do Gestor.
+ */
+export type {
+  GondolaRegistradaV1,
+  PrecoColetadoV1,
+  RupturaRegistradaV1,
+  ShareMedidoV1,
+  TarefaConcluidaV1,
+  VisitaLojaConcluidaV1,
+} from '../../promotor/contracts';
 
-export const CONFORMIDADES_GONDOLA = ['conforme', 'parcial', 'nao_conforme'] as const;
-export const GondolaRegistradaV1 = z.object({
-  gondola_id: Uuid,
-  visita_loja_id: Uuid,
-  promotor_id: Uuid,
-  cliente_id: Uuid,
-  conformidade: z.enum(CONFORMIDADES_GONDOLA),
-  registrado_em: InstanteUtc,
-});
-export type GondolaRegistradaV1 = z.infer<typeof GondolaRegistradaV1>;
+/** Desfecho da visita de loja, no vocabulário do Promotor (`realizada`, `loja_fechada`, `acesso_negado`). */
+export type DesfechoVisitaLoja = VisitaLojaConcluidaV1Promotor['desfecho'];
 
-export const ShareMedidoV1 = z.object({
-  medicao_id: Uuid,
-  visita_loja_id: Uuid,
-  promotor_id: Uuid,
-  cliente_id: Uuid,
-  /** RN-PRO-03; `null` = categoria sem frentes. */
-  share_pct: PctNumero.min(0).max(100).nullable(),
-  meta_pct: PctNumero.min(0).max(100).nullable(),
-  medido_em: InstanteUtc,
-});
-export type ShareMedidoV1 = z.infer<typeof ShareMedidoV1>;
-
-export const PrecoColetadoV1 = z.object({
-  coleta_id: Uuid,
-  visita_loja_id: Uuid,
-  promotor_id: Uuid,
-  cliente_id: Uuid,
-  /** RN-PRO-04; só nas linhas de concorrente com referência, senão `null`. */
-  indice_preco: PctNumero.nonnegative().nullable(),
-  coletado_em: InstanteUtc,
-});
-export type PrecoColetadoV1 = z.infer<typeof PrecoColetadoV1>;
-
-export const STATUS_PRESENCA = ['presente', 'ruptura_gondola', 'ruptura_total'] as const;
-export const RupturaRegistradaV1 = z.object({
-  registro_id: Uuid,
-  visita_loja_id: Uuid,
-  promotor_id: Uuid,
-  cliente_id: Uuid,
-  produto_id: Uuid,
-  /** RN-PRO-05: ruptura_gondola = fora da gôndola COM produto no depósito (falha de reposição). */
-  status: z.enum(STATUS_PRESENCA),
-  registrado_em: InstanteUtc,
-});
-export type RupturaRegistradaV1 = z.infer<typeof RupturaRegistradaV1>;
-
-export const TarefaConcluidaV1 = z.object({
-  tarefa_id: Uuid,
-  promotor_id: Uuid,
-  cliente_id: Uuid.nullable().default(null),
-  concluida_em: InstanteUtc,
-});
-export type TarefaConcluidaV1 = z.infer<typeof TarefaConcluidaV1>;
+/**
+ * Como o Gestor lê cada desfecho (RN-CORE-14, RN-PRO-06/07): `atendida` entra nos indicadores (se tiver a permanência
+ * mínima); `sem_atendimento` (cliente fechado, com foto da fachada) não é loja visitada, não é visita curta e é
+ * contado à parte em `trade.visitas_sem_atendimento`. O `Record` quebra o typecheck se o Promotor criar desfecho novo.
+ */
+export const ATENDIMENTO_POR_DESFECHO = {
+  realizada: 'atendida',
+  loja_fechada: 'sem_atendimento',
+  acesso_negado: 'sem_atendimento',
+} as const satisfies Record<DesfechoVisitaLoja, 'atendida' | 'sem_atendimento'>;
+export type AtendimentoVisitaLoja = (typeof ATENDIMENTO_POR_DESFECHO)[DesfechoVisitaLoja];
 
 // ---------- Pesquisa e Treinamento ----------
 export const RespostaRegistradaV1 = z.object({
@@ -276,12 +236,13 @@ export const EVENTOS_CONSUMIDOS = {
   'vendedor.pedido.status_alterado@1': PedidoStatusAlteradoV1,
   'vendedor.pedido.aprovacao_solicitada@1': AprovacaoSolicitadaV1,
   'vendedor.pedido.faturado@1': PedidoFaturadoV1,
-  'promotor.visita_loja.concluida@1': VisitaLojaConcluidaV1,
-  'promotor.gondola.registrada@1': GondolaRegistradaV1,
-  'promotor.share.medido@1': ShareMedidoV1,
-  'promotor.preco.coletado@1': PrecoColetadoV1,
-  'promotor.ruptura.registrada@1': RupturaRegistradaV1,
-  'promotor.tarefa.concluida@1': TarefaConcluidaV1,
+  // schemas oficiais do Promotor (mesma referência; teste em contracts/index.test.ts)
+  'promotor.visita_loja.concluida@1': EVENTOS_PROMOTOR['promotor.visita_loja.concluida@1'],
+  'promotor.gondola.registrada@1': EVENTOS_PROMOTOR['promotor.gondola.registrada@1'],
+  'promotor.share.medido@1': EVENTOS_PROMOTOR['promotor.share.medido@1'],
+  'promotor.preco.coletado@1': EVENTOS_PROMOTOR['promotor.preco.coletado@1'],
+  'promotor.ruptura.registrada@1': EVENTOS_PROMOTOR['promotor.ruptura.registrada@1'],
+  'promotor.tarefa.concluida@1': EVENTOS_PROMOTOR['promotor.tarefa.concluida@1'],
   'pesquisa.resposta.registrada@1': RespostaRegistradaV1,
   'treinamento.licao.concluida@1': LicaoConcluidaV1,
   'treinamento.medalha.conquistada@1': MedalhaConquistadaV1,

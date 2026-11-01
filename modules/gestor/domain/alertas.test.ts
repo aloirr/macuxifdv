@@ -3,7 +3,7 @@ import { CondicaoAlerta, RegraAlerta, TIPOS_ALERTA, type MembroEquipe } from '..
 import { avaliarAlertas, FREQUENCIA_EM_DIAS, limiteDiasSemVisita, REGRAS_PADRAO, reconciliarAlertas, resolverRegras, tiposAtivos, type AlertaExistente } from './alertas';
 import { situacaoDoPrazo } from './aprovacoes';
 import { PARAMETROS_PADRAO } from './parametros';
-import { CLIENTE_A, CLIENTE_B, checkin, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR } from './fixtures';
+import { CLIENTE_A, CLIENTE_B, checkin, ev, pedidoCriado, PROMOTOR, rupturaRegistrada, statusAlterado, u, VENDEDOR, visitaLoja, type DesfechoTeste } from './fixtures';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
 const montar = (eventos: EventoRecebido[]) => aplicarEventos(estadoInicial(), eventos).estado;
@@ -275,21 +275,9 @@ describe('RF-GES-07 / RN-GES-03: pedido aguardando aprovação além do prazo em
   });
 });
 
-describe('RF-GES-07: alertas do promotor (ruptura recorrente, visita curta, fotos sem GPS)', () => {
-  const lj = (n: number, o: { cliente?: string; min?: number; em: string; fotos?: [number, number] }) =>
-    ev('promotor.visita_loja.concluida@1', o.em, {
-      visita_loja_id: u(3000 + n),
-      visita_id: u(2000 + n),
-      promotor_id: PROMOTOR,
-      cliente_id: o.cliente ?? CLIENTE_A,
-      checkin_em: o.em,
-      checkout_em: o.em,
-      permanencia_min: o.min ?? 30,
-      fotos_total: o.fotos?.[0] ?? null,
-      fotos_sem_gps: o.fotos?.[1] ?? null,
-    });
-  const rup = (n: number, loja: number, st: 'presente' | 'ruptura_gondola' | 'ruptura_total', em: string, cliente = CLIENTE_A) =>
-    ev('promotor.ruptura.registrada@1', em, { registro_id: u(6000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: cliente, produto_id: u(7000 + n), status: st, registrado_em: em });
+describe('RF-GES-07: alertas do promotor (ruptura recorrente, visita curta, fotos sem GPS) com payloads oficiais', () => {
+  const lj = (n: number, o: { cliente?: string; min?: number; em: string; fotos?: [number, number]; desfecho?: DesfechoTeste }) => visitaLoja(n, o);
+  const rup = rupturaRegistrada;
   const AGORA = '2026-10-30T20:00:00Z';
 
   it('ruptura recorrente: 3 visitas diferentes da loja com ruptura em 14 dias alertam (2 não)', () => {
@@ -345,7 +333,24 @@ describe('RF-GES-07: alertas do promotor (ruptura recorrente, visita curta, foto
     expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [10, 2] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // 20%
     expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [4, 4] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // 4 fotos < 10
     expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-20T13:00:00Z', fotos: [20, 20] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // fora de 7 dias
-    expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z' })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // Promotor não informou as fotos
+    expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [0, 0] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // visita sem fotos
+  });
+
+  it('T-0046 / RN-CORE-14: cliente fechado (loja_fechada/acesso_negado) não é visita curta nem conta na ruptura recorrente', () => {
+    const s = montar([
+      lj(1, { em: '2026-10-30T13:00:00Z', min: 3, desfecho: 'loja_fechada' }),
+      lj(2, { em: '2026-10-30T14:00:00Z', min: 2, desfecho: 'acesso_negado' }),
+      lj(3, { em: '2026-10-20T13:00:00Z' }),
+      lj(4, { em: '2026-10-24T13:00:00Z' }),
+      lj(5, { em: '2026-10-29T13:00:00Z', desfecho: 'acesso_negado' }),
+      rup(1, 3, 'ruptura_total', '2026-10-20T13:10:00Z'),
+      rup(2, 4, 'ruptura_total', '2026-10-24T13:10:00Z'),
+      rup(3, 5, 'ruptura_total', '2026-10-29T13:10:00Z'), // de visita sem atendimento: fora
+    ]);
+    expect(doTipo(avaliar(s, AGORA), 'visita_curta')).toHaveLength(0);
+    expect(doTipo(avaliar(s, AGORA), 'ruptura_recorrente')).toHaveLength(0);
+    // a mesma visita de 3 min com desfecho `realizada` alerta
+    expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-30T13:00:00Z', min: 3 })]), AGORA), 'visita_curta')).toHaveLength(1);
   });
 
   it('Promotor desativado: nenhum alerta de trade é gerado (RN-CORE-03)', () => {

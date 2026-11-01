@@ -5,7 +5,8 @@
  *
  * Garantias (testes em `projecao.test.ts`):
  *  - IDEMPOTENTE por `evento_id` (reentrega = `duplicado`, estado intacto) e por CHAVE DE NEGÓCIO (pedido_id,
- *    visita_id, resposta_id…): mesmo fato com `evento_id` novo não conta duas vezes;
+ *    visita_id, resposta_id, execucao_id…): mesmo fato com `evento_id` novo não conta duas vezes;
+ *  - `promotor.*@1` é validado com os schemas OFICIAIS do Promotor (via `EVENTOS_CONSUMIDOS`, T-0046);
  *  - FORA DE ORDEM: cada fato guarda só dados brutos e um carimbo `v` = (ocorrido_em, evento_id); em conflito vence
  *    o carimbo maior, e o histórico de status é um CONJUNTO por `evento_id`. Os indicadores são derivados na consulta
  *    (painel.ts), então a ordem de chegada nunca muda o resultado;
@@ -96,6 +97,7 @@ export interface EstadoProjecao {
   shares: Tabela<ShareMedidoV1>;
   precos: Tabela<PrecoColetadoV1>;
   rupturas: Tabela<RupturaRegistradaV1>;
+  /** Chave `execucao_id` (execução da tarefa numa loja); `tarefa_id` é o agrupador da campanha (`execucoesDaTarefa`). */
   tarefas: Tabela<TarefaConcluidaV1>;
   respostas: Tabela<RespostaRegistradaV1>;
   licoes: Tabela<LicaoConcluidaV1>;
@@ -243,7 +245,8 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
     }
     case 'promotor.tarefa.concluida@1': {
       const d = p as TarefaConcluidaV1;
-      return ok({ ...base, tarefas: gravar(base.tarefas, d.tarefa_id, { ...d, v }) });
+      // T-0046: a chave do fato é a EXECUÇÃO numa loja; a mesma tarefa de campanha (`tarefa_id`) se repete em várias lojas
+      return ok({ ...base, tarefas: gravar(base.tarefas, d.execucao_id, { ...d, v }) });
     }
     case 'pesquisa.resposta.registrada@1': {
       const d = p as RespostaRegistradaV1;
@@ -274,6 +277,16 @@ export function entradaNaCarteira(estado: EstadoProjecao, clienteId: string): st
 
 function ok(estado: EstadoProjecao): ResultadoAplicacao {
   return { estado, situacao: 'aplicado' };
+}
+
+/**
+ * Execuções de uma tarefa de campanha (`tarefa_id`), uma por loja/visita (`execucao_id`), em ordem de conclusão
+ * (desempate pelo `execucao_id`). Opcionalmente só as de um promotor.
+ */
+export function execucoesDaTarefa(estado: EstadoProjecao, tarefaId: string, promotorId?: string): Versionado<TarefaConcluidaV1>[] {
+  return Object.values(estado.tarefas)
+    .filter((t) => t.tarefa_id === tarefaId && (promotorId === undefined || t.promotor_id === promotorId))
+    .sort((a, b) => instanteMs(a.concluida_em) - instanteMs(b.concluida_em) || (a.execucao_id < b.execucao_id ? -1 : a.execucao_id > b.execucao_id ? 1 : 0));
 }
 
 /** Aplica uma lista em sequência; devolve o estado final e a contagem por situação. */

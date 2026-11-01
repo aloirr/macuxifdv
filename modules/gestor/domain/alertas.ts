@@ -12,7 +12,7 @@ import { RegraAlerta, TIPOS_ALERTA, type CondicaoAlerta, type FrequenciaVisita, 
 import { pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
 import { horasUteisEntre } from './horario-comercial';
 import { arredondar, percentual, somarDias } from './numeros';
-import { diaLocal, painelDoMes } from './painel';
+import { atendida, diaLocal, painelDoMes } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
 import { entradaNaCarteira, type EstadoProjecao } from './projecao';
 
@@ -210,7 +210,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
   if (ativos.has('ruptura_recorrente')) {
     const r = e.regras.ruptura_recorrente;
     const janela = r.janela_dias ?? 14;
-    const valida = new Set(lojas.filter((l) => l.permanencia_min >= params.permanencia_min_min).map((l) => l.visita_loja_id));
+    const valida = new Set(lojas.filter((l) => atendida(l) && l.permanencia_min >= params.permanencia_min_min).map((l) => l.visita_loja_id));
     const porLoja = new Map<string, { visitas: Set<string>; promotor: string; ultimo: string }>();
     for (const x of Object.values(e.estado.rupturas)) {
       if (x.status === 'presente' || !valida.has(x.visita_loja_id) || !naJanela(diaLocal(x.registrado_em, params.fuso), hoje, janela)) continue;
@@ -242,7 +242,8 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
     const r = e.regras.visita_curta;
     const janela = r.janela_dias ?? 3;
     for (const l of lojas) {
-      if (l.permanencia_min >= params.permanencia_min_min || !naJanela(diaLocal(l.checkin_em, params.fuso), hoje, janela)) continue;
+      // RN-CORE-14: cliente fechado (loja_fechada/acesso_negado) é saída rápida legítima, não visita curta
+      if (!atendida(l) || l.permanencia_min >= params.permanencia_min_min || !naJanela(diaLocal(l.checkin_em, params.fuso), hoje, janela)) continue;
       out.push({
         chave: chaveDe('visita_curta', l.visita_loja_id),
         tipo: 'visita_curta',
@@ -262,7 +263,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
     const janela = r.janela_dias ?? 7;
     const porPromotor = new Map<string, { total: number; sem: number }>();
     for (const l of lojas) {
-      if (l.fotos_total === null || l.fotos_sem_gps === null || !naJanela(diaLocal(l.checkin_em, params.fuso), hoje, janela)) continue;
+      if (!naJanela(diaLocal(l.checkin_em, params.fuso), hoje, janela)) continue;
       const g = porPromotor.get(l.promotor_id) ?? { total: 0, sem: 0 };
       g.total += l.fotos_total;
       g.sem += l.fotos_sem_gps;

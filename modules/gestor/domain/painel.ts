@@ -5,7 +5,7 @@
  * Módulo opcional desativado (ou seção que não se aplica ao perfil) ⇒ a seção é `null`, o painel continua válido.
  */
 import { businessDays, localDate } from '@macuxi/comum';
-import type { PainelDia, PainelFaturamento, PainelMes, PainelPesquisa, PainelTrade, PainelTreinamento, PainelVendas, PainelVisitas, StatusDia } from '../contracts';
+import { ATENDIMENTO_POR_DESFECHO, type PainelDia, type PainelFaturamento, type PainelMes, type PainelPesquisa, type PainelTrade, type PainelTreinamento, type PainelVendas, type PainelVisitas, type StatusDia, type VisitaLojaConcluidaV1 } from '../contracts';
 import { statusAtual, vendasApuradas } from './apuracao';
 import { arredondar, dividirCents, instanteMs, percentual, somarDias } from './numeros';
 import { resolverParametros, type ParametrosGestor } from './parametros';
@@ -32,6 +32,9 @@ export function diaLocal(instante: string, fuso: string): string {
 }
 
 const dentro = (dia: string, inicio: string, fim: string): boolean => dia >= inicio && dia <= fim;
+
+/** T-0046: desfecho do Promotor → leitura do Gestor (RN-CORE-14). Só `realizada` é atendimento. */
+export const atendida = (l: Pick<VisitaLojaConcluidaV1, 'desfecho'>): boolean => ATENDIMENTO_POR_DESFECHO[l.desfecho] === 'atendida';
 const soma = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
 
 // ---------- visitas (Core) ----------
@@ -44,11 +47,13 @@ interface VisitaDoUsuario {
   permanencia_min: number | null;
   aberta: boolean;
   automatica: boolean;
+  /** RN-CORE-14 (visita de loja do Promotor com `loja_fechada`/`acesso_negado`): não conta nem é curta. */
+  sem_atendimento: boolean;
 }
 
 function visitasDoUsuario(estado: EstadoProjecao, usuarioId: string, inicio: string, fim: string, fuso: string): VisitaDoUsuario[] {
-  const lojaPorVisita = new Map<string, number>();
-  for (const l of Object.values(estado.visitas_loja)) lojaPorVisita.set(l.visita_id, l.permanencia_min);
+  const lojaPorVisita = new Map<string, { permanencia_min: number; atendida: boolean }>();
+  for (const l of Object.values(estado.visitas_loja)) lojaPorVisita.set(l.visita_id, { permanencia_min: l.permanencia_min, atendida: atendida(l) });
   const out: VisitaDoUsuario[] = [];
   for (const [visita_id, f] of Object.entries(estado.visitas)) {
     if (!f.checkin || f.checkin.usuario_id !== usuarioId) continue;
@@ -57,11 +62,11 @@ function visitasDoUsuario(estado: EstadoProjecao, usuarioId: string, inicio: str
     const co = f.checkout;
     const automatica = co?.encerramento === 'automatico';
     let permanencia: number | null = null;
+    const doPromotor = lojaPorVisita.get(visita_id);
     if (co && !automatica) {
-      const doPromotor = lojaPorVisita.get(visita_id);
-      permanencia = doPromotor ?? Math.max(0, (instanteMs(co.checkout_em) - instanteMs(f.checkin.checkin_em)) / 60_000);
+      permanencia = doPromotor?.permanencia_min ?? Math.max(0, (instanteMs(co.checkout_em) - instanteMs(f.checkin.checkin_em)) / 60_000);
     }
-    out.push({ visita_id, cliente_id: f.checkin.cliente_id, dia, permanencia_min: permanencia, aberta: !co, automatica });
+    out.push({ visita_id, cliente_id: f.checkin.cliente_id, dia, permanencia_min: permanencia, aberta: !co, automatica, sem_atendimento: doPromotor !== undefined && !doPromotor.atendida });
   }
   return out;
 }
@@ -105,7 +110,8 @@ function coberturaDeRota(rotas: Map<string, Set<string>>, visitas: readonly Visi
 /**
  * Visitas do período (dia = inicio = fim). RN-CORE-20: realizadas = clientes distintos com check-in. Promotor
  * (RN-PRO-07): só conta a visita encerrada com a permanência mínima; abertas e fechadas automaticamente ficam de fora
- * de "realizadas"; as abaixo do mínimo são "curtas" (sinalizadas ao gestor). Tempo em cliente = visitas encerradas
+ * de "realizadas"; as abaixo do mínimo são "curtas" (sinalizadas ao gestor). Visita de loja SEM ATENDIMENTO
+ * (`loja_fechada`/`acesso_negado`, RN-CORE-14) não é realizada nem curta: vai para `trade.visitas_sem_atendimento`. Tempo em cliente = visitas encerradas
  * normalmente que contam; fechamento automático (RN-CORE-11) não tem tempo confiável e fica fora.
  */
 export function visitasDoPeriodo(
@@ -119,8 +125,9 @@ export function visitasDoPeriodo(
   const params = resolverParametros(paramsParciais);
   const todas = visitasDoUsuario(estado, usuario.id, inicio, fim, params.fuso);
   const promotor = usuario.perfil === 'promotor';
-  const curtas = promotor ? todas.filter((v) => v.permanencia_min !== null && v.permanencia_min < params.permanencia_min_min) : [];
-  const contam = promotor ? todas.filter((v) => v.permanencia_min !== null && v.permanencia_min >= params.permanencia_min_min) : todas;
+  const atendidas = promotor ? todas.filter((v) => !v.sem_atendimento) : todas;
+  const curtas = promotor ? atendidas.filter((v) => v.permanencia_min !== null && v.permanencia_min < params.permanencia_min_min) : [];
+  const contam = promotor ? atendidas.filter((v) => v.permanencia_min !== null && v.permanencia_min >= params.permanencia_min_min) : todas;
   const rota = coberturaDeRota(rotasNoPeriodo(estado, usuario.id, inicio, fim), contam);
   const planejadas = rota.planejadas;
   const realizadas = new Set(contam.map((v) => v.cliente_id)).size;
@@ -289,6 +296,7 @@ export function painelDoMes(estado: EstadoProjecao, vendedorId: string, data: st
 // ---------- trade (Promotor) ----------
 /**
  * Indicadores do promotor no período (RF-GES-10). Espelha as regras do Promotor sobre os eventos `promotor.*@1`:
+ * desfecho (só `realizada` conta; `loja_fechada`/`acesso_negado` = sem atendimento, RN-CORE-14),
  * RN-PRO-07 (coletas só de visitas com a permanência mínima), RN-PRO-11 (conformidade com peso do parcial),
  * RN-PRO-03 (share/atingimento), RN-PRO-05 (ruptura e falha de reposição), RN-PRO-04 (índice médio) e RN-PRO-02 (fotos sem GPS).
  */
@@ -296,10 +304,12 @@ export function tradeDoPeriodo(estado: EstadoProjecao, promotorId: string, inici
   const params = resolverParametros(paramsParciais);
   const dia = (i: string) => diaLocal(i, params.fuso);
   const visitas = Object.values(estado.visitas_loja).filter((l) => l.promotor_id === promotorId);
-  const validas = new Set(visitas.filter((l) => l.permanencia_min >= params.permanencia_min_min).map((l) => l.visita_loja_id));
+  const validas = new Set(visitas.filter((l) => atendida(l) && l.permanencia_min >= params.permanencia_min_min).map((l) => l.visita_loja_id));
   const daVisitaValida = <T extends { promotor_id: string; visita_loja_id: string }>(xs: readonly T[]) => xs.filter((x) => x.promotor_id === promotorId && validas.has(x.visita_loja_id));
 
-  const lojas = new Set(visitas.filter((l) => validas.has(l.visita_loja_id) && dentro(dia(l.checkin_em), inicio, fim)).map((l) => l.cliente_id));
+  const noPeriodo = visitas.filter((l) => dentro(dia(l.checkin_em), inicio, fim));
+  const lojas = new Set(noPeriodo.filter((l) => validas.has(l.visita_loja_id)).map((l) => l.cliente_id));
+  const semAtendimento = noPeriodo.filter((l) => !atendida(l)).length;
 
   const gondolas = daVisitaValida(Object.values(estado.gondolas)).filter((g) => dentro(dia(g.registrado_em), inicio, fim));
   const conformes = gondolas.filter((g) => g.conformidade === 'conforme').length;
@@ -319,13 +329,14 @@ export function tradeDoPeriodo(estado: EstadoProjecao, promotorId: string, inici
 
   const tarefas = Object.values(estado.tarefas).filter((t) => t.promotor_id === promotorId && dentro(dia(t.concluida_em), inicio, fim));
 
-  // RN-PRO-02: fotos do período, de TODAS as visitas (inclusive as curtas), só das que informaram os dois números
-  const comFotos = visitas.filter((l) => dentro(dia(l.checkin_em), inicio, fim) && l.fotos_total !== null && l.fotos_sem_gps !== null);
-  const fotosTotal = comFotos.length > 0 ? soma(comFotos.map((l) => l.fotos_total!)) : null;
-  const fotosSem = comFotos.length > 0 ? soma(comFotos.map((l) => l.fotos_sem_gps!)) : null;
+  // RN-PRO-02: fotos do período, de TODAS as visitas (curtas e sem atendimento inclusive: a fachada é foto); o
+  // Promotor sempre informa as contagens (T-0040), então `null` = nenhuma visita de loja no período
+  const fotosTotal = noPeriodo.length > 0 ? soma(noPeriodo.map((l) => l.fotos_total)) : null;
+  const fotosSem = noPeriodo.length > 0 ? soma(noPeriodo.map((l) => l.fotos_sem_gps)) : null;
 
   return {
     lojas_visitadas: lojas.size,
+    visitas_sem_atendimento: semAtendimento,
     conformidade_pct: percentual(conformes + parciais * params.peso_parcial_conformidade, gondolas.length),
     conformidade_parciais: parciais,
     share_medio_pct: comShare.length > 0 ? arredondar(soma(comShare.map((s) => s.share_pct!)) / comShare.length) : null,
@@ -335,6 +346,7 @@ export function tradeDoPeriodo(estado: EstadoProjecao, promotorId: string, inici
     falha_reposicao_pct: percentual(falhas, rupturas.length),
     indice_preco_medio: indices.length > 0 ? arredondar(soma(indices.map((p) => p.indice_preco!)) / indices.length) : null,
     tarefas_concluidas: tarefas.length,
+    tarefas_distintas: new Set(tarefas.map((t) => t.tarefa_id)).size,
     fotos_total: fotosTotal,
     fotos_sem_gps: fotosSem,
     fotos_sem_gps_pct: fotosTotal !== null && fotosSem !== null ? percentual(fotosSem, fotosTotal) : null,
