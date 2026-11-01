@@ -95,5 +95,5 @@ describe('macuxi/hora-fixa-em-teste', () => {
     }
     const producao = (await eslint.calculateConfigForFile('modules/x/api/a.ts')) as { rules: Record<string, unknown> };
     expect(producao.rules['macuxi/hora-fixa-em-teste']).toBeUndefined();
-  });
+  }, 60_000); // carrega a config inteira da raiz (typescript-eslint): lento com o turbo rodando tudo em paralelo
 });
