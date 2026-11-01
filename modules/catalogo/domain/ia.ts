@@ -20,7 +20,8 @@ export interface EntradaInterpretacao {
 
 /** Porta do LLM que converte a frase em filtros. Devolve JSON no formato `FiltrosInterpretados` (sempre revalidado). */
 export interface PortaInterpretacaoLlm {
-  interpretar(entrada: EntradaInterpretacao): Promise<unknown>;
+  /** `opcoes.signal`: cancelamento do chamador (ex.: o app desistiu); a implementação soma ao seu tempo limite. */
+  interpretar(entrada: EntradaInterpretacao, opcoes?: { signal?: AbortSignal }): Promise<unknown>;
 }
 
 /** Porta do LLM do "Pergunte ao catálogo" (ver `pergunte.ts`). */
@@ -100,6 +101,8 @@ export interface EntradaInterpretarBusca {
   online: boolean;
   /** Resultado de `verificarConsultaIa` (RN-CAT-03; não consome). */
   ia: { permitido: boolean; mensagem: string | null };
+  /** Cancelamento do chamador, repassado à porta (que o combina com o tempo limite). */
+  signal?: AbortSignal;
 }
 
 export interface ResultadoInterpretacao {
@@ -128,7 +131,7 @@ export async function interpretarBusca(e: EntradaInterpretarBusca): Promise<Resu
 
   let bruto: unknown;
   try {
-    bruto = await e.porta.interpretar({ tenant_id: e.tenant_id, texto: e.texto, marcas: [...e.vocabulario.marcas], linhas: [...e.vocabulario.linhas] });
+    bruto = await e.porta.interpretar({ tenant_id: e.tenant_id, texto: e.texto, marcas: [...e.vocabulario.marcas], linhas: [...e.vocabulario.linhas] }, e.signal ? { signal: e.signal } : undefined);
   } catch (erro) {
     const desfecho = classificarFalhaIa(erro);
     return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, chamouProvedor: true, desfecho, consomeCota: consomeCotaIa(desfecho) };
@@ -137,4 +140,13 @@ export async function interpretarBusca(e: EntradaInterpretarBusca): Promise<Resu
   const validado = validarFiltrosLlm(bruto, e.vocabulario);
   if (!validado) return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, ...respondida };
   return { filtros: mesclarFiltros(regras, validado), origem: 'llm', aviso: null, ...respondida };
+}
+
+/**
+ * Campos de `ResultadoBusca` (contrato) que vêm da interpretação: quem interpretou, se a busca está degradada
+ * (offline, limite ou falha do provedor, incluindo tempo esgotado — RN-CAT-03) e o aviso discreto da tela.
+ * Falha do provedor ⇒ `interpreted_by = regras`, `degraded = true` e `notice` em português; nunca erro para o usuário.
+ */
+export function resumoDaInterpretacao(r: Pick<ResultadoInterpretacao, 'origem' | 'aviso'>): { interpreted_by: 'llm' | 'regras'; degraded: boolean; notice: string | null } {
+  return { interpreted_by: r.origem, degraded: r.aviso !== null, notice: r.aviso };
 }
