@@ -8,7 +8,7 @@ describe('parâmetros do tenant do Gestor (doc 03, tabela de parâmetros)', () =
       base_apuracao: 'aprovado',
       permanencia_min_min: 10,
       peso_parcial_conformidade: 0,
-      aprovacao_prazo_horas: 24,
+      prazo_aprovacao_dias_uteis: 1,
       aprovacao_aviso_horas: 4,
     });
     expect(PARAMETROS_PADRAO.feriados).toEqual([]);
@@ -28,7 +28,7 @@ describe('parâmetros do tenant do Gestor (doc 03, tabela de parâmetros)', () =
     expect(() => resolverParametros({ dias_sem_visita_padrao: -1 })).toThrow(/dias_sem_visita_padrao/);
     expect(() => resolverParametros({ dias_sem_visita_padrao: 2.5 })).toThrow(/dias_sem_visita_padrao/);
     expect(() => resolverParametros({ dias_carencia_cliente_novo: -1 })).toThrow(/dias_carencia_cliente_novo/);
-    expect(() => resolverParametros({ aprovacao_prazo_horas: -24 })).toThrow(/aprovacao_prazo_horas/);
+    expect(() => resolverParametros({ prazo_aprovacao_dias_uteis: -1 })).toThrow(/prazo_aprovacao_dias_uteis/);
     const hc = PARAMETROS_PADRAO.horario_comercial;
     expect(() => resolverParametros({ horario_comercial: { ...hc, inicio: '18:00', fim: '08:00' } })).toThrow(/horario_comercial/);
     expect(() => resolverParametros({ horario_comercial: { ...hc, inicio: '25:00' } })).toThrow(/horario_comercial/);
@@ -36,6 +36,26 @@ describe('parâmetros do tenant do Gestor (doc 03, tabela de parâmetros)', () =
     expect(() => resolverParametros({ horario_comercial: { ...hc, dias_semana: [0, 8] } })).toThrow(/horario_comercial/);
     expect(() => resolverParametros({ horario_comercial: { ...hc, dias_semana: [1, 1] } })).toThrow(/horario_comercial/);
     expect(resolverParametros({ pct_tolerancia_frequencia: 0, dias_carencia_cliente_novo: 0 })).toMatchObject({ pct_tolerancia_frequencia: 0, dias_carencia_cliente_novo: 0 });
+  });
+
+  it('RN-GES-03: o prazo é em DIAS úteis (o parâmetro antigo em horas deixou de existir)', () => {
+    expect(PARAMETROS_PADRAO).not.toHaveProperty('aprovacao_prazo_horas');
+    expect(() => resolverParametros({ aprovacao_prazo_horas: 24 } as never)).toThrow();
+    expect(resolverParametros({ prazo_aprovacao_dias_uteis: 3 }).prazo_aprovacao_dias_uteis).toBe(3);
+  });
+
+  it('RN-GES-03: o aviso "vencendo" (horas úteis restantes) tem de ser menor que o prazo em dias × a jornada do dia (padrão 10 h)', () => {
+    expect(resolverParametros({ aprovacao_aviso_horas: 9.5 }).aprovacao_aviso_horas).toBe(9.5);
+    expect(() => resolverParametros({ aprovacao_aviso_horas: 10 })).toThrow(/aviso/i); // 1 dia útil = 10 h úteis
+    expect(() => resolverParametros({ aprovacao_aviso_horas: 12 })).toThrow(/aviso/i);
+    expect(resolverParametros({ prazo_aprovacao_dias_uteis: 2, aprovacao_aviso_horas: 12 }).aprovacao_aviso_horas).toBe(12); // 2 dias = 20 h
+    expect(() => resolverParametros({ prazo_aprovacao_dias_uteis: 2, aprovacao_aviso_horas: 20 })).toThrow(/aviso/i);
+  });
+
+  it('RN-GES-03: a jornada vem do horário comercial do tenant (08:00–12:00 = 4 h por dia útil)', () => {
+    const meioDia = { dias_semana: [1, 2, 3, 4, 5], inicio: '08:00', fim: '12:00' };
+    expect(() => resolverParametros({ horario_comercial: meioDia })).toThrow(/aviso/i); // aviso padrão 4 h não é menor que 4 h
+    expect(resolverParametros({ horario_comercial: meioDia, aprovacao_aviso_horas: 2 }).aprovacao_aviso_horas).toBe(2);
   });
 
   it('mistura o parcial do tenant com o padrão', () => {
@@ -47,8 +67,8 @@ describe('parâmetros do tenant do Gestor (doc 03, tabela de parâmetros)', () =
 
   it('recusa valores inválidos com mensagem em português', () => {
     expect(() => resolverParametros({ fuso: 'Marte/Olympus' })).toThrow(/Fuso/);
-    expect(() => resolverParametros({ aprovacao_prazo_horas: 0 })).toThrow();
-    expect(() => resolverParametros({ aprovacao_prazo_horas: 4, aprovacao_aviso_horas: 4 })).toThrow(/aviso/i);
+    expect(() => resolverParametros({ prazo_aprovacao_dias_uteis: 0 })).toThrow(/prazo_aprovacao_dias_uteis/);
+    expect(() => resolverParametros({ prazo_aprovacao_dias_uteis: 1.5 })).toThrow(/prazo_aprovacao_dias_uteis/);
     expect(() => resolverParametros({ peso_parcial_conformidade: 2 })).toThrow();
     expect(() => resolverParametros({ feriados: ['02/11/2026'] })).toThrow();
   });

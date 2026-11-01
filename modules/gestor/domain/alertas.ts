@@ -9,7 +9,7 @@
  */
 import { businessDays, diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
-import { pedidoPendenteDeAprovacao } from './aprovacoes';
+import { pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
 import { horasUteisEntre } from './horario-comercial';
 import { arredondar, percentual, somarDias } from './numeros';
 import { diaLocal, painelDoMes } from './painel';
@@ -23,8 +23,8 @@ export const REGRAS_PADRAO: Readonly<Record<TipoAlerta, RegraAlerta>> = Object.f
   cliente_sem_visita: { tipo: 'cliente_sem_visita', ativa: true, limiar: null, janela_dias: null, amostra_min: null, severidade: 'atencao' },
   // limiar = % do ritmo esperado; amostra_min = dias úteis decorridos mínimos
   ritmo_abaixo_meta: { tipo: 'ritmo_abaixo_meta', ativa: true, limiar: 80, janela_dias: null, amostra_min: 3, severidade: 'atencao' },
-  // limiar = horas ÚTEIS de espera (RN-GES-03: horário comercial do tenant)
-  pedido_aguardando_aprovacao: { tipo: 'pedido_aguardando_aprovacao', ativa: true, limiar: 24, janela_dias: null, amostra_min: null, severidade: 'critica' },
+  // sem limiar próprio: o prazo vem de `prazo_aprovacao_dias_uteis` do tenant (RN-GES-03, o mesmo da fila de aprovação)
+  pedido_aguardando_aprovacao: { tipo: 'pedido_aguardando_aprovacao', ativa: true, limiar: null, janela_dias: null, amostra_min: null, severidade: 'critica' },
   // limiar = nº de visitas da loja com ruptura dentro da janela
   ruptura_recorrente: { tipo: 'ruptura_recorrente', ativa: true, limiar: 3, janela_dias: 14, amostra_min: null, severidade: 'atencao' },
   // limite vem de `permanencia_min_min` (RN-PRO-07), parâmetro único do tenant
@@ -57,6 +57,11 @@ export function resolverRegras(ajustes: Partial<Record<TipoAlerta, Partial<Regra
     if (tipo === 'cliente_sem_visita' && r.data.limiar !== null) {
       throw new RangeError(
         'Regra de alerta cliente_sem_visita: o limite vem da frequência de visita do cliente (RN-GES-01). Ajuste pct_tolerancia_frequencia, dias_sem_visita_padrao ou dias_carencia_cliente_novo nos parâmetros do tenant.',
+      );
+    }
+    if (tipo === 'pedido_aguardando_aprovacao' && r.data.limiar !== null) {
+      throw new RangeError(
+        'Regra de alerta pedido_aguardando_aprovacao: o prazo vem do parâmetro do tenant prazo_aprovacao_dias_uteis (RN-GES-03), o mesmo da fila de aprovação; a regra só liga ou desliga.',
       );
     }
     out[tipo] = r.data;
@@ -133,7 +138,7 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
         const desde = entradaNaCarteira(e.estado, clienteId);
         const naCarteira = desde ? diffDays(diaLocal(desde, params.fuso), hoje) : null;
         limiar = params.dias_carencia_cliente_novo;
-        if (naCarteira === null || naCarteira < limiar) continue;
+        if (naCarteira === null || naCarteira <= limiar) continue; // RN-GES-02: só alerta ao PASSAR da carência
         valor = null;
         mensagem = `${nome} nunca foi visitado (${naCarteira} dias na carteira; carência ${limiar}).`;
       }
@@ -175,13 +180,16 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
     }
   }
 
-  // --- pedido aguardando aprovação há X horas ---
+  // --- RN-GES-03: pedido aguardando aprovação depois de PASSAR do prazo em dias úteis (o mesmo prazo da fila) ---
   if (ativos.has('pedido_aguardando_aprovacao')) {
     const r = e.regras.pedido_aguardando_aprovacao;
     for (const [pedidoId, a] of Object.entries(e.estado.aprovacoes)) {
       if (!pedidoPendenteDeAprovacao(e.estado, pedidoId)) continue;
+      const prazo = situacaoDoPrazo(a.solicitada_em, e.agora, params);
+      if (prazo.situacao !== 'vencido') continue;
       const horas = horasUteisEntre(a.solicitada_em, e.agora, params);
-      if (horas < r.limiar!) continue;
+      const horasDoPrazo = horasUteisEntre(a.solicitada_em, prazo.prazo_em, params);
+      const dias = params.prazo_aprovacao_dias_uteis;
       out.push({
         chave: chaveDe('pedido_aguardando_aprovacao', pedidoId),
         tipo: 'pedido_aguardando_aprovacao',
@@ -189,9 +197,9 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
         alvo_id: pedidoId,
         responsavel_id: a.vendedor_id,
         valor: horas,
-        limiar: r.limiar,
+        limiar: horasDoPrazo,
         severidade: r.severidade,
-        mensagem: `Pedido aguardando aprovação há ${horas} horas úteis (limite ${r.limiar} h).`,
+        mensagem: `Pedido aguardando aprovação além do prazo de ${dias} ${dias === 1 ? 'dia útil' : 'dias úteis'} (${horas} horas úteis de espera).`,
       });
     }
   }

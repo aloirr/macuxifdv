@@ -1,6 +1,6 @@
 # Gestor — regras de cálculo (domain)
 
-Implementação: `modules/gestor/domain/` (funções puras, sem I/O; rodam no app offline, na web e na API). Cada arquivo tem um `*.test.ts` com os casos abaixo (`it('RN-...: ...')`). Contratos Zod (painel, ranking, alerta, fila de aprovação, pedido em nome e os espelhos dos eventos consumidos): `modules/gestor/contracts/`. Tarefa: T-0014 (domínio, contratos e manifesto; sem banco e sem telas) e o ajuste da T-0014 com as **8 decisões do Alexandre** (R-20261031-165536-alexandre), registradas aqui como **RN-GES-01 a 08** (texto proposto ao doc 03; numeração a confirmar pelo gerente-projetos). Requisitos: RF-GES-01 a 10 (`docs/produto/02`); regras: `docs/produto/03` (RN-CORE-04/20/21/22, RN-VEN-03/10/30/31/32/35, RN-PRO-01/02/03/05/07/11) e RN-GES-01..08 (abaixo).
+Implementação: `modules/gestor/domain/` (funções puras, sem I/O; rodam no app offline, na web e na API). Cada arquivo tem um `*.test.ts` com os casos abaixo (`it('RN-...: ...')`). Contratos Zod (painel, ranking, alerta, fila de aprovação, pedido em nome e os espelhos dos eventos consumidos): `modules/gestor/contracts/`. Tarefa: T-0014 (domínio, contratos e manifesto; sem banco e sem telas) e os ajustes da T-0014 com as **decisões do Alexandre** (R-20261031-165536-alexandre e correções R-20261031-184654), registradas no doc 03 como **RN-GES-01 a 08** (texto literal ao final deste arquivo; ajustes v2: prazo em dias úteis, alerta só ao passar do limite, feriados). Requisitos: RF-GES-01 a 10 (`docs/produto/02`); regras: `docs/produto/03` (RN-CORE-04/20/21/22, RN-VEN-03/10/30/31/32/35, RN-PRO-01/02/03/05/07/11) e RN-GES-01..08 (abaixo).
 
 Convenções: dinheiro em centavos inteiros, divisão meio para cima (RN-VEN-02); percentuais com 2 casas, meio para cima (`4.5` = 4,5%); instantes em UTC (ISO com `Z`); **"dia" = data civil no fuso do tenant** (`America/Manaus` por padrão, `localDate` de `@macuxi/comum`, ADR 0002) — só a exibição e o agrupamento por dia usam o fuso, o armazenado é UTC; "sem dado" devolve `null`, nunca divide por zero. **`null` num indicador significa "sem dado" ou "módulo opcional desativado"**: o painel continua válido (RN-CORE-03).
 
@@ -10,15 +10,17 @@ Convenções: dinheiro em centavos inteiros, divisão meio para cima (RN-VEN-02)
 |---|---|---|---|
 | `fuso` | `America/Manaus` | todo "dia" | doc 03 (tabela de parâmetros) |
 | `base_apuracao` | `aprovado` (ou `faturado`) | `vendasDoPeriodo`, `painelDoMes` | RN-CORE-21; doc 03 |
-| `feriados` | `[]` | dias úteis da meta e do ritmo | RN-CORE-22; `@macuxi/comum` |
+| `feriados` | `[]` (datas civis) | dias úteis da meta e do ritmo (RN-CORE-22); **somados aos feriados nacionais** nos dias úteis do prazo da aprovação (RN-GES-03) | RN-CORE-22; RN-GES-03; `@macuxi/comum` |
 | `permanencia_min_min` | 10 | visitas do promotor, trade, alerta `visita_curta` | RN-PRO-07 (mesmo parâmetro do Promotor) |
 | `peso_parcial_conformidade` | 0 (0 a 1) | conformidade de gôndola do trade | RN-PRO-11 (mesmo parâmetro do Promotor) |
-| `aprovacao_prazo_horas` | 24 (horas **úteis**, > 0) | prazo da fila de aprovação | decisões 1 e 3 (RN-GES-03) |
-| `aprovacao_aviso_horas` | 4 (< prazo, horas úteis) | "vencendo" na fila | premissa T-0014 (mantida) |
-| `horario_comercial` | `{ dias_semana: [1,2,3,4,5], inicio: '08:00', fim: '18:00' }` (1 = segunda … 7 = domingo; `fim` > `inicio`; `24:00` vale) | horas úteis do prazo de aprovação e do alerta | decisão 3 (RN-GES-03) |
+| `prazo_aprovacao_dias_uteis` | 1 (**dias úteis**, inteiro ≥ 1) | prazo da fila de aprovação **e** do alerta de aprovação parada | RN-GES-03 (substitui `aprovacao_prazo_horas`, removido) |
+| `aprovacao_aviso_horas` | 4 (horas **úteis restantes** até o prazo; ≥ 0 e **< `prazo_aprovacao_dias_uteis` × jornada do dia**; jornada padrão 10 h) | "vencendo" na fila | premissa T-0014 (revista nos ajustes v2) |
+| `horario_comercial` | `{ dias_semana: [1,2,3,4,5], inicio: '08:00', fim: '18:00' }` (1 = segunda … 7 = domingo; `fim` > `inicio`; `24:00` vale) | dias úteis, expediente e horas úteis do prazo da aprovação | RN-GES-03 |
 | `pct_tolerancia_frequencia` | 50 (%, ≥ 0) | limite do alerta `cliente_sem_visita` | decisão 1 (RN-GES-01) |
 | `dias_sem_visita_padrao` | 30 (dias inteiros, ≥ 0) | limite para cliente sem frequência | decisão 1 (RN-GES-01) |
 | `dias_carencia_cliente_novo` | 15 (dias inteiros, ≥ 0) | cliente nunca visitado | decisão 2 (RN-GES-02) |
+
+**Aviso "vencendo" (ajustes v2):** o prazo agora é em dias, mas o aviso continua em **horas úteis restantes** (é a unidade que o gestor sente: "faltam 3 h do expediente"). Como 1 dia útil tem só a jornada do horário comercial (padrão 10 h), o aviso tem de ser **menor que `prazo_aprovacao_dias_uteis` × jornada** (a refine do schema compara com o prazo em dias; com 08:00–18:00 e 1 dia, aviso < 10 h). Quem reduz a jornada (ex.: 08:00–12:00) precisa reduzir o aviso junto, senão `resolverParametros` recusa com mensagem em português que cita `aprovacao_aviso_horas`.
 
 Valores negativos (ou fracionários nos campos de dias) são recusados por `resolverParametros` com mensagem em português que cita o parâmetro.
 
@@ -27,12 +29,14 @@ Valores negativos (ou fracionários nos campos de dias) são recusados por `reso
 |---|---|---|---|---|---|
 | `cliente_sem_visita` | — (vem do cliente e dos parâmetros, RN-GES-01/02; a regra só liga/desliga e recusa `limiar`) | — | — | atenção | Core |
 | `ritmo_abaixo_meta` | 80 (% do ritmo esperado) | — | 3 (dias úteis decorridos) | atenção | Vendedor |
-| `pedido_aguardando_aprovacao` | 24 (horas úteis, RN-GES-03) | — | — | crítica | Vendedor |
+| `pedido_aguardando_aprovacao` | — (vem de `prazo_aprovacao_dias_uteis`, RN-GES-03; a regra só liga/desliga e recusa `limiar`) | — | — | crítica | Vendedor |
 | `ruptura_recorrente` | 3 (visitas da loja com ruptura) | 14 | — | atenção | Promotor |
 | `visita_curta` | — (usa `permanencia_min_min`) | 3 | — | info | Promotor |
 | `fotos_sem_gps` | 20 (% máximo) | 7 | 10 (fotos) | atenção | Promotor |
 
-Padrões **confirmados pelo Alexandre** (decisão 1): ritmo mínimo 80%, aprovação pendente 24 h (úteis), 3 rupturas em 14 dias, 20% de fotos sem GPS. A amostra de 10 fotos em 7 dias e a janela de 3 dias da visita curta seguem como premissa da T-0014.
+Padrões **confirmados pelo Alexandre** (decisão 1): ritmo mínimo 80%, aprovação pendente além do prazo da RN-GES-03 (1 dia útil), 3 rupturas em 14 dias, 20% de fotos sem GPS. A amostra de 10 fotos em 7 dias e a janela de 3 dias da visita curta seguem como premissa da T-0014.
+
+**Limiar da regra de aprovação parada (ajustes v2):** o limiar em horas (24) foi **removido**: o alerta é derivado do parâmetro `prazo_aprovacao_dias_uteis`, como já acontece com `cliente_sem_visita`. `resolverRegras` recusa `limiar` nessa regra (mensagem cita o parâmetro); `REGRAS_PADRAO.pedido_aguardando_aprovacao.limiar` é `null`. No `CondicaoAlerta`, `valor` = horas úteis de espera desde a solicitação e `limiar` = horas úteis do prazo (derivadas, para a tela mostrar "10,02 de 10 h"); a regra dispara quando a fila marca o item como `vencido` (mesma função, `situacaoDoPrazo`).
 
 ## 1. Projeção dos eventos — `projecao.ts`, `apuracao.ts`
 O read-model é alimentado só por eventos (nunca por tabela de outro módulo). O estado (`EstadoProjecao`) guarda **dados brutos**; todos os indicadores são **derivados na consulta**.
@@ -90,15 +94,15 @@ Indicadores: `vendas_cents`, `pedidos`, `positivados`, `ticket_medio_cents`, `at
 `avaliarAlertas` devolve as **condições** que valem agora (só regra ligada **e** módulo de origem ativo); `reconciliarAlertas` compara com os alertas gravados e devolve `abrir`, `atualizar`, `encerrar` (idempotente: aplicar e reconciliar de novo dá vazio).
 | Tipo | Condição | Alvo / responsável |
 |---|---|---|
-| `cliente_sem_visita` | **RN-GES-01**: cliente ativo da carteira com dias desde o último check-in de **qualquer usuário** (dia no fuso do tenant) **acima** (>) do limite do cliente = ⌊frequência × (1 + `pct_tolerancia_frequencia` ÷ 100)⌋ — semanal (7) → 10, quinzenal (14) → 21, mensal (30) → 45; sem frequência → `dias_sem_visita_padrao` (30). **RN-GES-02**: nunca visitado só alerta com ≥ `dias_carencia_cliente_novo` (15) dias na carteira (valor `null`, limiar = carência). Sem carteira ou vendedor inativo: não alerta | cliente / vendedor da carteira |
+| `cliente_sem_visita` | **RN-GES-01**: cliente ativo da carteira com dias desde o último check-in de **qualquer usuário** (dia no fuso do tenant) **acima** (>) do limite do cliente = ⌊frequência × (1 + `pct_tolerancia_frequencia` ÷ 100)⌋ — semanal (7) → 10, quinzenal (14) → 21, mensal (30) → 45; sem frequência → `dias_sem_visita_padrao` (30). **RN-GES-02**: nunca visitado só alerta quando os dias na carteira **passam** (>) de `dias_carencia_cliente_novo` (15) (valor `null`, limiar = carência). Sem carteira ou vendedor inativo: não alerta | cliente / vendedor da carteira |
 | `ritmo_abaixo_meta` | ritmo (seção 2) < `limiar` (80%) e dias úteis decorridos ≥ `amostra_min` (3). Sem meta: não alerta | vendedor |
-| `pedido_aguardando_aprovacao` | solicitação pendente há ≥ `limiar` (24) **horas úteis** (RN-GES-03; a pendência segue a seção 6) | pedido / vendedor do pedido |
+| `pedido_aguardando_aprovacao` | solicitação pendente **depois de passar do prazo** de `prazo_aprovacao_dias_uteis` (1 dia útil, RN-GES-03; exatamente no instante do prazo ainda não alerta; a pendência segue a seção 6) | pedido / vendedor do pedido |
 | `ruptura_recorrente` | nº de **visitas distintas** da loja (≥ permanência mínima) com ≥ 1 item em ruptura nos últimos `janela_dias` (14) ≥ `limiar` (3) | loja (cliente) / promotor da última ruptura |
 | `visita_curta` | visita de loja com permanência < `permanencia_min_min` (10, RN-PRO-07) nos últimos `janela_dias` (3) | visita de loja / promotor |
 | `fotos_sem_gps` | nos últimos `janela_dias` (7): fotos ≥ `amostra_min` (10) e % sem GPS **acima** (>) de `limiar` (20) | promotor |
 - **Deduplicação**: chave `<tipo>:<alvo_id>`; um alerta aberto por chave (condição repetida na entrada, ou alerta que já existe, não abre outro). Duplicados já gravados: fica o mais antigo, os outros encerram com motivo `duplicado`.
 - **Atualização**: se o valor/mensagem/severidade mudou (31 → 35 dias), atualiza o aberto.
-- Exemplos RN-GES-01/02 (hoje 30/10): cliente quinzenal visitado em 09/10 (21 dias) não alerta; em 08/10 (22 dias) alerta com valor 22 e limiar 21; sem frequência alerta a partir de 31 dias; cliente nunca visitado na carteira desde 16/10 (14 dias) não alerta, desde 15/10 (15 dias) alerta.
+- Exemplos RN-GES-01/02 (hoje 30/10): cliente quinzenal visitado em 09/10 (21 dias) não alerta; em 08/10 (22 dias) alerta com valor 22 e limiar 21; sem frequência alerta a partir de 31 dias; cliente nunca visitado na carteira desde 16/10 (14 dias) e desde 15/10 (15 dias) não alerta, desde 14/10 (16 dias) alerta. Aprovação: pedido de sexta 06/11 17:00 (Manaus) não alerta até segunda 09/11 17:00 e alerta a partir de 17:01.
 - **Entrada na carteira** (RN-GES-02): `na_carteira_desde` do `core.cliente.atualizado@1` (campo PEDIDO ao Core); sem ele, o primeiro evento do cliente com o vendedor atual (mínimo dos `ocorrido_em`, independe da ordem). Trocar de vendedor reinicia a carência.
 - **Encerramento automático**: condição que deixou de valer → `condicao_normalizada`; regra desligada ou módulo desativado → `regra_inativa`.
 - **Dispensado** pelo gestor: não reabre enquanto a condição persiste; se a condição some, encerra; se voltar, abre um alerta novo.
@@ -107,9 +111,10 @@ Indicadores: `vendas_cents`, `pedidos`, `positivados`, `ticket_medio_cents`, `at
 ## 6. Fila de aprovação — `aprovacoes.ts`, RF-GES-04
 - **A alçada é do Vendedor** (RN-VEN-10..13): o Gestor **não** recalcula quem aprova o quê. Consome `vendedor.pedido.aprovacao_solicitada@1` (que já traz `nivel`, `motivos`, `desconto_efetivo_pct`, `total_cents` e, opcionalmente, `credito` e `historico` do cliente) e a decisão é executada pela API pública do Vendedor (`pedido.aprovar`). O Gestor só: filtra por escopo, ordena por prazo e valida o comentário.
 - **Pendente** = a solicitação **mais recente** do pedido sem nenhuma transição decisória (aprovado, rejeitado, cancelado, integrado/faturado) a partir dela; vale com eventos fora de ordem. Editar um aprovado gera nova solicitação e o pedido volta à fila (RN-VEN-31).
-- **Prazo (RN-GES-03)**: contado em **horas úteis** do horário comercial do tenant (`horario_comercial`: dias da semana + janela HH:MM no **fuso do tenant**, sem os `feriados`; padrão seg–sex 08:00–18:00). `prazo_em` = instante em que se completam `aprovacao_prazo_horas` (24) horas úteis desde a solicitação (`somarHorasUteis`; fora do horário começa na próxima abertura; terminando no fechamento, o prazo é o fechamento); `horas_restantes` = horas úteis até o prazo (`horasUteisEntre`, negativo = vencido há N horas úteis); situação: **vencido** a partir do instante do prazo (inclusive), **vencendo** (≤ `aprovacao_aviso_horas`, 4 h úteis), **no_prazo**. Janela 24×7 (`[1..7]`, 00:00–24:00) = horas corridas.
-  - Exemplos (Manaus): sexta 17:00 + 24 h úteis = **quarta 11:00** (1 + 10 + 10 + 3); no fim de semana o relógio para (24 h corridas venceriam no sábado 17:00). Com prazo do tenant de 8 h: sexta 17:00 → vence **segunda 15:00**, "vencendo" a partir de segunda 11:00. Sexta 17:00 → segunda 09:00 = 2 h úteis.
-  - Fuso: a mesma solicitação de sexta 21:30Z vale 0,5 h útil em Manaus (17:30) e 0 em São Paulo (18:30); com 8 h de prazo vence segunda 19:30Z (Manaus) ou 19:00Z (São Paulo). Fuso com horário de verão (ex.: Nova York em 01/11/2026) usa o relógio local de cada dia.
+- **Prazo (RN-GES-03)**: em **DIAS úteis** (`prazo_aprovacao_dias_uteis`, padrão 1), não em horas. `prazo_em` = **mesmo horário local** do N-ésimo dia útil depois do início da contagem (`somarDiasUteis`): pedido de sexta 17:00 vence segunda 17:00. **Início da contagem** (`inicioDaContagem`): o próprio instante se caiu dentro do expediente de um dia útil; senão a próxima abertura (antes de abrir → abertura do dia; depois de fechar — 18:00 exato já é fora —, fim de semana ou feriado → abertura do próximo dia útil): sábado 10:00 ou sexta 19:00 contam de segunda 08:00 e vencem terça 08:00. **Dia útil** (`ehDiaUtil`) = dia da semana do `horario_comercial` (padrão seg–sex 08:00–18:00, no **fuso do tenant**) que não é feriado; feriados = **nacionais** (`feriados.ts`: fixos 01-01, 04-21, 05-01, 09-07, 10-12, 11-02, 11-15, 11-20, 12-25 e Sexta-feira Santa; **função provisória** até o suporte ir para `@macuxi/comum`, que só recebe a lista por parâmetro) ∪ `feriados` do tenant; a checagem de segunda a sexta usa `isBusinessDay` de `@macuxi/comum`. `horas_restantes` = **horas úteis** até o prazo (`horasUteisEntre`; negativo = vencido há N horas úteis); situação: **vencido** só **depois** do instante do prazo (passou do limite), **vencendo** (≤ `aprovacao_aviso_horas`, 4 h úteis restantes), **no_prazo**. Janela 24×7 (`[1..7]`, 00:00–24:00) = 24 h corridas por dia útil. O **alerta** de aprovação parada usa a mesma função: alerta ⇔ `vencido`.
+  - Exemplos (Manaus): sexta 06/11 17:00 → vence **segunda 09/11 17:00** (9,5 h úteis restantes às 17:30 de sexta); sábado 10:00 → vence **terça 08:00**; sexta 19:00 → idem; com prazo de 2 dias, sexta 17:00 → **terça 17:00**. Feriado do tenant em 09/11 (ou nacional, como Finados em 02/11/2026: sexta 30/10 17:00 → **terça 03/11 17:00**) empurra o prazo para terça.
+  - Fuso: a mesma solicitação de sexta 21:00Z vence segunda 21:00Z em Manaus (17:00) e **terça 11:00Z** em São Paulo (sexta já são 18:00, fora do expediente → conta de segunda 08:00). Fuso com horário de verão (ex.: Nova York) mantém o **horário local**: sexta 12/03/2027 17:00 EST (22:00Z) vence segunda 15/03 17:00 EDT (21:00Z).
+  - Meta e ritmo: o cálculo de dias úteis da **meta** (RN-CORE-22) continua só com `feriados` do tenant; incluir os nacionais ali depende de `@macuxi/comum` (pedido ao engenheiro-software).
 - **Ordem**: prazo mais antigo primeiro (vencidos, depois vencendo, depois no prazo), desempate por `pedido_id`.
 - **Quem vê**: supervisor e gerente, dentro do escopo (RN-CORE-04); analista e admin veem a fila do **tenant em modo leitura** (RN-GES-07, `pode_decidir` sempre falso); itens de nível `analista` ficam fora (fila do BKO do Vendedor, RF-VEN-09). Vendedor, promotor e assistente: fila vazia. Vendedor desativado → fila vazia.
 - **Quem decide (RN-GES-04)** (`podeDecidir`): supervisor decide o nível supervisor; gerente decide o nível gerente **e também o nível supervisor** (`acima_do_nivel: true` no item); os demais itens do escopo são acompanhamento.
@@ -138,13 +143,22 @@ Os schemas dos outros módulos não são dependência do Gestor; o contrato espe
 Hierarquia da equipe (`MembroEquipe`: id, nome, perfil, superior_id, ativo): vem do cadastro de usuários do Core por contrato público (não é evento nesta tarefa; o contrato da hierarquia entra na T-0017); a API monta a lista e passa ao domain.
 As cópias dos formatos de eventos dos outros módulos ficam aqui **por enquanto**: o engenheiro-software vai publicar o schema de cada evento no `contracts` do módulo dono, e o Gestor passa a importar de lá (leitura tolerante).
 
-## Decisões do Alexandre (RN-GES, texto proposto ao doc 03)
-Padrões parametrizáveis por tenant (R-20261031-165536-alexandre). Números entre colchetes = parâmetro.
-- **RN-GES-01** Alerta "cliente sem visita": alerta quando os dias desde a última visita (de qualquer usuário) passam do limite do cliente = ⌊frequência de visita × (1 + [50%])⌋ — semanal → 10 dias, quinzenal → 21, mensal → 45; cliente sem frequência definida → [30] dias. Demais padrões mantidos: ritmo mínimo [80%], aprovação pendente [24 h], [3] rupturas em [14] dias, [20%] de fotos sem GPS.
-- **RN-GES-02** Cliente nunca visitado só gera o alerta depois de [15] dias na carteira do vendedor atual.
-- **RN-GES-03** O prazo da aprovação é contado em horário comercial do tenant: dias úteis (sem feriados) e janela configurável, no fuso do tenant; padrão seg–sex [08:00–18:00]. Fora da janela o prazo não corre.
-- **RN-GES-04** O gerente pode decidir item do nível do supervisor; a decisão registra quem decidiu, com que perfil e em que nível estava o pedido, e o supervisor do vendedor é avisado.
-- **RN-GES-05** Cobertura de rota = clientes planejados visitados ÷ planejados, no máximo 100%; visitas fora da rota formam o indicador "visitas extras".
-- **RN-GES-06** O painel mostra "vendido" (valor do pedido criado) e "faturado" (só o que o ERP faturou, inclusive parcial pelos itens faturados); "a faturar" = vendido − faturado.
-- **RN-GES-07** Analista e admin veem os painéis do tenant em modo leitura no BKO; não decidem aprovações nem dispensam alertas.
+## Decisões do Alexandre — RN-GES-01 a 08 (texto do doc 03, seção 11)
+Texto literal de `docs/produto/03-regras-de-negocio.md` (o doc 03 traz `${BT}` onde deveria haver crases em RN-GES-03; aqui já com crases). Números entre colchetes = parâmetro do tenant.
+- **RN-GES-01** Alerta "cliente sem visita": frequência de visita do cliente + [50%] (semanal → 10 dias; quinzenal → 21; mensal → 45); [30] dias só para cliente sem frequência. O alerta dispara quando **passa** do limite (quinzenal: dia 21 não alerta, dia 22 alerta). Outros alertas: ritmo mínimo da meta [80%], aprovação parada além do prazo da RN-GES-03, [3] rupturas em [14] dias, [20%] de fotos sem GPS.
+- **RN-GES-02** Cliente nunca visitado só gera alerta depois de **passar** da carência de [15] dias na carteira (dia 15 não alerta, dia 16 alerta).
+- **RN-GES-03** Prazo da aprovação em **dias úteis** [1] (não em horas): pedido de sexta 17:00 vence segunda 17:00. Dias úteis pelo calendário de `packages/comum` (herdado da Fase M), com feriados nacionais e os feriados cadastrados pelo tenant, no fuso do tenant. O alerta de aprovação parada usa o mesmo prazo.
+- **RN-GES-04** O gerente pode decidir item do nível do supervisor; fica na auditoria e o supervisor é avisado.
+- **RN-GES-05** Cobertura de rota = visitas planejadas realizadas ÷ planejadas (máximo 100%); visitas fora da rota viram o indicador "visitas extras".
+- **RN-GES-06** Dois números de venda: "vendido" (valor do pedido) e "faturado" (o que o ERP faturou); a diferença aparece como "a faturar".
+- **RN-GES-07** Analista e admin veem os painéis do tenant em modo leitura no BKO.
 - **RN-GES-08** Comentário obrigatório só na rejeição; aprovar continua em 1 toque.
+
+Parâmetros relacionados na tabela de parâmetros do doc 03: prazo da aprovação (`prazo_aprovacao_dias_uteis`) = 1 dia útil; horário comercial (`horario_comercial`) = seg–sex 08:00–18:00, fuso do tenant, feriados nacionais + do tenant; fuso horário = America/Manaus.
+
+### Premissas dos ajustes v2 (T-0014)
+- A pedido do Alexandre, o prazo e o alerta usam as mesmas funções; "passa do limite" é sempre estrito (`>`): quinzenal 21 → 22, carência 15 → 16, prazo da aprovação vencido só depois do instante do prazo.
+- Feriados nacionais ficam em `domain/feriados.ts` (provisório); o doc 03 pede o calendário de `packages/comum`, que só aceita a lista de feriados por parâmetro. Pedido registrado ao engenheiro-software.
+- Carnaval, Corpus Christi e feriados estaduais/municipais não estão na lista nacional: o tenant cadastra em `feriados`.
+- O cálculo de dias úteis da meta e do ritmo (RN-CORE-22) não mudou (só `feriados` do tenant).
+- O parâmetro `aprovacao_prazo_horas` foi removido (o schema é `strict`: configuração antiga com a chave é recusada).
