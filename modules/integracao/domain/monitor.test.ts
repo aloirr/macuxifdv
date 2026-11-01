@@ -74,6 +74,25 @@ describe('RF-INT-04/06: alertas do monitor em português com a ação seguinte',
     expect(a[1]?.mensagem).toMatch(/Mapeamento/);
   });
 
+  it('P-4: itens faturados descartados nas últimas 24 h viram um alerta de atenção com itens, pedidos e a ação seguinte', () => {
+    expect(montarAlertasMonitor({ ...vazio, retornosComItensDescartados24h: [] })).toEqual([]);
+    const a = montarAlertasMonitor({
+      ...vazio,
+      retornosComItensDescartados24h: [
+        { pedido_uuid: 'p1', produto_external_id: 'SKU9' },
+        { pedido_uuid: 'p1', produto_external_id: 'X' },
+        { pedido_uuid: 'p2', produto_external_id: 'SKU1' },
+      ],
+    });
+    expect(a).toHaveLength(1);
+    expect(a[0]).toMatchObject({ codigo: 'retorno_com_itens_descartados', severidade: 'atencao', conector_id: null, entidade: null });
+    expect(a[0]?.mensagem).toMatch(/3 itens faturados de 2 pedidos ficaram de fora/);
+    expect(a[0]?.mensagem).toMatch(/status dos pedidos foi atualizado/);
+    expect(a[0]?.mensagem).not.toMatch(/SKU9/); // o detalhe (external_id) fica na lista de erros, não no alerta
+    const um = montarAlertasMonitor({ ...vazio, retornosComItensDescartados24h: [{ pedido_uuid: 'p1', produto_external_id: 'X' }] });
+    expect(um[0]?.mensagem).toMatch(/^1 item faturado de 1 pedido ficou de fora/);
+  });
+
   it('RN-INT-10 (proposta): chave anterior ainda em uso depois da rotação → info, para o operador revogar', () => {
     const a = montarAlertasMonitor({ ...vazio, conectores: [conector({ chave_anterior_em_uso: true })] });
     expect(a[0]).toMatchObject({ codigo: 'chave_em_convivencia', severidade: 'info' });

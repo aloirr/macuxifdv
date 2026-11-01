@@ -49,6 +49,28 @@ export const ConectorCriar = z.object({
 });
 export type ConectorCriar = z.infer<typeof ConectorCriar>;
 
+/**
+ * Corpo do 409 `topologia_conflitante` em `POST /conectores` e `PATCH /conectores/:id` (P-6/P-7, RN-INT-13; T-0031). `mensagem`
+ * diz qual Conector já recebe cada entidade e pede a lista de entidades do Conector em cadastro; `conflitos[]` detalha;
+ * `entidades_livres` são as pedidas que nenhum outro Conector ativo recebe (sugestão para a tela).
+ */
+export const RecusaTopologiaConector = z.object({
+  codigo: z.literal('topologia_conflitante'),
+  mensagem: z.string().min(1),
+  conflitos: z
+    .array(
+      z.object({
+        codigo: z.enum(['entidade_em_outro_conector', 'pedidos_em_outro_conector']),
+        entidade: Entidade.optional(),
+        conector_id: ConectorIdentificador,
+        mensagem: z.string().min(1),
+      }),
+    )
+    .min(1),
+  entidades_livres: z.array(Entidade),
+});
+export type RecusaTopologiaConector = z.infer<typeof RecusaTopologiaConector>;
+
 export const ConectorAtualizar = z.object({
   nome: z.string().trim().min(1).max(120).optional(),
   ips_permitidos: z.array(z.string().trim().min(2).max(60)).max(20).optional(),
@@ -199,8 +221,34 @@ export const PendenciaInativacao = z.object({
   criada_em: DataHoraUtc,
   expira_em: DataHoraUtc,
   decidida_em: DataHoraUtc.nullable(),
+  /** P-3 (T-0031): quem decidiu (uuid do usuário) e com qual perfil (admin ou analista). Campos novos opcionais (RN-INT-09). */
+  decidida_por: Uuid.nullish(),
+  decidida_por_perfil: z.enum(['admin', 'analista']).nullish(),
+  motivo_decisao: z.string().max(300).nullish(),
 });
 export type PendenciaInativacao = z.infer<typeof PendenciaInativacao>;
+
+/**
+ * P-3 (T-0031): trilha de auditoria de cada confirmação/recusa da inativação em massa — quem, quando, lote, quantidade. Gravada
+ * na mesma transação da decisão; aparece no detalhe da pendência e no CSV do monitor. Sem dado pessoal (só uuid e perfil).
+ */
+export const AuditoriaInativacao = z.object({
+  pendencia_id: Uuid,
+  sessao_id: Uuid,
+  lote_id: Uuid,
+  entidade: Entidade,
+  conector_id: ConectorIdentificador,
+  acao: z.enum(['confirmar', 'recusar']),
+  decidida_por: Uuid,
+  perfil: z.enum(['admin', 'analista']),
+  decidida_em: DataHoraUtc,
+  /** Quantos registros a pendência inativaria quando foi decidida. */
+  quantidade: z.number().int().nonnegative(),
+  total_ativos: z.number().int().nonnegative(),
+  percentual: z.number().nonnegative(),
+  motivo: z.string().max(300).nullable(),
+});
+export type AuditoriaInativacao = z.infer<typeof AuditoriaInativacao>;
 
 export const DecidirInativacaoEntrada = z.object({
   acao: z.enum(['confirmar', 'recusar']),
@@ -211,6 +259,8 @@ export const DecidirInativacaoResposta = z.object({
   pendencia: PendenciaInativacao,
   /** Quantos registros foram inativados agora (0 se recusada). */
   inativadas: z.number().int().nonnegative(),
+  /** P-3: o registro de auditoria gravado com a decisão. */
+  auditoria: AuditoriaInativacao.optional(),
 });
 export type DecidirInativacaoResposta = z.infer<typeof DecidirInativacaoResposta>;
 
@@ -254,6 +304,8 @@ export const CODIGOS_ALERTA_MONITOR = [
   'pedido_preso',
   'pedido_retido_sem_mapeamento',
   'chave_em_convivencia',
+  // P-4 (T-0031): retornos do ERP aceitos com itens faturados descartados nas últimas 24 h
+  'retorno_com_itens_descartados',
 ] as const;
 export const AlertaMonitor = z.object({
   codigo: z.enum(CODIGOS_ALERTA_MONITOR),

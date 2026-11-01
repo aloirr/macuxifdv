@@ -8,6 +8,8 @@ const t0 = '2026-11-01T10:00:00.000Z';
 const dias = (iso: string, d: number) => new Date(Date.parse(iso) + d * 86_400_000).toISOString();
 const sessaoCompleta = () => registrarParte(novaSessao('s1', 'cliente', t0), { parte: 1, ultimo: true, status: 'concluido' });
 const ativos = Array.from({ length: 10 }, (_, i) => `A${i}`);
+const ADMIN = { usuario_id: '00000000-0000-4000-8000-0000000000ad', perfil: 'admin' } as const;
+const ANALISTA = { usuario_id: '00000000-0000-4000-8000-0000000000a1', perfil: 'analista' } as const;
 
 describe('RN-INT-06: quais ativos podem ser inativados pela carga completa', () => {
   it('RN-INT-06: registro visto (por delta) DEPOIS do início da sessão não é candidato — ele nasceu durante a carga', () => {
@@ -50,10 +52,10 @@ describe('RN-INT-06: trava de inativação em massa → pendência de confirmaç
 
   it('RN-INT-06: confirmar pede reavaliação com confirmado=true; recusar encerra sem inativar', () => {
     const p = criarPendencia(excede(), { id: 'p1', sessao_id: 's1', entidade: 'cliente', lote_id: 'L9', conector_id: 'matriz-01', agora: t0, totalAtivos: 10 });
-    const c = decidirPendencia(p, 'confirmar', dias(t0, 1));
+    const c = decidirPendencia(p, 'confirmar', dias(t0, 1), ADMIN);
     expect(c).toMatchObject({ ok: true, reavaliarComConfirmacao: true });
     if (c.ok) expect(c.pendencia).toMatchObject({ estado: 'confirmada', decidida_em: dias(t0, 1) });
-    const r = decidirPendencia(p, 'recusar', dias(t0, 1));
+    const r = decidirPendencia(p, 'recusar', dias(t0, 1), ADMIN);
     expect(r).toMatchObject({ ok: true, reavaliarComConfirmacao: false });
     if (r.ok) expect(r.pendencia.estado).toBe('recusada');
   });
@@ -68,17 +70,72 @@ describe('RN-INT-06: trava de inativação em massa → pendência de confirmaç
     const p = criarPendencia(excede(), { id: 'p1', sessao_id: 's1', entidade: 'cliente', lote_id: 'L9', conector_id: 'matriz-01', agora: t0, totalAtivos: 10 });
     expect(situacaoPendencia(p, dias(t0, 6))).toBe('aguardando');
     expect(situacaoPendencia(p, dias(t0, 7))).toBe('expirada');
-    const r = decidirPendencia(p, 'confirmar', dias(t0, 8));
+    const r = decidirPendencia(p, 'confirmar', dias(t0, 8), ADMIN);
     expect(r).toMatchObject({ ok: false, codigo: 'pendencia_expirada' });
     if (!r.ok) expect(r.mensagem).toMatch(/carga completa/);
   });
 
   it('RN-INT-06: decidir duas vezes é recusado (já decidida), sem inativar de novo', () => {
     const p = criarPendencia(excede(), { id: 'p1', sessao_id: 's1', entidade: 'cliente', lote_id: 'L9', conector_id: 'matriz-01', agora: t0, totalAtivos: 10 });
-    const c = decidirPendencia(p, 'confirmar', t0);
+    const c = decidirPendencia(p, 'confirmar', t0, ADMIN);
     if (!c.ok) throw new Error('esperado ok');
-    expect(decidirPendencia(c.pendencia, 'confirmar', t0)).toMatchObject({ ok: false, codigo: 'pendencia_ja_decidida' });
-    expect(decidirPendencia(c.pendencia, 'recusar', t0)).toMatchObject({ ok: false, codigo: 'pendencia_ja_decidida' });
+    expect(decidirPendencia(c.pendencia, 'confirmar', t0, ADMIN)).toMatchObject({ ok: false, codigo: 'pendencia_ja_decidida' });
+    expect(decidirPendencia(c.pendencia, 'recusar', t0, ADMIN)).toMatchObject({ ok: false, codigo: 'pendencia_ja_decidida' });
+  });
+});
+
+describe('RN-INT-06 / P-3: quem confirma a inativação em massa e a auditoria da decisão', () => {
+  const pend = () =>
+    criarPendencia(calcularInativacao({ sessao: sessaoCompleta(), agora: t0, ativosNoMacuxi: ativos, recebidosNaSessao: ativos.slice(0, 5) }), {
+      id: 'p1', sessao_id: 's1', entidade: 'cliente', lote_id: 'L9', conector_id: 'matriz-01', agora: t0, totalAtivos: 10,
+    });
+
+  it('P-3: pendência nova nasce sem autor nem motivo da decisão', () => {
+    expect(pend()).toMatchObject({ decidida_em: null, decidida_por: null, decidida_por_perfil: null, motivo_decisao: null });
+  });
+
+  it('P-3: admin confirma — a pendência guarda quem decidiu e sai a auditoria (quem, quando, lote, quantidade)', () => {
+    const r = decidirPendencia(pend(), 'confirmar', dias(t0, 1), ADMIN, '  ERP limpou clientes inativos  ');
+    expect(r).toMatchObject({ ok: true, reavaliarComConfirmacao: true });
+    if (!r.ok) throw new Error('esperado ok');
+    expect(r.pendencia).toMatchObject({ estado: 'confirmada', decidida_por: ADMIN.usuario_id, decidida_por_perfil: 'admin', motivo_decisao: 'ERP limpou clientes inativos' });
+    expect(r.auditoria).toEqual({
+      pendencia_id: 'p1', sessao_id: 's1', lote_id: 'L9', entidade: 'cliente', conector_id: 'matriz-01', acao: 'confirmar',
+      decidida_por: ADMIN.usuario_id, perfil: 'admin', decidida_em: dias(t0, 1), quantidade: 5, total_ativos: 10, percentual: 50,
+      motivo: 'ERP limpou clientes inativos',
+    });
+  });
+
+  it('P-3: analista também pode confirmar e recusar (com auditoria)', () => {
+    const c = decidirPendencia(pend(), 'confirmar', t0, ANALISTA);
+    expect(c).toMatchObject({ ok: true, auditoria: { acao: 'confirmar', decidida_por: ANALISTA.usuario_id, perfil: 'analista', lote_id: 'L9', quantidade: 5, motivo: null } });
+    const r = decidirPendencia(pend(), 'recusar', t0, ANALISTA, 'carga veio pela metade');
+    expect(r).toMatchObject({ ok: true, reavaliarComConfirmacao: false, pendencia: { estado: 'recusada', decidida_por_perfil: 'analista' }, auditoria: { acao: 'recusar', motivo: 'carga veio pela metade' } });
+  });
+
+  it.each(['supervisor', 'vendedor', 'gerente', 'promotor', 'assistente'] as const)('P-3: %s não confirma nem recusa — 403 perfil_sem_acesso, pendência intacta', (perfil) => {
+    const p = pend();
+    for (const acao of ['confirmar', 'recusar'] as const) {
+      const r = decidirPendencia(p, acao, t0, { usuario_id: 'u', perfil });
+      expect(r).toMatchObject({ ok: false, status: 403, codigo: 'perfil_sem_acesso' });
+      if (!r.ok) expect(r.mensagem).toMatch(/administrador ou analista/);
+    }
+    expect(p.estado).toBe('aguardando');
+  });
+
+  it('P-3: o perfil é conferido antes do estado — supervisor recebe 403 mesmo em pendência vencida ou já decidida', () => {
+    const vencida = pend();
+    expect(decidirPendencia(vencida, 'confirmar', dias(t0, 8), { usuario_id: 'u', perfil: 'supervisor' })).toMatchObject({ status: 403 });
+    const decidida = decidirPendencia(pend(), 'recusar', t0, ADMIN);
+    if (!decidida.ok) throw new Error('esperado ok');
+    expect(decidirPendencia(decidida.pendencia, 'confirmar', t0, { usuario_id: 'u', perfil: 'vendedor' })).toMatchObject({ status: 403 });
+  });
+
+  it('P-3: motivo vazio vira null e motivo longo é cortado em 300 caracteres na auditoria', () => {
+    const vazio = decidirPendencia(pend(), 'recusar', t0, ADMIN, '   ');
+    expect(vazio.ok && vazio.auditoria.motivo).toBeNull();
+    const longo = decidirPendencia(pend(), 'recusar', t0, ADMIN, 'x'.repeat(400));
+    expect(longo.ok && longo.auditoria.motivo).toHaveLength(300);
   });
 });
 
