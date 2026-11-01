@@ -8,6 +8,7 @@
  */
 import {
   type EstadoPedidoErp,
+  type ItemFaturado,
   type Mapeamento as MapeamentoContrato,
   type PedidoAprovadoParaFila,
   type PedidoParaErp,
@@ -162,7 +163,39 @@ export interface ErroRetorno {
   mensagem: string;
 }
 
-export type CodigoFalhaRetorno = 'pedido_desconhecido' | 'pedido_nao_entregue' | 'transicao_invalida' | 'numero_erp_divergente' | 'itens_faturados_invalidos';
+export type CodigoFalhaRetorno = 'pedido_desconhecido' | 'pedido_nao_entregue' | 'transicao_invalida' | 'numero_erp_divergente';
+
+export type CodigoItemDescartado = 'sequencia_inexistente' | 'produto_divergente' | 'quantidade_acima_do_saldo';
+
+/**
+ * P-4 (T-0031): item de `itens_faturados` que não bate com o pedido enviado ao ERP. O retorno é ACEITO sem ele; cada item
+ * descartado vira um erro registrado para o monitor (motivo + `external_id` do produto) e volta ao Conector em `RetornoAceito`.
+ */
+export interface ItemFaturadoDescartado {
+  /** Posição do item no `itens_faturados` do retorno. */
+  indice: number;
+  sequencia: number;
+  /** `external_id` do produto como o ERP informou (chave do ERP, nunca dado pessoal). */
+  produto_external_id: string;
+  quantidade: number;
+  /** O primeiro problema do item (ordem: sequência → produto → saldo). */
+  codigo: CodigoItemDescartado;
+  /** Todos os problemas do item. */
+  codigos: CodigoItemDescartado[];
+  campo: string;
+  /** Texto em português com a causa e a ação seguinte (todas as causas do item). */
+  motivo: string;
+}
+
+/** Linha do erro para o monitor (tabela `integracao.pedido_retorno_erro`, pedido ao banco-dados). */
+export interface ErroRetornoMonitor extends ItemFaturadoDescartado {
+  pedido_uuid: string;
+  status: RetornoErp['status'];
+  numero_erp: string | null;
+  nota_numero: string | null;
+  nota_serie: string | null;
+  ocorrido_em: string;
+}
 
 export interface AtualizacaoRetorno {
   estado: EstadoPedidoErp;
@@ -175,7 +208,17 @@ export interface AtualizacaoRetorno {
 }
 
 export type ResultadoRetorno =
-  | { ok: true; repetido: boolean; publicar: boolean; atualizacao: AtualizacaoRetorno; evento: PedidoRetornoErpEvento }
+  | {
+      ok: true;
+      repetido: boolean;
+      publicar: boolean;
+      atualizacao: AtualizacaoRetorno;
+      evento: PedidoRetornoErpEvento;
+      /** P-4: itens do retorno que ficaram de fora (vazio quando todos valem). Vai em `RetornoAceito.itens_descartados`. */
+      itens_descartados: ItemFaturadoDescartado[];
+      /** P-4: um erro por item descartado, para gravar e mostrar no monitor (alerta `retorno_com_itens_descartados`). */
+      erros_monitor: ErroRetornoMonitor[];
+    }
   | { ok: false; status: 422; codigo: CodigoFalhaRetorno; mensagem: string; erros: ErroRetorno[] };
 
 const falha = (codigo: CodigoFalhaRetorno, mensagem: string, campo: string | null = null, erros?: ErroRetorno[]): ResultadoRetorno => ({
@@ -186,29 +229,52 @@ const falha = (codigo: CodigoFalhaRetorno, mensagem: string, campo: string | nul
   erros: erros ?? [{ codigo, campo, mensagem }],
 });
 
-function validarItensFaturados(item: PedidoNaFila, retorno: RetornoErp): ErroRetorno[] {
-  const erros: ErroRetorno[] = [];
+/**
+ * Separa os itens faturados válidos dos que não batem com o pedido enviado (sequência existe, produto é o enviado naquela
+ * sequência, acumulado ≤ quantidade enviada). Os válidos seguem; os outros são descartados com o motivo (P-4).
+ */
+function separarItensFaturados(item: PedidoNaFila, retorno: RetornoErp): { validos: ItemFaturado[]; descartados: ItemFaturadoDescartado[] } {
+  const validos: ItemFaturado[] = [];
+  const descartados: ItemFaturadoDescartado[] = [];
   (retorno.itens_faturados ?? []).forEach((f, i) => {
+    const problemas: { codigo: CodigoItemDescartado; campo: string; mensagem: string }[] = [];
     const doPedido = item.payload.itens.find((x) => x.sequencia === f.sequencia);
     if (!doPedido) {
-      erros.push({ codigo: 'sequencia_inexistente', campo: `itens_faturados[${i}].sequencia`, mensagem: `A sequência ${f.sequencia} não existe no pedido enviado ao ERP. Confira a consulta de itens da nota no Conector.` });
+      problemas.push({ codigo: 'sequencia_inexistente', campo: `itens_faturados[${i}].sequencia`, mensagem: `A sequência ${f.sequencia} não existe no pedido enviado ao ERP. Confira a consulta de itens da nota no Conector.` });
+    } else {
+      if (doPedido.produto_external_id.trim() !== f.produto_external_id.trim()) {
+        problemas.push({ codigo: 'produto_divergente', campo: `itens_faturados[${i}].produto_external_id`, mensagem: `O produto "${f.produto_external_id.trim()}" da sequência ${f.sequencia} não é o que foi enviado ao ERP ("${doPedido.produto_external_id.trim()}"). Confira o código do produto na consulta de itens da nota.` });
+      }
+      const saldo = doPedido.quantidade - (item.itens_faturados_acumulados[f.sequencia]?.quantidade ?? 0);
+      if (f.quantidade > saldo) {
+        problemas.push({ codigo: 'quantidade_acima_do_saldo', campo: `itens_faturados[${i}].quantidade`, mensagem: `A sequência ${f.sequencia} tem saldo de ${saldo} para faturar e o retorno informa ${f.quantidade}. Confira a quantidade faturada na nota.` });
+      }
+    }
+    const [primeiro] = problemas;
+    if (!primeiro) {
+      validos.push(f);
       return;
     }
-    if (doPedido.produto_external_id.trim() !== f.produto_external_id.trim()) {
-      erros.push({ codigo: 'produto_divergente', campo: `itens_faturados[${i}].produto_external_id`, mensagem: `O produto da sequência ${f.sequencia} não é o que foi enviado ao ERP. Confira o código do produto na consulta de itens da nota.` });
-    }
-    const saldo = doPedido.quantidade - (item.itens_faturados_acumulados[f.sequencia]?.quantidade ?? 0);
-    if (f.quantidade > saldo) {
-      erros.push({ codigo: 'quantidade_acima_do_saldo', campo: `itens_faturados[${i}].quantidade`, mensagem: `A sequência ${f.sequencia} tem saldo de ${saldo} para faturar e o retorno informa ${f.quantidade}. Confira a quantidade faturada na nota.` });
-    }
+    descartados.push({
+      indice: i,
+      sequencia: f.sequencia,
+      produto_external_id: f.produto_external_id.trim(),
+      quantidade: f.quantidade,
+      codigo: primeiro.codigo,
+      codigos: problemas.map((p) => p.codigo),
+      campo: primeiro.campo,
+      motivo: problemas.map((p) => p.mensagem).join(' '),
+    });
   });
-  return erros;
+  return { validos, descartados };
 }
 
 /**
  * RN-INT-08: aplica o retorno do ERP. Idempotente: o mesmo estado (e, no parcial, a mesma nota) devolve `repetido` sem publicar.
  * Confirmação que chega depois do timeout (o pedido voltou a `pendente` mas já tinha sido entregue) vale. O ERP não pode dar dois
  * números ao mesmo pedido. `itens_faturados` é conferido contra o pedido enviado (sequência, produto e saldo) e acumulado.
+ * P-4 (T-0031): item faturado inválido NÃO recusa o retorno — o status vale, o item é descartado (não acumula, não vai no evento)
+ * e vira erro para o monitor. Mesmo com todos os itens inválidos o status é aplicado (o evento sai com `itens_faturados: null`).
  */
 export function aplicarRetornoPedido(item: PedidoNaFila | null, retorno: RetornoErp): ResultadoRetorno {
   if (item === null || item.removido_em !== null) {
@@ -228,12 +294,13 @@ export function aplicarRetornoPedido(item: PedidoNaFila | null, retorno: Retorno
 
   let acumulado = item.itens_faturados_acumulados;
   let notas = item.notas_aplicadas;
+  let validos: ItemFaturado[] | null = null;
+  let descartados: ItemFaturadoDescartado[] = [];
   if (!tr.repetida) {
     if (retorno.itens_faturados) {
-      const erros = validarItensFaturados(item, retorno);
-      if (erros.length > 0) return falha('itens_faturados_invalidos', 'Os itens faturados do retorno não batem com o pedido enviado ao ERP. Corrija a consulta de itens da nota no Conector.', 'itens_faturados', erros);
+      ({ validos, descartados } = separarItensFaturados(item, retorno));
       acumulado = { ...acumulado };
-      for (const f of retorno.itens_faturados) {
+      for (const f of validos) {
         const antes = acumulado[f.sequencia];
         acumulado[f.sequencia] = { quantidade: (antes?.quantidade ?? 0) + f.quantidade, valor_cents: (antes?.valor_cents ?? 0) + f.valor_cents };
       }
@@ -255,8 +322,19 @@ export function aplicarRetornoPedido(item: PedidoNaFila | null, retorno: Retorno
       numero_erp: numeroErp,
       motivo: retorno.motivo ?? null,
       nota: retorno.nota ?? null,
-      itens_faturados: retorno.itens_faturados ?? null,
+      // repetido: o evento não é publicado; ecoa o que veio. Aplicado: só os itens válidos (P-4); nenhum válido ⇒ null.
+      itens_faturados: tr.repetida ? (retorno.itens_faturados ?? null) : validos && validos.length > 0 ? validos : null,
       ocorrido_em: retorno.ocorrido_em,
     },
+    itens_descartados: descartados,
+    erros_monitor: descartados.map((d) => ({
+      ...d,
+      pedido_uuid: item.pedido_uuid,
+      status: retorno.status,
+      numero_erp: numeroErp,
+      nota_numero: retorno.nota?.numero.trim() ?? null,
+      nota_serie: retorno.nota?.serie?.trim() || null,
+      ocorrido_em: retorno.ocorrido_em,
+    })),
   };
 }

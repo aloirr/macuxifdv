@@ -121,7 +121,7 @@ Linha inválida **não trava o lote**. Cada problema vira uma `LinhaErro` (`indi
 | Código | Quando | Reprocessável |
 |---|---|---|
 | `registro_invalido` | a linha não é um objeto JSON | não |
-| `external_id_invalido` | `external_id` ausente, vazio ou > 100 caracteres | não |
+| `external_id_invalido` | `external_id` ausente, vazio ou > 200 caracteres (100 até a T-0027) | não |
 | `campo_obrigatorio` | campo ausente, nulo ou texto vazio | não |
 | `tipo_invalido` | tipo errado (inclui centavos não inteiros) | não |
 | `formato_invalido` | data fora de ISO 8601 UTC, EAN, UUID… | não |
@@ -150,7 +150,7 @@ Dono dos dados (ADR-0005): produto → `core.produto`; cliente/vendedor/rota/tí
 | Parâmetro | Padrão | Onde |
 |---|---|---|
 | Registros por lote | 5.000 | `limiteRegistrosLote`; recusa `acima_do_limite` |
-| `external_id` | 1–100 caracteres | contrato |
+| `external_id` | 1–200 caracteres (T-0027; era 100) | contrato |
 | Paradas por rota | 500 | contrato |
 | Contatos por cliente | 20 | contrato |
 | Versões aceitas | `v1` | `versoesSuportadas` |
@@ -264,7 +264,7 @@ Rotas Fastify, persistência, fila (pg-boss), telas do monitor/mapeamento/upload
 
 ## 13. Decisões e perguntas em aberto
 - **Decididas (gerente, T-0009)**: última ocorrência vence no lote; cursor `(alterado_em, external_id)`; tolerância 0 / 0,5 %; reenvio ao ERP após 10 min.
-- **Assumidas aqui** (revisar): `alterado_em` fora do hash; `null` = ausente no hash; `integrado → faturado_total` direto aceito; `rejeitado_erp` final (reenfileirar um pedido rejeitado exigiria nova aprovação gerando novo ciclo — a regra não prevê); unidade de preço/estoque por item; `external_id` ≤ 100 caracteres; sessão expira em 24 h; carga completa vazia nunca inativa.
+- **Assumidas aqui** (revisar): `alterado_em` fora do hash; `null` = ausente no hash; `integrado → faturado_total` direto aceito; `rejeitado_erp` final (reenfileirar um pedido rejeitado exigiria nova aprovação gerando novo ciclo — a regra não prevê); unidade de preço/estoque por item; `external_id` ≤ 200 caracteres (T-0027); sessão expira em 24 h; carga completa vazia nunca inativa.
 - **Decididas na revisão do dono (2026-10-31)**:
   - (2) **Trava de inativação em massa**: `calcularInativacao` não inativa se a carga completa fosse inativar mais de `limiteInativacaoPct` (padrão 30 %) dos ativos; devolve `motivo: excede_limite_inativacao` e `candidatos`; o operador confirma no BKO (`confirmado: true`). Implementado e testado.
   - (3) **Quantidade/saldo fracionário**: mantém `number` no contrato (o ERP define a precisão). A soma de controle de estoque é comparada com a tolerância de 0,5 %, que absorve ruído de ponto flutuante; a API deve somar em milésimos (`Math.round(x*1000)`) antes de enviar ao `reconciliar`. Sem mudança de contrato.

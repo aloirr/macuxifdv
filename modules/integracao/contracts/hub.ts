@@ -89,7 +89,11 @@ export const RecusaLote = z.object({
 });
 export type RecusaLote = z.infer<typeof RecusaLote>;
 
-/** Códigos de recusa do retorno do pedido (HTTP 422, definitivo para o Conector: não é reenviado). RN-INT-08. */
+/**
+ * Códigos de recusa do retorno do pedido (HTTP 422, definitivo para o Conector: não é reenviado). RN-INT-08.
+ * `itens_faturados_invalidos`: **não é mais emitido** desde a T-0031 (P-4: o retorno é aceito sem os itens inválidos, que voltam
+ * em `RetornoAceito.itens_descartados`). Fica no enum só por compatibilidade com quem já o conhece (RN-INT-09); sai na `/v2`.
+ */
 export const CODIGOS_RECUSA_RETORNO = [
   'pedido_desconhecido',
   'pedido_nao_entregue',
@@ -208,7 +212,7 @@ export const ROTAS_HUB: readonly RotaHub[] = [
     cabecalhos: CabecalhosConector,
     corpo: ReconciliacaoEnvio,
     sucesso: { status: 200, schema: RespostaReconciliacao },
-    erros: [400, 426],
+    erros: [400, 422, 426],
   },
   {
     id: 'pedidos_pendentes',

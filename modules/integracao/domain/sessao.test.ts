@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { calcularInativacao, novaSessao, registrarParte, situacaoSessao } from './sessao';
+import { calcularResultadoLote, erroReferenciaAusente } from './erros';
+import { validarLinhas } from './idempotencia';
+import { tratarLinhasInvalidasConector } from './linhas-invalidas';
+import { calcularInativacao, idsDaSessaoNoLote, novaSessao, registrarParte, situacaoSessao } from './sessao';
 
 const t0 = '2026-10-31T10:00:00Z';
 const base = () => novaSessao('s1', 'cliente', t0);
@@ -123,5 +126,67 @@ describe('RN-INT-06 (T-0025): linhas inválidas do Conector e a inativação da 
   it('RN-INT-06: zero omitidas não muda nada', () => {
     const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: ['A', 'B'], recebidosNaSessao: ['A'], limitePct: 100, linhasInvalidasOmitidas: 0 });
     expect(r.inativar).toEqual(['B']);
+  });
+});
+
+describe('RN-INT-06 (T-0027 🔴): registro que veio como inválido NUNCA é inativado', () => {
+  const ativos10 = Array.from({ length: 10 }, (_, i) => `C${i}`);
+  /** Sessão de 2 partes, as duas concluídas (a 2ª só com linhas inválidas do Conector, exceção da RN-INT-01). */
+  const sessao2 = () =>
+    registrarParte(registrarParte(base(), { parte: 1, ultimo: false, status: 'concluido' }), { parte: 2, ultimo: true, status: 'concluido_com_erros' });
+
+  it('RN-INT-06: carga completa com 1 linha inválida — 9 aceitas + C9 inválida no Conector: nada é inativado', () => {
+    const lote = tratarLinhasInvalidasConector({ linhas_invalidas: [{ external_id: 'C9', codigo: 'campo_obrigatorio', campo: 'razao_social', mensagem: 'campo obrigatório sem valor' }] });
+    const ids = idsDaSessaoNoLote({ aceitas: ativos10.slice(0, 9).map((external_id) => ({ external_id })), errosHub: [], invalidasConector: lote });
+    expect(ids).toEqual({ aceitos: ativos10.slice(0, 9), invalidos: ['C9'], semIdentificacao: 0 });
+    const r = calcularInativacao({ sessao: sessao2(), agora: t0, ativosNoMacuxi: ativos10, recebidosNaSessao: ids.aceitos, invalidosNaSessao: ids.invalidos, linhasSemExternalId: ids.semIdentificacao });
+    expect(r).toMatchObject({ permitido: true, inativar: [], motivo: null });
+  });
+
+  it('RN-INT-06: mesmo com a confirmação do operador (inativação em massa) o inválido fica de fora; só o ausente de verdade sai', () => {
+    const r = calcularInativacao({ sessao: sessao2(), agora: t0, ativosNoMacuxi: ativos10, recebidosNaSessao: ['C0', 'C1'], invalidosNaSessao: ['C2'], confirmado: true });
+    expect(r.permitido).toBe(true);
+    expect(r.inativar).not.toContain('C2');
+    expect(r.inativar).toEqual(ativos10.slice(3));
+  });
+
+  it('RN-INT-06: na trava dos 30% o inválido também não aparece entre os candidatos da pendência', () => {
+    const r = calcularInativacao({ sessao: sessao2(), agora: t0, ativosNoMacuxi: ativos10, recebidosNaSessao: ['C0'], invalidosNaSessao: ['C1', 'C2'] });
+    expect(r.motivo).toBe('excede_limite_inativacao');
+    expect(r.candidatos).toEqual(ativos10.slice(3));
+  });
+
+  it('RN-INT-06: sessão só com linhas inválidas (nenhuma aceita) não é "carga vazia" — os inválidos protegem e os ausentes saem', () => {
+    const r = calcularInativacao({ sessao: sessao2(), agora: t0, ativosNoMacuxi: ['A', 'B'], recebidosNaSessao: [], invalidosNaSessao: ['A'], limitePct: 100 });
+    expect(r).toMatchObject({ permitido: true, inativar: ['B'] });
+    expect(calcularInativacao({ sessao: sessao2(), agora: t0, ativosNoMacuxi: ['A'], recebidosNaSessao: [], invalidosNaSessao: [] }).motivo).toBe('carga_vazia');
+  });
+
+  it('RN-INT-06: erros do Hub (validação, referência ausente) também protegem; linha do Hub sem id legível conta como sem identificação', () => {
+    const { validas, erros } = validarLinhas('cliente', [
+      { external_id: 'C0', alterado_em: '2026-10-31T09:00:00Z', razao_social: 'Ok' },
+      { external_id: 'C1', alterado_em: '2026-10-31T09:00:00Z' },
+      { alterado_em: '2026-10-31T09:00:00Z', razao_social: 'Sem id' },
+    ]);
+    const ref = erroReferenciaAusente(3, 'C3', 'vendedor_external_id', 'vendedor');
+    const ids = idsDaSessaoNoLote({ aceitas: validas, errosHub: [...erros, ref], invalidasConector: tratarLinhasInvalidasConector({ linhas_invalidas: [{ external_id: null, codigo: 'registro_invalido', mensagem: 'x' }] }) });
+    expect(ids.aceitos).toEqual(['C0']);
+    expect(ids.invalidos.sort()).toEqual(['C1', 'C3']);
+    expect(ids.semIdentificacao).toBe(2);
+    const r = calcularInativacao({ sessao: sessao2(), agora: t0, ativosNoMacuxi: ['C0', 'C1', 'C3', 'C4'], recebidosNaSessao: ids.aceitos, invalidosNaSessao: ids.invalidos, linhasSemExternalId: ids.semIdentificacao });
+    expect(r).toMatchObject({ permitido: false, motivo: 'linhas_sem_external_id' });
+  });
+
+  it('RN-INT-06: id aceito e inválido no mesmo lote (duplicado) fica só em aceitos; ids aparados', () => {
+    const ids = idsDaSessaoNoLote({ aceitas: [{ external_id: ' C1 ' }], errosHub: [{ indice: 4, external_id: 'C1' }], invalidasConector: { externalIds: ['  C2'], semIdentificacao: 0 } });
+    expect(ids).toEqual({ aceitos: ['C1'], invalidos: ['C2'], semIdentificacao: 0 });
+  });
+
+  it('RN-INT-01/03 (P-1): a 2ª parte só com linhas inválidas termina concluido_com_erros e fecha a sessão', () => {
+    const lote = tratarLinhasInvalidasConector({ linhas_invalidas: [{ external_id: 'C9', codigo: 'tipo_invalido', mensagem: 'tipo inválido' }] });
+    const res = calcularResultadoLote({ recebidas: 0, duplicadas_no_lote: 0, erros: [], novas: 0, atualizadas: 0, inalteradas: 0, invalidas_conector: lote.totalComErro });
+    expect(res.status).toBe('concluido_com_erros');
+    const s = registrarParte(registrarParte(base(), { parte: 1, ultimo: false, status: 'concluido' }), { parte: 2, ultimo: true, status: res.status });
+    expect(situacaoSessao(s, t0)).toBe('completa');
   });
 });

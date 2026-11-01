@@ -15,9 +15,9 @@ describe('manifesto da integracao', () => {
     expect(manifest.consome).toContain('integracao.lote.recebido@1');
   });
 
-  it('RN-INT-10 (proposta): credencial, política de versão e inativação em massa são só do admin; o monitor também é do analista', () => {
+  it('P-3 / RN-INT-10: Conector, chave de API e política de versão só do admin; inativação em massa admin e analista; o monitor também é do analista', () => {
     expect(manifest.acoes['conector.gerenciar']?.perfis).toEqual(['admin']);
-    expect(manifest.acoes['inativacao.decidir']?.perfis).toEqual(['admin']);
+    expect(manifest.acoes['inativacao.decidir']?.perfis).toEqual(['admin', 'analista']);
     expect(manifest.acoes['monitor.ver']?.perfis).toEqual(['admin', 'analista']);
     expect(manifest.acoes['lote.reprocessar']?.perfis).toContain('analista');
   });

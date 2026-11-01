@@ -107,11 +107,33 @@ export const RetornoErp = RetornoErpBase.superRefine((r, ctx) => {
 });
 export type RetornoErp = z.infer<typeof RetornoErp>;
 
+/**
+ * P-4 (T-0031): item de `itens_faturados` que não bate com o pedido enviado (sequência inexistente, produto divergente ou acima
+ * do saldo). O retorno é aceito sem ele e o Hub registra o erro no monitor.
+ */
+export const CODIGOS_ITEM_DESCARTADO = ['sequencia_inexistente', 'produto_divergente', 'quantidade_acima_do_saldo'] as const;
+export const ItemFaturadoDescartado = z.object({
+  indice: z.number().int().nonnegative(),
+  sequencia: z.number().int().positive(),
+  produto_external_id: ExternalId,
+  quantidade: z.number().int().positive(),
+  codigo: z.enum(CODIGOS_ITEM_DESCARTADO),
+  codigos: z.array(z.enum(CODIGOS_ITEM_DESCARTADO)).min(1),
+  campo: z.string().min(1),
+  motivo: z.string().min(1),
+});
+export type ItemFaturadoDescartado = z.infer<typeof ItemFaturadoDescartado>;
+
 /** Resposta do Hub ao retorno (idempotente: repetir o mesmo retorno não é erro). */
 export const RetornoAceito = z.object({
   pedido_uuid: Uuid,
   status: EstadoPedidoErp,
   repetido: z.boolean(),
+  /**
+   * P-4 (T-0031): itens faturados que ficaram de fora deste retorno (o status valeu). Campo novo opcional (RN-INT-09): o
+   * Conector 1.2.0 ignora; versões futuras podem registrar no log local. Ausente ou vazio = todos os itens valeram.
+   */
+  itens_descartados: z.array(ItemFaturadoDescartado).optional(),
 });
 export type RetornoAceito = z.infer<typeof RetornoAceito>;
 

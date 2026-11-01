@@ -23,6 +23,7 @@ import {
   RecusaRetorno,
   RespostaReconciliacao,
   RespostaSinal,
+  RetornoAceito,
   RetornoErp,
   ROTAS_HUB,
   SinalConector,
@@ -163,6 +164,17 @@ describe('RN-INT-01/03/06: respostas do Hub compatíveis com o Conector', () => 
     };
     expect(RecusaRetorno.safeParse(corpo).success).toBe(true);
     expect(RecusaRetorno.safeParse({ ...corpo, codigo: 'inventado' }).success).toBe(false);
+  });
+
+  it('P-4: RetornoAceito sem itens_descartados continua válido (Conector 1.2.0) e aceita a lista de descartados (campo novo opcional)', () => {
+    const base = { pedido_uuid: '3f2b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b', status: 'faturado_parcial', repetido: false };
+    expect(RetornoAceito.safeParse(base).success).toBe(true);
+    const descartado = {
+      indice: 1, sequencia: 9, produto_external_id: 'SKU9', quantidade: 1, codigo: 'sequencia_inexistente', codigos: ['sequencia_inexistente'],
+      campo: 'itens_faturados[1].sequencia', motivo: 'A sequência 9 não existe no pedido enviado ao ERP.',
+    };
+    expect(RetornoAceito.safeParse({ ...base, itens_descartados: [descartado] }).success).toBe(true);
+    expect(RetornoAceito.safeParse({ ...base, itens_descartados: [{ ...descartado, codigo: 'inventado' }] }).success).toBe(false);
   });
 
   it('RN-INT-12 (proposta): erro padrão do Hub tem o mesmo formato do ErroApi da plataforma', () => {

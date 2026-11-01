@@ -4,7 +4,7 @@
  * **nunca** inclui o valor recebido — pode ser dado pessoal (CPF, e-mail, telefone).
  */
 import type { ZodError, ZodIssue } from 'zod';
-import type { CodigoErroLinha, ContagensLote, EstadoLote, LinhaErro } from '../contracts';
+import { EXTERNAL_ID_MAX, type CodigoErroLinha, type ContagensLote, type EstadoLote, type LinhaErro } from '../contracts';
 
 const REPROCESSAVEIS: ReadonlySet<CodigoErroLinha> = new Set<CodigoErroLinha>(['referencia_ausente', 'falha_processamento']);
 
@@ -42,7 +42,7 @@ export function descreverIssue(issue: ZodIssue): ErroDescrito {
   const e = (codigo: CodigoErroLinha, mensagem: string): ErroDescrito => ({ codigo, campo, mensagem });
 
   if (issue.path[0] === 'external_id') {
-    return { codigo: 'external_id_invalido', campo: 'external_id', mensagem: 'O campo "external_id" é obrigatório: informe a chave do registro no ERP (texto de 1 a 100 caracteres).' };
+    return { codigo: 'external_id_invalido', campo: 'external_id', mensagem: `O campo "external_id" é obrigatório: informe a chave do registro no ERP (texto de 1 a ${EXTERNAL_ID_MAX} caracteres).` };
   }
 
   switch (issue.code) {

@@ -14,8 +14,12 @@ export const API_PREFIX_INTEGRACAO = '/integracao/v1';
 
 /** Limite padrão de registros por lote (RN-INT-01); o tenant pode parametrizar. */
 export const LIMITE_REGISTROS_LOTE = 5000;
-/** Tamanho máximo do `external_id` (aceita chaves compostas como `TAB01:SKU123:DEP2`). */
-export const EXTERNAL_ID_MAX = 100;
+/**
+ * Tamanho máximo do `external_id` (aceita chaves compostas como `TAB01:SKU123:DEP2`). T-0027: 200 caracteres nos dois lados
+ * (registro, cursor e linha inválida do Conector), igual à coluna `lote_linha_erro.external_id`. Subir o máximo é compatível
+ * com `v1` (RN-INT-09): o que valia continua valendo.
+ */
+export const EXTERNAL_ID_MAX = 200;
 /** Paradas por rota (cabe no registro sem estourar o corpo do lote). */
 export const PARADAS_MAX = 500;
 /** Contatos por cliente. */

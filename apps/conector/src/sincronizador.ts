@@ -8,15 +8,17 @@
  *  - Cada página vira lotes persistidos NA MESMA transação que avança o cursor de LEITURA; o cursor CONFIRMADO só avança
  *    quando o Hub conclui o lote (ver remetente.ts). Reiniciar a qualquer momento não perde nem duplica trabalho.
  *  - Ao voltar da carga completa para o delta relê uma folga (`margemDeltaSegundos`) para pegar o que mudou durante a carga.
+ *  - Linhas inválidas (T-0027): na carga completa TODAS vão ao Hub com o external_id (o Hub nunca inativa registro que veio
+ *    inválido, RN-INT-06); página só com linhas inválidas vira lote só com elas (exceção da RN-INT-01), no delta e na carga.
  */
-import type { Cursor } from '@macuxi/integracao/contracts';
+import { EXTERNAL_ID_MAX, LIMITE_LINHAS_INVALIDAS_PADRAO, type Cursor } from '@macuxi/integracao/contracts';
 import type { Fase } from './armazenamento/armazenamento';
 import type { EntidadeConfig } from './config/esquema';
 import { ehErroDeConexao } from './erp/driver';
 import { type Contexto, resumoErro } from './contexto';
 import { montarLotes } from './lotes';
 import { compararCursor, limitarLinhasInvalidas, mapearEValidar } from './mapeamento';
-import { bloqueioPorVersao } from './politica';
+import { bloqueioPorVersao, tratarRecusaPorVersao } from './politica';
 import { iso } from './util/relogio';
 import { VERSAO_CONECTOR } from './versao';
 import type { Entidade } from './config/entidades';
@@ -58,6 +60,7 @@ export async function sincronizarEntidade(ctx: Contexto, entidade: Entidade): Pr
         : store.iniciarEstado(entidade, 'completo', { sessaoId: ctx.uuid(), agoraMs: agora() });
       log.info('entidade_iniciada', { entidade, fase: estado.fase, origem_cursor: hub.cursor ? 'hub' : 'nenhum' });
     } catch (e) {
+      if (tratarRecusaPorVersao(ctx, e, 'consultar_cursor')) return { ...res, adiado: 'Hub recusou esta versão do Conector (426): atualize o Conector' };
       log.aviso('hub_indisponivel_para_iniciar', { entidade, erro: resumoErro(e) });
       return { ...res, adiado: 'Hub indisponível para consultar o cursor' };
     }
@@ -115,7 +118,8 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
     return false;
   }
 
-  const m = mapearEValidar(entidade, cfg, pagina, estado.lido);
+  // carga completa: toda linha inválida vai ao Hub com o external_id, qualquer que seja `linhasInvalidas` (RN-INT-06, T-0027 🔴)
+  const m = mapearEValidar(entidade, cfg, pagina, estado.lido, { enviarInvalidas: completo });
   const motivoSemAvanco = 'a leitura não avança (várias linhas com o mesmo alterado_em e external_id, ou alterado_em com precisão menor que a do filtro); use alterado_em em milissegundos e external_id único';
   if (m.repetidas === pagina.length) {
     // sem mais páginas: só linhas já lidas (precisão de alterado_em), sem novidade. Com mais páginas: a próxima leitura
@@ -143,14 +147,17 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
   }
 
   const ultimaPagina = !temMais;
-  // linhas recusadas localmente vão ao Hub com o motivo (até lote.maxLinhasInvalidas; o resto só na contagem)
-  const inval = limitarLinhasInvalidas(m.linhasInvalidas, ctx.config.lote.maxLinhasInvalidas);
+  // Delta: linhas recusadas localmente vão ao Hub com o motivo até lote.maxLinhasInvalidas por página; o resto só na contagem.
+  // Carga completa (T-0027 🔴): NENHUMA fica de fora — sem o external_id o Hub inativaria o registro (ou, com omitidas, não
+  // inativaria nada na sessão). Vão em fatias de até 500 por lote; o que sobrar vira lote só de linhas inválidas (RN-INT-01).
+  const inval = completo ? { enviadas: m.linhasInvalidas, omitidas: 0 } : limitarLinhasInvalidas(m.linhasInvalidas, ctx.config.lote.maxLinhasInvalidas);
   const lotes = montarLotes({
     entidade,
     modo: completo ? 'completo' : 'delta',
     geracao: estado.geracao,
     registros: m.registros,
-    cursorDeclarado: m.cursor,
+    // o cursor declarado é informativo: um external_id acima do contrato não pode derrubar o envelope inteiro
+    cursorDeclarado: m.cursor && m.cursor.external_id.length <= EXTERNAL_ID_MAX ? m.cursor : null,
     cursorLeitura: m.ultimo,
     maxLinhas: ctx.config.lote.maxLinhas,
     maxBytes: ctx.config.lote.maxBytes,
@@ -160,10 +167,8 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
     versaoConector: ctx.versao ?? VERSAO_CONECTOR,
     linhasInvalidas: inval.enviadas,
     linhasInvalidasOmitidas: inval.omitidas,
+    maxLinhasInvalidasPorLote: completo ? porLoteNaCargaCompleta(ctx.config.lote.maxLinhasInvalidas) : undefined,
   });
-  if (m.linhasInvalidas.length > 0 && lotes.length === 0) {
-    log.aviso('linhas_invalidas_sem_lote', { entidade, linhas: m.linhasInvalidas.length, dica: 'a página só teve linhas inválidas; elas ficam nos erros locais (conector status) e voltam a ser avaliadas quando o ERP alterar a linha' });
-  }
 
   if (temMais && estado.lido && compararCursor(m.ultimo, estado.lido) <= 0) {
     store.atualizarEstado(entidade, { bloqueio: motivoSemAvanco });
@@ -192,6 +197,14 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
     if (lotes.length === 0) log.aviso('sessao_nao_fechada', { entidade, dica: 'a última página não tinha linhas enviáveis; o Hub deixa a sessão expirar e não inativa nada' });
   }
   return temMais;
+}
+
+/**
+ * Linhas inválidas por lote na carga completa: o configurado, limitado ao padrão do Hub (500, acima disso o Hub só conta e a
+ * sessão não inativa nada); `0` ("só a contagem") não vale aqui, porque o external_id é o que protege o registro.
+ */
+export function porLoteNaCargaCompleta(configurado: number): number {
+  return configurado > 0 ? Math.min(configurado, LIMITE_LINHAS_INVALIDAS_PADRAO) : LIMITE_LINHAS_INVALIDAS_PADRAO;
 }
 
 /** Fim da carga completa: passa ao delta relendo uma folga antes do início da carga (mudanças durante a carga). */
