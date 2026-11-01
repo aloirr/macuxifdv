@@ -8,6 +8,9 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > (74 testes, 0 pulados). Medição do sync em [desempenho-sync.md](desempenho-sync.md).
 > SQLite do aparelho (esquema local, FTS5 do Catálogo, limpeza RN-CORE-02/15 e medições da T-0008):
 > [aparelho-sqlite.md](aparelho-sqlite.md).
+> **2026-11-01 (T-0029):** migrações até a `0009` (0008 preço do Catálogo, 0009 pedido completo do Vendedor); suíte de
+> `db/testes/` com 300 casos, 0 pulados. Dicionários: [plataforma.md](plataforma.md), [core.md](core.md),
+> [catalogo.md](catalogo.md), [vendedor.md](vendedor.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -45,7 +48,7 @@ Base para a demonstração com o gestor externo (app novo + API real; R-20261031
 | Fixar o "hoje" (ensaio de outro dia) | `... banco seed demo --hoje AAAA-MM-DD` |
 | Banco de teste efêmero com a base | `... banco criar-teste --fixture demo` |
 
-Pré-requisito: banco migrado até a `0007` (`banco subir` ou `banco migrar up`); sem isso o seed para com
+Pré-requisito: banco migrado até a `0009` (`banco subir` ou `banco migrar up`); sem isso o seed para com
 `rode "banco migrar up" antes`. Só roda no Postgres local (mesma trava do seed da Fase M: `exigirBancoLocal`).
 
 **Login no app** — código da empresa **`demo`** · senha de todos **`demo-macuxi`** (ou o valor de `MACUXI_SENHA_DEMO` no
@@ -53,9 +56,10 @@ Pré-requisito: banco migrado até a `0007` (`banco subir` ou `banco migrar up`)
 
 | Perfil | E-mail | Nome (fictício) | O que vê |
 |---|---|---|---|
-| vendedor | `vendedor@exemplo.com.br` | Lucas Andrade | 18 clientes; **rota de hoje com 6 paradas**; 7 pedidos (1 aguardando aprovação); recado do supervisor |
+| vendedor | `vendedor@exemplo.com.br` | Lucas Andrade | 18 clientes; **rota de hoje com 6 paradas** (a 1ª é cliente do Atacado); 7 pedidos (1 aguardando a supervisora, 1 rejeitado, 1 cancelado); recado do supervisor |
 | vendedor | `vendedor2@exemplo.com.br` | Camila Freitas | 12 clientes; rota de hoje com 4 paradas; 3 pedidos |
-| supervisor | `supervisor@exemplo.com.br` | Renata Barros | responsável pela "Equipe Manaus": carteira dos dois vendedores e do promotor (30 clientes), metas e indicadores, 2 pedidos para aprovar |
+| supervisor | `supervisor@exemplo.com.br` | Renata Barros | responsável pela "Equipe Manaus": carteira dos dois vendedores e do promotor (30 clientes), metas e indicadores, 2 pedidos para aprovar no nível dela (10 pedidos da equipe, 3 aguardando aprovação) |
+| gerente | `gerente@exemplo.com.br` | Marcelo Tavares | responsável pela "Regional Norte", pai da "Equipe Manaus" (vê a equipe da supervisora, RN-CORE-04); 1 pedido para aprovar no nível dele (12%); app Gestão |
 | promotor | `promotor@exemplo.com.br` | Joana Prado | 7 supermercados/lojas na carteira de promotor; rota de hoje com 4 paradas; sem módulo Vendedor (RN-PRO-01) |
 | analista | `analista@exemplo.com.br` | Paulo Ribeiro | tenant inteiro (BKO) |
 | admin | `admin@exemplo.com.br` | Sérgio Moura | tenant inteiro (BKO) |
@@ -71,11 +75,28 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
 - **Rota de hoje** no fuso do tenant, calculada na hora do seed (vendedor 6 paradas, vendedor2 4, promotor 4), sem visita:
   a demo faz os check-ins ao vivo. Raio de check-in 200 m (padrão): longe do cliente, o app pede justificativa de
   fora do raio (motivos extras `gps_impreciso` e `endereco_desatualizado`).
-- **Pedidos** dos últimos dias úteis (faturado, aprovado, enviado ao ERP, recebido, aguardando aprovação, cancelado), com
+- **Pedidos** (T-0029) dos últimos dias úteis, **recalculados pela tabela do cliente com a regra do servidor** (`revalidarPedido`
+  do Vendedor), com número `000001`..`000010`, retratos e linha do tempo (`vendedor.pedido_evento`): 6 aprovados dentro da
+  alçada (automático), 2 aguardando o **supervisor** (Lucas 8%, Camila 7%), 1 aguardando o **gerente** (Camila 12%),
+  1 **rejeitado** pela supervisora (com motivo) e 1 **cancelado** depois de aprovado. Nada em `sent_to_erp` ou depois. Com
   itens e a visita que os gerou; visitas sem pedido com motivo; `core.indicador_diario` coerente com os pedidos.
 - **Metas do mês corrente** (venda, positivação, cobertura, visitas) dos vendedores e do promotor; 24 produtos com marcas
-  fictícias; 2 notificações (recado do supervisor ao vendedor, pedidos para aprovar ao supervisor).
-- Parâmetros: só os padrões do Core semeados pelo gatilho (`checkin.raio_m`, `metas.base_apuracao`), em `plataforma.parametro`.
+  fictícias; 3 notificações (recado do supervisor ao vendedor, pedidos para aprovar à supervisora e ao gerente).
+- Parâmetros: os padrões do Core semeados pelo gatilho (`checkin.raio_m`, `metas.base_apuracao`) e as **alçadas do Vendedor**
+  `alcada.vendedor_pct = 5`, `alcada.supervisor_pct = 10`, `alcada.gerente_pct = 15`, `alcada.acima_gerente = "analista"`.
+- **Preço** (schema `catalogo`, [catalogo.md](catalogo.md)): tabelas "Varejo" (todos os 24 produtos) e "Atacado" (≈ 7% menor,
+  **sem** açaí `ACA-1K`, suco `SUC-1L` e creme dental `CRD-90` → "Sem preço para este cliente", RN-CAT-06); supermercados e
+  atacarejos no Atacado, os demais no Varejo; vigência desde o 1º dia do mês anterior.
+- **Condições de pagamento** ([vendedor.md](vendedor.md)): À vista (padrão), 28 dias, 28/56 e 30/60/90; os 8 clientes com título
+  vencido só À vista e 28 dias (RN-VEN-14); os demais 3 ou 4.
+- **Roteiro do ensaio** que a base permite: o Lucas tira pedido de 3% (aprova sozinho), de 8% (vai à Renata) e de 12% (vai
+  ao Marcelo), e no Supermercado Bom Preço (Atacado) o açaí aparece sem preço. Os números do ensaio seguem o contador
+  (`000011` em diante); recarregar a base nunca volta o contador.
+- **Limitação no começo do mês** (R-20261101-045314, O-2): pedidos, visitas e `core.indicador_diario` da base são dos dias
+  úteis ANTERIORES ao "hoje". Até o 1º dia útil depois do dia 1º, eles caem todos no mês anterior e Metas (app) e
+  Indicadores (BKO) do mês mostram 0%. Para o ensaio nesses dias, rode o ensaio a partir do 2º dia útil do mês ou mostre
+  os painéis do mês anterior; puxar parte do histórico para o mês corrente fica como melhoria da base (pendência
+  registrada na entrega da T-0029).
 
 Idempotência: upsert por id determinístico. Rodar de novo no mesmo dia não muda nada (nem o hash da senha, que só é
 refeito se não conferir com a senha informada); zera `tentativas_falhas`/`bloqueio_ate` (ninguém fica travado por senha

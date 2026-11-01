@@ -1,16 +1,26 @@
 # Dicionário de dados — schema `vendedor`
 
-Migração `db/migrations/0007_vendedor_pedido.up.sql` (volta: `.down.sql` = `drop schema vendedor cascade`, apaga os pedidos).
-Drizzle: `modules/vendedor/db/nuvem.ts` (uso interno do Vendedor). Mínimo da Sprint 1 para o pull de `pedido` e
-`pedido_item` (D-2; desenho T-0016 §4.5 e §7; pedidos R-20261031-110346-modulo-vendedor e R-20261031-152927-engenheiro-software).
-O push de pedido entra na Sprint 4: aí vêm `pedido_evento`, condições de pagamento e o resto do modelo.
+Migrações: `db/migrations/0007_vendedor_pedido.up.sql` (Sprint 1: `pedido` e `pedido_item` para o pull; volta = `drop schema
+vendedor cascade`, apaga os pedidos) e `0009_vendedor_pedido_completo.up.sql` (T-0029, fatia do pedido: número, retrato,
+aprovação, histórico e condições; volta = `.down.sql`, apaga histórico, condições, contador e as colunas novas; os pedidos
+ficam). Drizzle: `modules/vendedor/db/nuvem.ts` (uso interno do Vendedor). Origem da 0009: desenho `docs/desenho/T-0029.md`
+§10, ADR 0011; pedidos R-20261101-042135-engenheiro-software e R-20261101-044128-modulo-vendedor (nomes exatos do pull).
 
 Campos comuns, RLS forçado (`isolamento_tenant`), gatilho de `updated_at`, índice de sync `(tenant_id, updated_at, id)` e
 `external_id` único por tenant, como em [plataforma.md](plataforma.md).
 
-**Fronteira**: nenhuma FK para `core.*`. `cliente_id`, `vendedor_id`, `autor_id`, `produto_id`, `visita_id` e
-`rota_parada_id` são validados pela API do Vendedor (carteira, usuário e produto pelos serviços/contratos do Core). FK só
-dentro do schema (`pedido_item → pedido`, composta por tenant) e `tenant_id → plataforma.tenant`.
+**Fronteira**: nenhuma FK para outro schema. `cliente_id`, `vendedor_id`, `autor_id`, `produto_id`, `visita_id`,
+`rota_parada_id`, `tabela_preco_id` e `decidido_por_id` são validados pela API do Vendedor (consultas `core.cadastro_resumo@1`
+e `catalogo.precos_cliente@1`, ADR 0012). FK só dentro do schema, composta por tenant: `pedido_item → pedido`,
+`pedido_evento → pedido`, `pedido → condicao_pagamento`, `cliente_condicao → condicao_pagamento`; e `tenant_id → plataforma.tenant`.
+
+**Listas fechadas** (fonte da verdade = código do Vendedor; `db/testes/estatico.test.ts` compara):
+- status (`pedido.status`, `pedido_evento.de/para`) = `ORDER_STATUSES` (`modules/vendedor/domain/order.ts`, RN-VEN-30):
+  `draft, queued, received, pending_approval, approved, sent_to_erp, integrated, invoiced_partial, invoiced, rejected, cancelled`;
+- níveis (`pedido.nivel_aprovacao`, `pedido_evento.nivel`) = `NIVEIS_APROVACAO`: `supervisor, gerente, analista`;
+- motivos (`pedido.motivos_aprovacao`) = `MOTIVOS_APROVACAO`: `desconto, credito, estoque, preco_minimo`.
+O vocabulário do doc 03 (`STATUS_CONTRATO`: `em_aprovacao`, `aprovado`...) é só dos eventos e **não** vai ao banco.
+Mudar uma lista é migração nova.
 
 ## pedido
 | Coluna | Tipo | Regra |
@@ -19,21 +29,45 @@ dentro do schema (`pedido_item → pedido`, composta por tenant) e `tenant_id �
 | cliente_id | uuid not null | sem FK (fronteira) |
 | vendedor_id | uuid not null | dono do pedido; pedido em nome conta para o vendedor (RN-CORE-21) |
 | autor_id | uuid not null | quem digitou (vendedor ou gestor em nome, RN-VEN-35) |
-| status | text not null | lista do contrato (`ORDER_STATUSES`, RN-VEN-30): `draft, queued, received, pending_approval, approved, sent_to_erp, integrated, invoiced_partial, invoiced, rejected, cancelled`; padrão `draft` |
-| condicao_pagamento | text | |
+| status | text not null | `ORDER_STATUSES`; padrão `draft` |
+| condicao_pagamento | text | legado (texto); a condição do pedido é `condicao_pagamento_id` |
 | desconto_pct | numeric(5,2) not null | 0 a 100 |
-| total_tabela_cents, total_cents | bigint not null | ≥ 0 |
+| total_tabela_cents, total_cents | bigint not null | ≥ 0; **calculados pelo servidor** (RN-VEN-02) |
 | observacao | text | |
 | visita_id, rota_parada_id | uuid | sem FK (schema core) |
 | criado_no_aparelho_em, recebido_em | timestamptz | |
 | numero_erp | text | |
 | motivo_cancelamento | text | |
+| **numero** (0009) | text | legível, 6 dígitos (`000001`), **único por tenant** (`pedido_numero_uk`, parcial `numero is not null`); gerado só no servidor por `vendedor.proximo_numero_pedido()`; nulo nos pedidos anteriores à 0009 |
+| **hash_envio** | text | sha256 **hex minúsculo** (64) do payload canônico do push (RN-VEN-33: reenvio igual = aceito sem efeito; diferente = conflito). Fora do pull |
+| **cliente_resumo** | jsonb | retrato do cliente no aceite (D-6): `{ razao_social, nome_fantasia, documento, endereco, bairro, cidade, uf, codigo_erp }`; objeto. Fora do pull |
+| **cliente_nome**, **vendedor_nome** | text | retrato (lista, detalhe e PDF sem consultar outro módulo) |
+| **tabela_preco_id** | uuid | tabela do cliente usada no cálculo (sem FK: schema catalogo) |
+| **condicao_pagamento_id** | uuid | FK `pedido_condicao_fk` para `condicao_pagamento`; tem de estar entre as do cliente (RN-VEN-14, a API valida) |
+| **condicao_pagamento_descricao** | text | retrato da descrição |
+| **nivel_aprovacao** | text | `NIVEIS_APROVACAO` ou nulo; **obrigatório em `pending_approval`** (`pedido_pendente_com_nivel`) |
+| **motivos_aprovacao** | text[] not null | subconjunto de `MOTIVOS_APROVACAO`; padrão `{}` |
+| **aprovacao_automatica** | boolean not null | `true` = aprovado dentro da alçada no recebimento (D-2); padrão `false` |
+| **decidido_por_id**, **decidido_em** | uuid, timestamptz | quem aprovou/rejeitou e quando (decisão humana) |
+| **motivo_rejeicao** | text | **obrigatório em `rejected`, 3+ caracteres sem contar espaços** (RN-GES-08, `pedido_rejeitado_com_motivo`) |
 
 Índices: `pedido_vendedor_sync_ix (tenant_id, vendedor_id, updated_at, id)` (pull por usuários visíveis);
-`pedido_cliente_ix (tenant_id, cliente_id, created_at desc)` (últimos pedidos do cliente, rota de listagem do Vendedor);
-`pedido_visita_ix (tenant_id, visita_id)` parcial; único `(tenant_id, id)` (alvo da FK do item).
-Volume alto: ~20 pedidos por vendedor por dia; janela do pull: criado ≥ hoje − 90 ou status não final.
-A mudança da lista de status é migração nova (o teste estático compara o CHECK com `ORDER_STATUSES`).
+`pedido_cliente_ix (tenant_id, cliente_id, created_at desc)`; `pedido_visita_ix (tenant_id, visita_id)` parcial;
+`pedido_status_ix (tenant_id, status, created_at desc)` (lista do BKO e "para aprovar"); `pedido_numero_uk`; único
+`(tenant_id, id)` (alvo das FKs). Volume alto: ~20 pedidos por vendedor por dia; janela do pull: criado ≥ hoje − 90 ou
+status não final.
+
+**Dados antigos na 0009**: `pending_approval` sem nível recebeu o nível pela alçada padrão do doc 03 (desconto ≤ 10%
+supervisor, ≤ 15% gerente, acima analista) e motivos `{desconto}`; `rejected` sem motivo recebeu "Rejeitado antes do
+registro do motivo.". O down tira as colunas (esses valores se perdem).
+
+### Número legível — `vendedor.proximo_numero_pedido()`
+Contador por tenant em `numeracao_pedido` (sequência **sem buraco** e sem revelar o volume de outro tenant). Função SQL
+`SECURITY INVOKER` (RLS vale): usa `app.tenant_id`; sem contexto, falha. A linha do contador fica travada até o fim da
+transação (pedidos do mesmo tenant numeram em fila; rollback devolve o número). **Uso no `receber`**: depois de saber que o
+pedido é novo (idempotência), na mesma transação, por exemplo
+`insert ... on conflict (id) do nothing returning id` e, se inseriu, `update vendedor.pedido set numero =
+vendedor.proximo_numero_pedido() where id = $1`. Chamar num reenvio consome um número à toa.
 
 ## pedido_item
 | Coluna | Tipo | Regra |
@@ -44,6 +78,53 @@ A mudança da lista de status é migração nova (o teste estático compara o CH
 | quantidade | integer not null | > 0 |
 | preco_tabela_cents, preco_unitario_cents, total_cents | bigint not null | ≥ 0 |
 | desconto_pct | numeric(5,2) not null | 0 a 100 |
+| **produto_sku**, **produto_nome**, **unidade** (0009) | text | retrato do produto no aceite (D-6) |
 
 Pull com o escopo do pedido (join por `pedido_id`), índice de sync.
-No `pg` cru: `bigint` e `numeric` chegam como string (converta no provedor).
+
+## pedido_evento (0009)
+Linha do tempo do pedido (RF-VEN-05) e auditoria de negócio: uma linha por transição (`null → received`,
+`received → approved | pending_approval`, `pending_approval → approved | rejected`, `→ cancelled`). A aplicação **só lê e
+insere** (sem UPDATE/DELETE: histórico não se edita).
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| pedido_id | uuid not null | FK composta para `pedido` |
+| de | text | `ORDER_STATUSES` ou nulo (primeira transição) |
+| para | text not null | `ORDER_STATUSES`; `de ≠ para` |
+| autor_id, autor_nome, autor_perfil | uuid, text, text | retrato de quem fez (vendedor no recebimento automático) |
+| motivo | text | "Dentro da alçada (5,0%)", texto da pendência, comentário ou motivo da rejeição |
+| nivel | text | `NIVEIS_APROVACAO` ou nulo |
+| acima_do_nivel | boolean not null | gerente decidiu um pedido do nível do supervisor (RN-GES-04); padrão `false` |
+| ocorrido_em | timestamptz not null | padrão `now()` |
+
+Índices: `pedido_evento_pedido_ix (tenant_id, pedido_id, ocorrido_em)` (detalhe e join do pull); sync. Volume: 2 a 3 por pedido.
+
+## condicao_pagamento (0009)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| codigo | text not null | não vazio; único vivo por tenant |
+| descricao | text not null | não vazia |
+| ativo | boolean not null | padrão `true` |
+| padrao | boolean not null | **no máximo uma padrão viva por tenant** (`condicao_pagamento_padrao_uk`); padrão tem de estar ativa |
+
+Pull escopo tenant. Volume baixo.
+
+## cliente_condicao (0009)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| cliente_id | uuid not null | sem FK (Core) |
+| condicao_pagamento_id | uuid not null | FK composta para `condicao_pagamento` |
+
+Par `(cliente_id, condicao_pagamento_id)` único vivo. Cliente sem linha viva = só a condição padrão (RN-VEN-14). Pull escopo
+carteira. Volume = clientes × 1..4.
+
+## numeracao_pedido (0009)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| ultimo | bigint not null | último número usado; ≥ 0 |
+
+Uma linha por tenant (único `(tenant_id)`; id = `plataforma.uuid_de_chave('<tenant>:vendedor.numeracao_pedido')`). Fora do sync
+(`TABELAS_FORA_DO_SYNC`). A aplicação lê, insere e atualiza (sem DELETE). Os seeds nunca baixam o contador.
+
+No `pg` cru: `bigint` e `numeric` chegam como string (converta no provedor); `text[]` chega como array.

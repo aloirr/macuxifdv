@@ -69,6 +69,20 @@ calculam o "hoje" de cada fuso a partir de um instante dado; o `globalSetup` usa
 | arquivos | fachada da visita v1/c3 (`recebido`) | fachada da visita de ontem (`aguardando`) |
 | pedidos | p1 v1/c1 `received` (2 itens, desconto 5%); p2 v2/c2 `pending_approval` **em nome** (autor = supervisor); p3 v1/c3 `invoiced` | p1 `approved` |
 
+### T-0029 (migrações 0008–0009; desenho T-0029 §10)
+Grupos novos: `0032` condicao_pagamento · `0033` cliente_condicao · `0034` numeracao_pedido · `0035` pedido_evento ·
+`0040` tabela_preco · `0041` tabela_preco_item · `0042` cliente_tabela_preco. Constantes em `DOIS_TENANTS.X.{tabelasPreco, condicoes}`.
+
+| Tabela | Tenant A | Tenant B |
+|---|---|---|
+| tabela_preco / itens | "Padrão Alfa": produto 1 a 100.000 (desde hoje − 30), produto 2 a 50.000 com vigência que **termina hoje 04:00Z** | "Padrão Beta": produto 1 a 4.500 (sem vigência) |
+| cliente_tabela_preco | c1 e c2 na Padrão Alfa; **c3 sem tabela** (todo produto sem preço, RN-CAT-06) | c1 |
+| condicao_pagamento | À vista (`AVISTA`, padrão) e 28 dias (`28D`) | À vista (padrão) |
+| cliente_condicao | c1: À vista e 28 dias; c2 sem lista (só a padrão) | c1: À vista |
+| pedidos (colunas 0009) | p3 `000001`, p2 `000002` (`pending_approval`, nível **gerente**, 12%), p1 `000003` (retrato, hash, condição 28 dias) | p1 `000001` |
+| numeracao_pedido | último = 3 (recarregar a fixture **não** volta o contador) | último = 1 |
+| pedido_evento | p1: null→received; p2: null→received, received→pending_approval (gerente) | p1: null→received, received→approved |
+
 Carteiras **não mudaram** (testes de sync contam os clientes de cada vendedor): por isso a rota de hoje do vendedor-1 tem
 2 paradas (os 2 clientes da carteira dele), e não 3. Motivos padrão e parâmetros `core.checkin.raio_m`/`metas.base_apuracao`
 não estão nas listas da fixture: o gatilho `core.semear_tenant` cria no INSERT do tenant.

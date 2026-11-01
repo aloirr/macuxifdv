@@ -6,7 +6,11 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
-import { carregarDemo, CODIGO_DEMO, dadosDemo, diasUteisAtras, MODULOS_DEMO, TENANT_DEMO, USUARIOS_DEMO } from '../seeds/demo/demo';
+import { politicaDosParametros, revalidarPedido } from '../../modules/vendedor/domain/aprovacao';
+import {
+  ALCADAS_DEMO, carregarDemo, CODIGO_DEMO, dadosDemo, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
+  USUARIOS_DEMO,
+} from '../seeds/demo/demo';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { comTenant } from '../src/contexto';
 import { anoMes, hojeNoFuso } from '../src/datas';
@@ -28,9 +32,9 @@ describe('base de demo (estático)', () => {
     expect(d['plataforma.tenant_modulo'].map((m) => m.modulo).sort()).toEqual([...MODULOS_DEMO].sort());
   });
 
-  it('logins: vendedor, supervisor, promotor, analista e admin, só e-mails fictícios', () => {
+  it('logins: vendedor, supervisor, gerente, promotor, analista e admin, só e-mails fictícios', () => {
     const perfis = new Set(d['core.usuario'].map((u) => u.perfil));
-    for (const p of ['vendedor', 'supervisor', 'promotor', 'analista', 'admin']) expect(perfis.has(p)).toBe(true);
+    for (const p of ['vendedor', 'supervisor', 'gerente', 'promotor', 'analista', 'admin']) expect(perfis.has(p)).toBe(true);
     expect(d['core.usuario'].every((u) => String(u.email).endsWith('@exemplo.com.br'))).toBe(true);
     // RN-PRO-01: o perfil promotor não ganha o módulo Vendedor
     expect(d['plataforma.perfil_modulo'].some((p) => p.perfil === 'promotor' && p.modulo === 'vendedor')).toBe(false);
@@ -70,13 +74,121 @@ describe('base de demo (estático)', () => {
     expect(d['core.meta'].filter((m) => m.usuario_id === vendedor.id).map((m) => m.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
     expect(d['core.visita'].every((v) => String(v.data_local) < hoje)).toBe(true);
     const status = new Set(d['vendedor.pedido'].map((p) => p.status));
-    for (const s of ['pending_approval', 'approved', 'invoiced', 'cancelled']) expect(status.has(s)).toBe(true);
+    for (const s of ['pending_approval', 'approved', 'rejected', 'cancelled']) expect(status.has(s)).toBe(true);
     const vendido = d['vendedor.pedido'].filter((p) => ['approved', 'sent_to_erp', 'invoiced', 'cancelled'].includes(String(p.status))).reduce((s, p) => s + Number(p.total_cents), 0);
     expect(d['core.indicador_diario'].reduce((s, x) => s + Number(x.vendido_cents), 0)).toBe(vendido);
     for (const p of d['vendedor.pedido']) {
       const itens = d['vendedor.pedido_item'].filter((i) => i.pedido_id === p.id);
       expect(itens.reduce((s, i) => s + Number(i.total_cents), 0)).toBe(p.total_cents);
     }
+  });
+
+  describe('T-0029: fatia do pedido (preço, condições, alçadas, gerente e pedidos)', () => {
+    const pedidos = d['vendedor.pedido'];
+    const tabelaDoCliente = new Map(d['catalogo.cliente_tabela_preco'].map((x) => [x.cliente_id, x.tabela_preco_id]));
+    const tabelaPorCodigo = new Map(d['catalogo.tabela_preco'].map((t) => [t.codigo, t.id]));
+    const produtoPorSku = new Map(d['core.produto'].map((p) => [p.sku, p.id]));
+    const precoDe = (tabela: unknown, produto: unknown) => d['catalogo.tabela_preco_item'].find((i) => i.tabela_preco_id === tabela && i.produto_id === produto)?.preco_cents as number | undefined;
+
+    it('licenças: Vendedor e Catálogo para vendedor, supervisor, gerente, analista, assistente e admin; promotor sem Vendedor (RN-PRO-01)', () => {
+      const pm = (perfil: string) => d['plataforma.perfil_modulo'].filter((p) => p.perfil === perfil).map((p) => p.modulo);
+      for (const perfil of ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin']) expect(pm(perfil), perfil).toEqual(expect.arrayContaining(['catalogo', 'vendedor']));
+      expect(pm('promotor')).not.toContain('vendedor');
+    });
+
+    it('gerente responsável pela Regional Norte, pai da Equipe Manaus da supervisora (RN-CORE-04)', () => {
+      const eq = new Map(d['core.equipe'].map((e) => [e.nome, e]));
+      expect(eq.get('Regional Norte')).toMatchObject({ equipe_pai_id: null, responsavel_id: idUsuarioDemo('gerente') });
+      expect(eq.get('Equipe Manaus')).toMatchObject({ equipe_pai_id: eq.get('Regional Norte')!.id, responsavel_id: idUsuarioDemo('supervisor') });
+      expect(d['core.usuario'].find((u) => u.id === idUsuarioDemo('gerente'))).toMatchObject({ email: 'gerente@exemplo.com.br', perfil: 'gerente', equipe_id: eq.get('Regional Norte')!.id });
+    });
+
+    it('preço: Varejo com todos os produtos, Atacado ~7% menor sem 3 produtos; cada cliente com uma tabela, vigente desde o 1º dia do mês anterior', () => {
+      const varejo = tabelaPorCodigo.get('VAREJO');
+      const atacado = tabelaPorCodigo.get('ATACADO');
+      expect(d['catalogo.tabela_preco_item'].filter((i) => i.tabela_preco_id === varejo)).toHaveLength(d['core.produto'].length);
+      expect(d['catalogo.tabela_preco_item'].filter((i) => i.tabela_preco_id === atacado)).toHaveLength(d['core.produto'].length - 3);
+      for (const sku of SEM_PRECO_NO_ATACADO) expect(precoDe(atacado, produtoPorSku.get(sku)), sku).toBeUndefined();
+      const cafe = produtoPorSku.get('CAF-500');
+      expect(precoDe(atacado, cafe)! / precoDe(varejo, cafe)!).toBeCloseTo(0.93, 2);
+      expect(d['catalogo.cliente_tabela_preco']).toHaveLength(30);
+      expect(new Set(d['catalogo.cliente_tabela_preco'].map((x) => x.cliente_id)).size).toBe(30);
+      expect(new Set(d['catalogo.tabela_preco_item'].map((i) => i.vigencia_inicio))).toEqual(new Set(['2026-10-01T04:00:00Z']));
+      // a 1ª parada do Lucas hoje é cliente do Atacado: lá ele vê "Sem preço para este cliente" (RN-CAT-06)
+      expect(tabelaDoCliente.get(idClienteDemo(0))).toBe(atacado);
+    });
+
+    it('condições: À vista (padrão única), 28, 28/56, 30/60/90; título vencido só À vista e 28 dias (RN-VEN-14)', () => {
+      expect(d['vendedor.condicao_pagamento'].map((c) => c.descricao)).toEqual(['À vista', '28 dias', '28/56 dias', '30/60/90 dias']);
+      expect(d['vendedor.condicao_pagamento'].filter((c) => c.padrao).map((c) => c.codigo)).toEqual(['AVISTA']);
+      const porCliente = (n: number) => d['vendedor.cliente_condicao'].filter((x) => x.cliente_id === idClienteDemo(n)).length;
+      expect(porCliente(1)).toBe(2); // Mercadinho São Jorge: título vencido
+      expect([3, 4]).toContain(porCliente(0));
+      expect([3, 4]).toContain(porCliente(3));
+    });
+
+    it('alçadas 5/10/15 e acima do gerente = analista; o ensaio do Lucas: 3% aprova sozinho, 8% vai à supervisora, 12% ao gerente', () => {
+      const politica = politicaDosParametros({ ...ALCADAS_DEMO });
+      const cafe = String(produtoPorSku.get('CAF-500'));
+      const cliente = idClienteDemo(2);
+      const carteira = d['core.carteira'].filter((x) => x.usuario_id === idUsuarioDemo('vendedor')).map((x) => String(x.cliente_id));
+      const preco = precoDe(tabelaDoCliente.get(cliente), cafe)!;
+      const tentar = (pct: number) =>
+        revalidarPedido({ perfil: 'vendedor', vendedor_id: idUsuarioDemo('vendedor'), cliente_id: cliente, carteira, desconto_pct: pct, itens: [{ product_id: cafe, sku: 'CAF-500', quantity: 10 }], precos: { [cafe]: preco }, policy: politica });
+      expect(tentar(3)).toMatchObject({ ok: true, status: 'approved', aprovacao_automatica: true });
+      expect(tentar(8)).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'supervisor' });
+      expect(tentar(12)).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'gerente' });
+    });
+
+    it('pedidos: 2 aguardando o supervisor (um de cada vendedor), 1 o gerente, 1 rejeitado com motivo, 1 cancelado; nada enviado ao ERP', () => {
+      const pend = pedidos.filter((p) => p.status === 'pending_approval');
+      expect(pend.filter((p) => p.nivel_aprovacao === 'supervisor').map((p) => p.vendedor_id).sort()).toEqual([idUsuarioDemo('vendedor'), idUsuarioDemo('vendedor2')].sort());
+      expect(pend.filter((p) => p.nivel_aprovacao === 'gerente')).toHaveLength(1);
+      expect(pend).toHaveLength(3);
+      const rej = pedidos.filter((p) => p.status === 'rejected');
+      expect(rej).toHaveLength(1);
+      expect(String(rej[0]!.motivo_rejeicao).trim().length).toBeGreaterThanOrEqual(3);
+      expect(rej[0]!.decidido_por_id).toBe(idUsuarioDemo('supervisor'));
+      expect(pedidos.filter((p) => p.status === 'cancelled')).toHaveLength(1);
+      expect(pedidos.every((p) => ['approved', 'pending_approval', 'rejected', 'cancelled'].includes(String(p.status)))).toBe(true);
+      expect(pedidos.filter((p) => p.status === 'approved').every((p) => p.aprovacao_automatica === true)).toBe(true);
+      // o Lucas segue com 7 pedidos e 1 aguardando aprovação (o "de ontem", do recado)
+      const lucas = pedidos.filter((p) => p.vendedor_id === idUsuarioDemo('vendedor'));
+      expect([lucas.length, lucas.filter((p) => p.status === 'pending_approval').length]).toEqual([7, 1]);
+    });
+
+    it('pedidos recalculados pela tabela do cliente, com número, retratos e condição permitida', () => {
+      const numeros = pedidos.map((p) => p.numero);
+      expect(new Set(numeros).size).toBe(pedidos.length);
+      expect([...numeros].sort()).toEqual(pedidos.map((_, i) => String(i + 1).padStart(6, '0')));
+      expect(d['vendedor.numeracao_pedido']).toEqual([expect.objectContaining({ ultimo: pedidos.length })]);
+      for (const p of pedidos) {
+        expect(p.tabela_preco_id, String(p.numero)).toBe(tabelaDoCliente.get(p.cliente_id));
+        const permitidas = d['vendedor.cliente_condicao'].filter((x) => x.cliente_id === p.cliente_id).map((x) => x.condicao_pagamento_id);
+        expect(permitidas).toContain(p.condicao_pagamento_id);
+        expect(p.cliente_nome).toBeTruthy();
+        expect(p.vendedor_nome).toBeTruthy();
+        expect((p.cliente_resumo as { razao_social: string }).razao_social).toBeTruthy();
+        const itens = d['vendedor.pedido_item'].filter((i) => i.pedido_id === p.id);
+        let tabela = 0;
+        for (const i of itens) {
+          expect(i.preco_tabela_cents).toBe(precoDe(p.tabela_preco_id, i.produto_id));
+          expect(i.produto_sku && i.produto_nome && i.unidade).toBeTruthy();
+          tabela += Number(i.preco_tabela_cents) * Number(i.quantidade);
+        }
+        expect(tabela).toBe(p.total_tabela_cents);
+      }
+    });
+
+    it('linha do tempo: começa em null -> received, transições encadeadas, termina no status do pedido', () => {
+      for (const p of pedidos) {
+        const ev = d['vendedor.pedido_evento'].filter((e) => e.pedido_id === p.id);
+        expect(ev[0]).toMatchObject({ de: null, para: 'received' });
+        for (let i = 1; i < ev.length; i++) expect(ev[i]!.de).toBe(ev[i - 1]!.para);
+        expect(ev[ev.length - 1]!.para).toBe(p.status);
+        expect(ev.every((e) => String(e.ocorrido_em) >= String(p.recebido_em))).toBe(true);
+      }
+    });
   });
 
   it('dias úteis pulam o domingo', () => {
@@ -177,6 +289,29 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
     expect(await contarDemo()).toEqual(antes);
     expect((await hash()).rows).toEqual(hashAntes);
+  });
+
+  it('número legível: o contador do tenant continua depois dos pedidos da base e a recarga não o faz voltar', async () => {
+    const proximo = () => comTenant(pool, TENANT_DEMO, async (c) => (await c.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n);
+    const total = dadosDemo(HASH_FALSO)['vendedor.pedido'].length;
+    const primeiro = await proximo();
+    expect(Number(primeiro)).toBeGreaterThan(total);
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+    expect(Number(await proximo())).toBe(Number(primeiro) + 1);
+    // sem contexto de tenant a função falha (não numera "no escuro")
+    await expect(pool.query('select vendedor.proximo_numero_pedido()')).rejects.toThrow();
+  });
+
+  it('pelo papel macuxi_app: cada cliente com uma tabela de preço viva e 3 produtos sem preço no Atacado', async () => {
+    const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
+      clientes: (await c.query<{ n: number }>('select count(distinct cliente_id)::int as n from catalogo.cliente_tabela_preco where deleted_at is null')).rows[0]!.n,
+      semPreco: (await c.query<{ n: number }>(
+        `select count(*)::int as n from catalogo.tabela_preco t cross join (select distinct produto_id from catalogo.tabela_preco_item) p
+          where t.codigo = 'ATACADO' and not exists (select 1 from catalogo.tabela_preco_item i where i.tabela_preco_id = t.id and i.produto_id = p.produto_id)`,
+      )).rows[0]!.n,
+      pendentes: (await c.query<{ nivel: string; n: number }>("select nivel_aprovacao as nivel, count(*)::int as n from vendedor.pedido where status = 'pending_approval' group by 1 order by 1")).rows,
+    }));
+    expect(r).toEqual({ clientes: 30, semPreco: 3, pendentes: [{ nivel: 'gerente', n: 1 }, { nivel: 'supervisor', n: 2 }] });
   });
 
   it('outro dia: só a rota do novo dia entra; o diário anda junto (realizado não duplica)', async () => {

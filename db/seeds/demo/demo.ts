@@ -5,10 +5,18 @@
  *
  * - Tenant "Distribuidora Exemplo", código da empresa `demo`, fuso America/Manaus; módulos core, catálogo, vendedor e
  *   promotor (licença do tenant + módulos por perfil).
- * - Usuários (e-mails @exemplo.com.br): vendedor, vendedor2, supervisor, promotor, analista e admin. Senha de todos =
- *   MACUXI_SENHA_DEMO (padrão "demo-macuxi"), gravada só como hash argon2id; nunca é impressa.
+ * - Usuários (e-mails @exemplo.com.br): vendedor, vendedor2, supervisor, gerente, promotor, analista e admin. Senha de
+ *   todos = MACUXI_SENHA_DEMO (padrão "demo-macuxi"), gravada só como hash argon2id; nunca é impressa.
+ *   Equipes: "Regional Norte" (gerente) é pai da "Equipe Manaus" (supervisora): o gerente vê a equipe (RN-CORE-04).
  * - 30 clientes de Manaus (endereço, bairro, coordenadas), contato principal com telefone fictício, financeiro e
  *   títulos (8 com título vencido, 1 bloqueado), 12 meses de histórico, pedidos em vários estados e visitas passadas.
+ * - T-0029 (fatia do pedido): tabelas de preço "Varejo" (todos os produtos) e "Atacado" (~7% menor, SEM 3 produtos:
+ *   "Sem preço para este cliente", RN-CAT-06), uma por cliente (supermercado e atacarejo no Atacado), vigência desde o
+ *   1º dia do mês anterior; condições À vista (padrão), 28 dias, 28/56 e 30/60/90 (cliente com título vencido só À vista
+ *   e 28 dias, RN-VEN-14); alçadas do Vendedor em plataforma.parametro (5/10/15%, acima do gerente = analista); pedidos
+ *   recalculados pela tabela do cliente com a MESMA regra do servidor (revalidarPedido do domínio do Vendedor), com
+ *   número, retratos e linha do tempo: aprovados na alçada, 2 aguardando o supervisor (um de cada vendedor), 1 aguardando
+ *   o gerente, 1 rejeitado e 1 cancelado. Nada em sent_to_erp ou depois (ERP fora da fatia).
  * - Rota de HOJE (no fuso do tenant, calculada na hora do seed): 6 paradas do vendedor, 4 da vendedor2 e 4 do promotor.
  * - Metas do mês corrente, indicador diário coerente com os pedidos, motivos extras (os padrões vêm do gatilho
  *   core.semear_tenant) e 2 notificações.
@@ -19,10 +27,12 @@
  * Só roda contra o Postgres local (exigirBancoLocal), como o seed da Fase M. Nunca toca linha de outro tenant.
  */
 import type { ClientBase } from 'pg';
+import { politicaDosParametros, revalidarPedido } from '../../../modules/vendedor/domain/aprovacao';
+import type { OrderStatus } from '../../../modules/vendedor/domain/order';
 import { exigirBancoLocal, hostDoCliente } from '../../src/config';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
-import { gravarLinhas, type Linha } from '../../src/gravar';
-import { idDeterministico, idMotivoPadrao, type CodigoMotivoPadrao } from '../../src/ids';
+import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
+import { idDeChave, idDeterministico, idMotivoPadrao, type CodigoMotivoPadrao } from '../../src/ids';
 import { hashSenha, verificarSenha } from '../../src/senha';
 
 export const TENANT_DEMO = 'dd000000-0000-4000-8000-000000000001';
@@ -30,8 +40,8 @@ export const CODIGO_DEMO = 'demo';
 export const FUSO_DEMO = 'America/Manaus';
 export const SENHA_DEMO_PADRAO = 'demo-macuxi';
 export const MODULOS_DEMO = ['core', 'catalogo', 'vendedor', 'promotor'] as const;
-/** Última migração de que a base depende (vendedor.pedido). */
-const MIGRACAO_MINIMA = '0007_vendedor_pedido';
+/** Última migração de que a base depende (preço do Catálogo e pedido completo do Vendedor, T-0029). */
+const MIGRACAO_MINIMA = '0009_vendedor_pedido_completo';
 
 const T = TENANT_DEMO;
 const id = (chave: string) => idDeterministico(`demo:${chave}`);
@@ -39,35 +49,51 @@ const comuns = { deleted_at: null, external_id: null } as const;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Usuários
-type ChaveUsuario = 'vendedor' | 'vendedor2' | 'supervisor' | 'promotor' | 'analista' | 'admin';
+type ChaveUsuario = 'vendedor' | 'vendedor2' | 'supervisor' | 'gerente' | 'promotor' | 'analista' | 'admin';
+type Perfil = 'vendedor' | 'supervisor' | 'gerente' | 'promotor' | 'analista' | 'assistente' | 'admin';
 interface UsuarioDemo {
   nome: string;
   curto: string;
   email: string;
-  perfil: 'vendedor' | 'supervisor' | 'promotor' | 'analista' | 'admin';
-  naEquipe: boolean;
+  perfil: Perfil;
+  /** Equipe do usuário: Equipe Manaus, Regional Norte (o gerente) ou nenhuma (analista, admin). */
+  equipe: 'manaus' | 'regional' | null;
   externo: string | null;
 }
 
 /** Logins da demonstração (nomes fictícios). */
 export const USUARIOS_DEMO: Record<ChaveUsuario, UsuarioDemo> = {
-  vendedor: { nome: 'Lucas Andrade', curto: 'Lucas A.', email: 'vendedor@exemplo.com.br', perfil: 'vendedor', naEquipe: true, externo: '201' },
-  vendedor2: { nome: 'Camila Freitas', curto: 'Camila F.', email: 'vendedor2@exemplo.com.br', perfil: 'vendedor', naEquipe: true, externo: '202' },
-  supervisor: { nome: 'Renata Barros', curto: 'Renata B.', email: 'supervisor@exemplo.com.br', perfil: 'supervisor', naEquipe: true, externo: null },
-  promotor: { nome: 'Joana Prado', curto: 'Joana P.', email: 'promotor@exemplo.com.br', perfil: 'promotor', naEquipe: true, externo: '301' },
-  analista: { nome: 'Paulo Ribeiro', curto: 'Paulo R.', email: 'analista@exemplo.com.br', perfil: 'analista', naEquipe: false, externo: null },
-  admin: { nome: 'Sérgio Moura', curto: 'Sérgio M.', email: 'admin@exemplo.com.br', perfil: 'admin', naEquipe: false, externo: null },
+  vendedor: { nome: 'Lucas Andrade', curto: 'Lucas A.', email: 'vendedor@exemplo.com.br', perfil: 'vendedor', equipe: 'manaus', externo: '201' },
+  vendedor2: { nome: 'Camila Freitas', curto: 'Camila F.', email: 'vendedor2@exemplo.com.br', perfil: 'vendedor', equipe: 'manaus', externo: '202' },
+  supervisor: { nome: 'Renata Barros', curto: 'Renata B.', email: 'supervisor@exemplo.com.br', perfil: 'supervisor', equipe: 'manaus', externo: null },
+  gerente: { nome: 'Marcelo Tavares', curto: 'Marcelo T.', email: 'gerente@exemplo.com.br', perfil: 'gerente', equipe: 'regional', externo: null },
+  promotor: { nome: 'Joana Prado', curto: 'Joana P.', email: 'promotor@exemplo.com.br', perfil: 'promotor', equipe: 'manaus', externo: '301' },
+  analista: { nome: 'Paulo Ribeiro', curto: 'Paulo R.', email: 'analista@exemplo.com.br', perfil: 'analista', equipe: null, externo: null },
+  admin: { nome: 'Sérgio Moura', curto: 'Sérgio M.', email: 'admin@exemplo.com.br', perfil: 'admin', equipe: null, externo: null },
 };
 export const idUsuarioDemo = (chave: ChaveUsuario) => id(`usuario:${USUARIOS_DEMO[chave].email}`);
 
-/** Módulos por perfil (RN-CORE-01: efetivos = tenant ∩ perfil). Promotor nunca ganha o Vendedor (RN-PRO-01). */
-const PERFIL_MODULOS: Record<UsuarioDemo['perfil'], readonly (typeof MODULOS_DEMO)[number][]> = {
+/**
+ * Módulos por perfil (RN-CORE-01: efetivos = tenant ∩ perfil). Vendedor e Catálogo para vendedor, supervisor, gerente,
+ * analista, assistente e admin (T-0029 §10); o promotor nunca ganha o Vendedor (RN-PRO-01).
+ */
+const PERFIL_MODULOS: Record<Perfil, readonly (typeof MODULOS_DEMO)[number][]> = {
   vendedor: ['core', 'catalogo', 'vendedor'],
   supervisor: ['core', 'catalogo', 'vendedor', 'promotor'],
+  gerente: ['core', 'catalogo', 'vendedor', 'promotor'],
   promotor: ['core', 'catalogo', 'promotor'],
   analista: ['core', 'catalogo', 'vendedor', 'promotor'],
+  assistente: ['core', 'catalogo', 'vendedor'],
   admin: ['core', 'catalogo', 'vendedor', 'promotor'],
 };
+
+/** Alçadas de desconto do Vendedor (doc 03, parâmetros do tenant; RN-VEN-10). Valor jsonb. */
+export const ALCADAS_DEMO = {
+  'alcada.vendedor_pct': 5,
+  'alcada.supervisor_pct': 10,
+  'alcada.gerente_pct': 15,
+  'alcada.acima_gerente': 'analista',
+} as const;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Produtos (ADR-0005: preço e estoque são do Catálogo; aqui só o cadastro + o preço de tabela usado nos pedidos)
@@ -99,6 +125,36 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   ['CRD-90', 'Creme dental 90 g', 'Sorriso', 'Higiene', 'UN', 459],
 ];
 const PRECO = new Map(PRODUTOS.map(([sku, , , , , preco]) => [sku, preco]));
+const PRODUTO = new Map(PRODUTOS.map(([sku, nome, , , unidade]) => [sku, { nome, unidade }]));
+
+// ---------------------------------------------------------------------------------------------------------------
+// Preço (schema catalogo, 0008) e condições de pagamento (schema vendedor, 0009) — T-0029 §10
+type ChaveTabela = 'varejo' | 'atacado';
+/** Tabelas de preço: Varejo = preço de tabela do seed; Atacado ≈ 7% menor e SEM os produtos abaixo (RN-CAT-06). */
+export const TABELAS_PRECO_DEMO: Record<ChaveTabela, { codigo: string; nome: string }> = {
+  varejo: { codigo: 'VAREJO', nome: 'Varejo' },
+  atacado: { codigo: 'ATACADO', nome: 'Atacado' },
+};
+/** Produtos fora da tabela Atacado: no cliente de atacado aparecem "Sem preço para este cliente" (não vendáveis). */
+export const SEM_PRECO_NO_ATACADO = ['ACA-1K', 'SUC-1L', 'CRD-90'] as const;
+const precoNaTabela = (tabela: ChaveTabela, sku: string): number | null => {
+  const base = PRECO.get(sku)!;
+  if (tabela === 'varejo') return base;
+  return (SEM_PRECO_NO_ATACADO as readonly string[]).includes(sku) ? null : Math.round(base * 0.93);
+};
+/** Supermercado e atacarejo compram no Atacado; os demais segmentos no Varejo. */
+const tabelaDoSegmento = (segmento: string): ChaveTabela => (segmento === 'Supermercado' || segmento === 'Atacarejo' ? 'atacado' : 'varejo');
+
+type CodigoCondicao = 'AVISTA' | '28D' | '28-56' | '30-60-90';
+/** Condições de pagamento do tenant (À vista é a padrão). */
+export const CONDICOES_DEMO: Array<{ codigo: CodigoCondicao; descricao: string; padrao: boolean }> = [
+  { codigo: 'AVISTA', descricao: 'À vista', padrao: true },
+  { codigo: '28D', descricao: '28 dias', padrao: false },
+  { codigo: '28-56', descricao: '28/56 dias', padrao: false },
+  { codigo: '30-60-90', descricao: '30/60/90 dias', padrao: false },
+];
+const DESCRICAO_CONDICAO = new Map(CONDICOES_DEMO.map((x) => [x.codigo, x.descricao]));
+export const idCondicaoDemo = (codigo: CodigoCondicao) => id(`condicao_pagamento:${codigo}`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Clientes (Manaus)
@@ -165,22 +221,30 @@ const JANELAS: Record<number, [string, string]> = { 0: ['08:00', '10:00'], 7: ['
 
 // ---------------------------------------------------------------------------------------------------------------
 // Pedidos e visitas passadas
-type Status = 'received' | 'pending_approval' | 'approved' | 'sent_to_erp' | 'invoiced' | 'cancelled';
-/** [chave, cliente, vendedor, status, dias úteis atrás, desconto %, condição, itens [sku, qtd]] */
-const PEDIDOS: Array<[string, number, Dono, Status, number, number, string, Array<[string, number]>]> = [
-  ['p01', 0, 'vendedor', 'invoiced', 12, 0, '28 dias', [['ARR-5K', 20], ['FEI-1K', 30], ['OLE-900', 24], ['CAF-500', 12]]],
-  ['p02', 2, 'vendedor', 'invoiced', 8, 3, '28 dias', [['ACU-1K', 50], ['MAR-500', 12], ['LEI-1L', 24]]],
-  ['p03', 4, 'vendedor', 'approved', 3, 5, '28/35/42 dias', [['REF-2L', 36], ['REF-350', 6], ['AGU-500', 8]]],
-  ['p04', 6, 'vendedor', 'sent_to_erp', 2, 0, '28 dias', [['SAB-1K', 24], ['DET-500', 48], ['PAP-4', 20]]],
-  ['p05', 1, 'vendedor', 'pending_approval', 1, 12, '28 dias', [['CAF-500', 24], ['BIS-400', 30], ['MOL-340', 48]]],
-  ['p06', 8, 'vendedor', 'received', 1, 2, 'À vista', [['ACA-1K', 10], ['SUC-1L', 12]]],
-  ['p07', 10, 'vendedor', 'cancelled', 5, 0, '28 dias', [['SAR-125', 48]]],
-  ['p08', 18, 'vendedor2', 'invoiced', 10, 0, '28 dias', [['ARR-5K', 15], ['FEI-1K', 20], ['FAR-1K', 20]]],
-  ['p09', 20, 'vendedor2', 'approved', 2, 4, '28 dias', [['REF-2L', 24], ['BIS-140', 60]]],
-  ['p10', 22, 'vendedor2', 'pending_approval', 1, 15, '28/35 dias', [['OLE-900', 48], ['MAC-500', 60]]],
+/**
+ * Desfecho depois do recebimento: `recebido` = o que o servidor decide pela alçada (approved dentro dela, ou
+ * pending_approval com o nível); `rejeitado` (pela supervisora) e `cancelado` (pelo vendedor, depois de aprovado).
+ */
+type Desfecho = 'recebido' | 'rejeitado' | 'cancelado';
+/** [chave, cliente, vendedor, desfecho, dias úteis atrás, desconto %, condição, itens [sku, qtd]] */
+const PEDIDOS: Array<[string, number, Dono, Desfecho, number, number, CodigoCondicao, Array<[string, number]>]> = [
+  ['p01', 0, 'vendedor', 'recebido', 12, 0, '28D', [['ARR-5K', 20], ['FEI-1K', 30], ['OLE-900', 24], ['CAF-500', 12]]],
+  ['p02', 2, 'vendedor', 'recebido', 8, 3, '28D', [['ACU-1K', 50], ['MAR-500', 12], ['LEI-1L', 24]]],
+  ['p03', 4, 'vendedor', 'recebido', 3, 5, '28-56', [['REF-2L', 36], ['REF-350', 6], ['AGU-500', 8]]],
+  ['p04', 6, 'vendedor', 'recebido', 2, 0, '28D', [['SAB-1K', 24], ['DET-500', 48], ['PAP-4', 20]]],
+  // 8%: acima da alçada do vendedor (5%), aguarda a supervisora — é o pedido "de ontem" do recado da Renata
+  ['p05', 1, 'vendedor', 'recebido', 1, 8, '28D', [['CAF-500', 24], ['BIS-400', 30], ['MOL-340', 48]]],
+  ['p06', 8, 'vendedor', 'rejeitado', 2, 9, 'AVISTA', [['ACA-1K', 10], ['SUC-1L', 12]]],
+  ['p07', 10, 'vendedor', 'cancelado', 5, 0, '28D', [['SAR-125', 48]]],
+  ['p08', 18, 'vendedor2', 'recebido', 10, 0, '28D', [['ARR-5K', 15], ['FEI-1K', 20], ['FAR-1K', 20]]],
+  // 12%: acima da alçada do supervisor (10%), aguarda o gerente
+  ['p09', 20, 'vendedor2', 'recebido', 2, 12, '28-56', [['REF-2L', 24], ['BIS-140', 60]]],
+  ['p10', 22, 'vendedor2', 'recebido', 1, 7, '30-60-90', [['OLE-900', 48], ['MAC-500', 60]]],
 ];
 /** Contam como venda na base "aprovado" (parâmetro metas.base_apuracao). */
-const VENDIDO: ReadonlySet<Status> = new Set(['approved', 'sent_to_erp', 'invoiced', 'cancelled']);
+const VENDIDO: ReadonlySet<string> = new Set(['approved', 'sent_to_erp', 'invoiced', 'cancelled']);
+const MOTIVO_REJEICAO_DEMO = 'Desconto acima da política para este cliente. Refaça com até 5%.';
+const MOTIVO_CANCELAMENTO_DEMO = 'Cliente desistiu da compra';
 
 /** Visitas sem pedido: [chave, usuário, cliente, dias úteis atrás, resultado, motivo]. */
 const VISITAS_SEM_PEDIDO: Array<[string, ChaveUsuario, number, number, 'sem_pedido' | 'atendido', CodigoMotivoPadrao | null]> = [
@@ -211,6 +275,7 @@ export const ORDEM_DEMO = [
   'plataforma.tenant',
   'plataforma.tenant_modulo',
   'plataforma.perfil_modulo',
+  'plataforma.parametro',
   'core.equipe',
   'core.usuario',
   'core.produto',
@@ -227,8 +292,15 @@ export const ORDEM_DEMO = [
   'core.meta',
   'core.indicador_diario',
   'core.notificacao',
+  'catalogo.tabela_preco',
+  'catalogo.tabela_preco_item',
+  'catalogo.cliente_tabela_preco',
+  'vendedor.condicao_pagamento',
+  'vendedor.cliente_condicao',
+  'vendedor.numeracao_pedido',
   'vendedor.pedido',
   'vendedor.pedido_item',
+  'vendedor.pedido_evento',
 ] as const;
 export type TabelaDemo = (typeof ORDEM_DEMO)[number];
 export type DadosDemo = Record<TabelaDemo, Linha[]>;
@@ -272,13 +344,15 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
   const periodo = anoMes(hoje);
   const hashDe = typeof senhaHash === 'string' ? () => senhaHash : senhaHash;
   const equipeId = id('equipe:Equipe Manaus');
+  const regionalId = id('equipe:Regional Norte');
   const u = idUsuarioDemo;
   const c = idClienteDemo;
 
   const usuarios: Linha[] = (Object.keys(USUARIOS_DEMO) as ChaveUsuario[]).map((k) => {
     const x = USUARIOS_DEMO[k];
+    const equipe_id = x.equipe === 'manaus' ? equipeId : x.equipe === 'regional' ? regionalId : null;
     return {
-      id: u(k), tenant_id: T, nome: x.nome, nome_curto: x.curto, email: x.email, perfil: x.perfil, equipe_id: x.naEquipe ? equipeId : null,
+      id: u(k), tenant_id: T, nome: x.nome, nome_curto: x.curto, email: x.email, perfil: x.perfil, equipe_id,
       senha_hash: hashDe(k), ativo: true, bloqueado_em: null, tentativas_falhas: 0, bloqueio_ate: null, deleted_at: null, external_id: x.externo,
     };
   });
@@ -380,47 +454,119 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     };
   };
 
+  // ---- preço (catalogo) e condições (vendedor), T-0029 §10
+  const inicioVigencia = emManaus(`${anoMes(hoje, -1)}-01`, '00:00');
+  const idTabela = (t: ChaveTabela) => id(`tabela_preco:${t}`);
+  const tabelaDoCliente = (n: number): ChaveTabela => tabelaDoSegmento(CLIENTES[n]![1]);
+  const tabelasPreco: Linha[] = (Object.keys(TABELAS_PRECO_DEMO) as ChaveTabela[]).map((t) => ({
+    id: idTabela(t), tenant_id: T, codigo: TABELAS_PRECO_DEMO[t].codigo, nome: TABELAS_PRECO_DEMO[t].nome, ativo: true, ...comuns,
+  }));
+  const itensTabela: Linha[] = (Object.keys(TABELAS_PRECO_DEMO) as ChaveTabela[]).flatMap((t) =>
+    PRODUTOS.flatMap(([sku]) => {
+      const preco = precoNaTabela(t, sku);
+      return preco === null
+        ? []
+        : [{ id: id(`tabela_preco_item:${t}:${sku}`), tenant_id: T, tabela_preco_id: idTabela(t), produto_id: id(`produto:${sku}`), preco_cents: preco, vigencia_inicio: inicioVigencia, vigencia_fim: null, ...comuns }];
+    }),
+  );
+  const clienteTabela: Linha[] = CLIENTES.map((_, n) => ({ id: id(`cliente_tabela_preco:${n}`), tenant_id: T, cliente_id: c(n), tabela_preco_id: idTabela(tabelaDoCliente(n)), ...comuns }));
+  /** RN-VEN-14: com título vencido só À vista e 28 dias; os demais 3 ou 4 condições. */
+  const condicoesDoCliente = (n: number): CodigoCondicao[] =>
+    COM_VENCIDO.has(n) ? ['AVISTA', '28D'] : n % 2 === 0 ? ['AVISTA', '28D', '28-56', '30-60-90'] : ['AVISTA', '28D', '28-56'];
+  const condicoes: Linha[] = CONDICOES_DEMO.map((x) => ({ id: idCondicaoDemo(x.codigo), tenant_id: T, codigo: x.codigo, descricao: x.descricao, ativo: true, padrao: x.padrao, ...comuns }));
+  const clienteCondicoes: Linha[] = CLIENTES.flatMap((_, n) =>
+    condicoesDoCliente(n).map((cod) => ({ id: id(`cliente_condicao:${n}:${cod}`), tenant_id: T, cliente_id: c(n), condicao_pagamento_id: idCondicaoDemo(cod), ...comuns })),
+  );
+
+  // ---- pedidos: a MESMA regra do servidor (revalidarPedido: preço da tabela do cliente, alçada -> status e nível)
+  const politica = politicaDosParametros({ ...ALCADAS_DEMO });
+  const carteiraDe = (quem: Dono) => CLIENTES.flatMap(([, , , , dono], n) => (dono === quem ? [c(n)] : []));
+  const depois = (iso: string, minutos: number) => new Date(Date.parse(iso) + minutos * 60_000).toISOString();
   const visitas: Linha[] = [];
   const pedidos: Linha[] = [];
   const itens: Linha[] = [];
+  const eventos: Linha[] = [];
   // id do diário pelo deslocamento (dias úteis atrás), não pela data: rodar em outro dia MOVE a linha em vez de
   // deixar a do dia antigo somando de novo no realizado (ver o delete por id em carregarDemo)
   const diario = new Map<string, { chave: string; usuario: ChaveUsuario; data: string; pedidos: number; vendido: number; cancelado: number }>();
-  PEDIDOS.forEach(([chave, n, quem, status, atras, desconto, condicao, linhas], k) => {
+  PEDIDOS.forEach(([chave, n, quem, desfecho, atras, desconto, condicao, linhas], k) => {
     const data = diasUteisAtras(hoje, atras);
     const hora = `${String(9 + (k % 7)).padStart(2, '0')}:${k % 2 ? '30' : '10'}`;
     const pedido_id = id(`pedido:${chave}`);
     const visita_id = id(`visita:${chave}`);
-    let tabela = 0;
-    let total = 0;
-    linhas.forEach(([sku, qtd], s) => {
-      const preco = PRECO.get(sku)!;
-      const unitario = Math.round((preco * (100 - desconto)) / 100);
-      tabela += preco * qtd;
-      total += unitario * qtd;
+    const tabela = tabelaDoCliente(n);
+    if (!condicoesDoCliente(n).includes(condicao)) throw new Error(`[db] seed demo: pedido ${chave} com condição não permitida ao cliente (RN-VEN-14)`);
+    const r = revalidarPedido({
+      perfil: 'vendedor', vendedor_id: u(quem), cliente_id: c(n), carteira: carteiraDe(quem), desconto_pct: desconto,
+      itens: linhas.map(([sku, qtd]) => ({ product_id: id(`produto:${sku}`), sku, quantity: qtd })),
+      precos: Object.fromEntries(linhas.map(([sku]) => [id(`produto:${sku}`), precoNaTabela(tabela, sku)])),
+      policy: politica,
+    });
+    if (!r.ok) throw new Error(`[db] seed demo: pedido ${chave} recusado pela regra do servidor (${r.codigo}): ${r.mensagem}`);
+    const criado = emManaus(data, `${hora.slice(0, 2)}:${hora.slice(3) === '10' ? '40' : '55'}`);
+    const vendedor = USUARIOS_DEMO[quem];
+    const historico: Array<{ de: OrderStatus | null; para: OrderStatus; autor: ChaveUsuario; motivo: string; nivel: string | null; em: string }> = r.historico.map((h) => ({
+      de: h.de, para: h.para, autor: quem, motivo: h.motivo, nivel: h.para === 'pending_approval' ? r.nivel : null, em: criado,
+    }));
+    let status: OrderStatus = r.status;
+    let decisao: { por: string; em: string; motivo: string | null } | null = null;
+    if (desfecho === 'rejeitado') {
+      if (r.status !== 'pending_approval' || r.nivel !== 'supervisor') throw new Error(`[db] seed demo: ${chave} deveria aguardar o supervisor`);
+      status = 'rejected';
+      decisao = { por: u('supervisor'), em: depois(criado, 120), motivo: MOTIVO_REJEICAO_DEMO };
+      historico.push({ de: 'pending_approval', para: 'rejected', autor: 'supervisor', motivo: MOTIVO_REJEICAO_DEMO, nivel: 'supervisor', em: decisao.em });
+    } else if (desfecho === 'cancelado') {
+      if (r.status !== 'approved') throw new Error(`[db] seed demo: ${chave} deveria estar aprovado antes de cancelar`);
+      status = 'cancelled';
+      historico.push({ de: 'approved', para: 'cancelled', autor: quem, motivo: MOTIVO_CANCELAMENTO_DEMO, nivel: null, em: depois(criado, 180) });
+    }
+    r.itens.forEach((it, s) => {
+      const sku = it.sku;
       itens.push({
-        id: id(`pedido_item:${chave}:${s + 1}`), tenant_id: T, pedido_id, sequencia: s + 1, produto_id: id(`produto:${sku}`), quantidade: qtd,
-        preco_tabela_cents: preco, preco_unitario_cents: unitario, desconto_pct: desconto, total_cents: unitario * qtd, ...comuns,
+        id: id(`pedido_item:${chave}:${s + 1}`), tenant_id: T, pedido_id, sequencia: s + 1, produto_id: it.product_id, quantidade: it.quantity,
+        preco_tabela_cents: it.preco_tabela_cents, preco_unitario_cents: it.preco_unitario_cents, desconto_pct: it.desconto_pct, total_cents: it.total_cents,
+        produto_sku: sku, produto_nome: PRODUTO.get(sku)!.nome, unidade: PRODUTO.get(sku)!.unidade, ...comuns,
       });
     });
-    const criado = emManaus(data, `${hora.slice(0, 2)}:${hora.slice(3) === '10' ? '40' : '55'}`);
+    const [nome, , bairro, rua] = CLIENTES[n]!;
+    const cli = { logradouro: rua, numero: String(100 + ((n * 37) % 900)) };
     pedidos.push({
-      id: pedido_id, tenant_id: T, cliente_id: c(n), vendedor_id: u(quem), autor_id: u(quem), status, condicao_pagamento: condicao, desconto_pct: desconto,
-      total_tabela_cents: tabela, total_cents: total,
-      observacao: status === 'pending_approval' ? 'Desconto acima da alçada do vendedor: aguardando o supervisor.' : null,
-      visita_id, rota_parada_id: null, criado_no_aparelho_em: criado, recebido_em: criado,
-      numero_erp: status === 'invoiced' || status === 'sent_to_erp' ? `PV${String(70_000 + k)}` : null,
-      motivo_cancelamento: status === 'cancelled' ? 'Cliente desistiu da compra' : null, ...comuns,
+      id: pedido_id, tenant_id: T, cliente_id: c(n), vendedor_id: u(quem), autor_id: u(quem), status, condicao_pagamento: DESCRICAO_CONDICAO.get(condicao)!,
+      desconto_pct: r.desconto_pct, total_tabela_cents: r.total_tabela_cents, total_cents: r.total_cents, observacao: null,
+      visita_id, rota_parada_id: null, criado_no_aparelho_em: criado, recebido_em: criado, numero_erp: null,
+      motivo_cancelamento: status === 'cancelled' ? MOTIVO_CANCELAMENTO_DEMO : null,
+      numero: null, hash_envio: null,
+      cliente_resumo: {
+        razao_social: `${nome} Comércio de Alimentos Ltda`, nome_fantasia: nome, documento: null, endereco: `${cli.logradouro}, ${cli.numero}`, bairro,
+        cidade: 'Manaus', uf: 'AM', codigo_erp: `C${String(5000 + n + 1)}`,
+      },
+      cliente_nome: nome, vendedor_nome: vendedor.nome, tabela_preco_id: idTabela(tabela), condicao_pagamento_id: idCondicaoDemo(condicao),
+      condicao_pagamento_descricao: DESCRICAO_CONDICAO.get(condicao)!, nivel_aprovacao: r.nivel, motivos_aprovacao: arrayDeTexto(r.motivos),
+      aprovacao_automatica: r.aprovacao_automatica, decidido_por_id: decisao?.por ?? null, decidido_em: decisao?.em ?? null,
+      motivo_rejeicao: decisao?.motivo ?? null, created_at: criado, ...comuns,
+    });
+    historico.forEach((h, i) => {
+      const autor = USUARIOS_DEMO[h.autor];
+      eventos.push({
+        id: id(`pedido_evento:${chave}:${i + 1}`), tenant_id: T, pedido_id, de: h.de, para: h.para, autor_id: u(h.autor), autor_nome: autor.nome,
+        autor_perfil: autor.perfil, motivo: h.motivo, nivel: h.nivel, acima_do_nivel: false, ocorrido_em: h.em, created_at: h.em, ...comuns,
+      });
     });
     visitas.push(visita(chave, quem, n, data, hora, 'pedido', { pedido_id }));
     if (VENDIDO.has(status)) {
       const d = diario.get(`${quem}:${atras}`) ?? { chave: `${quem}:${atras}`, usuario: quem, data, pedidos: 0, vendido: 0, cancelado: 0 };
       d.pedidos += 1;
-      d.vendido += total;
-      if (status === 'cancelled') d.cancelado += total;
+      d.vendido += r.total_cents;
+      if (status === 'cancelled') d.cancelado += r.total_cents;
       diario.set(d.chave, d);
     }
   });
+  // número legível pela ordem de chegada (o mais antigo é 000001); o contador do tenant fica no maior
+  [...pedidos]
+    .sort((x, y) => String(x.recebido_em).localeCompare(String(y.recebido_em)) || String(x.id).localeCompare(String(y.id)))
+    .forEach((pd, i) => {
+      pd.numero = String(i + 1).padStart(6, '0');
+    });
   for (const [chave, quem, n, atras, resultado, motivo] of VISITAS_SEM_PEDIDO) {
     const data = diasUteisAtras(hoje, atras);
     visitas.push(visita(chave, quem, n, data, '15:20', resultado, motivo ? { motivo_id: idMotivoPadrao(T, motivo) } : {}));
@@ -448,6 +594,10 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       tipo: 'pedido', titulo: '2 pedidos aguardando aprovação', corpo: 'Lucas Andrade e Camila Freitas enviaram pedidos com desconto acima da alçada.',
       origem_modulo: 'vendedor',
     }),
+    notificacao('aprovacoes-gerente', 'gerente', {
+      tipo: 'pedido', titulo: '1 pedido aguardando sua aprovação', corpo: 'Camila Freitas enviou um pedido com 12% de desconto, acima da alçada do supervisor.',
+      origem_modulo: 'vendedor',
+    }),
   ];
 
   return {
@@ -460,7 +610,15 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     'plataforma.perfil_modulo': Object.entries(PERFIL_MODULOS).flatMap(([perfil, modulos]) =>
       modulos.map((modulo) => ({ id: id(`perfil_modulo:${perfil}:${modulo}`), tenant_id: T, perfil, modulo, ...comuns })),
     ),
-    'core.equipe': [{ id: equipeId, tenant_id: T, nome: 'Equipe Manaus', equipe_pai_id: null, responsavel_id: u('supervisor'), ativo: true, ...comuns }],
+    // alçadas do Vendedor (jsonb); id como o dos parâmetros semeados pelo banco (uuid_de_chave)
+    'plataforma.parametro': Object.entries(ALCADAS_DEMO).map(([chave, valor]) => ({
+      id: idDeChave(`${T}:plataforma.parametro:vendedor:${chave}`), tenant_id: T, modulo: 'vendedor', chave, valor: JSON.stringify(valor), ...comuns,
+    })),
+    // a Regional Norte (gerente) antes da Equipe Manaus (FK do pai)
+    'core.equipe': [
+      { id: regionalId, tenant_id: T, nome: 'Regional Norte', equipe_pai_id: null, responsavel_id: u('gerente'), ativo: true, ...comuns },
+      { id: equipeId, tenant_id: T, nome: 'Equipe Manaus', equipe_pai_id: regionalId, responsavel_id: u('supervisor'), ativo: true, ...comuns },
+    ],
     'core.usuario': usuarios,
     'core.produto': PRODUTOS.map(([sku, nome, marca, categoria, unidade]) => ({
       id: id(`produto:${sku}`), tenant_id: T, sku, ean: null, nome, marca, categoria, unidade, ativo: true, deleted_at: null, external_id: sku,
@@ -478,8 +636,16 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     'core.meta': metas,
     'core.indicador_diario': indicadores,
     'core.notificacao': notificacoes,
+    'catalogo.tabela_preco': tabelasPreco,
+    'catalogo.tabela_preco_item': itensTabela,
+    'catalogo.cliente_tabela_preco': clienteTabela,
+    'vendedor.condicao_pagamento': condicoes,
+    'vendedor.cliente_condicao': clienteCondicoes,
+    // mesmo id que vendedor.proximo_numero_pedido() criaria; a carga nunca baixa o contador (ver carregarDemo)
+    'vendedor.numeracao_pedido': [{ id: idDeChave(`${T}:vendedor.numeracao_pedido`), tenant_id: T, ultimo: pedidos.length, ...comuns }],
     'vendedor.pedido': pedidos,
     'vendedor.pedido_item': itens,
+    'vendedor.pedido_evento': eventos,
   };
 }
 
@@ -552,6 +718,24 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
       // de outra ainda não movida violaria o único no meio do upsert. Apaga só as linhas do seed (por id) e regrava.
       if (tabela === 'core.indicador_diario') {
         await admin.query('delete from core.indicador_diario where tenant_id = $1 and id = any($2::uuid[])', [T, linhas.map((l) => l.id)]);
+      }
+      // contador do número: nunca volta atrás (o ensaio pode já ter numerado pedidos com ele)
+      if (tabela === 'vendedor.numeracao_pedido') {
+        const n = linhas[0]!;
+        await admin.query(
+          `insert into vendedor.numeracao_pedido as x (id, tenant_id, ultimo) values ($1, $2, $3)
+           on conflict (tenant_id) do update set ultimo = greatest(x.ultimo, excluded.ultimo), deleted_at = null`,
+          [n.id, T, n.ultimo],
+        );
+        continue;
+      }
+      // pedido do ensaio (fora do seed) com um número que o seed usa ganha número novo do contador (único por tenant)
+      if (tabela === 'vendedor.pedido') {
+        await admin.query("select set_config('app.tenant_id', $1, true)", [T]);
+        await admin.query(
+          'update vendedor.pedido set numero = vendedor.proximo_numero_pedido() where tenant_id = $1 and numero = any($2::text[]) and id <> all($3::uuid[])',
+          [T, linhas.map((l) => l.numero), linhas.map((l) => l.id)],
+        );
       }
       await gravarLinhas(admin, tabela, linhas);
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);

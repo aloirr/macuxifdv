@@ -19,4 +19,6 @@ export const TABELAS_FORA_DO_SYNC = [
   'core.dispositivo',
   /** Metadados de arquivo (0005, ADR 0010): a foto vai pela fila de arquivos, a linha nunca é puxada. */
   'plataforma.arquivo',
+  /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
+  'vendedor.numeracao_pedido',
 ] as const;

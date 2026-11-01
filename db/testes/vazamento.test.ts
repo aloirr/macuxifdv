@@ -52,6 +52,13 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
         'core.rota_parada', 'core.visita', 'core.visita_etapa', 'core.notificacao', 'core.meta', 'core.indicador_diario', 'vendedor.pedido', 'vendedor.pedido_item',
       ]),
     );
+    // T-0029 (0008–0009): preço do Catálogo e pedido completo do Vendedor
+    expect(nomes).toEqual(
+      expect.arrayContaining([
+        'catalogo.tabela_preco', 'catalogo.tabela_preco_item', 'catalogo.cliente_tabela_preco',
+        'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
+      ]),
+    );
     expect(nomes.filter((n) => !idDeB.has(n))).toEqual([]);
   });
 

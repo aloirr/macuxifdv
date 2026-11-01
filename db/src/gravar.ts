@@ -6,6 +6,16 @@ export type Linha = Record<string, unknown>;
 const IDENT = /^[a-z_][a-z0-9_]*$/;
 const TABELA = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
+/**
+ * Literal de array do Postgres para coluna `text[]` (ex.: `vendedor.pedido.motivos_aprovacao`). Arrays JS viram JSON
+ * em `gravarLinhas` (colunas jsonb), por isso a coluna de array recebe o literal pronto. Só códigos simples (sem
+ * vírgula, aspas, chaves ou espaço).
+ */
+export function arrayDeTexto(itens: readonly string[]): string {
+  for (const x of itens) if (!/^[a-z0-9_]+$/.test(x)) throw new Error(`arrayDeTexto: valor não suportado: ${x}`);
+  return `{${itens.join(',')}}`;
+}
+
 function valor(v: unknown): unknown {
   if (v !== null && typeof v === 'object' && !(v instanceof Date) && !Buffer.isBuffer(v)) return JSON.stringify(v);
   return v;

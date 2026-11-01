@@ -26,10 +26,14 @@
  *   relativo ao da fixture (checkin_em + interval) ou fixo. `agora` (ou MACUXI_AGORA no global-setup) simula o relógio.
  *   Motivos padrão (os de sistema da RN-CORE-14 e os de não venda) e os parâmetros do Core NÃO estão nas listas: o
  *   gatilho core.semear_tenant cria no INSERT do tenant (ids em DOIS_TENANTS.X.motivos, via idMotivoPadrao).
+ * - T-0029 (0008–0009): tabela de preço por tenant (A: c1 e c2 na tabela, c3 SEM tabela; produto 2 de A com vigência
+ *   que termina hoje 04:00Z), condições À vista (padrão) e 28 dias (A; c1 com as duas, c2 sem lista), contador do
+ *   número (A = 3, B = 1; recarregar não volta o contador), números 000001.. nos pedidos, p2 de A pendente no nível
+ *   gerente (12%) e a linha do tempo (pedido_evento) dos pedidos p1/p2 de A e p1 de B.
  */
 import { createHash } from 'node:crypto';
 import type { ClientBase } from 'pg';
-import { gravarLinhas, type Linha } from '../../src/gravar';
+import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idFixo, idMotivoPadrao } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
@@ -65,6 +69,13 @@ const G = {
   arquivo: 0x2c,
   pedido: 0x30,
   pedido_item: 0x31,
+  condicao_pagamento: 0x32,
+  cliente_condicao: 0x33,
+  numeracao_pedido: 0x34,
+  pedido_evento: 0x35,
+  tabela_preco: 0x40,
+  tabela_preco_item: 0x41,
+  cliente_tabela_preco: 0x42,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -130,6 +141,10 @@ export const DOIS_TENANTS = {
     checkouts: { v1c1Hoje: a('visita', 101), v1c3Ontem: a('visita', 102), promotorC1Hoje: a('visita', 104) },
     arquivos: { fachadaV1: a('arquivo', 1) },
     pedidos: { p1: a('pedido', 1), p2: a('pedido', 2), p3: a('pedido', 3) },
+    /** T-0029 (0008): tabela de preço de c1 e c2; c3 SEM tabela (todo produto sem preço, RN-CAT-06). */
+    tabelasPreco: { padrao: a('tabela_preco', 1) },
+    /** T-0029 (0009): À vista (padrão) e 28 dias; c1 com as duas, c2 sem lista (só a padrão). */
+    condicoes: { avista: a('condicao_pagamento', 1), d28: a('condicao_pagamento', 2) },
   },
   B: {
     tenantId: b('tenant', 1),
@@ -156,6 +171,8 @@ export const DOIS_TENANTS = {
     /** foto da fachada AINDA NÃO enviada (situacao aguardando, ADR 0010). */
     arquivos: { fachadaAguardando: b('arquivo', 1) },
     pedidos: { p1: b('pedido', 1) },
+    tabelasPreco: { padrao: b('tabela_preco', 1) },
+    condicoes: { avista: b('condicao_pagamento', 1) },
   },
   /** E-mail repetido de propósito em A (vendedor-1) e B (vendedor-B). */
   emailRepetido: 'vendedor@exemplo.com.br',
@@ -181,6 +198,18 @@ const ORDEM_SPRINT1 = [
   'vendedor.pedido_item',
 ] as const;
 
+/** Tabelas da T-0029 (0008 catálogo de preço, 0009 vendedor), na ordem das FKs. As condições vêm antes do pedido. */
+const ORDEM_T0029_ANTES_DO_PEDIDO = [
+  'catalogo.tabela_preco',
+  'catalogo.tabela_preco_item',
+  'catalogo.cliente_tabela_preco',
+  'vendedor.condicao_pagamento',
+  'vendedor.cliente_condicao',
+  'vendedor.numeracao_pedido',
+] as const;
+type TabelaT0029 = (typeof ORDEM_T0029_ANTES_DO_PEDIDO)[number] | 'vendedor.pedido_evento';
+const DO_PEDIDO = ['vendedor.pedido', 'vendedor.pedido_item'] as const;
+
 export const ORDEM_TABELAS = [
   'plataforma.tenant',
   'plataforma.tenant_modulo',
@@ -197,7 +226,10 @@ export const ORDEM_TABELAS = [
   'plataforma.evento_consumo',
   'plataforma.parametro',
   'plataforma.auditoria',
-  ...ORDEM_SPRINT1,
+  ...ORDEM_SPRINT1.filter((t): t is Exclude<(typeof ORDEM_SPRINT1)[number], (typeof DO_PEDIDO)[number]> => !(DO_PEDIDO as readonly string[]).includes(t)),
+  ...ORDEM_T0029_ANTES_DO_PEDIDO,
+  ...DO_PEDIDO,
+  'vendedor.pedido_evento',
 ] as const;
 
 export type DadosFixture = Record<(typeof ORDEM_TABELAS)[number], Linha[]>;
@@ -337,6 +369,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       auditoria(b('auditoria', 1), tB, B.usuarios.admin, B.usuarios.admin),
     ],
     ...dadosSprint1(hojeA, hojeB),
+    ...dadosT0029(hojeA, hojeB),
   };
 }
 
@@ -398,13 +431,17 @@ function dadosSprint1(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaSp
   });
   const pedido = (p: Partial<Linha> & { id: string; tenant_id: string; cliente_id: string; vendedor_id: string; status: string }): Linha => ({
     autor_id: p.vendedor_id, condicao_pagamento: '28 dias', desconto_pct: 0, total_tabela_cents: 0, total_cents: 0, observacao: null, visita_id: null,
-    rota_parada_id: null, criado_no_aparelho_em: null, recebido_em: null, numero_erp: null, motivo_cancelamento: null, ...comuns, ...p,
+    rota_parada_id: null, criado_no_aparelho_em: null, recebido_em: null, numero_erp: null, motivo_cancelamento: null,
+    // 0009 (T-0029): número, retrato, condição e aprovação
+    numero: null, hash_envio: null, cliente_resumo: null, cliente_nome: null, vendedor_nome: null, tabela_preco_id: null, condicao_pagamento_id: null,
+    condicao_pagamento_descricao: null, nivel_aprovacao: null, motivos_aprovacao: arrayDeTexto([]), aprovacao_automatica: false, decidido_por_id: null, decidido_em: null,
+    motivo_rejeicao: null, ...comuns, ...p,
   });
   const item = (id: string, tenant_id: string, pedido_id: string, sequencia: number, produto_id: string, quantidade: number, tabela: number, desconto: number): Linha => {
     const unitario = Math.round((tabela * (100 - desconto)) / 100);
     return {
       id, tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents: tabela, preco_unitario_cents: unitario, desconto_pct: desconto,
-      total_cents: unitario * quantidade, ...comuns,
+      total_cents: unitario * quantidade, produto_sku: null, produto_nome: null, unidade: null, ...comuns,
     };
   };
 
@@ -544,19 +581,25 @@ function dadosSprint1(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaSp
         id: A.pedidos.p1, tenant_id: tA, cliente_id: A.clientes.c1, vendedor_id: A.usuarios.vendedor1, status: 'received', desconto_pct: 5,
         total_tabela_cents: 300_000, total_cents: 285_000, visita_id: A.visitas.v1c1Hoje, rota_parada_id: A.paradas.v1c1,
         criado_no_aparelho_em: instante(hojeA, '13:30'), recebido_em: instante(hojeA, '13:35'),
+        numero: '000003', hash_envio: 'a'.repeat(64), cliente_nome: 'Auto Peças Um', vendedor_nome: 'Vendedor Um', tabela_preco_id: A.tabelasPreco.padrao,
+        condicao_pagamento_id: A.condicoes.d28, condicao_pagamento_descricao: '28 dias',
+        cliente_resumo: { razao_social: 'Auto Peças Um Ltda', nome_fantasia: 'Auto Peças Um', documento: '33333333000191', endereco: null, bairro: null, cidade: 'Manaus', uf: 'AM', codigo_erp: null },
       }),
       // em nome do vendedor-2, digitado pelo supervisor (RN-VEN-35; conta para o vendedor, RN-CORE-21)
       pedido({
         id: A.pedidos.p2, tenant_id: tA, cliente_id: A.clientes.c2, vendedor_id: A.usuarios.vendedor2, autor_id: A.usuarios.supervisor,
         status: 'pending_approval', desconto_pct: 12, total_tabela_cents: 500_000, total_cents: 440_000, recebido_em: instante(ontemA, '16:00'),
+        numero: '000002', nivel_aprovacao: 'gerente', motivos_aprovacao: arrayDeTexto(['desconto']), condicao_pagamento_id: A.condicoes.avista,
+        condicao_pagamento_descricao: 'À vista',
       }),
       pedido({
         id: A.pedidos.p3, tenant_id: tA, cliente_id: A.clientes.c3, vendedor_id: A.usuarios.vendedor1, status: 'invoiced', total_tabela_cents: 150_000,
-        total_cents: 150_000, recebido_em: instante(somarDias(hojeA, -20), '15:00'), numero_erp: 'PV1003',
+        total_cents: 150_000, recebido_em: instante(somarDias(hojeA, -20), '15:00'), numero_erp: 'PV1003', numero: '000001', aprovacao_automatica: true,
       }),
       pedido({
         id: B.pedidos.p1, tenant_id: tB, cliente_id: B.clientes.c1, vendedor_id: B.usuarios.vendedor, status: 'approved', total_tabela_cents: 45_000,
-        total_cents: 45_000, recebido_em: instante(ontemB, '14:00'),
+        total_cents: 45_000, recebido_em: instante(ontemB, '14:00'), numero: '000001', aprovacao_automatica: true,
+        condicao_pagamento_id: B.condicoes.avista, condicao_pagamento_descricao: 'À vista', tabela_preco_id: B.tabelasPreco.padrao,
       }),
     ],
     'vendedor.pedido_item': [
@@ -565,6 +608,61 @@ function dadosSprint1(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaSp
       item(a('pedido_item', 3), tA, A.pedidos.p2, 1, a('produto', 1), 5, 100_000, 12),
       item(a('pedido_item', 4), tA, A.pedidos.p3, 1, a('produto', 2), 3, 50_000, 0),
       item(b('pedido_item', 1), tB, B.pedidos.p1, 1, b('produto', 1), 10, 4_500, 0),
+    ],
+  };
+}
+
+/**
+ * T-0029 (0008–0009): preço (tabela, itens, tabela do cliente), condições de pagamento, contador do número e linha do
+ * tempo dos pedidos. A: c1 e c2 na tabela "Padrão Alfa" (produto 2 com vigência até hoje 04:00Z), c3 sem tabela
+ * (RN-CAT-06); B: c1 na "Padrão Beta". Vigências em instantes fixos da data civil (como o resto da fixture).
+ */
+function dadosT0029(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaT0029> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const tA = A.tenantId;
+  const tB = B.tenantId;
+  const comuns = { deleted_at: null, external_id: null };
+  const inicioA = instante(somarDias(hojeA, -30), '04:00');
+  const evento = (id: string, tenant_id: string, pedido_id: string, de: string | null, para: string, autor_id: string, autor_nome: string, autor_perfil: string, motivo: string, ocorrido_em: string, extra: Partial<Linha> = {}): Linha => ({
+    id, tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel: null, acima_do_nivel: false, ocorrido_em, ...comuns, ...extra,
+  });
+  return {
+    'catalogo.tabela_preco': [
+      { id: A.tabelasPreco.padrao, tenant_id: tA, codigo: 'PADRAO', nome: 'Padrão Alfa', ativo: true, ...comuns },
+      { id: B.tabelasPreco.padrao, tenant_id: tB, codigo: 'PADRAO', nome: 'Padrão Beta', ativo: true, ...comuns },
+    ],
+    'catalogo.tabela_preco_item': [
+      { id: a('tabela_preco_item', 1), tenant_id: tA, tabela_preco_id: A.tabelasPreco.padrao, produto_id: a('produto', 1), preco_cents: 100_000, vigencia_inicio: inicioA, vigencia_fim: null, ...comuns },
+      { id: a('tabela_preco_item', 2), tenant_id: tA, tabela_preco_id: A.tabelasPreco.padrao, produto_id: a('produto', 2), preco_cents: 50_000, vigencia_inicio: inicioA, vigencia_fim: instante(hojeA, '04:00'), ...comuns },
+      { id: b('tabela_preco_item', 1), tenant_id: tB, tabela_preco_id: B.tabelasPreco.padrao, produto_id: b('produto', 1), preco_cents: 4_500, vigencia_inicio: null, vigencia_fim: null, ...comuns },
+    ],
+    'catalogo.cliente_tabela_preco': [
+      { id: a('cliente_tabela_preco', 1), tenant_id: tA, cliente_id: A.clientes.c1, tabela_preco_id: A.tabelasPreco.padrao, ...comuns },
+      { id: a('cliente_tabela_preco', 2), tenant_id: tA, cliente_id: A.clientes.c2, tabela_preco_id: A.tabelasPreco.padrao, ...comuns },
+      { id: b('cliente_tabela_preco', 1), tenant_id: tB, cliente_id: B.clientes.c1, tabela_preco_id: B.tabelasPreco.padrao, ...comuns },
+    ],
+    'vendedor.condicao_pagamento': [
+      { id: A.condicoes.avista, tenant_id: tA, codigo: 'AVISTA', descricao: 'À vista', ativo: true, padrao: true, ...comuns },
+      { id: A.condicoes.d28, tenant_id: tA, codigo: '28D', descricao: '28 dias', ativo: true, padrao: false, ...comuns },
+      { id: B.condicoes.avista, tenant_id: tB, codigo: 'AVISTA', descricao: 'À vista', ativo: true, padrao: true, ...comuns },
+    ],
+    'vendedor.cliente_condicao': [
+      { id: a('cliente_condicao', 1), tenant_id: tA, cliente_id: A.clientes.c1, condicao_pagamento_id: A.condicoes.avista, ...comuns },
+      { id: a('cliente_condicao', 2), tenant_id: tA, cliente_id: A.clientes.c1, condicao_pagamento_id: A.condicoes.d28, ...comuns },
+      { id: b('cliente_condicao', 1), tenant_id: tB, cliente_id: B.clientes.c1, condicao_pagamento_id: B.condicoes.avista, ...comuns },
+    ],
+    // contador = maior número já usado pelos pedidos da fixture (A: 000001..000003; B: 000001)
+    'vendedor.numeracao_pedido': [
+      { id: a('numeracao_pedido', 1), tenant_id: tA, ultimo: 3, ...comuns },
+      { id: b('numeracao_pedido', 1), tenant_id: tB, ultimo: 1, ...comuns },
+    ],
+    'vendedor.pedido_evento': [
+      evento(a('pedido_evento', 1), tA, A.pedidos.p1, null, 'received', A.usuarios.vendedor1, 'Vendedor Um', 'vendedor', 'Recebido pelo servidor', instante(hojeA, '13:35')),
+      evento(a('pedido_evento', 2), tA, A.pedidos.p2, null, 'received', A.usuarios.supervisor, 'Supervisor Alfa', 'supervisor', 'Recebido pelo servidor', instante(somarDias(hojeA, -1), '16:00')),
+      evento(a('pedido_evento', 3), tA, A.pedidos.p2, 'received', 'pending_approval', A.usuarios.supervisor, 'Supervisor Alfa', 'supervisor', 'Desconto de 12,0% acima da alçada de 5,0%: aguardando gerente', instante(somarDias(hojeA, -1), '16:00'), { nivel: 'gerente' }),
+      evento(b('pedido_evento', 1), tB, B.pedidos.p1, null, 'received', B.usuarios.vendedor, 'Vendedor Beta', 'vendedor', 'Recebido pelo servidor', instante(somarDias(hojeB, -1), '14:00')),
+      evento(b('pedido_evento', 2), tB, B.pedidos.p1, 'received', 'approved', B.usuarios.vendedor, 'Vendedor Beta', 'vendedor', 'Dentro da alçada (5,0%)', instante(somarDias(hojeB, -1), '14:00')),
     ],
   };
 }
@@ -607,7 +705,8 @@ export async function carregarDoisTenants(admin: ClientBase, opcoes: { senha?: s
   try {
     for (const tabela of ORDEM_TABELAS) {
       const linhas = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
-      await gravarLinhas(admin, tabela, linhas, { preservar: tabela === 'core.usuario' ? ['senha_hash'] : [] });
+      const preservar = tabela === 'core.usuario' ? ['senha_hash'] : tabela === 'vendedor.numeracao_pedido' ? ['ultimo'] : [];
+      await gravarLinhas(admin, tabela, linhas, { preservar });
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }
     await admin.query('commit');

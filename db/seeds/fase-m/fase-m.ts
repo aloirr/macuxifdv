@@ -14,7 +14,7 @@
 import type { ClientBase } from 'pg';
 import { exigirBancoLocal, hostDoCliente } from '../../src/config';
 import { anoMes, hojeNoFuso, menorData, somarDias } from '../../src/datas';
-import { gravarLinhas, type Linha } from '../../src/gravar';
+import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
 import { hashSenha } from '../../src/senha';
 
@@ -256,7 +256,11 @@ function dadosSprint1FaseM(hoje: string, vendedorPorApelido: Map<string, string>
       id: pedido_id, tenant_id: T, cliente_id: clienteId(cliente), vendedor_id: rafael, autor_id: rafael, status, condicao_pagamento: '28 dias',
       desconto_pct: desconto, total_tabela_cents: tabela, total_cents: total, observacao: null, visita_id: null, rota_parada_id: null,
       criado_no_aparelho_em: `${somarDias(hoje, -n)}T14:00:00Z`, recebido_em: `${somarDias(hoje, -n)}T14:05:00Z`,
-      numero_erp: status === 'invoiced' ? `PV${30000 + n}` : null, motivo_cancelamento: null, ...comuns,
+      numero_erp: status === 'invoiced' ? `PV${30000 + n}` : null, motivo_cancelamento: null,
+      // 0009 (T-0029): pendente exige nível (12% com a alçada padrão 5/10/15 = gerente); o resto fica no padrão
+      nivel_aprovacao: status === 'pending_approval' ? 'gerente' : null,
+      motivos_aprovacao: arrayDeTexto(status === 'pending_approval' ? ['desconto'] : []),
+      ...comuns,
     });
   });
 

@@ -7,10 +7,13 @@ import { PERFIS } from '@macuxi/platform-sdk';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 import { INDICADORES_META, RESULTADOS_VISITA, TIPOS_NOTIFICACAO } from '../../modules/core/contracts/sync';
+import * as nuvemCatalogo from '../../modules/catalogo/db/nuvem';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
+import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../../modules/vendedor/domain/aprovacao';
 import { ORDER_STATUSES } from '../../modules/vendedor/domain/order';
 import * as esquemaPlataforma from '../esquema/plataforma';
+import { ALCADAS_DEMO, dadosDemo } from '../seeds/demo/demo';
 import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS } from '../seeds/fixtures/dois-tenants';
 import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
@@ -34,7 +37,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemVendedor)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -49,6 +52,7 @@ describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
     expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
+      '0008_catalogo_preco', '0009_vendedor_pedido_completo',
     ]);
   });
 
@@ -61,7 +65,7 @@ describe('migrações (estático)', () => {
   });
 
   const criadas = tabelasCriadas();
-  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo) e na Sprint 1 (lote A, arquivo, vendedor mínimo)', () => {
+  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo) e na T-0029', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
@@ -71,6 +75,8 @@ describe('migrações (estático)', () => {
         'core.cliente_contato', 'core.cliente_financeiro', 'core.titulo', 'core.historico_compra', 'core.motivo', 'core.rota', 'core.rota_parada',
         'core.visita', 'core.visita_etapa', 'core.notificacao', 'core.meta', 'core.indicador_diario',
         'vendedor.pedido', 'vendedor.pedido_item',
+        'catalogo.tabela_preco', 'catalogo.tabela_preco_item', 'catalogo.cliente_tabela_preco',
+        'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
       ].sort(),
     );
   });
@@ -272,6 +278,113 @@ describe('Sprint 1: 0005 arquivo, 0006 lote A do core, 0007 vendedor mínimo (es
     // visita antes de rota_parada/motivo (FKs), parada antes de rota
     expect(m6.down.indexOf('drop table if exists core.visita;')).toBeLessThan(m6.down.indexOf('drop table if exists core.rota_parada;'));
     expect(m6.down.indexOf('drop table if exists core.rota_parada;')).toBeLessThan(m6.down.indexOf('drop table if exists core.rota;'));
+  });
+});
+
+describe('T-0029: 0008 preço do Catálogo e 0009 pedido completo do Vendedor (estático, desenho T-0029 §10)', () => {
+  const m8 = migracoes.find((x) => x.versao === '0008')!;
+  const m9 = migracoes.find((x) => x.versao === '0009')!;
+  const criadas = tabelasCriadas();
+  const lista = (trecho: string) => [...trecho.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!);
+  /** Valores de `check (col in (...))` ou `check (col is null or col in (...))` no corpo da tabela. */
+  const valoresDoCheck = (tabela: string, coluna: string): string[] => {
+    const m = new RegExp(`check \\((?:${coluna} is null or )?${coluna} in \\(([^)]*)\\)\\)`).exec(criadas.get(tabela) ?? '');
+    return m ? lista(m[1]!) : [];
+  };
+
+  it('listas fechadas = código do Vendedor: status (pedido e pedido_evento.de/para) x ORDER_STATUSES; níveis x NIVEIS_APROVACAO; motivos x MOTIVOS_APROVACAO', () => {
+    expect(valoresDoCheck('vendedor.pedido', 'status')).toEqual([...ORDER_STATUSES]);
+    expect(valoresDoCheck('vendedor.pedido_evento', 'de')).toEqual([...ORDER_STATUSES]);
+    expect(valoresDoCheck('vendedor.pedido_evento', 'para')).toEqual([...ORDER_STATUSES]);
+    expect(valoresDoCheck('vendedor.pedido', 'nivel_aprovacao')).toEqual([...NIVEIS_APROVACAO]);
+    expect(valoresDoCheck('vendedor.pedido_evento', 'nivel')).toEqual([...NIVEIS_APROVACAO]);
+    const motivos = /check \(motivos_aprovacao <@ array\[([^\]]*)\]::text\[\]\)/.exec(m9.up);
+    expect(lista(motivos?.[1] ?? '')).toEqual([...MOTIVOS_APROVACAO]);
+    // Drizzle com as mesmas listas
+    expect([...(nuvemVendedor.pedido.nivel_aprovacao.enumValues ?? [])]).toEqual([...NIVEIS_APROVACAO]);
+    expect([...(nuvemVendedor.pedidoEvento.para.enumValues ?? [])]).toEqual([...ORDER_STATUSES]);
+    expect([...(nuvemVendedor.pedidoEvento.nivel.enumValues ?? [])]).toEqual([...NIVEIS_APROVACAO]);
+    // o vocabulário dos eventos (STATUS_CONTRATO) não vai ao banco
+    expect(m9.up).not.toMatch(/'em_aprovacao'|'aprovado'|'rejeitado'/);
+  });
+
+  it('RN-GES-08 e RN-VEN-10: pending_approval exige nível; rejected exige motivo com 3+ caracteres (dados antigos preenchidos antes)', () => {
+    expect(m9.up).toContain("check (status <> 'pending_approval' or nivel_aprovacao is not null)");
+    expect(m9.up).toContain("check (status <> 'rejected' or coalesce(char_length(btrim(motivo_rejeicao)), 0) >= 3)");
+    expect(m9.up.indexOf("where status = 'pending_approval' and nivel_aprovacao is null")).toBeLessThan(m9.up.indexOf('add constraint pedido_pendente_com_nivel'));
+    expect(m9.up.indexOf("where status = 'rejected'")).toBeLessThan(m9.up.indexOf('add constraint pedido_rejeitado_com_motivo'));
+  });
+
+  it('únicos parciais e índices das consultas (número, lista do BKO, condição padrão, tabela do cliente, preço vigente)', () => {
+    for (const idx of [
+      'create unique index pedido_numero_uk on vendedor.pedido (tenant_id, numero) where numero is not null;',
+      'create index pedido_status_ix on vendedor.pedido (tenant_id, status, created_at desc);',
+      'create index pedido_evento_pedido_ix on vendedor.pedido_evento (tenant_id, pedido_id, ocorrido_em);',
+      'create unique index condicao_pagamento_codigo_uk on vendedor.condicao_pagamento (tenant_id, codigo) where deleted_at is null;',
+      'create unique index condicao_pagamento_padrao_uk on vendedor.condicao_pagamento (tenant_id) where padrao and deleted_at is null;',
+      'create unique index cliente_condicao_uk on vendedor.cliente_condicao (tenant_id, cliente_id, condicao_pagamento_id) where deleted_at is null;',
+    ]) expect(m9.up).toContain(idx);
+    for (const idx of [
+      'create unique index tabela_preco_codigo_uk on catalogo.tabela_preco (tenant_id, codigo) where deleted_at is null;',
+      'create unique index tabela_preco_item_vigencia_uk on catalogo.tabela_preco_item (tenant_id, tabela_preco_id, produto_id, vigencia_inicio) nulls not distinct where deleted_at is null;',
+      'create unique index cliente_tabela_preco_cliente_uk on catalogo.cliente_tabela_preco (tenant_id, cliente_id) where deleted_at is null;',
+    ]) expect(m8.up).toContain(idx);
+    expect(criadas.get('catalogo.tabela_preco_item')).toContain('check (preco_cents > 0)');
+    expect(criadas.get('catalogo.tabela_preco_item')).toContain('check (vigencia_inicio is null or vigencia_fim is null or vigencia_fim > vigencia_inicio)');
+  });
+
+  it('fronteira: catalogo e vendedor sem FK para outro schema; FKs compostas dentro do schema', () => {
+    for (const m of [m8, m9]) expect(m.up.replace(/--.*$/gm, '')).not.toMatch(/references core\./);
+    expect(m8.up.replace(/--.*$/gm, '')).not.toMatch(/references vendedor\./);
+    expect(m9.up.replace(/--.*$/gm, '')).not.toMatch(/references catalogo\./);
+    expect(criadas.get('catalogo.tabela_preco_item')).toContain('foreign key (tenant_id, tabela_preco_id) references catalogo.tabela_preco (tenant_id, id)');
+    expect(criadas.get('catalogo.cliente_tabela_preco')).toContain('foreign key (tenant_id, tabela_preco_id) references catalogo.tabela_preco (tenant_id, id)');
+    expect(criadas.get('vendedor.pedido_evento')).toContain('foreign key (tenant_id, pedido_id) references vendedor.pedido (tenant_id, id)');
+    expect(criadas.get('vendedor.cliente_condicao')).toContain('foreign key (tenant_id, condicao_pagamento_id) references vendedor.condicao_pagamento (tenant_id, id)');
+    expect(m9.up).toContain('add constraint pedido_condicao_fk foreign key (tenant_id, condicao_pagamento_id) references vendedor.condicao_pagamento (tenant_id, id);');
+  });
+
+  it('número legível: contador por tenant (fora do sync), função invoker sem SECURITY DEFINER; histórico só leitura e inserção', () => {
+    expect(TABELAS_FORA_DO_SYNC).toContain('vendedor.numeracao_pedido');
+    expect(criadas.get('vendedor.numeracao_pedido')).toContain('constraint numeracao_pedido_tenant_uk unique (tenant_id)');
+    expect(m9.up).toContain('create function vendedor.proximo_numero_pedido() returns text');
+    expect(m9.up.replace(/--.*$/gm, '')).not.toMatch(/security definer/i);
+    expect(m9.up).toContain('grant select, insert on vendedor.pedido_evento to macuxi_app;');
+  });
+
+  it('downs desfazem o que os ups criam', () => {
+    expect(m8.down).toContain('drop schema if exists catalogo cascade;');
+    for (const t of ['pedido_evento', 'numeracao_pedido', 'cliente_condicao', 'condicao_pagamento']) expect(m9.down).toContain(`drop table if exists vendedor.${t};`);
+    expect(m9.down).toContain('drop function if exists vendedor.proximo_numero_pedido();');
+    for (const [, tabela, coluna] of m9.up.matchAll(/^alter table (vendedor\.[a-z_]+) add column ([a-z_]+) /gm)) {
+      expect(m9.down).toContain(`alter table ${tabela} drop column if exists ${coluna};`);
+    }
+    for (const [, nome] of m9.up.matchAll(/add constraint ([a-z_]+) /g)) expect(m9.down).toContain(`drop constraint if exists ${nome};`);
+    for (const [, nome] of m9.up.matchAll(/^create (?:unique )?index ([a-z_]+) on vendedor\.pedido /gm)) expect(m9.down).toContain(`drop index if exists vendedor.${nome};`);
+    // condicao_pagamento só depois de soltar a FK do pedido e a cliente_condicao
+    expect(m9.down.indexOf('drop constraint if exists pedido_condicao_fk')).toBeLessThan(m9.down.indexOf('drop table if exists vendedor.condicao_pagamento;'));
+    expect(m9.down.indexOf('drop table if exists vendedor.cliente_condicao;')).toBeLessThan(m9.down.indexOf('drop table if exists vendedor.condicao_pagamento;'));
+  });
+});
+
+describe('base de demo x T-0029 (estático)', () => {
+  const d = dadosDemo('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA', { hoje: '2026-11-04' });
+
+  it('alçadas do Vendedor nos parâmetros do tenant (5/10/15, acima do gerente = analista)', () => {
+    const p = Object.fromEntries(d['plataforma.parametro'].filter((x) => x.modulo === 'vendedor').map((x) => [x.chave, JSON.parse(String(x.valor))]));
+    expect(p).toEqual({ ...ALCADAS_DEMO });
+  });
+
+  it('pedidos com status, nível e motivos dentro das listas do contrato', () => {
+    for (const p of d['vendedor.pedido']) {
+      expect(ORDER_STATUSES as readonly string[]).toContain(p.status);
+      if (p.nivel_aprovacao !== null) expect(NIVEIS_APROVACAO as readonly string[]).toContain(p.nivel_aprovacao);
+      for (const m of String(p.motivos_aprovacao).replace(/[{}]/g, '').split(',').filter(Boolean)) expect(MOTIVOS_APROVACAO as readonly string[]).toContain(m);
+    }
+    for (const e of d['vendedor.pedido_evento']) {
+      expect(ORDER_STATUSES as readonly string[]).toContain(e.para);
+      if (e.de !== null) expect(ORDER_STATUSES as readonly string[]).toContain(e.de);
+    }
   });
 });
 
