@@ -1,10 +1,10 @@
-# Demonstração — app novo + API real (T-0026)
+# Demonstração — app novo + API real (T-0026 e T-0029)
 
 ## Antes do dia
 - Docker Desktop instalado; `pnpm install` na raiz.
-- No celular, os APKs de preview:
-  - Macuxi Campo: https://expo.dev/artifacts/eas/IpWfiRYTTQ2u68W1MYzn71XU5caWBsSXe5SdHmqdzTo.apk
-  - Macuxi Gestão: https://expo.dev/artifacts/eas/0dWy-aQMgl1yGtn0B0sPMX4WSR4kiCdSde_6CVtKZUc.apk
+- No celular, os APKs de preview **com o pedido completo** (commit 8cf1021, 2026-11-01; instale por cima dos anteriores):
+  - Macuxi Campo: https://expo.dev/artifacts/eas/anwJjMiIGmI7LStvx08GO99bXMmuLljTwqxQ9fjAxyg.apk
+  - Macuxi Gestão: https://expo.dev/artifacts/eas/gjm--rEMuK31MOc1MRNEuuDNCGvczjRpPyc8o1Ms2xg.apk
 - Recomendado: `MACUXI_JWT_SEGREDO` (32+ caracteres) no .env da raiz. Sem ele, cada subida usa um segredo temporário.
 
 ## Subir (uma janela só)

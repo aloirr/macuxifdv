@@ -43,3 +43,9 @@
 - **SDK (🟡 da revisão final da Sprint 1)**: poda local das entidades com janela; push enviado depois do commit (aposConfirmar) — Sprint 2.
 - **Job de desempenho no CI** (Sprint 9): rodar à parte MACUXI_PERF=1 (busca do SQLite, meta 300 ms) e MACUXI_CARGA_MEDIR=1 (S0-110); no pnpm test normal esses tempos só são impressos ou têm limite folgado.
 - **BKO do core na API nova (Sprint 2)**: Clientes com farol da carteira, Metas por equipe e Plano de RV — hoje 'em construção' (T-0030); precisam de rotas v1 novas no core.
+
+## Pendências da T-0029 (Sprint 2)
+- Fronteira S0-014 no Vendedor: o fuso deixa de ser lido de `plataforma.tenant` (engenheiro expõe `ctx.fuso()` no platform-sdk; vendedor troca `fusoDoTenant`) e `pedido.db.test.ts` sem SQL em `core.*`; o testes retira as exceções temporárias.
+- `GET /alcadas` sem acesso do promotor (hoje via `pedido.ver`), com teste 403 (modulo-vendedor).
+- `apps/web/next-env.d.ts` no .gitignore e typecheck do web com `next typegen` (engenheiro; O-4).
+- Integração: consumir `integracao.pedido.retorno_erp@1` e publicar `faturado@1` no Vendedor (fora do escopo da demo).

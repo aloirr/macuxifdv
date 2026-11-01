@@ -35,7 +35,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 |---|---|---|---|---|
 | [T-0028](tarefas/T-0028.md) | Matriz de testes ponta a ponta da demo | testes | local | concluida (tests/plano/demo-matriz.md) |
 | [T-0030](tarefas/T-0030.md) | BKO: páginas da Fase M na API nova (Rotas, Clientes, Metas, RV, Auditoria) | modulo-core | local | concluida (Rotas migrada · 3 páginas "em construção" · Auditoria e F5 · Playwright na raiz) |
-| [T-0029](tarefas/T-0029.md) | Fatia vertical do pedido para a demo (com PDF) | engenheiro-software | local | em_revisao (implementação e testes prontos: 398/398 · falta revisão do engenheiro e APKs preview) |
+| [T-0029](tarefas/T-0029.md) | Fatia vertical do pedido para a demo (com PDF) | engenheiro-software | local | concluida (8cf1021 · CI verde · APKs preview campo 6490e5e6 e gestão c0bf3d91) |
 | [T-0026](tarefas/T-0026.md) | Demonstração com o gestor externo (prioridade) | engenheiro-software | local | concluida (APKs de preview + scripts + túnel · docs/status/demo.md) |
 | [T-0015](tarefas/T-0015.md) | Ajustes pós-Sprint 0: O-3 (promotor lê pedidos da carteira) e D-1 | engenheiro-software | local | concluida (O-3 e D-1 provados com Postgres) |
 | [T-0016](tarefas/T-0016.md) | Desenho técnico e contratos da Sprint 1 | engenheiro-software | local | concluida (aprovado; ADRs 0009/0010) |
