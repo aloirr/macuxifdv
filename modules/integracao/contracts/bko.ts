@@ -49,6 +49,28 @@ export const ConectorCriar = z.object({
 });
 export type ConectorCriar = z.infer<typeof ConectorCriar>;
 
+/**
+ * Corpo do 409 `topologia_conflitante` em `POST /conectores` e `PATCH /conectores/:id` (P-6/P-7, RN-INT-13; T-0031). `mensagem`
+ * diz qual Conector já recebe cada entidade e pede a lista de entidades do Conector em cadastro; `conflitos[]` detalha;
+ * `entidades_livres` são as pedidas que nenhum outro Conector ativo recebe (sugestão para a tela).
+ */
+export const RecusaTopologiaConector = z.object({
+  codigo: z.literal('topologia_conflitante'),
+  mensagem: z.string().min(1),
+  conflitos: z
+    .array(
+      z.object({
+        codigo: z.enum(['entidade_em_outro_conector', 'pedidos_em_outro_conector']),
+        entidade: Entidade.optional(),
+        conector_id: ConectorIdentificador,
+        mensagem: z.string().min(1),
+      }),
+    )
+    .min(1),
+  entidades_livres: z.array(Entidade),
+});
+export type RecusaTopologiaConector = z.infer<typeof RecusaTopologiaConector>;
+
 export const ConectorAtualizar = z.object({
   nome: z.string().trim().min(1).max(120).optional(),
   ips_permitidos: z.array(z.string().trim().min(2).max(60)).max(20).optional(),
