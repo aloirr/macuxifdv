@@ -9,7 +9,10 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { classificarMudancas, globParaRegex, normalizarCaminho, agenteDoBranch, agenteDosTrailers, remetenteDoRecado } from './coord-lib.mjs';
+import {
+  classificarMudancas, globParaRegex, normalizarCaminho, agenteDoBranch, agenteDosTrailers, remetenteDoRecado,
+  workspaceMudouSoEmBuilds, lockAcompanhaDependencia, pacoteDoPackageJson, mudancasDeGovernanca, carregarDonos,
+} from './coord-lib.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -22,6 +25,9 @@ const DONOS = {
     { padrao: 'modules/core/**', dono: 'modulo-core' },
     { padrao: 'apps/**', dono: 'engenheiro-software' },
     { padrao: 'docs/**', dono: 'gerente-projetos' },
+    { padrao: 'pnpm-lock.yaml', dono: 'engenheiro-software' },
+    { padrao: 'pnpm-workspace.yaml', dono: 'engenheiro-software' },
+    { padrao: 'package.json', dono: 'engenheiro-software' },
   ], // sem regra "*": qualquer outro caminho é sem-dono
 };
 const RECADO = '---\nid: R-20261031-000000-modulo-core\nde: modulo-core\npara: [testes]\ntipo: aviso\n---\n# Olá\n';
@@ -864,4 +870,226 @@ test('--por-commit: recado existente alterado é violação mesmo para alexandre
   assert.equal(r.codigo, 1, r.tudo);
   assert.match(blocoDoCommit(r.saida, novo), /recado novo para gerente-projetos/);
   assert.match(blocoDoCommit(r.saida, editou), /VIOLAÇÃO[\s\S]*recados são imutáveis/);
+});
+
+// ───────────── guardião v4 (T-0005): "o lock acompanha a dependência", alexandre declarado e governanca ─────────────
+
+const WORKSPACE = [
+  'nodeLinker: hoisted',
+  '',
+  'packages:',
+  '  - "apps/*"',
+  '  - "modules/*"',
+  '',
+  '# pnpm 11+',
+  'allowBuilds:',
+  '  esbuild: true',
+  '',
+  '# pnpm 10 (equivalente)',
+  'onlyBuiltDependencies:',
+  '  - esbuild',
+  '',
+].join('\n');
+const PKG = (nome, deps = {}) => JSON.stringify({ name: nome, version: '0.0.0', dependencies: deps }, null, 2) + '\n';
+
+/** criarRepo + lock, workspace e package.json de dois donos no main. */
+function criarRepoComLock() {
+  const dir = criarRepo();
+  escrever(dir, 'pnpm-lock.yaml', "lockfileVersion: '9.0'\n");
+  escrever(dir, 'pnpm-workspace.yaml', WORKSPACE);
+  escrever(dir, 'package.json', PKG('raiz'));
+  escrever(dir, 'modules/core/package.json', PKG('@macuxi/core'));
+  escrever(dir, 'apps/api/package.json', PKG('@macuxi/api'));
+  commitar(dir, 'lock e pacotes');
+  return dir;
+}
+
+test('v4 lock: pnpm-lock.yaml + package.json do próprio agente no mesmo PR → OK, listado para revisão', () => {
+  const dir = criarRepoComLock();
+  git(dir, 'checkout', '-q', '-b', 'modulo-core/T-0003-dep');
+  escrever(dir, 'modules/core/package.json', PKG('@macuxi/core', { zod: '^3.23.0' }));
+  escrever(dir, 'pnpm-lock.yaml', "lockfileVersion: '9.0'\n# zod\n");
+  commitar(dir, 'T-0003: zod');
+  const r = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(r.codigo, 0, r.tudo);
+  assert.deepEqual(secao(r.saida, 'OK'), ['M modules/core/package.json']);
+  assert.deepEqual(secao(r.saida, 'Lock acompanhando dependência'), ['M pnpm-lock.yaml → dono: engenheiro-software — lock acompanhando dependência de modules/core']);
+  assert.match(r.saida, /Resultado: OK — 2 arquivo\(s\) alterado\(s\), nenhuma violação para modulo-core \(1 com lock acompanhando dependência: revisão do engenheiro-software\)/);
+  assert.doesNotMatch(r.saida, /VIOLAÇÃO/);
+});
+
+test('v4 lock: pnpm-lock.yaml sozinho → VIOLAÇÃO', () => {
+  const dir = criarRepoComLock();
+  git(dir, 'checkout', '-q', '-b', 'modulo-core/T-0003-dep');
+  escrever(dir, 'modules/core/a.ts', 'mudou\n');
+  escrever(dir, 'pnpm-lock.yaml', "lockfileVersion: '9.0'\n# solto\n");
+  commitar(dir, 'T-0003: lock solto');
+  const r = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(r.codigo, 1, r.tudo);
+  assert.match(secao(r.saida, 'VIOLAÇÃO').join('\n'), /^M pnpm-lock\.yaml → dono: engenheiro-software — fora dos caminhos de modulo-core/);
+  assert.deepEqual(secao(r.saida, 'Lock acompanhando dependência'), []);
+});
+
+test('v4 lock: pnpm-lock.yaml + package.json de outro dono → VIOLAÇÃO nos dois', () => {
+  const dir = criarRepoComLock();
+  git(dir, 'checkout', '-q', '-b', 'modulo-core/T-0003-dep');
+  escrever(dir, 'apps/api/package.json', PKG('@macuxi/api', { zod: '^3.23.0' }));
+  escrever(dir, 'pnpm-lock.yaml', "lockfileVersion: '9.0'\n# zod na api\n");
+  commitar(dir, 'T-0003: dependência na api');
+  const r = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(r.codigo, 1, r.tudo);
+  const v = secao(r.saida, 'VIOLAÇÃO');
+  assert.equal(v.length, 2, r.saida);
+  assert.match(v.join('\n'), /M apps\/api\/package\.json → dono: engenheiro-software/);
+  assert.match(v.join('\n'), /M pnpm-lock\.yaml → dono: engenheiro-software/);
+});
+
+test('v4 lock: pnpm-workspace.yaml só em allowBuilds/onlyBuiltDependencies acompanha; em outra chave é VIOLAÇÃO', () => {
+  const dir = criarRepoComLock();
+  git(dir, 'checkout', '-q', '-b', 'modulo-core/T-0003-dep');
+  escrever(dir, 'modules/core/package.json', PKG('@macuxi/core', { sharp: '^0.33.0' }));
+  escrever(dir, 'pnpm-lock.yaml', "lockfileVersion: '9.0'\n# sharp\n");
+  escrever(dir, 'pnpm-workspace.yaml', WORKSPACE.replace('  esbuild: true\n', '  esbuild: true\n  sharp: true\n').replace('  - esbuild\n', '  - esbuild\n  - sharp\n'));
+  commitar(dir, 'T-0003: sharp');
+  const ok = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(ok.codigo, 0, ok.tudo);
+  assert.deepEqual(secao(ok.saida, 'Lock acompanhando dependência'), [
+    'M pnpm-lock.yaml → dono: engenheiro-software — lock acompanhando dependência de modules/core',
+    'M pnpm-workspace.yaml → dono: engenheiro-software — lock acompanhando dependência de modules/core (só allowBuilds/onlyBuiltDependencies)',
+  ]);
+  // Não commitado também conta (--base soma a árvore de trabalho): mexer em "packages:" vira violação.
+  escrever(dir, 'pnpm-workspace.yaml', WORKSPACE.replace('  - "modules/*"\n', '  - "modules/*"\n  - "outros/*"\n').replace('  esbuild: true\n', '  esbuild: true\n  sharp: true\n'));
+  const r = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(r.codigo, 1, r.tudo);
+  assert.match(secao(r.saida, 'VIOLAÇÃO').join('\n'), /^M pnpm-workspace\.yaml → dono: engenheiro-software/);
+  assert.deepEqual(secao(r.saida, 'Lock acompanhando dependência'), ['M pnpm-lock.yaml → dono: engenheiro-software — lock acompanhando dependência de modules/core']);
+});
+
+test('v4 lock: sem --base a regra não se aplica (lock de outro dono é informativo, como antes)', () => {
+  const dir = criarRepoComLock();
+  escrever(dir, 'modules/core/package.json', PKG('@macuxi/core', { zod: '^3.23.0' }));
+  escrever(dir, 'pnpm-lock.yaml', "lockfileVersion: '9.0'\n# zod\n");
+  const r = rodar(dir, ['verificar', 'modulo-core']);
+  assert.equal(r.codigo, 0, r.tudo);
+  assert.deepEqual(secao(r.saida, 'Outros donos (informativo'), ['M pnpm-lock.yaml → engenheiro-software']);
+});
+
+test('v4 lock --por-commit: lock + package.json próprio no mesmo commit → OK; lock em commit separado → VIOLAÇÃO', () => {
+  const dir = criarRepoComLock();
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  escrever(dir, 'modules/core/package.json', PKG('@macuxi/core', { zod: '^3.23.0' }));
+  escrever(dir, 'pnpm-lock.yaml', "lockfileVersion: '9.0'\n# zod\n");
+  escrever(dir, 'pnpm-workspace.yaml', WORKSPACE.replace('  - esbuild\n', '  - esbuild\n  - zod\n'));
+  const c1 = commitarComo(dir, 'modulo-core', 'T-0003: zod');
+  escrever(dir, 'pnpm-lock.yaml', "lockfileVersion: '9.0'\n# zod de novo\n");
+  const c2 = commitarComo(dir, 'modulo-core', 'T-0003: só o lock');
+  const r = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(r.codigo, 1, r.tudo);
+  const b1 = blocoDoCommit(r.saida, c1);
+  assert.doesNotMatch(b1, /VIOLAÇÃO/);
+  assert.match(b1, /M pnpm-lock\.yaml → dono: engenheiro-software — lock acompanhando dependência de modules\/core/);
+  assert.match(b1, /M pnpm-workspace\.yaml → dono: engenheiro-software — lock acompanhando dependência de modules\/core \(só allowBuilds\/onlyBuiltDependencies\)/);
+  const b2 = blocoDoCommit(r.saida, c2);
+  assert.match(b2, /VIOLAÇÃO/);
+  assert.match(b2, /M pnpm-lock\.yaml → dono: engenheiro-software — fora dos caminhos de modulo-core/);
+  assert.match(r.saida, new RegExp(`lock acompanhando dependência em 1 commit\\(s\\):\\n  ${c1} \\(modulo-core\\)`));
+  assert.match(r.saida, new RegExp(`VIOLAÇÃO em 1 commit\\(s\\):\\n  ${c2} \\(modulo-core\\)`));
+});
+
+test('v4: alexandre pelo trailer (--base e --por-commit) é aceito e marcado "identidade alexandre declarada por trailer"', () => {
+  const dir = criarRepo();
+  const inicio = git(dir, 'rev-parse', 'HEAD').trim();
+  git(dir, 'checkout', '-q', '-b', 'nuvem/T-0005-guardiao-v4');
+  escrever(dir, 'scripts/coord-lib.mjs', readFileSync(join(dir, 'scripts', 'coord-lib.mjs'), 'utf8') + '\n');
+  escrever(dir, 'apps/api/x.ts', 'alexandre\n');
+  const c1 = commitarComo(dir, 'alexandre', 'T-0005: guardião');
+  const base = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(base.codigo, 0, base.tudo);
+  assert.match(base.saida, /agente: alexandre \(trailer "Agente:" de 1 commit\(s\) do PR\)/);
+  assert.match(base.saida, /Atenção: identidade alexandre declarada por trailer/);
+  const pc = rodar(dir, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(pc.codigo, 0, pc.tudo);
+  assert.match(blocoDoCommit(pc.saida, c1), /agente: alexandre \(trailer\)\n   Atenção: identidade alexandre declarada por trailer/);
+  assert.match(pc.saida, new RegExp(`identidade alexandre declarada por trailer em 1 commit\\(s\\)[^\\n]*:\\n  ${c1} T-0005: guardião`));
+  const explicito = rodar(dir, ['verificar', 'alexandre', '--base', 'main']);
+  assert.equal(explicito.codigo, 0, explicito.tudo);
+  assert.doesNotMatch(explicito.saida, /declarada por/, 'agente informado no comando não é "declarado"');
+  git(dir, 'checkout', '-q', '-b', 'alexandre/T-0005-x');
+  assert.match(rodar(dir, ['verificar', '--base', 'main']).saida, /Atenção: identidade alexandre declarada por branch/);
+});
+
+test('v4 governanca --base: sai 1 com a lista quando o diff mexe em .claude/**, donos.json, scripts/coord*.mjs ou .github/**', () => {
+  const casos = [
+    ['.claude/hooks/guarda-donos.mjs'],
+    ['.claude/settings.json'],
+    ['.coord/donos.json'],
+    ['scripts/coord.mjs'],
+    ['scripts/coord-verificar.test.mjs'],
+    ['.github/workflows/ci.yml'],
+    ['.github/CODEOWNERS', 'modules/core/a.ts'],
+  ];
+  for (const arquivos of casos) {
+    const dir = criarRepo();
+    git(dir, 'checkout', '-q', '-b', 'nuvem/T-0005-gov');
+    for (const f of arquivos) {
+      if (f.startsWith('scripts/coord')) appendFileSync(join(dir, f), '\n// mudou\n'); // o script continua rodando
+      else escrever(dir, f, `${f} mudou\n`);
+    }
+    commitar(dir, 'mexe em governança');
+    const r = rodar(dir, ['governanca', '--base', 'main']);
+    assert.equal(r.codigo, 1, `${arquivos}: ${r.tudo}`);
+    const status = ['.coord/donos.json', 'scripts/coord.mjs'].includes(arquivos[0]) ? 'M' : 'A';
+    assert.deepEqual(secao(r.saida, 'Caminhos de governança alterados'), [`${status} ${arquivos[0]}`]);
+    assert.match(r.saida, /Resultado: GOVERNANÇA — 1 arquivo\(s\) de governança alterado\(s\): o PR exige revisão do Alexandre/);
+  }
+});
+
+test('v4 governanca --base: sai 0 sem caminho de governança (inclui .coord/ fora do donos.json e scripts/ que não são coord*); 2 em erro de uso', () => {
+  const dir = criarRepo();
+  git(dir, 'checkout', '-q', '-b', 'modulo-core/T-0003-x');
+  escrever(dir, 'modules/core/a.ts', 'mudou\n');
+  escrever(dir, '.coord/quadro.md');
+  escrever(dir, 'scripts/outro.mjs');
+  escrever(dir, 'docs/.github/nota.md');
+  commitar(dir, 'sem governança');
+  escrever(dir, 'apps/api/x.ts', 'não commitado\n');
+  const r = rodar(dir, ['governanca', '--base', 'main']);
+  assert.equal(r.codigo, 0, r.tudo);
+  assert.match(r.saida, /Resultado: OK — nenhum caminho de governança alterado \(5 arquivo\(s\) no diff\)/);
+  assert.equal(rodar(dir, ['governanca', '--base', 'HEAD']).codigo, 0, 'só não commitado fora da governança');
+  escrever(dir, '.claude/hooks/novo.mjs');
+  const naoCommitado = rodar(dir, ['governanca', '--base', 'HEAD']);
+  assert.equal(naoCommitado.codigo, 1, 'não commitado em .claude/ também conta: ' + naoCommitado.tudo);
+  assert.deepEqual(secao(naoCommitado.saida, 'Caminhos de governança alterados'), ['A .claude/hooks/novo.mjs']);
+  for (const args of [['governanca'], ['governanca', '--base'], ['governanca', '--base', 'nao-existe'], ['governanca', '--base', 'main', '--x'], ['governanca', 'main']]) {
+    const e = rodar(dir, args);
+    assert.equal(e.codigo, 2, `${args.join(' ')}: ${e.tudo}`);
+  }
+});
+
+test('v4 funções puras: workspaceMudouSoEmBuilds, pacoteDoPackageJson, lockAcompanhaDependencia e mudancasDeGovernanca', () => {
+  assert.equal(workspaceMudouSoEmBuilds(WORKSPACE, WORKSPACE.replace('  esbuild: true\n', '  esbuild: true\n  "@tailwindcss/oxide": true\n  # comentário\n')), true);
+  assert.equal(workspaceMudouSoEmBuilds(WORKSPACE, WORKSPACE.replace('onlyBuiltDependencies:\n  - esbuild\n', 'onlyBuiltDependencies: [esbuild, sharp]\n')), true, 'forma de fluxo');
+  assert.equal(workspaceMudouSoEmBuilds(WORKSPACE.replace(/allowBuilds:\n  esbuild: true\n/, ''), WORKSPACE), true, 'chave nova');
+  assert.equal(workspaceMudouSoEmBuilds(WORKSPACE, WORKSPACE.replace(/\n/g, '\r\n') + '\n\n'), true, 'CRLF e linhas em branco');
+  assert.equal(workspaceMudouSoEmBuilds(WORKSPACE, WORKSPACE.replace('nodeLinker: hoisted', 'nodeLinker: isolated')), false);
+  assert.equal(workspaceMudouSoEmBuilds(WORKSPACE, WORKSPACE + 'minimumReleaseAge: 0\n'), false, 'chave nova fora das de build');
+  assert.equal(workspaceMudouSoEmBuilds(WORKSPACE, WORKSPACE.replace('allowBuilds:\n  esbuild: true\n', 'allowBuilds:\n  esbuild: true\nminimumReleaseAge: 0\n')), false, 'chave colada no fim do bloco');
+  assert.equal(pacoteDoPackageJson('modules/core/package.json'), 'modules/core');
+  assert.equal(pacoteDoPackageJson('package.json'), '.');
+  assert.equal(pacoteDoPackageJson('modules/core/package.json.bak'), null);
+  const regras = DONOS.regras.map((r) => ({ ...r, re: globParaRegex(r.padrao) }));
+  const mudancas = [{ status: 'M', caminho: 'pnpm-lock.yaml' }, { status: 'M', caminho: 'pnpm-workspace.yaml' }, { status: 'M', caminho: 'modules/core/package.json' }];
+  const sem = classificarMudancas({ agente: 'modulo-core', mudancas, regras, estrito: true });
+  assert.equal(sem.violacoes.length, 2, 'sem lockAcompanha (uso dos hooks): violação como antes');
+  const com = classificarMudancas({ agente: 'modulo-core', mudancas, regras, estrito: true, lockAcompanha: true, workspaceSoBuilds: () => false });
+  assert.deepEqual(com.violacoes.map((v) => v.caminho), ['pnpm-workspace.yaml']);
+  assert.deepEqual(com.acompanhando.map((v) => v.caminho), ['pnpm-lock.yaml']);
+  const apagado = lockAcompanhaDependencia({ agente: 'modulo-core', resultado: { ok: [{ status: 'M', caminho: 'modules/core/package.json' }], violacoes: [{ status: 'D', caminho: 'pnpm-lock.yaml' }] } });
+  assert.equal(apagado.violacoes.length, 1, 'apagar o lock não é acompanhar');
+  assert.deepEqual(mudancasDeGovernanca([
+    { status: 'M', caminho: '.claude\\hooks\\x.mjs' }, { status: 'M', caminho: '.coord/donos.json' }, { status: 'M', caminho: '.coord/quadro.md' },
+    { status: 'A', caminho: 'scripts/coord-novo.mjs' }, { status: 'A', caminho: 'scripts/fronteiras.mjs' }, { status: 'M', caminho: '.github/workflows/ci.yml' },
+  ]).map((m) => m.caminho), ['.claude/hooks/x.mjs', '.coord/donos.json', 'scripts/coord-novo.mjs', '.github/workflows/ci.yml']);
+  assert.ok(carregarDonos);
 });
