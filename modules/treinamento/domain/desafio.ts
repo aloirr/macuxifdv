@@ -11,7 +11,11 @@
  * segundo total do mesmo pedido, ainda que com outro `evento_id`, não paga de novo).
  */
 import { localDate } from '@macuxi/comum';
-import { PARAMETROS_PADRAO } from './parametros';
+// Entrada do desafio = `EventoFaturadoNoDesafio` dos contracts (payload de `vendedor.pedido.faturado@1` + `evento_id` e
+// `tenant_id` do envelope, lido por `lerPedidoFaturado`). Tipo único (T-0036): o domínio não declara forma própria,
+// então mudança no contrato quebra o typecheck daqui (regra 3 do CLAUDE.md).
+import type { EventoFaturadoNoDesafio } from '../contracts';
+import { PARAMETROS_PADRAO, type ParametrosTreinamento } from './parametros';
 import type { CandidatoXp, LancamentoXp } from './xp';
 
 export interface DesafioVendas {
@@ -32,29 +36,14 @@ export interface DesafioVendas {
   xp_max_por_desafio?: number | null;
 }
 
-/** O que o Treinamento precisa do pedido faturado. */
-export interface PedidoFaturadoLido {
-  /** `evento_id` do envelope do evento (não vem no payload): é a chave de idempotência do retorno. */
-  evento_id: string;
-  pedido_id: string;
-  tenant_id: string;
-  /** Quem vendeu e recebe o XP. */
-  vendedor_id: string;
-  /** Instante UTC do faturamento (ERP); ausente/nulo = pedido ainda não faturado, não pontua. */
-  faturado_em?: string | null;
-  /** Itens faturados NESTE evento (o domínio soma os eventos; o total depois de parciais traz só o saldo). */
-  itens: readonly { produto_id: string; quantidade: number }[];
-  /** Faturamento parcial do pedido (padrão false = total). Parcial sem itens é ignorado. */
-  parcial?: boolean;
-}
-
 export type AvaliacaoPedido =
   | { elegivel: true; unidades: number; pontos_base: number }
   | { elegivel: false; motivo: 'OUTRO_TENANT' | 'PEDIDO_NAO_FATURADO' | 'PARCIAL_SEM_ITENS' | 'DESAFIO_INATIVO' | 'FORA_DA_VIGENCIA' | 'SEM_ITENS_DA_CAMPANHA' };
 
 /** RF-TRE-06: XP do pedido faturado (deste evento, sem olhar o histórico) = unidades dos itens da campanha × XP por unidade (inteiro, para baixo), limitado ao máximo por pedido. */
-export function avaliarPedidoNoDesafio(desafio: DesafioVendas, pedido: Omit<PedidoFaturadoLido, 'evento_id'>, fuso: string = PARAMETROS_PADRAO.fuso): AvaliacaoPedido {
+export function avaliarPedidoNoDesafio(desafio: DesafioVendas, pedido: Omit<EventoFaturadoNoDesafio, 'evento_id'>, fuso: string = PARAMETROS_PADRAO.fuso): AvaliacaoPedido {
   if (pedido.tenant_id !== desafio.tenant_id) return { elegivel: false, motivo: 'OUTRO_TENANT' };
+  // O contrato já recusa pedido sem `faturado_em`; a checagem fica como defesa (a API sempre revalida).
   if (!pedido.faturado_em) return { elegivel: false, motivo: 'PEDIDO_NAO_FATURADO' };
   if (pedido.parcial === true && pedido.itens.length === 0) return { elegivel: false, motivo: 'PARCIAL_SEM_ITENS' };
   if (!desafio.ativo) return { elegivel: false, motivo: 'DESAFIO_INATIVO' };
@@ -66,11 +55,11 @@ export function avaliarPedidoNoDesafio(desafio: DesafioVendas, pedido: Omit<Pedi
   return { elegivel: true, unidades, pontos_base: Math.min(Math.floor(unidades * desafio.xp_por_unidade), desafio.xp_max_por_pedido) };
 }
 
-export interface OpcoesDesafio {
-  /** Fuso do tenant (padrão `America/Manaus`). */
-  fuso?: string;
-  /** Padrão do tenant para o teto por desafio (`xp_max_por_desafio`); o do cadastro do desafio tem prioridade. */
-  xp_max_por_desafio?: number;
+/**
+ * Opções do candidato. `fuso` e `xp_max_por_desafio` são os parâmetros do tenant: passe o MESMO `params` que vai ao
+ * `processarLote` (`{ ...params, lancamentos }`), para a vigência (aqui) e o `dia` do lançamento (lá) usarem o mesmo fuso.
+ */
+export interface OpcoesDesafio extends Partial<Pick<ParametrosTreinamento, 'fuso' | 'xp_max_por_desafio'>> {
   /**
    * Lançamentos já gravados do vendedor (idealmente os `desafio_vendas` dele neste desafio): servem para não pagar de
    * novo o evento/total já pago e para descontar do máximo por pedido o que os eventos anteriores já pagaram.
@@ -80,7 +69,7 @@ export interface OpcoesDesafio {
 }
 
 /** Chave natural do lançamento do evento (`referencia_id`): `desafio:pedido:evento_id` (parcial) ou `desafio:pedido:total`. */
-export const referenciaDoDesafio = (desafioId: string, pedido: Pick<PedidoFaturadoLido, 'pedido_id' | 'evento_id' | 'parcial'>): string =>
+export const referenciaDoDesafio = (desafioId: string, pedido: Pick<EventoFaturadoNoDesafio, 'pedido_id' | 'evento_id' | 'parcial'>): string =>
   `${desafioId}:${pedido.pedido_id}:${pedido.parcial === true ? pedido.evento_id : 'total'}`;
 
 /**
@@ -95,8 +84,11 @@ export const referenciaDoDesafio = (desafioId: string, pedido: Pick<PedidoFatura
  * - Parcial sem itens: ignorada (`PARCIAL_SEM_ITENS`). Pedido sem `faturado_em`: não paga.
  * O candidato leva o teto do desafio (`teto_desafio`): `proporLancamento` paga só o saldo do vendedor no desafio e,
  * esgotado, grava lançamento de 0 ponto. O desafio não passa pelo teto diário. `lancamentoId` é o UUID do lançamento.
+ * Fuso: o de `opcoes.fuso` define a vigência; use o mesmo do `processarLote` (veja `OpcoesDesafio`).
+ * Limitação conhecida: o arredondamento para baixo é por evento (duas parciais de 0,5 un. a 1 XP/un. pagam 0 + 0);
+ * o contrato oficial manda quantidade inteira > 0, então não ocorre hoje (regras.md §8).
  */
-export function candidatoDoDesafio(desafio: DesafioVendas, pedido: PedidoFaturadoLido, lancamentoId: string, opcoes: OpcoesDesafio = {}): CandidatoXp | null {
+export function candidatoDoDesafio(desafio: DesafioVendas, pedido: EventoFaturadoNoDesafio, lancamentoId: string, opcoes: OpcoesDesafio = {}): CandidatoXp | null {
   const a = avaliarPedidoNoDesafio(desafio, pedido, opcoes.fuso ?? PARAMETROS_PADRAO.fuso);
   if (!a.elegivel) return null;
   const refPedido = `${desafio.id}:${pedido.pedido_id}`;
@@ -115,7 +107,7 @@ export function candidatoDoDesafio(desafio: DesafioVendas, pedido: PedidoFaturad
     origem: 'desafio_vendas',
     referencia_id: referencia,
     pontos_base: pontos,
-    ocorrido_em: pedido.faturado_em!,
+    ocorrido_em: pedido.faturado_em,
     ...(max > 0 ? { teto_desafio: { desafio_id: desafio.id, max } } : {}),
   };
 }

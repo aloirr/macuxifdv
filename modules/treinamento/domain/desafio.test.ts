@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { avaliarPedidoNoDesafio, candidatoDoDesafio, referenciaDoDesafio, type DesafioVendas, type PedidoFaturadoLido } from './desafio';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import type { z } from 'zod';
+import { lerPedidoFaturado, type EventoFaturadoNoDesafio, type PedidoFaturadoLido } from '../contracts';
+import { avaliarPedidoNoDesafio, candidatoDoDesafio, referenciaDoDesafio, type DesafioVendas } from './desafio';
 import { resolverParametros } from './parametros';
 import { processarLote, type LancamentoXp } from './xp';
 
@@ -14,15 +16,19 @@ const desafio: DesafioVendas = {
   xp_por_unidade: 2,
   xp_max_por_pedido: 20,
 };
-const pedido = (extra: Partial<PedidoFaturadoLido> = {}): PedidoFaturadoLido => ({
+const pedido = (extra: Partial<EventoFaturadoNoDesafio> = {}): EventoFaturadoNoDesafio => ({
   evento_id: 'E1',
   pedido_id: 'P1',
   tenant_id: 'tenant-1',
   vendedor_id: 'u1',
   faturado_em: '2026-10-28T14:00:00Z',
   itens: [{ produto_id: 'cafe-250', quantidade: 3 }, { produto_id: 'outro', quantidade: 10 }],
+  parcial: false,
   ...extra,
 });
+/** Pedido fora do contrato (sem faturamento): `lerPedidoFaturado` já o recusa; o domínio se defende assim mesmo. */
+const naoFaturado = (extra: Partial<EventoFaturadoNoDesafio> = {}): EventoFaturadoNoDesafio =>
+  ({ ...pedido(extra), faturado_em: null }) as unknown as EventoFaturadoNoDesafio;
 
 describe('RF-TRE-06: desafio de vendas ligado a campanha (paga no faturamento)', () => {
   it('RF-TRE-06: XP = unidades dos itens da campanha × XP por unidade (3 × 2 = 6); itens fora da campanha não contam', () => {
@@ -96,11 +102,11 @@ describe('RF-TRE-06: desafio de vendas ligado a campanha (paga no faturamento)',
 
 describe('Ajuste C: o desafio paga no FATURAMENTO do pedido (status vindo do ERP), não na criação', () => {
   it('RF-TRE-06: pedido criado e ainda não faturado não gera XP (faturado_em ausente ou nulo)', () => {
-    expect(avaliarPedidoNoDesafio(desafio, pedido({ faturado_em: null }))).toEqual({ elegivel: false, motivo: 'PEDIDO_NAO_FATURADO' });
-    expect(candidatoDoDesafio(desafio, pedido({ faturado_em: null }), 'lanc-1')).toBeNull();
-    const semCampo = { ...pedido() } as Partial<PedidoFaturadoLido>;
+    expect(avaliarPedidoNoDesafio(desafio, naoFaturado())).toEqual({ elegivel: false, motivo: 'PEDIDO_NAO_FATURADO' });
+    expect(candidatoDoDesafio(desafio, naoFaturado(), 'lanc-1')).toBeNull();
+    const semCampo: Partial<EventoFaturadoNoDesafio> = { ...pedido() };
     delete semCampo.faturado_em;
-    expect(avaliarPedidoNoDesafio(desafio, semCampo as PedidoFaturadoLido)).toEqual({ elegivel: false, motivo: 'PEDIDO_NAO_FATURADO' });
+    expect(avaliarPedidoNoDesafio(desafio, semCampo as EventoFaturadoNoDesafio)).toEqual({ elegivel: false, motivo: 'PEDIDO_NAO_FATURADO' });
   });
 
   it('RF-TRE-06: a vigência e o dia do XP seguem o dia do faturamento, no fuso do tenant — não o da criação', () => {
@@ -124,7 +130,7 @@ describe('Ajuste A: teto próprio por desafio (xp_max_por_desafio), fora do teto
   const comTeto = { ...desafio, xp_max_por_desafio: 30 };
   const pedidoDe = (id: string, quando = '2026-10-28T14:00:00Z') => pedido({ pedido_id: id, faturado_em: quando, itens: [{ produto_id: 'cafe-250', quantidade: 10 }] });
   let n = 0;
-  const lancar = (existentes: LancamentoXp[], d: DesafioVendas, ped: PedidoFaturadoLido, params = resolverParametros()) =>
+  const lancar = (existentes: LancamentoXp[], d: DesafioVendas, ped: EventoFaturadoNoDesafio, params = resolverParametros()) =>
     processarLote(existentes, [candidatoDoDesafio(d, ped, `L${++n}`, { fuso: params.fuso, xp_max_por_desafio: params.xp_max_por_desafio })!], params).lancamentos;
 
   it('RF-TRE-06: teto do desafio atingido no meio de um pedido paga só o saldo (20 + 10 de 20)', () => {
@@ -167,7 +173,7 @@ describe('Ajuste A: teto próprio por desafio (xp_max_por_desafio), fora do teto
   it('RF-TRE-06: sem xp_max_por_desafio no cadastro vale o padrão do tenant (500); o do desafio tem prioridade', () => {
     expect(resolverParametros().xp_max_por_desafio).toBe(500);
     const grande = { ...desafio, xp_max_por_pedido: 400 };
-    const c = (d: DesafioVendas, ped: PedidoFaturadoLido, opcoes?: Parameters<typeof candidatoDoDesafio>[3]) => candidatoDoDesafio(d, ped, 'z', opcoes)!;
+    const c = (d: DesafioVendas, ped: EventoFaturadoNoDesafio, opcoes?: Parameters<typeof candidatoDoDesafio>[3]) => candidatoDoDesafio(d, ped, 'z', opcoes)!;
     const ped = pedido({ itens: [{ produto_id: 'cafe-250', quantidade: 300 }] });
     const a = processarLote([], [c(grande, ped)]).lancamentos[0]!;
     expect(a.pontos).toBe(400);
@@ -189,10 +195,10 @@ describe('Ajuste A: teto próprio por desafio (xp_max_por_desafio), fora do teto
 describe('RN-TRE-08: vários retornos do mesmo pedido — o consumidor soma os itens e é idempotente por evento_id (docs/desenho/T-0011.md §2)', () => {
   let n = 0;
   const id = () => `Q${++n}`;
-  const parcial = (evento_id: string, itens: PedidoFaturadoLido['itens'], extra: Partial<PedidoFaturadoLido> = {}) => pedido({ evento_id, parcial: true, itens, ...extra });
-  const total = (evento_id: string, itens: PedidoFaturadoLido['itens'], extra: Partial<PedidoFaturadoLido> = {}) => pedido({ evento_id, parcial: false, itens, ...extra });
+  const parcial = (evento_id: string, itens: EventoFaturadoNoDesafio['itens'], extra: Partial<EventoFaturadoNoDesafio> = {}) => pedido({ evento_id, parcial: true, itens, ...extra });
+  const total = (evento_id: string, itens: EventoFaturadoNoDesafio['itens'], extra: Partial<EventoFaturadoNoDesafio> = {}) => pedido({ evento_id, parcial: false, itens, ...extra });
   /** Processa um evento como a API faz: gera o candidato vendo os lançamentos já gravados e grava o aceito. */
-  const processar = (existentes: LancamentoXp[], ped: PedidoFaturadoLido, d: DesafioVendas = desafio) => {
+  const processar = (existentes: LancamentoXp[], ped: EventoFaturadoNoDesafio, d: DesafioVendas = desafio) => {
     const c = candidatoDoDesafio(d, ped, id(), { lancamentos: existentes });
     const r = processarLote(existentes, c ? [c] : []);
     return { cand: c, novos: r.lancamentos, todos: [...existentes, ...r.lancamentos] };
@@ -200,9 +206,9 @@ describe('RN-TRE-08: vários retornos do mesmo pedido — o consumidor soma os i
   const cafe = (quantidade: number, produto_id = 'cafe-250') => ({ produto_id, quantidade });
 
   it('RN-TRE-08: pedido sem faturamento (apenas criado) não gera XP nem candidato', () => {
-    expect(candidatoDoDesafio(desafio, pedido({ faturado_em: null }), id())).toBeNull();
-    expect(candidatoDoDesafio(desafio, pedido({ faturado_em: null, parcial: true }), id())).toBeNull();
-    expect(processar([], pedido({ faturado_em: null })).novos).toEqual([]);
+    expect(candidatoDoDesafio(desafio, naoFaturado(), id())).toBeNull();
+    expect(candidatoDoDesafio(desafio, naoFaturado({ parcial: true }), id())).toBeNull();
+    expect(processar([], naoFaturado()).novos).toEqual([]);
   });
 
   it('RN-TRE-08: parcial sem itens (vazio) é ignorada — PARCIAL_SEM_ITENS, sem XP nem lançamento', () => {
@@ -295,5 +301,46 @@ describe('RN-TRE-08: vários retornos do mesmo pedido — o consumidor soma os i
   it('RN-TRE-08: evento de outro tenant ou fora da vigência não paga', () => {
     expect(candidatoDoDesafio(desafio, parcial('E1', [cafe(1)], { tenant_id: 'tenant-2' }), id())).toBeNull();
     expect(candidatoDoDesafio(desafio, parcial('E1', [cafe(1)], { faturado_em: '2026-11-02T04:00:00Z' }), id())).toBeNull();
+  });
+});
+
+describe('T-0036: leitura do evento `vendedor.pedido.faturado@1` com o tipo único do contrato', () => {
+  const u = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const TENANT = u(100);
+  const dUuid: DesafioVendas = { ...desafio, id: u(50), tenant_id: TENANT, produto_ids: [u(3)] };
+  const envelope = { evento_id: u(70), tenant_id: TENANT };
+  const payload = { pedido_id: u(1), vendedor_id: u(2), faturado_em: '2026-10-28T14:00:00Z', itens: [{ produto_id: u(3), quantidade: 4 }], total_cents: 999 };
+
+  it('RN-TRE-08: a entrada do domínio é o tipo do contrato — payload lido + evento_id e tenant_id do envelope (muda o contrato, quebra o typecheck)', () => {
+    type Entrada = Parameters<typeof candidatoDoDesafio>[1];
+    expectTypeOf<Entrada>().toEqualTypeOf<EventoFaturadoNoDesafio>();
+    expectTypeOf<z.infer<typeof PedidoFaturadoLido> & { evento_id: string; tenant_id: string }>().toMatchTypeOf<Entrada>();
+    expectTypeOf<NonNullable<ReturnType<typeof lerPedidoFaturado>>>().toEqualTypeOf<Entrada>();
+  });
+
+  it('RN-TRE-08: evento lido do envelope vira XP no vendedor do pedido; reentregue (mesmo evento_id), não paga de novo', () => {
+    const ev = lerPedidoFaturado(payload, envelope)!;
+    expect(ev).toEqual({ pedido_id: u(1), vendedor_id: u(2), faturado_em: '2026-10-28T14:00:00Z', itens: [{ produto_id: u(3), quantidade: 4 }], parcial: false, evento_id: u(70), tenant_id: TENANT });
+    const r1 = processarLote([], [candidatoDoDesafio(dUuid, ev, u(80))!]);
+    expect(r1.lancamentos[0]).toMatchObject({ tenant_id: TENANT, usuario_id: u(2), origem: 'desafio_vendas', referencia_id: `${u(50)}:${u(1)}:total`, pontos: 8 });
+    const deNovo = lerPedidoFaturado(payload, envelope)!;
+    expect(candidatoDoDesafio(dUuid, deNovo, u(81), { lancamentos: r1.lancamentos })).toBeNull();
+  });
+
+  it('RN-TRE-08: o tenant do envelope prevalece — payload que traz outro tenant_id não pontua no desafio do tenant errado', () => {
+    const ev = lerPedidoFaturado({ ...payload, tenant_id: u(999), evento_id: u(998) }, envelope)!;
+    expect(ev).toMatchObject({ tenant_id: TENANT, evento_id: u(70) });
+    const outroTenant = lerPedidoFaturado(payload, { ...envelope, tenant_id: u(101) })!;
+    expect(avaliarPedidoNoDesafio(dUuid, outroTenant)).toEqual({ elegivel: false, motivo: 'OUTRO_TENANT' });
+  });
+
+  it('RF-TRE-06: o mesmo `params` do tenant vai ao candidato e ao lote — vigência e dia do XP no mesmo fuso', () => {
+    const sp = resolverParametros({ fuso: 'America/Sao_Paulo' });
+    const manaus = resolverParametros({ fuso: 'America/Manaus' });
+    // 26/10 03:30Z = 00:30 de 26/10 em São Paulo (dentro da vigência) e 23:30 de 25/10 em Manaus (fora).
+    const ev = lerPedidoFaturado({ ...payload, faturado_em: '2026-10-26T03:30:00Z' }, envelope)!;
+    const c = candidatoDoDesafio(dUuid, ev, u(82), { ...sp, lancamentos: [] })!;
+    expect(processarLote([], [c], sp).lancamentos[0]).toMatchObject({ dia: '2026-10-26', pontos: 8 });
+    expect(candidatoDoDesafio(dUuid, ev, u(83), { ...manaus, lancamentos: [] })).toBeNull();
   });
 });

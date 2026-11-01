@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   AdesaoMes,
   DesafioVendasContrato,
+  EVENTO_PEDIDO_FATURADO,
+  EventoFaturadoNoDesafio,
+  lerPedidoFaturado,
   EVENTOS_TREINAMENTO,
   LancamentoXp,
   LicaoConcluidaV1,
@@ -177,6 +180,27 @@ describe('RF-TRE-06: leitura tolerante do pedido FATURADO (`vendedor.pedido.fatu
     const { itens: _i, ...semItens } = p;
     expect(PedidoFaturadoLido.parse({ ...semItens, parcial: true })).toMatchObject({ itens: [], parcial: true });
     expect(PedidoFaturadoLido.parse({ ...p, parcial: true, itens: [] }).itens).toEqual([]);
+  });
+  it('T-0036: `lerPedidoFaturado` junta o payload ao evento_id e ao tenant_id do envelope (tipo único `EventoFaturadoNoDesafio`)', () => {
+    const env = { evento_id: u(7), tenant_id: u(8) };
+    expect(lerPedidoFaturado(p, env)).toEqual({ ...p, parcial: false, ...env });
+    expect(EventoFaturadoNoDesafio.parse({ ...p, ...env })).toEqual({ ...p, parcial: false, ...env });
+    // o envelope prevalece sobre campos homônimos do payload
+    expect(lerPedidoFaturado({ ...p, evento_id: u(90), tenant_id: u(91) }, env)).toMatchObject(env);
+  });
+  it('T-0036: payload fora do contrato, não objeto ou envelope sem UUID → null (não pontua)', () => {
+    const env = { evento_id: u(7), tenant_id: u(8) };
+    const { faturado_em: _f, ...criado } = p;
+    expect(lerPedidoFaturado(criado, env)).toBeNull();
+    expect(lerPedidoFaturado(null, env)).toBeNull();
+    expect(lerPedidoFaturado([p], env)).toBeNull();
+    expect(lerPedidoFaturado('pedido', env)).toBeNull();
+    expect(lerPedidoFaturado(p, { ...env, evento_id: 'E1' })).toBeNull();
+    expect(lerPedidoFaturado(p, { ...env, tenant_id: '' })).toBeNull();
+  });
+  it('T-0036: o evento lido é o que o manifesto consome', async () => {
+    const { default: manifest } = await import('../manifest');
+    expect(manifest.consome).toContain(EVENTO_PEDIDO_FATURADO);
   });
   it('desafio: vigência com fim antes do início é recusada', () => {
     const d = { id: u(1), tenant_id: u(2), nome: 'Semana do Café', ativo: true, produto_ids: [u(3)], vigencia_inicio: '2026-10-26', vigencia_fim: '2026-11-01', xp_por_unidade: 2, xp_max_por_pedido: 20 };

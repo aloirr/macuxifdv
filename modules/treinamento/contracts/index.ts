@@ -1,7 +1,8 @@
 /**
  * Contratos públicos do módulo Treinamento. Fonte da verdade para a API, o app e a web do módulo; tipos via
  * `z.infer`. Outros módulos importam só este arquivo (ex.: o Gestor lê `AdesaoMes` e os payloads dos eventos
- * `treinamento.*@1`). O pedido faturado (`vendedor.pedido.faturado@1`) é lido por `PedidoFaturadoLido` (leitura tolerante).
+ * `treinamento.*@1`). O pedido faturado (`vendedor.pedido.faturado@1`) é lido por `PedidoFaturadoLido` (leitura tolerante)
+ * e chega ao domínio como `EventoFaturadoNoDesafio` (payload + envelope), via `lerPedidoFaturado`.
  */
 export * from './base';
 export * from './progresso';
