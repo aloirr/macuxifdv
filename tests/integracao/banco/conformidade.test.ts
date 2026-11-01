@@ -7,6 +7,7 @@
  * - S0-028: o papel da API (macuxi_app) não é superusuário, não ignora RLS, não é dono de nada, não
  *   herda papel privilegiado e não tem atalho que dispense a política (TRUNCATE, SET ROLE,
  *   row_security = off, ALTER TABLE, função SECURITY DEFINER fora da lista, view sem security_invoker).
+ *   O worker (macuxi_worker) também só executa as SECURITY DEFINER revisadas para ele.
  * - Perfis: o CHECK do banco aceita exatamente os PERFIS do @macuxi/platform-sdk ("gerente", nunca
  *   "manager" da Fase M) — provado com INSERT real, não lendo o SQL.
  */
@@ -19,11 +20,67 @@ import { conectar, schemasDeDominio, tabelasDoCatalogo, tentar, type Tabela } fr
 
 const A = DOIS_TENANTS.A.tenantId;
 const PAPEL = 'macuxi_app';
+const PAPEL_WORKER = 'macuxi_worker';
 
-/** Funções SECURITY DEFINER que o papel da aplicação pode chamar, revisadas pelo agente testes. */
+/**
+ * Funções SECURITY DEFINER que o papel da aplicação pode chamar, revisadas pelo agente testes, pela
+ * assinatura exata de pg_get_function_arguments. Revisão da 0010/0011: R-20261101-172531-engenheiro-software.
+ */
 const DEFINER_REVISADAS: Record<string, string> = {
   'plataforma.tenant_por_codigo(p_codigo text)': 'login: resolve o tenant pelo código antes do contexto; devolve só id, nome, fuso, status',
+  'integracao.autenticar_chave(p_hash text)':
+    'Hub: única leitura sem tenant (ADR 0013); resolve a credencial pelo HMAC da chave; no máximo 1 linha, sem o hash; apagados = 0 linhas',
 };
+
+/**
+ * Funções SECURITY DEFINER que o worker (macuxi_worker) pode chamar. Os expurgos NÃO entram em
+ * DEFINER_REVISADAS: se o macuxi_app puder executá-los, é grant errado e o caso do papel reprova.
+ * Revisão: R-20261101-172531-engenheiro-software (T-0032).
+ */
+const DEFINER_REVISADAS_WORKER: Record<string, string> = {
+  'integracao.expurgar_retencao(p_agora timestamp with time zone DEFAULT now(), p_limite integer DEFAULT 5000)':
+    'retenção do Hub entre tenants; lote cascateia em lote_staging/lote_linha_erro; o expurgo não aborta por FK',
+  'plataforma.expurgar_outbox(p_agora timestamp with time zone DEFAULT now(), p_limite integer DEFAULT 10000)':
+    'retenção da outbox; evento pendente nunca sai; consumo e evento apagados na mesma transação; parâmetro limitado a 7..365',
+};
+
+/**
+ * Índices únicos SEM tenant_id em tabela de tenant, pelo nome (schema.indice), cada um com o motivo.
+ * Exceção nominal, sem regex: índice novo sem tenant_id reprova até ser revisado e listado aqui.
+ */
+const INDICES_UNICOS_GLOBAIS: Record<string, string> = {
+  // Global de propósito: autenticar_chave procura a chave ANTES de se saber o tenant (com
+  // (tenant_id, hash_chave) seria seq scan entre tenants). O hash é HMAC-SHA256 com o pepper do
+  // servidor sobre chave gerada pelo servidor: nenhum tenant escolhe o valor, colisão impraticável
+  // e o 23505 nunca chega ao cliente. CONDIÇÃO: a exceção cai se o Hub aceitar chave escolhida pelo
+  // cliente ("traga sua chave"). Revisão: R-20261101-172531-engenheiro-software (T-0032).
+  'integracao.credencial_hash_uk':
+    'HMAC-SHA256 (pepper do servidor) de chave gerada pelo servidor; cai se o Hub aceitar chave escolhida pelo cliente',
+};
+
+type Definer = { assinatura: string; config: string[] | null; publico: boolean };
+
+/** Funções SECURITY DEFINER dos schemas de domínio que o papel executa (direto ou via PUBLIC). */
+async function definerExecutaveis(admin: pg.Client, papel: string, schemas: string[]): Promise<Definer[]> {
+  const r = await admin.query<Definer>(
+    `select n.nspname || '.' || p.proname || '(' || pg_get_function_arguments(p.oid) || ')' as assinatura,
+            p.proconfig as config,
+            coalesce(exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0 and a.privilege_type = 'EXECUTE'), false) as publico
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where p.prosecdef and n.nspname = any($2) and has_function_privilege($1, p.oid, 'EXECUTE')`,
+    [papel, schemas],
+  );
+  return r.rows;
+}
+
+/** Só as revisadas, todas com search_path fixo e nenhuma executável por PUBLIC. */
+function conferirDefiner(funcoes: Definer[], revisadas: Record<string, string>): void {
+  expect(funcoes.map((x) => x.assinatura).sort()).toEqual(Object.keys(revisadas).sort());
+  for (const f of funcoes) {
+    expect(f.config?.some((c) => c.startsWith('search_path=')), `${f.assinatura} sem search_path fixo`).toBe(true);
+    expect(f.publico, `${f.assinatura} executável por PUBLIC`).toBe(false);
+  }
+}
 
 const COLUNAS_COMUNS: Record<string, string> = {
   id: 'uuid',
@@ -114,18 +171,22 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       expect(problemas).toEqual([]);
     });
 
-    it('índices únicos das tabelas de tenant incluem tenant_id (exceto a chave primária id)', async () => {
+    it('índices únicos das tabelas de tenant incluem tenant_id (exceto a chave primária id e os de INDICES_UNICOS_GLOBAIS)', async () => {
       const r = await admin.query<{ nome: string; indice: string; def: string; pk: boolean }>(
-        `select n.nspname || '.' || c.relname as nome, i.relname as indice, pg_get_indexdef(x.indexrelid) as def, x.indisprimary as pk
+        `select n.nspname || '.' || c.relname as nome, n.nspname || '.' || i.relname as indice, pg_get_indexdef(x.indexrelid) as def, x.indisprimary as pk
            from pg_index x join pg_class i on i.oid = x.indexrelid join pg_class c on c.oid = x.indrelid
            join pg_namespace n on n.oid = c.relnamespace
           where x.indisunique and n.nspname = any($1)`,
         [schemas],
       );
       const comTenant = new Set(tabelas.filter((t) => t.temTenant).map((t) => t.nome));
-      const globais = r.rows.filter((x) => comTenant.has(x.nome) && !x.pk && !/\(tenant_id[,)]/.test(x.def)).map((x) => x.def);
+      const semTenant = r.rows.filter((x) => comTenant.has(x.nome) && !x.pk && !/\(tenant_id[,)]/.test(x.def));
+      const globais = semTenant.filter((x) => !(x.indice in INDICES_UNICOS_GLOBAIS)).map((x) => x.def);
       // um único global entre tenants deixa A descobrir dado de B por colisão (e impede A de cadastrar)
       expect(globais).toEqual([]);
+      // exceção que não casa mais com um único global é lista velha: sai da lista
+      const usadas = new Set(semTenant.map((x) => x.indice));
+      expect(Object.keys(INDICES_UNICOS_GLOBAIS).filter((n) => !usadas.has(n))).toEqual([]);
     });
   });
 
@@ -201,19 +262,11 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
     });
 
     it('funções SECURITY DEFINER executáveis pelo papel: só as revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
-      const r = await admin.query<{ assinatura: string; config: string[] | null; publico: boolean }>(
-        `select n.nspname || '.' || p.proname || '(' || pg_get_function_arguments(p.oid) || ')' as assinatura,
-                p.proconfig as config,
-                coalesce(exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.grantee = 0 and a.privilege_type = 'EXECUTE'), false) as publico
-           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-          where p.prosecdef and n.nspname = any($2) and has_function_privilege($1, p.oid, 'EXECUTE')`,
-        [PAPEL, schemas],
-      );
-      expect(r.rows.map((x) => x.assinatura).sort()).toEqual(Object.keys(DEFINER_REVISADAS).sort());
-      for (const f of r.rows) {
-        expect(f.config?.some((c) => c.startsWith('search_path=')), `${f.assinatura} sem search_path fixo`).toBe(true);
-        expect(f.publico, `${f.assinatura} executável por PUBLIC`).toBe(false);
-      }
+      conferirDefiner(await definerExecutaveis(admin, PAPEL, schemas), DEFINER_REVISADAS);
+    });
+
+    it('funções SECURITY DEFINER executáveis pelo worker (macuxi_worker): só as revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
+      conferirDefiner(await definerExecutaveis(admin, PAPEL_WORKER, schemas), DEFINER_REVISADAS_WORKER);
     });
 
     it('views legíveis pelo papel usam security_invoker (senão rodam como o dono e ignoram RLS); matviews não são legíveis', async () => {
