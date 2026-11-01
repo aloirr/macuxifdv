@@ -103,6 +103,17 @@ criado_em: 2026-10-31T14:05:12-04:00
 
 **Commit de rodada por dono (verificar --por-commit no CI)**: cada commit leva o trailer `Agente:` de UM agente e só arquivos dele — inclusive o próprio `.coord/diario/<agente>.md`, `.coord/lidos/<agente>.txt` e os recados novos que ele enviou (`R-...-<agente>.md`). Recados e lidos do Alexandre vão num commit com `Agente: alexandre`. O gerente separa os arquivos de `.coord/` por autor no fechamento da rodada; nunca juntar arquivos de agentes diferentes num commit só.
 
+**Merge pelo gerente de PR pronto que não é de governança** (decisão do Alexandre, R-20261101-165024): vale para PR da nuvem marcado "[PRONTO PARA MERGE]" que não toca `.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs` nem `.github/**`. Com o CI do `main` verde, o gerente confere três coisas:
+- o CI do PR está verde (com o main já mesclado no branch, se o GitHub exigir);
+- o head SHA é o do momento da marcação;
+- `node scripts/coord.mjs verificar --base origin/main` do branch passa.
+
+Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-head-commit <sha> --body "Agente: <dono da tarefa>"`, sem pedir autorização. Se o branch estiver desatualizado, o gerente mescla o main nele, espera o CI do PR ficar verde e só então faz o merge, sem mexer em código. Depois do merge: `git pull`, quadro, diário e um recado curto ao Alexandre com o commit do squash.
+
+**Rotina de push (custo do CI)** (R-20261101-165024): o push acontece ao fechar uma tarefa ou, no máximo, a cada 2 horas, e não a cada rodada. Os testes rodam localmente antes, como sempre. A exceção é a correção de main vermelho, que sobe na hora.
+
+**Credenciais da Cloudflare** (R-20261101-164531): a autorização do `cloudflared` (`%USERPROFILE%\.cloudflared`: cert.pem, JSON do túnel) fica fora do repositório e fora do alcance dos agentes. A regra é a mesma do `.env`: nenhum agente lê, copia, move ou commita esses arquivos. Os scripts só chamam o `cloudflared`, que os lê sozinho.
+
 **Merge de PR de governança** (decisão do Alexandre, R-20261101-151135; vale desde a T-0033): PR que altera `.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs` ou `.github/**` não faz merge sozinho. O Alexandre decide e o gerente executa:
 1. A sessão da nuvem termina com "[PRONTO PARA MERGE]" e manda recado com o número do PR, o commit de topo (head SHA) e a lista de arquivos de governança alterados.
 2. O gerente confere e resume ao Alexandre por recado: CI do PR verde, CI do `main` verde, head SHA e o que cada arquivo de governança muda, em 1 linha cada (com destaque se algum check, guardião ou regra fica mais fraco).

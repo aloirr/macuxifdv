@@ -15,11 +15,9 @@
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
 | `.github/**`, `turbo.json`, `package.json` da raiz, `scripts/**` (exceto `scripts/coord*`) | T-0033 | nuvem/* | 2026-11-01 |
-| `modules/treinamento/**`, `docs/modulos/treinamento/**` | T-0036 | nuvem/T-0036-treinamento-revisao | 2026-11-01 |
-| `modules/core/domain/**`, `modules/core/contracts/**`, `docs/modulos/core/**` | T-0037 | nuvem/T-0037-core-rn-core-12 | 2026-11-01 |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
-Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
+Destravados em 2026-11-01: T-0036 (`modules/treinamento/**`, 789a191) e T-0037 (`modules/core/domain|contracts/**`, 4c08b91). Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
 Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho: local e nuvem".
 
 ## ✅ Main verde desde 2026-11-01 (CI 41286326232, todas as suítes rodando)
@@ -66,8 +64,12 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0031](tarefas/T-0031.md) | Hub P-3/P-4 e mensagem do Conector conflitante (P-6) — Sprint 2 | modulo-integracao | nuvem (PR #25, 697ab42) | concluida (rotas na T-0032) |
 | [T-0034](tarefas/T-0034.md) | engenheiro-apps: next-env definitivo, abas ⛔ dos shells, revisão das telas da T-0029 — Sprint 2 | engenheiro-apps | local | em_revisao (entregue; revisão do engenheiro-software em andamento) |
 | [T-0035](tarefas/T-0035.md) | Vendedor: 🟡 da T-0029 (fronteira do fuso, /alcadas sem promotor) — Sprint 2 | modulo-vendedor | local | em_revisao (3 itens entregues; testes e revisão em andamento) |
-| [T-0036](tarefas/T-0036.md) | Treinamento: 🟡 e 🟢 da revisão final — Sprint 2 | modulo-treinamento | nuvem | aberta |
-| [T-0037](tarefas/T-0037.md) | Core: RN-CORE-12 como função pura no domain — Sprint 2 | modulo-core | nuvem | aberta |
+| [T-0036](tarefas/T-0036.md) | Treinamento: 🟡 e 🟢 da revisão final — Sprint 2 | modulo-treinamento | nuvem (PR #28, 789a191) | concluida |
+| [T-0037](tarefas/T-0037.md) | Core: RN-CORE-12 como função pura no domain — Sprint 2 | modulo-core | nuvem (PR #27, 4c08b91) | concluida |
+| [T-0038](tarefas/T-0038.md) | Domínio fixo da demo (api-demo/bko-demo.macuxifdv.com.br) — Sprint 2 | engenheiro-software, engenheiro-apps | local (depois do main verde) | aberta |
+| [T-0039](tarefas/T-0039.md) | Checkout validado na API (RN-CORE-12) — Sprint 2 | engenheiro-software, modulo-core | local (destravada; depois da T-0038) | aberta |
+| [T-0040](tarefas/T-0040.md) | "Hoje" no fuso do tenant (C6, produção) e testes com hora fixa — Sprint 2 | modulo-core, banco-dados, modulo-vendedor | local | aberta |
+| [T-0041](tarefas/T-0041.md) | Prevenção de hora fixa: relógio de teste, lint e CI com relógio deslocado — Sprint 2 | engenheiro-software | local (+ job na T-0033) | aberta |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (155 testes · revisão sem 🔴 · decisões do Alexandre aplicadas) |
 
