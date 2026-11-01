@@ -9,7 +9,11 @@
  * `itens` = o que foi faturado NESTE retorno (o consumidor soma; o total depois de parciais traz só o saldo);
  * `parcial` (padrão false) marca faturamento parcial; parcial sem itens (vazio ou ausente) é lido, mas ignorado pelo
  * domínio (`PARCIAL_SEM_ITENS`). O consumidor é idempotente por `evento_id`, que vem do ENVELOPE (não do payload):
- * quem consome o repassa ao domínio (`PedidoFaturadoLido.evento_id` em domain/desafio.ts).
+ * quem consome o junta ao payload com `lerPedidoFaturado` (T-0036).
+ *
+ * Tipo ÚNICO (T-0036, revisão final da T-0011 🟡1): `PedidoFaturadoLido` é o payload; `EventoFaturadoNoDesafio` é o
+ * mesmo schema estendido com `evento_id` e `tenant_id` do envelope. O domínio (domain/desafio.ts) e o consumidor da
+ * API recebem só `EventoFaturadoNoDesafio`: mudar o contrato quebra o typecheck do domínio (regra 3 do CLAUDE.md).
  */
 import { z } from 'zod';
 import { InstanteUtc, Uuid } from './base';
@@ -33,6 +37,38 @@ export const PedidoFaturadoLido = z.object({
   parcial: z.boolean().default(false),
 });
 export type PedidoFaturadoLido = z.infer<typeof PedidoFaturadoLido>;
+
+/** Nome do evento consumido (deve estar em `consome` do manifesto). */
+export const EVENTO_PEDIDO_FATURADO = 'vendedor.pedido.faturado@1';
+
+/**
+ * O pedido faturado como o Treinamento o processa (RF-TRE-06, RN-TRE-08): payload lido + `evento_id` (chave de
+ * idempotência do retorno) e `tenant_id` do ENVELOPE. É a entrada de `avaliarPedidoNoDesafio`/`candidatoDoDesafio`.
+ */
+export const EventoFaturadoNoDesafio = PedidoFaturadoLido.extend({
+  /** `evento_id` do envelope (não vem no payload). */
+  evento_id: Uuid,
+  /** Tenant do envelope (o despachante abre a transação com ele; RLS). */
+  tenant_id: Uuid,
+});
+export type EventoFaturadoNoDesafio = z.infer<typeof EventoFaturadoNoDesafio>;
+
+/** O que o consumidor usa do envelope do evento (`EnvelopeEvento` do platform-sdk). */
+export interface EnvelopeLido {
+  evento_id: string;
+  tenant_id: string;
+}
+
+/**
+ * Lê `vendedor.pedido.faturado@1` para o desafio: junta o payload aos campos do envelope e valida tudo com
+ * `EventoFaturadoNoDesafio`. O `evento_id` e o `tenant_id` do ENVELOPE prevalecem sobre qualquer campo homônimo do
+ * payload (o payload não escolhe o tenant). Payload fora do contrato → `null` (não pontua; o consumidor registra e segue).
+ */
+export function lerPedidoFaturado(payload: unknown, envelope: EnvelopeLido): EventoFaturadoNoDesafio | null {
+  const corpo = payload !== null && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+  const r = EventoFaturadoNoDesafio.safeParse({ ...corpo, evento_id: envelope.evento_id, tenant_id: envelope.tenant_id });
+  return r.success ? r.data : null;
+}
 
 /** Desafio de vendas (campanha com XP) cadastrado no BKO (RF-TRE-06). */
 export const DesafioVendasContrato = z
