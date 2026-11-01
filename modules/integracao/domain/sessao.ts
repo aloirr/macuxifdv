@@ -59,6 +59,12 @@ export interface EntradaInativacao {
   ativosNoMacuxi: Iterable<string>;
   /** external_id de todas as linhas da sessão, inclusive as que tiveram erro de validação. */
   recebidosNaSessao: Iterable<string>;
+  /**
+   * T-0027 (🔴 RN-INT-06): external_id das linhas que vieram INVÁLIDAS na sessão — linhas inválidas do Conector e linhas com erro
+   * no Hub (validação, referência ausente, falha). Registro que veio como inválido NUNCA é inativado: ele existe no ERP. Pode
+   * repetir ids de `recebidosNaSessao` (a união é feita aqui); veja `idsDaSessaoNoLote`.
+   */
+  invalidosNaSessao?: Iterable<string>;
   /** Linhas da sessão sem external_id legível: sem elas não dá para saber o que faltou. */
   linhasSemExternalId?: number;
   /**
@@ -86,13 +92,71 @@ export function calcularInativacao(e: EntradaInativacao): ResultadoInativacao {
   if (situacaoSessao(e.sessao, e.agora, { ttlMin: e.ttlMin }) !== 'completa') return nega('sessao_incompleta');
   if ((e.linhasSemExternalId ?? 0) > 0) return nega('linhas_sem_external_id');
   if ((e.linhasInvalidasOmitidas ?? 0) > 0) return nega('linhas_invalidas_omitidas');
-  const recebidos = new Set(e.recebidosNaSessao);
-  if (recebidos.size === 0) return nega('carga_vazia');
-  const inativar = [...new Set(e.ativosNoMacuxi)].filter((id) => !recebidos.has(id));
+  // vistos = tudo que a sessão trouxe (aceito ou inválido): só o ativo AUSENTE da carga é candidato
+  const vistos = new Set(e.recebidosNaSessao);
+  for (const id of e.invalidosNaSessao ?? []) vistos.add(id);
+  if (vistos.size === 0) return nega('carga_vazia');
+  const inativar = [...new Set(e.ativosNoMacuxi)].filter((id) => !vistos.has(id));
   const ativos = new Set(e.ativosNoMacuxi).size;
   const limite = e.limitePct ?? PARAMETROS_PADRAO.limiteInativacaoPct;
   if (!e.confirmado && ativos > 0 && (inativar.length / ativos) * 100 > limite) {
     return { permitido: false, inativar: [], candidatos: inativar, motivo: 'excede_limite_inativacao' };
   }
   return { permitido: true, inativar, motivo: null };
+}
+
+export interface LinhaDaSessao {
+  /** `external_id` legível da linha (aparado); `null` quando não dá para identificar o registro. */
+  external_id: string | null;
+}
+
+export interface EntradaIdsDoLote {
+  /** Linhas aceitas pelo Hub no lote (novas, atualizadas, inalteradas, obsoletas). */
+  aceitas: readonly { external_id: string }[];
+  /** Erros por linha do Hub (validação, referência ausente, falha de processamento); várias entradas por `indice` contam 1 linha. */
+  errosHub: readonly { indice: number; external_id: string | null }[];
+  /** Resultado de `tratarLinhasInvalidasConector` para o mesmo lote. */
+  invalidasConector: { externalIds: readonly string[]; semIdentificacao: number };
+}
+
+export interface IdsDaSessaoNoLote {
+  /** Gravar em `registro_atual.sessao_id`/`visto_em` (já é feito no upsert). */
+  aceitos: string[];
+  /** Gravar em `sessao_carga_recebido`: o que veio inválido e por isso não tocou `registro_atual` (nunca inativar). */
+  invalidos: string[];
+  /** Somar em `sessao_carga.linhas_sem_identificacao`: linha sem id legível (Hub ou Conector) ou omitida — impede a inativação. */
+  semIdentificacao: number;
+}
+
+/**
+ * T-0027 (🔴 RN-INT-06): o que cada lote de uma sessão de carga completa precisa deixar guardado para a inativação nunca atingir
+ * um registro que chegou inválido. A API chama ao aplicar cada parte e soma os resultados da sessão; `calcularInativacao` recebe
+ * `recebidosNaSessao` (aceitos), `invalidosNaSessao` (inválidos) e `linhasSemExternalId` (semIdentificacao).
+ */
+export function idsDaSessaoNoLote(e: EntradaIdsDoLote): IdsDaSessaoNoLote {
+  const limpa = (v: string | null | undefined): string | null => {
+    const t = typeof v === 'string' ? v.trim() : '';
+    return t === '' ? null : t;
+  };
+  const aceitos = new Set<string>();
+  for (const a of e.aceitas) {
+    const id = limpa(a.external_id);
+    if (id !== null) aceitos.add(id);
+  }
+  const invalidos = new Set<string>();
+  const porIndice = new Map<number, string | null>();
+  for (const x of e.errosHub) {
+    const id = limpa(x.external_id);
+    if (!porIndice.has(x.indice) || (porIndice.get(x.indice) === null && id !== null)) porIndice.set(x.indice, id);
+  }
+  let semId = 0;
+  for (const id of porIndice.values()) {
+    if (id === null) semId++;
+    else invalidos.add(id);
+  }
+  for (const id of e.invalidasConector.externalIds) {
+    const t = limpa(id);
+    if (t !== null) invalidos.add(t);
+  }
+  return { aceitos: [...aceitos], invalidos: [...invalidos].filter((id) => !aceitos.has(id)), semIdentificacao: semId + Math.max(0, e.invalidasConector.semIdentificacao) };
 }

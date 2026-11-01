@@ -5,11 +5,14 @@
 import { Entidade, LoteEnvelope, type ErroEnvelope, type LoteEnvelopeValido } from '../contracts';
 import { descreverIssue } from './erros';
 import { PARAMETROS_PADRAO } from './parametros';
+import { erroEntidadeDeOutroConector } from './topologia';
 import { validarVersaoContrato } from './versao';
 
 export interface OpcoesEnvelope {
   limiteRegistros?: number;
   versoesSuportadas?: readonly string[];
+  /** P-6 (T-0027): entidades do Conector autenticado; omitido = não confere (testes e carga por arquivo). */
+  entidadesDoConector?: readonly Entidade[];
 }
 
 export type ResultadoEnvelope = { ok: true; envelope: LoteEnvelopeValido } | { ok: false; erros: ErroEnvelope[] };
@@ -35,6 +38,9 @@ export function validarEnvelope(entrada: unknown, opcoes: OpcoesEnvelope = {}): 
   const entidade = Entidade.safeParse(env.entidade);
   if (!entidade.success) {
     erros.push({ codigo: 'entidade_desconhecida', campo: 'entidade', mensagem: `Entidade desconhecida. Use uma de: ${Entidade.options.join(', ')}.` });
+  } else if (opcoes.entidadesDoConector) {
+    const outro = erroEntidadeDeOutroConector(entidade.data, opcoes.entidadesDoConector);
+    if (outro) erros.push(outro);
   }
 
   // Exceção da RN-INT-01 (T-0025): lote sem registros mas com linhas inválidas do Conector é aceito — os erros precisam chegar ao BKO.

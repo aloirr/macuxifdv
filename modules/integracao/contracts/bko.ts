@@ -25,13 +25,25 @@ export type SaudeConector = z.infer<typeof SaudeConector>;
 export const SITUACOES_VERSAO_CONECTOR = ['sem_politica', 'versao_ilegivel', 'em_dia', 'desatualizado', 'abaixo_da_minima'] as const;
 export const SituacaoVersaoConectorSchema = z.enum(SITUACOES_VERSAO_CONECTOR);
 
+/** Entidades de um Conector: ao menos uma, sem repetição (P-6). */
+export const ListaEntidadesConector = z
+  .array(Entidade)
+  .min(1, 'escolha ao menos uma entidade para o Conector')
+  .refine((l) => new Set(l).size === l.length, 'entidade repetida na lista do Conector');
+
 export const ConectorCriar = z.object({
   /** Identificador que vai no arquivo do Conector (`hub.conectorId`) e no cabeçalho `X-Macuxi-Conector-Id`. */
   conector_id: ConectorIdentificador,
   nome: z.string().trim().min(1).max(120),
   tipo: TipoConector.default('conector'),
-  /** Só Conectores com `recebe_pedidos` recebem os pedidos aprovados (um por empresa em v1; padrão `true`). */
+  /** Só Conectores com `recebe_pedidos` recebem os pedidos aprovados (um por empresa em v1, P-7; padrão `true`). */
   recebe_pedidos: z.boolean().default(true),
+  /**
+   * Entidades que ESTE Conector alimenta (T-0027, P-6/RN-INT-13: um Conector por entidade por empresa na v1). Padrão: as 8.
+   * O Hub recusa o cadastro que repete entidade de outro Conector ativo (`verificarTopologiaConectores`) e o lote de entidade
+   * que não é dele (`entidade_de_outro_conector`). Filial com ERP próprio vira outra empresa (outro tenant).
+   */
+  entidades: ListaEntidadesConector.default([...ENTIDADES]),
   /** Lista de IPs/CIDRs de saída permitidos (opcional; vazio = qualquer IP com chave válida). */
   ips_permitidos: z.array(z.string().trim().min(2).max(60)).max(20).default([]),
 });
@@ -41,6 +53,8 @@ export const ConectorAtualizar = z.object({
   nome: z.string().trim().min(1).max(120).optional(),
   ips_permitidos: z.array(z.string().trim().min(2).max(60)).max(20).optional(),
   recebe_pedidos: z.boolean().optional(),
+  /** Troca as entidades do Conector (P-6; o Hub confere conflito com os outros Conectores ativos). */
+  entidades: ListaEntidadesConector.optional(),
   /** `false` desativa o Conector e revoga as chaves (RN-INT-10). */
   ativo: z.boolean().optional(),
 });
@@ -63,6 +77,8 @@ export const ConectorResumo = z.object({
   tipo: TipoConector,
   ativo: z.boolean(),
   recebe_pedidos: z.boolean(),
+  /** Entidades que este Conector alimenta (P-6). */
+  entidades: z.array(Entidade),
   ips_permitidos: z.array(z.string()),
   versao_conector: z.string().nullable(),
   situacao_versao: SituacaoVersaoConectorSchema,

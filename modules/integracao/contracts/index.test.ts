@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  Cursor,
+  EXTERNAL_ID_MAX,
+  LinhaInvalidaConector,
   ClientePayload,
   EVENTOS_ATUALIZADO,
   ENTIDADES,
@@ -47,7 +50,16 @@ describe('RN-INT-09: contrato canônico v1 por entidade', () => {
   it('external_id é obrigatório, não vazio e limitado', () => {
     expect(ProdutoPayload.safeParse({ ...base, external_id: undefined, sku: 'P', nome: 'n', unidade: 'UN' }).success).toBe(false);
     expect(ProdutoPayload.safeParse({ ...base, external_id: '   ', sku: 'P', nome: 'n', unidade: 'UN' }).success).toBe(false);
-    expect(ProdutoPayload.safeParse({ ...base, external_id: 'x'.repeat(101), sku: 'P', nome: 'n', unidade: 'UN' }).success).toBe(false);
+    expect(ProdutoPayload.safeParse({ ...base, external_id: 'x'.repeat(201), sku: 'P', nome: 'n', unidade: 'UN' }).success).toBe(false);
+  });
+
+  it('T-0027: external_id aceita até 200 caracteres no registro, no cursor e na linha inválida do Conector (os dois lados iguais)', () => {
+    const id200 = 'x'.repeat(EXTERNAL_ID_MAX);
+    expect(EXTERNAL_ID_MAX).toBe(200);
+    expect(ProdutoPayload.safeParse({ ...base, external_id: id200, sku: 'P', nome: 'n', unidade: 'UN' }).success).toBe(true);
+    expect(Cursor.safeParse({ alterado_em: '2026-10-31T10:00:00Z', external_id: id200 }).success).toBe(true);
+    expect(LinhaInvalidaConector.safeParse({ external_id: id200, codigo: 'registro_invalido', mensagem: 'x' }).success).toBe(true);
+    expect(LinhaInvalidaConector.safeParse({ external_id: `${id200}x`, codigo: 'registro_invalido', mensagem: 'x' }).success).toBe(false);
   });
 
   it('dinheiro só em centavos inteiros', () => {

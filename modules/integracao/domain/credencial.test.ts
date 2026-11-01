@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { avaliarChaveConector, revogarChaves, rotacionarChaves, type ChaveArmazenada, type ChavesDoConector } from './credencial';
+import { PARAMETROS_PADRAO } from './parametros';
 
 const t0 = '2026-11-01T10:00:00.000Z';
 const mais = (iso: string, min: number) => new Date(Date.parse(iso) + min * 60_000).toISOString();
@@ -116,5 +117,29 @@ describe('RN-INT-10 (proposta): rotação e revogação', () => {
     const uma = revogarChaves(base, 'atual', t0);
     const duas = revogarChaves(uma, 'atual', mais(t0, 60));
     expect(duas.atual?.revogada_em).toBe(t0);
+  });
+});
+
+describe('RN-INT-10 (P-5, T-0027): a chave antiga convive 24 h na rotação, como parâmetro do tenant', () => {
+  const ref = (id: string) => ({ id, prefixo: id.slice(0, 6), criada_em: '2026-10-01T00:00:00.000Z', expira_em: null, revogada_em: null, anterior_valida_ate: null });
+  const base: ChavesDoConector = { atual: ref('k1abcdef'), anterior: null };
+  const anteriorDe = (validaAte: string): ChaveArmazenada => ({
+    conector_id: 'matriz-01', conector_ativo: true, escopo: 'integracao.v1', papel: 'anterior', criada_em: t0, expira_em: null, anterior_valida_ate: validaAte, revogada_em: null,
+  });
+
+  it('RN-INT-10 (P-5): o padrão é 24 h (1440 min) e a anterior autentica até 1 ms antes do fim da janela', () => {
+    expect(PARAMETROS_PADRAO.convivenciaChaveMin).toBe(24 * 60);
+    const r = rotacionarChaves(base, { id: 'k2abcdef', prefixo: 'k2abcd' }, t0);
+    const fim = r.ok ? (r.anterior_valida_ate as string) : '';
+    expect(fim).toBe(mais(t0, 1440));
+    const quase = new Date(Date.parse(fim) - 1).toISOString();
+    expect(avaliarChaveConector({ chave: anteriorDe(fim), conector_id_cabecalho: 'matriz-01', agora: quase })).toMatchObject({ ok: true, situacao: 'em_convivencia' });
+    expect(avaliarChaveConector({ chave: anteriorDe(fim), conector_id_cabecalho: 'matriz-01', agora: fim })).toMatchObject({ ok: false, motivo: 'fora_da_convivencia' });
+  });
+
+  it('RN-INT-10 (P-5): o tenant pode mudar a convivência (ex.: 48 h) dentro do teto de 7 dias', () => {
+    const r = rotacionarChaves(base, { id: 'k2abcdef', prefixo: 'k2abcd' }, t0, { convivenciaMin: 48 * 60 });
+    expect(r).toMatchObject({ ok: true, anterior_valida_ate: mais(t0, 48 * 60) });
+    expect(rotacionarChaves(base, { id: 'k2abcdef', prefixo: 'k2abcd' }, t0, { convivenciaMin: 7 * 24 * 60 + 1 }).ok).toBe(false);
   });
 });

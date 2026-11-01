@@ -208,7 +208,7 @@ export const ROTAS_HUB: readonly RotaHub[] = [
     cabecalhos: CabecalhosConector,
     corpo: ReconciliacaoEnvio,
     sucesso: { status: 200, schema: RespostaReconciliacao },
-    erros: [400, 426],
+    erros: [400, 422, 426],
   },
   {
     id: 'pedidos_pendentes',
