@@ -52,6 +52,23 @@ goto menu
 
 :build
 echo.
+rem --- Antes de gastar build da Expo: arvore limpa e bundle do Metro verde ---
+set "SUJO="
+for /f "delims=" %%L in ('git status --porcelain 2^>nul') do set "SUJO=1"
+if not defined SUJO goto build_bundle
+echo [AVISO] Ha arquivos alterados sem commit no repositorio - o EAS envia a arvore como esta.
+echo         Se os agentes estao rodando, espere o fechamento da rodada (commit + push).
+set "CONT="
+set /p "CONT=Continuar mesmo assim? (S/N): "
+if /i not "%CONT%"=="S" exit /b 0
+:build_bundle
+set "VAR=campo"
+echo %~1| find /i "gestao" >nul && set "VAR=gestao"
+echo --- Conferindo o bundle do app (Metro) para a variante %VAR% ---
+set "APP_VARIANT=%VAR%"
+call pnpm --filter mobile bundle:android
+if errorlevel 1 goto build_erro_bundle
+echo.
 echo --- Enviando o build "%~1" para a fila da Expo ---
 echo (Na primeira vez a Expo pergunta se pode criar a chave de assinatura do Android: responda Y / Enter.)
 call %EAS% build --profile %~1 --platform android --no-wait
@@ -59,6 +76,11 @@ if errorlevel 1 (
   echo [ERRO] O build "%~1" nao foi enviado. Veja a mensagem acima.
   pause
 )
+exit /b 0
+
+:build_erro_bundle
+echo [ERRO] O bundle do app quebrou: o build da Expo falharia do mesmo jeito. Avise o engenheiro.
+pause
 exit /b 0
 
 :servir
