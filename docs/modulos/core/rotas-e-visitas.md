@@ -6,7 +6,7 @@ Desenho: `docs/desenho/T-0016.md` §2, §4 e §9; ADR 0009 (sync de escrita, esc
 | Entidade | Direção | Escopo | Janela |
 |---|---|---|---|
 | `motivo` | pull | tenant | — |
-| `rota`, `rota_parada` | pull | usuários visíveis (RN-CORE-04) | data ∈ [hoje − 40, hoje + 30] |
+| `rota`, `rota_parada` | pull | usuários visíveis (RN-CORE-04) | data ≥ hoje − 40 (sem limite superior: ADR 0009, adendo §5) |
 | `visita` | ambos | usuários visíveis | `data_local` ≥ hoje − 40; push = check-in (id = id da visita) |
 | `visita_checkout` | push | — | id = UUID do comando, gravado em `visita.checkout_id` |
 

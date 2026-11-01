@@ -16,7 +16,7 @@ interface Pagina<T> {
   items: T[];
 }
 
-/** 4xx do servidor (sem rota hoje, sem metas para o perfil) = "vazio", não falha da sincronização. */
+/** 404/501 (sem rota ou sync não implementado) = "vazio"; 401/403/423 seguem como erro (RN-CORE-15). */
 async function ou4xxNulo<T>(f: () => Promise<T>): Promise<T | null> {
   try {
     return await f();
@@ -33,6 +33,13 @@ export const etapasCore: readonly EtapaSync[] = [
     modulo: 'core',
     async executar(ctx) {
       const http = exigirHttp(ctx);
+      // Só o vendedor tem meta nesta carga (Fase M): o mock-api da demo responde 400 validation_error ("Perfil sem vendedor")
+      // a supervisor/gerente/promotor. Pular aqui evita derrubar o Sincronizar sem afrouxar o D-5 (401/403/423 seguem como erro).
+      const perfil = ctx.usuario()?.perfil;
+      if (perfil && perfil !== 'vendedor') {
+        await ctx.armazenamento.gravar(CHAVES.metas, null);
+        return;
+      }
       const metas = await ou4xxNulo(() => http.get<SellerGoals>('/goals/me'));
       await ctx.armazenamento.gravar(CHAVES.metas, metas);
     },
@@ -44,8 +51,11 @@ export const etapasCore: readonly EtapaSync[] = [
     async executar(ctx) {
       const http = exigirHttp(ctx);
       const me = await ctx.armazenamento.ler<Parameters<typeof fusoDe>[0]>(CHAVES.me);
-      // sem o módulo Vendedor (403 MODULO_INATIVO) ou sem pedidos: lista vazia, a sincronização segue
-      const r = (await ou4xxNulo(() => http.get<Pagina<OrderLike>>('/orders', { from: monthStart(ctx.agora(), fusoDe(me)), limit: 1000 }))) ?? { items: [] };
+      // D-5: 403 MODULO_INATIVO sobe como erro (não é mais engolido); só 404/501 viram lista vazia.
+      // TODO(REST de pedidos v1 com licença): pular esta etapa quando o Vendedor não for efetivo para o usuário
+      // (`ctx.usuario()?.modulos`), em vez de depender do 403.
+      const fuso = ctx.usuario()?.fuso ?? fusoDe(me);
+      const r = (await ou4xxNulo(() => http.get<Pagina<OrderLike>>('/orders', { from: monthStart(ctx.agora(), fuso), limit: 1000 }))) ?? { items: [] };
       const pedidos: OrderLike[] = r.items.map((o) => ({ id: o.id, number: o.number, customer_id: o.customer_id, status: o.status, total_cents: o.total_cents, received_at: o.received_at, created_offline_at: o.created_offline_at ?? null }));
       await ctx.armazenamento.gravar(CHAVES.pedidos, pedidos);
     },

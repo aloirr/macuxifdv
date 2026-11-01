@@ -21,8 +21,11 @@ export function exigirHttp(fonte: unknown): ClienteHttp {
   return h;
 }
 
-/** Erro 4xx do servidor (ex.: sem rota hoje, sem metas): a carga segue com "vazio". */
+/**
+ * Rota inexistente (404) ou sync não implementado (501 / SYNC_NAO_IMPLEMENTADO): a carga segue com "vazio".
+ * Os demais 4xx (401, 403 MODULO_INATIVO/PERFIL_SEM_ACESSO, 423 DISPOSITIVO_BLOQUEADO) seguem como erro (RN-CORE-15).
+ */
 export function erroDeCliente(e: unknown): boolean {
-  const s = (e as { status?: unknown } | null)?.status;
-  return typeof s === 'number' && s >= 400 && s < 500;
+  const x = e as { status?: unknown; code?: unknown; codigo?: unknown } | null;
+  return x?.status === 404 || x?.status === 501 || x?.code === 'SYNC_NAO_IMPLEMENTADO' || x?.codigo === 'SYNC_NAO_IMPLEMENTADO';
 }

@@ -36,7 +36,7 @@ const somarDias = (data: string, n: number): string => new Date(Date.parse(`${da
 const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
 
 async function fusoDoTenant(db: ClienteBanco): Promise<string> {
-  return (await db.query<{ fuso: string }>('select fuso from plataforma.tenant limit 1')).rows[0]?.fuso ?? 'America/Sao_Paulo';
+  return (await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()')).rows[0]?.fuso ?? 'America/Sao_Paulo';
 }
 
 function visivel(visiveis: ReadonlySet<string> | 'tenant', id: string): boolean {

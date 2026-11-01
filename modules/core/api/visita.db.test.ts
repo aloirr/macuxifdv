@@ -332,6 +332,39 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
     });
   });
 
+  describe('janela da rota sem limite superior (ADR 0009, adendo §5)', () => {
+    it('rota e parada gravadas a mais de 30 dias à frente chegam ao aparelho do dono (e só dele)', async () => {
+      const data = '2030-06-03'; // segunda-feira, a mais de 30 dias de qualquer "hoje" até 2030
+      await chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data }, corpo: { paradas: [{ cliente_id: C.c1 }] } });
+      const rotas = (await puxar('rota', vendedor1)) as unknown as Array<{ data: string }>;
+      const paradas = (await puxar('rota_parada', vendedor1)) as unknown as Array<{ data: string }>;
+      expect(rotas.some((r) => r.data === data)).toBe(true);
+      expect(paradas.some((r) => r.data === data)).toBe(true);
+      expect((await puxar('rota', vendedor2)).some((r) => (r as unknown as { data: string }).data === data)).toBe(false);
+    });
+  });
+
+  describe('concorrência no push de visita', () => {
+    it('dois checkouts simultâneos do mesmo comando publicam 1 evento e ambos são aceitos', async () => {
+      const vid = id(70);
+      await checkin(vendedor1, vid, { cliente_id: C.c3, lat: -3.29, lng: -60.62 }); // c3: não disputa as "últimas visitas" de c1 com outros arquivos
+      const antes = eventos.filter((e) => e.nome === 'core.visita.checkout@1' && e.payload.visita_id === vid).length;
+      const [r1, r2] = await Promise.all([checkout(vendedor1, id(170), vid), checkout(vendedor1, id(170), vid)]);
+      expect(r1).toEqual([{ id: id(170), status: 'aceito' }]);
+      expect(r2).toEqual([{ id: id(170), status: 'aceito' }]);
+      expect(eventos.filter((e) => e.nome === 'core.visita.checkout@1' && e.payload.visita_id === vid).length - antes).toBe(1);
+    });
+
+    it('dois check-ins simultâneos do mesmo id publicam 1 evento e ambos são aceitos', async () => {
+      const vid = id(71);
+      const [r1, r2] = await Promise.all([checkin(vendedor1, vid, { cliente_id: C.c3, lat: -3.29, lng: -60.62 }), checkin(vendedor1, vid, { cliente_id: C.c3, lat: -3.29, lng: -60.62 })]);
+      expect(r1).toEqual([{ id: vid, status: 'aceito' }]);
+      expect(r2).toEqual([{ id: vid, status: 'aceito' }]);
+      expect(eventos.filter((e) => e.nome === 'core.visita.checkin@1' && e.payload.visita_id === vid)).toHaveLength(1);
+      await checkout(vendedor1, id(171), vid);
+    });
+  });
+
   describe('rotas do BKO (RN-CORE-04)', () => {
     it('PUT rota: monta a rota na ordem, rejeita cliente fora da carteira do usuário (422 RN-CORE-04) e reordenar mantém o id da parada', async () => {
       await expect(chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA }, corpo: { paradas: [{ cliente_id: C.c2 }] } })).rejects.toMatchObject({ codigo: 'RN-CORE-04' });

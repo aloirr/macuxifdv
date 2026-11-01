@@ -103,15 +103,15 @@ export const TABELAS_SYNC = {
     colunas: "usuario_id, to_char(data, 'YYYY-MM-DD') as data, situacao, origem, regiao, observacao",
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    // data ∈ [hoje − 40, hoje + 30]
-    janela: 'data between current_date - 40 and current_date + 30',
+    // data ≥ hoje − 40, SEM limite superior (ADR 0009, adendo §5): rota futura nunca fica para trás do cursor
+    janela: 'data >= current_date - 40',
   },
   rota_parada: {
     tabela: 'core.rota_parada',
     colunas: "rota_id, usuario_id, to_char(data, 'YYYY-MM-DD') as data, cliente_id, sequencia, to_char(janela_inicio, 'HH24:MI') as janela_inicio, to_char(janela_fim, 'HH24:MI') as janela_fim",
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    janela: 'data between current_date - 40 and current_date + 30',
+    janela: 'data >= current_date - 40',
   },
   visita: {
     tabela: 'core.visita',

@@ -73,8 +73,8 @@ export function raioDosParametros(linhas: readonly { modulo: string; chave: stri
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-export function fusoDe(me: Me | null): string {
-  return me?.tenant.timezone || DEFAULT_TZ;
+export function fusoDe(me: Me | null, fusoAmbiente?: string | null): string {
+  return fusoAmbiente || me?.tenant.timezone || DEFAULT_TZ;
 }
 
 /** Id do usuário (UUID da sessão; na demonstração, o vendedor do mock-api). */
@@ -104,6 +104,11 @@ export class ArmazemCore {
   private pedirOutra = false;
 
   constructor(private readonly motor: MotorSync) {}
+
+  /** Fuso do tenant: o do login v1 (`ambiente.usuario().fuso`); na demonstração, o do `me`. */
+  fuso(me: Me | null): string {
+    return fusoDe(me, this.motor.ambiente.usuario()?.fuso);
+  }
 
   obter = (): EstadoCore => this.atual;
 
@@ -162,7 +167,7 @@ export class ArmazemCore {
       m.linhas<ParametroSync & LinhaSync>('parametro'),
     ]);
     const agora = new Date();
-    const fuso = fusoDe(me);
+    const fuso = this.fuso(me);
     const local = montarEstadoLocal({ clientes, financeiros, titulos, historico, contatos, rotas, paradas, visitas, motivos }, m.sobreposicao(), {
       usuarioId: this.usuarioId(me),
       hoje: dataLocal(agora, fuso),

@@ -27,7 +27,7 @@ const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemP
 const iso = (d: Date | string): string => new Date(d).toISOString();
 
 async function fusoDoTenant(db: ClienteBanco): Promise<string> {
-  const r = await db.query<{ fuso: string }>('select fuso from plataforma.tenant limit 1');
+  const r = await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()');
   return r.rows[0]?.fuso ?? 'America/Sao_Paulo';
 }
 
@@ -75,6 +75,8 @@ export async function receberCheckins(ctx: ContextoBase, itens: readonly ItemPus
   const eu = ctx.usuario.id;
   return porItem(ctx, itens, async (db, tx, item) => {
     const p = item.payload as CheckinVisita;
+    // serializa envios simultâneos do mesmo check-in (timeout + retentativa): o segundo espera o primeiro e cai na idempotência
+    await db.query('select pg_advisory_xact_lock(hashtext($1))', [`visita:${p.id}`]);
     // 1) idempotência: mesmo id, mesmo usuário e cliente = reenvio
     const ja = (await db.query<{ usuario_id: string; cliente_id: string }>('select usuario_id, cliente_id from core.visita where id = $1', [p.id])).rows[0];
     if (ja) return ja.usuario_id === eu && ja.cliente_id === p.cliente_id ? aceito(item.id) : rejeitado(item.id, 'ID_EM_USO', 'Este identificador de visita já pertence a outro registro.');
@@ -132,7 +134,10 @@ export async function receberCheckins(ctx: ContextoBase, itens: readonly ItemPus
         aval.sem_gps, aval.distancia_m, aval.fora_do_raio, aval.fora_do_raio ? (p.justificativa_fora_raio ?? '').trim() : null, aval.sugere_coordenada, p.extra,
       ],
     );
-    if (ins.rows.length === 0) return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de visita já pertence a outro registro.');
+    if (ins.rows.length === 0) {
+      const outra = (await db.query<{ usuario_id: string; cliente_id: string }>('select usuario_id, cliente_id from core.visita where id = $1', [p.id])).rows[0];
+      return outra && outra.usuario_id === eu && outra.cliente_id === p.cliente_id ? aceito(item.id) : rejeitado(item.id, 'ID_EM_USO', 'Este identificador de visita já pertence a outro registro.');
+    }
     await tx.publicar(
       EVENTO_VISITA_CHECKIN,
       {
@@ -170,7 +175,7 @@ export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPu
     // 1) visita inexistente ou de outro usuário: mesma resposta nos dois casos
     const v = (
       await db.query<VisitaCheckout>(
-        'select id, cliente_id, checkin_em, checkout_em, checkout_id, fechada_por from core.visita where id = $1 and usuario_id = $2 and deleted_at is null',
+        'select id, cliente_id, checkin_em, checkout_em, checkout_id, fechada_por from core.visita where id = $1 and usuario_id = $2 and deleted_at is null for update',
         [p.visita_id, eu],
       )
     ).rows[0];

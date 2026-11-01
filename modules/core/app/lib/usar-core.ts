@@ -43,7 +43,7 @@ export function useCore(): UsoCore {
     void armazem?.carregar();
   }, [armazem, estadoMotor.sincronizado_em, estadoMotor.fila, estadoMotor.aceitos]);
 
-  const tz = fusoDe(estado.me);
+  const tz = armazem ? armazem.fuso(estado.me) : fusoDe(estado.me);
   const vendedorId = armazem ? armazem.usuarioId(estado.me) : '';
 
   // relógio do atendimento: tempo decorrido e fechamento na virada do dia sem depender de rede
