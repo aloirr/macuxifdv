@@ -13,8 +13,10 @@
  *  R2. Toda dependência fora do grafo declarado (import de @macuxi/* não declarado, import relativo ou — só para
  *      `test` — caminho literal `../` que sai da pasta) precisa estar coberta por um glob `$TURBO_ROOT$/<pasta>/**` nos `inputs`
  *      da tarefa (`<pacote>#<tarefa>` no turbo.json da raiz).
- *  R4. Nenhum código de pacote nem do tests/ lê `.coord/` (literal '.coord' ou '<...>/.coord/...' fora de comentário):
- *      commit só de `.coord/**` roda só a governança no CI (scripts/ci/escopo.mjs), então nenhum teste pode depender dele.
+ *  R4. Nenhum código de pacote nem do tests/ lê os caminhos de COORDENAÇÃO (scripts/ci/escopo.mjs: .coord/,
+ *      docs/status/, docs/backlog.md, docs/produto/) nem uma pasta acima deles (ex.: 'docs'): literal de caminho fora de
+ *      comentário, com ou sem '../' na frente, ou join('docs', 'produto'|'status'|'backlog.md'). Commit só desses caminhos
+ *      roda só a governança no CI, então nenhum teste pode depender deles.
  *  R3. Tarefa com glob `$TURBO_ROOT$/...` nos inputs também exclui node_modules, .turbo, .next, .expo, dist e
  *      *.tsbuildinfo (EXCLUSOES_RAIZ), senão o hash muda sozinho e o cache nunca acerta (ou acerta por acaso).
  *
@@ -23,6 +25,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { COORDENACAO } from './escopo.mjs';
 
 const RAIZ_PADRAO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TAREFAS = ['lint', 'typecheck', 'test'];
@@ -92,10 +95,14 @@ export function dependenciasForaDoGrafo(raiz, unidade, pacotes) {
       const alvoPkg = porNome.get(nome);
       if (alvoPkg && nome !== unidade.nome && !unidade.declaradas.has(nome)) anotar(alvoPkg.dir, `import de ${nome} não declarado no package.json`, arq);
     }
-    // R4: literal de caminho para .coord/ (comentários removidos antes; "':!.coord'" do git pathspec não casa)
+    // R4: literal de caminho para um caminho de coordenação (comentários removidos antes; o pathspec "':!docs'" do git
+    // não casa porque começa com ':!').
     const semComentarios = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
-    for (const m of semComentarios.matchAll(/['"`]((?:[^'"`\n]*\/)?\.coord(?:\/[^'"`\n]*)?)['"`]/g)) {
-      anotar('.coord', `${LE_COORD} (${m[1]})`, arq);
+    for (const m of semComentarios.matchAll(/['"`]([^'"`\n$]+)['"`]/g)) {
+      if (tocaCoordenacao(m[1])) anotar(m[1], `${LE_COORD} (${m[1]})`, arq);
+    }
+    for (const m of semComentarios.matchAll(/['"`]docs['"`]\s*,\s*['"`](status|produto|backlog\.md)['"`]/g)) {
+      anotar(`docs/${m[1]}`, `${LE_COORD} (join docs, ${m[1]})`, arq);
     }
     // caminho literal relativo lido em tempo de execução (ex.: resolve(__dirname, '../../../docs/x.md'))
     for (const m of src.matchAll(/['"`]((?:\.\.\/)+[^'"`\n$]*)['"`]/g)) {
@@ -108,7 +115,17 @@ export function dependenciasForaDoGrafo(raiz, unidade, pacotes) {
 
 /** Leitura de arquivo em tempo de execução: só afeta o resultado da tarefa `test` (lint e typecheck não leem). */
 const LEITURA = 'caminho relativo fora do pacote (leitura em tempo de execução)';
-const LE_COORD = 'lê .coord/ — commit só de .coord não roda testes';
+const LE_COORD = 'lê caminho de coordenação — commit só de coordenação não roda testes';
+
+/** O literal aponta para um caminho de coordenação, para dentro dele ou para uma pasta acima dele (exceto a raiz)? */
+export function tocaCoordenacao(literal) {
+  const p = literal.replace(/\\/g, '/').replace(/^(?:\.\.?\/)+/, '').replace(/\/+$/, '');
+  if (!p || p === '.' || p === '..') return false;
+  return COORDENACAO.some((c) => {
+    const alvo = c.replace(/\/$/, '');
+    return p === alvo || p.startsWith(`${alvo}/`) || alvo.startsWith(`${p}/`);
+  });
+}
 
 const dentro = (alvo, dir) => alvo === dir || alvo.startsWith(`${dir}/`);
 

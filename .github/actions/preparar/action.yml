@@ -29,11 +29,11 @@ runs:
       run: pnpm install --frozen-lockfile
 
     # Chave por job + lockfile + commit; restaura pelo prefixo (o mais recente do mesmo job). PR lê o cache do main
-    # e o do próprio PR (escopo de branch do GitHub); o main nunca lê cache de PR. No push ao main NÃO restaura:
-    # o TURBO_FORCE do workflow roda tudo e o cache salvo no fim sai só com o resultado dessa execução.
+    # e o do próprio PR (escopo de branch do GitHub); o main nunca lê cache de PR. Fora do PR (push, agendado, manual)
+    # NÃO restaura: o TURBO_FORCE do workflow roda tudo e o cache salvo no fim sai só com o resultado dessa execução.
     - name: nomes extras do cache do turbo
       id: extra
-      if: inputs.cache-turbo != '' && github.event_name != 'push'
+      if: inputs.cache-turbo != '' && github.event_name == 'pull_request'
       shell: bash
       env:
         EXTRA: ${{ inputs.cache-turbo-extra }}
@@ -63,7 +63,7 @@ runs:
           turbo-v1-${{ steps.extra.outputs.e2 }}-
 
     - name: restaurar cache do turbo
-      if: inputs.cache-turbo != '' && github.event_name != 'push'
+      if: inputs.cache-turbo != '' && github.event_name == 'pull_request'
       uses: actions/cache/restore@v4
       with:
         path: .turbo/cache

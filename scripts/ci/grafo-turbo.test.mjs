@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
-import { EXCLUSOES_RAIZ, verificar } from './grafo-turbo.mjs';
+import { EXCLUSOES_RAIZ, tocaCoordenacao, verificar } from './grafo-turbo.mjs';
 
 let raiz;
 const escrever = (rel, conteudo) => {
@@ -102,17 +102,28 @@ test('glob $TURBO_ROOT$ sem excluir .turbo, node_modules e tsbuildinfo: falha (R
   assert.match(p[0], /^\/\/#lint:tests: .*\.turbo.*\(R3\)$/);
 });
 
-test('código que lê .coord/ falha (R4), mesmo com cache false; comentário e pathspec ":!.coord" não contam', () => {
+test('código que lê caminho de coordenação falha (R4), mesmo com cache false; comentário e pathspec ":!" não contam', () => {
   turbo({ '@macuxi/core#test': { cache: false } });
-  escrever('modules/core/domain/d.test.ts', "// lê .coord/contratos no comentário\n/** `.coord/donos.json` */\nconst x = [':!.coord'];\n");
+  escrever('modules/core/domain/d.test.ts', "// lê .coord/contratos e docs/produto no comentário\n/** `.coord/donos.json` */\nconst x = [':!.coord', ':!docs'];\nconst y = 'docs/modulos/core.md';\n");
   assert.deepEqual(verificar(raiz), []);
-  escrever('modules/core/domain/d.test.ts', "const donos = join(raiz, '.coord', 'donos.json');\n");
-  let p = verificar(raiz);
-  assert.equal(p.length, 1);
-  assert.match(p[0], /^@macuxi\/core: lê \.coord\/.*\(R4\)$/);
-  escrever('modules/core/domain/d.test.ts', "const donos = readFileSync('../../../.coord/donos.json');\n");
-  p = verificar(raiz);
-  assert.ok(p.some((x) => x.includes('(R4)')));
+  const casos = [
+    "const donos = join(raiz, '.coord', 'donos.json');",
+    "const donos = readFileSync('../../../.coord/donos.json');",
+    "const s = readFileSync('../../../docs/status/demo.md');",
+    "const b = readFileSync(join(raiz, 'docs/backlog.md'));",
+    "const p = join(raiz, 'docs', 'produto', '03.md');",
+    "const t = readdirSync(join(raiz, 'docs'));",
+  ];
+  for (const c of casos) {
+    escrever('modules/core/domain/d.test.ts', `${c}\n`);
+    const p = verificar(raiz);
+    assert.ok(p.length >= 1 && p.every((x) => x.startsWith('@macuxi/core: lê caminho de coordenação') && x.endsWith('(R4)')), c);
+  }
+});
+
+test('tocaCoordenacao: alvo, dentro, pasta acima; nunca a raiz nem vizinhos', () => {
+  for (const s of ['.coord', '.coord/x', 'docs/status', 'docs/status/a.md', 'docs/backlog.md', 'docs/produto/', 'docs', '../../docs']) assert.equal(tocaCoordenacao(s), true, s);
+  for (const s of ['.', '..', '', 'docs/modulos/a.md', 'docs/backlog.md.bak', 'docs/statusx', 'status', 'produto', ':!docs']) assert.equal(tocaCoordenacao(s), false, s);
 });
 
 test('o turbo.json real do repositório passa', () => {

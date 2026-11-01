@@ -3,28 +3,36 @@ name: CI
 # T-0005 → T-0033 (ADR 0013). Jobs PARALELOS, cada um num runner próprio, sem fail-fast; dentro de cada job todos os
 # passos rodam mesmo depois de uma falha (R-20261101-014652): nada quebra escondido atrás da primeira falha.
 #   governanca  coord, guardiões, guardas de scripts/ci, donos do PR / por commit; e DECIDE o escopo e as matrizes
-#               (scripts/ci/escopo.mjs): commit/PR só de .coord/** = roda só ela e o ci-ok (docs/** não entra).
+#               (scripts/ci/escopo.mjs): commit/PR só de COORDENAÇÃO (.coord/**, docs/status/**, docs/backlog.md,
+#               docs/produto/**) = roda só ela e o ci-ok; o resto de docs/** não entra (a guarda R4 prova que nenhum
+#               código lê os caminhos de coordenação).
 #   lint · typecheck · testes-pacotes (Postgres) · testes-integracao (tests/, Postgres) · build (BKO + bundle do app)
 #   ci-ok       agrega todos: é o check a olhar.
 # Matrizes (ADR 0013 §custo; repositório privado no plano gratuito, minuto cobrado por job arredondado para cima):
-#   PR    → ENXUTA: typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes.
-#   push ao main → COMPLETA: typecheck e testes de pacotes em 2 grupos; tests/ em 3 partes.
-# Cache do Turborepo (.turbo/cache) em lint, typecheck e testes-pacotes: no PR só roda o que mudou; no push ao main,
-# TURBO_FORCE roda TUDO e regrava o cache. Node 24 (.nvmrc e engines >=24.7 do package.json).
+#   PR e push ao main          → ENXUTA: typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes.
+#   agendado (07:00 UTC) e manual → COMPLETA: typecheck e testes de pacotes em 2 grupos; tests/ em 3 partes.
+# Cache do Turborepo (.turbo/cache) em lint, typecheck e testes-pacotes: no PR só roda o que mudou; no main (push,
+# agendado e manual) TURBO_FORCE roda TUDO e regrava o cache. Node 24 (.nvmrc e engines >=24.7 do package.json).
 
 on:
   pull_request:
   push:
     branches: [main]
+  # Run completo diário (matriz completa, tudo forçado) sobre o main: 07:00 UTC = 03:00 em Manaus. O gerente confere no
+  # início da rodada (gh run list --workflow CI --event schedule --limit 1).
+  schedule:
+    - cron: '0 7 * * *'
+  # Manual (Actions → CI → Run workflow, ou gh workflow run CI): matriz completa no branch escolhido.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 # PR: um grupo por PR e push novo CANCELA o run antigo (só o último commit importa).
-# push ao main: um grupo por commit e NADA é cancelado — o "verificar --por-commit" só confere ANTES..DEPOIS daquele
-# push; cancelar deixaria commits do main sem verificação de donos.
+# push ao main, agendado e manual: um grupo por evento + commit e NADA é cancelado — o "verificar --por-commit" só
+# confere ANTES..DEPOIS daquele push; cancelar deixaria commits do main sem verificação de donos.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}-{2}', github.event_name, github.ref, github.sha) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -39,8 +47,8 @@ env:
   NEXT_TELEMETRY_DISABLED: '1'
   TURBO_TELEMETRY_DISABLED: '1'
   TURBO_CACHE_DIR: .turbo/cache
-  # Push ao main: ignora o cache restaurado (só grava) — o main sempre roda tudo. PR: lê o cache.
-  TURBO_FORCE: ${{ github.event_name == 'push' && 'true' || 'false' }}
+  # PR: lê o cache. Push ao main, agendado e manual: não lê (só grava) — fora do PR o CI sempre roda tudo.
+  TURBO_FORCE: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
 
 jobs:
   governanca:
@@ -81,7 +89,7 @@ jobs:
         run: node --test .claude/hooks/*.test.mjs
 
       # Cache do turbo só é seguro se toda dependência fora do grafo declarado estiver nos inputs; e pular a matriz
-      # em commit só de .coord só é seguro se nenhum código ler .coord/ (R4). Testes do escopo também (ADR 0013).
+      # em commit só de coordenação só é seguro se nenhum código ler esses caminhos (R4). Testes do escopo também (ADR 0013).
       - name: guardas do CI (scripts/ci)
         if: ${{ !cancelled() }}
         run: |
@@ -141,7 +149,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      # PR: 1 grupo ("todos"). Push ao main: core-vendedor (~30% do tsc) e "demais" por EXCLUSÃO (inclui o
+      # PR e push: 1 grupo ("todos"). Agendado e manual: core-vendedor (~30% do tsc) e "demais" por EXCLUSÃO (inclui o
       # //#typecheck:tests; pacote novo cai nele sozinho). Definição em scripts/ci/escopo.mjs.
       matrix:
         include: ${{ fromJSON(needs.governanca.outputs.typecheck) }}
@@ -170,8 +178,8 @@ jobs:
     timeout-minutes: 25
     strategy:
       fail-fast: false
-      # PR: 1 grupo ("todos"). Push ao main: os 4 mais pesados (core, db, api, mock-api) num runner e TODO o resto no
-      # outro, por EXCLUSÃO (pacote novo cai nele sozinho). Definição em scripts/ci/escopo.mjs.
+      # PR e push: 1 grupo ("todos"). Agendado e manual: os 4 mais pesados (core, db, api, mock-api) num runner e TODO o
+      # resto no outro, por EXCLUSÃO (pacote novo cai nele sozinho). Definição em scripts/ci/escopo.mjs.
       matrix:
         include: ${{ fromJSON(needs.governanca.outputs.pacotes) }}
 
@@ -221,8 +229,8 @@ jobs:
       fail-fast: false
       # O shard do Vitest divide por hash do caminho, não por tempo: o visitas-campo (~60 s, 40% da suíte) fica numa
       # execução só dele e o RESTO é dividido em 2 shards por exclusão (arquivo novo cai neles sozinho; se ele mudar de
-      # nome, a execução dele falha com "No test files found"). Push ao main: 3 jobs (visitas | resto 1/2 | resto 2/2).
-      # PR: 2 jobs (visitas + resto 2/2 em sequência | resto 1/2). Definição em scripts/ci/escopo.mjs.
+      # nome, a execução dele falha com "No test files found"). Agendado e manual: 3 jobs (visitas | resto 1/2 |
+      # resto 2/2). PR e push: 2 jobs (visitas + resto 2/2 em sequência | resto 1/2). Definição em scripts/ci/escopo.mjs.
       matrix:
         include: ${{ fromJSON(needs.governanca.outputs.integracao) }}
 
@@ -302,7 +310,7 @@ jobs:
           APP_VARIANT: gestao
         run: pnpm --filter mobile bundle:android
 
-  # Check obrigatório (ADR 0013). Escopo completo: verde só se TODOS os jobs terminarem em success. Escopo coord: verde
+  # Check obrigatório (ADR 0013). Escopo completo: verde só se TODOS os jobs terminarem em success. Escopo coordenacao: verde
   # só se a governança passar e TODOS os outros forem "skipped". Qualquer outra combinação (falha, cancelado, pulado
   # sem motivo, escopo vazio) = vermelho. Roda sempre (if: always()) para nunca ficar "pulado".
   ci-ok:
@@ -319,7 +327,7 @@ jobs:
         run: |
           echo "escopo: ${ESCOPO:-?}"
           echo "$RESULTADOS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          if [ "$ESCOPO" = "coord" ]; then
+          if [ "$ESCOPO" = "coordenacao" ]; then
             ruins=$(echo "$RESULTADOS" | jq -r '[to_entries[] | select((.key == "governanca" and .value.result != "success") or (.key != "governanca" and .value.result != "skipped")) | .key] | join(", ")')
           else
             ruins=$(echo "$RESULTADOS" | jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")')

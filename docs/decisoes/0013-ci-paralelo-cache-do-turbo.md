@@ -1,6 +1,7 @@
 # ADR 0013 — CI em jobs paralelos, cache do Turborepo e check obrigatório `ci-ok`
 
-- **Status**: proposta (2026-11-01, PR da T-0033; vira aceita com o merge do Alexandre)
+- **Status**: proposta (2026-11-01, PR da T-0033; vira aceita com o merge do Alexandre). Item 7 (custo) revisto em 01/11 a
+  pedido do Alexandre: escopo de coordenação ampliado, matriz enxuta também no push ao `main` e matriz completa só no run diário.
 - **Data**: 2026-11-01
 - **Tarefa**: T-0033 (pedido do Alexandre, R-20261101-073742, item 2)
 - **Autor**: engenheiro-software
@@ -25,12 +26,12 @@ já podia devolver "verde" velho; no CI com cache seria certo.
    |---|---|---|---|
    | `governanca` | **decide o escopo e as matrizes** (`scripts/ci/escopo.mjs`, 1º passo; os outros jobs têm `needs` nela), testes do coord e dos guardiões, guardas de `scripts/ci`, `verificar --base` (PR) / `--por-commit` (push) | — | — |
    | `lint` | `turbo run lint lint:tests --continue` + `pnpm fronteiras` | — | sim |
-   | `typecheck` | `turbo run typecheck typecheck:tests --continue`; push ao main: 2 grupos, `core-vendedor` (~30% do tsc) e `demais` (por exclusão; inclui o `//#typecheck:tests`); PR: 1 grupo | — | sim |
-   | `testes-pacotes` | `turbo run test --continue`; push ao main: 2 grupos, `core-db-api-mock` e `demais` (por **exclusão**: pacote novo cai nele sozinho); PR: 1 grupo | sim | sim |
-   | `testes-integracao` | `pnpm test:tests` em 3 execuções: `visitas-campo` sozinho (~60 s, 40% da suíte) e o resto com `--exclude` dele + `--shard=1/2` e `2/2` (a união é a suíte inteira; arquivo novo cai no resto). Push ao main: 3 jobs; PR: 2 jobs (`visitas-campo` + `resto 2/2` em sequência, e `resto 1/2`) | sim | — (cache false) |
+   | `typecheck` | `turbo run typecheck typecheck:tests --continue`; run diário e manual: 2 grupos, `core-vendedor` (~30% do tsc) e `demais` (por exclusão; inclui o `//#typecheck:tests`); PR e push: 1 grupo | — | sim |
+   | `testes-pacotes` | `turbo run test --continue`; run diário e manual: 2 grupos, `core-db-api-mock` e `demais` (por **exclusão**: pacote novo cai nele sozinho); PR e push: 1 grupo | sim | sim |
+   | `testes-integracao` | `pnpm test:tests` em 3 execuções: `visitas-campo` sozinho (~60 s, 40% da suíte) e o resto com `--exclude` dele + `--shard=1/2` e `2/2` (a união é a suíte inteira; arquivo novo cai no resto). Diário e manual: 3 jobs; PR e push: 2 jobs (`visitas-campo` + `resto 2/2` em sequência, e `resto 1/2`) | sim | — (cache false) |
    | `build` | `next build` do BKO (com `.next/cache`) + bundle Metro das variantes campo e gestao | — | — |
-   | `ci-ok` | `needs` de todos, `if: always()`; escopo completo: verde **só** se todos terminaram em `success`; escopo `coord`: verde só se a governança passou e **todos** os outros foram `skipped` | — | — |
-2. **Check obrigatório = `ci-ok`**. Pulado (fora do escopo `coord`), cancelado ou falho em qualquer job = vermelho. A regra "merge da nuvem só com CI
+   | `ci-ok` | `needs` de todos, `if: always()`; escopo completo: verde **só** se todos terminaram em `success`; escopo `coordenacao`: verde só se a governança passou e **todos** os outros foram `skipped` | — | — |
+2. **Check obrigatório = `ci-ok`**. Pulado (fora do escopo `coordenacao`), cancelado ou falho em qualquer job = vermelho. A regra "merge da nuvem só com CI
    verde" (doc 07) passa a olhar o `ci-ok`. Observação: o plano atual do GitHub (privado, sem Pro) não deixa configurar branch
    protection/rulesets — o check é obrigatório por convenção do time até o plano permitir.
 3. **Cache do turbo** (`.turbo/cache`, `actions/cache/restore` + `actions/cache/save`), um por job/grupo:
@@ -39,7 +40,7 @@ já podia devolver "verde" velho; no CI com cache seria certo.
    - **PR**: lê o cache (do `main` e do próprio PR — escopo de branch do GitHub) e só roda o que o turbo considera mudado. O
      grupo único do PR restaura também os caches dos 2 grupos do `main` (`cache-turbo-extra`; o turbo guarda por hash, os
      caches se somam).
-   - **push ao `main`**: não restaura; `TURBO_FORCE=true` **roda tudo** e grava o cache. O `main` nunca lê cache de PR.
+   - **push ao `main`, run diário e manual**: não restauram; `TURBO_FORCE=true` **roda tudo** e grava o cache. O `main` nunca lê cache de PR.
    - Não usamos `--affected` (depende de histórico git e de base de comparação); o cache por hash de conteúdo dá o mesmo ganho
      com menos jeito de errar. Cache remoto (Vercel) continua fora — só com nova ADR.
 4. **Grafo do turbo correto**: tarefa `transit` (`dependsOn: ["^transit"]`, sem script) em `lint`, `typecheck` e `test`, para o
@@ -51,31 +52,53 @@ já podia devolver "verde" velho; no CI com cache seria certo.
 5. **Guarda no CI** (`scripts/ci/grafo-turbo.mjs`, com teste): falha se (R1) `lint`/`typecheck`/`test` não dependem de `transit`;
    (R2) há import de `@macuxi/*` não declarado, import relativo ou leitura de arquivo (`'../'` literal, só para `test`) fora do
    pacote sem `$TURBO_ROOT$/<pasta>/**` nos inputs; (R3) há glob `$TURBO_ROOT$` sem as exclusões. Tarefa com `cache: false`
-   está dispensada de R1–R3. (R4) nenhum código de pacote nem do `tests/` lê `.coord/` (vale também com `cache: false`), condição
-   para o escopo `coord` do item 7. Assim um import novo fora do grafo não vira cache envenenado em silêncio.
+   está dispensada de R1–R3. (R4) nenhum código de pacote nem do `tests/` lê os caminhos de coordenação do item 7 (vale também
+   com `cache: false`), condição para o escopo `coordenacao`. Assim um import novo fora do grafo não vira cache envenenado em silêncio.
 6. **Banco modelo do Postgres** (parte do `banco-dados` e do `testes`, por recado): `criarBancoDeTeste` passa a copiar um banco
    `macuxi_modelo_<hash das migrações>` já migrado (`CREATE DATABASE … TEMPLATE`), criado uma vez por servidor sob advisory lock,
    com `IS_TEMPLATE true` e `ALLOW_CONNECTIONS false`; `MACUXI_PG_MODELO=0` volta ao caminho antigo. Medido no Postgres 16 local:
    migrar do zero ~0,5 s por banco × cópia do modelo ~0,12 s (a fixture dois-tenants ~0,15 s pode ir para um 2º modelo quando os
    parâmetros forem fixos). Ganho pequeno por arquivo, mas soma em cada `subirApi()`/`criarBancoDeTeste` e não muda o isolamento
    (cada arquivo segue com o próprio banco; papéis são do cluster; as migrações não usam `ALTER DATABASE`).
-7. **Custo** (repositório privado no plano gratuito; o GitHub cobra cada job arredondado para cima ao minuto, e cada job paga
-   ~30–40 s de preparo). Critério: **o PR otimiza minutos dentro de ~200 s de parede; o push ao `main` otimiza parede** (é o
-   estado que todos puxam e grava o cache que os PRs leem).
-   - **Escopo `coord`**: commit/PR em que TODO arquivo alterado está em `.coord/**` (recados, diário, quadro, lidos, tarefas)
-     roda só `governanca` (coord, guardiões, `verificar --por-commit`/`--base`) e `ci-ok` → 2 min. `docs/**` **não** entra (o teste
-     da Integração lê `docs/modulos/`, R2). Lista vazia, erro de git ou `ANTES` zerado = escopo completo (padrão seguro).
-   - **Matriz enxuta no PR** (5 jobs pesados) e **completa no push ao `main`** (7), definidas num lugar só
-     (`scripts/ci/escopo.mjs`, com teste que garante que as duas cobrem as mesmas execuções e que os grupos por exclusão casam).
-   - **Concurrency**: no PR, um grupo por PR com `cancel-in-progress` (push novo cancela o run antigo). No push ao `main`, um
-     grupo por commit e **nada é cancelado**: o `verificar --por-commit` confere só `ANTES..DEPOIS` daquele push, e cancelar
-     deixaria commits do `main` sem verificação de donos.
-   - Medido (detalhe no PR #26): antes, 1 job, **8,2 min/run** em qualquer evento; PR enxuto com cache **13 min, 195 s**; matriz
-     completa 16–20 min, 126–171 s; escopo `coord` ≈ **2 min, ~35 s**. Nos últimos 43 pushes ao `main`, só 1 foi só de `.coord`
-     (as rodadas do gerente levam `docs/status`/`docs/backlog` junto) — o escopo `coord` passa a valer de verdade se recados e
-     quadro forem para um commit/push próprio.
-   - Botões de ajuste, em ordem de economia: matriz enxuta também no `main` (−7 min/push, +~60 s de parede); juntar `lint` e
-     `build` num job (−1 a −2 min/run); `tests/` em 1 job no PR (−1 min, parede > 200 s).
+7. **Custo** (aprovado pelo Alexandre em 01/11; repositório privado no plano gratuito, 2.000 min/mês; o GitHub cobra cada
+   job arredondado para cima ao minuto, e cada job paga ~30–40 s de preparo). Critério: **todo run disparado por commit (PR e
+   push ao `main`) otimiza minutos dentro de ~200 s de parede; a cobertura máxima em paralelo fica num run diário.**
+   - **Escopo `coordenacao`**: commit/PR em que TODO arquivo alterado é de coordenação — `.coord/**`, `docs/status/**`,
+     `docs/backlog.md`, `docs/produto/**` (lista única `COORDENACAO` em `scripts/ci/escopo.mjs`) — roda só `governanca` (coord,
+     guardiões, `verificar --por-commit`/`--base`) e `ci-ok` → 2 min. O resto de `docs/**` **não** entra (o teste da Integração
+     lê `docs/modulos/`, R2). A guarda **R4** prova que nenhum código de pacote nem do `tests/` lê esses caminhos (nem uma pasta
+     acima, como `docs`); hoje nenhum lê, então nenhum caminho pedido ficou de fora. Lista vazia, erro de git ou `ANTES` zerado
+     = escopo completo (padrão seguro).
+   - **Matriz enxuta no PR e no push ao `main`** (typecheck e testes de pacotes em 1 grupo; `tests/` em 2 partes —
+     `visitas-campo` + `resto 2/2` em sequência, e `resto 1/2`). **Matriz completa** (2 + 2 + 3 jobs) só no **run agendado
+     diário (07:00 UTC)** e no **manual** (`workflow_dispatch`), sempre forçado. As duas matrizes ficam em
+     `scripts/ci/escopo.mjs`, com teste que garante que cobrem as mesmas execuções e que os grupos por exclusão casam.
+   - **Fora do PR o CI roda tudo** (`TURBO_FORCE`, sem restaurar cache): a mudança no `main` foi só de quantos runners, não do
+     que roda. O grupo único do PR lê o cache do próprio PR e o do `main` (inclusive os 2 grupos do diário).
+   - **Concurrency**: no PR, um grupo por PR com `cancel-in-progress`. No `main` (push, agendado, manual), um grupo por evento +
+     commit e **nada é cancelado**: o `verificar --por-commit` confere só `ANTES..DEPOIS` daquele push.
+   - **Custo por run** (medido no PR #26 ou estimado a partir dos jobs medidos; detalhe no PR):
+     | evento | antes (1 job) | depois |
+     |---|---|---|
+     | PR | 423 s · 7,2 min | 195 s · **13 min** (medido, cache quente) |
+     | push ao `main` | 467 s · 8,2 min | ~190 s · **~17 min** (estimado, enxuta forçada) |
+     | push só de coordenação | 489 s · 9 min | ~35 s · **2 min** (estimado) |
+     | run diário completo | — | ~165 s · **~22 min** (estimado, 1×/dia) |
+   - **Estimativa mensal** (30 dias; ritmo de 31/10–01/11 = 22 pushes ao `main` + ~20 runs de PR por dia):
+     | cenário | antes | depois |
+     |---|---|---|
+     | ritmo atual, sem mudar o gerente (14% dos pushes só de coordenação) | ~9.800 | ~18.500 |
+     | gerente com push só ao fechar tarefa ou de 2 em 2 h (~10 pushes/dia, 3 só de coordenação) + PRs no ritmo atual | ~6.900 | ~12.400 (main + diário ~4.400; PRs ~8.000) |
+     | idem, com ~2 runs de PR/dia (fim do crédito da nuvem em 05/11) | ~2.900 | ~5.200 |
+     **Conclusão**: no mesmo ritmo, o CI paralelo custa ~1,8× o antigo em minutos (cada job paga preparo e arredondamento),
+     e os runs de PR são ~2/3 do total. Com estas regras nenhum cenário cabe nos 2.000 min/mês; o que mais pesa é o número de
+     runs, não a matriz.
+   - **Próximas alavancas** (não implementadas; decisão do Alexandre), em ordem de economia:
+     1. **PR em rascunho não roda a matriz** (só governança e `ci-ok`; a matriz roda ao marcar "pronto para revisão" e nos
+        pushes seguintes): hoje são ~5 runs por PR da nuvem; viraria ~1–2 → PRs de ~8.000 para ~2.500 min/mês.
+     2. **Modo econômico em PR e push** (2 jobs pesados: estático + testes de pacotes num, `tests/` no outro): ~9 min e ~250 s
+        por run, contra 13 min e 195 s.
+     3. **Run diário só em dias úteis** (−~200 min/mês) ou desligado enquanto a cota estiver apertada (−~660 min/mês).
 
 ## Alternativas consideradas
 - **Um job só com mais paralelismo do turbo/Vitest** (`--concurrency`, `--maxWorkers`): o gargalo é a CPU do runner (2 vCPU);
@@ -87,17 +110,22 @@ já podia devolver "verde" velho; no CI com cache seria certo.
 - **`paths-ignore: .coord/**` no workflow + um 2º workflow só de governança**: sem job extra, mas o `ci-ok` some nos commits
   só de `.coord` ("ausente" vira ambíguo com "ainda não rodou") e a governança rodaria em dobro nos commits de código.
 - **Job `escopo` separado** (sem `needs` na governança): ~30 s a menos de parede, mas +1 min cobrado em todo run.
+- **Matriz completa em todo push ao `main`** (1ª versão do item 7): ~20 min por push e ~160 s de parede; trocada pela enxuta
+  (~17 min, ~190 s) + o run diário completo, a pedido do Alexandre (cota do plano gratuito).
 - **Cache remoto do turbo** (Vercel/servidor próprio): compartilharia com as máquinas locais, mas é serviço externo com
   credencial; não precisa agora.
 
 ## Consequências
 - O tempo do CI passa a ser o do job mais lento (não a soma). Tabela antes × depois no PR da T-0033 e no recado ao Alexandre.
-- **Minutos cobrados**: PR ~1,6× o de antes (13 × 8,2 min), push ao `main` ~2,5× (~20 min, forçado), commit só de `.coord`
-  ~0,25× (2 min). A `governanca` passa a ser porta de entrada dos outros jobs (+~30 s de parede) para não pagar um job a mais só
-  para decidir o escopo. Ajuste fino em `scripts/ci/escopo.mjs` (item 7).
+- **Minutos cobrados**: ver item 7 — por run, PR ~1,8× o antigo, push ao `main` ~2×, push só de coordenação ~0,25×, mais
+  ~22 min/dia do run diário. A `governanca` é porta de entrada dos outros jobs (+~30 s de parede) para não pagar um job a mais
+  só para decidir o escopo. Ajuste fino em `scripts/ci/escopo.mjs`.
+- **Run diário vermelho** não bloqueia ninguém sozinho: o gerente confere no início da rodada
+  (`gh run list --workflow CI --event schedule --limit 1`) e trata como `main` vermelho.
 - Riscos e mitigação: **cache envenenado** — só o push ao `main` grava cache lido por todos e ele roda forçado; o PR só lê o
-  próprio e o do `main`; guarda R1–R4 no CI. **Escopo `coord` pular algo que importa** — só `.coord/**` entra, R4 garante que
-  nenhum código lê `.coord/`, e a governança (que lê `.coord/donos.json`) roda sempre. **Teste instável no shard** — cada shard tem Postgres e `globalSetup` próprios
+  próprio e o do `main`; guarda R1–R4 no CI. **Escopo `coordenacao` pular algo que importa** — só os 4 caminhos da lista entram, R4
+  garante que nenhum código os lê, e a governança (que lê `.coord/donos.json`) roda sempre. **Regressão que só a matriz
+  completa pegaria** (ex.: teste dependente da divisão em shards) — aparece no run diário, no máximo 24 h depois. **Teste instável no shard** — cada shard tem Postgres e `globalSetup` próprios
   (sem estado compartilhado entre shards); se um teste depender da ordem dos arquivos, aparece aqui e vai por recado ao `testes`.
   **Check obrigatório sem branch protection** — vale pela regra do time (doc 07) até o plano do GitHub permitir.
 - Para o local nada muda nos comandos (`pnpm lint|typecheck|test`); o `transit` corrige o cache local também.

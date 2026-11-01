@@ -3,17 +3,19 @@
  * Escopo e matrizes do CI (T-0033, ADR 0013 §custo). Sem dependência: só node:child_process/node:fs.
  *
  * escopo:
- *   - "coord"    → TODO arquivo alterado está em `.coord/**` (recados, diário, quadro, lidos, tarefas, contratos).
- *                  Roda só o job de governança (coord, guardiões, verificar) e o ci-ok. `docs/**` NÃO entra: o teste da
- *                  Integração lê `docs/modulos/` (guarda grafo-turbo, R2); e nenhum código lê `.coord/` (guarda R4).
- *   - "completo" → qualquer outro caso, inclusive lista vazia, erro de git ou evento desconhecido (padrão seguro).
- * matrizes:
- *   - push ao main → COMPLETA (typecheck e testes de pacotes em 2 grupos; tests/ em 3 partes): menor tempo de parede.
- *   - PR           → ENXUTA (1 grupo cada; tests/ em 2 partes, visitas-campo junto da parte menor): menos minutos.
+ *   - "coordenacao" → TODO arquivo alterado está em COORDENACAO (.coord/**, docs/status/**, docs/backlog.md,
+ *                     docs/produto/**). Roda só o job de governança (coord, guardiões, verificar) e o ci-ok. O resto de
+ *                     docs/** NÃO entra (o teste da Integração lê docs/modulos/, guarda grafo-turbo R2), e a guarda R4 prova
+ *                     que nenhum código lê os caminhos de COORDENACAO.
+ *   - "completo"    → qualquer outro caso, inclusive lista vazia, erro de git, agendado ou manual (padrão seguro).
+ * matrizes (ADR 0013 §7):
+ *   - PR e push ao main         → ENXUTA (typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes): menos minutos.
+ *   - agendado (cron) e manual  → COMPLETA (2 grupos; tests/ em 3 partes): 1×/dia, tudo forçado.
  *
  * Uso no CI: node scripts/ci/escopo.mjs   (lê GITHUB_EVENT_NAME, ANTES, DEPOIS; escreve em $GITHUB_OUTPUT)
  *   PR: arquivos = git diff HEAD^1 HEAD (o checkout do PR é o commit de merge com a base)
  *   push: arquivos = git diff ANTES DEPOIS (ANTES = 000…0 → completo)
+ *   schedule / workflow_dispatch: sem lista → completo
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
@@ -21,6 +23,13 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ZEROS = /^0+$/;
+
+/** Caminhos de coordenação (gerente/agentes; nenhum código os lê — guarda R4). Pasta termina em "/"; arquivo, exato. */
+export const COORDENACAO = ['.coord/', 'docs/status/', 'docs/backlog.md', 'docs/produto/'];
+const ehCoordenacao = (a) => COORDENACAO.some((c) => (c.endsWith('/') ? a.startsWith(c) : a === c));
+
+/** Eventos que usam a matriz COMPLETA (o resto usa a ENXUTA). */
+const EVENTOS_COMPLETOS = new Set(['schedule', 'workflow_dispatch']);
 const EXCLUI_VISITAS = '--exclude=**/integracao/api/visitas-campo.test.ts';
 const SO_VISITAS = 'integracao/api/visitas-campo.test.ts';
 
@@ -52,17 +61,17 @@ export const MATRIZES = {
   },
 };
 
-/** "coord" só se a lista não é vazia e TODO caminho está em .coord/. */
+/** "coordenacao" só se a lista não é vazia e TODO caminho está em COORDENACAO. */
 export function classificar(arquivos) {
   const lista = arquivos.map((a) => a.trim()).filter(Boolean);
   if (lista.length === 0) return 'completo';
-  return lista.every((a) => a.startsWith('.coord/')) ? 'coord' : 'completo';
+  return lista.every(ehCoordenacao) ? 'coordenacao' : 'completo';
 }
 
 export function decidir({ evento, arquivos }) {
-  const escopo = arquivos === null ? 'completo' : classificar(arquivos);
-  const matriz = evento === 'push' ? MATRIZES.completa : MATRIZES.enxuta;
-  return { escopo, matriz: evento === 'push' ? 'completa' : 'enxuta', ...matriz };
+  const completa = EVENTOS_COMPLETOS.has(evento);
+  const escopo = completa || arquivos === null ? 'completo' : classificar(arquivos);
+  return { escopo, matriz: completa ? 'completa' : 'enxuta', ...(completa ? MATRIZES.completa : MATRIZES.enxuta) };
 }
 
 function gitArquivos(a, b) {
