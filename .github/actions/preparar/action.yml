@@ -1,0 +1,38 @@
+name: preparar
+description: >-
+  Node 24 (.nvmrc) + pnpm com cache do store + pnpm install --frozen-lockfile e, se pedido, restaura o cache
+  local do Turborepo (.turbo/cache) do job (T-0033, ADR 0013).
+
+inputs:
+  cache-turbo:
+    description: 'Nome do cache do turbo deste job (ex.: lint, typecheck, testes-demais). Vazio = sem cache do turbo.'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        # Node 24 (mín. 24.7: engines do package.json; crypto.argon2 e node:sqlite). Fonte única: .nvmrc.
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: instalar dependências
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    # Chave por job + lockfile + commit; restaura pelo prefixo (o mais recente do mesmo job). PR lê o cache do main
+    # e o do próprio PR (escopo de branch do GitHub); o main nunca lê cache de PR. No push ao main o TURBO_FORCE
+    # do workflow ignora o que foi restaurado (só grava), então o main sempre roda tudo.
+    - name: restaurar cache do turbo
+      if: inputs.cache-turbo != ''
+      uses: actions/cache/restore@v4
+      with:
+        path: .turbo/cache
+        key: turbo-v1-${{ inputs.cache-turbo }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+        restore-keys: |
+          turbo-v1-${{ inputs.cache-turbo }}-${{ hashFiles('pnpm-lock.yaml') }}-
+          turbo-v1-${{ inputs.cache-turbo }}-
