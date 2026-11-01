@@ -92,6 +92,8 @@ criado_em: 2026-10-31T14:05:12-04:00
 
 **Escrita da nuvem**: a sessão da nuvem só altera os caminhos travados da tarefa e cria recados novos. Não edita `.coord/quadro.md`, `.coord/tarefas/`, `docs/backlog.md` nem `docs/produto/`; isso é do gerente-projetos, quando o merge chega. Commits da nuvem levam o trailer `Agente: <dono do caminho>` (convenção no R-20261031-093259-2-alexandre).
 
+**Commit de rodada por dono (verificar --por-commit no CI)**: cada commit leva o trailer `Agente:` de UM agente e só arquivos dele — inclusive o próprio `.coord/diario/<agente>.md`, `.coord/lidos/<agente>.txt` e os recados novos que ele enviou (`R-...-<agente>.md`). Recados e lidos do Alexandre vão num commit com `Agente: alexandre`. O gerente separa os arquivos de `.coord/` por autor no fechamento da rodada; nunca juntar arquivos de agentes diferentes num commit só.
+
 **Main vermelho = nuvem não faz merge** (decisão do Alexandre, 2026-11-01): enquanto o CI do `main` estiver vermelho, nenhuma sessão da nuvem faz merge; o PR fica com "[PRONTO PARA MERGE]" no título e espera. O gerente avisa o Alexandre quando o `main` voltar a ficar verde. O CI roda todas as suítes e reporta todas as falhas (não para na primeira).
 
 **Início de sessão da nuvem**: toda sessão da nuvem começa com um commit vazio que já leva o trailer `Agente: <dono>` no último bloco da mensagem (`git commit --allow-empty`), para o guardião v3 reconhecer o agente desde o primeiro passo.
