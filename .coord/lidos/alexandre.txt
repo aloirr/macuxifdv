@@ -55,3 +55,10 @@ R-20261101-073729-engenheiro-software
 R-20261101-073731-engenheiro-software
 R-20261101-073734-engenheiro-software
 R-20261101-073736-engenheiro-software
+R-20261101-075842-gerente-projetos
+R-20261101-075843-gerente-projetos
+R-20261101-093215-gerente-projetos
+R-20261101-102111-engenheiro-software
+R-20261101-102213-gerente-projetos
+R-20261101-102216-gerente-projetos
+R-20261101-115656-modulo-integracao
