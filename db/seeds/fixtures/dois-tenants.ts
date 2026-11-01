@@ -30,8 +30,14 @@
  *   que termina hoje 04:00Z), condições À vista (padrão) e 28 dias (A; c1 com as duas, c2 sem lista), contador do
  *   número (A = 3, B = 1; recarregar não volta o contador), números 000001.. nos pedidos, p2 de A pendente no nível
  *   gerente (12%) e a linha do tempo (pedido_evento) dos pedidos p1/p2 de A e p1 de B.
+ * - T-0032 (0010, schema integracao): Conector por tenant (A "erp-alfa" com as 8 entidades; B "erp-beta" só cliente e produto,
+ *   IP 203.0.113.0/24), chave atual com hash = HMAC-SHA256(PEPPER_HUB_FIXTURE, chave) (chave em DOIS_TENANTS.X.integracao.chave),
+ *   política de versão, sessões fechadas, lotes (completo e delta com staging), erro de linha, espelho com 1 inativado (A),
+ *   pendências (A confirmada pelo analista + aguardando até 2099; B recusada pelo admin) com auditoria, cursor, reconciliação,
+ *   mapeamento, fila do ERP (p3 de A, p1 de B) com retorno e item descartado. Instantes fixos (2026-10-30). Os módulos dos
+ *   tenants NÃO mudaram (a licença 'integracao' não está na fixture).
  */
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idFixo, idMotivoPadrao } from '../../src/ids';
@@ -76,6 +82,23 @@ const G = {
   tabela_preco: 0x40,
   tabela_preco_item: 0x41,
   cliente_tabela_preco: 0x42,
+  conector: 0x50,
+  credencial: 0x51,
+  politica_versao: 0x52,
+  sessao_carga: 0x53,
+  sessao_carga_recebido: 0x54,
+  lote: 0x55,
+  lote_staging: 0x56,
+  lote_linha_erro: 0x57,
+  registro_atual: 0x58,
+  pendencia_inativacao: 0x59,
+  inativacao_auditoria: 0x5a,
+  cursor_entidade: 0x5b,
+  reconciliacao: 0x5c,
+  mapeamento: 0x5d,
+  pedido_fila_erp: 0x5e,
+  pedido_retorno: 0x5f,
+  pedido_retorno_erro: 0x60,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -91,6 +114,16 @@ const refreshFixture = (tenantId: string, segredo: string) => ({
   token: `${tenantId}.${segredo}`,
   hash: createHash('sha256').update(segredo).digest('hex'),
 });
+
+/**
+ * Chave de API da fixture (T-0032): pepper e chaves SÓ de teste. O banco guarda HMAC-SHA256(pepper, chave) em hex, como a
+ * API do Hub calcula com MACUXI_HUB_CHAVE_PEPPER (ADR 0013 §8). Para autenticar nos testes: pepper = PEPPER_HUB_FIXTURE.
+ */
+export const PEPPER_HUB_FIXTURE = 'fixture-pepper-hub-somente-teste-0032';
+const chaveHubFixture = (prefixo: string, segredo: string) => {
+  const chave = `mxk_${prefixo}_${segredo}`;
+  return { prefixo, chave, hash: createHmac('sha256', PEPPER_HUB_FIXTURE).update(chave).digest('hex') };
+};
 
 /** IDs para asserts determinísticos nos testes. */
 export const DOIS_TENANTS = {
@@ -145,6 +178,24 @@ export const DOIS_TENANTS = {
     tabelasPreco: { padrao: a('tabela_preco', 1) },
     /** T-0029 (0009): À vista (padrão) e 28 dias; c1 com as duas, c2 sem lista (só a padrão). */
     condicoes: { avista: a('condicao_pagamento', 1), d28: a('condicao_pagamento', 2) },
+    /**
+     * T-0032 (0010): Conector "erp-alfa" (8 entidades, recebe pedidos) com chave atual (hash = HMAC do PEPPER_HUB_FIXTURE);
+     * sessão de produto fechada (1 id inválido guardado) com pendência CONFIRMADA pelo analista e auditada; sessão de cliente
+     * fechada com pendência AGUARDANDO (expira em 2099); lote delta recebido com corpo no staging; p3 de A na fila
+     * (faturado parcial) com 1 retorno e 1 item descartado (P-4).
+     */
+    integracao: {
+      conector: a('conector', 1),
+      identificador: 'erp-alfa',
+      chave: chaveHubFixture('alfa0001', 'fixtureChaveAlfaSomenteTesteT0032aaaaaaaaaa'),
+      credencial: a('credencial', 1),
+      sessoes: { produto: a('sessao_carga', 1), cliente: a('sessao_carga', 2) },
+      sessaoUuids: { produto: 'aaaaaaaa-0053-4000-8000-000000000101', cliente: 'aaaaaaaa-0053-4000-8000-000000000102' },
+      lotes: { completoProduto: a('lote', 1), delta: a('lote', 2), completoCliente: a('lote', 3) },
+      pendencias: { confirmada: a('pendencia_inativacao', 1), aguardando: a('pendencia_inativacao', 2) },
+      fila: { p3: a('pedido_fila_erp', 1) },
+      retornos: { p3: a('pedido_retorno', 1) },
+    },
   },
   B: {
     tenantId: b('tenant', 1),
@@ -173,6 +224,22 @@ export const DOIS_TENANTS = {
     pedidos: { p1: b('pedido', 1) },
     tabelasPreco: { padrao: b('tabela_preco', 1) },
     condicoes: { avista: b('condicao_pagamento', 1) },
+    /**
+     * T-0032 (0010): Conector "erp-beta" (só cliente e produto, recebe pedidos, IP restrito a 203.0.113.0/24); sessão de
+     * cliente com pendência RECUSADA pelo admin (auditada); p1 de B na fila (faturado total) com retorno e 1 item descartado.
+     */
+    integracao: {
+      conector: b('conector', 1),
+      identificador: 'erp-beta',
+      chave: chaveHubFixture('beta0001', 'fixtureChaveBetaSomenteTesteT0032bbbbbbbbbb'),
+      credencial: b('credencial', 1),
+      sessoes: { cliente: b('sessao_carga', 1) },
+      sessaoUuids: { cliente: 'bbbbbbbb-0053-4000-8000-000000000101' },
+      lotes: { completoCliente: b('lote', 1), delta: b('lote', 2) },
+      pendencias: { recusada: b('pendencia_inativacao', 1) },
+      fila: { p1: b('pedido_fila_erp', 1) },
+      retornos: { p1: b('pedido_retorno', 1) },
+    },
   },
   /** E-mail repetido de propósito em A (vendedor-1) e B (vendedor-B). */
   emailRepetido: 'vendedor@exemplo.com.br',
@@ -208,6 +275,28 @@ const ORDEM_T0029_ANTES_DO_PEDIDO = [
   'vendedor.numeracao_pedido',
 ] as const;
 type TabelaT0029 = (typeof ORDEM_T0029_ANTES_DO_PEDIDO)[number] | 'vendedor.pedido_evento';
+
+/** Tabelas da T-0032 (0010, schema integracao), na ordem das FKs. */
+const ORDEM_T0032 = [
+  'integracao.conector',
+  'integracao.credencial',
+  'integracao.politica_versao',
+  'integracao.sessao_carga',
+  'integracao.sessao_carga_recebido',
+  'integracao.lote',
+  'integracao.lote_staging',
+  'integracao.lote_linha_erro',
+  'integracao.registro_atual',
+  'integracao.pendencia_inativacao',
+  'integracao.inativacao_auditoria',
+  'integracao.cursor_entidade',
+  'integracao.reconciliacao',
+  'integracao.mapeamento',
+  'integracao.pedido_fila_erp',
+  'integracao.pedido_retorno',
+  'integracao.pedido_retorno_erro',
+] as const;
+type TabelaT0032 = (typeof ORDEM_T0032)[number];
 const DO_PEDIDO = ['vendedor.pedido', 'vendedor.pedido_item'] as const;
 
 export const ORDEM_TABELAS = [
@@ -230,6 +319,7 @@ export const ORDEM_TABELAS = [
   ...ORDEM_T0029_ANTES_DO_PEDIDO,
   ...DO_PEDIDO,
   'vendedor.pedido_evento',
+  ...ORDEM_T0032,
 ] as const;
 
 export type DadosFixture = Record<(typeof ORDEM_TABELAS)[number], Linha[]>;
@@ -370,6 +460,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ],
     ...dadosSprint1(hojeA, hojeB),
     ...dadosT0029(hojeA, hojeB),
+    ...dadosT0032(),
   };
 }
 
@@ -663,6 +754,164 @@ function dadosT0029(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaT002
       evento(a('pedido_evento', 3), tA, A.pedidos.p2, 'received', 'pending_approval', A.usuarios.supervisor, 'Supervisor Alfa', 'supervisor', 'Desconto de 12,0% acima da alçada de 5,0%: aguardando gerente', instante(somarDias(hojeA, -1), '16:00'), { nivel: 'gerente' }),
       evento(b('pedido_evento', 1), tB, B.pedidos.p1, null, 'received', B.usuarios.vendedor, 'Vendedor Beta', 'vendedor', 'Recebido pelo servidor', instante(somarDias(hojeB, -1), '14:00')),
       evento(b('pedido_evento', 2), tB, B.pedidos.p1, 'received', 'approved', B.usuarios.vendedor, 'Vendedor Beta', 'vendedor', 'Dentro da alçada (5,0%)', instante(somarDias(hojeB, -1), '14:00')),
+    ],
+  };
+}
+
+/**
+ * T-0032 (0010, schema integracao): uma linha (ou mais) em cada tabela nos DOIS tenants, com instantes FIXOS (recarregar não
+ * muda nada). A pendência aguardando de A expira em 2099 (continua decidível nos testes). Ids em DOIS_TENANTS.X.integracao.
+ */
+function dadosT0032(): Pick<DadosFixture, TabelaT0032> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const IA = A.integracao;
+  const IB = B.integracao;
+  const tA = A.tenantId;
+  const tB = B.tenantId;
+  const comuns = { deleted_at: null, external_id: null };
+  const T = (hora: string, dia = '2026-10-30') => `${dia}T${hora}Z`;
+  const sha = (x: string) => createHash('sha256').update(x).digest('hex');
+  const conector = (id: string, tenant_id: string, identificador: string, nome: string, entidades: readonly string[], ips: string): Linha => ({
+    id, tenant_id, identificador, nome, tipo: 'conector', ativo: true, recebe_pedidos: true, entidades: arrayDeTexto(entidades), ips_permitidos: ips,
+    versao_conector: '1.2.0', versao_contrato: 'v1', ultimo_sinal_em: T('12:00:00'), parado_por_versao: false, sinal_resumo: { fila_local: 0 },
+    deriva_relogio_s: 0, ...comuns,
+  });
+  const credencial = (id: string, tenant_id: string, conector_id: string, chave: { prefixo: string; hash: string }): Linha => ({
+    id, tenant_id, conector_id, prefixo: chave.prefixo, hash_chave: chave.hash, versao_pepper: 1, escopo: 'integracao.v1', papel: 'atual',
+    expira_em: null, anterior_valida_ate: null, revogada_em: null, revogada_por: null, motivo_revogacao: null, ultimo_uso_em: null, ...comuns,
+  });
+  const sessao = (id: string, tenant_id: string, sessao_uuid: string, conector_id: string, entidade: string, inativadas: number): Linha => ({
+    id, tenant_id, sessao_uuid, conector_id, entidade, iniciada_em: T('10:00:00'), ultima_parte: 1, fechada_em: T('10:05:00'), situacao: 'completa',
+    inativadas, linhas_sem_identificacao: 0, invalidas_omitidas: 0, ...comuns,
+  });
+  const lote = (id: string, tenant_id: string, conector_id: string, entidade: string, sessao_id: string | null, extra: Partial<Linha>): Linha => ({
+    id, tenant_id, conector_id, entidade, modo: sessao_id ? 'completo' : 'delta', versao_contrato: 'v1', sessao_id,
+    sessao_parte: sessao_id ? 1 : null, sessao_ultimo: sessao_id ? true : null, chave_idempotencia: sha(`idem:${id}`), hash_conteudo: sha(`conteudo:${id}`),
+    status: 'concluido', recebidas: 1, duplicadas_no_lote: 0, com_erro: 0, novas: 1, atualizadas: 0, inalteradas: 0, obsoletas: 0, inativadas: 0,
+    invalidas_omitidas: 0, aplicado_ate_indice: 0, cursor_declarado: null, cursor_resultante: null, versao_conector: '1.2.0', bytes: 1024, avisos: null,
+    tentativas: 1, ultimo_erro: null, recebido_em: T('10:01:00'), iniciado_em: T('10:01:05'), concluido_em: T('10:01:30'), ...comuns, ...extra,
+  });
+  const loteRecebido = { status: 'recebido', novas: 0, aplicado_ate_indice: null, tentativas: 0, recebido_em: T('12:00:00'), iniciado_em: null, concluido_em: null };
+  const registro = (id: string, tenant_id: string, entidade: string, conector_id: string, externalId: string, lote_id: string, sessao_id: string, inativado: boolean): Linha => ({
+    id, tenant_id, entidade, conector_id, hash: inativado ? null : sha(`registro:${id}`), payload: { external_id: externalId, nome: `Registro ${externalId}` },
+    valor_controle: 0, alterado_em: '2026-10-30T09:00:00.123Z', ativo: true, lote_id, sessao_id, visto_em: T('10:01:30'), aplicado_em: T('10:01:30'),
+    deleted_at: inativado ? T('10:30:00') : null, external_id: externalId,
+  });
+  interface Decisao { estado: string; por: string | null; perfil: string | null; motivo: string | null }
+  const pendencia = (id: string, tenant_id: string, sessao_id: string, entidade: string, conector_id: string, lote_id: string, d: Decisao, expira_em: string): Linha => ({
+    id, tenant_id, sessao_id, entidade, conector_id, lote_id, estado: d.estado, candidatos: 1, total_ativos: 2, percentual: '50.00', limite_pct: '30.00',
+    amostra: [`${entidade.slice(0, 3).toUpperCase()}-2`], expira_em, decidida_em: d.por ? T('10:30:00') : null, decidida_por: d.por,
+    decidida_por_perfil: d.perfil, motivo_decisao: d.motivo, ...comuns,
+  });
+  const auditoria = (id: string, tenant_id: string, p: Linha, acao: 'confirmar' | 'recusar', inativadas: number | null): Linha => ({
+    id, tenant_id, pendencia_id: p.id, sessao_id: p.sessao_id, lote_id: p.lote_id, entidade: p.entidade, conector_id: p.conector_id, acao,
+    decidida_por: p.decidida_por, perfil: p.decidida_por_perfil, decidida_em: p.decidida_em, quantidade: p.candidatos, total_ativos: p.total_ativos,
+    percentual: p.percentual, motivo: p.motivo_decisao, inativadas, ...comuns,
+  });
+  const fila = (id: string, tenant_id: string, pedido_uuid: string, conector_id: string, estado: string, numero_erp: string, nota: string, total: number): Linha => ({
+    id, tenant_id, pedido_uuid, estado, payload: { versao_contrato: 'v1', pedido_uuid }, payload_origem: { pedido_uuid }, retencao_codigo: null,
+    retencao_mensagem: null, conector_id, enviado_em: T('11:00:00'), tentativas: 1, numero_erp, motivo: null, nota_numero: nota, nota_serie: '1',
+    nota_emitida_em: T('11:30:00'), nota_total_cents: total, notas_aplicadas: [{ numero: nota, serie: '1' }],
+    itens_faturados_acumulados: { '1': { quantidade: 2, valor_cents: total } }, ultimo_retorno_em: T('11:30:00'), aprovado_em: T('10:50:00'), ...comuns,
+  });
+  const retorno = (id: string, tenant_id: string, f: Linha): Linha => ({
+    id, tenant_id, pedido_uuid: f.pedido_uuid, status: f.estado, numero_erp: f.numero_erp, motivo: null, nota_numero: f.nota_numero, nota_serie: '1',
+    nota_emitida_em: f.nota_emitida_em, nota_total_cents: f.nota_total_cents, itens_faturados: [{ sequencia: 1, quantidade: 2 }], ocorrido_em: T('11:30:00'),
+    conector_id: f.conector_id, ...comuns,
+  });
+  const descartado = (id: string, tenant_id: string, r: Linha, codigo: string, campo: string, motivo: string): Linha => ({
+    id, tenant_id, pedido_uuid: r.pedido_uuid, pedido_retorno_id: r.id, status: r.status, numero_erp: r.numero_erp, nota_numero: r.nota_numero, nota_serie: '1',
+    ocorrido_em: r.ocorrido_em, indice: 1, sequencia: 9, produto_external_id: 'PRD-9', quantidade: 1, codigo, codigos: arrayDeTexto([codigo]), campo, motivo,
+    conector_id: r.conector_id, resolvido_em: null, ...comuns,
+  });
+
+  const expira = T('10:05:00', '2026-11-06');
+  const pendA1 = pendencia(IA.pendencias.confirmada, tA, IA.sessoes.produto, 'produto', IA.conector, IA.lotes.completoProduto, { estado: 'confirmada', por: A.usuarios.analista, perfil: 'analista', motivo: 'Produto descontinuado no ERP.' }, expira);
+  const pendA2 = pendencia(IA.pendencias.aguardando, tA, IA.sessoes.cliente, 'cliente', IA.conector, IA.lotes.completoCliente, { estado: 'aguardando', por: null, perfil: null, motivo: null }, '2099-12-31T00:00:00Z');
+  const pendB1 = pendencia(IB.pendencias.recusada, tB, IB.sessoes.cliente, 'cliente', IB.conector, IB.lotes.completoCliente, { estado: 'recusada', por: B.usuarios.admin, perfil: 'admin', motivo: 'Carga parcial do ERP; aguardar a próxima.' }, expira);
+  const filaA = fila(IA.fila.p3, tA, A.pedidos.p3, IA.conector, 'faturado_parcial', 'PV1003', '1001', 100_000);
+  const filaB = fila(IB.fila.p1, tB, B.pedidos.p1, IB.conector, 'faturado_total', 'PVB0001', '2001', 45_000);
+  const retA = retorno(IA.retornos.p3, tA, filaA);
+  const retB = retorno(IB.retornos.p1, tB, filaB);
+  return {
+    'integracao.conector': [
+      conector(IA.conector, tA, IA.identificador, 'ERP Alfa', ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota'], '{}'),
+      conector(IB.conector, tB, IB.identificador, 'ERP Beta', ['cliente', 'produto'], '{203.0.113.0/24}'),
+    ],
+    'integracao.credencial': [credencial(IA.credencial, tA, IA.conector, IA.chave), credencial(IB.credencial, tB, IB.conector, IB.chave)],
+    'integracao.politica_versao': [
+      { id: a('politica_versao', 1), tenant_id: tA, versao_minima: '1.1.0', versao_recomendada: '1.2.0', mensagem: 'Atualize o Conector para a 1.2.0.', pacote: null, ...comuns },
+      { id: b('politica_versao', 1), tenant_id: tB, versao_minima: '1.0.0', versao_recomendada: '1.2.0', mensagem: null, pacote: null, ...comuns },
+    ],
+    'integracao.sessao_carga': [
+      sessao(IA.sessoes.produto, tA, IA.sessaoUuids.produto, IA.conector, 'produto', 1),
+      sessao(IA.sessoes.cliente, tA, IA.sessaoUuids.cliente, IA.conector, 'cliente', 0),
+      sessao(IB.sessoes.cliente, tB, IB.sessaoUuids.cliente, IB.conector, 'cliente', 0),
+    ],
+    'integracao.sessao_carga_recebido': [
+      { id: a('sessao_carga_recebido', 1), tenant_id: tA, sessao_id: IA.sessoes.produto, deleted_at: null, external_id: 'PRD-INVALIDO-9' },
+      { id: b('sessao_carga_recebido', 1), tenant_id: tB, sessao_id: IB.sessoes.cliente, deleted_at: null, external_id: 'CLI-INVALIDO-9' },
+    ],
+    'integracao.lote': [
+      lote(IA.lotes.completoProduto, tA, IA.conector, 'produto', IA.sessoes.produto, {
+        status: 'concluido_com_erros', recebidas: 3, com_erro: 1, novas: 2, inativadas: 1, aplicado_ate_indice: 2,
+        cursor_resultante: { alterado_em: '2026-10-30T09:00:00.123Z', external_id: 'PRD-1' },
+      }),
+      lote(IA.lotes.delta, tA, IA.conector, 'produto', null, loteRecebido),
+      lote(IA.lotes.completoCliente, tA, IA.conector, 'cliente', IA.sessoes.cliente, {}),
+      lote(IB.lotes.completoCliente, tB, IB.conector, 'cliente', IB.sessoes.cliente, {}),
+      lote(IB.lotes.delta, tB, IB.conector, 'cliente', null, loteRecebido),
+    ],
+    'integracao.lote_staging': [
+      { id: a('lote_staging', 1), tenant_id: tA, lote_id: IA.lotes.delta, corpo: { registros: [{ external_id: 'PRD-3', nome: 'Produto Três' }], linhas_invalidas: [] }, ...comuns },
+      { id: b('lote_staging', 1), tenant_id: tB, lote_id: IB.lotes.delta, corpo: { registros: [{ external_id: 'CLI-3', razao_social: 'Cliente Três' }], linhas_invalidas: [] }, ...comuns },
+    ],
+    'integracao.lote_linha_erro': [
+      {
+        id: a('lote_linha_erro', 1), tenant_id: tA, lote_id: IA.lotes.completoProduto, indice: 2, origem: 'hub', codigo: 'campo_obrigatorio', campo: 'nome',
+        mensagem: 'Informe o nome do produto.', reprocessavel: false, payload: { external_id: 'PRD-INVALIDO-9' }, resolvido_em: null, resolvido_no_lote_id: null,
+        deleted_at: null, external_id: 'PRD-INVALIDO-9',
+      },
+      {
+        id: b('lote_linha_erro', 1), tenant_id: tB, lote_id: IB.lotes.completoCliente, indice: 0, origem: 'conector', codigo: 'formato_invalido', campo: 'cep',
+        mensagem: 'CEP com formato inválido no ERP.', reprocessavel: false, payload: null, resolvido_em: null, resolvido_no_lote_id: null,
+        deleted_at: null, external_id: 'CLI-INVALIDO-9',
+      },
+    ],
+    'integracao.registro_atual': [
+      registro(a('registro_atual', 1), tA, 'produto', IA.conector, 'PRD-1', IA.lotes.completoProduto, IA.sessoes.produto, false),
+      registro(a('registro_atual', 2), tA, 'produto', IA.conector, 'PRD-2', IA.lotes.completoProduto, IA.sessoes.produto, true),
+      registro(b('registro_atual', 1), tB, 'cliente', IB.conector, 'CLI-1', IB.lotes.completoCliente, IB.sessoes.cliente, false),
+    ],
+    'integracao.pendencia_inativacao': [pendA1, pendA2, pendB1],
+    'integracao.inativacao_auditoria': [auditoria(a('inativacao_auditoria', 1), tA, pendA1, 'confirmar', 1), auditoria(b('inativacao_auditoria', 1), tB, pendB1, 'recusar', null)],
+    'integracao.cursor_entidade': [
+      { id: a('cursor_entidade', 1), tenant_id: tA, conector_id: IA.conector, entidade: 'produto', cursor_alterado_em: '2026-10-30T09:00:00.123Z', cursor_external_id: 'PRD-1', atualizado_em: T('10:01:30'), ...comuns },
+      { id: b('cursor_entidade', 1), tenant_id: tB, conector_id: IB.conector, entidade: 'cliente', cursor_alterado_em: '2026-10-30T09:00:00.123Z', cursor_external_id: 'CLI-1', atualizado_em: T('10:01:30'), ...comuns },
+    ],
+    'integracao.reconciliacao': [
+      {
+        id: a('reconciliacao', 1), tenant_id: tA, conector_id: IA.conector, entidade: 'produto', data_referencia: '2026-10-30', contagem_erp: 2, soma_erp: null,
+        contagem_macuxi: 1, soma_macuxi: null, diferenca_contagem: 1, diferenca_soma: null, diferenca_pct: null, divergente: true,
+        motivos: arrayDeTexto(['contagem_divergente']), situacao: 'comparada', evento_publicado: true, calculada_em: T('23:00:00'), ...comuns,
+      },
+      {
+        id: b('reconciliacao', 1), tenant_id: tB, conector_id: IB.conector, entidade: 'cliente', data_referencia: '2026-10-30', contagem_erp: 1, soma_erp: null,
+        contagem_macuxi: 1, soma_macuxi: null, diferenca_contagem: 0, diferenca_soma: null, diferenca_pct: null, divergente: false,
+        motivos: arrayDeTexto([]), situacao: 'comparada', evento_publicado: false, calculada_em: T('23:00:00'), ...comuns,
+      },
+    ],
+    'integracao.mapeamento': [
+      { id: a('mapeamento', 1), tenant_id: tA, tipo: 'condicao_pagamento', codigo_erp: '001', codigo_macuxi: 'AVISTA', descricao: 'À vista', ativo: true, ...comuns },
+      { id: a('mapeamento', 2), tenant_id: tA, tipo: 'condicao_pagamento', codigo_erp: '028', codigo_macuxi: '28D', descricao: '28 dias', ativo: true, ...comuns },
+      { id: b('mapeamento', 1), tenant_id: tB, tipo: 'condicao_pagamento', codigo_erp: 'AV', codigo_macuxi: 'AVISTA', descricao: 'À vista', ativo: true, ...comuns },
+    ],
+    'integracao.pedido_fila_erp': [filaA, filaB],
+    'integracao.pedido_retorno': [retA, retB],
+    'integracao.pedido_retorno_erro': [
+      descartado(a('pedido_retorno_erro', 1), tA, retA, 'sequencia_inexistente', 'itens_faturados[1].sequencia', 'A sequência 9 não existe no pedido enviado ao ERP. Confira a consulta de itens da nota no Conector.'),
+      descartado(b('pedido_retorno_erro', 1), tB, retB, 'produto_divergente', 'itens_faturados[1].produto_external_id', 'O produto "PRD-9" da sequência 9 não é o que foi enviado ao ERP.'),
     ],
   };
 }

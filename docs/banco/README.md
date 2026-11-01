@@ -11,6 +11,9 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-01 (T-0029):** migrações até a `0009` (0008 preço do Catálogo, 0009 pedido completo do Vendedor); suíte de
 > `db/testes/` com 300 casos, 0 pulados. Dicionários: [plataforma.md](plataforma.md), [core.md](core.md),
 > [catalogo.md](catalogo.md), [vendedor.md](vendedor.md).
+> **2026-11-01 (T-0032):** `0010_integracao` (schema `integracao` do Hub: 17 tabelas, `autenticar_chave`, `expurgar_retencao`)
+> e `0011_plataforma_outbox_retencao` (expurgo da outbox + comentário de legado em `tenant_modulo.parametros`); dicionário
+> [integracao.md](integracao.md); fixture com Conector, chave (HMAC com `PEPPER_HUB_FIXTURE`) e linhas de A e B em toda tabela nova.
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -228,11 +231,12 @@ await pool.end(); await banco.apagar();
 6. Perfis: a fonte única é `PERFIS` de `@macuxi/platform-sdk`. O Drizzle importa de lá; os `check (perfil in (...))`
    das migrações são comparados com ela em `db/testes/estatico.test.ts` (perfil novo = migração nova trocando o CHECK).
 
-Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataforma.md), [core.md](core.md), [vendedor.md](vendedor.md).
+Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataforma.md), [core.md](core.md), [catalogo.md](catalogo.md), [vendedor.md](vendedor.md), [integracao.md](integracao.md).
 
 Migrações: 0001 plataforma · 0002 core · 0003 worker/outbox · 0004 sessão e aparelho · **0005 `plataforma.arquivo` +
 `uuid_de_chave`** · **0006 lote A do core** (Cliente 360, rotas, visitas, motivos, notificações, metas, indicador diário;
-padrões em todo tenant por gatilho) · **0007 schema `vendedor`** (pedido e pedido_item, mínimo do pull).
+padrões em todo tenant por gatilho) · **0007 schema `vendedor`** (pedido e pedido_item, mínimo do pull) · 0008 preço do Catálogo ·
+0009 pedido completo do Vendedor · **0010 schema `integracao`** (Hub) · **0011 retenção da outbox** (`plataforma.expurgar_outbox`).
 O executor roda como admin (superusuário no Docker/CI): a semeadura dos padrões e as fixtures dependem disso (FORCE RLS).
 
 ## Pendências

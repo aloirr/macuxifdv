@@ -23,7 +23,7 @@ Função `tenant_por_codigo(codigo)` (SECURITY DEFINER) para o login. Aplicaçã
 | modulo | text not null | id do módulo (`core`, `vendedor`, ..., `teste`); único por tenant |
 | ativo | boolean not null | `core` não pode ficar inativo (check) |
 | plano, licencas | text, integer | licenças >= 0 |
-| parametros | jsonb not null | **legado, sem uso** (T-0016 §7, R-20261031-165647): parâmetros do tenant só em `plataforma.parametro`; a coluna sai (ou ganha comment 'legado') na próxima migração do banco |
+| parametros | jsonb not null | **legado, sem uso** (T-0016 §7, R-20261031-165647): parâmetros do tenant só em `plataforma.parametro`; `comment` de LEGADO na 0011 (a coluna fica até uma migração que a remova) |
 | ativado_em, desativado_em | timestamptz | retenção de 90 dias conta de `desativado_em` (RN-CORE-02) |
 
 Índices: único `(tenant_id, modulo)` ativo; sync `(tenant_id, updated_at, id)`.
@@ -61,6 +61,14 @@ Módulos efetivos = ativos do tenant ∩ perfil − exceções (calculado no `do
 (`evento_tenant_id_uk`, alvo da FK de `evento_consumo`). Gravado na mesma transação do fato.
 Acesso: `macuxi_app` pelo RLS do tenant; `macuxi_worker` (ADR 0007) lê todos os tenants e só atualiza
 `publicado_em`, `tentativas`, `ultimo_erro` (ver [rls.md](rls.md)).
+
+**Retenção (0011, T-0032)**: `plataforma.expurgar_outbox(p_agora timestamptz default now(), p_limite int default 10000)`
+devolve `(item, quantidade)` para `evento` e `evento_consumo`. Por tenant, apaga os eventos **publicados** há mais de N dias
+(até `p_limite` por tenant por chamada) e os consumos deles na mesma transação; evento pendente (`publicado_em` nulo) nunca
+sai. N = parâmetro `plataforma.parametro` (`modulo = 'plataforma'`, `chave = 'outbox.retencao_dias'`, número de dias; sem
+linha = **30**; limitado a 7..365). `SECURITY DEFINER`, `search_path` fixo, `execute` só ao `macuxi_worker` (agendamento do
+engenheiro-software). Índice `evento_publicado_ix (tenant_id, publicado_em) where publicado_em is not null`. Motivo: a carga
+inicial do Hub gera ~100 a 200 mil eventos por tenant.
 
 ## evento_consumo — consumo idempotente da outbox (ADR 0007, migração 0003)
 | Coluna | Tipo | Regra |
