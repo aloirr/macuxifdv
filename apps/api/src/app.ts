@@ -21,6 +21,7 @@ import { erroModuloInativo, MeusModulosRespostaSchema, ROTA_ME_MODULOS, type Meu
 import {
   corpoDoErro,
   corpoDoErroModulo,
+  retryAfterDoErroModulo,
   criarPermissoes,
   dependenciasDosManifestos,
   ErroHttpModulo,
@@ -74,6 +75,12 @@ export interface OpcoesApp {
   arquivos?: ArmazenamentoArquivos | null;
   relogio?: () => Date;
   logger?: FastifyServerOptions['logger'];
+  /**
+   * Proxy confiável na frente da API (`MACUXI_TRUST_PROXY`, `lerTrustProxy` em `config.ts`): com ele, `req.ip` vem do
+   * `X-Forwarded-For` (ex.: túnel `cloudflared` da demo, T-0026) e os limites por IP contam cada aparelho. Padrão:
+   * desligado (`req.ip` = quem abriu a conexão).
+   */
+  trustProxy?: FastifyServerOptions['trustProxy'];
 }
 
 /** Teto de elementos de array num corpo JSON (push: 500 itens × payload; lote do Hub: até 5.000 linhas). */
@@ -157,6 +164,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   const app = Fastify({
     logger: op.logger ?? false,
+    trustProxy: op.trustProxy ?? false,
     genReqId: (req) => {
       const h = req.headers['x-request-id'];
       return typeof h === 'string' && UUID.test(h) ? h : randomUUID();
@@ -177,7 +185,11 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   app.setErrorHandler((erro, req, reply) => {
     if (erro instanceof ErroHttp) return reply.code(erro.status).send(erro.corpo());
     // erro do módulo (ErroHttpModulo e os casos ErroRegraNegocio 422 / ErroNaoEncontrado 404): status e código do módulo
-    if (erro instanceof ErroHttpModulo) return reply.code(erro.status).send(corpoDoErroModulo(erro) satisfies ErroApi);
+    if (erro instanceof ErroHttpModulo) {
+      const espera = retryAfterDoErroModulo(erro);
+      if (espera !== null) reply.header('retry-after', String(espera));
+      return reply.code(erro.status).send(corpoDoErroModulo(erro) satisfies ErroApi);
+    }
     if (erro instanceof ZodError) return reply.code(400).send({ codigo: 'VALIDACAO', mensagem: 'Dados inválidos.' } satisfies ErroApi);
     const status = (erro as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) {

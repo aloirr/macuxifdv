@@ -96,28 +96,49 @@ jobs:
           DEPOIS: ${{ github.sha }}
         run: node scripts/coord.mjs verificar --por-commit "$ANTES..$DEPOIS"
 
-      - run: pnpm install --frozen-lockfile
+      # roda mesmo com falha nos passos do coord/guardiões acima, para os testes do código reportarem também
+      - name: instalar dependências
+        id: instalar
+        if: ${{ !cancelled() }}
+        run: pnpm install --frozen-lockfile
 
-      # lint inclui `pnpm fronteiras` (dependency-cruiser): módulo só importa packages/*,
-      # modules/core/contracts e modules/<outro>/contracts
+      # Daqui para baixo TODOS os passos rodam mesmo que um anterior falhe (pedido do Alexandre, R-20261101-014652):
+      # nada quebra escondido atrás da primeira falha. O job continua vermelho se qualquer um falhar.
       # lint/typecheck/test da raiz incluem tests/ (agente testes, T-0006) como tarefas raiz do turbo
-      # (//#lint:tests, //#typecheck:tests, //#test:tests). Sem a Fase M no runner, S0-006/007 pulam sozinhos.
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
+      # (//#lint:tests, //#typecheck:tests, //#test:tests), com --continue: o turbo roda todos os pacotes e reporta
+      # todas as falhas. Sem a Fase M no runner, S0-006/007 pulam sozinhos.
+      - name: lint
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: pnpm exec turbo run lint lint:tests --continue
+
+      # fronteiras (dependency-cruiser): módulo só importa packages/*, modules/core/contracts e modules/<outro>/contracts
+      - name: fronteiras
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: pnpm fronteiras
+
+      - name: typecheck
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: pnpm exec turbo run typecheck typecheck:tests --continue
+
+      - name: testes
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        run: pnpm exec turbo run test test:tests --continue
 
       - name: build do Backoffice Web (next build)
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
         run: pnpm --filter web build
 
       # T-0004 §7: o mesmo bundle que o EAS roda na fase EAGER_BUNDLE (Metro + babel-preset-expo), nas duas variantes.
       # Erro de sintaxe que o tsc aceita e o Babel não (ex.: `declare` em campo de classe) fica vermelho aqui, antes de
       # gastar build da Expo. Não precisa de conta Expo nem de Android SDK.
       - name: bundle do app (Metro) — variante campo
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
         env:
           APP_VARIANT: campo
         run: pnpm --filter mobile bundle:android
 
       - name: bundle do app (Metro) — variante gestao
+        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
         env:
           APP_VARIANT: gestao
         run: pnpm --filter mobile bundle:android

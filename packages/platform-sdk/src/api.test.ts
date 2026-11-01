@@ -10,6 +10,7 @@ import {
   ErroNaoEncontrado,
   ErroRegraNegocio,
   promotorBarradoNaRota,
+  retryAfterDoErroModulo,
   type RotaModulo,
 } from './api';
 import { definirEvento } from './eventos';
@@ -129,8 +130,19 @@ describe('definirModuloApi (desenho T-0004 §3)', () => {
     expect(corpoDoErroModulo(new ErroRegraNegocio('RN-VEN-03', 'x', { limite: 10 }))).toEqual({ codigo: 'RN-VEN-03', mensagem: 'x', detalhes: { limite: 10 } });
     expect(new ErroRegraNegocio('RN-VEN-03', 'x')).toBeInstanceOf(ErroHttpModulo);
     expect(new ErroNaoEncontrado('X', 'x')).toBeInstanceOf(ErroHttpModulo);
-    // 400/429/500 são da plataforma: o módulo não usa
+    // 400/500 são da plataforma: o módulo não usa
     expect(() => new ErroHttpModulo(500 as never, 'X', 'x')).toThrow(/não é de módulo/);
+    expect(() => new ErroHttpModulo(400 as never, 'X', 'x')).toThrow(/não é de módulo/);
+  });
+
+  it('ErroHttpModulo 429 (limite próprio do módulo, T-0026): retry-after só com retry_after_s inteiro > 0', () => {
+    const e = new ErroHttpModulo(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas.', { retry_after_s: 120 });
+    expect(e.status).toBe(429);
+    expect(retryAfterDoErroModulo(e)).toBe(120);
+    expect(retryAfterDoErroModulo(new ErroHttpModulo(429, 'X', 'x'))).toBeNull();
+    expect(retryAfterDoErroModulo(new ErroHttpModulo(429, 'X', 'x', { retry_after_s: 1.5 }))).toBeNull();
+    expect(retryAfterDoErroModulo(new ErroHttpModulo(429, 'X', 'x', { retry_after_s: '60' }))).toBeNull();
+    expect(retryAfterDoErroModulo(new ErroHttpModulo(423, 'X', 'x', { retry_after_s: 60 }))).toBeNull();
   });
 
   it('RN-CORE-03: dependenciasDosManifestos devolve o "depende" de cada módulo instalado', () => {

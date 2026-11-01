@@ -240,7 +240,7 @@ describe('GET /v1/me/modulos (contrato do Core)', () => {
 });
 
 describe('ErroHttpModulo: status e código do módulo (T-0003 F2)', () => {
-  const STATUS: StatusErroModulo[] = [401, 403, 404, 409, 410, 422, 423, 503];
+  const STATUS: StatusErroModulo[] = [401, 403, 404, 409, 410, 422, 423, 429, 503];
   const coreDeTeste = definirModuloApi({
     manifesto: core,
     rotas: [
@@ -260,9 +260,10 @@ describe('ErroHttpModulo: status e código do módulo (T-0003 F2)', () => {
         metodo: 'POST',
         caminho: 'auth/login',
         limite: { max: 50, janelaMs: 60_000 },
-        corpo: z.object({ caso: z.enum(['credenciais', 'bloqueado', 'sem_segredo']) }),
+        corpo: z.object({ caso: z.enum(['credenciais', 'bloqueado', 'sem_segredo', 'limitado']) }),
         executar: async (ctx) => {
           if (ctx.corpo.caso === 'credenciais') throw new ErroHttpModulo(401, 'CREDENCIAIS_INVALIDAS', 'Dados incorretos.');
+          if (ctx.corpo.caso === 'limitado') throw new ErroHttpModulo(429, 'MUITAS_TENTATIVAS', 'Aguarde.', { retry_after_s: 90 });
           if (ctx.corpo.caso === 'bloqueado') throw new ErroHttpModulo(423, 'USUARIO_BLOQUEADO', 'Acesso bloqueado.');
           throw new ErroHttpModulo(503, 'AUTENTICACAO_INDISPONIVEL', 'Login indisponível.');
         },
@@ -288,6 +289,17 @@ describe('ErroHttpModulo: status e código do módulo (T-0003 F2)', () => {
     expect(((r) => [r.statusCode, r.json().codigo])(await caso('sem_segredo'))).toEqual([503, 'AUTENTICACAO_INDISPONIVEL']);
   });
 
+  it('429 do módulo (limite próprio, T-0026): retry-after vem de detalhes.retry_after_s; sem ele, nada de cabeçalho', async () => {
+    const a = app();
+    const r = await a.inject({ method: 'POST', url: '/v1/auth/login', payload: { caso: 'limitado' } });
+    expect(r.statusCode).toBe(429);
+    expect(r.headers['retry-after']).toBe('90');
+    expect(r.json()).toEqual({ codigo: 'MUITAS_TENTATIVAS', mensagem: 'Aguarde.', detalhes: { retry_after_s: 90 } });
+    const sem = await a.inject({ method: 'GET', url: '/v1/core/erro/429', headers: cab('vendedor') });
+    expect(sem.statusCode).toBe(429);
+    expect(sem.headers['retry-after']).toBeUndefined();
+  });
+
   it('RN-CORE-03: ctx.dependencias traz o "depende" de todos os manifestos instalados', async () => {
     const r = await app().inject({ method: 'GET', url: '/v1/core/dependencias', headers: cab('vendedor') });
     expect(r.statusCode).toBe(200);
@@ -307,5 +319,42 @@ describe('parâmetros do tenant: fonte única plataforma.parametro (desenho T-00
       { modulo: 'teste', chave: 'x', valor: 1 },
     ];
     expect(parametrosPorModulo(linhas, ['core', 'vendedor'])).toEqual({ core: { 'checkin.raio_m': 200, 'metas.base_apuracao': 'aprovado' }, vendedor: {} });
+  });
+});
+
+describe('trustProxy (túnel da demo, T-0026): limite das rotas públicas por IP real', () => {
+  const coreComIp = definirModuloApi({
+    manifesto: core,
+    rotasPublicas: [
+      {
+        metodo: 'POST',
+        caminho: 'auth/login',
+        limite: { max: 1, janelaMs: 60_000 },
+        corpo: z.object({}),
+        executar: async (ctx) => ({ ip: ctx.ip }),
+      },
+    ],
+  });
+  const montar = (trustProxy?: string[]) =>
+    createApp(opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ core: coreComIp }), ...(trustProxy ? { trustProxy } : {}) }));
+  const login = (a: ReturnType<typeof montar>, xff: string) =>
+    a.inject({ method: 'POST', url: '/v1/auth/login', payload: {}, remoteAddress: '127.0.0.1', headers: { 'x-forwarded-for': xff } });
+
+  it('padrão (desligado): todos que chegam pelo túnel são 127.0.0.1 e dividem o mesmo limite', async () => {
+    const a = montar();
+    const r1 = await login(a, '200.1.1.1');
+    expect(r1.json()).toEqual({ ip: '127.0.0.1' });
+    expect((await login(a, '200.2.2.2')).statusCode).toBe(429);
+  });
+
+  it('loopback confiável: req.ip vem do X-Forwarded-For e cada aparelho tem o próprio limite', async () => {
+    const a = montar(['loopback']);
+    const r1 = await login(a, '200.1.1.1');
+    expect(r1.statusCode).toBe(200);
+    expect(r1.json()).toEqual({ ip: '200.1.1.1' });
+    expect((await login(a, '200.2.2.2')).statusCode).toBe(200);
+    expect((await login(a, '200.1.1.1')).statusCode).toBe(429);
+    // cliente que forja X-Forwarded-For: o proxy acrescenta o IP real no fim, e é ele que vale
+    expect((await login(a, '10.9.9.9, 200.3.3.3')).json()).toEqual({ ip: '200.3.3.3' });
   });
 });

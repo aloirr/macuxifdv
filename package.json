@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "lint": "turbo run lint lint:tests && pnpm fronteiras",
-    "typecheck": "turbo run typecheck typecheck:tests",
-    "test": "turbo run test test:tests",
+    "lint": "turbo run lint lint:tests --continue && pnpm fronteiras",
+    "typecheck": "turbo run typecheck typecheck:tests --continue",
+    "test": "turbo run test test:tests --continue",
     "lint:tests": "eslint tests --ignore-pattern \"tests/fixtures/**\"",
     "typecheck:tests": "tsc -p tests/tsconfig.json",
     "test:tests": "vitest run --config tests/vitest.config.ts",

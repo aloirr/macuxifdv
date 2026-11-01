@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conferirSegredoJwt, ehAmbienteLocal } from '../src/config';
+import { conferirSegredoJwt, ehAmbienteLocal, lerTrustProxy } from '../src/config';
 
 const forte = 'x'.repeat(32);
 
@@ -28,5 +28,19 @@ describe('MACUXI_JWT_SEGREDO na subida (falha fechada fora do local)', () => {
     expect(ehAmbienteLocal({}, 'LOCALHOST ')).toBe(true);
     expect(ehAmbienteLocal({ NODE_ENV: 'production' }, 'localhost')).toBe(false);
     expect(ehAmbienteLocal({}, '10.0.0.5')).toBe(false);
+  });
+});
+
+describe('MACUXI_TRUST_PROXY (T-0026)', () => {
+  it('ausente, vazio, false ou 0: desligado', () => {
+    for (const v of [undefined, '', ' ', 'false', 'FALSE', '0']) expect(lerTrustProxy({ MACUXI_TRUST_PROXY: v })).toBe(false);
+  });
+  it('true, número de saltos ou lista de IPs/CIDR/palavras-chave', () => {
+    expect(lerTrustProxy({ MACUXI_TRUST_PROXY: 'true' })).toBe(true);
+    const saltos = lerTrustProxy({ MACUXI_TRUST_PROXY: '2' });
+    expect(typeof saltos).toBe('function');
+    if (typeof saltos === 'function') expect([saltos('10.0.0.1', 0), saltos('10.0.0.2', 1), saltos('10.0.0.3', 2)]).toEqual([true, true, false]);
+    expect(lerTrustProxy({ MACUXI_TRUST_PROXY: 'loopback' })).toEqual(['loopback']);
+    expect(lerTrustProxy({ MACUXI_TRUST_PROXY: '127.0.0.1, 10.0.0.0/8,' })).toEqual(['127.0.0.1', '10.0.0.0/8']);
   });
 });

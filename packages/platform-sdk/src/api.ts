@@ -293,9 +293,11 @@ export interface ModuloApi {
 
 /**
  * Status que um módulo pode devolver por erro próprio. Ficam de fora os da plataforma: 400 (Zod, o createApp
- * valida), 429 (limite das rotas públicas) e 5xx além de 503 (erro inesperado vira 500 sem detalhes).
+ * valida) e 5xx além de 503 (erro inesperado vira 500 sem detalhes). 429 é dos dois: a plataforma limita as rotas
+ * públicas contra abuso e o módulo pode ter limite próprio (ex.: tentativas de login erradas no Core, T-0026); com
+ * `detalhes.retry_after_s` (inteiro > 0) a API manda também o cabeçalho `retry-after`.
  */
-export const STATUS_ERRO_MODULO = [401, 403, 404, 409, 410, 422, 423, 503] as const;
+export const STATUS_ERRO_MODULO = [401, 403, 404, 409, 410, 422, 423, 429, 503] as const;
 export type StatusErroModulo = (typeof STATUS_ERRO_MODULO)[number];
 
 /**
@@ -348,6 +350,13 @@ export function corpoDoErroModulo(e: ErroHttpModulo): {
   detalhes?: Record<string, unknown>;
 } {
   return { codigo: e.codigo, mensagem: e.message, ...(e.detalhes ? { detalhes: e.detalhes } : {}) };
+}
+
+/** Segundos do cabeçalho `retry-after` de um `ErroHttpModulo` 429 (`detalhes.retry_after_s` inteiro > 0), ou `null`. */
+export function retryAfterDoErroModulo(e: ErroHttpModulo): number | null {
+  if (e.status !== 429) return null;
+  const s = e.detalhes?.retry_after_s;
+  return typeof s === 'number' && Number.isInteger(s) && s > 0 ? s : null;
 }
 
 /** Módulo → `depende` do manifesto, para `ctx.dependencias` (RN-CORE-03). */

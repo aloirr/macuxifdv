@@ -29,3 +29,22 @@ export function conferirSegredoJwt(env: NodeJS.ProcessEnv, hostBanco: string): S
   }
   return { ok: false, fatal: true, mensagem: `${problema} fora do ambiente local: a API não sobe (falha fechada). Defina a variável no .env do servidor.` };
 }
+
+/**
+ * `MACUXI_TRUST_PROXY` → opção `trustProxy` do Fastify (T-0026). Ausente, vazio, `false`/`0`: desligado (padrão).
+ * `true`: confia em qualquer proxy (só atrás de um proxy que reescreve o `X-Forwarded-For`). Número inteiro: saltos.
+ * Outro texto: lista de IPs/CIDR ou `loopback`/`linklocal`/`uniquelocal`, separados por vírgula (ex.: `loopback` para o
+ * túnel `cloudflared` na mesma máquina, o que o `subir-demo.ps1` usa).
+ */
+export function lerTrustProxy(env: NodeJS.ProcessEnv): boolean | string[] | ((endereco: string, salto: number) => boolean) {
+  const v = (env.MACUXI_TRUST_PROXY ?? '').trim();
+  const baixo = v.toLowerCase();
+  if (!v || baixo === 'false' || baixo === '0' || baixo === 'nao' || baixo === 'não') return false;
+  if (baixo === 'true') return true;
+  // saltos: confia nos n proxies mais próximos (mesma regra do Fastify para número, que o tipo dele não aceita)
+  if (/^\d+$/.test(v)) {
+    const saltos = Number(v);
+    return (_endereco, salto) => salto < saltos;
+  }
+  return v.split(',').map((x) => x.trim()).filter(Boolean);
+}
