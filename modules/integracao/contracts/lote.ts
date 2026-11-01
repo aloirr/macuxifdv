@@ -170,6 +170,8 @@ export const ContagensLote = z.object({
   novas: z.number().int().nonnegative(),
   atualizadas: z.number().int().nonnegative(),
   inalteradas: z.number().int().nonnegative(),
+  /** RN-INT-06: versão mais antiga que o registro atual (reenvio antigo/reprocessamento); não grava nem publica. Campo novo, compatível com `v1`. */
+  obsoletas: z.number().int().nonnegative().default(0),
 });
 export type ContagensLote = z.infer<typeof ContagensLote>;
 

@@ -62,13 +62,44 @@ describe('RN-INT-02: external_id repetido no lote', () => {
   });
 });
 
-describe('RN-INT-02: classificar contra o que já existe', () => {
-  const v = (external_id: string, hash: string, indice = 0) => ({ indice, external_id, hash });
-  it('RN-INT-02: hash igual = inalterada (sem evento); hash diferente = atualizada; sem hash = nova', () => {
-    const r = classificarMudancas([v('A', 'h1', 0), v('B', 'h9', 1), v('C', 'h3', 2)], new Map([['A', 'h1'], ['B', 'h2']]));
+describe('RN-INT-02/06: classificar contra o que já existe', () => {
+  const T1 = '2026-10-31T10:00:00.000Z';
+  const T0 = '2026-10-31T09:00:00.000Z';
+  const T2 = '2026-10-31T11:00:00.000Z';
+  const v = (external_id: string, hash: string, alterado_em = T1, indice = 0) => ({ indice, external_id, hash, alterado_em });
+  const ex = (hash: string, alterado_em = T1) => ({ hash, alterado_em });
+  it('RN-INT-02: hash igual = inalterada (sem evento); hash diferente = atualizada; sem registro = nova', () => {
+    const r = classificarMudancas([v('A', 'h1'), v('B', 'h9', T2), v('C', 'h3')], new Map([['A', ex('h1')], ['B', ex('h2')]]));
     expect(r.inalteradas.map((x) => x.external_id)).toEqual(['A']);
     expect(r.atualizadas.map((x) => x.external_id)).toEqual(['B']);
     expect(r.novas.map((x) => x.external_id)).toEqual(['C']);
+    expect(r.obsoletas).toEqual([]);
+  });
+  it('RN-INT-06: alterado_em menor que o do registro atual = obsoleta, mesmo com hash diferente (reenvio antigo / reprocessamento)', () => {
+    const r = classificarMudancas([v('X', 'velho', T0)], new Map([['X', ex('novo', T1)]]));
+    expect(r.obsoletas.map((x) => x.external_id)).toEqual(['X']);
+    expect(r.atualizadas).toEqual([]);
+    expect(r.novas).toEqual([]);
+  });
+  it('RN-INT-06: obsoleta com hash igual também é obsoleta (a data manda; não vira inalterada)', () => {
+    const r = classificarMudancas([v('X', 'h', T0)], new Map([['X', ex('h', T1)]]));
+    expect(r.obsoletas).toHaveLength(1);
+    expect(r.inalteradas).toEqual([]);
+  });
+  it('RN-INT-06: empate em alterado_em com hash diferente = atualizada (a última chegada vence); com hash igual = inalterada', () => {
+    const r = classificarMudancas([v('A', 'h2', T1), v('B', 'h1', T1)], new Map([['A', ex('h1', T1)], ['B', ex('h1', T1)]]));
+    expect(r.atualizadas.map((x) => x.external_id)).toEqual(['A']);
+    expect(r.inalteradas.map((x) => x.external_id)).toEqual(['B']);
+    expect(r.obsoletas).toEqual([]);
+  });
+  it('RN-INT-06: cenário do reprocessamento — X velho do lote 1 não desfaz o X novo do lote 2', () => {
+    const atual = new Map([['X', ex('hash-lote-2', T2)]]);
+    const r = classificarMudancas([v('X', 'hash-lote-1', T0)], atual);
+    expect([r.novas.length, r.atualizadas.length, r.inalteradas.length, r.obsoletas.length]).toEqual([0, 0, 0, 1]);
+  });
+  it('RN-INT-06: compara o instante, não o texto (fusos/precisão diferentes)', () => {
+    const r = classificarMudancas([v('X', 'h2', '2026-10-31T10:00:00Z')], new Map([['X', ex('h1', '2026-10-31T10:00:00.000Z')]]));
+    expect(r.atualizadas).toHaveLength(1);
   });
 });
 

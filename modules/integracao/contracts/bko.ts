@@ -129,6 +129,7 @@ export const LoteListagemItem = z.object({
   novas: z.number().int().nonnegative(),
   atualizadas: z.number().int().nonnegative(),
   inalteradas: z.number().int().nonnegative(),
+  obsoletas: z.number().int().nonnegative().default(0),
   inativadas: z.number().int().nonnegative(),
   recebido_em: DataHoraUtc,
   concluido_em: DataHoraUtc.nullable(),

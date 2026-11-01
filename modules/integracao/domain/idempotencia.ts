@@ -90,6 +90,8 @@ export function deduplicarNoLote(registros: readonly unknown[]): { linhas: Linha
 export interface LinhaValida<R = unknown> {
   indice: number;
   external_id: string;
+  /** `alterado_em` do registro normalizado (ISO UTC); base da guarda de obsolescência (RN-INT-06). */
+  alterado_em: string;
   /** Registro normalizado pelo schema (padrões aplicados, textos aparados). */
   registro: R;
   hash: string;
@@ -104,7 +106,7 @@ export function validarLinhas(entidade: Entidade, registros: readonly unknown[])
   for (const l of linhas) {
     const r = schema.safeParse(l.registro);
     if (r.success) {
-      validas.push({ indice: l.indice, external_id: (r.data as { external_id: string }).external_id, registro: r.data, hash: hashRegistro(r.data) });
+      validas.push({ indice: l.indice, external_id: (r.data as { external_id: string }).external_id, alterado_em: (r.data as { alterado_em: string }).alterado_em, registro: r.data, hash: hashRegistro(r.data) });
     } else {
       erros.push(...classificarErroZod(r.error, { indice: l.indice, external_id: l.external_id }));
     }
@@ -112,22 +114,42 @@ export function validarLinhas(entidade: Entidade, registros: readonly unknown[])
   return { validas, erros, avisos };
 }
 
+export interface RegistroExistente {
+  hash: string;
+  /** `alterado_em` do registro atual (ISO UTC). */
+  alterado_em: string;
+}
+
+/** Instante em ms; texto ilegível vale -Infinity (nunca "mais novo"). */
+function instante(iso: string): number {
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? Number.NEGATIVE_INFINITY : t;
+}
+
 /**
- * RN-INT-02: contra os hashes já gravados (só de registros ativos), separa nova / atualizada / inalterada.
- * Inalterada não grava nem publica evento. Registro inativado deve ter o hash esquecido, para voltar como nova.
+ * RN-INT-02 + RN-INT-06 (guarda monotônica): contra os registros ativos já gravados, separa nova / atualizada / inalterada / obsoleta.
+ * - Sem registro atual: nova.
+ * - `alterado_em` MENOR que o do atual: obsoleta (reenvio antigo ou reprocessamento de `lote_linha_erro.payload`). Não troca o
+ *   registro, não publica evento e conta no resumo do lote e no monitor. Vale mesmo com hash diferente.
+ * - `alterado_em` igual ou maior e hash igual: inalterada (sem gravar nem publicar).
+ * - `alterado_em` igual ou maior e hash diferente: atualizada. Empate no relógio com conteúdo diferente: a ÚLTIMA chegada vence
+ *   (no banco, `excluded.alterado_em >= registro_atual.alterado_em`).
+ * Registro inativado deve ter o hash esquecido, para voltar como nova.
  */
-export function classificarMudancas<T extends { external_id: string; hash: string }>(
+export function classificarMudancas<T extends { external_id: string; hash: string; alterado_em: string }>(
   validas: readonly T[],
-  hashesExistentes: ReadonlyMap<string, string>,
-): { novas: T[]; atualizadas: T[]; inalteradas: T[] } {
+  existentes: ReadonlyMap<string, RegistroExistente>,
+): { novas: T[]; atualizadas: T[]; inalteradas: T[]; obsoletas: T[] } {
   const novas: T[] = [];
   const atualizadas: T[] = [];
   const inalteradas: T[] = [];
+  const obsoletas: T[] = [];
   for (const v of validas) {
-    const atual = hashesExistentes.get(v.external_id);
+    const atual = existentes.get(v.external_id);
     if (atual === undefined) novas.push(v);
-    else if (atual === v.hash) inalteradas.push(v);
+    else if (instante(v.alterado_em) < instante(atual.alterado_em)) obsoletas.push(v);
+    else if (atual.hash === v.hash) inalteradas.push(v);
     else atualizadas.push(v);
   }
-  return { novas, atualizadas, inalteradas };
+  return { novas, atualizadas, inalteradas, obsoletas };
 }

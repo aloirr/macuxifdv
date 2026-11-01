@@ -130,6 +130,18 @@ describe('RN-INT-03/01 (T-0025): resultado do lote com linhas inválidas do Cone
     expect(r.contagens).toMatchObject({ recebidas: 7, com_erro: 7 });
   });
 
+  it('RN-INT-06: linhas obsoletas contam no resumo (fecham a conta das recebidas), não viram erro e não mudam o status', () => {
+    const r = calcularResultadoLote({ ...base, recebidas: 10, novas: 6, atualizadas: 1, inalteradas: 1, obsoletas: 2 });
+    const c = r.contagens;
+    expect(c.obsoletas).toBe(2);
+    expect(r.status).toBe('concluido');
+    expect(c.novas + c.atualizadas + c.inalteradas + c.obsoletas + c.duplicadas_no_lote + c.com_erro).toBe(c.recebidas);
+  });
+
+  it('RN-INT-06: sem obsoletas informadas o contador é 0', () => {
+    expect(calcularResultadoLote(base).contagens.obsoletas).toBe(0);
+  });
+
   it('RN-INT-03: todas as linhas do Hub com erro e nenhuma do Conector continua falhou; falha de processamento sempre falhou', () => {
     const erros = [erroFalhaProcessamento(0, 'C1'), erroFalhaProcessamento(1, 'C2')];
     expect(calcularResultadoLote({ ...base, recebidas: 2, novas: 0, erros }).status).toBe('falhou');

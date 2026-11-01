@@ -126,6 +126,8 @@ export interface EntradaResultadoLote {
   novas: number;
   atualizadas: number;
   inalteradas: number;
+  /** RN-INT-06: linhas com `alterado_em` menor que o do registro atual (não gravam nem publicam). Padrão 0. */
+  obsoletas?: number;
   /** Falha do lote inteiro (ex.: banco indisponível) — `falhou` mesmo sem erro por linha. */
   falhaProcessamento?: boolean;
   /**
@@ -167,6 +169,7 @@ export function calcularResultadoLote(e: EntradaResultadoLote): ResultadoLote {
       novas: e.novas,
       atualizadas: e.atualizadas,
       inalteradas: e.inalteradas,
+      obsoletas: e.obsoletas ?? 0,
     },
   };
 }
