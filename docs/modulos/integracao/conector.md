@@ -35,7 +35,7 @@ O que ele faz:
 | Item | Requisito |
 |---|---|
 | Sistema | Windows Server 2016+ ou Windows 10/11 (64 bits). O código roda também em Linux/macOS (desenvolvimento e testes). |
-| Node.js | **22.13 ou superior** (LTS). O armazenamento local usa `node:sqlite`, embutido no Node — sem módulo nativo para compilar. |
+| Node.js | **22.13 ou superior** (LTS). O armazenamento local usa `node:sqlite`, embutido no Node — sem módulo nativo para compilar. No Node 22 ele é experimental e emitiria um aviso a cada partida; o Conector o suprime só durante o carregamento do módulo (`src/util/sqlite.ts`; no Node 24 o aviso não existe mais e a supressão fica inerte, a remover quando o Node 22 sair do suporte). |
 | Rede | **Somente saída**: HTTPS (TCP 443) para o endereço do Hub informado pelo Macuxi. Nada de porta de entrada, VPN ou NAT. Se houver proxy/firewall, liberar esse destino. |
 | Banco do ERP | SQL Server (2012+), PostgreSQL (12+) ou Oracle (11g R2+; 12c+ recomendado), acessível a partir do servidor do Conector (porta 1433 / 5432 / 1521 **dentro** da rede do cliente). Oracle: driver JavaScript puro (modo *thin*), **sem Oracle Instant Client** (§4.3). |
 | Usuário do banco | **Somente leitura** nas views do Macuxi; escrita apenas na tabela/procedure de entrada de pedidos. Nunca `sa`/`postgres`. |
@@ -77,10 +77,10 @@ JSON ou YAML (pela extensão), validado por Zod ao iniciar; chave desconhecida �
 | `dadosDir` | `./dados` | `fila.sqlite`, `logs/`, trava de instância única |
 | `hub.conectorId` | — | identificador deste Conector no Hub (letras, números, `.`, `-`, `_`). Vai no cabeçalho `X-Macuxi-Conector-Id`, no lote e no sinal. Não é segredo; a **chave** fica fora do arquivo (§4.2) |
 | `hub.url` | — | raiz do Hub; `/integracao/v1` é do contrato. **HTTPS obrigatório** (HTTP só para `localhost`, testes) |
-| `hub.timeoutSegundos`, `hub.retry.{tentativas,baseMs,maxMs}` | 30; 4, 500, 30000 | cada chamada ao Hub repete com espera exponencial + jitter em falha de rede, 408/425/429/5xx (respeita `Retry-After`) |
+| `hub.timeoutSegundos`, `hub.retry.{tentativas,baseMs,maxMs}` | 30; 4, 500, 30000 | cada chamada ao Hub repete com espera exponencial + jitter em falha de rede, 408/425/429/5xx (respeita `Retry-After`, em segundos **ou** em data HTTP; valor ausente, inválido ou no passado usa o backoff normal; o teto é `hub.retry.maxMs`) |
 | `erp.tipo` | — | `sqlserver`, `postgres` ou `oracle` |
 | `erp.host/porta/banco/usuario` | — | conexão (a senha vem dos segredos). Oracle: `banco` é o **nome do serviço** (service name), porta padrão 1521 |
-| `erp.criptografar`, `erp.confiarCertificado` | `true`, `false` | TLS com o banco (SQL Server `encrypt`; PostgreSQL `ssl`; Oracle `tcps://`). Servidor sem TLS: `criptografar: false` (Oracle on-premise comum) |
+| `erp.criptografar`, `erp.confiarCertificado` | `true`, `false` | TLS com o banco (SQL Server `encrypt`; PostgreSQL `ssl`; Oracle `tcps://`). Servidor sem TLS: `criptografar: false` (Oracle on-premise comum). **Aviso:** com `criptografar: false` e `erp.host` fora de localhost/LAN (IP público, nome com domínio da internet), `testar-conexao` imprime `[aviso]` e o serviço registra `erp_sem_criptografia` no log, sugerindo `criptografar: true` ou uma rede privada/VPN, porque a senha do ERP trafegaria em claro (localhost, 10.x, 172.16-31.x, 192.168.x, link-local, IPv6 ULA, nome curto e `.local/.lan/.intranet` não avisam). É só um aviso: não muda o padrão (`true`) nem impede a conexão |
 | `erp.paginacao`, `erp.carteira` | `offset`, — | **só Oracle** (§4.3): `offset` (12c+) ou `rownum` (11g); pasta do wallet PEM para TLS com certificado próprio |
 | `segredos.provedor` | `auto` | `env`, `windows` ou `auto` (env primeiro; no Windows, depois o Gerenciador de Credenciais) |
 | `lote.maxLinhas`, `lote.maxBytes` | 5000, 4 MiB | limites de cada lote |
@@ -201,7 +201,7 @@ Configuração `pedidos` (ver exemplo): SQL ou procedure por pedido, em transaç
 
 Fluxo:
 
-1. `GET /pedidos/pendentes` (a cada `consultaSegundos`, 60 s). O pedido é **gravado no armazenamento local antes** de qualquer outra coisa: se o Hub reentregar (timeout de 10 min sem confirmação), o `pedido_uuid` já conhecido não é gravado de novo no ERP. **Escreva o SQL de gravação também idempotente pelo `pedido_uuid`** (`ON CONFLICT DO NOTHING`, `IF NOT EXISTS`…), para a janela "gravou no ERP e caiu antes de anotar".
+1. `GET /pedidos/pendentes` (a cada `consultaSegundos`, 60 s). O pedido é **gravado no armazenamento local antes** de qualquer outra coisa: se o Hub reentregar (timeout de 10 min sem confirmação), o `pedido_uuid` já conhecido não é gravado de novo no ERP. **Escreva o SQL de gravação também idempotente pelo `pedido_uuid`** (`ON CONFLICT DO NOTHING`, `IF NOT EXISTS`…), para a janela "gravou no ERP e caiu antes de anotar". Defesa extra do Conector (T-0013, revisão do engenheiro): se o pedido já teve tentativa de gravação ou o último erro foi de conexão (a janela "o ERP aplicou o COMMIT e a resposta se perdeu"), a consulta `gravacao.numeroErp` roda **antes** de gravar; se já devolver número, o Conector só anota `gravado`, enfileira `integrado` e **não grava de novo** (log `pedido_ja_existia_no_erp`). Por isso `numeroErp` deve funcionar fora da transação de gravação e devolver vazio enquanto o pedido não existe. Limite conhecido: a queda do PROCESSO do Conector exatamente entre o COMMIT e a anotação local não deixa rastro de tentativa e só a idempotência do SQL do cliente cobre essa janela.
 2. Grava cabeçalho + itens + lê o número, numa transação (qualquer falha desfaz tudo). Confirma `integrado` com `numero_erp`.
 3. **Erro de conexão** com o ERP não conta tentativa (volta depois). **Erro do SQL/regra** conta; ao esgotar `maxTentativasGravacao` (3) o pedido volta ao Hub como `rejeitado_erp` com o motivo (texto do erro do banco, sem dado pessoal, até 300 caracteres).
 4. A cada `statusSegundos` (120 s), para cada pedido aberto, roda `status.consulta` e informa: `faturado_parcial` (uma nota por vez, com `itens_faturados` quando `consultaItensNota` existir), `faturado_total` (só a **última** nota; se o ERP marcar o pedido inteiro como faturado em todas as linhas, as notas anteriores seguem como parciais), `cancelado` (com motivo). O Macuxi nunca escreve cancelamento no ERP. Situação do ERP sem equivalente (ex.: "em separação") é ignorada.
@@ -217,7 +217,7 @@ Fluxo:
 | Comando | O que faz |
 |---|---|
 | `validar-config` | confere o arquivo (sem conectar a nada) |
-| `testar-conexao` | segredos, banco do ERP (consulta e mapeamento por entidade), Hub (credencial). Código 1 se algo falhar |
+| `testar-conexao` | segredos, banco do ERP (consulta e mapeamento por entidade), Hub (credencial); `[aviso]` se o ERP está fora da LAN sem criptografia. Código 1 se algo falhar |
 | `status [--json]` | **versão** (`em dia`, `DESATUALIZADO` ou `VERSÃO ABAIXO DA MÍNIMA`, com a política do Hub), fila local por estado, por entidade: fase, último sucesso, cursor confirmado, **bloqueios**, avisos (trava de inativação), último erro, erros locais e do Hub, pedidos e retornos, erros recentes. Código 3 se houver entidade bloqueada **ou versão abaixo da mínima** |
 | `rodar [--uma-vez]` | laço do serviço; `--uma-vez` faz uma passada completa e imprime o status |
 | `carga-completa <entidade\|todas>` | nova sessão de carga completa |
@@ -234,7 +234,7 @@ A conta do serviço deve ser a que gravou os segredos no Gerenciador de Credenci
 
 ### 7.3 Logs
 
-JSON por linha em `dados\logs\conector-AAAA-MM-DD.log`; ao passar de `maxMegabytes` vira `.1`, `.2`… (até 5 por dia); apaga o que passa de `retencaoDias` (30). **Sem dado pessoal**: valores de linhas nunca são logados (só contagens, entidades, códigos de erro, nomes de campo); chaves sensíveis (`senha`, `token`, `cpf`, `cnpj`, `documento`, `email`, `telefone`, `nome`, `razao_social`, `endereco`…) viram `***`; em qualquer texto, CPF/CNPJ, e-mail, telefone, `Bearer …`, `Password=…` e URL com credencial são mascarados. A tabela de erros por linha do `status` guarda `external_id` e o nome do campo, nunca o valor.
+JSON por linha em `dados\logs\conector-AAAA-MM-DD.log`; ao passar de `maxMegabytes` vira `.1`, `.2`… (até 5 por dia); apaga o que passa de `retencaoDias` (30). **Sem dado pessoal**: valores de linhas nunca são logados (só contagens, entidades, códigos de erro, nomes de campo); chaves sensíveis (`senha`, `token`, `cpf`, `cnpj`, `documento`, `email`, `telefone`, `nome`, `razao_social`, `endereco`, `latitude`, `longitude`…) viram `***` **qualquer que seja o tipo do valor** (texto ou número: CPF e coordenadas guardados como número no ERP também são mascarados; só booleano passa); em qualquer texto, CPF/CNPJ, e-mail, telefone, `Bearer …`, `Password=…` e URL com credencial são mascarados. A tabela de erros por linha do `status` guarda `external_id` e o nome do campo, nunca o valor.
 
 ### 7.4 Versão, pacote assinado e atualização
 
@@ -335,7 +335,7 @@ Premissas de comportamento do Hub: partes da sessão podem ser processadas em qu
 | *Sem conexão com o Hub* | firewall/proxy bloqueando HTTPS de saída | liberar o endereço do Hub na 443; o Conector continua tentando com espera exponencial (até 15 min) |
 | Entidade **BLOQUEADA** em `status`: *Hub recusou o lote (…)* | recusa definitiva do envelope (versão, limite, sessão) | corrigir a causa (ex.: atualizar o Conector) e rodar `conector retomar <entidade>` |
 | BLOQUEADA: *nenhuma linha lida tem external_id e alterado_em legíveis* | mapeamento/consulta errados | conferir `campos.external_id`/`campos.alterado_em` e a view; `testar-conexao`; `retomar` |
-| BLOQUEADA: *a leitura não avança* | muitas linhas com o mesmo `alterado_em` e `external_id` repetido, ou `alterado_em` de precisão menor que o do filtro | `external_id` único; `alterado_em` em ms |
+| BLOQUEADA: *a leitura não avança* | muitas linhas com o mesmo `alterado_em` e `external_id` repetido, ou `alterado_em` de precisão menor que o do filtro (inclusive quando uma página inteira, com mais páginas depois dela, só repete o cursor já lido: a entidade bloqueia com `log.erro entidade_bloqueada` em vez de reler a mesma página para sempre) | `external_id` único; `alterado_em` em ms; depois `conector retomar <entidade>` |
 | Nada novo chega ao Hub | `alterado_em` não muda quando o registro muda; nulo; fuso errado | a view deve atualizar `alterado_em` em toda alteração, em UTC |
 | Datas/horários deslocados em horas | view devolve hora local | converter para UTC na view (`AT TIME ZONE 'UTC'`) |
 | Erros por linha no BKO | dado fora do contrato | corrigir no ERP; o `alterado_em` novo faz a linha voltar no delta seguinte. `conector status` lista os recentes (campo + mensagem, sem valores) |

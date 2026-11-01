@@ -44,7 +44,8 @@ function sensivel(chave: string): boolean {
 
 /** Copia o valor mascarando chaves sensíveis e textos; limita a profundidade e o tamanho. */
 export function mascararValor(valor: unknown, chave = '', profundidade = 0): unknown {
-  if (sensivel(chave) && valor !== null && valor !== undefined && typeof valor !== 'boolean' && typeof valor !== 'number') return '***';
+  // número também é mascarado (latitude, CPF/CNPJ/telefone guardados como número no ERP); só boolean passa
+  if (sensivel(chave) && valor !== null && valor !== undefined && typeof valor !== 'boolean') return '***';
   if (typeof valor === 'string') return mascararTexto(valor.length > 500 ? `${valor.slice(0, 500)}…` : valor);
   if (valor instanceof Error) return mascararTexto(`${valor.name}: ${valor.message}`);
   if (profundidade > 4) return '[…]';

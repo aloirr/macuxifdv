@@ -7,6 +7,7 @@ import { ehEntidade, ORDEM_CARGA, type Entidade } from './config/entidades';
 import { adquirirTrava } from './trava';
 import { Executor } from './executor';
 import { abrirContexto, fecharContexto, prepararAmbiente } from './iniciar';
+import { avisoTransporteErp } from './erp/transporte';
 import { mapearEValidar } from './mapeamento';
 import { validarFormatoChave } from './segredos/chave';
 import { criarProvedor, type ExecutarPowerShell, nomeVariavel, NOMES_SEGREDO, type NomeSegredo } from './segredos/provedores';
@@ -293,6 +294,8 @@ async function testarConexao(caminhoConfig: string, io: ES): Promise<number> {
     io.erro(`[ERRO]  ${m}`);
   };
   ok(`Configuração válida (${Object.keys(amb.config.entidades).length} entidade(s)).`);
+  const avisoTls = avisoTransporteErp(amb.config.erp);
+  if (avisoTls) io.saida(`[aviso] ${avisoTls}`);
 
   for (const nome of NOMES_SEGREDO) {
     const v = await amb.segredos.obter(nome).catch(() => undefined);

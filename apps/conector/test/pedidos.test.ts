@@ -31,8 +31,13 @@ async function preparar(opcoes: { numero?: string | null } = {}) {
   amb = await criarAmbiente({ pedidos: PEDIDOS });
   amb.hub.pedidosParaEntregar = [pedido()];
   const execucoes: string[] = [];
-  amb.erp.onExecucao = (sql, p) => execucoes.push(`${/\/\*(\w+)\*\//.exec(sql)?.[1]}:${p.sequencia ?? ''}`);
-  amb.erp.onConsulta = (sql) => (sql.includes('/*num*/') ? (opcoes.numero === null ? [] : [{ numero_erp: opcoes.numero ?? 'PV-1001' }]) : undefined);
+  // o ERP em memória só devolve o número DEPOIS de receber o cabeçalho (como o ERP real): a consulta feita antes de gravar vem vazia
+  let gravou = false;
+  amb.erp.onExecucao = (sql, p) => {
+    execucoes.push(`${/\/\*(\w+)\*\//.exec(sql)?.[1]}:${p.sequencia ?? ''}`);
+    if (sql.includes('/*cab*/')) gravou = true;
+  };
+  amb.erp.onConsulta = (sql) => (sql.includes('/*num*/') ? (opcoes.numero === null || !gravou ? [] : [{ numero_erp: opcoes.numero ?? 'PV-1001' }]) : undefined);
   return execucoes;
 }
 
@@ -69,11 +74,13 @@ describe('retorno de pedidos ao ERP (RN-INT-08)', () => {
   });
 
   it('ERP fora do ar não conta tentativa: o pedido é gravado quando a conexão volta', async () => {
-    await preparar();
+    const execucoes = await preparar();
     const falha = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
     let cair = true;
-    amb.erp.onExecucao = () => {
+    const gravarNoErp = amb.erp.onExecucao;
+    amb.erp.onExecucao = (sql, p) => {
       if (cair) throw falha;
+      gravarNoErp?.(sql, p);
     };
     await cicloPedidos(amb.ctx);
     expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'recebido', tentativas: 0 });
@@ -81,7 +88,47 @@ describe('retorno de pedidos ao ERP (RN-INT-08)', () => {
     amb.relogio.avancar(120_000);
     const r = await cicloPedidos(amb.ctx);
     expect(r.gravados).toBe(1);
+    expect(execucoes).toEqual(['cab:', 'item:1', 'item:2']); // o ERP não tinha o pedido: a consulta prévia veio vazia e a gravação aconteceu
     expect(amb.hub.retornos).toHaveLength(1);
+  });
+
+  it('RN-INT-08: falha de conexão DEPOIS do COMMIT (o ERP gravou, a resposta se perdeu) não duplica o pedido no ERP', async () => {
+    const execucoes = await preparar();
+    const falha = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
+    const consultaDoErp = amb.erp.onConsulta;
+    let perder = true;
+    amb.erp.onConsulta = (sql, p) => {
+      if (perder && sql.includes('/*num*/')) {
+        perder = false;
+        throw falha; // cabeçalho e itens já foram aplicados; a conexão cai antes de a resposta chegar
+      }
+      return consultaDoErp?.(sql, p);
+    };
+    await cicloPedidos(amb.ctx);
+    expect(execucoes).toEqual(['cab:', 'item:1', 'item:2']);
+    expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'recebido', tentativas: 0 });
+    expect(amb.hub.retornos).toHaveLength(0);
+
+    amb.relogio.avancar(120_000);
+    const r = await cicloPedidos(amb.ctx);
+    expect(r.gravados).toBe(1);
+    expect(execucoes).toEqual(['cab:', 'item:1', 'item:2']); // nenhuma gravação nova
+    expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'gravado', numeroErp: 'PV-1001', erro: null });
+    expect(amb.hub.retornos).toHaveLength(1);
+    expect(amb.hub.retornos[0]).toMatchObject({ status: 'integrado', numero_erp: 'PV-1001' });
+    expect(amb.logs.some((l) => l.includes('pedido_ja_existia_no_erp'))).toBe(true);
+  });
+
+  it('a consulta do número antes de gravar só acontece em nova tentativa: o primeiro envio vai direto à gravação', async () => {
+    await preparar();
+    const consultas: string[] = [];
+    const consultaDoErp = amb.erp.onConsulta;
+    amb.erp.onConsulta = (sql, p) => {
+      if (sql.includes('/*num*/')) consultas.push(sql);
+      return consultaDoErp?.(sql, p);
+    };
+    await cicloPedidos(amb.ctx, { buscar: true });
+    expect(consultas).toHaveLength(1); // só a de dentro da transação, depois de gravar
   });
 
   it('erro de SQL/regra do ERP esgota as tentativas e devolve o pedido como rejeitado_erp com o motivo', async () => {

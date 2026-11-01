@@ -5,6 +5,7 @@ import { carregarConfig } from './config/carregar';
 import type { ConfigConector } from './config/esquema';
 import { type Contexto, uuidReal } from './contexto';
 import { abrirConexaoErp } from './erp/fabrica';
+import { avisoTransporteErp } from './erp/transporte';
 import { ClienteHub } from './hub/cliente';
 import { criarLogger, type Logger } from './log/logger';
 import { criarProvedor, Segredos } from './segredos/provedores';
@@ -36,6 +37,8 @@ export function prepararAmbiente(caminhoConfig: string, opcoes: { console?: bool
 /** Abre ERP, fila e cliente do Hub. Quem chama fecha com `fecharContexto`. */
 export async function abrirContexto(amb: Ambiente): Promise<Contexto> {
   const senha = await amb.segredos.exigir('erp_senha');
+  const aviso = avisoTransporteErp(amb.config.erp);
+  if (aviso) amb.log.aviso('erp_sem_criptografia', { aviso });
   const erp = await abrirConexaoErp(amb.config.erp, senha);
   const store = Armazenamento.abrir(resolve(amb.dadosDir, 'fila.sqlite'));
   const hub = new ClienteHub({

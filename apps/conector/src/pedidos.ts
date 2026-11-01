@@ -91,6 +91,17 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
   const agora = () => ctx.relogio.agora();
   const pedido = PedidoParaErp.parse(JSON.parse(local.payload));
   try {
+    // Janela "commit aplicado, resposta perdida": se já houve tentativa (falha de SQL) ou o último erro foi de conexão (erro de
+    // conexão não conta tentativa, mas deixa `erro` preenchido), o ERP pode já ter o pedido. Pergunta ANTES de gravar; se houver
+    // número, só confirma. Não depende de o SQL do cliente ter IF NOT EXISTS (defesa em profundidade, não substitui).
+    if (local.tentativas > 0 || local.erro !== null) {
+      const existente = numeroGravado(await ctx.erp.consultar(cfg.gravacao.numeroErp, { pedido_uuid: pedido.pedido_uuid }));
+      if (existente !== null) {
+        confirmarGravacao(ctx, r, pedido.pedido_uuid, existente);
+        log.aviso('pedido_ja_existia_no_erp', { pedido_uuid: pedido.pedido_uuid, numero_erp: existente, dica: 'uma tentativa anterior gravou e a resposta se perdeu; nada foi gravado de novo' });
+        return;
+      }
+    }
     const numero = await ctx.erp.transacao(async (tx) => {
       await tx.executar(cfg.gravacao.cabecalho, {
         pedido_uuid: pedido.pedido_uuid,
@@ -109,14 +120,11 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
           await tx.executar(cfg.gravacao.itens, { pedido_uuid: pedido.pedido_uuid, sequencia: it.sequencia, produto_external_id: it.produto_external_id, quantidade: it.quantidade, preco_unitario_cents: it.preco_unitario_cents, desconto_cents: it.desconto_cents, total_cents: it.total_cents });
         }
       }
-      const linhas = await tx.consultar(cfg.gravacao.numeroErp, { pedido_uuid: pedido.pedido_uuid });
-      const n = col(linhas[0], 'numero_erp');
-      if (n === undefined || n === null || String(n).trim() === '') throw new ErroRegraErp('o ERP não devolveu o número do pedido gravado (consulta numeroErp sem resultado)');
-      return String(n).trim().slice(0, 40);
+      const n = numeroGravado(await tx.consultar(cfg.gravacao.numeroErp, { pedido_uuid: pedido.pedido_uuid }));
+      if (n === null) throw new ErroRegraErp('o ERP não devolveu o número do pedido gravado (consulta numeroErp sem resultado)');
+      return n;
     });
-    store.atualizarPedido(pedido.pedido_uuid, { estado: 'gravado', numeroErp: numero, erro: null }, agora());
-    enfileirar(ctx, r, pedido.pedido_uuid, 'integrado', { status: 'integrado', numero_erp: numero, ocorrido_em: iso(agora()) });
-    r.gravados++;
+    confirmarGravacao(ctx, r, pedido.pedido_uuid, numero);
     log.info('pedido_gravado_no_erp', { pedido_uuid: pedido.pedido_uuid, numero_erp: numero });
   } catch (e) {
     const motivo = mascararTexto(resumoErro(e));
@@ -139,6 +147,21 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
 }
 
 class ErroRegraErp extends Error {}
+
+/** Número do pedido no ERP a partir da consulta `numeroErp` (primeira linha, coluna `numero_erp`); `null` se não houver. */
+function numeroGravado(linhas: Linha[]): string | null {
+  const n = col(linhas[0], 'numero_erp');
+  if (n === undefined || n === null || String(n).trim() === '') return null;
+  return String(n).trim().slice(0, 40);
+}
+
+/** Pedido está no ERP: anota `gravado` e põe `integrado` (com o número) na fila de retornos ao Hub. */
+function confirmarGravacao(ctx: Contexto, r: ResultadoPedidos, uuid: string, numero: string): void {
+  const agora = ctx.relogio.agora();
+  ctx.store.atualizarPedido(uuid, { estado: 'gravado', numeroErp: numero, erro: null }, agora);
+  enfileirar(ctx, r, uuid, 'integrado', { status: 'integrado', numero_erp: numero, ocorrido_em: iso(agora) });
+  r.gravados++;
+}
 
 /** Lê coluna sem diferenciar maiúsculas. */
 function col(linha: Linha | undefined, nome: string): unknown {

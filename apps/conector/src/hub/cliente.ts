@@ -21,6 +21,23 @@ import { comRetry, type OpcoesRetry } from '../util/retry';
 import { VERSAO_CONECTOR } from '../versao';
 import { ResultadoLote, type ResultadoLoteHub, type RetornoParaHub } from './tipos';
 
+/**
+ * `Retry-After` do Hub (RFC 9110): número de segundos OU data HTTP (`Wed, 21 Oct 2026 07:28:00 GMT`). Devolve a espera em ms,
+ * ou `undefined` se ausente, inválido, zero ou data já passada (aí vale o backoff normal). O teto é aplicado pelo retry.
+ */
+export function esperaRetryAfter(valor: string | null | undefined, agoraMs: number = Date.now()): number | undefined {
+  const v = valor?.trim();
+  if (!v) return undefined;
+  if (/^\d+(\.\d+)?$/.test(v)) {
+    const segundos = Number(v);
+    return segundos > 0 ? Math.round(segundos * 1000) : undefined;
+  }
+  const data = Date.parse(v);
+  if (Number.isNaN(data)) return undefined;
+  const espera = data - agoraMs;
+  return espera > 0 ? espera : undefined;
+}
+
 export class ErroHubTransitorio extends Error {
   constructor(message: string, readonly status: number | null = null, readonly retryAfterMs?: number) {
     super(message);
@@ -54,6 +71,8 @@ export interface OpcoesHub {
   timeoutMs?: number;
   retry?: Partial<Pick<OpcoesRetry, 'tentativas' | 'baseMs' | 'maxMs' | 'dormir' | 'aleatorio'>>;
   fetch?: typeof fetch;
+  /** Relógio (ms) para interpretar `Retry-After` em data HTTP; padrão `Date.now`. */
+  agora?: () => number;
   aoRetentar?: (info: { operacao: string; tentativa: number; esperaMs: number; motivo: string }) => void;
 }
 
@@ -104,8 +123,7 @@ export class ClienteHub {
           throw new ErroHubAutenticacao('O Hub recusou a credencial do Conector (verifique o identificador e a chave de API; ela pode ter sido rotacionada ou revogada: conector trocar-chave).', res.status);
         }
         if (res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500) {
-          const ra = Number(res.headers.get('retry-after'));
-          throw new ErroHubTransitorio(`Hub indisponível (HTTP ${res.status}).`, res.status, Number.isFinite(ra) && ra > 0 ? ra * 1000 : undefined);
+          throw new ErroHubTransitorio(`Hub indisponível (HTTP ${res.status}).`, res.status, esperaRetryAfter(res.headers.get('retry-after'), this.o.agora?.()));
         }
         return { status: res.status, json };
       },

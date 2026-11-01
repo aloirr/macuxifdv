@@ -302,6 +302,45 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     expect((await admin.query('SELECT count(*)::int AS n FROM erp_pedido_entrada WHERE pedido_uuid = $1', [uuid])).rows[0].n).toBe(0); // transação desfeita
   });
 
+  it('RN-INT-08: o ERP gravou e a resposta se perdeu (conexão caiu depois do COMMIT): nova tentativa não duplica, mesmo com INSERT sem ON CONFLICT', async () => {
+    const uuid = '9d0f1a52-7d71-4c0b-9c1e-3a6f4e5d6c7d';
+    const pedido = PedidoParaErp.parse({
+      versao_contrato: 'v1', pedido_uuid: uuid, cliente_external_id: 'C03', vendedor_external_id: 'V1', criado_em: '2026-03-10T11:00:00Z', aprovado_em: '2026-03-10T11:30:00Z', total_cents: 500,
+      itens: [{ sequencia: 1, produto_external_id: 'P1', quantidade: 1, preco_unitario_cents: 500, total_cents: 500 }],
+    });
+    // SQL do cliente SEM idempotência própria: sozinho, o segundo INSERT violaria a unicidade do pedido_uuid
+    const pedidosCfg = cfg.pedidos as NonNullable<typeof cfg.pedidos>;
+    const ctx2 = {
+      ...ctx,
+      config: {
+        ...cfg,
+        pedidos: {
+          ...pedidosCfg,
+          gravacao: {
+            ...pedidosCfg.gravacao,
+            cabecalho: 'INSERT INTO erp_pedido_entrada(pedido_uuid, cliente, total_cents) VALUES (:pedido_uuid::uuid, :cliente_external_id, :total_cents)',
+            itens: 'INSERT INTO erp_pedido_item(pedido_uuid, sequencia, produto, quantidade) VALUES (:pedido_uuid::uuid, :sequencia, :produto_external_id, :quantidade)',
+          },
+        },
+      },
+    };
+    // 1ª tentativa: o ERP aplicou o COMMIT, mas o Conector só viu a conexão cair
+    await admin.query(`INSERT INTO erp_pedido_entrada(pedido_uuid, cliente, total_cents) VALUES ($1, 'C03', 500)`, [uuid]);
+    await admin.query(`INSERT INTO erp_pedido_item(pedido_uuid, sequencia, produto, quantidade) VALUES ($1, 1, 'P1', 1)`, [uuid]);
+    ctx.store.registrarPedido(uuid, JSON.stringify(pedido), Date.now());
+    ctx.store.atualizarPedido(uuid, { proximaMs: 0, erro: 'Sem conexão com o ERP (ECONNRESET).' }, Date.now());
+    hub.pedidosParaEntregar = [];
+
+    const antes = hub.retornos.length;
+    const r = await cicloPedidos(ctx2, { buscar: false });
+    expect(r).toMatchObject({ gravados: 1, rejeitados: 0, retornosEnviados: 1 });
+    expect((await admin.query('SELECT count(*)::int AS n FROM erp_pedido_entrada WHERE pedido_uuid = $1', [uuid])).rows[0].n).toBe(1);
+    expect((await admin.query('SELECT count(*)::int AS n FROM erp_pedido_item WHERE pedido_uuid = $1', [uuid])).rows[0].n).toBe(1);
+    const numero = (await admin.query('SELECT numero FROM erp_pedido_entrada WHERE pedido_uuid = $1', [uuid])).rows[0].numero;
+    expect(hub.retornos.slice(antes)[0]).toMatchObject({ pedido_uuid: uuid, status: 'integrado', numero_erp: String(numero) });
+    expect(ctx.store.pedido(uuid)).toMatchObject({ estado: 'gravado', tentativas: 0, erro: null });
+  });
+
   it('reconciliação: contagem de ativos e soma de controle vêm do ERP', async () => {
     const envio = await reconciliarEntidade(ctx, 'preco', '2026-03-10');
     expect(envio).toMatchObject({ entidade: 'preco', contagem: 2, soma: 3440 });

@@ -83,6 +83,12 @@ describe('máscara de dados pessoais e segredos nos logs', () => {
     expect(v).toEqual({ entidade: 'cliente', linhas: 12, nome: '***', cliente: { email: '***', documento: '***', razao_social: '***' }, erp_senha: '***', ok: true, registros: '***' });
   });
 
+  it('chave sensível com valor NUMÉRICO também é mascarada (latitude, CPF guardado como número); só boolean passa', () => {
+    const v = mascararValor({ latitude: -3.1, cpf: 12345678901, cliente: { telefone: 95991234567, longitude: -60.6 }, ativo: true, cpf_ok: false, linhas: 12 }) as Record<string, unknown>;
+    expect(v).toEqual({ latitude: '***', cpf: '***', cliente: { telefone: '***', longitude: '***' }, ativo: true, cpf_ok: false, linhas: 12 });
+    expect(JSON.stringify(v)).not.toMatch(/12345678901|-3\.1|9599123/);
+  });
+
   it('o logger grava JSON mascarado por linha', () => {
     const saidas: string[] = [];
     const log = criarLogger({ escrever: (l) => saidas.push(l), nivel: 'info' });

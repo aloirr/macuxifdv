@@ -116,7 +116,16 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
   }
 
   const m = mapearEValidar(entidade, cfg, pagina, estado.lido);
-  if (m.repetidas === pagina.length) return false; // só linhas já lidas (precisão de alterado_em): sem novidade
+  const motivoSemAvanco = 'a leitura não avança (várias linhas com o mesmo alterado_em e external_id, ou alterado_em com precisão menor que a do filtro); use alterado_em em milissegundos e external_id único';
+  if (m.repetidas === pagina.length) {
+    // sem mais páginas: só linhas já lidas (precisão de alterado_em), sem novidade. Com mais páginas: a próxima leitura
+    // devolveria a mesma página para sempre; bloqueia com a causa visível em vez de parar em silêncio.
+    if (temMais) {
+      store.atualizarEstado(entidade, { bloqueio: motivoSemAvanco });
+      log.erro('entidade_bloqueada', { entidade, motivo: motivoSemAvanco });
+    }
+    return false;
+  }
   if (m.ultimo === null) {
     const motivo = 'nenhuma linha lida tem external_id e alterado_em legíveis; confira o mapeamento de colunas e a consulta';
     store.atualizarEstado(entidade, { bloqueio: motivo });
@@ -157,9 +166,8 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
   }
 
   if (temMais && estado.lido && compararCursor(m.ultimo, estado.lido) <= 0) {
-    const motivo = 'a leitura não avança (várias linhas com o mesmo alterado_em e external_id, ou alterado_em com precisão menor que a do filtro); use alterado_em em milissegundos e external_id único';
-    store.atualizarEstado(entidade, { bloqueio: motivo });
-    log.erro('entidade_bloqueada', { entidade, motivo });
+    store.atualizarEstado(entidade, { bloqueio: motivoSemAvanco });
+    log.erro('entidade_bloqueada', { entidade, motivo: motivoSemAvanco });
     return false;
   }
 

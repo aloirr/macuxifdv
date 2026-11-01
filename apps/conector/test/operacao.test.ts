@@ -131,6 +131,18 @@ describe('CLI', () => {
     expect(t).toMatch(/Segredo hub_chave não encontrado/);
   });
 
+  it('testar-conexao avisa (sem falhar) quando o ERP está fora da LAN e a criptografia está desligada', async () => {
+    const remoto = io({});
+    expect(await executarCli(['testar-conexao', '--config', escreverConfig({ erp: { tipo: 'postgres', host: 'erp.cliente.com.br', banco: 'erp', usuario: 'u', criptografar: false } })], remoto)).toBe(1); // falta segredo
+    expect(remoto.saidas.join('\n')).toMatch(/\[aviso\].*fora de localhost\/LAN.*"criptografar": true/s);
+    const lan = io({});
+    await executarCli(['testar-conexao', '--config', escreverConfig()], lan); // host localhost
+    expect(lan.saidas.join('\n')).not.toMatch(/\[aviso\]/);
+    const tls = io({});
+    await executarCli(['testar-conexao', '--config', escreverConfig({ erp: { tipo: 'postgres', host: 'erp.cliente.com.br', banco: 'erp', usuario: 'u' } })], tls); // criptografar padrão: true
+    expect(tls.saidas.join('\n')).not.toMatch(/\[aviso\]/);
+  });
+
   it('instalar-servico --somente-gerar grava o XML do WinSW sem segredos', async () => {
     const arq = escreverConfig();
     const a = io();
