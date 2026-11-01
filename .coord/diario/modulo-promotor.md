@@ -5,3 +5,4 @@
 2026-10-31 — T-0010 — revalida atingimento (RN-PRO-03) e permanência (RN-PRO-07) no contrato; 🟢 4 e 5; regras.md atualizado
 2026-10-31 — T-0010 — ajuste das decisões do Alexandre: FotoColeta com sem_gps, indicador de fotos sem GPS e parciais, parâmetros peso_parcial_conformidade/validade via resolverParametros, regras.md sem premissas abertas
 2026-10-31 — T-0010 (seguimento) — avaliarCheckout consome ContextoCheckout.clienteFechado (RN-CORE-14); regra própria de loja fechada removida do checklist; regras.md e testes atualizados
+2026-11-01 — T-0040 — (registrado pelo gerente; sessão da nuvem) payloads Zod dos eventos promotor.*@1 no main pelo PR #30 (3090263)
