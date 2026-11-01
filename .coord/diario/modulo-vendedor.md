@@ -12,3 +12,5 @@
 2026-10-31 — T-0018 — Vendedor: contracts/sync.ts (PedidoSync/PedidoItemSync), provedores de pull pedido/pedido_item (escopo usuarios+carteira, janela 90d), registro no app, teste com Postgres (api/sync.db.test.ts); 123 testes verdes
 2026-10-31 — T-0018 — D-4: etapas da Fase M do Vendedor toleram 4xx (pulam sem erro na API real); teste etapas.test.ts
 2026-10-31 — T-0018 — D-4: toleraSemRota só pula 404/501/SYNC_NAO_IMPLEMENTADO; 401/403/423 propagam
+2026-11-01 — T-0029 — onda 1: contracts (PedidoPush, aprovar/rejeitar, eventos *@1 incl. aprovado, pull pedido_evento/condições), domain/aprovacao (revalidação, status inicial, quem decide, aprovado@1) e domain/pdf-pedido; testes antes citando RN
+2026-11-01 — T-0029 — onda 2: receber do pedido (idempotente, preço/cadastro por consulta, alçada, carteira, promotor 403), aprovar/rejeitar/cancelar/lista/detalhe/alçadas, pull de evento e condições, telas Campo/Gestão/BKO sobre o pull, PDF e P-2; 236 testes (28 com Postgres)

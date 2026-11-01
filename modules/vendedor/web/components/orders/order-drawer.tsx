@@ -1,14 +1,15 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, type ReactNode } from 'react';
 import { formatBRL, formatPct } from '@macuxi/comum';
-import type { Role } from '@macuxi/core/contracts';
-import { api, ApiRequestError, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, Drawer, ErrorBlock, formatDateTime, LoadingBlock, Notice, td, tdNum, th, thNum, useToast } from '@macuxi/ui/web';
+import { usePode } from '@macuxi/platform-sdk/react';
+import { errorMessage, imprimirHtml } from '@macuxi/platform-sdk/web';
+import { Button, Drawer, ErrorBlock, formatDateTime, LoadingBlock, type NoticeTone, Notice, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../../contracts';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
-import { useOrderDetail } from '../../lib/queries';
+import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
+import { usePedido, useSessaoDoBko } from '../../lib/queries';
+import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 import { OrderStatusBadge } from './status';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -20,23 +21,34 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function OrderDrawer({ order, tz, role, onClose }: { order: Order | null; tz: string; role: Role | undefined; onClose: () => void }) {
-  const detail = useOrderDetail(order?.id ?? null);
-  const qc = useQueryClient();
-  const toast = useToast();
+const NIVEL: Record<string, string> = { supervisor: 'Supervisor', gerente: 'Gerente', analista: 'Analista' };
+
+/** Gaveta do pedido (RF-VEN-04/05/06): itens, histórico, aprovação e Exportar PDF (cliente | interno) pelo diálogo de impressão. */
+export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: string; onClose: () => void }) {
+  const detail = usePedido(order?.id ?? null);
+  const sessao = useSessaoDoBko();
+  const podeAprovar = usePode('pedido.aprovar');
+  const [aviso, setAviso] = useState<{ tom: NoticeTone; texto: string } | null>(null);
+  const [erroPdf, setErroPdf] = useState<string | null>(null);
+  const [gerando, setGerando] = useState<OrderPdfView | null>(null);
   const o = detail.data ?? order;
 
-  const resend = useMutation({
-    mutationFn: (id: string) => api<Order>(`/orders/${id}/resend`, { method: 'POST', body: {} }),
-    onSuccess: (res) => toast('success', `Pedido ${res.number} reenviado ao ERP · registrado na auditoria`),
-    onError: (e) => toast(e instanceof ApiRequestError && e.isFileLocked ? 'warning' : 'danger', errorMessage(e)),
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: ['dashboards'] });
-      void qc.invalidateQueries({ queryKey: ['order'] });
-    },
-  });
+  const exportar = async (view: OrderPdfView) => {
+    if (!detail.data) return;
+    setGerando(view);
+    setErroPdf(null);
+    try {
+      const html = buildOrderPdfHtml(pdfDoPedido(detail.data), view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
+      // o título vira o nome sugerido do arquivo no "Salvar como PDF" do navegador
+      await imprimirHtml(html, orderPdfFileName(detail.data.number || null, view).replace(/\.pdf$/, ''));
+    } catch (e) {
+      setErroPdf(errorMessage(e));
+    } finally {
+      setGerando(null);
+    }
+  };
 
-  const canResend = role === 'bko_assistant' || role === 'analyst' || role === 'manager' || role === 'admin';
+  const aprovacao = detail.data?.aprovacao ?? null;
 
   return (
     <Drawer
@@ -46,29 +58,45 @@ export function OrderDrawer({ order, tz, role, onClose }: { order: Order | null;
       subtitle={o ? `${o.customer_name} · ${o.seller_name}` : undefined}
     >
       {o && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4" data-testid="pedido.detalhe">
           <div className="flex flex-wrap items-center gap-2">
             <OrderStatusBadge status={o.status} />
             {o.erp_order_code && <span className="text-[12px] text-ink-2">ERP {o.erp_order_code}</span>}
-            {o.status === 'rejected' && canResend && (
-              <Button size="sm" className="ml-auto" disabled={resend.isPending} onClick={() => resend.mutate(o.id)}>
-                {resend.isPending ? 'Reenviando…' : 'Reenviar ao ERP'}
+            <div className="ml-auto flex gap-2">
+              <Button size="sm" disabled={!detail.data || gerando !== null} onClick={() => void exportar('customer')} data-testid="pedido.pdf.cliente">
+                {gerando === 'customer' ? 'Gerando…' : 'PDF do cliente'}
               </Button>
-            )}
+              <Button size="sm" disabled={!detail.data || gerando !== null} onClick={() => void exportar('bko')} data-testid="pedido.pdf.interno">
+                {gerando === 'bko' ? 'Gerando…' : 'PDF interno'}
+              </Button>
+            </div>
           </div>
+          {erroPdf && <Notice tone="danger">Não deu para abrir a impressão: {erroPdf} Tente de novo ou permita pop-ups deste site.</Notice>}
+          <AvisoDeDecisao aviso={aviso} onClose={() => setAviso(null)} />
           {enviadoAoErp(o.status) && <Notice tone="info">{MSG_CANCELAR_APOS_ENVIO}</Notice>}
           {o.status === 'pending_approval' && o.pending_reason && <Notice tone="warning">{o.pending_reason}</Notice>}
           {o.status === 'rejected' && o.rejection_reason && <Notice tone="danger">Motivo: {o.rejection_reason}</Notice>}
 
+          {aprovacao && podeAprovar && aprovacao.pode_decidir && detail.data && (
+            <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
+              <h3 className="m-0 font-display text-[16px] font-bold">Decisão</h3>
+              <span className="text-[13px] text-ink-2">
+                Desconto {formatPct(aprovacao.desconto_efetivo_pct)} · alçada do vendedor {formatPct(aprovacao.limite_vendedor_pct)} · cabe ao nível {NIVEL[aprovacao.nivel] ?? aprovacao.nivel}
+                {aprovacao.acima_do_nivel ? ' (decisão registrada como acima do nível)' : ''}
+              </span>
+              <BotoesDeDecisao pedido={detail.data} tamanho="md" onFeito={(tom, texto) => setAviso({ tom, texto })} />
+            </section>
+          )}
+
           <div className="grid grid-cols-2 gap-3 rounded-xl border border-line bg-surface p-4">
-            <Field label="Filial">{o.branch_name}</Field>
-            <Field label="Condição">{o.payment_terms}</Field>
+            <Field label="Condição">{o.payment_terms || '—'}</Field>
             <Field label="Recebido">{formatDateTime(o.received_at, tz)}</Field>
             <Field label="Feito sem sinal">{o.created_offline_at ? formatDateTime(o.created_offline_at, tz) : 'Não'}</Field>
             <Field label="Itens">
               {o.items_count} itens · {o.units} un.
             </Field>
             <Field label="Desconto">{formatPct(o.discount_pct)}</Field>
+            {detail.data?.cliente?.documento ? <Field label="Documento do cliente">{detail.data.cliente.documento}</Field> : null}
           </div>
 
           <div className="flex flex-col gap-1 rounded-xl border border-line bg-surface p-4 text-[14px] tabular-nums">
@@ -93,13 +121,13 @@ export function OrderDrawer({ order, tz, role, onClose }: { order: Order | null;
               <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
                 <h3 className="m-0 font-display text-[16px] font-bold">Itens</h3>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[460px] border-collapse text-[13px]">
+                  <table className="w-full min-w-[460px] border-collapse text-[13px]" data-testid="pedido.itens">
                     <thead>
                       <tr>
                         <th scope="col" className={th}>Código</th>
                         <th scope="col" className={th}>Descrição</th>
                         <th scope="col" className={thNum}>Qtd</th>
-                        <th scope="col" className={thNum}>Unitário</th>
+                        <th scope="col" className={thNum}>Tabela</th>
                         <th scope="col" className={thNum}>Total</th>
                       </tr>
                     </thead>

@@ -4,6 +4,7 @@
  * removida. O push de `pedido` segue o payload `CreateOrderRequest` (comando); a linha do servidor é diferente.
  */
 import { z } from 'zod';
+import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { ORDER_STATUSES } from '../domain/order';
 
 const Base = {
@@ -34,6 +35,20 @@ export const PedidoSyncSchema = z
     numero_erp: z.string().nullable(),
     motivo_cancelamento: z.string().nullable(),
     created_at: z.string(),
+    // --- T-0029 §3.2: colunas novas, opcionais (compatíveis com linhas e APKs anteriores) ---
+    /** legível, único por tenant; gerado só no servidor */
+    numero: z.string().nullable().optional(),
+    cliente_nome: z.string().nullable().optional(),
+    vendedor_nome: z.string().nullable().optional(),
+    tabela_preco_id: z.string().uuid().nullable().optional(),
+    condicao_pagamento_id: z.string().uuid().nullable().optional(),
+    condicao_pagamento_descricao: z.string().nullable().optional(),
+    nivel_aprovacao: z.enum(NIVEIS_APROVACAO).nullable().optional(),
+    motivos_aprovacao: z.array(z.enum(MOTIVOS_APROVACAO)).nullable().optional(),
+    aprovacao_automatica: z.boolean().nullable().optional(),
+    decidido_por_id: z.string().uuid().nullable().optional(),
+    decidido_em: z.string().nullable().optional(),
+    motivo_rejeicao: z.string().nullable().optional(),
   })
   .strict();
 export type PedidoSync = z.infer<typeof PedidoSyncSchema>;
@@ -49,6 +64,41 @@ export const PedidoItemSyncSchema = z
     preco_unitario_cents: z.number().int().nonnegative(),
     desconto_pct: z.number().min(0).max(100),
     total_cents: z.number().int().nonnegative(),
+    // retrato do produto (D-6), T-0029 §3.2
+    produto_sku: z.string().nullable().optional(),
+    produto_nome: z.string().nullable().optional(),
+    unidade: z.string().nullable().optional(),
   })
   .strict();
 export type PedidoItemSync = z.infer<typeof PedidoItemSyncSchema>;
+
+/** Linha do pull de pedido_evento: linha do tempo (RF-VEN-05) e auditoria de negócio do pedido. */
+export const PedidoEventoSyncSchema = z
+  .object({
+    ...Base,
+    pedido_id: z.string().uuid(),
+    de: z.enum(ORDER_STATUSES).nullable(),
+    para: z.enum(ORDER_STATUSES),
+    autor_id: z.string().uuid().nullable(),
+    autor_nome: z.string().nullable(),
+    autor_perfil: z.string().nullable(),
+    motivo: z.string().nullable(),
+    nivel: z.enum(NIVEIS_APROVACAO).nullable(),
+    acima_do_nivel: z.boolean(),
+    ocorrido_em: z.string(),
+    created_at: z.string(),
+  })
+  .strict();
+export type PedidoEventoSync = z.infer<typeof PedidoEventoSyncSchema>;
+
+/** Linha do pull de condicao_pagamento (escopo tenant). */
+export const CondicaoPagamentoSyncSchema = z
+  .object({ ...Base, codigo: z.string(), descricao: z.string(), ativo: z.boolean(), padrao: z.boolean() })
+  .strict();
+export type CondicaoPagamentoSync = z.infer<typeof CondicaoPagamentoSyncSchema>;
+
+/** Linha do pull de cliente_condicao (escopo carteira). */
+export const ClienteCondicaoSyncSchema = z
+  .object({ ...Base, cliente_id: z.string().uuid(), condicao_pagamento_id: z.string().uuid() })
+  .strict();
+export type ClienteCondicaoSync = z.infer<typeof ClienteCondicaoSyncSchema>;

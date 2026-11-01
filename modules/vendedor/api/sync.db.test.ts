@@ -60,7 +60,9 @@ describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres 
     } as unknown as ContextoBase;
   }
   const pedido = (): PedidoPull => ({ desde: null, ate: new Date(Date.now() + 60_000).toISOString(), limite: 1001 });
-  const puxar = async (prov: typeof provedorPedido, c: ContextoBase): Promise<LinhaSync[]> => prov!.puxar!(c, pedido());
+  /** Os arquivos de teste rodam juntos no mesmo banco: os pedidos de `pedido.db.test.ts` (prefixo 0f29) ficam de fora das contagens da fixture. */
+  const dosOutrosTestes = (l: LinhaSync) => l.id.startsWith('0f290000-') || String((l as unknown as { pedido_id?: string }).pedido_id ?? '').startsWith('0f290000-');
+  const puxar = async (prov: typeof provedorPedido, c: ContextoBase): Promise<LinhaSync[]> => (await prov!.puxar!(c, pedido())).filter((l) => !dosOutrosTestes(l));
 
   const vendedor1: UsuarioAutenticado = { id: A.usuarios.vendedor1, tenant_id: A.tenantId, perfil: 'vendedor' };
   const supervisor: UsuarioAutenticado = { id: A.usuarios.supervisor, tenant_id: A.tenantId, perfil: 'supervisor' };
@@ -139,12 +141,12 @@ describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres 
     const todas = await puxar(provedorPedido, c);
     const ate = new Date(Date.now() + 60_000).toISOString();
     const meio = todas[1]!;
-    const resto = await provedorPedido!.puxar!(c, { desde: { updated_at: meio.updated_at, id: meio.id }, ate, limite: 100 });
+    const resto = (await provedorPedido!.puxar!(c, { desde: { updated_at: meio.updated_at, id: meio.id }, ate, limite: 100 })).filter((l) => !dosOutrosTestes(l));
     expect(resto.map((x) => x.id)).toEqual(todas.slice(2).map((x) => x.id));
   });
 
   it('RN-PRO-01: o promotor não envia pedido nem pedido_item (rejeitado antes de chegar ao módulo)', () => {
-    const registro = criarRegistroSync([{ ...manifest, sync: ['pedido', 'pedido_item'] } as never]);
+    const registro = criarRegistroSync([manifest]);
     for (const p of provedoresSyncVendedor) registro.registrar(p.entidade);
     const itens = ['pedido', 'pedido_item'].map((entidade, i) => ({
       id: `0e200000-0000-4000-8000-00000000000${i + 1}`,

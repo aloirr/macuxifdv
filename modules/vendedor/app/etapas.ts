@@ -94,5 +94,18 @@ const etapasFaseM: readonly EtapaSync[] = [
   },
 ];
 
-/** Cargas REST da Fase M: valem no modo demo (mock-api); na API real viram "vazio" (pull de pedido/cliente/produto vem do sync genérico). */
-export const etapasVendedor: readonly EtapaSync[] = etapasFaseM.map(toleraSemRota);
+/**
+ * Só a demonstração (mock-api) usa estas cargas REST. Na API v1 o login traz o fuso do tenant e as telas leem o pull
+ * (`pedido`, `pedido_item`, `pedido_evento`, `cliente`, `produto`...): nenhuma rota da Fase M é chamada (T-0029 §8).
+ */
+export function soNaDemonstracao(etapa: EtapaSync): EtapaSync {
+  return {
+    ...etapa,
+    executar: async (ctx) => {
+      if (ctx.usuario()?.fuso) return;
+      await etapa.executar(ctx);
+    },
+  };
+}
+
+export const etapasVendedor: readonly EtapaSync[] = etapasFaseM.map(toleraSemRota).map(soNaDemonstracao);

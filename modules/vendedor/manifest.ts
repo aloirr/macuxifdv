@@ -6,19 +6,29 @@ const PERFIS_PEDIDO = ['vendedor', 'supervisor', 'gerente', 'analista', 'assiste
  * Manifesto do Vendedor. RN-PRO-01: o perfil promotor NUNCA entra em `perfis`
  * (promotor não cria/edita/exclui pedido, na UI e na API).
  * ADR-0005: depende do Catálogo (preço e estoque); RN-CORE-03: Catálogo desativado ⇒ Vendedor desativado.
+ * T-0029: supervisor e gerente (e admin) entram para ver a equipe e decidir (ADR 0011); o app Gestão ganha a aba Pedidos;
+ * o servidor consulta o preço do cliente (Catálogo) e o cadastro (Core) pelas consultas do ADR 0012.
  */
 export const manifest = defineModule({
   id: 'vendedor',
-  versao: '0.1.0',
+  versao: '0.2.0',
   depende: ['core', 'catalogo'],
-  perfis: ['vendedor', 'analista', 'assistente'],
-  apps: { campo: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas'] } },
+  perfis: ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
+  apps: { campo: { abas: ['Pedidos'] }, gestao: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas'] } },
   sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'alerta_ruptura'],
-  publica: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'vendedor.pedido.faturado@1'],
+  publica: [
+    'vendedor.pedido.criado@1',
+    'vendedor.pedido.status_alterado@1',
+    'vendedor.pedido.aprovacao_solicitada@1',
+    'vendedor.pedido.aprovado@1',
+    'vendedor.pedido.faturado@1',
+  ],
   consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1'],
+  usaConsultas: ['catalogo.precos_cliente@1', 'core.cadastro_resumo@1'],
   acoes: {
     // RN-PRO-01 / O-3: o promotor só LÊ pedidos (carteira). Escrita continua só para PERFIS_PEDIDO.
-    'pedido.ver': { perfis: [...PERFIS_PEDIDO, 'promotor'] },
+    // Matriz §2: admin vê pedidos do tenant, não cria nem cancela.
+    'pedido.ver': { perfis: [...PERFIS_PEDIDO, 'admin', 'promotor'] },
     'pedido.criar': { perfis: [...PERFIS_PEDIDO] },
     'pedido.editar': { perfis: [...PERFIS_PEDIDO] },
     'pedido.cancelar': { perfis: [...PERFIS_PEDIDO] },

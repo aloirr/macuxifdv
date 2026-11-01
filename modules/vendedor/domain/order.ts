@@ -109,7 +109,8 @@ export interface ValidateOrderInput {
   discount_pct: number;
   lines: Array<{ product_id: string; quantity: number; unit_price_cents: Cents | null }>;
   policy: DiscountPolicy;
-  credit: CreditInput;
+  /** null = crédito fora da regra (T-0029 §14, P-6): nenhum pedido vai para aprovação por crédito. */
+  credit: CreditInput | null;
 }
 
 export interface OrderValidation {
@@ -162,8 +163,10 @@ export function validateOrder(input: ValidateOrderInput): OrderValidation {
     });
   }
 
-  const available = availableCredit(input.credit);
-  if (input.credit.overdue_cents > 0) {
+  const available = input.credit === null ? Number.MAX_SAFE_INTEGER : availableCredit(input.credit);
+  if (input.credit === null) {
+    // sem consulta de crédito nesta fatia
+  } else if (input.credit.overdue_cents > 0) {
     issues.push({
       code: 'overdue_receivables',
       message: `Cliente com títulos vencidos (${formatBRL(input.credit.overdue_cents)}). Vai para liberação de crédito.`,
@@ -214,9 +217,9 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 const transitions: Record<OrderStatus, OrderStatus[]> = {
   draft: ['queued', 'received', 'cancelled'],
   queued: ['received', 'pending_approval', 'sent_to_erp', 'rejected'],
-  received: ['pending_approval', 'sent_to_erp', 'rejected', 'cancelled'],
+  received: ['pending_approval', 'approved', 'sent_to_erp', 'rejected', 'cancelled'],
   pending_approval: ['approved', 'rejected', 'cancelled'],
-  approved: ['sent_to_erp'],
+  approved: ['sent_to_erp', 'cancelled'],
   sent_to_erp: ['integrated', 'rejected'],
   integrated: ['invoiced_partial', 'invoiced'],
   invoiced_partial: ['invoiced_partial', 'invoiced'],
@@ -243,6 +246,15 @@ export function aceitaCancelamentoDoErp(from: OrderStatus): boolean {
  * Excluir = cancelar (soft delete, com auditoria). Nunca apaga o registro.
  */
 const EDITABLE: ReadonlySet<OrderStatus> = new Set(['draft', 'queued', 'received', 'pending_approval', 'rejected']);
+
+/**
+ * P-2 (T-0029 D-8): nesta fatia só se edita o pedido que ainda está no aparelho (rascunho ou na fila). Pedido já aceito
+ * pelo servidor (aguardando aprovação, aprovado, rejeitado...) não tem rota de edição: o vendedor duplica.
+ * Cancelar antes do envio ao ERP continua permitido (doc 03 §4).
+ */
+export function editavelNaFatia(status: OrderStatus): boolean {
+  return status === 'draft' || status === 'queued';
+}
 
 /**
  * Cancelamento depois do envio ao ERP (doc 03 §4; matriz §2 `pedido.cancelar`): a partir de 'enviado'
@@ -279,6 +291,8 @@ export interface OrderActions {
 
 export function orderActions(status: OrderStatus): OrderActions {
   const editable = EDITABLE.has(status) && !enviadoAoErp(status);
+  // P-2: aprovado não se edita, mas cancela até ser enviado ao ERP (doc 03 §4)
+  const cancelavel = editable || status === 'approved';
   const locked_reason = editable
     ? ''
     : status === 'cancelled'
@@ -286,9 +300,9 @@ export function orderActions(status: OrderStatus): OrderActions {
       : enviadoAoErp(status)
         ? MSG_CANCELAR_APOS_ENVIO
         : status === 'approved'
-          ? 'Pedido aprovado: aguardando envio ao ERP.'
-        : 'Este pedido não pode mais ser alterado.';
-  return { can_duplicate: status !== 'draft', can_edit: editable, can_cancel: editable, locked_reason };
+          ? 'Pedido aprovado: não pode ser editado. Duplique para fazer um novo ou cancele antes do envio ao ERP.'
+          : 'Este pedido não pode mais ser alterado.';
+  return { can_duplicate: status !== 'draft', can_edit: editable, can_cancel: cancelavel, locked_reason };
 }
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {

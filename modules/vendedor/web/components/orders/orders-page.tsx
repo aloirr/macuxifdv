@@ -1,171 +1,114 @@
 'use client';
 
-import { useState } from 'react';
-import { formatBRL, formatBRLShort, formatPct } from '@macuxi/comum';
+import { useMemo, useState } from 'react';
+import { formatBRL, formatPct } from '@macuxi/comum';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import {
-  Button, DEFAULT_TZ, ErrorBlock, FilterBar, formatAge, formatDayMonthLong, formatInt, formatReceived, formatTime, IconAlert, IconCheck, IconDownload,
-  integratedTone, KpiCard, KpiGrid, LoadingBlock, monthName, PageHeader, Panel, SelectField, SkeletonCards, TableScroll, td, tdNum, th, thNum, TONE_TEXT, useToast,
-} from '@macuxi/ui/web';
-import type { Order, OrdersDashboard } from '../../../contracts';
+import { Button, ErrorBlock, FilterBar, formatDateTime, IconDownload, LoadingBlock, PageHeader, Panel, SelectField, TableScroll, td, tdNum, th, thNum, useToast } from '@macuxi/ui/web';
+import { ORDER_STATUS_LABEL, ORDER_STATUSES, type Order } from '../../../contracts';
 import { ordersToCsv } from '../../lib/csv';
-import { type OrdersFilter, useBranches, useMe, useOrdersDashboard, useTeams } from '../../lib/queries';
-import { canApprove } from '../../lib/rules';
+import { type FiltrosPedidos, temFiltro } from '../../lib/filtros-url';
+import { usePedidos, usePendentes, useSessaoDoBko } from '../../lib/queries';
+import { useFiltrosNaUrl } from '../../lib/use-filtros';
 import { ApprovalsPanel } from './approvals-panel';
 import { OrderDrawer } from './order-drawer';
 import { OrderStatusBadge } from './status';
 
-const PERIODS: Array<{ value: OrdersFilter['period']; label: string }> = [
-  { value: 'today', label: 'Hoje' },
-  { value: 'week', label: 'Esta semana' },
-  { value: 'month', label: 'Este mês' },
-];
+const campo = 'h-10 box-border rounded-[10px] border border-field bg-surface px-3 text-[14px] text-ink';
 
-const STATUSES = [
-  { value: '', label: 'Todos' },
-  { value: 'pending_approval', label: 'Aguardando aprovação' },
-  { value: 'rejected', label: 'Rejeitados' },
-  { value: 'sent_to_erp', label: 'Enviados ao ERP' },
-  { value: 'integrated', label: 'Integrados' },
-];
-
-const PERIOD_WORD: Record<OrdersFilter['period'], { card: string; table: string }> = {
-  today: { card: 'Pedidos hoje', table: 'Pedidos do dia' },
-  week: { card: 'Pedidos na semana', table: 'Pedidos da semana' },
-  month: { card: 'Pedidos no mês', table: 'Pedidos do mês' },
-};
-
-function ErpPill({ erp, tz }: { erp: OrdersDashboard['erp']; tz: string }) {
-  const ok = erp.status === 'connected';
-  const text = ok ? `${erp.name} conectado` : erp.status === 'degraded' ? `${erp.name} instável` : `${erp.name} fora do ar`;
-  const cls = ok ? 'text-success bg-success-soft' : erp.status === 'degraded' ? 'text-warning bg-warning-soft' : 'text-danger bg-danger-soft';
-  return (
-    <span className={`flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-[13px] font-semibold ${cls}`} role="status">
-      {ok ? <IconCheck size={14} /> : <IconAlert size={14} />}
-      {text} · última carga {formatTime(erp.last_load_at, tz)}
-    </span>
-  );
-}
-
+/**
+ * Pedidos no BKO (RF-VEN-04/09, T-0029 §8): lista com filtros na URL (status, período, vendedor, busca por cliente ou número),
+ * paginação por cursor, atualização a cada 10 s, painel "Aguardando aprovação" com Aprovar/Rejeitar, gaveta de detalhe com PDF.
+ * A proteção real é na API (escopo, perfil, alçada); aqui a interface só reflete o que a API permite.
+ */
 export function OrdersPage() {
-  const me = useMe();
-  const branches = useBranches();
-  const teams = useTeams();
+  const sessao = useSessaoDoBko();
   const toast = useToast();
-  const [filters, setFilters] = useState<OrdersFilter>({ period: 'today', branch_id: '', team_id: '', status: '' });
-  const [open, setOpen] = useState<Order | null>(null);
-  const q = useOrdersDashboard(filters);
-  const d = q.data;
-  const tz = me.data?.tenant.timezone ?? DEFAULT_TZ;
-  const today = me.data?.today ?? '';
-  const role = me.data?.user.role;
-  const set = <K extends keyof OrdersFilter>(k: K, v: OrdersFilter[K]) => setFilters((f) => ({ ...f, [k]: v }));
+  const [filtros, mudar] = useFiltrosNaUrl();
+  const [aberto, setAberto] = useState<Order | null>(null);
+  const lista = usePedidos(filtros);
+  const pendentes = usePendentes();
+  const tz = sessao.fuso;
 
-  const dateText = !today
-    ? ''
-    : filters.period === 'today'
-      ? `Hoje, ${formatDayMonthLong(today)}`
-      : filters.period === 'week'
-        ? `Semana até ${formatDayMonthLong(today)}`
-        : `${monthName(today.slice(0, 7)).replace(/^./, (c) => c.toUpperCase())} até o dia ${Number(today.slice(8, 10))}`;
+  const pedidos = useMemo(() => lista.data?.pages.flatMap((p) => p.itens) ?? [], [lista.data]);
+  // vendedores para o filtro: os que aparecem nas páginas carregadas e nos pendentes (a API devolve só o escopo do usuário)
+  const vendedores = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of [...pedidos, ...(pendentes.data ?? [])]) m.set(o.seller_id, o.seller_name);
+    if (filtros.seller_id && !m.has(filtros.seller_id)) m.set(filtros.seller_id, 'Vendedor selecionado');
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+  }, [pedidos, pendentes.data, filtros.seller_id]);
+  const set = <K extends keyof FiltrosPedidos>(k: K, v: FiltrosPedidos[K]) => mudar({ [k]: v } as Partial<FiltrosPedidos>);
 
-  const exportCsv = () => {
-    if (!d) return;
-    const csv = ordersToCsv(d.orders, tz);
-    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `pedidos_${filters.period}_${today || 'hoje'}.csv`);
-    toast('success', `CSV com ${d.orders.length} pedidos exportado.`);
+  const exportarCsv = () => {
+    downloadBlob(new Blob([ordersToCsv(pedidos, tz)], { type: 'text/csv;charset=utf-8' }), `pedidos_${new Date().toISOString().slice(0, 10)}.csv`);
+    toast('success', `CSV com ${pedidos.length} pedidos exportado.`);
   };
 
-  const k = d?.kpis;
-  const nowMs = d ? Date.parse(d.generated_at) : 0;
+  const total = pedidos.reduce((s, o) => (o.status === 'cancelled' || o.status === 'rejected' ? s : s + o.total_cents), 0);
 
   return (
     <>
       <PageHeader
-        title="Farol de pedidos"
-        subtitle={d ? `${dateText} · atualizado ${formatTime(d.generated_at, tz)}` : dateText || ' '}
-        actions={d && <ErpPill erp={d.erp} tz={tz} />}
+        title="Pedidos"
+        subtitle={lista.data ? `${pedidos.length}${lista.hasNextPage ? '+' : ''} pedidos · ${formatBRL(total)}${lista.isFetching ? ' · atualizando…' : ''}` : ' '}
+        actions={
+          <Button variant="link" onClick={exportarCsv} disabled={pedidos.length === 0} className="font-semibold" data-testid="pedidos.exportar-csv">
+            <IconDownload size={15} />
+            Exportar CSV
+          </Button>
+        }
       />
 
       <FilterBar>
-        <SelectField label="Período" value={filters.period} onChange={(e) => set('period', e.target.value as OrdersFilter['period'])}>
-          {PERIODS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
+        <SelectField label="Status" value={filtros.status} onChange={(e) => set('status', e.target.value)} data-testid="pedidos.filtro-status">
+          <option value="">Todos</option>
+          {ORDER_STATUSES.filter((s) => s !== 'draft' && s !== 'queued').map((s) => (
+            <option key={s} value={s}>
+              {ORDER_STATUS_LABEL[s]}
             </option>
           ))}
         </SelectField>
-        <SelectField label="Filial" value={filters.branch_id} onChange={(e) => set('branch_id', e.target.value)}>
-          <option value="">Todas</option>
-          {(branches.data ?? []).map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
+        <SelectField label="Vendedor" value={filtros.seller_id} onChange={(e) => set('seller_id', e.target.value)} data-testid="pedidos.filtro-vendedor">
+          <option value="">Todos</option>
+          {vendedores.map(([id, nome]) => (
+            <option key={id} value={id}>
+              {nome}
             </option>
           ))}
         </SelectField>
-        <SelectField label="Equipe" value={filters.team_id} onChange={(e) => set('team_id', e.target.value)}>
-          <option value="">Todas</option>
-          {(teams.data ?? []).map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField label="Status" value={filters.status} onChange={(e) => set('status', e.target.value)}>
-          {STATUSES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </SelectField>
-        {q.isFetching && d && <span className="pb-2.5 text-[12px] text-ink-2">atualizando…</span>}
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
+          De
+          <input type="date" className={campo} value={filtros.from} max={filtros.to || undefined} onChange={(e) => set('from', e.target.value)} data-testid="pedidos.filtro-de" />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
+          Até
+          <input type="date" className={campo} value={filtros.to} min={filtros.from || undefined} onChange={(e) => set('to', e.target.value)} data-testid="pedidos.filtro-ate" />
+        </label>
+        <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-[12px] font-semibold text-ink-2">
+          Cliente ou número
+          <input type="search" className={campo} value={filtros.q} maxLength={100} placeholder="Ex.: Auto Peças ou 000012" onChange={(e) => set('q', e.target.value)} data-testid="pedidos.filtro-busca" />
+        </label>
+        {temFiltro(filtros) && (
+          <Button size="sm" onClick={() => mudar({ status: '', seller_id: '', from: '', to: '', q: '' })} data-testid="pedidos.limpar-filtros">
+            Limpar filtros
+          </Button>
+        )}
       </FilterBar>
 
-      {q.isError && !d && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
-      {q.isError && d && <ErrorBlock message={`Não deu para atualizar agora: ${errorMessage(q.error)}`} />}
+      {lista.isError && !lista.data && <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />}
+      {lista.isError && lista.data && <ErrorBlock message={`Não deu para atualizar agora: ${errorMessage(lista.error)}`} />}
+      {lista.isPending && <LoadingBlock />}
 
-      {!k ? (
-        q.isPending ? <SkeletonCards n={5} /> : null
-      ) : (
-        <KpiGrid min={180}>
-          <KpiCard label={PERIOD_WORD[filters.period].card} value={formatInt(k.orders_count)} sub={`${formatBRLShort(k.orders_total_cents)} · ${k.sellers_count} vendedores`} />
-          <KpiCard
-            label="Aguardando aprovação"
-            value={formatInt(k.pending_approval)}
-            valueClass="text-accent-ink"
-            sub={k.oldest_pending_minutes === null ? 'nada pendente' : `mais antigo há ${formatAge(k.oldest_pending_minutes)}`}
-          />
-          <KpiCard label="Rejeitados" value={formatInt(k.rejected)} valueClass="text-danger" sub={k.rejected ? k.rejected_by_reason : 'nenhum no período'} />
-          <KpiCard
-            label="Na fila dos aparelhos"
-            value={formatInt(k.queued_on_devices)}
-            sub={k.devices_offline ? `${k.devices_offline} ${k.devices_offline === 1 ? 'vendedor' : 'vendedores'} sem sinal` : 'todos com sinal'}
-          />
-          <KpiCard
-            label="Integrados sem intervenção"
-            value={formatPct(k.integrated_without_touch_pct, k.integrated_without_touch_pct % 1 === 0 ? 0 : 1)}
-            valueClass={TONE_TEXT[integratedTone(k.integrated_without_touch_pct, k.integrated_target_pct)]}
-            sub={`meta: ${formatPct(k.integrated_target_pct, 0)}`}
-          />
-        </KpiGrid>
-      )}
-
-      {d && (
+      {lista.data && (
         <div className="flex flex-wrap items-start gap-4">
-          <ApprovalsPanel approvals={d.approvals} canDecide={canApprove(role)} nowMs={nowMs} onOpen={setOpen} />
+          <ApprovalsPanel approvals={pendentes.data ?? []} nowMs={Date.now()} onOpen={setAberto} />
 
           <Panel
-            label={PERIOD_WORD[filters.period].table}
+            label="Pedidos"
             title={
               <>
-                {PERIOD_WORD[filters.period].table} <span className="font-sans text-[13px] font-normal text-ink-2">· {d.orders.length}</span>
+                Pedidos <span className="font-sans text-[13px] font-normal text-ink-2">· {pedidos.length}</span>
               </>
-            }
-            aside={
-              <Button variant="link" onClick={exportCsv} disabled={d.orders.length === 0} className="font-semibold">
-                <IconDownload size={15} />
-                Exportar CSV
-              </Button>
             }
             className="flex-[2_1_560px]"
           >
@@ -175,49 +118,52 @@ export function OrdersPage() {
                   <th scope="col" className={th}>Nº</th>
                   <th scope="col" className={th}>Cliente</th>
                   <th scope="col" className={th}>Vendedor</th>
-                  <th scope="col" className={th}>Filial</th>
                   <th scope="col" className={thNum}>Valor</th>
                   <th scope="col" className={thNum}>Desc.</th>
                   <th scope="col" className={th}>Status</th>
                   <th scope="col" className={th}>Recebido</th>
                 </tr>
               </thead>
-              <tbody>
-                {d.orders.map((o) => (
+              <tbody data-testid="pedidos.tabela">
+                {pedidos.map((o) => (
                   <tr
                     key={o.id}
                     tabIndex={0}
                     aria-label={`Abrir pedido ${o.number}`}
-                    onClick={() => setOpen(o)}
+                    data-testid={`pedido.linha.${o.number}`}
+                    onClick={() => setAberto(o)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        setOpen(o);
+                        setAberto(o);
                       }
                     }}
                     className="cursor-pointer outline-none hover:bg-ground focus-visible:bg-ground"
                   >
-                    <td className={`${td} font-mono`}>{o.number}</td>
+                    <td className={`${td} font-mono`}>{o.number || '—'}</td>
                     <td className={`${td} min-w-[150px] font-semibold`}>{o.customer_name}</td>
                     <td className={`${td} whitespace-nowrap`}>{o.seller_name}</td>
-                    <td className={`${td} whitespace-nowrap text-ink-2`}>{o.branch_name}</td>
                     <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(o.total_cents)}</td>
                     <td className={tdNum}>{formatPct(o.discount_pct)}</td>
                     <td className={td}>
                       <OrderStatusBadge status={o.status} />
                     </td>
-                    <td className={`${td} whitespace-nowrap text-ink-2`}>{formatReceived(o.received_at, today, tz)}</td>
+                    <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(o.received_at, tz)}</td>
                   </tr>
                 ))}
               </tbody>
             </TableScroll>
-            {d.orders.length === 0 && <span className="text-[13px] text-ink-2">Nenhum pedido com esses filtros.</span>}
+            {pedidos.length === 0 && <span className="text-[13px] text-ink-2">Nenhum pedido com esses filtros.</span>}
+            {lista.hasNextPage && (
+              <Button onClick={() => void lista.fetchNextPage()} disabled={lista.isFetchingNextPage} data-testid="pedidos.carregar-mais">
+                {lista.isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
+              </Button>
+            )}
           </Panel>
         </div>
       )}
-      {!d && q.isPending && <LoadingBlock />}
 
-      <OrderDrawer order={open} tz={tz} role={role} onClose={() => setOpen(null)} />
+      <OrderDrawer order={aberto} tz={tz} onClose={() => setAberto(null)} />
     </>
   );
 }

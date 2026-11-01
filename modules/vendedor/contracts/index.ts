@@ -17,9 +17,11 @@ import {
   Receivable,
 } from '@macuxi/core/contracts';
 
+import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { ORDER_STATUSES } from '../domain/order';
 
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
+export { MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 export * from './eventos';
 export * from './sync';
 
@@ -51,8 +53,9 @@ export const Order = z.object({
   seller_name: z.string(),
   customer_id: Id,
   customer_name: z.string(),
-  branch_id: Id,
-  branch_name: z.string(),
+  /** legado da Fase M; null no pedido da plataforma nova (T-0029 §3.3) */
+  branch_id: Id.nullable(),
+  branch_name: z.string().nullable(),
   price_table_id: Id.nullable(),
   discount_pct: Pct,
   subtotal_cents: Cents,
@@ -69,10 +72,49 @@ export const Order = z.object({
   updated_at: IsoDateTime,
   items_count: z.number().int(),
   units: z.number().int(),
+  /** T-0029: nível que decide o pedido pendente e se QUEM CONSULTA pode decidir agora (a lista do BKO mostra os botões só a quem pode) */
+  nivel_aprovacao: z.enum(NIVEIS_APROVACAO).nullable().optional(),
+  pode_decidir: z.boolean().optional(),
 });
 export type Order = z.infer<typeof Order>;
 
-export const OrderDetail = Order.extend({ items: z.array(OrderItem), history: z.array(OrderEvent) });
+// ---------- aprovação (T-0029, ADR 0011) ----------
+export const NivelAprovacao = z.enum(NIVEIS_APROVACAO);
+export type NivelAprovacao = z.infer<typeof NivelAprovacao>;
+export const MotivoAprovacao = z.enum(MOTIVOS_APROVACAO);
+export type MotivoAprovacao = z.infer<typeof MotivoAprovacao>;
+
+/** Retrato do cliente no momento do pedido (D-6): é o que o PDF imprime. */
+export const ClienteDoPedido = z.object({
+  razao_social: z.string(),
+  nome_fantasia: z.string(),
+  documento: z.string(),
+  endereco: z.string(),
+  bairro: z.string(),
+  cidade: z.string(),
+  uf: z.string(),
+  codigo_erp: z.string(),
+});
+export type ClienteDoPedido = z.infer<typeof ClienteDoPedido>;
+
+export const AprovacaoDoPedido = z.object({
+  nivel: NivelAprovacao,
+  motivos: z.array(MotivoAprovacao),
+  desconto_efetivo_pct: Pct,
+  limite_vendedor_pct: Pct,
+  /** calculado para quem consulta (matriz §2, RN-GES-04, P-3) */
+  pode_decidir: z.boolean(),
+  /** o gerente decidindo um pedido do nível supervisor */
+  acima_do_nivel: z.boolean(),
+});
+export type AprovacaoDoPedido = z.infer<typeof AprovacaoDoPedido>;
+
+export const OrderDetail = Order.extend({
+  items: z.array(OrderItem),
+  history: z.array(OrderEvent),
+  cliente: ClienteDoPedido.nullable().optional(),
+  aprovacao: AprovacaoDoPedido.nullable().optional(),
+});
 export type OrderDetail = z.infer<typeof OrderDetail>;
 
 export const CreateOrderRequest = z.object({
@@ -92,6 +134,23 @@ export const CreateOrderRequest = z.object({
   items: z.array(z.object({ product_id: Id, quantity: z.number().int().positive() })).min(1),
 });
 export type CreateOrderRequest = z.infer<typeof CreateOrderRequest>;
+
+/**
+ * Push da entidade pedido (receber, T-0029 §3.1): o CreateOrderRequest com campos novos OPCIONAIS (a fila dos APKs já
+ * instalados continua válida). O servidor recalcula tudo; total_cents é só informativo (RN-VEN-02).
+ */
+export const PedidoPush = CreateOrderRequest.extend({
+  items: z.array(z.object({ product_id: Id, quantity: z.number().int().positive() })).min(1).max(200),
+  condicao_pagamento_id: z.string().uuid().nullable().optional(),
+  observacao: z.string().max(500).nullable().optional(),
+  visita_id: z.string().uuid().nullable().optional(),
+});
+export type PedidoPush = z.infer<typeof PedidoPush>;
+
+/** Códigos que o receber devolve em item rejeitado (T-0029 §4). */
+export const CODIGOS_RECUSA_PEDIDO = [
+  'RN-PRO-01', 'PERFIL_SEM_ACESSO', 'PAYLOAD_INVALIDO', 'ID_EM_USO', 'FORA_DA_CARTEIRA', 'RN-VEN-01', 'RN-VEN-10', 'RN-VEN-13', 'RN-VEN-14', 'RN-VEN-31', 'RN-CAT-06',
+] as const;
 
 /** Edição: mesmo corpo da criação, sem o id (o pedido mantém id e número). */
 export const UpdateOrderRequest = z.object({
@@ -113,7 +172,18 @@ export const OrderListQuery = z.object({
   from: IsoDate.optional(),
   to: IsoDate.optional(),
   limit: z.coerce.number().int().optional(),
+  /** busca por cliente ou número (T-0029 §3.3) */
+  q: z.string().max(100).optional(),
+  cursor: z.string().optional(),
+  limite: z.coerce.number().int().min(1).max(200).optional(),
 });
+
+/** Aprovar: 1 toque, comentário opcional (RN-GES-08). */
+export const AprovarPedidoRequest = z.object({ comentario: z.string().max(500).optional() });
+export type AprovarPedidoRequest = z.infer<typeof AprovarPedidoRequest>;
+/** Rejeitar: o motivo de 3+ caracteres é regra de negócio (domínio, 422 RN-GES-08), não Zod. */
+export const RejeitarPedidoRequest = z.object({ motivo: z.string().max(500) });
+export type RejeitarPedidoRequest = z.infer<typeof RejeitarPedidoRequest>;
 
 export const DecisionRequest = z.object({ reason: z.string().max(500).optional() });
 export const RejectRequest = z.object({ reason: z.string().min(3, 'Informe o motivo da recusa.').max(500) });
@@ -182,3 +252,7 @@ export const SyncPushResult = z.object({
 });
 export type SyncPushResult = z.infer<typeof SyncPushResult>;
 
+
+/** `GET /v1/vendedor/pedidos`: página com cursor `(created_at desc, id)` (T-0029 §6). */
+export const PedidosPage = z.object({ itens: z.array(Order), proximo_cursor: z.string().nullable() });
+export type PedidosPage = z.infer<typeof PedidosPage>;

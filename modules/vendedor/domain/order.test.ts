@@ -164,3 +164,33 @@ describe('janela do pull de pedido', () => {
     expect(_ehFinal('qualquer')).toBe(false);
   });
 });
+
+describe('P-2 (T-0029): pedido aprovado não é editável nesta fatia', () => {
+  it('P-2: aprovado não edita, mas duplica e cancela antes do envio ao ERP (doc 03 §4)', async () => {
+    const { orderActions: acoes } = await import('./order');
+    const a = acoes('approved');
+    expect(a.can_edit).toBe(false);
+    expect(a.can_duplicate).toBe(true);
+    expect(a.can_cancel).toBe(true);
+    expect(a.locked_reason).toMatch(/não pode ser editado/);
+  });
+  it.each([
+    ['draft', true],
+    ['queued', true],
+    ['received', false],
+    ['pending_approval', false],
+    ['approved', false],
+    ['rejected', false],
+    ['cancelled', false],
+  ] as const)('P-2: %s é editável pela tela = %s (só o que ainda está no aparelho)', async (st, ok) => {
+    const { editavelNaFatia } = await import('./order');
+    expect(editavelNaFatia(st)).toBe(ok);
+  });
+  it('RN-VEN-30: recebido pode virar aprovado (aprovação automática dentro da alçada)', () => {
+    expect(canTransition('received', 'approved')).toBe(true);
+  });
+  it('RN-VEN-31: aprovado cancela, mas depois do envio ao ERP não', () => {
+    expect(canTransition('approved', 'cancelled')).toBe(true);
+    expect(canTransition('sent_to_erp', 'cancelled')).toBe(false);
+  });
+});

@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
-import { definirEntidadeSync, definirModuloShell } from '@macuxi/platform-sdk';
-import { CreateOrderRequest, PedidoItemSyncSchema, PedidoSyncSchema } from '../contracts';
+import { definirModuloShell } from '@macuxi/platform-sdk';
+import { ENTIDADES_VENDEDOR } from '../contracts/entidades';
 import { manifest } from '../manifest';
 import type { AbaCliente, AcaoCliente, ContextoCliente } from '@macuxi/core/contracts';
 import { AbaMix, AbaUltimosPedidos } from './components/ficha-cliente';
@@ -14,19 +14,18 @@ export { mergeOrders, pedidosNaFila, upsertOrder } from './lib/pedidos';
 
 /**
  * Telas do Vendedor no app Android (ADR 0003): aba Pedidos, detalhe do pedido e novo pedido (também editar/duplicar).
- * Entidade de sync `pedido` (app edita até o status deixar de permitir) e cargas REST da Fase M como etapas.
+ * T-0029: o Campo (vendedor) e a Gestão (supervisor/gerente) usam as mesmas telas de lista e detalhe sobre o pull do sync;
+ * novo pedido é só do Campo. Entidades de sync = as do contrato (pedido com push; item, evento e condições só pull).
+ * As cargas REST da Fase M ficam como etapas só da demonstração (mock-api).
  */
 export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
-    { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', icone: 'clipboard', apps: ['campo'], componente: OrdersScreen },
-    { id: 'pedido', caminho: 'pedido', titulo: 'Pedido', apps: ['campo'], componente: OrderDetailScreen },
+    { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', icone: 'clipboard', apps: ['campo', 'gestao'], componente: OrdersScreen },
+    { id: 'pedido', caminho: 'pedido', titulo: 'Pedido', apps: ['campo', 'gestao'], componente: OrderDetailScreen },
     { id: 'novo-pedido', caminho: 'novo-pedido', titulo: 'Novo pedido', acao: 'pedido.criar', apps: ['campo'], componente: NewOrderScreen },
   ],
-  entidadesSync: [
-    definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'app_edita_ate_status', schema: CreateOrderRequest, schemaLinha: PedidoSyncSchema }),
-    definirEntidadeSync({ nome: 'pedido_item', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: PedidoItemSyncSchema }),
-  ],
+  entidadesSync: ENTIDADES_VENDEDOR,
   etapasSync: etapasVendedor,
   extensoes: [
     // Ficha do cliente (slots do Core, B2). RN-PRO-01: `acao: 'pedido.criar'` esconde os itens do promotor.
@@ -34,18 +33,21 @@ export const moduloApp = definirModuloShell<ComponentType>({
       slot: 'cliente.abas',
       id: 'mix',
       acao: 'pedido.criar',
+      apps: ['campo'],
       payload: { rotulo: 'Sugestão de mix', testID: 'ficha-mix', componente: AbaMix } satisfies AbaCliente<ComponentType<{ contexto: ContextoCliente }>>,
     },
     {
       slot: 'cliente.abas',
       id: 'ultimos-pedidos',
       acao: 'pedido.criar',
+      apps: ['campo'],
       payload: { rotulo: 'Últimos pedidos', testID: 'ficha-ultimos-pedidos', componente: AbaUltimosPedidos } satisfies AbaCliente<ComponentType<{ contexto: ContextoCliente }>>,
     },
     {
       slot: 'cliente.acoes',
       id: 'novo-pedido',
       acao: 'pedido.criar',
+      apps: ['campo'],
       payload: {
         rotulo: 'Novo pedido',
         testID: 'pedido-novo',

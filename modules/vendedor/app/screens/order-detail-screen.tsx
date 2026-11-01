@@ -12,11 +12,11 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderEvent } from '../../contracts';
-import { sellerDiscountLimit } from '../../domain/order';
+import { editavelNaFatia, sellerDiscountLimit, type OrderStatus } from '../../domain/order';
 import { AvisoRapido, useAviso } from '../components/aviso';
-import { DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
+import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { toDomainPolicy } from '../lib/catalog';
-import { buildOrderPdfHtml, orderPdfFileName, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
+import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
 import { orderNote, statusBadge } from '../lib/order-status';
@@ -37,7 +37,8 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const app = useVendedor();
   const ambiente = useAmbiente();
-  const { dados, pedidos: orders, fila, tz, offline, carregarPedido: loadOrder, reenviarFila, enviando: flushing } = app;
+  const { dados, pedidos: orders, fila, tz, offline, carregarPedido: loadOrder, reenviarFila, enviando: flushing, perfil, v1 } = app;
+  const podeAprovar = usePode('pedido.aprovar');
   const sheets = useAviso();
   const podeEditar = usePode('pedido.editar');
   const podeCancelar = usePode('pedido.cancelar');
@@ -46,11 +47,12 @@ export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState<'duplicate' | 'edit' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<'delete' | 'pdf' | null>(null);
+  const [sheet, setSheet] = useState<'delete' | 'pdf' | 'approve' | 'reject' | null>(null);
+  const [deciding, setDeciding] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState<OrderPdfView | null>(null);
-  const detail = dados.detalhes[id ?? ''] ?? null;
+  const detail = app.detalhe(id ?? '');
   const summary = orders.find((o) => o.id === id) ?? null;
   const queued = fila.find((o) => o.payload.id === id) ?? null;
   const qd = queued?.display ?? null;
@@ -98,11 +100,16 @@ export default function OrderDetailScreen() {
   const hasLines = lines.length > 0;
   // pedido já enviado: editar/excluir precisam de conexão (o status pode ter mudado no servidor)
   const needsSignal = !queued && offline;
-  const canEdit = podeEditar && acts.can_edit && !needsSignal && hasLines;
+  // P-2 (T-0029): só o que ainda está no aparelho se edita; pedido aceito pelo servidor se duplica. Na Gestão não há duplicar/editar.
+  const ehVendedor = !v1 || perfil === 'vendedor';
+  const editavel = !v1 ? acts.can_edit && !needsSignal : Boolean(queued) && editavelNaFatia(status as OrderStatus);
+  const canEdit = ehVendedor && podeEditar && editavel && hasLines;
   const canDelete = podeCancelar && acts.can_cancel && !needsSignal;
   const lockedReason = acts.locked_reason
     ? acts.locked_reason
-    : needsSignal
+    : v1 && !queued && ehVendedor && !editavel
+      ? 'Pedido já recebido pelo servidor: não pode ser editado. Duplique para fazer um novo.'
+      : needsSignal
       ? 'Sem sinal: editar ou excluir pedido já enviado precisa de conexão.'
       : !hasLines
         ? 'Itens disponíveis com sinal.'
@@ -118,6 +125,20 @@ export default function OrderDetailScreen() {
       setActionError(errorMessage(e));
     } finally {
       setBusy(null);
+    }
+  };
+
+  const decidir = async (decisao: 'aprovar' | 'rejeitar', texto: string) => {
+    setDeciding(true);
+    setSheetError(null);
+    try {
+      const r = await app.decidirPedido(id ?? '', decisao, texto);
+      setSheet(null);
+      sheets.mostrar(decisao === 'aprovar' ? `Pedido ${r.number} aprovado.` : `Pedido ${r.number} rejeitado. O vendedor vê o motivo.`);
+    } catch (e) {
+      setSheetError(errorMessage(e));
+    } finally {
+      setDeciding(false);
     }
   };
 
@@ -141,6 +162,7 @@ export default function OrderDetailScreen() {
   };
 
   const pdfOrder = (): OrderPdfOrder => {
+    if (detail && !queued) return pdfDoPedido(detail);
     const c = dados.me ? { me: dados.me, customers: dados.clientes, policy: dados.politica } : null;
     const customerId = queued ? queued.payload.customer_id : base!.customer_id;
     const cu = c?.customers.find((x) => x.id === customerId);
@@ -169,7 +191,7 @@ export default function OrderDetailScreen() {
       pending_reason: queued ? (qd?.notes ?? []).join(' ') : base!.pending_reason,
       rejection_reason: queued ? '' : base!.rejection_reason,
       price_table: (queued ? cu?.price_table_id : (base!.price_table_id ?? cu?.price_table_id)) ?? '',
-      branch_name: queued ? '' : base!.branch_name,
+      branch_name: queued ? '' : base!.branch_name ?? '',
       erp_order_code: queued ? '' : base!.erp_order_code,
       seller_limit_pct: c?.policy && sellerId ? sellerDiscountLimit(toDomainPolicy(c.policy), sellerId) : null,
       history,
@@ -229,6 +251,26 @@ export default function OrderDetailScreen() {
         {base && !queued && base.branch_name ? <Row label="Filial" value={base.branch_name} /> : null}
       </Card>
 
+      {detail?.aprovacao ? (
+        <Card style={{ padding: 14, gap: 8 }} testID="order-approval">
+          <Row label="Desconto do pedido" value={formatPct(detail.aprovacao.desconto_efetivo_pct)} />
+          <Row label="Alçada do vendedor" value={formatPct(detail.aprovacao.limite_vendedor_pct)} />
+          <Row label="Quem aprova" value={detail.aprovacao.nivel === 'supervisor' ? 'Supervisor' : detail.aprovacao.nivel === 'gerente' ? 'Gerente' : 'Analista'} />
+          {detail.aprovacao.pode_decidir && podeAprovar ? (
+            <View style={{ gap: 8, marginTop: 4 }}>
+              <View style={styles.actionsRow}>
+                <Button testID="pedido-aprovar" label="Aprovar" icon="check" variant="accent" style={{ flex: 1 }} disabled={offline || deciding} onPress={() => void decidir('aprovar', '')} loading={deciding && sheet === null} />
+                <Button testID="pedido-rejeitar" label="Rejeitar" icon="close" variant="danger" style={{ flex: 1 }} disabled={offline || deciding} onPress={() => { setSheetError(null); setSheet('reject'); }} />
+              </View>
+              {offline ? <Text style={t.small} testID="approve-offline">Aprovar exige internet: conecte-se para decidir este pedido.</Text> : null}
+              {detail.aprovacao.acima_do_nivel ? <Text style={t.small}>Este pedido é do nível supervisor; a decisão fica registrada como do gerente.</Text> : null}
+            </View>
+          ) : status === 'pending_approval' ? (
+            <Text style={t.small} testID="approve-wait">Aguardando {detail.aprovacao.nivel === 'supervisor' ? 'o supervisor' : detail.aprovacao.nivel === 'gerente' ? 'o gerente' : 'o analista'}.</Text>
+          ) : null}
+        </Card>
+      ) : null}
+
       <View style={{ gap: 8 }}>
         <SectionHeader title="Itens" right={lines.length > 0 ? `${lines.length} ${lines.length === 1 ? 'item' : 'itens'}` : undefined} />
         <Card>
@@ -284,7 +326,7 @@ export default function OrderDetailScreen() {
               icon="copy"
               variant="outline"
               style={{ flex: 1 }}
-              disabled={!podeCriar || !acts.can_duplicate || !hasLines || busy !== null}
+              disabled={!ehVendedor || !podeCriar || !acts.can_duplicate || !hasLines || busy !== null}
               loading={busy === 'duplicate'}
               onPress={() => void startDraft('duplicate')}
             />
@@ -334,6 +376,7 @@ export default function OrderDetailScreen() {
       )}
 
       <DeleteOrderSheet visible={sheet === 'delete'} title={title} queued={isQueued} busy={deleting} error={sheetError} onClose={() => setSheet(null)} onConfirm={(r) => void confirmDelete(r)} />
+      <DecisionSheet visible={sheet === 'reject'} title={title} busy={deciding} error={sheetError} onClose={() => setSheet(null)} onConfirm={(motivo) => void decidir('rejeitar', motivo)} />
       <PdfSheet visible={sheet === 'pdf'} busy={pdfBusy} error={sheetError} onClose={() => setSheet(null)} onPick={(v) => void exportPdfFor(v)} />
     </ScrollView>
   );

@@ -5,7 +5,7 @@ import { normalizarStatus } from '../../../domain/order';
 export function orderStatusTone(statusErp: string): BadgeTone {
   const status = normalizarStatus(statusErp);
   if (status === 'pending_approval') return 'pending';
-  if (status === 'integrated' || status === 'invoiced_partial' || status === 'invoiced') return 'success';
+  if (status === 'approved' || status === 'integrated' || status === 'invoiced_partial' || status === 'invoiced') return 'success';
   if (status === 'rejected' || status === 'cancelled') return 'danger';
   return 'neutral';
 }

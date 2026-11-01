@@ -1,87 +1,87 @@
 'use client';
 
-/** Consultas das páginas do Vendedor no BKO (pedidos, painel, alçadas). Mesma chave `me` do shell. */
-import { useQuery } from '@tanstack/react-query';
-import type { AuditEntry, Branch, Me, Seller, Team } from '@macuxi/core/contracts';
+/**
+ * Consultas das páginas do Vendedor no BKO (T-0029 §8), só na API nova (`/v1/vendedor/*` e `/v1/auditoria`): nenhuma rota da
+ * Fase M. A sessão vem de `useSession` (perfil e fuso do login do Core).
+ */
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { AuditoriaRespostaSchema, ROTA_AUDITORIA } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import type { DiscountPolicy, OrderDetail, OrdersDashboard } from '../../contracts';
+import { DEFAULT_TZ } from '@macuxi/ui/web';
+import { DiscountPolicy, OrderDetail, PedidosPage } from '../../contracts';
+import { type FiltrosPedidos, paraQuery } from './filtros-url';
 
-/** Faróis: atualizam sozinhos a cada ~10 s. */
+/** A lista atualiza sozinha a cada ~10 s. */
 export const LIVE_REFETCH_MS = 10_000;
-
-export interface ListResponse<T> {
-  items: T[];
-  next_cursor: string | null;
-}
+export const POR_PAGINA = 50;
 
 export const qk = {
-  me: ['me'] as const,
-  branches: ['branches'] as const,
-  teams: ['teams'] as const,
-  sellers: ['sellers'] as const,
-  ordersDashboard: (f: object) => ['dashboards', 'orders', f] as const,
-  order: (id: string) => ['order', id] as const,
-  discountPolicy: ['discount-policy'] as const,
-  audit: (entity: string) => ['audit-log', entity] as const,
+  pedidos: (f: FiltrosPedidos) => ['vendedor', 'pedidos', f] as const,
+  pendentes: ['vendedor', 'pedidos', 'pendentes'] as const,
+  pedido: (id: string) => ['vendedor', 'pedido', id] as const,
+  alcadas: ['vendedor', 'alcadas'] as const,
+  decisoes: ['vendedor', 'decisoes'] as const,
 };
 
 function useAuthed() {
   return useSession().status === 'authenticated';
 }
 
-export function useMe() {
-  const enabled = useAuthed();
-  return useQuery({ queryKey: qk.me, queryFn: () => api<Me>('/me'), enabled, staleTime: 60_000 });
+export interface SessaoDoBko {
+  perfil: string;
+  fuso: string;
+  empresa: string;
 }
 
-export function useBranches() {
-  const enabled = useAuthed();
-  return useQuery({ queryKey: qk.branches, queryFn: () => api<ListResponse<Branch>>('/branches').then((r) => r.items), enabled, staleTime: 5 * 60_000 });
+/** Perfil, fuso do tenant e nome da empresa do login real (sem `GET /me` da Fase M). */
+export function useSessaoDoBko(): SessaoDoBko {
+  const s = useSession<{ perfil?: string | null; fuso?: string; empresa?: string }>();
+  return { perfil: s.user?.perfil ?? '', fuso: s.user?.fuso ?? DEFAULT_TZ, empresa: s.user?.empresa ?? '' };
 }
 
-export function useTeams() {
+/** Lista de pedidos com os filtros da URL, paginada por cursor ("Carregar mais"). */
+export function usePedidos(f: FiltrosPedidos) {
   const enabled = useAuthed();
-  return useQuery({ queryKey: qk.teams, queryFn: () => api<ListResponse<Team>>('/teams').then((r) => r.items), enabled, staleTime: 5 * 60_000 });
-}
-
-export function useSellers() {
-  const enabled = useAuthed();
-  return useQuery({ queryKey: qk.sellers, queryFn: () => api<ListResponse<Seller>>('/sellers').then((r) => r.items), enabled, staleTime: 5 * 60_000 });
-}
-
-export interface OrdersFilter {
-  period: 'today' | 'week' | 'month';
-  branch_id: string;
-  team_id: string;
-  status: string;
-}
-
-export function useOrdersDashboard(f: OrdersFilter) {
-  const enabled = useAuthed();
-  return useQuery({
-    queryKey: qk.ordersDashboard(f),
-    queryFn: ({ signal }) => api<OrdersDashboard>('/dashboards/orders', { query: { ...f }, signal }),
+  return useInfiniteQuery({
+    queryKey: qk.pedidos(f),
+    queryFn: async ({ pageParam, signal }) =>
+      PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { ...paraQuery(f), limite: POR_PAGINA, ...(pageParam ? { cursor: pageParam } : {}) }, signal })),
+    initialPageParam: '' as string,
+    getNextPageParam: (ultima) => ultima.proximo_cursor ?? undefined,
     enabled,
     refetchInterval: LIVE_REFETCH_MS,
     placeholderData: (prev) => prev,
   });
 }
 
-export function useOrderDetail(id: string | null) {
-  const enabled = useAuthed() && !!id;
-  return useQuery({ queryKey: qk.order(id ?? ''), queryFn: () => api<OrderDetail>(`/orders/${id}`), enabled });
-}
-
-export function useDiscountPolicy() {
-  const enabled = useAuthed();
-  return useQuery({ queryKey: qk.discountPolicy, queryFn: () => api<DiscountPolicy>('/discount-policy'), enabled });
-}
-
-export function useAuditLog(entity: string) {
+/** Painel "Aguardando aprovação": os pendentes do escopo do usuário (independente dos filtros da tabela). */
+export function usePendentes() {
   const enabled = useAuthed();
   return useQuery({
-    queryKey: qk.audit(entity),
-    queryFn: () => api<ListResponse<AuditEntry>>('/audit-log', { query: { entity, limit: 300 } }).then((r) => r.items),
+    queryKey: qk.pendentes,
+    queryFn: async ({ signal }) => PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { status: 'pending_approval', limite: 100 }, signal })).itens,
+    enabled,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function usePedido(id: string | null) {
+  const enabled = useAuthed() && !!id;
+  return useQuery({ queryKey: qk.pedido(id ?? ''), queryFn: async () => OrderDetail.parse(await api<unknown>(`/vendedor/pedidos/${id}`)), enabled });
+}
+
+export function useAlcadas() {
+  const enabled = useAuthed();
+  return useQuery({ queryKey: qk.alcadas, queryFn: async () => DiscountPolicy.parse(await api<unknown>('/vendedor/alcadas')), enabled });
+}
+
+/** Decisões de pedido (aprovar, rejeitar, cancelar) da trilha de auditoria da plataforma (RN-AUD-01, `GET /v1/auditoria`). */
+export function useDecisoesRecentes() {
+  const enabled = useAuthed();
+  return useQuery({
+    queryKey: qk.decisoes,
+    queryFn: async () =>
+      AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { modulo: 'vendedor', entidade: 'pedido', limite: 30 } })).itens.filter((i) => i.acao !== 'pedido.criar'),
     enabled,
     refetchInterval: LIVE_REFETCH_MS,
   });

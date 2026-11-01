@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { ContextoEtapaSync } from '@macuxi/platform-sdk';
 import { etapasVendedor } from './etapas';
 
-function ctx(erro: unknown): ContextoEtapaSync {
+function ctx(erro: unknown, usuario: { fuso?: string } | null = null): ContextoEtapaSync {
   return {
+    usuario: () => usuario,
     http: { get: async () => { throw erro; } },
     armazenamento: { ler: async () => null, gravar: async () => {}, apagar: async () => {} },
     agora: () => new Date('2026-10-31T12:00:00Z'),
@@ -11,6 +12,12 @@ function ctx(erro: unknown): ContextoEtapaSync {
 }
 
 describe('etapas da Fase M do Vendedor (ADR 0009)', () => {
+  it('T-0029: na API v1 (login com fuso do tenant) nenhuma rota da Fase M é chamada', async () => {
+    let chamadas = 0;
+    const c = { ...ctx({ status: 500 }, { fuso: 'America/Manaus' }), http: { get: async () => { chamadas++; throw new Error('não deveria chamar'); } } } as unknown as ContextoEtapaSync;
+    for (const e of etapasVendedor) await expect(e.executar(c)).resolves.toBeUndefined();
+    expect(chamadas).toBe(0);
+  });
   it('API real sem a rota (404): as etapas são puladas sem erro', async () => {
     for (const e of etapasVendedor) await expect(e.executar(ctx({ status: 404 }))).resolves.toBeUndefined();
   });

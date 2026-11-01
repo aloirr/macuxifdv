@@ -1,16 +1,18 @@
 /**
- * Provedores de pull do Vendedor (Sprint 1, T-0018; desenho T-0016 §2 e §4.5; ADR 0009): `pedido` e `pedido_item`.
- * Escopo `['usuarios', 'carteira']` (RN-CORE-04, O-3):
- *  - vendedor/supervisor/gerente/analista...: `vendedor_id` ∈ `ctx.usuariosVisiveis()` (próprios, equipe, tenant);
- *  - promotor (só leitura, `pedido.ver`): pedidos dos clientes da carteira (`ctx.carteira()`), nunca por vendedor.
+ * Provedores de sync do Vendedor (Sprint 1, T-0018; T-0029 §3.2 e §6; ADR 0009):
+ *  - `pedido` (pull + `receber`), `pedido_item` e `pedido_evento` (só pull), escopo `['usuarios', 'carteira']` (RN-CORE-04, O-3):
+ *    vendedor/supervisor/gerente/analista...: `vendedor_id` ∈ `ctx.usuariosVisiveis()` (próprios, equipe, tenant);
+ *    promotor (só leitura, `pedido.ver`): pedidos dos clientes da carteira (`ctx.carteira()`), nunca por vendedor.
+ *  - `condicao_pagamento` (tenant) e `cliente_condicao` (carteira).
  * Janela: criado ≥ hoje − 90 dias OU status não final. Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos,
- * removidos incluídos. Item: mesmo escopo do pedido pai (join) e a mesma janela. SEM `receber` nesta sprint: a
- * plataforma responde `SYNC_NAO_IMPLEMENTADO` (retentável) ao push de pedido (RN-PRO-01 vale antes, na plataforma).
+ * removidos incluídos. Item e evento: mesmo escopo e janela do pedido pai (join).
  */
-import { definirEntidadeSync, type ContextoBase, type LinhaSync, type PedidoPull, type ProvedorSync } from '@macuxi/platform-sdk';
-import { CreateOrderRequest } from '../contracts';
-import { PedidoItemSyncSchema, PedidoSyncSchema } from '../contracts/sync';
+import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
+import { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem } from '../contracts/entidades';
 import { ORDER_STATUSES_FINAIS } from '../domain/order';
+import { receberPedidos } from './receber';
+
+export { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem };
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const ts = (c: string, pre: string) => `to_char(${pre}${c} at time zone 'UTC', ${UTC}) as ${c}`;
@@ -21,11 +23,18 @@ const COLUNAS_PEDIDO = `p.id, ${ts('updated_at', 'p.')}, ${ts('deleted_at', 'p.'
   p.cliente_id, p.vendedor_id, p.autor_id, p.status, p.condicao_pagamento, p.desconto_pct::float8 as desconto_pct,
   p.total_tabela_cents::float8 as total_tabela_cents, p.total_cents::float8 as total_cents, p.observacao,
   p.visita_id, p.rota_parada_id, ${ts('criado_no_aparelho_em', 'p.')}, ${ts('recebido_em', 'p.')},
-  p.numero_erp, p.motivo_cancelamento, ${ts('created_at', 'p.')}`;
+  p.numero_erp, p.motivo_cancelamento, ${ts('created_at', 'p.')},
+  p.numero, p.cliente_nome, p.vendedor_nome, p.tabela_preco_id, p.condicao_pagamento_id, p.condicao_pagamento_descricao,
+  p.nivel_aprovacao, p.motivos_aprovacao, p.aprovacao_automatica, p.decidido_por_id, ${ts('decidido_em', 'p.')}, p.motivo_rejeicao`;
 
 const COLUNAS_ITEM = `i.id, ${ts('updated_at', 'i.')}, ${ts('deleted_at', 'i.')}, i.external_id,
   i.pedido_id, i.sequencia, i.produto_id, i.quantidade, i.preco_tabela_cents::float8 as preco_tabela_cents,
-  i.preco_unitario_cents::float8 as preco_unitario_cents, i.desconto_pct::float8 as desconto_pct, i.total_cents::float8 as total_cents`;
+  i.preco_unitario_cents::float8 as preco_unitario_cents, i.desconto_pct::float8 as desconto_pct, i.total_cents::float8 as total_cents,
+  i.produto_sku, i.produto_nome, i.unidade`;
+
+const COLUNAS_EVENTO = `e.id, ${ts('updated_at', 'e.')}, ${ts('deleted_at', 'e.')}, e.external_id,
+  e.pedido_id, e.de, e.para, e.autor_id, e.autor_nome, e.autor_perfil, e.motivo, e.nivel, e.acima_do_nivel,
+  ${ts('ocorrido_em', 'e.')}, ${ts('created_at', 'e.')}`;
 
 export interface EscopoPedido {
   /** `null` = sem filtro por vendedor. */
@@ -34,7 +43,7 @@ export interface EscopoPedido {
   clientes: string[] | null;
 }
 
-/** Fonte única do filtro por perfil. */
+/** Fonte única do filtro por perfil (pull e rotas de leitura). */
 export function escopoDoPedido(
   perfil: string,
   usuarios: ReadonlySet<string> | 'tenant',
@@ -44,7 +53,8 @@ export function escopoDoPedido(
   return { vendedores: usuarios === 'tenant' ? null : [...usuarios], clientes: null };
 }
 
-const FILTROS = `and ($5::uuid[] is null or p.vendedor_id = any($5::uuid[]))
+/** Filtro de escopo e janela sobre o alias `p` (pedido). Parâmetros: $1 ate, $5 vendedores, $6 clientes, $7 status finais. */
+export const FILTROS_PEDIDO = `and ($5::uuid[] is null or p.vendedor_id = any($5::uuid[]))
      and ($6::uuid[] is null or p.cliente_id = any($6::uuid[]))
      and (p.created_at >= $1::timestamptz - make_interval(days => ${JANELA_DIAS}) or p.status <> all($7::text[]))`;
 
@@ -57,7 +67,7 @@ export function sqlPedido(pedido: PedidoPull, e: EscopoPedido): { sql: string; v
     from vendedor.pedido p
    where p.updated_at < $1::timestamptz
      and ($2::timestamptz is null or (p.updated_at, p.id) > ($2::timestamptz, $3::uuid))
-     ${FILTROS}
+     ${FILTROS_PEDIDO}
    order by p.updated_at, p.id
    limit $4`;
   return { sql, valores: valores(pedido, e) };
@@ -69,8 +79,20 @@ export function sqlPedidoItem(pedido: PedidoPull, e: EscopoPedido): { sql: strin
     join vendedor.pedido p on p.tenant_id = i.tenant_id and p.id = i.pedido_id
    where i.updated_at < $1::timestamptz
      and ($2::timestamptz is null or (i.updated_at, i.id) > ($2::timestamptz, $3::uuid))
-     ${FILTROS}
+     ${FILTROS_PEDIDO}
    order by i.updated_at, i.id
+   limit $4`;
+  return { sql, valores: valores(pedido, e) };
+}
+
+export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido): { sql: string; valores: unknown[] } {
+  const sql = `select ${COLUNAS_EVENTO}
+    from vendedor.pedido_evento e
+    join vendedor.pedido p on p.tenant_id = e.tenant_id and p.id = e.pedido_id
+   where e.updated_at < $1::timestamptz
+     and ($2::timestamptz is null or (e.updated_at, e.id) > ($2::timestamptz, $3::uuid))
+     ${FILTROS_PEDIDO}
+   order by e.updated_at, e.id
    limit $4`;
   return { sql, valores: valores(pedido, e) };
 }
@@ -81,24 +103,48 @@ async function puxarDe(montar: typeof sqlPedido, ctx: ContextoBase, pedido: Pedi
   return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
 }
 
-/** `schema` = payload do push (comando, hoje o da Fase M); `schemaLinha` = linha do pull (ADR 0009 §2). */
-export const entidadePedido = definirEntidadeSync({
-  nome: 'pedido',
-  modulo: 'vendedor',
-  direcao: 'ambos',
-  conflito: 'app_edita_ate_status',
-  schema: CreateOrderRequest,
-  schemaLinha: PedidoSyncSchema,
-});
-export const entidadePedidoItem = definirEntidadeSync({
-  nome: 'pedido_item',
-  modulo: 'vendedor',
-  direcao: 'pull',
-  conflito: 'servidor_vence',
-  schema: PedidoItemSyncSchema,
-});
+const BASE = `id, ${ts('updated_at', '')}, ${ts('deleted_at', '')}, external_id`;
+
+export function sqlCondicaoPagamento(pedido: PedidoPull): { sql: string; valores: unknown[] } {
+  const sql = `select ${BASE}, codigo, descricao, ativo, padrao
+    from vendedor.condicao_pagamento
+   where updated_at < $1::timestamptz
+     and ($2::timestamptz is null or (updated_at, id) > ($2::timestamptz, $3::uuid))
+   order by updated_at, id
+   limit $4`;
+  return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite] };
+}
+
+export function sqlClienteCondicao(pedido: PedidoPull, clientes: readonly string[] | null): { sql: string; valores: unknown[] } {
+  const sql = `select ${BASE}, cliente_id, condicao_pagamento_id
+    from vendedor.cliente_condicao
+   where updated_at < $1::timestamptz
+     and ($2::timestamptz is null or (updated_at, id) > ($2::timestamptz, $3::uuid))
+     and ($5::uuid[] is null or cliente_id = any($5::uuid[]))
+   order by updated_at, id
+   limit $4`;
+  return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite, clientes === null ? null : [...clientes]] };
+}
 
 export const provedoresSyncVendedor: readonly ProvedorSync[] = [
-  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe(sqlPedido, ctx, p) },
+  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe(sqlPedido, ctx, p), receber: receberPedidos },
   { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe(sqlPedidoItem, ctx, p) },
+  { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe(sqlPedidoEvento, ctx, p) },
+  {
+    entidade: entidadeCondicaoPagamento,
+    escopo: 'tenant',
+    puxar: async (ctx, p) => {
+      const { sql, valores: v } = sqlCondicaoPagamento(p);
+      return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
+    },
+  },
+  {
+    entidade: entidadeClienteCondicao,
+    escopo: 'carteira',
+    puxar: async (ctx, p) => {
+      const c = await ctx.carteira();
+      const { sql, valores: v } = sqlClienteCondicao(p, c === 'tenant' ? null : [...c]);
+      return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
+    },
+  },
 ];

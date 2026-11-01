@@ -93,6 +93,59 @@ export function DeleteOrderSheet({
   );
 }
 
+/** Rejeitar pedido (RN-GES-08): o motivo é obrigatório (3+ caracteres) e o vendedor o vê no app. */
+export function DecisionSheet({
+  visible,
+  title,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  visible: boolean;
+  title: string;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: (motivo: string) => void;
+}) {
+  const [motivo, setMotivo] = useState('');
+  useEffect(() => {
+    if (visible) setMotivo('');
+  }, [visible]);
+  const ok = motivo.trim().length >= 3;
+  return (
+    <BottomSheet visible={visible} onClose={onClose} label="Rejeitar pedido" testID="reject-sheet">
+      <View style={[styles.tile, { backgroundColor: colors.dangerBg }]}>
+        <Icon name="close" size={22} color={colors.danger} />
+      </View>
+      <Text style={styles.title}>Rejeitar {title.toLowerCase()}?</Text>
+      <Text style={styles.para}>O vendedor vê o motivo no aplicativo. Escreva o que ele precisa ajustar.</Text>
+      <View style={{ gap: 4 }}>
+        <Text style={t.label}>Motivo (obrigatório)</Text>
+        <TextInput
+          testID="reject-reason"
+          value={motivo}
+          onChangeText={setMotivo}
+          placeholder="Ex.: desconto acima da política para este cliente"
+          placeholderTextColor={colors.ink3}
+          maxLength={500}
+          style={styles.input}
+          accessibilityLabel="Motivo da rejeição"
+        />
+        {motivo.length > 0 && !ok ? <Text style={[t.small, { color: colors.danger }]}>Escreva ao menos 3 caracteres.</Text> : null}
+      </View>
+      {error ? (
+        <Text style={[t.small, { color: colors.danger }]} testID="reject-error">
+          {error}
+        </Text>
+      ) : null}
+      <SheetButton testID="reject-confirm" label={busy ? 'Rejeitando…' : 'Rejeitar pedido'} bg={colors.danger} fg="#FFFFFF" height={50} disabled={busy || !ok} onPress={() => onConfirm(motivo)} />
+      <SheetButton testID="reject-cancel" label="Voltar" bg={colors.surface} fg={colors.ink} border={colors.lineStrong} height={46} onPress={onClose} />
+    </BottomSheet>
+  );
+}
+
 export function PdfSheet({ visible, busy, error, onClose, onPick }: { visible: boolean; busy: OrderPdfView | null; error: string | null; onClose: () => void; onPick: (view: OrderPdfView) => void }) {
   return (
     <BottomSheet visible={visible} onClose={onClose} label="Exportar PDF" testID="pdf-sheet">

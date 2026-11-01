@@ -1,18 +1,26 @@
 /**
- * Hook das telas do Vendedor: lê o estado local (armazenamento do módulo) e escreve na fila do motor de sync
- * do shell (`useMotorSync`). Substitui o `app-store.tsx` da Fase M só no que é de pedido (ADR 0003).
- * Nada aqui espera a rede para mostrar dados: a rede só confirma o envio.
+ * Hook das telas do Vendedor: lê o estado local e escreve na fila do motor de sync do shell (`useMotorSync`).
+ * Nada aqui espera a rede para mostrar dados: a rede só confirma o envio (offline-first, ADR 0003).
+ *
+ * Duas fontes (T-0029 §8):
+ *  - API v1 (usuário com fuso do tenant): pedidos, itens, histórico, clientes, produtos, condições e tabelas pelo PULL do
+ *    sync (linhas no aparelho); preço pela consulta `catalogo.precos_cliente@1` (ADR 0012); alçadas pelos parâmetros do
+ *    tenant (E3); pedido da fila sobreposto às linhas (ADR 0009 §3). Nenhuma rota da Fase M (/orders, /customers...).
+ *  - Demonstração (mock-api da Fase M): as cargas REST de `etapas.ts` alimentam o armazenamento do módulo, como antes.
+ * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
+import { CONSULTA_PRECOS_CLIENTE, type Product } from '@macuxi/catalogo/contracts';
 import type { CustomerSummary } from '@macuxi/core/contracts';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CreateOrderRequest, CustomerDetail, Order, OrderDetail, UpdateOrderRequest } from '../../contracts';
-import type { MixSuggestion, Product } from '@macuxi/catalogo/contracts';
+import type { MixSuggestion } from '@macuxi/catalogo/contracts';
+import type { CustomerDetail, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import {
+  aceitosComoPedidos,
   draftKeyFor,
   fonteDoPedido,
   mergeOrders,
@@ -25,9 +33,25 @@ import {
   type PedidoNaFila,
   type Rascunho,
 } from '../lib/pedidos';
+import {
+  condicoesDoCliente,
+  detalheDoPedido,
+  LINHAS_VAZIAS,
+  lerLinhas,
+  listaDeClientes,
+  listaDePedidos,
+  meDoAparelho,
+  paraAprovar,
+  politicaApi,
+  produtosComPrecos,
+  type CondicaoDaTela,
+  type LinhasVendedor,
+} from '../lib/pull';
 import { criarRepositorio, DADOS_VAZIOS, type DadosVendedor } from '../lib/repositorio';
 
 const PRECISA_SINAL = 'editar ou excluir pedido já enviado precisa de conexão (o status pode ter mudado no servidor).';
+const INTERVALO_SYNC_MS = 20_000;
+const LOTE_PRECOS = 500;
 
 export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; message: string };
 export type ResultadoAlteracao = { kind: 'local' } | { kind: 'server'; order: OrderDetail };
@@ -36,41 +60,99 @@ export function useVendedor() {
   const { motor, estado } = useMotorSync();
   const ambiente = useAmbiente();
   const repo = useMemo(() => (motor ? criarRepositorio(motor.armazenamentoDoModulo('vendedor')) : null), [motor]);
-  const [dados, setDados] = useState<DadosVendedor>(DADOS_VAZIOS);
+  const [dadosRepo, setDadosRepo] = useState<DadosVendedor>(DADOS_VAZIOS);
+  const [linhas, setLinhas] = useState<LinhasVendedor>(LINHAS_VAZIAS);
+  const [decididos, setDecididos] = useState<Record<string, OrderDetail>>({});
   const [carregado, setCarregado] = useState(false);
-  const dadosRef = useRef(dados);
-  dadosRef.current = dados;
+  const dadosRef = useRef(dadosRepo);
+  dadosRef.current = dadosRepo;
+  const linhasRef = useRef(linhas);
+  linhasRef.current = linhas;
+
+  const usuario = ambiente.usuario();
+  /** API v1: o login traz o fuso do tenant; a demonstração (mock-api) não. */
+  const v1 = Boolean(usuario?.fuso);
+  const perfil = usuario?.perfil ?? '';
+  const parametros = ambiente.parametros('vendedor');
+  const parametrosRef = useRef(parametros);
+  parametrosRef.current = parametros;
 
   const recarregar = useCallback(async () => {
     if (!repo) return;
-    const novos = await repo.carregar();
+    const [novos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
     dadosRef.current = novos;
-    setDados(novos);
+    linhasRef.current = ls;
+    setDadosRepo(novos);
+    setLinhas(ls);
     setCarregado(true);
-  }, [repo]);
+    if (v1) {
+      // o pull trouxe a linha: o resumo guardado para o item da fila já não faz falta
+      const ids = new Set(ls.pedidos.map((p) => p.id));
+      for (const id of Object.keys(novos.exibicoes)) if (ids.has(id)) void repo.removerExibicao(id);
+    }
+  }, [repo, motor, v1]);
 
   // recarrega ao abrir e a cada sincronização concluída (novo carimbo) ou mudança do módulo
   useEffect(() => {
-    void recarregar();
-  }, [recarregar, estado.sincronizado_em]);
+    void (async () => {
+      // o preço pode ter mudado no pull: refaz a tabela na próxima vez que a tela do pedido abrir
+      if (v1 && repo) await repo.gravar('produtos', {});
+      await recarregar();
+    })();
+  }, [recarregar, estado.sincronizado_em, v1, repo]);
 
-  const tz = dados.me?.tenant.timezone || DEFAULT_TZ;
-  const vendedor = dados.me?.seller ?? null;
+  // a decisão já feita volta ao normal quando o pull traz o estado novo
+  useEffect(() => {
+    setDecididos((d) => {
+      const restantes = Object.entries(d).filter(([id, det]) => linhas.pedidos.find((p) => p.id === id)?.status !== det.status);
+      return restantes.length === Object.keys(d).length ? d : Object.fromEntries(restantes);
+    });
+  }, [linhas.pedidos]);
+
+  const me = useMemo(() => (v1 && usuario ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametros, new Date()) : dadosRepo.me), [v1, usuario, parametros, dadosRepo.me]);
+  const tz = me?.tenant.timezone || DEFAULT_TZ;
+  const vendedor = me?.seller ?? null;
+  const politica = useMemo(() => (v1 ? politicaApi(parametros) : dadosRepo.politica), [v1, parametros, dadosRepo.politica]);
+  const clientes = useMemo(() => (v1 ? listaDeClientes(linhas, { id: usuario?.id ?? '', name: usuario?.nome ?? '' }) : dadosRepo.clientes), [v1, linhas, usuario, dadosRepo.clientes]);
+  const pedidosServidor = useMemo(() => (v1 ? listaDePedidos(linhas, parametros) : dadosRepo.pedidos), [v1, linhas, parametros, dadosRepo.pedidos]);
+
+  const dados: DadosVendedor = useMemo(
+    () => ({ ...dadosRepo, me, politica, clientes, pedidos: pedidosServidor }),
+    [dadosRepo, me, politica, clientes, pedidosServidor],
+  );
+
   const fila: PedidoNaFila[] = useMemo(
-    () => pedidosNaFila(estado.fila.filter((i) => i.modulo === 'vendedor'), dados.exibicoes),
-    [estado.fila, dados.exibicoes],
+    () => pedidosNaFila(estado.fila.filter((i) => i.modulo === 'vendedor'), dadosRepo.exibicoes),
+    [estado.fila, dadosRepo.exibicoes],
   );
   const filaRef = useRef(fila);
   filaRef.current = fila;
-  const pedidos: PedidoDaLista[] = useMemo(
-    () => (vendedor ? mergeOrders(dados.pedidos, fila, { id: vendedor.id, name: vendedor.name, branch_id: vendedor.branch_id }) : dados.pedidos.map((o) => ({ ...o, local: false, local_error: '' }))),
-    [dados.pedidos, fila, vendedor],
+  const aceitos: PedidoNaFila[] = useMemo(
+    () => pedidosNaFila(estado.aceitos.filter((i) => i.modulo === 'vendedor' && i.entidade === 'pedido'), dadosRepo.exibicoes),
+    [estado.aceitos, dadosRepo.exibicoes],
   );
+  const pedidos: PedidoDaLista[] = useMemo(() => {
+    if (!vendedor) return dados.pedidos.map((o) => ({ ...o, local: false, local_error: '' }));
+    const eu = { id: vendedor.id, name: vendedor.name, branch_id: vendedor.branch_id };
+    const noServidor = new Set(dados.pedidos.map((o) => o.id));
+    const todos = mergeOrders(dados.pedidos, fila, eu);
+    return v1 ? [...aceitosComoPedidos(aceitos, noServidor, eu), ...todos] : todos;
+  }, [dados.pedidos, fila, aceitos, vendedor, v1]);
 
   const offline = !ambiente.online();
+  const ultimaAtualizacao = useRef(0);
 
-  // ---------- leituras com rede (melhor esforço; sem rede, fica o que está no aparelho) ----------
+  // ---------- leituras (melhor esforço; sem rede, fica o que está no aparelho) ----------
   const atualizarPedidos = useCallback(async () => {
+    if (v1) {
+      // API v1: o pull é o do sync completo; no máximo uma passada a cada 20 s, sem rede só relê o aparelho
+      if (ambiente.online() && motor && !motor.estado().sincronizando && Date.now() - ultimaAtualizacao.current > INTERVALO_SYNC_MS) {
+        ultimaAtualizacao.current = Date.now();
+        await motor.sincronizar();
+      }
+      await recarregar();
+      return;
+    }
     if (!ambiente.online() || !repo) return;
     try {
       const r = await ambiente.http.requisitar<{ items: Order[] }>('GET', '/orders', { query: { from: monthStart(new Date(), tz), limit: 1000 } });
@@ -79,59 +161,92 @@ export function useVendedor() {
     } catch {
       // sem rede: continua com o cache
     }
-  }, [repo, recarregar, tz, ambiente]);
+  }, [v1, motor, repo, recarregar, tz, ambiente]);
+
+  /** Detalhe do pedido: decisão recém-tomada, senão as linhas do aparelho (v1) ou o cache da demonstração. */
+  const detalhe = useCallback(
+    (id: string): OrderDetail | null => {
+      if (!v1) return dadosRef.current.detalhes[id] ?? null;
+      return decididos[id] ?? detalheDoPedido(linhasRef.current, id, perfil, parametrosRef.current);
+    },
+    [v1, decididos, perfil, linhas],
+  );
 
   const carregarPedido = useCallback(
     async (id: string) => {
+      if (v1) {
+        // API v1: o detalhe vem das linhas do aparelho; a cada ciclo traz o estado novo do servidor (decisão de outro gestor)
+        await atualizarPedidos();
+        return;
+      }
       if (!ambiente.online() || !repo) return;
       try {
-        const detalhe = await ambiente.http.requisitar<OrderDetail>('GET', `/orders/${encodeURIComponent(id)}`);
-        await repo.guardarPedido(detalhe);
+        const d = await ambiente.http.requisitar<OrderDetail>('GET', `/orders/${encodeURIComponent(id)}`);
+        await repo.guardarPedido(d);
         await recarregar();
       } catch {
         // sem rede: continua com o cache
       }
     },
-    [repo, recarregar, ambiente],
+    [v1, repo, recarregar, ambiente, atualizarPedidos],
   );
 
-  /** Mix sugerido e últimos pedidos do cliente para a ficha; sem sinal fica o que já está no aparelho. */
+  /** Mix sugerido e últimos pedidos da ficha (demonstração); na API v1 os últimos vêm do pull e o mix fica para o Catálogo. */
   const carregarFicha = useCallback(
     async (customerId: string) => {
-      if (!ambiente.online() || !repo) return;
+      if (v1 || !ambiente.online() || !repo) return;
       const id = encodeURIComponent(customerId);
-      const [mix, detalhe] = await Promise.allSettled([
+      const [mix, det] = await Promise.allSettled([
         ambiente.http.requisitar<{ items: MixSuggestion[] }>('GET', `/customers/${id}/mix-suggestions`),
         ambiente.http.requisitar<CustomerDetail>('GET', `/customers/${id}`),
       ]);
       if (mix.status === 'fulfilled') await repo.alterar('mix', (m) => ({ ...m, [customerId]: mix.value.items }));
-      if (detalhe.status === 'fulfilled') await repo.alterar('ultimos', (u) => ({ ...u, [customerId]: detalhe.value.recent_orders }));
+      if (det.status === 'fulfilled') await repo.alterar('ultimos', (u) => ({ ...u, [customerId]: det.value.recent_orders }));
       await recarregar();
     },
-    [repo, recarregar, ambiente],
+    [v1, repo, recarregar, ambiente],
   );
 
-  const tabelaDe = useCallback(
-    (cliente: CustomerSummary): Product[] => dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.items ?? [],
-    [],
-  );
+  const tabelaDe = useCallback((cliente: CustomerSummary): Product[] => dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.items ?? [], []);
 
-  /** Garante a tabela do cliente no aparelho; com sinal e sem tabela, baixa agora. */
+  /** Garante a tabela do cliente no aparelho: v1 calcula pela consulta do Catálogo (offline); demonstração baixa com sinal. */
   const garantirProdutos = useCallback(
     async (cliente: CustomerSummary): Promise<Product[]> => {
       const atual = tabelaDe(cliente);
-      if (atual.length > 0 || !ambiente.online() || !repo) return atual;
+      if (atual.length > 0 || !repo) return atual;
+      const chave = cliente.price_table_id ?? 'default';
+      if (v1) {
+        try {
+          const ativos = linhasRef.current.produtos.filter((p) => p.ativo);
+          const precos = new Map<string, number | null>();
+          const agora = new Date().toISOString();
+          for (let i = 0; i < ativos.length; i += LOTE_PRECOS) {
+            const r = await ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente.id, produto_ids: ativos.slice(i, i + LOTE_PRECOS).map((p) => p.id), em: agora });
+            for (const it of r.itens) precos.set(it.produto_id, it.preco_cents);
+          }
+          const items = produtosComPrecos(linhasRef.current, precos);
+          await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora } }));
+          await recarregar();
+          return items;
+        } catch {
+          return atual;
+        }
+      }
+      if (!ambiente.online()) return atual;
       try {
         const r = await ambiente.http.requisitar<{ items: Product[] }>('GET', '/products', { query: { customer_id: cliente.price_table_id ? cliente.id : undefined, limit: 5000 } });
-        await repo.alterar('produtos', (p) => ({ ...p, [cliente.price_table_id ?? 'default']: { items: r.items, synced_at: new Date().toISOString() } }));
+        await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items: r.items, synced_at: new Date().toISOString() } }));
         await recarregar();
         return r.items;
       } catch {
         return atual;
       }
     },
-    [repo, recarregar, tabelaDe, ambiente],
+    [v1, repo, recarregar, tabelaDe, ambiente],
   );
+
+  /** Condições de pagamento permitidas ao cliente (RN-VEN-14), das linhas do aparelho. */
+  const condicoesDe = useCallback((clienteId: string): CondicaoDaTela[] => (v1 ? condicoesDoCliente(linhasRef.current, clienteId) : []), [v1, linhas]);
 
   // ---------- rascunho ----------
   const rascunhoDe = useCallback((chave: string, customerId: string): Rascunho => dadosRef.current.rascunhos[chave] ?? rascunhoVazio(customerId), []);
@@ -144,7 +259,7 @@ export function useVendedor() {
       // atualiza já na memória (digitação rápida) e persiste em seguida
       const proximo = { ...dadosRef.current, rascunhos: { ...dadosRef.current.rascunhos, [chave]: novo } };
       dadosRef.current = proximo;
-      setDados(proximo);
+      setDadosRepo(proximo);
       await repo.guardarRascunho(chave, novo);
     },
     [repo],
@@ -154,20 +269,16 @@ export function useVendedor() {
   const custoDaFilaDoCliente = (customerId: string, ignorar?: string) =>
     filaRef.current.filter((o) => o.payload.customer_id === customerId && o.payload.id !== ignorar).reduce((s, o) => s + (o.display?.total_cents ?? 0), 0);
 
-  const prepararDoRascunho = useCallback((rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[], editId?: string) => {
-    const d = dadosRef.current;
-    if (!d.politica) throw new Error('Alçadas ainda não estão no aparelho. Sincronize com sinal e tente de novo.');
-    const editado = editId ? d.pedidos.find((o) => o.id === editId) ?? null : null;
-    return prepararPedido({
-      rascunho,
-      cliente,
-      catalogo,
-      politica: d.politica,
-      eu: d.me?.seller ?? null,
-      filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId),
-      pedidoEditado: editado,
-    });
-  }, []);
+  const prepararDoRascunho = useCallback(
+    (rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[], editId?: string) => {
+      const pol = v1 ? politicaApi(parametrosRef.current) : dadosRef.current.politica;
+      if (!pol) throw new Error('Alçadas ainda não estão no aparelho. Sincronize com sinal e tente de novo.');
+      const editado = editId ? dadosRef.current.pedidos.find((o) => o.id === editId) ?? null : null;
+      const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado });
+    },
+    [v1, usuario],
+  );
 
   /** Envia o pedido: grava na fila (persistida) e tenta enviar; erro definitivo volta para o vendedor corrigir. */
   const enviarPedido = useCallback(
@@ -176,7 +287,7 @@ export function useVendedor() {
       const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo);
       const id = ambiente.novoId();
       const agora = new Date().toISOString();
-      const payload: CreateOrderRequest = montarPedido({ id, cliente, rascunho, v, semSinal: !ambiente.online(), agora });
+      const payload: PedidoPush = montarPedido({ id, cliente, rascunho, v, semSinal: !ambiente.online(), agora });
       await repo.guardarExibicao(id, display);
       await motor.enfileirar({ id, entidade: 'pedido', payload, rotulo: `Pedido · ${cliente.trade_name}`, detalhe: `${(display.total_cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · ${display.items_count} ${display.items_count === 1 ? 'item' : 'itens'}` });
       await repo.limparRascunho(draftKeyFor(cliente.id));
@@ -187,11 +298,19 @@ export function useVendedor() {
       const resultados = await motor.enviar();
       const r = resultados.find((x) => x.id === id);
       if (r && r.status === 'aceito') {
+        if (v1) {
+          // traz a linha do servidor (número, status, nível); sem rede ou com falha, o pedido segue como "Recebido" até o próximo pull
+          await motor.sincronizar().catch(() => false);
+          await recarregar();
+          const det = detalheDoPedido(linhasRef.current, id, perfil, parametrosRef.current);
+          if (det) return { kind: 'sent', order: det };
+          return { kind: 'queued', message: 'Pedido recebido pelo servidor. O número e o status aparecem na próxima atualização.' };
+        }
         await carregarPedido(id);
         await repo.removerExibicao(id);
         await recarregar();
-        const detalhe = dadosRef.current.detalhes[id];
-        if (detalhe) return { kind: 'sent', order: detalhe };
+        const det = dadosRef.current.detalhes[id];
+        if (det) return { kind: 'sent', order: det };
         return { kind: 'queued', message: 'Pedido enviado. Os detalhes aparecem na próxima atualização.' };
       }
       if (r) {
@@ -199,23 +318,25 @@ export function useVendedor() {
         await motor.descartar(id);
         await repo.removerExibicao(id);
         await recarregar();
-        throw new Error(r.mensagem || 'O servidor recusou o pedido. Revise os itens e tente de novo.');
+        const mensagem = 'mensagem' in r && r.mensagem ? r.mensagem : '';
+        throw new Error(mensagem || 'O servidor recusou o pedido. Revise os itens e tente de novo.');
       }
       await recarregar();
       const item = motor.estado().fila.find((i) => i.id === id);
       return { kind: 'queued', message: item?.ultimo_erro || 'Sem conexão: o pedido será enviado quando o sinal voltar.' };
     },
-    [motor, repo, prepararDoRascunho, recarregar, carregarPedido, ambiente],
+    [motor, repo, prepararDoRascunho, recarregar, carregarPedido, ambiente, v1, perfil],
   );
 
-  /** Duplicar (`duplicate`) ou editar (`edit`): rascunho com o mesmo cliente/itens e os preços de hoje (RN-VEN preço). */
+  /** Duplicar (`duplicate`) ou editar (`edit`, só o que está na fila — P-2): rascunho com o mesmo cliente/itens e os preços de hoje. */
   const prepararRascunhoDoPedido = useCallback(
     async (orderId: string, modo: 'duplicate' | 'edit'): Promise<{ customerId: string; chave: string }> => {
       if (!repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
       const d = dadosRef.current;
-      const src = fonteDoPedido(orderId, filaRef.current, d.detalhes);
+      const det = detalhe(orderId);
+      const src = fonteDoPedido(orderId, filaRef.current, det ? { [orderId]: det } : d.detalhes);
       if (!src) throw new Error('Itens do pedido ainda não estão no aparelho. Abra o pedido com sinal e tente de novo.');
-      const cliente = d.clientes.find((c) => c.id === src.customer_id);
+      const cliente = clientes.find((c) => c.id === src.customer_id);
       if (!cliente) throw new Error('Cliente fora da carteira sincronizada no aparelho.');
       const catalogo = await garantirProdutos(cliente);
       if (catalogo.length === 0) throw new Error('Tabela de preços do cliente não está no aparelho. Sincronize com sinal.');
@@ -229,6 +350,7 @@ export function useVendedor() {
         lines: r.lines,
         discount_pct: src.discount_pct,
         payment_terms: src.payment_terms,
+        condicao_pagamento_id: v1 ? (linhasRef.current.pedidos.find((p) => p.id === orderId)?.condicao_pagamento_id ?? null) : null,
         visit_id: null,
         route_stop_id: null,
         updated_at: new Date().toISOString(),
@@ -238,10 +360,10 @@ export function useVendedor() {
       await recarregar();
       return { customerId: cliente.id, chave };
     },
-    [repo, garantirProdutos, recarregar],
+    [repo, garantirProdutos, recarregar, detalhe, clientes, v1],
   );
 
-  /** Salva a edição. Na fila: altera o item (funciona sem sinal). No servidor: PUT, que exige conexão. */
+  /** Salva a edição. P-2: só o pedido que ainda está na fila do aparelho (funciona sem sinal); o servidor não edita pedido aceito. */
   const salvarEdicao = useCallback(
     async (orderId: string, rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoAlteracao> => {
       if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
@@ -251,12 +373,22 @@ export function useVendedor() {
       const naFila = filaRef.current.find((o) => o.payload.id === orderId);
       if (naFila) {
         await repo.guardarExibicao(orderId, display);
-        await motor.alterar(orderId, { payload: { ...naFila.payload, discount_pct: rascunho.discount_pct, payment_terms: rascunho.payment_terms, total_cents: display.total_cents, items: itens } satisfies CreateOrderRequest });
+        await motor.alterar(orderId, {
+          payload: {
+            ...naFila.payload,
+            discount_pct: rascunho.discount_pct,
+            payment_terms: rascunho.payment_terms,
+            condicao_pagamento_id: rascunho.condicao_pagamento_id ?? null,
+            total_cents: display.total_cents,
+            items: itens,
+          } satisfies PedidoPush,
+        });
         await repo.limparRascunho(chave);
         await recarregar();
         if (ambiente.online()) void motor.enviar({ incluirFalhos: true });
         return { kind: 'local' };
       }
+      if (v1) throw new Error('Pedido já recebido pelo servidor não é editado. Duplique-o para fazer um novo.');
       if (!ambiente.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL} Desligue no Perfil quando tiver sinal.`);
       const corpo: UpdateOrderRequest = { customer_id: cliente.id, discount_pct: rascunho.discount_pct, payment_terms: rascunho.payment_terms, items: itens };
       let order: OrderDetail;
@@ -271,7 +403,7 @@ export function useVendedor() {
       await recarregar();
       return { kind: 'server', order };
     },
-    [motor, repo, prepararDoRascunho, recarregar, ambiente],
+    [motor, repo, prepararDoRascunho, recarregar, ambiente, v1],
   );
 
   /** Excluir = cancelar (nunca apaga no servidor). Pedido ainda na fila: sai da fila do aparelho. */
@@ -286,18 +418,48 @@ export function useVendedor() {
         return { kind: 'local' };
       }
       if (!ambiente.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL}`);
-      let order: OrderDetail;
       try {
-        order = await ambiente.http.requisitar<OrderDetail>('POST', `/orders/${encodeURIComponent(orderId)}/cancel`, { body: motivo.trim() ? { reason: motivo.trim() } : {} });
+        if (v1) {
+          await ambiente.http.requisitar('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/cancelar`, { body: motivo.trim() ? { motivo: motivo.trim() } : {} });
+          await motor.sincronizar().catch(() => false);
+          await recarregar();
+          const det = detalheDoPedido(linhasRef.current, orderId, perfil, parametrosRef.current);
+          if (!det) throw new Error('Pedido cancelado. A lista é atualizada na próxima sincronização.');
+          return { kind: 'server', order: det };
+        }
+        const order = await ambiente.http.requisitar<OrderDetail>('POST', `/orders/${encodeURIComponent(orderId)}/cancel`, { body: motivo.trim() ? { reason: motivo.trim() } : {} });
+        await repo.guardarPedido(order);
+        await recarregar();
+        return { kind: 'server', order };
       } catch (e) {
         if (ehSemConexao(e)) throw new Error(`Sem conexão: ${PRECISA_SINAL}`);
         throw e;
       }
-      await repo.guardarPedido(order);
-      await recarregar();
-      return { kind: 'server', order };
     },
-    [motor, repo, recarregar, ambiente],
+    [motor, repo, recarregar, ambiente, v1, perfil],
+  );
+
+  /**
+   * Aprovar ou rejeitar (RN-GES-08; ADR 0011 D-4): exige internet, porque outro gestor pode ter decidido antes. A resposta
+   * da API vale na hora; depois uma sincronização traz o estado novo para o aparelho.
+   */
+  const decidirPedido = useCallback(
+    async (orderId: string, decisao: 'aprovar' | 'rejeitar', texto: string): Promise<OrderDetail> => {
+      if (!ambiente.online()) throw new Error('Aprovar e rejeitar exigem internet: o pedido pode ter sido decidido por outra pessoa. Conecte-se e tente de novo.');
+      let order: OrderDetail;
+      try {
+        order = await ambiente.http.requisitar<OrderDetail>('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/${decisao === 'aprovar' ? 'aprovar' : 'rejeitar'}`, {
+          body: decisao === 'aprovar' ? (texto.trim() ? { comentario: texto.trim() } : {}) : { motivo: texto.trim() },
+        });
+      } catch (e) {
+        if (ehSemConexao(e)) throw new Error('Sem conexão: aprovar e rejeitar exigem internet. Tente de novo quando o sinal voltar.');
+        throw e;
+      }
+      setDecididos((d) => ({ ...d, [orderId]: order }));
+      void motor?.sincronizar().then(() => recarregar());
+      return order;
+    },
+    [ambiente, motor, recarregar],
   );
 
   const reenviarFila = useCallback(async () => {
@@ -307,24 +469,30 @@ export function useVendedor() {
   }, [motor, recarregar]);
 
   const acoesDe = (status: string) => orderActions(status as OrderStatus);
+  const aguardandoMinhaDecisao = useMemo(() => (v1 ? paraAprovar(linhas, perfil) : []), [v1, linhas, perfil]);
 
   return {
     carregado,
     dados,
+    v1,
+    perfil,
     tz,
     vendedor,
     offline,
     fila,
     pedidos,
+    aguardandoMinhaDecisao,
     enviando: estado.enviando,
     sincronizando: estado.sincronizando,
     erroSync: estado.erro,
     motor,
     recarregar,
     atualizarPedidos,
+    detalhe,
     carregarPedido,
     carregarFicha,
     garantirProdutos,
+    condicoesDe,
     tabelaDe,
     rascunhoDe,
     atualizarRascunho,
@@ -333,6 +501,7 @@ export function useVendedor() {
     prepararRascunhoDoPedido,
     salvarEdicao,
     excluirPedido,
+    decidirPedido,
     reenviarFila,
     acoesDe,
   };

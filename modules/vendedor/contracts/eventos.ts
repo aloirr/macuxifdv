@@ -3,7 +3,9 @@
  * Registro: `.coord/contratos/eventos.md`. Mudança incompatível = nova versão + ADR.
  */
 import { z } from 'zod';
+import { definirEvento } from '@macuxi/platform-sdk';
 import { Id, IsoDateTime } from '@macuxi/core/contracts';
+import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 
 /**
  * `vendedor.pedido.faturado@1` — um por retorno do ERP aceito com status faturado_parcial/faturado_total
@@ -18,3 +20,92 @@ export const PedidoFaturadoEvento = z.object({
   itens: z.array(z.object({ produto_id: Id, quantidade: z.number().int().positive() })).min(1),
 });
 export type PedidoFaturadoEvento = z.infer<typeof PedidoFaturadoEvento>;
+
+// ---------- pedido no servidor (T-0029, ADR 0011) ----------
+// Status SEMPRE no vocabulário do doc 03 (RN-VEN-30), mapeado por `statusDoContrato`. Nenhum nome, documento ou
+// endereço no payload: só ids e códigos do ERP.
+const StatusEvento = z.enum(STATUS_CONTRATO);
+const NivelEvento = z.enum(NIVEIS_APROVACAO);
+const MotivoEvento = z.enum(MOTIVOS_APROVACAO);
+const CentsNaoNeg = z.number().int().nonnegative();
+
+/** `vendedor.pedido.criado@1` — pedido aceito pela 1a vez. Espelho do `PedidoCriadoV1` do Gestor + `status`. */
+export const PedidoCriadoEvento = z.object({
+  pedido_id: Id,
+  vendedor_id: Id,
+  /** RN-VEN-35: quem digitou (o gestor, no pedido em nome) */
+  autor_id: Id,
+  cliente_id: Id,
+  visita_id: Id.nullable(),
+  tipo: z.literal('pedido'),
+  total_cents: CentsNaoNeg,
+  total_tabela_cents: CentsNaoNeg,
+  criado_em: IsoDateTime,
+  itens: z.array(z.object({ produto_id: Id, quantidade: z.number().int().positive(), total_cents: CentsNaoNeg })),
+  status: StatusEvento,
+});
+export type PedidoCriadoEvento = z.infer<typeof PedidoCriadoEvento>;
+
+/** `vendedor.pedido.status_alterado@1` — cada transição (RN-VEN-30); `de` null na criação. */
+export const PedidoStatusAlteradoEvento = z.object({
+  pedido_id: Id,
+  vendedor_id: Id,
+  de: StatusEvento.nullable(),
+  para: StatusEvento,
+  alterado_em: IsoDateTime,
+  autor_id: Id.nullable(),
+  motivo: z.string().max(500).nullable(),
+});
+export type PedidoStatusAlteradoEvento = z.infer<typeof PedidoStatusAlteradoEvento>;
+
+/** `vendedor.pedido.aprovacao_solicitada@1` — entrou em `em_aprovacao`. Espelho do `AprovacaoSolicitadaV1`. */
+export const AprovacaoSolicitadaEvento = z.object({
+  pedido_id: Id,
+  vendedor_id: Id,
+  cliente_id: Id,
+  solicitada_em: IsoDateTime,
+  nivel: NivelEvento,
+  motivos: z.array(MotivoEvento).min(1),
+  desconto_efetivo_pct: z.number().nonnegative(),
+  total_cents: CentsNaoNeg,
+  /** crédito e histórico fora da fatia (T-0029 §14): sempre null */
+  credito: z.null(),
+  historico: z.null(),
+});
+export type AprovacaoSolicitadaEvento = z.infer<typeof AprovacaoSolicitadaEvento>;
+
+/**
+ * `vendedor.pedido.aprovado@1` — o pedido virou `aprovado` (automático dentro da alçada ou por decisão) com o
+ * conteúdo para a fila do ERP (RN-INT-08; pedido do Hub R-20261101-044224-3). Chaves do ERP anuláveis: vêm do
+ * `external_id` do Core e o Hub trata a ausência.
+ */
+export const PedidoAprovadoEvento = z.object({
+  pedido_uuid: Id,
+  cliente_external_id: z.string().nullable(),
+  vendedor_external_id: z.string().nullable(),
+  condicao_pagamento_codigo: z.string().nullable(),
+  criado_em: IsoDateTime,
+  aprovado_em: IsoDateTime,
+  observacao: z.string().nullable(),
+  itens: z
+    .array(
+      z.object({
+        sequencia: z.number().int().min(1),
+        produto_external_id: z.string().nullable(),
+        quantidade: z.number().int().positive(),
+        preco_unitario_cents: CentsNaoNeg,
+        desconto_cents: CentsNaoNeg,
+        total_cents: CentsNaoNeg,
+      }),
+    )
+    .min(1),
+  desconto_total_cents: CentsNaoNeg,
+  total_cents: CentsNaoNeg,
+});
+export type PedidoAprovadoEvento = z.infer<typeof PedidoAprovadoEvento>;
+
+// ---------- definições (publicação na outbox: `tx.publicar(EVENTO_..., payload, agregadoId)`) ----------
+export const EVENTO_PEDIDO_CRIADO = definirEvento('vendedor.pedido.criado@1', PedidoCriadoEvento);
+export const EVENTO_PEDIDO_STATUS_ALTERADO = definirEvento('vendedor.pedido.status_alterado@1', PedidoStatusAlteradoEvento);
+export const EVENTO_PEDIDO_APROVACAO_SOLICITADA = definirEvento('vendedor.pedido.aprovacao_solicitada@1', AprovacaoSolicitadaEvento);
+export const EVENTO_PEDIDO_APROVADO = definirEvento('vendedor.pedido.aprovado@1', PedidoAprovadoEvento);

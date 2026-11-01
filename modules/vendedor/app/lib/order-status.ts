@@ -76,6 +76,7 @@ export function filterCounts(orders: Array<{ status: string }>): Record<OrderFil
 /** Observação exibida abaixo do pedido: motivo da pendência ou da rejeição. */
 export function orderNote(o: { status: string; pending_reason: string; rejection_reason: string; local_error?: string }): string {
   if (o.status === 'queued') return o.local_error ? o.local_error : '';
+  if (o.status === 'received') return 'Recebido pelo servidor.';
   if (o.status === 'pending_approval') return o.pending_reason;
   if (o.status === 'rejected' || o.status === 'cancelled') return o.rejection_reason;
   return '';

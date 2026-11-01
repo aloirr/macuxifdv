@@ -5,7 +5,7 @@
  * Modo edição (`editId`): "Editar pedido 10xxx", mesmo cliente; rascunho em `edit:<id>` (preenchido pelo detalhe).
  * Duplicar chega aqui como novo pedido com o rascunho do cliente já preenchido.
  */
-import { formatBRL, formatBRL0, formatPct } from '@macuxi/comum';
+import { formatBRL, formatPct } from '@macuxi/comum';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Button, Card, colors, Empty, fonts, formatHHMM, Icon, radius, Strong, type as t } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -17,7 +17,8 @@ import type { OrderDetail } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { validateOrder } from '../../domain/order';
-import { CREDIT_OPEN_STATUSES, creditInput, filterCustomers, parsePct, PAYMENT_TERMS, searchProducts, stockInfo, toDomainPolicy } from '../lib/catalog';
+import { filterCustomers, parsePct, PAYMENT_TERMS, searchProducts, stockInfo, toDomainPolicy } from '../lib/catalog';
+import { ESTOQUE_NAO_CONTROLADO } from '../lib/pull';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
 import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
@@ -59,7 +60,7 @@ function CustomerPicker() {
                 {c.trade_name}
               </Text>
               <Text style={t.small}>
-                Curva {c.abc_curve} · {c.district} · limite {formatBRL0(c.available_credit_cents)}
+                {[c.city, c.district].filter(Boolean).join(' · ')}
               </Text>
             </View>
             <Icon name="chevron" size={16} color={colors.ink3} />
@@ -84,12 +85,13 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const insets = useSafeAreaInsets();
   const sheets = useAviso();
   const podeEditar = usePode('pedido.editar');
-  const { dados, tz, offline, garantirProdutos: ensureProducts, enviarPedido: submitOrder, salvarEdicao: saveOrderEdit } = app;
+  const { dados, tz, offline, garantirProdutos: ensureProducts, enviarPedido: submitOrder, salvarEdicao: saveOrderEdit, condicoesDe, v1 } = app;
   const draftKey = draftKeyFor(customerId, editId);
   const updateDraft = (_customerId: string, fn: (d: Draft) => Draft) => void app.atualizarRascunho(draftKey, customerId, fn);
   /** pedido em edição (servidor ou fila do aparelho) */
   const editTarget = editId ? (app.pedidos.find((o) => o.id === editId) ?? null) : null;
   const editingServer = Boolean(editTarget && !editTarget.local);
+  const condicoes = condicoesDe(customerId);
   const customer = dados.clientes.find((c) => c.id === customerId) ?? null;
   const tableKey = customer?.price_table_id ?? 'default';
   const catalog = useMemo(() => dados.produtos[tableKey]?.items ?? [], [dados.produtos, tableKey]);
@@ -110,6 +112,19 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     if (customer && catalog.length === 0) void ensureProducts(customer);
   }, [customer, catalog.length, ensureProducts]);
 
+  // RN-VEN-14: prazo entre as condições permitidas ao cliente (API v1); a demonstração usa a lista fixa da Fase M
+  const opcoesDePrazo = useMemo(
+    () => (v1 ? condicoes.map((c) => ({ id: c.id as string | null, rotulo: c.descricao })) : PAYMENT_TERMS.map((p) => ({ id: null as string | null, rotulo: p as string }))),
+    [v1, condicoes],
+  );
+  useEffect(() => {
+    // sem condição escolhida (ou escolhida fora da lista do cliente): usa a padrão, a primeira da lista
+    if (!v1 || sent || editId || condicoes.length === 0) return;
+    if (draft.condicao_pagamento_id && condicoes.some((c) => c.id === draft.condicao_pagamento_id)) return;
+    const padrao = condicoes[0]!;
+    updateDraft(customerId, (d) => ({ ...d, payment_terms: padrao.descricao, condicao_pagamento_id: padrao.id }));
+  }, [v1, condicoes, draft.condicao_pagamento_id, sent, editId]);
+
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
   const snapshotLines = sent ? sent.snapshot.lines : null;
   const lines = snapshotLines ?? Object.entries(draft.lines).flatMap(([pid, qty]) => {
@@ -120,20 +135,12 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const terms = sent ? sent.snapshot.payment_terms : draft.payment_terms;
 
   const politica = dados.politica;
-  const queuedCents = app.fila
-    .filter((o) => o.payload.customer_id === customerId && o.payload.id !== editId)
-    .reduce((s, o) => s + (o.display?.total_cents ?? 0), 0);
-  // edição de pedido já no servidor: o valor antigo dele deixa de consumir o limite do cliente
-  const releaseCents = editTarget && editingServer && CREDIT_OPEN_STATUSES.has(editTarget.status) ? editTarget.total_cents : 0;
   const v = customer && politica && dados.me?.seller
     ? validarSemLancar({
         sellerId: dados.me.seller.id,
         discountPct,
         lines: lines.map((l) => ({ product_id: l.product.id, quantity: l.qty, unit_price_cents: l.product.price_cents })),
         politica,
-        cliente: customer,
-        fila: sent ? 0 : queuedCents,
-        liberar: releaseCents,
       })
     : null;
 
@@ -171,7 +178,6 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const noSignal = offline;
   const d = v.discount;
   const blocking = v.issues.filter((i) => i.blocking && i.code !== 'empty_order');
-  const creditIssue = v.issues.find((i) => i.code === 'credit_exceeded' || i.code === 'overdue_receivables');
   // edição de pedido já enviado com "modo sem sinal" ligado: precisa de conexão (não enfileira)
   const editBlockedOffline = editingServer && offline;
   const canSend = !sent && v.totals.lines.length > 0 && v.outcome !== 'rejected' && !editBlockedOffline && (!editId || podeEditar);
@@ -342,27 +348,22 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
                 <View style={{ gap: 8 }}>
                   <Text style={t.label}>Prazo</Text>
                   <View style={styles.segment}>
-                    {PAYMENT_TERMS.map((term) => {
-                      const on = draft.payment_terms === term;
+                    {opcoesDePrazo.map((op) => {
+                      const on = op.id ? draft.condicao_pagamento_id === op.id : draft.payment_terms === op.rotulo;
                       return (
                         <Pressable
-                          key={term}
-                          testID={`terms-${term}`}
+                          key={op.id ?? op.rotulo}
+                          testID={`terms-${op.rotulo}`}
                           accessibilityRole="radio"
                           accessibilityState={{ checked: on }}
-                          onPress={() => updateDraft(customerId, (dr) => ({ ...dr, payment_terms: term }))}
+                          onPress={() => updateDraft(customerId, (dr) => ({ ...dr, payment_terms: op.rotulo, condicao_pagamento_id: op.id }))}
                           style={[styles.segItem, on && styles.segOn]}>
-                          <Text style={[styles.segText, on && { color: '#FFFFFF' }]}>{term}</Text>
+                          <Text style={[styles.segText, on && { color: '#FFFFFF' }]}>{op.rotulo}</Text>
                         </Pressable>
                       );
                     })}
                   </View>
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <Text style={t.label}>Crédito disponível</Text>
-                  <Text style={[t.bodyStrong, { color: v.available_credit_cents <= 0 ? colors.danger : colors.ink }]}>{formatBRL(v.available_credit_cents)}</Text>
-                </View>
-                {creditIssue ? <Text style={[t.small, { color: colors.accentInk }]}>{creditIssue.message}</Text> : null}
                 {blocking.map((i) => (
                   <Text key={i.code} style={[t.small, { color: colors.danger }]}>
                     {i.message}
@@ -420,7 +421,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
 
 function SentCard({ order }: { order: OrderDetail }) {
   const b = statusBadge(order.status);
-  const note = order.status === 'pending_approval' ? order.pending_reason : order.status === 'rejected' ? order.rejection_reason : 'Seguiu direto para o ERP.';
+  const note = order.status === 'pending_approval' ? order.pending_reason : order.status === 'rejected' ? order.rejection_reason : order.status === 'approved' ? 'Dentro da alçada: aprovado na hora.' : 'Recebido pelo servidor.';
   return (
     <View style={styles.sent} testID="sent-card">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -443,6 +444,7 @@ function ProductRow({ p, qty, last, onQty, readOnly }: { p: Product; qty: number
   useEffect(() => setText(String(qty)), [qty]);
   const stockColor = s.tone === 'ok' ? colors.success : s.tone === 'low' ? colors.accentInk : colors.danger;
   const noPrice = p.price_cents === null;
+  const semControleDeEstoque = p.stock_total >= ESTOQUE_NAO_CONTROLADO;
   return (
     <View style={[styles.prod, !last && styles.divider]} testID={`product-${p.erp_code}`}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
@@ -455,7 +457,8 @@ function ProductRow({ p, qty, last, onQty, readOnly }: { p: Product; qty: number
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <Text style={[t.smallStrong, { color: stockColor }]}>{s.text}</Text>
+          {semControleDeEstoque ? null : <Text style={[t.smallStrong, { color: stockColor }]}>{s.text}</Text>}
+          {noPrice ? <Text style={[t.smallStrong, { color: colors.danger }]} testID={`sem-preco-${p.erp_code}`}>Sem preço para este cliente</Text> : null}
           {p.is_campaign ? <Badge label="Campanha" tone="accent" /> : null}
         </View>
         {readOnly ? (
@@ -547,15 +550,13 @@ function validarSemLancar(a: {
   discountPct: number;
   lines: Array<{ product_id: string; quantity: number; unit_price_cents: number | null }>;
   politica: import('../../contracts').DiscountPolicy;
-  cliente: import('@macuxi/core/contracts').CustomerSummary;
-  fila: number;
-  liberar: number;
 }) {
   return validateOrder({
     seller_id: a.sellerId,
     discount_pct: a.discountPct,
     lines: a.lines,
     policy: toDomainPolicy(a.politica),
-    credit: creditInput(a.cliente, a.fila, a.liberar),
+    // P-6 (T-0029): crédito fora da fatia, igual ao servidor
+    credit: null,
   });
 }

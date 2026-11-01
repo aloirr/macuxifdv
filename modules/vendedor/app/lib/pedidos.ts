@@ -3,10 +3,10 @@
  * fila com os pedidos do servidor. A validação é a MESMA do servidor (`validateOrder`, RN-VEN-*): a API revalida.
  */
 import type { CustomerSummary, Me } from '@macuxi/core/contracts';
-import type { CreateOrderRequest, DiscountPolicy, Order, OrderDetail } from '../../contracts';
+import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { validateOrder, type OrderValidation } from '../../domain/order';
-import { CREDIT_OPEN_STATUSES, creditInput, toDomainPolicy } from './catalog';
+import { toDomainPolicy } from './catalog';
 import type { PrefillLine } from './order-prefill';
 
 export interface Rascunho {
@@ -15,6 +15,9 @@ export interface Rascunho {
   lines: Record<string, number>;
   discount_pct: number;
   payment_terms: string;
+  /** condição de pagamento escolhida entre as permitidas ao cliente (RN-VEN-14); ausente = padrão do tenant */
+  condicao_pagamento_id?: string | null;
+  observacao?: string;
   visit_id: string | null;
   route_stop_id: string | null;
   updated_at: string;
@@ -72,7 +75,7 @@ export interface EntradaPrepararPedido {
   eu: Me['seller'];
   /** pedidos do cliente ainda na fila (consomem o crédito), sem o pedido em edição */
   filaDoClienteCents: number;
-  /** pedido em edição no servidor: o valor antigo dele deixa de consumir o limite */
+  /** sem uso desde que o crédito saiu da fatia (P-6); mantido para as chamadas existentes */
   pedidoEditado?: Pick<Order, 'status' | 'total_cents'> | null;
 }
 
@@ -83,13 +86,13 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: OrderValidation; 
   const lines = Object.entries(e.rascunho.lines)
     .filter(([, q]) => q > 0)
     .map(([pid, q]) => ({ product: byId.get(pid), product_id: pid, quantity: q }));
-  const liberar = e.pedidoEditado && CREDIT_OPEN_STATUSES.has(e.pedidoEditado.status) ? e.pedidoEditado.total_cents : 0;
   const v = validateOrder({
     seller_id: e.eu.id,
     discount_pct: e.rascunho.discount_pct,
     lines: lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity, unit_price_cents: l.product?.price_cents ?? null })),
     policy: toDomainPolicy(e.politica),
-    credit: creditInput(e.cliente, e.filaDoClienteCents, liberar),
+    // P-6 (T-0029): crédito fora da fatia, igual ao servidor — nenhum pedido vai para aprovação por crédito
+    credit: null,
   });
   if (v.outcome === 'rejected') throw new Error(v.issues.filter((i) => i.blocking).map((i) => i.message).join(' '));
   const display: OrderDisplay = {
@@ -113,7 +116,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: OrderValidation; 
   return { v, display };
 }
 
-export function montarPedido(args: { id: string; cliente: CustomerSummary; rascunho: Rascunho; v: OrderValidation; semSinal: boolean; agora: string }): CreateOrderRequest {
+export function montarPedido(args: { id: string; cliente: CustomerSummary; rascunho: Rascunho; v: OrderValidation; semSinal: boolean; agora: string }): PedidoPush {
   return {
     id: args.id,
     customer_id: args.cliente.id,
@@ -123,6 +126,9 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     route_stop_id: args.rascunho.route_stop_id,
     total_cents: args.v.totals.total_cents,
     items: args.v.totals.lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity })),
+    condicao_pagamento_id: args.rascunho.condicao_pagamento_id ?? null,
+    observacao: args.rascunho.observacao?.trim() ? args.rascunho.observacao.trim() : null,
+    visita_id: args.rascunho.visit_id ?? null,
   };
 }
 
@@ -136,11 +142,11 @@ export interface ItemFilaPedido {
   criado_em: string;
   ultima_tentativa_em: string | null;
   ultimo_erro: string;
-  situacao: 'pendente' | 'falhou' | 'modulo_inativo';
+  situacao: 'pendente' | 'falhou' | 'modulo_inativo' | 'aceito';
 }
 
 export interface PedidoNaFila extends Omit<ItemFilaPedido, 'payload'> {
-  payload: CreateOrderRequest;
+  payload: PedidoPush;
   display: OrderDisplay | null;
   /** erro definitivo (4xx/módulo desativado): não tenta sozinho; o vendedor reenvia ou descarta */
   failed: boolean;
@@ -149,7 +155,7 @@ export interface PedidoNaFila extends Omit<ItemFilaPedido, 'payload'> {
 export function pedidosNaFila(fila: readonly ItemFilaPedido[], exibicoes: Record<string, OrderDisplay>): PedidoNaFila[] {
   return fila
     .filter((i) => i.entidade === 'pedido')
-    .map((i) => ({ ...i, payload: i.payload as CreateOrderRequest, display: exibicoes[i.id] ?? null, failed: i.situacao !== 'pendente' }));
+    .map((i) => ({ ...i, payload: i.payload as PedidoPush, display: exibicoes[i.id] ?? null, failed: i.situacao !== 'pendente' && i.situacao !== 'aceito' }));
 }
 
 export type PedidoDaLista = Order & { local: boolean; local_error: string };
@@ -261,4 +267,16 @@ export function ligarRascunho(r: Rascunho, visitId: string | null | undefined, s
   const visit_id = visitId || r.visit_id;
   const route_stop_id = r.route_stop_id ?? (stopId || null);
   return visit_id === r.visit_id && route_stop_id === r.route_stop_id ? r : { ...r, visit_id, route_stop_id };
+}
+
+// ---------- aceitos pelo servidor que o pull ainda não trouxe (ADR 0009 §3, D-3) ----------
+
+/**
+ * Item que o servidor já aceitou mas cujo pull ainda não trouxe a linha: aparece como "Recebido" até a próxima
+ * sincronização (não é "na fila": já não se edita nem se descarta pelo aparelho).
+ */
+export function aceitosComoPedidos(aceitos: readonly PedidoNaFila[], jaNoServidor: ReadonlySet<string>, vendedor: VendedorLogado): PedidoDaLista[] {
+  return aceitos
+    .filter((i) => !jaNoServidor.has(i.payload.id))
+    .map((i) => ({ ...pedidoDaFilaComoPedido(i, vendedor), status: 'received' as const, local: false, local_error: '' }));
 }

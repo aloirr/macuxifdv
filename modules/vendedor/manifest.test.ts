@@ -16,4 +16,20 @@ describe('manifesto do vendedor', () => {
     expect(manifest.acoes['pedido.criar_em_nome']!.perfis).toEqual(['supervisor', 'gerente']);
     expect(() => defineModule({ ...manifest, acoes: { 'pedido.criar': { perfis: ['promotor'] } } })).toThrow(/RN-PRO-01/);
   });
+
+  it('T-0029 / matriz §2: supervisor, gerente e admin entram nos perfis; Gestão tem a aba Pedidos', () => {
+    expect(manifest.perfis).toEqual(expect.arrayContaining(['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin']));
+    expect(manifest.apps.gestao?.abas).toEqual(['Pedidos']);
+    expect(manifest.apps.campo?.abas).toEqual(['Pedidos']);
+    expect(manifest.acoes['pedido.ver']!.perfis).toContain('admin');
+    expect(manifest.acoes['pedido.criar']!.perfis).not.toContain('admin');
+  });
+
+  it('T-0029 / ADR 0011 e 0012: publica criado, status, aprovação e aprovado; usa as consultas do Catálogo e do Core', () => {
+    expect(manifest.publica).toEqual(
+      expect.arrayContaining(['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'vendedor.pedido.aprovado@1']),
+    );
+    expect(manifest.usaConsultas).toEqual(['catalogo.precos_cliente@1', 'core.cadastro_resumo@1']);
+    expect(manifest.sync).toEqual(expect.arrayContaining(['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao']));
+  });
 });

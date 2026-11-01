@@ -1,20 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ErroNaoEncontrado, verificarAcao, criarPermissoes, type ContextoRota } from '@macuxi/platform-sdk';
+import { criarPermissoes, verificarAcao } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
-import { rotaListarPedidos, rotaVerPedido } from './index';
-
-const ID = '11111111-1111-4111-8111-111111111111';
-function ctx(carteira: ReadonlySet<string> | 'tenant', params: unknown = { id: ID }, query: unknown = { limite: 50 }) {
-  return {
-    usuario: { id: 'u', tenant_id: 't', perfil: 'promotor', modulos: ['vendedor'] },
-    requestId: 'r', corpo: {}, query, params,
-    agora: () => new Date('2026-10-31T12:00:00Z'),
-    carteira: async () => carteira,
-    log: { info() {}, warn() {}, error() {} },
-    comTenant: async (fn: (db: unknown) => Promise<unknown>) =>
-      fn({ query: async () => ({ rows: [{ id: ID, status: 'received', cliente_id: 'c1' }, { id: 'x', status: 'received', cliente_id: 'c2' }], rowCount: 2 }) }),
-  } as unknown as ContextoRota;
-}
+import apiVendedor, { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './index';
+import { escopoDoPedido } from './sync';
 
 describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
   it('RN-PRO-01: promotor pode pedido.ver e nenhuma ação de escrita de pedido', () => {
@@ -26,27 +14,41 @@ describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
     }
   });
 
-  it('RN-CORE-04: lista só devolve pedidos de clientes da carteira', async () => {
-    const r = (await rotaListarPedidos.executar(ctx(new Set(['c1']), {}))) as { itens: { cliente_id: string }[] };
-    expect(r.itens.map((i) => i.cliente_id)).toEqual(['c1']);
+  it('RN-PRO-01: promotor recebe 403 nas rotas de aprovar, rejeitar e cancelar; as de leitura ficam com pedido.ver', () => {
+    const perm = criarPermissoes([manifest]);
+    const p = { id: 'p', tenant_id: 't', perfil: 'promotor' as const, modulos: ['vendedor' as const] };
+    for (const r of [rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido]) expect(verificarAcao(p, perm, r.acao!)).toMatchObject({ ok: false, status: 403 });
+    for (const r of [rotaListarPedidos, rotaVerPedido, rotaAlcadas]) expect(r.acao).toBe('pedido.ver');
   });
 
-  it('RN-CORE-04: lista filtra pela carteira na consulta, antes do limit', async () => {
-    let args: unknown[] = [];
-    const c = ctx(new Set(['c1']), {}, { limite: 1 }) as unknown as { comTenant: unknown };
-    c.comTenant = async (fn: (db: unknown) => Promise<unknown>) =>
-      fn({ query: async (_s: string, a: unknown[]) => { args = a; return { rows: [{ id: ID, status: 'received', cliente_id: 'c1' }], rowCount: 1 }; } });
-    await rotaListarPedidos.executar(c as unknown as ContextoRota);
-    expect(args[2]).toEqual(['c1']);
+  it('RN-GES-08 / P-3: aprovar e rejeitar exigem pedido.aprovar; vendedor e assistente recebem 403 PERFIL_SEM_ACESSO', () => {
+    const perm = criarPermissoes([manifest]);
+    for (const perfil of ['vendedor', 'assistente'] as const) {
+      expect(verificarAcao({ id: 'u', tenant_id: 't', perfil, modulos: ['vendedor'] }, perm, rotaAprovarPedido.acao!)).toMatchObject({ ok: false, status: 403, codigo: 'PERFIL_SEM_ACESSO' });
+    }
+    for (const perfil of ['supervisor', 'gerente', 'analista'] as const) {
+      expect(verificarAcao({ id: 'u', tenant_id: 't', perfil, modulos: ['vendedor'] }, perm, rotaRejeitarPedido.acao!)).toMatchObject({ ok: true });
+    }
+    expect(rotaAprovarPedido.caminho).toBe('pedidos/:id/aprovar');
+    expect(rotaRejeitarPedido.caminho).toBe('pedidos/:id/rejeitar');
   });
 
-  it('RN-CORE-04: detalhe da carteira responde 200', async () => {
-    await expect(rotaVerPedido.executar(ctx(new Set(['c1'])))).resolves.toMatchObject({ id: ID });
+  it('matriz §2: admin vê pedidos do tenant (pedido.ver) e não decide nem cancela', () => {
+    const perm = criarPermissoes([manifest]);
+    const admin = { id: 'a', tenant_id: 't', perfil: 'admin' as const, modulos: ['vendedor' as const] };
+    expect(verificarAcao(admin, perm, 'pedido.ver')).toMatchObject({ ok: true });
+    expect(verificarAcao(admin, perm, 'pedido.aprovar')).toMatchObject({ ok: false, status: 403 });
+    expect(verificarAcao(admin, perm, 'pedido.cancelar')).toMatchObject({ ok: false, status: 403 });
   });
 
-  it('RN-CORE-04: detalhe fora da carteira é 404 PEDIDO_NAO_ENCONTRADO', async () => {
-    const erro = await rotaVerPedido.executar(ctx(new Set(['outro']))).catch((e) => e);
-    expect(erro).toBeInstanceOf(ErroNaoEncontrado);
-    expect(erro).toMatchObject({ status: 404, codigo: 'PEDIDO_NAO_ENCONTRADO' });
+  it('RN-CORE-04: o escopo é o do pull: promotor = carteira; os demais = usuários visíveis', () => {
+    expect(escopoDoPedido('promotor', new Set(['u']), new Set(['c1']))).toEqual({ vendedores: null, clientes: ['c1'] });
+    expect(escopoDoPedido('supervisor', new Set(['s', 'v']), new Set(['c1']))).toEqual({ vendedores: ['s', 'v'], clientes: null });
+    expect(escopoDoPedido('analista', 'tenant', 'tenant')).toEqual({ vendedores: null, clientes: null });
+  });
+
+  it('a API do módulo é válida para o SDK', () => {
+    expect(apiVendedor.rotas).toHaveLength(6);
+    expect(apiVendedor.sync?.map((s) => s.entidade.nome)).toEqual(['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao']);
   });
 });
