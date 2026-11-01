@@ -102,6 +102,19 @@ test('glob $TURBO_ROOT$ sem excluir .turbo, node_modules e tsbuildinfo: falha (R
   assert.match(p[0], /^\/\/#lint:tests: .*\.turbo.*\(R3\)$/);
 });
 
+test('código que lê .coord/ falha (R4), mesmo com cache false; comentário e pathspec ":!.coord" não contam', () => {
+  turbo({ '@macuxi/core#test': { cache: false } });
+  escrever('modules/core/domain/d.test.ts', "// lê .coord/contratos no comentário\n/** `.coord/donos.json` */\nconst x = [':!.coord'];\n");
+  assert.deepEqual(verificar(raiz), []);
+  escrever('modules/core/domain/d.test.ts', "const donos = join(raiz, '.coord', 'donos.json');\n");
+  let p = verificar(raiz);
+  assert.equal(p.length, 1);
+  assert.match(p[0], /^@macuxi\/core: lê \.coord\/.*\(R4\)$/);
+  escrever('modules/core/domain/d.test.ts', "const donos = readFileSync('../../../.coord/donos.json');\n");
+  p = verificar(raiz);
+  assert.ok(p.some((x) => x.includes('(R4)')));
+});
+
 test('o turbo.json real do repositório passa', () => {
   assert.deepEqual(verificar(), []);
 });

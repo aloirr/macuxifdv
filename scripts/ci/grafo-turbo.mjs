@@ -13,6 +13,8 @@
  *  R2. Toda dependência fora do grafo declarado (import de @macuxi/* não declarado, import relativo ou — só para
  *      `test` — caminho literal `../` que sai da pasta) precisa estar coberta por um glob `$TURBO_ROOT$/<pasta>/**` nos `inputs`
  *      da tarefa (`<pacote>#<tarefa>` no turbo.json da raiz).
+ *  R4. Nenhum código de pacote nem do tests/ lê `.coord/` (literal '.coord' ou '<...>/.coord/...' fora de comentário):
+ *      commit só de `.coord/**` roda só a governança no CI (scripts/ci/escopo.mjs), então nenhum teste pode depender dele.
  *  R3. Tarefa com glob `$TURBO_ROOT$/...` nos inputs também exclui node_modules, .turbo, .next, .expo, dist e
  *      *.tsbuildinfo (EXCLUSOES_RAIZ), senão o hash muda sozinho e o cache nunca acerta (ou acerta por acaso).
  *
@@ -90,6 +92,11 @@ export function dependenciasForaDoGrafo(raiz, unidade, pacotes) {
       const alvoPkg = porNome.get(nome);
       if (alvoPkg && nome !== unidade.nome && !unidade.declaradas.has(nome)) anotar(alvoPkg.dir, `import de ${nome} não declarado no package.json`, arq);
     }
+    // R4: literal de caminho para .coord/ (comentários removidos antes; "':!.coord'" do git pathspec não casa)
+    const semComentarios = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+    for (const m of semComentarios.matchAll(/['"`]((?:[^'"`\n]*\/)?\.coord(?:\/[^'"`\n]*)?)['"`]/g)) {
+      anotar('.coord', `${LE_COORD} (${m[1]})`, arq);
+    }
     // caminho literal relativo lido em tempo de execução (ex.: resolve(__dirname, '../../../docs/x.md'))
     for (const m of src.matchAll(/['"`]((?:\.\.\/)+[^'"`\n$]*)['"`]/g)) {
       const alvo = posix(relative(raiz, resolve(dirname(arq), m[1])));
@@ -101,6 +108,7 @@ export function dependenciasForaDoGrafo(raiz, unidade, pacotes) {
 
 /** Leitura de arquivo em tempo de execução: só afeta o resultado da tarefa `test` (lint e typecheck não leem). */
 const LEITURA = 'caminho relativo fora do pacote (leitura em tempo de execução)';
+const LE_COORD = 'lê .coord/ — commit só de .coord não roda testes';
 
 const dentro = (alvo, dir) => alvo === dir || alvo.startsWith(`${dir}/`);
 
@@ -126,6 +134,8 @@ export function verificar(raiz = RAIZ_PADRAO) {
   }
   for (const unidade of [...pacotes, UNIDADE_TESTS]) {
     const deps = dependenciasForaDoGrafo(raiz, unidade, pacotes);
+    // R4 vale com ou sem cache (é sobre o escopo do CI, não sobre o turbo): uma vez por unidade.
+    for (const d of deps) if (d.motivo.startsWith(LE_COORD)) problemas.push(`${unidade.nome === '//' ? 'tests' : unidade.nome}: ${d.motivo} → ${d.arquivo} (R4)`);
     for (const tarefa of Object.keys(unidade.tarefas)) {
       const def = definicao(turbo, unidade, tarefa);
       const id = `${unidade.nome}#${unidade.tarefas[tarefa]}`;
@@ -141,6 +151,7 @@ export function verificar(raiz = RAIZ_PADRAO) {
       }
       if (unidade.nome !== '//' && !(def.dependsOn ?? []).includes('transit')) problemas.push(`${id}: dependsOn precisa de "transit" (R1)`);
       for (const d of deps) {
+        if (d.motivo.startsWith(LE_COORD)) continue;
         if (d.motivo === LEITURA && tarefa !== 'test') continue;
         if (!cobre(def.inputs, d.alvo)) problemas.push(`${id}: ${d.motivo} → ${d.alvo} (${d.arquivo}) sem "$TURBO_ROOT$/<pasta>/**" nos inputs (R2)`);
       }
