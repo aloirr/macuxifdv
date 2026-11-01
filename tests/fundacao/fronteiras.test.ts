@@ -26,7 +26,17 @@ interface Resultado {
   status: number | null;
   violacoes: Violacao[];
   pares: string[];
+  /** stdout + stderr do reporter padrão (o que o CI mostra). */
+  textoCi: string;
 }
+
+/**
+ * Tempos de folga: estes casos provam fronteiras, não medem desempenho (medição só em job próprio,
+ * tests/plano/sprint-1.md). Sozinho o depcruise do repositório leva ~40 s; com a máquina dividida com
+ * outros agentes passou de 120 s. O teto alto só existe para não pendurar a suíte se o CLI travar.
+ */
+const TETO_REPO_MS = 600_000;
+const TETO_FIXTURES_MS = 300_000;
 
 /** node_modules/@macuxi/b → modules/b (junção no Windows, link no resto), como o pnpm faz no repo. */
 function ligarPacoteB(cenario: string): void {
@@ -60,7 +70,12 @@ async function cruzarFixture(cenario: string): Promise<Resultado> {
   const [ci, json] = await Promise.all([cruzar(cwd, alvos), cruzar(cwd, alvos, ['--output-type', 'json'])]);
   const saida = JSON.parse(json.stdout) as { summary: { violations: Violacao[] } };
   const violacoes = saida.summary.violations;
-  return { status: ci.status, violacoes, pares: violacoes.map((v) => `${v.rule.name}: ${v.from} → ${v.to}`) };
+  return {
+    status: ci.status,
+    violacoes,
+    pares: violacoes.map((v) => `${v.rule.name}: ${v.from} → ${v.to}`),
+    textoCi: `${ci.stdout}${ci.stderr}`,
+  };
 }
 
 let violacao: Resultado;
@@ -70,7 +85,7 @@ beforeAll(async () => {
   ligarPacoteB('violacao');
   ligarPacoteB('ok');
   [violacao, ok] = await Promise.all([cruzarFixture('violacao'), cruzarFixture('ok')]);
-}, 180_000);
+}, TETO_FIXTURES_MS);
 
 afterAll(() => {
   for (const c of ['violacao', 'ok']) rmSync(join(fixtures, c, 'node_modules'), { recursive: true, force: true });
@@ -86,7 +101,7 @@ describe('S0-010 — repositório real passa nas fronteiras', () => {
     const saida = JSON.parse(r.stdout) as { summary: { error: number; violations: Violacao[] } };
     expect(saida.summary.violations.filter((v) => v.rule.severity === 'error')).toEqual([]);
     expect(r.status).toBe(0);
-  }, 120_000);
+  }, TETO_REPO_MS);
 });
 
 describe('S0-011 — fixture de violação FALHA, uma aresta por variante', () => {
@@ -119,13 +134,11 @@ describe('S0-011 — fixture de violação FALHA, uma aresta por variante', () =
     );
   });
 
-  it('a mensagem do CI (reporter padrão) cita a regra violada', async () => {
-    const cwd = join(fixtures, 'violacao');
-    const r = await cruzar(cwd, ['modules', 'packages', 'apps']);
-    const texto = `${r.stdout}${r.stderr}`;
-    expect(texto).toContain(proibido);
-    expect(texto).toContain('modulo-importa-caminho-nao-exportado');
-  }, 120_000);
+  it('a mensagem do CI (reporter padrão) cita a regra violada', () => {
+    // Reaproveita a execução do reporter padrão feita no beforeAll (mesmos alvos e config).
+    expect(violacao.textoCi).toContain(proibido);
+    expect(violacao.textoCi).toContain('modulo-importa-caminho-nao-exportado');
+  });
 });
 
 describe('S0-013 — plataforma e contracts não dependem de camadas internas', () => {

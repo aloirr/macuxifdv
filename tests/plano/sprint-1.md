@@ -13,7 +13,7 @@
 
 | Tarefa | Veredito | Resumo |
 |---|---|---|
-| T-0018 | ✅ critérios demonstrados (1 defeito menor aberto, D-5) | D-4 fechado: o "Sincronizar" do vendedor com as etapas do shell termina sem erro na API real (S1-043, agora `it`), e 401, 403, 423 e 5xx nas etapas da Fase M do Vendedor derrubam o sync sem apagar nada (S1-043c). D-3 fechado: o check-in aceito segue na tela até o pull trazer a linha e o app continua barrando o 2º atendimento (S1-042, agora `it`; `estado.aceitos` esvazia depois do horizonte). Aberto D-5 (Core): as cargas do Core ainda engolem 401/423 (S1-043d, `it.fails`); não bloqueia o critério 2 porque o shell trata o 423 no `ApiClient` (`aoErroHttp`) |
+| T-0018 | ✅ critérios demonstrados (D-3, D-4 e D-5 fechados) | D-4 fechado: o "Sincronizar" do vendedor com as etapas do shell termina sem erro na API real (S1-043, agora `it`), e 401, 403, 423 e 5xx nas etapas da Fase M do Vendedor derrubam o sync sem apagar nada (S1-043c). D-3 fechado: o check-in aceito segue na tela até o pull trazer a linha e o app continua barrando o 2º atendimento (S1-042, agora `it`; `estado.aceitos` esvazia depois do horizonte). D-5 fechado (rodada 4): nas cargas do Core, 401, 403, 423 e 5xx derrubam o sync e 404/501 seguem pulados (S1-043d, agora `it`) |
 | T-0019 | ✅ critérios 1 e 2 demonstrados | D-3 fechado: a leitura aceita continua lida na caixa até o pull (S1-065, agora `it`; helper `caixa` lê `motor.sobreposicao(['notificacao_leitura'])`, como `usar-notificacoes.ts`). Critério 3 (push real) segue com a T-0022 e o build EAS |
 
 ### Rodada 2 (2026-10-31)
@@ -24,8 +24,8 @@
 | T-0018 | ❌ 2 defeitos (D-3, D-4) | Critérios 1, 3 e 4 ✅ e RN-CORE-11, escopo e tenant ✅. Critério 2 ❌ no app de verdade: com as etapas do shell o "Sincronizar" do vendedor termina com erro (D-4, 404 nas etapas da Fase M do Vendedor); sem elas o pull de visita e pedido está certo (S1-043b). D-3: check-in aceito some do aparelho até o pull seguinte |
 | T-0019 | ❌ 1 defeito (D-3) | Critérios 1 e 2 ✅ (recado chega no próximo sync, leitura offline sobe, escopo por usuário e tenant, 403 fora da equipe, idempotência). D-3: a leitura aceita volta a "não lida" no aparelho até o sync seguinte. Critério 3 (push real) fica para a T-0022 e o build EAS |
 
-Rodada 3: S1-042, S1-043 e S1-065 viraram `it` (cada um ficou vermelho como `it.fails` antes da troca); resta `it.fails` só o
-S1-043d (D-5). Os casos dos defeitos estão como `it.fails` (passam enquanto o defeito existir; quando corrigirem, ficam vermelhos e o testes
+Rodada 3: S1-042, S1-043 e S1-065 viraram `it` (cada um ficou vermelho como `it.fails` antes da troca); restava `it.fails` só o
+S1-043d (D-5), que virou `it` na rodada 4 (nenhum `it.fails` na suíte). Os casos dos defeitos estão como `it.fails` (passam enquanto o defeito existir; quando corrigirem, ficam vermelhos e o testes
 troca por `it`), para a suíte seguir verde e o defeito visível.
 
 ## T-0017 — Carteira e Cliente 360 (RF-CORE-02, RF-CORE-04; RN-CORE-04/05) + RN-CORE-15
@@ -172,7 +172,7 @@ da sessão com base `/v1` e leitor de fotos locais. As ações são as da tela: 
 | S1-042 | Depois que o check-in é aceito, o aparelho continua mostrando o atendimento até o pull trazer a linha e barra o 2º check-in (RN-CORE-11); o item fica em `estado.aceitos` e, depois do horizonte, o pull traz a linha aberta e `aceitos` esvazia | "S1-042 D-3 ..." | ✅ (rodada 3; era ❌ D-3) |
 | S1-043 | **Critério 2 — "Sincronizar" do Campo** com as etapas de carga que o shell passa no modo v1 (`etapasCore` + `etapasVendedor`) termina sem erro e traz visita, rota e pedido; as etapas do Vendedor foram chamadas e receberam só 404 (pulo tolerado) | "S1-043 ..." | ✅ (rodada 3; era ❌ D-4) |
 | S1-043c | D-4, outro lado: com o HTTP das etapas do Vendedor respondendo 401 `NAO_AUTENTICADO`, 403 `PERFIL_SEM_ACESSO`, 403 `MODULO_INATIVO`, 423 `DISPOSITIVO_BLOQUEADO` ou 500, o `sincronizar()` = false com o código no erro e as linhas do aparelho intactas; 404 e 501 `SYNC_NAO_IMPLEMENTADO` seguem pulados (sync ok) | "S1-043c ..." | ✅ |
-| S1-043d | O mesmo nas cargas do Core (`metas`, `pedidos-da-visita`): 401 e 423 têm de derrubar o sync | "S1-043d DEFEITO D-5 ..." (`it.fails`) | ❌ D-5 |
+| S1-043d | O mesmo nas cargas do Core (`metas`, `pedidos-da-visita`): 401 `NAO_AUTENTICADO`, 403 `PERFIL_SEM_ACESSO`, 403 `MODULO_INATIVO`, 423 `DISPOSITIVO_BLOQUEADO` e 500 derrubam o sync com o código no erro e as linhas do aparelho intactas; 404 e 501 `SYNC_NAO_IMPLEMENTADO` seguem pulados | "S1-043d D-5 ..." | ✅ (rodada 4; era ❌ D-5) |
 | S1-043b | Critério 2 sem as etapas da Fase M: o pull genérico de `visita`, `rota`, `rota_parada`, `motivo`, `parametro`, `pedido`, `pedido_item` e do Cliente 360 termina sem erro e **sem aviso** (o 501 do D-2 acabou para visita e pedido); a visita de hoje vem ligada ao pedido p1 | "S1-043b ..." | ✅ |
 | S1-044 | **Critério 3 — RN-CORE-10**: a ~900 m do c1 o app devolve "justificar" com o raio do tenant (200) e nada entra na fila; com a justificativa o servidor grava `fora_do_raio = true`, distância e justificativa, e o supervisor vê no BKO (`GET /v1/core/visitas?fora_do_raio=true`); app adulterado (push direto, sem justificativa) → `rejeitado/RN-CORE-10` e nada gravado | "S1-044 ..." | ✅ |
 | S1-045 | RN-CORE-10 — **raio do parâmetro do tenant**: `core.checkin.raio_m` de A → 2000: no próximo sync o aparelho recebe 2000 (pull `parametro`, só essa chave), o check-in a ~900 m sai sem justificativa e o servidor aceita sem sinalizar; → 500: o app volta a pedir justificativa (raio 500) e o servidor rejeita; o tenant B continua com 200 no aparelho e no servidor | "S1-045 ..." | ✅ |
@@ -189,7 +189,7 @@ da sessão com base `/v1` e leitor de fotos locais. As ações são as da tela: 
 |---|---|---|---|---|
 | D-3 | **Item aceito sai da fila antes de o pull trazer a linha e o fato "some" do aparelho.** O pull só devolve linhas com `updated_at < now() − 2 s` e a sobreposição (ADR 0009 §3) só cobre itens `pendente`/`falhou`. Com sinal, o `fazerCheckin` dispara o envio e, ~100 ms depois, o atendimento sai da rota (parada volta a "próxima"; RN-CORE-11 no aparelho deixa fazer outro check-in, que o servidor fecha como `nao_finalizado`). O mesmo na leitura de notificação (T-0019). Num "Sincronizar" completo fica escondido só porque, aqui, os pulls anteriores levam mais de 2 s | check-in online → `await motor.enviar()` → `armazem.carregar()` → a visita não está em `obter().visitas` (S1-042; S1-065 para a notificação) | packages/platform-sdk/src/motor-sync.ts (item aceito, ~l. 498); modules/core/app/lib/rota-local.ts `pendentesDaFila`; modules/core/app/lib/notificacoes.ts `montarCaixa`; corrida em acoes-visita.ts (`void motor.enviar()` antes de `armazem.carregar()`) | `pedido` R-20261031-210639-testes → engenheiro-software; cópia R-20261031-210710-testes → modulo-core. **Fechado na rodada 3**: motor com `estado.aceitos` + `motor.sobreposicao()` e API com `horizonte`/`em` (R-20261031-215653, ADR 0009 adendo §3); Core lendo a sobreposição (R-20261031-221100). S1-042 e S1-065 ✅ |
 | D-4 | **"Sincronizar" do vendedor termina com erro na API real.** No modo v1 o shell passa todas as `etapasSync` (apps/mobile/src/state/plataforma.tsx:180); as do Vendedor (REST da Fase M: `GET /me`, `/discount-policy`, `/customers`, `/products`, `/orders`) dão 404 e não tratam 4xx → `sincronizar()` = false, erro "404 NAO_ENCONTRADO: Rota não encontrada." (as do Core, `/goals/me` e `/orders`, também dão 404 mas toleram) | aparelho com `etapas: [...etapasCore, ...etapasVendedor]` → `sincronizar()` (S1-043) | modules/vendedor/app/etapas.ts; alternativa no shell (plataforma.tsx:180) | `pedido` R-20261031-210744-testes → modulo-vendedor; cópia R-20261031-210746-testes → engenheiro-software. **Fechado na rodada 3**: `toleraSemRota` em modules/vendedor/app/etapas.ts (R-20261031-213012) só pula 404/501; S1-043 e S1-043c ✅ |
-| D-5 | **Cargas da Fase M do Core engolem 401 e 423.** `ou4xxNulo` (`erroDeCliente`: status 400..499) nas etapas `metas` (`/goals/me`) e `pedidos-da-visita` (`/orders`): com a sessão vencida ou o aparelho bloqueado o "Sincronizar" termina "Pronto". Gravidade baixa: o 423 é tratado pelo `ApiClient` do shell (`aoErroHttp`, RN-CORE-15) mesmo assim, e o 401 passa pelo refresh antes de chegar à etapa | aparelho com `etapas: etapasCore`, HTTP das etapas respondendo 401 (`respostaEtapas` do helper) → `sincronizar()` = true (S1-043d) | modules/core/app/lib/cargas.ts (`ou4xxNulo`), modules/core/app/lib/http.ts (`erroDeCliente`) | `pedido` R-20261031-221226-testes → modulo-core |
+| D-5 | **Cargas da Fase M do Core engolem 401 e 423.** `ou4xxNulo` (`erroDeCliente`: status 400..499) nas etapas `metas` (`/goals/me`) e `pedidos-da-visita` (`/orders`): com a sessão vencida ou o aparelho bloqueado o "Sincronizar" termina "Pronto". Gravidade baixa: o 423 é tratado pelo `ApiClient` do shell (`aoErroHttp`, RN-CORE-15) mesmo assim, e o 401 passa pelo refresh antes de chegar à etapa | aparelho com `etapas: etapasCore`, HTTP das etapas respondendo 401 (`respostaEtapas` do helper) → `sincronizar()` = true (S1-043d) | modules/core/app/lib/cargas.ts (`ou4xxNulo`), modules/core/app/lib/http.ts (`erroDeCliente`) | `pedido` R-20261031-221226-testes → modulo-core. **Fechado na rodada 4**: `erroDeCliente` (modules/core/app/lib/http.ts) só trata 404, 501 e `SYNC_NAO_IMPLEMENTADO` como vazio (R-20261031-223508, teste do core em cargas.test.ts); S1-043d ✅ |
 
 #### Observações (para decisão, não são defeito)
 
@@ -250,7 +250,7 @@ mesma rota da página Recados do BKO.
 
 ## Pendências conhecidas da Sprint 1 (para fechar T-0017, T-0018 e T-0019)
 
-1. ~~**D-3** e **D-4**~~ fechados na rodada 3. Aberto **D-5** (modulo-core, baixa gravidade: cargas do Core engolem 401/423).
+1. ~~**D-3** e **D-4**~~ fechados na rodada 3; ~~**D-5**~~ (modulo-core, cargas do Core engoliam 401/423) fechado na rodada 4.
 2. **Push real** (T-0019 critério 3): depende do despachante de eventos (T-0022) e do build EAS com `expo-notifications`.
 3. **Sem teste de interface do app e do BKO**: Rota, Check-in/Checkout com câmera, Notificações, Cliente 360 no app;
    Cliente 360 web, Carteira, Rotas, Visitas, Coordenadas sugeridas, Motivos, Recados e Aparelhos no BKO. O e2e Playwright do
@@ -279,3 +279,30 @@ observação: se repetir com a máquina livre, vira defeito.
 - Comandos: `MACUXI_PG_EXIGIR=1 pnpm test:tests` ✅ **23 arquivos, 325 casos, 0 pulados** (eram 323; +S1-043c e S1-043d;
   1 caso `it.fails`, o S1-043d do D-5) · `pnpm lint:tests` ✅ · `pnpm typecheck:tests` ✅ ·
   `node scripts/coord.mjs verificar testes` sem violação. Core, engenheiro e banco seguiam alterando código em paralelo.
+
+### Rodada 4 (2026-10-31) — fechamento de D-5
+
+- O modulo-core corrigiu `erroDeCliente` (R-20261031-223505/223508): S1-043d virou `it` e ganhou os mesmos casos do
+  S1-043c (401, 403 `PERFIL_SEM_ACESSO`, 403 `MODULO_INATIVO`, 423, 500 derrubam; 404 e 501 pulam; nada some do aparelho).
+- Nenhum `it.fails` na suíte; D-3, D-4 e D-5 fechados.
+- Comandos: `MACUXI_PG_EXIGIR=1 pnpm test:tests` ✅ **23 arquivos, 325 casos, 0 pulados, nenhum `it.fails`** ·
+  `pnpm lint:tests` ✅ · `pnpm typecheck:tests` ✅ · `node scripts/coord.mjs verificar testes` sem violação.
+
+### Testes de tempo (2026-10-31, revisão final, R-20261031-224817)
+
+Regra: **medição de desempenho só vale em job próprio**; na suíte comum (`pnpm test`/`pnpm test:tests`), com a máquina
+dividida com outros arquivos e agentes, nenhum caso reprova só por tempo.
+
+- **S0-010** (`tests/fundacao/fronteiras.test.ts`): estourou 120 s com a máquina carregada (sozinho, 39 s). O que prova não
+  mudou (repositório real com 0 violações de erro; fixture de violação falha com 18 arestas; fixture `ok` passa). Mudou:
+  teto de 600 s no depcruise do repositório e 300 s no `beforeAll` das fixtures; o caso "mensagem do CI" reaproveita a saída
+  do reporter padrão já gerada no `beforeAll` (um depcruise a menos). O portão rápido do repositório real continua sendo
+  o `pnpm fronteiras` do `pnpm lint`.
+- **S0-110** (`tests/carga/fundacao.test.ts`): p95 e latência do login são medidos e impressos sempre, mas só reprovam com
+  `MACUXI_CARGA_MEDIR=1` (job próprio; tetos `MACUXI_CARGA_TETO_P95_MS`, padrão 8 s, e `MACUXI_CARGA_TETO_LOGIN_MS`, padrão
+  5 s). Fecha a observação da rodada 2 (p95 de 9,2 s com a máquina carregada). **S0-111** (isolamento entre tenants e
+  nenhuma resposta não-200 sob concorrência) segue reprovando em qualquer job. Casos com teto de execução explícito.
+- `tests/vitest.config.ts`: `testTimeout` 30 → 60 s e `hookTimeout` 120 → 300 s, como folga (não é medida).
+- Rodada: `MACUXI_PG_EXIGIR=1 pnpm test:tests` ✅ **23 arquivos, 325 casos, 0 pulados** com a máquina carregada (S0-010 em 61 s; p95 do pull em 8,7 s, só impresso) · `pnpm lint:tests` ✅ · `pnpm typecheck:tests` ✅.
+- Job de medição: `MACUXI_PG_EXIGIR=1 MACUXI_CARGA_MEDIR=1 pnpm exec vitest run --config tests/vitest.config.ts carga`
+  com a máquina livre.

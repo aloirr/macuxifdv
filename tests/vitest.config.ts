@@ -18,7 +18,9 @@ export default defineConfig({
     exclude: ['**/node_modules/**', 'fixtures/**'],
     globalSetup: ['../db/testes/global-setup.ts'],
     reporters: ['default', new AvisoPulos()],
-    testTimeout: 30_000,
-    hookTimeout: 120_000,
+    // Folga contra máquina carregada (vários agentes/arquivos em paralelo): tempo de caso não é medida
+    // de desempenho; medição só em job próprio (tests/plano/sprint-1.md, "Testes de tempo").
+    testTimeout: 60_000,
+    hookTimeout: 300_000,
   },
 });

@@ -305,20 +305,35 @@ describe.skipIf(semBanco())('T-0018 — rota e visitas reais no app Campo × API
     expect(await c.ap.sincronizar()).toBe(true);
   });
 
-  // DEFEITO D-5 (recado ao modulo-core): `ou4xxNulo` em modules/core/app/lib/cargas.ts trata QUALQUER 4xx como "vazio" →
-  // 401 e 423 nas cargas do Core terminam o "Sincronizar" com sucesso. `it.fails` enquanto o defeito existir.
-  it.fails('S1-043d DEFEITO D-5 (RN-CORE-15): nas cargas da Fase M do Core (metas, pedidos da visita), 401 e 423 também não são engolidos', async () => {
+  // D-5 (corrigido pelo modulo-core, T-0018): `erroDeCliente` (modules/core/app/lib/http.ts) só trata 404, 501 e
+  // SYNC_NAO_IMPLEMENTADO como vazio. Nas cargas do Core, 401, 403 e 423 (RN-CORE-15) e 5xx chegam ao shell e derrubam o sync.
+  it('S1-043d D-5 (RN-CORE-15): nas cargas da Fase M do Core (metas, pedidos da visita), 401, 403 e 423 (e 5xx) não são engolidos; 404 e 501 seguem pulados', async () => {
     const c = await noCampo('vendedor@exemplo.com.br', { etapas: etapasCore });
     expect(await c.ap.sincronizar()).toBe(true);
-    for (const [status, codigo] of [
-      [401, 'NAO_AUTENTICADO'],
-      [423, 'DISPOSITIVO_BLOQUEADO'],
-    ] as const) {
+    const visitasAntes = (await c.ap.motor.linhas('visita')).length;
+    expect(visitasAntes).toBeGreaterThan(0);
+    const casos: Array<[number, string, boolean]> = [
+      [401, 'NAO_AUTENTICADO', false],
+      [403, 'PERFIL_SEM_ACESSO', false],
+      [403, 'MODULO_INATIVO', false],
+      [423, 'DISPOSITIVO_BLOQUEADO', false],
+      [500, 'ERRO_INTERNO', false],
+      [404, 'NAO_ENCONTRADO', true],
+      [501, 'SYNC_NAO_IMPLEMENTADO', true],
+    ];
+    for (const [status, codigo, passa] of casos) {
       c.ap.respostaEtapas.valor = { status, codigo };
-      expect(await c.ap.sincronizar(), `${status} ${codigo}`).toBe(false);
-      expect(c.ap.motor.estado().erro, `${status} ${codigo}`).toContain(codigo);
+      c.ap.chamadasEtapas.length = 0;
+      const ok = await c.ap.sincronizar();
+      const e = c.ap.motor.estado();
+      expect(c.ap.chamadasEtapas.length, `${status} ${codigo}: as etapas do Core rodaram`).toBeGreaterThan(0);
+      expect(ok, `${status} ${codigo}`).toBe(passa);
+      if (passa) expect(e.erro, `${status} ${codigo}`).toBeNull();
+      else expect(e.erro, `${status} ${codigo}`).toContain(codigo);
+      expect((await c.ap.motor.linhas('visita')).length, `${status} ${codigo}: nada some do aparelho`).toBe(visitasAntes);
     }
     c.ap.respostaEtapas.valor = null;
+    expect(await c.ap.sincronizar()).toBe(true);
   });
 
   it('S1-043b critério 2 sem as etapas da Fase M: o pull genérico (visita, rota, parada, motivo, parâmetro, pedido) termina sem erro e sem aviso', async () => {
