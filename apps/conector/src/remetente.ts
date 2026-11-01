@@ -192,6 +192,7 @@ function finalizar(ctx: Contexto, lote: LoteLocal, res: ResultadoLoteHub): void 
     erros_definitivos: naoReenviaveis.filter((e) => e.codigo !== 'falha_processamento').length,
     aguardando_referencia: aguardandoReferencia.length,
     reenviar_transitorios: transitorios.length,
+    ...(res.erros_omitidos ? { erros_omitidos_pelo_hub: res.erros_omitidos } : {}),
   });
 }
 

@@ -232,3 +232,31 @@ describe('T-0027 (D-4): HTTP 426 é PAUSA, não recusa definitiva', () => {
     expect(new ErroHubVersao('m', null, null)).toBeInstanceOf(Error);
   });
 });
+
+describe('T-0027: divergências menores (D-5, D-7) e P-6 vistas do Conector', () => {
+  it('D-5: o resultado do lote é pedido com limite_erros=5500 (o máximo do contrato); nenhuma falha_processamento fica de fora', async () => {
+    amb = await criarAmbiente();
+    amb.erp.definir('cliente', [bom('c1', 1)]);
+    await rodar(amb, 2);
+    const consulta = amb.hub.chamadas.find((c) => c.metodo === 'GET' && /\/lotes\/[^/?]+\?/.test(c.caminho));
+    expect(consulta?.caminho).toMatch(/\?limite_erros=5500$/);
+  });
+
+  it('D-7: conector_id do corpo (lote e sinal) é sempre o mesmo do cabeçalho — vêm do mesmo hub.conectorId', async () => {
+    amb = await criarAmbiente();
+    amb.erp.definir('cliente', [bom('c1', 1)]);
+    await new Executor(amb.ctx).ciclo();
+    await processarFila(amb.ctx);
+    const ids = new Set([...amb.hub.chamadas.map((c) => c.conectorId), amb.hub.envelopes[0]?.conector_id, (amb.hub.sinais[0] as { conector_id?: string }).conector_id]);
+    expect([...ids]).toEqual(['cnx-teste-01']);
+  });
+
+  it('P-6 (RN-INT-13): lote de entidade que é de outro Conector (422 entidade_de_outro_conector) bloqueia a entidade com a causa legível', async () => {
+    amb = await criarAmbiente();
+    amb.erp.definir('cliente', [bom('c1', 1)]);
+    amb.hub.recusarProximoEnvelope = { codigo: 'entidade_de_outro_conector', mensagem: 'Este Conector não está cadastrado para a entidade "cliente".' };
+    await rodar(amb, 1);
+    expect(amb.ctx.store.estado('cliente')?.bloqueio).toMatch(/entidade_de_outro_conector.*conector retomar cliente/);
+    expect(amb.ctx.store.contarLotes('cliente', ['recusado'])).toBe(1);
+  });
+});

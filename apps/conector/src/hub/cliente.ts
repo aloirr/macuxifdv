@@ -9,6 +9,7 @@ import {
   CABECALHO_CONECTOR_ID,
   CABECALHO_CONECTOR_VERSAO,
   CursorEntidade,
+  LIMITE_ERROS_RESPOSTA_MAX,
   LoteAceito,
   PedidosPendentes,
   RecusaEnvelope,
@@ -182,9 +183,13 @@ export class ClienteHub {
     return { tipo: 'recusado', status, recusa: recusa.success ? recusa.data : null };
   }
 
-  /** `GET /lotes/{id}` — resultado por linha. `null` se o Hub não conhece o lote (404). */
+  /**
+   * `GET /lotes/{id}` — resultado por linha. `null` se o Hub não conhece o lote (404). Pede o máximo de erros do contrato
+   * (`limite_erros`, 5.500 = 5.000 registros + 500 inválidas; D-5 da T-0027): o Hub devolve as `falha_processamento` primeiro e,
+   * assim, nenhuma linha transitória a reenviar fica de fora da resposta.
+   */
   async consultarLote(loteId: string): Promise<ResultadoLoteHub | null> {
-    const { status, json } = await this.chamar('consultar_lote', 'GET', `/lotes/${encodeURIComponent(loteId)}`);
+    const { status, json } = await this.chamar('consultar_lote', 'GET', `/lotes/${encodeURIComponent(loteId)}?limite_erros=${LIMITE_ERROS_RESPOSTA_MAX}`);
     if (status === 404) return null;
     if (status !== 200) throw new ErroHubTransitorio(`Resposta inesperada do Hub (HTTP ${status}) ao consultar o lote.`, status);
     return this.interpretar(ResultadoLote, json, 'consultar_lote');

@@ -61,6 +61,8 @@ export class HubFalso {
   /** Cada POST /lotes que chegou ao processamento (não conta repetição por chave). */
   readonly envelopes: LoteEnvelope[] = [];
   readonly chamadas: Chamada[] = [];
+  /** Query string de cada chamada (sem o `?`), na ordem. */
+  readonly consultas: string[] = [];
   readonly cursores = new Map<string, Cursor>();
   readonly registros = new Map<string, Map<string, Record<string, unknown>>>();
   pedidosParaEntregar: PedidoParaErp[] = [];
@@ -156,11 +158,13 @@ export class HubFalso {
       this.responder(res, 401, { erro: 'nao_autorizado' });
       return;
     }
-    if (!caminhoCompleto.startsWith(API_PREFIX_INTEGRACAO)) {
+    if (!caminhoCompleto.startsWith(`${API_PREFIX_INTEGRACAO}/`)) {
       this.responder(res, 404, {});
       return;
     }
-    const caminho = caminhoCompleto.slice(API_PREFIX_INTEGRACAO.length);
+    const [semQuery = '', query = ''] = caminhoCompleto.split('?');
+    const caminho = semQuery.slice(API_PREFIX_INTEGRACAO.length);
+    this.consultas.push(query);
     const corpo = corpoTexto ? (JSON.parse(corpoTexto) as unknown) : undefined;
     const versao = String(req.headers['x-macuxi-conector-versao'] ?? '');
     if (this.exigirVersao && caminho !== '/sinal' && lerSemver(versao) && compararVersoes(versao, this.exigirVersao.minima) < 0) {
