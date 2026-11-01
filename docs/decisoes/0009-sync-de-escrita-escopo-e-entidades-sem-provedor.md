@@ -46,6 +46,7 @@ de sync cujo escopo depende de quem é o usuário (títulos, histórico, visitas
 5. **Janela de tempo no provedor.** Entidade que cresce sem limite (visita, rota, título liquidado, notificação, histórico) só
    devolve linhas dentro de uma janela (`data >= hoje − N`). Linha que sai da janela não é apagada pelo servidor: o módulo poda
    localmente por data (etapa de limpeza do próprio módulo). A janela de cada entidade fica no desenho do módulo.
+   **Adendo (revisão final da Sprint 1)**: só limite que a linha deixa com o tempo; nunca limite superior por data futura (ver adendo §5).
 6. **`ctx.usuariosVisiveis()`** no contexto da rota e do provedor (porta nova, fornecida pelo Core em
    `servicos.usuariosVisiveis`, padrão que falha fechado = só o próprio usuário): conjunto de usuários cujos dados o usuário vê
    (RN-CORE-04: ele mesmo; supervisor + a equipe; gerente + equipes abaixo; analista/assistente/admin `'tenant'`). Usado por
@@ -58,6 +59,17 @@ de sync cujo escopo depende de quem é o usuário (títulos, histórico, visitas
      disponível no servidor", e não bloqueia o resto do lote. Entidade fora de todos os manifestos continua `ENTIDADE_DESCONHECIDA`
      (D-1 / T-0015 decide a ordem com `MODULO_INATIVO`).
    - Isso não substitui os provedores reais: na Sprint 1 `visita` (core) e `pedido`/`pedido_item` (vendedor, só pull) ganham provedor.
+
+## Adendo 2026-10-31 — §5: a janela só pode ter limite que a linha deixa com o tempo (revisão final da Sprint 1)
+**Problema** (revisão da T-0018): a janela de `rota`/`rota_parada` era `data ∈ [hoje − 40, hoje + 30]`. Uma rota gravada para
+daqui a 45 dias fica fora da janela no pull de hoje; o cursor `(updated_at, id)` passa por ela e, quando a data entra na janela,
+nada mudou na linha (`updated_at` antigo): ela nunca chega ao aparelho. A `versao_escopo` não ajuda (o conjunto de usuários não mudou).
+
+**Decisão**: o filtro de janela do provedor só pode excluir linhas que **saem** dela com o passar do tempo (limite inferior por
+data/instante, ex.: `data >= hoje − 40`, `created_at >= now() − 30 dias`, `expira_em > now()`). Limite superior por data futura
+(`data <= hoje + N`) é proibido: o que ainda vai entrar tem de vir já no primeiro pull. Quem precisa limitar o futuro limita na
+escrita (ex.: o BKO não grava rota além de N dias) ou na tela. Correção: `rota` e `rota_parada` passam a `data >= hoje − 40`
+(desenho T-0016 §2). Teste do provedor: linha com data além do limite antigo vem no pull.
 
 ## Adendo 2026-10-31 — §3: o item aceito continua sobreposto até o pull trazer a linha (D-3)
 **Problema** (D-3, testes, T-0018/T-0019): o item saía da fila no `aceito`, mas a linha só volta pelo pull depois do

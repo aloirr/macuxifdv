@@ -56,3 +56,15 @@ mock-api; (4) a câmera para a foto da fachada (RN-CORE-14) sem o módulo import
   ganharem rotas v1 — a demonstração continua no modo demo.
 - Pendências: refresh do BKO em cookie httpOnly; `trustProxy` no Fastify quando a API ficar atrás de proxy (o limite de login
   por IP passa a ver o IP real); envio das fotos ao servidor (Sprint 1).
+
+## Adendo (2026-10-31, T-0004 §7.1) — sintaxe que o Babel do Metro aceita
+- **Contexto**: os builds EAS `campo-preview` e `gestao-preview` caíram na fase `EAGER_BUNDLE`: o `babel-preset-expo` rejeita
+  `declare` em campo de classe (`declare readonly status: 422;` em `ErroRegraNegocio`), que o `tsc` aceita.
+- **Decisão**: as subclasses de `ErroHttpModulo` estreitam o status com `override readonly status = 422 as const;` (mesmo valor e
+  mesmo tipo literal). `declare` em campo de classe fica proibido no monorepo (`no-restricted-syntax`
+  `PropertyDefinition[declare=true]` em `packages/config/eslint.mjs`), e o CI roda o bundle do Metro nas duas variantes
+  (`pnpm --filter mobile bundle:android` com `APP_VARIANT=campo|gestao`) antes de qualquer build da Expo.
+- **Alternativa**: `apps/mobile/babel.config.js` com `allowDeclareFields` — descartada: config de Babel própria no shell e
+  semântica de campo diferente entre o tsc e o Metro.
+- **Consequência**: o CI fica ~2 a 3 min mais longo (timeout do job 30 → 40 min); erro de sintaxe para o Metro aparece no PR, não
+  na nuvem da Expo.

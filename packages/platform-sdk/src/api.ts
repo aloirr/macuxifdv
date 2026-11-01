@@ -321,7 +321,8 @@ export class ErroHttpModulo extends Error {
 
 /** Erro de regra de negócio: a API responde 422 `{ codigo, mensagem, detalhes? }` (codigo = id da RN). */
 export class ErroRegraNegocio extends ErroHttpModulo {
-  declare readonly status: 422;
+  // Sem `declare` em campo de classe: o Babel do Metro o rejeita e o build EAS cai (T-0004 §7; regra no eslint).
+  override readonly status = 422 as const;
   constructor(codigo: string, mensagem: string, detalhes?: Record<string, unknown>) {
     super(422, codigo, mensagem, detalhes);
     this.name = 'ErroRegraNegocio';
@@ -333,7 +334,7 @@ export class ErroRegraNegocio extends ErroHttpModulo {
  * (RN-CORE-04). Ex.: `throw new ErroNaoEncontrado('PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado na sua carteira.')`.
  */
 export class ErroNaoEncontrado extends ErroHttpModulo {
-  declare readonly status: 404;
+  override readonly status = 404 as const;
   constructor(codigo: string, mensagem: string) {
     super(404, codigo, mensagem);
     this.name = 'ErroNaoEncontrado';

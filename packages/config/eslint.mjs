@@ -28,6 +28,16 @@ export const macuxiEslint = tseslint.config(
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-require-imports': 'off',
+      // O Babel do Metro (babel-preset-expo) rejeita `declare` em campo de classe e o build EAS cai no bundle
+      // (T-0004 §7, ADR 0008 adendo). Vale no monorepo todo: platform-sdk e modules/* vão para o app.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'PropertyDefinition[declare=true]',
+          message:
+            'Sem `declare` em campo de classe: o Babel do Metro não aceita (T-0004 §7). Use `override readonly x = valor as const;`.',
+        },
+      ],
     },
   },
 );

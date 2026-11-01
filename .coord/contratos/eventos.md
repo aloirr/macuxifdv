@@ -12,7 +12,7 @@
 | `core.usuario.modulos_alterados@1` | core | todos (shell) |
 | `core.notificacao.criada@1` | core | core (envio do push pela Expo atrás de `MACUXI_PUSH_ATIVO=1`; despachante pronto na T-0022, consumidor pedido ao modulo-core) |
 | `core.rota.dia_planejado@1` | core | gestor (cobertura de rota, RN-GES; **planejado** — pedido do modulo-gestor via R-20261031-165536; payload a definir pelo modulo-core na T-0018, quando o BKO publica/gera a rota do dia) |
-| `core.meta.definida@1` | core | gestor (meta × realizado; **planejado** — idem; payload a definir pelo modulo-core na T-0020, no `PUT metas`) |
+| `core.meta.definida@1` | core | gestor (meta × realizado; a declarar). **Publicado** desde a T-0020 no `PUT metas/:usuarioId/:periodo`, só quando o valor muda; payload na nota "Sprint 1" abaixo |
 | `catalogo.produto.visualizado@1` | catalogo | gestor (P2) |
 | `catalogo.busca.realizada@1` | catalogo | catalogo (analytics) |
 | `vendedor.pedido.criado@1` | vendedor | gestor, core (metas) |
@@ -65,6 +65,18 @@
 >   `{ visita_id, usuario_id, cliente_id, checkin_em, checkout_em, data_local, resultado, motivo_codigo, pedido_id, fechada_por, permanencia_s }`
 >   — `resultado`: `atendido | pedido | sem_pedido | cliente_fechado | nao_finalizado`; `fechada_por`: `usuario | auto`.
 >   O Promotor usa `permanencia_s` (RN-PRO-07).
+>   **A mesma visita pode ter dois `checkout@1`** (revisão final da Sprint 1): o servidor fecha sozinho a aberta esquecida ou
+>   duplicada (`fechada_por: 'auto'`, `resultado: 'nao_finalizado'`, RN-CORE-11) e depois chega o checkout real do aparelho, que
+>   **vence** (`fechada_por: 'usuario'`, desenho T-0016 §4.3). O consumidor guarda por `visita_id` e deixa o `usuario` substituir o
+>   `auto` (nunca o contrário); a idempotência por `evento_id` não cobre esse caso, porque são dois eventos diferentes.
+> - `core.meta.definida@1` (publicado na T-0020, `modules/core/contracts/eventos.ts`, `MetaDefinidaSchema`):
+>   `{ usuario_id, periodo: 'AAAA-MM', indicador: 'venda_cents' | 'positivacao' | 'cobertura_pct' | 'visitas', valor: inteiro ≥ 0,
+>   valor_anterior: inteiro | null, definido_por: uuid }` — `valor` em centavos (`venda_cents`), contagem ou pontos-base
+>   (`cobertura_pct`). Um evento por indicador alterado; a última versão do (usuário, período, indicador) vence. Substitui o
+>   formato pedido pelo Gestor (`{ usuario_id, mes, meta_cents }`): `mes` = `periodo` e `meta_cents` = `valor` com
+>   `indicador = 'venda_cents'`.
+> - `core.rota.dia_planejado@1` continua **planejado** (não é publicado ainda): entra quando o Gestor for usar (Sprint 6) ou na
+>   T-0024; até lá a cobertura de rota sai do pull de `rota`/`rota_parada` ou da API do Core.
 > - `core.cliente.atualizado@1` (payload definido agora): `{ cliente_id, campos: string[], origem: 'erp' | 'bko' | 'campo' }`.
 > - `core.notificacao.criada@1` (novo): `{ notificacao_id, usuario_id, tipo, prioridade }` — sem título/corpo (dado pessoal fica no banco).
 > - O Core passa a consumir, quando houver despachante: `vendedor.pedido.faturado@1` e `vendedor.pedido.status_alterado@1`

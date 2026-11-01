@@ -1,7 +1,7 @@
 name: CI
 
 # T-0005: lint (inclui fronteiras), typecheck, testes (com Postgres de verdade), testes do coord e dos guardiões,
-# verificação de donos no PR (--base) e por commit no push ao main (--por-commit), e build do Backoffice Web.
+# verificação de donos no PR (--base) e por commit no push ao main (--por-commit), build do Backoffice Web e bundle do app (T-0004 §7).
 # Node 24 (.nvmrc e engines >=24.7 do package.json): o setup-node resolve "24" para a 24.x mais recente.
 
 on:
@@ -20,7 +20,7 @@ jobs:
   verificar:
     name: donos, lint, fronteiras, typecheck, testes e build web
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     # Mesma imagem do db/docker-compose.yml (T-0002). Os testes de db/ criam um banco efêmero
     # macuxi_teste_*, aplicam as migrações e a fixture dois-tenants.
@@ -108,3 +108,16 @@ jobs:
 
       - name: build do Backoffice Web (next build)
         run: pnpm --filter web build
+
+      # T-0004 §7: o mesmo bundle que o EAS roda na fase EAGER_BUNDLE (Metro + babel-preset-expo), nas duas variantes.
+      # Erro de sintaxe que o tsc aceita e o Babel não (ex.: `declare` em campo de classe) fica vermelho aqui, antes de
+      # gastar build da Expo. Não precisa de conta Expo nem de Android SDK.
+      - name: bundle do app (Metro) — variante campo
+        env:
+          APP_VARIANT: campo
+        run: pnpm --filter mobile bundle:android
+
+      - name: bundle do app (Metro) — variante gestao
+        env:
+          APP_VARIANT: gestao
+        run: pnpm --filter mobile bundle:android
