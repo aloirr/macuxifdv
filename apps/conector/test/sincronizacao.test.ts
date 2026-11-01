@@ -134,6 +134,30 @@ describe('carga inicial completa e delta (RN-INT-05, RN-INT-06)', () => {
     expect(amb.ctx.store.estado('cliente')?.bloqueio).toBeNull();
   });
 
+  it('mais linhas que a página no MESMO cursor (precisão do alterado_em): bloqueia com a causa e log.erro, sem reler para sempre', async () => {
+    amb = await criarAmbiente();
+    const T = '2026-03-01T10:00:00Z';
+    // o Hub já tem o cursor (T, "z"); o ERP devolve também as linhas do mesmo instante (precisão maior que a do filtro):
+    // c1..c4 > página de 3, e as 3 primeiras já foram lidas (id <= "z")
+    amb.hub.cursores.set('cliente', { alterado_em: T.replace('Z', '.000Z'), external_id: 'z' });
+    amb.erp.definir('cliente', ['c1', 'c2', 'c3', 'c4'].map((id) => cliente(id, T)));
+    amb.erp.devolverIgualAoCursor = true;
+
+    const r = await sincronizarEntidade(amb.ctx, 'cliente');
+    expect(r.lotesCriados).toBe(0);
+    const e = amb.ctx.store.estado('cliente');
+    expect(e?.bloqueio).toMatch(/a leitura não avança.*milissegundos/);
+    const bloqueios = amb.logs.map((l) => JSON.parse(l) as Record<string, unknown>).filter((l) => l.evento === 'entidade_bloqueada');
+    expect(bloqueios).toHaveLength(1);
+    expect(bloqueios[0]).toMatchObject({ nivel: 'erro', entidade: 'cliente' });
+
+    // os ciclos seguintes não consultam o ERP de novo: a entidade fica parada com o motivo visível
+    const consultas = amb.erp.consultas.length;
+    const seguinte = await sincronizarEntidade(amb.ctx, 'cliente');
+    expect(seguinte.adiado).toMatch(/bloqueada: a leitura não avança/);
+    expect(amb.erp.consultas.length).toBe(consultas);
+  });
+
   it('erro do ERP é registrado no estado e a próxima volta tenta de novo', async () => {
     amb = await criarAmbiente();
     amb.hub.cursores.set('cliente', { alterado_em: '2026-01-01T00:00:00.000Z', external_id: 'a0' });
@@ -269,10 +293,12 @@ describe('respostas do Hub: erro por linha, recusa de envelope e trava de inativ
     expect(amb.hub.linhasDe('cliente').map((r) => r.external_id)).toEqual(['c1']);
     expect(amb.hub.envelopes).toHaveLength(1); // nenhum reenvio
     expect(amb.ctx.store.estado('cliente')?.confirmado?.external_id).toBe('c2');
+    // RN-INT-03 (T-0023): a linha inválida foi ao Hub em `linhas_invalidas` (com o motivo); o Hub a devolve com origem `conector`
+    // e o Conector não duplica esse erro como se fosse do Hub: fica um erro local, com campo e sem valor
+    expect(amb.hub.envelopes[0]?.linhas_invalidas).toEqual([{ external_id: 'c2', codigo: 'campo_obrigatorio', campo: 'razao_social', mensagem: 'campo obrigatório sem valor' }]);
     const erros = amb.ctx.store.errosRecentes('cliente');
-    expect(erros.filter((e) => e.origem === 'hub')).toHaveLength(1);
-    expect(erros.find((e) => e.origem === 'hub')).toMatchObject({ externalId: 'c2', reprocessavel: false });
-    expect(erros.find((e) => e.origem === 'local')).toMatchObject({ externalId: 'c2', campo: 'razao_social' });
+    expect(erros.filter((e) => e.origem === 'hub')).toHaveLength(0);
+    expect(erros.find((e) => e.origem === 'local')).toMatchObject({ externalId: 'c2', campo: 'razao_social', codigo: 'mapeamento' });
   });
 
   it('quando o ERP corrige a linha (novo alterado_em), ela volta no delta seguinte', async () => {

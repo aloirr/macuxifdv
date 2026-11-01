@@ -4,7 +4,7 @@ import { extname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { ConfigConector } from './esquema';
 
-const CHAVES_PROIBIDAS = /^(senha|password|pwd|secret|segredo|token|apikey|api_key|chave_api)$/i;
+const CHAVES_PROIBIDAS = /^(senha|password|pwd|secret|segredo|token|apikey|api_key|api-key|chave_api|chave|hub_chave|chave_hub)$/i;
 
 export class ErroConfig extends Error {
   constructor(message: string, readonly problemas: string[] = []) {
@@ -35,8 +35,8 @@ export function interpretarConfig(texto: string, formato: 'json' | 'yaml'): Conf
   const segredos = acharSegredos(bruto);
   if (segredos.length > 0) {
     throw new ErroConfig(
-      `Segredo no arquivo de configuração: ${segredos.join(', ')}. Senhas e tokens não ficam no arquivo: use a variável de ambiente ` +
-        'MACUXI_CONECTOR_ERP_SENHA / MACUXI_CONECTOR_HUB_TOKEN ou o Gerenciador de Credenciais do Windows (conector segredo definir).',
+      `Segredo no arquivo de configuração: ${segredos.join(', ')}. Senhas e chaves não ficam no arquivo: use a variável de ambiente ` +
+        'MACUXI_CONECTOR_ERP_SENHA / MACUXI_CONECTOR_HUB_CHAVE ou o Gerenciador de Credenciais do Windows (conector segredo definir / conector trocar-chave).',
       segredos,
     );
   }

@@ -32,7 +32,7 @@ function escreverConfig(extra: Record<string, unknown> = {}) {
   const arquivo = join(dir, 'conector.json');
   writeFileSync(arquivo, JSON.stringify({
     dadosDir: join(dir, 'dados'),
-    hub: { url: 'http://127.0.0.1:9' },
+    hub: { url: 'http://127.0.0.1:9', conectorId: 'cnx-1' },
     erp: { tipo: 'postgres', host: 'localhost', banco: 'erp', usuario: 'u', criptografar: false },
     entidades: { produto: { consulta: CONSULTA, campos: { external_id: 'codigo', alterado_em: 'alterado_em', sku: 'sku', nome: 'nome', unidade: 'un' } } },
     ...extra,
@@ -60,7 +60,7 @@ describe('CLI', () => {
     const ok = io();
     expect(await executarCli(['validar-config', '--config', arq], ok)).toBe(0);
     expect(ok.saidas.join('')).toMatch(/Configuração válida: 1 entidade/);
-    const ruim = escreverConfig({ erp: { tipo: 'oracle', host: 'h', banco: 'b', usuario: 'u' } });
+    const ruim = escreverConfig({ erp: { tipo: 'mysql', host: 'h', banco: 'b', usuario: 'u' } });
     const e = io();
     expect(await executarCli(['validar-config', '--config', ruim], e)).toBe(1);
     expect(e.erros.join('')).toMatch(/Configuração inválida/);
@@ -128,7 +128,19 @@ describe('CLI', () => {
     expect(await executarCli(['testar-conexao', '--config', arq], a)).toBe(1);
     const t = a.erros.join('\n');
     expect(t).toMatch(/Segredo erp_senha não encontrado.*MACUXI_CONECTOR_ERP_SENHA/);
-    expect(t).toMatch(/Segredo hub_token não encontrado/);
+    expect(t).toMatch(/Segredo hub_chave não encontrado/);
+  });
+
+  it('testar-conexao avisa (sem falhar) quando o ERP está fora da LAN e a criptografia está desligada', async () => {
+    const remoto = io({});
+    expect(await executarCli(['testar-conexao', '--config', escreverConfig({ erp: { tipo: 'postgres', host: 'erp.cliente.com.br', banco: 'erp', usuario: 'u', criptografar: false } })], remoto)).toBe(1); // falta segredo
+    expect(remoto.saidas.join('\n')).toMatch(/\[aviso\].*fora de localhost\/LAN.*"criptografar": true/s);
+    const lan = io({});
+    await executarCli(['testar-conexao', '--config', escreverConfig()], lan); // host localhost
+    expect(lan.saidas.join('\n')).not.toMatch(/\[aviso\]/);
+    const tls = io({});
+    await executarCli(['testar-conexao', '--config', escreverConfig({ erp: { tipo: 'postgres', host: 'erp.cliente.com.br', banco: 'erp', usuario: 'u' } })], tls); // criptografar padrão: true
+    expect(tls.saidas.join('\n')).not.toMatch(/\[aviso\]/);
   });
 
   it('instalar-servico --somente-gerar grava o XML do WinSW sem segredos', async () => {
@@ -161,7 +173,7 @@ describe('executor (laço de execução)', () => {
     amb.erp.definir('cliente', [cliente('c1', '2026-03-01T10:00:00Z')]);
     const exec = new Executor(amb.ctx);
     const primeiras = await exec.ciclo();
-    expect(primeiras.slice(0, 3)).toEqual(['entidade:produto', 'entidade:cliente', 'fila']);
+    expect(primeiras.slice(0, 4)).toEqual(['sinal', 'entidade:produto', 'entidade:cliente', 'fila']);
     expect(primeiras).toContain('sinal');
     expect(amb.hub.linhasDe('cliente')).toHaveLength(1); // a fila roda no mesmo ciclo, logo depois das entidades
     expect(await exec.ciclo()).toEqual([]); // nada vencido ainda
@@ -170,7 +182,7 @@ describe('executor (laço de execução)', () => {
     amb.relogio.avancar(61_000);
     expect(await exec.ciclo()).toContain('sinal');
     expect(amb.hub.sinais.length).toBe(2);
-    expect(amb.hub.sinais[0]).toMatchObject({ versao_conector: '0.1.0', versao_contrato: 'v1' });
+    expect(amb.hub.sinais[0]).toMatchObject({ versao_conector: '1.1.0', versao_contrato: 'v1' });
     expect(JSON.stringify(amb.hub.sinais)).not.toMatch(/razao|Cliente c1/);
   });
 
@@ -237,7 +249,8 @@ describe('status', () => {
     amb.erp.definir('cliente', [cliente('c1', '2026-03-01T10:00:00Z'), { ...cliente('c2', '2026-03-01T10:00:01Z'), razao_social: null }]);
     await sincronizarEntidade(amb.ctx, 'cliente');
     const antes = montarStatus(amb.ctx.store, amb.ctx.config);
-    expect(antes.fila).toEqual([expect.objectContaining({ estado: 'pendente', lotes: 1, linhas: 2 })]);
+    // a linha inválida (razao_social nula) NÃO vai em `registros`: vai em `linhas_invalidas` (T-0023), então o lote tem 1 registro
+    expect(antes.fila).toEqual([expect.objectContaining({ estado: 'pendente', lotes: 1, linhas: 1 })]);
     const texto = formatarStatus(antes);
     expect(texto).toMatch(/cliente\s+delta\s+último sucesso: 2026-03-10/);
     expect(texto).toMatch(/erros: 1 locais/);

@@ -12,6 +12,7 @@ import { reconciliacaoVencida, reconciliarTudo } from './reconciliacao';
 import { sincronizarEntidade } from './sincronizador';
 import { montarStatus } from './status';
 import { dormir } from './util/retry';
+import { avaliarVersaoLocal, guardarPolitica } from './politica';
 import { VERSAO_CONECTOR } from './versao';
 import { VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
 
@@ -28,6 +29,8 @@ export class Executor {
   constructor(private readonly ctx: Contexto, private readonly opcoes: { tickMs?: number; dormir?: (ms: number) => Promise<void> } = {}) {
     const { config } = ctx;
     const agora = ctx.relogio.agora();
+    // o sinal vai PRIMEIRO: a resposta traz a política de versão, que precisa valer antes de qualquer envio da partida
+    this.tarefas.push({ nome: 'sinal', intervaloMs: config.sinalSegundos * 1000, proxima: agora, executar: () => this.sinal() });
     for (const e of ORDEM_CARGA) {
       if (!config.entidades[e]?.ativa) continue;
       this.tarefas.push({
@@ -48,7 +51,6 @@ export class Executor {
       this.tarefas.push({ nome: 'pedidos', intervaloMs: config.pedidos.consultaSegundos * 1000, proxima: agora, executar: async () => void (await cicloPedidos(ctx, { buscar: true, status: false })) });
       this.tarefas.push({ nome: 'pedidos_status', intervaloMs: config.pedidos.statusSegundos * 1000, proxima: agora, executar: async () => void (await cicloPedidos(ctx, { buscar: false, status: true })) });
     }
-    this.tarefas.push({ nome: 'sinal', intervaloMs: config.sinalSegundos * 1000, proxima: agora, executar: () => this.sinal() });
     this.tarefas.push({
       nome: 'reconciliacao', intervaloMs: 5 * 60_000, proxima: agora,
       executar: async () => {
@@ -58,15 +60,42 @@ export class Executor {
     this.tarefas.push({ nome: 'manutencao', intervaloMs: 3_600_000, proxima: agora, executar: async () => ctx.store.limpar(ctx.relogio.agora(), config.fila.retencaoDias) });
   }
 
+  private ultimaSituacaoVersao: string | null = null;
+  private ultimoAvisoVersaoMs = 0;
+
+  private get versao(): string {
+    return this.ctx.versao ?? VERSAO_CONECTOR;
+  }
+
+  /** Registra no log a situação da versão: na primeira vez, quando muda e, enquanto parado/desatualizado, a cada hora. */
+  private registrarVersao(): void {
+    const a = avaliarVersaoLocal(this.ctx.store, this.versao);
+    const agora = this.ctx.relogio.agora();
+    const mudou = a.situacao !== this.ultimaSituacaoVersao;
+    const lembrar = a.situacao !== 'ok' && a.situacao !== 'sem_politica' && agora - this.ultimoAvisoVersaoMs >= 3_600_000;
+    if (!mudou && !lembrar) return;
+    this.ultimaSituacaoVersao = a.situacao;
+    this.ultimoAvisoVersaoMs = agora;
+    if (a.deveParar) this.ctx.log.erro('versao_abaixo_da_minima', { versao: this.versao, situacao: a.situacao, motivo: a.mensagem });
+    else if (a.situacao === 'desatualizado') this.ctx.log.aviso('versao_desatualizada', { versao: this.versao, situacao: a.situacao, motivo: a.mensagem });
+    else if (mudou) this.ctx.log.info('versao_verificada', { versao: this.versao, situacao: a.situacao });
+  }
+
   private async sinal(): Promise<void> {
-    const s = montarStatus(this.ctx.store, this.ctx.config);
-    await this.ctx.hub.enviarSinal({
-      versao_conector: VERSAO_CONECTOR,
+    const s = montarStatus(this.ctx.store, this.ctx.config, this.versao);
+    const parado = s.versao.deveParar;
+    const resposta = await this.ctx.hub.enviarSinal({
+      conector_id: this.ctx.config.hub.conectorId,
+      versao_conector: this.versao,
       versao_contrato: VERSAO_CONTRATO,
       em: new Date(this.ctx.relogio.agora()).toISOString(),
       fila: s.fila,
       entidades: s.entidades.map((e) => ({ entidade: e.entidade, fase: e.fase, ultimo_sucesso: e.ultimoSucesso, bloqueada: e.bloqueio !== null, lotes_na_fila: e.lotesNaFila })),
+      ...(parado ? { parado_por_versao: true } : {}),
     });
+    // a política do Hub vale a partir daqui (inclusive para liberar o envio quando o Hub baixa a mínima)
+    if (resposta?.politica_versao) guardarPolitica(this.ctx.store, resposta.politica_versao, this.ctx.relogio.agora());
+    this.registrarVersao();
   }
 
   /** Uma passada: roda o que está vencido. Erro de uma tarefa nunca derruba as outras. */
@@ -88,7 +117,8 @@ export class Executor {
 
   async rodar(parar: AbortSignal): Promise<void> {
     const espera = this.opcoes.dormir ?? dormir;
-    this.ctx.log.info('conector_iniciado', { versao: VERSAO_CONECTOR, entidades: this.tarefas.filter((t) => t.nome.startsWith('entidade:')).map((t) => t.nome.slice(9)) });
+    this.registrarVersao();
+    this.ctx.log.info('conector_iniciado', { versao: this.versao, entidades: this.tarefas.filter((t) => t.nome.startsWith('entidade:')).map((t) => t.nome.slice(9)) });
     while (!parar.aborted) {
       await this.ciclo();
       await espera(this.opcoes.tickMs ?? 1000);

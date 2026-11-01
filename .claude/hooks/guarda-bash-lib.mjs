@@ -902,7 +902,7 @@ export function mensagemAviso(agente, avisos, { instala = false } = {}) {
   const linhas = avisos.slice(0, 30).map((v) => {
     const fato = v.status === 'A' ? 'criado' : v.status === 'D' ? 'apagado' : 'alterado';
     const como = instala && v.caminho === LOCK
-      ? `reescrito pelo install deste comando: não desfaça e não faça commit dele; avise o ${v.dono} por recado (o lock e as dependências são dele)`
+      ? `reescrito pelo install deste comando: não desfaça; faça commit dele só junto com o package.json de um pacote seu (regra "o lock acompanha a dependência", conferida pelo verificar); senão, avise o ${v.dono} por recado (o lock e as dependências são dele)`
       : TEXTO_AVISO;
     return ` - ${v.caminho} (${fato}; dono: ${v.dono}) → ${como}`;
   });

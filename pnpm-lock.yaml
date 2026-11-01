@@ -269,6 +269,9 @@ importers:
       mssql:
         specifier: ^12.7.13
         version: 12.7.13(supports-color@8.1.1)
+      oracledb:
+        specifier: ^26.0.0
+        version: 26.0.0
       pg:
         specifier: 8.23.1
         version: 8.23.1
@@ -288,6 +291,9 @@ importers:
       '@types/node':
         specifier: ^22.20.5
         version: 22.20.5
+      '@types/oracledb':
+        specifier: ^26.0.1
+        version: 26.0.1
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
@@ -3139,6 +3145,9 @@ packages:
   '@types/node@22.20.5':
     resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
 
+  '@types/oracledb@26.0.1':
+    resolution: {integrity: sha512-+PN2zINSM1vNtRiIz5D2WDboSuMv1YIe66XI3y+X1m4VGz9Ley4yyP65EwnANsBeF1qH/EpKjr5oj6sVIlq8ag==}
+
   '@types/pg@8.23.1':
     resolution: {integrity: sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==}
 
@@ -5665,6 +5674,10 @@ packages:
   ora@3.4.0:
     resolution: {integrity: sha512-eNwHudNbO1folBP3JsZ19v9azXWtQZjICdr3Q0TDPIaeBQ3mXLrh54wM+er0+hSp+dWKf+Z8KM58CYzEyIYxYg==}
     engines: {node: '>=6'}
+
+  oracledb@26.0.0:
+    resolution: {integrity: sha512-ywUqFidj/mPjRjfpOQdzcXT98lhiJzavPCbyPF9JYivcgrpHx7ENj4ZGQDclrpGXeozUBLc5BNXV7yj5qTMxDw==}
+    engines: {node: '>=14.17'}
 
   own-keys@1.0.2:
     resolution: {integrity: sha512-19YVAg7T+WTrxggPukVq7DjTv6+PJ867TmhCvBsYwmbFCsZd344rq2Ld1p0wo8f8Qrrhgp82c6FJRqdXWtSEhg==}
@@ -9275,6 +9288,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/oracledb@26.0.1':
+    dependencies:
+      '@types/node': 22.20.5
+
   '@types/pg@8.23.1':
     dependencies:
       '@types/node': 22.20.5
@@ -12459,6 +12476,8 @@ snapshots:
       log-symbols: 2.2.0
       strip-ansi: 5.2.0
       wcwidth: 1.0.1
+
+  oracledb@26.0.0: {}
 
   own-keys@1.0.2:
     dependencies:

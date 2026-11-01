@@ -8,7 +8,7 @@ const cfgCliente = (extra: Partial<EntidadeConfig> = {}): EntidadeConfig => ({ .
 describe('mapeamento coluna → campo do contrato', () => {
   it('converte tipos do ERP: datas UTC, booleanos, centavos de decimal, JSON e caminho com ponto', () => {
     const cfg = ConfigConector.parse({
-      hub: { url: 'https://h.example.com' },
+      hub: { url: 'https://h.example.com', conectorId: 'cnx-1' },
       erp: { tipo: 'sqlserver', host: 'h', banco: 'b', usuario: 'u' },
       entidades: {
         cliente: {
@@ -44,14 +44,19 @@ describe('mapeamento coluna → campo do contrato', () => {
     ];
     const r = mapearEValidar('cliente', cfgCliente(), linhas);
     expect(r.invalidas).toBe(1);
-    expect(r.problemas).toEqual([{ posicao: 1, external_id: 'c2', campo: 'razao_social', mensagem: 'campo obrigatório sem valor' }]);
+    expect(r.problemas).toEqual([{ posicao: 1, external_id: 'c2', campo: 'razao_social', codigo: 'campo_obrigatorio', mensagem: 'campo obrigatório sem valor' }]);
     expect(JSON.stringify(r.problemas)).not.toMatch(/Padaria|12\.345/);
   });
 
-  it('linha inválida vai ao Hub por padrão (o BKO mostra o erro) e fica só no log local com linhasInvalidas=descartar', () => {
+  it('RN-INT-03: linha inválida vai ao Hub COM o motivo (em linhas_invalidas, não em registros); com linhasInvalidas=descartar fica só no log local', () => {
     const linhas = [{ external_id: 'c2', alterado_em: new Date('2026-01-01T00:00:01Z'), razao_social: null }];
-    expect(mapearEValidar('cliente', cfgCliente(), linhas).registros).toHaveLength(1);
-    expect(mapearEValidar('cliente', cfgCliente({ linhasInvalidas: 'descartar' }), linhas).registros).toHaveLength(0);
+    const enviar = mapearEValidar('cliente', cfgCliente(), linhas);
+    expect(enviar.registros).toHaveLength(0);
+    expect(enviar.linhasInvalidas).toEqual([{ external_id: 'c2', codigo: 'campo_obrigatorio', campo: 'razao_social', mensagem: 'campo obrigatório sem valor' }]);
+    const descartar = mapearEValidar('cliente', cfgCliente({ linhasInvalidas: 'descartar' }), linhas);
+    expect(descartar.registros).toHaveLength(0);
+    expect(descartar.linhasInvalidas).toHaveLength(0);
+    expect(descartar.invalidas).toBe(1); // continua contando e indo ao log local
   });
 
   it('linha sem external_id ou sem alterado_em legível é descartada (sem eles não existe cursor)', () => {

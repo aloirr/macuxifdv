@@ -80,7 +80,7 @@ const SQL_PADRAO = (tag: string) =>
 export function configDeTeste(hubUrl: string, dadosDir: string, extra: Record<string, unknown> = {}): ConfigConector {
   return ConfigConector.parse({
     dadosDir,
-    hub: { url: hubUrl, retry: { tentativas: 3, baseMs: 1, maxMs: 2 } },
+    hub: { url: hubUrl, conectorId: 'cnx-teste-01', retry: { tentativas: 3, baseMs: 1, maxMs: 2 } },
     erp: { tipo: 'postgres', host: 'localhost', banco: 'erp', usuario: 'leitura', criptografar: false },
     lote: { maxLinhas: 3 },
     fila: { backoffBaseSegundos: 1, backoffMaxSegundos: 10, consultaResultadoSegundos: 1 },
@@ -120,7 +120,7 @@ export async function criarAmbiente(extraConfig: Record<string, unknown> = {}, h
   const montar = (): Contexto => ({
     config,
     erp,
-    hub: new ClienteHub({ url: hub.url, token: async () => hub.token, retry: { tentativas: 3, baseMs: 1, maxMs: 2, dormir: async () => undefined, aleatorio: () => 0.5 } }),
+    hub: new ClienteHub({ url: hub.url, token: async () => hub.token, conectorId: config.hub.conectorId, retry: { tentativas: 3, baseMs: 1, maxMs: 2, dormir: async () => undefined, aleatorio: () => 0.5 } }),
     store: Armazenamento.abrir(caminhoFila),
     log,
     relogio,

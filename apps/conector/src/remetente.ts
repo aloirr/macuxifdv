@@ -20,6 +20,7 @@ import { chaveDoLote } from './lotes';
 import { compararCursor } from './mapeamento';
 import { ErroHubAutenticacao, ErroHubTransitorio } from './hub/cliente';
 import type { ResultadoLoteHub } from './hub/tipos';
+import { bloqueioPorVersao } from './politica';
 import { calcularEspera } from './util/retry';
 
 export interface ResultadoFila {
@@ -41,6 +42,12 @@ function proximaTentativa(ctx: Contexto, tentativas: number): number {
 export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
   const r: ResultadoFila = { enviados: 0, concluidos: 0, recusados: 0, adiados: 0 };
   const { store } = ctx;
+  const parado = bloqueioPorVersao(ctx);
+  if (parado) {
+    // versão abaixo da mínima do Hub: nada sai (lotes ficam na fila local, sem perda); o sinal de vida segue
+    r.interrompido = parado.mensagem;
+    return r;
+  }
   const bloqueadas = new Set(store.estados().filter((e) => e.bloqueio).map((e) => e.entidade));
 
   // 1) resultados dos lotes já aceitos; 2) envio dos pendentes (ordem da fila)
@@ -125,7 +132,8 @@ async function consultar(ctx: Contexto, lote: LoteLocal, r: ResultadoFila): Prom
 function finalizar(ctx: Contexto, lote: LoteLocal, res: ResultadoLoteHub): void {
   const { store, log } = ctx;
   const agora = ctx.relogio.agora();
-  const erros = res.erros;
+  // linhas que o PRÓPRIO Conector informou como inválidas voltam no resultado com origem `conector`: já estão nos erros locais
+  const erros = res.erros.filter((e) => e.origem !== 'conector');
   const naoReenviaveis = erros.filter((e) => !e.reprocessavel);
   const aguardandoReferencia = erros.filter((e) => e.codigo === 'referencia_ausente');
   const transitorios = erros.filter((e) => e.codigo === 'falha_processamento');

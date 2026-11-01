@@ -1,15 +1,15 @@
 # Conector Macuxi (on-premise)
 
-> Tarefa T-0013 · módulo `integracao` · pacote `@macuxi/conector` (`apps/conector`) · 2026-10-31
+> Tarefas T-0013 (v1.0) e T-0023 (v1.1: ajustes do Alexandre + Oracle) · módulo `integracao` · pacote `@macuxi/conector` (`apps/conector`) · 2026-10-31
 > Requisitos: RF-INT-02 (Conector), RF-INT-04 (monitor), RF-INT-06 (reconciliação). Regras: RN-INT-01..09 (`docs/produto/03`, seção 9). Fluxo e contrato: `docs/produto/06-integracao-erp.md` e `desenho.md` (mesma pasta).
-> Estado: **lado do cliente pronto**; o Hub (`/integracao/v1`) ainda não tem rotas — o Conector foi escrito contra os contratos de `@macuxi/integracao/contracts` e a seção 9 lista o que o Hub precisa expor.
+> Estado: **lado do cliente pronto (v1.1.0)**; o Hub (`/integracao/v1`) ainda não tem rotas — o Conector foi escrito contra os contratos de `@macuxi/integracao/contracts` e a seção 9 lista o que o Hub precisa expor. Novidades da v1.1: linhas inválidas com motivo no lote (§4.1), política de versão mínima/recomendada (§7.4), chave de API por Conector com `trocar-chave` (§4.2, §7.5) e adaptador Oracle (§4.3).
 
 ## 1. O que é
 
 Um serviço Windows (Node 22 + TypeScript) instalado **dentro da rede do cliente**. Ele lê o banco do ERP por consultas SQL (views somente leitura), monta lotes no envelope do contrato e **empurra** os dados ao Hub do Macuxi por HTTPS. A nuvem nunca acessa o banco do cliente: o Conector só faz conexões de **saída**.
 
 ```
-ERP (SQL Server / PostgreSQL) ──SQL──► Conector ──HTTPS 443 (saída)──► Hub /integracao/v1
+ERP (SQL Server / PostgreSQL / Oracle) ──SQL──► Conector ──HTTPS 443 (saída)──► Hub /integracao/v1
                                           │  fila local em disco (SQLite), cursor por entidade, backoff
 ERP ◄──SQL/procedure── Conector ◄──GET /pedidos/pendentes── Hub        (pedidos aprovados)
                        Conector ──POST /pedidos/{uuid}/retorno──► Hub  (nº do ERP, faturamento, cancelamento)
@@ -24,19 +24,20 @@ O que ele faz:
 | Lotes | uma entidade por lote, até 5.000 linhas **e** até 4 MiB (o que estourar primeiro divide) |
 | Idempotência | chave SHA-256 do conteúdo canônico do lote no cabeçalho `Idempotency-Key`; mesmo conteúdo → mesma chave |
 | Resiliência | fila em disco (`node:sqlite`), espera exponencial com jitter, sobrevive a queda de rede, reinício e queda de energia |
-| Erros por linha | lê o resultado do lote; recusa por regra **não** é reenviada; só falha transitória é |
+| Erros por linha | linha inválida na origem vai ao Hub **com o motivo** (`linhas_invalidas`, até 500 por lote); lê o resultado do lote; recusa por regra **não** é reenviada; só falha transitória é |
 | Pedidos | busca no Hub, grava no ERP por SQL/procedure configurável, confirma o número e acompanha faturamento/cancelamento |
 | Reconciliação | contagem e soma de controle diárias por entidade (RN-INT-07) |
-| Operação | CLI (`testar-conexao`, `status`, `rodar`…), sinal de vida a cada 1 min, logs com rotação e sem dado pessoal |
+| Versão | informa a própria versão em todo lote/sinal/chamada; segue a política do Hub: abaixo da **recomendada** só avisa, abaixo da **mínima** para de enviar (§7.4) |
+| Operação | CLI (`testar-conexao`, `status`, `rodar`, `trocar-chave`…), sinal de vida a cada 1 min, logs com rotação e sem dado pessoal |
 
 ## 2. Requisitos
 
 | Item | Requisito |
 |---|---|
 | Sistema | Windows Server 2016+ ou Windows 10/11 (64 bits). O código roda também em Linux/macOS (desenvolvimento e testes). |
-| Node.js | **22.13 ou superior** (LTS). O armazenamento local usa `node:sqlite`, embutido no Node — sem módulo nativo para compilar. |
+| Node.js | **22.13 ou superior** (LTS). O armazenamento local usa `node:sqlite`, embutido no Node — sem módulo nativo para compilar. No Node 22 ele é experimental e emitiria um aviso a cada partida; o Conector o suprime só durante o carregamento do módulo (`src/util/sqlite.ts`; no Node 24 o aviso não existe mais e a supressão fica inerte, a remover quando o Node 22 sair do suporte). |
 | Rede | **Somente saída**: HTTPS (TCP 443) para o endereço do Hub informado pelo Macuxi. Nada de porta de entrada, VPN ou NAT. Se houver proxy/firewall, liberar esse destino. |
-| Banco do ERP | SQL Server (2012+) ou PostgreSQL (12+), acessível a partir do servidor do Conector (porta 1433 / 5432 **dentro** da rede do cliente). |
+| Banco do ERP | SQL Server (2012+), PostgreSQL (12+) ou Oracle (11g R2+; 12c+ recomendado), acessível a partir do servidor do Conector (porta 1433 / 5432 / 1521 **dentro** da rede do cliente). Oracle: driver JavaScript puro (modo *thin*), **sem Oracle Instant Client** (§4.3). |
 | Usuário do banco | **Somente leitura** nas views do Macuxi; escrita apenas na tabela/procedure de entrada de pedidos. Nunca `sa`/`postgres`. |
 | Disco | ~200 MB livres (fila + 30 dias de log). A fila só guarda lotes que ainda não foram confirmados. |
 | Hora | relógio do servidor sincronizado (NTP). |
@@ -46,17 +47,17 @@ O que ele faz:
 Pasta sugerida: `C:\ProgramData\Macuxi\Conector\`.
 
 1. **Instalar o Node.js 22 LTS** (instalador oficial, para todos os usuários). Conferir: `node -v` → `v22.x`.
-2. **Obter o Conector**: o arquivo único `conector.mjs` da versão entregue pelo Macuxi (gerado por `pnpm --filter @macuxi/conector build`, em `apps/conector/dist/`). Copiar para `C:\ProgramData\Macuxi\Conector\conector.mjs`.
+2. **Obter o Conector**: o pacote assinado da versão entregue pelo Macuxi (`conector-<versão>.zip`, com `conector.mjs`). **Antes de copiar, confira o SHA-256 e a assinatura** (§7.4). Copiar o `conector.mjs` para `C:\ProgramData\Macuxi\Conector\conector.mjs`.
 3. **Criar o usuário de leitura no ERP** e as views do Macuxi (modelo em `db/conector/views-modelo.sql`, entregue pelo `banco-dados`; o técnico do cliente adapta os `SELECT` ao ERP dele). Regras das views na seção 5.
-4. **Criar o arquivo de configuração** `C:\ProgramData\Macuxi\Conector\conector.json` a partir de `apps/conector/exemplos/conector.exemplo.json` (SQL Server, 8 entidades e pedidos). Ajustar `hub.url`, `erp.*`, as consultas e o mapeamento de colunas. **Sem senha nem token no arquivo.** Conferir: `node conector.mjs validar-config --config conector.json`.
-5. **Guardar os segredos** (senha do banco do ERP e token do Hub, este último entregue pelo Macuxi):
+4. **Criar o arquivo de configuração** `C:\ProgramData\Macuxi\Conector\conector.json` a partir de `apps/conector/exemplos/conector.exemplo.json` (SQL Server, 8 entidades e pedidos). Ajustar `hub.conectorId` (o identificador cadastrado no BKO para este Conector), `hub.url`, `erp.*`, as consultas e o mapeamento de colunas. Para Oracle parta de `conector.oracle.exemplo.json`. **Sem senha nem chave no arquivo.** Conferir: `node conector.mjs validar-config --config conector.json`.
+5. **Guardar os segredos** (senha do banco do ERP e **chave de API deste Conector**, entregue uma vez pelo BKO junto com o identificador):
    - Gerenciador de Credenciais do Windows (recomendado), na conta que vai rodar o serviço:
      ```
      echo SENHA_DO_BANCO| node conector.mjs segredo definir erp_senha --config conector.json
-     echo TOKEN_DO_HUB| node conector.mjs segredo definir hub_token --config conector.json
+     echo CHAVE_DO_HUB| node conector.mjs segredo definir hub_chave --config conector.json
      ```
-   - ou variáveis de ambiente do sistema `MACUXI_CONECTOR_ERP_SENHA` e `MACUXI_CONECTOR_HUB_TOKEN` (qualquer administrador local as lê; use só se o Gerenciador de Credenciais não for opção).
-6. **Testar**: `node conector.mjs testar-conexao --config conector.json`. Confere segredos, abre o banco do ERP, roda a consulta de cada entidade com 5 linhas de amostra e mostra se o mapeamento bate com o contrato (sem imprimir valores), e testa o Hub com a credencial. Corrija tudo que vier `[ERRO]`.
+   - ou variáveis de ambiente do sistema `MACUXI_CONECTOR_ERP_SENHA` e `MACUXI_CONECTOR_HUB_CHAVE` (qualquer administrador local as lê; use só se o Gerenciador de Credenciais não for opção).
+6. **Testar**: `node conector.mjs testar-conexao --config conector.json`. Confere segredos, abre o banco do ERP, roda a consulta de cada entidade com 5 linhas de amostra e mostra se o mapeamento bate com o contrato (sem imprimir valores), e testa o Hub com o identificador e a chave. Corrija tudo que vier `[ERRO]`.
 7. **Primeira passada manual** (opcional): `node conector.mjs rodar --uma-vez --config conector.json` e depois `node conector.mjs status`.
 8. **Instalar o serviço** (seção 7): baixar o `WinSW-x64.exe` da página de releases de https://github.com/winsw/winsw, conferir o SHA-256 publicado e rodar, em PowerShell **como administrador**:
    ```
@@ -74,13 +75,16 @@ JSON ou YAML (pela extensão), validado por Zod ao iniciar; chave desconhecida �
 | Chave | Padrão | Para quê |
 |---|---|---|
 | `dadosDir` | `./dados` | `fila.sqlite`, `logs/`, trava de instância única |
+| `hub.conectorId` | — | identificador deste Conector no Hub (letras, números, `.`, `-`, `_`). Vai no cabeçalho `X-Macuxi-Conector-Id`, no lote e no sinal. Não é segredo; a **chave** fica fora do arquivo (§4.2) |
 | `hub.url` | — | raiz do Hub; `/integracao/v1` é do contrato. **HTTPS obrigatório** (HTTP só para `localhost`, testes) |
-| `hub.timeoutSegundos`, `hub.retry.{tentativas,baseMs,maxMs}` | 30; 4, 500, 30000 | cada chamada ao Hub repete com espera exponencial + jitter em falha de rede, 408/425/429/5xx (respeita `Retry-After`) |
-| `erp.tipo` | — | `sqlserver` ou `postgres` |
-| `erp.host/porta/banco/usuario` | — | conexão (a senha vem dos segredos) |
-| `erp.criptografar`, `erp.confiarCertificado` | `true`, `false` | TLS com o banco (SQL Server `encrypt`; PostgreSQL `ssl`). Servidor sem TLS: `criptografar: false` |
+| `hub.timeoutSegundos`, `hub.retry.{tentativas,baseMs,maxMs}` | 30; 4, 500, 30000 | cada chamada ao Hub repete com espera exponencial + jitter em falha de rede, 408/425/429/5xx (respeita `Retry-After`, em segundos **ou** em data HTTP; valor ausente, inválido ou no passado usa o backoff normal; o teto é `hub.retry.maxMs`) |
+| `erp.tipo` | — | `sqlserver`, `postgres` ou `oracle` |
+| `erp.host/porta/banco/usuario` | — | conexão (a senha vem dos segredos). Oracle: `banco` é o **nome do serviço** (service name), porta padrão 1521 |
+| `erp.criptografar`, `erp.confiarCertificado` | `true`, `false` | TLS com o banco (SQL Server `encrypt`; PostgreSQL `ssl`; Oracle `tcps://`). Servidor sem TLS: `criptografar: false` (Oracle on-premise comum). **Aviso:** com `criptografar: false` e `erp.host` fora de localhost/LAN (IP público, nome com domínio da internet), `testar-conexao` imprime `[aviso]` e o serviço registra `erp_sem_criptografia` no log, sugerindo `criptografar: true` ou uma rede privada/VPN, porque a senha do ERP trafegaria em claro (localhost, 10.x, 172.16-31.x, 192.168.x, link-local, IPv6 ULA, nome curto e `.local/.lan/.intranet` não avisam). É só um aviso: não muda o padrão (`true`) nem impede a conexão |
+| `erp.paginacao`, `erp.carteira` | `offset`, — | **só Oracle** (§4.3): `offset` (12c+) ou `rownum` (11g); pasta do wallet PEM para TLS com certificado próprio |
 | `segredos.provedor` | `auto` | `env`, `windows` ou `auto` (env primeiro; no Windows, depois o Gerenciador de Credenciais) |
 | `lote.maxLinhas`, `lote.maxBytes` | 5000, 4 MiB | limites de cada lote |
+| `lote.maxLinhasInvalidas` | 500 | quantas linhas inválidas (com o motivo) vão ao Hub por lote; as que passarem disso entram só na contagem (`linhas_invalidas_omitidas`). `0` = só a contagem |
 | `fila.*` | ver exemplo | `maxLotesPendentesPorEntidade` (contrapressão), backoff persistido, retenção, reenvios por falha transitória |
 | `logs.{nivel,retencaoDias,maxMegabytes}` | info, 30, 10 | rotação diária + por tamanho |
 | `sinalSegundos` | 60 | batimento (`POST /sinal`) |
@@ -113,21 +117,55 @@ JSON ou YAML (pela extensão), validado por Zod ao iniciar; chave desconhecida �
 - **Parâmetros da consulta** (nomeados com `:`; o Conector converte para `@nome` no SQL Server e `$n` no PostgreSQL; `::cast`, literais e comentários são respeitados):
   `:cursor_alterado_em` (data-hora UTC), `:cursor_alterado_em_ms` (número, para colunas em milissegundos), `:cursor_external_id` (texto) e `:limite`. A validação da configuração exige `:cursor_alterado_em`, `:cursor_external_id` e `:limite`.
 - **Paginação**: a consulta é chamada com `:limite = lote + 1`; a linha a mais diz se há outra página (e portanto qual parte é a última da carga completa), sem lote vazio.
-- **`campos`**: `campo do contrato` → coluna | `{ coluna, transformar }` | `{ valor }`. Caminho com ponto monta objeto (`endereco.cidade`). Transformações: `texto`, `inteiro`, `numero`, `booleano` (S/N, 1/0, true/false), `data_hora_utc`, `data_civil`, `centavos_de_decimal` (reais → centavos), `json` (coluna com JSON: use `FOR JSON PATH` / `json_agg` para `contatos` do cliente e `paradas` da rota). Valores nulos viram campo ausente. Nomes de coluna não diferenciam maiúsculas.
+- **`campos`**: `campo do contrato` → coluna | `{ coluna, transformar }` | `{ valor }`. Caminho com ponto monta objeto (`endereco.cidade`). Transformações: `texto`, `inteiro`, `numero`, `booleano` (S/N, 1/0, true/false), `data_hora_utc`, `data_civil`, `centavos_de_decimal` (reais → centavos; valor em texto decimal, como o `NUMBER` do Oracle, converte sem ponto flutuante), `json` (coluna com JSON: use `FOR JSON PATH` / `json_agg` para `contatos` do cliente e `paradas` da rota). Valores nulos viram campo ausente. Nomes de coluna não diferenciam maiúsculas.
 - Os campos aceitos por entidade são os do contrato (`desenho.md` §8); campo inexistente é recusado ao carregar a configuração.
-- **`linhasInvalidas`**: `enviar` (padrão) manda ao Hub a linha que não passou no schema local — o Hub é a autoridade e mostra o erro legível no BKO (RN-INT-03); `descartar` deixa só no log local.
+- **`linhasInvalidas`** (decisão do Alexandre, T-0023): `enviar` (padrão) informa ao Hub a linha que não passou no schema local **com o motivo** — no campo opcional `linhas_invalidas` do lote, com `external_id`, `codigo` (`campo_obrigatorio`, `tipo_invalido`, `formato_invalido`…), `campo` e `mensagem` — **sem o valor da linha** (nem dado pessoal). O BKO as mostra no monitor ao lado dos erros do Hub (RN-INT-03). A linha **não** vai mais em `registros`. Limite de `lote.maxLinhasInvalidas` (500) por lote; acima disso só a contagem (`linhas_invalidas_omitidas`). Uma linha com vários campos ruins vira **uma** entrada (campo e código do primeiro; a mensagem resume todos). `descartar` deixa só no log/erros locais (`conector status`). Limitação: uma página **só** com linhas inválidas não tem lote para levá-las (o Hub recusa lote vazio, RN-INT-01): ficam nos erros locais e o aviso `linhas_invalidas_sem_lote` vai ao log; elas voltam a ser avaliadas quando o ERP alterar a linha.
+- **Resultado do Hub**: as linhas informadas voltam em `erros[]` com `origem: "conector"` (o Conector não as conta de novo) e o lote termina `concluido_com_erros`.
 
 ### 4.2 Segredos
 
 | Nome | Variável de ambiente | Gerenciador de Credenciais (alvo) |
 |---|---|---|
 | `erp_senha` | `MACUXI_CONECTOR_ERP_SENHA` | `Macuxi.Conector/erp_senha` |
-| `hub_token` | `MACUXI_CONECTOR_HUB_TOKEN` | `Macuxi.Conector/hub_token` |
+| `hub_chave` | `MACUXI_CONECTOR_HUB_CHAVE` | `Macuxi.Conector/hub_chave` |
 
-- Chave `senha`, `password`, `token`, `secret`… no arquivo de configuração é **recusada** com orientação.
-- O segredo é relido a cada 60 s: **rotacionar o token do Hub não exige reiniciar o serviço**.
+- **Uma chave de API por Conector** (T-0023): identificador (`hub.conectorId`) + chave. A chave vale **só para `/integracao/v1`** (escopo `integracao.v1`) e só para este Conector; revogar um Conector não afeta os outros. Vai em `Authorization: Bearer <chave>`.
+- Chave `senha`, `password`, `token`, `chave`, `secret`… no arquivo de configuração é **recusada** com orientação.
+- O segredo é relido a cada 60 s: **rotacionar a chave do Hub não exige reiniciar o serviço** nem reinstalar (§7.5).
 - O Gerenciador de Credenciais é lido/gravado por PowerShell (P/Invoke de `advapi32`: `CredRead`/`CredWrite`), sem módulo nativo do Node. O valor a gravar vai por entrada padrão, nunca em argumento de processo.
-- Todo segredo lido é registrado numa lista de máscara: se aparecer em qualquer mensagem de log vira `***`.
+- Todo segredo lido (e a chave nova aceita por `trocar-chave`) é registrado numa lista de máscara: se aparecer em qualquer mensagem de log vira `***`. Além disso, texto do tipo `chave=…`, `hub_chave=…`, `x-api-key: …`, `Authorization: Bearer …` é mascarado por nome, e campos de log chamados `chave`, `hub_chave`, `api_key`, `authorization`… têm o valor trocado por `***` (teste em `test/chave.test.ts`).
+
+### 4.3 Oracle
+
+Adaptador `src/erp/oracle.ts` (T-0023), driver `oracledb` em **modo thin**: JavaScript puro, **sem Oracle Instant Client**, sem módulo nativo (o código nunca inicializa o cliente nativo). Oracle **11g R2 ou superior** (12c+ recomendado).
+
+```json
+"erp": { "tipo": "oracle", "host": "erp-ora01", "porta": 1521, "banco": "ERPPRD", "usuario": "MACUXI_LEITURA",
+         "criptografar": false, "paginacao": "offset" }
+```
+Exemplo completo (cliente, produto e pedidos): `apps/conector/exemplos/conector.oracle.exemplo.json`.
+
+- **Conexão**: Easy Connect `host:porta/serviço` (`banco` é o *service name*, não o SID). Pool pequeno (até 3 conexões), timeouts pelo `erp.timeoutSegundos`. `criptografar: true` usa `tcps://` (porta 2484 se não informar); `confiarCertificado: true` desliga a conferência do DN do certificado; para certificado próprio aponte `erp.carteira` para a pasta com `ewallet.pem`. Sem `criptografar` é TCP simples (o caso comum em rede interna).
+- **Consultas parametrizadas**: `:nome` é bind nativo do Oracle; o Conector só passa os binds que aparecem no SQL e **nunca concatena valor**. Datas vão como `TIMESTAMP WITH TIME ZONE` (instante exato em UTC, sem depender do fuso do servidor do Conector). Nomes de coluna voltam em minúsculas.
+- **Paginação** — escolha uma:
+  1. **Sem `:limite` na consulta** (recomendado): o Conector aplica o limite conforme `erp.paginacao`:
+     - `offset` (padrão, **Oracle 12c+**): acrescenta `OFFSET :macuxi_offset ROWS FETCH NEXT :limite ROWS ONLY` ao fim do seu `SELECT … ORDER BY`. A leitura é por cursor (keyset), então o deslocamento é sempre 0.
+     - `rownum` (**fallback para 11g**): envolve a consulta: `SELECT * FROM ( <sua consulta ordenada> ) WHERE ROWNUM <= :limite`. É o padrão *top-N* clássico e respeita o `ORDER BY` interno.
+     Se um Oracle anterior à 12c falhar com `ORA-00933` no modo `offset`, o erro já vem com a dica de trocar para `rownum`.
+  2. **Com `:limite` na consulta**: o Conector não reescreve nada e executa como está (por exemplo `… ORDER BY alterado_em, codigo FETCH FIRST :limite ROWS ONLY`).
+  Em qualquer caso a consulta **precisa** do `ORDER BY alterado_em, <chave>` e dos parâmetros `:cursor_alterado_em` e `:cursor_external_id`.
+- **Tipos → contrato** (a sessão é fixada em `TIME_ZONE = '+00:00'` e formatos ISO a cada conexão):
+  | Coluna Oracle | O que o Conector entrega | Observação |
+  |---|---|---|
+  | `DATE`, `TIMESTAMP`, `TIMESTAMP WITH LOCAL TIME ZONE` | `Date` em **UTC** (ISO no contrato) | o banco guarda sem fuso: a view deve devolver UTC (`SYS_EXTRACT_UTC(coluna)` ou `FROM_TZ(coluna,'America/Boa_Vista') AT TIME ZONE 'UTC'`) |
+  | `TIMESTAMP WITH TIME ZONE` | `Date` do **instante exato** | o deslocamento do valor é respeitado |
+  | `NUMBER` | número se for **inteiro seguro**; senão **texto decimal exato** (`"19.99"`) | nunca passa por ponto flutuante; dinheiro: use `transformar: "centavos_de_decimal"` (converte o texto em centavos inteiros por aritmética de texto, meio centavo sobe) |
+  | `CLOB`/`NCLOB` | texto | colunas JSON: `transformar: "json"` |
+  | `VARCHAR2`, `CHAR`, `RAW`… | padrão do driver | |
+  Quantidade/saldo **fracionário** (`NUMBER(14,3)`) chega como texto: use `transformar: "numero"`. Flags `NUMBER(1)`/`CHAR(1)`: `transformar: "booleano"` (`S/N`, `1/0`).
+- **Pedidos**: `gravacao.cabecalho`/`itens` com `INSERT … SELECT … FROM DUAL WHERE NOT EXISTS (…)` (idempotente pelo `pedido_uuid`) **sem ponto e vírgula final**; bloco PL/SQL (`BEGIN pkg.grava(:pedido_uuid, …); END;`) **com** ponto e vírgula. A gravação roda numa transação (`COMMIT` ao fim, `ROLLBACK` em qualquer erro).
+- **Erros**: `NJS-500/503/510` e `ORA-12541/12170/03113/03114/01033/01034…` são de **conexão** (transitórios: o Conector tenta depois e não conta tentativa de pedido); `ORA-00942`, `ORA-01017` etc. são de SQL/credencial (definitivos, aparecem no `status`/`testar-conexao`).
+- **Teste com Oracle real**: `test/oracle.test.ts` tem testes de unidade com dublê do driver (SQL gerado, binds, paginação nos dois modos, conversão de tipos) e um teste de integração que só roda com `MACUXI_ORACLE_URL=usuario/senha@host:1521/servico` (usa só `DUAL`, somente leitura). Sem a variável ele é **pulado** com aviso.
 
 ## 5. Como o delta funciona e o que as views precisam respeitar
 
@@ -158,17 +196,17 @@ Configuração `pedidos` (ver exemplo): SQL ou procedure por pedido, em transaç
 | `gravacao.itens` | executado uma vez por item (opcional) | `pedido_uuid`, `sequencia`, `produto_external_id`, `quantidade`, `preco_unitario_cents`, `desconto_cents`, `total_cents` |
 | `gravacao.numeroErp` | devolve a coluna `numero_erp` do pedido gravado (lida **dentro** da transação) | `pedido_uuid` |
 | `status.consulta` | situação do pedido no ERP; uma linha por fato (integração, cada nota, cancelamento) | `pedido_uuid`; colunas `status`, `numero_erp`, `motivo`, `nota_numero`, `nota_serie`, `nota_emitida_em`, `nota_total_cents`, `ocorrido_em` |
-| `status.consultaItensNota` | itens faturados de uma nota (opcional) | `pedido_uuid`, `nota_numero`, `nota_serie`; colunas `sequencia`, `quantidade` |
+| `status.consultaItensNota` | itens faturados de uma nota (opcional) | `pedido_uuid`, `nota_numero`, `nota_serie`; colunas obrigatórias `sequencia` (a do `PedidoParaErp.itens`), `quantidade` (inteiro > 0, faturado NESTA nota), `valor_cents` (centavos inteiros >= 0) e `produto_external_id` (código do produto no ERP) |
 | `status.mapaStatus` | código do ERP → `integrado`, `rejeitado_erp`, `faturado_parcial`, `faturado_total`, `cancelado` | — |
 
 Fluxo:
 
-1. `GET /pedidos/pendentes` (a cada `consultaSegundos`, 60 s). O pedido é **gravado no armazenamento local antes** de qualquer outra coisa: se o Hub reentregar (timeout de 10 min sem confirmação), o `pedido_uuid` já conhecido não é gravado de novo no ERP. **Escreva o SQL de gravação também idempotente pelo `pedido_uuid`** (`ON CONFLICT DO NOTHING`, `IF NOT EXISTS`…), para a janela "gravou no ERP e caiu antes de anotar".
+1. `GET /pedidos/pendentes` (a cada `consultaSegundos`, 60 s). O pedido é **gravado no armazenamento local antes** de qualquer outra coisa: se o Hub reentregar (timeout de 10 min sem confirmação), o `pedido_uuid` já conhecido não é gravado de novo no ERP. **Escreva o SQL de gravação também idempotente pelo `pedido_uuid`** (`ON CONFLICT DO NOTHING`, `IF NOT EXISTS`…), para a janela "gravou no ERP e caiu antes de anotar". Defesa extra do Conector (T-0013, revisão do engenheiro): se o pedido já teve tentativa de gravação ou o último erro foi de conexão (a janela "o ERP aplicou o COMMIT e a resposta se perdeu"), a consulta `gravacao.numeroErp` roda **antes** de gravar; se já devolver número, o Conector só anota `gravado`, enfileira `integrado` e **não grava de novo** (log `pedido_ja_existia_no_erp`). Por isso `numeroErp` deve funcionar fora da transação de gravação e devolver vazio enquanto o pedido não existe. Limite conhecido: a queda do PROCESSO do Conector exatamente entre o COMMIT e a anotação local não deixa rastro de tentativa e só a idempotência do SQL do cliente cobre essa janela.
 2. Grava cabeçalho + itens + lê o número, numa transação (qualquer falha desfaz tudo). Confirma `integrado` com `numero_erp`.
 3. **Erro de conexão** com o ERP não conta tentativa (volta depois). **Erro do SQL/regra** conta; ao esgotar `maxTentativasGravacao` (3) o pedido volta ao Hub como `rejeitado_erp` com o motivo (texto do erro do banco, sem dado pessoal, até 300 caracteres).
 4. A cada `statusSegundos` (120 s), para cada pedido aberto, roda `status.consulta` e informa: `faturado_parcial` (uma nota por vez, com `itens_faturados` quando `consultaItensNota` existir), `faturado_total` (só a **última** nota; se o ERP marcar o pedido inteiro como faturado em todas as linhas, as notas anteriores seguem como parciais), `cancelado` (com motivo). O Macuxi nunca escreve cancelamento no ERP. Situação do ERP sem equivalente (ex.: "em separação") é ignorada.
 5. Cada retorno é validado com o contrato `RetornoErp` (faturado sem nota, rejeitado sem motivo… nem sai), guardado numa fila local e reenviado até o Hub aceitar; recusa por regra do Hub (422, ex.: transição inválida) não é repetida. O Hub é idempotente: repetir o mesmo retorno devolve `repetido: true`.
-6. `itens_faturados` é **opcional e ainda não está em `contracts/pedido.ts`** (pedido do engenheiro, T-0011): o Conector já o envia quando a consulta de itens existe e seus valores são inteiros > 0.
+6. **`itens_faturados`** (T-0023; já em `contracts/pedido.ts`, campo `itens_faturados` opcional no retorno, continua `v1`; **dentro do item, `produto_external_id` e `valor_cents` são obrigatórios** — decisão do Alexandre): cada retorno `faturado_parcial`/`faturado_total` leva os itens **desta nota** — `{ sequencia, produto_external_id, quantidade, valor_cents }`. O `produto_external_id` é o "produto_id" da decisão, na chave do ERP; o Hub resolve o `produto_id` interno pela `sequencia` do pedido enviado e confere pelo `external_id`. Linhas da mesma sequência somam (e devem ter o mesmo produto). O Conector nunca inventa valor nem produto: linha sem produto, sem valor, com `valor_cents` fracionário, quantidade fracionária ou sequência inválida torna os itens da nota inválidos; o retorno segue sem `itens_faturados` e o aviso `itens_faturados_omitidos` registra a linha e o motivo (corrija a `consultaItensNota`). **Duas notas parciais são dois retornos**: a idempotência do faturamento é por (pedido, status, número+série da nota), não só pelo status (RN-INT-08; `transicionarRetornoPedidoErp` no domain).
 
 ## 7. Operação
 
@@ -179,12 +217,13 @@ Fluxo:
 | Comando | O que faz |
 |---|---|
 | `validar-config` | confere o arquivo (sem conectar a nada) |
-| `testar-conexao` | segredos, banco do ERP (consulta e mapeamento por entidade), Hub (credencial). Código 1 se algo falhar |
-| `status [--json]` | fila local por estado, por entidade: fase, último sucesso, cursor confirmado, **bloqueios**, avisos (trava de inativação), último erro, erros locais e do Hub, pedidos e retornos, erros recentes. Código 3 se houver entidade bloqueada |
+| `testar-conexao` | segredos, banco do ERP (consulta e mapeamento por entidade), Hub (credencial); `[aviso]` se o ERP está fora da LAN sem criptografia. Código 1 se algo falhar |
+| `status [--json]` | **versão** (`em dia`, `DESATUALIZADO` ou `VERSÃO ABAIXO DA MÍNIMA`, com a política do Hub), fila local por estado, por entidade: fase, último sucesso, cursor confirmado, **bloqueios**, avisos (trava de inativação), último erro, erros locais e do Hub, pedidos e retornos, erros recentes. Código 3 se houver entidade bloqueada **ou versão abaixo da mínima** |
 | `rodar [--uma-vez]` | laço do serviço; `--uma-vez` faz uma passada completa e imprime o status |
 | `carga-completa <entidade\|todas>` | nova sessão de carga completa |
 | `retomar <entidade>` | libera entidade bloqueada e relê do cursor **confirmado** (delta) ou recomeça a sessão (carga completa) |
-| `segredo definir <nome>` | grava no Gerenciador de Credenciais (valor pela entrada padrão) |
+| `segredo definir <nome>` | grava no Gerenciador de Credenciais (valor pela entrada padrão); nomes `erp_senha`, `hub_chave` |
+| `trocar-chave [--sem-testar]` | troca a chave de API do Hub **sem reinstalar** (§7.5) |
 | `instalar-servico --winsw <exe> [--pasta] [--somente-gerar]` / `desinstalar-servico` | serviço Windows |
 
 ### 7.2 Serviço Windows: WinSW
@@ -195,12 +234,66 @@ A conta do serviço deve ser a que gravou os segredos no Gerenciador de Credenci
 
 ### 7.3 Logs
 
-JSON por linha em `dados\logs\conector-AAAA-MM-DD.log`; ao passar de `maxMegabytes` vira `.1`, `.2`… (até 5 por dia); apaga o que passa de `retencaoDias` (30). **Sem dado pessoal**: valores de linhas nunca são logados (só contagens, entidades, códigos de erro, nomes de campo); chaves sensíveis (`senha`, `token`, `cpf`, `cnpj`, `documento`, `email`, `telefone`, `nome`, `razao_social`, `endereco`…) viram `***`; em qualquer texto, CPF/CNPJ, e-mail, telefone, `Bearer …`, `Password=…` e URL com credencial são mascarados. A tabela de erros por linha do `status` guarda `external_id` e o nome do campo, nunca o valor.
+JSON por linha em `dados\logs\conector-AAAA-MM-DD.log`; ao passar de `maxMegabytes` vira `.1`, `.2`… (até 5 por dia); apaga o que passa de `retencaoDias` (30). **Sem dado pessoal**: valores de linhas nunca são logados (só contagens, entidades, códigos de erro, nomes de campo); chaves sensíveis (`senha`, `token`, `cpf`, `cnpj`, `documento`, `email`, `telefone`, `nome`, `razao_social`, `endereco`, `latitude`, `longitude`…) viram `***` **qualquer que seja o tipo do valor** (texto ou número: CPF e coordenadas guardados como número no ERP também são mascarados; só booleano passa); em qualquer texto, CPF/CNPJ, e-mail, telefone, `Bearer …`, `Password=…` e URL com credencial são mascarados. A tabela de erros por linha do `status` guarda `external_id` e o nome do campo, nunca o valor.
+
+### 7.4 Versão, pacote assinado e atualização
+
+**Política de versão (v1.1).** O Conector informa a própria versão (semver, `src/versao.ts`) em **todo** lote (`versao_conector`), no sinal de vida e no cabeçalho `X-Macuxi-Conector-Versao`. O Hub responde ao sinal (a cada 1 min) com a política do tenant (`RespostaSinal.politica_versao`, contrato em `contracts/conector.ts`): `versao_minima`, `versao_recomendada`, `mensagem` e, opcionalmente, o `pacote` (versão, URL, SHA-256, assinatura). O Conector guarda a última política na fila local e a reavalia sozinho (assim `status` funciona sem rede e instalar uma versão nova libera o envio na hora):
+
+| Situação | Quando | O que acontece |
+|---|---|---|
+| em dia | versão ≥ recomendada | nada |
+| **desatualizado** | mínima ≤ versão < recomendada | segue funcionando; `conector status` mostra `[DESATUALIZADO]`; log `versao_desatualizada` (de hora em hora) |
+| **versão abaixo da mínima** | versão < mínima | **para de enviar ao Hub**: lotes, retornos de pedido, busca de pedidos pendentes e reconciliação (a leitura do ERP também espera). Nada se perde: os lotes já montados continuam na fila local. O **sinal de vida segue** (com `parado_por_versao: true`) para o Hub ver o Conector parado e poder liberar. `conector status` mostra `[VERSÃO ABAIXO DA MÍNIMA]` com o motivo e sai com código 3; o log registra `versao_abaixo_da_minima` (nível erro). Libera sozinho quando o Hub baixa a mínima ou quando o Conector é atualizado |
+| sem política | Hub ainda não respondeu / Hub antigo | nenhuma restrição |
+
+A comparação é semver 2.0 em função pura com teste (`1.10.0 > 1.9.0`; `1.2.0-rc.1 < 1.2.0`). Política ilegível ou inconsistente (mínima > recomendada) nunca para o Conector por engano: a ilegível é ignorada; na inconsistente a mínima manda.
+
+**Atualização automática fica para a v2** (não implementada). Na v1 a atualização é manual, com pacote assinado:
+
+*Publicar (quem faz o release no Macuxi):*
+1. `pnpm --filter @macuxi/conector build` gera `apps/conector/dist/conector.mjs` (a versão vem de `src/versao.ts`; mantenha igual a `package.json`).
+2. Monte `conector-<versão>.zip` com `conector.mjs`, `exemplos/` e o resumo das mudanças.
+3. Hash: `sha256sum conector-1.1.0.zip > conector-1.1.0.zip.sha256`.
+4. Assinatura **RSA 3072 + SHA-256** (PKCS#1 v1.5) com a chave de assinatura do Macuxi (guardada offline, fora do repositório): `openssl dgst -sha256 -sign assinatura.key -out conector-1.1.0.zip.sig conector-1.1.0.zip`. Certificado público (só a chave pública, `.cer`): `openssl req -new -x509 -key assinatura.key -sha256 -days 1825 -subj "/O=Macuxi/CN=Macuxi Conector - assinatura de pacotes" -outform DER -out macuxi-conector-assinatura.cer`.
+5. Publique `.zip`, `.sha256`, `.sig` e o `.cer`, e cadastre no BKO a versão, o SHA-256 e a assinatura (base64) do pacote para a política (`pacote` na resposta do sinal). A **impressão digital (SHA-256) do certificado** é entregue ao cliente por canal separado (contrato/e-mail do responsável): `openssl x509 -inform DER -in macuxi-conector-assinatura.cer -noout -fingerprint -sha256`.
+
+*Verificar (técnico do cliente, antes de instalar; PowerShell nativo, sem instalar nada):*
+```powershell
+$pacote = 'conector-1.1.0.zip'
+# 1) hash SHA-256: o valor do .sha256 (e o mostrado no BKO) precisa ser igual
+$esperado = ((Get-Content "$pacote.sha256") -split '\s+')[0].ToLower()
+$real     = (Get-FileHash $pacote -Algorithm SHA256).Hash.ToLower()
+if ($real -ne $esperado) { throw 'SHA-256 DIFERENTE: não instale este pacote.' }
+# 2) assinatura: confira antes a impressão digital do .cer com a que o Macuxi entregou
+$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 'macuxi-conector-assinatura.cer'
+(Get-FileHash 'macuxi-conector-assinatura.cer' -Algorithm SHA256).Hash   # = impressão digital entregue em separado
+$rsa  = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+$ok   = $rsa.VerifyData([IO.File]::ReadAllBytes($pacote), [IO.File]::ReadAllBytes("$pacote.sig"),
+        [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.RSASignaturePadding]::Pkcs1)
+if (-not $ok) { throw 'ASSINATURA INVÁLIDA: não instale este pacote.' }
+'Pacote íntegro e assinado pelo Macuxi.'
+```
+(Em Linux/macOS: `sha256sum -c conector-1.1.0.zip.sha256` e `openssl dgst -sha256 -verify <(openssl x509 -inform DER -in macuxi-conector-assinatura.cer -pubkey -noout) -signature conector-1.1.0.zip.sig conector-1.1.0.zip`. O par `sign`/`verify` do OpenSSL foi exercitado na T-0023; o script PowerShell **não foi executado em Windows nesta tarefa** — validar no primeiro release.)
+
+*Atualizar:* pare o serviço (`Stop-Service "Macuxi Conector"`), copie o novo `conector.mjs` por cima (guarde o anterior como `conector.mjs.anterior`), rode `node conector.mjs validar-config` e `node conector.mjs versao`, inicie o serviço e confira `conector status` (`em dia`) e o BKO. Em caso de problema, volte o arquivo anterior. A fila e o cursor ficam em `dados\` e sobrevivem à troca.
+
+### 7.5 Rotação da chave de API (`trocar-chave`)
+
+1. No BKO (Integração > Conectores) gere a chave nova do Conector; o Hub mantém a antiga válida por uma janela curta (`anterior_valida_ate`), para a troca ser sem interrupção.
+2. No servidor do Conector, **na conta do serviço**: `echo CHAVE_NOVA| node conector.mjs trocar-chave --config conector.json`.
+   - A chave vem **só pela entrada padrão** (nunca como argumento, que apareceria na lista de processos).
+   - O comando confere o formato (16 a 512 caracteres ASCII, sem espaço), **testa a chave no Hub** com o `hub.conectorId` e só então grava no Gerenciador de Credenciais. Se o Hub recusar, **nada é gravado** e a chave atual continua valendo. `--sem-testar` grava sem consultar o Hub (use só se o Hub estiver fora do ar de propósito).
+   - O serviço relê o segredo a cada 60 s: passa a usar a chave nova em até 1 minuto, **sem reiniciar nem reinstalar**.
+3. Confirme no BKO que o sinal de vida continua chegando e **revogue a chave antiga**.
+- Fora do Windows (ou `segredos.provedor: "env"`) não há onde gravar: o comando valida a chave, mostra o nome da variável (`MACUXI_CONECTOR_HUB_CHAVE`), não grava e sai com código **4**; defina a variável de ambiente do sistema e reinicie o serviço. Se a variável de ambiente já existir ela tem **prioridade** sobre o Gerenciador de Credenciais: o comando avisa que ela continua com a chave antiga.
+- A chave nunca aparece em saída, argumento de processo nem log (máscara + teste).
 
 ## 8. Segurança e privacidade
 
 - Só conexões de saída; HTTPS obrigatório (TLS verificado; sem opção de ignorar certificado do Hub).
-- Credencial própria do Conector (token Bearer), escopo do tenant, **rotacionável sem reiniciar** (relida a cada 60 s); em 401/403 o Conector pausa com espera longa, não descarta nada e registra `hub_credencial_recusada`.
+- Credencial própria do Conector: **uma chave de API por Conector** (identificador + chave, `Authorization: Bearer`), escopo do tenant e **só `/integracao/v1`**, **rotacionável sem reiniciar** (`trocar-chave`; relida a cada 60 s); em 401/403 o Conector pausa com espera longa, não descarta nada e registra `hub_credencial_recusada`.
+- Pacote do Conector com SHA-256 e assinatura verificáveis antes de instalar (§7.4); versão abaixo da mínima do Hub para o envio.
 - Usuário do banco somente leitura nas views; escrita só na entrada de pedidos.
 - Segredos fora do arquivo e fora do log. O arquivo de configuração pode ser versionado/auditado.
 - A fila local guarda os lotes **só até o Hub concluí-los**; o conteúdo é apagado ao concluir (ficam só contagens e a chave). Proteja `dados\` com permissão NTFS restrita à conta do serviço e aos administradores.
@@ -209,17 +302,19 @@ JSON por linha em `dados\logs\conector-AAAA-MM-DD.log`; ao passar de `maxMegabyt
 
 ## 9. O que o Hub precisa expor para o Conector
 
-Todas as rotas sob `https://<hub>/integracao/v1`, com `Authorization: Bearer <token do Conector>` (chave de API rotacionável por Conector, escopo do tenant, licença do módulo; 401/403 em credencial inválida/revogada). Cabeçalhos informativos: `User-Agent: macuxi-conector/<versão>`, `X-Macuxi-Conector-Versao`.
+Todas as rotas sob `https://<hub>/integracao/v1`, com `Authorization: Bearer <chave de API do Conector>` **e** `X-Macuxi-Conector-Id: <hub.conectorId>`. A chave é **uma por Conector**, rotacionável, de escopo **só `integracao.v1`** (não abre nenhuma outra rota da API), do tenant do Conector e sujeita à licença do módulo; o Hub confere que o identificador é o da chave (401/403 se não for, se a chave for inválida, expirada ou revogada; contrato `ChaveConectorCriada` em `contracts/conector.ts`). Cabeçalhos informativos em toda chamada: `User-Agent: macuxi-conector/<versão>` e `X-Macuxi-Conector-Versao: <semver>` (`CABECALHO_CONECTOR_ID`/`CABECALHO_CONECTOR_VERSAO` em `contracts/conector.ts`). Para o BKO/Hub, além das rotas abaixo: **cadastro de Conector com geração de chave** (mostrada uma vez; só o hash fica guardado), **rotação** (a chave antiga segue válida por uma janela curta, `anterior_valida_ate`) e **revogação**; política de versão por tenant (§7.4).
 
 | Rota | O que o Conector envia / espera |
 |---|---|
-| `POST /lotes` | corpo `LoteEnvelope`; cabeçalho **`Idempotency-Key`** (SHA-256 hex, 64): mesma chave → o Hub devolve o **mesmo** `LoteAceito` (mesmo `lote_id`, sem reprocessar). `202` aceito; `400/413/422` com `RecusaEnvelope` (`{erros:[{codigo,campo,mensagem}]}`) = recusa **definitiva** (não é reenviada; bloqueia a entidade); `408/425/429/5xx` = transitório (retry; `Retry-After` respeitado). Aceitar corpo de pelo menos 8 MiB (o Conector envia até 4 MiB) |
-| `GET /lotes/{id}` | `LoteResultado` (`status` `recebido`/`processando` → final; `erros[]` por linha com `indice`, `external_id`, `codigo`, `campo`, `mensagem`, `reprocessavel`). Só o estado final avança o cursor. `404` = Hub não conhece o lote → o Conector reenvia (mesma chave). **Premissa nova (campo opcional, compatível com `v1`)**: `inativacao: { situacao: "aplicada" \| "aguardando_confirmacao" \| "nao_aplicavel", motivo?, candidatos? }` no resultado do último lote da sessão completa, para a trava de RN-INT-06 |
+| `POST /lotes` | corpo `LoteEnvelope` (com os campos opcionais novos `conector_id`, `versao_conector`, `linhas_invalidas[]` — até 500, `{external_id?, codigo, campo?, mensagem}` sem valor de dado — e `linhas_invalidas_omitidas`; o Hub as grava como erros de linha com `origem: "conector"` e conta em `com_erro`, o lote termina `concluido_com_erros`; `registros` continua exigindo ao menos 1 linha); cabeçalho **`Idempotency-Key`** (SHA-256 hex, 64): mesma chave → o Hub devolve o **mesmo** `LoteAceito` (mesmo `lote_id`, sem reprocessar). `202` aceito; `400/413/422` com `RecusaEnvelope` (`{erros:[{codigo,campo,mensagem}]}`) = recusa **definitiva** (não é reenviada; bloqueia a entidade); `408/425/429/5xx` = transitório (retry; `Retry-After` respeitado). Aceitar corpo de pelo menos 8 MiB (o Conector envia até 4 MiB) |
+| `GET /lotes/{id}` | `LoteResultado` (`status` `recebido`/`processando` → final; `erros[]` por linha com `indice`, `external_id`, `codigo`, `campo`, `mensagem`, `reprocessavel` e, novo e opcional, `origem` = `hub` \| `conector`; para `conector`, `indice` é a posição em `linhas_invalidas`; `invalidas_omitidas` opcional). Só o estado final avança o cursor. `404` = Hub não conhece o lote → o Conector reenvia (mesma chave). **Premissa nova (campo opcional, compatível com `v1`)**: `inativacao: { situacao: "aplicada" \| "aguardando_confirmacao" \| "nao_aplicavel", motivo?, candidatos? }` no resultado do último lote da sessão completa, para a trava de RN-INT-06 |
 | `GET /cursores/{entidade}` | `CursorEntidade` (cursor `null` = nunca recebeu: carga completa). Observação: `external_id` do cursor tem `min(1)` no contrato |
 | `GET /pedidos/pendentes` | `PedidosPendentes`; ao entregar, o Hub marca `enviado` e reentrega (`tentativa + 1`) após o timeout de 10 min sem retorno (RN-INT-08) |
-| `POST /pedidos/{pedido_uuid}/retorno` | `RetornoErp` (+ `itens_faturados?: [{sequencia, quantidade}]`, pedido T-0011). `200` com `RetornoAceito` (`repetido: true` se já aplicado); `422` com `{erros:[{codigo,mensagem}]}` para transição inválida/pedido desconhecido (definitivo) |
-| `POST /sinal` | batimento a cada 60 s: `{ versao_conector, versao_contrato, em, fila[{estado,lotes,linhas,maisAntigo}], entidades[{entidade,fase,ultimo_sucesso,bloqueada,lotes_na_fila}] }` (sem dado pessoal). Premissa: o Hub define o schema final; qualquer `2xx` serve |
+| `POST /pedidos/{pedido_uuid}/retorno` | `RetornoErp` com `itens_faturados?: [{sequencia, produto_external_id, quantidade, valor_cents}]` (produto e valor obrigatórios no item) (agora em `contracts/pedido.ts`, só em `faturado_parcial`/`faturado_total`). `200` com `RetornoAceito` (`repetido: true` se já aplicado — **a repetição de `faturado_parcial` é por (status, nota número+série)**: outra nota é fato novo); `422` com `{erros:[{codigo,mensagem}]}` para transição inválida/pedido desconhecido (definitivo) |
+| `POST /sinal` | batimento a cada 60 s: corpo `SinalConector` (`conector_id`, `versao_conector`, `versao_contrato`, `em`, `fila[]`, `entidades[]`, `parado_por_versao?`; sem dado pessoal). **Resposta `200` com `RespostaSinal`**: `{ politica_versao?: { versao_minima, versao_recomendada, mensagem?, pacote? } }` — escolha de desenho: a política viaja na resposta do sinal (já existe, é por Conector e chega a cada minuto), sem rota nova; resposta fora do formato é ignorada |
 | `POST /reconciliacoes` | `ReconciliacaoEnvio`; qualquer `2xx` |
+
+Pendências do Hub (para o engenheiro-software, fora do escopo deste pacote): rotas `/integracao/v1` ainda não existem; gravar `linhas_invalidas` como erro de linha; aceitar `itens_faturados` no retorno e validar a `sequencia`/soma por item (T-0011); aplicar `transicionarRetornoPedidoErp` (2ª nota parcial); responder o sinal com `politica_versao`; cadastro/rotação/revogação de chave por Conector com escopo `integracao.v1`; recusar com **426** (ou 400 `versao_conector_nao_suportada`) quem insistir em enviar abaixo da mínima.
 
 Premissas de comportamento do Hub: partes da sessão podem ser processadas em qualquer ordem, mas a sessão só fecha com todas as partes `1..ultimo` concluídas; reenvio com a mesma chave é inofensivo; `falhou` com erros por linha não reprocessáveis = o Conector considera o lote tratado (as linhas corrigidas voltam pelo delta); só `falha_processamento` é reenviada pelo Conector (em lote delta só com essas linhas, até 3 vezes).
 
@@ -229,11 +324,18 @@ Premissas de comportamento do Hub: partes da sessão podem ser processadas em qu
 |---|---|---|
 | `testar-conexao`: *Segredo … não encontrado* | variável ou credencial inexistente, ou serviço rodando com outra conta | `conector segredo definir …` com a conta do serviço, ou variável de ambiente do sistema |
 | *Configuração inválida* / *Segredo no arquivo* | JSON/YAML com campo inexistente, consulta sem `:cursor_*`/`:limite`, `senha`/`token` no arquivo | seguir a mensagem (ela diz o caminho do campo) |
-| *Hub recusou a credencial* (401/403) | token rotacionado, revogado ou IP não permitido | pedir novo token ao Macuxi; gravar com `segredo definir hub_token` (vale em ≤ 60 s). A fila espera, nada se perde |
+| *Hub recusou a credencial* (401/403) | chave rotacionada/revogada, `hub.conectorId` diferente do cadastrado ou IP não permitido | pedir a chave nova no BKO e gravar com `conector trocar-chave` (vale em ≤ 60 s, sem reiniciar). A fila espera, nada se perde |
+| `status`: **VERSÃO ABAIXO DA MÍNIMA** | o Hub subiu a versão mínima exigida | instalar o pacote recomendado (§7.4); o envio volta sozinho. Enquanto isso a fila local guarda tudo |
+| `status`: **DESATUALIZADO** | há versão recomendada mais nova | planejar a atualização (§7.4); não para nada |
+| `trocar-chave` sai com 4 | provedor `env` ou fora do Windows | definir a variável `MACUXI_CONECTOR_HUB_CHAVE` do sistema e reiniciar o serviço |
+| Oracle: `ORA-00933` na leitura | Oracle anterior à 12c com `paginacao: offset` | `"erp.paginacao": "rownum"` (§4.3) |
+| Oracle: datas deslocadas em horas | a view devolve hora local em `DATE`/`TIMESTAMP` | converter para UTC na view (`SYS_EXTRACT_UTC`, `AT TIME ZONE 'UTC'`) |
+| Oracle: campo numérico "tipo inválido" | `NUMBER` decimal chega como texto exato | `transformar: "numero"` (ou `centavos_de_decimal` para dinheiro) |
+| Linhas inválidas sumiram do lote | passam a ir em `linhas_invalidas` (não em `registros`) | ver o monitor do BKO ou `conector status`; corrigir no ERP |
 | *Sem conexão com o Hub* | firewall/proxy bloqueando HTTPS de saída | liberar o endereço do Hub na 443; o Conector continua tentando com espera exponencial (até 15 min) |
 | Entidade **BLOQUEADA** em `status`: *Hub recusou o lote (…)* | recusa definitiva do envelope (versão, limite, sessão) | corrigir a causa (ex.: atualizar o Conector) e rodar `conector retomar <entidade>` |
 | BLOQUEADA: *nenhuma linha lida tem external_id e alterado_em legíveis* | mapeamento/consulta errados | conferir `campos.external_id`/`campos.alterado_em` e a view; `testar-conexao`; `retomar` |
-| BLOQUEADA: *a leitura não avança* | muitas linhas com o mesmo `alterado_em` e `external_id` repetido, ou `alterado_em` de precisão menor que o do filtro | `external_id` único; `alterado_em` em ms |
+| BLOQUEADA: *a leitura não avança* | muitas linhas com o mesmo `alterado_em` e `external_id` repetido, ou `alterado_em` de precisão menor que o do filtro (inclusive quando uma página inteira, com mais páginas depois dela, só repete o cursor já lido: a entidade bloqueia com `log.erro entidade_bloqueada` em vez de reler a mesma página para sempre) | `external_id` único; `alterado_em` em ms; depois `conector retomar <entidade>` |
 | Nada novo chega ao Hub | `alterado_em` não muda quando o registro muda; nulo; fuso errado | a view deve atualizar `alterado_em` em toda alteração, em UTC |
 | Datas/horários deslocados em horas | view devolve hora local | converter para UTC na view (`AT TIME ZONE 'UTC'`) |
 | Erros por linha no BKO | dado fora do contrato | corrigir no ERP; o `alterado_em` novo faz a linha voltar no delta seguinte. `conector status` lista os recentes (campo + mensagem, sem valores) |
@@ -244,10 +346,12 @@ Premissas de comportamento do Hub: partes da sessão podem ser processadas em qu
 
 ## 11. Limites desta versão e pendências
 
-- **Drivers**: SQL Server e PostgreSQL. Oracle, MySQL e Firebird do doc 06 ficam para depois (interface `ConexaoErp` em `src/erp/driver.ts`).
-- **Atualização automática**: não implementada (o Conector envia a própria versão no sinal; a distribuição do executável depende de decisão — ver recado de entrega).
+- **Drivers**: SQL Server, PostgreSQL e Oracle (T-0023). MySQL e Firebird do doc 06 ficam para depois (interface `ConexaoErp` em `src/erp/driver.ts`).
+- **Atualização automática**: fica para a **v2** (decisão do Alexandre); a v1.1 só informa a versão, segue a política mínima/recomendada do Hub e tem o processo de pacote assinado (§7.4).
+- **Oracle real**: o adaptador é testado com dublê do driver; o teste contra um Oracle real roda quando `MACUXI_ORACLE_URL` existe (não houve instância na T-0023). A leitura de `DATE` por texto e o bind `TIMESTAMP WITH TIME ZONE` foram escolhidos a partir do código-fonte do `oracledb` 26 (o modo thin lê `DATE`/`TIMESTAMP` no fuso local do processo), mas só se confirmam no primeiro Oracle de homologação.
+- **Linhas inválidas** de uma página sem nenhuma linha válida não têm lote para viajar (o Hub recusa lote vazio): ficam nos erros locais e no log (§4.1). Se o Alexandre quiser vê-las no BKO, o Hub precisaria aceitar `registros` vazio com `linhas_invalidas` (regra do domain `envelope`, RN-INT-01).
 - **Tela local simples** do doc 06: não incluída (CLI + BKO cobrem a operação).
 - **Empacotamento em executável único** (`.exe` sem Node): hoje é um `conector.mjs` empacotado com esbuild que roda em Node 22 instalado.
 - **Teste com SQL Server real**: o driver tem testes de unidade com dublê do `mssql`; a validação contra uma instância real fica para o ambiente de homologação.
-- `itens_faturados` e `inativacao` dependem de acréscimo opcional no contrato (seção 9).
+- `inativacao` (resultado do último lote da sessão) é premissa de campo opcional ainda fora de `contracts` (seção 9). `itens_faturados` já está em `contracts/pedido.ts`.
 - Views-modelo (`db/conector/views-modelo.sql`) são do `banco-dados`.

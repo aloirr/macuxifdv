@@ -2,6 +2,8 @@
 import type { Armazenamento } from './armazenamento/armazenamento';
 import { ORDEM_CARGA } from './config/entidades';
 import type { ConfigConector } from './config/esquema';
+import { lerPolitica } from './politica';
+import { avaliarVersao, VERSAO_CONECTOR, type SituacaoVersao } from './versao';
 
 export interface StatusEntidade {
   entidade: string;
@@ -18,7 +20,19 @@ export interface StatusEntidade {
   errosHub: number;
 }
 
+export interface StatusVersao {
+  atual: string;
+  situacao: SituacaoVersao;
+  /** `true` = abaixo da mínima: o Conector parou de enviar dados ao Hub. */
+  deveParar: boolean;
+  mensagem: string;
+  minima: string | null;
+  recomendada: string | null;
+  politicaRecebidaEm: string | null;
+}
+
 export interface StatusConector {
+  versao: StatusVersao;
   fila: { estado: string; lotes: number; linhas: number; maisAntigo: string | null }[];
   entidades: StatusEntidade[];
   pedidos: { estado: string; total: number }[];
@@ -28,7 +42,9 @@ export interface StatusConector {
 
 const isoOuNull = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
 
-export function montarStatus(store: Armazenamento, config: ConfigConector): StatusConector {
+export function montarStatus(store: Armazenamento, config: ConfigConector, versao: string = VERSAO_CONECTOR): StatusConector {
+  const guardada = lerPolitica(store);
+  const avaliacao = avaliarVersao(versao, guardada?.politica);
   const estados = new Map(store.estados().map((e) => [e.entidade, e]));
   const erros = store.contarErros();
   const fila = store.resumoFila();
@@ -50,6 +66,15 @@ export function montarStatus(store: Armazenamento, config: ConfigConector): Stat
     };
   });
   return {
+    versao: {
+      atual: versao,
+      situacao: avaliacao.situacao,
+      deveParar: avaliacao.deveParar,
+      mensagem: avaliacao.mensagem,
+      minima: guardada?.politica.versao_minima ?? null,
+      recomendada: guardada?.politica.versao_recomendada ?? null,
+      politicaRecebidaEm: guardada?.recebidaEm ?? null,
+    },
     fila: fila.map((f) => ({ estado: f.estado, lotes: f.total, linhas: f.linhas, maisAntigo: isoOuNull(f.maisAntigoMs) })),
     entidades,
     pedidos: store.contarPedidos(),
@@ -60,7 +85,12 @@ export function montarStatus(store: Armazenamento, config: ConfigConector): Stat
 
 export function formatarStatus(s: StatusConector): string {
   const linhas: string[] = [];
-  linhas.push('FILA LOCAL');
+  const v = s.versao;
+  const rotulo = v.situacao === 'abaixo_da_minima' ? 'VERSÃO ABAIXO DA MÍNIMA' : v.situacao === 'desatualizado' ? 'DESATUALIZADO' : v.situacao === 'ok' ? 'em dia' : 'sem política do Hub';
+  linhas.push(`CONECTOR ${v.atual}  [${rotulo}]`);
+  linhas.push(`  ${v.mensagem}`);
+  if (v.minima) linhas.push(`  política do Hub: mínima ${v.minima}, recomendada ${v.recomendada}${v.politicaRecebidaEm ? ` (recebida em ${v.politicaRecebidaEm})` : ''}`);
+  linhas.push('', 'FILA LOCAL');
   if (s.fila.length === 0) linhas.push('  vazia');
   for (const f of s.fila) linhas.push(`  ${f.estado.padEnd(20)} ${String(f.lotes).padStart(5)} lote(s) ${String(f.linhas).padStart(8)} linha(s)${f.maisAntigo ? `  mais antigo: ${f.maisAntigo}` : ''}`);
   linhas.push('', 'ENTIDADES');

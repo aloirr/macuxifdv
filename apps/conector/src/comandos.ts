@@ -7,8 +7,12 @@ import { ehEntidade, ORDEM_CARGA, type Entidade } from './config/entidades';
 import { adquirirTrava } from './trava';
 import { Executor } from './executor';
 import { abrirContexto, fecharContexto, prepararAmbiente } from './iniciar';
+import { avisoTransporteErp } from './erp/transporte';
 import { mapearEValidar } from './mapeamento';
-import { criarProvedor, NOMES_SEGREDO, type NomeSegredo } from './segredos/provedores';
+import { validarFormatoChave } from './segredos/chave';
+import { criarProvedor, type ExecutarPowerShell, nomeVariavel, NOMES_SEGREDO, type NomeSegredo } from './segredos/provedores';
+import { registrarSegredo } from './log/mascara';
+import { ErroHubAutenticacao } from './hub/cliente';
 import { reiniciarCargaCompleta, retomarEntidade } from './sincronizador';
 import { desinstalarServico, instalarServico } from './servico';
 import { formatarStatus, montarStatus } from './status';
@@ -26,6 +30,10 @@ export interface ES {
   erro(texto: string): void;
   lerEntrada(): Promise<string>;
   env: NodeJS.ProcessEnv;
+  /** Sistema operacional (padrão: `process.platform`); os testes simulam Windows/Linux. */
+  plataforma?: string;
+  /** PowerShell do Gerenciador de Credenciais (padrão: o real); os testes injetam um dublê. */
+  executarPowerShell?: ExecutarPowerShell;
 }
 
 export const AJUDA = `Macuxi Conector ${VERSAO_CONECTOR}
@@ -40,6 +48,8 @@ Uso: conector <comando> [opções]      (--config <arquivo> ou MACUXI_CONECTOR_C
   retomar <entidade>                libera uma entidade bloqueada e relê a partir do cursor confirmado
   segredo definir <nome>            grava no Gerenciador de Credenciais do Windows (valor pela entrada padrão)
                                     nomes: ${NOMES_SEGREDO.join(', ')}
+  trocar-chave [--sem-testar]       troca a chave de API do Hub deste Conector sem reinstalar (chave nova pela entrada padrão;
+                                    testa no Hub antes de gravar; o serviço passa a usá-la em até 60 s)
   instalar-servico --winsw <exe> [--pasta <dir>] [--somente-gerar]
   desinstalar-servico [--pasta <dir>]
   versao                            mostra a versão
@@ -60,6 +70,7 @@ export async function executarCli(argv: string[], io: ES): Promise<number> {
         winsw: { type: 'string' },
         pasta: { type: 'string' },
         'somente-gerar': { type: 'boolean' },
+        'sem-testar': { type: 'boolean' },
         ajuda: { type: 'boolean', short: 'h' },
       },
     });
@@ -96,6 +107,8 @@ export async function executarCli(argv: string[], io: ES): Promise<number> {
         return await operarEntidade(comando, resto[0], caminhoConfig, io);
       case 'segredo':
         return await segredo(resto, caminhoConfig, io);
+      case 'trocar-chave':
+        return await trocarChave(caminhoConfig, Boolean(o['sem-testar']), io);
       case 'instalar-servico': {
         const amb = prepararAmbiente(caminhoConfig, { env: io.env });
         const pasta = resolve(o.pasta ?? resolve(amb.dadosDir, '..', 'servico'));
@@ -158,7 +171,7 @@ async function status(caminhoConfig: string, json: boolean, io: ES): Promise<num
   try {
     const s = montarStatus(store, amb.config);
     io.saida(json ? JSON.stringify(s, null, 2) : formatarStatus(s));
-    return s.entidades.some((e) => e.bloqueio) ? 3 : 0;
+    return s.entidades.some((e) => e.bloqueio) || s.versao.deveParar ? 3 : 0;
   } finally {
     store.fechar();
   }
@@ -219,6 +232,59 @@ async function segredo(args: string[], caminhoConfig: string, io: ES): Promise<n
   return 0;
 }
 
+/**
+ * `conector trocar-chave`: aceita a chave de API nova (uma por Conector, escopo só /integracao/v1) pela ENTRADA PADRÃO, confere o
+ * formato, testa no Hub com o identificador do Conector e só então grava no Gerenciador de Credenciais do Windows. O serviço relê
+ * o segredo a cada 60 s: não precisa reinstalar nem reiniciar. A chave nunca vai para argumento de processo, saída ou log.
+ * Códigos: 0 gravada; 1 recusada/erro; 2 uso; 4 validada mas NÃO gravada (provedor por variável de ambiente ou fora do Windows).
+ */
+async function trocarChave(caminhoConfig: string, semTestar: boolean, io: ES): Promise<number> {
+  const amb = prepararAmbiente(caminhoConfig, { env: io.env });
+  const nova = (await io.lerEntrada()).replace(/\r?\n$/, '');
+  const invalida = validarFormatoChave(nova);
+  if (invalida) {
+    io.erro(invalida);
+    return 2;
+  }
+  registrarSegredo(nova); // qualquer mensagem que a contenha sai mascarada
+  const conectorId = amb.config.hub.conectorId;
+  if (!semTestar) {
+    const { ClienteHub } = await import('./hub/cliente');
+    const hub = new ClienteHub({ url: amb.config.hub.url, token: async () => nova, conectorId, timeoutMs: amb.config.hub.timeoutSegundos * 1000, retry: { tentativas: 2 } });
+    try {
+      await hub.consultarCursor(ORDEM_CARGA.find((e) => amb.config.entidades[e]) ?? 'cliente');
+    } catch (e) {
+      if (e instanceof ErroHubAutenticacao) {
+        io.erro(
+          `O Hub recusou a chave nova para o Conector "${conectorId}" (HTTP ${e.status}). Nada foi gravado e a chave atual continua valendo. ` +
+            'Confira se copiou a chave inteira e se hub.conectorId é o mesmo identificador cadastrado no BKO.',
+        );
+      } else {
+        io.erro(`Não consegui falar com o Hub para validar a chave (${mascararTexto(resumoErro(e))}). Nada foi gravado. Verifique a rede e tente de novo; se o Hub estiver fora do ar de propósito, use --sem-testar.`);
+      }
+      return 1;
+    }
+  }
+  const nomeVar = nomeVariavel('hub_chave');
+  const ehWindows = (io.plataforma ?? process.platform) === 'win32';
+  if (amb.config.segredos.provedor === 'env' || !ehWindows) {
+    io.erro(
+      `Chave aceita${semTestar ? '' : ' pelo Hub'}, mas NÃO gravada: ${amb.config.segredos.provedor === 'env' ? 'o provedor configurado é "env"' : 'fora do Windows não há Gerenciador de Credenciais'}. ` +
+        `Defina a variável de ambiente do sistema ${nomeVar} com a chave nova e reinicie o serviço (variável de ambiente só é lida na partida do processo).`,
+    );
+    return 4;
+  }
+  const prov = criarProvedor('windows', { executar: io.executarPowerShell });
+  await (prov.definir as NonNullable<typeof prov.definir>)('hub_chave', nova);
+  amb.log.info('chave_hub_trocada', { conector_id: conectorId, testada_no_hub: !semTestar });
+  io.saida(`Chave do Hub gravada no Gerenciador de Credenciais do Windows para o Conector "${conectorId}". O serviço passa a usá-la em até 60 s, sem reiniciar.`);
+  if (io.env[nomeVar]) {
+    io.saida(`ATENÇÃO: a variável de ambiente ${nomeVar} está definida e tem prioridade sobre o Gerenciador de Credenciais; o serviço continua com a chave ANTIGA até você atualizar ou remover a variável e reiniciar o serviço.`);
+  }
+  io.saida('Depois de confirmar que o sinal de vida voltou no BKO, revogue a chave antiga lá.');
+  return 0;
+}
+
 async function testarConexao(caminhoConfig: string, io: ES): Promise<number> {
   const amb = prepararAmbiente(caminhoConfig, { env: io.env });
   let falhas = 0;
@@ -228,6 +294,8 @@ async function testarConexao(caminhoConfig: string, io: ES): Promise<number> {
     io.erro(`[ERRO]  ${m}`);
   };
   ok(`Configuração válida (${Object.keys(amb.config.entidades).length} entidade(s)).`);
+  const avisoTls = avisoTransporteErp(amb.config.erp);
+  if (avisoTls) io.saida(`[aviso] ${avisoTls}`);
 
   for (const nome of NOMES_SEGREDO) {
     const v = await amb.segredos.obter(nome).catch(() => undefined);
@@ -266,10 +334,10 @@ async function testarConexao(caminhoConfig: string, io: ES): Promise<number> {
     }
   }
 
-  const token = await amb.segredos.obter('hub_token').catch(() => undefined);
+  const token = await amb.segredos.obter('hub_chave').catch(() => undefined);
   if (token) {
     const { ClienteHub } = await import('./hub/cliente');
-    const hub = new ClienteHub({ url: amb.config.hub.url, token: async () => token, timeoutMs: amb.config.hub.timeoutSegundos * 1000, retry: { tentativas: 2 } });
+    const hub = new ClienteHub({ url: amb.config.hub.url, token: async () => token, conectorId: amb.config.hub.conectorId, timeoutMs: amb.config.hub.timeoutSegundos * 1000, retry: { tentativas: 2 } });
     const primeira = ORDEM_CARGA.find((e) => amb.config.entidades[e]);
     try {
       await hub.consultarCursor(primeira ?? 'cliente');

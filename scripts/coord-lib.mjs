@@ -1,10 +1,12 @@
 // Biblioteca comum do protocolo de coordenação do time Macuxi.
 // Usada pelo guardião (.claude/hooks/guarda-donos.mjs) e pela CLI (scripts/coord.mjs).
 // Sem dependências externas.
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, renameSync } from 'node:fs';
 import { join, relative, isAbsolute, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 
 export const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -180,11 +182,15 @@ function* mudancasUnicas(mudancas) {
  * Exceções universais (iguais às do guardião): recado NOVO do próprio agente em
  * .coord/recados/<destino>/, .coord/diario/<agente>.md e .coord/lidos/<agente>.txt.
  * Recado novo com o nome de outro remetente e diário/lidos de outro agente são desse outro.
- * @param {{agente: string, mudancas: {status: string, caminho: string}[], regras: any[], estrito?: boolean}} p
- * @returns {{ok: any[], excecoes: any[], outros: any[], violacoes: any[]}}
+ * Com `lockAcompanha` (só no estrito, uso do `verificar --base/--por-commit`), aplica a regra
+ * "o lock acompanha a dependência" (lockAcompanhaDependencia): o lock que seria violação vai
+ * para `acompanhando`, para revisão do engenheiro-software.
+ * @param {{agente: string, mudancas: {status: string, caminho: string}[], regras: any[], estrito?: boolean,
+ *   lockAcompanha?: boolean, workspaceSoBuilds?: boolean | (() => boolean)}} p
+ * @returns {{ok: any[], excecoes: any[], outros: any[], violacoes: any[], acompanhando: any[]}}
  */
-export function classificarMudancas({ agente, mudancas, regras, estrito = false }) {
-  const res = { ok: [], excecoes: [], outros: [], violacoes: [] };
+export function classificarMudancas({ agente, mudancas, regras, estrito = false, lockAcompanha = false, workspaceSoBuilds = false }) {
+  const res = { ok: [], excecoes: [], outros: [], violacoes: [], acompanhando: [] };
   for (const item of mudancasUnicas(mudancas)) {
     const info = donoDaMudanca(item.caminho, regras);
     const universal = violacaoUniversal(item.status, info);
@@ -207,7 +213,85 @@ export function classificarMudancas({ agente, mudancas, regras, estrito = false 
       res.violacoes.push({ ...item, dono, motivo });
     }
   }
+  return estrito && lockAcompanha ? lockAcompanhaDependencia({ agente, resultado: res, workspaceSoBuilds }) : res;
+}
+
+// ───────────────────── "o lock acompanha a dependência" (guardião v4, T-0005) ─────────────────────
+
+export const LOCK_PNPM = 'pnpm-lock.yaml';
+export const WORKSPACE_PNPM = 'pnpm-workspace.yaml';
+/** Chaves do pnpm-workspace.yaml que um agente pode mudar junto com a dependência do próprio pacote. */
+export const CHAVES_DE_BUILD = ['allowBuilds', 'onlyBuiltDependencies'];
+
+/** Pasta do pacote de um package.json ("modules/core/package.json" → "modules/core"; raiz → "."), ou null. */
+export function pacoteDoPackageJson(caminho) {
+  const c = normalizarCaminho(caminho);
+  if (c === 'package.json') return '.';
+  const m = c.match(/^(.+)\/package\.json$/i);
+  return m ? m[1] : null;
+}
+
+/**
+ * Remove de um pnpm-workspace.yaml os blocos de primeiro nível das CHAVES_DE_BUILD (a linha da
+ * chave e as seguintes indentadas ou itens "- " de lista), as linhas em branco e as só de comentário.
+ * Sobra o resto do arquivo, para comparar antes × depois (função pura, sem parser de YAML).
+ */
+export function workspaceSemChavesDeBuild(texto) {
+  const chave = new RegExp(`^(?:${CHAVES_DE_BUILD.join('|')}|"(?:${CHAVES_DE_BUILD.join('|')})"|'(?:${CHAVES_DE_BUILD.join('|')})')[ \\t]*:`);
+  const fora = [];
+  let dentro = false;
+  for (const linha of String(texto || '').replace(/\r\n?/g, '\n').split('\n')) {
+    if (!linha.trim() || /^[ \t]*#/.test(linha)) continue; // linha em branco ou só comentário: não muda nada
+    if (dentro && (/^[ \t]/.test(linha) || /^-([ \t]|$)/.test(linha))) continue;
+    dentro = chave.test(linha);
+    if (!dentro) fora.push(linha.replace(/[ \t]+$/, ''));
+  }
+  return fora.join('\n');
+}
+
+/** pnpm-workspace.yaml mudou só em allowBuilds/onlyBuiltDependencies? (função pura) */
+export function workspaceMudouSoEmBuilds(antes, depois) {
+  return workspaceSemChavesDeBuild(antes) === workspaceSemChavesDeBuild(depois);
+}
+
+/**
+ * Regra "o lock acompanha a dependência" (função pura, sobre o resultado do classificarMudancas estrito):
+ * a mudança em pnpm-lock.yaml (M/A) e a do pnpm-workspace.yaml (M) feita só em allowBuilds/
+ * onlyBuiltDependencies (`workspaceSoBuilds`) deixam de ser violação quando, no MESMO PR/commit,
+ * o agente alterou o package.json de um pacote que é dele (está em `ok`). Elas vão para
+ * `acompanhando` ("lock acompanhando dependência de <pacote>"), para revisão do engenheiro-software.
+ * Sem package.json do próprio agente (só o lock, ou package.json de outro dono) continua violação.
+ * `alexandre` não precisa da regra (nunca viola por dono).
+ * @param {{agente: string, resultado: {ok: any[], violacoes: any[], acompanhando?: any[]},
+ *   workspaceSoBuilds?: boolean | (() => boolean)}} p
+ */
+export function lockAcompanhaDependencia({ agente, resultado, workspaceSoBuilds = false }) {
+  const res = { ...resultado, violacoes: [...resultado.violacoes], acompanhando: [...(resultado.acompanhando || [])] };
+  if (agente === 'alexandre') return res;
+  const pacotes = [...new Set(res.ok.map((i) => pacoteDoPackageJson(i.caminho)).filter(Boolean))].sort();
+  if (!pacotes.length) return res;
+  let soBuilds;
+  const workspaceOk = () => (soBuilds ??= Boolean(typeof workspaceSoBuilds === 'function' ? workspaceSoBuilds() : workspaceSoBuilds));
+  const motivo = `lock acompanhando dependência de ${pacotes.join(', ')}`;
+  res.violacoes = res.violacoes.filter((v) => {
+    const acompanha = (v.caminho === LOCK_PNPM && (v.status === 'M' || v.status === 'A'))
+      || (v.caminho === WORKSPACE_PNPM && v.status === 'M' && workspaceOk());
+    if (!acompanha) return true;
+    res.acompanhando.push({ ...v, pacotes, motivo: v.caminho === LOCK_PNPM ? motivo : `${motivo} (só ${CHAVES_DE_BUILD.join('/')})` });
+    return false;
+  });
   return res;
+}
+
+// ───────────────────── caminhos de governança (guardião v4, T-0005) ─────────────────────
+
+/** Caminhos que exigem revisão humana (Alexandre) no PR: `coord.mjs governanca --base <ref>`. */
+export const CAMINHOS_DE_GOVERNANCA = ['.claude/**', '.coord/donos.json', 'scripts/coord*.mjs', '.github/**'];
+
+/** Mudanças em caminhos de governança, sem repetição (função pura). */
+export function mudancasDeGovernanca(mudancas, padroes = CAMINHOS_DE_GOVERNANCA) {
+  const res = padroes.map(globParaRegex);
+  return [...mudancasUnicas(mudancas)].filter((m) => res.some((re) => re.test(m.caminho)));
 }
 
 /**
@@ -286,21 +370,26 @@ export function trailersAgente(corpo) {
   return nomes;
 }
 
-// ───────────────────── identificação do agente da sessão (guardião v3, T-0005) ─────────────────────
+// ───────────────────── identificação do agente da sessão (guardião v4, T-0005) ─────────────────────
 
 /**
  * Agente da sessão para os guardiões (.claude/hooks/guarda-donos.mjs e guarda-bash.mjs). Função pura.
  * Ordem (a primeira fonte que responde vence):
- *  1. variável MACUXI_AGENTE;
- *  2. o agente que o guardião já usava, numa sessão LOCAL de agente ou num subagente:
- *     argumento do hook (frontmatter); agent_type de subagente (agent_id no JSON do hook, ou
- *     agent_type diferente do "agent" do .claude/settings.json); agent_type fora da nuvem
- *     (CLAUDE_CODE_REMOTE != "true");
- *  3. branch atual: <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente>, alexandre/* → alexandre,
- *     nuvem/* → trailer "Agente: <nome>" do último commit do branch que o tem (commits desde o main);
- *  4. fonte ausente ou ambígua (branch de alguém fora do time, trailers com agentes diferentes ou
- *     desconhecidos, nenhum commit com trailer) → comportamento anterior: argumento || agent_type,
- *     e '' (sessão manual) libera.
+ *  1. SUBAGENTE (agent_id no JSON do hook): o agente do subagente (argumento do hook do frontmatter
+ *     ou agent_type). Vence MACUXI_AGENTE, que todo subagente herda do processo do Claude Code: a
+ *     variável vale só para a sessão principal. Subagente sem agente identificável → restrito.
+ *  2. variável MACUXI_AGENTE (sessão principal);
+ *  3. argumento do hook (frontmatter); agent_type numa sessão LOCAL (CLAUDE_CODE_REMOTE != "true");
+ *     na nuvem, agent_type diferente do "agent" do .claude/settings.json (subagente sem agent_id);
+ *  4. branch atual: <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente> → agente do time;
+ *     nuvem/* → trailer "Agente: <nome>" com UM ÚNICO nome em todos os commits do branch desde o
+ *     main que têm o trailer (commits sem trailer não contam; nomes diferentes = ambíguo);
+ *  5. fonte ausente, ambígua ou que declara "alexandre" → comportamento restrito: o agent_type da
+ *     sessão; sem agent_type, sessão manual LOCAL = liberada (''); na nuvem, o "agent" do
+ *     settings.json (ou 'sessao-sem-agente', fora do time).
+ * "alexandre" só por fonte confiável: MACUXI_AGENTE=alexandre (ou a sessão manual local, que já é
+ * liberada). Branch alexandre/* e trailer "Agente: alexandre" são declarados pelo próprio agente e
+ * NÃO concedem a identidade alexandre (revisão do guardião v3, 🟡 2).
  * Na nuvem (claude.ai/code) a sessão principal recebe o agent_type do "agent" do settings.json
  * (gerente-projetos) seja qual for a tarefa; por isso lá o branch vem antes dele.
  * @param {object} p
@@ -315,28 +404,42 @@ export function trailersAgente(corpo) {
 export function identificarAgente({ argumento = '', entrada = {}, env = {}, agentePadrao = null, branch = () => null, commitsDoBranch = () => [] } = {}) {
   const arg = String(argumento || '').trim();
   const tipo = String(entrada?.agent_type || '').trim();
+  const subagente = Boolean(String(entrada?.agent_id || '').trim());
   const doEnv = String(env.MACUXI_AGENTE || '').trim().toLowerCase();
+  const nuvem = String(env.CLAUDE_CODE_REMOTE || '').trim().toLowerCase() === 'true';
+  if (subagente) {
+    if (arg) return { agente: arg, origem: 'subagente (argumento do hook)' };
+    if (tipo) return { agente: tipo, origem: 'subagente (agent_type)' };
+    return { agente: SUBAGENTE_SEM_AGENTE, origem: 'subagente sem agent_type (restrito)' };
+  }
   if (doEnv) return { agente: doEnv, origem: 'variável MACUXI_AGENTE' };
   if (arg) return { agente: arg, origem: 'argumento do hook' };
-  const nuvem = String(env.CLAUDE_CODE_REMOTE || '').trim().toLowerCase() === 'true';
-  if (tipo && entrada?.agent_id) return { agente: tipo, origem: 'subagente (agent_type)' };
   if (tipo && !nuvem) return { agente: tipo, origem: 'sessão local (agent_type)' };
   if (tipo && agentePadrao && tipo !== agentePadrao) return { agente: tipo, origem: 'subagente (agent_type)' };
   let b = null;
   try { b = branch(); } catch { b = null; }
+  let ignorado = '';
   if (b) {
     const r = agenteDoBranch(b);
-    if (r.agente) return { agente: r.agente, origem: `branch ${b}` };
+    if (r.agente === 'alexandre') ignorado = ` (branch ${b} não concede alexandre)`;
+    else if (r.agente) return { agente: r.agente, origem: `branch ${b}` };
     if (r.nuvem) {
       let commits = [];
       try { commits = commitsDoBranch() || []; } catch { commits = []; }
       const nomes = new Set(commits.flatMap((c) => trailersAgente(c.corpo)));
       const [nome] = [...nomes];
-      if (nomes.size === 1 && PESSOAS.includes(nome)) return { agente: nome, origem: `trailer "Agente:" do branch ${b}` };
+      if (nomes.size === 1 && nome === 'alexandre') ignorado = ` (trailer "Agente: alexandre" do branch ${b} não concede alexandre)`;
+      else if (nomes.size === 1 && AGENTES.includes(nome)) return { agente: nome, origem: `trailer "Agente:" do branch ${b}` };
     }
   }
-  return { agente: arg || tipo, origem: tipo ? 'agent_type (fonte ausente ou ambígua)' : 'sessão manual' };
+  if (tipo) return { agente: tipo, origem: `agent_type (fonte ausente ou ambígua)${ignorado}` };
+  if (!nuvem) return { agente: '', origem: `sessão manual local${ignorado}` };
+  return { agente: agentePadrao || SESSAO_SEM_AGENTE, origem: `sessão da nuvem sem agente (restrita)${ignorado}` };
 }
+
+/** Agentes "fora do time" usados quando não há identidade (os guardiões barram toda escrita no repositório). */
+export const SUBAGENTE_SEM_AGENTE = 'subagente-sem-agente';
+export const SESSAO_SEM_AGENTE = 'sessao-sem-agente';
 
 function gitSilencioso(raiz, args) {
   try {
@@ -344,24 +447,99 @@ function gitSilencioso(raiz, args) {
   } catch { return null; }
 }
 
-/** Branch atual do repositório (null com HEAD destacado ou fora do git). */
+const lerTexto = (arq) => { try { return readFileSync(arq, 'utf8'); } catch { return null; } };
+
+/**
+ * Lê HEAD, branch e a base (origin/main, senão main) direto dos arquivos do .git, sem rodar o git
+ * (rápido, para a chave do cache). Entende worktree (.git arquivo + commondir) e packed-refs.
+ * @returns {{branch: string|null, head: string|null, base: string|null} | null}  null se não der para ler
+ */
+export function refsDoGit(raiz = RAIZ) {
+  try {
+    let gitdir = join(raiz, '.git');
+    if (statSync(gitdir).isFile()) {
+      const m = String(lerTexto(gitdir) || '').match(/^gitdir:[ \t]*(.+?)\s*$/m);
+      if (!m) return null;
+      gitdir = resolve(raiz, m[1]);
+    }
+    const cd = lerTexto(join(gitdir, 'commondir'))?.trim();
+    const comum = cd ? resolve(gitdir, cd) : gitdir;
+    const empacotados = lerTexto(join(comum, 'packed-refs')) || '';
+    const ref = (nome) => {
+      const solto = lerTexto(join(comum, nome))?.trim();
+      if (solto && /^[0-9a-f]{40,64}$/i.test(solto)) return solto;
+      for (const l of empacotados.split(/\r?\n/)) {
+        const [sha, r] = l.trim().split(/\s+/);
+        if (r === nome && /^[0-9a-f]{40,64}$/i.test(sha)) return sha;
+      }
+      return null;
+    };
+    const cabeca = lerTexto(join(gitdir, 'HEAD'))?.trim();
+    if (!cabeca) return null;
+    const m = cabeca.match(/^ref:[ \t]*(refs\/heads\/.+)$/);
+    const branch = m ? m[1].slice('refs/heads/'.length) : null;
+    const head = m ? ref(m[1]) : (/^[0-9a-f]{40,64}$/i.test(cabeca) ? cabeca : null);
+    return { branch, head, base: ref('refs/remotes/origin/main') || ref('refs/heads/main') };
+  } catch { return null; }
+}
+
+/** Branch atual do repositório (null com HEAD destacado ou fora do git). Lê o .git; senão, git rev-parse. */
 export function branchAtual(raiz = RAIZ) {
+  const refs = refsDoGit(raiz);
+  if (refs) return refs.branch;
   const b = gitSilencioso(raiz, ['rev-parse', '--abbrev-ref', 'HEAD'])?.trim();
   return b && b !== 'HEAD' ? b : null;
 }
 
-/**
- * Commits do branch (sem merges, do mais novo ao mais velho): desde origin/main (ou main);
- * sem essas refs, só o último commit.
- */
-export function commitsDoBranch(raiz = RAIZ) {
+/** Commits do branch pelo git (sem cache): desde origin/main (ou main); sem essas refs, só o último. */
+function commitsDoBranchGit(raiz) {
   const base = ['origin/main', 'main'].find((r) => gitSilencioso(raiz, ['rev-parse', '--verify', '-q', `${r}^{commit}`]));
   const intervalo = base ? [`${base}..HEAD`] : ['-1', 'HEAD'];
-  const out = gitSilencioso(raiz, ['log', '--no-merges', '--format=%H%x1f%B%x1e', ...intervalo]) || '';
+  const out = gitSilencioso(raiz, ['log', '--no-merges', '--format=%H%x1f%B%x1e', ...intervalo]);
+  if (out === null) return null;
   return out.split('\x1e').map((s) => s.replace(/^\n/, '')).filter(Boolean).map((s) => {
     const [sha, corpo] = s.split('\x1f');
     return { sha, corpo: corpo || '' };
   });
+}
+
+/** Pasta do cache de identificação (a mesma pasta temporária das fotos do guarda-bash). */
+export const PASTA_CACHE = join(tmpdir(), 'macuxi-guarda');
+
+/** Arquivo do cache de identificação do repositório `raiz`. */
+export function arquivoCacheIdentificacao(raiz = RAIZ, pasta = PASTA_CACHE) {
+  return join(pasta, `ident-${createHash('sha1').update(resolve(raiz)).digest('hex').slice(0, 24)}.json`);
+}
+
+/**
+ * Commits do branch (sem merges, do mais novo ao mais velho): desde origin/main (ou main);
+ * sem essas refs, só o último commit. Com cache por HEAD (+ base) num arquivo temporário: o
+ * resultado do git rev-parse/log só é refeito quando o HEAD ou a base mudam (revisão v3, 🟢 4).
+ * Do corpo de cada commit o cache guarda só as linhas "Agente:" (o que a identificação usa).
+ */
+export function commitsDoBranch(raiz = RAIZ, { pastaCache = PASTA_CACHE } = {}) {
+  const refs = refsDoGit(raiz);
+  const chave = refs?.head ? `${refs.head}|${refs.base || ''}` : null;
+  const arq = chave ? arquivoCacheIdentificacao(raiz, pastaCache) : null;
+  if (arq) {
+    try {
+      const c = JSON.parse(readFileSync(arq, 'utf8'));
+      if (c && c.chave === chave && Array.isArray(c.commits)) return c.commits;
+    } catch { /* sem cache ou ilegível: recalcula */ }
+  }
+  const commits = commitsDoBranchGit(raiz);
+  if (commits === null) return [];
+  if (arq) {
+    const enxuto = commits.map((c) => ({ sha: c.sha, corpo: trailersAgente(c.corpo).map((n) => `Agente: ${n}`).join('\n') }));
+    try {
+      mkdirSync(pastaCache, { recursive: true });
+      const tmp = `${arq}.${process.pid}.tmp`;
+      writeFileSync(tmp, JSON.stringify({ chave, commits: enxuto }));
+      renameSync(tmp, arq);
+    } catch { /* sem cache: segue sem ele */ }
+    return enxuto;
+  }
+  return commits;
 }
 
 /** "agent" do .claude/settings.json (agente padrão da sessão principal), ou null. */

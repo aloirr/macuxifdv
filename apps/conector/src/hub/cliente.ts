@@ -6,10 +6,13 @@
  */
 import {
   API_PREFIX_INTEGRACAO,
+  CABECALHO_CONECTOR_ID,
+  CABECALHO_CONECTOR_VERSAO,
   CursorEntidade,
   LoteAceito,
   PedidosPendentes,
   RecusaEnvelope,
+  RespostaSinal,
   RetornoAceito,
   type ReconciliacaoEnvio,
 } from '@macuxi/integracao/contracts';
@@ -17,6 +20,23 @@ import { z } from 'zod';
 import { comRetry, type OpcoesRetry } from '../util/retry';
 import { VERSAO_CONECTOR } from '../versao';
 import { ResultadoLote, type ResultadoLoteHub, type RetornoParaHub } from './tipos';
+
+/**
+ * `Retry-After` do Hub (RFC 9110): número de segundos OU data HTTP (`Wed, 21 Oct 2026 07:28:00 GMT`). Devolve a espera em ms,
+ * ou `undefined` se ausente, inválido, zero ou data já passada (aí vale o backoff normal). O teto é aplicado pelo retry.
+ */
+export function esperaRetryAfter(valor: string | null | undefined, agoraMs: number = Date.now()): number | undefined {
+  const v = valor?.trim();
+  if (!v) return undefined;
+  if (/^\d+(\.\d+)?$/.test(v)) {
+    const segundos = Number(v);
+    return segundos > 0 ? Math.round(segundos * 1000) : undefined;
+  }
+  const data = Date.parse(v);
+  if (Number.isNaN(data)) return undefined;
+  const espera = data - agoraMs;
+  return espera > 0 ? espera : undefined;
+}
 
 export class ErroHubTransitorio extends Error {
   constructor(message: string, readonly status: number | null = null, readonly retryAfterMs?: number) {
@@ -42,10 +62,17 @@ export type RespostaRetorno = { tipo: 'aceito'; aceito: RetornoAceito } | { tipo
 
 export interface OpcoesHub {
   url: string;
+  /** Chave de API deste Conector (relida a cada chamada: rotacionar a chave vale sem reiniciar). */
   token: () => Promise<string>;
+  /** Identificador do Conector (cabeçalho `X-Macuxi-Conector-Id`); a chave é única por Conector. */
+  conectorId?: string;
+  /** Versão informada ao Hub (padrão: `VERSAO_CONECTOR`). */
+  versao?: string;
   timeoutMs?: number;
   retry?: Partial<Pick<OpcoesRetry, 'tentativas' | 'baseMs' | 'maxMs' | 'dormir' | 'aleatorio'>>;
   fetch?: typeof fetch;
+  /** Relógio (ms) para interpretar `Retry-After` em data HTTP; padrão `Date.now`. */
+  agora?: () => number;
   aoRetentar?: (info: { operacao: string; tentativa: number; esperaMs: number; motivo: string }) => void;
 }
 
@@ -69,8 +96,9 @@ export class ClienteHub {
             headers: {
               Authorization: `Bearer ${await this.o.token()}`,
               Accept: 'application/json',
-              'User-Agent': `macuxi-conector/${VERSAO_CONECTOR}`,
-              'X-Macuxi-Conector-Versao': VERSAO_CONECTOR,
+              'User-Agent': `macuxi-conector/${this.o.versao ?? VERSAO_CONECTOR}`,
+              [CABECALHO_CONECTOR_VERSAO]: this.o.versao ?? VERSAO_CONECTOR,
+              ...(this.o.conectorId ? { [CABECALHO_CONECTOR_ID]: this.o.conectorId } : {}),
               ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
               ...cabecalhos,
             },
@@ -92,11 +120,10 @@ export class ClienteHub {
           }
         }
         if (res.status === 401 || res.status === 403) {
-          throw new ErroHubAutenticacao('O Hub recusou a credencial do Conector (verifique o token; ele pode ter sido rotacionado ou revogado).', res.status);
+          throw new ErroHubAutenticacao('O Hub recusou a credencial do Conector (verifique o identificador e a chave de API; ela pode ter sido rotacionada ou revogada: conector trocar-chave).', res.status);
         }
         if (res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500) {
-          const ra = Number(res.headers.get('retry-after'));
-          throw new ErroHubTransitorio(`Hub indisponível (HTTP ${res.status}).`, res.status, Number.isFinite(ra) && ra > 0 ? ra * 1000 : undefined);
+          throw new ErroHubTransitorio(`Hub indisponível (HTTP ${res.status}).`, res.status, esperaRetryAfter(res.headers.get('retry-after'), this.o.agora?.()));
         }
         return { status: res.status, json };
       },
@@ -158,10 +185,15 @@ export class ClienteHub {
     return { tipo: 'recusado', status, codigo: primeiro?.codigo ?? j.codigo ?? `http_${status}`, mensagem: primeiro?.mensagem ?? j.mensagem ?? 'retorno recusado pelo Hub' };
   }
 
-  /** `POST /sinal` — batimento de vida (1 min). */
-  async enviarSinal(corpo: Record<string, unknown>): Promise<void> {
-    const { status } = await this.chamar('sinal', 'POST', '/sinal', corpo);
+  /**
+   * `POST /sinal` — batimento de vida (1 min). A resposta traz a política de versão (mínima/recomendada); resposta fora do
+   * formato é ignorada (devolve `null`): um Hub mais antigo ou com defeito nunca deve parar o Conector.
+   */
+  async enviarSinal(corpo: Record<string, unknown>): Promise<RespostaSinal | null> {
+    const { status, json } = await this.chamar('sinal', 'POST', '/sinal', corpo);
     if (status >= 400) throw new ErroHubTransitorio(`O Hub recusou o sinal de vida (HTTP ${status}).`, status);
+    const r = RespostaSinal.safeParse(json);
+    return r.success ? r.data : null;
   }
 
   /** `POST /reconciliacoes` (RN-INT-07). */

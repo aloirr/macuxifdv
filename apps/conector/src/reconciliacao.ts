@@ -2,6 +2,7 @@
 import { CAMPO_SOMA_CONTROLE, VERSAO_CONTRATO, type ReconciliacaoEnvio } from '@macuxi/integracao/contracts';
 import { ORDEM_CARGA, type Entidade } from './config/entidades';
 import { type Contexto, resumoErro } from './contexto';
+import { bloqueioPorVersao } from './politica';
 
 export function dataLocal(ms: number): string {
   const d = new Date(ms);
@@ -38,6 +39,7 @@ export async function reconciliarEntidade(ctx: Contexto, entidade: Entidade, dat
 
 /** Envia a reconciliação de todas as entidades configuradas; só marca o dia como feito se todas forem. */
 export async function reconciliarTudo(ctx: Contexto): Promise<{ enviadas: number; falhas: number }> {
+  if (bloqueioPorVersao(ctx)) return { enviadas: 0, falhas: 0 }; // versão abaixo da mínima: não envia nada ao Hub (e não marca o dia)
   const dia = dataLocal(ctx.relogio.agora());
   let enviadas = 0;
   let falhas = 0;

@@ -22,7 +22,7 @@ describe('configuração: arquivo de exemplo e validação', () => {
 
   it('aceita YAML equivalente ao JSON', () => {
     const yaml = `
-hub: { url: "https://hub.exemplo.com" }
+hub: { url: "https://hub.exemplo.com", conectorId: "cnx-1" }
 erp: { tipo: postgres, host: db, banco: erp, usuario: leitura }
 entidades:
   produto:
@@ -46,7 +46,7 @@ entidades:
       expect.unreachable();
     } catch (e) {
       expect(e).toBeInstanceOf(ErroConfig);
-      expect((e as Error).message).toContain('MACUXI_CONECTOR_HUB_TOKEN');
+      expect((e as Error).message).toContain('MACUXI_CONECTOR_HUB_CHAVE');
       expect((e as Error).message).not.toContain('abc');
     }
   });

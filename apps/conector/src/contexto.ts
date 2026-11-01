@@ -16,6 +16,8 @@ export interface Contexto {
   relogio: Relogio;
   uuid: () => string;
   aleatorio: () => number;
+  /** Versão em uso (padrão `VERSAO_CONECTOR`); os testes trocam para simular versão antiga. */
+  versao?: string;
 }
 
 export const uuidReal = () => randomUUID();

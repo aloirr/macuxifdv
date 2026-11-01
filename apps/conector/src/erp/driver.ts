@@ -9,7 +9,7 @@ export interface ExecutorSql {
 }
 
 export interface ConexaoErp extends ExecutorSql {
-  readonly tipo: 'sqlserver' | 'postgres';
+  readonly tipo: 'sqlserver' | 'postgres' | 'oracle';
   /** Versão do servidor (teste de conexão). */
   testar(): Promise<{ versao: string }>;
   /** Executa `fn` numa transação: confirma se retornar, desfaz se lançar. */

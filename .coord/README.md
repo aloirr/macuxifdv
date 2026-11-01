@@ -62,15 +62,38 @@ Os agentes locais enviam direto ao `main`, um commit por tarefa, cada um com o t
 - Saída: um bloco por commit (`== <sha> <assunto> — agente: <nome> (trailer)` + OK/Exceções/Outros donos/VIOLAÇÃO) e o resultado; **0** sem violação · **1** com violação · **2** erro.
 - No CI, no push ao `main`: `actions/checkout` com `fetch-depth: 0` e os SHAs por variável de ambiente (sem interpolar `${{ }}` no shell): `env: { ANTES: ${{ github.event.before }}, DEPOIS: ${{ github.sha }} }` → `node scripts/coord.mjs verificar --por-commit "$ANTES..$DEPOIS"`.
 
-## Identificação do agente nos guardiões (guardião v3)
+## Identificação do agente nos guardiões (guardião v4)
 
 Os guardiões (`.claude/hooks/guarda-donos.mjs` para Edit/Write e `guarda-bash.mjs` para o Bash) descobrem o agente da sessão nesta ordem (`identificarAgente` em `scripts/coord-lib.mjs`):
 
-1. Variável **`MACUXI_AGENTE`** (ex.: `MACUXI_AGENTE=alexandre`).
-2. O agente de sempre numa **sessão local de agente** ou num **subagente**: argumento do hook (frontmatter) ou `agent_type` do JSON do hook. Na nuvem (`CLAUDE_CODE_REMOTE=true`) o `agent_type` só vale se for de subagente (`agent_id` presente ou diferente do `"agent"` do `.claude/settings.json`), porque a sessão principal da nuvem sempre recebe `gerente-projetos` dali.
-3. **Branch atual**: `<agente>/T-nnnn-...`, `agente/T-nnnn-<agente>`, `alexandre/*` → `alexandre`; `nuvem/*` → trailer `Agente: <nome>` do último commit do branch (desde o `origin/main`) que o tenha.
-4. Fonte ausente ou ambígua (trailers com agentes diferentes ou desconhecidos, branch `nuvem/*` ainda sem commit com trailer, branch de alguém fora do time) → comportamento anterior (`argumento || agent_type`; sem agente = sessão manual, liberada).
+1. **Subagente** (`agent_id` no JSON do hook): o próprio subagente (argumento do hook ou `agent_type`). Vence `MACUXI_AGENTE`, que todo subagente herda do processo do Claude Code: um `modulo-core` lançado numa sessão com `MACUXI_AGENTE=alexandre` continua `modulo-core`.
+2. Variável **`MACUXI_AGENTE`** (ex.: `MACUXI_AGENTE=alexandre`), só para a sessão principal.
+3. O agente de sempre numa **sessão local de agente**: argumento do hook (frontmatter) ou `agent_type`. Na nuvem (`CLAUDE_CODE_REMOTE=true`) o `agent_type` só vale se for diferente do `"agent"` do `.claude/settings.json`, porque a sessão principal da nuvem sempre recebe `gerente-projetos` dali.
+4. **Branch atual**: `<agente>/T-nnnn-...` ou `agente/T-nnnn-<agente>` → esse agente do time; `nuvem/*` → trailer `Agente: <nome>`, que precisa ter **um único nome em todos os commits do branch** (desde o `origin/main`) que têm o trailer — commits sem trailer não contam; dois nomes diferentes = ambíguo.
+5. Fonte ausente, ambígua ou que declara `alexandre` → **restrito**: o `agent_type` da sessão; sem `agent_type`, sessão manual **local** = liberada; na nuvem sem agente, o `"agent"` do `settings.json`.
 
-- Na nuvem, numa tarefa `nuvem/*`, o **primeiro commit** com o trailer `Agente: <nome>` é o que identifica a sessão; antes dele o guardião trata a sessão como `gerente-projetos`. Use um branch `<agente>/T-nnnn-...` ou `alexandre/...` para ser identificado desde o início.
+- **`alexandre` só por fonte confiável**: `MACUXI_AGENTE=alexandre` ou a sessão manual local (sem agente). O branch `alexandre/*` e o trailer `Agente: alexandre` são declarados pelo próprio agente e **não** dão a identidade `alexandre` nos hooks (valem a regra comum acima). Na nuvem, uma tarefa do Alexandre em `.claude/**` ou `scripts/coord*.mjs` precisa de `MACUXI_AGENTE=alexandre` nas variáveis do ambiente.
+- **Trabalhar no branch de um agente = trabalhar como ele**: uma sessão manual local num branch `<agente>/T-nnnn-...` fica restrita aos caminhos desse agente.
+- Na nuvem, numa tarefa `nuvem/*`, o **primeiro commit** com o trailer `Agente: <nome>` é o que identifica a sessão; antes dele o guardião trata a sessão como `gerente-projetos`. Use um branch `<agente>/T-nnnn-...` para ser identificado desde o início.
 - `alexandre` identificado altera arquivo de qualquer dono; `sem-dono`, `congelado`, recado existente e diário/lidos de outro continuam barrados.
+- Desempenho: a branch e o HEAD são lidos direto do `.git`; o `git log` dos trailers fica em cache por HEAD (+ base) num arquivo temporário (`<tmp>/macuxi-guarda/ident-*.json`) e só é refeito quando um dos dois muda.
 - Testes: `node --test .claude/hooks/*.test.mjs`.
+
+## O lock acompanha a dependência (`verificar --base` e `--por-commit`)
+
+`pnpm-lock.yaml` e `pnpm-workspace.yaml` são do `engenheiro-software`, mas um agente que adiciona ou troca dependência no **próprio** pacote precisa mandar o lock junto. Regra:
+
+- Com `--base` (PR) ou em cada commit do `--por-commit`: a mudança em `pnpm-lock.yaml` e a do `pnpm-workspace.yaml` feita **só** em `allowBuilds`/`onlyBuiltDependencies` são aceitas para o agente quando, no **mesmo PR/commit**, ele alterou o `package.json` de um pacote que é dele.
+- A saída lista essas mudanças na seção **"Lock acompanhando dependência (aceito — revisão do engenheiro-software)"**, com o motivo `lock acompanhando dependência de <pacote>`; o resultado continua 0, com a contagem para revisão.
+- Sem `package.json` do próprio agente no mesmo PR/commit (lock sozinho, ou `package.json` de outro dono) → continua **VIOLAÇÃO**. Mudança em outra chave do `pnpm-workspace.yaml` (ex.: `packages`, `minimumReleaseAge`) também. Apagar o lock nunca é "acompanhar".
+- Sem `--base` (árvore compartilhada) nada muda: o lock de outro dono é informativo.
+
+`alexandre` pelo trailer (ou pelo branch `alexandre/*`) continua aceito no `verificar`, mas a saída marca `Atenção: identidade alexandre declarada por trailer` (ou `por branch`); o CI de governança cobre o resto.
+
+## Governança (`governanca --base <ref>`)
+
+```bash
+node scripts/coord.mjs governanca --base origin/main
+```
+
+Lista os arquivos do diff do branch (merge-base com `<ref>` + não commitados) em caminhos de governança: `.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs` e `.github/**`. Saída **1** com a lista (o PR exige revisão do Alexandre, sem merge automático) · **0** sem nenhum · **2** erro de uso ou de git. No CI, só em `pull_request`: `node scripts/coord.mjs governanca --base origin/$BASE_REF`.

@@ -6,4 +6,5 @@ export * from './base';
 export * from './entidades';
 export * from './lote';
 export * from './pedido';
+export * from './conector';
 export * from './eventos';
