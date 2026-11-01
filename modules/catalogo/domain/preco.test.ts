@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PrecoVisivel } from '../contracts';
-import { descontoPct, MENSAGEM_SEM_PRECO, MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel, type ItemTabelaPreco, type Promocao } from './preco';
+import { descontoPct, MENSAGEM_SEM_PRECO, MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel } from './preco';
+import type { ItemTabelaPreco, Promocao } from '../contracts';
 
 const AGORA = '2026-10-31T15:00:00Z';
 const item = (o: Partial<ItemTabelaPreco> = {}): ItemTabelaPreco => ({ price_table_id: 't-cli', product_id: 'p1', price_cents: 1000, valid_from: null, valid_to: null, ...o });

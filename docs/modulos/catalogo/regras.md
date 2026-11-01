@@ -30,7 +30,7 @@ O esquema e os padrões vêm de `ParametrosCatalogo` (contracts), para app, web 
 | Parâmetro | Padrão | Onde entra | Regra |
 |---|---|---|---|
 | `limite_consultas_ia_dia` | 200 (0 desliga a IA) | `verificarConsultaIa`, `registrarDesfechoIa`, `consultasRestantes` | RN-CAT-03 |
-| `fuso` | America/Manaus | `diaDoTenant` (virada do dia do limite), `rotuloAtualizacaoEstoque` | doc 03 (Fuso horário) |
+| Fuso (`plataforma.tenant.fuso`, **não** é parâmetro do Catálogo) | America/Manaus | argumento `fuso` de `diaDoTenant`, `verificarConsultaIa`, `registrarDesfechoIa`, `consultasRestantes`, `registrarConsultaIa`, `rotuloAtualizacaoEstoque` (API passa o do tenant; app, o da sessão) | doc 03 (Fuso horário) |
 | `promotor_ve_preco_estoque` | não | `podeVerPrecoEstoque`, `itemVitrineParaPerfil`, `filtrosParaPerfil` | RN-CAT-05 |
 | `estoque_baixo_ate` | 10 | `faixaDeEstoque`, `estoqueVisivel` | RN-CAT-07 |
 | `estoque_mostrar_quantidade` | sim | `estoqueVisivel` | RN-CAT-07 |
@@ -64,7 +64,7 @@ O esquema e os padrões vêm de `ParametrosCatalogo` (contracts), para app, web 
 - `interpretarBusca`: **offline** → regras + aviso `A busca inteligente volta quando houver internet.`; **limite atingido/IA desligada** → regras + a mensagem do limite; **sem porta** → regras; **provedor falhou** ou **resposta inválida** → regras + `AVISO_BUSCA_FALHOU`, sem lançar erro; **ok** → regras mescladas com o LLM (`origem: llm`).
 - `validarFiltrosLlm` (RN-CAT-01): Zod; marca/categoria que o tenant não tem **são descartadas** (volta a grafia cadastrada); EAN só com dígito verificador; texto passa pela mesma normalização.
 - `mesclarFiltros`: o que a frase diz de forma explícita (regras: código, preço, estoque, marca) **vence** o LLM; o LLM completa o que faltou; faixa invertida pela mistura é desfeita.
-- **Tempo esgotado**: `tempo_limite_ms` (opcional) corta a espera; a porta também pode lançar `ErroTempoEsgotadoIa` ou o `TimeoutError`/`AbortError` do `fetch`. `classificarFalhaIa` separa `tempo_esgotado` de `erro`.
+- **Tempo esgotado**: o timer é da implementação da porta em `api/ia/` (`AbortSignal.timeout` no `fetch`), não do domínio (puro); a porta lança `ErroTempoEsgotadoIa` ou o `TimeoutError`/`AbortError` do `fetch`, e `classificarFalhaIa` separa `tempo_esgotado` de `erro`.
 - Ordem na API: **cache (não consome) → `verificarConsultaIa` (barra sem consumir) → `interpretarBusca` → `registrarDesfechoIa(desfecho)`** (RN-CAT-03). `chamouProvedor` diz se a chamada foi feita; `desfecho` (`respondida | erro | tempo_esgotado | nao_chamada`) e `consomeCota` dizem se conta.
 
 ## 3. Ranking híbrido — RF-CAT-01, RF-CAT-02, RN-CAT-08 (`ranking.ts`)
@@ -85,6 +85,8 @@ O esquema e os padrões vêm de `ParametrosCatalogo` (contracts), para app, web 
 - **Promoção vigente**: período `[valid_from, valid_to)` em UTC (a virada não depende do fuso do aparelho); `preco_fixo` (centavos) ou `desconto_pct` (até 2 casas, entre 0 e 100 exclusivos); promoção com `price_table_id` só vale para essa tabela, sem tabela vale para todas. Com várias vigentes vale a de **menor preço final** (não soma), empate pelo menor `id`. Promoção que não baixa o preço é ignorada. Sem preço na tabela, promoção não cria preço. `base_cents` guarda o preço da tabela (mostrar riscado) e `promotion_ends_at` o fim da promoção.
 - **Arredondamento** (`descontoPct`): centavos inteiros, meia para cima, em aritmética inteira. R$ 9,99 com 10% = R$ 8,99 (899,1); R$ 0,05 com 10% = 5 centavos (4,5 sobe); R$ 10,00 com 12,5% = R$ 8,75.
 
+- **Linhas de sync**: a forma de `tabela_preco_item` e de promoção (`ItemTabelaPreco`, `Promocao`) é Zod em `contracts/linhas-preco.ts`; `preco.ts` importa os tipos.
+
 ## 5. Estoque visível — RF-CAT-03, RN-CAT-07 (`estoque.ts`)
 `estoqueVisivel(produtoId, saldos, { filiais, agora, parametros })` → `EstoqueVisivel`.
 - **Por filial/depósito do usuário**: `filiais` = ids do vendedor; `null` = todas (analista, assistente, admin, RN-CORE-04). Vendedor **sem filial** vinculada vê `sem_estoque` (conservador). Saldo negativo do ERP conta 0; linhas repetidas da mesma filial somam; filiais ordenadas por nome e id.
@@ -94,8 +96,8 @@ O esquema e os padrões vêm de `ParametrosCatalogo` (contracts), para app, web 
 
 ## 6. Limite de consultas de IA e cache — RN-CAT-03, RN-CAT-08, RF-CAT-01 (`limite-ia.ts`)
 - **Dia no fuso do tenant**: `diaDoTenant(agora, fuso)`. 31/10 03:59Z ainda é 30/10 em Manaus (UTC−4); 04:00Z já é 31/10. O contador zera na virada **local**.
-- `verificarConsultaIa(uso, agora, parametros)`: **antes** de chamar o provedor; confere sem consumir. Permite até `limite_consultas_ia_dia` (com 199 usadas passa, com 200 não). Barrado → `motivo: limite_atingido` e mensagem *"Você atingiu o limite de buscas inteligentes de hoje. A busca simples continua disponível; o limite volta amanhã."*; limite 0 → `ia_desligada`. `consultasRestantes` só consulta.
-- `registrarDesfechoIa(uso, agora, parametros, desfecho)`: **depois** da chamada; consome uma só se `desfecho = respondida` (sem passar do limite se duas consultas passaram juntas pela verificação; a API grava com incremento atômico). `registrarConsultaIa` é o consumo em si (barrado não consome).
+- `verificarConsultaIa(uso, agora, fuso, parametros)`: **antes** de chamar o provedor; confere sem consumir. Permite até `limite_consultas_ia_dia` (com 199 usadas passa, com 200 não). Barrado → `motivo: limite_atingido` e mensagem *"Você atingiu o limite de buscas inteligentes de hoje. A busca simples continua disponível; o limite volta amanhã."*; limite 0 → `ia_desligada`. `consultasRestantes` só consulta.
+- `registrarDesfechoIa(uso, agora, fuso, parametros, desfecho)`: **depois** da chamada; consome uma só se `desfecho = respondida` (sem passar do limite se duas consultas passaram juntas pela verificação; a API grava com incremento atômico: `UPDATE … SET usadas = usadas + 1 WHERE usadas < limite RETURNING`, 0 linhas = limite atingido). `registrarConsultaIa` é o consumo em si (barrado não consome).
 - **O que consome (RN-CAT-03)**: só a consulta **respondida** pelo provedor — inclusive resposta fora do formato, que cai na contingência (houve custo e evita abuso). **Não consome**: falha do provedor (**erro** ou **tempo esgotado**), resposta do cache, busca offline, busca simples (modo `basica`/contingência), limite atingido ou IA desligada. Vale também para o "Pergunte ao catálogo".
 - **Chave do cache** (`chaveCache`): `catalogo:cache:v1:<tipo>:<tenant>:<escopo>:<consulta normalizada>`. Inclui **sempre o tenant** (tenant vazio = erro) com os componentes codificados (um tenant não forja a chave de outro); a consulta é normalizada (caixa, acento, medida, plural) **mantendo ordem e palavras de negação** (`com estoque` ≠ `sem estoque`; `até R$ 10` ≠ `a partir de R$ 10`); o escopo (produto, tabela, filiais em qualquer ordem) entra quando a resposta depende dele. `tipo`: `interpretacao` (frase → filtros, que é o que custa LLM) ou `pergunta`. **Recomendação**: cachear a interpretação, não o resultado com preço/estoque (que muda).
 - `cacheValido`: mesmo tenant e idade < `cache_ttl_s` [600 s]; `deveGuardarNoCache(ocorrencias)`: só consultas que já se repetiram `cache_min_ocorrencias` [2] vezes. Padrões parametrizáveis, calibrados na Sprint 3 (RN-CAT-08).

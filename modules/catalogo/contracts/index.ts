@@ -53,3 +53,4 @@ export const MixSuggestion = z.object({ product: Product, reason: z.string() });
 export type MixSuggestion = z.infer<typeof MixSuggestion>;
 
 export * from './busca';
+export * from './linhas-preco';

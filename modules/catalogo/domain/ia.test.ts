@@ -109,27 +109,23 @@ describe('RF-CAT-01 / RF-CAT-02: busca inteligente atrás da porta de LLM (com c
     expect(r.filtros.stock).toBe('com');
   });
 
-  it('RN-CAT-03: tempo esgotado (erro de timeout da porta ou tempo_limite_ms) — regras, aviso e NÃO consome a cota', async () => {
+  it('RN-CAT-03: tempo esgotado (ErroTempoEsgotadoIa ou TimeoutError/AbortError da porta; o timer é da porta em api/ia/) — regras, aviso e NÃO consome a cota', async () => {
     const timeout = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
     for (const erro of [new ErroTempoEsgotadoIa(), timeout]) {
       const r = await interpretarBusca({ ...base, porta: new LlmFalso(erro), texto: 'detergente' });
       expect(r).toMatchObject({ origem: 'regras', aviso: AVISO_BUSCA_FALHOU, desfecho: 'tempo_esgotado', consomeCota: false });
     }
-    const lento: PortaInterpretacaoLlm = { interpretar: () => new Promise((ok) => setTimeout(() => ok(llm({ brand: 'Limpex' })), 200)) };
-    const r = await interpretarBusca({ ...base, porta: lento, texto: 'detergente', tempo_limite_ms: 10 });
-    expect(r).toMatchObject({ origem: 'regras', desfecho: 'tempo_esgotado', consomeCota: false });
-    expect(r.filtros.brand).toBeNull();
   });
 
   it('RN-CAT-03: consulta respondida pelo provedor consome a cota (fluxo completo: verificar → interpretar → registrar)', async () => {
     const agora = '2026-10-31T15:00:00Z';
     let uso = { dia: '2026-10-31', consultas: 5 };
-    const ok = await interpretarBusca({ ...base, ia: verificarConsultaIa(uso, agora, PARAMETROS_PADRAO), porta: new LlmFalso(llm({ brand: 'Limpex' })), texto: 'detergente' });
+    const ok = await interpretarBusca({ ...base, ia: verificarConsultaIa(uso, agora, 'America/Manaus', PARAMETROS_PADRAO), porta: new LlmFalso(llm({ brand: 'Limpex' })), texto: 'detergente' });
     expect(ok).toMatchObject({ origem: 'llm', desfecho: 'respondida', consomeCota: true });
-    uso = registrarDesfechoIa(uso, agora, PARAMETROS_PADRAO, ok.desfecho).uso;
+    uso = registrarDesfechoIa(uso, agora, 'America/Manaus', PARAMETROS_PADRAO, ok.desfecho).uso;
     expect(uso.consultas).toBe(6);
-    const falha = await interpretarBusca({ ...base, ia: verificarConsultaIa(uso, agora, PARAMETROS_PADRAO), porta: new LlmFalso(new Error('503')), texto: 'detergente' });
-    uso = registrarDesfechoIa(uso, agora, PARAMETROS_PADRAO, falha.desfecho).uso;
+    const falha = await interpretarBusca({ ...base, ia: verificarConsultaIa(uso, agora, 'America/Manaus', PARAMETROS_PADRAO), porta: new LlmFalso(new Error('503')), texto: 'detergente' });
+    uso = registrarDesfechoIa(uso, agora, 'America/Manaus', PARAMETROS_PADRAO, falha.desfecho).uso;
     expect(uso.consultas).toBe(6);
   });
 

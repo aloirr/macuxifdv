@@ -33,7 +33,7 @@ export interface PortaEmbeddings {
   gerar(textos: readonly string[]): Promise<number[][]>;
 }
 
-/** Erro que a porta (ou `tempo_limite_ms`) usa para tempo esgotado no provedor (RN-CAT-03: não consome). */
+/** Erro que a porta usa para tempo esgotado no provedor (RN-CAT-03: não consome). */
 export class ErroTempoEsgotadoIa extends Error {
   constructor(mensagem = 'O provedor de IA não respondeu a tempo.') {
     super(mensagem);
@@ -41,24 +41,11 @@ export class ErroTempoEsgotadoIa extends Error {
   }
 }
 
-/** Classifica a falha da porta: tempo esgotado (nosso erro, `TimeoutError`/`AbortError` do fetch) ou erro. */
+/** Classifica a falha da porta (o tempo limite é da implementação em api/ia/, via AbortSignal.timeout): tempo esgotado (nosso erro, `TimeoutError`/`AbortError` do fetch) ou erro. */
 export function classificarFalhaIa(erro: unknown): 'erro' | 'tempo_esgotado' {
   if (erro instanceof ErroTempoEsgotadoIa) return 'tempo_esgotado';
   const nome = erro instanceof Error ? erro.name : '';
   return nome === 'TimeoutError' || nome === 'AbortError' ? 'tempo_esgotado' : 'erro';
-}
-
-async function comTempoLimite<T>(promessa: Promise<T>, ms: number | undefined): Promise<T> {
-  if (ms === undefined) return promessa;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const limite = new Promise<never>((_, falha) => {
-    timer = setTimeout(() => falha(new ErroTempoEsgotadoIa()), ms);
-  });
-  try {
-    return await Promise.race([promessa, limite]);
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 // ---------- avisos (português, com a ação seguinte) ----------
@@ -113,8 +100,6 @@ export interface EntradaInterpretarBusca {
   online: boolean;
   /** Resultado de `verificarConsultaIa` (RN-CAT-03; não consome). */
   ia: { permitido: boolean; mensagem: string | null };
-  /** Tempo máximo de espera pelo provedor, em ms; estourou ⇒ `tempo_esgotado` (não consome). */
-  tempo_limite_ms?: number;
 }
 
 export interface ResultadoInterpretacao {
@@ -143,10 +128,7 @@ export async function interpretarBusca(e: EntradaInterpretarBusca): Promise<Resu
 
   let bruto: unknown;
   try {
-    bruto = await comTempoLimite(
-      e.porta.interpretar({ tenant_id: e.tenant_id, texto: e.texto, marcas: [...e.vocabulario.marcas], linhas: [...e.vocabulario.linhas] }),
-      e.tempo_limite_ms,
-    );
+    bruto = await e.porta.interpretar({ tenant_id: e.tenant_id, texto: e.texto, marcas: [...e.vocabulario.marcas], linhas: [...e.vocabulario.linhas] });
   } catch (erro) {
     const desfecho = classificarFalhaIa(erro);
     return { filtros: regras, origem: 'regras', aviso: AVISO_BUSCA_FALHOU, chamouProvedor: true, desfecho, consomeCota: consomeCotaIa(desfecho) };

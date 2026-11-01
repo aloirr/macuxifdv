@@ -4,7 +4,6 @@ import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
 describe('parâmetros do tenant do Catálogo (doc 03, tabela de parâmetros)', () => {
   it('RN-CAT-03: o padrão do limite de consultas de IA é 200 por usuário/dia', () => {
     expect(PARAMETROS_PADRAO.limite_consultas_ia_dia).toBe(200);
-    expect(PARAMETROS_PADRAO.fuso).toBe('America/Manaus');
   });
 
   it('RN-CAT-07: estoque mostra o número exato por padrão e a faixa baixo vai até 10', () => {

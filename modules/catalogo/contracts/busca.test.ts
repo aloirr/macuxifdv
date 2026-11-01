@@ -121,7 +121,7 @@ describe('contracts da busca e da vitrine (RF-CAT-01..05)', () => {
   it('RN-CAT-03: parâmetros do tenant têm os padrões do doc 03 e recusam campo desconhecido', () => {
     const p = ParametrosCatalogo.parse({});
     expect(p.limite_consultas_ia_dia).toBe(200);
-    expect(p.fuso).toBe('America/Manaus');
+    expect(p).not.toHaveProperty('fuso'); // o fuso é do tenant (plataforma.tenant.fuso), não parâmetro do módulo
     expect(ParametrosCatalogo.safeParse({ limite_consultas_ia_dia: -1 }).success).toBe(false);
     expect(ParametrosCatalogo.safeParse({ inventado: 1 }).success).toBe(false);
   });
