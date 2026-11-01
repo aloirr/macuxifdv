@@ -37,3 +37,5 @@ R-20261031-213012-modulo-vendedor
 R-20261031-215653-engenheiro-software
 R-20261031-215715-engenheiro-software
 R-20261031-221100-modulo-core
+R-20261031-223505-modulo-core
+R-20261031-223508-modulo-core

@@ -40,3 +40,5 @@
 - **Modo demonstração (mock-api) sem carteira, rota e visita do Core** (decisão do engenheiro na onda 3): a demo do app novo deixou de mostrar essas telas; a demo da Fase M continua na pasta original. Revisar antes da demonstração com o gestor externo.
 - **API do Catálogo (Sprint 3)**: variacaoEscopo no sync (engenheiro), incremento atômico da cota de IA e timeout real do provedor em api/ia/ com AbortSignal.timeout (T-0021 🟡3/🟢6).
 - **Realizado de venda e positivação reais** (T-0020): consumidor de vendedor.pedido.* alimentando core.indicador_diario, quando o Vendedor publicar os eventos de pedido (Sprints 4–5).
+- **SDK (🟡 da revisão final da Sprint 1)**: poda local das entidades com janela; push enviado depois do commit (aposConfirmar) — Sprint 2.
+- **Job de desempenho no CI** (Sprint 9): rodar à parte MACUXI_PERF=1 (busca do SQLite, meta 300 ms) e MACUXI_CARGA_MEDIR=1 (S0-110); no pnpm test normal esses tempos só são impressos ou têm limite folgado.

@@ -7,7 +7,7 @@
 | [T-0001](tarefas/T-0001.md) | Reestruturar o monorepo em modules/ + platform-sdk | engenheiro-software | local | concluida (277/277 da Fase M · Fase M intacta · fronteiras ✅ · revisão sem 🔴) |
 | [T-0002](tarefas/T-0002.md) | Banco: schemas plataforma e core, RLS e migrações | banco-dados | local | concluida (94 testes de banco no Docker · vazamento verde · revisão sem 🔴 · 🟡 corrigidos) |
 | [T-0003](tarefas/T-0003.md) | Auth, perfis e licenças de módulos | modulo-core | local | concluida (3 critérios ✅ no Postgres real · 245 testes no core, 51 na API) |
-| [T-0004](tarefas/T-0004.md) | Shells mobile (campo/gestao), web e api montando módulos pelo manifesto | engenheiro-software | local | bloqueada (critérios 2 e 3 ✅ · critério 1: build EAS com o Alexandre) |
+| [T-0004](tarefas/T-0004.md) | Shells mobile (campo/gestao), web e api montando módulos pelo manifesto | engenheiro-software | local | concluida (APKs de desenvolvimento campo e gestao gerados no EAS · previews na sequência) |
 | [T-0005](tarefas/T-0005.md) | CI e verificação de donos | engenheiro-software | local | concluida (verificar --base e casos A–B · CI do main verde · run 41207939579 foi cancelamento por concorrência) |
 | [T-0006](tarefas/T-0006.md) | Plano de testes da fundação | testes | local | concluida (relatório final da Sprint 0 · 230 casos em tests/ com banco real) |
 
@@ -24,7 +24,7 @@ Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho
 ## Meta: fechar a Sprint 0 até sexta, 06/11 (Alexandre, R-20261031-103502)
 1. **T-0004** (shells com os 8 módulos, `createApp`, EAS, pendências da T-0002 §6) → **T-0003 Fase 2** (T-0007 já mergeada) → **execução da T-0006** e relatório da Sprint 0.
 2. Ajustes pendentes: só os do backlog.
-3. Concluídas: T-0001, T-0002, T-0003, T-0005, T-0006, T-0007, T-0009, T-0010, T-0011, T-0012. **Falta só o build EAS da T-0004 (Alexandre).** T-0004 em teste.
+3. Concluídas: T-0001, T-0002, T-0003, T-0005, T-0006, T-0007, T-0009, T-0010, T-0011, T-0012. **Sprint 0 fechada em 2026-11-01** (APKs de desenvolvimento gerados). T-0004 em teste.
 
 ## Sprint 1 — Core (planejada em 2026-10-31; meta do roadmap: modo avião — abrir cliente, rota e fazer check-in; sincroniza depois)
 Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core contratos/domínio + engenheiro E1–E3 (após T-0015) → onda 2 T-0017 + vendedor pull + E4 → onda 3 T-0018 + T-0008 P3/P5 → onda 4 T-0019 + T-0022 (+ T-0020 fase 1) → onda 5 testes e revisão.
@@ -33,12 +33,12 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 |---|---|---|---|---|
 | [T-0015](tarefas/T-0015.md) | Ajustes pós-Sprint 0: O-3 (promotor lê pedidos da carteira) e D-1 | engenheiro-software | local | concluida (O-3 e D-1 provados com Postgres) |
 | [T-0016](tarefas/T-0016.md) | Desenho técnico e contratos da Sprint 1 | engenheiro-software | local | concluida (aprovado; ADRs 0009/0010) |
-| [T-0017](tarefas/T-0017.md) | Carteira e Cliente 360 | modulo-core | local | em_revisao (todos os critérios ✅ · aguarda revisão final da Sprint 1) |
-| [T-0018](tarefas/T-0018.md) | Rotas e visitas reais, sync de visita e pedido (D-2) | modulo-core | local | em_andamento (critério 2 ❌ D-4 com o vendedor · 🔴 D-3 com o engenheiro) |
-| [T-0019](tarefas/T-0019.md) | Central de notificações | modulo-core | local | em_andamento (critérios ✅ · 🔴 D-3 · lida_em no BKO · push depende da T-0022 e do EAS) |
-| [T-0020](tarefas/T-0020.md) | Metas e indicadores básicos — só fase 1 | modulo-core | local | em_teste (fase 1 entregue · realizado de venda depende das Sprints 4–5) |
-| [T-0022](tarefas/T-0022.md) | Despachante da outbox (onda 4) | engenheiro-software | local | em_teste (entregue · 6 testes com Postgres · push do core pendente) |
-| [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho — parte 2 | engenheiro-software | local | em_andamento (P2/P3/P5 ✅ · 🔴 L-1 com o engenheiro · P4/P7 dependem do build EAS) |
+| [T-0017](tarefas/T-0017.md) | Carteira e Cliente 360 | modulo-core | local | concluida (critérios ✅ · revisão final sem 🔴) |
+| [T-0018](tarefas/T-0018.md) | Rotas e visitas reais, sync de visita e pedido (D-2) | modulo-core | local | concluida (🔴 da revisão corrigido · D-2..D-5 fechados · meta da sprint demonstrada) |
+| [T-0019](tarefas/T-0019.md) | Central de notificações | modulo-core | local | concluida (revisão sem 🔴 · push real depende do EAS) |
+| [T-0020](tarefas/T-0020.md) | Metas e indicadores básicos — só fase 1 | modulo-core | local | concluida (fase 1 · revisão sem 🔴 · realizado de venda nas Sprints 4–5) |
+| [T-0022](tarefas/T-0022.md) | Despachante da outbox (onda 4) | engenheiro-software | local | concluida (revisão sem 🔴) |
+| [T-0008](tarefas/T-0008.md) | Adaptador SQLite no aparelho — parte 2 | engenheiro-software | local | bloqueada (parte 2 aprovada · P4/P7 dependem do build EAS) |
 
 ## Adiantadas (domínio sem banco/telas) e backlog de outras sprints
 | Tarefa | Título | Responsável | Onde | Status |

@@ -109,3 +109,11 @@
 2026-10-31 — teste do despachante com push do core recebido (API 93)
 2026-10-31 — D-3 do core recebido (506 testes); aguardando testes
 2026-10-31 — D-3/D-4 fechados na suíte (325); D-5 aberto para o core; fechamento da rodada
+2026-10-31 — D-5 corrigido (513 testes); testes disparado para S1-043d
+2026-10-31 — D-5 fechado na suíte; nenhum defeito conhecido em aberto; aguardando a revisão final do engenheiro
+2026-10-31 — revisão final da Sprint 1: T-0017/T-0019/T-0020/T-0022 CONCLUÍDAS; T-0008 bloqueada (EAS); T-0018 com 1 🔴; pergunta ao Alexandre sobre a demo
+2026-10-31 — testes de tempo não reprovam mais por carga (banco: MACUXI_PERF; testes: MACUXI_CARGA_MEDIR, S0-010 com teto maior); job de desempenho no backlog (Sprint 9)
+2026-10-31 — T-0018 CONCLUÍDA; Sprint 1: todas as tarefas concluídas exceto T-0008 (EAS); engenheiro investigando builds EAS (R-231726)
+2026-10-31 — recados lidos: causa do EAS repassada ao engenheiro; respostas encerrando 103502, 172619 e a revisão final
+2026-10-31 — EAS Fase 1 recebida; fechamento da rodada para liberar os builds
+2026-11-01 — Alexandre gerou os APKs de desenvolvimento (campo e gestao): T-0004 concluída, SPRINT 0 FECHADA; previews dependem do push da correção do declare

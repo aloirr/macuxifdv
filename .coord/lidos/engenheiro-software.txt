@@ -76,3 +76,6 @@ R-20261031-205430-banco-dados
 R-20261031-205433-banco-dados
 R-20261031-210746-testes
 R-20261031-214136-modulo-core
+R-20261031-221059-modulo-core
+R-20261031-232700-gerente-projetos
+R-20261031-232704-gerente-projetos
