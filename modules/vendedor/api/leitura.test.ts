@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { criarPermissoes, verificarAcao } from '@macuxi/platform-sdk';
+import { criarPermissoes, verificarAcao, verificarAcesso } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import apiVendedor, { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './index';
 import { escopoDoPedido } from './sync';
@@ -14,11 +14,20 @@ describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
     }
   });
 
+  it('RN-PRO-01 / T-0035: GET /alcadas não é aberto ao promotor (403 pelo perfil); vendedor, supervisor, gerente, analista, assistente e admin seguem', () => {
+    const regra = { modulo: 'vendedor' as const, perfis: rotaAlcadas.perfis! };
+    const como = (perfil: 'promotor' | 'vendedor' | 'supervisor' | 'gerente' | 'analista' | 'assistente' | 'admin') =>
+      verificarAcesso({ id: 'u', tenant_id: 't', perfil, modulos: ['vendedor'] }, regra);
+    expect(rotaAlcadas.acao).toBeUndefined();
+    expect(como('promotor')).toMatchObject({ ok: false, status: 403, codigo: 'PERFIL_SEM_ACESSO' });
+    for (const perfil of ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const) expect(como(perfil)).toEqual({ ok: true });
+  });
+
   it('RN-PRO-01: promotor recebe 403 nas rotas de aprovar, rejeitar e cancelar; as de leitura ficam com pedido.ver', () => {
     const perm = criarPermissoes([manifest]);
     const p = { id: 'p', tenant_id: 't', perfil: 'promotor' as const, modulos: ['vendedor' as const] };
     for (const r of [rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido]) expect(verificarAcao(p, perm, r.acao!)).toMatchObject({ ok: false, status: 403 });
-    for (const r of [rotaListarPedidos, rotaVerPedido, rotaAlcadas]) expect(r.acao).toBe('pedido.ver');
+    for (const r of [rotaListarPedidos, rotaVerPedido]) expect(r.acao).toBe('pedido.ver');
   });
 
   it('RN-GES-08 / P-3: aprovar e rejeitar exigem pedido.aprovar; vendedor e assistente recebem 403 PERFIL_SEM_ACESSO', () => {
