@@ -1,0 +1,28 @@
+name: salvar-turbo
+description: >-
+  Poda e salva o cache local do Turborepo (.turbo/cache) do job (T-0033, ADR 0014). Roda mesmo com falha
+  (if: !cancelled() no job): o turbo só grava tarefa que passou, então o que estiver lá é resultado verde.
+
+inputs:
+  cache-turbo:
+    description: O mesmo nome usado no preparar.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Entradas sem uso há mais de 7 dias saem (o main regrava tudo a cada push com TURBO_FORCE), para o cache não
+    # crescer sem limite; o GitHub ainda despeja por LRU acima de 10 GB.
+    - name: podar cache do turbo
+      shell: bash
+      run: |
+        if [ -d .turbo/cache ]; then
+          find .turbo/cache -type f -mtime +7 -delete
+          du -sh .turbo/cache
+        fi
+
+    - name: salvar cache do turbo
+      uses: actions/cache/save@v4
+      with:
+        path: .turbo/cache
+        key: turbo-v1-${{ inputs.cache-turbo }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}

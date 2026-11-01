@@ -1,29 +1,189 @@
 name: CI
 
-# T-0005: lint (inclui fronteiras), typecheck, testes (com Postgres de verdade), testes do coord e dos guardiões,
-# verificação de donos no PR (--base) e por commit no push ao main (--por-commit), build do Backoffice Web e bundle do app (T-0004 §7).
-# Node 24 (.nvmrc e engines >=24.7 do package.json): o setup-node resolve "24" para a 24.x mais recente.
+# T-0005 → T-0033 (ADR 0014). Jobs PARALELOS, cada um num runner próprio, sem fail-fast; dentro de cada job todos os
+# passos rodam mesmo depois de uma falha (R-20261101-014652): nada quebra escondido atrás da primeira falha.
+#   governanca  coord, guardiões, guardas de scripts/ci, donos do PR / por commit; e DECIDE o escopo e as matrizes
+#               (scripts/ci/escopo.mjs): commit/PR só de COORDENAÇÃO (.coord/**, docs/status/**, docs/backlog.md,
+#               docs/produto/**) = roda só ela e o ci-ok; o resto de docs/** não entra (a guarda R4 prova que nenhum
+#               código lê os caminhos de coordenação).
+#   lint · typecheck · testes-pacotes (Postgres) · testes-integracao (tests/, Postgres) · build (BKO + bundle do app)
+#   ci-ok       agrega todos: é o check a olhar.
+# Matrizes (ADR 0014 §custo; repositório privado no plano gratuito, minuto cobrado por job arredondado para cima):
+#   PR e push ao main          → ENXUTA: typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes.
+#   agendado (07:00 UTC) e manual → COMPLETA: typecheck e testes de pacotes em 2 grupos; tests/ em 3 partes.
+# Cache do Turborepo (.turbo/cache) em lint, typecheck e testes-pacotes: no PR só roda o que mudou; no main (push,
+# agendado e manual) TURBO_FORCE roda TUDO e regrava o cache. Node 24 (.nvmrc e engines >=24.7 do package.json).
 
 on:
   pull_request:
   push:
     branches: [main]
+  # Run completo diário (matriz completa, tudo forçado) sobre o main: 07:00 UTC = 03:00 em Manaus. O gerente confere no
+  # início da rodada (gh run list --workflow CI --event schedule --limit 1).
+  schedule:
+    - cron: '0 7 * * *'
+  # Manual (Actions → CI → Run workflow, ou gh workflow run CI): matriz completa no branch escolhido.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# PR: um grupo por PR e push novo CANCELA o run antigo (só o último commit importa).
+# push ao main, agendado e manual: um grupo por evento + commit e NADA é cancelado — o "verificar --por-commit" só
+# confere ANTES..DEPOIS daquele push; cancelar deixaria commits do main sem verificação de donos.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}-{2}', github.event_name, github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Teste de banco FALHA (em vez de pular) se o Postgres não responder. O turbo.json repassa MACUXI_PG_*.
+  MACUXI_PG_EXIGIR: '1'
+  # O Postgres do CI é o service container: nunca tentar subir o docker compose no runner.
+  MACUXI_PG_AUTO_SUBIR: '0'
+  MACUXI_PG_HOST: localhost
+  MACUXI_PG_PORTA: '5432'
+  MACUXI_PG_ADMIN_USUARIO: postgres
+  MACUXI_PG_ADMIN_SENHA: postgres
+  NEXT_TELEMETRY_DISABLED: '1'
+  TURBO_TELEMETRY_DISABLED: '1'
+  TURBO_CACHE_DIR: .turbo/cache
+  # PR: lê o cache. Push ao main, agendado e manual: não lê (só grava) — fora do PR o CI sempre roda tudo.
+  TURBO_FORCE: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
 
 jobs:
-  verificar:
-    name: donos, lint, fronteiras, typecheck, testes e build web
+  governanca:
+    name: governança (coord, guardiões, cache do turbo, donos)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 10
+    outputs:
+      escopo: ${{ steps.escopo.outputs.escopo }}
+      typecheck: ${{ steps.escopo.outputs.typecheck }}
+      pacotes: ${{ steps.escopo.outputs.pacotes }}
+      integracao: ${{ steps.escopo.outputs.integracao }}
+    steps:
+      # Histórico completo: o verificar --base precisa de origin/main e do merge-base.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    # Mesma imagem do db/docker-compose.yml (T-0002). Os testes de db/ criam um banco efêmero
-    # macuxi_teste_*, aplicam as migrações e a fixture dois-tenants.
+      # Sem pnpm install: tudo aqui é node puro (node:test, sem dependência).
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # PRIMEIRO passo útil: os outros jobs esperam por este (needs). Erro ou dúvida = escopo completo.
+      - name: escopo e matrizes
+        id: escopo
+        env:
+          ANTES: ${{ github.event.before }}
+          DEPOIS: ${{ github.sha }}
+        run: node scripts/ci/escopo.mjs
+
+      - name: testes do coord (verificar)
+        if: ${{ !cancelled() }}
+        run: node --test scripts/coord-verificar.test.mjs
+
+      # Testes de TODOS os guardiões (.claude/hooks/*.test.mjs). O glob é expandido pelo bash do runner.
+      - name: testes dos guardiões (.claude/hooks)
+        if: ${{ !cancelled() }}
+        run: node --test .claude/hooks/*.test.mjs
+
+      # Cache do turbo só é seguro se toda dependência fora do grafo declarado estiver nos inputs; e pular a matriz
+      # em commit só de coordenação só é seguro se nenhum código ler esses caminhos (R4). Testes do escopo também (ADR 0014).
+      - name: guardas do CI (scripts/ci)
+        if: ${{ !cancelled() }}
+        run: |
+          node --test scripts/ci/*.test.mjs
+          node scripts/ci/grafo-turbo.mjs
+
+      # Só no PR: arquivo fora dos caminhos do agente = violação (saída 1); erro de uso/git = 2.
+      # Agente: do branch <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente> ou alexandre/... (GITHUB_HEAD_REF);
+      # em nuvem/* e branch fora do padrão, do trailer "Agente: <nome>" de TODOS os commits do PR (sem merges).
+      - name: verificar donos do PR
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/coord.mjs verificar --base "origin/$BASE_REF"
+
+      # Só no push ao main: cada commit novo (git log ANTES..DEPOIS, sem merges) × o agente do trailer "Agente:" dele
+      # (guardião v3, .coord/README.md "Por commit"). SHAs por variável de ambiente, nunca interpolados no shell.
+      # ANTES = 000…0 (push que cria o branch) não tem intervalo: o passo pula (o coord sairia com 2).
+      - name: verificar donos por commit (push ao main)
+        if: ${{ !cancelled() && github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' }}
+        env:
+          ANTES: ${{ github.event.before }}
+          DEPOIS: ${{ github.sha }}
+        run: node scripts/coord.mjs verificar --por-commit "$ANTES..$DEPOIS"
+
+  lint:
+    name: lint e fronteiras
+    needs: governanca
+    if: ${{ !cancelled() && needs.governanca.outputs.escopo == 'completo' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar
+        with:
+          cache-turbo: lint
+
+      # lint da raiz inclui tests/ (//#lint:tests); --continue: todos os pacotes rodam e todas as falhas aparecem.
+      - name: lint
+        run: pnpm exec turbo run lint lint:tests --continue
+
+      # fronteiras (dependency-cruiser): módulo só importa packages/*, modules/core/contracts e modules/<outro>/contracts
+      - name: fronteiras
+        if: ${{ !cancelled() }}
+        run: pnpm fronteiras
+
+      - uses: ./.github/actions/salvar-turbo
+        if: ${{ !cancelled() }}
+        with:
+          cache-turbo: lint
+
+  typecheck:
+    name: typecheck (${{ matrix.grupo }})
+    needs: governanca
+    if: ${{ !cancelled() && needs.governanca.outputs.escopo == 'completo' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      # PR e push: 1 grupo ("todos"). Agendado e manual: core-vendedor (~30% do tsc) e "demais" por EXCLUSÃO (inclui o
+      # //#typecheck:tests; pacote novo cai nele sozinho). Definição em scripts/ci/escopo.mjs.
+      matrix:
+        include: ${{ fromJSON(needs.governanca.outputs.typecheck) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar
+        with:
+          cache-turbo: ${{ matrix.cache }}
+          cache-turbo-extra: ${{ matrix.cache_extra }}
+
+      - name: typecheck
+        env:
+          FILTRO: ${{ matrix.filtro }}
+        run: pnpm exec turbo run typecheck typecheck:tests --continue $FILTRO
+
+      - uses: ./.github/actions/salvar-turbo
+        if: ${{ !cancelled() }}
+        with:
+          cache-turbo: ${{ matrix.cache }}
+
+  testes-pacotes:
+    name: testes dos pacotes (${{ matrix.grupo }})
+    needs: governanca
+    if: ${{ !cancelled() && needs.governanca.outputs.escopo == 'completo' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      # PR e push: 1 grupo ("todos"). Agendado e manual: os 4 mais pesados (core, db, api, mock-api) num runner e TODO o
+      # resto no outro, por EXCLUSÃO (pacote novo cai nele sozinho). Definição em scripts/ci/escopo.mjs.
+      matrix:
+        include: ${{ fromJSON(needs.governanca.outputs.pacotes) }}
+
+    # Mesma imagem do db/docker-compose.yml (T-0002). Os testes de banco criam bancos efêmeros macuxi_teste_*.
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -41,104 +201,139 @@ jobs:
           --health-timeout 3s
           --health-retries 30
 
-    env:
-      # Teste de banco FALHA (em vez de pular) se o Postgres não responder. O turbo.json repassa MACUXI_PG_*.
-      MACUXI_PG_EXIGIR: '1'
-      # O Postgres do CI é o service container: nunca tentar subir o docker compose no runner.
-      MACUXI_PG_AUTO_SUBIR: '0'
-      MACUXI_PG_HOST: localhost
-      MACUXI_PG_PORTA: '5432'
-      MACUXI_PG_ADMIN_USUARIO: postgres
-      MACUXI_PG_ADMIN_SENHA: postgres
-      NEXT_TELEMETRY_DISABLED: '1'
-      TURBO_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar
+        with:
+          cache-turbo: ${{ matrix.cache }}
+          cache-turbo-extra: ${{ matrix.cache_extra }}
+
+      # db#test e api#test têm cache false no turbo.json: sempre rodam.
+      - name: testes
+        env:
+          FILTRO: ${{ matrix.filtro }}
+        run: pnpm exec turbo run test --continue $FILTRO
+
+      - uses: ./.github/actions/salvar-turbo
+        if: ${{ !cancelled() }}
+        with:
+          cache-turbo: ${{ matrix.cache }}
+
+  testes-integracao:
+    name: testes de integração (tests/, ${{ matrix.parte }})
+    needs: governanca
+    if: ${{ !cancelled() && needs.governanca.outputs.escopo == 'completo' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      # O shard do Vitest divide por hash do caminho, não por tempo: o visitas-campo (~60 s, 40% da suíte) fica numa
+      # execução só dele e o RESTO é dividido em 2 shards por exclusão (arquivo novo cai neles sozinho; se ele mudar de
+      # nome, a execução dele falha com "No test files found"). Agendado e manual: 3 jobs (visitas | resto 1/2 |
+      # resto 2/2). PR e push: 2 jobs (visitas + resto 2/2 em sequência | resto 1/2). Definição em scripts/ci/escopo.mjs.
+      matrix:
+        include: ${{ fromJSON(needs.governanca.outputs.integracao) }}
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+          TZ: UTC
+          PGTZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
 
     steps:
-      # Histórico completo: o verificar --base precisa de origin/main e do merge-base.
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: ./.github/actions/preparar
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          # Node 24 (mín. 24.7: engines do package.json; crypto.argon2 e node:sqlite). Fonte única: .nvmrc.
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      # Testes do scripts/coord.mjs verificar (node:test, sem dependência). Em todo push e PR.
-      - name: testes do coord (verificar)
-        run: node --test scripts/coord-verificar.test.mjs
-
-      # Testes de TODOS os guardiões (.claude/hooks/*.test.mjs: guarda-bash, guarda-agente — guardião v3, T-0005;
-      # node:test, sem dependência). Em todo push e PR. O glob é expandido pelo bash do runner.
-      - name: testes dos guardiões (.claude/hooks)
-        run: node --test .claude/hooks/*.test.mjs
-
-      # Só no PR: arquivo fora dos caminhos do agente = violação (saída 1); erro de uso/git = 2.
-      # Agente: do branch <agente>/T-nnnn[-assunto], agente/T-nnnn-<agente> ou alexandre/... (GITHUB_HEAD_REF);
-      # em nuvem/* e branch fora do padrão, do trailer "Agente: <nome>" de TODOS os commits do PR (sem merges).
-      - name: verificar donos do PR
-        if: github.event_name == 'pull_request'
+      # //#test:tests (agente testes): a união das partes é a suíte inteira. Cada job tem Postgres e globalSetup próprios;
+      # sem cache (cache false no turbo.json). Sem a Fase M no runner, S0-006/007 pulam sozinhos.
+      # ARGS = execuções do Vitest separadas por "|": TODAS rodam (a falha de uma não pula a outra) e o passo falha se
+      # qualquer uma falhar. set -f: o "**/..." do --exclude chega literal ao Vitest.
+      - name: testes de tests/ (${{ matrix.parte }})
         env:
-          BASE_REF: ${{ github.base_ref }}
-        run: node scripts/coord.mjs verificar --base "origin/$BASE_REF"
+          ARGS: ${{ matrix.args }}
+        run: |
+          set -f
+          IFS='|' read -ra execucoes <<< "$ARGS"
+          falhou=0
+          for e in "${execucoes[@]}"; do
+            echo "::group::vitest $e"
+            IFS=' ' read -ra a <<< "$e"
+            pnpm test:tests "${a[@]}" || falhou=1
+            echo "::endgroup::"
+          done
+          exit $falhou
 
-      # Só no push ao main: cada commit novo (git log ANTES..DEPOIS, sem merges) × o agente do trailer "Agente:" dele
-      # (guardião v3, .coord/README.md "Por commit"). SHAs por variável de ambiente, nunca interpolados no shell.
-      # ANTES = 000…0 (push que cria o branch) não tem intervalo: o passo pula (o coord sairia com 2).
-      # Saída 1 = violação de dono; 2 = commit sem trailer, agente desconhecido/ambíguo ou ref ausente — ambos falham o CI.
-      - name: verificar donos por commit (push ao main)
-        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
-        env:
-          ANTES: ${{ github.event.before }}
-          DEPOIS: ${{ github.sha }}
-        run: node scripts/coord.mjs verificar --por-commit "$ANTES..$DEPOIS"
+  build:
+    name: build do Backoffice Web e bundle do app
+    needs: governanca
+    if: ${{ !cancelled() && needs.governanca.outputs.escopo == 'completo' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar
 
-      # roda mesmo com falha nos passos do coord/guardiões acima, para os testes do código reportarem também
-      - name: instalar dependências
-        id: instalar
-        if: ${{ !cancelled() }}
-        run: pnpm install --frozen-lockfile
-
-      # Daqui para baixo TODOS os passos rodam mesmo que um anterior falhe (pedido do Alexandre, R-20261101-014652):
-      # nada quebra escondido atrás da primeira falha. O job continua vermelho se qualquer um falhar.
-      # lint/typecheck/test da raiz incluem tests/ (agente testes, T-0006) como tarefas raiz do turbo
-      # (//#lint:tests, //#typecheck:tests, //#test:tests), com --continue: o turbo roda todos os pacotes e reporta
-      # todas as falhas. Sem a Fase M no runner, S0-006/007 pulam sozinhos.
-      - name: lint
-        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
-        run: pnpm exec turbo run lint lint:tests --continue
-
-      # fronteiras (dependency-cruiser): módulo só importa packages/*, modules/core/contracts e modules/<outro>/contracts
-      - name: fronteiras
-        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
-        run: pnpm fronteiras
-
-      - name: typecheck
-        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
-        run: pnpm exec turbo run typecheck typecheck:tests --continue
-
-      - name: testes
-        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
-        run: pnpm exec turbo run test test:tests --continue
+      # Cache incremental do next build (o próprio Next valida cada entrada).
+      - uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: next-v1-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            next-v1-${{ hashFiles('pnpm-lock.yaml') }}-
+            next-v1-
 
       - name: build do Backoffice Web (next build)
-        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
         run: pnpm --filter web build
 
       # T-0004 §7: o mesmo bundle que o EAS roda na fase EAGER_BUNDLE (Metro + babel-preset-expo), nas duas variantes.
-      # Erro de sintaxe que o tsc aceita e o Babel não (ex.: `declare` em campo de classe) fica vermelho aqui, antes de
-      # gastar build da Expo. Não precisa de conta Expo nem de Android SDK.
+      # Erro de sintaxe que o tsc aceita e o Babel não fica vermelho aqui, antes de gastar build da Expo.
       - name: bundle do app (Metro) — variante campo
-        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        if: ${{ !cancelled() }}
         env:
           APP_VARIANT: campo
         run: pnpm --filter mobile bundle:android
 
       - name: bundle do app (Metro) — variante gestao
-        if: ${{ !cancelled() && steps.instalar.outcome == 'success' }}
+        if: ${{ !cancelled() }}
         env:
           APP_VARIANT: gestao
         run: pnpm --filter mobile bundle:android
+
+  # Check obrigatório (ADR 0014). Escopo completo: verde só se TODOS os jobs terminarem em success. Escopo coordenacao: verde
+  # só se a governança passar e TODOS os outros forem "skipped". Qualquer outra combinação (falha, cancelado, pulado
+  # sem motivo, escopo vazio) = vermelho. Roda sempre (if: always()) para nunca ficar "pulado".
+  ci-ok:
+    name: ci-ok
+    if: ${{ always() }}
+    needs: [governanca, lint, typecheck, testes-pacotes, testes-integracao, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: todos os jobs verdes
+        env:
+          RESULTADOS: ${{ toJSON(needs) }}
+          ESCOPO: ${{ needs.governanca.outputs.escopo }}
+        run: |
+          echo "escopo: ${ESCOPO:-?}"
+          echo "$RESULTADOS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if [ "$ESCOPO" = "coordenacao" ]; then
+            ruins=$(echo "$RESULTADOS" | jq -r '[to_entries[] | select((.key == "governanca" and .value.result != "success") or (.key != "governanca" and .value.result != "skipped")) | .key] | join(", ")')
+          else
+            ruins=$(echo "$RESULTADOS" | jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")')
+          fi
+          if [ -n "$ruins" ]; then
+            echo "::error::CI vermelho (escopo ${ESCOPO:-?}) — jobs fora do esperado: $ruins"
+            exit 1
+          fi
+          echo "CI verde (escopo $ESCOPO)."
