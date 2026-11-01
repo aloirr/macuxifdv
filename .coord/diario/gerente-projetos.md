@@ -119,3 +119,13 @@
 2026-11-01 — Alexandre gerou os APKs de desenvolvimento (campo e gestao): T-0004 concluída, SPRINT 0 FECHADA; previews dependem do push da correção do declare
 2026-11-01 — T-0026 (demo) aberta; base de demo pronta (banco-dados)
 2026-11-01 — testes do Conector estabilizados; checagem final da raiz antes do push
+2026-11-01 — push b5cf8f9 (correção do declare, base de demo, Conector estável, merges T-0014 v2 e T-0025); Gestor e Hub destravados; demo disparada (engenheiro e core)
+2026-11-01 — T-0026 critério 4 (limite de login) recebido
+2026-11-01 — T-0025 revisão do banco (🔴 registro obsoleto); doc 04 corrigido; integracao disparado para o 🔴 e 🟡 do domain
+2026-11-01 — T-0025: 🔴 tratado; propostas no doc 03 como 'a confirmar'; perguntas ao Alexandre
+2026-11-01 — prioridade main verde: banco (sprint1) e core (S1-043c) disparados, pedido ao engenheiro (CI --continue); doc 03 com P-1..P-7 e RN-INT-10..13 aprovadas, ${BT} corrigido; doc 07 com 'main vermelho = nuvem não faz merge'; T-0027 aberta
+2026-11-01 — T-0026 CONCLUÍDA; docs/status/demo.md; entrega com links ao Alexandre
+2026-11-01 — main verde: testes de db sem dependência de horário (255 verdes); falta o S1-043c (core)
+2026-11-01 — S1-043c: causa = tempo do teste; testes disparado
+2026-11-01 — S1-043c corrigido no teste (3× verde); falta o timeout do S0-021 (banco) antes do push
+2026-11-01 — main verde local (raiz 2× 19/19); fechamento: commit, pull, push e CI

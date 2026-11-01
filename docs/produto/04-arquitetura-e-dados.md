@@ -116,7 +116,7 @@ Campos comuns: `id uuid`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`,
 | `gestor` | read-models: painel_vendedor_dia, alerta, alerta_regra |
 | `pesquisa` | questionario, questionario_versao, pergunta, opcao, regra_condicional, publico_alvo, resposta, resposta_item, resposta_foto |
 | `treinamento` | trilha, modulo_trilha, licao, quiz, questao, alternativa, publico_alvo, progresso, tentativa, xp_lancamento, medalha, medalha_usuario, ranking_periodo |
-| `integracao` | conector, credencial, lote, lote_linha_erro, mapeamento, cursor_entidade, staging_<entidade>, reconciliacao |
+| `integracao` | conector, credencial, lote, lote_linha_erro, mapeamento, cursor_entidade, lote_staging, registro_atual, sessao_carga, sessao_carga_recebido, pendencia_inativacao, politica_versao, pedido_fila_erp, pedido_retorno, reconciliacao |
 
 > Decisão (ADR-0005): o cadastro base de produto fica no schema `core` (tabela `produto`); preço, estoque, conteúdo e busca ficam no schema `catalogo`. O Vendedor depende do Catálogo e consome produto, preço e estoque por contrato; Promotor, Pesquisa e Gestor usam só o produto do Core.
 

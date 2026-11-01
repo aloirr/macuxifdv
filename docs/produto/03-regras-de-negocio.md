@@ -127,6 +127,18 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 
 > **Conector (decisões do Alexandre em 2026-10-31, T-0013)**: linhas inválidas vão ao Hub com o motivo, até [500] por entidade por lote (acima disso, só a contagem). Atualização na v1 = pacote assinado para baixar + aviso no monitor do Hub quando o Conector estiver abaixo da versão mínima ou recomendada (atualização automática na v2). Uma chave de API por Conector (não por tenant), rotacionável no BKO, escopo só `/integracao/v1`, guardada no Windows Credential Manager. Bancos: Oracle primeiro, Firebird depois, MySQL sob demanda.
 
+> **Regras do Hub aprovadas pelo Alexandre em 2026-11-01 (R-20261101-014652; desenho em `docs/modulos/integracao/hub-api.md` §18)**
+> - **Guarda monotônica (emenda à RN-INT-02/05)**: linha com `alterado_em` menor que o do registro atual é `obsoleta` (não troca o registro, não publica `atualizado@1`, conta no resumo e no monitor); empate com hash diferente é `atualizada`. Vale para reenvio antigo e reprocessamento.
+> - **RN-INT-10 Credencial do Conector**: uma chave por Conector, escopo só `integracao.v1`, guardada só como hash, mostrada uma vez; rotação com convivência da anterior [24 h] (parâmetro; máx. 7 dias; no máximo duas chaves válidas); recusa genérica 401. **Gestão de chaves só pelo admin** (P-3).
+> - **RN-INT-11 Política de versão**: abaixo da mínima o Hub recusa dados (426) e o Conector para; abaixo da recomendada só avisa; sinal de vida sempre liberado; versão ausente ou sem política nunca bloqueia.
+> - **RN-INT-12 Limites e idempotência do lote**: `Idempotency-Key` obrigatória em `POST /lotes` (mesma chave e conteúdo repete a resposta; conteúdo diferente = 409); corpo ≤ [8 MiB]; taxa por Conector.
+> - **RN-INT-01 (emenda, P-1)**: lote só com linhas inválidas termina **"concluído com erros"** (não "falhou").
+> - **RN-INT-03 (emenda)**: linhas inválidas do Conector contam em recebidas/com erro, não são reprocessáveis e valem até [500] por entidade e lote.
+> - **RN-INT-06 (emendas, P-2 e P-3)**: "lote parado" = lote **aplicado**, com só as inativações aguardando confirmação (o cursor avança); a confirmação da inativação em massa é feita por **admin ou analista**, com auditoria, e expira em [7 dias]; linha inválida com `external_id` conta como recebida e **registro que veio como inválido nunca é inativado**; linha sem id impede a inativação; só ativos não vistos desde o início da sessão são candidatos.
+> - **RN-INT-08 (emendas, P-4)**: confirmação tardia vale; `numero_erp` imutável; retorno de pedido com item faturado inválido é **aceito** (o status vale) **sem os itens inválidos**, com erro no monitor; itens faturados conferidos por sequência, produto e saldo; idempotência por pedido, status e nota.
+> - **RN-INT-13 Topologia na v1 (P-6, P-7)**: um Conector por entidade por empresa; filial com ERP próprio vira outra empresa; o Hub recusa configuração conflitante. Um ERP de destino de pedidos por empresa (mais de um: backlog).
+> - Premissas aprovadas: aplicação do lote pela outbox (ADR 0007); ADR nova para as rotas do Conector (prefixo `/integracao/v1`, chave por Conector) com o engenheiro; reprocessamento de lote no BKO.
+
 ## 10. Auditoria
 - **RN-AUD-01** Ficam na auditoria: alterações de preço, limite, alçada, status de pedido, licenças de módulos, perfis, parâmetros e publicações de pesquisa/trilha (quem, quando, antes/depois).
 
@@ -134,7 +146,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 > Decisões do Alexandre em 2026-10-31 (R-20261031-165536), a partir das premissas da T-0014.
 - **RN-GES-01** Alerta "cliente sem visita": frequência de visita do cliente + [50%] (semanal → 10 dias; quinzenal → 21; mensal → 45); [30] dias só para cliente sem frequência. O alerta dispara quando **passa** do limite (quinzenal: dia 21 não alerta, dia 22 alerta). Outros alertas: ritmo mínimo da meta [80%], aprovação parada além do prazo da RN-GES-03, [3] rupturas em [14] dias, [20%] de fotos sem GPS.
 - **RN-GES-02** Cliente nunca visitado só gera alerta depois de **passar** da carência de [15] dias na carteira (dia 15 não alerta, dia 16 alerta).
-- **RN-GES-03** Prazo da aprovação em **dias úteis** [1] (não em horas): pedido de sexta 17:00 vence segunda 17:00. Dias úteis pelo calendário de ${BT}packages/comum${BT} (herdado da Fase M), com feriados nacionais e os feriados cadastrados pelo tenant, no fuso do tenant. O alerta de aprovação parada usa o mesmo prazo.
+- **RN-GES-03** Prazo da aprovação em **dias úteis** [1] (não em horas): pedido de sexta 17:00 vence segunda 17:00. Dias úteis pelo calendário de `packages/comum` (herdado da Fase M), com feriados nacionais e os feriados cadastrados pelo tenant, no fuso do tenant. O alerta de aprovação parada usa o mesmo prazo.
 - **RN-GES-04** O gerente pode decidir item do nível do supervisor; fica na auditoria e o supervisor é avisado.
 - **RN-GES-05** Cobertura de rota = visitas planejadas realizadas ÷ planejadas (máximo 100%); visitas fora da rota viram o indicador "visitas extras".
 - **RN-GES-06** Dois números de venda: "vendido" (valor do pedido) e "faturado" (o que o ERP faturou); a diferença aparece como "a faturar".
@@ -179,6 +191,9 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Cache da busca (`cache_ttl_s` / `cache_min_ocorrencias`) | 600 s / 2 |
 | Ranking da busca (semântico / estoque / mais vendido / campanha) | 0,4 / 0,10 / 0,10 / 0,05 |
 | Linhas inválidas enviadas pelo Conector por entidade e lote | 500 |
+| Convivência da chave anterior do Conector na rotação | 24 h (máx. 7 dias) |
+| Corpo máximo do lote do Hub | 8 MiB |
+| Validade da confirmação de inativação em massa | 7 dias |
 | Alertas do gestor: tolerância sobre a frequência (`pct_tolerancia_frequencia`) / sem frequência (`dias_sem_visita_padrao`) | 50% / 30 dias |
 | Alertas do gestor: carência de cliente novo (`dias_carencia_cliente_novo`) / ritmo mínimo / rupturas / fotos sem GPS | 15 dias / 80% / 3 em 14 dias / 20% |
 | Prazo da aprovação (`prazo_aprovacao_dias_uteis`) | 1 dia útil |

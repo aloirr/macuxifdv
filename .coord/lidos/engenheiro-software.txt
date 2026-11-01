@@ -79,3 +79,5 @@ R-20261031-214136-modulo-core
 R-20261031-221059-modulo-core
 R-20261031-232700-gerente-projetos
 R-20261031-232704-gerente-projetos
+R-20261031-233442-alexandre
+R-20261101-003933-banco-dados

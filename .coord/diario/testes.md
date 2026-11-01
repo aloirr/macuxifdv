@@ -12,3 +12,4 @@
 2026-10-31 — T-0018/T-0019 — D-3 e D-4 fechados na suíte: S1-042, S1-043 e S1-065 viraram it (helper caixa com motor.sobreposicao); S1-043c prova 401/403/423/5xx não engolidos nas etapas do Vendedor; novo D-5 (cargas do Core engolem 401/423, S1-043d it.fails, recado ao core); 325 casos sem pulos
 2026-10-31 — T-0018 — D-5 fechado: S1-043d virou it (401/403/423/5xx derrubam as cargas do Core; 404/501 pulam); suíte tests/ 23 arquivos, 325 casos, 0 pulados, nenhum it.fails
 2026-10-31 — T-0018 — S0-010 sem reprovar por carga (teto 600 s, saída do CI reaproveitada), S0-110 só mede tempo com MACUXI_CARGA_MEDIR=1, folga no vitest.config; 325 casos verdes, 0 pulados
+2026-11-01 — main verde — S1-043c estável: esperarHorizonte no beforeEach de visitas-campo (causa reproduzida: horizonte de 2 s, mesma visita); auth.test.ts na regra nova do limite de login (T-0026); test:tests 3x verde (325, 0 pulados), raiz verde; recado ao banco-dados sobre timeout do S0-021 sob carga

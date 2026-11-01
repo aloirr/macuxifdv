@@ -37,3 +37,7 @@ R-20261031-193859-engenheiro-software
 R-20261031-193920-engenheiro-software
 R-20261031-232708-gerente-projetos
 R-20261031-232713-gerente-projetos
+R-20261031-234729-engenheiro-software
+R-20261101-014259-gerente-projetos
+R-20261101-031740-modulo-integracao
+R-20261101-032048-modulo-integracao
