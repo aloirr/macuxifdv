@@ -282,6 +282,8 @@ export const CODIGOS_ALERTA_MONITOR = [
   'pedido_preso',
   'pedido_retido_sem_mapeamento',
   'chave_em_convivencia',
+  // P-4 (T-0031): retornos do ERP aceitos com itens faturados descartados nas últimas 24 h
+  'retorno_com_itens_descartados',
 ] as const;
 export const AlertaMonitor = z.object({
   codigo: z.enum(CODIGOS_ALERTA_MONITOR),

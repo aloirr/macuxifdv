@@ -246,34 +246,90 @@ describe('RN-INT-08: faturamento por nota e itens_faturados', () => {
     expect(aplicarRetornoPedido(de, retorno({ status: 'faturado_total', nota: nota('100') }))).toMatchObject({ ok: true, repetido: true, publicar: false });
   });
 
-  it('RN-INT-08: itens_faturados com sequência que não existe no pedido enviado → 422 itens_faturados_invalidos', () => {
-    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(9, 'SKU1', 1)] }));
-    expect(r).toMatchObject({ ok: false, status: 422, codigo: 'itens_faturados_invalidos' });
-    if (!r.ok) expect(r.erros[0]).toMatchObject({ codigo: 'sequencia_inexistente', campo: 'itens_faturados[0].sequencia' });
+  it('P-4: retorno com todos os itens válidos — status vale, acumula tudo, evento com todos os itens e nada descartado', () => {
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(1, 'SKU1', 4), item(2, 'SKU2', 4)] }));
+    expect(r).toMatchObject({ ok: true, repetido: false, publicar: true, atualizacao: { estado: 'faturado_parcial' }, itens_descartados: [], erros_monitor: [] });
+    if (!r.ok) return;
+    expect(r.atualizacao.itens_faturados_acumulados).toEqual({ 1: { quantidade: 4, valor_cents: 100 }, 2: { quantidade: 4, valor_cents: 100 } });
+    expect(r.evento.itens_faturados).toEqual([item(1, 'SKU1', 4), item(2, 'SKU2', 4)]);
   });
 
-  it('RN-INT-08: produto do item diferente do produto enviado naquela sequência → 422 (confere pelo external_id)', () => {
-    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(1, 'OUTRO', 1)] }));
-    expect(r).toMatchObject({ ok: false, codigo: 'itens_faturados_invalidos' });
-    if (!r.ok) expect(r.erros[0]).toMatchObject({ codigo: 'produto_divergente', campo: 'itens_faturados[0].produto_external_id' });
+  it('P-4: sequência que não existe no pedido enviado — o retorno é ACEITO (status vale) e o item é descartado com sequencia_inexistente', () => {
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(1, 'SKU1', 2), item(9, 'SKU9', 1)] }));
+    expect(r).toMatchObject({ ok: true, publicar: true, atualizacao: { estado: 'faturado_parcial' } });
+    if (!r.ok) return;
+    expect(r.itens_descartados).toEqual([
+      expect.objectContaining({ indice: 1, sequencia: 9, produto_external_id: 'SKU9', codigo: 'sequencia_inexistente', codigos: ['sequencia_inexistente'], campo: 'itens_faturados[1].sequencia' }),
+    ]);
+    expect(r.atualizacao.itens_faturados_acumulados).toEqual({ 1: { quantidade: 2, valor_cents: 100 } });
+    expect(r.evento.itens_faturados).toEqual([item(1, 'SKU1', 2)]);
   });
 
-  it('RN-INT-08: soma faturada (retornos anteriores + este) acima da quantidade enviada → 422 quantidade_acima_do_saldo, com o saldo na mensagem', () => {
+  it('P-4: produto diferente do enviado naquela sequência — item descartado (confere pelo external_id), os outros valem', () => {
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(1, 'OUTRO', 1), item(2, 'SKU2', 1)] }));
+    expect(r).toMatchObject({ ok: true });
+    if (!r.ok) return;
+    expect(r.itens_descartados).toHaveLength(1);
+    expect(r.itens_descartados[0]).toMatchObject({ sequencia: 1, produto_external_id: 'OUTRO', codigo: 'produto_divergente', campo: 'itens_faturados[0].produto_external_id' });
+    expect(r.itens_descartados[0]?.motivo).toMatch(/OUTRO.*SKU1/);
+    expect(r.atualizacao.itens_faturados_acumulados).toEqual({ 2: { quantidade: 1, valor_cents: 100 } });
+  });
+
+  it('P-4: acima do saldo (retornos anteriores + este) é descartado com o saldo no motivo; exatamente o saldo passa', () => {
     const base = integrado({ estado: 'faturado_parcial', notas_aplicadas: [{ numero: '100', serie: '1' }], itens_faturados_acumulados: { 1: { quantidade: 8, valor_cents: 800 } } });
     const r = aplicarRetornoPedido(base, retorno({ status: 'faturado_parcial', nota: nota('101'), itens_faturados: [item(1, 'SKU1', 3)] }));
-    expect(r).toMatchObject({ ok: false, codigo: 'itens_faturados_invalidos' });
-    if (!r.ok) {
-      expect(r.erros[0]?.codigo).toBe('quantidade_acima_do_saldo');
-      expect(r.erros[0]?.mensagem).toMatch(/saldo.*2/);
-    }
-    // exatamente o saldo passa
-    expect(aplicarRetornoPedido(base, retorno({ status: 'faturado_parcial', nota: nota('101'), itens_faturados: [item(1, 'SKU1', 2)] }))).toMatchObject({ ok: true });
+    expect(r).toMatchObject({ ok: true, atualizacao: { estado: 'faturado_parcial' } });
+    if (!r.ok) return;
+    expect(r.itens_descartados[0]?.codigo).toBe('quantidade_acima_do_saldo');
+    expect(r.itens_descartados[0]?.motivo).toMatch(/saldo de 2/);
+    expect(r.atualizacao.itens_faturados_acumulados).toEqual(base.itens_faturados_acumulados);
+    expect(r.atualizacao.notas_aplicadas).toHaveLength(2);
+    const exato = aplicarRetornoPedido(base, retorno({ status: 'faturado_parcial', nota: nota('101'), itens_faturados: [item(1, 'SKU1', 2)] }));
+    expect(exato).toMatchObject({ ok: true, itens_descartados: [] });
   });
 
-  it('RN-INT-08: todos os problemas dos itens voltam juntos', () => {
-    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(9, 'SKU1', 1), item(2, 'X', 1), item(1, 'SKU1', 999)] }));
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.erros.map((e) => e.codigo)).toEqual(['sequencia_inexistente', 'produto_divergente', 'quantidade_acima_do_saldo']);
+  it('P-4: um item com mais de um problema é descartado uma vez, com todos os códigos e motivos', () => {
+    const base = integrado({ itens_faturados_acumulados: { 2: { quantidade: 4, valor_cents: 100 } } });
+    const r = aplicarRetornoPedido(base, retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(2, 'X', 1)] }));
+    expect(r.ok && r.itens_descartados).toEqual([expect.objectContaining({ codigo: 'produto_divergente', codigos: ['produto_divergente', 'quantidade_acima_do_saldo'] })]);
+  });
+
+  it('P-4: parte inválida — só os válidos acumulam e vão no evento; cada inválido vira erro do monitor com motivo, external_id, pedido e nota', () => {
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(9, 'SKU9', 1), item(2, 'X', 1), item(1, 'SKU1', 999), item(2, 'SKU2', 3)] }));
+    expect(r).toMatchObject({ ok: true, publicar: true });
+    if (!r.ok) return;
+    expect(r.itens_descartados.map((d) => d.codigo)).toEqual(['sequencia_inexistente', 'produto_divergente', 'quantidade_acima_do_saldo']);
+    expect(r.atualizacao.itens_faturados_acumulados).toEqual({ 2: { quantidade: 3, valor_cents: 100 } });
+    expect(r.evento.itens_faturados).toEqual([item(2, 'SKU2', 3)]);
+    expect(r.erros_monitor).toHaveLength(3);
+    expect(r.erros_monitor[1]).toMatchObject({
+      pedido_uuid: UUID, status: 'faturado_parcial', numero_erp: 'P-1', nota_numero: '100', nota_serie: '1', ocorrido_em: t0,
+      sequencia: 2, produto_external_id: 'X', codigo: 'produto_divergente',
+    });
+    for (const e of r.erros_monitor) expect(e.motivo.length).toBeGreaterThan(10);
+  });
+
+  it('P-4: TODOS os itens inválidos — o status ainda vale (faturado_total fecha o pedido), nada acumula e o evento sai sem itens', () => {
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_total', nota: nota('100'), itens_faturados: [item(9, 'SKU1', 1), item(1, 'OUTRO', 1)] }));
+    expect(r).toMatchObject({ ok: true, repetido: false, publicar: true, atualizacao: { estado: 'faturado_total', itens_faturados_acumulados: {} } });
+    if (!r.ok) return;
+    expect(r.itens_descartados).toHaveLength(2);
+    expect(r.erros_monitor).toHaveLength(2);
+    expect(r.evento).toMatchObject({ status: 'faturado_total', itens_faturados: null, nota: { numero: '100' } });
+    expect(r.atualizacao.notas_aplicadas).toEqual([{ numero: '100', serie: '1' }]);
+  });
+
+  it('P-4: a mesma nota reenviada depois de um descarte é idempotente — não revalida nem gera erro de novo', () => {
+    const r1 = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(9, 'SKU1', 1)] }));
+    if (!r1.ok) throw new Error('esperado ok');
+    const apos = integrado({ estado: 'faturado_parcial', notas_aplicadas: r1.atualizacao.notas_aplicadas, itens_faturados_acumulados: r1.atualizacao.itens_faturados_acumulados });
+    const r2 = aplicarRetornoPedido(apos, retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(9, 'SKU1', 1)] }));
+    expect(r2).toMatchObject({ ok: true, repetido: true, publicar: false, itens_descartados: [], erros_monitor: [] });
+  });
+
+  it('P-4: as recusas que continuam 422 são só de pedido/estado/número — item faturado inválido nunca recusa', () => {
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', numero_erp: 'P-2', nota: nota('100'), itens_faturados: [item(9, 'SKU1', 1)] }));
+    expect(r).toMatchObject({ ok: false, status: 422, codigo: 'numero_erp_divergente' });
   });
 
   it('RN-INT-08: faturado sem itens_faturados continua aceito (o campo é opcional); só não alimenta o acumulado', () => {

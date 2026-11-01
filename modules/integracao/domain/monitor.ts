@@ -42,6 +42,11 @@ export interface EntradaAlertas {
   pendenciasInativacao: readonly { entidade: Entidade; conector_id: string; candidatos: number; percentual: number; estado: string }[];
   reconciliacoesDivergentes: readonly { entidade: Entidade; data_referencia: string; motivos: readonly string[] }[];
   pedidos: { presos: readonly string[]; retidos: readonly string[] };
+  /**
+   * P-4 (T-0031): erros de itens faturados descartados nas últimas 24 h (`ErroRetornoMonitor`, um por item). Opcional: ausente
+   * = nenhum.
+   */
+  retornosComItensDescartados24h?: readonly { pedido_uuid: string; produto_external_id: string }[];
 }
 
 const PESO = { critico: 0, atencao: 1, info: 2 } as const;
@@ -94,6 +99,13 @@ export function montarAlertasMonitor(e: EntradaAlertas): AlertaMonitor[] {
   const retidos = e.pedidos.retidos.length;
   if (retidos > 0) {
     novo({ codigo: 'pedido_retido_sem_mapeamento', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `${retidos} pedido${retidos > 1 ? 's' : ''} aprovado${retidos > 1 ? 's' : ''} retido${retidos > 1 ? 's' : ''} por falta de mapeamento (ex.: condição de pagamento). Cadastre em Integração ERP > Mapeamento; os pedidos seguem sozinhos.` });
+  }
+
+  const descartes = e.retornosComItensDescartados24h ?? [];
+  if (descartes.length > 0) {
+    const pedidos = new Set(descartes.map((d) => d.pedido_uuid)).size;
+    const itens = descartes.length;
+    novo({ codigo: 'retorno_com_itens_descartados', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `${itens} ${itens > 1 ? 'itens' : 'item'} faturado${itens > 1 ? 's' : ''} de ${pedidos} pedido${pedidos > 1 ? 's' : ''} ${itens > 1 ? 'ficaram' : 'ficou'} de fora do retorno do ERP nas últimas 24 h (sequência, produto ou quantidade não batem com o pedido enviado). O status dos pedidos foi atualizado. Abra Integração ERP > Pedidos > Erros de retorno, confira a consulta de itens da nota no Conector e o pedido no ERP.` });
   }
 
   return a.map((x, i) => ({ x, i })).sort((p, q) => PESO[p.x.severidade] - PESO[q.x.severidade] || p.i - q.i).map(({ x }) => x);
