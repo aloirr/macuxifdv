@@ -130,3 +130,5 @@
 2026-11-01 — S1-043c corrigido no teste (3× verde); falta o timeout do S0-021 (banco) antes do push
 2026-11-01 — main verde local (raiz 2× 19/19); fechamento: commit, pull, push e CI
 2026-11-01 — CI do main (41285701954): todas as suítes verdes; só o verificar --por-commit falhou porque o commit de coordenação do gerente levou diários, lidos e recados de outros agentes. Regra registrada no doc 07; fechamentos passam a separar .coord/ por autor
+2026-11-01 — MAIN VERDE (CI 41286326232); aviso ao Alexandre; retomando a rotina
+2026-11-01 — T-0028 (matriz da demo) e T-0029 (fatia do pedido) abertas a partir do R-20261101-020623

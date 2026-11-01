@@ -20,11 +20,8 @@ Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar
 Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
 Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho: local e nuvem".
 
-## 🔴 PRIORIDADE MÁXIMA: main verde (Alexandre, R-20261101-014652)
-- db/testes/sprint1.test.ts falha antes das 14h (banco-dados) ✅ — horários fixos e relativos; testado às 08:00, 13:59, 14:01 e 23:59 de Manaus
-- S1-043c: visita a mais depois de sync com erro — causa: tempo do teste (horizonte de 2 s), NÃO duplicação (mesmo id); esperarHorizonte no beforeEach ✅ (test:tests 3× verde). Core: fileParallelism false (disputa de tenant entre arquivos)
-- CI roda todas as suítes sem parar na primeira falha (engenheiro) ✅
-- Enquanto o CI do main estiver vermelho, a nuvem não faz merge (doc 07)
+## ✅ Main verde desde 2026-11-01 (CI 41286326232, todas as suítes rodando)
+Causas corrigidas: teste de db dependente da hora (banco-dados); S1-043c era tempo do teste, não duplicação (testes, core); CI com --continue (engenheiro); commit de rodada por dono (doc 07).
 
 ## Meta: fechar a Sprint 0 até sexta, 06/11 (Alexandre, R-20261031-103502)
 1. **T-0004** (shells com os 8 módulos, `createApp`, EAS, pendências da T-0002 §6) → **T-0003 Fase 2** (T-0007 já mergeada) → **execução da T-0006** e relatório da Sprint 0.
@@ -36,6 +33,8 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
+| [T-0028](tarefas/T-0028.md) | Matriz de testes ponta a ponta da demo | testes | local | em_andamento |
+| [T-0029](tarefas/T-0029.md) | Fatia vertical do pedido para a demo (com PDF) | engenheiro-software | local | em_andamento (desenho) |
 | [T-0026](tarefas/T-0026.md) | Demonstração com o gestor externo (prioridade) | engenheiro-software | local | concluida (APKs de preview + scripts + túnel · docs/status/demo.md) |
 | [T-0015](tarefas/T-0015.md) | Ajustes pós-Sprint 0: O-3 (promotor lê pedidos da carteira) e D-1 | engenheiro-software | local | concluida (O-3 e D-1 provados com Postgres) |
 | [T-0016](tarefas/T-0016.md) | Desenho técnico e contratos da Sprint 1 | engenheiro-software | local | concluida (aprovado; ADRs 0009/0010) |
