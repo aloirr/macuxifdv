@@ -1,6 +1,6 @@
 /**
  * Perfil (copiado da Fase M): sincronizar agora, fila do aparelho, modo sem sinal (simulado),
- * endereço do servidor e sair/trocar usuário. A fila agora é a do motor de sync (genérica, de todos os
+ * endereço do servidor (editável só no build de desenvolvimento; nos demais, só leitura — T-0038) e sair/trocar usuário. A fila agora é a do motor de sync (genérica, de todos os
  * módulos) e mostra os itens de módulo desativado como "não enviado — módulo desativado"; os dados do
  * módulo só são apagados depois que o usuário confirma (RN-CORE-02, Q4).
  */
@@ -195,23 +195,32 @@ export default function ProfileScreen() {
 
       <View style={{ gap: 8 }}>
         <SectionHeader title="Servidor" />
-        <Card style={{ padding: 14, gap: 10 }}>
-          <TextInput testID="profile-server" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={styles.input} />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Button label="Testar e salvar" variant="dark" style={{ flex: 1 }} onPress={() => void saveUrl()} />
-            <Button
-              label="Padrão"
-              variant="outline"
-              onPress={() => {
-                setUrl(defaultApiUrl);
-                setUrlMsg(null);
-                void app.setApiUrl(null);
-              }}
-            />
-          </View>
-          <Text style={t.small}>{apiOverride ? `Personalizado. Padrão: ${defaultApiUrl}` : 'Usando o endereço padrão.'}</Text>
-          {urlMsg ? <Text style={[t.small, { color: urlMsg.ok ? colors.success : colors.danger }]}>{urlMsg.message}</Text> : null}
-        </Card>
+        {!app.servidorEditavel ? (
+          <Card style={{ padding: 14, gap: 6 }}>
+            <Text testID="profile-server-fixo" selectable style={[t.body, { fontFamily: fonts.mono, fontSize: 13 }]}>
+              {apiUrl}
+            </Text>
+            <Text style={t.small}>Endereço definido nesta versão do aplicativo.</Text>
+          </Card>
+        ) : (
+          <Card style={{ padding: 14, gap: 10 }}>
+            <TextInput testID="profile-server" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={styles.input} />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Button label="Testar e salvar" variant="dark" style={{ flex: 1 }} onPress={() => void saveUrl()} />
+              <Button
+                label="Padrão"
+                variant="outline"
+                onPress={() => {
+                  setUrl(defaultApiUrl);
+                  setUrlMsg(null);
+                  void app.setApiUrl(null);
+                }}
+              />
+            </View>
+            <Text style={t.small}>{apiOverride ? `Personalizado. Padrão: ${defaultApiUrl}` : 'Usando o endereço padrão.'}</Text>
+            {urlMsg ? <Text style={[t.small, { color: urlMsg.ok ? colors.success : colors.danger }]}>{urlMsg.message}</Text> : null}
+          </Card>
+        )}
       </View>
 
       <View style={{ gap: 8, marginBottom: 12 }}>

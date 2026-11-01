@@ -42,13 +42,14 @@ import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import { shellDaVariante, type ComponenteTela } from '@/lib/modulos';
 import { varianteAtual } from '@/lib/variante';
 import { normalizeApiUrl } from '@/lib/api-url';
+import { enderecoSalvoValido, erroDaVerificacao, servidorEditavel } from '@/lib/endereco-do-build';
 import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
 import { testarServidor } from '@/lib/servidor';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
 import { ApiClient, errorMessage, HttpError } from '@/services/api';
 import { armazenamentoDoUsuario } from '@/services/armazenamento';
 import { gravarTokens, lerTokens } from '@/services/credenciais';
-import { modoApi, platformDefaultApiUrl, uuid } from '@/services/device';
+import { modoApi, perfilBuildAtual, platformDefaultApiUrl, uuid } from '@/services/device';
 import { keys, readJson, writeJson } from '@/services/storage';
 import { modoSync, transporteFaseM, transporteV1 } from '@/services/transporte';
 import { apagarFotosLocais, arquivosLocais } from '@/services/arquivos';
@@ -97,6 +98,9 @@ function usePlataformaValor() {
   const modo = useMemo(() => modoApi(), []);
   const variante = useMemo(() => varianteAtual(), []);
   const shell = useMemo(() => shellDaVariante(variante), [variante]);
+  /** T-0038: preview/producao usam sempre o endereço do build (sem campo Servidor); só o desenvolvimento edita. */
+  const perfilBuild = useMemo(() => perfilBuildAtual(), []);
+  const editavel = servidorEditavel(perfilBuild);
   const [ready, setReady] = useState(false);
   const defaultApiUrl = useMemo(() => platformDefaultApiUrl(), []);
   const [apiOverride, setApiOverride] = useState<string | null>(null);
@@ -207,9 +211,11 @@ function usePlataformaValor() {
       // sessão de outro modo (build demo x real) não vale; a sessão antiga da demo trazia o token junto
       const token = tokens?.access ?? (modo === 'demo' ? guardada?.token : undefined);
       const sess: Sessao | null = guardada && token && (guardada.modo ?? 'demo') === modo ? { ...guardada, token, modo } : null;
-      if (settings?.apiUrl) {
-        setApiOverride(settings.apiUrl);
-        apiUrlRef.current = settings.apiUrl;
+      // endereço salvo por versão antiga do app: ignorado nos builds de endereço fixo (T-0038)
+      const salvo = enderecoSalvoValido(perfilBuild, settings?.apiUrl);
+      if (salvo) {
+        setApiOverride(salvo);
+        apiUrlRef.current = salvo;
       }
       offlineRef.current = Boolean(off);
       setOfflineState(Boolean(off));
@@ -223,7 +229,7 @@ function usePlataformaValor() {
     return () => {
       vivo = false;
     };
-  }, [abrirMotor, modo]);
+  }, [abrirMotor, modo, perfilBuild]);
 
   /** Módulos efetivos a cada sync (licença checada no servidor por requisição — RN-CORE-01/02). */
   const atualizarModulos = useCallback(async () => {
@@ -281,10 +287,15 @@ function usePlataformaValor() {
   const garantirServidorMacuxi = useCallback(async () => {
     const url = apiUrlRef.current;
     if (servidorAprovadoRef.current === url) return url;
-    await new ApiClient(url, null).health(rotaDeSaude(modo), { exigirHttps: EXIGIR_HTTPS });
+    try {
+      await new ApiClient(url, null).health(rotaDeSaude(modo), { exigirHttps: EXIGIR_HTTPS });
+    } catch (e) {
+      // endereço fixo (T-0038): "Servidor indisponível — tente mais tarde", sem pedir endereço
+      throw erroDaVerificacao(perfilBuild, e);
+    }
     servidorAprovadoRef.current = url;
     return url;
-  }, [modo]);
+  }, [modo, perfilBuild]);
 
   /** Demonstração (mock-api): entra como um usuário fictício, sem senha. */
   const loginDemo = useCallback(
@@ -427,11 +438,13 @@ function usePlataformaValor() {
   };
 
   const setApiUrl = useCallback(async (url: string | null) => {
+    // endereço fixo (T-0038): não há o que trocar; nada é salvo
+    if (!editavel) return;
     const v = url && url.trim() ? url.trim() : null;
     setApiOverride(v);
     apiUrlRef.current = v || platformDefaultApiUrl();
     await writeJson(keys.settings, { apiUrl: v });
-  }, []);
+  }, [editavel]);
 
   /** Testa o endereço como digitado (só sem espaços nas pontas): só um servidor Macuxi passa; a mensagem diz o endereço testado. */
   const testApiUrl = useCallback(
@@ -493,6 +506,8 @@ function usePlataformaValor() {
     apiUrl,
     defaultApiUrl,
     apiOverride,
+    perfilBuild,
+    servidorEditavel: editavel,
     sessao,
     perfil,
     me,
