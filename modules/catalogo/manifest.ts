@@ -29,6 +29,8 @@ export const manifest = defineModule({
     // preço
     'tabela_preco',
     'tabela_preco_item',
+    // tabela de preço do cliente (T-0029; pull por carteira; RN-CAT-06)
+    'cliente_tabela_preco',
     // estoque por filial/depósito
     'deposito',
     'estoque_saldo',
@@ -43,6 +45,8 @@ export const manifest = defineModule({
   publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
   consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'catalogo.busca.realizada@1'],
   ofereceExtensoes: ['produto.acoes'],
+  // ADR 0012: o Vendedor lê o preço da tabela do cliente por consulta, nunca pela tabela (T-0029)
+  ofereceConsultas: ['catalogo.precos_cliente@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },

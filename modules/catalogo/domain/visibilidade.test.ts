@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ItemVitrine, type FiltrosInterpretados } from '../contracts';
 import manifest from '../manifest';
 import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
-import { filtrosParaPerfil, itemVitrineParaPerfil, PERFIS_PRECO_ESTOQUE, podeVerPrecoEstoque } from './visibilidade';
+import { filtrosParaPerfil, itemVitrineParaPerfil, PERFIS_PRECO_ESTOQUE, podeVerPrecoEstoque, verPrecoDoPerfil } from './visibilidade';
 
 const preco = {
   product_id: 'p1',
@@ -76,5 +76,14 @@ describe('RN-CAT-05: quem vê preço de tabela e estoque', () => {
     expect([...(manifest.acoes['produto.ver_preco_estoque']?.perfis ?? [])].sort()).toEqual([...PERFIS_PRECO_ESTOQUE].sort());
     expect(PERFIS_PRECO_ESTOQUE).not.toContain('promotor');
     expect(manifest.acoes['produto.consultar']?.perfis).toContain('promotor');
+  });
+});
+
+describe('verPrecoDoPerfil', () => {
+  it('RN-CAT-05: promotor só vê com o parâmetro ligado; parâmetro inválido cai no padrão', () => {
+    expect(verPrecoDoPerfil('promotor', {})).toBe(false);
+    expect(verPrecoDoPerfil('promotor', { promotor_ve_preco_estoque: true })).toBe(true);
+    expect(verPrecoDoPerfil('promotor', { promotor_ve_preco_estoque: 'x' })).toBe(false);
+    expect(verPrecoDoPerfil('vendedor', undefined)).toBe(true);
   });
 });

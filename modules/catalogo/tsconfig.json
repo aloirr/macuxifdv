@@ -1,1 +1,1 @@
-{ "extends": "@macuxi/config/tsconfig.base.json", "include": ["manifest.ts", "domain", "contracts", "api"] }
+{ "extends": "@macuxi/config/tsconfig.base.json", "include": ["manifest.ts", "domain", "contracts", "api", "app"] }

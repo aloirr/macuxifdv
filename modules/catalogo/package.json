@@ -23,6 +23,9 @@
   },
   "devDependencies": {
     "@macuxi/config": "workspace:*",
+    "@macuxi/db": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
     "typescript": "~5.9.3",
     "vitest": "^3.2.4"
   }

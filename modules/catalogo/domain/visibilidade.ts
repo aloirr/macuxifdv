@@ -5,8 +5,8 @@
  * (vitrine, busca e ficha) e o app aplica de novo na tela; o ranking roda com os filtros já limpos.
  */
 import type { Perfil } from '@macuxi/platform-sdk';
-import type { FiltrosInterpretados, ItemVitrine } from '../contracts';
-import type { ParametrosCatalogo } from './parametros';
+import { ParametrosCatalogo, type FiltrosInterpretados, type ItemVitrine } from '../contracts';
+import { PARAMETROS_PADRAO } from './parametros';
 
 /** Perfis que sempre veem preço e estoque (espelho da ação `produto.ver_preco_estoque` do manifesto). */
 export const PERFIS_PRECO_ESTOQUE = ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'] as const satisfies readonly Perfil[];
@@ -30,4 +30,10 @@ export function itemVitrineParaPerfil(item: ItemVitrine, perfil: Perfil, p: Pick
 export function filtrosParaPerfil(f: FiltrosInterpretados, perfil: Perfil, p: Pick<ParametrosCatalogo, 'promotor_ve_preco_estoque'>): FiltrosInterpretados {
   if (podeVerPrecoEstoque(perfil, p)) return f;
   return { ...f, min_price_cents: null, max_price_cents: null, stock: null, sort: null };
+}
+
+/** Variante tolerante para quem lê parâmetros crus (API e aparelho): valor inválido cai no padrão (promotor sem preço). */
+export function verPrecoDoPerfil(perfil: Perfil, parametros: Readonly<Record<string, unknown>> | undefined): boolean {
+  const r = ParametrosCatalogo.safeParse({ ...PARAMETROS_PADRAO, ...(parametros ?? {}) });
+  return podeVerPrecoEstoque(perfil, r.success ? r.data : PARAMETROS_PADRAO);
 }
