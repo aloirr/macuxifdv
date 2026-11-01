@@ -86,6 +86,9 @@ export interface OpcoesApp {
    * Proxy confiável na frente da API (`MACUXI_TRUST_PROXY`, `lerTrustProxy` em `config.ts`): com ele, `req.ip` vem do
    * `X-Forwarded-For` (ex.: túnel `cloudflared` da demo, T-0026) e os limites por IP contam cada aparelho. Padrão:
    * desligado (`req.ip` = quem abriu a conexão).
+   * Sem CORS e sem cookie, de propósito (T-0038, desenho §3): o BKO (inclusive em `https://bko-demo.macuxifdv.com.br`)
+   * chama a API pelo proxy same-origin do Next (`/api-proxy`, pelo loopback), que repassa o `X-Forwarded-For` do túnel;
+   * o app usa `Authorization: Bearer`. Nenhum navegador fala direto com a API, então nenhuma origem é liberada.
    */
   trustProxy?: FastifyServerOptions['trustProxy'];
   /** Versão devolvida em `GET /v1/saude` (padrão: `MACUXI_VERSAO` ou a versão do package.json da API). */
