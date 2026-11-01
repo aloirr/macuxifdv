@@ -98,6 +98,10 @@ describe.skipIf(semBanco())('T-0018 — rota e visitas reais no app Campo × API
       [[U.vendedor1, U.promotor]],
     );
     gps.posicao = null;
+    // o update acima e o `fecharAberta` do cenário anterior deixam visitas com updated_at recente: o pull só as devolve
+    // depois do horizonte (updated_at < now() − 2 s). Sem esperar, a contagem "antes" de um cenário depende da
+    // velocidade da máquina (no CI rápido a visita chega no 2º sync e a contagem sobe 1 — S1-043c, PR #22).
+    await esperarHorizonte();
   });
 
   it('S1-040 critério 1 (modo avião): abre a rota, faz check-in e checkout sem sinal; na volta sincroniza UMA visita com o UUID do aparelho; reenviar o lote não duplica', async () => {

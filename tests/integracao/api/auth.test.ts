@@ -1,7 +1,7 @@
 /**
  * T-0003 — autenticação pela API real (Core + createApp + Postgres como macuxi_app): cenários S0-070..S0-073 do plano.
  * Login com código da empresa + e-mail + senha (RF-CORE-01), mesma resposta para qualquer credencial errada,
- * bloqueio por tentativas e remoto, aparelho bloqueado, limite por IP + código, refresh rotativo com revogação da
+ * bloqueio por tentativas e remoto, aparelho bloqueado, limite de falhas por IP + empresa + e-mail (T-0026), refresh rotativo com revogação da
  * família no reuso, JWT adulterado/expirado e logs sem dado pessoal (CLAUDE.md regra 8).
  */
 import { createHmac } from 'node:crypto';
@@ -85,14 +85,18 @@ describe.skipIf(semBanco())('T-0003 — login, sessão e bloqueio pela API real 
     expect((await api.entrar(email)).statusCode).toBe(200);
   });
 
-  it('limite por IP + código da empresa: a 6ª tentativa em 5 min → 429 MUITAS_TENTATIVAS com Retry-After; outro IP segue', async () => {
+  // T-0026 (docs/modulos/core/auth-e-licencas.md, "Limite de tentativas do login"): só FALHAS contam, 10/5 min por
+  // IP + empresa + e-mail; entrada certa não consome (atrás do túnel vários aparelhos dividem o IP).
+  it('limite de falhas por IP + empresa + e-mail: 10 acertos seguidos sem 429; a 11ª depois de 10 falhas → 429 MUITAS_TENTATIVAS com Retry-After; outro IP e outro e-mail seguem', async () => {
     const ip = novoIp();
-    // e-mail inexistente: o limite é da plataforma (IP + código), não conta tentativa de nenhum usuário
-    for (let i = 0; i < 5; i++) expect((await api.entrar('ninguem@exemplo.com.br', { ip, senha: 'x' })).statusCode).toBe(401);
-    const r = await api.entrar('analista@exemplo.com.br', { ip });
+    for (let i = 0; i < 10; i++) expect((await api.entrar('analista@exemplo.com.br', { ip })).statusCode, `acerto ${i + 1}`).toBe(200);
+    // e-mail inexistente: não conta tentativa de nenhum usuário (o bloqueio por usuário é do domínio), só a chave do IP
+    for (let i = 0; i < 10; i++) expect((await api.entrar('ninguem@exemplo.com.br', { ip, senha: 'x' })).statusCode, `falha ${i + 1}`).toBe(401);
+    const r = await api.entrar('ninguem@exemplo.com.br', { ip, senha: 'x' });
     expect([r.statusCode, erroDe(r).codigo]).toEqual([429, 'MUITAS_TENTATIVAS']);
     expect(Number(r.headers['retry-after'])).toBeGreaterThan(0);
-    expect((await api.entrar('analista@exemplo.com.br')).statusCode).toBe(200);
+    expect((await api.entrar('ninguem@exemplo.com.br', { senha: 'x' })).statusCode, 'outro IP, mesmo e-mail').toBe(401);
+    expect((await api.entrar('analista@exemplo.com.br', { ip })).statusCode, 'mesmo IP, outro e-mail').toBe(200);
   });
 
   it('bloqueio remoto (RF-CORE-01): bloquear o usuário derruba o acesso já emitido (401) e o refresh (SESSAO_INVALIDA)', async () => {
