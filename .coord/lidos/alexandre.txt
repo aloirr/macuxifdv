@@ -62,3 +62,6 @@ R-20261101-102111-engenheiro-software
 R-20261101-102213-gerente-projetos
 R-20261101-102216-gerente-projetos
 R-20261101-115656-modulo-integracao
+R-20261101-112205-modulo-integracao
+R-20261101-152752-gerente-projetos
+R-20261101-152818-gerente-projetos
