@@ -105,3 +105,38 @@ describe('RN-INT-03: resultado do lote', () => {
     expect(calcularResultadoLote({ recebidas: 2, duplicadas_no_lote: 0, erros: [], ...cont, falhaProcessamento: true }).status).toBe('falhou');
   });
 });
+
+describe('RN-INT-03/01 (T-0025): resultado do lote com linhas inválidas do Conector', () => {
+  const base = { recebidas: 10, duplicadas_no_lote: 0, erros: [], novas: 10, atualizadas: 0, inalteradas: 0 };
+
+  it('RN-INT-03: linhas inválidas do Conector contam como recebidas e com erro → concluido_com_erros, e a conta fecha', () => {
+    const r = calcularResultadoLote({ ...base, recebidas: 8, novas: 8, invalidas_conector: 2 });
+    expect(r.status).toBe('concluido_com_erros');
+    expect(r.contagens).toMatchObject({ recebidas: 10, com_erro: 2, novas: 8 });
+    const c = r.contagens;
+    expect(c.novas + c.atualizadas + c.inalteradas + c.duplicadas_no_lote + c.com_erro).toBe(c.recebidas);
+  });
+
+  it('RN-INT-03: erros do Hub e do Conector somam sem colidir os índices (índice do Conector é a posição em linhas_invalidas)', () => {
+    const hub = [erroFalhaProcessamento(0, 'C1')];
+    const r = calcularResultadoLote({ ...base, recebidas: 5, novas: 4, erros: hub, invalidas_conector: 3 });
+    expect(r.contagens.com_erro).toBe(4);
+    expect(r.contagens.recebidas).toBe(8);
+  });
+
+  it('RN-INT-01 (exceção): lote SÓ com linhas inválidas do Conector termina concluido_com_erros — o Conector não pode bloquear a entidade por falhou', () => {
+    const r = calcularResultadoLote({ recebidas: 0, duplicadas_no_lote: 0, erros: [], novas: 0, atualizadas: 0, inalteradas: 0, invalidas_conector: 7 });
+    expect(r.status).toBe('concluido_com_erros');
+    expect(r.contagens).toMatchObject({ recebidas: 7, com_erro: 7 });
+  });
+
+  it('RN-INT-03: todas as linhas do Hub com erro e nenhuma do Conector continua falhou; falha de processamento sempre falhou', () => {
+    const erros = [erroFalhaProcessamento(0, 'C1'), erroFalhaProcessamento(1, 'C2')];
+    expect(calcularResultadoLote({ ...base, recebidas: 2, novas: 0, erros }).status).toBe('falhou');
+    expect(calcularResultadoLote({ ...base, invalidas_conector: 1, falhaProcessamento: true }).status).toBe('falhou');
+  });
+
+  it('RN-INT-03: sem invalidas_conector o comportamento anterior é o mesmo', () => {
+    expect(calcularResultadoLote(base).status).toBe('concluido');
+  });
+});

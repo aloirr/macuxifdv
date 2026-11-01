@@ -50,7 +50,7 @@ export function situacaoSessao(sessao: SessaoCargaEstado, agora: string, opcoes:
   return Date.parse(agora) - Date.parse(sessao.iniciadaEm) > ttl * 60_000 ? 'expirada' : 'aberta';
 }
 
-export type MotivoSemInativacao = 'sessao_incompleta' | 'linhas_sem_external_id' | 'carga_vazia' | 'excede_limite_inativacao';
+export type MotivoSemInativacao = 'sessao_incompleta' | 'linhas_sem_external_id' | 'linhas_invalidas_omitidas' | 'carga_vazia' | 'excede_limite_inativacao';
 
 export interface EntradaInativacao {
   sessao: SessaoCargaEstado;
@@ -61,6 +61,11 @@ export interface EntradaInativacao {
   recebidosNaSessao: Iterable<string>;
   /** Linhas da sessão sem external_id legível: sem elas não dá para saber o que faltou. */
   linhasSemExternalId?: number;
+  /**
+   * T-0025: linhas inválidas que o Conector só contou (passaram do limite de 500 por lote): não se sabe de quais registros são,
+   * então a inativação não acontece.
+   */
+  linhasInvalidasOmitidas?: number;
   ttlMin?: number;
   /** Percentual máximo de ativos inativados sem confirmação (padrão `limiteInativacaoPct`). */
   limitePct?: number;
@@ -80,6 +85,7 @@ export function calcularInativacao(e: EntradaInativacao): ResultadoInativacao {
   const nega = (motivo: MotivoSemInativacao): ResultadoInativacao => ({ permitido: false, inativar: [], motivo });
   if (situacaoSessao(e.sessao, e.agora, { ttlMin: e.ttlMin }) !== 'completa') return nega('sessao_incompleta');
   if ((e.linhasSemExternalId ?? 0) > 0) return nega('linhas_sem_external_id');
+  if ((e.linhasInvalidasOmitidas ?? 0) > 0) return nega('linhas_invalidas_omitidas');
   const recebidos = new Set(e.recebidosNaSessao);
   if (recebidos.size === 0) return nega('carga_vazia');
   const inativar = [...new Set(e.ativosNoMacuxi)].filter((id) => !recebidos.has(id));
