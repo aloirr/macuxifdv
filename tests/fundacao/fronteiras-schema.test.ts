@@ -68,17 +68,12 @@ function arquivos(dir: string): string[] {
   return saida;
 }
 
-/**
- * Exceções TEMPORÁRIAS, nomeadas e com recado ao dono (o teste falha se uma delas deixar de existir: retire-a).
- * T-0029: R-20261101-080407-testes ao modulo-vendedor (fuso do tenant pela plataforma; cenário do teste de banco sem SQL em core.*).
+/*
+ * Sem exceções (T-0035). As temporárias da T-0029 (R-20261101-080407-testes: `from plataforma.tenant` em
+ * modules/vendedor/api/pedidos.ts e `from core.cliente|produto|usuario` em pedido.db.test.ts) foram retiradas:
+ * o Vendedor usa `ctx.fuso()` do platform-sdk e monta o cadastro do teste em memória (R-20261101-155708).
+ * Nova exceção só com recado ao dono e ao engenheiro-software; não reabra a lista para `*.db.test.ts` semear outro schema.
  */
-const EXCECOES_S0_014: ReadonlyArray<{ arquivo: string; trecho: string; recado: string }> = [
-  { arquivo: 'modules/vendedor/api/pedidos.ts', trecho: 'from plataforma.tenant', recado: 'R-20261101-080407-testes' },
-  { arquivo: 'modules/vendedor/api/pedido.db.test.ts', trecho: 'from core.cliente', recado: 'R-20261101-080407-testes' },
-  { arquivo: 'modules/vendedor/api/pedido.db.test.ts', trecho: 'from core.produto', recado: 'R-20261101-080407-testes' },
-  { arquivo: 'modules/vendedor/api/pedido.db.test.ts', trecho: 'from core.usuario', recado: 'R-20261101-080407-testes' },
-];
-const chaveViolacao = (arquivo: string, trecho: string) => `${arquivo}: ${trecho}`;
 
 describe('S0-014 módulo não referencia tabela do schema de outro módulo', () => {
   const schemas = [...new Set([...SCHEMAS_DOC04, ...schemasDasMigracoes()])];
@@ -114,6 +109,21 @@ describe('S0-014 módulo não referencia tabela do schema de outro módulo', () 
       expect(referenciasDeSchema(codigo, schemas)).toEqual([]);
     });
 
+    /**
+     * T-0035: `plataforma.tenant_atual()` é FUNÇÃO de infraestrutura do RLS (db/migrations/0001_plataforma.up.sql:
+     * `select nullif(current_setting('app.tenant_id', true), '')::uuid`), não lê tabela; todo schema de módulo a usa nas
+     * políticas e no default de tenant_id. A regra 1 do CLAUDE.md proíbe LER/ESCREVER TABELA de outro schema, então ela não
+     * é violação. O detector já não a acusa (exige from/join/into/... antes do schema) e estes casos travam isso.
+     * Já `insert into plataforma.x` ou `from plataforma.tenant` continuam violação (casos acima).
+     */
+    it.each([
+      "insert into vendedor.pedido (tenant_id, id) values (plataforma.tenant_atual(), $1)",
+      "using (tenant_id = plataforma.tenant_atual()) with check (tenant_id = plataforma.tenant_atual())",
+      "where tenant_id = plataforma.tenant_atual()",
+    ])('T-0035: plataforma.tenant_atual() (função do RLS) não é referência a tabela de outro schema: %s', (codigo) => {
+      expect(referenciasDeSchema(codigo, schemas).map((v) => v.schema)).not.toContain('plataforma');
+    });
+
     it('core pode usar plataforma; os demais só o próprio schema', () => {
       expect(permitidos('core')).toEqual(['core', 'plataforma']);
       expect(permitidos('vendedor')).toEqual(['vendedor']);
@@ -137,10 +147,7 @@ describe('S0-014 módulo não referencia tabela do schema de outro módulo', () 
       }
     }
     expect(varridos).toBeGreaterThan(0);
-    const excecoes = new Set(EXCECOES_S0_014.map((e) => chaveViolacao(e.arquivo, e.trecho)));
-    expect(violacoes.filter((v) => !excecoes.has(v))).toEqual([]);
-    // exceção sem violação correspondente = já corrigida: retire-a da lista
-    expect([...excecoes].filter((e) => !violacoes.includes(e)), 'exceções de S0-014 já corrigidas (retire da lista)').toEqual([]);
+    expect(violacoes).toEqual([]);
   });
 
   it('o Drizzle de cada módulo declara só o próprio schema (modules/core/db/nuvem.ts -> core)', () => {

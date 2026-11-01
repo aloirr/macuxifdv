@@ -72,6 +72,9 @@ describe.skipIf(semBanco())('API × Postgres (papel macuxi_app)', () => {
     expect(adminB.removidosDoUsuario).toEqual(['vendedor']);
     // fonte única dos parâmetros: plataforma.parametro (padrões do Core semeados em todo tenant, 0006)
     expect(v1.parametros.core).toMatchObject({ 'checkin.raio_m': 200, 'metas.base_apuracao': 'aprovado' });
+    // ctx.fuso() (T-0035): fuso de plataforma.tenant, só do tenant do token (A = Manaus, B = São Paulo)
+    expect(v1.fuso).toBe('America/Manaus');
+    expect(adminB.fuso).toBe('America/Sao_Paulo');
   });
 
   it('GET /v1/me/modulos com o banco real: vendedor, promotor e admin de B (exceção remove o Vendedor)', async () => {

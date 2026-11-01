@@ -1,0 +1,42 @@
+/**
+ * "Mais": as abas de módulo que não couberam na barra inferior (limite de 5 posições, `lib/abas.ts`, T-0034).
+ * Só lista o que o shell já montou para o usuário (módulos efetivos: manifesto + licença + perfil + ação), então
+ * nunca mostra tela sem licença ou perfil. Funciona offline (a visão vem dos módulos guardados no aparelho).
+ */
+import { useVisaoShell } from '@macuxi/platform-sdk/react';
+import { Card, colors, Empty, Icon, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { router } from 'expo-router';
+import { Pressable, Text, View } from 'react-native';
+
+import { abasDoShell } from '@/lib/abas';
+
+export default function Mais() {
+  const visao = useVisaoShell();
+  const { mais } = abasDoShell(visao.navegacao);
+  return (
+    <Screen testID="tela-mais">
+      <Text style={t.h1}>Mais</Text>
+      <SectionHeader title="Outras telas" />
+      {mais.length === 0 ? (
+        <Empty text="Todas as suas telas já estão na barra de baixo." />
+      ) : (
+        mais.map((aba) => (
+          <Pressable
+            key={aba.href}
+            testID={aba.testID.replace(/^tab-/, 'mais-')}
+            accessibilityRole="button"
+            accessibilityLabel={aba.label}
+            onPress={() => router.navigate(aba.href as never)}>
+            <Card style={{ padding: 14, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Icon name={aba.icon} size={20} color={colors.ink2} />
+              <View style={{ flex: 1 }}>
+                <Text style={t.title16}>{aba.label}</Text>
+              </View>
+              <Icon name="chevron" size={18} color={colors.ink3} />
+            </Card>
+          </Pressable>
+        ))
+      )}
+    </Screen>
+  );
+}

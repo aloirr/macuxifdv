@@ -1,3 +1,4 @@
 # Diário — engenheiro-apps
 
 2026-11-01 — — diário aberto pelo gerente (R-20261101-073742); agente ativo quando o Alexandre aplicar a divisão no .coord/donos.json
+2026-11-01 — T-0034 — next-env.d.ts fora do git (apps/web/.gitignore + git rm --cached; typecheck = next typegen && tsc); abas ⛔ sem causa no shell: Loja (promotor exporta {}), Catálogo (moduloApp sem paginas), Equipe/Aprovações (gestor exporta {} e sem licença na demo) → recados aos donos; shell: barra com até 5 posições + tela Mais (lib/abas.ts), v1 sem /me/modulos = só core (efetivos-locais.ts), ícone menu no packages/ui; revisão das telas da T-0029 ao modulo-vendedor (0 🔴, 16 🟡, 12 🟢); bundle Android verde nas 2 variantes; sem build EAS
