@@ -18,7 +18,8 @@ const PERFIS_TENANT = ['analista', 'admin'] as const;
  * - RN-GES-06: consome `vendedor.pedido.faturado@1` (itens faturados por retorno do ERP) para o "faturado" parcial.
  * - T-0046: `promotor.*@1` validados com os schemas oficiais do Promotor (contracts); desfecho `realizada` |
  *   `loja_fechada` | `acesso_negado` e tarefas por `execucao_id`. 0.5.0: `PainelTrade` ganhou `visitas_sem_atendimento`
- *   e `tarefas_distintas`.
+ *   e `tarefas_distintas`. `core.visita.checkout@1` pelo schema do Core (`fechada_por: 'auto'` fora do tempo, RN-CORE-11;
+ *   usuario > auto) e `core.cliente.atualizado@1` sem carteira ⇒ aviso de carteira incompleta (`situacaoDaCarteira`).
  * - RN-GES-03: o prazo da aprovação (`prazo_aprovacao_dias_uteis`, 1 dia útil) e o horário comercial são parâmetros do
  *   tenant (contracts/parametros.ts); o manifesto não declara parâmetros.
  * - RN-GES-07: `painel_tenant.ver` é a leitura do tenant (painel, ranking, alertas e fila) para analista e admin; eles

@@ -19,7 +19,7 @@ const avaliar = (
 ) => avaliarAlertas({ estado, membros: extra.membros ?? MEMBROS, agora, modulos: extra.modulos ?? TODOS, regras: resolverRegras(extra.regras), params: extra.params });
 const doTipo = (cs: ReturnType<typeof avaliar>, tipo: string) => cs.filter((c) => c.tipo === tipo);
 
-const cliente = (id: string, vendedor: string | null = VENDEDOR, ativo = true) => ev('core.cliente.atualizado@1', '2026-10-01T10:00:00Z', { cliente_id: id, vendedor_id: vendedor, ativo, nome: 'Mercado ' + id.slice(-3) });
+const cliente = (id: string, vendedor: string | null = VENDEDOR, ativo = true) => ev('core.cliente.atualizado@1', '2026-10-01T10:00:00Z', { cliente_id: id, campos: ['vendedor_id', 'ativo'], origem: 'erp', vendedor_id: vendedor, ativo, nome: 'Mercado ' + id.slice(-3) });
 
 describe('regras de alerta: padrões e validação (RF-GES-07)', () => {
   it('uma regra padrão para cada tipo, todas ativas e válidas no contrato', () => {
@@ -62,7 +62,7 @@ describe('regras de alerta: padrões e validação (RF-GES-07)', () => {
 describe('RF-GES-07 / RN-GES-01: cliente da carteira sem visita além do limite do cliente', () => {
   const AGORA = '2026-10-30T20:00:00Z'; // 30/10 em Manaus
   const comFreq = (id: string, frequencia_visita: 'semanal' | 'quinzenal' | 'mensal' | null) =>
-    ev('core.cliente.atualizado@1', '2026-09-01T10:00:00Z', { cliente_id: id, vendedor_id: VENDEDOR, ativo: true, nome: 'Mercado ' + id.slice(-3), frequencia_visita });
+    ev('core.cliente.atualizado@1', '2026-09-01T10:00:00Z', { cliente_id: id, campos: ['vendedor_id'], origem: 'erp', vendedor_id: VENDEDOR, ativo: true, nome: 'Mercado ' + id.slice(-3), frequencia_visita });
   /** Check-in às 09:00 de Manaus do dia civil informado. */
   const visitaEm = (n: number, cliente: string, dia: string) => checkin({ visita: u(2000 + n), cliente, em: `${dia}T13:00:00Z` });
   const limiteDe = (frequencia: 'semanal' | 'quinzenal' | 'mensal' | null, diasAtras: number, extra: Parameters<typeof avaliar>[2] = {}) => {
@@ -130,7 +130,7 @@ describe('RF-GES-07 / RN-GES-01: cliente da carteira sem visita além do limite 
 describe('RN-GES-02: cliente nunca visitado só alerta depois de PASSAR de 15 dias na carteira (dia 15 não, dia 16 sim)', () => {
   const AGORA = '2026-10-30T20:00:00Z'; // 30/10 em Manaus
   const naCarteira = (id: string, desde: string | null, ocorrido = '2026-10-01T10:00:00Z', vendedor = VENDEDOR) =>
-    ev('core.cliente.atualizado@1', ocorrido, { cliente_id: id, vendedor_id: vendedor, ativo: true, nome: 'Mercado ' + id.slice(-3), na_carteira_desde: desde });
+    ev('core.cliente.atualizado@1', ocorrido, { cliente_id: id, campos: ['vendedor_id'], origem: 'erp', vendedor_id: vendedor, ativo: true, nome: 'Mercado ' + id.slice(-3), na_carteira_desde: desde });
 
   it('14 dias e 15 dias na carteira: ainda não alerta; 16 dias: alerta com valor null (nunca visitado) e limiar 15', () => {
     expect(doTipo(avaliar(montar([naCarteira(CLIENTE_A, '2026-10-16T14:00:00Z')]), AGORA), 'cliente_sem_visita')).toHaveLength(0); // 14 dias

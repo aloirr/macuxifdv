@@ -11,10 +11,13 @@
  *  - Campos marcados "PEDIDO" são acréscimos opcionais pedidos ao publicador; ausentes ⇒ indicador `null`.
  *  - CÓPIA PROVISÓRIA: `vendedor.pedido.faturado@1` espelha `PedidoFaturadoEvento` (modules/vendedor/contracts/eventos.ts).
  *    O engenheiro-software vai publicar o formato de cada evento no contracts do dono; aí o Gestor importa de lá.
- *  - OFICIAL (sem espelho): `promotor.*@1` usa os schemas do contrato do Promotor (T-0040/T-0046, seção abaixo).
+ *  - OFICIAL (sem espelho): `promotor.*@1` usa os schemas do contrato do Promotor (T-0040/T-0046, seção abaixo);
+ *    `core.visita.checkout@1` usa o `VisitaCheckoutSchema` do Core; `core.cliente.atualizado@1` parte do
+ *    `ClienteAtualizadoSchema` do Core com os campos da carteira opcionais (T-0046).
  * O envelope (`evento_id`, `ocorrido_em`…) é do platform-sdk; `evento_id` é a chave de idempotência.
  */
 import { z } from 'zod';
+import { ClienteAtualizadoSchema, VisitaCheckoutSchema } from '@macuxi/core/contracts';
 import { EVENTOS_PROMOTOR, type VisitaLojaConcluidaV1 as VisitaLojaConcluidaV1Promotor } from '../../promotor/contracts';
 import { Cents, CentsNaoNeg, ContagemNaoNeg, InstanteUtc, IsoDate, NivelAprovacao, MotivoAprovacao, PctNumero, StatusPedido, Uuid } from './base';
 
@@ -24,18 +27,27 @@ export const FREQUENCIAS_VISITA = ['semanal', 'quinzenal', 'mensal'] as const;
 export const FrequenciaVisita = z.enum(FREQUENCIAS_VISITA);
 export type FrequenciaVisita = z.infer<typeof FrequenciaVisita>;
 
-export const ClienteAtualizadoV1 = z.object({
-  cliente_id: Uuid,
-  /** Vendedor da carteira (RN-CORE-04); `null` = sem carteira. */
-  vendedor_id: Uuid.nullable(),
-  ativo: z.boolean().default(true),
+/**
+ * `core.cliente.atualizado@1` — base = schema OFICIAL do Core (`ClienteAtualizadoSchema`: `cliente_id`, `campos[]`,
+ * `origem`), lido sem `strict`. Os dados da carteira ainda NÃO são publicados pelo Core (pedido do engenheiro-software
+ * ao modulo-core na revisão da T-0014): o Gestor já os lê como OPCIONAIS, com os nomes pedidos. Ausentes ⇒ a carteira
+ * do cliente fica PENDENTE (aviso `situacaoDaCarteira`, T-0046), nunca vazia em silêncio. Quando o Core acrescentar os
+ * campos ao `@1`, nada muda aqui (o `extend` só repete o formato pedido).
+ */
+export const ClienteAtualizadoV1 = ClienteAtualizadoSchema.extend({
+  /** Vendedor da carteira (RN-CORE-04); `null` = sem carteira; AUSENTE = o evento não informou a carteira. */
+  vendedor_id: Uuid.nullable().optional(),
+  ativo: z.boolean().optional(),
   nome: z.string().min(1).max(200).optional(),
   /** RN-GES-01: frequência de visita do cliente. PEDIDO ao Core; ausente ⇒ limite `dias_sem_visita_padrao`. */
-  frequencia_visita: FrequenciaVisita.nullable().default(null),
+  frequencia_visita: FrequenciaVisita.nullable().optional(),
   /** RN-GES-02: quando o cliente entrou na carteira do vendedor atual. PEDIDO ao Core; ausente ⇒ 1º evento visto com este vendedor. */
-  na_carteira_desde: InstanteUtc.nullable().default(null),
+  na_carteira_desde: InstanteUtc.nullable().optional(),
 });
 export type ClienteAtualizadoV1 = z.infer<typeof ClienteAtualizadoV1>;
+
+/** `campos` do evento que mexem na carteira: com um deles e sem `vendedor_id` no payload, a carteira conhecida fica desatualizada. */
+export const CAMPOS_CARTEIRA = ['vendedor_id', 'ativo'] as const;
 
 export const VisitaCheckinV1 = z.object({
   visita_id: Uuid,
@@ -45,16 +57,12 @@ export const VisitaCheckinV1 = z.object({
 });
 export type VisitaCheckinV1 = z.infer<typeof VisitaCheckinV1>;
 
-export const ENCERRAMENTOS_VISITA = ['normal', 'automatico'] as const;
-export const VisitaCheckoutV1 = z.object({
-  visita_id: Uuid,
-  usuario_id: Uuid,
-  cliente_id: Uuid,
-  checkout_em: InstanteUtc,
-  /** RN-CORE-11: `automatico` = fechada na virada do dia ("não finalizado"); não entra no tempo em cliente. */
-  encerramento: z.enum(ENCERRAMENTOS_VISITA).default('normal'),
-});
-export type VisitaCheckoutV1 = z.infer<typeof VisitaCheckoutV1>;
+/**
+ * `core.visita.checkout@1` — schema OFICIAL do Core (`VisitaCheckoutSchema`, T-0046). `fechada_por: 'auto'` = fechada
+ * pelo servidor na virada do dia ("não finalizado", RN-CORE-11): não entra no tempo em cliente. `permanencia_s` é o
+ * tempo calculado pelo Core. Precedência: o checkout do `usuario` substitui o `auto` e nunca o contrário.
+ */
+export type VisitaCheckoutV1 = z.infer<typeof VisitaCheckoutSchema>;
 
 /** PROPOSTO — rota do dia do usuário (visitas planejadas). Última versão do dia vence. */
 export const RotaDiaPlanejadoV1 = z.object({
@@ -229,7 +237,7 @@ export type MedalhaConquistadaV1 = z.infer<typeof MedalhaConquistadaV1>;
 export const EVENTOS_CONSUMIDOS = {
   'core.cliente.atualizado@1': ClienteAtualizadoV1,
   'core.visita.checkin@1': VisitaCheckinV1,
-  'core.visita.checkout@1': VisitaCheckoutV1,
+  'core.visita.checkout@1': VisitaCheckoutSchema,
   'core.rota.dia_planejado@1': RotaDiaPlanejadoV1,
   'core.meta.definida@1': MetaDefinidaV1,
   'vendedor.pedido.criado@1': PedidoCriadoV1,

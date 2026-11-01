@@ -43,12 +43,42 @@ export function statusAlterado(o: { pedido?: string; vendedor?: string; para: st
   return ev('vendedor.pedido.status_alterado@1', o.em, { pedido_id: o.pedido ?? u(1000), vendedor_id: o.vendedor ?? VENDEDOR, para: o.para, alterado_em: o.em }, id);
 }
 
+/** Check-in de cada visita criado por `checkin()` neste arquivo de teste (o `checkout()` usa como início padrão). */
+const inicioDaVisita = new Map<string, string>();
+
+/** `core.visita.checkin@1` (o Gestor lê `visita_id`, `usuario_id`, `cliente_id`, `checkin_em`). */
 export function checkin(o: { visita?: string; usuario?: string; cliente?: string; em: string }) {
-  return ev('core.visita.checkin@1', o.em, { visita_id: o.visita ?? u(2000), usuario_id: o.usuario ?? VENDEDOR, cliente_id: o.cliente ?? CLIENTE_A, checkin_em: o.em });
+  const visita = o.visita ?? u(2000);
+  inicioDaVisita.set(visita, o.em);
+  return ev('core.visita.checkin@1', o.em, { visita_id: visita, usuario_id: o.usuario ?? VENDEDOR, cliente_id: o.cliente ?? CLIENTE_A, checkin_em: o.em });
 }
 
-export function checkout(o: { visita?: string; usuario?: string; cliente?: string; em: string; encerramento?: 'normal' | 'automatico' }) {
-  return ev('core.visita.checkout@1', o.em, { visita_id: o.visita ?? u(2000), usuario_id: o.usuario ?? VENDEDOR, cliente_id: o.cliente ?? CLIENTE_A, checkout_em: o.em, encerramento: o.encerramento ?? 'normal' });
+/**
+ * `core.visita.checkout@1` OFICIAL do Core (`VisitaCheckoutSchema`): `fechada_por` `usuario` (padrão) ou `auto` (servidor,
+ * RN-CORE-11); `permanencia_s` = checkout − início (o início padrão é o do `checkin()` da mesma visita).
+ */
+export function checkout(o: { visita?: string; usuario?: string; cliente?: string; em: string; inicio?: string; fechada_por?: 'usuario' | 'auto'; ocorrido_em?: string }, id?: string) {
+  const visita = o.visita ?? u(2000);
+  const inicio = o.inicio ?? inicioDaVisita.get(visita) ?? o.em;
+  const auto = o.fechada_por === 'auto';
+  return ev(
+    'core.visita.checkout@1',
+    o.ocorrido_em ?? o.em,
+    {
+      visita_id: visita,
+      usuario_id: o.usuario ?? VENDEDOR,
+      cliente_id: o.cliente ?? CLIENTE_A,
+      checkin_em: inicio,
+      checkout_em: o.em,
+      data_local: inicio.slice(0, 10),
+      resultado: auto ? 'nao_finalizado' : 'atendido',
+      motivo_codigo: null,
+      pedido_id: null,
+      fechada_por: o.fechada_por ?? 'usuario',
+      permanencia_s: Math.max(0, Math.round((Date.parse(o.em) - Date.parse(inicio)) / 1000)),
+    },
+    id,
+  );
 }
 
 // ---------- Promotor: payloads OFICIAIS `promotor.*@1` (T-0040), completos, como o Promotor publica ----------

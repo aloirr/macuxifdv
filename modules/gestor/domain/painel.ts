@@ -60,11 +60,12 @@ function visitasDoUsuario(estado: EstadoProjecao, usuarioId: string, inicio: str
     const dia = diaLocal(f.checkin.checkin_em, fuso);
     if (!dentro(dia, inicio, fim)) continue;
     const co = f.checkout;
-    const automatica = co?.encerramento === 'automatico';
+    // RN-CORE-11: fechada pelo servidor (`fechada_por: 'auto'`) não tem tempo confiável e fica fora do tempo em cliente
+    const automatica = co?.fechada_por === 'auto';
     let permanencia: number | null = null;
     const doPromotor = lojaPorVisita.get(visita_id);
     if (co && !automatica) {
-      permanencia = doPromotor?.permanencia_min ?? Math.max(0, (instanteMs(co.checkout_em) - instanteMs(f.checkin.checkin_em)) / 60_000);
+      permanencia = doPromotor?.permanencia_min ?? co.permanencia_s / 60;
     }
     out.push({ visita_id, cliente_id: f.checkin.cliente_id, dia, permanencia_min: permanencia, aberta: !co, automatica, sem_atendimento: doPromotor !== undefined && !doPromotor.atendida });
   }

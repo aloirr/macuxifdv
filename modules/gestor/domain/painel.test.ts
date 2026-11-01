@@ -176,7 +176,7 @@ describe('RF-GES-01/02: visitas planejadas × realizadas, tempo em cliente e sta
   it('RN-CORE-11: visita fechada automaticamente na virada do dia conta como visita mas não entra no tempo em cliente', () => {
     const s = montar([
       checkin({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-30T13:00:00Z' }),
-      checkout({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-31T04:00:00Z', encerramento: 'automatico' }),
+      checkout({ visita: u(2000), cliente: CLIENTE_A, em: '2026-10-31T04:00:00Z', fechada_por: 'auto' }),
       checkin({ visita: u(2001), cliente: CLIENTE_B, em: '2026-10-30T14:00:00Z' }),
       checkout({ visita: u(2001), cliente: CLIENTE_B, em: '2026-10-30T14:30:00Z' }),
     ]);

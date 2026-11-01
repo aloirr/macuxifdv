@@ -14,7 +14,7 @@ import { horasUteisEntre } from './horario-comercial';
 import { arredondar, percentual, somarDias } from './numeros';
 import { atendida, diaLocal, painelDoMes } from './painel';
 import { resolverParametros, type ParametrosGestor } from './parametros';
-import { entradaNaCarteira, type EstadoProjecao } from './projecao';
+import { carteiraPendente, entradaNaCarteira, type EstadoProjecao } from './projecao';
 
 /** Regra padrão de cada tipo (valores entre colchetes do doc 02/03 e premissas da T-0014, em regras.md). */
 export const REGRAS_PADRAO: Readonly<Record<TipoAlerta, RegraAlerta>> = Object.freeze({
@@ -122,7 +122,8 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
       if (!ultima.has(v.checkin.cliente_id) || dia > ultima.get(v.checkin.cliente_id)!) ultima.set(v.checkin.cliente_id, dia);
     }
     for (const [clienteId, c] of Object.entries(e.estado.clientes)) {
-      if (!c.ativo || !ativoNoCadastro(c.vendedor_id)) continue;
+      // T-0046: carteira pendente (evento sem o dono, mais novo) não alerta; vira aviso em `situacaoDaCarteira`
+      if (!c.ativo || !ativoNoCadastro(c.vendedor_id) || carteiraPendente(e.estado, clienteId)) continue;
       const nome = c.nome ?? 'Cliente';
       const dia = ultima.get(clienteId);
       let valor: number | null;

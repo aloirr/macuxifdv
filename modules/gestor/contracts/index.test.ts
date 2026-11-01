@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ClienteAtualizadoSchema, VisitaCheckoutSchema } from '@macuxi/core/contracts';
 import {
   Alerta,
   AprovacaoSolicitadaV1,
@@ -18,7 +19,6 @@ import {
   RankingEquipe,
   RegraAlerta,
   RegistroDecisaoAprovacao,
-  VisitaCheckoutV1,
 } from './index';
 
 const u = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -79,11 +79,23 @@ describe('espelhos dos eventos consumidos', () => {
     expect(PedidoStatusAlteradoV1.safeParse({ pedido_id: u(1), vendedor_id: u(2), para: 'enviado', alterado_em: T0 }).success).toBe(false);
   });
 
-  it('RN-GES-01/02: cliente traz frequência de visita e entrada na carteira opcionais (ausentes = null)', () => {
-    const base = { cliente_id: u(1), vendedor_id: u(2) };
-    expect(ClienteAtualizadoV1.parse(base)).toMatchObject({ frequencia_visita: null, na_carteira_desde: null, ativo: true });
-    expect(ClienteAtualizadoV1.parse({ ...base, frequencia_visita: 'quinzenal', na_carteira_desde: T0 })).toMatchObject({ frequencia_visita: 'quinzenal', na_carteira_desde: T0 });
-    expect(ClienteAtualizadoV1.safeParse({ ...base, frequencia_visita: 'diaria' }).success).toBe(false);
+  it('T-0046: core.cliente.atualizado@1 parte do schema oficial do Core; a carteira é opcional (o Core ainda não publica)', () => {
+    const publicado = { cliente_id: u(1), campos: ['latitude', 'longitude'], origem: 'bko' };
+    expect(ClienteAtualizadoSchema.safeParse(publicado).success).toBe(true);
+    expect(ClienteAtualizadoV1.parse(publicado)).toEqual(publicado);
+    expect(ClienteAtualizadoV1.safeParse({ cliente_id: u(1), vendedor_id: u(2) }).success).toBe(false); // sem campos/origem do Core
+    const comCarteira = { ...publicado, campos: ['vendedor_id'], vendedor_id: u(2), ativo: true, frequencia_visita: 'quinzenal', na_carteira_desde: T0 };
+    expect(ClienteAtualizadoV1.parse(comCarteira)).toMatchObject({ vendedor_id: u(2), frequencia_visita: 'quinzenal', na_carteira_desde: T0 });
+    expect(ClienteAtualizadoV1.safeParse({ ...comCarteira, frequencia_visita: 'diaria' }).success).toBe(false);
+  });
+
+  it('T-0046 / RN-CORE-11: core.visita.checkout@1 é o schema oficial do Core (fechada_por, permanencia_s)', () => {
+    expect(EVENTOS_CONSUMIDOS['core.visita.checkout@1']).toBe(VisitaCheckoutSchema);
+    const base = { visita_id: u(1), usuario_id: u(2), cliente_id: u(3), checkin_em: T0, checkout_em: T0, data_local: '2026-10-31', resultado: 'atendido', motivo_codigo: null, pedido_id: null, fechada_por: 'usuario', permanencia_s: 0 };
+    expect(VisitaCheckoutSchema.safeParse(base).success).toBe(true);
+    expect(VisitaCheckoutSchema.safeParse({ ...base, fechada_por: 'servidor' }).success).toBe(false);
+    const { fechada_por: _f, ...antigo } = base;
+    expect(VisitaCheckoutSchema.safeParse({ ...antigo, encerramento: 'automatico' }).success).toBe(false); // formato do espelho antigo
   });
 
   it('RN-GES-06: pedido criado com itens opcionais (centavos) e faturamento pelos itens, igual ao publicado pelo Vendedor', () => {
@@ -94,12 +106,6 @@ describe('espelhos dos eventos consumidos', () => {
     const fat = { pedido_id: u(1), vendedor_id: u(2), faturado_em: T0, parcial: true, itens: [{ produto_id: u(5), quantidade: 1 }] };
     expect(PedidoFaturadoV1.safeParse(fat).success).toBe(true);
     expect(PedidoFaturadoV1.safeParse({ ...fat, itens: [] }).success).toBe(false);
-  });
-
-  it('RN-CORE-11: checkout assume encerramento normal; fechamento automático é explícito', () => {
-    const base = { visita_id: u(1), usuario_id: u(2), cliente_id: u(3), checkout_em: T0 };
-    expect(VisitaCheckoutV1.parse(base).encerramento).toBe('normal');
-    expect(VisitaCheckoutV1.parse({ ...base, encerramento: 'automatico' }).encerramento).toBe('automatico');
   });
 
   it('aprovação solicitada: nível, motivos e desconto efetivo; crédito e histórico são opcionais', () => {
