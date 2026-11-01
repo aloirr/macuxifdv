@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./web": "./src/web/index.ts",
-    "./react": "./src/react/index.tsx"
+    "./react": "./src/react/index.tsx",
+    "./sqlite-node": "./src/sqlite/driver-node.ts"
   },
   "scripts": {
     "lint": "eslint src",

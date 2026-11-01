@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import {
   corpoDoErroModulo,
+  definirConsumidor,
   definirModuloApi,
   dependenciasDosManifestos,
   ehCaminhoDePedido,
@@ -11,6 +12,7 @@ import {
   promotorBarradoNaRota,
   type RotaModulo,
 } from './api';
+import { definirEvento } from './eventos';
 import { defineModule } from './manifesto';
 import { definirEntidadeSync } from './sync';
 
@@ -136,5 +138,33 @@ describe('definirModuloApi (desenho T-0004 §3)', () => {
     const d = dependenciasDosManifestos([core, vendedor]);
     expect(d).toEqual({ core: [], vendedor: ['core'] });
     expect(Object.isFrozen(d)).toBe(true);
+  });
+});
+
+describe('definirModuloApi — consumidores de evento (ADR 0007; T-0022)', () => {
+  const checkin = definirEvento('core.visita.checkin@1', z.object({ visita_id: z.string().uuid() }));
+  const consumidor = defineModule({
+    id: 'promotor',
+    versao: '1.0.0',
+    depende: ['core'],
+    perfis: ['promotor'],
+    consome: ['core.visita.checkin@1'],
+  });
+
+  it('aceita consumidor de evento declarado em "consome" (o payload tipado sai do schema)', () => {
+    const api = definirModuloApi({
+      manifesto: consumidor,
+      consumidores: [definirConsumidor({ evento: checkin, executar: async (p) => void p.visita_id })],
+    });
+    expect(api.consumidores?.map((c) => c.evento.nome)).toEqual(['core.visita.checkin@1']);
+  });
+
+  it('recusa evento fora de "consome" e consumidor repetido', () => {
+    const outro = definirEvento('core.visita.checkout@1', z.object({}));
+    expect(() => definirModuloApi({ manifesto: consumidor, consumidores: [definirConsumidor({ evento: outro, executar: async () => undefined })] })).toThrow(
+      /não está em "consome"/,
+    );
+    const c = definirConsumidor({ evento: checkin, executar: async () => undefined });
+    expect(() => definirModuloApi({ manifesto: consumidor, consumidores: [c, c] })).toThrow(/repetido/);
   });
 });

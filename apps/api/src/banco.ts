@@ -16,6 +16,8 @@ export interface BancoApp extends AcessoBanco {
    * Nenhuma transação ainda aberta consegue gravar `updated_at` (= now() do início dela) abaixo dele.
    */
   horizonteSync(): Promise<Date>;
+  /** Relógio do banco agora (`clock_timestamp()`): instante do aceite no push, comparável ao horizonte (D-3). */
+  instanteSync(): Promise<Date>;
 }
 
 export class ErroPapelBanco extends Error {
@@ -77,6 +79,10 @@ export function criarBancoApp(pool: pg.Pool, op: OpcoesBanco = {}): BancoApp {
     async horizonteSync() {
       const r = await pool.query<{ horizonte: Date }>(SQL_HORIZONTE, [margem]);
       return r.rows[0]!.horizonte;
+    },
+    async instanteSync() {
+      const r = await pool.query<{ agora: Date }>('select clock_timestamp() as agora');
+      return r.rows[0]!.agora;
     },
   };
 }

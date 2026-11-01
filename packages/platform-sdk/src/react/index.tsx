@@ -68,6 +68,7 @@ export function SePode({ acao, children, senao = null }: { acao: string; childre
 
 const ESTADO_VAZIO: EstadoMotorSync = {
   fila: [],
+  aceitos: [],
   enviando: false,
   sincronizando: false,
   etapa: '',

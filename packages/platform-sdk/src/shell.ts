@@ -16,6 +16,8 @@ import type { EtapaSync } from './motor-sync';
 import type { DefinicaoEntidadeSync } from './sync';
 import { criarRegistroSync } from './sync';
 import { criarRegistroExtensoes, type ItemExtensao } from './extensoes';
+import type { IndiceBusca } from './busca';
+import { validarMigracoes, type MigracaoAparelho } from './sqlite/esquema';
 
 export type AppShell = Exclude<AppId, 'conector'>;
 
@@ -56,6 +58,13 @@ export interface ModuloShell<C> {
   etapasSync?: readonly EtapaSync[];
   /** Itens que o módulo registra em slots de extensão de UI (o slot precisa estar em `manifesto.usaExtensoes`). */
   extensoes?: readonly ItemExtensaoShell[];
+  /**
+   * Esquema local do módulo no SQLite do aparelho (`modules/<m>/db/aparelho.ts`, dono banco-dados): só objetos
+   * `<m>__*`, versões crescentes, só para frente (desenho T-0008 §1.4).
+   */
+  migracoesAparelho?: readonly MigracaoAparelho[];
+  /** Índices de busca textual do módulo (`definirIndiceBusca`; tabelas criadas pelas `migracoesAparelho`). */
+  indicesBusca?: readonly IndiceBusca[];
 }
 
 /** Item de extensão de UI registrado por um módulo (o `payload` é tipado pelo contrato do slot, no contracts do dono). */
@@ -146,6 +155,33 @@ export function criarShell<C>(app: AppShell, modulos: readonly ModuloShell<C>[])
       extensoes.registrar(slot, { ...resto, modulo: m.manifesto.id });
     }
   }
+  // armazenamento local (T-0008 §1.4 e §2.1): migrações do próprio módulo; índice só sobre fontes do módulo ou de `depende`
+  const migracoesAparelho: Partial<Record<ModuloId, readonly MigracaoAparelho[]>> = {};
+  const indicesBusca: IndiceBusca[] = [];
+  for (const m of modulos) {
+    const id = m.manifesto.id;
+    if (m.migracoesAparelho?.length) {
+      try {
+        validarMigracoes(id, m.migracoesAparelho);
+        migracoesAparelho[id] = m.migracoesAparelho;
+      } catch (err) {
+        problemas.push((err as Error).message);
+      }
+    }
+    for (const i of m.indicesBusca ?? []) {
+      if (i.modulo !== id) problemas.push(`${id}: índice ${i.id} declarado como de ${i.modulo}`);
+      if (indicesBusca.some((x) => x.id === i.id)) problemas.push(`índice de busca ${i.id} repetido`);
+      if (!m.migracoesAparelho?.length) problemas.push(`${id}: índice ${i.id} sem migracoesAparelho (as tabelas não existiriam)`);
+      for (const f of i.fontes) {
+        const def = registroSync.entidade(f);
+        if (!def) problemas.push(`${id}: fonte ${f} do índice ${i.id} não está registrada`);
+        else if (def.direcao === 'push') problemas.push(`${id}: fonte ${f} do índice ${i.id} não tem pull`);
+        else if (def.modulo !== id && !m.manifesto.depende.includes(def.modulo))
+          problemas.push(`${id}: fonte ${f} do índice ${i.id} é de ${def.modulo}, que não está em depende`);
+      }
+      indicesBusca.push(i);
+    }
+  }
   if (problemas.length > 0) throw new Error(`Shell ${app} inconsistente: ${problemas.join('; ')}`);
 
   const etapas = modulos.flatMap((m) => m.etapasSync ?? []);
@@ -156,6 +192,9 @@ export function criarShell<C>(app: AppShell, modulos: readonly ModuloShell<C>[])
     permissoes,
     registroSync,
     etapasSync: etapas,
+    /** Para o adaptador SQLite do aparelho (`criarArmazenamentoSqlite`). */
+    migracoesAparelho,
+    indicesBusca: indicesBusca as readonly IndiceBusca[],
     /** Visão do usuário: só módulos efetivos, desta variante, do perfil e com permissão. */
     montar(ctx: Omit<ContextoShell, 'app'>): VisaoShell<C> {
       return montarVisao(app, modulos, permissoes, extensoes, ctx);

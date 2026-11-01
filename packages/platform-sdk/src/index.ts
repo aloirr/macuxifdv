@@ -19,3 +19,5 @@ export * from './motor-sync';
 export * from './shell';
 export * from './api';
 export * from './sync-simulado';
+export * from './busca';
+export * from './sqlite';

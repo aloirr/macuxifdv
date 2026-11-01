@@ -35,6 +35,8 @@ de sync cujo escopo depende de quem é o usuário (títulos, histórico, visitas
 3. **Sobreposição da fila no aparelho.** A tela lê `linhas do pull ⊕ itens pendentes da fila` da mesma entidade/agregado; o item
    pendente vence até ser aceito. O motor expõe `motor.pendentes(entidade)` (itens `pendente`/`falhou` da fila) e o módulo aplica
    a sobreposição com função pura do próprio domínio (ex.: `aplicarPendentesVisita`). O pull nunca apaga um item da fila.
+   **Revisto no adendo de 2026-10-31 (D-3)**: o item aceito continua sobreposto até o pull trazer a linha; a tela lê
+   `motor.sobreposicao()`.
 4. **Versão do escopo na página do pull.** `PaginaSync` ganha `versao_escopo?: string` (hash do conjunto visível: carteira para
    entidade de cliente, usuários visíveis para entidade de usuário). O provedor declara o escopo (`escopo: 'carteira' | 'usuarios'
    | 'proprio' | 'tenant'`) e a plataforma calcula e devolve o hash. Se a versão mudou desde a última página guardada, o motor
@@ -56,6 +58,44 @@ de sync cujo escopo depende de quem é o usuário (títulos, histórico, visitas
      disponível no servidor", e não bloqueia o resto do lote. Entidade fora de todos os manifestos continua `ENTIDADE_DESCONHECIDA`
      (D-1 / T-0015 decide a ordem com `MODULO_INATIVO`).
    - Isso não substitui os provedores reais: na Sprint 1 `visita` (core) e `pedido`/`pedido_item` (vendedor, só pull) ganham provedor.
+
+## Adendo 2026-10-31 — §3: o item aceito continua sobreposto até o pull trazer a linha (D-3)
+**Problema** (D-3, testes, T-0018/T-0019): o item saía da fila no `aceito`, mas a linha só volta pelo pull depois do
+horizonte (`updated_at < horizonte`, ≥ 2 s atrás do relógio do banco, mais se houver transação longa aberta). Nesse
+intervalo a sobreposição não tinha mais o item e o pull ainda não tinha a linha: a visita aberta sumia da rota e o app
+deixava abrir outro check-in (RN-CORE-11 quebrada no aparelho), e a notificação lida voltava a "não lida".
+
+**Decisão**
+1. **Estado `aceito` fora da fila.** No `aceito`, o motor tira o item de `estado.fila` (que continua sendo "o que falta
+   enviar": contadores, badges, tela de sync) e o põe em `estado.aceitos` (`ItemAceito`, `situacao: 'aceito'`, persistido
+   em `sync:aceitos`). Fila e aceitos mudam no mesmo `mudar` (a tela nunca vê o item fora dos dois); no disco, aceitos
+   primeiro (queda entre as gravações = item nos dois: reenvio idempotente, sobreposição repetida inofensiva).
+2. **A sobreposição lê `motor.sobreposicao(entidades?)`** (= `itensParaSobrepor(estado, entidades)`, pura para `useMemo`
+   com `[estado.fila, estado.aceitos]`): aceitos + `pendente`/`falhou` da fila, por ordem de criação. `motor.pendentes()`
+   continua só com `pendente`/`falhou`. As funções do domínio (`aplicarPendentesVisita`, `montarCaixa`) já são idempotentes
+   com a linha presente (check-in com id existente é ignorado; checkout com `checkout_id` igual é ignorado; leitura só vale
+   se a linha não está lida).
+3. **Quando sai.** No fim de cada `sincronizar()` (também na que falha no meio, com o que chegou), sai o aceito cuja
+   linha a passada **garante** ter trazido: a API devolve `PaginaSync.horizonte` (o `ate` usado na página) e
+   `ResultadoItemPush.em` (`clock_timestamp()` do banco lido depois dos provedores gravarem; toda linha gravada tem
+   `updated_at` = início da transação, antes dele). Sai se a passada completa da entidade-alvo teve `min(horizonte) > em`.
+   Entidade-alvo: a própria, se `ambos` (`visita`, `pedido`); num comando só de push (`visita_checkout`,
+   `notificacao_leitura`), **todas** as de pull do mesmo módulo; entidade que respondeu 501 não segura (não há linha a
+   esperar); módulo sem entidade de pull = sai no primeiro sync. Servidor sem os campos (Fase M, servidor simulado sem
+   relógio): relógio do aparelho — pull iniciado mais de `MARGEM_ACEITE_SEM_HORIZONTE_MS` (5 s) depois do aceite.
+4. RN-CORE-02 (módulo desativado) e RN-CORE-15 (aparelho bloqueado) levam os aceitos do módulo/de todos junto.
+
+**Alternativas**: (b) linha local provisória gravada pelo motor — o motor não conhece o formato da linha (o comando de
+checkout muda a linha `visita`, não cria `visita_checkout`); (c) o push devolver a linha — exige cada `receber` montar a
+linha de outra entidade e o motor gravar fora do cursor; (d) soltar o aceito por tempo fixo — falha com transação longa
+segurando o horizonte. A (a) com `horizonte`/`em` é exata, compatível (campos opcionais) e não muda os provedores.
+
+**Consequências**: platform-sdk (`ItemAceito`, `ItemSobreposicao`, `estado.aceitos`, `motor.sobreposicao`,
+`itensParaSobrepor`, `MARGEM_ACEITE_SEM_HORIZONTE_MS`, `PaginaSync.horizonte?`, `ResultadoItemPush.em?`, `relogio` no servidor
+simulado); apps/api (`horizonte` na página, `em` no aceito, `BancoApp.instanteSync()`). Core: `pendentesDaFila` aceita
+`ItemSobreposicao` com `situacao` `aceito`; `montarEstadoLocal`/`painelLocal`/`montarCaixa` recebem `motor.sobreposicao()`
+em vez de `estado.fila`; os efeitos que recalculam dependem também de `estado.aceitos`. Testes: S1-042 e S1-065 deixam de
+falhar (o helper `caixa` do teste passa `ap.motor.sobreposicao()`).
 
 ## Alternativas consideradas
 - **Payload em união na mesma entidade** (como hoje na `visita`): menos entidades, mas o id do item muda de significado conforme

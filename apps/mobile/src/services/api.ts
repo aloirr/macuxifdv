@@ -78,6 +78,8 @@ export class ApiClient {
     private readonly token: string | null,
     /** API real: troca o acesso vencido pelo refresh; devolve o novo token de acesso ou `null` (sessão encerrada). */
     private readonly renovar?: () => Promise<string | null>,
+    /** Toda resposta de erro da API passa aqui antes de subir (RN-CORE-15: 423 `DISPOSITIVO_BLOQUEADO` limpa o aparelho). */
+    private readonly aoErroHttp?: (e: HttpError) => void,
   ) {}
 
   private url(path: string, query?: Query): string {
@@ -92,12 +94,21 @@ export class ApiClient {
 
   async request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<{ status: number; data: T }> {
     try {
-      return await this.enviar<T>(method, path, opts, this.token);
+      return await this.comAviso(() => this.enviar<T>(method, path, opts, this.token));
     } catch (e) {
       if (!(e instanceof HttpError) || e.status !== 401 || !this.token || !this.renovar) throw e;
       const novo = await this.renovar();
       if (!novo) throw e;
-      return this.enviar<T>(method, path, opts, novo);
+      return this.comAviso(() => this.enviar<T>(method, path, opts, novo));
+    }
+  }
+
+  private async comAviso<R>(fn: () => Promise<R>): Promise<R> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof HttpError) this.aoErroHttp?.(e);
+      throw e;
     }
   }
 

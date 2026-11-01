@@ -6,7 +6,9 @@
   "description": "Bootstrap Fastify do monólito modular: monta as rotas dos módulos efetivos com licença, perfil e carteira checados por requisição (T-0004).",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/servidor.ts",
+    "dev:worker": "tsx watch --clear-screen=false src/worker.ts",
     "start": "tsx src/servidor.ts",
+    "worker": "tsx src/worker.ts",
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
@@ -24,6 +26,7 @@
     "@macuxi/vendedor": "workspace:*",
     "fastify": "^5.6.0",
     "pg": "8.23.1",
+    "pino": "^10.4.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

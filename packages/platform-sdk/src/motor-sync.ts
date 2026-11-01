@@ -19,9 +19,13 @@
  *   rejeitado com código retentável (`CODIGOS_RETENTAVEIS`) continua `pendente` e não bloqueia o resto do lote.
  * - ADR 0009 §4: `versao_escopo` diferente da guardada = ressincronização da entidade (recomeça do cursor nulo e,
  *   no fim, apaga do aparelho as linhas que não vieram: cliente que saiu da carteira some).
- * - ADR 0009 §3: o pull nunca mexe na fila; a tela sobrepõe `motor.pendentes(entidade)` às linhas.
+ * - ADR 0009 §3: o pull nunca mexe na fila; a tela sobrepõe `motor.sobreposicao()` às linhas. D-3: item ACEITO sai da
+ *   fila mas fica em `aceitos` (ainda sobreposto) até um pull cobrir o aceite: horizonte da página (`PaginaSync.horizonte`)
+ *   posterior ao instante do aceite no servidor (`ResultadoItemPush.em`); servidor sem esses campos = relógio do aparelho
+ *   com `MARGEM_ACEITE_SEM_HORIZONTE_MS`. Assim o fato aceito não "desfaz" no aparelho entre o envio e a linha voltar.
  * - T-0008 P1: extensões opcionais do armazenamento (`linhas`, `emTransacao`, `removerModulo`); sem elas, o
- *   caminho chave→JSON de sempre.
+ *   caminho chave→JSON de sempre. P3/P5: adaptador SQLite (`sqlite/armazenamento.ts`) e busca textual (`busca`,
+ *   FTS5 no SQLite ou varredura em JS com `comBuscaEmJs`); `motor.buscar` e `busca.finalizar` no fim do sync.
  * - ADR 0010 §4: fila de ARQUIVOS (fotos) separada da fila de itens (`sync:arquivos`), enviada DEPOIS do push dos itens,
  *   um por vez, com os bytes lidos pelo leitor do shell (`arquivos.ler`). `ARQUIVO_SEM_REFERENCIA` (o comando ainda não
  *   chegou) mantém o arquivo `pendente`; aceito → `enviado` e o arquivo local é apagado depois de 7 dias. RN-CORE-02
@@ -38,6 +42,7 @@ import {
   type ResultadoEnvioArquivo,
   type TipoArquivo,
 } from './arquivos';
+import type { BuscaTextoSync, ConsultaTexto, ResultadoBusca } from './busca-tipos';
 import { MODULOS, type ModuloId } from './nomes';
 import type { ItemPush, LinhaSync, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
 import {
@@ -67,12 +72,15 @@ export interface ArmazenamentoSync {
   emTransacao?<T>(fn: (tx: ArmazenamentoSync) => Promise<T>): Promise<T>;
   /** RN-CORE-02: apaga as estruturas próprias do módulo (tabelas `<m>__*`, índices de busca, versão de esquema local). */
   removerModulo?(modulo: ModuloId): Promise<void>;
+  /** Busca textual (FTS5 no SQLite; varredura em JS com `comBuscaEmJs`) — desenho T-0008 §2. */
+  busca?: BuscaTextoSync;
 }
 
 /** Linhas das entidades de pull, por linha (desenho T-0008 §1.1). Toda operação é idempotente. */
 export interface LinhasSync {
   /** Uma página do pull, atômica: upsert das vivas, apaga as com `deleted_at` e grava o cursor (`null` = mantém o atual). */
   aplicar(entidade: string, linhas: readonly LinhaSync[], cursor: string | null): Promise<void>;
+  /** Sem ordem garantida entre adaptadores (SQLite: por `id`; chave→JSON: por chegada) — quem precisa, ordena. */
   listar<L extends LinhaSync>(entidade: string): Promise<L[]>;
   porIds<L extends LinhaSync>(entidade: string, ids: readonly string[]): Promise<L[]>;
   /** Ids das linhas guardadas (ressincronização do escopo, ADR 0009 §4). */
@@ -207,6 +215,44 @@ export interface AvisoSync {
   mensagem: string;
 }
 
+/**
+ * Item ACEITO pelo servidor que a tela continua sobrepondo às linhas até o pull trazer a linha (ADR 0009 §3, D-3).
+ * Não conta como "na fila" (`estado.fila`); fica em `estado.aceitos`.
+ */
+export interface ItemAceito extends Omit<ItemOutbox, 'situacao'> {
+  situacao: 'aceito';
+  /** Relógio do aparelho quando a resposta chegou. */
+  aceito_em: string;
+  /** Instante do servidor (banco) depois de gravar (`ResultadoItemPush.em`); `null` = servidor não informou. */
+  aceito_servidor_em: string | null;
+}
+
+/** O que a tela sobrepõe às linhas do pull: itens `pendente`/`falhou` da fila e os `aceito` ainda não cobertos. */
+export type ItemSobreposicao = ItemOutbox | ItemAceito;
+
+/**
+ * Sem `horizonte`/`em` do servidor (ex.: servidor da Fase M), o pull só cobre o aceite se começou esta margem depois
+ * dele no relógio do aparelho (o horizonte do servidor fica ao menos 2 s atrás do relógio dele; ADR 0006).
+ */
+export const MARGEM_ACEITE_SEM_HORIZONTE_MS = 5_000;
+
+/**
+ * Itens para a sobreposição (ADR 0009 §3), na ordem em que foram criados: aceitos ainda não cobertos pelo pull e
+ * `pendente`/`falhou` da fila (`modulo_inativo` fica de fora). Pura sobre o estado: use em `useMemo` com
+ * `[estado.fila, estado.aceitos]`. `entidades` filtra (ex.: `['visita', 'visita_checkout']`).
+ */
+export function itensParaSobrepor(
+  estado: Pick<EstadoMotorSync, 'fila' | 'aceitos'>,
+  entidades?: readonly string[],
+): ItemSobreposicao[] {
+  const quer = entidades ? new Set(entidades) : null;
+  const daFila = estado.fila.filter((i) => i.situacao === 'pendente' || i.situacao === 'falhou');
+  // sort estável: no empate de `criado_em`, o aceito (que estava antes na fila) vem primeiro
+  return [...estado.aceitos, ...daFila]
+    .filter((i) => !quer || quer.has(i.entidade))
+    .sort((a, b) => (a.criado_em < b.criado_em ? -1 : a.criado_em > b.criado_em ? 1 : 0));
+}
+
 // ---------- fila de arquivos (ADR 0010 §4) ----------
 
 /** `enviado` = aceito pelo servidor; fica na fila só até apagar o arquivo local (7 dias). */
@@ -267,6 +313,8 @@ export interface ContextoEtapaSync extends AmbienteAparelho {
 
 export interface EstadoMotorSync {
   fila: readonly ItemOutbox[];
+  /** Aceitos pelo servidor e ainda sobrepostos até o pull trazer a linha (D-3). Não são "itens na fila". */
+  aceitos: readonly ItemAceito[];
   enviando: boolean;
   sincronizando: boolean;
   /** Rótulo da etapa em andamento da sincronização completa. */
@@ -306,6 +354,8 @@ export interface OpcoesMotorSync {
 
 const CHAVE = {
   fila: 'sync:fila',
+  /** Itens aceitos ainda sobrepostos (D-3, ADR 0009 §3). */
+  aceitos: 'sync:aceitos',
   /** Fila de arquivos (ADR 0010 §4), separada da fila de itens. */
   arquivos: 'sync:arquivos',
   modulos: 'sync:modulos',
@@ -348,6 +398,9 @@ export const MENSAGEM_PULL_INDISPONIVEL =
 
 type Linhas = Record<string, LinhaSync>;
 
+/** Até onde a passada completa do pull da entidade garante ter trazido as linhas (D-3); `indisponivel` = 501. */
+type Cobertura = { horizonte: string | null; inicio: string } | 'indisponivel';
+
 export function criarMotorSync(op: OpcoesMotorSync) {
   const agora = op.agora ?? (() => new Date());
   const ambiente: AmbienteAparelho = op.ambiente ?? ambienteIndisponivel();
@@ -357,6 +410,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
   let estado: EstadoMotorSync = {
     fila: [],
+    aceitos: [],
     enviando: false,
     sincronizando: false,
     etapa: '',
@@ -379,6 +433,52 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   const gravarFila = async (fila: ItemOutbox[]) => {
     mudar({ fila });
     await op.armazenamento.gravar(CHAVE.fila, fila);
+  };
+
+  const gravarAceitos = async (aceitos: ItemAceito[]) => {
+    mudar({ aceitos });
+    await op.armazenamento.gravar(CHAVE.aceitos, aceitos);
+  };
+
+  /**
+   * Fila e aceitos mudam juntos no estado (a tela nunca vê o item fora dos dois). No disco, aceitos primeiro: se o app
+   * cair entre as gravações, o item fica nos dois — é reenviado (idempotente) e a sobreposição repetida é inofensiva.
+   */
+  const gravarFilaEAceitos = async (fila: ItemOutbox[], aceitos: ItemAceito[]) => {
+    mudar({ fila, aceitos });
+    await op.armazenamento.gravar(CHAVE.aceitos, aceitos);
+    await op.armazenamento.gravar(CHAVE.fila, fila);
+  };
+
+  /** O pull cobre o aceite? Com os campos do servidor, compara no relógio do banco; sem eles, no do aparelho. */
+  const cobre = (item: ItemAceito, c: Cobertura | undefined): boolean => {
+    if (c === undefined) return false;
+    if (c === 'indisponivel') return true;
+    if (item.aceito_servidor_em && c.horizonte) return Date.parse(c.horizonte) > Date.parse(item.aceito_servidor_em);
+    return Date.parse(c.inicio) - MARGEM_ACEITE_SEM_HORIZONTE_MS > Date.parse(item.aceito_em);
+  };
+
+  /**
+   * Entidades de pull que precisam cobrir o aceite: a própria (estado, `ambos`) ou, num comando só de push
+   * (`visita_checkout`, `notificacao_leitura`), todas as de pull do mesmo módulo. Nenhuma = nada a esperar.
+   */
+  const alvosDoAceite = (item: ItemAceito): string[] => {
+    const def = op.registro.entidade(item.entidade);
+    if (def?.direcao === 'ambos') return [def.nome];
+    return op.registro.entidadesAtivas([item.modulo], 'pull').map((e) => e.nome);
+  };
+
+  /** Fim da sincronização: sai da sobreposição o aceito cuja linha o pull já trouxe (D-3). */
+  const liberarAceitos = async (coberturas: ReadonlyMap<string, Cobertura>) => {
+    if (estado.aceitos.length === 0) return;
+    const ficam = estado.aceitos.filter((i) => !alvosDoAceite(i).every((e) => cobre(i, coberturas.get(e))));
+    if (ficam.length !== estado.aceitos.length) await gravarAceitos(ficam);
+  };
+
+  /** RN-CORE-02: os aceitos do módulo desativado saem da sobreposição (os dados dele saem do aparelho). */
+  const descartarAceitosDoModulo = async (modulo: ModuloId) => {
+    if (estado.aceitos.some((i) => i.modulo === modulo))
+      await gravarAceitos(estado.aceitos.filter((i) => i.modulo !== modulo));
   };
 
   const gravarArquivos = async (arquivos: ItemArquivo[]) => {
@@ -478,6 +578,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         resultados.push(...resposta);
         let parar = false;
         const fila: ItemOutbox[] = [];
+        const aceitos: ItemAceito[] = [];
         for (const it of estado.fila) {
           const r = porId.get(it.id);
           if (!lote.some((l) => l.id === it.id)) {
@@ -491,7 +592,17 @@ export function criarMotorSync(op: OpcoesMotorSync) {
               ultima_tentativa_em: quando,
             });
           } else if (r.status === 'aceito') {
-            // enviado: sai da fila
+            // enviado: sai da fila, mas continua sobreposto até o pull trazer a linha (D-3, ADR 0009 §3)
+            aceitos.push({
+              ...it,
+              situacao: 'aceito',
+              tentativas: it.tentativas + 1,
+              ultimo_erro: '',
+              ultima_tentativa_em: quando,
+              codigo: null,
+              aceito_em: agora().toISOString(),
+              aceito_servidor_em: r.em ?? null,
+            });
           } else if (r.status === 'rejeitado' && CODIGOS_RETENTAVEIS.includes(r.codigo)) {
             // ADR 0009 §7: o servidor ainda não recebe a entidade — o item não tem culpa, continua na fila
             fila.push({
@@ -523,7 +634,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
             });
           }
         }
-        await gravarFila(fila);
+        if (aceitos.length > 0) {
+          const novos = new Set(aceitos.map((x) => x.id));
+          await gravarFilaEAceitos(fila, [...estado.aceitos.filter((x) => !novos.has(x.id)), ...aceitos]);
+        } else await gravarFila(fila);
         if (parar) break;
       }
     } finally {
@@ -604,8 +718,15 @@ export function criarMotorSync(op: OpcoesMotorSync) {
    * Puxa todas as páginas da entidade. `'indisponivel'` = o servidor respondeu 501 `SYNC_NAO_IMPLEMENTADO` (nada
    * muda no aparelho). Ressincroniza quando a `versao_escopo` da página difere da guardada (ADR 0009 §4).
    */
-  const puxarEntidade = async (entidade: string): Promise<'ok' | 'indisponivel'> => {
+  const puxarEntidade = async (
+    entidade: string,
+    coberturas?: Map<string, Cobertura>,
+  ): Promise<'ok' | 'indisponivel'> => {
     const a = op.armazenamento;
+    const inicio = agora().toISOString();
+    /** Menor horizonte entre as páginas: a passada inteira trouxe toda linha com `updated_at` abaixo dele (D-3). */
+    let horizonte: string | null = null;
+    let semHorizonte = false;
     const versaoGuardada = await a.ler<string>(CHAVE.escopo(entidade));
     let cursor = await a.ler<string>(CHAVE.cursor(entidade));
     // caminho chave→JSON: o mapa é lido uma vez e regravado por página (com `linhas`, o adaptador grava por linha)
@@ -616,9 +737,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       try {
         pagina = await op.transporte.pull(entidade, cursor);
       } catch (e) {
-        if (ehSyncNaoImplementado(e) && !ressinc) return 'indisponivel';
+        if (ehSyncNaoImplementado(e) && !ressinc) {
+          coberturas?.set(entidade, 'indisponivel');
+          return 'indisponivel';
+        }
         throw e;
       }
+      if (!pagina.horizonte) semHorizonte = true;
+      else if (horizonte === null || Date.parse(pagina.horizonte) < Date.parse(horizonte)) horizonte = pagina.horizonte;
       const versao = pagina.versao_escopo;
       if (!ressinc && versao !== undefined && versao !== versaoGuardada) {
         ressinc = { versao, vistos: new Set() };
@@ -662,6 +788,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       // só agora: se o app cair no meio, a próxima passada ainda vê a versão antiga e ressincroniza de novo
       await a.gravar(CHAVE.escopo(entidade), versao);
     }
+    coberturas?.set(entidade, { horizonte: semHorizonte ? null : horizonte, inicio });
     return 'ok';
   };
 
@@ -673,15 +800,17 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
     /** Lê do armazenamento a fila, os módulos e as pendências (chamar uma vez ao abrir o app / trocar de usuário). */
     async carregar(): Promise<void> {
-      const [fila, modulos, limpeza, sincronizadoEm, arquivos] = await Promise.all([
+      const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos] = await Promise.all([
         op.armazenamento.ler<ItemOutbox[]>(CHAVE.fila),
         op.armazenamento.ler<ModuloId[]>(CHAVE.modulos),
         op.armazenamento.ler<ModuloId[]>(CHAVE.limpeza),
         op.armazenamento.ler<string>(CHAVE.sincronizadoEm),
         op.armazenamento.ler<ItemArquivo[]>(CHAVE.arquivos),
+        op.armazenamento.ler<ItemAceito[]>(CHAVE.aceitos),
       ]);
       mudar({
         fila: fila ?? [],
+        aceitos: aceitos ?? [],
         arquivos: arquivos ?? [],
         modulosAtivos: modulos ?? [],
         limpezaPendente: limpeza ?? [],
@@ -823,13 +952,14 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         const etapas = (op.etapas ?? []).filter((e) => ativos().has(e.modulo));
         const total = 1 + entidades.length + etapas.length;
         mudar({ sincronizando: true, erro: null, etapa: 'Enviando a fila', progresso: 0, avisos: [] });
+        const coberturas = new Map<string, Cobertura>();
         try {
           await motor.enviar();
           let feito = 1;
           const avisos: AvisoSync[] = [];
           for (const e of entidades) {
             mudar({ etapa: e, progresso: feito / total });
-            if ((await puxarEntidade(e)) === 'indisponivel') {
+            if ((await puxarEntidade(e, coberturas)) === 'indisponivel') {
               avisos.push({
                 entidade: e,
                 codigo: SYNC_NAO_IMPLEMENTADO,
@@ -851,11 +981,16 @@ export function criarMotorSync(op: OpcoesMotorSync) {
             });
             feito++;
           }
+          // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3)
+          await op.armazenamento.busca?.finalizar?.();
+          await liberarAceitos(coberturas);
           const quando = agora().toISOString();
           await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
           mudar({ sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: quando });
           return true;
         } catch (e) {
+          // o que já foi puxado nesta passada vale: sai da sobreposição o aceito que as entidades que chegaram cobrem
+          await liberarAceitos(coberturas).catch(() => undefined);
           mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
           return false;
         }
@@ -901,6 +1036,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         } else {
           await emTransacao((a) => limparModulo(m, a));
           await descartarArquivosDoModulo(m);
+          await descartarAceitosDoModulo(m);
         }
       }
       await gravarLimpeza(limpeza);
@@ -920,6 +1056,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       });
       mudar({ fila, limpezaPendente: limpeza });
       await descartarArquivosDoModulo(modulo);
+      await descartarAceitosDoModulo(modulo);
     },
 
     /**
@@ -933,7 +1070,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         for (const m of MODULOS) await limparModulo(m, a);
         for (const k of await a.chaves('')) await a.remover(k);
       });
-      mudar({ fila: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null });
+      mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null });
       for (const x of arquivos) await removerLocal(x.caminho);
     },
 
@@ -955,13 +1092,26 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     },
 
     /**
-     * Itens ainda não aceitos da entidade (`pendente` e `falhou`), na ordem da fila: a tela os sobrepõe às linhas do
-     * pull com a função pura do módulo (ADR 0009 §3, ex.: `aplicarPendentesVisita`). O pull nunca os apaga.
+     * O que a tela sobrepõe às linhas do pull (ADR 0009 §3, ex.: `aplicarPendentesVisita`): `pendente`/`falhou` da fila
+     * e os aceitos que o pull ainda não trouxe (D-3), na ordem de criação. Igual a `itensParaSobrepor(estado, entidades)`.
      */
+    sobreposicao(entidades?: readonly string[]): ItemSobreposicao[] {
+      return itensParaSobrepor(estado, entidades);
+    },
+
+    /** Itens ainda não aceitos da entidade (`pendente` e `falhou`), na ordem da fila. Para sobrepor, use `sobreposicao`. */
     pendentes(entidade: string): readonly ItemOutbox[] {
       return estado.fila.filter(
         (i) => i.entidade === entidade && (i.situacao === 'pendente' || i.situacao === 'falhou'),
       );
+    },
+
+    /**
+     * Busca textual num índice registrado (`definirModuloShell({ indicesBusca })`): chaves por relevância. Sem a
+     * capacidade no armazenamento, `null` (a tela filtra em memória como antes). Entrada hostil nunca lança.
+     */
+    async buscar(indice: string, consulta: ConsultaTexto): Promise<ResultadoBusca[] | null> {
+      return op.armazenamento.busca ? op.armazenamento.busca.buscar(indice, consulta) : null;
     },
 
     /** Armazenamento próprio do módulo (prefixo `mod:<m>:`), apagado junto com o módulo (RN-CORE-02). */

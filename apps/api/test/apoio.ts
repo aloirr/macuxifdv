@@ -129,6 +129,7 @@ export function bancoFalso(horizonte: () => Date = () => new Date(Date.now() - 2
     },
     semTenant: async (fn) => fn(cliente),
     horizonteSync: async () => horizonte(),
+    instanteSync: async () => new Date(),
   };
   return { banco, tenants };
 }

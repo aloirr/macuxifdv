@@ -7,7 +7,7 @@ import type { ArquivosLocais } from '@macuxi/platform-sdk';
 import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 
-import { caminhoLocalValido } from '@/lib/foto';
+import { caminhoLocalValido, PASTA_FOTOS } from '@/lib/foto';
 
 function arquivo(caminho: string): File {
   if (!caminhoLocalValido(caminho)) throw new Error('caminho de arquivo local inválido');
@@ -29,4 +29,11 @@ export function arquivosLocais(): ArquivosLocais {
       if (f.exists) f.delete();
     },
   };
+}
+
+/** RN-CORE-15 (aparelho bloqueado): apaga a pasta das fotos inteira, inclusive as que ainda não entraram na fila. */
+export async function apagarFotosLocais(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  const pasta = new Directory(Paths.document, PASTA_FOTOS);
+  if (pasta.exists) pasta.delete();
 }

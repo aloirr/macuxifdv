@@ -127,3 +127,25 @@ critérios continuam valendo) e não reescreve nada acima.
   (apagar o que não veio sem materializar as linhas). `confirmarLimpeza` agora grava antes de publicar o estado (risco do desenho
   T-0008 §7).
 
+
+## Adendo de 2026-10-31 — P3 e P5 da T-0008 implementadas (sem decisão nova)
+- **P3** (`packages/platform-sdk/src/sqlite/`): `DriverSqlite` (`driver.ts`), driver `node:sqlite` só no subcaminho
+  `@macuxi/platform-sdk/sqlite-node` (`driver-node.ts`, com cache de comandos preparados), esquema da plataforma e migrações por
+  módulo (`esquema.ts`: `kv`, `_esquema`, `_entidades`, `ent_<e>`; downgrade recria os objetos do módulo; `verificarDonoDasMigracoes`
+  para os testes dos donos) e `criarArmazenamentoSqlite` (`armazenamento.ts`). A suíte do motor roda nos três adaptadores
+  (`motor-sync.fabricas.ts`) e um teste de grafo garante que nada alcançável a partir do índice do SDK importa `node:*`.
+- **P5** (`packages/platform-sdk/src/busca.ts`): `normalizarBusca`, `montarConsultaFts`, `definirIndiceBusca`, `comBuscaEmJs`
+  (varredura em JS, mesmo conjunto de resultados) e `motor.buscar`; `definirModuloShell` ganhou `migracoesAparelho` e
+  `indicesBusca`, validados no `criarShell` (fonte do próprio módulo ou de `depende`; índice sem migrações = erro de montagem).
+- **Ajustes de detalhe** em relação ao desenho: (1) a normalização usa **NFD** e não NFKD — o tokenizer `unicode61` não dobra
+  compatibilidade (`nº` continua `nº`), e a consulta precisa gerar os mesmos termos do índice; (2) alternativa com várias palavras e
+  dígito ganha também a forma compacta (`6203-2RS` → `"6203 2rs" OR "62032rs"`), para o domínio não repetir isso; (3) o leitor do
+  `documento()` tem `porCampo(entidade, campo, valor)` (atributos de um produto), com o índice de expressão declarado pelo dono;
+  (4) `linhas.listar` não tem ordem garantida entre adaptadores (SQLite por `id`); (5) todo objeto de migração de módulo, inclusive
+  índice sobre `ent_<e>` do próprio módulo, leva o prefixo `<m>__` (é o que a RN-CORE-02 apaga).
+- **Medição de referência** (Node 24.21, `node:sqlite` 3.53.4, máquina local Windows): 20 mil produtos em 20 páginas com índice de
+  busca = 3,1 s; `rebuild` = 0,14 s; 300 consultas com prefixo e `LIMIT 50` = p50 0,8 ms, p95 8,7 ms (orçamento de CI: 5 s e 30 ms).
+- Falta: **P4** (driver `expo-sqlite`, plugin e migração AsyncStorage→SQLite), **P7** (medição no aparelho) — dependem do build EAS;
+  P2 (especificação do banco-dados em `docs/banco/aparelho-sqlite.md` e DDL do Catálogo) e P6 (carga, testes).
+- **Nome**: a consulta estruturada do SDK chama-se `ConsultaTexto` (no desenho T-0008 §2.5 era `ConsultaBusca`), para não colidir
+  com o contrato `ConsultaBusca` do Catálogo (corpo de `/v1/catalogo/busca`).

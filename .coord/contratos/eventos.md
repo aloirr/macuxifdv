@@ -1,6 +1,8 @@
 # Registro de eventos
 
 > Dono: engenheiro-software. O schema de cada evento fica em `modules/<publicador>/contracts/eventos.ts`. Mudança incompatível = nova versão + recado aos consumidores.
+>
+> **Entrega (T-0022, ADR 0007 "Implementação")**: o despachante (`pnpm --filter api worker`) entrega cada evento aos módulos que o declaram em `consome` **e** registram `consumidores: [definirConsumidor({ evento, executar })]` no `definirModuloApi`; só a quem tem o módulo ativo no tenant; idempotente por (consumidor, evento_id); falha retenta com espera crescente. A coluna "Consome" abaixo é o planejado: o evento só chega quando o consumidor estiver registrado na API do módulo.
 
 | Evento | Publica | Consome |
 |---|---|---|
@@ -8,7 +10,7 @@
 | `core.visita.checkin@1` | core | promotor, pesquisa, gestor |
 | `core.visita.checkout@1` | core | gestor, promotor |
 | `core.usuario.modulos_alterados@1` | core | todos (shell) |
-| `core.notificacao.criada@1` | core | core (envio do push pela Expo; **planejado**, T-0016/T-0019) |
+| `core.notificacao.criada@1` | core | core (envio do push pela Expo atrás de `MACUXI_PUSH_ATIVO=1`; despachante pronto na T-0022, consumidor pedido ao modulo-core) |
 | `core.rota.dia_planejado@1` | core | gestor (cobertura de rota, RN-GES; **planejado** — pedido do modulo-gestor via R-20261031-165536; payload a definir pelo modulo-core na T-0018, quando o BKO publica/gera a rota do dia) |
 | `core.meta.definida@1` | core | gestor (meta × realizado; **planejado** — idem; payload a definir pelo modulo-core na T-0020, no `PUT metas`) |
 | `catalogo.produto.visualizado@1` | catalogo | gestor (P2) |

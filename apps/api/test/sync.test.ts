@@ -51,6 +51,8 @@ describe('GET /v1/sync/pull', () => {
     expect(r.statusCode).toBe(200);
     expect(r.json().itens.map((l: LinhaSync) => l.id)).toEqual([U(1), U(2)]);
     expect(r.json().proximo_cursor).toBeNull();
+    // D-3: a página diz até onde garante ter trazido as linhas
+    expect(r.json().horizonte).toBe(new Date(AGORA.getTime() - 2000).toISOString());
     expect(pedidosPuxados[0]).toMatchObject({ desde: null, ate: new Date(AGORA.getTime() - 2000).toISOString(), limite: 1001 });
   });
 
@@ -70,8 +72,8 @@ describe('GET /v1/sync/pull', () => {
     expect(inativo.statusCode).toBe(403);
     expect(inativo.json()).toMatchObject({ codigo: 'MODULO_INATIVO', detalhes: { modulo: 'promotor' } });
     expect((await app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=nao_existe', headers: cab('vendedor') })).statusCode).toBe(404);
-    // `rota` é do Core e ainda sem provedor (o Core da T-0003 Fase 2 provê cliente, carteira e produto)
-    const semProvedor = await app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=rota', headers: cab('vendedor') });
+    // `condicao_pagamento` está no manifesto do Vendedor, mas o módulo de teste só provê `pedido` (independe do que os módulos reais já proveem)
+    const semProvedor = await app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=condicao_pagamento', headers: cab('vendedor') });
     expect(semProvedor.statusCode).toBe(501);
   });
 
@@ -100,12 +102,16 @@ describe('POST /v1/sync/push', () => {
     const r = await app.inject({ method: 'POST', url: '/v1/sync/push', headers: cab('vendedor'), payload: { itens: [item(1), item(2, 'checklist_loja'), item(3)] } });
     expect(r.statusCode).toBe(200);
     expect(r.json().resultados).toEqual([
-      { id: U(1), status: 'aceito' },
+      // D-3: o aceito leva `em` (relógio do banco depois de gravar)
+      { id: U(1), status: 'aceito', em: expect.any(String) },
       // checklist_loja é do Promotor, inativo para o vendedor: MODULO_INATIVO pelo manifesto, mesmo sem provedor (D-1)
       { id: U(2), status: 'rejeitado', codigo: 'MODULO_INATIVO', mensagem: 'Módulo promotor inativo' },
-      { id: U(3), status: 'aceito' },
+      { id: U(3), status: 'aceito', em: expect.any(String) },
     ]);
     expect(recebidos).toEqual([U(1), U(3)]);
+    const em = r.json().resultados[0].em as string;
+    expect(r.json().resultados[2].em).toBe(em);
+    expect(Number.isNaN(Date.parse(em))).toBe(false);
   });
 
   it('RN-CORE-02: Vendedor desativado → cada item volta rejeitado com MODULO_INATIVO (fila do app mostra "não enviado")', async () => {

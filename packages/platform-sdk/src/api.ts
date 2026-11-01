@@ -190,6 +190,39 @@ export interface ProvedorSync {
   receber?(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]>;
 }
 
+/**
+ * Contexto do consumidor de evento (ADR 0007; T-0022). O despachante da outbox abre `comTenant` com o tenant do
+ * ENVELOPE (papel macuxi_app, RLS) e, na MESMA transação, grava `plataforma.evento_consumo` (consumidor, evento_id):
+ * efeito e registro confirmam juntos; se o handler lançar, os dois desfazem e o evento volta com espera crescente.
+ * Efeito fora do banco (HTTP, push) é "no mínimo uma vez": marque no banco o que já foi feito (ex.: `push_enviado_em`).
+ */
+export interface ContextoConsumo {
+  /** Envelope do evento (tenant, autor, `request_id` do rastreio); o payload validado vem no 1º argumento. */
+  envelope: EnvelopeEvento;
+  /** Transação do tenant do evento (macuxi_app, RLS). Nunca há acesso a outro tenant. */
+  db: ClienteBanco;
+  /** Publica evento do módulo consumidor (`publica` do manifesto) na mesma transação, com o `request_id` do original. */
+  publicar: TransacaoTenant['publicar'];
+  agora(): Date;
+  /** Logger com tenant_id, modulo, evento e evento_id (nunca registre dado pessoal nem o payload). */
+  log: LogRota;
+}
+
+/**
+ * Assinatura de evento na API (`ModuloApi.consumidores`; ADR 0007). Só eventos em `consome` do manifesto; um consumidor
+ * por evento e módulo. Só recebe quem tem o módulo ativo no tenant (licença, RN-CORE-02/03). A ordem entre eventos não
+ * é garantida (a retentativa de um não segura os outros): use `envelope.ocorrido_em` quando "o mais novo vence".
+ */
+export interface ConsumidorEvento<S extends z.ZodTypeAny = z.ZodTypeAny> {
+  evento: DefinicaoEvento<S>;
+  executar(payload: z.output<S>, ctx: ContextoConsumo): Promise<void>;
+}
+
+/** Ajuda de tipo: o payload do `executar` sai do schema do evento. */
+export function definirConsumidor<S extends z.ZodTypeAny>(c: ConsumidorEvento<S>): ConsumidorEvento {
+  return c as unknown as ConsumidorEvento;
+}
+
 /** Acesso ao banco fora de uma requisição autenticada (login, autenticação do token). */
 export interface AcessoBanco {
   /** Transação com o tenant informado (RLS). Use só depois de resolver o tenant por um meio confiável. */
@@ -254,6 +287,8 @@ export interface ModuloApi {
   rotasPublicas?: readonly RotaPublica[];
   /** Só core: autenticação e escopo de carteira. */
   servicos?: ServicosCore;
+  /** Eventos que o módulo consome, entregues pelo despachante da outbox (ADR 0007; `apps/api/src/despachante.ts`). */
+  consumidores?: readonly ConsumidorEvento[];
 }
 
 /**
@@ -347,7 +382,7 @@ export function promotorBarradoNaRota(rota: Pick<RotaModulo, 'metodo' | 'caminho
  * caminho fora do padrão ou repetido; rota de escrita sem `acao`; ação não declarada no manifesto do
  * próprio módulo; `perfis` fora dos perfis do módulo; rota de pedido aceitando promotor por `perfis` (RN-PRO-01;
  * a leitura do promotor só vem por `acao` de leitura); ação de leitura de pedido em método que não é GET;
- * entidade de sync fora do `sync` do manifesto ou de outro módulo.
+ * entidade de sync fora do `sync` do manifesto ou de outro módulo; consumidor de evento fora de `consome` ou repetido.
  */
 export function definirModuloApi(m: ModuloApi): ModuloApi {
   const id = m.manifesto.id;
@@ -401,6 +436,13 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
       problemas.push(`sync ${e.nome}: escopo só vale para provedor com puxar`);
     if (e.schemaLinha && e.direcao === 'push')
       problemas.push(`sync ${e.nome}: schemaLinha só vale para entidade com pull`);
+  }
+  const assinados = new Set<string>();
+  for (const c of m.consumidores ?? []) {
+    const nome = c.evento.nome;
+    if (!m.manifesto.consome.includes(nome)) problemas.push(`consumidor ${nome}: não está em "consome" do manifesto de ${id}`);
+    if (assinados.has(nome)) problemas.push(`consumidor ${nome}: repetido (um por evento e módulo)`);
+    assinados.add(nome);
   }
   if (id !== 'core' && (m.rotasPublicas?.length || m.servicos))
     problemas.push('só o core declara rotas públicas e serviços de plataforma');

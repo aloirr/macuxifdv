@@ -55,18 +55,33 @@ export interface OrigemTransacao {
   agora: () => Date;
 }
 
+export interface OrigemPublicacao {
+  manifestos: readonly Manifesto[];
+  modulo: ModuloId | null;
+  tenantId: string;
+  /** Autor do fato; `null` quando o evento nasce de outro evento sem autor (sistema, Hub). */
+  usuarioId: string | null;
+  requestId: string | null;
+  agora: () => Date;
+}
+
+/** `tx.publicar` da rota e do consumidor de evento (despachante): grava em `plataforma.evento` na transação `db`. */
+export function publicadorTenant(db: ClienteBanco, o: OrigemPublicacao): TransacaoTenant['publicar'] {
+  return async (def, payload, agregadoId = null) => {
+    if (!o.modulo) throw new Error('Rota da plataforma não publica evento de módulo');
+    const barramento = criarBarramento({
+      manifestos: o.manifestos,
+      outbox: { gravar: (env) => gravarEvento(db, env, agregadoId) },
+      consumo: semConsumo,
+      agora: o.agora,
+    });
+    return barramento.publicar(o.modulo, def, payload, { tenant_id: o.tenantId, usuario_id: o.usuarioId, request_id: o.requestId });
+  };
+}
+
 export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): TransacaoTenant {
   return {
-    async publicar(def, payload, agregadoId = null) {
-      if (!o.modulo) throw new Error('Rota da plataforma não publica evento de módulo');
-      const barramento = criarBarramento({
-        manifestos: o.manifestos,
-        outbox: { gravar: (env) => gravarEvento(db, env, agregadoId) },
-        consumo: semConsumo,
-        agora: o.agora,
-      });
-      return barramento.publicar(o.modulo, def, payload, { tenant_id: o.tenantId, usuario_id: o.usuarioId, request_id: o.requestId });
-    },
+    publicar: publicadorTenant(db, o),
     async registrarArquivo(a) {
       if (!o.modulo) throw new Error('Rota da plataforma não registra arquivo de módulo');
       const problemas = validarNovoArquivo(a);
