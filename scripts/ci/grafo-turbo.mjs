@@ -13,6 +13,8 @@
  *  R2. Toda dependência fora do grafo declarado (import de @macuxi/* não declarado, import relativo ou — só para
  *      `test` — caminho literal `../` que sai da pasta) precisa estar coberta por um glob `$TURBO_ROOT$/<pasta>/**` nos `inputs`
  *      da tarefa (`<pacote>#<tarefa>` no turbo.json da raiz).
+ *  R3. Tarefa com glob `$TURBO_ROOT$/...` nos inputs também exclui node_modules, .turbo, .next, .expo, dist e
+ *      *.tsbuildinfo (EXCLUSOES_RAIZ), senão o hash muda sozinho e o cache nunca acerta (ou acerta por acaso).
  *
  * Uso: node scripts/ci/grafo-turbo.mjs [--json]   (saída 0 = ok; 1 = falha de cobertura; 2 = erro de uso)
  */
@@ -22,7 +24,10 @@ import { fileURLToPath } from 'node:url';
 
 const RAIZ_PADRAO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TAREFAS = ['lint', 'typecheck', 'test'];
-const IGNORAR_PASTAS = new Set(['node_modules', '.next', 'dist', '.turbo', '.expo', 'android', 'ios', 'coverage', '__fixtures__', 'fixtures']);
+const IGNORAR_PASTAS = new Set(['node_modules', '.next', 'dist', '.turbo', '.expo', 'android', 'ios', 'coverage']);
+/** Exclusões obrigatórias quando a tarefa usa glob `$TURBO_ROOT$/...`: o glob explícito do turbo NÃO respeita o
+ *  .gitignore, e logs/artefatos (`.turbo/turbo-*.log`, `*.tsbuildinfo`) mudariam o hash a cada execução (R3). */
+export const EXCLUSOES_RAIZ = ['node_modules/**', '.turbo/**', '.next/**', '.expo/**', 'dist/**', '*.tsbuildinfo'].map((x) => `!$TURBO_ROOT$/**/${x}`);
 const EXTENSOES = /\.(?:[cm]?[jt]sx?)$/;
 
 /** Unidade do tests/ da raiz: tarefas raiz do turbo (`//#lint:tests` etc.). */
@@ -129,6 +134,11 @@ export function verificar(raiz = RAIZ_PADRAO) {
         continue;
       }
       if (def.cache === false) continue; // sem cache, sem risco de resultado velho
+      const inputs = def.inputs ?? [];
+      if (inputs.some((g) => g.startsWith('$TURBO_ROOT$/'))) {
+        const faltam = EXCLUSOES_RAIZ.filter((x) => !inputs.includes(x));
+        if (faltam.length) problemas.push(`${id}: inputs com $TURBO_ROOT$ sem as exclusões ${faltam.join(', ')} (R3)`);
+      }
       if (unidade.nome !== '//' && !(def.dependsOn ?? []).includes('transit')) problemas.push(`${id}: dependsOn precisa de "transit" (R1)`);
       for (const d of deps) {
         if (d.motivo === LEITURA && tarefa !== 'test') continue;

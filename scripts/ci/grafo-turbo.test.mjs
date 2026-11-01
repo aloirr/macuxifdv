@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
-import { verificar } from './grafo-turbo.mjs';
+import { EXCLUSOES_RAIZ, verificar } from './grafo-turbo.mjs';
 
 let raiz;
 const escrever = (rel, conteudo) => {
@@ -59,7 +59,7 @@ test('import de pacote do workspace não declarado: falha até cobrir nos inputs
   const p = verificar(raiz);
   assert.equal(p.filter((x) => x.startsWith('web#')).length, 3);
   assert.ok(p[0].includes('não declarado'));
-  const inputs = ['$TURBO_DEFAULT$', '$TURBO_ROOT$/modules/**'];
+  const inputs = ['$TURBO_DEFAULT$', '$TURBO_ROOT$/modules/**', ...EXCLUSOES_RAIZ];
   turbo({
     'web#lint': { dependsOn: ['transit'], inputs },
     'web#typecheck': { dependsOn: ['transit'], inputs },
@@ -90,8 +90,16 @@ test('tests/ da raiz importando pacote: exige cobertura em //#lint:tests e //#ty
   turbo();
   const p = verificar(raiz);
   assert.deepEqual(p.map((x) => x.split(':')[0] + ':' + x.split(':')[1]).sort(), ['//#lint:tests', '//#typecheck:tests']);
-  turbo({ '//#lint:tests': { inputs: ['tests/**', '$TURBO_ROOT$/modules/**'] }, '//#typecheck:tests': { inputs: ['tests/**', '$TURBO_ROOT$/modules/**'] } });
+  const inputs = ['tests/**', '$TURBO_ROOT$/modules/**', ...EXCLUSOES_RAIZ];
+  turbo({ '//#lint:tests': { inputs }, '//#typecheck:tests': { inputs } });
   assert.deepEqual(verificar(raiz), []);
+});
+
+test('glob $TURBO_ROOT$ sem excluir .turbo, node_modules e tsbuildinfo: falha (R3)', () => {
+  turbo({ '//#lint:tests': { inputs: ['tests/**', '$TURBO_ROOT$/modules/**'] } });
+  const p = verificar(raiz);
+  assert.equal(p.length, 1);
+  assert.match(p[0], /^\/\/#lint:tests: .*\.turbo.*\(R3\)$/);
 });
 
 test('o turbo.json real do repositório passa', () => {
