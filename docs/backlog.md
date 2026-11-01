@@ -45,7 +45,14 @@
 - **BKO do core na API nova (Sprint 2)**: Clientes com farol da carteira, Metas por equipe e Plano de RV — hoje 'em construção' (T-0030); precisam de rotas v1 novas no core.
 
 ## Pendências da T-0029 (Sprint 2)
-- Fronteira S0-014 no Vendedor: o fuso deixa de ser lido de `plataforma.tenant` (engenheiro expõe `ctx.fuso()` no platform-sdk; vendedor troca `fusoDoTenant`) e `pedido.db.test.ts` sem SQL em `core.*`; o testes retira as exceções temporárias.
-- `GET /alcadas` sem acesso do promotor (hoje via `pedido.ver`), com teste 403 (modulo-vendedor).
-- `apps/web/next-env.d.ts` no .gitignore e typecheck do web com `next typegen` (engenheiro; O-4).
+- ✅ (T-0035) Fronteira S0-014 no Vendedor: o fuso deixa de ser lido de `plataforma.tenant` (engenheiro expõe `ctx.fuso()` no platform-sdk; vendedor troca `fusoDoTenant`) e `pedido.db.test.ts` sem SQL em `core.*`; o testes retira as exceções temporárias.
+- ✅ (T-0035) `GET /alcadas` sem acesso do promotor (hoje via `pedido.ver`), com teste 403 (modulo-vendedor).
+- ✅ (T-0034) `apps/web/next-env.d.ts` no .gitignore e typecheck do web com `next typegen` (engenheiro; O-4).
 - Integração: consumir `integracao.pedido.retorno_erp@1` e publicar `faturado@1` no Vendedor (fora do escopo da demo).
+- **OpenAPI do Hub /integracao/v1** (RF-INT-01): fora da T-0032; gerar a partir dos contratos Zod.
+- **Abas que faltam nos apps** (T-0034: o shell está pronto, faltam as telas dos módulos):
+  - Catálogo no Campo: o `moduloApp` do Catálogo não tem `paginas` (modulo-catalogo; candidata à nuvem).
+  - Loja do promotor: o `moduloApp` do Promotor exporta `{}`; precisa do schema promotor, da API das coletas e das telas (modulo-promotor + banco-dados).
+  - Equipe e Aprovações no Gestão: o `moduloApp` do Gestor exporta `{}`, e o Gestor não está licenciado na demo (modulo-gestor; licença na demo é decisão do Alexandre).
+  - Sugestão de `ordem` do engenheiro-apps: Equipe 10, Aprovações 20, Pedidos e Loja 40, Catálogo 60. A barra mostra no máximo 5 abas; as demais vão para "Mais".
+- **Revisão das telas da T-0029** (engenheiro-apps, R-20261101-155135): 16 🟡 e 12 🟢 ao modulo-vendedor, para a próxima passada dele.

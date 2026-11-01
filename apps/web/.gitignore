@@ -1,2 +1,5 @@
 .next/
 *.tsbuildinfo
+# Gerado pelo next dev/build/typegen (o dev aponta para .next/dev/types e o build para .next/types);
+# o typecheck roda next typegen antes do tsc, então não versionar (T-0034)
+next-env.d.ts

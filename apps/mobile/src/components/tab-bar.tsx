@@ -2,48 +2,31 @@
  * Barra de abas inferior (copiada de components/tab-bar.tsx da Fase M). As abas deixaram de ser fixas
  * (Início · Rota · Clientes · Pedidos · Metas): "Início" é do shell e as demais vêm das telas com `navegacao`
  * dos módulos efetivos (lib/modulos.ts → `visao.navegacao`), filtradas por perfil e permissão por ação.
- * testID estável: `tab-inicio` e `tab-<modulo>-<id>` (= `nav-<modulo>-<id>` do registro). Badge = itens do
- * módulo ainda na fila do aparelho.
+ * Montagem e limite de 5 posições (com "Mais") em `lib/abas.ts`, puro e testado (T-0034).
+ * testID estável: `tab-inicio`, `tab-<modulo>-<id>` (= `nav-<modulo>-<id>` do registro) e `tab-mais`. Badge = itens
+ * do módulo ainda na fila do aparelho ("Mais" soma os módulos que estão dentro dele).
  */
 import { router, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { ItemNavegacao, ModuloId } from '@macuxi/platform-sdk';
-import { colors, fonts, Icon, type IconName } from '@macuxi/ui/mobile';
+import type { ModuloId } from '@macuxi/platform-sdk';
+import { colors, fonts, Icon } from '@macuxi/ui/mobile';
 
-export interface AbaShell {
-  href: string;
-  label: string;
-  icon: IconName;
-  testID: string;
-  modulo: ModuloId | null;
-}
+import { abaAtiva, type AbasDoShell } from '@/lib/abas';
 
-const ICONES = new Set<string>(['home', 'pin', 'users', 'clipboard', 'target', 'sync', 'check', 'navigate', 'clock', 'alert', 'chat', 'file', 'user', 'search']);
+export { abasDoShell, type AbaShell, type AbasDoShell } from '@/lib/abas';
 
-export function abasDoShell(navegacao: readonly ItemNavegacao<unknown>[]): AbaShell[] {
-  return [
-    { href: '/', label: 'Início', icon: 'home', testID: 'tab-inicio', modulo: null },
-    ...navegacao.map((n) => ({
-      href: `/m/${n.caminho}`,
-      label: n.rotulo,
-      icon: (n.icone && ICONES.has(n.icone) ? n.icone : 'file') as IconName,
-      testID: `tab-${n.modulo}-${n.id}`,
-      modulo: n.modulo,
-    })),
-  ];
-}
-
-export function TabBar({ abas, badges }: { abas: AbaShell[]; badges?: Partial<Record<ModuloId, number>> }) {
+export function TabBar({ abas, badges }: { abas: AbasDoShell; badges?: Partial<Record<ModuloId, number>> }) {
   const insets = useSafeAreaInsets();
   const atual = usePathname();
   return (
     <View accessibilityRole="tablist" testID="tab-bar" style={[styles.bar, { height: 76 + insets.bottom, paddingBottom: 14 + insets.bottom }]}>
-      {abas.map((tab) => {
-        const active = tab.href === '/' ? atual === '/' : atual === tab.href || atual.startsWith(`${tab.href}/`);
+      {abas.barra.map((tab) => {
+        const active = abaAtiva(tab, atual, abas.mais);
         const color = active ? colors.accent : colors.ink3;
-        const badge = tab.modulo ? badges?.[tab.modulo] : undefined;
+        // "Mais" soma a fila dos módulos que estão dentro dele
+        const badge = tab.modulo ? badges?.[tab.modulo] : tab.href === '/' ? undefined : somaBadges(abas.mais, badges);
         return (
           <Pressable
             key={tab.href}
@@ -67,6 +50,17 @@ export function TabBar({ abas, badges }: { abas: AbaShell[]; badges?: Partial<Re
       })}
     </View>
   );
+}
+
+function somaBadges(abas: AbasDoShell['mais'], badges?: Partial<Record<ModuloId, number>>): number | undefined {
+  const vistos = new Set<ModuloId>();
+  let total = 0;
+  for (const a of abas) {
+    if (!a.modulo || vistos.has(a.modulo)) continue;
+    vistos.add(a.modulo);
+    total += badges?.[a.modulo] ?? 0;
+  }
+  return total || undefined;
 }
 
 const styles = StyleSheet.create({
