@@ -32,7 +32,7 @@ export const ORIGENS_CONFIAVEIS = ['variável MACUXI_AGENTE', 'sessão local (ag
 export const PASTA_AUTORIZACOES = '.coord/recados/gerente-projetos';
 export const SHA_VALIDO = /^[0-9a-f]{7,40}$/i;
 /** "autorizo o merge do PR #N no commit <sha>" (maiúsculas/minúsculas e espaços livres; sha entre crases aceito). */
-export const RE_AUTORIZACAO = /autorizo\s+o\s+merge\s+do\s+PR\s+#(\d+)\s+no\s+commit\s+`?([0-9a-f]{7,40})`?(?![0-9a-z])/gi;
+export const RE_AUTORIZACAO = /(?<!n[aã]o\s{1,3})(?<![a-z])autorizo\s+o\s+merge\s+do\s+PR\s+#(\d+)\s+no\s+commit\s+`?([0-9a-f]{7,40})`?(?![0-9a-z])/gi;
 
 const CABECALHO = '[guardião Macuxi] BLOQUEADO (gh pr merge):';
 const MODELO = `gh pr merge <N> -R ${REPO_OFICIAL} --squash --match-head-commit <sha> --body "Agente: <dono da tarefa>"`;

@@ -149,6 +149,9 @@ test('v5: autorização vale só em recado R-...-alexandre.md com de: alexandre,
   assert.deepEqual(autorizacoesDoAlexandre([{ ...AUTORIZA, nome: 'R-20261101-239999-alexandre.md' }]), [], 'id diferente do nome');
   assert.deepEqual(autorizacoesDoAlexandre([recado('R-20261101-230004-alexandre', 'pode fazer merge dos próximos PRs')]), [], 'aprovação genérica não vale');
   assert.deepEqual(autorizacoesDoAlexandre([recado('R-20261101-230005-alexandre', `autorizo o merge do PR #31 no commit ${HEAD}0`)]), [], 'SHA com 41 caracteres');
+  for (const negado of [`NÃO autorizo o merge do PR #31 no commit ${HEAD}`, `Nao autorizo o merge do PR #31 no commit ${HEAD}`, `desautorizo o merge do PR #31 no commit ${HEAD}`])
+    assert.deepEqual(autorizacoesDoAlexandre([recado('R-20261101-230008-alexandre', negado)]), [], negado);
+  assert.deepEqual(autorizacoesDoAlexandre([recado('R-20261101-230009-alexandre', `Conferi.\nAutorizo o merge do PR #31 no commit ${HEAD}`)]).length, 1);
   assert.ok(shaCompativel(HEAD.slice(0, 7), HEAD) && !shaCompativel(HEAD.slice(0, 6), HEAD) && !shaCompativel(OUTRO, HEAD));
 });
 
@@ -470,7 +473,8 @@ test('hook v5: gh fora do ar, sem resposta ou com resposta inválida → bloquea
   }
   assert.match(bash(repo, merge(99)).erro, /Could not resolve to a PullRequest/, 'PR inexistente');
   // gh ausente (sem simulado e PATH vazio)
-  const semGh = bash(repo, merge(31), { env: { MACUXI_GH_SIMULADO: '', PATH: join(repo.dir, 'nada') } });
+  const nada = join(repo.dir, 'nada');
+  const semGh = bash(repo, merge(31), { env: { MACUXI_GH_SIMULADO: '', PATH: nada, ...(process.platform === 'win32' ? { Path: nada } : {}) } });
   assert.equal(semGh.codigo, 2);
   assert.match(semGh.erro, /gh não encontrado|gh falhou/);
   // gh que não responde: consultarPrGh com timeout curto
