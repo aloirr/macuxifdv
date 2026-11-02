@@ -17,3 +17,4 @@
 2026-11-01 — T-0035 — /alcadas sem promotor (perfis + teste 403), fuso via ctx.fuso(), pedido.db.test sem core.*, janela do pull com relógio real
 2026-11-01 — T-0042/T-0034 — relógio único no pedido.db.test.ts (+virada do dia), regra 7 nas páginas de pedido, 16 🟡 de tela (domain/totais e quantidade, libs com teste); vendedor 253/253
 2026-11-02 — T-0059 — detalhe do pedido no BKO: leitura tolerante (documento nulo), aviso em português, ErrorBlock com fallback, tooltips nos PDFs
+2026-11-02 — T-0059 — lint: removido import OrderDetail não usado em web/lib/queries.ts (exceção autorizada pelo gerente)

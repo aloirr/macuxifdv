@@ -9,7 +9,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { AuditoriaRespostaSchema, ROTA_AUDITORIA } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ } from '@macuxi/ui/web';
-import { DiscountPolicy, OrderDetail, PedidosPage } from '../../contracts';
+import { DiscountPolicy, PedidosPage } from '../../contracts';
 import { type FiltrosPedidos, paraQuery } from './filtros-url';
 
 /** A lista atualiza sozinha a cada ~10 s. */
