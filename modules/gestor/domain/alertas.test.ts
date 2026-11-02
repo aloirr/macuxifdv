@@ -3,7 +3,7 @@ import { CondicaoAlerta, RegraAlerta, TIPOS_ALERTA, type MembroEquipe } from '..
 import { avaliarAlertas, FREQUENCIA_EM_DIAS, limiteDiasSemVisita, REGRAS_PADRAO, reconciliarAlertas, resolverRegras, tiposAtivos, type AlertaExistente } from './alertas';
 import { situacaoDoPrazo } from './aprovacoes';
 import { PARAMETROS_PADRAO } from './parametros';
-import { CLIENTE_A, CLIENTE_B, checkin, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR } from './fixtures';
+import { CLIENTE_A, CLIENTE_B, checkin, ev, pedidoCriado, PROMOTOR, rupturaRegistrada, statusAlterado, u, VENDEDOR, visitaLoja, type DesfechoTeste } from './fixtures';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
 const montar = (eventos: EventoRecebido[]) => aplicarEventos(estadoInicial(), eventos).estado;
@@ -19,7 +19,7 @@ const avaliar = (
 ) => avaliarAlertas({ estado, membros: extra.membros ?? MEMBROS, agora, modulos: extra.modulos ?? TODOS, regras: resolverRegras(extra.regras), params: extra.params });
 const doTipo = (cs: ReturnType<typeof avaliar>, tipo: string) => cs.filter((c) => c.tipo === tipo);
 
-const cliente = (id: string, vendedor: string | null = VENDEDOR, ativo = true) => ev('core.cliente.atualizado@1', '2026-10-01T10:00:00Z', { cliente_id: id, vendedor_id: vendedor, ativo, nome: 'Mercado ' + id.slice(-3) });
+const cliente = (id: string, vendedor: string | null = VENDEDOR, ativo = true) => ev('core.cliente.atualizado@1', '2026-10-01T10:00:00Z', { cliente_id: id, campos: ['vendedor_id', 'ativo'], origem: 'erp', vendedor_id: vendedor, ativo, nome: 'Mercado ' + id.slice(-3) });
 
 describe('regras de alerta: padrões e validação (RF-GES-07)', () => {
   it('uma regra padrão para cada tipo, todas ativas e válidas no contrato', () => {
@@ -62,7 +62,7 @@ describe('regras de alerta: padrões e validação (RF-GES-07)', () => {
 describe('RF-GES-07 / RN-GES-01: cliente da carteira sem visita além do limite do cliente', () => {
   const AGORA = '2026-10-30T20:00:00Z'; // 30/10 em Manaus
   const comFreq = (id: string, frequencia_visita: 'semanal' | 'quinzenal' | 'mensal' | null) =>
-    ev('core.cliente.atualizado@1', '2026-09-01T10:00:00Z', { cliente_id: id, vendedor_id: VENDEDOR, ativo: true, nome: 'Mercado ' + id.slice(-3), frequencia_visita });
+    ev('core.cliente.atualizado@1', '2026-09-01T10:00:00Z', { cliente_id: id, campos: ['vendedor_id'], origem: 'erp', vendedor_id: VENDEDOR, ativo: true, nome: 'Mercado ' + id.slice(-3), frequencia_visita });
   /** Check-in às 09:00 de Manaus do dia civil informado. */
   const visitaEm = (n: number, cliente: string, dia: string) => checkin({ visita: u(2000 + n), cliente, em: `${dia}T13:00:00Z` });
   const limiteDe = (frequencia: 'semanal' | 'quinzenal' | 'mensal' | null, diasAtras: number, extra: Parameters<typeof avaliar>[2] = {}) => {
@@ -130,7 +130,7 @@ describe('RF-GES-07 / RN-GES-01: cliente da carteira sem visita além do limite 
 describe('RN-GES-02: cliente nunca visitado só alerta depois de PASSAR de 15 dias na carteira (dia 15 não, dia 16 sim)', () => {
   const AGORA = '2026-10-30T20:00:00Z'; // 30/10 em Manaus
   const naCarteira = (id: string, desde: string | null, ocorrido = '2026-10-01T10:00:00Z', vendedor = VENDEDOR) =>
-    ev('core.cliente.atualizado@1', ocorrido, { cliente_id: id, vendedor_id: vendedor, ativo: true, nome: 'Mercado ' + id.slice(-3), na_carteira_desde: desde });
+    ev('core.cliente.atualizado@1', ocorrido, { cliente_id: id, campos: ['vendedor_id'], origem: 'erp', vendedor_id: vendedor, ativo: true, nome: 'Mercado ' + id.slice(-3), na_carteira_desde: desde });
 
   it('14 dias e 15 dias na carteira: ainda não alerta; 16 dias: alerta com valor null (nunca visitado) e limiar 15', () => {
     expect(doTipo(avaliar(montar([naCarteira(CLIENTE_A, '2026-10-16T14:00:00Z')]), AGORA), 'cliente_sem_visita')).toHaveLength(0); // 14 dias
@@ -275,21 +275,9 @@ describe('RF-GES-07 / RN-GES-03: pedido aguardando aprovação além do prazo em
   });
 });
 
-describe('RF-GES-07: alertas do promotor (ruptura recorrente, visita curta, fotos sem GPS)', () => {
-  const lj = (n: number, o: { cliente?: string; min?: number; em: string; fotos?: [number, number] }) =>
-    ev('promotor.visita_loja.concluida@1', o.em, {
-      visita_loja_id: u(3000 + n),
-      visita_id: u(2000 + n),
-      promotor_id: PROMOTOR,
-      cliente_id: o.cliente ?? CLIENTE_A,
-      checkin_em: o.em,
-      checkout_em: o.em,
-      permanencia_min: o.min ?? 30,
-      fotos_total: o.fotos?.[0] ?? null,
-      fotos_sem_gps: o.fotos?.[1] ?? null,
-    });
-  const rup = (n: number, loja: number, st: 'presente' | 'ruptura_gondola' | 'ruptura_total', em: string, cliente = CLIENTE_A) =>
-    ev('promotor.ruptura.registrada@1', em, { registro_id: u(6000 + n), visita_loja_id: u(3000 + loja), promotor_id: PROMOTOR, cliente_id: cliente, produto_id: u(7000 + n), status: st, registrado_em: em });
+describe('RF-GES-07: alertas do promotor (ruptura recorrente, visita curta, fotos sem GPS) com payloads oficiais', () => {
+  const lj = (n: number, o: { cliente?: string; min?: number; em: string; fotos?: [number, number]; desfecho?: DesfechoTeste }) => visitaLoja(n, o);
+  const rup = rupturaRegistrada;
   const AGORA = '2026-10-30T20:00:00Z';
 
   it('ruptura recorrente: 3 visitas diferentes da loja com ruptura em 14 dias alertam (2 não)', () => {
@@ -345,7 +333,24 @@ describe('RF-GES-07: alertas do promotor (ruptura recorrente, visita curta, foto
     expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [10, 2] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // 20%
     expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [4, 4] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // 4 fotos < 10
     expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-20T13:00:00Z', fotos: [20, 20] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // fora de 7 dias
-    expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z' })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // Promotor não informou as fotos
+    expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-29T13:00:00Z', fotos: [0, 0] })]), AGORA), 'fotos_sem_gps')).toHaveLength(0); // visita sem fotos
+  });
+
+  it('T-0046 / RN-CORE-14: cliente fechado (loja_fechada/acesso_negado) não é visita curta nem conta na ruptura recorrente', () => {
+    const s = montar([
+      lj(1, { em: '2026-10-30T13:00:00Z', min: 3, desfecho: 'loja_fechada' }),
+      lj(2, { em: '2026-10-30T14:00:00Z', min: 2, desfecho: 'acesso_negado' }),
+      lj(3, { em: '2026-10-20T13:00:00Z' }),
+      lj(4, { em: '2026-10-24T13:00:00Z' }),
+      lj(5, { em: '2026-10-29T13:00:00Z', desfecho: 'acesso_negado' }),
+      rup(1, 3, 'ruptura_total', '2026-10-20T13:10:00Z'),
+      rup(2, 4, 'ruptura_total', '2026-10-24T13:10:00Z'),
+      rup(3, 5, 'ruptura_total', '2026-10-29T13:10:00Z'), // de visita sem atendimento: fora
+    ]);
+    expect(doTipo(avaliar(s, AGORA), 'visita_curta')).toHaveLength(0);
+    expect(doTipo(avaliar(s, AGORA), 'ruptura_recorrente')).toHaveLength(0);
+    // a mesma visita de 3 min com desfecho `realizada` alerta
+    expect(doTipo(avaliar(montar([lj(1, { em: '2026-10-30T13:00:00Z', min: 3 })]), AGORA), 'visita_curta')).toHaveLength(1);
   });
 
   it('Promotor desativado: nenhum alerta de trade é gerado (RN-CORE-03)', () => {

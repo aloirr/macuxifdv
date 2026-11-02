@@ -86,10 +86,16 @@ export const PainelMes = z
   .strict();
 export type PainelMes = z.infer<typeof PainelMes>;
 
-/** Trade do promotor (RF-GES-10; RN-PRO-02/03/05/07/11). Só visitas que contam (permanência mínima). */
+/**
+ * Trade do promotor (RF-GES-10; RN-PRO-02/03/05/07/11). Só visitas que contam: desfecho `realizada` e permanência
+ * mínima. Cliente fechado (`loja_fechada`/`acesso_negado`, RN-CORE-14) fica em `visitas_sem_atendimento`.
+ */
 export const PainelTrade = z
   .object({
+    /** Lojas (clientes distintos) com visita `realizada` e permanência mínima (RN-PRO-07). */
     lojas_visitadas: ContagemNaoNeg,
+    /** T-0046 / RN-CORE-14: visitas de loja com desfecho `loja_fechada` ou `acesso_negado` (não entram nos indicadores). */
+    visitas_sem_atendimento: ContagemNaoNeg,
     conformidade_pct: PctOuNulo,
     conformidade_parciais: ContagemNaoNeg,
     share_medio_pct: PctOuNulo,
@@ -98,7 +104,10 @@ export const PainelTrade = z
     ruptura_pct: PctOuNulo,
     falha_reposicao_pct: PctOuNulo,
     indice_preco_medio: PctOuNulo,
+    /** Execuções de tarefa de campanha concluídas (uma por loja, `execucao_id`). */
     tarefas_concluidas: ContagemNaoNeg,
+    /** Tarefas de campanha distintas (`tarefa_id`) com ao menos uma execução no período. */
+    tarefas_distintas: ContagemNaoNeg,
     /** RN-PRO-02: do dia inteiro (todas as visitas); `null` quando o Promotor não informou as fotos. */
     fotos_total: ContagemNaoNeg.nullable(),
     fotos_sem_gps: ContagemNaoNeg.nullable(),
