@@ -48,3 +48,34 @@ export function lerTrustProxy(env: NodeJS.ProcessEnv): boolean | string[] | ((en
   }
   return v.split(',').map((x) => x.trim()).filter(Boolean);
 }
+
+/**
+ * Opções do logger pino da API (CLAUDE.md regra 8; ADR 0013 §6): `req` só com método, caminho sem query e `request_id`;
+ * `res` só com o status. Redação de reforço: `Authorization`, `Cookie` e todo `X-Macuxi-*` (chave e identificador do Conector)
+ * nunca saem, mesmo que alguém registre um objeto de cabeçalhos por engano.
+ */
+export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
+  'headers.authorization',
+  'headers.cookie',
+  'headers["x-macuxi-conector-id"]',
+  'headers["x-macuxi-conector-versao"]',
+  'cabecalhos.authorization',
+  'cabecalhos.cookie',
+  'cabecalhos["x-macuxi-conector-id"]',
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'req.headers["x-macuxi-conector-id"]',
+  'authorization',
+  'chave',
+];
+
+export function opcoesLogger(nivel: string) {
+  return {
+    level: nivel,
+    redact: { paths: [...CAMINHOS_REDIGIDOS_LOG], censor: '[omitido]' },
+    serializers: {
+      req: (req: { method: string; url: string; id: string }) => ({ method: req.method, url: req.url.split('?')[0], request_id: req.id }),
+      res: (res: { statusCode: number }) => ({ status: res.statusCode }),
+    },
+  };
+}

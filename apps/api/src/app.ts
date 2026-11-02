@@ -13,6 +13,8 @@
  * `depende` de todos os manifestos instalados (RN-CORE-03). `ctx.parametros()` = parâmetros do tenant do módulo da rota;
  * `tx.consultar` liga as consultas dos módulos instalados (ADR 0012) e `tx.auditar` grava a auditoria (RN-AUD-01).
  *
+ * Rotas de Conector (ADR 0013): `conector.ts` monta `/<modulo>/v1/*` do módulo com `conector` (chave de API, sem JWT).
+ *
  * Proteção do Zod (GHSA-mrhx-c7xc-m3w5: o Zod acumula um problema por elemento inválido de array, sem teto): todo corpo
  * JSON com mais de `MAX_ELEMENTOS_CORPO` elementos de array (somados, em qualquer profundidade) é recusado com 413
  * ANTES de qualquer schema, e a resposta 400 lista no máximo `MAX_PROBLEMAS_RESPOSTA` problemas.
@@ -31,6 +33,7 @@ import {
   escopoDoPerfil,
   fusoDoTenantOuPadrao,
   modulosEfetivos,
+  problemasApiConector,
   promotorBarradoNaRota,
   SaudeRespostaSchema,
   SERVICO_API_MACUXI,
@@ -53,8 +56,10 @@ import {
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyServerOptions } from 'fastify';
 import { ZodError, type ZodTypeAny } from 'zod';
 import type { BancoApp } from './banco';
+import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 import { criarLimitador } from './limitador';
-import { licencasDoBanco, type FonteLicencas } from './licencas';
+import { registrarConector, ehRotaConector } from './conector';
+import { licencasDoBanco, licencasDoTenantNoBanco, type FonteLicencas, type FonteLicencasTenant } from './licencas';
 import { MODULOS_API } from './modulos';
 import { registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
@@ -93,33 +98,14 @@ export interface OpcoesApp {
   trustProxy?: FastifyServerOptions['trustProxy'];
   /** Versão devolvida em `GET /v1/saude` (padrão: `MACUXI_VERSAO` ou a versão do package.json da API). */
   versao?: string;
+  /** Licenças do tenant sem usuário, para as rotas de Conector (ADR 0013; padrão: tabelas `plataforma.*` via `comTenant`). */
+  licencasTenant?: FonteLicencasTenant;
 }
 
 /** Versão do pacote da API (package.json), lida uma vez. */
 export const VERSAO_API: string = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
-/** Teto de elementos de array num corpo JSON (push: 500 itens × payload; lote do Hub: até 5.000 linhas). */
-export const MAX_ELEMENTOS_CORPO = 50_000;
-/** Teto de problemas devolvidos num 400 de validação. */
-export const MAX_PROBLEMAS_RESPOSTA = 50;
-
-/** `true` se o valor (JSON já lido) tem mais de `max` elementos de array somados. Bytes (Buffer) não contam. */
-export function excedeElementos(valor: unknown, max = MAX_ELEMENTOS_CORPO): boolean {
-  let total = 0;
-  const pilha: unknown[] = [valor];
-  while (pilha.length > 0) {
-    const v = pilha.pop();
-    if (v === null || typeof v !== 'object' || ArrayBuffer.isView(v)) continue;
-    if (Array.isArray(v)) {
-      total += v.length;
-      if (total > max) return true;
-      for (const x of v) if (x !== null && typeof x === 'object') pilha.push(x);
-    } else {
-      for (const x of Object.values(v)) if (x !== null && typeof x === 'object') pilha.push(x);
-    }
-  }
-  return false;
-}
+export { excedeElementos, MAX_ELEMENTOS_CORPO, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -159,7 +145,12 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const modulos = op.modulos ?? MODULOS_API;
   const manifestos = modulos.map((m) => m.manifesto);
   // ADR 0012: na API real, toda consulta oferecida tem implementação (fixtures de teste podem trocar um módulo sem as dele)
-  const problemas = [...validarConjunto(manifestos), ...(op.modulos ? [] : consultasSemImplementacao(modulos))];
+  const problemas = [
+    ...validarConjunto(manifestos),
+    ...(op.modulos ? [] : consultasSemImplementacao(modulos)),
+    // ADR 0013: fixture montada sem definirModuloApi também passa pela checagem das rotas de Conector
+    ...modulos.flatMap((m) => problemasApiConector(m.manifesto, m.conector).map((x) => `${m.manifesto.id}: ${x}`)),
+  ];
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
   const dependencias = dependenciasDosManifestos(manifestos);
@@ -194,9 +185,10 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   if (banco) app.addHook('onReady', () => banco.verificar());
 
-  // antes de qualquer schema Zod (rotas de módulo, públicas e de sync): corpo com coleções gigantes é recusado
+  // antes de qualquer schema Zod (rotas de módulo, públicas e de sync): corpo com coleções gigantes é recusado.
+  // As rotas de Conector (ADR 0013) têm teto próprio por rota e o 413 com o código do Hub (`conector.ts`).
   app.addHook('preValidation', async (req) => {
-    if (excedeElementos(req.body)) throw new ErroHttp(413, 'CORPO_GRANDE_DEMAIS', 'Envio grande demais. Divida em partes menores.');
+    if (!ehRotaConector(req) && excedeElementos(req.body)) throw new ErroHttp(413, 'CORPO_GRANDE_DEMAIS', 'Envio grande demais. Divida em partes menores.');
   });
 
   app.setErrorHandler((erro, req, reply) => {
@@ -290,6 +282,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   for (const m of modulos) {
     for (const rota of m.rotas ?? []) montarRota(app, plataforma, permissoes, m.manifesto, rota);
     for (const rota of m.rotasPublicas ?? []) montarRotaPublica(app, acesso, relogio, rota);
+    // ADR 0013: rotas do Conector em /<modulo>/v1 (chave de API, licença do tenant da chave)
+    if (m.conector) registrarConector(app, m, { manifestos, acesso, relogio, licencasTenant: op.licencasTenant ?? licencasDoTenantNoBanco });
   }
 
   return app;

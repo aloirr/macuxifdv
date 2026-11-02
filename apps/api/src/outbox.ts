@@ -69,7 +69,8 @@ export interface OrigemTransacao {
   /** Módulo da rota (quem publica). `null` = rota da plataforma, que não publica evento de módulo. */
   modulo: ModuloId | null;
   tenantId: string;
-  usuarioId: string;
+  /** Autor da sessão; `null` nas rotas de Conector (ADR 0013 §4: não há usuário; auditoria e eventos sem autor). */
+  usuarioId: string | null;
   requestId: string;
   agora: () => Date;
   /** Para `consultar` (ADR 0012): usuário com os módulos efetivos AGORA, consultas instaladas, parâmetros e log. */
@@ -148,6 +149,7 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
     },
     async registrarArquivo(a) {
       if (!o.modulo) throw new Error('Rota da plataforma não registra arquivo de módulo');
+      if (o.usuarioId === null) throw new Error('registrarArquivo: rota sem usuário (Conector) não registra arquivo (ADR 0010/0013)');
       const problemas = validarNovoArquivo(a);
       if (problemas.length > 0) throw new Error(`registrarArquivo: ${problemas.join('; ')}`);
       const id = a.id.toLowerCase();

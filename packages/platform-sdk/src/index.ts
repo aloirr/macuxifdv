@@ -19,6 +19,7 @@ export * from './ambiente';
 export * from './motor-sync';
 export * from './shell';
 export * from './api';
+export * from './conector';
 export * from './consultas';
 export * from './sync-simulado';
 export * from './busca';

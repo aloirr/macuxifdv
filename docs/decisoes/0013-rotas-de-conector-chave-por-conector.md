@@ -1,6 +1,6 @@
 # ADR 0013 — Rotas de Conector na API: prefixo `/<modulo>/v1` e chave de API por Conector
 
-- **Status**: proposta (2026-11-01; aceita quando o gerente-projetos der o OK ao desenho T-0032)
+- **Status**: aceita (2026-11-01; OK do gerente-projetos no R-20261101-160012, premissa do Alexandre no R-20261101-014652)
 - **Data**: 2026-11-01
 - **Tarefa**: T-0032 (desenho: [docs/desenho/T-0032.md](../desenho/T-0032.md)); origem: T-0025 (`docs/modulos/integracao/hub-api.md`
   §3, §17a), T-0027 (PR #24) e T-0031 (PR #25)
@@ -90,6 +90,9 @@ usuário comuns e seguem a ADR 0004/0006 sem mudança.
   redação de cabeçalhos no logger, testes sem banco (módulo de fixture) e com banco (dois tenants).
 - modules/integracao/api (dono: modulo-integracao): `autenticar`, `antes`, as 7 rotas, os consumidores e as rotas do BKO,
   ligando as funções do `domain` sem reimplementar regra.
+- Implementado na onda 2 da T-0032 (engenheiro-software): `packages/platform-sdk/src/conector.ts` (caminho no formato
+  `/seg/{param}` do `ROTAS_HUB`, `RespostaConector` para status/cabeçalhos da repetição do lote) e `apps/api/src/conector.ts`
+  (`OpcoesApp.licencasTenant`; parser só de JSON; redação no logger em `config.ts`, `opcoesLogger`).
 - O Conector não muda (1.2.0): prefixo, cabeçalhos, códigos e corpos já são os do contrato.
 - Os limites em memória (falhas por IP, balde por Conector) valem para uma instância; ao escalar horizontalmente viram
   contador compartilhado com a mesma interface (como o limitador de login, ADR 0006).

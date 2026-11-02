@@ -8,8 +8,9 @@
  * tenant"; desenho T-0016 §7). `tenant_modulo.parametros` é legado e não é lido (decisão da onda 1 da Sprint 1).
  *
  * Fuso do tenant (`plataforma.tenant.fuso`): lido aqui também e entregue às rotas como `ctx.fuso()` (T-0035).
+ * Rotas de Conector (ADR 0013): `licencasDoTenantNoBanco`, só a parte do tenant (não há usuário nem perfil).
  */
-import { ehModulo, type AcessoBanco, type ModuloId, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { ehModulo, type AcessoBanco, type ClienteBanco, type ModuloId, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 
 export interface LicencasUsuario {
   ativosNoTenant: ModuloId[];
@@ -40,25 +41,37 @@ export function parametrosPorModulo(
   return saida;
 }
 
+/** Licenças e parâmetros do tenant SEM usuário (rotas de Conector, ADR 0013 §3 item 4): quem chama é uma máquina, sem perfil. */
+export interface LicencasTenant {
+  ativosNoTenant: ModuloId[];
+  parametros: LicencasUsuario['parametros'];
+  fuso?: string | null;
+}
+
+export type FonteLicencasTenant = (tenantId: string, banco: AcessoBanco) => Promise<LicencasTenant>;
+
+/** Parte do tenant (módulos ativos, parâmetros e fuso), dentro de uma transação já com o tenant (RLS). */
+async function lerTenant(db: ClienteBanco): Promise<LicencasTenant> {
+  const tenant = await db.query<{ modulo: string }>('select modulo from plataforma.tenant_modulo where ativo and deleted_at is null');
+  const params = await db.query<{ modulo: string; chave: string; valor: unknown }>(
+    'select modulo, chave, valor from plataforma.parametro where deleted_at is null order by modulo, chave',
+  );
+  // fuso do tenant para ctx.fuso() (T-0035): o módulo não lê plataforma.tenant (regra 1, S0-014)
+  const fuso = await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()');
+  const ativosNoTenant = modulos(tenant.rows);
+  return { ativosNoTenant, parametros: parametrosPorModulo(params.rows, ativosNoTenant), fuso: fuso.rows[0]?.fuso ?? null };
+}
+
 export const licencasDoBanco: FonteLicencas = (usuario, banco) =>
   banco.comTenant(usuario.tenant_id, async (db) => {
-    const tenant = await db.query<{ modulo: string }>('select modulo from plataforma.tenant_modulo where ativo and deleted_at is null');
+    const t = await lerTenant(db);
     const perfil = await db.query<{ modulo: string }>('select modulo from plataforma.perfil_modulo where perfil = $1 and deleted_at is null', [usuario.perfil]);
     const removidos = await db.query<{ modulo: string }>(
       "select modulo from plataforma.usuario_modulo where usuario_id = $1 and efeito = 'remover' and deleted_at is null",
       [usuario.id],
     );
-    const params = await db.query<{ modulo: string; chave: string; valor: unknown }>(
-      'select modulo, chave, valor from plataforma.parametro where deleted_at is null order by modulo, chave',
-    );
-    // fuso do tenant para ctx.fuso() (T-0035): o módulo não lê plataforma.tenant (regra 1, S0-014)
-    const fuso = await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()');
-    const ativosNoTenant = modulos(tenant.rows);
-    return {
-      ativosNoTenant,
-      doPerfil: modulos(perfil.rows),
-      removidosDoUsuario: modulos(removidos.rows),
-      parametros: parametrosPorModulo(params.rows, ativosNoTenant),
-      fuso: fuso.rows[0]?.fuso ?? null,
-    };
+    return { ...t, doPerfil: modulos(perfil.rows), removidosDoUsuario: modulos(removidos.rows) };
   });
+
+/** Licenças do tenant da chave do Conector (`plataforma.tenant_modulo`, `parametro`, `tenant.fuso`), uma transação. */
+export const licencasDoTenantNoBanco: FonteLicencasTenant = (tenantId, banco) => banco.comTenant(tenantId, lerTenant);

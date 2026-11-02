@@ -21,6 +21,7 @@
 import type { z } from 'zod';
 import type { MetodoHttp } from './ambiente';
 import type { NovoArquivo } from './arquivos';
+import { problemasApiConector, type ApiConector } from './conector';
 import type { DefinicaoConsulta } from './consultas-tipos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
@@ -352,6 +353,11 @@ export interface ModuloApi {
   consumidores?: readonly ConsumidorEvento[];
   /** Consultas que o módulo oferece (ADR 0012): uma por nome de `ofereceConsultas`, todas implementadas. */
   consultas?: readonly ImplementacaoConsulta[];
+  /**
+   * Rotas chamadas pelo Conector (ADR 0013; `conector.ts`), montadas em `/<modulo>/v1/<caminho>` com chave de API, sem JWT.
+   * Só módulo com `apps.conector` no manifesto (hoje a Integração).
+   */
+  conector?: ApiConector;
 }
 
 /**
@@ -468,7 +474,8 @@ export function promotorBarradoNaRota(rota: Pick<RotaModulo, 'metodo' | 'caminho
  * próprio módulo; `perfis` fora dos perfis do módulo; rota de pedido aceitando promotor por `perfis` (RN-PRO-01;
  * a leitura do promotor só vem por `acao` de leitura); ação de leitura de pedido em método que não é GET;
  * entidade de sync fora do `sync` do manifesto ou de outro módulo; consumidor de evento fora de `consome` ou repetido;
- * consulta implementada fora de `ofereceConsultas`, de outro módulo ou repetida (ADR 0012). Consulta oferecida sem
+ * consulta implementada fora de `ofereceConsultas`, de outro módulo ou repetida (ADR 0012); rotas de Conector em módulo sem
+ * `apps.conector`, com id ou método+caminho repetido (ADR 0013). Consulta oferecida sem
  * implementação é checada na montagem da API real (`consultasSemImplementacao`), não aqui: teste que troca um módulo por
  * uma fixture com rotas de exemplo não precisa reimplementar as consultas dele.
  */
@@ -549,6 +556,7 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     if (!(r.limite?.max > 0) || !(r.limite?.janelaMs > 0))
       problemas.push(`${r.metodo} /v1/${r.caminho}: rota pública exige limite de tentativas`);
   }
+  problemas.push(...problemasApiConector(m.manifesto, m.conector));
   if (problemas.length > 0) throw new Error(`API do módulo ${id} inválida: ${problemas.join('; ')}`);
   return m;
 }

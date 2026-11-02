@@ -102,3 +102,7 @@ R-20261101-155135-engenheiro-apps
 R-20261101-164531-alexandre
 R-20261101-171314-banco-dados
 R-20261101-165024-alexandre
+R-20261101-160012-gerente-projetos
+R-20261101-171316-banco-dados
+R-20261101-171345-banco-dados
+R-20261101-194126-gerente-projetos
