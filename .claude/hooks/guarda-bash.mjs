@@ -38,6 +38,15 @@
 //      · recado falso: agente não envia recado em nome de outro (coord.mjs enviar --de alheio,
 //        "de: alexandre" no comando, script que escreve recado de alexandre).
 //    Mensagens e casos: .claude/hooks/guarda-merge-lib.mjs e guarda-merge.test.mjs.
+//  - Guardião v6 (T-0050): o bloqueio "recado em nome do Alexandre" vale SÓ para comando que cria, altera,
+//    move ou apaga arquivo de recado (> >> tee cp mv rm sed -i, node/python que grava, coord.mjs enviar
+//    --de alexandre...). Leitura (ls, cat, grep, find, head, git show/ls-tree/fetch, for que só lê) passa,
+//    mesmo citando alexandre e .coord/recados. Casos: guarda-recado.test.mjs. O merge pela ferramenta MCP
+//    do GitHub tem hook próprio: .claude/hooks/guarda-merge-mcp.mjs (casos: guarda-merge-mcp.test.mjs).
+//    git add/commit/stash de recado do Alexandre JÁ EXISTENTE passa se ele estiver intacto: não criado nem
+//    alterado durante comando desta sessão (o PostToolUse registra o que muda em recado do Alexandre durante
+//    comando opaco ou de escrita incerta) e com o conteúdo do índice igual ao do disco. O gh é procurado no
+//    PATH e, no Windows, também em %ProgramFiles%\GitHub CLI e %LOCALAPPDATA%\Programs\GitHub CLI.
 // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -45,10 +54,16 @@ import { RAIZ, carregarDonos, agenteDaSessao } from '../../scripts/coord-lib.mjs
 import {
   analisarComando, ambienteReal, mensagemPre, lerStatus, fotografar, compararFotos, statDe,
   violacoesDasMudancas, mensagemPos, mensagemAviso, separarAcusacoes, atualizarAcusados, descontarDesfeitos, permitidosDe,
-  arquivoFoto, arquivoAcusados,
+  arquivoFoto, arquivoAcusados, arquivoRecadosDaSessao, ehRecadoDoAlexandre,
   lerJson, gravarJson, apagarArquivo, limparAntigos,
 } from './guarda-bash-lib.mjs';
-import { conferirMerge, consultarPrGh, lerRecadosDoGerente, motivosRecadoFalso, mensagemRecadoFalso } from './guarda-merge-lib.mjs';
+import {
+  conferirMerge, consultarPrGh, lerRecadosDoGerente, motivosRecadoFalso, mensagemRecadoFalso,
+  motivosIndiceDeRecados, mensagemIndiceDeRecados, vigiarRecados,
+} from './guarda-merge-lib.mjs';
+
+/** Conteúdo de um arquivo do repositório (rel) ou null. */
+const lerDoRepo = (rel) => { try { return readFileSync(join(RAIZ, rel), 'utf8'); } catch { return null; } };
 
 function lerEntrada() {
   return new Promise((ok) => {
@@ -104,15 +119,29 @@ if (evento === 'PreToolUse') {
     process.exit(2);
   }
   // Guardião v5: nenhum agente cria recado em nome de outro (sobretudo de: alexandre).
-  const motivos = motivosRecadoFalso({ comando, agente, soLeitura });
+  const motivos = motivosRecadoFalso({ comando, agente, cwd: entrada.cwd || process.cwd() });
   if (motivos.length) {
     process.stderr.write(mensagemRecadoFalso(agente, motivos) + '\n');
     process.exit(2);
   }
+  // Guardião v6 (T-0050): git add/commit/stash de recado do Alexandre já existente passa se ele estiver intacto
+  // (não tocado nesta sessão, índice = disco).
+  if (agente !== 'alexandre') {
+    const indice = motivosIndiceDeRecados({
+      comando, cwd: entrada.cwd || process.cwd(), raiz: RAIZ, status: amb.status() || [],
+      tocados: Object.keys(lerJson(arquivoRecadosDaSessao(entrada, agente, RAIZ), {})),
+      ehDoAlexandre: (rel) => ehRecadoDoAlexandre(rel, lerDoRepo),
+    });
+    if (indice.length) {
+      process.stderr.write(mensagemIndiceDeRecados(agente, indice) + '\n');
+      process.exit(2);
+    }
+  }
   if (!soLeitura) {
     const status = amb.status();
+    const vigiar = agente !== 'alexandre' && vigiarRecados(comando, entrada.cwd || process.cwd());
     // A data do próprio arquivo da foto é o "início" (mesmo relógio do sistema de arquivos).
-    if (status) gravarJson(arquivoFoto(entrada), { agente, estado: fotografar(RAIZ, status), alvos, instala });
+    if (status) gravarJson(arquivoFoto(entrada), { agente, estado: fotografar(RAIZ, status), alvos, instala, vigiar });
     limparAntigos();
   }
   process.exit(0);
@@ -133,6 +162,17 @@ if (evento === 'PostToolUse' || evento === 'PostToolUseFailure') {
     compararFotos({ inicio, estado: foto.estado }, fotografar(RAIZ, status), (rel) => statDe(RAIZ, rel)),
     antes, status,
   );
+  // v6: recado do Alexandre que mudou durante comando opaco/de escrita incerta desta sessão não vai depois para
+  // o índice/commit/stash por ela (motivosIndiceDeRecados). O registro vale até o fim da sessão.
+  if (foto.vigiar) {
+    const doAlexandre = mudancas.filter((m) => ehRecadoDoAlexandre(m.caminho, lerDoRepo));
+    if (doAlexandre.length) {
+      const arqSessao = arquivoRecadosDaSessao(entrada, agente, RAIZ);
+      const registro = lerJson(arqSessao, {});
+      for (const m of doAlexandre) registro[m.caminho] = { status: m.status, em: Date.now() };
+      gravarJson(arqSessao, registro);
+    }
+  }
   const violacoes = violacoesDasMudancas({ agente, mudancas, regras });
   // Foto sem "alvos" (versão antiga do hook): nada é evidente → tudo vira aviso.
   const { bloqueantes, avisos } = separarAcusacoes({ violacoes, alvos: foto.alvos || [] });

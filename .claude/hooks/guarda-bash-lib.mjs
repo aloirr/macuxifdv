@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { posix, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { PESSOAS, podeAlterar, classificarMudancas } from '../../scripts/coord-lib.mjs';
+import { PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo } from '../../scripts/coord-lib.mjs';
 
 // ───────────────────────────── caminhos ─────────────────────────────
 
@@ -231,23 +231,23 @@ export function comandosSimples(tokens) {
 const PALAVRAS_CHAVE = new Set(['if', 'then', 'else', 'elif', 'fi', 'do', 'done', 'while', 'until', '!', '{', '}', 'time', 'esac']);
 const PREFIXOS = new Set(['sudo', 'command', 'builtin', 'nohup', 'exec', 'nice', 'stdbuf', 'doas']);
 /** Comandos que não alteram arquivos (sem redirecionamento): dispensam a foto do git status. */
-const SO_LEITURA = new Set([
+export const SO_LEITURA = new Set([
   'ls', 'dir', 'cat', 'bat', 'head', 'tail', 'less', 'more', 'grep', 'egrep', 'fgrep', 'rg', 'ag', 'ack', 'wc', 'pwd',
   'echo', 'printf', 'which', 'where', 'type', 'stat', 'file', 'tree', 'du', 'df', 'date', 'whoami', 'id', 'hostname',
   'uname', 'printenv', 'true', 'false', 'test', '[', 'diff', 'cmp', 'comm', 'uniq', 'cut', 'tr', 'nl', 'tac', 'rev',
   'column', 'fold', 'paste', 'od', 'xxd', 'hexdump', 'md5sum', 'sha1sum', 'sha256sum', 'basename', 'dirname',
   'realpath', 'readlink', 'jq', 'sleep', 'seq', 'expr', 'export', 'set', 'unset', 'ps',
 ]);
-const GIT_SO_LEITURA = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'shortlog', 'describe', 'merge-base', 'cat-file', 'ls-tree', 'remote', 'fetch', 'config', 'reflog', 'version', 'help', 'branch', 'tag', 'rev-list', 'for-each-ref', 'show-ref', 'var', 'whatchanged', 'count-objects', 'check-ignore', 'name-rev', 'ls-remote', 'diff-tree', 'diff-files', 'diff-index']);
+export const GIT_SO_LEITURA = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'shortlog', 'describe', 'merge-base', 'cat-file', 'ls-tree', 'remote', 'fetch', 'config', 'reflog', 'version', 'help', 'branch', 'tag', 'rev-list', 'for-each-ref', 'show-ref', 'var', 'whatchanged', 'count-objects', 'check-ignore', 'name-rev', 'ls-remote', 'diff-tree', 'diff-files', 'diff-index']);
 /** Subcomandos de scripts/coord.mjs que só leem (caixa, ler, fio, dono, pendencias, verificar). */
-const COORD_SO_LEITURA = new Set(['caixa', 'ler', 'fio', 'dono', 'pendencias', 'verificar', 'ajuda', 'help', '--help', '-h']);
+export const COORD_SO_LEITURA = new Set(['caixa', 'ler', 'fio', 'dono', 'pendencias', 'verificar', 'ajuda', 'help', '--help', '-h']);
 /** pnpm/npm/yarn que só consultam (view, info, why, list...). */
-const PACOTES_SO_LEITURA = new Set(['view', 'v', 'info', 'show', 'why', 'list', 'ls', 'll', 'la', 'outdated', 'root', 'bin', 'search', 'licenses', 'help', '-v', '--version', '-h', '--help']);
+export const PACOTES_SO_LEITURA = new Set(['view', 'v', 'info', 'show', 'why', 'list', 'ls', 'll', 'la', 'outdated', 'root', 'bin', 'search', 'licenses', 'help', '-v', '--version', '-h', '--help']);
 /** pnpm/npm/yarn que podem reescrever o lock (pnpm-lock.yaml). */
 const PACOTES_INSTALA = new Set(['install', 'i', 'add', 'remove', 'rm', 'uninstall', 'un', 'update', 'up', 'upgrade', 'dedupe', 'import', 'prune', 'link', 'unlink']);
 /** find só lê se não tiver ação que escreve ou executa. */
 const FIND_ESCREVE = new Set(['-delete', '-exec', '-execdir', '-ok', '-okdir', '-fprint', '-fprint0', '-fprintf', '-fls']);
-const DESCARTE = /^\/dev\/(null|stdout|stderr|tty|fd\/\d+)$|^nul$/i;
+export const DESCARTE = /^\/dev\/(null|stdout|stderr|tty|fd\/\d+)$|^nul$/i;
 
 const nomeBase = (p) => barras(p).replace(/\/+$/, '').split('/').pop();
 const PONTO = { valor: '.', incerto: false, raiz: true };
@@ -366,8 +366,8 @@ function alvosGit(args, ctx, res) {
       const o = opcoes(primeiro ? antes.slice(1) : antes, 'm', ['--message', '--pathspec-from-file']);
       const caminhos = iSep >= 0 ? depois : primeiro === 'save' ? [] : o.pos;
       for (const a of caminhos.length ? caminhos : [PONTO]) {
-        push(a, 'sujos');
-        if (o.tem('-u', '--include-untracked', '-a', '--all')) push(a, 'nao-rastreados');
+        push(a, 'sujos', { stash: true });
+        if (o.tem('-u', '--include-untracked', '-a', '--all')) push(a, 'nao-rastreados', { stash: true });
       }
       return;
     }
@@ -719,10 +719,13 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
         const sob = (x) => rel === '' || x === rel || x.startsWith(rel + '/');
         // Alvos evidentes: restaurar/sujos/nao-rastreados mexem só nos arquivos sujos de agora
         // (lista exata); o resto vale para o caminho e, se recursivo, para a pasta inteira.
+        // v6 (T-0050): git stash de recado do Alexandre já existente guarda o arquivo sem mudar o conteúdo;
+        // quem confere (índice = disco, não tocado pela sessão) é o motivosIndiceDeRecados (guarda-merge-lib).
+        const guardado = (rel) => t.stash && ehRecadoDoAlexandre(rel, (r) => amb.ler?.(`${barras(raiz).replace(/\/+$/, '')}/${r}`) ?? null);
         if (t.acao === 'restaurar' || t.acao === 'sujos') {
-          for (const s of amb.sujos()) if (s.xy !== '??' && sob(s.rel)) { evidente(s.rel, false); conferir(s.rel, 'restaurar'); }
+          for (const s of amb.sujos()) if (s.xy !== '??' && sob(s.rel)) { evidente(s.rel, false); if (!guardado(s.rel)) conferir(s.rel, 'restaurar'); }
         } else if (t.acao === 'nao-rastreados') {
-          for (const s of amb.sujos()) if (s.xy === '??' && sob(s.rel)) { evidente(s.rel, false); conferir(s.rel, 'apagar'); }
+          for (const s of amb.sujos()) if (s.xy === '??' && sob(s.rel)) { evidente(s.rel, false); if (!guardado(s.rel)) conferir(s.rel, 'apagar'); }
         } else if (t.acao === 'restaurar-ref') {
           evidente(rel, true);
           for (const f of amb.rastreadosSob(rel)) conferir(f, 'restaurar');
@@ -740,6 +743,19 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
   };
   analisar(comando, cwd, 0);
   return { violacoes, soLeitura, alvos: [...alvos].map(([rel, sub]) => ({ rel, sub })), instala };
+}
+
+/**
+ * Recado do Alexandre: .coord/recados/<destino>/<arquivo>.md com remetente alexandre no nome ou "de: alexandre"
+ * no cabeçalho (v6, T-0050). `ler(rel)` devolve o conteúdo do disco (ou null).
+ */
+export function ehRecadoDoAlexandre(rel, ler = () => null) {
+  const m = barras(rel).match(/^\.coord\/recados\/[^/]+\/([^/]+\.md)$/i);
+  if (!m) return false;
+  if (remetenteDoRecado(m[1]) === 'alexandre') return true;
+  let texto = null;
+  try { texto = ler(barras(rel)); } catch { texto = null; }
+  return remetenteDoConteudo(texto) === 'alexandre';
 }
 
 /** O caminho é alvo evidente do comando (arquivo exato ou dentro de uma pasta alvo)? */
@@ -974,6 +990,10 @@ export function arquivoFoto(entrada, pasta = PASTA_TEMP) {
 }
 export function arquivoAcusados(entrada, agente, pasta = PASTA_TEMP) {
   return join(pasta, `acusados-${hash(`${entrada.session_id || ''}|${agente}`)}.json`);
+}
+/** Recados do Alexandre criados/alterados durante comandos desta sessão (v6): {rel: {status, em}}. */
+export function arquivoRecadosDaSessao(entrada, agente, raiz, pasta = PASTA_TEMP) {
+  return join(pasta, `recados-sessao-${hash(`${entrada.session_id || ''}|${agente}|${barras(raiz || '')}`)}.json`);
 }
 
 export function lerJson(arq, padrao) {
