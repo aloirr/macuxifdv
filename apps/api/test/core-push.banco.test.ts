@@ -132,7 +132,7 @@ describe.skipIf(semBanco())('despachante real × push de core.notificacao.criada
     expect(envios()).toHaveLength(1);
     const [url, init] = envios()[0]!;
     expect(String(url)).toBe('https://exp.host/--/api/v2/push/send');
-    expect(JSON.parse(String(init?.body))).toEqual([{ to: TOKEN, title: TITULO, body: 'Corpo do aviso', priority: 'high', data: { link: null } }]);
+    expect(JSON.parse(String(init?.body))).toEqual([{ to: TOKEN, title: TITULO, body: 'Corpo do aviso', priority: 'high', data: { link: null, entidades: ['notificacao'] } }]); // RN-CORE-23: recado = só a notificação (entidadesDoPush)
     expect(await enviadoEm(id)).toEqual(expect.any(Date));
     expect(await consumos(eventoId)).toEqual([{ consumidor: 'core' }]);
     expect((await evento(eventoId)).publicado_em).not.toBeNull();
