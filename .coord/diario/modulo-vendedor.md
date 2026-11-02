@@ -20,3 +20,4 @@
 2026-11-02 — T-0059 — detalhe do pedido no BKO: leitura tolerante (documento nulo), aviso em português, ErrorBlock com fallback, tooltips nos PDFs
 2026-11-02 — T-0059 — lint: removido import OrderDetail não usado em web/lib/queries.ts (exceção autorizada pelo gerente)
 2026-11-02 — T-0061 — novo pedido de distribuidora: domain de preço (UN/CX, desconto/acréscimo item e pedido, efetivo × alçada, frete CIF/FOB, endereço), app em 3 abas com rodapé, API (receber, aprovado@1, detalhe, sync, transportadoras no BKO), PDFs com Medida/frete/endereço, página Transportadoras; vendedor 470/470 com Postgres; sem escrita de parâmetro (S0-014): recado ao modulo-core
+2026-11-02 — T-0061 — RN-VEN-10: alçada pelo efetivo nominal exato (descontoEfetivoAlcadaPct, sem folga), API e app na mesma função; PDF interno do app com desconto/acréscimo do item

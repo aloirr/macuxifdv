@@ -18,6 +18,7 @@ import {
   validarAcrescimoOuDesconto,
   validarFrete,
   type FretePedido,
+  type LinhaParaTotal,
 } from '../../domain/preco-pedido';
 import { toDomainPolicy } from './catalog';
 
@@ -126,7 +127,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   const porId = new Map(e.catalogo.map((p) => [p.id, p]));
   const erros: string[] = [];
   const linhas: LinhaDoPedido[] = [];
-  const parcial: Array<{ preco_tabela_cents: number; quantidade: number; total_cents: number }> = [];
+  const parcial: LinhaParaTotal[] = [];
   for (const [chave, quantity] of Object.entries(e.lines)) {
     if (!(quantity > 0)) continue;
     const { product_id, unidade } = lerChaveDaLinha(chave);
@@ -151,7 +152,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
       continue;
     }
     const preco = precoDoItem({ preco_tabela_unidade_cents: produto.price_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct });
-    parcial.push({ preco_tabela_cents: preco.preco_tabela_cents, quantidade: quantity, total_cents: preco.total_cents });
+    parcial.push({ preco_tabela_cents: preco.preco_tabela_cents, quantidade: quantity, total_cents: preco.total_cents, desconto_pct, acrescimo_pct });
     linhas.push({
       chave,
       product_id,

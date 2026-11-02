@@ -120,6 +120,34 @@ export interface LinhaParaTotal {
   quantidade: number;
   /** total da linha depois do desconto/acréscimo do ITEM */
   total_cents: number;
+  /** desconto do ITEM (%; 2 casas) — entra no efetivo exato da alçada (RN-VEN-10) */
+  desconto_pct: number;
+  /** acréscimo do ITEM (%; 2 casas), excludente com o desconto */
+  acrescimo_pct: number;
+}
+
+/**
+ * RN-VEN-10: desconto efetivo da ALÇADA pelo valor nominal exato, sem arredondar por linha e sem folga:
+ * `1 − Σ(tabela_i × (10000 + δ_i)) × (10000 + Δ) ÷ (Σ tabela_i × 10^8)`, em inteiros (BigInt), 2 casas meia para cima.
+ * `tabela_i` = preço de tabela × quantidade; δ_i/Δ = −desconto ou +acréscimo do item/pedido em pontos-base. Nunca negativo.
+ */
+export function descontoEfetivoAlcadaPct(linhas: readonly LinhaParaTotal[], pedido: { desconto_pct: number; acrescimo_pct: number }): number {
+  exigirExcludente(pedido);
+  const D = BigInt(10_000 + deltaDe(pedido));
+  let tabela = 0n;
+  let final = 0n;
+  for (const l of linhas) {
+    exigirExcludente(l);
+    const bruto = BigInt(l.preco_tabela_cents) * BigInt(l.quantidade);
+    tabela += bruto;
+    final += bruto * BigInt(10_000 + deltaDe(l));
+  }
+  if (tabela <= 0n) return 0;
+  const den = tabela * 100_000_000n;
+  const num = den - final * D;
+  if (num <= 0n) return 0;
+  const bp = (num * 20_000n + den) / (2n * den);
+  return Number(bp) / 100;
 }
 
 export interface TotaisDoPedido {
@@ -131,10 +159,7 @@ export interface TotaisDoPedido {
   total_cents: number;
   /** RN-VEN-03: 2 casas; negativo = acréscimo; sem frete (RN-VEN-16) */
   desconto_efetivo_pct: number;
-  /**
-   * Desconto efetivo para a ALÇADA: o efetivo menos a folga de arredondamento (meio centavo por linha ÷ total pela tabela).
-   * Sem isso, um pedido de 5% em valores pequenos viraria 5,1% só por causa dos centavos. Nunca negativo.
-   */
+  /** Desconto efetivo para a ALÇADA (RN-VEN-10): valor nominal exato, sem folga (`descontoEfetivoAlcadaPct`). Nunca negativo. */
   desconto_efetivo_alcada_pct: number;
   /** total de cada linha depois do ajuste do pedido (soma = `total_cents`) */
   linhas_cents: number[];
@@ -149,9 +174,7 @@ export function totaisDoPedido(linhas: readonly LinhaParaTotal[], pedido: { desc
   const total_cents = linhas_cents.reduce((s, n) => s + n, 0);
   const ajuste = total_cents - total_itens_cents;
   const efetivo = total_tabela_cents > 0 ? Math.round(((total_tabela_cents - total_cents) / total_tabela_cents) * 10_000) / 100 : 0;
-  // folga: cada linha arredonda até meio centavo, em duas etapas (item e pedido) → 1 centavo por linha no pior caso
-  const folga = total_tabela_cents > 0 ? ((linhas.length * 100) / total_tabela_cents) : 0;
-  const alcada = Math.max(0, Math.floor((efetivo - folga) * 100) / 100);
+  const alcada = descontoEfetivoAlcadaPct(linhas, pedido);
   return {
     total_tabela_cents,
     total_itens_cents,

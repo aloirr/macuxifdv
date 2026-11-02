@@ -268,10 +268,10 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   }
   const precosItens = paraPreco.map((p) => precoDoItem(p));
   const totais = totaisDoPedido(
-    precosItens.map((p, idx) => ({ preco_tabela_cents: p.preco_tabela_cents, quantidade: itens[idx]!.quantity, total_cents: p.total_cents })),
+    precosItens.map((p, idx) => ({ preco_tabela_cents: p.preco_tabela_cents, quantidade: itens[idx]!.quantity, total_cents: p.total_cents, desconto_pct: paraPreco[idx]!.desconto_pct, acrescimo_pct: paraPreco[idx]!.acrescimo_pct })),
     { desconto_pct: pct2(e.desconto_pct), acrescimo_pct: pct2(acrescimoPedido) },
   );
-  // RN-VEN-10: só o desconto efetivo (já descontada a folga de arredondamento em centavos)
+  // RN-VEN-10: só o desconto efetivo (valor nominal exato, sem folga: `descontoEfetivoAlcadaPct`)
   const validacao = validateOrder({
     seller_id: e.vendedor_id,
     discount_pct: Math.max(0, totais.desconto_efetivo_alcada_pct),

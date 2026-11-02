@@ -239,7 +239,7 @@ export default function OrderDetailScreen() {
       seller_name: mine?.name ?? (queued ? (ambiente.usuario()?.nome ?? '') : base!.seller_name),
       payment_terms: terms,
       discount_pct: discountPct,
-      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}) })),
+      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}) })),
       subtotal_cents: subtotal,
       discount_cents: discount,
       total_cents: total,

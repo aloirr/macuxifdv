@@ -112,6 +112,8 @@ describe('novo pedido de distribuidora no aparelho (T-0061)', () => {
     expect(display.total_cents).toBe(27_600);
     expect(display.units).toBe(26);
     expect(display.lines[1]).toMatchObject({ unit_label: 'CX c/ 12', quantity: 2 });
+    // PDF interno: cada item leva o próprio desconto, não o do pedido
+    expect(display.lines.map((l) => l.discount_pct)).toEqual([0, 10, 0]);
   });
 
   it('RN-VEN-16: FOB sem transportadora bloqueia o envio no aparelho com a mensagem do desenho', () => {

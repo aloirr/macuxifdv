@@ -96,7 +96,7 @@ describe('RN-VEN-15: CX × UN pelo fator', () => {
 
 const T = (itens: ItemParaPreco[], pedido: { desconto_pct?: number; acrescimo_pct?: number } = {}) =>
   totaisDoPedido(
-    itens.map((i) => precoDoItem(i)).map((p, idx) => ({ preco_tabela_cents: p.preco_tabela_cents, quantidade: itens[idx]!.quantidade, total_cents: p.total_cents })),
+    itens.map((i) => precoDoItem(i)).map((p, idx) => ({ preco_tabela_cents: p.preco_tabela_cents, quantidade: itens[idx]!.quantidade, total_cents: p.total_cents, desconto_pct: itens[idx]!.desconto_pct, acrescimo_pct: itens[idx]!.acrescimo_pct })),
     { desconto_pct: pedido.desconto_pct ?? 0, acrescimo_pct: pedido.acrescimo_pct ?? 0 },
   );
 
@@ -149,6 +149,19 @@ describe('RN-VEN-10: alçada olha só o desconto efetivo', () => {
     const t = T([item({ preco_tabela_unidade_cents: 1000, desconto_pct: 30 }), item({ preco_tabela_unidade_cents: 5000 })]);
     expect(t.desconto_efetivo_pct).toBe(5);
     expect(nivelDeAprovacao(t.desconto_efetivo_pct, policy)).toBeNull();
+  });
+  it('RN-VEN-10: 40 linhas de R$ 2,50 com 5,4% no pedido → efetivo da alçada 5,4% (sem folga de centavo) → supervisor', () => {
+    const t = T(Array.from({ length: 40 }, () => item({ preco_tabela_unidade_cents: 250 })), { desconto_pct: 5.4 });
+    expect(t.desconto_efetivo_alcada_pct).toBe(5.4);
+    expect(nivelDeAprovacao(t.desconto_efetivo_alcada_pct, policy)).toBe('supervisor');
+  });
+  it('RN-VEN-10: o efetivo da alçada combina item e pedido pelo valor exato (30% em 1000 + 5000 sem ajuste)', () => {
+    const t = T([item({ preco_tabela_unidade_cents: 1000, desconto_pct: 30 }), item({ preco_tabela_unidade_cents: 5000 })]);
+    expect(t.desconto_efetivo_alcada_pct).toBe(5);
+    expect(nivelDeAprovacao(t.desconto_efetivo_alcada_pct, policy)).toBeNull();
+  });
+  it('RN-VEN-10: acréscimo líquido dá alçada 0 (nunca negativa)', () => {
+    expect(T([item()], { acrescimo_pct: 5 }).desconto_efetivo_alcada_pct).toBe(0);
   });
   it('RN-VEN-10: acima de 5% vai ao supervisor, até 10%', () => {
     expect(nivelDeAprovacao(5.01, policy)).toBe('supervisor');

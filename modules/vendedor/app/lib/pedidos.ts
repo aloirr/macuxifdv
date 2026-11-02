@@ -59,6 +59,9 @@ export interface OrderLineDisplay {
   total_cents: number;
   /** T-0061: medida vendida (ex.: "CX c/ 12"); ausente = unidade base */
   unit_label?: string;
+  /** T-0061: desconto OU acréscimo do ITEM (PDF interno); ausente em itens antigos da fila */
+  discount_pct?: number;
+  surcharge_pct?: number;
 }
 
 /** Resumo guardado junto do item da fila (a fila genérica só tem o `CreateOrderRequest`). */
@@ -168,6 +171,8 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
       unit_price_cents: l.preco_tabela_cents,
       total_cents: l.total_cents,
       ...(l.unidade ? { unit_label: rotuloDaLinha(l.unidade_sigla, l.fator) } : {}),
+      discount_pct: l.desconto_pct,
+      ...(l.acrescimo_pct > 0 ? { surcharge_pct: l.acrescimo_pct } : {}),
     })),
     expected: v.outcome === 'pending_approval' ? 'pending_approval' : 'ok',
     notes: v.issues.map((i) => i.message),
