@@ -3,8 +3,11 @@
 ## Antes do dia
 - Docker Desktop instalado; `pnpm install` na raiz.
 - No celular, os APKs de preview:
-  - **APKs com domínio fixo (T-0038)**: ainda não gerados; os links entram aqui assim que saírem. Eles já vêm com `https://api-demo.macuxifdv.com.br/v1` e não pedem endereço.
-  - APKs atuais, com o pedido completo e o campo Servidor (commit 8cf1021):
+  - **APKs com domínio fixo (T-0038, commit 0af7c1c; links válidos até 2026-11-15; instale por cima dos anteriores)**. Já vêm com `https://api-demo.macuxifdv.com.br/v1` e não pedem endereço:
+    - Macuxi Campo: https://expo.dev/artifacts/eas/-j2R1plt2fqk25BX9CUV6aJfA4dW-W7RmaIGbRkU9JM.apk
+    - Macuxi Gestão: https://expo.dev/artifacts/eas/85bpIEGyrlCzhwxIusKIaFS9xbBzBtMIFWzDnwLIA00.apk
+    - Enquanto o "Uma vez só" não estiver feito, eles mostram "Servidor indisponível — tente mais tarde" (esperado).
+  - APKs anteriores, com o campo Servidor (commit 8cf1021), só se precisar de um endereço diferente:
     - Macuxi Campo: https://expo.dev/artifacts/eas/anwJjMiIGmI7LStvx08GO99bXMmuLljTwqxQ9fjAxyg.apk
     - Macuxi Gestão: https://expo.dev/artifacts/eas/gjm--rEMuK31MOc1MRNEuuDNCGvczjRpPyc8o1Ms2xg.apk
     - Neles, digite `https://api-demo.macuxifdv.com.br/v1` em Servidor → Testar e salvar (ou o endereço do túnel rápido).

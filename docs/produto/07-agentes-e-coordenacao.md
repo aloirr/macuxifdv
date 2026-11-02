@@ -107,6 +107,13 @@ criado_em: 2026-10-31T14:05:12-04:00
 
 **Numeração de tarefa**: antes de abrir uma tarefa, o gerente lê a própria caixa, porque o Alexandre pode ter reservado números para a nuvem, e confere o maior T-nnnn em `.coord/tarefas/` e no `git log` do `main`. Números reservados pelo Alexandre não são usados para outra coisa.
 
+**Quem faz o merge** (R-20261101-203953; guardião v5, T-0044):
+- **PR comum** (não toca caminho de governança), com o CI do PR e o do `main` verdes: a **própria sessão da nuvem** faz o merge (squash, `--subject` sem a marca, trailer do dono). Se o main estiver vermelho, ela marca "[PRONTO PARA MERGE]" e para; o gerente faz o merge pela regra A quando o main voltar a ficar verde.
+- **PR de governança**: nunca a sessão. Vale sempre o rito com a autorização do Alexandre (abaixo).
+- O guardião v5 controla só o `gh pr merge` rodado pelo Claude Code local. Ele passa apenas na sessão principal do gerente, com o comando exato (`-R aloirr/macuxifdv`, `--squash`, `--match-head-commit <sha>`, sem `--admin`/`--auto`) e o head conferido no GitHub. Se o `gh` não responder, o merge fica bloqueado (falha fechada). Na nuvem, o gerente só passa com `MACUXI_AGENTE=gerente-projetos`.
+- PR de governança exige, na caixa do gerente, um recado `R-...-alexandre.md` com `de: alexandre` e a frase "autorizo o merge do PR #N no commit <sha>", com o mesmo N e SHA. Nenhum agente cria recado em nome do Alexandre (o guardião barra).
+- Depois que a T-0049 entrar, o CI do main fica vermelho se um commit mexer em governança sem `Agente: alexandre`.
+
 **Merge pelo gerente de PR pronto que não é de governança** (decisão do Alexandre, R-20261101-165024): vale para PR da nuvem marcado "[PRONTO PARA MERGE]" que não toca `.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs` nem `.github/**`. Com o CI do `main` verde, o gerente confere três coisas:
 - o CI do PR está verde (com o main já mesclado no branch, se o GitHub exigir);
 - o head SHA é o do momento da marcação;
@@ -132,7 +139,7 @@ Com tudo conferido, executa `gh pr merge N -R aloirr/macuxifdv --squash --match-
 
 **Recados da nuvem**: recado criado por uma sessão da nuvem sai com o remetente (`--de`) igual ao agente do trailer `Agente:` do commit (exigência do CI desde o PR #4).
 
-**GitHub CLI (`gh`)**: o gerente-projetos acompanha CI e PRs pelo `gh` (`gh auth status`, `gh run list --limit 5`, `gh run view <id> --log-failed`, `gh pr list`), em vez de pedir ao Alexandre para abrir o navegador. Sem pedido do Alexandre, o `gh` **não** é usado para merge, fechar PR, apagar branch ou mudar configuração do repositório.
+**GitHub CLI (`gh`)**: o gerente-projetos acompanha CI e PRs pelo `gh` (`gh auth status`, `gh run list --limit 5`, `gh run view <id> --log-failed`, `gh pr list`), em vez de pedir ao Alexandre para abrir o navegador. O `gh pr merge` segue as regras de "Quem faz o merge" acima e passa pelo guardião v5. Sem pedido do Alexandre, o `gh` **não** é usado para fechar PR, apagar branch ou mudar configuração do repositório.
 
 **3. Git automático** (executado pelo gerente-projetos, sem pedir confirmação; os demais agentes não fazem commit)
 - **Início de cada rodada**: `git pull --no-rebase origin main`. Se vieram commits da nuvem: `pnpm install`, registrar a entrega no quadro e na tarefa, destravar os caminhos e mandar recado de revisão ao dono do caminho.
