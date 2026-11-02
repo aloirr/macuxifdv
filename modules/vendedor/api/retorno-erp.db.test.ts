@@ -2,9 +2,10 @@
  * Retorno do ERP × Postgres real (fixture dois-tenants, papel macuxi_app, RLS) — T-0054: o repositório Postgres
  * (`repositorioRetornoErpPg`), o pull e o detalhe com as colunas do faturamento.
  *
- * A migração do faturamento é do banco-dados (pedido por recado, T-0054). Enquanto ela não está no `main`, este teste
- * aplica a DDL PROPOSTA (abaixo, a mesma de docs/modulos/vendedor/retorno-erp.md) SÓ no banco efêmero do teste e só se
- * as tabelas não existirem; quando a migração chegar, o teste passa a validar a migração real (se divergir, falha aqui).
+ * A migração do faturamento é do banco-dados (pedido por recado, T-0054). Enquanto ela não está no `main`, o setup
+ * `api/teste/ddl-proposta.ts` aplica a DDL PROPOSTA (a mesma de docs/modulos/vendedor/retorno-erp.md) SÓ no banco
+ * efêmero do teste, antes de qualquer arquivo consultar o banco; quando a migração chegar, o teste passa a validar a
+ * migração real (se divergir, falha aqui).
  * Pula sem Postgres; com MACUXI_PG_EXIGIR=1 falha. Relógio: o do banco (`select now()`), lido uma vez.
  */
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
@@ -25,58 +26,6 @@ const PED = id(1);
 const PED2 = id(2);
 const P1 = id(11);
 const P2 = id(12);
-
-/** DDL PROPOSTA ao banco-dados (T-0054). Só roda se a migração ainda não criou as tabelas. */
-const DDL_PROPOSTA = `
-alter table vendedor.pedido add column if not exists faturado_cents bigint not null default 0 check (faturado_cents >= 0);
-alter table vendedor.pedido add column if not exists devolvido_cents bigint not null default 0 check (devolvido_cents >= 0);
-alter table vendedor.pedido add column if not exists notas_faturamento integer not null default 0 check (notas_faturamento >= 0);
-alter table vendedor.pedido add column if not exists ultima_nota_numero text;
-alter table vendedor.pedido add column if not exists faturado_em timestamptz;
-alter table vendedor.pedido_item add column if not exists quantidade_faturada integer not null default 0 check (quantidade_faturada >= 0);
-
-create table vendedor.pedido_faturamento (
-  id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references plataforma.tenant (id),
-  pedido_id uuid not null,
-  evento_origem_id uuid not null,
-  status_retorno text not null check (status_retorno in ('faturado_parcial', 'faturado_total')),
-  parcial boolean not null,
-  nota_numero text, nota_serie text, nota_emitida_em timestamptz,
-  nota_total_cents bigint check (nota_total_cents is null or nota_total_cents >= 0),
-  faturado_em timestamptz not null,
-  itens jsonb not null default '[]' check (jsonb_typeof(itens) = 'array'),
-  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), deleted_at timestamptz, external_id text,
-  constraint pedido_faturamento_pedido_fk foreign key (tenant_id, pedido_id) references vendedor.pedido (tenant_id, id),
-  constraint pedido_faturamento_evento_uk unique (tenant_id, evento_origem_id)
-);
-create index pedido_faturamento_pedido_ix on vendedor.pedido_faturamento (tenant_id, pedido_id, faturado_em);
-create trigger pedido_faturamento_updated_at before update on vendedor.pedido_faturamento for each row execute function plataforma.definir_updated_at();
-alter table vendedor.pedido_faturamento enable row level security;
-alter table vendedor.pedido_faturamento force row level security;
-create policy isolamento_tenant on vendedor.pedido_faturamento for all to macuxi_app
-  using (tenant_id = plataforma.tenant_atual()) with check (tenant_id = plataforma.tenant_atual());
-grant select, insert on vendedor.pedido_faturamento to macuxi_app;
-
-create table vendedor.pedido_devolucao (
-  id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references plataforma.tenant (id),
-  pedido_id uuid not null,
-  nota_numero text not null, nota_serie text, emitida_em timestamptz not null,
-  total_cents bigint not null check (total_cents >= 0),
-  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), deleted_at timestamptz,
-  external_id text not null,
-  constraint pedido_devolucao_pedido_fk foreign key (tenant_id, pedido_id) references vendedor.pedido (tenant_id, id)
-);
-create unique index pedido_devolucao_external_uk on vendedor.pedido_devolucao (tenant_id, external_id) where deleted_at is null;
-create index pedido_devolucao_pedido_ix on vendedor.pedido_devolucao (tenant_id, pedido_id);
-create trigger pedido_devolucao_updated_at before update on vendedor.pedido_devolucao for each row execute function plataforma.definir_updated_at();
-alter table vendedor.pedido_devolucao enable row level security;
-alter table vendedor.pedido_devolucao force row level security;
-create policy isolamento_tenant on vendedor.pedido_devolucao for all to macuxi_app
-  using (tenant_id = plataforma.tenant_atual()) with check (tenant_id = plataforma.tenant_atual());
-grant select, insert, update on vendedor.pedido_devolucao to macuxi_app;
-`;
 
 describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e devolução (T-0054)', () => {
   let pool: pg.Pool;
@@ -127,8 +76,6 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     admin = new pg.Client({ connectionString: banco().urlAdmin });
     await admin.connect();
     AGORA = (await admin.query<{ agora: Date }>('select now() as agora')).rows[0]!.agora;
-    const existe = (await admin.query<{ t: string | null }>("select to_regclass('vendedor.pedido_faturamento')::text as t")).rows[0]!.t;
-    if (!existe) await admin.query(DDL_PROPOSTA);
     await limpar();
   });
   afterAll(async () => {

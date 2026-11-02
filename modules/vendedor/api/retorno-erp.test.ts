@@ -252,3 +252,11 @@ describe('consumidores (ADR 0007) e manifesto', () => {
     expect(banco.devolucoes).toEqual([expect.objectContaining({ external_id: 'NF-D-9', pedido_id: PED, total_cents: 500, numero: 'D9' })]);
   });
 });
+
+describe('apiVendedor (T-0054)', () => {
+  it('ADR 0007: o apiVendedor registra os consumidores do retorno (vazios até a migração) e a definição do módulo é válida', async () => {
+    const { apiVendedor } = await import('./index');
+    expect(apiVendedor.consumidores).toBe(consumidoresVendedor);
+    for (const c of apiVendedor.consumidores ?? []) expect(manifest.consome).toContain(c.evento.nome);
+  });
+});

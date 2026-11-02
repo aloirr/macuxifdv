@@ -30,5 +30,8 @@ Promotor: 403 `RN-PRO-01` em toda escrita; leitura só da carteira. Vendedor e a
 - **BKO**: Pedidos (filtros na URL, cursor, atualização a cada 10 s, painel "Aguardando aprovação", gaveta com itens, histórico e PDF pelo diálogo de impressão) e Alçadas (limites em leitura e decisões recentes pela auditoria).
 - PDF: gerador único em `domain/pdf-pedido.ts` (versão cliente sem nenhum `%`; versão interna com tabela, desconto, alçada e histórico).
 
+## Retorno do ERP (T-0054)
+Status pelo retorno do ERP, faturado@1, faturado e devolução nas telas: ver `retorno-erp.md`.
+
 ## Fora da fatia (backlog)
 Envio ao ERP, crédito e título vencido no servidor, estoque, preço mínimo, desconto por item, orçamento, pedido em nome, edição de pedido aceito, notificação ao vendedor e ao supervisor, edição de alçadas pelo BKO, prazo da aprovação (fila do Gestor).
