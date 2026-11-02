@@ -193,8 +193,6 @@ export const OrderListQuery = z.object({
   limit: z.coerce.number().int().optional(),
   /** busca por cliente ou número (T-0029 §3.3) */
   q: z.string().max(100).optional(),
-  /** T-0053: `pedido` (padrão quando a pré-venda está ligada) ou `orcamento` */
-  tipo: z.enum(TIPOS_DOCUMENTO).optional(),
   cursor: z.string().optional(),
   limite: z.coerce.number().int().min(1).max(200).optional(),
 });

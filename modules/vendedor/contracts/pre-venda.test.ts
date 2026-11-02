@@ -2,7 +2,7 @@
  * T-0053: contratos da pré-venda e do retorno do ERP consumido pelo Vendedor.
  */
 import { describe, expect, it } from 'vitest';
-import { CODIGOS_RECUSA_PEDIDO, EVENTO_RETORNO_ERP_CONSUMIDO, OrderListQuery, PedidoPush, PedidoSyncSchema, RetornoErpConsumido } from './index';
+import { CODIGOS_RECUSA_PEDIDO, EVENTO_RETORNO_ERP_CONSUMIDO, PedidoPush, PedidoSyncSchema, RetornoErpConsumido } from './index';
 
 const UUID = '3f2b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b';
 
@@ -47,11 +47,6 @@ describe('T-0053: push e pull com pré-venda (RF-VEN-03)', () => {
 
   it('códigos novos de recusa da pré-venda', () => {
     expect(CODIGOS_RECUSA_PEDIDO).toEqual(expect.arrayContaining(['RN-VEN-32', 'ORCAMENTO_NAO_ENCONTRADO', 'ORCAMENTO_JA_CONVERTIDO', 'PRE_VENDA_INDISPONIVEL']));
-  });
-
-  it('lista filtra por tipo', () => {
-    expect(OrderListQuery.parse({ tipo: 'orcamento' }).tipo).toBe('orcamento');
-    expect(OrderListQuery.safeParse({ tipo: 'x' }).success).toBe(false);
   });
 
   it('linha do pull: colunas da 0013 opcionais (linha antiga continua válida)', () => {
