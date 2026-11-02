@@ -3,7 +3,7 @@
  *
  * Monta, para cada módulo instalado (`MODULOS_API`), as rotas declaradas em `definirModuloApi` sob
  * `/v1/<modulo>/<caminho>`; as rotas públicas do Core sob `/v1/<caminho>`; e as rotas da plataforma:
- * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/pull`, `POST /v1/sync/push`, `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
+ * `GET /v1/saude`, `GET /v1/me/modulos`, `GET /v1/sync/novidades` (RN-CORE-23), `GET /v1/sync/pull`, `POST /v1/sync/push`, `PUT|GET /v1/arquivos/:id` (ADR 0010) e `GET /v1/auditoria` (RN-AUD-01).
  *
  * Toda rota autenticada passa por `prepararRequisicao` (401 → licença 403 MODULO_INATIVO → perfil/ação
  * 403 PERFIL_SEM_ACESSO → Zod 400 → carteira 403 FORA_DA_CARTEIRA). Os módulos efetivos são calculados
@@ -19,9 +19,9 @@
  * JSON com mais de `MAX_ELEMENTOS_CORPO` elementos de array (somados, em qualquer profundidade) é recusado com 413
  * ANTES de qualquer schema, e a resposta 400 lista no máximo `MAX_PROBLEMAS_RESPOSTA` problemas.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { erroModuloInativo, MeusModulosRespostaSchema, ROTA_ME_MODULOS, type MeusModulosResposta } from '@macuxi/core/contracts';
+import { erroModuloInativo, ROTA_ME_MODULOS } from '@macuxi/core/contracts';
 import {
   consultasSemImplementacao,
   corpoDoErro,
@@ -65,6 +65,7 @@ import { registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
 import { registrarSync } from './sync';
+import { respostaMeusModulos } from './me-modulos';
 import type { Plataforma } from './tipos';
 import { ErroHttp } from './erros';
 
@@ -134,11 +135,6 @@ function validar<S extends ZodTypeAny>(schema: S | undefined, valor: unknown, on
     });
   }
   return r.data;
-}
-
-/** `versao_licencas`: muda quando a lista efetiva, as versões ou os parâmetros mudam (RN-CORE-02 no app). */
-function versaoLicencas(r: Pick<MeusModulosResposta, 'modulos'>): string {
-  return createHash('sha256').update(JSON.stringify(r.modulos)).digest('hex').slice(0, 16);
 }
 
 export function createApp(op: OpcoesApp = {}): FastifyInstance {
@@ -269,9 +265,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   app.get(ROTA_ME_MODULOS, async (req) => {
     const { ctx, licencas } = await preparar(req, 'core');
-    const porManifesto = new Map(manifestos.map((m) => [m.id, m] as const));
-    const lista = ctx.usuario.modulos.map((id) => ({ id, versao: porManifesto.get(id)!.versao, parametros: licencas.parametros[id] ?? {} }));
-    return MeusModulosRespostaSchema.parse({ modulos: lista, versao_licencas: versaoLicencas({ modulos: lista }), calculado_em: relogio().toISOString() });
+    return respostaMeusModulos(manifestos, ctx.usuario.modulos, licencas.parametros, relogio());
   });
 
   registrarSync(app, plataforma);
