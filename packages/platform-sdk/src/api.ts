@@ -265,10 +265,29 @@ export interface ContextoConsumo {
   db: ClienteBanco;
   /** Publica evento do módulo consumidor (`publica` do manifesto) na mesma transação, com o `request_id` do original. */
   publicar: TransacaoTenant['publicar'];
+  /**
+   * ADR 0012 (T-0060, RN-INT-14): consulta a outro módulo NA MESMA transação do consumo (tenant do envelope, RLS,
+   * macuxi_app). Mesma semântica de `tx.consultar`: só consultas em `usaConsultas` do manifesto do módulo CONSUMIDOR
+   * (fora disso = erro de programação); entrada e saída validadas pelo contrato; dono não instalado ou inativo no
+   * tenant → `ConsultaIndisponivel` (se não tratada, o consumo falha e o evento volta com espera crescente).
+   * Não há pessoa: a implementação recebe o usuário de sistema (`USUARIO_SISTEMA_ID`, perfil `admin`, módulos efetivos
+   * do tenant), os parâmetros do tenant para o módulo DONO e o `request_id` do evento original.
+   */
+  consultar: TransacaoTenant['consultar'];
+  /** Parâmetros do tenant para o módulo consumidor (`plataforma.parametro`, lidos com as licenças do tenant). */
+  parametros(): Readonly<Record<string, unknown>>;
+  /** Fuso IANA do tenant (RN-CORE-11); ausente ou inválido = `America/Manaus`. Nunca lança. */
+  fuso(): string;
   agora(): Date;
   /** Logger com tenant_id, modulo, evento e evento_id (nunca registre dado pessoal nem o payload). */
   log: LogRota;
 }
+
+/**
+ * Id do usuário de sistema que a implementação de uma consulta (`ContextoConsulta.usuario.id`) recebe quando quem
+ * consulta é um consumidor de evento (não há pessoa). Nunca existe em `core.usuario`; não grave como autor.
+ */
+export const USUARIO_SISTEMA_ID = '00000000-0000-0000-0000-000000000000';
 
 /**
  * Assinatura de evento na API (`ModuloApi.consumidores`; ADR 0007). Só eventos em `consome` do manifesto; um consumidor

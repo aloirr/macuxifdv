@@ -9,7 +9,8 @@
  *      `for update` o handler esperaria o lote e o lote o handler);
  *      só eventos com algum consumidor instalado — os outros ficam pendentes e um consumidor que chegar depois recebe o
  *      histórico (a outbox acumula e nada é perdido);
- *   2. consumidor sem o módulo ativo no tenant (licença, RN-CORE-02/03) não recebe;
+ *   2. consumidor sem o módulo ativo no tenant (licença, RN-CORE-02/03) não recebe; licenças, parâmetros e fuso do
+ *      tenant são lidos uma vez por ciclo (`plataforma.tenant_modulo`, `parametro`, `tenant.fuso`);
  *   3. o handler roda com `macuxi_app` em `comTenant(tenant do envelope)` e, na MESMA transação, grava
  *      `plataforma.evento_consumo (consumidor, evento_id)` com `on conflict do nothing`: reentrega não repete o efeito,
  *      e um handler que falha desfaz o efeito e o registro juntos;
@@ -18,23 +19,28 @@
  *      sai do lote e os outros (de qualquer tenant) seguem. Com `tentativas >= maxTentativas` o evento para (fica
  *      pendente para análise; para reprocessar, zere `tentativas` como administrador).
  * A ordem entre eventos não é garantida quando há retentativa: o consumidor usa `envelope.ocorrido_em`.
+ * `ctx.consultar` (ADR 0012; T-0060): consulta a outro módulo na transação do consumo, só as `usaConsultas` do módulo
+ * consumidor; a implementação recebe o usuário de sistema (`USUARIO_SISTEMA_ID`, perfil admin, efetivos do tenant).
  * A espera fica na memória do processo (reiniciar tenta logo de novo uma vez; vários processos não compartilham a espera).
  * Logs: tenant_id, modulo, evento, evento_id, request_id, tentativas; nunca o payload (dado pessoal fica no banco).
  */
 import { PAPEL_WORKER } from '@macuxi/db';
 import {
-  ehModulo,
+  fusoDoTenantOuPadrao,
   modulosEfetivos,
+  USUARIO_SISTEMA_ID,
   type AcessoBanco,
   type ConsumidorEvento,
   type EnvelopeEvento,
   type LogRota,
   type ModuloApi,
   type ModuloId,
+  type UsuarioDaRequisicao,
 } from '@macuxi/platform-sdk';
 import type pg from 'pg';
 import { ErroPapelBanco } from './banco';
-import { publicadorTenant } from './outbox';
+import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
+import { publicadorTenant, registroDeConsultas, transacaoTenant } from './outbox';
 
 export interface OpcoesDespachante {
   /** Pool com o papel `macuxi_worker` (lê e marca a outbox de todos os tenants; não enxerga mais nada). */
@@ -43,8 +49,11 @@ export interface OpcoesDespachante {
   app: AcessoBanco;
   /** Módulos instalados (padrão do processo: `MODULOS_API`). */
   modulos: readonly ModuloApi[];
-  /** Módulos ativos no tenant (padrão: `plataforma.tenant_modulo`); as dependências (RN-CORE-03) são aplicadas aqui. */
-  ativosNoTenant?: (tenantId: string) => Promise<readonly ModuloId[]>;
+  /**
+   * Licenças do tenant (padrão: `licencasDoTenantNoBanco`: `plataforma.tenant_modulo`, `parametro` e `tenant.fuso`);
+   * as dependências (RN-CORE-03) são aplicadas aqui. Os parâmetros e o fuso chegam ao consumidor e às consultas.
+   */
+  licencasNoTenant?: (tenantId: string) => Promise<LicencasTenant>;
   agora?: () => Date;
   /** Eventos por ciclo (padrão 20). Os handlers rodam em sequência enquanto o lote fica travado. */
   lote?: number;
@@ -108,6 +117,15 @@ interface Assinatura {
   consumidor: ConsumidorEvento;
 }
 
+/** Licenças, parâmetros e fuso de um tenant, lidos uma vez por ciclo. */
+interface TenantDoCiclo {
+  efetivos: ReadonlySet<ModuloId>;
+  /** Usuário de sistema das consultas feitas pelo consumidor (ADR 0012). */
+  sistema: UsuarioDaRequisicao;
+  parametros: (modulo: ModuloId) => Readonly<Record<string, unknown>>;
+  fuso: string;
+}
+
 const mensagemDe = (e: unknown): string => (e instanceof Error ? `${e.name}: ${e.message}` : String(e)).slice(0, MAX_ERRO);
 
 /** Falha fechada na subida: a conexão do despachante tem de ser o `macuxi_worker`, sem SUPERUSER nem BYPASSRLS. */
@@ -140,29 +158,31 @@ export function criarDespachante(op: OpcoesDespachante) {
   }
   const nomes = [...porEvento.keys()];
 
-  const ativosDoBanco = (tenantId: string) =>
-    op.app.comTenant(tenantId, async (db) =>
-      (await db.query<{ modulo: string }>('select modulo from plataforma.tenant_modulo where ativo and deleted_at is null')).rows
-        .map((l) => l.modulo)
-        .filter(ehModulo),
-    );
-  const fonteAtivos = op.ativosNoTenant ?? ativosDoBanco;
+  const fonteLicencas = op.licencasNoTenant ?? ((tenantId: string) => licencasDoTenantNoBanco(tenantId, op.app));
+  const consultas = registroDeConsultas(op.modulos);
 
   /** evento_id → instante (ms) antes do qual não tenta de novo. */
   const emEspera = new Map<string, number>();
 
-  async function efetivosNoTenant(tenantId: string): Promise<ReadonlySet<ModuloId>> {
-    const ativos = await fonteAtivos(tenantId);
+  async function tenantDoCiclo(tenantId: string): Promise<TenantDoCiclo> {
+    const l = await fonteLicencas(tenantId);
     // licença no nível do tenant: ativos ∩ instalados, menos quem perdeu dependência (RN-CORE-03); core sempre ativo
-    return new Set(modulosEfetivos({ manifestos, ativosNoTenant: ativos, doPerfil: instalados }));
+    const efetivos = modulosEfetivos({ manifestos, ativosNoTenant: l.ativosNoTenant, doPerfil: instalados });
+    return {
+      efetivos: new Set(efetivos),
+      // ADR 0012: não há pessoa no consumo; a consulta enxerga o tenant inteiro (o consumidor já enxerga, pelo RLS)
+      sistema: { id: USUARIO_SISTEMA_ID, tenant_id: tenantId, perfil: 'admin', modulos: efetivos },
+      parametros: (m) => l.parametros[m] ?? {},
+      fuso: fusoDoTenantOuPadrao(l.fuso),
+    };
   }
 
   /** Entrega a todos os consumidores ativos; devolve as falhas e quantos handlers rodaram agora. */
-  async function entregar(env: EnvelopeEvento, efetivos: ReadonlySet<ModuloId>): Promise<{ falhas: string[]; entregas: number }> {
+  async function entregar(env: EnvelopeEvento, t: TenantDoCiclo): Promise<{ falhas: string[]; entregas: number }> {
     const falhas: string[] = [];
     let entregas = 0;
     for (const a of porEvento.get(env.nome) ?? []) {
-      if (!efetivos.has(a.modulo)) continue;
+      if (!t.efetivos.has(a.modulo)) continue;
       const campos = { tenant_id: env.tenant_id, modulo: a.modulo, evento: env.nome, evento_id: env.evento_id, request_id: env.request_id };
       const logConsumidor: LogRota = {
         info: (o, msg) => log.info({ ...campos, ...o }, msg),
@@ -179,17 +199,22 @@ export function criarDespachante(op: OpcoesDespachante) {
           );
           if (!r.rowCount) return false;
           const payload: unknown = a.consumidor.evento.schema.parse(env.payload);
+          const origem = { manifestos, modulo: a.modulo, tenantId: env.tenant_id, usuarioId: env.usuario_id, agora: relogio };
           await a.consumidor.executar(payload, {
             envelope: { ...env, payload },
             db,
-            publicar: publicadorTenant(db, {
-              manifestos,
-              modulo: a.modulo,
-              tenantId: env.tenant_id,
-              usuarioId: env.usuario_id,
-              requestId: env.request_id,
-              agora: relogio,
-            }),
+            publicar: publicadorTenant(db, { ...origem, requestId: env.request_id }),
+            // mesma transação do consumo; sem request_id no envelope, o rastreio da consulta usa o id do evento
+            consultar: transacaoTenant(db, {
+              ...origem,
+              requestId: env.request_id ?? env.evento_id,
+              usuario: t.sistema,
+              consultas,
+              parametros: t.parametros,
+              log: logConsumidor,
+            }).consultar,
+            parametros: () => t.parametros(a.modulo),
+            fuso: () => t.fuso,
             agora: relogio,
             log: logConsumidor,
           });
@@ -216,7 +241,7 @@ export function criarDespachante(op: OpcoesDespachante) {
       await c.query('begin');
       const linhas = (await c.query<LinhaEvento>(SQL_LOTE, [nomes, maxTentativas, [...emEspera.keys()], lote])).rows;
       resumo.lidos = linhas.length;
-      const efetivosPorTenant = new Map<string, ReadonlySet<ModuloId>>();
+      const tenantsDoCiclo = new Map<string, TenantDoCiclo>();
       for (const l of linhas) {
         const env: EnvelopeEvento = {
           evento_id: l.id,
@@ -230,12 +255,12 @@ export function criarDespachante(op: OpcoesDespachante) {
         };
         let falhas: string[];
         try {
-          let efetivos = efetivosPorTenant.get(l.tenant_id);
-          if (!efetivos) {
-            efetivos = await efetivosNoTenant(l.tenant_id);
-            efetivosPorTenant.set(l.tenant_id, efetivos);
+          let t = tenantsDoCiclo.get(l.tenant_id);
+          if (!t) {
+            t = await tenantDoCiclo(l.tenant_id);
+            tenantsDoCiclo.set(l.tenant_id, t);
           }
-          const r = await entregar(env, efetivos);
+          const r = await entregar(env, t);
           falhas = r.falhas;
           resumo.entregas += r.entregas;
         } catch (e) {
