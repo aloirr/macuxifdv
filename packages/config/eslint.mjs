@@ -5,6 +5,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import { ARQUIVOS_DE_TESTE, pluginMacuxi } from './regras/hora-fixa.mjs';
 
 export const macuxiEslint = tseslint.config(
   {
@@ -39,6 +40,13 @@ export const macuxiEslint = tseslint.config(
         },
       ],
     },
+  },
+  {
+    // T-0043 (ADR 0015): teste não mistura instante fixo com o relógio real. AVISO até virar erro (data no ADR);
+    // exceção pontual com `// hora-fixa-ok: <motivo>`.
+    files: ARQUIVOS_DE_TESTE,
+    plugins: { macuxi: pluginMacuxi },
+    rules: { 'macuxi/hora-fixa-em-teste': 'warn' },
   },
 );
 

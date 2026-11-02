@@ -57,3 +57,7 @@
   - Sugestão de `ordem` do engenheiro-apps: Equipe 10, Aprovações 20, Pedidos e Loja 40, Catálogo 60. A barra mostra no máximo 5 abas; as demais vão para "Mais".
 - **Revisão das telas da T-0029** (engenheiro-apps, R-20261101-155135): 16 🟡 e 12 🟢 ao modulo-vendedor, para a próxima passada dele.
 - **Catálogo — cota de IA atômica** (T-0041): incremento condicional por tenant, usuário e dia no fuso do tenant (banco-dados); campo `ia_timeout_ms` em `ParametrosCatalogo` (engenheiro-software).
+- **Lint `macuxi/hora-fixa-em-teste` vira ERRO em 2026-11-16** (T-0043, R-20261101-200740). Até lá, cada dono corrige os avisos dele: banco 15, engenheiro 10, integração 10, core 7, testes 6, vendedor 3. Tarefa de virar a chave no dia 16: engenheiro-software.
+- **Job de CI com relógio deslocado** (23:59/01:30 de Manaus, fim de mês, virada de ano; `tests/scripts/relogio-deslocado.cjs`): local, governança (.github), depois da T-0049.
+- **Riscos do guardião v5** (PR #31): proteger o merge feito pelo MCP do GitHub (hook ou proteção do `main`); o CI barrar recado de autorização vindo de PR da nuvem (fica na T-0049 b).
+- **Guardião v5 e o PATH do gh**: o hook falha fechado se o `gh` não estiver no PATH do processo (C:\Program Files\GitHub CLI). Procurar o gh no caminho padrão ou documentar o PATH.

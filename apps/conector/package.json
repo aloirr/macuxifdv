@@ -1,6 +1,6 @@
 {
   "name": "@macuxi/conector",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24.7" },

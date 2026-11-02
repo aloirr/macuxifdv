@@ -116,6 +116,7 @@ describe('rotação e retenção de logs', () => {
     expect(arquivos.length).toBeLessThanOrEqual(3);
 
     writeFileSync(join(dir, 'conector-2026-01-01.log'), 'velho');
+    // hora-fixa-ok: mtime recente de propósito — a retenção vale pela data do NOME do arquivo, não pelo mtime do sistema
     utimesSync(join(dir, 'conector-2026-01-01.log'), new Date(), new Date());
     t = Date.parse('2026-03-11T12:00:00Z');
     log.info('novo_dia');

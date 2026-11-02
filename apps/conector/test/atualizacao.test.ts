@@ -145,6 +145,7 @@ describe('atualização v1: política de versão do Hub (mínima e recomendada) 
     );
     const { Armazenamento } = await import('../src/armazenamento/armazenamento');
     const store = Armazenamento.abrir(join(dir, 'dados', 'fila.sqlite'));
+    // hora-fixa-ok: instante de recebimento da política, só informativo (a CLI roda no relógio real e não o compara)
     guardarPolitica(store, politica('99.0.0', '99.1.0'), Date.now());
     store.fechar();
     const saidas: string[] = [];

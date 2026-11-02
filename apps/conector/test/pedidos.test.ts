@@ -339,3 +339,140 @@ describe('status do pedido por nota', () => {
     expect(r.map((x) => [x.status, x.nota?.numero])).toEqual([['integrado', undefined], ['faturado_parcial', '501'], ['faturado_total', '502']]);
   });
 });
+
+/**
+ * T-0048 (🔴 da revisão final da T-0023): o status do ERP é do PEDIDO. Quando o ERP fecha um pedido parcial SEM nota nova (corte
+ * do saldo), a última nota já enviada como `faturado_parcial` vira a "última nota" com status `faturado_total`. Esse fechamento
+ * vai com a identificação da nota já enviada (o Hub reconhece a repetição pela nota, RN-INT-08 emenda P-4) e SEM `itens_faturados`:
+ * itens de uma nota saem uma única vez, senão o Hub os somaria de novo.
+ */
+describe('RN-INT-08: a mesma nota nunca sai duas vezes com itens (T-0048)', () => {
+  type Ret = { status: string; nota?: { numero: string; serie?: string }; itens_faturados?: { sequencia: number; quantidade: number; valor_cents: number }[] };
+  const retornos = () => amb.hub.retornos as Ret[];
+  const linhaNota = (status: string, numero: string, dia: string, total: number) => ({
+    status, numero_erp: 'PV-1001', nota_numero: numero, nota_serie: '1', nota_emitida_em: new Date(`2026-03-${dia}T10:00:00Z`), nota_total_cents: total, ocorrido_em: new Date(`2026-03-${dia}T10:00:00Z`),
+  });
+  /** ERP em memória com a consulta de status e os itens por nota. */
+  function erp(linhas: Record<string, unknown>[], itensPorNota: Record<string, Record<string, unknown>[]>) {
+    amb.erp.onConsulta = (sql, p) => {
+      if (sql.includes('/*st*/')) return linhas;
+      if (sql.includes('/*itn*/')) return itensPorNota[String(p.nota_numero)] ?? [];
+      return undefined;
+    };
+  }
+  /** Soma por sequência de tudo o que o Conector mandou como faturado (o que o Hub acumularia se confiasse em cada retorno). */
+  const faturadoPorSequencia = () => {
+    const soma: Record<number, number> = {};
+    for (const r of retornos()) for (const it of r.itens_faturados ?? []) soma[it.sequencia] = (soma[it.sequencia] ?? 0) + it.quantidade;
+    return soma;
+  };
+
+  it('RN-INT-08: pedido muda de P para F sem nota nova não reenvia os itens (fechamento leva só a nota já enviada)', async () => {
+    await preparar();
+    await cicloPedidos(amb.ctx);
+    const linhas = [linhaNota('P', '501', '11', 2000)];
+    erp(linhas, { '501': [{ sequencia: 1, produto_external_id: 'p1', quantidade: 2, valor_cents: 2000 }] });
+    await cicloPedidos(amb.ctx);
+    // o ERP fecha o pedido (corta o saldo da sequência 2) sem emitir nota nova
+    linhas[0] = linhaNota('F', '501', '11', 2000);
+    await cicloPedidos(amb.ctx);
+    await cicloPedidos(amb.ctx); // repetir o ciclo não reenvia nada
+    expect(retornos().map((r) => [r.status, r.nota?.numero])).toEqual([['integrado', undefined], ['faturado_parcial', '501'], ['faturado_total', '501']]);
+    const total = retornos()[2] as Record<string, unknown>;
+    expect(total).toMatchObject({ status: 'faturado_total', numero_erp: 'PV-1001', nota: { numero: '501', serie: '1', total_cents: 2000 } });
+    expect(total.itens_faturados).toBeUndefined();
+    expect(faturadoPorSequencia()).toEqual({ 1: 2 });
+    expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'faturado_total', final: true });
+    expect(amb.logs.some((l) => l.includes('fechamento_sem_nota_nova'))).toBe(true);
+  });
+
+  it('RN-INT-08: sequência real parcial → parcial → fechamento sem nota nova: cada nota fatura uma vez só', async () => {
+    await preparar();
+    await cicloPedidos(amb.ctx);
+    const itens = { '501': [{ sequencia: 1, produto_external_id: 'p1', quantidade: 1, valor_cents: 1000 }], '502': [{ sequencia: 1, produto_external_id: 'p1', quantidade: 1, valor_cents: 1000 }] };
+    const linhas = [linhaNota('P', '501', '11', 1000)];
+    erp(linhas, itens);
+    await cicloPedidos(amb.ctx); // 1ª nota parcial
+    linhas.splice(0, linhas.length, linhaNota('P', '501', '11', 1000), linhaNota('P', '502', '12', 1000));
+    await cicloPedidos(amb.ctx); // 2ª nota parcial
+    linhas.splice(0, linhas.length, linhaNota('F', '501', '11', 1000), linhaNota('F', '502', '12', 1000));
+    await cicloPedidos(amb.ctx); // fechamento sem nota nova
+    await cicloPedidos(amb.ctx);
+    expect(retornos().map((r) => [r.status, r.nota?.numero, r.itens_faturados?.length ?? 0])).toEqual([
+      ['integrado', undefined, 0],
+      ['faturado_parcial', '501', 1],
+      ['faturado_parcial', '502', 1],
+      ['faturado_total', '502', 0],
+    ]);
+    // sequência 1 tinha 2 unidades: 1 por nota; nada passa do pedido (sequência 2 foi cortada pelo ERP)
+    expect(faturadoPorSequencia()).toEqual({ 1: 2 });
+  });
+
+  it('RN-INT-08: fechamento COM nota nova continua levando os itens da nota nova (só a nota repetida perde os itens)', async () => {
+    await preparar();
+    await cicloPedidos(amb.ctx);
+    const linhas = [linhaNota('P', '501', '11', 2000)];
+    erp(linhas, { '501': [{ sequencia: 1, produto_external_id: 'p1', quantidade: 2, valor_cents: 2000 }], '502': [{ sequencia: 2, produto_external_id: 'p2', quantidade: 1, valor_cents: 1000 }] });
+    await cicloPedidos(amb.ctx);
+    linhas.splice(0, linhas.length, linhaNota('F', '501', '11', 2000), linhaNota('F', '502', '12', 1000));
+    await cicloPedidos(amb.ctx);
+    expect(retornos().map((r) => [r.status, r.nota?.numero, r.itens_faturados?.map((i) => i.sequencia)])).toEqual([
+      ['integrado', undefined, undefined],
+      ['faturado_parcial', '501', [1]],
+      ['faturado_total', '502', [2]],
+    ]);
+    expect(faturadoPorSequencia()).toEqual({ 1: 2, 2: 1 });
+  });
+
+  it('RN-INT-08: reenvio após queda do Hub e reinício do Conector mantém a ordem por pedido e não repete itens', async () => {
+    await preparar();
+    await cicloPedidos(amb.ctx); // integrado já entregue
+    const linhas = [linhaNota('P', '501', '11', 1000)];
+    erp(linhas, { '501': [{ sequencia: 1, produto_external_id: 'p1', quantidade: 1, valor_cents: 1000 }], '502': [{ sequencia: 1, produto_external_id: 'p1', quantidade: 1, valor_cents: 1000 }] });
+    amb.hub.caido = true;
+    await cicloPedidos(amb.ctx); // parcial 501 fica na fila local, com espera
+    linhas.splice(0, linhas.length, linhaNota('P', '501', '11', 1000), linhaNota('P', '502', '12', 1000));
+    amb.relogio.avancar(1_000); // antes de vencer a espera da 501
+    await cicloPedidos(amb.ctx); // parcial 502 entra na fila atrás da 501
+    linhas.splice(0, linhas.length, linhaNota('F', '501', '11', 1000), linhaNota('F', '502', '12', 1000));
+    amb.reiniciar(); // queda de energia: a fila local sobrevive
+    amb.hub.caido = false;
+    // a 501 ainda espera o backoff: nada do mesmo pedido pode passar na frente dela
+    await cicloPedidos(amb.ctx);
+    expect(retornos().map((r) => r.status)).toEqual(['integrado']);
+    amb.relogio.avancar(600_000);
+    await cicloPedidos(amb.ctx);
+    await cicloPedidos(amb.ctx);
+    expect(retornos().map((r) => [r.status, r.nota?.numero, r.itens_faturados?.length ?? 0])).toEqual([
+      ['integrado', undefined, 0],
+      ['faturado_parcial', '501', 1],
+      ['faturado_parcial', '502', 1],
+      ['faturado_total', '502', 0],
+    ]);
+    expect(faturadoPorSequencia()).toEqual({ 1: 2 });
+    expect(amb.ctx.store.contarRetornos()).toEqual([{ estado: 'enviado', total: 4 }]);
+  });
+});
+
+describe('RN-INT-08: pedido fora do contrato não trava a gravação dos outros (T-0048)', () => {
+  it('RN-INT-08: payload local fora do PedidoParaErp vira rejeitado_erp "pedido fora do contrato" (sem valores) e o próximo pedido é gravado', async () => {
+    const execucoes = await preparar();
+    const OUTRO = '6f1c2f3a-1b2c-4d3e-8f4a-5b6c7d8e9f02';
+    // payload guardado fora do contrato (ex.: gravado por uma versão anterior): sem itens e com total negativo
+    const corrompido = { ...JSON.parse(JSON.stringify(pedido())), itens: [], total_cents: -1, observacao: 'CPF 123.456.789-00' };
+    amb.ctx.store.registrarPedido(UUID, JSON.stringify(corrompido), amb.relogio.agora());
+    amb.hub.pedidosParaEntregar = [pedido({ pedido_uuid: OUTRO })];
+    await buscarPedidos(amb.ctx);
+    const r = await gravarPedidos(amb.ctx, PEDIDOS_CFG());
+    expect(r.gravados).toBe(1);
+    expect(r.rejeitados).toBe(1);
+    expect(execucoes.filter((e) => e === 'cab:')).toHaveLength(1);
+    expect(amb.ctx.store.pedido(UUID)).toMatchObject({ estado: 'rejeitado_erp', final: true });
+    expect(amb.ctx.store.pedido(OUTRO)).toMatchObject({ estado: 'gravado', numeroErp: 'PV-1001' });
+    await enviarRetornos(amb.ctx);
+    const rej = (amb.hub.retornos as { pedido_uuid: string; status: string; motivo?: string }[]).find((x) => x.pedido_uuid === UUID);
+    expect(rej).toMatchObject({ status: 'rejeitado_erp', motivo: expect.stringContaining('pedido fora do contrato') });
+    expect(rej?.motivo).not.toMatch(/123\.456|CPF|-1/);
+    expect(amb.logs.join('\n')).not.toMatch(/123\.456/);
+  });
+});

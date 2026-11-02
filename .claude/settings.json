@@ -17,6 +17,12 @@
       "Bash(git diff*)",
       "Bash(git log*)",
       "Bash(git branch*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
       "Bash(git push origin main)",
       "Bash(git push -u origin main)",
       "Bash(git push origin nuvem/*)",
@@ -37,7 +43,9 @@
       "Bash(git push* -d*)",
       "Bash(git push* :*)",
       "Bash(git push* +*)",
-      "Bash(pnpm exec drizzle-kit push*)"
+      "Bash(pnpm exec drizzle-kit push*)",
+      "Bash(gh pr merge*--admin*)",
+      "Bash(gh pr merge*--auto*)"
     ],
     "additionalDirectories": [
       "C:/Users/domon/dev/forca-vendas"

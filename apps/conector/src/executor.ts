@@ -14,7 +14,7 @@ import { montarStatus } from './status';
 import { dormir } from './util/retry';
 import { avaliarVersaoLocal, guardarPolitica, tratarRecusaPorVersao } from './politica';
 import { VERSAO_CONECTOR } from './versao';
-import { VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
+import { type SinalConector, VERSAO_CONTRATO } from '@macuxi/integracao/contracts';
 
 interface Tarefa {
   nome: string;
@@ -84,22 +84,24 @@ export class Executor {
   private async sinal(): Promise<void> {
     const s = montarStatus(this.ctx.store, this.ctx.config, this.versao);
     const parado = s.versao.deveParar;
-    const resposta = await this.enviarSinal({
+    // regra 3 (T-0048): o corpo é o tipo do contrato (`SinalConector`), não um objeto montado à mão
+    const corpo: SinalConector = {
       conector_id: this.ctx.config.hub.conectorId,
       versao_conector: this.versao,
       versao_contrato: VERSAO_CONTRATO,
       em: new Date(this.ctx.relogio.agora()).toISOString(),
-      fila: s.fila,
+      fila: s.fila.map((f) => ({ estado: f.estado, lotes: f.lotes, linhas: f.linhas, maisAntigo: f.maisAntigo })),
       entidades: s.entidades.map((e) => ({ entidade: e.entidade, fase: e.fase, ultimo_sucesso: e.ultimoSucesso, bloqueada: e.bloqueio !== null, lotes_na_fila: e.lotesNaFila })),
       ...(parado ? { parado_por_versao: true } : {}),
-    });
+    };
+    const resposta = await this.enviarSinal(corpo);
     // a política do Hub vale a partir daqui (inclusive para liberar o envio quando o Hub baixa a mínima)
     if (resposta?.politica_versao) guardarPolitica(this.ctx.store, resposta.politica_versao, this.ctx.relogio.agora());
     this.registrarVersao();
   }
 
   /** O sinal é liberado abaixo da mínima; se um Hub fora do contrato responder 426 mesmo assim, vale como pausa (T-0027). */
-  private async enviarSinal(corpo: Record<string, unknown>) {
+  private async enviarSinal(corpo: SinalConector) {
     try {
       return await this.ctx.hub.enviarSinal(corpo);
     } catch (e) {

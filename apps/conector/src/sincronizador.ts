@@ -127,6 +127,11 @@ async function lerPagina(ctx: Contexto, entidade: Entidade, cfg: EntidadeConfig,
     if (temMais) {
       store.atualizarEstado(entidade, { bloqueio: motivoSemAvanco });
       log.erro('entidade_bloqueada', { entidade, motivo: motivoSemAvanco });
+    } else if (completo) {
+      // T-0048: última página da carga completa só com linhas já lidas (linha apagada no meio, precisão do alterado_em):
+      // a carga terminou; sem isto a entidade ficaria em `completo` até chegar linha nova
+      log.aviso('sessao_nao_fechada', { entidade, dica: 'a última página só tinha linhas já lidas; o Hub deixa a sessão expirar e não inativa nada' });
+      concluirCargaCompleta(ctx, entidade, estado.lido, estado.cargaIniciadaMs);
     }
     return false;
   }

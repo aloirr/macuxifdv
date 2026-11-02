@@ -81,16 +81,22 @@ export function donoDe(rel, regras) {
  * Decide se o agente pode alterar o arquivo.
  * @returns {{ok: boolean, motivo?: string, dono?: string}}
  */
-export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = carregarDonos(raiz) }) {
-  // Recados: só criar arquivo novo, na pasta de um destino válido, com o próprio nome no id.
+export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = carregarDonos(raiz), conteudo }) {
+  // Recados: só criar arquivo novo, na pasta de um destino válido, com o próprio nome como remetente
+  // (R-...-<agente>.md) e, se o conteúdo vier junto (Write), "de: <agente>" no cabeçalho.
+  // Guardião v5 (T-0044): o nome só CONTER "-<agente>" não basta (R-1-modulo-core-alexandre.md é
+  // do remetente alexandre), e ninguém além do Alexandre grava "de: alexandre".
   const mRecado = rel.match(/^\.coord\/recados\/([^/]+)\/([^/]+)$/i);
   if (mRecado) {
     const [, destino, arquivo] = mRecado;
     if (!DESTINOS.includes(destino)) return { ok: false, motivo: `destino de recado inválido: ${destino}` };
     if (ferramenta !== 'Write' || existsSync(join(raiz, rel)))
       return { ok: false, motivo: 'recados são imutáveis: responda com um recado novo (node scripts/coord.mjs enviar --responde-a <id>)' };
-    if (!arquivo.toLowerCase().includes(`-${agente}`))
-      return { ok: false, motivo: `o nome do recado precisa conter o remetente (-${agente}). Use node scripts/coord.mjs enviar` };
+    if (remetenteDoRecado(arquivo) !== agente)
+      return { ok: false, motivo: `o nome do recado precisa terminar com o remetente (R-...-${agente}.md). Use node scripts/coord.mjs enviar` };
+    const de = remetenteDoConteudo(conteudo);
+    if (de !== null && de !== agente)
+      return { ok: false, motivo: `o recado diz "de: ${de}", mas quem escreve é ${agente}: ninguém envia recado em nome de outro (de: alexandre só o Alexandre)` };
     return { ok: true };
   }
   if (rel.startsWith('.coord/recados/')) return { ok: false, motivo: 'use node scripts/coord.mjs enviar para criar recados' };
@@ -122,6 +128,14 @@ export function podeAlterar({ agente, ferramenta, rel, raiz = RAIZ, regras = car
 /** Normaliza caminho vindo do git ou do Windows: barras "/", sem "./" no início. */
 export function normalizarCaminho(caminho) {
   return String(caminho).replace(/\\/g, '/').replace(/^(\.\/)+/, '');
+}
+
+/** "de:" do cabeçalho (front matter) de um recado, em minúsculas; null sem conteúdo ou sem "de:". */
+export function remetenteDoConteudo(conteudo) {
+  if (typeof conteudo !== 'string') return null;
+  const m = conteudo.replace(/^\uFEFF/, '').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const de = m?.[1].match(/^de:[ \t]*["']?([^"'\r\n]*?)["']?[ \t]*$/im);
+  return de ? de[1].trim().toLowerCase() : null;
 }
 
 /** Remetente pelo nome do arquivo do recado (R-AAAAMMDD-HHMMSS[-n]-<remetente>.md); null se não houver. */
@@ -200,7 +214,8 @@ export function classificarMudancas({ agente, mudancas, regras, estrito = false,
       continue;
     }
     const { dono } = info;
-    const proprio = dono === agente || (info.tipo === 'recado' && info.arquivo.toLowerCase().includes(`-${agente}`));
+    // Recado: é do agente só se o remetente do nome for ele (v5: R-1-modulo-core-alexandre.md é de alexandre).
+    const proprio = dono === agente;
     if (proprio) {
       if (info.tipo === 'comum') res.ok.push({ ...item, dono });
       else res.excecoes.push({ ...item, motivo: info.tipo === 'recado' ? `recado novo para ${info.destino}` : info.tipo === 'diario' ? 'diário do próprio agente' : 'lidos do próprio agente' });
