@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { ApiRequestError, baseDaChamada, buildUrl, filenameFromDisposition, lerCorpoDeErro, lerModoApiWeb, PROXY_BASE, urlPadraoDaApi } from './api';
+import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import { ApiRequestError, baseDaChamada, buildUrl, errorMessage, filenameFromDisposition, lerCorpoDeErro, lerModoApiWeb, PROXY_BASE, MENSAGEM_ERRO_PADRAO, MENSAGEM_FORMATO_INESPERADO, urlPadraoDaApi } from './api';
 
 describe('cliente da API', () => {
   it('monta a URL ignorando filtros vazios', () => {
@@ -34,5 +35,18 @@ describe('cliente da API', () => {
     expect(lerCorpoDeErro(423, { codigo: 'USUARIO_BLOQUEADO', mensagem: 'Bloqueado.' })).toEqual({ code: 'USUARIO_BLOQUEADO', message: 'Bloqueado.' });
     expect(lerCorpoDeErro(409, { code: 'invalid_transition', message: 'x', details: { a: 1 } })).toEqual({ code: 'invalid_transition', message: 'x', details: { a: 1 } });
     expect(lerCorpoDeErro(500, 'texto')).toEqual({ code: 'http_error', message: 'Erro 500 no servidor.' });
+  });
+
+  it('T-0059: errorMessage nunca devolve o JSON do Zod nem pilha; a frase da API passa', () => {
+    const console_ = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const zod = z.object({ documento: z.string() }).safeParse({});
+    expect(zod.success).toBe(false);
+    if (!zod.success) expect(errorMessage(zod.error)).toBe(MENSAGEM_FORMATO_INESPERADO);
+    expect(errorMessage(new Error('[{"code":"invalid_type","path":["cliente","documento"]}]'))).toBe(MENSAGEM_ERRO_PADRAO);
+    expect(errorMessage(new ApiRequestError(422, 'RN-VEN-13', 'Salve como orçamento.'))).toBe('Salve como orçamento.');
+    expect(errorMessage(new Error('Sem conexão com o servidor.'))).toBe('Sem conexão com o servidor.');
+    expect(errorMessage('x')).toBe(MENSAGEM_ERRO_PADRAO);
+    expect(console_).toHaveBeenCalledTimes(2);
+    console_.mockRestore();
   });
 });

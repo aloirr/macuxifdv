@@ -326,14 +326,24 @@ export interface RotaPublica<
 }
 
 /** Serviços de plataforma que só o Core fornece (T-0003 Fase 2). Sem eles a API falha fechada (401 / carteira vazia). */
+/** Relógio e fuso da requisição entregues ao serviço de carteira do Core (T-0042). */
+export interface OpcoesServicoCarteira {
+  agora: () => Date;
+  /** Fuso IANA do tenant (já validado; padrão America/Manaus). */
+  fuso: string;
+}
+
 export interface ServicosCore {
   /** Token → usuário (JWT do Core). `null` = não autenticado. Os cabeçalhos chegam em minúsculas. */
   autenticar?(
     cabecalhos: Readonly<Record<string, string | undefined>>,
     banco: AcessoBanco,
   ): Promise<UsuarioAutenticado | null>;
-  /** Clientes visíveis (RN-CORE-04) para o usuário: carteira, equipe, equipes abaixo ou `'tenant'`. */
-  carteira?(usuario: UsuarioAutenticado, banco: AcessoBanco): Promise<ReadonlySet<string> | 'tenant'>;
+  /**
+   * Clientes visíveis (RN-CORE-04) para o usuário: carteira, equipe, equipes abaixo ou `'tenant'`. A vigência do vínculo é
+   * o "hoje" no fuso do tenant (T-0042): a API passa o relógio e o fuso da requisição (`opcoes`), o mesmo de `ctx.agora`/`ctx.fuso`.
+   */
+  carteira?(usuario: UsuarioAutenticado, banco: AcessoBanco, opcoes?: OpcoesServicoCarteira): Promise<ReadonlySet<string> | 'tenant'>;
   /**
    * Usuários visíveis (RN-CORE-04; ADR 0009 §6): o próprio; supervisor + equipe; gerente + equipes abaixo; `'tenant'`
    * para analista/assistente/admin. Sem o serviço a API falha fechada: só o próprio (ou `'tenant'` nos perfis de escopo tenant).
