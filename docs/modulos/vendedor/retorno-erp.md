@@ -30,7 +30,7 @@ Referências: desenho `docs/desenho/T-0011.md` (publicação do `vendedor.pedido
 - Volume: uma linha de faturamento por nota do pedido (em geral 1 ou 2) e uma por nota de devolução (rara).
 
 ## Contratos
-- Consome: `integracao.pedido.retorno_erp@1` e `integracao.nota.atualizado@1`, com os schemas oficiais de `modules/integracao/contracts` (`api/eventos-consumidos.ts`).
+- Consome: `integracao.pedido.retorno_erp@1` e `integracao.nota.atualizado@1`. Os schemas são ESPELHO dos oficiais de `modules/integracao/contracts` (`api/eventos-consumidos.ts`) e trazem só os campos lidos. O motivo é que o import relativo exige os inputs do turbo (regra R2 do CI). Quando o engenheiro-software os incluir, o espelho dá lugar ao import oficial.
 - Publica: `vendedor.pedido.status_alterado@1` (autor `null`, `alterado_em` = instante do ERP) e `vendedor.pedido.faturado@1`.
 - Campos novos, todos opcionais e compatíveis: `Order.faturado_cents|devolvido_cents|devolucao|ultima_nota|situacao_faturamento`, `OrderItem.quantity_invoiced`, `OrderDetail.faturamento` (notas e devoluções), `PedidoSync.faturado_cents|devolvido_cents|notas_faturamento|ultima_nota_numero|faturado_em` e `PedidoItemSync.quantidade_faturada`.
 
