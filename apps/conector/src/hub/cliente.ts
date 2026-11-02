@@ -16,6 +16,7 @@ import {
   RespostaSinal,
   RetornoAceito,
   type ReconciliacaoEnvio,
+  type SinalConector,
 } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
 import { comRetry, type OpcoesRetry } from '../util/retry';
@@ -236,7 +237,7 @@ export class ClienteHub {
    * `POST /sinal` — batimento de vida (1 min). A resposta traz a política de versão (mínima/recomendada); resposta fora do
    * formato é ignorada (devolve `null`): um Hub mais antigo ou com defeito nunca deve parar o Conector.
    */
-  async enviarSinal(corpo: Record<string, unknown>): Promise<RespostaSinal | null> {
+  async enviarSinal(corpo: SinalConector): Promise<RespostaSinal | null> {
     const { status, json } = await this.chamar('sinal', 'POST', '/sinal', corpo);
     if (status >= 400) throw new ErroHubTransitorio(`O Hub recusou o sinal de vida (HTTP ${status}).`, status);
     const r = RespostaSinal.safeParse(json);
