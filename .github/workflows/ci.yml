@@ -2,7 +2,8 @@ name: CI
 
 # T-0005 → T-0033 (ADR 0014). Jobs PARALELOS, cada um num runner próprio, sem fail-fast; dentro de cada job todos os
 # passos rodam mesmo depois de uma falha (R-20261101-014652): nada quebra escondido atrás da primeira falha.
-#   governanca  coord, guardiões, guardas de scripts/ci, donos do PR / por commit; e DECIDE o escopo e as matrizes
+#   governanca  coord, guardiões, guardas de scripts/ci, donos do PR / por commit, brechas do guardião v5 (T-0049:
+#               governança no main só com "Agente: alexandre"; PR sem recado "autorizo o merge"); e DECIDE o escopo e as matrizes
 #               (scripts/ci/escopo.mjs): commit/PR só de COORDENAÇÃO (.coord/**, docs/status/**, docs/backlog.md,
 #               docs/produto/**) = roda só ela e o ci-ok; o resto de docs/** não entra (a guarda R4 prova que nenhum
 #               código lê os caminhos de coordenação).
@@ -114,6 +115,24 @@ jobs:
           ANTES: ${{ github.event.before }}
           DEPOIS: ${{ github.sha }}
         run: node scripts/coord.mjs verificar --por-commit "$ANTES..$DEPOIS"
+
+      # T-0049 (brecha 1 do PR #31): commit do push que altera caminho de governança (CAMINHOS_DE_GOVERNANCA da coord-lib:
+      # .claude/**, .coord/donos.json, scripts/coord*.mjs, .github/**) sem "Agente: alexandre" no ÚLTIMO bloco da mensagem
+      # = vermelho, com commit e arquivos no log. Pega também o squash/merge feito pelo MCP do GitHub (fora do hook do
+      # Bash). Merges inclusive (só o que o próprio merge altera). Roda em qualquer escopo (é barato) e entra no ci-ok.
+      - name: 'governança no main só com "Agente: alexandre" (push ao main)'
+        if: ${{ !cancelled() && github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000' }}
+        env:
+          ANTES: ${{ github.event.before }}
+          DEPOIS: ${{ github.sha }}
+        run: node scripts/ci/brechas-governanca.mjs trailer "$ANTES..$DEPOIS"
+
+      # T-0049 (brecha 2 do PR #31): o PR não pode adicionar nem alterar recado (.coord/recados/**) com "autorizo o merge".
+      # Autorização de merge só vale escrita localmente pelo Alexandre, nunca vinda de PR. Diff HEAD^1..HEAD (o checkout do
+      # PR é o commit de merge com a base). Roda em qualquer escopo (é barato) e entra no ci-ok.
+      - name: PR sem recado de autorização de merge
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        run: node scripts/ci/brechas-governanca.mjs recados
 
   lint:
     name: lint e fronteiras
