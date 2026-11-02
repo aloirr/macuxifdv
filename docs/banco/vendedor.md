@@ -128,3 +128,33 @@ Uma linha por tenant (único `(tenant_id)`; id = `plataforma.uuid_de_chave('<ten
 (`TABELAS_FORA_DO_SYNC`). A aplicação lê, insere e atualiza (sem DELETE). Os seeds nunca baixam o contador.
 
 No `pg` cru: `bigint` e `numeric` chegam como string (converta no provedor); `text[]` chega como array.
+
+## 0013 — orçamento, frete, transportadora, entrega, unidade e faturamento (`0013_catalogo_vendedor_prevenda`)
+Pedidos: T-0053/T-0054, R-20261102-093007 (novo pedido), R-20261102-094644 (preço mínimo). Todas as colunas novas são
+opcionais ou têm padrão (rotas e APKs antigos continuam gravando).
+
+**pedido** (novas): `tipo` pedido|orcamento (padrão pedido); `orcamento_validade` date (só orçamento); `orcamento_id`
+(no pedido gerado pela conversão; FK no schema; único parcial = um orçamento vira no máximo um pedido); `convertido_em`
+(no orçamento); `acrescimo_pct` numeric(5,2) (excludente com `desconto_pct`); `desconto_efetivo_pct` numeric(6,2)
+(RN-VEN-03, sem frete, pode ser negativo); `frete_modalidade` CIF|FOB (R-20261102-105040: o pedido não tem valor de
+frete); `transportadora_id` (FK `transportadora`); `transportadora_digitada` bool;
+`transportadora_nome`, `transportadora_documento` (CNPJ 14 dígitos), `transportadora_telefone` (retrato da cadastrada ou
+o digitado); `endereco_entrega_id` (core.cliente_endereco, sem FK) + `endereco_entrega` jsonb (retrato);
+`enviado_erp_em`, `integrado_em`, `faturado_em`, `total_faturado_cents` (padrão 0).
+CHECKs: orçamento só em draft/queued/received/cancelled (nunca aprovação nem ERP, RN-VEN-13/32); validade e conversão
+só no orçamento; desconto **ou** acréscimo; CIF (a empresa paga, incluso no preço) sem transportadora; FOB (o cliente
+paga) exige `transportadora_id` ou transportadora digitada; digitada exige nome e CNPJ e não tem `transportadora_id`.
+`total_cents` não muda com o frete (RN-VEN-03, RN-CORE-21). Padrão do tenant: parâmetro `frete_modalidade_padrao` (CIF),
+sem linha na demo (ausente = padrão).
+
+**pedido_item** (novas): `fator` int > 0 (padrão 1); `quantidade_base` = quantidade × fator **preenchida pelo gatilho
+`pedido_item_quantidade_base`** (o valor enviado é sobrescrito); `acrescimo_pct` (excludente com `desconto_pct`);
+`preco_minimo_cents` (retrato RN-VEN-11); `quantidade_faturada` na UNIDADE BASE, de 0 a `quantidade_base` (padrão 0; T-0061 §2.1).
+
+**transportadora** (RF-VEN-13): nome, documento (CNPJ, único vivo quando informado), inscricao_estadual, telefone, ativo.
+Pull escopo tenant.
+
+**pedido_faturamento** (RN-INT-08): pedido_id (FK), `evento_id` (id do evento `integracao.pedido.retorno_erp@1`; único por
+tenant = idempotência), parcial, numero_erp, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, `itens` jsonb
+`[{sequencia, produto_id, quantidade (unidade base), total_cents}]`, faturado_em. A aplicação só lê e insere. Índice (tenant, pedido,
+faturado_em).
