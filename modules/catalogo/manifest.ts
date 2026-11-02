@@ -45,8 +45,12 @@ export const manifest = defineModule({
   publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
   consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'catalogo.busca.realizada@1'],
   ofereceExtensoes: ['produto.acoes'],
+  // T-0052: atalho "Ver catálogo" na ficha do cliente (abre o catálogo com o preço da tabela dele)
+  usaExtensoes: ['cliente.acoes'],
   // ADR 0012: o Vendedor lê o preço da tabela do cliente por consulta, nunca pela tabela (T-0029)
   ofereceConsultas: ['catalogo.precos_cliente@1'],
+  // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
+  usaConsultas: ['core.cadastro_resumo@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },
