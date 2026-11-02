@@ -37,3 +37,21 @@ export function resolverParametros(parcial: Partial<ParametrosPromotor> = {}): P
   }
   return p;
 }
+
+/**
+ * Parâmetros vindos do tenant sem validação (`ctx.parametros()` na API, `ambiente.parametros('promotor')` no app):
+ * números válidos entram, o resto cai no padrão; conjunto inválido (ex.: crítico > próxima) = padrão. Nunca lança.
+ */
+export function parametrosDosBrutos(brutos: Readonly<Record<string, unknown>>): ParametrosPromotor {
+  const parcial: Partial<ParametrosPromotor> = {};
+  for (const k of Object.keys(PARAMETROS_PADRAO) as (keyof ParametrosPromotor)[]) {
+    const bruto = brutos[k];
+    const v = Number(bruto);
+    if (bruto !== undefined && bruto !== null && bruto !== '' && Number.isFinite(v)) parcial[k] = v;
+  }
+  try {
+    return resolverParametros(parcial);
+  } catch {
+    return { ...PARAMETROS_PADRAO };
+  }
+}

@@ -25,7 +25,12 @@ export interface EntradaResultado {
   fuso?: string;
 }
 
-const dentroDoFiltro = (r: RespostaPesquisa, f: FiltroResultado, fuso: string): boolean => {
+/** RF-PES-06: a resposta entra no filtro (período em dia civil do fuso do tenant, inclusivo; equipe da resposta)? */
+export function respostaDentroDoFiltro(r: Pick<RespostaPesquisa, 'respondida_em' | 'equipe_id'>, f: FiltroResultado, fuso: string): boolean {
+  return dentroDoFiltro(r, f, fuso);
+}
+
+const dentroDoFiltro = (r: Pick<RespostaPesquisa, 'respondida_em' | 'equipe_id'>, f: FiltroResultado, fuso: string): boolean => {
   if (f.de !== undefined || f.ate !== undefined) {
     const dia = diaLocal(r.respondida_em, fuso);
     if (f.de !== undefined && dia < f.de) return false;
