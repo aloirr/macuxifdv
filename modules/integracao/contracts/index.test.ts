@@ -87,6 +87,12 @@ describe('RN-INT-09: contrato canônico v1 por entidade', () => {
     expect(ProdutoPayload.safeParse({ ...p, embalagem_medida: 'CX', embalagem_quantidade: 1.5 }).success).toBe(false);
   });
 
+  it('RN-CORE-19: embalagem_quantidade é inteira de 2 a 9999 (mesmo teto do Core e do banco)', () => {
+    const p = { ...base, sku: 'P', nome: 'n', unidade: 'UN', embalagem_medida: 'CX' };
+    for (const q of [2, 12, 9999]) expect(ProdutoPayload.safeParse({ ...p, embalagem_quantidade: q }).success).toBe(true);
+    for (const q of [1, 10000, 2147483648]) expect(ProdutoPayload.safeParse({ ...p, embalagem_quantidade: q }).success).toBe(false);
+  });
+
   it('campo novo desconhecido é ignorado (compatível); vigência invertida é recusada', () => {
     const p = ProdutoPayload.parse({ ...base, sku: 'P', nome: 'n', unidade: 'UN', campo_futuro: 1 });
     expect('campo_futuro' in p).toBe(false);

@@ -72,6 +72,11 @@ export const ClientePayload = RegistroBase.extend({
 });
 export type ClientePayload = z.infer<typeof ClientePayload>;
 
+/** RN-CORE-19: sigla de medida = 1 a 4 letras maiúsculas (a mesma do Core e do banco). Fora disso é erro de validação no ERP, não reprocessável. */
+export const SIGLA_MEDIDA_FORMATO = /^[A-Z]{1,4}$/;
+/** RN-CORE-19: teto da quantidade da embalagem (e do fator da produto_unidade); o mesmo número do Core e do banco. */
+export const EMBALAGEM_QUANTIDADE_MAX = 9999;
+
 // ---------- produto (cadastro base do Core, ADR-0005) ----------
 const ProdutoBase = RegistroBase.extend({
   sku: Texto(60),
@@ -91,7 +96,12 @@ const ProdutoBase = RegistroBase.extend({
    * Medida e quantidade andam juntas: uma sem a outra é recusada.
    */
   embalagem_medida: TextoOpcional(10),
-  embalagem_quantidade: z.number().int('embalagem_quantidade deve ser inteira').positive('embalagem_quantidade deve ser maior que zero').nullish(),
+  embalagem_quantidade: z
+    .number()
+    .int('embalagem_quantidade deve ser inteira')
+    .min(2, 'embalagem_quantidade deve ser no mínimo 2')
+    .max(EMBALAGEM_QUANTIDADE_MAX, `embalagem_quantidade deve ser no máximo ${EMBALAGEM_QUANTIDADE_MAX}`)
+    .nullish(),
   /** Nó da árvore do catálogo; referência FRACA: nó ausente vira aviso e o produto entra sem nó. */
   catalogo_no_external_id: ExternalId.nullish(),
   /** RN-CORE-18 / RN-VEN-11: custo, preço de venda e desconto máximo próprio (o Core aplica). */
@@ -202,9 +212,13 @@ export const ProdutoUnidadePayload = RegistroBase.extend({
     .string({ required_error: 'unidade é obrigatória' })
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z0-9]{1,6}$/, 'unidade deve ter de 1 a 6 letras ou números'),
+    .regex(SIGLA_MEDIDA_FORMATO, 'unidade deve ter de 1 a 4 letras'),
   /** Quantidade de unidades base em uma desta embalagem (CX com 12 = 12). */
-  fator: z.number().int('fator deve ser inteiro').positive('fator deve ser maior que zero'),
+  fator: z
+    .number()
+    .int('fator deve ser inteiro')
+    .positive('fator deve ser maior que zero')
+    .max(EMBALAGEM_QUANTIDADE_MAX, `fator deve ser no máximo ${EMBALAGEM_QUANTIDADE_MAX}`),
   ean: z
     .string()
     .trim()
