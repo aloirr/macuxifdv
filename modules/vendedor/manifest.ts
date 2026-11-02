@@ -9,16 +9,18 @@ const PERFIS_PEDIDO = ['vendedor', 'supervisor', 'gerente', 'analista', 'assiste
  * T-0029: supervisor e gerente (e admin) entram para ver a equipe e decidir (ADR 0011); o app Gestão ganha a aba Pedidos;
  * o servidor consulta o preço do cliente (Catálogo) e o cadastro (Core) pelas consultas do ADR 0012.
  * T-0054: consome o retorno do ERP e a nota de devolução; publica o faturado@1 (desenho T-0011).
+ * T-0061: novo pedido de distribuidora (UN/CX, desconto e acréscimo por item e por pedido, frete CIF/FOB, endereço de entrega);
+ * entidade de sync `transportadora`, ações `transportadora.ver|gerenciar` (BKO) e menu Transportadoras; promotor fora de tudo isso.
  * T-0053: orçamento (pré-venda, RF-VEN-03/RN-VEN-32) usa as mesmas ações de pedido; consome o retorno do ERP
  * (`integracao.pedido.retorno_erp@1`) e publica `vendedor.pedido.faturado@1` por nota faturada.
  */
 export const manifest = defineModule({
   id: 'vendedor',
-  versao: '0.3.0',
+  versao: '0.4.0',
   depende: ['core', 'catalogo'],
   perfis: ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
-  apps: { campo: { abas: ['Pedidos'] }, gestao: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas'] } },
-  sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'alerta_ruptura'],
+  apps: { campo: { abas: ['Pedidos'] }, gestao: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas', 'Transportadoras'] } },
+  sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'transportadora', 'alerta_ruptura'],
   publica: [
     'vendedor.pedido.criado@1',
     'vendedor.pedido.status_alterado@1',
@@ -39,6 +41,9 @@ export const manifest = defineModule({
     'pedido.excluir': { perfis: [...PERFIS_PEDIDO] },
     'pedido.aprovar': { perfis: ['supervisor', 'gerente', 'analista'] },
     'pedido.criar_em_nome': { perfis: ['supervisor', 'gerente'] },
+    // T-0061 (RN-VEN-16): transportadoras e padrão do frete no BKO
+    'transportadora.ver': { perfis: ['admin', 'analista', 'gerente', 'supervisor', 'assistente'] },
+    'transportadora.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },
   },
   ofereceExtensoes: ['pedido.criar_em_nome'],
   usaExtensoes: ['produto.acoes', 'cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards'],

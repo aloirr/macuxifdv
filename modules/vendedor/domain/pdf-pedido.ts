@@ -35,6 +35,20 @@ export interface OrderPdfItem {
   unit_price_cents: number;
   /** total líquido do item (já com o desconto) */
   total_cents: number;
+  /** T-0061 (RN-CORE-19): coluna Medida, "UN" ou "CX c/ 12"; ausente = unidade */
+  unit_label?: string;
+  /** desconto/acréscimo do ITEM (versão interna); ausente = pedido antigo (vale o do pedido) */
+  discount_pct?: number;
+  surcharge_pct?: number;
+}
+
+/** Frete do pedido no PDF (RN-VEN-16): sem valor. */
+export interface OrderPdfFreight {
+  modality: 'CIF' | 'FOB';
+  carrier_name: string | null;
+  carrier_document: string | null;
+  carrier_phone: string | null;
+  carrier_typed: boolean;
 }
 
 export interface OrderPdfEvent {
@@ -61,11 +75,20 @@ export interface OrderPdfOrder {
   pending_reason: string;
   rejection_reason: string;
   price_table: string;
+  /** nome da tabela de preço (T-0061); o PDF interno mostra o nome, não o id */
+  price_table_name?: string | null;
   branch_name: string;
   erp_order_code: string;
   /** alçada de desconto do vendedor (%), quando conhecida */
   seller_limit_pct: number | null;
   history: OrderPdfEvent[];
+  // --- T-0061 ---
+  freight?: OrderPdfFreight | null;
+  /** endereço de entrega em uma linha */
+  delivery_address?: string;
+  surcharge_pct?: number;
+  /** desconto efetivo (RN-VEN-03); negativo = acréscimo */
+  effective_discount_pct?: number | null;
 }
 
 export interface OrderPdfContext {
@@ -116,9 +139,18 @@ function formatCnpj(cnpj: string): string {
 }
 
 /** Tabela de preço: sem nome no contrato hoje; id longo (UUID) vira um código curto. */
-export function priceTableLabel(id: string): string {
+export function priceTableLabel(id: string, name?: string | null): string {
+  if (name) return name;
   if (!id) return 'Padrão';
   return /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id) ? `Tabela ${id.slice(0, 8)}` : id;
+}
+
+/** "Frete: CIF – por conta da empresa" / "Frete: FOB – por conta do cliente · Transportadora (CNPJ 00.000.000/0001-00)" (RN-VEN-16). */
+export function freightText(f: OrderPdfFreight | null | undefined): string {
+  if (!f) return '';
+  if (f.modality === 'CIF') return 'Frete: CIF – por conta da empresa';
+  const quem = f.carrier_name ? ` · ${f.carrier_name}${f.carrier_document ? ` (CNPJ ${formatCnpj(f.carrier_document)})` : ''}` : '';
+  return `Frete: FOB – por conta do cliente${quem}`;
 }
 
 /** Nome sugerido do arquivo: pedido-10521-cliente.pdf · pedido-no-aparelho-bko.pdf */
@@ -150,8 +182,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .row { display: grid; gap: 6px; padding: 5px 8px; border-top: 1px solid #ECEEE9; break-inside: avoid; page-break-inside: avoid; align-items: baseline; }
 .row.head { border-top: 0; background: #16202A; color: #FFFFFF; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
 .row:nth-child(even):not(.head) { background: #F7F8F5; }
-.cols-customer { grid-template-columns: 24mm 1fr 12mm 26mm 28mm; }
-.cols-bko { grid-template-columns: 20mm 1fr 10mm 21mm 13mm 21mm 24mm; }
+.cols-customer { grid-template-columns: 22mm 1fr 20mm 11mm 25mm 27mm; }
+.cols-bko { grid-template-columns: 18mm 1fr 18mm 9mm 20mm 15mm 20mm 23mm; }
 .code { font-family: "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; font-size: 8.5pt; color: #4A5562; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .totals { margin-top: 10px; margin-left: auto; width: 82mm; }
@@ -215,6 +247,7 @@ function customerBody(order: OrderPdfOrder): string {
   <div class="row cols-customer">
     <span class="code">${escapeHtml(it.erp_code)}</span>
     <span>${escapeHtml(it.description)}</span>
+    <span>${escapeHtml(it.unit_label ?? 'UN')}</span>
     <span class="num">${it.quantity}</span>
     <span class="num">${formatBRL(netUnitCents(it))}</span>
     <span class="num strong">${formatBRL(it.total_cents)}</span>
@@ -223,7 +256,7 @@ function customerBody(order: OrderPdfOrder): string {
     .join('');
   return `
 <div class="items">
-  <div class="row head cols-customer"><span>Código</span><span>Descrição</span><span class="num">Qtd</span><span class="num">Preço unit.</span><span class="num">Total</span></div>${rows}
+  <div class="row head cols-customer"><span>Código</span><span>Descrição</span><span>Medida</span><span class="num">Qtd</span><span class="num">Preço unit.</span><span class="num">Total</span></div>${rows}
 </div>
 <div class="totals">
   <div class="line grand"><span>Total do pedido</span><span class="num">${formatBRL(order.total_cents)}</span></div>
@@ -231,9 +264,18 @@ function customerBody(order: OrderPdfOrder): string {
 </div>
 <div class="footer">
   <div>Vendedor: <span class="strong">${escapeHtml(order.seller_name)}</span> · Prazo de pagamento: ${escapeHtml(order.payment_terms)}</div>
+  ${order.freight ? `<div class="strong">${escapeHtml(freightText(order.freight))}</div>` : ''}
+  ${order.delivery_address ? `<div>Entrega: ${escapeHtml(order.delivery_address)}</div>` : ''}
   <div>Valores sem impostos; impostos calculados no faturamento.</div>
   <div>Preços e disponibilidade sujeitos à confirmação no faturamento.</div>
 </div>`;
+}
+
+/** Coluna Desc./Acr. do item: pedido antigo (sem o campo do item) mostra o desconto do pedido. */
+function itemAdjustText(it: OrderPdfItem, orderPct: number): string {
+  if ((it.surcharge_pct ?? 0) > 0) return `+${pctText(it.surcharge_pct!)}`;
+  if (it.discount_pct === undefined) return pctText(orderPct);
+  return it.discount_pct > 0 ? `−${pctText(it.discount_pct)}` : '—';
 }
 
 function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
@@ -244,9 +286,10 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   <div class="row cols-bko">
     <span class="code">${escapeHtml(it.erp_code)}</span>
     <span>${escapeHtml(it.description)}</span>
+    <span>${escapeHtml(it.unit_label ?? 'UN')}</span>
     <span class="num">${it.quantity}</span>
     <span class="num">${formatBRL(it.unit_price_cents)}</span>
-    <span class="num">${pctText(pct)}</span>
+    <span class="num">${itemAdjustText(it, pct)}</span>
     <span class="num">${formatBRL(netUnitCents(it))}</span>
     <span class="num strong">${formatBRL(it.total_cents)}</span>
   </div>`,
@@ -254,22 +297,31 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
     .join('');
   const reason = order.status === 'pending_approval' ? order.pending_reason : order.status === 'rejected' || order.status === 'cancelled' ? order.rejection_reason : '';
   const limit = order.seller_limit_pct;
-  const aboveLimit = limit !== null && pct > limit;
+  const efetivo = order.effective_discount_pct ?? pct;
+  const aboveLimit = limit !== null && efetivo > limit;
+  const acrescimoPedido = order.surcharge_pct ?? 0;
   const hist = order.history.slice(-8);
   return `
 <div class="items">
-  <div class="row head cols-bko"><span>Código</span><span>Descrição</span><span class="num">Qtd</span><span class="num">Tabela</span><span class="num">Desc.</span><span class="num">Líquido</span><span class="num">Total</span></div>${rows}
+  <div class="row head cols-bko"><span>Código</span><span>Descrição</span><span>Medida</span><span class="num">Qtd</span><span class="num">Tabela</span><span class="num">Desc./Acr.</span><span class="num">Líquido</span><span class="num">Total</span></div>${rows}
 </div>
 <div class="totals">
   <div class="line"><span>Subtotal de tabela</span><span class="num">${formatBRL(order.subtotal_cents)}</span></div>
-  <div class="line disc"><span>Desconto ${pctText(pct)}</span><span class="num">− ${formatBRL(order.discount_cents)}</span></div>
+  ${
+    acrescimoPedido > 0
+      ? `<div class="line"><span>Acréscimo do pedido ${pctText(acrescimoPedido)}</span><span class="num">+ ${formatBRL(Math.max(0, order.total_cents - order.subtotal_cents))}</span></div>`
+      : `<div class="line disc"><span>Desconto ${pctText(pct)}</span><span class="num">− ${formatBRL(order.discount_cents)}</span></div>`
+  }
+  ${order.effective_discount_pct != null ? `<div class="line muted"><span>Desconto efetivo (sem frete)</span><span class="num">${pctText(order.effective_discount_pct)}</span></div>` : ''}
   <div class="line grand"><span>Total</span><span class="num">${formatBRL(order.total_cents)}</span></div>
 </div>
 <div class="meta section">
   <div class="box kv">
     <span class="k">Status</span><span><span class="${badgeClass(order.status)}">${escapeHtml(statusText(order.status))}</span></span>
     <span class="k">Alçada do vendedor</span><span>${limit === null ? '—' : `${pctText(limit)}${aboveLimit ? ' · <span class="disc strong">desconto acima da alçada</span>' : ' · dentro da alçada'}`}</span>
-    <span class="k">Tabela de preço</span><span>${escapeHtml(priceTableLabel(order.price_table))}</span>
+    <span class="k">Tabela de preço</span><span>${escapeHtml(priceTableLabel(order.price_table, order.price_table_name))}</span>
+    ${order.freight ? `<span class="k">Frete</span><span>${escapeHtml(freightText(order.freight).replace(/^Frete: /, ''))}</span>` : ''}
+    ${order.delivery_address ? `<span class="k">Entrega</span><span>${escapeHtml(order.delivery_address)}</span>` : ''}
     ${order.erp_order_code ? `<span class="k">Pedido no ERP</span><span>${escapeHtml(order.erp_order_code)}</span>` : ''}
   </div>
   <div class="box">
@@ -314,6 +366,13 @@ ${view === 'customer' ? customerBody(order) : bkoBody(order, ctx)}
 </html>`;
 }
 
+/** "Rua A, 10 – Galpão 2 · Distrito · Manaus/AM · CEP 69100-000". */
+export function enderecoEmLinha(e: { logradouro: string; numero?: string | null; complemento?: string | null; bairro?: string | null; cidade: string; uf: string; cep?: string | null }): string {
+  const rua = [[e.logradouro, e.numero].filter((x) => x && x.trim()).join(', '), e.complemento].filter((x) => x && x.trim()).join(' – ');
+  const cep = e.cep ? `CEP ${e.cep.replace(/^(\d{5})(\d{3})$/, '$1-$2')}` : '';
+  return [rua, e.bairro, e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ''}` : '', cep].filter((x) => x && x.trim()).join(' · ');
+}
+
 /** Forma mínima do `OrderDetail` (contracts) que o PDF usa; estrutural para o domínio não importar `contracts`. */
 export interface DetalheParaPdf {
   number: string;
@@ -332,8 +391,14 @@ export interface DetalheParaPdf {
   erp_order_code: string;
   price_table_id: string | null;
   branch_name?: string | null;
-  items: Array<{ erp_code: string; description: string; quantity: number; unit_price_cents: number; total_cents: number }>;
+  items: Array<{ erp_code: string; description: string; quantity: number; unit_price_cents: number; total_cents: number; unit_label?: string; discount_pct?: number; surcharge_pct?: number }>;
   history: OrderPdfEvent[];
+  // --- T-0061 (opcionais; detalhe antigo sai igual) ---
+  freight?: OrderPdfFreight | null;
+  delivery_address?: { logradouro: string; numero?: string | null; complemento?: string | null; bairro?: string | null; cidade: string; uf: string; cep?: string | null } | null;
+  price_table_name?: string | null;
+  surcharge_pct?: number;
+  effective_discount_pct?: number | null;
   cliente?: {
     razao_social: string;
     nome_fantasia: string;
@@ -368,7 +433,16 @@ export function pdfDoPedido(d: DetalheParaPdf): OrderPdfOrder {
     seller_name: d.seller_name,
     payment_terms: d.payment_terms,
     discount_pct: d.discount_pct,
-    items: d.items.map((i) => ({ erp_code: i.erp_code, description: i.description, quantity: i.quantity, unit_price_cents: i.unit_price_cents, total_cents: i.total_cents })),
+    items: d.items.map((i) => ({
+      erp_code: i.erp_code,
+      description: i.description,
+      quantity: i.quantity,
+      unit_price_cents: i.unit_price_cents,
+      total_cents: i.total_cents,
+      ...(i.unit_label ? { unit_label: i.unit_label } : {}),
+      ...(i.discount_pct !== undefined && d.effective_discount_pct != null ? { discount_pct: i.discount_pct } : {}),
+      ...(i.surcharge_pct ? { surcharge_pct: i.surcharge_pct } : {}),
+    })),
     subtotal_cents: d.subtotal_cents,
     discount_cents: d.discount_cents,
     total_cents: d.total_cents,
@@ -379,5 +453,10 @@ export function pdfDoPedido(d: DetalheParaPdf): OrderPdfOrder {
     erp_order_code: d.erp_order_code,
     seller_limit_pct: d.aprovacao?.limite_vendedor_pct ?? null,
     history: d.history,
+    price_table_name: d.price_table_name ?? null,
+    ...(d.freight ? { freight: d.freight } : {}),
+    ...(d.delivery_address ? { delivery_address: enderecoEmLinha(d.delivery_address) } : {}),
+    ...(d.surcharge_pct ? { surcharge_pct: d.surcharge_pct } : {}),
+    ...(d.effective_discount_pct != null ? { effective_discount_pct: d.effective_discount_pct } : {}),
   };
 }

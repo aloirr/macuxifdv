@@ -74,6 +74,30 @@ export const AprovacaoSolicitadaEvento = z.object({
 });
 export type AprovacaoSolicitadaEvento = z.infer<typeof AprovacaoSolicitadaEvento>;
 
+// T-0061 (ADR 0016, emenda 1): frete e endereço no formato do doc 06; sem valor de frete (RN-VEN-16). Aditivo no v1.
+const FreteEvento = z.discriminatedUnion('modalidade', [
+  z.object({ modalidade: z.literal('CIF') }),
+  z.object({
+    modalidade: z.literal('FOB'),
+    transportadora: z.discriminatedUnion('tipo', [
+      z.object({ tipo: z.literal('cadastrada'), id: Id, external_id: z.string().nullable(), nome: z.string(), cnpj: z.string().nullable(), telefone: z.string().nullable() }),
+      z.object({ tipo: z.literal('digitada'), nome: z.string(), cnpj: z.string().regex(/^\d{14}$/), telefone: z.string().nullable() }),
+    ]),
+  }),
+]);
+const EnderecoEntregaEvento = z.object({
+  external_id: z.string().nullable(),
+  logradouro: z.string(),
+  numero: z.string().nullable(),
+  complemento: z.string().nullable(),
+  bairro: z.string().nullable(),
+  cidade: z.string(),
+  uf: z.string(),
+  cep: z.string().nullable(),
+  /** true = o endereço principal do cadastro (o ERP já o assume; não exige Conector novo) */
+  principal: z.boolean(),
+});
+
 /**
  * `vendedor.pedido.aprovado@1` — o pedido virou `aprovado` (automático dentro da alçada ou por decisão) com o
  * conteúdo para a fila do ERP (RN-INT-08; pedido do Hub R-20261101-044224-3). Chaves do ERP anuláveis: vêm do
@@ -96,11 +120,24 @@ export const PedidoAprovadoEvento = z.object({
         preco_unitario_cents: CentsNaoNeg,
         desconto_cents: CentsNaoNeg,
         total_cents: CentsNaoNeg,
+        // T-0061 (aditivos): `quantidade` é a UNIDADE BASE; a medida vendida vem aqui
+        unidade: z.string().nullable().optional(),
+        fator: z.number().int().positive().optional(),
+        quantidade_venda: z.number().int().positive().optional(),
+        preco_tabela_cents: CentsNaoNeg.optional(),
+        desconto_pct: z.number().min(0).max(100).optional(),
+        acrescimo_pct: z.number().min(0).max(100).optional(),
+        acrescimo_cents: CentsNaoNeg.optional(),
       }),
     )
     .min(1),
   desconto_total_cents: CentsNaoNeg,
   total_cents: CentsNaoNeg,
+  desconto_pct: z.number().min(0).max(100).optional(),
+  acrescimo_pct: z.number().min(0).max(100).optional(),
+  acrescimo_total_cents: CentsNaoNeg.optional(),
+  frete: FreteEvento.nullable().optional(),
+  endereco_entrega: EnderecoEntregaEvento.nullable().optional(),
 });
 export type PedidoAprovadoEvento = z.infer<typeof PedidoAprovadoEvento>;
 

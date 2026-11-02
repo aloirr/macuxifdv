@@ -7,3 +7,4 @@ export * from './totais';
 export * from './quantidade';
 export * from './retorno-erp';
 export * from './orcamento';
+export * from './preco-pedido';

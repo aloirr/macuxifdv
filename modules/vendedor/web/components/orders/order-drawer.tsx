@@ -8,7 +8,7 @@ import { Button, Drawer, ErrorBlock, formatDateTime, LoadingBlock, type NoticeTo
 import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../../contracts';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
-import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO } from '../../lib/detalhe-pedido';
+import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO, textoDaModalidade, textoDaTransportadora, textoDoAjusteDoItem, textoDoEnderecoEntrega } from '../../lib/detalhe-pedido';
 import { usePedido, useSessaoDoBko } from '../../lib/queries';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 import { OrderStatusBadge } from './status';
@@ -101,7 +101,9 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
             <Field label="Itens">
               {o.items_count} itens · {o.units} un.
             </Field>
-            <Field label="Desconto">{formatPct(o.discount_pct)}</Field>
+            {(o.surcharge_pct ?? 0) > 0 ? <Field label="Acréscimo do pedido">{formatPct(o.surcharge_pct!)}</Field> : <Field label="Desconto do pedido">{formatPct(o.discount_pct)}</Field>}
+            {o.effective_discount_pct !== undefined ? <Field label="Desconto efetivo (sem frete)">{formatPct(o.effective_discount_pct)}</Field> : null}
+            {o.price_table_name ? <Field label="Tabela de preço">{o.price_table_name}</Field> : null}
             {dados?.cliente?.documento ? <Field label="Documento do cliente">{dados.cliente.documento}</Field> : null}
           </div>
 
@@ -110,15 +112,36 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
               <span className="text-ink-2">Subtotal</span>
               <span>{formatBRL(o.subtotal_cents)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-ink-2">Desconto ({formatPct(o.discount_pct)})</span>
-              <span>− {formatBRL(o.discount_cents)}</span>
-            </div>
+            {(o.surcharge_pct ?? 0) > 0 ? (
+              <div className="flex justify-between">
+                <span className="text-ink-2">Acréscimo ({formatPct(o.surcharge_pct!)})</span>
+                <span>+ {formatBRL(Math.max(0, o.total_cents - o.subtotal_cents))}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between">
+                <span className="text-ink-2">Desconto ({formatPct(o.discount_pct)})</span>
+                <span>− {formatBRL(o.discount_cents)}</span>
+              </div>
+            )}
             <div className="flex justify-between border-t border-line-2 pt-1.5 font-display text-[18px] font-extrabold">
               <span>Total</span>
               <span>{formatBRL(o.total_cents)}</span>
             </div>
           </div>
+
+          {(o.freight || o.delivery_address) && (
+            <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" data-testid="pedido.entrega">
+              <h3 className="m-0 font-display text-[16px] font-bold">Frete e entrega</h3>
+              {o.freight ? (
+                <div className="grid grid-cols-1 gap-2">
+                  <Field label="Frete">{textoDaModalidade(o.freight)}</Field>
+                  {textoDaTransportadora(o.freight) ? <Field label="Transportadora">{textoDaTransportadora(o.freight)}</Field> : null}
+                </div>
+              ) : null}
+              {textoDoEnderecoEntrega(o.delivery_address) ? <Field label="Endereço de entrega">{textoDoEnderecoEntrega(o.delivery_address)}</Field> : null}
+              <span className="text-[12px] text-ink-2">O frete não tem valor no pedido: no FOB o cliente paga direto à transportadora.</span>
+            </section>
+          )}
 
           {(o.situacao_faturamento?.length || dados?.faturamento) && (
             <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" data-testid="pedido.faturamento">
@@ -173,13 +196,15 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
               <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
                 <h3 className="m-0 font-display text-[16px] font-bold">Itens</h3>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[460px] border-collapse text-[13px]" data-testid="pedido.itens">
+                  <table className="w-full min-w-[620px] border-collapse text-[13px]" data-testid="pedido.itens">
                     <thead>
                       <tr>
                         <th scope="col" className={th}>Código</th>
                         <th scope="col" className={th}>Descrição</th>
+                        <th scope="col" className={th}>Medida</th>
                         <th scope="col" className={thNum}>Qtd</th>
                         <th scope="col" className={thNum}>Tabela</th>
+                        <th scope="col" className={thNum}>Desc./Acr.</th>
                         <th scope="col" className={thNum}>Total</th>
                         {temFaturado && <th scope="col" className={thNum}>Faturado</th>}
                       </tr>
@@ -189,8 +214,10 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                         <tr key={it.id}>
                           <td className={`${td} font-mono whitespace-nowrap`}>{it.erp_code}</td>
                           <td className={td}>{it.description}</td>
+                          <td className={`${td} whitespace-nowrap`}>{it.unit_label ?? 'UN'}</td>
                           <td className={tdNum}>{it.quantity}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.unit_price_cents)}</td>
+                          <td className={`${tdNum} whitespace-nowrap`}>{textoDoAjusteDoItem(it)}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.total_cents)}</td>
                           {temFaturado && <td className={tdNum}>{`${it.quantity_invoiced ?? 0} de ${it.quantity_base ?? it.quantity}`}</td>}
                         </tr>
