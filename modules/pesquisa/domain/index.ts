@@ -13,3 +13,7 @@ export * from './publico';
 export * from './checkout';
 export * from './idempotencia';
 export * from './resultados';
+export * from './recebimento';
+export * from './oferta';
+export * from './bko';
+export * from './exportacao';
