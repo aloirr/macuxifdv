@@ -21,6 +21,8 @@ import { useEffect } from 'react';
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import type { VisaoShell } from '@macuxi/platform-sdk';
 import { colors } from '@macuxi/ui/mobile';
+import { AreaSeguraSuperior } from '@/components/area-segura';
+import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
 import { registrarCameraNosModulos } from '@/services/camera';
 import { PlataformaProvider, usePlataforma } from '@/state/plataforma';
 
@@ -62,12 +64,18 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
   if (!show) return null;
   return (
     <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor} ambiente={ambiente}>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="sync" />
-        <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
-      </Stack>
+      {/* área segura superior para todas as telas, abas e empilhadas (R-20261102-111044, T-0064) */}
+      {/* RN-CORE-23: botão Sincronizar, puxar para baixo e push usam o agendador único do app */}
+      <SincronizacaoDoShell>
+        <AreaSeguraSuperior>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="sync" />
+            <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+          </Stack>
+        </AreaSeguraSuperior>
+      </SincronizacaoDoShell>
     </ShellProvider>
   );
 }

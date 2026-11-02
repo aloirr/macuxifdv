@@ -6,9 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { formatBRL } from '@macuxi/comum';
-import { Badge, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, Notice, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
+import { Badge, ErrorBlock, EtiquetaCadastroIncompleto, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
 import { Cliente360Schema } from '../../../contracts';
-import { dataLocal, linksDeContato, situacaoTitulo } from '../../../domain';
+import { dataLocal, linksDeContato, observacaoComCadastro, situacaoTitulo } from '../../../domain';
 import { useMe } from '../../lib/queries';
 import { quando, rotuloResultado, sinais } from '../../lib/visitas';
 
@@ -36,7 +36,14 @@ function Cliente360Conteudo() {
       <PageHeader
         title={nome}
         subtitle={[cliente.razao_social !== nome ? cliente.razao_social : '', cliente.documento ?? '', [cliente.cidade, cliente.uf].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')}
-        badge={fin?.bloqueado ? <Badge tone="danger">Bloqueado</Badge> : undefined}
+        badge={
+          fin?.bloqueado || cliente.cadastro_incompleto ? (
+            <>
+              {fin?.bloqueado ? <Badge tone="danger">Bloqueado</Badge> : null}
+              {cliente.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
+            </>
+          ) : undefined
+        }
         actions={
           <Link href="/carteira" className="text-[13px] font-semibold text-accent no-underline hover:underline">
             Voltar à carteira
@@ -79,6 +86,9 @@ function Cliente360Conteudo() {
           })}
         </ul>
       </Panel>
+
+      {/* RN-CORE-17: linha automática no topo, texto do ERP intacto abaixo */}
+      <ObservacoesCliente automatica={observacaoComCadastro(null, cliente.cadastro_campos_faltantes ?? [])} texto={cliente.observacao ?? null} />
 
       <Panel title={`Títulos (${titulos.length})`}>
         <TableScroll minWidth={620}>

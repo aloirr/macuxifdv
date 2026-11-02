@@ -179,7 +179,7 @@ async function rotaDoDia(ctx: ContextoBase, db: ClienteBanco, usuarioId: string,
 }
 
 /** Carteira do cliente para o payload de `core.cliente.atualizado@1` (RN-CORE-04; lida dentro da transação do tenant). */
-async function carteiraDoEvento(db: ClienteBanco, clienteId: string) {
+export async function carteiraDoEvento(db: ClienteBanco, clienteId: string) {
   const linhas = (
     await db.query<LinhaCarteiraEvento>(
       "select usuario_id, papel, frequencia_semanas, to_char(created_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as desde from core.carteira where cliente_id = $1 and deleted_at is null and (fim is null or fim >= current_date)",
@@ -327,7 +327,7 @@ const rotasDeCarteiraDoUsuario: RotaModulo[] = [
         await checarUsuario(ctx, db, ctx.params.id);
         const itens = (
           await db.query(
-            `select c.id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as nome, c.razao_social, c.cidade, c.bairro, c.latitude::float8 as lat, c.longitude::float8 as lng,
+            `select c.id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as nome, c.razao_social, c.cidade, c.bairro, c.latitude::float8 as lat, c.longitude::float8 as lng, c.cadastro_incompleto,
                     to_char((select max(h.ultima_compra_em) from core.historico_compra h where h.cliente_id = c.id and h.deleted_at is null), 'YYYY-MM-DD') as ultima_compra_em,
                     k.id as carteira_id, k.papel, k.frequencia_semanas, k.dia_semana
                from core.carteira k join core.cliente c on c.id = k.cliente_id and c.deleted_at is null and c.ativo
