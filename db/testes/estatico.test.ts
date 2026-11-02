@@ -12,6 +12,7 @@ import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
 import * as nuvemGestor from '../../modules/gestor/db/nuvem';
+import { TABELAS_PESQUISA_DO_GATILHO } from '../seeds/fixtures/pesquisa';
 import {
   CODIGOS_ERRO_LINHA,
   CODIGOS_ITEM_DESCARTADO,
@@ -54,8 +55,11 @@ const TABELAS_PROMOTOR = [
 /**
  * Schemas sem espelho Drizzle ainda (fora da comparação Drizzle x SQL).
  * espelho Drizzle do promotor: pendência do banco-dados local (modules/promotor/db/nuvem.ts).
+ * espelho Drizzle da pesquisa: pendência do banco-dados local (modules/pesquisa/db/nuvem.ts; código pronto em docs/banco/pesquisa.md).
  */
-const SEM_ESPELHO_DRIZZLE = ['promotor'];
+const SEM_ESPELHO_DRIZZLE = ['promotor', 'pesquisa'];
+/** Tabelas do schema pesquisa (0016, T-0057); resposta_item e resposta_foto são preenchidas pelo gatilho da resposta. */
+const TABELAS_PESQUISA = ['pesquisa.questionario', 'pesquisa.questionario_versao', 'pesquisa.resposta', 'pesquisa.resposta_item', 'pesquisa.resposta_foto'] as const;
 /** Tabelas novas da 0013 (catálogo, vendedor e core). */
 const TABELAS_0013 = [
   'core.produto_unidade', 'core.cliente_endereco', 'catalogo.uso_ia', 'catalogo.catalogo_no', 'catalogo.produto_no', 'catalogo.produto_conteudo',
@@ -94,10 +98,11 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    // lerMigracoes já recusa buraco e par incompleto; aqui: as 13 primeiras (até a 0013), a 0014 do Gestor (T-0055) e a 0015 do Promotor (T-0056) no lugar certo
+    // lerMigracoes já recusa buraco e par incompleto; aqui: as 13 primeiras (até a 0013), a 0014 do Gestor (T-0055), a 0015 do Promotor (T-0056), a 0016 da Pesquisa (T-0057) e a 0018 das medidas (T-0063) no lugar certo
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
     expect(nomes[13]).toBe('0014_gestor');
     expect(nomes[14]).toBe('0015_promotor');
+    expect(nomes[15]).toBe('0016_pesquisa');
     expect(nomes[17]).toBe('0018_medidas');
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
@@ -116,7 +121,7 @@ describe('migrações (estático)', () => {
   });
 
   const criadas = tabelasCriadas();
-  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029, na T-0032, na T-0055 e na T-0056', () => {
+  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029, na T-0032, na T-0055, na T-0056 e na T-0057', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
@@ -133,6 +138,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_GESTOR,
         ...TABELAS_0018,
         ...TABELAS_PROMOTOR,
+        ...TABELAS_PESQUISA,
       ].sort(),
     );
   });
@@ -733,8 +739,9 @@ describe('fixture dois-tenants (estático)', () => {
   const comTenant = [...tabelasCriadas().keys()].filter((t) => !(t in TABELAS_SEM_TENANT_ID));
 
   it('cobre toda tabela com tenant_id, com pelo menos 1 linha em CADA tenant', () => {
-    expect([...ORDEM_TABELAS].sort()).toEqual([...tabelasCriadas().keys()].sort());
-    for (const t of comTenant) {
+    // pesquisa.resposta_item e pesquisa.resposta_foto: o gatilho da resposta as preenche (fora de ORDEM_TABELAS e de dados)
+    expect([...ORDEM_TABELAS, ...TABELAS_PESQUISA_DO_GATILHO].sort()).toEqual([...tabelasCriadas().keys()].sort());
+    for (const t of comTenant.filter((x) => !(TABELAS_PESQUISA_DO_GATILHO as readonly string[]).includes(x))) {
       const linhas = dados[t as keyof typeof dados];
       expect(linhas.filter((l) => l.tenant_id === A).length, `${t} em A`).toBeGreaterThan(0);
       expect(linhas.filter((l) => l.tenant_id === B).length, `${t} em B`).toBeGreaterThan(0);

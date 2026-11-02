@@ -9,20 +9,39 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
+import { aguardarAteAbrir, comLimiteDeTempo, MENSAGEM_PDF_FALHA } from './limite-tempo';
+
 /** A4 em pontos (72 por polegada). */
 const A4 = { width: 595, height: 842 };
 
 export type PdfExportResult = { kind: 'shared' } | { kind: 'saved'; uri: string } | { kind: 'printed' };
+
+/** Limite para gerar o arquivo; compartilhar não tem limite (o usuário escolhe o app), só a espera para liberar a folha. */
+export const LIMITE_GERAR_PDF_MS = 20_000;
+const ESPERA_ABRIR_COMPARTILHAR_MS = 1_500;
 
 export async function exportPdf(html: string, fileName: string): Promise<PdfExportResult> {
   if (Platform.OS === 'web') {
     printHtmlOnWeb(html);
     return { kind: 'printed' };
   }
-  const { uri } = await Print.printToFileAsync({ html, ...A4 });
+  let uri: string;
+  try {
+    ({ uri } = await comLimiteDeTempo(Print.printToFileAsync({ html, ...A4 }), LIMITE_GERAR_PDF_MS, 'gerar PDF'));
+  } catch (e) {
+    // o detalhe técnico fica só no log; a folha mostra a mensagem amigável
+    console.warn('[pdf] falha ao gerar o arquivo', e);
+    throw new Error(MENSAGEM_PDF_FALHA);
+  }
   // TODO: renomear o arquivo para `fileName` exige expo-file-system (não é dependência do app hoje); o nome vai no título.
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: fileName });
+    try {
+      // no Android o shareAsync pode só resolver quando o usuário volta do compartilhar: após 1,5 s a folha é liberada
+      await aguardarAteAbrir(Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: fileName }), ESPERA_ABRIR_COMPARTILHAR_MS);
+    } catch (e) {
+      console.warn('[pdf] falha ao abrir o compartilhar', e);
+      throw new Error(MENSAGEM_PDF_FALHA);
+    }
     return { kind: 'shared' };
   }
   return { kind: 'saved', uri };

@@ -11,7 +11,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { pedidosDaLista, rotuloDaAba, subtituloDaLista } from '../lib/lista-pedidos';
+import { mesesDoSeletor, pedidosDaLista, rotuloDaAba, subtituloDaLista } from '../lib/lista-pedidos';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { rotuloDoDocumento } from '../lib/pre-venda';
 import { filterCounts, matchesFilter, ORDER_FILTERS, orderNote, statusBadge, type OrderFilter } from '../lib/order-status';
@@ -28,6 +28,8 @@ export default function OrdersScreen() {
   const syncAll = () => motor?.sincronizar();
   const [filtro, setFiltro] = useState<OrderFilter | 'decide' | 'approved' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [mesEscolhido, setMesEscolhido] = useState<string | null>(null);
+  const [seletorAberto, setSeletorAberto] = useState(false);
 
   // RN-CORE-23: ao focar, só relê o aparelho (sem rede, sem timer)
   useFocusEffect(
@@ -36,8 +38,11 @@ export default function OrdersScreen() {
     }, [refreshOrders]),
   );
 
-  const month = localIsoDate(new Date(), tz).slice(0, 7);
-  const monthOrders = useMemo(() => pedidosDaLista(orders, { gestao, mes: month, tz }), [orders, tz, month, gestao]);
+  const mesAtual = localIsoDate(new Date(), tz).slice(0, 7);
+  const month = mesEscolhido ?? mesAtual;
+  // seletor de mês: só meses dentro da janela de 90 dias que já estão no aparelho (sem nova consulta ao servidor)
+  const meses = useMemo(() => mesesDoSeletor(orders, { mesAtual, tz, agora: new Date() }), [orders, mesAtual, tz]);
+  const monthOrders = useMemo(() => pedidosDaLista(orders, { gestao, mes: month, mesAtual, tz }), [orders, tz, month, mesAtual, gestao]);
   const counts = filterCounts(monthOrders);
   const filter = filtro ?? (gestao && paraDecidir.size > 0 ? 'decide' : 'all');
   const aprovados = monthOrders.filter((o) => o.status === 'approved').length;
@@ -63,6 +68,11 @@ export default function OrdersScreen() {
       <View style={styles.header}>
         <View style={{ gap: 2, flex: 1 }}>
           <Text style={t.h1}>{gestao ? 'Pedidos da equipe' : 'Pedidos'}</Text>
+          {!gestao && meses.length > 1 ? (
+            <Pressable testID="orders-mes" accessibilityRole="button" accessibilityLabel="Escolher o mês" onPress={() => setSeletorAberto((v) => !v)} style={{ minHeight: 48, justifyContent: 'center' }}>
+              <Text style={[t.bodyStrong, { color: colors.accentInk }]}>{capitalize(monthName(month))} {seletorAberto ? '▴' : '▾'}</Text>
+            </Pressable>
+          ) : null}
           <Text style={t.sub}>
             {subtituloDaLista({ gestao, mesNome: capitalize(monthName(month)), quantidade: activeCount, totalTexto: formatBRL0(total) })}
           </Text>
@@ -71,6 +81,23 @@ export default function OrdersScreen() {
           {gestao ? null : <Button testID="pedido-novo" label="Novo" icon="plus" variant="accent" onPress={() => irParaNovoPedido()} style={{ paddingHorizontal: 16 }} />}
         </SePode>
       </View>
+
+      {seletorAberto && !gestao ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}>
+          {meses.map((m) => (
+            <Chip
+              key={m}
+              testID={`mes-${m}`}
+              label={capitalize(monthName(m))}
+              active={m === month}
+              onPress={() => {
+                setMesEscolhido(m === mesAtual ? null : m);
+                setSeletorAberto(false);
+              }}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
 
       {queued > 0 ? (
         <Banner testID="orders-queue-banner">

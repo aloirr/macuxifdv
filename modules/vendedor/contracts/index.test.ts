@@ -32,7 +32,7 @@ describe('contracts', () => {
   });
 });
 
-import { AprovarPedidoRequest, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
+import { AprovacaoSolicitadaEvento, AprovarPedidoRequest, PedidoAprovadoEvento, PedidoEventoSyncSchema, PedidoPush, PedidoStatusAlteradoEvento, RejeitarPedidoRequest } from './index';
 
 describe('contracts do pedido no servidor (T-0029)', () => {
   const push = { id: '0b7f6c1e-3d2a-4c5b-9e8f-7a6b5c4d3e2f', customer_id: 'c1', discount_pct: 4, items: [{ product_id: 'p1', quantity: 2 }] };
@@ -54,6 +54,14 @@ describe('contracts do pedido no servidor (T-0029)', () => {
     const base = { pedido_id: 'a', vendedor_id: 'b', de: null, alterado_em: '2026-11-01T14:00:00.000Z', autor_id: null, motivo: null };
     expect(PedidoStatusAlteradoEvento.safeParse({ ...base, para: 'recebido' }).success).toBe(true);
     expect(PedidoStatusAlteradoEvento.safeParse({ ...base, para: 'approved' }).success).toBe(false);
+  });
+  it('RF-CORE-09: pedido_numero é opcional e compatível em status_alterado@1 e aprovacao_solicitada@1', () => {
+    const base = { pedido_id: 'a', vendedor_id: 'b', de: null, para: 'recebido', alterado_em: '2026-11-01T14:00:00.000Z', autor_id: null, motivo: null };
+    expect(PedidoStatusAlteradoEvento.safeParse(base).success).toBe(true);
+    expect(PedidoStatusAlteradoEvento.parse({ ...base, pedido_numero: '000010' }).pedido_numero).toBe('000010');
+    const apr = { pedido_id: 'a', vendedor_id: 'b', cliente_id: 'c', solicitada_em: '2026-11-01T14:00:00.000Z', nivel: 'supervisor', motivos: ['desconto'], desconto_efetivo_pct: 8, total_cents: 100, credito: null, historico: null };
+    expect(AprovacaoSolicitadaEvento.safeParse(apr).success).toBe(true);
+    expect(AprovacaoSolicitadaEvento.parse({ ...apr, pedido_numero: '000010' }).pedido_numero).toBe('000010');
   });
   it('aprovado@1 aceita chaves do ERP nulas e exige ao menos um item', () => {
     const e = { pedido_uuid: 'a', cliente_external_id: null, vendedor_external_id: null, condicao_pagamento_codigo: null, criado_em: 'x', aprovado_em: 'y', observacao: null, desconto_total_cents: 0, total_cents: 100, itens: [{ sequencia: 1, produto_external_id: null, quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, total_cents: 100 }] };
