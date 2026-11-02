@@ -6,7 +6,6 @@
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { Badge, Banner, Card, colors, Empty, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ItemFilaAprovacao } from '../../contracts';
 import { MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo } from '../lib/apresentacao';
@@ -15,18 +14,14 @@ import { useGestor } from '../state/use-gestor';
 
 export default function AprovacoesScreen() {
   const g = useGestor();
-  const [puxando, setPuxando] = useState(false);
   if (!g.carregado) return <Loading />;
   const nomes = nomesDaVisao(g.visao);
   const fila = g.fila;
   return (
     <Screen
       testID="gestor-aprovacoes"
-      refreshing={puxando || g.sincronizando}
-      onRefresh={() => {
-        setPuxando(true);
-        void g.sincronizar().finally(() => setPuxando(false));
-      }}>
+      refreshing={g.auto.puxando}
+      onRefresh={g.auto.puxar}>
       <View style={{ gap: 2 }}>
         <Text style={t.h1}>Aprovações</Text>
         <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />

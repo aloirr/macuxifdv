@@ -5,15 +5,13 @@
  * cache quando o motor termina uma sincronização. Ficha e ranking buscam a API só quando o usuário abre a tela (sob
  * demanda, nunca em ciclo). Escritas (dispensar alerta) exigem conexão e avisam com a ação seguinte.
  */
-import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
+import { useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, type IndicadorRanking, type PeriodoRanking } from '../../contracts';
-import { podeSincronizarAgora } from '../../domain/sincronizacao';
 import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
 
-const relogio = relogioReal();
 export const PRECISA_SINAL = 'Sem conexão: esta ação precisa de internet. Tente de novo quando o sinal voltar.';
 
 export function useGestor() {
@@ -37,20 +35,8 @@ export function useGestor() {
     void recarregar();
   }, [recarregar, estado.sincronizado_em]);
 
-  /**
-   * Puxar para baixo = Sincronizar (motor da plataforma: envia a fila e roda as etapas, inclusive a do Gestor), com a
-   * proteção de 30 s contra toques repetidos (RN-CORE-23 item 5): dentro dela só relê o cache.
-   */
-  const ultimoPuxar = useRef<number | null>(null);
-  const sincronizar = useCallback(async () => {
-    if (!motor) return;
-    const agora = relogio.agora().getTime();
-    if (podeSincronizarAgora(ultimoPuxar.current, agora)) {
-      ultimoPuxar.current = agora;
-      await motor.sincronizar();
-    }
-    await recarregar();
-  }, [motor, recarregar]);
+  /** RN-CORE-23: puxar para baixo = Sincronizar (motor, trava de 30 s); relê o cache a cada sincronização. */
+  const auto = useAtualizacaoAutomatica({ atualizar: recarregar, tz });
 
   /** RF-GES-07: dispensar (online). Atualiza o alerta no cache com a resposta do servidor. */
   const dispensar = useCallback(
@@ -104,5 +90,5 @@ export function useGestor() {
     [ambiente, cache],
   );
 
-  return { ...dados, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, sincronizar, dispensar, ficha, ranking };
+  return { ...dados, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, auto, dispensar, ficha, ranking };
 }

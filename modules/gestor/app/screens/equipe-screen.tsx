@@ -5,7 +5,6 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { Badge, Banner, Button, Card, colors, Empty, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MembroComPainel, ResumoEquipe } from '../../contracts';
 import { fracao, STATUS_DIA_ROTULO } from '../lib/apresentacao';
@@ -14,17 +13,13 @@ import { useGestor } from '../state/use-gestor';
 
 export default function EquipeScreen() {
   const g = useGestor();
-  const [puxando, setPuxando] = useState(false);
   if (!g.carregado) return <Loading />;
   const v = g.visao;
   return (
     <Screen
       testID="gestor-equipe"
-      refreshing={puxando || g.sincronizando}
-      onRefresh={() => {
-        setPuxando(true);
-        void g.sincronizar().finally(() => setPuxando(false));
-      }}>
+      refreshing={g.auto.puxando}
+      onRefresh={g.auto.puxar}>
       <View style={styles.cabecalho}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={t.h1}>Equipe</Text>

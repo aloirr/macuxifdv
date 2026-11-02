@@ -8,9 +8,8 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import { DEFAULT_TZ } from '@macuxi/ui/web';
+import { DEFAULT_TZ, intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { Alerta, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, RegrasAlertaResposta, ROTAS_GESTOR, VisaoEquipe, type AjusteRegraAlerta, type TipoAlerta } from '../../contracts';
-import { intervaloAutomaticoMs } from '../../domain/sincronizacao';
 import { paraQuery, type FiltrosAlertas, type FiltrosPainel, type FiltrosRanking } from './filtros';
 
 const qk = {
@@ -38,7 +37,7 @@ export function useRanking(f: FiltrosRanking) {
 }
 
 export function useFila() {
-  return useQuery({ queryKey: qk.fila, enabled: useLogado(), refetchInterval: intervaloAutomaticoMs(undefined), queryFn: async ({ signal }) => FilaAprovacao.parse(await api<unknown>(ROTAS_GESTOR.aprovacoes, { signal })) });
+  return useQuery({ queryKey: qk.fila, enabled: useLogado(), refetchInterval: intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN), queryFn: async ({ signal }) => FilaAprovacao.parse(await api<unknown>(ROTAS_GESTOR.aprovacoes, { signal })) });
 }
 
 export function useAlertas(f: FiltrosAlertas) {

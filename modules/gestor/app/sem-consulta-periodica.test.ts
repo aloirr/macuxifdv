@@ -24,14 +24,14 @@ describe('RN-CORE-23: sem consulta periódica própria nas telas do Gestor', () 
     expect(achados).toEqual([]);
   });
 
-  it('RN-CORE-23 item 6: refetchInterval só no BKO e só por intervaloAutomaticoMs (≥ 15 min)', () => {
+  it('RN-CORE-23 item 6: refetchInterval só no BKO e só por intervaloSyncAutoMs (≥ 15 min)', () => {
     const usos = [...fontes(join(RAIZ, 'app')), ...fontes(join(RAIZ, 'web'))].flatMap((arq) => {
       const texto = readFileSync(arq, 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
       return [...texto.matchAll(/refetchInterval\s*:\s*([^,}]+)/g)].map((m) => ({ arq: arq.slice(RAIZ.length + 1), valor: m[1]!.trim() }));
     });
     for (const u of usos) {
       expect(u.arq.startsWith('web')).toBe(true);
-      expect(u.valor).toMatch(/^intervaloAutomaticoMs\(/);
+      expect(u.valor).toMatch(/^intervaloSyncAutoMs\(/);
     }
   });
 });

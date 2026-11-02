@@ -16,7 +16,6 @@ const relogio = relogioReal();
 
 export default function AlertasScreen() {
   const g = useGestor();
-  const [puxando, setPuxando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
   if (!g.carregado) return <Loading />;
@@ -31,11 +30,8 @@ export default function AlertasScreen() {
   return (
     <Screen
       testID="gestor-alertas"
-      refreshing={puxando || g.sincronizando}
-      onRefresh={() => {
-        setPuxando(true);
-        void g.sincronizar().finally(() => setPuxando(false));
-      }}>
+      refreshing={g.auto.puxando}
+      onRefresh={g.auto.puxar}>
       <View style={{ gap: 2 }}>
         <Text style={t.h1}>Alertas</Text>
         <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
