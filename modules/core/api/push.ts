@@ -9,6 +9,8 @@ export interface DestinoPush {
   corpo: string;
   link: string | null;
   prioridade: 'normal' | 'alta';
+  /** Entidades do pull que mudaram (RN-CORE-23): o app sincroniza só elas. */
+  entidades?: readonly string[];
 }
 
 export interface MensagemExpo {
@@ -16,7 +18,7 @@ export interface MensagemExpo {
   title: string;
   body: string;
   priority: 'default' | 'high';
-  data: { link: string | null };
+  data: { link: string | null; entidades?: string[] };
 }
 
 /** Limite do envio ao Expo (ADR 0007: o lote do despachante espera o handler). */
@@ -33,7 +35,7 @@ export function montarMensagemExpo(d: DestinoPush): MensagemExpo | null {
     title: d.titulo.slice(0, 120),
     body: d.corpo.length > 178 ? `${d.corpo.slice(0, 177)}…` : d.corpo,
     priority: d.prioridade === 'alta' ? 'high' : 'default',
-    data: { link: d.link },
+    data: d.entidades && d.entidades.length > 0 ? { link: d.link, entidades: [...d.entidades] } : { link: d.link },
   };
 }
 

@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { errorMessage } from '@macuxi/platform-sdk/web';
 import { actionLabel, ENTITY_LABEL, entityLabel, summarizeChange } from '@/lib/audit';
-import { DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, LoadingBlock, PageHeader, Panel, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
+import { Button, DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, LoadingBlock, PageHeader, Panel, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
 import { useAuditoria, useMe } from '@/lib/queries';
 import { useSessao } from '@/lib/session';
 
@@ -37,6 +37,10 @@ export function AuditPage() {
           ))}
         </SelectField>
         {q.data && <span className="pb-2.5 text-[12px] text-ink-2">{rows.length} registros mais recentes</span>}
+        {/* RN-CORE-23 item 6: sem consulta periódica curta; atualiza a cada sync_auto_min ou por este botão */}
+        <Button type="button" size="sm" onClick={() => void q.refetch()} disabled={q.isFetching} aria-label="Atualizar a trilha de auditoria">
+          {q.isFetching ? 'Atualizando…' : 'Atualizar'}
+        </Button>
       </FilterBar>
       {q.isError && <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />}
       {q.isPending && <LoadingBlock />}

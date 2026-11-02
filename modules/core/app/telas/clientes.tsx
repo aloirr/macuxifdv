@@ -2,7 +2,7 @@
  * Carteira: busca e filtros locais (funcionam sem sinal).
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { Badge, Chip, colors, daysAgoLabel, fonts, Icon, radius, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Badge, Chip, EtiquetaCadastroIncompleto, colors, daysAgoLabel, fonts, Icon, radius, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -179,6 +179,7 @@ function LinhaLocal({ c, first, last }: { c: ItemClienteLocal; first: boolean; l
         </Text>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
           {c.bloqueado ? <Badge label="Bloqueado" tone="danger" /> : null}
+          {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
           {c.vencidos_qtd > 0 ? <Badge label={`${c.vencidos_qtd} vencido${c.vencidos_qtd > 1 ? 's' : ''}`} tone="danger" /> : null}
           {semCompra ? <Badge label={c.dias_sem_compra === null ? 'nunca comprou' : `${c.dias_sem_compra} dias sem compra`} tone="warning" /> : null}
         </View>
