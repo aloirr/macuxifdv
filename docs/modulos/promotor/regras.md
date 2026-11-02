@@ -90,3 +90,20 @@ Payloads Zod dos seis eventos `promotor.*@1` em `contracts/eventos.ts`; emissão
 - Decisões do Alexandre incorporadas ao doc 03: RN-PRO-05 (ruptura inclui falha de reposição e a mostra à parte), RN-PRO-08 (faixas), RN-PRO-11 (peso do parcial) e RN-PRO-02 (foto sem GPS aceita). Parâmetros do tenant: `validade_critica_dias`, `validade_proxima_dias`, `peso_parcial_conformidade`.
 - Payloads dos eventos `promotor.*@1` escritos na T-0040 ([eventos.md](eventos.md)). A publicação na outbox (`tx.publicar` nas rotas de `modules/promotor/api`) entra quando as rotas de coleta existirem.
 - `contracts` não reexporta mais os primitivos de `base.ts` (`Uuid`, `InstanteUtc`…); só os schemas de negócio.
+
+## 13. Recebimento das coletas — RN-PRO-02/04/06, idempotência (`coleta.ts`, T-0056)
+- `podeColetar(perfil)`: só o promotor (doc 03 §2). `avaliarColeta`: perfil → visita de loja do próprio promotor (de outro = "não encontrada", RN-CORE-04) → **janela da visita**: o instante da coleta (`*_em`, `instanteDaColeta`) entre o check-in e o checkout, inclusive (`coletaNaJanelaDaVisita`). Offline: coleta feita com a visita aberta e enviada depois do checkout é aceita; feita depois do checkout é recusada.
+- Falta de dependência que o aparelho ainda vai enviar (visita inexistente, foto não recebida) é `retentavel` (o item fica na fila). Foto de outra visita é recusa de vez (`recusaDeFotos`).
+- `transicaoVisitaLoja`: 1º envio cria (aberta ou já fechada); aberta → fechada com os dados do check-in iguais = checkout; mesmo conteúdo = repetida; reabrir, mudar loja/check-in ou alterar um checkout feito = conflito. `mesmoConteudo` compara sem depender da ordem das chaves.
+- `checkoutRespeitaChecklist` (RN-PRO-06 no servidor): visita `realizada` com a última resposta de alguma etapa obrigatória não concluída bloqueia; `loja_fechada`/`acesso_negado` dispensam.
+- `recusaDeVariacaoDePreco` (RN-PRO-04 no servidor): variação acima do limite do tenant sem `variacao_confirmada` é recusada. Ex.: 599 → 59900 sem confirmação = recusa; exatamente 50% passa.
+
+## 14. Cadastro que vale para a loja — RN-PRO-10 (`alvo.ts`)
+- `cadastroValeParaLoja`: não removido, vigente na data civil e com alvo = a loja (`cliente_id`), o segmento da loja (`segmento`, sem diferenciar maiúsculas) ou todas (os dois nulos).
+- `checklistDaLoja` / `metaDaCategoria`: o mais específico (loja > segmento > todas) e, empatado, o de início mais recente. Ex.: meta geral 30% e meta da loja 45% → 45%.
+
+## 15. Relatórios do BKO — RF-PRO-12 (`relatorios.ts`)
+- `visitasQueContam` (RN-PRO-07): só visitas encerradas com a permanência mínima entram.
+- `relatorioShareMeta`: por loja e categoria vale a **última** medição de visita que conta; atingimento e desvio recalculados (RN-PRO-03); resumo = `mediaShare`.
+- `relatorioRupturaPorLoja`: por loja, a **última** visita que conta com o mix conferido (`resumirRuptura`, RN-PRO-05); maior ruptura primeiro.
+- `parametrosDosBrutos` (`parametros.ts`): parâmetros do tenant vindos da API ou do aparelho; valor inválido cai no padrão e nunca derruba a requisição nem a tela.
