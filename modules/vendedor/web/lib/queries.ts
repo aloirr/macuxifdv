@@ -1,5 +1,6 @@
 'use client';
 
+import { lerDetalheDoPedido } from './detalhe-pedido';
 /**
  * Consultas das páginas do Vendedor no BKO (T-0029 §8), só na API nova (`/v1/vendedor/*` e `/v1/auditoria`): nenhuma rota da
  * Fase M. A sessão vem de `useSession` (perfil e fuso do login do Core).
@@ -67,7 +68,7 @@ export function usePendentes() {
 
 export function usePedido(id: string | null) {
   const enabled = useAuthed() && !!id;
-  return useQuery({ queryKey: qk.pedido(id ?? ''), queryFn: async () => OrderDetail.parse(await api<unknown>(`/vendedor/pedidos/${id}`)), enabled });
+  return useQuery({ queryKey: qk.pedido(id ?? ''), queryFn: async () => lerDetalheDoPedido(await api<unknown>(`/vendedor/pedidos/${id}`)), enabled });
 }
 
 export function useAlcadas() {
