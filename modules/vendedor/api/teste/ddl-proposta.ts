@@ -10,7 +10,11 @@ import { estadoBanco } from '@macuxi/db/teste/estado';
 import pg from 'pg';
 import { beforeAll } from 'vitest';
 
-/** DDL PROPOSTA ao banco-dados (T-0054). Só roda se a migração ainda não criou as tabelas. */
+/**
+ * DDL PROPOSTA ao banco-dados (T-0054). Só roda se a migração ainda não criou as tabelas. A migração real também liga
+ * `tenant_id` à tabela de tenants da plataforma (como as demais tabelas do schema); aqui fica de fora porque o módulo não
+ * referencia schema de outro (S0-014, tests/fundacao/fronteiras-schema.test.ts).
+ */
 export const DDL_PROPOSTA = `
 alter table vendedor.pedido add column if not exists faturado_cents bigint not null default 0 check (faturado_cents >= 0);
 alter table vendedor.pedido add column if not exists devolvido_cents bigint not null default 0 check (devolvido_cents >= 0);
@@ -21,7 +25,7 @@ alter table vendedor.pedido_item add column if not exists quantidade_faturada in
 
 create table vendedor.pedido_faturamento (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references plataforma.tenant (id),
+  tenant_id uuid not null,
   pedido_id uuid not null,
   evento_origem_id uuid not null,
   status_retorno text not null check (status_retorno in ('faturado_parcial', 'faturado_total')),
@@ -44,7 +48,7 @@ grant select, insert on vendedor.pedido_faturamento to macuxi_app;
 
 create table vendedor.pedido_devolucao (
   id uuid primary key default gen_random_uuid(),
-  tenant_id uuid not null references plataforma.tenant (id),
+  tenant_id uuid not null,
   pedido_id uuid not null,
   nota_numero text not null, nota_serie text, emitida_em timestamptz not null,
   total_cents bigint not null check (total_cents >= 0),
