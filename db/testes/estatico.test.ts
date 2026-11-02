@@ -11,6 +11,7 @@ import * as nuvemCatalogo from '../../modules/catalogo/db/nuvem';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
+import * as nuvemGestor from '../../modules/gestor/db/nuvem';
 import {
   CODIGOS_ERRO_LINHA,
   CODIGOS_ITEM_DESCARTADO,
@@ -42,6 +43,8 @@ const TABELAS_INTEGRACAO = [
   'integracao.inativacao_auditoria', 'integracao.cursor_entidade', 'integracao.reconciliacao', 'integracao.mapeamento', 'integracao.pedido_fila_erp',
   'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
 ] as const;
+/** Tabelas do schema gestor (0014, T-0055). */
+const TABELAS_GESTOR = ['gestor.evento_aplicado', 'gestor.projecao_fato', 'gestor.alerta', 'gestor.alerta_regra'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -57,7 +60,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -70,7 +73,10 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual([
+    // lerMigracoes já recusa buraco e par incompleto; aqui: as 12 primeiras e a 0014 do Gestor (T-0055) no lugar certo
+    const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
+    expect(nomes[13]).toBe('0014_gestor');
+    expect(nomes.slice(0, 12)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
       '0012_search_path_pg_temp',
@@ -99,6 +105,7 @@ describe('migrações (estático)', () => {
         'catalogo.tabela_preco', 'catalogo.tabela_preco_item', 'catalogo.cliente_tabela_preco',
         'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
         ...TABELAS_INTEGRACAO,
+        ...TABELAS_GESTOR,
       ].sort(),
     );
   });
@@ -152,6 +159,8 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'usage on schema integracao',
       'execute on function integracao.expurgar_retencao(timestamptz, integer)',
       'execute on function plataforma.expurgar_outbox(timestamptz, integer)',
+      'usage on schema gestor',
+      'execute on function gestor.expurgar_eventos_aplicados(timestamptz, integer, integer)',
     ]);
   });
 
@@ -535,8 +544,8 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
       expect(m12.up).toContain(`alter function ${f} set search_path = pg_catalog, ${schema}, pg_temp;`);
       expect(m12.down).toContain(`alter function ${f} set search_path = pg_catalog, ${schema};`);
     }
-    // toda função SECURITY DEFINER criada até aqui está na lista (nova função = pg_temp já no create)
-    const definers = migracoes.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)].map((x) => x[1]));
+    // toda função SECURITY DEFINER criada até a 0012 está na lista (nova função = pg_temp já no create: 0014 em gestor.test.ts)
+    const definers = migracoes.filter((m) => m.versao <= '0012').flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)].map((x) => x[1]));
     expect(definers.sort()).toEqual(funcoes.map(([f]) => f.slice(0, f.indexOf('('))).sort());
   });
 
