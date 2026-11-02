@@ -7,6 +7,7 @@
  */
 import { z } from 'zod';
 import { ModuloIdSchema } from './modulos';
+import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
 
 const Base = {
   id: z.string().uuid(),
@@ -69,7 +70,7 @@ export const ProdutoSyncSchema = z
     unidade: z.string(),
     /** Embalagem opcional (RN-CORE-19): medida + quantidade de unidades. Opcionais: compatível com o pull anterior. */
     embalagem_medida: z.string().nullable().optional(),
-    embalagem_quantidade: z.number().int().nullable().optional(),
+    embalagem_quantidade: z.number().int().min(EMBALAGEM_QUANTIDADE_MIN).max(EMBALAGEM_QUANTIDADE_MAX).nullable().optional(),
     ativo: z.boolean(),
   })
   .strict();

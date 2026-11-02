@@ -24,6 +24,11 @@ describe('RN-CORE-19: contratos das medidas', () => {
     expect(ProdutoSyncSchema.safeParse({ ...produto, embalagem_medida: 'CX', embalagem_quantidade: 12 }).success).toBe(true);
     expect(ProdutoSyncSchema.safeParse({ ...produto, embalagem_medida: null, embalagem_quantidade: null }).success).toBe(true);
   });
+  it('RN-CORE-19: embalagem_quantidade no pull é inteira de 2 a 9999 (mesmo CHECK do banco)', () => {
+    const produto = { ...base, sku: 'A1', ean: null, nome: 'Café', marca: null, categoria: null, unidade: 'UN', ativo: true, embalagem_medida: 'CX' };
+    for (const q of [2, 9999]) expect(ProdutoSyncSchema.safeParse({ ...produto, embalagem_quantidade: q }).success, String(q)).toBe(true);
+    for (const q of [1, 10000, 2.5, 2147483648]) expect(ProdutoSyncSchema.safeParse({ ...produto, embalagem_quantidade: q }).success, String(q)).toBe(false);
+  });
   it('RN-CORE-19: produto no BKO e o corpo de medidas do produto', () => {
     expect(ProdutoMedidasPutSchema.safeParse({ unidade: 'UN' }).success).toBe(true);
     expect(ProdutoMedidasPutSchema.safeParse({ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 }).success).toBe(true);

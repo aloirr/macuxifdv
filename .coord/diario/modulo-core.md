@@ -32,3 +32,4 @@
 2026-11-02 — T-0066 — produto_external_ids em core.cadastro_resumo@1; timer do relógio do atendimento marcado como exceção (RN-CORE-23)
 2026-11-02 — T-0065 — notificarSistema: envio_id uuid determinístico (evento+usuário); core 690/690
 2026-11-02 — T-0063 — medidas do produto (RN-CORE-19): domain medida.ts, core.medidas@1, rotas /v1/core/medidas e produtos/:id/medidas, aba Medidas no BKO, sync medida/embalagem, consumidor ERP com embalagem; Core 740 testes verdes (Postgres real)
+2026-11-02 — T-0063 — correções da revisão: 🟡3 embalagem x produto_unidade (EMBALAGEM_DIVERGE_ERP no BKO; ERP prevalece no consumidor), 🟡5 teto 2..9999 (domain, Zod de saída, consumidor descarta com log), POST concorrente idempotente (on conflict id); docs/modulos/core/medidas.md

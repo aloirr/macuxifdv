@@ -12,6 +12,8 @@
  * consumidor real (handler no `definirModuloApi`) valida com o schema do Hub antes de chamar a regra, e o Core não
  * ganha dependência de pacote do Integracao só para tipo.
  */
+import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
+
 export interface EventoProdutoAtualizado {
   external_id: string;
   acao: 'criado' | 'atualizado' | 'inativado';
@@ -45,6 +47,8 @@ export interface LinhaProdutoErp {
   /** RN-CORE-19: `null` = o ERP não informou (o consumidor mantém a embalagem que o BKO cadastrou). */
   embalagem_medida: string | null;
   embalagem_quantidade: number | null;
+  /** RN-CORE-19: o ERP mandou embalagem, mas inválida (incompleta, fora de 2 a 9999, igual à unidade): foi descartada; o consumidor registra no log. */
+  embalagem_descartada: boolean;
   ativo: boolean;
   /** Instante da alteração no ERP (guarda contra entrega fora de ordem). */
   alterado_em: string;
@@ -61,10 +65,17 @@ const nulo = (v: string | null | undefined): string | null => (v === undefined |
  * RN-CORE-19: embalagem vinda do ERP. Vale só medida + quantidade inteira > 1, com medida diferente da unidade; qualquer
  * outra combinação é descartada (o produto entra sem embalagem; o resto do cadastro não é perdido).
  */
-function embalagemDoErp(unidade: string, medida: string | null | undefined, quantidade: number | null | undefined): { embalagem_medida: string | null; embalagem_quantidade: number | null } {
+function embalagemDoErp(
+  unidade: string,
+  medida: string | null | undefined,
+  quantidade: number | null | undefined,
+): { embalagem_medida: string | null; embalagem_quantidade: number | null; embalagem_descartada: boolean } {
   const sigla = (medida ?? '').trim().toUpperCase();
-  if (sigla === '' || typeof quantidade !== 'number' || !Number.isInteger(quantidade) || quantidade <= 1 || sigla === unidade) return { embalagem_medida: null, embalagem_quantidade: null };
-  return { embalagem_medida: sigla, embalagem_quantidade: quantidade };
+  const informada = sigla !== '' || (quantidade !== null && quantidade !== undefined);
+  if (sigla === '' || typeof quantidade !== 'number' || !Number.isInteger(quantidade) || quantidade < EMBALAGEM_QUANTIDADE_MIN || quantidade > EMBALAGEM_QUANTIDADE_MAX || sigla === unidade) {
+    return { embalagem_medida: null, embalagem_quantidade: null, embalagem_descartada: informada };
+  }
+  return { embalagem_medida: sigla, embalagem_quantidade: quantidade, embalagem_descartada: false };
 }
 
 /** Decide o que fazer com o evento; `aplicadoAlteradoEm` = `alterado_em` do último evento já aplicado a este produto (se houver). */

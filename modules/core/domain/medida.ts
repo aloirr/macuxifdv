@@ -4,9 +4,15 @@
  * - Medida não se apaga em uso: inativa-se. INATIVAR é permitido mesmo em uso (o produto mantém a sigla; a medida só
  *   some das escolhas novas). APAGAR e TROCAR A SIGLA em uso são recusados.
  * - Produto: medida da unidade obrigatória, cadastrada e ativa; embalagem opcional e tudo-ou-nada (medida + quantidade
- *   de unidades, inteira e maior que 1), com medida diferente da unidade.
+ *   de unidades, inteira de 2 a 9999), com medida diferente da unidade.
+ * - Embalagem x unidade de venda do ERP (`core.produto_unidade`, RN-VEN-15): a embalagem do produto é a fonte para o BKO; se existe
+ *   unidade de venda viva com a MESMA sigla, a quantidade tem de ser igual ao `fator` (o BKO recusa com 422; no consumidor do ERP,
+ *   o ERP prevalece e a embalagem do produto é ajustada ao fator).
  */
 
+import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from '../contracts/medida';
+
+export { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN };
 export const DESCRICAO_MEDIDA_MAX = 40;
 const SIGLA = /^[A-Z]{1,4}$/;
 
@@ -16,7 +22,8 @@ export type CodigoErroMedida =
   | 'MEDIDA_INATIVA'
   | 'MEDIDA_EM_USO'
   | 'EMBALAGEM_INCOMPLETA'
-  | 'EMBALAGEM_INVALIDA';
+  | 'EMBALAGEM_INVALIDA'
+  | 'EMBALAGEM_DIVERGE_ERP';
 
 export interface ErroDeMedida {
   ok: false;
@@ -65,6 +72,8 @@ export function validarMedidasDoProduto(
   entrada: MedidasDoProdutoEntrada,
   medidas: ReadonlyMap<string, { ativo: boolean }>,
   atuais?: { unidade?: string | null; embalagem_medida?: string | null },
+  /** Unidades de venda vivas do produto vindas do ERP: sigla -> fator (RN-VEN-15). */
+  unidadesDeVenda?: ReadonlyMap<string, number>,
 ): { ok: true; valor: MedidasDoProduto } | ErroDeMedida {
   const unidade = normalizarSigla(entrada.unidade);
   if (unidade === '') return erro('MEDIDA_INVALIDA', 'Escolha a medida da unidade do produto.');
@@ -83,11 +92,37 @@ export function validarMedidasDoProduto(
 
   if (embalagem === '' && quantidade === null) return { ok: true, valor: { unidade, embalagem_medida: null, embalagem_quantidade: null } };
   if (embalagem === '' || quantidade === null) return erro('EMBALAGEM_INCOMPLETA', 'Para cadastrar a embalagem, informe a medida e a quantidade de unidades; ou deixe os dois campos vazios.');
-  if (!Number.isInteger(quantidade) || quantidade <= 1) return erro('EMBALAGEM_INVALIDA', 'A quantidade de unidades da embalagem deve ser um número inteiro maior que 1.');
+  if (!Number.isInteger(quantidade) || quantidade < EMBALAGEM_QUANTIDADE_MIN || quantidade > EMBALAGEM_QUANTIDADE_MAX) {
+    return erro('EMBALAGEM_INVALIDA', `A quantidade de unidades da embalagem deve ser um número inteiro de ${EMBALAGEM_QUANTIDADE_MIN} a ${EMBALAGEM_QUANTIDADE_MAX}.`);
+  }
   if (embalagem === unidade) return erro('EMBALAGEM_INVALIDA', 'A embalagem deve ter uma medida diferente da unidade (ex.: unidade UN, embalagem CX).');
   const eEmbalagem = conferir(embalagem, atuais?.embalagem_medida, 'embalagem');
   if (eEmbalagem) return eEmbalagem;
+  const fatorErp = fatorDoErpParaEmbalagem(embalagem, unidadesDeVenda);
+  if (fatorErp !== null && fatorErp !== quantidade) {
+    return erro('EMBALAGEM_DIVERGE_ERP', `A embalagem ${embalagem} deste produto já vem do ERP com ${fatorErp} unidades. Informe ${fatorErp} ou corrija a unidade de venda no ERP.`);
+  }
   return { ok: true, valor: { unidade, embalagem_medida: embalagem, embalagem_quantidade: quantidade } };
+}
+
+/** Fator da unidade de venda do ERP com a sigla da embalagem, se couber como embalagem (2 a 9999); senão `null` (UN = 1 não é embalagem). */
+function fatorDoErpParaEmbalagem(sigla: string, unidadesDeVenda: ReadonlyMap<string, number> | undefined): number | null {
+  const fator = unidadesDeVenda?.get(sigla);
+  return fator !== undefined && Number.isInteger(fator) && fator >= EMBALAGEM_QUANTIDADE_MIN && fator <= EMBALAGEM_QUANTIDADE_MAX ? fator : null;
+}
+
+/**
+ * RN-VEN-15 / RN-CORE-19: no consumidor do ERP, o ERP prevalece. Se a embalagem do produto tem a mesma sigla de uma unidade de venda
+ * viva do ERP, a quantidade passa a ser o `fator`; `ajustada` diz se houve troca (o consumidor registra no log, sem dado pessoal).
+ */
+export function reconciliarEmbalagemComErp(
+  embalagem: { embalagem_medida: string | null; embalagem_quantidade: number | null },
+  unidadesDeVenda: ReadonlyMap<string, number>,
+): { embalagem_medida: string | null; embalagem_quantidade: number | null; ajustada: boolean } {
+  if (!embalagem.embalagem_medida || embalagem.embalagem_quantidade === null) return { embalagem_medida: null, embalagem_quantidade: null, ajustada: false };
+  const fator = fatorDoErpParaEmbalagem(embalagem.embalagem_medida, unidadesDeVenda);
+  if (fator === null || fator === embalagem.embalagem_quantidade) return { ...embalagem, ajustada: false };
+  return { embalagem_medida: embalagem.embalagem_medida, embalagem_quantidade: fator, ajustada: true };
 }
 
 /** RN-CORE-19: apagar é só sem uso; em uso, a saída é inativar. */

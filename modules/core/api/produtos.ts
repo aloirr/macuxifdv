@@ -118,7 +118,9 @@ export const rotasDeProdutos: RotaModulo[] = [
         const id = (ctx.params as z.infer<typeof IdParam>).id;
         const antes = (await db.query<Linha>(`select ${COLUNAS} from core.produto where id = $1 and deleted_at is null`, [id])).rows[0];
         if (!antes) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado. Atualize a lista e tente de novo.');
-        const v = validarMedidasDoProduto(c, await medidasDoTenant(db), antes);
+        // RN-VEN-15: unidades de venda vivas do ERP (sigla -> fator); se a sigla da embalagem está aí, a quantidade tem de ser o fator.
+        const vendas = (await db.query<{ unidade: string; fator: number }>('select unidade, fator from core.produto_unidade where produto_id = $1 and deleted_at is null', [id])).rows;
+        const v = validarMedidasDoProduto(c, await medidasDoTenant(db), antes, new Map(vendas.map((u) => [u.unidade, u.fator])));
         if (!v.ok) throw new ErroRegraNegocio(v.codigo, v.mensagem);
         const m = v.valor;
         if (m.unidade !== antes.unidade || m.embalagem_medida !== (antes.embalagem_medida ?? null) || m.embalagem_quantidade !== (antes.embalagem_quantidade ?? null)) {

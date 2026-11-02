@@ -6,11 +6,14 @@
  * (cadastro anterior), é adotado; senão o registro é ignorado com aviso (sem SKU no log).
  * RN-CORE-19: a unidade (e a embalagem, se vier) precisa ser medida cadastrada no tenant; a embalagem do ERP (medida + quantidade) é
  * gravada quando informada; evento SEM embalagem não apaga a que o BKO cadastrou. Medida da unidade desconhecida: registro ignorado
- * com aviso (o Hub já o recusa antes com `referencia_ausente`).
+ * com aviso (o Hub já o recusa antes com `referencia_ausente`, reprocessável: "Cadastre em Parâmetros → Produtos → Medidas").
+ * Embalagem do ERP inválida (incompleta, fora de 2 a 9999, igual à unidade) é descartada COM log e o produto entra sem ela (sem
+ * retentativa sem fim; o Hub também barra o teto). RN-VEN-15: se a embalagem tem a mesma sigla de uma unidade de venda viva do ERP
+ * (`core.produto_unidade`), o ERP prevalece: `embalagem_quantidade` passa a ser o `fator` (log só com external_id e sigla).
  */
 import { z } from 'zod';
 import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { planejarProdutoDoErp, type EventoProdutoAtualizado } from '../domain';
+import { planejarProdutoDoErp, reconciliarEmbalagemComErp, type EventoProdutoAtualizado } from '../domain';
 import { eventoIntegracao, TextoErp } from './erp-apoio';
 
 const RegistroProduto = z.object({
@@ -69,7 +72,9 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
       embalagemQuantidade = null;
     }
 
-    await ctx.db.query(
+    if (l.embalagem_descartada) ctx.log.warn({ external_id: l.external_id }, 'embalagem do produto do ERP descartada: informe medida e quantidade inteira de 2 a 9999, com medida diferente da unidade');
+
+    const gravado = await ctx.db.query<{ id: string; embalagem_medida: string | null; embalagem_quantidade: number | null }>(
       `insert into core.produto (tenant_id, external_id, sku, ean, nome, marca, categoria, unidade, ativo, embalagem_medida, embalagem_quantidade)
        values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
@@ -82,8 +87,20 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
                                              else core.produto.embalagem_medida end,
                      embalagem_quantidade = case when excluded.embalagem_medida is not null then excluded.embalagem_quantidade
                                                  when core.produto.embalagem_medida = excluded.unidade then null
-                                                 else core.produto.embalagem_quantidade end`,
+                                                 else core.produto.embalagem_quantidade end
+       returning id, embalagem_medida, embalagem_quantidade`,
       [l.external_id, l.sku, l.ean, l.nome, l.marca, l.categoria, unidade, l.ativo, embalagemMedida, embalagemQuantidade],
     );
+
+    // RN-VEN-15: o ERP prevalece sobre a embalagem do produto quando a mesma sigla existe como unidade de venda viva.
+    const produto = gravado.rows[0];
+    if (produto?.embalagem_medida) {
+      const vendas = await ctx.db.query<{ unidade: string; fator: number }>('select unidade, fator from core.produto_unidade where produto_id = $1 and deleted_at is null', [produto.id]);
+      const r = reconciliarEmbalagemComErp(produto, new Map(vendas.rows.map((v) => [v.unidade, v.fator])));
+      if (r.ajustada) {
+        await ctx.db.query('update core.produto set embalagem_quantidade = $2 where id = $1', [produto.id, r.embalagem_quantidade]);
+        ctx.log.warn({ external_id: l.external_id, embalagem_medida: r.embalagem_medida, fator: r.embalagem_quantidade }, 'embalagem do produto ajustada ao fator da unidade de venda do ERP');
+      }
+    }
   },
 });

@@ -103,16 +103,24 @@ export const rotasDeMedidas: RotaModulo[] = [
         if (existente) return MedidaSchema.parse(existente);
         const igual = (await db.query<{ id: string; deleted_at: string | null }>('select id, deleted_at from core.medida where sigla = $1', [v.medida.sigla])).rows[0];
         if (igual && igual.deleted_at === null) throw new ErroRegraNegocio(ERROS_MEDIDA.duplicada, `Já existe a medida ${v.medida.sigla}. Use outra sigla ou edite a existente.`);
-        await comErroDeMedida(async () => {
+        const gravou = await comErroDeMedida(async () => {
           if (igual) {
             // A sigla de uma medida apagada volta a ser usada: a linha apagada (sem uso) é reaproveitada com o id do cliente.
+            // Atenção: troca o PK; um aparelho que não sincronizou entre apagar e recriar guarda a medida antiga até o próximo
+            // pull completo (impacto baixo: o app procura a medida por sigla).
             await db.query('update core.medida set id = $1, descricao = $3, ativo = true, deleted_at = null where id = $2', [c.id, igual.id, v.medida.descricao]);
-          } else {
-            await db.query('insert into core.medida (id, tenant_id, sigla, descricao, ativo) values ($1, plataforma.tenant_atual(), $2, $3, true)', [c.id, v.medida.sigla, v.medida.descricao]);
+            return true;
           }
+          // `on conflict (id) do nothing`: dois POST concorrentes com o MESMO id (retentativa do aparelho) devolvem a medida já criada
+          // pela outra requisição; outro id com a mesma sigla bate no único `(tenant_id, sigla)` e vira 422 MEDIDA_DUPLICADA.
+          const r = await db.query('insert into core.medida (id, tenant_id, sigla, descricao, ativo) values ($1, plataforma.tenant_atual(), $2, $3, true) on conflict (id) do nothing', [c.id, v.medida.sigla, v.medida.descricao]);
+          return (r.rowCount ?? 0) > 0;
         });
+        const criada = await medidaPorId(db, c.id);
+        if (!criada) throw new ErroRegraNegocio(ERROS_MEDIDA.duplicada, `Já existe a medida ${v.medida.sigla}. Use outra sigla ou edite a existente.`);
+        if (!gravou) return MedidaSchema.parse(criada); // a outra requisição já criou e auditou
         await auditar(db, ctx, { acao: 'medida.criar', entidade: 'medida', entidadeId: c.id, antes: null, depois: v.medida });
-        return MedidaSchema.parse(await medidaPorId(db, c.id));
+        return MedidaSchema.parse(criada);
       }),
   },
   {

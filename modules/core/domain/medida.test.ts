@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decidirApagarMedida, decidirTrocaDeSigla, normalizarSigla, podeUsarMedida, validarMedida, validarMedidasDoProduto } from './medida';
+import { decidirApagarMedida, decidirTrocaDeSigla, EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN, normalizarSigla, podeUsarMedida, reconciliarEmbalagemComErp, validarMedida, validarMedidasDoProduto } from './medida';
 
 const medidas = new Map([
   ['UN', { ativo: true }],
@@ -96,5 +96,41 @@ describe('RN-CORE-19: apagar e trocar a sigla de medida em uso', () => {
   it('RN-CORE-19: inativar é permitido mesmo em uso (a lista de escolhas novas é que perde a medida)', () => {
     expect(podeUsarMedida({ ativo: false })).toBe(false);
     expect(decidirApagarMedida({ emUso: 1 }).ok).toBe(false);
+  });
+});
+
+describe('RN-CORE-19 / RN-VEN-15: teto da quantidade da embalagem', () => {
+  it('RN-CORE-19: a quantidade da embalagem é inteira entre 2 e 9999', () => {
+    expect([EMBALAGEM_QUANTIDADE_MIN, EMBALAGEM_QUANTIDADE_MAX]).toEqual([2, 9999]);
+    expect(validarMedidasDoProduto({ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 9999 }, medidas).ok).toBe(true);
+    for (const q of [10000, 100000, 2147483648, Number.POSITIVE_INFINITY]) {
+      expect(validarMedidasDoProduto({ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: q }, medidas), String(q)).toMatchObject({ ok: false, codigo: 'EMBALAGEM_INVALIDA' });
+    }
+  });
+});
+
+describe('RN-CORE-19 / RN-VEN-15: embalagem do produto x unidade de venda do ERP (core.produto_unidade)', () => {
+  const vendas = new Map([['CX', 6]]);
+  it('RN-VEN-15: embalagem com a mesma sigla da unidade de venda viva exige quantidade igual ao fator do ERP', () => {
+    const r = validarMedidasDoProduto({ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 }, medidas, undefined, vendas);
+    expect(r).toMatchObject({ ok: false, codigo: 'EMBALAGEM_DIVERGE_ERP' });
+    expect((r as { mensagem: string }).mensagem).toContain('A embalagem CX deste produto já vem do ERP com 6 unidades');
+    expect(validarMedidasDoProduto({ unidade: 'UN', embalagem_medida: 'cx', embalagem_quantidade: 6 }, medidas, undefined, vendas).ok).toBe(true);
+  });
+  it('RN-VEN-15: sigla sem unidade de venda no ERP (ou sem embalagem) não sofre a regra', () => {
+    expect(validarMedidasDoProduto({ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 }, medidas, undefined, new Map([['DZ', 12]])).ok).toBe(true);
+    expect(validarMedidasDoProduto({ unidade: 'UN' }, medidas, undefined, vendas).ok).toBe(true);
+    expect(validarMedidasDoProduto({ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 }, medidas).ok).toBe(true);
+  });
+  it('RN-VEN-15: o ERP prevalece — reconciliarEmbalagemComErp troca a quantidade pelo fator e avisa que ajustou', () => {
+    expect(reconciliarEmbalagemComErp({ embalagem_medida: 'CX', embalagem_quantidade: 12 }, vendas)).toEqual({ embalagem_medida: 'CX', embalagem_quantidade: 6, ajustada: true });
+    expect(reconciliarEmbalagemComErp({ embalagem_medida: 'CX', embalagem_quantidade: 6 }, vendas)).toEqual({ embalagem_medida: 'CX', embalagem_quantidade: 6, ajustada: false });
+    expect(reconciliarEmbalagemComErp({ embalagem_medida: 'DZ', embalagem_quantidade: 12 }, vendas).ajustada).toBe(false);
+    expect(reconciliarEmbalagemComErp({ embalagem_medida: null, embalagem_quantidade: null }, vendas)).toEqual({ embalagem_medida: null, embalagem_quantidade: null, ajustada: false });
+  });
+  it('RN-VEN-15: fator do ERP fora de 2 a 9999 (ex.: UN = 1) não vira embalagem — fica como está', () => {
+    expect(reconciliarEmbalagemComErp({ embalagem_medida: 'CX', embalagem_quantidade: 12 }, new Map([['CX', 1]])).ajustada).toBe(false);
+    expect(reconciliarEmbalagemComErp({ embalagem_medida: 'CX', embalagem_quantidade: 12 }, new Map([['CX', 10000]])).ajustada).toBe(false);
+    expect(validarMedidasDoProduto({ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 }, medidas, undefined, new Map([['CX', 1]])).ok).toBe(true);
   });
 });

@@ -153,6 +153,39 @@ describe.skipIf(semBanco())('Core T-0063 × Postgres: medidas do produto', () =>
     expect(await medidasDoProduto(analista, P2, { unidade: 'UN', embalagem_medida: null, embalagem_quantidade: null })).toMatchObject({ embalagem_medida: null, embalagem_quantidade: null });
   });
 
+  it('RN-CORE-19: quantidade da embalagem acima de 9999 é recusada com 422 (nunca 500 de integer fora do intervalo)', async () => {
+    for (const q of [10_000, 2_147_483_648, 99_999_999_999]) {
+      expect(await erro(medidasDoProduto(analista, P2, { unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: q })), String(q)).toMatchObject({ status: 422, codigo: 'EMBALAGEM_INVALIDA' });
+    }
+    expect(await medidasDoProduto(analista, P2, { unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 9999 })).toMatchObject({ embalagem_quantidade: 9999 });
+    await medidasDoProduto(analista, P2, { unidade: 'UN', embalagem_medida: null, embalagem_quantidade: null });
+  });
+
+  it('RN-VEN-15: embalagem do produto divergente da unidade de venda do ERP (core.produto_unidade) é recusada com 422; igual ao fator passa', async () => {
+    await comTenant(pool, A.tenantId, (c) => c.query("insert into core.produto_unidade (tenant_id, produto_id, unidade, fator) values ($1, $2, 'CX', 6)", [A.tenantId, P2]));
+    try {
+      const e = await erro(medidasDoProduto(analista, P2, { unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 }));
+      expect(e).toMatchObject({ status: 422, codigo: 'EMBALAGEM_DIVERGE_ERP' });
+      expect(e!.message).toContain('A embalagem CX deste produto já vem do ERP com 6 unidades');
+      expect(await medidasDoProduto(analista, P2, { unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 6 })).toMatchObject({ embalagem_medida: 'CX', embalagem_quantidade: 6 });
+      // outra sigla de embalagem, sem unidade de venda no ERP, segue livre
+      expect(await medidasDoProduto(analista, P2, { unidade: 'UN', embalagem_medida: 'DZ', embalagem_quantidade: 12 })).toMatchObject({ embalagem_medida: 'DZ', embalagem_quantidade: 12 });
+    } finally {
+      await comTenant(pool, A.tenantId, (c) => c.query('delete from core.produto_unidade where produto_id = $1', [P2]));
+      await medidasDoProduto(analista, P2, { unidade: 'UN', embalagem_medida: null, embalagem_quantidade: null });
+    }
+  });
+
+  it('RN-CORE-19: dois POST simultâneos com o mesmo id devolvem a mesma medida (idempotente); com ids diferentes e mesma sigla, um vence e o outro leva 422 MEDIDA_DUPLICADA', async () => {
+    const [x, y] = await Promise.all([criar(analista, id(40), 'ZC', 'Concorrente'), criar(analista, id(40), 'ZC', 'Concorrente')]);
+    expect(x).toMatchObject({ id: id(40), sigla: 'ZC' });
+    expect(y).toMatchObject({ id: id(40), sigla: 'ZC' });
+    expect((await listar(analista)).filter((m) => m.sigla === 'ZC')).toHaveLength(1);
+    const r = await Promise.all([erro(criar(analista, id(41), 'ZD')), erro(criar(analista, id(42), 'ZD'))]);
+    expect(r.filter((e) => e === null)).toHaveLength(1);
+    expect(r.find((e) => e !== null)).toMatchObject({ status: 422, codigo: 'MEDIDA_DUPLICADA' });
+  });
+
   it('RN-CORE-19: produto de outro tenant não é editado (404)', async () => {
     expect(await erro(medidasDoProduto(analistaB, P1, { unidade: 'UN' }))).toMatchObject({ status: 404, codigo: 'PRODUTO_NAO_ENCONTRADO' });
   });

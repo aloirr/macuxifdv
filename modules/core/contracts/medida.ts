@@ -15,7 +15,13 @@ export const ERROS_MEDIDA = {
   emUso: 'MEDIDA_EM_USO',
   embalagemIncompleta: 'EMBALAGEM_INCOMPLETA',
   embalagemInvalida: 'EMBALAGEM_INVALIDA',
+  /** A embalagem do produto diverge da unidade de venda que veio do ERP (`core.produto_unidade.fator`). */
+  embalagemDivergeErp: 'EMBALAGEM_DIVERGE_ERP',
 } as const;
+
+/** Quantidade de unidades da embalagem do produto: inteira de 2 a 9999 (o banco tem o mesmo CHECK; RN-CORE-19, RN-VEN-15). */
+export const EMBALAGEM_QUANTIDADE_MIN = 2;
+export const EMBALAGEM_QUANTIDADE_MAX = 9999;
 
 export const MedidaSchema = z.object({
   id: z.string().uuid(),
@@ -57,6 +63,7 @@ export const MedidaIdParamSchema = z.object({ id: z.string().uuid() });
 export const ProdutoMedidasPutSchema = z.object({
   unidade: z.string().max(40),
   embalagem_medida: z.string().max(40).nullable().optional(),
+  // Tolerante de propósito (como os demais textos): quem recusa fora de 2 a 9999 é o domínio, com 422 EMBALAGEM_INVALIDA.
   embalagem_quantidade: z.number().nullable().optional(),
 });
 export type ProdutoMedidasPut = z.infer<typeof ProdutoMedidasPutSchema>;

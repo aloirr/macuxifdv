@@ -271,6 +271,28 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
       });
     });
 
+    it('RN-CORE-19: embalagem_quantidade acima de 9999 é descartada com log; o produto entra sem a embalagem (sem retentativa sem fim)', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'cx', embalagem_quantidade: 3_000_000_000 }));
+        expect(t.warn).toHaveBeenCalled();
+        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: null, embalagem_quantidade: null }]);
+      });
+    });
+
+    it('RN-VEN-15: o ERP prevalece — embalagem com a sigla de uma unidade de venda do ERP ganha o fator dela, com log', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.produto.atualizado@1', produto());
+        await t.q("insert into core.produto_unidade (tenant_id, produto_id, unidade, fator) select plataforma.tenant_atual(), id, 'CX', 6 from core.produto where external_id = 'P-T63'");
+        await t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'CX', embalagem_quantidade: 12 }), AGORA);
+        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 6 }]);
+        expect(t.warn).toHaveBeenCalled();
+        // embalagem que o BKO deixou divergente também é reconciliada quando o evento não traz embalagem
+        await t.q("update core.produto set embalagem_quantidade = 24 where external_id = 'P-T63'");
+        await t.entregar('integracao.produto.atualizado@1', produto({ nome: 'Refrigerante 2L Gelado' }), AGORA);
+        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 6 }]);
+      });
+    });
+
     it('RN-CORE-19: embalagem com medida não cadastrada entra sem a embalagem (o produto não se perde)', async () => {
       await emTransacao(A.tenantId, async (t) => {
         await t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'zz', embalagem_quantidade: 12 }));
