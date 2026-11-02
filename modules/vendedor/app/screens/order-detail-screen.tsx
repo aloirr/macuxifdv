@@ -8,7 +8,7 @@ import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Button, Card, colors, dateTimeLabel, fonts, Icon, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderEvent } from '../../contracts';
@@ -64,14 +64,19 @@ export default function OrderDetailScreen() {
   const qd = queued?.display ?? null;
 
   const isQueued = Boolean(queued);
+  // RN-CORE-23 (T-0054): ao focar, só relê o aparelho; sem consulta periódica (o pull é do motor de sync da plataforma)
   useFocusEffect(
     useCallback(() => {
       if (isQueued || !id) return;
       void loadOrder(id);
-      const h = setInterval(() => void loadOrder(id), 10_000);
-      return () => clearInterval(h);
     }, [id, loadOrder, isQueued]),
   );
+  const [sincronizandoTela, setSincronizandoTela] = useState(false);
+  /** RN-CORE-23: puxar para baixo = Sincronizar. */
+  const puxarParaSincronizar = useCallback(() => {
+    setSincronizandoTela(true);
+    void app.sincronizarAgora().finally(() => setSincronizandoTela(false));
+  }, [app]);
 
   const base = detail ?? summary;
   if (!base && !queued) {
@@ -243,7 +248,10 @@ export default function OrderDetailScreen() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
+      refreshControl={<RefreshControl refreshing={sincronizandoTela} onRefresh={puxarParaSincronizar} />}>
       <AvisoRapido mensagem={sheets.aviso} />
       <BackLink label="Pedidos" fallback={hrefPedidos()} />
       <View style={{ gap: 6 }}>
