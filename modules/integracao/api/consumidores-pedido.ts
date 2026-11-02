@@ -1,15 +1,16 @@
 /**
  * A8 — consumidores do Vendedor na fila do ERP (RN-INT-08; ADR 0007: efeito e `evento_consumo` na mesma transação).
  *  - `vendedor.pedido.aprovado@1` (traz o pedido pronto): `decidirEntradaNaFila` → cria `pedido_fila_erp` (idempotente pelo
- *    `pedido_uuid`), retém sem de-para (mensagem diz o que cadastrar), troca o conteúdo antes da 1ª entrega ou ignora.
+ *    `pedido_uuid`), retém sem de-para OU sem as chaves do ERP de cliente/vendedor/produto (nunca lança: mensagem diz o que completar;
+ *    reaprovar com as chaves libera, T-0032), troca o conteúdo antes da 1ª entrega ou ignora.
  *  - `vendedor.pedido.status_alterado@1` (não traz o pedido): saída de `aprovado` antes da 1ª entrega tira da fila; depois da
  *    entrega nada muda (o ERP é quem avisa o cancelamento, retorno `cancelado`). Entrada em `aprovado` é do evento acima.
  * Limite conhecido: a ordem entre os dois eventos não é garantida (ADR 0007); um cancelamento que chegue ANTES do aprovado do
  * mesmo pedido não é revisto aqui (o `alterado_em` do status não é gravado na fila).
  */
 import { definirConsumidor, definirEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { PedidoAprovadoConsumido, PedidoAprovadoParaFila, PedidoStatusAlteradoConsumido } from '../contracts';
-import { decidirEntradaNaFila, exigeConector, type Mapeamento, type PedidoNaFila } from '../domain';
+import { PedidoAprovadoConsumido, PedidoStatusAlteradoConsumido } from '../contracts';
+import { decidirEntradaNaFila, exigeConector, montarSnapshotParaFila, type Mapeamento, type PedidoNaFila } from '../domain';
 import { naFila, type LinhaFila } from './rotas-pedidos';
 
 export const EVENTO_VENDEDOR_PEDIDO_APROVADO = definirEvento('vendedor.pedido.aprovado@1', PedidoAprovadoConsumido);
@@ -17,7 +18,7 @@ export const EVENTO_VENDEDOR_PEDIDO_STATUS_ALTERADO = definirEvento('vendedor.pe
 
 async function lerFila(ctx: ContextoConsumo, pedidoUuid: string): Promise<PedidoNaFila | null> {
   const { rows } = await ctx.db.query<LinhaFila>(
-    `select pedido_uuid, estado, payload, enviado_em, tentativas, numero_erp, motivo, notas_aplicadas, itens_faturados_acumulados, retencao_codigo, deleted_at
+    `select pedido_uuid, estado, payload, enviado_em, tentativas, numero_erp, motivo, notas_aplicadas, itens_faturados_acumulados, retencao_codigo, retencao_mensagem, deleted_at
        from integracao.pedido_fila_erp where tenant_id = $1 and pedido_uuid = $2 for update`,
     [ctx.envelope.tenant_id, pedidoUuid],
   );
@@ -31,16 +32,16 @@ export async function entrarNaFila(p: PedidoAprovadoConsumido, ctx: ContextoCons
     "select tipo, codigo_erp, codigo_macuxi, ativo from integracao.mapeamento where tenant_id = $1 and tipo = 'condicao_pagamento' and deleted_at is null",
     [tenantId],
   );
-  // o contrato do ERP exige as chaves do cliente, do vendedor e dos produtos: sem elas o pedido não pode ir (erro legível; a outbox repete)
-  const snapshot = PedidoAprovadoParaFila.safeParse({
-    ...p,
-    observacao: p.observacao === null || p.observacao.trim() === '' ? null : p.observacao.slice(0, 500),
-    condicao_pagamento_codigo: p.condicao_pagamento_codigo === null || p.condicao_pagamento_codigo.trim() === '' ? null : p.condicao_pagamento_codigo,
+  // o contrato do ERP exige as chaves do cliente, do vendedor e dos produtos. Sem elas NÃO se lança erro (a outbox repetiria e
+  // desistiria em ~50 min e o pedido sumiria): o pedido fica RETIDO na fila, com a mensagem do que completar (T-0032)
+  const montado = montarSnapshotParaFila(p);
+  const d = decidirEntradaNaFila({
+    existente,
+    statusPedido: 'aprovado',
+    snapshot: montado.ok ? montado.snapshot : null,
+    invalido: montado.ok ? null : { mensagem: montado.mensagem },
+    mapeamentos: map,
   });
-  if (!snapshot.success) {
-    throw new Error('O pedido aprovado não tem as chaves do ERP (cliente, vendedor ou produto sem external_id): ele não entra na fila até o cadastro ser completado.');
-  }
-  const d = decidirEntradaNaFila({ existente, statusPedido: 'aprovado', snapshot: snapshot.data, mapeamentos: map });
   const origem = JSON.stringify(p);
 
   switch (d.acao) {

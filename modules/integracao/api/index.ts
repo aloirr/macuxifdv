@@ -2,7 +2,7 @@
  * API do módulo Integracao.
  *  - Hub `/integracao/v1` (chamado pelo Conector, chave de API por Conector, sem JWT): `conector` do `ModuloApi` (ADR 0013), ids e
  *    caminhos de `ROTAS_HUB`. Cada rota tem a regra no `domain`; aqui só SQL no schema `integracao`, transação e evento.
- *  - BKO `/v1/integracao/*` (JWT, perfil por ação do manifesto): monitor, Conectores e decisão da inativação em massa.
+ *  - BKO `/v1/integracao/*` (JWT, perfil por ação do manifesto): monitor, Conectores, decisão da inativação em massa e carga por arquivo (RF-INT-03).
  * O pepper da chave (`MACUXI_HUB_CHAVE_PEPPER`) é lido a cada chamada; ausente ou curto = 503 (falha fechada).
  */
 import { definirApiConector, definirModuloApi, type ContextoConector, type ModuloApi, type RotaConector } from '@macuxi/platform-sdk';
@@ -12,6 +12,7 @@ import { CabecalhosConector, ParamsLote, ParamsPedido, QueryConsultaLote, QueryP
 import { consumidorLoteRecebido } from './aplicar-lote';
 import { consumidorPedidoAprovado, consumidorPedidoStatusAlterado } from './consumidores-pedido';
 import { criarAutenticacaoHub, type ConectorHub } from './autenticacao';
+import { rotaCargaArquivo, rotaErrosLote, rotaLote } from './bko-carga-arquivo';
 import { rotaDecidirInativacao } from './bko-inativacao';
 import { criarRotasConectores } from './bko-conectores';
 import { rotaMonitor } from './bko-monitor';
@@ -51,7 +52,7 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined }
     manifesto: manifest,
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado],
-    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao],
+    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaCargaArquivo, rotaLote, rotaErrosLote],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),
   });
 }

@@ -5,7 +5,7 @@
  */
 import type { ContextoRota, RotaModulo } from '@macuxi/platform-sdk';
 import { ESTADOS_PEDIDO_ERP, type Entidade, type LoteListagemItem, type MonitorResumo, type PendenciaInativacao } from '../contracts';
-import { montarAlertasMonitor, pedidosAguardandoConector, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
+import { ehRetencaoPorChaveErp, montarAlertasMonitor, pedidosAguardandoConector, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
 import { COLUNAS_CONECTOR, iso, lerChaves, lerPolitica, montarResumo, type LinhaConector } from './bko-comum';
 import { lerParametrosHub } from './parametros';
 
@@ -96,8 +96,8 @@ export const rotaMonitor: RotaModulo = {
         `select pedido_uuid from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null and estado = 'enviado' and tentativas >= $2 limit 1000`,
         [tenantId, parametros.tentativasAlertaPedido],
       );
-      const { rows: retidos } = await db.query<{ pedido_uuid: string }>(
-        'select pedido_uuid from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null and retencao_codigo is not null limit 1000',
+      const { rows: retidos } = await db.query<{ pedido_uuid: string; retencao_mensagem: string | null }>(
+        'select pedido_uuid, retencao_mensagem from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null and retencao_codigo is not null limit 1000',
         [tenantId],
       );
 
@@ -135,7 +135,11 @@ export const rotaMonitor: RotaModulo = {
         lotesFalhosUltimas24h: falhos,
         pendenciasInativacao: pendencias,
         reconciliacoesDivergentes: reconc.filter((r) => r.divergente),
-        pedidos: { presos: presos.map((p) => p.pedido_uuid), retidos: retidos.map((p) => p.pedido_uuid) },
+        pedidos: {
+          presos: presos.map((p) => p.pedido_uuid),
+          retidos: retidos.map((p) => p.pedido_uuid),
+          retidosPorChaveErp: retidos.filter((p) => ehRetencaoPorChaveErp(p.retencao_mensagem)).map((p) => p.pedido_uuid),
+        },
         retornosComItensDescartados24h: descartes,
         pedidosAguardandoConector: pedidosAguardandoConector(esperandoConector, recebedor[0]?.versao_conector ?? null),
       });

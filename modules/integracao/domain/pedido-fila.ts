@@ -11,6 +11,8 @@ import {
   type EstadoPedidoErp,
   type ItemFaturado,
   type Mapeamento as MapeamentoContrato,
+  PedidoAprovadoParaFila as PedidoAprovadoParaFilaSchema,
+  type PedidoAprovadoConsumido,
   type PedidoAprovadoParaFila,
   type PedidoParaErp,
   type PedidoRetornoErpEvento,
@@ -39,6 +41,8 @@ export interface PedidoNaFila {
   payload: PedidoParaErp | null;
   /** Retido por que (nulo = na fila normal). Retido nunca é entregue ao Conector. */
   retencao_codigo?: CodigoRetencao | null;
+  /** Mensagem gravada com a retenção (`undefined` = não lida; aí só o código compara). */
+  retencao_mensagem?: string | null;
   enviado_em: string | null;
   /** Quantas vezes foi entregue ao Conector. */
   tentativas: number;
@@ -105,6 +109,61 @@ export function montarPedidoParaErp(origem: PedidoAprovadoParaFila, mapeamentos:
   };
 }
 
+// ---------------------------------------------------------------- snapshot do evento (chaves do ERP)
+
+/** Início fixo da mensagem de retenção por chave do ERP ausente: o monitor separa esse motivo do de-para sem coluna nova (ver `ehRetencaoPorChaveErp`). */
+export const PREFIXO_RETENCAO_CHAVE_ERP = 'Pedido retido: faltam as chaves do ERP';
+
+/** `true` quando a mensagem de retenção é a de chave do ERP ausente (o código gravado é `mapeamento_ausente`; um código próprio depende de migração do banco). */
+export const ehRetencaoPorChaveErp = (mensagem: string | null | undefined): boolean => typeof mensagem === 'string' && mensagem.startsWith(PREFIXO_RETENCAO_CHAVE_ERP);
+
+export type ResultadoSnapshotFila = { ok: true; snapshot: PedidoAprovadoParaFila } | { ok: false; mensagem: string };
+
+const vazia = (v: string | null | undefined): boolean => v === null || v === undefined || v.trim() === '';
+const MAX_SEQUENCIAS_NA_MENSAGEM = 10;
+const MAX_CAMPOS_NA_MENSAGEM = 6;
+
+const listarComE = (xs: readonly (string | number)[]): string => (xs.length <= 1 ? String(xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`);
+
+/**
+ * `vendedor.pedido.aprovado@1` → pedido pronto para a fila (contrato do ERP). O evento traz as chaves do ERP anuláveis: cliente,
+ * vendedor ou produto sem `external_id` NÃO derruba o consumo (a outbox repetiria e desistiria; o pedido sumiria): devolve `ok: false`
+ * com a mensagem que diz O QUE falta e o que fazer, para o pedido ficar RETIDO e visível no monitor. A mensagem leva só códigos e
+ * sequências dos itens — nunca nome, documento nem valor do cadastro.
+ */
+export function montarSnapshotParaFila(p: PedidoAprovadoConsumido): ResultadoSnapshotFila {
+  const faltando: string[] = [];
+  if (vazia(p.cliente_external_id)) faltando.push('o cliente não tem código do ERP (external_id)');
+  if (vazia(p.vendedor_external_id)) faltando.push('o vendedor não tem código do ERP (external_id)');
+  const semProduto = p.itens.filter((i) => vazia(i.produto_external_id)).map((i) => i.sequencia);
+  if (semProduto.length > 0) {
+    const mostrar = semProduto.slice(0, MAX_SEQUENCIAS_NA_MENSAGEM);
+    const resto = semProduto.length - mostrar.length;
+    faltando.push(
+      `${semProduto.length > 1 ? 'os produtos das sequências' : 'o produto da sequência'} ${listarComE(mostrar)}${resto > 0 ? ` e mais ${resto}` : ''} ${semProduto.length > 1 ? 'não têm' : 'não tem'} código do ERP (external_id)`,
+    );
+  }
+  if (faltando.length > 0) {
+    return {
+      ok: false,
+      mensagem: `${PREFIXO_RETENCAO_CHAVE_ERP}: ${faltando.join('; ')}. Complete o cadastro (o código do ERP normalmente chega pela carga do ERP em Integração ERP > Lotes) e reaprove o pedido; ele entra na fila sozinho.`,
+    };
+  }
+  const r = PedidoAprovadoParaFilaSchema.safeParse({
+    ...p,
+    observacao: p.observacao === null || p.observacao.trim() === '' ? null : p.observacao.slice(0, 500),
+    condicao_pagamento_codigo: p.condicao_pagamento_codigo === null || p.condicao_pagamento_codigo.trim() === '' ? null : p.condicao_pagamento_codigo,
+  });
+  if (r.success) return { ok: true, snapshot: r.data };
+  // fora do contrato por outro motivo (ex.: external_id grande demais): cita os campos, nunca os valores
+  const campos = [...new Set(r.error.issues.map((i) => i.path.map(String).join('.') || 'pedido'))];
+  const mostrar = campos.slice(0, MAX_CAMPOS_NA_MENSAGEM);
+  return {
+    ok: false,
+    mensagem: `Pedido retido: os dados não cabem no contrato do ERP (campo${campos.length > 1 ? 's' : ''}: ${mostrar.join(', ')}${campos.length > mostrar.length ? ` e mais ${campos.length - mostrar.length}` : ''}). Corrija o cadastro e reaprove o pedido; ele entra na fila sozinho.`,
+  };
+}
+
 // ---------------------------------------------------------------- entrada na fila (idempotente pelo UUID)
 
 export type DecisaoEntradaFila =
@@ -126,7 +185,14 @@ export type DecisaoEntradaFila =
  * reaprovado antes da 1ª entrega: substitui o conteúdo. Depois de entregue, o ERP já tem o pedido: edição vira só aviso, e
  * cancelamento/devolução no Macuxi não chega ao ERP (quem avisa é o retorno `cancelado` do ERP).
  */
-export function decidirEntradaNaFila(e: { existente: PedidoNaFila | null; statusPedido: string; snapshot: PedidoAprovadoParaFila | null; mapeamentos: readonly Mapeamento[] }): DecisaoEntradaFila {
+export function decidirEntradaNaFila(e: {
+  existente: PedidoNaFila | null;
+  statusPedido: string;
+  snapshot: PedidoAprovadoParaFila | null;
+  /** `montarSnapshotParaFila` recusou o evento (chave do ERP ausente etc.): o pedido é RETIDO com esta mensagem, não perdido. */
+  invalido?: { mensagem: string } | null;
+  mapeamentos: readonly Mapeamento[];
+}): DecisaoEntradaFila {
   const { existente } = e;
   const vivo = existente !== null && existente.removido_em === null ? existente : null;
   const naoEntregue = vivo !== null && vivo.estado === 'pendente' && vivo.tentativas === 0;
@@ -135,13 +201,18 @@ export function decidirEntradaNaFila(e: { existente: PedidoNaFila | null; status
     if (vivo === null) return { acao: 'ignorar', motivo: 'status_nao_aprovado' };
     return naoEntregue ? { acao: 'remover_da_fila' } : { acao: 'ignorar', motivo: 'ja_enviado_ao_erp' };
   }
-  if (e.snapshot === null) return { acao: 'ignorar', motivo: 'sem_dados_do_pedido' };
-  const m = montarPedidoParaErp(e.snapshot, e.mapeamentos);
-  if (!m.ok) {
+  const reter = (codigo: CodigoRetencao, mensagem: string): DecisaoEntradaFila => {
     if (vivo !== null && !naoEntregue) return { acao: 'ignorar', motivo: 'alterado_apos_envio' };
-    if (vivo !== null && vivo.retencao_codigo === m.codigo) return { acao: 'ignorar', motivo: 'ja_na_fila' };
-    return { acao: 'reter', codigo: m.codigo, mensagem: m.mensagem, persistencia: existente === null ? 'inserir' : 'atualizar' };
+    // o mesmo motivo (e a mesma mensagem, quando já lida) não regrava: o evento repetido é no-op
+    if (vivo !== null && vivo.retencao_codigo === codigo && (vivo.retencao_mensagem === undefined || vivo.retencao_mensagem === mensagem)) return { acao: 'ignorar', motivo: 'ja_na_fila' };
+    return { acao: 'reter', codigo, mensagem, persistencia: existente === null ? 'inserir' : 'atualizar' };
+  };
+  if (e.snapshot === null) {
+    // sem chaves do ERP o banco só aceita um dos 3 códigos de retenção: `mapeamento_ausente` com mensagem própria (T-0032)
+    return e.invalido ? reter('mapeamento_ausente', e.invalido.mensagem) : { acao: 'ignorar', motivo: 'sem_dados_do_pedido' };
   }
+  const m = montarPedidoParaErp(e.snapshot, e.mapeamentos);
+  if (!m.ok) return reter(m.codigo, m.mensagem);
   if (existente !== null && vivo === null) return { acao: 'reativar', pedido: m.pedido };
   if (vivo === null) return { acao: 'criar', pedido: m.pedido };
   const igual = vivo.payload !== null && (vivo.retencao_codigo ?? null) === null && hashRegistro(vivo.payload, { ignorar: [] }) === hashRegistro(m.pedido, { ignorar: [] });

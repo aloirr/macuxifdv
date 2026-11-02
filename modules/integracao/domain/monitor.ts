@@ -41,7 +41,12 @@ export interface EntradaAlertas {
   lotesFalhosUltimas24h: readonly { entidade: Entidade; conector_id: string }[];
   pendenciasInativacao: readonly { entidade: Entidade; conector_id: string; candidatos: number; percentual: number; estado: string }[];
   reconciliacoesDivergentes: readonly { entidade: Entidade; data_referencia: string; motivos: readonly string[] }[];
-  pedidos: { presos: readonly string[]; retidos: readonly string[] };
+  pedidos: {
+    presos: readonly string[];
+    retidos: readonly string[];
+    /** Subconjunto de `retidos` retido por falta das chaves do ERP (cliente/vendedor/produto sem external_id), não por de-para (T-0032). */
+    retidosPorChaveErp?: readonly string[];
+  };
   /**
    * P-4 (T-0031): erros de itens faturados descartados nas últimas 24 h (`ErroRetornoMonitor`, um por item). Opcional: ausente
    * = nenhum.
@@ -100,7 +105,14 @@ export function montarAlertasMonitor(e: EntradaAlertas): AlertaMonitor[] {
   }
   const retidos = e.pedidos.retidos.length;
   if (retidos > 0) {
-    novo({ codigo: 'pedido_retido_sem_mapeamento', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `${retidos} pedido${retidos > 1 ? 's' : ''} aprovado${retidos > 1 ? 's' : ''} retido${retidos > 1 ? 's' : ''} por falta de mapeamento (ex.: condição de pagamento). Cadastre em Integração ERP > Mapeamento; os pedidos seguem sozinhos.` });
+    const porChave = new Set(e.pedidos.retidosPorChaveErp ?? []);
+    const nChave = e.pedidos.retidos.filter((p) => porChave.has(p)).length;
+    const nMapa = retidos - nChave;
+    const pl = (n: number) => `${n} pedido${n > 1 ? 's' : ''} aprovado${n > 1 ? 's' : ''} retido${n > 1 ? 's' : ''}`;
+    const partes: string[] = [];
+    if (nMapa > 0) partes.push(`${pl(nMapa)} por falta de mapeamento (ex.: condição de pagamento). Cadastre em Integração ERP > Mapeamento; os pedidos seguem sozinhos.`);
+    if (nChave > 0) partes.push(`${pl(nChave)} por falta das chaves do ERP (cliente, vendedor ou produto sem código do ERP). Complete o cadastro e reaprove o pedido; ele entra na fila sozinho.`);
+    novo({ codigo: 'pedido_retido_sem_mapeamento', severidade: 'atencao', conector_id: null, entidade: null, mensagem: partes.join(' ') });
   }
 
   const aguardando = e.pedidosAguardandoConector?.pedidos.length ?? 0;
