@@ -59,6 +59,17 @@ entidades:
     expect(() => interpretar(c)).not.toThrow();
   });
 
+  it('RN-INT-03 (emenda, T-0048): lote.maxLinhasInvalidas vai de 0 a 500 (o detalhe por lote que o Hub aceita); acima disso é erro', () => {
+    const c = base();
+    expect(interpretar(c).lote.maxLinhasInvalidas).toBe(500);
+    c.lote = { maxLinhasInvalidas: 500 };
+    expect(interpretar(c).lote.maxLinhasInvalidas).toBe(500);
+    c.lote = { maxLinhasInvalidas: 0 };
+    expect(interpretar(c).lote.maxLinhasInvalidas).toBe(0);
+    c.lote = { maxLinhasInvalidas: 501 };
+    expect(() => interpretar(c)).toThrow(/maxLinhasInvalidas/);
+  });
+
   it('a consulta precisa dos parâmetros do cursor e do limite', () => {
     const c = base();
     c.entidades.cliente.consulta = 'SELECT * FROM v';

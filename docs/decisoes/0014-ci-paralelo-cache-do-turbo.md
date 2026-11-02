@@ -130,3 +130,14 @@ já podia devolver "verde" velho; no CI com cache seria certo.
   (sem estado compartilhado entre shards); se um teste depender da ordem dos arquivos, aparece aqui e vai por recado ao `testes`.
   **Check obrigatório sem branch protection** — vale pela regra do time (doc 07) até o plano do GitHub permitir.
 - Para o local nada muda nos comandos (`pnpm lint|typecheck|test`); o `transit` corrige o cache local também.
+
+## Adendo T-0049 — brechas do guardião v5 fechadas no job `governanca`
+Dois passos novos no job `governanca` (rodam em qualquer escopo, inclusive "só coordenação", e entram no `ci-ok` porque o
+`ci-ok` exige a `governanca` verde). Lógica e testes em `scripts/ci/brechas-governanca.mjs` e `.test.mjs`:
+- **push ao `main`**: todo commit do push (`ANTES..DEPOIS`, merges inclusive, pelo que o próprio merge altera) que muda caminho
+  de governança (`CAMINHOS_DE_GOVERNANCA` da coord-lib) precisa de `Agente: alexandre` no último bloco da mensagem e de nenhum
+  outro `Agente:` ali. Pega o squash/merge feito pelo MCP do GitHub, que não passa pelo hook do Bash (PR #31, "Riscos e
+  limites"). É um controle **detector**: o commit já está no `main` quando o CI fica vermelho; o gerente e o Alexandre
+  decidem como regularizar (sem reescrever histórico).
+- **PR**: reprova o PR que adiciona ou altera recado (`.coord/recados/**`) com "autorizo o merge" (sem diferenciar maiúsculas,
+  acentos, quebras de linha e marcação). A autorização de merge só vale escrita localmente pelo Alexandre.

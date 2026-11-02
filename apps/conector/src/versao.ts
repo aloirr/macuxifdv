@@ -4,7 +4,7 @@
  */
 import { REGEX_SEMVER, type PoliticaVersaoConector } from '@macuxi/integracao/contracts';
 
-export const VERSAO_CONECTOR = '1.2.0';
+export const VERSAO_CONECTOR = '1.2.1';
 
 export interface Semver {
   maior: number;

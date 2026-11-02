@@ -123,6 +123,27 @@ describe('RN-INT-03: linhas inválidas do Conector vão ao Hub com o motivo (dec
     expect(longa.mensagem.length).toBeLessThanOrEqual(300);
   });
 
+  it('RN-INT-03 (T-0048): o reenvio das falha_processamento leva só os registros; as linhas inválidas não são informadas de novo', async () => {
+    amb = await criarAmbiente({ lote: { maxLinhas: 10, maxLinhasInvalidas: 2 } }); // 4 inválidas: 2 com motivo + 2 só na contagem
+    emDelta(amb);
+    amb.hub.falhaTransitoria.add('c1');
+    amb.erp.definir('cliente', [cliente('c1', '2026-03-01T10:00:00Z'), ruim('c2', 1), ...Array.from({ length: 3 }, (_, i) => ruim(`x${i}`, i + 2))]);
+    await volta(amb);
+    expect(amb.hub.envelopes).toHaveLength(2);
+    const [original, reenvio] = amb.hub.envelopes as LoteEnvelope[];
+    expect(original?.linhas_invalidas).toHaveLength(2);
+    expect(original?.linhas_invalidas_omitidas).toBe(2);
+    expect(reenvio?.registros.map((r) => (r as { external_id: string }).external_id)).toEqual(['c1']);
+    expect(reenvio).not.toHaveProperty('linhas_invalidas');
+    expect(reenvio).not.toHaveProperty('linhas_invalidas_omitidas');
+    expect(reenvio).not.toHaveProperty('sessao');
+    expect(reenvio).toMatchObject({ versao_contrato: 'v1', entidade: 'cliente', modo: 'delta', conector_id: 'cnx-teste-01', versao_conector: VERSAO_CONECTOR });
+    expect(LoteEnvelope.safeParse(reenvio).success).toBe(true);
+    // a chave do reenvio é a do conteúdo que vai ao Hub (só registros): a mesma chave nunca vem com conteúdo diferente
+    const lote = amb.ctx.store.lotesDaEntidade('cliente').find((l) => l.reenvios === 1);
+    expect(lote?.linhas).toBe(1);
+  });
+
   it('a chave de idempotência não muda para lotes sem linhas inválidas e muda quando elas existem', () => {
     const base = { entidade: 'cliente', modo: 'delta', geracao: 1, registros: [{ external_id: 'c1' }] };
     expect(chaveDoLote(base)).toBe(chaveDoLote({ ...base, linhasInvalidas: [], linhasInvalidasOmitidas: 0 }));
