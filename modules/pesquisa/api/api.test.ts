@@ -309,7 +309,7 @@ describe('RF-PES-06: resultados, galeria e exportação no escopo do perfil', ()
     expect(g.itens).toEqual([expect.objectContaining({ foto_id: uu(7001), enunciado: 'Foto da gôndola' })]);
     const x = ExportacaoResponse.parse(await amb.chamar(a, 'GET', 'questionarios/:id/exportar', { params: { id: Q } }));
     expect(x.nome_arquivo).toMatch(/^pesquisa-gondola-do-mes-\d{4}-\d{2}-\d{2}\.csv$/);
-    expect(x.conteudo.startsWith('﻿')).toBe(true);
+    expect(x.conteudo.startsWith('\uFEFF')).toBe(true);
     expect(x.conteudo.trimEnd().split('\r\n')).toHaveLength(3);
   });
 

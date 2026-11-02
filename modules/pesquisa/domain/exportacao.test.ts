@@ -37,7 +37,7 @@ describe('RF-PES-06: exportação CSV (Excel pt-BR)', () => {
       ],
       fuso: 'America/Manaus',
     });
-    expect(csv.startsWith('﻿')).toBe(true);
+    expect(csv.startsWith('\uFEFF')).toBe(true);
     const [cab, linha] = csv.slice(1).split('\r\n');
     expect(cab!.split(';').slice(0, 10)).toEqual(['resposta_id', 'versao', 'respondida_em', 'recebida_em', 'usuario_id', 'equipe_id', 'cliente_id', 'visita_id', 'suspeita', 'motivos_suspeita']);
     expect(cab).toContain('Tem ponto extra?');
