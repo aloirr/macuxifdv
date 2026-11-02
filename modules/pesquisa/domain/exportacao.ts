@@ -97,7 +97,7 @@ export function exportarRespostasCsv(e: EntradaExportacao): string {
     });
     linhas.push([...fixas, ...respostas].map(celulaCsv).join(SEP));
   }
-  return `﻿${linhas.join(FIM)}${FIM}`;
+  return `\uFEFF${linhas.join(FIM)}${FIM}`;
 }
 
 /** Nome do arquivo: `pesquisa-<titulo-sem-acento>-<dia no fuso>.csv`. */

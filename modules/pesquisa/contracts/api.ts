@@ -44,7 +44,7 @@ export const SalvarRascunhoRequest = z
 export type SalvarRascunhoRequest = z.infer<typeof SalvarRascunhoRequest>;
 
 /** Problema de validação do construtor (erros impedem publicar; avisos não). */
-export const ProblemaConstrutor = z.object({ codigo: z.string(), mensagem: z.string(), pergunta_id: z.string().optional(), regra_id: z.string().optional() }).passthrough();
+export const ProblemaConstrutor = z.object({ codigo: z.string(), mensagem: z.string(), pergunta_id: z.string().optional(), regra_id: z.string().optional() }).strip();
 export type ProblemaConstrutor = z.infer<typeof ProblemaConstrutor>;
 
 export const ValidacaoConstrutor = z.object({ erros: z.array(ProblemaConstrutor), avisos: z.array(ProblemaConstrutor) }).strict();
