@@ -11,6 +11,7 @@ import {
   ConectorIdentificador,
   ErroHub,
   InativacaoLote,
+  ItemFaturadoDescartado,
   LoteAceito,
   LoteEnvelope,
   LoteRecebidoEvento,
@@ -247,5 +248,16 @@ describe('RN-INT-08: pedido aprovado que entra na fila', () => {
     });
     expect(p.desconto_total_cents).toBe(0);
     expect(PedidoAprovadoParaFila.safeParse({ ...p, itens: [] }).success).toBe(false);
+  });
+});
+
+describe('P-4 (decisão do gerente): sequência repetida em itens_faturados não recusa mais o retorno', () => {
+  const base = { versao_contrato: 'v1', pedido_uuid: '3f2b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a7b', status: 'faturado_parcial', numero_erp: 'P-1', nota: { numero: '100', serie: '1', emitida_em: '2026-11-01T10:00:00Z', total_cents: 200 }, ocorrido_em: '2026-11-01T10:00:00Z' };
+  const it1 = { sequencia: 1, produto_external_id: 'SKU1', quantidade: 1, valor_cents: 100 };
+  it('P-4: o envelope com a mesma sequência duas vezes é válido (o domain descarta as linhas e aceita o status)', () => {
+    expect(RetornoErp.safeParse({ ...base, itens_faturados: [it1, it1] }).success).toBe(true);
+  });
+  it('P-4: sequencia_repetida é código de item descartado e de RetornoAceito', () => {
+    expect(ItemFaturadoDescartado.safeParse({ indice: 0, sequencia: 1, produto_external_id: 'SKU1', quantidade: 1, codigo: 'sequencia_repetida', codigos: ['sequencia_repetida'], campo: 'itens_faturados[0].sequencia', motivo: 'repetida' }).success).toBe(true);
   });
 });

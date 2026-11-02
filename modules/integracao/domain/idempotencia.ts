@@ -1,10 +1,11 @@
 /**
  * Idempotência por (tenant, entidade, external_id) + hash do conteúdo canônico (RN-INT-02).
- * O hash é FNV-1a de 2 x 32 bits sobre o JSON canônico: puro, determinístico e sem `node:crypto`
- * (roda igual no servidor, no Conector e no app). Serve para detectar mudança, não para segurança.
+ * O hash é SHA-256 (hex, 64 caracteres) do JSON canônico — o formato do CHECK do banco (R-20261101-233652, 🔴; sem colisão
+ * prática: colisão seria atualização perdida em silêncio). O domain roda só no servidor; SHA-256 puro em TypeScript (`./sha256`), sem módulos do Node.
  */
 import { SCHEMA_REGISTRO, type AvisoLinha, type Entidade, type LinhaErro } from '../contracts';
 import { classificarErroZod } from './erros';
+import { sha256Hex } from './sha256';
 
 /** JSON com chaves ordenadas; `null`/`undefined` em objeto equivalem a campo ausente; `-0` vira `0`. */
 export function jsonCanonico(valor: unknown): string {
@@ -26,26 +27,14 @@ export function jsonCanonico(valor: unknown): string {
   throw new Error('Tipo não suportado em registro canônico.');
 }
 
-function fnv1a(texto: string, semente: number): number {
-  let h = semente >>> 0;
-  for (let i = 0; i < texto.length; i++) {
-    h ^= texto.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h >>> 0;
-}
-
-const hex8 = (n: number) => n.toString(16).padStart(8, '0');
-
-/** Hash de 16 hexadecimais do registro. Por padrão `alterado_em` não conta (só o conteúdo). */
+/** Hash SHA-256 (64 hexadecimais minúsculos) do registro: o formato que o CHECK `registro_atual_hash_formato` exige. Por padrão `alterado_em` não conta (só o conteúdo). */
 export function hashRegistro(registro: unknown, opcoes: { ignorar?: readonly string[] } = {}): string {
   const ignorar = opcoes.ignorar ?? ['alterado_em'];
   let alvo = registro;
   if (alvo && typeof alvo === 'object' && !Array.isArray(alvo) && ignorar.length > 0) {
     alvo = Object.fromEntries(Object.entries(alvo as Record<string, unknown>).filter(([k]) => !ignorar.includes(k)));
   }
-  const json = jsonCanonico(alvo);
-  return hex8(fnv1a(json, 0x811c9dc5)) + hex8(fnv1a(json, 0x9747b28c));
+  return sha256Hex(jsonCanonico(alvo));
 }
 
 export interface LinhaBruta {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PedidoAprovadoParaFila, RetornoErp } from '../contracts';
+import type { PedidoAprovadoParaFila, PedidoParaErp, RetornoErp } from '../contracts';
 import { aplicarRetornoPedido, decidirEntradaNaFila, montarPedidoParaErp, selecionarPendentes, type Mapeamento, type PedidoNaFila } from './pedido-fila';
 
 const t0 = '2026-11-01T10:00:00.000Z';
@@ -26,7 +26,7 @@ const mapas: Mapeamento[] = [{ tipo: 'condicao_pagamento', codigo_erp: '007', co
 const naFila = (extra: Partial<PedidoNaFila> = {}): PedidoNaFila => {
   const m = montarPedidoParaErp(snapshot(), mapas);
   if (!m.ok) throw new Error('esperado ok');
-  return { pedido_uuid: UUID, estado: 'pendente', payload: m.pedido, enviado_em: null, tentativas: 0, numero_erp: null, motivo: null, notas_aplicadas: [], itens_faturados_acumulados: {}, removido_em: null, ...extra };
+  return { pedido_uuid: UUID, estado: 'pendente', payload: m.pedido, retencao_codigo: null, enviado_em: null, tentativas: 0, numero_erp: null, motivo: null, notas_aplicadas: [], itens_faturados_acumulados: {}, removido_em: null, ...extra };
 };
 
 const retorno = (extra: Partial<RetornoErp> & Record<string, unknown>): RetornoErp =>
@@ -116,13 +116,13 @@ describe('RN-INT-08: entrega dos pendentes ao Conector', () => {
   const doze = (n: number, extra: Partial<PedidoNaFila> = {}) => {
     const uuid = `3f2b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a${String(n).padStart(2, '0')}`;
     const base = naFila();
-    return naFila({ pedido_uuid: uuid, payload: { ...base.payload, pedido_uuid: uuid }, ...extra });
+    return naFila({ pedido_uuid: uuid, payload: { ...(base.payload as PedidoParaErp), pedido_uuid: uuid }, ...extra });
   };
 
   it('RN-INT-08: entrega os pendentes por ordem de aprovação, marca enviado e conta a tentativa', () => {
     const a = doze(1);
     const b0 = doze(2);
-    const b = { ...b0, payload: { ...b0.payload, aprovado_em: '2026-11-01T09:00:00.000Z' } };
+    const b = { ...b0, payload: { ...(b0.payload as PedidoParaErp), aprovado_em: '2026-11-01T09:00:00.000Z' } };
     const r = selecionarPendentes([a, b], t0);
     expect(r.entregar.map((p) => p.pedido_uuid)).toEqual([b.pedido_uuid, a.pedido_uuid]);
     expect(r.entregar[0]?.tentativa).toBe(1);
@@ -295,13 +295,13 @@ describe('RN-INT-08: faturamento por nota e itens_faturados', () => {
   });
 
   it('P-4: parte inválida — só os válidos acumulam e vão no evento; cada inválido vira erro do monitor com motivo, external_id, pedido e nota', () => {
-    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(9, 'SKU9', 1), item(2, 'X', 1), item(1, 'SKU1', 999), item(2, 'SKU2', 3)] }));
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(9, 'SKU9', 1), item(2, 'X', 1), item(1, 'SKU1', 3)] }));
     expect(r).toMatchObject({ ok: true, publicar: true });
     if (!r.ok) return;
-    expect(r.itens_descartados.map((d) => d.codigo)).toEqual(['sequencia_inexistente', 'produto_divergente', 'quantidade_acima_do_saldo']);
-    expect(r.atualizacao.itens_faturados_acumulados).toEqual({ 2: { quantidade: 3, valor_cents: 100 } });
-    expect(r.evento.itens_faturados).toEqual([item(2, 'SKU2', 3)]);
-    expect(r.erros_monitor).toHaveLength(3);
+    expect(r.itens_descartados.map((d) => d.codigo)).toEqual(['sequencia_inexistente', 'produto_divergente']);
+    expect(r.atualizacao.itens_faturados_acumulados).toEqual({ 1: { quantidade: 3, valor_cents: 100 } });
+    expect(r.evento.itens_faturados).toEqual([item(1, 'SKU1', 3)]);
+    expect(r.erros_monitor).toHaveLength(2);
     expect(r.erros_monitor[1]).toMatchObject({
       pedido_uuid: UUID, status: 'faturado_parcial', numero_erp: 'P-1', nota_numero: '100', nota_serie: '1', ocorrido_em: t0,
       sequencia: 2, produto_external_id: 'X', codigo: 'produto_divergente',
@@ -341,5 +341,111 @@ describe('RN-INT-08: faturamento por nota e itens_faturados', () => {
   it('RN-INT-08: retorno repetido não revalida os itens (o fato já foi aplicado)', () => {
     const base = integrado({ estado: 'faturado_parcial', notas_aplicadas: [{ numero: '100', serie: '1' }], itens_faturados_acumulados: { 1: { quantidade: 10, valor_cents: 800 } } });
     expect(aplicarRetornoPedido(base, retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(1, 'SKU1', 10)] }))).toMatchObject({ ok: true, repetido: true });
+  });
+});
+
+describe('RN-INT-08 (T-0023 🔴): a nota é a unidade de idempotência dos itens faturados, qualquer que seja o status', () => {
+  const integrado = (extra: Partial<PedidoNaFila> = {}) => naFila({ estado: 'integrado', enviado_em: t0, tentativas: 1, numero_erp: 'P-1', ...extra });
+
+  it('RN-INT-08: pedido muda de P para F sem nota nova não duplica os itens', () => {
+    const n1 = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('501'), itens_faturados: [item(1, 'SKU1', 4, 400)] }));
+    if (!n1.ok) throw new Error('esperado ok');
+    const apos = integrado({ estado: 'faturado_parcial', notas_aplicadas: n1.atualizacao.notas_aplicadas, itens_faturados_acumulados: n1.atualizacao.itens_faturados_acumulados });
+    // o ERP fecha o pedido (corte do saldo) sem nota nova: a nota 501 volta como faturado_total com os MESMOS itens
+    const f = aplicarRetornoPedido(apos, retorno({ status: 'faturado_total', nota: nota('501'), itens_faturados: [item(1, 'SKU1', 4, 400)] }));
+    expect(f).toMatchObject({ ok: true, repetido: false, publicar: true, atualizacao: { estado: 'faturado_total' } });
+    if (!f.ok) return;
+    expect(f.atualizacao.itens_faturados_acumulados).toEqual({ 1: { quantidade: 4, valor_cents: 400 } });
+    expect(f.atualizacao.notas_aplicadas).toEqual([{ numero: '501', serie: '1' }]);
+    expect(f.evento.itens_faturados).toBeNull();
+    expect(f.itens_descartados).toEqual([]);
+    expect(f.erros_monitor).toEqual([]);
+  });
+
+  it('RN-INT-08 (Conector 1.2.1): parcial|501 com itens, depois total|501 SEM itens_faturados aplica o total e não soma de novo', () => {
+    const n1 = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('501'), itens_faturados: [item(1, 'SKU1', 4, 400)] }));
+    if (!n1.ok) throw new Error('esperado ok');
+    const apos = integrado({ estado: 'faturado_parcial', notas_aplicadas: n1.atualizacao.notas_aplicadas, itens_faturados_acumulados: n1.atualizacao.itens_faturados_acumulados });
+    const f = aplicarRetornoPedido(apos, retorno({ status: 'faturado_total', nota: nota('501') }));
+    expect(f).toMatchObject({ ok: true, repetido: false, publicar: true, atualizacao: { estado: 'faturado_total' } });
+    if (!f.ok) return;
+    expect(f.atualizacao.itens_faturados_acumulados).toEqual({ 1: { quantidade: 4, valor_cents: 400 } });
+    expect(f.atualizacao.notas_aplicadas).toEqual([{ numero: '501', serie: '1' }]);
+    // reenvio do mesmo total: repetido, sem novo evento
+    const total = integrado({ estado: 'faturado_total', notas_aplicadas: f.atualizacao.notas_aplicadas, itens_faturados_acumulados: f.atualizacao.itens_faturados_acumulados });
+    expect(aplicarRetornoPedido(total, retorno({ status: 'faturado_total', nota: nota('501') }))).toMatchObject({ ok: true, repetido: true, publicar: false });
+  });
+
+  it('RN-INT-08: nota nova no faturado_total continua somando os itens (só a nota já aplicada não soma)', () => {
+    const apos = integrado({ estado: 'faturado_parcial', notas_aplicadas: [{ numero: '501', serie: '1' }], itens_faturados_acumulados: { 1: { quantidade: 4, valor_cents: 400 } } });
+    const f = aplicarRetornoPedido(apos, retorno({ status: 'faturado_total', nota: nota('502'), itens_faturados: [item(1, 'SKU1', 6, 600), item(2, 'SKU2', 4, 100)] }));
+    expect(f).toMatchObject({ ok: true, publicar: true });
+    if (f.ok) {
+      expect(f.atualizacao.itens_faturados_acumulados).toEqual({ 1: { quantidade: 10, valor_cents: 1000 }, 2: { quantidade: 4, valor_cents: 100 } });
+      expect(f.atualizacao.notas_aplicadas).toHaveLength(2);
+    }
+  });
+});
+
+describe('P-4 (decisão do gerente): sequência repetida em itens_faturados descarta TODAS as linhas da sequência e aceita o retorno', () => {
+  const integrado = (extra: Partial<PedidoNaFila> = {}) => naFila({ estado: 'integrado', enviado_em: t0, tentativas: 1, numero_erp: 'P-1', ...extra });
+
+  it('P-4: a sequência 1 aparece duas vezes — as duas linhas viram erro sequencia_repetida, a 2 vale e o status é aplicado', () => {
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_parcial', nota: nota('100'), itens_faturados: [item(1, 'SKU1', 2), item(2, 'SKU2', 3), item(1, 'SKU1', 2)] }));
+    expect(r).toMatchObject({ ok: true, publicar: true, atualizacao: { estado: 'faturado_parcial' } });
+    if (!r.ok) return;
+    expect(r.itens_descartados.map((d) => [d.indice, d.sequencia, d.codigo])).toEqual([[0, 1, 'sequencia_repetida'], [2, 1, 'sequencia_repetida']]);
+    expect(r.erros_monitor).toHaveLength(2);
+    expect(r.erros_monitor[0]).toMatchObject({ codigo: 'sequencia_repetida', codigos: ['sequencia_repetida'], campo: 'itens_faturados[0].sequencia' });
+    expect(r.itens_descartados[0]?.motivo).toMatch(/sequência 1.*mais de uma vez/s);
+    expect(r.atualizacao.itens_faturados_acumulados).toEqual({ 2: { quantidade: 3, valor_cents: 100 } });
+    expect(r.evento.itens_faturados).toEqual([item(2, 'SKU2', 3)]);
+  });
+
+  it('P-4: só linhas da sequência repetida — o status ainda vale (faturado_total) e o evento sai sem itens', () => {
+    const r = aplicarRetornoPedido(integrado(), retorno({ status: 'faturado_total', nota: nota('100'), itens_faturados: [item(1, 'SKU1', 1), item(1, 'SKU1', 1)] }));
+    expect(r).toMatchObject({ ok: true, atualizacao: { estado: 'faturado_total', itens_faturados_acumulados: {} }, evento: { itens_faturados: null } });
+  });
+});
+
+describe('RN-INT-08 (T-0025 🟡 3 e 4): retido, reter com pedido não entregue e reativar o removido', () => {
+  const retido = (extra: Partial<PedidoNaFila> = {}) => naFila({ payload: null, retencao_codigo: 'mapeamento_ausente', ...extra });
+  const semDePara = () => snapshot({ condicao_pagamento_codigo: '99' });
+
+  it('RN-INT-08: pedido pendente não entregue, editado e reaprovado com condição SEM de-para é retido no lugar — o payload velho não sai no GET', () => {
+    const r = decidirEntradaNaFila({ existente: naFila(), statusPedido: 'aprovado', snapshot: semDePara(), mapeamentos: mapas });
+    expect(r).toMatchObject({ acao: 'reter', codigo: 'mapeamento_ausente', persistencia: 'atualizar' });
+  });
+
+  it('RN-INT-08: reter sem linha na fila insere; com linha removida atualiza (o único total por pedido impede um segundo insert)', () => {
+    expect(decidirEntradaNaFila({ existente: null, statusPedido: 'aprovado', snapshot: semDePara(), mapeamentos: mapas })).toMatchObject({ acao: 'reter', persistencia: 'inserir' });
+    expect(decidirEntradaNaFila({ existente: naFila({ removido_em: t0 }), statusPedido: 'aprovado', snapshot: semDePara(), mapeamentos: mapas })).toMatchObject({ acao: 'reter', persistencia: 'atualizar' });
+  });
+
+  it('RN-INT-08: o mesmo retido de novo (mesmo motivo) não regrava', () => {
+    expect(decidirEntradaNaFila({ existente: retido(), statusPedido: 'aprovado', snapshot: semDePara(), mapeamentos: mapas })).toMatchObject({ acao: 'ignorar', motivo: 'ja_na_fila' });
+  });
+
+  it('RN-INT-08: retido cujo de-para foi cadastrado vira pendente com o payload (atualizar_payload), sem criar de novo', () => {
+    const r = decidirEntradaNaFila({ existente: retido(), statusPedido: 'aprovado', snapshot: snapshot(), mapeamentos: mapas });
+    expect(r).toMatchObject({ acao: 'atualizar_payload' });
+  });
+
+  it('RN-INT-08: já entregue ao ERP, reter não vale — edição depois do envio é só aviso', () => {
+    const r = decidirEntradaNaFila({ existente: naFila({ estado: 'enviado', enviado_em: t0, tentativas: 1 }), statusPedido: 'aprovado', snapshot: semDePara(), mapeamentos: mapas });
+    expect(r).toMatchObject({ acao: 'ignorar', motivo: 'alterado_apos_envio' });
+  });
+
+  it('RN-INT-08: pedido removido da fila (devolvido à aprovação) e reaprovado volta por reativar — UPDATE que limpa deleted_at, não insert', () => {
+    const r = decidirEntradaNaFila({ existente: naFila({ removido_em: t0 }), statusPedido: 'aprovado', snapshot: snapshot({ total_cents: 7000 }), mapeamentos: mapas });
+    expect(r).toMatchObject({ acao: 'reativar' });
+    if (r.acao === 'reativar') expect(r.pedido.total_cents).toBe(7000);
+  });
+
+  it('RN-INT-08: selecionarPendentes não entrega retido (payload nulo + retencao_codigo)', () => {
+    const outro = '3f2b8c1e-5a4d-4e6f-9a1b-2c3d4e5f6a99';
+    const base = naFila();
+    const entrega = selecionarPendentes([retido(), naFila({ pedido_uuid: outro, payload: { ...(base.payload as PedidoParaErp), pedido_uuid: outro } })], t0);
+    expect(entrega.entregar.map((p) => p.pedido_uuid)).toEqual([outro]);
   });
 });

@@ -23,11 +23,11 @@ describe('RN-INT-02: hash canônico estável', () => {
     expect(hashRegistro({ a: 1, alterado_em: 'x' }, { ignorar: [] })).not.toBe(hashRegistro({ a: 1, alterado_em: 'y' }, { ignorar: [] }));
   });
 
-  it('RN-INT-02: hash é determinístico, com 16 hexadecimais, sem depender de node:crypto', () => {
+  it('RN-INT-02: hash é determinístico e SHA-256 em 64 hexadecimais (formato do CHECK registro_atual_hash_formato)', () => {
     const h = hashRegistro({ nome: 'Café ☕', n: 10 });
-    expect(h).toMatch(/^[0-9a-f]{16}$/);
+    expect(h).toMatch(/^[0-9a-f]{64}$/);
     expect(hashRegistro({ nome: 'Café ☕', n: 10 })).toBe(h);
-    expect(hashRegistro({})).toMatch(/^[0-9a-f]{16}$/);
+    expect(hashRegistro({})).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('RN-INT-02: -0 e 0 são o mesmo conteúdo; número não finito é recusado', () => {
@@ -112,7 +112,7 @@ describe('RN-INT-02/03: validar linhas do lote', () => {
       [3, 'V1'],
     ]);
     expect(r.validas[1]?.registro).toMatchObject({ nome: 'Outro', ativo: true });
-    expect(r.validas[0]?.hash).toMatch(/^[0-9a-f]{16}$/);
+    expect(r.validas[0]?.hash).toMatch(/^[0-9a-f]{64}$/);
     expect(r.erros.map((e) => [e.indice, e.external_id, e.codigo])).toContainEqual([1, 'V2', 'campo_obrigatorio']);
     expect(r.avisos.map((a) => a.indice)).toEqual([0]);
   });
@@ -129,5 +129,19 @@ describe('RN-INT-02/03: validar linhas do lote', () => {
     expect(r.erros.length).toBeGreaterThan(0);
     expect(r.erros.every((e) => e.indice === 1)).toBe(true);
     expect(r.avisos).toHaveLength(1);
+  });
+});
+
+describe('RN-INT-02: contrato do hash com o banco (db/migrations/0010_integracao.up.sql registro_atual_hash_formato)', () => {
+  const CHECK_BANCO = /^[0-9a-f]{64}$/;
+  it('RN-INT-02: o hash do domain casa com o CHECK do registro_atual (^[0-9a-f]{64}$), com e sem opções', () => {
+    for (const r of [{}, { a: 1 }, { nome: 'Café ☕', itens: [1, 2, { x: null }] }, 'texto', 42, [1, 2]]) {
+      expect(hashRegistro(r)).toMatch(CHECK_BANCO);
+      expect(hashRegistro(r, { ignorar: [] })).toMatch(CHECK_BANCO);
+    }
+  });
+  it('RN-INT-02: SHA-256 de um valor conhecido (a mudança de conteúdo de 1 bit muda os 64 caracteres)', () => {
+    expect(hashRegistro({ a: 1 })).toBe('015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862');
+    expect(hashRegistro({ a: 1 })).not.toBe(hashRegistro({ a: 2 }));
   });
 });

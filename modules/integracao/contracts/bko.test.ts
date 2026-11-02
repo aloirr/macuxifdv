@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuditoriaInativacao, DecidirInativacaoResposta, PendenciaInativacao } from './bko';
+import { AuditoriaInativacao, DecidirInativacaoResposta, PendenciaInativacao, RecusaTopologiaConector } from './bko';
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const pendencia = {
@@ -30,5 +30,25 @@ describe('P-3: contratos da decisão da inativação em massa', () => {
   it('P-3: a resposta da decisão aceita a auditoria (opcional)', () => {
     expect(DecidirInativacaoResposta.safeParse({ pendencia, inativadas: 0 }).success).toBe(true);
     expect(DecidirInativacaoResposta.safeParse({ pendencia, inativadas: 5, auditoria }).success).toBe(true);
+  });
+});
+
+describe('R-155028 (🟡 2 e 3): topologia no ErroApi e inativadas na auditoria', () => {
+  it('RN-INT-13: o 409 de topologia leva conflitos e entidades_livres em detalhes (ErroApi, ADR 0008), não no topo', () => {
+    const corpo = {
+      codigo: 'topologia_conflitante',
+      mensagem: 'O Conector "x" não foi salvo.',
+      detalhes: { conflitos: [{ codigo: 'entidade_em_outro_conector', entidade: 'cliente', conector_id: 'erp-alfa', mensagem: 'A entidade "cliente" já é recebida.' }], entidades_livres: [] },
+      requisicao_id: 'req-1',
+    };
+    expect(RecusaTopologiaConector.safeParse(corpo).success).toBe(true);
+    const { detalhes: _d, ...semDetalhes } = corpo;
+    expect(RecusaTopologiaConector.safeParse({ ...semDetalhes, conflitos: corpo.detalhes.conflitos, entidades_livres: [] }).success).toBe(false);
+  });
+
+  it('RN-INT-06: a auditoria registra quantas foram inativadas de fato (opcional; nulo na recusa)', () => {
+    expect(AuditoriaInativacao.safeParse({ ...auditoria, inativadas: 3 }).success).toBe(true);
+    expect(AuditoriaInativacao.safeParse({ ...auditoria, acao: 'recusar', inativadas: null }).success).toBe(true);
+    expect(AuditoriaInativacao.safeParse({ ...auditoria, inativadas: -1 }).success).toBe(false);
   });
 });

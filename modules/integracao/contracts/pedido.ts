@@ -97,21 +97,14 @@ export const RetornoErp = RetornoErpBase.superRefine((r, ctx) => {
   if (r.itens_faturados && r.status !== 'faturado_parcial' && r.status !== 'faturado_total') {
     falta('itens_faturados', 'itens_faturados só vale em retorno faturado_parcial ou faturado_total');
   }
-  if (r.itens_faturados) {
-    const vistas = new Set<number>();
-    for (const [i, it] of r.itens_faturados.entries()) {
-      if (vistas.has(it.sequencia)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['itens_faturados', i, 'sequencia'], message: 'sequência repetida em itens_faturados' });
-      vistas.add(it.sequencia);
-    }
-  }
 });
 export type RetornoErp = z.infer<typeof RetornoErp>;
 
 /**
- * P-4 (T-0031): item de `itens_faturados` que não bate com o pedido enviado (sequência inexistente, produto divergente ou acima
- * do saldo). O retorno é aceito sem ele e o Hub registra o erro no monitor.
+ * P-4 (T-0031): item de `itens_faturados` que não bate com o pedido enviado (sequência inexistente, produto divergente, acima
+ * do saldo ou sequência repetida no próprio retorno: nesse caso TODAS as linhas da sequência são descartadas — decisão do gerente). O retorno é aceito sem ele e o Hub registra o erro no monitor.
  */
-export const CODIGOS_ITEM_DESCARTADO = ['sequencia_inexistente', 'produto_divergente', 'quantidade_acima_do_saldo'] as const;
+export const CODIGOS_ITEM_DESCARTADO = ['sequencia_inexistente', 'produto_divergente', 'quantidade_acima_do_saldo', 'sequencia_repetida'] as const;
 export const ItemFaturadoDescartado = z.object({
   indice: z.number().int().nonnegative(),
   sequencia: z.number().int().positive(),

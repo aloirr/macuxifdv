@@ -3,7 +3,7 @@
  * os dados (426) e o Conector para de enviar; abaixo da RECOMENDADA só avisa "desatualizado". O sinal de vida segue sempre.
  * A comparação é semver 2.0, a mesma do Conector (`apps/conector/src/versao.ts`).
  */
-import { REGEX_SEMVER, type PoliticaVersaoConector } from '../contracts';
+import { POLITICA_VERSAO_PADRAO_PEDIDOS, REGEX_SEMVER, VERSAO_PISO_PEDIDOS, type PoliticaVersaoConector } from '../contracts';
 
 export interface Semver {
   maior: number;
@@ -112,4 +112,20 @@ export function validarPoliticaVersao(p: PoliticaVersaoConector): ResultadoPolit
     erros.push(`O pacote cadastrado (${p.pacote.versao}) está abaixo da versão recomendada (${p.versao_recomendada}). Cadastre o pacote da versão recomendada ou mais nova.`);
   }
   return erros.length === 0 ? { ok: true } : { ok: false, erros };
+}
+
+/**
+ * RN-INT-11: a política que vale numa chamada. A linha gravada pela empresa sempre manda; sem linha, Conector que recebe pedidos
+ * exige o piso 1.2.1 (padrão do Hub) e os demais ficam sem política.
+ */
+export function politicaEfetiva(politicaDoTenant: PoliticaVersaoConector | null | undefined, recebePedidos: boolean): PoliticaVersaoConector | null {
+  if (politicaDoTenant) return politicaDoTenant;
+  return recebePedidos ? { ...POLITICA_VERSAO_PADRAO_PEDIDOS } : null;
+}
+
+/** RN-INT-11: quem recebe pedidos não pode gravar mínima abaixo do piso 1.2.1 (descer só por SQL, por decisão explícita). */
+export function validarPisoParaPedidos(p: Pick<PoliticaVersaoConector, 'versao_minima'>, tenantRecebePedidos: boolean): ResultadoPolitica {
+  if (!tenantRecebePedidos || lerSemver(p.versao_minima) === null) return { ok: true };
+  if (compararSemver(p.versao_minima, VERSAO_PISO_PEDIDOS) >= 0) return { ok: true };
+  return { ok: false, erros: [`Quem recebe pedidos exige Conector ${VERSAO_PISO_PEDIDOS} ou mais novo: a versão mínima (${p.versao_minima}) está abaixo. Informe ${VERSAO_PISO_PEDIDOS} ou maior.`] };
 }

@@ -148,7 +148,8 @@ export type CodigoErroLinha = z.infer<typeof CodigoErroLinha>;
 export const LinhaErro = z.object({
   /** Posição da linha no lote, base 0. */
   indice: z.number().int().nonnegative(),
-  external_id: z.string().nullable(),
+  /** Até `EXTERNAL_ID_MAX`: id maior vira `null` (a coluna do banco limita a 200; o registro conta como sem identificação). */
+  external_id: z.string().max(EXTERNAL_ID_MAX).nullable(),
   codigo: CodigoErroLinha,
   campo: z.string().nullable(),
   mensagem: z.string(),

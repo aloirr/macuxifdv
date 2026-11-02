@@ -4,6 +4,7 @@
  * (`deleted_at`), nunca apagados. Sessão incompleta ou expirada não inativa nada.
  */
 import type { EstadoLote } from '../contracts';
+import { externalIdDoErro } from './erros';
 import { PARAMETROS_PADRAO } from './parametros';
 
 export interface SessaoCargaEstado {
@@ -31,6 +32,11 @@ export function registrarParte(sessao: SessaoCargaEstado, parte: { parte: number
   };
 }
 
+/**
+ * `falhou` NÃO conta como concluída (T-0025 🟢 5): uma parte em que todas as linhas ficaram em `referencia_ausente` termina
+ * `falhou` e a sessão não fecha. O reprocessamento do lote recalcula o resultado e a API chama `registrarParte` de novo com o
+ * estado novo da parte (que então vale `concluido_com_erros`); só então a sessão fecha e a inativação é avaliada.
+ */
 const CONCLUIDAS: ReadonlySet<EstadoLote> = new Set<EstadoLote>(['concluido', 'concluido_com_erros']);
 
 function completa(s: SessaoCargaEstado): boolean {
@@ -55,8 +61,13 @@ export type MotivoSemInativacao = 'sessao_incompleta' | 'linhas_sem_external_id'
 export interface EntradaInativacao {
   sessao: SessaoCargaEstado;
   agora: string;
-  /** external_id dos registros ativos da entidade no Macuxi. */
+  /** external_id de TODOS os registros ativos da entidade no Macuxi: é o denominador do percentual da trava (`total_ativos`). */
   ativosNoMacuxi: Iterable<string>;
+  /**
+   * T-0025 (🟡 2): ativos ELEGÍVEIS à inativação (`filtrarAtivosElegiveis`: `visto_em` anterior ao início da sessão). Só estes são
+   * candidatos; o que chegou pelo delta durante a carga e não estava na sessão fica de fora. Omitido = todos os ativos.
+   */
+  ativosElegiveis?: Iterable<string>;
   /** external_id de todas as linhas da sessão, inclusive as que tiveram erro de validação. */
   recebidosNaSessao: Iterable<string>;
   /**
@@ -96,7 +107,7 @@ export function calcularInativacao(e: EntradaInativacao): ResultadoInativacao {
   const vistos = new Set(e.recebidosNaSessao);
   for (const id of e.invalidosNaSessao ?? []) vistos.add(id);
   if (vistos.size === 0) return nega('carga_vazia');
-  const inativar = [...new Set(e.ativosNoMacuxi)].filter((id) => !vistos.has(id));
+  const inativar = [...new Set(e.ativosElegiveis ?? e.ativosNoMacuxi)].filter((id) => !vistos.has(id));
   const ativos = new Set(e.ativosNoMacuxi).size;
   const limite = e.limitePct ?? PARAMETROS_PADRAO.limiteInativacaoPct;
   if (!e.confirmado && ativos > 0 && (inativar.length / ativos) * 100 > limite) {
@@ -134,10 +145,8 @@ export interface IdsDaSessaoNoLote {
  * `recebidosNaSessao` (aceitos), `invalidosNaSessao` (inválidos) e `linhasSemExternalId` (semIdentificacao).
  */
 export function idsDaSessaoNoLote(e: EntradaIdsDoLote): IdsDaSessaoNoLote {
-  const limpa = (v: string | null | undefined): string | null => {
-    const t = typeof v === 'string' ? v.trim() : '';
-    return t === '' ? null : t;
-  };
+  // id vazio ou acima de EXTERNAL_ID_MAX = sem identificação (a coluna sessao_carga_recebido.external_id limita a 200)
+  const limpa = externalIdDoErro;
   const aceitos = new Set<string>();
   for (const a of e.aceitas) {
     const id = limpa(a.external_id);

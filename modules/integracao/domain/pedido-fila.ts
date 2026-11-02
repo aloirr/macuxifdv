@@ -7,6 +7,7 @@
  *  Conector retorna ─► aplicarRetornoPedido ─► integrado | rejeitado_erp | faturado_parcial/total | cancelado (+ evento)
  */
 import {
+  CODIGOS_ITEM_DESCARTADO,
   type EstadoPedidoErp,
   type ItemFaturado,
   type Mapeamento as MapeamentoContrato,
@@ -27,10 +28,16 @@ export interface ItemFaturadoAcumulado {
   valor_cents: number;
 }
 
+/** Motivo de o pedido estar RETIDO na fila (sem payload, não sai no GET /pedidos/pendentes). Igual a `pedido_fila_erp.retencao_codigo`. */
+export type CodigoRetencao = 'mapeamento_ausente' | 'mapeamento_ambiguo' | 'sequencia_repetida';
+
 export interface PedidoNaFila {
   pedido_uuid: string;
   estado: EstadoPedidoErp;
-  payload: PedidoParaErp;
+  /** `null` enquanto RETIDO por de-para (T-0025 🟡 4: o banco grava payload nulo + `retencao_codigo`). */
+  payload: PedidoParaErp | null;
+  /** Retido por que (nulo = na fila normal). Retido nunca é entregue ao Conector. */
+  retencao_codigo?: CodigoRetencao | null;
   enviado_em: string | null;
   /** Quantas vezes foi entregue ao Conector. */
   tentativas: number;
@@ -40,7 +47,7 @@ export interface PedidoNaFila {
   notas_aplicadas: NotaChave[];
   /** Por `sequencia` do pedido enviado: o que já foi faturado nos retornos aceitos. */
   itens_faturados_acumulados: Record<number, ItemFaturadoAcumulado>;
-  /** Retirado da fila antes de ser entregue (cancelado/devolvido à aprovação no Macuxi). */
+  /** Retirado da fila antes de ser entregue (cancelado/devolvido à aprovação no Macuxi) = `deleted_at` da linha. */
   removido_em: string | null;
 }
 
@@ -48,7 +55,7 @@ export interface PedidoNaFila {
 
 export type ResultadoMontagem =
   | { ok: true; pedido: PedidoParaErp }
-  | { ok: false; codigo: 'mapeamento_ausente' | 'mapeamento_ambiguo' | 'sequencia_repetida'; mensagem: string };
+  | { ok: false; codigo: CodigoRetencao; mensagem: string };
 
 /**
  * Traduz a condição de pagamento (de-para ativo `condicao_pagamento`) e confere as sequências. Sem de-para o pedido fica RETIDO
@@ -94,10 +101,17 @@ export function montarPedidoParaErp(origem: PedidoAprovadoParaFila, mapeamentos:
 // ---------------------------------------------------------------- entrada na fila (idempotente pelo UUID)
 
 export type DecisaoEntradaFila =
+  /** Não há linha para o pedido: INSERT. */
   | { acao: 'criar'; pedido: PedidoParaErp }
+  /** T-0025 🟡 4: a linha existe mas foi removida (`deleted_at`): UPDATE que limpa `deleted_at`/`removido_em`, volta a `pendente` com `tentativas = 0` e grava o payload. Nunca INSERT (o único total por pedido impede). */
+  | { acao: 'reativar'; pedido: PedidoParaErp }
   | { acao: 'atualizar_payload'; pedido: PedidoParaErp }
   | { acao: 'remover_da_fila' }
-  | { acao: 'reter'; codigo: 'mapeamento_ausente' | 'mapeamento_ambiguo' | 'sequencia_repetida'; mensagem: string }
+  /**
+   * Sem de-para: grava payload nulo + `retencao_codigo`. `persistencia`: `inserir` se não há linha; `atualizar` se há (viva ainda
+   * não entregue — o payload velho deixa de sair no GET — ou removida: UPDATE que limpa `deleted_at`).
+   */
+  | { acao: 'reter'; codigo: CodigoRetencao; mensagem: string; persistencia: 'inserir' | 'atualizar' }
   | { acao: 'ignorar'; motivo: 'status_nao_aprovado' | 'ja_na_fila' | 'alterado_apos_envio' | 'ja_enviado_ao_erp' | 'sem_dados_do_pedido' };
 
 /**
@@ -116,9 +130,14 @@ export function decidirEntradaNaFila(e: { existente: PedidoNaFila | null; status
   }
   if (e.snapshot === null) return { acao: 'ignorar', motivo: 'sem_dados_do_pedido' };
   const m = montarPedidoParaErp(e.snapshot, e.mapeamentos);
-  if (!m.ok) return { acao: 'reter', codigo: m.codigo, mensagem: m.mensagem };
+  if (!m.ok) {
+    if (vivo !== null && !naoEntregue) return { acao: 'ignorar', motivo: 'alterado_apos_envio' };
+    if (vivo !== null && vivo.retencao_codigo === m.codigo) return { acao: 'ignorar', motivo: 'ja_na_fila' };
+    return { acao: 'reter', codigo: m.codigo, mensagem: m.mensagem, persistencia: existente === null ? 'inserir' : 'atualizar' };
+  }
+  if (existente !== null && vivo === null) return { acao: 'reativar', pedido: m.pedido };
   if (vivo === null) return { acao: 'criar', pedido: m.pedido };
-  const igual = hashRegistro(vivo.payload, { ignorar: [] }) === hashRegistro(m.pedido, { ignorar: [] });
+  const igual = vivo.payload !== null && (vivo.retencao_codigo ?? null) === null && hashRegistro(vivo.payload, { ignorar: [] }) === hashRegistro(m.pedido, { ignorar: [] });
   if (igual) return { acao: 'ignorar', motivo: 'ja_na_fila' };
   return naoEntregue ? { acao: 'atualizar_payload', pedido: m.pedido } : { acao: 'ignorar', motivo: 'alterado_apos_envio' };
 }
@@ -143,7 +162,7 @@ export interface SelecaoPendentes {
 export function selecionarPendentes(fila: readonly PedidoNaFila[], agora: string, opcoes: { limite?: number; timeoutMin?: number } = {}): SelecaoPendentes {
   const limite = opcoes.limite ?? PARAMETROS_PADRAO.pedidosPorConsulta;
   const candidatos = fila
-    .filter((p) => p.removido_em === null && (p.estado === 'pendente' || p.estado === 'enviado'))
+    .filter((p): p is PedidoNaFila & { payload: PedidoParaErp } => p.removido_em === null && p.payload !== null && (p.retencao_codigo ?? null) === null && (p.estado === 'pendente' || p.estado === 'enviado'))
     .map((p) => ({ p, t: aplicarTimeoutEnvio({ estado: p.estado, enviado_em: p.enviado_em, tentativas: p.tentativas }, agora, { timeoutMin: opcoes.timeoutMin }) }))
     .filter((x) => x.t.estado === 'pendente')
     .sort((a, b) => Date.parse(a.p.payload.aprovado_em) - Date.parse(b.p.payload.aprovado_em) || (a.p.pedido_uuid < b.p.pedido_uuid ? -1 : a.p.pedido_uuid > b.p.pedido_uuid ? 1 : 0))
@@ -165,7 +184,7 @@ export interface ErroRetorno {
 
 export type CodigoFalhaRetorno = 'pedido_desconhecido' | 'pedido_nao_entregue' | 'transicao_invalida' | 'numero_erp_divergente';
 
-export type CodigoItemDescartado = 'sequencia_inexistente' | 'produto_divergente' | 'quantidade_acima_do_saldo';
+export type CodigoItemDescartado = (typeof CODIGOS_ITEM_DESCARTADO)[number];
 
 /**
  * P-4 (T-0031): item de `itens_faturados` que não bate com o pedido enviado ao ERP. O retorno é ACEITO sem ele; cada item
@@ -236,10 +255,16 @@ const falha = (codigo: CodigoFalhaRetorno, mensagem: string, campo: string | nul
 function separarItensFaturados(item: PedidoNaFila, retorno: RetornoErp): { validos: ItemFaturado[]; descartados: ItemFaturadoDescartado[] } {
   const validos: ItemFaturado[] = [];
   const descartados: ItemFaturadoDescartado[] = [];
+  const itensDoPedido = item.payload?.itens ?? [];
+  const vezes = new Map<number, number>();
+  for (const f of retorno.itens_faturados ?? []) vezes.set(f.sequencia, (vezes.get(f.sequencia) ?? 0) + 1);
   (retorno.itens_faturados ?? []).forEach((f, i) => {
     const problemas: { codigo: CodigoItemDescartado; campo: string; mensagem: string }[] = [];
-    const doPedido = item.payload.itens.find((x) => x.sequencia === f.sequencia);
-    if (!doPedido) {
+    const doPedido = itensDoPedido.find((x) => x.sequencia === f.sequencia);
+    if ((vezes.get(f.sequencia) ?? 0) > 1) {
+      // P-4 (decisão do gerente): sequência repetida no retorno — TODAS as linhas da sequência são descartadas (não dá para saber qual vale)
+      problemas.push({ codigo: 'sequencia_repetida', campo: `itens_faturados[${i}].sequencia`, mensagem: `A sequência ${f.sequencia} aparece mais de uma vez no retorno e não dá para saber qual linha vale; as ${vezes.get(f.sequencia)} linhas foram descartadas. Informe cada sequência uma vez só (some as quantidades) na consulta de itens da nota do Conector.` });
+    } else if (!doPedido) {
       problemas.push({ codigo: 'sequencia_inexistente', campo: `itens_faturados[${i}].sequencia`, mensagem: `A sequência ${f.sequencia} não existe no pedido enviado ao ERP. Confira a consulta de itens da nota no Conector.` });
     } else {
       if (doPedido.produto_external_id.trim() !== f.produto_external_id.trim()) {
@@ -297,7 +322,10 @@ export function aplicarRetornoPedido(item: PedidoNaFila | null, retorno: Retorno
   let validos: ItemFaturado[] | null = null;
   let descartados: ItemFaturadoDescartado[] = [];
   if (!tr.repetida) {
-    if (retorno.itens_faturados) {
+    // T-0023 🔴: a idempotência dos itens é por NOTA, seja qual for o status. Nota já aplicada não soma (nem revalida) os itens de
+    // novo — ex.: o ERP fecha o pedido sem nota nova e a nota parcial volta como faturado_total com os mesmos itens.
+    const notaJaAplicada = nota !== null && notas.some((n) => chaveNotaRetorno(n) === chaveNotaRetorno(nota));
+    if (retorno.itens_faturados && !notaJaAplicada) {
       ({ validos, descartados } = separarItensFaturados(item, retorno));
       acumulado = { ...acumulado };
       for (const f of validos) {

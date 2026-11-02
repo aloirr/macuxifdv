@@ -51,23 +51,28 @@ export type ConectorCriar = z.infer<typeof ConectorCriar>;
 
 /**
  * Corpo do 409 `topologia_conflitante` em `POST /conectores` e `PATCH /conectores/:id` (P-6/P-7, RN-INT-13; T-0031). `mensagem`
- * diz qual Conector já recebe cada entidade e pede a lista de entidades do Conector em cadastro; `conflitos[]` detalha;
- * `entidades_livres` são as pedidas que nenhum outro Conector ativo recebe (sugestão para a tela).
+ * diz qual Conector já recebe cada entidade e pede a lista de entidades do Conector em cadastro; `detalhes.conflitos[]` detalha;
+ * `detalhes.entidades_livres` são as pedidas que nenhum outro Conector ativo recebe (sugestão para a tela). Rota de usuário: o corpo é
+ * o `ErroApi` da plataforma (ADR 0008), por isso o detalhe fica em `detalhes` (R-20261101-155028, 🟡 2).
  */
 export const RecusaTopologiaConector = z.object({
   codigo: z.literal('topologia_conflitante'),
   mensagem: z.string().min(1),
-  conflitos: z
-    .array(
-      z.object({
-        codigo: z.enum(['entidade_em_outro_conector', 'pedidos_em_outro_conector']),
-        entidade: Entidade.optional(),
-        conector_id: ConectorIdentificador,
-        mensagem: z.string().min(1),
-      }),
-    )
-    .min(1),
-  entidades_livres: z.array(Entidade),
+  /** Erro padrão da plataforma (`ErroApi`, ADR 0008): o detalhe do conflito vai em `detalhes`. */
+  detalhes: z.object({
+    conflitos: z
+      .array(
+        z.object({
+          codigo: z.enum(['entidade_em_outro_conector', 'pedidos_em_outro_conector']),
+          entidade: Entidade.optional(),
+          conector_id: ConectorIdentificador,
+          mensagem: z.string().min(1),
+        }),
+      )
+      .min(1),
+    entidades_livres: z.array(Entidade),
+  }),
+  requisicao_id: z.string().nullish(),
 });
 export type RecusaTopologiaConector = z.infer<typeof RecusaTopologiaConector>;
 
@@ -247,6 +252,8 @@ export const AuditoriaInativacao = z.object({
   total_ativos: z.number().int().nonnegative(),
   percentual: z.number().nonnegative(),
   motivo: z.string().max(300).nullable(),
+  /** Quantos registros foram de fato inativados ao confirmar (a reavaliação com os ativos de agora pode inativar menos que `quantidade`). Nulo/ausente na recusa. */
+  inativadas: z.number().int().nonnegative().nullish(),
 });
 export type AuditoriaInativacao = z.infer<typeof AuditoriaInativacao>;
 

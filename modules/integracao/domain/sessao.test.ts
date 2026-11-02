@@ -190,3 +190,56 @@ describe('RN-INT-06 (T-0027 🔴): registro que veio como inválido NUNCA é ina
     expect(situacaoSessao(s, t0)).toBe('completa');
   });
 });
+
+describe('RN-INT-06 (T-0025 🟡 2): candidatos = ativos elegíveis; denominador dos 30% = total de ativos', () => {
+  const completa = () => registrarParte(base(), { parte: 1, ultimo: true, status: 'concluido' });
+  const total = Array.from({ length: 10 }, (_, i) => `A${i}`);
+
+  it('RN-INT-06: ativo que chegou pelo delta durante a carga (não elegível) não é candidato, mesmo ausente da sessão', () => {
+    // 10 ativos; A8 e A9 foram vistos depois do início da sessão (delta) e não estão na carga; A0..A5 vieram na carga
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: total, ativosElegiveis: total.slice(0, 8), recebidosNaSessao: total.slice(0, 6), limitePct: 100 });
+    expect(r).toMatchObject({ permitido: true, inativar: ['A6', 'A7'] });
+  });
+
+  it('RN-INT-06: o percentual usa o TOTAL de ativos (2 de 10 = 20%, não 2 de 8 = 25%): passa no limite de 20%', () => {
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: total, ativosElegiveis: total.slice(0, 8), recebidosNaSessao: total.slice(0, 6), limitePct: 20 });
+    expect(r.permitido).toBe(true);
+    const acima = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: total, ativosElegiveis: total.slice(0, 8), recebidosNaSessao: total.slice(0, 6), limitePct: 19 });
+    expect(acima).toMatchObject({ permitido: false, motivo: 'excede_limite_inativacao', candidatos: ['A6', 'A7'] });
+  });
+
+  it('RN-INT-06: sem ativosElegiveis o comportamento é o de antes (todos os ativos são elegíveis)', () => {
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: total, recebidosNaSessao: total.slice(0, 6), limitePct: 100 });
+    expect(r.inativar).toEqual(['A6', 'A7', 'A8', 'A9']);
+  });
+
+  it('RN-INT-06: o inválido continua protegido mesmo sendo elegível', () => {
+    const r = calcularInativacao({ sessao: completa(), agora: t0, ativosNoMacuxi: total, ativosElegiveis: total.slice(0, 8), recebidosNaSessao: total.slice(0, 6), invalidosNaSessao: ['A6'], limitePct: 100 });
+    expect(r.inativar).toEqual(['A7']);
+  });
+});
+
+describe('RN-INT-06 (R-155028 🟡 1): external_id acima de 200 caracteres no erro do Hub conta como sem identificação', () => {
+  const longo = 'X'.repeat(201);
+  it('RN-INT-06: erro do Hub com id de 201 caracteres vai para semIdentificacao e não para sessao_carga_recebido', () => {
+    const r = idsDaSessaoNoLote({ aceitas: [], errosHub: [{ indice: 0, external_id: longo }, { indice: 1, external_id: 'C1' }], invalidasConector: { externalIds: [], semIdentificacao: 0 } });
+    expect(r).toEqual({ aceitos: [], invalidos: ['C1'], semIdentificacao: 1 });
+  });
+  it('RN-INT-06: 200 caracteres ainda vale (o limite é EXTERNAL_ID_MAX)', () => {
+    const limite = 'Y'.repeat(200);
+    const r = idsDaSessaoNoLote({ aceitas: [], errosHub: [{ indice: 0, external_id: limite }], invalidasConector: { externalIds: [], semIdentificacao: 0 } });
+    expect(r.invalidos).toEqual([limite]);
+  });
+});
+
+describe('RN-INT-03/06 (T-0025 🟢 5): parte que terminou falhou só fecha a sessão depois do reprocessamento', () => {
+  it('RN-INT-06: parte com todas as linhas em referencia_ausente termina falhou e a sessão não fecha; reprocessar regrava o estado da parte e fecha', () => {
+    const falhou = registrarParte(base(), { parte: 1, ultimo: true, status: 'falhou' });
+    expect(situacaoSessao(falhou, t0)).toBe('aberta');
+    expect(calcularInativacao({ sessao: falhou, agora: t0, ativosNoMacuxi: ['A', 'B'], recebidosNaSessao: ['A'], limitePct: 100 })).toMatchObject({ permitido: false, motivo: 'sessao_incompleta' });
+    // o reprocessamento (dependência chegou) recalcula o lote e a API chama registrarParte de novo com o estado novo
+    const reprocessada = registrarParte(falhou, { parte: 1, ultimo: true, status: 'concluido_com_erros' });
+    expect(situacaoSessao(reprocessada, t0)).toBe('completa');
+    expect(calcularInativacao({ sessao: reprocessada, agora: t0, ativosNoMacuxi: ['A', 'B'], recebidosNaSessao: ['A'], limitePct: 100 })).toMatchObject({ permitido: true, inativar: ['B'] });
+  });
+});

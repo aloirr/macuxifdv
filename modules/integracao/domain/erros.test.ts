@@ -152,3 +152,15 @@ describe('RN-INT-03/01 (T-0025): resultado do lote com linhas inválidas do Cone
     expect(calcularResultadoLote(base).status).toBe('concluido');
   });
 });
+
+describe('RN-INT-06 (R-155028 🟡 1): external_id acima de 200 caracteres não vira id do erro de linha', () => {
+  it('RN-INT-06: classificarErroZod, erroReferenciaAusente e erroFalhaProcessamento anulam o id com mais de EXTERNAL_ID_MAX', () => {
+    const longo = 'Z'.repeat(201);
+    const r = ClientePayload.safeParse({ external_id: longo, alterado_em: '2026-10-31T10:00:00Z' });
+    expect(r.success).toBe(false);
+    if (!r.success) for (const e of classificarErroZod(r.error, { indice: 0, external_id: longo })) expect(e.external_id).toBeNull();
+    expect(erroReferenciaAusente(1, longo, 'cliente_external_id', 'cliente').external_id).toBeNull();
+    expect(erroFalhaProcessamento(2, longo).external_id).toBeNull();
+    expect(erroFalhaProcessamento(2, 'Z'.repeat(200)).external_id).toBe('Z'.repeat(200));
+  });
+});

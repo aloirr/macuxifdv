@@ -81,6 +81,16 @@ export function descreverIssue(issue: ZodIssue): ErroDescrito {
   }
 }
 
+/**
+ * R-20261101-155028 (🟡 1): `external_id` do erro de linha cabe na coluna (até `EXTERNAL_ID_MAX`). Id vazio ou maior vira `null`
+ * (o registro conta como sem identificação e a sessão de carga completa não inativa, RN-INT-06).
+ */
+export function externalIdDoErro(valor: string | null | undefined): string | null {
+  if (typeof valor !== 'string') return null;
+  const t = valor.trim();
+  return t === '' || t.length > EXTERNAL_ID_MAX ? null : t;
+}
+
 /** Uma linha de erro por campo com problema (a primeira issue de cada campo basta). */
 export function classificarErroZod(erro: ZodError, ctx: { indice: number; external_id: string | null }): LinhaErro[] {
   const vistos = new Set<string>();
@@ -90,7 +100,7 @@ export function classificarErroZod(erro: ZodError, ctx: { indice: number; extern
     const chave = d.campo ?? '';
     if (vistos.has(chave)) continue;
     vistos.add(chave);
-    saida.push({ indice: ctx.indice, external_id: ctx.external_id, ...d, reprocessavel: ehReprocessavel(d.codigo) });
+    saida.push({ indice: ctx.indice, external_id: externalIdDoErro(ctx.external_id), ...d, reprocessavel: ehReprocessavel(d.codigo) });
   }
   return saida;
 }
@@ -99,7 +109,7 @@ export function classificarErroZod(erro: ZodError, ctx: { indice: number; extern
 export function erroReferenciaAusente(indice: number, externalId: string | null, campo: string, entidadeAlvo: string): LinhaErro {
   return {
     indice,
-    external_id: externalId,
+    external_id: externalIdDoErro(externalId),
     codigo: 'referencia_ausente',
     campo,
     mensagem: `O campo "${campo}" aponta para um(a) ${entidadeAlvo} que ainda não foi carregado(a). Envie ${entidadeAlvo} antes; a linha será reprocessada.`,
@@ -111,7 +121,7 @@ export function erroReferenciaAusente(indice: number, externalId: string | null,
 export function erroFalhaProcessamento(indice: number, externalId: string | null): LinhaErro {
   return {
     indice,
-    external_id: externalId,
+    external_id: externalIdDoErro(externalId),
     codigo: 'falha_processamento',
     campo: null,
     mensagem: 'Não foi possível gravar a linha por uma falha temporária. Use "Reprocessar" no monitor.',

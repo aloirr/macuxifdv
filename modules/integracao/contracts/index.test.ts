@@ -185,10 +185,8 @@ describe('RN-INT-08: itens faturados no retorno (campo opcional, continua v1)', 
     expect(faturado({ sequencia: 1, produto_external_id: 'P1', quantidade: 2, valor_cents: 0 }).success).toBe(true);
   });
 
-  it('RN-INT-08: sequência repetida na mesma nota é recusada, com mensagem legível', () => {
-    const r = RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [...itens, ...itens] });
-    expect(r.success).toBe(false);
-    if (!r.success) expect(r.error.issues[0]?.message).toContain('sequência repetida');
+  it('P-4: sequência repetida na mesma nota NÃO recusa o envelope (o domain descarta as linhas da sequência com sequencia_repetida e aceita o retorno)', () => {
+    expect(RetornoErp.safeParse({ ...ret, status: 'faturado_parcial', nota, itens_faturados: [...itens, ...itens] }).success).toBe(true);
   });
 
   it('RN-INT-08: o evento integracao.pedido.retorno_erp@1 repete itens_faturados como opcional', () => {

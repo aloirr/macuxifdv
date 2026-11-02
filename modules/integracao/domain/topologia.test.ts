@@ -31,7 +31,7 @@ describe('RN-INT-13 (P-6/P-7, T-0027): um Conector por entidade por empresa; o H
     );
     expect(r.entidades_livres).toEqual(['estoque']);
     expect(r.conflitos[0]?.mensagem).toMatch(/já é recebida pelo Conector "cnx-a".*informe a lista de entidades do Conector "cnx-b" sem "cliente"/);
-    expect(RecusaTopologiaConector.safeParse({ codigo: r.codigo, mensagem: r.mensagem, conflitos: r.conflitos, entidades_livres: r.entidades_livres }).success).toBe(true);
+    expect(RecusaTopologiaConector.safeParse({ codigo: r.codigo, mensagem: r.mensagem, detalhes: { conflitos: r.conflitos, entidades_livres: r.entidades_livres } }).success).toBe(true);
   });
 
   it('P-6 (T-0031): cadastro sem lista (padrão: as 8) contra um Conector existente — cita cada dono e as livres', () => {

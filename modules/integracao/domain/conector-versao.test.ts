@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { avaliarVersaoConector, compararSemver, lerSemver, rotaBloqueadaPorVersao, validarPoliticaVersao, versaoInformada } from './conector-versao';
+import { avaliarVersaoConector, compararSemver, lerSemver, politicaEfetiva, rotaBloqueadaPorVersao, validarPisoParaPedidos, validarPoliticaVersao, versaoInformada } from './conector-versao';
 
 const politica = { versao_minima: '1.0.0', versao_recomendada: '1.2.0', mensagem: 'Baixe o pacote 1.2.0 no BKO.' };
 
@@ -68,5 +68,32 @@ describe('RN-INT-11 (proposta): política de versão do Conector', () => {
     const c = validarPoliticaVersao({ ...politica, pacote: { versao: '1.1.0', sha256: 'a'.repeat(64) } });
     expect(c.ok).toBe(false);
     if (!c.ok) expect(c.erros[0]).toMatch(/pacote/);
+  });
+});
+
+describe('RN-INT-11: piso 1.2.1 para Conector que recebe pedidos', () => {
+  it('RN-INT-11: sem política gravada, quem recebe pedidos exige 1.2.1 (1.2.0 é recusado com a mensagem de atualizar)', () => {
+    const p = politicaEfetiva(null, true);
+    expect(p).toMatchObject({ versao_minima: '1.2.1', versao_recomendada: '1.2.1' });
+    const a = avaliarVersaoConector('1.2.0', p);
+    expect(a).toMatchObject({ situacao: 'abaixo_da_minima', bloqueia: true });
+    expect(a.aviso).toMatch(/1\.2\.0.*abaixo da mínima exigida \(1\.2\.1\)\. Atualize o Conector/);
+    expect(avaliarVersaoConector('1.2.1', p).bloqueia).toBe(false);
+  });
+  it('RN-INT-11: sem política e sem receber pedidos, não há política', () => {
+    expect(politicaEfetiva(null, false)).toBeNull();
+    expect(politicaEfetiva(undefined, false)).toBeNull();
+  });
+  it('RN-INT-11: com política gravada vale a da empresa, mesmo abaixo do piso', () => {
+    expect(politicaEfetiva(politica, true)).toBe(politica);
+    expect(avaliarVersaoConector('1.2.0', politicaEfetiva(politica, true)).bloqueia).toBe(false);
+  });
+  it('RN-INT-11: o PUT recusa mínima abaixo de 1.2.1 para quem recebe pedidos, e aceita 1.2.1 ou mais', () => {
+    const r = validarPisoParaPedidos({ versao_minima: '1.1.0' }, true);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.erros[0]).toMatch(/exige Conector 1\.2\.1/);
+    expect(validarPisoParaPedidos({ versao_minima: '1.2.1' }, true).ok).toBe(true);
+    expect(validarPisoParaPedidos({ versao_minima: '1.10.0' }, true).ok).toBe(true);
+    expect(validarPisoParaPedidos({ versao_minima: '1.1.0' }, false).ok).toBe(true);
   });
 });

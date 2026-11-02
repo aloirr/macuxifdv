@@ -6,6 +6,7 @@ export * from './parametros';
 export * from './envelope';
 export * from './erros';
 export * from './idempotencia';
+export * from './sha256';
 export * from './ordem';
 export * from './cursor';
 export * from './sessao';

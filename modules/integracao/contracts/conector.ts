@@ -103,3 +103,14 @@ export const ChaveConectorCriada = z.object({
   anterior_valida_ate: DataHoraUtc.nullish(),
 });
 export type ChaveConectorCriada = z.infer<typeof ChaveConectorCriada>;
+
+/** RN-INT-11: Conector que recebe pedidos exige 1.2.1 ou mais novo (o 1.2.0 reenvia itens no fechamento sem nota nova). */
+export const VERSAO_PISO_PEDIDOS = '1.2.1';
+
+/** Política que vale quando a empresa não gravou nenhuma e o Conector recebe pedidos (RN-INT-11). A linha do tenant sempre manda. */
+export const POLITICA_VERSAO_PADRAO_PEDIDOS = {
+  versao_minima: VERSAO_PISO_PEDIDOS,
+  versao_recomendada: VERSAO_PISO_PEDIDOS,
+  mensagem: 'O Conector 1.2.0 ou anterior reenvia itens no fechamento sem nota nova.',
+  pacote: null,
+} as const satisfies PoliticaVersaoConector;
