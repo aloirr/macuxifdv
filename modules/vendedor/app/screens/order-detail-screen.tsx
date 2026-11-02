@@ -22,7 +22,9 @@ import { errorMessage } from '../lib/erros';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
 import { orderNote, statusBadge } from '../lib/order-status';
 import { exportPdf } from '../lib/pdf-export';
-import { hrefPedidos, irParaNovoPedido, irParaPedidos } from '../rotas';
+import { relogioReal } from '@macuxi/comum/relogio';
+import { acoesNaTela, rotuloDoDocumento } from '../lib/pre-venda';
+import { hrefPedidos, irParaNovoPedido, irParaPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
 interface Line {
@@ -46,7 +48,7 @@ export default function OrderDetailScreen() {
   const podeCriar = usePode('pedido.criar');
   const somenteLeitura = pedidoSomenteLeitura({ criar: podeCriar, editar: podeEditar, cancelar: podeCancelar });
   const insets = useSafeAreaInsets();
-  const [busy, setBusy] = useState<'duplicate' | 'edit' | null>(null);
+  const [busy, setBusy] = useState<'duplicate' | 'edit' | 'convert' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<'delete' | 'pdf' | 'approve' | 'reject' | null>(null);
   const [deciding, setDeciding] = useState(false);
@@ -97,7 +99,12 @@ export default function OrderDetailScreen() {
 
   // ---------- ações ----------
   const acts = app.acoesDe(status);
-  const title = number ? `Pedido ${number}` : 'Pedido no aparelho';
+  // T-0053 (RF-VEN-03, RN-VEN-32): orçamento mostra a situação (offline, pela validade) e a ação de converter
+  const agoraTela = relogioReal().agora();
+  const doc = queued ? { status, tipo: queued.payload.tipo } : { ...base!, status };
+  const acoesOrc = acoesNaTela(doc, agoraTela, !v1 || perfil === 'vendedor');
+  const ehOrc = acoesOrc !== null;
+  const title = number ? `${ehOrc ? 'Orçamento' : 'Pedido'} ${number}` : ehOrc ? 'Orçamento no aparelho' : 'Pedido no aparelho';
   const hasLines = lines.length > 0;
   const ehVendedor = !v1 || perfil === 'vendedor';
   const { podeEditar: canEdit, podeExcluir: canDelete, motivoBloqueio: lockedReason } = estadoDasAcoes({
@@ -110,6 +117,20 @@ export default function OrderDetailScreen() {
     pode: { editar: podeEditar, cancelar: podeCancelar },
     acoes: acts,
   });
+
+  const converter = async () => {
+    setBusy('convert');
+    setActionError(null);
+    try {
+      const r = await app.converterOrcamento(id ?? '');
+      if (r.kind === 'sent') irParaPedido(r.order.id);
+      else irParaPedidos();
+    } catch (e) {
+      setActionError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const startDraft = async (mode: 'duplicate' | 'edit') => {
     setBusy(mode);
@@ -224,7 +245,8 @@ export default function OrderDetailScreen() {
         </Text>
         <Text style={t.sub}>{customerName}</Text>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-          <Badge label={b.label} fg={b.fg} bg={b.bg} />
+          {ehOrc ? <Badge label={rotuloDoDocumento(doc, agoraTela)} tone="neutral" /> : null}
+          {ehOrc && !queued ? null : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
           {base && !queued && base.erp_order_code ? <Badge label={`ERP ${base.erp_order_code}`} tone="neutral" /> : null}
         </View>
         {note ? <Text style={[t.small, { color: b.fg }]}>{note}</Text> : null}
@@ -315,6 +337,18 @@ export default function OrderDetailScreen() {
       <View style={{ gap: 8 }} testID="order-actions">
         <SectionHeader title="Ações" />
         <Card style={{ padding: 14, gap: 10 }}>
+          {ehOrc && acoesOrc?.pode_converter && !queued ? (
+            <Button
+              testID="orcamento-converter"
+              label="Converter em pedido"
+              icon="send"
+              variant="accent"
+              disabled={!podeCriar || !hasLines || busy !== null}
+              loading={busy === 'convert'}
+              onPress={() => void converter()}
+            />
+          ) : null}
+          {ehOrc && acoesOrc?.texto ? <Text style={t.small}>{acoesOrc.texto}</Text> : null}
           {ehVendedor ? (
             <View style={styles.actionsRow}>
               <Button

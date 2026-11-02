@@ -204,6 +204,8 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     items_count: itens.length,
     units: itens.reduce((s, i) => s + i.quantidade, 0),
     nivel_aprovacao: p.status === 'pending_approval' ? (p.nivel_aprovacao ?? null) : null,
+    // T-0053 (0013): pré-venda; só quando a linha traz (linhas antigas ficam iguais)
+    ...(p.tipo ? { tipo: p.tipo, validade_ate: p.validade_ate ?? null, orcamento_origem_id: p.orcamento_origem_id ?? null, convertido_pedido_id: p.convertido_pedido_id ?? null } : {}),
   };
 }
 

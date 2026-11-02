@@ -48,6 +48,16 @@ export const ClienteAtualizadoSchema = z.object({
   cliente_id: Uuid,
   campos: z.array(z.string()),
   origem: z.enum(['erp', 'bko', 'campo']),
+  /** Carteira (RN-CORE-04; T-0014): OPCIONAIS e compatíveis com @1. Ausente = o evento não informou; `null` = sem valor. */
+  vendedor_id: Uuid.nullable().optional(),
+  ativo: z.boolean().optional(),
+  /** Mapeado de `core.carteira.frequencia_semanas` (1 semanal, 2 quinzenal, 4 mensal). */
+  frequencia_visita: z.enum(['semanal', 'quinzenal', 'mensal']).nullable().optional(),
+  /** Quando o cliente entrou na carteira do vendedor atual (UTC). */
+  na_carteira_desde: z.string().datetime().nullable().optional(),
+  /** Cadastro mínimo (RN-CORE-16; T-0060): aditivo em @1. Só nomes de campo, nunca o valor. */
+  cadastro_incompleto: z.boolean().optional(),
+  cadastro_campos_faltantes: z.array(z.string()).optional(),
 });
 export const EVENTO_CLIENTE_ATUALIZADO = definirEvento('core.cliente.atualizado@1', ClienteAtualizadoSchema);
 

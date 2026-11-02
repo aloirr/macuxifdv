@@ -24,7 +24,8 @@
 
 Leitura síncrona com contrato versionado no `contracts` do dono (`definirConsulta`), oferecida em `ofereceConsultas` e usada por
 quem a lista em `usaConsultas` (dono em `depende` ou `opcionais`). Na API: `tx.consultar(def, entrada)` dentro do `comTenant` de
-quem consulta (mesma transação e RLS); no aparelho: `ambiente.consultar(def, entrada)` sobre as linhas locais do dono. Dono inativo
+quem consulta (mesma transação e RLS) ou `ctx.consultar(def, entrada)` no consumidor de evento (T-0060: transação do consumo,
+usuário de sistema `USUARIO_SISTEMA_ID` com perfil admin e os módulos efetivos do tenant); no aparelho: `ambiente.consultar(def, entrada)` sobre as linhas locais do dono. Dono inativo
 ou sem implementação no canal → `ConsultaIndisponivel` (503 `CONSULTA_INDISPONIVEL` se ninguém tratar). Mudança incompatível = `@vN+1`.
 A montagem (`defineModule`, `definirModuloApi`, `validarConjunto`, `criarShell`) recusa o que estiver fora destas regras.
 
@@ -32,6 +33,8 @@ A montagem (`defineModule`, `definirModuloApi`, `validarConjunto`, `criarShell`)
 |---|---|---|---|---|---|
 | `catalogo.precos_cliente@1` | catalogo | sim | sim (linhas de preço locais, `precoVisivel`, RN-CAT-06) | vendedor | aprovada (T-0029), implementação na onda 2 |
 | `core.cadastro_resumo@1` | core | sim | não (o Vendedor lê `cliente`/`produto` locais com os tipos de `@macuxi/core/contracts`) | vendedor | aprovada (T-0029), implementação na onda 2 |
+| `core.cadastro_cliente@1` | core | sim | não | integracao (consumidor A7 de `integracao.lote.recebido@1`, aviso `cadastro_incompleto`, RN-INT-14) | implementada (T-0060); `ctx.consultar` no consumidor (SDK, 2026-11-02) |
+| `core.medidas@1` | core | sim | não (o app lê a entidade `medida` do pull) | integracao (A7: sigla não cadastrada ou inativa = `referencia_ausente`, RN-CORE-19) | proposta (desenho T-0061 §4.1, 2026-11-02) |
 
 > Próxima prevista: `core.financeiro_cliente@1` (crédito e títulos, RN-VEN-12/13). Espelho com teste:
 > `packages/platform-sdk/src/manifestos-referencia.test.ts` (estado-alvo da T-0029).

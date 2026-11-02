@@ -63,3 +63,8 @@ R-20261101-160821-banco-dados
 R-20261101-160851-alexandre
 R-20261101-180628-engenheiro-software
 R-20261101-172531-engenheiro-software
+R-20261102-115114-alexandre
+R-20261102-110907-alexandre
+R-20261102-112557-banco-dados
+R-20261102-115415-alexandre
+R-20261102-115634-gerente-projetos

@@ -53,6 +53,15 @@ function abas(variante: 'campo' | 'gestao', perfil: Perfil): string[] {
   return shell.montar({ perfil, modulosAtivos: ativos }).navegacao.map((n) => n.rotulo);
 }
 
+/**
+ * T-0052 (Catálogo, PR #45 + 2ª etapa): a aba Catálogo entra quando `modules/catalogo/app/index.ts` declarar a página com
+ * `navegacao` (manifesto: `apps.campo.abas` e `apps.gestao.abas` = ['Catálogo'], RN-CAT-04: todos os perfis do módulo).
+ * Enquanto não houver, D-C00c segue `it.fails` e D-G00 espera só Clientes e Pedidos; quando houver, D-C00c vira `it` e
+ * D-G00 passa a esperar também o Catálogo — sem editar este arquivo no merge (a virada é pelo fonte do módulo).
+ */
+const CATALOGO_TEM_ABA = paginasDoFonte('catalogo').some((p) => p.navegacao === 'Catálogo');
+const seCatalogo = CATALOGO_TEM_ABA ? it : it.fails;
+
 describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () => {
   it('D-C00: Campo do vendedor tem Rota, Clientes, Metas e Pedidos; o do promotor não tem Pedidos (RN-PRO-01)', () => {
     const v = abas('campo', 'vendedor');
@@ -66,12 +75,14 @@ describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () =>
     expect(abas('campo', 'promotor')).toContain('Loja');
   });
 
-  it.fails('D-C00c NÃO EXISTE: a aba Catálogo (modules/catalogo/app/index.ts exporta {})', () => {
+  seCatalogo(`D-C00c${CATALOGO_TEM_ABA ? '' : ' NÃO EXISTE'}: a aba Catálogo no Campo do vendedor e do promotor (RN-CAT-04; T-0052)`, () => {
     expect(abas('campo', 'vendedor')).toContain('Catálogo');
+    expect(abas('campo', 'promotor')).toContain('Catálogo');
   });
 
-  it('D-G00: o Gestão da supervisora monta Clientes e Pedidos (o Início é do shell; T-0029 §7)', () => {
-    expect(abas('gestao', 'supervisor')).toEqual(['Clientes', 'Pedidos']);
+  it(`D-G00: o Gestão da supervisora monta Clientes${CATALOGO_TEM_ABA ? ', Catálogo' : ''} e Pedidos (o Início é do shell; T-0029 §7)`, () => {
+    const esperadas = CATALOGO_TEM_ABA ? ['Catálogo', 'Clientes', 'Pedidos'] : ['Clientes', 'Pedidos'];
+    expect([...abas('gestao', 'supervisor')].sort()).toEqual(esperadas.sort());
   });
 
   it('D-G01 (T-0029): o Gestão tem a aba Pedidos (manifesto do Vendedor com apps.gestao; páginas pedidos/pedido em [campo, gestao]); novo-pedido só no Campo', () => {

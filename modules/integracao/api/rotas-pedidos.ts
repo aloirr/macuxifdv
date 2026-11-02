@@ -25,7 +25,7 @@ type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoConector<ConectorHub, 
 
 const iso = (v: Date | string | null | undefined): string | null => (v === null || v === undefined ? null : v instanceof Date ? v.toISOString() : new Date(v).toISOString());
 
-interface LinhaFila {
+export interface LinhaFila {
   pedido_uuid: string;
   estado: PedidoNaFila['estado'];
   payload: PedidoNaFila['payload'];
@@ -39,7 +39,7 @@ interface LinhaFila {
   deleted_at: Date | null;
 }
 
-const naFila = (l: LinhaFila): PedidoNaFila => ({
+export const naFila = (l: LinhaFila): PedidoNaFila => ({
   pedido_uuid: l.pedido_uuid,
   estado: l.estado,
   payload: l.payload,
