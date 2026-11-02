@@ -124,6 +124,22 @@ muda nada. Teste que avalie "sem sinal há X", "lote antigo" ou retenção ainda
 A licença do módulo `integracao` **não** está em `tenant_modulo` da fixture (os módulos de A e B não mudaram; os testes de
 licença contam a lista). Quem precisar das rotas do Hub com licença ativa grava a linha no próprio teste (ou pede ao banco-dados).
 
+### T-0056 (migração 0015; schema `promotor`)
+Arquivo próprio `db/seeds/fixtures/promotor.ts` (`dadosPromotorFixture`, `ORDEM_PROMOTOR`, `COLETAS_PROMOTOR`,
+`PROMOTOR_FIXTURE`); o `dois-tenants.ts` só importa, põe as 20 tabelas no fim de `ORDEM_TABELAS` e junta os dados.
+Grupos: `0070` categoria_gondola · `0071` checklist_loja (itens `…0101`/`…0102`) · `0072` mix_obrigatorio · `0073` meta_share ·
+`0074` concorrente · `0075` produto_concorrente · `0076` foto_referencia · `0077` tarefa_trade · `0078` ponto_extra_negociado ·
+`0079` visita_loja · `007a` foto_coleta · `007b` checklist_resposta · `007c` gondola_registro · `007d` medicao_share ·
+`007e` coleta_preco · `007f` ruptura_item · `0080` validade_item · `0081` ponto_extra · `0082` acao_concorrencia · `0083` tarefa_execucao.
+Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fixture. Payloads = contratos de
+`modules/promotor/contracts/coletas.ts` com todos os defaults explícitos (conferido em `db/testes/promotor.test.ts`).
+
+| Tabela | Tenant A (promotor, c1) | Tenant B (sem licença do Promotor; só isolamento) |
+|---|---|---|
+| visita_loja | da visita do Core `promotorC1Hoje` (hoje 15:00Z–15:30Z), `realizada`, 30 min, checklist de A | da visita `c1Hoje` de B (12:00Z–12:30Z); `promotor_id` = vendedor-B (sem FK; o banco não confere perfil) |
+| cadastros | Freios e Filtros; checklist (1 etapa obrigatória); mix do produto 1; meta 40% em Freios; concorrente + produto; foto de referência; tarefa em c1; ponto extra negociado em c1 | Lubrificantes; checklist; mix; meta 30% em c1; concorrente + produto; foto de referência por segmento; tarefa; display negociado |
+| coletas | 4 fotos (antes, depois, ponto extra, tarefa), checklist, gôndola conforme, share 4/10 = 40% (100%), preço nosso + concorrente em promoção (índice 108), ruptura de gôndola, validade, ponto extra cumprido, ação da concorrência, tarefa | 3 fotos, checklist, gôndola parcial, share 3/12 = 25% (83,33%), preço com anterior, ruptura total, avaria, ponto não encontrado, ação de PDV, tarefa |
+
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
 (mesmo id da Fase M). IDs determinísticos (UUID v5 de `fase-m:<tipo>:<chave>`).
