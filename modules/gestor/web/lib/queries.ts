@@ -2,13 +2,15 @@
 
 /**
  * Consultas das páginas do Gestor no BKO (`/v1/gestor/*`, T-0055). Toda resposta é validada no contrato. A sessão vem
- * do login do Core (perfil e fuso do tenant). RN-CORE-23: sem consulta periódica própria (nada de `refetchInterval`):
- * a página busca ao abrir, ao voltar para a aba do navegador (padrão do react-query) e no botão "Atualizar".
+ * do login do Core (perfil e fuso do tenant). RN-CORE-23: sem consulta periódica curta. As páginas buscam ao abrir, ao
+ * voltar para a aba do navegador (padrão do react-query) e no botão "Atualizar"; só o painel de aprovação (item 6)
+ * atualiza sozinho, a cada `sync_auto_min` (padrão 30 min, mínimo 15 — o BKO ainda não expõe o parâmetro do tenant).
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ } from '@macuxi/ui/web';
 import { Alerta, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, RegrasAlertaResposta, ROTAS_GESTOR, VisaoEquipe, type AjusteRegraAlerta, type TipoAlerta } from '../../contracts';
+import { intervaloAutomaticoMs } from '../../domain/sincronizacao';
 import { paraQuery, type FiltrosAlertas, type FiltrosPainel, type FiltrosRanking } from './filtros';
 
 const qk = {
@@ -36,7 +38,7 @@ export function useRanking(f: FiltrosRanking) {
 }
 
 export function useFila() {
-  return useQuery({ queryKey: qk.fila, enabled: useLogado(), queryFn: async ({ signal }) => FilaAprovacao.parse(await api<unknown>(ROTAS_GESTOR.aprovacoes, { signal })) });
+  return useQuery({ queryKey: qk.fila, enabled: useLogado(), refetchInterval: intervaloAutomaticoMs(undefined), queryFn: async ({ signal }) => FilaAprovacao.parse(await api<unknown>(ROTAS_GESTOR.aprovacoes, { signal })) });
 }
 
 export function useAlertas(f: FiltrosAlertas) {

@@ -16,11 +16,22 @@ function fontes(dir: string): string[] {
 }
 
 describe('RN-CORE-23: sem consulta periódica própria nas telas do Gestor', () => {
-  it('nenhum setInterval, setTimeout, refetchInterval ou recarga ao focar a aba em app/ e web/', () => {
+  it('nenhum setInterval, setTimeout ou recarga ao focar a aba em app/ e web/', () => {
     const achados = [...fontes(join(RAIZ, 'app')), ...fontes(join(RAIZ, 'web'))].flatMap((arq) => {
       const texto = readFileSync(arq, 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
-      return /\bsetInterval\s*\(|\bsetTimeout\s*\(|\brefetchInterval\b|\buseFocusEffect\b/.test(texto) ? [arq.slice(RAIZ.length + 1)] : [];
+      return /\bsetInterval\s*\(|\bsetTimeout\s*\(|\buseFocusEffect\b/.test(texto) ? [arq.slice(RAIZ.length + 1)] : [];
     });
     expect(achados).toEqual([]);
+  });
+
+  it('RN-CORE-23 item 6: refetchInterval só no BKO e só por intervaloAutomaticoMs (≥ 15 min)', () => {
+    const usos = [...fontes(join(RAIZ, 'app')), ...fontes(join(RAIZ, 'web'))].flatMap((arq) => {
+      const texto = readFileSync(arq, 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+      return [...texto.matchAll(/refetchInterval\s*:\s*([^,}]+)/g)].map((m) => ({ arq: arq.slice(RAIZ.length + 1), valor: m[1]!.trim() }));
+    });
+    for (const u of usos) {
+      expect(u.arq.startsWith('web')).toBe(true);
+      expect(u.valor).toMatch(/^intervaloAutomaticoMs\(/);
+    }
   });
 });

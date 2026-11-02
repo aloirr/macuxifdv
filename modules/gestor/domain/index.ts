@@ -16,3 +16,4 @@ export * from './aprovacoes';
 export * from './alertas';
 export * from './pedido-em-nome';
 export * from './visao';
+export * from './sincronizacao';
