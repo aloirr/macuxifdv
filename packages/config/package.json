@@ -9,7 +9,8 @@
     "./tsconfig.web.json": "./tsconfig.web.json",
     "./tsconfig.mobile.json": "./tsconfig.mobile.json",
     "./eslint": "./eslint.mjs",
-    "./dependency-cruiser": "./dependency-cruiser.cjs"
+    "./dependency-cruiser": "./dependency-cruiser.cjs",
+    "./regras/hora-fixa": "./regras/hora-fixa.mjs"
   },
   "scripts": {
     "lint": "eslint .",
