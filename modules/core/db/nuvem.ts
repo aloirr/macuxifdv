@@ -1,6 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
- * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1), para uso
+ * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
+ * e preço do produto, produto_unidade e cliente_endereco), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -61,6 +62,11 @@ export const produto = core.table('produto', {
   categoria: text('categoria'),
   unidade: text('unidade').notNull().default('UN'),
   ativo: boolean('ativo').notNull().default(true),
+  // --- 0013 (RN-CORE-18, RN-VEN-11): DADO INTERNO — custo nunca vai ao aparelho nem ao PDF do cliente ---
+  custo_cents: bigint('custo_cents', { mode: 'number' }),
+  preco_venda_cents: bigint('preco_venda_cents', { mode: 'number' }),
+  /** Nulo = parâmetro do tenant `desconto_maximo_produto_pct` (padrão 15). 0 a 100. */
+  desconto_maximo_pct: numeric('desconto_maximo_pct', { precision: 5, scale: 2 }),
 });
 
 export const cliente = core.table('cliente', {
@@ -79,6 +85,52 @@ export const cliente = core.table('cliente', {
   cep: text('cep'),
   latitude: numeric('latitude', { precision: 9, scale: 6 }),
   longitude: numeric('longitude', { precision: 9, scale: 6 }),
+  ativo: boolean('ativo').notNull().default(true),
+  // --- 0013 (RN-CORE-16/17, RN-INT-14) ---
+  /** IE ou 'ISENTO' (só PJ). */
+  inscricao_estadual: text('inscricao_estadual'),
+  /** Observações vindas do ERP; a linha automática "Cadastro incompleto: falta ..." é montada na exibição. */
+  observacao: text('observacao'),
+  /** CHECK: cadastro_incompleto = (cadastro_campos_faltantes não vazio). Calculado pelo domain do Core. */
+  cadastro_incompleto: boolean('cadastro_incompleto').notNull().default(false),
+  cadastro_campos_faltantes: text('cadastro_campos_faltantes').array().notNull().default([]),
+});
+
+/**
+ * Unidades de venda do produto vindas do ERP (0013, RN-VEN-15): UN, CX com fator... fator = unidades base na unidade
+ * (UN = 1). (produto, unidade) único vivo; no máximo uma `padrao` viva por produto. Pull escopo tenant.
+ */
+export const produtoUnidade = core.table('produto_unidade', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  unidade: text('unidade').notNull(),
+  fator: integer('fator').notNull().default(1),
+  ean: text('ean'),
+  padrao: boolean('padrao').notNull().default(false),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
+export const TIPOS_ENDERECO_CLIENTE = ['principal', 'entrega', 'cobranca'] as const;
+
+/**
+ * Endereços do cliente vindos do ERP (0013, RF-CORE-12, RN-VEN-17): principal + entrega. No máximo um `principal` vivo
+ * por cliente. cep = 8 dígitos; uf = 2 letras. Pull escopo carteira (cliente_id).
+ */
+export const clienteEndereco = core.table('cliente_endereco', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  tipo: text('tipo', { enum: TIPOS_ENDERECO_CLIENTE }).notNull().default('entrega'),
+  descricao: text('descricao'),
+  logradouro: text('logradouro').notNull(),
+  numero: text('numero'),
+  complemento: text('complemento'),
+  bairro: text('bairro'),
+  cidade: text('cidade').notNull(),
+  uf: text('uf').notNull(),
+  cep: text('cep'),
+  latitude: numeric('latitude', { precision: 9, scale: 6 }),
+  longitude: numeric('longitude', { precision: 9, scale: 6 }),
+  principal: boolean('principal').notNull().default(false),
   ativo: boolean('ativo').notNull().default(true),
 });
 

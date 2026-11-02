@@ -23,7 +23,7 @@ import {
   type RotasLista,
   type VisitasLista,
 } from '../contracts';
-import { copiarRota, dataLocal, gerarParadasPorFrequencia, statusDasParadas } from '../domain';
+import { carteiraParaEvento, copiarRota, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
 import { auditar } from './auditoria';
 import { BASE, TABELAS_SYNC } from './sync';
 
@@ -178,6 +178,18 @@ async function rotaDoDia(ctx: ContextoBase, db: ClienteBanco, usuarioId: string,
   return resto;
 }
 
+/** Carteira do cliente para o payload de `core.cliente.atualizado@1` (RN-CORE-04; lida dentro da transação do tenant). */
+export async function carteiraDoEvento(db: ClienteBanco, clienteId: string) {
+  const linhas = (
+    await db.query<LinhaCarteiraEvento>(
+      "select usuario_id, papel, frequencia_semanas, to_char(created_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as desde from core.carteira where cliente_id = $1 and deleted_at is null and (fim is null or fim >= current_date)",
+      [clienteId],
+    )
+  ).rows;
+  const ativo = (await db.query<{ ativo: boolean }>('select ativo from core.cliente where id = $1', [clienteId])).rows[0]?.ativo ?? true;
+  return carteiraParaEvento(linhas, ativo);
+}
+
 const rotasDeRotas: RotaModulo[] = [
   {
     metodo: 'GET',
@@ -315,7 +327,7 @@ const rotasDeCarteiraDoUsuario: RotaModulo[] = [
         await checarUsuario(ctx, db, ctx.params.id);
         const itens = (
           await db.query(
-            `select c.id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as nome, c.razao_social, c.cidade, c.bairro, c.latitude::float8 as lat, c.longitude::float8 as lng,
+            `select c.id, coalesce(nullif(c.nome_fantasia, ''), c.razao_social) as nome, c.razao_social, c.cidade, c.bairro, c.latitude::float8 as lat, c.longitude::float8 as lng, c.cadastro_incompleto,
                     to_char((select max(h.ultima_compra_em) from core.historico_compra h where h.cliente_id = c.id and h.deleted_at is null), 'YYYY-MM-DD') as ultima_compra_em,
                     k.id as carteira_id, k.papel, k.frequencia_semanas, k.dia_semana
                from core.carteira k join core.cliente c on c.id = k.cliente_id and c.deleted_at is null and c.ativo
@@ -433,7 +445,7 @@ const rotasDeVisitas: RotaModulo[] = [
         await db.query('update core.cliente set latitude = $2, longitude = $3 where id = $1', [ctx.params.id, v.lat, v.lng]);
         await db.query('update core.visita set sugere_coordenada = false where cliente_id = $1 and sugere_coordenada and deleted_at is null', [ctx.params.id]);
         await auditar(db, ctx, { acao: 'cliente.aprovar_coordenada', entidade: 'cliente', entidadeId: ctx.params.id, antes, depois: { latitude: v.lat, longitude: v.lng, visita_id: ctx.corpo.visita_id } });
-        await tx.publicar(EVENTO_CLIENTE_ATUALIZADO, { cliente_id: ctx.params.id, campos: ['latitude', 'longitude'], origem: 'bko' }, ctx.params.id);
+        await tx.publicar(EVENTO_CLIENTE_ATUALIZADO, { cliente_id: ctx.params.id, campos: ['latitude', 'longitude'], origem: 'bko', ...(await carteiraDoEvento(db, ctx.params.id)) }, ctx.params.id);
         return { cliente_id: ctx.params.id, latitude: v.lat, longitude: v.lng };
       }),
   },

@@ -87,6 +87,24 @@ const produto = (n: number, ativo = true): ProdutoSync => ({ ...base, id: U(300 
 const linhas = (over: Partial<LinhasVendedor> = {}): LinhasVendedor => ({ ...LINHAS_VAZIAS, ...over });
 
 describe('telas sobre o pull (T-0029 §8)', () => {
+  it('T-0054 (RF-VEN-05): pedido faturado no aparelho mostra o resumo do ERP e o faturado por item, offline (Campo e Gestão)', () => {
+    const p = pedido({ id: U(14), status: 'invoiced_partial', numero_erp: 'ERP-1', faturado_cents: 120_000, devolvido_cents: 20_000, notas_faturamento: 1, ultima_nota_numero: '9001', faturado_em: '2026-11-01T15:00:00.000000Z' });
+    const l = linhas({ pedidos: [p], itens: [{ ...item(1, U(14), 1, 2, 100_000), quantidade_faturada: 1 }, { ...item(2, U(14), 2, 1, 50_000), quantidade_faturada: 0 }] });
+    const [o] = listaDePedidos(l, {});
+    expect(o).toMatchObject({ erp_order_code: 'ERP-1', faturado_cents: 120_000, devolvido_cents: 20_000, devolucao: 'parcial', ultima_nota: '9001', situacao_faturamento: ['Faturado R$ 1.200,00 (NF 9001)', 'Devolvido R$ 200,00 (parcial)'] });
+    for (const perfil of ['vendedor', 'supervisor']) {
+      const d = detalheDoPedido(l, U(14), perfil, {})!;
+      expect(d.items.map((i) => i.quantity_invoiced)).toEqual([1, 0]);
+      expect(d.situacao_faturamento).toHaveLength(2);
+    }
+  });
+
+  it('T-0054: linha de pedido sem as colunas do faturamento (APK/servidor anterior) não ganha campos de faturamento', () => {
+    const [o] = listaDePedidos(linhas({ pedidos: [pedido({ id: U(15), status: 'integrated' })], itens: [item(1, U(15), 1, 1, 100)] }), {});
+    expect(o).not.toHaveProperty('faturado_cents');
+    expect(detalheDoPedido(linhas({ pedidos: [pedido({ id: U(15) })], itens: [item(1, U(15), 1, 1, 100)] }), U(15), 'vendedor', {})!.items[0]).not.toHaveProperty('quantity_invoiced');
+  });
+
   it('RN-VEN-02: a lista usa o total do servidor, o número e a contagem de itens e unidades das linhas', () => {
     const l = linhas({ pedidos: [pedido({ id: U(10) })], itens: [item(1, U(10), 1, 2, 100_000), item(2, U(10), 2, 1, 50_000)] });
     const [o] = listaDePedidos(l, {});

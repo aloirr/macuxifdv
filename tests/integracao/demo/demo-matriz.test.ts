@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { semBanco } from '@macuxi/db/teste/estado';
+import { dadosDemo } from '@macuxi/db/teste';
 import type { CustomerSummary } from '@macuxi/core/contracts';
 import { mensagemPerfilForaDoApp, type ItemPush, type LinhaSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -41,6 +42,10 @@ vi.mock('../../../modules/core/app/lib/dispositivo', () => ({
 }));
 
 const ETAPAS_CAMPO = [...etapasCore, ...etapasVendedor];
+
+/** Tamanho do catálogo da base demo (33 desde a 0013: +9 da linha automotiva e o detergente 5 L) e os 3 SKUs sem preço no Atacado (RN-CAT-06). */
+const PRODUTOS_DEMO = dadosDemo('x')['core.produto'].length;
+const SEM_PRECO_NO_ATACADO = ['ACA-1K', 'CRD-90', 'SUC-1L'];
 
 interface Campo {
   ap: AparelhoCampo;
@@ -282,7 +287,7 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       expect((r.corpo.items as unknown[]).length).toBe(local!.items.length);
     });
 
-    it('D-C10: novo pedido — o aparelho tem a carteira (18), as condições do cliente, os 24 produtos (pull `produto` do Core, R-20261101-081147) e o preço da tabela do cliente pela consulta do Catálogo, offline (Atacado sem açaí, suco e creme dental: RN-CAT-06)', async () => {
+    it('D-C10: novo pedido — o aparelho tem a carteira (18), as condições do cliente, os 33 produtos da demo (pull `produto` do Core, R-20261101-081147; 24 → 33 com a 0013, R-20261102-102834) e o preço da tabela do cliente pela consulta do Catálogo, offline (Atacado sem açaí, suco e creme dental: RN-CAT-06)', async () => {
       const c = await noCampo('vendedor');
       expect(await c.ap.sincronizar()).toBe(true);
       c.ap.online.valor = false;
@@ -290,13 +295,13 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       const clientes = listaDeClientes(l, { id: usuarioId.vendedor, name: 'Lucas Andrade' });
       expect(clientes).toHaveLength(18);
       expect(l.condicoes.length, 'condições de pagamento no aparelho').toBeGreaterThan(0);
-      expect(l.produtos.length, 'produtos (pull `produto` do Core) no aparelho').toBe(24);
+      expect(l.produtos.length, 'produtos (pull `produto` do Core) no aparelho').toBe(PRODUTOS_DEMO);
       for (const cliente of clientes) {
         const r = await c.ap.motor.ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente.id, produto_ids: l.produtos.map((p) => p.id), em: new Date().toISOString() });
         const produtos = produtosComPrecos(l, new Map(r.itens.map((i) => [i.produto_id, i.preco_cents])));
         const comPreco = produtos.filter((p) => (p.price_cents ?? 0) > 0);
-        expect(comPreco.length, cliente.trade_name).toBeGreaterThanOrEqual(21);
-        if (comPreco.length < 24) expect(produtos.filter((p) => p.price_cents == null).map((p) => p.erp_code).sort()).toEqual(['ACA-1K', 'CRD-90', 'SUC-1L']);
+        expect(comPreco.length, cliente.trade_name).toBeGreaterThanOrEqual(PRODUTOS_DEMO - SEM_PRECO_NO_ATACADO.length);
+        if (comPreco.length < PRODUTOS_DEMO) expect(produtos.filter((p) => p.price_cents == null).map((p) => p.erp_code).sort()).toEqual(SEM_PRECO_NO_ATACADO);
       }
     });
 

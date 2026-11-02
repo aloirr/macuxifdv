@@ -6,7 +6,8 @@
  * globalSetup logo depois de `carregarDoisTenants` (mesmo instante `agora`). Fica fora de db/seeds/fixtures/dois-tenants.ts
  * nesta entrega (frente nuvem, escopo restrito); a rodada local pode incorporá-la lá (ver docs/banco/treinamento.md).
  *
- * UUIDs fixos com o prefixo do tenant (aaaaaaaa/bbbbbbbb) e grupos 0x70–0x7d. Datas derivadas do `agora` da carga (nada de
+ * UUIDs fixos com o prefixo do tenant (aaaaaaaa/bbbbbbbb) e grupos 0x170–0x17d (sem colidir com dois-tenants.ts, Gestor 0x70–0x73,
+ * Promotor 0x84–0x97 e Pesquisa 0x160–0x165). Datas derivadas do `agora` da carga (nada de
  * hora fixa). Idempotente: upsert por id.
  */
 import type { ClientBase } from 'pg';
@@ -16,20 +17,20 @@ import { gravarLinhas, type Linha } from '../src/gravar';
 import { idFixo } from '../src/ids';
 
 const G = {
-  trilha: 0x70,
-  modulo_trilha: 0x71,
-  licao: 0x72,
-  quiz: 0x73,
-  questao: 0x74,
-  alternativa: 0x75,
-  trilha_publicacao: 0x76,
-  progresso: 0x77,
-  tentativa: 0x78,
-  xp_lancamento: 0x79,
-  medalha: 0x7a,
-  medalha_usuario: 0x7b,
-  desafio_vendas: 0x7c,
-  desafio_vendas_produto: 0x7d,
+  trilha: 0x170,
+  modulo_trilha: 0x171,
+  licao: 0x172,
+  quiz: 0x173,
+  questao: 0x174,
+  alternativa: 0x175,
+  trilha_publicacao: 0x176,
+  progresso: 0x177,
+  tentativa: 0x178,
+  xp_lancamento: 0x179,
+  medalha: 0x17a,
+  medalha_usuario: 0x17b,
+  desafio_vendas: 0x17c,
+  desafio_vendas_produto: 0x17d,
 } as const;
 
 /** Ordem de carga (FKs dentro do schema). */

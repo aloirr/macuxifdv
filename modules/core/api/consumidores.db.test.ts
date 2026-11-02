@@ -74,10 +74,22 @@ describe.skipIf(semBanco())('Core T-0022 × Postgres: push da notificação', ()
     await rodar(opcoes, NIDS[1]!);
     expect(fetcher).toHaveBeenCalledTimes(1);
     const corpo = JSON.parse((fetcher.mock.calls[0] as unknown as [string, { body: string }])[1].body);
-    expect(corpo).toEqual([{ to: TOKEN, title: 'Aviso de push', body: 'Corpo do aviso', priority: 'high', data: { link: null } }]);
+    expect(corpo).toEqual([{ to: TOKEN, title: 'Aviso de push', body: 'Corpo do aviso', priority: 'high', data: { link: null, entidades: ['notificacao'] } }]);
     expect((await enviadoEm(NIDS[1]!))?.toISOString()).toBe(agora.toISOString());
     await rodar(opcoes, NIDS[1]!);
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('RN-CORE-15: usuário inativo ou bloqueado não recebe push', async () => {
+    const fetcher = vi.fn(async () => ({ ok: true, status: 200 }) as Response);
+    await consumo(async (c) => void (await c.query('update core.usuario set ativo = false where id = $1', [U.vendedor1])));
+    try {
+      await consumo(async (c) => void (await c.query('update core.notificacao set push_enviado_em = null, lida_em = null where id = $1', [NIDS[2]!])));
+      await rodar({ env: { MACUXI_PUSH_ATIVO: '1' }, fetcher: fetcher as never }, NIDS[2]!);
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      await consumo(async (c) => void (await c.query('update core.usuario set ativo = true where id = $1', [U.vendedor1])));
+    }
   });
 
   it('já lida não gera push; HTTP recusado lança (o despachante retenta) e não marca; outro tenant não enxerga a notificação (RLS)', async () => {

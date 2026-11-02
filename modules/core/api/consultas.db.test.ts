@@ -47,12 +47,21 @@ describe.skipIf(semBanco())('Core × Postgres: consulta core.cadastro_resumo@1',
 
   it('RN-CORE-05: id de outro tenant não vaza', async () => {
     const r = await consultar(B.tenantId, { cliente_ids: [A.clientes.c1], produto_ids: [id(1)], usuario_ids: [A.usuarios.vendedor1] });
-    expect(r).toEqual({ clientes: [], produtos: [], usuarios: [] });
+    expect(r).toEqual({ clientes: [], produtos: [], usuarios: [], enderecos: [] });
   });
 
   it('ADR 0012: removido e inexistente ficam de fora; entrada vazia devolve listas vazias', async () => {
     const r = await consultar(A.tenantId, { produto_ids: [id(2), id(9)] });
-    expect(r).toEqual({ clientes: [], produtos: [], usuarios: [] });
+    expect(r).toEqual({ clientes: [], produtos: [], usuarios: [], enderecos: [] });
+  });
+
+  it('T-0066: produto_external_ids acha o produto do tenant (inclusive inativo), sem removido, sem duplicar e sem vazar', async () => {
+    const r = await consultar(A.tenantId, { produto_ids: [id(1)], produto_external_ids: ['ERP-1', 'ERP-inexistente'] });
+    expect(r.produtos.map((x) => x.id)).toEqual([id(1)]);
+    const so = await consultar(A.tenantId, { produto_external_ids: ['ERP-1'] });
+    expect(so.produtos.map((x) => x.id)).toEqual([id(1)]);
+    const outro = await consultar(B.tenantId, { produto_external_ids: ['ERP-1'] });
+    expect(outro.produtos).toEqual([]);
   });
 
   it('ADR 0012: mais de 500 ids é recusado pelo contrato', () => {

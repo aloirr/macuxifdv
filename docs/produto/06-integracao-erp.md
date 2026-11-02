@@ -25,15 +25,28 @@ ERP local ◄──tabela de entrada/API do ERP── Conector ◄──GET /int
 ## Contrato canônico (entidades e frequência sugerida)
 | Entidade | Direção | Frequência | Observação |
 |---|---|---|---|
-| Clientes, contatos, carteira | ERP → Macuxi | 1 h | carteira pode ser mantida no Macuxi se o ERP não tiver |
+| Clientes, contatos, carteira | ERP → Macuxi | 1 h | carteira pode ser mantida no Macuxi se o ERP não tiver; cliente sem campo obrigatório entra com `cadastro_incompleto` (RN-INT-14) |
 | Produtos, categorias, marcas | ERP → Macuxi | 1 h | conteúdo rico (fotos, argumentos) é do Macuxi |
+| Árvore do catálogo (nós e produto → nó) | ERP → Macuxi | diário | níveis e nomes do ERP (RF-CAT-04) |
+| Unidades de venda do produto | ERP → Macuxi | 1 h | medida da unidade e embalagem (sigla + quantidade) pelas **siglas cadastradas** no tenant (sigla desconhecida = `referencia_ausente`, RN-CORE-19); EAN; preço próprio da embalagem opcional na tabela (RN-VEN-15) |
+| Custo e preço de venda do produto | ERP → Macuxi | 1 h | `custo_cents`, `preco_venda_cents`, `desconto_maximo_pct` opcional; o custo nunca vai ao app (RN-CORE-18) |
+| Endereços de entrega do cliente | ERP → Macuxi | 1 h | principal + outros (RN-VEN-17) |
+| Transportadoras | ERP → Macuxi | diário | opcional; o BKO também cadastra (RF-VEN-13) |
 | Tabelas de preço | ERP → Macuxi | 15 min | vigência |
 | Estoque por depósito | ERP → Macuxi | 5–15 min | só saldo; reservas são do Macuxi |
 | Financeiro (limite, saldo) e títulos | ERP → Macuxi | 1 h | títulos abertos + baixados recentes |
 | Condições de pagamento | ERP → Macuxi | diário | |
 | Faturamento / devoluções | ERP → Macuxi | 15 min | alimenta metas e status |
-| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID |
+| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID; leva endereço de entrega, frete (modalidade e, no FOB, transportadora cadastrada ou digitada; sem valor), medida, quantidade da embalagem e quantidade em unidades por item, descontos e acréscimos do item e do pedido (RN-INT-08) |
 | Retorno do pedido (nº ERP, status, nota) | ERP → Macuxi | contínuo | |
+
+### Bloco `frete` do pedido devolvido ao ERP (RN-VEN-16, R-20261102-105040)
+```json
+"frete": { "modalidade": "CIF" }
+"frete": { "modalidade": "FOB", "transportadora": { "tipo": "cadastrada", "id": "…" } }
+"frete": { "modalidade": "FOB", "transportadora": { "tipo": "digitada", "nome": "…", "cnpj": "…", "telefone": "…" } }
+```
+O mapeamento para a NF-e é do ERP (orientação ao cliente): CIF → `modFrete` 0 (transportadora contratada pela empresa) ou 3 (frota própria); FOB → `modFrete` 1, com o grupo da transportadora preenchido com os dados enviados.
 
 ## Regras técnicas
 - **Lote**: `POST /integracao/v1/lotes` com `entidade`, `modo` (completo | delta), `cursor`, até 5.000 registros; resposta 202 com id do lote; processamento assíncrono em staging; resultado por linha.

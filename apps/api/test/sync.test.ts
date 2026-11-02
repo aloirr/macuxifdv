@@ -3,12 +3,12 @@
  * licença por entidade (RN-CORE-02) e RN-PRO-01 no push.
  */
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
-import { codificarCursor, defineModule, definirEntidadeSync, definirModuloApi, ErroRegraNegocio, type LinhaSync, type Manifesto } from '@macuxi/platform-sdk';
+import { codificarCursor, decodificarCursorNovidades, defineModule, definirEntidadeSync, definirModuloApi, ErroRegraNegocio, NovidadesRespostaSchema, UUID_NIL, type LinhaSync, type Manifesto } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createApp, type OpcoesApp } from '../src/app';
 import { versaoDoConjunto } from '../src/sync';
-import { bancoFalso, cab, CLIENTE_DA_CARTEIRA, LICENCAS_PADRAO, opcoesDeTeste, usuarios, vendedorApi } from './apoio';
+import { bancoFalso, cab, CLIENTE_DA_CARTEIRA, LICENCAS_PADRAO, opcoesDeTeste, usuarios, vendedorApi, type Licencas } from './apoio';
 
 const AGORA = new Date('2026-11-02T12:00:00.000Z');
 const linha = (seg: number, id: string): LinhaSync => ({ id, updated_at: new Date(AGORA.getTime() - seg * 1000).toISOString(), deleted_at: null });
@@ -254,5 +254,87 @@ describe('ADR 0009: escopo do pull, usuários visíveis e envio ainda não dispo
     expect(r.statusCode).toBe(200);
     expect(r.json().resultados.map((x: { codigo?: string }) => x.codigo)).toEqual(['SYNC_NAO_IMPLEMENTADO', 'SYNC_NAO_IMPLEMENTADO', 'ENTIDADE_DESCONHECIDA']);
     expect(r.json().resultados[0].mensagem).toMatch(/ainda não disponível no servidor/);
+  });
+});
+
+describe('GET /v1/sync/novidades (RN-CORE-23, ADR 0018)', () => {
+  function montarNovidades(manifesto: Manifesto = vendedor) {
+    let agora = AGORA.getTime();
+    const linhas: LinhaSync[] = [];
+    const chamadas: unknown[] = [];
+    const lic: Licencas = structuredClone(LICENCAS_PADRAO);
+    const api = definirModuloApi({
+      ...vendedorApi,
+      manifesto,
+      sync: [{ entidade: pedido, escopo: ['usuarios', 'carteira'], puxar: async (_ctx, p) => (chamadas.push(p), linhas) }],
+    });
+    const { banco } = bancoFalso(() => new Date(agora - 2000));
+    const app = createApp({ ...opcoesDeTeste(lic, { banco, relogio: () => new Date(agora) }), modulos: opcoesDeTeste().modulos!.map((m) => (m.manifesto.id === 'vendedor' ? api : m)) });
+    const pedir = async (quem: keyof typeof usuarios, desde?: string) => {
+      const r = await app.inject({ method: 'GET', url: `/v1/sync/novidades${desde ? `?desde=${encodeURIComponent(desde)}` : ''}`, headers: cab(quem) });
+      expect(r.statusCode, r.body).toBe(200);
+      return NovidadesRespostaSchema.parse(r.json());
+    };
+    return { app, linhas, chamadas, lic, pedir, avancar: (ms: number) => (agora += ms), agora: () => agora };
+  }
+
+  it('sem cursor: todas as entidades elegíveis, os módulos efetivos e sync_auto_min (padrão 30) no Core', async () => {
+    const t = montarNovidades();
+    const r = await t.pedir('vendedor');
+    expect(r.modulos_mudaram).toBe(true);
+    expect(r.entidades).toContain('pedido');
+    expect(r.entidades).not.toContain('checklist_loja'); // Promotor inativo para o vendedor
+    expect(r.modulos!.modulos.find((m) => m.id === 'core')!.parametros).toEqual({ raio_checkin_m: 150, sync_auto_min: 30 });
+    expect(decodificarCursorNovidades(r.cursor)!.horizonte).toBe(new Date(AGORA.getTime() - 2000).toISOString());
+    expect(t.chamadas).toEqual([]); // sem cursor não consulta provedor
+  });
+
+  it('com cursor: sem mudança = lista vazia e sem módulos; linha nova = só a entidade dela', async () => {
+    const t = montarNovidades();
+    t.linhas.push(linha(10, U(1)));
+    const base = await t.pedir('vendedor');
+    t.avancar(60_000);
+    const nada = await t.pedir('vendedor', base.cursor);
+    expect(nada).toMatchObject({ entidades: [], modulos_mudaram: false });
+    expect(nada.modulos).toBeUndefined();
+    expect(t.chamadas[0]).toEqual({ desde: { updated_at: base.horizonte, id: UUID_NIL }, ate: nada.horizonte, limite: 1 });
+    t.linhas.push({ id: U(2), updated_at: new Date(t.agora() + 30_000).toISOString(), deleted_at: null }); // depois do horizonte de `nada`
+    t.avancar(60_000);
+    const uma = await t.pedir('vendedor', nada.cursor);
+    expect(uma.entidades).toEqual(['pedido']);
+    // a linha nova ficou atrás do novo cursor
+    t.avancar(60_000);
+    expect((await t.pedir('vendedor', uma.cursor)).entidades).toEqual([]);
+  });
+
+  it('módulos efetivos mudaram (RN-CORE-02): modulos_mudaram, a nova lista e todas as entidades elegíveis', async () => {
+    const t = montarNovidades();
+    const base = await t.pedir('vendedor');
+    t.lic.perfil.vendedor = ['core', 'catalogo'];
+    const r = await t.pedir('vendedor', base.cursor);
+    expect(r.modulos_mudaram).toBe(true);
+    expect(r.modulos!.modulos.map((m) => m.id)).toEqual(['core', 'catalogo']);
+    expect(r.entidades).not.toContain('pedido');
+    expect(r.entidades.length).toBeGreaterThan(0);
+  });
+
+  it('cursor ilegível ou de outra versão = todas as entidades (nunca 400)', async () => {
+    const t = montarNovidades();
+    const r = await t.pedir('vendedor', 'n0|qualquer|coisa|-');
+    expect(r.modulos_mudaram).toBe(true);
+    expect(r.entidades).toContain('pedido');
+  });
+
+  it('O-3 / RN-PRO-01: sem pedido.ver o promotor não recebe pedido nas novidades', async () => {
+    const semVer = defineModule({ ...vendedor, acoes: { ...vendedor.acoes, 'pedido.ver': { perfis: ['vendedor'] } } });
+    const r = await montarNovidades(semVer).pedir('promotor');
+    expect(r.entidades).not.toContain('pedido');
+    const comVer = defineModule({ ...vendedor, acoes: { ...vendedor.acoes, 'pedido.ver': { perfis: ['vendedor', 'promotor'] } } });
+    expect((await montarNovidades(comVer).pedir('promotor')).entidades).toContain('pedido');
+  });
+
+  it('sem login → 401', async () => {
+    const { app } = montarNovidades();
+    expect((await app.inject({ method: 'GET', url: '/v1/sync/novidades' })).statusCode).toBe(401);
   });
 });

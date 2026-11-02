@@ -17,7 +17,7 @@ import {
   type IndicadoresLista,
   type MetasLista,
 } from '../contracts';
-import { dataLocal, painelDoUsuario, type BaseApuracao, type IndicadorMeta } from '../domain';
+import { dataDoFechamento, dataLocal, painelDoUsuario, situacaoDoPeriodo, type BaseApuracao, type IndicadorMeta } from '../domain';
 import { auditar } from './auditoria';
 
 const naoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
@@ -54,7 +54,9 @@ export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySe
   const usuarios = await usuariosDoPainel(db, visiveis, q.usuario_id);
   const ids = usuarios.map((u) => u.id);
   const base = await baseDeApuracao(db);
-  if (ids.length === 0) return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, itens: [] });
+  const situacao = situacaoDoPeriodo(periodo, hoje);
+  const fechamento_em = dataDoFechamento(periodo);
+  if (ids.length === 0) return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, situacao, fechamento_em, itens: [] });
   const paradas = await db.query<{ usuario_id: string; cliente_id: string; data: string }>(
     "select usuario_id, cliente_id, to_char(data, 'YYYY-MM-DD') as data from core.rota_parada where deleted_at is null and usuario_id = any($1::uuid[]) and to_char(data, 'YYYY-MM') = $2",
     [ids, periodo],
@@ -75,7 +77,7 @@ export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySe
     const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, base, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows });
     return { usuario_id: u.id, usuario_nome: u.nome, indicadores: p.indicadores, metas: p.metas };
   });
-  return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, itens });
+  return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, situacao, fechamento_em, itens });
 }
 
 export const rotasDeMetas: RotaModulo[] = [

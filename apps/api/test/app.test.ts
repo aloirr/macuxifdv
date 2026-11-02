@@ -241,7 +241,7 @@ describe('GET /v1/me/modulos (contrato do Core)', () => {
     expect(r.statusCode).toBe(200);
     const corpo = MeusModulosRespostaSchema.parse(r.json());
     expect(corpo.modulos.map((m) => m.id)).toEqual(['core', 'catalogo', 'vendedor']);
-    expect(corpo.modulos[0]!.parametros).toEqual({ raio_checkin_m: 150 });
+    expect(corpo.modulos[0]!.parametros).toEqual({ raio_checkin_m: 150, sync_auto_min: 30 }); // RN-CORE-23: padrão da plataforma
     const outra = MeusModulosRespostaSchema.parse((await app.inject({ method: 'GET', url: '/v1/me/modulos', headers: cab('promotor') })).json());
     expect(outra.versao_licencas).not.toBe(corpo.versao_licencas);
   });
@@ -356,6 +356,29 @@ describe('ctx.fuso(): fuso do tenant no contexto da rota (RN-CORE-11, T-0035)', 
     expect(await fusoCom(undefined)).toBe('America/Manaus');
     expect(await fusoCom(null)).toBe('America/Manaus');
     expect(await fusoCom('Marte/Olympus')).toBe('America/Manaus');
+  });
+
+  it('T-0042: o serviço de carteira recebe o relógio e o fuso da requisição (vigência no "hoje" do tenant)', async () => {
+    const vendedorComCarteira = definirModuloApi({
+      manifesto: vendedor,
+      rotas: [{ metodo: 'GET', caminho: 'carteira', acao: 'pedido.ver', carteira: 'filtrar_no_dominio', executar: async (ctx) => ({ n: (await ctx.carteira()) === 'tenant' ? -1 : 0 }) }],
+    });
+    const recebido: { fuso?: string; agora?: string }[] = [];
+    const instante = new Date('2026-11-02T03:30:00.000Z'); // hora-fixa-ok: relógio injetado, só ecoado
+    const base = opcoesDeTeste();
+    const app = createApp({
+      ...base,
+      relogio: () => instante,
+      modulos: modulosDeTeste({ vendedor: vendedorComCarteira }),
+      licencas: async (u, b) => ({ ...(await base.licencas!(u, b)), fuso: 'America/Sao_Paulo' }),
+      carteira: async (_u, _b, opcoes) => {
+        recebido.push({ fuso: opcoes?.fuso, agora: opcoes?.agora().toISOString() });
+        return new Set<string>();
+      },
+    });
+    const r = await app.inject({ method: 'GET', url: '/v1/vendedor/carteira', headers: cab('vendedor') });
+    expect(r.statusCode).toBe(200);
+    expect(recebido).toEqual([{ fuso: 'America/Sao_Paulo', agora: instante.toISOString() }]);
   });
 });
 

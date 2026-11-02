@@ -39,6 +39,10 @@ export const EVENTOS_ATUALIZADO = {
   titulo: eventoEntidadeAtualizado('titulo'),
   nota: eventoEntidadeAtualizado('nota'),
   rota: eventoEntidadeAtualizado('rota'),
+  catalogo_no: eventoEntidadeAtualizado('catalogo_no'),
+  produto_unidade: eventoEntidadeAtualizado('produto_unidade'),
+  cliente_endereco: eventoEntidadeAtualizado('cliente_endereco'),
+  transportadora: eventoEntidadeAtualizado('transportadora'),
 } as const;
 
 /** `integracao.pedido.retorno_erp@1` — cada retorno aceito do ERP (RN-INT-08). */

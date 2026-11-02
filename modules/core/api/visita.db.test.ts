@@ -463,6 +463,8 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
       expect(cli).toEqual({ lat: -3.2, lng: -60.7 });
       expect((await linhaVisita(id(50))).sugere_coordenada).toBe(false);
       expect(eventos.some((e) => e.nome === 'core.cliente.atualizado@1' && e.payload.cliente_id === novo && e.payload.origem === 'bko')).toBe(true);
+      expect(eventos.find((e) => e.nome === 'core.cliente.atualizado@1' && e.payload.cliente_id === novo)?.payload).toMatchObject({ vendedor_id: U.vendedor1, ativo: true, frequencia_visita: null });
+      expect(typeof eventos.find((e) => e.nome === 'core.cliente.atualizado@1' && e.payload.cliente_id === novo)?.payload.na_carteira_desde).toBe('string');
       const aud = await comTenant(pool, A.tenantId, async (c) => (await c.query("select usuario_id from plataforma.auditoria where acao = 'cliente.aprovar_coordenada' and entidade_id = $1", [novo])).rows);
       expect(aud.map((l) => l.usuario_id)).toEqual([U.analista]);
       await expect(chamar('PUT', 'clientes/:id/coordenada', analista, { params: { id: novo }, corpo: { visita_id: id(50) } })).rejects.toBeInstanceOf(ErroNaoEncontrado);

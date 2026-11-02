@@ -1,5 +1,6 @@
 'use client';
 
+import { lerDetalheDoPedido } from './detalhe-pedido';
 /**
  * Consultas das páginas do Vendedor no BKO (T-0029 §8), só na API nova (`/v1/vendedor/*` e `/v1/auditoria`): nenhuma rota da
  * Fase M. A sessão vem de `useSession` (perfil e fuso do login do Core).
@@ -8,11 +9,13 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { AuditoriaRespostaSchema, ROTA_AUDITORIA } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ } from '@macuxi/ui/web';
-import { DiscountPolicy, OrderDetail, PedidosPage } from '../../contracts';
+import { DiscountPolicy, PedidosPage } from '../../contracts';
 import { type FiltrosPedidos, paraQuery } from './filtros-url';
 
-/** A lista atualiza sozinha a cada ~10 s. */
-export const LIVE_REFETCH_MS = 10_000;
+/**
+ * RN-CORE-23 (T-0054): sem consulta periódica própria. As listas atualizam ao abrir, ao voltar o foco para a janela
+ * (`refetchOnWindowFocus` do shell), depois de cada decisão (`useAtualizarPedidos`) e pelo botão "Atualizar".
+ */
 export const POR_PAGINA = 50;
 
 export const qk = {
@@ -49,7 +52,6 @@ export function usePedidos(f: FiltrosPedidos) {
     initialPageParam: '' as string,
     getNextPageParam: (ultima) => ultima.proximo_cursor ?? undefined,
     enabled,
-    refetchInterval: LIVE_REFETCH_MS,
     placeholderData: (prev) => prev,
   });
 }
@@ -61,13 +63,12 @@ export function usePendentes() {
     queryKey: qk.pendentes,
     queryFn: async ({ signal }) => PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { status: 'pending_approval', limite: 100 }, signal })).itens,
     enabled,
-    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 
 export function usePedido(id: string | null) {
   const enabled = useAuthed() && !!id;
-  return useQuery({ queryKey: qk.pedido(id ?? ''), queryFn: async () => OrderDetail.parse(await api<unknown>(`/vendedor/pedidos/${id}`)), enabled });
+  return useQuery({ queryKey: qk.pedido(id ?? ''), queryFn: async () => lerDetalheDoPedido(await api<unknown>(`/vendedor/pedidos/${id}`)), enabled });
 }
 
 export function useAlcadas() {
@@ -83,6 +84,5 @@ export function useDecisoesRecentes() {
     queryFn: async () =>
       AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { modulo: 'vendedor', entidade: 'pedido', limite: 30 } })).itens.filter((i) => i.acao !== 'pedido.criar'),
     enabled,
-    refetchInterval: LIVE_REFETCH_MS,
   });
 }

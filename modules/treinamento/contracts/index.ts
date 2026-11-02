@@ -13,3 +13,6 @@ export * from './adesao';
 export * from './parametros';
 export * from './pedido-lido';
 export * from './eventos';
+export * from './conteudo';
+export * from './sync';
+export * from './api';

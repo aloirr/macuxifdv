@@ -159,7 +159,8 @@ export const LinhaErro = z.object({
 });
 export type LinhaErro = z.infer<typeof LinhaErro>;
 
-export const CODIGOS_AVISO_LINHA = ['duplicado_no_lote'] as const;
+/** `cadastro_incompleto` (RN-INT-14) e `referencia_fraca_ausente` (produto sem nó do catálogo): aviso, nunca erro; a linha é aplicada normalmente. */
+export const CODIGOS_AVISO_LINHA = ['duplicado_no_lote', 'cadastro_incompleto', 'referencia_fraca_ausente'] as const;
 export const AvisoLinha = z.object({
   indice: z.number().int().nonnegative(),
   external_id: z.string(),
