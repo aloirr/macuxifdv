@@ -86,6 +86,16 @@ describe('RF-CAT-02: sinônimos do tenant', () => {
     expect(expandirSinonimos('agua sanitaria 2l', sin)).toEqual([['agua sanitaria', 'alvejante', 'cloro'], ['2000ml']]);
   });
 
+  it('RF-CAT-02: sinônimo com palavra de ligação ("pasta de dente", "sabão em pó") casa como frase, sem a stopword dos dois lados', () => {
+    const s = [
+      { term: 'creme dental', synonyms: ['pasta de dente'] },
+      { term: 'sabão em pó', synonyms: ['lava-roupas'] },
+    ];
+    expect(expandirSinonimos('pasta de dente', s)).toEqual([['pasta dente', 'creme dental']]);
+    expect(expandirSinonimos('lava roupas', s)).toEqual([['lava roupa', 'sabao po']]);
+    expect(expandirSinonimos('sabão em pó 1 kg', s)).toEqual([['sabao po', 'lava roupa'], ['1000g']]);
+  });
+
   it('RF-CAT-02: sinônimo inativo é ignorado', () => {
     expect(expandirSinonimos('refri', sin)).toEqual([['refri']]);
   });
