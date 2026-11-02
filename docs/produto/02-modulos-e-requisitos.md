@@ -18,6 +18,8 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 - **RF-CORE-08 (P0)** Metas e indicadores básicos: meta × realizado, positivação, cobertura de rota (base para Vendedor e Gestor). 📱🖥️
 - **RF-CORE-09 (P0)** Central de notificações e recados para o usuário (push + caixa no app). 📱
 - **RF-CORE-10 (P1)** Pré-cadastro de cliente pelo campo, aprovado no BKO.
+- **RF-CORE-11 (P0)** Cadastro mínimo do cliente: verificação dos campos obrigatórios do tenant (RN-CORE-16), etiqueta "Cadastro incompleto" e linha automática em Observações (RN-CORE-17) no app (Campo e Gestão) e no BKO. 📱C📱G🖥️
+- **RF-CORE-12 (P0)** Endereços de entrega do cliente vindos do ERP (principal + outros), visíveis no Cliente 360 e escolhidos no pedido (RN-VEN-17). 📱C🖥️
 
 ## CAT — Catálogo
 **Depende de**: Core. **Publica**: `catalogo.produto.visualizado@1`, `catalogo.busca.realizada@1`. **Oferece extensão**: `produto.acoes` (ex.: Vendedor registra "Adicionar ao pedido"). **Consome**: `integracao.produto.atualizado@1`, `integracao.estoque.atualizado@1`, `integracao.preco.atualizado@1`.
@@ -25,7 +27,7 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 - **RF-CAT-01 (P0)** **Busca em linguagem natural** online: "detergente neutro 5 litros com estoque", "o mais barato da marca X para o cliente atual" → interpreta intenção, filtros (categoria, marca, atributo, preço, estoque) e ranking híbrido (texto + semântico). 📱
 - **RF-CAT-02 (P0)** Busca offline: texto livre com tolerância a erro de digitação, sinônimos do tenant, código, EAN; aviso discreto "busca inteligente volta quando houver internet". 📱
 - **RF-CAT-03 (P0)** Ficha do produto: fotos, atributos, embalagem/múltiplo, preço da tabela do cliente em contexto, estoque disponível com hora da atualização, argumentos de venda, produtos substitutos e complementares.
-- **RF-CAT-04 (P0)** Navegação por categoria/marca, filtros e favoritos.
+- **RF-CAT-04 (P0)** Navegação pela **árvore do catálogo** do tenant (níveis e nomes vindos do ERP, ex.: Categoria › Família › Grupo › Subgrupo) com trilha clicável, chips de filtro (marca, com estoque, campanha) e favoritos; offline. Dentro do pedido, mostra só os produtos da tabela de preço do cliente. 📱C📱G
 - **RF-CAT-05 (P1)** "Pergunte ao catálogo": perguntas sobre o produto respondidas só com dados cadastrados (ficha, manual, FAQ) e citando a fonte; sem resposta → "não encontrei na base".
 - **RF-CAT-06 (P1)** Comparar até 3 produtos; leitor de código de barras pela câmera.
 - **RF-CAT-07 (P0)** BKO: enriquecer conteúdo (fotos, vídeos curtos, argumentos, sinônimos, FAQ, PDFs técnicos), ver termos buscados sem resultado. 🖥️
@@ -44,6 +46,13 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 - **RF-VEN-08 (P0)** Painel "Minhas vendas": meta × realizado, quanto falta por dia útil, positivação, pedidos do dia.
 - **RF-VEN-09 (P0)** BKO: gestão de pedidos, fila de aprovações acima do gestor, reenvio ao ERP, pedido digitado pelo assistente. 🖥️
 - **RF-VEN-10 (P1)** Itens sugeridos do cliente: mais comprados, "não compra há X dias".
+- **RF-VEN-11 (P0)** Tela **Novo pedido** (Campo; a mesma no Gestão para pedido em nome): cabeçalho com o cliente e três abas.
+  - **Produtos**: busca + árvore do catálogo (RF-CAT-04); "+" adiciona 1 na unidade padrão (3 toques).
+  - **Itens (n)**: quantidade, unidade UN/CX com fator (RN-VEN-15), desconto ou acréscimo do item em %, preço de tabela, preço final e total da linha; card **Condições** com desconto **ou** acréscimo do pedido, frete (RF-VEN-12) e prazo.
+  - **Entrega**: endereço de entrega (RN-VEN-17).
+  - **Rodapé fixo**: subtotal pela tabela, descontos e acréscimos, frete, total, desconto efetivo (RN-VEN-03) e a alçada ("Dentro da sua alçada" ou "Vai para o supervisor"); "Enviar pedido". Funciona offline. 📱C📱G
+- **RF-VEN-12 (P0)** Frete CIF/FOB com transportadora da lista ou digitada, valor em R$ ou % (RN-VEN-16); o detalhe do pedido no BKO e os dois PDFs mostram endereço de entrega, frete e, por item, unidade, fator e desconto ou acréscimo. 📱C🖥️
+- **RF-VEN-13 (P0)** BKO: cadastro de **transportadoras** (nome, CNPJ, IE, telefone, ativo) por admin, analista e assistente (também podem vir do ERP); parâmetros de frete do tenant; lista das transportadoras digitadas pelos vendedores. 🖥️
 
 ## PRO — Promotor (promotoria de mercado / trade marketing)
 **Depende de**: Core. **Opcionais**: Catálogo (fotos e ficha dos nossos produtos), Pesquisa (questionário livre anexado à visita), Vendedor (alerta de ruptura). **Publica**: `promotor.visita_loja.concluida@1`, `promotor.gondola.registrada@1`, `promotor.share.medido@1`, `promotor.preco.coletado@1`, `promotor.ruptura.registrada@1`, `promotor.tarefa.concluida@1`. **Usa extensões**: `cliente.abas`, `visita.etapas_checkout`, `inicio.cards`.

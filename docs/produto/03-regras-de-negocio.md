@@ -46,15 +46,26 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CORE-21** Realizado da meta = soma dos pedidos na [base de apuração: aprovado | faturado], líquido de cancelamentos; o pedido feito pelo gestor em nome do vendedor conta para o **vendedor**.
 - **RN-CORE-22** Necessidade diária = (meta − realizado) ÷ dias úteis restantes.
 
+**Cliente — cadastro mínimo** (decisão do Alexandre, 2026-11-02, R-20261102-092329)
+- **RN-CORE-16** Cadastro completo: o cliente só fica **ativo para faturamento** quando todos os campos da lista `cliente_campos_obrigatorios` do tenant estão preenchidos e válidos. Padrão: razão social; CNPJ ou CPF com dígito verificador válido; inscrição estadual ou "isento" (só para CNPJ); logradouro, número, bairro, município, UF e CEP. O tenant pode acrescentar campos à lista, mas não pode tirar o CNPJ/CPF. A verificação roda na integração (Hub), na edição pelo BKO e na sincronização, e mora no `domain` do Core.
+- **RN-CORE-17** Cliente com cadastro incompleto **é integrado normalmente** e aparece na carteira, na rota e no Cliente 360 (visita, pesquisa, promotoria e treinamento funcionam). O sistema escreve no topo do campo **Observações** do cliente, no app e no BKO, uma linha automática: "Cadastro incompleto: falta <campos>. Pedido só como orçamento até o cadastro ser completado no ERP." Essa linha não apaga o texto vindo do ERP, é refeita a cada atualização do cliente e some sozinha quando o cadastro fica completo. Na carteira, o cliente mostra a etiqueta "Cadastro incompleto".
+
 ## 4. Vendedor — preço, desconto, crédito, estoque, status
 - **RN-VEN-01** Preço base = tabela vigente do cliente na data do pedido; sem preço → item não vendável.
-- **RN-VEN-02** Preço final do item = base × (1 − desc. item); total = Σ itens × (1 − desc. total) ± ajuste financeiro da condição. Arredondamento em centavos, meia para cima, por item.
-- **RN-VEN-03** Desconto efetivo = 1 − (total final ÷ total pela tabela).
-- **RN-VEN-10** Alçada: ≤ [vendedor 5%] aprova; ≤ [supervisor 10%] vai ao supervisor; ≤ [gerente 15%] vai ao gerente; acima → analista. Pedido feito pelo gestor usa a alçada do gestor.
+- **RN-VEN-02** Preço final do item = base × (1 − desconto do item) ou base × (1 + acréscimo do item). Total dos itens = Σ linhas × (1 − desconto do pedido) ou × (1 + acréscimo do pedido) ± ajuste financeiro da condição. Frete à parte (RN-VEN-16). Arredondamento em centavos, meia para cima, por item. Desconto e acréscimo do pedido são excludentes (um ou outro). *(Redação de 2026-11-02, R-20261102-093007.)*
+- **RN-VEN-03** Desconto efetivo do pedido = 1 − (total dos itens após descontos e acréscimos ÷ total pela tabela), **sem o frete**. Pode ser negativo (acréscimo).
+- **RN-VEN-10** Alçada: ≤ [vendedor 5%] aprova; ≤ [supervisor 10%] vai ao supervisor; ≤ [gerente 15%] vai ao gerente; acima → analista. Pedido feito pelo gestor usa a alçada do gestor. A alçada olha **só o desconto efetivo do pedido** (RN-VEN-03), nunca o desconto de um item: item com 30% de desconto e pedido com desconto efetivo de 5% fica dentro da alçada de 5% e não vai para aprovação. Desconto efetivo ≤ 0 (acréscimo) nunca vai para aprovação.
 - **RN-VEN-11** Abaixo do preço mínimo do produto → sempre analista.
 - **RN-VEN-12** Crédito disponível = limite − saldo em aberto − pedidos aprovados não faturados. Excedeu → [enviar para aprovação | bloquear].
-- **RN-VEN-13** Título vencido há mais de [5] dias → só à vista ou com aprovação. Cliente bloqueado/inativo → só orçamento.
+- **RN-VEN-13** Título vencido há mais de [5] dias → só à vista ou com aprovação. Cliente bloqueado, inativo ou com **cadastro incompleto (RN-CORE-17)** → só orçamento: o vendedor monta e salva, mas não envia para aprovação nem para o ERP. A tela do pedido mostra quais campos faltam.
 - **RN-VEN-14** Condição de pagamento apenas entre as permitidas ao cliente.
+- **RN-VEN-15** Unidade de venda: o produto tem as unidades de venda vindas do ERP (UN e CX com fator; outras se o ERP mandar). O preço da CX = preço UN × fator, salvo se a tabela trouxer preço próprio da CX. O múltiplo (RN-VEN-21) e o estoque são conferidos na unidade base. O pedido grava a unidade, o fator, a quantidade e a quantidade na unidade base.
+- **RN-VEN-16** Frete: modalidade obrigatória, com padrão por tenant ou por cliente.
+  - **CIF**: "Transporte próprio", sem transportadora.
+  - **FOB**: transportadora **cadastrada no BKO** (lista) ou, se não houver cadastro ou ela não estiver na lista e o parâmetro permitir, **dados digitados pelo vendedor** (nome, CNPJ, telefone). Valor do frete em **R$ ou % sobre o total dos itens**, somado ao total do pedido.
+  - O frete não entra no desconto efetivo (RN-VEN-03) nem no realizado da meta (RN-CORE-21).
+  - A transportadora digitada fica gravada só no pedido (não cria cadastro); o BKO vê a lista das digitadas para cadastrar, se quiser.
+- **RN-VEN-17** Endereço de entrega: padrão = endereço principal do cliente. O vendedor escolhe entre os endereços de entrega do cliente vindos do ERP; não digita endereço novo (endereço novo entra pelo cadastro no ERP).
 - **RN-VEN-20** Disponível = saldo do ERP − reservas; reserva quando a API aceita o pedido; libera em cancelamento, rejeição ou faturamento. Insuficiente → [permitir com aviso | bloquear | cortar].
 - **RN-VEN-21** Quantidade múltipla do múltiplo de venda; item repetido soma quantidade.
 - **RN-VEN-22** Pedido mínimo [desativado].
@@ -65,6 +76,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-VEN-34** Pedido pode ser para cliente diferente do check-in aberto ("fora de visita").
 - **RN-VEN-35** Pedido em nome: `vendedor_id` = vendedor, `autor_id` = gestor; vendedor recebe notificação.
 - **RN-VEN-36** Alerta de ruptura do promotor aparece para o vendedor responsável por [7] dias ou até o próximo pedido do cliente.
+- **RN-VEN-37** Devolução = nota de devolução do ERP, pelo total; não muda o status do pedido nem estorna o desafio de vendas. *(Proposta da T-0054, aprovada pelo Alexandre em 2026-11-02, R-20261102-110941.)*
 - **Cancelamento depois do envio ao ERP**: a partir do status 'enviado', o pedido não pode ser cancelado no Macuxi (UI e API respondem 422 com o código da regra e a mensagem "Pedido já enviado ao ERP — cancele no ERP"); o cancelamento é feito no ERP e chega pelo retorno do Hub como status 'cancelado'.
 
 ## 5. Promotor (trade marketing)
@@ -123,6 +135,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Trava de inativação em massa** (confirmada pelo Alexandre em 2026-10-31): se uma carga for inativar mais de [30%] dos registros ativos de uma entidade, o lote fica parado aguardando confirmação no BKO. Parâmetro `limite_inativacao_pct`.
 - **RN-INT-07** Reconciliação diária por entidade: compara contagem de registros ativos e soma de controle (centavos ou quantidades) informadas pelo ERP com as do Macuxi; divergência acima da tolerância [contagem 0; soma 0,5%] gera alerta no monitor.
 - **RN-INT-08** Devolução de pedido ao ERP: só pedido `aprovado` entra na fila de pendentes; a entrega é idempotente pelo UUID do pedido. Retorno: `pendente` → `enviado` (Conector retirou) → `integrado` (nº ERP) | `rejeitado_erp` (motivo); `integrado` → `faturado_parcial` → `faturado_total`. `enviado` sem confirmação em [10 min] volta a `pendente`. Cancelamento feito no ERP volta pelo retorno como `enviado`/`integrado`/`faturado_*` → `cancelado`, com o motivo quando o ERP informar; o Macuxi nunca escreve cancelamento no ERP. Cada retorno publica `integracao.pedido.retorno_erp@1`.
+- **RN-INT-14** Cliente recebido sem algum campo de `cliente_campos_obrigatorios` **não** é linha com erro: entra com o indicador `cadastro_incompleto` e a lista de campos faltantes, e aparece no monitor de integração do BKO como aviso. CNPJ/CPF com dígito verificador inválido é tratado como ausente (RN-CORE-16). *(Alexandre, 2026-11-02, R-20261102-092329.)*
 - **RN-INT-09** Contrato `/integracao/v1`: dinheiro em centavos inteiros, datas ISO 8601 UTC, `external_id` obrigatório; campo novo opcional é compatível; mudança incompatível vira `/v2` com ADR e a versão anterior fica ativa por [6 meses].
 
 > **Conector (decisões do Alexandre em 2026-10-31, T-0013)**: linhas inválidas vão ao Hub com o motivo, até [500] por entidade por lote (acima disso, só a contagem). Atualização na v1 = pacote assinado para baixar + aviso no monitor do Hub quando o Conector estiver abaixo da versão mínima ou recomendada (atualização automática na v2). Uma chave de API por Conector (não por tenant), rotacionável no BKO, escopo só `/integracao/v1`, guardada no Windows Credential Manager. Bancos: Oracle primeiro, Firebird depois, MySQL sob demanda.
@@ -162,6 +175,9 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Dias de atraso para restringir | 5 |
 | Estoque insuficiente | permitir com aviso |
 | Pedido mínimo | desativado |
+| Campos obrigatórios do cadastro do cliente (`cliente_campos_obrigatorios`) | razão social, CNPJ/CPF, IE ou isento (PJ), logradouro, número, bairro, município, UF, CEP |
+| Modalidade de frete padrão (`frete_modalidade_padrao`) | CIF (o cliente pode ter padrão próprio) |
+| Vendedor pode digitar transportadora fora da lista (`frete_transportadora_digitada`) | sim |
 | Raio de check-in | 200 m |
 | Validade do orçamento | 7 dias |
 | Alerta de ruptura ao vendedor | 7 dias |

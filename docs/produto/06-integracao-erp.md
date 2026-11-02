@@ -25,14 +25,18 @@ ERP local ◄──tabela de entrada/API do ERP── Conector ◄──GET /int
 ## Contrato canônico (entidades e frequência sugerida)
 | Entidade | Direção | Frequência | Observação |
 |---|---|---|---|
-| Clientes, contatos, carteira | ERP → Macuxi | 1 h | carteira pode ser mantida no Macuxi se o ERP não tiver |
+| Clientes, contatos, carteira | ERP → Macuxi | 1 h | carteira pode ser mantida no Macuxi se o ERP não tiver; cliente sem campo obrigatório entra com `cadastro_incompleto` (RN-INT-14) |
 | Produtos, categorias, marcas | ERP → Macuxi | 1 h | conteúdo rico (fotos, argumentos) é do Macuxi |
+| Árvore do catálogo (nós e produto → nó) | ERP → Macuxi | diário | níveis e nomes do ERP (RF-CAT-04) |
+| Unidades de venda do produto | ERP → Macuxi | 1 h | unidade, fator, EAN; preço próprio da CX opcional na tabela (RN-VEN-15) |
+| Endereços de entrega do cliente | ERP → Macuxi | 1 h | principal + outros (RN-VEN-17) |
+| Transportadoras | ERP → Macuxi | diário | opcional; o BKO também cadastra (RF-VEN-13) |
 | Tabelas de preço | ERP → Macuxi | 15 min | vigência |
 | Estoque por depósito | ERP → Macuxi | 5–15 min | só saldo; reservas são do Macuxi |
 | Financeiro (limite, saldo) e títulos | ERP → Macuxi | 1 h | títulos abertos + baixados recentes |
 | Condições de pagamento | ERP → Macuxi | diário | |
 | Faturamento / devoluções | ERP → Macuxi | 15 min | alimenta metas e status |
-| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID |
+| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID; leva endereço de entrega, frete (modalidade, transportadora cadastrada ou digitada, valor), unidade e fator por item, descontos e acréscimos do item e do pedido (RN-INT-08) |
 | Retorno do pedido (nº ERP, status, nota) | ERP → Macuxi | contínuo | |
 
 ## Regras técnicas

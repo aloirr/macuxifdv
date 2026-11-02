@@ -13,6 +13,8 @@ O **gerente-projetos** abre as tarefas no quadro, distribui aos agentes e fecha 
 
 **"Completo" em 06/11** (premissa do Alexandre): todos os módulos funcionam de ponta a ponta na demo, com testes verdes. O teste de carga com 20 mil SKUs, o onboarding de tenant e o resto da Sprint 9 que não couber vão para antes do piloto real (backlog).
 
+**Escopo congelado até qua 04/11** (Alexandre, R-20261102-110803): pedido novo do Alexandre que não for bug entra no backlog, a não ser que ele diga explicitamente "entra no prazo". Bugs do teste de campo continuam com prioridade. Fila de corte do novo pedido (T-0061) aprovada: o que não estiver pronto até 04/11 18h vai para o backlog, com aviso a ele.
+
 **Regras que não mudam**: CI verde, revisão do engenheiro sem 🔴 antes de fechar a sprint, main nunca vermelho. Se algo não couber no dia, o gerente avisa o Alexandre na hora com a proposta de corte. No fim de cada dia, o gerente manda um recado com o % de cada sprint e o que ficou para o dia seguinte.
 
 ### Plano de paralelismo

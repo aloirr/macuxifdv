@@ -161,3 +161,5 @@
 2026-11-01 — prazo 06/11 — datas-alvo e plano de paralelismo no doc 05; T-0051..T-0058 reservadas para a nuvem (uma sessão por módulo); T-0046 concluída (#33); T-0050 (guardião v6) registrada
 2026-11-01 — rodada fechada — push 0705f4b (T-0032 onda 2, T-0042, T-0034), CI do main verde (run 41382267756); 0 agentes; Alexandre avisado para reiniciar o VS Code (guardião v6)
 2026-11-02 — T-0050 — guardião v6 ativo após o reinício (7d87a32 já no main); T-0050 concluída e travas soltas; commit dos 34 arquivos do Alexandre com Agente: alexandre
+2026-11-02 — T-0059/T-0060/T-0061 — teste de campo virou a T-0059; cadastro mínimo (T-0060) e novo pedido de distribuidora (T-0061) com RN/RF aplicados nos docs 02, 03, 04 e 06; fila de corte registrada
+2026-11-02 — T-0053 — PR #39 mesclado pela regra A (4067742); PRs #38, #40–#45 registrados no quadro; RN-VEN-37 no doc 03, escopo congelado no doc 05, varredura de PRs prontos no doc 07
