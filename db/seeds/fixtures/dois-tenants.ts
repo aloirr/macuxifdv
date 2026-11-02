@@ -43,6 +43,7 @@ import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idFixo, idMotivoPadrao } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
+import { dadosGestor, ORDEM_GESTOR } from './gestor';
 
 const G = {
   tenant: 0x00,
@@ -357,6 +358,8 @@ export const ORDEM_TABELAS = [
   'vendedor.pedido_evento',
   ...ORDEM_T0032,
   ...ORDEM_T0013,
+  // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
+  ...ORDEM_GESTOR,
 ] as const;
 
 export type DadosFixture = Record<(typeof ORDEM_TABELAS)[number], Linha[]>;
@@ -499,6 +502,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosT0029(hojeA, hojeB),
     ...dadosT0032(hojeA),
     ...dadosT0013(hojeA, hojeB),
+    ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
   };
 }
 

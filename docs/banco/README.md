@@ -14,6 +14,10 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-01 (T-0032):** `0010_integracao` (schema `integracao` do Hub: 17 tabelas, `autenticar_chave`, `expurgar_retencao`)
 > e `0011_plataforma_outbox_retencao` (expurgo da outbox + comentário de legado em `tenant_modulo.parametros`); dicionário
 > [integracao.md](integracao.md); fixture com Conector, chave (HMAC com `PEPPER_HUB_FIXTURE`) e linhas de A e B em toda tabela nova.
+> **2026-11-02 (T-0055, nuvem):** `0014_gestor` (schema `gestor`: `evento_aplicado`, `projecao_fato`, `alerta`, `alerta_regra`;
+> retenção pela API sob RLS, sem função SECURITY DEFINER); dicionário [gestor.md](gestor.md); fixture com linhas de A e B nas 4 tabelas;
+> seed da demo do Gestor em `db/seeds/demo/gestor.ts` (licença + projeção). **Depende da `0013` (Catálogo) na pasta** (o
+> executor recusa buraco na numeração).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -70,8 +74,11 @@ Pré-requisito: banco migrado até a `0013` (`banco subir` ou `banco migrar up`)
 Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo", fuso America/Manaus, plano `demonstracao`):
 - **Módulos licenciados:** core, catalogo, vendedor, promotor (`plataforma.tenant_modulo`) e módulos por perfil em
   `plataforma.perfil_modulo` (vendedor: core/catalogo/vendedor; promotor: core/catalogo/promotor; supervisor, analista e
-  admin: os quatro). O **gestor não está licenciado**: no app Gestão o supervisor vê o que o Core, o Catálogo, o Vendedor
-  e o Promotor oferecem. Para licenciar, acrescente `'gestor'` em `MODULOS_DEMO` e nos perfis e rode de novo.
+  admin: os quatro). **Gestor (T-0055):** licenciado pelo seed próprio `db/seeds/demo/gestor.ts` (`carregarDemoGestor`,
+  chamado dentro de `carregarDemo`): `gestor` no tenant e para supervisor, gerente, analista e admin, mais a projeção do
+  Gestor montada pelo domain com os dados da demo (painel, ranking, fila de aprovação e alertas coerentes). Ver
+  [gestor.md](gestor.md) §4. Enquanto a linha que chama `carregarDemoGestor` não estiver em `demo.ts`, o Gestor fica sem
+  licença na demo.
 - **30 clientes** de distribuição de alimentos em 30 bairros de Manaus (logradouro, número, CEP, coordenadas), contato
   principal com telefone fictício (prefixos não atribuídos: fixo `92 3000-0xxx`, celular `92 9 0000-xxxx`), financeiro,
   3 títulos por cliente (**8 com título vencido**, 1 bloqueado por atraso: Mini Box Japiim) e 12 meses de histórico.

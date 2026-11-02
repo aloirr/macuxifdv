@@ -11,6 +11,7 @@ import * as nuvemCatalogo from '../../modules/catalogo/db/nuvem';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
+import * as nuvemGestor from '../../modules/gestor/db/nuvem';
 import {
   CODIGOS_ERRO_LINHA,
   CODIGOS_ITEM_DESCARTADO,
@@ -48,6 +49,8 @@ const TABELAS_0013 = [
   'catalogo.produto_atributo', 'catalogo.produto_midia', 'catalogo.sinonimo', 'catalogo.produto_busca', 'catalogo.deposito', 'catalogo.estoque_saldo',
   'catalogo.busca_log', 'vendedor.transportadora', 'vendedor.pedido_faturamento',
 ] as const;
+/** Tabelas do schema gestor (0014, T-0055). */
+const TABELAS_GESTOR = ['gestor.evento_aplicado', 'gestor.projecao_fato', 'gestor.alerta', 'gestor.alerta_regra'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -63,7 +66,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -76,7 +79,10 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual([
+    // lerMigracoes já recusa buraco e par incompleto; aqui: as 13 primeiras (até a 0013) e a 0014 do Gestor (T-0055) no lugar certo
+    const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
+    expect(nomes[13]).toBe('0014_gestor');
+    expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
       '0012_search_path_pg_temp', '0013_catalogo_vendedor_prevenda',
@@ -106,6 +112,7 @@ describe('migrações (estático)', () => {
         'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
         ...TABELAS_INTEGRACAO,
         ...TABELAS_0013,
+        ...TABELAS_GESTOR,
       ].sort(),
     );
   });
