@@ -10,6 +10,8 @@ import { listarAplicadas, lerMigracoes, migrarDown, migrarUp } from '../src/migr
 import { semBanco } from './estado';
 import { retratoDoCatalogo } from './util';
 
+/** Nomes de todas as migrações (`0001_plataforma`...). Da 0013 em diante a lista vem do disco (0013/0014 de outra frente). */
+const nomes = lerMigracoes().map((m) => `${m.versao}_${m.nome}`);
 const criados: BancoDeTeste[] = [];
 async function bancoVazio(): Promise<BancoDeTeste> {
   const b = await criarBancoDeTeste({ migrar: false });
@@ -53,22 +55,15 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect((await migrarUp(c, { ate: '0001' })).aplicadas).toEqual(['0001_plataforma']);
       expect((await migrarUp(c, { ate: '0002' })).aplicadas).toEqual(['0002_core']);
       expect((await migrarUp(c, { ate: '0003' })).aplicadas).toEqual(['0003_plataforma_worker']);
-      expect((await migrarUp(c)).aplicadas).toEqual([
+      expect(nomes.slice(3, 12)).toEqual([
         '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido', '0008_catalogo_preco', '0009_vendedor_pedido_completo',
         '0010_integracao', '0011_plataforma_outbox_retencao', '0012_search_path_pg_temp',
       ]);
+      expect(nomes).toContain('0015_promotor');
+      expect((await migrarUp(c)).aplicadas).toEqual(nomes.slice(3));
       expect((await migrarUp(c)).aplicadas).toEqual([]);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0012_search_path_pg_temp']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0011_plataforma_outbox_retencao']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0010_integracao']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0009_vendedor_pedido_completo']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0008_catalogo_preco']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0007_vendedor_pedido']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0006_core_lote_a']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0005_plataforma_arquivo']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0004_core_sessao']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0003_plataforma_worker']);
-      expect((await migrarDown(c)).aplicadas).toEqual(['0002_core']);
+      // uma a uma, da última até a 0002
+      for (const nome of nomes.slice(1).reverse()) expect((await migrarDown(c)).aplicadas).toEqual([nome]);
       const r = await c.query("select count(*)::int as n from pg_namespace where nspname in ('core', 'plataforma')");
       expect(r.rows[0].n).toBe(1);
     });
@@ -126,10 +121,8 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
       const n = await c.query('select (select count(*) from core.sessao)::int as s, (select count(*) from core.dispositivo)::int as d');
       expect(n.rows[0]).toEqual({ s: 2, d: 3 });
-      // down com dados (0012..0004): apaga sessões e aparelhos (documentado no .down.sql) e volta exatamente à 0003
-      expect((await migrarDown(c, { passos: 9 })).aplicadas).toEqual([
-        '0012_search_path_pg_temp', '0011_plataforma_outbox_retencao', '0010_integracao', '0009_vendedor_pedido_completo', '0008_catalogo_preco', '0007_vendedor_pedido', '0006_core_lote_a', '0005_plataforma_arquivo', '0004_core_sessao',
-      ]);
+      // down com dados (última..0004): apaga sessões e aparelhos (documentado no .down.sql) e volta exatamente à 0003
+      expect((await migrarDown(c, { passos: nomes.length - 3 })).aplicadas).toEqual(nomes.slice(3).reverse());
       expect(await retratoDoCatalogo(c)).toEqual(ate0003);
       const col = await c.query("select count(*)::int as n from information_schema.columns where table_schema = 'core' and table_name = 'usuario' and column_name in ('tentativas_falhas', 'bloqueio_ate')");
       expect(col.rows[0].n).toBe(0);
@@ -172,11 +165,11 @@ describe.skipIf(semBanco())('migrações up/down', () => {
         [null, [], null, null],
       ]);
       const ate0009 = await retratoDoCatalogo(c);
-      // a fixture tem tabelas da 0010: carrega com tudo aplicado e desce a 0010..0012 antes (o schema integracao some junto)
+      // a fixture tem tabelas da 0010 em diante: carrega com tudo aplicado e desce até a 0010 antes (integracao, promotor... somem junto)
       await migrarUp(c);
       const completo = await retratoDoCatalogo(c);
       await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
-      expect((await migrarDown(c, { passos: 3 })).aplicadas).toEqual(['0012_search_path_pg_temp', '0011_plataforma_outbox_retencao', '0010_integracao']);
+      expect((await migrarDown(c, { passos: nomes.length - 9 })).aplicadas).toEqual(nomes.slice(9).reverse());
       expect(await retratoDoCatalogo(c)).toEqual(ate0009);
       // down com dados: apaga preço, condições, histórico e as colunas novas; os pedidos continuam
       expect((await migrarDown(c, { passos: 2 })).aplicadas).toEqual(['0009_vendedor_pedido_completo', '0008_catalogo_preco']);
@@ -199,10 +192,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       // tenants que já existem ANTES da 0006 (só as tabelas até a 0004)
       await c.query("insert into plataforma.tenant (id, codigo, nome) values ('cccccccc-0000-4000-8000-000000000001', 'antigo', 'Tenant antigo')");
       await c.query("insert into plataforma.parametro (tenant_id, modulo, chave, valor) values ('cccccccc-0000-4000-8000-000000000001', 'core', 'outro', '1')");
-      expect((await migrarUp(c)).aplicadas).toEqual([
-        '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido', '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao',
-        '0011_plataforma_outbox_retencao', '0012_search_path_pg_temp',
-      ]);
+      expect((await migrarUp(c)).aplicadas).toEqual(nomes.slice(4));
       const completo = await retratoDoCatalogo(c);
       const padroes = async () =>
         (await c.query<{ m: number; s: number; p: number }>(`
@@ -212,10 +202,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect(await padroes()).toEqual({ m: 7, s: 2, p: 3 });
       await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });
       // down com dados: apaga as tabelas novas e os parâmetros semeados (o parâmetro do próprio tenant fica)
-      expect((await migrarDown(c, { passos: 8 })).aplicadas).toEqual([
-        '0012_search_path_pg_temp', '0011_plataforma_outbox_retencao', '0010_integracao', '0009_vendedor_pedido_completo', '0008_catalogo_preco', '0007_vendedor_pedido', '0006_core_lote_a',
-        '0005_plataforma_arquivo',
-      ]);
+      expect((await migrarDown(c, { passos: nomes.length - 4 })).aplicadas).toEqual(nomes.slice(4).reverse());
       expect(await retratoDoCatalogo(c)).toEqual(ate0004);
       const p = await c.query("select chave from plataforma.parametro where tenant_id = 'cccccccc-0000-4000-8000-000000000001'");
       expect(p.rows.map((x) => x.chave)).toEqual(['outro']);

@@ -68,6 +68,16 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
         'integracao.pedido_fila_erp', 'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
       ]),
     );
+    // T-0056 (0015): schema promotor inteiro (cadastros de trade e coletas da visita de loja)
+    expect(nomes).toEqual(
+      expect.arrayContaining([
+        'promotor.categoria_gondola', 'promotor.checklist_loja', 'promotor.mix_obrigatorio', 'promotor.meta_share', 'promotor.concorrente',
+        'promotor.produto_concorrente', 'promotor.foto_referencia', 'promotor.tarefa_trade', 'promotor.ponto_extra_negociado',
+        'promotor.visita_loja', 'promotor.foto_coleta', 'promotor.checklist_resposta', 'promotor.gondola_registro', 'promotor.medicao_share',
+        'promotor.coleta_preco', 'promotor.ruptura_item', 'promotor.validade_item', 'promotor.ponto_extra', 'promotor.acao_concorrencia',
+        'promotor.tarefa_execucao',
+      ]),
+    );
     expect(nomes.filter((n) => !idDeB.has(n))).toEqual([]);
   });
 
