@@ -15,8 +15,9 @@ export interface DestinoPush {
 
 export interface MensagemExpo {
   to: string;
-  title: string;
-  body: string;
+  /** Omitidos no push silencioso (sem título e sem corpo; só `data.entidades`). */
+  title?: string;
+  body?: string;
   priority: 'default' | 'high';
   data: { link: string | null; entidades?: string[] };
 }
@@ -30,12 +31,15 @@ export const pushAtivo = (env: Readonly<Record<string, string | undefined>> = pr
 /** Só tokens do Expo (`ExponentPushToken[...]`); corpo cortado em 178 caracteres para caber na bandeja. */
 export function montarMensagemExpo(d: DestinoPush): MensagemExpo | null {
   if (!/^Expo(nent)?PushToken\[.+\]$/.test(d.token)) return null;
+  const data = d.entidades && d.entidades.length > 0 ? { link: d.link, entidades: [...d.entidades] } : { link: d.link };
+  // Silencioso (RN-CORE-23): sem título e sem corpo, prioridade alta para chegar com o app em segundo plano.
+  if (d.titulo.trim() === '' && d.corpo.trim() === '') return { to: d.token, priority: 'high', data };
   return {
     to: d.token,
     title: d.titulo.slice(0, 120),
     body: d.corpo.length > 178 ? `${d.corpo.slice(0, 177)}…` : d.corpo,
     priority: d.prioridade === 'alta' ? 'high' : 'default',
-    data: d.entidades && d.entidades.length > 0 ? { link: d.link, entidades: [...d.entidades] } : { link: d.link },
+    data,
   };
 }
 

@@ -92,7 +92,7 @@ function IndicadoresConteudo() {
       {lista.isPending && <LoadingBlock label="Carregando os indicadores…" />}
 
       {d && (
-        <Panel title={`${d.itens.length} pessoa${d.itens.length === 1 ? '' : 's'} · base de apuração: ${d.base_apuracao}`}>
+        <Panel title={`${d.itens.length} pessoa${d.itens.length === 1 ? '' : 's'} · base de apuração: ${d.base_apuracao}${d.situacao === 'parcial' && d.fechamento_em ? ` · parcial até o fechamento (${d.fechamento_em.split('-').reverse().join('/')})` : ''}`}>
           <TableScroll minWidth={1040}>
             <table className="w-full border-collapse text-[13px]">
               <thead>

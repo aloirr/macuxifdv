@@ -29,6 +29,7 @@ function useFraseDaVez(frases: readonly string[], ativa: boolean): { frase: stri
   const opacidade = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (!ativa || frases.length < 2) return;
+    // timer-permitido: frases da tela de carga, sem rede (só troca o texto enquanto a carga roda)
     const timer = setInterval(() => {
       Animated.timing(opacidade, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
         setI((n) => (n + 1) % frases.length);

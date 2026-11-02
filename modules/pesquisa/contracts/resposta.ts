@@ -9,7 +9,7 @@ import { DataCivil, InstanteUtc, Uuid } from './base';
 export const FotoResposta = z
   .object({
     id: Uuid,
-    /** Chave no storage (depois do upload) ou caminho local do aparelho (antes). Nunca vazia. */
+    /** Id (UUID) do arquivo em `plataforma.arquivo` (ADR 0010) — o app grava o próprio id da foto; nunca caminho local. */
     referencia: z.string().trim().min(1, 'A foto precisa de uma referência.').max(500),
     capturada_em: InstanteUtc,
     /** RN-PES-06: maior lado final <= [1600 px], JPEG qualidade [80] (o app comprime; a API confere se informado). */

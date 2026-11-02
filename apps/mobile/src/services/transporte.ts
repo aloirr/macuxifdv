@@ -5,11 +5,21 @@
  *   (apps/api, T-0004). Erro de rede/5xx = exceção (o motor tenta de novo); 4xx no lote = rejeição por item.
  *   Fotos (ADR 0010): `PUT /v1/arquivos/:id` com o JPEG cru; 4xx vira rejeição com o código da API
  *   (`ARQUIVO_SEM_REFERENCIA` o motor mantém na fila).
+ *   Novidades (RN-CORE-23, ADR 0018): `GET /v1/sync/novidades?desde=<cursor>` (sem cursor = sem `desde`); erro = exceção
+ *   (o motor registra e tenta na próxima atualização).
  * - `fase-m` (demonstração, `EXPO_PUBLIC_API_MODO=demo` — mock-api): traduz a fila para o
  *   `POST /v1/sync/push { items: [{ kind }] }` da Fase M (pedido → order; visita → visit ou checkout)
  *   e não tem pull genérico (as cargas vêm das `etapasSync` REST dos módulos, B2).
  */
-import type { ItemPush, LinhaSync, PaginaSync, ResultadoEnvioArquivo, ResultadoItemPush, TransporteSync } from '@macuxi/platform-sdk';
+import {
+  NovidadesRespostaSchema,
+  type ItemPush,
+  type LinhaSync,
+  type PaginaSync,
+  type ResultadoEnvioArquivo,
+  type ResultadoItemPush,
+  type TransporteSync,
+} from '@macuxi/platform-sdk';
 
 import type { ModoApi } from '@/lib/modo-api';
 
@@ -44,6 +54,10 @@ export function transporteV1(api: () => ApiClient): TransporteSync {
     },
     async pull(entidade, cursor) {
       return (await api().request<PaginaSync<LinhaSync>>('GET', '/sync/pull', { query: { entidade, cursor } })).data;
+    },
+    async novidades(desde) {
+      const r = await api().request<unknown>('GET', '/sync/novidades', { query: desde ? { desde } : {} });
+      return NovidadesRespostaSchema.parse(r.data);
     },
     async enviarArquivo(a): Promise<ResultadoEnvioArquivo> {
       try {

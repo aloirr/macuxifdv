@@ -17,3 +17,21 @@ export function resolverParametros(parcial: Partial<ParametrosGestor> = {}): Par
   }
   return r.data;
 }
+
+/**
+ * Parâmetros do tenant como chegam da plataforma (`ctx.parametros()`, chaves livres) + o fuso do tenant (`ctx.fuso()`,
+ * que sempre vence). Só as chaves conhecidas do Gestor entram; valor inválido NÃO derruba a tela: volta ao padrão com
+ * `erro` em português (a API registra o aviso, sem dado pessoal).
+ */
+export function parametrosDoTenant(brutos: Readonly<Record<string, unknown>>, fuso: string): { params: ParametrosGestor; erro: string | null } {
+  const conhecidos = Object.fromEntries(Object.entries(brutos).filter(([k]) => Object.hasOwn(PARAMETROS_PADRAO, k))) as Partial<ParametrosGestor>;
+  try {
+    return { params: resolverParametros({ ...conhecidos, fuso }), erro: null };
+  } catch (e) {
+    try {
+      return { params: resolverParametros({ fuso }), erro: (e as Error).message };
+    } catch {
+      return { params: resolverParametros(), erro: (e as Error).message };
+    }
+  }
+}
