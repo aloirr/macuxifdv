@@ -64,6 +64,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
+      // RN-CORE-23 / T-0065: push pelo FCM. O arquivo vem da variável de arquivo GOOGLE_SERVICES_JSON do EAS (configurada
+      // pelo dono do produto); nenhum agente lê nem commita o google-services.json. Sem a variável (build de
+      // desenvolvimento), o app compila sem push e segue com o botão Sincronizar e a atualização automática.
+      ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
       // teclado (R-20261101-023401-alexandre): adjustResize explícito; no edge-to-edge (Android 15+) a janela não
       // encolhe, então as telas com campo embaixo usam KeyboardAvoidingView (login.tsx), que mede o quanto o teclado cobre
       softwareKeyboardLayoutMode: 'resize',
@@ -80,6 +84,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ['expo-image-picker', { cameraPermission: `O ${v.nome} usa a câmera para fotografar a fachada do cliente quando a loja está fechada.`, photosPermission: false, microphonePermission: false }],
       // tokens da sessão no armazenamento seguro do Android (Keystore)
       'expo-secure-store',
+      // ADR 0017: sincronização incremental em segundo plano (WorkManager no Android; o plugin só mexe no iOS)
+      'expo-background-task',
+      // RN-CORE-23 item 3 / RF-CORE-09: push visível (abre a tela certa) e silencioso (dispara o motor de sync)
+      ['expo-notifications', { icon: './assets/images/android-icon-monochrome.png', color: '#C2540A', defaultChannel: 'avisos' }],
     ],
     experiments: { typedRoutes: true, reactCompiler: true },
     extra: {

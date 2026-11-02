@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useFaixaSuperior } from '@/components/area-segura';
 import { EXEMPLO_ENDERECO, normalizeApiUrl as normalize } from '@/lib/api-url';
 import { avisoDeServidorNoLogin, cartaoServidorNoLogin, mensagemServidorFalhou } from '@/lib/endereco-do-build';
 import { ApiClient, errorMessage } from '@/services/api';
@@ -45,8 +46,10 @@ function useTecladoAberto() {
 
 /** Sobe o conteúdo acima do teclado. `padding` mede o quanto o teclado cobre: se a janela já encolheu, não soma nada. */
 function AcimaDoTeclado({ children }: { children: ReactNode }) {
+  // o KeyboardAvoidingView mede a posição relativa ao pai: soma a faixa da barra de status reservada pelo shell
+  const faixaSuperior = useFaixaSuperior();
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.ground }} behavior="padding">
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.ground }} behavior="padding" keyboardVerticalOffset={faixaSuperior}>
       {children}
     </KeyboardAvoidingView>
   );
