@@ -19,6 +19,8 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 - **RF-CORE-09 (P0)** Central de notificações e recados para o usuário (push + caixa no app). 📱
 - **RF-CORE-10 (P1)** Pré-cadastro de cliente pelo campo, aprovado no BKO.
 - **RF-CORE-11 (P0)** Cadastro mínimo do cliente: verificação dos campos obrigatórios do tenant (RN-CORE-16), etiqueta "Cadastro incompleto" e linha automática em Observações (RN-CORE-17) no app (Campo e Gestão) e no BKO. 📱C📱G🖥️
+- **RF-CORE-13 (P0)** Cadastro do produto no BKO: custo e preço de venda (do ERP; editáveis quando o tenant não integra), margem, markup e lucro calculados, desconto máximo aplicável (vazio = padrão do tenant, 15%), preço mínimo e margem no mínimo; aba Parâmetros com o desconto máximo padrão (admin/analista). Custo e derivados só no BKO (RN-CORE-18). 🖥️
+- **RF-CORE-14 (P0)** Medidas por tenant em Parâmetros → Produtos (sigla até 4 letras, única; descrição; ativo; não apaga em uso), com a lista inicial UN, CX, PCT, FD, LT, BD, TB, GL, KG, DZ, DP; produto com medida da unidade e embalagem opcional (RN-CORE-19). 🖥️
 - **RF-CORE-12 (P0)** Endereços de entrega do cliente vindos do ERP (principal + outros), visíveis no Cliente 360 e escolhidos no pedido (RN-VEN-17). 📱C🖥️
 
 ## CAT — Catálogo
@@ -48,10 +50,10 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 - **RF-VEN-10 (P1)** Itens sugeridos do cliente: mais comprados, "não compra há X dias".
 - **RF-VEN-11 (P0)** Tela **Novo pedido** (Campo; a mesma no Gestão para pedido em nome): cabeçalho com o cliente e três abas.
   - **Produtos**: busca + árvore do catálogo (RF-CAT-04); "+" adiciona 1 na unidade padrão (3 toques).
-  - **Itens (n)**: quantidade, unidade UN/CX com fator (RN-VEN-15), desconto ou acréscimo do item em %, preço de tabela, preço final e total da linha; card **Condições** com desconto **ou** acréscimo do pedido, frete (RF-VEN-12) e prazo.
+  - **Itens (n)**: quantidade, medida da unidade ou embalagem (RN-VEN-15, RN-CORE-19), desconto ou acréscimo do item em % (travado no desconto máximo do produto, RN-VEN-11), preço de tabela, preço final e total da linha; card **Condições** com desconto **ou** acréscimo do pedido, frete (RF-VEN-12) e prazo.
   - **Entrega**: endereço de entrega (RN-VEN-17).
-  - **Rodapé fixo**: subtotal pela tabela, descontos e acréscimos, frete, total, desconto efetivo (RN-VEN-03) e a alçada ("Dentro da sua alçada" ou "Vai para o supervisor"); "Enviar pedido". Funciona offline. 📱C📱G
-- **RF-VEN-12 (P0)** Frete CIF/FOB com transportadora da lista ou digitada, valor em R$ ou % (RN-VEN-16); o detalhe do pedido no BKO e os dois PDFs mostram endereço de entrega, frete e, por item, unidade, fator e desconto ou acréscimo. 📱C🖥️
+  - **Rodapé fixo**: subtotal pela tabela, descontos e acréscimos, total, desconto efetivo (RN-VEN-03) e a alçada ("Dentro da sua alçada" ou "Vai para o supervisor"); "Enviar pedido". Funciona offline. 📱C📱G
+- **RF-VEN-12 (P0)** Frete CIF (padrão, por conta da empresa) ou FOB (por conta do cliente, com transportadora da lista ou digitada obrigatória), sem valor de frete (RN-VEN-16). O detalhe do pedido (Campo, Gestão e BKO) e os dois PDFs mostram endereço de entrega, frete ("Frete: CIF – por conta da empresa" ou "Frete: FOB – por conta do cliente · <transportadora> (CNPJ)") e, por item, a coluna **Medida** (sigla vendida; na embalagem, "CX c/ 12") e desconto ou acréscimo. PDFs com o CNPJ do cliente formatado, o **nome** da tabela de preço (nunca o id) e o nome (e logo, se houver) da distribuidora no cabeçalho; "Gerado pelo Macuxi FDV" só no rodapé. 📱C📱G🖥️
 - **RF-VEN-13 (P0)** BKO: cadastro de **transportadoras** (nome, CNPJ, IE, telefone, ativo) por admin, analista e assistente (também podem vir do ERP); parâmetros de frete do tenant; lista das transportadoras digitadas pelos vendedores. 🖥️
 
 ## PRO — Promotor (promotoria de mercado / trade marketing)
