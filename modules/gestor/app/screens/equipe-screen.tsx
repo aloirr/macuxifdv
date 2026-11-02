@@ -1,12 +1,11 @@
 /**
  * Aba Equipe do Macuxi Gestão (RF-GES-01): quem está em visita, em rota ou sem check-in, vendas e cobertura do dia, por
- * pessoa e (gerente) por equipe. Lê do cache do aparelho; puxar para atualizar busca a API quando há sinal.
+ * pessoa e (gerente) por equipe. Lê do cache do aparelho, atualizado pelo motor de sync (RN-CORE-23); puxar = Sincronizar.
  * Toque na pessoa = ficha (RF-GES-02/10). Escopo e números vêm prontos da API/domain (RN-CORE-04).
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { Badge, Banner, Button, Card, colors, Empty, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MembroComPainel, ResumoEquipe } from '../../contracts';
 import { fracao, STATUS_DIA_ROTULO } from '../lib/apresentacao';
@@ -16,20 +15,15 @@ import { useGestor } from '../state/use-gestor';
 export default function EquipeScreen() {
   const g = useGestor();
   const [puxando, setPuxando] = useState(false);
-  useFocusEffect(
-    useCallback(() => {
-      void g.atualizar();
-    }, [g.atualizar]),
-  );
   if (!g.carregado) return <Loading />;
   const v = g.visao;
   return (
     <Screen
       testID="gestor-equipe"
-      refreshing={puxando || g.atualizando}
+      refreshing={puxando || g.sincronizando}
       onRefresh={() => {
         setPuxando(true);
-        void g.atualizar().finally(() => setPuxando(false));
+        void g.sincronizar().finally(() => setPuxando(false));
       }}>
       <View style={styles.cabecalho}>
         <View style={{ flex: 1, gap: 2 }}>
@@ -39,7 +33,7 @@ export default function EquipeScreen() {
         <Button testID="gestor-abrir-ranking" label="Ranking" icon="target" variant="outline" onPress={irParaRanking} />
       </View>
       {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
-      {!v ? <Empty text={g.offline ? 'Sem dados no aparelho ainda. Conecte-se à internet e puxe para atualizar.' : 'Nenhum dado da equipe ainda. Puxe para atualizar.'} /> : null}
+      {!v ? <Empty text={g.offline ? 'Sem dados no aparelho ainda. Conecte-se à internet e puxe para baixo para sincronizar.' : 'Nenhum dado da equipe ainda. Puxe para baixo para sincronizar.'} /> : null}
       {v ? <Resumo r={v.resumo} /> : null}
       {v && v.equipes.length > 0 ? (
         <Card testID="gestor-equipes">

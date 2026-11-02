@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { formatBRL } from '@macuxi/comum';
 import { errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, PageHeader, Panel, TableScroll, td, tdNum, th, thNum, formatDateTime, type BadgeTone } from '@macuxi/ui/web';
+import { Badge, Button, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, PageHeader, Panel, TableScroll, td, tdNum, th, thNum, formatDateTime, type BadgeTone } from '@macuxi/ui/web';
 import type { SituacaoPrazo } from '../../contracts';
 import { MOTIVO_ROTULO, rotuloDoPrazo } from '../../app/lib/apresentacao';
 import { useFila, useFusoDoTenant, useVisaoEquipe } from '../lib/queries';
@@ -22,7 +22,15 @@ export function AprovacoesPage() {
   const fila = q.data;
   return (
     <div className="flex flex-col gap-4" data-testid="gestor.aprovacoes">
-      <PageHeader title="Aprovações da equipe" subtitle="Pedidos acima da alçada do vendedor, do prazo mais curto ao mais longo" />
+      <PageHeader
+        title="Aprovações da equipe"
+        subtitle="Pedidos acima da alçada do vendedor, do prazo mais curto ao mais longo"
+        actions={
+          <Button disabled={q.isFetching} onClick={() => void q.refetch()}>
+            Atualizar
+          </Button>
+        }
+      />
       {q.isLoading ? <LoadingBlock label="Carregando a fila…" /> : null}
       {q.isError ? <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} /> : null}
       {fila ? (

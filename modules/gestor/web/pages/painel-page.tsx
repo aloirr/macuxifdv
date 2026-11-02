@@ -33,9 +33,14 @@ function Conteudo() {
         title="Painel da equipe"
         subtitle={v ? `Dia ${v.data} · ${v.membros.length} pessoas de campo` : 'Quem está em visita, vendas e cobertura do dia'}
         actions={
-          <Button disabled={!v} onClick={() => v && downloadBlob(new Blob([csvDaEquipe(v)], { type: 'text/csv;charset=utf-8' }), `equipe-${v.data}.csv`)}>
-            Exportar CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button disabled={q.isFetching} onClick={() => void q.refetch()}>
+              Atualizar
+            </Button>
+            <Button disabled={!v} onClick={() => v && downloadBlob(new Blob([csvDaEquipe(v)], { type: 'text/csv;charset=utf-8' }), `equipe-${v.data}.csv`)}>
+              Exportar CSV
+            </Button>
+          </div>
         }
       />
       <FilterBar>

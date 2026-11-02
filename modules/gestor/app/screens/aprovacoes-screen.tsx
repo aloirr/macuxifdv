@@ -6,8 +6,7 @@
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { Badge, Banner, Card, colors, Empty, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ItemFilaAprovacao } from '../../contracts';
 import { MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo } from '../lib/apresentacao';
@@ -17,21 +16,16 @@ import { useGestor } from '../state/use-gestor';
 export default function AprovacoesScreen() {
   const g = useGestor();
   const [puxando, setPuxando] = useState(false);
-  useFocusEffect(
-    useCallback(() => {
-      void g.atualizar();
-    }, [g.atualizar]),
-  );
   if (!g.carregado) return <Loading />;
   const nomes = nomesDaVisao(g.visao);
   const fila = g.fila;
   return (
     <Screen
       testID="gestor-aprovacoes"
-      refreshing={puxando || g.atualizando}
+      refreshing={puxando || g.sincronizando}
       onRefresh={() => {
         setPuxando(true);
-        void g.atualizar().finally(() => setPuxando(false));
+        void g.sincronizar().finally(() => setPuxando(false));
       }}>
       <View style={{ gap: 2 }}>
         <Text style={t.h1}>Aprovações</Text>
@@ -45,7 +39,7 @@ export default function AprovacoesScreen() {
       ) : null}
       {g.offline && fila && fila.itens.length > 0 ? <Banner>Sem conexão: aprovar ou rejeitar precisa de internet.</Banner> : null}
       <Card style={{ overflow: 'hidden' }}>
-        {!fila || fila.itens.length === 0 ? <Empty text={fila ? 'Nada aguardando aprovação na sua equipe.' : 'Sem dados no aparelho ainda. Puxe para atualizar.'} /> : null}
+        {!fila || fila.itens.length === 0 ? <Empty text={fila ? 'Nada aguardando aprovação na sua equipe.' : 'Sem dados no aparelho ainda. Puxe para baixo para sincronizar.'} /> : null}
         {fila?.itens.map((i, n) => <ItemFila key={i.pedido_id} i={i} nome={nomes.get(i.vendedor_id) ?? 'Vendedor'} ultimo={n === fila.itens.length - 1} />)}
       </Card>
     </Screen>

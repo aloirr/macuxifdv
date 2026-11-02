@@ -30,7 +30,15 @@ function Conteudo() {
   const nomes = new Map((useVisaoEquipe({ data: null }).data?.membros ?? []).map((m) => [m.membro.id, m.membro.nome]));
   return (
     <div className="flex flex-col gap-4" data-testid="gestor.alertas">
-      <PageHeader title="Alertas da equipe" subtitle="Clientes sem visita, ritmo abaixo da meta, aprovações paradas e alertas de trade" />
+      <PageHeader
+        title="Alertas da equipe"
+        subtitle="Clientes sem visita, ritmo abaixo da meta, aprovações paradas e alertas de trade"
+        actions={
+          <Button disabled={q.isFetching} onClick={() => void q.refetch()}>
+            Atualizar
+          </Button>
+        }
+      />
       <FilterBar>
         <SelectField label="Situação" value={f.status ?? ''} onChange={(e) => router.replace(`${pathname}?${new URLSearchParams(paraQuery({ status: e.target.value || null }))}`)}>
           <option value="">Ativos (abertos e dispensados)</option>

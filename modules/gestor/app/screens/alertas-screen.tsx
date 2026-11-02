@@ -6,8 +6,7 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { SePode } from '@macuxi/platform-sdk/react';
 import { Badge, Banner, Button, Card, colors, Empty, Loading, relativeWhen, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Alerta } from '../../contracts';
 import { nomesDaVisao, SEVERIDADE_TOM, TIPO_ALERTA_ROTULO } from '../lib/apresentacao';
@@ -20,11 +19,6 @@ export default function AlertasScreen() {
   const [puxando, setPuxando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
-  useFocusEffect(
-    useCallback(() => {
-      void g.atualizar();
-    }, [g.atualizar]),
-  );
   if (!g.carregado) return <Loading />;
   const nomes = nomesDaVisao(g.visao);
   const itens = g.alertas?.itens ?? [];
@@ -37,10 +31,10 @@ export default function AlertasScreen() {
   return (
     <Screen
       testID="gestor-alertas"
-      refreshing={puxando || g.atualizando}
+      refreshing={puxando || g.sincronizando}
       onRefresh={() => {
         setPuxando(true);
-        void g.atualizar().finally(() => setPuxando(false));
+        void g.sincronizar().finally(() => setPuxando(false));
       }}>
       <View style={{ gap: 2 }}>
         <Text style={t.h1}>Alertas</Text>
@@ -49,7 +43,7 @@ export default function AlertasScreen() {
       {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
       {aviso ? <Banner tone="danger">{aviso}</Banner> : null}
       <Card style={{ overflow: 'hidden' }}>
-        {itens.length === 0 ? <Empty text={g.alertas ? 'Nenhum alerta na sua equipe agora.' : 'Sem dados no aparelho ainda. Puxe para atualizar.'} /> : null}
+        {itens.length === 0 ? <Empty text={g.alertas ? 'Nenhum alerta na sua equipe agora.' : 'Sem dados no aparelho ainda. Puxe para baixo para sincronizar.'} /> : null}
         {itens.map((a, i) => (
           <View key={a.id} testID={`gestor-alerta-${a.id}`} style={[styles.item, i < itens.length - 1 && styles.divisor]}>
             <View style={styles.linha}>

@@ -2,15 +2,14 @@
 
 /**
  * Consultas das páginas do Gestor no BKO (`/v1/gestor/*`, T-0055). Toda resposta é validada no contrato. A sessão vem
- * do login do Core (perfil e fuso do tenant). As listas atualizam sozinhas a cada minuto.
+ * do login do Core (perfil e fuso do tenant). RN-CORE-23: sem consulta periódica própria (nada de `refetchInterval`):
+ * a página busca ao abrir, ao voltar para a aba do navegador (padrão do react-query) e no botão "Atualizar".
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ } from '@macuxi/ui/web';
 import { Alerta, FilaAprovacao, ListaAlertas, RankingEquipe, RegraAlerta, RegrasAlertaResposta, ROTAS_GESTOR, VisaoEquipe, type AjusteRegraAlerta, type TipoAlerta } from '../../contracts';
 import { paraQuery, type FiltrosAlertas, type FiltrosPainel, type FiltrosRanking } from './filtros';
-
-export const ATUALIZA_MS = 60_000;
 
 const qk = {
   equipe: (f: FiltrosPainel) => ['gestor', 'equipe', f] as const,
@@ -29,7 +28,7 @@ export function useFusoDoTenant(): string {
 }
 
 export function useVisaoEquipe(f: FiltrosPainel) {
-  return useQuery({ queryKey: qk.equipe(f), enabled: useLogado(), refetchInterval: ATUALIZA_MS, queryFn: async ({ signal }) => VisaoEquipe.parse(await api<unknown>(ROTAS_GESTOR.equipe, { query: paraQuery(f), signal })) });
+  return useQuery({ queryKey: qk.equipe(f), enabled: useLogado(), queryFn: async ({ signal }) => VisaoEquipe.parse(await api<unknown>(ROTAS_GESTOR.equipe, { query: paraQuery(f), signal })) });
 }
 
 export function useRanking(f: FiltrosRanking) {
@@ -37,11 +36,11 @@ export function useRanking(f: FiltrosRanking) {
 }
 
 export function useFila() {
-  return useQuery({ queryKey: qk.fila, enabled: useLogado(), refetchInterval: ATUALIZA_MS, queryFn: async ({ signal }) => FilaAprovacao.parse(await api<unknown>(ROTAS_GESTOR.aprovacoes, { signal })) });
+  return useQuery({ queryKey: qk.fila, enabled: useLogado(), queryFn: async ({ signal }) => FilaAprovacao.parse(await api<unknown>(ROTAS_GESTOR.aprovacoes, { signal })) });
 }
 
 export function useAlertas(f: FiltrosAlertas) {
-  return useQuery({ queryKey: qk.alertas(f), enabled: useLogado(), refetchInterval: ATUALIZA_MS, queryFn: async ({ signal }) => ListaAlertas.parse(await api<unknown>(ROTAS_GESTOR.alertas, { query: paraQuery(f), signal })) });
+  return useQuery({ queryKey: qk.alertas(f), enabled: useLogado(), queryFn: async ({ signal }) => ListaAlertas.parse(await api<unknown>(ROTAS_GESTOR.alertas, { query: paraQuery(f), signal })) });
 }
 
 export function useDispensarAlerta() {

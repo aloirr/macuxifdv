@@ -1,26 +1,24 @@
 /**
- * Hook das telas do Gestor: lê o cache do módulo (offline-first) e atualiza pela API quando há sinal.
- * Escritas (dispensar alerta) exigem conexão — o alerta pode ter mudado no servidor — e avisam com a ação seguinte.
- * O relógio vem de `@macuxi/comum/relogio` (nunca hora fixa).
+ * Hook das telas do Gestor: lê o cache do módulo (offline-first). RN-CORE-23: a tela NÃO consulta a API sozinha nem tem
+ * timer — quem atualiza é o motor de sync da plataforma (etapa `gestor-equipe`), no ritmo do shell (`sync_auto_min`, ao
+ * abrir o app e ao voltar ao primeiro plano); "puxar para baixo" = Sincronizar (`motor.sincronizar()`). O hook relê o
+ * cache quando o motor termina uma sincronização. Ficha e ranking buscam a API só quando o usuário abre a tela (sob
+ * demanda, nunca em ciclo). Escritas (dispensar alerta) exigem conexão e avisam com a ação seguinte.
  */
-import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, type IndicadorRanking, type PeriodoRanking } from '../../contracts';
-import { atualizarCache, chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
+import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
 
-const relogio = relogioReal();
 export const PRECISA_SINAL = 'Sem conexão: esta ação precisa de internet. Tente de novo quando o sinal voltar.';
 
 export function useGestor() {
-  const { motor } = useMotorSync();
+  const { motor, estado } = useMotorSync();
   const ambiente = useAmbiente();
   const cache = useMemo(() => (motor ? criarCache(motor.armazenamentoDoModulo('gestor')) : null), [motor]);
   const [dados, setDados] = useState<DadosGestor>(DADOS_VAZIOS);
   const [carregado, setCarregado] = useState(false);
-  const [atualizando, setAtualizando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
   const usuario = ambiente.usuario();
   const tz = usuario?.fuso ?? DEFAULT_TZ;
   const offline = !ambiente.online();
@@ -31,21 +29,17 @@ export function useGestor() {
     setCarregado(true);
   }, [cache]);
 
+  // relê o cache ao montar e sempre que o motor conclui uma sincronização (a etapa do Gestor gravou dados novos)
   useEffect(() => {
     void recarregar();
-  }, [recarregar]);
+  }, [recarregar, estado.sincronizado_em]);
 
-  const atualizar = useCallback(async () => {
-    if (!cache || !ambiente.online()) return;
-    setAtualizando(true);
-    try {
-      const r = await atualizarCache(ambiente.http, cache, () => relogio.agora());
-      setErro(r.semConexao ? null : r.erro);
-      await recarregar();
-    } finally {
-      setAtualizando(false);
-    }
-  }, [ambiente, cache, recarregar]);
+  /** Puxar para baixo = Sincronizar (motor da plataforma: envia a fila e roda as etapas, inclusive a do Gestor). */
+  const sincronizar = useCallback(async () => {
+    if (!motor) return;
+    await motor.sincronizar();
+    await recarregar();
+  }, [motor, recarregar]);
 
   /** RF-GES-07: dispensar (online). Atualiza o alerta no cache com a resposta do servidor. */
   const dispensar = useCallback(
@@ -99,5 +93,5 @@ export function useGestor() {
     [ambiente, cache],
   );
 
-  return { ...dados, usuarioId: usuario?.id ?? null, carregado, atualizando, erro, offline, tz, atualizar, dispensar, ficha, ranking };
+  return { ...dados, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, sincronizar, dispensar, ficha, ranking };
 }
