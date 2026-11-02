@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
+import { PARAMETROS_PADRAO, parametrosDoTenant, resolverParametros } from './parametros';
 
 describe('parâmetros do tenant do Gestor (doc 03, tabela de parâmetros)', () => {
   it('padrões: fuso Manaus, base aprovado (RN-CORE-21), permanência 10 min (RN-PRO-07), peso do parcial 0 (RN-PRO-11)', () => {
@@ -71,5 +71,20 @@ describe('parâmetros do tenant do Gestor (doc 03, tabela de parâmetros)', () =
     expect(() => resolverParametros({ prazo_aprovacao_dias_uteis: 1.5 })).toThrow(/prazo_aprovacao_dias_uteis/);
     expect(() => resolverParametros({ peso_parcial_conformidade: 2 })).toThrow();
     expect(() => resolverParametros({ feriados: ['02/11/2026'] })).toThrow();
+  });
+});
+
+describe('parâmetros vindos da plataforma (T-0055)', () => {
+  it('RN-GES-03: só as chaves do Gestor entram e o fuso do tenant vence', () => {
+    const r = parametrosDoTenant({ prazo_aprovacao_dias_uteis: 2, alheio: 1, fuso: 'UTC' }, 'America/Sao_Paulo');
+    expect(r.erro).toBeNull();
+    expect(r.params).toMatchObject({ prazo_aprovacao_dias_uteis: 2, fuso: 'America/Sao_Paulo' });
+    expect(r.params).not.toHaveProperty('alheio');
+  });
+
+  it('RN-GES-03: valor inválido volta ao padrão com o erro em português (a tela não quebra)', () => {
+    const r = parametrosDoTenant({ prazo_aprovacao_dias_uteis: 0 }, 'America/Manaus');
+    expect(r.params.prazo_aprovacao_dias_uteis).toBe(1);
+    expect(r.erro).toMatch(/prazo_aprovacao_dias_uteis/);
   });
 });

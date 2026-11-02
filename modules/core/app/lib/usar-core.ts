@@ -52,6 +52,7 @@ export function useCore(): UsoCore {
   useEffect(() => {
     if (!temCandidata) return;
     setNowMs(Date.now());
+    // timer-permitido: relógio local do atendimento (sem rede), não sincroniza
     const h = setInterval(() => setNowMs(Date.now()), TICK_MS);
     return () => clearInterval(h);
   }, [temCandidata]);

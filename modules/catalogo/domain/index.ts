@@ -15,3 +15,5 @@ export * from './visibilidade';
 export * from './precos-cliente';
 export * from './vitrine';
 export * from './conteudo';
+export * from './erp';
+export * from './arvore';

@@ -29,6 +29,11 @@ const STATUS_DECISORIOS: ReadonlySet<StatusPedido> = new Set<StatusPedido>(['apr
 /** Níveis que aparecem na fila do Gestor; o do analista fica na fila do BKO do Vendedor (RF-VEN-09). */
 const NIVEIS_DO_GESTOR: ReadonlySet<NivelAprovacao> = new Set<NivelAprovacao>(['supervisor', 'gerente']);
 
+/** O nível entra na fila do Gestor (e no alerta de aprovação parada)? Supervisor e gerente sim; analista não (RF-VEN-09). */
+export function nivelDaFilaDoGestor(nivel: NivelAprovacao): boolean {
+  return NIVEIS_DO_GESTOR.has(nivel);
+}
+
 /**
  * RN-GES-03: prazo em DIAS ÚTEIS (`prazo_aprovacao_dias_uteis`, padrão 1). `prazo_em` = mesmo horário local do N-ésimo dia
  * útil depois do início da contagem (sexta 17:00 vence segunda 17:00; pedido fora do expediente conta da próxima
@@ -97,7 +102,7 @@ export function filaDeAprovacoes(e: EntradaFila): ItemFilaAprovacao[] {
   if (!PERFIS_COM_FILA.has(e.viewer.perfil)) return [];
   const itens: ItemFilaAprovacao[] = [];
   for (const [pedidoId, a] of Object.entries(e.estado.aprovacoes)) {
-    if (!NIVEIS_DO_GESTOR.has(a.nivel) || !podeVer(e.escopo, a.vendedor_id) || !pedidoPendenteDeAprovacao(e.estado, pedidoId)) continue;
+    if (!nivelDaFilaDoGestor(a.nivel) || !podeVer(e.escopo, a.vendedor_id) || !pedidoPendenteDeAprovacao(e.estado, pedidoId)) continue;
     const prazo = situacaoDoPrazo(a.solicitada_em, e.agora, e.params);
     itens.push({
       pedido_id: pedidoId,

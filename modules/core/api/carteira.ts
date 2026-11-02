@@ -26,14 +26,14 @@ async function ids(db: ClienteBanco, sql: string, usuarioId: string, hoje: strin
 export async function carteiraDoUsuario(
   usuario: UsuarioAutenticado,
   banco: AcessoBanco,
-  /** Relógio e fuso injetáveis (testes); o fuso padrão é o do tenant, lido do banco. */
+  /** Relógio e fuso da requisição (`ctx.agora`/`ctx.fuso`); ausentes = relógio do sistema e fuso padrão. */
   opcoes: { agora?: () => Date; fuso?: string } = {},
 ): Promise<ReadonlySet<string> | 'tenant'> {
   const escopo = escopoDoPerfil(usuario.perfil);
   if (escopo === 'tenant') return 'tenant';
   return banco.comTenant(usuario.tenant_id, async (db) => {
-    const fuso = opcoes.fuso ?? fusoDoTenantOuPadrao((await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()')).rows[0]?.fuso);
-    const hoje = dataLocal((opcoes.agora ?? (() => new Date()))(), fuso);
+    // Relógio e fuso vêm da requisição (T-0042); sem eles (uso direto em teste) vale o fuso padrão, sem ler plataforma.tenant.
+    const hoje = dataLocal((opcoes.agora ?? (() => new Date()))(), fusoDoTenantOuPadrao(opcoes.fuso));
     const propria = await ids(db, `select c.cliente_id from core.carteira c where c.usuario_id = $1 and ${VIGENTE}`, usuario.id, hoje);
     const vazio = new Set<string>();
     const equipe =

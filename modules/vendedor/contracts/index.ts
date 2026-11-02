@@ -21,6 +21,9 @@ import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
 
+/** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
+export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
+
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
 export { MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 export { SITUACAO_ORCAMENTO_LABEL, SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
@@ -42,6 +45,12 @@ export const OrderItem = z.object({
   unit_price_cents: Cents,
   discount_pct: Pct,
   total_cents: Cents,
+  /** T-0054: unidades já faturadas pelo ERP (soma dos retornos), na UNIDADE BASE; ausente = sem retorno de faturamento */
+  quantity_invoiced: z.number().int().nonnegative().optional(),
+  /** 0013 (desenho T-0061 §2.1): quantidade na unidade base (quantidade x fator); compara com `quantity_invoiced` */
+  quantity_base: z.number().int().nonnegative().optional(),
+  /** T-0064/T-0061: sigla da medida vendida para a coluna Medida ("UN", "CX c/ 12"); ausente = UN */
+  unit_label: z.string().optional(),
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 
@@ -78,6 +87,16 @@ export const Order = z.object({
   /** T-0029: nível que decide o pedido pendente e se QUEM CONSULTA pode decidir agora (a lista do BKO mostra os botões só a quem pode) */
   nivel_aprovacao: z.enum(NIVEIS_APROVACAO).nullable().optional(),
   pode_decidir: z.boolean().optional(),
+  // --- T-0054: retorno do ERP (faturamento e devolução), opcionais (compatíveis com o app e o BKO anteriores) ---
+  /** valor faturado pelo ERP (soma das notas do pedido) */
+  faturado_cents: z.number().int().nonnegative().optional(),
+  /** soma das notas de devolução do pedido (RN-VEN-37, proposta) */
+  devolvido_cents: z.number().int().nonnegative().optional(),
+  devolucao: z.enum(SITUACOES_DEVOLUCAO).optional(),
+  /** número da última NF de faturamento */
+  ultima_nota: z.string().nullable().optional(),
+  /** linhas curtas prontas para a tela ("Faturado R$ … (NF …)", "Devolvido R$ … (parcial)") */
+  situacao_faturamento: z.array(z.string()).optional(),
   /** T-0053 (RF-VEN-03): pedido ou orçamento; ausente = pedido (linhas e APKs anteriores). */
   tipo: z.enum(TIPOS_DOCUMENTO).optional(),
   /** T-0053 (RN-VEN-32): orçamento — validade e situação calculada no servidor para quem consulta. */
@@ -120,11 +139,44 @@ export const AprovacaoDoPedido = z.object({
 });
 export type AprovacaoDoPedido = z.infer<typeof AprovacaoDoPedido>;
 
+/** T-0054: notas de faturamento e de devolução do pedido (detalhe do BKO e da Gestão online). */
+export const FaturamentoDoPedido = z.object({
+  faturado_cents: z.number().int().nonnegative(),
+  devolvido_cents: z.number().int().nonnegative(),
+  devolucao: z.enum(SITUACOES_DEVOLUCAO),
+  notas: z.array(
+    z.object({
+      numero: z.string().nullable(),
+      serie: z.string().nullable(),
+      faturado_em: IsoDateTime,
+      parcial: z.boolean(),
+      total_cents: z.number().int().nonnegative().nullable(),
+      unidades: z.number().int().nonnegative(),
+    }),
+  ),
+  devolucoes: z.array(z.object({ numero: z.string(), serie: z.string().nullable(), emitida_em: IsoDateTime, total_cents: z.number().int().nonnegative() })),
+});
+export type FaturamentoDoPedido = z.infer<typeof FaturamentoDoPedido>;
+
 export const OrderDetail = Order.extend({
   items: z.array(OrderItem),
   history: z.array(OrderEvent),
   cliente: ClienteDoPedido.nullable().optional(),
   aprovacao: AprovacaoDoPedido.nullable().optional(),
+  faturamento: FaturamentoDoPedido.nullable().optional(),
+  /** T-0064/T-0061: nome da tabela de preço (PDF e detalhe nunca mostram o id) */
+  price_table_name: z.string().nullable().optional(),
+  /** T-0064/T-0061 (RN-VEN-13): frete sem valor, CIF ou FOB com transportadora */
+  freight: z
+    .object({
+      modality: z.enum(['CIF', 'FOB']),
+      carrier_name: z.string().nullable().optional(),
+      carrier_document: z.string().nullable().optional(),
+      carrier_phone: z.string().nullable().optional(),
+      carrier_typed: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 export type OrderDetail = z.infer<typeof OrderDetail>;
 

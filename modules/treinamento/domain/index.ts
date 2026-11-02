@@ -14,3 +14,6 @@ export * from './ranking';
 export * from './adesao';
 export * from './desafio';
 export * from './progresso';
+export * from './atividade';
+export * from './bko';
+export * from './painel';

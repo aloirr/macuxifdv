@@ -6,8 +6,9 @@
  * globalSetup logo depois de `carregarDoisTenants` (mesmo instante `agora`). Fica fora de db/seeds/fixtures/dois-tenants.ts
  * nesta entrega (frente nuvem, escopo restrito); a rodada local pode incorporá-la lá (ver docs/banco/treinamento.md).
  *
- * UUIDs fixos com o prefixo do tenant (aaaaaaaa/bbbbbbbb) e grupos 0x70–0x7d. Datas derivadas do `agora` da carga (nada de
- * hora fixa). Idempotente: upsert por id.
+ * UUIDs fixos com o prefixo do tenant (aaaaaaaa/bbbbbbbb) e grupos 0x170–0x17d — sem colidir com dois-tenants.ts (até 0x60), o
+ * Gestor (0x70–0x73), o Promotor (0x84–0x97) e a Pesquisa (0x160–0x165); conferido em treinamento.test.ts. Datas derivadas do
+ * `agora` da carga (nada de hora fixa). Idempotente: upsert por id.
  */
 import type { ClientBase } from 'pg';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
@@ -15,21 +16,22 @@ import { hojeNoFuso, somarDias } from '../src/datas';
 import { gravarLinhas, type Linha } from '../src/gravar';
 import { idFixo } from '../src/ids';
 
-const G = {
-  trilha: 0x70,
-  modulo_trilha: 0x71,
-  licao: 0x72,
-  quiz: 0x73,
-  questao: 0x74,
-  alternativa: 0x75,
-  trilha_publicacao: 0x76,
-  progresso: 0x77,
-  tentativa: 0x78,
-  xp_lancamento: 0x79,
-  medalha: 0x7a,
-  medalha_usuario: 0x7b,
-  desafio_vendas: 0x7c,
-  desafio_vendas_produto: 0x7d,
+/** Grupos dos ids (exportado para o teste de não colisão). */
+export const GRUPOS_TREINAMENTO = {
+  trilha: 0x170,
+  modulo_trilha: 0x171,
+  licao: 0x172,
+  quiz: 0x173,
+  questao: 0x174,
+  alternativa: 0x175,
+  trilha_publicacao: 0x176,
+  progresso: 0x177,
+  tentativa: 0x178,
+  xp_lancamento: 0x179,
+  medalha: 0x17a,
+  medalha_usuario: 0x17b,
+  desafio_vendas: 0x17c,
+  desafio_vendas_produto: 0x17d,
 } as const;
 
 /** Ordem de carga (FKs dentro do schema). */
@@ -67,7 +69,7 @@ interface TenantDaFixture {
 }
 
 function dadosDoTenant(t: TenantDaFixture, agora: Date): DadosTreinamento {
-  const id = (g: keyof typeof G, seq: number) => idFixo(t.prefixo, G[g], seq);
+  const id = (g: keyof typeof GRUPOS_TREINAMENTO, seq: number) => idFixo(t.prefixo, GRUPOS_TREINAMENTO[g], seq);
   const T = t.tenantId;
   const hoje = hojeNoFuso(t.fuso, agora);
   const ontem = somarDias(hoje, -1);
@@ -140,8 +142,8 @@ export function dadosTreinamento(agora: Date): DadosTreinamento {
 
 /** IDs para asserts (os mesmos que `dadosTreinamento` grava). */
 export const TREINAMENTO_FIXTURE = {
-  A: { trilha: idFixo('aaaaaaaa', G.trilha, 1), licao: idFixo('aaaaaaaa', G.licao, 1), quiz: idFixo('aaaaaaaa', G.quiz, 1), aluno: DOIS_TENANTS.A.usuarios.vendedor1 },
-  B: { trilha: idFixo('bbbbbbbb', G.trilha, 1), licao: idFixo('bbbbbbbb', G.licao, 1), quiz: idFixo('bbbbbbbb', G.quiz, 1), aluno: DOIS_TENANTS.B.usuarios.vendedor },
+  A: { trilha: idFixo('aaaaaaaa', GRUPOS_TREINAMENTO.trilha, 1), licao: idFixo('aaaaaaaa', GRUPOS_TREINAMENTO.licao, 1), quiz: idFixo('aaaaaaaa', GRUPOS_TREINAMENTO.quiz, 1), aluno: DOIS_TENANTS.A.usuarios.vendedor1 },
+  B: { trilha: idFixo('bbbbbbbb', GRUPOS_TREINAMENTO.trilha, 1), licao: idFixo('bbbbbbbb', GRUPOS_TREINAMENTO.licao, 1), quiz: idFixo('bbbbbbbb', GRUPOS_TREINAMENTO.quiz, 1), aluno: DOIS_TENANTS.B.usuarios.vendedor },
 } as const;
 
 /** Carrega a fixture do Treinamento (cliente ADMIN, numa transação). Pré-condição: dois-tenants carregada e 0017 aplicada. */

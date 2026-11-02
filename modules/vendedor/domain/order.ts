@@ -233,10 +233,11 @@ export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
 }
 
 /**
- * RN-INT-08: o 'cancelado' do ERP vem pelo Hub (não é ação do vendedor) e vale de enviado em diante.
+ * RN-INT-08: o 'cancelado' do ERP vem pelo Hub (não é ação do vendedor) e vale de enviado em diante. T-0054: o Hub não
+ * publica o 'enviado' (só os retornos do Conector), então o pedido ainda 'approved' no Vendedor também aceita.
  */
 export function aceitaCancelamentoDoErp(from: OrderStatus): boolean {
-  return enviadoAoErp(from);
+  return from === 'approved' || enviadoAoErp(from);
 }
 
 /**

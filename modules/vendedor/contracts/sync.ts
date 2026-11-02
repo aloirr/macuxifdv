@@ -50,6 +50,12 @@ export const PedidoSyncSchema = z
     decidido_por_id: z.string().uuid().nullable().optional(),
     decidido_em: z.string().nullable().optional(),
     motivo_rejeicao: z.string().nullable().optional(),
+    // --- T-0054: resumo do retorno do ERP no pedido, opcionais (chegam com a migração do faturamento) ---
+    faturado_cents: z.number().int().nonnegative().nullable().optional(),
+    devolvido_cents: z.number().int().nonnegative().nullable().optional(),
+    notas_faturamento: z.number().int().nonnegative().nullable().optional(),
+    ultima_nota_numero: z.string().nullable().optional(),
+    faturado_em: z.string().nullable().optional(),
     // --- T-0053 (migração 0013, pedida ao banco-dados): pré-venda; opcionais, compatíveis com linhas e APKs anteriores ---
     /** RF-VEN-03: ausente/nulo = pedido */
     tipo: z.enum(TIPOS_DOCUMENTO).nullable().optional(),
@@ -78,6 +84,11 @@ export const PedidoItemSyncSchema = z
     produto_sku: z.string().nullable().optional(),
     produto_nome: z.string().nullable().optional(),
     unidade: z.string().nullable().optional(),
+    /** T-0054: unidades já faturadas (soma dos retornos do ERP), na UNIDADE BASE (0013) */
+    quantidade_faturada: z.number().int().nonnegative().nullable().optional(),
+    /** 0013 (desenho T-0061 §2.1): quantidade x fator (unidade base) e o fator da unidade vendida */
+    quantidade_base: z.number().int().nonnegative().nullable().optional(),
+    fator: z.number().int().positive().nullable().optional(),
   })
   .strict();
 export type PedidoItemSync = z.infer<typeof PedidoItemSyncSchema>;

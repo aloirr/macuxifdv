@@ -232,3 +232,17 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - Rota do dia: `rota where usuario_id and data` (`rota_usuario_dia_uk`); visitas do dia `visita_usuario_dia_ix`.
 - Volume da Sprint 1 por vendedor (T-0016 §8): 2 mil títulos, 6 mil linhas de histórico, 1 mil paradas, 1,5 mil visitas
   (40 dias). EXPLAIN com volume: pendente, junto da medição P6 da T-0008.
+
+## 0013 — cadastro mínimo do cliente, custo e preço do produto, unidades e endereços (`0013_catalogo_vendedor_prevenda`)
+- **cliente** (novas): `inscricao_estadual` (IE ou ISENTO), `observacao` (texto do ERP; a linha automática
+  "Cadastro incompleto: falta ..." é montada na exibição), `cadastro_incompleto` bool e `cadastro_campos_faltantes` text[]
+  (CHECK: incompleto = lista não vazia; RN-CORE-16/17, RN-INT-14). Índice parcial dos incompletos.
+- **produto** (novas, RN-CORE-18 e RN-VEN-11): `custo_cents` (**dado interno: nunca no pull do app nem no PDF do
+  cliente**), `preco_venda_cents`, `desconto_maximo_pct` (nulo = parâmetro core `desconto_maximo_produto_pct`, padrão 15).
+- **produto_unidade** (RN-VEN-15): produto_id (FK), unidade (`^[A-Z0-9]{1,6}$`), fator int > 0, ean, padrao (1 viva por
+  produto), ativo. (tenant, produto, unidade) vivo. Pull escopo tenant.
+- **cliente_endereco** (RF-CORE-12, RN-VEN-17): cliente_id (FK), tipo principal|entrega|cobranca, descricao,
+  logradouro, numero, complemento, bairro, cidade, uf, cep (8 dígitos), latitude, longitude, principal (1 vivo por
+  cliente), ativo. Índice (tenant, cliente). Pull escopo carteira.
+- Base de demo: os 30 clientes com CNPJ fictício gerado (dígito verificador correto) e IE (um ISENTO); o **Atacado Boto
+  Rosa sem CEP** (cadastro incompleto); endereço principal de todos e um de entrega em 5.

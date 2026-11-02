@@ -1,9 +1,11 @@
 /**
  * Política de versão do Conector por empresa (RN-INT-11): `GET/PUT /v1/integracao/politica-versao`. Só admin grava
  * (`conector.gerenciar`); quem tem `monitor.ver` lê. A mínima vale em toda rota de dados do Hub (426); o sinal de vida passa.
- * Decisão do Alexandre (R-20261101-203953): quem recebe pedidos exige Conector ≥ 1.2.1 — o 1.2.0 ainda reenvia os itens no
- * fechamento sem nota nova —; a mínima das empresas com Conector que recebe pedidos é gravada aqui (nada fixo no código: um erro de
- * cadastro não pode parar o cliente).
+ * Decisão do dono do produto (R-20261101-203953; RN-INT-11 emendada no doc 03): quem recebe pedidos exige Conector >= 1.2.1 (o 1.2.0
+ * ainda reenvia os itens no fechamento sem nota nova). O padrão está no Hub (`POLITICA_VERSAO_PADRAO_PEDIDOS`): sem linha da empresa,
+ * o Conector que recebe pedidos já vale com mínima 1.2.1 e o GET devolve `origem: padrao_hub`. A linha da empresa manda; o PUT recusa
+ * mínima abaixo do piso com Conector ativo que recebe pedidos (422 RN-INT-11); descer abaixo do piso só por SQL, por decisão explícita.
+ * Quem não recebe pedidos e não tem linha fica sem política (sem política ou versão ilegível nunca bloqueia).
  */
 import { ErroRegraNegocio, type ContextoRota, type RotaModulo } from '@macuxi/platform-sdk';
 import { PoliticaVersaoEntrada } from '../contracts';

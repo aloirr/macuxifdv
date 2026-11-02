@@ -37,6 +37,13 @@ export const integracao = pgSchema('integracao');
  * R-20261101-160012: sequência repetida em itens_faturados vira descarte; o contrato ganha o código na onda 2 da T-0032).
  */
 export const CODIGOS_ITEM_DESCARTADO_BANCO = ['sequencia_inexistente', 'produto_divergente', 'quantidade_acima_do_saldo', 'sequencia_repetida'] as const;
+/**
+ * Entidades aceitas pelos CHECKs do banco desde a 0013 (aditivo no v1, desenho T-0061 §6): as 8 originais + catalogo_no,
+ * produto_unidade, cliente_endereco, transportadora. O padrão de conector.entidades continua as 8 ORIGINAIS.
+ * ENTIDADES (contrato) ⊆ ENTIDADES_BANCO; db/testes/estatico.test.ts confere.
+ */
+export const ENTIDADES_ORIGINAIS = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota'] as const;
+export const ENTIDADES_BANCO = [...ENTIDADES_ORIGINAIS, 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora'] as const;
 /** Retenção do pedido na fila (montarPedidoParaErp / decidirEntradaNaFila em domain/pedido-fila.ts). */
 export const RETENCOES_PEDIDO_ERP = ['mapeamento_ausente', 'mapeamento_ambiguo', 'sequencia_repetida'] as const;
 export const PERFIS_DECISAO_INATIVACAO = ['admin', 'analista'] as const;
@@ -365,6 +372,8 @@ export const pedidoFilaErp = integracao.table('pedido_fila_erp', {
   itens_faturados_acumulados: jsonb('itens_faturados_acumulados').$type<Record<string, { quantidade: number; valor_cents: number }>>().notNull().default({}),
   ultimo_retorno_em: quando('ultimo_retorno_em'),
   aprovado_em: quando('aprovado_em').notNull(),
+  /** 0013 (ADR 0016): versão mínima do Conector para levar este pedido (semver 1.3.0); nulo = qualquer versão. */
+  exige_conector: text('exige_conector'),
 });
 
 /** Trilha de retorno aceito e não repetido; único (tenant, pedido, status, nota_numero, nota_serie) com nulos iguais. Só insert. */

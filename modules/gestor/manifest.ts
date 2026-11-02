@@ -22,12 +22,15 @@ const PERFIS_TENANT = ['analista', 'admin'] as const;
  *   usuario > auto) e `core.cliente.atualizado@1` sem carteira ⇒ aviso de carteira incompleta (`situacaoDaCarteira`).
  * - RN-GES-03: o prazo da aprovação (`prazo_aprovacao_dias_uteis`, 1 dia útil) e o horário comercial são parâmetros do
  *   tenant (contracts/parametros.ts); o manifesto não declara parâmetros.
+ * - T-0055 (0.6.0): rotas `/v1/gestor` (leitura por `perfis` = painel_equipe.ver ∪ painel_tenant.ver; escopo pela
+ *   plataforma, RN-CORE-04), consumidores dos eventos de `consome` e `usaConsultas: core.cadastro_resumo@1` (nomes da
+ *   equipe). A decisão da aprovação continua no Vendedor (ADR 0011): a aba Aprovações abre o detalhe do pedido dele.
  * - RN-GES-07: `painel_tenant.ver` é a leitura do tenant (painel, ranking, alertas e fila) para analista e admin; eles
  *   não têm `fila_aprovacao.decidir` nem `alerta_equipe.dispensar`.
  */
 export const manifest = defineModule({
   id: 'gestor',
-  versao: '0.5.0',
+  versao: '0.6.0',
   depende: ['core'],
   opcionais: ['vendedor', 'promotor', 'pesquisa', 'treinamento'],
   perfis: ['supervisor', 'gerente', 'analista', 'admin'],
@@ -64,6 +67,8 @@ export const manifest = defineModule({
     'painel_tenant.ver': { perfis: [...PERFIS_TENANT], descricao: 'Ver painéis, ranking, alertas e fila de aprovação do tenant em modo leitura no BKO, sem decidir (RN-GES-07)' },
     'alerta_regra.gerenciar': { perfis: [...PERFIS_TENANT], descricao: 'Ligar, desligar e ajustar as regras de alerta do tenant (BKO)' },
   },
+  // T-0055: nomes e perfis da equipe pelo cadastro do Core (ADR 0012), na mesma transação da rota.
+  usaConsultas: ['core.cadastro_resumo@1'],
   // Pedido em nome: extensão opcional do Vendedor; some sem erro se o Vendedor estiver inativo.
   usaExtensoes: ['pedido.criar_em_nome', 'cliente.abas', 'inicio.cards'],
 });

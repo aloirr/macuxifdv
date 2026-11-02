@@ -9,7 +9,7 @@
  */
 import { businessDays, diffDays } from '@macuxi/comum';
 import { RegraAlerta, TIPOS_ALERTA, type CondicaoAlerta, type FrequenciaVisita, type MembroEquipe, type MotivoEncerramento, type Severidade, type StatusAlerta, type TipoAlerta } from '../contracts';
-import { pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
+import { nivelDaFilaDoGestor, pedidoPendenteDeAprovacao, situacaoDoPrazo } from './aprovacoes';
 import { horasUteisEntre } from './horario-comercial';
 import { arredondar, percentual, somarDias } from './numeros';
 import { atendida, diaLocal, painelDoMes } from './painel';
@@ -185,7 +185,8 @@ export function avaliarAlertas(e: EntradaAvaliacao): CondicaoAlerta[] {
   if (ativos.has('pedido_aguardando_aprovacao')) {
     const r = e.regras.pedido_aguardando_aprovacao;
     for (const [pedidoId, a] of Object.entries(e.estado.aprovacoes)) {
-      if (!pedidoPendenteDeAprovacao(e.estado, pedidoId)) continue;
+      // RN-GES-03 / RF-VEN-09: mesmo filtro da fila (nível analista é da fila do BKO do Vendedor, não da equipe)
+      if (!nivelDaFilaDoGestor(a.nivel) || !pedidoPendenteDeAprovacao(e.estado, pedidoId)) continue;
       const prazo = situacaoDoPrazo(a.solicitada_em, e.agora, params);
       if (prazo.situacao !== 'vencido') continue;
       const horas = horasUteisEntre(a.solicitada_em, e.agora, params);

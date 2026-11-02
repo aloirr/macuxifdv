@@ -16,12 +16,12 @@ import {
   carregarTreinamentoDemo, dadosTreinamentoDemo, FUSO_DEMO_TREINAMENTO, idUsuarioDemoTreinamento, MEDALHAS_DEMO, ORDEM_TREINAMENTO_DEMO,
   PERFIS_TREINAMENTO_DEMO, SKUS_DESAFIO_DEMO, TENANT_DEMO_TREINAMENTO, TRILHAS_DEMO,
 } from '../seeds/demo/treinamento';
-import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
+import { dadosDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { comTenant } from '../src/contexto';
 import { lerMigracoes } from '../src/migrador';
 import { banco, semBanco } from './estado';
-import { ORDEM_TREINAMENTO, TREINAMENTO_FIXTURE } from './fixture-treinamento';
+import { dadosTreinamento, GRUPOS_TREINAMENTO, ORDEM_TREINAMENTO, TREINAMENTO_FIXTURE } from './fixture-treinamento';
 import { comCliente, emTransacao, erroDe } from './util';
 
 const A = DOIS_TENANTS.A.tenantId;
@@ -91,6 +91,18 @@ describe('0017 treinamento (estático)', () => {
     expect(semComentarios(m17.up)).not.toMatch(/references (core|vendedor|catalogo|promotor|gestor|pesquisa|integracao)\./);
     expect(semComentarios(m17.up)).not.toMatch(/security definer/i);
     for (const [, alvo] of semComentarios(m17.up).matchAll(/references ([a-z_]+\.[a-z_]+)/g)) expect(alvo).toMatch(/^(treinamento\.|plataforma\.tenant$)/);
+  });
+});
+
+describe('fixture do Treinamento x demais fixtures (estático)', () => {
+  it('ids sem colisão com dois-tenants, Gestor (0x70–0x73), Promotor (0x84–0x97) e Pesquisa (0x160–0x165)', () => {
+    const grupo = (id: string) => parseInt(id.slice(9, 13), 16);
+    const outros = Object.values(dadosDoisTenants('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA')).flat().map((l) => String(l.id));
+    const nossos = Object.values(dadosTreinamento(new Date(0))).flat().map((l) => String(l.id)); // hora-fixa-ok: só ids
+    expect(nossos.filter((x) => outros.includes(x))).toEqual([]);
+    const gruposOutros = new Set(outros.filter((x) => /^(aaaaaaaa|bbbbbbbb)-/.test(x)).map(grupo));
+    expect(Object.values(GRUPOS_TREINAMENTO).filter((g) => gruposOutros.has(g))).toEqual([]);
+    for (const g of [0x70, 0x71, 0x72, 0x73, 0x84, 0x97, 0x160, 0x165]) expect(Object.values(GRUPOS_TREINAMENTO)).not.toContain(g);
   });
 });
 

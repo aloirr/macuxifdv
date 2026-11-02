@@ -2,14 +2,19 @@
  * Ordem de dependência da carga e verificação de referências (RN-INT-04):
  * vendedor → cliente → (rota, título, nota); produto → (preço, estoque).
  */
-import type { Entidade, LinhaErro } from '../contracts';
+import type { AvisoLinha, Entidade, LinhaErro } from '../contracts';
 import { erroReferenciaAusente } from './erros';
 
 /** Dependências diretas: a entidade da chave só carrega depois das listadas. */
 export const DEPENDENCIAS: Readonly<Record<Entidade, readonly Entidade[]>> = {
   vendedor: [],
-  produto: [],
+  catalogo_no: [],
+  transportadora: [],
+  // produto -> nó do catálogo é referência FRACA (aviso), mas o nó vai antes para o produto já entrar ligado
+  produto: ['catalogo_no'],
+  produto_unidade: ['produto'],
   cliente: ['vendedor'],
+  cliente_endereco: ['cliente'],
   rota: ['vendedor', 'cliente'],
   titulo: ['cliente'],
   nota: ['cliente', 'vendedor'],
@@ -76,7 +81,10 @@ export function referenciasDoRegistro(entidade: Entidade, registro: unknown): Re
       return [...ref('cliente', 'cliente_external_id', r), ...ref('vendedor', 'vendedor_external_id', r)];
     case 'preco':
     case 'estoque':
+    case 'produto_unidade':
       return ref('produto', 'produto_external_id', r);
+    case 'cliente_endereco':
+      return ref('cliente', 'cliente_external_id', r);
     case 'rota': {
       const paradas = Array.isArray(r.paradas) ? r.paradas : [];
       const doVendedor = ref('vendedor', 'vendedor_external_id', r);
@@ -89,6 +97,35 @@ export function referenciasDoRegistro(entidade: Entidade, registro: unknown): Re
     default:
       return [];
   }
+}
+
+/**
+ * Referências FRACAS: o alvo ausente não recusa a linha; vira o aviso `referencia_fraca_ausente` e a linha entra sem o vínculo
+ * (desenho T-0061 §4.4: produto -> nó do catálogo, que o Catálogo ordena depois).
+ */
+export function referenciasFracasDoRegistro(entidade: Entidade, registro: unknown): ReferenciaRegistro[] {
+  const r = (registro && typeof registro === 'object' ? registro : {}) as Record<string, unknown>;
+  return entidade === 'produto' ? ref('catalogo_no', 'catalogo_no_external_id', r) : [];
+}
+
+export function avisosReferenciaFraca<L extends LinhaComReferencias>(
+  entidade: Entidade,
+  linhas: readonly L[],
+  existentes: Partial<Record<Entidade, ReadonlySet<string>>>,
+): AvisoLinha[] {
+  const avisos: AvisoLinha[] = [];
+  for (const l of linhas) {
+    for (const a of referenciasFracasDoRegistro(entidade, l.registro)) {
+      if (existentes[a.entidade]?.has(a.external_id)) continue;
+      avisos.push({
+        indice: l.indice,
+        external_id: l.external_id,
+        codigo: 'referencia_fraca_ausente',
+        mensagem: `O campo "${a.campo}" aponta para um nó do catálogo que ainda não foi carregado. A linha foi aplicada sem o vínculo; envie a árvore do catálogo (catalogo_no) para ligar o produto.`,
+      });
+    }
+  }
+  return avisos;
 }
 
 export interface LinhaComReferencias {

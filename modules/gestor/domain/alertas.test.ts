@@ -204,6 +204,11 @@ describe('RF-GES-07 / RN-GES-03: pedido aguardando aprovação além do prazo em
   const SEXTA_17H = '2026-11-06T21:00:00Z'; // sexta 06/11 17:00 em Manaus → prazo segunda 09/11 17:00 (21:00Z)
   const alertas = (s: ReturnType<typeof montar>, agora: string, extra: Parameters<typeof avaliar>[2] = {}) => doTipo(avaliar(s, agora, extra), 'pedido_aguardando_aprovacao');
 
+  it('RN-GES-03 / RF-VEN-09: solicitação de nível analista fica na fila do BKO do Vendedor e não gera alerta para a equipe', () => {
+    const analista = ev('vendedor.pedido.aprovacao_solicitada@1', SEXTA_17H, { pedido_id: u(1009), vendedor_id: VENDEDOR, cliente_id: CLIENTE_A, solicitada_em: SEXTA_17H, nivel: 'analista', motivos: ['credito'], desconto_efetivo_pct: 0, total_cents: 100_000 });
+    expect(alertas(montar([analista, solicita(1, SEXTA_17H)]), '2026-11-10T21:00:00Z').map((c) => c.alvo_id)).toEqual([u(1001)]);
+  });
+
   it('só alerta quando PASSA do prazo: segunda 17:00 exata não alerta, 17:01 alerta (valor = horas úteis de espera, limiar = horas úteis do prazo)', () => {
     const s = montar([solicita(1, SEXTA_17H), solicita(2, '2026-11-06T21:01:00Z')]);
     expect(alertas(s, '2026-11-09T21:00:00Z')).toHaveLength(0);

@@ -55,6 +55,8 @@ export const PedidoStatusAlteradoEvento = z.object({
   alterado_em: IsoDateTime,
   autor_id: Id.nullable(),
   motivo: z.string().max(500).nullable(),
+  /** número do pedido para o texto da notificação ("Pedido 000010 aprovado"); opcional, compatível com @1 */
+  pedido_numero: z.string().nullable().optional(),
 });
 export type PedidoStatusAlteradoEvento = z.infer<typeof PedidoStatusAlteradoEvento>;
 
@@ -71,6 +73,8 @@ export const AprovacaoSolicitadaEvento = z.object({
   /** crédito e histórico fora da fatia (T-0029 §14): sempre null */
   credito: z.null(),
   historico: z.null(),
+  /** número do pedido para o texto da notificação; opcional, compatível com @1 */
+  pedido_numero: z.string().nullable().optional(),
 });
 export type AprovacaoSolicitadaEvento = z.infer<typeof AprovacaoSolicitadaEvento>;
 
@@ -109,5 +113,5 @@ export const EVENTO_PEDIDO_CRIADO = definirEvento('vendedor.pedido.criado@1', Pe
 export const EVENTO_PEDIDO_STATUS_ALTERADO = definirEvento('vendedor.pedido.status_alterado@1', PedidoStatusAlteradoEvento);
 export const EVENTO_PEDIDO_APROVACAO_SOLICITADA = definirEvento('vendedor.pedido.aprovacao_solicitada@1', AprovacaoSolicitadaEvento);
 export const EVENTO_PEDIDO_APROVADO = definirEvento('vendedor.pedido.aprovado@1', PedidoAprovadoEvento);
-/** T-0053: publicado pelo consumidor do retorno do ERP (`api/retorno-erp.ts`), um por nota faturada. */
+/** T-0053/T-0054: publicado pelo consumidor do retorno do ERP (`api/retorno-erp.ts`), um por nota faturada com itens (desenho T-0011). */
 export const EVENTO_PEDIDO_FATURADO = definirEvento('vendedor.pedido.faturado@1', PedidoFaturadoEvento);

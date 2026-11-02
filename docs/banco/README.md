@@ -14,10 +14,20 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-01 (T-0032):** `0010_integracao` (schema `integracao` do Hub: 17 tabelas, `autenticar_chave`, `expurgar_retencao`)
 > e `0011_plataforma_outbox_retencao` (expurgo da outbox + comentário de legado em `tenant_modulo.parametros`); dicionário
 > [integracao.md](integracao.md); fixture com Conector, chave (HMAC com `PEPPER_HUB_FIXTURE`) e linhas de A e B em toda tabela nova.
+> **2026-11-02 (T-0055, nuvem):** `0014_gestor` (schema `gestor`: `evento_aplicado`, `projecao_fato`, `alerta`, `alerta_regra`;
+> retenção pela API sob RLS, sem função SECURITY DEFINER); dicionário [gestor.md](gestor.md); fixture com linhas de A e B nas 4 tabelas;
+> seed da demo do Gestor em `db/seeds/demo/gestor.ts` (licença + projeção). **Depende da `0013` (Catálogo) na pasta** (o
+> executor recusa buraco na numeração).
+> **2026-11-02 (T-0056):** `0015_promotor` (schema `promotor`: 9 cadastros de trade e 11 coletas com payload jsonb + colunas
+> derivadas por gatilho, FK composta coleta → visita de loja, sem DELETE); dicionário [promotor.md](promotor.md); seed da demo em
+> `db/seeds/demo/promotor.ts` (`gravarDemoPromotor`) e fixture em `db/seeds/fixtures/promotor.ts` (ids nos grupos 0x84–0x97; o Gestor usa 0x70–0x73).
+> **2026-11-02 (T-0057, nuvem):** `0016_pesquisa` (schema `pesquisa`: questionário, versões, respostas, itens e fotos;
+> RN-PES-01 e RF-PES-04 no banco); dicionário, consultas do repositório SQL e passos de integração em [pesquisa.md](pesquisa.md);
+> seed demo da Pesquisa em `db/seeds/demo/pesquisa.ts` (ligar no `carregarDemo`, ver pesquisa.md).
 > **2026-11-02 (T-0058):** `0017_treinamento` (schema `treinamento`: 14 tabelas — conteúdo, publicação, progresso, tentativas,
 > XP, medalhas e desafio de vendas); dicionário [treinamento.md](treinamento.md); fixture própria (`db/testes/fixture-treinamento.ts`,
-> carregada pelo globalSetup) e seed da demo `db/seeds/demo/treinamento.ts` (licença do módulo na demo). Depende das 0013–0016 no
-> main (o executor recusa buraco na numeração).
+> carregada pelo globalSetup, ids nos grupos 0x170–0x17d) e seed da demo `db/seeds/demo/treinamento.ts` (licença do módulo na demo;
+> ligar no `carregarDemo`, ver treinamento.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -55,7 +65,7 @@ Base para a demonstração com o gestor externo (app novo + API real; R-20261031
 | Fixar o "hoje" (ensaio de outro dia) | `... banco seed demo --hoje AAAA-MM-DD` |
 | Banco de teste efêmero com a base | `... banco criar-teste --fixture demo` |
 
-Pré-requisito: banco migrado até a `0009` (`banco subir` ou `banco migrar up`); sem isso o seed para com
+Pré-requisito: banco migrado até a `0013` (`banco subir` ou `banco migrar up`); sem isso o seed para com
 `rode "banco migrar up" antes`. Só roda no Postgres local (mesma trava do seed da Fase M: `exigirBancoLocal`).
 
 **Login no app** — código da empresa **`demo`** · senha de todos **`demo-macuxi`** (ou o valor de `MACUXI_SENHA_DEMO` no
@@ -74,8 +84,11 @@ Pré-requisito: banco migrado até a `0009` (`banco subir` ou `banco migrar up`)
 Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo", fuso America/Manaus, plano `demonstracao`):
 - **Módulos licenciados:** core, catalogo, vendedor, promotor (`plataforma.tenant_modulo`) e módulos por perfil em
   `plataforma.perfil_modulo` (vendedor: core/catalogo/vendedor; promotor: core/catalogo/promotor; supervisor, analista e
-  admin: os quatro). O **gestor não está licenciado**: no app Gestão o supervisor vê o que o Core, o Catálogo, o Vendedor
-  e o Promotor oferecem. Para licenciar, acrescente `'gestor'` em `MODULOS_DEMO` e nos perfis e rode de novo.
+  admin: os quatro). **Gestor (T-0055):** licenciado pelo seed próprio `db/seeds/demo/gestor.ts` (`carregarDemoGestor`,
+  chamado dentro de `carregarDemo`): `gestor` no tenant e para supervisor, gerente, analista e admin, mais a projeção do
+  Gestor montada pelo domain com os dados da demo (painel, ranking, fila de aprovação e alertas coerentes). Ver
+  [gestor.md](gestor.md) §4. Enquanto a linha que chama `carregarDemoGestor` não estiver em `demo.ts`, o Gestor fica sem
+  licença na demo.
 - **30 clientes** de distribuição de alimentos em 30 bairros de Manaus (logradouro, número, CEP, coordenadas), contato
   principal com telefone fictício (prefixos não atribuídos: fixo `92 3000-0xxx`, celular `92 9 0000-xxxx`), financeiro,
   3 títulos por cliente (**8 com título vencido**, 1 bloqueado por atraso: Mini Box Japiim) e 12 meses de histórico.
@@ -87,13 +100,21 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   alçada (automático), 2 aguardando o **supervisor** (Lucas 8%, Camila 7%), 1 aguardando o **gerente** (Camila 12%),
   1 **rejeitado** pela supervisora (com motivo) e 1 **cancelado** depois de aprovado. Nada em `sent_to_erp` ou depois. Com
   itens e a visita que os gerou; visitas sem pedido com motivo; `core.indicador_diario` coerente com os pedidos.
-- **Metas do mês corrente** (venda, positivação, cobertura, visitas) dos vendedores e do promotor; 24 produtos com marcas
-  fictícias; 3 notificações (recado do supervisor ao vendedor, pedidos para aprovar à supervisora e ao gerente).
+- **Metas do mês corrente** (venda, positivação, cobertura, visitas) dos vendedores e do promotor; 33 produtos com marcas
+  fictícias (24 de mercearia/limpeza/higiene + 9 da linha automotiva e o detergente 5 L, 0013); 3 notificações (recado do supervisor ao vendedor, pedidos para aprovar à supervisora e ao gerente).
 - Parâmetros: os padrões do Core semeados pelo gatilho (`checkin.raio_m`, `metas.base_apuracao`) e as **alçadas do Vendedor**
   `alcada.vendedor_pct = 5`, `alcada.supervisor_pct = 10`, `alcada.gerente_pct = 15`, `alcada.acima_gerente = "analista"`.
-- **Preço** (schema `catalogo`, [catalogo.md](catalogo.md)): tabelas "Varejo" (todos os 24 produtos) e "Atacado" (≈ 7% menor,
+- **Preço** (schema `catalogo`, [catalogo.md](catalogo.md)): tabelas "Varejo" (todos os 33 produtos) e "Atacado" (≈ 7% menor,
   **sem** açaí `ACA-1K`, suco `SUC-1L` e creme dental `CRD-90` → "Sem preço para este cliente", RN-CAT-06); supermercados e
   atacarejos no Atacado, os demais no Varejo; vigência desde o 1º dia do mês anterior.
+- **0013** ([core.md](core.md), [catalogo.md](catalogo.md), [vendedor.md](vendedor.md)): **CNPJ fictício gerado (dígito
+  verificador correto) e IE em todos os clientes** (Panificadora Pão Dourado ISENTO); o **Atacado Boto Rosa sem CEP**
+  (`cadastro_incompleto`, falta `cep`: pedido dele só como orçamento, RN-VEN-13); pedidos com o CNPJ no retrato (o
+  `000010` abre no BKO), frete (FOB com transportadora em 4 clientes, CIF no resto; sem valor de frete, R-20261102-105040) e endereço de entrega
+  principal; custo com margem de 20% a 40%, desconto máximo próprio em `OLE-4T-1L` 25%, `VEL-150` 5% e `DET-5L` 10%
+  (padrão 15% sem linha de parâmetro); UN e CX em 9 produtos; árvore do catálogo de 3 níveis; conteúdo, atributos,
+  sinônimos e documento de busca ("óleo para moto 150 cilindradas" acha `OLE-4T-1L`); 2 depósitos com rupturas e
+  saldos baixos; 2 transportadoras; endereço de entrega extra em 5 clientes.
 - **Condições de pagamento** ([vendedor.md](vendedor.md)): À vista (padrão), 28 dias, 28/56 e 30/60/90; os 8 clientes com título
   vencido só À vista e 28 dias (RN-VEN-14); os demais 3 ou 4.
 - **Roteiro do ensaio** que a base permite: o Lucas tira pedido de 3% (aprova sozinho), de 8% (vai à Renata) e de 12% (vai

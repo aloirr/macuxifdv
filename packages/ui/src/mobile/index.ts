@@ -7,3 +7,8 @@ export * from './icon';
 export * from './ui';
 export * from './time';
 export * from './text';
+export * from './atualizacao';
+export * from './atualizacao-hook';
+export * from './sincronizacao';
+export * from './cliente';
+export * from './navegacao';

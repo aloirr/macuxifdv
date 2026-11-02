@@ -7,6 +7,7 @@
  */
 import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_NOTIFICACAO_CRIADA } from '../contracts';
+import { entidadesDoPush } from '../domain';
 import { enviarPush, pushAtivo } from './push';
 
 interface NotificacaoParaPush {
@@ -37,12 +38,14 @@ export function criarConsumidorPushNotificacao(opcoes: OpcoesPush = {}): Consumi
       if (!n || n.push_enviado_em || n.lida_em) return;
       const tokens = (
         await ctx.db.query<{ push_token: string }>(
-          'select push_token from core.dispositivo where usuario_id = $1 and push_token is not null and bloqueado_em is null and deleted_at is null',
+          `select d.push_token from core.dispositivo d join core.usuario u on u.id = d.usuario_id
+           where d.usuario_id = $1 and d.push_token is not null and d.bloqueado_em is null and d.deleted_at is null
+             and u.ativo and u.bloqueado_em is null and u.deleted_at is null`,
           [p.usuario_id],
         )
       ).rows;
       const r = await enviarPush(
-        tokens.map((t) => ({ token: t.push_token, titulo: n.titulo, corpo: n.corpo, link: n.link, prioridade: n.prioridade })),
+        tokens.map((t) => ({ token: t.push_token, titulo: n.titulo, corpo: n.corpo, link: n.link, prioridade: n.prioridade, entidades: entidadesDoPush(p.tipo, n.link) })),
         { env: opcoes.env, fetcher: opcoes.fetcher },
       );
       if (r.enviadas > 0) await ctx.db.query('update core.notificacao set push_enviado_em = $2 where id = $1', [p.notificacao_id, ctx.agora()]);

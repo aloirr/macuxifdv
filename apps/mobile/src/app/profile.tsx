@@ -3,16 +3,41 @@
  * endereço do servidor (editável só no build de desenvolvimento; nos demais, só leitura — T-0038) e sair/trocar usuário. A fila agora é a do motor de sync (genérica, de todos os
  * módulos) e mostra os itens de módulo desativado como "não enviado — módulo desativado"; os dados do
  * módulo só são apagados depois que o usuário confirma (RN-CORE-02, Q4).
+ * T-0059 (R-20261102-090915): o cartão de sincronização não mostra nome de entidade nem etapa; o detalhe técnico da
+ * última falha (etapa e mensagem) e as entidades ainda sem provedor ficam na área "Diagnóstico", fechada por padrão.
+ * RN-CORE-23 (T-0065): botão Sincronizar do kit (última sincronização · N na fila, proteção de 30 s) e puxar para baixo.
+ * ADR 0017: o Diagnóstico mostra também a "Última sincronização em segundo plano" (resultado, duração e mensagem).
  */
 import { ROTULO_PERFIL, rotuloDoArquivo, rotuloDoItem } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Button, Card, colors, dateTimeLabel, fonts, Icon, initials, ProgressBar, radius, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import {
+  BackLink,
+  Badge,
+  BotaoSincronizar,
+  Button,
+  Card,
+  colors,
+  dateTimeLabel,
+  fonts,
+  Icon,
+  initials,
+  intervaloSyncAutoMs,
+  PARAMETRO_SYNC_AUTO,
+  ProgressBar,
+  radius,
+  Screen,
+  SectionHeader,
+  type as t,
+  useAtualizacaoAutomatica,
+} from '@macuxi/ui/mobile';
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
+import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
+import { textoDoResultado } from '@/lib/segundo-plano';
 import { usePlataforma } from '@/state/plataforma';
 
 export default function ProfileScreen() {
@@ -22,6 +47,10 @@ export default function ProfileScreen() {
   const [url, setUrl] = useState(apiUrl);
   const [urlMsg, setUrlMsg] = useState<{ ok: boolean; message: string } | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [diagnosticoAberto, setDiagnosticoAberto] = useState(false);
+  const auto = useAtualizacaoAutomatica();
+  const falha = app.falhaSync;
+  const segundoPlano = app.segundoPlano;
 
   if (!sessao) return <Redirect href="/login" />;
   const tz = me?.tenant.timezone ?? sessao.tenant?.fuso ?? 'America/Manaus';
@@ -42,7 +71,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <Screen top={16} testID="profile">
+    <Screen top={16} testID="profile" refreshing={auto.puxando} onRefresh={auto.puxar}>
       <BackLink label="Início" fallback="/" />
       <View style={styles.who}>
         <View style={styles.avatar}>
@@ -72,13 +101,21 @@ export default function ProfileScreen() {
           </View>
           {estado.sincronizando ? (
             <View style={{ gap: 6 }}>
-              <Text style={t.small}>{estado.etapa}…</Text>
+              <Text style={t.small} testID="sync-andamento">
+                Sincronizando… {Math.round(estado.progresso * 100)}%
+              </Text>
               <ProgressBar pct={estado.progresso * 100} />
             </View>
           ) : null}
-          {estado.erro ? <Text style={[t.small, { color: colors.danger }]}>{estado.erro}</Text> : null}
-          <Button testID="sync-now" label="Sincronizar agora" icon="sync" variant="dark" loading={estado.sincronizando} disabled={offline} onPress={() => void app.sincronizar()} />
-          <Text style={t.small}>Automática ao abrir o app, ao voltar o sinal e a cada 15 min.</Text>
+          {estado.erro && !estado.sincronizando ? (
+            <Text style={[t.small, { color: colors.danger }]} testID="sync-erro">
+              {mensagemDeErroDaCarga(offline)} O detalhe fica em Diagnóstico, no fim desta tela.
+            </Text>
+          ) : null}
+          <BotaoSincronizar testID="sync-now" />
+          <Text style={t.small}>
+            {`Automática ao abrir o app, ao voltar depois de 30 min e a cada ${Math.round(intervaloSyncAutoMs(motor?.parametros('core')[PARAMETRO_SYNC_AUTO]) / 60_000)} min com o app em uso. Pedidos e visitas sobem sozinhos assim que houver sinal.`}
+          </Text>
         </Card>
       </View>
 
@@ -125,11 +162,8 @@ export default function ProfileScreen() {
 
       {estado.avisos.length > 0 ? (
         <Card testID="avisos-sync" style={{ padding: 14, gap: 6 }}>
-          <Text style={t.bodyStrong}>Ainda não disponível no servidor</Text>
-          <Text style={t.small}>
-            {estado.avisos.map((a) => a.entidade).join(', ')}: o resto foi sincronizado. O que você registrar fica no aparelho e na fila até o
-            servidor receber.
-          </Text>
+          <Text style={t.bodyStrong}>Parte dos dados ainda não está disponível no servidor</Text>
+          <Text style={t.small}>O resto foi sincronizado. O que você registrar fica no aparelho e na fila até o servidor receber. Detalhes em Diagnóstico.</Text>
         </Card>
       ) : null}
 
@@ -223,6 +257,38 @@ export default function ProfileScreen() {
         )}
       </View>
 
+      <View style={{ gap: 8 }}>
+        <SectionHeader
+          title="Diagnóstico"
+          right={diagnosticoAberto ? 'ocultar' : 'mostrar'}
+          onRightPress={() => setDiagnosticoAberto((v) => !v)}
+          rightTestID="diagnostico-alternar"
+        />
+        {diagnosticoAberto ? (
+          <Card testID="diagnostico-sync" style={{ padding: 14, gap: 6 }}>
+            <Text style={t.small}>Informações técnicas para o suporte.</Text>
+            <Text selectable style={styles.mono}>
+              {falha
+                ? `Última falha da sincronização: ${dateTimeLabel(falha.quando, new Date(), tz)}${falha.etapa ? ` · etapa ${falha.etapa}` : ''}\n${falha.mensagem}`
+                : 'Nenhuma falha de sincronização registrada neste aparelho.'}
+            </Text>
+            <Text selectable style={styles.mono} testID="diagnostico-segundo-plano">
+              {segundoPlano
+                ? `Última sincronização em segundo plano: ${dateTimeLabel(segundoPlano.quando, new Date(), tz)} · ${textoDoResultado(segundoPlano)}`
+                : 'Nenhuma sincronização em segundo plano registrada neste aparelho.'}
+            </Text>
+            {estado.avisos.length > 0 ? (
+              <Text selectable style={styles.mono}>
+                Sem provedor no servidor: {estado.avisos.map((a) => a.entidade).join(', ')}
+              </Text>
+            ) : null}
+            <Text selectable style={styles.mono}>
+              Módulos ativos: {estado.modulosAtivos.join(', ') || 'nenhum'}
+            </Text>
+          </Card>
+        ) : null}
+      </View>
+
       <View style={{ gap: 8, marginBottom: 12 }}>
         {confirmExit && fila.length > 0 ? (
           <Text style={[t.small, { color: colors.warning }]}>
@@ -254,5 +320,6 @@ const styles = StyleSheet.create({
   qRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   discard: { height: 44, justifyContent: 'center' },
+  mono: { fontFamily: fonts.mono, fontSize: 12, color: colors.ink2 },
   input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
 });

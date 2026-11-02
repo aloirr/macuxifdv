@@ -14,9 +14,9 @@ describe('manifesto do catalogo', () => {
     );
   });
 
-  it('ADR-0005: não consome o evento de produto do Hub (é do Core); reage a preço e estoque', () => {
-    expect(manifest.consome).not.toContain('integracao.produto.atualizado@1');
-    expect(manifest.consome).toEqual(expect.arrayContaining(['integracao.preco.atualizado@1', 'integracao.estoque.atualizado@1']));
+  it('ADR-0005 + T-0061: o cadastro do produto é do Core; o Catálogo lê do evento de produto só o nó da árvore (RF-CAT-04) e reage a preço, estoque e árvore', () => {
+    expect(manifest.consome).toEqual(expect.arrayContaining(['integracao.preco.atualizado@1', 'integracao.estoque.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1']));
+    expect(manifest.sync).toEqual(expect.arrayContaining(['catalogo_no', 'produto_no']));
   });
 
   it('doc 03 §2: consulta para os perfis de campo e de gestão', () => {

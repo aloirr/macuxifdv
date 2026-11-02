@@ -102,7 +102,7 @@ describe('Precisa de atenção', () => {
 describe('status de pedido', () => {
   it('contagem dos chips e observação', () => {
     const c = filterCounts([{ status: 'queued' }, { status: 'pending_approval' }, { status: 'integrated' }, { status: 'sent_to_erp' }, { status: 'rejected' }]);
-    expect(c).toEqual({ all: 5, queued: 1, pending: 1, integrated: 1, rejected: 1, cancelled: 0 });
+    expect(c).toEqual({ all: 5, queued: 1, pending: 1, integrated: 1, invoiced: 0, rejected: 1, cancelled: 0 });
     expect(statusBadge('pending_approval').label).toBe('Aguardando aprovação');
     // excluir = cancelar: aparece como "Excluído" na lista (e no chip "Excluídos")
     expect(statusBadge('cancelled').label).toBe('Excluído');
@@ -110,5 +110,15 @@ describe('status de pedido', () => {
     expect(filterCounts([{ status: 'cancelled' }, { status: 'received' }])).toMatchObject({ all: 2, cancelled: 1 });
     expect(orderNote({ status: 'cancelled', pending_reason: '', rejection_reason: 'Excluído por Rafael S.' })).toBe('Excluído por Rafael S.');
     expect(orderNote({ status: 'rejected', pending_reason: '', rejection_reason: 'Títulos vencidos' })).toBe('Títulos vencidos');
+  });
+
+  it('T-0054 (RF-VEN-05): chip Faturados separa o faturado do integrado; a observação do faturado é o resumo do ERP', () => {
+    const c = filterCounts([{ status: 'integrated' }, { status: 'invoiced_partial' }, { status: 'invoiced' }]);
+    expect(c).toMatchObject({ integrated: 1, invoiced: 2 });
+    expect(statusBadge('invoiced_partial').label).toBe('Faturado parcialmente');
+    expect(orderNote({ status: 'invoiced', pending_reason: '', rejection_reason: '', situacao_faturamento: ['Faturado R$ 70,00 (NF 1)', 'Devolvido R$ 10,00 (parcial)'] })).toBe(
+      'Faturado R$ 70,00 (NF 1) · Devolvido R$ 10,00 (parcial)',
+    );
+    expect(orderNote({ status: 'integrated', pending_reason: '', rejection_reason: '', situacao_faturamento: ['x'] })).toBe('');
   });
 });

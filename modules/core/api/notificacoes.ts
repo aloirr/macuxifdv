@@ -175,11 +175,26 @@ export const rotasDeNotificacoes: readonly RotaModulo[] = [
     corpo: PushTokenSchema,
     executar: (ctx) =>
       ctx.comTenant(async (db) => {
+        // O token é só do usuário da sessão: sai de qualquer outro aparelho/usuário do tenant (mesma transação)
+        await db.query('update core.dispositivo set push_token = null, push_plataforma = null where push_token = $1 and id <> $2', [ctx.corpo.token, ctx.corpo.dispositivo_id]);
         const r = await db.query(
           'update core.dispositivo set push_token = $2, push_plataforma = $3, push_atualizado_em = now() where id = $1 and usuario_id = $4 and bloqueado_em is null and deleted_at is null',
           [ctx.corpo.dispositivo_id, ctx.corpo.token, ctx.corpo.plataforma, ctx.usuario.id],
         );
         if ((r.rowCount ?? 0) === 0) throw new ErroNaoEncontrado('DISPOSITIVO_NAO_ENCONTRADO', 'Aparelho não encontrado. Entre de novo no app e tente outra vez.');
+        return { ok: true };
+      }),
+  },
+  {
+    // Logout do app: apaga o token do aparelho do usuário da sessão (idempotente)
+    metodo: 'DELETE',
+    caminho: 'dispositivos/atual/push',
+    acao: 'dispositivo.registrar_push',
+    carteira: 'nao_se_aplica',
+    query: z.object({ dispositivo_id: z.string().uuid() }).strict(),
+    executar: (ctx) =>
+      ctx.comTenant(async (db) => {
+        await db.query('update core.dispositivo set push_token = null, push_plataforma = null where id = $1 and usuario_id = $2', [ctx.query.dispositivo_id, ctx.usuario.id]);
         return { ok: true };
       }),
   },

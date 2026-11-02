@@ -15,8 +15,10 @@ const rota = (caminho: string, params: Record<string, string | null | undefined>
   return `/m/${caminho}${qs ? `?${qs}` : ''}`;
 };
 
-export const hrefCatalogo = (clienteId?: string | null) => rota(CAMINHO_CATALOGO, { cliente: clienteId });
+/** `dentroDoPedido`: o Vendedor abre o catálogo para montar o pedido; só os produtos da tabela do cliente (RF-CAT-04, RN-CAT-06). */
+export const hrefCatalogo = (clienteId?: string | null, opcoes: { dentroDoPedido?: boolean; noId?: string | null } = {}) =>
+  rota(CAMINHO_CATALOGO, { cliente: clienteId, pedido: opcoes.dentroDoPedido ? '1' : null, no: opcoes.noId });
 export const hrefProduto = (produtoId: string, clienteId?: string | null) => rota(CAMINHO_PRODUTO, { id: produtoId, cliente: clienteId });
 
-export const irParaCatalogo = (clienteId?: string | null) => router.push(hrefCatalogo(clienteId) as never);
+export const irParaCatalogo = (clienteId?: string | null, opcoes: { dentroDoPedido?: boolean; noId?: string | null } = {}) => router.push(hrefCatalogo(clienteId, opcoes) as never);
 export const irParaProduto = (produtoId: string, clienteId?: string | null) => router.push(hrefProduto(produtoId, clienteId) as never);

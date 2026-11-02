@@ -4,6 +4,10 @@
  * sem sinal ou em falha, com aviso discreto. Preço = tabela do cliente em contexto (`?cliente=`, RN-CAT-06); preço e
  * estoque somem para quem não vê (RN-CAT-05). "Adicionar ao pedido" só pela extensão `produto.acoes` (RN-PRO-01).
  * Até 3 toques: aba → digita → "Adicionar" no cartão.
+ * T-0061 / RF-CAT-04: sem texto na busca, a árvore do catálogo do ERP (trilha clicável + níveis) leva ao produto; chips de
+ * marca, com estoque e (por último) campanha somam ao nó. Com `?pedido=1` (aberto de dentro do pedido) só entram os produtos
+ * da tabela de preço do cliente. Tudo lido do aparelho (offline). O promotor navega só para leitura (sem preço, sem ações
+ * de pedido: o shell já esconde `produto.acoes` dele). Favoritos ainda não existem no módulo.
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
@@ -13,12 +17,15 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { caminhoCatalogo, type ItemVitrine, type RespostaBusca } from '../../contracts';
+import { contarPorNo, filhosDe, trilhaDe } from '../../domain/arvore';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
-import { buscarLocal, filtrosLocais, vitrineLocal } from '../lib/local';
+import { arvoreLocal, buscarLocal, filtrosLocais, produtosDaNavegacao, vitrineLocal } from '../lib/local';
 import { irParaProduto } from '../rotas';
+import { NiveisArvore, TrilhaArvore, type NoComContagem } from './arvore';
 import { CartaoProduto } from './comum';
+import type { NoCatalogo } from '../../domain/arvore';
 
 const POR_PAGINA = 20;
 const ESPERA_DIGITACAO_MS = 350;
@@ -32,7 +39,8 @@ interface EstadoLista {
 }
 
 export default function TelaCatalogo() {
-  const params = useLocalSearchParams<{ cliente?: string; q?: string }>();
+  const params = useLocalSearchParams<{ cliente?: string; q?: string; pedido?: string; no?: string }>();
+  const dentroDoPedido = params.pedido === '1';
   const clienteId = params.cliente ? String(params.cliente) : null;
   const ambiente = useAmbiente();
   const { motor, estado: sync } = useMotorSync();
@@ -46,7 +54,13 @@ export default function TelaCatalogo() {
   const [consulta, setConsulta] = useState(texto);
   const [linha, setLinha] = useState<string | null>(null);
   const [soComEstoque, setSoComEstoque] = useState(false);
+  const [marca, setMarca] = useState<string | null>(null);
+  const [soCampanha, setSoCampanha] = useState(false);
+  const [noId, setNoId] = useState<string | null>(params.no ? String(params.no) : null);
   const [linhas, setLinhas] = useState<string[]>([]);
+  const [marcas, setMarcas] = useState<string[]>([]);
+  const [trilha, setTrilha] = useState<NoCatalogo[]>([]);
+  const [niveis, setNiveis] = useState<NoComContagem[]>([]);
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null, origem: 'aparelho' });
   const agora = relogioReal().agora().toISOString();
 
@@ -58,15 +72,45 @@ export default function TelaCatalogo() {
 
   useEffect(() => {
     if (!motor) return;
-    void filtrosLocais(motor).then((f) => setLinhas(f.linhas));
+    void filtrosLocais(motor).then((f) => {
+      setLinhas(f.linhas);
+      setMarcas(f.marcas);
+    });
   }, [motor, sync.sincronizado_em]);
+
+  // RF-CAT-04: trilha e níveis do nó atual, com a contagem de produtos (só os da tabela do cliente, dentro do pedido)
+  useEffect(() => {
+    if (!motor) return;
+    let vivo = true;
+    const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId };
+    void (async () => {
+      const { arvore, vinculos } = await arvoreLocal(motor);
+      const permitidos = await produtosDaNavegacao(motor, { ...entrada, noId: null, soDaTabelaDoCliente: dentroDoPedido });
+      if (!vivo) return;
+      const atual = noId && arvore.nos.has(noId) ? noId : null;
+      const contagem = contarPorNo(arvore, vinculos, atual, permitidos);
+      setTrilha(trilhaDe(arvore, atual));
+      setNiveis(filhosDe(arvore, atual).map((no) => ({ no, produtos: contagem.get(no.id) ?? 0 })).filter((n) => !dentroDoPedido || n.produtos > 0));
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [motor, noId, dentroDoPedido, clienteId, perfil, parametrosCrus, sync.sincronizado_em]);
 
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
     const entrada = { perfil, parametros: parametrosCrus, agora: relogioReal().agora().toISOString(), clienteId };
-    const chips = { line: linha ?? undefined, only_in_stock: soComEstoque || undefined };
     const local = async (aviso: string | null) => {
+      const ids = consulta ? undefined : await produtosDaNavegacao(motor, { ...entrada, noId, soDaTabelaDoCliente: dentroDoPedido });
+      const chips = {
+        line: linha ?? undefined,
+        brand: marca ?? undefined,
+        only_in_stock: soComEstoque || undefined,
+        campaign: soCampanha || undefined,
+        ...(ids ? { only_product_ids: ids } : {}),
+        ...(dentroDoPedido ? { only_sellable: true } : {}),
+      };
       const r = consulta ? await buscarLocal(motor, { ...entrada, q: consulta, chips, limit: POR_PAGINA, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: POR_PAGINA, offset: 0 });
       return { itens: r.items, total: r.total, aviso: consulta ? aviso : null, origem: 'aparelho' as const };
     };
@@ -89,7 +133,7 @@ export default function TelaCatalogo() {
     return () => {
       vivo = false;
     };
-  }, [motor, consulta, linha, soComEstoque, clienteId, perfil, parametrosCrus, ambiente, sync.sincronizado_em]);
+  }, [motor, consulta, linha, marca, soCampanha, noId, dentroDoPedido, soComEstoque, clienteId, perfil, parametrosCrus, ambiente, sync.sincronizado_em]);
 
   const subtitulo = useMemo(() => {
     if (!vePrecoEstoque) return 'Fichas e fotos dos produtos.';
@@ -136,11 +180,19 @@ export default function TelaCatalogo() {
         ) : null}
       </View>
 
+      {!consulta ? <TrilhaArvore trilha={trilha} onEscolher={setNoId} /> : null}
+      {!consulta ? <NiveisArvore filhos={niveis} onEscolher={setNoId} /> : null}
+
       <View style={s.chips}>
         {vePrecoEstoque ? <Chip label="Com estoque" active={soComEstoque} onPress={() => setSoComEstoque((v) => !v)} testID="catalogo-chip-estoque" /> : null}
+        {marcas.map((m) => (
+          <Chip key={`marca-${m}`} label={m} active={marca === m} onPress={() => setMarca((atual) => (atual === m ? null : m))} testID={`catalogo-chip-marca-${m}`} />
+        ))}
         {linhas.map((l) => (
           <Chip key={l} label={l} active={linha === l} onPress={() => setLinha((atual) => (atual === l ? null : l))} testID={`catalogo-chip-${l}`} />
         ))}
+        {/* o chip "campanha" é o último (fila de corte da T-0061) */}
+        <Chip label="Campanha" active={soCampanha} onPress={() => setSoCampanha((v) => !v)} testID="catalogo-chip-campanha" />
       </View>
 
       {lista.aviso ? (

@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Button, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll, type NoticeTone } from '@macuxi/ui/web';
+import { Button, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, Notice, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll, type NoticeTone } from '@macuxi/ui/web';
 import { IndicadoresListaSchema } from '../../../contracts';
 import { ROTULO_INDICADOR } from '../../../app/lib/metas-formato';
 import { CABECALHO, celulasDoUsuario, centavosDoTexto, csvDeIndicadores } from '../../lib/indicadores';
@@ -28,7 +28,7 @@ function IndicadoresConteudo() {
   const lista = useQuery({
     queryKey: ['core', 'indicadores', periodo, usuario],
     queryFn: async ({ signal }) => IndicadoresListaSchema.parse(await api<unknown>('/core/indicadores', { query: { periodo, ...(usuario ? { usuario_id: usuario } : {}) }, signal })),
-    refetchInterval: 60_000,
+    refetchInterval: intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN), // RN-CORE-23 item 6: sync_auto_min (30, mín. 15); o botão Atualizar cobre o resto
   });
 
   const set = (patch: Record<string, string | null>) => {
@@ -62,9 +62,14 @@ function IndicadoresConteudo() {
         title="Indicadores"
         subtitle="Visitados, cobertura de rota, positivação e meta × realizado por pessoa. Os números são os mesmos do aplicativo."
         actions={
+          <>
+          <Button onClick={() => void lista.refetch()} disabled={lista.isFetching} aria-label="Atualizar os indicadores" data-testid="indicadores.atualizar">
+            {lista.isFetching ? 'Atualizando…' : 'Atualizar'}
+          </Button>
           <Button onClick={() => d && downloadBlob(new Blob([csvDeIndicadores(d)], { type: 'text/csv;charset=utf-8' }), `indicadores_${periodo}.csv`)} disabled={!d || d.itens.length === 0} data-testid="indicadores.exportar-csv">
             Exportar CSV
           </Button>
+          </>
         }
       />
       <FilterBar>
@@ -87,7 +92,7 @@ function IndicadoresConteudo() {
       {lista.isPending && <LoadingBlock label="Carregando os indicadores…" />}
 
       {d && (
-        <Panel title={`${d.itens.length} pessoa${d.itens.length === 1 ? '' : 's'} · base de apuração: ${d.base_apuracao}`}>
+        <Panel title={`${d.itens.length} pessoa${d.itens.length === 1 ? '' : 's'} · base de apuração: ${d.base_apuracao}${d.situacao === 'parcial' && d.fechamento_em ? ` · parcial até o fechamento (${d.fechamento_em.split('-').reverse().join('/')})` : ''}`}>
           <TableScroll minWidth={1040}>
             <table className="w-full border-collapse text-[13px]">
               <thead>
