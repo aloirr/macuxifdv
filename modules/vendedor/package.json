@@ -38,7 +38,10 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
     "expo-print": "~57.0.2",
-    "expo-sharing": "~57.0.22"
+    "expo-sharing": "~57.0.22",
+    "@types/react-dom": "~19.2.2",
+    "next": "^16.0.0",
+    "react-dom": "19.2.3"
   },
   "peerDependencies": {
     "react": "19.2.3",
@@ -47,7 +50,9 @@
     "react-native-safe-area-context": "~5.7.0",
     "expo-print": "~57.0.2",
     "expo-sharing": "~57.0.22",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "next": "^16.0.0",
+    "react-dom": "19.2.3"
   },
   "peerDependenciesMeta": {
     "react-native": {
@@ -66,6 +71,12 @@
       "optional": true
     },
     "react-native-svg": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   }

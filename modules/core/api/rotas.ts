@@ -23,7 +23,7 @@ import {
   type RotasLista,
   type VisitasLista,
 } from '../contracts';
-import { copiarRota, dataLocal, gerarParadasPorFrequencia, statusDasParadas } from '../domain';
+import { carteiraParaEvento, copiarRota, dataLocal, gerarParadasPorFrequencia, statusDasParadas, type LinhaCarteiraEvento } from '../domain';
 import { auditar } from './auditoria';
 import { BASE, TABELAS_SYNC } from './sync';
 
@@ -176,6 +176,18 @@ async function rotaDoDia(ctx: ContextoBase, db: ClienteBanco, usuarioId: string,
   if (!r) return { rota: null, paradas: [], feitas: 0, total: 0 };
   const { usuario_id: _u, usuario_nome: _n, data: _d, ...resto } = r;
   return resto;
+}
+
+/** Carteira do cliente para o payload de `core.cliente.atualizado@1` (RN-CORE-04; lida dentro da transação do tenant). */
+async function carteiraDoEvento(db: ClienteBanco, clienteId: string) {
+  const linhas = (
+    await db.query<LinhaCarteiraEvento>(
+      "select usuario_id, papel, frequencia_semanas, to_char(created_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as desde from core.carteira where cliente_id = $1 and deleted_at is null and (fim is null or fim >= current_date)",
+      [clienteId],
+    )
+  ).rows;
+  const ativo = (await db.query<{ ativo: boolean }>('select ativo from core.cliente where id = $1', [clienteId])).rows[0]?.ativo ?? true;
+  return carteiraParaEvento(linhas, ativo);
 }
 
 const rotasDeRotas: RotaModulo[] = [
@@ -433,7 +445,7 @@ const rotasDeVisitas: RotaModulo[] = [
         await db.query('update core.cliente set latitude = $2, longitude = $3 where id = $1', [ctx.params.id, v.lat, v.lng]);
         await db.query('update core.visita set sugere_coordenada = false where cliente_id = $1 and sugere_coordenada and deleted_at is null', [ctx.params.id]);
         await auditar(db, ctx, { acao: 'cliente.aprovar_coordenada', entidade: 'cliente', entidadeId: ctx.params.id, antes, depois: { latitude: v.lat, longitude: v.lng, visita_id: ctx.corpo.visita_id } });
-        await tx.publicar(EVENTO_CLIENTE_ATUALIZADO, { cliente_id: ctx.params.id, campos: ['latitude', 'longitude'], origem: 'bko' }, ctx.params.id);
+        await tx.publicar(EVENTO_CLIENTE_ATUALIZADO, { cliente_id: ctx.params.id, campos: ['latitude', 'longitude'], origem: 'bko', ...(await carteiraDoEvento(db, ctx.params.id)) }, ctx.params.id);
         return { cliente_id: ctx.params.id, latitude: v.lat, longitude: v.lng };
       }),
   },

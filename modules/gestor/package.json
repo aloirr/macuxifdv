@@ -12,18 +12,62 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.app.json && tsc -p tsconfig.web.json",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@macuxi/comum": "workspace:*",
     "@macuxi/core": "workspace:*",
     "@macuxi/platform-sdk": "workspace:*",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@macuxi/ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.0",
+    "@macuxi/promotor": "workspace:*"
   },
   "devDependencies": {
     "@macuxi/config": "workspace:*",
     "typescript": "~5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@macuxi/db": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.2",
+    "expo-router": "~57.0.0",
+    "next": "^16.0.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4"
+  },
+  "peerDependencies": {
+    "expo-router": "~57.0.0",
+    "next": "^16.0.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4"
+  },
+  "peerDependenciesMeta": {
+    "expo-router": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-safe-area-context": {
+      "optional": true
+    },
+    "react-native-svg": {
+      "optional": true
+    }
   }
 }

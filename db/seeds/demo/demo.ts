@@ -17,6 +17,13 @@
  *   recalculados pela tabela do cliente com a MESMA regra do servidor (revalidarPedido do domínio do Vendedor), com
  *   número, retratos e linha do tempo: aprovados na alçada, 2 aguardando o supervisor (um de cada vendedor), 1 aguardando
  *   o gerente, 1 rejeitado e 1 cancelado. Nada em sent_to_erp ou depois (ERP fora da fatia).
+ * - 0013 (T-0047, T-0059, R-20261102-092329/093007/094644): todos os clientes com CNPJ FICTÍCIO gerado (dígito
+ *   verificador correto) e IE (um "ISENTO"); o Atacado Boto Rosa SEM CEP (cadastro incompleto, RN-CORE-17: só orçamento);
+ *   endereço principal de todos e um de entrega em 5; 2 transportadoras; pedidos FOB (com transportadora) em 4 clientes e CIF no resto;
+ *   33 produtos (+ linha automotiva e detergente 5 L para a busca em linguagem natural: "óleo para moto 150
+ *   cilindradas") com custo/preço de venda (margem 20–40%), 3 com desconto máximo próprio (padrão 15%), UN e CX com
+ *   fator (preço próprio da CX preparado, desligado até a consulta de preço filtrar a unidade), árvore de 3 níveis, conteúdo, atributos, sinônimos, documento de busca
+ *   do servidor e estoque em 2 depósitos (com rupturas e saldos baixos). Pedidos com CNPJ no retrato, frete e entrega.
  * - Rota de HOJE (no fuso do tenant, calculada na hora do seed): 6 paradas do vendedor, 4 da vendedor2 e 4 do promotor.
  * - Metas do mês corrente, indicador diário coerente com os pedidos, motivos extras (os padrões vêm do gatilho
  *   core.semear_tenant) e 2 notificações.
@@ -40,8 +47,8 @@ export const CODIGO_DEMO = 'demo';
 export const FUSO_DEMO = 'America/Manaus';
 export const SENHA_DEMO_PADRAO = 'demo-macuxi';
 export const MODULOS_DEMO = ['core', 'catalogo', 'vendedor', 'promotor'] as const;
-/** Última migração de que a base depende (preço do Catálogo e pedido completo do Vendedor, T-0029). */
-const MIGRACAO_MINIMA = '0009_vendedor_pedido_completo';
+/** Última migração de que a base depende (T-0029 + 0013: conteúdo do Catálogo, unidades, endereços, frete e cadastro mínimo). */
+const MIGRACAO_MINIMA = '0013_catalogo_vendedor_prevenda';
 
 const T = TENANT_DEMO;
 const id = (chave: string) => idDeterministico(`demo:${chave}`);
@@ -123,9 +130,185 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   ['PAP-4', 'Papel higiênico folha dupla 4 rolos', 'Macio', 'Higiene', 'PC', 849],
   ['SBN-90', 'Sabonete 90 g', 'Flor da Mata', 'Higiene', 'UN', 249],
   ['CRD-90', 'Creme dental 90 g', 'Sorriso', 'Higiene', 'UN', 459],
+  // 0013 (T-0047): linha automotiva e o detergente de 5 L, para a busca em linguagem natural ("óleo para moto 150
+  // cilindradas", "detergente neutro 5 litros com estoque") ter o que achar no ensaio
+  ['DET-5L', 'Detergente líquido neutro 5 L', 'Brilho', 'Limpeza', 'UN', 1_590],
+  ['OLE-4T-1L', 'Óleo para motor 4T 20W50 1 L (motos 125 a 160 cc)', 'Motorvia', 'Automotivo', 'UN', 3_290],
+  ['OLE-4T-SEMI', 'Óleo semissintético 4T 10W40 1 L para motos', 'Motorvia', 'Automotivo', 'UN', 3_890],
+  ['OLE-5W30', 'Óleo sintético 5W30 1 L para carros flex', 'Lubrion', 'Automotivo', 'UN', 4_590],
+  ['FLU-DOT4', 'Fluido de freio DOT 4 500 ml', 'Freiomax', 'Automotivo', 'UN', 2_490],
+  ['ADI-RAD', 'Aditivo para radiador concentrado 1 L', 'Lubrion', 'Automotivo', 'UN', 1_890],
+  ['VEL-150', 'Vela de ignição para moto 150 cc', 'Faísca', 'Automotivo', 'UN', 1_590],
+  ['CAM-18', 'Câmara de ar aro 18 para moto', 'Rodaforte', 'Automotivo', 'UN', 2_990],
+  ['LAM-H4', 'Lâmpada de farol H4 12 V 60/55 W', 'Luzmax', 'Automotivo', 'UN', 2_190],
 ];
 const PRECO = new Map(PRODUTOS.map(([sku, , , , , preco]) => [sku, preco]));
 const PRODUTO = new Map(PRODUTOS.map(([sku, nome, , , unidade]) => [sku, { nome, unidade }]));
+
+// ---------------------------------------------------------------------------------------------------------------
+// Cadastro do produto (0013): custo/preço de venda (RN-CORE-18), desconto máximo próprio (RN-VEN-11), unidades de venda
+// (RN-VEN-15), árvore do catálogo (RF-CAT-04), conteúdo, atributos e sinônimos (RF-CAT-01..03), estoque (RN-CAT-07)
+/** Produtos com desconto máximo próprio (fora dos pedidos da demo com desconto, para não contradizer o RN-VEN-11). */
+export const DESCONTO_MAXIMO_PROPRIO_DEMO: Record<string, number> = { 'OLE-4T-1L': 25, 'VEL-150': 5, 'DET-5L': 10 };
+/** Margem esperada (%) do produto i: de 20% a 40%, estável. custo = preço de venda × (1 − margem). */
+const margemDemo = (i: number) => 20 + ((i * 7) % 21);
+
+/** Liga as linhas de preço próprio da CX na tabela Varejo (ver o comentário no uso). */
+export const PRECO_PROPRIO_CX_LIGADO = false;
+/** Caixas de embarque (RN-VEN-15): [sku, fator, preço próprio da CX no Varejo em % do preço da UN × fator (ou null)]. */
+const CAIXAS: Array<[string, number, number | null]> = [
+  ['CAF-500', 10, null], ['ARR-5K', 6, null], ['FEI-1K', 10, null], ['OLE-900', 20, 0.96], ['LEI-1L', 12, 0.95], ['DET-500', 24, null],
+  ['BIS-140', 24, null], ['OLE-4T-1L', 12, 0.94], ['DET-5L', 4, null],
+];
+
+/** Árvore do catálogo (3 níveis: Categoria › Família › Grupo): [código, nome, código do pai]. */
+const ARVORE: Array<[string, string, string | null]> = [
+  ['ALI', 'Alimentos', null],
+  ['ALI-MER', 'Mercearia', 'ALI'],
+  ['ALI-MER-GRA', 'Grãos, farinhas e açúcar', 'ALI-MER'],
+  ['ALI-MER-MAS', 'Massas e molhos', 'ALI-MER'],
+  ['ALI-MER-OLE', 'Óleos e conservas', 'ALI-MER'],
+  ['ALI-MER-CAF', 'Café', 'ALI-MER'],
+  ['ALI-LAT', 'Laticínios', 'ALI'],
+  ['ALI-LAT-LEI', 'Leites e margarinas', 'ALI-LAT'],
+  ['ALI-BIS', 'Biscoitos', 'ALI'],
+  ['ALI-BIS-SAL', 'Salgados', 'ALI-BIS'],
+  ['ALI-BIS-DOC', 'Recheados', 'ALI-BIS'],
+  ['ALI-CON', 'Congelados', 'ALI'],
+  ['ALI-CON-POL', 'Polpas de fruta', 'ALI-CON'],
+  ['BEB', 'Bebidas', null],
+  ['BEB-REF', 'Refrigerantes', 'BEB'],
+  ['BEB-REF-GUA', 'Guaraná', 'BEB-REF'],
+  ['BEB-AGS', 'Águas e sucos', 'BEB'],
+  ['BEB-AGS-AGU', 'Águas', 'BEB-AGS'],
+  ['BEB-AGS-SUC', 'Sucos', 'BEB-AGS'],
+  ['LIH', 'Limpeza e higiene', null],
+  ['LIH-LIM', 'Limpeza', 'LIH'],
+  ['LIH-LIM-LOU', 'Louça', 'LIH-LIM'],
+  ['LIH-LIM-ROU', 'Roupa', 'LIH-LIM'],
+  ['LIH-LIM-CAS', 'Casa', 'LIH-LIM'],
+  ['LIH-HIG', 'Higiene', 'LIH'],
+  ['LIH-HIG-PES', 'Higiene pessoal', 'LIH-HIG'],
+  ['LIH-HIG-PAP', 'Papel', 'LIH-HIG'],
+  ['AUT', 'Automotivo', null],
+  ['AUT-LUB', 'Lubrificantes e fluidos', 'AUT'],
+  ['AUT-LUB-MOT', 'Óleo para moto', 'AUT-LUB'],
+  ['AUT-LUB-CAR', 'Óleo para carro', 'AUT-LUB'],
+  ['AUT-LUB-FLU', 'Fluidos e aditivos', 'AUT-LUB'],
+  ['AUT-PEC', 'Peças e acessórios', 'AUT'],
+  ['AUT-PEC-MOT', 'Peças de moto', 'AUT-PEC'],
+  ['AUT-PEC-ILU', 'Iluminação', 'AUT-PEC'],
+];
+/** Grupo (folha da árvore) de cada produto. */
+const GRUPO: Record<string, string> = {
+  'ARR-5K': 'ALI-MER-GRA', 'FEI-1K': 'ALI-MER-GRA', 'FAR-1K': 'ALI-MER-GRA', 'ACU-1K': 'ALI-MER-GRA', 'MAC-500': 'ALI-MER-MAS', 'MOL-340': 'ALI-MER-MAS',
+  'OLE-900': 'ALI-MER-OLE', 'SAR-125': 'ALI-MER-OLE', 'CAF-500': 'ALI-MER-CAF', 'LEI-1L': 'ALI-LAT-LEI', 'MAR-500': 'ALI-LAT-LEI', 'BIS-400': 'ALI-BIS-SAL',
+  'BIS-140': 'ALI-BIS-DOC', 'ACA-1K': 'ALI-CON-POL', 'REF-2L': 'BEB-REF-GUA', 'REF-350': 'BEB-REF-GUA', 'AGU-500': 'BEB-AGS-AGU', 'SUC-1L': 'BEB-AGS-SUC',
+  'DET-500': 'LIH-LIM-LOU', 'DET-5L': 'LIH-LIM-LOU', 'SAB-1K': 'LIH-LIM-ROU', 'DES-2L': 'LIH-LIM-CAS', 'SBN-90': 'LIH-HIG-PES', 'CRD-90': 'LIH-HIG-PES',
+  'PAP-4': 'LIH-HIG-PAP', 'OLE-4T-1L': 'AUT-LUB-MOT', 'OLE-4T-SEMI': 'AUT-LUB-MOT', 'OLE-5W30': 'AUT-LUB-CAR', 'FLU-DOT4': 'AUT-LUB-FLU',
+  'ADI-RAD': 'AUT-LUB-FLU', 'VEL-150': 'AUT-PEC-MOT', 'CAM-18': 'AUT-PEC-MOT', 'LAM-H4': 'AUT-PEC-ILU',
+};
+
+/** Atributos filtráveis: sku -> [nome, valor, valor numérico, unidade]. */
+const ATRIBUTOS: Record<string, Array<[string, string, number | null, string | null]>> = {
+  'OLE-4T-1L': [['Viscosidade', '20W50', null, null], ['Motor', '4 tempos', 4, null], ['Cilindrada', '125 a 160', 150, 'cc'], ['Volume', '1', 1, 'L']],
+  'OLE-4T-SEMI': [['Viscosidade', '10W40', null, null], ['Motor', '4 tempos', 4, null], ['Cilindrada', '150 a 300', 250, 'cc'], ['Base', 'semissintético', null, null], ['Volume', '1', 1, 'L']],
+  'OLE-5W30': [['Viscosidade', '5W30', null, null], ['Base', 'sintético', null, null], ['Combustível', 'flex', null, null], ['Volume', '1', 1, 'L']],
+  'FLU-DOT4': [['Tipo', 'DOT 4', null, null], ['Volume', '500', 500, 'ml']],
+  'ADI-RAD': [['Tipo', 'concentrado', null, null], ['Volume', '1', 1, 'L']],
+  'VEL-150': [['Cilindrada', '150', 150, 'cc'], ['Rosca', '10', 10, 'mm']],
+  'CAM-18': [['Aro', '18', 18, 'pol'], ['Veículo', 'moto', null, null]],
+  'LAM-H4': [['Tipo', 'H4', null, null], ['Tensão', '12', 12, 'V'], ['Potência', '60/55', 60, 'W']],
+  'DET-5L': [['Fragrância', 'neutro', null, null], ['Volume', '5', 5, 'L']],
+  'DET-500': [['Fragrância', 'neutro', null, null], ['Volume', '500', 500, 'ml']],
+  'OLE-900': [['Tipo', 'soja', null, null], ['Volume', '900', 900, 'ml']],
+  'CAF-500': [['Torra', 'média', null, null], ['Peso', '500', 500, 'g']],
+  'ARR-5K': [['Tipo', 'tipo 1', null, null], ['Peso', '5', 5, 'kg']],
+  'REF-2L': [['Sabor', 'guaraná', null, null], ['Volume', '2', 2, 'L']],
+  'SUC-1L': [['Sabor', 'cupuaçu', null, null], ['Volume', '1', 1, 'L']],
+};
+
+/** Conteúdo (ficha): sku -> [descrição, aplicações, argumentos de venda, FAQ]. Os demais ganham um texto padrão. */
+const CONTEUDO: Record<string, [string, string, string, Array<{ pergunta: string; resposta: string }>]> = {
+  'OLE-4T-1L': [
+    'Óleo mineral para motores 4 tempos de motocicletas, viscosidade SAE 20W50, frasco de 1 litro.',
+    'Motos de 125 a 160 cilindradas (125 cc, 150 cc e 160 cc), uso urbano e estrada. Troca a cada 1.000 a 1.500 km.',
+    'O mais vendido para moto 150 no Norte; aguenta calor e trânsito pesado; caixa com 12 frascos.',
+    [
+      { pergunta: 'Serve para moto 150 cilindradas?', resposta: 'Sim. É indicado para motos 4 tempos de 125 a 160 cc.' },
+      { pergunta: 'De quantos em quantos km troco?', resposta: 'A cada 1.000 a 1.500 km, ou conforme o manual da moto.' },
+    ],
+  ],
+  'OLE-4T-SEMI': [
+    'Óleo semissintético para motores 4 tempos, SAE 10W40, 1 litro.',
+    'Motos de 150 a 300 cilindradas, inclusive com embreagem banhada a óleo.',
+    'Troca mais espaçada que o mineral; protege na partida a frio.',
+    [{ pergunta: 'Posso usar em moto 150?', resposta: 'Pode, se o manual permitir 10W40.' }],
+  ],
+  'OLE-5W30': ['Óleo sintético SAE 5W30 para motores de carros flex.', 'Carros flex e a gasolina, motores 1.0 a 2.0.', 'Economia de combustível; padrão das montadoras.', []],
+  'FLU-DOT4': ['Fluido de freio DOT 4, 500 ml.', 'Carros e motos com freio a disco ou tambor que pedem DOT 3 ou DOT 4.', 'Ponto de ebulição alto: mais segurança na descida.', []],
+  'ADI-RAD': ['Aditivo concentrado para o sistema de arrefecimento, 1 litro.', 'Carros e motos refrigerados a água; diluir conforme o rótulo.', 'Evita ferrugem e superaquecimento.', []],
+  'VEL-150': ['Vela de ignição para motos de 150 cc.', 'Motos 150 cc das linhas mais vendidas.', 'Partida fácil e consumo menor.', []],
+  'CAM-18': ['Câmara de ar para pneu de moto aro 18.', 'Roda traseira de motos 125 a 160 cc com aro 18.', 'Borracha reforçada; válvula reta.', []],
+  'LAM-H4': ['Lâmpada halógena H4 12 V 60/55 W para farol.', 'Faróis de carros e motos com encaixe H4.', 'Luz alta e baixa na mesma lâmpada.', []],
+  'DET-5L': ['Detergente líquido neutro em galão de 5 litros.', 'Cozinhas de restaurantes, padarias e lanchonetes; louça e bancadas.', 'Rende mais que o de 500 ml; preço por litro menor.', []],
+  'CAF-500': ['Café torrado e moído, torra média, 500 g.', 'Coado e cafeteira.', 'Campeão de giro na mercearia.', []],
+  'REF-2L': ['Refrigerante de guaraná, garrafa de 2 litros.', 'Mercadinhos, padarias e conveniências.', 'Marca regional com boa saída no fim de semana.', []],
+};
+
+/** Campanha (is_campaign) e destaque no catálogo. */
+const EM_CAMPANHA = new Set(['CAF-500', 'REF-2L', 'OLE-4T-1L']);
+const EM_DESTAQUE = new Set(['OLE-4T-1L', 'DET-5L']);
+
+/** Sinônimos do tenant (busca offline e online): termo -> lista (só [a-z0-9_]). */
+const SINONIMOS: Array<[string, string[]]> = [
+  ['moto', ['motocicleta', 'motos']],
+  ['cc', ['cilindradas', 'cilindrada']],
+  ['refri', ['refrigerante']],
+  ['oleo', ['lubrificante']],
+  ['galao', ['5l', '5_litros']],
+];
+
+/** Depósitos e saldo (na unidade base) por produto i: CD Manaus e Loja Centro; alguns zerados (ruptura) e alguns baixos. */
+const DEPOSITOS: Array<[string, string]> = [
+  ['CD-MAO', 'CD Manaus'],
+  ['LJ-CENTRO', 'Loja Centro'],
+];
+const saldoDemo = (i: number, d: number): number => {
+  if (i % 11 === 5) return 0; // ruptura nos dois
+  if (d === 1 && i % 4 === 0) return 0;
+  if (i % 7 === 3) return 3 + d * 2; // baixo (RN-CAT-07: até 10)
+  return 40 + ((i * 37 + d * 53) % 260);
+};
+
+/** Transportadoras (RF-VEN-13): [chave, nome, telefone]; CNPJ fictício gerado (dígito verificador correto). */
+const TRANSPORTADORAS: Array<[string, string, string]> = [
+  ['rio-negro', 'Transportes Rio Negro Ltda', '9232001100'],
+  ['expresso-amazonas', 'Expresso Amazonas Cargas Ltda', '9232002200'],
+];
+
+/** Dígitos verificadores de CNPJ (módulo 11). */
+function digitosCnpj(base12: string): string {
+  const dv = (s: string, pesos: number[]) => {
+    const soma = [...s].reduce((t, c, i) => t + Number(c) * pesos[i]!, 0);
+    const r = soma % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  const d1 = dv(base12, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const d2 = dv(base12 + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return `${base12}${d1}${d2}`;
+}
+/**
+ * CNPJ FICTÍCIO da demo (R-20261102-092329): raiz gerada (não copiada de empresa real) a partir de uma semente, filial
+ * 0001, dígitos verificadores corretos. Prefixo 7 e semente diferentes para clientes e transportadoras.
+ */
+export function cnpjDemo(semente: number): string {
+  const raiz = String(70_000_000 + ((semente * 1_234_577) % 29_999_999)).padStart(8, '0');
+  return digitosCnpj(`${raiz}0001`);
+}
+/** Inscrição estadual fictícia do AM (9 dígitos, começa com 04) ou ISENTO. */
+const cepDemo = (n: number) => `6900${String(1000 + n * 13).padStart(4, '0')}`;
+const ieDemo = (n: number) => (n === ISENTO_IE ? 'ISENTO' : `04${String(1_000_000 + n * 104_729).slice(-7)}`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Preço (schema catalogo, 0008) e condições de pagamento (schema vendedor, 0009) — T-0029 §10
@@ -155,6 +338,9 @@ export const CONDICOES_DEMO: Array<{ codigo: CodigoCondicao; descricao: string; 
 ];
 const DESCRICAO_CONDICAO = new Map(CONDICOES_DEMO.map((x) => [x.codigo, x.descricao]));
 export const idCondicaoDemo = (codigo: CodigoCondicao) => id(`condicao_pagamento:${codigo}`);
+export const idTransportadoraDemo = (chave: string) => id(`transportadora:${chave}`);
+export const idEnderecoDemo = (n: number, tipo: 'principal' | 'entrega') => id(`cliente_endereco:${n}:${tipo}`);
+export const idProdutoDemo = (sku: string) => id(`produto:${sku}`);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Clientes (Manaus)
@@ -205,6 +391,14 @@ const CLIENTES: Array<[string, string, string, string, Dono, boolean]> = [
   ['Supermercado Encontro das Águas', 'Supermercado', 'Lírio do Vale', 'Av. Encontro das Águas', 'vendedor2', false],
 ];
 export const idClienteDemo = (n: number) => id(`cliente:${n}`);
+
+/** Cliente com cadastro incompleto (RN-CORE-16/17): Atacado Boto Rosa sem CEP — pedido dele só como orçamento. */
+export const CLIENTE_SEM_CEP_DEMO = 27;
+/** Cliente com IE "ISENTO" (Panificadora Pão Dourado). */
+const ISENTO_IE = 2;
+/** Clientes com um 2º endereço de entrega (RN-VEN-17); clientes cujos pedidos da demo são FOB (RN-VEN-16): índice -> transportadora. */
+const COM_ENTREGA = [0, 4, 9, 19, 22] as const;
+const FRETE_FOB: Record<number, string> = { 0: 'rio-negro', 9: 'rio-negro', 12: 'expresso-amazonas', 27: 'expresso-amazonas' };
 
 /** Índices (0-based) com título vencido; o 13 (Mini Box Japiim) está bloqueado por atraso. */
 const COM_VENCIDO = new Set([1, 5, 9, 13, 17, 21, 25, 29]);
@@ -298,6 +492,18 @@ export const ORDEM_DEMO = [
   'vendedor.condicao_pagamento',
   'vendedor.cliente_condicao',
   'vendedor.numeracao_pedido',
+  // 0013: unidades, endereços, árvore, conteúdo, busca, estoque e frete (antes do pedido: FK da transportadora)
+  'core.produto_unidade',
+  'core.cliente_endereco',
+  'catalogo.catalogo_no',
+  'catalogo.produto_no',
+  'catalogo.produto_conteudo',
+  'catalogo.produto_atributo',
+  'catalogo.sinonimo',
+  'catalogo.produto_busca',
+  'catalogo.deposito',
+  'catalogo.estoque_saldo',
+  'vendedor.transportadora',
   'vendedor.pedido',
   'vendedor.pedido_item',
   'vendedor.pedido_evento',
@@ -359,11 +565,15 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
 
   const clientes: Linha[] = CLIENTES.map(([nome, segmento, bairro, rua], n) => {
     const [latitude, longitude] = coordenada(n);
+    const semCep = n === CLIENTE_SEM_CEP_DEMO;
     return {
-      id: c(n), tenant_id: T, documento: null, razao_social: `${nome} Comércio de Alimentos Ltda`, nome_fantasia: nome, segmento,
+      id: c(n), tenant_id: T, documento: cnpjDemo(n + 1), razao_social: `${nome} Comércio de Alimentos Ltda`, nome_fantasia: nome, segmento,
       telefone: `9230000${String(n + 1).padStart(3, '0')}`, email: null, logradouro: rua, numero: String(100 + ((n * 37) % 900)), bairro,
-      cidade: 'Manaus', uf: 'AM', cep: `6900${String(1000 + n * 13).padStart(4, '0')}`, latitude, longitude, ativo: true, deleted_at: null,
+      cidade: 'Manaus', uf: 'AM', cep: semCep ? null : cepDemo(n), latitude, longitude, ativo: true, deleted_at: null,
       external_id: `C${String(5000 + n + 1)}`,
+      // 0013 (RN-CORE-16/17): todos com CNPJ fictício válido e IE; 1 sem CEP (cadastro incompleto) para a demonstração
+      inscricao_estadual: ieDemo(n), observacao: semCep ? 'Receber mercadoria só pela manhã (doca 2).' : null,
+      cadastro_incompleto: semCep, cadastro_campos_faltantes: arrayDeTexto(semCep ? ['cep'] : []),
     };
   });
 
@@ -466,9 +676,18 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       const preco = precoNaTabela(t, sku);
       return preco === null
         ? []
-        : [{ id: id(`tabela_preco_item:${t}:${sku}`), tenant_id: T, tabela_preco_id: idTabela(t), produto_id: id(`produto:${sku}`), preco_cents: preco, vigencia_inicio: inicioVigencia, vigencia_fim: null, ...comuns }];
+        : [{ id: id(`tabela_preco_item:${t}:${sku}`), tenant_id: T, tabela_preco_id: idTabela(t), produto_id: id(`produto:${sku}`), preco_cents: preco, vigencia_inicio: inicioVigencia, vigencia_fim: null, unidade: null, ...comuns }];
     }),
   );
+  // 0013 (RN-VEN-15): preço próprio da CX no Varejo para alguns produtos (sem linha = UN × fator). DESLIGADO até a consulta
+  // catalogo.precos_cliente@1 filtrar a unidade (hoje ela lê todas as linhas do produto e a da CX seria lida como preço da UN).
+  for (const [sku, fator, fracao] of CAIXAS) {
+    if (fracao === null || !PRECO_PROPRIO_CX_LIGADO) continue;
+    itensTabela.push({
+      id: id(`tabela_preco_item:varejo:${sku}:CX`), tenant_id: T, tabela_preco_id: idTabela('varejo'), produto_id: id(`produto:${sku}`),
+      preco_cents: Math.round(PRECO.get(sku)! * fator * fracao), vigencia_inicio: inicioVigencia, vigencia_fim: null, unidade: 'CX', ...comuns,
+    });
+  }
   const clienteTabela: Linha[] = CLIENTES.map((_, n) => ({ id: id(`cliente_tabela_preco:${n}`), tenant_id: T, cliente_id: c(n), tabela_preco_id: idTabela(tabelaDoCliente(n)), ...comuns }));
   /** RN-VEN-14: com título vencido só À vista e 28 dias; os demais 3 ou 4 condições. */
   const condicoesDoCliente = (n: number): CodigoCondicao[] =>
@@ -530,6 +749,10 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     });
     const [nome, , bairro, rua] = CLIENTES[n]!;
     const cli = { logradouro: rua, numero: String(100 + ((n * 37) % 900)) };
+    // 0013: frete (R-20261102-105040: FOB = o cliente paga, com a transportadora; senão CIF) e entrega no endereço principal
+    const fob = FRETE_FOB[n];
+    const transp = fob ? TRANSPORTADORAS.find(([k]) => k === fob)! : null;
+    const tabelaCents = r.total_tabela_cents;
     pedidos.push({
       id: pedido_id, tenant_id: T, cliente_id: c(n), vendedor_id: u(quem), autor_id: u(quem), status, condicao_pagamento: DESCRICAO_CONDICAO.get(condicao)!,
       desconto_pct: r.desconto_pct, total_tabela_cents: r.total_tabela_cents, total_cents: r.total_cents, observacao: null,
@@ -537,9 +760,15 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       motivo_cancelamento: status === 'cancelled' ? MOTIVO_CANCELAMENTO_DEMO : null,
       numero: null, hash_envio: null,
       cliente_resumo: {
-        razao_social: `${nome} Comércio de Alimentos Ltda`, nome_fantasia: nome, documento: null, endereco: `${cli.logradouro}, ${cli.numero}`, bairro,
+        razao_social: `${nome} Comércio de Alimentos Ltda`, nome_fantasia: nome, documento: cnpjDemo(n + 1), endereco: `${cli.logradouro}, ${cli.numero}`, bairro,
         cidade: 'Manaus', uf: 'AM', codigo_erp: `C${String(5000 + n + 1)}`,
       },
+      desconto_efetivo_pct: tabelaCents > 0 ? Math.round((1 - r.total_cents / tabelaCents) * 10_000) / 100 : 0,
+      frete_modalidade: transp ? 'FOB' : 'CIF',
+      transportadora_id: transp ? idTransportadoraDemo(transp[0]) : null, transportadora_digitada: false, transportadora_nome: transp?.[1] ?? null,
+      transportadora_documento: transp ? cnpjDemo(900 + TRANSPORTADORAS.indexOf(transp)) : null, transportadora_telefone: transp?.[2] ?? null,
+      endereco_entrega_id: idEnderecoDemo(n, 'principal'),
+      endereco_entrega: { logradouro: cli.logradouro, numero: cli.numero, complemento: null, bairro, cidade: 'Manaus', uf: 'AM', cep: n === CLIENTE_SEM_CEP_DEMO ? null : cepDemo(n), descricao: 'Principal' },
       cliente_nome: nome, vendedor_nome: vendedor.nome, tabela_preco_id: idTabela(tabela), condicao_pagamento_id: idCondicaoDemo(condicao),
       condicao_pagamento_descricao: DESCRICAO_CONDICAO.get(condicao)!, nivel_aprovacao: r.nivel, motivos_aprovacao: arrayDeTexto(r.motivos),
       aprovacao_automatica: r.aprovacao_automatica, decidido_por_id: decisao?.por ?? null, decidido_em: decisao?.em ?? null,
@@ -600,6 +829,77 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     }),
   ];
 
+  // ---- 0013: unidades, endereços, árvore, conteúdo, busca do servidor, estoque e frete
+  const caixa = new Map(CAIXAS.map(([sku, fator]) => [sku, fator]));
+  const idNo = (codigo: string) => id(`catalogo_no:${codigo}`);
+  const nivelDe = (codigo: string): number => {
+    const pai = ARVORE.find(([cod]) => cod === codigo)?.[2] ?? null;
+    return pai === null ? 1 : 1 + nivelDe(pai);
+  };
+  const nomeDoNo = new Map(ARVORE.map(([cod, nome]) => [cod, nome]));
+  const conteudoDe = (sku: string, nome: string, categoria: string) =>
+    CONTEUDO[sku] ?? [`${nome}.`, `Revenda no varejo: ${categoria.toLowerCase()}.`, 'Item de giro da distribuidora.', []];
+  const atributosTexto = (sku: string) => (ATRIBUTOS[sku] ?? []).map(([nome, valor, , un]) => `${nome} ${valor}${un ? ` ${un}` : ''}`).join('; ');
+  const dados0013 = {
+    'core.produto_unidade': PRODUTOS.flatMap(([sku, , , , unidade]) => [
+      { id: id(`produto_unidade:${sku}:${unidade}`), tenant_id: T, produto_id: id(`produto:${sku}`), unidade, fator: 1, ean: null, padrao: true, ativo: true, ...comuns },
+      ...(caixa.has(sku)
+        ? [{ id: id(`produto_unidade:${sku}:CX`), tenant_id: T, produto_id: id(`produto:${sku}`), unidade: 'CX', fator: caixa.get(sku)!, ean: null, padrao: false, ativo: true, ...comuns }]
+        : []),
+    ]),
+    'core.cliente_endereco': CLIENTES.flatMap(([, , bairro, rua], n) => {
+      const [latitude, longitude] = coordenada(n);
+      const base = { tenant_id: T, cliente_id: c(n), complemento: null, cidade: 'Manaus', uf: 'AM', ativo: true, ...comuns };
+      return [
+        {
+          ...base, id: idEnderecoDemo(n, 'principal'), tipo: 'principal', descricao: 'Principal', logradouro: rua, numero: String(100 + ((n * 37) % 900)), bairro,
+          cep: n === CLIENTE_SEM_CEP_DEMO ? null : cepDemo(n), latitude, longitude, principal: true,
+        },
+        ...((COM_ENTREGA as readonly number[]).includes(n)
+          ? [{
+              ...base, id: idEnderecoDemo(n, 'entrega'), tipo: 'entrega', descricao: 'Depósito', logradouro: 'Rua do Comércio', numero: String(1_000 + n), bairro: 'Distrito Industrial',
+              cep: cepDemo(n + 40), latitude: null, longitude: null, principal: false,
+            }]
+          : []),
+      ];
+    }),
+    'catalogo.catalogo_no': ARVORE.map(([codigo, nome, pai], i) => ({
+      id: idNo(codigo), tenant_id: T, pai_id: pai ? idNo(pai) : null, nivel: nivelDe(codigo), codigo, nome, ordem: i + 1, ativo: true, ...comuns, external_id: codigo,
+    })),
+    'catalogo.produto_no': PRODUTOS.map(([sku]) => ({ id: id(`produto_no:${sku}`), tenant_id: T, produto_id: id(`produto:${sku}`), no_id: idNo(GRUPO[sku]!), ...comuns })),
+    'catalogo.produto_conteudo': PRODUTOS.map(([sku, nome, , categoria]) => {
+      const [descricao, aplicacoes, argumentos_venda, faq] = conteudoDe(sku, nome, categoria);
+      return {
+        id: id(`produto_conteudo:${sku}`), tenant_id: T, produto_id: id(`produto:${sku}`), descricao, aplicacoes, argumentos_venda, faq,
+        campanha: EM_CAMPANHA.has(sku), destaque: EM_DESTAQUE.has(sku), ...comuns,
+      };
+    }),
+    'catalogo.produto_atributo': Object.entries(ATRIBUTOS).flatMap(([sku, lista]) =>
+      lista.map(([nome, valor, valor_num, unidade], i) => ({
+        id: id(`produto_atributo:${sku}:${nome}`), tenant_id: T, produto_id: id(`produto:${sku}`), nome, valor, valor_num, unidade, ordem: i + 1, ...comuns,
+      })),
+    ),
+    'catalogo.sinonimo': SINONIMOS.map(([termo, lista]) => ({ id: id(`sinonimo:${termo}`), tenant_id: T, termo, sinonimos: arrayDeTexto(lista), ativo: true, ...comuns })),
+    'catalogo.produto_busca': PRODUTOS.map(([sku, nome, marca, categoria]) => {
+      const [descricao, aplicacoes, argumentos] = conteudoDe(sku, nome, categoria);
+      const grupo = GRUPO[sku]!;
+      return {
+        id: id(`produto_busca:${sku}`), tenant_id: T, produto_id: id(`produto:${sku}`), sku, ean: null, nome, marca, categoria: `${categoria} ${nomeDoNo.get(grupo)}`,
+        atributos: atributosTexto(sku) || null, conteudo: [descricao, aplicacoes, argumentos].join(' '), ativo: true, ...comuns,
+      };
+    }),
+    'catalogo.deposito': DEPOSITOS.map(([codigo, nome]) => ({ id: id(`deposito:${codigo}`), tenant_id: T, codigo, nome, ativo: true, ...comuns, external_id: codigo })),
+    'catalogo.estoque_saldo': PRODUTOS.flatMap(([sku], i) =>
+      DEPOSITOS.map(([codigo], d) => ({
+        id: id(`estoque_saldo:${codigo}:${sku}`), tenant_id: T, deposito_id: id(`deposito:${codigo}`), produto_id: id(`produto:${sku}`), quantidade: saldoDemo(i, d),
+        atualizado_erp_em: emManaus(hoje, '06:00'), ...comuns,
+      })),
+    ),
+    'vendedor.transportadora': TRANSPORTADORAS.map(([chave, nome, telefone], i) => ({
+      id: idTransportadoraDemo(chave), tenant_id: T, nome, documento: cnpjDemo(900 + i), inscricao_estadual: ieDemo(900 + i), telefone, ativo: true, ...comuns,
+    })),
+  } satisfies Partial<DadosDemo>;
+
   return {
     'plataforma.tenant': [
       { id: T, codigo: CODIGO_DEMO, nome: 'Distribuidora Exemplo', documento: null, fuso: FUSO_DEMO, plano: 'demonstracao', status: 'ativo', deleted_at: null, external_id: null },
@@ -611,6 +911,8 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       modulos.map((modulo) => ({ id: id(`perfil_modulo:${perfil}:${modulo}`), tenant_id: T, perfil, modulo, ...comuns })),
     ),
     // alçadas do Vendedor (jsonb); id como o dos parâmetros semeados pelo banco (uuid_de_chave)
+    // 0013: frete (frete.modalidade_padrao = CIF), campos obrigatórios do cliente e desconto máximo do produto (15%) ficam
+    // SEM linha: ausente = padrão do doc 03 (pedido R-20261102-100400, item d)
     'plataforma.parametro': Object.entries(ALCADAS_DEMO).map(([chave, valor]) => ({
       id: idDeChave(`${T}:plataforma.parametro:vendedor:${chave}`), tenant_id: T, modulo: 'vendedor', chave, valor: JSON.stringify(valor), ...comuns,
     })),
@@ -620,8 +922,10 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       { id: equipeId, tenant_id: T, nome: 'Equipe Manaus', equipe_pai_id: regionalId, responsavel_id: u('supervisor'), ativo: true, ...comuns },
     ],
     'core.usuario': usuarios,
-    'core.produto': PRODUTOS.map(([sku, nome, marca, categoria, unidade]) => ({
+    'core.produto': PRODUTOS.map(([sku, nome, marca, categoria, unidade, preco], i) => ({
       id: id(`produto:${sku}`), tenant_id: T, sku, ean: null, nome, marca, categoria, unidade, ativo: true, deleted_at: null, external_id: sku,
+      // 0013 (RN-CORE-18): preço de venda = Varejo; custo pela margem de 20% a 40%; desconto máximo próprio em 3 produtos
+      preco_venda_cents: preco, custo_cents: Math.round(preco * (1 - margemDemo(i) / 100)), desconto_maximo_pct: DESCONTO_MAXIMO_PROPRIO_DEMO[sku] ?? null,
     })),
     'core.cliente': clientes,
     'core.carteira': carteira,
@@ -643,6 +947,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     'vendedor.cliente_condicao': clienteCondicoes,
     // mesmo id que vendedor.proximo_numero_pedido() criaria; a carga nunca baixa o contador (ver carregarDemo)
     'vendedor.numeracao_pedido': [{ id: idDeChave(`${T}:vendedor.numeracao_pedido`), tenant_id: T, ultimo: pedidos.length, ...comuns }],
+    ...dados0013,
     'vendedor.pedido': pedidos,
     'vendedor.pedido_item': itens,
     'vendedor.pedido_evento': eventos,
