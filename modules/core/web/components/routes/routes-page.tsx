@@ -260,7 +260,15 @@ export function RoutesPage() {
 
   return (
     <>
-      <PageHeader title="Rotas" subtitle={subtitle} />
+      <PageHeader
+        title="Rotas"
+        subtitle={subtitle}
+        actions={
+          <Button onClick={() => void q.refetch()} disabled={q.isFetching} aria-label="Atualizar as rotas" data-testid="rotas.atualizar">
+            {q.isFetching ? 'Atualizando…' : 'Atualizar'}
+          </Button>
+        }
+      />
 
       <FilterBar>
         <Segmented value={mode} onChange={(m) => set({ period: m === 'day' ? null : m })} />

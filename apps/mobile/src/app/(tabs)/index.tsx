@@ -1,9 +1,10 @@
 /**
- * Início do shell: saudação, estado da fila, cards dos módulos (slot `inicio.cards` do Core — ex.: "EM
+ * Início do shell: saudação, botão Sincronizar com a última sincronização e a fila (RN-CORE-23 item 1; puxar para baixo
+ * = Sincronizar, item 5), estado da fila, cards dos módulos (slot `inicio.cards` do Core — ex.: "EM
  * ATENDIMENTO" do Core) e atalhos para as telas dos módulos efetivos.
  */
 import { useMotorSync, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Banner, Card, Empty, firstName, Screen, SectionHeader, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Banner, BotaoSincronizar, Card, Empty, firstName, Screen, SectionHeader, SyncStamp, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { Pressable, Text } from 'react-native';
 
@@ -15,13 +16,15 @@ export default function Inicio() {
   const visao = useVisaoShell();
   const { estado } = useMotorSync();
   const pendentes = estado.fila.length;
+  const auto = useAtualizacaoAutomatica();
   return (
-    <Screen testID="inicio">
+    <Screen testID="inicio" refreshing={auto.puxando} onRefresh={auto.puxar}>
       <Pressable testID="abrir-perfil" accessibilityRole="button" onPress={() => router.push('/profile')}>
         <Text style={t.sub}>{variante === 'gestao' ? 'Macuxi Gestão' : 'Macuxi Campo'}</Text>
         <Text style={t.h1}>Olá, {firstName(sessao?.user.name ?? '')}</Text>
       </Pressable>
-      <SyncStamp at={estado.sincronizado_em} offline={offline} tz={me?.tenant.timezone ?? 'America/Manaus'} />
+      <SyncStamp at={estado.sincronizado_em} offline={offline} tz={me?.tenant.timezone ?? sessao?.tenant?.fuso ?? 'America/Manaus'} />
+      <BotaoSincronizar testID="inicio-sincronizar" />
       {pendentes > 0 ? <Banner icon="sync">{`${pendentes} ${pendentes === 1 ? 'item' : 'itens'} na fila do aparelho.`}</Banner> : null}
       {estado.limpezaPendente.length > 0 ? (
         <Banner icon="alert" tone="danger" testID="aviso-modulo-desativado">

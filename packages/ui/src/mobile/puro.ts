@@ -5,3 +5,5 @@
  */
 export * from './time';
 export * from './text';
+export * from './atualizacao';
+export * from '../comum/cadastro';

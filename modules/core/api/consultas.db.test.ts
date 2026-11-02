@@ -47,12 +47,12 @@ describe.skipIf(semBanco())('Core × Postgres: consulta core.cadastro_resumo@1',
 
   it('RN-CORE-05: id de outro tenant não vaza', async () => {
     const r = await consultar(B.tenantId, { cliente_ids: [A.clientes.c1], produto_ids: [id(1)], usuario_ids: [A.usuarios.vendedor1] });
-    expect(r).toEqual({ clientes: [], produtos: [], usuarios: [] });
+    expect(r).toEqual({ clientes: [], produtos: [], usuarios: [], enderecos: [] });
   });
 
   it('ADR 0012: removido e inexistente ficam de fora; entrada vazia devolve listas vazias', async () => {
     const r = await consultar(A.tenantId, { produto_ids: [id(2), id(9)] });
-    expect(r).toEqual({ clientes: [], produtos: [], usuarios: [] });
+    expect(r).toEqual({ clientes: [], produtos: [], usuarios: [], enderecos: [] });
   });
 
   it('ADR 0012: mais de 500 ids é recusado pelo contrato', () => {
