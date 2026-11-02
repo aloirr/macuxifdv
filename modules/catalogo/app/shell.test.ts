@@ -1,11 +1,10 @@
 /**
- * O conjunto do `moduloApp` do Catálogo (T-0052) passa no `criarShell` real com o manifesto real do Core: abas, índice
+ * O conjunto do `moduloApp` do Catálogo (T-0052) passa no `criarShell` real: abas, índice
  * de busca com fonte do Core (`produto`), migrações do aparelho e o slot `cliente.acoes`. Erro aqui = o app não abre.
  * As telas (React Native) não rodam no Node: as páginas entram com o mesmo id/caminho/navegação/ação de `index.ts`.
  */
 import { ProdutoSyncSchema } from '@macuxi/core/contracts';
-import { manifest as manifestoCore } from '@macuxi/core/manifest';
-import { criarShell, definirEntidadeSync, definirModuloShell, modulosEfetivos, type Perfil } from '@macuxi/platform-sdk';
+import { criarShell, defineModule, definirEntidadeSync, definirModuloShell, modulosEfetivos, type Perfil } from '@macuxi/platform-sdk';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -28,6 +27,16 @@ const catalogo = definirModuloShell<string>({
   migracoesAparelho,
   indicesBusca: [INDICE_BUSCA_CATALOGO],
   extensoes: [{ slot: 'cliente.acoes', id: 'ver-catalogo', acao: 'produto.consultar', payload: { rotulo: 'Ver catálogo' } }],
+});
+/** Core de apoio (fronteira: o módulo não importa o manifesto do Core): o que o Catálogo usa dele. */
+const manifestoCore = defineModule({
+  id: 'core',
+  versao: '1.0.0',
+  perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
+  apps: { campo: { abas: [] }, gestao: { abas: [] }, web: { menus: [] } },
+  sync: ['produto'],
+  ofereceExtensoes: ['cliente.acoes'],
+  ofereceConsultas: ['core.cadastro_resumo@1'],
 });
 const core = definirModuloShell<string>({ manifesto: manifestoCore, entidadesSync: [definirEntidadeSync({ nome: 'produto', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoSyncSchema })] });
 
