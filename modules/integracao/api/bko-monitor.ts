@@ -5,7 +5,7 @@
  */
 import type { ContextoRota, RotaModulo } from '@macuxi/platform-sdk';
 import { ESTADOS_PEDIDO_ERP, type Entidade, type LoteListagemItem, type MonitorResumo, type PendenciaInativacao } from '../contracts';
-import { ehRetencaoPorChaveErp, montarAlertasMonitor, pedidosAguardandoConector, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
+import { ehRetencaoPorCadastro, montarAlertasMonitor, pedidosAguardandoConector, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
 import { COLUNAS_CONECTOR, iso, lerChaves, lerPolitica, montarResumo, type LinhaConector } from './bko-comum';
 import { lerParametrosHub } from './parametros';
 
@@ -138,7 +138,7 @@ export const rotaMonitor: RotaModulo = {
         pedidos: {
           presos: presos.map((p) => p.pedido_uuid),
           retidos: retidos.map((p) => p.pedido_uuid),
-          retidosPorChaveErp: retidos.filter((p) => ehRetencaoPorChaveErp(p.retencao_mensagem)).map((p) => p.pedido_uuid),
+          retidosPorCadastro: retidos.filter((p) => ehRetencaoPorCadastro(p.retencao_mensagem)).map((p) => p.pedido_uuid),
         },
         retornosComItensDescartados24h: descartes,
         pedidosAguardandoConector: pedidosAguardandoConector(esperandoConector, recebedor[0]?.versao_conector ?? null),

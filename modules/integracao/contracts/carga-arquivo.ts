@@ -15,7 +15,7 @@ export const CargaArquivoEntrada = z.object({
   /** Texto do CSV (UTF-8, com ou sem BOM). Limite de linhas e de bytes iguais aos do lote. */
   conteudo: z.string({ required_error: 'conteudo é obrigatório' }).min(1, 'O arquivo está vazio.'),
   /**
-   * RN-INT-12: a `Idempotency-Key` desta carga (16 a 128 caracteres seguros). Obrigatória — conferida no módulo (400
+   * RN-INT-12: a `Idempotency-Key` desta carga (16 a 128 caracteres seguros). Obrigatória — conferida no módulo (422
    * `chave_idempotencia_invalida`) com a mesma regra do `POST /lotes`; vai no corpo porque a rota de usuário não expõe cabeçalhos.
    */
   chave_idempotencia: z.string().max(200).optional(),

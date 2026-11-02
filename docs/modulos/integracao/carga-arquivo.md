@@ -10,7 +10,7 @@ Fora desta entrega (backlog): Excel nativo (`.xlsx`), SFTP, arquivo com mais de 
 - **Separador** `;` ou `,`, detectado no cabeçalho (sem nenhum dos dois vale `;`). Texto com separador ou quebra de linha vai entre aspas duplas (`"Silva; Souza"`, `""` escapa aspas).
 - **Cabeçalho** na linha 1 = nomes dos campos do contrato canônico da entidade (`contracts/entidades.ts`), sem diferenciar maiúsculas. Campo aninhado com ponto: `endereco.cidade`. Coluna fora do contrato, repetida ou de lista recusa o arquivo inteiro com a lista das colunas aceitas; coluna obrigatória ausente também.
 - **Célula vazia = campo ausente.** `alterado_em` pode ficar de fora (ou vazio): vale o instante do envio. Quando vier, é ISO 8601 UTC (`2026-10-31T14:00:00Z`).
-- **Tipos**: texto como está; número com `.` ou `,` decimal (dinheiro em **centavos inteiros**, `_cents`); booleano `sim|não|true|false|1|0|s|n`; datas `AAAA-MM-DD`; UF e unidade são normalizadas pelo contrato.
+- **Tipos**: texto como está; número com `.` ou `,` decimal (dinheiro em **centavos inteiros**, `_cents`); **sem separador de milhar**: um número com `.` ou `,` seguido de exatamente 3 dígitos ("1.500", "1,500") é ambíguo (milhar ou decimal) e a linha é recusada com mensagem clara (`tipo_invalido`) — escreva 1500 ou 1,5; booleano `sim|não|true|false|1|0|s|n`; datas `AAAA-MM-DD`; UF e unidade são normalizadas pelo contrato.
 - Linhas em branco e linhas só de separadores (sobra do Excel) são ignoradas; a numeração dos erros é a **linha física do arquivo** (cabeçalho = 1).
 
 | Entidade | Obrigatórias | Opcionais (além de `alterado_em` e `ativo`) |
@@ -57,7 +57,7 @@ TRP-02;"Boa Vista; Cargas";
 | **404** `CONECTOR_NAO_ENCONTRADO` | `conector_id` que não existe (ou é de outra empresa). |
 | 401 / 403 | Sem login; perfil sem a ação `carga.arquivo`; módulo Integração não licenciado (plataforma). |
 
-**Linhas com erro**: valor que não converte (número, booleano) ou linha com colunas a mais viram `linhas_invalidas` do lote (origem `conector`, `external_id` da linha se legível — protege o registro da inativação); o resto é validado pelo Hub linha a linha (formato, faixa, obrigatório, referência). Todas ganham o prefixo *"Linha N do arquivo:"* com a linha física. As mensagens citam só a linha, o campo e o tipo esperado — **nunca o valor digitado** (dado pessoal).
+**Linhas com erro**: valor que não converte (número, booleano) ou linha com colunas a mais viram `linhas_invalidas` do lote (origem `conector`). Valor que não converte guarda o `external_id` da linha (protege o registro da inativação na carga completa); linha com **colunas a mais** fica com `external_id` nulo (as células andam e o id lido seria outro pedaço do texto), e a carga completa que a contém não inativa nada (`linhas_sem_external_id`, RN-INT-06); o resto é validado pelo Hub linha a linha (formato, faixa, obrigatório, referência). Todas ganham o prefixo *"Linha N do arquivo:"* com a linha física. As mensagens citam só a linha, o campo e o tipo esperado — **nunca o valor digitado** (dado pessoal).
 
 **`chave_idempotencia`**: a rota de usuário não expõe cabeçalhos, então a `Idempotency-Key` (RN-INT-12) vai no corpo, com a mesma regra do `POST /lotes`. Mesmo arquivo reenviado com a mesma chave devolve a mesma resposta (BOM, CRLF e linhas em branco no fim não contam como diferença); arquivo novo, chave nova. A tela de envio deve gerar um UUID por tentativa e reutilizá-lo no "tentar de novo".
 

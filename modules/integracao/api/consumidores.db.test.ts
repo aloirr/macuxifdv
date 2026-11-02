@@ -419,7 +419,7 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       expect(f?.retencao_mensagem).toMatch(/faltam as chaves do ERP/);
       expect(f?.retencao_mensagem).toMatch(/cliente/);
       expect(f?.retencao_mensagem).toMatch(/sequência 1/);
-      expect(f?.retencao_mensagem).toMatch(/reaprove/i);
+      expect(f?.retencao_mensagem).toMatch(/cancele este pedido/i);
       expect((await retirar()).pedidos.map((x) => x.pedido_uuid)).not.toContain(uuid);
       const m = await monitor(A.tenantId);
       expect(m.pedidos.retidos).toBe(antes + 1);

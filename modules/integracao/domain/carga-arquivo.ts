@@ -193,7 +193,7 @@ export type ResultadoConversaoCsv =
   | {
       ok: false;
       codigo: CodigoRecusaArquivo;
-      /** `limite` = tamanho/linhas acima do que o lote aceita (413); `arquivo_invalido` = o conteúdo não serve (422). */
+      /** `limite` = tamanho/linhas acima do que o lote aceita (422 com `detalhes.limite`); `arquivo_invalido` = o conteúdo não serve (422). */
       classe: 'limite' | 'arquivo_invalido';
       mensagem: string;
     };
@@ -215,13 +215,18 @@ const recusa = (codigo: CodigoRecusaArquivo, mensagem: string, classe: 'limite' 
 const unidadeTamanho = (bytes: number): string => (bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} MiB` : `${(bytes / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} KiB`);
 
 const NUMERO = /^[+-]?\d+(?:[.,]\d+)?$/;
+/** "1.500" / "1,500" (um separador seguido de exatamente 3 dígitos) pode ser milhar ou decimal: recusa em vez de adivinhar (1,5 x 1500). */
+const NUMERO_AMBIGUO = /^[+-]?\d{1,3}[.,]\d{3}$/;
 const VERDADEIRO = new Set(['true', 'verdadeiro', 'sim', 's', '1', 'yes', 'y']);
 const FALSO = new Set(['false', 'falso', 'nao', 'não', 'n', '0', 'no']);
 const ROTULO_TIPO: Record<TipoColuna, string> = { texto: 'texto', numero: 'número (ex.: 1500 ou 12,5)', booleano: 'sim/não' };
 
-function converterCelula(valor: string, tipo: TipoColuna): { ok: true; valor: unknown } | { ok: false } {
+function converterCelula(valor: string, tipo: TipoColuna): { ok: true; valor: unknown } | { ok: false; ambiguo?: boolean } {
   if (tipo === 'texto') return { ok: true, valor };
-  if (tipo === 'numero') return NUMERO.test(valor) ? { ok: true, valor: Number(valor.replace(',', '.')) } : { ok: false };
+  if (tipo === 'numero') {
+    if (NUMERO_AMBIGUO.test(valor)) return { ok: false, ambiguo: true };
+    return NUMERO.test(valor) ? { ok: true, valor: Number(valor.replace(',', '.')) } : { ok: false };
+  }
   const v = valor.toLowerCase();
   if (VERDADEIRO.has(v)) return { ok: true, valor: true };
   if (FALSO.has(v)) return { ok: true, valor: false };
@@ -299,12 +304,14 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
   for (const linha of csv.linhas) {
     const idBruto = idxId >= 0 ? (linha.celulas[idxId] ?? '').trim() : '';
     const external_id = idBruto !== '' && idBruto.length <= 200 ? idBruto : null;
-    const invalida = (codigo: LinhaInvalidaConector['codigo'], campo: string | null, detalhe: string) =>
-      invalidas.push({ external_id, codigo, campo, mensagem: `Linha ${linha.numero} do arquivo: ${detalhe}`.slice(0, 300) });
+    // `idConfiavel = false`: linha com colunas a mais está deslocada e a célula do external_id pode ser outro pedaço do texto (RN-INT-06:
+    // `external_id` nulo faz `calcularInativacao` recusar a inativação com `linhas_sem_external_id`, em vez de marcar outro registro como visto)
+    const invalida = (codigo: LinhaInvalidaConector['codigo'], campo: string | null, detalhe: string, idConfiavel = true) =>
+      invalidas.push({ external_id: idConfiavel ? external_id : null, codigo, campo, mensagem: `Linha ${linha.numero} do arquivo: ${detalhe}`.slice(0, 300) });
 
     const extras = linha.celulas.slice(cabecalho.length);
     if (extras.some((c) => c.trim() !== '')) {
-      invalida('registro_invalido', null, `a linha tem ${linha.celulas.length} colunas e o cabeçalho tem ${cabecalho.length}. Se o texto tem ponto e vírgula, coloque-o entre aspas duplas.`);
+      invalida('registro_invalido', null, `a linha tem ${linha.celulas.length} colunas e o cabeçalho tem ${cabecalho.length}. Se o texto tem ponto e vírgula, coloque-o entre aspas duplas.`, false);
       continue;
     }
 
@@ -316,7 +323,9 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
       if (!coluna || valor === '') continue;
       const r = converterCelula(valor, coluna.tipo);
       if (!r.ok) {
-        invalida(coluna.tipo === 'booleano' ? 'valor_nao_permitido' : 'tipo_invalido', coluna.caminho, `o campo "${coluna.caminho}" deve ser ${ROTULO_TIPO[coluna.tipo]}. Corrija a célula e envie de novo.`);
+        invalida(coluna.tipo === 'booleano' ? 'valor_nao_permitido' : 'tipo_invalido', coluna.caminho, r.ambiguo
+            ? `o campo "${coluna.caminho}" tem ponto ou vírgula seguido de 3 dígitos, que pode ser milhar ou decimal e não será adivinhado. Escreva sem separador de milhar (1500) ou com os decimais sem zeros à direita (1,5) e envie de novo.`
+            : `o campo "${coluna.caminho}" deve ser ${ROTULO_TIPO[coluna.tipo]}. Corrija a célula e envie de novo.`);
         falhou = true;
         break;
       }

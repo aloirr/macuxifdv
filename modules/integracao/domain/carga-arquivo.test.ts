@@ -166,12 +166,34 @@ describe('RF-INT-03: CSV vira o envelope canônico do lote', () => {
     expect(r.ok && r.linhasInvalidas[0]).toMatchObject({ external_id: null, codigo: 'tipo_invalido' });
   });
 
+  it('RN-INT-06: linha com colunas a mais está deslocada: external_id nulo (nunca o pedaço errado do texto); valor que não converte, com colunas certas, preserva o external_id', () => {
+    const r = conv('nome;external_id\nFoo; Ltda;T01\nBar;T02', { entidade: 'vendedor' });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.linhasInvalidas).toHaveLength(1);
+    expect(r.linhasInvalidas[0]).toMatchObject({ external_id: null, codigo: 'registro_invalido' });
+    expect(r.linhasInvalidas.map((l) => l.external_id)).not.toContain('Ltda');
+    expect(r.registros.map((x) => x.external_id)).toEqual(['T02']);
+    const t = conv('external_id;razao_social;limite_credito_cents\nC1;A;abc', { entidade: 'cliente' });
+    expect(t.ok && t.linhasInvalidas[0]).toMatchObject({ external_id: 'C1', codigo: 'tipo_invalido' });
+  });
+
+  it('RF-INT-03: número com separador seguido de exatamente 3 dígitos ("1.500", "1,500") é ambíguo e recusado na linha, sem o valor digitado; 1500, 1,5 e 1.500,00 não', () => {
+    const q = conv('external_id;deposito_external_id;produto_external_id;saldo\nE1;D;P;1.500\nE2;D;P;1,500\nE3;D;P;1500\nE4;D;P;1,5\nE5;D;P;12,25', { entidade: 'estoque' });
+    expect(q.ok).toBe(true);
+    if (!q.ok) return;
+    expect(q.linhasInvalidas.map((l) => [l.external_id, l.codigo, l.campo])).toEqual([['E1', 'tipo_invalido', 'saldo'], ['E2', 'tipo_invalido', 'saldo']]);
+    expect(q.linhasInvalidas[0]?.mensagem).toMatch(/^Linha 2 do arquivo: .*milhar ou decimal/);
+    expect(q.linhasInvalidas[0]?.mensagem).not.toMatch(/1\.500|1,500/);
+    expect(q.registros.map((x) => x.saldo)).toEqual([1500, 1.5, 12.25]);
+  });
+
   it('RF-INT-03: colunas a mais que o cabeçalho com conteúdo = linha inválida (registro_invalido); a mais vazias (sobra do Excel) são ignoradas; a menos completam vazio', () => {
     const r = conv('external_id;nome\nV1;Ana;lixo\nV2;Bia;;\nV3');
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.linhasInvalidas).toHaveLength(1);
-    expect(r.linhasInvalidas[0]).toMatchObject({ external_id: 'V1', codigo: 'registro_invalido' });
+    expect(r.linhasInvalidas[0]).toMatchObject({ external_id: null, codigo: 'registro_invalido' });
     expect(r.linhasInvalidas[0]?.mensagem).toMatch(/Linha 2 do arquivo: .*3 colunas.*2/);
     expect(r.registros.map((x) => x.external_id)).toEqual(['V2', 'V3']);
   });

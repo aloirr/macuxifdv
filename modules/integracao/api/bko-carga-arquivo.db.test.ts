@@ -284,6 +284,44 @@ describe.skipIf(semBanco())('Carga por arquivo × Postgres', () => {
     expect(await d('D1')).toBeNull();
   });
 
+  it('RN-INT-06 (revisão final): linha com colunas a mais NÃO pega o external_id deslocado — external_id nulo, e a carga completa não inativa nada (calcularInativacao recusa por linhas_sem_external_id)', async () => {
+    eventos = [];
+    const cab = 'nome;external_id;codigo;nivel';
+    const ids = Array.from({ length: 10 }, (_, i) => `E${String(i + 1).padStart(2, '0')}`);
+    const linha = (id: string) => `Nó ${id};${P}-${id};${id};1`;
+    const inicial = await enviar(A.tenantId, { entidade: 'catalogo_no', modo: 'delta', conteudo: [cab, ...ids.map(linha)].join('\n') + '\n' });
+    await aplicar(A.tenantId, inicial.lote_id, ID_ARQ_A, 'catalogo_no', 'delta');
+    // E09 vem com o ";" no nome sem aspas: as células andam uma casa e o "external_id" lido seria "E09" (outro pedaço do texto)
+    const deslocada = `Nó; E09;${P}-E09;E09;1`;
+    const r = await enviar(A.tenantId, { entidade: 'catalogo_no', modo: 'completo', conteudo: [cab, ...ids.slice(0, 8).map(linha), deslocada].join('\n') + '\n' });
+    expect(r).toMatchObject({ recebidos: 9, linhas_lidas: 9, linhas_invalidas_leitura: 1 });
+    await aplicar(A.tenantId, r.lote_id, ID_ARQ_A, 'catalogo_no', 'completo');
+    const erros = (await errosDe(A.tenantId, r.lote_id)).itens;
+    expect(erros).toHaveLength(1);
+    expect(erros[0]).toMatchObject({ origem: 'conector', external_id: null, codigo: 'registro_invalido' });
+    expect(erros[0]?.mensagem).toMatch(/^Linha 10 do arquivo:/);
+    expect(await resultado(A.tenantId, r.lote_id)).toMatchObject({ inativadas: 0, inativacao: { situacao: 'nao_aplicavel' } });
+    const reg = await ativos(A.tenantId, 'catalogo_no');
+    for (const id of ['E09', 'E10']) expect(reg.find((x) => x.external_id === `${P}-${id}`)?.deleted_at, id).toBeNull();
+    expect(nomes('integracao.catalogo_no.atualizado@1').filter((e) => e.payload.acao === 'inativado')).toHaveLength(0);
+  });
+
+  it('RN-INT-06 (revisão final): linha com tipo que não converte (tipo_invalido) em carga completa preserva o external_id: conta como vista e NÃO é inativada; só o ausente sai', async () => {
+    eventos = [];
+    const ids = Array.from({ length: 8 }, (_, i) => `E${String(i + 1).padStart(2, '0')}`);
+    const r = await enviar(A.tenantId, { entidade: 'catalogo_no', modo: 'completo', conteudo: csvNo([...ids.map((id): [string, string] => [id, '1']), ['E09', 'abc']]) });
+    expect(r).toMatchObject({ recebidos: 9, linhas_lidas: 9, linhas_invalidas_leitura: 1 });
+    await aplicar(A.tenantId, r.lote_id, ID_ARQ_A, 'catalogo_no', 'completo');
+    const erros = (await errosDe(A.tenantId, r.lote_id)).itens;
+    expect(erros.map((e) => [e.origem, e.external_id, e.codigo, e.campo])).toEqual([['conector', `${P}-E09`, 'tipo_invalido', 'nivel']]);
+    const res = await resultado(A.tenantId, r.lote_id);
+    expect(res).toMatchObject({ status: 'concluido_com_erros', inativacao: { situacao: 'aplicada' } });
+    const reg = await ativos(A.tenantId, 'catalogo_no');
+    expect(reg.find((x) => x.external_id === `${P}-E09`)?.deleted_at).toBeNull();
+    expect(reg.find((x) => x.external_id === `${P}-E10`)?.deleted_at).not.toBeNull();
+    expect(nomes('integracao.catalogo_no.atualizado@1').filter((e) => e.payload.acao === 'inativado').map((e) => e.payload.external_id)).not.toContain(`${P}-E09`);
+  });
+
   // ---------------------------------------------------------------------------------------------------------- RN-INT-12
 
   it('RN-INT-12: chave obrigatória e válida — sem chave, curta ou com espaço: 422 chave_idempotencia_invalida (nenhum lote criado)', async () => {

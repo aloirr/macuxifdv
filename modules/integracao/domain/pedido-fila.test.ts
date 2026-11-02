@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PedidoAprovadoConsumido, PedidoAprovadoParaFila, PedidoParaErp, RetornoErp } from '../contracts';
-import { aplicarRetornoPedido, decidirEntradaNaFila, ehRetencaoPorChaveErp, montarPedidoParaErp, montarSnapshotParaFila, selecionarPendentes, type Mapeamento, type PedidoNaFila } from './pedido-fila';
+import { aplicarRetornoPedido, decidirEntradaNaFila, ehRetencaoPorCadastro, montarPedidoParaErp, montarSnapshotParaFila, PREFIXO_RETENCAO_CADASTRO, selecionarPendentes, type Mapeamento, type PedidoNaFila } from './pedido-fila';
 
 const t0 = '2026-11-01T10:00:00.000Z';
 const min = (iso: string, m: number) => new Date(Date.parse(iso) + m * 60_000).toISOString();
@@ -483,8 +483,9 @@ describe('RN-INT-08 (T-0032 🟡): pedido aprovado sem as chaves do ERP fica RET
       expect(r.mensagem).toMatch(/vendedor/);
       expect(r.mensagem).toMatch(/sequências? 2 e 5/);
       expect(r.mensagem).not.toMatch(/SKU1/);
-      expect(r.mensagem).toMatch(/reaprove/i);
-      expect(ehRetencaoPorChaveErp(r.mensagem)).toBe(true);
+      expect(r.mensagem).toMatch(/cancele este pedido/i);
+      expect(r.mensagem).not.toMatch(/reaprov/i);
+      expect(ehRetencaoPorCadastro(r.mensagem)).toBe(true);
     }
   });
 
@@ -512,7 +513,11 @@ describe('RN-INT-08 (T-0032 🟡): pedido aprovado sem as chaves do ERP fica RET
     if (r.ok) throw new Error('esperado recusa');
     expect(r.mensagem).toMatch(/cliente_external_id/);
     expect(r.mensagem).not.toContain(longo);
-    expect(ehRetencaoPorChaveErp(r.mensagem)).toBe(false);
+    // mesma família de retenção (cadastro): o monitor não conta como falta de de-para
+    expect(r.mensagem.startsWith(PREFIXO_RETENCAO_CADASTRO)).toBe(true);
+    expect(ehRetencaoPorCadastro(r.mensagem)).toBe(true);
+    expect(r.mensagem).toMatch(/cancele este pedido/i);
+    expect(r.mensagem).not.toMatch(/reaprov/i);
   });
 
   it('RN-INT-08: aprovado sem chaves → reter (inserir) com mapeamento_ausente e a mensagem específica; o pedido não é descartado', () => {

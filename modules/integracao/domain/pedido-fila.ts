@@ -111,11 +111,14 @@ export function montarPedidoParaErp(origem: PedidoAprovadoParaFila, mapeamentos:
 
 // ---------------------------------------------------------------- snapshot do evento (chaves do ERP)
 
-/** Início fixo da mensagem de retenção por chave do ERP ausente: o monitor separa esse motivo do de-para sem coluna nova (ver `ehRetencaoPorChaveErp`). */
-export const PREFIXO_RETENCAO_CHAVE_ERP = 'Pedido retido: faltam as chaves do ERP';
+/**
+ * Início fixo das DUAS recusas de `montarSnapshotParaFila` (chave do ERP ausente; dados fora do contrato): são problema de CADASTRO, não de
+ * de-para. O monitor separa esse motivo do Mapeamento sem coluna nova (ver `ehRetencaoPorCadastro`).
+ */
+export const PREFIXO_RETENCAO_CADASTRO = 'Pedido retido por cadastro';
 
-/** `true` quando a mensagem de retenção é a de chave do ERP ausente (o código gravado é `mapeamento_ausente`; um código próprio depende de migração do banco). */
-export const ehRetencaoPorChaveErp = (mensagem: string | null | undefined): boolean => typeof mensagem === 'string' && mensagem.startsWith(PREFIXO_RETENCAO_CHAVE_ERP);
+/** `true` quando a mensagem de retenção é de cadastro (chave do ERP ausente ou dado fora do contrato); o código gravado é `mapeamento_ausente` (um código próprio depende de migração do banco). */
+export const ehRetencaoPorCadastro = (mensagem: string | null | undefined): boolean => typeof mensagem === 'string' && mensagem.startsWith(PREFIXO_RETENCAO_CADASTRO);
 
 export type ResultadoSnapshotFila = { ok: true; snapshot: PedidoAprovadoParaFila } | { ok: false; mensagem: string };
 
@@ -146,7 +149,7 @@ export function montarSnapshotParaFila(p: PedidoAprovadoConsumido): ResultadoSna
   if (faltando.length > 0) {
     return {
       ok: false,
-      mensagem: `${PREFIXO_RETENCAO_CHAVE_ERP}: ${faltando.join('; ')}. Complete o cadastro (o código do ERP normalmente chega pela carga do ERP em Integração ERP > Lotes) e reaprove o pedido; ele entra na fila sozinho.`,
+      mensagem: `${PREFIXO_RETENCAO_CADASTRO}: faltam as chaves do ERP: ${faltando.join('; ')}. Complete o cadastro (o código do ERP normalmente chega pela carga do ERP em Integração ERP > Lotes), cancele este pedido e refaça-o (duplique) depois; o pedido retido não segue sozinho.`,
     };
   }
   const r = PedidoAprovadoParaFilaSchema.safeParse({
@@ -160,7 +163,7 @@ export function montarSnapshotParaFila(p: PedidoAprovadoConsumido): ResultadoSna
   const mostrar = campos.slice(0, MAX_CAMPOS_NA_MENSAGEM);
   return {
     ok: false,
-    mensagem: `Pedido retido: os dados não cabem no contrato do ERP (campo${campos.length > 1 ? 's' : ''}: ${mostrar.join(', ')}${campos.length > mostrar.length ? ` e mais ${campos.length - mostrar.length}` : ''}). Corrija o cadastro e reaprove o pedido; ele entra na fila sozinho.`,
+    mensagem: `${PREFIXO_RETENCAO_CADASTRO}: os dados não cabem no contrato do ERP (campo${campos.length > 1 ? 's' : ''}: ${mostrar.join(', ')}${campos.length > mostrar.length ? ` e mais ${campos.length - mostrar.length}` : ''}). Corrija o cadastro, cancele este pedido e refaça-o (duplique) depois; o pedido retido não segue sozinho.`,
   };
 }
 

@@ -2,7 +2,7 @@
  * A8 — consumidores do Vendedor na fila do ERP (RN-INT-08; ADR 0007: efeito e `evento_consumo` na mesma transação).
  *  - `vendedor.pedido.aprovado@1` (traz o pedido pronto): `decidirEntradaNaFila` → cria `pedido_fila_erp` (idempotente pelo
  *    `pedido_uuid`), retém sem de-para OU sem as chaves do ERP de cliente/vendedor/produto (nunca lança: mensagem diz o que completar;
- *    reaprovar com as chaves libera, T-0032), troca o conteúdo antes da 1ª entrega ou ignora.
+ *    um novo aprovado@1 com as chaves libera, T-0032 — o Vendedor hoje não reaprova; a saída é cancelar e refazer), troca o conteúdo antes da 1ª entrega ou ignora.
  *  - `vendedor.pedido.status_alterado@1` (não traz o pedido): saída de `aprovado` antes da 1ª entrega tira da fila; depois da
  *    entrega nada muda (o ERP é quem avisa o cancelamento, retorno `cancelado`). Entrada em `aprovado` é do evento acima.
  * Limite conhecido: a ordem entre os dois eventos não é garantida (ADR 0007); um cancelamento que chegue ANTES do aprovado do
