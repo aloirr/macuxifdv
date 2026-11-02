@@ -9,11 +9,15 @@ import { useQuery } from '@tanstack/react-query';
 import { MeusModulosRespostaSchema, type Me } from '@macuxi/core/contracts';
 import { AuditoriaRespostaSchema, modulosEfetivos, ROTA_AUDITORIA, type ModuloId, type Perfil } from '@macuxi/platform-sdk';
 import { api, ApiRequestError, MODO_API } from '@macuxi/platform-sdk/web';
+import { intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { MANIFESTOS_WEB } from './modulos';
 import { useSessao } from './session';
 
-/** Faróis: atualizam sozinhos a cada ~10 s. */
-export const LIVE_REFETCH_MS = 10_000;
+/**
+ * Atualização automática das consultas do shell (RN-CORE-23 item 6, `sync_auto_min`): padrão 30 min, nunca abaixo de 15.
+ * Fora isso, só o botão "Atualizar" da página. O React Query só refaz com a aba em foco (`refetchIntervalInBackground` fica false).
+ */
+export const LIVE_REFETCH_MS = intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN);
 
 export interface ListResponse<T> {
   items: T[];

@@ -25,3 +25,6 @@
 2026-11-01 — T-0042 — C6: 'hoje' no fuso do tenant (carteira, rotas, sync, metas, BKO) + hoje-fuso.db.test; C1-C5 sem data fixa/relógio único nos db tests
 2026-11-02 — T-0060 (parcial) — carteira opcional no core.cliente.atualizado@1 + domain cadastroCompleto/observacaoComCadastro (RN-CORE-16/17), testes verdes
 2026-11-02 — T-0060/T-0061 — contratos do cadastro mínimo, core.cadastro_cliente@1, provedores produto_unidade/cliente_endereco, domain reexportando o contrato
+2026-11-02 — T-0060/T-0042/T-0065(B)/T-0062 — consumidor integracao.cliente.atualizado@1 (cadastro_incompleto no core.cliente e no evento), unidade/endereço declarados no app, etiqueta e Observações nas telas (app e BKO), carteira sem plataforma.tenant, domain da apuração por tipo da meta e do preço/margem do produto, refetch do BKO em 5 min
+2026-11-02 — T-0066 — consumidores do ERP no Core: vendedor, cliente completo (carteira/contatos/financeiro), produto, título e rota; testes × Postgres; nota pendente da tabela do banco-dados
+2026-11-02 — T-0065 (A.3) — push de pedido (aprovado/rejeitado/para aprovar/integrado/faturado) via consumidores do Core, data.entidades no push, timers do BKO em sync_auto_min + botão Atualizar

@@ -4,11 +4,12 @@
  * As abas de módulos (`cliente.abas`) são desenhadas pela tela da ficha, não aqui.
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { Badge, Card, colors, fonts, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { Badge, Card, EtiquetaCadastroIncompleto, ObservacoesCliente, colors, fonts, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Cliente360Local } from '../lib/cliente360-local';
 import { mapsUrl } from '../lib/route';
+import { observacaoComCadastro } from '../../domain';
 
 const num = (v: string | number | null): number | null => (v === null || v === '' ? null : Number(v));
 const dataBr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
@@ -52,6 +53,7 @@ export function CabecalhoCliente({ ficha }: { ficha: Cliente360Local }) {
         {c.segmento ? <Badge label={c.segmento} tone="neutral" /> : null}
         {fin?.bloqueado ? <Badge label={`Bloqueado${fin.motivo_bloqueio ? ` · ${fin.motivo_bloqueio}` : ''}`} tone="danger" /> : null}
         {fin && fin.vencidos_qtd > 0 ? <Badge label={`${fin.vencidos_qtd} vencido${fin.vencidos_qtd > 1 ? 's' : ''}`} tone="danger" /> : null}
+        {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
         {!c.ativo ? <Badge label="Inativo" tone="warning" /> : null}
       </View>
     </View>
@@ -94,6 +96,9 @@ export function SecoesCliente360({ ficha }: { ficha: Cliente360Local }) {
           </Card>
         )}
       </View>
+
+      {/* RN-CORE-17: linha automática de cadastro incompleto no topo, texto do ERP intacto abaixo (montada aqui, nunca gravada) */}
+      <ObservacoesCliente automatica={observacaoComCadastro(null, ficha.cliente.cadastro_campos_faltantes ?? [])} texto={ficha.cliente.observacao ?? null} />
 
       <View style={{ gap: 8 }} testID="cliente-financeiro">
         <SectionHeader title="Financeiro" />
