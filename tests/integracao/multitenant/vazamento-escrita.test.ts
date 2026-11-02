@@ -18,6 +18,22 @@ import { conectar, tabelasDoCatalogo, tentar, type Tabela } from '../apoio/banco
 const A = DOIS_TENANTS.A.tenantId;
 const B = DOIS_TENANTS.B.tenantId;
 
+/**
+ * Colunas que um CHECK da tabela-filha amarra à coluna da FK. Sem acertá-las no mesmo UPDATE, o CHECK (23514, avaliado
+ * na hora da escrita) dispara antes da FK (23503, gatilho no fim do comando) e o teste reprovaria pelo motivo errado.
+ * Os acertos só deixam a linha COERENTE com a coluna da FK preenchida; a mãe continua sendo a linha de B, então quem
+ * recusa é a FK cruzada. Tudo em transação desfeita. Chave: nome da FK (migração 0013).
+ */
+const COERENCIA_DA_FK: Record<string, string> = {
+  // catalogo_no_raiz_nivel_1: (pai_id is null) = (nivel = 1) — nó com pai tem nível > 1 (faixa 1..8)
+  catalogo_no_pai_fk: 'nivel = greatest(nivel, 2)',
+  // pedido_cif_sem_transportadora / pedido_fob_com_transportadora / pedido_transportadora_digitada:
+  // transportadora cadastrada só existe com frete FOB e sem transportadora digitada
+  pedido_transportadora_fk: "frete_modalidade = 'FOB', transportadora_digitada = false",
+  // pedido_orcamento_origem / pedido_orcamento_campos: só pedido (tipo 'pedido', sem validade nem conversão) aponta orçamento
+  pedido_orcamento_fk: "tipo = 'pedido', orcamento_validade = null, convertido_em = null",
+};
+
 interface Fk {
   nome: string;
   filha: string;
@@ -148,12 +164,15 @@ describe.skipIf(semBanco())('S0-025 escrita cruzada entre tenants (papel macuxi_
     it('em cada FK composta, apontar uma linha de A para a linha-mãe de B é recusado (23503)', async () => {
       const comTenant = new Set(tabelas.map((t) => t.nome));
       const compostas = fks.filter((f) => comTenant.has(f.filha) && comTenant.has(f.mae) && f.colunasFilha.length === 2);
+      // acerto de coerência para FK que não existe mais = lista desatualizada (revisar junto com a migração)
+      expect(Object.keys(COERENCIA_DA_FK).filter((n) => !compostas.some((f) => f.nome === n))).toEqual([]);
       for (const f of compostas) {
         const coluna = f.colunasFilha[1]!;
         const sqlFilha = f.filha.split('.').map((p) => `"${p}"`).join('.');
         const idFilhaA = linha.get(f.filha)!.A;
         const idMaeB = linha.get(f.mae)!.B;
-        const sql = `update ${sqlFilha} set "${coluna}" = $2 where id = $1`;
+        const coerencia = COERENCIA_DA_FK[f.nome];
+        const sql = `update ${sqlFilha} set "${coluna}" = $2${coerencia ? `, ${coerencia}` : ''} where id = $1`;
         const podeAlterar = (await app.query<{ p: boolean }>("select has_table_privilege(current_user, $1, 'UPDATE') as p", [f.filha])).rows[0]!.p;
         if (!podeAlterar) {
           // tabela só de inserção para a aplicação (ex.: vendedor.pedido_evento, T-0029): o UPDATE já é negado (42501);
