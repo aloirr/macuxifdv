@@ -63,6 +63,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
         '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido', '0008_catalogo_preco', '0009_vendedor_pedido_completo',
         '0010_integracao', '0011_plataforma_outbox_retencao', '0012_search_path_pg_temp', '0013_catalogo_vendedor_prevenda',
       ]);
+      expect(aPartirDe('0014').slice(0, 2)).toEqual(['0014_gestor', '0015_promotor']);
       expect((await migrarUp(c)).aplicadas).toEqual(aPartirDe('0004'));
       expect((await migrarUp(c)).aplicadas).toEqual([]);
       // uma por vez, da última até a 0002
@@ -168,7 +169,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
         [null, [], null, null],
       ]);
       const ate0009 = await retratoDoCatalogo(c);
-      // a fixture tem tabelas da 0010+: carrega com tudo aplicado e desce da última até a 0010 antes (integracao e gestor somem junto)
+      // a fixture tem tabelas da 0010+: carrega com tudo aplicado e desce da última até a 0010 antes (integracao, gestor e promotor somem junto)
       await migrarUp(c);
       const completo = await retratoDoCatalogo(c);
       await carregarDoisTenants(c, { senha: 'x', hoje: '2026-11-03' });

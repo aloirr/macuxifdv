@@ -18,6 +18,9 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > retenção pela API sob RLS, sem função SECURITY DEFINER); dicionário [gestor.md](gestor.md); fixture com linhas de A e B nas 4 tabelas;
 > seed da demo do Gestor em `db/seeds/demo/gestor.ts` (licença + projeção). **Depende da `0013` (Catálogo) na pasta** (o
 > executor recusa buraco na numeração).
+> **2026-11-02 (T-0056):** `0015_promotor` (schema `promotor`: 9 cadastros de trade e 11 coletas com payload jsonb + colunas
+> derivadas por gatilho, FK composta coleta → visita de loja, sem DELETE); dicionário [promotor.md](promotor.md); seed da demo em
+> `db/seeds/demo/promotor.ts` (`gravarDemoPromotor`) e fixture em `db/seeds/fixtures/promotor.ts` (ids nos grupos 0x84–0x97; o Gestor usa 0x70–0x73).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
