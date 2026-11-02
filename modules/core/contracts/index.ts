@@ -489,3 +489,4 @@ export * from './meta';
 export * from './hierarquia';
 export * from './dispositivo';
 export * from './consultas';
+export * from './cadastro';

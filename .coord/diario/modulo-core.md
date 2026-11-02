@@ -23,3 +23,5 @@
 2026-11-01 — T-0026 — login: botão de olho na senha e mensagens separadas (sem conexão, servidor inválido, credencial)
 2026-11-01 — T-0029 — app do Core registra pull de produto (entidades-produto.ts)
 2026-11-01 — T-0042 — C6: 'hoje' no fuso do tenant (carteira, rotas, sync, metas, BKO) + hoje-fuso.db.test; C1-C5 sem data fixa/relógio único nos db tests
+2026-11-02 — T-0060 (parcial) — carteira opcional no core.cliente.atualizado@1 + domain cadastroCompleto/observacaoComCadastro (RN-CORE-16/17), testes verdes
+2026-11-02 — T-0060/T-0061 — contratos do cadastro mínimo, core.cadastro_cliente@1, provedores produto_unidade/cliente_endereco, domain reexportando o contrato
