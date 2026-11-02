@@ -45,12 +45,14 @@ export async function receberUma(ctx: ContextoBase, fabrica: FabricaRepositorio,
       if (!r.ok) return r.codigo === 'CONFLITO_DE_CONTEUDO' ? { id: item.id, status: 'conflito' as const, mensagem: r.mensagem } : rejeitado(item.id, r.codigo, r.mensagem);
       if (r.valor.resultado === 'duplicada') return { id: item.id, status: 'aceito' as const, em: agora };
       const { resposta, evento } = r.valor;
-      await repo.inserirResposta(resposta, agora);
+      // fotos e evento antes da resposta: se algum falhar (ex.: 409 ARQUIVO_JA_REFERENCIADO), nada fica gravado —
+      // a transação do banco desfaz e o repositório em memória (sem transação) nem chega a inserir
       for (const it of resposta.itens) {
         if (it.tipo !== 'foto') continue;
         for (const f of it.fotos) await tx.registrarArquivo({ id: f.id, finalidade: 'pesquisa_foto', entidade: 'resposta_pesquisa', entidade_id: resposta.id, cliente_id: resposta.cliente_id, tipo: 'image/jpeg' });
       }
       await tx.publicar(DEF_RESPOSTA_REGISTRADA, evento, resposta.id);
+      await repo.inserirResposta(resposta, agora);
       return { id: item.id, status: 'aceito' as const, em: agora };
     });
   } catch (e) {

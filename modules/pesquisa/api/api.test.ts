@@ -325,3 +325,21 @@ describe('RF-PES-06: resultados, galeria e exportação no escopo do perfil', ()
     expect(r.tipo === 'consolidado' && r.resultado.versoes[0]!.respostas).toBe(0);
   });
 });
+
+describe('ADR 0010: foto já usada por outra entidade', () => {
+  it('ADR 0010: 409 ARQUIVO_JA_REFERENCIADO rejeita a resposta e nada é gravado (sem evento, sem resposta)', async () => {
+    const { ErroHttpModulo } = await import('@macuxi/platform-sdk');
+    const pub = await publicarV1();
+    const v = ctx(VENDEDOR, 'vendedor');
+    const original = v.comTenant.bind(v);
+    const comFalha = {
+      ...v,
+      comTenant: (fn: Parameters<typeof v.comTenant>[0]) =>
+        original((db, tx) => fn(db, { ...tx, registrarArquivo: async () => { throw new ErroHttpModulo(409, 'ARQUIVO_JA_REFERENCIADO', 'Foto já usada.'); } })),
+    } as typeof v;
+    const [r] = await amb.push(comFalha, [item(envio(pub.versao.id))]);
+    expect(r).toMatchObject({ status: 'rejeitado', codigo: 'ARQUIVO_JA_REFERENCIADO' });
+    expect(amb.efeitos.eventos).toEqual([]);
+    expect(await amb.pull(v, 'resposta_pesquisa', horizonte())).toEqual([]);
+  });
+});
