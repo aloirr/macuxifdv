@@ -21,11 +21,34 @@ const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const U = A.usuarios;
 const C = A.clientes;
-const SEMANA = '2030-03-04'; // segunda-feira, fora das janelas do pull
+const DIA_MS = 86_400_000;
+const somarDias = (data: string, n: number) => new Date(Date.parse(`${data}T12:00:00Z`) + n * DIA_MS).toISOString().slice(0, 10);
+/** Relógio da suíte: UMA linha do tempo (RN-CORE-11 depende do dia do fuso do tenant, Manaus UTC-4). Fora da madrugada
+ *  de Manaus (00:00-04:00 locais) é o relógio real; na madrugada, `hora(3)` cairia no dia anterior do fuso e o cenário
+ *  "outro cliente no mesmo dia" viraria "esquecida de ontem", então o relógio vai para as 12:00 de Manaus do mesmo dia. */
+const AGORA = (() => {
+  const real = new Date();
+  const horaEmManaus = (real.getUTCHours() + 20) % 24;
+  if (horaEmManaus >= 4) return real;
+  const dia = new Date(real.getTime() - 4 * 3_600_000).toISOString().slice(0, 10);
+  return new Date(`${dia}T12:00:00-04:00`);
+})();
+const HOJE = AGORA.toISOString().slice(0, 10);
+/** Segunda-feira a mais de 40 dias de qualquer "hoje" próximo: fora das janelas do pull (`data >= hoje - 40`) e sem limite superior. */
+const SEMANA = (() => {
+  const base = somarDias(HOJE, 400);
+  const dow = new Date(`${base}T12:00:00Z`).getUTCDay();
+  return somarDias(base, (8 - dow) % 7);
+})();
+const SEMANA_TER = somarDias(SEMANA, 1);
+const SEMANA_QUA = somarDias(SEMANA, 2);
+const SEMANA_QUI = somarDias(SEMANA, 3);
+const SEMANA_LONGE = somarDias(SEMANA, 91); // segunda-feira, a mais de 30 dias à frente da SEMANA
+const LIMPEZA_DESDE = somarDias(HOJE, 300);
 const id = (n: number) => `0e300000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const PERTO = { lat: -3.1019, lng: -60.025 }; // coordenada de c1
 const LONGE = { lat: -3.11, lng: -60.025 }; // ~900 m de c1
-const hora = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+const hora = (h: number) => new Date(AGORA.getTime() - h * 3_600_000).toISOString();
 
 describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, motivos e coordenada sugerida', () => {
   let pool: pg.Pool;
@@ -64,7 +87,8 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
     return {
       usuario: { ...u, modulos },
       requestId: 'req-teste',
-      agora: () => new Date(),
+      agora: () => AGORA,
+      fuso: () => 'America/Manaus',
       comTenant: (fn: (db: pg.ClientBase, t: unknown) => Promise<unknown>) => comTenant(pool, u.tenant_id, (c) => fn(c, { publicar: tx.publicar, registrarArquivo: (a: never) => tx.registrarArquivo(a, c) })),
       carteira: () => carteiraDoUsuario(u, acesso),
       usuariosVisiveis: () => usuariosVisiveisDoUsuario(u, acesso),
@@ -75,9 +99,9 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
   const puxar = (nome: string, u: UsuarioAutenticado): Promise<LinhaSync[]> => prov(nome).puxar!(ctx(u), pedido());
   const item = (entidade: string, uid: string, payload: unknown): ItemPush => ({ entidade, id: uid, operacao: 'upsert', payload });
   const checkin = (u: UsuarioAutenticado, vid: string, over: Record<string, unknown> = {}, modulos?: ModuloId[]): Promise<ResultadoItemPush[]> =>
-    prov('visita').receber!(ctx(u, modulos), [item('visita', vid, CheckinVisitaSchema.parse({ id: vid, cliente_id: C.c1, checkin_em: new Date().toISOString(), ...PERTO, ...over }))]);
+    prov('visita').receber!(ctx(u, modulos), [item('visita', vid, CheckinVisitaSchema.parse({ id: vid, cliente_id: C.c1, checkin_em: AGORA.toISOString(), ...PERTO, ...over }))]);
   const checkout = (u: UsuarioAutenticado, cmd: string, vid: string, over: Record<string, unknown> = {}, modulos?: ModuloId[], semSchema = false): Promise<ResultadoItemPush[]> => {
-    const bruto = { id: cmd, visita_id: vid, checkout_em: new Date().toISOString(), resultado: 'sem_pedido', motivo_texto: 'Sem necessidade hoje', etapas: [], ...over };
+    const bruto = { id: cmd, visita_id: vid, checkout_em: AGORA.toISOString(), resultado: 'sem_pedido', motivo_texto: 'Sem necessidade hoje', etapas: [], ...over };
     return prov('visita_checkout').receber!(ctx(u, modulos), [item('visita_checkout', cmd, semSchema ? bruto : CheckoutVisitaSchema.parse(bruto))]);
   };
   const linhaVisita = (vid: string) => comTenant(pool, A.tenantId, async (c) => (await c.query('select * from core.visita where id = $1', [vid])).rows[0]);
@@ -92,8 +116,8 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
       await c.query("delete from core.visita_etapa where visita_id::text like '0e300000%'");
       await c.query("delete from core.visita where id::text like '0e300000%'");
       await c.query("delete from plataforma.arquivo where id::text like '0e300000%'");
-      await c.query("delete from core.rota_parada where data >= '2030-01-01'");
-      await c.query("delete from core.rota where data >= '2030-01-01'");
+      await c.query('delete from core.rota_parada where data >= $1', [LIMPEZA_DESDE]);
+      await c.query('delete from core.rota where data >= $1', [LIMPEZA_DESDE]);
       await c.query("delete from core.carteira where id::text like '0e300000%'");
       await c.query("update core.carteira set frequencia_semanas = null, dia_semana = null where cliente_id = $1 and usuario_id = $2 and papel = 'promotor'", [C.c1, U.promotor]);
       await c.query("delete from core.cliente where id::text like '0e300000%'");
@@ -187,7 +211,7 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
     });
 
     it('id do item diferente do id do payload é PAYLOAD_INVALIDO', async () => {
-      const r = await prov('visita').receber!(ctx(vendedor1), [item('visita', id(9), CheckinVisitaSchema.parse({ id: id(10), cliente_id: C.c1, checkin_em: new Date().toISOString() }))]);
+      const r = await prov('visita').receber!(ctx(vendedor1), [item('visita', id(9), CheckinVisitaSchema.parse({ id: id(10), cliente_id: C.c1, checkin_em: AGORA.toISOString() }))]);
       expect(r[0]).toMatchObject({ status: 'rejeitado', codigo: 'PAYLOAD_INVALIDO' });
     });
   });
@@ -203,14 +227,14 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
     });
 
     it('RN-CORE-11: o esquecido de ontem fecha na virada do dia do fuso do tenant (Manaus) ao entrar o check-in de hoje', async () => {
-      const ontem = new Date(Date.now() - 26 * 3_600_000).toISOString();
+      const ontem = hora(26);
       await checkout(vendedor1, id(122), id(21)); // fecha a de c3 do caso anterior
       await checkin(vendedor1, id(22), { checkin_em: ontem });
       await checkin(vendedor1, id(23), { cliente_id: C.c3, lat: -3.29, lng: -60.62 });
       const v = await linhaVisita(id(22));
       expect(v).toMatchObject({ resultado: 'nao_finalizado', fechada_por: 'auto' });
       expect(new Date(v.checkout_em).getTime()).toBeGreaterThan(new Date(ontem).getTime());
-      expect(new Date(v.checkout_em).getTime()).toBeLessThanOrEqual(Date.now());
+      expect(new Date(v.checkout_em).getTime()).toBeLessThanOrEqual(AGORA.getTime());
       await checkout(vendedor1, id(123), id(23));
     });
 
@@ -334,7 +358,7 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
 
   describe('janela da rota sem limite superior (ADR 0009, adendo §5)', () => {
     it('rota e parada gravadas a mais de 30 dias à frente chegam ao aparelho do dono (e só dele)', async () => {
-      const data = '2030-06-03'; // segunda-feira, a mais de 30 dias de qualquer "hoje" até 2030
+      const data = SEMANA_LONGE;
       await chamar('PUT', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data }, corpo: { paradas: [{ cliente_id: C.c1 }] } });
       const rotas = (await puxar('rota', vendedor1)) as unknown as Array<{ data: string }>;
       const paradas = (await puxar('rota_parada', vendedor1)) as unknown as Array<{ data: string }>;
@@ -398,13 +422,13 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
     it('copiar dia: copia para as datas livres e ignora a data que já tem visita', async () => {
       await comTenant(pool, A.tenantId, async (c) => {
         await c.query(
-          "insert into core.visita (id, tenant_id, usuario_id, cliente_id, data_local, checkin_em, checkout_em, resultado, fechada_por, motivo_texto) values ($1, $2, $3, $4, '2030-03-07', '2030-03-07T14:00:00Z', '2030-03-07T14:30:00Z', 'sem_pedido', 'usuario', 'x')",
-          [id(60), A.tenantId, U.vendedor1, C.c1],
+          "insert into core.visita (id, tenant_id, usuario_id, cliente_id, data_local, checkin_em, checkout_em, resultado, fechada_por, motivo_texto) values ($1, $2, $3, $4, $5, $6, $7, 'sem_pedido', 'usuario', 'x')",
+          [id(60), A.tenantId, U.vendedor1, C.c1, SEMANA_QUI, `${SEMANA_QUI}T14:00:00Z`, `${SEMANA_QUI}T14:30:00Z`],
         );
       });
-      const r = await chamar('POST', 'rotas/:usuarioId/:data/copiar', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA }, corpo: { para: ['2030-03-05', '2030-03-06', '2030-03-07'] } });
-      expect(r).toEqual({ copiadas: ['2030-03-05', '2030-03-06'], ignoradas: ['2030-03-07'] });
-      const copia = await chamar('GET', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: '2030-03-06' } });
+      const r = await chamar('POST', 'rotas/:usuarioId/:data/copiar', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA }, corpo: { para: [SEMANA_TER, SEMANA_QUA, SEMANA_QUI] } });
+      expect(r).toEqual({ copiadas: [SEMANA_TER, SEMANA_QUA], ignoradas: [SEMANA_QUI] });
+      const copia = await chamar('GET', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.vendedor1, data: SEMANA_QUA } });
       expect(copia.paradas.map((p: { cliente_id: string }) => p.cliente_id)).toEqual([C.c3, C.c1]);
     });
 
@@ -415,7 +439,7 @@ describe.skipIf(semBanco())('Core T-0018 × Postgres: push de visita, rotas, mot
       const corpo = { semana: SEMANA, usuario_ids: [U.promotor] };
       expect(await chamar('POST', 'rotas/gerar', gerente, { corpo })).toEqual({ criadas: 1, ignoradas: 0 });
       expect(await chamar('POST', 'rotas/gerar', gerente, { corpo })).toEqual({ criadas: 0, ignoradas: 1 });
-      const dia = await chamar('GET', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.promotor, data: '2030-03-06' } });
+      const dia = await chamar('GET', 'rotas/:usuarioId/:data', gerente, { params: { usuarioId: U.promotor, data: SEMANA_QUA } });
       expect(dia.rota).toMatchObject({ origem: 'frequencia', situacao: 'planejada' });
     });
   });

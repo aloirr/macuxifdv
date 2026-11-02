@@ -118,7 +118,7 @@ export function RouteEditor({ sellerId, sellerName, date, route, start, canEdit,
   const save = useMutation({
     mutationFn: async (stops: DraftStop[]) => {
       const salva = RotaDiaSchema.parse(await api<unknown>(`/core/rotas/${sellerId}/${date}`, { method: 'PUT', body: corpoDaRota(stops) }));
-      return paraRouteDay({ ...salva, usuario_id: sellerId, usuario_nome: sellerName, data: date }, new Date().toISOString().slice(0, 10), start);
+      return paraRouteDay({ ...salva, usuario_id: sellerId, usuario_nome: sellerName, data: date }, today, start);
     },
     onMutate: () => setError(null),
     onSuccess: (saved) => {

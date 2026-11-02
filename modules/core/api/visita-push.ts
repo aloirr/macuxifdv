@@ -26,11 +26,6 @@ const aceito = (id: string): ResultadoItemPush => ({ id, status: 'aceito' });
 const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
 const iso = (d: Date | string): string => new Date(d).toISOString();
 
-async function fusoDoTenant(db: ClienteBanco): Promise<string> {
-  const r = await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()');
-  return r.rows[0]?.fuso ?? 'America/Sao_Paulo';
-}
-
 /** Parâmetro `core.checkin.raio_m` (plataforma.parametro); inválido ou ausente = 200 m. */
 export async function raioDoTenant(db: ClienteBanco): Promise<number> {
   const r = await db.query<{ valor: unknown }>("select valor from plataforma.parametro where modulo = 'core' and chave = 'checkin.raio_m' and deleted_at is null limit 1");
@@ -89,7 +84,7 @@ export async function receberCheckins(ctx: ContextoBase, itens: readonly ItemPus
     const aval = avaliarCheckin({ cliente: { lat: cli.lat, lng: cli.lng }, posicao, raio_m: await raioDoTenant(db), justificativa: p.justificativa_fora_raio });
     if (!aval.pode) return rejeitado(item.id, 'RN-CORE-10', 'Check-in fora do raio do cliente exige justificativa.');
     // 4) RN-CORE-11: fecha as abertas antes (o índice único parcial é a trava final)
-    const fuso = await fusoDoTenant(db);
+    const fuso = ctx.fuso();
     const abertas = (await db.query<AbertaLinha>('select id, cliente_id, checkin_em from core.visita where usuario_id = $1 and checkout_em is null and deleted_at is null', [eu])).rows;
     const { fechar } = resolverCheckin(
       abertas.map((a) => ({ id: a.id, cliente_id: a.cliente_id, checkin_em: iso(a.checkin_em), checkout_em: null })),
@@ -225,7 +220,7 @@ export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPu
         [v.id, e.modulo, e.etapa, e.situacao, ref],
       );
     }
-    const fuso = await fusoDoTenant(db);
+    const fuso = ctx.fuso();
     await tx.publicar(
       EVENTO_VISITA_CHECKOUT,
       {

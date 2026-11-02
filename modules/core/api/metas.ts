@@ -22,10 +22,6 @@ import { auditar } from './auditoria';
 
 const naoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
 
-async function fusoDoTenant(db: ClienteBanco): Promise<string> {
-  return (await db.query<{ fuso: string }>('select fuso from plataforma.tenant limit 1')).rows[0]?.fuso ?? 'America/Sao_Paulo';
-}
-
 /** Parâmetro `metas.base_apuracao` (aprovado|faturado); ausente ou inválido = aprovado. */
 export async function baseDeApuracao(db: ClienteBanco): Promise<BaseApuracao> {
   const r = await db.query<{ valor: unknown }>("select valor from plataforma.parametro where modulo = 'core' and chave = 'metas.base_apuracao' and deleted_at is null limit 1");
@@ -52,8 +48,7 @@ async function usuariosDoPainel(db: ClienteBanco, visiveis: ReadonlySet<string> 
   return r.rows;
 }
 
-export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySet<string> | 'tenant', agora: Date, q: { periodo?: string; usuario_id?: string }): Promise<IndicadoresLista> {
-  const fuso = await fusoDoTenant(db);
+export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySet<string> | 'tenant', agora: Date, fuso: string, q: { periodo?: string; usuario_id?: string }): Promise<IndicadoresLista> {
   const hoje = dataLocal(agora, fuso);
   const periodo = periodoDe(hoje, q.periodo);
   const usuarios = await usuariosDoPainel(db, visiveis, q.usuario_id);
@@ -93,7 +88,7 @@ export const rotasDeMetas: RotaModulo[] = [
       const visiveis = await ctx.usuariosVisiveis();
       const q = ctx.query as z.infer<typeof MetasQuerySchema>;
       return ctx.comTenant(async (db) => {
-        const hoje = dataLocal(ctx.agora(), await fusoDoTenant(db));
+        const hoje = dataLocal(ctx.agora(), ctx.fuso());
         const periodo = periodoDe(hoje, q.periodo);
         const usuarios = await usuariosDoPainel(db, visiveis, q.usuario_id);
         const r = await db.query<{ usuario_id: string; indicador: IndicadorMeta; valor: number }>(
@@ -145,7 +140,7 @@ export const rotasDeMetas: RotaModulo[] = [
     query: MetasQuerySchema,
     executar: async (ctx): Promise<IndicadoresLista> => {
       const visiveis = await ctx.usuariosVisiveis();
-      return ctx.comTenant((db) => calcularIndicadores(db, visiveis, ctx.agora(), ctx.query as z.infer<typeof MetasQuerySchema>));
+      return ctx.comTenant((db) => calcularIndicadores(db, visiveis, ctx.agora(), ctx.fuso(), ctx.query as z.infer<typeof MetasQuerySchema>));
     },
   },
 ];

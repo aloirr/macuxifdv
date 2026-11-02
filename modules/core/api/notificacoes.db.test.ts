@@ -40,6 +40,7 @@ describe.skipIf(semBanco())('Core T-0019 × Postgres: central de notificações'
       usuario: u,
       requestId: 'req-teste',
       agora: () => new Date(),
+      fuso: () => 'America/Manaus',
       comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) => comTenant(pool, u.tenant_id, (c) => fn(c, tx)),
       usuariosVisiveis: () => usuariosVisiveisDoUsuario(u, acesso),
     } as unknown as ContextoBase;

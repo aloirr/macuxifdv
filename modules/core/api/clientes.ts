@@ -3,7 +3,7 @@
  * hierarquia da equipe. Todas por `ctx.comTenant` (RLS) e filtradas pelo escopo do usuário; cliente fora do escopo é
  * 404 (nunca 403: não revela que existe). A licença do módulo e o perfil são checados pela plataforma (`definirModuloApi`).
  */
-import { ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroNaoEncontrado, ErroRegraNegocio, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
   Cliente360Schema,
@@ -15,7 +15,7 @@ import {
 } from '../contracts';
 import { dataLocal, montarHierarquia, papelCompativel, recortarHierarquia, resumoCompras, resumoFinanceiro, type EquipeLinha, type UsuarioLinha } from '../domain';
 import { auditar } from './auditoria';
-import { BASE, TABELAS_SYNC } from './sync';
+import { BASE, TABELAS_SYNC, comHoje } from './sync';
 
 const Uuid = z.string().uuid();
 const IdParam = z.object({ id: Uuid });
@@ -24,9 +24,8 @@ const LIMITE_PADRAO = 100;
 const naCarteira = (visiveis: ReadonlySet<string> | 'tenant', clienteId: string) => visiveis === 'tenant' || visiveis.has(clienteId);
 const naoEncontrado = () => new ErroNaoEncontrado('CLIENTE_NAO_ENCONTRADO', 'Cliente não encontrado na sua carteira. Atualize a lista e tente de novo.');
 
-async function hojeDoTenant(ctx: ContextoBase, db: ClienteBanco): Promise<string> {
-  const r = await db.query<{ fuso: string }>('select fuso from plataforma.tenant limit 1');
-  return dataLocal(ctx.agora(), r.rows[0]?.fuso ?? 'America/Sao_Paulo');
+function hojeDoTenant(ctx: ContextoBase): string {
+  return dataLocal(ctx.agora(), ctx.fuso());
 }
 
 const escaparLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -36,7 +35,7 @@ async function listarClientesOnline(ctx: ContextoBase, q: z.output<typeof Client
   const limite = q.limite ?? LIMITE_PADRAO;
   const deslocamento = Math.max(0, Number.parseInt(q.cursor ?? '0', 10) || 0);
   return ctx.comTenant(async (db) => {
-    const hoje = await hojeDoTenant(ctx, db);
+    const hoje = hojeDoTenant(ctx);
     const valores: unknown[] = [hoje];
     const param = (v: unknown) => `$${valores.push(v)}`;
     const onde: string[] = ['c.deleted_at is null'];
@@ -76,11 +75,11 @@ async function cliente360(ctx: ContextoBase, id: string): Promise<Cliente360> {
       (await db.query(`select ${BASE}, ${tabela.colunas} from ${tabela.tabela} where deleted_at is null and ${onde} order by ${ordem}`, [id])).rows;
     const [cliente] = await linhas(t.cliente, 'id = $1', 'id');
     if (!cliente) throw naoEncontrado();
-    const hoje = await hojeDoTenant(ctx, db);
+    const hoje = hojeDoTenant(ctx);
     const contatos = await linhas(t.cliente_contato, 'cliente_id = $1', 'principal desc, nome, id');
     const [financeiro = null] = await linhas(t.cliente_financeiro, 'cliente_id = $1', 'id');
-    const titulos = await linhas(t.titulo, `cliente_id = $1 and ${t.titulo.janela}`, 'vencimento, id');
-    const historico = await linhas(t.historico_compra, `cliente_id = $1 and ${t.historico_compra.janela}`, 'ano_mes desc, id');
+    const titulos = await linhas(t.titulo, `cliente_id = $1 and ${comHoje(t.titulo.janela, hoje)}`, 'vencimento, id');
+    const historico = await linhas(t.historico_compra, `cliente_id = $1 and ${comHoje(t.historico_compra.janela, hoje)}`, 'ano_mes desc, id');
     const filtroUsuarios = usuarios === 'tenant' ? '' : 'and usuario_id = any($2::uuid[])';
     const ultimas = (
       await db.query(

@@ -20,7 +20,10 @@ const B = DOIS_TENANTS.B;
 const U = A.usuarios;
 const C = A.clientes;
 const id = (n: number) => `0e500000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const PERIODO = '2031-03';
+/** Período futuro RELATIVO ao relógio real (dentro da janela do pull, que não tem limite superior): nenhuma data fixa que um dia saia da janela. */
+const PERIODO = new Date(Date.now() + 400 * 86_400_000).toISOString().slice(0, 7);
+const DIA2 = `${PERIODO}-02`;
+const DIA4 = `${PERIODO}-04`;
 
 describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () => {
   let pool: pg.Pool;
@@ -43,6 +46,7 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
       usuario: u,
       requestId: 'req-teste',
       agora: () => new Date(),
+      fuso: () => 'America/Manaus',
       comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) => comTenant(pool, u.tenant_id, (c) => fn(c, tx)),
       usuariosVisiveis: () => usuariosVisiveisDoUsuario(u, acesso),
     } as unknown as ContextoBase;
@@ -72,14 +76,14 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     };
     await limpar();
     await comTenant(pool, A.tenantId, async (c) => {
-      await c.query("insert into core.rota (id, tenant_id, usuario_id, data, situacao, origem) values ($1, $2, $3, '2031-03-04', 'planejada', 'bko')", [id(1), A.tenantId, U.vendedor1]);
+      await c.query("insert into core.rota (id, tenant_id, usuario_id, data, situacao, origem) values ($1, $2, $3, $4, 'planejada', 'bko')", [id(1), A.tenantId, U.vendedor1, DIA4]);
       for (const [n, cli, seq] of [[2, C.c1, 1], [3, C.c2, 2]] as const)
-        await c.query("insert into core.rota_parada (id, tenant_id, rota_id, usuario_id, data, cliente_id, sequencia) values ($1, $2, $3, $4, '2031-03-04', $5, $6)", [id(n), A.tenantId, id(1), U.vendedor1, cli, seq]);
+        await c.query("insert into core.rota_parada (id, tenant_id, rota_id, usuario_id, data, cliente_id, sequencia) values ($1, $2, $3, $4, $7, $5, $6)", [id(n), A.tenantId, id(1), U.vendedor1, cli, seq, DIA4]);
       await c.query(
-        "insert into core.visita (id, tenant_id, usuario_id, cliente_id, rota_parada_id, data_local, checkin_em, checkout_em, resultado, fechada_por, motivo_texto) values ($1, $2, $3, $4, $5, '2031-03-04', '2031-03-04T14:00:00Z', '2031-03-04T14:30:00Z', 'sem_pedido', 'usuario', 'x')",
-        [id(5), A.tenantId, U.vendedor1, C.c1, id(2)],
+        "insert into core.visita (id, tenant_id, usuario_id, cliente_id, rota_parada_id, data_local, checkin_em, checkout_em, resultado, fechada_por, motivo_texto) values ($1, $2, $3, $4, $5, $6, $7, $8, 'sem_pedido', 'usuario', 'x')",
+        [id(5), A.tenantId, U.vendedor1, C.c1, id(2), DIA4, `${DIA4}T14:00:00Z`, `${DIA4}T14:30:00Z`],
       );
-      await c.query("insert into core.indicador_diario (id, tenant_id, usuario_id, data, pedidos, vendido_cents, cancelado_cents) values ($1, $2, $3, '2031-03-02', 2, 50000, 10000)", [id(4), A.tenantId, U.vendedor1]);
+      await c.query("insert into core.indicador_diario (id, tenant_id, usuario_id, data, pedidos, vendido_cents, cancelado_cents) values ($1, $2, $3, $4, 2, 50000, 10000)", [id(4), A.tenantId, U.vendedor1, DIA2]);
     });
   });
   afterAll(async () => {

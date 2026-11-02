@@ -35,10 +35,6 @@ const DIA_MS = 86_400_000;
 const somarDias = (data: string, n: number): string => new Date(Date.parse(`${data}T12:00:00Z`) + n * DIA_MS).toISOString().slice(0, 10);
 const usuarioNaoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
 
-async function fusoDoTenant(db: ClienteBanco): Promise<string> {
-  return (await db.query<{ fuso: string }>('select fuso from plataforma.tenant where id = plataforma.tenant_atual()')).rows[0]?.fuso ?? 'America/Sao_Paulo';
-}
-
 function visivel(visiveis: ReadonlySet<string> | 'tenant', id: string): boolean {
   return visiveis === 'tenant' || visiveis.has(id);
 }
@@ -175,7 +171,7 @@ async function gravarRota(
 }
 
 async function rotaDoDia(ctx: ContextoBase, db: ClienteBanco, usuarioId: string, data: string): Promise<RotaDia> {
-  const fuso = await fusoDoTenant(db);
+  const fuso = ctx.fuso();
   const [r] = await rotasDoPeriodo(ctx, db, [usuarioId], data, data, fuso);
   if (!r) return { rota: null, paradas: [], feitas: 0, total: 0 };
   const { usuario_id: _u, usuario_nome: _n, data: _d, ...resto } = r;
@@ -192,7 +188,7 @@ const rotasDeRotas: RotaModulo[] = [
     executar: async (ctx): Promise<RotasLista> => {
       const visiveis = await ctx.usuariosVisiveis();
       return ctx.comTenant(async (db) => {
-        const fuso = await fusoDoTenant(db);
+        const fuso = ctx.fuso();
         const de = ctx.query.de ?? dataLocal(ctx.agora(), fuso);
         const ate = ctx.query.ate ?? somarDias(de, 6);
         if (ate < de || Date.parse(ate) - Date.parse(de) > 62 * DIA_MS) throw new ErroRegraNegocio('PERIODO_INVALIDO', 'Escolha um período de até 62 dias, com a data final depois da inicial.');
@@ -323,10 +319,10 @@ const rotasDeCarteiraDoUsuario: RotaModulo[] = [
                     to_char((select max(h.ultima_compra_em) from core.historico_compra h where h.cliente_id = c.id and h.deleted_at is null), 'YYYY-MM-DD') as ultima_compra_em,
                     k.id as carteira_id, k.papel, k.frequencia_semanas, k.dia_semana
                from core.carteira k join core.cliente c on c.id = k.cliente_id and c.deleted_at is null and c.ativo
-              where k.usuario_id = $1 and k.deleted_at is null and (k.fim is null or k.fim >= current_date) and (k.inicio is null or k.inicio <= current_date)
+              where k.usuario_id = $1 and k.deleted_at is null and (k.fim is null or k.fim >= $2::date) and (k.inicio is null or k.inicio <= $2::date)
               order by lower(coalesce(nullif(c.nome_fantasia, ''), c.razao_social)), c.id
               limit 5000`,
-            [ctx.params.id],
+            [ctx.params.id, dataLocal(ctx.agora(), ctx.fuso())],
           )
         ).rows;
         return { itens };
@@ -345,7 +341,7 @@ const rotasDeVisitas: RotaModulo[] = [
       const visiveis = await ctx.usuariosVisiveis();
       return ctx.comTenant(async (db) => {
         const q = ctx.query;
-        const fuso = await fusoDoTenant(db);
+        const fuso = ctx.fuso();
         const ate = q.ate ?? dataLocal(ctx.agora(), fuso);
         const de = q.de ?? somarDias(ate, -6);
         const valores: unknown[] = [de, ate];

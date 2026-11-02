@@ -28,9 +28,19 @@ import {
   TituloSyncSchema,
   VisitaSyncSchema,
 } from '../contracts';
+import { dataLocal } from '../domain';
 import { receberCheckins, receberCheckouts } from './visita-push';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
+/** Placeholder de "hoje" nas janelas: substituído pela data civil do fuso do tenant (RN-CORE-11, regra 4), nunca por `current_date` do banco (UTC). */
+export const HOJE = '{{hoje}}';
+
+/** Troca o placeholder pela data (AAAA-MM-DD, validada: nunca vem de entrada do usuário). */
+export function comHoje(sql: string, hoje: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(hoje)) throw new Error(`Data "hoje" inválida: ${hoje}`);
+  return sql.replaceAll(HOJE, `date '${hoje}'`);
+}
+
 export const BASE = `id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at, to_char(deleted_at at time zone 'UTC', ${UTC}) as deleted_at, external_id`;
 
 export interface Tabela {
@@ -59,7 +69,7 @@ export const TABELAS_SYNC = {
       "cliente_id, usuario_id, papel, to_char(inicio, 'YYYY-MM-DD') as inicio, to_char(fim, 'YYYY-MM-DD') as fim, frequencia_semanas, dia_semana",
     colunaCliente: 'cliente_id',
     // vigentes e encerradas há ≤ 40 dias
-    janela: "(fim is null or fim >= current_date - 40)",
+    janela: "(fim is null or fim >= {{hoje}} - 40)",
   },
   produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, ativo', colunaCliente: null },
   cliente_contato: {
@@ -77,14 +87,14 @@ export const TABELAS_SYNC = {
     colunas: `cliente_id, documento, parcela, to_char(emissao, 'YYYY-MM-DD') as emissao, to_char(vencimento, 'YYYY-MM-DD') as vencimento, valor_cents::float8 as valor_cents, saldo_cents::float8 as saldo_cents, situacao, to_char(liquidado_em at time zone 'UTC', ${UTC}) as liquidado_em`,
     colunaCliente: 'cliente_id',
     // abertos + vencimento ≥ hoje − 90
-    janela: "(situacao = 'aberto' or vencimento >= current_date - 90)",
+    janela: "(situacao = 'aberto' or vencimento >= {{hoje}} - 90)",
   },
   historico_compra: {
     tabela: 'core.historico_compra',
     colunas: "cliente_id, ano_mes, valor_cents::float8 as valor_cents, pedidos, itens, to_char(ultima_compra_em, 'YYYY-MM-DD') as ultima_compra_em, origem",
     colunaCliente: 'cliente_id',
     // ano_mes ≥ 12 meses atrás
-    janela: "ano_mes >= to_char(current_date - interval '12 months', 'YYYY-MM')",
+    janela: "ano_mes >= to_char({{hoje}} - interval '12 months', 'YYYY-MM')",
   },
   motivo: {
     tabela: 'core.motivo',
@@ -104,14 +114,14 @@ export const TABELAS_SYNC = {
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
     // data ≥ hoje − 40, SEM limite superior (ADR 0009, adendo §5): rota futura nunca fica para trás do cursor
-    janela: 'data >= current_date - 40',
+    janela: 'data >= {{hoje}} - 40',
   },
   rota_parada: {
     tabela: 'core.rota_parada',
     colunas: "rota_id, usuario_id, to_char(data, 'YYYY-MM-DD') as data, cliente_id, sequencia, to_char(janela_inicio, 'HH24:MI') as janela_inicio, to_char(janela_fim, 'HH24:MI') as janela_fim",
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    janela: 'data >= current_date - 40',
+    janela: 'data >= {{hoje}} - 40',
   },
   visita: {
     tabela: 'core.visita',
@@ -122,7 +132,7 @@ export const TABELAS_SYNC = {
       fechada_por, checkout_id`,
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    janela: 'data_local >= current_date - 40',
+    janela: 'data_local >= {{hoje}} - 40',
   },
   // T-0020: metas e vendas diárias dos usuários visíveis, do mês anterior em diante (desenho T-0016 §2)
   meta: {
@@ -130,19 +140,19 @@ export const TABELAS_SYNC = {
     colunas: 'usuario_id, periodo, indicador, valor::float8 as valor',
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    janela: "periodo >= to_char(current_date - interval '1 month', 'YYYY-MM')",
+    janela: "periodo >= to_char({{hoje}} - interval '1 month', 'YYYY-MM')",
   },
   indicador_diario: {
     tabela: 'core.indicador_diario',
     colunas: "usuario_id, to_char(data, 'YYYY-MM-DD') as data, pedidos, vendido_cents::float8 as vendido_cents, cancelado_cents::float8 as cancelado_cents",
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
-    janela: "data >= date_trunc('month', current_date - interval '1 month')",
+    janela: "data >= date_trunc('month', {{hoje}} - interval '1 month')",
   },
 } as const satisfies Record<string, Tabela>;
 
 /** SQL e parâmetros da página (exportado para teste do texto e para o teste com banco). */
-export function sqlDoPull(t: Tabela, pedido: PedidoPull, visiveis: ReadonlySet<string> | 'tenant'): { sql: string; valores: unknown[] } {
+export function sqlDoPull(t: Tabela, pedido: PedidoPull, visiveis: ReadonlySet<string> | 'tenant', hoje?: string): { sql: string; valores: unknown[] } {
   const valores: unknown[] = [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite];
   let filtro = '';
   const coluna = t.colunaCliente ?? t.colunaUsuario;
@@ -151,7 +161,8 @@ export function sqlDoPull(t: Tabela, pedido: PedidoPull, visiveis: ReadonlySet<s
     filtro = `and ${coluna} = any($5::uuid[])`;
   }
   const fixo = t.onde ? `and ${t.onde}` : '';
-  const janela = t.janela ? `and (deleted_at is not null or ${t.janela})` : '';
+  if (t.janela?.includes(HOJE) && !hoje) throw new Error(`Janela de ${t.tabela} exige a data de hoje no fuso do tenant.`);
+  const janela = t.janela ? `and (deleted_at is not null or ${(hoje ? comHoje(t.janela, hoje) : t.janela)})` : '';
   const sql = `select ${BASE}, ${t.colunas}
     from ${t.tabela}
    where updated_at < $1::timestamptz
@@ -167,7 +178,7 @@ export function sqlDoPull(t: Tabela, pedido: PedidoPull, visiveis: ReadonlySet<s
 function puxarDe(t: Tabela) {
   return async (ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> => {
     const visiveis = t.colunaCliente ? await ctx.carteira() : t.colunaUsuario ? await ctx.usuariosVisiveis() : 'tenant';
-    const { sql, valores } = sqlDoPull(t, pedido, visiveis);
+    const { sql, valores } = sqlDoPull(t, pedido, visiveis, dataLocal(ctx.agora(), ctx.fuso()));
     return ctx.comTenant(async (db) => (await db.query(sql, valores)).rows as unknown as LinhaSync[]);
   };
 }

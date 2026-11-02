@@ -9,9 +9,8 @@ import { Button, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel,
 import { IndicadoresListaSchema } from '../../../contracts';
 import { ROTULO_INDICADOR } from '../../../app/lib/metas-formato';
 import { CABECALHO, celulasDoUsuario, centavosDoTexto, csvDeIndicadores } from '../../lib/indicadores';
-import { useSellersDeCampo } from '../../lib/queries';
+import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 
-const mesAtual = () => new Date().toISOString().slice(0, 7);
 
 function IndicadoresConteudo() {
   const params = useSearchParams();
@@ -20,7 +19,8 @@ function IndicadoresConteudo() {
   const qc = useQueryClient();
   const pode = usePode('meta.editar');
   const vendedores = useSellersDeCampo();
-  const periodo = params.get('periodo') ?? mesAtual();
+  const hoje = useHojeDoTenant();
+  const periodo = params.get('periodo') ?? hoje().slice(0, 7);
   const usuario = params.get('usuario') ?? '';
   const [aviso, setAviso] = useState<{ tone: NoticeTone; text: string } | null>(null);
   const [editar, setEditar] = useState({ usuario: '', valor: '' });

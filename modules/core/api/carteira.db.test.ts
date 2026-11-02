@@ -49,6 +49,7 @@ describe.skipIf(semBanco())('Core T-0017 × Postgres: escopo da carteira, Client
       usuario: u,
       requestId: 'req-teste',
       agora: () => new Date(),
+      fuso: () => 'America/Manaus',
       comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) => comTenant(pool, u.tenant_id, (c) => fn(c, { publicar: async () => ({}) })),
       carteira: () => carteiraDoUsuario(u, acesso),
       usuariosVisiveis: () => usuariosVisiveisDoUsuario(u, acesso),

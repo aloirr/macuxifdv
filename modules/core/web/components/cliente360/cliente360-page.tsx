@@ -9,9 +9,8 @@ import { formatBRL } from '@macuxi/comum';
 import { Badge, ErrorBlock, KpiCard, KpiGrid, LoadingBlock, Notice, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
 import { Cliente360Schema } from '../../../contracts';
 import { dataLocal, linksDeContato, situacaoTitulo } from '../../../domain';
+import { useMe } from '../../lib/queries';
 import { quando, rotuloResultado, sinais } from '../../lib/visitas';
-
-const FUSO_PADRAO = 'America/Manaus';
 
 /**
  * Cliente 360 no BKO (RF-CORE-04): cadastro, contatos (ligar e WhatsApp), financeiro (limite, saldo, crédito, bloqueio),
@@ -20,6 +19,7 @@ const FUSO_PADRAO = 'America/Manaus';
  */
 function Cliente360Conteudo() {
   const id = useSearchParams().get('id') ?? '';
+  const fuso = useMe().data.tenant.timezone;
   const q = useQuery({
     queryKey: ['core', 'cliente360', id],
     queryFn: async () => Cliente360Schema.parse(await api<unknown>(`/core/clientes/${id}`)),
@@ -29,7 +29,7 @@ function Cliente360Conteudo() {
   if (q.isPending) return <LoadingBlock label="Carregando o cliente…" />;
   if (q.isError) return <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
   const { cliente, contatos, financeiro, titulos, historico, resumo_compras: compras, resumo_financeiro: fin, ultimas_visitas: visitas } = q.data;
-  const hoje = dataLocal(new Date(), FUSO_PADRAO);
+  const hoje = dataLocal(new Date(), fuso);
   const nome = cliente.nome_fantasia || cliente.razao_social;
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="cliente360.tela">
@@ -161,7 +161,7 @@ function Cliente360Conteudo() {
         <ul className="flex flex-col gap-1 text-[13px]">
           {visitas.map((v) => (
             <li key={v.id}>
-              {quando(v.checkin_em, FUSO_PADRAO)} · {rotuloResultado(v.resultado ?? null)}
+              {quando(v.checkin_em, fuso)} · {rotuloResultado(v.resultado ?? null)}
               {sinais({ fora_do_raio: v.fora_do_raio, sem_gps: v.sem_gps, sugere_coordenada: v.sugere_coordenada, extra: v.extra }).length > 0 ? ` · ${sinais({ fora_do_raio: v.fora_do_raio, sem_gps: v.sem_gps, sugere_coordenada: v.sugere_coordenada, extra: v.extra }).join(', ')}` : ''}
             </li>
           ))}

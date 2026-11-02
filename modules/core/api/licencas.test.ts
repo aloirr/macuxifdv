@@ -35,6 +35,7 @@ function contexto(db: ClienteBanco, eventos: Array<{ nome: string; payload: unkn
     usuario: ADMIN,
     requestId: 'req',
     agora: () => new Date('2026-10-31T12:00:00Z'),
+    fuso: () => 'America/Manaus',
     comTenant: (fn: (d: ClienteBanco, t: TransacaoTenant) => Promise<unknown>) => fn(db, tx),
     carteira: async () => 'tenant',
     log: { info() {}, warn() {}, error() {} },
@@ -140,7 +141,7 @@ describe('RN-CORE-04: carteira por perfil', () => {
 
   it('RN-CORE-04: vendedor vê só a própria carteira (1 consulta)', async () => {
     const { f, acesso } = banco([[/where c.usuario_id = \$1/, [{ cliente_id: 'c1' }, { cliente_id: 'c2' }]]]);
-    const r = await carteiraDoUsuario(dados('vendedor'), acesso);
+    const r = await carteiraDoUsuario(dados('vendedor'), acesso, { fuso: 'America/Manaus' });
     expect([...(r as Set<string>)].sort()).toEqual(['c1', 'c2']);
     expect(f.chamadas).toHaveLength(1);
   });
@@ -152,9 +153,9 @@ describe('RN-CORE-04: carteira por perfil', () => {
       [/where c.usuario_id = \$1/, [{ cliente_id: 'meu' }]],
     ];
     const sup = banco(respostas);
-    expect([...((await carteiraDoUsuario(dados('supervisor'), sup.acesso)) as Set<string>)].sort()).toEqual(['eq1', 'meu']);
+    expect([...((await carteiraDoUsuario(dados('supervisor'), sup.acesso, { fuso: 'America/Manaus' })) as Set<string>)].sort()).toEqual(['eq1', 'meu']);
     const ger = banco(respostas);
-    expect([...((await carteiraDoUsuario(dados('gerente'), ger.acesso)) as Set<string>)].sort()).toEqual(['ab1', 'eq1', 'meu']);
+    expect([...((await carteiraDoUsuario(dados('gerente'), ger.acesso, { fuso: 'America/Manaus' })) as Set<string>)].sort()).toEqual(['ab1', 'eq1', 'meu']);
   });
 });
 
@@ -191,7 +192,7 @@ describe('T-0004 §5: provedores de pull do Core', () => {
     const c = sqlDoPull(TABELAS_SYNC.cliente, pedido, vis);
     expect(c.sql).toMatch(/and id = any\(\$5::uuid\[\]\)/);
     expect(c.valores[4]).toEqual(['c1', 'c2']);
-    expect(sqlDoPull(TABELAS_SYNC.carteira, pedido, vis).sql).toMatch(/and cliente_id = any\(\$5::uuid\[\]\)/);
+    expect(sqlDoPull(TABELAS_SYNC.carteira, pedido, vis, '2026-10-31').sql).toMatch(/and cliente_id = any\(\$5::uuid\[\]\)/);
     expect(sqlDoPull(TABELAS_SYNC.cliente, pedido, 'tenant').sql).not.toMatch(/any\(/);
     expect(sqlDoPull(TABELAS_SYNC.produto, pedido, vis).sql).not.toMatch(/any\(/);
   });

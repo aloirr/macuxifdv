@@ -6,11 +6,10 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch, api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { VisitasListaSchema, type VisitaBko } from '../../../contracts';
-import { useSellersDeCampo } from '../../lib/queries';
+import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 import { csvDeVisitas, permanenciaMin, quando, rotuloResultado, sinais } from '../../lib/visitas';
 
 const FUSO_PADRAO = 'America/Manaus';
-const hoje = () => new Date().toISOString().slice(0, 10);
 const somar = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** Foto da fachada: baixa com a sessão (o arquivo só abre para quem tem a carteira do cliente, RN-CORE-04) e mostra no diálogo. */
@@ -46,6 +45,7 @@ function VisitasConteudo() {
   const pathname = usePathname();
   const [foto, setFoto] = useState<VisitaBko | null>(null);
   const vendedores = useSellersDeCampo();
+  const hoje = useHojeDoTenant();
 
   const ate = params.get('ate') ?? hoje();
   const de = params.get('de') ?? somar(ate, -6);

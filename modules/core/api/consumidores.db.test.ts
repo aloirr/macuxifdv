@@ -26,7 +26,8 @@ describe('T-0022: o Core consome o próprio evento de notificação', () => {
 
 describe.skipIf(semBanco())('Core T-0022 × Postgres: push da notificação', () => {
   let pool: pg.Pool;
-  const agora = new Date('2030-03-01T12:00:00.000Z');
+  /** Relógio congelado uma vez (uma linha do tempo só, junto das colunas `now()` do banco); sem data fixa. */
+  const agora = new Date();
   const consumo = (fn: (db: pg.ClientBase) => Promise<void>) => comTenant(pool, A.tenantId, (c) => fn(c));
   const rodar = (opcoes: Parameters<typeof criarConsumidorPushNotificacao>[0], notificacaoId: string, tenant = A.tenantId) =>
     comTenant(pool, tenant, (db) =>

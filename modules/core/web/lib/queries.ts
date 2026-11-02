@@ -5,7 +5,7 @@
  * do shell (`['me']`), então os dados são compartilhados no cache do React Query. Chamadas pelo cliente
  * da API do platform-sdk (`@macuxi/platform-sdk/web`); a sessão vem de `useSession`.
  */
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { HierarquiaEquipeSchema, RotasListaSchema, type RouteDay, type Seller, type Team } from '../../contracts';
@@ -62,7 +62,12 @@ export const useTeamsDeCampo = () => useEquipeDeCampo((e) => e.teams);
 /** Papel do vínculo da carteira por usuário (o do perfil, premissa da T-0017). */
 export const usePapeisDeCampo = () => useEquipeDeCampo((e) => e.papeis);
 
-const hojeIso = () => new Date().toISOString().slice(0, 10);
+/** "Hoje" (AAAA-MM-DD) no fuso do tenant da sessão, lido no momento da chamada (RN-CORE-11; nunca a data UTC). */
+export function useHojeDoTenant(): () => string {
+  const fuso = useMe().data.tenant.timezone;
+  return useCallback(() => hojeNoFuso(new Date(), fuso), [fuso]);
+}
+
 
 /**
  * Rotas do período (até 62 dias) de `GET /v1/core/rotas`, no formato do editor. Sem filtro de usuário, as dos
@@ -70,6 +75,7 @@ const hojeIso = () => new Date().toISOString().slice(0, 10);
  */
 export function useRoutes(f: RoutesFilter, enabled = true) {
   const authed = useAuthed();
+  const hojeIso = useHojeDoTenant();
   return useQuery({
     queryKey: qk.routes(f),
     queryFn: async ({ signal }): Promise<RoutesResponse> => {
@@ -86,6 +92,7 @@ export function useRoutes(f: RoutesFilter, enabled = true) {
 /** Carteira vigente do usuário (com lat/lng) para incluir clientes na rota. */
 export function useSellerCustomers(sellerId: string | null) {
   const enabled = useAuthed() && !!sellerId;
+  const hojeIso = useHojeDoTenant();
   return useQuery({
     queryKey: qk.sellerCustomers(sellerId ?? ''),
     queryFn: ({ signal }) => api<{ itens: ClienteDaCarteira[] }>(`/core/usuarios/${encodeURIComponent(sellerId ?? '')}/clientes`, { signal }).then((r) => r.itens.map((c) => clienteDaCarteira(c, hojeIso()))),

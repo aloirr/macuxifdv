@@ -26,3 +26,11 @@ A folha de checkout aplica a RN-CORE-12 com `prepararCheckoutVisita` (domain, T-
 
 ## BKO
 Rotas (editor herdado da Fase M sobre `/v1/core/rotas`: reordenar, adicionar da carteira, 2-opt, copiar dia), Visitas (filtros na URL, CSV, foto da fachada), Coordenadas sugeridas, Motivos, Carteira e Cliente 360 (T-0017).
+
+## "Hoje" é o dia do fuso do tenant (C6, T-0042)
+
+CLAUDE.md regra 4: datas gravadas em UTC; regra de dia no fuso do tenant. Entre 20:00 e 24:00 de Manaus a data UTC já é a do dia seguinte, então o Core **nunca** usa `current_date` do banco nem `toISOString().slice(0, 10)` para "hoje".
+- API: `dataLocal(ctx.agora(), ctx.fuso())`. Vigência da carteira (`carteira.ts`, `rotas.ts` `usuarios/:id/clientes`) recebe a data como `$2::date`; as janelas do pull (`sync.ts`) usam o marcador `{{hoje}}`, trocado por `comHoje()` (data validada AAAA-MM-DD) em `sqlDoPull(..., hoje)` e no Cliente 360.
+- `carteiraDoUsuario(usuario, banco, { agora?, fuso? })`: o serviço do SDK não passa o contexto, então o fuso vem de `plataforma.tenant` (uma consulta) e o relógio é o real; os testes injetam os dois. Pedido ao engenheiro-software: passar `ctx.fuso()`/`agora` ao serviço `carteira`, para dispensar a consulta.
+- BKO: `useHojeDoTenant()` (`web/lib/queries.ts`) devolve o "hoje" no fuso da sessão (rotas, carteira para o editor, visitas, indicadores); o Cliente 360 usa o fuso da sessão.
+- Teste: `api/hoje-fuso.db.test.ts` (21:00 e 23:59 de Manaus, tenant em São Paulo).
