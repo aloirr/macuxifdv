@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PedidoFaturadoEvento } from '../contracts/eventos';
 import { ORDER_STATUSES, type OrderStatus } from './order';
 import {
+  camposFaturamento,
+  textoItemFaturado,
   decidirNotaDevolucao,
   decidirRetornoErp,
   eventoFaturadoDosItens,
@@ -203,5 +205,27 @@ describe('resumoFaturamento e texto da situação (RF-VEN-05, RN-VEN-37 proposta
     expect(textoSituacaoFaturamento({ faturado_cents: 7_000, devolvido_cents: 7_000, ultima_nota: '1', notas: 1 })).toEqual(['Faturado R$ 70,00 (NF 1)', 'Devolvido R$ 70,00 (total)']);
     expect(textoSituacaoFaturamento({ faturado_cents: 7_000, devolvido_cents: 1_000, ultima_nota: null, notas: 1 })).toEqual(['Faturado R$ 70,00', 'Devolvido R$ 10,00 (parcial)']);
     expect(textoSituacaoFaturamento({ faturado_cents: 0, devolvido_cents: 0, ultima_nota: null, notas: 0 })).toEqual([]);
+  });
+});
+
+describe('camposFaturamento e textoItemFaturado — o mesmo resumo na API e no app offline (RF-VEN-05)', () => {
+  it('RF-VEN-05: sem a coluna de faturamento (linha antiga) não mostra nada', () => {
+    expect(camposFaturamento({})).toEqual({});
+    expect(camposFaturamento({ faturado_cents: null })).toEqual({});
+  });
+  it('RF-VEN-05 / RN-VEN-37: com o resumo do pedido monta valores, situação da devolução e linhas da tela', () => {
+    expect(camposFaturamento({ faturado_cents: '7000', devolvido_cents: 1_000, notas_faturamento: 2, ultima_nota_numero: '2' })).toEqual({
+      faturado_cents: 7_000,
+      devolvido_cents: 1_000,
+      devolucao: 'parcial',
+      ultima_nota: '2',
+      situacao_faturamento: ['Faturado R$ 70,00 em 2 notas (última NF 2)', 'Devolvido R$ 10,00 (parcial)'],
+    });
+  });
+  it('RF-VEN-05: texto do item faturado', () => {
+    expect(textoItemFaturado(10, undefined)).toBeNull();
+    expect(textoItemFaturado(10, 0)).toBe('Não faturado');
+    expect(textoItemFaturado(10, 6)).toBe('Faturado 6 de 10');
+    expect(textoItemFaturado(10, 10)).toBe('Faturado');
   });
 });

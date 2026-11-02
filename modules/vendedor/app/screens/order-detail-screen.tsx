@@ -4,6 +4,7 @@
  * só enquanto o pedido não está no ERP, e só com a permissão por ação do manifesto (ADR 0004).
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
+import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Button, Card, colors, dateTimeLabel, fonts, Icon, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -13,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderEvent } from '../../contracts';
 import { sellerDiscountLimit } from '../../domain/order';
+import { textoItemFaturado } from '../../domain/retorno-erp';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, rotuloDoNivel, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
@@ -32,6 +34,8 @@ interface Line {
   quantity: number;
   unit_price_cents: number;
   total_cents: number;
+  /** T-0054: unidades faturadas pelo ERP (ausente = sem retorno de faturamento) */
+  quantity_invoiced?: number;
 }
 
 export default function OrderDetailScreen() {
@@ -84,7 +88,12 @@ export default function OrderDetailScreen() {
   const number = queued ? null : base!.number;
   const lines: Line[] = queued
     ? (qd?.lines ?? []).map((l) => ({ key: l.product_id, ...l }))
-    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents }));
+    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced }));
+  // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
+  const situacaoFaturamento = queued ? [] : (base?.situacao_faturamento ?? []);
+  const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
+  const devolucoes = queued ? [] : (detail?.faturamento?.devolucoes ?? []);
+  const agora = relogioReal().agora();
   const subtotal = queued ? (qd?.subtotal_cents ?? 0) : base!.subtotal_cents;
   const discount = queued ? (qd?.discount_cents ?? 0) : base!.discount_cents;
   const total = queued ? (qd?.total_cents ?? 0) : base!.total_cents;
@@ -247,6 +256,23 @@ export default function OrderDetailScreen() {
         {base && !queued && base.branch_name ? <Row label="Filial" value={base.branch_name} /> : null}
       </Card>
 
+      {situacaoFaturamento.length > 0 ? (
+        <Card style={{ padding: 14, gap: 6 }} testID="order-invoicing">
+          <Text style={t.bodyStrong}>Faturamento</Text>
+          {situacaoFaturamento.map((linha) => (
+            <Text key={linha} style={t.body}>
+              {linha}
+            </Text>
+          ))}
+          {notasFaturamento.map((n, i) => (
+            <Row key={`nf-${n.numero ?? i}-${n.faturado_em}`} label={`NF ${n.numero ?? '—'}${n.serie ? `/${n.serie}` : ''} · ${dateTimeLabel(n.faturado_em, agora, tz)}${n.parcial ? ' · parcial' : ''}`} value={n.total_cents === null ? `${n.unidades} un.` : formatBRL(n.total_cents)} />
+          ))}
+          {devolucoes.map((d, i) => (
+            <Row key={`dev-${d.numero}-${i}`} label={`Devolução NF ${d.numero}${d.serie ? `/${d.serie}` : ''} · ${dateTimeLabel(d.emitida_em, agora, tz)}`} value={`− ${formatBRL(d.total_cents)}`} />
+          ))}
+        </Card>
+      ) : null}
+
       {detail?.aprovacao ? (
         <Card style={{ padding: 14, gap: 8 }} testID="order-approval">
           <Row label="Desconto do pedido" value={formatPct(detail.aprovacao.desconto_efetivo_pct)} />
@@ -279,6 +305,7 @@ export default function OrderDetailScreen() {
                 <Text style={t.small}>
                   {l.quantity} × {formatBRL(l.unit_price_cents)}
                 </Text>
+                {textoItemFaturado(l.quantity, l.quantity_invoiced) ? <Text style={[t.small, { color: colors.accentInk }]}>{textoItemFaturado(l.quantity, l.quantity_invoiced)}</Text> : null}
               </View>
               <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }]}>{formatBRL(l.total_cents)}</Text>
             </View>

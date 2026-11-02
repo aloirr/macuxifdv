@@ -149,6 +149,11 @@ export function OrdersPage() {
                     <td className={tdNum}>{formatPct(o.discount_pct)}</td>
                     <td className={td}>
                       <OrderStatusBadge status={o.status} />
+                      {o.situacao_faturamento?.length ? (
+                        <span className="mt-0.5 block whitespace-nowrap text-[12px] text-ink-2" data-testid={`pedido.faturamento.${o.number}`}>
+                          {o.situacao_faturamento.join(' · ')}
+                        </span>
+                      ) : null}
                     </td>
                     <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(o.received_at, tz)}</td>
                   </tr>

@@ -3,7 +3,7 @@
  * `pode_decidir` e o histórico saem daqui, iguais para a lista, o detalhe e o PDF.
  */
 import type { AprovacaoDoPedido, ClienteDoPedido, FaturamentoDoPedido, Order, OrderDetail, OrderItem } from '../contracts';
-import { politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, textoSituacaoFaturamento, type NivelAprovacao } from '../domain';
+import { camposFaturamento, politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, type NivelAprovacao } from '../domain';
 import type { OrderStatus } from '../domain/order';
 
 export interface LinhaPedido {
@@ -107,23 +107,7 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     units: num(l.unidades),
     nivel_aprovacao: l.status === 'pending_approval' ? l.nivel_aprovacao : null,
     pode_decidir: l.status === 'pending_approval' && l.nivel_aprovacao ? quemDecide(perfil, l.nivel_aprovacao).pode : false,
-    ...camposDeFaturamento(l),
-  };
-}
-
-/** T-0054 (RF-VEN-05, RN-VEN-37 proposta): faturado, devolvido e as linhas curtas da situação; nada sem a migração. */
-export function camposDeFaturamento(l: Pick<LinhaPedido, 'faturado_cents' | 'devolvido_cents' | 'notas_faturamento' | 'ultima_nota_numero'>): Partial<Order> {
-  if (l.faturado_cents === undefined || l.faturado_cents === null) return {};
-  const faturado = num(l.faturado_cents);
-  const devolvido = num(l.devolvido_cents ?? 0);
-  const notas = num(l.notas_faturamento ?? 0);
-  const ultima = l.ultima_nota_numero ?? null;
-  return {
-    faturado_cents: faturado,
-    devolvido_cents: devolvido,
-    devolucao: situacaoDevolucao(faturado, devolvido),
-    ultima_nota: ultima,
-    situacao_faturamento: textoSituacaoFaturamento({ faturado_cents: faturado, devolvido_cents: devolvido, ultima_nota: ultima, notas }),
+    ...camposFaturamento(l),
   };
 }
 

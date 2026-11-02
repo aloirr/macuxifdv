@@ -340,3 +340,44 @@ export function textoSituacaoFaturamento(r: { faturado_cents: number; devolvido_
   if (dev !== 'nenhuma') linhas.push(`Devolvido ${formatBRL(r.devolvido_cents)} (${dev})`);
   return linhas;
 }
+
+/** Campos de faturamento do pedido para as telas (lista e detalhe), a partir das colunas de resumo do pedido. */
+export interface CamposFaturamento {
+  faturado_cents: number;
+  devolvido_cents: number;
+  devolucao: SituacaoDevolucao;
+  ultima_nota: string | null;
+  situacao_faturamento: string[];
+}
+
+/**
+ * RF-VEN-05: o mesmo resumo na API (lista/detalhe) e no app (pull offline). Sem a coluna `faturado_cents` (antes da
+ * migração ou linha antiga do aparelho) devolve `{}`: a tela não mostra nada.
+ */
+export function camposFaturamento(l: {
+  faturado_cents?: number | string | null;
+  devolvido_cents?: number | string | null;
+  notas_faturamento?: number | string | null;
+  ultima_nota_numero?: string | null;
+}): Partial<CamposFaturamento> {
+  if (l.faturado_cents === undefined || l.faturado_cents === null) return {};
+  const faturado = Number(l.faturado_cents);
+  const devolvido = Number(l.devolvido_cents ?? 0);
+  const notas = Number(l.notas_faturamento ?? 0);
+  const ultima = l.ultima_nota_numero ?? null;
+  return {
+    faturado_cents: faturado,
+    devolvido_cents: devolvido,
+    devolucao: situacaoDevolucao(faturado, devolvido),
+    ultima_nota: ultima,
+    situacao_faturamento: textoSituacaoFaturamento({ faturado_cents: faturado, devolvido_cents: devolvido, ultima_nota: ultima, notas }),
+  };
+}
+
+/** RF-VEN-05: "Faturado 6 de 10" no item; `null` = sem retorno de faturamento (não mostra). */
+export function textoItemFaturado(quantidade: number, faturada: number | null | undefined): string | null {
+  if (faturada === undefined || faturada === null) return null;
+  if (faturada <= 0) return 'Não faturado';
+  if (faturada >= quantidade) return 'Faturado';
+  return `Faturado ${faturada} de ${quantidade}`;
+}

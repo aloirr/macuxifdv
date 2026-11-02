@@ -10,6 +10,7 @@ import type { ClienteTabelaPrecoSync, Product } from '@macuxi/catalogo/contracts
 import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from '../../contracts';
 import type { CondicaoPagamentoSync, ClienteCondicaoSync, PedidoEventoSync, PedidoItemSync, PedidoSync } from '../../contracts/sync';
 import { politicaDosParametros, quemDecide, textoPendencia } from '../../domain/aprovacao';
+import { camposFaturamento } from '../../domain/retorno-erp';
 
 export interface LinhasVendedor {
   pedidos: PedidoSync[];
@@ -204,6 +205,8 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     items_count: itens.length,
     units: itens.reduce((s, i) => s + i.quantidade, 0),
     nivel_aprovacao: p.status === 'pending_approval' ? (p.nivel_aprovacao ?? null) : null,
+    // T-0054: resumo do retorno do ERP (faturado/devolução) que veio no pull; offline como o resto
+    ...camposFaturamento(p),
   };
 }
 
@@ -226,6 +229,7 @@ function itemDoPedido(i: PedidoItemSync): OrderItem {
     unit_price_cents: i.preco_tabela_cents,
     discount_pct: i.desconto_pct,
     total_cents: i.total_cents,
+    ...(i.quantidade_faturada === undefined || i.quantidade_faturada === null ? {} : { quantity_invoiced: i.quantidade_faturada }),
   };
 }
 
