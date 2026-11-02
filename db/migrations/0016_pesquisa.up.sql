@@ -113,6 +113,9 @@ create trigger questionario_versao_updated_at before update on pesquisa.question
 
 -- RN-PES-01: versão publicada é imutável. Só updated_at (toque do arquivamento) e deleted_at podem mudar; trocar o
 -- tenant cai na política de RLS (42501), não aqui. SQLSTATE 23514 (check_violation) com a RN na mensagem.
+-- AFTER UPDATE (não BEFORE): roda depois das FKs (gatilhos da mesma fase disparam em ordem alfabética e os de FK,
+-- "RI_ConstraintTrigger_*", vêm antes), então apontar a versão para um questionário que não existe no tenant dá 23503
+-- (integridade) e não 23514; o UPDATE recusado aqui é desfeito inteiro do mesmo jeito.
 create function pesquisa.versao_publicada_imutavel() returns trigger
   language plpgsql
   as $$
@@ -129,10 +132,10 @@ begin
     raise exception 'RN-PES-01: a versão publicada % não pode ser alterada; edite criando uma nova versão.', old.id
       using errcode = 'check_violation', constraint = 'questionario_versao_publicada_imutavel';
   end if;
-  return new;
+  return null;
 end
 $$;
-create trigger questionario_versao_publicada_imutavel before update on pesquisa.questionario_versao
+create trigger questionario_versao_publicada_imutavel after update on pesquisa.questionario_versao
   for each row execute function pesquisa.versao_publicada_imutavel();
 
 alter table pesquisa.questionario_versao enable row level security;

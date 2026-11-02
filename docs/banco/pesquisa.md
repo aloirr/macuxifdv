@@ -2,7 +2,8 @@
 
 Dono: `banco-dados`. Tarefa: T-0057 (pedido R-20261102-132021-modulo-pesquisa). Migração:
 `db/migrations/0016_pesquisa.up.sql` / `.down.sql` (o down apaga o schema inteiro). Seed demo: `db/seeds/demo/pesquisa.ts`.
-Dados da fixture dois-tenants: `db/testes/pesquisa-fixture.ts`. Testes: `db/testes/pesquisa.test.ts` (30 casos).
+Dados da fixture dois-tenants: `db/seeds/fixtures/pesquisa.ts` (ligada em `dois-tenants.ts`; ids nos grupos 0x160–0x165, sem
+colidir com Gestor 0x70–0x73 e Promotor 0x84–0x97). Testes: `db/testes/pesquisa.test.ts` (31 casos).
 
 Regras gerais: toda tabela com `id`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id`; RLS ligado e
 **forçado** com a política `isolamento_tenant` (`tenant_id = plataforma.tenant_atual()`); índice de sync
@@ -34,8 +35,8 @@ Papéis: `macuxi_app` (abaixo); `macuxi_worker` sem privilégio (não há tarefa
 | `perguntas` / `regras` | jsonb lista | `Pergunta[]` (9 tipos) e `RegraCondicional[]` do contrato, como estão |
 | `criada_em`, `publicada_em`, `publicada_por` | timestamptz, timestamptz, uuid | publicada ⇒ `publicada_em`, `publicada_por` e ≥ 1 pergunta; rascunho ⇒ ambos nulos |
 
-RN-PES-01 no banco: **publicada é imutável** (gatilho `questionario_versao_publicada_imutavel`, SQLSTATE `23514`,
-mensagem com "RN-PES-01"; só `updated_at` e `deleted_at` mudam) e **no máximo um rascunho vivo** por questionário
+RN-PES-01 no banco: **publicada é imutável** (gatilho AFTER UPDATE `questionario_versao_publicada_imutavel`, SQLSTATE `23514`,
+mensagem com "RN-PES-01"; só `updated_at` e `deleted_at` mudam; roda depois das FKs, então FK quebrada dá `23503`) e **no máximo um rascunho vivo** por questionário
 (`questionario_versao_rascunho_uk`, `23505`). Publicar = `update ... set status = 'publicada', publicada_em, publicada_por`
 no rascunho. `macuxi_app`: select, insert, update (sem delete).
 
@@ -91,21 +92,15 @@ Linha → contrato: `vigencia = { inicio: vigencia_inicio, fim: vigencia_fim }`;
 Resultados por SQL (opcional, quando o volume pedir): `resposta_item` agrega por `pergunta_id` (contagem por `opcao_ids`,
 média de `valor_num`, `valor_bool`), `resposta_foto` é a galeria.
 
-## Integração no `main` (banco-dados local, depois da 0013–0015)
-O PR da nuvem só traz arquivos novos; estes ajustes nos arquivos centrais foram provados numa cópia (suíte do `db` inteira
-verde, menos a lista "down passo a passo", que depende dos nomes reais da 0013–0015):
-1. `db/seeds/fixtures/dois-tenants.ts`: `import { gravarPesquisaDoisTenants } from '../../testes/pesquisa-fixture';` e, em
-   `carregarDoisTenants`, antes do `commit`: `await gravarPesquisaDoisTenants(admin, { agora: opcoes.agora });`
-   (sugestão: mover `db/testes/pesquisa-fixture.ts` para `db/seeds/fixtures/pesquisa.ts` no mesmo commit).
-2. `db/seeds/demo/demo.ts`: `import { gravarPesquisaDemo } from './pesquisa';` e, em `carregarDemo`, antes do `commit`:
-   `await gravarPesquisaDemo(admin, { hoje: dados['core.rota'][0]!.data as string });`
-3. `db/testes/seed-demo.test.ts:271`: `modulos: [...MODULOS_DEMO, 'pesquisa'].sort()`.
-4. `db/testes/estatico.test.ts`: `'0016_pesquisa'` na lista de migrações; as 5 tabelas `pesquisa.*` na lista de tabelas;
-   `import * as nuvemPesquisa from '../../modules/pesquisa/db/nuvem'` em `tabelasDrizzle()`; e no teste "cobre toda tabela
-   com tenant_id" somar `ORDEM_PESQUISA_FIXTURE`/`dadosPesquisaDoisTenants()` e ignorar `pesquisa.resposta_item` e
-   `pesquisa.resposta_foto` (geradas pelo gatilho).
-5. `db/testes/migracoes.test.ts`: acrescentar `'0016_pesquisa'` (e a 0013–0015) nas listas de up/down e somar 4 nos `passos`.
-6. `modules/pesquisa/db/nuvem.ts` (espelho Drizzle, exigido pelo teste "toda tabela da migração tem espelho em Drizzle"):
+## Integração no `main`
+Feito no PR da 0016 (depois do merge da 0013–0015): fixture dois-tenants com a Pesquisa (`db/seeds/fixtures/pesquisa.ts`,
+`ORDEM_PESQUISA` no fim de `ORDEM_TABELAS`, fotos em `plataforma.arquivo`); `estatico.test.ts` (0016 na sequência, 5 tabelas,
+`TABELAS_PESQUISA_DO_GATILHO` fora da cobertura da fixture, `pesquisa` em `SEM_ESPELHO_DRIZZLE`) e `migracoes.test.ts` (0014 → 0016).
+Fica para o banco-dados local:
+1. `db/seeds/demo/demo.ts`: `import { gravarPesquisaDemo } from './pesquisa';` e, em `carregarDemo`, antes do `commit`:
+   `await gravarPesquisaDemo(admin, { hoje: dados['core.rota'][0]!.data as string });` — junto, em
+   `db/testes/seed-demo.test.ts`, a lista de módulos ativos passa a ter `'pesquisa'`.
+2. `modules/pesquisa/db/nuvem.ts` (espelho Drizzle) e tirar `'pesquisa'` de `SEM_ESPELHO_DRIZZLE` no `estatico.test.ts`:
 
 ```ts
 import { boolean, date, integer, jsonb, numeric, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';

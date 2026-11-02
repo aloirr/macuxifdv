@@ -13,7 +13,8 @@ import { STATUS_VERSAO, QuestionarioVersao } from '../../modules/pesquisa/contra
 import { RespostaPesquisa } from '../../modules/pesquisa/contracts/resposta';
 import { TIPOS_PERGUNTA } from '../../modules/pesquisa/contracts/pergunta';
 import { FREQUENCIAS, MODOS } from '../../modules/pesquisa/contracts/publico';
-import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
+import { carregarDoisTenants, dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS } from '../seeds/fixtures/dois-tenants';
+import { GRUPOS_PESQUISA_FIXTURE, ORDEM_PESQUISA, PESQUISA_FIXTURE, TABELAS_PESQUISA_DO_GATILHO } from '../seeds/fixtures/pesquisa';
 import { carregarDemo, dadosDemo, idClienteDemo, idUsuarioDemo, TENANT_DEMO } from '../seeds/demo/demo';
 import { carregarPesquisaDemo, dadosPesquisaDemo, gravarPesquisaDemo, PERFIS_PESQUISA_DEMO, PESQUISA_DEMO } from '../seeds/demo/pesquisa';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
@@ -22,13 +23,12 @@ import { somarDias } from '../src/datas';
 import { lerMigracoes } from '../src/migrador';
 import type { Linha } from '../src/gravar';
 import { agoraDaFixture, banco, hojeDaFixture, semBanco } from './estado';
-import { carregarPesquisaDoisTenants, dadosPesquisaDoisTenants, PESQUISA_DOIS_TENANTS } from './pesquisa-fixture';
 import { comCliente, emTransacao, erroDe } from './util';
 
 const A = DOIS_TENANTS.A.tenantId;
 const B = DOIS_TENANTS.B.tenantId;
-const PA = PESQUISA_DOIS_TENANTS.A;
-const PB = PESQUISA_DOIS_TENANTS.B;
+const PA = PESQUISA_FIXTURE.A;
+const PB = PESQUISA_FIXTURE.B;
 const TABELAS = ['pesquisa.questionario', 'pesquisa.questionario_versao', 'pesquisa.resposta', 'pesquisa.resposta_item', 'pesquisa.resposta_foto'] as const;
 const HASH_FALSO = '$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA';
 
@@ -142,7 +142,7 @@ describe('pesquisa — seed demo e fixture (estático)', () => {
   });
 
   it('fixture: versões e respostas dos dois tenants passam nos contratos; A responde os 9 tipos', () => {
-    const f = dadosPesquisaDoisTenants(agoraDaFixture());
+    const f = dadosDoisTenants(HASH_FALSO, { agora: agoraDaFixture() });
     for (const v of f['pesquisa.questionario_versao']) expect(QuestionarioVersao.safeParse(versaoDaLinha(v)).success, String(v.id)).toBe(true);
     for (const r of f['pesquisa.resposta']) {
       const p = RespostaPesquisa.safeParse(respostaDaLinha(r));
@@ -150,6 +150,23 @@ describe('pesquisa — seed demo e fixture (estático)', () => {
     }
     const a1 = f['pesquisa.resposta'].find((r) => r.id === PA.respostas.v1c1)!;
     expect((a1.itens as Linha[]).map((i) => i.tipo).sort()).toEqual([...TIPOS_PERGUNTA].sort());
+    // as fotos da Pesquisa entram em plataforma.arquivo junto das da Sprint 1 (FK de resposta_foto)
+    expect(f['plataforma.arquivo'].map((x) => x.id)).toEqual(expect.arrayContaining([PA.arquivos.fotoV1c1, PB.arquivos.fotoC1]));
+  });
+
+  it('fixture: a Pesquisa está em ORDEM_TABELAS (itens e fotos pelo gatilho) e os ids não colidem com Gestor, Promotor nem o resto', () => {
+    expect(ORDEM_TABELAS).toEqual(expect.arrayContaining([...ORDEM_PESQUISA]));
+    for (const t of TABELAS_PESQUISA_DO_GATILHO) expect(ORDEM_TABELAS as readonly string[]).not.toContain(t);
+    const f = dadosDoisTenants(HASH_FALSO, { agora: agoraDaFixture() });
+    const linhas = Object.entries(f).flatMap(([t, ls]) => ls.map((l) => ({ t, id: String(l.id) })));
+    expect(new Set(linhas.map((l) => l.id)).size).toBe(linhas.length);
+    // grupo (2º bloco do UUID fixo) da Pesquisa (0x160–0x165) só aparece em linhas da Pesquisa e nas fotos dela
+    const grupo = (id: string) => parseInt(id.split('-')[1]!, 16);
+    const daPesquisa = new Set<string>([PA.arquivos.fotoV1c1, PB.arquivos.fotoC1]);
+    for (const l of linhas) {
+      if (l.t.startsWith('pesquisa.') || daPesquisa.has(l.id)) expect(GRUPOS_PESQUISA_FIXTURE, `${l.t} ${l.id}`).toContain(grupo(l.id));
+      else expect(GRUPOS_PESQUISA_FIXTURE, `${l.t} ${l.id}`).not.toContain(grupo(l.id));
+    }
   });
 });
 
@@ -157,8 +174,7 @@ describe.skipIf(semBanco())('pesquisa — banco (papel macuxi_app)', () => {
   let app: pg.Client;
 
   beforeAll(async () => {
-    // idempotente: quando a fixture central chamar gravarPesquisaDoisTenants, isto não muda nada
-    await comCliente(banco().urlAdmin, (admin) => carregarPesquisaDoisTenants(admin, { agora: agoraDaFixture() }));
+    // a fixture dois-tenants (globalSetup) já traz a Pesquisa de A e B (db/seeds/fixtures/pesquisa.ts)
     app = new pg.Client({ connectionString: banco().urlApp });
     await app.connect();
   });
@@ -258,6 +274,9 @@ describe.skipIf(semBanco())('pesquisa — banco (papel macuxi_app)', () => {
         return erroDe(app.query("update pesquisa.questionario_versao set perguntas = '[]' where id = $1", [PA.versoes.exposicaoV2Rascunho]));
       });
       expect(r?.code).toBe('23514');
+      // integridade antes da regra: apontar a publicada para um questionário de outro tenant é FK (23503), não RN-PES-01
+      const fk = await erroDe(emTransacao(app, A, () => app.query('update pesquisa.questionario_versao set questionario_id = $2 where id = $1', [PA.versoes.exposicaoV1, PB.questionarios.avulsa])));
+      expect(fk?.code).toBe('23503');
     });
 
     it('um rascunho vivo por questionário e número único por questionário (23505)', async () => {
@@ -353,7 +372,7 @@ describe.skipIf(semBanco())('pesquisa — banco (papel macuxi_app)', () => {
       expect(porTipo.foto).toMatchObject({ valor_num: 1 });
       expect(porTipo.texto).toMatchObject({ valor_texto: 'Gôndola organizada' });
       expect(porTipo.codigo_barras).toMatchObject({ valor_texto: '7891234567895' });
-      expect(porTipo.data).toMatchObject({ valor_data: somarDias(hojeDaFixture(DOIS_TENANTS.A.fuso), 30) });
+      expect(porTipo.data).toMatchObject({ valor_data: PA.dataRespondida });
       expect(r.fotos).toEqual([{ pergunta_id: PA.perguntas.foto, arquivo_id: PA.arquivos.fotoV1c1, largura_px: 1600 }]);
     });
 
