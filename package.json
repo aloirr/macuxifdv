@@ -14,6 +14,7 @@
     "test:tests": "vitest run --config tests/vitest.config.ts",
     "test:e2e": "playwright test -c playwright.config.ts",
     "fronteiras": "node scripts/fronteiras.mjs",
+    "timers": "node scripts/ci/timers-sync.mjs",
     "contar-testes": "node scripts/contar-testes.mjs",
     "format": "prettier --write .",
     "db:subir": "pnpm --filter @macuxi/db banco subir",

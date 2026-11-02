@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resumirConformidade } from './gondola';
-import { PARAMETROS_PADRAO, resolverParametros } from './parametros';
+import { PARAMETROS_PADRAO, parametrosDosBrutos, resolverParametros } from './parametros';
 import { faixaDeRisco, resumirValidade } from './validade';
 
 describe('Parâmetros do tenant do Promotor', () => {
@@ -43,5 +43,17 @@ describe('Parâmetros do tenant do Promotor', () => {
   it('recusa peso fora de 0 a 1', () => {
     expect(() => resolverParametros({ peso_parcial_conformidade: 1.5 })).toThrow();
     expect(() => resolverParametros({ peso_parcial_conformidade: -1 })).toThrow();
+  });
+});
+
+describe('parâmetros brutos do tenant (API e aparelho)', () => {
+  it('RN-PRO-04/07: usa o valor do tenant quando válido (número ou texto numérico)', () => {
+    expect(parametrosDosBrutos({ variacao_preco_max_pct: '20', permanencia_min_min: 15 })).toMatchObject({ variacao_preco_max_pct: 20, permanencia_min_min: 15 });
+  });
+
+  it('ausente, vazio ou inválido cai no padrão (nunca derruba a requisição nem a tela)', () => {
+    expect(parametrosDosBrutos({})).toEqual(PARAMETROS_PADRAO);
+    expect(parametrosDosBrutos({ variacao_preco_max_pct: 'x', permanencia_min_min: '' })).toEqual(PARAMETROS_PADRAO);
+    expect(parametrosDosBrutos({ validade_critica_dias: 99 })).toEqual(PARAMETROS_PADRAO);
   });
 });
