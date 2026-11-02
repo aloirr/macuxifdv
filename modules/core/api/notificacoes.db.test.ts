@@ -126,6 +126,29 @@ describe.skipIf(semBanco())('Core T-0019 × Postgres: central de notificações'
     expect(await chamar('PUT', 'dispositivos/atual/push', vendedor1, { corpo: token })).toEqual({ ok: true });
     await expect(chamar('PUT', 'dispositivos/atual/push', vendedor2, { corpo: token })).rejects.toBeInstanceOf(ErroNaoEncontrado);
   });
+  it('RF-CORE-09: o token de push é só do usuário da sessão (sai de outros aparelhos), o DELETE do logout apaga e outro tenant não é tocado (RLS)', async () => {
+    const D2 = id(900);
+    const TK = 'ExponentPushToken[compartilhado]';
+    const tokenDe = (tenant: string, d: string) => comTenant(pool, tenant, async (c) => (await c.query<{ push_token: string | null }>('select push_token from core.dispositivo where id = $1', [d])).rows[0]?.push_token ?? null);
+    await comTenant(pool, A.tenantId, (c) => c.query(`insert into core.dispositivo (id, tenant_id, usuario_id, nome, plataforma) values ($1, plataforma.tenant_atual(), $2, 'Aparelho Dois', 'android') on conflict (id) do update set push_token = null`, [D2, U.vendedor2]));
+    try {
+      await chamar('PUT', 'dispositivos/atual/push', vendedor1, { corpo: { dispositivo_id: A.dispositivos.vendedor1, token: TK, plataforma: 'android' } });
+      await comTenant(pool, B.tenantId, (c) => c.query("update core.dispositivo set push_token = $2, push_plataforma = 'android' where id = $1", [B.dispositivos.vendedor, TK]));
+      // o mesmo token passa ao aparelho do vendedor2: sai do vendedor1 (A) e continua no tenant B
+      await chamar('PUT', 'dispositivos/atual/push', vendedor2, { corpo: { dispositivo_id: D2, token: TK, plataforma: 'android' } });
+      expect(await tokenDe(A.tenantId, D2)).toBe(TK);
+      expect(await tokenDe(A.tenantId, A.dispositivos.vendedor1)).toBeNull();
+      expect(await tokenDe(B.tenantId, B.dispositivos.vendedor)).toBe(TK);
+      // logout: apaga só o do próprio usuário
+      await chamar('DELETE', 'dispositivos/atual/push', vendedor1, { query: { dispositivo_id: D2 } });
+      expect(await tokenDe(A.tenantId, D2)).toBe(TK);
+      expect(await chamar('DELETE', 'dispositivos/atual/push', vendedor2, { query: { dispositivo_id: D2 } })).toEqual({ ok: true });
+      expect(await tokenDe(A.tenantId, D2)).toBeNull();
+    } finally {
+      await comTenant(pool, B.tenantId, (c) => c.query('update core.dispositivo set push_token = null, push_plataforma = null where id = $1', [B.dispositivos.vendedor]));
+      await comTenant(pool, A.tenantId, (c) => c.query('delete from core.dispositivo where id = $1', [D2]));
+    }
+  });
   it('T-0016 §5.5: remetente e quem tem escopo veem lida/não lida por destinatário; outros e o tenant B não veem nada', async () => {
     await enviar(supervisor, 20, { titulo: 'Visível ao remetente' });
     const lista = (u: UsuarioAutenticado) => chamar('GET', 'notificacoes/enviadas', u).then((r) => r.itens as Array<{ titulo: string; destinatario_id: string; lida_em: string | null }>);

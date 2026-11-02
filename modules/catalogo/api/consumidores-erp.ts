@@ -1,4 +1,6 @@
 /**
+ * `integracao.catalogo_no.atualizado@1` -> `catalogo.catalogo_no` e o campo `catalogo_no_external_id` de
+ * `integracao.produto.atualizado@1` -> `catalogo.produto_no` (árvore do catálogo, RF-CAT-04, T-0061).
  * `integracao.preco.atualizado@1` -> `catalogo.tabela_preco` / `tabela_preco_item` e `integracao.estoque.atualizado@1`
  * -> `catalogo.deposito` / `estoque_saldo` (T-0066; RN-INT-02, RN-INT-04). Upsert por `external_id`, idempotente
  * (reentrega não duplica); inativação do ERP = soft delete do item (nunca apaga de verdade). O produto do payload é achado
@@ -9,7 +11,7 @@
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { definirConsumidor, definirEvento, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
-import { planejarEstoqueDoErp, planejarPrecoDoErp, type EventoErpBase, type RegistroEstoqueErp, type RegistroPrecoErp } from '../domain';
+import { planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, type EventoErpBase, type RegistroEstoqueErp, type RegistroNoErp, type RegistroPrecoErp, type RegistroProdutoNoErp } from '../domain';
 
 export class ReferenciaAusenteErp extends Error {
   constructor(
@@ -25,10 +27,7 @@ export class ReferenciaAusenteErp extends Error {
 export type ResolverProdutos = (ctx: ContextoConsumo, externalIds: string[]) => Promise<Map<string, string>>;
 
 export const resolverProdutosPelaConsulta: ResolverProdutos = async (ctx, externalIds) => {
-  // `produto_external_ids` é o campo pedido ao Core (R-20261102-152246-modulo-catalogo); até existir, a consulta rejeita
-  // a entrada e o evento volta para a outbox (nunca grava órfão).
-  const entrada = { cliente_ids: [], usuario_ids: [], produto_ids: [], produto_external_ids: externalIds } as never;
-  const saida = (await ctx.consultar(CONSULTA_CADASTRO_RESUMO, entrada)) as { produtos: { id: string; external_id: string | null }[] };
+  const saida = await ctx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [], usuario_ids: [], produto_ids: [], produto_external_ids: externalIds });
   const mapa = new Map<string, string>();
   for (const p of saida.produtos) if (p.external_id) mapa.set(p.external_id, p.id);
   return mapa;
@@ -65,6 +64,20 @@ const RegistroEstoque = z.object({
 
 export const EventoIntegracaoPrecoAtualizado = envelope('preco', RegistroPreco);
 export const EventoIntegracaoEstoqueAtualizado = envelope('estoque', RegistroEstoque);
+
+const RegistroNo = z.object({
+  ativo: z.boolean().optional(),
+  codigo: z.string().min(1),
+  nome: z.string(),
+  pai_external_id: z.string().nullish(),
+  nivel: z.number().int(),
+  ordem: z.number().int().optional(),
+});
+/** Do produto do ERP o Catálogo lê só o nó da árvore; o cadastro do produto é do Core (que consome o mesmo evento). */
+const RegistroProdutoNo = z.object({ ativo: z.boolean().optional(), catalogo_no_external_id: z.string().nullish() }).passthrough();
+
+export const EventoIntegracaoCatalogoNoAtualizado = envelope('catalogo_no', RegistroNo);
+export const EventoIntegracaoProdutoAtualizado = envelope('produto', RegistroProdutoNo);
 
 async function produtoId(ctx: ContextoConsumo, resolver: ResolverProdutos, externalId: string): Promise<string> {
   const id = (await resolver(ctx, [externalId])).get(externalId);
@@ -146,4 +159,65 @@ export function criarConsumidorEstoqueDoErp(resolver: ResolverProdutos = resolve
   });
 }
 
-export const consumidoresDoErp: ConsumidorEvento[] = [criarConsumidorPrecoDoErp(), criarConsumidorEstoqueDoErp()];
+async function noId(db: ClienteBanco, externalId: string): Promise<string> {
+  const r = (await db.query<{ id: string }>('select id from catalogo.catalogo_no where external_id = $1 and deleted_at is null', [externalId])).rows[0];
+  if (!r) throw new ReferenciaAusenteErp('catalogo_no');
+  return r.id;
+}
+
+/** RF-CAT-04: nó da árvore. O pai tem de existir (senão repete na outbox, RN-INT-04); código igual de nó sem external_id é adotado. */
+export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
+  return definirConsumidor({
+    evento: EventoIntegracaoCatalogoNoAtualizado,
+    async executar(p, ctx: ContextoConsumo) {
+      const plano = planejarNoDoErp(p as EventoErpBase<RegistroNoErp>);
+      if (plano.tipo === 'ignorar') return;
+      if (plano.tipo === 'inativar') {
+        await ctx.db.query('update catalogo.catalogo_no set deleted_at = now() where external_id = $1 and deleted_at is null', [plano.external_id]);
+        return;
+      }
+      const l = plano.linha;
+      const pai = l.pai_external_id === null ? null : await noId(ctx.db, l.pai_external_id);
+      const mesmoCodigo = (await ctx.db.query<{ id: string }>('select id from catalogo.catalogo_no where codigo = $1 and external_id is null and deleted_at is null', [l.codigo])).rows[0];
+      if (mesmoCodigo) await ctx.db.query('update catalogo.catalogo_no set external_id = $2 where id = $1', [mesmoCodigo.id, l.external_id]);
+      await ctx.db.query(
+        `insert into catalogo.catalogo_no (tenant_id, pai_id, nivel, codigo, nome, ordem, ativo, external_id)
+         values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, true, $6)
+         on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
+         do update set pai_id = excluded.pai_id, nivel = excluded.nivel, codigo = excluded.codigo, nome = excluded.nome, ordem = excluded.ordem, ativo = true`,
+        [pai, l.nivel, l.codigo, l.nome, l.ordem, l.external_id],
+      );
+    },
+  });
+}
+
+/** RF-CAT-04: produto -> nó. Um vínculo vivo por produto (o external_id do vínculo é o do produto); troca de nó atualiza a linha. */
+export function criarConsumidorProdutoNoDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta): ConsumidorEvento {
+  return definirConsumidor({
+    evento: EventoIntegracaoProdutoAtualizado,
+    async executar(p, ctx: ContextoConsumo) {
+      const plano = planejarProdutoNoDoErp(p as EventoErpBase<RegistroProdutoNoErp>);
+      if (plano.tipo === 'ignorar') return;
+      if (plano.tipo === 'desvincular') {
+        await ctx.db.query('update catalogo.produto_no set deleted_at = now() where external_id = $1 and deleted_at is null', [plano.produto_external_id]);
+        return;
+      }
+      const no = await noId(ctx.db, plano.no_external_id);
+      const produto = await produtoId(ctx, resolver, plano.produto_external_id);
+      await ctx.db.query(
+        `insert into catalogo.produto_no (tenant_id, produto_id, no_id, external_id)
+         values (plataforma.tenant_atual(), $1, $2, $3)
+         on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
+         do update set produto_id = excluded.produto_id, no_id = excluded.no_id`,
+        [produto, no, plano.external_id],
+      );
+    },
+  });
+}
+
+export const consumidoresDoErp: ConsumidorEvento[] = [
+  criarConsumidorPrecoDoErp(),
+  criarConsumidorEstoqueDoErp(),
+  criarConsumidorCatalogoNoDoErp(),
+  criarConsumidorProdutoNoDoErp(),
+];

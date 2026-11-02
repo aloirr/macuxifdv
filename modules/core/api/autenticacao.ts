@@ -173,7 +173,11 @@ export function criarAutenticacao(deps: DepsAutenticacao) {
       await ctx.banco.comTenant(lido.tenantId, async (db) => {
         const r = repos.doTenant(db);
         const s = await r.sessaoPorHash(lido.hash);
-        if (s) await r.revogarFamilia(s.familia_id, ctx.agora());
+        if (s) {
+          await r.revogarFamilia(s.familia_id, ctx.agora());
+          // RN-CORE-15/RF-CORE-09: o aparelho deixa de receber push do usuário que saiu
+          if (s.dispositivo_id) await db.query('update core.dispositivo set push_token = null, push_plataforma = null where id = $1 and usuario_id = $2', [s.dispositivo_id, s.usuario_id]);
+        }
       });
     }
     return {}; // sempre igual: não revela se o refresh existia
