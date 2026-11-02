@@ -73,7 +73,7 @@ export const ClientePayload = RegistroBase.extend({
 export type ClientePayload = z.infer<typeof ClientePayload>;
 
 // ---------- produto (cadastro base do Core, ADR-0005) ----------
-export const ProdutoPayload = RegistroBase.extend({
+const ProdutoBase = RegistroBase.extend({
   sku: Texto(60),
   ean: z
     .string()
@@ -85,12 +85,29 @@ export const ProdutoPayload = RegistroBase.extend({
   categoria: TextoOpcional(80),
   /** Sigla da medida cadastrada no tenant (RN-CORE-19); o A7 confere com `core.medidas@1` (ausente/inativa = `referencia_ausente`). */
   unidade: Texto(10),
+  /**
+   * Embalagem padrão do produto (T-0063, RN-CORE-19): sigla da medida da embalagem (ex.: `CX`) e quantas unidades ela traz (CX c/ 12 = 12).
+   * Campos opcionais e aditivos (mesma versão do contrato). A sigla é conferida como a `unidade` (desconhecida/inativa = `referencia_ausente`).
+   * Medida e quantidade andam juntas: uma sem a outra é recusada.
+   */
+  embalagem_medida: TextoOpcional(10),
+  embalagem_quantidade: z.number().int('embalagem_quantidade deve ser inteira').positive('embalagem_quantidade deve ser maior que zero').nullish(),
   /** Nó da árvore do catálogo; referência FRACA: nó ausente vira aviso e o produto entra sem nó. */
   catalogo_no_external_id: ExternalId.nullish(),
   /** RN-CORE-18 / RN-VEN-11: custo, preço de venda e desconto máximo próprio (o Core aplica). */
   custo_cents: CentavosNaoNegativos.nullish(),
   preco_venda_cents: CentavosNaoNegativos.nullish(),
   desconto_maximo_pct: z.number().min(0).max(100).nullish(),
+});
+export const ProdutoPayload = ProdutoBase.superRefine((r, ctx) => {
+  const tem = (v: unknown) => v !== undefined && v !== null && v !== '';
+  if (tem(r.embalagem_medida) !== tem(r.embalagem_quantidade)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [tem(r.embalagem_medida) ? 'embalagem_quantidade' : 'embalagem_medida'],
+      message: 'embalagem_medida e embalagem_quantidade devem ser informadas juntas',
+    });
+  }
 });
 export type ProdutoPayload = z.infer<typeof ProdutoPayload>;
 

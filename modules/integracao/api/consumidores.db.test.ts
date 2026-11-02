@@ -9,6 +9,7 @@
  *    do evento não duplica; multi-tenant.
  */
 import { createHash, randomUUID } from 'node:crypto';
+import { CONSULTA_MEDIDAS } from '@macuxi/core/contracts';
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { ConsultaIndisponivel, type ContextoConsumo, type DefinicaoEvento } from '@macuxi/platform-sdk';
@@ -316,6 +317,153 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       await aplicar(A.tenantId, lote, 'vendedor', ID_A);
       expect(await registros(B.tenantId, 'vendedor')).toEqual([]);
       expect((await registros(A.tenantId, 'vendedor')).map((r) => r.external_id)).toEqual([`${P}-M1`]);
+    });
+  });
+
+  // ------------------------------------------------------------------------------------------------------------ A7 × medidas
+  /**
+   * T-0063 / RN-CORE-19 + RN-INT-04: sigla de medida desconhecida ou inativa é `referencia_ausente` reprocessável. O Core responde
+   * `core.medidas@1` lendo `core.medida` na mesma transação do tenant (RLS): o stub abaixo faz o mesmo, de modo que a sigla de um
+   * tenant nunca vale para o outro. Depende da 0018_medidas e da consulta do Core; sem elas, o bloco se pula.
+   */
+  describe('A7: medidas do produto (RN-CORE-19)', () => {
+    const SIGLA = `Z${Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('')}`; // 1 a 4 letras (CHECK da core.medida); só deste arquivo
+    const SIGLA_EMB = `Y${SIGLA.slice(1)}`;
+    let medidasProntas = false;
+
+    const medida = (tenantId: string, sigla: string, ativo = true) =>
+      admin.query(
+        `insert into core.medida (tenant_id, sigla, descricao, ativo) values ($1, $2, $3, $4)
+         on conflict (tenant_id, sigla) do update set ativo = excluded.ativo, deleted_at = null`,
+        [tenantId, sigla, `Medida ${sigla}`, ativo],
+      );
+    const limparMedidas = () => admin.query('delete from core.medida where sigla = any($1) and tenant_id = any($2)', [[SIGLA, SIGLA_EMB], [A.tenantId, B.tenantId]]);
+    /** Como o handler do Core: lê `core.medida` do tenant da transação (RLS) e devolve `{ sigla, ativo }`. */
+    const aplicarComMedidas = (tenantId: string, loteId: string, extra: (ctx: ContextoConsumo) => Partial<ContextoConsumo> = () => ({})) =>
+      rodar(tenantId, async (ctx) => {
+        const consultar = (async (def: { nome: string }, entrada: { siglas: string[] }) => {
+          if (def.nome !== CONSULTA_MEDIDAS.nome) return { resultados: [] };
+          const { rows } = await ctx.db.query<{ sigla: string; descricao: string; ativo: boolean }>('select sigla, descricao, ativo from core.medida where sigla = any($1::text[]) and deleted_at is null', [entrada.siglas]);
+          return { medidas: rows };
+        }) as unknown as ContextoConsumo['consultar'];
+        return aplicarLote({ lote_id: loteId, conector_id: tenantId === A.tenantId ? ID_A : B.integracao.identificador, entidade: 'produto', modo: 'delta', recebidas: 1, recebido_em: AGORA.toISOString() }, { ...ctx, consultar, ...extra(ctx) });
+      });
+    // lote em que TODAS as linhas têm erro termina `falhou` (erros.ts: linhasComErro >= efetivas); as linhas seguem reprocessáveis
+    const produto = (n: string, extra: Record<string, unknown> = {}) => ({ external_id: `${P}-MD${n}`, sku: `SKUMD${n}`, nome: `Produto ${n}`, unidade: SIGLA, alterado_em: em(-60_000), ...extra });
+    const loteProduto = (tenantId: string, conector: string, regs: unknown[]) => novoLote(tenantId, conector, 'produto', { registros: regs });
+    const mensagens = (tenantId: string, id: string) =>
+      comTenant(pool, tenantId, async (db) => (await db.query<{ campo: string; mensagem: string; reprocessavel: boolean; codigo: string }>('select campo, mensagem, reprocessavel, codigo from integracao.lote_linha_erro where lote_id = $1 order by indice', [id])).rows);
+
+    beforeAll(async () => {
+      const { rows } = await admin.query("select to_regclass('core.medida') as t");
+      medidasProntas = rows[0]?.t != null;
+    });
+    afterAll(async () => {
+      if (medidasProntas) await limparMedidas();
+    });
+
+    it('RN-CORE-19/RN-INT-04: sigla desconhecida no tenant A = referencia_ausente reprocessável, com a sigla e o campo na mensagem; a linha não entra', async (t) => {
+      if (!medidasProntas) return t.skip();
+      await limpar();
+      await liberarFilaDeProduto();
+      await limparMedidas();
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [produto('1')]);
+      await aplicarComMedidas(A.tenantId, lote);
+      expect(await lerLote(A.tenantId, lote)).toMatchObject({ status: 'falhou', novas: 0, com_erro: 1 });
+      expect(await mensagens(A.tenantId, lote)).toEqual([
+        { codigo: 'referencia_ausente', campo: 'unidade', reprocessavel: true, mensagem: `Medida '${SIGLA}' não cadastrada (campo unidade). Cadastre em Parâmetros → Produtos e reprocesse.` },
+      ]);
+      expect(await registros(A.tenantId, 'produto')).toEqual([]);
+    });
+
+    it('multi-tenant: a mesma sigla cadastrada só no tenant B não vale para o A; vale para o B', async (t) => {
+      if (!medidasProntas) return t.skip();
+      await limpar();
+      await liberarFilaDeProduto();
+      await limparMedidas();
+      await medida(B.tenantId, SIGLA);
+      const loteA = await loteProduto(A.tenantId, A.integracao.conector, [produto('2')]);
+      await aplicarComMedidas(A.tenantId, loteA);
+      expect(await lerLote(A.tenantId, loteA)).toMatchObject({ status: 'falhou', novas: 0, com_erro: 1 });
+      expect((await erros(A.tenantId, loteA))[0]).toMatchObject({ codigo: 'referencia_ausente', reprocessavel: true });
+      const loteB = await loteProduto(B.tenantId, B.integracao.conector, [produto('2')]);
+      await aplicarComMedidas(B.tenantId, loteB);
+      expect(await lerLote(B.tenantId, loteB)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+    });
+
+    it('RN-INT-04: o BKO cadastra a medida no tenant A e o reprocessamento da linha (mesmo registro reaplicado do staging) a aplica', async (t) => {
+      if (!medidasProntas) return t.skip();
+      await limpar();
+      await liberarFilaDeProduto();
+      await limparMedidas();
+      eventos = [];
+      const reg = produto('3');
+      const primeiro = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, primeiro);
+      expect((await erros(A.tenantId, primeiro))[0]).toMatchObject({ codigo: 'referencia_ausente', reprocessavel: true });
+      expect(nomes('integracao.produto.atualizado@1')).toHaveLength(0);
+      await medida(A.tenantId, SIGLA);
+      const reprocesso = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, reprocesso);
+      expect(await lerLote(A.tenantId, reprocesso)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+      expect((await registros(A.tenantId, 'produto')).map((r) => r.external_id)).toEqual([`${P}-MD3`]);
+      expect(nomes('integracao.produto.atualizado@1').map((e) => e.payload.external_id)).toEqual([`${P}-MD3`]);
+    });
+
+    it('RN-CORE-19: medida INATIVA também é referencia_ausente reprocessável (pede para reativar); reativada, a linha é aplicada', async (t) => {
+      if (!medidasProntas) return t.skip();
+      await limpar();
+      await liberarFilaDeProduto();
+      await limparMedidas();
+      await medida(A.tenantId, SIGLA, false);
+      const reg = produto('4');
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, lote);
+      expect(await mensagens(A.tenantId, lote)).toEqual([
+        { codigo: 'referencia_ausente', campo: 'unidade', reprocessavel: true, mensagem: `Medida '${SIGLA}' está inativa (campo unidade). Reative em Parâmetros → Produtos e reprocesse.` },
+      ]);
+      await medida(A.tenantId, SIGLA, true);
+      const reprocesso = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, reprocesso);
+      expect(await lerLote(A.tenantId, reprocesso)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+    });
+
+    it('RN-CORE-19: a embalagem_medida do produto também é conferida (campo embalagem_medida); com as duas cadastradas a linha entra', async (t) => {
+      if (!medidasProntas) return t.skip();
+      await limpar();
+      await liberarFilaDeProduto();
+      await limparMedidas();
+      await medida(A.tenantId, SIGLA);
+      const reg = produto('5', { embalagem_medida: SIGLA_EMB, embalagem_quantidade: 12 });
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, lote);
+      expect(await mensagens(A.tenantId, lote)).toEqual([
+        { codigo: 'referencia_ausente', campo: 'embalagem_medida', reprocessavel: true, mensagem: `Medida '${SIGLA_EMB}' não cadastrada (campo embalagem_medida). Cadastre em Parâmetros → Produtos e reprocesse.` },
+      ]);
+      await medida(A.tenantId, SIGLA_EMB);
+      const reprocesso = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, reprocesso);
+      expect(await lerLote(A.tenantId, reprocesso)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+    });
+
+    it('RN-INT-14: consulta de medidas indisponível não recusa a linha (o lote segue sem a conferência)', async (t) => {
+      if (!medidasProntas) return t.skip();
+      await limpar();
+      await liberarFilaDeProduto();
+      await limparMedidas();
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [produto('6')]);
+      await rodar(A.tenantId, (ctx) =>
+        aplicarLote(
+          { lote_id: lote, conector_id: ID_A, entidade: 'produto', modo: 'delta', recebidas: 1, recebido_em: AGORA.toISOString() },
+          {
+            ...ctx,
+            consultar: (async () => {
+              throw new ConsultaIndisponivel('core.medidas@1', 'core');
+            }) as unknown as ContextoConsumo['consultar'],
+          },
+        ),
+      );
+      expect(await lerLote(A.tenantId, lote)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
     });
   });
 

@@ -80,6 +80,8 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
         'promotor.tarefa_execucao',
       ]),
     );
+    // T-0063 (0018): medidas do tenant (lista inicial semeada pelo gatilho em A e B)
+    expect(nomes).toEqual(expect.arrayContaining(['core.medida']));
     expect(nomes.filter((n) => !idDeB.has(n))).toEqual([]);
   });
 

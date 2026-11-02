@@ -206,14 +206,14 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
   });
 
   describe('produto', () => {
-    const produto = (extra: Record<string, unknown> = {}) => ev('produto', 'P-T66', { sku: 'SKU-T66', nome: 'Arroz 5kg', marca: 'Boa', categoria: 'Grãos', unidade: 'pc', ean: '7891234567895', ...extra });
+    const produto = (extra: Record<string, unknown> = {}) => ev('produto', 'P-T66', { sku: 'SKU-T66', nome: 'Arroz 5kg', marca: 'Boa', categoria: 'Grãos', unidade: 'pct', ean: '7891234567895', ...extra });
     it('RN-INT-02/RN-CORE-18: upsert idempotente, mantém custo e preço de venda, inativa pelo evento', async () => {
       await emTransacao(A.tenantId, async (t) => {
         await t.entregar('integracao.produto.atualizado@1', produto());
         await t.q("update core.produto set custo_cents = 700, preco_venda_cents = 1000, desconto_maximo_pct = 15 where external_id = 'P-T66'");
         await t.entregar('integracao.produto.atualizado@1', produto({ nome: 'Arroz 5kg Tipo 1' }), AGORA);
         const p = await t.q<{ nome: string; unidade: string; custo_cents: string; preco_venda_cents: string }>("select nome, unidade, custo_cents, preco_venda_cents from core.produto where external_id = 'P-T66'");
-        expect(p).toEqual([{ nome: 'Arroz 5kg Tipo 1', unidade: 'PC', custo_cents: '700', preco_venda_cents: '1000' }]);
+        expect(p).toEqual([{ nome: 'Arroz 5kg Tipo 1', unidade: 'PCT', custo_cents: '700', preco_venda_cents: '1000' }]);
         await t.entregar('integracao.produto.atualizado@1', ev('produto', 'P-T66', undefined, 'inativado'));
         expect((await t.q<{ ativo: boolean }>("select ativo from core.produto where external_id = 'P-T66'"))[0]?.ativo).toBe(false);
       });
@@ -228,6 +228,54 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
         await t.q("insert into core.produto (tenant_id, sku, nome) values (plataforma.tenant_atual(), 'SKU-MANUAL', 'Manual')");
         await t.entregar('integracao.produto.atualizado@1', ev('produto', 'P-MANUAL', { sku: 'SKU-MANUAL', nome: 'Manual ERP', unidade: 'UN' }));
         expect((await t.q<{ nome: string }>("select nome from core.produto where sku = 'SKU-MANUAL'"))).toEqual([{ nome: 'Manual ERP' }]);
+      });
+    });
+  });
+
+  describe('produto: medida e embalagem (RN-CORE-19)', () => {
+    const produto = (extra: Record<string, unknown> = {}) => ev('produto', 'P-T63', { sku: 'SKU-T63', nome: 'Refrigerante 2L', unidade: 'un', ...extra });
+    const lerEmbalagem = (t: Teste) => t.q<{ unidade: string; embalagem_medida: string | null; embalagem_quantidade: number | null }>("select unidade, embalagem_medida, embalagem_quantidade from core.produto where external_id = 'P-T63'");
+
+    it('RN-CORE-19: produto do ERP com embalagem_medida CX e embalagem_quantidade 12 grava os dois campos', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'cx', embalagem_quantidade: 12 }));
+        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 }]);
+      });
+    });
+
+    it('RN-CORE-19: evento sem embalagem NÃO apaga a embalagem cadastrada no BKO; evento com embalagem a substitui', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.produto.atualizado@1', produto());
+        await t.q("update core.produto set embalagem_medida = 'FD', embalagem_quantidade = 6 where external_id = 'P-T63'");
+        await t.entregar('integracao.produto.atualizado@1', produto({ nome: 'Refrigerante 2L Gelado' }), AGORA);
+        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: 'FD', embalagem_quantidade: 6 }]);
+        await t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'CX', embalagem_quantidade: 12 }), AGORA);
+        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 }]);
+      });
+    });
+
+    it('RN-CORE-19: se a unidade passa a ser igual à embalagem guardada, a embalagem é limpa (sem violar o banco)', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.produto.atualizado@1', produto());
+        await t.q("update core.produto set embalagem_medida = 'CX', embalagem_quantidade = 6 where external_id = 'P-T63'");
+        await t.entregar('integracao.produto.atualizado@1', produto({ unidade: 'CX' }), AGORA);
+        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'CX', embalagem_medida: null, embalagem_quantidade: null }]);
+      });
+    });
+
+    it('RN-CORE-19: medida da unidade não cadastrada no tenant = registro ignorado com aviso (rede de segurança; o Hub já recusa antes)', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.produto.atualizado@1', produto({ unidade: 'zz' }));
+        expect(t.warn).toHaveBeenCalled();
+        expect(await lerEmbalagem(t)).toEqual([]);
+      });
+    });
+
+    it('RN-CORE-19: embalagem com medida não cadastrada entra sem a embalagem (o produto não se perde)', async () => {
+      await emTransacao(A.tenantId, async (t) => {
+        await t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'zz', embalagem_quantidade: 12 }));
+        expect(t.warn).toHaveBeenCalled();
+        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: null, embalagem_quantidade: null }]);
       });
     });
   });

@@ -76,6 +76,17 @@ describe('RN-INT-09: contrato canônico v1 por entidade', () => {
     expect(VendedorPayload.safeParse({ ...v, external_id: 'V' }).success).toBe(false);
   });
 
+  it('RN-CORE-19: produto aceita embalagem_medida + embalagem_quantidade opcionais (mesma versão); uma sem a outra é recusada', () => {
+    const p = { ...base, sku: 'P', nome: 'n', unidade: 'UN' };
+    expect(ProdutoPayload.safeParse(p).success).toBe(true);
+    expect(ProdutoPayload.parse({ ...p, embalagem_medida: 'CX', embalagem_quantidade: 12 })).toMatchObject({ embalagem_medida: 'CX', embalagem_quantidade: 12 });
+    expect(ProdutoPayload.safeParse({ ...p, embalagem_medida: null, embalagem_quantidade: null }).success).toBe(true);
+    expect(ProdutoPayload.safeParse({ ...p, embalagem_medida: 'CX' }).success).toBe(false);
+    expect(ProdutoPayload.safeParse({ ...p, embalagem_quantidade: 12 }).success).toBe(false);
+    expect(ProdutoPayload.safeParse({ ...p, embalagem_medida: 'CX', embalagem_quantidade: 0 }).success).toBe(false);
+    expect(ProdutoPayload.safeParse({ ...p, embalagem_medida: 'CX', embalagem_quantidade: 1.5 }).success).toBe(false);
+  });
+
   it('campo novo desconhecido é ignorado (compatível); vigência invertida é recusada', () => {
     const p = ProdutoPayload.parse({ ...base, sku: 'P', nome: 'n', unidade: 'UN', campo_futuro: 1 });
     expect('campo_futuro' in p).toBe(false);

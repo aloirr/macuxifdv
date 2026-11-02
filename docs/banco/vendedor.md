@@ -158,3 +158,16 @@ Pull escopo tenant.
 tenant = idempotência), parcial, numero_erp, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, `itens` jsonb
 `[{sequencia, produto_id, quantidade (unidade base), total_cents}]`, faturado_em. A aplicação só lê e insere. Índice (tenant, pedido,
 faturado_em).
+
+## 0018 — medida no item do pedido (`0018_medidas`; T-0063, RN-VEN-15)
+**pedido_item** (novas): `medida` text null (sigla vendida, CHECK `pedido_item_medida_formato` `^[A-Z]{1,4}$`),
+`quantidade_embalagem` int not null (unidades por embalagem; 1 na unidade; CHECK `> 0` e `pedido_item_embalagem_coerente` =
+`fator`) e `quantidade_unidades` int not null (total em unidades; CHECK `pedido_item_quantidade_unidades_coerente` = quantidade ×
+quantidade_embalagem). **Retrato, sem FK para `core.medida`** (fronteira entre schemas): a API do Vendedor valida a sigla contra o
+Core. Gatilho **`pedido_item_medida`** (BEFORE INSERT/UPDATE; dispara antes de `pedido_item_quantidade_base` pela ordem
+alfabética): preenche o que vier nulo (`medida = upper(btrim(unidade))`, `quantidade_embalagem = fator`; `unidade` nula recebe a
+medida), mantém as duas famílias coerentes (quem gravar só `unidade`/`fator` ou só `medida`/`quantidade_embalagem`, a outra
+acompanha) e **sempre** calcula `quantidade_unidades` (nunca grave nela). O código atual (unidade/fator) continua igual. Itens
+existentes: backfill `medida = unidade`, `quantidade_embalagem = fator`, `quantidade_unidades = quantidade_base`. Item antigo sem
+`unidade` fica com `medida` nula (exibir a medida da unidade do produto). PDF: "CX c/ 12" = `medida` + `quantidade_embalagem`.
+Espelho Drizzle em `modules/vendedor/db/nuvem.ts`: **pendente** (módulo travado; `COLUNAS_SEM_ESPELHO_DRIZZLE` em `db/src/excecoes.ts`).

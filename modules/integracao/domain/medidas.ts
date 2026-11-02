@@ -12,12 +12,20 @@ export interface SiglaDoRegistro {
   sigla: string;
 }
 
-/** Siglas de medida que o registro (já validado) cita. Preço sem unidade = unidade base do produto (sem conferência). */
+/**
+ * Siglas de medida que o registro (já validado) cita, cada uma com o seu campo. Produto: `unidade` e `embalagem_medida`
+ * (a embalagem é opcional); produto_unidade e preço: `unidade`. Preço sem unidade = unidade base do produto (sem conferência).
+ */
 export function siglasDeMedidaDoRegistro(entidade: Entidade, registro: unknown): SiglaDoRegistro[] {
   if (entidade !== 'produto' && entidade !== 'produto_unidade' && entidade !== 'preco') return [];
   const r = (registro && typeof registro === 'object' ? registro : {}) as Record<string, unknown>;
-  const v = r.unidade;
-  return typeof v === 'string' && v.trim() !== '' ? [{ campo: 'unidade', sigla: v.trim().toUpperCase() }] : [];
+  const campos = entidade === 'produto' ? ['unidade', 'embalagem_medida'] : ['unidade'];
+  const saida: SiglaDoRegistro[] = [];
+  for (const campo of campos) {
+    const v = r[campo];
+    if (typeof v === 'string' && v.trim() !== '') saida.push({ campo, sigla: v.trim().toUpperCase() });
+  }
+  return saida;
 }
 
 export function siglasParaConferir(entidade: Entidade, linhas: readonly { registro: unknown }[]): string[] {
@@ -26,12 +34,14 @@ export function siglasParaConferir(entidade: Entidade, linhas: readonly { regist
 
 /**
  * Separa as linhas cuja sigla está entre as medidas ativas das que citam sigla desconhecida/inativa.
- * `ativas === null` = não deu para conferir: tudo é aceito.
+ * `ativas === null` = não deu para conferir: tudo é aceito. `inativas` (opcional) = siglas que existem mas estão inativas: a mensagem
+ * pede para reativar em vez de cadastrar.
  */
 export function verificarMedidas<L extends { indice: number; external_id: string; registro: unknown }>(
   entidade: Entidade,
   linhas: readonly L[],
   ativas: ReadonlySet<string> | null,
+  inativas: ReadonlySet<string> = new Set(),
 ): { aceitas: L[]; erros: LinhaErro[] } {
   if (ativas === null) return { aceitas: [...linhas], erros: [] };
   const aceitas: L[] = [];
@@ -42,7 +52,10 @@ export function verificarMedidas<L extends { indice: number; external_id: string
     else {
       for (const s of ruins) {
         const e = erroReferenciaAusente(l.indice, l.external_id, s.campo, 'medida');
-        erros.push({ ...e, mensagem: `A medida "${s.sigla}" não está cadastrada (ou está inativa) neste tenant. Cadastre a sigla em Parâmetros > Medidas; a linha será reprocessada.` });
+        const acao = inativas.has(s.sigla)
+          ? `Medida '${s.sigla}' está inativa (campo ${s.campo}). Reative em Parâmetros → Produtos e reprocesse.`
+          : `Medida '${s.sigla}' não cadastrada (campo ${s.campo}). Cadastre em Parâmetros → Produtos e reprocesse.`;
+        erros.push({ ...e, mensagem: acao });
       }
     }
   }

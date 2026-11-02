@@ -145,6 +145,15 @@ produto  ─► preço, estoque
 
 Dono dos dados (ADR-0005): produto → `core.produto`; cliente/vendedor/rota/título/nota → `core`; preço e estoque → `catalogo`. O Hub só publica o evento; cada dono grava no próprio schema.
 
+### 6.1 Medidas (T-0063, RN-CORE-19 + RN-INT-04)
+`produto` (`unidade` e `embalagem_medida`/`embalagem_quantidade`, opcionais e sempre juntas), `produto_unidade` (`unidade`) e `preco` (`unidade`, quando informada) citam a **sigla** de uma medida cadastrada e ativa no tenant (Parâmetros → Produtos, dono: Core). O A7 pergunta ao Core por `core.medidas@1` (`{ siglas[≤500] } → { medidas[{ sigla, descricao, ativo }] }`, em blocos de 500, na transação do tenant) e `verificarMedidas` (domain/medidas.ts) separa as linhas:
+- sigla desconhecida: `referencia_ausente`, reprocessável, campo `unidade` ou `embalagem_medida`, mensagem "Medida 'XX' não cadastrada (campo unidade). Cadastre em Parâmetros → Produtos e reprocesse.";
+- sigla inativa: mesmo código, mensagem "Medida 'XX' está inativa (campo unidade). Reative em Parâmetros → Produtos e reprocesse.";
+- a conferência vale por tenant (a medida do tenant B não vale para o A) porque a consulta roda sob RLS do tenant do lote;
+- consulta indisponível (Core fora do ar para o tenant) ou erro inesperado: **ninguém é recusado** (RN-INT-14), o lote segue sem a conferência e o aviso fica no log;
+- um erro por linha (a unique `(lote, origem, índice)`): vale o primeiro campo com problema (`unidade` antes de `embalagem_medida`).
+O evento `integracao.produto.atualizado@1` leva `embalagem_medida` e `embalagem_quantidade` em `registro` (campos opcionais aditivos, sem nova versão).
+
 ## 7. Limites e parâmetros (RN-INT-01)
 
 | Parâmetro | Padrão | Onde |

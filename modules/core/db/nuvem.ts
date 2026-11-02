@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -52,6 +52,19 @@ export const usuario = core.table('usuario', {
   bloqueio_ate: timestamp('bloqueio_ate', { withTimezone: true }),
 });
 
+/**
+ * Medidas do tenant (0018, RN-CORE-19, RF-CORE-14): sigla ^[A-Z]{1,4}$ ÚNICA por tenant (único total medida_sigla_uk, alvo
+ * das FKs de produto e produto_unidade), descrição e ativo. Nunca é apagada: sai de uso com ativo = false (o banco recusa
+ * deleted_at em medida usada por produto vivo — gatilho medida_em_uso, 23503 — e o macuxi_app não tem DELETE). Lista
+ * inicial semeada em todo tenant: MEDIDAS_INICIAIS em db/src/ids.ts. Pull escopo tenant.
+ */
+export const medida = core.table('medida', {
+  ...comuns(),
+  sigla: text('sigla').notNull(),
+  descricao: text('descricao').notNull(),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
 /** Cadastro base de produto (ADR-0005). Preço/estoque/conteúdo/busca: schema catalogo. */
 export const produto = core.table('produto', {
   ...comuns(),
@@ -67,6 +80,10 @@ export const produto = core.table('produto', {
   preco_venda_cents: bigint('preco_venda_cents', { mode: 'number' }),
   /** Nulo = parâmetro do tenant `desconto_maximo_produto_pct` (padrão 15). 0 a 100. */
   desconto_maximo_pct: numeric('desconto_maximo_pct', { precision: 5, scale: 2 }),
+  // --- 0018 (RN-CORE-19): `unidade` = sigla da medida da unidade (FK produto_medida_fk -> core.medida). Embalagem opcional:
+  // medida (FK produto_embalagem_medida_fk) + quantidade de unidades (> 1), as duas juntas ou nenhuma, medida <> unidade.
+  embalagem_medida: text('embalagem_medida'),
+  embalagem_quantidade: integer('embalagem_quantidade'),
 });
 
 export const cliente = core.table('cliente', {

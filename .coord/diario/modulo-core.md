@@ -31,3 +31,4 @@
 2026-11-02 — T-0065/T-0062 — push (entidades por tipo, silencioso, meta e rota do dia, numero no titulo), situacao parcial/fechado nas metas (API/app/BKO), produto custo/preco no BKO (rotas produtos + pagina + parametro)
 2026-11-02 — T-0066 — produto_external_ids em core.cadastro_resumo@1; timer do relógio do atendimento marcado como exceção (RN-CORE-23)
 2026-11-02 — T-0065 — notificarSistema: envio_id uuid determinístico (evento+usuário); core 690/690
+2026-11-02 — T-0063 — medidas do produto (RN-CORE-19): domain medida.ts, core.medidas@1, rotas /v1/core/medidas e produtos/:id/medidas, aba Medidas no BKO, sync medida/embalagem, consumidor ERP com embalagem; Core 740 testes verdes (Postgres real)

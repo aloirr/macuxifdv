@@ -21,6 +21,10 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-02 (T-0056):** `0015_promotor` (schema `promotor`: 9 cadastros de trade e 11 coletas com payload jsonb + colunas
 > derivadas por gatilho, FK composta coleta → visita de loja, sem DELETE); dicionário [promotor.md](promotor.md); seed da demo em
 > `db/seeds/demo/promotor.ts` (`gravarDemoPromotor`) e fixture em `db/seeds/fixtures/promotor.ts` (ids nos grupos 0x84–0x97; o Gestor usa 0x70–0x73).
+> **2026-11-02 (T-0063, nuvem):** `0018_medidas` (`core.medida` com lista inicial em todo tenant, FKs compostas de
+> `produto.unidade`/`embalagem_medida` e `produto_unidade.unidade`, item do pedido com `medida`/`quantidade_embalagem`/
+> `quantidade_unidades` preenchidos por gatilho); dicionário em [core.md](core.md) e [vendedor.md](vendedor.md); seed da demo em
+> `db/seeds/demo/medidas.ts` (`gravarDemoMedidas`). **Depende da `0016` e da `0017` na pasta** (o executor recusa buraco).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

@@ -30,8 +30,8 @@ import * as esquemaPlataforma from '../esquema/plataforma';
 import { ALCADAS_DEMO, dadosDemo } from '../seeds/demo/demo';
 import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
-import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
-import { idDeChave, idDeterministico, idFixo } from '../src/ids';
+import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
+import { idDeChave, idDeterministico, idFixo, idMedida } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { hashSenha, verificarSenha } from '../src/senha';
 
@@ -64,6 +64,8 @@ const TABELAS_0013 = [
 ] as const;
 /** Tabelas do schema gestor (0014, T-0055). */
 const TABELAS_GESTOR = ['gestor.evento_aplicado', 'gestor.projecao_fato', 'gestor.alerta', 'gestor.alerta_regra'] as const;
+/** Tabelas novas da 0018 (T-0063, medidas). */
+const TABELAS_0018 = ['core.medida'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -96,6 +98,7 @@ describe('migrações (estático)', () => {
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
     expect(nomes[13]).toBe('0014_gestor');
     expect(nomes[14]).toBe('0015_promotor');
+    expect(nomes[17]).toBe('0018_medidas');
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -128,6 +131,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_INTEGRACAO,
         ...TABELAS_0013,
         ...TABELAS_GESTOR,
+        ...TABELAS_0018,
         ...TABELAS_PROMOTOR,
       ].sort(),
     );
@@ -692,7 +696,9 @@ describe('Drizzle x migrações (estático)', () => {
   for (const [tabela, cfg] of drizzle) {
     it(`${tabela}: mesmas colunas do SQL`, () => {
       const corpo = criadas.get(tabela) ?? '';
-      const doSql = [...corpo.matchAll(/^ {2}([a-z_][a-z0-9_]*) +[a-z]/gm)].map((m) => m[1]!).filter((c) => c !== 'constraint').sort();
+      // colunas pendentes de espelho (src/excecoes.ts): aceitas com ou sem espelho
+      const pendentes = (COLUNAS_SEM_ESPELHO_DRIZZLE[tabela] ?? []).filter((c) => !cfg.columns.some((col) => col.name === c));
+      const doSql = [...corpo.matchAll(/^ {2}([a-z_][a-z0-9_]*) +[a-z]/gm)].map((m) => m[1]!).filter((c) => c !== 'constraint' && !pendentes.includes(c)).sort();
       expect(cfg.columns.map((c) => c.name).sort()).toEqual(doSql);
     });
   }
@@ -741,6 +747,11 @@ describe('fixture dois-tenants (estático)', () => {
     for (const t of Object.keys(dados)) {
       for (const l of dados[t as keyof typeof dados]) {
         const dono = t === 'plataforma.tenant' ? l.id : l.tenant_id;
+        // core.medida (0018): id determinístico do banco (a semeadura e a fixture gravam a MESMA linha)
+        if (t === 'core.medida') {
+          expect(l.id).toBe(idMedida(String(l.tenant_id), String(l.sigla)));
+          continue;
+        }
         expect(String(l.id).slice(0, 8)).toBe(dono === A ? 'aaaaaaaa' : 'bbbbbbbb');
       }
     }

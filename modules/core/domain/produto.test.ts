@@ -10,7 +10,7 @@ describe('ADR-0005: produto do ERP vira core.produto (integracao.produto.atualiz
       const p = planejarProdutoDoErp({ ...base, acao, registro } as EventoProdutoAtualizado);
       expect(p).toEqual({
         tipo: 'upsert',
-        linha: { external_id: 'P-100', sku: 'SKU-1', ean: '7891234567895', nome: 'Café 500g', marca: 'Boa', categoria: null, unidade: 'UN', ativo: true, alterado_em: '2026-10-31T11:00:00Z' },
+        linha: { external_id: 'P-100', sku: 'SKU-1', ean: '7891234567895', nome: 'Café 500g', marca: 'Boa', categoria: null, unidade: 'UN', embalagem_medida: null, embalagem_quantidade: null, ativo: true, alterado_em: '2026-10-31T11:00:00Z' },
       });
     }
   });
@@ -34,5 +34,20 @@ describe('ADR-0005: produto do ERP vira core.produto (integracao.produto.atualiz
     expect(planejarProdutoDoErp(e, '2026-10-31T11:30:00Z')).toEqual({ tipo: 'ignorar', motivo: 'mais_antigo_que_o_aplicado' });
     expect(planejarProdutoDoErp(e, '2026-10-31T11:00:00Z')).toMatchObject({ tipo: 'upsert' });
     expect(planejarProdutoDoErp({ ...base, acao: 'criado' } as EventoProdutoAtualizado)).toEqual({ tipo: 'ignorar', motivo: 'sem_registro' });
+  });
+
+  it('RN-CORE-19: embalagem do ERP (medida + quantidade) entra normalizada; incompleta ou inválida é descartada sem derrubar o produto', () => {
+    const plano = (extra: object) => planejarProdutoDoErp({ ...base, acao: 'atualizado', registro: { ...registro, ...extra } } as EventoProdutoAtualizado);
+    expect(plano({ embalagem_medida: ' cx ', embalagem_quantidade: 12 })).toMatchObject({ tipo: 'upsert', linha: { unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 } });
+    for (const extra of [
+      { embalagem_medida: 'CX' }, // sem quantidade
+      { embalagem_quantidade: 12 }, // sem medida
+      { embalagem_medida: 'CX', embalagem_quantidade: 1 }, // quantidade deve ser > 1
+      { embalagem_medida: 'CX', embalagem_quantidade: 2.5 }, // inteira
+      { embalagem_medida: 'UN', embalagem_quantidade: 6 }, // igual à unidade
+      { embalagem_medida: '', embalagem_quantidade: null },
+    ]) {
+      expect(plano(extra), JSON.stringify(extra)).toMatchObject({ tipo: 'upsert', linha: { embalagem_medida: null, embalagem_quantidade: null } });
+    }
   });
 });

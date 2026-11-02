@@ -44,3 +44,13 @@ export const TABELAS_FORA_DO_SYNC = [
   'integracao.pedido_retorno',
   'integracao.pedido_retorno_erro',
 ] as const;
+
+/**
+ * Colunas que já existem no banco mas ainda NÃO estão no espelho Drizzle do módulo, por trava de outra sessão.
+ * Os testes Drizzle x SQL/banco aceitam a coluna com ou sem espelho. Tirar daqui quando o espelho entrar.
+ * - vendedor.pedido_item (0018, T-0063): modules/vendedor está travado pela sessão do Vendedor; o espelho
+ *   (medida text, quantidade_embalagem integer not null, quantidade_unidades integer not null) é pendência do banco-dados.
+ */
+export const COLUNAS_SEM_ESPELHO_DRIZZLE: Readonly<Record<string, readonly string[]>> = {
+  'vendedor.pedido_item': ['medida', 'quantidade_embalagem', 'quantidade_unidades'],
+};

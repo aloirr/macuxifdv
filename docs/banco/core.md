@@ -246,3 +246,35 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
   cliente), ativo. Índice (tenant, cliente). Pull escopo carteira.
 - Base de demo: os 30 clientes com CNPJ fictício gerado (dígito verificador correto) e IE (um ISENTO); o **Atacado Boto
   Rosa sem CEP** (cadastro incompleto); endereço principal de todos e um de entrega em 5.
+
+## 0018 — medidas do produto (`0018_medidas`; T-0063, RN-CORE-19, RF-CORE-14)
+- **medida** (nova): `sigla` text (`^[A-Z]{1,4}$`, CHECK `medida_sigla_formato`), `descricao` text (não vazia,
+  `medida_descricao_preenchida`), `ativo` bool (padrão true) + campos comuns. **Único TOTAL** `medida_sigla_uk (tenant_id,
+  sigla)` (não parcial: é o alvo das FKs). Índice de sync `medida_sync_ix (tenant_id, updated_at, id)`, `medida_external_uk`
+  (vivo), gatilho `medida_updated_at`, RLS forçado `isolamento_tenant`, grant **select, insert, update** ao `macuxi_app`
+  (sem DELETE). Pull escopo tenant. Volume: ~10–30 por tenant.
+  - **Não apaga em uso**: o gatilho `medida_em_uso` (BEFORE UPDATE) recusa `deleted_at` em medida usada por produto vivo
+    (`unidade` ou `embalagem_medida`) ou por `produto_unidade` viva — SQLSTATE `23503`, constraint `medida_em_uso`. Troca de
+    `sigla` em uso: a FK recusa (`23503`). DELETE físico: sem grant (e a FK recusaria). **Inativar** (`ativo = false`) e editar a
+    descrição são livres. A API do Core decide se produto pode apontar para medida inativa (o banco só exige cadastrada).
+  - **Lista inicial** em todo tenant: UN Unidade, CX Caixa, PCT Pacote, FD Fardo, LT Lata, BD Balde, TB Tubo, GL Galão,
+    KG Quilograma, DZ Dúzia, DP Display (`MEDIDAS_INICIAIS` em `db/src/ids.ts`). Ids determinísticos
+    `plataforma.uuid_de_chave('<tenant>:core.medida:<sigla>')` = `idMedida(tenant, sigla)`. Semeadura por
+    `core.semear_medidas(tenant)` (comum, NÃO SECURITY DEFINER; liga `app.tenant_id` só durante a semeadura, como a 0006):
+    nos tenants existentes na 0018 também as siglas já usadas em produto/produto_unidade (descrição = sigla); tenant novo pelo
+    gatilho `tenant_semear_medidas` (AFTER INSERT em `plataforma.tenant`). `on conflict do nothing`: não sobrescreve edição.
+- **produto** (0018): `unidade` (existente) = **sigla da medida da unidade**, FK `produto_medida_fk (tenant_id, unidade) →
+  medida (tenant_id, sigla)`. Novas `embalagem_medida` text null (FK `produto_embalagem_medida_fk`) e `embalagem_quantidade`
+  int null (unidades na embalagem): CHECKs `produto_embalagem_completa` (as duas ou nenhuma), `produto_embalagem_quantidade_minima`
+  (> 1) e `produto_embalagem_diferente` (embalagem ≠ unidade). Índices `produto_medida_ix (tenant_id, unidade)` e
+  `produto_embalagem_medida_ix` (parcial). Antes das FKs a 0018 normaliza `upper(btrim(unidade))`; sigla fora do formato
+  **aborta** a migração com a lista.
+- **produto_unidade** (0018): FK `produto_unidade_medida_fk (tenant_id, unidade) → medida (tenant_id, sigla)`; índice
+  `produto_unidade_medida_ix`. (O CHECK antigo `^[A-Z0-9]{1,6}$` fica; a FK exige uma sigla cadastrada, logo `^[A-Z]{1,4}$`.)
+- **Integração**: sigla desconhecida no produto / unidade de venda vinda do ERP agora é recusada pela FK (`23503`
+  `produto_medida_fk` / `produto_unidade_medida_fk`): o Hub traduz em `referencia_ausente` (RN-CORE-19, RN-INT-04).
+- Fora do banco (pendência): `catalogo.tabela_preco_item.unidade` (0013) **sem FK** para `core.medida` (outro schema; ADR
+  0005/0012) — a API do Catálogo valida a sigla.
+- Base de demo (`db/seeds/demo/medidas.ts`): ativas UN, CX, FD, LT e BD; PCT, TB, GL, KG, DZ e DP inativas (não ausentes: o
+  banco semeia as 11 e medida não se apaga). Embalagem dos produtos = as caixas de embarque do demo.ts (CX c/ 4 a 24).
+  Fixture dois-tenants: A tem a sigla própria PC (Peça, usada pelos produtos de A), B tem GF (Garrafa), além das 11.

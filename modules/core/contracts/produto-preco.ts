@@ -9,7 +9,10 @@ export const ProdutoPrecoSchema = z.object({
   id: z.string().uuid(),
   sku: z.string(),
   nome: z.string(),
+  /** Medida da unidade (sigla de `core.medida`, RN-CORE-19) e embalagem opcional (medida + quantidade de unidades). */
   unidade: z.string(),
+  embalagem_medida: z.string().nullable().optional(),
+  embalagem_quantidade: z.number().int().nullable().optional(),
   ativo: z.boolean(),
   custo_cents: z.number().int().nonnegative().nullable(),
   preco_venda_cents: z.number().int().nonnegative().nullable(),
