@@ -1,3 +1,4 @@
+import { SinalConector } from '@macuxi/integracao/contracts';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -187,6 +188,18 @@ describe('executor (laço de execução)', () => {
     expect(amb.hub.sinais.length).toBe(2);
     expect(amb.hub.sinais[0]).toMatchObject({ versao_conector: VERSAO_CONECTOR, versao_contrato: 'v1' });
     expect(JSON.stringify(amb.hub.sinais)).not.toMatch(/razao|Cliente c1/);
+  });
+
+  it('regra 3 (T-0048): o corpo do sinal é o SinalConector do contrato, sem campo a mais, com fila e entidade bloqueada', async () => {
+    amb = await criarAmbiente({ sinalSegundos: 60 });
+    amb.hub.cursores.set('cliente', { alterado_em: '2026-01-01T00:00:00.000Z', external_id: 'a0' });
+    amb.erp.definir('cliente', [cliente('c1', '2026-03-01T10:00:00Z')]);
+    await sincronizarEntidade(amb.ctx, 'cliente');
+    amb.ctx.store.atualizarEstado('cliente', { bloqueio: 'teste' }); // entidade bloqueada: o lote fica na fila
+    await new Executor(amb.ctx).ciclo(); // o sinal vai primeiro, com a fila e o bloqueio
+    const sinal = SinalConector.strict().parse(amb.hub.sinais.at(-1));
+    expect(sinal.fila.length).toBeGreaterThan(0);
+    expect(sinal.entidades.find((e) => e.entidade === 'cliente')).toMatchObject({ bloqueada: true });
   });
 
   it('a falha de uma tarefa (Hub fora) não derruba as outras nem o laço', async () => {

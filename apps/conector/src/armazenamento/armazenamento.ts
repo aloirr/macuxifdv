@@ -416,8 +416,17 @@ export class Armazenamento {
   retornoExiste(uuid: string, assinatura: string): boolean {
     return this.one('SELECT 1 AS x FROM retorno WHERE pedido_uuid = ? AND assinatura = ?', uuid, assinatura) !== undefined;
   }
+  /**
+   * Retornos que podem sair agora, na ordem em que os fatos aconteceram. FIFO POR PEDIDO (T-0048): enquanto um retorno do pedido
+   * espera o backoff (Hub caiu), os seguintes do mesmo pedido também esperam — senão o `faturado_total` chegaria antes do
+   * `faturado_parcial` e o Hub recusaria a nota parcial (transição inválida), perdendo os itens dela. Os anteriores já vencidos
+   * vêm antes na lista (ORDER BY id) e saem primeiro na mesma passada.
+   */
   retornosProntos(agoraMs: number): RetornoLocal[] {
-    return this.all("SELECT * FROM retorno WHERE estado = 'pendente' AND proxima_ms <= ? ORDER BY id", agoraMs).map((r) => ({
+    const sql = `SELECT * FROM retorno r WHERE r.estado = 'pendente' AND r.proxima_ms <= ?
+      AND NOT EXISTS (SELECT 1 FROM retorno a WHERE a.pedido_uuid = r.pedido_uuid AND a.estado = 'pendente' AND a.id < r.id AND a.proxima_ms > ?)
+      ORDER BY r.id`;
+    return this.all(sql, agoraMs, agoraMs).map((r) => ({
       id: Number(r.id), pedidoUuid: String(r.pedido_uuid), assinatura: String(r.assinatura), corpo: String(r.corpo), estado: r.estado as RetornoLocal['estado'],
       tentativas: Number(r.tentativas), proximaMs: Number(r.proxima_ms), erro: s(r.erro),
     }));

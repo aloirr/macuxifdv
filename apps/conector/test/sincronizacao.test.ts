@@ -134,6 +134,25 @@ describe('carga inicial completa e delta (RN-INT-05, RN-INT-06)', () => {
     expect(amb.ctx.store.estado('cliente')?.bloqueio).toBeNull();
   });
 
+  it('RN-INT-06 (T-0048): carga completa cuja última página só tem linhas repetidas fecha a carga e passa ao delta', async () => {
+    amb = await criarAmbiente();
+    const quatro = seteClientes().slice(0, 4);
+    amb.erp.definir('cliente', quatro);
+    amb.erp.devolverIgualAoCursor = true; // precisão do alterado_em maior que a do filtro: a linha do cursor volta na leitura
+    // a linha c4 é apagada no ERP entre a 1ª e a 2ª página: a 2ª página só traz a c3, que já foi lida
+    const consultar = amb.erp.consultar.bind(amb.erp);
+    let leituras = 0;
+    amb.erp.consultar = async (sql, p) => {
+      const r = await consultar(sql, p);
+      if (p?.limite !== undefined && ++leituras === 1) amb.erp.definir('cliente', quatro.slice(0, 3));
+      return r;
+    };
+    await sincronizarEntidade(amb.ctx, 'cliente');
+    expect(leituras).toBe(2);
+    expect(amb.ctx.store.estado('cliente')).toMatchObject({ fase: 'delta', sessaoId: null });
+    expect(amb.logs.some((l) => l.includes('sessao_nao_fechada'))).toBe(true);
+  });
+
   it('mais linhas que a página no MESMO cursor (precisão do alterado_em): bloqueia com a causa e log.erro, sem reler para sempre', async () => {
     amb = await criarAmbiente();
     const T = '2026-03-01T10:00:00Z';

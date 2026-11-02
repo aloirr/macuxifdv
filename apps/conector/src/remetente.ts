@@ -14,7 +14,7 @@
  *  - Trava de inativação em massa (RN-INT-06): se o Hub devolver `inativacao.situacao = aguardando_confirmacao`, o Conector só avisa
  *    (log/status); quem confirma é o operador no BKO. Nunca reenvia nem força.
  */
-import { VERSAO_CONTRATO, type LinhaErro } from '@macuxi/integracao/contracts';
+import { VERSAO_CONTRATO, type LinhaErro, type LoteEnvelope } from '@macuxi/integracao/contracts';
 import type { LoteLocal } from './armazenamento/armazenamento';
 import { type Contexto, resumoErro } from './contexto';
 import { chaveDoLote } from './lotes';
@@ -23,6 +23,7 @@ import { ErroHubAutenticacao, ErroHubTransitorio } from './hub/cliente';
 import type { ResultadoLoteHub } from './hub/tipos';
 import { bloqueioPorVersao, tratarRecusaPorVersao } from './politica';
 import { calcularEspera } from './util/retry';
+import { iso } from './util/relogio';
 
 export interface ResultadoFila {
   enviados: number;
@@ -35,9 +36,13 @@ export interface ResultadoFila {
 
 const FINAIS_BONS = new Set(['concluido', 'concluido_com_erros']);
 
-function proximaTentativa(ctx: Contexto, tentativas: number): number {
+/** Próxima tentativa: backoff exponencial da fila, nunca antes do `Retry-After` do Hub (RN-INT-12, T-0048). */
+export function proximaTentativa(ctx: Contexto, tentativas: number, erro?: unknown): number {
   const f = ctx.config.fila;
-  return ctx.relogio.agora() + calcularEspera(tentativas, { baseMs: f.backoffBaseSegundos * 1000, maxMs: f.backoffMaxSegundos * 1000 }, ctx.aleatorio);
+  const agora = ctx.relogio.agora();
+  const backoff = agora + calcularEspera(tentativas, { baseMs: f.backoffBaseSegundos * 1000, maxMs: f.backoffMaxSegundos * 1000 }, ctx.aleatorio);
+  const pedida = erro instanceof ErroHubTransitorio && erro.retryAfterMs ? agora + erro.retryAfterMs : 0;
+  return Math.max(backoff, pedida);
 }
 
 export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
@@ -82,7 +87,7 @@ export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
       }
       if (e instanceof ErroHubTransitorio) {
         const t = lote.tentativas + 1;
-        store.atualizarLote(lote.id, { tentativas: t, proximaMs: proximaTentativa(ctx, t), erro: resumoErro(e) }, ctx.relogio.agora());
+        store.atualizarLote(lote.id, { tentativas: t, proximaMs: proximaTentativa(ctx, t, e), erro: resumoErro(e) }, ctx.relogio.agora());
         r.adiados++;
         ctx.log.aviso('envio_adiado', { entidade: lote.entidade, lote_local: lote.id, tentativas: t, erro: resumoErro(e) });
         r.interrompido ??= resumoErro(e);
@@ -196,12 +201,24 @@ function finalizar(ctx: Contexto, lote: LoteLocal, res: ResultadoLoteHub): void 
   });
 }
 
-/** Reenvia, em novo lote, só as linhas que o Hub devolveu como `falha_processamento`. */
+/**
+ * Reenvia, em novo lote, só as linhas que o Hub devolveu como `falha_processamento`. O envelope é montado campo a campo (T-0048,
+ * RN-INT-03): as `linhas_invalidas`/`linhas_invalidas_omitidas` do lote original já foram informadas e contadas pelo Hub; repeti-las
+ * duplicaria o erro no monitor e faria o conteúdo divergir da chave de idempotência (calculada só com os registros).
+ */
 function reenfileirarLinhas(ctx: Contexto, lote: LoteLocal, indices: Set<number>): void {
-  const env = JSON.parse(lote.envelope) as { registros: unknown[]; [k: string]: unknown };
+  const env = JSON.parse(lote.envelope) as LoteEnvelope;
   const registros = env.registros.filter((_, i) => indices.has(i));
   if (registros.length === 0) return;
-  const novo = { ...env, registros, sessao: undefined, modo: 'delta' as const, versao_contrato: VERSAO_CONTRATO };
+  const novo: LoteEnvelope = {
+    versao_contrato: VERSAO_CONTRATO,
+    entidade: env.entidade,
+    modo: 'delta',
+    enviado_em: iso(ctx.relogio.agora()),
+    ...(env.conector_id ? { conector_id: env.conector_id } : {}),
+    ...(env.versao_conector ? { versao_conector: env.versao_conector } : {}),
+    registros,
+  };
   const corpo = JSON.stringify(novo);
   const reenvios = lote.reenvios + 1;
   ctx.store.enfileirar(

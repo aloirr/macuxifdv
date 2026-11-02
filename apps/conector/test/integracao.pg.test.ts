@@ -58,6 +58,7 @@ if (motivoSemPg && exigir) {
   });
 }
 
+// hora-fixa-ok: alterado_em do ERP de exemplo na linha do tempo do banco; o cursor do delta vem das próprias linhas lidas
 const SCHEMA_ERP = `
 CREATE TABLE erp_vendedor(codigo text PRIMARY KEY, nome text NOT NULL, alterado_em timestamp NOT NULL DEFAULT (now() at time zone 'utc'), ativo boolean NOT NULL DEFAULT true);
 CREATE TABLE erp_cliente(codigo text PRIMARY KEY, razao text, bloqueado boolean NOT NULL DEFAULT false, limite numeric(12,2), uf text, vendedor text,
@@ -76,6 +77,7 @@ const paginar = (cols: string, tabela: string, id: string) =>
   `SELECT ${cols} FROM ${tabela} WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND ${id} > :cursor_external_id) ORDER BY alterado_em, ${id} LIMIT :limite`;
 
 describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × Hub falso', () => {
+  // hora-fixa-ok: só nome único do banco efêmero
   const nomeBanco = `macuxi_conector_teste_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`;
   let erp: ReturnType<typeof criarConexaoPostgres>;
   let admin: pg.Client;
@@ -228,9 +230,10 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
 
   it('delta: só o que mudou no ERP (alterado, novo e desativado) é enviado', async () => {
     hub.envelopes.length = 0;
-    await admin.query(`UPDATE erp_cliente SET razao = 'Mercadinho Renomeado', alterado_em = now() at time zone 'utc' WHERE codigo = 'C05'`);
-    await admin.query(`INSERT INTO erp_cliente(codigo, razao, uf, vendedor) VALUES ('C99', 'Novo Cliente', 'RR', 'V2')`);
-    await admin.query(`UPDATE erp_cliente SET ativo = false, alterado_em = now() at time zone 'utc' + interval '1 second' WHERE codigo = 'C01'`);
+    // instantes explícitos, depois dos da carga (2026-03-01): a mesma linha do tempo das linhas já lidas
+    await admin.query(`UPDATE erp_cliente SET razao = 'Mercadinho Renomeado', alterado_em = '2026-03-02 09:00:00' WHERE codigo = 'C05'`);
+    await admin.query(`INSERT INTO erp_cliente(codigo, razao, uf, vendedor, alterado_em) VALUES ('C99', 'Novo Cliente', 'RR', 'V2', '2026-03-02 09:00:01')`);
+    await admin.query(`UPDATE erp_cliente SET ativo = false, alterado_em = '2026-03-02 09:00:02' WHERE codigo = 'C01'`);
     await rodar('cliente');
     expect(hub.envelopes).toHaveLength(1);
     const env = hub.envelopes[0];
@@ -296,6 +299,43 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     expect(sequencia[2]?.itens_faturados).toEqual([{ sequencia: 2, produto_external_id: 'P2', quantidade: 1, valor_cents: 1000 }]);
   });
 
+  it('RN-INT-08 (T-0048): parcial → parcial → ERP fecha o pedido SEM nota nova: o fechamento vai com a última nota e sem repetir itens', async () => {
+    const uuid = '1c0f1a52-7d71-4c0b-9c1e-3a6f4e5d6c7e';
+    hub.pedidosParaEntregar = [
+      PedidoParaErp.parse({
+        versao_contrato: 'v1', pedido_uuid: uuid, cliente_external_id: 'C04', vendedor_external_id: 'V1', criado_em: '2026-03-10T11:00:00Z', aprovado_em: '2026-03-10T11:30:00Z', total_cents: 4000,
+        itens: [
+          { sequencia: 1, produto_external_id: 'P1', quantidade: 3, preco_unitario_cents: 1000, total_cents: 3000 },
+          { sequencia: 2, produto_external_id: 'P2', quantidade: 1, preco_unitario_cents: 1000, total_cents: 1000 },
+        ],
+      }),
+    ];
+    const antes = hub.retornos.length;
+    await cicloPedidos(ctx);
+    await admin.query(`UPDATE erp_pedido_entrada SET status = 'P' WHERE pedido_uuid = $1`, [uuid]);
+    await admin.query(`INSERT INTO erp_nota VALUES ('NF601', '1', $1, '2026-03-11T10:00:00Z', 1000)`, [uuid]);
+    await admin.query(`INSERT INTO erp_nota_item VALUES ('NF601', 1, 1, 'P1', 1000)`);
+    await cicloPedidos(ctx);
+    await admin.query(`INSERT INTO erp_nota VALUES ('NF602', '1', $1, '2026-03-12T10:00:00Z', 1000)`, [uuid]);
+    await admin.query(`INSERT INTO erp_nota_item VALUES ('NF602', 1, 1, 'P1', 1000)`);
+    await cicloPedidos(ctx);
+    // o ERP corta o saldo (1 un. da sequência 1 e a sequência 2) e fecha o pedido sem emitir nota
+    await admin.query(`UPDATE erp_pedido_entrada SET status = 'F' WHERE pedido_uuid = $1`, [uuid]);
+    await cicloPedidos(ctx);
+    const r = await cicloPedidos(ctx);
+    expect(r.retornosEnfileirados).toBe(0);
+    const seq = hub.retornos.slice(antes).map((x) => x as { status: string; nota?: { numero: string }; itens_faturados?: { sequencia: number; quantidade: number }[] });
+    expect(seq.map((x) => [x.status, x.nota?.numero, x.itens_faturados?.length ?? 0])).toEqual([
+      ['integrado', undefined, 0],
+      ['faturado_parcial', 'NF601', 1],
+      ['faturado_parcial', 'NF602', 1],
+      ['faturado_total', 'NF602', 0],
+    ]);
+    const faturado = seq.flatMap((x) => x.itens_faturados ?? []).reduce((n, i) => n + i.quantidade, 0);
+    expect(faturado).toBe(2); // NF601 + NF602, cada uma uma vez
+    expect(ctx.store.pedido(uuid)).toMatchObject({ estado: 'faturado_total', final: true });
+  });
+
   it('pedido que o ERP recusa (violação de restrição) volta como rejeitado_erp depois das tentativas', async () => {
     await admin.query('ALTER TABLE erp_pedido_entrada ADD CONSTRAINT cliente_valido CHECK (cliente <> \'INEXISTENTE\')');
     const uuid = '7c0f1a52-7d71-4c0b-9c1e-3a6f4e5d6c7c';
@@ -306,7 +346,7 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     const antes = hub.retornos.length;
     for (let i = 0; i < 3; i++) {
       await cicloPedidos(ctx);
-      ctx.store.atualizarPedido(uuid, { proximaMs: 0 }, Date.now());
+      ctx.store.atualizarPedido(uuid, { proximaMs: 0 }, ctx.relogio.agora());
     }
     const novo = hub.retornos.slice(antes).map((x) => x as { status: string; motivo?: string });
     expect(novo).toHaveLength(1);
@@ -340,8 +380,8 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     // 1ª tentativa: o ERP aplicou o COMMIT, mas o Conector só viu a conexão cair
     await admin.query(`INSERT INTO erp_pedido_entrada(pedido_uuid, cliente, total_cents) VALUES ($1, 'C03', 500)`, [uuid]);
     await admin.query(`INSERT INTO erp_pedido_item(pedido_uuid, sequencia, produto, quantidade) VALUES ($1, 1, 'P1', 1)`, [uuid]);
-    ctx.store.registrarPedido(uuid, JSON.stringify(pedido), Date.now());
-    ctx.store.atualizarPedido(uuid, { proximaMs: 0, erro: 'Sem conexão com o ERP (ECONNRESET).' }, Date.now());
+    ctx.store.registrarPedido(uuid, JSON.stringify(pedido), ctx.relogio.agora());
+    ctx.store.atualizarPedido(uuid, { proximaMs: 0, erro: 'Sem conexão com o ERP (ECONNRESET).' }, ctx.relogio.agora());
     hub.pedidosParaEntregar = [];
 
     const antes = hub.retornos.length;

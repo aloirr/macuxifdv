@@ -16,6 +16,7 @@ import {
   RespostaSinal,
   RetornoAceito,
   type ReconciliacaoEnvio,
+  type SinalConector,
 } from '@macuxi/integracao/contracts';
 import { z } from 'zod';
 import { comRetry, type OpcoesRetry } from '../util/retry';
@@ -100,14 +101,26 @@ export interface OpcoesHub {
 export class ClienteHub {
   private readonly base: string;
   private readonly http: typeof fetch;
+  /**
+   * RN-INT-12 (taxa por Conector, T-0048): instante (ms) até o qual o Hub pediu para não ser chamado (`Retry-After` maior que o teto
+   * do retry). Até lá toda chamada falha na hora, sem rede, com `ErroHubTransitorio.retryAfterMs` = o que falta.
+   */
+  private pausaAteMs = 0;
 
   constructor(private readonly o: OpcoesHub) {
     this.base = o.url.replace(/\/+$/, '') + API_PREFIX_INTEGRACAO;
     this.http = o.fetch ?? fetch;
   }
 
+  private agora(): number {
+    return this.o.agora?.() ?? Date.now();
+  }
+
   private async chamar(operacao: string, metodo: 'GET' | 'POST', caminho: string, corpo?: unknown, cabecalhos: Record<string, string> = {}): Promise<{ status: number; json: unknown }> {
     const r = this.o.retry ?? {};
+    const maxMs = r.maxMs ?? 30_000;
+    const falta = this.pausaAteMs - this.agora();
+    if (falta > 0) throw new ErroHubTransitorio(`O Hub pediu para aguardar (Retry-After); nova tentativa em ${Math.ceil(falta / 1000)} s.`, 429, falta);
     return comRetry(
       async () => {
         let res: Response;
@@ -152,14 +165,16 @@ export class ClienteHub {
           );
         }
         if (res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500) {
-          throw new ErroHubTransitorio(`Hub indisponível (HTTP ${res.status}).`, res.status, esperaRetryAfter(res.headers.get('retry-after'), this.o.agora?.()));
+          const retryAfterMs = esperaRetryAfter(res.headers.get('retry-after'), this.agora());
+          if (retryAfterMs !== undefined && retryAfterMs > maxMs) this.pausaAteMs = Math.max(this.pausaAteMs, this.agora() + retryAfterMs);
+          throw new ErroHubTransitorio(`Hub indisponível (HTTP ${res.status}).`, res.status, retryAfterMs);
         }
         return { status: res.status, json };
       },
       {
         tentativas: r.tentativas ?? 4,
         baseMs: r.baseMs ?? 500,
-        maxMs: r.maxMs ?? 30_000,
+        maxMs,
         dormir: r.dormir,
         aleatorio: r.aleatorio,
         transitorio: (e) => e instanceof ErroHubTransitorio,
@@ -222,7 +237,7 @@ export class ClienteHub {
    * `POST /sinal` — batimento de vida (1 min). A resposta traz a política de versão (mínima/recomendada); resposta fora do
    * formato é ignorada (devolve `null`): um Hub mais antigo ou com defeito nunca deve parar o Conector.
    */
-  async enviarSinal(corpo: Record<string, unknown>): Promise<RespostaSinal | null> {
+  async enviarSinal(corpo: SinalConector): Promise<RespostaSinal | null> {
     const { status, json } = await this.chamar('sinal', 'POST', '/sinal', corpo);
     if (status >= 400) throw new ErroHubTransitorio(`O Hub recusou o sinal de vida (HTTP ${status}).`, status);
     const r = RespostaSinal.safeParse(json);

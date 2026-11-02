@@ -32,4 +32,13 @@ describe('retry exponencial com jitter', () => {
     await comRetry(async () => (++n < 2 ? Promise.reject(new Error('x')) : 1), { tentativas: 2, baseMs: 1, maxMs: 5000, aleatorio: () => 0, dormir: async (ms) => void esperas.push(ms), esperaMinima: () => 3000 });
     expect(esperas).toEqual([3000]);
   });
+
+  it('RN-INT-12 (T-0048): espera mínima acima do teto não é cortada: relança na hora, sem dormir, para quem chamou agendar', async () => {
+    const esperas: number[] = [];
+    let n = 0;
+    await expect(
+      comRetry(async () => Promise.reject(new Error(`limite ${++n}`)), { tentativas: 4, baseMs: 1, maxMs: 30_000, dormir: async (ms) => void esperas.push(ms), esperaMinima: () => 120_000 }),
+    ).rejects.toThrow('limite 1');
+    expect(esperas).toEqual([]);
+  });
 });

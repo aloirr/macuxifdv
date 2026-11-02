@@ -61,7 +61,7 @@ describe('mapeamento coluna → campo do contrato', () => {
 
   it('linha sem external_id ou sem alterado_em legível é descartada (sem eles não existe cursor)', () => {
     const r = mapearEValidar('cliente', cfgCliente(), [
-      { external_id: null, alterado_em: new Date(), razao_social: 'x' },
+      { external_id: null, alterado_em: new Date('2026-01-01T00:00:00Z'), razao_social: 'x' },
       { external_id: 'k', alterado_em: null, razao_social: 'y' },
       { external_id: 'ok', alterado_em: new Date('2026-01-01T00:00:00Z'), razao_social: 'z' },
     ]);
