@@ -1,39 +1,28 @@
 import type { ComponentType } from 'react';
-import type { AcaoCliente } from '@macuxi/core/contracts';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { ENTIDADES_CONTEUDO, ENTIDADES_PRECO } from '../contracts';
 import { migracoesAparelho } from '../db/aparelho';
 import { manifest } from '../manifest';
 import { consultaPrecosClienteAparelho } from './consultas';
 import { INDICE_BUSCA_CATALOGO } from './indice';
-import { irParaCatalogo } from './rotas';
-import TelaCatalogo from './telas/catalogo';
-import TelaProduto from './telas/produto';
+
+export { default as TelaCatalogo } from './telas/catalogo';
+export { default as TelaProduto } from './telas/produto';
 
 /**
  * Catálogo no aparelho (ADR 0003). T-0029: pull de preço e a consulta `catalogo.precos_cliente@1` offline (ADR 0012).
- * T-0052: aba Catálogo (vitrine + busca offline FTS5) e ficha do produto, nas duas variantes, para todos os perfis do
+ * T-0052: telas da aba Catálogo (vitrine + busca offline FTS5) e da ficha do produto, nas duas variantes, para todos os perfis do
  * módulo (`produto.consultar`, RN-CAT-04); preço e estoque só para quem vê (RN-CAT-05, decidido no domain). Esquema
  * local e índice de busca do banco-dados (`db/aparelho.ts`, T-0008). "Adicionar ao pedido" NÃO é do Catálogo: o
  * Vendedor registra no slot `produto.acoes` (RN-PRO-01). Atalho "Ver catálogo" na ficha do cliente (slot do Core).
  */
 export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
-  paginas: [
-    { id: 'catalogo', caminho: 'catalogo', titulo: 'Catálogo', navegacao: 'Catálogo', icone: 'search', ordem: 60, acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaCatalogo },
-    { id: 'produto', caminho: 'produto', titulo: 'Produto', acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaProduto },
-  ],
+  // T-0052, 2ª etapa: as páginas `catalogo` (aba) e `produto` e o atalho "Ver catálogo" (slot `cliente.acoes`) entram
+  // junto com a virada dos casos D-C00c/D-G00 de tests/modulos/demo-abas.test.ts (dono: testes).
   entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO],
   consultas: [consultaPrecosClienteAparelho],
   migracoesAparelho,
   indicesBusca: [INDICE_BUSCA_CATALOGO],
-  extensoes: [
-    {
-      slot: 'cliente.acoes',
-      id: 'ver-catalogo',
-      acao: 'produto.consultar',
-      payload: { rotulo: 'Ver catálogo', testID: 'cliente-ver-catalogo', icone: 'search', abrir: (ctx) => irParaCatalogo(ctx.clienteId) } satisfies AcaoCliente,
-    },
-  ],
 });
 export default moduloApp;
