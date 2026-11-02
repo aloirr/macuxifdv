@@ -171,7 +171,7 @@ describe('telas sobre o pull (T-0029 §8)', () => {
     const me = meDoAparelho({ id: U(1), nome: 'Lucas Silva', perfil: 'vendedor', fuso: 'America/Manaus' }, { 'alcada.vendedor_pct': 4 }, new Date('2026-11-01T12:00:00Z'));
     expect(me.tenant.timezone).toBe('America/Manaus');
     expect(me.seller).toMatchObject({ id: U(1), max_discount_pct: 4, short_name: 'Lucas' });
-    expect(meDoAparelho({ id: U(2), nome: 'Renata', perfil: 'supervisor', fuso: 'America/Manaus' }, {}, new Date()).seller).toBeNull();
+    expect(meDoAparelho({ id: U(2), nome: 'Renata', perfil: 'supervisor', fuso: 'America/Manaus' }, {}, new Date('2026-11-01T12:00:00Z')).seller).toBeNull();
   });
 
   it('lerLinhas ignora o que o pull marcou como removido', async () => {

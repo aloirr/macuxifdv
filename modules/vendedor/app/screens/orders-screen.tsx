@@ -1,24 +1,26 @@
 /**
  * Pedidos do mês (Pedidos.dc.html), incluindo os que estão na fila do aparelho.
- * Com sinal, atualiza sozinho a cada ~10 s (aprovação/recusa na web aparece aqui).
+ * Atualiza ao abrir e ao puxar a tela; na Gestão também a cada 60 s (pedidos novos para decidir).
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
+import { quantidadeNaoCancelada, totalDoPeriodo } from '../../domain/totais';
 import { SePode, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Banner, Button, capitalize, Card, Chip, colors, Empty, fonts, localIsoDate, monthName, relativeWhen, Screen, Strong, type as t } from '@macuxi/ui/mobile';
+import { Badge, Banner, Button, capitalize, Card, Chip, colors, Empty, fonts, localIsoDate, monthName, relativeWhen, Screen, Strong, type as t } from '@macuxi/ui/mobile';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { rotuloDaAba } from '../lib/lista-pedidos';
+import { pedidosDaLista, rotuloDaAba, subtituloDaLista } from '../lib/lista-pedidos';
 import { filterCounts, matchesFilter, ORDER_FILTERS, orderNote, statusBadge, type OrderFilter } from '../lib/order-status';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { irParaNovoPedido, irParaPedido } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
-const POLL_MS = 10_000;
+/** Só a Gestão repete a busca com a tela aberta (custo de bateria e dados no 4G do Campo). */
+const POLL_GESTAO_MS = 60_000;
 
 export default function OrdersScreen() {
-  const { pedidos: orders, tz, offline, atualizarPedidos: refreshOrders, reenviarFila: flushOutbox, sincronizando, erroSync, motor, aguardandoMinhaDecisao, perfil } = useVendedor();
+  const { pedidos: orders, tz, offline, atualizarPedidos: refreshOrders, reenviarFila: flushOutbox, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
   // Gestão (supervisor/gerente): lista da equipe com a aba "Para aprovar" primeiro (T-0029 §8); o Campo é do vendedor
   const gestao = useVisaoShell().app === 'gestao';
   const paraDecidir = useMemo(() => new Set(aguardandoMinhaDecisao.map((p) => p.id)), [aguardandoMinhaDecisao]);
@@ -30,17 +32,14 @@ export default function OrdersScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshOrders();
-      const h = setInterval(() => void refreshOrders(), POLL_MS);
+      if (!gestao) return undefined;
+      const h = setInterval(() => void refreshOrders(), POLL_GESTAO_MS);
       return () => clearInterval(h);
-    }, [refreshOrders]),
+    }, [refreshOrders, gestao]),
   );
 
   const month = localIsoDate(new Date(), tz).slice(0, 7);
-  // Campo: pedidos do mês e o que ainda não terminou; Gestão: toda a janela do aparelho (a equipe inteira)
-  const monthOrders = useMemo(
-    () => (gestao ? orders : orders.filter((o) => localIsoDate(o.received_at, tz).slice(0, 7) === month || o.local || o.status === 'pending_approval')),
-    [orders, tz, month, gestao],
-  );
+  const monthOrders = useMemo(() => pedidosDaLista(orders, { gestao, mes: month, tz }), [orders, tz, month, gestao]);
   const counts = filterCounts(monthOrders);
   const filter = filtro ?? (gestao && paraDecidir.size > 0 ? 'decide' : 'all');
   const aprovados = monthOrders.filter((o) => o.status === 'approved').length;
@@ -50,8 +49,8 @@ export default function OrdersScreen() {
       : filter === 'approved'
         ? monthOrders.filter((o) => o.status === 'approved')
         : monthOrders.filter((o) => matchesFilter(o.status, filter));
-  const total = monthOrders.filter((o) => o.status !== 'cancelled' && o.status !== 'rejected').reduce((s, o) => s + o.total_cents, 0);
-  const activeCount = monthOrders.filter((o) => o.status !== 'cancelled').length;
+  const total = totalDoPeriodo(monthOrders);
+  const activeCount = quantidadeNaoCancelada(monthOrders);
   const queued = counts.queued;
 
   return (
@@ -66,11 +65,11 @@ export default function OrdersScreen() {
         <View style={{ gap: 2, flex: 1 }}>
           <Text style={t.h1}>{gestao ? 'Pedidos da equipe' : 'Pedidos'}</Text>
           <Text style={t.sub}>
-            {capitalize(monthName(month))} · {activeCount} pedidos · {formatBRL0(total)}
+            {subtituloDaLista({ gestao, mesNome: capitalize(monthName(month)), quantidade: activeCount, totalTexto: formatBRL0(total) })}
           </Text>
         </View>
         <SePode acao="pedido.criar">
-          {gestao || (perfil !== 'vendedor' && perfil !== '') ? null : <Button testID="pedido-novo" label="Novo" icon="plus" variant="accent" onPress={() => irParaNovoPedido()} style={{ paddingHorizontal: 16 }} />}
+          {gestao ? null : <Button testID="pedido-novo" label="Novo" icon="plus" variant="accent" onPress={() => irParaNovoPedido()} style={{ paddingHorizontal: 16 }} />}
         </SePode>
       </View>
 
@@ -89,19 +88,19 @@ export default function OrdersScreen() {
       </ScrollView>
 
       <Card style={{ overflow: 'hidden' }}>
-        {visible.length === 0 ? <Empty text={filter === 'decide' ? 'Nada para aprovar agora.' : 'Nenhum pedido com este status.'} /> : null}
+        {visible.length === 0 ? <Empty text={filter === 'decide' ? 'Nada para aprovar agora.' : filter === 'all' ? (gestao ? 'Nenhum pedido da equipe ainda.' : 'Nenhum pedido neste mês. Toque em Novo para começar.') : 'Nenhum pedido com este status.'} /> : null}
         {visible.map((o, i) => (
           <OrderRow key={o.id} o={o} last={i === visible.length - 1} tz={tz} mostrarVendedor={gestao} />
         ))}
       </Card>
-      {!offline ? <Text style={[t.small, { textAlign: 'center' }]}>Atualiza sozinho a cada 10 s · puxe para atualizar</Text> : null}
+      {!offline ? <Text style={[t.small, { textAlign: 'center' }]}>{gestao ? 'Atualiza a cada 1 min · puxe para atualizar' : 'Puxe para atualizar'}</Text> : null}
       {offline ? (
-        <Pressable onPress={() => router.push('/profile' as never)}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/profile' as never)}>
           <Text style={[t.small, { textAlign: 'center', color: colors.warning }]}>Modo sem sinal ligado · desligue no Perfil</Text>
         </Pressable>
       ) : null}
       {!sync.running && sync.error ? (
-        <Pressable onPress={() => void syncAll()}>
+        <Pressable accessibilityRole="button" onPress={() => void syncAll()}>
           <Text style={[t.small, { textAlign: 'center', color: colors.danger }]}>{sync.error}</Text>
         </Pressable>
       ) : null}
@@ -128,9 +127,7 @@ function OrderRow({ o, last, tz, mostrarVendedor }: { o: PedidoDaLista; last: bo
         <Text style={[t.small, { flex: 1 }]} numberOfLines={1}>
           <Text style={{ fontFamily: fonts.mono }}>{o.number || 'no aparelho'}</Text> · {mostrarVendedor && o.seller_name ? `${o.seller_name} · ` : ''}{relativeWhen(o.received_at, new Date(), tz)} · {o.items_count} {o.items_count === 1 ? 'item' : 'itens'}
         </Text>
-        <View style={[styles.badge, { backgroundColor: b.bg }]}>
-          <Text style={[styles.badgeText, { color: b.fg }]}>{b.label}</Text>
-        </View>
+        <Badge label={b.label} fg={b.fg} bg={b.bg} />
       </View>
       {note ? <Text style={[t.small, { color: b.fg }]}>{note}</Text> : null}
     </Pressable>
@@ -142,7 +139,5 @@ const styles = StyleSheet.create({
   row: { gap: 3, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { fontFamily: fonts.bold, fontSize: 11 },
   cancelledTotal: { color: colors.ink3, textDecorationLine: 'line-through' },
 });

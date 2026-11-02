@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { formatBRL, formatPct } from '@macuxi/comum';
+import { localIsoDate } from '@macuxi/comum/fuso';
 import { downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, FilterBar, formatDateTime, IconDownload, LoadingBlock, PageHeader, Panel, SelectField, TableScroll, td, tdNum, th, thNum, useToast } from '@macuxi/ui/web';
 import { ORDER_STATUS_LABEL, ORDER_STATUSES, type Order } from '../../../contracts';
+import { totalDoPeriodo } from '../../../domain/totais';
 import { ordersToCsv } from '../../lib/csv';
 import { type FiltrosPedidos, temFiltro } from '../../lib/filtros-url';
 import { usePedidos, usePendentes, useSessaoDoBko } from '../../lib/queries';
@@ -40,17 +42,17 @@ export function OrdersPage() {
   const set = <K extends keyof FiltrosPedidos>(k: K, v: FiltrosPedidos[K]) => mudar({ [k]: v } as Partial<FiltrosPedidos>);
 
   const exportarCsv = () => {
-    downloadBlob(new Blob([ordersToCsv(pedidos, tz)], { type: 'text/csv;charset=utf-8' }), `pedidos_${new Date().toISOString().slice(0, 10)}.csv`);
+    downloadBlob(new Blob([ordersToCsv(pedidos, tz)], { type: 'text/csv;charset=utf-8' }), `pedidos_${localIsoDate(new Date(), tz)}.csv`);
     toast('success', `CSV com ${pedidos.length} pedidos exportado.`);
   };
 
-  const total = pedidos.reduce((s, o) => (o.status === 'cancelled' || o.status === 'rejected' ? s : s + o.total_cents), 0);
+  const total = totalDoPeriodo(pedidos);
 
   return (
     <>
       <PageHeader
         title="Pedidos"
-        subtitle={lista.data ? `${pedidos.length}${lista.hasNextPage ? '+' : ''} pedidos · ${formatBRL(total)}${lista.isFetching ? ' · atualizando…' : ''}` : ' '}
+        subtitle={lista.data ? `${pedidos.length} ${lista.hasNextPage ? 'carregados (há mais)' : 'pedidos'} · ${formatBRL(total)}${lista.isFetching ? ' · atualizando…' : ''}` : ' '}
         actions={
           <Button variant="link" onClick={exportarCsv} disabled={pedidos.length === 0} className="font-semibold" data-testid="pedidos.exportar-csv">
             <IconDownload size={15} />

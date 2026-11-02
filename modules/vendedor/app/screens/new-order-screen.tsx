@@ -7,7 +7,7 @@
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { usePode } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Banner, Button, Card, colors, Empty, fonts, formatHHMM, Icon, radius, Strong, type as t } from '@macuxi/ui/mobile';
+import { BackLink, Badge, Banner, Button, Card, colors, Empty, fonts, formatHHMM, Icon, radius, Screen, Strong, type as t } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -16,8 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { OrderDetail } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { AvisoRapido, useAviso } from '../components/aviso';
-import { validateOrder } from '../../domain/order';
-import { filterCustomers, parsePct, PAYMENT_TERMS, searchProducts, stockInfo, toDomainPolicy } from '../lib/catalog';
+import { limitarDesconto, PASSO_DESCONTO_PCT, podeEnviarPedido, quantidadePermitida } from '../../domain/quantidade';
+import { validarSemLancar } from '../lib/validar-rascunho';
+import { filterCustomers, parsePct, PAYMENT_TERMS, searchProducts, stockInfo } from '../lib/catalog';
 import { ESTOQUE_NAO_CONTROLADO } from '../lib/pull';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
@@ -28,10 +29,20 @@ import { useVendedor } from '../state/use-vendedor';
 export default function NewOrderScreen() {
   const { customerId, editId, visitId, stopId } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string }>();
   const { carregado, dados } = useVendedor();
-  if (!carregado) return <Empty text="Carregando os dados do aparelho…" />;
-  if (!dados.me || !dados.politica) return <Empty text="Faltam dados no aparelho. Abra a tela Sincronizar, com sinal, e tente de novo." />;
+  if (!carregado) return <AvisoDaTela texto="Carregando os dados do aparelho…" />;
+  if (!dados.me || !dados.politica) return <AvisoDaTela texto="Faltam dados no aparelho. Abra a tela Sincronizar, com sinal, e tente de novo." />;
   if (!customerId) return <CustomerPicker />;
   return <OrderEditor key={`${customerId}:${editId ?? ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} />;
+}
+
+/** Mensagem dentro de Screen (área segura) e com caminho de volta para Pedidos. */
+function AvisoDaTela({ texto }: { texto: string }) {
+  return (
+    <Screen testID="new-order-aviso">
+      <BackLink label="Pedidos" fallback={hrefPedidos()} />
+      <Empty text={texto} />
+    </Screen>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -163,13 +174,12 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   }
 
   const setQty = (p: Product, qty: number) => {
-    const max = Math.max(0, p.stock_total);
-    const q = Math.max(0, Math.min(max, Math.trunc(qty)));
+    const q = quantidadePermitida(p.stock_total, qty);
     setError(null);
     updateDraft(customerId, (d) => ({ ...d, lines: { ...d.lines, [p.id]: q } }));
   };
   const setDiscount = (pct: number) => {
-    const clean = Math.max(0, Math.min(100, Math.round(pct * 100) / 100));
+    const clean = limitarDesconto(pct);
     setDiscountText(fmtPctInput(clean));
     updateDraft(customerId, (d) => ({ ...d, discount_pct: clean }));
   };
@@ -180,7 +190,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const blocking = v.issues.filter((i) => i.blocking && i.code !== 'empty_order');
   // edição de pedido já enviado com "modo sem sinal" ligado: precisa de conexão (não enfileira)
   const editBlockedOffline = editingServer && offline;
-  const canSend = !sent && v.totals.lines.length > 0 && v.outcome !== 'rejected' && !editBlockedOffline && (!editId || podeEditar);
+  const canSend = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: v.totals.lines.length, recusado: v.outcome === 'rejected', edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
 
   const discountLine =
     discountPct <= 0
@@ -253,7 +263,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
         <AvisoRapido mensagem={sheets.aviso} />
-        {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label={customer.trade_name} fallback={`/customer/${customer.id}`} />}
+        {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label={customer.trade_name} fallback={hrefPedidos()} />}
         <View style={{ gap: 2 }}>
           <Text style={t.h1Small} testID="order-editor-title">
             {editId ? editTitle : 'Novo pedido'}
@@ -327,7 +337,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
                     <Text style={t.small}>Sua alçada: {formatPct(d.limit_pct)}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <StepButton icon="minus" label="Diminuir desconto" onPress={() => setDiscount(draft.discount_pct - 0.5)} />
+                    <StepButton icon="minus" label="Diminuir desconto" onPress={() => setDiscount(draft.discount_pct - PASSO_DESCONTO_PCT)} />
                     <View style={styles.pctBox}>
                       <TextInput
                         testID="discount-input"
@@ -342,7 +352,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
                       />
                       <Text style={styles.pctSuffix}>%</Text>
                     </View>
-                    <StepButton icon="plus" label="Aumentar desconto" onPress={() => setDiscount(draft.discount_pct + 0.5)} />
+                    <StepButton icon="plus" label="Aumentar desconto" onPress={() => setDiscount(draft.discount_pct + PASSO_DESCONTO_PCT)} />
                   </View>
                 </View>
                 <View style={{ gap: 8 }}>
@@ -358,7 +368,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
                           accessibilityState={{ checked: on }}
                           onPress={() => updateDraft(customerId, (dr) => ({ ...dr, payment_terms: op.rotulo, condicao_pagamento_id: op.id }))}
                           style={[styles.segItem, on && styles.segOn]}>
-                          <Text style={[styles.segText, on && { color: '#FFFFFF' }]}>{op.rotulo}</Text>
+                          <Text style={[styles.segText, on && { color: colors.surface }]}>{op.rotulo}</Text>
                         </Pressable>
                       );
                     })}
@@ -432,7 +442,7 @@ function SentCard({ order }: { order: OrderDetail }) {
       {note ? <Text style={[t.small, { color: colors.ink }]}>{note}</Text> : null}
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Button label="Ver pedido" variant="outline" style={{ flex: 1 }} onPress={() => router.navigate(hrefPedido(order.id) as never)} />
-        <Button label="Voltar ao cliente" variant="outline" style={{ flex: 1 }} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+        <Button label="Voltar" variant="outline" style={{ flex: 1 }} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
       </View>
     </View>
   );
@@ -526,14 +536,14 @@ const styles = StyleSheet.create({
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 46, paddingHorizontal: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md },
   searchInput: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 15, color: colors.ink, height: 44 },
   prod: { gap: 6, paddingVertical: 12, paddingHorizontal: 14 },
-  qtyBtn: { width: 44, height: 36, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  qty: { width: 40, height: 36, textAlign: 'center', fontFamily: fonts.bold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
+  qtyBtn: { width: 48, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  qty: { width: 44, height: 48, textAlign: 'center', fontFamily: fonts.bold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
   step: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   pctBox: { flex: 1, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
   pctInput: { flex: 1, minWidth: 0, height: 42, textAlign: 'right', fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, padding: 0 },
   pctSuffix: { flex: 1, fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
-  segment: { flexDirection: 'row', gap: 6 },
-  segItem: { flex: 1, height: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  segment: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  segItem: { flexGrow: 1, minWidth: 72, paddingHorizontal: 10, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   segText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
   sent: { backgroundColor: colors.successBg, borderRadius: radius.lg, padding: 12, gap: 8 },
@@ -543,20 +553,3 @@ const styles = StyleSheet.create({
   sumValue: { fontFamily: fonts.body, fontSize: 13, color: colors.ink, fontVariant: ['tabular-nums'] },
   total: { fontFamily: fonts.display, fontSize: 20, color: colors.ink, fontVariant: ['tabular-nums'] },
 });
-
-/** Mesma validação do servidor, sem lançar: a tela mostra os avisos e bloqueia o envio quando recusado. */
-function validarSemLancar(a: {
-  sellerId: string;
-  discountPct: number;
-  lines: Array<{ product_id: string; quantity: number; unit_price_cents: number | null }>;
-  politica: import('../../contracts').DiscountPolicy;
-}) {
-  return validateOrder({
-    seller_id: a.sellerId,
-    discount_pct: a.discountPct,
-    lines: a.lines,
-    policy: toDomainPolicy(a.politica),
-    // P-6 (T-0029): crédito fora da fatia, igual ao servidor
-    credit: null,
-  });
-}

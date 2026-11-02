@@ -8,7 +8,7 @@ import { AlcadasPage } from './pages/alcadas-page';
 export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
-    { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', grupo: 'operacao', componente: OrdersPage },
-    { id: 'alcadas', caminho: 'alcadas', titulo: 'Alçadas', navegacao: 'Alçadas', grupo: 'cadastros', componente: AlcadasPage },
+    { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', grupo: 'operacao', acao: 'pedido.ver', perfis: manifest.perfis, componente: OrdersPage },
+    { id: 'alcadas', caminho: 'alcadas', titulo: 'Alçadas', navegacao: 'Alçadas', grupo: 'cadastros', perfis: manifest.perfis, componente: AlcadasPage },
   ],
 });

@@ -29,13 +29,13 @@ import { provedoresSyncVendedor } from './sync';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
-const AGORA = new Date('2026-11-01T15:00:00.000Z');
+/** Relógio único do arquivo (T-0042): lido do banco no beforeAll, o mesmo que grava created_at/updated_at. */
+let AGORA!: Date;
 const id = (n: number) => `0f290000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 /** Cadastro do Core da fixture, em memória (a consulta real é do Core): o teste não faz SQL em schema de outro módulo. */
 const CADASTRO = (() => {
   const d = dadosDoisTenants('hash-de-teste');
-  const tabela = (nome: string) => Object.entries(d).find(([k]) => k.endsWith(`.${nome}`) && k.startsWith('co'))![1];
-  return { cliente: tabela('cliente'), produto: tabela('produto'), usuario: tabela('usuario') };
+  return { cliente: d['core.cliente']!, produto: d['core.produto']!, usuario: d['core.usuario']! };
 })();
 const IDS = Array.from({ length: 60 }, (_, i) => id(i + 1));
 
@@ -63,14 +63,14 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
     [A.clientes.c3]: {},
   });
 
-  function contexto(u: UsuarioAutenticado, o: { visiveis?: ReadonlySet<string> | 'tenant'; carteira?: ReadonlySet<string> | 'tenant'; parametros?: Record<string, unknown>; registro?: Registro } = {}) {
+  function contexto(u: UsuarioAutenticado, o: { visiveis?: ReadonlySet<string> | 'tenant'; carteira?: ReadonlySet<string> | 'tenant'; parametros?: Record<string, unknown>; registro?: Registro; fuso?: string } = {}) {
     const registro: Registro = o.registro ?? { eventos: [], auditoria: [] };
     const visiveis = o.visiveis ?? new Set([u.id]);
     const base = {
       usuario: { ...u, modulos: ['core', 'catalogo', 'vendedor'] },
       requestId: 'r-teste',
       agora: () => AGORA,
-      fuso: () => 'America/Manaus',
+      fuso: () => o.fuso ?? 'America/Manaus',
       carteira: async () => o.carteira ?? 'tenant',
       usuariosVisiveis: async () => visiveis,
       parametros: () => o.parametros ?? {},
@@ -154,6 +154,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 6 });
+    AGORA = new Date((await pool.query<{ agora: Date }>('select now() as agora')).rows[0]!.agora); // hora-fixa-ok: é a linha do tempo única do arquivo
     await limpar();
     prod1 = CADASTRO.produto.find((x) => x.sku === 'ALFA-001' && x.tenant_id === A.tenantId)!.id as string;
     prod2 = CADASTRO.produto.find((x) => x.sku === 'ALFA-002' && x.tenant_id === A.tenantId)!.id as string;
@@ -463,6 +464,32 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       await expect(chamar(rotaListarPedidos, an.ctx, { query: { cursor: 'lixo', limite: 5 } })).rejects.toMatchObject({ codigo: 'CURSOR_INVALIDO' });
     });
 
+    it('período usa o fuso do tenant: 23:59 e 00:01 de Manaus caem em dias diferentes; em São Paulo os dois caem no mesmo dia', async () => {
+      const a = id(54);
+      const b = id(55);
+      const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+      await receber(ctx, push(a, { customer_id: A.clientes.c1, discount_pct: 1, items: itens() }));
+      await receber(ctx, push(b, { customer_id: A.clientes.c1, discount_pct: 1, items: itens() }));
+      const admin = new pg.Client({ connectionString: banco().urlAdmin });
+      await admin.connect();
+      try {
+        // 2026-10-31 23:59 e 2026-11-01 00:01 em Manaus (UTC-4)
+        await admin.query('update vendedor.pedido set created_at = $2 where id = $1', [a, '2026-11-01T03:59:00Z']); // hora-fixa-ok: instantes escolhidos para provar a virada do dia, nunca comparados com o relógio
+        await admin.query('update vendedor.pedido set created_at = $2 where id = $1', [b, '2026-11-01T04:01:00Z']); // hora-fixa-ok: idem (00:01 em Manaus)
+      } finally {
+        await admin.end();
+      }
+      const ids = async (fuso: string, de: string, ate: string) => {
+        const an = contexto(analista, { visiveis: 'tenant', fuso });
+        const l = (await chamar(rotaListarPedidos, an.ctx, { query: { from: de, to: ate, limite: 200 } })) as { itens: Array<{ id: string }> };
+        return l.itens.map((o) => o.id).filter((x) => x === a || x === b);
+      };
+      expect(await ids('America/Manaus', '2026-11-01', '2026-11-01')).toEqual([b]);
+      expect(await ids('America/Manaus', '2026-10-31', '2026-10-31')).toEqual([a]);
+      expect((await ids('America/Sao_Paulo', '2026-11-01', '2026-11-01')).sort()).toEqual([a, b].sort());
+      expect(await ids('America/Sao_Paulo', '2026-10-31', '2026-10-31')).toEqual([]);
+    });
+
     it('detalhe: itens, histórico, retrato do cliente e aprovação com pode_decidir por perfil; passa no contrato OrderDetail', async () => {
       const pid = id(50);
       const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
@@ -491,8 +518,8 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
 
   // ---------- pull ----------
   describe('pull das entidades novas', () => {
-    // updated_at vem do relógio do banco (agora real), não do AGORA simulado: a janela do pull usa o relógio real
-    const pedidoPull = () => ({ desde: null, ate: new Date(Date.now() + 3_600_000).toISOString(), limite: 1000 });
+    // uma linha do tempo só: AGORA (relógio do banco no beforeAll) vale para o ctx e para created_at/updated_at
+    const pedidoPull = () => ({ desde: null, ate: new Date(AGORA.getTime() + 3_600_000).toISOString(), limite: 1000 });
     const prov = (nome: string) => provedoresSyncVendedor.find((p) => p.entidade.nome === nome)!;
 
     it('pedido, pedido_item e pedido_evento trazem as colunas novas e passam nos schemas do contrato', async () => {

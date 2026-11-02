@@ -12,9 +12,10 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderEvent } from '../../contracts';
-import { editavelNaFatia, sellerDiscountLimit, type OrderStatus } from '../../domain/order';
+import { sellerDiscountLimit } from '../../domain/order';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
+import { estadoDasAcoes, rotuloDoNivel, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { toDomainPolicy } from '../lib/catalog';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
@@ -98,22 +99,17 @@ export default function OrderDetailScreen() {
   const acts = app.acoesDe(status);
   const title = number ? `Pedido ${number}` : 'Pedido no aparelho';
   const hasLines = lines.length > 0;
-  // pedido já enviado: editar/excluir precisam de conexão (o status pode ter mudado no servidor)
-  const needsSignal = !queued && offline;
-  // P-2 (T-0029): só o que ainda está no aparelho se edita; pedido aceito pelo servidor se duplica. Na Gestão não há duplicar/editar.
   const ehVendedor = !v1 || perfil === 'vendedor';
-  const editavel = !v1 ? acts.can_edit && !needsSignal : Boolean(queued) && editavelNaFatia(status as OrderStatus);
-  const canEdit = ehVendedor && podeEditar && editavel && hasLines;
-  const canDelete = podeCancelar && acts.can_cancel && !needsSignal;
-  const lockedReason = acts.locked_reason
-    ? acts.locked_reason
-    : v1 && !queued && ehVendedor && !editavel
-      ? 'Pedido já recebido pelo servidor: não pode ser editado. Duplique para fazer um novo.'
-      : needsSignal
-      ? 'Sem sinal: editar ou excluir pedido já enviado precisa de conexão.'
-      : !hasLines
-        ? 'Itens disponíveis com sinal.'
-        : '';
+  const { podeEditar: canEdit, podeExcluir: canDelete, motivoBloqueio: lockedReason } = estadoDasAcoes({
+    status,
+    naFila: Boolean(queued),
+    offline,
+    v1,
+    ehVendedor,
+    temItens: hasLines,
+    pode: { editar: podeEditar, cancelar: podeCancelar },
+    acoes: acts,
+  });
 
   const startDraft = async (mode: 'duplicate' | 'edit') => {
     setBusy(mode);
@@ -255,7 +251,7 @@ export default function OrderDetailScreen() {
         <Card style={{ padding: 14, gap: 8 }} testID="order-approval">
           <Row label="Desconto do pedido" value={formatPct(detail.aprovacao.desconto_efetivo_pct)} />
           <Row label="Alçada do vendedor" value={formatPct(detail.aprovacao.limite_vendedor_pct)} />
-          <Row label="Quem aprova" value={detail.aprovacao.nivel === 'supervisor' ? 'Supervisor' : detail.aprovacao.nivel === 'gerente' ? 'Gerente' : 'Analista'} />
+          <Row label="Quem aprova" value={rotuloDoNivel(detail.aprovacao.nivel)} />
           {detail.aprovacao.pode_decidir && podeAprovar ? (
             <View style={{ gap: 8, marginTop: 4 }}>
               <View style={styles.actionsRow}>
@@ -274,7 +270,7 @@ export default function OrderDetailScreen() {
       <View style={{ gap: 8 }}>
         <SectionHeader title="Itens" right={lines.length > 0 ? `${lines.length} ${lines.length === 1 ? 'item' : 'itens'}` : undefined} />
         <Card>
-          {lines.length === 0 ? <Text style={[t.sub, { padding: 14 }]}>{offline ? 'Itens disponíveis com sinal.' : 'Carregando itens…'}</Text> : null}
+          {lines.length === 0 ? <Text style={[t.sub, { padding: 14 }]}>{TEXTO_SEM_ITENS}</Text> : null}
           {lines.map((l, i) => (
             <View key={l.key} style={[styles.item, i < lines.length - 1 && styles.divider]}>
               <View style={{ flex: 1, gap: 1 }}>
@@ -319,19 +315,21 @@ export default function OrderDetailScreen() {
       <View style={{ gap: 8 }} testID="order-actions">
         <SectionHeader title="Ações" />
         <Card style={{ padding: 14, gap: 10 }}>
-          <View style={styles.actionsRow}>
-            <Button
-              testID="pedido-duplicar"
-              label="Duplicar"
-              icon="copy"
-              variant="outline"
-              style={{ flex: 1 }}
-              disabled={!ehVendedor || !podeCriar || !acts.can_duplicate || !hasLines || busy !== null}
-              loading={busy === 'duplicate'}
-              onPress={() => void startDraft('duplicate')}
-            />
-            <Button testID="pedido-editar" label="Editar" icon="edit" variant="outline" style={{ flex: 1 }} disabled={!canEdit || busy !== null} loading={busy === 'edit'} onPress={() => void startDraft('edit')} />
-          </View>
+          {ehVendedor ? (
+            <View style={styles.actionsRow}>
+              <Button
+                testID="pedido-duplicar"
+                label="Duplicar"
+                icon="copy"
+                variant="outline"
+                style={{ flex: 1 }}
+                disabled={!ehVendedor || !podeCriar || !acts.can_duplicate || !hasLines || busy !== null}
+                loading={busy === 'duplicate'}
+                onPress={() => void startDraft('duplicate')}
+              />
+              <Button testID="pedido-editar" label="Editar" icon="edit" variant="outline" style={{ flex: 1 }} disabled={!canEdit || busy !== null} loading={busy === 'edit'} onPress={() => void startDraft('edit')} />
+            </View>
+          ) : null}
           <View style={styles.actionsRow}>
             <Button
               testID="pedido-excluir"

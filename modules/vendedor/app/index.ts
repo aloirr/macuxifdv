@@ -12,6 +12,9 @@ import OrdersScreen from './screens/orders-screen';
 
 export { mergeOrders, pedidosNaFila, upsertOrder } from './lib/pedidos';
 
+/** RN-PRO-01: o promotor nunca vê página de pedido, mesmo que o Vendedor fique efetivo para ele (mesma lista do manifesto e de /alcadas). */
+const PERFIS_PAGINAS = manifest.perfis;
+
 /**
  * Telas do Vendedor no app Android (ADR 0003): aba Pedidos, detalhe do pedido e novo pedido (também editar/duplicar).
  * T-0029: o Campo (vendedor) e a Gestão (supervisor/gerente) usam as mesmas telas de lista e detalhe sobre o pull do sync;
@@ -21,9 +24,9 @@ export { mergeOrders, pedidosNaFila, upsertOrder } from './lib/pedidos';
 export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
-    { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', icone: 'clipboard', apps: ['campo', 'gestao'], componente: OrdersScreen },
-    { id: 'pedido', caminho: 'pedido', titulo: 'Pedido', apps: ['campo', 'gestao'], componente: OrderDetailScreen },
-    { id: 'novo-pedido', caminho: 'novo-pedido', titulo: 'Novo pedido', acao: 'pedido.criar', apps: ['campo'], componente: NewOrderScreen },
+    { id: 'pedidos', caminho: 'pedidos', titulo: 'Pedidos', navegacao: 'Pedidos', icone: 'clipboard', ordem: 40, perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: OrdersScreen },
+    { id: 'pedido', caminho: 'pedido', titulo: 'Pedido', perfis: PERFIS_PAGINAS, apps: ['campo', 'gestao'], componente: OrderDetailScreen },
+    { id: 'novo-pedido', caminho: 'novo-pedido', titulo: 'Novo pedido', acao: 'pedido.criar', perfis: PERFIS_PAGINAS, apps: ['campo'], componente: NewOrderScreen },
   ],
   entidadesSync: ENTIDADES_VENDEDOR,
   etapasSync: etapasVendedor,
