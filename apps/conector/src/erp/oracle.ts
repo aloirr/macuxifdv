@@ -258,8 +258,11 @@ export async function criarConexaoOracle(o: OpcoesOracle, injetado?: ModuloOracl
       return await fn();
     } catch (e) {
       if (ehErroConexaoOracle(e)) {
+        // T-0048: o pool quebrado é fechado na hora (sem esperar o poolTimeout); o próximo uso abre outro
+        const antigo = pool;
         pool = null;
         abrindo = null;
+        void antigo?.close(0).catch(() => undefined);
         const codigo = /\b(ORA-\d{5}|NJS-\d{3})\b/.exec(e instanceof Error ? e.message : '')?.[1] ?? (e as { code?: string }).code ?? 'sem código';
         throw new ErroConexaoErp(`Banco do ERP indisponível (${codigo})`, e);
       }

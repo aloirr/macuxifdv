@@ -55,7 +55,8 @@ function criarDuble(opcoes: { rows?: Record<string, unknown>[]; falhar?: (sql: s
   const modulo: ModuloOracle = {
     async createPool(attrs) {
       atributos.push(attrs);
-      return { getConnection: async () => conexao(), close: async () => void eventos.push('pool.close') };
+      const n = atributos.length;
+      return { getConnection: async () => conexao(), close: async () => void eventos.push(n === 1 ? 'pool.close' : `pool${n}.close`) };
     },
     OUT_FORMAT_OBJECT: 4002,
     DB_TYPE_DATE: T.DATE, DB_TYPE_TIMESTAMP: T.TIMESTAMP, DB_TYPE_TIMESTAMP_TZ: T.TIMESTAMP_TZ, DB_TYPE_TIMESTAMP_LTZ: T.TIMESTAMP_LTZ,
@@ -340,6 +341,19 @@ describe('Oracle: erros (conexão × SQL)', () => {
     expect(e).not.toBeInstanceOf(ErroConexaoErp);
     expect((e as Error).message).toContain('ORA-00942');
     expect(d.abertas()).toBe(0);
+  });
+
+  it('T-0048: no erro de conexão o pool quebrado é FECHADO (não fica preso até o poolTimeout) e o próximo uso abre um novo', async () => {
+    let cair = true;
+    const d = criarDuble({ falhar: (sql) => (cair && sql.startsWith('ALTER') ? new Error('ORA-03113: end-of-file on communication channel') : null) });
+    const erp = await criarConexaoOracle(base, d.modulo);
+    await expect(erp.consultar(SQL_DELTA, PARAMS_DELTA)).rejects.toBeInstanceOf(ErroConexaoErp);
+    await Promise.resolve();
+    expect(d.eventos).toContain('pool.close');
+    cair = false;
+    await erp.consultar(SQL_DELTA, PARAMS_DELTA);
+    expect(d.atributos).toHaveLength(2); // pool novo
+    expect(d.eventos).not.toContain('pool2.close');
   });
 
   it('a mensagem de indisponibilidade não carrega a senha nem o texto bruto do driver', async () => {
