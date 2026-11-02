@@ -11,6 +11,7 @@ import * as nuvemCatalogo from '../../modules/catalogo/db/nuvem';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
+import * as nuvemGestor from '../../modules/gestor/db/nuvem';
 import {
   CODIGOS_ERRO_LINHA,
   CODIGOS_ITEM_DESCARTADO,
@@ -42,12 +43,27 @@ const TABELAS_INTEGRACAO = [
   'integracao.inativacao_auditoria', 'integracao.cursor_entidade', 'integracao.reconciliacao', 'integracao.mapeamento', 'integracao.pedido_fila_erp',
   'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
 ] as const;
+/** Tabelas do schema promotor (0015, T-0056): 9 cadastros de trade (pull) e 11 coletas (push). */
+const TABELAS_PROMOTOR = [
+  'promotor.categoria_gondola', 'promotor.checklist_loja', 'promotor.mix_obrigatorio', 'promotor.meta_share', 'promotor.concorrente',
+  'promotor.produto_concorrente', 'promotor.foto_referencia', 'promotor.tarefa_trade', 'promotor.ponto_extra_negociado',
+  'promotor.visita_loja', 'promotor.foto_coleta', 'promotor.checklist_resposta', 'promotor.gondola_registro', 'promotor.medicao_share',
+  'promotor.coleta_preco', 'promotor.ruptura_item', 'promotor.validade_item', 'promotor.ponto_extra', 'promotor.acao_concorrencia',
+  'promotor.tarefa_execucao',
+] as const;
+/**
+ * Schemas sem espelho Drizzle ainda (fora da comparação Drizzle x SQL).
+ * espelho Drizzle do promotor: pendência do banco-dados local (modules/promotor/db/nuvem.ts).
+ */
+const SEM_ESPELHO_DRIZZLE = ['promotor'];
 /** Tabelas novas da 0013 (catálogo, vendedor e core). */
 const TABELAS_0013 = [
   'core.produto_unidade', 'core.cliente_endereco', 'catalogo.uso_ia', 'catalogo.catalogo_no', 'catalogo.produto_no', 'catalogo.produto_conteudo',
   'catalogo.produto_atributo', 'catalogo.produto_midia', 'catalogo.sinonimo', 'catalogo.produto_busca', 'catalogo.deposito', 'catalogo.estoque_saldo',
   'catalogo.busca_log', 'vendedor.transportadora', 'vendedor.pedido_faturamento',
 ] as const;
+/** Tabelas do schema gestor (0014, T-0055). */
+const TABELAS_GESTOR = ['gestor.evento_aplicado', 'gestor.projecao_fato', 'gestor.alerta', 'gestor.alerta_regra'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -63,7 +79,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -76,11 +92,16 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual([
+    // lerMigracoes já recusa buraco e par incompleto; aqui: as 13 primeiras (até a 0013), a 0014 do Gestor (T-0055) e a 0015 do Promotor (T-0056) no lugar certo
+    const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
+    expect(nomes[13]).toBe('0014_gestor');
+    expect(nomes[14]).toBe('0015_promotor');
+    expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
       '0012_search_path_pg_temp', '0013_catalogo_vendedor_prevenda',
     ]);
+    expect(migracoes.map((m) => m.versao)).toEqual(migracoes.map((_, i) => String(i + 1).padStart(4, '0')));
   });
 
   it('down de cada migração remove os schemas que o up cria', () => {
@@ -92,7 +113,7 @@ describe('migrações (estático)', () => {
   });
 
   const criadas = tabelasCriadas();
-  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029 e na T-0032', () => {
+  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029, na T-0032, na T-0055 e na T-0056', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
@@ -106,6 +127,8 @@ describe('migrações (estático)', () => {
         'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
         ...TABELAS_INTEGRACAO,
         ...TABELAS_0013,
+        ...TABELAS_GESTOR,
+        ...TABELAS_PROMOTOR,
       ].sort(),
     );
   });
@@ -658,10 +681,12 @@ describe('base de demo x T-0029 (estático)', () => {
 
 describe('Drizzle x migrações (estático)', () => {
   const drizzle = tabelasDrizzle();
-  const criadas = tabelasCriadas();
+  // espelho Drizzle do promotor: pendência do banco-dados local (o schema promotor fica fora da comparação até lá)
+  const criadas = new Map([...tabelasCriadas()].filter(([t]) => !SEM_ESPELHO_DRIZZLE.includes(t.split('.')[0]!)));
 
-  it('toda tabela da migração tem espelho em Drizzle e vice-versa', () => {
+  it('toda tabela da migração tem espelho em Drizzle e vice-versa (menos os schemas de SEM_ESPELHO_DRIZZLE)', () => {
     expect([...drizzle.keys()].sort()).toEqual([...criadas.keys()].sort());
+    expect([...drizzle.keys()].filter((t) => SEM_ESPELHO_DRIZZLE.includes(t.split('.')[0]!))).toEqual([]);
   });
 
   for (const [tabela, cfg] of drizzle) {
