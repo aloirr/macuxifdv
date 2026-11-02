@@ -68,6 +68,8 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
         'integracao.pedido_fila_erp', 'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
       ]),
     );
+    // T-0055 (0014): schema gestor inteiro
+    expect(nomes).toEqual(expect.arrayContaining(['gestor.evento_aplicado', 'gestor.projecao_fato', 'gestor.alerta', 'gestor.alerta_regra']));
     // T-0056 (0015): schema promotor inteiro (cadastros de trade e coletas da visita de loja)
     expect(nomes).toEqual(
       expect.arrayContaining([

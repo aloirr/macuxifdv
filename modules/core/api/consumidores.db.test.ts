@@ -74,7 +74,7 @@ describe.skipIf(semBanco())('Core T-0022 × Postgres: push da notificação', ()
     await rodar(opcoes, NIDS[1]!);
     expect(fetcher).toHaveBeenCalledTimes(1);
     const corpo = JSON.parse((fetcher.mock.calls[0] as unknown as [string, { body: string }])[1].body);
-    expect(corpo).toEqual([{ to: TOKEN, title: 'Aviso de push', body: 'Corpo do aviso', priority: 'high', data: { link: null } }]);
+    expect(corpo).toEqual([{ to: TOKEN, title: 'Aviso de push', body: 'Corpo do aviso', priority: 'high', data: { link: null, entidades: ['notificacao'] } }]);
     expect((await enviadoEm(NIDS[1]!))?.toISOString()).toBe(agora.toISOString());
     await rodar(opcoes, NIDS[1]!);
     expect(fetcher).toHaveBeenCalledTimes(1);

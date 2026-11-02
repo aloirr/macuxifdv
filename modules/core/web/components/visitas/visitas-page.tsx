@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, Dialog, ErrorBlock, FilterBar, LoadingBlock, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, Dialog, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll } from '@macuxi/ui/web';
 import { VisitasListaSchema, type VisitaBko } from '../../../contracts';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 import { csvDeVisitas, permanenciaMin, quando, rotuloResultado, sinais } from '../../lib/visitas';
@@ -58,7 +58,7 @@ function VisitasConteudo() {
       const r = await api<unknown>('/core/visitas', { query: { de, ate, ...(usuario ? { usuario_id: usuario } : {}), ...(fora ? { fora_do_raio: fora } : {}) } });
       return VisitasListaSchema.parse(r).itens;
     },
-    refetchInterval: 30_000,
+    refetchInterval: intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN), // RN-CORE-23 item 6: sync_auto_min (30, mín. 15); o botão Atualizar cobre o resto
   });
 
   const set = (patch: Record<string, string | null>) => {
@@ -79,9 +79,14 @@ function VisitasConteudo() {
         title="Visitas"
         subtitle="Check-ins e checkouts da equipe. As fora do raio do cliente ficam sinalizadas com a justificativa do vendedor."
         actions={
+          <>
+          <Button onClick={() => void lista.refetch()} disabled={lista.isFetching} aria-label="Atualizar as visitas" data-testid="visitas.atualizar">
+            {lista.isFetching ? 'Atualizando…' : 'Atualizar'}
+          </Button>
           <Button onClick={() => downloadBlob(new Blob([csvDeVisitas(itens, FUSO_PADRAO)], { type: 'text/csv;charset=utf-8' }), `visitas_${de}_${ate}.csv`)} disabled={itens.length === 0} data-testid="visitas.exportar-csv">
             Exportar CSV
           </Button>
+          </>
         }
       />
       <FilterBar>

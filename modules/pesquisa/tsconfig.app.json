@@ -1,0 +1,4 @@
+{
+  "extends": "@macuxi/config/tsconfig.mobile.json",
+  "include": ["app", "manifest.ts", "contracts", "domain"]
+}

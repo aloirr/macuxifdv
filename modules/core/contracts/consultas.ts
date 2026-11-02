@@ -9,7 +9,9 @@ import { z } from 'zod';
 const Ids = z.array(z.string().uuid()).max(500).default([]);
 
 /** `endereco_ids` (T-0061 §4.1): opcional, padrão []; o principal de cada cliente pedido vem sempre. */
-export const CadastroResumoEntradaSchema = z.object({ cliente_ids: Ids, produto_ids: Ids, usuario_ids: Ids, endereco_ids: Ids }).strict();
+/** `produto_external_ids` (T-0066): opcional, padrão []; acha o produto pelo external_id do ERP (une-se a `produto_ids`, sem duplicar). */
+const ExternalIds = z.array(z.string().min(1).max(200)).max(500).default([]);
+export const CadastroResumoEntradaSchema = z.object({ cliente_ids: Ids, produto_ids: Ids, produto_external_ids: ExternalIds, usuario_ids: Ids, endereco_ids: Ids }).strict();
 export type CadastroResumoEntrada = z.infer<typeof CadastroResumoEntradaSchema>;
 
 const Texto = z.string().nullable();

@@ -127,10 +127,10 @@ licença contam a lista). Quem precisar das rotas do Hub com licença ativa grav
 ### T-0056 (migração 0015; schema `promotor`)
 Arquivo próprio `db/seeds/fixtures/promotor.ts` (`dadosPromotorFixture`, `ORDEM_PROMOTOR`, `COLETAS_PROMOTOR`,
 `PROMOTOR_FIXTURE`); o `dois-tenants.ts` só importa, põe as 20 tabelas no fim de `ORDEM_TABELAS` e junta os dados.
-Grupos: `0070` categoria_gondola · `0071` checklist_loja (itens `…0101`/`…0102`) · `0072` mix_obrigatorio · `0073` meta_share ·
-`0074` concorrente · `0075` produto_concorrente · `0076` foto_referencia · `0077` tarefa_trade · `0078` ponto_extra_negociado ·
-`0079` visita_loja · `007a` foto_coleta · `007b` checklist_resposta · `007c` gondola_registro · `007d` medicao_share ·
-`007e` coleta_preco · `007f` ruptura_item · `0080` validade_item · `0081` ponto_extra · `0082` acao_concorrencia · `0083` tarefa_execucao.
+Grupos (0x84–0x97; o Gestor da 0014 usa 0x70–0x73 em `db/seeds/fixtures/gestor.ts`): `0084` categoria_gondola · `0085` checklist_loja (itens `…0101`/`…0102`) · `0086` mix_obrigatorio · `0087` meta_share ·
+`0088` concorrente · `0089` produto_concorrente · `008a` foto_referencia · `008b` tarefa_trade · `008c` ponto_extra_negociado ·
+`008d` visita_loja · `008e` foto_coleta · `008f` checklist_resposta · `0090` gondola_registro · `0091` medicao_share ·
+`0092` coleta_preco · `0093` ruptura_item · `0094` validade_item · `0095` ponto_extra · `0096` acao_concorrencia · `0097` tarefa_execucao.
 Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fixture. Payloads = contratos de
 `modules/promotor/contracts/coletas.ts` com todos os defaults explícitos (conferido em `db/testes/promotor.test.ts`).
 

@@ -2,7 +2,7 @@ import { defineModule } from '@macuxi/platform-sdk';
 
 export const manifest = defineModule({
   id: 'integracao',
-  versao: '0.4.0',
+  versao: '0.5.0',
   depende: ['core'],
   perfis: ['admin', 'analista'],
   apps: { web: { menus: ['Integração ERP'] }, conector: {} },
@@ -15,6 +15,11 @@ export const manifest = defineModule({
     'integracao.titulo.atualizado@1',
     'integracao.nota.atualizado@1',
     'integracao.rota.atualizado@1',
+    // T-0061 (ADR 0016): entidades novas do Hub; donos: catalogo (catalogo_no), core (produto_unidade, cliente_endereco), vendedor (transportadora)
+    'integracao.catalogo_no.atualizado@1',
+    'integracao.produto_unidade.atualizado@1',
+    'integracao.cliente_endereco.atualizado@1',
+    'integracao.transportadora.atualizado@1',
     'integracao.pedido.retorno_erp@1',
     'integracao.lote.concluido@1',
     'integracao.reconciliacao.divergente@1',

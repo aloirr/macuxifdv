@@ -6,3 +6,6 @@
 export * from './coletas';
 export * from './indicador';
 export * from './eventos';
+export * from './cadastros';
+export * from './entidades';
+export * from './relatorios';

@@ -6,6 +6,7 @@ import { Card, colors, dateTimeLabel, fonts, Icon, IconTile, monthName, Progress
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { KpiResult } from '../../contracts';
+import { dataDoFechamento, dataLocal, situacaoDoPeriodo } from '../../domain';
 import { PainelMetas } from '../components/painel-metas';
 import { abrirClientes } from '../lib/navegacao';
 import { useCore } from '../lib/usar-core';
@@ -27,6 +28,10 @@ export function TelaMetas() {
     );
   }
 
+  // RN-CORE-21: o mês só fecha no 2º dia útil seguinte; até lá o realizado é parcial.
+  const hojeLocal = dataLocal(new Date(), tz);
+  const fechado = g.frozen || situacaoDoPeriodo(g.period, hojeLocal) === 'fechado';
+  const fechamento = dataDoFechamento(g.period).split('-').reverse().join('/');
   const kpis = g.kpis.filter((k) => !k.is_trigger);
   const triggers = g.kpis.filter((k) => k.is_trigger);
   const gapText =
@@ -38,7 +43,7 @@ export function TelaMetas() {
         <View style={{ gap: 2, flex: 1 }}>
           <Text style={t.h1}>Metas · {monthName(g.period)}</Text>
           <Text style={t.sub}>
-            {g.frozen ? 'Mês fechado · valores congelados' : `Parcial atualizada ${dateTimeLabel(g.computed_at, new Date(), tz)}`}
+            {fechado ? 'Mês fechado · valores congelados' : `Parcial até o fechamento (${fechamento}) · atualizada ${dateTimeLabel(g.computed_at, new Date(), tz)}`}
           </Text>
         </View>
         <View style={styles.rank}>

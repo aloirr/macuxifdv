@@ -46,6 +46,9 @@ describe('RN-CORE-16: contrato do cadastro mínimo', () => {
   });
   it('RN-CORE-16: core.cadastro_resumo@1 mantém a entrada antiga e aceita os campos opcionais novos', () => {
     expect(CadastroResumoEntradaSchema.parse({ cliente_ids: [U] }).endereco_ids).toEqual([]);
+    expect(CadastroResumoEntradaSchema.parse({ cliente_ids: [U] }).produto_external_ids).toEqual([]);
+    expect(CadastroResumoEntradaSchema.parse({ produto_external_ids: ['ERP-1'] }).produto_external_ids).toEqual(['ERP-1']);
+    expect(CadastroResumoEntradaSchema.safeParse({ produto_external_ids: Array.from({ length: 501 }, (_, i) => `E${i}`) }).success).toBe(false);
     const saida = CadastroResumoSaidaSchema.parse({
       clientes: [{ id: U, razao_social: 'X', nome_fantasia: null, documento: null, logradouro: null, numero: null, bairro: null, cidade: null, uf: null, ativo: true, external_id: null, cep: null, cadastro_incompleto: true, cadastro_campos_faltantes: ['documento'] }],
       produtos: [{ id: U, sku: 'A', nome: 'A', unidade: 'UN', ativo: true, external_id: null, unidades: [{ unidade: 'CX', fator: 12, padrao: false, ativo: true, external_id: null }] }],

@@ -52,6 +52,8 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
   };
 
   const aprovacao = dados?.aprovacao ?? null;
+  // T-0054: coluna "Faturado" só quando o retorno do ERP trouxe quantidades
+  const temFaturado = dados?.items.some((it) => it.quantity_invoiced !== undefined) ?? false;
 
   return (
     <Drawer
@@ -118,6 +120,52 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
             </div>
           </div>
 
+          {(o.situacao_faturamento?.length || dados?.faturamento) && (
+            <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" data-testid="pedido.faturamento">
+              <h3 className="m-0 font-display text-[16px] font-bold">Faturamento e devolução</h3>
+              {(o.situacao_faturamento ?? []).map((l) => (
+                <span key={l} className="text-[13px]">
+                  {l}
+                </span>
+              ))}
+              {dados?.faturamento && dados.faturamento.notas.length + dados.faturamento.devolucoes.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[420px] border-collapse text-[13px]" data-testid="pedido.notas">
+                    <thead>
+                      <tr>
+                        <th scope="col" className={th}>Nota</th>
+                        <th scope="col" className={th}>Tipo</th>
+                        <th scope="col" className={th}>Data</th>
+                        <th scope="col" className={thNum}>Un.</th>
+                        <th scope="col" className={thNum}>Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dados.faturamento.notas.map((n, i) => (
+                        <tr key={`nf-${n.numero ?? i}-${n.faturado_em}`}>
+                          <td className={`${td} font-mono whitespace-nowrap`}>{n.numero ? `${n.numero}${n.serie ? `/${n.serie}` : ''}` : '—'}</td>
+                          <td className={td}>{n.parcial ? 'Faturamento parcial' : 'Faturamento'}</td>
+                          <td className={`${td} whitespace-nowrap`}>{formatDateTime(n.faturado_em, tz)}</td>
+                          <td className={tdNum}>{n.unidades}</td>
+                          <td className={`${tdNum} whitespace-nowrap`}>{n.total_cents === null ? '—' : formatBRL(n.total_cents)}</td>
+                        </tr>
+                      ))}
+                      {dados.faturamento.devolucoes.map((d, i) => (
+                        <tr key={`dev-${d.numero}-${i}`}>
+                          <td className={`${td} font-mono whitespace-nowrap`}>{`${d.numero}${d.serie ? `/${d.serie}` : ''}`}</td>
+                          <td className={td}>Devolução</td>
+                          <td className={`${td} whitespace-nowrap`}>{formatDateTime(d.emitida_em, tz)}</td>
+                          <td className={tdNum}>—</td>
+                          <td className={`${tdNum} whitespace-nowrap`}>− {formatBRL(d.total_cents)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
           {detail.isPending && <LoadingBlock label="Carregando itens e histórico…" />}
           {detail.isError && <ErrorBlock message={errorMessage(detail.error)} fallback={MSG_ITENS_INDISPONIVEIS} onRetry={() => void detail.refetch()} />}
           {dados && (
@@ -133,6 +181,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                         <th scope="col" className={thNum}>Qtd</th>
                         <th scope="col" className={thNum}>Tabela</th>
                         <th scope="col" className={thNum}>Total</th>
+                        {temFaturado && <th scope="col" className={thNum}>Faturado</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -143,6 +192,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                           <td className={tdNum}>{it.quantity}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.unit_price_cents)}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.total_cents)}</td>
+                          {temFaturado && <td className={tdNum}>{`${it.quantity_invoiced ?? 0} de ${it.quantity_base ?? it.quantity}`}</td>}
                         </tr>
                       ))}
                     </tbody>

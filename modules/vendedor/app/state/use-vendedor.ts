@@ -49,10 +49,10 @@ import {
 } from '../lib/pull';
 import { criarRepositorio, DADOS_VAZIOS, type DadosVendedor } from '../lib/repositorio';
 import { relogioReal } from '@macuxi/comum/relogio';
+import { podeSincronizarManual } from '../lib/sincronizar';
 import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 
 const PRECISA_SINAL = 'editar ou excluir pedido já enviado precisa de conexão (o status pode ter mudado no servidor).';
-const INTERVALO_SYNC_MS = 20_000;
 const LOTE_PRECOS = 500;
 
 export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; message: string };
@@ -142,16 +142,15 @@ export function useVendedor() {
   }, [dados.pedidos, fila, aceitos, vendedor, v1]);
 
   const offline = !ambiente.online();
-  const ultimaAtualizacao = useRef(0);
 
   // ---------- leituras (melhor esforço; sem rede, fica o que está no aparelho) ----------
+  /**
+   * RN-CORE-23 (T-0054): a tela NÃO faz consulta própria nem dispara sync ao abrir; só relê o aparelho. O pull vem do motor
+   * de sync da plataforma (shell): a cada `sync_auto_min`, ao abrir o app e ao voltar ao primeiro plano depois de 30 min;
+   * cada sync concluído recarrega o módulo (efeito acima, pelo `sincronizado_em`). Puxar para baixo = `sincronizarAgora`.
+   */
   const atualizarPedidos = useCallback(async () => {
     if (v1) {
-      // API v1: o pull é o do sync completo; no máximo uma passada a cada 20 s, sem rede só relê o aparelho
-      if (ambiente.online() && motor && !motor.estado().sincronizando && Date.now() - ultimaAtualizacao.current > INTERVALO_SYNC_MS) {
-        ultimaAtualizacao.current = Date.now();
-        await motor.sincronizar();
-      }
       await recarregar();
       return;
     }
@@ -177,8 +176,8 @@ export function useVendedor() {
   const carregarPedido = useCallback(
     async (id: string) => {
       if (v1) {
-        // API v1: o detalhe vem das linhas do aparelho; a cada ciclo traz o estado novo do servidor (decisão de outro gestor)
-        await atualizarPedidos();
+        // API v1: o detalhe vem das linhas do aparelho (RN-CORE-23: sem consulta própria; o estado novo chega no sync)
+        await recarregar();
         return;
       }
       if (!ambiente.online() || !repo) return;
@@ -190,8 +189,28 @@ export function useVendedor() {
         // sem rede: continua com o cache
       }
     },
-    [v1, repo, recarregar, ambiente, atualizarPedidos],
+    [v1, repo, recarregar, ambiente],
   );
+
+  /**
+   * RN-CORE-23: "puxar para baixo" = Sincronizar — envia a fila e roda o sync completo do motor da plataforma, com
+   * proteção de 30 s contra toques repetidos (dentro dela, só relê o aparelho).
+   */
+  const ultimoManual = useRef(0);
+  const sincronizarAgora = useCallback(async () => {
+    if (!v1) {
+      await atualizarPedidos();
+      return;
+    }
+    const agora = relogioReal().agora().getTime();
+    const liberado = podeSincronizarManual(ultimoManual.current, agora);
+    if (liberado && motor && ambiente.online() && !motor.estado().sincronizando) {
+      ultimoManual.current = agora;
+      await motor.enviar().catch(() => []);
+      await motor.sincronizar().catch(() => false);
+    }
+    await recarregar();
+  }, [v1, motor, ambiente, recarregar, atualizarPedidos]);
 
   /** Mix sugerido e últimos pedidos da ficha (demonstração); na API v1 os últimos vêm do pull e o mix fica para o Catálogo. */
   const carregarFicha = useCallback(
@@ -526,6 +545,7 @@ export function useVendedor() {
     motor,
     recarregar,
     atualizarPedidos,
+    sincronizarAgora,
     detalhe,
     carregarPedido,
     carregarFicha,

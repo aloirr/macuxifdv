@@ -11,6 +11,7 @@ import * as nuvemCatalogo from '../../modules/catalogo/db/nuvem';
 import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
+import * as nuvemGestor from '../../modules/gestor/db/nuvem';
 import {
   CODIGOS_ERRO_LINHA,
   CODIGOS_ITEM_DESCARTADO,
@@ -61,6 +62,8 @@ const TABELAS_0013 = [
   'catalogo.produto_atributo', 'catalogo.produto_midia', 'catalogo.sinonimo', 'catalogo.produto_busca', 'catalogo.deposito', 'catalogo.estoque_saldo',
   'catalogo.busca_log', 'vendedor.transportadora', 'vendedor.pedido_faturamento',
 ] as const;
+/** Tabelas do schema gestor (0014, T-0055). */
+const TABELAS_GESTOR = ['gestor.evento_aplicado', 'gestor.projecao_fato', 'gestor.alerta', 'gestor.alerta_regra'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -76,7 +79,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -89,14 +92,15 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
+    // lerMigracoes já recusa buraco e par incompleto; aqui: as 13 primeiras (até a 0013), a 0014 do Gestor (T-0055) e a 0015 do Promotor (T-0056) no lugar certo
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
-    // as 13 primeiras fixas (até a 0013, já no main); da 0014 em diante a lista vem de lerMigracoes() (0014 de outra frente), com a 0015 presente
+    expect(nomes[13]).toBe('0014_gestor');
+    expect(nomes[14]).toBe('0015_promotor');
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
       '0012_search_path_pg_temp', '0013_catalogo_vendedor_prevenda',
     ]);
-    expect(nomes).toContain('0015_promotor');
     expect(migracoes.map((m) => m.versao)).toEqual(migracoes.map((_, i) => String(i + 1).padStart(4, '0')));
   });
 
@@ -109,7 +113,7 @@ describe('migrações (estático)', () => {
   });
 
   const criadas = tabelasCriadas();
-  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029, na T-0032 e na T-0056', () => {
+  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029, na T-0032, na T-0055 e na T-0056', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
@@ -123,6 +127,7 @@ describe('migrações (estático)', () => {
         'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
         ...TABELAS_INTEGRACAO,
         ...TABELAS_0013,
+        ...TABELAS_GESTOR,
         ...TABELAS_PROMOTOR,
       ].sort(),
     );

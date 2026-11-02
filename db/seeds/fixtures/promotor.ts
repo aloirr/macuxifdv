@@ -3,7 +3,7 @@
  * mudança lá ser mínima (import + tabelas no fim de ORDEM_TABELAS + dados).
  *
  * - Linha de A e de B em TODA tabela do schema (os testes de vazamento exigem), UUIDs `aaaaaaaa-`/`bbbbbbbb-` nos grupos
- *   0x70–0x83 (sem colidir com os de dois-tenants.ts).
+ *   0x84–0x97 (sem colidir com os de dois-tenants.ts nem com os do Gestor, 0x70–0x73 em ./gestor.ts).
  * - A (Manaus): a visita de loja do promotor ligada à visita do Core `promotorC1Hoje` (c1, hoje 15:00Z–15:30Z, sem GPS),
  *   fechada como `realizada`, com uma coleta de cada tipo dentro da janela da visita (RN-PRO-02) e os cadastros de trade
  *   vigentes (categoria Freios/Filtros, checklist com 1 etapa obrigatória, mix, meta de share 40%, concorrente, foto de
@@ -19,26 +19,26 @@ import { instante, somarDias } from '../../src/datas';
 import type { Linha } from '../../src/gravar';
 
 const G = {
-  categoria_gondola: 0x70,
-  checklist_loja: 0x71,
-  mix_obrigatorio: 0x72,
-  meta_share: 0x73,
-  concorrente: 0x74,
-  produto_concorrente: 0x75,
-  foto_referencia: 0x76,
-  tarefa_trade: 0x77,
-  ponto_extra_negociado: 0x78,
-  visita_loja: 0x79,
-  foto_coleta: 0x7a,
-  checklist_resposta: 0x7b,
-  gondola_registro: 0x7c,
-  medicao_share: 0x7d,
-  coleta_preco: 0x7e,
-  ruptura_item: 0x7f,
-  validade_item: 0x80,
-  ponto_extra: 0x81,
-  acao_concorrencia: 0x82,
-  tarefa_execucao: 0x83,
+  categoria_gondola: 0x84,
+  checklist_loja: 0x85,
+  mix_obrigatorio: 0x86,
+  meta_share: 0x87,
+  concorrente: 0x88,
+  produto_concorrente: 0x89,
+  foto_referencia: 0x8a,
+  tarefa_trade: 0x8b,
+  ponto_extra_negociado: 0x8c,
+  visita_loja: 0x8d,
+  foto_coleta: 0x8e,
+  checklist_resposta: 0x8f,
+  gondola_registro: 0x90,
+  medicao_share: 0x91,
+  coleta_preco: 0x92,
+  ruptura_item: 0x93,
+  validade_item: 0x94,
+  ponto_extra: 0x95,
+  acao_concorrencia: 0x96,
+  tarefa_execucao: 0x97,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);

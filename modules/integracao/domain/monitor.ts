@@ -47,6 +47,8 @@ export interface EntradaAlertas {
    * = nenhum.
    */
   retornosComItensDescartados24h?: readonly { pedido_uuid: string; produto_external_id: string }[];
+  /** ADR 0016: pedidos na fila que esperam um Conector mais novo (`pedidosAguardandoConector`). Opcional: ausente = nenhum. */
+  pedidosAguardandoConector?: { pedidos: readonly string[]; exigida: string | null };
 }
 
 const PESO = { critico: 0, atencao: 1, info: 2 } as const;
@@ -99,6 +101,12 @@ export function montarAlertasMonitor(e: EntradaAlertas): AlertaMonitor[] {
   const retidos = e.pedidos.retidos.length;
   if (retidos > 0) {
     novo({ codigo: 'pedido_retido_sem_mapeamento', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `${retidos} pedido${retidos > 1 ? 's' : ''} aprovado${retidos > 1 ? 's' : ''} retido${retidos > 1 ? 's' : ''} por falta de mapeamento (ex.: condição de pagamento). Cadastre em Integração ERP > Mapeamento; os pedidos seguem sozinhos.` });
+  }
+
+  const aguardando = e.pedidosAguardandoConector?.pedidos.length ?? 0;
+  if (aguardando > 0) {
+    const versao = e.pedidosAguardandoConector?.exigida ?? '1.3.0';
+    novo({ codigo: 'pedido_aguardando_conector', severidade: 'atencao', conector_id: null, entidade: null, mensagem: `${aguardando} pedido${aguardando > 1 ? 's' : ''} ${aguardando > 1 ? 'esperam' : 'espera'} o Conector ${versao} ou mais novo (venda por embalagem, acréscimo, frete FOB ou endereço de entrega). Nada se perdeu: atualize o Conector no servidor do cliente e ${aguardando > 1 ? 'os pedidos saem' : 'o pedido sai'} na próxima consulta.` });
   }
 
   const descartes = e.retornosComItensDescartados24h ?? [];

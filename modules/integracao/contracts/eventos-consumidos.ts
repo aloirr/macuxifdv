@@ -26,11 +26,26 @@ export const PedidoAprovadoConsumido = z.object({
         preco_unitario_cents: z.number().int().nonnegative(),
         desconto_cents: z.number().int().nonnegative(),
         total_cents: z.number().int().nonnegative(),
+        // ADR 0016 (opcionais): medida de venda, desconto e acréscimo por item
+        unidade: z.string().nullish(),
+        fator: z.number().int().positive().nullish(),
+        quantidade_venda: z.number().positive().nullish(),
+        preco_tabela_cents: z.number().int().nonnegative().nullish(),
+        preco_unitario_venda_cents: z.number().int().nonnegative().nullish(),
+        desconto_pct: z.number().nullish(),
+        acrescimo_pct: z.number().nullish(),
+        acrescimo_cents: z.number().int().nonnegative().nullish(),
       }),
     )
     .min(1),
   desconto_total_cents: z.number().int().nonnegative(),
   total_cents: z.number().int().nonnegative(),
+  // ADR 0016 (opcionais): o Zod do Hub (PedidoAprovadoParaFila) valida o formato; aqui só passam adiante
+  desconto_pct: z.number().nullish(),
+  acrescimo_pct: z.number().nullish(),
+  acrescimo_total_cents: z.number().int().nonnegative().nullish(),
+  frete: z.unknown().nullish(),
+  endereco_entrega: z.unknown().nullish(),
 });
 export type PedidoAprovadoConsumido = z.infer<typeof PedidoAprovadoConsumido>;
 

@@ -17,9 +17,8 @@
  * (`EXPO_PUBLIC_API_MODO=demo`, mock-api) segue o login fake da Fase M (`loginDemo`).
  */
 import { ehAparelhoBloqueado, entrarComSenha, tratarAparelhoBloqueado, type CamposLogin } from '@macuxi/core/app';
-import { MeusModulosRespostaSchema, RefreshRespostaSchema, type FakeUser, type Me } from '@macuxi/core/contracts';
+import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
-  criarMotorSync,
   ErroHttp,
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
@@ -27,10 +26,17 @@ import {
   type EtapaSync,
   type ModuloId,
   type MotorSync,
-  type ParametrosModulos,
   type Perfil,
   type VisaoShell,
 } from '@macuxi/platform-sdk';
+import {
+  criarAgendadorSync,
+  intervaloSyncAutoMs,
+  PARAMETRO_SYNC_AUTO,
+  type AgendadorSync,
+  type EstadoAgendadorSync,
+  type MotivoSync as MotivoAgendador,
+} from '@macuxi/ui/mobile';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
@@ -38,21 +44,33 @@ import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
+import { deveSincronizar, type MotivoSync } from '@/lib/carga';
+import { proximaEsperaFila } from '@/lib/fila-reenvio';
+import { observarFalhasDeSync, type FalhaSync } from '@/lib/diagnostico-sync';
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import { shellDaVariante, type ComponenteTela } from '@/lib/modulos';
 import { varianteAtual } from '@/lib/variante';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { enderecoSalvoValido, erroDaVerificacao, servidorEditavel } from '@/lib/endereco-do-build';
 import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
+import { CHAVE_LEASE, DONO_APP, leaseOcupado, type LeaseSync, type ResultadoSegundoPlano } from '@/lib/segundo-plano';
 import { testarServidor } from '@/lib/servidor';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
-import { ApiClient, errorMessage, HttpError } from '@/services/api';
+import { ApiClient, HttpError } from '@/services/api';
 import { armazenamentoDoUsuario } from '@/services/armazenamento';
 import { gravarTokens, lerTokens } from '@/services/credenciais';
-import { modoApi, perfilBuildAtual, platformDefaultApiUrl, uuid } from '@/services/device';
+import { modoApi, perfilBuildAtual, platformDefaultApiUrl } from '@/services/device';
+import { consultarModulosEfetivos, criarMotorDoUsuario, dispositivoId, trocarRefresh } from '@/services/motor-do-usuario';
+import {
+  desligarSyncEmSegundoPlano,
+  ligarSyncEmSegundoPlano,
+  lerUltimoSegundoPlano,
+  passadaEmSegundoPlano,
+  registrarAppAberto,
+} from '@/services/segundo-plano';
 import { keys, readJson, writeJson } from '@/services/storage';
-import { modoSync, transporteFaseM, transporteV1 } from '@/services/transporte';
-import { apagarFotosLocais, arquivosLocais } from '@/services/arquivos';
+import { apagarFotosLocais } from '@/services/arquivos';
+import { esquecerRegistroPush } from '@/services/push';
 
 /** Usuário da sessão no shell: o do login real (Core) ou o fictício da Fase M (`role`, `team_name`...). */
 export interface UsuarioSessao extends Partial<Omit<FakeUser, 'id' | 'name' | 'email'>> {
@@ -82,13 +100,11 @@ type SessaoGuardada = Omit<Sessao, 'token'> & { token?: string };
 
 /** Código da empresa lembrado no aparelho depois do primeiro login (doc 03, esclarecimentos). */
 const CHAVE_CODIGO_EMPRESA = 'fv:codigo_empresa';
-/** UUID do aparelho (gerado aqui, uma vez): bloqueio remoto de aparelho (RF-CORE-01). */
-const CHAVE_DISPOSITIVO = 'fv:dispositivo';
+/** T-0059: última falha da sincronização (etapa técnica e mensagem), só para o Diagnóstico do Perfil. */
+const CHAVE_FALHA_SYNC = 'fv:diagnostico:falha_sync';
 
-const RETENTAR_FILA_MS = 15_000;
 /** Fora do desenvolvimento só https (R-20261101-023742-alexandre). */
 const EXIGIR_HTTPS = !__DEV__;
-const SYNC_AUTOMATICO_MS = 15 * 60_000;
 
 export function usuarioDaFaseM(u: FakeUser): UsuarioSessao & FakeUser {
   return { ...u, perfil: perfilDaFaseM(u.role) };
@@ -122,6 +138,17 @@ function usePlataformaValor() {
   /** RN-CORE-15: aviso de aparelho bloqueado (dados apagados) que fica visível na tela de login. */
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
   const aparelhoBloqueadoRef = useRef<((erro: unknown) => Promise<boolean>) | null>(null);
+  /** T-0059: sincronização do shell em curso (inclui a consulta dos módulos antes do motor) e quando começou. */
+  const syncEmCursoRef = useRef<Promise<boolean> | null>(null);
+  const ultimoInicioRef = useRef<number | null>(null);
+  /** Abriu o app com sessão e carga gravada: vai direto ao Início e sincroniza em segundo plano (R-20261102-091336). */
+  const sincronizarAoAbrirRef = useRef(false);
+  const [falhaSync, setFalhaSync] = useState<FalhaSync | null>(null);
+  /** ADR 0017: última execução da tarefa em segundo plano (Diagnóstico do Perfil). */
+  const [segundoPlano, setSegundoPlano] = useState<ResultadoSegundoPlano | null>(null);
+  /** RN-CORE-23: agendador único do app (abrir, voltar depois de 30 min, `sync_auto_min`, push, puxar/botão). */
+  const [agendador, setAgendador] = useState<AgendadorSync | null>(null);
+  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({ puxando: false, recente: false });
 
   const api = useCallback(
     () =>
@@ -168,20 +195,16 @@ function usePlataformaValor() {
   );
 
   const abrirMotor = useCallback(
-    async (s: Sessao) => {
-      const m = criarMotorSync({
-        registro: shell.registroSync,
-        armazenamento: armazenamentoDoUsuario(s.user.id),
-        transporte: modoSync(modo) === 'v1' ? transporteV1(api) : transporteFaseM(api),
+    async (s: Sessao, opcoes: { abertura?: boolean } = {}) => {
+      const m = criarMotorDoUsuario({
+        usuarioId: s.user.id,
+        shell,
+        modo,
+        api,
         online: () => !offlineRef.current,
         ambiente,
         // `GET /v1/me` é do mock-api; na API real o perfil e o tenant vêm do login
-        etapas: modo === 'demo' ? [etapaMe, ...shell.etapasSync] : shell.etapasSync,
-        mensagemDeErro: errorMessage,
-        // ADR 0010 §4: bytes das fotos da fila de arquivos (o transporte v1 faz o PUT /v1/arquivos/:id)
-        arquivos: arquivosLocais(),
-        // ADR 0012: `ambiente.consultar` (ex.: preço do Catálogo para o Vendedor, offline) sobre as linhas locais do dono
-        consultas: shell.consultas,
+        etapasExtras: modo === 'demo' ? [etapaMe] : [],
       });
       await m.carregar();
       setMe(await m.armazenamentoDoModulo('core').ler<Me>('me'));
@@ -189,8 +212,21 @@ function usePlataformaValor() {
       // T-0034: sem resposta de /me/modulos guardada, na API real só o Core (nenhuma aba sem licença)
       setModulosAtivos(ativos.length > 0 ? ativos : efetivosSemServidor(modo, s.user.perfil));
       desassinarRef.current?.();
-      desassinarRef.current = m.assinar((e) => setModulosAtivos(e.modulosAtivos.length > 0 ? e.modulosAtivos : ['core']));
+      const semModulos = m.assinar((e) => setModulosAtivos(e.modulosAtivos.length > 0 ? e.modulosAtivos : ['core']));
+      // T-0059: o detalhe técnico da falha vai para o log e para o Diagnóstico do Perfil, nunca para a tela de carga
+      const semFalhas = m.assinar(
+        observarFalhasDeSync((f) => {
+          console.warn(`[sync] parou${f.etapa ? ` em ${f.etapa}` : ''}: ${f.mensagem}`);
+          setFalhaSync(f);
+          void writeJson(CHAVE_FALHA_SYNC, f);
+        }),
+      );
+      desassinarRef.current = () => {
+        semModulos();
+        semFalhas();
+      };
       motorRef.current = m;
+      sincronizarAoAbrirRef.current = Boolean(opcoes.abertura && m.estado().sincronizado_em);
       setMotor(m);
     },
     [shell, api, ambiente, etapaMe, modo],
@@ -199,15 +235,19 @@ function usePlataformaValor() {
   useEffect(() => {
     let vivo = true;
     (async () => {
-      const [settings, guardada, off, tokens, codigo] = await Promise.all([
+      const [settings, guardada, off, tokens, codigo, falha, ultimoSegundoPlano] = await Promise.all([
         readJson<{ apiUrl?: string | null }>(keys.settings),
         readJson<SessaoGuardada>(keys.session),
         readJson<boolean>(keys.offline),
         lerTokens(),
         readJson<string>(CHAVE_CODIGO_EMPRESA),
+        readJson<FalhaSync>(CHAVE_FALHA_SYNC),
+        lerUltimoSegundoPlano(),
       ]);
       if (!vivo) return;
       setCodigoSalvo(codigo);
+      setFalhaSync(falha);
+      setSegundoPlano(ultimoSegundoPlano);
       // sessão de outro modo (build demo x real) não vale; a sessão antiga da demo trazia o token junto
       const token = tokens?.access ?? (modo === 'demo' ? guardada?.token : undefined);
       const sess: Sessao | null = guardada && token && (guardada.modo ?? 'demo') === modo ? { ...guardada, token, modo } : null;
@@ -222,7 +262,7 @@ function usePlataformaValor() {
       if (sess) {
         sessaoRef.current = sess;
         setSessao(sess);
-        await abrirMotor(sess);
+        await abrirMotor(sess, { abertura: true });
       }
       if (vivo) setReady(true);
     })();
@@ -236,31 +276,67 @@ function usePlataformaValor() {
     const m = motorRef.current;
     const s = sessaoRef.current;
     if (!m || !s) return;
-    let efetivos: ModuloId[];
-    // T-0029 E3: os parâmetros do tenant vêm na mesma resposta e ficam guardados (valem offline; somem com o módulo)
-    let parametros: ParametrosModulos | undefined;
-    try {
-      const r = MeusModulosRespostaSchema.parse((await api().request<unknown>('GET', '/me/modulos')).data);
-      efetivos = r.modulos.map((m) => m.id);
-      parametros = Object.fromEntries(r.modulos.map((m) => [m.id, m.parametros ?? {}])) as ParametrosModulos;
-    } catch (e) {
-      // só o mock-api da demonstração não tem /me/modulos; na API real o erro sobe e vale a última resposta guardada
-      if (modo !== 'demo' || !(e instanceof HttpError) || e.status !== 404) throw e;
-      efetivos = efetivosSemServidor(modo, s.user.perfil);
-    }
+    // T-0029 E3: os parâmetros do tenant vêm na mesma resposta e ficam guardados (valem offline; somem com o módulo).
+    // Só o mock-api da demonstração não tem /me/modulos; na API real o erro sobe e vale a última resposta guardada.
+    const { efetivos, parametros } = await consultarModulosEfetivos(api(), modo, s.user.perfil);
     await m.aplicarModulosAtivos(efetivos, parametros);
   }, [api, modo]);
 
-  const sincronizar = useCallback(async (): Promise<boolean> => {
+  /**
+   * Sincronização completa. Uma por vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem
+   * consultar os módulos de novo nem reiniciar a carga. Telas navegam pelo ESTADO do motor, não por esta promessa.
+   */
+  const executarSync = useCallback((leve: { entidades?: readonly string[] } | null): Promise<boolean> => {
     const m = motorRef.current;
-    if (!m || offlineRef.current) return m ? m.sincronizar() : false;
-    try {
-      await atualizarModulos();
-    } catch {
-      // sem rede: o motor registra o erro na sincronização abaixo
-    }
-    return m.sincronizar();
-  }, [atualizarModulos]);
+    if (!m) return Promise.resolve(false);
+    if (syncEmCursoRef.current) return syncEmCursoRef.current;
+    ultimoInicioRef.current = Date.now();
+    const p: Promise<boolean> = (async () => {
+      // ADR 0017: a tarefa em segundo plano está sincronizando com outro motor (app reaberto durante a tarefa): espera
+      // ela terminar e relê o que ela gravou; sem a passada neste processo, o lease vence em 2 min e a próxima segue
+      const s = sessaoRef.current;
+      if (s) {
+        const lease = await armazenamentoDoUsuario(s.user.id).ler<LeaseSync>(CHAVE_LEASE);
+        if (leaseOcupado(lease, DONO_APP, Date.now())) {
+          const tarefa = passadaEmSegundoPlano();
+          if (!tarefa) return false;
+          await tarefa.catch(() => undefined);
+          if (motorRef.current !== m) return false;
+          await m.carregar();
+        }
+      }
+      if (offlineRef.current) return m.sincronizar();
+      // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)
+      // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
+      if (leve && modo === 'v1') return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
+      try {
+        await atualizarModulos();
+      } catch {
+        // sem rede: o motor registra o erro na sincronização abaixo
+      }
+      return m.sincronizar();
+    })().finally(() => {
+      if (syncEmCursoRef.current === p) syncEmCursoRef.current = null;
+    });
+    syncEmCursoRef.current = p;
+    return p;
+  }, [atualizarModulos, modo]);
+
+  /** Sincronização completa (botão Sincronizar, puxar para baixo, tela de carga): envia a fila e puxa na hora. */
+  const sincronizar = useCallback((): Promise<boolean> => executarSync(null), [executarSync]);
+
+  /** Sincroniza só se faz sentido agora (`deveSincronizar`): não reinicia a carga em andamento nem a que acabou de terminar. */
+  const sincronizarSeNecessario = useCallback(
+    (motivo: MotivoSync): Promise<boolean> | null => {
+      const m = motorRef.current;
+      if (!m) return null;
+      // sem sinal: só a tela de carga tenta (o motor registra o erro e a tela oferece desligar o modo sem sinal)
+      if (offlineRef.current && motivo !== 'tela-carga') return null;
+      const ok = deveSincronizar(motivo, { estado: m.estado(), emCurso: syncEmCursoRef.current !== null, ultimoInicio: ultimoInicioRef.current, agora: Date.now() });
+      return ok ? sincronizar() : syncEmCursoRef.current;
+    },
+    [sincronizar],
+  );
 
   const enviarFila = useCallback((opcoes: { incluirFalhos?: boolean } = {}) => motorRef.current?.enviar(opcoes) ?? Promise.resolve([]), []);
 
@@ -307,15 +383,6 @@ function usePlataformaValor() {
     [abrirSessao, garantirServidorMacuxi],
   );
 
-  const dispositivoId = useCallback(async () => {
-    let id = await readJson<string>(CHAVE_DISPOSITIVO);
-    if (!id) {
-      id = uuid();
-      await writeJson(CHAVE_DISPOSITIVO, id);
-    }
-    return id;
-  }, []);
-
   /**
    * Login real (RF-CORE-01). Erros saem no contrato do SDK (`ErroHttp`/`ErroSemConexao`) para a `TelaLogin` do Core
    * mostrar a mensagem certa. Perfil de outro app: encerra a sessão recém-criada e lança `PERFIL_FORA_DO_APP`.
@@ -351,15 +418,22 @@ function usePlataformaValor() {
       const user: UsuarioSessao = { id: r.usuario.id, name: r.usuario.nome, email: r.usuario.email, perfil: r.usuario.perfil };
       await abrirSessao({ token: r.access_token, user, tenant: r.tenant, modo: 'v1' }, r.refresh_token);
     },
-    [abrirSessao, dispositivoId, garantirServidorMacuxi, variante],
+    [abrirSessao, garantirServidorMacuxi, variante],
   );
 
   /** Fecha a sessão em memória (motor, usuário, módulos); quem chama cuida dos tokens e do disco. */
   const fecharSessaoLocal = useCallback(() => {
     desassinarRef.current?.();
     desassinarRef.current = null;
+    syncEmCursoRef.current = null;
+    ultimoInicioRef.current = null;
+    sincronizarAoAbrirRef.current = false;
+    const usuarioId = sessaoRef.current?.user.id;
+    if (usuarioId) void esquecerRegistroPush(usuarioId);
     sessaoRef.current = null;
     motorRef.current = null;
+    // ADR 0017: sem sessão (logout ou aparelho bloqueado), nada roda em segundo plano
+    void desligarSyncEmSegundoPlano();
     setSessao(null);
     setMotor(null);
     setMe(null);
@@ -410,20 +484,16 @@ function usePlataformaValor() {
   renovarRef.current = () => {
     renovando.current ??= (async () => {
       try {
-        const t = await lerTokens();
-        if (!t?.refresh || !sessaoRef.current) return null;
-        const dispositivo_id = await dispositivoId();
-        const r = RefreshRespostaSchema.parse(
-          (await new ApiClient(apiUrlRef.current, null).request<unknown>('POST', '/auth/refresh', { body: { refresh_token: t.refresh, dispositivo_id } })).data,
-        );
-        await gravarTokens({ access: r.access_token, refresh: r.refresh_token });
+        if (!sessaoRef.current) return null;
+        const access = await trocarRefresh(apiUrlRef.current);
+        if (!access) return null;
         const atual = sessaoRef.current;
         if (atual) {
-          const nova = { ...atual, token: r.access_token };
+          const nova = { ...atual, token: access };
           sessaoRef.current = nova;
           setSessao(nova);
         }
-        return r.access_token;
+        return access;
       } catch (e) {
         // RN-CORE-15: aparelho bloqueado no refresh — a limpeza já fecha a sessão
         if (await aparelhoBloqueadoRef.current?.(e).catch(() => false)) return null;
@@ -470,27 +540,124 @@ function usePlataformaValor() {
     [enviarFila, sincronizar],
   );
 
-  // ---------- segundo plano: fila a cada 15 s; sync completo a cada 15 min e ao voltar ao app ----------
+  // ---------- RN-CORE-23: agendador único do app (nenhum timer de consulta abaixo de 15 min) ----------
   useEffect(() => {
     if (!motor) return;
-    const retry = setInterval(() => {
-      if (!offlineRef.current && motor.estado().fila.some((i) => i.situacao === 'pendente')) void motor.enviar();
-    }, RETENTAR_FILA_MS);
-    const auto = setInterval(() => {
-      if (!offlineRef.current && AppState.currentState === 'active') void sincronizar();
-    }, SYNC_AUTOMATICO_MS);
+    const m = motor;
+    const ag = criarAgendadorSync({
+      intervaloMs: () => intervaloSyncAutoMs(m.parametros('core')[PARAMETRO_SYNC_AUTO]),
+      sincronizar: (motivo: MotivoAgendador, entidades?: readonly string[]) =>
+        motivo === 'manual' ? executarSync(null) : executarSync(entidades ? { entidades } : {}),
+      ultimaSincronizacao: () => {
+        const em = m.estado().sincronizado_em;
+        const ms = em ? Date.parse(em) : NaN;
+        return Number.isFinite(ms) ? ms : null;
+      },
+      // automática só depois da carga inicial (antes dela, quem sincroniza é a tela de carga), com sessão e sinal
+      podeSincronizar: () => !offlineRef.current && sessaoRef.current !== null && motorRef.current === m && m.estado().sincronizado_em !== null,
+      // abriu o app já com carga: o Início aparece na hora e a atualização leve roda sem prender a tela (R-20261102-091336)
+      sincronizarAoAbrir: sincronizarAoAbrirRef.current,
+      aoMudar: setEstadoAgendador,
+    });
+    sincronizarAoAbrirRef.current = false;
+    setAgendador(ag);
+    if (AppState.currentState === 'active') ag.primeiroPlano();
+    // sincronização feita por fora (tela de carga, tarefa do ADR 0017, tela de módulo): o próximo disparo conta dela
+    let ultimoSync = m.estado().sincronizado_em;
+    const semEstado = m.assinar((e) => {
+      if (e.sincronizado_em === ultimoSync) return;
+      ultimoSync = e.sincronizado_em;
+      ag.reprogramar();
+    });
+
+    // RN-CORE-23 item 2 (exceção à regra dos 15 min): reenvio da FILA só com item pendente, espera crescente, sem pull
+    let tentativasFila = 0;
+    let timerFila: ReturnType<typeof setTimeout> | null = null;
+    const pendente = () => m.estado().fila.some((i) => i.situacao === 'pendente') || m.estado().arquivos.some((a) => a.situacao === 'pendente');
+    const armarFila = () => {
+      if (timerFila !== null) clearTimeout(timerFila);
+      timerFila = null;
+      if (!pendente() || AppState.currentState !== 'active') return;
+      timerFila = setTimeout(() => {
+        timerFila = null;
+        if (offlineRef.current || m.estado().sincronizando || m.estado().enviando) {
+          armarFila();
+          return;
+        }
+        tentativasFila++;
+        void m
+          .enviar()
+          .catch(() => undefined)
+          .finally(() => {
+            if (!pendente()) tentativasFila = 0;
+            armarFila();
+          });
+      }, proximaEsperaFila(tentativasFila));
+    };
+    let tinhaPendente = pendente();
+    const semFila = m.assinar(() => {
+      const agora = pendente();
+      if (agora && !tinhaPendente) {
+        // item novo na fila: recomeça a espera curta
+        tentativasFila = 0;
+        armarFila();
+      }
+      if (!agora) tentativasFila = 0;
+      tinhaPendente = agora;
+    });
+    armarFila();
+
     const sub = AppState.addEventListener('change', (st) => {
-      if (st !== 'active' || offlineRef.current) return;
-      void motor.enviar();
-      const ultimo = motor.estado().sincronizado_em;
-      if (!ultimo || Date.now() - Date.parse(ultimo) > SYNC_AUTOMATICO_MS) void sincronizar();
+      if (st === 'active') {
+        // voltou ao app: envia a fila na hora (não consulta nada) e o agendador decide a verificação (30 min)
+        if (!offlineRef.current && !m.estado().sincronizando) void m.enviar().catch(() => undefined);
+        tentativasFila = 0;
+        armarFila();
+        ag.primeiroPlano();
+      } else {
+        ag.segundoPlano();
+        if (timerFila !== null) clearTimeout(timerFila);
+        timerFila = null;
+      }
     });
     return () => {
-      clearInterval(retry);
-      clearInterval(auto);
+      ag.parar();
+      semEstado();
+      semFila();
       sub.remove();
+      if (timerFila !== null) clearTimeout(timerFila);
+      setAgendador((atual) => (atual === ag ? null : atual));
     };
-  }, [motor, sincronizar]);
+  }, [motor, executarSync]);
+
+  // ---------- ADR 0017: sincronização incremental em segundo plano (expo-background-task) ----------
+  useEffect(() => {
+    if (!motor) return;
+    // com o app vivo neste processo, a tarefa usa ESTE motor (mesma promessa de `sincronizar`, nada em paralelo)
+    const semApp = registrarAppAberto(
+      {
+        sincronizadoEm: () => motor.estado().sincronizado_em,
+        prepararSessao: async () => 'ok',
+        // ADR 0018 item 8: a passada é a atualização leve (novidades), como a automática do app
+        sincronizar: () => executarSync({}),
+        erro: () => motor.estado().erro,
+      },
+      setSegundoPlano,
+    );
+    // a tarefa só é agendada depois da carga inicial (antes dela, a carga roda só com o app aberto)
+    let ligada = false;
+    const ligar = (sincronizadoEm: string | null) => {
+      if (ligada || !sincronizadoEm) return;
+      ligada = true;
+      void ligarSyncEmSegundoPlano();
+    };
+    ligar(motor.estado().sincronizado_em);
+    const semEstado = motor.assinar((e) => ligar(e.sincronizado_em));
+    return () => {
+      semApp();
+      semEstado();
+    };
+  }, [motor, executarSync]);
 
   const perfil = sessao?.user.perfil ?? null;
   const visao: VisaoShell<ComponenteTela> = useMemo(() => shell.montar({ perfil, modulosAtivos }), [shell, perfil, modulosAtivos]);
@@ -524,6 +691,11 @@ function usePlataformaValor() {
     testApiUrl,
     setOffline,
     sincronizar,
+    sincronizarSeNecessario,
+    agendador,
+    estadoAgendador,
+    falhaSync,
+    segundoPlano,
     enviarFila,
   };
 }

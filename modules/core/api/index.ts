@@ -19,8 +19,12 @@ import { rotasDeDispositivos } from './dispositivos';
 import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
 import { consultaCadastroCliente, consultaCadastroResumo } from './consultas';
 import { consumidorPushNotificacao } from './consumidores';
+import { consumidoresDoErp } from './consumidores-erp';
+import { consumidoresDePedido } from './consumidores-pedido';
+import { consumidorMetaDefinida } from './consumidores-sistema';
 import { rotasDeLicencas } from './licencas';
 import { rotasDeMetas } from './metas';
+import { rotasDeProdutos } from './produtos';
 import { rotasDeRotasEVisitas } from './rotas';
 import { provedoresSyncCore } from './sync';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
@@ -31,9 +35,9 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
   const auth = criarAutenticacao(deps);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeNotificacoes],
+    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeProdutos, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
-    consumidores: [consumidorPushNotificacao],
+    consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorMetaDefinida, ...consumidoresDoErp],
     consultas: [consultaCadastroResumo, consultaCadastroCliente],
     rotasPublicas: [
       {
@@ -63,7 +67,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
     ],
     servicos: {
       autenticar: (cabecalhos, banco) => auth.autenticar(cabecalhos, banco),
-      carteira: (usuario, banco) => carteiraDoUsuario(usuario, banco),
+      carteira: (usuario, banco, opcoes) => carteiraDoUsuario(usuario, banco, opcoes),
       usuariosVisiveis: (usuario, banco) => usuariosVisiveisDoUsuario(usuario, banco),
     },
   });

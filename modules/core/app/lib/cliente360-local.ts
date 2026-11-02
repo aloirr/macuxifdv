@@ -105,6 +105,8 @@ export interface ItemClienteLocal extends ClienteLista {
   bloqueado: boolean;
   vencidos_qtd: number;
   dias_sem_compra: number | null;
+  /** RN-CORE-16/17: vem do pull do cliente; linha antiga sem o campo = completo. */
+  cadastro_incompleto: boolean;
 }
 
 export interface BaseLocal {
@@ -129,6 +131,7 @@ export function listarClientesLocais(base: BaseLocal, hoje: string, filtro: Filt
       cidade: c.cidade,
       segmento: c.segmento,
       uf: c.uf,
+      cadastro_incompleto: c.cadastro_incompleto ?? false,
       bloqueado: financeiroPorCliente.get(c.id)?.bloqueado ?? false,
       vencidos_qtd: (titulosPorCliente.get(c.id) ?? []).filter((t) => situacaoTitulo(t, hoje).situacao === 'vencido').length,
       dias_sem_compra: resumoCompras(historicoPorCliente.get(c.id) ?? [], hoje).dias_sem_compra,

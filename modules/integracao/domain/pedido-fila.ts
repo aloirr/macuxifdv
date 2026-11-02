@@ -20,6 +20,7 @@ import {
 import { aplicarTimeoutEnvio, chaveNotaRetorno, podeEntrarNaFila, transicionarRetornoPedidoErp, type NotaChave } from './estados';
 import { hashRegistro } from './idempotencia';
 import { PARAMETROS_PADRAO } from './parametros';
+import { conectorAtendePedido, exigeConector } from './pedido-versao';
 
 export type Mapeamento = Pick<MapeamentoContrato, 'tipo' | 'codigo_erp' | 'codigo_macuxi' | 'ativo'>;
 
@@ -94,6 +95,12 @@ export function montarPedidoParaErp(origem: PedidoAprovadoParaFila, mapeamentos:
       desconto_total_cents: origem.desconto_total_cents,
       total_cents: origem.total_cents,
       tentativa: 1,
+      // ADR 0016: só entram no payload quando o Vendedor os enviou (pedido antigo segue idêntico, e o hash também)
+      ...(origem.desconto_pct != null ? { desconto_pct: origem.desconto_pct } : {}),
+      ...(origem.acrescimo_pct != null ? { acrescimo_pct: origem.acrescimo_pct } : {}),
+      ...(origem.acrescimo_total_cents != null ? { acrescimo_total_cents: origem.acrescimo_total_cents } : {}),
+      ...(origem.frete != null ? { frete: origem.frete } : {}),
+      ...(origem.endereco_entrega != null ? { endereco_entrega: origem.endereco_entrega } : {}),
     },
   };
 }
@@ -159,10 +166,12 @@ export interface SelecaoPendentes {
 }
 
 /** Pendentes (e `enviado` vencido) por ordem de aprovação, até o limite da consulta; cada entrega conta uma tentativa. */
-export function selecionarPendentes(fila: readonly PedidoNaFila[], agora: string, opcoes: { limite?: number; timeoutMin?: number } = {}): SelecaoPendentes {
+export function selecionarPendentes(fila: readonly PedidoNaFila[], agora: string, opcoes: { limite?: number; timeoutMin?: number; versaoConector?: string | null } = {}): SelecaoPendentes {
   const limite = opcoes.limite ?? PARAMETROS_PADRAO.pedidosPorConsulta;
   const candidatos = fila
     .filter((p): p is PedidoNaFila & { payload: PedidoParaErp } => p.removido_em === null && p.payload !== null && (p.retencao_codigo ?? null) === null && (p.estado === 'pendente' || p.estado === 'enviado'))
+    // ADR 0016: pedido com recurso novo só sai para Conector que o entende (os outros seguem; sem `versaoConector` não filtra)
+    .filter((p) => opcoes.versaoConector === undefined || conectorAtendePedido(opcoes.versaoConector, exigeConector(p.payload)))
     .map((p) => ({ p, t: aplicarTimeoutEnvio({ estado: p.estado, enviado_em: p.enviado_em, tentativas: p.tentativas }, agora, { timeoutMin: opcoes.timeoutMin }) }))
     .filter((x) => x.t.estado === 'pendente')
     .sort((a, b) => Date.parse(a.p.payload.aprovado_em) - Date.parse(b.p.payload.aprovado_em) || (a.p.pedido_uuid < b.p.pedido_uuid ? -1 : a.p.pedido_uuid > b.p.pedido_uuid ? 1 : 0))

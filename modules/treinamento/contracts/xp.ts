@@ -6,7 +6,8 @@ import { InstanteUtc, IsoDate, Pontos, Uuid } from './base';
 export const OrigemXpContrato = z.enum(ORIGENS_XP);
 export type OrigemXpContrato = z.infer<typeof OrigemXpContrato>;
 
-export const LancamentoXp = z
+/** Campos do lançamento (sem as checagens cruzadas), base da linha do pull `xp_lancamento`. */
+export const LancamentoXpCampos = z
   .object({
     /** UUID gerado no aparelho (ou pelo servidor, nos lançamentos derivados de evento): reenvio não duplica. */
     id: Uuid,
@@ -24,9 +25,20 @@ export const LancamentoXp = z
     /** Data civil no fuso do tenant. */
     dia: IsoDate,
   })
-  .strict()
-  .superRefine((l, ctx) => {
-    if (l.pontos > l.pontos_base) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['pontos'], message: 'Os pontos concedidos não podem passar dos pontos base.' });
-    if (l.limitado_pelo_teto !== l.pontos < l.pontos_base) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['limitado_pelo_teto'], message: 'O indicador de teto precisa bater com os pontos concedidos.' });
-  });
+  .strict();
+
+export const LancamentoXp = LancamentoXpCampos.superRefine((l, ctx) => {
+  if (l.pontos > l.pontos_base)
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['pontos'],
+      message: 'Os pontos concedidos não podem passar dos pontos base.',
+    });
+  if (l.limitado_pelo_teto !== l.pontos < l.pontos_base)
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['limitado_pelo_teto'],
+      message: 'O indicador de teto precisa bater com os pontos concedidos.',
+    });
+});
 export type LancamentoXp = z.infer<typeof LancamentoXp>;

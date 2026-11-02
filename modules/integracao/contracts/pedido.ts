@@ -10,15 +10,79 @@ export const ESTADOS_PEDIDO_ERP = ['pendente', 'enviado', 'integrado', 'rejeitad
 export const EstadoPedidoErp = z.enum(ESTADOS_PEDIDO_ERP);
 export type EstadoPedidoErp = z.infer<typeof EstadoPedidoErp>;
 
+const PercentualOpcional = z.number().min(0).max(100).nullish();
+
 export const ItemPedidoErp = z.object({
   sequencia: z.number().int().positive(),
   produto_external_id: ExternalId,
+  /** SEMPRE na unidade base (ADR 0016): `quantidade = quantidade_venda x fator` quando a venda é por embalagem. */
   quantidade: Quantidade.refine((q) => q > 0, 'quantidade deve ser maior que zero'),
   preco_unitario_cents: CentavosNaoNegativos,
   desconto_cents: CentavosNaoNegativos.default(0),
   total_cents: CentavosNaoNegativos,
+  // ---- ADR 0016 (opcionais; o Conector 1.2.x ignora): medida de venda, desconto/acréscimo
+  /** Sigla da medida vendida (RN-CORE-19), ex.: CX. */
+  unidade: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,6}$/).nullish(),
+  /** Unidades base de uma unidade vendida (1 na medida da unidade). */
+  fator: z.number().int().positive().nullish(),
+  /** Quantidade na medida vendida. */
+  quantidade_venda: Quantidade.refine((q) => q > 0, 'quantidade deve ser maior que zero').nullish(),
+  preco_tabela_cents: CentavosNaoNegativos.nullish(),
+  preco_unitario_venda_cents: CentavosNaoNegativos.nullish(),
+  desconto_pct: PercentualOpcional,
+  acrescimo_pct: PercentualOpcional,
+  acrescimo_cents: CentavosNaoNegativos.nullish(),
 });
 export type ItemPedidoErp = z.infer<typeof ItemPedidoErp>;
+
+/** Transportadora do frete FOB (ADR 0016, emenda 1; formato do doc 06). Cadastrada leva o retrato do aceite; digitada exige nome e CNPJ. */
+export const TransportadoraPedido = z.discriminatedUnion('tipo', [
+  z.object({
+    tipo: z.literal('cadastrada'),
+    id: Uuid,
+    external_id: z.string().nullish(),
+    nome: Texto(120),
+    cnpj: z.string().trim().regex(/^\d{14}$/, 'CNPJ deve ter 14 dígitos').nullish(),
+    telefone: TextoOpcional(30),
+  }),
+  z.object({
+    tipo: z.literal('digitada'),
+    nome: Texto(120),
+    cnpj: z.string().trim().regex(/^\d{14}$/, 'CNPJ deve ter 14 dígitos'),
+    telefone: TextoOpcional(30),
+  }),
+]);
+export type TransportadoraPedido = z.infer<typeof TransportadoraPedido>;
+
+/** CIF = a empresa paga (sem transportadora); FOB = o cliente paga, transportadora obrigatória. Sem valor de frete (RN-VEN-16). */
+export const FreteErp = z.discriminatedUnion('modalidade', [
+  z.object({ modalidade: z.literal('CIF') }),
+  z.object({ modalidade: z.literal('FOB'), transportadora: TransportadoraPedido }),
+]);
+export type FreteErp = z.infer<typeof FreteErp>;
+
+export const EnderecoEntregaErp = z.object({
+  external_id: z.string().nullish(),
+  logradouro: Texto(160),
+  numero: TextoOpcional(20),
+  complemento: TextoOpcional(80),
+  bairro: TextoOpcional(80),
+  cidade: Texto(80),
+  uf: z.string().trim().length(2).toUpperCase(),
+  cep: TextoOpcional(9),
+  /** O endereço principal do cadastro do cliente; o ERP já o assume, então não exige Conector novo. */
+  principal: z.boolean().nullish(),
+});
+export type EnderecoEntregaErp = z.infer<typeof EnderecoEntregaErp>;
+
+/** Campos opcionais do pedido (ADR 0016), comuns ao que o Vendedor publica e ao que o Conector recebe. */
+const CamposPedidoAmpliado = {
+  desconto_pct: PercentualOpcional,
+  acrescimo_pct: PercentualOpcional,
+  acrescimo_total_cents: CentavosNaoNegativos.nullish(),
+  frete: FreteErp.nullish(),
+  endereco_entrega: EnderecoEntregaErp.nullish(),
+};
 
 /** Pedido aprovado entregue ao Conector; idempotente pelo `pedido_uuid` (RN-INT-08). */
 export const PedidoParaErp = z.object({
@@ -36,6 +100,7 @@ export const PedidoParaErp = z.object({
   total_cents: CentavosNaoNegativos,
   /** Quantas vezes já foi entregue ao Conector (reenvio por timeout). */
   tentativa: z.number().int().positive().default(1),
+  ...CamposPedidoAmpliado,
 });
 export type PedidoParaErp = z.infer<typeof PedidoParaErp>;
 
@@ -147,5 +212,6 @@ export const PedidoAprovadoParaFila = z.object({
   itens: z.array(ItemPedidoErp).min(1, 'pedido sem itens'),
   desconto_total_cents: CentavosNaoNegativos.default(0),
   total_cents: CentavosNaoNegativos,
+  ...CamposPedidoAmpliado,
 });
 export type PedidoAprovadoParaFila = z.infer<typeof PedidoAprovadoParaFila>;

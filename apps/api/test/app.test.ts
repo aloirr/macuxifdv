@@ -241,7 +241,7 @@ describe('GET /v1/me/modulos (contrato do Core)', () => {
     expect(r.statusCode).toBe(200);
     const corpo = MeusModulosRespostaSchema.parse(r.json());
     expect(corpo.modulos.map((m) => m.id)).toEqual(['core', 'catalogo', 'vendedor']);
-    expect(corpo.modulos[0]!.parametros).toEqual({ raio_checkin_m: 150 });
+    expect(corpo.modulos[0]!.parametros).toEqual({ raio_checkin_m: 150, sync_auto_min: 30 }); // RN-CORE-23: padrão da plataforma
     const outra = MeusModulosRespostaSchema.parse((await app.inject({ method: 'GET', url: '/v1/me/modulos', headers: cab('promotor') })).json());
     expect(outra.versao_licencas).not.toBe(corpo.versao_licencas);
   });
