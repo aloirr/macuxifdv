@@ -42,6 +42,12 @@ function espera(ctx: Contexto, tentativas: number): number {
   return ctx.relogio.agora() + calcularEspera(tentativas, { baseMs: f.backoffBaseSegundos * 1000, maxMs: f.backoffMaxSegundos * 1000 }, ctx.aleatorio);
 }
 
+/** Espera de um retorno que o Hub não recebeu: backoff, nunca antes do `Retry-After` pedido pelo Hub (RN-INT-12, T-0048). */
+function esperaHub(ctx: Contexto, tentativas: number, erro: unknown): number {
+  const pedida = erro instanceof ErroHubTransitorio && erro.retryAfterMs ? ctx.relogio.agora() + erro.retryAfterMs : 0;
+  return Math.max(espera(ctx, tentativas), pedida);
+}
+
 /** Um ciclo completo: buscar → gravar → acompanhar status → enviar retornos. */
 export async function cicloPedidos(ctx: Contexto, partes: { buscar?: boolean; status?: boolean } = { buscar: true, status: true }): Promise<ResultadoPedidos> {
   const cfg = ctx.config.pedidos;
@@ -351,7 +357,7 @@ export async function enviarRetornos(ctx: Contexto, r: ResultadoPedidos = novoRe
         // Hub fora ou 426 (versão abaixo da mínima, T-0027): o retorno espera na fila local; nunca vira "recusado"
         tratarRecusaPorVersao(ctx, e, 'enviar_retorno');
         const t = ret.tentativas + 1;
-        store.atualizarRetorno(ret.id, { tentativas: t, proximaMs: espera(ctx, t), erro: resumoErro(e) });
+        store.atualizarRetorno(ret.id, { tentativas: t, proximaMs: esperaHub(ctx, t, e), erro: resumoErro(e) });
         r.erro = resumoErro(e);
         return r; // Hub fora: os demais também falhariam
       }

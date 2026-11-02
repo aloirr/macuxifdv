@@ -36,9 +36,13 @@ export interface ResultadoFila {
 
 const FINAIS_BONS = new Set(['concluido', 'concluido_com_erros']);
 
-function proximaTentativa(ctx: Contexto, tentativas: number): number {
+/** Próxima tentativa: backoff exponencial da fila, nunca antes do `Retry-After` do Hub (RN-INT-12, T-0048). */
+export function proximaTentativa(ctx: Contexto, tentativas: number, erro?: unknown): number {
   const f = ctx.config.fila;
-  return ctx.relogio.agora() + calcularEspera(tentativas, { baseMs: f.backoffBaseSegundos * 1000, maxMs: f.backoffMaxSegundos * 1000 }, ctx.aleatorio);
+  const agora = ctx.relogio.agora();
+  const backoff = agora + calcularEspera(tentativas, { baseMs: f.backoffBaseSegundos * 1000, maxMs: f.backoffMaxSegundos * 1000 }, ctx.aleatorio);
+  const pedida = erro instanceof ErroHubTransitorio && erro.retryAfterMs ? agora + erro.retryAfterMs : 0;
+  return Math.max(backoff, pedida);
 }
 
 export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
@@ -83,7 +87,7 @@ export async function processarFila(ctx: Contexto): Promise<ResultadoFila> {
       }
       if (e instanceof ErroHubTransitorio) {
         const t = lote.tentativas + 1;
-        store.atualizarLote(lote.id, { tentativas: t, proximaMs: proximaTentativa(ctx, t), erro: resumoErro(e) }, ctx.relogio.agora());
+        store.atualizarLote(lote.id, { tentativas: t, proximaMs: proximaTentativa(ctx, t, e), erro: resumoErro(e) }, ctx.relogio.agora());
         r.adiados++;
         ctx.log.aviso('envio_adiado', { entidade: lote.entidade, lote_local: lote.id, tentativas: t, erro: resumoErro(e) });
         r.interrompido ??= resumoErro(e);

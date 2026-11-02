@@ -37,7 +37,11 @@ export async function comRetry<T>(fn: (tentativa: number) => Promise<T>, o: Opco
       return await fn(t);
     } catch (e) {
       if (t >= o.tentativas || (o.transitorio && !o.transitorio(e))) throw e;
-      const ms = Math.max(calcularEspera(t, o, o.aleatorio), Math.min(o.maxMs, o.esperaMinima?.(e) ?? 0));
+      // RN-INT-12 (T-0048): espera pedida acima do teto não é encurtada (o servidor voltaria a ser chamado antes do prazo que
+      // pediu). Relança na hora; quem chamou agenda a próxima tentativa com a espera do erro.
+      const minima = o.esperaMinima?.(e) ?? 0;
+      if (minima > o.maxMs) throw e;
+      const ms = Math.max(calcularEspera(t, o, o.aleatorio), minima);
       o.aoFalhar?.(e, t, ms);
       await espera(ms);
     }
