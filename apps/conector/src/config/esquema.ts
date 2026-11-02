@@ -191,8 +191,11 @@ export const ConfigConector = z
       .object({
         maxLinhas: z.number().int().positive().max(LIMITE_REGISTROS_LOTE).default(LIMITE_REGISTROS_LOTE),
         maxBytes: z.number().int().min(10_000).default(4 * 1024 * 1024),
-        /** Linhas inválidas informadas ao Hub por lote (com o motivo); as que passarem disso só entram na contagem. */
-        maxLinhasInvalidas: z.number().int().min(0).max(LIMITE_REGISTROS_LOTE).default(LIMITE_LINHAS_INVALIDAS_PADRAO),
+        /**
+         * Linhas inválidas informadas ao Hub por lote (com o motivo); as que passarem disso só entram na contagem. Até [500]
+         * (RN-INT-03 emenda, T-0048): é o que o Hub detalha por entidade e lote; acima disso ele só contaria.
+         */
+        maxLinhasInvalidas: z.number().int().min(0).max(LIMITE_LINHAS_INVALIDAS_PADRAO).default(LIMITE_LINHAS_INVALIDAS_PADRAO),
       })
       .strict()
       .default({}),
