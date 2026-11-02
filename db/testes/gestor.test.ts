@@ -1,10 +1,10 @@
 /**
  * Schema gestor (0014, T-0055; pedido R-20261102-131601-modulo-gestor). Estático (sempre) + banco (com Postgres):
- *  - listas fechadas do SQL = contratos do Gestor; função de expurgo SECURITY DEFINER só ao worker, pg_temp por último;
+ *  - listas fechadas do SQL = contratos do Gestor; nenhuma função SECURITY DEFINER nova nem grant ao worker;
  *  - RLS entre os dois tenants da fixture (leitura, escrita cruzada) nas 4 tabelas;
  *  - unicidade/idempotência que o domain exige: evento_id por tenant, fato por (tabela, chave), UM alerta vivo por chave,
  *    um ajuste por tipo; coerência do encerramento;
- *  - retenção da idempotência pelo worker; seed da demo (licença + projeção pelo domain) idempotente.
+ *  - retenção da idempotência pela API sob RLS (só o próprio tenant); seed da demo (licença + projeção pelo domain) idempotente.
  * Linha do tempo única (ADR 0015): o relógio do teste (@macuxi/comum/relogio) para o "hoje" da demo e o relógio do
  * BANCO (relogioDoBanco) para comparar com created_at gravado por now(). Nenhuma hora fixa contra o relógio real.
  */
@@ -57,12 +57,11 @@ describe('0014 gestor (estático)', () => {
     expect(m14.up).toContain('constraint alerta_regra_tipo_uk unique (tenant_id, tipo)');
   });
 
-  it('expurgo: SECURITY DEFINER com pg_temp por último, só EXECUTE ao macuxi_worker; down remove função e schema', () => {
-    expect(m14.up).toMatch(/create function gestor\.expurgar_eventos_aplicados\([^)]*\)[\s\S]*?security definer\s+set search_path = pg_catalog, gestor, pg_temp/);
-    expect(m14.up).toContain('revoke all on function gestor.expurgar_eventos_aplicados(timestamptz, integer, integer) from public;');
-    expect(m14.up).toContain('grant execute on function gestor.expurgar_eventos_aplicados(timestamptz, integer, integer) to macuxi_worker;');
-    expect(m14.up).not.toMatch(/grant [^;]* on gestor\.[a-z_]+ to macuxi_worker/);
-    expect(m14.down).toContain('drop function if exists gestor.expurgar_eventos_aplicados(timestamptz, integer, integer);');
+  it('sem função SECURITY DEFINER nova nem grant ao macuxi_worker (retenção pela API sob RLS); down remove o schema', () => {
+    const semComentarios = m14.up.replace(/--.*$/gm, '');
+    expect(semComentarios).not.toMatch(/security definer/i);
+    expect(semComentarios).not.toMatch(/macuxi_worker/);
+    expect(m14.up).toContain('create index evento_aplicado_retencao_ix on gestor.evento_aplicado (tenant_id, created_at);');
     expect(m14.down).toContain('drop schema if exists gestor cascade;');
   });
 
@@ -226,11 +225,7 @@ describe.skipIf(semBanco())('0014 gestor no banco (papel de aplicação)', () =>
     });
   });
 
-  it('retenção: só o macuxi_worker expurga evento_aplicado mais velho que p_dias (relógio do banco)', async () => {
-    const execApp = await emTransacao(app, A.tenantId, () => erroDe(app.query('select gestor.expurgar_eventos_aplicados(now(), 120, 10)')));
-    expect(execApp?.code).toBe('42501');
-    const urlWorker = banco().urlWorker;
-    if (!urlWorker) return; // sem senha do worker o papel fica NOLOGIN (fora do local); a permissão já foi conferida acima
+  it('retenção: a API apaga, sob RLS, só o evento_aplicado do PRÓPRIO tenant mais velho que 120 dias (relógio do banco)', async () => {
     await comCliente(banco().urlAdmin, async (admin) => {
       const relogio = await relogioDoBanco(admin);
       const velho = relogio.relativo({ dias: -200 }).toISOString();
@@ -238,17 +233,22 @@ describe.skipIf(semBanco())('0014 gestor no banco (papel de aplicação)', () =>
         `insert into gestor.evento_aplicado (tenant_id, evento_id, nome, ocorrido_em, created_at, updated_at) values
            ($1, 'evt-velho-a', 'core.visita.checkin@1', $3, $3, $3), ($2, 'evt-velho-b', 'core.visita.checkin@1', $3, $3, $3)`,
         [A.tenantId, B.tenantId, velho]);
-      await comCliente(urlWorker, async (w) => {
-        const r = await w.query<{ n: string }>('select gestor.expurgar_eventos_aplicados($1::timestamptz, 120, 1000) as n', [relogio.iso()]);
-        expect(Number(r.rows[0]!.n)).toBeGreaterThanOrEqual(2);
-        expect(await erroDe(w.query('select count(*) from gestor.evento_aplicado'))).toMatchObject({ code: '42501' });
-        expect(await erroDe(w.query('select gestor.expurgar_eventos_aplicados($1::timestamptz, 7, 10)', [relogio.iso()]))).toMatchObject({ code: 'P0001' });
-      });
-      const resta = await admin.query("select evento_id from gestor.evento_aplicado where evento_id in ('evt-velho-a', 'evt-velho-b')");
-      expect(resta.rowCount).toBe(0);
-      // a linha da fixture (created_at = now() da carga) fica
-      const fixture = await admin.query('select 1 from gestor.evento_aplicado where id = any($1::uuid[])', [[idGestorA('evento_aplicado', 1), idGestorB('evento_aplicado', 1)]]);
-      expect(fixture.rowCount).toBe(2);
+      try {
+        // como a API fará na transação do tenant A (macuxi_app, RLS): limite = agora do banco − 120 dias
+        await app.query('begin');
+        await app.query("select set_config('app.tenant_id', $1, true)", [A.tenantId]);
+        const r = await app.query("delete from gestor.evento_aplicado where created_at < $1::timestamptz - interval '120 days' returning evento_id", [relogio.iso()]);
+        await app.query('commit');
+        expect(r.rows.map((x) => x.evento_id)).toEqual(['evt-velho-a']);
+        // o velho de B não foi tocado (RLS) e as linhas recentes da fixture ficam
+        const resta = await admin.query("select evento_id from gestor.evento_aplicado where evento_id in ('evt-velho-a', 'evt-velho-b')");
+        expect(resta.rows.map((x) => x.evento_id)).toEqual(['evt-velho-b']);
+        const fixture = await admin.query('select 1 from gestor.evento_aplicado where id = any($1::uuid[])', [[idGestorA('evento_aplicado', 1), idGestorB('evento_aplicado', 1)]]);
+        expect(fixture.rowCount).toBe(2);
+      } finally {
+        await app.query('rollback').catch(() => undefined);
+        await admin.query("delete from gestor.evento_aplicado where evento_id in ('evt-velho-a', 'evt-velho-b')");
+      }
     });
   });
 });

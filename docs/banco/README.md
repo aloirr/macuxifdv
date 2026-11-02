@@ -14,8 +14,8 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-01 (T-0032):** `0010_integracao` (schema `integracao` do Hub: 17 tabelas, `autenticar_chave`, `expurgar_retencao`)
 > e `0011_plataforma_outbox_retencao` (expurgo da outbox + comentário de legado em `tenant_modulo.parametros`); dicionário
 > [integracao.md](integracao.md); fixture com Conector, chave (HMAC com `PEPPER_HUB_FIXTURE`) e linhas de A e B em toda tabela nova.
-> **2026-11-02 (T-0055, nuvem):** `0014_gestor` (schema `gestor`: `evento_aplicado`, `projecao_fato`, `alerta`, `alerta_regra`
-> e `expurgar_eventos_aplicados` do worker); dicionário [gestor.md](gestor.md); fixture com linhas de A e B nas 4 tabelas;
+> **2026-11-02 (T-0055, nuvem):** `0014_gestor` (schema `gestor`: `evento_aplicado`, `projecao_fato`, `alerta`, `alerta_regra`;
+> retenção pela API sob RLS, sem função SECURITY DEFINER); dicionário [gestor.md](gestor.md); fixture com linhas de A e B nas 4 tabelas;
 > seed da demo do Gestor em `db/seeds/demo/gestor.ts` (licença + projeção). **Depende da `0013` (Catálogo) na pasta** (o
 > executor recusa buraco na numeração).
 

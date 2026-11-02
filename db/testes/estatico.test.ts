@@ -166,8 +166,6 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'usage on schema integracao',
       'execute on function integracao.expurgar_retencao(timestamptz, integer)',
       'execute on function plataforma.expurgar_outbox(timestamptz, integer)',
-      'usage on schema gestor',
-      'execute on function gestor.expurgar_eventos_aplicados(timestamptz, integer, integer)',
     ]);
   });
 
@@ -552,8 +550,8 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
       expect(m12.up).toContain(`alter function ${f} set search_path = pg_catalog, ${schema}, pg_temp;`);
       expect(m12.down).toContain(`alter function ${f} set search_path = pg_catalog, ${schema};`);
     }
-    // toda função SECURITY DEFINER criada até a 0012 está na lista (nova função = pg_temp já no create: 0014 em gestor.test.ts)
-    const definers = migracoes.filter((m) => m.versao <= '0012').flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)].map((x) => x[1]));
+    // toda função SECURITY DEFINER criada até aqui está na lista (nova função = pg_temp já no create)
+    const definers = migracoes.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)].map((x) => x[1]));
     expect(definers.sort()).toEqual(funcoes.map(([f]) => f.slice(0, f.indexOf('('))).sort());
   });
 

@@ -12,7 +12,8 @@ Seed da demo: `db/seeds/demo/gestor.ts`. Fixture dois-tenants: `db/seeds/fixture
 Campos comuns (`id`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id`), RLS forçado (`isolamento_tenant`
 por `plataforma.tenant_atual()`), gatilho de `updated_at`, índice `(tenant_id, updated_at, id)` e `external_id` único por
 tenant em todas as 4 tabelas, como em [plataforma.md](plataforma.md). Grants: `macuxi_app` select/insert/update/delete nas 4;
-`macuxi_worker` só `usage` no schema e `execute` em `gestor.expurgar_eventos_aplicados`.
+**nenhum** grant ao `macuxi_worker` e **nenhuma** função SECURITY DEFINER (o teste de conformidade de `tests/` só aceita as
+funções revisadas).
 **Nada vai ao aparelho por sync de tabela**: o app Gestão lê `/v1/gestor` e guarda o cache do módulo (`mod:gestor:`).
 **Fronteira**: nenhuma FK para outro schema (`alvo_id`, `responsavel_id`, `usuario_id` são ids dos contratos).
 
@@ -27,9 +28,10 @@ tenant em todas as 4 tabelas, como em [plataforma.md](plataforma.md). Grants: `m
 
 ### `evento_aplicado`
 `evento_id text` (envelope do platform-sdk; não vazio), `nome text` (formato `<modulo>.<entidade>.<fato>@vN`),
-`ocorrido_em timestamptz`. Retenção: 120 dias (`gestor.expurgar_eventos_aplicados(p_agora, p_dias = 120, p_limite = 5000)`,
-SECURITY DEFINER, `search_path = pg_catalog, gestor, pg_temp`, só `macuxi_worker`, `p_dias >= 30`); as chaves de negócio da
-projeção protegem a reentrega tardia depois do expurgo.
+`ocorrido_em timestamptz`. Retenção: 120 dias, feita pela **API do Gestor na transação do tenant** (RLS):
+`delete from gestor.evento_aplicado where created_at < $agora - interval '120 days'` (índice `evento_aplicado_retencao_ix`;
+`$agora` = `ctx.agora()`), por exemplo no fim de `aplicar` ou num job diário. As chaves de negócio da projeção protegem a
+reentrega tardia depois do expurgo. Expurgo de todos os tenants pelo worker, se preciso, vem em migração própria com revisão.
 
 ### `projecao_fato`
 | Coluna | Tipo | Conteúdo |

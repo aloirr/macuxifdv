@@ -9,9 +9,10 @@
 --   alerta_regra     — `AjustesRegras` (ajuste parcial por tipo de alerta, BKO `alerta_regra.gerenciar`).
 -- Nada do schema gestor vai ao aparelho por sync de tabela: o app Gestão lê a API /v1/gestor e guarda o cache do módulo
 -- (docs/modulos/gestor/api-e-telas.md §4). O índice de sync existe pela regra 5 (conformidade), não por pull.
--- Retenção: gestor.expurgar_eventos_aplicados(p_agora, p_dias, p_limite) — SECURITY DEFINER, só macuxi_worker (como
--- integracao.expurgar_retencao e plataforma.expurgar_outbox): apaga evento_aplicado mais velho que p_dias (padrão 120);
--- as chaves de negócio da projeção continuam protegendo a reentrega tardia.
+-- Retenção (120 dias) SEM função SECURITY DEFINER nova: a API do Gestor apaga, na transação do tenant (RLS), o
+-- evento_aplicado mais velho que 120 dias (`delete ... where created_at < $agora - interval '120 days'`, índice
+-- evento_aplicado_retencao_ix); as chaves de negócio da projeção continuam protegendo a reentrega tardia. Um expurgo
+-- de todos os tenants pelo macuxi_worker, se preciso, vem em migração própria com revisão (lista de funções revisadas).
 -- Listas fechadas (check) = contratos do Gestor (TIPOS_ALERTA, SEVERIDADES, ALVOS_ALERTA, STATUS_ALERTA,
 -- MOTIVOS_ENCERRAMENTO e as tabelas do EstadoProjecao), conferidas em db/testes/gestor.test.ts.
 -- FRONTEIRA: nenhuma FK para core/vendedor/promotor (alvo_id, responsavel_id, usuario_id são ids dos contratos).
@@ -21,8 +22,6 @@
 
 create schema gestor;
 grant usage on schema gestor to macuxi_app;
--- o worker só chama gestor.expurgar_eventos_aplicados (nenhum grant de tabela)
-grant usage on schema gestor to macuxi_worker;
 
 -- ---------------------------------------------------------------------------------------------
 -- evento_aplicado — idempotência do consumidor por `evento_id` (envelope do platform-sdk). Inserir com
@@ -170,34 +169,3 @@ create policy isolamento_tenant on gestor.alerta_regra for all to macuxi_app
   using (tenant_id = plataforma.tenant_atual())
   with check (tenant_id = plataforma.tenant_atual());
 grant select, insert, update, delete on gestor.alerta_regra to macuxi_app;
-
--- ---------------------------------------------------------------------------------------------
--- expurgar_eventos_aplicados — retenção da idempotência (pedido: 120 dias), chamada pelo worker (agendamento do
--- engenheiro-software, mesmo worker do despacho, ADR 0007) em blocos de até p_limite linhas por tenant. Devolve o total
--- apagado. SECURITY DEFINER (todos os tenants), search_path fixo com pg_temp por último (0012), só macuxi_worker.
-create function gestor.expurgar_eventos_aplicados(p_agora timestamptz default now(), p_dias integer default 120, p_limite integer default 5000)
-  returns bigint
-  language plpgsql volatile security definer
-  set search_path = pg_catalog, gestor, pg_temp
-  as $$
-declare
-  t record;
-  n bigint;
-  total bigint := 0;
-begin
-  if p_agora is null or p_dias is null or p_dias < 30 or p_limite is null or p_limite < 1 then
-    raise exception 'expurgar_eventos_aplicados: p_agora obrigatório, p_dias >= 30 e p_limite >= 1';
-  end if;
-  for t in select distinct x.tenant_id from gestor.evento_aplicado x order by x.tenant_id loop
-    delete from gestor.evento_aplicado e
-     where e.id in (select x.id from gestor.evento_aplicado x
-                     where x.tenant_id = t.tenant_id and x.created_at < p_agora - make_interval(days => p_dias)
-                     order by x.created_at limit p_limite);
-    get diagnostics n = row_count;
-    total := total + n;
-  end loop;
-  return total;
-end
-$$;
-revoke all on function gestor.expurgar_eventos_aplicados(timestamptz, integer, integer) from public;
-grant execute on function gestor.expurgar_eventos_aplicados(timestamptz, integer, integer) to macuxi_worker;

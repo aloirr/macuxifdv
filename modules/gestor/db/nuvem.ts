@@ -3,7 +3,7 @@
  * db/migrations/0014_gestor.up.sql (T-0055), para uso INTERNO do módulo Gestor (modules/gestor/api, fábrica SQL do
  * `RepositorioGestor`). Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
- * A fonte da verdade é o SQL versionado (índices, CHECKs, RLS, grants e a função de expurgo ficam lá). Sem FK para
+ * A fonte da verdade é o SQL versionado (índices, CHECKs, RLS e grants ficam lá). Sem FK para
  * outros schemas: alvo_id, responsavel_id, usuario_id e atualizado_por_id são ids dos contratos.
  * Listas fechadas = contratos do Gestor (TIPOS_ALERTA, SEVERIDADES, ALVOS_ALERTA, STATUS_ALERTA, MOTIVOS_ENCERRAMENTO) e
  * as tabelas do EstadoProjecao (TABELAS_PROJECAO); os CHECKs do SQL são comparados com elas em db/testes/gestor.test.ts.
