@@ -11,6 +11,8 @@ import {
   escopoDosVisiveis,
   fichaDoMembro,
   membrosDoCadastro,
+  reconciliarParaViewer,
+  usuariosDaProjecao,
   visaoDaEquipe,
 } from './visao';
 
@@ -67,6 +69,11 @@ describe('escopo pela plataforma (RN-CORE-04)', () => {
       { id: VENDEDOR, nome: 'Vera', perfil: 'vendedor', superior_id: SUPERVISOR, ativo: true },
       { id: PROMOTOR, nome: 'Paula', perfil: 'promotor', superior_id: SUPERVISOR, ativo: true },
     ]);
+  });
+
+  it('RN-GES-07: na leitura do tenant os usuários vêm dos fatos da projeção (pedido, visita), sem repetir', () => {
+    expect(usuariosDaProjecao(estado)).toEqual([VENDEDOR, VEND_3].sort());
+    expect(usuariosDaProjecao(estadoInicial())).toEqual([]);
   });
 
   it('a data da consulta é o dia civil no fuso do tenant; data informada vale como está', () => {
@@ -209,5 +216,23 @@ describe('alertas no escopo e dispensa (RF-GES-07)', () => {
     expect(r).toEqual({ ok: true, ajustes: { fotos_sem_gps: { ativa: false }, ruptura_recorrente: { limiar: 4 } } });
     expect(ajustarRegraAlerta({}, 'ruptura_recorrente', { limiar: -1 })).toMatchObject({ ok: false });
     expect(ajustarRegraAlerta({}, 'ruptura_recorrente', { tipo: 'x' })).toMatchObject({ ok: false });
+  });
+
+  it('RN-GES-01 / RN-GES-03: cliente_sem_visita e pedido_aguardando_aprovacao só ligam ou desligam (limite vem dos parâmetros)', () => {
+    expect(ajustarRegraAlerta({}, 'cliente_sem_visita', { limiar: 10 })).toMatchObject({ ok: false, erros: [expect.stringMatching(/RN-GES-01/)] });
+    expect(ajustarRegraAlerta({}, 'pedido_aguardando_aprovacao', { ativa: false })).toMatchObject({ ok: true });
+  });
+
+  it('RN-CORE-03: sem o Promotor, os alertas de trade não aparecem nem são encerrados por quem consulta', () => {
+    const t = { tipo: 'tenant' as const };
+    expect(alertasDoEscopo(lista, t, { modulos: new Set(['core', 'vendedor']) })).toEqual([]);
+    const ops = reconciliarParaViewer([alerta(1, VENDEDOR)], { estado: estadoInicial(), membros: MEMBROS, agora: AGORA, modulos: new Set(['core']), ajustes: {} });
+    expect(ops).toEqual({ abrir: [], atualizar: [], encerrar: [] });
+  });
+
+  it('RF-GES-07: com o Promotor ativo, alerta cuja condição sumiu é encerrado; regra desligada encerra como regra_inativa', () => {
+    const base = { estado: estadoInicial(), membros: MEMBROS, agora: AGORA, modulos: TODOS };
+    expect(reconciliarParaViewer([alerta(1, VENDEDOR)], { ...base, ajustes: {} }).encerrar).toEqual([{ id: u(801), motivo: 'condicao_normalizada', encerrado_em: AGORA }]);
+    expect(reconciliarParaViewer([alerta(1, VENDEDOR)], { ...base, ajustes: { visita_curta: { ativa: false } } }).encerrar).toEqual([{ id: u(801), motivo: 'regra_inativa', encerrado_em: AGORA }]);
   });
 });

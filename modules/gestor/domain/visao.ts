@@ -5,6 +5,7 @@
  */
 import { PERFIS } from '@macuxi/platform-sdk';
 import { AjusteRegraAlerta, type AjustesRegras, type Alerta, type FichaMembro, type MembroComPainel, type MembroEquipe, type StatusAlerta, type TipoAlerta, type VisaoEquipe } from '../contracts';
+import { avaliarAlertas, MODULO_DO_ALERTA, reconciliarAlertas, resolverRegras, tiposAtivos, type OperacoesAlerta } from './alertas';
 import { equipesAbaixo, podeVer, resumirEquipe, type EscopoGestor } from './equipe';
 import { diaLocal, montarPainelDia } from './painel';
 import { compararTexto } from './numeros';
@@ -68,7 +69,7 @@ export interface EntradaVisao {
  * Árvore só com quem está no escopo, pendurada em quem consulta: quem perdeu o superior (fora do escopo ou fora do
  * cadastro) passa a responder direto ao viewer. Assim o resumo funciona igual para supervisor, gerente e tenant.
  */
-function arvoreDoEscopo(e: Pick<EntradaVisao, 'membros' | 'viewer' | 'escopo'>): MembroEquipe[] {
+export function equipeDoEscopo(e: Pick<EntradaVisao, 'membros' | 'viewer' | 'escopo'>): MembroEquipe[] {
   const dentro = e.membros.filter((m) => m.id !== e.viewer.id && podeVer(e.escopo, m.id));
   const ids = new Set(dentro.map((m) => m.id));
   const topo: MembroEquipe = e.membros.find((m) => m.id === e.viewer.id) ?? { id: e.viewer.id, nome: 'Gestor', perfil: e.viewer.perfil, superior_id: null, ativo: true };
@@ -78,7 +79,7 @@ function arvoreDoEscopo(e: Pick<EntradaVisao, 'membros' | 'viewer' | 'escopo'>):
 /** RF-GES-01: resumo, equipes abaixo (gerente) e painel do dia de cada vendedor/promotor ativo do escopo, por nome. */
 export function visaoDaEquipe(e: EntradaVisao): VisaoEquipe {
   const params = resolverParametros(e.params);
-  const arvore = arvoreDoEscopo(e);
+  const arvore = equipeDoEscopo(e);
   const campo = arvore.filter((m) => m.id !== e.viewer.id && m.ativo && DE_CAMPO.has(m.perfil));
   const membros: MembroComPainel[] = campo
     .map((m) => ({ membro: m, painel: montarPainelDia(e.estado, { id: m.id, perfil: m.perfil }, e.data, { params, modulos: e.modulos, agora: e.agora }) }))
@@ -98,7 +99,7 @@ export function fichaDoMembro(e: EntradaVisao & { usuario_id: string }): FichaMe
   const membro = e.membros.find((m) => m.id === e.usuario_id);
   if (!membro || membro.id === e.viewer.id || !DE_CAMPO.has(membro.perfil) || !podeVer(e.escopo, membro.id)) return null;
   const painel = montarPainelDia(e.estado, { id: membro.id, perfil: membro.perfil }, e.data, { params: resolverParametros(e.params), modulos: e.modulos, agora: e.agora });
-  const pedido_em_nome = disponibilidadePedidoEmNome({ autor: e.viewer, vendedor_id: membro.id, membros: arvoreDoEscopo(e), modulos: e.modulos });
+  const pedido_em_nome = disponibilidadePedidoEmNome({ autor: e.viewer, vendedor_id: membro.id, membros: equipeDoEscopo(e), modulos: e.modulos });
   return { membro, painel, pedido_em_nome };
 }
 
@@ -109,8 +110,9 @@ const ATIVOS: ReadonlySet<StatusAlerta> = new Set<StatusAlerta>(['aberto', 'disp
  * RN-CORE-04: alertas cujo responsável está no escopo (sem responsável = só o tenant vê). `status` filtra; `ativos`
  * devolve abertos e dispensados (o padrão da tela). Ordem: abertos primeiro, depois por abertura e id.
  */
-export function alertasDoEscopo(alertas: readonly Alerta[], escopo: EscopoGestor, f: { status?: StatusAlerta; ativos?: boolean }): Alerta[] {
+export function alertasDoEscopo(alertas: readonly Alerta[], escopo: EscopoGestor, f: { status?: StatusAlerta; ativos?: boolean; modulos?: ReadonlySet<string> }): Alerta[] {
   return alertas
+    .filter((a) => !f.modulos || doModulo(a.tipo, f.modulos))
     .filter((a) => (a.responsavel_id ? podeVer(escopo, a.responsavel_id) : escopo.tipo === 'tenant'))
     .filter((a) => (f.status ? a.status === f.status : f.ativos ? ATIVOS.has(a.status) : true))
     .sort((x, y) => Number(x.status !== 'aberto') - Number(y.status !== 'aberto') || compararTexto(x.aberto_em, y.aberto_em) || compararTexto(x.id, y.id));
@@ -133,5 +135,61 @@ export function dispensarAlerta(alerta: Alerta | null | undefined, escopo: Escop
 export function ajustarRegraAlerta(atuais: AjustesRegras, tipo: TipoAlerta, ajuste: unknown): { ok: true; ajustes: AjustesRegras } | { ok: false; erros: string[] } {
   const r = AjusteRegraAlerta.safeParse(ajuste);
   if (!r.success) return { ok: false, erros: r.error.issues.map((i) => `${i.path.join('.') || 'regra'}: ${i.message}`) };
-  return { ok: true, ajustes: { ...atuais, [tipo]: { ...(atuais[tipo] ?? {}), ...r.data } } };
+  const ajustes: AjustesRegras = { ...atuais, [tipo]: { ...(atuais[tipo] ?? {}), ...r.data } };
+  try {
+    resolverRegras(ajustes); // RN-GES-01/03: regras cujo limite vem dos parâmetros do tenant só ligam ou desligam
+  } catch (e) {
+    return { ok: false, erros: [(e as Error).message] };
+  }
+  return { ok: true, ajustes };
+}
+
+/** RN-CORE-03: tipo de alerta cujo módulo de origem está ativo para quem consulta (`core` sempre). */
+function doModulo(tipo: TipoAlerta, modulos: ReadonlySet<string>): boolean {
+  const m = MODULO_DO_ALERTA[tipo];
+  return m === 'core' || modulos.has(m);
+}
+
+/**
+ * RF-GES-07: avalia as condições agora e reconcilia com os alertas gravados, SÓ nos tipos cujo módulo está ativo para
+ * quem consulta (RN-CORE-03): um usuário sem o Promotor não encerra os alertas de trade que outro gestor vê.
+ * Regra desligada encerra (`regra_inativa`); dispensado não reabre enquanto a condição persistir.
+ */
+export function reconciliarParaViewer(
+  existentes: readonly Alerta[],
+  e: { estado: EstadoProjecao; membros: readonly MembroEquipe[]; agora: string; modulos: ReadonlySet<string>; ajustes: AjustesRegras; params?: Partial<ParametrosGestor> },
+): OperacoesAlerta {
+  const regras = resolverRegras(e.ajustes);
+  const condicoes = avaliarAlertas({ estado: e.estado, membros: e.membros, agora: e.agora, modulos: e.modulos, regras, params: e.params });
+  return reconciliarAlertas(
+    existentes.filter((a) => doModulo(a.tipo, e.modulos)),
+    condicoes,
+    { agora: e.agora, tipos_ativos: tiposAtivos(regras, e.modulos) },
+  );
+}
+
+const CAMPOS_USUARIO = ['usuario_id', 'vendedor_id', 'promotor_id', 'autor_id'] as const;
+
+/**
+ * RN-GES-07: ids de usuários que aparecem nos fatos da projeção (visitas, pedidos, aprovações, trade, pesquisa,
+ * treinamento, carteira). Na leitura do TENANT (analista/admin) a plataforma não lista usuários; o Gestor pede ao Core
+ * o cadastro destes ids. Ordenado e sem repetição.
+ */
+export function usuariosDaProjecao(estado: EstadoProjecao): string[] {
+  const ids = new Set<string>();
+  const olhar = (x: unknown): void => {
+    if (!x || typeof x !== 'object') return;
+    for (const c of CAMPOS_USUARIO) {
+      const v = (x as Record<string, unknown>)[c];
+      if (typeof v === 'string' && v.length > 0) ids.add(v);
+    }
+  };
+  for (const [nome, tabela] of Object.entries(estado)) {
+    if (nome === 'processados' || nome === 'carteira_pendente' || nome === 'entradas_carteira') continue;
+    for (const fato of Object.values(tabela as Record<string, unknown>)) {
+      olhar(fato);
+      if (fato && typeof fato === 'object') for (const parte of Object.values(fato as Record<string, unknown>)) olhar(parte);
+    }
+  }
+  return [...ids].sort();
 }
