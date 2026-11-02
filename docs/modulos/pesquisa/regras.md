@@ -157,9 +157,21 @@ Frequência por cliente em períodos civis (RN-PES-02) · "mostrar" em OU e "ocu
 6. **Checkout**: só há bloqueio no checkout (não no check-in).
 7. **Formato de código** que não é EAN/UPC: 3 a 48 caracteres sem espaço.
 
+## Regras acrescentadas na T-0057
+| Regra | Onde |
+|---|---|
+| RF-PES-04 / RN-PES-01/04: recebimento no servidor — idempotência, versão citada, perfil no público, validação completa e suspeita; monta o payload do evento sem o conteúdo | `recebimento.ts` (`receberResposta`) |
+| RF-PES-03 / RN-PES-02: pesquisas do aparelho a partir do pull, oferta da aba (só avulsas) e respostas conhecidas (pull + fila) | `oferta.ts` |
+| RN-CORE-04: escopo das respostas nos resultados e no pull do aparelho; resumo e filtros da lista do BKO | `bko.ts` |
+| RF-PES-06: CSV para Excel pt-BR (BOM, `;`, colunas por id estável, fórmula neutralizada) | `exportacao.ts` |
+| RF-PES-06: filtro de respostas exportado (`respostaDentroDoFiltro`) | `resultados.ts` |
+
+API, sync e telas: `api-e-telas.md`.
+
 ## Pendências
 - Limite de armazenamento de foto (bytes): definir com o app/storage (dimensões e qualidade já decididas, RN-PES-06).
-- API/app: gravar `recebida_em` no servidor e `suspeita` na resposta; usar `clienteFechadoNoContexto` no `concluida()` da etapa; chamar `consolidarEntreVersoes` na tela de resultados. Colunas novas (`suspeita`, `motivos_suspeita`, `largura_px`/`altura_px` da foto) vão ao banco-dados quando a API for feita.
+- Migração 0016 (schema `pesquisa`) e implementação SQL do `RepositorioPesquisa` (hoje em memória) — ver `api-e-telas.md`.
+- Equipe do usuário e universo do público (Core) para o público por equipe, o filtro por equipe e a taxa de resposta.
 - "Canal" volta ao público-alvo quando o Core tiver o campo (RN-PES-05).
 - Pesquisa que ofereça "Pesquisas" no Cliente 360 (`cliente.abas`) e o cartão na Gestão: telas e API, fora da T-0012.
 - Tabelas: banco-dados decide como gravar perguntas/opções/regras (o contrato aninha tudo na versão); o `sync` do manifesto pode ganhar `opcao`/`regra_condicional` se virarem tabelas próprias.

@@ -7,6 +7,7 @@
  * `horizonte` (`relogio() - margemHorizonteMs`), como a API real.
  */
 import type { ModuloId } from './nomes';
+import { codificarCursorNovidades, decodificarCursorNovidades, type NovidadesResposta } from './novidades';
 import type { TransporteSync } from './motor-sync';
 import type { ItemPush, LinhaSync, RegistroSync, ResultadoItemPush } from './sync';
 import {
@@ -45,7 +46,8 @@ export interface ServidorSyncSimulado extends TransporteSync {
   recebidos: Map<string, ItemPush>;
   /** Rejeição forçada por id (ex.: regra de negócio RN-VEN-...). */
   rejeitar: Map<string, { codigo: string; mensagem: string }>;
-  chamadas: { push: number; pull: number };
+  /** `novidades` só existe com `comNovidades` (os testes antigos comparam `{ push, pull }`). */
+  chamadas: { push: number; pull: number; novidades?: number };
   tamanhoPagina: number;
   /** `versao_escopo` devolvida em toda página da entidade (ausente = escopo sem versão). */
   versoesEscopo: Record<string, string>;
@@ -57,11 +59,23 @@ export interface ServidorSyncSimulado extends TransporteSync {
   relogio: (() => Date) | null;
   /** Margem do horizonte (padrão 2 s, como a API). */
   margemHorizonteMs: number;
+  /** Parâmetros do tenant por módulo devolvidos em `novidades().modulos` (como `GET /v1/me/modulos`). */
+  parametros: Partial<Record<ModuloId, Record<string, unknown>>>;
+}
+
+/** Hash curto (djb2, hex) só para o cursor simulado: o SDK roda no aparelho, sem `node:crypto`. */
+function hashCurto(texto: string): string {
+  let h = 5381;
+  for (let i = 0; i < texto.length; i++) h = ((h << 5) + h + texto.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
 }
 
 export function criarServidorSyncSimulado(
   registro: RegistroSync,
-  inicial: Partial<Pick<ServidorSyncSimulado, 'modulosAtivos' | 'linhas' | 'tamanhoPagina'>> = {},
+  inicial: Partial<Pick<ServidorSyncSimulado, 'modulosAtivos' | 'linhas' | 'tamanhoPagina'>> & {
+    /** RN-CORE-23 (ADR 0018): serve `novidades` como `GET /v1/sync/novidades` (exige `relogio` para o horizonte). */
+    comNovidades?: boolean;
+  } = {},
 ): ServidorSyncSimulado {
   const s: ServidorSyncSimulado = {
     online: true,
@@ -69,13 +83,14 @@ export function criarServidorSyncSimulado(
     linhas: inicial.linhas ?? {},
     recebidos: new Map(),
     rejeitar: new Map(),
-    chamadas: { push: 0, pull: 0 },
+    chamadas: inicial.comNovidades ? { push: 0, pull: 0, novidades: 0 } : { push: 0, pull: 0 },
     tamanhoPagina: inicial.tamanhoPagina ?? 1000,
     versoesEscopo: {},
     semProvedor: new Set(),
     semReceptor: new Set(),
     relogio: null,
     margemHorizonteMs: 2_000,
+    parametros: {},
     async push(itens) {
       s.chamadas.push++;
       if (!s.online) throw new ErroRedeSimulada();
@@ -115,5 +130,40 @@ export function criarServidorSyncSimulado(
       };
     },
   };
+  if (inicial.comNovidades) {
+    s.novidades = async (desde): Promise<NovidadesResposta> => {
+      s.chamadas.novidades = (s.chamadas.novidades ?? 0) + 1;
+      if (!s.online) throw new ErroRedeSimulada();
+      const horizonte = new Date((s.relogio?.() ?? new Date()).getTime() - s.margemHorizonteMs).toISOString();
+      const ativos = [...s.modulosAtivos].sort();
+      const licencas = hashCurto(JSON.stringify(ativos.map((m) => [m, s.parametros[m] ?? {}])));
+      const elegiveis = registro
+        .entidadesAtivas(s.modulosAtivos, 'pull')
+        .map((e) => e.nome)
+        .filter((e) => !s.semProvedor.has(e));
+      const escopo = hashCurto(JSON.stringify(elegiveis.map((e) => s.versoesEscopo[e] ?? '')));
+      const c = decodificarCursorNovidades(desde);
+      const modulosMudaram = !c || c.licencas !== licencas;
+      const todas = modulosMudaram || c.escopo !== escopo;
+      const limite = Date.parse(horizonte);
+      const entidades = todas
+        ? elegiveis
+        : elegiveis.filter((e) =>
+            (s.linhas[e] ?? []).some((l) => {
+              const t = Date.parse(l.updated_at);
+              return t >= Date.parse(c.horizonte) && t < limite;
+            }),
+          );
+      return {
+        entidades,
+        cursor: codificarCursorNovidades({ horizonte, licencas, escopo }),
+        horizonte,
+        modulos_mudaram: modulosMudaram,
+        ...(modulosMudaram
+          ? { modulos: { modulos: ativos.map((id) => ({ id, parametros: s.parametros[id] ?? {} })), versao_licencas: licencas } }
+          : {}),
+      };
+    };
+  }
   return s;
 }

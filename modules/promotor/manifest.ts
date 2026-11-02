@@ -19,7 +19,29 @@ export const manifest = defineModule({
   opcionais: ['catalogo', 'pesquisa', 'vendedor'],
   perfis: ['promotor', 'supervisor', 'gerente', 'analista', 'admin'],
   apps: { campo: { abas: ['Loja'] }, gestao: { abas: ['Trade'] }, web: { menus: ['Trade marketing'] } },
-  sync: ['checklist_loja', 'mix_obrigatorio', 'meta_share', 'concorrente', 'produto_concorrente', 'foto_referencia', 'tarefa_trade'],
+  // T-0056: cadastros de trade (pull, servidor vence) + coletas (push, offline-first); definições em contracts/entidades.ts
+  sync: [
+    'categoria_gondola',
+    'checklist_loja',
+    'mix_obrigatorio',
+    'meta_share',
+    'concorrente',
+    'produto_concorrente',
+    'foto_referencia',
+    'tarefa_trade',
+    'ponto_extra_negociado',
+    'visita_loja',
+    'foto_coleta',
+    'checklist_resposta',
+    'gondola_registro',
+    'medicao_share',
+    'coleta_preco',
+    'ruptura_item',
+    'validade_item',
+    'ponto_extra',
+    'acao_concorrencia',
+    'tarefa_execucao',
+  ],
   publica: [
     'promotor.visita_loja.concluida@1',
     'promotor.gondola.registrada@1',
@@ -30,6 +52,8 @@ export const manifest = defineModule({
   ],
   consome: ['core.visita.checkin@1', 'core.visita.checkout@1'],
   usaExtensoes: ['cliente.abas', 'visita.etapas_checkout', 'inicio.cards'],
+  // ADR 0012: nome da loja nos relatórios do BKO de trade (T-0056)
+  usaConsultas: ['core.cadastro_resumo@1'],
   acoes: {
     // --- coletas (app Macuxi Campo; só com check-in aberto, RN-PRO-02) ---
     'coleta.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Registrar a visita de loja e as fotos da coleta (RN-PRO-02)' },
