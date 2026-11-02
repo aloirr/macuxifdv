@@ -14,8 +14,9 @@ import { criarRepositorioMemoria, type RepositorioPromotor } from './repositorio
 import { criarRepositorioSql } from './repositorio-sql';
 import { criarRotasPromotor } from './rotas';
 import { provedoresSyncPromotor } from './sync';
+import { provedoresPullCadastros } from './sync-cadastros';
 
-export { criarRecebimento, criarRepositorioMemoria, criarRepositorioSql, criarRotasPromotor, provedoresSyncPromotor };
+export { criarRecebimento, criarRepositorioMemoria, criarRepositorioSql, criarRotasPromotor, provedoresPullCadastros, provedoresSyncPromotor };
 export type { RepositorioPromotor };
 export { periodoDoFiltro } from './rotas';
 export { PERFIS_RELATORIO } from '../contracts';
@@ -25,7 +26,7 @@ export { parametrosDoTenant } from './parametros';
 export function criarModuloApiPromotor(op: { repositorio: RepositorioPromotor | null }): ModuloApi {
   if (!op.repositorio) return definirModuloApi({ manifesto: manifest });
   const recebimento = criarRecebimento(op.repositorio);
-  return definirModuloApi({ manifesto: manifest, rotas: criarRotasPromotor(op.repositorio, recebimento), sync: provedoresSyncPromotor(recebimento) });
+  return definirModuloApi({ manifesto: manifest, rotas: criarRotasPromotor(op.repositorio, recebimento), sync: [...provedoresSyncPromotor(recebimento), ...provedoresPullCadastros] });
 }
 
 /** Repositório em memória com a data local do check-in no fuso do tenant (testes e desenvolvimento). */

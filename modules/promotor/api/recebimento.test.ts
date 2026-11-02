@@ -1,7 +1,7 @@
 import { criarRelogio } from '@macuxi/comum/relogio';
 import { SYNC_NAO_IMPLEMENTADO, type ItemPush, type ProvedorSync } from '@macuxi/platform-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ENTIDADES_COLETA, VisitaLoja } from '../contracts';
+import { ENTIDADES_CADASTRO, ENTIDADES_COLETA, ENTIDADES_PROMOTOR, VisitaLoja } from '../contracts';
 import { criarCtx, fabrica, LOJA_FORA, OUTRO_PROMOTOR, PROMOTOR, SUPERVISOR, T1, T2, uuid, type CtxTeste } from './apoio-teste';
 import { criarModuloApiPromotor, repositorioMemoria } from './index';
 
@@ -184,8 +184,13 @@ describe('push das coletas', () => {
     expect(await enviar(c2, 'visita_loja', v)).toMatchObject({ status: 'aceito' }); // mesmo id, outro tenant: registro independente
   });
 
-  it('RN-PRO-01: nenhuma entidade de push do Promotor é de pedido e todas têm provedor', () => {
-    expect(api.sync!.map((p) => p.entidade.nome).sort()).toEqual(Object.keys(ENTIDADES_COLETA).sort());
+  it('RN-PRO-01: nenhuma entidade de push do Promotor é de pedido e todas (push e pull) têm provedor', () => {
+    const push = api.sync!.filter((p) => p.receber).map((p) => p.entidade.nome);
+    expect(push.sort()).toEqual(Object.keys(ENTIDADES_COLETA).sort());
+    const pull = api.sync!.filter((p) => p.puxar).map((p) => p.entidade.nome);
+    expect(pull.sort()).toEqual(ENTIDADES_CADASTRO.map((e) => e.nome).sort());
+    expect(api.sync!.map((p) => p.entidade.nome).sort()).toEqual(ENTIDADES_PROMOTOR.map((e) => e.nome).sort());
+    // RN-PRO-01: o nome de entidade do Promotor não é de pedido (cadastro "ponto_extra_negociado" etc. não tem "pedido")
     for (const p of api.sync!) expect(p.entidade.nome).not.toMatch(/pedido/);
   });
 });
