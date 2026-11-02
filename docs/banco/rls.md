@@ -91,6 +91,10 @@ e `plataforma.auditoria`.
   `comTenant` com o tenant da chave. `integracao.expurgar_retencao` e `plataforma.expurgar_outbox` (0011) são `SECURITY DEFINER`
   com `execute` só ao `macuxi_worker` (que também ganha `usage` no schema `integracao`, sem nenhum grant de tabela). Dicionário:
   [integracao.md](integracao.md).
+- **`search_path` das SECURITY DEFINER** (0012, T-0042): as 4 (`tenant_por_codigo`, `autenticar_chave`, `expurgar_retencao`,
+  `expurgar_outbox`) usam `pg_catalog, <schema>, pg_temp` (pg_temp por último: o schema temporário da sessão não sombreia
+  nome do dono). Função SECURITY DEFINER nova nasce assim. Único índice único sem `tenant_id`: `integracao.credencial_hash_uk`
+  (exceção nominal com condição de validade em [integracao.md](integracao.md#credencial)).
 
 ## Testes que provam
 | ID | Onde |

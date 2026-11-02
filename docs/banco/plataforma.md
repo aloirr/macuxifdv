@@ -66,7 +66,7 @@ Acesso: `macuxi_app` pelo RLS do tenant; `macuxi_worker` (ADR 0007) lê todos os
 devolve `(item, quantidade)` para `evento` e `evento_consumo`. Por tenant, apaga os eventos **publicados** há mais de N dias
 (até `p_limite` por tenant por chamada) e os consumos deles na mesma transação; evento pendente (`publicado_em` nulo) nunca
 sai. N = parâmetro `plataforma.parametro` (`modulo = 'plataforma'`, `chave = 'outbox.retencao_dias'`, número de dias; sem
-linha = **30**; limitado a 7..365). `SECURITY DEFINER`, `search_path` fixo, `execute` só ao `macuxi_worker` (agendamento do
+linha = **30**; limitado a 7..365). `SECURITY DEFINER`, `search_path = pg_catalog, plataforma, pg_temp` (0012), `execute` só ao `macuxi_worker` (agendamento do
 engenheiro-software). Índice `evento_publicado_ix (tenant_id, publicado_em) where publicado_em is not null`. Motivo: a carga
 inicial do Hub gera ~100 a 200 mil eventos por tenant.
 
@@ -129,6 +129,6 @@ Os bytes NUNCA ficam no banco (porta `ArmazenamentoArquivos`); o down da 0005 de
 
 ## Funções
 - `plataforma.tenant_atual()` (0001): contexto do tenant (falha fechada).
-- `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada.
+- `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada; `pg_temp` no fim do `search_path` (0012).
 - `plataforma.uuid_de_chave(text)` (0005): UUID determinístico (md5 de `macuxi:<chave>` com versão 5 e variante RFC 4122),
   gêmeo de `idDeChave` em `db/src/ids.ts`. Usado nas linhas padrão semeadas em todo tenant.

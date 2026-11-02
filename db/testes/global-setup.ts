@@ -9,6 +9,7 @@
  *    "Docker não está rodando: N testes de banco pulados".
  * Com MACUXI_PG_EXIGIR=1 (CI), o caso 3 é ERRO em vez de pulo.
  * MACUXI_AGORA=<instante ISO> simula o relógio no "hoje" da fixture (prova de que nada depende da hora do dia).
+ * O instante da carga vai aos testes no estado (`agora`, ISO): use agoraDaFixture()/hojeDaFixture(fuso) de @macuxi/db/teste.
  */
 import type { TestProject } from 'vitest/node';
 import { criarBancoDeTeste, postgresDisponivel } from '../src/banco-teste';
@@ -39,16 +40,18 @@ async function garantirPostgres(cfg: ConfigBanco): Promise<string | null> {
 
 export default async function setup(project: TestProject): Promise<(() => Promise<void>) | void> {
   const cfg = lerConfig();
+  // UM instante para a carga e para os testes (agoraDaFixture() em @macuxi/db/teste); lido uma vez só (B3, T-0042).
+  const agora = agoraDosTestes();
   const motivo = await garantirPostgres(cfg);
   if (motivo) {
     if (process.env.MACUXI_PG_EXIGIR === '1') throw new Error(`[db] ${motivo} e MACUXI_PG_EXIGIR=1: testes de banco não podem pular.`);
     process.env[VAR_MOTIVO_PULO] = motivo;
-    project.provide('banco', { disponivel: false, motivo });
+    project.provide('banco', { disponivel: false, motivo, agora: agora.toISOString() });
     return;
   }
   delete process.env[VAR_MOTIVO_PULO];
-  const t = await criarBancoDeTeste({ cfg, preparar: (c) => carregarDoisTenants(c, { agora: agoraDosTestes() }).then(() => undefined) });
-  project.provide('banco', { disponivel: true, nome: t.nome, urlAdmin: t.urlAdmin, urlApp: t.urlApp, urlWorker: t.urlWorker });
+  const t = await criarBancoDeTeste({ cfg, preparar: (c) => carregarDoisTenants(c, { agora }).then(() => undefined) });
+  project.provide('banco', { disponivel: true, nome: t.nome, urlAdmin: t.urlAdmin, urlApp: t.urlApp, urlWorker: t.urlWorker, agora: agora.toISOString() });
   return async () => {
     await t.apagar();
   };

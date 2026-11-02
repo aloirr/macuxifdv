@@ -2,7 +2,8 @@
 
 Migração: `db/migrations/0010_integracao.up.sql` (T-0032; volta = `.down.sql`, `drop schema integracao cascade`: apaga
 Conectores, chaves, lotes, espelho, fila do ERP e trilhas; depois de um novo up cada Conector precisa de cadastro e chave
-nova). Retenção da outbox: `0011_plataforma_outbox_retencao` ([plataforma.md](plataforma.md)). Drizzle:
+nova). Retenção da outbox: `0011_plataforma_outbox_retencao` ([plataforma.md](plataforma.md)). `pg_temp` no fim do
+`search_path` das funções SECURITY DEFINER: `0012_search_path_pg_temp` (T-0042). Drizzle:
 `modules/integracao/db/nuvem.ts` (uso interno da Integração). Origem: spec R-20261101-013336-banco-dados (revisão do banco da
 T-0025) renumerada, desenho `docs/desenho/T-0032.md` §8, ADR 0013, campos de negócio em `docs/modulos/integracao/hub-api.md`
 §17b; acréscimos da T-0027 (entidades por Conector, ids inválidos por sessão, `external_id` ≤ 200) e da T-0031 (auditoria
@@ -38,11 +39,18 @@ lista é migração nova.
 ## Funções
 | Função | Quem chama | O que faz |
 |---|---|---|
-| `integracao.autenticar_chave(p_hash text)` | `macuxi_app` (só ele; `revoke from public`) | **Única leitura sem tenant** (ADR 0013 §3, etapa 3). `stable security definer`, `search_path = pg_catalog, integracao`. Devolve **no máximo 1 linha**: `credencial_id, tenant_id, conector_id, prefixo, escopo, papel, versao_pepper, criada_em, expira_em, anterior_valida_ate, revogada_em, ultimo_uso_em, conector_identificador, conector_tipo, conector_ativo, ips_permitidos (inet[]), recebe_pedidos, entidades (text[])` — **nunca o hash**. Credencial ou Conector com `deleted_at` = nenhuma linha. Não decide nada (revogada, expirada, convivência, inativo e IP são do `avaliarChaveConector`). Busca pelo índice único `credencial_hash_uk` (meta p95 < 50 ms) |
-| `integracao.expurgar_retencao(p_agora timestamptz default now(), p_limite int default 5000)` | `macuxi_worker` (só ele) | Retenção do Hub em blocos de até `p_limite` por item; devolve `(item, quantidade)`: `lote` concluído/falhou recebido há > 12 meses (cascata em `lote_staging` e `lote_linha_erro`), `credencial` revogada há > 12 meses, `lote_linha_erro.payload` > 30 dias, `lote_staging.corpo` 7 dias após concluído (30 em `falhou`), `sessao_carga_recebido` de sessão fechada há > 7 dias sem pendência aguardando válida, `registro_atual.payload` 30 dias após inativado. Agendamento: engenheiro-software (mesmo worker da outbox) |
+| `integracao.autenticar_chave(p_hash text)` | `macuxi_app` (só ele; `revoke from public`) | **Única leitura sem tenant** (ADR 0013 §3, etapa 3). `stable security definer`, `search_path = pg_catalog, integracao, pg_temp` (0012). Devolve **no máximo 1 linha**: `credencial_id, tenant_id, conector_id, prefixo, escopo, papel, versao_pepper, criada_em, expira_em, anterior_valida_ate, revogada_em, ultimo_uso_em, conector_identificador, conector_tipo, conector_ativo, ips_permitidos (inet[]), recebe_pedidos, entidades (text[])` — **nunca o hash**. Credencial ou Conector com `deleted_at` = nenhuma linha. Não decide nada (revogada, expirada, convivência, inativo e IP são do `avaliarChaveConector`). Busca pelo índice único `credencial_hash_uk` (meta p95 < 50 ms) |
+| `integracao.expurgar_retencao(p_agora timestamptz default now(), p_limite int default 5000)` | `macuxi_worker` (só ele) | Retenção do Hub em blocos de até `p_limite` por item; devolve `(item, quantidade)`: `lote` concluído/falhou recebido há > 12 meses (cascata em `lote_staging` e `lote_linha_erro`), `credencial` revogada há > 12 meses, `lote_linha_erro.payload` > 30 dias, `lote_staging.corpo` 7 dias após concluído (30 em `falhou`), `sessao_carga_recebido` de sessão fechada há > 7 dias sem pendência aguardando válida, `registro_atual.payload` 30 dias após inativado. `search_path = pg_catalog, integracao, pg_temp` (0012). Agendamento: engenheiro-software (mesmo worker da outbox) |
 | `integracao.sem_repeticao(text[])` | CHECK de `conector.entidades` | imutável; `true` se não há valor repetido |
 
 Premissa (como `plataforma.tenant_por_codigo`, [rls.md](rls.md)): o dono das funções é superusuário ou tem `BYPASSRLS`.
+
+**`pg_temp` por último** (0012, T-0042; recomendação da revisão R-20261101-172531): sem ele explícito, o Postgres procura o
+schema temporário da sessão **antes** dos listados, e um papel com TEMP poderia sombrear um nome não qualificado com
+objeto próprio rodando com os privilégios do dono. As 4 funções SECURITY DEFINER do banco (`plataforma.tenant_por_codigo`,
+`integracao.autenticar_chave`, `integracao.expurgar_retencao`, `plataforma.expurgar_outbox`) ficam com
+`search_path = pg_catalog, <schema>, pg_temp`. **Função SECURITY DEFINER nova já nasce assim** (`estatico.test.ts` confere
+que toda SECURITY DEFINER das migrações está na lista da 0012 ou numa migração posterior com `pg_temp`).
 
 ## Escritas-guarda (a API usa; `db/testes/t0032.test.ts` exercita)
 - **Upsert monotônico do registro** (🔴 V1, RN-INT-06): `insert into integracao.registro_atual as r (...) values (...) on conflict
@@ -84,11 +92,21 @@ Premissa (como `plataforma.tenant_por_codigo`, [rls.md](rls.md)): o dono das fun
 |---|---|---|
 | conector_id | uuid not null | FK composta → `conector` |
 | prefixo | text not null | `^[A-Za-z0-9_-]{4,12}$` (não é segredo) |
-| hash_chave | text not null | **HMAC-SHA256(pepper, chave) em hex** (64, minúsculo); **único GLOBAL** (`credencial_hash_uk`) |
+| hash_chave | text not null | **HMAC-SHA256(pepper, chave) em hex** (64, minúsculo); **único GLOBAL** (`credencial_hash_uk`, exceção nominal abaixo) |
 | versao_pepper | smallint not null | ≥ 1 (troca de pepper sem invalidar tudo de uma vez) |
 | escopo | text not null | padrão `integracao.v1` (`^[a-z][a-z0-9_]*\.v[1-9][0-9]*$`) |
 | papel | text not null | `atual`\|`anterior`; **no máximo 1 de cada não revogada por Conector** (`credencial_papel_uk`) |
 | expira_em, anterior_valida_ate, revogada_em, revogada_por (uuid), motivo_revogacao (≤ 200), ultimo_uso_em | | rotação nunca sobrescreve; `revogada_por` só com `revogada_em` |
+
+**Exceção nominal à regra "todo índice único começa por `tenant_id`"** (S0-023 regra 5; a ÚNICA do banco):
+`integracao.credencial_hash_uk` = `unique (hash_chave)`, global de propósito. `autenticar_chave` procura a chave **antes** de
+se saber o tenant; com `(tenant_id, hash_chave)` a busca viraria varredura entre tenants. O risco que a regra cobre (A
+descobre dado de B por colisão, ou fica impedido de cadastrar) não existe: o valor é HMAC-SHA256 com o pepper do servidor
+sobre uma chave **gerada pelo servidor**; nenhum tenant escolhe o valor, a colisão é impraticável (2^-256) e o 23505 nunca
+chega ao cliente. **Condição de validade: a exceção cai se o Hub passar a aceitar chave escolhida pelo cliente ("traga sua
+chave")**; nesse caso o índice volta a `(tenant_id, hash_chave)` e a busca sem tenant precisa de outro desenho (ADR nova).
+Registrada pelo nome em `tests/integracao/banco/conformidade.test.ts` (`INDICES_UNICOS_GLOBAIS`); revisão
+R-20261101-172531-engenheiro-software (T-0032).
 
 ## politica_versao
 `versao_minima`, `versao_recomendada` (text not null, semver `MAIOR.MENOR.PATCH[-pre]`), `mensagem` (≤ 300), `pacote` (jsonb
@@ -145,7 +163,7 @@ null`. Até 5.500 por lote.
 |---|---|---|
 | entidade, **external_id** (not null, 1..200) | text | chave `(tenant_id, entidade, external_id)` — `registro_atual_chave_uk include (hash, alterado_em)` (comparador de hash só com as chaves do lote) |
 | conector_id | uuid not null | FK → conector |
-| hash | text | sha256 hex; **nulo só se inativado** (`deleted_at`) |
+| hash | text | **SHA-256 em hex minúsculo, 64 caracteres, do `jsonCanonico` do registro** (CHECK `registro_atual_hash_formato` = `^[0-9a-f]{64}$`, 0010); **nulo só se inativado** (`deleted_at`) |
 | payload | jsonb | expurgado 30 dias após inativado |
 | valor_controle | bigint | soma de controle da reconciliação |
 | alterado_em | timestamptz(3) not null | guarda monotônica |
@@ -155,6 +173,12 @@ null`. Até 5.500 por lote.
 | deleted_at | | **inativado pela carga completa** |
 Índice de candidatos/contagem/reconciliação `(tenant_id, entidade, conector_id, visto_em) include (valor_controle) where ativo
 and deleted_at is null`. Tabela única, sem partição (reavaliar acima de 50 milhões de linhas ou p95 > 300 ms). fillfactor 90.
+
+**Formato final do hash** (T-0025, decisão do gerente R-20261101-194718, opção a): o domain da Integração
+(`modules/integracao/domain/idempotencia.ts`, `hashRegistro`) calcula **SHA-256 hex (64) do `jsonCanonico(payload)`**; o CHECK
+da 0010 fica como está. O FNV-1a de 16 hex da primeira versão do domain **não** é aceito (23514 no upsert; achado 🔴 da
+revisão R-20261101-233652-2). Mudar o algoritmo = migração nova com o CHECK e recálculo do espelho (todo hash muda, a
+próxima carga completa veria tudo como "atualizado").
 
 ## pendencia_inativacao
 | Coluna | Tipo | Regra |
@@ -205,7 +229,12 @@ desc) where divergente`.
 | notas_aplicadas | jsonb not null | lista `[{ numero, serie }]` |
 | itens_faturados_acumulados | jsonb not null | objeto `{ "<sequencia>": { quantidade, valor_cents } }` |
 | ultimo_retorno_em, aprovado_em (not null) | timestamptz | o poll ordena por `aprovado_em` |
-Remoção só por `deleted_at` (sem DELETE). Índices: poll `(tenant_id, aprovado_em) where estado = 'pendente' and
+Remoção só por `deleted_at` (sem DELETE). **Reativação** (RN-INT-08; decisão do gerente R-20261101-194718): pedido removido
+(`deleted_at` preenchido; é o `removido_em` do domain `PedidoNaFila`, não há coluna com esse nome) e aprovado de novo **não**
+ganha linha nova (o único total `pedido_fila_erp_pedido_uk` daria 23505): é um **UPDATE** da mesma linha que limpa
+`deleted_at`, volta a `estado = 'pendente'` com `tentativas = 0` e regrava `payload`/`payload_origem`, `retencao_*` e
+`aprovado_em` (o domain devolve `persistencia: 'atualizar'`, `modules/integracao/domain/pedido-fila.ts`). **Retido** = `payload` nulo + `retencao_codigo` preenchido
+(CHECK da 0010, linha do `pedido_fila_erp_retido_sem_payload`). Índices: poll `(tenant_id, aprovado_em) where estado = 'pendente' and
 retencao_codigo is null and deleted_at is null`; timeout `(tenant_id, enviado_em) where estado = 'enviado'`; retidos
 `(tenant_id) where retencao_codigo is not null and deleted_at is null`; lista do BKO `(tenant_id, estado, aprovado_em desc)`.
 

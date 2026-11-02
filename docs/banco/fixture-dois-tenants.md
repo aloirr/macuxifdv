@@ -52,6 +52,13 @@ calculam o "hoje" de cada fuso a partir de um instante dado; o `globalSetup` usa
 `MACUXI_AGORA=<instante ISO>`, senão o relógio). `db/testes/sprint1.test.ts` roda a RN-CORE-11 com o relógio simulado
 (`vi.setSystemTime`) às 08:00, 13:59, 14:01 e 23:59 de Manaus (a última já é o dia seguinte em UTC).
 
+**Um relógio só entre a fixture e os testes** (T-0042, B3): o `globalSetup` lê `agoraDosTestes()` **uma vez**, carrega a
+fixture com ele e o entrega aos testes no estado (`agora`, ISO). Nos testes use `agoraDaFixture()` (o instante) e
+`hojeDaFixture(fuso = 'America/Manaus')` (a data civil que a fixture usou para rotas, visitas, títulos e metas daquele fuso),
+de `@macuxi/db/teste` (ou `@macuxi/db/teste/estado`), em vez de `new Date()`: a execução que cruza a meia-noite de Manaus
+(04:00Z) ou roda com `MACUXI_AGORA` continua no mesmo dia da fixture. Para comparar com colunas gravadas por `now()`
+(`created_at`/`updated_at`), o relógio certo é o do banco (`select now()`), não o da fixture.
+
 | | Tenant A | Tenant B |
 |---|---|---|
 | coordenada do cliente | c1 e c2 com; **c3 sem** (RN-CORE-10: 1º check-in sugere) | c1 com |
@@ -92,7 +99,12 @@ Grupos novos: `0050` conector · `0051` credencial · `0052` politica_versao · 
 `0055` lote · `0056` lote_staging · `0057` lote_linha_erro · `0058` registro_atual · `0059` pendencia_inativacao ·
 `005a` inativacao_auditoria · `005b` cursor_entidade · `005c` reconciliacao · `005d` mapeamento · `005e` pedido_fila_erp ·
 `005f` pedido_retorno · `0060` pedido_retorno_erro. Constantes em `DOIS_TENANTS.X.integracao` e `PEPPER_HUB_FIXTURE`
-(`@macuxi/db/teste` via `dois-tenants`). Instantes **fixos** (2026-10-30): recarregar não muda nada.
+(`@macuxi/db/teste` via `dois-tenants`). Instantes **operacionais relativos à carga** (T-0042, B2): sinal do Conector,
+sessões, lotes, decisões, fila, retorno e reconciliação no **dia de operação = hoje de A − 2** (horas UTC fixas desse dia);
+pendências decididas expiram em hoje + 5. Ficam fixos só o `alterado_em` do ERP (`2026-10-30T09:00:00.123Z`, relógio do
+ERP, comparado só com outros `alterado_em`/cursores) e o 2099 da pendência aguardando de A. Recarregar no mesmo dia não
+muda nada. Teste que avalie "sem sinal há X", "lote antigo" ou retenção ainda deve trazer o dado para `now()` antes
+(como o `t0032.test.ts` faz nos expurgos).
 
 | Tabela | Tenant A | Tenant B |
 |---|---|---|

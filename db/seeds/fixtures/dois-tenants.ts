@@ -34,7 +34,7 @@
  *   IP 203.0.113.0/24), chave atual com hash = HMAC-SHA256(PEPPER_HUB_FIXTURE, chave) (chave em DOIS_TENANTS.X.integracao.chave),
  *   política de versão, sessões fechadas, lotes (completo e delta com staging), erro de linha, espelho com 1 inativado (A),
  *   pendências (A confirmada pelo analista + aguardando até 2099; B recusada pelo admin) com auditoria, cursor, reconciliação,
- *   mapeamento, fila do ERP (p3 de A, p1 de B) com retorno e item descartado. Instantes fixos (2026-10-30). Os módulos dos
+ *   mapeamento, fila do ERP (p3 de A, p1 de B) com retorno e item descartado. Instantes operacionais relativos ao "hoje" da carga (dia de operação = hoje − 2; T-0042). Os módulos dos
  *   tenants NÃO mudaram (a licença 'integracao' não está na fixture).
  */
 import { createHash, createHmac } from 'node:crypto';
@@ -460,7 +460,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ],
     ...dadosSprint1(hojeA, hojeB),
     ...dadosT0029(hojeA, hojeB),
-    ...dadosT0032(),
+    ...dadosT0032(hojeA),
   };
 }
 
@@ -759,10 +759,14 @@ function dadosT0029(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaT002
 }
 
 /**
- * T-0032 (0010, schema integracao): uma linha (ou mais) em cada tabela nos DOIS tenants, com instantes FIXOS (recarregar não
- * muda nada). A pendência aguardando de A expira em 2099 (continua decidível nos testes). Ids em DOIS_TENANTS.X.integracao.
+ * T-0032 (0010, schema integracao): uma linha (ou mais) em cada tabela nos DOIS tenants. Ids em DOIS_TENANTS.X.integracao.
+ * Instantes OPERACIONAIS (sinal do Conector, lotes, sessões, decisões, fila, retorno, reconciliação) relativos ao "hoje" da
+ * carga (T-0042, B2): o dia de operação é anteontem (hoje − 2, horas em UTC) e as pendências decididas expiram em hoje + 5.
+ * Recarregar no mesmo dia não muda nada. Ficam FIXOS só o que nunca é comparado com o relógio: o `alterado_em` do ERP
+ * (2026-10-30T09:00:00.123Z, relógio do ERP, comparado só com outros `alterado_em`/cursores) e o 2099 da pendência
+ * aguardando de A (continua decidível nos testes).
  */
-function dadosT0032(): Pick<DadosFixture, TabelaT0032> {
+function dadosT0032(hojeA: string): Pick<DadosFixture, TabelaT0032> {
   const A = DOIS_TENANTS.A;
   const B = DOIS_TENANTS.B;
   const IA = A.integracao;
@@ -770,7 +774,8 @@ function dadosT0032(): Pick<DadosFixture, TabelaT0032> {
   const tA = A.tenantId;
   const tB = B.tenantId;
   const comuns = { deleted_at: null, external_id: null };
-  const T = (hora: string, dia = '2026-10-30') => `${dia}T${hora}Z`;
+  const diaOperacao = somarDias(hojeA, -2);
+  const T = (hora: string, dia = diaOperacao) => `${dia}T${hora}Z`;
   const sha = (x: string) => createHash('sha256').update(x).digest('hex');
   const conector = (id: string, tenant_id: string, identificador: string, nome: string, entidades: readonly string[], ips: string): Linha => ({
     id, tenant_id, identificador, nome, tipo: 'conector', ativo: true, recebe_pedidos: true, entidades: arrayDeTexto(entidades), ips_permitidos: ips,
@@ -826,7 +831,7 @@ function dadosT0032(): Pick<DadosFixture, TabelaT0032> {
     conector_id: r.conector_id, resolvido_em: null, ...comuns,
   });
 
-  const expira = T('10:05:00', '2026-11-06');
+  const expira = T('10:05:00', somarDias(diaOperacao, 7));
   const pendA1 = pendencia(IA.pendencias.confirmada, tA, IA.sessoes.produto, 'produto', IA.conector, IA.lotes.completoProduto, { estado: 'confirmada', por: A.usuarios.analista, perfil: 'analista', motivo: 'Produto descontinuado no ERP.' }, expira);
   const pendA2 = pendencia(IA.pendencias.aguardando, tA, IA.sessoes.cliente, 'cliente', IA.conector, IA.lotes.completoCliente, { estado: 'aguardando', por: null, perfil: null, motivo: null }, '2099-12-31T00:00:00Z');
   const pendB1 = pendencia(IB.pendencias.recusada, tB, IB.sessoes.cliente, 'cliente', IB.conector, IB.lotes.completoCliente, { estado: 'recusada', por: B.usuarios.admin, perfil: 'admin', motivo: 'Carga parcial do ERP; aguardar a próxima.' }, expira);
@@ -892,12 +897,12 @@ function dadosT0032(): Pick<DadosFixture, TabelaT0032> {
     ],
     'integracao.reconciliacao': [
       {
-        id: a('reconciliacao', 1), tenant_id: tA, conector_id: IA.conector, entidade: 'produto', data_referencia: '2026-10-30', contagem_erp: 2, soma_erp: null,
+        id: a('reconciliacao', 1), tenant_id: tA, conector_id: IA.conector, entidade: 'produto', data_referencia: diaOperacao, contagem_erp: 2, soma_erp: null,
         contagem_macuxi: 1, soma_macuxi: null, diferenca_contagem: 1, diferenca_soma: null, diferenca_pct: null, divergente: true,
         motivos: arrayDeTexto(['contagem_divergente']), situacao: 'comparada', evento_publicado: true, calculada_em: T('23:00:00'), ...comuns,
       },
       {
-        id: b('reconciliacao', 1), tenant_id: tB, conector_id: IB.conector, entidade: 'cliente', data_referencia: '2026-10-30', contagem_erp: 1, soma_erp: null,
+        id: b('reconciliacao', 1), tenant_id: tB, conector_id: IB.conector, entidade: 'cliente', data_referencia: diaOperacao, contagem_erp: 1, soma_erp: null,
         contagem_macuxi: 1, soma_macuxi: null, diferenca_contagem: 0, diferenca_soma: null, diferenca_pct: null, divergente: false,
         motivos: arrayDeTexto([]), situacao: 'comparada', evento_publicado: false, calculada_em: T('23:00:00'), ...comuns,
       },

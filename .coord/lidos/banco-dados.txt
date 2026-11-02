@@ -30,3 +30,7 @@ R-20261101-044128-modulo-vendedor
 R-20261101-074143-alexandre
 R-20261101-112205-modulo-integracao
 R-20261101-150202-alexandre
+R-20261101-194718-gerente-projetos
+R-20261101-172531-engenheiro-software
+R-20261101-182055-testes
+R-20261101-194118-gerente-projetos

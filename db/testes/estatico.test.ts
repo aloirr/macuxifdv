@@ -73,6 +73,7 @@ describe('migrações (estático)', () => {
     expect(migracoes.map((m) => `${m.versao}_${m.nome}`)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
+      '0012_search_path_pg_temp',
     ]);
   });
 
@@ -520,6 +521,23 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
       'drop function if exists plataforma.expurgar_outbox(timestamptz, integer);',
       'drop index if exists plataforma.evento_publicado_ix;',
     ]) expect(m11.down).toContain(trecho);
+  });
+
+  it('0012 (T-0042): pg_temp por último no search_path das 4 funções SECURITY DEFINER; down volta ao anterior', () => {
+    const m12 = migracoes.find((x) => x.versao === '0012')!;
+    const funcoes: Array<[string, string]> = [
+      ['plataforma.tenant_por_codigo(text)', 'plataforma'],
+      ['integracao.autenticar_chave(text)', 'integracao'],
+      ['integracao.expurgar_retencao(timestamptz, integer)', 'integracao'],
+      ['plataforma.expurgar_outbox(timestamptz, integer)', 'plataforma'],
+    ];
+    for (const [f, schema] of funcoes) {
+      expect(m12.up).toContain(`alter function ${f} set search_path = pg_catalog, ${schema}, pg_temp;`);
+      expect(m12.down).toContain(`alter function ${f} set search_path = pg_catalog, ${schema};`);
+    }
+    // toda função SECURITY DEFINER criada até aqui está na lista (nova função = pg_temp já no create)
+    const definers = migracoes.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)].map((x) => x[1]));
+    expect(definers.sort()).toEqual(funcoes.map(([f]) => f.slice(0, f.indexOf('('))).sort());
   });
 
   it('fixture: chave do Conector como HMAC-SHA256(pepper da fixture, chave), sem a chave em claro no banco', () => {

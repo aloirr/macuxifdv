@@ -13,7 +13,7 @@ import {
 } from '../seeds/demo/demo';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { comTenant } from '../src/contexto';
-import { anoMes, hojeNoFuso } from '../src/datas';
+import { anoMes, hojeNoFuso, somarDias } from '../src/datas';
 import { verificarSenha } from '../src/senha';
 import { semBanco } from './estado';
 import { tabelasComTenant } from './util';
@@ -22,7 +22,7 @@ const SENHA = 'senha-do-teste-demo';
 const HASH_FALSO = '$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA';
 
 describe('base de demo (estático)', () => {
-  const hoje = '2026-11-04';
+  const hoje = '2026-11-04'; // hora-fixa-ok: dados estáticos (dadosDemo puro), nunca comparados ao relógio
   const d = dadosDemo(HASH_FALSO, { hoje });
   const vendedor = d['core.usuario'].find((u) => u.email === USUARIOS_DEMO.vendedor.email)!;
 
@@ -113,6 +113,7 @@ describe('base de demo (estático)', () => {
       expect(precoDe(atacado, cafe)! / precoDe(varejo, cafe)!).toBeCloseTo(0.93, 2);
       expect(d['catalogo.cliente_tabela_preco']).toHaveLength(30);
       expect(new Set(d['catalogo.cliente_tabela_preco'].map((x) => x.cliente_id)).size).toBe(30);
+      // hora-fixa-ok: vigência derivada do hoje fixo dos dados estáticos (2026-11-04), nunca comparada ao relógio
       expect(new Set(d['catalogo.tabela_preco_item'].map((i) => i.vigencia_inicio))).toEqual(new Set(['2026-10-01T04:00:00Z']));
       // a 1ª parada do Lucas hoje é cliente do Atacado: lá ele vê "Sem preço para este cliente" (RN-CAT-06)
       expect(tabelaDoCliente.get(idClienteDemo(0))).toBe(atacado);
@@ -319,7 +320,8 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
       comAdmin(b.nome, (c) => c.query<{ s: string }>('select coalesce(sum(vendido_cents), 0)::text as s from core.indicador_diario where tenant_id = $1', [TENANT_DEMO]));
     const antes = (await somaDiario()).rows[0]!.s;
     const contagem = await contarDemo();
-    const dia = '2027-03-10';
+    // relativo à carga (T-0042, B1): com data fixa, no próprio dia (2027-03-10) o "outro dia" era o da carga e entrava +0
+    const dia = somarDias(hojeCarga, 200);
     await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: dia }));
     const depois = await contarDemo();
     expect(depois['core.rota']).toBe(contagem['core.rota']! + 3);

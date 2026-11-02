@@ -181,6 +181,9 @@ test: {
 ```
 E no teste: `import { banco, semBanco } from '@macuxi/db/teste/estado'` +
 `describe.skipIf(semBanco())(...)`; `banco().urlApp` (papel `macuxi_app`, RLS) e `banco().urlAdmin`.
+**Relógio da fixture** (T-0042): `agoraDaFixture()` e `hojeDaFixture(fuso)` (de `@macuxi/db/teste` ou `.../estado`) dão o
+instante e o "hoje" com que o globalSetup carregou a fixture; use-os no lugar de `new Date()` para o dia/mês da fixture
+([fixture-dois-tenants.md](fixture-dois-tenants.md)).
 Utilitários do vazamento (`tabelasComTenant`, `emTransacao`, `erroDe`, `comCliente`) em
 `@macuxi/db/teste/util`. O próprio `db/testes/vazamento.test.ts` é o modelo.
 
@@ -236,7 +239,8 @@ Modelo e políticas: [rls.md](rls.md) · dicionários: [plataforma.md](plataform
 Migrações: 0001 plataforma · 0002 core · 0003 worker/outbox · 0004 sessão e aparelho · **0005 `plataforma.arquivo` +
 `uuid_de_chave`** · **0006 lote A do core** (Cliente 360, rotas, visitas, motivos, notificações, metas, indicador diário;
 padrões em todo tenant por gatilho) · **0007 schema `vendedor`** (pedido e pedido_item, mínimo do pull) · 0008 preço do Catálogo ·
-0009 pedido completo do Vendedor · **0010 schema `integracao`** (Hub) · **0011 retenção da outbox** (`plataforma.expurgar_outbox`).
+0009 pedido completo do Vendedor · **0010 schema `integracao`** (Hub) · **0011 retenção da outbox** (`plataforma.expurgar_outbox`) ·
+**0012 `pg_temp` no fim do `search_path`** das 4 funções SECURITY DEFINER (T-0042).
 O executor roda como admin (superusuário no Docker/CI): a semeadura dos padrões e as fixtures dependem disso (FORCE RLS).
 
 ## Pendências

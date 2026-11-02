@@ -204,10 +204,10 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
         expect(u).toMatchObject({ id: A.usuarios.vendedor1, perfil: 'vendedor', tentativas_falhas: 0, bloqueio_ate: null, bloqueado_em: null });
         expect(u?.senha_hash?.startsWith('$argon2id$')).toBe(true);
 
-        const ate = new Date('2026-10-31T12:15:00Z');
+        const ate = new Date(Date.now() + 15 * 60_000); // relógio real: bloqueio_ate e expira_em comparáveis ao now() do banco (T-0042)
         await r.gravarTentativas(A.usuarios.vendedor1, 5, ate);
         expect(await r.usuarioPorEmail(DOIS_TENANTS.emailRepetido)).toMatchObject({ tentativas_falhas: 5, bloqueio_ate: ate });
-        await r.registrarLoginOk(A.usuarios.vendedor1, new Date('2026-10-31T12:20:00Z'));
+        await r.registrarLoginOk(A.usuarios.vendedor1, new Date(Date.now() + 20 * 60_000));
         expect(await r.usuarioPorEmail(DOIS_TENANTS.emailRepetido)).toMatchObject({ tentativas_falhas: 0, bloqueio_ate: null });
         expect(await r.usuarioAtual(A.usuarios.vendedor1)).toMatchObject({ id: A.usuarios.vendedor1, perfil: 'vendedor', ativo: true });
         expect(await r.usuarioAtual(B.usuarios.vendedor)).toBeNull();
@@ -222,7 +222,7 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
         expect(ap.rows[0]).toEqual({ nome: 'Moto G', tenant_id: A.tenantId });
 
         const familia = 'aaaaaaaa-0007-4000-8000-000000000199';
-        const s1 = { id: 'aaaaaaaa-0007-4000-8000-000000000098', usuario_id: A.usuarios.vendedor1, familia_id: familia, token_hash: 'b'.repeat(64), dispositivo_id: novo, expira_em: new Date('2026-11-30T12:00:00Z') };
+        const s1 = { id: 'aaaaaaaa-0007-4000-8000-000000000098', usuario_id: A.usuarios.vendedor1, familia_id: familia, token_hash: 'b'.repeat(64), dispositivo_id: novo, expira_em: new Date(Date.now() + 30 * 86_400_000) };
         await r.criarSessao(s1);
         expect(await r.sessaoPorHash(s1.token_hash)).toMatchObject({ id: s1.id, familia_id: familia, dispositivo_id: novo, usado_em: null, revogado_em: null });
         await r.marcarSessaoUsada(s1.id, new Date());
@@ -254,7 +254,7 @@ describe.skipIf(semBanco())('0004 sessão, aparelho e tentativas de login', () =
         // e B não toma o id do aparelho de A: o upsert é descartado (0 linhas) e a sessão nele cai em 403 DISPOSITIVO_INVALIDO
         await r.upsertDispositivo(B.usuarios.vendedor, A.dispositivos.promotorBloqueado, 'invasor', new Date());
         await expect(
-          r.criarSessao({ id: 'bbbbbbbb-0007-4000-8000-000000000098', usuario_id: B.usuarios.vendedor, familia_id: 'bbbbbbbb-0007-4000-8000-000000000199', token_hash: 'd'.repeat(64), dispositivo_id: A.dispositivos.promotorBloqueado, expira_em: new Date('2026-11-30T12:00:00Z') }),
+          r.criarSessao({ id: 'bbbbbbbb-0007-4000-8000-000000000098', usuario_id: B.usuarios.vendedor, familia_id: 'bbbbbbbb-0007-4000-8000-000000000199', token_hash: 'd'.repeat(64), dispositivo_id: A.dispositivos.promotorBloqueado, expira_em: new Date(Date.now() + 30 * 86_400_000) }),
         ).rejects.toMatchObject({ codigo: 'DISPOSITIVO_INVALIDO' });
       });
       const linhaA = await comAdmin(b.nome, (c) => c.query('select tenant_id, usuario_id, nome, bloqueado_em is not null as bloqueado from core.dispositivo where id = $1', [A.dispositivos.promotorBloqueado]));
