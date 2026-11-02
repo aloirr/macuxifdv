@@ -19,7 +19,8 @@ const PAGINAS: Partial<Record<ModuloId, Pg[]>> = {
   // ordem igual à de modules/core/app (Rota 20, Clientes 30, Metas 50); Pedidos sem ordem (100), como hoje
   core: [pg('rota', 'Rota', { apps: ['campo'], ordem: 20 }), pg('clientes', 'Clientes', { apps: ['campo', 'gestao'], ordem: 30 }), pg('metas', 'Metas', { apps: ['campo'], ordem: 50 })],
   catalogo: [pg('catalogo', 'Catálogo', { apps: ['campo', 'gestao'], acao: 'produto.consultar' })],
-  vendedor: [pg('pedidos', 'Pedidos', { apps: ['campo', 'gestao'] })],
+  // como em modules/vendedor/app/index.ts: a página de pedidos declara os perfis do manifesto do Vendedor (sem promotor)
+  vendedor: [pg('pedidos', 'Pedidos', { apps: ['campo', 'gestao'], perfis: MANIFESTOS_INSTALADOS.find((m) => m.id === 'vendedor')!.perfis })],
   promotor: [pg('loja', 'Loja', { apps: ['campo'], acao: 'coleta.registrar' }), pg('trade', 'Trade', { apps: ['gestao'] })],
   gestor: [pg('equipe', 'Equipe', { apps: ['gestao'], acao: 'painel_equipe.ver' }), pg('aprovacoes', 'Aprovações', { apps: ['gestao'], acao: 'fila_aprovacao.ver' }), pg('alertas', 'Alertas', { apps: ['gestao'], acao: 'alerta_equipe.ver' })],
 };
@@ -75,11 +76,10 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(nav.map((n) => n.rotulo)).not.toContain('Pedidos');
   });
 
-  // Revisão T-0034 (R-20261101-161003): RN-PRO-01 vale pelo PERFIL, não pelo módulo (doc 03). Hoje a página `pedidos`
-  // (modules/vendedor/app/index.ts) não declara `perfis` e `modulosEfetivos` não filtra por `manifesto.perfis`; o pedido
-  // está no item 1 do R-20261101-155135 ao modulo-vendedor. Quando a página real ganhar `perfis`, espelhar em PAGINAS
-  // (acima) e trocar `it.fails` por `it`.
-  it.fails('RN-PRO-01: promotor com o Vendedor efetivo (licenciado e no perfil) também não vê Pedidos', () => {
+  // Revisão T-0034 (R-20261101-161003): RN-PRO-01 vale pelo PERFIL, não pelo módulo (doc 03). A página `pedidos`
+  // (modules/vendedor/app/index.ts) declara `perfis` sem o promotor desde o R-20261101-211304 (modulo-vendedor),
+  // espelhado em PAGINAS acima.
+  it('RN-PRO-01: promotor com o Vendedor efetivo (licenciado e no perfil) também não vê Pedidos', () => {
     const p = rotulos('campo', 'promotor', TODOS, TODOS);
     expect(p.todas).not.toContain('Pedidos');
   });

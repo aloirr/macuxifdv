@@ -9,3 +9,5 @@ export * from './overlay';
 export * from './format';
 export * from './erros';
 export * from './tones';
+export * from './cliente';
+export * from '../comum/sincronizacao';

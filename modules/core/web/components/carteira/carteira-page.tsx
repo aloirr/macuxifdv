@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
-import { Badge, Button, ErrorBlock, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
+import { Badge, Button, ErrorBlock, EtiquetaCadastroIncompleto, FilterBar, LoadingBlock, Notice, PageHeader, Panel, SelectField, td, th, TableScroll } from '@macuxi/ui/web';
 import { ClienteListaRespostaSchema, type CarteiraItemPut } from '../../../contracts';
 import { csvDaCarteira, DIAS_DA_SEMANA, rotuloFrequencia } from '../../lib/carteira';
 import { usePapeisDeCampo, useSellersDeCampo } from '../../lib/queries';
@@ -204,6 +204,7 @@ function CarteiraConteudo() {
                       <td className={td}>
                         <div className="flex items-center gap-2">
                           {c.lat === null ? <Badge tone="warning">Sem coordenada</Badge> : null}
+                          {c.cadastro_incompleto ? <EtiquetaCadastroIncompleto /> : null}
                           <Button disabled={!pode || !c.carteira_id || desvincular.isPending} onClick={() => c.carteira_id && desvincular.mutate(c.carteira_id)} data-testid={`carteira.desvincular.${c.id}`}>
                             Desvincular
                           </Button>
