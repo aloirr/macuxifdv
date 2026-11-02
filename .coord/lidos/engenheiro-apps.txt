@@ -19,3 +19,6 @@ R-20261101-015017-gerente-projetos
 R-20261101-150900-alexandre
 R-20261101-150911-alexandre
 R-20261101-164531-alexandre
+R-20261101-180114-gerente-projetos
+R-20261101-184624-alexandre
+R-20261101-203352-modulo-core
