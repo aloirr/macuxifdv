@@ -190,7 +190,7 @@ describe('push das coletas', () => {
   });
 });
 
-describe('API de produção sem a migração 0015', () => {
+describe('API sem repositório (só o manifesto)', () => {
   it('sem repositório: só o manifesto (push volta SYNC_NAO_IMPLEMENTADO pela plataforma e as coletas ficam no aparelho)', () => {
     const a = criarModuloApiPromotor({ repositorio: null });
     expect(a.rotas ?? []).toEqual([]);

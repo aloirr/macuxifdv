@@ -175,10 +175,10 @@ function Preco({ l }: { l: UsoLoja }) {
       if ('precisa_confirmar' in r) setConfirmar(true);
       return setMsg({ texto: r.erro, tom: 'warning' });
     }
-    const erro = await l.registrar('coleta_preco', r.coleta, `preco:${produto}`, `Preço ${formatBRL(r.coleta.preco_cents / 100)}`);
+    const erro = await l.registrar('coleta_preco', r.coleta, `preco:${produto}`, `Preço ${formatBRL(r.coleta.preco_cents)}`);
     if (erro) return setMsg({ texto: erro, tom: 'danger' });
     await l.guardarPreco(produto, r.coleta.preco_cents);
-    setMsg({ texto: `Preço registrado: ${formatBRL(r.coleta.preco_cents / 100)}.`, tom: 'success' });
+    setMsg({ texto: `Preço registrado: ${formatBRL(r.coleta.preco_cents)}.`, tom: 'success' });
     setValor('');
     setConfirmar(false);
   };
