@@ -148,7 +148,7 @@ export function OrdersPage() {
                     <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(o.total_cents)}</td>
                     <td className={tdNum}>{formatPct(o.discount_pct)}</td>
                     <td className={td}>
-                      <OrderStatusBadge status={o.status} />
+                      <OrderStatusBadge status={o.status} situacaoOrcamento={o.situacao_orcamento} />
                     </td>
                     <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(o.received_at, tz)}</td>
                   </tr>
