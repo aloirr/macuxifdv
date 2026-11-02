@@ -8,7 +8,7 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, Chip, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Banner, Chip, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SyncStamp, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -16,6 +16,7 @@ import { caminhoCatalogo, type ItemVitrine, type RespostaBusca } from '../../con
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
+import { contagem } from '../lib/apresentacao';
 import { buscarLocal, filtrosLocais, vitrineLocal } from '../lib/local';
 import { irParaProduto } from '../rotas';
 import { CartaoProduto } from './comum';
@@ -48,6 +49,7 @@ export default function TelaCatalogo() {
   const [soComEstoque, setSoComEstoque] = useState(false);
   const [linhas, setLinhas] = useState<string[]>([]);
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null, origem: 'aparelho' });
+  const auto = useAtualizacaoAutomatica({ tz: fuso });
   const agora = relogioReal().agora().toISOString();
 
   // espera o vendedor parar de digitar antes de buscar (economiza IA e bateria)
@@ -106,7 +108,7 @@ export default function TelaCatalogo() {
   }
 
   return (
-    <Screen testID="pagina-catalogo-catalogo" refreshing={sync.sincronizando} onRefresh={() => void motor.sincronizar()}>
+    <Screen testID="pagina-catalogo-catalogo" refreshing={auto.puxando} onRefresh={auto.puxar}>
       <View style={s.topo}>
         <View style={{ flex: 1 }}>
           <Text style={t.h1}>Catálogo</Text>
@@ -156,13 +158,16 @@ export default function TelaCatalogo() {
 
       {lista.itens.length > 0 ? (
         <Text style={s.contagem} testID="catalogo-contagem">
-          {lista.total === 1 ? '1 produto' : `${lista.total} produtos`}
+          {contagem(lista.total, 'produto', 'produtos')}
           {lista.total > lista.itens.length ? ` · mostrando ${lista.itens.length}` : ''}
         </Text>
       ) : null}
       {lista.itens.map((item) => (
         <CartaoProduto key={item.id} item={item} agora={agora} fuso={fuso} clienteId={clienteId} onPress={() => irParaProduto(item.id, clienteId)} />
       ))}
+      <Text style={t.small} testID="catalogo-rodape-atualizacao">
+        {auto.rodape}
+      </Text>
     </Screen>
   );
 }

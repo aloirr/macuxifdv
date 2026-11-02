@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { ContextoPedidoEmNome, FichaMembro, PainelDia } from '../../contracts';
 import { fracao, STATUS_DIA_ROTULO } from '../lib/apresentacao';
+import { pct } from '../lib/formato';
 import { CAMINHO_EQUIPE } from '../rotas';
 import { useGestor } from '../state/use-gestor';
 
@@ -77,7 +78,7 @@ function Secoes({ p }: { p: PainelDia }) {
       <Card style={{ padding: 14, gap: 6 }}>
         <Text style={t.h2}>Visitas</Text>
         <Linha rotulo="Realizadas" valor={fracao(p.visitas.realizadas, p.visitas.planejadas)} />
-        <Linha rotulo="Cobertura da rota" valor={p.visitas.cobertura_pct === null ? '—' : `${Math.round(p.visitas.cobertura_pct)}%`} />
+        <Linha rotulo="Cobertura da rota" valor={p.visitas.cobertura_pct === null ? '—' : pct(Math.round(p.visitas.cobertura_pct))} />
         <Linha rotulo="Tempo em cliente" valor={`${Math.round(p.visitas.tempo_total_min)} min`} />
         {p.visitas.curtas > 0 ? <Linha rotulo="Visitas curtas" valor={String(p.visitas.curtas)} /> : null}
       </Card>
@@ -87,7 +88,7 @@ function Secoes({ p }: { p: PainelDia }) {
           <Linha rotulo="Vendido" valor={formatBRL0(p.vendas.vendas_cents)} />
           <Linha rotulo="Pedidos" valor={String(p.vendas.pedidos)} />
           <Linha rotulo="Positivados" valor={String(p.vendas.clientes_positivados)} />
-          <Linha rotulo="Desconto médio" valor={p.vendas.desconto_medio_pct === null ? '—' : `${p.vendas.desconto_medio_pct}%`} />
+          <Linha rotulo="Desconto médio" valor={pct(p.vendas.desconto_medio_pct)} />
           {p.faturamento ? <Linha rotulo="A faturar" valor={formatBRL0(p.faturamento.a_faturar_cents)} /> : null}
         </Card>
       ) : null}
@@ -96,7 +97,7 @@ function Secoes({ p }: { p: PainelDia }) {
           <Text style={t.h2}>Mês</Text>
           <Linha rotulo="Vendido no mês" valor={formatBRL0(p.mes.vendas_cents)} />
           <Linha rotulo="Meta" valor={p.mes.meta_cents === null ? 'sem meta' : formatBRL0(p.mes.meta_cents)} />
-          <Linha rotulo="Atingido" valor={p.mes.atingimento_pct === null ? '—' : `${Math.round(p.mes.atingimento_pct)}%`} />
+          <Linha rotulo="Atingido" valor={p.mes.atingimento_pct === null ? '—' : pct(Math.round(p.mes.atingimento_pct))} />
           <Linha rotulo="Precisa por dia" valor={p.mes.necessidade_diaria_cents === null ? '—' : formatBRL0(p.mes.necessidade_diaria_cents)} />
         </Card>
       ) : null}
@@ -104,9 +105,9 @@ function Secoes({ p }: { p: PainelDia }) {
         <Card style={{ padding: 14, gap: 6 }}>
           <Text style={t.h2}>Trade</Text>
           <Linha rotulo="Lojas visitadas" valor={String(p.trade.lojas_visitadas)} />
-          <Linha rotulo="Gôndola conforme" valor={p.trade.conformidade_pct === null ? '—' : `${p.trade.conformidade_pct}%`} />
-          <Linha rotulo="Share médio" valor={p.trade.share_medio_pct === null ? '—' : `${p.trade.share_medio_pct}%`} />
-          <Linha rotulo="Ruptura" valor={p.trade.ruptura_pct === null ? '—' : `${p.trade.ruptura_pct}%`} />
+          <Linha rotulo="Gôndola conforme" valor={pct(p.trade.conformidade_pct)} />
+          <Linha rotulo="Share médio" valor={pct(p.trade.share_medio_pct)} />
+          <Linha rotulo="Ruptura" valor={pct(p.trade.ruptura_pct)} />
           <Linha rotulo="Tarefas concluídas" valor={String(p.trade.tarefas_concluidas)} />
         </Card>
       ) : null}
