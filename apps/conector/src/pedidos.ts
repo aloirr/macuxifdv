@@ -89,7 +89,18 @@ export async function gravarPedidos(ctx: Contexto, cfg: PedidosConfig, r: Result
 async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: ResultadoPedidos): Promise<void> {
   const { store, log } = ctx;
   const agora = () => ctx.relogio.agora();
-  const pedido = PedidoParaErp.parse(JSON.parse(local.payload));
+  const lido = lerPedidoLocal(local.payload);
+  if (!lido.ok) {
+    // T-0048 (RN-INT-08): um pedido fora do contrato não pode interromper a gravação dos seguintes. Vai como `rejeitado_erp` com
+    // os CAMPOS que falharam (nunca os valores: podem ter dado pessoal) e o ciclo segue para o próximo.
+    const motivo = `pedido fora do contrato PedidoParaErp (${lido.campos}); o pedido não foi gravado no ERP`.slice(0, 300);
+    store.atualizarPedido(local.pedidoUuid, { estado: 'rejeitado_erp', final: true, erro: motivo }, agora());
+    enfileirar(ctx, r, local.pedidoUuid, 'rejeitado_erp', { status: 'rejeitado_erp', motivo, ocorrido_em: iso(agora()) });
+    r.rejeitados++;
+    log.erro('pedido_fora_do_contrato', { pedido_uuid: local.pedidoUuid, campos: lido.campos });
+    return;
+  }
+  const pedido = lido.pedido;
   try {
     // Janela "commit aplicado, resposta perdida": se já houve tentativa (falha de SQL) ou o último erro foi de conexão (erro de
     // conexão não conta tentativa, mas deixa `erro` preenchido), o ERP pode já ter o pedido. Pergunta ANTES de gravar; se houver
@@ -147,6 +158,20 @@ async function gravar(ctx: Contexto, cfg: PedidosConfig, local: PedidoLocal, r: 
 }
 
 class ErroRegraErp extends Error {}
+
+/** Lê o pedido guardado na fila local pelo contrato; na falha devolve só os caminhos dos campos (sem valores). */
+function lerPedidoLocal(payload: string): { ok: true; pedido: PedidoParaErp } | { ok: false; campos: string } {
+  let bruto: unknown;
+  try {
+    bruto = JSON.parse(payload);
+  } catch {
+    return { ok: false, campos: 'JSON ilegível' };
+  }
+  const v = PedidoParaErp.safeParse(bruto);
+  if (v.success) return { ok: true, pedido: v.data };
+  const campos = [...new Set(v.error.issues.map((i) => i.path.join('.') || '(raiz)'))].slice(0, 10).join(', ');
+  return { ok: false, campos };
+}
 
 /** Número do pedido no ERP a partir da consulta `numeroErp` (primeira linha, coluna `numero_erp`); `null` se não houver. */
 function numeroGravado(linhas: Linha[]): string | null {
@@ -224,13 +249,26 @@ function fatosDoStatus(cfg: PedidosConfig, linhas: Linha[]): FatoStatus[] {
   return [...outros.filter((f) => f.status === 'integrado'), ...unicas.values(), ...outros.filter((f) => f.status !== 'integrado')];
 }
 
+/** Assinatura do fato na fila de retornos: o mesmo fato nunca entra duas vezes (RN-INT-08, idempotência por pedido+status+nota). */
+const assinaturaDoFato = (status: FatoStatus['status'], nota?: string, serie?: string): string =>
+  status === 'integrado' || status === 'cancelado' || status === 'rejeitado_erp' ? status : `${status}|${nota ?? ''}|${serie ?? ''}`;
+
+/**
+ * A nota já foi para a fila de retornos com outro status (qualquer `faturado_*`)? Então os itens dela já saíram uma vez.
+ * T-0048 (🔴 da revisão da T-0023): o ERP fecha o pedido sem nota nova e a última nota, já enviada como `faturado_parcial`, volta
+ * como `faturado_total`; esse fechamento vai com a mesma nota e SEM `itens_faturados`, senão o Hub somaria os itens de novo.
+ */
+function notaJaRetornada(ctx: Contexto, uuid: string, nota: string, serie: string | undefined): boolean {
+  return (['faturado_parcial', 'faturado_total'] as const).some((s) => ctx.store.retornoExiste(uuid, assinaturaDoFato(s, nota, serie)));
+}
+
 export async function acompanharStatus(ctx: Contexto, cfg: PedidosConfig, r: ResultadoPedidos = novoResultado()): Promise<ResultadoPedidos> {
   const abertos = ctx.store.pedidosPorEstado(['gravado', 'faturado_parcial'], ctx.relogio.agora());
   for (const local of abertos) {
     const linhas = await ctx.erp.consultar(cfg.status.consulta, { pedido_uuid: local.pedidoUuid });
     for (const fato of fatosDoStatus(cfg, linhas)) {
       const { linha, status, nota, serie } = fato;
-      const assinatura = status === 'integrado' ? 'integrado' : status === 'cancelado' || status === 'rejeitado_erp' ? status : `${status}|${nota ?? ''}|${serie ?? ''}`;
+      const assinatura = assinaturaDoFato(status, nota, serie);
       if (ctx.store.retornoExiste(local.pedidoUuid, assinatura)) continue;
       const corpo: CorpoRetorno = {
         status,
@@ -241,8 +279,13 @@ export async function acompanharStatus(ctx: Contexto, cfg: PedidosConfig, r: Res
       if ((status === 'faturado_parcial' || status === 'faturado_total') && nota) {
         const total = Number(col(linha, 'nota_total_cents'));
         corpo.nota = { numero: nota, serie, emitida_em: fato.emitidaEm ?? corpo.ocorrido_em, total_cents: Number.isFinite(total) ? Math.max(0, Math.round(total)) : 0 };
-        const itens = cfg.status.consultaItensNota ? await itensDaNota(ctx, cfg, local.pedidoUuid, nota, serie) : undefined;
-        if (itens) corpo.itens_faturados = itens;
+        if (notaJaRetornada(ctx, local.pedidoUuid, nota, serie)) {
+          // fechamento sem nota nova: só o status muda; os itens desta nota já foram (RN-INT-08)
+          ctx.log.info('fechamento_sem_nota_nova', { pedido_uuid: local.pedidoUuid, status, nota });
+        } else {
+          const itens = cfg.status.consultaItensNota ? await itensDaNota(ctx, cfg, local.pedidoUuid, nota, serie) : undefined;
+          if (itens) corpo.itens_faturados = itens;
+        }
       }
       if (enfileirar(ctx, r, local.pedidoUuid, assinatura, corpo)) {
         ctx.store.atualizarPedido(local.pedidoUuid, { estado: status === 'integrado' ? 'gravado' : status, final: FINAIS.has(status), numeroErp: corpo.numero_erp ?? local.numeroErp }, ctx.relogio.agora());
