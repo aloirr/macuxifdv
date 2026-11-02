@@ -32,6 +32,10 @@ Interface `RepositorioCatalogo` com duas implementações:
 - **Postgres** (`criarRepositorioPostgres`): preço real (0008) e cadastro base pela consulta `core.cadastro_resumo@1` (ADR 0012; produtos = os que têm item de tabela de preço). **Até a migração 0013**: estoque, conteúdo, sinônimos, destaque, vendas, cota e registro de buscas devolvem vazio/neutro; a cota devolve `indisponivel` (a IA **não** é chamada — falha fechada, sem gasto sem limite); escrita do BKO = 503 `CATALOGO_CONTEUDO_INDISPONIVEL`. Marca, categoria e EAN chegam quando o Core os incluir na consulta (pedido ao modulo-core).
 
 ## App (Campo e Gestão; `modules/catalogo/app`)
+**Etapas**: a 1ª (merge da T-0052) leva as telas, o índice FTS5, as migrações do aparelho e as entidades; a **aba e o atalho
+"Ver catálogo" são ligados na 2ª** (páginas no `moduloApp` + slot `cliente.acoes`), junto com a virada dos casos D-C00c/D-G00
+de `tests/modulos/demo-abas.test.ts` pelo agente testes.
+
 - **Aba Catálogo** (`catalogo`, ordem 60 → fica no "Mais" do vendedor) e **ficha** (`produto`), ação `produto.consultar`, para todos os perfis do módulo.
 - **Offline-first**: vitrine e ficha sempre do aparelho (`app/lib/local.ts`, mesmo domain da API). Busca com texto: API quando há sinal; sem sinal ou em falha, busca local com aviso (`AVISO_BUSCA_OFFLINE` / `AVISO_BUSCA_FALHOU`). Em catálogo grande (> 2.000 produtos) o FTS5 pré-seleciona os candidatos.
 - **Cliente em contexto** pela URL (`/m/catalogo?cliente=<id>`); atalho **"Ver catálogo"** na ficha do cliente (slot `cliente.acoes` do Core). Sem cliente, o cartão pede para escolher o cliente (o tenant não tem tabela padrão).
