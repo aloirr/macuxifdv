@@ -8,11 +8,12 @@ import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Button, Card, colors, dateTimeLabel, fonts, Icon, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderEvent } from '../../contracts';
 import { sellerDiscountLimit } from '../../domain/order';
+import { textoItemFaturado } from '../../domain/retorno-erp';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, rotuloDoNivel, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
@@ -34,6 +35,10 @@ interface Line {
   quantity: number;
   unit_price_cents: number;
   total_cents: number;
+  /** T-0054: unidades faturadas pelo ERP, na unidade base (ausente = sem retorno de faturamento) */
+  quantity_invoiced?: number;
+  /** quantidade na unidade base (0013), para comparar com o faturado */
+  quantity_base?: number;
 }
 
 export default function OrderDetailScreen() {
@@ -61,14 +66,19 @@ export default function OrderDetailScreen() {
   const qd = queued?.display ?? null;
 
   const isQueued = Boolean(queued);
+  // RN-CORE-23 (T-0054): ao focar, só relê o aparelho; sem consulta periódica (o pull é do motor de sync da plataforma)
   useFocusEffect(
     useCallback(() => {
       if (isQueued || !id) return;
       void loadOrder(id);
-      const h = setInterval(() => void loadOrder(id), 10_000);
-      return () => clearInterval(h);
     }, [id, loadOrder, isQueued]),
   );
+  const [sincronizandoTela, setSincronizandoTela] = useState(false);
+  /** RN-CORE-23: puxar para baixo = Sincronizar. */
+  const puxarParaSincronizar = useCallback(() => {
+    setSincronizandoTela(true);
+    void app.sincronizarAgora().finally(() => setSincronizandoTela(false));
+  }, [app]);
 
   const base = detail ?? summary;
   if (!base && !queued) {
@@ -86,7 +96,11 @@ export default function OrderDetailScreen() {
   const number = queued ? null : base!.number;
   const lines: Line[] = queued
     ? (qd?.lines ?? []).map((l) => ({ key: l.product_id, ...l }))
-    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents }));
+    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base }));
+  // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
+  const situacaoFaturamento = queued ? [] : (base?.situacao_faturamento ?? []);
+  const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
+  const devolucoes = queued ? [] : (detail?.faturamento?.devolucoes ?? []);
   const subtotal = queued ? (qd?.subtotal_cents ?? 0) : base!.subtotal_cents;
   const discount = queued ? (qd?.discount_cents ?? 0) : base!.discount_cents;
   const total = queued ? (qd?.total_cents ?? 0) : base!.total_cents;
@@ -236,7 +250,10 @@ export default function OrderDetailScreen() {
   };
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
+      refreshControl={<RefreshControl refreshing={sincronizandoTela} onRefresh={puxarParaSincronizar} />}>
       <AvisoRapido mensagem={sheets.aviso} />
       <BackLink label="Pedidos" fallback={hrefPedidos()} />
       <View style={{ gap: 6 }}>
@@ -268,6 +285,23 @@ export default function OrderDetailScreen() {
         <Row label={`Total · prazo ${terms}`} value={formatBRL(total)} strong />
         {base && !queued && base.branch_name ? <Row label="Filial" value={base.branch_name} /> : null}
       </Card>
+
+      {situacaoFaturamento.length > 0 ? (
+        <Card style={{ padding: 14, gap: 6 }} testID="order-invoicing">
+          <Text style={t.bodyStrong}>Faturamento</Text>
+          {situacaoFaturamento.map((linha) => (
+            <Text key={linha} style={t.body}>
+              {linha}
+            </Text>
+          ))}
+          {notasFaturamento.map((n, i) => (
+            <Row key={`nf-${n.numero ?? i}-${n.faturado_em}`} label={`NF ${n.numero ?? '—'}${n.serie ? `/${n.serie}` : ''} · ${dateTimeLabel(n.faturado_em, agoraTela, tz)}${n.parcial ? ' · parcial' : ''}`} value={n.total_cents === null ? `${n.unidades} un.` : formatBRL(n.total_cents)} />
+          ))}
+          {devolucoes.map((d, i) => (
+            <Row key={`dev-${d.numero}-${i}`} label={`Devolução NF ${d.numero}${d.serie ? `/${d.serie}` : ''} · ${dateTimeLabel(d.emitida_em, agoraTela, tz)}`} value={`− ${formatBRL(d.total_cents)}`} />
+          ))}
+        </Card>
+      ) : null}
 
       {detail?.aprovacao ? (
         <Card style={{ padding: 14, gap: 8 }} testID="order-approval">
@@ -301,6 +335,7 @@ export default function OrderDetailScreen() {
                 <Text style={t.small}>
                   {l.quantity} × {formatBRL(l.unit_price_cents)}
                 </Text>
+                {textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced) ? <Text style={[t.small, { color: colors.accentInk }]}>{textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced)}</Text> : null}
               </View>
               <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }]}>{formatBRL(l.total_cents)}</Text>
             </View>

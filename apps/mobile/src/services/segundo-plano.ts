@@ -155,8 +155,15 @@ async function abrirMotorSemInterface(usuarioId: string): Promise<MotorSegundoPl
   return {
     sincronizadoEm: () => m.estado().sincronizado_em,
     erro: () => m.estado().erro,
-    sincronizar: () => m.sincronizar(),
+    // ADR 0018 item 8: API real = atualização leve (`GET /v1/sync/novidades`, que já traz os módulos efetivos quando
+    // mudam; sem cursor, o próprio motor faz a completa). Demonstração (Fase M, sem novidades): completa.
+    sincronizar: () => (modo === 'v1' ? m.sincronizarNovidades() : m.sincronizar()),
     async prepararSessao() {
+      // API real: nada a consultar antes (os módulos vêm na resposta das novidades; 1 requisição sem mudança)
+      if (modo === 'v1') {
+        if (bloqueado) return 'aparelho-bloqueado';
+        return sessaoInvalida ? 'sessao-invalida' : 'ok';
+      }
       try {
         const { efetivos, parametros } = await consultarModulosEfetivos(api(), modo, s?.user?.perfil ?? null);
         if (bloqueado) return 'aparelho-bloqueado';

@@ -37,7 +37,8 @@ export type RespostaQuestaoContrato = z.infer<typeof RespostaQuestaoContrato>;
  * Tentativa de quiz (`treinamento.tentativa`). RN-TRE-02: nota 0–100 com 2 casas; `aprovada` e `primeira_tentativa`
  * são definidas pelo servidor ao revalidar (o aparelho envia as respostas; acertos e nota são conferidos na API).
  */
-export const TentativaQuiz = z
+/** Campos da tentativa (sem as checagens cruzadas), base da linha do pull `tentativa`. */
+export const TentativaQuizCampos = z
   .object({
     id: Uuid,
     tenant_id: Uuid,
@@ -52,16 +53,25 @@ export const TentativaQuiz = z
     /** RN-TRE-02: XP de acerto só na 1ª tentativa. */
     primeira_tentativa: z.boolean(),
   })
-  .strict()
-  .superRefine((t, ctx) => {
-    if (t.acertos > t.total_questoes) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['acertos'], message: 'Os acertos não podem passar do total de questões.' });
-      return;
-    }
-    if (notaDoQuiz(t.acertos, t.total_questoes) !== t.nota_pct) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['nota_pct'], message: 'A nota precisa ser acertos ÷ questões × 100, com 2 casas.' });
-    }
-  });
+  .strict();
+
+export const TentativaQuiz = TentativaQuizCampos.superRefine((t, ctx) => {
+  if (t.acertos > t.total_questoes) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['acertos'],
+      message: 'Os acertos não podem passar do total de questões.',
+    });
+    return;
+  }
+  if (notaDoQuiz(t.acertos, t.total_questoes) !== t.nota_pct) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['nota_pct'],
+      message: 'A nota precisa ser acertos ÷ questões × 100, com 2 casas.',
+    });
+  }
+});
 export type TentativaQuiz = z.infer<typeof TentativaQuiz>;
 
 export const TentativaQuizEnvio = z

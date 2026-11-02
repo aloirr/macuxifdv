@@ -61,7 +61,10 @@ export interface ResultadoSegundoPlano {
   duracao_ms: number;
 }
 
-/** O que a tarefa precisa do motor. `prepararSessao` confere a sessão e os módulos efetivos (`GET /v1/me/modulos`). */
+/**
+ * O que a tarefa precisa do motor. `prepararSessao` confere a sessão (na demonstração, também os módulos efetivos);
+ * `sincronizar` é a atualização leve na API real (ADR 0018 item 8: `motor.sincronizarNovidades`, que traz os módulos).
+ */
 export interface MotorSegundoPlano {
   sincronizadoEm(): string | null;
   prepararSessao(): Promise<'ok' | 'sessao-invalida' | 'sem-rede' | 'aparelho-bloqueado'>;

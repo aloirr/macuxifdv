@@ -11,7 +11,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
-import type { ContextoConsumo, DefinicaoEvento } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel, type ContextoConsumo, type DefinicaoEvento } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { VERSAO_CONTRATO } from '../contracts';
@@ -62,6 +62,8 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
           return {} as never;
         }) as never,
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        // o despachante sempre entrega `consultar`; por padrão o Core não aponta nada incompleto
+        consultar: async () => ({ resultados: [] }),
         ...extra,
       } as unknown as ContextoConsumo),
     );
@@ -115,10 +117,15 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
   const vend = (n: string, nome = `Vendedor ${n}`, alterado: string = em(-60_000)) => ({ external_id: `${P}-${n}`, nome, alterado_em: alterado });
   const ID_A = A.integracao.identificador;
 
+  /** A fixture traz um lote delta de produto `recebido` no tenant A, que seguraria os lotes de produto destes testes (mesma entidade, mesmo Conector). */
+  async function liberarFilaDeProduto() {
+    await admin.query("update integracao.lote set status = 'concluido' where tenant_id = $1 and entidade = 'produto' and status = 'recebido' and id not in (select lote_id from integracao.lote_staging where corpo::text like '%T0032A7%')", [A.tenantId]);
+  }
+
   async function limpar() {
     const t = [A.tenantId, B.tenantId];
     await admin.query('delete from integracao.pendencia_inativacao where sessao_id in (select id from integracao.sessao_carga where external_id = $1)', [P]);
-    await admin.query('delete from integracao.lote where tenant_id = any($1) and id in (select lote_id from integracao.lote_staging where corpo::text like $2)', [t, `%${P}%`]);
+    await admin.query('delete from integracao.lote where tenant_id = any($1) and id in (select lote_id from integracao.lote_staging where corpo::text like $2)', [t, '%T0032A7%']); // também os lotes que uma execução anterior interrompida deixou em aberto
     await admin.query('delete from integracao.registro_atual where tenant_id = any($1) and external_id like $2', [t, `${P}%`]);
     await admin.query("delete from integracao.pedido_fila_erp where tenant_id = any($1) and payload_origem->>'observacao' = $2", [t, P]);
   }
@@ -220,6 +227,48 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       expect((await registros(A.tenantId, 'cliente')).map((r) => r.external_id)).toEqual([`${P}-K1`, `${P}-K2`]);
     });
 
+    it('RN-INT-14: Core indisponível para o tenant (ConsultaIndisponivel) não derruba o lote: aplica sem o aviso', async () => {
+      await limpar();
+      const lote = await novoLote(A.tenantId, A.integracao.conector, 'cliente', { registros: [{ external_id: `${P}-K9`, razao_social: 'Cliente 9', alterado_em: em(-60_000) }] });
+      const consultar = vi.fn(async () => {
+        throw new ConsultaIndisponivel('core.cadastro_cliente@1', 'core');
+      });
+      await aplicar(A.tenantId, lote, 'cliente', ID_A, { consultar });
+      expect(await lerLote(A.tenantId, lote)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+    });
+
+    it('RN-INT-02/04: produto_unidade e cliente_endereco são aplicados e publicam os eventos; sem o pai viram referencia_ausente', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      eventos = [];
+      const prod = { external_id: `${P}-PR1`, sku: 'SKU1', nome: 'Refri', unidade: 'UN', alterado_em: em(-60_000) };
+      const cli = { external_id: `${P}-CE1`, razao_social: 'Cliente E', alterado_em: em(-60_000) };
+      await aplicar(A.tenantId, await novoLote(A.tenantId, A.integracao.conector, 'produto', { registros: [prod] }), 'produto', ID_A);
+      await aplicar(A.tenantId, await novoLote(A.tenantId, A.integracao.conector, 'cliente', { registros: [cli] }), 'cliente', ID_A, { consultar: async () => ({ resultados: [] }) });
+      const pu = (n: string, produto: string) => ({ external_id: `${P}-PU${n}`, produto_external_id: produto, unidade: 'CX', fator: 12, alterado_em: em(-60_000) });
+      const lotePu = await novoLote(A.tenantId, A.integracao.conector, 'produto_unidade', { registros: [pu('1', `${P}-PR1`), pu('2', `${P}-NAO`)] });
+      await aplicar(A.tenantId, lotePu, 'produto_unidade', ID_A);
+      expect(await lerLote(A.tenantId, lotePu)).toMatchObject({ status: 'concluido_com_erros', novas: 1, com_erro: 1 });
+      expect((await erros(A.tenantId, lotePu))[0]).toMatchObject({ codigo: 'referencia_ausente', reprocessavel: true });
+      expect(nomes('integracao.produto_unidade.atualizado@1').map((e) => e.payload.external_id)).toEqual([`${P}-PU1`]);
+      const ce = (n: string, cliente: string) => ({ external_id: `${P}-CEN${n}`, cliente_external_id: cliente, logradouro: 'Rua A', cidade: 'Boa Vista', uf: 'RR', alterado_em: em(-60_000) });
+      const loteCe = await novoLote(A.tenantId, A.integracao.conector, 'cliente_endereco', { registros: [ce('1', `${P}-CE1`), ce('2', `${P}-NAO`)] });
+      await aplicar(A.tenantId, loteCe, 'cliente_endereco', ID_A);
+      expect(await lerLote(A.tenantId, loteCe)).toMatchObject({ status: 'concluido_com_erros', novas: 1, com_erro: 1 });
+      expect(nomes('integracao.cliente_endereco.atualizado@1').map((e) => e.payload.external_id)).toEqual([`${P}-CEN1`]);
+    });
+
+    it('RN-INT-04: produto com nó do catálogo ausente entra com o aviso referencia_fraca_ausente (não é erro de linha)', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      const prod = { external_id: `${P}-PN1`, sku: 'SKUN', nome: 'Suco', unidade: 'UN', catalogo_no_external_id: `${P}-NO-AUSENTE`, alterado_em: em(-60_000) };
+      const lote = await novoLote(A.tenantId, A.integracao.conector, 'produto', { registros: [prod] });
+      await aplicar(A.tenantId, lote, 'produto', ID_A);
+      expect(await lerLote(A.tenantId, lote)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+      const avisos = await comTenant(pool, A.tenantId, async (db) => (await db.query<{ avisos: { codigo: string }[] }>('select avisos from integracao.lote where id = $1', [lote])).rows[0]?.avisos);
+      expect(avisos?.map((a) => a.codigo)).toEqual(['referencia_fraca_ausente']);
+    });
+
     it('RN-INT-06: carga completa dentro do limite inativa o ausente, publica acao inativado e nunca inativa quem chegou inválido', async () => {
       await limpar();
       eventos = [];
@@ -289,8 +338,9 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
     const aprovar = (tenantId: string, p: ReturnType<typeof pedido>) => rodar(tenantId, (ctx) => entrarNaFila(p, ctx));
     const cancelar = (tenantId: string, uuid: string, para = 'cancelado') => rodar(tenantId, (ctx) => sairDaFila({ pedido_id: uuid, para, alterado_em: AGORA.toISOString() }, ctx));
     /** O que o Conector A recebe em GET /pedidos/pendentes (handler real, com o `comTenant` da fixture). */
-    const retirar = () =>
+    const retirar = (versao = '1.2.1') =>
       pedidosPendentes({
+        cabecalhos: { 'x-macuxi-conector-versao': versao },
         tenantId: A.tenantId,
         conector: { id: A.integracao.conector, identificador: ID_A, recebe_pedidos: true },
         query: { limite: 100 },
@@ -349,6 +399,25 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       const uuid = randomUUID();
       await expect(aprovar(A.tenantId, { ...pedido(uuid), cliente_external_id: null as never })).rejects.toThrow(/chaves do ERP/);
       expect(await fila(A.tenantId, uuid)).toBeUndefined();
+    });
+
+    it('RN-INT-11: pedido FOB espera o Conector 1.3.0 na fila (exige_conector gravado) e sai quando o Conector atualiza; o simples sai ao 1.2.1', async () => {
+      await limpar();
+      const fob = randomUUID();
+      const simples = randomUUID();
+      const frete = { modalidade: 'FOB', transportadora: { tipo: 'digitada', nome: 'Rápido', cnpj: '12345678000199' } };
+      await aprovar(A.tenantId, { ...pedido(fob), frete } as never);
+      await aprovar(A.tenantId, pedido(simples));
+      const col = await comTenant(pool, A.tenantId, async (db) => (await db.query<{ pedido_uuid: string; exige_conector: string | null }>('select pedido_uuid, exige_conector from integracao.pedido_fila_erp where pedido_uuid = any($1)', [[fob, simples]])).rows);
+      expect(col.find((r) => r.pedido_uuid === fob)?.exige_conector).toBe('1.3.0');
+      expect(col.find((r) => r.pedido_uuid === simples)?.exige_conector).toBeNull();
+      const antigo = (await retirar('1.2.1')).pedidos.map((x) => x.pedido_uuid);
+      expect(antigo).toContain(simples);
+      expect(antigo).not.toContain(fob);
+      expect(await fila(A.tenantId, fob)).toMatchObject({ estado: 'pendente', tentativas: 0 });
+      const novo = (await retirar('1.3.0')).pedidos.find((x) => x.pedido_uuid === fob);
+      expect(novo?.frete).toEqual(frete);
+      await limpar();
     });
 
     it('multi-tenant: a fila do tenant B não enxerga o pedido de A e a aprovação em B usa o de-para de B', async () => {

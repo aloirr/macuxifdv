@@ -18,7 +18,8 @@ import {
   TextoOpcional,
 } from './base';
 
-export const ENTIDADES = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota'] as const;
+/** As 8 primeiras são as originais; as 4 últimas entraram aditivas no v1 (ADR 0016, desenho T-0061 §4.4). */
+export const ENTIDADES = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora'] as const;
 export const Entidade = z.enum(ENTIDADES, { errorMap: () => ({ message: 'entidade desconhecida' }) });
 export type Entidade = z.infer<typeof Entidade>;
 
@@ -82,7 +83,14 @@ export const ProdutoPayload = RegistroBase.extend({
   nome: Texto(200),
   marca: TextoOpcional(80),
   categoria: TextoOpcional(80),
+  /** Sigla da medida cadastrada no tenant (RN-CORE-19); o A7 confere com `core.medidas@1` (ausente/inativa = `referencia_ausente`). */
   unidade: Texto(10),
+  /** Nó da árvore do catálogo; referência FRACA: nó ausente vira aviso e o produto entra sem nó. */
+  catalogo_no_external_id: ExternalId.nullish(),
+  /** RN-CORE-18 / RN-VEN-11: custo, preço de venda e desconto máximo próprio (o Core aplica). */
+  custo_cents: CentavosNaoNegativos.nullish(),
+  preco_venda_cents: CentavosNaoNegativos.nullish(),
+  desconto_maximo_pct: z.number().min(0).max(100).nullish(),
 });
 export type ProdutoPayload = z.infer<typeof ProdutoPayload>;
 
@@ -94,6 +102,8 @@ export const PrecoPayload = RegistroBase.extend({
   vigencia_fim: DataCivil.nullish(),
   produto_external_id: ExternalId,
   preco_cents: CentavosNaoNegativos,
+  /** Sigla da medida a que o preço se refere (fila de corte); ausente = unidade base do produto. */
+  unidade: TextoOpcional(6),
 }).superRefine((r, ctx) => {
   if (r.vigencia_fim && r.vigencia_fim < r.vigencia_inicio) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['vigencia_fim'], message: 'fim da vigência anterior ao início' });
@@ -156,6 +166,69 @@ export const RotaPayload = RegistroBase.extend({
 });
 export type RotaPayload = z.infer<typeof RotaPayload>;
 
+// ---------- árvore do catálogo (T-0061) ----------
+export const CatalogoNoPayload = RegistroBase.extend({
+  codigo: Texto(60),
+  nome: Texto(120),
+  /** Nó pai; ausente = raiz. Referência fraca (o Catálogo ordena a árvore). */
+  pai_external_id: ExternalId.nullish(),
+  nivel: z.number().int().min(1).max(8),
+  ordem: z.number().int().default(0),
+});
+export type CatalogoNoPayload = z.infer<typeof CatalogoNoPayload>;
+
+// ---------- medida/embalagem do produto (T-0061) ----------
+export const ProdutoUnidadePayload = RegistroBase.extend({
+  produto_external_id: ExternalId,
+  /** Sigla da medida cadastrada no tenant (RN-CORE-19), maiúsculas. */
+  unidade: z
+    .string({ required_error: 'unidade é obrigatória' })
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{1,6}$/, 'unidade deve ter de 1 a 6 letras ou números'),
+  /** Quantidade de unidades base em uma desta embalagem (CX com 12 = 12). */
+  fator: z.number().int('fator deve ser inteiro').positive('fator deve ser maior que zero'),
+  ean: z
+    .string()
+    .trim()
+    .regex(/^\d{8}$|^\d{12,14}$/, 'EAN deve ter 8, 12, 13 ou 14 dígitos')
+    .nullish(),
+  padrao: z.boolean().default(false),
+});
+export type ProdutoUnidadePayload = z.infer<typeof ProdutoUnidadePayload>;
+
+// ---------- endereço do cliente (T-0061) ----------
+export const TIPOS_ENDERECO_CLIENTE = ['principal', 'entrega', 'cobranca'] as const;
+export const ClienteEnderecoPayload = RegistroBase.extend({
+  cliente_external_id: ExternalId,
+  tipo: z.enum(TIPOS_ENDERECO_CLIENTE).default('entrega'),
+  descricao: TextoOpcional(80),
+  logradouro: Texto(160),
+  numero: TextoOpcional(20),
+  complemento: TextoOpcional(80),
+  bairro: TextoOpcional(80),
+  cidade: Texto(80),
+  uf: z.string().trim().length(2, 'UF deve ter 2 letras').toUpperCase(),
+  cep: TextoOpcional(9),
+  latitude: z.number().min(-90).max(90).nullish(),
+  longitude: z.number().min(-180).max(180).nullish(),
+  principal: z.boolean().default(false),
+});
+export type ClienteEnderecoPayload = z.infer<typeof ClienteEnderecoPayload>;
+
+// ---------- transportadora (T-0061; frete FOB) ----------
+export const TransportadoraPayload = RegistroBase.extend({
+  nome: Texto(120),
+  documento: z
+    .string()
+    .trim()
+    .regex(/^\d{14}$/, 'CNPJ da transportadora deve ter 14 dígitos')
+    .nullish(),
+  inscricao_estadual: TextoOpcional(20),
+  telefone: TextoOpcional(30),
+});
+export type TransportadoraPayload = z.infer<typeof TransportadoraPayload>;
+
 /** Schema do registro de cada entidade (validação linha a linha, RN-INT-03). */
 export const SCHEMA_REGISTRO = {
   vendedor: VendedorPayload,
@@ -166,6 +239,10 @@ export const SCHEMA_REGISTRO = {
   titulo: TituloPayload,
   nota: NotaPayload,
   rota: RotaPayload,
+  catalogo_no: CatalogoNoPayload,
+  produto_unidade: ProdutoUnidadePayload,
+  cliente_endereco: ClienteEnderecoPayload,
+  transportadora: TransportadoraPayload,
 } as const satisfies Record<Entidade, z.ZodTypeAny>;
 
 export type RegistroDe<E extends Entidade> = z.infer<(typeof SCHEMA_REGISTRO)[E]>;
@@ -180,4 +257,8 @@ export const CAMPO_SOMA_CONTROLE: Record<Entidade, string | null> = {
   estoque: 'saldo',
   titulo: 'saldo_cents',
   nota: 'total_cents',
+  catalogo_no: null,
+  produto_unidade: null,
+  cliente_endereco: null,
+  transportadora: null,
 };

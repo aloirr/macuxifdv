@@ -16,9 +16,16 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
     entrada.cliente_ids,
     'select id, razao_social, nome_fantasia, documento, logradouro, numero, bairro, cidade, uf, ativo, external_id, inscricao_estadual, cep, cadastro_incompleto, cadastro_campos_faltantes from core.cliente where deleted_at is null and id = any($1::uuid[]) order by id',
   );
-  const produtos = (await lista(entrada.produto_ids, 'select id, sku, nome, unidade, ativo, external_id from core.produto where deleted_at is null and id = any($1::uuid[]) order by id')) as Array<
-    CadastroResumoSaida['produtos'][number]
-  >;
+  const produtos = (
+    entrada.produto_ids.length === 0 && entrada.produto_external_ids.length === 0
+      ? []
+      : (
+          await ctx.db.query(
+            'select id, sku, nome, unidade, ativo, external_id from core.produto where deleted_at is null and (id = any($1::uuid[]) or external_id = any($2::text[])) order by id',
+            [entrada.produto_ids, entrada.produto_external_ids],
+          )
+        ).rows
+  ) as Array<CadastroResumoSaida['produtos'][number]>;
   if (produtos.length > 0) {
     const unidades = await lista(
       produtos.map((p) => p.id),

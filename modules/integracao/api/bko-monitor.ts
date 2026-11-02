@@ -5,7 +5,7 @@
  */
 import type { ContextoRota, RotaModulo } from '@macuxi/platform-sdk';
 import { ESTADOS_PEDIDO_ERP, type Entidade, type LoteListagemItem, type MonitorResumo, type PendenciaInativacao } from '../contracts';
-import { montarAlertasMonitor, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
+import { montarAlertasMonitor, pedidosAguardandoConector, resumirCargaPorEntidade, type EstadoCargaEntidade } from '../domain';
 import { COLUNAS_CONECTOR, iso, lerChaves, lerPolitica, montarResumo, type LinhaConector } from './bko-comum';
 import { lerParametrosHub } from './parametros';
 
@@ -101,6 +101,17 @@ export const rotaMonitor: RotaModulo = {
         [tenantId],
       );
 
+      // ADR 0016: pedidos que exigem Conector mais novo que o que recebe os pedidos (versão do último sinal)
+      const { rows: esperandoConector } = await db.query<{ pedido_uuid: string; exige_conector: string }>(
+        `select pedido_uuid, exige_conector from integracao.pedido_fila_erp
+          where tenant_id = $1 and deleted_at is null and exige_conector is not null and estado in ('pendente', 'enviado') limit 1000`,
+        [tenantId],
+      );
+      const { rows: recebedor } = await db.query<{ versao_conector: string | null }>(
+        'select versao_conector from integracao.conector where tenant_id = $1 and ativo and recebe_pedidos and deleted_at is null limit 1',
+        [tenantId],
+      );
+
       const { rows: falhos } = await db.query<{ entidade: Entidade; conector_id: string }>(
         `select l.entidade, c.identificador as conector_id from integracao.lote l join integracao.conector c on c.tenant_id = l.tenant_id and c.id = l.conector_id
           where l.tenant_id = $1 and l.status = 'falhou' and l.recebido_em > $2::timestamptz and l.deleted_at is null`,
@@ -126,6 +137,7 @@ export const rotaMonitor: RotaModulo = {
         reconciliacoesDivergentes: reconc.filter((r) => r.divergente),
         pedidos: { presos: presos.map((p) => p.pedido_uuid), retidos: retidos.map((p) => p.pedido_uuid) },
         retornosComItensDescartados24h: descartes,
+        pedidosAguardandoConector: pedidosAguardandoConector(esperandoConector, recebedor[0]?.versao_conector ?? null),
       });
 
       const contagem = Object.fromEntries(ESTADOS_PEDIDO_ERP.map((e) => [e, 0])) as Record<(typeof ESTADOS_PEDIDO_ERP)[number], number>;

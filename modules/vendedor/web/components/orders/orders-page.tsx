@@ -12,6 +12,7 @@ import { type FiltrosPedidos, temFiltro } from '../../lib/filtros-url';
 import { usePedidos, usePendentes, useSessaoDoBko } from '../../lib/queries';
 import { useFiltrosNaUrl } from '../../lib/use-filtros';
 import { ApprovalsPanel } from './approvals-panel';
+import { useAtualizarPedidos } from './decisao';
 import { OrderDrawer } from './order-drawer';
 import { OrderStatusBadge } from './status';
 
@@ -19,7 +20,8 @@ const campo = 'h-10 box-border rounded-[10px] border border-field bg-surface px-
 
 /**
  * Pedidos no BKO (RF-VEN-04/09, T-0029 §8): lista com filtros na URL (status, período, vendedor, busca por cliente ou número),
- * paginação por cursor, atualização a cada 10 s, painel "Aguardando aprovação" com Aprovar/Rejeitar, gaveta de detalhe com PDF.
+ * paginação por cursor, atualização ao abrir, ao focar a janela, depois de decidir e pelo botão Atualizar (RN-CORE-23, sem
+ * consulta periódica própria), painel "Aguardando aprovação" com Aprovar/Rejeitar, gaveta de detalhe com PDF.
  * A proteção real é na API (escopo, perfil, alçada); aqui a interface só reflete o que a API permite.
  */
 export function OrdersPage() {
@@ -29,6 +31,7 @@ export function OrdersPage() {
   const [aberto, setAberto] = useState<Order | null>(null);
   const lista = usePedidos(filtros);
   const pendentes = usePendentes();
+  const atualizar = useAtualizarPedidos();
   const tz = sessao.fuso;
 
   const pedidos = useMemo(() => lista.data?.pages.flatMap((p) => p.itens) ?? [], [lista.data]);
@@ -54,10 +57,15 @@ export function OrdersPage() {
         title="Pedidos"
         subtitle={lista.data ? `${pedidos.length} ${lista.hasNextPage ? 'carregados (há mais)' : 'pedidos'} · ${formatBRL(total)}${lista.isFetching ? ' · atualizando…' : ''}` : ' '}
         actions={
-          <Button variant="link" onClick={exportarCsv} disabled={pedidos.length === 0} className="font-semibold" data-testid="pedidos.exportar-csv">
-            <IconDownload size={15} />
-            Exportar CSV
-          </Button>
+          <>
+            <Button variant="link" onClick={() => atualizar()} disabled={lista.isFetching} className="font-semibold" data-testid="pedidos.atualizar">
+              Atualizar
+            </Button>
+            <Button variant="link" onClick={exportarCsv} disabled={pedidos.length === 0} className="font-semibold" data-testid="pedidos.exportar-csv">
+              <IconDownload size={15} />
+              Exportar CSV
+            </Button>
+          </>
         }
       />
 
@@ -149,6 +157,11 @@ export function OrdersPage() {
                     <td className={tdNum}>{formatPct(o.discount_pct)}</td>
                     <td className={td}>
                       <OrderStatusBadge status={o.status} situacaoOrcamento={o.situacao_orcamento} />
+                      {o.situacao_faturamento?.length ? (
+                        <span className="mt-0.5 block whitespace-nowrap text-[12px] text-ink-2" data-testid={`pedido.faturamento.${o.number}`}>
+                          {o.situacao_faturamento.join(' · ')}
+                        </span>
+                      ) : null}
                     </td>
                     <td className={`${td} whitespace-nowrap text-ink-2`}>{formatDateTime(o.received_at, tz)}</td>
                   </tr>

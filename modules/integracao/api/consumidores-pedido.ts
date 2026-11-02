@@ -9,7 +9,7 @@
  */
 import { definirConsumidor, definirEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { PedidoAprovadoConsumido, PedidoAprovadoParaFila, PedidoStatusAlteradoConsumido } from '../contracts';
-import { decidirEntradaNaFila, type Mapeamento, type PedidoNaFila } from '../domain';
+import { decidirEntradaNaFila, exigeConector, type Mapeamento, type PedidoNaFila } from '../domain';
 import { naFila, type LinhaFila } from './rotas-pedidos';
 
 export const EVENTO_VENDEDOR_PEDIDO_APROVADO = definirEvento('vendedor.pedido.aprovado@1', PedidoAprovadoConsumido);
@@ -46,25 +46,25 @@ export async function entrarNaFila(p: PedidoAprovadoConsumido, ctx: ContextoCons
   switch (d.acao) {
     case 'criar':
       await ctx.db.query(
-        `insert into integracao.pedido_fila_erp (tenant_id, pedido_uuid, estado, payload, payload_origem, aprovado_em)
-         values ($1, $2, 'pendente', $3::jsonb, $4::jsonb, $5::timestamptz) on conflict (tenant_id, pedido_uuid) do nothing`,
-        [tenantId, p.pedido_uuid, JSON.stringify(d.pedido), origem, p.aprovado_em],
+        `insert into integracao.pedido_fila_erp (tenant_id, pedido_uuid, estado, payload, payload_origem, aprovado_em, exige_conector)
+         values ($1, $2, 'pendente', $3::jsonb, $4::jsonb, $5::timestamptz, $6) on conflict (tenant_id, pedido_uuid) do nothing`,
+        [tenantId, p.pedido_uuid, JSON.stringify(d.pedido), origem, p.aprovado_em, exigeConector(d.pedido)],
       );
       break;
     case 'reativar':
       await ctx.db.query(
         `update integracao.pedido_fila_erp
             set deleted_at = null, estado = 'pendente', tentativas = 0, enviado_em = null, conector_id = null, retencao_codigo = null, retencao_mensagem = null,
-                payload = $3::jsonb, payload_origem = $4::jsonb, aprovado_em = $5::timestamptz
+                payload = $3::jsonb, payload_origem = $4::jsonb, aprovado_em = $5::timestamptz, exige_conector = $6
           where tenant_id = $1 and pedido_uuid = $2`,
-        [tenantId, p.pedido_uuid, JSON.stringify(d.pedido), origem, p.aprovado_em],
+        [tenantId, p.pedido_uuid, JSON.stringify(d.pedido), origem, p.aprovado_em, exigeConector(d.pedido)],
       );
       break;
     case 'atualizar_payload':
       await ctx.db.query(
-        `update integracao.pedido_fila_erp set payload = $3::jsonb, payload_origem = $4::jsonb, aprovado_em = $5::timestamptz, retencao_codigo = null, retencao_mensagem = null
+        `update integracao.pedido_fila_erp set payload = $3::jsonb, payload_origem = $4::jsonb, aprovado_em = $5::timestamptz, retencao_codigo = null, retencao_mensagem = null, exige_conector = $6
           where tenant_id = $1 and pedido_uuid = $2`,
-        [tenantId, p.pedido_uuid, JSON.stringify(d.pedido), origem, p.aprovado_em],
+        [tenantId, p.pedido_uuid, JSON.stringify(d.pedido), origem, p.aprovado_em, exigeConector(d.pedido)],
       );
       break;
     case 'reter':

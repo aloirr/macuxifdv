@@ -106,15 +106,6 @@ const CHAVE_FALHA_SYNC = 'fv:diagnostico:falha_sync';
 /** Fora do desenvolvimento só https (R-20261101-023742-alexandre). */
 const EXIGIR_HTTPS = !__DEV__;
 
-/**
- * T-0065: atualização leve do motor (`GET /v1/sync/novidades` e pull só das entidades que mudaram, ou das indicadas pelo
- * push). Entra no platform-sdk pelo engenheiro-software; enquanto o motor não tiver, a leve vira a sincronização completa
- * (que já é incremental por cursor de cada entidade).
- */
-type MotorComNovidades = MotorSync & {
-  sincronizarNovidades?: (opcoes?: { entidades?: readonly string[] }) => Promise<boolean>;
-};
-
 export function usuarioDaFaseM(u: FakeUser): UsuarioSessao & FakeUser {
   return { ...u, perfil: perfilDaFaseM(u.role) };
 }
@@ -316,8 +307,8 @@ function usePlataformaValor() {
       }
       if (offlineRef.current) return m.sincronizar();
       // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)
-      const novidades = leve ? (m as MotorComNovidades).sincronizarNovidades : undefined;
-      if (leve && novidades) return novidades.call(m, leve.entidades ? { entidades: leve.entidades } : {});
+      // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
+      if (leve && modo === 'v1') return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
       try {
         await atualizarModulos();
       } catch {
@@ -329,7 +320,7 @@ function usePlataformaValor() {
     });
     syncEmCursoRef.current = p;
     return p;
-  }, [atualizarModulos]);
+  }, [atualizarModulos, modo]);
 
   /** Sincronização completa (botão Sincronizar, puxar para baixo, tela de carga): envia a fila e puxa na hora. */
   const sincronizar = useCallback((): Promise<boolean> => executarSync(null), [executarSync]);
@@ -647,7 +638,8 @@ function usePlataformaValor() {
       {
         sincronizadoEm: () => motor.estado().sincronizado_em,
         prepararSessao: async () => 'ok',
-        sincronizar: () => sincronizar(),
+        // ADR 0018 item 8: a passada é a atualização leve (novidades), como a automática do app
+        sincronizar: () => executarSync({}),
         erro: () => motor.estado().erro,
       },
       setSegundoPlano,
@@ -665,7 +657,7 @@ function usePlataformaValor() {
       semApp();
       semEstado();
     };
-  }, [motor, sincronizar]);
+  }, [motor, executarSync]);
 
   const perfil = sessao?.user.perfil ?? null;
   const visao: VisaoShell<ComponenteTela> = useMemo(() => shell.montar({ perfil, modulosAtivos }), [shell, perfil, modulosAtivos]);

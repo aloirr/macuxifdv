@@ -313,6 +313,8 @@ export const CODIGOS_ALERTA_MONITOR = [
   'chave_em_convivencia',
   // P-4 (T-0031): retornos do ERP aceitos com itens faturados descartados nas últimas 24 h
   'retorno_com_itens_descartados',
+  // ADR 0016: pedidos que usam recurso novo (embalagem, acréscimo, FOB, endereço) esperam um Conector mais novo
+  'pedido_aguardando_conector',
 ] as const;
 export const AlertaMonitor = z.object({
   codigo: z.enum(CODIGOS_ALERTA_MONITOR),

@@ -6,6 +6,7 @@ import { CarteiraPage } from './components/carteira/carteira-page';
 import { Cliente360Page } from './components/cliente360/cliente360-page';
 import { CoordenadasPage } from './components/coordenadas/coordenadas-page';
 import { EmBrevePage } from './components/em-breve/em-breve-page';
+import { ProdutosPage } from './components/produtos/produtos-page';
 import { MotivosPage } from './components/motivos/motivos-page';
 import { VisitasPage } from './components/visitas/visitas-page';
 import { AparelhosPage } from './components/aparelhos/aparelhos-page';
@@ -37,6 +38,7 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'cliente', caminho: 'cliente', titulo: 'Cliente 360', componente: Cliente360Page },
     { id: 'coordenadas-sugeridas', caminho: 'coordenadas-sugeridas', titulo: 'Coordenadas sugeridas', navegacao: 'Coordenadas sugeridas', grupo: 'cadastros', ordem: 6, acao: 'cliente.aprovar_coordenada', componente: CoordenadasPage },
     { id: 'motivos', caminho: 'motivos', titulo: 'Motivos de não venda', navegacao: 'Motivos', grupo: 'cadastros', ordem: 7, acao: 'motivo.editar', componente: MotivosPage },
+    { id: 'produtos', caminho: 'produtos', titulo: 'Preço e custo dos produtos', navegacao: 'Produtos', grupo: 'cadastros', ordem: 8, acao: 'produto.editar_preco', componente: ProdutosPage },
     { id: 'metas', caminho: 'metas', titulo: 'Metas e RV', navegacao: 'Metas', grupo: 'analise', ordem: 10, componente: MetasEmBreve },
     { id: 'indicadores', caminho: 'indicadores', titulo: 'Indicadores', navegacao: 'Indicadores', grupo: 'analise', ordem: 20, componente: IndicadoresPage },
     { id: 'plano-rv', caminho: 'plano-rv', titulo: 'Parâmetros do plano de RV', navegacao: 'Plano de RV', grupo: 'cadastros', ordem: 10, componente: PlanoRvEmBreve },

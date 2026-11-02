@@ -12,8 +12,10 @@ import { DEFAULT_TZ } from '@macuxi/ui/web';
 import { DiscountPolicy, PedidosPage } from '../../contracts';
 import { type FiltrosPedidos, paraQuery } from './filtros-url';
 
-/** A lista atualiza sozinha a cada ~10 s. */
-export const LIVE_REFETCH_MS = 10_000;
+/**
+ * RN-CORE-23 (T-0054): sem consulta periódica própria. As listas atualizam ao abrir, ao voltar o foco para a janela
+ * (`refetchOnWindowFocus` do shell), depois de cada decisão (`useAtualizarPedidos`) e pelo botão "Atualizar".
+ */
 export const POR_PAGINA = 50;
 
 export const qk = {
@@ -50,7 +52,6 @@ export function usePedidos(f: FiltrosPedidos) {
     initialPageParam: '' as string,
     getNextPageParam: (ultima) => ultima.proximo_cursor ?? undefined,
     enabled,
-    refetchInterval: LIVE_REFETCH_MS,
     placeholderData: (prev) => prev,
   });
 }
@@ -62,7 +63,6 @@ export function usePendentes() {
     queryKey: qk.pendentes,
     queryFn: async ({ signal }) => PedidosPage.parse(await api<unknown>('/vendedor/pedidos', { query: { status: 'pending_approval', limite: 100 }, signal })).itens,
     enabled,
-    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 
@@ -84,6 +84,5 @@ export function useDecisoesRecentes() {
     queryFn: async () =>
       AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { modulo: 'vendedor', entidade: 'pedido', limite: 30 } })).itens.filter((i) => i.acao !== 'pedido.criar'),
     enabled,
-    refetchInterval: LIVE_REFETCH_MS,
   });
 }

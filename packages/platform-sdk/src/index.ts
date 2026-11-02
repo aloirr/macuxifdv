@@ -10,6 +10,7 @@ export * from './modulos-efetivos';
 export * from './extensoes';
 export * from './eventos';
 export * from './sync';
+export * from './novidades';
 export * from './arquivos';
 export * from './auditoria';
 export * from './acesso';

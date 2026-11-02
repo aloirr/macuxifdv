@@ -25,3 +25,5 @@ export * from './monitor';
 export * from './topologia';
 export * from './permissoes';
 export * from './cadastro-incompleto';
+export * from './medidas';
+export * from './pedido-versao';

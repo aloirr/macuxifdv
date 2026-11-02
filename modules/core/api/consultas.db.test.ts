@@ -55,6 +55,15 @@ describe.skipIf(semBanco())('Core × Postgres: consulta core.cadastro_resumo@1',
     expect(r).toEqual({ clientes: [], produtos: [], usuarios: [], enderecos: [] });
   });
 
+  it('T-0066: produto_external_ids acha o produto do tenant (inclusive inativo), sem removido, sem duplicar e sem vazar', async () => {
+    const r = await consultar(A.tenantId, { produto_ids: [id(1)], produto_external_ids: ['ERP-1', 'ERP-inexistente'] });
+    expect(r.produtos.map((x) => x.id)).toEqual([id(1)]);
+    const so = await consultar(A.tenantId, { produto_external_ids: ['ERP-1'] });
+    expect(so.produtos.map((x) => x.id)).toEqual([id(1)]);
+    const outro = await consultar(B.tenantId, { produto_external_ids: ['ERP-1'] });
+    expect(outro.produtos).toEqual([]);
+  });
+
   it('ADR 0012: mais de 500 ids é recusado pelo contrato', () => {
     const ids = Array.from({ length: 501 }, (_, i) => id(i + 1));
     expect(() => CadastroResumoEntradaSchema.parse({ cliente_ids: ids })).toThrow();
