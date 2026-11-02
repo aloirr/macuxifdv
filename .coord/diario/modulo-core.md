@@ -29,3 +29,5 @@
 2026-11-02 — T-0066 — consumidores do ERP no Core: vendedor, cliente completo (carteira/contatos/financeiro), produto, título e rota; testes × Postgres; nota pendente da tabela do banco-dados
 2026-11-02 — T-0065 (A.3) — push de pedido (aprovado/rejeitado/para aprovar/integrado/faturado) via consumidores do Core, data.entidades no push, timers do BKO em sync_auto_min + botão Atualizar
 2026-11-02 — T-0065/T-0062 — push (entidades por tipo, silencioso, meta e rota do dia, numero no titulo), situacao parcial/fechado nas metas (API/app/BKO), produto custo/preco no BKO (rotas produtos + pagina + parametro)
+2026-11-02 — T-0066 — produto_external_ids em core.cadastro_resumo@1; timer do relógio do atendimento marcado como exceção (RN-CORE-23)
+2026-11-02 — T-0065 — notificarSistema: envio_id uuid determinístico (evento+usuário); core 690/690
