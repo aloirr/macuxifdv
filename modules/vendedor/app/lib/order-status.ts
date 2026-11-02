@@ -39,13 +39,15 @@ export function statusBadge(statusErp: string): BadgeStyle {
   return { label: LABEL_OVERRIDE[s] ?? ORDER_STATUS_LABEL[s] ?? status, ...STYLE[s] };
 }
 
-export type OrderFilter = 'all' | 'queued' | 'pending' | 'integrated' | 'rejected' | 'cancelled';
+export type OrderFilter = 'all' | 'queued' | 'pending' | 'integrated' | 'invoiced' | 'rejected' | 'cancelled';
 
 export const ORDER_FILTERS: Array<{ id: OrderFilter; label: string }> = [
   { id: 'all', label: 'Todos' },
   { id: 'queued', label: 'Na fila' },
   { id: 'pending', label: 'Aguardando' },
   { id: 'integrated', label: 'Integrados' },
+  // T-0054: faturado parcial ou total (retorno do ERP), no Campo e na Gestão
+  { id: 'invoiced', label: 'Faturados' },
   { id: 'rejected', label: 'Rejeitados' },
   { id: 'cancelled', label: 'Excluídos' },
 ];
@@ -59,7 +61,9 @@ export function matchesFilter(status: string, filter: OrderFilter): boolean {
     case 'pending':
       return status === 'pending_approval';
     case 'integrated':
-      return status === 'integrated' || status === 'invoiced_partial' || status === 'invoiced';
+      return status === 'integrated';
+    case 'invoiced':
+      return status === 'invoiced_partial' || status === 'invoiced';
     case 'rejected':
       return status === 'rejected';
     case 'cancelled':
@@ -68,13 +72,14 @@ export function matchesFilter(status: string, filter: OrderFilter): boolean {
 }
 
 export function filterCounts(orders: Array<{ status: string }>): Record<OrderFilter, number> {
-  const out: Record<OrderFilter, number> = { all: 0, queued: 0, pending: 0, integrated: 0, rejected: 0, cancelled: 0 };
+  const out: Record<OrderFilter, number> = { all: 0, queued: 0, pending: 0, integrated: 0, invoiced: 0, rejected: 0, cancelled: 0 };
   for (const o of orders) for (const f of ORDER_FILTERS) if (matchesFilter(o.status, f.id)) out[f.id] += 1;
   return out;
 }
 
-/** Observação exibida abaixo do pedido: motivo da pendência ou da rejeição. */
-export function orderNote(o: { status: string; pending_reason: string; rejection_reason: string; local_error?: string }): string {
+/** Observação exibida abaixo do pedido: motivo da pendência ou da rejeição; no faturado, o resumo do ERP (T-0054). */
+export function orderNote(o: { status: string; pending_reason: string; rejection_reason: string; local_error?: string; situacao_faturamento?: string[] }): string {
+  if (o.situacao_faturamento?.length && (o.status === 'invoiced_partial' || o.status === 'invoiced')) return o.situacao_faturamento.join(' · ');
   if (o.status === 'queued') return o.local_error ? o.local_error : '';
   if (o.status === 'received') return 'Recebido pelo servidor.';
   if (o.status === 'pending_approval') return o.pending_reason;

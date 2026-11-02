@@ -54,7 +54,14 @@ describe('csv', () => {
     expect(csv.startsWith(CSV_BOM)).toBe(true);
     const lines = csv.slice(1).trimEnd().split('\r\n');
     expect(lines[0]).toBe(ORDERS_CSV_HEADER.join(';'));
-    expect(lines[1]).toBe('10494;Freios & Cia Cidade Nova;Rafael S.;CD Manaus;4917,46;7,0;Aguardando aprovação;Desconto 7,0% · alçada do vendedor 5,0%;12/10/2026 08:05');
-    expect(lines[2]).toBe('10493;Freios & Cia Cidade Nova;Rafael S.;CD Manaus;3385,50;0,0;Rejeitado;"Preço divergente; revisar";12/10/2026 08:05');
+    expect(lines[1]).toBe('10494;Freios & Cia Cidade Nova;Rafael S.;CD Manaus;4917,46;7,0;Aguardando aprovação;Desconto 7,0% · alçada do vendedor 5,0%;12/10/2026 08:05;;;;');
+    expect(lines[2]).toBe('10493;Freios & Cia Cidade Nova;Rafael S.;CD Manaus;3385,50;0,0;Rejeitado;"Preço divergente; revisar";12/10/2026 08:05;;;;');
+  });
+
+  it('T-0054: pedido faturado leva Nº ERP, faturado, devolvido e a última NF no fim da linha', () => {
+    const csv = ordersToCsv([order({ status: 'invoiced', erp_order_code: 'ERP-9', faturado_cents: 491746, devolvido_cents: 10000, ultima_nota: '9002', pending_reason: '' })]);
+    const linha = csv.slice(1).trimEnd().split('\r\n')[1]!;
+    expect(linha.endsWith(';ERP-9;4917,46;100,00;9002')).toBe(true);
+    expect(linha).toContain(';Faturado;');
   });
 });

@@ -27,8 +27,16 @@ Promotor: 403 `RN-PRO-01` em toda escrita; leitura só da carteira. Vendedor e a
 ## Telas
 - **Campo**: Pedidos (lista, detalhe, novo pedido, Exportar PDF) sobre o pull; pedido na fila e aceito ainda não trazido pelo pull aparecem sobrepostos.
 - **Gestão**: aba Pedidos com a lista da equipe ("Para aprovar" primeiro), detalhe com decisão (Aprovar em 1 toque, Rejeitar com motivo; sem internet os botões ficam desabilitados) e PDF.
-- **BKO**: Pedidos (filtros na URL, cursor, atualização a cada 10 s, painel "Aguardando aprovação", gaveta com itens, histórico e PDF pelo diálogo de impressão) e Alçadas (limites em leitura e decisões recentes pela auditoria).
+- **BKO**: Pedidos (filtros na URL, cursor, atualização ao abrir, ao focar a janela, depois de decidir e pelo botão Atualizar, painel "Aguardando aprovação", gaveta com itens, histórico e PDF pelo diálogo de impressão) e Alçadas (limites em leitura e decisões recentes pela auditoria).
 - PDF: gerador único em `domain/pdf-pedido.ts` (versão cliente sem nenhum `%`; versão interna com tabela, desconto, alçada e histórico).
+
+## Atualização das telas (RN-CORE-23, T-0054)
+- **App (Campo e Gestão)**: nenhuma consulta periódica nem timer. Ao abrir a tela, o app só relê o aparelho. O pull vem do motor de sync da plataforma, no shell: a cada `sync_auto_min` (30 min, mínimo 15), ao abrir o app e ao voltar ao primeiro plano depois de 30 min. Puxar a tela para baixo = **Sincronizar** (envia a fila e roda o sync), na lista e no detalhe. Um novo toque nos 30 s seguintes só relê o aparelho (item 5).
+- **BKO**: sem `refetchInterval`. Atualiza ao abrir, ao focar a janela, depois de cada decisão e pelo botão "Atualizar".
+- O teste `sem-consulta-periodica.test.ts` barra `setInterval` e `refetchInterval` nas telas.
+
+## Retorno do ERP (T-0054)
+Status pelo retorno do ERP, faturado@1, faturado e devolução nas telas: ver `retorno-erp.md`.
 
 ## Fora da fatia (backlog)
 Crédito e título vencido no servidor, estoque, preço mínimo, desconto por item, pedido em nome, edição de pedido aceito, notificação ao vendedor e ao supervisor, edição de alçadas pelo BKO, prazo da aprovação (fila do Gestor).

@@ -4,6 +4,7 @@
  * não está no main). As consultas entre módulos são simuladas como em `pedido.db.test.ts`. Pula sem Postgres.
  * Relógio único do arquivo: lido do banco no beforeAll (sem hora fixa contra o relógio real).
  */
+import { randomUUID } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
@@ -17,7 +18,7 @@ import { entidadePedido } from '../contracts/entidades';
 import { apiVendedor } from './index';
 import { rotaCancelarPedido, rotaVerPedido } from './pedidos';
 import { criarPreVendaEmMemoria, usarPreVenda } from './pre-venda';
-import { aplicarRetornoErp } from './retorno-erp';
+import { aplicarRetornoErp, repositorioRetornoErpPg } from './retorno-erp';
 import { provedoresSyncVendedor } from './sync';
 
 const A = DOIS_TENANTS.A;
@@ -123,8 +124,9 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
     const avisos: string[] = [];
     const payload = RetornoErpConsumido.parse({ pedido_uuid: pedidoId, status, numero_erp: 'ERP-55', motivo: null, nota: null, itens_faturados: null, ocorrido_em: quando.toISOString(), ...extra });
     await comTenant(pool, tenant, (db) =>
-      aplicarRetornoErp(payload, {
-        db,
+      aplicarRetornoErp(repositorioRetornoErpPg(db), payload, {
+        evento_id: randomUUID(),
+        agora: () => quando,
         publicar: (async (def: DefinicaoEvento, p: unknown) => {
           eventos.push({ nome: def.nome, payload: def.schema.parse(p) as Record<string, unknown> });
           return {};
@@ -139,6 +141,8 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
     const admin = new pg.Client({ connectionString: banco().urlAdmin });
     await admin.connect();
     try {
+      // T-0054: o retorno do ERP grava pedido_faturamento (0013, FK para o pedido)
+      await admin.query('delete from vendedor.pedido_faturamento where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [IDS]);
