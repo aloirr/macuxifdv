@@ -57,3 +57,5 @@ export * from './linhas-preco';
 export * from './consultas';
 export * from './sync';
 export * from './entidades';
+export * from './rotas';
+export * from './extensoes';
