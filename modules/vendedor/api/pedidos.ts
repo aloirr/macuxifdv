@@ -25,7 +25,8 @@ import {
 } from '../contracts';
 import { decidirAprovacao, montarPedidoAprovado, politicaDosParametros, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
-import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaPedido } from './mapeamento';
+import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
+import { FATURAMENTO_LIGADO } from './retorno-erp';
 import { escopoDoPedido } from './sync';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -36,11 +37,14 @@ const ParamsPedido = z.object({ id: z.string().uuid() });
 const CorpoCancelar = z.object({ motivo: z.string().max(500).optional() }).default({});
 const NAO_ENCONTRADO = ['PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado.'] as const;
 
-const COLUNAS = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_id, p.cliente_nome, p.cliente_resumo, p.tabela_preco_id,
+/** T-0054: resumo do faturamento (colunas da migração do faturamento; só com `FATURAMENTO_LIGADO`). */
+const COLUNAS_FATURAMENTO = `, p.faturado_cents::float8 as faturado_cents, p.devolvido_cents::float8 as devolvido_cents, p.notas_faturamento, p.ultima_nota_numero`;
+const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_id, p.cliente_nome, p.cliente_resumo, p.tabela_preco_id,
   p.condicao_pagamento, p.condicao_pagamento_descricao, p.status, p.desconto_pct::float8 as desconto_pct,
   p.total_tabela_cents::float8 as total_tabela_cents, p.total_cents::float8 as total_cents, p.nivel_aprovacao, p.motivos_aprovacao,
   p.motivo_rejeicao, p.numero_erp, ${ts('criado_no_aparelho_em')}, ${ts('recebido_em')}, ${ts('created_at')}, ${ts('updated_at')},
   coalesce(x.itens, 0) as itens, coalesce(x.unidades, 0) as unidades`;
+const COLUNAS = `${COLUNAS_BASE}${FATURAMENTO_LIGADO ? COLUNAS_FATURAMENTO : ''}`;
 const JUNCAO_ITENS = `left join lateral (select count(*)::int as itens, coalesce(sum(i.quantidade), 0)::int as unidades
     from vendedor.pedido_item i where i.tenant_id = p.tenant_id and i.pedido_id = p.id and i.deleted_at is null) x on true`;
 
@@ -73,7 +77,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
   const itens = (
     await db.query<LinhaItem>(
       `select id, produto_id, produto_sku, produto_nome, quantidade, preco_tabela_cents::float8 as preco_tabela_cents, desconto_pct::float8 as desconto_pct,
-              total_cents::float8 as total_cents
+              total_cents::float8 as total_cents${FATURAMENTO_LIGADO ? ', quantidade_faturada' : ''}
          from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
       [id],
     )
@@ -85,7 +89,28 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
       [id],
     )
   ).rows;
-  return { linha, detalhe: paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros()) };
+  const faturamento = FATURAMENTO_LIGADO ? await lerNotasDoPedido(db, id) : undefined;
+  return { linha, detalhe: paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento) };
+}
+
+/** T-0054: notas de faturamento e de devolução do pedido (detalhe; o resumo vem das colunas do pedido). */
+export async function lerNotasDoPedido(db: ClienteBanco, id: string): Promise<{ notas: LinhaNotaFaturamento[]; devolucoes: LinhaNotaDevolucao[] }> {
+  const notas = (
+    await db.query<LinhaNotaFaturamento>(
+      `select nota_numero, nota_serie, to_char(faturado_em at time zone 'UTC', ${UTC}) as faturado_em, parcial, nota_total_cents::float8 as nota_total_cents,
+              coalesce((select sum((x->>'quantidade')::int) from jsonb_array_elements(itens) x), 0)::int as unidades
+         from vendedor.pedido_faturamento where pedido_id = $1 and deleted_at is null order by faturado_em, created_at`,
+      [id],
+    )
+  ).rows;
+  const devolucoes = (
+    await db.query<LinhaNotaDevolucao>(
+      `select nota_numero, nota_serie, to_char(emitida_em at time zone 'UTC', ${UTC}) as emitida_em, total_cents::float8 as total_cents
+         from vendedor.pedido_devolucao where pedido_id = $1 and deleted_at is null order by emitida_em, created_at`,
+      [id],
+    )
+  ).rows;
+  return { notas, devolucoes };
 }
 
 // ---------- leitura ----------
