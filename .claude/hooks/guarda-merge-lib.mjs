@@ -802,6 +802,102 @@ export function motivosRecadoFalso({ comando, agente, cwd = '' }) {
   return motivos;
 }
 
+// ───────────────────────────── v6 (T-0050): git add/commit/stash de recados do Alexandre ─────────────────────────────
+//
+// Pôr no índice, commitar ou guardar no stash um recado do Alexandre que JÁ EXISTE (escrito por ele localmente),
+// sem mudar o conteúdo, não é escrever recado em nome dele. Fica liberado se, para cada recado do Alexandre que o
+// comando pode levar: (1) o arquivo não foi criado nem alterado durante comandos desta sessão (o PostToolUse
+// registra; ver vigiarRecados) e (2) o conteúdo no índice é idêntico ao do disco (git status "A " ou "??"); recado
+// já commitado que mudou no índice ou no disco (M, D, R) é recado alterado: imutável.
+
+const SUBCOMANDOS_DE_INDICE = new Set(['add', 'stage', 'commit', 'stash']);
+const OPCOES_GIT_COM_VALOR = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path']);
+
+/** git add/stage/commit/stash (push/save) no comando, inclusive em $(...): [{sub, args, outraPasta}]. */
+export function comandosDeIndice(comando) {
+  const res = [];
+  visitarComandos(comando, ({ nome, args }) => {
+    if (!nome || nome.incerto || nomeBase(nome.valor) !== 'git') return;
+    let i = 0;
+    let outraPasta = false;
+    while (i < args.length && args[i].valor.startsWith('-')) {
+      if (OPCOES_GIT_COM_VALOR.has(args[i].valor)) { if (args[i].valor !== '-c') outraPasta = true; i += 2; } else i++;
+    }
+    const sub = args[i];
+    if (!sub || sub.incerto || !SUBCOMANDOS_DE_INDICE.has(sub.valor)) return;
+    const resto = args.slice(i + 1);
+    if (sub.valor === 'stash') {
+      const primeiro = resto.find((a) => !a.valor.startsWith('-'));
+      if (primeiro && !['push', 'save'].includes(primeiro.valor) && resto.indexOf(primeiro) === 0) return; // list, show, pop, apply...
+    }
+    res.push({ sub: sub.valor === 'stage' ? 'add' : sub.valor, args: resto, outraPasta });
+  });
+  return res;
+}
+
+/**
+ * Motivos para bloquear git add/commit/stash de recados do Alexandre (função pura; [] = passa).
+ * @param {{comando: string, cwd?: string, raiz?: string, status: {xy: string, rel: string}[],
+ *   tocados?: Set<string>|string[], ehDoAlexandre: (rel: string) => boolean}} p
+ */
+export function motivosIndiceDeRecados({ comando, cwd = '', raiz = '', status = [], tocados = [], ehDoAlexandre }) {
+  const cmds = comandosDeIndice(comando);
+  if (!cmds.length) return [];
+  const tocadosSet = new Set(tocados);
+  const candidatos = (status || []).filter((s) => /^\.coord\/recados\//i.test(s.rel) && ehDoAlexandre(s.rel));
+  if (!candidatos.length) return [];
+  const naRaiz = !cwd || !raiz || barras(cwd).replace(/\/+$/, '').toLowerCase() === barras(raiz).replace(/\/+$/, '').toLowerCase();
+  const afetados = new Map();
+  for (const c of cmds) {
+    let lista;
+    if (c.sub === 'add') {
+      const pos = c.args.filter((a) => a.incerto || !a.valor.startsWith('-') || a.valor === '-');
+      const todos = c.outraPasta || !naRaiz || c.args.some((a) => !a.incerto && /^(-A|--all|-u|--update|--no-ignore-removal|--pathspec-from-file.*|-[a-zA-Z]*[Au][a-zA-Z]*)$/.test(a.valor))
+        || pos.some((a) => a.incerto || a.valor === '.' || a.valor === './' || a.valor.startsWith(':') || /[*?[]/.test(a.valor));
+      lista = todos ? candidatos : candidatos.filter((s) => pos.some((a) => {
+        const p = barras(a.valor).replace(/^\.\//, '').replace(/\/+$/, '');
+        return s.rel === p || s.rel.startsWith(`${p}/`);
+      }));
+    } else if (c.sub === 'commit') lista = candidatos.filter((s) => s.xy !== '??');
+    else lista = candidatos; // stash: o que estiver sujo (com -u, também o não rastreado)
+    for (const s of lista) afetados.set(s.rel, s);
+  }
+  const motivos = [];
+  for (const s of afetados.values()) {
+    if (tocadosSet.has(s.rel)) {
+      motivos.push(`${s.rel}: recado do Alexandre criado ou alterado durante um comando desta sessão; não vai para o índice, o commit nem o stash por esta sessão (se foi o Alexandre escrevendo em paralelo, ele mesmo faz o commit)`);
+      continue;
+    }
+    const [x, y] = [s.xy[0], s.xy[1]];
+    if (s.xy === '??' || (x === 'A' && y === ' ')) continue; // novo, índice = disco (ou ainda fora do índice)
+    if (x === 'A') motivos.push(`${s.rel}: o conteúdo no índice difere do disco (git status "${s.xy}"); recado do Alexandre só entra no commit idêntico ao que ele escreveu`);
+    else motivos.push(`${s.rel}: recado do Alexandre já commitado foi alterado ou apagado (git status "${s.xy}"); recados são imutáveis`);
+  }
+  return motivos;
+}
+
+export function mensagemIndiceDeRecados(agente, motivos) {
+  return (
+    `[guardião Macuxi] BLOQUEADO (recado no índice): ${agente} não leva ao índice, ao commit nem ao stash recado do Alexandre que não esteja como ele escreveu:\n` +
+    `${motivos.map((m) => ` - ${m}`).join('\n')}\n` +
+    'Recado do Alexandre já existente e intacto (não tocado nesta sessão, índice = disco) pode ir para o add, o commit e o stash. Não contorne o bloqueio.'
+  );
+}
+
+/**
+ * O PostToolUse deste comando deve registrar os recados do Alexandre que mudarem durante ele? (v6)
+ * Sim quando o comando pode gravar sem o guardião ver onde (opaco) ou grava em alvo incerto, de recado ou
+ * em pasta incerta/de recados. Não quando só leva ao índice (add/commit/stash: o git move o conteúdo sem
+ * mudá-lo) nem quando só grava em alvos evidentes de fora dos recados (o que mudar em recado nesse tempo
+ * é outra pessoa em paralelo).
+ */
+export function vigiarRecados(comando, cwd = '') {
+  const { escritas, opacos } = escritasDoComando(comando, String(cwd || '').replace(/\\/g, '/'));
+  if (opacos.length) return true;
+  // escrita do próprio git (stash, restore, checkout --) só move conteúdo que já está em commit/stash
+  return escritas.some(({ alvo, cwd: c, de }) => de !== 'git' && (alvo.incerto || RE_RECADOS.test(alvo.valor) || /alexandre/i.test(alvo.valor) || c === null || RE_RECADOS.test(c || '')));
+}
+
 export function mensagemRecadoFalso(agente, motivos) {
   return (
     `[guardião Macuxi] BLOQUEADO (recado): ${agente} não envia recado em nome de outro:\n` +

@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { posix, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { PESSOAS, podeAlterar, classificarMudancas } from '../../scripts/coord-lib.mjs';
+import { PESSOAS, podeAlterar, classificarMudancas, remetenteDoRecado, remetenteDoConteudo } from '../../scripts/coord-lib.mjs';
 
 // ───────────────────────────── caminhos ─────────────────────────────
 
@@ -366,8 +366,8 @@ function alvosGit(args, ctx, res) {
       const o = opcoes(primeiro ? antes.slice(1) : antes, 'm', ['--message', '--pathspec-from-file']);
       const caminhos = iSep >= 0 ? depois : primeiro === 'save' ? [] : o.pos;
       for (const a of caminhos.length ? caminhos : [PONTO]) {
-        push(a, 'sujos');
-        if (o.tem('-u', '--include-untracked', '-a', '--all')) push(a, 'nao-rastreados');
+        push(a, 'sujos', { stash: true });
+        if (o.tem('-u', '--include-untracked', '-a', '--all')) push(a, 'nao-rastreados', { stash: true });
       }
       return;
     }
@@ -719,10 +719,13 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
         const sob = (x) => rel === '' || x === rel || x.startsWith(rel + '/');
         // Alvos evidentes: restaurar/sujos/nao-rastreados mexem só nos arquivos sujos de agora
         // (lista exata); o resto vale para o caminho e, se recursivo, para a pasta inteira.
+        // v6 (T-0050): git stash de recado do Alexandre já existente guarda o arquivo sem mudar o conteúdo;
+        // quem confere (índice = disco, não tocado pela sessão) é o motivosIndiceDeRecados (guarda-merge-lib).
+        const guardado = (rel) => t.stash && ehRecadoDoAlexandre(rel, (r) => amb.ler?.(`${barras(raiz).replace(/\/+$/, '')}/${r}`) ?? null);
         if (t.acao === 'restaurar' || t.acao === 'sujos') {
-          for (const s of amb.sujos()) if (s.xy !== '??' && sob(s.rel)) { evidente(s.rel, false); conferir(s.rel, 'restaurar'); }
+          for (const s of amb.sujos()) if (s.xy !== '??' && sob(s.rel)) { evidente(s.rel, false); if (!guardado(s.rel)) conferir(s.rel, 'restaurar'); }
         } else if (t.acao === 'nao-rastreados') {
-          for (const s of amb.sujos()) if (s.xy === '??' && sob(s.rel)) { evidente(s.rel, false); conferir(s.rel, 'apagar'); }
+          for (const s of amb.sujos()) if (s.xy === '??' && sob(s.rel)) { evidente(s.rel, false); if (!guardado(s.rel)) conferir(s.rel, 'apagar'); }
         } else if (t.acao === 'restaurar-ref') {
           evidente(rel, true);
           for (const f of amb.rastreadosSob(rel)) conferir(f, 'restaurar');
@@ -740,6 +743,19 @@ export function analisarComando({ comando, agente, cwd, raiz, regras, somenteLei
   };
   analisar(comando, cwd, 0);
   return { violacoes, soLeitura, alvos: [...alvos].map(([rel, sub]) => ({ rel, sub })), instala };
+}
+
+/**
+ * Recado do Alexandre: .coord/recados/<destino>/<arquivo>.md com remetente alexandre no nome ou "de: alexandre"
+ * no cabeçalho (v6, T-0050). `ler(rel)` devolve o conteúdo do disco (ou null).
+ */
+export function ehRecadoDoAlexandre(rel, ler = () => null) {
+  const m = barras(rel).match(/^\.coord\/recados\/[^/]+\/([^/]+\.md)$/i);
+  if (!m) return false;
+  if (remetenteDoRecado(m[1]) === 'alexandre') return true;
+  let texto = null;
+  try { texto = ler(barras(rel)); } catch { texto = null; }
+  return remetenteDoConteudo(texto) === 'alexandre';
 }
 
 /** O caminho é alvo evidente do comando (arquivo exato ou dentro de uma pasta alvo)? */
@@ -974,6 +990,10 @@ export function arquivoFoto(entrada, pasta = PASTA_TEMP) {
 }
 export function arquivoAcusados(entrada, agente, pasta = PASTA_TEMP) {
   return join(pasta, `acusados-${hash(`${entrada.session_id || ''}|${agente}`)}.json`);
+}
+/** Recados do Alexandre criados/alterados durante comandos desta sessão (v6): {rel: {status, em}}. */
+export function arquivoRecadosDaSessao(entrada, agente, raiz, pasta = PASTA_TEMP) {
+  return join(pasta, `recados-sessao-${hash(`${entrada.session_id || ''}|${agente}|${barras(raiz || '')}`)}.json`);
 }
 
 export function lerJson(arq, padrao) {
