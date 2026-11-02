@@ -9,6 +9,7 @@ import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { HierarquiaEquipeSchema, RotasListaSchema, type RouteDay, type Seller, type Team } from '../../contracts';
+import { intervaloSyncAutoMs, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { hojeNoFuso } from './hoje';
 import { clienteDaCarteira, equipesDaHierarquia, INICIO_PADRAO, paraRouteDay, type ClienteDaCarteira } from './rotas-api';
 
@@ -71,7 +72,7 @@ export function useHojeDoTenant(): () => string {
 
 /**
  * Rotas do período (até 62 dias) de `GET /v1/core/rotas`, no formato do editor. Sem filtro de usuário, as dos
- * usuários visíveis (a API filtra pelo escopo, RN-CORE-04). Atualiza a cada 30 s para acompanhar as visitas do dia.
+ * usuários visíveis (a API filtra pelo escopo, RN-CORE-04). Atualiza a cada `sync_auto_min` (30 min) ou pelo botão Atualizar da página (RN-CORE-23).
  */
 export function useRoutes(f: RoutesFilter, enabled = true) {
   const authed = useAuthed();
@@ -84,7 +85,7 @@ export function useRoutes(f: RoutesFilter, enabled = true) {
       return { start: { ...INICIO_PADRAO }, items: RotasListaSchema.parse(r).itens.map((i) => paraRouteDay(i, hoje)) };
     },
     enabled: authed && enabled && !!f.from,
-    refetchInterval: 30_000,
+    refetchInterval: intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN), // RN-CORE-23 item 6: sync_auto_min (30, mín. 15); o botão Atualizar cobre o resto
     placeholderData: (prev) => prev,
   });
 }
