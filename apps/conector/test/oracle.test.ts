@@ -180,7 +180,7 @@ describe('Oracle: consultas parametrizadas (binds), nunca valor concatenado', ()
   });
 
   it('colunas voltam em minúsculas (o Oracle devolve MAIÚSCULAS) e a coluna auxiliar da paginação por ROWNUM some', async () => {
-    const d = criarDuble({ rows: [{ EXTERNAL_ID: 'c1', ALTERADO_EM: new Date(), MACUXI_RN: 1 }] });
+    const d = criarDuble({ rows: [{ EXTERNAL_ID: 'c1', ALTERADO_EM: new Date('2026-03-01T10:00:00Z'), MACUXI_RN: 1 }] });
     const erp = await criarConexaoOracle({ ...base, paginacao: 'rownum' }, d.modulo);
     const linhas = await erp.consultar(SQL_DELTA, { ...PARAMS_DELTA, offset: 100 });
     expect(Object.keys(linhas[0] as object).sort()).toEqual(['alterado_em', 'external_id']);
