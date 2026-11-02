@@ -1,6 +1,7 @@
 /**
  * Schema `catalogo` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
- * db/migrations/0008_catalogo_preco.up.sql (T-0029 §10), para uso INTERNO do módulo Catálogo (modules/catalogo/api).
+ * db/migrations/0008_catalogo_preco.up.sql (T-0029 §10) e 0013_catalogo_vendedor_prevenda.up.sql (cota de IA, árvore,
+ * conteúdo, busca do servidor, estoque e log de busca), para uso INTERNO do módulo Catálogo (modules/catalogo/api).
  * Nenhum outro módulo importa este arquivo: o Vendedor obtém preço pela consulta `catalogo.precos_cliente@1` (ADR 0012).
  *
  * A fonte da verdade é o SQL versionado (FKs compostas, índices, CHECKs, RLS e grants ficam lá). Sem FK para o schema
@@ -10,7 +11,7 @@
  * vigencia_inicio -> valid_from, vigencia_fim -> valid_to.
  * Dinheiro em centavos: bigint lido como number; no `pg` cru o int8 chega como string (converta no provedor).
  */
-import { bigint, boolean, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, customType, date, integer, jsonb, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const catalogo = pgSchema('catalogo');
 
@@ -43,6 +44,8 @@ export const tabelaPrecoItem = catalogo.table('tabela_preco_item', {
   preco_cents: bigint('preco_cents', { mode: 'number' }).notNull(),
   vigencia_inicio: timestamp('vigencia_inicio', { withTimezone: true }),
   vigencia_fim: timestamp('vigencia_fim', { withTimezone: true }),
+  /** 0013 (RN-VEN-15): nulo = unidade base; 'CX' = preço próprio da caixa. Único vivo: (tabela, produto, unidade, início). */
+  unidade: text('unidade'),
 });
 
 /** A tabela de preço do cliente: no máximo uma viva por cliente. Sem linha = todo produto sem preço (RN-CAT-06). */
@@ -50,4 +53,141 @@ export const clienteTabelaPreco = catalogo.table('cliente_tabela_preco', {
   ...comuns(),
   cliente_id: uuid('cliente_id').notNull(),
   tabela_preco_id: uuid('tabela_preco_id').notNull(),
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// 0013 — cota de IA, árvore, conteúdo, busca do servidor, estoque e log de busca
+
+/**
+ * Consultas de IA respondidas por (usuário, dia civil no fuso do tenant) — RN-CAT-03. Fora do sync. NÃO grave direto:
+ * use `select catalogo.debitar_cota_ia($usuario, $limite, $agora)` (incremento atômico; devolve o total do dia depois
+ * do débito, ou null = limite atingido / IA desligada) e `select catalogo.consultas_ia_do_dia($usuario, $agora)`.
+ */
+export const usoIa = catalogo.table('uso_ia', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  dia: date('dia').notNull(),
+  consultas: integer('consultas').notNull().default(0),
+});
+
+/** Nó da árvore do catálogo vinda do ERP (RF-CAT-04). pai_id nulo <=> nivel 1. Código único vivo por tenant. */
+export const catalogoNo = catalogo.table('catalogo_no', {
+  ...comuns(),
+  pai_id: uuid('pai_id'),
+  nivel: smallint('nivel').notNull(),
+  codigo: text('codigo').notNull(),
+  nome: text('nome').notNull(),
+  ordem: integer('ordem').notNull().default(0),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
+/** Produto -> nó da árvore (normalmente a folha). (produto, nó) único vivo. */
+export const produtoNo = catalogo.table('produto_no', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  no_id: uuid('no_id').notNull(),
+});
+
+/** Item da FAQ do produto (base do "Pergunte ao catálogo", RN-CAT-02). */
+export interface FaqProduto {
+  pergunta: string;
+  resposta: string;
+}
+
+/** Conteúdo rico do produto (RF-CAT-03/07): um vivo por produto. `aplicacoes` = `applications` do contrato. */
+export const produtoConteudo = catalogo.table('produto_conteudo', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  descricao: text('descricao'),
+  aplicacoes: text('aplicacoes'),
+  argumentos_venda: text('argumentos_venda'),
+  faq: jsonb('faq').$type<FaqProduto[]>().notNull().default([]),
+  campanha: boolean('campanha').notNull().default(false),
+  destaque: boolean('destaque').notNull().default(false),
+});
+
+/** Atributo filtrável (ex.: Cilindrada = "150", valor_num 150, unidade "cc"). (produto, nome) único vivo. */
+export const produtoAtributo = catalogo.table('produto_atributo', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  nome: text('nome').notNull(),
+  valor: text('valor').notNull(),
+  /** numeric(14,4): chega como string no `pg`. */
+  valor_num: numeric('valor_num', { precision: 14, scale: 4 }),
+  unidade: text('unidade'),
+  ordem: integer('ordem').notNull().default(0),
+});
+
+export const TIPOS_MIDIA = ['foto', 'video', 'pdf'] as const;
+
+/** Mídia do produto: arquivo_id (plataforma.arquivo, sem FK) ou url. No máximo uma foto principal viva por produto. */
+export const produtoMidia = catalogo.table('produto_midia', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  tipo: text('tipo', { enum: TIPOS_MIDIA }).notNull(),
+  arquivo_id: uuid('arquivo_id'),
+  url: text('url'),
+  titulo: text('titulo'),
+  ordem: integer('ordem').notNull().default(0),
+  principal: boolean('principal').notNull().default(false),
+});
+
+/** Sinônimos do tenant (RF-CAT-02): termo (único vivo, sem diferenciar caixa) -> lista. */
+export const sinonimo = catalogo.table('sinonimo', {
+  ...comuns(),
+  termo: text('termo').notNull(),
+  sinonimos: text('sinonimos').array().notNull(),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
+const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' });
+
+/**
+ * Documento de busca do SERVIDOR (RF-CAT-01): cópia de leitura do buscável do Core (sku, ean, nome, marca, categoria)
+ * + atributos e conteúdo do Catálogo, um vivo por produto. `documento` é preenchido pelo gatilho (config 'portuguese',
+ * sem acento via catalogo.sem_acento): NUNCA grave nele. Consulta: `documento @@ websearch_to_tsquery('portuguese',
+ * catalogo.sem_acento($texto))`, ordem por `ts_rank_cd(documento, consulta)`.
+ */
+export const produtoBusca = catalogo.table('produto_busca', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  sku: text('sku'),
+  ean: text('ean'),
+  nome: text('nome').notNull(),
+  marca: text('marca'),
+  categoria: text('categoria'),
+  atributos: text('atributos'),
+  conteudo: text('conteudo'),
+  ativo: boolean('ativo').notNull().default(true),
+  documento: tsvector('documento').notNull(),
+});
+
+/** Depósito/filial do estoque (`branch_id`/`branch_name` do contrato). Código único vivo. */
+export const deposito = catalogo.table('deposito', {
+  ...comuns(),
+  codigo: text('codigo').notNull(),
+  nome: text('nome').notNull(),
+  ativo: boolean('ativo').notNull().default(true),
+});
+
+/** Saldo do ERP por depósito e produto, na unidade base (numeric(14,3): string no `pg`). (depósito, produto) único vivo. */
+export const estoqueSaldo = catalogo.table('estoque_saldo', {
+  ...comuns(),
+  deposito_id: uuid('deposito_id').notNull(),
+  produto_id: uuid('produto_id').notNull(),
+  quantidade: numeric('quantidade', { precision: 14, scale: 3 }).notNull().default('0'),
+  atualizado_erp_em: timestamp('atualizado_erp_em', { withTimezone: true }),
+});
+
+export const ORIGENS_BUSCA_LOG = ['llm', 'regras', 'cache', 'offline'] as const;
+
+/** Log de busca (RF-CAT-07: termos sem resultado). termo = consulta NORMALIZADA (1 a 200). Fora do sync; só insert. */
+export const buscaLog = catalogo.table('busca_log', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  termo: text('termo').notNull(),
+  origem: text('origem', { enum: ORIGENS_BUSCA_LOG }).notNull(),
+  resultados: integer('resultados').notNull(),
+  duracao_ms: integer('duracao_ms'),
+  ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
 });

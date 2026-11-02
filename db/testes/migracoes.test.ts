@@ -59,9 +59,9 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect((await migrarUp(c, { ate: '0001' })).aplicadas).toEqual(['0001_plataforma']);
       expect((await migrarUp(c, { ate: '0002' })).aplicadas).toEqual(['0002_core']);
       expect((await migrarUp(c, { ate: '0003' })).aplicadas).toEqual(['0003_plataforma_worker']);
-      expect(aPartirDe('0004').slice(0, 9)).toEqual([
+      expect(aPartirDe('0004').slice(0, 10)).toEqual([
         '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido', '0008_catalogo_preco', '0009_vendedor_pedido_completo',
-        '0010_integracao', '0011_plataforma_outbox_retencao', '0012_search_path_pg_temp',
+        '0010_integracao', '0011_plataforma_outbox_retencao', '0012_search_path_pg_temp', '0013_catalogo_vendedor_prevenda',
       ]);
       expect((await migrarUp(c)).aplicadas).toEqual(aPartirDe('0004'));
       expect((await migrarUp(c)).aplicadas).toEqual([]);

@@ -77,10 +77,10 @@ describe.skipIf(semBanco())('T-0029 — pedido ponta a ponta: Campo (sync) → G
   /** Aparelho do Campo/Gestão como o APK monta (entidades e consulta de preço que os módulos registram no app). */
   const aparelho = (chave: ChaveDemo) => aparelhoCampo(api, DEMO[chave]);
 
-  /** Clientes da carteira do Lucas com a tabela de preço (Varejo tem os 24 produtos; Atacado, 21). */
+  /** Clientes da carteira do Lucas com a tabela de preço (Varejo tem todos os produtos — 33 desde a 0013; Atacado, 3 a menos: RN-CAT-06). Conta produtos distintos (a linha da CX, quando ligada, não conta duas vezes). */
   const clientesDoLucas = () =>
     linhas<{ cliente_id: string; tabela: string; itens: number }>(
-      `select c.cliente_id, tp.nome as tabela, (select count(*)::int from catalogo.tabela_preco_item i where i.tabela_preco_id = tp.id and i.deleted_at is null) as itens
+      `select c.cliente_id, tp.nome as tabela, (select count(distinct i.produto_id)::int from catalogo.tabela_preco_item i where i.tabela_preco_id = tp.id and i.deleted_at is null) as itens
          from core.carteira c
          join catalogo.cliente_tabela_preco t on t.cliente_id = c.cliente_id and t.deleted_at is null
          join catalogo.tabela_preco tp on tp.id = t.tabela_preco_id
@@ -127,8 +127,9 @@ describe.skipIf(semBanco())('T-0029 — pedido ponta a ponta: Campo (sync) → G
       usuarioId[k] = s.usuario.id;
     }
     const cl = await clientesDoLucas();
-    varejo = cl.find((c) => c.itens === 24)!.cliente_id;
-    atacado = cl.find((c) => c.itens < 24)!.cliente_id;
+    const todos = Math.max(...cl.map((c) => c.itens));
+    varejo = cl.find((c) => c.itens === todos)!.cliente_id;
+    atacado = cl.find((c) => c.itens < todos)!.cliente_id;
     expect([varejo, atacado].every(Boolean), 'a base demo tem clientes do Lucas no Varejo e no Atacado').toBe(true);
     await esperarHorizonte();
     lucas = await aparelho('vendedor');

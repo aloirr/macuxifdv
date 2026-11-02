@@ -43,6 +43,12 @@ const TABELAS_INTEGRACAO = [
   'integracao.inativacao_auditoria', 'integracao.cursor_entidade', 'integracao.reconciliacao', 'integracao.mapeamento', 'integracao.pedido_fila_erp',
   'integracao.pedido_retorno', 'integracao.pedido_retorno_erro',
 ] as const;
+/** Tabelas novas da 0013 (catálogo, vendedor e core). */
+const TABELAS_0013 = [
+  'core.produto_unidade', 'core.cliente_endereco', 'catalogo.uso_ia', 'catalogo.catalogo_no', 'catalogo.produto_no', 'catalogo.produto_conteudo',
+  'catalogo.produto_atributo', 'catalogo.produto_midia', 'catalogo.sinonimo', 'catalogo.produto_busca', 'catalogo.deposito', 'catalogo.estoque_saldo',
+  'catalogo.busca_log', 'vendedor.transportadora', 'vendedor.pedido_faturamento',
+] as const;
 /** Tabelas do schema gestor (0014, T-0055). */
 const TABELAS_GESTOR = ['gestor.evento_aplicado', 'gestor.projecao_fato', 'gestor.alerta', 'gestor.alerta_regra'] as const;
 const migracoes = lerMigracoes();
@@ -73,13 +79,13 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    // lerMigracoes já recusa buraco e par incompleto; aqui: as 12 primeiras e a 0014 do Gestor (T-0055) no lugar certo
+    // lerMigracoes já recusa buraco e par incompleto; aqui: as 13 primeiras (até a 0013) e a 0014 do Gestor (T-0055) no lugar certo
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
     expect(nomes[13]).toBe('0014_gestor');
-    expect(nomes.slice(0, 12)).toEqual([
+    expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
-      '0012_search_path_pg_temp',
+      '0012_search_path_pg_temp', '0013_catalogo_vendedor_prevenda',
     ]);
   });
 
@@ -105,6 +111,7 @@ describe('migrações (estático)', () => {
         'catalogo.tabela_preco', 'catalogo.tabela_preco_item', 'catalogo.cliente_tabela_preco',
         'vendedor.pedido_evento', 'vendedor.condicao_pagamento', 'vendedor.cliente_condicao', 'vendedor.numeracao_pedido',
         ...TABELAS_INTEGRACAO,
+        ...TABELAS_0013,
         ...TABELAS_GESTOR,
       ].sort(),
     );
@@ -428,10 +435,11 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
 
   it('listas fechadas = contratos da Integração (entidade, modo, status, códigos, tipos, estados)', () => {
     for (const t of ['sessao_carga', 'lote', 'registro_atual', 'pendencia_inativacao', 'inativacao_auditoria', 'cursor_entidade', 'reconciliacao']) {
-      expect(valoresDoCheck(`integracao.${t}`, 'entidade'), t).toEqual([...ENTIDADES]);
+      // corpo da 0010 = as 8 originais; a 0013 amplia os CHECKs (bloco 0013 abaixo confere ENTIDADES ⊆ ENTIDADES_BANCO)
+      expect(valoresDoCheck(`integracao.${t}`, 'entidade'), t).toEqual([...nuvemIntegracao.ENTIDADES_ORIGINAIS]);
     }
-    expect(valoresDoArray('integracao.conector', 'entidades')).toEqual([...ENTIDADES]);
-    expect(criadas.get('integracao.conector')).toContain(`default array[${ENTIDADES.map((e) => `'${e}'`).join(', ')}]::text[]`);
+    expect(valoresDoArray('integracao.conector', 'entidades')).toEqual([...nuvemIntegracao.ENTIDADES_ORIGINAIS]);
+    expect(criadas.get('integracao.conector')).toContain(`default array[${nuvemIntegracao.ENTIDADES_ORIGINAIS.map((e) => `'${e}'`).join(', ')}]::text[]`);
     expect(valoresDoCheck('integracao.conector', 'tipo')).toEqual([...TIPOS_CONECTOR]);
     expect(valoresDoCheck('integracao.lote', 'modo')).toEqual([...ModoCarga.options]);
     expect(valoresDoCheck('integracao.lote', 'status')).toEqual([...ESTADOS_LOTE]);
@@ -560,10 +568,86 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
   });
 });
 
+describe('0013 catálogo (cota, conteúdo, busca), vendedor (orçamento, frete, faturamento) e core (cadastro mínimo) — estático', () => {
+  const m13 = migracoes.find((x) => x.versao === '0013')!;
+  const criadas = tabelasCriadas();
+  const semComentarios = m13.up.replace(/--.*$/gm, '');
+
+  it('RN-CAT-03: cota por (tenant, usuário, dia) com incremento atômico e condicional, função do invocador e fora do sync', () => {
+    expect(criadas.get('catalogo.uso_ia')).toContain('constraint uso_ia_dia_uk unique (tenant_id, usuario_id, dia)');
+    // hora-fixa-ok: texto da assinatura da função na migração (não é SQL executado nem comparado ao relógio)
+    expect(m13.up).toContain('create function catalogo.debitar_cota_ia(p_usuario_id uuid, p_limite integer, p_agora timestamptz default now())');
+    expect(m13.up).toMatch(/on conflict on constraint uso_ia_dia_uk do update\s+set consultas = u\.consultas \+ 1\s+where u\.consultas < p_limite/);
+    expect(m13.up).toContain('(p_agora at time zone t.fuso)::date');
+    expect(semComentarios).not.toMatch(/security definer/i);
+    expect(m13.up).toContain('revoke all on function catalogo.debitar_cota_ia(uuid, integer, timestamptz) from public;');
+    expect(TABELAS_FORA_DO_SYNC).toEqual(expect.arrayContaining(['catalogo.uso_ia', 'catalogo.busca_log']));
+  });
+
+  it('fronteira: nenhuma FK para outro schema de módulo; FKs compostas dentro do schema', () => {
+    for (const comando of semComentarios.split(';')) {
+      const alvo = /(?:create table|alter table) ([a-z_]+)\.([a-z_]+)/.exec(comando);
+      if (!alvo) continue;
+      for (const [, destino] of comando.matchAll(/references ([a-z_]+)\./g)) {
+        if (destino !== 'plataforma') expect(destino, `FK de ${alvo[1]}.${alvo[2]} para ${destino}`).toBe(alvo[1]);
+      }
+    }
+    expect(criadas.get('catalogo.estoque_saldo')).toContain('foreign key (tenant_id, deposito_id) references catalogo.deposito (tenant_id, id)');
+    expect(criadas.get('catalogo.produto_no')).toContain('foreign key (tenant_id, no_id) references catalogo.catalogo_no (tenant_id, id)');
+    expect(criadas.get('core.cliente_endereco')).toContain('foreign key (tenant_id, cliente_id) references core.cliente (tenant_id, id)');
+    expect(m13.up).toContain('add constraint pedido_orcamento_fk foreign key (tenant_id, orcamento_id) references vendedor.pedido (tenant_id, id);');
+  });
+
+  it('RN-VEN-13/32: orçamento nunca vai a aprovação nem ao ERP; acréscimo e desconto excludentes; total sem frete', () => {
+    expect(m13.up).toContain("check (tipo = 'pedido' or status in ('draft', 'queued', 'received', 'cancelled'))");
+    expect(m13.up).toContain('check (desconto_pct = 0 or acrescimo_pct = 0)');
+    expect(m13.up).toContain("check (frete_modalidade is distinct from 'CIF' or (transportadora_id is null and not transportadora_digitada))");
+    expect(m13.up).toContain("check (frete_modalidade is distinct from 'FOB' or transportadora_id is not null or transportadora_digitada)");
+    expect(m13.up).not.toMatch(/frete_cents|frete_pct|frete_tipo|cliente_frete/); // R-20261102-105040: o pedido não tem valor de frete
+    expect(m13.up).toContain('create unique index pedido_orcamento_uk on vendedor.pedido (tenant_id, orcamento_id) where orcamento_id is not null and deleted_at is null;');
+    expect(m13.up).toContain('check (quantidade_base = quantidade * fator)');
+    expect(m13.up).toContain('grant select, insert on vendedor.pedido_faturamento to macuxi_app;');
+    expect(criadas.get('vendedor.pedido_faturamento')).toContain('constraint pedido_faturamento_evento_uk unique (tenant_id, evento_id)');
+  });
+
+  it('integração (T-0061 §6, ADR 0016): CHECKs de entidade com as 12 do banco, contrato contido nelas; exige_conector semver', () => {
+    const banco = [...nuvemIntegracao.ENTIDADES_BANCO];
+    for (const e of ENTIDADES) expect(banco).toContain(e);
+    const lista = (trecho: string) => [...trecho.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!);
+    for (const t of ['sessao_carga', 'lote', 'registro_atual', 'pendencia_inativacao', 'inativacao_auditoria', 'cursor_entidade', 'reconciliacao']) {
+      const m = new RegExp(`alter table integracao\\.${t} add constraint ${t}_entidade_valida check \\(entidade in \\(([^)]*)\\)\\);`).exec(m13.up);
+      expect(lista(m?.[1] ?? ''), t).toEqual(banco);
+    }
+    const c = /add constraint conector_entidades_validas check \(cardinality\(entidades\) >= 1 and entidades <@ array\[([^\]]*)\]/.exec(m13.up);
+    expect(lista(c?.[1] ?? '')).toEqual(banco);
+    expect(m13.up).toContain(String.raw`check (exige_conector is null or exige_conector ~ '^[0-9]+\.[0-9]+\.[0-9]+$')`);
+    expect(m13.up).toContain('check (quantidade_faturada between 0 and quantidade_base)');
+  });
+
+  it('RN-CORE-16/17: cadastro incompleto coerente com a lista de campos faltantes', () => {
+    expect(m13.up).toContain('check (cadastro_incompleto = (cardinality(cadastro_campos_faltantes) > 0))');
+  });
+
+  it('down desfaz o que o up cria (tabelas, funções, colunas, constraints e índices) e devolve o único da 0008', () => {
+    for (const t of TABELAS_0013) expect(m13.down).toContain(`drop table if exists ${t};`);
+    for (const [, f] of m13.up.matchAll(/^create function ([a-z_]+\.[a-z_]+)\(/gm)) expect(m13.down).toContain(`drop function if exists ${f}(`);
+    for (const [, tabela, coluna] of m13.up.matchAll(/^alter table ([a-z_]+\.[a-z_]+) add column ([a-z_]+) /gm)) {
+      expect(m13.down).toContain(`alter table ${tabela} drop column if exists ${coluna};`);
+    }
+    for (const [, nome] of m13.up.matchAll(/add constraint ([a-z_]+) /g)) expect(m13.down).toContain(`drop constraint if exists ${nome};`);
+    // índices novos em tabelas que já existiam antes da 0013 (as tabelas novas levam os seus no drop table)
+    for (const [, nome, schema] of m13.up.matchAll(/^create (?:unique )?index ([a-z_]+) on ([a-z_]+)\.(?:pedido|cliente|tabela_preco_item) /gm)) {
+      expect(m13.down).toContain(`drop index if exists ${schema}.${nome};`);
+    }
+    expect(m13.down).toContain('create unique index tabela_preco_item_vigencia_uk on catalogo.tabela_preco_item (tenant_id, tabela_preco_id, produto_id, vigencia_inicio) nulls not distinct where deleted_at is null;');
+    expect(m13.down.indexOf("delete from vendedor.pedido where tipo = 'orcamento';")).toBeLessThan(m13.down.indexOf('drop column if exists tipo;'));
+  });
+});
+
 describe('base de demo x T-0029 (estático)', () => {
   const d = dadosDemo('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA', { hoje: '2026-11-04' });
 
-  it('alçadas do Vendedor nos parâmetros do tenant (5/10/15, acima do gerente = analista)', () => {
+  it('alçadas do Vendedor nos parâmetros do tenant (5/10/15, acima do gerente = analista) (frete e desconto máximo sem linha = padrão)', () => {
     const p = Object.fromEntries(d['plataforma.parametro'].filter((x) => x.modulo === 'vendedor').map((x) => [x.chave, JSON.parse(String(x.valor))]));
     expect(p).toEqual({ ...ALCADAS_DEMO });
   });
