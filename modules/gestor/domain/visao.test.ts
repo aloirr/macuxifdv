@@ -104,6 +104,7 @@ describe('visão da equipe (RF-GES-01/02)', () => {
       [SUPERVISOR, 50_000],
       [SUP_2, 20_000],
     ]);
+    expect(v.gestores.map((m) => m.nome)).toEqual(['Sara', 'Silas']);
   });
 
   it('RN-GES-07: analista vê o tenant inteiro (equipe achatada sob ele) sem quebrar a árvore', () => {

@@ -85,10 +85,13 @@ export function visaoDaEquipe(e: EntradaVisao): VisaoEquipe {
     .map((m) => ({ membro: m, painel: montarPainelDia(e.estado, { id: m.id, perfil: m.perfil }, e.data, { params, modulos: e.modulos, agora: e.agora }) }))
     .sort((a, b) => compararTexto(a.membro.nome, b.membro.nome) || compararTexto(a.membro.id, b.membro.id));
   const paineis = membros.map((x) => x.painel);
+  const equipes = equipesAbaixo(e.viewer.id, arvore, paineis);
+  const porId = new Map(arvore.map((m) => [m.id, m]));
   return {
     data: e.data,
     resumo: resumirEquipe(e.viewer.id, arvore, paineis),
-    equipes: equipesAbaixo(e.viewer.id, arvore, paineis),
+    equipes,
+    gestores: equipes.map((q) => porId.get(q.gestor_id)!).filter(Boolean),
     membros,
     calculado_em: e.agora,
   };

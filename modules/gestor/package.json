@@ -12,7 +12,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.app.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.app.json && tsc -p tsconfig.web.json",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

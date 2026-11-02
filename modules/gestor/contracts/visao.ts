@@ -52,6 +52,8 @@ export const VisaoEquipe = z
     data: IsoDate,
     resumo: ResumoEquipe,
     equipes: z.array(ResumoEquipe),
+    /** Quem lidera cada equipe de `equipes` (nome para a tela), na mesma ordem. */
+    gestores: z.array(MembroEquipe),
     membros: z.array(MembroComPainel),
     calculado_em: InstanteUtc,
   })

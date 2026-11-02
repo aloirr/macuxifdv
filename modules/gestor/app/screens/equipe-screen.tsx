@@ -43,9 +43,9 @@ export default function EquipeScreen() {
       {v ? <Resumo r={v.resumo} /> : null}
       {v && v.equipes.length > 0 ? (
         <Card testID="gestor-equipes">
-          {v.equipes.map((e) => (
-            <View key={e.gestor_id} style={styles.linha}>
-              <Text style={[t.bodyStrong, { flex: 1 }]}>{v.membros.length > 0 ? nomeDoGestor(e.gestor_id, v.membros) : 'Equipe'}</Text>
+          {v.equipes.map((e, i) => (
+            <View key={e.gestor_id} style={[styles.linha, { minHeight: 40, paddingHorizontal: 14 }]}>
+              <Text style={[t.bodyStrong, { flex: 1 }]}>{v.gestores[i]?.nome ?? 'Equipe'}</Text>
               <Text style={t.small}>
                 {e.membros} pessoas · {e.vendas_cents === null ? '—' : formatBRL0(e.vendas_cents)}
               </Text>
@@ -63,11 +63,6 @@ export default function EquipeScreen() {
       ) : null}
     </Screen>
   );
-}
-
-/** A visão traz só as pessoas de campo; o nome do supervisor da equipe vem do cache se ele também for listado. */
-function nomeDoGestor(id: string, membros: readonly MembroComPainel[]): string {
-  return membros.find((m) => m.membro.id === id)?.membro.nome ?? 'Equipe do supervisor';
 }
 
 function Resumo({ r }: { r: ResumoEquipe }) {

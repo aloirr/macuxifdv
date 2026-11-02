@@ -8,7 +8,7 @@ const relogio = criarRelogio({ agora: '2026-11-03T15:00:00Z' });
 const agora = relogio.iso();
 const resumo = { gestor_id: '00000000-0000-4000-8000-000000000300', membros: 0, sem_checkin: 0, em_rota: 0, em_visita: 0, vendas_cents: null, pedidos: null, meta_cents: null, atingimento_pct: null, visitas_realizadas: 0, visitas_planejadas: 0, visitas_planejadas_realizadas: 0, visitas_extras: null, cobertura_pct: null, vendido_cents: null, faturado_cents: null, a_faturar_cents: null };
 const RESPOSTAS: Record<string, unknown> = {
-  [ROTAS_GESTOR.equipe]: { data: relogio.hoje(), resumo, equipes: [], membros: [], calculado_em: agora },
+  [ROTAS_GESTOR.equipe]: { data: relogio.hoje(), resumo, equipes: [], gestores: [], membros: [], calculado_em: agora },
   [ROTAS_GESTOR.aprovacoes]: { itens: [], resumo: { total: 0, vencidos: 0, vencendo: 0, para_mim: 0 }, calculado_em: agora },
   [ROTAS_GESTOR.alertas]: { itens: [], calculado_em: agora },
 };
