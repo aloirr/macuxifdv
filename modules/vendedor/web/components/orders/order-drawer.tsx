@@ -56,13 +56,13 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     <Drawer
       open={!!order}
       onClose={onClose}
-      title={o ? <span className="font-mono">Pedido {o.number}</span> : 'Pedido'}
+      title={o ? <span className="font-mono">{o.tipo === 'orcamento' ? 'Orçamento' : 'Pedido'} {o.number}</span> : 'Pedido'}
       subtitle={o ? `${o.customer_name} · ${o.seller_name}` : undefined}
     >
       {o && (
         <div className="flex flex-col gap-4" data-testid="pedido.detalhe">
           <div className="flex flex-wrap items-center gap-2">
-            <OrderStatusBadge status={o.status} />
+            <OrderStatusBadge status={o.status} situacaoOrcamento={o.situacao_orcamento} />
             {o.erp_order_code && <span className="text-[12px] text-ink-2">ERP {o.erp_order_code}</span>}
             <div className="ml-auto flex gap-2">
               <Button size="sm" disabled={!detail.data || gerando !== null} onClick={() => void exportar('customer')} data-testid="pedido.pdf.cliente">

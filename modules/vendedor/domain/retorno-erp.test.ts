@@ -1,3 +1,7 @@
+/**
+ * Retorno do ERP no pedido (T-0053 status + T-0054 faturamento e devolução). Funções puras; instantes fixos só como dado
+ * (nenhuma comparação com o relógio real).
+ */
 import { describe, expect, it } from 'vitest';
 import { PedidoFaturadoEvento } from '../contracts/eventos';
 import { ORDER_STATUSES, type OrderStatus } from './order';
@@ -5,11 +9,12 @@ import {
   camposFaturamento,
   textoItemFaturado,
   decidirNotaDevolucao,
-  decidirRetornoErp,
   eventoFaturadoDosItens,
   itensDoFaturamento,
+  planejarRetornoErp,
   resumoFaturamento,
   textoSituacaoFaturamento,
+  type RetornoErpEntrada,
 } from './retorno-erp';
 
 const P1 = '11111111-1111-4111-8111-111111111111';
@@ -21,82 +26,82 @@ const itensPedido = [
   { sequencia: 1, product_id: P1, quantity: 10, total_cents: 10_000 },
   { sequencia: 2, product_id: P2, quantity: 4, total_cents: 2_000 },
 ];
-const retorno = (status: string, extra: Partial<{ numero_erp: string | null; motivo: string | null; nota: { numero: string; serie?: string | null } | null }> = {}) => ({
-  status,
-  numero_erp: extra.numero_erp === undefined ? 'ERP-1' : extra.numero_erp,
-  motivo: extra.motivo ?? null,
-  nota: extra.nota ?? null,
-  ocorrido_em: OCORRIDO,
-});
+const EM = '2026-11-02T13:00:00.000Z';
+const ret = (status: string, extra: Partial<RetornoErpEntrada> = {}): RetornoErpEntrada => ({ status, numero_erp: 'P-778', motivo: null, ocorrido_em: EM, itens_faturados: null, ...extra });
 
-describe('decidirRetornoErp — status do pedido pelo retorno do ERP (RN-INT-08, RN-VEN-30)', () => {
-  it('RN-INT-08: integrado leva aprovado direto a integrado (o Hub não publica o "enviado") com o número do ERP', () => {
-    const d = decidirRetornoErp('approved', retorno('integrado', { numero_erp: '9876' }));
-    expect(d).toMatchObject({ aplicar: true, de: 'approved', para: 'integrated', mudouStatus: true, numero_erp: '9876', registraFaturamento: false });
-    if (d.aplicar) expect(d.historico).toContain('9876');
+describe('RN-VEN-30 / RN-INT-08: retorno do ERP → status do pedido', () => {
+  it.each<[OrderStatus, OrderStatus]>([
+    ['approved', 'integrated'],
+    ['sent_to_erp', 'integrated'],
+  ])('RN-VEN-30: integrado em %s → %s, com o número do ERP', (de, para) => {
+    const p = planejarRetornoErp(de, ret('integrado'));
+    expect(p).toMatchObject({ acao: 'aplicar', de, para, muda_status: true, numero_erp: 'P-778', faturar: false });
+    if (p.acao === 'aplicar') expect(p.texto_historico).toMatch(/ERP/);
   });
 
-  it('RN-INT-08: faturado_parcial vai a invoiced_partial e registra o faturamento; o segundo parcial registra sem mudar o status', () => {
-    const d1 = decidirRetornoErp('integrated', retorno('faturado_parcial', { nota: { numero: '123', serie: '1' } }));
-    expect(d1).toMatchObject({ aplicar: true, para: 'invoiced_partial', mudouStatus: true, registraFaturamento: true, parcial: true });
-    if (d1.aplicar) expect(d1.historico).toContain('NF 123/1');
-    const d2 = decidirRetornoErp('invoiced_partial', retorno('faturado_parcial', { nota: { numero: '124' } }));
-    expect(d2).toMatchObject({ aplicar: true, para: 'invoiced_partial', mudouStatus: false, registraFaturamento: true });
+  it('RN-VEN-30: enviado (entregue ao Conector) leva aprovado a enviado ao ERP', () => {
+    expect(planejarRetornoErp('approved', ret('enviado', { numero_erp: null }))).toMatchObject({ acao: 'aplicar', para: 'sent_to_erp', numero_erp: null });
+    expect(planejarRetornoErp('integrated', ret('enviado'))).toMatchObject({ acao: 'ignorar', motivo: 'repetido_ou_atrasado' });
   });
 
-  it('RN-INT-08: faturado_total fecha o pedido em invoiced (de integrado, parcial ou aprovado)', () => {
-    for (const de of ['approved', 'sent_to_erp', 'integrated', 'invoiced_partial'] as OrderStatus[]) {
-      expect(decidirRetornoErp(de, retorno('faturado_total', { nota: { numero: '9' } }))).toMatchObject({ aplicar: true, para: 'invoiced', mudouStatus: true, parcial: false, registraFaturamento: true });
+  it('RN-INT-08: pendente é estado só do Hub e não muda o pedido', () => {
+    expect(planejarRetornoErp('approved', ret('pendente'))).toEqual({ acao: 'ignorar', motivo: 'status_do_hub' });
+  });
+
+  it('RN-VEN-30: integrado repetido ou depois do faturamento não volta o status (a ordem dos eventos não é garantida)', () => {
+    for (const s of ['integrated', 'invoiced_partial', 'invoiced'] as const) {
+      expect(planejarRetornoErp(s, ret('integrado'))).toMatchObject({ acao: 'ignorar', motivo: 'repetido_ou_atrasado' });
     }
   });
 
-  it('RN-VEN-30: retorno atrasado não volta o status (integrado depois de faturado é ignorado)', () => {
-    expect(decidirRetornoErp('invoiced', retorno('integrado'))).toEqual({ aplicar: false, motivo: 'fora_de_ordem' });
-    expect(decidirRetornoErp('invoiced_partial', retorno('integrado'))).toEqual({ aplicar: false, motivo: 'fora_de_ordem' });
-  });
-
-  it('RN-INT-08: faturamento parcial atrasado depois do total registra a nota sem mudar o status', () => {
-    expect(decidirRetornoErp('invoiced', retorno('faturado_parcial', { nota: { numero: '1' } }))).toMatchObject({ aplicar: true, para: 'invoiced', mudouStatus: false, registraFaturamento: true });
-  });
-
-  it('RN-INT-08: rejeitado_erp só antes de integrado; o motivo vira motivo_rejeicao com 3+ caracteres', () => {
-    const d = decidirRetornoErp('approved', retorno('rejeitado_erp', { numero_erp: null, motivo: 'X' }));
-    expect(d).toMatchObject({ aplicar: true, para: 'rejected', mudouStatus: true });
-    if (d.aplicar) expect((d.motivo_rejeicao ?? '').length).toBeGreaterThanOrEqual(3);
-    expect(decidirRetornoErp('integrated', retorno('rejeitado_erp', { motivo: 'tarde' }))).toEqual({ aplicar: false, motivo: 'fora_de_ordem' });
-  });
-
-  it('RN-INT-08: cancelado do ERP vale de aprovado em diante (inclusive faturado, sem estorno) e grava o motivo', () => {
-    for (const de of ['approved', 'sent_to_erp', 'integrated', 'invoiced_partial', 'invoiced', 'rejected'] as OrderStatus[]) {
-      const d = decidirRetornoErp(de, retorno('cancelado', { motivo: 'cliente desistiu' }));
-      expect(d).toMatchObject({ aplicar: true, para: 'cancelled', mudouStatus: true, registraFaturamento: false });
-      if (d.aplicar) expect(d.motivo_cancelamento).toContain('cliente desistiu');
-    }
-    const semMotivo = decidirRetornoErp('integrated', retorno('cancelado'));
-    if (semMotivo.aplicar) expect(semMotivo.motivo_cancelamento).toBe('Cancelado no ERP.');
-  });
-
-  it('RN-VEN-30: pedido cancelado é final; retorno de pedido que não chegou a aprovado é ignorado', () => {
-    expect(decidirRetornoErp('cancelled', retorno('faturado_total', { nota: { numero: '1' } }))).toEqual({ aplicar: false, motivo: 'pedido_finalizado' });
-    for (const de of ['draft', 'queued', 'received', 'pending_approval'] as OrderStatus[]) {
-      expect(decidirRetornoErp(de, retorno('integrado'))).toEqual({ aplicar: false, motivo: 'pedido_nao_aprovado' });
+  it('RN-INT-08: retorno de pedido que nunca foi para a fila é ignorado (só aprovado entra)', () => {
+    for (const s of ['draft', 'queued', 'received', 'pending_approval'] as const) {
+      expect(planejarRetornoErp(s, ret('integrado'))).toMatchObject({ acao: 'ignorar', motivo: 'pedido_nao_enviado' });
     }
   });
 
-  it('RN-INT-08: pendente e enviado do Hub; repetido sem novidade não faz nada; status desconhecido é ignorado', () => {
-    expect(decidirRetornoErp('approved', retorno('pendente'))).toEqual({ aplicar: false, motivo: 'sem_efeito' });
-    expect(decidirRetornoErp('approved', retorno('enviado'))).toMatchObject({ aplicar: true, para: 'sent_to_erp', mudouStatus: true });
-    expect(decidirRetornoErp('integrated', retorno('integrado', { numero_erp: 'ERP-1' }), 'ERP-1')).toEqual({ aplicar: false, motivo: 'sem_efeito' });
-    // número novo no mesmo status: só atualiza o número
-    expect(decidirRetornoErp('integrated', retorno('integrado', { numero_erp: 'ERP-2' }), 'ERP-1')).toMatchObject({ aplicar: true, mudouStatus: false, numero_erp: 'ERP-2' });
-    expect(decidirRetornoErp('approved', retorno('qualquer'))).toEqual({ aplicar: false, motivo: 'status_desconhecido' });
+  it('RN-VEN-30: faturado parcial muda o status uma vez; a 2ª nota parcial fatura sem mudar o status', () => {
+    expect(planejarRetornoErp('integrated', ret('faturado_parcial'))).toMatchObject({ acao: 'aplicar', para: 'invoiced_partial', muda_status: true, faturar: true });
+    expect(planejarRetornoErp('approved', ret('faturado_parcial'))).toMatchObject({ acao: 'aplicar', para: 'invoiced_partial', muda_status: true });
+    expect(planejarRetornoErp('invoiced_partial', ret('faturado_parcial'))).toMatchObject({ acao: 'aplicar', para: 'invoiced_partial', muda_status: false, faturar: true });
+    expect(planejarRetornoErp('invoiced', ret('faturado_parcial'))).toMatchObject({ acao: 'ignorar', motivo: 'repetido_ou_atrasado' });
   });
 
-  it('RN-VEN-30: toda transição decidida é permitida pela máquina de status ou é o salto documentado do retorno', () => {
+  it('RN-VEN-30: faturado total fecha o pedido; repetido é ignorado', () => {
+    for (const s of ['approved', 'sent_to_erp', 'integrated', 'invoiced_partial'] as const) {
+      expect(planejarRetornoErp(s, ret('faturado_total'))).toMatchObject({ acao: 'aplicar', para: 'invoiced', muda_status: true, faturar: true });
+    }
+    expect(planejarRetornoErp('invoiced', ret('faturado_total'))).toMatchObject({ acao: 'ignorar', motivo: 'repetido_ou_atrasado' });
+  });
+
+  it('RN-INT-08: rejeitado pelo ERP vira rejeitado com o motivo do ERP (motivo de 3+ caracteres, RN-GES-08)', () => {
+    const p = planejarRetornoErp('sent_to_erp', ret('rejeitado_erp', { numero_erp: null, motivo: 'CNPJ sem inscrição' }));
+    expect(p).toMatchObject({ acao: 'aplicar', para: 'rejected', motivo_rejeicao: 'Recusado pelo ERP: CNPJ sem inscrição' });
+    const semMotivo = planejarRetornoErp('approved', ret('rejeitado_erp', { motivo: null }));
+    expect(semMotivo.acao === 'aplicar' && semMotivo.motivo_rejeicao!.length).toBeGreaterThanOrEqual(3);
+    expect(planejarRetornoErp('integrated', ret('rejeitado_erp', { motivo: 'x' }))).toMatchObject({ acao: 'ignorar', motivo: 'repetido_ou_atrasado' });
+  });
+
+  it('decisão do Alexandre (R-20261031-100601, opção b): cancelado vem só do ERP e vale do aprovado em diante', () => {
+    for (const s of ['approved', 'sent_to_erp', 'integrated', 'invoiced_partial', 'invoiced', 'rejected'] as const) {
+      expect(planejarRetornoErp(s, ret('cancelado', { motivo: 'cliente desistiu' }))).toMatchObject({ acao: 'aplicar', para: 'cancelled', motivo_cancelamento: 'Cancelado no ERP: cliente desistiu' });
+    }
+    expect(planejarRetornoErp('cancelled', ret('cancelado'))).toMatchObject({ acao: 'ignorar', motivo: 'repetido_ou_atrasado' });
+    expect(planejarRetornoErp('pending_approval', ret('cancelado'))).toMatchObject({ acao: 'ignorar', motivo: 'pedido_nao_enviado' });
+  });
+
+  it('status desconhecido nunca muda o pedido', () => {
+    expect(planejarRetornoErp('approved', ret('qualquer'))).toEqual({ acao: 'ignorar', motivo: 'status_desconhecido' });
+  });
+
+  it('todo plano aplicado leva a um status válido do contrato (ORDER_STATUSES)', () => {
     for (const de of ORDER_STATUSES) {
-      for (const st of ['enviado', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total', 'cancelado']) {
-        const d = decidirRetornoErp(de, retorno(st, { motivo: 'm', nota: { numero: '1' } }));
-        if (d.aplicar && d.mudouStatus) expect(d.de).not.toBe(d.para);
+      for (const s of ['enviado', 'integrado', 'rejeitado_erp', 'faturado_parcial', 'faturado_total', 'cancelado']) {
+        const p = planejarRetornoErp(de, ret(s, { motivo: 'm' }));
+        if (p.acao === 'aplicar') {
+          expect(ORDER_STATUSES).toContain(p.para);
+          expect(p.muda_status).toBe(p.para !== de);
+        }
       }
     }
   });
@@ -133,6 +138,20 @@ describe('itensDoFaturamento — sequência → produto, limitado ao saldo (RN-I
     expect(total.itens).toEqual([{ sequencia: 2, product_id: P2, quantity: 3, valor_cents: null }]);
     expect(itensDoFaturamento('faturado_parcial', null, itensPedido, []).itens).toEqual([]);
     expect(itensDoFaturamento('faturado_parcial', [], itensPedido, []).itens).toEqual([]);
+  });
+
+  it('T-0053 (portado): sem a tabela do faturamento e com parcial antes (acumulado desconhecido), o total sem itens não fatura nada', () => {
+    expect(itensDoFaturamento('faturado_total', null, itensPedido, null).itens).toEqual([]);
+  });
+
+  it('T-0053 (portado): sem parcial antes, o total sem itens é o pedido inteiro', () => {
+    expect(itensDoFaturamento('faturado_total', null, itensPedido, []).itens.map((i) => [i.product_id, i.quantity])).toEqual([[P1, 10], [P2, 4]]);
+  });
+
+  it('T-0053 (portado): com acumulado desconhecido, os itens do retorno valem limitados à quantidade do pedido', () => {
+    const r = itensDoFaturamento('faturado_total', [{ sequencia: 1, quantidade: 12 }], itensPedido, null);
+    expect(r.itens).toEqual([{ sequencia: 1, product_id: P1, quantity: 10, valor_cents: null }]);
+    expect(r.divergencias).toEqual([{ sequencia: 1, codigo: 'acima_do_saldo', informada: 12, aceita: 10 }]);
   });
 
   it('RN-TRE-08: faturado_total COM itens usa os itens do retorno (o ERP pode cortar quantidade)', () => {

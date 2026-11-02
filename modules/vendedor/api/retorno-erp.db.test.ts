@@ -88,12 +88,12 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     await criarPedido(PED, 'approved');
     const reg: Registro = { publicados: [] };
     const retorno = {
-      pedido_uuid: PED, status: 'faturado_parcial', numero_erp: 'ERP-54', motivo: null,
+      pedido_uuid: PED, status: 'faturado_parcial' as const, numero_erp: 'ERP-54', motivo: null,
       nota: { numero: '9001', serie: '1', emitida_em: EM(-5), total_cents: 6_500 },
-      itens_faturados: [{ sequencia: 1, quantidade: 6, valor_cents: 6_000 }, { sequencia: 9, quantidade: 1, valor_cents: 1 }],
+      itens_faturados: [{ sequencia: 1, produto_external_id: 'E1', quantidade: 6, valor_cents: 6_000 }, { sequencia: 9, produto_external_id: 'E9', quantidade: 1, valor_cents: 1 }],
       ocorrido_em: EM(-5),
     };
-    const r = await noTenant(A.tenantId, (db) => aplicarRetornoErp(repositorioRetornoErpPg(db), retorno, ctx('0f540000-0000-4000-8000-0000000000e1', reg)));
+    const r = await noTenant(A.tenantId, (db) => aplicarRetornoErp(repositorioRetornoErpPg(db, { faturamento: true }), retorno, ctx('0f540000-0000-4000-8000-0000000000e1', reg)));
     expect(r).toEqual({ aplicado: true, de: 'approved', para: 'invoiced_partial', faturado_publicado: true });
     const p = (await admin.query('select status, numero_erp, faturado_cents::int, notas_faturamento, ultima_nota_numero from vendedor.pedido where id = $1', [PED])).rows[0];
     expect(p).toEqual({ status: 'invoiced_partial', numero_erp: 'ERP-54', faturado_cents: 6_000, notas_faturamento: 1, ultima_nota_numero: '9001' });
@@ -107,16 +107,16 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
 
   it('RN-INT-08: a mesma entrega (evento_origem_id) não grava a nota de novo nem republica', async () => {
     const reg: Registro = { publicados: [] };
-    const retorno = { pedido_uuid: PED, status: 'faturado_parcial', numero_erp: 'ERP-54', motivo: null, nota: { numero: '9001', emitida_em: EM(-5), total_cents: 6_500 }, itens_faturados: [{ sequencia: 1, quantidade: 6 }], ocorrido_em: EM(-5) };
-    await noTenant(A.tenantId, (db) => aplicarRetornoErp(repositorioRetornoErpPg(db), retorno, ctx('0f540000-0000-4000-8000-0000000000e1', reg)));
+    const retorno = { pedido_uuid: PED, status: 'faturado_parcial' as const, numero_erp: 'ERP-54', motivo: null, nota: { numero: '9001', emitida_em: EM(-5), total_cents: 6_500 }, itens_faturados: [{ sequencia: 1, produto_external_id: 'E1', quantidade: 6, valor_cents: 6_000 }], ocorrido_em: EM(-5) };
+    await noTenant(A.tenantId, (db) => aplicarRetornoErp(repositorioRetornoErpPg(db, { faturamento: true }), retorno, ctx('0f540000-0000-4000-8000-0000000000e1', reg)));
     expect(reg.publicados).toEqual([]);
     expect((await admin.query('select count(*)::int as n from vendedor.pedido_faturamento where pedido_id = $1', [PED])).rows[0]!.n).toBe(1);
   });
 
   it('RN-TRE-08: faturado_total sem itens fatura o saldo e fecha o pedido; o detalhe lista as notas', async () => {
     const reg: Registro = { publicados: [] };
-    const retorno = { pedido_uuid: PED, status: 'faturado_total', numero_erp: 'ERP-54', motivo: null, nota: { numero: '9002', serie: null, emitida_em: EM(-2), total_cents: 6_000 }, itens_faturados: null, ocorrido_em: EM(-2) };
-    await noTenant(A.tenantId, (db) => aplicarRetornoErp(repositorioRetornoErpPg(db), retorno, ctx('0f540000-0000-4000-8000-0000000000e2', reg)));
+    const retorno = { pedido_uuid: PED, status: 'faturado_total' as const, numero_erp: 'ERP-54', motivo: null, nota: { numero: '9002', serie: null, emitida_em: EM(-2), total_cents: 6_000 }, itens_faturados: null, ocorrido_em: EM(-2) };
+    await noTenant(A.tenantId, (db) => aplicarRetornoErp(repositorioRetornoErpPg(db, { faturamento: true }), retorno, ctx('0f540000-0000-4000-8000-0000000000e2', reg)));
     expect(reg.publicados[1]!.payload).toMatchObject({ parcial: false, itens: [{ produto_id: P1, quantidade: 4 }, { produto_id: P2, quantidade: 4 }] });
     const p = (await admin.query('select status, faturado_cents::int, notas_faturamento from vendedor.pedido where id = $1', [PED])).rows[0];
     expect(p).toEqual({ status: 'invoiced', faturado_cents: 12_000, notas_faturamento: 2 });
@@ -129,12 +129,12 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
   it('RN-VEN-37: devolução grava, atualiza e sai da soma quando cancelada (macuxi_app, sem apagar)', async () => {
     const reg: Registro = { publicados: [] };
     const nota = (o: Record<string, unknown> = {}) => ({ acao: 'criado', external_id: 'NF-D-54', registro: { tipo: 'devolucao', pedido_uuid: PED, numero: 'D54', serie: '1', emitida_em: EM(-1), total_cents: 3_000, cancelada: false, ...o } });
-    await noTenant(A.tenantId, (db) => aplicarNotaDevolucao(repositorioRetornoErpPg(db), nota(), ctx('x', reg)));
+    await noTenant(A.tenantId, (db) => aplicarNotaDevolucao(repositorioRetornoErpPg(db, { faturamento: true }), nota(), ctx('x', reg)));
     expect((await admin.query('select devolvido_cents::int from vendedor.pedido where id = $1', [PED])).rows[0]!.devolvido_cents).toBe(3_000);
-    await noTenant(A.tenantId, (db) => aplicarNotaDevolucao(repositorioRetornoErpPg(db), nota({ total_cents: 12_000 }), ctx('x', reg)));
+    await noTenant(A.tenantId, (db) => aplicarNotaDevolucao(repositorioRetornoErpPg(db, { faturamento: true }), nota({ total_cents: 12_000 }), ctx('x', reg)));
     const notas = await noTenant(A.tenantId, (db) => lerNotasDoPedido(db, PED));
     expect(notas.devolucoes).toEqual([expect.objectContaining({ nota_numero: 'D54', total_cents: 12_000 })]);
-    await noTenant(A.tenantId, (db) => aplicarNotaDevolucao(repositorioRetornoErpPg(db), nota({ cancelada: true }), ctx('x', reg)));
+    await noTenant(A.tenantId, (db) => aplicarNotaDevolucao(repositorioRetornoErpPg(db, { faturamento: true }), nota({ cancelada: true }), ctx('x', reg)));
     expect((await admin.query('select devolvido_cents::int from vendedor.pedido where id = $1', [PED])).rows[0]!.devolvido_cents).toBe(0);
     expect((await admin.query('select count(*)::int as n from vendedor.pedido_devolucao where pedido_id = $1 and deleted_at is not null', [PED])).rows[0]!.n).toBe(1);
   });
@@ -143,11 +143,11 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
     await criarPedido(PED2, 'approved');
     const reg: Registro = { publicados: [] };
     const r = await noTenant(B.tenantId, (db) =>
-      aplicarRetornoErp(repositorioRetornoErpPg(db), { pedido_uuid: PED2, status: 'integrado', numero_erp: 'X', motivo: null, nota: null, ocorrido_em: EM(-1) }, ctx('0f540000-0000-4000-8000-0000000000e3', reg)),
+      aplicarRetornoErp(repositorioRetornoErpPg(db, { faturamento: true }), { pedido_uuid: PED2, status: 'integrado' as const, numero_erp: 'X', motivo: null, nota: null, ocorrido_em: EM(-1) }, ctx('0f540000-0000-4000-8000-0000000000e3', reg)),
     );
     expect(r).toEqual({ aplicado: false, motivo: 'pedido_inexistente' });
     const d = await noTenant(B.tenantId, (db) =>
-      aplicarNotaDevolucao(repositorioRetornoErpPg(db), { acao: 'criado', external_id: 'NF-B', registro: { tipo: 'devolucao', pedido_uuid: PED2, numero: 'B1', emitida_em: EM(-1), total_cents: 10 } }, ctx('x', reg)),
+      aplicarNotaDevolucao(repositorioRetornoErpPg(db, { faturamento: true }), { acao: 'criado', external_id: 'NF-B', registro: { tipo: 'devolucao', pedido_uuid: PED2, numero: 'B1', emitida_em: EM(-1), total_cents: 10 } }, ctx('x', reg)),
     );
     expect(d).toEqual({ pedidos: [] });
     expect((await admin.query('select status from vendedor.pedido where id = $1', [PED2])).rows[0]!.status).toBe('approved');
@@ -157,7 +157,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: retorno do ERP, faturamento e
   it('RN-INT-08: cancelado no ERP (sem estorno) e o pull leva o resumo do faturamento ao aparelho', async () => {
     const reg: Registro = { publicados: [] };
     await noTenant(A.tenantId, (db) =>
-      aplicarRetornoErp(repositorioRetornoErpPg(db), { pedido_uuid: PED2, status: 'cancelado', numero_erp: null, motivo: 'pedido duplicado', nota: null, ocorrido_em: EM(-1) }, ctx('0f540000-0000-4000-8000-0000000000e4', reg)),
+      aplicarRetornoErp(repositorioRetornoErpPg(db, { faturamento: true }), { pedido_uuid: PED2, status: 'cancelado' as const, numero_erp: null, motivo: 'pedido duplicado', nota: null, ocorrido_em: EM(-1) }, ctx('0f540000-0000-4000-8000-0000000000e4', reg)),
     );
     expect((await admin.query('select status, motivo_cancelamento from vendedor.pedido where id = $1', [PED2])).rows[0]).toEqual({ status: 'cancelled', motivo_cancelamento: 'Cancelado no ERP: pedido duplicado' });
     // pull com as colunas do faturamento (o que liga com FATURAMENTO_LIGADO)

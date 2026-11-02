@@ -18,6 +18,7 @@ import {
 } from '@macuxi/core/contracts';
 
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
+import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
 
 /** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
@@ -25,8 +26,10 @@ export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
 
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
 export { MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
+export { SITUACAO_ORCAMENTO_LABEL, SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 export * from './eventos';
 export * from './sync';
+export * from './pre-venda';
 
 // ---------- pedidos ----------
 /** Inclui os status do retorno do ERP (EstadoPedidoErp): enviado=sent_to_erp, integrado=integrated, faturado_parcial=invoiced_partial, faturado_total=invoiced, cancelado=cancelled. */
@@ -90,6 +93,14 @@ export const Order = z.object({
   ultima_nota: z.string().nullable().optional(),
   /** linhas curtas prontas para a tela ("Faturado R$ … (NF …)", "Devolvido R$ … (parcial)") */
   situacao_faturamento: z.array(z.string()).optional(),
+  /** T-0053 (RF-VEN-03): pedido ou orçamento; ausente = pedido (linhas e APKs anteriores). */
+  tipo: z.enum(TIPOS_DOCUMENTO).optional(),
+  /** T-0053 (RN-VEN-32): orçamento — validade e situação calculada no servidor para quem consulta. */
+  validade_ate: IsoDateTime.nullable().optional(),
+  situacao_orcamento: z.enum(SITUACOES_ORCAMENTO).nullable().optional(),
+  /** T-0053: pedido nascido de orçamento / pedido em que o orçamento virou. */
+  orcamento_origem_id: Id.nullable().optional(),
+  convertido_pedido_id: Id.nullable().optional(),
 });
 export type Order = z.infer<typeof Order>;
 
@@ -179,12 +190,20 @@ export const PedidoPush = CreateOrderRequest.extend({
   condicao_pagamento_id: z.string().uuid().nullable().optional(),
   observacao: z.string().max(500).nullable().optional(),
   visita_id: z.string().uuid().nullable().optional(),
+  /**
+   * T-0053 (RF-VEN-03): `orcamento` = pré-venda (não vai para aprovação nem para o ERP, RN-VEN-32). Ausente = `pedido`
+   * (a fila dos APKs já instalados continua válida).
+   */
+  tipo: z.enum(TIPOS_DOCUMENTO).optional(),
+  /** T-0053: pedido que nasce da conversão de um orçamento (UUID do orçamento). Só em `tipo` pedido. */
+  orcamento_origem_id: z.string().uuid().nullable().optional(),
 });
 export type PedidoPush = z.infer<typeof PedidoPush>;
 
-/** Códigos que o receber devolve em item rejeitado (T-0029 §4). */
+/** Códigos que o receber devolve em item rejeitado (T-0029 §4; T-0053: pré-venda). */
 export const CODIGOS_RECUSA_PEDIDO = [
   'RN-PRO-01', 'PERFIL_SEM_ACESSO', 'PAYLOAD_INVALIDO', 'ID_EM_USO', 'FORA_DA_CARTEIRA', 'RN-VEN-01', 'RN-VEN-10', 'RN-VEN-13', 'RN-VEN-14', 'RN-VEN-31', 'RN-CAT-06',
+  'RN-VEN-32', 'ORCAMENTO_NAO_ENCONTRADO', 'ORCAMENTO_JA_CONVERTIDO', 'PRE_VENDA_INDISPONIVEL',
 ] as const;
 
 /** Edição: mesmo corpo da criação, sem o id (o pedido mantém id e número). */

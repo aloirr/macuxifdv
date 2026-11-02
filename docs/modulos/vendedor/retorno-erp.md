@@ -3,12 +3,14 @@
 Referências: desenho `docs/desenho/T-0011.md` (publicação do `vendedor.pedido.faturado@1`), ADR 0007 (outbox e consumidores), doc 03 RN-INT-08, RN-VEN-30 e RN-TRE-08, contrato do Hub `modules/integracao/contracts/pedido.ts`.
 
 ## Fluxo
+O consumidor do retorno é um só no módulo (T-0053 + T-0054). O status segue `planejarRetornoErp`, regra da T-0053 descrita em `pre-venda-e-erp.md`; esta página trata do faturamento gravado, da devolução e das telas.
+
 1. O Conector manda o retorno ao Hub (`POST /integracao/v1/pedidos/{uuid}/retorno`). O Hub publica `integracao.pedido.retorno_erp@1` na outbox.
 2. O despachante entrega ao Vendedor (só se o módulo estiver ativo no tenant), numa transação `comTenant` (RLS) com a marca de consumo (idempotência por `evento_id`).
 3. O consumidor (`api/retorno-erp.ts`) lê o pedido (`for update`), decide no domínio (`domain/retorno-erp.ts`) e grava:
-   - **status** (RN-INT-08/RN-VEN-30): o retorno só avança `aprovado < enviado < integrado < faturado parcial < faturado total`. Retorno atrasado é ignorado (log `fora_de_ordem`). `cancelado` vale de aprovado em diante e é final, porque o Hub não publica o `enviado`. Depois de faturado não há estorno. `rejeitado_erp` só vale antes de integrado e vira `rejected` com o motivo `Rejeitado pelo ERP: …`;
+   - **status** (RN-INT-08/RN-VEN-30, `planejarRetornoErp`): o pedido só avança `aprovado < enviado < integrado < faturado parcial < faturado total`. Retorno repetido ou atrasado é ignorado (log `repetido_ou_atrasado`). `cancelado` vale de aprovado em diante e é final, sem estorno depois de faturado. `rejeitado_erp` só vale antes de integrado e vira `rejected` com o motivo `Recusado pelo ERP: …`. A linha do tempo leva autor "ERP" (perfil `erp`);
    - **número do ERP**, **linha do tempo** (`pedido_evento`, autor "ERP") e `vendedor.pedido.status_alterado@1`;
-   - **faturamento** (retorno `faturado_*`): a nota e os itens vão para `pedido_faturamento`, uma linha por `evento_id`. O retorno informa a sequência e o consumidor encontra o produto no próprio pedido, limitando ao saldo. Sequência inexistente ou quantidade acima do saldo vira divergência no log. `faturado_total` sem itens fatura o saldo; parcial sem itens grava a nota e não publica nada. Depois o consumidor publica `vendedor.pedido.faturado@1` com os itens deste retorno, somados por produto, e `faturado_em` igual ao `ocorrido_em` do ERP;
+   - **faturamento** (retorno `faturado_*`): a nota e os itens vão para `pedido_faturamento`, uma linha por `evento_id`. O retorno informa a sequência e o consumidor encontra o produto no próprio pedido, limitando ao saldo. Sequência inexistente ou quantidade acima do saldo vira divergência no log. `faturado_total` sem itens fatura o saldo; parcial sem itens grava a nota e não publica nada. Depois o consumidor publica `vendedor.pedido.faturado@1` com os itens deste retorno, somados por produto, e `faturado_em` igual à emissão da nota (regra da T-0053) ou, sem nota, ao `ocorrido_em` do retorno;
    - **resumo** no pedido (`faturado_cents`, `devolvido_cents`, `notas_faturamento`, `ultima_nota_numero`, `faturado_em`) e no item (`quantidade_faturada`). É o que o pull leva ao aparelho.
 4. **Devolução** (RN-VEN-37, *proposta*): o consumidor de `integracao.nota.atualizado@1` só usa nota `tipo = devolucao` com `pedido_uuid`. Ela é gravada em `pedido_devolucao` (upsert pelo `external_id` da nota). Nota cancelada, inativada, sem pedido ou que deixou de ser devolução sai da soma (soft delete). A devolução não muda o status do pedido. A situação é `parcial` ou `total` comparando o devolvido com o faturado. Não há estorno no Treinamento.
 
@@ -18,7 +20,7 @@ Referências: desenho `docs/desenho/T-0011.md` (publicação do `vendedor.pedido
 - Permissões: as rotas e o pull continuam com `pedido.ver` e o escopo de sempre (RN-CORE-04; promotor só lê a carteira). Os consumidores não têm perfil: rodam no tenant do evento e só com a licença do Vendedor ativa.
 
 ## Ligar (depende da migração do banco-dados)
-`FATURAMENTO_LIGADO` (`api/retorno-erp.ts`) começa `false`. Assim os consumidores não são registrados, e o pull, a lista e o detalhe não leem as colunas novas: nada quebra antes da migração. Quando a migração chegar ao `main`:
+`FATURAMENTO_LIGADO` (`api/retorno-erp.ts`) começa `false`. Nesse estado o consumidor do retorno roda só com as tabelas atuais: status, histórico, `status_alterado@1` e `faturado@1`, com o total sem itens depois de parcial sem publicar. O consumidor da nota de devolução não é registrado, e o pull, a lista e o detalhe não leem as colunas novas. Nada quebra antes da migração. Quando a migração chegar ao `main`:
 1. trocar para `true` (o `apiVendedor` já registra `consumidores: consumidoresVendedor`, vazio enquanto a chave estiver desligada);
 2. rodar `retorno-erp.db.test.ts`, que deixa de aplicar a DDL proposta e passa a validar a migração real.
 

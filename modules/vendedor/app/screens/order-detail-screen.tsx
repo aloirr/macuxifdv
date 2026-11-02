@@ -4,7 +4,6 @@
  * só enquanto o pedido não está no ERP, e só com a permissão por ação do manifesto (ADR 0004).
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
-import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Button, Card, colors, dateTimeLabel, fonts, Icon, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -24,7 +23,9 @@ import { errorMessage } from '../lib/erros';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
 import { orderNote, statusBadge } from '../lib/order-status';
 import { exportPdf } from '../lib/pdf-export';
-import { hrefPedidos, irParaNovoPedido, irParaPedidos } from '../rotas';
+import { relogioReal } from '@macuxi/comum/relogio';
+import { acoesNaTela, rotuloDoDocumento } from '../lib/pre-venda';
+import { hrefPedidos, irParaNovoPedido, irParaPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
 interface Line {
@@ -50,7 +51,7 @@ export default function OrderDetailScreen() {
   const podeCriar = usePode('pedido.criar');
   const somenteLeitura = pedidoSomenteLeitura({ criar: podeCriar, editar: podeEditar, cancelar: podeCancelar });
   const insets = useSafeAreaInsets();
-  const [busy, setBusy] = useState<'duplicate' | 'edit' | null>(null);
+  const [busy, setBusy] = useState<'duplicate' | 'edit' | 'convert' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<'delete' | 'pdf' | 'approve' | 'reject' | null>(null);
   const [deciding, setDeciding] = useState(false);
@@ -93,7 +94,6 @@ export default function OrderDetailScreen() {
   const situacaoFaturamento = queued ? [] : (base?.situacao_faturamento ?? []);
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
   const devolucoes = queued ? [] : (detail?.faturamento?.devolucoes ?? []);
-  const agora = relogioReal().agora();
   const subtotal = queued ? (qd?.subtotal_cents ?? 0) : base!.subtotal_cents;
   const discount = queued ? (qd?.discount_cents ?? 0) : base!.discount_cents;
   const total = queued ? (qd?.total_cents ?? 0) : base!.total_cents;
@@ -106,7 +106,12 @@ export default function OrderDetailScreen() {
 
   // ---------- ações ----------
   const acts = app.acoesDe(status);
-  const title = number ? `Pedido ${number}` : 'Pedido no aparelho';
+  // T-0053 (RF-VEN-03, RN-VEN-32): orçamento mostra a situação (offline, pela validade) e a ação de converter
+  const agoraTela = relogioReal().agora();
+  const doc = queued ? { status, tipo: queued.payload.tipo } : { ...base!, status };
+  const acoesOrc = acoesNaTela(doc, agoraTela, !v1 || perfil === 'vendedor');
+  const ehOrc = acoesOrc !== null;
+  const title = number ? `${ehOrc ? 'Orçamento' : 'Pedido'} ${number}` : ehOrc ? 'Orçamento no aparelho' : 'Pedido no aparelho';
   const hasLines = lines.length > 0;
   const ehVendedor = !v1 || perfil === 'vendedor';
   const { podeEditar: canEdit, podeExcluir: canDelete, motivoBloqueio: lockedReason } = estadoDasAcoes({
@@ -119,6 +124,20 @@ export default function OrderDetailScreen() {
     pode: { editar: podeEditar, cancelar: podeCancelar },
     acoes: acts,
   });
+
+  const converter = async () => {
+    setBusy('convert');
+    setActionError(null);
+    try {
+      const r = await app.converterOrcamento(id ?? '');
+      if (r.kind === 'sent') irParaPedido(r.order.id);
+      else irParaPedidos();
+    } catch (e) {
+      setActionError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const startDraft = async (mode: 'duplicate' | 'edit') => {
     setBusy(mode);
@@ -233,7 +252,8 @@ export default function OrderDetailScreen() {
         </Text>
         <Text style={t.sub}>{customerName}</Text>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-          <Badge label={b.label} fg={b.fg} bg={b.bg} />
+          {ehOrc ? <Badge label={rotuloDoDocumento(doc, agoraTela)} tone="neutral" /> : null}
+          {ehOrc && !queued ? null : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
           {base && !queued && base.erp_order_code ? <Badge label={`ERP ${base.erp_order_code}`} tone="neutral" /> : null}
         </View>
         {note ? <Text style={[t.small, { color: b.fg }]}>{note}</Text> : null}
@@ -265,10 +285,10 @@ export default function OrderDetailScreen() {
             </Text>
           ))}
           {notasFaturamento.map((n, i) => (
-            <Row key={`nf-${n.numero ?? i}-${n.faturado_em}`} label={`NF ${n.numero ?? '—'}${n.serie ? `/${n.serie}` : ''} · ${dateTimeLabel(n.faturado_em, agora, tz)}${n.parcial ? ' · parcial' : ''}`} value={n.total_cents === null ? `${n.unidades} un.` : formatBRL(n.total_cents)} />
+            <Row key={`nf-${n.numero ?? i}-${n.faturado_em}`} label={`NF ${n.numero ?? '—'}${n.serie ? `/${n.serie}` : ''} · ${dateTimeLabel(n.faturado_em, agoraTela, tz)}${n.parcial ? ' · parcial' : ''}`} value={n.total_cents === null ? `${n.unidades} un.` : formatBRL(n.total_cents)} />
           ))}
           {devolucoes.map((d, i) => (
-            <Row key={`dev-${d.numero}-${i}`} label={`Devolução NF ${d.numero}${d.serie ? `/${d.serie}` : ''} · ${dateTimeLabel(d.emitida_em, agora, tz)}`} value={`− ${formatBRL(d.total_cents)}`} />
+            <Row key={`dev-${d.numero}-${i}`} label={`Devolução NF ${d.numero}${d.serie ? `/${d.serie}` : ''} · ${dateTimeLabel(d.emitida_em, agoraTela, tz)}`} value={`− ${formatBRL(d.total_cents)}`} />
           ))}
         </Card>
       ) : null}
@@ -342,6 +362,18 @@ export default function OrderDetailScreen() {
       <View style={{ gap: 8 }} testID="order-actions">
         <SectionHeader title="Ações" />
         <Card style={{ padding: 14, gap: 10 }}>
+          {ehOrc && acoesOrc?.pode_converter && !queued ? (
+            <Button
+              testID="orcamento-converter"
+              label="Converter em pedido"
+              icon="send"
+              variant="accent"
+              disabled={!podeCriar || !hasLines || busy !== null}
+              loading={busy === 'convert'}
+              onPress={() => void converter()}
+            />
+          ) : null}
+          {ehOrc && acoesOrc?.texto ? <Text style={t.small}>{acoesOrc.texto}</Text> : null}
           {ehVendedor ? (
             <View style={styles.actionsRow}>
               <Button

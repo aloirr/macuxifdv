@@ -29,14 +29,17 @@ export interface BancoEmMemoria {
 
 export const bancoEmMemoria = (pedidos: PedidoEmMemoria[] = []): BancoEmMemoria => ({ pedidos, faturamentos: [], devolucoes: [], linhaDoTempo: [] });
 
-export function repositorioRetornoErpMemoria(banco: BancoEmMemoria, tenantId: string): RepositorioRetornoErp {
+/** `semFaturamento`: imita o banco ANTES da migração do faturamento (sem nota, sem resumo, sem devolução). */
+export function repositorioRetornoErpMemoria(banco: BancoEmMemoria, tenantId: string, opcoes: { semFaturamento?: boolean } = {}): RepositorioRetornoErp {
+  const sem = opcoes.semFaturamento ?? false;
   const pedido = (id: string) => banco.pedidos.find((p) => p.tenant_id === tenantId && p.id === id) ?? null;
   return {
     async pedidoParaRetorno(id) {
       const p = pedido(id);
       return p ? { id: p.id, vendedor_id: p.vendedor_id, status: p.status, numero_erp: p.numero_erp, itens: p.itens.map((i) => ({ ...i })) } : null;
     },
-    async faturamentos(pedidoId): Promise<FaturamentoRegistrado[]> {
+    async faturamentos(pedidoId): Promise<FaturamentoRegistrado[] | null> {
+      if (sem) return null;
       return banco.faturamentos
         .filter((f) => f.tenant_id === tenantId && f.pedido_id === pedidoId)
         .sort((a, b) => a.faturado_em.localeCompare(b.faturado_em))
@@ -65,11 +68,13 @@ export function repositorioRetornoErpMemoria(banco: BancoEmMemoria, tenantId: st
       banco.linhaDoTempo.push({ ...l, tenant_id: tenantId, pedido_id: id });
     },
     async gravarFaturamento(f) {
+      if (sem) return true;
       if (banco.faturamentos.some((x) => x.tenant_id === tenantId && x.evento_origem_id === f.evento_origem_id)) return false;
       banco.faturamentos.push({ ...f, itens: f.itens.map((i) => ({ ...i })), tenant_id: tenantId });
       return true;
     },
     async gravarDevolucao(d) {
+      if (sem) return null;
       if (!pedido(d.pedido_id)) return null;
       const atual = banco.devolucoes.find((x) => x.tenant_id === tenantId && x.external_id === d.external_id && !x.deleted_at);
       if (atual) {
@@ -87,6 +92,7 @@ export function repositorioRetornoErpMemoria(banco: BancoEmMemoria, tenantId: st
       return atual.pedido_id;
     },
     async gravarResumo(pedidoId, r) {
+      if (sem) return;
       const p = pedido(pedidoId);
       if (p) p.resumo = r;
     },

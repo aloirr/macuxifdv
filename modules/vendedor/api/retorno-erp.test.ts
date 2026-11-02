@@ -7,12 +7,14 @@ import type { ContextoConsumo, DefinicaoEvento, EnvelopeEvento } from '@macuxi/p
 import { describe, expect, it } from 'vitest';
 import manifest from '../manifest';
 import { PedidoFaturadoEvento, PedidoStatusAlteradoEvento } from '../contracts';
-import { EVENTO_NOTA_ATUALIZADA, EVENTO_RETORNO_ERP } from './eventos-consumidos';
+import { EVENTO_RETORNO_ERP_CONSUMIDO as EVENTO_RETORNO_ERP } from '../contracts';
+import { EVENTO_NOTA_ATUALIZADA } from './eventos-consumidos';
 import { bancoEmMemoria, repositorioRetornoErpMemoria, type BancoEmMemoria, type PedidoEmMemoria } from './retorno-erp-memoria';
 import {
   aplicarNotaDevolucao,
   aplicarRetornoErp,
   consumidoresVendedor,
+  consumidorRetornoErp,
   criarConsumidorNotaDevolucao,
   criarConsumidorRetornoErp,
   FATURAMENTO_LIGADO,
@@ -71,15 +73,18 @@ function contexto(eventoId: string, reg: Registro): ContextoRetorno {
   };
 }
 
-const retorno = (status: string, extra: Partial<RetornoRecebido> = {}): RetornoRecebido => ({
+type ItemDoTeste = { sequencia: number; quantidade: number; valor_cents?: number };
+/** Itens como o Hub manda (produto do ERP e valor obrigatórios); sem valor no teste = 0. */
+const itensRet = (l: ItemDoTeste[]) => l.map((i) => ({ produto_external_id: `ERP-${i.sequencia}`, valor_cents: 0, ...i }));
+const retorno = (status: string, extra: Omit<Partial<RetornoRecebido>, 'itens_faturados'> & { itens_faturados?: ItemDoTeste[] | null } = {}): RetornoRecebido => ({
   pedido_uuid: PED,
-  status,
+  status: status as RetornoRecebido['status'],
   numero_erp: 'ERP-77',
   motivo: null,
   nota: status.startsWith('faturado') ? { numero: '1001', serie: '1', emitida_em: EM(1), total_cents: 7_000 } : null,
-  itens_faturados: null,
   ocorrido_em: EM(1),
   ...extra,
+  itens_faturados: extra.itens_faturados ? itensRet(extra.itens_faturados) : null,
 });
 
 function cenario(pedidos: PedidoEmMemoria[] = [pedidoAprovado()]) {
@@ -157,12 +162,12 @@ describe('retorno do ERP no pedido (RN-INT-08, RN-VEN-30)', () => {
   it('RN-INT-08: rejeitado_erp volta o pedido a rejeitado com o motivo (3+ caracteres, regra do banco)', async () => {
     const { banco, reg, repoA } = cenario();
     await aplicarRetornoErp(repoA, retorno('rejeitado_erp', { numero_erp: null, motivo: 'cliente bloqueado no ERP' }), contexto('e-8', reg));
-    expect(banco.pedidos[0]).toMatchObject({ status: 'rejected', motivo_rejeicao: 'Rejeitado pelo ERP: cliente bloqueado no ERP' });
+    expect(banco.pedidos[0]).toMatchObject({ status: 'rejected', motivo_rejeicao: 'Recusado pelo ERP: cliente bloqueado no ERP' });
   });
 
-  it('RN-VEN-30: retorno atrasado (integrado depois de faturado) não muda nada nem publica', async () => {
+  it('RN-VEN-30: retorno atrasado (integrado depois de faturado) não muda nada nem publica (planejarRetornoErp, T-0053)', async () => {
     const { banco, reg, repoA } = cenario([pedidoAprovado({ status: 'invoiced', numero_erp: 'ERP-77' })]);
-    expect(await aplicarRetornoErp(repoA, retorno('integrado'), contexto('e-9', reg))).toEqual({ aplicado: false, motivo: 'fora_de_ordem' });
+    expect(await aplicarRetornoErp(repoA, retorno('integrado'), contexto('e-9', reg))).toEqual({ aplicado: false, motivo: 'repetido_ou_atrasado' });
     expect(banco.pedidos[0]!.status).toBe('invoiced');
     expect(reg.publicados).toEqual([]);
   });
@@ -222,8 +227,26 @@ describe('consumidores (ADR 0007) e manifesto', () => {
     expect(manifest.publica).toContain('vendedor.pedido.faturado@1');
   });
 
-  it('T-0054: sem a migração do faturamento nenhum consumidor é registrado (o despachante não entrega)', () => {
-    expect(consumidoresVendedor).toHaveLength(FATURAMENTO_LIGADO ? 2 : 0);
+  it('T-0053/T-0054: um só consumidor do retorno do ERP no módulo, sempre ligado; o da nota só com a migração do faturamento', () => {
+    const nomes = consumidoresVendedor.map((c) => c.evento.nome);
+    expect(nomes.filter((n) => n === 'integracao.pedido.retorno_erp@1')).toHaveLength(1);
+    expect(nomes.includes('integracao.nota.atualizado@1')).toBe(FATURAMENTO_LIGADO);
+    expect(consumidoresVendedor).toContain(consumidorRetornoErp);
+  });
+
+  it('sem a migração (acumulado desconhecido): status e faturado@1 funcionam; total sem itens depois de parcial não publica (nunca conta em dobro)', async () => {
+    const banco = bancoEmMemoria([pedidoAprovado({ status: 'integrated' })]);
+    const reg: Registro = { publicados: [], logs: [] };
+    const repo = repositorioRetornoErpMemoria(banco, TA, { semFaturamento: true });
+    await aplicarRetornoErp(repo, retorno('faturado_parcial', { itens_faturados: [{ sequencia: 1, quantidade: 6 }] }), contexto('s-1', reg));
+    expect(reg.publicados.map((p) => p.nome)).toEqual(['vendedor.pedido.status_alterado@1', 'vendedor.pedido.faturado@1']);
+    reg.publicados.length = 0;
+    await aplicarRetornoErp(repo, retorno('faturado_total', { ocorrido_em: EM(2) }), contexto('s-2', reg));
+    expect(banco.pedidos[0]!.status).toBe('invoiced');
+    expect(reg.publicados.map((p) => p.nome)).toEqual(['vendedor.pedido.status_alterado@1']);
+    expect(reg.logs.some((l) => l.campos.codigo === 'faturamento_sem_base')).toBe(true);
+    expect(banco.faturamentos).toEqual([]);
+    expect(banco.pedidos[0]!.resumo).toBeNull();
   });
 
   it('ADR 0007: o consumidor do retorno valida o payload oficial e aplica pela fábrica de repositório', async () => {

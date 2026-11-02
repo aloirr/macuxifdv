@@ -9,10 +9,12 @@ const PERFIS_PEDIDO = ['vendedor', 'supervisor', 'gerente', 'analista', 'assiste
  * T-0029: supervisor e gerente (e admin) entram para ver a equipe e decidir (ADR 0011); o app Gestão ganha a aba Pedidos;
  * o servidor consulta o preço do cliente (Catálogo) e o cadastro (Core) pelas consultas do ADR 0012.
  * T-0054: consome o retorno do ERP e a nota de devolução; publica o faturado@1 (desenho T-0011).
+ * T-0053: orçamento (pré-venda, RF-VEN-03/RN-VEN-32) usa as mesmas ações de pedido; consome o retorno do ERP
+ * (`integracao.pedido.retorno_erp@1`) e publica `vendedor.pedido.faturado@1` por nota faturada.
  */
 export const manifest = defineModule({
   id: 'vendedor',
-  versao: '0.2.0',
+  versao: '0.3.0',
   depende: ['core', 'catalogo'],
   perfis: ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
   apps: { campo: { abas: ['Pedidos'] }, gestao: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas'] } },

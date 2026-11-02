@@ -1,15 +1,15 @@
 /**
- * Retorno do ERP no pedido do Vendedor (T-0054; desenho T-0011): status pelo `integracao.pedido.retorno_erp@1`,
- * itens faturados por sequência, `vendedor.pedido.faturado@1` e devolução pela nota do ERP
- * (`integracao.nota.atualizado@1`, tipo `devolucao`). Funções puras: o consumidor (api/retorno-erp.ts) só lê, decide aqui
- * e grava. Estrutural de propósito: nada é importado do módulo de integração (os nomes do ERP vêm como texto).
+ * Retorno do ERP no pedido do Vendedor (T-0053 status + T-0054 faturamento e devolução; desenho T-0011): status pelo
+ * `integracao.pedido.retorno_erp@1`, itens faturados por sequência, `vendedor.pedido.faturado@1` e devolução pela nota do
+ * ERP (`integracao.nota.atualizado@1`, tipo `devolucao`). Funções puras: o consumidor ÚNICO (api/retorno-erp.ts) só lê,
+ * decide aqui e grava. Estrutural de propósito: nada é importado do módulo de integração (os nomes do ERP vêm como texto).
+ *
+ *   aprovado ─enviado─► enviado ao ERP ─integrado─► integrado ─faturado_parcial─► faturado parcial ─faturado_total─► faturado
+ *        └──────────── rejeitado_erp ──► rejeitado            cancelado (só do ERP) ◄── aprovado em diante
  *
  * Regras:
- *  - RN-INT-08: o retorno chega como `integrado` | `rejeitado_erp` | `faturado_parcial` | `faturado_total` | `cancelado`
- *    (o Hub também conhece `pendente` e `enviado`, que não mudam nada aqui além do `enviado`).
- *  - RN-VEN-30: o retorno só AVANÇA o status (aprovado < enviado < integrado < faturado parcial < faturado total); o que
- *    chega atrasado não volta o pedido. `cancelado` vale de aprovado em diante (o Hub não publica o `enviado`, então o
- *    pedido do Vendedor pode estar `approved` quando o ERP cancela) e é final. `rejeitado_erp` só antes de integrado.
+ *  - RN-VEN-30 / RN-INT-08 (`planejarRetornoErp`, T-0053; decisão do Alexandre R-20261031-100601, opção b): a ordem dos
+ *    eventos não é garantida (ADR 0007): o pedido só ANDA para a frente; retorno repetido ou atrasado é ignorado.
  *  - RN-TRE-08: o faturado publica os itens DESTE retorno (sequência → produto do próprio pedido, limitado ao saldo);
  *    parcial sem itens não publica; total sem itens fatura o saldo.
  *  - RN-VEN-37 (proposta ao gerente, T-0054): devolução não muda o status; soma das notas de devolução do pedido ÷
@@ -19,110 +19,90 @@ import { formatBRL } from '@macuxi/comum';
 import type { PedidoFaturadoEvento } from '../contracts/eventos';
 import type { OrderStatus } from './order';
 
-// ---------------------------------------------------------------------------------------------------- status do pedido
-/** Ordem do avanço pelo retorno (RN-VEN-30). `rejected` conta como aprovado: o ERP pode integrar depois de corrigido. */
-const AVANCO: Partial<Record<OrderStatus, number>> = {
-  approved: 0,
-  rejected: 0,
-  sent_to_erp: 1,
-  integrated: 2,
-  invoiced_partial: 3,
-  invoiced: 4,
-};
-const ALVO: Record<string, OrderStatus> = {
-  enviado: 'sent_to_erp',
-  integrado: 'integrated',
-  faturado_parcial: 'invoiced_partial',
-  faturado_total: 'invoiced',
-};
-
-export interface RetornoDoErp {
+/** Retorno do ERP como o Vendedor precisa (subconjunto de `integracao.pedido.retorno_erp@1`). */
+export interface RetornoErpEntrada {
   status: string;
   numero_erp: string | null;
   motivo: string | null;
-  nota: { numero: string; serie?: string | null } | null;
   ocorrido_em: string;
+  itens_faturados?: ReadonlyArray<{ sequencia: number; quantidade: number }> | null;
 }
 
-export type MotivoIgnorado = 'pedido_nao_aprovado' | 'pedido_finalizado' | 'fora_de_ordem' | 'sem_efeito' | 'status_desconhecido';
+export type MotivoIgnorar = 'status_do_hub' | 'status_desconhecido' | 'pedido_nao_enviado' | 'repetido_ou_atrasado';
 
-export type DecisaoRetorno =
+export type PlanoRetornoErp =
+  | { acao: 'ignorar'; motivo: MotivoIgnorar }
   | {
-      aplicar: true;
+      acao: 'aplicar';
       de: OrderStatus;
       para: OrderStatus;
-      mudouStatus: boolean;
-      /** número do pedido no ERP a gravar (o informado; senão o atual) */
+      /** `false` na 2ª nota parcial: fatura (evento) sem mudar o status nem gravar transição. */
+      muda_status: boolean;
       numero_erp: string | null;
+      texto_historico: string;
       motivo_rejeicao: string | null;
       motivo_cancelamento: string | null;
-      /** texto da linha do tempo quando o status muda (RF-VEN-05) */
-      historico: string;
-      /** retorno `faturado_*`: grava a nota e os itens (mesmo sem mudar o status) */
-      registraFaturamento: boolean;
-      parcial: boolean;
-    }
-  | { aplicar: false; motivo: MotivoIgnorado };
+      /** publica `vendedor.pedido.faturado@1` */
+      faturar: boolean;
+    };
 
-const MOTIVO_MAX = 500;
-const corta = (s: string): string => (s.length > MOTIVO_MAX ? `${s.slice(0, MOTIVO_MAX - 1)}…` : s);
-const textoNota = (n: RetornoDoErp['nota']): string => (n ? `NF ${n.numero}${n.serie ? `/${n.serie}` : ''}` : '');
+/** Posição na esteira do ERP; fora dela = o pedido nunca foi para a fila (RN-INT-08: só `aprovado` entra). */
+const ESTEIRA: Partial<Record<OrderStatus, number>> = { approved: 0, sent_to_erp: 1, integrated: 2, invoiced_partial: 3, invoiced: 4 };
+
+const texto = (s: string | null | undefined) => (s ?? '').trim();
 
 /**
- * RN-INT-08 / RN-VEN-30: o que o retorno do ERP faz com o pedido. `numeroErpAtual` evita gravar de novo o mesmo
- * `integrado` repetido (o consumidor também é idempotente por `evento_id`).
+ * Plano do retorno do ERP (puro). `atual` = status gravado do pedido; nada aqui lê banco nem relógio.
  */
-export function decidirRetornoErp(atual: OrderStatus, retorno: RetornoDoErp, numeroErpAtual: string | null = null): DecisaoRetorno {
-  if (atual === 'cancelled') return { aplicar: false, motivo: 'pedido_finalizado' };
-  const nivelAtual = AVANCO[atual];
-  if (nivelAtual === undefined) return { aplicar: false, motivo: 'pedido_nao_aprovado' };
-  const numero = retorno.numero_erp?.trim() ? retorno.numero_erp.trim() : numeroErpAtual;
-  const base = { de: atual, numero_erp: numero, motivo_rejeicao: null, motivo_cancelamento: null, registraFaturamento: false, parcial: false } as const;
+export function planejarRetornoErp(atual: OrderStatus, r: RetornoErpEntrada): PlanoRetornoErp {
+  const pos = ESTEIRA[atual];
+  const numero = texto(r.numero_erp) || null;
+  const motivoErp = texto(r.motivo);
+  const aplicar = (para: OrderStatus, historico: string, extra: Partial<Extract<PlanoRetornoErp, { acao: 'aplicar' }>> = {}): PlanoRetornoErp => ({
+    acao: 'aplicar',
+    de: atual,
+    para,
+    muda_status: para !== atual,
+    numero_erp: numero,
+    texto_historico: historico,
+    motivo_rejeicao: null,
+    motivo_cancelamento: null,
+    faturar: false,
+    ...extra,
+  });
+  const avanca = (alvo: number) => (pos === undefined ? ({ acao: 'ignorar', motivo: 'pedido_nao_enviado' } as const) : pos >= alvo ? ({ acao: 'ignorar', motivo: 'repetido_ou_atrasado' } as const) : null);
+  const comNumero = (base: string) => (numero ? `${base} (nº ${numero})` : base);
 
-  switch (retorno.status) {
+  switch (r.status) {
     case 'pendente':
-      return { aplicar: false, motivo: 'sem_efeito' };
-    case 'cancelado': {
-      const m = retorno.motivo?.trim();
-      const motivo = corta(m ? `Cancelado no ERP: ${m}` : 'Cancelado no ERP.');
-      return { ...base, aplicar: true, para: 'cancelled', mudouStatus: true, motivo_cancelamento: motivo, historico: motivo };
-    }
-    case 'rejeitado_erp': {
-      if (nivelAtual >= 2) return { aplicar: false, motivo: 'fora_de_ordem' };
-      if (atual === 'rejected') return { aplicar: false, motivo: 'sem_efeito' };
-      const motivo = corta(`Rejeitado pelo ERP: ${retorno.motivo?.trim() || 'sem motivo informado'}`);
-      return { ...base, aplicar: true, para: 'rejected', mudouStatus: true, motivo_rejeicao: motivo, historico: motivo };
-    }
+      return { acao: 'ignorar', motivo: 'status_do_hub' };
     case 'enviado':
+      return avanca(1) ?? aplicar('sent_to_erp', 'Entregue ao ERP');
     case 'integrado':
+      return avanca(2) ?? aplicar('integrated', comNumero('Integrado ao ERP'));
     case 'faturado_parcial':
-    case 'faturado_total': {
-      const para = ALVO[retorno.status]!;
-      const nivelAlvo = AVANCO[para]!;
-      const fatura = retorno.status === 'faturado_parcial' || retorno.status === 'faturado_total';
-      const parcial = retorno.status === 'faturado_parcial';
-      if (nivelAlvo < nivelAtual || (nivelAlvo === nivelAtual && !fatura)) {
-        // mesmo status com número novo do ERP: só atualiza o número
-        if (nivelAlvo === nivelAtual && numero !== numeroErpAtual) {
-          return { ...base, aplicar: true, para: atual, mudouStatus: false, historico: '' };
-        }
-        // faturamento atrasado (parcial depois do total): registra a nota sem voltar o status
-        if (fatura) return { ...base, aplicar: true, para: atual, mudouStatus: false, historico: '', registraFaturamento: true, parcial };
-        return { aplicar: false, motivo: nivelAlvo < nivelAtual ? 'fora_de_ordem' : 'sem_efeito' };
-      }
-      const nota = textoNota(retorno.nota);
-      const historico =
-        para === 'sent_to_erp'
-          ? 'Enviado ao ERP.'
-          : para === 'integrated'
-            ? `Integrado ao ERP${numero ? ` (nº ${numero})` : ''}.`
-            : `${parcial ? 'Faturado parcialmente' : 'Faturado'}${nota ? ` — ${nota}` : ''}.`;
-      return { ...base, aplicar: true, para, mudouStatus: para !== atual, historico, registraFaturamento: fatura, parcial };
+      if (atual === 'invoiced_partial') return aplicar('invoiced_partial', comNumero('Nova nota parcial do ERP'), { faturar: true });
+      return avanca(3) ?? aplicar('invoiced_partial', comNumero('Faturado parcialmente no ERP'), { faturar: true });
+    case 'faturado_total':
+      return avanca(4) ?? aplicar('invoiced', comNumero('Faturado no ERP'), { faturar: true });
+    case 'rejeitado_erp': {
+      if (atual === 'rejected') return { acao: 'ignorar', motivo: 'repetido_ou_atrasado' };
+      const b = avanca(2);
+      if (b) return b;
+      const motivo = `Recusado pelo ERP: ${motivoErp || 'sem motivo informado'}`;
+      return aplicar('rejected', motivo, { motivo_rejeicao: motivo });
+    }
+    case 'cancelado': {
+      if (atual === 'cancelled') return { acao: 'ignorar', motivo: 'repetido_ou_atrasado' };
+      if (pos === undefined && atual !== 'rejected') return { acao: 'ignorar', motivo: 'pedido_nao_enviado' };
+      const motivo = motivoErp ? `Cancelado no ERP: ${motivoErp}` : 'Cancelado no ERP';
+      return aplicar('cancelled', motivo, { motivo_cancelamento: motivo });
     }
     default:
-      return { aplicar: false, motivo: 'status_desconhecido' };
+      return { acao: 'ignorar', motivo: 'status_desconhecido' };
   }
 }
+
 
 // ---------------------------------------------------------------------------------------------------- itens faturados
 export interface ItemDoPedidoParaFaturar {
@@ -164,19 +144,22 @@ function somaPorSequencia(l: readonly QuantidadeFaturada[]): Map<number, number>
  *    (pedido − já faturado); sequência que não existe fica de fora. Divergências voltam para o log (sem dado pessoal);
  *  - `faturado_total` sem itens: o saldo de cada sequência;
  *  - `faturado_parcial` sem itens: nada (o total seguinte cobre o saldo).
+ * `jaFaturados = null` = acumulado DESCONHECIDO (sem a tabela do faturamento, antes da migração; o consumidor só passa
+ * `null` quando já houve parcial): os itens do retorno são limitados à quantidade do pedido e o total sem itens não
+ * fatura nada (nunca conta em dobro). Sem parcial antes, o acumulado é vazio (`[]`) e o total sem itens = o pedido inteiro.
  */
 export function itensDoFaturamento(
   status: string,
   itensRetorno: readonly ItemDoRetorno[] | null | undefined,
   itensPedido: readonly ItemDoPedidoParaFaturar[],
-  jaFaturados: readonly QuantidadeFaturada[],
+  jaFaturados: readonly QuantidadeFaturada[] | null,
 ): { itens: ItemFaturadoNoPedido[]; divergencias: DivergenciaFaturamento[] } {
-  const ja = somaPorSequencia(jaFaturados);
+  const ja = somaPorSequencia(jaFaturados ?? []);
   const porSeq = new Map(itensPedido.map((i) => [i.sequencia, i]));
   const saldo = (seq: number) => Math.max(0, (porSeq.get(seq)?.quantity ?? 0) - (ja.get(seq) ?? 0));
 
   if (!itensRetorno || itensRetorno.length === 0) {
-    if (status !== 'faturado_total') return { itens: [], divergencias: [] };
+    if (status !== 'faturado_total' || jaFaturados === null) return { itens: [], divergencias: [] };
     const itens = [...itensPedido]
       .sort((a, b) => a.sequencia - b.sequencia)
       .map((i) => ({ sequencia: i.sequencia, product_id: i.product_id, quantity: saldo(i.sequencia), valor_cents: null }))

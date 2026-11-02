@@ -148,7 +148,7 @@ export function OrdersPage() {
                     <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(o.total_cents)}</td>
                     <td className={tdNum}>{formatPct(o.discount_pct)}</td>
                     <td className={td}>
-                      <OrderStatusBadge status={o.status} />
+                      <OrderStatusBadge status={o.status} situacaoOrcamento={o.situacao_orcamento} />
                       {o.situacao_faturamento?.length ? (
                         <span className="mt-0.5 block whitespace-nowrap text-[12px] text-ink-2" data-testid={`pedido.faturamento.${o.number}`}>
                           {o.situacao_faturamento.join(' · ')}

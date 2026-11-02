@@ -11,6 +11,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { pedidosDaLista, rotuloDaAba, subtituloDaLista } from '../lib/lista-pedidos';
+import { relogioReal } from '@macuxi/comum/relogio';
+import { rotuloDoDocumento } from '../lib/pre-venda';
 import { filterCounts, matchesFilter, ORDER_FILTERS, orderNote, statusBadge, type OrderFilter } from '../lib/order-status';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { irParaNovoPedido, irParaPedido } from '../rotas';
@@ -111,6 +113,8 @@ export default function OrdersScreen() {
 function OrderRow({ o, last, tz, mostrarVendedor }: { o: PedidoDaLista; last: boolean; tz: string; mostrarVendedor: boolean }) {
   const b = statusBadge(o.status);
   const note = orderNote(o);
+  // T-0053: orçamento mostra a situação (offline, pela validade; RN-VEN-32)
+  const rotuloOrc = o.tipo === 'orcamento' ? rotuloDoDocumento(o, relogioReal().agora()) : null;
   return (
     <Pressable
       testID={`order-${o.number || o.id}`}
@@ -127,7 +131,7 @@ function OrderRow({ o, last, tz, mostrarVendedor }: { o: PedidoDaLista; last: bo
         <Text style={[t.small, { flex: 1 }]} numberOfLines={1}>
           <Text style={{ fontFamily: fonts.mono }}>{o.number || 'no aparelho'}</Text> · {mostrarVendedor && o.seller_name ? `${o.seller_name} · ` : ''}{relativeWhen(o.received_at, new Date(), tz)} · {o.items_count} {o.items_count === 1 ? 'item' : 'itens'}
         </Text>
-        <Badge label={b.label} fg={b.fg} bg={b.bg} />
+        {rotuloOrc ? <Badge label={rotuloOrc} tone="neutral" /> : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
       </View>
       {note ? <Text style={[t.small, { color: b.fg }]}>{note}</Text> : null}
     </Pressable>

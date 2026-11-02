@@ -4,6 +4,9 @@
  * Ordem: remover → id do payload → perfil → idempotência (RN-VEN-33) → carteira (RN-CORE-04) → cadastro
  * (`core.cadastro_resumo@1`) → preço (`catalogo.precos_cliente@1`, RN-CAT-06) → condição (RN-VEN-14) → alçada (RN-VEN-10).
  * O total do servidor vale (RN-VEN-02). Sem dado pessoal em log.
+ * T-0053 (pré-venda): `tipo = orcamento` não passa pela alçada, não publica evento e não vai para o ERP (RN-VEN-32); cliente
+ * inativo só aceita orçamento (RN-VEN-13); pedido com `orcamento_origem_id` converte o orçamento uma vez (RF-VEN-03). As
+ * colunas da pré-venda vão pelo repositório (`pre-venda.ts`) até a migração 0013.
  */
 import { createHash } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
@@ -16,7 +19,23 @@ import {
   EVENTO_PEDIDO_STATUS_ALTERADO,
   PedidoPush,
 } from '../contracts';
-import { conteudoDoEnvio, dataDoPreco, montarPedidoAprovado, politicaDosParametros, recusaDePerfil, revalidarPedido, statusDoContrato, type Recusa } from '../domain';
+import {
+  conteudoDoEnvio,
+  dataDoPreco,
+  historicoDoOrcamento,
+  momentoDaConversao,
+  montarPedidoAprovado,
+  politicaDosParametros,
+  recusaDePerfil,
+  revalidarPedido,
+  statusDoContrato,
+  validadeDoOrcamento,
+  validadeOrcamentoDias,
+  verificarConversao,
+  verificarTipoParaCliente,
+  type Recusa,
+} from '../domain';
+import { preVenda } from './pre-venda';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const aceito = (id: string, em?: string): ResultadoItemPush => (em ? { id, status: 'aceito', em } : { id, status: 'aceito' });
@@ -86,10 +105,25 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   }
   const produtoIds = [...new Set(p.items.map((i) => i.product_id))];
 
+  // 3b) pré-venda (T-0053): orçamento e conversão só com o repositório da 0013
+  const tipo = p.tipo ?? 'pedido';
+  const origem = p.orcamento_origem_id ?? null;
+  const repo = preVenda();
+  if ((tipo === 'orcamento' || origem) && !repo.disponivel) {
+    return rejeitado(item.id, 'PRE_VENDA_INDISPONIVEL', 'Orçamento ainda não está liberado para a sua empresa. Envie como pedido ou fale com o administrador.');
+  }
+  if (tipo === 'orcamento' && origem) return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'Orçamento não nasce de outro orçamento.');
+  if (origem) {
+    const r = verificarConversao({ orcamento: await repo.buscarOrcamento(db, origem), vendedor_id: eu, cliente_id: p.customer_id, pedido_id: p.id, momento: momentoDaConversao(p.created_offline_at, agora) });
+    if (r) return recusa(item.id, r);
+  }
+
   // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
   const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: [eu] });
   const cliente = cad.clientes.find((c) => c.id === p.customer_id);
-  if (!cliente || !cliente.ativo) return rejeitado(item.id, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
+  if (!cliente) return rejeitado(item.id, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
+  const soOrcamento = verificarTipoParaCliente(tipo, cliente.ativo);
+  if (soOrcamento) return recusa(item.id, soOrcamento);
   const produtos = new Map(cad.produtos.map((x) => [x.id, x]));
   const invalido = produtoIds.filter((id) => !produtos.get(id)?.ativo);
   if (invalido.length > 0) return rejeitado(item.id, 'RN-VEN-01', 'Há produto inativo ou inexistente no pedido. Atualize o catálogo e remova o item.');
@@ -110,7 +144,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   }
 
   // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
-  const v = revalidarPedido({
+  const rv = revalidarPedido({
     perfil: ctx.usuario.perfil,
     vendedor_id: eu,
     cliente_id: p.customer_id,
@@ -121,11 +155,16 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     policy: politicaDosParametros(ctx.parametros()),
     total_aparelho_cents: p.total_cents,
   });
-  if (!v.ok) return recusa(item.id, v);
+  if (!rv.ok) return recusa(item.id, rv);
+  // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
+  const recebidoEm = agora.toISOString();
+  const validade = tipo === 'orcamento' ? validadeDoOrcamento(recebidoEm, validadeOrcamentoDias(ctx.parametros())) : null;
+  const v = validade
+    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validade, ctx.fuso()) }
+    : rv;
 
   // 8) grava (pedido, itens, histórico, auditoria, eventos) na mesma transação
   const numero = (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
-  const recebidoEm = agora.toISOString();
   const resumo = {
     razao_social: cliente.razao_social,
     nome_fantasia: cliente.nome_fantasia ?? '',
@@ -169,13 +208,18 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     );
   }
 
+  if (tipo === 'orcamento' || origem) await repo.marcarDocumento(db, p.id, { tipo, validade_ate: validade, orcamento_origem_id: origem });
+  if (origem) await repo.marcarConvertido(db, origem, p.id);
+
   await tx.auditar({
     acao: 'pedido.criar',
     entidade: 'pedido',
     entidade_id: p.id,
     antes: null,
-    depois: { status: v.status, numero, total_cents: v.total_cents, desconto_pct: v.desconto_pct, nivel: v.nivel, itens: v.itens.length },
+    depois: { status: v.status, numero, total_cents: v.total_cents, desconto_pct: v.desconto_pct, nivel: v.nivel, itens: v.itens.length, tipo, ...(origem ? { orcamento_origem_id: origem } : {}) },
   });
+  // RN-VEN-32: orçamento não publica evento de pedido (metas, Gestor e fila do ERP só veem pedido)
+  if (tipo === 'orcamento') return aceito(item.id, await relogioDoBanco(db));
 
   // eventos (status no vocabulário RN-VEN-30; nenhum nome/documento/endereço)
   await tx.publicar(

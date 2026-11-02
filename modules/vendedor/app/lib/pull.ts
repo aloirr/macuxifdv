@@ -207,6 +207,8 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     nivel_aprovacao: p.status === 'pending_approval' ? (p.nivel_aprovacao ?? null) : null,
     // T-0054: resumo do retorno do ERP (faturado/devolução) que veio no pull; offline como o resto
     ...camposFaturamento(p),
+    // T-0053 (0013): pré-venda; só quando a linha traz (linhas antigas ficam iguais)
+    ...(p.tipo ? { tipo: p.tipo, validade_ate: p.validade_ate ?? null, orcamento_origem_id: p.orcamento_origem_id ?? null, convertido_pedido_id: p.convertido_pedido_id ?? null } : {}),
   };
 }
 

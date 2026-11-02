@@ -1,25 +1,28 @@
 /**
- * Retorno do ERP no Vendedor (T-0054; desenho T-0011 §1 e §4; ADR 0007):
- *  - consumidor de `integracao.pedido.retorno_erp@1`: aplica o status (RN-INT-08/RN-VEN-30), grava o número do ERP, a
- *    linha do tempo, a nota e os itens faturados; publica `vendedor.pedido.status_alterado@1` e
- *    `vendedor.pedido.faturado@1` (RN-TRE-08) na MESMA transação do despachante (efeito + marca de consumo juntos);
- *  - consumidor de `integracao.nota.atualizado@1`: nota de devolução com `pedido_uuid` (RN-VEN-37, proposta).
+ * Retorno do ERP no Vendedor — consumidor ÚNICO do módulo (T-0053 status + T-0054 faturamento e devolução; desenho
+ * T-0011 §1 e §4; ADR 0007):
+ *  - `integracao.pedido.retorno_erp@1` (sempre ligado): aplica o status (`planejarRetornoErp`, RN-INT-08/RN-VEN-30),
+ *    grava o número do ERP e a linha do tempo (autor "ERP"); publica `vendedor.pedido.status_alterado@1` e
+ *    `vendedor.pedido.faturado@1` (RN-TRE-08) na MESMA transação do despachante (efeito + marca de consumo juntos).
+ *    Com a migração do faturamento, também grava a nota, os itens faturados (saldo por sequência) e o resumo;
+ *  - `integracao.nota.atualizado@1` (só com a migração): nota de devolução com `pedido_uuid` (RN-VEN-37, proposta).
  * As decisões são do domínio (`domain/retorno-erp.ts`); aqui só se lê, decide e grava, atrás do `RepositorioRetornoErp`
  * (Postgres em produção; memória nos testes sem banco). Licença: o despachante só entrega a quem tem o Vendedor ativo no
  * tenant (RN-CORE-02/03); RLS do tenant do evento (macuxi_app). Log sem dado pessoal: só ids, códigos e contagens.
  *
  * `FATURAMENTO_LIGADO`: as tabelas `vendedor.pedido_faturamento`/`pedido_devolucao` e as colunas de resumo do pedido
- * dependem da migração pedida ao banco-dados (T-0054). Enquanto ela não chega ao `main`, os consumidores NÃO são
- * registrados e o pull/detalhe não leem as colunas novas; quando chegar, basta virar a constante (ver
+ * dependem da migração pedida ao banco-dados (T-0054). Enquanto ela não chega ao `main`, o consumidor do retorno roda
+ * só com as tabelas atuais (status, histórico, eventos; idempotência pela marca de consumo do despachante), o da nota
+ * não é registrado e o pull/detalhe não leem as colunas novas; quando chegar, basta virar a constante (ver
  * docs/modulos/vendedor/retorno-erp.md).
  */
 import { definirConsumidor, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo, type LogRota } from '@macuxi/platform-sdk';
-import { EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO } from '../contracts';
+import { EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO, EVENTO_RETORNO_ERP_CONSUMIDO, type RetornoErpConsumido } from '../contracts';
 import {
   decidirNotaDevolucao,
-  decidirRetornoErp,
   eventoFaturadoDosItens,
   itensDoFaturamento,
+  planejarRetornoErp,
   resumoFaturamento,
   statusDoContrato,
   type FaturamentoRegistrado,
@@ -27,10 +30,13 @@ import {
   type ResumoFaturamento,
 } from '../domain';
 import type { OrderStatus } from '../domain/order';
-import { EVENTO_NOTA_ATUALIZADA, EVENTO_RETORNO_ERP } from './eventos-consumidos';
+import { EVENTO_NOTA_ATUALIZADA } from './eventos-consumidos';
 
-/** Liga os consumidores, o pull e o detalhe do faturamento. Vira `true` com a migração do banco-dados (T-0054). */
+/** Liga a persistência do faturamento, o consumidor da nota, o pull e o detalhe. Vira `true` com a migração (T-0054). */
 export const FATURAMENTO_LIGADO = false;
+
+/** Autor da linha do tempo quando a transição vem do ERP (T-0053). */
+export const AUTOR_ERP = { nome: 'ERP', perfil: 'erp' } as const;
 
 // ---------------------------------------------------------------------------------------------------- repositório
 export interface PedidoParaRetorno {
@@ -78,11 +84,12 @@ export interface LinhaDoTempo {
 export interface RepositorioRetornoErp {
   /** Pedido com os itens, travado para a atualização; `null` = inexistente no tenant ou removido. */
   pedidoParaRetorno(id: string): Promise<PedidoParaRetorno | null>;
-  faturamentos(pedidoId: string): Promise<FaturamentoRegistrado[]>;
+  /** `null` = sem a tabela do faturamento (antes da migração): acumulado desconhecido. */
+  faturamentos(pedidoId: string): Promise<FaturamentoRegistrado[] | null>;
   devolucoes(pedidoId: string): Promise<Array<{ external_id: string; total_cents: number }>>;
   atualizarPedido(id: string, a: AtualizacaoDoPedido): Promise<void>;
   registrarLinhaDoTempo(id: string, l: LinhaDoTempo): Promise<void>;
-  /** `false` = a nota deste evento já estava gravada (reentrega). */
+  /** `false` = a nota deste evento já estava gravada (reentrega). Sem a migração: `true` (a marca de consumo protege). */
   gravarFaturamento(f: FaturamentoParaGravar): Promise<boolean>;
   /** `null` = pedido inexistente no tenant; `pedido_anterior` = a nota estava em outro pedido. */
   gravarDevolucao(d: DevolucaoParaGravar): Promise<{ pedido_anterior: string | null } | null>;
@@ -99,22 +106,17 @@ export interface ContextoRetorno {
   agora(): Date;
 }
 
-async function recalcularResumo(repo: RepositorioRetornoErp, pedido: PedidoParaRetorno): Promise<ResumoFaturamento> {
-  const r = resumoFaturamento(pedido.itens, await repo.faturamentos(pedido.id), await repo.devolucoes(pedido.id));
+async function recalcularResumo(repo: RepositorioRetornoErp, pedido: PedidoParaRetorno): Promise<ResumoFaturamento | null> {
+  const fats = await repo.faturamentos(pedido.id);
+  if (!fats) return null;
+  const r = resumoFaturamento(pedido.itens, fats, await repo.devolucoes(pedido.id));
   await repo.gravarResumo(pedido.id, r);
   return r;
 }
 
 // ---------------------------------------------------------------------------------------------------- retorno do ERP
-export interface RetornoRecebido {
-  pedido_uuid: string;
-  status: string;
-  numero_erp: string | null;
-  motivo: string | null;
-  nota: { numero: string; serie?: string | null; emitida_em?: string; total_cents?: number } | null;
-  itens_faturados?: Array<{ sequencia: number; quantidade: number; valor_cents?: number | null }> | null;
-  ocorrido_em: string;
-}
+/** O retorno como o Vendedor lê (`RetornoErpConsumido`, T-0053; o `nota` traz número, série, emissão e total). */
+export type RetornoRecebido = Pick<RetornoErpConsumido, 'pedido_uuid' | 'status' | 'numero_erp' | 'motivo' | 'nota' | 'itens_faturados' | 'ocorrido_em'>;
 
 export type ResultadoRetorno =
   | { aplicado: false; motivo: string }
@@ -124,39 +126,49 @@ export type ResultadoRetorno =
 export async function aplicarRetornoErp(repo: RepositorioRetornoErp, r: RetornoRecebido, ctx: ContextoRetorno): Promise<ResultadoRetorno> {
   const pedido = await repo.pedidoParaRetorno(r.pedido_uuid);
   if (!pedido) {
-    ctx.log.warn({ pedido_id: r.pedido_uuid, codigo: 'pedido_inexistente', status_erp: r.status }, 'retorno do ERP sem pedido no Vendedor');
+    // pedido de outro tenant nunca chega (RLS); inexistente aqui = nada a fazer (não relança: o evento não mudaria)
+    ctx.log.warn({ pedido_id: r.pedido_uuid, codigo: 'pedido_inexistente', status_erp: r.status }, 'retorno do ERP de pedido desconhecido: ignorado');
     return { aplicado: false, motivo: 'pedido_inexistente' };
   }
-  const d = decidirRetornoErp(pedido.status, { status: r.status, numero_erp: r.numero_erp, motivo: r.motivo, nota: r.nota, ocorrido_em: r.ocorrido_em }, pedido.numero_erp);
-  if (!d.aplicar) {
-    ctx.log.info({ pedido_id: pedido.id, codigo: d.motivo, status_erp: r.status, status: pedido.status }, 'retorno do ERP sem efeito no pedido');
-    return { aplicado: false, motivo: d.motivo };
+  const plano = planejarRetornoErp(pedido.status, r);
+  if (plano.acao === 'ignorar') {
+    ctx.log.info({ pedido_id: pedido.id, codigo: plano.motivo, status_erp: r.status, status: pedido.status }, 'retorno do ERP ignorado');
+    return { aplicado: false, motivo: plano.motivo };
   }
 
-  if (d.mudouStatus || d.numero_erp !== pedido.numero_erp) {
-    await repo.atualizarPedido(pedido.id, { status: d.para, numero_erp: d.numero_erp, motivo_rejeicao: d.motivo_rejeicao, motivo_cancelamento: d.motivo_cancelamento });
-  }
-  if (d.mudouStatus) {
-    await repo.registrarLinhaDoTempo(pedido.id, { de: d.de, para: d.para, motivo: d.historico, ocorrido_em: r.ocorrido_em });
+  await repo.atualizarPedido(pedido.id, {
+    status: plano.para,
+    numero_erp: plano.numero_erp ?? pedido.numero_erp,
+    motivo_rejeicao: plano.motivo_rejeicao,
+    motivo_cancelamento: plano.motivo_cancelamento,
+  });
+  if (plano.muda_status) {
+    await repo.registrarLinhaDoTempo(pedido.id, { de: plano.de, para: plano.para, motivo: plano.texto_historico, ocorrido_em: r.ocorrido_em });
     await ctx.publicar(
       EVENTO_PEDIDO_STATUS_ALTERADO,
-      { pedido_id: pedido.id, vendedor_id: pedido.vendedor_id, de: statusDoContrato(d.de), para: statusDoContrato(d.para), alterado_em: r.ocorrido_em, autor_id: null, motivo: d.historico || null },
+      { pedido_id: pedido.id, vendedor_id: pedido.vendedor_id, de: statusDoContrato(plano.de), para: statusDoContrato(plano.para), alterado_em: r.ocorrido_em, autor_id: null, motivo: plano.texto_historico || null },
       pedido.id,
     );
   }
 
   let faturadoPublicado = false;
-  if (d.registraFaturamento && (r.status === 'faturado_parcial' || r.status === 'faturado_total')) {
+  if (plano.faturar && (r.status === 'faturado_parcial' || r.status === 'faturado_total')) {
+    const parcial = r.status === 'faturado_parcial';
     const anteriores = await repo.faturamentos(pedido.id);
-    const ja = anteriores.flatMap((f) => f.itens.map((i) => ({ sequencia: i.sequencia, quantidade: i.quantidade })));
+    // sem a tabela (antes da migração) o acumulado só é conhecido quando não houve parcial antes (= nada faturado)
+    const ja = anteriores
+      ? anteriores.flatMap((f) => f.itens.map((i) => ({ sequencia: i.sequencia, quantidade: i.quantidade })))
+      : plano.de === 'invoiced_partial'
+        ? null
+        : [];
     const { itens, divergencias } = itensDoFaturamento(r.status, r.itens_faturados, pedido.itens, ja);
     for (const x of divergencias) ctx.log.warn({ pedido_id: pedido.id, sequencia: x.sequencia, codigo: x.codigo, informada: x.informada, aceita: x.aceita }, 'item faturado divergente');
-    if (r.status === 'faturado_parcial' && !r.itens_faturados?.length) ctx.log.info({ pedido_id: pedido.id, codigo: 'faturamento_sem_itens' }, 'faturamento parcial sem itens');
+    if (parcial && !r.itens_faturados?.length) ctx.log.info({ pedido_id: pedido.id, codigo: 'faturamento_sem_itens' }, 'faturamento parcial sem itens');
     const gravou = await repo.gravarFaturamento({
       pedido_id: pedido.id,
       evento_origem_id: ctx.evento_id,
       status_retorno: r.status,
-      parcial: d.parcial,
+      parcial,
       nota_numero: r.nota?.numero ?? null,
       nota_serie: r.nota?.serie ?? null,
       nota_emitida_em: r.nota?.emitida_em ?? null,
@@ -164,14 +176,17 @@ export async function aplicarRetornoErp(repo: RepositorioRetornoErp, r: RetornoR
       faturado_em: r.ocorrido_em,
       itens,
     });
-    const ev = gravou ? eventoFaturadoDosItens({ id: pedido.id, vendedor_id: pedido.vendedor_id }, r.ocorrido_em, d.parcial, itens) : null;
+    // faturado_em do evento = emissão da nota (T-0053), senão o instante do retorno
+    const ev = gravou ? eventoFaturadoDosItens({ id: pedido.id, vendedor_id: pedido.vendedor_id }, r.nota?.emitida_em ?? r.ocorrido_em, parcial, itens) : null;
     if (ev) {
       await ctx.publicar(EVENTO_PEDIDO_FATURADO, ev, pedido.id);
       faturadoPublicado = true;
+    } else if (gravou) {
+      ctx.log.warn({ pedido_id: pedido.id, codigo: 'faturamento_sem_base', status_erp: r.status }, 'faturamento sem itens identificáveis: vendedor.pedido.faturado@1 não publicado');
     }
     await recalcularResumo(repo, pedido);
   }
-  return { aplicado: true, de: d.de, para: d.para, faturado_publicado: faturadoPublicado };
+  return { aplicado: true, de: plano.de, para: plano.para, faturado_publicado: faturadoPublicado };
 }
 
 // ---------------------------------------------------------------------------------------------------- devolução
@@ -211,8 +226,12 @@ export async function aplicarNotaDevolucao(repo: RepositorioRetornoErp, n: NotaR
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
 
-/** Repositório sobre `vendedor.*` (macuxi_app, RLS do tenant da transação). Nunca lê outro schema. */
-export function repositorioRetornoErpPg(db: ClienteBanco): RepositorioRetornoErp {
+/**
+ * Repositório sobre `vendedor.*` (macuxi_app, RLS do tenant da transação). Nunca lê outro schema. `faturamento: false`
+ * (padrão até a migração) = só as tabelas atuais: sem nota, sem resumo e sem devolução.
+ */
+export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?: boolean } = {}): RepositorioRetornoErp {
+  const comFaturamento = opcoes.faturamento ?? FATURAMENTO_LIGADO;
   return {
     async pedidoParaRetorno(id) {
       const p = (
@@ -231,6 +250,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco): RepositorioRetornoErp
       return { ...p, itens: itens.map((i) => ({ sequencia: i.sequencia, product_id: i.produto_id, quantity: i.quantidade, total_cents: num(i.total_cents) })) };
     },
     async faturamentos(pedidoId) {
+      if (!comFaturamento) return null;
       const rows = (
         await db.query<{ nota_numero: string | null; nota_total_cents: number | null; faturado_em: string; itens: Array<{ sequencia: number; quantidade: number; valor_cents: number | null }> }>(
           `select nota_numero, nota_total_cents::float8 as nota_total_cents, to_char(faturado_em at time zone 'UTC', ${UTC}) as faturado_em, itens
@@ -246,6 +266,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco): RepositorioRetornoErp
       }));
     },
     async devolucoes(pedidoId) {
+      if (!comFaturamento) return [];
       const rows = (
         await db.query<{ external_id: string; total_cents: number }>(
           'select external_id, total_cents::float8 as total_cents from vendedor.pedido_devolucao where pedido_id = $1 and deleted_at is null',
@@ -267,11 +288,12 @@ export function repositorioRetornoErpPg(db: ClienteBanco): RepositorioRetornoErp
     async registrarLinhaDoTempo(id, l) {
       await db.query(
         `insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel, acima_do_nivel, ocorrido_em)
-         values (plataforma.tenant_atual(), $1, $2, $3, null, 'ERP', null, $4, null, false, $5)`,
-        [id, l.de, l.para, l.motivo || null, l.ocorrido_em],
+         values (plataforma.tenant_atual(), $1, $2, $3, null, $4, $5, $6, null, false, $7)`,
+        [id, l.de, l.para, AUTOR_ERP.nome, AUTOR_ERP.perfil, l.motivo || null, l.ocorrido_em],
       );
     },
     async gravarFaturamento(f) {
+      if (!comFaturamento) return true;
       const r = await db.query(
         `insert into vendedor.pedido_faturamento
            (tenant_id, pedido_id, evento_origem_id, status_retorno, parcial, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, faturado_em, itens)
@@ -293,6 +315,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco): RepositorioRetornoErp
       return (r.rowCount ?? 0) > 0;
     },
     async gravarDevolucao(d) {
+      if (!comFaturamento) return null;
       const existe = (await db.query('select 1 from vendedor.pedido where id = $1 and deleted_at is null', [d.pedido_id])).rows.length > 0;
       if (!existe) return null;
       const atual = (
@@ -317,6 +340,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco): RepositorioRetornoErp
       return { pedido_anterior: null };
     },
     async removerDevolucao(externalId, quando) {
+      if (!comFaturamento) return null;
       const r = await db.query<{ pedido_id: string }>(
         'update vendedor.pedido_devolucao set deleted_at = $2 where external_id = $1 and deleted_at is null returning pedido_id',
         [externalId, quando],
@@ -324,6 +348,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco): RepositorioRetornoErp
       return r.rows[0]?.pedido_id ?? null;
     },
     async gravarResumo(pedidoId, r) {
+      if (!comFaturamento) return;
       await db.query(
         `update vendedor.pedido
             set faturado_cents = $2, devolvido_cents = $3, notas_faturamento = $4, ultima_nota_numero = $5, faturado_em = $6
@@ -348,9 +373,9 @@ export type FabricaRepositorio = (db: ClienteBanco) => RepositorioRetornoErp;
 const contextoDe = (ctx: ContextoConsumo): ContextoRetorno => ({ evento_id: ctx.envelope.evento_id, publicar: ctx.publicar, log: ctx.log, agora: ctx.agora });
 
 /** `integracao.pedido.retorno_erp@1` → status, faturamento e `vendedor.pedido.faturado@1`. */
-export function criarConsumidorRetornoErp(fabrica: FabricaRepositorio = repositorioRetornoErpPg): ConsumidorEvento {
+export function criarConsumidorRetornoErp(fabrica: FabricaRepositorio = (db) => repositorioRetornoErpPg(db)): ConsumidorEvento {
   return definirConsumidor({
-    evento: EVENTO_RETORNO_ERP,
+    evento: EVENTO_RETORNO_ERP_CONSUMIDO,
     async executar(p, ctx) {
       await aplicarRetornoErp(fabrica(ctx.db), p, contextoDe(ctx));
     },
@@ -358,7 +383,7 @@ export function criarConsumidorRetornoErp(fabrica: FabricaRepositorio = reposito
 }
 
 /** `integracao.nota.atualizado@1` → devolução do pedido (só nota `devolucao` com `pedido_uuid`). */
-export function criarConsumidorNotaDevolucao(fabrica: FabricaRepositorio = repositorioRetornoErpPg): ConsumidorEvento {
+export function criarConsumidorNotaDevolucao(fabrica: FabricaRepositorio = (db) => repositorioRetornoErpPg(db)): ConsumidorEvento {
   return definirConsumidor({
     evento: EVENTO_NOTA_ATUALIZADA,
     async executar(p, ctx) {
@@ -367,5 +392,8 @@ export function criarConsumidorNotaDevolucao(fabrica: FabricaRepositorio = repos
   });
 }
 
-/** Consumidores registrados no `apiVendedor` (vazio até a migração do faturamento chegar ao `main`). */
-export const consumidoresVendedor: readonly ConsumidorEvento[] = FATURAMENTO_LIGADO ? [criarConsumidorRetornoErp(), criarConsumidorNotaDevolucao()] : [];
+/** O consumidor único do retorno do ERP (T-0053 + T-0054). */
+export const consumidorRetornoErp: ConsumidorEvento = criarConsumidorRetornoErp();
+
+/** Consumidores registrados no `apiVendedor`: o retorno sempre; a nota de devolução só com a migração do faturamento. */
+export const consumidoresVendedor: readonly ConsumidorEvento[] = FATURAMENTO_LIGADO ? [consumidorRetornoErp, criarConsumidorNotaDevolucao()] : [consumidorRetornoErp];
