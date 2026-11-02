@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildOrderPdfHtml, pdfDoPedido, statusText, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
+import { buildOrderPdfHtml, formatCnpj, nomeDaDistribuidora, pdfDoPedido, statusText, textoFrete, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
 
 const ctx: OrderPdfContext = { tenant_name: 'Distribuidora Exemplo Norte', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-01T18:00:00.000Z' };
 
@@ -53,5 +53,57 @@ describe('pdfDoPedido (RF-VEN-06)', () => {
   it('status em português', () => {
     expect(statusText('approved')).toBe('Aprovado');
     expect(statusText('pending_approval')).toBe('Aguardando aprovação');
+  });
+
+  it('T-0064: cabeçalho com o nome da distribuidora; "Macuxi FDV" só no rodapé', () => {
+    for (const v of ['customer', 'bko'] as const) {
+      const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), v, ctx);
+      const cab = html.slice(html.indexOf('class="top"'), html.indexOf('class="meta"'));
+      expect(cab).toContain('Distribuidora Exemplo Norte');
+      expect(cab).not.toContain('Macuxi');
+      expect(html.slice(html.indexOf('class="footer"'))).toContain('Gerado pelo Macuxi FDV');
+    }
+  });
+  it('T-0064: nome da distribuidora vem do login, depois de parametros.core.tenant_nome, depois Macuxi', () => {
+    expect(nomeDaDistribuidora('Norte Bebidas', { tenant_nome: 'X' })).toBe('Norte Bebidas');
+    expect(nomeDaDistribuidora('', { tenant_nome: 'Norte Bebidas' })).toBe('Norte Bebidas');
+    expect(nomeDaDistribuidora(undefined, {})).toBe('Macuxi');
+  });
+  it('T-0064: CNPJ do cliente formatado nos dois PDFs', () => {
+    for (const v of ['customer', 'bko'] as const) expect(buildOrderPdfHtml(pdfDoPedido(detalhe()), v, ctx)).toContain('CNPJ 12.345.678/0001-90');
+    expect(formatCnpj('12345678000190')).toBe('12.345.678/0001-90');
+  });
+  it('T-0064: PDF interno mostra o nome da tabela de preço, nunca o id', () => {
+    const id = 'e897eb74-1111-4222-8333-444455556666';
+    const comNome = buildOrderPdfHtml(pdfDoPedido(detalhe({ price_table_id: id, price_table_name: 'Atacado Norte' })), 'bko', ctx);
+    expect(comNome).toContain('Atacado Norte');
+    expect(comNome).not.toContain('e897eb74');
+    expect(buildOrderPdfHtml(pdfDoPedido(detalhe({ price_table_id: id })), 'bko', ctx)).not.toContain('e897eb74');
+  });
+  it('T-0064: coluna Medida com a sigla vendida (UN e CX c/ 12)', () => {
+    const d = detalhe({
+      items: [
+        { erp_code: 'P1', description: 'Produto Um', quantity: 2, unit_price_cents: 1000, total_cents: 2000 },
+        { erp_code: 'P2', description: 'Produto Dois', quantity: 3, unit_price_cents: 12000, total_cents: 36000, unit_label: 'CX c/ 12' },
+      ],
+    });
+    for (const v of ['customer', 'bko'] as const) {
+      const html = buildOrderPdfHtml(pdfDoPedido(d), v, ctx);
+      expect(html).toContain('<span>Medida</span>');
+      expect(html).toContain('<span>UN</span>');
+      expect(html).toContain('<span>CX c/ 12</span>');
+    }
+  });
+  it('T-0064: linha de frete CIF e FOB com transportadora nos dois PDFs', () => {
+    expect(textoFrete({ modality: 'CIF' })).toBe('Frete: CIF – por conta da empresa');
+    expect(textoFrete({ modality: 'FOB', carrier_name: 'Rápido Norte', carrier_document: '11222333000181' })).toBe('Frete: FOB – por conta do cliente · Rápido Norte (CNPJ 11.222.333/0001-81)');
+    for (const v of ['customer', 'bko'] as const) {
+      expect(buildOrderPdfHtml(pdfDoPedido(detalhe({ freight: { modality: 'CIF' } })), v, ctx)).toContain('CIF – por conta da empresa');
+      const fob = buildOrderPdfHtml(pdfDoPedido(detalhe({ freight: { modality: 'FOB', carrier_name: 'Rápido Norte', carrier_document: '11222333000181' } })), v, ctx);
+      expect(fob).toContain('FOB – por conta do cliente · Rápido Norte (CNPJ 11.222.333/0001-81)');
+    }
+  });
+  it('T-0064: o PDF do cliente continua sem percentual com frete e medida', () => {
+    expect(buildOrderPdfHtml(pdfDoPedido(detalhe({ freight: { modality: 'CIF' } })), 'customer', ctx)).not.toContain('%');
   });
 });

@@ -22,8 +22,25 @@ export const TabelaPrecoItemSyncSchema = z.object({
   preco_cents: z.number().int().positive(),
   vigencia_inicio: z.string().nullable(),
   vigencia_fim: z.string().nullable(),
+  /** Preço próprio da embalagem (CX) — fila de corte da T-0061; ausente/null = unidade base. */
+  unidade: z.string().nullable().optional(),
 });
 export type TabelaPrecoItemSync = z.infer<typeof TabelaPrecoItemSyncSchema>;
 
 export const ClienteTabelaPrecoSyncSchema = z.object({ ...Base, cliente_id: z.string().uuid(), tabela_preco_id: z.string().uuid() });
 export type ClienteTabelaPrecoSync = z.infer<typeof ClienteTabelaPrecoSyncSchema>;
+
+/** Árvore do catálogo do ERP (RF-CAT-04; T-0061 §4.2). pai nulo = raiz (nível 1). Escopo tenant. */
+export const CatalogoNoSyncSchema = z.object({
+  ...Base,
+  pai_id: z.string().uuid().nullable(),
+  nivel: z.number().int().min(1).max(8),
+  codigo: z.string(),
+  nome: z.string(),
+  ordem: z.number().int(),
+  ativo: z.boolean(),
+});
+export type CatalogoNoSync = z.infer<typeof CatalogoNoSyncSchema>;
+
+export const ProdutoNoSyncSchema = z.object({ ...Base, produto_id: z.string().uuid(), no_id: z.string().uuid() });
+export type ProdutoNoSync = z.infer<typeof ProdutoNoSyncSchema>;

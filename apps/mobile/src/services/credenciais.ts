@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
+import type { PendenciaSaida } from '@/lib/saida-push';
+
 export interface Tokens {
   access: string;
   /** `null` na demonstração (mock-api não tem refresh). */
@@ -35,4 +37,32 @@ export async function gravarTokens(t: Tokens | null): Promise<void> {
   }
   if (t) await SecureStore.setItemAsync(CHAVE, JSON.stringify(t));
   else await SecureStore.deleteItemAsync(CHAVE);
+}
+
+// ---------- saídas pendentes (logout sem sinal; `lib/saida-push.ts`) ----------
+// Levam o refresh da sessão que saiu: ficam no armazenamento seguro, como os tokens.
+const CHAVE_SAIDAS = 'macuxi.sessao.saidas_pendentes';
+
+export async function lerSaidasPendentes(): Promise<PendenciaSaida[]> {
+  try {
+    const bruto = Platform.OS === 'web' ? await AsyncStorage.getItem(CHAVE_SAIDAS) : await SecureStore.getItemAsync(CHAVE_SAIDAS);
+    const lista = bruto ? (JSON.parse(bruto) as unknown) : [];
+    return Array.isArray(lista) ? (lista as PendenciaSaida[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function gravarSaidasPendentes(lista: readonly PendenciaSaida[]): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      if (lista.length) await AsyncStorage.setItem(CHAVE_SAIDAS, JSON.stringify(lista));
+      else await AsyncStorage.removeItem(CHAVE_SAIDAS);
+      return;
+    }
+    if (lista.length) await SecureStore.setItemAsync(CHAVE_SAIDAS, JSON.stringify(lista));
+    else await SecureStore.deleteItemAsync(CHAVE_SAIDAS);
+  } catch {
+    // armazenamento indisponível: a saída não fica na fila (o refresh vence sozinho em 30 dias)
+  }
 }
