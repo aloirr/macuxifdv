@@ -22,7 +22,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { tokenizar, comandosSimples } from './guarda-bash-lib.mjs';
+import {
+  tokenizar, comandosSimples, alvosDoComando, SO_LEITURA, COORD_SO_LEITURA, PACOTES_SO_LEITURA, DESCARTE,
+} from './guarda-bash-lib.mjs';
 import { CAMINHOS_DE_GOVERNANCA, mudancasDeGovernanca, remetenteDoRecado } from '../../scripts/coord-lib.mjs';
 
 export const REPO_OFICIAL = 'aloirr/macuxifdv';
@@ -456,21 +458,276 @@ export function visitarComandos(comando, fn, nivel = 0) {
   }
 }
 
+// ───────────────────────────── guardião v6 (T-0050): leitura × escrita ─────────────────────────────
+//
+// O v5 bloqueava todo comando com "interpretador" (bash -c, node -e, eval, ou qualquer nome de comando
+// incerto, como a atribuição `f=$(...)` dentro de um for) que citasse recados e alexandre, mesmo só
+// lendo. O v6 classifica CADA comando simples (inclusive dentro de $(...), bash -c e eval literais):
+//  - leitura: não grava arquivo (ls, cat, grep, find sem -exec que grava, git de leitura, for/while,
+//    atribuição VAR=..., node -e/python -c sem API de escrita, coord.mjs, gh de consulta...);
+//  - escrita: grava em alvos evidentes (> >> tee cp mv rm sed -i touch ln git checkout -- x...);
+//  - opaco: pode gravar em qualquer lugar e o guardião não vê onde (script, node -e com writeFile,
+//    bash sem -c, eval com $VAR, xargs com comando que grava, tar -x, git apply, nome incerto...).
+// O bloqueio "recado em nome do Alexandre" só vale quando há escrita/opaco (ver motivosRecadoFalso).
+
+/** Builtins e palavras do shell que não gravam arquivo (o resto da linha é dado, não comando). */
+const BUILTINS_LEITURA = new Set([
+  'for', 'select', 'case', 'in', '[[', ']]', 'read', 'break', 'continue', 'return', 'exit', 'local', 'declare',
+  'typeset', 'readonly', 'shift', 'wait', ':', 'let', 'getopts', 'hash', 'alias', 'unalias', 'jobs', 'popd', 'dirs',
+]);
+/** git que grava objetos/índice/arquivos sem alvo evidente (plumbing e patch): opaco. */
+const GIT_OPACO = new Set([
+  'apply', 'am', 'hash-object', 'update-index', 'read-tree', 'write-tree', 'commit-tree', 'update-ref', 'mktree',
+  'mktag', 'fast-import', 'filter-branch', 'filter-repo', 'replace', 'notes', 'worktree', 'submodule', 'archive',
+  'bundle', 'unpack-objects', 'symbolic-ref', 'checkout-index', 'merge-file', 'difftool', 'mergetool', 'instaweb', 'p4', 'svn',
+]);
+/** gh que grava arquivo local (o resto só consulta ou mexe no GitHub; o merge tem trava própria). */
+const GH_GRAVA = /^(pr checkout|pr co|run download|release download|repo clone|repo fork|gist clone|codespace cp|extension|ext|extensions|alias|attestation download)$/;
+/** API de escrita/execução em código inline (node -e, python -c, perl -e...): presença = opaco. */
+export const CODIGO_QUE_GRAVA = /write|append|stream|copy|\bcp|rename|move|\bmv|unlink|\brm|delete|remove|mkdir|link|trunc|open|exec|spawn|fork|system|popen|process|child|shutil|subprocess|eval|function|import|require\s*\(\s*[^'"\s]|\[|fromcharcode|atob|buffer|base64|\\x|\\u|save|dump|\bput|output|reflect|getattr|globals|vars\(|__|deno\.|bun\.|`/i;
+/** Opção que traz o código inline, por linguagem (o argumento seguinte é o código). */
+const FLAG_DE_CODIGO = {
+  node: /^(-e|-p|-pe|--eval|--print)$/, nodejs: /^(-e|-p|-pe|--eval|--print)$/, bun: /^(-e|--eval|-p|--print)$/,
+  python: /^-[a-zA-Z]*c$/, python3: /^-[a-zA-Z]*c$/, py: /^-[a-zA-Z]*c$/,
+  perl: /^-[a-zA-Z]*[eE]$/, ruby: /^-[a-zA-Z]*e$/, php: /^-r$/, lua: /^-e$/,
+};
+const OPCOES_SEGURAS = /^(-[nlawWsSqBuE0]{1,3}|--no-warnings|--input-type=(module|commonjs))$/;
+const LINGUAGENS_INLINE = { '-e': true, '-p': true, '-pe': true, '--eval': true, '--print': true };
+const AWK = new Set(['awk', 'gawk', 'mawk', 'nawk']);
+const ESCREVE_COM_ALVO = new Set(['tee', 'touch', 'truncate', 'rm', 'unlink', 'shred', 'cp', 'mv', 'install', 'ln', 'chmod', 'chown', 'chgrp', 'dd', 'curl', 'sed', 'perl', 'rsync']);
+/** Gravam nomes que vêm de fora do comando (arquivo compactado, URL, patch): sem alvo evidente = opaco. */
+const ESCREVE_NOMES_DE_FORA = new Set(['tar', 'bsdtar', 'unzip', 'patch', 'wget', 'cpio', '7z', '7za', 'gunzip', 'gzip', 'bunzip2', 'unxz']);
+
+const ctxNeutro = { existe: () => false, ehDiretorio: () => false, ler: () => null };
+const textoDe = (palavras) => palavras.map((w) => w.valor).join(' ');
+
+/** Remove VAR=... (também `f=$(...)`: a atribuição em si não grava), palavras-chave e prefixos. */
+function semAtribuicoes(palavras) {
+  const p = palavras.slice();
+  for (;;) {
+    if (!p.length) return { nome: undefined, args: [], palavras: p };
+    const v = p[0].valor;
+    if (/^[A-Za-z_][A-Za-z0-9_]*\+?=/.test(v)) { p.shift(); continue; }
+    if (PALAVRAS_CHAVE.has(v)) { p.shift(); continue; }
+    const n = nomeBase(v);
+    if (!p[0].incerto && PREFIXOS.has(n)) {
+      p.shift();
+      while (p.length && (p[0].valor.startsWith('-') || (n === 'env' && /^[A-Za-z_][A-Za-z0-9_]*=/.test(p[0].valor)))) {
+        if (n === 'env' && /^-[a-zA-Z]*[uSC]$|^--(unset|split-string|chdir)$/.test(p[0].valor)) return { nome: { valor: '$env', incerto: true }, args: [], palavras: p };
+        p.shift();
+      }
+      if (n === 'timeout' && p.length) p.shift();
+      continue;
+    }
+    return { nome: p[0], args: p.slice(1), palavras: p };
+  }
+}
+
+/**
+ * Classifica um comando simples (palavras já sem os redirecionamentos). Função pura.
+ * @returns {{tipo: 'leitura'|'escrita'|'opaco', alvos?: {valor: string, incerto: boolean}[], interno?: string, motivo?: string}}
+ *   interno: texto de bash -c/eval literal (o chamador analisa como comando).
+ */
+export function classificarComando(palavras) {
+  const { nome, args } = semAtribuicoes(palavras);
+  if (!nome) return { tipo: 'leitura' };
+  if (nome.incerto) return { tipo: 'opaco', motivo: `nome de comando incerto (${nome.valor})` };
+  const n = nomeBase(nome.valor);
+  const v = args.map((a) => a.valor);
+  const literal = args.every((a) => !a.incerto);
+  if (BUILTINS_LEITURA.has(n) || SO_LEITURA.has(n) || n === 'cd' || n === 'pushd') return { tipo: 'leitura' };
+  if (SHELLS.has(n)) {
+    const i = args.findIndex((a) => /^-[a-z]*c$/.test(a.valor));
+    if (i >= 0 && args[i + 1] && !args[i + 1].incerto) return { tipo: 'leitura', interno: args[i + 1].valor };
+    return { tipo: 'opaco', motivo: `${n} sem -c literal (script, stdin ou here-doc)` };
+  }
+  if (n === 'eval') return literal ? { tipo: 'leitura', interno: v.join(' ') } : { tipo: 'opaco', motivo: 'eval com $VAR/$(...)' };
+  if (n === 'xargs' || n === 'parallel') {
+    let i = 0;
+    while (i < args.length && args[i].valor.startsWith('-')) i += /^-[IinPLdEsa]$|^--(replace|max-args|max-procs|delimiter|eof|arg-file)$/.test(args[i].valor) ? 2 : 1;
+    const resto = args.slice(i);
+    if (!resto.length) return { tipo: 'leitura' }; // xargs sozinho = echo
+    const sub = classificarComando(resto);
+    return sub.tipo === 'leitura' && !sub.interno ? sub : { tipo: 'opaco', motivo: `${n} ${resto[0].valor}` };
+  }
+  if (SEMPRE_EXECUTAM.has(n)) return { tipo: 'opaco', motivo: n };
+  if (n === 'node' || n === 'nodejs') {
+    if (v.length === 1 && ['-v', '--version'].includes(v[0])) return { tipo: 'leitura' };
+    const i = args.findIndex((a) => !a.valor.startsWith('-'));
+    if (i >= 0 && !args[i].incerto && nomeBase(args[i].valor) === 'coord.mjs' && !args.slice(0, i).some((a) => LINGUAGENS_INLINE[a.valor]))
+      return { tipo: COORD_SO_LEITURA.has(v[i + 1] ?? 'ajuda') ? 'leitura' : 'coord' };
+  }
+  if (LINGUAGENS.has(n)) {
+    if (n === 'perl' && args.some((a) => /^-[a-zA-Z]*i/.test(a.valor))) {
+      const r = alvosDoComando({ palavras: [nome, ...args], redirs: [] }, ctxNeutro);
+      return r.alvos.length ? { tipo: 'escrita', alvos: r.alvos.map((t) => t.alvo) } : { tipo: 'opaco', motivo: 'perl -i' };
+    }
+    const flag = FLAG_DE_CODIGO[n];
+    const i = flag ? args.findIndex((a) => flag.test(a.valor)) : -1;
+    const codigo = i >= 0 ? args[i + 1] : null;
+    if (!codigo) return { tipo: 'opaco', motivo: `${n} com script ou stdin` };
+    // antes do código, só opções simples (sem -r/--require/--import/-m/-M, que carregam outro código)
+    if (!args.slice(0, i).every((a) => !a.incerto && OPCOES_SEGURAS.test(a.valor))) return { tipo: 'opaco', motivo: `${n} com opções que carregam código` };
+    if (codigo.incerto || CODIGO_QUE_GRAVA.test(codigo.valor)) return { tipo: 'opaco', motivo: `${n} ${args[i].valor} com código que grava ou executa` };
+    return { tipo: 'leitura' };
+  }
+  if (AWK.has(n)) {
+    const prog = args.find((a) => !a.valor.startsWith('-'));
+    if (args.some((a) => /^-[a-zA-Z]*f$|^--file/.test(a.valor)) || !prog || prog.incerto || /[>|]|system|getline|fflush|close/.test(prog.valor)) return { tipo: 'opaco', motivo: `${n} que grava ou executa` };
+    return { tipo: 'leitura' };
+  }
+  if (n === 'sort') return v.some((x) => x === '-o' || x.startsWith('--output') || /^-[a-zA-Z]*o/.test(x)) ? { tipo: 'opaco', motivo: 'sort -o' } : { tipo: 'leitura' };
+  if (n === 'find') {
+    const alvos = [];
+    let k = 0;
+    while (k < args.length && /^-[HLP]$|^-O\d$|^-D$/.test(args[k].valor)) k += args[k].valor === '-D' ? 2 : 1;
+    const raizes = [];
+    while (k < args.length && !/^[-(!]/.test(args[k].valor)) raizes.push(args[k++]);
+    for (let i = k; i < args.length; i++) {
+      const a = args[i];
+      if (a.valor === '-delete') { alvos.push(...(raizes.length ? raizes : [{ valor: '.', incerto: false }])); continue; }
+      if (/^-fprint0?$|^-fprintf$|^-fls$/.test(a.valor)) { if (args[i + 1]) alvos.push(args[i + 1]); i++; continue; }
+      if (/^-(exec|execdir|ok|okdir)$/.test(a.valor)) {
+        let j = i + 1;
+        while (j < args.length && args[j].valor !== ';' && args[j].valor !== '+') j++;
+        // {} = cada arquivo achado: no lugar dele entram as raízes da busca (alvo evidente da escrita)
+        const lugar = raizes.length ? raizes : [{ valor: '.', incerto: false }];
+        const sub = classificarComando(args.slice(i + 1, j).flatMap((w) => (w.valor.includes('{}') ? lugar : [w])));
+        if (sub.tipo === 'escrita') alvos.push(...sub.alvos);
+        else if (sub.tipo !== 'leitura' || sub.interno) return { tipo: 'opaco', motivo: `find ${a.valor} que grava` };
+        i = j;
+      }
+    }
+    return alvos.length ? { tipo: 'escrita', alvos } : { tipo: 'leitura' };
+  }
+  if (n === 'git') {
+    let i = 0;
+    while (i < args.length && args[i].valor.startsWith('-')) i += ['-C', '-c', '--git-dir', '--work-tree', '--namespace'].includes(args[i].valor) ? 2 : 1;
+    const sub = args[i];
+    if (!sub || sub.incerto) return { tipo: 'opaco', motivo: 'git com subcomando incerto' };
+    if (args.slice(0, i).some((a) => a.valor === '-c')) return { tipo: 'opaco', motivo: 'git -c (alias/configuração na hora)' };
+    if (GIT_OPACO.has(sub.valor)) return { tipo: 'opaco', motivo: `git ${sub.valor}` };
+  }
+  if (n === 'gh') {
+    const pos = v.filter((x) => !x.startsWith('-'));
+    if (!literal || GH_GRAVA.test(pos.slice(0, 2).join(' ')) || GH_GRAVA.test(pos[0] || '')) return { tipo: 'opaco', motivo: `gh ${pos.slice(0, 2).join(' ')}` };
+    return { tipo: 'leitura' };
+  }
+  if (n === 'curl' || n === 'dd' || n === 'tee') {
+    const r = alvosDoComando({ palavras: [nome, ...args], redirs: [] }, ctxNeutro);
+    return r.alvos.length ? { tipo: 'escrita', alvos: r.alvos.map((t) => t.alvo) } : { tipo: 'leitura' };
+  }
+  if (n === 'sed' && !args.some((a) => /^-[a-zA-Z]*i|^--in-place/.test(a.valor))) {
+    const scripts = [];
+    for (let i = 0; i < args.length; i++) {
+      if (/^-[a-zA-Z]*[ef]$|^--(expression|file)$/.test(args[i].valor)) { scripts.push(args[i + 1]); i++; } else if (/^--(expression|file)=/.test(args[i].valor)) scripts.push({ ...args[i], valor: args[i].valor.replace(/^[^=]*=/, '') });
+    }
+    if (!scripts.length) { const s = args.find((a) => !a.valor.startsWith('-')); if (s) scripts.push(s); }
+    if (args.some((a) => /^-[a-zA-Z]*f$|^--file/.test(a.valor)) || scripts.some((s) => !s || s.incerto || /(^|[;}\s/])[wWe](\s|$)|\/[a-zA-Z0-9]*w\s/.test(s.valor)))
+      return { tipo: 'opaco', motivo: 'sed com w/e (grava ou executa)' };
+    return { tipo: 'leitura' };
+  }
+  if (n === 'git' || ESCREVE_COM_ALVO.has(n) || ESCREVE_NOMES_DE_FORA.has(n)) {
+    const r = alvosDoComando({ palavras: [nome, ...args], redirs: [] }, ctxNeutro);
+    if (r.soLeitura) return { tipo: 'leitura' };
+    if (r.alvos.length) return { tipo: 'escrita', alvos: r.alvos.map((t) => (t.alvo.raiz ? { valor: '.', incerto: false } : t.alvo)) };
+    // perl sem -i é linguagem (tratada acima); git sem alvo (add, commit, push, pull, merge...) não cria arquivo novo
+    // no disco a partir do comando (o conteúdo vem de commits, que exigem escrita antes, já conferida).
+    if (n === 'git') return { tipo: 'leitura' };
+    if (ESCREVE_NOMES_DE_FORA.has(n)) return { tipo: 'opaco', motivo: `${n} sem alvo evidente` };
+    // cp/mv/ln/rm... com destino incerto ($id-alexandre.md): o alvo existe, só não dá para saber qual
+    const incerto = args.find((a) => a.incerto);
+    if (incerto) return { tipo: 'escrita', alvos: [incerto] };
+    // sem argumento algum (rm sozinho, vindo do find -exec): grava na pasta atual
+    if (!args.some((a) => !a.valor.startsWith('-'))) return { tipo: 'escrita', alvos: [{ valor: '.', incerto: false }] };
+    return { tipo: 'leitura' };
+  }
+  if (n === 'pnpm' || n === 'npm' || n === 'yarn') {
+    const sub = v.find((x) => !x.startsWith('-')) ?? v[0];
+    return sub != null && PACOTES_SO_LEITURA.has(sub) ? { tipo: 'leitura' } : { tipo: 'opaco', motivo: `${n} ${sub || ''}`.trim() };
+  }
+  return { tipo: 'opaco', motivo: n };
+}
+
+const RE_RECADOS = /recados/i;
+const RE_ALEXANDRE = /alexandre/i;
+
+/**
+ * Escritas do comando inteiro (comandos simples, $(...), bash -c e eval literais, cd acompanhado).
+ * @returns {{escritas: {alvo: {valor: string, incerto: boolean}, cwd: string|null}[], opacos: {motivo: string, texto: string}[], coord: boolean}}
+ *   cwd: pasta (como escrita no comando) onde a escrita acontece; null = incerta (cd $X).
+ */
+export function escritasDoComando(comando, cwdInicial = '', nivel = 0) {
+  const escritas = [];
+  const opacos = [];
+  const heredoc = /<<-?\s*['"]?[A-Za-z_]/.test(String(comando));
+  let coord = false;
+  let cwd = cwdInicial;
+  const pilha = [];
+  for (const cmd of comandosSimples(tokenizar(comando))) {
+    if (cmd.grupo === '(') { pilha.push(cwd); continue; }
+    if (cmd.grupo === ')') { if (pilha.length) cwd = pilha.pop(); continue; }
+    const todas = [...cmd.palavras, ...cmd.redirs.map((r) => r.alvo)];
+    if (nivel < 4) {
+      for (const w of todas) {
+        if (!w.incerto) continue;
+        for (const sub of substituicoes(w.valor)) {
+          const r = escritasDoComando(sub, cwd, nivel + 1);
+          escritas.push(...r.escritas);
+          opacos.push(...r.opacos);
+          coord ||= r.coord;
+        }
+      }
+    }
+    for (const r of cmd.redirs) {
+      if (r.op === '<' || r.op === '<<<' || r.op === '<&') continue;
+      if (r.op === '>&' && /^(\d+|-)$/.test(r.alvo.valor)) continue;
+      if (!r.alvo.incerto && DESCARTE.test(r.alvo.valor)) continue;
+      escritas.push({ alvo: r.alvo, cwd });
+    }
+    const { nome, args } = semAtribuicoes(cmd.palavras);
+    const n = nome && !nome.incerto ? nomeBase(nome.valor) : '';
+    if (n === 'cd' || n === 'pushd') {
+      const a = args.find((x) => !x.valor.startsWith('-'));
+      cwd = !a ? '~' : a.incerto || cwd === null ? null : `${cwd}/${a.valor}`;
+      continue;
+    }
+    const c = classificarComando(cmd.palavras);
+    if (c.tipo === 'coord') coord = true;
+    else if (c.tipo === 'escrita') for (const alvo of c.alvos) escritas.push({ alvo, cwd });
+    else if (c.tipo === 'opaco') {
+      const proprio = textoDe([...cmd.palavras, ...cmd.redirs.filter((r) => r.op === '<<<').map((r) => r.alvo)]);
+      opacos.push({ motivo: c.motivo, texto: heredoc ? String(comando) : proprio, cwd });
+    }
+    if (c.interno && nivel < 4) {
+      const r = escritasDoComando(c.interno, cwd, nivel + 1);
+      escritas.push(...r.escritas);
+      opacos.push(...r.opacos);
+      coord ||= r.coord;
+    }
+  }
+  return { escritas, opacos, coord };
+}
+
 /**
  * Bloqueia o agente que tenta criar recado em nome de outro — sobretudo `de: alexandre`, que vale
  * como autorização de merge. Só a sessão do Alexandre (MACUXI_AGENTE=alexandre; terminal dele, sem
  * o Claude) envia como alexandre (regra do guardião v4). Função pura.
  *  - node scripts/coord.mjs enviar --de X: X tem de ser o próprio agente (por extenso);
- *  - comando que escreve com "de: alexandre" no texto (here-doc, printf, node -e...);
- *  - script inline (node -e, python -c, bash -c, eval...) que fala de recados e de alexandre.
+ *  - comando que GRAVA (escrita ou opaco) com "de: alexandre" no texto (here-doc, printf, node -e...);
+ *  - comando que cita alexandre e grava (v6, T-0050) em: alvo com "recados" ou "alexandre" no caminho,
+ *    alvo incerto ($VAR), pasta incerta ou de recados (cd), ou comando opaco (script, node -e que grava,
+ *    bash sem -c...) que cita alexandre ele mesmo ou num comando que também cita recados.
+ * Comando só de leitura (ls, cat, grep, find, head, git show/ls-tree/fetch, for que só lê) passa,
+ * mesmo citando alexandre e .coord/recados (v6: o v5 bloqueava, falso positivo do gerente).
+ * @param {{comando: string, agente: string, cwd?: string, soLeitura?: boolean}} p  soLeitura: ignorado
+ *   desde o v6 (a classificação é feita aqui); cwd: pasta atual da sessão (entrada.cwd do hook).
  * @returns {string[]} motivos do bloqueio (vazio = passa)
  */
-export function motivosRecadoFalso({ comando, agente, soLeitura = false }) {
+export function motivosRecadoFalso({ comando, agente, cwd = '' }) {
   if (!agente || agente === 'alexandre') return [];
   const motivos = [];
-  let interpretador = false;
-  visitarComandos(comando, ({ nome, args, estranho }) => {
-    if (executaTexto(nome, args) || estranho) interpretador = true;
+  visitarComandos(comando, ({ nome, args }) => {
     if (!nome || nome.incerto || !['node', 'nodejs'].includes(nomeBase(nome.valor))) return;
     const i = args.findIndex((a) => !a.valor.startsWith('-'));
     if (i < 0 || args[i].incerto || nomeBase(args[i].valor) !== 'coord.mjs' || args[i + 1]?.valor !== 'enviar') return;
@@ -485,10 +742,26 @@ export function motivosRecadoFalso({ comando, agente, soLeitura = false }) {
   });
   // \n, \t e \r escritos (printf, echo -e, node -e) contam como quebra de linha.
   const t = textoNormalizado(String(comando).replace(/\\[ntr]/g, ' '));
-  if (!soLeitura && /(^|[^a-z0-9_])de:\s*alexandre\b/.test(t))
+  const { escritas, opacos, coord } = escritasDoComando(comando, String(cwd || '').replace(/\\/g, '/'));
+  const grava = escritas.length > 0 || opacos.length > 0 || coord;
+  if (!grava) return motivos; // só leitura: passa (v6)
+  const citaAlexandre = RE_ALEXANDRE.test(t);
+  const citaRecados = RE_RECADOS.test(t);
+  const pastaSuspeita = (c) => c === null || RE_RECADOS.test(c);
+  if (/(^|[^a-z0-9_])de:\s*alexandre\b/.test(t)) {
     motivos.push(`"de: alexandre" no comando: ${agente} não cria recado em nome do Alexandre (só ele, na sessão dele)`);
-  else if (interpretador && /recados/.test(t) && /alexandre/.test(t))
-    motivos.push(`script (bash -c, node -e, eval...) que mexe em recados e cita alexandre: ${agente} não cria recado em nome do Alexandre; use node scripts/coord.mjs enviar --de ${agente}`);
+    return motivos;
+  }
+  if (!citaAlexandre) return motivos;
+  const opaco = opacos.find((o) => RE_ALEXANDRE.test(textoNormalizado(o.texto)) || citaRecados || pastaSuspeita(o.cwd));
+  if (opaco)
+    motivos.push(`script (bash -c, node -e, eval...) ou comando opaco (${opaco.motivo}) que pode gravar arquivo e cita alexandre${citaRecados ? ' e recados' : ''}: ${agente} não cria recado em nome do Alexandre; use node scripts/coord.mjs enviar --de ${agente} (para só ler, use ls/cat/grep/git show sem gravar)`);
+  // alvo: incerto, na pasta de recados, com nome de recado do Alexandre (*alexandre*.md: link simbólico
+  // para a pasta de recados) ou gravado numa pasta incerta/de recados (cd)
+  const nomeDeRecado = (v) => /alexandre[^/\\]*\.md$/i.test(barras(v).split('/').pop());
+  const escrita = escritas.find(({ alvo, cwd: c }) => alvo.incerto || RE_RECADOS.test(alvo.valor) || nomeDeRecado(alvo.valor) || pastaSuspeita(c));
+  if (escrita)
+    motivos.push(`comando que grava em "${escrita.alvo.valor}"${escrita.cwd === null ? ' (pasta incerta)' : RE_RECADOS.test(escrita.cwd || '') ? ` (na pasta ${escrita.cwd})` : ''} e cita alexandre: ${agente} não cria, altera, move nem apaga recado em nome do Alexandre; use node scripts/coord.mjs enviar --de ${agente}`);
   return motivos;
 }
 

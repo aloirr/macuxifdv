@@ -231,23 +231,23 @@ export function comandosSimples(tokens) {
 const PALAVRAS_CHAVE = new Set(['if', 'then', 'else', 'elif', 'fi', 'do', 'done', 'while', 'until', '!', '{', '}', 'time', 'esac']);
 const PREFIXOS = new Set(['sudo', 'command', 'builtin', 'nohup', 'exec', 'nice', 'stdbuf', 'doas']);
 /** Comandos que não alteram arquivos (sem redirecionamento): dispensam a foto do git status. */
-const SO_LEITURA = new Set([
+export const SO_LEITURA = new Set([
   'ls', 'dir', 'cat', 'bat', 'head', 'tail', 'less', 'more', 'grep', 'egrep', 'fgrep', 'rg', 'ag', 'ack', 'wc', 'pwd',
   'echo', 'printf', 'which', 'where', 'type', 'stat', 'file', 'tree', 'du', 'df', 'date', 'whoami', 'id', 'hostname',
   'uname', 'printenv', 'true', 'false', 'test', '[', 'diff', 'cmp', 'comm', 'uniq', 'cut', 'tr', 'nl', 'tac', 'rev',
   'column', 'fold', 'paste', 'od', 'xxd', 'hexdump', 'md5sum', 'sha1sum', 'sha256sum', 'basename', 'dirname',
   'realpath', 'readlink', 'jq', 'sleep', 'seq', 'expr', 'export', 'set', 'unset', 'ps',
 ]);
-const GIT_SO_LEITURA = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'shortlog', 'describe', 'merge-base', 'cat-file', 'ls-tree', 'remote', 'fetch', 'config', 'reflog', 'version', 'help', 'branch', 'tag', 'rev-list', 'for-each-ref', 'show-ref', 'var', 'whatchanged', 'count-objects', 'check-ignore', 'name-rev', 'ls-remote', 'diff-tree', 'diff-files', 'diff-index']);
+export const GIT_SO_LEITURA = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'shortlog', 'describe', 'merge-base', 'cat-file', 'ls-tree', 'remote', 'fetch', 'config', 'reflog', 'version', 'help', 'branch', 'tag', 'rev-list', 'for-each-ref', 'show-ref', 'var', 'whatchanged', 'count-objects', 'check-ignore', 'name-rev', 'ls-remote', 'diff-tree', 'diff-files', 'diff-index']);
 /** Subcomandos de scripts/coord.mjs que só leem (caixa, ler, fio, dono, pendencias, verificar). */
-const COORD_SO_LEITURA = new Set(['caixa', 'ler', 'fio', 'dono', 'pendencias', 'verificar', 'ajuda', 'help', '--help', '-h']);
+export const COORD_SO_LEITURA = new Set(['caixa', 'ler', 'fio', 'dono', 'pendencias', 'verificar', 'ajuda', 'help', '--help', '-h']);
 /** pnpm/npm/yarn que só consultam (view, info, why, list...). */
-const PACOTES_SO_LEITURA = new Set(['view', 'v', 'info', 'show', 'why', 'list', 'ls', 'll', 'la', 'outdated', 'root', 'bin', 'search', 'licenses', 'help', '-v', '--version', '-h', '--help']);
+export const PACOTES_SO_LEITURA = new Set(['view', 'v', 'info', 'show', 'why', 'list', 'ls', 'll', 'la', 'outdated', 'root', 'bin', 'search', 'licenses', 'help', '-v', '--version', '-h', '--help']);
 /** pnpm/npm/yarn que podem reescrever o lock (pnpm-lock.yaml). */
 const PACOTES_INSTALA = new Set(['install', 'i', 'add', 'remove', 'rm', 'uninstall', 'un', 'update', 'up', 'upgrade', 'dedupe', 'import', 'prune', 'link', 'unlink']);
 /** find só lê se não tiver ação que escreve ou executa. */
 const FIND_ESCREVE = new Set(['-delete', '-exec', '-execdir', '-ok', '-okdir', '-fprint', '-fprint0', '-fprintf', '-fls']);
-const DESCARTE = /^\/dev\/(null|stdout|stderr|tty|fd\/\d+)$|^nul$/i;
+export const DESCARTE = /^\/dev\/(null|stdout|stderr|tty|fd\/\d+)$|^nul$/i;
 
 const nomeBase = (p) => barras(p).replace(/\/+$/, '').split('/').pop();
 const PONTO = { valor: '.', incerto: false, raiz: true };

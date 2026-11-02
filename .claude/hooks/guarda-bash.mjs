@@ -104,7 +104,7 @@ if (evento === 'PreToolUse') {
     process.exit(2);
   }
   // Guardião v5: nenhum agente cria recado em nome de outro (sobretudo de: alexandre).
-  const motivos = motivosRecadoFalso({ comando, agente, soLeitura });
+  const motivos = motivosRecadoFalso({ comando, agente, cwd: entrada.cwd || process.cwd() });
   if (motivos.length) {
     process.stderr.write(mensagemRecadoFalso(agente, motivos) + '\n');
     process.exit(2);
