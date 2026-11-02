@@ -48,6 +48,8 @@ import {
   type LinhasVendedor,
 } from '../lib/pull';
 import { criarRepositorio, DADOS_VAZIOS, type DadosVendedor } from '../lib/repositorio';
+import { relogioReal } from '@macuxi/comum/relogio';
+import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 
 const PRECISA_SINAL = 'editar ou excluir pedido já enviado precisa de conexão (o status pode ter mudado no servidor).';
 const INTERVALO_SYNC_MS = 20_000;
@@ -468,6 +470,42 @@ export function useVendedor() {
     await recarregar();
   }, [motor, recarregar]);
 
+  /**
+   * T-0053 (RF-VEN-03): converte o orçamento em pedido OFFLINE — pedido novo na fila com `orcamento_origem_id`; o servidor
+   * revalida preço do dia, alçada e validade (RN-VEN-32). Sem sinal, segue na fila como qualquer pedido.
+   */
+  const converterOrcamento = useCallback(
+    async (orcamentoId: string): Promise<ResultadoEnvio> => {
+      if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
+      const d = detalheDoPedido(linhasRef.current, orcamentoId, perfil, parametrosRef.current);
+      if (!d || d.items.length === 0) throw new Error('Itens do orçamento ainda não sincronizados. Sincronize e tente de novo.');
+      const linha = linhasRef.current.pedidos.find((x) => x.id === orcamentoId);
+      const id = ambiente.novoId();
+      const payload = pedidoDaConversao(d, { condicaoId: linha?.condicao_pagamento_id ?? null, observacao: linha?.observacao ?? null, novoId: id, agora: relogioReal().agora().toISOString() });
+      await motor.enfileirar({ id, entidade: 'pedido', payload, rotulo: `Pedido · ${d.customer_name}`, detalhe: `do orçamento ${d.number}` });
+      if (!ambiente.online()) {
+        await recarregar();
+        return { kind: 'queued', message: 'Modo sem sinal: o pedido será enviado quando o sinal voltar.' };
+      }
+      const r = (await motor.enviar()).find((x) => x.id === id);
+      if (r && r.status === 'aceito') {
+        await motor.sincronizar().catch(() => false);
+        await recarregar();
+        const det = detalheDoPedido(linhasRef.current, id, perfil, parametrosRef.current);
+        return det ? { kind: 'sent', order: det } : { kind: 'queued', message: 'Pedido recebido pelo servidor. O número e o status aparecem na próxima atualização.' };
+      }
+      if (r) {
+        await motor.descartar(id);
+        await recarregar();
+        throw new Error(('mensagem' in r && r.mensagem) || 'O servidor recusou o pedido. Revise o orçamento e tente de novo.');
+      }
+      await recarregar();
+      return { kind: 'queued', message: 'Sem conexão: o pedido será enviado quando o sinal voltar.' };
+    },
+    [motor, repo, recarregar, ambiente, perfil],
+  );
+  const preVendaLigada = v1 && preVendaAtiva(parametros);
+
   const acoesDe = (status: string) => orderActions(status as OrderStatus);
   const aguardandoMinhaDecisao = useMemo(() => (v1 ? paraAprovar(linhas, perfil) : []), [v1, linhas, perfil]);
 
@@ -498,6 +536,8 @@ export function useVendedor() {
     atualizarRascunho,
     prepararDoRascunho,
     enviarPedido,
+    converterOrcamento,
+    preVendaLigada,
     prepararRascunhoDoPedido,
     salvarEdicao,
     excluirPedido,

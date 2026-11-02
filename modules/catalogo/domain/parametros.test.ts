@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PARAMETROS_PADRAO, resolverParametros, resolverTimeoutIaMs, TIMEOUT_IA_MAX_MS, TIMEOUT_IA_MIN_MS, TIMEOUT_IA_PADRAO_MS } from './parametros';
+import { PARAMETROS_PADRAO, parametrosDoTenant, resolverParametros, resolverTimeoutIaMs, timeoutIaDoTenant, TIMEOUT_IA_MAX_MS, TIMEOUT_IA_MIN_MS, TIMEOUT_IA_PADRAO_MS } from './parametros';
 
 describe('parâmetros do tenant do Catálogo (doc 03, tabela de parâmetros)', () => {
   it('RN-CAT-03: o padrão do limite de consultas de IA é 200 por usuário/dia', () => {
@@ -57,5 +57,27 @@ describe('tempo limite do provedor de IA (RN-CAT-03)', () => {
     for (const ruim of [0, 999, 30_001, -5, 1500.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => resolverTimeoutIaMs(ruim)).toThrow(/Tempo limite da IA inválido.*1000 a 30000/);
     }
+  });
+});
+
+describe('parametrosDoTenant / timeoutIaDoTenant — leitura tolerante dos parâmetros crus (T-0052)', () => {
+  it('RN-CAT-05: chave inválida cai no padrão SÓ dela; o resto do tenant vale (o promotor continua sem preço se o valor é lixo)', () => {
+    const p = parametrosDoTenant({ promotor_ve_preco_estoque: 'sim', estoque_baixo_ate: 5, ia_timeout_ms: 4000, outra_coisa: 1 });
+    expect(p.promotor_ve_preco_estoque).toBe(false);
+    expect(p.estoque_baixo_ate).toBe(5);
+    expect(p.limite_consultas_ia_dia).toBe(200);
+    expect(parametrosDoTenant(undefined)).toEqual(PARAMETROS_PADRAO);
+  });
+
+  it('RN-CAT-03: limite 0 desliga a IA; negativo é inválido e volta ao padrão', () => {
+    expect(parametrosDoTenant({ limite_consultas_ia_dia: 0 }).limite_consultas_ia_dia).toBe(0);
+    expect(parametrosDoTenant({ limite_consultas_ia_dia: -1 }).limite_consultas_ia_dia).toBe(200);
+  });
+
+  it('RN-CAT-03: ia_timeout_ms do tenant entre 1 e 30 s; ausente ou fora da faixa = padrão de 8 s', () => {
+    expect(timeoutIaDoTenant({ ia_timeout_ms: 4000 })).toBe(4000);
+    expect(timeoutIaDoTenant({})).toBe(TIMEOUT_IA_PADRAO_MS);
+    expect(timeoutIaDoTenant({ ia_timeout_ms: 60_000 })).toBe(TIMEOUT_IA_PADRAO_MS);
+    expect(timeoutIaDoTenant({ ia_timeout_ms: '4000' })).toBe(TIMEOUT_IA_PADRAO_MS);
   });
 });
