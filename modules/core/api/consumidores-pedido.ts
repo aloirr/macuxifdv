@@ -19,11 +19,11 @@ import { notificacaoDePedido, type EntradaNotificacaoPedido } from '../domain';
  */
 const EVENTO_PEDIDO_STATUS_ALTERADO = definirEvento(
   'vendedor.pedido.status_alterado@1',
-  z.object({ pedido_id: z.string().uuid(), vendedor_id: z.string().uuid(), para: z.string(), motivo: z.string().nullable() }),
+  z.object({ pedido_id: z.string().uuid(), vendedor_id: z.string().uuid(), para: z.string(), motivo: z.string().nullable(), pedido_numero: z.union([z.number(), z.string()]).nullish() }),
 );
 const EVENTO_PEDIDO_APROVACAO_SOLICITADA = definirEvento(
   'vendedor.pedido.aprovacao_solicitada@1',
-  z.object({ pedido_id: z.string().uuid(), vendedor_id: z.string().uuid() }),
+  z.object({ pedido_id: z.string().uuid(), vendedor_id: z.string().uuid(), pedido_numero: z.union([z.number(), z.string()]).nullish() }),
 );
 
 /** Responsáveis (ativos) das equipes acima do vendedor; sem equipe/responsável, os perfis de alçada do tenant. */
@@ -62,12 +62,12 @@ async function notificar(ctx: ContextoConsumo, vendedorId: string, entrada: Entr
 
 export const consumidorPedidoStatus: ConsumidorEvento = definirConsumidor({
   evento: EVENTO_PEDIDO_STATUS_ALTERADO,
-  executar: (p, ctx) => notificar(ctx, p.vendedor_id, { tipo: 'status', para: p.para, pedidoId: p.pedido_id, motivo: p.motivo }),
+  executar: (p, ctx) => notificar(ctx, p.vendedor_id, { tipo: 'status', para: p.para, pedidoId: p.pedido_id, motivo: p.motivo, numero: p.pedido_numero }),
 });
 
 export const consumidorPedidoParaAprovar: ConsumidorEvento = definirConsumidor({
   evento: EVENTO_PEDIDO_APROVACAO_SOLICITADA,
-  executar: (p, ctx) => notificar(ctx, p.vendedor_id, { tipo: 'aprovacao_solicitada', pedidoId: p.pedido_id }),
+  executar: (p, ctx) => notificar(ctx, p.vendedor_id, { tipo: 'aprovacao_solicitada', pedidoId: p.pedido_id, numero: p.pedido_numero }),
 });
 
 export const consumidoresDePedido: ConsumidorEvento[] = [consumidorPedidoStatus, consumidorPedidoParaAprovar];

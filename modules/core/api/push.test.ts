@@ -17,6 +17,11 @@ describe('RF-CORE-09: push atrás de configuração', () => {
     const corpo = JSON.parse((f.mock.calls[0] as unknown as [string, { body: string }])[1].body);
     expect(corpo).toEqual([{ to: destino.token, title: 'Recado', body: 'Reunião às 9h', priority: 'high', data: { link: '/m/core/notificacoes' } }]);
   });
+  it('RN-CORE-23: push silencioso não leva title nem body, só data.entidades, com prioridade alta', () => {
+    const m = montarMensagemExpo({ ...destino, titulo: '', corpo: '', prioridade: 'normal', entidades: ['meta', 'notificacao'] })!;
+    expect(m).toEqual({ to: destino.token, priority: 'high', data: { link: '/m/core/notificacoes', entidades: ['meta', 'notificacao'] } });
+    expect('title' in m || 'body' in m).toBe(false);
+  });
   it('corpo longo é cortado e token inválido não gera mensagem', () => {
     expect(montarMensagemExpo({ ...destino, corpo: 'x'.repeat(500) })!.body).toHaveLength(178);
     expect(montarMensagemExpo({ ...destino, token: '' })).toBeNull();

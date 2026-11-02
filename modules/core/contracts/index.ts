@@ -490,3 +490,4 @@ export * from './hierarquia';
 export * from './dispositivo';
 export * from './consultas';
 export * from './cadastro';
+export * from './produto-preco';

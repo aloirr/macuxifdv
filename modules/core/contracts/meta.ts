@@ -49,6 +49,9 @@ export const IndicadoresListaSchema = z.object({
   periodo: AnoMes,
   /** Base de apuração do tenant (`metas.base_apuracao`); vale para pedidos individuais, o read-model diário já vem apurado. */
   base_apuracao: z.enum(['aprovado', 'faturado']),
+  /** RN-CORE-21: `parcial` até o 2º dia útil do mês seguinte (`fechamento_em`), depois `fechado`. */
+  situacao: z.enum(['parcial', 'fechado']).optional(),
+  fechamento_em: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   itens: z.array(PainelMetasSchema),
 });
 export type IndicadoresLista = z.infer<typeof IndicadoresListaSchema>;

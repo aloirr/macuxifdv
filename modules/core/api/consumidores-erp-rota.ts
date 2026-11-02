@@ -9,7 +9,8 @@
  */
 import { z } from 'zod';
 import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { dataLocal, datasDaRotaErp, planejarParadasErp } from '../domain';
+import { dataLocal, datasDaRotaErp, notificacaoDeRotaDoDia, planejarParadasErp } from '../domain';
+import { notificarSistema } from './consumidores-sistema';
 import { clientePorExternalId, eventoIntegracao, ReferenciaAusenteErp, usuarioPorExternalId } from './erp-apoio';
 
 const SEMANAS_MATERIALIZADAS = 4;
@@ -93,6 +94,8 @@ export const consumidorRotaDoErp: ConsumidorEvento = definirConsumidor({
           [rotaId, usuarioId, data, clientes.get(parada.cliente_external_id), parada.sequencia, `${externalRota}:${parada.cliente_external_id}`],
         );
       }
+      // Rota do DIA (RN-CORE-23): avisa o vendedor com push; as demais ocorrências chegam no pull normal.
+      if (data === hoje) await notificarSistema(ctx, usuarioId, notificacaoDeRotaDoDia());
     }
   },
 });

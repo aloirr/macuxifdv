@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { entidadesDoPush, notificacaoDePedido } from './notificacao-pedido';
+import { entidadesDoPush, notificacaoDeMeta, notificacaoDePedido, notificacaoDeRotaDoDia } from './notificacao-pedido';
 
 const ID = '0e500000-0000-4000-8000-000000000001';
 
@@ -22,7 +22,18 @@ describe('RN-CORE-23 item 3: notificação de pedido', () => {
     expect(notificacaoDePedido({ tipo: 'status', para: 'na_fila', pedidoId: ID, motivo: null })).toBeNull();
   });
   it('RN-CORE-23: entidades do push por tipo de notificação', () => {
-    expect(entidadesDoPush('pedido')).toEqual(['pedido', 'notificacao']);
+    expect(entidadesDoPush('pedido')).toEqual(['pedido', 'pedido_evento', 'notificacao']);
+    expect(entidadesDoPush('sistema', '/m/metas')).toEqual(['meta', 'notificacao']);
+    expect(entidadesDoPush('sistema', '/m/rota')).toEqual(['rota', 'rota_parada', 'notificacao']);
     expect(entidadesDoPush('recado')).toEqual(['notificacao']);
+  });
+  it('RN-CORE-23: número do pedido no título com 6 dígitos', () => {
+    expect(notificacaoDePedido({ tipo: 'status', para: 'aprovado', pedidoId: ID, motivo: null, numero: 10 })?.titulo).toBe('Pedido 000010 aprovado');
+    expect(notificacaoDePedido({ tipo: 'aprovacao_solicitada', pedidoId: ID, numero: '12' })?.titulo).toBe('Pedido 000012 para aprovar');
+  });
+  it('RN-CORE-23: meta e rota do dia geram notificação com link do app', () => {
+    expect(notificacaoDeMeta({ valorAnterior: null }).link).toBe('/m/metas');
+    expect(notificacaoDeMeta({ valorAnterior: 5 }).titulo).toBe('Meta atualizada');
+    expect(notificacaoDeRotaDoDia().link).toBe('/m/rota');
   });
 });

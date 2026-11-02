@@ -21,8 +21,10 @@ import { consultaCadastroCliente, consultaCadastroResumo } from './consultas';
 import { consumidorPushNotificacao } from './consumidores';
 import { consumidoresDoErp } from './consumidores-erp';
 import { consumidoresDePedido } from './consumidores-pedido';
+import { consumidorMetaDefinida } from './consumidores-sistema';
 import { rotasDeLicencas } from './licencas';
 import { rotasDeMetas } from './metas';
+import { rotasDeProdutos } from './produtos';
 import { rotasDeRotasEVisitas } from './rotas';
 import { provedoresSyncCore } from './sync';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
@@ -33,9 +35,9 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
   const auth = criarAutenticacao(deps);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeNotificacoes],
+    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeProdutos, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
-    consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, ...consumidoresDoErp],
+    consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorMetaDefinida, ...consumidoresDoErp],
     consultas: [consultaCadastroResumo, consultaCadastroCliente],
     rotasPublicas: [
       {
