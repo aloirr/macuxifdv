@@ -164,3 +164,4 @@
 2026-11-02 — T-0059/T-0060/T-0061 — teste de campo virou a T-0059; cadastro mínimo (T-0060) e novo pedido de distribuidora (T-0061) com RN/RF aplicados nos docs 02, 03, 04 e 06; fila de corte registrada
 2026-11-02 — T-0053 — PR #39 mesclado pela regra A (4067742); PRs #38, #40–#45 registrados no quadro; RN-VEN-37 no doc 03, escopo congelado no doc 05, varredura de PRs prontos no doc 07
 2026-11-02 — #39 e #45 — merges pela regra A; T-0062 (custo/preço mínimo) e T-0063 (medidas e PDF) abertas; RN-VEN-11, 15 e 16 novas, RN-CORE-18/19 nos docs 02/03/04/06; pull pendente do lockfile (engenheiro devolve ao HEAD)
+2026-11-02 — T-0063 — nuvem: 0018_medidas, cadastro de medidas no BKO, Hub com referencia_ausente; revisão 0🔴; PR #54 (38d0d38) aguardando 0017 e PAP-4 'UN' no main
