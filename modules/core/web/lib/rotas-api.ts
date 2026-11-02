@@ -26,6 +26,8 @@ export interface ClienteDaCarteira {
   papel?: 'vendedor' | 'promotor';
   frequencia_semanas: number | null;
   dia_semana: number | null;
+  /** RN-CORE-16: cliente sem os campos mínimos do tenant (pedido só como orçamento). */
+  cadastro_incompleto?: boolean;
 }
 
 const STATUS: Record<ParadaServidor['status'], RouteStop['status']> = { feita: 'done', em_atendimento: 'in_progress', proxima: 'next', pendente: 'pending' };

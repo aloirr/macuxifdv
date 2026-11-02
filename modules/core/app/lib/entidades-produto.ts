@@ -3,8 +3,10 @@
  * `api/sync.ts`). O Novo pedido do Vendedor lê os produtos do aparelho. Puro (sem react-native).
  */
 import { definirEntidadeSync } from '@macuxi/platform-sdk';
-import { ProdutoSyncSchema } from '../../contracts';
+import { ProdutoSyncSchema, ProdutoUnidadeSyncSchema } from '../../contracts';
 
 export const entidadesProduto = [
   definirEntidadeSync({ nome: 'produto', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoSyncSchema }),
+  // Unidades de venda (UN/CX com fator; RN-VEN-15): pull do tenant, sem custo nem dado de cliente
+  definirEntidadeSync({ nome: 'produto_unidade', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoUnidadeSyncSchema }),
 ] as const;
