@@ -7,7 +7,8 @@
  */
 import { localIsoDate } from '@macuxi/comum/fuso';
 import { somarDiasCivis } from '@macuxi/comum/relogio';
-import { ErroHttpModulo, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
+import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { ConsultaIndisponivel, ErroHttpModulo, type ContextoBase, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
   AcaoConcorrencia,
@@ -62,6 +63,20 @@ export function periodoDoFiltro(ctx: Pick<ContextoBase, 'agora' | 'fuso'>, f: z.
   return { de: f.de ?? somarDiasCivis(ate, -(DIAS_PADRAO_RELATORIO - 1)), ate };
 }
 
+/** Nome da loja pelo Core (ADR 0012), em lotes de 500; Core indisponível = sem nome (o relatório sai assim mesmo). */
+async function nomesDasLojas(tx: TransacaoTenant, ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
+  const nomes = new Map<string, string>();
+  try {
+    for (let i = 0; i < ids.length; i += 500) {
+      const r = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: ids.slice(i, i + 500), produto_ids: [], usuario_ids: [] });
+      for (const c of r.clientes) nomes.set(c.id, c.nome_fantasia?.trim() || c.razao_social);
+    }
+  } catch (e) {
+    if (!(e instanceof ConsultaIndisponivel)) throw e;
+  }
+  return nomes;
+}
+
 export function criarRotasPromotor(repo: RepositorioPromotor, recebimento: Recebimento): RotaModulo[] {
   const visitaLoja: RotaModulo = {
     metodo: 'POST',
@@ -107,14 +122,19 @@ export function criarRotasPromotor(repo: RepositorioPromotor, recebimento: Receb
     query: FiltroRelatorio,
     async executar(ctx): Promise<RelatorioShareApi> {
       const f = ctx.query as z.infer<typeof FiltroRelatorio>;
-      return ctx.comTenant(async (db) => {
+      return ctx.comTenant(async (db, tx) => {
+        const sessao = { db, tenant_id: ctx.usuario.tenant_id };
         const { de, ate, validas } = await visitasNoEscopo(ctx, db, f);
-        const medicoes = await repo.coletasDasVisitas({ db, tenant_id: ctx.usuario.tenant_id }, 'medicao_share', [...validas]);
+        const medicoes = await repo.coletasDasVisitas(sessao, 'medicao_share', [...validas]);
         const r = relatorioShareMeta(
           medicoes.map((m) => ({ cliente_id: m.cliente_id, visita_loja_id: m.visita_loja_id, ...(m.payload as Pick<MedicaoShare, 'categoria_gondola_id' | 'share_pct' | 'meta_pct' | 'medido_em'>) })),
           validas,
         );
-        return { de, ate, ...r };
+        const [lojas, categorias] = await Promise.all([
+          nomesDasLojas(tx, [...new Set(r.linhas.map((l) => l.cliente_id))]),
+          repo.nomesDasCategorias(sessao, [...new Set(r.linhas.map((l) => l.categoria_gondola_id))]),
+        ]);
+        return { de, ate, resumo: r.resumo, linhas: r.linhas.map((l) => ({ ...l, cliente_nome: lojas.get(l.cliente_id) ?? null, categoria_nome: categorias.get(l.categoria_gondola_id) ?? null })) };
       });
     },
   };
@@ -127,7 +147,7 @@ export function criarRotasPromotor(repo: RepositorioPromotor, recebimento: Receb
     query: FiltroRelatorio,
     async executar(ctx): Promise<RelatorioRupturaApi> {
       const f = ctx.query as z.infer<typeof FiltroRelatorio>;
-      return ctx.comTenant(async (db) => {
+      return ctx.comTenant(async (db, tx) => {
         const { de, ate, visitas, validas } = await visitasNoEscopo(ctx, db, f);
         const itens = await repo.coletasDasVisitas({ db, tenant_id: ctx.usuario.tenant_id }, 'ruptura_item', [...validas]);
         const linhas = relatorioRupturaPorLoja(
@@ -135,7 +155,8 @@ export function criarRotasPromotor(repo: RepositorioPromotor, recebimento: Receb
           visitas,
           validas,
         );
-        return { de, ate, linhas };
+        const lojas = await nomesDasLojas(tx, linhas.map((l) => l.cliente_id));
+        return { de, ate, linhas: linhas.map((l) => ({ ...l, cliente_nome: lojas.get(l.cliente_id) ?? null })) };
       });
     },
   };

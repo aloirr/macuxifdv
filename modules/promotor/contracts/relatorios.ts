@@ -1,7 +1,8 @@
 /**
  * Respostas da API do BKO de trade (T-0056, RF-PRO-12): `GET /v1/promotor/relatorios/share` e
  * `GET /v1/promotor/relatorios/ruptura`, e o retorno das rotas REST de coleta. Só ids, números e instantes —
- * nomes de loja/categoria a tela resolve pelo cadastro (sem dado pessoal na resposta).
+ * o nome da loja vem do Core (`core.cadastro_resumo@1`) e o da categoria do
+ * cadastro de trade; nenhum dado pessoal.
  */
 import { z } from 'zod';
 import { IsoDate, Uuid } from './base';
@@ -21,7 +22,10 @@ export type FiltroRelatorio = z.infer<typeof FiltroRelatorio>;
 
 export const LinhaShareMetaApi = z.object({
   cliente_id: Uuid,
+  /** Nome fantasia (ou razão social) da loja pelo Core; `null` se o cadastro não estiver disponível. */
+  cliente_nome: z.string().nullable(),
   categoria_gondola_id: Uuid,
+  categoria_nome: z.string().nullable(),
   share_pct: Pct,
   meta_pct: Pct,
   atingimento_pct: Pct,
@@ -40,6 +44,7 @@ export type RelatorioShareApi = z.infer<typeof RelatorioShareApi>;
 
 export const LinhaRupturaLojaApi = z.object({
   cliente_id: Uuid,
+  cliente_nome: z.string().nullable(),
   visita_loja_id: Uuid,
   checkin_em: z.string(),
   total: z.number().int().nonnegative(),

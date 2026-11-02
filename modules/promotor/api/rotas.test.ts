@@ -3,7 +3,7 @@ import { criarPermissoes, ErroHttpModulo, PERFIS, promotorBarradoNaRota, type Pe
 import { beforeEach, describe, expect, it } from 'vitest';
 import { manifest } from '../manifest';
 import { FiltroRelatorio, RelatorioRupturaApi, RelatorioShareApi } from '../contracts';
-import { criarCtx, fabrica, LOJA, OUTRO_PROMOTOR, PROMOTOR, SUPERVISOR, T2, uuid } from './apoio-teste';
+import { CATEGORIA, criarCtx, fabrica, LOJA, OUTRO_PROMOTOR, PROMOTOR, SUPERVISOR, T1, T2, uuid } from './apoio-teste';
 import { criarModuloApiPromotor, PERFIS_RELATORIO, periodoDoFiltro, repositorioMemoria } from './index';
 
 // 10:00 em Manaus: as visitas do teste ficam no mesmo dia civil do tenant
@@ -11,10 +11,13 @@ const relogio = criarRelogio({ agora: '2026-11-03T14:00:00Z' });
 const f = fabrica(relogio);
 
 let api: ReturnType<typeof criarModuloApiPromotor>;
+let repo: ReturnType<typeof repositorioMemoria>;
 const rota = (metodo: string, caminho: string): RotaModulo => api.rotas!.find((r) => r.metodo === metodo && r.caminho === caminho)!;
 
 beforeEach(() => {
-  api = criarModuloApiPromotor({ repositorio: repositorioMemoria() });
+  repo = repositorioMemoria();
+  repo.definirCategoria(T1, CATEGORIA, 'Massas');
+  api = criarModuloApiPromotor({ repositorio: repo });
 });
 
 describe('permissões e licença das rotas (regra 6)', () => {
@@ -104,7 +107,7 @@ describe('relatórios do BKO de trade (RF-PRO-12)', () => {
     const a = criarCtx(relogio, { usuario: uuid(0xb9), perfil: 'analista', carteira: 'tenant', usuarios: 'tenant' });
     const r = RelatorioShareApi.parse(await rota('GET', 'relatorios/share').executar(a.rota({ query: FiltroRelatorio.parse({}) })));
     expect(r.linhas).toHaveLength(1);
-    expect(r.linhas[0]).toMatchObject({ cliente_id: LOJA, share_pct: 50, meta_pct: 40, situacao: 'atingiu' });
+    expect(r.linhas[0]).toMatchObject({ cliente_id: LOJA, cliente_nome: 'Mercado Bom Preço', categoria_nome: 'Massas', share_pct: 50, meta_pct: 40, situacao: 'atingiu' });
     expect(r).toMatchObject({ de: '2026-10-05', ate: '2026-11-03' });
   });
 
@@ -121,7 +124,7 @@ describe('relatórios do BKO de trade (RF-PRO-12)', () => {
     const r = RelatorioRupturaApi.parse(await rota('GET', 'relatorios/ruptura').executar(a.rota({ query: {} })));
     // a v2 é a mais recente, mas não conferiu o mix: vale a v1
     expect(r.linhas).toHaveLength(1);
-    expect(r.linhas[0]).toMatchObject({ cliente_id: LOJA, total: 2, ruptura_total: 1, ruptura_pct: 50 });
+    expect(r.linhas[0]).toMatchObject({ cliente_id: LOJA, cliente_nome: 'Mercado Bom Preço', total: 2, ruptura_total: 1, ruptura_pct: 50 });
     expect(r.linhas[0]!.visita_loja_id).not.toBe(v2.id);
   });
 

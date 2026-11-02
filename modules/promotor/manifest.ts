@@ -52,6 +52,8 @@ export const manifest = defineModule({
   ],
   consome: ['core.visita.checkin@1', 'core.visita.checkout@1'],
   usaExtensoes: ['cliente.abas', 'visita.etapas_checkout', 'inicio.cards'],
+  // ADR 0012: nome da loja nos relatórios do BKO de trade (T-0056)
+  usaConsultas: ['core.cadastro_resumo@1'],
   acoes: {
     // --- coletas (app Macuxi Campo; só com check-in aberto, RN-PRO-02) ---
     'coleta.registrar': { perfis: [...PERFIL_COLETA], descricao: 'Registrar a visita de loja e as fotos da coleta (RN-PRO-02)' },

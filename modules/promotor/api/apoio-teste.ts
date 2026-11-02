@@ -23,6 +23,9 @@ export const PRODUTO = uuid(0xe2);
 export const MIX = uuid(0xe3);
 export const META = uuid(0xe4);
 
+/** Cadastro do Core visto pela consulta `core.cadastro_resumo@1` nos testes. */
+export const NOMES_LOJA: Readonly<Record<string, string>> = { [LOJA]: 'Mercado Bom Preço' };
+
 export interface EventoPublicado {
   nome: string;
   payload: unknown;
@@ -50,8 +53,11 @@ export function criarCtx(relogio: RelogioDeTeste, op: { tenant?: string; usuario
       arquivos.push(a);
       return { criado: true };
     },
-    async consultar() {
-      throw new Error('consulta não usada pelo Promotor');
+    async consultar(def, entrada) {
+      if (def.nome !== 'core.cadastro_resumo@1') throw new Error(`consulta ${def.nome} não usada pelo Promotor`);
+      const ids = (entrada as { cliente_ids?: string[] }).cliente_ids ?? [];
+      const clientes = ids.filter((id) => NOMES_LOJA[id]).map((id) => ({ id, razao_social: `${NOMES_LOJA[id]} Ltda`, nome_fantasia: NOMES_LOJA[id]!, documento: null, logradouro: null, numero: null, bairro: null, cidade: null, uf: null, ativo: true, external_id: null }));
+      return { clientes, produtos: [], usuarios: [] } as never;
     },
     async auditar() {},
   };

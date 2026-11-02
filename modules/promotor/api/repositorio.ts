@@ -44,14 +44,19 @@ export interface RepositorioPromotor {
   coletasDasVisitas(s: SessaoTenant, entidade: ColetaDaVisita, visitaLojaIds: readonly string[]): Promise<ColetaGuardada[]>;
   /** Visitas de loja com check-in no período (data local do check-in no fuso do tenant). */
   visitasDoPeriodo(s: SessaoTenant, filtro: FiltroVisitas): Promise<VisitaLojaGuardada[]>;
+  /** Nome das categorias de gôndola (cadastro de trade); id sem cadastro fica fora do mapa. */
+  nomesDasCategorias(s: SessaoTenant, ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
 }
 
 /**
  * Implementação em memória (testes e desenvolvimento). NÃO usar em produção: some ao reiniciar o processo.
  * A API de produção só liga o recebimento quando houver o repositório SQL (migração 0015) — veja `api/index.ts`.
  */
-export function criarRepositorioMemoria(fusoParaData: (instante: string, fuso: string) => string): RepositorioPromotor & { limpar(): void } {
+export function criarRepositorioMemoria(
+  fusoParaData: (instante: string, fuso: string) => string,
+): RepositorioPromotor & { limpar(): void; definirCategoria(tenant_id: string, id: string, nome: string): void } {
   const visitas = new Map<string, Map<string, VisitaLojaGuardada>>();
+  const categorias = new Map<string, Map<string, string>>();
   const coletas = new Map<string, Map<string, ColetaGuardada>>();
   const doTenant = <T>(m: Map<string, Map<string, T>>, t: string) => {
     let x = m.get(t);
@@ -87,9 +92,17 @@ export function criarRepositorioMemoria(fusoParaData: (instante: string, fuso: s
         })
         .map(copia);
     },
+    async nomesDasCategorias(s, ids) {
+      const doT = doTenant(categorias, s.tenant_id);
+      return new Map(ids.filter((id) => doT.has(id)).map((id) => [id, doT.get(id)!] as const));
+    },
+    definirCategoria(tenant_id, id, nome) {
+      doTenant(categorias, tenant_id).set(id, nome);
+    },
     limpar() {
       visitas.clear();
       coletas.clear();
+      categorias.clear();
     },
   };
 }
