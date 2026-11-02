@@ -135,3 +135,12 @@ R-20261102-130921-gerente-projetos
 R-20261102-131101-gerente-projetos
 R-20261102-131324-modulo-vendedor
 R-20261102-132632-modulo-catalogo
+R-20261102-142144-engenheiro-apps
+R-20261102-142318-engenheiro-apps
+R-20261102-143726-gerente-projetos
+R-20261102-144002-gerente-projetos
+R-20261102-144310-gerente-projetos
+R-20261102-145215-gerente-projetos
+R-20261102-125814-modulo-integracao
+R-20261102-152452-gerente-projetos
+R-20261102-155648-gerente-projetos
