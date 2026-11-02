@@ -43,6 +43,7 @@ import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idFixo, idMotivoPadrao } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
+import { dadosPromotorFixture, ORDEM_PROMOTOR } from './promotor';
 
 const G = {
   tenant: 0x00,
@@ -320,6 +321,8 @@ export const ORDEM_TABELAS = [
   ...DO_PEDIDO,
   'vendedor.pedido_evento',
   ...ORDEM_T0032,
+  // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
+  ...ORDEM_PROMOTOR,
 ] as const;
 
 export type DadosFixture = Record<(typeof ORDEM_TABELAS)[number], Linha[]>;
@@ -461,6 +464,14 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosSprint1(hojeA, hojeB),
     ...dadosT0029(hojeA, hojeB),
     ...dadosT0032(hojeA),
+    ...dadosPromotorFixture(
+      {
+        A: { tenantId: tA, promotor: A.usuarios.promotor, cliente: A.clientes.c1, visitaCore: A.visitas.promotorC1Hoje, produto: a('produto', 1), produto2: a('produto', 2) },
+        B: { tenantId: tB, promotor: B.usuarios.vendedor, cliente: B.clientes.c1, visitaCore: B.visitas.c1Hoje, produto: b('produto', 1) },
+      },
+      hojeA,
+      hojeB,
+    ),
   };
 }
 
