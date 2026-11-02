@@ -12,3 +12,4 @@ export * from './ranking';
 export * from './alerta';
 export * from './aprovacao';
 export * from './pedido-em-nome';
+export * from './visao';
