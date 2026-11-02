@@ -9,6 +9,8 @@ import { definirApiConector, definirModuloApi, type ContextoConector, type Modul
 import type { z } from 'zod';
 import manifest from '../manifest';
 import { CabecalhosConector, ParamsLote, ParamsPedido, QueryConsultaLote, QueryPedidosPendentes, ReconciliacaoEnvio, ROTAS_HUB, RetornoErp, SinalConector } from '../contracts';
+import { consumidorLoteRecebido } from './aplicar-lote';
+import { consumidorPedidoAprovado, consumidorPedidoStatusAlterado } from './consumidores-pedido';
 import { criarAutenticacaoHub, type ConectorHub } from './autenticacao';
 import { rotaDecidirInativacao } from './bko-inativacao';
 import { criarRotasConectores } from './bko-conectores';
@@ -47,6 +49,8 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined }
 
   return definirModuloApi({
     manifesto: manifest,
+    // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
+    consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado],
     rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),
   });

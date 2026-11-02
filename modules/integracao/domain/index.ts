@@ -24,3 +24,4 @@ export * from './pedido-fila';
 export * from './monitor';
 export * from './topologia';
 export * from './permissoes';
+export * from './cadastro-incompleto';
