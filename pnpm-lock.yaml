@@ -637,6 +637,12 @@ importers:
       '@macuxi/platform-sdk':
         specifier: workspace:*
         version: link:../../packages/platform-sdk
+      '@macuxi/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: ^5.90.0
+        version: 5.105.0(@types/react@19.2.18)(react@19.2.3)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -650,9 +656,30 @@ importers:
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
+      '@types/react':
+        specifier: ~19.2.2
+        version: 19.2.18
+      expo-router:
+        specifier: ~57.0.0
+        version: 57.0.29(e1d4a3a77e240a3fbeb3c485d18e3cc8)
       pg:
         specifier: 8.23.1
         version: 8.23.1
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-native:
+        specifier: 0.86.3
+        version: 0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1)
+      react-native-safe-area-context:
+        specifier: ~5.7.0
+        version: 5.7.0(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
+      react-native-svg:
+        specifier: 15.15.4
+        version: 15.15.4(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)
+      react-native-worklets:
+        specifier: 0.10.1
+        version: 0.10.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(react-native@0.86.3(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)(supports-color@8.1.1)
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
