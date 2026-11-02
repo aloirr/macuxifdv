@@ -1,0 +1,272 @@
+/**
+ * Rotas do Gestor (`/v1/gestor`, T-0055). Declarativas: o `createApp` (apps/api) aplica login, LICENÇA do Gestor
+ * (403 MODULO_INATIVO, RN-CORE-02), PERFIL (por `acao` do manifesto ou `perfis`) e Zod antes do `executar`.
+ * Aqui: o ESCOPO (RN-CORE-04) vem da lista autoritativa da plataforma (`ctx.usuariosVisiveis()`) e é aplicado pelo
+ * domain em toda resposta; fora do escopo = 404 sem revelar existência. Leitura do tenant (analista/admin) é só
+ * leitura (RN-GES-07). Nenhuma rota de pedido aqui (RN-PRO-01): aprovar/rejeitar e o pedido em nome são do Vendedor.
+ */
+import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, uuidPadrao, type ClienteBanco, type ContextoBase, type Perfil, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
+import type { z } from 'zod';
+import manifest from '../manifest';
+import {
+  AjusteRegraAlerta,
+  AlertasQuery,
+  DataQuery,
+  DisponibilidadeEmNomeQuery,
+  ParamsId,
+  ParamsTipoAlerta,
+  ParamsUsuario,
+  RankingQuery,
+  TIPOS_ALERTA,
+  type FichaMembro,
+  type FilaAprovacao,
+  type ListaAlertas,
+  type MembroEquipe,
+  type RankingEquipe,
+  type RegrasAlertaResposta,
+  type VisaoEquipe,
+} from '../contracts';
+import {
+  ajustarRegraAlerta,
+  alertasDoEscopo,
+  dataDaConsulta,
+  disponibilidadePedidoEmNome,
+  dispensarAlerta,
+  equipeDoEscopo,
+  escopoDosVisiveis,
+  fichaDoMembro,
+  filaDeAprovacoes,
+  membrosDoCadastro,
+  parametrosDoTenant,
+  rankingDaEquipe,
+  reconciliarParaViewer,
+  resolverRegras,
+  resumirFila,
+  usuariosDaProjecao,
+  visaoDaEquipe,
+  type EscopoGestor,
+  type EstadoProjecao,
+  type ParametrosGestor,
+} from '../domain';
+import type { AcessoTenant, RepositorioGestor } from './repositorio';
+
+/** Quem LÊ os painéis: a equipe (painel_equipe.ver) e o tenant em leitura (painel_tenant.ver, RN-GES-07). */
+export const PERFIS_LEITURA: readonly Perfil[] = [...new Set([...manifest.acoes['painel_equipe.ver']!.perfis, ...manifest.acoes['painel_tenant.ver']!.perfis])];
+
+const LOTE_CADASTRO = 500;
+
+/** Tudo que uma rota de leitura precisa, carregado na transação do tenant. */
+export interface ContextoGestor {
+  acesso: AcessoTenant;
+  tx: TransacaoTenant;
+  viewer: { id: string; perfil: MembroEquipe['perfil'] };
+  escopo: EscopoGestor;
+  membros: MembroEquipe[];
+  estado: EstadoProjecao;
+  modulos: ReadonlySet<string>;
+  params: ParametrosGestor;
+  agora: string;
+}
+
+/**
+ * Nomes e perfis pelo cadastro do Core (`core.cadastro_resumo@1`, ADR 0012): supervisor/gerente = os usuários visíveis
+ * da plataforma; tenant = quem aparece na projeção. A árvore completa (superior de cada um) entra quando o Core oferecer
+ * a hierarquia por consulta; até lá a equipe fica pendurada em quem consulta (`membrosDoCadastro`).
+ */
+async function carregarMembros(ctx: ContextoBase, tx: TransacaoTenant, escopo: EscopoGestor, estado: EstadoProjecao, visiveis: ReadonlySet<string> | 'tenant'): Promise<MembroEquipe[]> {
+  const eu = ctx.usuario.id;
+  const ids = new Set<string>([eu]);
+  if (escopo.tipo === 'equipe' && visiveis !== 'tenant') for (const id of visiveis) ids.add(id);
+  if (escopo.tipo === 'tenant') for (const id of usuariosDaProjecao(estado)) ids.add(id);
+  const lista = [...ids];
+  const cadastro: { id: string; nome: string; perfil: string }[] = [];
+  for (let i = 0; i < lista.length; i += LOTE_CADASTRO) {
+    const r = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [], produto_ids: [], usuario_ids: lista.slice(i, i + LOTE_CADASTRO) });
+    cadastro.push(...r.usuarios);
+  }
+  const nome = cadastro.find((c) => c.id === eu)?.nome ?? 'Gestor';
+  return membrosDoCadastro({ id: eu, perfil: ctx.usuario.perfil, nome }, cadastro);
+}
+
+export async function carregarContexto(ctx: ContextoBase, repo: RepositorioGestor, db: ClienteBanco, tx: TransacaoTenant): Promise<ContextoGestor> {
+  const viewer = { id: ctx.usuario.id, perfil: ctx.usuario.perfil };
+  const visiveis = await ctx.usuariosVisiveis();
+  const escopo = escopoDosVisiveis(viewer, visiveis);
+  const acesso: AcessoTenant = { db, tenant_id: ctx.usuario.tenant_id };
+  const estado = await repo.estado(acesso);
+  const membros = escopo.tipo === 'nenhum' ? [] : await carregarMembros(ctx, tx, escopo, estado, visiveis);
+  const { params, erro } = parametrosDoTenant(ctx.parametros(), ctx.fuso());
+  if (erro) ctx.log.warn({ erro }, 'parâmetro do Gestor inválido no tenant: usando o padrão');
+  return { acesso, tx, viewer, escopo, membros, estado, modulos: new Set(['core', ...ctx.usuario.modulos]), params, agora: ctx.agora().toISOString() };
+}
+
+type Executar<T> = (g: ContextoGestor, ctx: ContextoBase) => Promise<T>;
+const comGestor = <T>(ctx: ContextoBase, repo: RepositorioGestor, fn: Executar<T>): Promise<T> =>
+  ctx.comTenant(async (db, tx) => fn(await carregarContexto(ctx, repo, db, tx), ctx));
+
+const base = (g: ContextoGestor, data?: string) => ({
+  estado: g.estado,
+  membros: g.membros,
+  viewer: g.viewer,
+  escopo: g.escopo,
+  modulos: g.modulos,
+  agora: g.agora,
+  params: g.params,
+  data: dataDaConsulta(data, g.agora, g.params.fuso),
+});
+
+/** Reconcilia os alertas (tipos do viewer) e devolve a lista atualizada do tenant. */
+async function alertasAtualizados(g: ContextoGestor, repo: RepositorioGestor) {
+  const existentes = await repo.alertas(g.acesso);
+  const ajustes = await repo.ajustesRegras(g.acesso);
+  const ops = reconciliarParaViewer(existentes, { estado: g.estado, membros: g.membros, agora: g.agora, modulos: g.modulos, ajustes, params: g.params });
+  if (ops.abrir.length + ops.atualizar.length + ops.encerrar.length === 0) return existentes;
+  await repo.aplicarOperacoesAlerta(g.acesso, ops, { agora: g.agora, novoId: uuidPadrao });
+  return repo.alertas(g.acesso);
+}
+
+/** Fábrica das rotas sobre um repositório (memória hoje; SQL quando a migração do banco-dados chegar). */
+export function criarRotasGestor(repo: RepositorioGestor): RotaModulo[] {
+  /** GET /v1/gestor/equipe?data= — RF-GES-01: resumo, equipes abaixo e painel do dia de cada pessoa de campo. */
+  const equipe: RotaModulo = {
+    metodo: 'GET',
+    caminho: 'equipe',
+    perfis: PERFIS_LEITURA,
+    carteira: 'filtrar_no_dominio',
+    query: DataQuery,
+    executar: (ctx) => comGestor(ctx, repo, async (g): Promise<VisaoEquipe> => visaoDaEquipe(base(g, (ctx.query as DataQuery).data))),
+  };
+
+  /** GET /v1/gestor/equipe/:usuario_id?data= — RF-GES-02/10: ficha; fora do escopo = 404 (não revela). */
+  const ficha: RotaModulo = {
+    metodo: 'GET',
+    caminho: 'equipe/:usuario_id',
+    perfis: PERFIS_LEITURA,
+    carteira: 'filtrar_no_dominio',
+    params: ParamsUsuario,
+    query: DataQuery,
+    executar: (ctx) =>
+      comGestor(ctx, repo, async (g): Promise<FichaMembro> => {
+        const f = fichaDoMembro({ ...base(g, (ctx.query as DataQuery).data), usuario_id: (ctx.params as z.infer<typeof ParamsUsuario>).usuario_id });
+        if (!f) throw new ErroNaoEncontrado('MEMBRO_NAO_ENCONTRADO', 'Pessoa não encontrada na sua equipe.');
+        return f;
+      }),
+  };
+
+  /** GET /v1/gestor/ranking?indicador=&periodo=&data= — RF-GES-03 (desempate total no domain). */
+  const ranking: RotaModulo = {
+    metodo: 'GET',
+    caminho: 'ranking',
+    perfis: PERFIS_LEITURA,
+    carteira: 'filtrar_no_dominio',
+    query: RankingQuery,
+    executar: (ctx) =>
+      comGestor(ctx, repo, async (g): Promise<RankingEquipe> => {
+        const q = ctx.query as RankingQuery;
+        const b = base(g, q.data);
+        return rankingDaEquipe({ estado: g.estado, membros: equipeDoEscopo(g), viewer: g.viewer, indicador: q.indicador, periodo: q.periodo, data_ref: b.data, modulos: g.modulos, params: g.params, agora: g.agora });
+      }),
+  };
+
+  /** GET /v1/gestor/aprovacoes — RF-GES-04, RN-GES-03/04/07: fila com prazo em dias úteis; quem decide é o Vendedor. */
+  const aprovacoes: RotaModulo = {
+    metodo: 'GET',
+    caminho: 'aprovacoes',
+    perfis: PERFIS_LEITURA,
+    carteira: 'filtrar_no_dominio',
+    executar: (ctx) =>
+      comGestor(ctx, repo, async (g): Promise<FilaAprovacao> => {
+        const itens = filaDeAprovacoes({ estado: g.estado, viewer: g.viewer, escopo: g.escopo, agora: g.agora, modulos: g.modulos, params: g.params });
+        return { itens, resumo: resumirFila(itens), calculado_em: g.agora };
+      }),
+  };
+
+  /** GET /v1/gestor/alertas?status= — RF-GES-07: reconcilia e lista os alertas do escopo (padrão: abertos e dispensados). */
+  const alertas: RotaModulo = {
+    metodo: 'GET',
+    caminho: 'alertas',
+    perfis: PERFIS_LEITURA,
+    carteira: 'filtrar_no_dominio',
+    query: AlertasQuery,
+    executar: (ctx) =>
+      comGestor(ctx, repo, async (g): Promise<ListaAlertas> => {
+        const q = ctx.query as AlertasQuery;
+        const todos = await alertasAtualizados(g, repo);
+        return { itens: alertasDoEscopo(todos, g.escopo, { status: q.status, ativos: !q.status, modulos: g.modulos }), calculado_em: g.agora };
+      }),
+  };
+
+  /** POST /v1/gestor/alertas/:id/dispensar — RF-GES-07 (supervisor/gerente); auditado (RN-AUD-01); idempotente. */
+  const dispensar: RotaModulo = {
+    metodo: 'POST',
+    caminho: 'alertas/:id/dispensar',
+    acao: 'alerta_equipe.dispensar',
+    carteira: 'filtrar_no_dominio',
+    params: ParamsId,
+    executar: (ctx) =>
+      comGestor(ctx, repo, async (g) => {
+        const { id } = ctx.params as z.infer<typeof ParamsId>;
+        const atual = (await repo.alertas(g.acesso)).find((a) => a.id === id) ?? null;
+        const r = dispensarAlerta(atual && alertasDoEscopo([atual], g.escopo, { modulos: g.modulos }).length > 0 ? atual : null, g.escopo);
+        if (!r.ok && r.codigo === 'ALERTA_NAO_ENCONTRADO') throw new ErroNaoEncontrado(r.codigo, 'Alerta não encontrado na sua equipe.');
+        if (!r.ok) throw new ErroHttpModulo(409, r.codigo, 'Este alerta já foi encerrado: a condição normalizou. Atualize a lista.');
+        if (r.repetido) return r.alerta;
+        await repo.gravarAlerta(g.acesso, r.alerta);
+        await g.tx.auditar({ acao: 'alerta_equipe.dispensar', entidade: 'alerta', entidade_id: id, antes: { status: 'aberto', tipo: r.alerta.tipo }, depois: { status: 'dispensado' } });
+        return r.alerta;
+      }),
+  };
+
+  /** GET /v1/gestor/alertas/regras — regras vigentes do tenant (BKO, `alerta_regra.gerenciar`). */
+  const regras: RotaModulo = {
+    metodo: 'GET',
+    caminho: 'alertas/regras',
+    acao: 'alerta_regra.gerenciar',
+    carteira: 'nao_se_aplica',
+    executar: (ctx) =>
+      ctx.comTenant(async (db): Promise<RegrasAlertaResposta> => {
+        const r = resolverRegras(await repo.ajustesRegras({ db, tenant_id: ctx.usuario.tenant_id }));
+        return { regras: TIPOS_ALERTA.map((t) => r[t]) };
+      }),
+  };
+
+  /** PUT /v1/gestor/alertas/regras/:tipo — liga/desliga e ajusta uma regra (analista/admin); auditado. */
+  const ajustarRegra: RotaModulo = {
+    metodo: 'PUT',
+    caminho: 'alertas/regras/:tipo',
+    acao: 'alerta_regra.gerenciar',
+    carteira: 'nao_se_aplica',
+    params: ParamsTipoAlerta,
+    corpo: AjusteRegraAlerta,
+    executar: (ctx) =>
+      ctx.comTenant(async (db, tx) => {
+        const { tipo } = ctx.params as z.infer<typeof ParamsTipoAlerta>;
+        const acesso = { db, tenant_id: ctx.usuario.tenant_id };
+        const atuais = await repo.ajustesRegras(acesso);
+        const r = ajustarRegraAlerta(atuais, tipo, ctx.corpo);
+        if (!r.ok) throw new ErroRegraNegocio('REGRA_ALERTA_INVALIDA', r.erros.join(' '));
+        await repo.gravarAjustesRegras(acesso, r.ajustes);
+        await tx.auditar({ acao: 'alerta_regra.gerenciar', entidade: 'alerta_regra', entidade_id: null, antes: { tipo, ajuste: atuais[tipo] ?? null }, depois: { tipo, ajuste: r.ajustes[tipo] } });
+        return resolverRegras(r.ajustes)[tipo];
+      }),
+  };
+
+  /**
+   * GET /v1/gestor/pedido-em-nome/disponibilidade?vendedor_id= — RF-GES-05, RN-VEN-35: se o botão aparece e para quem.
+   * O pedido em si é do Vendedor (extensão `pedido.criar_em_nome`, ação de mesmo nome), que revalida tudo.
+   */
+  const emNome: RotaModulo = {
+    metodo: 'GET',
+    caminho: 'pedido-em-nome/disponibilidade',
+    perfis: PERFIS_LEITURA,
+    carteira: 'filtrar_no_dominio',
+    query: DisponibilidadeEmNomeQuery,
+    executar: (ctx) =>
+      comGestor(ctx, repo, async (g) =>
+        disponibilidadePedidoEmNome({ autor: g.viewer, vendedor_id: (ctx.query as DisponibilidadeEmNomeQuery).vendedor_id, membros: equipeDoEscopo(g), modulos: g.modulos }),
+      ),
+  };
+
+  return [equipe, ficha, ranking, aprovacoes, alertas, dispensar, regras, ajustarRegra, emNome];
+}

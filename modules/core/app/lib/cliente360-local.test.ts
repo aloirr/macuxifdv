@@ -230,3 +230,13 @@ describe('modo avião: abrir a ficha do cliente depois de um sync (critério 2 d
     expect((await motor.linhas('titulo')).length).toBe(2);
   });
 });
+
+describe('RN-CORE-16/17: etiqueta de cadastro incompleto na lista local', () => {
+  it('RN-CORE-16: cliente sem CEP vem marcado; completo e linha antiga (sem o campo) não', () => {
+    const lista = listarClientesLocais(
+      { clientes: [cliente(1, 'Sem Cep', { cadastro_incompleto: true, cadastro_campos_faltantes: ['cep'] }), cliente(2, 'Completo', { cadastro_incompleto: false }), cliente(3, 'Antigo')], financeiros: [], titulos: [], historico: [] },
+      HOJE,
+    );
+    expect(Object.fromEntries(lista.map((i) => [i.nome_fantasia, i.cadastro_incompleto]))).toEqual({ 'Sem Cep': true, Completo: false, Antigo: false });
+  });
+});

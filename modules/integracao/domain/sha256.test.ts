@@ -15,4 +15,12 @@ describe('RN-INT-02: SHA-256 puro do domain (vetores conhecidos do NIST)', () =>
     expect(sha256Hex('a'.repeat(1000))).toBe('41edece42d63e8d9bf515a9ba6932e1c20cbc9f5a5d134645adb5db1b9737ea3');
     expect(sha256Hex('Café ☕')).toMatch(/^[0-9a-f]{64}$/);
   });
+  it('RN-INT-02: UTF-8 de vários bytes (acentos, símbolo e emoji) (vetores fixos)', () => {
+    const vetores: Array<[string, string]> = [
+      ['Café ☕', '0c3eecb944c2e450fd5306f55518b2c6bc0bd710732cf11c2baf282f95d594d4'],
+      ['ação — título «ç»', '684da7be49ba132f28d760c325c8c6b3a9f5422de13ce19bf6ce336705194034'],
+      ['日本語 🚀', '2eda23e777ab3214a7e7354613ac6cbf775d6b41f985949a21cec88e78124d20'],
+    ];
+    for (const [t, hex] of vetores) expect(sha256Hex(t)).toBe(hex);
+  });
 });

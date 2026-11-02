@@ -1,6 +1,7 @@
 'use client';
 
-import type { ButtonHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
+import { useEffect, type ButtonHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { ehMensagemTecnica, MENSAGEM_ERRO_PADRAO, mensagemParaTela } from './erros';
 import { IconAlert, IconCheck, IconInfo } from './icons';
 
 export function cx(...c: Array<string | false | null | undefined>): string {
@@ -172,10 +173,18 @@ export function LoadingBlock({ label = 'Carregando…' }: { label?: string }) {
   );
 }
 
-export function ErrorBlock({ message, onRetry }: { message: string; onRetry?: () => void }) {
+/**
+ * Erro com "Tentar de novo". T-0059 (R-20261102-091519): mensagem técnica (JSON de validação, pilha, erro de
+ * programador) nunca vai para a tela — aparece `fallback` (ou a mensagem padrão) e o detalhe vai só para o console.
+ */
+export function ErrorBlock({ message, onRetry, fallback = MENSAGEM_ERRO_PADRAO }: { message: string; onRetry?: () => void; fallback?: string }) {
+  const tecnica = ehMensagemTecnica(message);
+  useEffect(() => {
+    if (tecnica && message) console.error('[erro na tela]', message);
+  }, [tecnica, message]);
   return (
     <Notice tone="danger">
-      {message}{' '}
+      {mensagemParaTela(message, fallback, () => undefined)}{' '}
       {onRetry && (
         <button type="button" className="font-semibold underline" onClick={onRetry}>
           Tentar de novo

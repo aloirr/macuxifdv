@@ -2,8 +2,8 @@
  * Linhas do banco → respostas REST (`Order`, `OrderDetail`; T-0029 §3.3). Funções puras: o texto de pendência, o
  * `pode_decidir` e o histórico saem daqui, iguais para a lista, o detalhe e o PDF.
  */
-import type { AprovacaoDoPedido, ClienteDoPedido, Order, OrderDetail, OrderItem } from '../contracts';
-import { politicaDosParametros, quemDecide, textoPendencia, type NivelAprovacao } from '../domain';
+import type { AprovacaoDoPedido, ClienteDoPedido, FaturamentoDoPedido, Order, OrderDetail, OrderItem } from '../contracts';
+import { camposFaturamento, politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, type NivelAprovacao } from '../domain';
 import type { OrderStatus } from '../domain/order';
 
 export interface LinhaPedido {
@@ -31,6 +31,27 @@ export interface LinhaPedido {
   updated_at: string;
   itens: number;
   unidades: number;
+  // T-0054: resumo do retorno do ERP (só com a migração do faturamento)
+  faturado_cents?: number | null;
+  devolvido_cents?: number | null;
+  notas_faturamento?: number | null;
+  ultima_nota_numero?: string | null;
+}
+
+/** T-0054: nota de faturamento e de devolução do pedido (detalhe). */
+export interface LinhaNotaFaturamento {
+  nota_numero: string | null;
+  nota_serie: string | null;
+  faturado_em: string;
+  parcial: boolean;
+  nota_total_cents: number | null;
+  unidades: number;
+}
+export interface LinhaNotaDevolucao {
+  nota_numero: string;
+  nota_serie: string | null;
+  emitida_em: string;
+  total_cents: number;
 }
 
 export interface LinhaItem {
@@ -42,6 +63,8 @@ export interface LinhaItem {
   preco_tabela_cents: number;
   desconto_pct: number;
   total_cents: number;
+  quantidade_faturada?: number | null;
+  quantidade_base?: number | null;
 }
 
 export interface LinhaEvento {
@@ -85,6 +108,26 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     units: num(l.unidades),
     nivel_aprovacao: l.status === 'pending_approval' ? l.nivel_aprovacao : null,
     pode_decidir: l.status === 'pending_approval' && l.nivel_aprovacao ? quemDecide(perfil, l.nivel_aprovacao).pode : false,
+    ...camposFaturamento(l),
+  };
+}
+
+export function paraFaturamento(l: LinhaPedido, notas: LinhaNotaFaturamento[], devolucoes: LinhaNotaDevolucao[]): FaturamentoDoPedido {
+  const faturado = num(l.faturado_cents ?? 0);
+  const devolvido = num(l.devolvido_cents ?? 0);
+  return {
+    faturado_cents: faturado,
+    devolvido_cents: devolvido,
+    devolucao: situacaoDevolucao(faturado, devolvido),
+    notas: notas.map((n) => ({
+      numero: n.nota_numero,
+      serie: n.nota_serie,
+      faturado_em: n.faturado_em,
+      parcial: n.parcial,
+      total_cents: n.nota_total_cents === null ? null : num(n.nota_total_cents),
+      unidades: num(n.unidades),
+    })),
+    devolucoes: devolucoes.map((d) => ({ numero: d.nota_numero, serie: d.nota_serie, emitida_em: d.emitida_em, total_cents: num(d.total_cents) })),
   };
 }
 
@@ -112,6 +155,8 @@ export function paraItem(i: LinhaItem): OrderItem {
     unit_price_cents: num(i.preco_tabela_cents),
     discount_pct: num(i.desconto_pct),
     total_cents: num(i.total_cents),
+    ...(i.quantidade_faturada === undefined || i.quantidade_faturada === null ? {} : { quantity_invoiced: num(i.quantidade_faturada) }),
+    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: num(i.quantidade_base) }),
   };
 }
 
@@ -130,6 +175,7 @@ export function paraDetalhe(
   eventos: LinhaEvento[],
   perfil: string,
   parametros: Readonly<Record<string, unknown>>,
+  faturamento?: { notas: LinhaNotaFaturamento[]; devolucoes: LinhaNotaDevolucao[] },
 ): OrderDetail {
   return {
     ...paraOrder(l, parametros, perfil),
@@ -137,5 +183,6 @@ export function paraDetalhe(
     history: paraHistorico(eventos),
     cliente: l.cliente_resumo,
     aprovacao: aprovacaoDoPedido(l, perfil, parametros),
+    ...(faturamento ? { faturamento: paraFaturamento(l, faturamento.notas, faturamento.devolucoes) } : {}),
   };
 }

@@ -7,6 +7,7 @@
  */
 import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_NOTIFICACAO_CRIADA } from '../contracts';
+import { entidadesDoPush } from '../domain';
 import { enviarPush, pushAtivo } from './push';
 
 interface NotificacaoParaPush {
@@ -42,7 +43,7 @@ export function criarConsumidorPushNotificacao(opcoes: OpcoesPush = {}): Consumi
         )
       ).rows;
       const r = await enviarPush(
-        tokens.map((t) => ({ token: t.push_token, titulo: n.titulo, corpo: n.corpo, link: n.link, prioridade: n.prioridade })),
+        tokens.map((t) => ({ token: t.push_token, titulo: n.titulo, corpo: n.corpo, link: n.link, prioridade: n.prioridade, entidades: entidadesDoPush(p.tipo, n.link) })),
         { env: opcoes.env, fetcher: opcoes.fetcher },
       );
       if (r.enviadas > 0) await ctx.db.query('update core.notificacao set push_enviado_em = $2 where id = $1', [p.notificacao_id, ctx.agora()]);

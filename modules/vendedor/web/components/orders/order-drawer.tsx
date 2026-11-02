@@ -8,6 +8,7 @@ import { Button, Drawer, ErrorBlock, formatDateTime, LoadingBlock, type NoticeTo
 import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../../contracts';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
 import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
+import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO } from '../../lib/detalhe-pedido';
 import { usePedido, useSessaoDoBko } from '../../lib/queries';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
 import { OrderStatusBadge } from './status';
@@ -26,21 +27,23 @@ const NIVEL: Record<string, string> = { supervisor: 'Supervisor', gerente: 'Gere
 /** Gaveta do pedido (RF-VEN-04/05/06): itens, histórico, aprovação e Exportar PDF (cliente | interno) pelo diálogo de impressão. */
 export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: string; onClose: () => void }) {
   const detail = usePedido(order?.id ?? null);
+  const dados = detail.data?.pedido ?? null;
+  const semDocumento = detail.data?.semDocumento ?? false;
   const sessao = useSessaoDoBko();
   const podeAprovar = usePode('pedido.aprovar');
   const [aviso, setAviso] = useState<{ tom: NoticeTone; texto: string } | null>(null);
   const [erroPdf, setErroPdf] = useState<string | null>(null);
   const [gerando, setGerando] = useState<OrderPdfView | null>(null);
-  const o = detail.data ?? order;
+  const o = dados ?? order;
 
   const exportar = async (view: OrderPdfView) => {
-    if (!detail.data) return;
+    if (!dados) return;
     setGerando(view);
     setErroPdf(null);
     try {
-      const html = buildOrderPdfHtml(pdfDoPedido(detail.data), view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
+      const html = buildOrderPdfHtml(pdfDoPedido(dados), view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
       // o título vira o nome sugerido do arquivo no "Salvar como PDF" do navegador
-      await imprimirHtml(html, orderPdfFileName(detail.data.number || null, view).replace(/\.pdf$/, ''));
+      await imprimirHtml(html, orderPdfFileName(dados.number || null, view).replace(/\.pdf$/, ''));
     } catch (e) {
       setErroPdf(errorMessage(e));
     } finally {
@@ -48,7 +51,9 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     }
   };
 
-  const aprovacao = detail.data?.aprovacao ?? null;
+  const aprovacao = dados?.aprovacao ?? null;
+  // T-0054: coluna "Faturado" só quando o retorno do ERP trouxe quantidades
+  const temFaturado = dados?.items.some((it) => it.quantity_invoiced !== undefined) ?? false;
 
   return (
     <Drawer
@@ -63,28 +68,29 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
             <OrderStatusBadge status={o.status} situacaoOrcamento={o.situacao_orcamento} />
             {o.erp_order_code && <span className="text-[12px] text-ink-2">ERP {o.erp_order_code}</span>}
             <div className="ml-auto flex gap-2">
-              <Button size="sm" disabled={!detail.data || gerando !== null} onClick={() => void exportar('customer')} data-testid="pedido.pdf.cliente">
+              <Button size="sm" disabled={!dados || gerando !== null} title={dados ? undefined : DICA_PDF_SEM_DETALHE} onClick={() => void exportar('customer')} data-testid="pedido.pdf.cliente">
                 {gerando === 'customer' ? 'Gerando…' : 'PDF do cliente'}
               </Button>
-              <Button size="sm" disabled={!detail.data || gerando !== null} onClick={() => void exportar('bko')} data-testid="pedido.pdf.interno">
+              <Button size="sm" disabled={!dados || gerando !== null} title={dados ? undefined : DICA_PDF_SEM_DETALHE} onClick={() => void exportar('bko')} data-testid="pedido.pdf.interno">
                 {gerando === 'bko' ? 'Gerando…' : 'PDF interno'}
               </Button>
             </div>
           </div>
           {erroPdf && <Notice tone="danger">Não deu para abrir a impressão: {erroPdf} Tente de novo ou permita pop-ups deste site.</Notice>}
+          {semDocumento && <Notice tone="warning">{MSG_SEM_DOCUMENTO}</Notice>}
           <AvisoDeDecisao aviso={aviso} onClose={() => setAviso(null)} />
           {enviadoAoErp(o.status) && <Notice tone="info">{MSG_CANCELAR_APOS_ENVIO}</Notice>}
           {o.status === 'pending_approval' && o.pending_reason && <Notice tone="warning">{o.pending_reason}</Notice>}
           {o.status === 'rejected' && o.rejection_reason && <Notice tone="danger">Motivo: {o.rejection_reason}</Notice>}
 
-          {aprovacao && podeAprovar && aprovacao.pode_decidir && detail.data && (
+          {aprovacao && podeAprovar && aprovacao.pode_decidir && dados && (
             <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
               <h3 className="m-0 font-display text-[16px] font-bold">Decisão</h3>
               <span className="text-[13px] text-ink-2">
                 Desconto {formatPct(aprovacao.desconto_efetivo_pct)} · alçada do vendedor {formatPct(aprovacao.limite_vendedor_pct)} · cabe ao nível {NIVEL[aprovacao.nivel] ?? aprovacao.nivel}
                 {aprovacao.acima_do_nivel ? ' (decisão registrada como acima do nível)' : ''}
               </span>
-              <BotoesDeDecisao pedido={detail.data} tamanho="md" onFeito={(tom, texto) => setAviso({ tom, texto })} />
+              <BotoesDeDecisao pedido={dados} tamanho="md" onFeito={(tom, texto) => setAviso({ tom, texto })} />
             </section>
           )}
 
@@ -96,7 +102,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
               {o.items_count} itens · {o.units} un.
             </Field>
             <Field label="Desconto">{formatPct(o.discount_pct)}</Field>
-            {detail.data?.cliente?.documento ? <Field label="Documento do cliente">{detail.data.cliente.documento}</Field> : null}
+            {dados?.cliente?.documento ? <Field label="Documento do cliente">{dados.cliente.documento}</Field> : null}
           </div>
 
           <div className="flex flex-col gap-1 rounded-xl border border-line bg-surface p-4 text-[14px] tabular-nums">
@@ -114,9 +120,55 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
             </div>
           </div>
 
+          {(o.situacao_faturamento?.length || dados?.faturamento) && (
+            <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" data-testid="pedido.faturamento">
+              <h3 className="m-0 font-display text-[16px] font-bold">Faturamento e devolução</h3>
+              {(o.situacao_faturamento ?? []).map((l) => (
+                <span key={l} className="text-[13px]">
+                  {l}
+                </span>
+              ))}
+              {dados?.faturamento && dados.faturamento.notas.length + dados.faturamento.devolucoes.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[420px] border-collapse text-[13px]" data-testid="pedido.notas">
+                    <thead>
+                      <tr>
+                        <th scope="col" className={th}>Nota</th>
+                        <th scope="col" className={th}>Tipo</th>
+                        <th scope="col" className={th}>Data</th>
+                        <th scope="col" className={thNum}>Un.</th>
+                        <th scope="col" className={thNum}>Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dados.faturamento.notas.map((n, i) => (
+                        <tr key={`nf-${n.numero ?? i}-${n.faturado_em}`}>
+                          <td className={`${td} font-mono whitespace-nowrap`}>{n.numero ? `${n.numero}${n.serie ? `/${n.serie}` : ''}` : '—'}</td>
+                          <td className={td}>{n.parcial ? 'Faturamento parcial' : 'Faturamento'}</td>
+                          <td className={`${td} whitespace-nowrap`}>{formatDateTime(n.faturado_em, tz)}</td>
+                          <td className={tdNum}>{n.unidades}</td>
+                          <td className={`${tdNum} whitespace-nowrap`}>{n.total_cents === null ? '—' : formatBRL(n.total_cents)}</td>
+                        </tr>
+                      ))}
+                      {dados.faturamento.devolucoes.map((d, i) => (
+                        <tr key={`dev-${d.numero}-${i}`}>
+                          <td className={`${td} font-mono whitespace-nowrap`}>{`${d.numero}${d.serie ? `/${d.serie}` : ''}`}</td>
+                          <td className={td}>Devolução</td>
+                          <td className={`${td} whitespace-nowrap`}>{formatDateTime(d.emitida_em, tz)}</td>
+                          <td className={tdNum}>—</td>
+                          <td className={`${tdNum} whitespace-nowrap`}>− {formatBRL(d.total_cents)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
           {detail.isPending && <LoadingBlock label="Carregando itens e histórico…" />}
-          {detail.isError && <ErrorBlock message={errorMessage(detail.error)} onRetry={() => void detail.refetch()} />}
-          {detail.data && (
+          {detail.isError && <ErrorBlock message={errorMessage(detail.error)} fallback={MSG_ITENS_INDISPONIVEIS} onRetry={() => void detail.refetch()} />}
+          {dados && (
             <>
               <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
                 <h3 className="m-0 font-display text-[16px] font-bold">Itens</h3>
@@ -129,16 +181,18 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                         <th scope="col" className={thNum}>Qtd</th>
                         <th scope="col" className={thNum}>Tabela</th>
                         <th scope="col" className={thNum}>Total</th>
+                        {temFaturado && <th scope="col" className={thNum}>Faturado</th>}
                       </tr>
                     </thead>
                     <tbody>
-                      {detail.data.items.map((it) => (
+                      {dados.items.map((it) => (
                         <tr key={it.id}>
                           <td className={`${td} font-mono whitespace-nowrap`}>{it.erp_code}</td>
                           <td className={td}>{it.description}</td>
                           <td className={tdNum}>{it.quantity}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.unit_price_cents)}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.total_cents)}</td>
+                          {temFaturado && <td className={tdNum}>{`${it.quantity_invoiced ?? 0} de ${it.quantity_base ?? it.quantity}`}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -149,7 +203,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
               <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
                 <h3 className="m-0 font-display text-[16px] font-bold">Histórico</h3>
                 <ol className="m-0 flex list-none flex-col gap-3 p-0">
-                  {detail.data.history.map((h, i) => (
+                  {dados.history.map((h, i) => (
                     <li key={`${h.at}-${i}`} className="flex gap-3">
                       <span className="w-[92px] shrink-0 text-[12px] text-ink-2 tabular-nums">{formatDateTime(h.at, tz)}</span>
                       <div className="flex min-w-0 flex-col gap-0.5">

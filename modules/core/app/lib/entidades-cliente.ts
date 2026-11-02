@@ -6,6 +6,7 @@
 import { definirEntidadeSync } from '@macuxi/platform-sdk';
 import {
   CarteiraSyncSchema,
+  ClienteEnderecoSyncSchema,
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
   ClienteSyncSchema,
@@ -23,4 +24,6 @@ export const entidadesCliente = [
   pull('cliente_financeiro', ClienteFinanceiroSyncSchema),
   pull('titulo', TituloSyncSchema),
   pull('historico_compra', HistoricoCompraSyncSchema),
+  // Endereços de entrega (RN-VEN-17): pull filtrado pela carteira
+  pull('cliente_endereco', ClienteEnderecoSyncSchema),
 ] as const;

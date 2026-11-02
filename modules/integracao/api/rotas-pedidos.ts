@@ -7,6 +7,7 @@
  */
 import { ErroConector, type ContextoConector } from '@macuxi/platform-sdk';
 import {
+  CABECALHO_CONECTOR_VERSAO,
   ParamsPedido,
   QueryPedidosPendentes,
   RetornoErp,
@@ -16,7 +17,7 @@ import {
   type RetornoAceito,
   type SinalConector,
 } from '../contracts';
-import { aplicarRetornoPedido, selecionarPendentes, type PedidoNaFila } from '../domain';
+import { aplicarRetornoPedido, conectorAtendePedido, selecionarPendentes, versaoInformada, type PedidoNaFila } from '../domain';
 import type { ConectorHub } from './autenticacao';
 import { EVENTO_PEDIDO_RETORNO_ERP } from './eventos';
 import { lerParametrosHub } from './parametros';
@@ -25,7 +26,7 @@ type Ctx<C = unknown, Q = unknown, P = unknown> = ContextoConector<ConectorHub, 
 
 const iso = (v: Date | string | null | undefined): string | null => (v === null || v === undefined ? null : v instanceof Date ? v.toISOString() : new Date(v).toISOString());
 
-interface LinhaFila {
+export interface LinhaFila {
   pedido_uuid: string;
   estado: PedidoNaFila['estado'];
   payload: PedidoNaFila['payload'];
@@ -39,7 +40,7 @@ interface LinhaFila {
   deleted_at: Date | null;
 }
 
-const naFila = (l: LinhaFila): PedidoNaFila => ({
+export const naFila = (l: LinhaFila): PedidoNaFila => ({
   pedido_uuid: l.pedido_uuid,
   estado: l.estado,
   payload: l.payload,
@@ -63,19 +64,28 @@ export async function pedidosPendentes(ctx: Ctx<unknown, ReturnType<typeof Query
   const parametros = lerParametrosHub(ctx.parametros(), ctx.log);
   const limite = Math.min(ctx.query.limite, parametros.pedidosPorConsulta);
   const agora = ctx.agora().toISOString();
+  const versaoConector = versaoInformada(ctx.cabecalhos?.[CABECALHO_CONECTOR_VERSAO.toLowerCase()], null);
   return ctx.comTenant(async (db) => {
+    // ADR 0016: pedido que exige Conector mais novo fica na fila (sem travar os demais do `limit`); o alerta do monitor avisa
+    const { rows: exigencias } = await db.query<{ exige_conector: string }>(
+      "select distinct exige_conector from integracao.pedido_fila_erp where tenant_id = $1 and deleted_at is null and estado in ('pendente', 'enviado') and exige_conector is not null",
+      [ctx.tenantId],
+    );
+    const bloqueadas = exigencias.map((e) => e.exige_conector).filter((e) => !conectorAtendePedido(versaoConector, e));
     // pendentes + enviados vencidos (reentrega por timeout); quem outra consulta já travou fica de fora (skip locked)
     const { rows } = await db.query<LinhaFila>(
       `select pedido_uuid, estado, payload, enviado_em, tentativas, numero_erp, motivo, notas_aplicadas, itens_faturados_acumulados, retencao_codigo, deleted_at
          from integracao.pedido_fila_erp
         where tenant_id = $1 and deleted_at is null and retencao_codigo is null and payload is not null
+          and (exige_conector is null or not (exige_conector = any($5::text[])))
           and (estado = 'pendente' or (estado = 'enviado' and enviado_em <= $2::timestamptz - ($3::float8 * interval '1 minute')))
         order by aprovado_em, pedido_uuid
         limit $4
         for update skip locked`,
-      [ctx.tenantId, agora, parametros.timeoutEnvioMin, limite],
+      [ctx.tenantId, agora, parametros.timeoutEnvioMin, limite, bloqueadas],
     );
-    const sel = selecionarPendentes(rows.map(naFila), agora, { limite, timeoutMin: parametros.timeoutEnvioMin });
+    // o domain repete o filtro pelo conteúdo do payload (linha antiga sem `exige_conector` gravado)
+    const sel = selecionarPendentes(rows.map(naFila), agora, { limite, timeoutMin: parametros.timeoutEnvioMin, versaoConector });
     for (const a of sel.atualizacoes) {
       await db.query(
         `update integracao.pedido_fila_erp set estado = $3, enviado_em = $4, tentativas = $5, conector_id = $6 where tenant_id = $1 and pedido_uuid = $2`,

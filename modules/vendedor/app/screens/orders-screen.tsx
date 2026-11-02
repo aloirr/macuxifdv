@@ -1,6 +1,7 @@
 /**
  * Pedidos do mês (Pedidos.dc.html), incluindo os que estão na fila do aparelho.
- * Atualiza ao abrir e ao puxar a tela; na Gestão também a cada 60 s (pedidos novos para decidir).
+ * RN-CORE-23 (T-0054): sem consulta periódica própria. Ao abrir a tela só relê o aparelho; o pull vem do motor de sync da
+ * plataforma (a cada `sync_auto_min`, ao abrir o app e ao voltar ao primeiro plano depois de 30 min); puxar = Sincronizar.
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { quantidadeNaoCancelada, totalDoPeriodo } from '../../domain/totais';
@@ -18,11 +19,8 @@ import type { PedidoDaLista } from '../lib/pedidos';
 import { irParaNovoPedido, irParaPedido } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
-/** Só a Gestão repete a busca com a tela aberta (custo de bateria e dados no 4G do Campo). */
-const POLL_GESTAO_MS = 60_000;
-
 export default function OrdersScreen() {
-  const { pedidos: orders, tz, offline, atualizarPedidos: refreshOrders, reenviarFila: flushOutbox, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
+  const { pedidos: orders, tz, offline, atualizarPedidos: refreshOrders, sincronizarAgora, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
   // Gestão (supervisor/gerente): lista da equipe com a aba "Para aprovar" primeiro (T-0029 §8); o Campo é do vendedor
   const gestao = useVisaoShell().app === 'gestao';
   const paraDecidir = useMemo(() => new Set(aguardandoMinhaDecisao.map((p) => p.id)), [aguardandoMinhaDecisao]);
@@ -31,13 +29,11 @@ export default function OrdersScreen() {
   const [filtro, setFiltro] = useState<OrderFilter | 'decide' | 'approved' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // RN-CORE-23: ao focar, só relê o aparelho (sem rede, sem timer)
   useFocusEffect(
     useCallback(() => {
       void refreshOrders();
-      if (!gestao) return undefined;
-      const h = setInterval(() => void refreshOrders(), POLL_GESTAO_MS);
-      return () => clearInterval(h);
-    }, [refreshOrders, gestao]),
+    }, [refreshOrders]),
   );
 
   const month = localIsoDate(new Date(), tz).slice(0, 7);
@@ -61,7 +57,8 @@ export default function OrdersScreen() {
       refreshing={refreshing || sync.running}
       onRefresh={() => {
         setRefreshing(true);
-        void Promise.all([flushOutbox(), refreshOrders()]).finally(() => setRefreshing(false));
+        // RN-CORE-23: puxar para baixo = Sincronizar (envia a fila e roda o sync do motor da plataforma)
+        void sincronizarAgora().finally(() => setRefreshing(false));
       }}>
       <View style={styles.header}>
         <View style={{ gap: 2, flex: 1 }}>
@@ -95,7 +92,7 @@ export default function OrdersScreen() {
           <OrderRow key={o.id} o={o} last={i === visible.length - 1} tz={tz} mostrarVendedor={gestao} />
         ))}
       </Card>
-      {!offline ? <Text style={[t.small, { textAlign: 'center' }]}>{gestao ? 'Atualiza a cada 1 min · puxe para atualizar' : 'Puxe para atualizar'}</Text> : null}
+      {!offline ? <Text style={[t.small, { textAlign: 'center' }]}>Puxe para sincronizar</Text> : null}
       {offline ? (
         <Pressable accessibilityRole="button" onPress={() => router.push('/profile' as never)}>
           <Text style={[t.small, { textAlign: 'center', color: colors.warning }]}>Modo sem sinal ligado · desligue no Perfil</Text>

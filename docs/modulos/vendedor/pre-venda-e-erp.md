@@ -19,10 +19,10 @@ Converter ── push (pedido novo, orcamento_origem_id) ► valida a validade e
 ```
 
 ## Retorno do ERP (pronto e ligado)
-- Consumidor `integracao.pedido.retorno_erp@1` em `api/retorno-erp.ts`, registrado em `apiVendedor.consumidores`; regra pura em `domain/retorno-erp.ts` (`planejarRetornoErp`, `itensFaturadosDoRetorno`).
+- Consumidor ÚNICO de `integracao.pedido.retorno_erp@1` em `api/retorno-erp.ts` (T-0053 + T-0054), registrado em `apiVendedor.consumidores`. As regras puras ficam em `domain/retorno-erp.ts`: `planejarRetornoErp` para o status e `itensDoFaturamento` para os itens, com saldo por sequência. Faturamento gravado, devolução e telas: `retorno-erp.md`.
 - O pedido só anda para a frente (a ordem dos eventos não é garantida): `aprovado → enviado ao ERP → integrado → faturado parcial → faturado`; `rejeitado_erp` vale até `enviado ao ERP` (motivo vira `motivo_rejeicao` "Recusado pelo ERP: …"); `cancelado` vem só do ERP e vale do aprovado em diante (`motivo_cancelamento` "Cancelado no ERP: …"). Repetido/atrasado/pedido nunca enviado = ignorado com log sem dado pessoal.
 - Cada transição grava `pedido_evento` com autor "ERP" (perfil `erp`) e publica `vendedor.pedido.status_alterado@1` (autor nulo). A 2ª nota parcial não muda o status (o banco não aceita `de = para`): só publica o faturado.
-- `vendedor.pedido.faturado@1`: com `itens_faturados`, traduz a `sequencia` (1..n do pedido enviado) em `produto_id`; `faturado_total` sem itens e sem parcial antes = o pedido inteiro; `faturado_total` sem itens depois de parcial **não publica** (sem o acumulado por item, contaria em dobro) até a coluna `pedido_item.quantidade_faturada` (0013).
+- `vendedor.pedido.faturado@1`: com `itens_faturados`, traduz a `sequencia` (1..n do pedido enviado) em `produto_id`; `faturado_total` sem itens e sem parcial antes = o pedido inteiro; Sem a migração do faturamento, `faturado_total` sem itens depois de parcial **não publica**: sem o acumulado por item, contaria em dobro. Com a migração, `FATURAMENTO_LIGADO` liga a tabela `pedido_faturamento` e esse caso fatura o saldo (`retorno-erp.md`).
 - O contrato consumido é espelhado em `contracts/pre-venda.ts` (`RetornoErpConsumido`, `passthrough`), sem depender do pacote da integração.
 
 ## Orçamento (pronto atrás de repositório; liga com a 0013)
