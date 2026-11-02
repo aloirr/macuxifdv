@@ -35,8 +35,10 @@ interface Line {
   quantity: number;
   unit_price_cents: number;
   total_cents: number;
-  /** T-0054: unidades faturadas pelo ERP (ausente = sem retorno de faturamento) */
+  /** T-0054: unidades faturadas pelo ERP, na unidade base (ausente = sem retorno de faturamento) */
   quantity_invoiced?: number;
+  /** quantidade na unidade base (0013), para comparar com o faturado */
+  quantity_base?: number;
 }
 
 export default function OrderDetailScreen() {
@@ -94,7 +96,7 @@ export default function OrderDetailScreen() {
   const number = queued ? null : base!.number;
   const lines: Line[] = queued
     ? (qd?.lines ?? []).map((l) => ({ key: l.product_id, ...l }))
-    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced }));
+    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
   const situacaoFaturamento = queued ? [] : (base?.situacao_faturamento ?? []);
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
@@ -333,7 +335,7 @@ export default function OrderDetailScreen() {
                 <Text style={t.small}>
                   {l.quantity} × {formatBRL(l.unit_price_cents)}
                 </Text>
-                {textoItemFaturado(l.quantity, l.quantity_invoiced) ? <Text style={[t.small, { color: colors.accentInk }]}>{textoItemFaturado(l.quantity, l.quantity_invoiced)}</Text> : null}
+                {textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced) ? <Text style={[t.small, { color: colors.accentInk }]}>{textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced)}</Text> : null}
               </View>
               <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }]}>{formatBRL(l.total_cents)}</Text>
             </View>

@@ -14,10 +14,15 @@
 ## Travado pela nuvem
 | Caminho | Tarefa | Branch | Desde |
 |---|---|---|---|
-| `modules/integracao/web/**`, `docs/modulos/integracao/monitor-bko.md` | T-0051 | nuvem/T-0051-monitor-bko (entregue na branch, PR pendente) | 2026-11-02 |
+| `modules/integracao/web/**`, `docs/modulos/integracao/monitor-bko.md` | T-0051 | nuvem/T-0051-monitor-bko (PR #38) | 2026-11-02 |
+| `modules/vendedor/**` (menos db), `docs/modulos/vendedor/**` | T-0054 | nuvem (PR #44) | 2026-11-02 |
+| `modules/gestor/**` (menos db) | T-0055 | nuvem (PR #40) | 2026-11-02 |
+| `modules/promotor/**` (menos db) | T-0056 | nuvem (PR #41) | 2026-11-02 |
+| `modules/pesquisa/**` (menos db) | T-0057 | nuvem (PR #43) | 2026-11-02 |
+| `modules/treinamento/**` (menos db) | T-0058 | nuvem (PR #42) | 2026-11-02 |
 
 Nenhum agente local altera caminho listado aqui. Destravar quando o merge chegar no pull do `main`.
-Destravados em 2026-11-02: T-0050 (`.claude/hooks/**`, `.claude/settings.json`, `scripts/coord*.mjs`; 7d87a32). Destravados em 2026-11-01: T-0046 (`modules/gestor/**`, PR #33); T-0048 (`apps/conector/**`, `conector.md`; 12e45b3) e T-0049 (`.github/**`, `scripts/ci/**`; 78cce46); T-0044 (`.claude/hooks/**`, `.claude/settings.json`, `scripts/coord*.mjs`; f86f59b) e T-0043 (`packages/config/**`, `packages/comum/**`, `eslint.config.*`; dd9ff94); T-0033 (`.github/**`, `turbo.json`, `package.json` da raiz, `scripts/**`; fa6d5fa) e T-0040 (`modules/promotor/contracts|domain/**`, 3090263); T-0036 (`modules/treinamento/**`, 789a191) e T-0037 (`modules/core/domain|contracts/**`, 4c08b91). Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
+Destravados em 2026-11-02: T-0053 (`modules/vendedor/**`, PR #39, 4067742; travado de novo pela T-0054) e T-0052 etapa 1 (`modules/catalogo/**`, PR #45, 39a7e9c); T-0050 (`.claude/hooks/**`, `.claude/settings.json`, `scripts/coord*.mjs`; 7d87a32). Destravados em 2026-11-01: T-0046 (`modules/gestor/**`, PR #33); T-0048 (`apps/conector/**`, `conector.md`; 12e45b3) e T-0049 (`.github/**`, `scripts/ci/**`; 78cce46); T-0044 (`.claude/hooks/**`, `.claude/settings.json`, `scripts/coord*.mjs`; f86f59b) e T-0043 (`packages/config/**`, `packages/comum/**`, `eslint.config.*`; dd9ff94); T-0033 (`.github/**`, `turbo.json`, `package.json` da raiz, `scripts/**`; fa6d5fa) e T-0040 (`modules/promotor/contracts|domain/**`, 3090263); T-0036 (`modules/treinamento/**`, 789a191) e T-0037 (`modules/core/domain|contracts/**`, 4c08b91). Destravados em 2026-10-31 (merges no main): `scripts/coord*.mjs` e `.claude/**` (T-0005, 23b4192); T-0011, T-0008 parte 1 e T-0005 casos A–B (dcc044d, 0d1c8a1, 3215b2f); T-0007, T-0012 e `.claude/hooks/**` (6fba044, f4fdbe5, d277a55); T-0011 v2 (9f06e77); guardião v2 (c2f0005) e v3 (5d7e317); T-0013 (`apps/conector/**`, 588da33 — travado de novo pela T-0023); `.claude/settings.json` (PostToolUse religado). T-0021 ajustes (`modules/catalogo/...`, 7b3bb50). Push liberado (main, nuvem/*, alexandre/*, agente/*; sem force/delete).
 Regras: `docs/produto/07-agentes-e-coordenacao.md`, seção "Frentes de trabalho: local e nuvem".
 
 ## ✅ Main verde desde 2026-11-01 (CI 41286326232, todas as suítes rodando)
@@ -70,7 +75,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0039](tarefas/T-0039.md) | Checkout validado na API (RN-CORE-12) — Sprint 2 | engenheiro-software, modulo-core | local (destravada; depois da T-0038) | aberta |
 | [T-0040](tarefas/T-0040.md) | Promotor: payloads Zod dos eventos promotor.*@1 — Sprint 2 | modulo-promotor | nuvem (PR #30, 3090263) | concluida |
 | [T-0041](tarefas/T-0041.md) | Catálogo: timeout real do provedor de IA — Sprint 2 | modulo-catalogo | nuvem (PR #29, b8cae16) | concluida |
-| [T-0042](tarefas/T-0042.md) | "Hoje" no fuso do tenant (C6, produção) e testes com hora fixa — Sprint 2 | modulo-core, banco-dados, modulo-vendedor | local | em_revisao (core, banco e vendedor entregaram; falta varredura e revisão) |
+| [T-0042](tarefas/T-0042.md) | "Hoje" no fuso do tenant (C6, produção) e testes com hora fixa — Sprint 2 | modulo-core, banco-dados, modulo-vendedor | local | concluida (revisão 0 🔴, R-20261102-095308; 🟡 da carteira com o modulo-core) |
 | [T-0043](tarefas/T-0043.md) | Prevenção de hora fixa: relógio de teste e lint (sem o job do CI) — Sprint 2 | engenheiro-software | nuvem (PR #34, dd9ff94) | concluida (lint vira erro em 16/11) |
 | [T-0044](tarefas/T-0044.md) | Guardião v5: gh pr merge só com trava — Sprint 2 | alexandre | nuvem (PR #31, f86f59b) | concluida |
 | [T-0045](tarefas/T-0045.md) | Revisões pendentes do engenheiro (T-0014, T-0023, T-0025) — Sprint 2 | engenheiro-software | nuvem (PR #32, 2903882) | concluida (🔴 encaminhados) |
@@ -79,15 +84,22 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0048](tarefas/T-0048.md) | Conector 1.2.1: nota faturada sem itens repetidos (🔴 da T-0023) — Sprint 2 | modulo-integracao | nuvem (PR #36, 12e45b3) | concluida |
 | [T-0049](tarefas/T-0049.md) | Brechas do guardião v5 no CI — Sprint 2 | engenheiro-software | nuvem (78cce46) | concluida |
 | [T-0050](tarefas/T-0050.md) | Guardião v6 — Sprint 2 | alexandre | nuvem (PR #37, governança) | concluida |
-| [T-0051](tarefas/T-0051.md) | Integração: monitor básico no BKO — Sprint 2 | modulo-integracao | nuvem (nuvem/T-0051-monitor-bko) | em_andamento (entregue na branch 96a025f; PR pendente) |
-| [T-0052](tarefas/T-0052.md) | Catálogo de ponta a ponta: rota de busca, ficha, telas do app e BKO de conteúdo — Sprint 3 | modulo-catalogo | nuvem (reservada; o Alexandre abre) | aberta |
-| [T-0053](tarefas/T-0053.md) | Vendedor parte 1: pré-venda e envio ao ERP pelo Hub — Sprint 4 | modulo-vendedor | nuvem (reservada; o Alexandre abre) | aberta |
-| [T-0054](tarefas/T-0054.md) | Vendedor parte 2: retorno do ERP, faturado no app e devolução — Sprint 5 | modulo-vendedor | nuvem (reservada; o Alexandre abre) | aberta |
-| [T-0055](tarefas/T-0055.md) | Gestor: rotas e telas (painéis, ranking, aprovações, pedido em nome) — Sprint 6 | modulo-gestor | nuvem (reservada; o Alexandre abre) | aberta |
-| [T-0056](tarefas/T-0056.md) | Promotor: rotas das coletas e telas da Loja — Sprint 7 | modulo-promotor | nuvem (reservada; o Alexandre abre) | aberta |
-| [T-0057](tarefas/T-0057.md) | Pesquisa: construtor no BKO, resposta no app e resultados — Sprint 7 | modulo-pesquisa | nuvem (reservada; o Alexandre abre) | aberta |
-| [T-0058](tarefas/T-0058.md) | Treinamento: rotas, jornada no app e BKO — Sprint 8 | modulo-treinamento | nuvem (reservada; o Alexandre abre) | aberta |
-| [T-0059](tarefas/T-0059.md) | Teste de campo 02/11: sincronização e detalhe do pedido no BKO — Sprint 4 | engenheiro-apps | local | aberta (prioridade: carga presa em 100%) |
+| [T-0051](tarefas/T-0051.md) | Integração: monitor básico no BKO — Sprint 2 | modulo-integracao | nuvem (PR #38) | em_revisao (CI vermelho só na R2 do grafo-turbo; espera o lote de dependências do engenheiro) |
+| [T-0052](tarefas/T-0052.md) | Catálogo de ponta a ponta: rota de busca, ficha, telas do app e BKO de conteúdo — Sprint 3 | modulo-catalogo | nuvem (PR #45, 39a7e9c) | em_andamento (etapa 1 mesclada; etapa 2 = ligar a aba, o teste D-C00c/D-G00 já vira sozinho) |
+| [T-0053](tarefas/T-0053.md) | Vendedor parte 1: pré-venda e envio ao ERP pelo Hub — Sprint 4 | modulo-vendedor | nuvem (PR #39, 4067742) | concluida (Vendedor parte 1; a parte da T-0061 segue no local e na T-0054) |
+| [T-0054](tarefas/T-0054.md) | Vendedor parte 2: retorno do ERP, faturado no app e devolução — Sprint 5 | modulo-vendedor | nuvem (PR #44) | em_revisao (colide com o #39 no consumidor do retorno do ERP; a sessão unifica antes do merge) |
+| [T-0055](tarefas/T-0055.md) | Gestor: rotas e telas (painéis, ranking, aprovações, pedido em nome) — Sprint 6 | modulo-gestor | nuvem (PR #40) | em_revisao (R2 + teste da varredura do promotor, com o testes) |
+| [T-0056](tarefas/T-0056.md) | Promotor: rotas das coletas e telas da Loja — Sprint 7 | modulo-promotor | nuvem (PR #41) | em_revisao (R2; espera o lote de dependências) |
+| [T-0057](tarefas/T-0057.md) | Pesquisa: construtor no BKO, resposta no app e resultados — Sprint 7 | modulo-pesquisa | nuvem (PR #43) | em_revisao (R2; espera o lote de dependências) |
+| [T-0058](tarefas/T-0058.md) | Treinamento: rotas, jornada no app e BKO — Sprint 8 | modulo-treinamento | nuvem (PR #42) | em_revisao (R2; espera o lote de dependências) |
+| [T-0060](tarefas/T-0060.md) | Cadastro mínimo do cliente (RN-CORE-16/17, RN-VEN-13, RN-INT-14) — Sprint 4 | modulo-core | local (+ Vendedor na T-0053) | em_andamento (desenho pronto; domain do core entregue; contratos em curso) |
+| [T-0061](tarefas/T-0061.md) | Novo pedido: árvore, UN/CX, desconto e acréscimo por item, frete, entrega — Sprint 4 | modulo-vendedor | misto (desenho e schema local; telas na T-0052/T-0053) | em_andamento (desenho pronto; schema e contratos em curso) |
+| [T-0062](tarefas/T-0062.md) | Produto: custo, preço, margem e desconto máximo (preço mínimo) — Sprint 4 | modulo-core | local (+ Vendedor) | aberta (colunas na 0013; contratos com o engenheiro) |
+| [T-0063](tarefas/T-0063.md) | Cadastro de medidas do produto e medida no pedido — Sprint 4 | modulo-vendedor | local + nuvem | aberta (contratos com o engenheiro) |
+| [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | em_andamento (core) |
+| [T-0065](tarefas/T-0065.md) | Apuração da meta pelo tipo e atualização automática de 3–5 min — Sprint 4 | modulo-core | local + nuvem | aberta |
+| [T-0064](tarefas/T-0064.md) | Correções do teste de campo 02/11 tarde (PDFs, vendedor, área segura, Gestão, puxar para atualizar) — vaga de correção | modulo-vendedor | local (Vendedor e Gestor esperam o merge do #44/#40) | aberta |
+| [T-0059](tarefas/T-0059.md) | Teste de campo 02/11: sincronização e detalhe do pedido no BKO — Sprint 4 | engenheiro-apps | local | em_andamento (shell, motor e detalhe entregues; falta o ajuste do teste do mobile, segundo plano e APK de 03/11) |
 | [T-0009](tarefas/T-0009.md) | Integração: domínio e contratos do Hub | modulo-integracao | nuvem → local (merge e20f6ac) | concluida (cancelado do ERP ✅ · revisão sem 🔴 · OrderStatus depois do merge da T-0007) |
 | [T-0010](tarefas/T-0010.md) | Promotor: domínio de trade marketing (sem banco, sem telas) | modulo-promotor | local (1ª entrega veio da nuvem, merge 3352d2e) | concluida (155 testes · revisão sem 🔴 · decisões do Alexandre aplicadas) |
 

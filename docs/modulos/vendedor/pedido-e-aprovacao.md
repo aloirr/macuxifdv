@@ -31,7 +31,7 @@ Promotor: 403 `RN-PRO-01` em toda escrita; leitura só da carteira. Vendedor e a
 - PDF: gerador único em `domain/pdf-pedido.ts` (versão cliente sem nenhum `%`; versão interna com tabela, desconto, alçada e histórico).
 
 ## Atualização das telas (RN-CORE-23, T-0054)
-- **App (Campo e Gestão)**: nenhuma consulta periódica nem timer. Ao abrir a tela, o app só relê o aparelho. O pull vem do motor de sync da plataforma, no shell: a cada `sync_auto_min` (30 min, mínimo 15), ao abrir o app e ao voltar ao primeiro plano depois de 30 min. Puxar a tela para baixo = **Sincronizar** (envia a fila e roda o sync), na lista e no detalhe.
+- **App (Campo e Gestão)**: nenhuma consulta periódica nem timer. Ao abrir a tela, o app só relê o aparelho. O pull vem do motor de sync da plataforma, no shell: a cada `sync_auto_min` (30 min, mínimo 15), ao abrir o app e ao voltar ao primeiro plano depois de 30 min. Puxar a tela para baixo = **Sincronizar** (envia a fila e roda o sync), na lista e no detalhe. Um novo toque nos 30 s seguintes só relê o aparelho (item 5).
 - **BKO**: sem `refetchInterval`. Atualiza ao abrir, ao focar a janela, depois de cada decisão e pelo botão "Atualizar".
 - O teste `sem-consulta-periodica.test.ts` barra `setInterval` e `refetchInterval` nas telas.
 

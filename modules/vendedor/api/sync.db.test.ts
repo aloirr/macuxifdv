@@ -61,10 +61,10 @@ describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres 
   }
   const pedido = (): PedidoPull => ({ desde: null, ate: new Date(Date.now() + 60_000).toISOString(), limite: 1001 });
   /**
-   * Os arquivos de teste rodam juntos no mesmo banco: os pedidos de `pedido.db.test.ts` (prefixo 0f29) e de
-   * `retorno-erp.db.test.ts` (prefixo 0f54, T-0054) ficam de fora das contagens da fixture.
+   * Os arquivos de teste rodam juntos no mesmo banco: os pedidos de `pedido.db.test.ts` (prefixo 0f29), de
+   * `pre-venda.db.test.ts` (0f53, T-0053) e de `retorno-erp.db.test.ts` (0f54, T-0054) ficam de fora das contagens da fixture.
    */
-  const OUTROS = ['0f290000-', '0f540000-'];
+  const OUTROS = ['0f290000-', '0f530000-', '0f540000-'];
   const deOutroTeste = (v: string) => OUTROS.some((p) => v.startsWith(p));
   const dosOutrosTestes = (l: LinhaSync) => deOutroTeste(l.id) || deOutroTeste(String((l as unknown as { pedido_id?: string }).pedido_id ?? ''));
   const puxar = async (prov: typeof provedorPedido, c: ContextoBase): Promise<LinhaSync[]> => (await prov!.puxar!(c, pedido())).filter((l) => !dosOutrosTestes(l));

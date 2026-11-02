@@ -28,10 +28,18 @@ const COLUNAS_PEDIDO = `p.id, ${ts('updated_at', 'p.')}, ${ts('deleted_at', 'p.'
   p.numero, p.cliente_nome, p.vendedor_nome, p.tabela_preco_id, p.condicao_pagamento_id, p.condicao_pagamento_descricao,
   p.nivel_aprovacao, p.motivos_aprovacao, p.aprovacao_automatica, p.decidido_por_id, ${ts('decidido_em', 'p.')}, p.motivo_rejeicao`;
 
-/** T-0054: resumo do retorno do ERP no pedido e no item (só com a migração do faturamento: `FATURAMENTO_LIGADO`). */
-const COLUNAS_PEDIDO_FATURAMENTO = `, p.faturado_cents::float8 as faturado_cents, p.devolvido_cents::float8 as devolvido_cents,
-  p.notas_faturamento, p.ultima_nota_numero, ${ts('faturado_em', 'p.')}`;
-const COLUNAS_ITEM_FATURAMENTO = ', i.quantidade_faturada';
+/**
+ * T-0054: resumo do retorno do ERP no pedido e no item (0013, `FATURAMENTO_LIGADO`). `faturado_cents` = total faturado;
+ * item com `quantidade_base`/`fator`/`quantidade_faturada` na UNIDADE BASE (desenho T-0061 §2.1).
+ */
+const COLUNAS_PEDIDO_FATURAMENTO = `, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero,
+  ${ts('faturado_em', 'p.')}`;
+const COLUNAS_ITEM_FATURAMENTO = ', i.quantidade_faturada, i.quantidade_base, i.fator';
+/** T-0054: quantas notas de faturamento e a última NF (pedido_faturamento da 0013), por pedido. */
+export const JUNCAO_FATURAMENTO = `left join lateral (select count(*)::int as notas,
+    (array_agg(f.nota_numero order by f.faturado_em desc, f.created_at desc))[1] as ultima
+    from vendedor.pedido_faturamento f where f.tenant_id = p.tenant_id and f.pedido_id = p.id and f.deleted_at is null) fat on true`;
+
 
 const COLUNAS_ITEM = `i.id, ${ts('updated_at', 'i.')}, ${ts('deleted_at', 'i.')}, i.external_id,
   i.pedido_id, i.sequencia, i.produto_id, i.quantidade, i.preco_tabela_cents::float8 as preco_tabela_cents,
@@ -70,7 +78,7 @@ function valores(pedido: PedidoPull, e: EscopoPedido): unknown[] {
 
 export function sqlPedido(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO): { sql: string; valores: unknown[] } {
   const sql = `select ${COLUNAS_PEDIDO}${comFaturamento ? COLUNAS_PEDIDO_FATURAMENTO : ''}
-    from vendedor.pedido p
+    from vendedor.pedido p ${comFaturamento ? JUNCAO_FATURAMENTO : ''}
    where p.updated_at < $1::timestamptz
      and ($2::timestamptz is null or (p.updated_at, p.id) > ($2::timestamptz, $3::uuid))
      ${FILTROS_PEDIDO}

@@ -17,7 +17,7 @@ import {
   consumidorRetornoErp,
   criarConsumidorNotaDevolucao,
   criarConsumidorRetornoErp,
-  FATURAMENTO_LIGADO,
+  DEVOLUCAO_LIGADA,
   type ContextoRetorno,
   type RetornoRecebido,
 } from './retorno-erp';
@@ -86,6 +86,15 @@ const retorno = (status: string, extra: Omit<Partial<RetornoRecebido>, 'itens_fa
   ...extra,
   itens_faturados: extra.itens_faturados ? itensRet(extra.itens_faturados) : null,
 });
+
+/** Campos do ContextoConsumo que o consumidor do retorno não usa (T-0061: consultar, parâmetros e fuso). */
+const EXTRAS_CONSUMO = {
+  consultar: async () => {
+    throw new Error('consulta não usada pelo consumidor do retorno');
+  },
+  parametros: () => ({}),
+  fuso: () => 'America/Manaus',
+} as unknown as Pick<ContextoConsumo, 'consultar' | 'parametros' | 'fuso'>;
 
 function cenario(pedidos: PedidoEmMemoria[] = [pedidoAprovado()]) {
   const banco: BancoEmMemoria = bancoEmMemoria(pedidos);
@@ -227,10 +236,10 @@ describe('consumidores (ADR 0007) e manifesto', () => {
     expect(manifest.publica).toContain('vendedor.pedido.faturado@1');
   });
 
-  it('T-0053/T-0054: um só consumidor do retorno do ERP no módulo, sempre ligado; o da nota só com a migração do faturamento', () => {
+  it('T-0053/T-0054: um só consumidor do retorno do ERP no módulo, sempre ligado; o da nota só com a tabela da devolução', () => {
     const nomes = consumidoresVendedor.map((c) => c.evento.nome);
     expect(nomes.filter((n) => n === 'integracao.pedido.retorno_erp@1')).toHaveLength(1);
-    expect(nomes.includes('integracao.nota.atualizado@1')).toBe(FATURAMENTO_LIGADO);
+    expect(nomes.includes('integracao.nota.atualizado@1')).toBe(DEVOLUCAO_LIGADA);
     expect(consumidoresVendedor).toContain(consumidorRetornoErp);
   });
 
@@ -254,7 +263,7 @@ describe('consumidores (ADR 0007) e manifesto', () => {
     const c = criarConsumidorRetornoErp(() => repositorioRetornoErpMemoria(banco, TA));
     const payload = EVENTO_RETORNO_ERP.schema.parse({ pedido_uuid: PED, status: 'integrado', numero_erp: 'ERP-9', motivo: null, nota: null, ocorrido_em: EM(1) });
     const base = contexto('e-20', reg);
-    await c.executar(payload, { envelope: { evento_id: 'e-20' } as EnvelopeEvento, db: { query: async () => ({ rows: [], rowCount: 0 }) }, publicar: base.publicar, agora: base.agora, log: base.log });
+    await c.executar(payload, { envelope: { evento_id: 'e-20' } as EnvelopeEvento, db: { query: async () => ({ rows: [], rowCount: 0 }) }, publicar: base.publicar, agora: base.agora, log: base.log, ...EXTRAS_CONSUMO });
     expect(banco.pedidos[0]).toMatchObject({ status: 'integrated', numero_erp: 'ERP-9' });
   });
 
@@ -271,7 +280,7 @@ describe('consumidores (ADR 0007) e manifesto', () => {
       ocorrido_em: EM(3),
     });
     const base = contexto('e-21', reg);
-    await c.executar(payload, { envelope: { evento_id: 'e-21' } as EnvelopeEvento, db: { query: async () => ({ rows: [], rowCount: 0 }) }, publicar: base.publicar, agora: base.agora, log: base.log });
+    await c.executar(payload, { envelope: { evento_id: 'e-21' } as EnvelopeEvento, db: { query: async () => ({ rows: [], rowCount: 0 }) }, publicar: base.publicar, agora: base.agora, log: base.log, ...EXTRAS_CONSUMO });
     expect(banco.devolucoes).toEqual([expect.objectContaining({ external_id: 'NF-D-9', pedido_id: PED, total_cents: 500, numero: 'D9' })]);
   });
 });

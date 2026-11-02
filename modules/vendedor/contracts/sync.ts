@@ -84,8 +84,11 @@ export const PedidoItemSyncSchema = z
     produto_sku: z.string().nullable().optional(),
     produto_nome: z.string().nullable().optional(),
     unidade: z.string().nullable().optional(),
-    /** T-0054: unidades já faturadas (soma dos retornos do ERP) */
+    /** T-0054: unidades já faturadas (soma dos retornos do ERP), na UNIDADE BASE (0013) */
     quantidade_faturada: z.number().int().nonnegative().nullable().optional(),
+    /** 0013 (desenho T-0061 §2.1): quantidade x fator (unidade base) e o fator da unidade vendida */
+    quantidade_base: z.number().int().nonnegative().nullable().optional(),
+    fator: z.number().int().positive().nullable().optional(),
   })
   .strict();
 export type PedidoItemSync = z.infer<typeof PedidoItemSyncSchema>;

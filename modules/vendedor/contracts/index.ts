@@ -45,8 +45,10 @@ export const OrderItem = z.object({
   unit_price_cents: Cents,
   discount_pct: Pct,
   total_cents: Cents,
-  /** T-0054: unidades já faturadas pelo ERP (soma dos retornos); ausente = sem retorno de faturamento */
+  /** T-0054: unidades já faturadas pelo ERP (soma dos retornos), na UNIDADE BASE; ausente = sem retorno de faturamento */
   quantity_invoiced: z.number().int().nonnegative().optional(),
+  /** 0013 (desenho T-0061 §2.1): quantidade na unidade base (quantidade x fator); compara com `quantity_invoiced` */
+  quantity_base: z.number().int().nonnegative().optional(),
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 

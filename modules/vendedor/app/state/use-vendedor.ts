@@ -49,6 +49,7 @@ import {
 } from '../lib/pull';
 import { criarRepositorio, DADOS_VAZIOS, type DadosVendedor } from '../lib/repositorio';
 import { relogioReal } from '@macuxi/comum/relogio';
+import { podeSincronizarManual } from '../lib/sincronizar';
 import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 
 const PRECISA_SINAL = 'editar ou excluir pedido já enviado precisa de conexão (o status pode ter mudado no servidor).';
@@ -191,13 +192,20 @@ export function useVendedor() {
     [v1, repo, recarregar, ambiente],
   );
 
-  /** RN-CORE-23: "puxar para baixo" = Sincronizar — envia a fila e roda o sync completo do motor da plataforma. */
+  /**
+   * RN-CORE-23: "puxar para baixo" = Sincronizar — envia a fila e roda o sync completo do motor da plataforma, com
+   * proteção de 30 s contra toques repetidos (dentro dela, só relê o aparelho).
+   */
+  const ultimoManual = useRef(0);
   const sincronizarAgora = useCallback(async () => {
     if (!v1) {
       await atualizarPedidos();
       return;
     }
-    if (motor && ambiente.online() && !motor.estado().sincronizando) {
+    const agora = relogioReal().agora().getTime();
+    const liberado = podeSincronizarManual(ultimoManual.current, agora);
+    if (liberado && motor && ambiente.online() && !motor.estado().sincronizando) {
+      ultimoManual.current = agora;
       await motor.enviar().catch(() => []);
       await motor.sincronizar().catch(() => false);
     }

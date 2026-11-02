@@ -250,7 +250,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
             }),
           ),
         ),
-      carteira: () => (carteira ??= carteiraDe(token, acesso)),
+      carteira: () => (carteira ??= carteiraDe(token, acesso, { agora: relogio, fuso })),
       // o próprio usuário sempre está no conjunto, mesmo que o serviço o omita
       usuariosVisiveis: () => (usuariosVisiveis ??= usuariosDe(token, acesso).then((v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])))),
       parametros: () => (m ? parametros(m) : {}),

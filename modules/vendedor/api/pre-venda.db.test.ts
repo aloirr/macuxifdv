@@ -141,6 +141,8 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
     const admin = new pg.Client({ connectionString: banco().urlAdmin });
     await admin.connect();
     try {
+      // T-0054: o retorno do ERP grava pedido_faturamento (0013, FK para o pedido)
+      await admin.query('delete from vendedor.pedido_faturamento where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido_evento where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido_item where pedido_id = any($1::uuid[])', [IDS]);
       await admin.query('delete from vendedor.pedido where id = any($1::uuid[])', [IDS]);

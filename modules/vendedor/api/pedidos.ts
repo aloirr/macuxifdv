@@ -28,8 +28,8 @@ import { decidirAprovacao, montarPedidoAprovado, politicaDosParametros, situacao
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
-import { FATURAMENTO_LIGADO } from './retorno-erp';
-import { escopoDoPedido } from './sync';
+import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
+import { escopoDoPedido, JUNCAO_FATURAMENTO } from './sync';
 
 /** T-0053: campos da pré-venda no pedido/orçamento (vazio para pedido sem pré-venda ou sem a 0013). */
 function camposPreVenda(doc: DocumentoPreVenda | undefined, status: string, agora: Date): Partial<Order> {
@@ -51,8 +51,8 @@ const ParamsPedido = z.object({ id: z.string().uuid() });
 const CorpoCancelar = z.object({ motivo: z.string().max(500).optional() }).default({});
 const NAO_ENCONTRADO = ['PEDIDO_NAO_ENCONTRADO', 'Pedido não encontrado.'] as const;
 
-/** T-0054: resumo do faturamento (colunas da migração do faturamento; só com `FATURAMENTO_LIGADO`). */
-const COLUNAS_FATURAMENTO = `, p.faturado_cents::float8 as faturado_cents, p.devolvido_cents::float8 as devolvido_cents, p.notas_faturamento, p.ultima_nota_numero`;
+/** T-0054: resumo do faturamento (0013; só com `FATURAMENTO_LIGADO`): total faturado, notas e última NF. */
+const COLUNAS_FATURAMENTO = `, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero`;
 const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_id, p.cliente_nome, p.cliente_resumo, p.tabela_preco_id,
   p.condicao_pagamento, p.condicao_pagamento_descricao, p.status, p.desconto_pct::float8 as desconto_pct,
   p.total_tabela_cents::float8 as total_tabela_cents, p.total_cents::float8 as total_cents, p.nivel_aprovacao, p.motivos_aprovacao,
@@ -79,7 +79,7 @@ const escaparLike = (q: string) => q.replace(/[\\%_]/g, (m) => `\\${m}`);
 async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, bloquear = false): Promise<{ linha: LinhaPedido; detalhe: OrderDetail } | null> {
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
   const { rows } = await db.query<LinhaPedido>(
-    `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS}
+    `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS} ${FATURAMENTO_LIGADO ? JUNCAO_FATURAMENTO : ''}
       where p.id = $1 and p.deleted_at is null
         and ($2::uuid[] is null or p.vendedor_id = any($2::uuid[]))
         and ($3::uuid[] is null or p.cliente_id = any($3::uuid[]))
@@ -91,7 +91,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
   const itens = (
     await db.query<LinhaItem>(
       `select id, produto_id, produto_sku, produto_nome, quantidade, preco_tabela_cents::float8 as preco_tabela_cents, desconto_pct::float8 as desconto_pct,
-              total_cents::float8 as total_cents${FATURAMENTO_LIGADO ? ', quantidade_faturada' : ''}
+              total_cents::float8 as total_cents${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
          from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
       [id],
     )
@@ -118,7 +118,7 @@ export async function lerNotasDoPedido(db: ClienteBanco, id: string): Promise<{ 
       [id],
     )
   ).rows;
-  const devolucoes = (
+  const devolucoes = !DEVOLUCAO_LIGADA ? [] : (
     await db.query<LinhaNotaDevolucao>(
       `select nota_numero, nota_serie, to_char(emitida_em at time zone 'UTC', ${UTC}) as emitida_em, total_cents::float8 as total_cents
          from vendedor.pedido_devolucao where pedido_id = $1 and deleted_at is null order by emitida_em, created_at`,
@@ -152,7 +152,7 @@ export const rotaListarPedidos: RotaModulo = {
       const fuso = ctx.fuso(); // fuso do tenant vem do SDK (sem ler plataforma.*)
       const busca = q.q?.trim() ? `%${escaparLike(q.q.trim())}%` : null;
       const { rows } = await db.query<LinhaPedido>(
-        `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS}
+        `select ${COLUNAS} from vendedor.pedido p ${JUNCAO_ITENS} ${FATURAMENTO_LIGADO ? JUNCAO_FATURAMENTO : ''}
           where p.deleted_at is null
             and ($1::uuid[] is null or p.vendedor_id = any($1::uuid[]))
             and ($2::uuid[] is null or p.cliente_id = any($2::uuid[]))

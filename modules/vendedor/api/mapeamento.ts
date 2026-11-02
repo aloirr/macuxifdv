@@ -64,6 +64,7 @@ export interface LinhaItem {
   desconto_pct: number;
   total_cents: number;
   quantidade_faturada?: number | null;
+  quantidade_base?: number | null;
 }
 
 export interface LinhaEvento {
@@ -155,6 +156,7 @@ export function paraItem(i: LinhaItem): OrderItem {
     discount_pct: num(i.desconto_pct),
     total_cents: num(i.total_cents),
     ...(i.quantidade_faturada === undefined || i.quantidade_faturada === null ? {} : { quantity_invoiced: num(i.quantidade_faturada) }),
+    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: num(i.quantidade_base) }),
   };
 }
 

@@ -10,11 +10,10 @@
  * (Postgres em produção; memória nos testes sem banco). Licença: o despachante só entrega a quem tem o Vendedor ativo no
  * tenant (RN-CORE-02/03); RLS do tenant do evento (macuxi_app). Log sem dado pessoal: só ids, códigos e contagens.
  *
- * `FATURAMENTO_LIGADO`: as tabelas `vendedor.pedido_faturamento`/`pedido_devolucao` e as colunas de resumo do pedido
- * dependem da migração pedida ao banco-dados (T-0054). Enquanto ela não chega ao `main`, o consumidor do retorno roda
- * só com as tabelas atuais (status, histórico, eventos; idempotência pela marca de consumo do despachante), o da nota
- * não é registrado e o pull/detalhe não leem as colunas novas; quando chegar, basta virar a constante (ver
- * docs/modulos/vendedor/retorno-erp.md).
+ * `FATURAMENTO_LIGADO` (ligado: migração 0013 no `main`): `vendedor.pedido_faturamento` (uma linha por retorno faturado,
+ * idempotente por `evento_id`), `pedido.total_faturado_cents`/`faturado_em` e `pedido_item.quantidade_faturada` (UNIDADE
+ * BASE, desenho T-0061 §2.1). `DEVOLUCAO_LIGADA` (desligada): a tabela `pedido_devolucao` ainda não existe (pedida ao
+ * banco-dados); até lá o consumidor da nota não é registrado e o devolvido fica 0 (docs/modulos/vendedor/retorno-erp.md).
  */
 import { definirConsumidor, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo, type LogRota } from '@macuxi/platform-sdk';
 import { EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO, EVENTO_RETORNO_ERP_CONSUMIDO, type RetornoErpConsumido } from '../contracts';
@@ -32,8 +31,10 @@ import {
 import type { OrderStatus } from '../domain/order';
 import { EVENTO_NOTA_ATUALIZADA } from './eventos-consumidos';
 
-/** Liga a persistência do faturamento, o consumidor da nota, o pull e o detalhe. Vira `true` com a migração (T-0054). */
-export const FATURAMENTO_LIGADO = false;
+/** Persistência do faturamento, resumo no pull e notas no detalhe (migração 0013 no `main`). */
+export const FATURAMENTO_LIGADO = true;
+/** Devolução (RN-VEN-37): depende da tabela `vendedor.pedido_devolucao`, ainda não migrada (pedido ao banco-dados). */
+export const DEVOLUCAO_LIGADA = false;
 
 /** Autor da linha do tempo quando a transição vem do ERP (T-0053). */
 export const AUTOR_ERP = { nome: 'ERP', perfil: 'erp' } as const;
@@ -50,6 +51,7 @@ export interface FaturamentoParaGravar {
   pedido_id: string;
   /** `evento_id` do retorno: idempotência da nota (unique por tenant) */
   evento_origem_id: string;
+  numero_erp: string | null;
   status_retorno: 'faturado_parcial' | 'faturado_total';
   parcial: boolean;
   nota_numero: string | null;
@@ -167,6 +169,7 @@ export async function aplicarRetornoErp(repo: RepositorioRetornoErp, r: RetornoR
     const gravou = await repo.gravarFaturamento({
       pedido_id: pedido.id,
       evento_origem_id: ctx.evento_id,
+      numero_erp: plano.numero_erp ?? pedido.numero_erp,
       status_retorno: r.status,
       parcial,
       nota_numero: r.nota?.numero ?? null,
@@ -227,11 +230,13 @@ const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
 
 /**
- * Repositório sobre `vendedor.*` (macuxi_app, RLS do tenant da transação). Nunca lê outro schema. `faturamento: false`
- * (padrão até a migração) = só as tabelas atuais: sem nota, sem resumo e sem devolução.
+ * Repositório sobre `vendedor.*` (macuxi_app, RLS do tenant da transação). Nunca lê outro schema. Esquema da 0013:
+ * quantidades na UNIDADE BASE (`pedido_item.quantidade_base`, preenchida por gatilho; o retorno do ERP também vem na base).
+ * `faturamento: false` = só as tabelas anteriores (sem nota e sem resumo); `devolucao: false` = sem `pedido_devolucao`.
  */
-export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?: boolean } = {}): RepositorioRetornoErp {
+export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?: boolean; devolucao?: boolean } = {}): RepositorioRetornoErp {
   const comFaturamento = opcoes.faturamento ?? FATURAMENTO_LIGADO;
+  const comDevolucao = opcoes.devolucao ?? DEVOLUCAO_LIGADA;
   return {
     async pedidoParaRetorno(id) {
       const p = (
@@ -243,7 +248,8 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
       if (!p) return null;
       const itens = (
         await db.query<{ sequencia: number; produto_id: string; quantidade: number; total_cents: number }>(
-          'select sequencia, produto_id, quantidade, total_cents::float8 as total_cents from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia',
+          `select sequencia, produto_id, ${comFaturamento ? 'quantidade_base' : 'quantidade'} as quantidade, total_cents::float8 as total_cents
+             from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
           [id],
         )
       ).rows;
@@ -252,7 +258,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
     async faturamentos(pedidoId) {
       if (!comFaturamento) return null;
       const rows = (
-        await db.query<{ nota_numero: string | null; nota_total_cents: number | null; faturado_em: string; itens: Array<{ sequencia: number; quantidade: number; valor_cents: number | null }> }>(
+        await db.query<{ nota_numero: string | null; nota_total_cents: number | null; faturado_em: string; itens: Array<{ sequencia: number; quantidade: number; total_cents?: number | null }> }>(
           `select nota_numero, nota_total_cents::float8 as nota_total_cents, to_char(faturado_em at time zone 'UTC', ${UTC}) as faturado_em, itens
              from vendedor.pedido_faturamento where pedido_id = $1 and deleted_at is null order by faturado_em, created_at`,
           [pedidoId],
@@ -262,11 +268,11 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
         nota_numero: f.nota_numero,
         nota_total_cents: f.nota_total_cents === null ? null : num(f.nota_total_cents),
         faturado_em: f.faturado_em,
-        itens: (f.itens ?? []).map((i) => ({ sequencia: num(i.sequencia), quantidade: num(i.quantidade), valor_cents: i.valor_cents === null || i.valor_cents === undefined ? null : num(i.valor_cents) })),
+        itens: (f.itens ?? []).map((i) => ({ sequencia: num(i.sequencia), quantidade: num(i.quantidade), valor_cents: i.total_cents === null || i.total_cents === undefined ? null : num(i.total_cents) })),
       }));
     },
     async devolucoes(pedidoId) {
-      if (!comFaturamento) return [];
+      if (!comDevolucao) return [];
       const rows = (
         await db.query<{ external_id: string; total_cents: number }>(
           'select external_id, total_cents::float8 as total_cents from vendedor.pedido_devolucao where pedido_id = $1 and deleted_at is null',
@@ -296,26 +302,27 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
       if (!comFaturamento) return true;
       const r = await db.query(
         `insert into vendedor.pedido_faturamento
-           (tenant_id, pedido_id, evento_origem_id, status_retorno, parcial, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, faturado_em, itens)
+           (tenant_id, pedido_id, evento_id, parcial, numero_erp, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, faturado_em, itens)
          values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
-         on conflict (tenant_id, evento_origem_id) do nothing`,
+         on conflict (tenant_id, evento_id) do nothing`,
         [
           f.pedido_id,
           f.evento_origem_id,
-          f.status_retorno,
           f.parcial,
+          f.numero_erp,
           f.nota_numero,
           f.nota_serie,
           f.nota_emitida_em,
           f.nota_total_cents,
           f.faturado_em,
-          JSON.stringify(f.itens.map((i) => ({ sequencia: i.sequencia, produto_id: i.product_id, quantidade: i.quantity, valor_cents: i.valor_cents }))),
+          // formato da 0013: [{sequencia, produto_id, quantidade (unidade base), total_cents}]
+          JSON.stringify(f.itens.map((i) => ({ sequencia: i.sequencia, produto_id: i.product_id, quantidade: i.quantity, total_cents: i.valor_cents }))),
         ],
       );
       return (r.rowCount ?? 0) > 0;
     },
     async gravarDevolucao(d) {
-      if (!comFaturamento) return null;
+      if (!comDevolucao) return null;
       const existe = (await db.query('select 1 from vendedor.pedido where id = $1 and deleted_at is null', [d.pedido_id])).rows.length > 0;
       if (!existe) return null;
       const atual = (
@@ -340,7 +347,7 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
       return { pedido_anterior: null };
     },
     async removerDevolucao(externalId, quando) {
-      if (!comFaturamento) return null;
+      if (!comDevolucao) return null;
       const r = await db.query<{ pedido_id: string }>(
         'update vendedor.pedido_devolucao set deleted_at = $2 where external_id = $1 and deleted_at is null returning pedido_id',
         [externalId, quando],
@@ -349,13 +356,11 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
     },
     async gravarResumo(pedidoId, r) {
       if (!comFaturamento) return;
+      // 0013: total_faturado_cents e faturado_em no pedido; notas e última NF vêm de pedido_faturamento na leitura
       await db.query(
-        `update vendedor.pedido
-            set faturado_cents = $2, devolvido_cents = $3, notas_faturamento = $4, ultima_nota_numero = $5, faturado_em = $6
-          where id = $1
-            and (faturado_cents, devolvido_cents, notas_faturamento, ultima_nota_numero, faturado_em)
-                is distinct from ($2::bigint, $3::bigint, $4::int, $5::text, $6::timestamptz)`,
-        [pedidoId, r.faturado_cents, r.devolvido_cents, r.notas, r.ultima_nota, r.ultimo_faturamento_em],
+        `update vendedor.pedido set total_faturado_cents = $2, faturado_em = $3
+          where id = $1 and (total_faturado_cents, faturado_em) is distinct from ($2::bigint, $3::timestamptz)`,
+        [pedidoId, r.faturado_cents, r.ultimo_faturamento_em],
       );
       await db.query(
         `update vendedor.pedido_item i set quantidade_faturada = x.q
@@ -395,5 +400,5 @@ export function criarConsumidorNotaDevolucao(fabrica: FabricaRepositorio = (db) 
 /** O consumidor único do retorno do ERP (T-0053 + T-0054). */
 export const consumidorRetornoErp: ConsumidorEvento = criarConsumidorRetornoErp();
 
-/** Consumidores registrados no `apiVendedor`: o retorno sempre; a nota de devolução só com a migração do faturamento. */
-export const consumidoresVendedor: readonly ConsumidorEvento[] = FATURAMENTO_LIGADO ? [consumidorRetornoErp, criarConsumidorNotaDevolucao()] : [consumidorRetornoErp];
+/** Consumidores registrados no `apiVendedor`: o retorno sempre; a nota de devolução só com a tabela da devolução. */
+export const consumidoresVendedor: readonly ConsumidorEvento[] = DEVOLUCAO_LIGADA ? [consumidorRetornoErp, criarConsumidorNotaDevolucao()] : [consumidorRetornoErp];

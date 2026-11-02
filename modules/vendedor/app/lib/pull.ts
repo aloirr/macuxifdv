@@ -232,6 +232,7 @@ function itemDoPedido(i: PedidoItemSync): OrderItem {
     discount_pct: i.desconto_pct,
     total_cents: i.total_cents,
     ...(i.quantidade_faturada === undefined || i.quantidade_faturada === null ? {} : { quantity_invoiced: i.quantidade_faturada }),
+    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: i.quantidade_base }),
   };
 }
 

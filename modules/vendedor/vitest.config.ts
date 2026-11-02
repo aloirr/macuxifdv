@@ -12,8 +12,6 @@ export default defineConfig({
     exclude: ['node_modules/**'],
     environment: 'node',
     globalSetup: ['@macuxi/db/teste/global-setup'],
-    // T-0054: DDL proposta do faturamento no banco efêmero até a migração chegar (apagar junto com o arquivo)
-    setupFiles: ['./api/teste/ddl-proposta.ts'],
     reporters: ['default', new AvisoPulos()],
     testTimeout: 30_000,
     hookTimeout: 120_000,
