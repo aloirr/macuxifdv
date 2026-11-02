@@ -3,6 +3,7 @@
  * `treinamento.medalha.conquistada@1`. O envelope (evento_id, tenant, ocorrido_em…) é do platform-sdk; aqui só o payload.
  * Consumidores previstos: Gestor (painel de adesão) e Core (notificação/cartão da medalha).
  */
+import { definirEvento } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { InstanteUtc, Pct0a100, Pontos, TextoCurto, Uuid } from './base';
 
@@ -45,3 +46,7 @@ export const EVENTOS_TREINAMENTO = {
   [EVENTO_LICAO_CONCLUIDA]: LicaoConcluidaV1,
   [EVENTO_MEDALHA_CONQUISTADA]: MedalhaConquistadaV1,
 } as const;
+
+/** Definições para `tx.publicar` na API (outbox na mesma transação do fato). */
+export const DEFINICAO_LICAO_CONCLUIDA = definirEvento(EVENTO_LICAO_CONCLUIDA, LicaoConcluidaV1);
+export const DEFINICAO_MEDALHA_CONQUISTADA = definirEvento(EVENTO_MEDALHA_CONQUISTADA, MedalhaConquistadaV1);
