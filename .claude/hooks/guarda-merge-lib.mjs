@@ -19,8 +19,8 @@
 // Também bloqueia o merge "escondido": `gh pr merge` dentro de bash -c/eval/xargs/source/here-doc/
 // script inline (node -e, python -c...), `gh api` de merge, `gh alias set/import` e subcomando do gh
 // desconhecido (alias ou extensão), e nome de comando incerto ($GH pr ...).
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, win32, posix } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   tokenizar, comandosSimples, alvosDoComando, SO_LEITURA, COORD_SO_LEITURA, PACOTES_SO_LEITURA, DESCARTE,
@@ -37,7 +37,7 @@ export const SHA_VALIDO = /^[0-9a-f]{7,40}$/i;
 export const RE_AUTORIZACAO = /(?<!n[aã]o\s{1,3})(?<![a-z])autorizo\s+o\s+merge\s+do\s+PR\s+#(\d+)\s+no\s+commit\s+`?([0-9a-f]{7,40})`?(?![0-9a-z])/gi;
 
 const CABECALHO = '[guardião Macuxi] BLOQUEADO (gh pr merge):';
-const MODELO = `gh pr merge <N> -R ${REPO_OFICIAL} --squash --match-head-commit <sha> --body "Agente: <dono da tarefa>"`;
+const MODELO = `gh pr merge <N> -R ${REPO_OFICIAL} --squash --match-head-commit <sha> [--subject "<título do squash>"] --body "Agente: <dono da tarefa>"`;
 
 const barras = (p) => String(p).replace(/\\/g, '/');
 const nomeBase = (p) => barras(p).replace(/\/+$/, '').split('/').pop().replace(/\.exe$/i, '').toLowerCase();
@@ -358,19 +358,56 @@ export function decidirMerge({ pr, sha, consulta, autorizacoes }) {
 
 // ───────────────────────────── acesso real (gh e recados) ─────────────────────────────
 
+/** Arquivo comum existe? (injetável nos testes) */
+const ehArquivo = (caminho) => { try { return statSync(caminho).isFile(); } catch { return false; } };
+
+/**
+ * Onde está o gh (guardião v6, T-0050): primeiro o PATH do processo do hook; no Windows, também
+ * %ProgramFiles%\GitHub CLI\gh.exe e %LOCALAPPDATA%\Programs\GitHub CLI\gh.exe (instalador do gh, que
+ * nem sempre entra no PATH do processo do Claude Code). Não achou = null (quem chama falha fechado).
+ * Pasta relativa no PATH (".") não vale: seria um "gh" escrito na pasta do agente.
+ * @param {{env?: Record<string, string|undefined>, plataforma?: string, existe?: (caminho: string) => boolean}} [o]
+ * @returns {string|null} caminho completo do executável
+ */
+export function localizarGh({ env = process.env, plataforma = process.platform, existe = ehArquivo } = {}) {
+  const windows = plataforma === 'win32';
+  const p = windows ? win32 : posix;
+  const valor = (nome) => {
+    const k = Object.keys(env).find((x) => (windows ? x.toLowerCase() === nome.toLowerCase() : x === nome));
+    return k ? String(env[k] || '').trim() : '';
+  };
+  const nomes = windows ? ['gh.exe', 'gh.com'] : ['gh'];
+  const candidatos = [];
+  for (const pasta of valor('PATH').split(windows ? ';' : ':')) {
+    const limpa = pasta.trim().replace(/^"(.*)"$/, '$1');
+    if (!limpa || !p.isAbsolute(limpa)) continue;
+    for (const n of nomes) candidatos.push(p.join(limpa, n));
+  }
+  if (windows) {
+    const programas = valor('ProgramFiles');
+    const local = valor('LOCALAPPDATA');
+    if (programas && p.isAbsolute(programas)) candidatos.push(p.join(programas, 'GitHub CLI', 'gh.exe'));
+    if (local && p.isAbsolute(local)) candidatos.push(p.join(local, 'Programs', 'GitHub CLI', 'gh.exe'));
+  }
+  return candidatos.find((c) => { try { return existe(c); } catch { return false; } }) || null;
+}
+export const ONDE_PROCURA_GH = 'PATH; no Windows também %ProgramFiles%\\GitHub CLI\\gh.exe e %LOCALAPPDATA%\\Programs\\GitHub CLI\\gh.exe';
+
 /**
  * `gh pr view N -R aloirr/macuxifdv --json files,headRefOid,changedFiles` (timeout de 20 s).
  * MACUXI_GH_SIMULADO=<arquivo.mjs>: roda esse script no lugar do gh (só nos testes; a variável é do
  * processo do Claude Code, que o agente não altera).
  */
-export function consultarPrGh(pr, { env = process.env, timeout = 20000 } = {}) {
+export function consultarPrGh(pr, { env = process.env, timeout = 20000, plataforma = process.platform, existe } = {}) {
   const simulado = String(env.MACUXI_GH_SIMULADO || '').trim();
+  const gh = simulado ? null : localizarGh({ env, plataforma, ...(existe ? { existe } : {}) });
+  if (!simulado && !gh) return { ok: false, erro: `gh não encontrado (${ONDE_PROCURA_GH})` };
   const args = ['pr', 'view', String(pr), '-R', REPO_OFICIAL, '--json', 'files,headRefOid,changedFiles'];
   let saida;
   try {
     saida = simulado
       ? execFileSync(process.execPath, [simulado, ...args], { encoding: 'utf8', timeout, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env })
-      : execFileSync('gh', args, { encoding: 'utf8', timeout, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      : execFileSync(gh, args, { encoding: 'utf8', timeout, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   } catch (e) {
     const msg = String(e?.stderr || e?.message || e).trim().split(/\r?\n/)[0].slice(0, 200);
     return { ok: false, erro: e?.code === 'ENOENT' ? 'gh não encontrado' : e?.code === 'ETIMEDOUT' || e?.signal === 'SIGTERM' ? `gh não respondeu em ${Math.round(timeout / 1000)} s` : `gh falhou: ${msg}` };
@@ -694,7 +731,7 @@ export function escritasDoComando(comando, cwdInicial = '', nivel = 0) {
     }
     const c = classificarComando(cmd.palavras);
     if (c.tipo === 'coord') coord = true;
-    else if (c.tipo === 'escrita') for (const alvo of c.alvos) escritas.push({ alvo, cwd });
+    else if (c.tipo === 'escrita') for (const alvo of c.alvos) escritas.push({ alvo, cwd, de: n });
     else if (c.tipo === 'opaco') {
       const proprio = textoDe([...cmd.palavras, ...cmd.redirs.filter((r) => r.op === '<<<').map((r) => r.alvo)]);
       opacos.push({ motivo: c.motivo, texto: heredoc ? String(comando) : proprio, cwd });
@@ -934,8 +971,10 @@ export function avaliarChecks(resposta) {
  * @returns {{ok: boolean, erro?: string, headRefOid?: string, arquivos?: string[], total?: number, estado?: string,
  *   mesclado?: boolean, ciPr?: {verde: boolean, detalhe: string}, ciMain?: {verde: boolean, detalhe: string}}}
  */
-export function consultarPrRest(pr, { env = process.env, timeout = 15000, prazo = 80000, agora = () => Date.now() } = {}) {
+export function consultarPrRest(pr, { env = process.env, timeout = 15000, prazo = 80000, agora = () => Date.now(), plataforma = process.platform, existe } = {}) {
   const simulado = String(env.MACUXI_GH_SIMULADO || '').trim();
+  const gh = simulado ? null : localizarGh({ env, plataforma, ...(existe ? { existe } : {}) });
+  if (!simulado && !gh) return { ok: false, erro: `gh não encontrado (${ONDE_PROCURA_GH})` };
   const fim = agora() + prazo;
   const api = (caminho) => {
     const resta = Math.min(timeout, fim - agora());
@@ -945,7 +984,7 @@ export function consultarPrRest(pr, { env = process.env, timeout = 15000, prazo 
     try {
       saida = simulado
         ? execFileSync(process.execPath, [simulado, ...args], { encoding: 'utf8', timeout: resta, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env })
-        : execFileSync('gh', args, { encoding: 'utf8', timeout: resta, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
+        : execFileSync(gh, args, { encoding: 'utf8', timeout: resta, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
     } catch (e) {
       const msg = String(e?.stderr || e?.message || e).trim().split(/\r?\n/)[0].slice(0, 200);
       throw new Error(e?.code === 'ENOENT' ? 'gh não encontrado' : e?.code === 'ETIMEDOUT' || e?.signal === 'SIGTERM' ? `gh não respondeu em ${Math.round(resta / 1000)} s` : `gh api ${caminho} falhou: ${msg}`);
