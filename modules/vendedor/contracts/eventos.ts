@@ -109,3 +109,5 @@ export const EVENTO_PEDIDO_CRIADO = definirEvento('vendedor.pedido.criado@1', Pe
 export const EVENTO_PEDIDO_STATUS_ALTERADO = definirEvento('vendedor.pedido.status_alterado@1', PedidoStatusAlteradoEvento);
 export const EVENTO_PEDIDO_APROVACAO_SOLICITADA = definirEvento('vendedor.pedido.aprovacao_solicitada@1', AprovacaoSolicitadaEvento);
 export const EVENTO_PEDIDO_APROVADO = definirEvento('vendedor.pedido.aprovado@1', PedidoAprovadoEvento);
+/** T-0053: publicado pelo consumidor do retorno do ERP (`api/retorno-erp.ts`), um por nota faturada. */
+export const EVENTO_PEDIDO_FATURADO = definirEvento('vendedor.pedido.faturado@1', PedidoFaturadoEvento);

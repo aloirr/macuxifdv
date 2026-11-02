@@ -25,6 +25,8 @@ export interface Rascunho {
   edit_order_id?: string | null;
   /** aviso do duplicar/editar: de onde veio e itens removidos (sem preço/inativos) */
   notice?: string;
+  /** T-0053 (RF-VEN-03): salvar como orçamento (só com `orcamento.ativo`); ausente = pedido */
+  tipo?: 'pedido' | 'orcamento';
 }
 
 export const PRAZO_PADRAO = '28/56 dias';
@@ -129,6 +131,8 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     condicao_pagamento_id: args.rascunho.condicao_pagamento_id ?? null,
     observacao: args.rascunho.observacao?.trim() ? args.rascunho.observacao.trim() : null,
     visita_id: args.rascunho.visit_id ?? null,
+    // T-0053: só o orçamento leva `tipo` (o payload do pedido fica igual ao dos APKs anteriores)
+    ...(args.rascunho.tipo === 'orcamento' ? { tipo: 'orcamento' as const } : {}),
   };
 }
 
@@ -191,6 +195,8 @@ export function pedidoDaFilaComoPedido(item: PedidoNaFila, vendedor: VendedorLog
     units: d?.units ?? p.items.reduce((s, i) => s + i.quantity, 0),
     local: true,
     local_error: item.ultimo_erro,
+    ...(p.tipo ? { tipo: p.tipo } : {}),
+    ...(p.orcamento_origem_id ? { orcamento_origem_id: p.orcamento_origem_id } : {}),
   };
 }
 
