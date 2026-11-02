@@ -16,3 +16,5 @@ export * from './agenda';
 export * from './metas';
 export * from './idempotencia';
 export * from './hierarquia';
+export * from './cadastro';
+export * from './carteira-evento';
