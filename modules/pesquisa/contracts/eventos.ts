@@ -3,6 +3,7 @@
  * (evento_id, tenant, ocorrido_em…) é do platform-sdk; aqui só o payload, sem o conteúdo das respostas
  * (o consumidor lê o detalhe pela API da Pesquisa, no escopo dele). Consumidores previstos: Gestor e Core (Cliente 360).
  */
+import { definirEvento } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { InstanteUtc, Uuid } from './base';
 import { ModoPesquisa } from './publico';
@@ -35,3 +36,6 @@ export type RespostaRegistradaV1 = z.infer<typeof RespostaRegistradaV1>;
 export const EVENTOS_PESQUISA = {
   [EVENTO_RESPOSTA_REGISTRADA]: RespostaRegistradaV1,
 } as const;
+
+/** Definição para a outbox (`tx.publicar`, ADR 0006): nome versionado + schema do payload. */
+export const DEF_RESPOSTA_REGISTRADA = definirEvento(EVENTO_RESPOSTA_REGISTRADA, RespostaRegistradaV1);

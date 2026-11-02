@@ -248,3 +248,14 @@ describe('RN-PES-01: consolidação entre versões só por identificador estáve
     expect(x.versoes.map((v) => [v.numero, v.respostas])).toEqual([[1, 2], [2, 1]]);
   });
 });
+
+describe('RF-PES-06: filtro de respostas exportado para a listagem, a galeria e o CSV', () => {
+  it('RF-PES-06: período em dia civil do fuso do tenant (inclusivo) e equipe da resposta', async () => {
+    const { respostaDentroDoFiltro } = await import('./resultados');
+    const r = { respondida_em: '2026-11-01T02:00:00Z', equipe_id: '00000000-0000-4000-8000-000000000041' };
+    expect(respostaDentroDoFiltro(r, { de: '2026-10-31', ate: '2026-10-31' }, 'America/Manaus')).toBe(true);
+    expect(respostaDentroDoFiltro(r, { de: '2026-11-01' }, 'America/Manaus')).toBe(false);
+    expect(respostaDentroDoFiltro(r, { equipe_ids: ['00000000-0000-4000-8000-000000000042'] }, 'America/Manaus')).toBe(false);
+    expect(respostaDentroDoFiltro({ ...r, equipe_id: null }, { equipe_ids: ['00000000-0000-4000-8000-000000000041'] }, 'America/Manaus')).toBe(false);
+  });
+});

@@ -20,24 +20,35 @@
  *
  * D-3 (ADR 0009 §3): a página leva `horizonte` e o item aceito leva `em` (relógio do banco, lido DEPOIS dos provedores
  * gravarem). O aparelho mantém o item aceito sobreposto até um pull com `horizonte > em`: aí a linha já veio.
+ *
+ * Novidades — RN-CORE-23 (ADR 0018): `GET /v1/sync/novidades?desde=<cursor>` → `{ entidades, cursor, horizonte,
+ * modulos_mudaram, modulos? }`. Entidades elegíveis = as que o pull serviria ao usuário (módulo efetivo, provedor com
+ * `puxar`, regra do promotor). Cursor ausente/ilegível, módulos efetivos (ou parâmetros) mudados ou carteira/equipe
+ * mudada = todas as elegíveis; senão, cada provedor responde com `limite: 1` se tem linha visível com
+ * `(updated_at, id) > (horizonte do cursor, NIL)` abaixo do horizonte atual. Sem mudança, o aparelho faz só esta requisição.
  */
 import { createHash } from 'node:crypto';
 import {
   ACAO_VER_PEDIDO,
   codificarCursor,
+  codificarCursorNovidades,
   compararCursor,
   criarRegistroSync,
   decodificarCursor,
+  decodificarCursorNovidades,
   ehEntidadeDePedido,
   ErroHttpModulo,
   MENSAGEM_ENVIO_INDISPONIVEL,
+  NovidadesQuerySchema,
   PushRequestSchema,
   rejeitarItensInvalidos,
   SYNC_NAO_IMPLEMENTADO,
   TAMANHO_PAGINA_SYNC,
+  UUID_NIL,
   type ContextoBase,
   type ItemPush,
   type LinhaSync,
+  type NovidadesResposta,
   type PaginaSync,
   type ProvedorSync,
   type ResultadoItemPush,
@@ -45,6 +56,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ErroHttp } from './erros';
+import { respostaMeusModulos } from './me-modulos';
 import type { Plataforma } from './tipos';
 
 const PullQuerySchema = z.object({ entidade: z.string().min(1), cursor: z.string().optional() });
@@ -55,11 +67,16 @@ export function versaoDoConjunto(visiveis: ReadonlySet<string> | 'tenant'): stri
   return createHash('sha256').update(texto).digest('hex').slice(0, 16);
 }
 
+const escoposDe = (prov: ProvedorSync) =>
+  prov.escopo === undefined ? [] : typeof prov.escopo === 'string' ? [prov.escopo] : [...prov.escopo];
+
 /** `versao_escopo` da página (ADR 0009 §4): só nos escopos que mudam no aparelho (`carteira`, `usuarios`). */
 async function versaoEscopo(prov: ProvedorSync, ctx: ContextoBase): Promise<string | undefined> {
-  const escopos = new Set(
-    prov.escopo === undefined ? [] : typeof prov.escopo === 'string' ? [prov.escopo] : prov.escopo,
-  );
+  return versaoDosEscopos(new Set(escoposDe(prov)), ctx);
+}
+
+/** Hash dos conjuntos `carteira`/`usuarios` presentes em `escopos` (ordem fixa); nenhum = `undefined`. */
+async function versaoDosEscopos(escopos: ReadonlySet<string>, ctx: ContextoBase): Promise<string | undefined> {
   // ordem fixa (carteira, usuarios); `proprio` e `tenant` não mudam no aparelho e não entram
   const partes: string[] = [];
   if (escopos.has('carteira')) partes.push(versaoDoConjunto(await ctx.carteira()));
@@ -136,6 +153,52 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
       proximo_cursor: validas.length > TAMANHO_PAGINA_SYNC && ultimo ? codificarCursor(ultimo) : null,
       ...(versao !== undefined ? { versao_escopo: versao } : {}),
       horizonte: ate,
+    };
+  });
+
+  app.get('/v1/sync/novidades', async (req): Promise<NovidadesResposta> => {
+    const q = NovidadesQuerySchema.safeParse(req.query);
+    if (!q.success) throw new ErroHttp(400, 'VALIDACAO', 'Cursor de novidades inválido.');
+    const { ctx, licencas, doModulo } = await p.preparar(req, null);
+    if (!p.banco)
+      throw new ErroHttp(503, 'BANCO_INDISPONIVEL', 'Banco de dados indisponível. Tente de novo em instantes.');
+    const u = ctx.usuario;
+    const verPedido = p.permissoes.pode(ACAO_VER_PEDIDO, { perfil: u.perfil, modulosAtivos: u.modulos });
+    // as mesmas que o pull serviria: módulo efetivo, provedor com puxar e RN-PRO-01/O-3 para o promotor
+    const elegiveis = [...provedores.values()]
+      .filter((prov) => prov.puxar && u.modulos.includes(prov.entidade.modulo))
+      .filter((prov) => !(u.perfil === 'promotor' && ehEntidadeDePedido(prov.entidade.nome) && !verPedido))
+      .sort((a, b) => a.entidade.nome.localeCompare(b.entidade.nome));
+    const ate = (await p.banco.horizonteSync()).toISOString();
+    const modulos = respostaMeusModulos(p.manifestos, u.modulos, licencas.parametros, p.relogio());
+    const escopo = (await versaoDosEscopos(new Set(elegiveis.flatMap(escoposDe)), ctx)) ?? null;
+    const desde = decodificarCursorNovidades(q.data.desde);
+    const modulosMudaram = !desde || desde.licencas !== modulos.versao_licencas;
+    let entidades: string[];
+    if (modulosMudaram || desde.escopo !== escopo) entidades = elegiveis.map((prov) => prov.entidade.nome);
+    else {
+      entidades = [];
+      const de = Date.parse(desde.horizonte);
+      const limite = Date.parse(ate);
+      for (const prov of elegiveis) {
+        const linhas = await prov.puxar!(doModulo(prov.entidade.modulo), {
+          desde: { updated_at: desde.horizonte, id: UUID_NIL },
+          ate,
+          limite: 1,
+        });
+        const mudou = linhas.some((l) => {
+          const t = Date.parse(l.updated_at);
+          return t >= de && t < limite;
+        });
+        if (mudou) entidades.push(prov.entidade.nome);
+      }
+    }
+    return {
+      entidades,
+      cursor: codificarCursorNovidades({ horizonte: ate, licencas: modulos.versao_licencas, escopo }),
+      horizonte: ate,
+      modulos_mudaram: modulosMudaram,
+      ...(modulosMudaram ? { modulos } : {}),
     };
   });
 

@@ -30,6 +30,10 @@
  *   um por vez, com os bytes lidos pelo leitor do shell (`arquivos.ler`). `ARQUIVO_SEM_REFERENCIA` (o comando ainda não
  *   chegou) mantém o arquivo `pendente`; aceito → `enviado` e o arquivo local é apagado depois de 7 dias. RN-CORE-02
  *   vale igual à fila de itens.
+ * - RN-CORE-23 (ADR 0018): `sincronizarNovidades()` é a atualização LEVE — `GET /v1/sync/novidades?desde=<cursor>`
+ *   (`transporte.novidades`) e pull só das entidades que mudaram (ou só das que o push silencioso indicou). Sem mudança
+ *   = 1 requisição. O cursor de novidades (`sync:novidades`) só anda depois de todas as entidades puxadas; a sincronização
+ *   completa grava um cursor-base no fim. As etapas extras (REST da Fase M) só rodam na completa.
  */
 import { ambienteIndisponivel, type AmbienteAparelho, type AmbienteModulo } from './ambiente';
 import { completarAmbiente, type RegistroConsultasAparelho } from './consultas';
@@ -45,6 +49,7 @@ import {
 } from './arquivos';
 import type { BuscaTextoSync, ConsultaTexto, ResultadoBusca } from './busca-tipos';
 import { MODULOS, type ModuloId } from './nomes';
+import type { NovidadesResposta } from './novidades';
 import type { ItemPush, LinhaSync, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
 import {
   codificarCursor,
@@ -100,6 +105,11 @@ export interface TransporteSync {
    * 4xx vira `rejeitado` com o código da API. Sem ele (ex.: servidor da Fase M), os arquivos ficam na fila.
    */
   enviarArquivo?(arquivo: EnvioArquivo): Promise<ResultadoEnvioArquivo>;
+  /**
+   * RN-CORE-23 (ADR 0018): `GET /v1/sync/novidades?desde=<cursor>` — entidades com mudança desde o cursor e módulos
+   * efetivos, se mudaram. Exceção = falha de transporte. Sem ele, `sincronizarNovidades` vira a sincronização completa.
+   */
+  novidades?(desde: string | null): Promise<NovidadesResposta>;
 }
 
 /** Acesso do motor aos arquivos locais (shell: `expo-file-system`; testes: memória). Caminho relativo aos documentos do app. */
@@ -422,6 +432,8 @@ const CHAVE = {
   ressinc: (e: string) => `sync:ressinc:${e}`,
   /** Sincronização completa em andamento (T-0059): entidades e etapas já concluídas. */
   carga: 'sync:carga',
+  /** Cursor de `GET /v1/sync/novidades` (RN-CORE-23, ADR 0018): grava só depois de puxar o que ele apontou. */
+  novidades: 'sync:novidades',
   entidade: (e: string) => `ent:${e}`,
   modulo: (m: string) => `mod:${m}:`,
 };
@@ -1096,6 +1108,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         };
         try {
           await motor.enviar();
+          // ADR 0018: cursor-base das novidades lido ANTES dos pulls (o horizonte dele fica abaixo do de cada pull). Retomada
+          // com entidades puladas não grava (elas foram puxadas antes deste horizonte). Servidor sem a rota: segue sem cursor.
+          const base =
+            op.transporte.novidades && puladas === 0 ? await op.transporte.novidades(null).catch(() => null) : null;
           let feito = 1 + puladas;
           const avisos: AvisoSync[] = [];
           for (const e of entidades) {
@@ -1136,6 +1152,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           await liberarAceitos(coberturas);
           const quando = agora().toISOString();
           await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
+          if (base) await op.armazenamento.gravar(CHAVE.novidades, base.cursor);
+          else await op.armazenamento.remover(CHAVE.novidades);
           if (cargaInicial) await op.armazenamento.remover(CHAVE.carga);
           mudar({
             sincronizando: false,
@@ -1147,6 +1165,70 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           return true;
         } catch (e) {
           // o que já foi puxado nesta passada vale: sai da sobreposição o aceito que as entidades que chegaram cobrem
+          await liberarAceitos(coberturas).catch(() => undefined);
+          mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
+          return false;
+        }
+      })().finally(() => {
+        syncEmCurso = null;
+      });
+      return syncEmCurso;
+    },
+
+    /**
+     * Atualização LEVE (RN-CORE-23, ADR 0018): envia a fila (só se houver pendente), consulta `GET /v1/sync/novidades`
+     * com o cursor guardado, aplica os módulos efetivos se mudaram e puxa só as entidades que mudaram. Com
+     * `opcoes.entidades` (lista do push silencioso), puxa só essas, sem consultar novidades (o cursor não anda).
+     * Sem `transporte.novidades` ou antes da primeira sincronização completa, faz a completa (`sincronizar`).
+     * Uma por vez, junto com `sincronizar` (quem chama durante uma em curso recebe a mesma promessa).
+     */
+    sincronizarNovidades(opcoes: { entidades?: readonly string[] } = {}): Promise<boolean> {
+      const consultar = op.transporte.novidades?.bind(op.transporte);
+      if (!consultar || estado.sincronizado_em === null) return motor.sincronizar();
+      if (syncEmCurso) return syncEmCurso;
+      syncEmCurso = (async () => {
+        if (!online()) {
+          mudar({ erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' });
+          return false;
+        }
+        mudar({ sincronizando: true, erro: null, etapa: 'Verificando novidades', progresso: 0, avisos: [] });
+        const coberturas = new Map<string, Cobertura>();
+        const ativasPull = () => new Set(op.registro.entidadesAtivas(estado.modulosAtivos, 'pull').map((e) => e.nome));
+        try {
+          await motor.enviar();
+          let alvo: string[];
+          let cursorNovo: string | null = null;
+          if (opcoes.entidades) {
+            const ativas = ativasPull();
+            alvo = [...new Set(opcoes.entidades)].filter((e) => ativas.has(e));
+          } else {
+            const r = await consultar(await op.armazenamento.ler<string>(CHAVE.novidades));
+            if (r.modulos_mudaram && r.modulos) {
+              const lista = r.modulos.modulos;
+              await motor.aplicarModulosAtivos(
+                lista.map((m) => m.id),
+                Object.fromEntries(lista.map((m) => [m.id, m.parametros ?? {}])) as ParametrosModulos,
+              );
+            }
+            const ativas = ativasPull();
+            alvo = [...new Set(r.entidades)].filter((e) => ativas.has(e)).sort();
+            cursorNovo = r.cursor;
+          }
+          const avisos: AvisoSync[] = [];
+          for (const [i, e] of alvo.entries()) {
+            mudar({ etapa: e, progresso: (i + 1) / (alvo.length + 1) });
+            if ((await puxarEntidade(e, coberturas)) === 'indisponivel')
+              avisos.push({ entidade: e, codigo: SYNC_NAO_IMPLEMENTADO, mensagem: MENSAGEM_PULL_INDISPONIVEL });
+          }
+          if (alvo.length > 0) await op.armazenamento.busca?.finalizar?.();
+          await liberarAceitos(coberturas);
+          // só agora: se um pull falhar, a próxima consulta repete as mesmas entidades (nada se perde)
+          if (cursorNovo) await op.armazenamento.gravar(CHAVE.novidades, cursorNovo);
+          const quando = agora().toISOString();
+          await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
+          mudar({ sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: quando, avisos });
+          return true;
+        } catch (e) {
           await liberarAceitos(coberturas).catch(() => undefined);
           mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
           return false;

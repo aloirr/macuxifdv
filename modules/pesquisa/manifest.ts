@@ -11,7 +11,7 @@ const PERFIS_RESULTADO = ['supervisor', 'gerente', 'analista', 'admin'] as const
  * Manifesto da Pesquisa.
  * Publica só `pesquisa.resposta.registrada@1` (doc 02): a publicação de uma versão é auditada (RN-AUD-01) pela API e
  * não tem evento próprio até algum consumidor pedir (pergunta aberta no recado da T-0012).
- * Usa `visita.etapas_checkout` (pesquisa obrigatória, RN-PES-03) e `cliente.abas` (pesquisas do cliente).
+ * Usa `visita.etapas_checkout` (pesquisa obrigatória, RN-PES-03), `cliente.abas` (pesquisas do cliente) e `inicio.cards` (T-0057).
  * O escopo do dado (equipe/regional nos resultados) fica no domain + API (RN-CORE-04), não nas ações.
  */
 export const manifest = defineModule({
@@ -23,7 +23,7 @@ export const manifest = defineModule({
   sync: ['questionario', 'questionario_versao', 'pergunta', 'resposta_pesquisa'],
   publica: ['pesquisa.resposta.registrada@1'],
   consome: ['core.visita.checkout@1'],
-  usaExtensoes: ['cliente.abas', 'visita.etapas_checkout'],
+  usaExtensoes: ['cliente.abas', 'visita.etapas_checkout', 'inicio.cards'],
   acoes: {
     // --- responder (apps Campo e Gestão; funciona offline, a API revalida: RN-PES-01/03/04) ---
     'pesquisa.responder': { perfis: [...PERFIS_CAMPO], descricao: 'Responder pesquisa avulsa ou do checkout, inclusive offline (RF-PES-03, RF-PES-04)' },
