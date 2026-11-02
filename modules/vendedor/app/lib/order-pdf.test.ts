@@ -143,7 +143,7 @@ describe('utilitários do PDF', () => {
     expect(pdfDateTime('2026-10-12T03:30:00.000Z', 'America/Manaus')).toBe('11/10/2026 23:30');
     expect(escapeHtml(`<a href="x">'&'</a>`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
     expect(netUnitCents({ quantity: 0, total_cents: 100 })).toBe(0);
-    expect(priceTableLabel('01dd607b-020e-4359-86dc-af3138e8210c')).toBe('Tabela 01dd607b');
+    expect(priceTableLabel('01dd607b-020e-4359-86dc-af3138e8210c')).toBe('Padrão do cliente');
     expect(priceTableLabel('')).toBe('Padrão');
   });
 });

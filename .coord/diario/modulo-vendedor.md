@@ -19,3 +19,4 @@
 2026-11-02 — T-0054 — retorno do ERP no pedido (status RN-INT-08/RN-VEN-30, faturado@1 RN-TRE-08, devolução RN-VEN-37 proposta), faturado no app (Campo/Gestão offline) e no BKO; consumidores atrás de FATURAMENTO_LIGADO até a migração (pedida ao banco-dados); vendedor 308/308 (46 com Postgres)
 2026-11-02 — T-0059 — detalhe do pedido no BKO: leitura tolerante (documento nulo), aviso em português, ErrorBlock com fallback, tooltips nos PDFs
 2026-11-02 — T-0059 — lint: removido import OrderDetail não usado em web/lib/queries.ts (exceção autorizada pelo gerente)
+2026-11-02 — T-0064 — PDFs (limite de 20 s com erro amigável, CNPJ formatado, nome da tabela e da distribuidora, coluna Medida, frete CIF/FOB), vendedor no card de aprovação do BKO, lista do Campo por mês com mudança de status e seletor de mês, pedido_numero em status_alterado@1 e aprovacao_solicitada@1; timers do Vendedor já limpos na T-0054
