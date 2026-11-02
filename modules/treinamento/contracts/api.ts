@@ -177,14 +177,17 @@ export type BkoTrilhaDetalhe = z.infer<typeof BkoTrilhaDetalhe>;
 
 export const IdParams = z.object({ id: Uuid }).strict();
 
-/** Caminhos das rotas (o app e o BKO montam a URL por aqui). */
+/**
+ * Caminhos das rotas, RELATIVOS à base da API (que já termina em `/v1`: `ClienteHttp` do app e `api()` do BKO).
+ * Na API o módulo é montado em `/v1/treinamento/<caminho>`.
+ */
 export const ROTAS_TREINAMENTO = {
-  jornada: '/v1/treinamento/jornada',
-  ranking: '/v1/treinamento/ranking',
-  adesao: '/v1/treinamento/adesao',
-  adesaoPessoas: '/v1/treinamento/adesao/pessoas',
-  bkoTrilhas: '/v1/treinamento/bko/trilhas',
-  bkoTrilha: (id: string) => `/v1/treinamento/bko/trilhas/${id}`,
-  bkoPublicar: (id: string) => `/v1/treinamento/bko/trilhas/${id}/publicar`,
-  bkoArquivar: (id: string) => `/v1/treinamento/bko/trilhas/${id}/arquivar`,
+  jornada: '/treinamento/jornada',
+  ranking: '/treinamento/ranking',
+  adesao: '/treinamento/adesao',
+  adesaoPessoas: '/treinamento/adesao/pessoas',
+  bkoTrilhas: '/treinamento/bko/trilhas',
+  bkoTrilha: (id: string) => `/treinamento/bko/trilhas/${id}`,
+  bkoPublicar: (id: string) => `/treinamento/bko/trilhas/${id}/publicar`,
+  bkoArquivar: (id: string) => `/treinamento/bko/trilhas/${id}/arquivar`,
 } as const;
