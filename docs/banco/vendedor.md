@@ -160,14 +160,25 @@ tenant = idempotência), parcial, numero_erp, nota_numero, nota_serie, nota_emit
 faturado_em).
 
 ## 0018 — medida no item do pedido (`0018_medidas`; T-0063, RN-VEN-15)
-**pedido_item** (novas): `medida` text null (sigla vendida, CHECK `pedido_item_medida_formato` `^[A-Z]{1,4}$`),
-`quantidade_embalagem` int not null (unidades por embalagem; 1 na unidade; CHECK `> 0` e `pedido_item_embalagem_coerente` =
-`fator`) e `quantidade_unidades` int not null (total em unidades; CHECK `pedido_item_quantidade_unidades_coerente` = quantidade ×
-quantidade_embalagem). **Retrato, sem FK para `core.medida`** (fronteira entre schemas): a API do Vendedor valida a sigla contra o
-Core. Gatilho **`pedido_item_medida`** (BEFORE INSERT/UPDATE; dispara antes de `pedido_item_quantidade_base` pela ordem
-alfabética): preenche o que vier nulo (`medida = upper(btrim(unidade))`, `quantidade_embalagem = fator`; `unidade` nula recebe a
-medida), mantém as duas famílias coerentes (quem gravar só `unidade`/`fator` ou só `medida`/`quantidade_embalagem`, a outra
-acompanha) e **sempre** calcula `quantidade_unidades` (nunca grave nela). O código atual (unidade/fator) continua igual. Itens
-existentes: backfill `medida = unidade`, `quantidade_embalagem = fator`, `quantidade_unidades = quantidade_base`. Item antigo sem
-`unidade` fica com `medida` nula (exibir a medida da unidade do produto). PDF: "CX c/ 12" = `medida` + `quantidade_embalagem`.
+**pedido_item** (novas, **derivadas — nunca grave nelas**): `medida` text null (sigla vendida), `quantidade_embalagem` int not
+null (unidades por embalagem; 1 na unidade) e `quantidade_unidades` int not null (total em unidades). **Fonte única =
+`unidade`/`fator`/`quantidade`** (0009/0013): o gatilho **`pedido_item_medida`** (BEFORE INSERT/UPDATE) **sempre sobrescreve**
+`medida = vendedor.medida_do_item(unidade)` (função IMMUTABLE: `upper(btrim(unidade))` se casar `^[A-Z]{1,4}$`, senão **nula**),
+`quantidade_embalagem = fator` e `quantidade_unidades = quantidade × fator` (= `quantidade_base`, que o gatilho
+`pedido_item_quantidade_base` da 0013 calcula do mesmo jeito; a ordem entre os dois não importa). O que vier nas três é ignorado
+(não vira 23514/500). CHECKs travam a coerência mesmo com o gatilho desligado: `pedido_item_medida_formato`,
+`pedido_item_medida_derivada` (`medida is not distinct from medida_do_item(unidade)`), `pedido_item_quantidade_embalagem_positiva`,
+`pedido_item_embalagem_coerente` (= fator) e `pedido_item_quantidade_unidades_coerente` (= quantidade × fator). O código atual do
+Vendedor (grava `unidade`/`fator`) continua igual.
+**Por que não `GENERATED ALWAYS ... STORED`** (preferência do gerente na revisão 🟡1, com fallback): coluna gerada recusa valor
+explícito no INSERT (`428C9`), e os testes de isolamento (`db/testes/vazamento.test.ts` e
+`tests/integracao/multitenant/vazamento-escrita.test.ts`) copiam linhas inteiras com `INSERT ... SELECT
+(jsonb_populate_record(...)).*` em toda tabela com `tenant_id` — mesmo motivo da 0015 (`promotor.derivar_*`). Gatilho que sempre
+sobrescreve + CHECKs = mesma garantia (não divergem), sem quebrar a cópia.
+**Retrato, sem FK para `core.medida`** (fronteira entre schemas): a API do Vendedor valida a sigla contra o Core.
+**Backfill** dos itens existentes: **não reescreve `unidade`** (nem normaliza) e **não mexe em `updated_at`** (o gatilho
+`pedido_item_updated_at` fica desligado só nesse UPDATE, dentro da transação; nada é puxado de novo pelo app). Unidade histórica
+fora do formato (ex.: `CAIXA`, `CX12`, que a 0013 aceitava) **não aborta**: fica com `medida` nula e a migração emite um NOTICE
+`tenant <codigo> (<id>): '<unidade>' x<n>`. Item sem `unidade` ou com `medida` nula: exibir a `unidade` gravada (ou a do produto).
+PDF: "CX c/ 12" = `medida` + `quantidade_embalagem`.
 Espelho Drizzle em `modules/vendedor/db/nuvem.ts`: **pendente** (módulo travado; `COLUNAS_SEM_ESPELHO_DRIZZLE` em `db/src/excecoes.ts`).

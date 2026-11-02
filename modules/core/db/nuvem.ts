@@ -81,7 +81,8 @@ export const produto = core.table('produto', {
   /** Nulo = parâmetro do tenant `desconto_maximo_produto_pct` (padrão 15). 0 a 100. */
   desconto_maximo_pct: numeric('desconto_maximo_pct', { precision: 5, scale: 2 }),
   // --- 0018 (RN-CORE-19): `unidade` = sigla da medida da unidade (FK produto_medida_fk -> core.medida). Embalagem opcional:
-  // medida (FK produto_embalagem_medida_fk) + quantidade de unidades (> 1), as duas juntas ou nenhuma, medida <> unidade.
+  // medida (FK produto_embalagem_medida_fk) + quantidade de unidades (2 a 9999, produto_embalagem_quantidade_faixa), as duas
+  // juntas ou nenhuma, medida <> unidade.
   embalagem_medida: text('embalagem_medida'),
   embalagem_quantidade: integer('embalagem_quantidade'),
 });

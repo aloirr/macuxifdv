@@ -10,9 +10,11 @@
 alter table vendedor.pedido_item drop constraint if exists pedido_item_quantidade_unidades_coerente;
 alter table vendedor.pedido_item drop constraint if exists pedido_item_embalagem_coerente;
 alter table vendedor.pedido_item drop constraint if exists pedido_item_quantidade_embalagem_positiva;
+alter table vendedor.pedido_item drop constraint if exists pedido_item_medida_derivada;
 alter table vendedor.pedido_item drop constraint if exists pedido_item_medida_formato;
 drop trigger if exists pedido_item_medida on vendedor.pedido_item;
 drop function if exists vendedor.pedido_item_medida();
+drop function if exists vendedor.medida_do_item(text);
 alter table vendedor.pedido_item drop column if exists quantidade_unidades;
 alter table vendedor.pedido_item drop column if exists quantidade_embalagem;
 alter table vendedor.pedido_item drop column if exists medida;
@@ -23,7 +25,7 @@ alter table core.produto_unidade drop constraint if exists produto_unidade_medid
 drop index if exists core.produto_embalagem_medida_ix;
 drop index if exists core.produto_medida_ix;
 alter table core.produto drop constraint if exists produto_embalagem_diferente;
-alter table core.produto drop constraint if exists produto_embalagem_quantidade_minima;
+alter table core.produto drop constraint if exists produto_embalagem_quantidade_faixa;
 alter table core.produto drop constraint if exists produto_embalagem_completa;
 alter table core.produto drop constraint if exists produto_embalagem_medida_fk;
 alter table core.produto drop constraint if exists produto_medida_fk;

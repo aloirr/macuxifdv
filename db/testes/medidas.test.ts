@@ -2,7 +2,9 @@
  * 0018 — medidas do produto (T-0063; RN-CORE-19, RF-CORE-14, RN-VEN-15). O que o BANCO garante: cadastro por tenant com
  * RLS forçado, lista inicial em todo tenant (existente e novo), sigla única por tenant (a mesma sigla em tenants
  * diferentes), produto e unidade de venda só com medida cadastrada DO PRÓPRIO tenant (FK composta), embalagem tudo-ou-nada,
- * medida em uso não se apaga (inativar pode) e o item do pedido com medida/quantidades preenchidas pelo gatilho.
+ * medida em uso não se apaga (inativar pode), teto da embalagem (2 a 9999) e o item do pedido com medida/quantidades
+ * DERIVADAS de unidade/fator/quantidade pelo gatilho (sempre sobrescreve; CHECKs travam a coerência). Revisão da T-0063
+ * (R-20261102-232543-engenheiro-software 🟡1/🟡2/🟡5).
  * Banco: papel de APLICAÇÃO (macuxi_app) sobre a fixture dois-tenants, sempre com ROLLBACK; up/down num banco efêmero.
  */
 import pg from 'pg';
@@ -45,20 +47,41 @@ describe('0018 medidas (estático)', () => {
     const vendedor = semComentarios(m18.up).split('\n').filter((l) => l.includes('vendedor.'));
     expect(vendedor.join('\n')).not.toMatch(/references/);
     expect(m18.up).toContain("check (medida is null or medida ~ '^[A-Z]{1,4}$')");
+    expect(m18.up).toContain('check (medida is not distinct from vendedor.medida_do_item(unidade))');
+  });
+
+  it('item: derivadas por gatilho que SEMPRE sobrescreve (não GENERATED: o INSERT ... SELECT dos testes de vazamento copia a linha)', () => {
+    const sql = semComentarios(m18.up);
+    expect(sql).not.toMatch(/generated always/i);
+    const corpo = /function vendedor\.pedido_item_medida\(\)[\s\S]*?\$\$([\s\S]*?)\$\$/.exec(sql)?.[1] ?? '';
+    expect(corpo).toContain('new.medida := vendedor.medida_do_item(new.unidade);');
+    expect(corpo).toContain('new.quantidade_embalagem := new.fator;');
+    expect(corpo).toContain('new.quantidade_unidades := new.quantidade * new.fator;');
+    expect(corpo).not.toMatch(/new\.(unidade|fator)\s*:=/); // a unidade histórica nunca é reescrita
+    expect(m18.up).toContain('check (quantidade_embalagem = fator)');
+    expect(m18.up).toContain('check (quantidade_unidades = quantidade * fator)');
+    // backfill sem mexer em updated_at
+    expect(sql).toContain('alter table vendedor.pedido_item disable trigger pedido_item_updated_at;');
+    expect(sql.indexOf('enable trigger pedido_item_updated_at')).toBeGreaterThan(sql.indexOf('disable trigger pedido_item_updated_at'));
+  });
+
+  it('teto da embalagem do produto: 2 a 9999 (mesmo teto do domain do Core e do contrato da Integração)', () => {
+    expect(m18.up).toContain('check (embalagem_quantidade is null or embalagem_quantidade between 2 and 9999)');
+    expect(m18.down).toContain('drop constraint if exists produto_embalagem_quantidade_faixa;');
   });
 
   it('semeadura como a 0006: sem SECURITY DEFINER; gatilho em plataforma.tenant e tenants existentes', () => {
     expect(semComentarios(m18.up)).not.toMatch(/security definer/i);
     expect(m18.up).toContain('create trigger tenant_semear_medidas after insert on plataforma.tenant');
     expect(m18.up).toContain('select core.semear_medidas(t.id) from plataforma.tenant t;');
-    // o gatilho do item roda antes do da quantidade_base (ordem alfabética dos BEFORE ROW)
-    expect('pedido_item_medida' < 'pedido_item_quantidade_base').toBe(true);
   });
 
   it('down desfaz tudo o que o up cria', () => {
     for (const trecho of [
       'drop trigger if exists pedido_item_medida on vendedor.pedido_item;',
       'drop function if exists vendedor.pedido_item_medida();',
+      'drop function if exists vendedor.medida_do_item(text);',
+      'alter table vendedor.pedido_item drop constraint if exists pedido_item_medida_derivada;',
       'alter table vendedor.pedido_item drop column if exists quantidade_unidades;',
       'alter table vendedor.pedido_item drop column if exists quantidade_embalagem;',
       'alter table vendedor.pedido_item drop column if exists medida;',
@@ -160,10 +183,13 @@ describe.skipIf(semBanco())('0018 medidas (banco, papel de aplicação)', () => 
     expect((await erroDe(emTransacao(app, A, () => emb('CX', null))))?.code).toBe('23514');
     expect((await erroDe(emTransacao(app, A, () => emb(null, 12))))?.code).toBe('23514');
     expect((await erroDe(emTransacao(app, A, () => emb('CX', 1))))?.code).toBe('23514');
+    expect((await erroDe(emTransacao(app, A, () => emb('CX', 10000))))?.code).toBe('23514'); // teto 9999
     expect((await erroDe(emTransacao(app, A, () => emb('PC', 12))))?.code).toBe('23514'); // = unidade do p1
     expect((await erroDe(emTransacao(app, A, () => emb('GF', 12))))?.code).toBe('23503'); // GF é de B
     await emTransacao(app, A, async () => {
       expect((await emb('CX', 12)).rowCount).toBe(1);
+      expect((await emb('CX', 9999)).rowCount).toBe(1);
+      expect((await emb('CX', 2)).rowCount).toBe(1);
       expect((await emb(null, null)).rowCount).toBe(1);
     });
   });
@@ -192,36 +218,71 @@ describe.skipIf(semBanco())('0018 medidas (banco, papel de aplicação)', () => 
     });
   });
 
-  it('item do pedido: o gatilho preenche medida, quantidade_embalagem e quantidade_unidades (código atual: unidade/fator)', async () => {
+  it('item do pedido: medida, quantidade_embalagem e quantidade_unidades DERIVADAS de unidade/fator/quantidade (o que vier nelas é ignorado)', async () => {
+    type Item = { medida: string | null; unidade: string | null; fator: number; quantidade_embalagem: number; quantidade_unidades: number; quantidade_base: number };
+    const COLS = 'medida, unidade, fator, quantidade_embalagem, quantidade_unidades, quantidade_base';
     await emTransacao(app, A, async () => {
       const ped = (await q<{ id: string; produto_id: string }>('select pedido_id as id, produto_id from vendedor.pedido_item limit 1')).rows[0]!;
       const novo = async (extra: string, valores: string) =>
-        (await q<{ medida: string | null; unidade: string | null; fator: number; quantidade_embalagem: number; quantidade_unidades: number; quantidade_base: number }>(
+        (await q<Item>(
           `insert into vendedor.pedido_item (tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, total_cents${extra})
            values ($1, $2, (select coalesce(max(sequencia), 0) + 1 from vendedor.pedido_item where pedido_id = $2), $3, 2, 100, 100, 200${valores})
-           returning medida, unidade, fator, quantidade_embalagem, quantidade_unidades, quantidade_base`,
+           returning ${COLS}`,
           [A, ped.id, ped.produto_id],
         )).rows[0]!;
-      // código atual do Vendedor: grava unidade/fator
+      // código atual do Vendedor: grava só unidade/fator (quantidade_base fica no padrão 0 e o gatilho da 0013 a calcula)
       expect(await novo(', unidade, fator', ", 'cx', 12")).toEqual({ medida: 'CX', unidade: 'cx', fator: 12, quantidade_embalagem: 12, quantidade_unidades: 24, quantidade_base: 24 });
-      // código novo: grava medida/quantidade_embalagem (unidade e fator acompanham)
-      expect(await novo(', medida, quantidade_embalagem', ", 'FD', 6")).toEqual({ medida: 'FD', unidade: 'FD', fator: 6, quantidade_embalagem: 6, quantidade_unidades: 12, quantidade_base: 12 });
-      // na unidade: quantidade_embalagem 1
       expect(await novo(', unidade', ", 'UN'")).toEqual({ medida: 'UN', unidade: 'UN', fator: 1, quantidade_embalagem: 1, quantidade_unidades: 2, quantidade_base: 2 });
-      // UPDATE: troca de fator leva a quantidade_embalagem; troca de quantidade leva as unidades
-      const r = await q<{ quantidade_embalagem: number; quantidade_unidades: number }>(
-        "update vendedor.pedido_item set fator = 10, unidade = 'CX', quantidade = 3 where pedido_id = $1 and medida = 'UN' returning quantidade_embalagem, quantidade_unidades, medida",
-        [ped.id],
+      // valores divergentes gravados direto nas derivadas são sobrescritos (nunca divergem; não vira 23514/500)
+      expect(await novo(', unidade, fator, medida, quantidade_embalagem, quantidade_unidades, quantidade_base', ", 'FD', 6, 'CX', 99, 7, 5")).toEqual({
+        medida: 'FD', unidade: 'FD', fator: 6, quantidade_embalagem: 6, quantidade_unidades: 12, quantidade_base: 12,
+      });
+      // unidade fora do formato ou nula: medida nula, unidade preservada como veio
+      expect(await novo(', unidade', ", 'CAIXA'")).toMatchObject({ medida: null, unidade: 'CAIXA', quantidade_embalagem: 1, quantidade_unidades: 2 });
+      expect(await novo('', '')).toMatchObject({ medida: null, unidade: null, quantidade_embalagem: 1, quantidade_unidades: 2 });
+      // UPDATE: troca de unidade/fator/quantidade leva as derivadas; escrever nelas não tem efeito
+      const r = await q<Item>(`update vendedor.pedido_item set fator = 10, unidade = 'CX', quantidade = 3 where pedido_id = $1 and unidade = 'UN' returning ${COLS}`, [ped.id]);
+      expect(r.rows[0]).toEqual({ medida: 'CX', unidade: 'CX', fator: 10, quantidade_embalagem: 10, quantidade_unidades: 30, quantidade_base: 30 });
+      const r2 = await q<Item>(`update vendedor.pedido_item set medida = 'DZ', quantidade_embalagem = 1, quantidade_unidades = 1 where pedido_id = $1 and unidade = 'CX' returning ${COLS}`, [ped.id]);
+      expect(r2.rows[0]).toEqual({ medida: 'CX', unidade: 'CX', fator: 10, quantidade_embalagem: 10, quantidade_unidades: 30, quantidade_base: 30 });
+      // nenhuma linha do tenant diverge (a derivada da unidade, = fator, = quantidade_base)
+      const div = await q<{ n: number }>(
+        `select count(*)::int as n from vendedor.pedido_item
+          where medida is distinct from vendedor.medida_do_item(unidade) or quantidade_embalagem <> fator or quantidade_unidades <> quantidade_base`,
       );
-      expect(r.rows[0]).toEqual({ quantidade_embalagem: 10, quantidade_unidades: 30, medida: 'CX' });
-      const fora = await erroDe(q("update vendedor.pedido_item set medida = 'cx' where pedido_id = $1", [ped.id]));
-      expect(fora?.code).toBe('23514');
+      expect(div.rows[0]!.n).toBe(0);
     });
-    // itens que já existiam (fixture): coerentes com fator / quantidade_base
+    // os CHECKs travam a coerência mesmo com o gatilho desligado (admin, transação desfeita)
+    await comCliente(banco().urlAdmin, (admin) =>
+      emTransacao(admin, null, async () => {
+        await admin.query('alter table vendedor.pedido_item disable trigger pedido_item_medida');
+        for (const set of ["medida = 'DZ'", 'quantidade_embalagem = fator + 1', 'quantidade_unidades = quantidade_unidades + 1']) {
+          const e = await erroDe(admin.query('savepoint s').then(() => admin.query(`update vendedor.pedido_item set ${set} where tenant_id = $1`, [A])));
+          expect(e?.code, set).toBe('23514');
+          await admin.query('rollback to savepoint s');
+        }
+      }),
+    );
+    // itens que já existiam (fixture): coerentes com unidade / fator / quantidade_base
     const inc = await comCliente(banco().urlAdmin, (admin) =>
-      admin.query<{ n: number }>('select count(*)::int as n from vendedor.pedido_item where quantidade_embalagem <> fator or quantidade_unidades <> quantidade_base'),
+      admin.query<{ n: number }>(
+        `select count(*)::int as n from vendedor.pedido_item
+          where medida is distinct from vendedor.medida_do_item(unidade) or quantidade_embalagem <> fator or quantidade_unidades <> quantidade_base`,
+      ),
     );
     expect(inc.rows[0]!.n).toBe(0);
+  });
+
+  it('ordem dos BEFORE ROW: pedido_item_medida roda antes de pedido_item_quantidade_base e o resultado é o mesmo', async () => {
+    const r = await comCliente(banco().urlAdmin, (admin) =>
+      admin.query<{ tgname: string }>(
+        `select tgname from pg_trigger where tgrelid = 'vendedor.pedido_item'::regclass and not tgisinternal order by tgname`,
+      ),
+    );
+    const nomes = r.rows.map((x) => x.tgname);
+    expect(nomes.indexOf('pedido_item_medida')).toBeLessThan(nomes.indexOf('pedido_item_quantidade_base'));
+    // independe da ordem: as duas calculam quantidade × fator a partir das colunas de origem (provado no teste acima com
+    // quantidade_base omitida/divergente no INSERT e quantidade_unidades = quantidade_base no RETURNING)
   });
 
   it('tenant novo recebe as 11 medidas iniciais (gatilho) com o id de idMedida', async () => {
@@ -271,10 +332,20 @@ describe.skipIf(semBanco())('0018 up/down com dados (banco efêmero)', () => {
       await c.query(
         `insert into vendedor.pedido_item (tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, total_cents, unidade, fator)
          values ($1, 'cccccccc-0018-4000-8000-000000000010', 1, 'cccccccc-0018-4000-8000-000000000002', 3, 10, 10, 30, 'GFA', 6),
-                ($1, 'cccccccc-0018-4000-8000-000000000010', 2, 'cccccccc-0018-4000-8000-000000000001', 2, 10, 10, 20, null, 1)`,
+                ($1, 'cccccccc-0018-4000-8000-000000000010', 2, 'cccccccc-0018-4000-8000-000000000001', 2, 10, 10, 20, null, 1),
+                ($1, 'cccccccc-0018-4000-8000-000000000010', 3, 'cccccccc-0018-4000-8000-000000000001', 1, 10, 10, 10, ' cx ', 12),
+                ($1, 'cccccccc-0018-4000-8000-000000000010', 4, 'cccccccc-0018-4000-8000-000000000001', 1, 10, 10, 10, 'CX12', 12)`,
         [T],
       );
+      const itensAntes = (await c.query('select id, unidade, updated_at from vendedor.pedido_item where tenant_id = $1 order by sequencia', [T])).rows;
+      // unidade histórica fora do formato no ITEM ("CX12") não aborta (medida nula + NOTICE com tenant e sigla)
+      const avisos: string[] = [];
+      const ouvir = (n: { message?: string }) => avisos.push(String(n.message));
+      c.on('notice', ouvir);
       expect((await migrarUp(c)).aplicadas).toEqual(desde0018);
+      c.off('notice', ouvir);
+      expect(avisos.join('\n')).toContain("tenant antigo18 (cccccccc-0000-4000-8000-000000000018): 'CX12' x1");
+      expect(avisos.join('\n')).not.toContain("' cx '");
       const depois = await retratoDoCatalogo(c);
       const med = await c.query<{ sigla: string; descricao: string }>('select sigla, descricao from core.medida where tenant_id = $1 order by sigla', [T]);
       expect(med.rows.map((x) => x.sigla)).toEqual([...SIGLAS_INICIAIS, 'GFA', 'PC'].sort());
@@ -284,17 +355,28 @@ describe.skipIf(semBanco())('0018 up/down com dados (banco efêmero)', () => {
       expect(itens.rows).toEqual([
         { sequencia: 1, medida: 'GFA', quantidade_embalagem: 6, quantidade_unidades: 18 },
         { sequencia: 2, medida: null, quantidade_embalagem: 1, quantidade_unidades: 2 },
+        { sequencia: 3, medida: 'CX', quantidade_embalagem: 12, quantidade_unidades: 12 },
+        { sequencia: 4, medida: null, quantidade_embalagem: 12, quantidade_unidades: 12 },
       ]);
+      // backfill: unidade histórica intacta (nem normalizada) e updated_at intacto (nada é puxado de novo)
+      expect((await c.query('select id, unidade, updated_at from vendedor.pedido_item where tenant_id = $1 order by sequencia', [T])).rows).toEqual(itensAntes);
       // down (da última até a 0018) volta exatamente ao catálogo anterior; os dados antigos ficam
       expect((await migrarDown(c, { passos: desde0018.length })).aplicadas).toEqual([...desde0018].reverse());
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      expect((await c.query('select count(*)::int as n from vendedor.pedido_item where tenant_id = $1', [T])).rows[0].n).toBe(2);
+      expect((await c.query('select count(*)::int as n from vendedor.pedido_item where tenant_id = $1', [T])).rows[0].n).toBe(4);
       // down de novo (idempotente) não quebra
       await c.query(m18.down);
       expect(await retratoDoCatalogo(c)).toEqual(antes);
-      // sigla fora do formato aborta o up com a lista
+      // sigla fora do formato em core.produto / core.produto_unidade aborta o up com mensagem clara: tenant, tabela e sigla
       await c.query("insert into core.produto (tenant_id, sku, nome, unidade) values ($1, 'P3', 'Três', 'LITRO')", [T]);
-      await expect(migrarUp(c)).rejects.toThrow(/LITRO/);
+      await c.query("insert into core.produto_unidade (tenant_id, produto_id, unidade, fator) values ($1, 'cccccccc-0018-4000-8000-000000000001', 'CX12', 12)", [T]);
+      const falha = (await migrarUp(c).then(() => null, (e: Error) => e)) as (Error & { cause?: { code?: string; hint?: string } }) | null;
+      expect(falha?.cause?.code).toBe('23514');
+      expect(falha?.message).toContain('Falha ao aplicar 0018_medidas.up.sql: 0018_medidas: unidade fora do formato de sigla');
+      expect(falha?.message).toContain("tenant antigo18 (cccccccc-0000-4000-8000-000000000018): core.produto 'LITRO'");
+      expect(falha?.message).toContain("tenant antigo18 (cccccccc-0000-4000-8000-000000000018): core.produto_unidade 'CX12'");
+      expect(falha?.cause?.hint).toMatch(/1 a 4 letras/);
+      await c.query("delete from core.produto_unidade where unidade = 'CX12'");
       await c.query("delete from core.produto where sku = 'P3'");
       await migrarUp(c);
       expect(await retratoDoCatalogo(c)).toEqual(depois);

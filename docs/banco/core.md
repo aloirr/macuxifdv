@@ -265,10 +265,13 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
     gatilho `tenant_semear_medidas` (AFTER INSERT em `plataforma.tenant`). `on conflict do nothing`: não sobrescreve edição.
 - **produto** (0018): `unidade` (existente) = **sigla da medida da unidade**, FK `produto_medida_fk (tenant_id, unidade) →
   medida (tenant_id, sigla)`. Novas `embalagem_medida` text null (FK `produto_embalagem_medida_fk`) e `embalagem_quantidade`
-  int null (unidades na embalagem): CHECKs `produto_embalagem_completa` (as duas ou nenhuma), `produto_embalagem_quantidade_minima`
-  (> 1) e `produto_embalagem_diferente` (embalagem ≠ unidade). Índices `produto_medida_ix (tenant_id, unidade)` e
+  int null (unidades na embalagem): CHECKs `produto_embalagem_completa` (as duas ou nenhuma), `produto_embalagem_quantidade_faixa`
+  (**2 a 9999**; o mesmo teto vale no domain do Core e no contrato da Integração — sem ele, valor acima do `integer` virava
+  22003/500) e `produto_embalagem_diferente` (embalagem ≠ unidade). Índices `produto_medida_ix (tenant_id, unidade)` e
   `produto_embalagem_medida_ix` (parcial). Antes das FKs a 0018 normaliza `upper(btrim(unidade))`; sigla fora do formato
-  **aborta** a migração com a lista.
+  **aborta** a migração (`23514`) com mensagem clara por linha: `tenant <codigo> (<id>): core.produto|core.produto_unidade
+  '<sigla>'` e a dica de corrigir a unidade para 1 a 4 letras (nada é adivinhado). Item de pedido antigo NÃO aborta (ver
+  [vendedor.md](vendedor.md) 0018).
 - **produto_unidade** (0018): FK `produto_unidade_medida_fk (tenant_id, unidade) → medida (tenant_id, sigla)`; índice
   `produto_unidade_medida_ix`. (O CHECK antigo `^[A-Z0-9]{1,6}$` fica; a FK exige uma sigla cadastrada, logo `^[A-Z]{1,4}$`.)
 - **Integração**: sigla desconhecida no produto / unidade de venda vinda do ERP agora é recusada pela FK (`23503`
