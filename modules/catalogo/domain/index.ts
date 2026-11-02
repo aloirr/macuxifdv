@@ -13,3 +13,5 @@ export * from './ia';
 export * from './pergunte';
 export * from './visibilidade';
 export * from './precos-cliente';
+export * from './vitrine';
+export * from './conteudo';

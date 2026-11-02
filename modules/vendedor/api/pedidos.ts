@@ -21,12 +21,26 @@ import {
   OrderListQuery,
   RejeitarPedidoRequest,
   type DiscountPolicy as AlcadaApi,
+  type Order,
   type OrderDetail,
 } from '../contracts';
-import { decidirAprovacao, montarPedidoAprovado, politicaDosParametros, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
+import { decidirAprovacao, montarPedidoAprovado, politicaDosParametros, situacaoDoOrcamento, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaPedido } from './mapeamento';
+import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { escopoDoPedido } from './sync';
+
+/** T-0053: campos da pré-venda no pedido/orçamento (vazio para pedido sem pré-venda ou sem a 0013). */
+function camposPreVenda(doc: DocumentoPreVenda | undefined, status: string, agora: Date): Partial<Order> {
+  if (!doc) return {};
+  return {
+    tipo: doc.tipo,
+    validade_ate: doc.validade_ate,
+    situacao_orcamento: doc.tipo === 'orcamento' ? situacaoDoOrcamento({ status, validade_ate: doc.validade_ate, convertido_pedido_id: doc.convertido_pedido_id }, agora) : null,
+    orcamento_origem_id: doc.orcamento_origem_id,
+    convertido_pedido_id: doc.convertido_pedido_id,
+  };
+}
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const ts = (c: string, pre = 'p.') => `to_char(${pre}${c} at time zone 'UTC', ${UTC}) as ${c}`;
@@ -85,7 +99,8 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
       [id],
     )
   ).rows;
-  return { linha, detalhe: paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros()) };
+  const doc = (await preVenda().lerDocumentos(db, [id])).get(id);
+  return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros()), ...camposPreVenda(doc, linha.status, ctx.agora()) } };
 }
 
 // ---------- leitura ----------
@@ -129,8 +144,9 @@ export const rotaListarPedidos: RotaModulo = {
       );
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];
+      const docs = await preVenda().lerDocumentos(db, pagina.map((l) => l.id));
       return {
-        itens: pagina.map((l) => paraOrder(l, ctx.parametros(), ctx.usuario.perfil)),
+        itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil), ...camposPreVenda(docs.get(l.id), l.status, ctx.agora()) })),
         proximo_cursor: rows.length > limite && ultimo ? codificarCursor(ultimo.created_at, ultimo.id) : null,
       };
     });
@@ -297,7 +313,10 @@ export const rotaCancelarPedido: RotaModulo = {
          values (plataforma.tenant_atual(), $1, $2, 'cancelled', $3, $4, $5, $6, null, false, $7)`,
         [id, linha.status, ctx.usuario.id, cad.usuarios[0]?.nome ?? null, ctx.usuario.perfil, motivo ?? 'Cancelado', agora],
       );
-      await tx.auditar({ acao: 'pedido.cancelar', entidade: 'pedido', entidade_id: id, antes: { status: linha.status }, depois: { status: 'cancelled' } });
+      const orcamento = (await preVenda().lerDocumentos(db, [id])).get(id)?.tipo === 'orcamento';
+      await tx.auditar({ acao: 'pedido.cancelar', entidade: 'pedido', entidade_id: id, antes: { status: linha.status }, depois: { status: 'cancelled', ...(orcamento ? { tipo: 'orcamento' } : {}) } });
+      // RN-VEN-32: orçamento não publica evento de pedido (nunca foi para metas, Gestor nem fila do ERP)
+      if (orcamento) return { id, status: 'cancelled' };
       await tx.publicar(
         EVENTO_PEDIDO_STATUS_ALTERADO,
         { pedido_id: id, vendedor_id: linha.vendedor_id, de: statusDoContrato(linha.status), para: 'cancelado', alterado_em: agora, autor_id: ctx.usuario.id, motivo },

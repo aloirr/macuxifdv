@@ -37,3 +37,33 @@ export function resolverTimeoutIaMs(valor?: number | null): number {
   }
   return valor;
 }
+
+// ---------- leitura tolerante dos parâmetros crus do tenant (API e aparelho; T-0052) ----------
+type ChaveParametro = keyof ParametrosCatalogo;
+const CHAVES = Object.keys(PARAMETROS_PADRAO) as ChaveParametro[];
+
+/**
+ * Parâmetros crus do tenant (`plataforma.parametro`, `ctx.parametros()` / `useParametros`) → `ParametrosCatalogo`.
+ * Diferente de `resolverParametros`, nunca lança: chave desconhecida é ignorada e valor inválido cai no padrão SÓ
+ * daquela chave (um erro de cadastro não derruba a busca nem liga nada por engano — RN-CAT-05 continua no padrão).
+ */
+export function parametrosDoTenant(cru: Readonly<Record<string, unknown>> | undefined): ParametrosCatalogo {
+  const saida: Record<string, unknown> = { ...PARAMETROS_PADRAO };
+  for (const k of CHAVES) {
+    if (!cru || !(k in cru)) continue;
+    const r = ParametrosCatalogo.shape[k].safeParse(cru[k]);
+    if (r.success) saida[k] = r.data;
+  }
+  return saida as ParametrosCatalogo;
+}
+
+/** RN-CAT-03: `ia_timeout_ms` do tenant; ausente, de outro tipo ou fora da faixa = padrão (8 s). */
+export function timeoutIaDoTenant(cru: Readonly<Record<string, unknown>> | undefined): number {
+  const v = cru?.ia_timeout_ms;
+  if (typeof v !== 'number') return TIMEOUT_IA_PADRAO_MS;
+  try {
+    return resolverTimeoutIaMs(v);
+  } catch {
+    return TIMEOUT_IA_PADRAO_MS;
+  }
+}

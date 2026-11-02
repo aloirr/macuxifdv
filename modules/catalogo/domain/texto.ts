@@ -144,7 +144,8 @@ export function expandirSinonimos(consulta: string, sinonimos: readonly Sinonimo
   let maxPalavras = 1;
   for (const s of sinonimos) {
     if (s.active === false) continue;
-    const frases = [s.term, ...s.synonyms].map(chaveDeTermo).filter((f) => f !== '');
+    // mesma forma da consulta (`tokensDeBusca`): sem stopword, senão "pasta de dente" nunca casaria com "pasta dente"
+    const frases = [...new Set([s.term, ...s.synonyms].map((t) => tokensDeBusca(t).join(' ')).filter((f) => f !== ''))];
     if (frases.length < 2) continue;
     for (const f of frases) {
       const grupo = porFrase.get(f) ?? new Set<string>();
