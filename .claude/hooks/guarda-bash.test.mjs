@@ -288,7 +288,7 @@ function criarRepo({ comHook = false, extras = [] } = {}) {
     mkdirSync(join(dir, 'scripts'), { recursive: true });
     mkdirSync(join(dir, '.claude', 'hooks'), { recursive: true });
     copyFileSync(join(RAIZ_REAL, 'scripts', 'coord-lib.mjs'), join(dir, 'scripts', 'coord-lib.mjs'));
-    for (const f of ['guarda-bash.mjs', 'guarda-bash-lib.mjs']) copyFileSync(join(AQUI, f), join(dir, '.claude', 'hooks', f));
+    for (const f of ['guarda-bash.mjs', 'guarda-bash-lib.mjs', 'guarda-merge-lib.mjs']) copyFileSync(join(AQUI, f), join(dir, '.claude', 'hooks', f));
   }
   git(dir, 'add', '-A');
   git(dir, 'commit', '-q', '-m', 'inicial');

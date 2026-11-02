@@ -15,6 +15,8 @@
 //  - "alexandre" só por fonte confiável: MACUXI_AGENTE=alexandre ou sessão manual local. Branch
 //    alexandre/* e trailer "Agente: alexandre" NÃO dão a identidade alexandre.
 //  - "alexandre" altera arquivo de qualquer dono (sem-dono, congelado e recados continuam valendo).
+//  - Recado (guardião v5, T-0044): só arquivo novo cujo nome termina com o remetente (R-...-<agente>.md)
+//    e, no Write, com "de: <agente>" no cabeçalho — nenhum agente grava "de: alexandre".
 //  - sessão manual local (sem agente) → liberado. Desligar tudo: variável MACUXI_GUARDA=off.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -63,6 +65,7 @@ if (!PESSOAS.includes(agente)) {
   bloquear(`o agente "${agente}" não faz parte do time; só os agentes de .claude/agents podem alterar o repositório.`);
 }
 
-const r = podeAlterar({ agente, ferramenta, rel });
+// v5 (T-0044): no Write de recado, o conteúdo vai junto para conferir o "de:" (de: alexandre só o Alexandre).
+const r = podeAlterar({ agente, ferramenta, rel, conteudo: typeof ti.content === 'string' ? ti.content : undefined });
 if (!r.ok) bloquear(r.motivo);
 process.exit(0);
