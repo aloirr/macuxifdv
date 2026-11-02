@@ -25,7 +25,7 @@ import { execFileSync } from 'node:child_process';
 import {
   tokenizar, comandosSimples, alvosDoComando, SO_LEITURA, COORD_SO_LEITURA, PACOTES_SO_LEITURA, DESCARTE,
 } from './guarda-bash-lib.mjs';
-import { CAMINHOS_DE_GOVERNANCA, mudancasDeGovernanca, remetenteDoRecado } from '../../scripts/coord-lib.mjs';
+import { AGENTES, PESSOAS, CAMINHOS_DE_GOVERNANCA, mudancasDeGovernanca, remetenteDoRecado } from '../../scripts/coord-lib.mjs';
 
 export const REPO_OFICIAL = 'aloirr/macuxifdv';
 export const AGENTE_DO_MERGE = 'gerente-projetos';
@@ -770,5 +770,270 @@ export function mensagemRecadoFalso(agente, motivos) {
     `[guardião Macuxi] BLOQUEADO (recado): ${agente} não envia recado em nome de outro:\n` +
     `${motivos.map((m) => ` - ${m}`).join('\n')}\n` +
     'Recado do Alexandre (sobretudo "autorizo o merge do PR #N no commit <sha>") só ele escreve. Não contorne o bloqueio.'
+  );
+}
+
+// ───────────────────────────── guardião v6 (T-0050): merge pela ferramenta MCP do GitHub ─────────────────────────────
+//
+// Hook PreToolUse .claude/hooks/guarda-merge-mcp.mjs (matcher das ferramentas MCP com "merge" no nome).
+// Mesmas regras do merge pelo gh do v5, para quem faz o merge pelo MCP (mcp__github__merge_pull_request e variações):
+//  a) só sessão principal (subagente nunca) de um agente do time com identidade conferida (MACUXI_AGENTE,
+//     sessão local, branch <agente>/T-nnnn ou trailer "Agente:" do branch nuvem/*); alexandre e sessão sem
+//     agente não (o Alexandre faz o merge pelo GitHub);
+//  b) aloirr/macuxifdv, merge_method "squash", SHA esperado de 40 caracteres (campo sha, se a ferramenta
+//     tiver, ou a linha "Head-SHA: <sha>" na commit_message) e commit_message terminando com "Agente: <nome>";
+//     qualquer outro parâmetro = bloqueado; auto-merge e merge de branch sem PR = bloqueados;
+//  c) o hook consulta o GitHub pela API REST (gh api; o GraphQL não responde nas sessões da nuvem):
+//     PR aberto, head = SHA esperado, CI do head do PR verde e CI do main verde (todos os check-runs
+//     concluídos com success/neutral/skipped; "main vermelho = nuvem não faz merge");
+//  d) PR com caminho de governança (CAMINHOS_DE_GOVERNANCA): nunca na nuvem (CLAUDE_CODE_REMOTE=true); localmente
+//     só o gerente-projetos com identidade confiável (como no v5), com o recado do Alexandre "autorizo o merge do
+//     PR #N no commit <sha>" (mesmo N e SHA) e "Agente: alexandre" na commit_message (CI da T-0049).
+//  gh ausente, sem rede, sem login, resposta inválida, lista de arquivos ou de checks incompleta, prazo estourado
+//  → BLOQUEADO (falha fechada).
+
+const CABECALHO_MCP = '[guardião Macuxi] BLOQUEADO (merge pelo MCP do GitHub):';
+export const SHA_COMPLETO = /^[0-9a-f]{40}$/i;
+/** Parâmetros aceitos na ferramenta de merge (nomes de variações do MCP do GitHub). */
+export const CHAVES_MERGE_MCP = {
+  owner: ['owner'],
+  repo: ['repo', 'repository'],
+  pr: ['pullNumber', 'pull_number', 'pullRequestNumber', 'pull_request_number', 'prNumber', 'pr_number', 'number'],
+  metodo: ['merge_method', 'mergeMethod', 'method'],
+  titulo: ['commit_title', 'commitTitle'],
+  mensagem: ['commit_message', 'commitMessage'],
+  sha: ['sha', 'expected_head_sha', 'expectedHeadSha', 'head_sha', 'headSha', 'match_head_commit', 'matchHeadCommit'],
+};
+const RE_HEAD_SHA = /^\s*Head-SHA:[ \t]*([0-9a-zA-Z]+)[ \t]*$/gim;
+const RE_AGENTE = /^\s*Agente:[ \t]*(\S+)[ \t]*$/i;
+/** Conclusões de check-run que contam como verde. */
+export const CONCLUSOES_VERDES = ['success', 'neutral', 'skipped'];
+
+/** mcp__<servidor>__<nome> → {servidor, nome}; null se não for ferramenta MCP. */
+export function partesFerramentaMcp(ferramenta) {
+  const m = String(ferramenta || '').match(/^mcp__(.+?)__(.+)$/);
+  return m ? { servidor: m[1], nome: m[2] } : null;
+}
+
+/**
+ * Que tipo de merge a ferramenta faz: 'merge-pr' | 'auto-merge' | 'outro-merge' | null (não é merge).
+ * Ferramenta de outro servidor sem "pull"/"pr" no nome (ex.: mesclar desenhos) não é merge de PR.
+ * Consulta (get/list/search/read/view/show...) também não.
+ */
+export function tipoFerramentaMerge(ferramenta) {
+  const p = partesFerramentaMcp(ferramenta);
+  if (!p) return null;
+  const n = p.nome.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!n.includes('merge')) return null;
+  if (/^(get|list|search|read|view|show)/.test(n) && !/(and|then)merge/.test(n)) return null;
+  const github = /git[-_]?hub|^gh$|[-_]gh$|^gh[-_]/i.test(p.servidor);
+  const pr = /pull|pr/.test(n);
+  if (!github && !pr) return null;
+  if (/auto/.test(n)) return 'auto-merge';
+  return pr ? 'merge-pr' : 'outro-merge';
+}
+
+/** Linhas do último bloco da mensagem (bloco de trailers); [] se a mensagem tem um bloco só. Igual ao CI da T-0049. */
+export function ultimoBlocoDaMensagem(mensagem) {
+  const blocos = [];
+  let atual = [];
+  for (const linha of String(mensagem || '').replace(/\r\n?/g, '\n').split('\n')) {
+    if (linha.trim() === '') { if (atual.length) blocos.push(atual); atual = []; } else atual.push(linha);
+  }
+  if (atual.length) blocos.push(atual);
+  return blocos.length >= 2 ? blocos[blocos.length - 1] : [];
+}
+
+/**
+ * Valida os parâmetros da ferramenta de merge (regra b). Função pura.
+ * @returns {{erros: string[], pr: number|null, sha: string|null, agenteDoCommit: string|null}}
+ */
+export function validarEntradaMergeMcp(entrada) {
+  const erros = [];
+  const obj = entrada && typeof entrada === 'object' && !Array.isArray(entrada) ? entrada : {};
+  const conhecidas = new Set(Object.values(CHAVES_MERGE_MCP).flat());
+  const desconhecidas = Object.keys(obj).filter((k) => !conhecidas.has(k));
+  if (desconhecidas.length) erros.push(`parâmetro(s) não aceito(s) no merge: ${desconhecidas.join(', ')} (aceitos: owner, repo, pullNumber, merge_method, commit_title, commit_message, sha)`);
+  const pegar = (campo) => {
+    const presentes = CHAVES_MERGE_MCP[campo].filter((k) => obj[k] !== undefined && obj[k] !== null && obj[k] !== '');
+    if (presentes.length > 1 && new Set(presentes.map((k) => String(obj[k]).trim().toLowerCase())).size > 1) erros.push(`${presentes.join(' e ')} com valores diferentes`);
+    return presentes.length ? obj[presentes[0]] : undefined;
+  };
+  // repositório: owner + repo, ou repo = "owner/nome"
+  const dono = pegar('owner');
+  const nomeRepo = pegar('repo');
+  const repo = (dono !== undefined ? `${dono}/${nomeRepo ?? ''}` : String(nomeRepo ?? '')).trim().toLowerCase();
+  if (dono === undefined && nomeRepo === undefined) erros.push('falta o repositório (owner: "aloirr", repo: "macuxifdv")');
+  else if (repo !== REPO_OFICIAL) erros.push(`merge só no repositório ${REPO_OFICIAL} (veio ${repo || 'vazio'})`);
+  // PR
+  const bruto = pegar('pr');
+  let pr = null;
+  if (bruto === undefined) erros.push('falta o número do PR (pullNumber)');
+  else if (!/^\d+$/.test(String(bruto).trim()) || Number(bruto) < 1) erros.push(`o PR tem de ser o número (veio "${bruto}")`);
+  else pr = Number(bruto);
+  // método
+  const metodo = pegar('metodo');
+  if (metodo === undefined) erros.push('falta merge_method: "squash" (sem ele o GitHub faz merge commit)');
+  else if (String(metodo).trim().toLowerCase() !== 'squash') erros.push(`merge_method "${metodo}" é proibido: use "squash" (o main recebe um commit por PR)`);
+  // SHA esperado: campo próprio e/ou "Head-SHA:" na mensagem; têm de bater
+  const mensagem = pegar('mensagem');
+  const titulo = pegar('titulo');
+  if (titulo !== undefined && /[\r\n]/.test(String(titulo))) erros.push('commit_title com quebra de linha não é aceito');
+  const shas = new Set();
+  const campo = pegar('sha');
+  if (campo !== undefined) shas.add(String(campo).trim().toLowerCase());
+  for (const m of String(mensagem ?? '').matchAll(RE_HEAD_SHA)) shas.add(m[1].toLowerCase());
+  let sha = null;
+  if (!shas.size) erros.push('falta o SHA esperado do head: parâmetro sha (se a ferramenta tiver) ou a linha "Head-SHA: <sha de 40 caracteres>" na commit_message');
+  else if (shas.size > 1) erros.push(`SHA esperado repetido com valores diferentes (${[...shas].join(', ')}): informe um só`);
+  else if (!SHA_COMPLETO.test([...shas][0])) erros.push(`SHA esperado "${[...shas][0]}" não tem 40 caracteres hexadecimais`);
+  else sha = [...shas][0];
+  // trailer "Agente:" no último bloco da mensagem (o CI confere o do squash no main)
+  let agenteDoCommit = null;
+  if (mensagem === undefined) erros.push('falta commit_message com o trailer "Agente: <dono da tarefa>" no último bloco (o corpo padrão do GitHub deixa o main vermelho)');
+  else {
+    const nomes = ultimoBlocoDaMensagem(mensagem).map((l) => l.match(RE_AGENTE)).filter(Boolean).map((m) => m[1].toLowerCase());
+    if (nomes.length !== 1) erros.push(`a commit_message precisa de exatamente um "Agente: <nome>" no último bloco (veio ${nomes.length})`);
+    else if (!PESSOAS.includes(nomes[0])) erros.push(`"Agente: ${nomes[0]}" não é do time`);
+    else agenteDoCommit = nomes[0];
+  }
+  return { erros, pr, sha, agenteDoCommit };
+}
+
+/** Origens da identificação aceitas para o merge MCP de PR comum (fonte declarada ou confiável, nunca a "restrita"). */
+export const ORIGENS_MERGE_MCP = /^(variável MACUXI_AGENTE|argumento do hook|sessão local \(agent_type\)|branch |trailer "Agente:" do branch )/;
+
+/** Quem pode fazer o merge pelo MCP (regra a). Retorna o motivo do bloqueio ou null. */
+export function motivoIdentidadeMcp({ agente, origem = '', subagente = false }) {
+  if (subagente) return `subagente (${agente || 'sem agente'}) nunca faz merge: devolva à sessão principal`;
+  if (!agente) return 'sessão sem agente: pelo Claude, só um agente do time faz o merge (o Alexandre faz pelo GitHub)';
+  if (agente === 'alexandre') return 'a sessão do Alexandre pelo Claude não faz merge: o Alexandre faz o merge pelo GitHub, e o PR de governança fica para o gerente com a autorização dele';
+  if (!AGENTES.includes(agente)) return `a sessão "${agente}" não tem agente do time identificado: na nuvem, comece com o commit vazio com o trailer "Agente: <dono>" no branch nuvem/T-nnnn-...`;
+  if (!ORIGENS_MERGE_MCP.test(origem)) return `a identidade ${agente} veio de "${origem}", que não vale para merge: na nuvem, use o branch nuvem/T-nnnn-... com o trailer "Agente: ${agente}" em todos os commits`;
+  return null;
+}
+
+/** Situação do CI pelos check-runs de um commit (resposta de GET .../commits/<ref>/check-runs). Função pura. */
+export function avaliarChecks(resposta) {
+  if (!resposta || !Array.isArray(resposta.check_runs)) return { verde: false, detalhe: 'resposta sem check_runs' };
+  const runs = resposta.check_runs;
+  if (typeof resposta.total_count !== 'number') return { verde: false, detalhe: 'resposta sem total_count' };
+  if (resposta.total_count > runs.length) return { verde: false, detalhe: `a API devolveu ${runs.length} de ${resposta.total_count} checks (lista incompleta)` };
+  if (!runs.length) return { verde: false, detalhe: 'nenhum check no commit (o CI não rodou)' };
+  const pendentes = runs.filter((r) => r?.status !== 'completed').map((r) => r?.name || '?');
+  const falhos = runs.filter((r) => r?.status === 'completed' && !CONCLUSOES_VERDES.includes(String(r.conclusion))).map((r) => `${r?.name || '?'}: ${r?.conclusion}`);
+  if (falhos.length) return { verde: false, detalhe: `vermelho (${falhos.slice(0, 5).join('; ')}${falhos.length > 5 ? '; ...' : ''})` };
+  if (pendentes.length) return { verde: false, detalhe: `ainda rodando (${pendentes.slice(0, 5).join('; ')}${pendentes.length > 5 ? '; ...' : ''})` };
+  return { verde: true, detalhe: `${runs.length} check(s) verdes` };
+}
+
+/**
+ * Consulta o PR pela API REST (`gh api`), com prazo total. Falha = {ok: false, erro}.
+ * MACUXI_GH_SIMULADO=<arquivo.mjs>: roda esse script no lugar do gh (só nos testes; a variável é do processo
+ * do Claude Code, que o agente não altera).
+ * @returns {{ok: boolean, erro?: string, headRefOid?: string, arquivos?: string[], total?: number, estado?: string,
+ *   mesclado?: boolean, ciPr?: {verde: boolean, detalhe: string}, ciMain?: {verde: boolean, detalhe: string}}}
+ */
+export function consultarPrRest(pr, { env = process.env, timeout = 15000, prazo = 80000, agora = () => Date.now() } = {}) {
+  const simulado = String(env.MACUXI_GH_SIMULADO || '').trim();
+  const fim = agora() + prazo;
+  const api = (caminho) => {
+    const resta = Math.min(timeout, fim - agora());
+    if (resta <= 0) throw new Error(`prazo de ${Math.round(prazo / 1000)} s para consultar o GitHub estourado`);
+    const args = ['api', caminho];
+    let saida;
+    try {
+      saida = simulado
+        ? execFileSync(process.execPath, [simulado, ...args], { encoding: 'utf8', timeout: resta, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env })
+        : execFileSync('gh', args, { encoding: 'utf8', timeout: resta, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
+    } catch (e) {
+      const msg = String(e?.stderr || e?.message || e).trim().split(/\r?\n/)[0].slice(0, 200);
+      throw new Error(e?.code === 'ENOENT' ? 'gh não encontrado' : e?.code === 'ETIMEDOUT' || e?.signal === 'SIGTERM' ? `gh não respondeu em ${Math.round(resta / 1000)} s` : `gh api ${caminho} falhou: ${msg}`);
+    }
+    try { return JSON.parse(saida); } catch { throw new Error(`resposta de gh api ${caminho} não é JSON`); }
+  };
+  try {
+    const base = `repos/${REPO_OFICIAL}`;
+    const p = api(`${base}/pulls/${pr}`);
+    const head = String(p?.head?.sha || '');
+    if (!SHA_COMPLETO.test(head)) return { ok: false, erro: 'resposta do PR sem head.sha' };
+    const arquivos = [];
+    for (let pagina = 1; pagina <= 35; pagina++) {
+      const lista = api(`${base}/pulls/${pr}/files?per_page=100&page=${pagina}`);
+      if (!Array.isArray(lista)) return { ok: false, erro: 'resposta da lista de arquivos não é uma lista' };
+      for (const f of lista) {
+        if (f?.filename) arquivos.push(barras(f.filename));
+        if (f?.previous_filename) arquivos.push(barras(f.previous_filename)); // renomeado: o caminho antigo também conta
+      }
+      if (lista.length < 100) break;
+    }
+    return {
+      ok: true, headRefOid: head, arquivos: [...new Set(arquivos)],
+      total: typeof p.changed_files === 'number' ? p.changed_files : undefined,
+      estado: String(p.state || ''), mesclado: Boolean(p.merged),
+      ciPr: avaliarChecks(api(`${base}/commits/${head}/check-runs?per_page=100`)),
+      ciMain: avaliarChecks(api(`${base}/commits/main/check-runs?per_page=100`)),
+    };
+  } catch (e) {
+    return { ok: false, erro: String(e?.message || e) };
+  }
+}
+
+/**
+ * Confere uma chamada de ferramenta MCP (PreToolUse). Ferramenta que não é merge → {ok: true, merge: false}
+ * sem consultar nada.
+ * @param {{ferramenta: string, entrada: object, agente: string, origem?: string, subagente?: boolean, nuvem?: boolean,
+ *   consultarPr?: (pr: number) => any, lerRecados?: () => {nome: string, texto: string}[]}} p
+ * @returns {{ok: boolean, merge: boolean, mensagem?: string, pr?: number, governanca?: string[], autorizacao?: string}}
+ */
+export function conferirMergeMcp({ ferramenta, entrada, agente, origem = '', subagente = false, nuvem = false, consultarPr, lerRecados = () => [] }) {
+  const tipo = tipoFerramentaMerge(ferramenta);
+  if (!tipo) return { ok: true, merge: false };
+  const erros = [];
+  const ident = motivoIdentidadeMcp({ agente, origem, subagente });
+  if (ident) erros.push(ident);
+  if (tipo === 'auto-merge') erros.push('merge automático (auto-merge) é proibido: o merge é na hora, com o head e os dois CIs conferidos');
+  if (tipo === 'outro-merge') erros.push(`${ferramenta} não é merge de PR: merge de branch sem PR (sem CI do PR) é proibido`);
+  let pr;
+  let governanca = [];
+  let autorizacao;
+  if (tipo === 'merge-pr') {
+    const v = validarEntradaMergeMcp(entrada);
+    erros.push(...v.erros);
+    pr = v.pr ?? undefined;
+    // Só consulta o GitHub com os parâmetros e a identidade em ordem.
+    if (!erros.length) {
+      let consulta;
+      try { consulta = consultarPr ? consultarPr(v.pr) : { ok: false, erro: 'sem consulta ao GitHub' }; } catch (e) { consulta = { ok: false, erro: String(e?.message || e) }; }
+      let recados = [];
+      try { recados = lerRecados() || []; } catch { recados = []; }
+      const d = decidirMerge({ pr: v.pr, sha: v.sha, consulta, autorizacoes: autorizacoesDoAlexandre(recados) });
+      governanca = d.governanca;
+      autorizacao = d.autorizacao;
+      if (consulta?.ok) {
+        if (consulta.mesclado || consulta.estado !== 'open') erros.push(`o PR #${v.pr} não está aberto (estado: ${consulta.mesclado ? 'já mesclado' : consulta.estado || 'desconhecido'})`);
+        if (!consulta.ciPr?.verde) erros.push(`o CI do PR #${v.pr} (head ${String(consulta.headRefOid).slice(0, 12)}) não está verde: ${consulta.ciPr?.detalhe || 'sem resposta'}. Espere o CI ficar verde`);
+        if (!consulta.ciMain?.verde) erros.push(`o CI do main não está verde: ${consulta.ciMain?.detalhe || 'sem resposta'}. Main vermelho = nenhum merge (doc 07); o PR espera com "[PRONTO PARA MERGE]"`);
+      }
+      if (governanca.length) {
+        const lista = `${governanca.slice(0, 5).join(', ')}${governanca.length > 5 ? ', ...' : ''}`;
+        if (nuvem) erros.push(`o PR #${v.pr} altera caminho de governança (${lista}): sessão da nuvem não faz esse merge. Termine com "[PRONTO PARA MERGE]" e o recado ao gerente (PR, head SHA, arquivos); o merge é local, com a autorização do Alexandre`);
+        else if (agente !== AGENTE_DO_MERGE || !ORIGENS_CONFIAVEIS.includes(origem)) erros.push(`PR de governança (${lista}): só o gerente-projetos na sessão local (MACUXI_AGENTE ou agent_type) faz o merge, com a autorização do Alexandre; esta sessão é de ${agente} (${origem})`);
+        if (v.agenteDoCommit !== 'alexandre') erros.push('PR de governança: a commit_message do squash termina com "Agente: alexandre" (trailer de governança, CI da T-0049)');
+      }
+      erros.push(...d.erros.map((e) => e.replace(/--match-head-commit/g, 'SHA esperado')));
+    }
+  }
+  if (!erros.length) return { ok: true, merge: true, pr, governanca, ...(autorizacao ? { autorizacao } : {}) };
+  return { ok: false, merge: true, pr, governanca, mensagem: mensagemMergeMcp(erros) };
+}
+
+export function mensagemMergeMcp(erros) {
+  return (
+    `${CABECALHO_MCP}\n${erros.map((e) => ` - ${e}`).join('\n')}\n` +
+    'Chamada aceita: merge_pull_request com owner "aloirr", repo "macuxifdv", pullNumber N, merge_method "squash" e commit_message ' +
+    'com "Head-SHA: <sha de 40 caracteres>" e "Agente: <dono da tarefa>" no último bloco; CI do PR e do main verdes.\n' +
+    `PR de governança: só local, pelo gerente-projetos, com o recado do Alexandre em ${PASTA_AUTORIZACOES} "autorizo o merge do PR #N no commit <sha>".\n` +
+    'Não contorne o bloqueio (gh api, outra ferramenta, script): se a regra impede o merge, avise o gerente ou o Alexandre por recado.'
   );
 }

@@ -38,6 +38,11 @@
 //      · recado falso: agente não envia recado em nome de outro (coord.mjs enviar --de alheio,
 //        "de: alexandre" no comando, script que escreve recado de alexandre).
 //    Mensagens e casos: .claude/hooks/guarda-merge-lib.mjs e guarda-merge.test.mjs.
+//  - Guardião v6 (T-0050): o bloqueio "recado em nome do Alexandre" vale SÓ para comando que cria, altera,
+//    move ou apaga arquivo de recado (> >> tee cp mv rm sed -i, node/python que grava, coord.mjs enviar
+//    --de alexandre...). Leitura (ls, cat, grep, find, head, git show/ls-tree/fetch, for que só lê) passa,
+//    mesmo citando alexandre e .coord/recados. Casos: guarda-recado.test.mjs. O merge pela ferramenta MCP
+//    do GitHub tem hook próprio: .claude/hooks/guarda-merge-mcp.mjs (casos: guarda-merge-mcp.test.mjs).
 // Detalhes e casos: .claude/hooks/guarda-bash-lib.mjs e .claude/hooks/guarda-bash.test.mjs.
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
