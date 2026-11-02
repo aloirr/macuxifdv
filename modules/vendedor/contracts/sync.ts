@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
+import { TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
 
 const Base = {
@@ -49,6 +50,15 @@ export const PedidoSyncSchema = z
     decidido_por_id: z.string().uuid().nullable().optional(),
     decidido_em: z.string().nullable().optional(),
     motivo_rejeicao: z.string().nullable().optional(),
+    // --- T-0053 (migração 0013, pedida ao banco-dados): pré-venda; opcionais, compatíveis com linhas e APKs anteriores ---
+    /** RF-VEN-03: ausente/nulo = pedido */
+    tipo: z.enum(TIPOS_DOCUMENTO).nullable().optional(),
+    /** RN-VEN-32: só no orçamento */
+    validade_ate: z.string().nullable().optional(),
+    /** pedido nascido de um orçamento */
+    orcamento_origem_id: z.string().uuid().nullable().optional(),
+    /** orçamento: o pedido em que ele virou */
+    convertido_pedido_id: z.string().uuid().nullable().optional(),
   })
   .strict();
 export type PedidoSync = z.infer<typeof PedidoSyncSchema>;

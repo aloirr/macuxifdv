@@ -4,7 +4,7 @@
  */
 import type { ClienteBanco } from '@macuxi/platform-sdk';
 import type { ConectorResumo, Entidade, PoliticaVersaoConector } from '../contracts';
-import { avaliarSaudeConector, avaliarVersaoConector } from '../domain';
+import { avaliarSaudeConector, avaliarVersaoConector, politicaEfetiva } from '../domain';
 
 export const iso = (v: Date | string | null | undefined): string | null => (v === null || v === undefined ? null : v instanceof Date ? v.toISOString() : new Date(v).toISOString());
 
@@ -73,10 +73,11 @@ export async function lerChaves(db: ClienteBanco, tenantId: string, conectores: 
 export function montarResumo(
   c: LinhaConector,
   chaves: { atual?: LinhaChave; anterior?: LinhaChave } | undefined,
-  politica: PoliticaVersaoConector | null,
+  /** A política GRAVADA pela empresa (ou `null`); a que vale para este Conector sai de `politicaEfetiva` (RN-INT-11: piso 1.2.1 se recebe pedidos). */
+  politicaGravada: PoliticaVersaoConector | null,
   agora: string,
 ): ConectorResumo {
-  const situacao = avaliarVersaoConector(c.versao_conector, politica).situacao;
+  const situacao = avaliarVersaoConector(c.versao_conector, politicaEfetiva(politicaGravada, c.recebe_pedidos)).situacao;
   const atual = chaves?.atual;
   const anterior = chaves?.anterior;
   return {

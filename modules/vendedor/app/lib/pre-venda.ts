@@ -1,0 +1,65 @@
+/**
+ * Pré-venda no aparelho (T-0053; RF-VEN-03, RN-VEN-32). Puro, sem React: as regras vêm do domain (as mesmas do servidor).
+ * - Orçamento só aparece com o parâmetro do tenant `orcamento.ativo` (desligado até a migração 0013 chegar ao servidor:
+ *   sem ele o servidor recusa com `PRE_VENDA_INDISPONIVEL`).
+ * - Converter é offline: o pedido novo entra na fila do aparelho com `orcamento_origem_id`; o servidor revalida tudo.
+ */
+import type { Order, OrderDetail, PedidoPush } from '../../contracts';
+import { acoesDoOrcamento, pedidoDoOrcamento, situacaoDoOrcamento, SITUACAO_ORCAMENTO_LABEL, type AcoesOrcamento, type SituacaoOrcamento } from '../../domain/orcamento';
+import { ORDER_STATUS_LABEL, type OrderStatus } from '../../domain/order';
+
+export const PARAMETRO_PRE_VENDA_ATIVA = 'orcamento.ativo';
+
+/** O tenant liberou o orçamento no app? Padrão: não. */
+export function preVendaAtiva(parametros: Readonly<Record<string, unknown>>): boolean {
+  const v = parametros[PARAMETRO_PRE_VENDA_ATIVA];
+  return v === true || v === 'true' || v === 1;
+}
+
+type DocumentoNaTela = Pick<Order, 'status'> & Partial<Pick<Order, 'tipo' | 'validade_ate' | 'convertido_pedido_id' | 'situacao_orcamento'>>;
+
+export function ehOrcamento(o: DocumentoNaTela): boolean {
+  return o.tipo === 'orcamento';
+}
+
+/** Situação do orçamento no aparelho (offline: calcula pela validade); `null` = pedido. */
+export function situacaoNaTela(o: DocumentoNaTela, agora: Date): SituacaoOrcamento | null {
+  if (!ehOrcamento(o)) return null;
+  return situacaoDoOrcamento({ status: o.status, validade_ate: o.validade_ate ?? null, convertido_pedido_id: o.convertido_pedido_id ?? null }, agora);
+}
+
+/** Rótulo do status na lista/detalhe: orçamento mostra a situação; pedido, o status (RN-VEN-30). */
+export function rotuloDoDocumento(o: DocumentoNaTela, agora: Date): string {
+  const s = situacaoNaTela(o, agora);
+  if (s) return SITUACAO_ORCAMENTO_LABEL[s];
+  return ORDER_STATUS_LABEL[o.status as OrderStatus] ?? o.status;
+}
+
+/** Ações do orçamento na tela (converter exige ser o vendedor dono; tudo funciona offline). `null` = pedido. */
+export function acoesNaTela(o: DocumentoNaTela, agora: Date, ehVendedor: boolean): AcoesOrcamento | null {
+  const s = situacaoNaTela(o, agora);
+  if (!s) return null;
+  const a = acoesDoOrcamento(s);
+  return ehVendedor ? a : { ...a, pode_converter: false, pode_cancelar: false };
+}
+
+/**
+ * RF-VEN-03: pedido novo a partir do orçamento (vai para a fila). Os preços NÃO são copiados: o servidor usa a tabela do dia.
+ * `condicaoId` vem da linha do pull (`condicao_pagamento_id`); ausente = padrão do tenant.
+ */
+export function pedidoDaConversao(d: Pick<OrderDetail, 'id' | 'customer_id' | 'discount_pct' | 'items' | 'payment_terms'>, extra: { condicaoId: string | null; observacao: string | null; novoId: string; agora: string }): PedidoPush {
+  const base = pedidoDoOrcamento(
+    {
+      id: d.id,
+      cliente_id: d.customer_id,
+      desconto_pct: d.discount_pct,
+      condicao_pagamento_id: extra.condicaoId,
+      observacao: extra.observacao,
+      visita_id: null,
+      itens: d.items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+    },
+    extra.novoId,
+    extra.agora,
+  );
+  return { ...base, payment_terms: d.payment_terms || '28/56 dias' };
+}

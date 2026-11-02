@@ -10,3 +10,4 @@ export * from './conector';
 export * from './hub';
 export * from './bko';
 export * from './eventos';
+export * from './eventos-consumidos';
