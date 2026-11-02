@@ -12,8 +12,9 @@
  * esgotadas as tentativas da outbox o lote fica `recebido` com o evento parado (alerta de operação, não `falhou`); parâmetros do
  * tenant não chegam ao consumidor, valem os padrões.
  */
+import * as contratosCore from '@macuxi/core/contracts';
 import { CONSULTA_CADASTRO_CLIENTE } from '@macuxi/core/contracts';
-import { definirConsumidor, type ClienteBanco, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, ehConsultaIndisponivel, type ClienteBanco, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { CAMPO_SOMA_CONTROLE, type AvisoLinha, type Cursor, type Entidade, type EstadoLote, type LinhaErro, type LinhaInvalidaConector, type LoteRecebidoEvento } from '../contracts';
 import {
   avancarCursor,
@@ -27,9 +28,13 @@ import {
   novaSessao,
   ordenarFilaAplicacao,
   avisosCadastroIncompleto,
+  avisosReferenciaFraca,
+  siglasParaConferir,
+  verificarMedidas,
   dadosParaConsultaCadastro,
   PARAMETROS_PADRAO,
   referenciasDoRegistro,
+  referenciasFracasDoRegistro,
   registrarParte,
   situacaoSessao,
   tratarLinhasInvalidasConector,
@@ -143,7 +148,22 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
     existentesRef[entidade] = achados;
   }
   const ref = verificarReferencias(lote.entidade, v.validas, existentesRef);
-  const aceitasValidas = ref.aceitas as LinhaValida[];
+  // medida (RN-CORE-19): sigla não cadastrada/inativa = referencia_ausente; sem como conferir (consulta indisponível), não recusa
+  const ativasMedidas = await medidasAtivas(ctx, siglasParaConferir(lote.entidade, ref.aceitas));
+  const med = verificarMedidas(lote.entidade, ref.aceitas as LinhaValida[], ativasMedidas);
+  const aceitasValidas = med.aceitas;
+  // referência fraca (produto -> nó do catálogo): aviso, a linha entra normalmente
+  const fracas = new Set<string>();
+  for (const l of aceitasValidas) for (const r of referenciasFracasDoRegistro(lote.entidade, l.registro)) fracas.add(r.external_id);
+  const achadasFracas = new Set<string>();
+  for (const bloco of blocos([...fracas])) {
+    const { rows } = await db.query<{ external_id: string }>(
+      "select external_id from integracao.registro_atual where tenant_id = $1 and entidade = 'catalogo_no' and external_id = any($2::text[]) and deleted_at is null",
+      [tenantId, bloco],
+    );
+    for (const r of rows) achadasFracas.add(r.external_id);
+  }
+  const avisosFracos = avisosReferenciaFraca(lote.entidade, aceitasValidas, { catalogo_no: achadasFracas });
 
   // ---- hash e obsolescência (RN-INT-02, RN-INT-06)
   const existentes = new Map<string, { hash: string; alterado_em: string }>();
@@ -157,7 +177,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   const cls = classificarMudancas(aceitasValidas, existentes);
   const mudaram = [...cls.novas, ...cls.atualizadas];
   // RN-INT-14: cliente sem campo obrigatório é aplicado normalmente e ganha o aviso `cadastro_incompleto` (decisão do Core)
-  const avisos: AvisoLinha[] = [...v.avisos, ...(lote.entidade === 'cliente' ? await avisarCadastroIncompleto(ctx, aceitasValidas) : [])];
+  const avisos: AvisoLinha[] = [...v.avisos, ...avisosFracos, ...(lote.entidade === 'cliente' ? await avisarCadastroIncompleto(ctx, aceitasValidas) : [])];
 
   // ---- gravação: upsert monotônico (a guarda repete a regra no banco) e visto_em/sessao_id de todo registro aceito
   for (const bloco of blocos(mudaram)) {
@@ -219,7 +239,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   // ---- erros por linha: um por (origem, índice) — a unique do banco; o primeiro campo com problema basta
   const errosHub: LinhaErro[] = [];
   const vistos = new Set<number>();
-  for (const e of [...v.erros, ...ref.erros]) {
+  for (const e of [...v.erros, ...ref.erros, ...med.erros]) {
     if (vistos.has(e.indice)) continue;
     vistos.add(e.indice);
     errosHub.push({ ...e, origem: 'hub' });
@@ -310,14 +330,37 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
 }
 
 /** `consultar` do contexto do consumidor (ADR 0012), quando o SDK a entrega (o manifesto declara `usaConsultas`); sem ela não há aviso e o lote nunca falha por isso. */
-type ConsultarCore = (def: typeof CONSULTA_CADASTRO_CLIENTE, entrada: unknown) => Promise<{ resultados: { chave: string; completo: boolean; campos_faltantes: string[] }[] }>;
+/**
+ * RN-CORE-19: siglas de medida ATIVAS entre as citadas (`core.medidas@1`, por bloco de 500). `null` = não deu para conferir (o Core
+ * ainda não publica a consulta, ou está indisponível para o tenant): ninguém é recusado por isso.
+ */
+async function medidasAtivas(ctx: ContextoConsumo, siglas: readonly string[]): Promise<Set<string> | null> {
+  if (siglas.length === 0) return new Set();
+  const def = (contratosCore as Record<string, unknown>).CONSULTA_MEDIDAS as Parameters<ContextoConsumo['consultar']>[0] | undefined;
+  if (!def) return null;
+  const ativas = new Set<string>();
+  try {
+    for (const bloco of blocos(siglas, 500)) {
+      const r = (await ctx.consultar(def, { siglas: bloco })) as { medidas: { sigla: string; ativo: boolean }[] };
+      for (const m of r.medidas) if (m.ativo) ativas.add(m.sigla.toUpperCase());
+    }
+  } catch (e) {
+    if (!ehConsultaIndisponivel(e)) ctx.log.warn({ consulta: 'core.medidas@1' }, 'não foi possível conferir as medidas; o lote segue sem a conferência');
+    return null;
+  }
+  return ativas;
+}
 
 async function avisarCadastroIncompleto(ctx: ContextoConsumo, aceitas: readonly LinhaValida[]): Promise<AvisoLinha[]> {
-  const consultar = (ctx as ContextoConsumo & { consultar?: ConsultarCore }).consultar;
-  if (!consultar || aceitas.length === 0) return [];
+  if (aceitas.length === 0) return [];
   const avisos: AvisoLinha[] = [];
   for (const bloco of blocos(aceitas, 500)) {
-    const r = await consultar(CONSULTA_CADASTRO_CLIENTE, { clientes: bloco.map((l) => dadosParaConsultaCadastro(l.registro as Parameters<typeof dadosParaConsultaCadastro>[0])) });
+    // o Core fora do ar para o tenant (ConsultaIndisponivel) não derruba o lote: sem consulta, sem aviso
+    const r = await ctx.consultar(CONSULTA_CADASTRO_CLIENTE, { clientes: bloco.map((l) => dadosParaConsultaCadastro(l.registro as Parameters<typeof dadosParaConsultaCadastro>[0])) }).catch((e: unknown) => {
+      if (ehConsultaIndisponivel(e)) return null;
+      throw e;
+    });
+    if (r === null) return avisos;
     avisos.push(...avisosCadastroIncompleto(bloco.map((l) => ({ indice: l.indice, external_id: l.external_id })), r.resultados));
   }
   return avisos;

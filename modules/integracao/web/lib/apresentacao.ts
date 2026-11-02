@@ -79,7 +79,19 @@ export const ROTULO_ENTIDADE: Record<Entidade, string> = {
   titulo: 'Títulos',
   nota: 'Notas fiscais',
   rota: 'Rotas',
+  catalogo_no: 'Árvore do catálogo',
+  produto_unidade: 'Unidades do produto',
+  cliente_endereco: 'Endereços de clientes',
+  transportadora: 'Transportadoras',
 };
+
+export const ROTULO_AVISO_LINHA: Record<string, string> = {
+  duplicado_no_lote: 'Repetido no lote',
+  cadastro_incompleto: 'Cadastro incompleto',
+  referencia_fraca_ausente: 'Produto sem nó do catálogo',
+};
+
+export const ROTULO_ALERTA_PEDIDO_AGUARDANDO_CONECTOR = 'Pedido aguardando o Conector';
 
 export const ROTULO_ESTADO_CARGA: Record<EstadoCarga, string> = {
   sem_lotes: 'Sem lotes',
