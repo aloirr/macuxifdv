@@ -5,8 +5,11 @@ import {
   checkoutRespeitaChecklist,
   coletaNaJanelaDaVisita,
   fotosReferenciadas,
+  instanteDaColeta,
+  recusaDeVariacaoDePreco,
   mesmoConteudo,
   podeColetar,
+  recusaDeFotos,
   transicaoVisitaLoja,
   type VisitaLojaGuardada,
 } from './coleta';
@@ -55,7 +58,7 @@ describe('RN-PRO-02: coleta só com check-in aberto (offline)', () => {
 
   it('RN-PRO-02: sem visita de loja (sem check-in) a coleta é recusada com a ação seguinte', () => {
     const r = avaliarColeta({ perfil: 'promotor', usuario_id: EU, visita: null, instante: ins(5) });
-    expect(r).toMatchObject({ http: 404, codigo: 'VISITA_LOJA_NAO_ENCONTRADA' });
+    expect(r).toMatchObject({ http: 404, codigo: 'VISITA_LOJA_NAO_ENCONTRADA', retentavel: true });
     expect(r?.mensagem).toMatch(/check-in/);
   });
 
@@ -65,7 +68,9 @@ describe('RN-PRO-02: coleta só com check-in aberto (offline)', () => {
   });
 
   it('RN-CORE-04: visita de outro promotor é tratada como inexistente (não revela)', () => {
-    expect(avaliarColeta({ perfil: 'promotor', usuario_id: OUTRO, visita: aberta(), instante: ins(5) })).toMatchObject({ http: 404, codigo: 'VISITA_LOJA_NAO_ENCONTRADA' });
+    const r = avaliarColeta({ perfil: 'promotor', usuario_id: OUTRO, visita: aberta(), instante: ins(5) });
+    expect(r).toMatchObject({ http: 404, codigo: 'VISITA_LOJA_NAO_ENCONTRADA' });
+    expect(r?.retentavel).toBeUndefined();
   });
 
   it('doc 03 §2: só o promotor coleta (supervisor, gerente, analista e admin só leem)', () => {
@@ -144,5 +149,51 @@ describe('RN-PRO-02: fotos referenciadas pela coleta', () => {
   it('junta as fotos de todos os campos de foto da coleta, sem repetir e sem nulos', () => {
     expect(fotosReferenciadas({ foto_antes_id: FOTO, foto_depois_id: OUTRO, foto_id: null, foto_ids: [FOTO, EU], foto_fachada_id: null })).toEqual([FOTO, OUTRO, EU]);
     expect(fotosReferenciadas({ quantidade: 3 })).toEqual([]);
+  });
+});
+
+describe('RN-PRO-04: preço que variou além do limite precisa da confirmação do promotor', () => {
+  const p = (preco_cents: number, preco_anterior_cents: number | null, variacao_confirmada: boolean) => ({ preco_cents, preco_anterior_cents, variacao_confirmada });
+
+  it('RN-PRO-04: R$ 5,99 digitado como R$ 599,00 sem confirmação é recusado (422)', () => {
+    expect(recusaDeVariacaoDePreco(p(59900, 599, false))).toMatchObject({ http: 422, codigo: 'RN-PRO-04' });
+  });
+
+  it('RN-PRO-04: com confirmação passa; dentro do limite ou sem coleta anterior também', () => {
+    expect(recusaDeVariacaoDePreco(p(59900, 599, true))).toBeNull();
+    expect(recusaDeVariacaoDePreco(p(1500, 1000, false))).toBeNull(); // exatamente 50%
+    expect(recusaDeVariacaoDePreco(p(1000, null, false))).toBeNull();
+  });
+
+  it('RN-PRO-04: limite do tenant', () => {
+    expect(recusaDeVariacaoDePreco(p(1300, 1000, false), 20)).toMatchObject({ codigo: 'RN-PRO-04' });
+  });
+});
+
+describe('instante de cada coleta (base da janela RN-PRO-02)', () => {
+  it('cada entidade usa o seu campo *_em', () => {
+    expect(instanteDaColeta('foto_coleta', { tirada_em: 'a' })).toBe('a');
+    expect(instanteDaColeta('checklist_resposta', { respondido_em: 'b' })).toBe('b');
+    expect(instanteDaColeta('medicao_share', { medido_em: 'c' })).toBe('c');
+    expect(instanteDaColeta('coleta_preco', { coletado_em: 'd' })).toBe('d');
+    expect(instanteDaColeta('tarefa_execucao', { concluida_em: 'e' })).toBe('e');
+    for (const e of ['gondola_registro', 'ruptura_item', 'validade_item', 'ponto_extra', 'acao_concorrencia'] as const) expect(instanteDaColeta(e, { registrado_em: 'f' })).toBe('f');
+  });
+});
+
+describe('RN-PRO-02: foto da coleta é da mesma visita', () => {
+  it('RN-PRO-02: foto já recebida desta visita libera', () => {
+    expect(recusaDeFotos([FOTO], new Set([FOTO]))).toBeNull();
+    expect(recusaDeFotos([], new Set())).toBeNull();
+  });
+
+  it('foto que ainda não chegou é retentável (fica na fila do aparelho)', () => {
+    expect(recusaDeFotos([FOTO], new Set())).toMatchObject({ codigo: 'FOTO_NAO_RECEBIDA', retentavel: true });
+  });
+
+  it('RN-PRO-02: foto de outra visita é recusada de vez', () => {
+    const r = recusaDeFotos([FOTO], new Set(), new Set([FOTO]));
+    expect(r).toMatchObject({ http: 422, codigo: 'RN-PRO-02' });
+    expect(r?.retentavel).toBeUndefined();
   });
 });

@@ -10,6 +10,8 @@
  * RN-PRO-01: nada aqui fala de pedido.
  */
 import { avaliarCheckout, type DesfechoVisita } from './checklist';
+import { PARAMETROS_PADRAO } from './parametros';
+import { exigeConfirmacaoDePreco } from './preco';
 
 /** Visita de loja como o servidor guarda (o `promotor_id` vem do token, não do aparelho). */
 export interface VisitaLojaGuardada {
@@ -31,6 +33,11 @@ export interface RecusaColeta {
   http: 403 | 404 | 409 | 422;
   codigo: string;
   mensagem: string;
+  /**
+   * Falta algo que o aparelho ainda vai enviar (a visita ou a foto da coleta): no push o item fica na fila e volta no
+   * próximo envio, em vez de ser recusado de vez (o lote do sync não garante a ordem entre entidades diferentes).
+   */
+  retentavel?: true;
 }
 
 export const PERFIS_QUE_COLETAM = ['promotor'] as const;
@@ -55,7 +62,8 @@ export const MENSAGEM_SEM_CHECKIN = 'Visita de loja não encontrada: faça o che
 /** Perfil (doc 03 §2), dono da visita (RN-CORE-04) e janela da visita (RN-PRO-02). `null` = coleta liberada. */
 export function avaliarColeta(e: { perfil: string; usuario_id: string; visita: Pick<VisitaLojaGuardada, 'promotor_id' | 'checkin_em' | 'checkout_em'> | null; instante: string }): RecusaColeta | null {
   if (!podeColetar(e.perfil)) return { http: 403, codigo: 'PERFIL_SEM_ACESSO', mensagem: 'Só o promotor registra coletas de trade.' };
-  if (!e.visita || e.visita.promotor_id !== e.usuario_id) return { http: 404, codigo: 'VISITA_LOJA_NAO_ENCONTRADA', mensagem: MENSAGEM_SEM_CHECKIN };
+  if (!e.visita) return { http: 404, codigo: 'VISITA_LOJA_NAO_ENCONTRADA', mensagem: MENSAGEM_SEM_CHECKIN, retentavel: true };
+  if (e.visita.promotor_id !== e.usuario_id) return { http: 404, codigo: 'VISITA_LOJA_NAO_ENCONTRADA', mensagem: MENSAGEM_SEM_CHECKIN };
   if (!coletaNaJanelaDaVisita(e.visita, e.instante)) {
     return { http: 422, codigo: 'RN-PRO-02', mensagem: 'A coleta precisa ser feita com o check-in aberto na loja (entre o check-in e o checkout).' };
   }
@@ -130,4 +138,61 @@ export function fotosReferenciadas(coleta: Record<string, unknown>): string[] {
   }
   if (Array.isArray(coleta.foto_ids)) for (const v of coleta.foto_ids) if (typeof v === 'string') ids.push(v);
   return [...new Set(ids)];
+}
+
+/**
+ * RN-PRO-04 no servidor: preço de prateleira que variou MAIS que o limite sobre a última coleta só passa com a
+ * confirmação do promotor (`variacao_confirmada`). `null` = liberado.
+ */
+export function recusaDeVariacaoDePreco(
+  c: { preco_cents: number; preco_anterior_cents: number | null; variacao_confirmada: boolean },
+  limite_pct: number = PARAMETROS_PADRAO.variacao_preco_max_pct,
+): RecusaColeta | null {
+  if (c.variacao_confirmada || !exigeConfirmacaoDePreco(c.preco_cents, c.preco_anterior_cents, limite_pct)) return null;
+  return { http: 422, codigo: 'RN-PRO-04', mensagem: `O preço variou mais de ${limite_pct}% desde a última coleta. Confira o valor e confirme a variação.` };
+}
+
+/** Coletas recebidas pelo push (todas menos a própria visita de loja). */
+export const COLETAS_DA_VISITA = [
+  'foto_coleta',
+  'checklist_resposta',
+  'gondola_registro',
+  'medicao_share',
+  'coleta_preco',
+  'ruptura_item',
+  'validade_item',
+  'ponto_extra',
+  'acao_concorrencia',
+  'tarefa_execucao',
+] as const;
+export type ColetaDaVisita = (typeof COLETAS_DA_VISITA)[number];
+
+const CAMPO_INSTANTE: Readonly<Record<ColetaDaVisita, string>> = {
+  foto_coleta: 'tirada_em',
+  checklist_resposta: 'respondido_em',
+  gondola_registro: 'registrado_em',
+  medicao_share: 'medido_em',
+  coleta_preco: 'coletado_em',
+  ruptura_item: 'registrado_em',
+  validade_item: 'registrado_em',
+  ponto_extra: 'registrado_em',
+  acao_concorrencia: 'registrado_em',
+  tarefa_execucao: 'concluida_em',
+};
+
+/** Instante em que a coleta foi feita no aparelho (o da RN-PRO-02, não o da chegada ao servidor). */
+export function instanteDaColeta(entidade: ColetaDaVisita, coleta: Record<string, unknown>): string {
+  const v = coleta[CAMPO_INSTANTE[entidade]];
+  return typeof v === 'string' ? v : '';
+}
+
+/**
+ * RN-PRO-02: a foto da coleta é da MESMA visita e já chegou ao servidor (o app enfileira a foto antes da coleta).
+ * Foto ainda não recebida = retentável; foto de outra visita = recusa.
+ */
+export function recusaDeFotos(referenciadas: readonly string[], daVisita: ReadonlySet<string>, deOutraVisita: ReadonlySet<string> = new Set()): RecusaColeta | null {
+  if (referenciadas.some((id) => deOutraVisita.has(id))) return { http: 422, codigo: 'RN-PRO-02', mensagem: 'A foto informada é de outra visita: tire a foto nesta loja.' };
+  const faltam = referenciadas.filter((id) => !daVisita.has(id));
+  if (faltam.length === 0) return null;
+  return { http: 422, codigo: 'FOTO_NAO_RECEBIDA', mensagem: 'A foto desta coleta ainda não chegou ao servidor; a coleta vai junto no próximo envio.', retentavel: true };
 }
