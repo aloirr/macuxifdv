@@ -1,0 +1,36 @@
+---
+id: R-20261102-232543-engenheiro-software
+de: engenheiro-software
+para: [gerente-projetos]
+cc: []
+tipo: revisao
+prioridade: normal
+tarefa: T-0063
+responde_a: null
+encerra: false
+contrato: null
+criado_em: 2026-11-02T23:25:43+00:00
+---
+# Revisão final T-0063 (ce1cb19, medidas): sem vermelho; 6 amarelos (gatilho do item, backfill, embalagem x produto_unidade, sigla fora do formato no Hub, teto, LT/TB)
+
+## Contexto
+Revisão final do commit ce1cb19 (branch nuvem/T-0063-medidas, `git diff origin/main...nuvem/T-0063-medidas`, 62 arquivos). Lint/typecheck: verdes segundo o gerente (Node 24). Testes de banco não rodados aqui (o vitest do core/integracao para no global-setup: "esperado 0016, achei 0018"; o `testes` valida com 0016/0017). `node scripts/coord.mjs verificar`: OK.
+
+**Resultado: sem 🔴.** As decisões do gerente (colunas de embalagem no produto e no item; LT = Lata, TB = Tubo; apagar só sem uso) substituem a rev. 2 do meu desenho da T-0061. Acrescentei a nota de substituição em docs/desenho/T-0061.md (rev. 2) e marquei `core.medidas@1` como implementada em .coord/contratos/modulos.md.
+
+Conferido e OK: fronteira (nenhuma FK nem leitura entre schemas de módulos; pedido_item é um retrato com CHECK; integracao importa só `@macuxi/core/contracts`, agora com import tipado de CONSULTA_MEDIDAS, sem cast; `usaConsultas` declarado); versionamento (campos opcionais aditivos em ProdutoSyncSchema, ProdutoPrecoSchema e ProdutoPayload, tudo na mesma versão; `integracao.produto.atualizado@1` continua aceitando eventos antigos; o pull do app não valida com schema strict, então aparelho antigo não quebra; entidade `medida` nova só é puxada por quem a registra); core.medida com as 6 colunas padrão, RLS ligado e forçado, sem grant de DELETE; as 5 rotas novas declaram ação do manifesto (`medida.gerenciar` para analista/admin; GET por `produto.editar_preco`), então perfil e licença saem do SDK, carteira `nao_se_aplica`; 23503/23505/23514 viram 422 (teste em medidas.db.test.ts:203); escrita idempotente pelo id do cliente; regra pura em domain/medida.ts com testes citando RN-CORE-19; o down desfaz o up na ordem inversa; os logs levam só external_id e sigla.
+
+## O que preciso
+🟡 1. **db/migrations/0018_medidas.up.sql:175-205 e 214 (banco-dados)**: as três colunas espelho são mantidas por um gatilho de "duas famílias", mas o INSERT não reconcilia os dois lados. Um item gravado com `medida` e `unidade` diferentes passa, porque não há CHECK `medida = upper(btrim(unidade))`. Um item com `quantidade_embalagem` diferente de `fator` (e fator diferente de 1) só cai no CHECK (23514), o que vira 500 na API do Vendedor. Proposta mais simples e impossível de divergir: colunas geradas `medida generated always as (upper(btrim(unidade))) stored`, `quantidade_embalagem ... as (fator) stored` e `quantidade_unidades ... as (quantidade * fator) stored`, sem gatilho; o Vendedor continua gravando unidade/fator. Se o gerente quiser manter as colunas graváveis, o mínimo é o CHECK `medida = upper(btrim(unidade))`.
+🟡 2. **0018 up:208-214 (banco-dados)**: o backfill do item não confere o formato antes. A 0007 não tinha CHECK em `pedido_item.unidade` e a produto_unidade aceitava `[A-Z0-9]{1,6}`, então um item antigo com "CX12" ou "CAIXA" aborta a migração no ADD CONSTRAINT com uma mensagem genérica. Pedido: um bloco DO igual ao do produto, listando as siglas fora do formato. Além disso, o UPDATE do backfill dispara o gatilho (186-187 `new.unidade := new.medida`), que reescreve a `unidade` histórica, e o `pedido_item_updated_at`, que faz todos os itens serem puxados de novo. É aceitável na demo, mas fica registrado.
+🟡 3. **Duas fontes da embalagem (modulo-core, domain/medida.ts:64-91 e api/produtos.ts:107-135)**: `core.produto.embalagem_*` e `core.produto_unidade` (fator) não têm regra de coerência. O BKO consegue gravar CX = 12 no produto enquanto a produto_unidade CX que veio do ERP tem fator 6. O pedido usa a produto_unidade, e o BKO/PDF mostra a do produto. Pedido: regra no domain (se houver produto_unidade viva com a mesma sigla, `embalagem_quantidade` = fator, senão 422 EMBALAGEM_INVALIDA), teste citando RN-CORE-19 e a precedência escrita em docs/modulos/core/medidas.md: produto_unidade = unidade de venda; embalagem do produto = embalagem padrão de cadastro e exibição.
+🟡 4. **Sigla fora do formato presa para sempre (modulo-integracao)**: o Hub aceita `unidade` Texto(10) (contracts/entidades.ts:87), `embalagem_medida` TextoOpcional(10) (:93) e, na produto_unidade, `^[A-Z0-9]{1,6}$` (:205). Uma sigla como "CX12" ou "CAIXA" vira `referencia_ausente` reprocessável ("Cadastre em Parâmetros → Produtos"), mas o BKO não aceita cadastrar essa sigla (domain/medida.ts:37). A linha nunca sai. Pedido: em domain/medidas.ts:50-58, sigla fora de `^[A-Z]{1,4}$` = erro de validação NÃO reprocessável ("corrija a sigla no ERP: 1 a 4 letras"), com teste, e alinhar o regex da produto_unidade.
+🟡 5. **Teto de embalagem_quantidade (modulo-core e modulo-integracao)**: core contracts/medida.ts:60 (`z.number()` sem int nem max), domain/medida.ts:86 sem teto e integracao contracts/entidades.ts:94 sem max. A coluna é integer, então um valor acima de 2147483647 dá 22003: 500 no PUT /produtos/:id/medidas (traduzirErroDeMedida relança) e retentativa sem fim no consumidor do ERP. Pedido: teto no domain e no Zod (sugestão 100000), com teste RN-CORE-19.
+🟡 6. **Nomenclatura (pergunta ao dono do produto, via gerente)**: LT = Lata e TB = Tubo (0018 up:73-74; db/src/ids.ts) divergem do desenho T-0061 (LT Litro, TB Tambor). Não bloqueia: a descrição se edita por tenant e a sigla é a mesma. Mas no ERP "LT" costuma ser litro, e a semeadura vale para todo tenant novo. Pergunta: LT = Lata ou Litro? TB = Tubo ou Tambor?
+🟢 7. modules/core/api/medidas.ts:109: recadastrar uma sigla apagada troca o PK da linha (`update ... set id = $1`). O tombstone do id antigo some do pull, e um aparelho que não sincronizou entre apagar e recriar guarda uma medida fantasma com a mesma sigla. Impacto baixo, porque o app procura por sigla. Basta um comentário, ou reaproveitar mantendo o id antigo.
+🟢 8. medidas.ts:102-113: dois POST concorrentes com o mesmo id fazem o segundo receber 422 MEDIDA_DUPLICADA (23505 no PK) em vez da medida já criada. Aceitável; `on conflict (id) do nothing` resolveria.
+🟢 9. consumidores-erp-produto.ts (rede de segurança): produto do ERP com unidade não cadastrada é ignorado só com log. Se a consulta estiver indisponível (RN-INT-14), o lote fica "concluido" e o produto não entra, sem aviso no Hub. Sugiro métrica/aviso. Vale notar também, como documentado, que o ERP não consegue remover a embalagem (evento sem embalagem mantém a do BKO).
+🟢 10. `catalogo.tabela_preco_item.unidade` continua sem validação da sigla (pendência que o banco-dados registrou): falta um recado ao modulo-catalogo.
+
+## Pronto quando
+Os itens 1, 2 e 4 corrigidos antes do merge (ou aceitos pelo gerente como dívida, com recado ao dono); 3 e 5 na T-0063 ou na próxima vaga de correção; 6 respondido pelo dono do produto. Os donos são banco-dados (1, 2), modulo-core (3, 5), modulo-integracao (4, 5) e modulo-catalogo (10). Não corrigi código alheio; mexi só em docs/desenho/T-0061.md e .coord/contratos/modulos.md (meus caminhos, sem commit).
