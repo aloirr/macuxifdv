@@ -15,7 +15,7 @@ import type { CategoriaGondolaSync, ChecklistLojaSync, MetaShareSync, MixObrigat
 import { cadastrosDaLoja, checklistDaLoja, metaDaCategoria, parametrosDosBrutos, progressoChecklist, type ProgressoChecklist } from '../../domain';
 import { capturarFoto } from '../lib/captura-foto';
 import { abrirVisitaLoja, checkinAberto, fecharVisitaLoja, montarFoto, type CheckinAberto } from '../lib/loja';
-import { criarRepositorioLoja, DADOS_LOJA_VAZIOS, visitaDaLoja, type DadosLoja, type RegistroLocal } from '../lib/repositorio';
+import { criarRepositorioLoja, visitaDaLoja, type DadosLoja, type RegistroLocal } from '../lib/repositorio';
 
 export interface ItemDoMix {
   mix: MixObrigatorioSync;

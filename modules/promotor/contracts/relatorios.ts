@@ -9,6 +9,9 @@ import { IsoDate, Uuid } from './base';
 
 const Pct = z.number().finite().nullable();
 
+/** Quem lê os relatórios de trade (doc 03 §2): gestores e o BKO. O promotor vê as próprias coletas no app. API e web usam esta lista. */
+export const PERFIS_RELATORIO = ['supervisor', 'gerente', 'analista', 'admin'] as const;
+
 /** Filtros na URL (BKO): período em dias civis no fuso do tenant e loja opcional. Padrão: últimos 30 dias. */
 export const FiltroRelatorio = z
   .object({

@@ -15,6 +15,7 @@ import {
   ChecklistResposta,
   ColetaPreco,
   FiltroRelatorio,
+  PERFIS_RELATORIO,
   FotoColeta,
   GondolaRegistro,
   MedicaoShare,
@@ -32,8 +33,6 @@ import { parametrosDoTenant } from './parametros';
 import type { Recebimento, ResultadoRecebimento } from './recebimento';
 import type { RepositorioPromotor } from './repositorio';
 
-/** Quem lê os relatórios de trade (doc 03 §2): gestores e o BKO. O promotor vê as próprias coletas no app. */
-export const PERFIS_RELATORIO = ['supervisor', 'gerente', 'analista', 'admin'] as const;
 /** Janela padrão dos relatórios quando o filtro não diz: últimos 30 dias civis no fuso do tenant. */
 export const DIAS_PADRAO_RELATORIO = 30;
 

@@ -17,7 +17,8 @@ import { provedoresSyncPromotor } from './sync';
 
 export { criarRecebimento, criarRepositorioMemoria, criarRotasPromotor, provedoresSyncPromotor };
 export type { RepositorioPromotor };
-export { PERFIS_RELATORIO, periodoDoFiltro } from './rotas';
+export { periodoDoFiltro } from './rotas';
+export { PERFIS_RELATORIO } from '../contracts';
 export { parametrosDoTenant } from './parametros';
 
 /** Monta a API do Promotor sobre um repositório; `null` = só o manifesto (licença, ações e registro de sync valem). */
