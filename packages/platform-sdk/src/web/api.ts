@@ -149,10 +149,29 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   return (await res.json()) as T;
 }
 
+export const MENSAGEM_FORMATO_INESPERADO = 'Os dados chegaram num formato inesperado. Atualize a página; se continuar, avise o suporte.';
+export const MENSAGEM_ERRO_PADRAO = 'Algo deu errado. Tente de novo.';
+
+/** Texto que não é frase para o usuário: JSON (lista de problemas do Zod), pilha ou vazio (T-0059, R-20261102-091519). */
+function ehTextoTecnico(m: string): boolean {
+  const t = m.trim();
+  return t === '' || t.startsWith('[') || t.startsWith('{') || /\n\s+at\s/.test(t);
+}
+
+/**
+ * Frase para a tela a partir de um erro. Nunca devolve JSON de validação nem pilha: erro de formato (ZodError) vira
+ * `MENSAGEM_FORMATO_INESPERADO` e o detalhe vai só para o console.
+ */
 export function errorMessage(e: unknown): string {
-  if (e instanceof ApiRequestError) return e.message;
-  if (e instanceof Error) return e.message;
-  return 'Algo deu errado. Tente de novo.';
+  if (e instanceof ApiRequestError) return ehTextoTecnico(e.message) ? MENSAGEM_ERRO_PADRAO : e.message;
+  if (e instanceof Error) {
+    if (e.name === 'ZodError' || ehTextoTecnico(e.message)) {
+      console.error(e);
+      return e.name === 'ZodError' ? MENSAGEM_FORMATO_INESPERADO : MENSAGEM_ERRO_PADRAO;
+    }
+    return e.message;
+  }
+  return MENSAGEM_ERRO_PADRAO;
 }
 
 /** Nome do arquivo no Content-Disposition (attachment; filename="rv_2026-10.csv"). */

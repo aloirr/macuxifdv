@@ -62,6 +62,10 @@ export const ClientePayload = RegistroBase.extend({
   telefone: TextoOpcional(30),
   email: TextoOpcional(160),
   limite_credito_cents: CentavosNaoNegativos.nullish(),
+  /** RN-CORE-16: inscrição estadual (ISENTO vale); só o Core decide se o cadastro está completo (RN-INT-14). */
+  inscricao_estadual: TextoOpcional(20),
+  /** Observação do ERP; o Macuxi nunca a altera (a linha de cadastro incompleto é montada na exibição). */
+  observacao: TextoOpcional(1000),
   bloqueado: z.boolean().default(false),
   contatos: z.array(ContatoCliente).max(CONTATOS_MAX).default([]),
 });

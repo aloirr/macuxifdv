@@ -42,19 +42,46 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CORE-12** Checkout exige as etapas obrigatórias registradas pelos módulos ativos (ex.: pesquisa obrigatória) e motivo quando não houve pedido (se Vendedor ativo).
 - **RN-CORE-14** Visita sem atendimento por **cliente fechado**: motivos `loja_fechada` e `acesso_negado`, com foto da fachada obrigatória, valem para vendedor e promotor. Eles dispensam as etapas obrigatórias do checkout (inclui a pesquisa obrigatória, RN-PES-03, e o checklist da loja, RN-PRO-06). O core informa o motivo às etapas do slot `visita.etapas_checkout`.
 - **RN-CORE-13** GPS só no check-in/checkout; sem rastreamento contínuo.
-- **RN-CORE-20** Visitado = check-in no dia; positivado = ≥ 1 pedido na [base de apuração] no período; cobertura = visitados ÷ planejados.
-- **RN-CORE-21** Realizado da meta = soma dos pedidos na [base de apuração: aprovado | faturado], líquido de cancelamentos; o pedido feito pelo gestor em nome do vendedor conta para o **vendedor**.
+- **RN-CORE-20** Visitado = check-in no dia; positivado = ≥ 1 pedido aprovado (aprovado, integrado ou faturado) com **data de emissão** no período (mesma regra da meta de pedido, RN-CORE-21); cobertura = visitados ÷ planejados.
+- **RN-CORE-21** O realizado depende do **tipo da meta**, definido na própria meta (decisão do Alexandre, 2026-11-02, R-20261102-120408):
+  - **Meta de pedido:** soma dos pedidos **aprovados** (aprovado, integrado, faturado), contados na **data de emissão do pedido** (fuso do tenant). Pedido aguardando aprovação ainda não conta; ao ser aprovado, passa a contar na data de emissão; rejeitado ou cancelado não conta. A data da aprovação não muda o mês do pedido (pedido de 31/10 aprovado em 02/11 conta em outubro).
+  - **Meta de faturamento:** soma do **valor faturado**, contado na **data do faturamento** informada pelo ERP (retorno `faturado_parcial` / `faturado_total`), líquido de cancelamentos e devoluções.
+  - Pedido feito pelo gestor em nome do vendedor conta para o vendedor. Automático, sem escolha do usuário.
+  - **Fechamento do mês** (premissa do gerente sobre a proposta do Alexandre): como aprovações tardias mudam o mês anterior, o fechamento da meta/RV roda no **2º dia útil do mês seguinte**; até lá a tela Metas mostra "parcial até o fechamento".
 - **RN-CORE-22** Necessidade diária = (meta − realizado) ÷ dias úteis restantes.
+- **RN-CORE-23 Sincronização no app** *(Alexandre, 2026-11-02, R-20261102-121135 e R-20261102-124413; substitui a "atualização automática de 3–5 min" do R-20261102-120408 (A) e o intervalo de 5 min do R-20261102-111438)*
+  1. **Botão "Sincronizar"** sempre visível no Campo e no Gestão (Início e Perfil), com "Última sincronização hh:mm · N na fila". Faz envio da fila + pull na hora.
+  2. **Envio automático da fila:** pedido, visita, pesquisa, coleta e fotos sobem sozinhos assim que houver sinal, com retentativa. Nunca dependem do botão.
+  3. **Aviso do servidor:** quando muda algo que o usuário precisa saber (pedido aprovado/rejeitado/integrado/faturado, pedido para aprovar, recado, meta, rota do dia), o servidor manda um push ao(s) aparelho(s) afetado(s). Pode ser visível (RF-CORE-09) ou silencioso. O app baixa **só as entidades indicadas**.
+  4. **Atualização automática leve:** ao abrir o app, ao voltar ao primeiro plano depois de [30] min, e a cada [`sync_auto_min` = 30] min com o app em uso e com sinal. Cada uma começa com **uma** chamada de novidades (`GET /v1/sync/novidades?desde=<cursor>`); só puxa as entidades que mudaram.
+  5. **Puxar para baixo** nas listas = Sincronizar (com proteção de 30 s contra toques repetidos).
+  6. **Gestão e BKO:** sem consulta periódica curta. Pedido para aprovar chega por push no Gestão; no BKO, o painel de aprovação atualiza a cada [`sync_auto_min`] min ou pelo botão "Atualizar".
+  - Nenhum timer automático abaixo de 15 min no app e no BKO (varredura no CI). Exceção: o envio automático da fila (item 2), que só sobe o que está pendente e não consulta novidades.
+
+**Cliente — cadastro mínimo** (decisão do Alexandre, 2026-11-02, R-20261102-092329)
+- **RN-CORE-16** Cadastro completo: o cliente só fica **ativo para faturamento** quando todos os campos da lista `cliente_campos_obrigatorios` do tenant estão preenchidos e válidos. Padrão: razão social; CNPJ ou CPF com dígito verificador válido; inscrição estadual ou "isento" (só para CNPJ); logradouro, número, bairro, município, UF e CEP. O tenant pode acrescentar campos à lista, mas não pode tirar o CNPJ/CPF. A verificação roda na integração (Hub), na edição pelo BKO e na sincronização, e mora no `domain` do Core.
+- **RN-CORE-17** Cliente com cadastro incompleto **é integrado normalmente** e aparece na carteira, na rota e no Cliente 360 (visita, pesquisa, promotoria e treinamento funcionam). O sistema escreve no topo do campo **Observações** do cliente, no app e no BKO, uma linha automática: "Cadastro incompleto: falta <campos>. Pedido só como orçamento até o cadastro ser completado no ERP." Essa linha não apaga o texto vindo do ERP, é refeita a cada atualização do cliente e some sozinha quando o cadastro fica completo. Na carteira, o cliente mostra a etiqueta "Cadastro incompleto".
+
+**Produto — custo, preço e medidas** (decisões do Alexandre, 2026-11-02, R-20261102-094644 e R-20261102-111619)
+- **RN-CORE-18** Cadastro do produto: custo e preço de venda são obrigatórios. Margem (%) = (preço − custo) ÷ preço; markup (%) = (preço − custo) ÷ custo; lucro (R$) = preço − custo; calculados, nunca digitados. Produto sem preço de venda não é vendável. Produto sem custo é vendável, mas aparece como "custo não informado" no BKO e no monitor de integração. **Custo, margem, markup e lucro são dados internos:** só o BKO (admin, analista, gerente) os vê; não vão para o app de campo nem para o PDF do cliente.
+- **RN-CORE-19 Medidas** As medidas (sigla e descrição) são cadastradas pelo tenant em Parâmetros → Produtos. Todo produto tem a medida da unidade e, opcionalmente, uma embalagem (medida + quantidade de unidades). Pedido, app, BKO e PDFs mostram sempre a sigla da medida vendida. Na integração, sigla não cadastrada é linha com erro `referencia_ausente` (reprocessável, RN-INT-04).
 
 ## 4. Vendedor — preço, desconto, crédito, estoque, status
 - **RN-VEN-01** Preço base = tabela vigente do cliente na data do pedido; sem preço → item não vendável.
-- **RN-VEN-02** Preço final do item = base × (1 − desc. item); total = Σ itens × (1 − desc. total) ± ajuste financeiro da condição. Arredondamento em centavos, meia para cima, por item.
-- **RN-VEN-03** Desconto efetivo = 1 − (total final ÷ total pela tabela).
-- **RN-VEN-10** Alçada: ≤ [vendedor 5%] aprova; ≤ [supervisor 10%] vai ao supervisor; ≤ [gerente 15%] vai ao gerente; acima → analista. Pedido feito pelo gestor usa a alçada do gestor.
-- **RN-VEN-11** Abaixo do preço mínimo do produto → sempre analista.
+- **RN-VEN-02** Preço final do item = base × (1 − desconto do item) ou base × (1 + acréscimo do item). Total dos itens = Σ linhas × (1 − desconto do pedido) ou × (1 + acréscimo do pedido) ± ajuste financeiro da condição. O frete não tem valor no pedido (RN-VEN-16). Arredondamento em centavos, meia para cima, por item. Desconto e acréscimo do pedido são excludentes (um ou outro). *(Redação de 2026-11-02, R-20261102-093007.)*
+- **RN-VEN-03** Desconto efetivo do pedido = 1 − (total dos itens após descontos e acréscimos ÷ total pela tabela), **sem o frete**. Pode ser negativo (acréscimo).
+- **RN-VEN-10** Alçada: ≤ [vendedor 5%] aprova; ≤ [supervisor 10%] vai ao supervisor; ≤ [gerente 15%] vai ao gerente; acima → analista. Pedido feito pelo gestor usa a alçada do gestor. A alçada olha **só o desconto efetivo do pedido** (RN-VEN-03), nunca o desconto de um item: item com 30% de desconto e pedido com desconto efetivo de 5% fica dentro da alçada de 5% e não vai para aprovação. Desconto efetivo ≤ 0 (acréscimo) nunca vai para aprovação.
+- **RN-VEN-11** Preço mínimo do item = preço de venda do cadastro do produto × (1 − desconto máximo aplicável do produto; vazio = [`desconto_maximo_produto_pct` 15%]). O desconto do item (sobre o preço da tabela do cliente) não pode levar o preço final abaixo do preço mínimo: o app trava o desconto no limite e mostra "Desconto máximo deste produto: X%". Esse teto vale por item e é independente da alçada do pedido (RN-VEN-10). *(Redação de 2026-11-02, R-20261102-094644.)*
 - **RN-VEN-12** Crédito disponível = limite − saldo em aberto − pedidos aprovados não faturados. Excedeu → [enviar para aprovação | bloquear].
-- **RN-VEN-13** Título vencido há mais de [5] dias → só à vista ou com aprovação. Cliente bloqueado/inativo → só orçamento.
+- **RN-VEN-13** Título vencido há mais de [5] dias → só à vista ou com aprovação. Cliente bloqueado, inativo ou com **cadastro incompleto (RN-CORE-17)** → só orçamento: o vendedor monta e salva, mas não envia para aprovação nem para o ERP. A tela do pedido mostra quais campos faltam.
 - **RN-VEN-14** Condição de pagamento apenas entre as permitidas ao cliente.
+- **RN-VEN-15** O vendedor vende na medida da unidade ou na embalagem do produto (RN-CORE-19). Preço da embalagem = preço da unidade × quantidade, salvo preço próprio da embalagem na tabela. Múltiplo e estoque são conferidos em unidades. O pedido grava a medida, a quantidade da embalagem e a quantidade em unidades. *(Ajuste de 2026-11-02, R-20261102-111619.)*
+- **RN-VEN-16 Frete** Modalidade obrigatória no pedido, padrão **CIF** (parâmetro do tenant `frete_modalidade_padrao`). *(Substitui a redação anterior; R-20261102-105040.)*
+  - **CIF** = a empresa que vende paga o frete. O frete está incluso no preço: o pedido não tem valor de frete nem pede transportadora.
+  - **FOB** = o cliente paga o frete. **Transportadora obrigatória**, preenchida pelo vendedor: escolhida da lista cadastrada no BKO ou, se não estiver na lista, digitada (nome e CNPJ obrigatórios; telefone opcional). A transportadora digitada fica só no pedido; o BKO vê a lista das digitadas para cadastrar. O valor do frete não entra no pedido (o cliente paga direto à transportadora).
+  - O frete nunca entra no desconto efetivo (RN-VEN-03) nem no realizado da meta (RN-CORE-21).
+  - "Enviar pedido" fica bloqueado com FOB sem transportadora: "Informe a transportadora do frete FOB."
+- **RN-VEN-17** Endereço de entrega: padrão = endereço principal do cliente. O vendedor escolhe entre os endereços de entrega do cliente vindos do ERP; não digita endereço novo (endereço novo entra pelo cadastro no ERP).
 - **RN-VEN-20** Disponível = saldo do ERP − reservas; reserva quando a API aceita o pedido; libera em cancelamento, rejeição ou faturamento. Insuficiente → [permitir com aviso | bloquear | cortar].
 - **RN-VEN-21** Quantidade múltipla do múltiplo de venda; item repetido soma quantidade.
 - **RN-VEN-22** Pedido mínimo [desativado].
@@ -65,6 +92,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-VEN-34** Pedido pode ser para cliente diferente do check-in aberto ("fora de visita").
 - **RN-VEN-35** Pedido em nome: `vendedor_id` = vendedor, `autor_id` = gestor; vendedor recebe notificação.
 - **RN-VEN-36** Alerta de ruptura do promotor aparece para o vendedor responsável por [7] dias ou até o próximo pedido do cliente.
+- **RN-VEN-37** Devolução = nota de devolução do ERP, pelo total; não muda o status do pedido nem estorna o desafio de vendas. *(Proposta da T-0054, aprovada pelo Alexandre em 2026-11-02, R-20261102-110941.)*
 - **Cancelamento depois do envio ao ERP**: a partir do status 'enviado', o pedido não pode ser cancelado no Macuxi (UI e API respondem 422 com o código da regra e a mensagem "Pedido já enviado ao ERP — cancele no ERP"); o cancelamento é feito no ERP e chega pelo retorno do Hub como status 'cancelado'.
 
 ## 5. Promotor (trade marketing)
@@ -123,6 +151,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - **Trava de inativação em massa** (confirmada pelo Alexandre em 2026-10-31): se uma carga for inativar mais de [30%] dos registros ativos de uma entidade, o lote fica parado aguardando confirmação no BKO. Parâmetro `limite_inativacao_pct`.
 - **RN-INT-07** Reconciliação diária por entidade: compara contagem de registros ativos e soma de controle (centavos ou quantidades) informadas pelo ERP com as do Macuxi; divergência acima da tolerância [contagem 0; soma 0,5%] gera alerta no monitor.
 - **RN-INT-08** Devolução de pedido ao ERP: só pedido `aprovado` entra na fila de pendentes; a entrega é idempotente pelo UUID do pedido. Retorno: `pendente` → `enviado` (Conector retirou) → `integrado` (nº ERP) | `rejeitado_erp` (motivo); `integrado` → `faturado_parcial` → `faturado_total`. `enviado` sem confirmação em [10 min] volta a `pendente`. Cancelamento feito no ERP volta pelo retorno como `enviado`/`integrado`/`faturado_*` → `cancelado`, com o motivo quando o ERP informar; o Macuxi nunca escreve cancelamento no ERP. Cada retorno publica `integracao.pedido.retorno_erp@1`.
+- **RN-INT-14** Cliente recebido sem algum campo de `cliente_campos_obrigatorios` **não** é linha com erro: entra com o indicador `cadastro_incompleto` e a lista de campos faltantes, e aparece no monitor de integração do BKO como aviso. CNPJ/CPF com dígito verificador inválido é tratado como ausente (RN-CORE-16). *(Alexandre, 2026-11-02, R-20261102-092329.)*
 - **RN-INT-09** Contrato `/integracao/v1`: dinheiro em centavos inteiros, datas ISO 8601 UTC, `external_id` obrigatório; campo novo opcional é compatível; mudança incompatível vira `/v2` com ADR e a versão anterior fica ativa por [6 meses].
 
 > **Conector (decisões do Alexandre em 2026-10-31, T-0013)**: linhas inválidas vão ao Hub com o motivo, até [500] por entidade por lote (acima disso, só a contagem). Atualização na v1 = pacote assinado para baixar + aviso no monitor do Hub quando o Conector estiver abaixo da versão mínima ou recomendada (atualização automática na v2). Uma chave de API por Conector (não por tenant), rotacionável no BKO, escopo só `/integracao/v1`, guardada no Windows Credential Manager. Bancos: Oracle primeiro, Firebird depois, MySQL sob demanda.
@@ -162,6 +191,9 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Dias de atraso para restringir | 5 |
 | Estoque insuficiente | permitir com aviso |
 | Pedido mínimo | desativado |
+| Campos obrigatórios do cadastro do cliente (`cliente_campos_obrigatorios`) | razão social, CNPJ/CPF, IE ou isento (PJ), logradouro, número, bairro, município, UF, CEP |
+| Modalidade de frete padrão (`frete_modalidade_padrao`) | CIF |
+| Desconto máximo padrão do produto (`desconto_maximo_produto_pct`) | 15% |
 | Raio de check-in | 200 m |
 | Validade do orçamento | 7 dias |
 | Alerta de ruptura ao vendedor | 7 dias |
@@ -171,7 +203,9 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Peso do parcial na conformidade de gôndola (`peso_parcial_conformidade`) | 0 |
 | Tolerância de variação de preço | 50% |
 | Fotos de trade só pela câmera | sim |
-| Base de apuração de metas | aprovado |
+| Base de apuração de metas | deixou de ser parâmetro: é o **tipo da meta** (pedido \| faturamento) no cadastro da meta (RN-CORE-21) |
+| Atualização automática do app e do BKO (`sync_auto_min`) | 30 min (mínimo 15) |
+| Voltar ao primeiro plano dispara verificação após | 30 min |
 | Retenção de dados de módulo desativado | 90 dias |
 | Limite de consultas de IA | 200/usuário/dia |
 | Registros por lote de integração | 5.000 |

@@ -4,9 +4,12 @@
  */
 import { ambienteIndisponivel, criarArmazenamentoEmMemoria, criarMotorSync, criarShell, defineModule, definirModuloShell, type AmbienteAparelho } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { CONSULTA_PRECOS_CLIENTE } from '../contracts';
+import { CONSULTA_PRECOS_CLIENTE, ENTIDADES_PRECO } from '../contracts';
 import { manifest } from '../manifest';
-import { moduloApp } from './index';
+import { consultaPrecosClienteAparelho } from './consultas';
+
+/** A parte do `moduloApp` que a consulta usa (o índice importa as telas React Native, que não rodam no Node). */
+const moduloApp = definirModuloShell({ manifesto: manifest, entidadesSync: ENTIDADES_PRECO, consultas: [consultaPrecosClienteAparelho] });
 
 const id = (n: number) => `0ca00000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const TAB_ATACADO = id(2);
@@ -38,7 +41,8 @@ const linhas = {
   },
 };
 
-const mCore = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor'], apps: { campo: { abas: [] } } });
+// o Core oferece core.cadastro_resumo@1 (o Catálogo usa na API desde a T-0052; o shell confere o conjunto)
+const mCore = defineModule({ id: 'core', versao: '1.0.0', perfis: ['vendedor', 'promotor'], apps: { campo: { abas: [] } }, ofereceConsultas: ['core.cadastro_resumo@1'] });
 // consumidor mínimo (o Vendedor real declara o mesmo em usaConsultas)
 const mConsumidor = defineModule({
   id: 'vendedor',

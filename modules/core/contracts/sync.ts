@@ -34,6 +34,11 @@ export const ClienteSyncSchema = z
     latitude: z.union([z.string(), z.number()]).nullable(),
     longitude: z.union([z.string(), z.number()]).nullable(),
     ativo: z.boolean(),
+    /** Cadastro mínimo (RN-CORE-16/17; T-0060). Opcionais: APK antigo e linhas antigas continuam válidos. `cadastro_campos_faltantes` é string (e não o enum): campo novo do tenant não reprova a linha no aparelho antigo. */
+    inscricao_estadual: z.string().nullable().optional(),
+    observacao: z.string().nullable().optional(),
+    cadastro_incompleto: z.boolean().optional(),
+    cadastro_campos_faltantes: z.array(z.string()).optional(),
   })
   .strict();
 export type ClienteSync = z.infer<typeof ClienteSyncSchema>;
@@ -66,6 +71,42 @@ export const ProdutoSyncSchema = z
   })
   .strict();
 export type ProdutoSync = z.infer<typeof ProdutoSyncSchema>;
+
+/** Unidades de venda do produto (RN-VEN-15; T-0061 §4.1). Escopo tenant. */
+export const ProdutoUnidadeSyncSchema = z
+  .object({
+    ...Base,
+    produto_id: z.string().uuid(),
+    unidade: z.string(),
+    fator: z.number().int().positive(),
+    ean: z.string().nullable(),
+    padrao: z.boolean(),
+    ativo: z.boolean(),
+  })
+  .strict();
+export type ProdutoUnidadeSync = z.infer<typeof ProdutoUnidadeSyncSchema>;
+
+/** Endereços do cliente (RF-CORE-12, RN-VEN-17). Escopo carteira (cliente_id). */
+export const ClienteEnderecoSyncSchema = z
+  .object({
+    ...Base,
+    cliente_id: z.string().uuid(),
+    tipo: z.enum(['principal', 'entrega', 'cobranca']),
+    descricao: z.string().nullable(),
+    logradouro: z.string(),
+    numero: z.string().nullable(),
+    complemento: z.string().nullable(),
+    bairro: z.string().nullable(),
+    cidade: z.string(),
+    uf: z.string(),
+    cep: z.string().nullable(),
+    latitude: z.union([z.string(), z.number()]).nullable(),
+    longitude: z.union([z.string(), z.number()]).nullable(),
+    principal: z.boolean(),
+    ativo: z.boolean(),
+  })
+  .strict();
+export type ClienteEnderecoSync = z.infer<typeof ClienteEnderecoSyncSchema>;
 
 // ---------- Sprint 1 (desenho T-0016 §3, §4, §5, §6) ----------
 const Data = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

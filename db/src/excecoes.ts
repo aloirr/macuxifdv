@@ -21,6 +21,10 @@ export const TABELAS_FORA_DO_SYNC = [
   'plataforma.arquivo',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */
   'vendedor.numeracao_pedido',
+  /** Cota de IA por usuário/dia (0013, RN-CAT-03): só o servidor usa (catalogo.debitar_cota_ia). */
+  'catalogo.uso_ia',
+  /** Log de busca (0013, RF-CAT-07): só o BKO lê (termos sem resultado). */
+  'catalogo.busca_log',
   /** Hub de Integração (0010, T-0032): nada do schema integracao vai ao aparelho (o que o app vê chega pelos eventos). */
   'integracao.conector',
   'integracao.credencial',

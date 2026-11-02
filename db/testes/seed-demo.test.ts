@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { politicaDosParametros, revalidarPedido } from '../../modules/vendedor/domain/aprovacao';
 import {
-  ALCADAS_DEMO, carregarDemo, CODIGO_DEMO, dadosDemo, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
+  ALCADAS_DEMO, carregarDemo, CLIENTE_SEM_CEP_DEMO, PRECO_PROPRIO_CX_LIGADO, CODIGO_DEMO, dadosDemo, DESCONTO_MAXIMO_PROPRIO_DEMO, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
   USUARIOS_DEMO,
 } from '../seeds/demo/demo';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
@@ -83,12 +83,85 @@ describe('base de demo (estático)', () => {
     }
   });
 
+  describe('0013: cadastro mínimo, produto, catálogo e frete (T-0047, T-0059, R-20261102-092329/093007/094644)', () => {
+    /** Dígitos verificadores do CNPJ conferidos de forma independente do seed. */
+    const cnpjValido = (doc: string) => {
+      if (!/^\d{14}$/.test(doc) || /^(\d)\1{13}$/.test(doc)) return false;
+      const dv = (base: string) => {
+        const pesos = base.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+        const r = [...base].reduce((t, c, i) => t + Number(c) * pesos[i]!, 0) % 11;
+        return r < 2 ? 0 : 11 - r;
+      };
+      return dv(doc.slice(0, 12)) === Number(doc[12]) && dv(doc.slice(0, 13)) === Number(doc[13]);
+    };
+
+    it('RN-CORE-16: todos os clientes com CNPJ fictício válido (único) e IE; o retrato dos pedidos leva o CNPJ', () => {
+      const docs = d['core.cliente'].map((c) => String(c.documento));
+      expect(docs.every(cnpjValido)).toBe(true);
+      expect(new Set(docs).size).toBe(30);
+      expect(cnpjValido('11444777000162')).toBe(false); // controle: DV errado reprova
+      expect(d['core.cliente'].every((c) => typeof c.inscricao_estadual === 'string' && c.inscricao_estadual !== '')).toBe(true);
+      for (const p of d['vendedor.pedido']) expect(cnpjValido(String((p.cliente_resumo as { documento: string }).documento)), String(p.id)).toBe(true);
+      expect(d['vendedor.transportadora'].map((t) => String(t.documento)).every(cnpjValido)).toBe(true);
+    });
+
+    it('RN-CORE-17: só o Atacado Boto Rosa sem CEP, marcado como cadastro incompleto (falta cep)', () => {
+      const incompletos = d['core.cliente'].filter((c) => c.cadastro_incompleto);
+      expect(incompletos.map((c) => c.id)).toEqual([idClienteDemo(CLIENTE_SEM_CEP_DEMO)]);
+      expect(incompletos[0]).toMatchObject({ nome_fantasia: 'Atacado Boto Rosa', cep: null, cadastro_campos_faltantes: '{cep}' });
+      expect(d['core.cliente'].filter((c) => !c.cadastro_incompleto).every((c) => /^\d{8}$/.test(String(c.cep)) && c.cadastro_campos_faltantes === '{}')).toBe(true);
+    });
+
+    it('RN-CORE-18 e RN-VEN-11: custo com margem de 20% a 40%, preço de venda = Varejo e 3 produtos com desconto máximo próprio', () => {
+      for (const p of d['core.produto']) {
+        const margem = (Number(p.preco_venda_cents) - Number(p.custo_cents)) / Number(p.preco_venda_cents);
+        expect(margem, String(p.sku)).toBeGreaterThanOrEqual(0.195);
+        expect(margem, String(p.sku)).toBeLessThanOrEqual(0.405);
+      }
+      expect(Object.fromEntries(d['core.produto'].filter((p) => p.desconto_maximo_pct !== null).map((p) => [p.sku, p.desconto_maximo_pct]))).toEqual({ ...DESCONTO_MAXIMO_PROPRIO_DEMO });
+      // o padrão de 15% (desconto_maximo_produto_pct) fica sem linha: ausente = padrão do doc 03
+      expect(d['plataforma.parametro'].some((x) => x.chave === 'desconto_maximo_produto_pct')).toBe(false);
+      // os produtos com desconto máximo próprio não estão nos pedidos com desconto da demo (não contradizem o RN-VEN-11)
+      const comDesconto = new Set(d['vendedor.pedido'].filter((p) => Number(p.desconto_pct) > 0).map((p) => p.id));
+      const skusComDesconto = new Set(d['vendedor.pedido_item'].filter((i) => comDesconto.has(i.pedido_id)).map((i) => i.produto_sku));
+      for (const sku of Object.keys(DESCONTO_MAXIMO_PROPRIO_DEMO)) expect(skusComDesconto.has(sku), sku).toBe(false);
+    });
+
+    it('RN-VEN-15 e RF-CAT-04: toda unidade base é a padrão (fator 1); CX com fator > 1; árvore de 3 níveis com todo produto numa folha', () => {
+      const uns = d['core.produto_unidade'];
+      expect(uns.filter((u) => u.padrao)).toHaveLength(d['core.produto'].length);
+      expect(uns.filter((u) => u.padrao).every((u) => u.fator === 1)).toBe(true);
+      expect(uns.filter((u) => u.unidade === 'CX').every((u) => Number(u.fator) > 1)).toBe(true);
+      const nos = d['catalogo.catalogo_no'];
+      expect(new Set(nos.map((n) => n.nivel))).toEqual(new Set([1, 2, 3]));
+      const folhas = new Set(nos.filter((n) => n.nivel === 3).map((n) => n.id));
+      expect(d['catalogo.produto_no']).toHaveLength(d['core.produto'].length);
+      expect(d['catalogo.produto_no'].every((x) => folhas.has(x.no_id))).toBe(true);
+      // preço próprio da CX só quando a consulta de preço filtrar a unidade (PRECO_PROPRIO_CX_LIGADO)
+      expect(d['catalogo.tabela_preco_item'].filter((i) => i.unidade !== null).length > 0).toBe(PRECO_PROPRIO_CX_LIGADO);
+    });
+
+    it('RN-VEN-16/17: 2 transportadoras; pedidos com frete (FOB só com transportadora, sem valor de frete) e endereço de entrega principal', () => {
+      expect(d['vendedor.transportadora']).toHaveLength(2);
+      for (const p of d['vendedor.pedido']) {
+        expect(['CIF', 'FOB']).toContain(p.frete_modalidade);
+        if (p.frete_modalidade === 'CIF') expect(p.transportadora_id).toBeNull();
+        else expect(p.transportadora_id).toBeTruthy();
+        expect(d['core.cliente_endereco'].some((e) => e.id === p.endereco_entrega_id && e.principal)).toBe(true);
+      }
+      expect(d['core.cliente_endereco'].filter((e) => e.principal)).toHaveLength(30);
+      expect(d['core.cliente_endereco'].filter((e) => !e.principal).length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
   describe('T-0029: fatia do pedido (preço, condições, alçadas, gerente e pedidos)', () => {
     const pedidos = d['vendedor.pedido'];
     const tabelaDoCliente = new Map(d['catalogo.cliente_tabela_preco'].map((x) => [x.cliente_id, x.tabela_preco_id]));
     const tabelaPorCodigo = new Map(d['catalogo.tabela_preco'].map((t) => [t.codigo, t.id]));
     const produtoPorSku = new Map(d['core.produto'].map((p) => [p.sku, p.id]));
-    const precoDe = (tabela: unknown, produto: unknown) => d['catalogo.tabela_preco_item'].find((i) => i.tabela_preco_id === tabela && i.produto_id === produto)?.preco_cents as number | undefined;
+    /** Preço na unidade base (as linhas com unidade = preço próprio da CX, 0013). */
+    const precoDe = (tabela: unknown, produto: unknown) =>
+      d['catalogo.tabela_preco_item'].find((i) => i.tabela_preco_id === tabela && i.produto_id === produto && i.unidade === null)?.preco_cents as number | undefined;
 
     it('licenças: Vendedor e Catálogo para vendedor, supervisor, gerente, analista, assistente e admin; promotor sem Vendedor (RN-PRO-01)', () => {
       const pm = (perfil: string) => d['plataforma.perfil_modulo'].filter((p) => p.perfil === perfil).map((p) => p.modulo);
@@ -106,8 +179,8 @@ describe('base de demo (estático)', () => {
     it('preço: Varejo com todos os produtos, Atacado ~7% menor sem 3 produtos; cada cliente com uma tabela, vigente desde o 1º dia do mês anterior', () => {
       const varejo = tabelaPorCodigo.get('VAREJO');
       const atacado = tabelaPorCodigo.get('ATACADO');
-      expect(d['catalogo.tabela_preco_item'].filter((i) => i.tabela_preco_id === varejo)).toHaveLength(d['core.produto'].length);
-      expect(d['catalogo.tabela_preco_item'].filter((i) => i.tabela_preco_id === atacado)).toHaveLength(d['core.produto'].length - 3);
+      expect(d['catalogo.tabela_preco_item'].filter((i) => i.tabela_preco_id === varejo && i.unidade === null)).toHaveLength(d['core.produto'].length);
+      expect(d['catalogo.tabela_preco_item'].filter((i) => i.tabela_preco_id === atacado && i.unidade === null)).toHaveLength(d['core.produto'].length - 3);
       for (const sku of SEM_PRECO_NO_ATACADO) expect(precoDe(atacado, produtoPorSku.get(sku)), sku).toBeUndefined();
       const cafe = produtoPorSku.get('CAF-500');
       expect(precoDe(atacado, cafe)! / precoDe(varejo, cafe)!).toBeCloseTo(0.93, 2);
@@ -361,6 +434,22 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     const u = await comAdmin(b.nome, (c) => c.query<{ tentativas_falhas: number; bloqueio_ate: Date | null }>('select tentativas_falhas, bloqueio_ate from core.usuario where id = $1', [vendedorId]));
     expect(u.rows[0]).toEqual({ tentativas_falhas: 0, bloqueio_ate: null });
   }, 300_000); // cria e migra um 2º banco dentro do teste: ~30 s sozinho, passa de 60 s com as outras suítes em paralelo
+
+  it('RF-CAT-01 (T-0047): a busca do servidor acha "óleo para moto 150 cilindradas" e "detergente neutro 5 litros" pelo papel macuxi_app', async () => {
+    const buscar = (texto: string) =>
+      comTenant(pool, TENANT_DEMO, async (c) =>
+        (await c.query<{ sku: string }>(
+          `select sku from catalogo.produto_busca
+            where documento @@ websearch_to_tsquery('portuguese', catalogo.sem_acento($1)) and ativo and deleted_at is null
+            order by ts_rank_cd(documento, websearch_to_tsquery('portuguese', catalogo.sem_acento($1))) desc, sku`,
+          [texto],
+        )).rows.map((x) => x.sku),
+      );
+    expect(await buscar('óleo para moto 150 cilindradas')).toContain('OLE-4T-1L');
+    expect(await buscar('detergente neutro 5 litros')).toEqual(['DET-5L']);
+    expect(await buscar('oleo moto')).toEqual(expect.arrayContaining(['OLE-4T-1L', 'OLE-4T-SEMI']));
+    expect(await buscar('pneu de trator')).toEqual([]);
+  });
 
   it('isolamento: carga, recarga e --recriar não mudam nenhuma linha de outro tenant', async () => {
     expect(await outrosTenants()).toEqual(antesOutros);
