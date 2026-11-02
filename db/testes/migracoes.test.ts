@@ -10,7 +10,7 @@ import { listarAplicadas, lerMigracoes, migrarDown, migrarUp } from '../src/migr
 import { semBanco } from './estado';
 import { retratoDoCatalogo } from './util';
 
-/** Nomes de todas as migrações (`0001_plataforma`...). Da 0013 em diante a lista vem do disco (0013/0014 de outra frente). */
+/** Nomes de todas as migrações (`0001_plataforma`...). Até a 0013 fixa (já no main); da 0014 em diante a lista vem do disco (0014 de outra frente). */
 const nomes = lerMigracoes().map((m) => `${m.versao}_${m.nome}`);
 const criados: BancoDeTeste[] = [];
 async function bancoVazio(): Promise<BancoDeTeste> {
@@ -55,9 +55,9 @@ describe.skipIf(semBanco())('migrações up/down', () => {
       expect((await migrarUp(c, { ate: '0001' })).aplicadas).toEqual(['0001_plataforma']);
       expect((await migrarUp(c, { ate: '0002' })).aplicadas).toEqual(['0002_core']);
       expect((await migrarUp(c, { ate: '0003' })).aplicadas).toEqual(['0003_plataforma_worker']);
-      expect(nomes.slice(3, 12)).toEqual([
+      expect(nomes.slice(3, 13)).toEqual([
         '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido', '0008_catalogo_preco', '0009_vendedor_pedido_completo',
-        '0010_integracao', '0011_plataforma_outbox_retencao', '0012_search_path_pg_temp',
+        '0010_integracao', '0011_plataforma_outbox_retencao', '0012_search_path_pg_temp', '0013_catalogo_vendedor_prevenda',
       ]);
       expect(nomes).toContain('0015_promotor');
       expect((await migrarUp(c)).aplicadas).toEqual(nomes.slice(3));

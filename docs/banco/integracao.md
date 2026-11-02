@@ -266,3 +266,11 @@ monotônicos, decisão e auditoria append-only, fila/retorno/erros, expurgos com
 das 17 tabelas em `vazamento.test.ts` (fixture com linhas de A e B em todas, [fixture-dois-tenants.md](fixture-dois-tenants.md));
 listas e índices em `estatico.test.ts`; up/down/up em `migracoes.test.ts`; Drizzle × banco em `drizzle-x-banco.test.ts`.
 EXPLAIN com volume (20 mil SKUs, 1 milhão de preços, lote de 5.000) fica para a rodada das rotas (consultas reais da API).
+
+## 0013 — entidades novas e versão mínima do Conector (R-20261102-100400; desenho T-0061 §6; ADR 0016)
+- Os CHECKs de entidade (`sessao_carga`, `lote`, `registro_atual`, `pendencia_inativacao`, `inativacao_auditoria`,
+  `cursor_entidade`, `reconciliacao`) e o de `conector.entidades` aceitam 12: as 8 originais + `catalogo_no`,
+  `produto_unidade`, `cliente_endereco`, `transportadora` (`ENTIDADES_BANCO` em modules/integracao/db/nuvem.ts). O PADRÃO
+  de `conector.entidades` continua as 8 originais (`ENTIDADES_ORIGINAIS`).
+- `pedido_fila_erp.exige_conector` text nulo: versão mínima do Conector para levar o pedido (semver `1.3.0`); nulo = qualquer.
+- Down: apaga as linhas das 4 entidades novas no schema integracao, tira-as das listas dos Conectores e volta os CHECKs às 8.

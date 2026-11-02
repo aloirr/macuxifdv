@@ -47,7 +47,8 @@ export const rotaMonitor: RotaModulo = {
     const desde24h = new Date(agora.getTime() - JANELA_24H_MS).toISOString();
     return ctx.comTenant(async (db) => {
       const { rows: conectores } = await db.query<LinhaConector>(`select ${COLUNAS_CONECTOR} from integracao.conector where tenant_id = $1 and deleted_at is null order by identificador`, [tenantId]);
-      const [chaves, politica] = await Promise.all([lerChaves(db, tenantId, conectores.map((c) => c.id)), lerPolitica(db, tenantId)]);
+      const chaves = await lerChaves(db, tenantId, conectores.map((c) => c.id));
+      const politica = await lerPolitica(db, tenantId);
       const resumos = conectores.map((c) => montarResumo(c, chaves.get(c.id), politica, agoraIso));
 
       const { rows: recentes } = await db.query<LinhaLote>(

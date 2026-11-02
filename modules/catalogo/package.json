@@ -36,14 +36,19 @@
     "react-native-svg": "15.15.4",
     "react-native-worklets": "0.10.1",
     "typescript": "~5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@types/react-dom": "~19.2.2",
+    "next": "^16.0.0",
+    "react-dom": "19.2.3"
   },
   "peerDependencies": {
     "expo-router": "~57.0.0",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "next": "^16.0.0",
+    "react-dom": "19.2.3"
   },
   "peerDependenciesMeta": {
     "expo-router": {
@@ -56,6 +61,12 @@
       "optional": true
     },
     "react-native-svg": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   }

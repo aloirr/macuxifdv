@@ -100,6 +100,22 @@ const G = {
   pedido_fila_erp: 0x5e,
   pedido_retorno: 0x5f,
   pedido_retorno_erro: 0x60,
+  // 0013 (catálogo, vendedor e core)
+  produto_unidade: 0x2d,
+  cliente_endereco: 0x2e,
+  transportadora: 0x36,
+  pedido_faturamento: 0x38,
+  uso_ia: 0x43,
+  catalogo_no: 0x44,
+  produto_no: 0x45,
+  produto_conteudo: 0x46,
+  produto_atributo: 0x47,
+  produto_midia: 0x48,
+  sinonimo: 0x49,
+  produto_busca: 0x4a,
+  deposito: 0x4b,
+  estoque_saldo: 0x4c,
+  busca_log: 0x4d,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -298,6 +314,26 @@ const ORDEM_T0032 = [
   'integracao.pedido_retorno_erro',
 ] as const;
 type TabelaT0032 = (typeof ORDEM_T0032)[number];
+
+/** Tabelas da 0013 (cadastro mínimo, unidade, endereço; conteúdo e cota do Catálogo; frete e faturamento), na ordem das FKs. */
+const ORDEM_T0013 = [
+  'core.produto_unidade',
+  'core.cliente_endereco',
+  'catalogo.uso_ia',
+  'catalogo.catalogo_no',
+  'catalogo.produto_no',
+  'catalogo.produto_conteudo',
+  'catalogo.produto_atributo',
+  'catalogo.produto_midia',
+  'catalogo.sinonimo',
+  'catalogo.produto_busca',
+  'catalogo.deposito',
+  'catalogo.estoque_saldo',
+  'catalogo.busca_log',
+  'vendedor.transportadora',
+  'vendedor.pedido_faturamento',
+] as const;
+type TabelaT0013 = (typeof ORDEM_T0013)[number];
 const DO_PEDIDO = ['vendedor.pedido', 'vendedor.pedido_item'] as const;
 
 export const ORDEM_TABELAS = [
@@ -321,6 +357,7 @@ export const ORDEM_TABELAS = [
   ...DO_PEDIDO,
   'vendedor.pedido_evento',
   ...ORDEM_T0032,
+  ...ORDEM_T0013,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
   ...ORDEM_PROMOTOR,
 ] as const;
@@ -464,6 +501,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosSprint1(hojeA, hojeB),
     ...dadosT0029(hojeA, hojeB),
     ...dadosT0032(hojeA),
+    ...dadosT0013(hojeA, hojeB),
     ...dadosPromotorFixture(
       {
         A: { tenantId: tA, promotor: A.usuarios.promotor, cliente: A.clientes.c1, visitaCore: A.visitas.promotorC1Hoje, produto: a('produto', 1), produto2: a('produto', 2) },
@@ -928,6 +966,105 @@ function dadosT0032(hojeA: string): Pick<DadosFixture, TabelaT0032> {
     'integracao.pedido_retorno_erro': [
       descartado(a('pedido_retorno_erro', 1), tA, retA, 'sequencia_inexistente', 'itens_faturados[1].sequencia', 'A sequência 9 não existe no pedido enviado ao ERP. Confira a consulta de itens da nota no Conector.'),
       descartado(b('pedido_retorno_erro', 1), tB, retB, 'produto_divergente', 'itens_faturados[1].produto_external_id', 'O produto "PRD-9" da sequência 9 não é o que foi enviado ao ERP.'),
+    ],
+  };
+}
+
+/**
+ * 0013: uma linha (ou mais) em cada tabela nova nos DOIS tenants. A: produto 1 em UN (padrão) e CX c/ 10; c1 com
+ * endereço principal e um de entrega; transportadora em A e B; cota de IA do vendedor-1 hoje
+ * (3 consultas); árvore Freios > Pastilhas; p3 (faturado) com 1 faturamento. B: o mínimo (UN, endereço principal, CIF,
+ * cota 1, árvore de 1 nível, p1 com 1 faturamento). Instantes relativos ao "hoje" da carga, como o resto da fixture.
+ */
+function dadosT0013(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaT0013> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const tA = A.tenantId;
+  const tB = B.tenantId;
+  const comuns = { deleted_at: null, external_id: null };
+  const unidade = (id: string, tenant_id: string, produto_id: string, un: string, fator: number, padrao: boolean): Linha => ({
+    id, tenant_id, produto_id, unidade: un, fator, ean: null, padrao, ativo: true, ...comuns,
+  });
+  const endereco = (id: string, tenant_id: string, cliente_id: string, tipo: string, principal: boolean, logradouro: string, cidade: string, uf: string, cep: string): Linha => ({
+    id, tenant_id, cliente_id, tipo, descricao: principal ? 'Principal' : 'Depósito', logradouro, numero: '100', complemento: null, bairro: 'Centro', cidade, uf, cep,
+    latitude: null, longitude: null, principal, ativo: true, ...comuns,
+  });
+  const no = (id: string, tenant_id: string, pai_id: string | null, nivel: number, codigo: string, nome: string): Linha => ({
+    id, tenant_id, pai_id, nivel, codigo, nome, ordem: 1, ativo: true, ...comuns,
+  });
+  const busca = (id: string, tenant_id: string, produto_id: string, sku: string, nome: string, marca: string, categoria: string, atributos: string): Linha => ({
+    id, tenant_id, produto_id, sku, ean: null, nome, marca, categoria, atributos, conteudo: null, ativo: true, ...comuns,
+  });
+  const faturamento = (id: string, tenant_id: string, pedido_id: string, evento_id: string, parcial: boolean, numero_erp: string, produto_id: string, quantidade: number, total: number, em: string): Linha => ({
+    id, tenant_id, pedido_id, evento_id, parcial, numero_erp, nota_numero: '1001', nota_serie: '1', nota_emitida_em: em, nota_total_cents: total,
+    itens: [{ sequencia: 1, produto_id, quantidade, total_cents: total }], faturado_em: em, ...comuns,
+  });
+  return {
+    'core.produto_unidade': [
+      unidade(a('produto_unidade', 1), tA, a('produto', 1), 'UN', 1, true),
+      unidade(a('produto_unidade', 2), tA, a('produto', 1), 'CX', 10, false),
+      unidade(b('produto_unidade', 1), tB, b('produto', 1), 'UN', 1, true),
+    ],
+    'core.cliente_endereco': [
+      endereco(a('cliente_endereco', 1), tA, A.clientes.c1, 'principal', true, 'Rua Um', 'Manaus', 'AM', '69005000'),
+      endereco(a('cliente_endereco', 2), tA, A.clientes.c1, 'entrega', false, 'Av. do Depósito', 'Manaus', 'AM', '69075000'),
+      endereco(b('cliente_endereco', 1), tB, B.clientes.c1, 'principal', true, 'Rua Beta', 'São Paulo', 'SP', '01001000'),
+    ],
+    'catalogo.uso_ia': [
+      { id: a('uso_ia', 1), tenant_id: tA, usuario_id: A.usuarios.vendedor1, dia: hojeA, consultas: 3, ...comuns },
+      { id: b('uso_ia', 1), tenant_id: tB, usuario_id: B.usuarios.vendedor, dia: hojeB, consultas: 1, ...comuns },
+    ],
+    'catalogo.catalogo_no': [
+      no(a('catalogo_no', 1), tA, null, 1, 'FREIOS', 'Freios'),
+      no(a('catalogo_no', 2), tA, a('catalogo_no', 1), 2, 'FREIOS-PASTILHAS', 'Pastilhas'),
+      no(b('catalogo_no', 1), tB, null, 1, 'LUB', 'Lubrificantes'),
+    ],
+    'catalogo.produto_no': [
+      { id: a('produto_no', 1), tenant_id: tA, produto_id: a('produto', 1), no_id: a('catalogo_no', 2), ...comuns },
+      { id: b('produto_no', 1), tenant_id: tB, produto_id: b('produto', 1), no_id: b('catalogo_no', 1), ...comuns },
+    ],
+    'catalogo.produto_conteudo': [
+      {
+        id: a('produto_conteudo', 1), tenant_id: tA, produto_id: a('produto', 1), descricao: 'Pastilha cerâmica para eixo dianteiro.', aplicacoes: 'Motos 150 cc',
+        argumentos_venda: 'Menos ruído e pó', faq: [{ pergunta: 'Serve em moto 150?', resposta: 'Sim, nas linhas 150 cc.' }], campanha: true, destaque: false, ...comuns,
+      },
+      { id: b('produto_conteudo', 1), tenant_id: tB, produto_id: b('produto', 1), descricao: 'Óleo sintético 5W30.', aplicacoes: null, argumentos_venda: null, faq: [], campanha: false, destaque: true, ...comuns },
+    ],
+    'catalogo.produto_atributo': [
+      { id: a('produto_atributo', 1), tenant_id: tA, produto_id: a('produto', 1), nome: 'Cilindrada', valor: '150', valor_num: 150, unidade: 'cc', ordem: 1, ...comuns },
+      { id: b('produto_atributo', 1), tenant_id: tB, produto_id: b('produto', 1), nome: 'Viscosidade', valor: '5W30', valor_num: null, unidade: null, ordem: 1, ...comuns },
+    ],
+    'catalogo.produto_midia': [
+      { id: a('produto_midia', 1), tenant_id: tA, produto_id: a('produto', 1), tipo: 'foto', arquivo_id: null, url: 'https://exemplo.com.br/a/pastilha.jpg', titulo: null, ordem: 1, principal: true, ...comuns },
+      { id: b('produto_midia', 1), tenant_id: tB, produto_id: b('produto', 1), tipo: 'pdf', arquivo_id: null, url: 'https://exemplo.com.br/b/ficha.pdf', titulo: 'Ficha técnica', ordem: 1, principal: false, ...comuns },
+    ],
+    'catalogo.sinonimo': [
+      { id: a('sinonimo', 1), tenant_id: tA, termo: 'pastilha', sinonimos: arrayDeTexto(['lona', 'sapata']), ativo: true, ...comuns },
+      { id: b('sinonimo', 1), tenant_id: tB, termo: 'oleo', sinonimos: arrayDeTexto(['lubrificante']), ativo: true, ...comuns },
+    ],
+    'catalogo.produto_busca': [
+      busca(a('produto_busca', 1), tA, a('produto', 1), 'ALFA-001', 'Pastilha de freio dianteira', 'Norfreio', 'Freios', 'Cilindrada 150 cc'),
+      busca(b('produto_busca', 1), tB, b('produto', 1), 'BETA-001', 'Óleo 5W30 1 L', 'Lubrion', 'Lubrificantes', 'Viscosidade 5W30'),
+    ],
+    'catalogo.deposito': [
+      { id: a('deposito', 1), tenant_id: tA, codigo: 'CD1', nome: 'CD Manaus', ativo: true, ...comuns },
+      { id: b('deposito', 1), tenant_id: tB, codigo: 'CD1', nome: 'CD São Paulo', ativo: true, ...comuns },
+    ],
+    'catalogo.estoque_saldo': [
+      { id: a('estoque_saldo', 1), tenant_id: tA, deposito_id: a('deposito', 1), produto_id: a('produto', 1), quantidade: 15, atualizado_erp_em: instante(hojeA, '10:00'), ...comuns },
+      { id: b('estoque_saldo', 1), tenant_id: tB, deposito_id: b('deposito', 1), produto_id: b('produto', 1), quantidade: 5, atualizado_erp_em: instante(hojeB, '10:00'), ...comuns },
+    ],
+    'catalogo.busca_log': [
+      { id: a('busca_log', 1), tenant_id: tA, usuario_id: A.usuarios.vendedor1, termo: 'pastilha ceramica 300', origem: 'regras', resultados: 0, duracao_ms: 12, ocorrido_em: instante(hojeA, '13:00'), ...comuns },
+      { id: b('busca_log', 1), tenant_id: tB, usuario_id: B.usuarios.vendedor, termo: 'oleo 5w30', origem: 'llm', resultados: 1, duracao_ms: 900, ocorrido_em: instante(hojeB, '13:00'), ...comuns },
+    ],
+    'vendedor.transportadora': [
+      { id: a('transportadora', 1), tenant_id: tA, nome: 'Rápido Norte Transportes', documento: '11444777000161', inscricao_estadual: '041234567', telefone: '9233334444', ativo: true, ...comuns },
+      { id: b('transportadora', 1), tenant_id: tB, nome: 'Paulista Cargas', documento: null, inscricao_estadual: null, telefone: null, ativo: true, ...comuns },
+    ],
+    'vendedor.pedido_faturamento': [
+      faturamento(a('pedido_faturamento', 1), tA, A.pedidos.p3, a('pedido_faturamento', 101), false, 'PV1003', a('produto', 2), 3, 150_000, instante(somarDias(hojeA, -18), '15:00')),
+      faturamento(b('pedido_faturamento', 1), tB, B.pedidos.p1, b('pedido_faturamento', 101), false, 'PVB001', b('produto', 1), 10, 45_000, instante(hojeB, '12:00')),
     ],
   };
 }

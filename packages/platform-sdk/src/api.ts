@@ -265,10 +265,29 @@ export interface ContextoConsumo {
   db: ClienteBanco;
   /** Publica evento do módulo consumidor (`publica` do manifesto) na mesma transação, com o `request_id` do original. */
   publicar: TransacaoTenant['publicar'];
+  /**
+   * ADR 0012 (T-0060, RN-INT-14): consulta a outro módulo NA MESMA transação do consumo (tenant do envelope, RLS,
+   * macuxi_app). Mesma semântica de `tx.consultar`: só consultas em `usaConsultas` do manifesto do módulo CONSUMIDOR
+   * (fora disso = erro de programação); entrada e saída validadas pelo contrato; dono não instalado ou inativo no
+   * tenant → `ConsultaIndisponivel` (se não tratada, o consumo falha e o evento volta com espera crescente).
+   * Não há pessoa: a implementação recebe o usuário de sistema (`USUARIO_SISTEMA_ID`, perfil `admin`, módulos efetivos
+   * do tenant), os parâmetros do tenant para o módulo DONO e o `request_id` do evento original.
+   */
+  consultar: TransacaoTenant['consultar'];
+  /** Parâmetros do tenant para o módulo consumidor (`plataforma.parametro`, lidos com as licenças do tenant). */
+  parametros(): Readonly<Record<string, unknown>>;
+  /** Fuso IANA do tenant (RN-CORE-11); ausente ou inválido = `America/Manaus`. Nunca lança. */
+  fuso(): string;
   agora(): Date;
   /** Logger com tenant_id, modulo, evento e evento_id (nunca registre dado pessoal nem o payload). */
   log: LogRota;
 }
+
+/**
+ * Id do usuário de sistema que a implementação de uma consulta (`ContextoConsulta.usuario.id`) recebe quando quem
+ * consulta é um consumidor de evento (não há pessoa). Nunca existe em `core.usuario`; não grave como autor.
+ */
+export const USUARIO_SISTEMA_ID = '00000000-0000-0000-0000-000000000000';
 
 /**
  * Assinatura de evento na API (`ModuloApi.consumidores`; ADR 0007). Só eventos em `consome` do manifesto; um consumidor
@@ -326,14 +345,24 @@ export interface RotaPublica<
 }
 
 /** Serviços de plataforma que só o Core fornece (T-0003 Fase 2). Sem eles a API falha fechada (401 / carteira vazia). */
+/** Relógio e fuso da requisição entregues ao serviço de carteira do Core (T-0042). */
+export interface OpcoesServicoCarteira {
+  agora: () => Date;
+  /** Fuso IANA do tenant (já validado; padrão America/Manaus). */
+  fuso: string;
+}
+
 export interface ServicosCore {
   /** Token → usuário (JWT do Core). `null` = não autenticado. Os cabeçalhos chegam em minúsculas. */
   autenticar?(
     cabecalhos: Readonly<Record<string, string | undefined>>,
     banco: AcessoBanco,
   ): Promise<UsuarioAutenticado | null>;
-  /** Clientes visíveis (RN-CORE-04) para o usuário: carteira, equipe, equipes abaixo ou `'tenant'`. */
-  carteira?(usuario: UsuarioAutenticado, banco: AcessoBanco): Promise<ReadonlySet<string> | 'tenant'>;
+  /**
+   * Clientes visíveis (RN-CORE-04) para o usuário: carteira, equipe, equipes abaixo ou `'tenant'`. A vigência do vínculo é
+   * o "hoje" no fuso do tenant (T-0042): a API passa o relógio e o fuso da requisição (`opcoes`), o mesmo de `ctx.agora`/`ctx.fuso`.
+   */
+  carteira?(usuario: UsuarioAutenticado, banco: AcessoBanco, opcoes?: OpcoesServicoCarteira): Promise<ReadonlySet<string> | 'tenant'>;
   /**
    * Usuários visíveis (RN-CORE-04; ADR 0009 §6): o próprio; supervisor + equipe; gerente + equipes abaixo; `'tenant'`
    * para analista/assistente/admin. Sem o serviço a API falha fechada: só o próprio (ou `'tenant'` nos perfis de escopo tenant).
