@@ -8,6 +8,7 @@ const PERFIS_PEDIDO = ['vendedor', 'supervisor', 'gerente', 'analista', 'assiste
  * ADR-0005: depende do Catálogo (preço e estoque); RN-CORE-03: Catálogo desativado ⇒ Vendedor desativado.
  * T-0029: supervisor e gerente (e admin) entram para ver a equipe e decidir (ADR 0011); o app Gestão ganha a aba Pedidos;
  * o servidor consulta o preço do cliente (Catálogo) e o cadastro (Core) pelas consultas do ADR 0012.
+ * T-0054: consome o retorno do ERP e a nota de devolução; publica o faturado@1 (desenho T-0011).
  */
 export const manifest = defineModule({
   id: 'vendedor',
@@ -23,7 +24,8 @@ export const manifest = defineModule({
     'vendedor.pedido.aprovado@1',
     'vendedor.pedido.faturado@1',
   ],
-  consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1'],
+  // T-0054: retorno do ERP (status, faturado@1) e nota de devolução do ERP (RN-VEN-37, proposta)
+  consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1', 'integracao.nota.atualizado@1'],
   usaConsultas: ['catalogo.precos_cliente@1', 'core.cadastro_resumo@1'],
   acoes: {
     // RN-PRO-01 / O-3: o promotor só LÊ pedidos (carteira). Escrita continua só para PERFIS_PEDIDO.

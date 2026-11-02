@@ -49,6 +49,12 @@ export const PedidoSyncSchema = z
     decidido_por_id: z.string().uuid().nullable().optional(),
     decidido_em: z.string().nullable().optional(),
     motivo_rejeicao: z.string().nullable().optional(),
+    // --- T-0054: resumo do retorno do ERP no pedido, opcionais (chegam com a migração do faturamento) ---
+    faturado_cents: z.number().int().nonnegative().nullable().optional(),
+    devolvido_cents: z.number().int().nonnegative().nullable().optional(),
+    notas_faturamento: z.number().int().nonnegative().nullable().optional(),
+    ultima_nota_numero: z.string().nullable().optional(),
+    faturado_em: z.string().nullable().optional(),
   })
   .strict();
 export type PedidoSync = z.infer<typeof PedidoSyncSchema>;
@@ -68,6 +74,8 @@ export const PedidoItemSyncSchema = z
     produto_sku: z.string().nullable().optional(),
     produto_nome: z.string().nullable().optional(),
     unidade: z.string().nullable().optional(),
+    /** T-0054: unidades já faturadas (soma dos retornos do ERP) */
+    quantidade_faturada: z.number().int().nonnegative().nullable().optional(),
   })
   .strict();
 export type PedidoItemSync = z.infer<typeof PedidoItemSyncSchema>;

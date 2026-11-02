@@ -1,5 +1,6 @@
 export * from './order';
 export * from './faturamento';
+export * from './retorno-erp';
 export * from './aprovacao';
 export * from './pdf-pedido';
 export * from './totais';

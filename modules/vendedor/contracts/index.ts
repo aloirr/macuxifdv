@@ -20,6 +20,9 @@ import {
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { ORDER_STATUSES } from '../domain/order';
 
+/** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
+export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
+
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
 export { MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 export * from './eventos';
@@ -39,6 +42,8 @@ export const OrderItem = z.object({
   unit_price_cents: Cents,
   discount_pct: Pct,
   total_cents: Cents,
+  /** T-0054: unidades já faturadas pelo ERP (soma dos retornos); ausente = sem retorno de faturamento */
+  quantity_invoiced: z.number().int().nonnegative().optional(),
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 
@@ -75,6 +80,16 @@ export const Order = z.object({
   /** T-0029: nível que decide o pedido pendente e se QUEM CONSULTA pode decidir agora (a lista do BKO mostra os botões só a quem pode) */
   nivel_aprovacao: z.enum(NIVEIS_APROVACAO).nullable().optional(),
   pode_decidir: z.boolean().optional(),
+  // --- T-0054: retorno do ERP (faturamento e devolução), opcionais (compatíveis com o app e o BKO anteriores) ---
+  /** valor faturado pelo ERP (soma das notas do pedido) */
+  faturado_cents: z.number().int().nonnegative().optional(),
+  /** soma das notas de devolução do pedido (RN-VEN-37, proposta) */
+  devolvido_cents: z.number().int().nonnegative().optional(),
+  devolucao: z.enum(SITUACOES_DEVOLUCAO).optional(),
+  /** número da última NF de faturamento */
+  ultima_nota: z.string().nullable().optional(),
+  /** linhas curtas prontas para a tela ("Faturado R$ … (NF …)", "Devolvido R$ … (parcial)") */
+  situacao_faturamento: z.array(z.string()).optional(),
 });
 export type Order = z.infer<typeof Order>;
 
@@ -109,11 +124,31 @@ export const AprovacaoDoPedido = z.object({
 });
 export type AprovacaoDoPedido = z.infer<typeof AprovacaoDoPedido>;
 
+/** T-0054: notas de faturamento e de devolução do pedido (detalhe do BKO e da Gestão online). */
+export const FaturamentoDoPedido = z.object({
+  faturado_cents: z.number().int().nonnegative(),
+  devolvido_cents: z.number().int().nonnegative(),
+  devolucao: z.enum(SITUACOES_DEVOLUCAO),
+  notas: z.array(
+    z.object({
+      numero: z.string().nullable(),
+      serie: z.string().nullable(),
+      faturado_em: IsoDateTime,
+      parcial: z.boolean(),
+      total_cents: z.number().int().nonnegative().nullable(),
+      unidades: z.number().int().nonnegative(),
+    }),
+  ),
+  devolucoes: z.array(z.object({ numero: z.string(), serie: z.string().nullable(), emitida_em: IsoDateTime, total_cents: z.number().int().nonnegative() })),
+});
+export type FaturamentoDoPedido = z.infer<typeof FaturamentoDoPedido>;
+
 export const OrderDetail = Order.extend({
   items: z.array(OrderItem),
   history: z.array(OrderEvent),
   cliente: ClienteDoPedido.nullable().optional(),
   aprovacao: AprovacaoDoPedido.nullable().optional(),
+  faturamento: FaturamentoDoPedido.nullable().optional(),
 });
 export type OrderDetail = z.infer<typeof OrderDetail>;
 

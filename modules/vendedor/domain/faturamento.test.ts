@@ -27,8 +27,12 @@ describe('vendedor.pedido.faturado@1 (RN-TRE-08, RN-INT-08)', () => {
     expect(ev.parcial).toBe(true);
     expect(ev.itens).toEqual([{ produto_id: A, quantidade: 6 }]);
   });
-  it('RN-TRE-08: faturado_parcial sem itens faturados é erro', () => {
-    expect(() => montarEventoFaturado({ status: 'faturado_parcial', ocorrido_em: em }, pedido)).toThrow();
+  it('RN-TRE-08: faturado_parcial sem itens faturados não publica (null; desenho T-0011 §2.2, o consumidor não pode falhar)', () => {
+    expect(montarEventoFaturado({ status: 'faturado_parcial', ocorrido_em: em }, pedido)).toBeNull();
+  });
+  it('RN-TRE-08: faturado_total com itens do retorno usa esses itens (o ERP pode cortar quantidade)', () => {
+    const ev = montarEventoFaturado({ status: 'faturado_total', ocorrido_em: em }, pedido, { itensFaturados: [{ product_id: A, quantity: 7 }] })!;
+    expect(ev).toMatchObject({ parcial: false, itens: [{ produto_id: A, quantidade: 7 }] });
   });
   it('RN-INT-08: status sem faturamento (integrado, cancelado) não gera evento', () => {
     expect(montarEventoFaturado({ status: 'integrado', ocorrido_em: em }, pedido)).toBeNull();
@@ -46,9 +50,10 @@ describe('OrderStatus com os status do ERP (RN-INT-08)', () => {
     expect(normalizarStatus('faturado_total')).toBe('invoiced');
     expect(normalizarStatus('cancelado')).toBe('cancelled');
   });
-  it('RN-INT-08: cancelado vindo do ERP é aceito de enviado em diante; o Macuxi segue sem cancelar (422)', () => {
+  it('RN-INT-08: cancelado vindo do ERP é aceito de aprovado em diante (o Hub não publica o enviado, T-0054); o Macuxi segue sem cancelar (422)', () => {
     expect(aceitaCancelamentoDoErp('invoiced')).toBe(true);
-    expect(aceitaCancelamentoDoErp('approved')).toBe(false);
+    expect(aceitaCancelamentoDoErp('approved')).toBe(true);
+    expect(aceitaCancelamentoDoErp('pending_approval')).toBe(false);
     expect(canTransition('integrated', 'invoiced_partial')).toBe(true);
     expect(verificarCancelamento('invoiced')).toMatchObject({ ok: false, status: 422 });
   });
