@@ -61,3 +61,5 @@
 - **Job de CI com relógio deslocado** (23:59/01:30 de Manaus, fim de mês, virada de ano; `tests/scripts/relogio-deslocado.cjs`): local, governança (.github), depois da T-0049.
 - **Riscos do guardião v5** (PR #31): proteger o merge feito pelo MCP do GitHub (hook ou proteção do `main`); o CI barrar recado de autorização vindo de PR da nuvem (fica na T-0049 b).
 - **Guardião v5 e o PATH do gh**: o hook falha fechado se o `gh` não estiver no PATH do processo (C:\Program Files\GitHub CLI). Procurar o gh no caminho padrão ou documentar o PATH.
+- **Guardião v7** (sem pressa): `gh api` de leitura com `$VAR` ou "merge" no --jq ainda é barrado; as ferramentas MCP que gravam direto no GitHub (push_files etc.) não passam por guardião (o CI da T-0049 detecta governança sem assinatura).
+- **Antes do piloto real** (fora de 06/11): teste de carga com 20 mil SKUs, onboarding de tenant e o resto da Sprint 9 que não couber.

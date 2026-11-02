@@ -1,6 +1,35 @@
 # 05 — Roadmap
 
-Sprints de 2 semanas (premissa). O **gerente-projetos** abre as tarefas no quadro, distribui aos agentes e fecha cada sprint com `/entrega`.
+O **gerente-projetos** abre as tarefas no quadro, distribui aos agentes e fecha cada sprint com `/entrega`. As "2 semanas por sprint" foram substituídas pelas datas-alvo abaixo.
+
+## Prazo final: app completo em sex 06/11/2026 (decisão do Alexandre, R-20261101-214812)
+| Data | Fecha |
+|---|---|
+| seg 02/11 | **Sprint 2 — Integração**: T-0032 (rotas e banco do Hub), monitor básico no BKO, carga por arquivo mínima; ciclo com ERP simulado (carga inicial + delta + reconciliação) |
+| ter 03/11 | **Sprint 3 — Catálogo** (T-0047: busca de ponta a ponta, catálogo offline, ficha, BKO de conteúdo básico) e **Sprint 4 — Vendedor parte 1** (pré-venda, pedido offline → aprovação → envio ao ERP pelo Hub) |
+| qua 04/11 | **Sprint 5 — Vendedor parte 2** (retorno/faturado visível no app, devolução) e **Sprint 6 — Gestor** (painéis, ranking, aprovações, pedido em nome) |
+| qui 05/11 | **Sprint 7 — Promotor + Pesquisa** e **Sprint 8 — Treinamento** (banco, rotas e telas sobre os domínios prontos) |
+| sex 06/11 | **Sprint 9 — Robustez ESSENCIAL** (checklist de segurança e LGPD, teste de carga básico, observabilidade mínima) + APKs finais (campo e gestão) + roteiro de demonstração completo |
+
+**"Completo" em 06/11** (premissa do Alexandre): todos os módulos funcionam de ponta a ponta na demo, com testes verdes. O teste de carga com 20 mil SKUs, o onboarding de tenant e o resto da Sprint 9 que não couber vão para antes do piloto real (backlog).
+
+**Regras que não mudam**: CI verde, revisão do engenheiro sem 🔴 antes de fechar a sprint, main nunca vermelho. Se algo não couber no dia, o gerente avisa o Alexandre na hora com a proposta de corte. No fim de cada dia, o gerente manda um recado com o % de cada sprint e o que ficou para o dia seguinte.
+
+### Plano de paralelismo
+- **Nuvem** (crédito até 05/11 03:59): **uma sessão por módulo**, com `modules/<m>/**` (menos `db`) e `docs/modulos/<m>/**` travados. A sessão começa pelas telas (app/web), pelos contratos e pelo domain, e liga as rotas assim que a migração do módulo chegar ao `main`; ela faz pull do main para pegar a migração. Tarefas T-0051 a T-0058.
+- **Local** (3 agentes): **banco-dados**, com as migrações em sequência e sempre no local, nesta ordem, porque é o que destrava a nuvem:
+  1. 0013 Catálogo (cota de IA, conteúdo) e Vendedor (pré-venda, devolução);
+  2. 0014 Gestor;
+  3. 0015 Promotor;
+  4. 0016 Pesquisa;
+  5. 0017 Treinamento.
+
+  Todas até 03/11, porque as sessões da nuvem do Promotor, da Pesquisa e do Treinamento precisam terminar antes do crédito vencer.
+- **engenheiro-software**: plataforma, integrações (T-0032, T-0039) e revisões.
+- **engenheiro-apps**: shells e abas.
+- **testes**: e2e por sprint.
+- **Ordem**: primeiro o que destrava os outros, ou seja, o schema de cada módulo, as rotas de plataforma e os contratos.
+- **Builds EAS**: 2 por dia a partir de 03/11 (autorização do Alexandre).
 
 | Etapa | Entrega | Agentes principais | Pronto quando |
 |---|---|---|---|
