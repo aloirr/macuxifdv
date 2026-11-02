@@ -15,6 +15,8 @@ import {
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
   ClienteSyncSchema,
+  ProdutoUnidadeSyncSchema,
+  ClienteEnderecoSyncSchema,
   CheckinVisitaSchema,
   CheckoutVisitaSchema,
   HistoricoCompraSyncSchema,
@@ -60,7 +62,7 @@ export const TABELAS_SYNC = {
   cliente: {
     tabela: 'core.cliente',
     colunas:
-      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo',
+      'documento, razao_social, nome_fantasia, segmento, telefone, email, logradouro, numero, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, ativo, inscricao_estadual, observacao, cadastro_incompleto, cadastro_campos_faltantes',
     colunaCliente: 'id',
   },
   carteira: {
@@ -72,6 +74,12 @@ export const TABELAS_SYNC = {
     janela: "(fim is null or fim >= {{hoje}} - 40)",
   },
   produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, ativo', colunaCliente: null },
+  produto_unidade: { tabela: 'core.produto_unidade', colunas: 'produto_id, unidade, fator, ean, padrao, ativo', colunaCliente: null },
+  cliente_endereco: {
+    tabela: 'core.cliente_endereco',
+    colunas: 'cliente_id, tipo, descricao, logradouro, numero, complemento, bairro, cidade, uf, cep, latitude::text as latitude, longitude::text as longitude, principal, ativo',
+    colunaCliente: 'cliente_id',
+  },
   cliente_contato: {
     tabela: 'core.cliente_contato',
     colunas: 'cliente_id, nome, cargo, telefone, whatsapp, email, principal',
@@ -189,6 +197,8 @@ const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['s
 export const entidadeCliente = pull('cliente', ClienteSyncSchema);
 export const entidadeCarteira = pull('carteira', CarteiraSyncSchema);
 export const entidadeProduto = pull('produto', ProdutoSyncSchema);
+export const entidadeProdutoUnidade = pull('produto_unidade', ProdutoUnidadeSyncSchema);
+export const entidadeClienteEndereco = pull('cliente_endereco', ClienteEnderecoSyncSchema);
 export const entidadeClienteContato = pull('cliente_contato', ClienteContatoSyncSchema);
 export const entidadeClienteFinanceiro = pull('cliente_financeiro', ClienteFinanceiroSyncSchema);
 export const entidadeTitulo = pull('titulo', TituloSyncSchema);
@@ -221,6 +231,8 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeCliente, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente) },
   { entidade: entidadeCarteira, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.carteira) },
   { entidade: entidadeProduto, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto) },
+  { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade) },
+  { entidade: entidadeClienteEndereco, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_endereco) },
   { entidade: entidadeClienteContato, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_contato) },
   { entidade: entidadeClienteFinanceiro, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_financeiro) },
   { entidade: entidadeTitulo, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.titulo) },

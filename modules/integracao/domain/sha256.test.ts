@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { sha256Hex } from './sha256';
 
@@ -14,5 +15,10 @@ describe('RN-INT-02: SHA-256 puro do domain (vetores conhecidos do NIST)', () =>
   it('RN-INT-02: UTF-8 e mensagem longa (1.000 "a")', () => {
     expect(sha256Hex('a'.repeat(1000))).toBe('41edece42d63e8d9bf515a9ba6932e1c20cbc9f5a5d134645adb5db1b9737ea3');
     expect(sha256Hex('Café ☕')).toMatch(/^[0-9a-f]{64}$/);
+  });
+  it('RN-INT-02: UTF-8 de vários bytes (acentos, símbolo e emoji) casa com o node:crypto', () => {
+    for (const t of ['Café ☕', 'ação — título «ç»', '日本語 \u{1F680}']) {
+      expect(sha256Hex(t)).toBe(createHash('sha256').update(t, 'utf8').digest('hex'));
+    }
   });
 });

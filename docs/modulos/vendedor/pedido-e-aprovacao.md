@@ -31,4 +31,6 @@ Promotor: 403 `RN-PRO-01` em toda escrita; leitura só da carteira. Vendedor e a
 - PDF: gerador único em `domain/pdf-pedido.ts` (versão cliente sem nenhum `%`; versão interna com tabela, desconto, alçada e histórico).
 
 ## Fora da fatia (backlog)
-Envio ao ERP, crédito e título vencido no servidor, estoque, preço mínimo, desconto por item, orçamento, pedido em nome, edição de pedido aceito, notificação ao vendedor e ao supervisor, edição de alçadas pelo BKO, prazo da aprovação (fila do Gestor).
+Crédito e título vencido no servidor, estoque, preço mínimo, desconto por item, pedido em nome, edição de pedido aceito, notificação ao vendedor e ao supervisor, edição de alçadas pelo BKO, prazo da aprovação (fila do Gestor).
+
+T-0053: retorno do ERP e orçamento (pré-venda) em `pre-venda-e-erp.md`.

@@ -237,7 +237,8 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     }
   };
 
-  let buttonLabel = v.outcome === 'pending_approval' ? 'Enviar para aprovação' : 'Enviar pedido';
+  const orcamento = draft.tipo === 'orcamento';
+  let buttonLabel = orcamento ? 'Salvar orçamento' : v.outcome === 'pending_approval' ? 'Enviar para aprovação' : 'Enviar pedido';
   let buttonVariant: 'accent' | 'success' = 'accent';
   if (sent?.kind === 'queued') {
     buttonLabel = 'Salvo · aguardando sinal';
@@ -374,6 +375,29 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
                     })}
                   </View>
                 </View>
+                {app.preVendaLigada && !editId ? (
+                  // T-0053 (RF-VEN-03): pedido × orçamento; orçamento não vai para aprovação nem para o ERP (RN-VEN-32)
+                  <View style={{ gap: 8 }} testID="order-tipo">
+                    <Text style={t.label}>Tipo</Text>
+                    <View style={styles.segment}>
+                      {(['pedido', 'orcamento'] as const).map((tp) => {
+                        const on = (draft.tipo ?? 'pedido') === tp;
+                        return (
+                          <Pressable
+                            key={tp}
+                            testID={`tipo-${tp}`}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: on }}
+                            onPress={() => updateDraft(customerId, (dr) => ({ ...dr, tipo: tp }))}
+                            style={[styles.segItem, on && styles.segOn]}>
+                            <Text style={[styles.segText, on && { color: colors.surface }]}>{tp === 'pedido' ? 'Pedido' : 'Orçamento'}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    {orcamento ? <Text style={t.small}>Orçamento não vai para aprovação nem para o ERP, não reserva estoque e vale pelo prazo da empresa (padrão 7 dias). Converta em pedido quando o cliente fechar.</Text> : null}
+                  </View>
+                ) : null}
                 {blocking.map((i) => (
                   <Text key={i.code} style={[t.small, { color: colors.danger }]}>
                     {i.message}

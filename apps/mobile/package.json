@@ -1,6 +1,6 @@
 {
   "name": "mobile",
-  "main": "expo-router/entry",
+  "main": "./index.ts",
   "version": "1.0.0",
   "description": "Shell Expo do app Android: variantes campo (Macuxi Campo) e gestao (Macuxi Gestão).",
   "private": true,
@@ -33,6 +33,7 @@
     "@macuxi/vendedor": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.0",
+    "expo-background-task": "~57.0.21",
     "expo-constants": "~57.0.0",
     "expo-crypto": "~57.0.0",
     "expo-dev-client": "~57.0.20",
@@ -53,6 +54,7 @@
     "expo-status-bar": "~57.0.0",
     "expo-symbols": "~57.0.0",
     "expo-system-ui": "~57.0.0",
+    "expo-task-manager": "~57.0.21",
     "expo-web-browser": "~57.0.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
