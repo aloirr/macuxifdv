@@ -6,7 +6,8 @@
  * - SEM o Vendedor (licença da fixture): toda rota de pedido, inclusive a leitura, dá 403 (`MODULO_INATIVO`).
  * - COM o Vendedor no perfil do promotor (pior caso, S0-064): LEITURA na carteira 200 (lista e detalhe), fora da
  *   carteira 404 `PEDIDO_NAO_ENCONTRADO` (inclusive pedido de outro tenant); toda ESCRITA 403 `PERFIL_SEM_ACESSO`,
- *   mesmo sobre pedido da própria carteira, e nada muda no banco.
+ *   mesmo sobre pedido da própria carteira, e nada muda no banco. Rota de pedido de módulo que NÃO está no perfil do
+ *   promotor (ex.: Gestor, pedido em nome — T-0055) dá 403 `MODULO_INATIVO` (licença antes do perfil, RN-CORE-02).
  * Rotas REAIS montadas pelo createApp; a varredura lê `modulos[].rotas` (as que vierem entram sozinhas) e separa
  * leitura de escrita pela mesma regra do SDK (`promotorBarradoNaRota`).
  * Pedidos: `vendedor.pedido` vem da migração 0007 do banco-dados; se o banco efêmero ainda não a tiver, o teste cria
@@ -141,15 +142,20 @@ describe.skipIf(semBanco())('T-0003 C3.3 / T-0015 O-3 — promotor lê pedidos d
       }
     });
 
-    it('RN-PRO-01: toda rota de ESCRITA de pedido dá 403 PERFIL_SEM_ACESSO, até sobre pedido da própria carteira; nada muda no banco', async () => {
+    it('RN-PRO-01: toda rota de ESCRITA de pedido dá 403 — PERFIL_SEM_ACESSO nos módulos do perfil do promotor, MODULO_INATIVO nos que ele não tem —, até sobre pedido da própria carteira; nada muda no banco', async () => {
       const antes = await estadoDosPedidos();
       expect(antes).toHaveLength(3);
+      // Licença antes do perfil (RN-CORE-02): rota de pedido de módulo FORA do perfil do promotor (ex.: GET
+      // /v1/gestor/pedido-em-nome/disponibilidade, T-0055 / PR #40) responde MODULO_INATIVO; nos módulos que ele tem
+      // (Vendedor, Catálogo, Core, Promotor) é a barreira do RN-PRO-01 que responde PERFIL_SEM_ACESSO. Qualquer 2xx é falha.
+      const meus = new Set(ids(await api.meusModulos(promotor)));
       const escrita = rotasDePedido().filter(({ r }) => !ehLeitura(r));
-      expect(escrita.length).toBeGreaterThan(0);
+      expect(escrita.filter(({ modulo }) => meus.has(modulo)).length, 'rotas de escrita de pedido em módulo do perfil do promotor (Vendedor)').toBeGreaterThan(0);
       for (const { modulo, r } of escrita) {
+        const esperado = meus.has(modulo) ? 'PERFIL_SEM_ACESSO' : 'MODULO_INATIVO';
         for (const id of [PED.c1, PED.c2]) {
           const resp = await chamarRota(promotor, modulo, r, id);
-          expect([resp.statusCode, erroDe(resp).codigo], `${r.metodo} ${r.caminho} ${id}`).toEqual([403, 'PERFIL_SEM_ACESSO']);
+          expect([resp.statusCode, erroDe(resp).codigo], `${modulo}: ${r.metodo} ${r.caminho} ${id}`).toEqual([403, esperado]);
         }
       }
       expect(await estadoDosPedidos()).toEqual(antes);

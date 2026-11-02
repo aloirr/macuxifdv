@@ -10,3 +10,5 @@
 export * from '@macuxi/comum';
 export * from '../../../../modules/core/domain/index';
 export * from '../../../../modules/vendedor/domain/index';
+// Nome repetido nas duas origens (CNPJ/CPF no comum; pedido/orçamento no Vendedor, T-0053): vale o do comum.
+export type { TipoDocumento } from '@macuxi/comum';

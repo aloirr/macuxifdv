@@ -38,7 +38,7 @@ interface LinhaPendencia {
 const BLOCO_INATIVACAO = 500;
 
 /** Inativa (deleted_at, hash esquecido) os ativos elegíveis da sessão que NÃO vieram inválidos, em blocos; publica o evento de cada um. */
-async function inativarElegiveis(db: ClienteBanco, tx: TransacaoTenant, p: { tenantId: string; sessaoId: string; entidade: Entidade; conectorId: string; loteId: string; agora: string }): Promise<number> {
+export async function inativarElegiveis(db: ClienteBanco, tx: Pick<TransacaoTenant, 'publicar'>, p: { tenantId: string; sessaoId: string; entidade: Entidade; conectorId: string; loteId: string; agora: string }): Promise<number> {
   const { rows: s } = await db.query<{ iniciada_em: Date }>('select iniciada_em from integracao.sessao_carga where tenant_id = $1 and id = $2', [p.tenantId, p.sessaoId]);
   if (!s[0]) return 0;
   let total = 0;

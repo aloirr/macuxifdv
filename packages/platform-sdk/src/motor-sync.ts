@@ -331,7 +331,50 @@ export interface EstadoMotorSync {
   avisos: readonly AvisoSync[];
   /** Fila de arquivos (ADR 0010 §4), incluindo os `enviado` ainda guardados no aparelho. */
   arquivos: readonly ItemArquivo[];
+  /**
+   * T-0059: posição da sincronização completa, para a tela (frases por módulo, sem nome técnico) e para retomar. `entidade`
+   * e `modulo` = o que está sendo puxado agora (na etapa extra, `entidade` = id da etapa); `concluidas`/`total` contam
+   * entidades + etapas; `paginas` = páginas já gravadas da entidade atual; `retomada` = esta passada continuou uma
+   * sincronização interrompida (o app foi encerrado no meio) e pulou o que já estava gravado.
+   */
+  carga: ProgressoCarga;
 }
+
+export interface ProgressoCarga {
+  entidade: string | null;
+  modulo: ModuloId | null;
+  concluidas: number;
+  total: number;
+  paginas: number;
+  retomada: boolean;
+}
+
+/**
+ * Registro da CARGA INICIAL em andamento, gravado no armazenamento a cada entidade ou etapa concluída (T-0059). Se o app é
+ * encerrado no meio, a próxima `sincronizar()` pula o que já foi concluído (retoma de onde parou). Some quando a carga
+ * termina. Mais velho que `VALIDADE_RETOMADA_MS` é ignorado (a passada recomeça; cada entidade do seu cursor).
+ */
+interface RegistroCarga {
+  iniciada_em: string;
+  concluidas: string[];
+  /** Cobertura de cada entidade concluída (D-3): a retomada solta os aceitos que as entidades já puxadas cobrem. */
+  coberturas?: Record<string, { horizonte: string | null; inicio: string } | 'indisponivel'>;
+}
+
+/** Passada interrompida há mais que isto não é retomada: tudo é conferido de novo (cada entidade continua do seu cursor). */
+export const VALIDADE_RETOMADA_MS = 6 * 60 * 60_000;
+
+/**
+ * Ressincronização de uma entidade em andamento (ADR 0009 §4), gravada ANTES de cada página (T-0059). `vistos` = ids já
+ * recebidos nesta passada (para apagar no fim o que saiu do escopo); `null` = carga inicial (nada local para apagar).
+ */
+interface RegistroRessinc {
+  versao: string;
+  vistos: string[] | null;
+}
+
+/** Posição vazia da carga (estado inicial; telas e testes que montam um `EstadoMotorSync`). */
+export const CARGA_VAZIA: ProgressoCarga = Object.freeze({ entidade: null, modulo: null, concluidas: 0, total: 0, paginas: 0, retomada: false });
 
 export interface OpcoesMotorSync {
   registro: RegistroSync;
@@ -375,6 +418,10 @@ const CHAVE = {
   cursor: (e: string) => `sync:cursor:${e}`,
   /** Última `versao_escopo` recebida da entidade (ADR 0009 §4). */
   escopo: (e: string) => `sync:escopo:${e}`,
+  /** Ressincronização em andamento da entidade (T-0059): retomada sem voltar ao início. */
+  ressinc: (e: string) => `sync:ressinc:${e}`,
+  /** Sincronização completa em andamento (T-0059): entidades e etapas já concluídas. */
+  carga: 'sync:carga',
   entidade: (e: string) => `ent:${e}`,
   modulo: (m: string) => `mod:${m}:`,
 };
@@ -458,6 +505,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     limpezaPendente: [],
     avisos: [],
     arquivos: [],
+    carga: CARGA_VAZIA,
   };
   let envioEmCurso: Promise<ResultadoItemPush[]> | null = null;
   let syncEmCurso: Promise<boolean> | null = null;
@@ -566,6 +614,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         await a.remover(CHAVE.cursor(e));
       }
       await a.remover(CHAVE.escopo(e));
+      await a.remover(CHAVE.ressinc(e));
     }
     for (const k of await a.chaves(CHAVE.modulo(modulo))) await a.remover(k);
     await a.removerModulo?.(modulo);
@@ -758,6 +807,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   const puxarEntidade = async (
     entidade: string,
     coberturas?: Map<string, Cobertura>,
+    aoGravarPagina?: () => void,
   ): Promise<'ok' | 'indisponivel'> => {
     const a = op.armazenamento;
     const inicio = agora().toISOString();
@@ -765,10 +815,16 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     let horizonte: string | null = null;
     let semHorizonte = false;
     const versaoGuardada = await a.ler<string>(CHAVE.escopo(entidade));
+    const ressincGuardada = await a.ler<RegistroRessinc>(CHAVE.ressinc(entidade));
     let cursor = await a.ler<string>(CHAVE.cursor(entidade));
+    /** Carga inicial: nunca recebeu versão nem página — não há linha local de outra passada para apagar no fim. */
+    const cargaInicial = versaoGuardada === null && cursor === null;
     // caminho chave→JSON: o mapa é lido uma vez e regravado por página (com `linhas`, o adaptador grava por linha)
     const mapa: Linhas = a.linhas ? {} : ((await a.ler<Linhas>(CHAVE.entidade(entidade))) ?? {});
-    let ressinc: { versao: string; vistos: Set<string> } | null = null;
+    /** `vistos` nulo = carga inicial (nada a apagar no fim). */
+    let ressinc: { versao: string; vistos: Set<string> | null } | null = null;
+    const gravarRessinc = (r: { versao: string; vistos: Set<string> | null }) =>
+      a.gravar(CHAVE.ressinc(entidade), { versao: r.versao, vistos: r.vistos ? [...r.vistos] : null } satisfies RegistroRessinc);
     for (;;) {
       let pagina: PaginaSync<LinhaSync>;
       try {
@@ -784,14 +840,24 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       else if (horizonte === null || Date.parse(pagina.horizonte) < Date.parse(horizonte)) horizonte = pagina.horizonte;
       const versao = pagina.versao_escopo;
       if (!ressinc && versao !== undefined && versao !== versaoGuardada) {
-        ressinc = { versao, vistos: new Set() };
-        if (cursor !== null) {
-          // o conjunto visível mudou: linhas antigas de quem entrou estão atrás do cursor — recomeça do início
-          cursor = null;
-          continue;
+        if (cursor !== null && ressincGuardada?.versao === versao) {
+          // T-0059: a passada desta mesma versão foi interrompida (app encerrado): continua do cursor gravado, sem recomeçar
+          ressinc = { versao, vistos: ressincGuardada.vistos ? new Set(ressincGuardada.vistos) : null };
+        } else {
+          ressinc = { versao, vistos: cargaInicial ? null : new Set() };
+          await gravarRessinc(ressinc);
+          if (cursor !== null) {
+            // o conjunto visível mudou: linhas antigas de quem entrou estão atrás do cursor — recomeça do início
+            cursor = null;
+            continue;
+          }
         }
       }
-      if (ressinc) for (const l of pagina.itens) ressinc.vistos.add(l.id);
+      if (ressinc?.vistos) {
+        for (const l of pagina.itens) ressinc.vistos.add(l.id);
+        // antes de aplicar: se o app cair entre as duas gravações, `vistos` sobra (nunca falta) e nada visível é apagado
+        await gravarRessinc(ressinc);
+      }
       const ultimo = pagina.itens[pagina.itens.length - 1];
       const proximo = pagina.proximo_cursor ?? (ultimo ? codificarCursor(ultimo) : cursor);
       if (a.linhas) await a.linhas.aplicar(entidade, pagina.itens, proximo);
@@ -804,12 +870,15 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         if (proximo) await a.gravar(CHAVE.cursor(entidade), proximo);
       }
       cursor = proximo;
+      aoGravarPagina?.();
       if (!pagina.proximo_cursor) break;
     }
     if (ressinc) {
       // fim da passada completa: o que não veio saiu do escopo (RN-CORE-04) e sai do aparelho
       const { vistos, versao } = ressinc;
-      if (a.linhas) {
+      if (vistos === null) {
+        // carga inicial: tudo o que está no aparelho veio desta passada
+      } else if (a.linhas) {
         const quando = agora().toISOString();
         const sobra = (await a.linhas.ids(entidade)).filter((id) => !vistos.has(id));
         if (sobra.length > 0)
@@ -822,8 +891,9 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         for (const id of Object.keys(mapa)) if (!vistos.has(id)) delete mapa[id];
         await a.gravar(CHAVE.entidade(entidade), mapa);
       }
-      // só agora: se o app cair no meio, a próxima passada ainda vê a versão antiga e ressincroniza de novo
+      // só agora: se o app cair no meio, a próxima passada vê a versão antiga e RETOMA pela `sync:ressinc` (T-0059)
       await a.gravar(CHAVE.escopo(entidade), versao);
+      await a.remover(CHAVE.ressinc(entidade));
     }
     coberturas?.set(entidade, { horizonte: semHorizonte ? null : horizonte, inicio });
     return 'ok';
@@ -987,18 +1057,52 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           mudar({ erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' });
           return false;
         }
-        const entidades = op.registro.entidadesAtivas(estado.modulosAtivos, 'pull').map((e) => e.nome);
+        const defs = op.registro.entidadesAtivas(estado.modulosAtivos, 'pull');
+        const entidades = defs.map((e) => e.nome);
+        const moduloDe = new Map(defs.map((d) => [d.nome, d.modulo] as const));
         const etapas = (op.etapas ?? []).filter((e) => ativos().has(e.modulo));
         const total = 1 + entidades.length + etapas.length;
-        mudar({ sincronizando: true, erro: null, etapa: 'Enviando a fila', progresso: 0, avisos: [] });
+        // T-0059: na CARGA INICIAL (ainda sem `sincronizado_em`), uma passada anterior interrompida (app encerrado no meio) e
+        // recente = pula o que ela já concluiu. Depois da carga, cada entidade já continua do seu cursor (delta barato).
+        const cargaInicial = estado.sincronizado_em === null;
+        const anterior = cargaInicial ? await op.armazenamento.ler<RegistroCarga>(CHAVE.carga) : null;
+        const retomar =
+          anterior !== null && agora().getTime() - Date.parse(anterior.iniciada_em) < VALIDADE_RETOMADA_MS;
+        const registro: RegistroCarga = retomar
+          ? { iniciada_em: anterior.iniciada_em, concluidas: [...anterior.concluidas], coberturas: { ...(anterior.coberturas ?? {}) } }
+          : { iniciada_em: agora().toISOString(), concluidas: [], coberturas: {} };
+        const jaFeitas = new Set(registro.concluidas);
+        const chaveEtapa = (id: string) => `etapa:${id}`;
+        const puladas =
+          entidades.filter((e) => jaFeitas.has(e)).length + etapas.filter((e) => jaFeitas.has(chaveEtapa(e.id))).length;
+        const carga = (parcial: Partial<ProgressoCarga>): ProgressoCarga => ({ ...estado.carga, ...parcial });
+        mudar({
+          sincronizando: true,
+          erro: null,
+          etapa: 'Enviando a fila',
+          progresso: puladas / total,
+          avisos: [],
+          carga: { entidade: null, modulo: null, concluidas: puladas, total, paginas: 0, retomada: retomar && puladas > 0 },
+        });
+        if (cargaInicial) await op.armazenamento.gravar(CHAVE.carga, registro);
         const coberturas = new Map<string, Cobertura>();
+        // entidades puladas na retomada: valem as coberturas da passada interrompida (D-3)
+        for (const [e, c] of Object.entries(registro.coberturas ?? {})) if (jaFeitas.has(e)) coberturas.set(e, c);
+        const concluir = async (chave: string) => {
+          registro.concluidas.push(chave);
+          const c = coberturas.get(chave);
+          if (c !== undefined) registro.coberturas = { ...(registro.coberturas ?? {}), [chave]: c };
+          if (cargaInicial) await op.armazenamento.gravar(CHAVE.carga, registro);
+        };
         try {
           await motor.enviar();
-          let feito = 1;
+          let feito = 1 + puladas;
           const avisos: AvisoSync[] = [];
           for (const e of entidades) {
-            mudar({ etapa: e, progresso: feito / total });
-            if ((await puxarEntidade(e, coberturas)) === 'indisponivel') {
+            if (jaFeitas.has(e)) continue;
+            mudar({ etapa: e, progresso: feito / total, carga: carga({ entidade: e, modulo: moduloDe.get(e) ?? null, paginas: 0 }) });
+            const resultado = await puxarEntidade(e, coberturas, () => mudar({ carga: carga({ paginas: estado.carga.paginas + 1 }) }));
+            if (resultado === 'indisponivel') {
               avisos.push({
                 entidade: e,
                 codigo: SYNC_NAO_IMPLEMENTADO,
@@ -1007,9 +1111,12 @@ export function criarMotorSync(op: OpcoesMotorSync) {
               mudar({ avisos: [...avisos] });
             }
             feito++;
+            await concluir(e);
+            mudar({ carga: carga({ concluidas: feito - 1 }) });
           }
           for (const e of etapas) {
-            mudar({ etapa: e.rotulo, progresso: feito / total });
+            if (jaFeitas.has(chaveEtapa(e.id))) continue;
+            mudar({ etapa: e.rotulo, progresso: feito / total, carga: carga({ entidade: e.id, modulo: e.modulo, paginas: 0 }) });
             await e.executar({
               armazenamento: comPrefixo(op.armazenamento, CHAVE.modulo(e.modulo)),
               agora,
@@ -1021,13 +1128,22 @@ export function criarMotorSync(op: OpcoesMotorSync) {
               parametros: ambiente.parametros,
             });
             feito++;
+            await concluir(chaveEtapa(e.id));
+            mudar({ carga: carga({ concluidas: feito - 1 }) });
           }
           // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3)
           await op.armazenamento.busca?.finalizar?.();
           await liberarAceitos(coberturas);
           const quando = agora().toISOString();
           await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
-          mudar({ sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: quando });
+          if (cargaInicial) await op.armazenamento.remover(CHAVE.carga);
+          mudar({
+            sincronizando: false,
+            etapa: 'Pronto',
+            progresso: 1,
+            sincronizado_em: quando,
+            carga: carga({ entidade: null, modulo: null, concluidas: total, paginas: 0 }),
+          });
           return true;
         } catch (e) {
           // o que já foi puxado nesta passada vale: sai da sobreposição o aceito que as entidades que chegaram cobrem
@@ -1116,7 +1232,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         for (const k of await a.chaves('')) await a.remover(k);
       });
       parametros = {};
-      mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null });
+      mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null, carga: CARGA_VAZIA });
       for (const x of arquivos) await removerLocal(x.caminho);
     },
 

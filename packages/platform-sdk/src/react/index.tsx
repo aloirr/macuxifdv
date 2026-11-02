@@ -10,7 +10,7 @@ import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNod
 import { ambienteIndisponivel, type AmbienteAparelho, type AmbienteModulo, type ClienteHttp } from '../ambiente';
 import { completarAmbiente } from '../consultas';
 import type { ModuloId } from '../nomes';
-import type { EstadoMotorSync, MotorSync } from '../motor-sync';
+import { CARGA_VAZIA, type EstadoMotorSync, type MotorSync } from '../motor-sync';
 import type { VisaoShell } from '../shell';
 import type { ItemExtensao } from '../extensoes';
 
@@ -92,6 +92,7 @@ const ESTADO_VAZIO: EstadoMotorSync = {
   limpezaPendente: [],
   avisos: [],
   arquivos: [],
+  carga: CARGA_VAZIA,
 };
 
 const semMotor = () => () => {};

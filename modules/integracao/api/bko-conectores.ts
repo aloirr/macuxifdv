@@ -48,7 +48,8 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
       ctx.comTenant(async (db) => {
         const tenantId = ctx.usuario.tenant_id;
         const { rows } = await db.query<LinhaConector>(`select ${COLUNAS_CONECTOR} from integracao.conector where tenant_id = $1 and deleted_at is null order by identificador`, [tenantId]);
-        const [chaves, politica] = await Promise.all([lerChaves(db, tenantId, rows.map((r) => r.id)), lerPolitica(db, tenantId)]);
+        const chaves = await lerChaves(db, tenantId, rows.map((r) => r.id));
+        const politica = await lerPolitica(db, tenantId);
         const agora = ctx.agora().toISOString();
         return { itens: rows.map((c) => montarResumo(c, chaves.get(c.id), politica, agora)) };
       }),
@@ -90,7 +91,8 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
         await db.query(`insert into integracao.credencial (tenant_id, conector_id, prefixo, hash_chave, papel) values ($1, $2, $3, $4, 'atual')`, [tenantId, id, k.prefixo, hashDaChave(pepper, k.chave)]);
         await tx.auditar({ acao: 'conector.criar', entidade: 'conector', entidade_id: id, depois: { identificador: c.conector_id, entidades: c.entidades, recebe_pedidos: c.recebe_pedidos } });
         const linha = rows[0] as LinhaConector;
-        const [chaves, politica] = await Promise.all([lerChaves(db, tenantId, [id]), lerPolitica(db, tenantId)]);
+        const chaves = await lerChaves(db, tenantId, [id]);
+        const politica = await lerPolitica(db, tenantId);
         return {
           conector: montarResumo(linha, chaves.get(id), politica, agora),
           chave: { conector_id: c.conector_id, escopo: 'integracao.v1', chave: k.chave, prefixo: k.prefixo, criada_em: agora, anterior_valida_ate: null },
@@ -148,7 +150,8 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
           antes: { ativo: atual.ativo, recebe_pedidos: atual.recebe_pedidos, entidades: atual.entidades },
           depois: { ativo: novo.ativo, recebe_pedidos: novo.recebe_pedidos, entidades: novo.entidades },
         });
-        const [chaves, politica] = await Promise.all([lerChaves(db, tenantId, [atual.id]), lerPolitica(db, tenantId)]);
+        const chaves = await lerChaves(db, tenantId, [atual.id]);
+        const politica = await lerPolitica(db, tenantId);
         return montarResumo(rows[0] as LinhaConector, chaves.get(atual.id), politica, agora);
       });
     },

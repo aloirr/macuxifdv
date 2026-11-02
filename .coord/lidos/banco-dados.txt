@@ -34,3 +34,14 @@ R-20261101-194718-gerente-projetos
 R-20261101-172531-engenheiro-software
 R-20261101-182055-testes
 R-20261101-194118-gerente-projetos
+R-20261102-091519-alexandre
+R-20261102-092329-alexandre
+R-20261102-093007-alexandre
+R-20261102-094644-alexandre
+R-20261102-094217-gerente-projetos
+R-20261101-214812-alexandre
+R-20261102-095308-engenheiro-software
+R-20261101-194026-engenheiro-software
+R-20261101-222233-modulo-catalogo
+R-20261102-105040-alexandre
+R-20261102-111619-alexandre

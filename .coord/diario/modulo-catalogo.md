@@ -5,3 +5,4 @@
 2026-10-31 — T-0021 — domínio do Catálogo: normalização/sinônimos, interpretação sem LLM, ranking híbrido, preço e estoque visíveis, limite de IA e cache, pergunte ao catálogo; contracts de vitrine/busca; manifesto com acoes; 206 testes; regras.md
 2026-10-31 — T-0021 — revisão do dono: fuso vira argumento, timer fora do domínio, linhas de preço em contracts; regras.md alinhado ao doc 03
 2026-11-01 — T-0029 — Catálogo onda 2: manifesto (cliente_tabela_preco, ofereceConsultas), pull de tabela_preco/tabela_preco_item (tenant) e cliente_tabela_preco (carteira), consulta catalogo.precos_cliente@1 na API e no aparelho (RN-CAT-05/06, P-4), testes com Postgres e adaptador de teste
+2026-11-02 — T-0052 — 1ª etapa na nuvem (PR #45): domain/API/app/BKO do Catálogo, 32 consultas de relevância na base demo, índice FTS5 declarado; aba liga na 2ª etapa; 0013, e2e e produto.acoes pedidos por recado.

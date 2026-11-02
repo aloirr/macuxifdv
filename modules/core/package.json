@@ -23,7 +23,8 @@
     "@macuxi/comum": "workspace:*",
     "@macuxi/platform-sdk": "workspace:*",
     "@macuxi/ui": "workspace:*",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@tanstack/react-query": "^5.90.0"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.90.0",
@@ -36,19 +37,43 @@
     "react-leaflet": "^5.0.0",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "react-dom": "19.2.3"
   },
   "peerDependenciesMeta": {
-    "@tanstack/react-query": { "optional": true },
-    "expo-crypto": { "optional": true },
-    "expo-location": { "optional": true },
-    "expo-router": { "optional": true },
-    "leaflet": { "optional": true },
-    "next": { "optional": true },
-    "react-leaflet": { "optional": true },
-    "react-native": { "optional": true },
-    "react-native-safe-area-context": { "optional": true },
-    "react-native-svg": { "optional": true }
+    "@tanstack/react-query": {
+      "optional": true
+    },
+    "expo-crypto": {
+      "optional": true
+    },
+    "expo-location": {
+      "optional": true
+    },
+    "expo-router": {
+      "optional": true
+    },
+    "leaflet": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    },
+    "react-leaflet": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-safe-area-context": {
+      "optional": true
+    },
+    "react-native-svg": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@macuxi/config": "workspace:*",
