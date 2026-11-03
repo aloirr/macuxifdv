@@ -24,7 +24,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Criar/editar pedido | ✅ próprio | ❌ | ✅ em nome do vendedor | ✅ | ✅ | ❌ |
 | Cancelar pedido (antes do envio ao ERP; depois, só no ERP) | ✅ próprio | ❌ | ✅ equipe | ✅ | ✅ | ❌ |
 | Excluir rascunho | ✅ próprio | ❌ | ✅ próprio | ✅ | ✅ | ❌ |
-| Ver pedidos | próprios | carteira (leitura) | equipe | tenant | tenant | tenant |
+| Ver pedidos | próprios | carteira (leitura), desativável no perfil [`promotor_ve_pedidos` = sim] | equipe | tenant | tenant | tenant |
 | Aprovar desconto/crédito | ❌ | ❌ | ✅ até a alçada | ✅ acima | ❌ | ❌ |
 | Coletas de trade (gôndola, share, preço, ruptura, validade, pontos extras) | ❌ | ✅ | leitura | leitura | leitura | ❌ |
 | Cadastros de trade (mix, metas de share, concorrentes, planogramas, checklists, tarefas) | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
@@ -35,6 +35,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Ativar/desativar módulos e usuários | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 > **Esclarecimento (gerente-projetos, 2026-10-31, observação O-3 da T-0006)**: pela matriz acima, o promotor **lê** os pedidos da própria carteira (somente leitura) e nunca cria, edita, cancela, duplica ou exclui (RN-PRO-01). A API deve liberar a leitura com escopo de carteira e continuar negando toda escrita.
+> **Decisão do Alexandre (2026-11-02, R-20261102-204544)**: a leitura é uma opção da **configuração do perfil de acesso Promotor**, por tenant, editada pelo admin no BKO, com auditoria (RN-AUD-01): `promotor_ve_pedidos`, **padrão ligado**. Desligada, a API devolve 403 nas rotas de lista, detalhe e pull de pedidos para o perfil promotor, e o app não mostra pedido em lugar nenhum (Cliente 360 inclusive). Checada a cada requisição, como a licença. A RN-PRO-01 não muda: o promotor nunca cria, edita, cancela, duplica, exclui nem aprova pedido (UI e API, 403).
 
 ## 3. Core — visita, rota, metas
 - **RN-CORE-10** Check-in só dentro de [200 m] do cliente; fora do raio exige justificativa e fica sinalizado. Cliente sem coordenada: o 1º check-in sugere a coordenada para o BKO aprovar.
@@ -100,13 +101,13 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-PRO-02** Coletas (fotos, gôndola, share, preço, ruptura, validade) só com check-in aberto na loja; fotos tiradas na hora pela câmera do app [galeria bloqueada], com data/hora. A coordenada é registrada quando disponível; sem sinal de GPS a foto é aceita com `sem_gps = true`. A prova de presença é o check-in da visita. O gestor vê o % de fotos sem GPS por promotor.
 - **RN-PRO-03** Share (%) = frentes nossas ÷ frentes totais da categoria × 100 (ou cm nossos ÷ cm totais, quando medido em centímetros). Atingimento = share ÷ meta de share da loja/categoria.
 - **RN-PRO-04** Índice de preço = preço nosso ÷ preço do concorrente de referência × 100. Preço que varia mais de [50%] em relação à última coleta pede confirmação (evita erro de digitação).
-- **RN-PRO-05** Ruptura (%) = itens do mix obrigatório em ruptura (ruptura total + ruptura na gôndola com produto no depósito) ÷ itens do mix obrigatório × 100. A ruptura na gôndola com produto no depósito também é mostrada à parte (falha de reposição).
+- **RN-PRO-05** Ruptura (%) = itens do mix obrigatório em ruptura (ruptura total + ruptura na gôndola com produto no depósito) ÷ itens do mix obrigatório × 100. A ruptura na gôndola com produto no depósito também é mostrada à parte (falha de reposição). *(Confirmado pelo Alexandre em 2026-11-02, R-20261102-204330: a falha de reposição entra no ruptura_pct e é contada à parte.)*
 - **RN-PRO-06** Checkout da visita exige as etapas obrigatórias do checklist da loja, exceto cliente fechado (`loja_fechada` ou `acesso_negado`, com foto da fachada — RN-CORE-14).
 - **RN-PRO-07** Visita só conta nos indicadores com permanência mínima de [10 min]; abaixo disso é sinalizada ao gestor.
-- **RN-PRO-08** Validade: vencido (dias < 0) · crítico ≤ [7] dias · atenção ≤ [30] dias · ok. Validade próxima = vencido + crítico + atenção.
+- **RN-PRO-08** Validade: vencido (dias < 0) · crítico ≤ [7] dias · atenção ≤ [30] dias · ok. Validade próxima = vencido + crítico + atenção. *(Faixas confirmadas pelo Alexandre em 2026-11-02, R-20261102-204330.)*
 - **RN-PRO-09** Alerta de ruptura vai ao vendedor responsável pelo cliente; se houver mais de um, ao da [linha do produto] ou ao primeiro da carteira.
 - **RN-PRO-10** Checklist, mix obrigatório e metas de share valem por vigência; a coleta guarda a versão vigente no momento.
-- **RN-PRO-11** Conformidade da gôndola (%) = (conformes + parciais × [peso do parcial]) ÷ gôndolas registradas × 100; peso padrão [0]. Motivo obrigatório quando não conforme; o total de parciais aparece à parte.
+- **RN-PRO-11** Conformidade da gôndola (%) = (conformes + parciais × [peso do parcial]) ÷ gôndolas registradas × 100; peso padrão [0] (confirmado pelo Alexandre em 2026-11-02, R-20261102-204330: item parcial vale 0, parametrizável por tenant). Motivo obrigatório quando não conforme; o total de parciais aparece à parte.
 
 ## 6. Pesquisa
 > Decisões do Alexandre em 2026-10-31 (R-20261031-125833), a partir das premissas da T-0012. As demais premissas de `docs/modulos/pesquisa/regras.md` ficam aceitas.
@@ -222,6 +223,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Tolerância do relógio do aparelho (pesquisa) | 24 h (acima disso, sinaliza) |
 | Foto (maior lado / qualidade JPEG) | 1600 px / 80 |
 | Promotor vê preço de tabela e estoque no catálogo (`promotor_ve_preco_estoque`) | não |
+| Promotor vê os pedidos da carteira, só leitura (`promotor_ve_pedidos`, configuração do perfil Promotor) | sim |
 | Estoque baixo até (`estoque_baixo_ate`) / mostrar quantidade (`estoque_mostrar_quantidade`) / desatualizado após (`estoque_defasado_horas`) | 10 / sim / 24 h |
 | Cache da busca (`cache_ttl_s` / `cache_min_ocorrencias`) | 600 s / 2 |
 | Ranking da busca (semântico / estoque / mais vendido / campanha) | 0,4 / 0,10 / 0,10 / 0,05 |
