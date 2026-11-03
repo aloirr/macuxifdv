@@ -11,6 +11,7 @@ import { MotivosPage } from './components/motivos/motivos-page';
 import { VisitasPage } from './components/visitas/visitas-page';
 import { AparelhosPage } from './components/aparelhos/aparelhos-page';
 import { LicencasPage } from './components/licencas/licencas-page';
+import { UsuariosPage } from './components/usuarios/usuarios-page';
 import { IndicadoresPage } from './components/indicadores/indicadores-page';
 import { RecadosPage } from './components/recados/recados-page';
 import { RoutesPage } from './components/routes/routes-page';
@@ -25,6 +26,7 @@ const RotasPagina: ComponentType = () => createElement(Suspense, null, createEle
  * Páginas do Core no BKO (ADR 0003; desenho T-0001 §5 e §14). Os rótulos de `navegacao` são os de
  * `manifest.apps.web.menus`. O shell só mostra se o módulo estiver efetivo e o perfil puder.
  * "Usuários e módulos" (licenças por tenant, perfil e usuário, só admin) é a tela de licenças da T-0003.
+ * "Usuários" (T-0067) é a gestão de usuários: lista para supervisor/gerente/admin (recortada pelo escopo), escrita só do admin.
  */
 export const moduloWeb = definirModuloShell<ComponentType>({
   manifesto: manifest,
@@ -51,6 +53,16 @@ export const moduloWeb = definirModuloShell<ComponentType>({
       ordem: 10,
       acao: 'modulo.gerir_licencas',
       componente: LicencasPage,
+    },
+    {
+      id: 'usuarios',
+      caminho: 'usuarios',
+      titulo: 'Usuários',
+      navegacao: 'Usuários',
+      grupo: 'administracao',
+      ordem: 15,
+      acao: 'usuario.ver',
+      componente: UsuariosPage,
     },
     {
       id: 'aparelhos',

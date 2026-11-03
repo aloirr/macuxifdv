@@ -2,7 +2,7 @@
  * API do módulo Core (`/v1/core/*`, `/v1/auth/*`) — ADR 0006. O `apps/api` monta `moduloApi` sem conhecer o Fastify.
  * - Serviços de plataforma (só o Core): `autenticar` (JWT + usuário ativo) e `carteira` (RN-CORE-04).
  * - Rotas públicas: `auth/login`, `auth/refresh`, `auth/logout`, com limite por IP + código da empresa.
- * - Rotas: licenças por tenant → perfil → usuário (admin). `GET /v1/me/modulos` é da plataforma (T-0004).
+ * - Rotas: licenças por tenant → perfil → usuário (admin); usuários no BKO (`usuarios`, `equipes`; T-0067, escrita só admin). `GET /v1/me/modulos` é da plataforma (T-0004).
  * - Rotas da T-0017: `clientes`, `clientes/:id` (Cliente 360), `carteira`, `equipe/hierarquia`; aparelhos (RN-CORE-15).
  * - Rotas da T-0018: `rotas` (leitura/edição/copiar/gerar), `visitas`, `motivos`, `coordenadas-sugeridas`, `clientes/:id/coordenada`.
  * - Sync: pull de `cliente`, `carteira`, `produto`, `cliente_contato`, `cliente_financeiro`, `titulo`, `historico_compra`, `motivo`,
@@ -28,6 +28,7 @@ import { rotasDeMetas } from './metas';
 import { rotasDeProdutos } from './produtos';
 import { rotasDePromotorPedidos } from './promotor-pedidos';
 import { rotasDeRotasEVisitas } from './rotas';
+import { rotasDeUsuarios } from './usuarios';
 import { provedoresSyncCore } from './sync';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
 
@@ -37,7 +38,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
   const auth = criarAutenticacao(deps);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeNotificacoes],
+    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorMetaDefinida, ...consumidoresDoErp],
     consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaMedidas, consultaPromotorVePedidos, consultaUsuariosResumo],

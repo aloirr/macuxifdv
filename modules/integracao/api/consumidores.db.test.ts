@@ -22,13 +22,6 @@ import { rotaMonitor } from './bko-monitor';
 import { moduloApi } from './index';
 import { pedidosPendentes } from './rotas-pedidos';
 
-// o Core ainda não publica `core.medidas@1` (PR separado): o consumidor A7 acha a definição em `@macuxi/core/contracts` por nome, então aqui ela é
-// injetada (só a definição; a resposta é o stub em memória abaixo). Quando o Core publicar a real, este mock pode sair.
-vi.mock('@macuxi/core/contracts', async (importar) => ({
-  ...(await importar<Record<string, unknown>>()),
-  CONSULTA_MEDIDAS: { nome: 'core.medidas@1' },
-}));
-
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 /** Prefixo dos external_id deste arquivo: a limpeza só toca o que ele criou. */
