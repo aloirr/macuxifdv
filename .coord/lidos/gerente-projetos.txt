@@ -285,3 +285,5 @@ R-20261103-112018-testes
 R-20261103-112048-testes
 R-20261103-112145-engenheiro-software
 R-20261103-113130-engenheiro-software
+R-20261103-114836-banco-dados
+R-20261103-124249-engenheiro-software
