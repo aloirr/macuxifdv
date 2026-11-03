@@ -9,12 +9,13 @@ import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
 import * as nuvemGestor from '../../modules/gestor/db/nuvem';
+import * as nuvemTreinamento from '../../modules/treinamento/db/nuvem';
 import * as esquemaPlataforma from '../esquema/plataforma';
 import { banco, semBanco } from './estado';
 import { comCliente, tabelasDeDominio } from './util';
 
-const valores: unknown[] = [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor)];
-const SCHEMAS = ['plataforma', 'core', 'catalogo', 'vendedor', 'integracao', 'gestor'];
+const valores: unknown[] = [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor), ...Object.values(nuvemTreinamento)];
+const SCHEMAS = ['plataforma', 'core', 'catalogo', 'vendedor', 'integracao', 'gestor', 'treinamento'];
 const tabelas = valores.filter((v): v is PgTable => v instanceof PgTable).map((t) => getTableConfig(t));
 
 describe.skipIf(semBanco())('Drizzle x banco migrado', () => {
