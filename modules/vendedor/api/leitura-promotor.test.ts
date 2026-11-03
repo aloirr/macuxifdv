@@ -61,7 +61,8 @@ afterEach(() => {
 });
 
 describe('O-3: ponto único da opção promotor_ve_pedidos', () => {
-  it('O-3: enquanto o Core não publica a consulta, o padrão é LIGADA', async () => {
+  it('O-3: consulta do Core indisponível ou com falha: vale o padrão do contrato, LIGADA', async () => {
+    // o contexto falso não resolve `core.promotor_ve_pedidos@1` (tx = {}): cai no padrão
     expect(await promotorVePedidos(contexto('promotor').ctx)).toBe(true);
   });
 

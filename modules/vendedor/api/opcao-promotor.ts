@@ -3,24 +3,32 @@
  * Lista, detalhe e pull de pedido/item/evento passam por `exigirLeituraDePedidos` / `leituraDePedidosLiberada`; ninguém
  * mais lê a opção. A regra em si é `podeLerPedidos` (domain, RN-PRO-01).
  *
- * TODO(core): trocar o padrão de `promotorVePedidos` pela consulta pública do Core (modules/core/contracts) que o
- * modulo-core publicará para ler essa opção. Até lá, vale o padrão de fábrica: LIGADA.
+ * Fonte: consulta pública `core.promotor_ve_pedidos@1` (modules/core/contracts), avaliada a cada requisição (nunca em
+ * cache, JWT ou sessão). Consulta indisponível (Core inativo/não registrado) ou com falha = padrão do contrato: LIGADA.
  */
+import { CONSULTA_PROMOTOR_VE_PEDIDOS, PROMOTOR_VE_PEDIDOS_PADRAO } from '@macuxi/core/contracts';
 import { ErroHttpModulo, type ContextoBase } from '@macuxi/platform-sdk';
 import { podeLerPedidos } from '../domain/leitura-pedido';
 
 export type LeitorOpcaoPromotor = (ctx: ContextoBase) => boolean | Promise<boolean>;
 
-/** Padrão de fábrica enquanto a consulta do Core não existe: opção ligada. */
-const padrao: LeitorOpcaoPromotor = () => true;
-let leitor: LeitorOpcaoPromotor = padrao;
+/** Lê `core.promotor_ve_pedidos@1` numa transação do tenant; indisponível ou falha = padrão do contrato (ligada). */
+const daConsultaDoCore: LeitorOpcaoPromotor = async (ctx) => {
+  try {
+    const r = await ctx.comTenant((_db, tx) => tx.consultar(CONSULTA_PROMOTOR_VE_PEDIDOS, {}));
+    return r.ligado;
+  } catch {
+    return PROMOTOR_VE_PEDIDOS_PADRAO;
+  }
+};
+let leitor: LeitorOpcaoPromotor = daConsultaDoCore;
 
 /** Opção `promotor_ve_pedidos` do tenant do usuário. Único ponto de leitura da opção no Vendedor. */
 export async function promotorVePedidos(ctx: ContextoBase): Promise<boolean> {
   return leitor(ctx);
 }
 
-/** Troca o leitor (teste, ou a consulta do Core quando existir). Devolve a função que restaura o anterior. */
+/** Troca o leitor (só teste); o padrão é a consulta do Core. Devolve a função que restaura o anterior. */
 export function usarOpcaoPromotorVePedidos(novo: LeitorOpcaoPromotor): () => void {
   const anterior = leitor;
   leitor = novo;
