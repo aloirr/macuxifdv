@@ -73,6 +73,12 @@ const exigirRotas = (ctx: CtxTelasNovas, tarefa: TarefaTelaNova) =>
 const corpo = <T>(r: { body: string; json(): unknown }) => r.json() as T;
 /** Ano-mês de hoje no fuso do tenant (a base demo grava `hoje` em America/Manaus). */
 const periodoDe = (hoje: string) => hoje.slice(0, 7);
+/**
+ * Senha de usuário descartável do smoke, gerada a cada execução (nunca literal no código: o scan de segredos acusa).
+ * Atende à política de senha inicial do Core (`validarSenhaInicial`: 8 a 200 caracteres, letras e números; o UUID v4
+ * sempre tem o dígito 4 da versão).
+ */
+const senhaDescartavel = () => `Sm-${randomUUID()}`;
 
 // ---------------------------------------------------------------------------------------------------------------
 // T-0067 — BKO de usuários e hierarquia (RF-CORE-02; auditoria RN-AUD-01; desativar nunca apaga)
@@ -126,7 +132,7 @@ export function casosUsuarios(ctx: CtxTelasNovas): void {
       const r = await ctx.api().chamar(ctx.token(k), {
         method: 'POST',
         url: '/v1/core/usuarios',
-        payload: { nome: 'Não Deve Gravar', email: `nao.grava.${randomUUID().slice(0, 8)}@exemplo.com.br`, perfil: 'vendedor', senha: 'SmokeDemo2026' },
+        payload: { nome: 'Não Deve Gravar', email: `nao.grava.${randomUUID().slice(0, 8)}@exemplo.com.br`, perfil: 'vendedor', senha: senhaDescartavel() },
       });
       expect([r.statusCode, erroDe(r).codigo], `${k} POST: ${r.body}`).toEqual([403, 'PERFIL_SEM_ACESSO']);
     }
@@ -137,8 +143,8 @@ export function casosUsuarios(ctx: CtxTelasNovas): void {
     const adm = ctx.token('admin');
     const lucas = (await listar('admin')).find((u) => u.id === ctx.usuarioId('vendedor'))!;
     const email = `smoke.${randomUUID().slice(0, 8)}@exemplo.com.br`;
-    const senha1 = 'SmokeDemo2026a';
-    const senha2 = 'SmokeDemo2026b';
+    const senha1 = senhaDescartavel();
+    const senha2 = senhaDescartavel();
     const criar = await api.chamar(adm, { method: 'POST', url: '/v1/core/usuarios', payload: { nome: 'Vendedor do Smoke', email, perfil: 'vendedor', equipe_id: lucas.equipe_id, senha: senha1 } });
     expect(criar.statusCode, criar.body).toBe(201);
     const novo = corpo<UsuarioBko>(criar);

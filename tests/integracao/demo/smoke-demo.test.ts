@@ -17,6 +17,9 @@
  *     no aparelho, check-in → visita de loja → fotos → gôndola e share pela fila, gravados no schema `promotor`;
  *     relatório de share no BKO; e nunca cria pedido (RN-PRO-01);
  *  S10 PDF interno no Campo (aparelho, pelas linhas do pull): desconto 8,0% e quem aprovou; o do cliente sem `%`.
+ *  Telas novas do BKO de 03/11 (tests/integracao/demo/telas-novas.casos.ts; docs/testes/T-0070.md), no fim do roteiro
+ *  (o U3 cria um usuário na equipe da Renata, depois do S8): U1–U3 usuários e hierarquia (T-0067, #82) e C1–C2 cadastros
+ *  de trade no BKO (T-0069, #81). Metas (T-0068, #83) entram quando o PR estiver no main.
  * S8 e S9 dependem de entregas de 02/11 (seed + repositório SQL de cada módulo). Enquanto o FONTE não as tiver, o caso
  * PULA com o motivo no nome ("[pendente: ...]") em vez de falhar à toa; quando a entrega chega, passa a rodar sozinho.
  * Mais o sync completo do aparelho com TODAS as entidades que o APK registra (inclui as de conteúdo do Catálogo).
@@ -46,6 +49,7 @@ import { montarPedido, prepararPedido, rascunhoVazio, type Rascunho } from '../.
 import { condicoesDoCliente, detalheDoPedido, lerLinhas, listaDeClientes, meDoAparelho, politicaApi, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
 import { blindarPool, DEMO, encerrarPool, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { casosCadastrosTrade, casosUsuarios, type CtxTelasNovas } from './telas-novas.casos';
 
 const BUSCA = 'óleo para moto 150 cilindradas';
 const TOKEN_LUCAS = `ExponentPushToken[smoke-demo-${randomUUID()}]`;
@@ -505,4 +509,9 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     expect(cliente).toContain(numero);
     expect(cliente).not.toContain('%');
   });
+
+  // Telas novas do BKO (03/11), no fim: o U3 grava um usuário na equipe da Renata e não pode mexer na conta do S8.
+  const ctxTelas: CtxTelasNovas = { api: () => api, token: (k) => token[k], usuarioId: (k) => usuarioId[k] };
+  casosUsuarios(ctxTelas);
+  casosCadastrosTrade(ctxTelas);
 });

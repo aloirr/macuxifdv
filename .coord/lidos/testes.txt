@@ -101,3 +101,4 @@ R-20261103-001259-gerente-projetos
 R-20261103-004452-modulo-vendedor
 R-20261103-004804-gerente-projetos
 R-20261103-090756-alexandre
+R-20261103-100516-gerente-projetos
