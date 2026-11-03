@@ -17,7 +17,7 @@ import { carteiraDoUsuario } from './carteira';
 import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
 import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
-import { consultaCadastroCliente, consultaCadastroResumo, consultaPromotorVePedidos } from './consultas';
+import { consultaCadastroCliente, consultaCadastroResumo, consultaPromotorVePedidos, consultaUsuariosResumo } from './consultas';
 import { consumidorPushNotificacao } from './consumidores';
 import { consumidoresDoErp } from './consumidores-erp';
 import { consumidoresDePedido } from './consumidores-pedido';
@@ -40,7 +40,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
     rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorMetaDefinida, ...consumidoresDoErp],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaMedidas, consultaPromotorVePedidos],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaMedidas, consultaPromotorVePedidos, consultaUsuariosResumo],
     rotasPublicas: [
       {
         metodo: 'POST',

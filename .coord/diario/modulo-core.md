@@ -42,3 +42,4 @@
 2026-11-03 — T-0065/T-0063 — 23503 de *_medida_fk vira ReferenciaAusenteErp('medida') nos consumidores de produto_unidade e produto (comMedidaAusente); T-0065 B: painelDoUsuario apura o realizado pelo tipo da meta (apuracao.ts) atrás da porta FontePedidosDaMeta; pedido ao modulo-vendedor (vendedor.pedidos_da_meta@1) e ao banco-dados (core.meta.tipo)
 2026-11-03 — T-0066/T-0065 — consumidor integracao.nota.atualizado@1 (core.nota_erp + historico_compra), tipo da meta (contrato, PUT, pull, apuração) e porta FontePedidosDaMeta ligada à consulta vendedor.pedidos_da_meta@1
 2026-11-03 — T-0065 — correção: Core sem import de @macuxi/vendedor (espelho mínimo local da consulta vendedor.pedidos_da_meta@1 em api/metas.ts); fronteiras e grafo-turbo ok
+2026-11-03 — T-0058 — core.usuarios_resumo@1 (contrato, consulta paginada por cursor sob RLS, manifest, testes contrato e x Postgres 5434)

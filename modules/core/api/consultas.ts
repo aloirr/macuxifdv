@@ -4,6 +4,8 @@ import {
   CONSULTA_CADASTRO_CLIENTE,
   CONSULTA_CADASTRO_RESUMO,
   CONSULTA_PROMOTOR_VE_PEDIDOS,
+  CONSULTA_USUARIOS_RESUMO,
+  type UsuariosResumoSaida,
   PARAMETRO_CAMPOS_OBRIGATORIOS,
   type CadastroClienteSaida,
   type CadastroResumoSaida,
@@ -70,3 +72,25 @@ export const consultaCadastroCliente = implementarConsulta(CONSULTA_CADASTRO_CLI
  * pergunta (RLS): sem cache e sem valor em JWT/sessão. Sem registro = ligado.
  */
 export const consultaPromotorVePedidos = implementarConsulta(CONSULTA_PROMOTOR_VE_PEDIDOS, async (_entrada, ctx) => ({ ligado: await lerPromotorVePedidos(ctx.db) }));
+
+/** RN-TRE-07 (T-0058): usuários do tenant sob RLS, até 500 por página (cursor por id). Sem e-mail/senha; removido fora, inativo dentro. */
+export const consultaUsuariosResumo = implementarConsulta(CONSULTA_USUARIOS_RESUMO, async (entrada, ctx): Promise<UsuariosResumoSaida> => {
+  const ids = entrada.usuario_ids ?? [];
+  const porIds = ids.length > 0;
+  const limite = porIds ? Math.min(ids.length, 500) : entrada.limite;
+  const rows = (
+    await ctx.db.query(
+      `select id, nome, perfil, equipe_id, null::uuid as regional_id, ativo
+         from core.usuario
+        where deleted_at is null
+          and ($1::uuid[] is null or id = any($1::uuid[]))
+          and ($2::uuid is null or id > $2::uuid)
+        order by id
+        limit $3`,
+      [porIds ? ids : null, porIds ? null : (entrada.apos_id ?? null), limite + 1],
+    )
+  ).rows as UsuariosResumoSaida['usuarios'];
+  const temMais = !porIds && rows.length > limite;
+  const usuarios = temMais ? rows.slice(0, limite) : rows;
+  return { usuarios, proximo_cursor: temMais ? usuarios[usuarios.length - 1]!.id : null };
+});

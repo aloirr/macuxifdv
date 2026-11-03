@@ -123,3 +123,28 @@ export const MedidasSaidaSchema = z.object({ medidas: z.array(z.object({ sigla: 
 export type MedidasSaida = z.infer<typeof MedidasSaidaSchema>;
 
 export const CONSULTA_MEDIDAS = definirConsulta({ nome: 'core.medidas@1', entrada: MedidasEntradaSchema, saida: MedidasSaidaSchema });
+
+/**
+ * `core.usuarios_resumo@1` (T-0058, RN-TRE-07): usuários do tenant (ou só os `usuario_ids`) com perfil, equipe e situação, para o
+ * público-alvo e a adesão do Treinamento. Inclui inativos (`ativo=false`); removidos ficam de fora. Só o necessário: nome, sem
+ * e-mail, senha nem documento. Teto de 500 por chamada; sem `usuario_ids`, pagina por cursor de id (`apos_id` → `proximo_cursor`).
+ * `regional_id`: o schema do Core ainda não tem regional; vai sempre `null` até existir (aditivo, mesma versão).
+ */
+export const UsuariosResumoEntradaSchema = z
+  .object({
+    usuario_ids: z.array(z.string().uuid()).max(500).optional(),
+    apos_id: z.string().uuid().optional(),
+    limite: z.number().int().min(1).max(500).default(500),
+  })
+  .strict();
+export type UsuariosResumoEntrada = z.infer<typeof UsuariosResumoEntradaSchema>;
+export const UsuariosResumoSaidaSchema = z.object({
+  usuarios: z.array(
+    z.object({ id: z.string().uuid(), nome: z.string(), perfil: z.string(), equipe_id: z.string().uuid().nullable(), regional_id: z.string().uuid().nullable(), ativo: z.boolean() }),
+  ),
+  /** Último id da página quando pode haver mais; `null` na última. */
+  proximo_cursor: z.string().uuid().nullable(),
+});
+export type UsuariosResumoSaida = z.infer<typeof UsuariosResumoSaidaSchema>;
+
+export const CONSULTA_USUARIOS_RESUMO = definirConsulta({ nome: 'core.usuarios_resumo@1', entrada: UsuariosResumoEntradaSchema, saida: UsuariosResumoSaidaSchema });

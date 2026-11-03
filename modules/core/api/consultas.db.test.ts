@@ -7,8 +7,8 @@ import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { ClienteBanco, ContextoConsulta } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CadastroResumoEntradaSchema } from '../contracts';
-import { consultaCadastroResumo } from './consultas';
+import { CadastroResumoEntradaSchema, UsuariosResumoEntradaSchema } from '../contracts';
+import { consultaCadastroResumo, consultaUsuariosResumo } from './consultas';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -67,5 +67,41 @@ describe.skipIf(semBanco())('Core × Postgres: consulta core.cadastro_resumo@1',
   it('ADR 0012: mais de 500 ids é recusado pelo contrato', () => {
     const ids = Array.from({ length: 501 }, (_, i) => id(i + 1));
     expect(() => CadastroResumoEntradaSchema.parse({ cliente_ids: ids })).toThrow();
+  });
+});
+
+describe.skipIf(semBanco())('Core × Postgres: consulta core.usuarios_resumo@1', () => {
+  let pool: pg.Pool;
+  const consultar = (tenant: string, entrada: object) =>
+    comTenant(pool, tenant, (c) =>
+      consultaUsuariosResumo.executar(UsuariosResumoEntradaSchema.parse(entrada), { db: c as unknown as ClienteBanco } as unknown as ContextoConsulta),
+    ) as Promise<{ usuarios: Array<{ id: string; nome: string; perfil: string; ativo: boolean; equipe_id: string | null; regional_id: string | null }>; proximo_cursor: string | null }>;
+  beforeAll(() => {
+    pool = new pg.Pool({ connectionString: banco().urlApp, max: 2 });
+  });
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it('RN-TRE-07: tenant inteiro, só campos do contrato, sem dado pessoal', async () => {
+    const r = await consultar(A.tenantId, {});
+    expect(r.usuarios.map((u) => u.id)).toContain(A.usuarios.vendedor1);
+    for (const u of r.usuarios) expect(Object.keys(u).sort()).toEqual(['ativo', 'equipe_id', 'id', 'nome', 'perfil', 'regional_id']);
+    expect(r.proximo_cursor).toBeNull();
+  });
+
+  it('RN-CORE-05: só os ids pedidos e nada de outro tenant', async () => {
+    expect((await consultar(A.tenantId, { usuario_ids: [A.usuarios.vendedor1] })).usuarios.map((u) => u.id)).toEqual([A.usuarios.vendedor1]);
+    expect((await consultar(B.tenantId, { usuario_ids: [A.usuarios.vendedor1] })).usuarios).toEqual([]);
+  });
+
+  it('RN-TRE-07: pagina por cursor com teto e inclui inativo, sem removido', async () => {
+    const p1 = await consultar(A.tenantId, { limite: 1 });
+    expect(p1.usuarios).toHaveLength(1);
+    expect(p1.proximo_cursor).toBe(p1.usuarios[0]!.id);
+    const p2 = await consultar(A.tenantId, { limite: 1, apos_id: p1.proximo_cursor });
+    expect(p2.usuarios[0]!.id > p1.usuarios[0]!.id).toBe(true);
+    expect(() => UsuariosResumoEntradaSchema.parse({ limite: 501 })).toThrow();
+    expect(() => UsuariosResumoEntradaSchema.parse({ usuario_ids: Array.from({ length: 501 }, () => A.usuarios.vendedor1) })).toThrow();
   });
 });
