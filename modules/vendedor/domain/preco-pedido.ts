@@ -268,7 +268,7 @@ export function rotuloMedida(unidade: string, fator: number): string {
 }
 
 // ---------- unidade vendida (RN-VEN-15) ----------
-export interface UnidadeDoProduto {
+export interface UnidadeDeVendaDoProduto {
   unidade: string;
   fator: number;
   ativo: boolean;
@@ -279,7 +279,7 @@ export type ResultadoUnidade = { ok: true; unidade: string; fator: number } | { 
  * Medida vendida do item. O `fator` vem do cadastro do Core, nunca do aparelho: sem escolha vale a unidade base (APK antigo);
  * com escolha, ela tem de ser a base ou uma embalagem ATIVA do produto (`unidade_invalida`).
  */
-export function resolverUnidadeDoItem(escolhida: string | null | undefined, produto: { unidade: string; unidades?: readonly UnidadeDoProduto[] | null }): ResultadoUnidade {
+export function resolverUnidadeDoItem(escolhida: string | null | undefined, produto: { unidade: string; unidades?: readonly UnidadeDeVendaDoProduto[] | null }): ResultadoUnidade {
   const lista = (produto.unidades ?? []).filter((u) => u.ativo);
   if (!escolhida) return { ok: true, unidade: produto.unidade, fator: 1 };
   const achada = lista.find((u) => u.unidade === escolhida);
