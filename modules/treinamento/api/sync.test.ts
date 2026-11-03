@@ -45,7 +45,7 @@ describe('push `progresso` — atividade feita offline (RN-TRE-04)', () => {
   it('RN-TRE-04: lote fora de ordem (lição com quiz enviada antes do quiz) é aplicado pelo instante: tudo aceito', async () => {
     const c = cenario();
     await publicar(c);
-    const t = (min: number) => c.relogio.relativo({ minutos: min - 30 }).toISOString();
+    const t = (min: number) => new Date(c.relogio.instante({ hora: '09:00' }).getTime() + min * 60_000).toISOString(); // 09:00 do dia do tenant: nunca vira o dia no meio do lote
     const r = await push(c, U.vera, [licaoEnvio(id(3), IDS.l2, t(20)), quizEnvio(id(2), t(10)), licaoEnvio(id(1), IDS.l1, t(0))]);
     expect(r).toEqual([
       { id: id(3), status: 'aceito' },
@@ -62,7 +62,7 @@ describe('push `progresso` — atividade feita offline (RN-TRE-04)', () => {
   it('RN-TRE-04: publica treinamento.licao.concluida@1 por lição e medalha.conquistada@1 por medalha, com payload do contrato', async () => {
     const c = cenario();
     await publicar(c);
-    const t = (min: number) => c.relogio.relativo({ minutos: min - 30 }).toISOString();
+    const t = (min: number) => new Date(c.relogio.instante({ hora: '09:00' }).getTime() + min * 60_000).toISOString(); // 09:00 do dia do tenant: nunca vira o dia no meio do lote
     await push(c, U.vera, [licaoEnvio(id(1), IDS.l1, t(0)), quizEnvio(id(2), t(10)), licaoEnvio(id(3), IDS.l2, t(20))]);
     expect(c.registro.eventos.map((e) => e.nome)).toEqual([EVENTO_LICAO_CONCLUIDA, EVENTO_MEDALHA_CONQUISTADA, EVENTO_LICAO_CONCLUIDA, EVENTO_MEDALHA_CONQUISTADA]);
     expect(c.registro.eventos[2]!.payload).toMatchObject({ progresso_id: id(3), usuario_id: U.vera.id, licao_id: IDS.l2, nota_quiz_pct: 100, xp_ganho: 60, trilha_concluida: true });
@@ -142,7 +142,7 @@ describe('pull — conteúdo do público e linhas do próprio aluno (RN-TRE-07, 
   it('RN-CORE-04: progresso, tentativa, XP e medalhas descem só do próprio aluno, no formato da linha do contrato', async () => {
     const c = cenario();
     await publicar(c);
-    const t = (min: number) => c.relogio.relativo({ minutos: min - 30 }).toISOString();
+    const t = (min: number) => new Date(c.relogio.instante({ hora: '09:00' }).getTime() + min * 60_000).toISOString(); // 09:00 do dia do tenant: nunca vira o dia no meio do lote
     await push(c, U.vera, [licaoEnvio(id(1), IDS.l1, t(0)), quizEnvio(id(2), t(10)), licaoEnvio(id(3), IDS.l2, t(20))]);
     const progresso = await pull(c, U.vera, 'progresso');
     expect(progresso.map((l) => ProgressoSyncLinha.parse(l).id).sort()).toEqual([id(1), id(3)].sort());
