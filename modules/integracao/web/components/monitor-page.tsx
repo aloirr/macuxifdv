@@ -19,7 +19,7 @@ import { PedidosPanel } from './pedidos-panel';
 /**
  * Monitor do Hub no BKO (T-0051; RF-INT-04, RF-INT-06; hub-api.md §13): Conectores com sinal de vida e versão, alertas, carga por
  * entidade, lotes (recebido, aplicado, com erros) com os erros por linha em CSV, inativação em massa aguardando confirmação
- * (admin ou analista, P-3) e a fila de pedidos do ERP com os erros de retorno. Atualiza a cada 30 s.
+ * (admin ou analista, P-3) e a fila de pedidos do ERP com os erros de retorno. Atualiza pelo sync_auto_min do tenant (RN-CORE-23) e pelo botão "Atualizar".
  * O shell só monta a página com o módulo efetivo (licença) e a ação `monitor.ver`; a API revalida licença, perfil e tenant.
  */
 export function MonitorPage() {
@@ -60,10 +60,15 @@ export function MonitorPage() {
         subtitle={m ? `Atualizado ${tempoDesde(m.gerado_em, agora)}${monitor.isFetching ? ' · atualizando…' : ''}` : ' '}
         badge={criticos > 0 ? <Badge tone="danger">{criticos} crítico{criticos > 1 ? 's' : ''}</Badge> : undefined}
         actions={
+          <>
+          <Button variant="link" onClick={() => void monitor.refetch()} disabled={monitor.isFetching} className="font-semibold" data-testid="integracao.monitor.atualizar">
+            Atualizar
+          </Button>
           <Button variant="link" onClick={exportarLotes} disabled={lotes.length === 0} className="font-semibold" data-testid="integracao.lotes.exportar-csv">
             <IconDownload size={15} />
             Exportar lotes (CSV)
           </Button>
+          </>
         }
       />
 

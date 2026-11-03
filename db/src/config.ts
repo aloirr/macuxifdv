@@ -35,7 +35,17 @@ export interface ConfigBanco {
   appSenha: string;
   /** Senha do papel macuxi_worker ('' = não configurada; o papel fica NOLOGIN). */
   workerSenha: string;
+  /**
+   * Serviço do db/docker-compose.yml que atende este endereço (o globalSetup sobe só ele se estiver parado):
+   * 'postgres' (demo/dev, 5432) ou 'postgres-testes' (testes, 5434). Ausente = não subir nada pelo compose.
+   */
+  servicoCompose?: ServicoCompose;
 }
+
+export type ServicoCompose = 'postgres' | 'postgres-testes';
+
+/** Porta padrão do Postgres dos testes (serviço postgres-testes do db/docker-compose.yml, container macuxi-postgres-testes). */
+export const PORTA_TESTES_PADRAO = 5434;
 
 /** Senhas públicas do Postgres local (db/docker-compose.yml). Só valem quando ehBancoLocal() é verdadeiro. */
 export const SENHA_ADMIN_LOCAL = 'postgres';
@@ -46,7 +56,7 @@ export const SENHA_WORKER_LOCAL = 'macuxi_worker_local';
  * Hosts do Postgres local de desenvolvimento: a máquina do dev e o nome do container do
  * db/docker-compose.yml (rede do compose). É a mesma lista usada por testes/global-setup.ts.
  */
-export const HOSTS_LOCAIS: readonly string[] = ['localhost', '127.0.0.1', '::1', 'macuxi-postgres'];
+export const HOSTS_LOCAIS: readonly string[] = ['localhost', '127.0.0.1', '::1', 'macuxi-postgres', 'macuxi-postgres-testes'];
 
 /** Banco local de desenvolvimento? Host em HOSTS_LOCAIS e NODE_ENV diferente de production. */
 export function ehBancoLocal(host: string | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
@@ -105,6 +115,53 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): ConfigBanco {
     appSenha: env.MACUXI_PG_APP_SENHA || SENHA_APP_LOCAL,
     workerSenha: env.MACUXI_PG_WORKER_SENHA || (ehBancoLocal(host, env) ? SENHA_WORKER_LOCAL : ''),
   };
+}
+
+/**
+ * Configuração do Postgres dos TESTES (globalSetup, criarBancoDeTeste, medir-sync). Separado do da demo desde 02/11:
+ * a carga dos testes derrubava o macuxi-postgres (5432) que serve a demo. Ordem de decisão:
+ * 1. MACUXI_PG_TESTES_URL (postgres://usuario:senha@host:porta[/qualquer]) — endereço explícito dos testes;
+ * 2. MACUXI_PG_HOST ou MACUXI_PG_PORTA definidos no ambiente (CI: service container na 5432; varrer-relogio: porta 1)
+ *    → o mesmo servidor de lerConfig, como antes (compatível com o workflow, que não define a variável nova);
+ * 3. padrão local: localhost:MACUXI_PG_TESTES_PORTA (5434), o container macuxi-postgres-testes.
+ * Usuário/senha do admin e senhas dos papéis seguem as mesmas de lerConfig (e as mesmas travas fora do local).
+ */
+export function lerConfigTestes(env: NodeJS.ProcessEnv = process.env): ConfigBanco {
+  if (env === process.env) carregarEnv();
+  const urlTestes = env.MACUXI_PG_TESTES_URL?.trim();
+  if (urlTestes) {
+    let u: URL;
+    try {
+      u = new URL(urlTestes);
+    } catch {
+      throw new Error('[db] MACUXI_PG_TESTES_URL inválida (esperado postgres://usuario:senha@host:porta).');
+    }
+    if (u.protocol !== 'postgres:' && u.protocol !== 'postgresql:') throw new Error('[db] MACUXI_PG_TESTES_URL precisa começar com postgres://');
+    const host = u.hostname.replace(/^\[(.*)\]$/, '$1');
+    const cfg = lerConfig({
+      ...env,
+      MACUXI_PG_HOST: host,
+      MACUXI_PG_PORTA: u.port || '5432',
+      MACUXI_PG_ADMIN_USUARIO: u.username ? decodeURIComponent(u.username) : env.MACUXI_PG_ADMIN_USUARIO,
+      MACUXI_PG_ADMIN_SENHA: u.password ? decodeURIComponent(u.password) : env.MACUXI_PG_ADMIN_SENHA,
+    });
+    return { ...cfg, servicoCompose: servicoDaPorta(cfg, env) };
+  }
+  if (env.MACUXI_PG_HOST || env.MACUXI_PG_PORTA) {
+    const cfg = lerConfig(env);
+    return { ...cfg, servicoCompose: servicoDaPorta(cfg, env) };
+  }
+  const porta = env.MACUXI_PG_TESTES_PORTA ?? String(PORTA_TESTES_PADRAO);
+  const cfg = lerConfig({ ...env, MACUXI_PG_HOST: 'localhost', MACUXI_PG_PORTA: porta });
+  return { ...cfg, servicoCompose: 'postgres-testes' };
+}
+
+/** Qual serviço do compose atende um endereço local (null/undefined = nenhum; ex.: CI ou porta arbitrária). */
+function servicoDaPorta(cfg: ConfigBanco, env: NodeJS.ProcessEnv): ServicoCompose | undefined {
+  if (!ehBancoLocal(cfg.host, env)) return undefined;
+  if (cfg.porta === Number(env.MACUXI_PG_TESTES_PORTA ?? PORTA_TESTES_PADRAO)) return 'postgres-testes';
+  if (cfg.porta === Number(env.MACUXI_PG_PORTA ?? '5432')) return 'postgres';
+  return undefined;
 }
 
 function url(usuario: string, senha: string, cfg: ConfigBanco, banco: string): string {
