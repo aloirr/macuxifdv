@@ -24,7 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { A, licenca } from '../apoio/api';
-import { DEMO, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { blindarPool, DEMO, encerrarPool, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 describe.skipIf(semBanco())('T-0055 — Gestor ponta a ponta na base demo (createApp real × Postgres × despachante)', () => {
   let api: ApiDemo;
@@ -43,7 +43,7 @@ describe.skipIf(semBanco())('T-0055 — Gestor ponta a ponta na base demo (creat
   beforeAll(async () => {
     api = await subirApiDemo({ comDoisTenants: true });
     if (!api.banco.urlWorker) throw new Error('banco de teste sem urlWorker (MACUXI_PG_WORKER_SENHA): o e2e do Gestor precisa do despachante');
-    worker = new pg.Pool({ connectionString: api.banco.urlWorker, max: 2 });
+    worker = blindarPool(new pg.Pool({ connectionString: api.banco.urlWorker, max: 2 }));
     for (const k of Object.keys(DEMO) as ChaveDemo[]) {
       const s = await api.sessao(DEMO[k]);
       token[k] = s.access_token;
@@ -52,12 +52,19 @@ describe.skipIf(semBanco())('T-0055 — Gestor ponta a ponta na base demo (creat
     await despachar();
   }, 180_000);
   afterAll(async () => {
-    await worker?.end().catch(() => undefined);
+    await encerrarPool(worker);
     await api?.fechar();
   });
 
-  it('G1. Base demo sem a licença do Gestor: /v1/gestor/equipe e /aprovacoes = 403 MODULO_INATIVO; o Gestor não está nos módulos da supervisora', async () => {
-    expect((await api.meusModulos(token.supervisor)).modulos.map((m) => m.id)).not.toContain('gestor');
+  it('G1. Licença do Gestor na base demo: com o seed do Gestor (02/11) a supervisora já o tem e o vendedor não; sem o seed, /v1/gestor/* = 403 MODULO_INATIVO', async () => {
+    if ((await api.meusModulos(token.supervisor)).modulos.some((m) => m.id === 'gestor')) {
+      // db/seeds/demo/gestor.ts ligado no carregarDemo: a licença vem da base (tenant + perfis), sem o admin ligar
+      expect((await api.meusModulos(token.vendedor)).modulos.map((m) => m.id)).not.toContain('gestor');
+      expect((await api.get(token.supervisor, '/v1/gestor/equipe')).status).toBe(200);
+      const r = await api.get(token.vendedor, '/v1/gestor/equipe');
+      expect([r.status, codigo(r.corpo)]).toEqual([403, 'MODULO_INATIVO']);
+      return;
+    }
     for (const url of ['/v1/gestor/equipe', '/v1/gestor/aprovacoes']) {
       const r = await api.get(token.supervisor, url);
       expect([r.status, codigo(r.corpo)], url).toEqual([403, 'MODULO_INATIVO']);
