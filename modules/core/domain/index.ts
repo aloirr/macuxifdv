@@ -23,4 +23,3 @@ export * from './apuracao';
 export * from './produto-preco';
 export * from './erp-mapeamento';
 export * from './notificacao-pedido';
-export * from './medida';

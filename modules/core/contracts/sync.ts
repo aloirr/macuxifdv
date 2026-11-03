@@ -7,7 +7,6 @@
  */
 import { z } from 'zod';
 import { ModuloIdSchema } from './modulos';
-import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
 
 const Base = {
   id: z.string().uuid(),
@@ -68,24 +67,10 @@ export const ProdutoSyncSchema = z
     marca: z.string().nullable(),
     categoria: z.string().nullable(),
     unidade: z.string(),
-    /** Embalagem opcional (RN-CORE-19): medida + quantidade de unidades. Opcionais: compatível com o pull anterior. */
-    embalagem_medida: z.string().nullable().optional(),
-    embalagem_quantidade: z.number().int().min(EMBALAGEM_QUANTIDADE_MIN).max(EMBALAGEM_QUANTIDADE_MAX).nullable().optional(),
     ativo: z.boolean(),
   })
   .strict();
 export type ProdutoSync = z.infer<typeof ProdutoSyncSchema>;
-
-/** Medidas do tenant (RN-CORE-19; RF-CORE-14): sigla única e descrição. Escopo tenant; inativa continua no pull (o produto mantém a sigla). */
-export const MedidaSyncSchema = z
-  .object({
-    ...Base,
-    sigla: z.string(),
-    descricao: z.string(),
-    ativo: z.boolean(),
-  })
-  .strict();
-export type MedidaSync = z.infer<typeof MedidaSyncSchema>;
 
 /** Unidades de venda do produto (RN-VEN-15; T-0061 §4.1). Escopo tenant. */
 export const ProdutoUnidadeSyncSchema = z

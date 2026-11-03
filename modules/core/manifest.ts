@@ -13,7 +13,7 @@ export const manifest = defineModule({
     gestao: { abas: ['Início', 'Clientes'] },
     web: { menus: ['Clientes', 'Rotas', 'Visitas', 'Coordenadas sugeridas', 'Motivos', 'Produtos', 'Recados', 'Carteira', 'Metas', 'Plano de RV', 'Usuários e módulos', 'Aparelhos', 'Indicadores'] },
   },
-  sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_checkout', 'visita_etapa', 'motivo', 'parametro', 'meta', 'indicador_diario', 'notificacao', 'notificacao_leitura', 'produto', 'produto_unidade', 'medida', 'cliente_endereco'],
+  sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_checkout', 'visita_etapa', 'motivo', 'parametro', 'meta', 'indicador_diario', 'notificacao', 'notificacao_leitura', 'produto', 'produto_unidade', 'cliente_endereco'],
   publica: ['core.cliente.atualizado@1', 'core.visita.checkin@1', 'core.visita.checkout@1', 'core.usuario.modulos_alterados@1', 'core.notificacao.criada@1', 'core.meta.definida@1'],
   consome: ['core.notificacao.criada@1', 'core.meta.definida@1', 'vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'treinamento.medalha.conquistada@1', 'integracao.cliente.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.vendedor.atualizado@1', 'integracao.titulo.atualizado@1', 'integracao.rota.atualizado@1'],
   acoes: {
@@ -28,13 +28,12 @@ export const manifest = defineModule({
     'motivo.editar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar e ativar/desativar motivos de não venda; motivos de sistema não mudam (RN-CORE-14)' },
     'produto.editar_preco': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Ver custo e editar custo, preço de venda e desconto máximo do produto no BKO; o custo nunca vai ao app (RN-CORE-18)' },
     'produto.parametros': { perfis: ['analista', 'admin'], descricao: 'Definir o desconto máximo padrão do produto do tenant, parâmetro desconto_maximo_produto_pct (RN-VEN-11)' },
-    'medida.gerenciar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar, editar, inativar e apagar (só sem uso) medidas do tenant e definir a medida da unidade e a embalagem do produto, em Parâmetros → Produtos (RN-CORE-19)' },
     'cliente.aprovar_coordenada': { perfis: ['analista', 'admin'], descricao: 'Aprovar a coordenada sugerida no 1º check-in de cliente sem coordenada (RN-CORE-10)' },
     'notificacao.enviar': { perfis: ['supervisor', 'gerente', 'analista', 'admin'], descricao: 'Enviar recado a usuários do próprio escopo (RF-CORE-09)' },
     'notificacao.ler': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Marcar como lida uma notificação própria (RF-CORE-09)' },
     'dispositivo.registrar_push': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Gravar o token de push do próprio aparelho (RF-CORE-09)' },
     'plano_rv.editar': { perfis: ['analista'], descricao: 'Editar o plano de RV (vigência futura)' },
   },
-  ofereceConsultas: ['core.cadastro_resumo@1', 'core.cadastro_cliente@1', 'core.medidas@1'],
+  ofereceConsultas: ['core.cadastro_resumo@1', 'core.cadastro_cliente@1'],
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });

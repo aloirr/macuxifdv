@@ -164,8 +164,8 @@ describe('T-0004 §5: provedores de pull do Core', () => {
 
   it('registra os provedores do Core (T-0017/T-0018): pull com escopo declarado; visita também recebe check-in e visita_checkout só recebe', () => {
     const nomes = provedoresSyncCore.map((p) => p.entidade.nome).sort();
-    expect(nomes).toEqual(['carteira', 'cliente', 'cliente_contato', 'cliente_endereco', 'cliente_financeiro', 'historico_compra', 'indicador_diario', 'medida', 'meta', 'motivo', 'parametro', 'produto', 'produto_unidade', 'rota', 'rota_parada', 'titulo', 'visita', 'visita_checkout']);
-    const escopo: Record<string, string> = { produto: 'tenant', produto_unidade: 'tenant', medida: 'tenant', motivo: 'tenant', parametro: 'tenant', rota: 'usuarios', rota_parada: 'usuarios', visita: 'usuarios', meta: 'usuarios', indicador_diario: 'usuarios' };
+    expect(nomes).toEqual(['carteira', 'cliente', 'cliente_contato', 'cliente_endereco', 'cliente_financeiro', 'historico_compra', 'indicador_diario', 'meta', 'motivo', 'parametro', 'produto', 'produto_unidade', 'rota', 'rota_parada', 'titulo', 'visita', 'visita_checkout']);
+    const escopo: Record<string, string> = { produto: 'tenant', produto_unidade: 'tenant', motivo: 'tenant', parametro: 'tenant', rota: 'usuarios', rota_parada: 'usuarios', visita: 'usuarios', meta: 'usuarios', indicador_diario: 'usuarios' };
     for (const p of provedoresSyncCore.filter((x) => x.puxar)) expect(p.escopo, p.entidade.nome).toBe(escopo[p.entidade.nome] ?? 'carteira');
     for (const p of provedoresSyncCore) {
       expect(manifest.sync, p.entidade.nome).toContain(p.entidade.nome);
@@ -173,8 +173,8 @@ describe('T-0004 §5: provedores de pull do Core', () => {
       expect(Boolean(p.receber), p.entidade.nome).toBe(comEscrita);
       expect(p.entidade.direcao, p.entidade.nome).toBe(p.entidade.nome === 'visita' ? 'ambos' : p.entidade.nome === 'visita_checkout' ? 'push' : 'pull');
     }
-    // 18 do Core (com meta e indicador_diario, T-0020, e medida, T-0063) + notificacao e notificacao_leitura (T-0019, provedores próprios)
-    expect(moduloApi.sync).toHaveLength(20);
+    // 17 do Core (com meta e indicador_diario, T-0020) + notificacao e notificacao_leitura (T-0019, provedores próprios)
+    expect(moduloApi.sync).toHaveLength(19);
   });
 
   it('pull usa horizonte, cursor (updated_at, id), ordem, limite e microssegundos', () => {

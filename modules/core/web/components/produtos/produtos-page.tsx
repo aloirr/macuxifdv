@@ -7,9 +7,6 @@ import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { formatBRL, formatPct } from '@macuxi/comum';
 import { Badge, Button, Dialog, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, td, th, TableScroll } from '@macuxi/ui/web';
 import { ProdutoParametrosSchema, ProdutosPrecoListaSchema, type ProdutoPreco } from '../../../contracts';
-import { rotuloMedidaDoProduto } from '../../lib/medidas';
-import { MedidasPanel, useMedidas } from './medidas-panel';
-import { ProdutoMedidasDialog } from './produto-medidas-dialog';
 import { descontoMaximoAplicavel, lucroCents, margemNoMinimoPct, margemPct, markupPct, precoMinimoCents } from '../../../domain';
 
 const pct = (v: number | null) => (v === null ? '—' : formatPct(v, 2));
@@ -46,10 +43,7 @@ interface Rascunho {
 export function ProdutosPage() {
   const qc = useQueryClient();
   const podeParametros = usePode('produto.parametros');
-  const podeMedidas = usePode('medida.gerenciar');
-  const [aba, setAba] = useState<'produtos' | 'medidas' | 'parametros'>('produtos');
-  const [medidasDe, setMedidasDe] = useState<ProdutoPreco | null>(null);
-  const medidas = useMedidas();
+  const [aba, setAba] = useState<'produtos' | 'parametros'>('produtos');
   const [busca, setBusca] = useState('');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -108,9 +102,6 @@ export function ProdutosPage() {
         <Button variant={aba === 'produtos' ? 'primary' : undefined} onClick={() => setAba('produtos')} data-testid="produtos.aba-produtos">
           Produtos
         </Button>
-        <Button variant={aba === 'medidas' ? 'primary' : undefined} onClick={() => setAba('medidas')} data-testid="produtos.aba-medidas">
-          Medidas
-        </Button>
         {podeParametros && (
           <Button variant={aba === 'parametros' ? 'primary' : undefined} onClick={() => setAba('parametros')} data-testid="produtos.aba-parametros">
             Parâmetros
@@ -122,8 +113,6 @@ export function ProdutosPage() {
           {aviso}
         </Notice>
       )}
-
-      {aba === 'medidas' && <MedidasPanel onAviso={setAviso} />}
 
       {aba === 'parametros' && podeParametros && (
         <Panel title="Desconto máximo padrão">
@@ -163,12 +152,11 @@ export function ProdutosPage() {
           {lista.isPending && <LoadingBlock label="Carregando os produtos…" />}
           {lista.data && (
             <Panel title={`${lista.data.itens.length} produtos · desconto máximo padrão ${formatPct(padrao, 2)}`}>
-              <TableScroll minWidth={1060}>
+              <TableScroll minWidth={980}>
                 <table className="w-full border-collapse text-[13px]">
                   <thead>
                     <tr>
                       <th className={th}>Produto</th>
-                      <th className={th}>Medida</th>
                       <th className={th}>Custo</th>
                       <th className={th}>Preço</th>
                       <th className={th}>Margem</th>
@@ -188,9 +176,6 @@ export function ProdutosPage() {
                           <span className="block font-mono text-[12px] text-ink-2">{p.sku}</span>
                           {!p.vendavel && <Badge tone="warning">Sem preço: não vendável</Badge>}
                         </td>
-                        <td className={td} data-testid={`produtos.medida.${p.sku}`}>
-                          {rotuloMedidaDoProduto(p)}
-                        </td>
                         <td className={td}>{p.custo_nao_informado ? <span className="text-ink-2">custo não informado</span> : brl(p.custo_cents)}</td>
                         <td className={td}>{brl(p.preco_venda_cents)}</td>
                         <td className={td}>{pct(p.margem_pct)}</td>
@@ -203,16 +188,9 @@ export function ProdutosPage() {
                         <td className={td}>{brl(p.preco_minimo_cents)}</td>
                         <td className={td}>{pct(p.margem_no_minimo_pct)}</td>
                         <td className={td}>
-                          <div className="flex flex-wrap gap-2">
-                            <Button onClick={() => abrir(p)} data-testid={`produtos.editar.${p.sku}`}>
-                              Editar
-                            </Button>
-                            {podeMedidas && (
-                              <Button onClick={() => setMedidasDe(p)} disabled={!medidas.data} data-testid={`produtos.medidas.${p.sku}`}>
-                                Medidas
-                              </Button>
-                            )}
-                          </div>
+                          <Button onClick={() => abrir(p)} data-testid={`produtos.editar.${p.sku}`}>
+                            Editar
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -222,18 +200,6 @@ export function ProdutosPage() {
             </Panel>
           )}
         </>
-      )}
-
-      {medidasDe && medidas.data && (
-        <ProdutoMedidasDialog
-          produto={medidasDe}
-          medidas={medidas.data}
-          onFechar={() => setMedidasDe(null)}
-          onSalvo={(texto) => {
-            setMedidasDe(null);
-            setAviso(texto);
-          }}
-        />
       )}
 
       {rascunho && (

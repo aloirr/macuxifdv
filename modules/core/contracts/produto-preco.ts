@@ -4,16 +4,12 @@
  * pull do app (`ProdutoSyncSchema` não tem custo) nem no `core.cadastro_resumo@1`.
  */
 import { z } from 'zod';
-import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
 
 export const ProdutoPrecoSchema = z.object({
   id: z.string().uuid(),
   sku: z.string(),
   nome: z.string(),
-  /** Medida da unidade (sigla de `core.medida`, RN-CORE-19) e embalagem opcional (medida + quantidade de unidades). */
   unidade: z.string(),
-  embalagem_medida: z.string().nullable().optional(),
-  embalagem_quantidade: z.number().int().min(EMBALAGEM_QUANTIDADE_MIN).max(EMBALAGEM_QUANTIDADE_MAX).nullable().optional(),
   ativo: z.boolean(),
   custo_cents: z.number().int().nonnegative().nullable(),
   preco_venda_cents: z.number().int().nonnegative().nullable(),

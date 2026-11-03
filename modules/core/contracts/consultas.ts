@@ -111,15 +111,3 @@ export const CadastroClienteSaidaSchema = z.object({
 export type CadastroClienteSaida = z.infer<typeof CadastroClienteSaidaSchema>;
 
 export const CONSULTA_CADASTRO_CLIENTE = definirConsulta({ nome: 'core.cadastro_cliente@1', entrada: CadastroClienteEntradaSchema, saida: CadastroClienteSaidaSchema });
-
-/**
- * `core.medidas@1` (T-0063, RN-CORE-19): o Hub pergunta quais das siglas citadas num lote existem no tenant e se estão ativas
- * (sigla não cadastrada ou inativa vira `referencia_ausente`, reprocessável, RN-INT-04). Leitura apenas; devolve só as que existem
- * (ativas e inativas), sem custo nem dado de cliente.
- */
-export const MedidasEntradaSchema = z.object({ siglas: z.array(z.string().trim().toUpperCase().max(10)).max(500) }).strict();
-export type MedidasEntrada = z.infer<typeof MedidasEntradaSchema>;
-export const MedidasSaidaSchema = z.object({ medidas: z.array(z.object({ sigla: z.string(), descricao: z.string(), ativo: z.boolean() })) });
-export type MedidasSaida = z.infer<typeof MedidasSaidaSchema>;
-
-export const CONSULTA_MEDIDAS = definirConsulta({ nome: 'core.medidas@1', entrada: MedidasEntradaSchema, saida: MedidasSaidaSchema });
