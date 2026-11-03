@@ -34,3 +34,4 @@
 2026-11-02 — T-0063 — medidas do produto (RN-CORE-19): domain medida.ts, core.medidas@1, rotas /v1/core/medidas e produtos/:id/medidas, aba Medidas no BKO, sync medida/embalagem, consumidor ERP com embalagem; Core 740 testes verdes (Postgres real)
 2026-11-02 — T-0063 — correções da revisão: 🟡3 embalagem x produto_unidade (EMBALAGEM_DIVERGE_ERP no BKO; ERP prevalece no consumidor), 🟡5 teto 2..9999 (domain, Zod de saída, consumidor descarta com log), POST concorrente idempotente (on conflict id); docs/modulos/core/medidas.md
 2026-11-02 — T-0065 — token de push só do usuário da sessão, logout/DELETE apaga, inativo/bloqueado não recebe (testes PG)
+2026-11-03 — T-0063 — Core devolvido ao origin/main (exceto db/nuvem.ts, do banco-dados); BKO de medidas segue no patch t0063-core.patch para PR separado; testes do Core contra a 0018: 64 arquivos / 692 testes verdes
