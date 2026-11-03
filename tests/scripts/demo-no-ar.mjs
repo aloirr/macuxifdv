@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Conferência da DEMO NO AR (agente `testes`, T-0065): só leitura, contra a API que o `subir-demo.ps1` deixou rodando.
- * Não cria pedido nem coleta (a única escrita é um push de pedido do PROMOTOR, que a API tem de recusar — RN-PRO-01 —
- * e não grava nada). Complementa o smoke-demo.test.ts (banco efêmero): aqui é a base `demo` real, recriada pelo seed.
+ * Não cria pedido nem coleta. As únicas chamadas de escrita são do M-D21e (RN-PRO-01): push de pedido do PROMOTOR (recusado)
+ * e POST /v1/vendedor/pedidos/<uuid aleatório>/{cancelar,aprovar,rejeitar} — 403 para o promotor, 404 no controle; nada é gravado.
+ * Complementa o smoke-demo.test.ts (banco efêmero): aqui é a base `demo` real, recriada pelo seed.
  *
  * Uso: node tests/scripts/demo-no-ar.mjs [--api http://127.0.0.1:8100] [--senha demo-macuxi]
  * Saída: uma linha por item (OK | FALHA | AVISO) e código 1 se houver FALHA.
@@ -156,8 +157,24 @@ async function main() {
   const push = await http('POST', '/v1/sync/push', token.promotor, { itens: [{ id, entidade: 'pedido', operacao: 'upsert', payload: { id, customer_id: cli?.id ?? randomUUID(), items: [], discount_pct: 0 } }] });
   const res = push.corpo?.resultados?.[0];
   confere('M-D21e', push.status === 200 && res?.status === 'rejeitado' && ['MODULO_INATIVO', 'RN-PRO-01'].includes(res?.codigo), `push de pedido do promotor recusado (${res?.codigo})`, `${push.status} ${JSON.stringify(push.corpo).slice(0, 200)}`);
-  const ped2 = await http('POST', '/v1/vendedor/pedidos', token.promotor, { id, customer_id: cli?.id, items: [], discount_pct: 0 });
-  confere('M-D21e', ped2.status === 403, 'POST /v1/vendedor/pedidos do promotor → 403', `${ped2.status}`);
+  // Não existe POST /v1/vendedor/pedidos (o pedido entra só pelo push). As escritas reais são aprovar/rejeitar/cancelar
+  // em /pedidos/:id/... — com UUID aleatório nada é gravado: o promotor para no 403 antes do handler, e o controle
+  // (vendedor/supervisora) prova que a rota existe (404 de pedido inexistente, não de rota), para o 403 não ser falso positivo.
+  const codigo = (c) => c?.codigo ?? c?.erro?.codigo ?? c?.code ?? '';
+  const idFalso = randomUUID();
+  const escritas = [
+    ['cancelar', 'vendedor', { motivo: 'conferência demo-no-ar (não grava)' }],
+    ['aprovar', 'supervisor', { comentario: 'conferência demo-no-ar (não grava)' }],
+    ['rejeitar', 'supervisor', { motivo: 'conferência demo-no-ar (não grava)' }],
+  ];
+  for (const [acao, quem, corpo] of escritas) {
+    const caminho = `/v1/vendedor/pedidos/${idFalso}/${acao}`;
+    const ctrl = await http('POST', caminho, token[quem], corpo);
+    const rotaExiste = !(ctrl.status === 404 && /route .* not found/i.test(JSON.stringify(ctrl.corpo)));
+    confere('M-D21e', rotaExiste && ctrl.status !== 403 && ctrl.status < 500, `controle: rota POST .../${acao} existe (${quem}, id aleatório → ${ctrl.status} ${codigo(ctrl.corpo)})`, `${ctrl.status} ${JSON.stringify(ctrl.corpo).slice(0, 200)}`);
+    const r = await http('POST', caminho, token.promotor, corpo);
+    confere('M-D21e', r.status === 403, `promotor POST /v1/vendedor/pedidos/:id/${acao} → 403 ${codigo(r.corpo)}`, `${r.status} ${JSON.stringify(r.corpo).slice(0, 200)}`);
+  }
 
   // Pesquisa
   const pq = await puxar(token.vendedor, 'questionario_versao');
