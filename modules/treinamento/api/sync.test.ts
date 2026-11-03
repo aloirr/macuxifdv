@@ -5,6 +5,7 @@ import { EVENTO_LICAO_CONCLUIDA, EVENTO_MEDALHA_CONQUISTADA } from '../contracts
 import { TrilhaSyncLinha } from '../contracts/conteudo';
 import { AtividadeEnvio, MedalhaUsuarioSyncLinha, ProgressoSyncLinha, TentativaSyncLinha, XpLancamentoSyncLinha } from '../contracts/sync';
 import { criarApiTreinamento } from './index';
+import { paginarFiltrando } from './sync';
 import { chamar, contexto, novoRegistro, semearUsuarios, TENANT_A, U, uuid, type OpcoesContexto } from './apoio-teste';
 import { IDS, licaoEnvio, quizEnvio, trilhaEdicao } from './fixtures-teste';
 import { criarBancoEmMemoria, fabricaEmMemoria } from './memoria';
@@ -160,5 +161,14 @@ describe('pull — conteúdo do público e linhas do próprio aluno (RN-TRE-07, 
       ['xp_lancamento', 'proprio'],
       ['medalha_usuario', 'proprio'],
     ]);
+  });
+});
+
+describe('paginarFiltrando (RN-TRE-07: filtro antes do limite)', () => {
+  it('RN-TRE-07: com mais linhas escondidas que o limite, a página ainda traz as visíveis e o cursor avança', async () => {
+    const todas = Array.from({ length: 7 }, (_, i) => ({ id: `id-${i}`, updated_at: `2026-01-01T00:00:0${i}.000000Z`, ok: i >= 5 }));
+    const buscar = async (p: PedidoPull) => todas.filter((t) => !p.desde || t.updated_at > p.desde.updated_at).slice(0, p.limite);
+    const pagina = await paginarFiltrando(buscar, { desde: null, ate: 'x', limite: 2 }, (t) => t.ok);
+    expect(pagina.map((t) => t.id)).toEqual(['id-5', 'id-6']);
   });
 });

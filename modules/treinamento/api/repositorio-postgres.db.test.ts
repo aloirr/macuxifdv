@@ -269,6 +269,30 @@ describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A 
       expect(passado).toEqual([]);
     });
 
+    it('RN-TRE-07: o filtro do pull vale antes do limite (mais rascunhos que o limite não escondem as publicadas) e o cursor fica estável', async () => {
+      const relogio = relogioDe('A');
+      for (const n of [810, 820, 830, 840, 850]) {
+        const r = await chamar(api, 'POST', 'bko/trilhas', { ...como('A', PESSOAS.A.bko, relogio), corpo: trilhaDe('A', unica('A', n)) });
+        expect(r.status).toBe(201);
+      }
+      const publicadas: string[] = [];
+      for (const n of [860, 870, 880]) publicadas.push((await criarEPublicar('A', PESSOAS.A.bko, relogio, unica('A', n))).corpo.id);
+      const doBanco = await comTenant(pool, A.tenantId, (c) => relogioDoBanco(c));
+      const ate = doBanco.relativo({ minutos: 1 }).toISOString();
+      const ids: string[] = [];
+      let desde: { updated_at: string; id: string } | null = null;
+      for (let i = 0; i < 20; i++) {
+        const pagina = await provedor('trilha').puxar!(contexto(como('A', PESSOAS.A.aluna, relogio)) as ContextoBase, { desde, ate, limite: 2 });
+        expect(pagina.length).toBeLessThanOrEqual(2);
+        if (pagina.length === 0) break;
+        ids.push(...pagina.map((l) => l.id));
+        const ultima = pagina[pagina.length - 1]!;
+        desde = { updated_at: ultima.updated_at, id: ultima.id };
+      }
+      for (const id of publicadas) expect(ids).toContain(id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
     it('RN-TRE-07: o aluno baixa só trilha publicada do próprio tenant; rascunho não desce; B nunca vê o conteúdo de A', async () => {
       const relogio = relogioDe('A');
       const rascunho = trilhaDe('A', { id: uuid(501, CONF.A.conteudo), modulos: [] });

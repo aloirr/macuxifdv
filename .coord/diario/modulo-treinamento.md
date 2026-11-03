@@ -9,3 +9,4 @@
 2026-11-02 — T-0065 — licao-screen.tsx: setInterval do tempo mínimo marcado com timer-permitido (RN-TRE-04)
 2026-11-02 — T-0065 — licao-screen.tsx: setInterval do tempo mínimo marcado com timer-permitido (RN-TRE-04)
 2026-11-03 — T-0058 — adesão com base_parcial (usuários só com atividade) até o Core oferecer core.usuarios_resumo@1; pedido ao modulo-core; fonte completa já preparada
+2026-11-03 — T-0058 — pull de trilhas filtra antes do limite (paginarFiltrando); aviso base_parcial na adesão do BKO

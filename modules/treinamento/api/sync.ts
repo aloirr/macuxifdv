@@ -8,7 +8,7 @@
  *  - pull `trilha` (conteúdo publicado do público do aluno, RN-TRE-07) e pull do próprio aluno (`progresso`, `tentativa`,
  *    `xp_lancamento`, `medalha_usuario`; escopo `proprio`, RN-CORE-04).
  */
-import { uuidPadrao, type ContextoBase, type DefinicaoEntidadeSync, type ItemPush, type ProvedorSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
+import { uuidPadrao, type PedidoPull, type ContextoBase, type DefinicaoEntidadeSync, type ItemPush, type ProvedorSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import { DEFINICAO_LICAO_CONCLUIDA, DEFINICAO_MEDALHA_CONQUISTADA } from '../contracts/eventos';
 import { conteudoParaDominio } from '../contracts/conteudo';
 import { entidadeMedalhaUsuario, entidadeProgresso, entidadeTentativa, entidadeTrilha, entidadeXpLancamento, type AtividadeEnvio } from '../contracts/sync';
@@ -94,6 +94,31 @@ function provedorDoAluno(fabrica: FabricaRepositorio, entidade: DefinicaoEntidad
   return { entidade, escopo: 'proprio', puxar: (ctx, p) => comRepositorio(fabrica, ctx, (repo) => repo.linhasDoAluno(nome, ctx.usuario.id, p)) };
 }
 
+/**
+ * Pagina por `(updated_at, id)` aplicando o filtro antes do limite: a página nunca volta vazia/curta por causa de
+ * linhas escondidas (RN-TRE-07) e o cursor continua sendo o da última linha devolvida.
+ */
+export async function paginarFiltrando<T extends { id: string; updated_at: string }>(
+  buscar: (p: PedidoPull) => Promise<T[]>,
+  p: PedidoPull,
+  visivel: (t: T) => boolean,
+): Promise<T[]> {
+  const saida: T[] = [];
+  let desde = p.desde;
+  for (;;) {
+    const lote = await buscar({ ...p, desde });
+    for (const t of lote) {
+      if (visivel(t)) {
+        saida.push(t);
+        if (saida.length >= p.limite) return saida;
+      }
+    }
+    if (lote.length < p.limite) return saida;
+    const ultima = lote[lote.length - 1]!;
+    desde = { updated_at: ultima.updated_at, id: ultima.id };
+  }
+}
+
 /** Provedores com a fábrica do repositório (sem fábrica, o módulo não serve sync: o aparelho guarda a fila). */
 export function criarProvedoresSync(fabrica: FabricaRepositorio): ProvedorSync[] {
   return [
@@ -104,10 +129,10 @@ export function criarProvedoresSync(fabrica: FabricaRepositorio): ProvedorSync[]
       puxar: async (ctx, p) => {
         if (!perfilPode('trilha.baixar_offline', ctx.usuario.perfil)) return [];
         return comRepositorio(fabrica, ctx, async (repo) => {
-          const trilhas = await repo.trilhasDesde(p);
           const usuarios = await repo.usuarios();
           const aluno = alunoDaSessao(ctx, usuarios);
-          return trilhas.filter((t) => t.deleted_at !== null || (t.status !== 'rascunho' && usuarioNoPublico(t.publico_alvo, aluno)));
+          // o filtro vale ANTES do limite: varre as páginas do repositório até juntar `limite` trilhas visíveis (ou acabar)
+          return paginarFiltrando((pedido) => repo.trilhasDesde(pedido), p, (t) => t.deleted_at !== null || (t.status !== 'rascunho' && usuarioNoPublico(t.publico_alvo, aluno)));
         });
       },
     },

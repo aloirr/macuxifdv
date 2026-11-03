@@ -98,6 +98,11 @@ function AbaAdesao() {
       {q.isPending && <LoadingBlock label="Calculando a adesão…" />}
       {d && (
         <>
+          {d.base_parcial && (
+            <p className="text-[12px] text-ink-2" data-testid="treinamento.aviso-base-parcial">
+              Adesão calculada só com quem já usou o Treinamento.
+            </p>
+          )}
           <KpiGrid>
             <KpiCard label={`Adesão em ${monthLabel(d.mes)}`} value={pctOuTraco(d.adesao.adesao_pct)} sub="concluíram ao menos uma lição no mês" />
             <KpiCard label="Público" value={d.adesao.publico} sub="pessoas ativas no público das trilhas" />
