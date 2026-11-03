@@ -19,6 +19,12 @@ function canonicoDoItem(i: ItemResposta): unknown {
   }
 }
 
+/** Mesma hora, mesma grafia: o banco devolve milissegundos (`.000Z`) e o aparelho pode ter enviado sem eles. */
+function instanteCanonico(iso: string): string {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? iso : new Date(ms).toISOString();
+}
+
 function ordenarChaves(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(ordenarChaves);
   if (v && typeof v === 'object') {
@@ -41,7 +47,7 @@ export function impressaoDaResposta(r: ConteudoComparavel): string {
       versao_id: r.versao_id,
       cliente_id: r.cliente_id ?? null,
       visita_id: r.visita_id ?? null,
-      respondida_em: r.respondida_em,
+      respondida_em: instanteCanonico(r.respondida_em),
       itens,
     }),
   );
