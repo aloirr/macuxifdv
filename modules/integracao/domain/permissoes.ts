@@ -15,6 +15,8 @@ export const PERFIS_ACAO_INTEGRACAO = {
   'mapeamento.editar': ['admin', 'analista'],
   'conector.gerenciar': ['admin'],
   'inativacao.decidir': ['admin', 'analista'],
+  // RF-INT-03: carga por arquivo (CSV) enviada pelo BKO; passa pelo mesmo pipeline dos lotes do Hub
+  'carga.arquivo': ['admin', 'analista'],
 } as const satisfies Record<string, readonly Perfil[]>;
 
 export type AcaoIntegracao = keyof typeof PERFIS_ACAO_INTEGRACAO;
@@ -27,6 +29,7 @@ const MENSAGENS: Record<AcaoIntegracao, string> = {
   'mapeamento.editar': 'Só administrador ou analista edita o mapeamento de códigos. Peça a um deles em Integração ERP > Mapeamento.',
   'conector.gerenciar': 'Só o administrador gerencia Conectores e chaves de API. Peça ao administrador do Macuxi em Integração ERP > Conectores.',
   'inativacao.decidir': 'Só administrador ou analista confirma ou recusa a inativação em massa. Peça a um deles em Integração ERP > Inativações.',
+  'carga.arquivo': 'Só administrador ou analista envia carga por arquivo. Peça a um deles em Integração ERP > Carga por arquivo.',
 };
 
 /** P-3: confere o perfil para a ação do BKO. A API chama antes de executar (além da checagem da rota pelo manifesto). */
