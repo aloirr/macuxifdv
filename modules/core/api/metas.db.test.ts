@@ -7,7 +7,7 @@ import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { ConsultaIndisponivel, ErroNaoEncontrado, ErroRegraNegocio, type AcessoBanco, type ClienteBanco, type ContextoBase, type LinhaSync, type PedidoPull, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { painelLocal } from '../app/lib/metas-local';
 import { IndicadorDiarioSyncSchema, MetaSyncSchema } from '../contracts';
 import { dataLocal } from '../domain';
@@ -92,6 +92,10 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
       await c.query("insert into core.indicador_diario (id, tenant_id, usuario_id, data, pedidos, vendido_cents, cancelado_cents) values ($1, $2, $3, $4, 2, 50000, 10000)", [id(4), A.tenantId, U.vendedor1, DIA2]);
     });
   });
+  // cada teste parte do período sem metas (independe da ordem); o de cópia limpa também o mês de origem
+  beforeEach(async () => {
+    await comTenant(pool, A.tenantId, (c) => c.query('delete from core.meta where periodo = $1', [PERIODO]));
+  });
   afterAll(async () => {
     if (pool) await limpar();
     await pool?.end();
@@ -109,6 +113,7 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
   });
 
   it('PUT publica core.meta.definida@1 só quando o valor muda e audita; cobertura acima de 100% é recusada (RN-CORE-20)', async () => {
+    await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 4 } });
     const antes = eventos.filter((e) => e.nome === 'core.meta.definida@1').length;
     await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 4 } });
     expect(eventos.filter((e) => e.nome === 'core.meta.definida@1')).toHaveLength(antes);
@@ -151,11 +156,14 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     }
   });
 
-  it('escopo de equipe (RN-CORE-04): vendedor vê só a si; supervisor não enxerga nem define meta de outra equipe', async () => {
+  it('escopo de equipe (RN-CORE-04): vendedor vê só a si; supervisor não enxerga a equipe de outro e, a edição fora da equipe é 403', async () => {
     const meus = await chamar('GET', 'indicadores', vendedor1, { query: { periodo: PERIODO } });
     expect(meus.itens.map((i: { usuario_id: string }) => i.usuario_id)).toEqual([U.vendedor1]);
     await expect(chamar('GET', 'indicadores', supervisor, { query: { periodo: PERIODO, usuario_id: U.vendedor2 } })).rejects.toBeInstanceOf(ErroNaoEncontrado);
-    await expect(chamar('PUT', 'metas/:usuarioId/:periodo', supervisor, { params: { usuarioId: U.vendedor2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 3 } })).rejects.toBeInstanceOf(ErroNaoEncontrado);
+    // T-0068: a guarda de edição (RN-CORE-20) responde 403 META_FORA_DA_EQUIPE para usuário do mesmo tenant fora da equipe; 404 fica para inexistente/outro tenant (RLS)
+    const fora = await chamar('PUT', 'metas/:usuarioId/:periodo', supervisor, { params: { usuarioId: U.vendedor2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 3 } }).catch((x: unknown) => x);
+    expect((fora as { status?: number }).status).toBe(403);
+    expect((fora as { codigo?: string }).codigo).toBe('META_FORA_DA_EQUIPE');
     const lista = await chamar('GET', 'metas', vendedor1, { query: { periodo: PERIODO } });
     expect(lista.itens.every((m: { usuario_id: string }) => m.usuario_id === U.vendedor1)).toBe(true);
   });
@@ -171,11 +179,13 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     const diariosB = await puxar('indicador_diario', gerenteB);
     for (const l of metasB) expect(Object.values(A.usuarios)).not.toContain((l as unknown as { usuario_id: string }).usuario_id);
     for (const l of diariosB) expect(Object.values(A.usuarios)).not.toContain((l as unknown as { usuario_id: string }).usuario_id);
+    await chamar('PUT', 'metas/:usuarioId/:periodo', usuario(U.gerente, 'gerente'), { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 5 } });
     const valorA = await comTenant(pool, A.tenantId, async (c) => (await c.query("select valor from core.meta where usuario_id = $1 and periodo = $2 and indicador = 'visitas'", [U.vendedor1, PERIODO])).rows[0].valor);
     expect(Number(valorA)).toBe(5);
   });
 
   it('sync: meta e indicador_diario saem com o schema do contrato e só dos usuários visíveis', async () => {
+    await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 6 } });
     const metas = await puxar('meta', vendedor1);
     const diarios = await puxar('indicador_diario', vendedor1);
     for (const l of metas) MetaSyncSchema.parse(l);
@@ -203,5 +213,110 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     );
     expect(api.itens[0].indicadores).toEqual(JSON.parse(JSON.stringify(app.indicadores)));
     expect(api.itens[0].metas).toEqual(app.metas);
+  });
+
+  describe('T-0068: BKO de metas (painel, guarda de edição, lote por equipe)', () => {
+    const analista = usuario(U.analista, 'analista');
+    const PUT = 'metas/:usuarioId/:periodo';
+    const LOTE = 'metas/equipe/:equipeId/:periodo';
+    const alvo = (uid: string) => ({ usuarioId: uid, periodo: PERIODO });
+    const definidas = () => eventos.filter((e) => e.nome === 'core.meta.definida@1');
+    const statusDe = (e: unknown) => (e as { status?: number }).status;
+
+    it('RN-CORE-20: supervisor edita a própria equipe (equipe 1)', async () => {
+      const r = await chamar('PUT', PUT, supervisor, { params: alvo(U.vendedor1), corpo: { indicador: 'positivacao', valor: 7 } });
+      expect(r).toMatchObject({ usuario_id: U.vendedor1, indicador: 'positivacao', valor: 7 });
+    });
+
+    it('RN-CORE-20: supervisor fora da equipe recebe 403 META_FORA_DA_EQUIPE e nada é gravado', async () => {
+      const antes = definidas().length;
+      const e = await chamar('PUT', PUT, supervisor, { params: alvo(U.vendedor2), corpo: { indicador: 'positivacao', valor: 7 } }).catch((x: unknown) => x);
+      expect(statusDe(e)).toBe(403);
+      expect((e as { codigo?: string }).codigo).toBe('META_FORA_DA_EQUIPE');
+      expect(definidas()).toHaveLength(antes);
+    });
+
+    it('RN-CORE-04/RN-CORE-20: analista edita o usuário de qualquer equipe do tenant (doc 03), 200', async () => {
+      for (const uid of [U.vendedor1, U.vendedor2]) {
+        const r = await chamar('PUT', PUT, analista, { params: alvo(uid), corpo: { indicador: 'visitas', valor: 9 } });
+        expect(r).toMatchObject({ usuario_id: uid, indicador: 'visitas', valor: 9 });
+      }
+    });
+
+    it('RN-CORE-20: assistente só lê, o PUT é 403 META_SEM_PERMISSAO', async () => {
+      const e = await chamar('PUT', PUT, usuario(U.analista, 'assistente'), { params: alvo(U.vendedor1), corpo: { indicador: 'visitas', valor: 9 } }).catch((x: unknown) => x);
+      expect(statusDe(e)).toBe(403);
+      expect((e as { codigo?: string }).codigo).toBe('META_SEM_PERMISSAO');
+    });
+
+    it('RN-CORE-20: PUT em lote da equipe 2 pelo gerente grava uma linha por vendedor/promotor ativo, um evento por usuário e uma auditoria', async () => {
+      const antes = definidas().length;
+      const r = await chamar('PUT', LOTE, gerente, { params: { equipeId: A.equipes.equipe2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 20 } });
+      expect(r.usuarios).toContain(U.vendedor2);
+      expect(r.alterados).toBe(r.usuarios.length);
+      expect(definidas()).toHaveLength(antes + r.usuarios.length);
+      const n = await comTenant(pool, A.tenantId, async (c) => Number((await c.query("select count(*) as n from plataforma.auditoria where acao = 'meta.editar_equipe' and entidade_id = $1", [A.equipes.equipe2])).rows[0].n));
+      expect(n).toBeGreaterThanOrEqual(1);
+      const gravada = await comTenant(pool, A.tenantId, async (c) => (await c.query("select valor::float8 as valor from core.meta where usuario_id = $1 and periodo = $2 and indicador = 'visitas'", [U.vendedor2, PERIODO])).rows[0]);
+      expect(gravada.valor).toBe(20);
+    });
+
+    it('RN-CORE-20: lote do supervisor na equipe de outro é 403; lote do assistente é 403', async () => {
+      const e1 = await chamar('PUT', LOTE, supervisor, { params: { equipeId: A.equipes.equipe2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1 } }).catch((x: unknown) => x);
+      expect(statusDe(e1)).toBe(403);
+      const e2 = await chamar('PUT', LOTE, usuario(U.analista, 'assistente'), { params: { equipeId: A.equipes.equipe1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1 } }).catch((x: unknown) => x);
+      expect(statusDe(e2)).toBe(403);
+    });
+
+    it('RN-CORE-20/21: lote valida cobertura acima de 100% e faturamento fora da venda', async () => {
+      await expect(chamar('PUT', LOTE, gerente, { params: { equipeId: A.equipes.equipe1, periodo: PERIODO }, corpo: { indicador: 'cobertura_pct', valor: 10001 } })).rejects.toBeInstanceOf(ErroRegraNegocio);
+      await expect(chamar('PUT', LOTE, gerente, { params: { equipeId: A.equipes.equipe1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1, tipo: 'faturamento' } })).rejects.toBeInstanceOf(ErroRegraNegocio);
+    });
+
+    it('RN-CORE-21: o painel traz 4 indicadores por vendedor com meta, tipo, realizado e atingimento da mesma apuração de /indicadores, e editavel por perfil', async () => {
+      await chamar('PUT', PUT, gerente, { params: alvo(U.vendedor1), corpo: { indicador: 'venda_cents', valor: 100000, tipo: 'pedido' } });
+      const painel = await chamar('GET', 'metas/painel', gerente, { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
+      const ind = await chamar('GET', 'indicadores', gerente, { query: { periodo: PERIODO, usuario_id: U.vendedor1 } });
+      const linhas = painel.linhas.filter((l: { usuario_id: string }) => l.usuario_id === U.vendedor1);
+      expect(linhas.map((l: { indicador: string }) => l.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
+      expect(linhas.every((l: { equipe_id: string }) => l.equipe_id === A.equipes.equipe1)).toBe(true);
+      const venda = linhas.find((l: { indicador: string }) => l.indicador === 'venda_cents');
+      expect(venda).toMatchObject({ meta: 100000, tipo: 'pedido', realizado: ind.itens[0].indicadores.realizado_cents, editavel: true });
+      expect(venda.atingimento_pct).toBe(ind.itens[0].metas.find((m: { indicador: string }) => m.indicador === 'venda_cents').atingimento_pct);
+      expect(painel.linhas.every((l: { usuario_id: string }) => l.usuario_id !== U.vendedor2)).toBe(true);
+      const doAnalista = await chamar('GET', 'metas/painel', analista, { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
+      expect(doAnalista.linhas.length).toBeGreaterThan(0);
+      expect(doAnalista.linhas.every((l: { editavel: boolean }) => l.editavel)).toBe(true);
+      const doAssistente = await chamar('GET', 'metas/painel', usuario(U.analista, 'assistente'), { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
+      expect(doAssistente.linhas.every((l: { editavel: boolean }) => !l.editavel)).toBe(true);
+      const doSup = await chamar('GET', 'metas/painel', supervisor, { query: { periodo: PERIODO } });
+      expect(doSup.linhas.every((l: { usuario_id: string; editavel: boolean }) => l.usuario_id !== U.vendedor2)).toBe(true);
+    });
+
+    it('RN-CORE-05: vendedor de outro tenant não aparece no painel', async () => {
+      const painel = await chamar('GET', 'metas/painel', gerente, { query: { periodo: PERIODO } });
+      expect(painel.linhas.every((l: { usuario_id: string }) => l.usuario_id !== vendedorB.id)).toBe(true);
+    });
+
+    it('RN-CORE-20: copiar do mês anterior leva as metas editáveis, não sobrescreve as existentes e audita; supervisor não copia a equipe de outro', async () => {
+      const anterior = new Date(Date.UTC(Number(PERIODO.slice(0, 4)), Number(PERIODO.slice(5)) - 2, 1)).toISOString().slice(0, 7);
+      await comTenant(pool, A.tenantId, (c) => c.query('delete from core.meta where periodo = $1', [anterior]));
+      try {
+        await chamar('PUT', PUT, gerente, { params: { usuarioId: U.vendedor1, periodo: anterior }, corpo: { indicador: 'visitas', valor: 33 } });
+        await chamar('PUT', PUT, gerente, { params: { usuarioId: U.vendedor1, periodo: anterior }, corpo: { indicador: 'positivacao', valor: 8 } });
+        await chamar('PUT', PUT, gerente, { params: alvo(U.vendedor1), corpo: { indicador: 'visitas', valor: 44 } });
+        const r = await chamar('POST', 'metas/copiar', supervisor, { corpo: { de: anterior, para: PERIODO, equipe_id: A.equipes.equipe1 } });
+        expect(r.copiadas).toBe(1);
+        expect(r.ignoradas).toBe(1);
+        const atual = await comTenant(pool, A.tenantId, async (c) => (await c.query("select indicador, valor::float8 as valor from core.meta where usuario_id = $1 and periodo = $2 and indicador in ('visitas', 'positivacao') order by indicador", [U.vendedor1, PERIODO])).rows);
+        expect(atual).toEqual([{ indicador: 'positivacao', valor: 8 }, { indicador: 'visitas', valor: 44 }]);
+        const fora = await chamar('POST', 'metas/copiar', supervisor, { corpo: { de: anterior, para: PERIODO, equipe_id: A.equipes.equipe2 } });
+        expect(fora.copiadas).toBe(0);
+        const e = await chamar('POST', 'metas/copiar', usuario(U.analista, 'assistente'), { corpo: { de: anterior, para: PERIODO } });
+        expect(e.copiadas).toBe(0);
+      } finally {
+        await comTenant(pool, A.tenantId, (c) => c.query('delete from core.meta where periodo = $1', [anterior]));
+      }
+    });
   });
 });

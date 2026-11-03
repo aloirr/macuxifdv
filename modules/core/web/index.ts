@@ -12,13 +12,13 @@ import { VisitasPage } from './components/visitas/visitas-page';
 import { AparelhosPage } from './components/aparelhos/aparelhos-page';
 import { LicencasPage } from './components/licencas/licencas-page';
 import { UsuariosPage } from './components/usuarios/usuarios-page';
+import { MetasPage } from './components/metas/metas-page';
 import { IndicadoresPage } from './components/indicadores/indicadores-page';
 import { RecadosPage } from './components/recados/recados-page';
 import { RoutesPage } from './components/routes/routes-page';
 
 /** A página de rotas lê filtros da URL (`useSearchParams`), que no Next exige Suspense. */
 const FarolEmBreve: ComponentType = () => createElement(EmBrevePage, { titulo: 'Farol de clientes', alternativa: 'Hoje, consulte a Carteira e o Cliente 360.' });
-const MetasEmBreve: ComponentType = () => createElement(EmBrevePage, { titulo: 'Metas e RV', alternativa: 'Hoje, acompanhe as metas na tela Indicadores.' });
 const PlanoRvEmBreve: ComponentType = () => createElement(EmBrevePage, { titulo: 'Parâmetros do plano de RV', alternativa: 'Os parâmetros em vigor seguem valendo.' });
 const RotasPagina: ComponentType = () => createElement(Suspense, null, createElement(RoutesPage));
 
@@ -41,7 +41,7 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'coordenadas-sugeridas', caminho: 'coordenadas-sugeridas', titulo: 'Coordenadas sugeridas', navegacao: 'Coordenadas sugeridas', grupo: 'cadastros', ordem: 6, acao: 'cliente.aprovar_coordenada', componente: CoordenadasPage },
     { id: 'motivos', caminho: 'motivos', titulo: 'Motivos de não venda', navegacao: 'Motivos', grupo: 'cadastros', ordem: 7, acao: 'motivo.editar', componente: MotivosPage },
     { id: 'produtos', caminho: 'produtos', titulo: 'Preço e custo dos produtos', navegacao: 'Produtos', grupo: 'cadastros', ordem: 8, acao: 'produto.editar_preco', componente: ProdutosPage },
-    { id: 'metas', caminho: 'metas', titulo: 'Metas e RV', navegacao: 'Metas', grupo: 'analise', ordem: 10, componente: MetasEmBreve },
+    { id: 'metas', caminho: 'metas', titulo: 'Metas e RV', navegacao: 'Metas', grupo: 'analise', ordem: 10, componente: MetasPage },
     { id: 'indicadores', caminho: 'indicadores', titulo: 'Indicadores', navegacao: 'Indicadores', grupo: 'analise', ordem: 20, componente: IndicadoresPage },
     { id: 'plano-rv', caminho: 'plano-rv', titulo: 'Parâmetros do plano de RV', navegacao: 'Plano de RV', grupo: 'cadastros', ordem: 10, componente: PlanoRvEmBreve },
     {
