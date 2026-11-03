@@ -117,7 +117,7 @@ Página `trade-cadastros` ("Cadastros de trade", grupo Cadastros) em `modules/pr
 | `GET` (lista e `parametros`) | supervisor, gerente, analista, admin | lista os vivos; `?incluir_removidos=true` traz também os desativados |
 | `POST` | analista, admin (ação `*.gerenciar` do manifesto) | cria; idempotente pelo `id` do cliente (repetir = mesmo cadastro; mesmo id com outro conteúdo = 409) |
 | `PUT /:id` | analista, admin | edita; reenvio igual não altera nem audita; desativado = 409 |
-| `DELETE /:id` | analista, admin | **desativa** (lógico: `deleted_at`, e `ativo = false` onde existe); nunca apaga; repetir é idempotente |
+| `DELETE /:id` | analista, admin | **desativa** (lógico: `deleted_at`, e `ativo = false` onde existe); nunca apaga; repetir é idempotente; **422 `CADASTRO_EM_USO`** se ainda há dependentes vivos (RN-PRO-12) |
 Supervisor e gerente recebem 403 na escrita (a ação não os inclui) e a tela esconde Novo/Editar/Desativar para eles. Toda rota passa por login, licença do módulo (`RN-CORE-02`), perfil e tenant do token (RLS). Ações: categoria `categoria_gondola.gerenciar`, checklist `checklist_modelo.gerenciar`, meta `meta_share.gerenciar`, mix `mix_obrigatorio.gerenciar`, concorrente e produto do concorrente `concorrente.gerenciar`.
 
 **Validação (domain `cadastros.ts`, revalidada na API pelo contrato `contracts/cadastros-bko.ts`):**
@@ -126,6 +126,9 @@ Supervisor e gerente recebem 403 na escrita (a ação não os inclui) e a tela e
 - **Alvo (RN-PRO-10)**: loja OU segmento (canal) OU todas as lojas, nunca loja e segmento juntos; **vigência** com fim ≥ início. Duplicidade (mesmo nome entre vivos; mesma versão de alvo+início) = 409 com mensagem em português.
 - Nome obrigatório (categoria/concorrente até 120, produto do concorrente até 200); ordem inteira ≥ 0; `validarPrecoCents` (inteiro ≥ 0, RN-PRO-04) existe no domain para o preço de referência do concorrente, ainda sem coluna (ver pendências).
 - Referências: categoria e concorrente precisam existir e estar vivos; loja e produto são conferidos no Core pela consulta `core.cadastro_resumo@1` (ADR 0012, nenhuma leitura de tabela do Core).
+
+- **Cadastro em uso não se desativa (RN-PRO-12, regra do módulo)**: `validarDesativacao` (domain `cadastros.ts`) recusa desativar **categoria** com meta de share, item de mix ou produto de concorrente vivos (`deleted_at` nulo) e **concorrente** com produto de concorrente vivo: 422 `CADASTRO_EM_USO`, `detalhes` com as contagens e mensagem do tipo "Desative antes as 3 metas de share desta categoria." (contagem por `usosDoCadastro`, SQL com `tenant_id` explícito). Meta, mix, produto de concorrente e checklist são folhas. Assim o BKO não cria órfão vivo e a lápide não chega ao aparelho sem os dependentes. A tela mostra a mensagem do 422 no aviso vermelho.
+- **Dois jeitos de "desligar"**: a ação **Desativar** da tela usa o **DELETE** (`deleted_at` + `ativo=false`), que vira lápide no pull. `ativo=false` via **PUT** (só categoria, concorrente e produto de concorrente) mantém a linha viva no pull. No app hoje (`app/state/use-loja.ts`), a lista da loja descarta as linhas com `deleted_at` e, nas categorias, também as com `ativo=false`. Concorrente e produto de concorrente ainda não têm tela no app que leia `ativo`.
 
 **Auditoria (RN-AUD-01)**: `tx.auditar` na mesma transação, ações `<cadastro>.criar|editar|desativar` (ex.: `meta_share.editar`), com `antes`/`depois` só de ids, números, flags e datas (metas: categoria e `meta_pct`; checklist: nº de etapas e de obrigatórias). Nunca o nome da categoria, do concorrente, do produto nem o texto das etapas.
 

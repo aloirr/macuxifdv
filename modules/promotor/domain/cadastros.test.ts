@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validarAlvo, validarCategoria, validarChecklist, validarConcorrente, validarMetaShare, validarPrecoCents, validarProdutoConcorrente, validarVigencia } from './cadastros';
+import { validarDesativacao, validarAlvo, validarCategoria, validarChecklist, validarConcorrente, validarMetaShare, validarPrecoCents, validarProdutoConcorrente, validarVigencia } from './cadastros';
 
 const ID1 = '00000000-0000-4000-8000-000000000001';
 const ID2 = '00000000-0000-4000-8000-000000000002';
@@ -64,5 +64,30 @@ describe('alvo e vigência (RN-PRO-10)', () => {
     expect(validarVigencia('2026-11-01', null)).toEqual([]);
     expect(validarVigencia('2026-11-01', '2026-11-01')).toEqual([]);
     expect(validarVigencia('2026-11-02', '2026-11-01')[0]).toMatch(/anterior/i);
+  });
+});
+
+describe('validarDesativacao (RN-PRO-12: cadastro em uso não se desativa)', () => {
+  const zero = { metas_share: 0, mix_obrigatorio: 0, produtos_concorrente: 0 };
+  it('RN-PRO-12: sem dependentes vivos, libera', () => {
+    for (const t of ['categoria_gondola', 'concorrente', 'meta_share', 'mix_obrigatorio', 'produto_concorrente', 'checklist_loja'] as const) expect(validarDesativacao(t, zero), t).toEqual({ ok: true });
+  });
+  it('RN-PRO-12: categoria com metas, mix e produtos vivos recusa com as contagens e mensagem em português', () => {
+    const r = validarDesativacao('categoria_gondola', { metas_share: 3, mix_obrigatorio: 1, produtos_concorrente: 2 });
+    expect(r).toMatchObject({ ok: false, codigo: 'CADASTRO_EM_USO', usos: { metas_share: 3, mix_obrigatorio: 1, produtos_concorrente: 2 } });
+    if (!r.ok) {
+      expect(r.mensagem).toContain('Desative antes');
+      expect(r.mensagem).toContain('as 3 metas de share');
+      expect(r.mensagem).toContain('o 1 item do mix');
+      expect(r.mensagem).toContain('os 2 produtos de concorrentes');
+    }
+  });
+  it('RN-PRO-12: concorrente só olha os produtos do concorrente; singular com 1', () => {
+    const r = validarDesativacao('concorrente', { metas_share: 9, mix_obrigatorio: 9, produtos_concorrente: 1 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.mensagem).toBe('Desative antes o 1 produto de concorrente deste concorrente.');
+  });
+  it('RN-PRO-12: meta, mix, produto do concorrente e checklist são folhas e sempre liberam', () => {
+    expect(validarDesativacao('meta_share', { metas_share: 5, mix_obrigatorio: 5, produtos_concorrente: 5 })).toEqual({ ok: true });
   });
 });

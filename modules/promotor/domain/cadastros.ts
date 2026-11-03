@@ -74,3 +74,36 @@ export function validarVigencia(inicio: string, fim: string | null): Problemas {
   if (fim !== null && fim < inicio) return ['O fim da vigência não pode ser anterior ao início.'];
   return [];
 }
+
+/** Dependentes vivos (`deleted_at` nulo) de um cadastro, contados no mesmo tenant. */
+export interface UsosCadastro {
+  metas_share: number;
+  mix_obrigatorio: number;
+  produtos_concorrente: number;
+}
+
+export type ResultadoDesativacao = { ok: true } | { ok: false; codigo: 'CADASTRO_EM_USO'; mensagem: string; usos: UsosCadastro };
+
+const plural = (n: number, art: 'a' | 'o', um: string, varios: string) => (n === 1 ? `${art} 1 ${um}` : `${art}s ${n} ${varios}`);
+
+/**
+ * RN-PRO-12 (regra do módulo, regras.md §16): cadastro em uso não se desativa. Categoria de gôndola com meta de share,
+ * mix obrigatório ou produto de concorrente vivos, e concorrente com produto de concorrente vivo, só desativam depois
+ * que os dependentes forem desativados (senão sobrariam órfãos vivos e a lápide iria ao aparelho sem eles).
+ */
+export function validarDesativacao(tipo: string, usos: UsosCadastro): ResultadoDesativacao {
+  const partes: string[] = [];
+  let alvo = '';
+  if (tipo === 'categoria_gondola') {
+    if (usos.metas_share > 0) partes.push(plural(usos.metas_share, 'a', 'meta de share', 'metas de share'));
+    if (usos.mix_obrigatorio > 0) partes.push(plural(usos.mix_obrigatorio, 'o', 'item do mix', 'itens do mix'));
+    if (usos.produtos_concorrente > 0) partes.push(plural(usos.produtos_concorrente, 'o', 'produto de concorrente', 'produtos de concorrentes'));
+    alvo = 'desta categoria';
+  } else if (tipo === 'concorrente') {
+    if (usos.produtos_concorrente > 0) partes.push(plural(usos.produtos_concorrente, 'o', 'produto de concorrente', 'produtos de concorrente'));
+    alvo = 'deste concorrente';
+  }
+  if (partes.length === 0) return { ok: true };
+  const lista = partes.length === 1 ? partes[0]! : `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}`;
+  return { ok: false, codigo: 'CADASTRO_EM_USO', mensagem: `Desative antes ${lista} ${alvo}.`, usos };
+}

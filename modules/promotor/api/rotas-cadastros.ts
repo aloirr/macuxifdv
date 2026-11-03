@@ -21,7 +21,7 @@ import {
   type CadastroBko,
   type ParametrosTradeApi,
 } from '../contracts';
-import { mesmoConteudo } from '../domain';
+import { mesmoConteudo, validarDesativacao } from '../domain';
 import { parametrosDoTenant } from './parametros';
 import type { LinhaCadastro, RepositorioPromotor, SessaoTenant } from './repositorio';
 
@@ -161,6 +161,9 @@ export function criarRotasCadastros(repo: RepositorioPromotor): RotaModulo[] {
           const atual = await repo.cadastro(s, c, id);
           if (!atual) throw naoEncontrado();
           if (atual.deleted_at) return atual; // já desativado: idempotente
+          // RN-PRO-12: categoria/concorrente com dependentes vivos não se desativa (evita órfãos no aparelho)
+          const veredito = validarDesativacao(c, await repo.usosDoCadastro(s, c, id));
+          if (!veredito.ok) throw new ErroHttpModulo(422, veredito.codigo, veredito.mensagem, { ...veredito.usos });
           const gravada: LinhaCadastro = await repo.desativarCadastro(s, c, id, ctx.agora().toISOString());
           await tx.auditar({ acao: `${c}.desativar`, entidade: c, entidade_id: id, antes: resumoParaAuditoria(c, atual), depois: { desativado: true } });
           return gravada;

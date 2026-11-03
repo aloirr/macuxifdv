@@ -52,6 +52,16 @@ describe.skipIf(semBanco())('Promotor: cadastros do BKO × pull no Postgres (upd
   }
   const ultima = async (entidade: string, tenant: string) => (await pullDepois(entidade, tenant, null)).at(-1) ?? null;
 
+  it('RN-PRO-12: categoria com meta viva = 422 CADASTRO_EM_USO (contagem no tenant); desativada a meta, a categoria desativa', async () => {
+    const cat = randomUUID();
+    const metaId = randomUUID();
+    await post('categoria_gondola', { id: cat, nome: `Uso ${cat}`, ordem: 1, ativo: true });
+    await post('meta_share', { id: metaId, categoria_gondola_id: cat, meta_pct: 40, cliente_id: null, segmento: null, vigencia_inicio: '2026-11-01', vigencia_fim: null });
+    expect(await erro(del('categoria_gondola', cat))).toMatchObject({ status: 422, codigo: 'CADASTRO_EM_USO', detalhes: { metas_share: 1, mix_obrigatorio: 0, produtos_concorrente: 0 } });
+    await del('meta_share', metaId);
+    expect(await del('categoria_gondola', cat)).toMatchObject({ ativo: false });
+  });
+
   it('categoria e meta de share: criar, editar e desativar aparecem no pull seguinte (updated_at novo; lápide com deleted_at)', async () => {
     const cat = randomUUID();
     const metaId = randomUUID();

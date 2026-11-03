@@ -161,6 +161,21 @@ export function criarRepositorioSql(): RepositorioPromotor {
       return reler(s, c, id);
     },
 
+    async usosDoCadastro(s, c, id) {
+      // nomes de tabela/coluna fixos; só valores por parâmetro; tenant_id explícito (além do RLS)
+      const n = async (tabela: string, coluna: string) =>
+        Number((await s.db.query<{ n: string }>(`select count(*)::int as n from promotor.${tabela} where tenant_id = $1 and ${coluna} = $2 and deleted_at is null`, [s.tenant_id, id])).rows[0]?.n ?? 0);
+      if (c === 'categoria_gondola') {
+        return {
+          metas_share: await n('meta_share', 'categoria_gondola_id'),
+          mix_obrigatorio: await n('mix_obrigatorio', 'categoria_gondola_id'),
+          produtos_concorrente: await n('produto_concorrente', 'categoria_gondola_id'),
+        };
+      }
+      if (c === 'concorrente') return { metas_share: 0, mix_obrigatorio: 0, produtos_concorrente: await n('produto_concorrente', 'concorrente_id') };
+      return { metas_share: 0, mix_obrigatorio: 0, produtos_concorrente: 0 };
+    },
+
     async visita(s: SessaoTenant, id) {
       const r = await s.db.query<LinhaVisita>('select id, promotor_id, payload from promotor.visita_loja where tenant_id = $1 and id = $2 for update', [s.tenant_id, id]);
       return r.rows[0] ? paraVisita(r.rows[0]) : null;

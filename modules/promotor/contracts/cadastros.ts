@@ -28,7 +28,7 @@ const Vigencia = {
   vigencia_fim: IsoDate.nullable(),
 };
 
-export const CategoriaGondolaSync = z.object({ ...Base, nome: z.string().min(1).max(120), ordem: z.number().int(), ativo: z.boolean() }).strict();
+export const CategoriaGondolaSync = z.object({ ...Base, nome: z.string().trim().min(1).max(120), ordem: z.number().int(), ativo: z.boolean() }).strict();
 export type CategoriaGondolaSync = z.infer<typeof CategoriaGondolaSync>;
 
 /** O que a etapa do checklist pede ao promotor (a tela abre a coleta correspondente). */
@@ -49,7 +49,7 @@ export const ChecklistItem = z
 export type ChecklistItem = z.infer<typeof ChecklistItem>;
 
 /** `checklist_loja`: modelo de checklist com os itens embutidos (uma linha por versão; RN-PRO-10). */
-export const ChecklistLojaSync = z.object({ ...Base, ...Alvo, ...Vigencia, nome: z.string().min(1).max(120), itens: z.array(ChecklistItem) }).strict();
+export const ChecklistLojaSync = z.object({ ...Base, ...Alvo, ...Vigencia, nome: z.string().trim().min(1).max(120), itens: z.array(ChecklistItem) }).strict();
 export type ChecklistLojaSync = z.infer<typeof ChecklistLojaSync>;
 
 /** `mix_obrigatorio`: um produto (cadastro base do Core) que precisa estar na gôndola das lojas do alvo. */
@@ -60,12 +60,12 @@ export type MixObrigatorioSync = z.infer<typeof MixObrigatorioSync>;
 export const MetaShareSync = z.object({ ...Base, ...Alvo, ...Vigencia, categoria_gondola_id: Uuid, meta_pct: PctNumero.min(0).max(100) }).strict();
 export type MetaShareSync = z.infer<typeof MetaShareSync>;
 
-export const ConcorrenteSync = z.object({ ...Base, nome: z.string().min(1).max(120), ativo: z.boolean() }).strict();
+export const ConcorrenteSync = z.object({ ...Base, nome: z.string().trim().min(1).max(120), ativo: z.boolean() }).strict();
 export type ConcorrenteSync = z.infer<typeof ConcorrenteSync>;
 
 /** Produto do concorrente comparado a um produto nosso (`produto_id`, índice de preço RN-PRO-04). */
 export const ProdutoConcorrenteSync = z
-  .object({ ...Base, concorrente_id: Uuid, nome: z.string().min(1).max(200), produto_id: ProdutoId.nullable(), categoria_gondola_id: Uuid.nullable(), ativo: z.boolean() })
+  .object({ ...Base, concorrente_id: Uuid, nome: z.string().trim().min(1).max(200), produto_id: ProdutoId.nullable(), categoria_gondola_id: Uuid.nullable(), ativo: z.boolean() })
   .strict();
 export type ProdutoConcorrenteSync = z.infer<typeof ProdutoConcorrenteSync>;
 

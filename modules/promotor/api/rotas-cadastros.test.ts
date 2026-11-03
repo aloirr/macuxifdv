@@ -198,6 +198,7 @@ describe('criar, listar, editar e desativar', () => {
     expect(await erro(post('meta_share', meta(uuid(0x920), 40)))).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
     await post('categoria_gondola', categoria());
     expect(await post('meta_share', meta(uuid(0x920), 40))).toMatchObject({ meta_pct: 40, categoria_gondola_id: CAT });
+    await del('meta_share', uuid(0x920)); // RN-PRO-12: a categoria só desativa depois dos dependentes
     await del('categoria_gondola', CAT);
     expect(await erro(post('meta_share', meta(uuid(0x921), 35)))).toMatchObject({ status: 422, codigo: 'REFERENCIA_INVALIDA' });
   });
@@ -227,6 +228,50 @@ describe('criar, listar, editar e desativar', () => {
     expect(await lista('categoria_gondola', true, outro)).toEqual([]);
     expect(await erro(del('categoria_gondola', CAT, outro))).toMatchObject({ status: 404 });
     expect(await lista('categoria_gondola')).toHaveLength(1);
+  });
+});
+
+describe('desativar cadastro em uso (RN-PRO-12)', () => {
+  const mixDe = (id: string) => ({ id, produto_id: PRODUTO, categoria_gondola_id: CAT, ...alvoTodas });
+  const prod = (id: string, extra = {}) => ({ id, concorrente_id: CONC, nome: 'Macarrão 500 g', produto_id: PRODUTO, categoria_gondola_id: CAT, ativo: true, ...extra });
+
+  it('RN-PRO-12: categoria com meta, mix e produto de concorrente vivos = 422 CADASTRO_EM_USO com as contagens; nada é desativado nem auditado', async () => {
+    const c = analista();
+    await post('categoria_gondola', categoria(), c);
+    await post('concorrente', { id: CONC, nome: 'Rival', ativo: true });
+    await post('meta_share', meta(uuid(0x920), 40));
+    await post('meta_share', meta(uuid(0x921), 50, { vigencia_inicio: '2026-12-01' }));
+    await post('mix_obrigatorio', mixDe(uuid(0x930)));
+    await post('produto_concorrente', prod(uuid(0x940)));
+    const e = await erro(del('categoria_gondola', CAT, c));
+    expect(e).toMatchObject({ status: 422, codigo: 'CADASTRO_EM_USO', detalhes: { metas_share: 2, mix_obrigatorio: 1, produtos_concorrente: 1 } });
+    expect(e?.message).toMatch(/^Desative antes as 2 metas de share/);
+    expect(await lista('categoria_gondola')).toHaveLength(1);
+    expect(c.auditorias.map((a) => a.acao)).toEqual(['categoria_gondola.criar']);
+  });
+
+  it('RN-PRO-12: 200 depois de desativar os dependentes; desativar de novo segue idempotente', async () => {
+    await post('categoria_gondola', categoria());
+    await post('meta_share', meta(uuid(0x920), 40));
+    expect(await erro(del('categoria_gondola', CAT))).toMatchObject({ status: 422, codigo: 'CADASTRO_EM_USO' });
+    await del('meta_share', uuid(0x920));
+    const ok = await del('categoria_gondola', CAT);
+    expect(ok).toMatchObject({ ativo: false });
+    expect(ok.deleted_at).toBeTruthy();
+    expect(await del('categoria_gondola', CAT)).toEqual(ok);
+  });
+
+  it('RN-PRO-12: concorrente com produto vivo = 422; sem produto vivo desativa; dependentes de outro tenant não contam', async () => {
+    await post('categoria_gondola', categoria());
+    await post('concorrente', { id: CONC, nome: 'Rival', ativo: true });
+    await post('produto_concorrente', prod(uuid(0x940)));
+    expect(await erro(del('concorrente', CONC))).toMatchObject({ status: 422, codigo: 'CADASTRO_EM_USO', detalhes: { produtos_concorrente: 1 } });
+    await del('produto_concorrente', uuid(0x940));
+    await expect(del('concorrente', CONC)).resolves.toMatchObject({ ativo: false });
+    const outro = analista({ tenant: T2 });
+    await post('categoria_gondola', categoria(CAT2), outro);
+    await post('meta_share', meta(uuid(0x950), 40, { categoria_gondola_id: CAT2 }), outro);
+    await expect(del('categoria_gondola', CAT)).resolves.toMatchObject({ ativo: false });
   });
 });
 

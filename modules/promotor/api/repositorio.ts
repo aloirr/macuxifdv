@@ -7,7 +7,7 @@
  */
 import { ErroHttpModulo, type ClienteBanco } from '@macuxi/platform-sdk';
 import type { CadastroBko } from '../contracts';
-import type { ColetaDaVisita, VisitaLojaGuardada } from '../domain';
+import type { ColetaDaVisita, UsosCadastro, VisitaLojaGuardada } from '../domain';
 
 export interface SessaoTenant {
   db: ClienteBanco;
@@ -63,6 +63,8 @@ export interface RepositorioPromotor {
   atualizarCadastro(s: SessaoTenant, cadastro: CadastroBko, id: string, dados: Readonly<Record<string, unknown>>, agora: string): Promise<LinhaCadastro>;
   /** Desativação lógica: `deleted_at` (e `ativo = false` onde existe) + `updated_at`. Nunca apaga a linha. */
   desativarCadastro(s: SessaoTenant, cadastro: CadastroBko, id: string, agora: string): Promise<LinhaCadastro>;
+  /** Dependentes VIVOS (`deleted_at` nulo) da categoria ou do concorrente, no tenant (RN-PRO-12); zeros para os demais cadastros. */
+  usosDoCadastro(s: SessaoTenant, cadastro: CadastroBko, id: string): Promise<UsosCadastro>;
 }
 
 /**
@@ -159,6 +161,14 @@ export function criarRepositorioMemoria(
       const linha: LinhaCadastro = { ...atual, deleted_at: agora, updated_at: agora, ...('ativo' in atual ? { ativo: false } : {}) };
       doCadastro(s.tenant_id, c).set(id, linha);
       return copia(linha);
+    },
+    async usosDoCadastro(s, c, id) {
+      const vivos = (outro: CadastroBko, campo: string) => [...doCadastro(s.tenant_id, outro).values()].filter((l) => !l.deleted_at && l[campo] === id).length;
+      return {
+        metas_share: c === 'categoria_gondola' ? vivos('meta_share', 'categoria_gondola_id') : 0,
+        mix_obrigatorio: c === 'categoria_gondola' ? vivos('mix_obrigatorio', 'categoria_gondola_id') : 0,
+        produtos_concorrente: c === 'categoria_gondola' ? vivos('produto_concorrente', 'categoria_gondola_id') : c === 'concorrente' ? vivos('produto_concorrente', 'concorrente_id') : 0,
+      };
     },
     definirCategoria(tenant_id, id, nome) {
       doTenant(categorias, tenant_id).set(id, nome);
