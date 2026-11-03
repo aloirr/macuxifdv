@@ -42,3 +42,10 @@ Status pelo retorno do ERP, faturado@1, faturado e devolução nas telas: ver `r
 Crédito e título vencido no servidor, estoque, preço mínimo, desconto por item, pedido em nome, edição de pedido aceito, notificação ao vendedor e ao supervisor, edição de alçadas pelo BKO, prazo da aprovação (fila do Gestor).
 
 T-0053: retorno do ERP e orçamento (pré-venda) em `pre-venda-e-erp.md`.
+
+## Leitura de pedidos pelo promotor (O-3, opção `promotor_ve_pedidos`)
+Decisão de 02/11: o promotor lê, só leitura e com escopo de carteira, os pedidos dos clientes da própria carteira; é uma **opção do perfil Promotor** (`promotor_ve_pedidos`), **ligada por padrão**.
+- Ligada: lista (`GET /v1/vendedor/pedidos`), detalhe (`/:id`) e pull de `pedido`, `pedido_item` e `pedido_evento` com escopo de carteira; toda escrita segue 403 (`RN-PRO-01`).
+- Desligada: 403 `RN-PRO-01` na lista e no detalhe (sem consultar o banco) e o pull não entrega pedido, item nem evento.
+- Vendedor, supervisor e demais perfis não mudam.
+- Regra pura: `podeLerPedidos(perfil, opcao)` em `modules/vendedor/domain/leitura-pedido.ts`. Ponto único da leitura da opção: `promotorVePedidos(ctx)` em `modules/vendedor/api/opcao-promotor.ts` (hoje devolve `true`; TODO trocar pela consulta pública do Core quando o modulo-core publicar). Testes injetam a opção com `usarOpcaoPromotorVePedidos`.

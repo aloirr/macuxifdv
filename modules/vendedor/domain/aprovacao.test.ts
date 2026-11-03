@@ -125,6 +125,15 @@ describe('revalidarPedido (servidor)', () => {
       expect(r.historico[1]?.motivo).toBe('Dentro da alçada (5,0%)');
     }
   });
+  it('RN-VEN-10: 40 linhas de R$ 2,50 com 5,4% no pedido vão ao supervisor (sem folga de centavo)', () => {
+    const ids = Array.from({ length: 40 }, (_, i) => `q${i}`);
+    const r = revalidarPedido(entrada({
+      desconto_pct: 5.4,
+      itens: ids.map((id) => ({ product_id: id, sku: id.toUpperCase(), quantity: 1 })),
+      precos: Object.fromEntries(ids.map((id) => [id, 250])),
+    }));
+    expect(r).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'supervisor', aprovacao_automatica: false });
+  });
   it('RN-VEN-10: 8% vai para o supervisor; 12% para o gerente; 20% para o analista (P-1)', () => {
     expect(revalidarPedido(entrada({ desconto_pct: 8 }))).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'supervisor', aprovacao_automatica: false, motivos: ['desconto'] });
     expect(revalidarPedido(entrada({ desconto_pct: 12 }))).toMatchObject({ status: 'pending_approval', nivel: 'gerente' });

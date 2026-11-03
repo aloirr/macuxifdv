@@ -40,7 +40,7 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
-import { idFixo, idMotivoPadrao } from '../../src/ids';
+import { idFixo, idMedida, idMotivoPadrao } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
 import { dadosGestor, ORDEM_GESTOR } from './gestor';
@@ -193,6 +193,9 @@ export const DOIS_TENANTS = {
     checkouts: { v1c1Hoje: a('visita', 101), v1c3Ontem: a('visita', 102), promotorC1Hoje: a('visita', 104) },
     arquivos: { fachadaV1: a('arquivo', 1) },
     pedidos: { p1: a('pedido', 1), p2: a('pedido', 2), p3: a('pedido', 3) },
+    /** 0018 (T-0063): produtos de A (unidade PC; p1 com a unidade de venda CX c/ 10) e a medida própria PC. */
+    produtos: { p1: a('produto', 1), p2: a('produto', 2) },
+    medidas: { pc: idMedida(a('tenant', 1), 'PC') },
     /** T-0029 (0008): tabela de preço de c1 e c2; c3 SEM tabela (todo produto sem preço, RN-CAT-06). */
     tabelasPreco: { padrao: a('tabela_preco', 1) },
     /** T-0029 (0009): À vista (padrão) e 28 dias; c1 com as duas, c2 sem lista (só a padrão). */
@@ -345,6 +348,8 @@ export const ORDEM_TABELAS = [
   'core.equipe',
   'core.usuario',
   'plataforma.usuario_modulo',
+  // 0018 (T-0063): a lista inicial vem do gatilho tenant_semear_medidas; aqui só as siglas próprias de cada tenant
+  'core.medida',
   'core.produto',
   'core.cliente',
   'core.carteira',
@@ -469,6 +474,12 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'plataforma.usuario_modulo': [
       { id: a('usuario_modulo', 1), tenant_id: tA, usuario_id: A.usuarios.vendedor2, modulo: 'teste', efeito: 'remover', motivo: 'fixture: exceção que remove teste (S0-042)', external_id: null },
       { id: b('usuario_modulo', 1), tenant_id: tB, usuario_id: B.usuarios.admin, modulo: 'vendedor', efeito: 'remover', motivo: 'fixture: garante linha em B', external_id: null },
+    ],
+    // 0018: sigla própria de cada tenant (A vende em PC; B tem GF, que A não tem — a FK composta recusa GF em A). Id
+    // determinístico = o da semeadura do banco (idMedida), para a recarga não colidir com medida_sigla_uk.
+    'core.medida': [
+      { id: idMedida(tA, 'PC'), tenant_id: tA, sigla: 'PC', descricao: 'Peça', ativo: true, external_id: null },
+      { id: idMedida(tB, 'GF'), tenant_id: tB, sigla: 'GF', descricao: 'Garrafa', ativo: true, external_id: null },
     ],
     'core.produto': [
       { id: a('produto', 1), tenant_id: tA, sku: 'ALFA-001', ean: '7890000000011', nome: 'Pastilha de freio dianteira', marca: 'Norfreio', categoria: 'Freios', unidade: 'PC', ativo: true, external_id: 'ERP-A-001' },

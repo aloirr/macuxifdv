@@ -17,7 +17,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AbaCliente, AcaoCliente, ContextoCliente } from '../../contracts';
-import { isVisitOpen } from '../../domain';
+import { filtrarExtensoesDePedido, isVisitOpen } from '../../domain';
 import { AcoesContato, CabecalhoCliente, SecoesCliente360 } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
@@ -35,10 +35,14 @@ export function TelaCliente() {
   const core = useCore();
   const insets = useSafeAreaInsets();
   const sheets = useVisitSheets();
-  const abas = useExtensoes<AbaCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.abas');
-  const acoes = useExtensoes<AcaoCliente>('cliente.acoes');
+  const abasTodas = useExtensoes<AbaCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.abas');
+  const acoesTodas = useExtensoes<AcaoCliente>('cliente.acoes');
   const { estado, rota, tz, atendimentoAberto: openVisit, motor, armazem } = core;
   const { dados: locais, hoje } = useClientesLocais();
+  // RN-PRO-01 / RN-CORE-01: promotor com `promotor_ve_pedidos` desligado não vê pedidos (offline, pelo parâmetro sincronizado):
+  // o Core tira do ponto de montagem as abas e ações de extensão que mostram pedido. Os demais perfis não mudam.
+  const abas = filtrarExtensoesDePedido(abasTodas, locais.verPedidos);
+  const acoes = filtrarExtensoesDePedido(acoesTodas, locais.verPedidos);
   // Cliente 360 e resumo do check-in montados só com as linhas do aparelho (offline)
   const ficha = montarFichaLocal(locais, id, hoje);
   const customer = estado.clientes.find((c) => c.id === id) ?? null;
@@ -169,8 +173,8 @@ export function TelaCliente() {
         )}
 
         <View style={styles.grid}>
-          <Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} />
-          <Stat label="Última compra" value={daysAgoLabel(customer.days_since_purchase)} color={customer.days_since_purchase !== null && customer.days_since_purchase >= 45 ? colors.warning : undefined} />
+          {locais.verPedidos ? <Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} /> : null}
+          {locais.verPedidos ? <Stat label="Última compra" value={daysAgoLabel(customer.days_since_purchase)} color={customer.days_since_purchase !== null && customer.days_since_purchase >= 45 ? colors.warning : undefined} /> : null}
           <Stat label="Limite disponível" value={formatBRL0(customer.available_credit_cents)} color={customer.available_credit_cents <= 0 ? colors.danger : undefined} />
           <Stat
             label="Títulos vencidos"

@@ -10,7 +10,7 @@
 import { parseArgs } from 'node:util';
 import pg from 'pg';
 import { criarBancoDeTeste, postgresDisponivel } from '../src/banco-teste';
-import { lerConfig } from '../src/config';
+import { lerConfigTestes } from '../src/config';
 import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 
 const { values } = parseArgs({
@@ -140,9 +140,9 @@ function percentil(ms: number[], p: number): number {
 }
 
 async function main(): Promise<void> {
-  const cfg = lerConfig();
+  const cfg = lerConfigTestes(); // mede no Postgres dos testes (5434): a carga de volume não encosta na demo
   const d = await postgresDisponivel(cfg);
-  if (!d.ok) throw new Error(`Postgres indisponível (${d.motivo}). Rode "pnpm --filter @macuxi/db banco subir".`);
+  if (!d.ok) throw new Error(`Postgres indisponível (${d.motivo}). Rode "pnpm --filter @macuxi/db banco subir-testes".`);
   const t0 = Date.now();
   const banco = await criarBancoDeTeste({ cfg, preparar: async (c) => { await carregarDoisTenants(c); await gerarVolume(c); } });
   const preparo = ((Date.now() - t0) / 1000).toFixed(1);

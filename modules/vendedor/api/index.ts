@@ -11,15 +11,17 @@ import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
 import { consumidoresVendedor } from './retorno-erp';
+import { rotasTransportadoras } from './transportadoras';
 import { provedoresSyncVendedor } from './sync';
 
 export { aplicarRetornoErp, consumidorRetornoErp } from './retorno-erp';
 export { criarPreVendaEmMemoria, preVenda, preVendaIndisponivel, usarPreVenda, type DocumentoPreVenda, type RepositorioPreVenda } from './pre-venda';
+export { rotasTransportadoras } from './transportadoras';
 export { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido };
 
 export const apiVendedor: ModuloApi = definirModuloApi({
   manifesto: manifest,
-  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido],
+  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido, ...rotasTransportadoras],
   sync: provedoresSyncVendedor,
   consumidores: consumidoresVendedor,
 });

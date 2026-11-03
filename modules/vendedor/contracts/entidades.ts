@@ -4,6 +4,7 @@
  */
 import { definirEntidadeSync } from '@macuxi/platform-sdk';
 import { PedidoPush } from './index';
+import { TransportadoraSyncSchema } from './frete';
 import { ClienteCondicaoSyncSchema, CondicaoPagamentoSyncSchema, PedidoEventoSyncSchema, PedidoItemSyncSchema, PedidoSyncSchema } from './sync';
 
 export const entidadePedido = definirEntidadeSync({
@@ -18,4 +19,6 @@ export const entidadePedidoItem = definirEntidadeSync({ nome: 'pedido_item', mod
 export const entidadePedidoEvento = definirEntidadeSync({ nome: 'pedido_evento', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: PedidoEventoSyncSchema });
 export const entidadeCondicaoPagamento = definirEntidadeSync({ nome: 'condicao_pagamento', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: CondicaoPagamentoSyncSchema });
 export const entidadeClienteCondicao = definirEntidadeSync({ nome: 'cliente_condicao', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: ClienteCondicaoSyncSchema });
-export const ENTIDADES_VENDEDOR = [entidadePedido, entidadePedidoItem, entidadePedidoEvento, entidadeCondicaoPagamento, entidadeClienteCondicao] as const;
+/** T-0061 (RN-VEN-16): lista de transportadoras do tenant; o app lista só as ativas. */
+export const entidadeTransportadora = definirEntidadeSync({ nome: 'transportadora', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: TransportadoraSyncSchema });
+export const ENTIDADES_VENDEDOR = [entidadePedido, entidadePedidoItem, entidadePedidoEvento, entidadeCondicaoPagamento, entidadeClienteCondicao, entidadeTransportadora] as const;

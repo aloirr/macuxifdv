@@ -111,12 +111,12 @@ export const TABELAS_SYNC = {
     colunas: 'tipo, codigo, descricao, exige_foto, sistema, ativo, ordem',
     colunaCliente: null,
   },
-  // RN-CORE-10: só o raio do check-in vai ao aparelho (lista fixa; nada de outros parâmetros do tenant)
+  // RN-CORE-10 / T-0061: só o raio do check-in e a opção promotor_ve_pedidos vão ao aparelho (lista fixa; nada de outros parâmetros do tenant)
   parametro: {
     tabela: 'plataforma.parametro',
     colunas: 'modulo, chave, valor',
     colunaCliente: null,
-    onde: "modulo = 'core' and chave = 'checkin.raio_m'",
+    onde: "modulo = 'core' and chave in ('checkin.raio_m', 'promotor_ve_pedidos')",
   },
   rota: {
     tabela: 'core.rota',

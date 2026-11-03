@@ -24,11 +24,13 @@ import {
   type Order,
   type OrderDetail,
 } from '../contracts';
-import { decidirAprovacao, montarPedidoAprovado, politicaDosParametros, situacaoDoOrcamento, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
+import { decidirAprovacao, politicaDosParametros, situacaoDoOrcamento, statusDoContrato, verificarCancelamento, type NivelAprovacao } from '../domain';
 import { ORDER_STATUSES, type OrderStatus } from '../domain/order';
+import { payloadAprovado } from './aprovado-erp';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
+import { exigirLeituraDePedidos } from './opcao-promotor';
 import { escopoDoPedido, JUNCAO_FATURAMENTO } from './sync';
 
 /** T-0053: campos da pré-venda no pedido/orçamento (vazio para pedido sem pré-venda ou sem a 0013). */
@@ -57,7 +59,9 @@ const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_
   p.condicao_pagamento, p.condicao_pagamento_descricao, p.status, p.desconto_pct::float8 as desconto_pct,
   p.total_tabela_cents::float8 as total_tabela_cents, p.total_cents::float8 as total_cents, p.nivel_aprovacao, p.motivos_aprovacao,
   p.motivo_rejeicao, p.numero_erp, ${ts('criado_no_aparelho_em')}, ${ts('recebido_em')}, ${ts('created_at')}, ${ts('updated_at')},
-  coalesce(x.itens, 0) as itens, coalesce(x.unidades, 0) as unidades`;
+  coalesce(x.itens, 0) as itens, coalesce(x.unidades, 0) as unidades,
+  p.acrescimo_pct::float8 as acrescimo_pct, p.desconto_efetivo_pct::float8 as desconto_efetivo_pct, p.frete_modalidade, p.transportadora_nome,
+  p.transportadora_documento, p.transportadora_telefone, p.transportadora_digitada, p.endereco_entrega`;
 const COLUNAS = `${COLUNAS_BASE}${FATURAMENTO_LIGADO ? COLUNAS_FATURAMENTO : ''}`;
 const JUNCAO_ITENS = `left join lateral (select count(*)::int as itens, coalesce(sum(i.quantidade), 0)::int as unidades
     from vendedor.pedido_item i where i.tenant_id = p.tenant_id and i.pedido_id = p.id and i.deleted_at is null) x on true`;
@@ -91,7 +95,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
   const itens = (
     await db.query<LinhaItem>(
       `select id, produto_id, produto_sku, produto_nome, quantidade, preco_tabela_cents::float8 as preco_tabela_cents, desconto_pct::float8 as desconto_pct,
-              total_cents::float8 as total_cents${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
+              total_cents::float8 as total_cents, unidade, fator, acrescimo_pct::float8 as acrescimo_pct${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
          from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
       [id],
     )
@@ -137,6 +141,7 @@ export const rotaListarPedidos: RotaModulo = {
   carteira: 'filtrar_no_dominio',
   query: OrderListQuery,
   async executar(ctx) {
+    await exigirLeituraDePedidos(ctx); // O-3: opção `promotor_ve_pedidos` (só afeta o promotor)
     const q = ctx.query as z.infer<typeof OrderListQuery>;
     const limite = q.limite ?? q.limit ?? 50;
     const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
@@ -186,6 +191,7 @@ export const rotaVerPedido: RotaModulo = {
   carteira: 'filtrar_no_dominio',
   params: ParamsPedido,
   async executar(ctx) {
+    await exigirLeituraDePedidos(ctx); // O-3
     const { id } = ctx.params as z.infer<typeof ParamsPedido>;
     return ctx.comTenant(async (db) => {
       const r = await carregarDetalhe(ctx, db, id);
@@ -263,42 +269,7 @@ function decidir(decisao: 'aprovar' | 'rejeitar'): RotaModulo {
           { pedido_id: id, vendedor_id: linha.vendedor_id, de: 'em_aprovacao', para: statusDoContrato(r.para), alterado_em: agora, autor_id: eu, motivo: r.motivo, pedido_numero: linha.numero },
           id,
         );
-        if (r.para === 'approved') {
-          const itens = (
-            await db.query<{ produto_id: string; quantidade: number; preco_tabela_cents: number; total_cents: number }>(
-              'select produto_id, quantidade, preco_tabela_cents::float8 as preco_tabela_cents, total_cents::float8 as total_cents from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia',
-              [id],
-            )
-          ).rows;
-          const prods = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [], produto_ids: itens.map((i) => i.produto_id), usuario_ids: [] });
-          const extra = (
-            await db.query<{ codigo: string | null; criado_em: string; observacao: string | null }>(
-              `select (select codigo from vendedor.condicao_pagamento c where c.id = p.condicao_pagamento_id) as codigo,
-                      coalesce(to_char(p.criado_no_aparelho_em at time zone 'UTC', ${UTC}), to_char(p.recebido_em at time zone 'UTC', ${UTC})) as criado_em, p.observacao
-                 from vendedor.pedido p where p.id = $1`,
-              [id],
-            )
-          ).rows[0]!;
-          await tx.publicar(
-            EVENTO_PEDIDO_APROVADO,
-            montarPedidoAprovado({
-              pedido_uuid: id,
-              cliente_external_id: cad.clientes[0]?.external_id ?? null,
-              vendedor_external_id: cad.usuarios.find((u) => u.id === linha.vendedor_id)?.external_id ?? null,
-              condicao_pagamento_codigo: extra.codigo,
-              criado_em: extra.criado_em,
-              aprovado_em: agora,
-              observacao: extra.observacao,
-              itens: itens.map((i) => ({
-                produto_external_id: prods.produtos.find((x) => x.id === i.produto_id)?.external_id ?? null,
-                quantidade: i.quantidade,
-                preco_tabela_cents: Number(i.preco_tabela_cents),
-                total_cents: Number(i.total_cents),
-              })),
-            }),
-            id,
-          );
-        }
+        if (r.para === 'approved') await tx.publicar(EVENTO_PEDIDO_APROVADO, await payloadAprovado(db, tx, id, agora), id);
         return (await carregarDetalhe(ctx, db, id))!.detalhe;
       });
     },

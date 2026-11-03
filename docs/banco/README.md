@@ -28,6 +28,11 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > XP, medalhas e desafio de vendas); dicionário [treinamento.md](treinamento.md); fixture própria (`db/testes/fixture-treinamento.ts`,
 > carregada pelo globalSetup, ids nos grupos 0x170–0x17d) e seed da demo `db/seeds/demo/treinamento.ts` (licença do módulo na demo;
 > ligar no `carregarDemo`, ver treinamento.md).
+> **2026-11-02 (T-0063, nuvem):** `0018_medidas` (`core.medida` com lista inicial em todo tenant, FKs compostas de
+> `produto.unidade`/`embalagem_medida` e `produto_unidade.unidade`, item do pedido com `medida`/`quantidade_embalagem`/
+> `quantidade_unidades` derivados de `unidade`/`fator`/`quantidade` por gatilho que sempre sobrescreve + CHECKs; embalagem do
+> produto de 2 a 9999; sigla fora do formato em produto aborta com tenant e sigla, em item antigo vira medida nula); dicionário em [core.md](core.md) e [vendedor.md](vendedor.md); seed da demo em
+> `db/seeds/demo/medidas.ts` (`gravarDemoMedidas`). **Depende da `0016` e da `0017` na pasta** (o executor recusa buraco).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -39,10 +44,37 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 3. **Carregar dados**: `pnpm --filter @macuxi/db banco seed fase-m` e/ou
    `pnpm --filter @macuxi/db banco fixture dois-tenants` (idempotentes; `banco status` confere).
 4. **Testar**: `pnpm --filter @macuxi/db test` (ou `pnpm test` na raiz). Cada execução cria e apaga um
-   banco efêmero `macuxi_teste_*`; se o container estiver parado e o Docker aberto, o teste o sobe sozinho.
+   banco efêmero `macuxi_teste_*` no **Postgres dos testes** (abaixo), nunca no da demo; se o container dele
+   estiver parado e o Docker aberto, o teste o sobe sozinho.
 5. **Derrubar ou recriar**: `banco derrubar` (para o container, mantém o volume),
    `banco derrubar --limpar` (apaga também o volume) ou `banco recriar` (apaga volume e sobe do zero,
-   migrado e vazio). Bancos de teste esquecidos por execução interrompida: `banco apagar-teste --todos`.
+   migrado e vazio). Bancos de teste esquecidos por execução interrompida: `banco apagar-teste --todos`
+   (no Postgres dos testes) ou `pnpm --filter @macuxi/db limpar-testes [-- --apagar]` (sobras no da demo, abaixo).
+
+### Dois Postgres locais: demo × testes (02/11)
+A carga dos testes derrubou duas vezes o Postgres da demo (crash recovery com fsync de ~190 bancos de teste
+esquecidos). Desde então são **dois serviços** no `db/docker-compose.yml`:
+
+| Serviço | Container | Porta | Dados | Quem usa |
+|---|---|---|---|---|
+| `postgres` | `macuxi-postgres` | 5432 (`MACUXI_PG_PORTA`) | volume `macuxi-pgdata`, durável | demo, `subir-demo`, API/worker locais, `banco subir/migrar/seed` |
+| `postgres-testes` | `macuxi-postgres-testes` | 5434 (`MACUXI_PG_TESTES_PORTA`) | **tmpfs** (4 GB), `fsync`/`synchronous_commit`/`full_page_writes` **off** | `globalSetup`, `criarBancoDeTeste`, `banco criar-teste/apagar-teste`, `medir-sync` |
+
+- `banco subir` sobe **só** o `postgres`; `banco subir-testes` (ou o próprio `globalSetup`) sobe só o `postgres-testes`.
+  O dos testes não tem `restart`: um reinício do Docker o deixa parado até o próximo teste. Queda = zero recuperação
+  (tmpfs, nada a fazer fsync); os bancos de teste somem junto — são efêmeros.
+- Endereço dos testes (`lerConfigTestes` em `db/src/config.ts`), nesta ordem:
+  1. `MACUXI_PG_TESTES_URL=postgres://usuario:senha@host:porta` (explícito);
+  2. `MACUXI_PG_HOST` ou `MACUXI_PG_PORTA` definidos no ambiente → o mesmo servidor de `lerConfig` (é o caso do **CI**,
+     cujo workflow define os dois para o service container na 5432; e do `varrer-relogio`, com porta 1);
+  3. padrão: `localhost:5434` (`MACUXI_PG_TESTES_PORTA`).
+  Atenção: quem põe `MACUXI_PG_PORTA` no `.env` local (ex.: 5433 por porta ocupada) volta a testar no servidor da demo;
+  nesse caso defina também `MACUXI_PG_TESTES_URL`.
+- **Limpeza de sobras no Postgres da demo**: `node db/scripts/limpar-bancos-teste.mjs` só **lista**; com `--apagar`
+  apaga um por vez, só nomes no padrão exato de quem cria banco de teste (`macuxi_teste_<base36>_<pid>_<hex6>`,
+  de `criarBancoDeTeste`, e `macuxi_conector_teste_<base36>_<hex6>`, do teste do Conector); nunca `macuxi`
+  (`MACUXI_PG_BANCO`), `postgres` nem `template*`; pula banco com conexão aberta (`--forcar` derruba). Só host local;
+  `--porta 5434` limpa o dos testes. Node puro + `pg` (sem tsx).
 
 Porta ocupada (outro Postgres em 5432)? Defina `MACUXI_PG_PORTA=5433` no `.env` da raiz: o compose e
 o CLI usam a mesma variável.
@@ -167,6 +199,8 @@ parâmetros da consulta (aqui só dados fictícios). Em nuvem, para não levar d
 | Parar o container (mantém os dados) | `pnpm --filter @macuxi/db banco derrubar` |
 | Parar e APAGAR o volume de dados | `pnpm --filter @macuxi/db banco derrubar --limpar` |
 | Testes do banco | `pnpm --filter @macuxi/db test` |
+| Subir só o Postgres dos testes (5434, tmpfs) | `pnpm --filter @macuxi/db banco subir-testes` |
+| Listar / apagar sobras de teste no Postgres da demo | `pnpm --filter @macuxi/db limpar-testes` · `... limpar-testes -- --apagar` |
 
 Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 
@@ -178,7 +212,7 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
   carrega a fixture dois-tenants e apaga o banco no fim. Arquivos:
   `migracoes.test.ts` (S0-020/021/022), `conformidade.test.ts` (S0-023/028), `vazamento.test.ts`
   (S0-024/025/026/027), `seed-fase-m.test.ts` (S0-031..034), `seed-demo.test.ts` (base de demo: idempotência, `--recriar`, isolamento), `drizzle-x-banco.test.ts`.
-- **Postgres parado, Docker aberto:** o `globalSetup` roda `docker compose up -d --wait` e os testes
+- **Postgres parado, Docker aberto:** o `globalSetup` roda `docker compose up -d --wait postgres-testes` e os testes
   **rodam** (desligue com `MACUXI_PG_AUTO_SUBIR=0`; só vale para host local).
 - **Sem Docker/Postgres:** esses arquivos são **pulados** e, no fim, aparece
   `[db] Docker não está rodando: N testes de banco pulados.` (relator `db/testes/aviso-pulos.ts`).

@@ -17,7 +17,7 @@ import { carteiraDoUsuario } from './carteira';
 import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
 import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
-import { consultaCadastroCliente, consultaCadastroResumo } from './consultas';
+import { consultaCadastroCliente, consultaCadastroResumo, consultaPromotorVePedidos } from './consultas';
 import { consumidorPushNotificacao } from './consumidores';
 import { consumidoresDoErp } from './consumidores-erp';
 import { consumidoresDePedido } from './consumidores-pedido';
@@ -26,6 +26,7 @@ import { rotasDeLicencas } from './licencas';
 import { consultaMedidas, rotasDeMedidas } from './medidas';
 import { rotasDeMetas } from './metas';
 import { rotasDeProdutos } from './produtos';
+import { rotasDePromotorPedidos } from './promotor-pedidos';
 import { rotasDeRotasEVisitas } from './rotas';
 import { provedoresSyncCore } from './sync';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
@@ -36,10 +37,10 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
   const auth = criarAutenticacao(deps);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDeNotificacoes],
+    rotas: [...rotasDeLicencas, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorMetaDefinida, ...consumidoresDoErp],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaMedidas],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaMedidas, consultaPromotorVePedidos],
     rotasPublicas: [
       {
         metodo: 'POST',

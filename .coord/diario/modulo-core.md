@@ -38,3 +38,4 @@
 2026-11-02 — T-0042 — urgente: upsertDispositivo não troca dono nem zera token de aparelho bloqueado (RN-CORE-15), where bloqueado_em is null; sessao.test, autenticacao, notificacoes.db, consumidores.db verdes
 2026-11-03 — T-0063 — Core devolvido ao origin/main (exceto db/nuvem.ts, do banco-dados); BKO de medidas segue no patch t0063-core.patch para PR separado; testes do Core contra a 0018: 64 arquivos / 692 testes verdes
 2026-11-03 — T-0063 — PR do BKO de medidas montado em wt-bko (nuvem/T-0063-medidas-bko, empilhado no #54): core.medidas@1, rotas /medidas, aba Medidas, produto só com medida ativa, embalagem x fator ERP, sync; patch aplicado sem conflito; testes do Core 754 verdes.
+2026-11-03 — T-0061 — opção promotor_ve_pedidos (padrão ligado, plataforma.parametro): domain, consulta core.promotor_ve_pedidos@1, rotas admin GET/PUT com auditoria, pull offline, Cliente 360 do app sem pedidos para promotor, painel no BKO; doc promotor-ve-pedidos.md
