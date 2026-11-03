@@ -10,15 +10,28 @@
  *  S4 o push de "pedido aprovado" é gerado (core.notificacao + mensagem ao Expo com data.link/data.entidades; RN-CORE-23);
  *  S5 GET /v1/sync/novidades depois da aprovação devolve só as entidades do pedido e a notificação (ADR 0018);
  *  S6 detalhe do pedido 000010 no BKO com itens, histórico e CNPJ;
- *  S7 promotor nunca cria pedido (regra 7; RN-PRO-01; MODULO_INATIVO na licença da demo).
+ *  S7 promotor nunca cria pedido (regra 7; RN-PRO-01; MODULO_INATIVO na licença da demo);
+ *  S8 Gestão da Renata (supervisora) com o Gestor licenciado pelo seed (db/seeds/demo/gestor.ts): Equipe com o Lucas e a
+ *     Camila e Aprovações com o pedido novo, pela projeção GRAVADA no banco (repositório SQL do Gestor, schema `gestor`);
+ *  S9 Promotor (Joana) com o Promotor licenciado pelo seed (db/seeds/demo/promotor.ts): a aba Loja tem cadastros de trade
+ *     no aparelho, check-in → visita de loja → fotos → gôndola e share pela fila, gravados no schema `promotor`;
+ *     relatório de share no BKO; e nunca cria pedido (RN-PRO-01);
+ *  S10 PDF interno no Campo (aparelho, pelas linhas do pull): desconto 8,0% e quem aprovou; o do cliente sem `%`.
+ * S8 e S9 dependem de entregas de 02/11 (seed + repositório SQL de cada módulo). Enquanto o FONTE não as tiver, o caso
+ * PULA com o motivo no nome ("[pendente: ...]") em vez de falhar à toa; quando a entrega chega, passa a rodar sozinho.
  * Mais o sync completo do aparelho com TODAS as entidades que o APK registra (inclui as de conteúdo do Catálogo).
  * Matriz: tests/plano/demo-matriz.md (M-D00..M-D16 e S1..S7).
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { CONSULTA_PRECOS_CLIENTE, ENTIDADES_CONTEUDO, RespostaBusca } from '@macuxi/catalogo/contracts';
-import type { ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, TituloSync } from '@macuxi/core/contracts';
+import { formatBRL } from '@macuxi/comum';
+import type { ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, TituloSync, VisitaSync } from '@macuxi/core/contracts';
 import { semBanco } from '@macuxi/db/teste/estado';
+import { FilaAprovacao, VisaoEquipe } from '@macuxi/gestor/contracts';
 import type { LinhaSync, ResultadoItemPush } from '@macuxi/platform-sdk';
+import { ENTIDADES_PROMOTOR, type CategoriaGondolaSync, type ChecklistLojaSync, type MetaShareSync, type MixObrigatorioSync } from '@macuxi/promotor/contracts';
 import { OrderDetail, type PedidoPush } from '@macuxi/vendedor/contracts';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -26,15 +39,41 @@ import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { buscarLocal } from '../../../modules/catalogo/app/lib/local';
 import { listarClientesLocais } from '../../../modules/core/app/lib/cliente360-local';
+import { abrirVisitaLoja, checkinAberto, montarFoto, montarGondola, montarShare } from '../../../modules/promotor/app/lib/loja';
+import { checklistDaLoja, metaDaCategoria } from '../../../modules/promotor/domain';
+import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido } from '../../../modules/vendedor/app/lib/order-pdf';
 import { montarPedido, prepararPedido, rascunhoVazio, type Rascunho } from '../../../modules/vendedor/app/lib/pedidos';
-import { condicoesDoCliente, lerLinhas, listaDeClientes, meDoAparelho, politicaApi, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
+import { condicoesDoCliente, detalheDoPedido, lerLinhas, listaDeClientes, meDoAparelho, politicaApi, produtosComPrecos } from '../../../modules/vendedor/app/lib/pull';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
-import { DEMO, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
+import { blindarPool, DEMO, encerrarPool, listaDe, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
 
 const BUSCA = 'óleo para moto 150 cilindradas';
 const TOKEN_LUCAS = `ExponentPushToken[smoke-demo-${randomUUID()}]`;
 /** Entidades que mudam com a aprovação (pedido + linha do tempo) e a notificação do push. */
 const ENTIDADES_DA_APROVACAO = ['notificacao', 'pedido', 'pedido_evento', 'pedido_item'];
+
+/**
+ * Entregas de 02/11 lidas do FONTE (pedido do dono do produto ao gerente, T-0065): seed de cada módulo ligado no
+ * `carregarDemo` e o repositório SQL na API de produção. Sem elas o caso pula com o motivo; com elas, roda sozinho.
+ */
+const RAIZ = join(__dirname, '..', '..', '..');
+const fonte = (p: string) => {
+  try {
+    return readFileSync(join(RAIZ, p), 'utf8');
+  } catch {
+    return '';
+  }
+};
+const SEED_DEMO = fonte('db/seeds/demo/demo.ts');
+const PENDENTE_GESTOR = [
+  /await\s+carregarDemoGestor\(/.test(SEED_DEMO) ? null : 'seed do Gestor no carregarDemo (banco-dados)',
+  /repositorioGestor\b[^=]*=\s*criarRepositorioPostgres\(/.test(fonte('modules/gestor/api/index.ts')) ? null : 'repositório SQL do Gestor (modulo-gestor)',
+].filter((x): x is string => x !== null);
+const PENDENTE_PROMOTOR = [
+  /await\s+gravarDemoPromotor\(/.test(SEED_DEMO) ? null : 'seed do Promotor no carregarDemo (banco-dados)',
+  /criarModuloApiPromotor\(\{\s*repositorio:\s*criarRepositorioSql\(\)/.test(fonte('modules/promotor/api/index.ts')) ? null : 'repositório SQL do Promotor (modulo-promotor)',
+].filter((x): x is string => x !== null);
+const marca = (pendente: readonly string[]) => (pendente.length ? ` [pendente: ${pendente.join('; ')}]` : '');
 
 describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (base demo × createApp real × Postgres × despachante)', () => {
   let api: ApiDemo;
@@ -107,7 +146,7 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
   beforeAll(async () => {
     api = await subirApiDemo();
     if (!api.banco.urlWorker) throw new Error('banco de teste sem urlWorker (MACUXI_PG_WORKER_SENHA): o smoke do push precisa do despachante');
-    worker = new pg.Pool({ connectionString: api.banco.urlWorker, max: 2 });
+    worker = blindarPool(new pg.Pool({ connectionString: api.banco.urlWorker, max: 2 }));
     for (const k of Object.keys(DEMO) as ChaveDemo[]) {
       const s = await api.sessao(DEMO[k]);
       token[k] = s.access_token;
@@ -124,7 +163,7 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     vi.unstubAllGlobals();
   });
   afterAll(async () => {
-    await worker?.end().catch(() => undefined);
+    await encerrarPool(worker);
     await api?.fechar();
   });
 
@@ -266,5 +305,169 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     expect(a.statusCode).toBe(403);
     const n = await novidades(token.promotor);
     expect(n.entidades.filter((e) => e.startsWith('pedido'))).toEqual([]);
+  });
+
+  it.skipIf(PENDENTE_GESTOR.length > 0)(
+    `S8. Gestão (supervisor@ — Renata) com o Gestor da demo: Equipe com o Lucas e a Camila; Aprovações com o pedido novo de 8%, pela projeção gravada no schema gestor${marca(PENDENTE_GESTOR)}`,
+    async () => {
+      // licença do seed (tenant ∩ perfil, RN-CORE-01): Renata e Marcelo têm o Gestor; vendedor e promotor não
+      expect((await api.meusModulos(token.supervisor)).modulos.map((m) => m.id), 'Gestor nos módulos da Renata (seed gestor.ts)').toContain('gestor');
+      expect((await api.meusModulos(token.gerente)).modulos.map((m) => m.id)).toContain('gestor');
+      for (const k of ['vendedor', 'promotor'] as const) expect((await api.meusModulos(token[k])).modulos.map((m) => m.id), k).not.toContain('gestor');
+      // a projeção do seed já está no banco ANTES de qualquer evento novo: é o que a Renata vê ao abrir o app amanhã
+      const [proj] = await linhas<{ n: number }>('select count(*)::int as n from gestor.projecao_fato where tenant_id = $1 and deleted_at is null', [TENANT_DEMO]);
+      expect(proj!.n, 'projeção do Gestor gravada pelo seed').toBeGreaterThan(0);
+      // Equipe (aba Equipe, RF-GES-01)
+      const e = await api.get(token.supervisor, '/v1/gestor/equipe');
+      expect(e.status, JSON.stringify(e.corpo)).toBe(200);
+      const v = VisaoEquipe.parse(e.corpo);
+      const membros = new Map(v.membros.map((m) => [m.membro.id, m.membro]));
+      for (const k of ['vendedor', 'vendedor2'] as const) {
+        expect(membros.has(usuarioId[k]), `${k} na equipe da Renata: ${JSON.stringify([...membros.values()].map((m) => m.nome))}`).toBe(true);
+        expect(membros.get(usuarioId[k])!.nome.trim().length).toBeGreaterThan(0);
+      }
+      expect(v.membros.every((m) => m.membro.id !== usuarioId.supervisor && m.membro.id !== usuarioId.analista)).toBe(true);
+      expect((await api.get(token.supervisor, `/v1/gestor/equipe/${usuarioId.vendedor}`)).status).toBe(200);
+      // Aprovações (aba Aprovações, RF-GES-04): pedido novo do Lucas → despachante → fila da Renata, nível supervisor
+      const t = await tirarPedido(8);
+      expect(t).toMatchObject({ status: 'pending_approval', nivel: 'supervisor' });
+      await despachar();
+      const f = await api.get(token.supervisor, '/v1/gestor/aprovacoes');
+      expect(f.status, JSON.stringify(f.corpo)).toBe(200);
+      const fila = FilaAprovacao.parse(f.corpo);
+      const item = fila.itens.find((i) => i.pedido_id === t.id);
+      expect(item, `pedido ${t.numero} na fila da Renata: ${JSON.stringify(fila.itens.map((i) => i.pedido_id))}`).toBeDefined();
+      expect(item).toMatchObject({ vendedor_id: usuarioId.vendedor, nivel: 'supervisor', pode_decidir: true });
+      expect(item!.total_cents).toBeGreaterThan(0);
+      // repositório SQL: o fato do pedido novo está GRAVADO no schema gestor (API e worker são processos separados na demo)
+      const [fato] = await linhas<{ n: number }>('select count(*)::int as n from gestor.projecao_fato where tenant_id = $1 and (chave like $2 or dados::text like $2)', [TENANT_DEMO, `%${t.id}%`]);
+      expect(fato!.n, 'fato do pedido novo na tabela gestor.projecao_fato (repositório SQL, não memória)').toBeGreaterThan(0);
+      // a Renata aprova (Vendedor, ADR 0011) → despachante → sai da fila (deixa a base como estava para o roteiro)
+      const a = await api.chamar(token.supervisor, { method: 'POST', url: `/v1/vendedor/pedidos/${t.id}/aprovar`, payload: {} });
+      expect(a.statusCode, a.body).toBe(200);
+      await despachar();
+      expect(FilaAprovacao.parse((await api.get(token.supervisor, '/v1/gestor/aprovacoes')).corpo).itens.map((i) => i.pedido_id)).not.toContain(t.id);
+      // perfil errado: vendedor e promotor fora do Gestor (403)
+      for (const k of ['vendedor', 'promotor'] as const) expect((await api.get(token[k], '/v1/gestor/aprovacoes')).status, k).toBe(403);
+    },
+    240_000,
+  );
+
+  it.skipIf(PENDENTE_PROMOTOR.length > 0)(
+    `S9. Promotor (promotor@ — Joana) com o Promotor da demo: aba Loja com cadastros de trade no aparelho; check-in → visita de loja → fotos → gôndola e share gravados; relatório de share no BKO; nunca cria pedido${marca(PENDENTE_PROMOTOR)}`,
+    async () => {
+      const mods = (await api.meusModulos(token.promotor)).modulos.map((m) => m.id);
+      expect(mods, 'Promotor nos módulos da Joana (seed promotor.ts)').toContain('promotor');
+      expect(mods, 'RN-PRO-01: sem o Vendedor').not.toContain('vendedor');
+      const joana = await aparelhoCampo(api, DEMO.promotor, { entidadesExtras: [...ENTIDADES_PROMOTOR] });
+      expect(await joana.sincronizar(), joana.motor.estado().erro ?? '').toBe(true);
+      expect(joana.chamadasEtapas.filter((c) => c.status >= 400)).toEqual([]);
+      const m = joana.motor;
+      const vivas = <T extends LinhaSync>(l: T[]) => l.filter((x) => !x.deleted_at);
+      const categorias = vivas(await m.linhas<CategoriaGondolaSync & LinhaSync>('categoria_gondola'));
+      const checklists = vivas(await m.linhas<ChecklistLojaSync & LinhaSync>('checklist_loja'));
+      const metas = vivas(await m.linhas<MetaShareSync & LinhaSync>('meta_share'));
+      const mix = vivas(await m.linhas<MixObrigatorioSync & LinhaSync>('mix_obrigatorio'));
+      expect({ categorias: categorias.length, checklists: checklists.length, mix: mix.length, metas: metas.length >= 3 }).toEqual({ categorias: 3, checklists: 1, mix: 5, metas: true });
+      // histórico do seed no servidor: 2 visitas de loja da Joana, com fotos
+      const [hist] = await linhas<{ visitas: number; fotos: number }>(
+        `select (select count(*)::int from promotor.visita_loja where tenant_id = $1 and deleted_at is null) as visitas,
+                (select count(*)::int from promotor.foto_coleta where tenant_id = $1 and deleted_at is null) as fotos`,
+        [TENANT_DEMO],
+      );
+      expect(hist!.visitas).toBeGreaterThanOrEqual(2);
+      expect(hist!.fotos).toBeGreaterThan(0);
+      // 1ª parada da rota de hoje da Joana (com a coordenada do cliente: check-in dentro do raio)
+      const [parada] = await linhas<{ id: string; cliente_id: string; lat: string | null; lng: string | null; segmento: string | null }>(
+        `select rp.id, rp.cliente_id, c.latitude as lat, c.longitude as lng, c.segmento
+           from core.rota_parada rp join core.cliente c on c.id = rp.cliente_id
+          where rp.tenant_id = $1 and rp.usuario_id = $2 and rp.data = $3 and rp.deleted_at is null
+          order by rp.sequencia limit 1`,
+        [TENANT_DEMO, usuarioId.promotor, api.hoje],
+      ).catch(async () =>
+        linhas<{ id: string; cliente_id: string; lat: string | null; lng: string | null; segmento: string | null }>(
+          `select rp.id, rp.cliente_id, c.latitude as lat, c.longitude as lng, null::text as segmento
+             from core.rota_parada rp join core.cliente c on c.id = rp.cliente_id
+            where rp.tenant_id = $1 and rp.usuario_id = $2 and rp.data = $3 and rp.deleted_at is null
+            order by rp.sequencia limit 1`,
+          [TENANT_DEMO, usuarioId.promotor, api.hoje],
+        ),
+      );
+      expect(parada, 'parada de hoje na rota da Joana').toBeDefined();
+      const lat = parada!.lat === null ? null : Number(parada!.lat);
+      const lng = parada!.lng === null ? null : Number(parada!.lng);
+      const agora = new Date();
+      const visitaId = randomUUID();
+      await m.enfileirar({
+        id: visitaId,
+        entidade: 'visita',
+        payload: { id: visitaId, cliente_id: parada!.cliente_id, rota_parada_id: parada!.id, checkin_em: agora.toISOString(), ...(lat !== null && lng !== null ? { lat, lng, precisao_m: 10 } : {}), extra: false },
+      });
+      // aba Loja: o check-in aberto vira a visita de loja com o checklist vigente (RN-PRO-02/10)
+      const aberto = checkinAberto(await m.linhas<VisitaSync & LinhaSync>('visita'), m.estado().fila, usuarioId.promotor);
+      expect(aberto?.visita_id).toBe(visitaId);
+      const loja = { id: parada!.cliente_id, segmento: parada!.segmento ?? null };
+      const checklist = checklistDaLoja(checklists, loja, api.hoje);
+      expect(checklist, 'checklist vigente para a loja').not.toBeNull();
+      const vl = abrirVisitaLoja(randomUUID(), aberto!, checklist!.id);
+      await m.enfileirar({ id: vl.id, entidade: 'visita_loja', payload: vl });
+      // fotos da gôndola (câmera do shell: coordenada do momento) → gôndola conforme → share de uma categoria com meta
+      const cat = [...categorias].sort((a, b) => a.ordem - b.ordem)[0]!;
+      const fotos = (['gondola_antes', 'gondola_depois'] as const).map((tipo) => montarFoto({ id: randomUUID(), visita_loja_id: vl.id, tipo, agora: new Date(), latitude: lat, longitude: lng }));
+      for (const fo of fotos) await m.enfileirar({ id: fo.id, entidade: 'foto_coleta', payload: fo });
+      const g = montarGondola({ id: randomUUID(), visita_loja_id: vl.id, categoria_gondola_id: cat.id, foto_antes_id: fotos[0]!.id, foto_depois_id: fotos[1]!.id, foto_referencia_id: null, conformidade: 'conforme', motivo: '', agora: new Date() });
+      expect(g.ok).toBe(true);
+      if (!g.ok) return;
+      await m.enfileirar({ id: g.coleta.id, entidade: 'gondola_registro', payload: g.coleta });
+      const meta = metaDaCategoria(metas, cat.id, loja, api.hoje);
+      const sh = montarShare({ id: randomUUID(), visita_loja_id: vl.id, categoria_gondola_id: cat.id, frentes_nossas: '6', frentes_total: '15', meta: meta ? { id: meta.id, meta_pct: meta.meta_pct } : null, agora: new Date() });
+      expect(sh.ok).toBe(true);
+      if (!sh.ok) return;
+      await m.enfileirar({ id: sh.coleta.id, entidade: 'medicao_share', payload: sh.coleta });
+      expect(await joana.sincronizar(), m.estado().erro ?? '').toBe(true);
+      expect(m.estado().fila, 'fila da Joana zerada (nenhuma coleta recusada)').toEqual([]);
+      const gravado = async (tabela: string, id: string) => (await linhas<{ n: number }>(`select count(*)::int as n from promotor.${tabela} where id = $1`, [id]))[0]!.n;
+      expect({
+        visita: (await linhas('select id from core.visita where id = $1', [visitaId])).length,
+        visita_loja: await gravado('visita_loja', vl.id),
+        fotos: (await gravado('foto_coleta', fotos[0]!.id)) + (await gravado('foto_coleta', fotos[1]!.id)),
+        gondola: await gravado('gondola_registro', g.coleta.id),
+        share: await gravado('medicao_share', sh.coleta.id),
+      }).toEqual({ visita: 1, visita_loja: 1, fotos: 2, gondola: 1, share: 1 });
+      // BKO › Trade marketing (supervisora): relatório de share com linhas da base (visitas do seed)
+      const de = new Date(Date.parse(`${api.hoje}T12:00:00Z`) - 20 * 86_400_000).toISOString().slice(0, 10);
+      const rel = await api.get(token.supervisor, `/v1/promotor/relatorios/share?de=${de}&ate=${api.hoje}`);
+      expect(rel.status, JSON.stringify(rel.corpo)).toBe(200);
+      expect((rel.corpo.linhas as unknown[] | undefined)?.length ?? 0, `relatório de share: ${JSON.stringify(rel.corpo).slice(0, 300)}`).toBeGreaterThan(0);
+      // RN-PRO-01 com o Promotor ligado: pedido recusado, nada no banco; nenhuma entidade de pedido no aparelho
+      const pid = randomUUID();
+      const [r] = await push(token.promotor, [{ id: pid, entidade: 'pedido', operacao: 'upsert', payload: { id: pid, customer_id: parada!.cliente_id, items: [], discount_pct: 0 } }]);
+      expect(r!.status).toBe('rejeitado');
+      expect(await linhas('select id from vendedor.pedido where id = $1', [pid])).toEqual([]);
+      expect((await api.chamar(token.promotor, { method: 'POST', url: '/v1/vendedor/pedidos', payload: { id: pid, customer_id: parada!.cliente_id, items: [] } })).statusCode).toBeGreaterThanOrEqual(400);
+      expect(joana.lotesEnviados.flat().filter((i) => i.entidade.startsWith('pedido'))).toEqual([]);
+    },
+    240_000,
+  );
+
+  it('S10. PDF interno no Campo (vendedor@): pelas linhas do aparelho, o pedido aprovado do S3 sai com o número, o desconto 8,0% e a Renata; o do cliente sem nenhum %', async () => {
+    expect(pedidoId, 'depende do S3').not.toBe('');
+    expect(await lucas.sincronizar(), lucas.motor.estado().erro ?? '').toBe(true);
+    const local = detalheDoPedido(await lerLinhas(lucas.motor), pedidoId, 'vendedor', lucas.motor.parametros('vendedor'));
+    expect(local, 'pedido do S3 nas linhas do aparelho').not.toBeNull();
+    expect(local!.status).toBe('approved');
+    const doc = pdfDoPedido(local!);
+    const ctx = { tenant_name: nomeDaDistribuidora(lucas.sessao.tenant.nome, lucas.motor.parametros('core')), product_name: 'Macuxi FDV', tz: lucas.sessao.tenant.fuso, generated_at: new Date().toISOString() };
+    const interno = buildOrderPdfHtml(doc, 'bko', ctx);
+    expect(interno).toContain(numero);
+    expect(interno).toContain('8,0%');
+    expect(interno, 'quem aprovou no PDF interno').toContain('Renata');
+    expect(interno).toContain(formatBRL(doc.total_cents));
+    for (const i of doc.items) expect(interno).toContain(i.description);
+    if (doc.price_table && doc.price_table_name) expect(interno, 'o PDF interno nunca mostra o id da tabela').not.toContain(doc.price_table);
+    expect(orderPdfFileName(numero, 'bko')).toBe(`pedido-${numero}-bko.pdf`);
+    const cliente = buildOrderPdfHtml(doc, 'customer', ctx);
+    expect(cliente).toContain(numero);
+    expect(cliente).not.toContain('%');
   });
 });
