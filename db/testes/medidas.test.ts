@@ -102,8 +102,8 @@ describe('0018 medidas (estático)', () => {
     const m = dadosDemoMedidas(d);
     const ativas = m.medidas.filter((x) => x.ativo).map((x) => String(x.sigla));
     expect(ativas).toEqual(expect.arrayContaining([...MEDIDAS_ATIVAS_DEMO]));
-    // extra só enquanto o PAP-4 estiver em PC (pedido ao banco-dados local: trocar por UN)
-    expect(ativas.filter((s) => !(MEDIDAS_ATIVAS_DEMO as readonly string[]).includes(s)).every((s) => s === 'PC')).toBe(true);
+    // sem sigla extra: o PAP-4 passou de PC para UN (02/11); só as 5 ativas da demo
+    expect([...ativas].sort()).toEqual([...MEDIDAS_ATIVAS_DEMO].sort());
     expect(m.medidas.filter((x) => !x.ativo).map((x) => x.sigla)).toEqual(['PCT', 'TB', 'GL', 'KG', 'DZ', 'DP']);
     for (const x of m.medidas) expect(x.id).toBe(idMedida(m.tenantId, String(x.sigla)));
     const ativa = new Set(ativas);

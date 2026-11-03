@@ -9,8 +9,9 @@ import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenant
 import { politicaDosParametros, revalidarPedido } from '../../modules/vendedor/domain/aprovacao';
 import {
   ALCADAS_DEMO, carregarDemo, CLIENTE_SEM_CEP_DEMO, PRECO_PROPRIO_CX_LIGADO, CODIGO_DEMO, dadosDemo, DESCONTO_MAXIMO_PROPRIO_DEMO, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
-  USUARIOS_DEMO,
+  TIPO_METAS_DEMO, USUARIOS_DEMO,
 } from '../seeds/demo/demo';
+import { dadosDemoMedidas, MEDIDAS_ATIVAS_DEMO } from '../seeds/demo/medidas';
 import { MODULO_GESTOR, PERFIS_GESTOR_DEMO } from '../seeds/demo/gestor';
 import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
 import { PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
@@ -73,6 +74,26 @@ describe('base de demo (estático)', () => {
     expect(paradas.map((p) => p.sequencia)).toEqual([1, 2, 3, 4, 5, 6]);
     const carteira = new Set(d['core.carteira'].filter((c) => c.usuario_id === vendedor.id).map((c) => c.cliente_id));
     expect(paradas.every((p) => carteira.has(p.cliente_id) && p.data === hoje)).toBe(true);
+  });
+
+  it('T-0067/T-0068: metas do mês de Lucas e Camila com o tipo (0019); equipe da Renata com supervisora e gerente na árvore', () => {
+    const lucas = idUsuarioDemo('vendedor');
+    const camila = idUsuarioDemo('vendedor2');
+    for (const quem of [lucas, camila]) {
+      const metas = d['core.meta'].filter((m) => m.usuario_id === quem);
+      expect(metas.map((m) => m.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
+      expect(metas.every((m) => m.periodo === anoMes(hoje) && m.tipo === TIPO_METAS_DEMO)).toBe(true);
+    }
+    expect(d['core.meta'].every((m) => m.tipo === 'pedido')).toBe(true);
+    const equipe = (nome: string) => d['core.equipe'].find((e) => e.nome === nome)!;
+    const manaus = equipe('Equipe Manaus');
+    const regional = equipe('Regional Norte');
+    expect([manaus.responsavel_id, manaus.equipe_pai_id, regional.responsavel_id, regional.equipe_pai_id]).toEqual([
+      idUsuarioDemo('supervisor'), regional.id, idUsuarioDemo('gerente'), null,
+    ]);
+    const daManaus = d['core.usuario'].filter((u) => u.equipe_id === manaus.id).map((u) => String(u.id)).sort();
+    expect(daManaus).toEqual([lucas, camila, idUsuarioDemo('promotor'), idUsuarioDemo('supervisor')].sort());
+    expect(d['core.usuario'].find((u) => u.id === idUsuarioDemo('gerente'))!.equipe_id).toBe(regional.id);
   });
 
   it('metas do mês, pedidos e visitas só no passado, diário coerente com os pedidos', () => {
@@ -393,6 +414,40 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
       { usuario_id: idUsuarioDemo('vendedor2'), total: 110 },
       { usuario_id: idUsuarioDemo('promotor'), total: 10 },
     ]);
+  });
+
+  it('T-0070 ligado no carregarDemo: medidas (5 ativas, 6 inativas), embalagem das caixas, metas com tipo e a hierarquia pelo papel macuxi_app', async () => {
+    const m = dadosDemoMedidas(dadosDemo(HASH_FALSO, { hoje: hojeCarga }));
+    const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
+      ativas: (await c.query<{ sigla: string }>('select sigla from core.medida where ativo and deleted_at is null order by sigla')).rows.map((x) => x.sigla),
+      inativas: (await c.query<{ n: number }>('select count(*)::int as n from core.medida where not ativo')).rows[0]!.n,
+      embalagens: (await c.query<{ id: string; medida: string; qtd: number }>(
+        'select id, embalagem_medida as medida, embalagem_quantidade as qtd from core.produto where embalagem_medida is not null',
+      )).rows.map((x): [string, string, number] => [x.id, x.medida, x.qtd]),
+      metas: (await c.query<{ usuario_id: string; tipo: string; n: number }>(
+        'select usuario_id, tipo, count(*)::int as n from core.meta where periodo = $1 and deleted_at is null group by 1, 2',
+        [anoMes(hojeCarga)],
+      )).rows,
+      hierarquia: (await c.query<{ nome: string; supervisor: string | null; gerente: string | null }>(
+        `select u.nome, s.nome as supervisor, g.nome as gerente
+           from core.usuario u join core.equipe e on e.id = u.equipe_id
+           left join core.usuario s on s.id = e.responsavel_id
+           left join core.equipe p on p.id = e.equipe_pai_id left join core.usuario g on g.id = p.responsavel_id
+          where u.perfil in ('vendedor', 'promotor')`,
+      )).rows,
+    }));
+    const porId = (a: [string, string, number], b: [string, string, number]) => a[0].localeCompare(b[0]);
+    expect(r.ativas).toEqual([...MEDIDAS_ATIVAS_DEMO].sort());
+    expect(r.inativas).toBe(6);
+    expect(r.embalagens.sort(porId)).toEqual([...m.embalagens].sort(porId));
+    expect(r.embalagens.length).toBeGreaterThanOrEqual(3);
+    const porUsuario = Object.fromEntries(r.metas.map((x) => [x.usuario_id, `${x.tipo}:${x.n}`]));
+    expect(porUsuario[idUsuarioDemo('vendedor')]).toBe('pedido:4');
+    expect(porUsuario[idUsuarioDemo('vendedor2')]).toBe('pedido:4');
+    const chefia = { supervisor: USUARIOS_DEMO.supervisor.nome, gerente: USUARIOS_DEMO.gerente.nome };
+    expect(r.hierarquia.sort((a, b) => a.nome.localeCompare(b.nome))).toEqual(
+      [USUARIOS_DEMO.vendedor.nome, USUARIOS_DEMO.vendedor2.nome, USUARIOS_DEMO.promotor.nome].sort().map((nome) => ({ nome, ...chefia })),
+    );
   });
 
   it('login: o código "demo" resolve o tenant e as senhas são argon2id que conferem', async () => {

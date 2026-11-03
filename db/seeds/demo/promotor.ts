@@ -8,7 +8,8 @@
  * - Cadastros de trade (BKO, RF-PRO-11), vigentes desde o 1º dia do mês anterior: 3 categorias de gôndola (Mercearia,
  *   Bebidas e Limpeza, categorias de produto do demo), mix obrigatório de 5 produtos do demo, metas de share (gerais por
  *   categoria + Mercearia específica do Supermercado Bom Preço, loja 0), 1 checklist vigente com 5 etapas (2 obrigatórias,
- *   RN-PRO-06), 2 concorrentes fictícios com 3 produtos comparados, 1 tarefa de campanha e 1 ponto extra negociado na loja 0.
+ *   RN-PRO-06), 2 concorrentes fictícios com 4 produtos comparados (um por categoria, T-0070: o BKO de trade da T-0069 mostra
+ *   as 3 categorias), 1 tarefa de campanha e 1 ponto extra negociado na loja 0.
  * - Histórico da Joana (promotor): as visitas de loja das visitas do Core `v-pr1` (loja 0, 2 dias úteis atrás) e `v-pr2`
  *   (loja 4, 1 dia útil atrás) do demo.ts — mesmo check-in/checkout/coordenada (lidos de `dadosDemo`, função pura) — com
  *   fotos, gôndola (antes/depois), share das 3 categorias calculado pelo domain (calcularShare/atingimentoShare, meta
@@ -114,6 +115,8 @@ export function dadosDemoPromotor(opcoes: OpcoesDemoPromotor = {}): DadosDemoPro
     { chave: 'cafe', concorrente: concorrentes.saborReal, nome: 'Café Sabor Real 500 g', sku: 'CAF-500', categoria: 'mercearia' as Categoria },
     { chave: 'oleo', concorrente: concorrentes.saborReal, nome: 'Óleo de soja Sabor Real 900 ml', sku: 'OLE-900', categoria: 'mercearia' as Categoria },
     { chave: 'sabao', concorrente: concorrentes.limpaMais, nome: 'Sabão em pó Limpa Mais 1 kg', sku: 'SAB-1K', categoria: 'limpeza' as Categoria },
+    // T-0070: Bebidas também com produto comparado (cadastro; sem coleta de preço nas visitas antigas)
+    { chave: 'guarana', concorrente: concorrentes.saborReal, nome: 'Guaraná Sabor Real 2 L', sku: 'REF-2L', categoria: 'bebidas' as Categoria },
   ];
   const tarefaId = id('tarefa_trade:campanha-guarana');
   const pontoNegociadoId = id('ponto_extra_negociado:loja0');

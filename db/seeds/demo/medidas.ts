@@ -1,15 +1,13 @@
 /**
  * Base de DEMONSTRAÇÃO — medidas do produto (core.medida, migração 0018, T-0063; RN-CORE-19, RF-CORE-14). Dono: banco-dados.
  * Arquivo próprio: o demo.ts chama `gravarDemoMedidas(admin, tabela, dados)` DENTRO do laço do `carregarDemo`, logo
- * depois de gravar cada tabela (uma linha; ver o recado do T-0063 ao banco-dados local):
- *     await gravarDemoMedidas(admin, tabela, dados);
- * com `import { gravarDemoMedidas } from './medidas';` no topo.
+ * depois de gravar cada tabela (ligado na T-0070).
  *
  * - Depois de `plataforma.tenant` (o gatilho tenant_semear_medidas já semeou a lista inicial): na demo ficam ATIVAS
  *   UN, CX, FD, LT e BD; PCT, TB, GL, KG, DZ e DP ficam INATIVAS (não ausentes: o banco semeia as 11 em todo tenant e
  *   medida não se apaga — o BKO mostra as inativas para reativar). Sigla usada por produto da demo que não esteja na
- *   lista inicial (hoje só PC, do PAP-4 — pedido ao banco-dados local para trocá-lo por UN) entra ativa, para a FK
- *   produto_medida_fk não recusar o produto.
+ *   lista inicial entra ativa, para a FK produto_medida_fk não recusar o produto (hoje nenhuma: o PAP-4 passou de PC
+ *   para UN em 02/11; a regra fica para produto futuro com sigla própria).
  * - Depois de `core.produto`: embalagem do produto (embalagem_medida + embalagem_quantidade) = a caixa de embarque do
  *   demo.ts (linha de core.produto_unidade com fator > 1 — "CX c/ 12" etc.); os demais ficam sem embalagem.
  *
@@ -25,7 +23,7 @@ import type { DadosDemo } from './demo';
 
 /** Medidas ativas na demo (T-0063). As demais da lista inicial ficam inativas. */
 export const MEDIDAS_ATIVAS_DEMO = ['UN', 'CX', 'FD', 'LT', 'BD'] as const;
-/** Descrição das siglas fora da lista inicial que a demo ainda usa (some quando o PAP-4 passar a UN). */
+/** Descrição das siglas fora da lista inicial (nenhuma em uso desde o PAP-4 em UN; PC fica para base antiga). */
 const DESCRICAO_EXTRA: Record<string, string> = { PC: 'Peça' };
 
 export interface DadosDemoMedidas {

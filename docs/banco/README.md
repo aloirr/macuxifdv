@@ -32,7 +32,7 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `produto.unidade`/`embalagem_medida` e `produto_unidade.unidade`, item do pedido com `medida`/`quantidade_embalagem`/
 > `quantidade_unidades` derivados de `unidade`/`fator`/`quantidade` por gatilho que sempre sobrescreve + CHECKs; embalagem do
 > produto de 2 a 9999; sigla fora do formato em produto aborta com tenant e sigla, em item antigo vira medida nula); dicionário em [core.md](core.md) e [vendedor.md](vendedor.md); seed da demo em
-> `db/seeds/demo/medidas.ts` (`gravarDemoMedidas`). **Depende da `0016` e da `0017` na pasta** (o executor recusa buraco).
+> `db/seeds/demo/medidas.ts` (`gravarDemoMedidas`, ligado no `carregarDemo` na T-0070). **Depende da `0016` e da `0017` na pasta** (o executor recusa buraco).
 > **2026-11-03 (T-0066 e T-0065):** `0019_core_nota_erp_meta_tipo` (aditiva: `core.nota_erp` — notas de faturamento/devolução do ERP,
 > base idempotente do recálculo de `historico_compra`, fora do pull, único vivo por `external_id` e índices por cliente/mês e por mês —
 > e `core.meta.tipo` `pedido | faturamento`, padrão `pedido`, RN-CORE-21); dicionário em [core.md](core.md).
@@ -100,7 +100,7 @@ Base para a demonstração com o gestor externo (app novo + API real; R-20261031
 | Fixar o "hoje" (ensaio de outro dia) | `... banco seed demo --hoje AAAA-MM-DD` |
 | Banco de teste efêmero com a base | `... banco criar-teste --fixture demo` |
 
-Pré-requisito: banco migrado até a `0013` (`banco subir` ou `banco migrar up`); sem isso o seed para com
+Pré-requisito: banco migrado até a `0019` (`banco subir` ou `banco migrar up`); sem isso o seed para com
 `rode "banco migrar up" antes`. Só roda no Postgres local (mesma trava do seed da Fase M: `exigirBancoLocal`).
 
 **Login no app** — código da empresa **`demo`** · senha de todos **`demo-macuxi`** (ou o valor de `MACUXI_SENHA_DEMO` no
@@ -135,7 +135,11 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   alçada (automático), 2 aguardando o **supervisor** (Lucas 8%, Camila 7%), 1 aguardando o **gerente** (Camila 12%),
   1 **rejeitado** pela supervisora (com motivo) e 1 **cancelado** depois de aprovado. Nada em `sent_to_erp` ou depois. Com
   itens e a visita que os gerou; visitas sem pedido com motivo; `core.indicador_diario` coerente com os pedidos.
-- **Metas do mês corrente** (venda, positivação, cobertura, visitas) dos vendedores e do promotor; 33 produtos com marcas
+- **Metas do mês corrente** (venda, positivação, cobertura, visitas) dos vendedores e do promotor, todas com `tipo = 'pedido'`
+  (0019, RN-CORE-21; sem faturamento do ERP na demo) — BKO de metas da T-0068. **Hierarquia** (BKO de usuários da T-0067): a
+  Equipe Manaus (Lucas, Camila, Joana e Renata) tem a Renata como responsável e a Regional Norte (Marcelo) como pai: supervisor
+  e gerente de cada usuário saem de `core.equipe`. **Medidas** (0018): UN, CX, FD, LT e BD ativas, as outras 6 da lista inicial
+  inativas, e a caixa de embarque como embalagem do produto (`gravarDemoMedidas`); 33 produtos com marcas
   fictícias (24 de mercearia/limpeza/higiene + 9 da linha automotiva e o detergente 5 L, 0013); 3 notificações (recado do supervisor ao vendedor, pedidos para aprovar à supervisora e ao gerente).
 - Parâmetros: os padrões do Core semeados pelo gatilho (`checkin.raio_m`, `metas.base_apuracao`) e as **alçadas do Vendedor**
   `alcada.vendedor_pct = 5`, `alcada.supervisor_pct = 10`, `alcada.gerente_pct = 15`, `alcada.acima_gerente = "analista"`.
