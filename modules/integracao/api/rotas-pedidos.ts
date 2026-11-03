@@ -37,6 +37,7 @@ export interface LinhaFila {
   notas_aplicadas: PedidoNaFila['notas_aplicadas'];
   itens_faturados_acumulados: PedidoNaFila['itens_faturados_acumulados'];
   retencao_codigo: PedidoNaFila['retencao_codigo'];
+  retencao_mensagem?: string | null;
   deleted_at: Date | null;
 }
 
@@ -45,6 +46,7 @@ export const naFila = (l: LinhaFila): PedidoNaFila => ({
   estado: l.estado,
   payload: l.payload,
   retencao_codigo: l.retencao_codigo,
+  ...(l.retencao_mensagem !== undefined ? { retencao_mensagem: l.retencao_mensagem } : {}),
   enviado_em: iso(l.enviado_em),
   tentativas: l.tentativas,
   numero_erp: l.numero_erp,

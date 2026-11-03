@@ -57,10 +57,12 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     const promotor = (await api.sessao('promotor@exemplo.com.br')).access_token;
     const supervisor = (await api.sessao('supervisor@exemplo.com.br')).access_token;
     const antes = await api.meusModulos(promotor);
-    // ativo: o pull de entidade do Promotor passa da licença (sem provedor ainda → 501)
+    // ativo: o pull de entidade do Promotor passa da licença. Com o pull dos cadastros de trade (#51, T-0056,
+    // modules/promotor/api/sync-cadastros.ts) → 200 com a página; antes dele → 501 SYNC_NAO_IMPLEMENTADO. Nunca 403.
     const pullAtivo = await api.chamar(promotor, { method: 'GET', url: '/v1/sync/pull?entidade=checklist_loja' });
-    expect(pullAtivo.statusCode).toBe(501);
-    expect(erroDe(pullAtivo).codigo).toBe('SYNC_NAO_IMPLEMENTADO');
+    expect([200, 501], pullAtivo.body).toContain(pullAtivo.statusCode);
+    if (pullAtivo.statusCode === 501) expect(erroDe(pullAtivo).codigo).toBe('SYNC_NAO_IMPLEMENTADO');
+    else expect(Array.isArray(pullAtivo.json().itens), pullAtivo.body).toBe(true);
 
     const r = await licenca(api, admin, 'tenant', 'promotor', false);
     expect(r.statusCode, r.body).toBe(200);

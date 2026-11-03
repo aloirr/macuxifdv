@@ -32,7 +32,7 @@ Padrão do BKO (BOM, `;`, CRLF). Só códigos do ERP (`external_id`), contagens 
 - Testes: `web/lib/*.test.ts` (puros, relógio de `@macuxi/comum/relogio`, sem hora fixa) e `web/components/paineis.render.test.ts` (renderização no servidor: botões de decisão por perfil e validade, sinal de vida).
 
 ## Pendências (fora da T-0051 nuvem)
-1. **Rota `GET /v1/integracao/lotes/{id}/erros`** — contrato pronto (`ErrosLoteQuery`/`ErrosLoteResposta`), a tela já consome; a rota ainda não está em `modules/integracao/api` (T-0032, local). Até lá a gaveta mostra o erro da API com "Tentar de novo".
+1. **Rota `GET /v1/integracao/lotes/{id}/erros`** — implementada em `modules/integracao/api/bko-carga-arquivo.ts` (T-0032, carga por arquivo): `ErrosLoteQuery` → `ErrosLoteResposta`, paginada, filtro por `codigo`/`reprocessavel`; a gaveta já a consome. Junto veio `GET /v1/integracao/lotes/{id}` (`LoteResultado`).
 2. **Rota `GET /v1/integracao/lotes`** (`LoteListagemQuery` → `LoteListagem`) — a tela filtra os 20 lotes recentes do monitor; com a rota, a lista passa a paginar no servidor (`paraQueryLotes` já monta a query do contrato).
 3. **Lista "Erros de retorno"** (`pedido_retorno_erro`: pedido, nota, sequência, `external_id` do produto, motivo; CSV) — falta contrato Zod público (hoje `ErroRetornoMonitor` é interface do domain) e rota (proposta: `GET /v1/integracao/pedidos/erros-retorno`). A tela mostra o alerta agregado.
 4. **CSV completo dos candidatos da inativação** (hoje: amostra de 50) — rota que recalcula a lista (hub-api.md, `pendencia_inativacao`).
