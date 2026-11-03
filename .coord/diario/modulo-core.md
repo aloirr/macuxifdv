@@ -35,3 +35,4 @@
 2026-11-02 — T-0065 — token de push só do usuário da sessão, logout/DELETE apaga, inativo/bloqueado não recebe (testes PG)
 2026-11-02 — T-0042 — urgente: upsertDispositivo não troca dono nem zera token de aparelho bloqueado (RN-CORE-15), where bloqueado_em is null; sessao.test, autenticacao, notificacoes.db, consumidores.db verdes
 2026-11-03 — T-0061 — opção promotor_ve_pedidos (padrão ligado, plataforma.parametro): domain, consulta core.promotor_ve_pedidos@1, rotas admin GET/PUT com auditoria, pull offline, Cliente 360 do app sem pedidos para promotor, painel no BKO; doc promotor-ve-pedidos.md
+2026-11-03 — T-0065/T-0063 — 23503 de *_medida_fk vira ReferenciaAusenteErp('medida') nos consumidores de produto_unidade e produto (comMedidaAusente); T-0065 B: painelDoUsuario apura o realizado pelo tipo da meta (apuracao.ts) atrás da porta FontePedidosDaMeta; pedido ao modulo-vendedor (vendedor.pedidos_da_meta@1) e ao banco-dados (core.meta.tipo)

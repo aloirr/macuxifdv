@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { planejarProdutoDoErp, type EventoProdutoAtualizado } from '../domain';
-import { eventoIntegracao, TextoErp } from './erp-apoio';
+import { comMedidaAusente, eventoIntegracao, TextoErp } from './erp-apoio';
 
 const RegistroProduto = z.object({
   external_id: z.string(),
@@ -46,13 +46,13 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
       await ctx.db.query('update core.produto set external_id = $2 where id = $1', [mesmoSku.id, l.external_id]);
     }
 
-    await ctx.db.query(
+    await comMedidaAusente(() => ctx.db.query(
       `insert into core.produto (tenant_id, external_id, sku, ean, nome, marca, categoria, unidade, ativo)
        values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8)
        on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
        do update set sku = excluded.sku, ean = excluded.ean, nome = excluded.nome, marca = excluded.marca,
                      categoria = excluded.categoria, unidade = excluded.unidade, ativo = excluded.ativo`,
       [l.external_id, l.sku, l.ean, l.nome, l.marca, l.categoria, l.unidade || 'UN', l.ativo],
-    );
+    ));
   },
 });

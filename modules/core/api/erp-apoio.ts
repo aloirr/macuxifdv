@@ -29,6 +29,20 @@ export class ReferenciaAusenteErp extends Error {
   }
 }
 
+/**
+ * FK de medida (`*_medida_fk`, 0018): sigla não cadastrada em `core.medida` (a consulta `core.medidas@1` estava fora do ar
+ * quando o Hub aplicou o lote, RN-INT-14). Vira `ReferenciaAusenteErp('medida')`: a transação desfaz e a outbox repete.
+ */
+export async function comMedidaAusente<T>(gravar: () => Promise<T>): Promise<T> {
+  try {
+    return await gravar();
+  } catch (e) {
+    const err = e as { code?: string; constraint?: string };
+    if (err.code === '23503' && typeof err.constraint === 'string' && err.constraint.endsWith('medida_fk')) throw new ReferenciaAusenteErp('medida');
+    throw e;
+  }
+}
+
 /** Texto opcional do payload. */
 export const TextoErp = z.string().nullish();
 
