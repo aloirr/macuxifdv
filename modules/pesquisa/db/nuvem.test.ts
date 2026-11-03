@@ -3,13 +3,15 @@
  * colunas, mesmo tipo e mesma obrigatoriedade. Pega o espelho que ficou para trás quando a migração muda. Não precisa
  * de Postgres. A prova contra o banco real (inclusive CHECKs e listas fechadas) é de db/testes/pesquisa.test.ts.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { lerMigracoes } from '@macuxi/db';
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 import { questionario, questionarioVersao, resposta, respostaFoto, respostaItem } from './nuvem';
 
-const SQL = readFileSync(join(__dirname, '../../../db/migrations/0016_pesquisa.up.sql'), 'utf8');
+/** A 0016 vem pelo pacote `@macuxi/db` (devDependency): o hash do turbo cobre db/ e o teste não sai do pacote. */
+const MIGRACAO_0016 = lerMigracoes().find((m) => m.versao === '0016');
+if (MIGRACAO_0016?.nome !== 'pesquisa') throw new Error('migração 0016_pesquisa não encontrada em @macuxi/db');
+const SQL = MIGRACAO_0016.up;
 
 const TIPO_SQL: Record<string, string> = {
   uuid: 'uuid',
