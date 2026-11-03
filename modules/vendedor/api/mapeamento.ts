@@ -5,6 +5,7 @@
 import type { AprovacaoDoPedido, ClienteDoPedido, FaturamentoDoPedido, Order, OrderDetail, OrderItem } from '../contracts';
 import { camposFaturamento, politicaDosParametros, quemDecide, situacaoDevolucao, textoPendencia, type NivelAprovacao } from '../domain';
 import type { OrderStatus } from '../domain/order';
+import { rotuloMedida } from '../domain/preco-pedido';
 
 export interface LinhaPedido {
   id: string;
@@ -36,6 +37,15 @@ export interface LinhaPedido {
   devolvido_cents?: number | null;
   notas_faturamento?: number | null;
   ultima_nota_numero?: string | null;
+  // T-0061 (0013): acréscimo, desconto efetivo, frete e endereço de entrega
+  acrescimo_pct?: number | null;
+  desconto_efetivo_pct?: number | null;
+  frete_modalidade?: 'CIF' | 'FOB' | null;
+  transportadora_nome?: string | null;
+  transportadora_documento?: string | null;
+  transportadora_telefone?: string | null;
+  transportadora_digitada?: boolean | null;
+  endereco_entrega?: Record<string, unknown> | null;
 }
 
 /** T-0054: nota de faturamento e de devolução do pedido (detalhe). */
@@ -65,6 +75,10 @@ export interface LinhaItem {
   total_cents: number;
   quantidade_faturada?: number | null;
   quantidade_base?: number | null;
+  // T-0061: medida vendida e acréscimo do item
+  unidade?: string | null;
+  fator?: number | null;
+  acrescimo_pct?: number | null;
 }
 
 export interface LinhaEvento {
@@ -76,6 +90,43 @@ export interface LinhaEvento {
 }
 
 export const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
+
+/** RN-VEN-03/10: a alçada olha o desconto efetivo; pedido antigo (sem a coluna) usa o desconto do pedido. */
+function descontoParaAlcada(l: LinhaPedido): number {
+  return l.desconto_efetivo_pct === undefined || l.desconto_efetivo_pct === null ? num(l.desconto_pct) : num(l.desconto_efetivo_pct);
+}
+
+/** CIF/FOB e transportadora do retrato do pedido (RN-VEN-16); pedido antigo sem frete = sem bloco. */
+export function freteDoPedido(l: LinhaPedido): Order['freight'] {
+  if (!l.frete_modalidade) return null;
+  return {
+    modality: l.frete_modalidade,
+    carrier_name: l.frete_modalidade === 'FOB' ? (l.transportadora_nome ?? null) : null,
+    carrier_document: l.frete_modalidade === 'FOB' ? (l.transportadora_documento ?? null) : null,
+    carrier_phone: l.frete_modalidade === 'FOB' ? (l.transportadora_telefone ?? null) : null,
+    carrier_typed: l.frete_modalidade === 'FOB' && l.transportadora_digitada === true,
+  };
+}
+
+export function enderecoDoPedido(l: LinhaPedido): Order['delivery_address'] {
+  const e = l.endereco_entrega;
+  if (!e || typeof e !== 'object') return null;
+  const t = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+  return {
+    id: t(e.id),
+    external_id: t(e.external_id),
+    tipo: t(e.tipo) ?? undefined,
+    descricao: t(e.descricao),
+    logradouro: String(e.logradouro ?? ''),
+    numero: t(e.numero),
+    complemento: t(e.complemento),
+    bairro: t(e.bairro),
+    cidade: String(e.cidade ?? ''),
+    uf: String(e.uf ?? ''),
+    cep: t(e.cep),
+    principal: e.principal === true,
+  };
+}
 
 export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, unknown>>, perfil = ''): Order {
   const politica = politicaDosParametros({ ...parametros });
@@ -98,7 +149,7 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     total_cents: total,
     payment_terms: l.condicao_pagamento_descricao ?? l.condicao_pagamento ?? '',
     status: l.status,
-    pending_reason: l.status === 'pending_approval' && l.nivel_aprovacao ? textoPendencia(l.nivel_aprovacao, num(l.desconto_pct), politica.seller_pct) : '',
+    pending_reason: l.status === 'pending_approval' && l.nivel_aprovacao ? textoPendencia(l.nivel_aprovacao, descontoParaAlcada(l), politica.seller_pct) : '',
     rejection_reason: l.status === 'rejected' ? (l.motivo_rejeicao ?? '') : '',
     erp_order_code: l.numero_erp ?? '',
     created_offline_at: l.criado_no_aparelho_em,
@@ -109,6 +160,10 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     nivel_aprovacao: l.status === 'pending_approval' ? l.nivel_aprovacao : null,
     pode_decidir: l.status === 'pending_approval' && l.nivel_aprovacao ? quemDecide(perfil, l.nivel_aprovacao).pode : false,
     ...camposFaturamento(l),
+    ...(l.acrescimo_pct !== undefined && l.acrescimo_pct !== null ? { surcharge_pct: num(l.acrescimo_pct) } : {}),
+    ...(l.desconto_efetivo_pct !== undefined && l.desconto_efetivo_pct !== null ? { effective_discount_pct: num(l.desconto_efetivo_pct) } : {}),
+    ...(l.frete_modalidade ? { freight: freteDoPedido(l) } : {}),
+    ...(l.endereco_entrega ? { delivery_address: enderecoDoPedido(l) } : {}),
   };
 }
 
@@ -137,7 +192,7 @@ export function aprovacaoDoPedido(l: LinhaPedido, perfil: string, parametros: Re
   return {
     nivel: l.nivel_aprovacao,
     motivos: (l.motivos_aprovacao ?? []) as AprovacaoDoPedido['motivos'],
-    desconto_efetivo_pct: num(l.desconto_pct),
+    desconto_efetivo_pct: Math.max(0, descontoParaAlcada(l)),
     limite_vendedor_pct: politicaDosParametros({ ...parametros }).seller_pct,
     pode_decidir: l.status === 'pending_approval' && q.pode,
     acima_do_nivel: q.acima_do_nivel,
@@ -156,7 +211,9 @@ export function paraItem(i: LinhaItem): OrderItem {
     discount_pct: num(i.desconto_pct),
     total_cents: num(i.total_cents),
     ...(i.quantidade_faturada === undefined || i.quantidade_faturada === null ? {} : { quantity_invoiced: num(i.quantidade_faturada) }),
-    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: num(i.quantidade_base) }),
+    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: num(i.quantidade_base), base_quantity: num(i.quantidade_base) }),
+    ...(i.unidade ? { unit: i.unidade, factor: num(i.fator ?? 1), unit_label: rotuloMedida(i.unidade, num(i.fator ?? 1)) } : {}),
+    ...(i.acrescimo_pct !== undefined && i.acrescimo_pct !== null && num(i.acrescimo_pct) > 0 ? { surcharge_pct: num(i.acrescimo_pct) } : {}),
   };
 }
 

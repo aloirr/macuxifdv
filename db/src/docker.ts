@@ -6,7 +6,7 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { PASTA_DB } from './config';
+import { PASTA_DB, type ServicoCompose } from './config';
 
 export const COMPOSE = join(PASTA_DB, 'docker-compose.yml');
 
@@ -57,7 +57,10 @@ export function compose(args: string[], opcoes: { herdarSaida?: boolean } = {}):
   return r.stdout ?? '';
 }
 
-/** Sobe o serviço postgres e espera o healthcheck (idempotente: se já está de pé, não faz nada). */
-export function subirPostgres(opcoes: { herdarSaida?: boolean } = {}): void {
-  compose(['up', '-d', '--wait'], opcoes);
+/**
+ * Sobe UM serviço do compose e espera o healthcheck (idempotente: se já está de pé, não faz nada).
+ * 'postgres' = demo/dev (5432, macuxi-postgres); 'postgres-testes' = testes (5434, macuxi-postgres-testes, tmpfs).
+ */
+export function subirPostgres(opcoes: { herdarSaida?: boolean; servico?: ServicoCompose } = {}): void {
+  compose(['up', '-d', '--wait', opcoes.servico ?? 'postgres'], opcoes);
 }

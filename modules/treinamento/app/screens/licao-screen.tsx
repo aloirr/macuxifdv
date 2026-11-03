@@ -42,6 +42,7 @@ export default function LicaoScreen() {
     setSegundos(0);
     setFeito(null);
     setErro(null);
+    // timer-permitido: contador do tempo mínimo da lição (RN-TRE-04)
     const h = setInterval(() => setSegundos(Math.floor((Date.now() - inicio.current) / 1000)), 1000);
     return () => clearInterval(h);
   }, [id]);

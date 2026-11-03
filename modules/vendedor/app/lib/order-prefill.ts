@@ -8,6 +8,8 @@ import type { Product } from '@macuxi/catalogo/contracts';
 export interface PrefillLine {
   product_id: string;
   quantity: number;
+  /** T-0061: embalagem (ex.: CX); ausente/null = unidade base. A chave da linha vira `produto@CX`. */
+  unidade?: string | null;
   /** para o aviso, se o item sair */
   erp_code?: string;
   description?: string;
@@ -39,8 +41,9 @@ export function prefillLines(source: PrefillLine[], catalog: Product[]): Prefill
       removed.push({ product_id: l.product_id, label, reason: 'no_price' });
       continue;
     }
-    lines[p.id] = (lines[p.id] ?? 0) + q;
-    if (lines[p.id]! > p.stock_total) short_stock.push({ product_id: p.id, label, stock: Math.max(0, p.stock_total) });
+    const chave = l.unidade ? `${p.id}@${l.unidade}` : p.id;
+    lines[chave] = (lines[chave] ?? 0) + q;
+    if (!l.unidade && lines[chave]! > p.stock_total) short_stock.push({ product_id: p.id, label, stock: Math.max(0, p.stock_total) });
   }
   return { lines, removed, short_stock };
 }

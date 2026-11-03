@@ -1034,6 +1034,17 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
       if (tabela === 'core.indicador_diario') {
         await admin.query('delete from core.indicador_diario where tenant_id = $1 and id = any($2::uuid[])', [T, linhas.map((l) => l.id)]);
       }
+      // unidade padrão: a de um produto da base pode ter mudado (PAP-4 PC→UN, 02/11) ou o ensaio pode ter trocado. Antes do
+      // upsert, deixa de ser padrão toda unidade viva que o seed não marca como padrão; senão o único parcial
+      // produto_unidade_padrao_uk (0013) quebra a recarga sem --recriar ("seed demo" do subir-demo -Manter).
+      if (tabela === 'core.produto_unidade') {
+        const padroes = linhas.filter((l) => l.padrao === true);
+        await admin.query(
+          `update core.produto_unidade set padrao = false
+            where tenant_id = $1 and padrao and deleted_at is null and produto_id = any($2::uuid[]) and id <> all($3::uuid[])`,
+          [T, padroes.map((l) => l.produto_id), padroes.map((l) => l.id)],
+        );
+      }
       // contador do número: nunca volta atrás (o ensaio pode já ter numerado pedidos com ele)
       if (tabela === 'vendedor.numeracao_pedido') {
         const n = linhas[0]!;
