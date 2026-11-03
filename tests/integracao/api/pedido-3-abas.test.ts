@@ -13,12 +13,10 @@
  * Fixture: ALFA-001 (100.000 cents; UN fator 1 padrão e CX fator 10), c1 com endereço principal "Rua Um" e de entrega
  * "Av. do Depósito". Para o caso exato "30% no item → 5% efetivo" o teste grava um preço vigente para ALFA-002 (50.000).
  *
- * Fica PULADO até o #72 estar no main (detecta modules/vendedor/contracts/frete.ts) e sem Postgres.
+ * O #72/#75 está no main (45d8447): o roteiro roda sempre que houver Postgres (pula só sem banco; com MACUXI_PG_EXIGIR=1, erro).
  * Só no aparelho (roteiro manual, docs/testes/T-0061.md): as 3 abas e o rodapé fixo, toque de 48 dp, UN/CX em 2 toques,
  * offline (avião) → reconexão, o PDF renderizado/compartilhado (expo-print) e a gaveta do BKO no navegador.
  */
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { formatBRL } from '@macuxi/comum';
 import { semBanco } from '@macuxi/db/teste/estado';
 import type { ResultadoItemPush } from '@macuxi/platform-sdk';
@@ -27,8 +25,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildOrderPdfHtml, pdfDoPedido } from '../../../modules/vendedor/app/lib/order-pdf';
 import { A, B, subirApi, type ApiDeTeste } from '../apoio/api';
 
-const RAIZ = join(__dirname, '..', '..', '..');
-const TEM_T0061 = existsSync(join(RAIZ, 'modules/vendedor/contracts/frete.ts'));
 
 const id = (n: number) => `0f610000-0000-4000-8000-a${String(n).padStart(11, '0')}`;
 const PED = { lixo1: id(90), lixo2: id(91), cx: id(1), efetivo5: id(2), item30pedido5: id(3), fobDigitada: id(4), fobRuim: id(5), endereco: id(6), enderecoRuim: id(7), promotor: id(8) };
@@ -46,7 +42,7 @@ interface DetalheNovo {
   items: Array<Record<string, unknown>>;
 }
 
-describe.skipIf(semBanco() || !TEM_T0061)('T-0061 — roteiro de 5 passos do novo pedido em 3 abas (createApp real × Postgres)', () => {
+describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 abas (createApp real × Postgres)', () => {
   let api: ApiDeTeste;
   const tk = { vendedor: '', gerente: '', promotor: '', b: '' };
   let prod1 = '';
