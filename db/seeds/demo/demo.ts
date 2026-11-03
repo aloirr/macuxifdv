@@ -27,7 +27,9 @@
  * - Rota de HOJE (no fuso do tenant, calculada na hora do seed): 6 paradas do vendedor, 4 da vendedor2 e 4 do promotor.
  * - Metas do mês corrente (Lucas, Camila e Joana), todas do tipo 'pedido' (0019, RN-CORE-21: a demo não tem faturamento do
  *   ERP, uma meta de faturamento ficaria zerada), indicador diário coerente com os pedidos, motivos extras (os padrões vêm
- *   do gatilho core.semear_tenant) e 2 notificações.
+ *   do gatilho core.semear_tenant) e 2 notificações. Metas do mês anterior de Lucas e Camila (mesmos indicadores, valores
+ *   um pouco menores) para o "copiar do mês anterior" do BKO (T-0068); o Gestor projeta por usuário|mês, o mês corrente
+ *   não muda. Meta viva gravada pelo ensaio no mesmo (usuário, período, indicador) é mantida (o seed pula a dele).
  * - Hierarquia (BKO de usuários, T-0067): Lucas, Camila, Joana e Renata na Equipe Manaus, cuja responsável é a Renata
  *   (supervisora); a equipe-pai Regional Norte tem o Marcelo (gerente) como responsável — supervisor e gerente de cada
  *   usuário saem de core.equipe (responsavel_id e equipe_pai_id), sem coluna nova.
@@ -484,6 +486,15 @@ const METAS: Array<[ChaveUsuario, 'venda_cents' | 'positivacao' | 'cobertura_pct
   ['promotor', 'visitas', 80], ['promotor', 'cobertura_pct', 9_000],
 ];
 
+/**
+ * Metas do MÊS ANTERIOR (T-0070, decisão do gerente): Lucas e Camila, mesmos 4 indicadores e tipo 'pedido' das do mês
+ * corrente, com valores um pouco diferentes para o "copiar do mês anterior" do BKO de metas (T-0068) ser visível.
+ */
+export const METAS_MES_ANTERIOR_DEMO: ReadonlyArray<readonly [ChaveUsuario, 'venda_cents' | 'positivacao' | 'cobertura_pct' | 'visitas', number]> = [
+  ['vendedor', 'venda_cents', 16_500_000], ['vendedor', 'positivacao', 14], ['vendedor', 'cobertura_pct', 8_800], ['vendedor', 'visitas', 85],
+  ['vendedor2', 'venda_cents', 11_000_000], ['vendedor2', 'positivacao', 9], ['vendedor2', 'cobertura_pct', 8_000], ['vendedor2', 'visitas', 55],
+];
+
 // ---------------------------------------------------------------------------------------------------------------
 export const ORDEM_DEMO = [
   'plataforma.tenant',
@@ -826,9 +837,14 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     vendido_cents: d.vendido, cancelado_cents: d.cancelado, ...comuns,
   }));
 
-  const metas: Linha[] = METAS.map(([quem, indicador, valor]) => ({
-    id: id(`meta:${quem}:${periodo}:${indicador}`), tenant_id: T, usuario_id: u(quem), periodo, indicador, valor, tipo: TIPO_METAS_DEMO, ...comuns,
-  }));
+  const meta = (quem: ChaveUsuario, mes: string, indicador: string, valor: number): Linha => ({
+    id: id(`meta:${quem}:${mes}:${indicador}`), tenant_id: T, usuario_id: u(quem), periodo: mes, indicador, valor, tipo: TIPO_METAS_DEMO, ...comuns,
+  });
+  const metas: Linha[] = [
+    ...METAS.map(([quem, indicador, valor]) => meta(quem, periodo, indicador, valor)),
+    // T-0070: mês anterior de Lucas e Camila, para o "copiar do mês anterior" (T-0068)
+    ...METAS_MES_ANTERIOR_DEMO.map(([quem, indicador, valor]) => meta(quem, anoMes(hoje, -1), indicador, valor)),
+  ];
 
   const notificacao = (chave: string, quem: ChaveUsuario, extra: Partial<Linha>): Linha => ({
     id: id(`notificacao:${chave}`), tenant_id: T, usuario_id: u(quem), tipo: 'sistema', titulo: '', corpo: '', link: null, origem_modulo: 'core',
@@ -1040,7 +1056,19 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     conferirSoTenantDemo(dados);
     for (const tabela of ORDEM_DEMO) {
       // equipe antes do responsável: grava sem responsavel_id e completa depois dos usuários
-      const linhas: Linha[] = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
+      let linhas: Linha[] = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
+      // metas: o ensaio pode ter gravado pela API (PUT /v1/core/metas, T-0068) uma meta viva com outro id no mesmo
+      // (usuário, período, indicador) que o seed semeia (ex.: o mês anterior); o único meta_uk quebraria a recarga -Manter.
+      // Fica a do ensaio (não apaga dado) e o seed pula a dele.
+      if (tabela === 'core.meta') {
+        const r = await admin.query<{ chave: string }>(
+          `select usuario_id || '|' || periodo || '|' || indicador as chave from core.meta
+            where tenant_id = $1 and deleted_at is null and id <> all($2::uuid[])`,
+          [T, linhas.map((l) => l.id)],
+        );
+        const doEnsaio = new Set(r.rows.map((x) => x.chave));
+        linhas = linhas.filter((l) => !doEnsaio.has(`${String(l.usuario_id)}|${String(l.periodo)}|${String(l.indicador)}`));
+      }
       // diário: as datas andam com o "hoje" e o único (usuario_id, data) não é adiável — a linha que vai para a data
       // de outra ainda não movida violaria o único no meio do upsert. Apaga só as linhas do seed (por id) e regrava.
       if (tabela === 'core.indicador_diario') {

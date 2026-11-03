@@ -9,10 +9,11 @@ import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenant
 import { politicaDosParametros, revalidarPedido } from '../../modules/vendedor/domain/aprovacao';
 import {
   ALCADAS_DEMO, carregarDemo, CLIENTE_SEM_CEP_DEMO, PRECO_PROPRIO_CX_LIGADO, CODIGO_DEMO, dadosDemo, DESCONTO_MAXIMO_PROPRIO_DEMO, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
-  TIPO_METAS_DEMO, USUARIOS_DEMO,
+  METAS_MES_ANTERIOR_DEMO, TIPO_METAS_DEMO, USUARIOS_DEMO,
 } from '../seeds/demo/demo';
 import { dadosDemoMedidas, MEDIDAS_ATIVAS_DEMO } from '../seeds/demo/medidas';
-import { MODULO_GESTOR, PERFIS_GESTOR_DEMO } from '../seeds/demo/gestor';
+import { dadosGestorDemo, MODULO_GESTOR, PERFIS_GESTOR_DEMO, projecaoDemo } from '../seeds/demo/gestor';
+import { painelDoMes } from '../../modules/gestor/domain/painel';
 import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
 import { PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
 import { MODULO_TREINAMENTO, PERFIS_TREINAMENTO_DEMO, TRILHAS_DEMO } from '../seeds/demo/treinamento';
@@ -80,9 +81,9 @@ describe('base de demo (estático)', () => {
     const lucas = idUsuarioDemo('vendedor');
     const camila = idUsuarioDemo('vendedor2');
     for (const quem of [lucas, camila]) {
-      const metas = d['core.meta'].filter((m) => m.usuario_id === quem);
+      const metas = d['core.meta'].filter((m) => m.usuario_id === quem && m.periodo === anoMes(hoje));
       expect(metas.map((m) => m.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
-      expect(metas.every((m) => m.periodo === anoMes(hoje) && m.tipo === TIPO_METAS_DEMO)).toBe(true);
+      expect(metas.every((m) => m.tipo === TIPO_METAS_DEMO)).toBe(true);
     }
     expect(d['core.meta'].every((m) => m.tipo === 'pedido')).toBe(true);
     const equipe = (nome: string) => d['core.equipe'].find((e) => e.nome === nome)!;
@@ -96,9 +97,39 @@ describe('base de demo (estático)', () => {
     expect(d['core.usuario'].find((u) => u.id === idUsuarioDemo('gerente'))!.equipe_id).toBe(regional.id);
   });
 
+  it('T-0070/T-0068: metas do mês anterior só de Lucas e Camila, mesmos 4 indicadores e tipo, valores diferentes do mês corrente', () => {
+    const anterior = d['core.meta'].filter((m) => m.periodo === anoMes(hoje, -1));
+    expect(anterior).toHaveLength(METAS_MES_ANTERIOR_DEMO.length);
+    expect(new Set(anterior.map((m) => m.usuario_id))).toEqual(new Set([idUsuarioDemo('vendedor'), idUsuarioDemo('vendedor2')]));
+    for (const m of anterior) {
+      expect(m.tipo).toBe(TIPO_METAS_DEMO);
+      const corrente = d['core.meta'].find((x) => x.usuario_id === m.usuario_id && x.indicador === m.indicador && x.periodo === anoMes(hoje))!;
+      expect(corrente, `meta corrente de ${String(m.indicador)}`).toBeDefined();
+      expect(m.valor).not.toBe(corrente.valor);
+      expect(m.id).not.toBe(corrente.id);
+    }
+    // ids determinísticos únicos e uma linha por (usuário, período, indicador) (único meta_uk)
+    expect(new Set(d['core.meta'].map((m) => m.id)).size).toBe(d['core.meta'].length);
+    expect(new Set(d['core.meta'].map((m) => `${String(m.usuario_id)}|${String(m.periodo)}|${String(m.indicador)}`)).size).toBe(d['core.meta'].length);
+  });
+
+  it('T-0070: o Gestor projeta a meta do mês anterior por usuário|mês; o painel do mês corrente fica com a meta corrente', () => {
+    const { estado } = projecaoDemo(dadosGestorDemo(d).eventos);
+    const mes = anoMes(hoje);
+    const anterior = anoMes(hoje, -1);
+    const semAnterior = projecaoDemo(dadosGestorDemo({ ...d, 'core.meta': d['core.meta'].filter((m) => m.periodo === mes) }).eventos).estado;
+    for (const k of ['vendedor', 'vendedor2'] as const) {
+      const u = idUsuarioDemo(k);
+      const venda = (p: string) => Number(d['core.meta'].find((m) => m.usuario_id === u && m.periodo === p && m.indicador === 'venda_cents')!.valor);
+      expect(estado.metas[`${u}|${mes}`]?.meta_cents).toBe(venda(mes));
+      expect(estado.metas[`${u}|${anterior}`]?.meta_cents).toBe(venda(anterior));
+      expect(painelDoMes(estado, u, hoje)).toEqual(painelDoMes(semAnterior, u, hoje));
+    }
+  });
+
   it('metas do mês, pedidos e visitas só no passado, diário coerente com os pedidos', () => {
-    expect(d['core.meta'].every((m) => m.periodo === anoMes(hoje))).toBe(true);
-    expect(d['core.meta'].filter((m) => m.usuario_id === vendedor.id).map((m) => m.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
+    expect(d['core.meta'].every((m) => m.periodo === anoMes(hoje) || m.periodo === anoMes(hoje, -1))).toBe(true);
+    expect(d['core.meta'].filter((m) => m.usuario_id === vendedor.id && m.periodo === anoMes(hoje)).map((m) => m.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
     expect(d['core.visita'].every((v) => String(v.data_local) < hoje)).toBe(true);
     const status = new Set(d['vendedor.pedido'].map((p) => p.status));
     for (const s of ['pending_approval', 'approved', 'rejected', 'cancelled']) expect(status.has(s)).toBe(true);
@@ -444,6 +475,15 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     const porUsuario = Object.fromEntries(r.metas.map((x) => [x.usuario_id, `${x.tipo}:${x.n}`]));
     expect(porUsuario[idUsuarioDemo('vendedor')]).toBe('pedido:4');
     expect(porUsuario[idUsuarioDemo('vendedor2')]).toBe('pedido:4');
+    // mês anterior (T-0070, para o "copiar" da T-0068): Lucas e Camila, 4 cada, pelo papel macuxi_app
+    const anterior = await comTenant(pool, TENANT_DEMO, async (c) =>
+      (await c.query<{ usuario_id: string; tipo: string; n: number }>(
+        'select usuario_id, tipo, count(*)::int as n from core.meta where periodo = $1 and deleted_at is null group by 1, 2 order by 1',
+        [anoMes(hojeCarga, -1)],
+      )).rows);
+    expect(Object.fromEntries(anterior.map((x) => [x.usuario_id, `${x.tipo}:${x.n}`]))).toEqual({
+      [idUsuarioDemo('vendedor')]: 'pedido:4', [idUsuarioDemo('vendedor2')]: 'pedido:4',
+    });
     const chefia = { supervisor: USUARIOS_DEMO.supervisor.nome, gerente: USUARIOS_DEMO.gerente.nome };
     expect(r.hierarquia.sort((a, b) => a.nome.localeCompare(b.nome))).toEqual(
       [USUARIOS_DEMO.vendedor.nome, USUARIOS_DEMO.vendedor2.nome, USUARIOS_DEMO.promotor.nome].sort().map((nome) => ({ nome, ...chefia })),
@@ -469,6 +509,31 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
     expect(await contarDemo()).toEqual(antes);
     expect((await hash()).rows).toEqual(hashAntes);
+  });
+
+  it('recarga -Manter com meta do ensaio no mesmo (usuário, mês anterior, indicador) do seed: mantém a do ensaio sem violar meta_uk', async () => {
+    const lucas = idUsuarioDemo('vendedor');
+    const anterior = anoMes(hojeCarga, -1);
+    const daSeed = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['core.meta'].find((m) => m.usuario_id === lucas && m.periodo === anterior && m.indicador === 'visitas')!;
+    // o ensaio apagou a do seed e gravou outra pela API (id novo, mesmo único)
+    const ensaio = await comTenant(pool, TENANT_DEMO, async (c) => {
+      await c.query('update core.meta set deleted_at = now() where id = $1', [daSeed.id]);
+      return (await c.query<{ id: string }>(
+        "insert into core.meta (tenant_id, usuario_id, periodo, indicador, valor, tipo) values (plataforma.tenant_atual(), $1, $2, 'visitas', 77, 'pedido') returning id",
+        [lucas, anterior],
+      )).rows[0]!.id;
+    });
+    const antes = await contarDemo();
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+    expect(await contarDemo()).toEqual(antes);
+    const vivas = await comAdmin(b.nome, (c) =>
+      c.query<{ id: string; valor: number }>("select id, valor::int as valor from core.meta where tenant_id = $1 and usuario_id = $2 and periodo = $3 and indicador = 'visitas' and deleted_at is null", [TENANT_DEMO, lucas, anterior]));
+    expect(vivas.rows).toEqual([{ id: ensaio, valor: 77 }]);
+    // volta ao estado da carga para os testes seguintes
+    await comAdmin(b.nome, async (c) => {
+      await c.query('delete from core.meta where id = $1', [ensaio]);
+      await c.query('update core.meta set deleted_at = null where id = $1', [daSeed.id]);
+    });
   });
 
   it('recarga sem --recriar com a unidade padrão trocada (PAP-4 PC→UN, 02/11): volta à do seed sem violar o único', async () => {
