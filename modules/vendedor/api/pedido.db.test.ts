@@ -6,7 +6,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_PROMOTOR_VE_PEDIDOS } from '@macuxi/core/contracts';
 import { comTenant, dadosDoisTenants, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import {
@@ -54,6 +54,7 @@ interface Registro {
 
 describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura (T-0029)', () => {
   let pool: pg.Pool;
+  let opcaoPromotor = true;
   let prod1 = '';
   let prod2 = '';
   /** preço por cliente (a consulta do Catálogo é simulada); c3 sem tabela */
@@ -99,6 +100,7 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
                   itens: ent.produto_ids.map((p) => ({ produto_id: p, preco_cents: tabela?.[p] ?? null, motivo_sem_preco: tabela?.[p] ? null : 'Sem preço para este cliente.' })),
                 };
               }
+              if (def.nome === CONSULTA_PROMOTOR_VE_PEDIDOS.nome) return { ligado: opcaoPromotor }; // Core simulado, lido a cada requisição
               throw new Error(`consulta não simulada: ${def.nome}`);
             },
             async publicar(def: DefinicaoEvento, payload: unknown) {
@@ -434,6 +436,27 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       const lp = (await chamar(rotaListarPedidos, pro.ctx, { query: { limite: 200 } })) as { itens: Array<{ customer_id: string }> };
       expect(lp.itens.every((o) => o.customer_id === A.clientes.c2)).toBe(true);
       await expect(chamar(rotaVerPedido, pro.ctx, { params: { id: id(1) } })).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('O-3: core.promotor_ve_pedidos@1 DESLIGADA = 403 na lista, no detalhe e no pull do promotor; ligada = só leitura da carteira; vale na requisição seguinte', async () => {
+      const pro = contexto(promotor, { carteira: new Set([A.clientes.c2]) });
+      const pull = () => provedoresSyncVendedor.find((x) => x.entidade.nome === 'pedido')!.puxar!(pro.ctx as never, { desde: null, ate: new Date(AGORA.getTime() + 1000).toISOString(), limite: 100 });
+      try {
+        opcaoPromotor = true;
+        const lp = (await chamar(rotaListarPedidos, pro.ctx, { query: { limite: 200 } })) as { itens: Array<{ customer_id: string }> };
+        expect(lp.itens.length).toBeGreaterThan(0);
+        expect(lp.itens.every((o) => o.customer_id === A.clientes.c2)).toBe(true);
+        expect((await pull()).length).toBeGreaterThan(0);
+        opcaoPromotor = false;
+        await expect(chamar(rotaListarPedidos, pro.ctx, { query: { limite: 200 } })).rejects.toMatchObject({ status: 403, codigo: 'RN-PRO-01' });
+        await expect(chamar(rotaVerPedido, pro.ctx, { params: { id: id(1) } })).rejects.toMatchObject({ status: 403, codigo: 'RN-PRO-01' });
+        expect(await pull()).toEqual([]);
+        // o desligado vale só para o promotor
+        const v1 = contexto(vendedor1);
+        expect(((await chamar(rotaListarPedidos, v1.ctx)) as { itens: unknown[] }).itens.length).toBeGreaterThan(0);
+      } finally {
+        opcaoPromotor = true;
+      }
     });
 
     it('filtros: status, busca por cliente ou número, vendedor e período (fuso do tenant); cursor sem repetir', async () => {

@@ -41,7 +41,7 @@ function contexto(perfil: string, extra: { query?: unknown; params?: unknown } =
     carteira: async () => new Set([C1]),
     comTenant: async (fn: (d: typeof db, tx: unknown) => Promise<unknown>) => {
       aberturas++;
-      return fn(db, {});
+      return fn(db, { consultar: async () => ({ ligado: true }) });
     },
   } as unknown as ContextoBase & ContextoRota;
   return { ctx, consultas, aberturas: () => aberturas };
@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 describe('O-3: ponto único da opção promotor_ve_pedidos', () => {
-  it('O-3: enquanto o Core não publica a consulta, o padrão é LIGADA', async () => {
+  it('O-3: sem usar leitor injetado, a consulta core.promotor_ve_pedidos@1 do Core decide (padrão LIGADA)', async () => {
     expect(await promotorVePedidos(contexto('promotor').ctx)).toBe(true);
   });
 

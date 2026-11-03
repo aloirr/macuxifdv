@@ -3,16 +3,26 @@
  * Lista, detalhe e pull de pedido/item/evento passam por `exigirLeituraDePedidos` / `leituraDePedidosLiberada`; ninguém
  * mais lê a opção. A regra em si é `podeLerPedidos` (domain, RN-PRO-01).
  *
- * TODO(core): trocar o padrão de `promotorVePedidos` pela consulta pública do Core (modules/core/contracts) que o
- * modulo-core publicará para ler essa opção. Até lá, vale o padrão de fábrica: LIGADA.
+ * A opção vem da consulta pública `core.promotor_ve_pedidos@1` (Core, ADR 0012), feita a CADA requisição, como a licença
+ * (nunca em JWT/sessão/cache). Core inativo no tenant ou sem a consulta: padrão de fábrica LIGADA.
  */
-import { ErroHttpModulo, type ContextoBase } from '@macuxi/platform-sdk';
+import { ehConsultaIndisponivel, ErroHttpModulo, type ContextoBase } from '@macuxi/platform-sdk';
+import { CONSULTA_PROMOTOR_VE_PEDIDOS, PROMOTOR_VE_PEDIDOS_PADRAO } from '@macuxi/core/contracts';
 import { podeLerPedidos } from '../domain/leitura-pedido';
 
 export type LeitorOpcaoPromotor = (ctx: ContextoBase) => boolean | Promise<boolean>;
 
-/** Padrão de fábrica enquanto a consulta do Core não existe: opção ligada. */
-const padrao: LeitorOpcaoPromotor = () => true;
+/** Consulta o Core na transação do tenant; Core indisponível = padrão de fábrica (ligada). */
+const padrao: LeitorOpcaoPromotor = async (ctx) => {
+  const c = ctx as ContextoBase & { comTenant?: unknown };
+  if (typeof c.comTenant !== 'function') return PROMOTOR_VE_PEDIDOS_PADRAO;
+  try {
+    return await ctx.comTenant(async (_db, tx) => (await tx.consultar(CONSULTA_PROMOTOR_VE_PEDIDOS, {})).ligado);
+  } catch (e) {
+    if (ehConsultaIndisponivel(e)) return PROMOTOR_VE_PEDIDOS_PADRAO;
+    throw e;
+  }
+};
 let leitor: LeitorOpcaoPromotor = padrao;
 
 /** Opção `promotor_ve_pedidos` do tenant do usuário. Único ponto de leitura da opção no Vendedor. */
