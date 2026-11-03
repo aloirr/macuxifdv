@@ -87,3 +87,7 @@ R-20261102-124628-alexandre
 R-20261102-131055-gerente-projetos
 R-20261102-133746-alexandre
 R-20261102-134509-modulo-core
+R-20261102-180754-alexandre
+R-20261102-181952-engenheiro-apps
+R-20261102-185628-alexandre
+R-20261102-192202-gerente-projetos

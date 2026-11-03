@@ -18,10 +18,23 @@ const RAIZ = join(__dirname, '..', '..');
  */
 const SEED_DEMO = readFileSync(join(RAIZ, 'db', 'seeds', 'demo', 'demo.ts'), 'utf8');
 const listaDoFonte = (trecho: string | undefined) => (trecho ?? '').match(/'([^']+)'/g)?.map((x) => x.slice(1, -1)) ?? [];
-const LICENCIADOS_DEMO = listaDoFonte(/MODULOS_DEMO\s*=\s*\[([^\]]*)\]/.exec(SEED_DEMO)?.[1]);
-/** Módulos por perfil na demo (`plataforma.perfil_modulo` do seed, docs/banco/README.md "Base de demo"). */
+/**
+ * Seeds próprios de módulo ligados no `carregarDemo` (02/11: `db/seeds/demo/gestor.ts` e `promotor.ts`): cada um liga o
+ * módulo no tenant e nos perfis da sua constante `PERFIS_<MODULO>_DEMO`. Só valem se o demo.ts os chamar.
+ */
+const SEEDS_DE_MODULO = [
+  { modulo: 'gestor', chamada: /await\s+carregarDemoGestor\(/, arquivo: 'gestor.ts', constante: 'PERFIS_GESTOR_DEMO' },
+  { modulo: 'promotor', chamada: /await\s+gravarDemoPromotor\(/, arquivo: 'promotor.ts', constante: 'PERFIS_PROMOTOR_DEMO' },
+]
+  .filter((s) => s.chamada.test(SEED_DEMO) && existsSync(join(RAIZ, 'db', 'seeds', 'demo', s.arquivo)))
+  .map((s) => ({ modulo: s.modulo, perfis: listaDoFonte(new RegExp(`${s.constante}\\s*=\\s*\\[([^\\]]*)\\]`).exec(readFileSync(join(RAIZ, 'db', 'seeds', 'demo', s.arquivo), 'utf8'))?.[1]) }));
+const LICENCIADOS_DEMO = [...new Set([...listaDoFonte(/MODULOS_DEMO\s*=\s*\[([^\]]*)\]/.exec(SEED_DEMO)?.[1]), ...SEEDS_DE_MODULO.map((s) => s.modulo)])];
+/** Módulos por perfil na demo (`plataforma.perfil_modulo` do seed + seeds de módulo, docs/banco/README.md "Base de demo"). */
 const DO_PERFIL: Record<string, string[]> = Object.fromEntries(
-  [...(/PERFIL_MODULOS[^=]*=\s*\{([\s\S]*?)\n\};/.exec(SEED_DEMO)?.[1] ?? '').matchAll(/^\s*(\w+):\s*\[([^\]]*)\]/gm)].map(([, perfil, mods]) => [perfil!, listaDoFonte(mods)]),
+  [...(/PERFIL_MODULOS[^=]*=\s*\{([\s\S]*?)\n\};/.exec(SEED_DEMO)?.[1] ?? '').matchAll(/^\s*(\w+):\s*\[([^\]]*)\]/gm)].map(([, perfil, mods]) => [
+    perfil!,
+    [...new Set([...listaDoFonte(mods), ...SEEDS_DE_MODULO.filter((s) => s.perfis.includes(perfil!)).map((s) => s.modulo)])],
+  ]),
 );
 
 interface PaginaFonte {
@@ -39,7 +52,8 @@ function paginasDoFonte(modulo: string): PaginaFonte[] {
   const arq = join(RAIZ, 'modules', modulo, 'app', 'index.ts');
   if (!existsSync(arq)) return [];
   const fonte = readFileSync(arq, 'utf8');
-  const bloco = /paginas:\s*\[([\s\S]*?)\n\s*\],/.exec(fonte)?.[1] ?? '';
+  // várias linhas (`paginas: [\n {...},\n ],`) ou uma só (`paginas: [{ ... }],`, como o Promotor)
+  const bloco = /paginas:\s*\[([\s\S]*?)\n\s*\],/.exec(fonte)?.[1] ?? /paginas:\s*\[(.*)\],?\s*$/m.exec(fonte)?.[1] ?? '';
   return [...bloco.matchAll(/\{\s*id:\s*'([^']+)'([^\n]*)\}/g)].map(([, id, resto]) => {
     const campo = (k: string) => new RegExp(`(?:^|[\\s,{])${k}:\\s*'([^']+)'`).exec(resto!)?.[1];
     const apps = (/apps:\s*\[([^\]]*)\]/.exec(resto!)?.[1] ?? '').match(/'([^']+)'/g)?.map((s) => s.slice(1, -1)) ?? [];
@@ -72,6 +86,9 @@ const seCatalogo = CATALOGO_TEM_ABA ? it : it.fails;
 const ABAS_GESTOR = ['Equipe', 'Aprovações', 'Alertas'];
 const GESTOR_NA_DEMO = LICENCIADOS_DEMO.includes('gestor') && (DO_PERFIL.supervisor ?? []).includes('gestor');
 const seGestor = GESTOR_NA_DEMO ? it : it.fails;
+/** T-0056: a aba Loja vem da página do Promotor com `navegacao: 'Loja'` e da licença do Promotor para o perfil promotor. */
+const LOJA_NA_DEMO = paginasDoFonte('promotor').some((p) => p.navegacao === 'Loja') && LICENCIADOS_DEMO.includes('promotor') && (DO_PERFIL.promotor ?? []).includes('promotor');
+const seLoja = LOJA_NA_DEMO ? it : it.fails;
 
 describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () => {
   it('D-C00: Campo do vendedor tem Rota, Clientes, Metas e Pedidos; o do promotor não tem Pedidos (RN-PRO-01)', () => {
@@ -82,7 +99,8 @@ describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () =>
     expect(p).not.toContain('Pedidos');
   });
 
-  it.fails('D-C00b NÃO EXISTE: o promotor tem a aba Loja (trade: gôndola, share, preço, ruptura) — modules/promotor/app/index.ts exporta {}', () => {
+  seLoja(`D-C00b${LOJA_NA_DEMO ? '' : ' NÃO EXISTE'}: o promotor tem a aba Loja (trade: gôndola, share, preço, ruptura; T-0056) e continua sem Pedidos`, () => {
+    expect(abas('campo', 'promotor')).not.toContain('Pedidos');
     expect(abas('campo', 'promotor')).toContain('Loja');
   });
 
