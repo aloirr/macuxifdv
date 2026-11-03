@@ -71,7 +71,10 @@ export function criarRotas(fabrica: FabricaRepositorio | null): RotaModulo[] {
     executar: (ctx) =>
       comRepositorio(fabrica, ctx, async (repo): Promise<JornadaResposta> => {
         const params = parametrosDoTenant(ctx);
-        const [trilhas, gravado, usuarios] = await Promise.all([repo.trilhas(), repo.estadoDoAluno(ctx.usuario.id), repo.usuarios()]);
+        // em série: a transação é UMA conexão (o `pg` enfileira e avisa quando duas consultas disputam o mesmo cliente)
+        const trilhas = await repo.trilhas();
+        const gravado = await repo.estadoDoAluno(ctx.usuario.id);
+        const usuarios = await repo.usuarios();
         const hoje = hojeNoTenant(ctx);
         const r = resumoDaJornada({ tenant_id: ctx.usuario.tenant_id, usuario_id: ctx.usuario.id, usuario: alunoDaSessao(ctx, usuarios), ...gravado }, conteudoParaDominio(trilhas), { hoje, params });
         const titulos = new Map(trilhas.map((t) => [t.id, t.titulo]));
@@ -88,7 +91,10 @@ export function criarRotas(fabrica: FabricaRepositorio | null): RotaModulo[] {
     executar: (ctx) =>
       comRepositorio(fabrica, ctx, async (repo): Promise<RankingResposta> => {
         const params = parametrosDoTenant(ctx);
-        const [usuarios, lancamentos, conclusoes, trilhas] = await Promise.all([repo.usuarios(), repo.lancamentosDoTenant(), repo.conclusoesDoTenant(), repo.trilhas()]);
+        const usuarios = await repo.usuarios();
+        const lancamentos = await repo.lancamentosDoTenant();
+        const conclusoes = await repo.conclusoesDoTenant();
+        const trilhas = await repo.trilhas();
         const eu = alunoDaSessao(ctx, usuarios);
         let escopo: EscopoRanking = { tipo: 'geral' };
         if (ctx.query.escopo === 'equipe') {
@@ -128,7 +134,11 @@ export function criarRotas(fabrica: FabricaRepositorio | null): RotaModulo[] {
   // ---------- painel (RF-TRE-05) ----------
   async function painel(ctx: Parameters<RotaModulo['executar']>[0] & { query: AdesaoQuery }, repo: RepositorioTreinamento) {
     const params = parametrosDoTenant(ctx);
-    const [usuarios, trilhas, conclusoes, tentativas, visiveis] = await Promise.all([repo.usuarios(), repo.trilhas(), repo.conclusoesDoTenant(), repo.tentativasDoTenant(), ctx.usuariosVisiveis()]);
+    const usuarios = await repo.usuarios();
+    const trilhas = await repo.trilhas();
+    const conclusoes = await repo.conclusoesDoTenant();
+    const tentativas = await repo.tentativasDoTenant();
+    const visiveis = await ctx.usuariosVisiveis();
     const mes = ctx.query.mes ?? hojeNoTenant(ctx).slice(0, 7);
     const doEscopo = noEscopo(usuarios, visiveis, ctx.query.equipe_id);
     const conteudo = conteudoParaDominio(trilhas);
@@ -213,9 +223,10 @@ export function criarRotas(fabrica: FabricaRepositorio | null): RotaModulo[] {
         if (existente) return detalhe(existente);
         const agora = ctx.agora().toISOString();
         const nova: Trilha = { ...ctx.corpo, tenant_id: ctx.usuario.tenant_id, status: 'rascunho', publicada_em: null, arquivada_em: null, created_at: agora, updated_at: agora };
-        await repo.inserirTrilha(nova);
+        // created_at/updated_at: os do banco (now() da transação), lidos de volta
+        const gravada: Trilha = { ...nova, ...(await repo.inserirTrilha(nova)) };
         await tx.auditar({ acao: 'trilha.criar', entidade: 'trilha', entidade_id: nova.id, depois: { status: 'rascunho', modulos: nova.modulos.length } });
-        return detalhe({ ...nova, deleted_at: null });
+        return detalhe({ ...gravada, deleted_at: null });
       }),
   });
 
@@ -233,9 +244,9 @@ export function criarRotas(fabrica: FabricaRepositorio | null): RotaModulo[] {
         const pode = podeEditarTrilha(atual.status);
         if (!pode.ok) throw erroDeRegra(pode);
         const nova: Trilha = { ...ctx.corpo, tenant_id: atual.tenant_id, status: atual.status, publicada_em: atual.publicada_em, arquivada_em: atual.arquivada_em, created_at: atual.created_at, updated_at: ctx.agora().toISOString() };
-        await repo.atualizarTrilha(nova);
+        const gravada: Trilha = { ...nova, ...(await repo.atualizarTrilha(nova)) };
         await tx.auditar({ acao: 'trilha.editar', entidade: 'trilha', entidade_id: nova.id, antes: { modulos: atual.modulos.length }, depois: { modulos: nova.modulos.length } });
-        return detalhe({ ...nova, deleted_at: null });
+        return detalhe({ ...gravada, deleted_at: null });
       }),
   });
 
@@ -264,10 +275,24 @@ export function criarRotas(fabrica: FabricaRepositorio | null): RotaModulo[] {
             arquivada_em: acao === 'arquivar' ? agora : atual.arquivada_em,
             updated_at: agora,
           };
-          await repo.atualizarTrilha(nova);
+          // muda só o status e grava a linha do tempo (trilha_publicacao); a árvore não é regravada
+          const gravada: Trilha = {
+            ...nova,
+            ...(await repo.mudarStatusTrilha({
+              trilha_id: nova.id,
+              acao,
+              de: atual.status,
+              para: nova.status,
+              publicada_em: nova.publicada_em,
+              arquivada_em: nova.arquivada_em,
+              autor_id: ctx.usuario.id,
+              ocorrido_em: agora,
+              request_id: ctx.requestId.slice(0, 128),
+            })),
+          };
           // RN-AUD-01: só ids e status (nunca dado pessoal)
           await tx.auditar({ acao: `trilha.${acao}`, entidade: 'trilha', entidade_id: nova.id, antes: { status: atual.status }, depois: { status: nova.status } });
-          return detalhe({ ...nova, deleted_at: null });
+          return detalhe({ ...gravada, deleted_at: null });
         }),
     });
 
