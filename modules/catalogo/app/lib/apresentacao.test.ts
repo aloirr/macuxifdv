@@ -4,7 +4,8 @@ import type { ItemVitrine } from '../../contracts';
 import { formatBRL } from '@macuxi/comum';
 import { contagem, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloPreco, subtituloProduto } from './apresentacao';
 
-const relogio = criarRelogio();
+// Relógio fixo (meio-dia em Manaus): a hora da atualização (-5 min) nunca cruza a meia-noite local. Ver o teste da virada do dia.
+const relogio = criarRelogio({ agora: '2026-11-03T16:00:00Z' });
 const AGORA = relogio.iso();
 const item = (o: Partial<ItemVitrine> = {}): ItemVitrine => ({
   id: '00000000-0000-4000-8000-000000000001',
@@ -45,6 +46,20 @@ describe('textos do cartão do catálogo', () => {
     expect(rotuloEstoque(velho, AGORA, 'America/Manaus')!.detalhe).toMatch(/^Estoque desatualizado · /);
     const vazio = item({ availability: { ...item().availability!, band: 'sem_estoque', quantity: 0, by_branch: [], updated_at: null, stale: true } });
     expect(rotuloEstoque(vazio, AGORA, 'America/Manaus')).toMatchObject({ texto: 'Estoque sem informação', tom: 'neutral' });
+  });
+
+  it('RN-CAT-07: na virada do dia (23:59, 00:00, 00:03, 00:06 em Manaus) o rótulo troca para "em dd/mm" só quando a atualização foi no dia anterior', () => {
+    const casos: Array<[string, string, string]> = [
+      ['2026-11-04T03:59:00Z', 'Atualizado às 23:54', 'mesmo dia'],
+      ['2026-11-04T04:00:00Z', 'Atualizado em 03/11 às 23:55', 'dia anterior'],
+      ['2026-11-04T04:03:00Z', 'Atualizado em 03/11 às 23:58', 'dia anterior'],
+      ['2026-11-04T04:06:00Z', 'Atualizado às 00:01', 'mesmo dia'],
+    ];
+    for (const [agora, esperado, porque] of casos) {
+      const r = criarRelogio({ agora });
+      const v = item({ availability: { ...item().availability!, updated_at: r.relativo({ minutos: -5 }).toISOString() } });
+      expect(rotuloEstoque(v, r.iso(), 'America/Manaus')!.detalhe, `${agora} (${porque})`).toBe(esperado);
+    }
   });
 
   it('RF-CAT-03: faixa por filial mostra rótulo legível (nunca o código cru) e número em pt-BR', () => {
