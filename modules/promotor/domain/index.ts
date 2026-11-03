@@ -19,3 +19,4 @@ export * from './eventos';
 export * from './coleta';
 export * from './relatorios';
 export * from './alvo';
+export * from './cadastros';

@@ -32,9 +32,13 @@ export interface EventoPublicado {
   agregado: string | null | undefined;
 }
 
+/** Linha de auditoria gravada por `tx.auditar` no teste (RN-AUD-01). */
+export type AuditoriaGravada = Parameters<TransacaoTenant['auditar']>[0];
+
 export interface CtxTeste {
   ctx: ContextoBase;
   eventos: EventoPublicado[];
+  auditorias: AuditoriaGravada[];
   arquivos: NovoArquivo[];
   /** Contexto de rota com corpo/query/params (para chamar `rota.executar`). */
   rota<C = unknown, Q = unknown, P = unknown>(e: { corpo?: C; query?: Q; params?: P }): ContextoRota<C, Q, P>;
@@ -43,6 +47,7 @@ export interface CtxTeste {
 export function criarCtx(relogio: RelogioDeTeste, op: { tenant?: string; usuario?: string; perfil?: Perfil; carteira?: ReadonlySet<string> | 'tenant'; usuarios?: ReadonlySet<string> | 'tenant'; parametros?: Record<string, unknown> } = {}): CtxTeste {
   const eventos: EventoPublicado[] = [];
   const arquivos: NovoArquivo[] = [];
+  const auditorias: AuditoriaGravada[] = [];
   const tx: TransacaoTenant = {
     async publicar(def, payload, agregadoId) {
       const p = (def.schema as z.ZodTypeAny).parse(payload);
@@ -57,9 +62,13 @@ export function criarCtx(relogio: RelogioDeTeste, op: { tenant?: string; usuario
       if (def.nome !== 'core.cadastro_resumo@1') throw new Error(`consulta ${def.nome} não usada pelo Promotor`);
       const ids = (entrada as { cliente_ids?: string[] }).cliente_ids ?? [];
       const clientes = ids.filter((id) => NOMES_LOJA[id]).map((id) => ({ id, razao_social: `${NOMES_LOJA[id]} Ltda`, nome_fantasia: NOMES_LOJA[id]!, documento: null, logradouro: null, numero: null, bairro: null, cidade: null, uf: null, ativo: true, external_id: null }));
-      return { clientes, produtos: [], usuarios: [] } as never;
+      const produtoIds = (entrada as { produto_ids?: string[] }).produto_ids ?? [];
+      const produtos = produtoIds.filter((id) => id === PRODUTO).map((id) => ({ id, sku: 'MAC-500', nome: 'Macarrão 500 g', unidade: 'UN', ativo: true, external_id: null }));
+      return { clientes, produtos, usuarios: [] } as never;
     },
-    async auditar() {},
+    async auditar(registro) {
+      auditorias.push(registro);
+    },
   };
   const db = { query: async () => ({ rows: [], rowCount: 0 }) };
   const ctx: ContextoBase = {
@@ -74,7 +83,7 @@ export function criarCtx(relogio: RelogioDeTeste, op: { tenant?: string; usuario
     fuso: () => relogio.fuso,
     log: { info() {}, warn() {}, error() {} },
   };
-  return { ctx, eventos, arquivos, rota: (e) => ({ ...ctx, corpo: e.corpo as never, query: e.query as never, params: e.params as never }) };
+  return { ctx, eventos, arquivos, auditorias, rota: (e) => ({ ...ctx, corpo: e.corpo as never, query: e.query as never, params: e.params as never }) };
 }
 
 /** Coletas válidas pelo contrato, com instantes relativos ao check-in (minutos). */

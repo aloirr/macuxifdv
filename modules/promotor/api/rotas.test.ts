@@ -25,7 +25,8 @@ describe('permissões e licença das rotas (regra 6)', () => {
     PERFIS.filter((perfil) => criarPermissoes([manifest]).pode(acao, { perfil, modulosAtivos: ativos as never }));
 
   it('toda rota de escrita tem ação do manifesto que só o promotor executa', () => {
-    const escrita = api.rotas!.filter((r) => r.metodo !== 'GET');
+    // cadastros/* (BKO, escrita por analista/admin) ficam de fora: são cobertos em rotas-cadastros.test.ts (RN-PRO-01 lá também)
+    const escrita = api.rotas!.filter((r) => r.metodo !== 'GET' && !r.caminho.startsWith('cadastros/'));
     expect(escrita.length).toBe(11);
     for (const r of escrita) expect(quem(r.acao!), `${r.metodo} ${r.caminho}`).toEqual(['promotor']);
   });

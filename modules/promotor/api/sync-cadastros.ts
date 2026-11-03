@@ -21,7 +21,8 @@ import {
 } from '../contracts';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
-const BASE = `id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at, to_char(deleted_at at time zone 'UTC', ${UTC}) as deleted_at, external_id`;
+/** Colunas comuns de toda linha de cadastro (também usadas pela leitura do BKO, T-0069). */
+export const COLUNAS_BASE = `id, to_char(updated_at at time zone 'UTC', ${UTC}) as updated_at, to_char(deleted_at at time zone 'UTC', ${UTC}) as deleted_at, external_id`;
 const ALVO = 'cliente_id, segmento';
 const VIGENCIA = `to_char(vigencia_inicio, 'YYYY-MM-DD') as vigencia_inicio, to_char(vigencia_fim, 'YYYY-MM-DD') as vigencia_fim`;
 
@@ -44,7 +45,7 @@ export const TABELAS_CADASTRO = {
 
 /** SQL e parâmetros da página (exportado para o teste do texto). Sem filtro de `deleted_at`: a lápide vai ao aparelho. */
 export function sqlDoPullCadastro(t: TabelaCadastro, pedido: PedidoPull): { sql: string; valores: unknown[] } {
-  const sql = `select ${BASE}, ${t.colunas}
+  const sql = `select ${COLUNAS_BASE}, ${t.colunas}
     from ${t.tabela}
    where updated_at < $1::timestamptz
      and ($2::timestamptz is null or (updated_at, id) > ($2::timestamptz, $3::uuid))
