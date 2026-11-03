@@ -9,7 +9,7 @@ import type { ConsumidorEvento, ContextoConsumo } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { manifest } from '../manifest';
-import { criarConsumidorEstoqueDoErp, criarConsumidorPrecoDoErp, ReferenciaAusenteErp, type ResolverProdutos } from './consumidores-erp';
+import { criarConsumidorCatalogoNoDoErp, criarConsumidorEstoqueDoErp, criarConsumidorPrecoDoErp, criarConsumidorProdutoNoDoErp, ReferenciaAusenteErp, type ResolverProdutos } from './consumidores-erp';
 import { moduloApi } from './index';
 
 const A = DOIS_TENANTS.A;
@@ -19,7 +19,7 @@ const AGORA = new Date('2026-11-04T15:00:00Z');
 
 describe('T-0066: manifesto e moduloApi ligam os consumidores do ERP no Catálogo', () => {
   it('RN-INT-04: preço e estoque declarados no manifesto têm consumidor registrado no moduloApi', () => {
-    for (const n of ['integracao.preco.atualizado@1', 'integracao.estoque.atualizado@1']) {
+    for (const n of ['integracao.preco.atualizado@1', 'integracao.estoque.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1']) {
       expect(manifest.consome).toContain(n);
       expect(moduloApi.consumidores?.map((c) => c.evento.nome)).toContain(n);
     }
@@ -69,6 +69,15 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
 
   const preco = criarConsumidorPrecoDoErp(resolver);
   const estoque = criarConsumidorEstoqueDoErp(resolver);
+  const noCons = criarConsumidorCatalogoNoDoErp();
+  const produtoNo = criarConsumidorProdutoNoDoErp(resolver);
+  const evNo = (id: string, pai: string | null, nivel: number, extra: Record<string, unknown> = {}, acao = 'criado') => ({
+    external_id: id,
+    acao,
+    ocorrido_em: '2026-11-04T10:00:00Z',
+    registro: { codigo: id, nome: `Nó ${id}`, pai_external_id: pai, nivel, ordem: 1, ...extra },
+  });
+  const evProdutoNo = (no: string | null, acao = 'atualizado') => ({ external_id: 'P-1', acao, ocorrido_em: '2026-11-04T10:00:00Z', registro: { catalogo_no_external_id: no } });
   const evPreco = (extra: Record<string, unknown> = {}, acao = 'criado', external_id = 'PR-T66') => ({
     external_id,
     acao,
@@ -118,6 +127,33 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
       expect(Number(s[0]!.quantidade)).toBe(3);
       await t.entregar(estoque, { external_id: 'ES-T66', acao: 'inativado', ocorrido_em: '2026-11-04T11:00:00Z' });
       expect((await t.q("select 1 from catalogo.estoque_saldo where external_id = 'ES-T66' and deleted_at is null")).length).toBe(0);
+    });
+  });
+
+  it('RF-CAT-04: árvore do ERP cria nós em cadeia, é idempotente e o pai ausente repete na outbox; inativação faz soft delete', async () => {
+    await emTransacao(A.tenantId, async (t) => {
+      await expect(t.entregar(noCons, evNo('N-T61-2', 'N-T61-1', 2))).rejects.toBeInstanceOf(ReferenciaAusenteErp);
+      await t.entregar(noCons, evNo('N-T61-1', null, 1));
+      await t.entregar(noCons, evNo('N-T61-2', 'N-T61-1', 2));
+      await t.entregar(noCons, evNo('N-T61-2', 'N-T61-1', 2, { nome: 'Renomeado' }, 'atualizado'));
+      const nos = await t.q<{ nome: string; nivel: number }>("select nome, nivel from catalogo.catalogo_no where external_id like 'N-T61-%' and deleted_at is null order by nivel");
+      expect(nos.map((n) => n.nome)).toEqual(['Nó N-T61-1', 'Renomeado']);
+      await t.entregar(noCons, { external_id: 'N-T61-2', acao: 'inativado', ocorrido_em: '2026-11-04T11:00:00Z' });
+      expect((await t.q("select 1 from catalogo.catalogo_no where external_id = 'N-T61-2' and deleted_at is null")).length).toBe(0);
+    });
+  });
+
+  it('RF-CAT-04: produto vinculado ao nó (um por produto); trocar de nó atualiza; sem nó solta; nó ou produto ausente repete', async () => {
+    await emTransacao(A.tenantId, async (t) => {
+      await t.entregar(noCons, evNo('N-T61-1', null, 1));
+      await t.entregar(noCons, evNo('N-T61-2', 'N-T61-1', 2));
+      await expect(t.entregar(produtoNo, evProdutoNo('N-T61-NAO-CHEGOU'))).rejects.toBeInstanceOf(ReferenciaAusenteErp);
+      await t.entregar(produtoNo, evProdutoNo('N-T61-1'));
+      await t.entregar(produtoNo, evProdutoNo('N-T61-2'));
+      const v = await t.q<{ no: string }>("select n.external_id as no from catalogo.produto_no v join catalogo.catalogo_no n on n.id = v.no_id where v.produto_id = $1 and v.deleted_at is null", [PROD]);
+      expect(v.map((x) => x.no)).toEqual(['N-T61-2']);
+      await t.entregar(produtoNo, evProdutoNo(null));
+      expect((await t.q('select 1 from catalogo.produto_no where produto_id = $1 and deleted_at is null', [PROD])).length).toBe(0);
     });
   });
 

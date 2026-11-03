@@ -45,6 +45,8 @@ export interface PedidoParaRetorno {
   vendedor_id: string;
   status: OrderStatus;
   numero_erp: string | null;
+  /** número do pedido no Macuxi (texto da notificação) */
+  numero?: string | null;
   itens: Array<{ sequencia: number; product_id: string; quantity: number; total_cents: number }>;
 }
 export interface FaturamentoParaGravar {
@@ -148,7 +150,7 @@ export async function aplicarRetornoErp(repo: RepositorioRetornoErp, r: RetornoR
     await repo.registrarLinhaDoTempo(pedido.id, { de: plano.de, para: plano.para, motivo: plano.texto_historico, ocorrido_em: r.ocorrido_em });
     await ctx.publicar(
       EVENTO_PEDIDO_STATUS_ALTERADO,
-      { pedido_id: pedido.id, vendedor_id: pedido.vendedor_id, de: statusDoContrato(plano.de), para: statusDoContrato(plano.para), alterado_em: r.ocorrido_em, autor_id: null, motivo: plano.texto_historico || null },
+      { pedido_id: pedido.id, vendedor_id: pedido.vendedor_id, de: statusDoContrato(plano.de), para: statusDoContrato(plano.para), alterado_em: r.ocorrido_em, autor_id: null, motivo: plano.texto_historico || null, pedido_numero: pedido.numero ?? null },
       pedido.id,
     );
   }
@@ -240,8 +242,8 @@ export function repositorioRetornoErpPg(db: ClienteBanco, opcoes: { faturamento?
   return {
     async pedidoParaRetorno(id) {
       const p = (
-        await db.query<{ id: string; vendedor_id: string; status: OrderStatus; numero_erp: string | null }>(
-          'select id, vendedor_id, status, numero_erp from vendedor.pedido where id = $1 and deleted_at is null for update',
+        await db.query<{ id: string; vendedor_id: string; status: OrderStatus; numero_erp: string | null; numero: string | null }>(
+          'select id, vendedor_id, status, numero_erp, numero from vendedor.pedido where id = $1 and deleted_at is null for update',
           [id],
         )
       ).rows[0];

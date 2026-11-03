@@ -18,7 +18,7 @@ import { AvisoRapido, useAviso } from '../components/aviso';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, rotuloDoNivel, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { toDomainPolicy } from '../lib/catalog';
-import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
+import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, textoFrete, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
 import { orderNote, statusBadge } from '../lib/order-status';
@@ -39,6 +39,8 @@ interface Line {
   quantity_invoiced?: number;
   /** quantidade na unidade base (0013), para comparar com o faturado */
   quantity_base?: number;
+  /** sigla da medida vendida (UN, CX c/ 12) */
+  unit_label?: string;
 }
 
 export default function OrderDetailScreen() {
@@ -92,11 +94,12 @@ export default function OrderDetailScreen() {
 
   const status = queued ? 'queued' : (detail?.status ?? summary?.status ?? 'received');
   const b = statusBadge(status);
+  const sellerNameHeader = queued ? (ambiente.usuario()?.nome ?? '') : (base?.seller_name ?? '');
   const customerName = queued ? (qd?.customer_name ?? '') : base!.customer_name;
   const number = queued ? null : base!.number;
   const lines: Line[] = queued
     ? (qd?.lines ?? []).map((l) => ({ key: l.product_id, ...l }))
-    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base }));
+    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
   const situacaoFaturamento = queued ? [] : (base?.situacao_faturamento ?? []);
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
@@ -193,7 +196,12 @@ export default function OrderDetailScreen() {
   };
 
   const pdfOrder = (): OrderPdfOrder => {
-    if (detail && !queued) return pdfDoPedido(detail);
+    if (detail && !queued) {
+      // o retrato do pedido pode vir sem documento: completa com o cadastro do cliente no aparelho (CNPJ sempre impresso)
+      const doc = detail.cliente?.documento?.trim() ? null : dados.clientes.find((x) => x.id === detail.customer_id)?.cnpj;
+      const pdf = pdfDoPedido(detail);
+      return doc ? { ...pdf, customer: { ...pdf.customer, cnpj: doc } } : pdf;
+    }
     const c = dados.me ? { me: dados.me, customers: dados.clientes, policy: dados.politica } : null;
     const customerId = queued ? queued.payload.customer_id : base!.customer_id;
     const cu = c?.customers.find((x) => x.id === customerId);
@@ -235,7 +243,7 @@ export default function OrderDetailScreen() {
     try {
       const me = dados.me;
       const html = buildOrderPdfHtml(pdfOrder(), view, {
-        tenant_name: me?.tenant.name ?? '',
+        tenant_name: nomeDaDistribuidora(me?.tenant.name, ambiente.parametros('core')),
         product_name: me?.tenant.product_name ?? 'Macuxi FDV',
         tz,
         generated_at: new Date().toISOString(),
@@ -260,7 +268,7 @@ export default function OrderDetailScreen() {
         <Text style={t.h1Small} testID="order-title">
           {title}
         </Text>
-        <Text style={t.sub}>{customerName}</Text>
+        <Text style={t.sub}>{sellerNameHeader ? `${customerName} · ${sellerNameHeader}` : customerName}</Text>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           {ehOrc ? <Badge label={rotuloDoDocumento(doc, agoraTela)} tone="neutral" /> : null}
           {ehOrc && !queued ? null : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
@@ -284,6 +292,8 @@ export default function OrderDetailScreen() {
         <Row label={`Desconto ${formatPct(discountPct)}`} value={`− ${formatBRL(discount)}`} />
         <Row label={`Total · prazo ${terms}`} value={formatBRL(total)} strong />
         {base && !queued && base.branch_name ? <Row label="Filial" value={base.branch_name} /> : null}
+        {!queued && detail?.freight ? <Row label="Frete" value={textoFrete(detail.freight).replace(/^Frete: /, '')} /> : null}
+        {!queued && detail?.price_table_name ? <Row label="Tabela de preço" value={detail.price_table_name} /> : null}
       </Card>
 
       {situacaoFaturamento.length > 0 ? (
@@ -333,7 +343,7 @@ export default function OrderDetailScreen() {
                 <Text style={t.mono}>{l.erp_code}</Text>
                 <Text style={t.bodyStrong}>{l.description}</Text>
                 <Text style={t.small}>
-                  {l.quantity} × {formatBRL(l.unit_price_cents)}
+                  {l.quantity} {l.unit_label || 'UN'} × {formatBRL(l.unit_price_cents)}
                 </Text>
                 {textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced) ? <Text style={[t.small, { color: colors.accentInk }]}>{textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced)}</Text> : null}
               </View>

@@ -49,6 +49,8 @@ export const OrderItem = z.object({
   quantity_invoiced: z.number().int().nonnegative().optional(),
   /** 0013 (desenho T-0061 §2.1): quantidade na unidade base (quantidade x fator); compara com `quantity_invoiced` */
   quantity_base: z.number().int().nonnegative().optional(),
+  /** T-0064/T-0061: sigla da medida vendida para a coluna Medida ("UN", "CX c/ 12"); ausente = UN */
+  unit_label: z.string().optional(),
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 
@@ -162,6 +164,19 @@ export const OrderDetail = Order.extend({
   cliente: ClienteDoPedido.nullable().optional(),
   aprovacao: AprovacaoDoPedido.nullable().optional(),
   faturamento: FaturamentoDoPedido.nullable().optional(),
+  /** T-0064/T-0061: nome da tabela de preço (PDF e detalhe nunca mostram o id) */
+  price_table_name: z.string().nullable().optional(),
+  /** T-0064/T-0061 (RN-VEN-13): frete sem valor, CIF ou FOB com transportadora */
+  freight: z
+    .object({
+      modality: z.enum(['CIF', 'FOB']),
+      carrier_name: z.string().nullable().optional(),
+      carrier_document: z.string().nullable().optional(),
+      carrier_phone: z.string().nullable().optional(),
+      carrier_typed: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 export type OrderDetail = z.infer<typeof OrderDetail>;
 

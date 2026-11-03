@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import type { AcaoCliente } from '@macuxi/core/contracts';
 import { definirModuloShell } from '@macuxi/platform-sdk';
-import { ENTIDADES_CONTEUDO, ENTIDADES_PRECO } from '../contracts';
+import { ENTIDADES_ARVORE, ENTIDADES_CONTEUDO, ENTIDADES_PRECO } from '../contracts';
 import { migracoesAparelho } from '../db/aparelho';
 import { manifest } from '../manifest';
 import { consultaPrecosClienteAparelho } from './consultas';
@@ -23,7 +23,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'catalogo', caminho: 'catalogo', titulo: 'Catálogo', navegacao: 'Catálogo', icone: 'search', ordem: 60, acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaCatalogo },
     { id: 'produto', caminho: 'produto', titulo: 'Produto', acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaProduto },
   ],
-  entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO],
+  entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO, ...ENTIDADES_ARVORE],
   consultas: [consultaPrecosClienteAparelho],
   migracoesAparelho,
   indicesBusca: [INDICE_BUSCA_CATALOGO],

@@ -21,6 +21,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-02 (T-0056):** `0015_promotor` (schema `promotor`: 9 cadastros de trade e 11 coletas com payload jsonb + colunas
 > derivadas por gatilho, FK composta coleta → visita de loja, sem DELETE); dicionário [promotor.md](promotor.md); seed da demo em
 > `db/seeds/demo/promotor.ts` (`gravarDemoPromotor`) e fixture em `db/seeds/fixtures/promotor.ts` (ids nos grupos 0x84–0x97; o Gestor usa 0x70–0x73).
+> **2026-11-02 (T-0057, nuvem):** `0016_pesquisa` (schema `pesquisa`: questionário, versões, respostas, itens e fotos;
+> RN-PES-01 e RF-PES-04 no banco); dicionário, consultas do repositório SQL e passos de integração em [pesquisa.md](pesquisa.md);
+> seed demo da Pesquisa em `db/seeds/demo/pesquisa.ts` (ligar no `carregarDemo`, ver pesquisa.md).
+> **2026-11-02 (T-0058):** `0017_treinamento` (schema `treinamento`: 14 tabelas — conteúdo, publicação, progresso, tentativas,
+> XP, medalhas e desafio de vendas); dicionário [treinamento.md](treinamento.md); fixture própria (`db/testes/fixture-treinamento.ts`,
+> carregada pelo globalSetup, ids nos grupos 0x170–0x17d) e seed da demo `db/seeds/demo/treinamento.ts` (licença do módulo na demo;
+> ligar no `carregarDemo`, ver treinamento.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

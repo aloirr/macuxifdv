@@ -115,6 +115,10 @@ export interface ChipsVitrine {
   only_in_stock?: boolean;
   /** Só campanha/destaque (vitrine). */
   campaign?: boolean;
+  /** RF-CAT-04: só estes produtos (os do nó da árvore escolhido e dos níveis abaixo). Conjunto vazio = nenhum. */
+  only_product_ids?: ReadonlySet<string>;
+  /** RN-CAT-06: dentro do pedido, só produtos com preço vigente na tabela do cliente. */
+  only_sellable?: boolean;
 }
 
 /** RF-CAT-01: o chip da tela vence o que a frase disse (o usuário escolheu na hora). */
@@ -154,11 +158,13 @@ export interface PaginaProdutos {
  */
 export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
   const ctx = e.contexto;
-  const ativos = e.produtos.filter((p) => p.ativo && !(e.chips?.campaign && !p.campanha));
+  const noArvore = e.chips?.only_product_ids;
+  const ativos = e.produtos.filter((p) => p.ativo && !(e.chips?.campaign && !p.campanha) && (!noArvore || noArvore.has(p.id)));
   const itens = new Map<string, ItemVitrine>();
   const docs: DocBusca[] = [];
   for (const p of ativos) {
     const item = itemDaVitrine(p, ctx);
+    if (e.chips?.only_sellable && !(item.price?.sellable ?? false)) continue;
     itens.set(p.id, item);
     docs.push(docDeBusca(p, item));
   }

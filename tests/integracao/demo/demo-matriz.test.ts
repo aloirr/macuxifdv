@@ -131,12 +131,35 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       }
     });
 
-    it('D-C01b: módulos efetivos (GET /v1/me/modulos) por perfil: vendedor sem Promotor, promotor sem Vendedor (RN-PRO-01), gestão com os 4', async () => {
+    it('D-C01b: módulos efetivos (GET /v1/me/modulos) = tenant ∩ perfil do seed (RN-CORE-01): vendedor sem Promotor e sem Gestor, promotor sem Vendedor (RN-PRO-01), gestão com os 4 de base', async () => {
       const ids = async (k: ChaveDemo) => (await api.meusModulos(token[k])).modulos.map((m) => m.id).sort();
-      expect(await ids('vendedor')).toEqual(['catalogo', 'core', 'vendedor']);
-      expect(await ids('vendedor2')).toEqual(['catalogo', 'core', 'vendedor']);
-      expect(await ids('promotor')).toEqual(['catalogo', 'core', 'promotor']);
-      for (const k of ['supervisor', 'gerente', 'analista', 'admin'] as const) expect(await ids(k), k).toEqual(['catalogo', 'core', 'promotor', 'vendedor']);
+      // 02/11: os seeds de módulo (gestor.ts, promotor.ts, pesquisa.ts) somam licenças à base; a conta vem do banco
+      const doSeed = async (k: ChaveDemo) =>
+        (
+          await api.admin.query<{ modulo: string }>(
+            `select pm.modulo from plataforma.perfil_modulo pm
+               join plataforma.tenant_modulo tm on tm.tenant_id = pm.tenant_id and tm.modulo = pm.modulo and tm.ativo and tm.deleted_at is null
+              where pm.tenant_id = $1 and pm.perfil = (select perfil from core.usuario where id = $2) and pm.deleted_at is null`,
+            [TENANT_DEMO, usuarioId[k]],
+          )
+        ).rows
+          .map((r) => r.modulo)
+          .filter((m) => m === 'core' || api.modulos.some((x) => x.manifesto.id === m))
+          .concat('core')
+          .filter((m, i, a) => a.indexOf(m) === i)
+          .sort();
+      for (const k of Object.keys(DEMO) as ChaveDemo[]) expect(await ids(k), `${k}: efetivos = tenant ∩ perfil`).toEqual(await doSeed(k));
+      for (const k of ['vendedor', 'vendedor2'] as const) {
+        const v = await ids(k);
+        expect(v, k).toEqual(expect.arrayContaining(['catalogo', 'core', 'vendedor']));
+        expect(v, `${k} sem Promotor e sem Gestor`).not.toEqual(expect.arrayContaining(['promotor']));
+        expect(v, `${k} sem Gestor`).not.toContain('gestor');
+      }
+      const p = await ids('promotor');
+      expect(p).toEqual(expect.arrayContaining(['catalogo', 'core', 'promotor']));
+      expect(p, 'RN-PRO-01: promotor sem Vendedor').not.toContain('vendedor');
+      expect(p).not.toContain('gestor');
+      for (const k of ['supervisor', 'gerente', 'analista', 'admin'] as const) expect(await ids(k), k).toEqual(expect.arrayContaining(['catalogo', 'core', 'promotor', 'vendedor']));
     });
   });
 

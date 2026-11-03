@@ -8,7 +8,7 @@
 import { ErroHttpModulo, type ContextoBase, type ItemPush, type LinhaSync, type PedidoPull, type ProvedorSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import { DEF_RESPOSTA_REGISTRADA, entidadeQuestionarioVersao, entidadeRespostaPesquisa, PERFIS_QUE_RESPONDEM, RespostaEnvio } from '../contracts';
 import { receberResposta, respostaNoEscopoDoAparelho } from '../domain';
-import { comRepositorio, parametrosDaRota } from './comum';
+import { comRepositorio, parametrosDaRota, RESPOSTA_JA_EXISTE } from './comum';
 import type { FabricaRepositorio, JanelaPull } from './repositorio';
 
 const janela = (p: PedidoPull): JanelaPull => ({ desde: p.desde ? { updated_at: p.desde.updated_at, id: p.desde.id } : null, ate: p.ate, limite: p.limite });
@@ -16,7 +16,7 @@ const janela = (p: PedidoPull): JanelaPull => ({ desde: p.desde ? { updated_at: 
 const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
 
 /** RF-PES-04: recebe um item do push. Nunca lança por regra: devolve aceito, rejeitado (com código) ou conflito. */
-export async function receberUma(ctx: ContextoBase, fabrica: FabricaRepositorio, item: ItemPush, carteira: ReadonlySet<string> | 'tenant'): Promise<ResultadoItemPush> {
+export async function receberUma(ctx: ContextoBase, fabrica: FabricaRepositorio, item: ItemPush, carteira: ReadonlySet<string> | 'tenant', tentativa = 1): Promise<ResultadoItemPush> {
   if (item.operacao === 'remover') return rejeitado(item.id, 'SOMENTE_INSERCAO', 'Resposta de pesquisa não pode ser apagada depois de enviada.');
   if (!(PERFIS_QUE_RESPONDEM as readonly string[]).includes(ctx.usuario.perfil)) return rejeitado(item.id, 'PERFIL_SEM_ACESSO', 'Seu perfil não responde pesquisas.');
   const p = RespostaEnvio.safeParse(item.payload);
@@ -56,6 +56,9 @@ export async function receberUma(ctx: ContextoBase, fabrica: FabricaRepositorio,
       return { id: item.id, status: 'aceito' as const, em: agora };
     });
   } catch (e) {
+    // Duas entregas do mesmo UUID ao mesmo tempo: a perdedora recebe 23505 do banco (transação desfeita, nada ficou). Uma
+    // nova tentativa já enxerga a resposta da vencedora e decide duplicada x conflito pelo domain (RF-PES-04).
+    if (e instanceof ErroHttpModulo && e.codigo === RESPOSTA_JA_EXISTE && tentativa < 2) return receberUma(ctx, fabrica, item, carteira, tentativa + 1);
     if (e instanceof ErroHttpModulo) return rejeitado(item.id, e.codigo, e.message);
     throw e;
   }
