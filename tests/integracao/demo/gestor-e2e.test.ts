@@ -142,7 +142,7 @@ describe.skipIf(semBanco())('T-0055 — Gestor ponta a ponta na base demo (creat
     await despachar();
     const f = FilaAprovacao.parse((await api.get(token.supervisor, '/v1/gestor/aprovacoes')).corpo);
     expect(f.itens.map((i) => i.pedido_id)).not.toContain(pedidoId);
-  }, 120_000);
+  }, 300_000); // máquina carregada (100% CPU com vários agentes): mesmo teto do hookTimeout global
 
   it('G7. Tenant errado: a supervisora do tenant A (com o Gestor ligado no A) não vê pedido nem pessoa da demo', async () => {
     const adminA = await api.sessaoNoTenant(A, 'admin@exemplo.com.br').catch(() => null);

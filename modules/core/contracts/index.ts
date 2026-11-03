@@ -492,3 +492,4 @@ export * from './consultas';
 export * from './cadastro';
 export * from './produto-preco';
 export * from './medida';
+export * from './enderecos';

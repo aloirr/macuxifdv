@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
+import { UnidadeProdutoResumoSchema } from './enderecos';
 
 export const ProdutoPrecoSchema = z.object({
   id: z.string().uuid(),
@@ -28,6 +29,8 @@ export const ProdutoPrecoSchema = z.object({
   desconto_maximo_aplicavel_pct: z.number(),
   preco_minimo_cents: z.number().int().nullable(),
   margem_no_minimo_pct: z.number().nullable(),
+  /** T-0061 (RN-VEN-15): unidades de venda ativas (UN/CX e fator), a padrão marcada. Opcional: só as rotas do BKO preenchem. */
+  unidades: z.array(UnidadeProdutoResumoSchema).optional(),
 });
 export type ProdutoPreco = z.infer<typeof ProdutoPrecoSchema>;
 

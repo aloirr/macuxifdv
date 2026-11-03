@@ -5,7 +5,7 @@
  */
 import { ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
-import { ProdutoMedidasPutSchema, ProdutoParametrosSchema, ProdutoPrecoPutSchema, ProdutosPrecoListaSchema, ProdutosPrecoQuerySchema, type ProdutoPreco } from '../contracts';
+import { ProdutoMedidasPutSchema, ProdutoParametrosSchema, ProdutoPrecoPutSchema, ProdutosPrecoListaSchema, ProdutosPrecoQuerySchema, type ProdutoPreco, type UnidadeProdutoResumo } from '../contracts';
 import {
   custoNaoInformado,
   DESCONTO_MAXIMO_PRODUTO_PADRAO_PCT,
@@ -17,6 +17,8 @@ import {
   precoMinimoCents,
   produtoVendavel,
   validarMedidasDoProduto,
+  unidadesDoProduto,
+  type UnidadeLinha,
 } from '../domain';
 import { auditar } from './auditoria';
 import { comErroDeMedida, medidasDoTenant } from './medidas';
@@ -44,10 +46,35 @@ export async function padraoDeDesconto(db: ClienteBanco): Promise<number> {
   return typeof v === 'number' && v >= 0 && v <= 100 ? v : DESCONTO_MAXIMO_PRODUTO_PADRAO_PCT;
 }
 
-export function montarProdutoPreco(l: Linha, padrao: number): ProdutoPreco {
+/**
+ * Unidades de venda ativas do produto (RN-VEN-15) para o BKO: a padrão marcada primeiro, rótulo "UN" / "CX c/ 12".
+ * Produto sem unidade cadastrada mostra a unidade base (fator 1) como padrão.
+ */
+export async function unidadesDosProdutos(db: ClienteBanco, produtos: ReadonlyArray<{ id: string; unidade: string }>): Promise<Map<string, UnidadeProdutoResumo[]>> {
+  const mapa = new Map<string, UnidadeProdutoResumo[]>();
+  if (produtos.length === 0) return mapa;
+  const r = await db.query<UnidadeLinha & { ean: string | null }>(
+    'select id, produto_id, unidade, fator, ean, padrao, ativo, deleted_at::text as deleted_at from core.produto_unidade where deleted_at is null and ativo and produto_id = any($1::uuid[])',
+    [produtos.map((p) => p.id)],
+  );
+  const porProduto = new Map<string, Array<UnidadeLinha & { ean: string | null }>>();
+  for (const u of r.rows) porProduto.set(u.produto_id, [...(porProduto.get(u.produto_id) ?? []), u]);
+  for (const p of produtos) {
+    const linhas = porProduto.get(p.id) ?? [];
+    const ean = new Map(linhas.map((u) => [`${u.unidade}|${u.fator}`, u.ean]));
+    mapa.set(
+      p.id,
+      unidadesDoProduto(linhas, p.id, p.unidade).map((u) => ({ unidade: u.unidade, fator: u.fator, padrao: u.padrao, ativo: u.ativo, ean: ean.get(`${u.unidade}|${u.fator}`) ?? null, rotulo: u.rotulo })),
+    );
+  }
+  return mapa;
+}
+
+export function montarProdutoPreco(l: Linha, padrao: number, unidades?: UnidadeProdutoResumo[]): ProdutoPreco {
   const preco = l.preco_venda_cents;
   return {
     ...l,
+    ...(unidades ? { unidades } : {}),
     vendavel: produtoVendavel(l),
     custo_nao_informado: custoNaoInformado(l),
     margem_pct: margemPct(preco, l.custo_cents),
@@ -77,7 +104,8 @@ export const rotasDeProdutos: RotaModulo[] = [
           `select ${COLUNAS} from core.produto where deleted_at is null and ($1::text is null or sku ilike $1 or nome ilike $1) order by nome, id limit $2`,
           [busca, q.limite],
         );
-        return ProdutosPrecoListaSchema.parse({ padrao_desconto_pct: padrao, itens: r.rows.map((l) => montarProdutoPreco(l, padrao)) });
+        const unidades = await unidadesDosProdutos(db, r.rows);
+        return ProdutosPrecoListaSchema.parse({ padrao_desconto_pct: padrao, itens: r.rows.map((l) => montarProdutoPreco(l, padrao, unidades.get(l.id))) });
       }),
   },
   {
@@ -101,7 +129,8 @@ export const rotasDeProdutos: RotaModulo[] = [
           antes: { custo_cents: antes.custo_cents, preco_venda_cents: antes.preco_venda_cents, desconto_maximo_pct: antes.desconto_maximo_pct },
           depois: c,
         });
-        return montarProdutoPreco({ ...antes, ...c }, await padraoDeDesconto(db));
+        const unidades = await unidadesDosProdutos(db, [antes]);
+        return montarProdutoPreco({ ...antes, ...c }, await padraoDeDesconto(db), unidades.get(id));
       }),
   },
   {

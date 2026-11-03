@@ -17,7 +17,6 @@ import {
   SyncStamp,
   type as t,
 } from '@macuxi/ui/mobile';
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { rotuloDoPrazo } from '../lib/estado';
 import type { TrilhaDaLista } from '../lib/telas';
@@ -27,26 +26,22 @@ import { useTreinamento } from '../state/use-treinamento';
 export default function TreinarScreen() {
   const tr = useTreinamento();
   const { jornada } = tr;
-  const [atualizando, setAtualizando] = useState(false);
   const nivel = jornada.nivel;
 
   return (
     <Screen
       testID="treinar"
-      refreshing={atualizando || tr.sincronizando}
-      onRefresh={() => {
-        setAtualizando(true);
-        void Promise.resolve(tr.sincronizar())
-          .then(() => tr.recarregar())
-          .finally(() => setAtualizando(false));
-      }}
+      refreshing={tr.auto.puxando}
+      onRefresh={tr.auto.puxar}
     >
       <View style={styles.header}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={t.h1}>Treinar</Text>
           <Text style={t.sub}>
             {jornada.obrigatorias_pendentes > 0
-              ? `${jornada.obrigatorias_pendentes} trilha(s) obrigatória(s) para fazer`
+              ? jornada.obrigatorias_pendentes === 1
+                ? '1 trilha obrigatória para fazer'
+                : `${jornada.obrigatorias_pendentes} trilhas obrigatórias para fazer`
               : 'Aprenda um pouco todo dia'}
           </Text>
         </View>
@@ -152,6 +147,7 @@ export default function TreinarScreen() {
       {tr.erroSync && !tr.sincronizando ? (
         <Text style={[t.small, { textAlign: 'center', color: colors.danger }]}>{tr.erroSync}</Text>
       ) : null}
+      <Text style={[t.small, { textAlign: 'center' }]}>{tr.auto.rodape}</Text>
     </Screen>
   );
 }
@@ -179,7 +175,7 @@ function LinhaTrilha({ t: tl, ultima }: { t: TrilhaDaLista; ultima: boolean }) {
         </View>
         <ProgressBar pct={tl.progresso_pct} />
         <Text style={[t.small, tl.atrasada && { color: colors.danger }]}>
-          {tl.licoes_concluidas} de {tl.licoes_total} lições{prazo ? ` · ${prazo}` : ''}
+          {tl.licoes_concluidas} de {tl.licoes_total} {tl.licoes_total === 1 ? 'lição' : 'lições'}{prazo ? ` · ${prazo}` : ''}
         </Text>
       </Pressable>
       {tl.proxima_licao_id ? (

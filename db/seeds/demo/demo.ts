@@ -31,7 +31,8 @@
  * - Módulos em arquivos próprios, gravados na MESMA transação, logo antes do commit: Promotor (promotor.ts, 0015:
  *   cadastros de trade e visitas de loja da Joana) e Gestor (gestor.ts, 0014: licença para supervisor, gerente,
  *   analista e admin + projeção montada pelo domain do Gestor) e Pesquisa (pesquisa.ts, 0016: 2 questionários
- *   publicados e 16 respostas). Por isso a carga exige as migrações até a 0016.
+ *   publicados e 16 respostas) e Treinamento (treinamento.ts, 0017: licença para os 7 perfis, 3 trilhas, jornada de
+ *   Lucas, Camila e Joana e o desafio do mês). Por isso a carga exige as migrações até a 0017.
  *
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
@@ -49,6 +50,7 @@ import { hashSenha, verificarSenha } from '../../src/senha';
 import { carregarDemoGestor } from './gestor';
 import { gravarPesquisaDemo } from './pesquisa';
 import { gravarDemoPromotor } from './promotor';
+import { gravarTreinamentoDemo } from './treinamento';
 
 export const TENANT_DEMO = 'dd000000-0000-4000-8000-000000000001';
 export const CODIGO_DEMO = 'demo';
@@ -135,7 +137,7 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   ['DET-500', 'Detergente líquido 500 ml', 'Brilho', 'Limpeza', 'UN', 239],
   ['SAB-1K', 'Sabão em pó 1 kg', 'Brilho', 'Limpeza', 'UN', 1_290],
   ['DES-2L', 'Desinfetante 2 L', 'Brilho', 'Limpeza', 'UN', 990],
-  ['PAP-4', 'Papel higiênico folha dupla 4 rolos', 'Macio', 'Higiene', 'PC', 849],
+  ['PAP-4', 'Papel higiênico folha dupla 4 rolos', 'Macio', 'Higiene', 'UN', 849],
   ['SBN-90', 'Sabonete 90 g', 'Flor da Mata', 'Higiene', 'UN', 249],
   ['CRD-90', 'Creme dental 90 g', 'Sorriso', 'Higiene', 'UN', 459],
   // 0013 (T-0047): linha automotiva e o detergente de 5 L, para a busca em linguagem natural ("óleo para moto 150
@@ -1057,6 +1059,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     await gravarDemoPromotor(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0016 (T-0057): questionários da Pesquisa (exposição do café e satisfação no checkout), 16 respostas, licença
     await gravarPesquisaDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
+    // 0017 (T-0058): licença do Treinamento (7 perfis), 3 trilhas, jornada de Lucas/Camila/Joana e desafio do mês
+    await gravarTreinamentoDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0014 (T-0055): licença do Gestor (supervisor, gerente, analista, admin) e projeção montada pelo domain do Gestor
     await carregarDemoGestor(admin, dados);
     await admin.query('commit');

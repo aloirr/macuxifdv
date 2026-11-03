@@ -163,12 +163,13 @@ export function ProdutosPage() {
           {lista.isPending && <LoadingBlock label="Carregando os produtos…" />}
           {lista.data && (
             <Panel title={`${lista.data.itens.length} produtos · desconto máximo padrão ${formatPct(padrao, 2)}`}>
-              <TableScroll minWidth={1060}>
+              <TableScroll minWidth={1300}>
                 <table className="w-full border-collapse text-[13px]">
                   <thead>
                     <tr>
                       <th className={th}>Produto</th>
                       <th className={th}>Medida</th>
+                      <th className={th}>Unidades de venda</th>
                       <th className={th}>Custo</th>
                       <th className={th}>Preço</th>
                       <th className={th}>Margem</th>
@@ -190,6 +191,17 @@ export function ProdutosPage() {
                         </td>
                         <td className={td} data-testid={`produtos.medida.${p.sku}`}>
                           {rotuloMedidaDoProduto(p)}
+                        </td>
+                        <td className={td} data-testid={`produtos.unidades.${p.sku}`}>
+                          {/* RN-VEN-15: UN/CX e fator vindos do ERP; a padrão marcada. Sem cadastro, só a unidade base. */}
+                          <div className="flex flex-wrap gap-1">
+                            {(p.unidades ?? []).map((u) => (
+                              <Badge key={`${u.unidade}-${u.fator}`} tone={u.padrao ? 'success' : 'neutral'}>
+                                {u.rotulo}
+                                {u.padrao ? ' · padrão' : ''}
+                              </Badge>
+                            ))}
+                          </div>
                         </td>
                         <td className={td}>{p.custo_nao_informado ? <span className="text-ink-2">custo não informado</span> : brl(p.custo_cents)}</td>
                         <td className={td}>{brl(p.preco_venda_cents)}</td>

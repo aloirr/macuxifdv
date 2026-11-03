@@ -27,6 +27,7 @@ import {
   idsDaSessaoNoLote,
   novaSessao,
   ordenarFilaAplicacao,
+  anotarLinhaDoArquivo,
   avisosCadastroIncompleto,
   avisosReferenciaFraca,
   siglasParaConferir,
@@ -63,6 +64,8 @@ interface LinhaLote {
 
 interface CorpoStaging {
   registros?: unknown[];
+  /** Carga por arquivo (RF-INT-03): linha física do arquivo de cada item de `registros`; os erros e avisos ganham "Linha N do arquivo:". */
+  linhas_arquivo?: number[];
   linhas_invalidas?: LinhaInvalidaConector[];
   linhas_invalidas_omitidas?: number;
 }
@@ -149,8 +152,8 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   }
   const ref = verificarReferencias(lote.entidade, v.validas, existentesRef);
   // medida (RN-CORE-19): sigla não cadastrada/inativa = referencia_ausente; sem como conferir (consulta indisponível), não recusa
-  const ativasMedidas = await medidasAtivas(ctx, siglasParaConferir(lote.entidade, ref.aceitas));
-  const med = verificarMedidas(lote.entidade, ref.aceitas as LinhaValida[], ativasMedidas);
+  const situacaoMedidas = await situacaoDasMedidas(ctx, siglasParaConferir(lote.entidade, ref.aceitas));
+  const med = verificarMedidas(lote.entidade, ref.aceitas as LinhaValida[], situacaoMedidas && situacaoMedidas.ativas, situacaoMedidas?.inativas);
   const aceitasValidas = med.aceitas;
   // referência fraca (produto -> nó do catálogo): aviso, a linha entra normalmente
   const fracas = new Set<string>();
@@ -177,7 +180,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   const cls = classificarMudancas(aceitasValidas, existentes);
   const mudaram = [...cls.novas, ...cls.atualizadas];
   // RN-INT-14: cliente sem campo obrigatório é aplicado normalmente e ganha o aviso `cadastro_incompleto` (decisão do Core)
-  const avisos: AvisoLinha[] = [...v.avisos, ...avisosFracos, ...(lote.entidade === 'cliente' ? await avisarCadastroIncompleto(ctx, aceitasValidas) : [])];
+  const avisos: AvisoLinha[] = anotarLinhaDoArquivo([...v.avisos, ...avisosFracos, ...(lote.entidade === 'cliente' ? await avisarCadastroIncompleto(ctx, aceitasValidas) : [])], corpo.linhas_arquivo);
 
   // ---- gravação: upsert monotônico (a guarda repete a regra no banco) e visto_em/sessao_id de todo registro aceito
   for (const bloco of blocos(mudaram)) {
@@ -245,7 +248,8 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
     errosHub.push({ ...e, origem: 'hub' });
   }
   const registroPorIndice = new Map(v.validas.map((l) => [l.indice, l.registro]));
-  for (const bloco of blocos([...errosHub, ...trat.erros])) {
+  // as linhas inválidas do Conector/arquivo (`trat.erros`) já nascem com a mensagem pronta; só as do Hub (índice do lote) ganham a linha do arquivo
+  for (const bloco of blocos([...anotarLinhaDoArquivo(errosHub, corpo.linhas_arquivo), ...trat.erros])) {
     await db.query(
       `insert into integracao.lote_linha_erro (tenant_id, lote_id, indice, origem, codigo, campo, mensagem, reprocessavel, payload, external_id)
        select $1, $2, x.indice, x.origem, x.codigo, x.campo, x.mensagem, x.reprocessavel, x.payload::jsonb, x.external_id
@@ -329,26 +333,28 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   ctx.log.info({ lote_id: lote.id, entidade: lote.entidade, status: resultado.status, novas: c.novas, atualizadas: c.atualizadas, com_erro: c.com_erro }, 'lote aplicado');
 }
 
-/** `consultar` do contexto do consumidor (ADR 0012), quando o SDK a entrega (o manifesto declara `usaConsultas`); sem ela não há aviso e o lote nunca falha por isso. */
 /**
- * RN-CORE-19: siglas de medida ATIVAS entre as citadas (`core.medidas@1`, por bloco de 500). `null` = não deu para conferir (o Core
- * ainda não publica a consulta, ou está indisponível para o tenant): ninguém é recusado por isso.
+ * RN-CORE-19: situação das siglas de medida citadas (`core.medidas@1`, por bloco de 500): `ativas` e `inativas` (existem, mas o BKO
+ * as desativou). Sigla ausente das duas = não cadastrada. `null` = não deu para conferir (o Core fora do ar para o tenant, RN-INT-14):
+ * ninguém é recusado por isso. Também `null` enquanto o Core não publica `core.medidas@1` (busca dinâmica da definição: o Hub não
+ * depende da versão do Core que traz a consulta; `manifest.usaConsultas` passa a listá-la quando ela existir).
  */
-async function medidasAtivas(ctx: ContextoConsumo, siglas: readonly string[]): Promise<Set<string> | null> {
-  if (siglas.length === 0) return new Set();
+async function situacaoDasMedidas(ctx: ContextoConsumo, siglas: readonly string[]): Promise<{ ativas: Set<string>; inativas: Set<string> } | null> {
+  if (siglas.length === 0) return { ativas: new Set(), inativas: new Set() };
   const def = (contratosCore as Record<string, unknown>).CONSULTA_MEDIDAS as Parameters<ContextoConsumo['consultar']>[0] | undefined;
   if (!def) return null;
   const ativas = new Set<string>();
+  const inativas = new Set<string>();
   try {
     for (const bloco of blocos(siglas, 500)) {
       const r = (await ctx.consultar(def, { siglas: bloco })) as { medidas: { sigla: string; ativo: boolean }[] };
-      for (const m of r.medidas) if (m.ativo) ativas.add(m.sigla.toUpperCase());
+      for (const m of r.medidas) (m.ativo ? ativas : inativas).add(m.sigla.toUpperCase());
     }
   } catch (e) {
     if (!ehConsultaIndisponivel(e)) ctx.log.warn({ consulta: 'core.medidas@1' }, 'não foi possível conferir as medidas; o lote segue sem a conferência');
     return null;
   }
-  return ativas;
+  return { ativas, inativas };
 }
 
 async function avisarCadastroIncompleto(ctx: ContextoConsumo, aceitas: readonly LinhaValida[]): Promise<AvisoLinha[]> {

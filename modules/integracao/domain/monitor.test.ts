@@ -74,6 +74,24 @@ describe('RF-INT-04/06: alertas do monitor em português com a ação seguinte',
     expect(a[1]?.mensagem).toMatch(/Mapeamento/);
   });
 
+  it('RN-INT-08 (T-0032): pedido retido por falta das chaves do ERP tem alerta próprio na mensagem (completar o cadastro, cancelar e refazer o pedido), sem mandar para o Mapeamento', () => {
+    const a = montarAlertasMonitor({ ...vazio, pedidos: { presos: [], retidos: ['p1', 'p2'], retidosPorCadastro: ['p1', 'p2'] } });
+    expect(a).toHaveLength(1);
+    expect(a[0]).toMatchObject({ codigo: 'pedido_retido_sem_mapeamento' });
+    expect(a[0]?.mensagem).toMatch(/2 pedidos/);
+    expect(a[0]?.mensagem).toMatch(/chaves do ERP/);
+    expect(a[0]?.mensagem).toMatch(/cancele-o e refaça-o/i);
+    expect(a[0]?.mensagem).not.toMatch(/reaprov/i);
+    expect(a[0]?.mensagem).not.toMatch(/Mapeamento/);
+  });
+
+  it('RN-INT-08 (T-0032): retidos por mapeamento e por chave juntos: o alerta cita os dois motivos, cada um com sua ação', () => {
+    const a = montarAlertasMonitor({ ...vazio, pedidos: { presos: [], retidos: ['p1', 'p2', 'p3'], retidosPorCadastro: ['p3'] } });
+    expect(a).toHaveLength(1);
+    expect(a[0]?.mensagem).toMatch(/Mapeamento/);
+    expect(a[0]?.mensagem).toMatch(/chaves do ERP/);
+  });
+
   it('P-4: itens faturados descartados nas últimas 24 h viram um alerta de atenção com itens, pedidos e a ação seguinte', () => {
     expect(montarAlertasMonitor({ ...vazio, retornosComItensDescartados24h: [] })).toEqual([]);
     const a = montarAlertasMonitor({

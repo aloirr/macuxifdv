@@ -12,7 +12,7 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, Chip, colors, DEFAULT_TZ, Empty, fonts, Icon, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Banner, Chip, colors, DEFAULT_TZ, Empty, fonts, Icon, LinhaChips, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -21,13 +21,15 @@ import { contarPorNo, filhosDe, trilhaDe } from '../../domain/arvore';
 import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
+import { contagem } from '../lib/apresentacao';
 import { arvoreLocal, buscarLocal, filtrosLocais, produtosDaNavegacao, vitrineLocal } from '../lib/local';
 import { irParaProduto } from '../rotas';
-import { NiveisArvore, TrilhaArvore, type NoComContagem } from './arvore';
+import { NiveisArvore, type NoComContagem } from './arvore';
 import { CartaoProduto } from './comum';
 import type { NoCatalogo } from '../../domain/arvore';
 
 const POR_PAGINA = 20;
+const RAIZ = 'raiz';
 const ESPERA_DIGITACAO_MS = 350;
 
 interface EstadoLista {
@@ -62,6 +64,7 @@ export default function TelaCatalogo() {
   const [trilha, setTrilha] = useState<NoCatalogo[]>([]);
   const [niveis, setNiveis] = useState<NoComContagem[]>([]);
   const [lista, setLista] = useState<EstadoLista>({ carregando: true, itens: [], total: 0, aviso: null, origem: 'aparelho' });
+  const auto = useAtualizacaoAutomatica({ tz: fuso });
   const agora = relogioReal().agora().toISOString();
 
   // espera o vendedor parar de digitar antes de buscar (economiza IA e bateria)
@@ -135,6 +138,12 @@ export default function TelaCatalogo() {
     };
   }, [motor, consulta, linha, marca, soCampanha, noId, dentroDoPedido, soComEstoque, clienteId, perfil, parametrosCrus, ambiente, sync.sincronizado_em]);
 
+  // trilha clicável comum (@macuxi/ui): o primeiro nível é o "Catálogo" (raiz); o último item é o lugar atual
+  const itensTrilha = useMemo(
+    () => (trilha.length === 0 ? [] : [{ id: RAIZ, rotulo: 'Catálogo', testID: 'catalogo-trilha-inicio' }, ...trilha.map((n) => ({ id: n.id, rotulo: n.nome, testID: `catalogo-trilha-${n.codigo}` }))]),
+    [trilha],
+  );
+
   const subtitulo = useMemo(() => {
     if (!vePrecoEstoque) return 'Fichas e fotos dos produtos.';
     return clienteId ? 'Preços da tabela do cliente selecionado.' : 'Abra pela ficha do cliente para ver o preço da tabela dele.';
@@ -150,7 +159,7 @@ export default function TelaCatalogo() {
   }
 
   return (
-    <Screen testID="pagina-catalogo-catalogo" refreshing={sync.sincronizando} onRefresh={() => void motor.sincronizar()}>
+    <Screen testID="pagina-catalogo-catalogo" refreshing={auto.puxando} onRefresh={auto.puxar}>
       <View style={s.topo}>
         <View style={{ flex: 1 }}>
           <Text style={t.h1}>Catálogo</Text>
@@ -180,10 +189,10 @@ export default function TelaCatalogo() {
         ) : null}
       </View>
 
-      {!consulta ? <TrilhaArvore trilha={trilha} onEscolher={setNoId} /> : null}
+      {!consulta ? <Trilha itens={itensTrilha} onEscolher={(id) => setNoId(id === RAIZ ? null : id)} testID="catalogo-trilha" /> : null}
       {!consulta ? <NiveisArvore filhos={niveis} onEscolher={setNoId} /> : null}
 
-      <View style={s.chips}>
+      <LinhaChips testID="catalogo-chips">
         {vePrecoEstoque ? <Chip label="Com estoque" active={soComEstoque} onPress={() => setSoComEstoque((v) => !v)} testID="catalogo-chip-estoque" /> : null}
         {marcas.map((m) => (
           <Chip key={`marca-${m}`} label={m} active={marca === m} onPress={() => setMarca((atual) => (atual === m ? null : m))} testID={`catalogo-chip-marca-${m}`} />
@@ -193,7 +202,7 @@ export default function TelaCatalogo() {
         ))}
         {/* o chip "campanha" é o último (fila de corte da T-0061) */}
         <Chip label="Campanha" active={soCampanha} onPress={() => setSoCampanha((v) => !v)} testID="catalogo-chip-campanha" />
-      </View>
+      </LinhaChips>
 
       {lista.aviso ? (
         <Banner testID="catalogo-aviso" icon={lista.aviso === AVISO_BUSCA_OFFLINE ? 'wifiOff' : 'alert'}>
@@ -208,13 +217,16 @@ export default function TelaCatalogo() {
 
       {lista.itens.length > 0 ? (
         <Text style={s.contagem} testID="catalogo-contagem">
-          {lista.total === 1 ? '1 produto' : `${lista.total} produtos`}
+          {contagem(lista.total, 'produto', 'produtos')}
           {lista.total > lista.itens.length ? ` · mostrando ${lista.itens.length}` : ''}
         </Text>
       ) : null}
       {lista.itens.map((item) => (
         <CartaoProduto key={item.id} item={item} agora={agora} fuso={fuso} clienteId={clienteId} onPress={() => irParaProduto(item.id, clienteId)} />
       ))}
+      <Text style={t.small} testID="catalogo-rodape-atualizacao">
+        {auto.rodape}
+      </Text>
     </Screen>
   );
 }
@@ -224,6 +236,5 @@ const s = StyleSheet.create({
   busca: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: 12, paddingHorizontal: 12, minHeight: 48 },
   campo: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink, paddingVertical: 10 },
   limpar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   contagem: { fontFamily: fonts.medium, fontSize: 12, color: colors.ink2 },
 });

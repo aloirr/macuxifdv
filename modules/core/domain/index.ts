@@ -24,3 +24,5 @@ export * from './produto-preco';
 export * from './erp-mapeamento';
 export * from './notificacao-pedido';
 export * from './medida';
+export * from './produto-unidade';
+export * from './cliente-endereco';

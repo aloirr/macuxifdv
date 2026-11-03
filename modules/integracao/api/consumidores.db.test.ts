@@ -5,7 +5,7 @@
  *  - A7: lote válido → aplicado com `integracao.<entidade>.atualizado@1`; só inválidas → `concluido_com_erros` (P-1); reentrega não
  *    duplica; obsoleta/inalterada não publica; dependência espera e referência ausente é erro reprocessável (RN-INT-04); sessão
  *    completa inativa ou cria a pendência e inválido nunca é inativado (RN-INT-06); multi-tenant.
- *  - A8: pedido aprovado → fila → Conector retira; sem de-para fica retido; cancelado antes da entrega sai; depois, não; reentrega
+ *  - A8: pedido aprovado → fila → Conector retira; sem de-para ou sem as chaves do ERP fica retido (visível no monitor, libera ao reaprovar); cancelado antes da entrega sai; depois, não; reentrega
  *    do evento não duplica; multi-tenant.
  */
 import { createHash, randomUUID } from 'node:crypto';
@@ -18,8 +18,16 @@ import { VERSAO_CONTRATO } from '../contracts';
 import manifest from '../manifest';
 import { aplicarLote } from './aplicar-lote';
 import { entrarNaFila, sairDaFila } from './consumidores-pedido';
+import { rotaMonitor } from './bko-monitor';
 import { moduloApi } from './index';
 import { pedidosPendentes } from './rotas-pedidos';
+
+// o Core ainda não publica `core.medidas@1` (PR separado): o consumidor A7 acha a definição em `@macuxi/core/contracts` por nome, então aqui ela é
+// injetada (só a definição; a resposta é o stub em memória abaixo). Quando o Core publicar a real, este mock pode sair.
+vi.mock('@macuxi/core/contracts', async (importar) => ({
+  ...(await importar<Record<string, unknown>>()),
+  CONSULTA_MEDIDAS: { nome: 'core.medidas@1' },
+}));
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
@@ -319,6 +327,172 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
     });
   });
 
+  // ------------------------------------------------------------------------------------------------------------ A7 × medidas
+  /**
+   * T-0063 / RN-CORE-19 + RN-INT-04: sigla de medida desconhecida ou inativa é `referencia_ausente` reprocessável; sigla fora do
+   * formato é `formato_invalido` não reprocessável. A consulta `core.medidas@1` é do Core: aqui ela é um stub em memória, por tenant
+   * (o cadastro e a RLS de `core.medida` são testados pelo Core; o Hub não lê tabela de outro módulo, regra 1). O que se prova é o
+   * comportamento do consumidor A7 sobre a resposta.
+   */
+  describe('A7: medidas do produto (RN-CORE-19)', () => {
+    const SIGLA = `Z${Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('')}`; // 1 a 4 letras (formato da medida)
+    const SIGLA_EMB = `Y${SIGLA.slice(1)}`;
+    /** cadastro simulado do Core: tenant -> sigla -> ativo */
+    const cadastro = new Map<string, Map<string, boolean>>();
+
+    const medida = (tenantId: string, sigla: string, ativo = true) => {
+      if (!cadastro.has(tenantId)) cadastro.set(tenantId, new Map());
+      cadastro.get(tenantId)?.set(sigla, ativo);
+    };
+    const limparMedidas = () => cadastro.clear();
+    /** Como o handler do Core: responde só com as medidas do tenant da transação `{ sigla, descricao, ativo }`. */
+    const aplicarComMedidas = (tenantId: string, loteId: string, extra: (ctx: ContextoConsumo) => Partial<ContextoConsumo> = () => ({})) =>
+      rodar(tenantId, async (ctx) => {
+        const consultar = (async (def: { nome: string }, entrada: { siglas: string[] }) => {
+          if (def.nome !== 'core.medidas@1') return { resultados: [] };
+          const doTenant = cadastro.get(tenantId) ?? new Map<string, boolean>();
+          return { medidas: entrada.siglas.filter((x) => doTenant.has(x)).map((x) => ({ sigla: x, descricao: `Medida ${x}`, ativo: doTenant.get(x) === true })) };
+        }) as unknown as ContextoConsumo['consultar'];
+        return aplicarLote({ lote_id: loteId, conector_id: tenantId === A.tenantId ? ID_A : B.integracao.identificador, entidade: 'produto', modo: 'delta', recebidas: 1, recebido_em: AGORA.toISOString() }, { ...ctx, consultar, ...extra(ctx) });
+      });
+    // lote em que TODAS as linhas têm erro termina `falhou` (erros.ts: linhasComErro >= efetivas); as linhas seguem reprocessáveis
+    const produto = (n: string, extra: Record<string, unknown> = {}) => ({ external_id: `${P}-MD${n}`, sku: `SKUMD${n}`, nome: `Produto ${n}`, unidade: SIGLA, alterado_em: em(-60_000), ...extra });
+    const loteProduto = (tenantId: string, conector: string, regs: unknown[]) => novoLote(tenantId, conector, 'produto', { registros: regs });
+    const mensagens = (tenantId: string, id: string) =>
+      comTenant(pool, tenantId, async (db) => (await db.query<{ campo: string; mensagem: string; reprocessavel: boolean; codigo: string }>('select campo, mensagem, reprocessavel, codigo from integracao.lote_linha_erro where lote_id = $1 order by indice', [id])).rows);
+
+    it('RN-CORE-19/RN-INT-04: sigla desconhecida no tenant A = referencia_ausente reprocessável, com a sigla e o campo na mensagem; a linha não entra', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      limparMedidas();
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [produto('1')]);
+      await aplicarComMedidas(A.tenantId, lote);
+      expect(await lerLote(A.tenantId, lote)).toMatchObject({ status: 'falhou', novas: 0, com_erro: 1 });
+      expect(await mensagens(A.tenantId, lote)).toEqual([
+        { codigo: 'referencia_ausente', campo: 'unidade', reprocessavel: true, mensagem: `Medida '${SIGLA}' não cadastrada (campo unidade). Cadastre em Parâmetros → Produtos e reprocesse.` },
+      ]);
+      expect(await registros(A.tenantId, 'produto')).toEqual([]);
+    });
+
+    it('multi-tenant: a mesma sigla cadastrada só no tenant B não vale para o A; vale para o B', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      limparMedidas();
+      medida(B.tenantId, SIGLA);
+      const loteA = await loteProduto(A.tenantId, A.integracao.conector, [produto('2')]);
+      await aplicarComMedidas(A.tenantId, loteA);
+      expect(await lerLote(A.tenantId, loteA)).toMatchObject({ status: 'falhou', novas: 0, com_erro: 1 });
+      expect((await erros(A.tenantId, loteA))[0]).toMatchObject({ codigo: 'referencia_ausente', reprocessavel: true });
+      const loteB = await loteProduto(B.tenantId, B.integracao.conector, [produto('2')]);
+      await aplicarComMedidas(B.tenantId, loteB);
+      expect(await lerLote(B.tenantId, loteB)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+    });
+
+    it('RN-INT-04: o BKO cadastra a medida no tenant A e o reprocessamento da linha (mesmo registro reaplicado do staging) a aplica', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      limparMedidas();
+      eventos = [];
+      const reg = produto('3');
+      const primeiro = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, primeiro);
+      expect((await erros(A.tenantId, primeiro))[0]).toMatchObject({ codigo: 'referencia_ausente', reprocessavel: true });
+      expect(nomes('integracao.produto.atualizado@1')).toHaveLength(0);
+      medida(A.tenantId, SIGLA);
+      const reprocesso = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, reprocesso);
+      expect(await lerLote(A.tenantId, reprocesso)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+      expect((await registros(A.tenantId, 'produto')).map((r) => r.external_id)).toEqual([`${P}-MD3`]);
+      expect(nomes('integracao.produto.atualizado@1').map((e) => e.payload.external_id)).toEqual([`${P}-MD3`]);
+    });
+
+    it('RN-CORE-19: medida INATIVA também é referencia_ausente reprocessável (pede para reativar); reativada, a linha é aplicada', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      limparMedidas();
+      medida(A.tenantId, SIGLA, false);
+      const reg = produto('4');
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, lote);
+      expect(await mensagens(A.tenantId, lote)).toEqual([
+        { codigo: 'referencia_ausente', campo: 'unidade', reprocessavel: true, mensagem: `Medida '${SIGLA}' está inativa (campo unidade). Reative em Parâmetros → Produtos e reprocesse.` },
+      ]);
+      medida(A.tenantId, SIGLA, true);
+      const reprocesso = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, reprocesso);
+      expect(await lerLote(A.tenantId, reprocesso)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+    });
+
+    it('RN-CORE-19: a embalagem_medida do produto também é conferida (campo embalagem_medida); com as duas cadastradas a linha entra', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      limparMedidas();
+      medida(A.tenantId, SIGLA);
+      const reg = produto('5', { embalagem_medida: SIGLA_EMB, embalagem_quantidade: 12 });
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, lote);
+      expect(await mensagens(A.tenantId, lote)).toEqual([
+        { codigo: 'referencia_ausente', campo: 'embalagem_medida', reprocessavel: true, mensagem: `Medida '${SIGLA_EMB}' não cadastrada (campo embalagem_medida). Cadastre em Parâmetros → Produtos e reprocesse.` },
+      ]);
+      medida(A.tenantId, SIGLA_EMB);
+      const reprocesso = await loteProduto(A.tenantId, A.integracao.conector, [reg]);
+      await aplicarComMedidas(A.tenantId, reprocesso);
+      expect(await lerLote(A.tenantId, reprocesso)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+    });
+
+    it('RN-CORE-19: sigla fora do formato (unidade e embalagem_medida) é formato_invalido NÃO reprocessável, mesmo cadastrada; a linha não entra', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      limparMedidas();
+      medida(A.tenantId, SIGLA);
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [produto('7', { unidade: 'CAIXA' }), produto('8', { embalagem_medida: 'CX12', embalagem_quantidade: 12 })]);
+      await aplicarComMedidas(A.tenantId, lote);
+      expect(await lerLote(A.tenantId, lote)).toMatchObject({ status: 'falhou', novas: 0, com_erro: 2 });
+      expect(await mensagens(A.tenantId, lote)).toEqual([
+        { codigo: 'formato_invalido', campo: 'unidade', reprocessavel: false, mensagem: "Medida 'CAIXA' inválida (campo unidade): use de 1 a 4 letras. Corrija no ERP." },
+        { codigo: 'formato_invalido', campo: 'embalagem_medida', reprocessavel: false, mensagem: "Medida 'CX12' inválida (campo embalagem_medida): use de 1 a 4 letras. Corrija no ERP." },
+      ]);
+      expect(await registros(A.tenantId, 'produto')).toEqual([]);
+    });
+
+    it('RN-CORE-19: embalagem_quantidade fora de 2 a 9999 é valor_fora_da_faixa NÃO reprocessável; a linha não entra', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      limparMedidas();
+      medida(A.tenantId, SIGLA);
+      medida(A.tenantId, SIGLA_EMB);
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [
+        produto('9', { embalagem_medida: SIGLA_EMB, embalagem_quantidade: 10000 }),
+        produto('10', { embalagem_medida: SIGLA_EMB, embalagem_quantidade: 2147483648 }),
+      ]);
+      await aplicarComMedidas(A.tenantId, lote);
+      expect(await lerLote(A.tenantId, lote)).toMatchObject({ status: 'falhou', novas: 0, com_erro: 2 });
+      expect((await mensagens(A.tenantId, lote)).map((m) => [m.codigo, m.campo, m.reprocessavel])).toEqual([
+        ['valor_fora_da_faixa', 'embalagem_quantidade', false],
+        ['valor_fora_da_faixa', 'embalagem_quantidade', false],
+      ]);
+    });
+
+    it('RN-INT-14: consulta de medidas indisponível não recusa a linha (o lote segue sem a conferência)', async () => {
+      await limpar();
+      await liberarFilaDeProduto();
+      limparMedidas();
+      const lote = await loteProduto(A.tenantId, A.integracao.conector, [produto('6')]);
+      await rodar(A.tenantId, (ctx) =>
+        aplicarLote(
+          { lote_id: lote, conector_id: ID_A, entidade: 'produto', modo: 'delta', recebidas: 1, recebido_em: AGORA.toISOString() },
+          {
+            ...ctx,
+            consultar: (async () => {
+              throw new ConsultaIndisponivel('core.medidas@1', 'core');
+            }) as unknown as ContextoConsumo['consultar'],
+          },
+        ),
+      );
+      expect(await lerLote(A.tenantId, lote)).toMatchObject({ status: 'concluido', novas: 1, com_erro: 0 });
+    });
+  });
+
   // ------------------------------------------------------------------------------------------------------------ A8
   describe('A8: pedido aprovado na fila do ERP', () => {
     const pedido = (uuid: string, condicao: string | null = 'AVISTA') => ({
@@ -395,10 +569,74 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
       expect(await fila(A.tenantId, depois)).toMatchObject({ estado: 'enviado', deleted_at: null });
     });
 
-    it('RN-INT-08: aprovado sem chave do ERP (cliente sem external_id) não entra: erro legível para a outbox repetir', async () => {
+    const filaCompleta = (tenantId: string, uuid: string) =>
+      comTenant(pool, tenantId, async (db) => (await db.query<{ estado: string; tentativas: number; retencao_codigo: string | null; retencao_mensagem: string | null; deleted_at: Date | null; payload: Record<string, unknown> | null }>('select estado, tentativas, retencao_codigo, retencao_mensagem, deleted_at, payload from integracao.pedido_fila_erp where pedido_uuid = $1', [uuid])).rows[0]);
+    /** O monitor do BKO (handler real) para o tenant: o que o operador vê. */
+    const monitor = (tenantId: string) =>
+      rotaMonitor.executar({
+        usuario: { id: tenantId === A.tenantId ? A.usuarios.admin : B.usuarios.admin, tenant_id: tenantId, perfil: 'admin' },
+        parametros: () => ({}),
+        agora: () => new Date(),
+        log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        comTenant: (fn: (db: pg.PoolClient, tx: unknown) => Promise<unknown>) => comTenant(pool, tenantId, (db) => fn(db, {})),
+      } as never) as Promise<{ pedidos: { retidos: number }; alertas: { codigo: string; mensagem: string }[] }>;
+    const contarRetidos = async (tenantId: string) => (await monitor(tenantId)).pedidos.retidos;
+
+    it('RN-INT-08 (T-0032 🟡): aprovado sem chave do ERP NÃO lança nem some: fica RETIDO na fila (mapeamento_ausente, payload nulo) com a mensagem do que completar, visível no monitor e fora do GET do Conector', async () => {
+      await limpar();
+      const antes = await contarRetidos(A.tenantId);
       const uuid = randomUUID();
-      await expect(aprovar(A.tenantId, { ...pedido(uuid), cliente_external_id: null as never })).rejects.toThrow(/chaves do ERP/);
-      expect(await fila(A.tenantId, uuid)).toBeUndefined();
+      await expect(aprovar(A.tenantId, { ...pedido(uuid), cliente_external_id: null as never, itens: [{ ...pedido(uuid).itens[0]!, produto_external_id: null as never }] })).resolves.toBeUndefined();
+      const f = await filaCompleta(A.tenantId, uuid);
+      expect(f).toMatchObject({ estado: 'pendente', tentativas: 0, retencao_codigo: 'mapeamento_ausente', payload: null, deleted_at: null });
+      expect(f?.retencao_mensagem).toMatch(/faltam as chaves do ERP/);
+      expect(f?.retencao_mensagem).toMatch(/cliente/);
+      expect(f?.retencao_mensagem).toMatch(/sequência 1/);
+      expect(f?.retencao_mensagem).toMatch(/cancele este pedido/i);
+      expect((await retirar()).pedidos.map((x) => x.pedido_uuid)).not.toContain(uuid);
+      const m = await monitor(A.tenantId);
+      expect(m.pedidos.retidos).toBe(antes + 1);
+      expect(m.alertas.find((a) => a.codigo === 'pedido_retido_sem_mapeamento')?.mensagem).toMatch(/chaves do ERP/);
+      // outro tenant não vê o retido de A
+      expect(await filaCompleta(B.tenantId, uuid)).toBeUndefined();
+      await limpar();
+    });
+
+    it('RN-INT-08 (T-0032 🟡): o mesmo evento sem chaves 2x não duplica nem regrava; vendedor sem chave troca a mensagem; reaprovar COM as chaves libera (pendente, payload) e o Conector retira; sai do monitor', async () => {
+      await limpar();
+      const antes = await contarRetidos(A.tenantId);
+      const uuid = randomUUID();
+      const semCliente = { ...pedido(uuid), cliente_external_id: null as never };
+      await aprovar(A.tenantId, semCliente);
+      await aprovar(A.tenantId, semCliente);
+      const n = await comTenant(pool, A.tenantId, async (db) => (await db.query<{ n: string }>('select count(*)::text as n from integracao.pedido_fila_erp where pedido_uuid = $1', [uuid])).rows[0]?.n);
+      expect(n).toBe('1');
+      const primeira = (await filaCompleta(A.tenantId, uuid))?.retencao_mensagem;
+      await aprovar(A.tenantId, { ...pedido(uuid), vendedor_external_id: null as never });
+      const segunda = (await filaCompleta(A.tenantId, uuid))?.retencao_mensagem;
+      expect(segunda).toMatch(/vendedor/);
+      expect(segunda).not.toBe(primeira);
+      expect(await contarRetidos(A.tenantId)).toBe(antes + 1);
+
+      await aprovar(A.tenantId, pedido(uuid));
+      expect(await filaCompleta(A.tenantId, uuid)).toMatchObject({ estado: 'pendente', retencao_codigo: null, retencao_mensagem: null, payload: { pedido_uuid: uuid, cliente_external_id: 'CLI-1' } });
+      expect(await contarRetidos(A.tenantId)).toBe(antes);
+      expect((await retirar()).pedidos.map((x) => x.pedido_uuid)).toContain(uuid);
+      await limpar();
+    });
+
+    it('RN-INT-08 (T-0032 🟡): retido por chave ausente e depois cancelado/devolvido antes da entrega sai da fila; reaprovado com chaves volta por reativar', async () => {
+      await limpar();
+      const uuid = randomUUID();
+      await aprovar(A.tenantId, { ...pedido(uuid), cliente_external_id: null as never });
+      await cancelar(A.tenantId, uuid);
+      expect((await filaCompleta(A.tenantId, uuid))?.deleted_at).not.toBeNull();
+      await aprovar(A.tenantId, { ...pedido(uuid), cliente_external_id: null as never });
+      expect(await filaCompleta(A.tenantId, uuid)).toMatchObject({ retencao_codigo: 'mapeamento_ausente', deleted_at: null, payload: null });
+      await cancelar(A.tenantId, uuid);
+      await aprovar(A.tenantId, pedido(uuid));
+      expect(await filaCompleta(A.tenantId, uuid)).toMatchObject({ estado: 'pendente', retencao_codigo: null, deleted_at: null, payload: { pedido_uuid: uuid } });
+      await limpar();
     });
 
     it('RN-INT-11: pedido FOB espera o Conector 1.3.0 na fila (exige_conector gravado) e sai quando o Conector atualiza; o simples sai ao 1.2.1', async () => {
