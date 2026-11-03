@@ -2,7 +2,7 @@
  * createApp (T-0004 critério 3): monta os 8 módulos pelo manifesto e checa, em toda rota,
  * autenticação, licença do módulo (RN-CORE-02), perfil/ação (ADR 0004, RN-PRO-01) e carteira (RN-CORE-04).
  */
-import { defineModule, definirModuloApi, ErroApiSchema, ErroHttpModulo, SaudeRespostaSchema, type Manifesto, type StatusErroModulo } from '@macuxi/platform-sdk';
+import { defineModule, definirModuloApi, ErroApiSchema, ErroHttpModulo, LIMITE_CORPO_ROTA_MAX, SaudeRespostaSchema, type Manifesto, type ModuloApi, type RotaModulo, type StatusErroModulo } from '@macuxi/platform-sdk';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
 import { z } from 'zod';
 import { ErroModuloInativoSchema, MeusModulosRespostaSchema } from '@macuxi/core/contracts';
@@ -455,5 +455,79 @@ describe('trustProxy (túnel da demo, T-0026): limite das rotas públicas por IP
       expect(preflight.statusCode).toBeGreaterThanOrEqual(400);
       expect(preflight.headers['access-control-allow-origin']).toBeUndefined();
     });
+  });
+});
+
+describe('limite de corpo por rota (limiteCorpoBytes; T-0032 carga por arquivo, PR #66)', () => {
+  const MIB = 1024 * 1024;
+  let executou = 0;
+  /** Rota de exemplo que recebe um CSV como texto no JSON, como a `POST /v1/integracao/cargas-arquivo`. */
+  const rotaArquivo = (limiteCorpoBytes: number, caminho = 'importacoes'): RotaModulo => ({
+    metodo: 'POST',
+    caminho,
+    acao: 'pedido.criar',
+    carteira: 'nao_se_aplica',
+    status: 202,
+    limiteCorpoBytes,
+    corpo: z.object({ conteudo: z.string().min(1) }),
+    executar: async (ctx) => {
+      executou += 1;
+      return { bytes: (ctx.corpo as { conteudo: string }).conteudo.length };
+    },
+  });
+  const comArquivo = (...rotas: RotaModulo[]) =>
+    opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ vendedor: definirModuloApi({ ...vendedorApi, rotas: [...(vendedorApi.rotas ?? []), ...rotas] }) }) });
+  const csv = (bytes: number) => ({ conteudo: 'codigo;nome;'.padEnd(bytes, 'x') });
+  const comToken = { ...cab('analista'), authorization: 'Bearer token-de-teste' };
+
+  it('rota com limite próprio aceita corpo acima do padrão de 1 MiB e abaixo do dela', async () => {
+    executou = 0;
+    const r = await createApp(comArquivo(rotaArquivo(2 * MIB))).inject({ method: 'POST', url: '/v1/vendedor/importacoes', headers: comToken, payload: csv(1.5 * MIB) });
+    expect(r.statusCode).toBe(202);
+    expect(r.json().bytes).toBe(1.5 * MIB);
+    expect(executou).toBe(1);
+  });
+
+  it('acima do limite da rota: 413 CORPO_GRANDE_DEMAIS "Arquivo grande demais: o limite é X MB." sem executar', async () => {
+    executou = 0;
+    const r = await createApp(comArquivo(rotaArquivo(2 * MIB))).inject({ method: 'POST', url: '/v1/vendedor/importacoes', headers: comToken, payload: csv(2 * MIB + 10) });
+    expect(r.statusCode).toBe(413);
+    expect(ErroApiSchema.parse(r.json())).toEqual({ codigo: 'CORPO_GRANDE_DEMAIS', mensagem: 'Arquivo grande demais: o limite é 2 MB.', detalhes: { limite_bytes: 2 * MIB } });
+    expect(executou).toBe(0);
+  });
+
+  it('limite menor que o padrão também vale, com MB decimal na mensagem', async () => {
+    const r = await createApp(comArquivo(rotaArquivo(512 * 1024))).inject({ method: 'POST', url: '/v1/vendedor/importacoes', headers: comToken, payload: csv(600 * 1024) });
+    expect(r.statusCode).toBe(413);
+    expect(r.json().mensagem).toBe('Arquivo grande demais: o limite é 0,5 MB.');
+  });
+
+  it('rota sem limite próprio: 413 no padrão de erro (não mais o REQUISICAO_INVALIDA genérico), limite de 1 MB', async () => {
+    const r = await createApp(opcoesDeTeste()).inject({ method: 'POST', url: '/v1/vendedor/pedidos', headers: cab('vendedor'), payload: { ...pedido(), lixo: 'x'.repeat(1.2 * MIB) } });
+    expect(r.statusCode).toBe(413);
+    expect(r.json()).toEqual({ codigo: 'CORPO_GRANDE_DEMAIS', mensagem: 'Envio grande demais: o limite é 1 MB. Divida em partes menores.', detalhes: { limite_bytes: MIB } });
+  });
+
+  it('limite acima do padrão: sem Authorization, 401 antes de ler o corpo (ninguém anônimo faz a API guardar MBs)', async () => {
+    executou = 0;
+    const r = await createApp(comArquivo(rotaArquivo(2 * MIB))).inject({ method: 'POST', url: '/v1/vendedor/importacoes', headers: cab('analista'), payload: csv(1.9 * MIB) });
+    expect(r.statusCode).toBe(401);
+    expect(r.json().codigo).toBe('NAO_AUTENTICADO');
+    expect(executou).toBe(0);
+  });
+
+  it('a rota com limite segue passando por licença e perfil (RN-CORE-02, ADR 0004)', async () => {
+    const r = await createApp(comArquivo(rotaArquivo(2 * MIB))).inject({
+      method: 'POST',
+      url: '/v1/vendedor/importacoes',
+      headers: { ...cab('promotor'), authorization: 'Bearer token-de-teste' },
+      payload: csv(10),
+    });
+    expect(r.statusCode).toBe(403);
+  });
+
+  it('teto global: fixture com limiteCorpoBytes acima de 32 MiB não monta (nem sem definirModuloApi)', () => {
+    const vendedorBruto: ModuloApi = { ...vendedorApi, rotas: [rotaArquivo(LIMITE_CORPO_ROTA_MAX + 1)] };
+    expect(() => createApp(opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ vendedor: vendedorBruto }) }))).toThrow(/limiteCorpoBytes entre 1 e/);
   });
 });

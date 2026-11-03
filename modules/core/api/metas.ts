@@ -17,7 +17,7 @@ import {
   type IndicadoresLista,
   type MetasLista,
 } from '../contracts';
-import { dataDoFechamento, dataLocal, painelDoUsuario, situacaoDoPeriodo, type BaseApuracao, type IndicadorMeta } from '../domain';
+import { dataDoFechamento, dataLocal, painelDoUsuario, situacaoDoPeriodo, type BaseApuracao, type FaturamentoApuravel, type IndicadorMeta, type PedidoDaMeta, type TipoMeta } from '../domain';
 import { auditar } from './auditoria';
 
 const naoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
@@ -27,6 +27,17 @@ export async function baseDeApuracao(db: ClienteBanco): Promise<BaseApuracao> {
   const r = await db.query<{ valor: unknown }>("select valor from plataforma.parametro where modulo = 'core' and chave = 'metas.base_apuracao' and deleted_at is null limit 1");
   return r.rows[0]?.valor === 'faturado' ? 'faturado' : 'aprovado';
 }
+
+/**
+ * T-0065 B (RN-CORE-21): porta para os pedidos e faturamentos do Vendedor. A implementação real é a consulta pública
+ * `vendedor.pedidos_da_meta@1` via `tx.consultar` (contrato pedido ao modulo-vendedor, R-20261103 T-0065); o Core não lê
+ * `vendedor.*`. Devolve `null` quando a consulta está indisponível: o painel cai no read-model `indicador_diario`.
+ * `periodo` é AAAA-MM; a fonte traz uma folga de 1 dia para cada lado (o domínio decide o mês pelo fuso do tenant).
+ */
+export type FontePedidosDaMeta = (q: { usuario_ids: string[]; periodo: string }) => Promise<{ pedidos: PedidoDaMeta[]; faturamentos: FaturamentoApuravel[] } | null>;
+
+/** Tipo da meta de venda (RN-CORE-21). Enquanto `core.meta` não tem a coluna `tipo` (pedido ao banco-dados), vale 'pedido'. */
+const tipoDaMeta = (_usuarioId: string): TipoMeta => 'pedido';
 
 const periodoDe = (hoje: string, informado?: string): string => informado ?? hoje.slice(0, 7);
 
@@ -48,7 +59,7 @@ async function usuariosDoPainel(db: ClienteBanco, visiveis: ReadonlySet<string> 
   return r.rows;
 }
 
-export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySet<string> | 'tenant', agora: Date, fuso: string, q: { periodo?: string; usuario_id?: string }): Promise<IndicadoresLista> {
+export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySet<string> | 'tenant', agora: Date, fuso: string, q: { periodo?: string; usuario_id?: string }, fonte?: FontePedidosDaMeta): Promise<IndicadoresLista> {
   const hoje = dataLocal(agora, fuso);
   const periodo = periodoDe(hoje, q.periodo);
   const usuarios = await usuariosDoPainel(db, visiveis, q.usuario_id);
@@ -73,8 +84,9 @@ export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySe
     'select usuario_id, periodo, indicador, valor::float8 as valor from core.meta where deleted_at is null and usuario_id = any($1::uuid[]) and periodo = $2',
     [ids, periodo],
   );
+  const vendas = fonte ? await fonte({ usuario_ids: ids, periodo }) : null;
   const itens = usuarios.map((u) => {
-    const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, base, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows });
+    const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, base, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows, apuracao: vendas ? { tipo: tipoDaMeta(u.id), fuso, pedidos: vendas.pedidos, faturamentos: vendas.faturamentos } : undefined });
     return { usuario_id: u.id, usuario_nome: u.nome, indicadores: p.indicadores, metas: p.metas };
   });
   return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, situacao, fechamento_em, itens });

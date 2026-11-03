@@ -9,7 +9,7 @@
 import { z } from 'zod';
 import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { planejarProdutoUnidadeDoErp, type EventoProdutoUnidadeAtualizado } from '../domain';
-import { eventoIntegracao, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
+import { comMedidaAusente, eventoIntegracao, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
 
 const RegistroProdutoUnidade = z.object({
   external_id: z.string(),
@@ -57,7 +57,7 @@ export const consumidorProdutoUnidadeDoErp: ConsumidorEvento = definirConsumidor
       await ctx.db.query('update core.produto_unidade set padrao = false where produto_id = $1 and padrao and deleted_at is null and external_id is distinct from $2', [produto.id, l.external_id]);
     }
 
-    await ctx.db.query(
+    await comMedidaAusente(() => ctx.db.query(
       `insert into core.produto_unidade as u (tenant_id, external_id, produto_id, unidade, fator, ean, padrao, ativo)
        values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7)
        on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
@@ -66,6 +66,6 @@ export const consumidorProdutoUnidadeDoErp: ConsumidorEvento = definirConsumidor
        where (u.produto_id, u.unidade, u.fator, u.ean, u.padrao, u.ativo) is distinct from
              (excluded.produto_id, excluded.unidade, excluded.fator, excluded.ean, excluded.padrao, excluded.ativo)`,
       [l.external_id, produto.id, l.unidade, l.fator, l.ean, l.padrao, l.ativo],
-    );
+    ));
   },
 });

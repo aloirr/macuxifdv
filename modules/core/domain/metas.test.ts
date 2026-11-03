@@ -210,3 +210,50 @@ describe('painel do usuário a partir das linhas de sync (critério 2: mesmos n�
     expect(painelDoUsuario(invertido)).toEqual(painelDoUsuario(base));
   });
 });
+
+describe('T-0065 B: painel pela apuração do tipo da meta (RN-CORE-21)', () => {
+  const linhas = {
+    periodo: '2026-10',
+    usuario_id: 'u1',
+    hoje: '2026-10-20',
+    paradas: [],
+    visitas: [],
+    diarios: [{ usuario_id: 'u1', data: '2026-10-02', pedidos: 1, vendido_cents: 9_999_00, cancelado_cents: 0 }],
+    metas: [
+      { usuario_id: 'u1', periodo: '2026-10', indicador: 'venda_cents' as const, valor: 1_000_00 },
+      { usuario_id: 'u1', periodo: '2026-10', indicador: 'positivacao' as const, valor: 2 },
+    ],
+  };
+  const pedido = (over: Record<string, unknown>) => ({ vendedor_id: 'u1', cliente_id: 'c1', emitido_em: '2026-10-31T15:00:00Z', status: 'aprovado', total_cents: 100_00, ...over });
+
+  it('RN-CORE-21: meta de pedido conta aprovados pela data de emissão (31/10 aprovado em 02/11 fica em outubro) e positiva por cliente', () => {
+    const p = painelDoUsuario({
+      ...linhas,
+      apuracao: { tipo: 'pedido', fuso: 'America/Manaus', pedidos: [pedido({ aprovado_em: '2026-11-02T12:00:00Z' }), pedido({ cliente_id: 'c2', status: 'aguardando_aprovacao' }), pedido({ cliente_id: 'c3', status: 'cancelado' })], faturamentos: [] },
+    });
+    expect(p.indicadores.realizado_cents).toBe(100_00);
+    expect(p.indicadores.positivados).toBe(1);
+    expect(p.metas.find((m) => m.indicador === 'positivacao')?.realizado).toBe(1);
+  });
+
+  it('RN-CORE-21: meta de faturamento usa a data do faturamento, líquida de devolução, e ignora o read-model diário', () => {
+    const p = painelDoUsuario({
+      ...linhas,
+      apuracao: {
+        tipo: 'faturamento',
+        fuso: 'America/Manaus',
+        pedidos: [pedido({})],
+        faturamentos: [
+          { vendedor_id: 'u1', faturado_em: '2026-10-10T15:00:00Z', valor_cents: 300_00, devolvido_cents: 50_00 },
+          { vendedor_id: 'u1', faturado_em: '2026-11-03T15:00:00Z', valor_cents: 999_00 },
+        ],
+      },
+    });
+    expect(p.indicadores.realizado_cents).toBe(250_00);
+    expect(p.indicadores.positivados).toBe(1);
+  });
+
+  it('RN-CORE-21: sem apuração (fonte de pedidos indisponível) mantém o read-model diário', () => {
+    expect(painelDoUsuario(linhas).indicadores.realizado_cents).toBe(9_999_00);
+  });
+});

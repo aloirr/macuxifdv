@@ -5,8 +5,7 @@
  * no Catálogo e o custo nunca vai ao pull, RN-CORE-18). SKU já usado por outro produto: se o outro não tem `external_id`
  * (cadastro anterior), é adotado; senão o registro é ignorado com aviso (sem SKU no log).
  * RN-CORE-19: a unidade (e a embalagem, se vier) precisa ser medida cadastrada no tenant; a embalagem do ERP (medida + quantidade) é
- * gravada quando informada; evento SEM embalagem não apaga a que o BKO cadastrou. Medida da unidade desconhecida: registro ignorado
- * com aviso (o Hub já o recusa antes com `referencia_ausente`, reprocessável: "Cadastre em Parâmetros → Produtos → Medidas").
+ * gravada quando informada; evento SEM embalagem não apaga a que o BKO cadastrou. Medida (unidade ou embalagem) desconhecida: como referência ausente reprocessável (RN-INT-04; o Hub também a recusa antes: "Cadastre em Parâmetros → Produtos → Medidas").
  * Embalagem do ERP inválida (incompleta, fora de 2 a 9999, igual à unidade) é descartada COM log e o produto entra sem ela (sem
  * retentativa sem fim; o Hub também barra o teto). RN-VEN-15: se a embalagem tem a mesma sigla de uma unidade de venda viva do ERP
  * (`core.produto_unidade`), o ERP prevalece: `embalagem_quantidade` passa a ser o `fator` (log só com external_id e sigla).
@@ -14,7 +13,7 @@
 import { z } from 'zod';
 import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { planejarProdutoDoErp, reconciliarEmbalagemComErp, type EventoProdutoAtualizado } from '../domain';
-import { eventoIntegracao, TextoErp } from './erp-apoio';
+import { comMedidaAusente, eventoIntegracao, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
 
 const RegistroProduto = z.object({
   external_id: z.string(),
@@ -55,26 +54,18 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
       await ctx.db.query('update core.produto set external_id = $2 where id = $1', [mesmoSku.id, l.external_id]);
     }
 
-    // RN-CORE-19: o produto só aceita medida cadastrada no tenant (FK). O Hub já recusa a linha com `referencia_ausente`;
-    // aqui é a rede de segurança para não derrubar o consumidor (e a fila) com erro de chave estrangeira.
+    // RN-CORE-19: medida (da unidade ou da embalagem) não cadastrada no tenant = referência ausente reprocessável (RN-INT-04):
+    // a transação desfaz e a outbox repete quando a medida for cadastrada ("Cadastre em Parâmetros → Produtos → Medidas").
     const unidade = l.unidade || 'UN';
     const cadastrada = async (sigla: string) => ((await ctx.db.query('select 1 from core.medida where sigla = $1 and deleted_at is null', [sigla])).rowCount ?? 0) > 0;
-    if (!(await cadastrada(unidade))) {
-      ctx.log.warn({ external_id: l.external_id, unidade }, 'produto do ERP ignorado: medida da unidade não cadastrada no tenant');
-      return;
-    }
-    // Embalagem do ERP com medida não cadastrada: o produto entra sem ela (o Hub já recusa o lote antes; aqui é a rede de segurança).
-    let embalagemMedida = l.embalagem_medida;
-    let embalagemQuantidade = l.embalagem_quantidade;
-    if (embalagemMedida && !(await cadastrada(embalagemMedida))) {
-      ctx.log.warn({ external_id: l.external_id, embalagem_medida: embalagemMedida }, 'embalagem do produto do ERP ignorada: medida não cadastrada no tenant');
-      embalagemMedida = null;
-      embalagemQuantidade = null;
-    }
+    if (!(await cadastrada(unidade))) throw new ReferenciaAusenteErp('medida');
+    const embalagemMedida = l.embalagem_medida;
+    const embalagemQuantidade = l.embalagem_quantidade;
+    if (embalagemMedida && !(await cadastrada(embalagemMedida))) throw new ReferenciaAusenteErp('medida');
 
     if (l.embalagem_descartada) ctx.log.warn({ external_id: l.external_id }, 'embalagem do produto do ERP descartada: informe medida e quantidade inteira de 2 a 9999, com medida diferente da unidade');
 
-    const gravado = await ctx.db.query<{ id: string; embalagem_medida: string | null; embalagem_quantidade: number | null }>(
+    const gravado = await comMedidaAusente(() => ctx.db.query<{ id: string; embalagem_medida: string | null; embalagem_quantidade: number | null }>(
       `insert into core.produto (tenant_id, external_id, sku, ean, nome, marca, categoria, unidade, ativo, embalagem_medida, embalagem_quantidade)
        values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
@@ -90,7 +81,7 @@ export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
                                                  else core.produto.embalagem_quantidade end
        returning id, embalagem_medida, embalagem_quantidade`,
       [l.external_id, l.sku, l.ean, l.nome, l.marca, l.categoria, unidade, l.ativo, embalagemMedida, embalagemQuantidade],
-    );
+    ));
 
     // RN-VEN-15: o ERP prevalece sobre a embalagem do produto quando a mesma sigla existe como unidade de venda viva.
     const produto = gravado.rows[0];

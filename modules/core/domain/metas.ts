@@ -4,6 +4,7 @@
  * Dinheiro em centavos; cobertura em pontos-base (8500 = 85,00%).
  */
 import { businessDays, yearMonthOf } from '@macuxi/comum';
+import { positivadosDoPeriodo, realizadoPorTipo, type FaturamentoApuravel, type PedidoDaMeta, type TipoMeta } from './apuracao';
 
 export type BaseApuracao = 'aprovado' | 'faturado';
 
@@ -73,6 +74,8 @@ export interface EntradaIndicadores {
   diarios?: DiarioApuravel[];
   base?: BaseApuracao;
   meta_cents?: number | null;
+  /** T-0065 B: realizado já apurado pelo tipo da meta (`apuracao.ts`); vence `pedidos` e `diarios`. */
+  apurado?: { realizado_cents: number; positivados: number };
 }
 
 export interface IndicadoresCalculados {
@@ -101,7 +104,10 @@ export function indicadoresDoPeriodo(e: EntradaIndicadores): IndicadoresCalculad
   const dias = businessDays(e.periodo, e.hoje, e.feriados ?? []).remaining;
   let positivados: number | null = null;
   let realizado: number | null = null;
-  if (e.pedidos) {
+  if (e.apurado) {
+    positivados = e.apurado.positivados;
+    realizado = e.apurado.realizado_cents;
+  } else if (e.pedidos) {
     const doPeriodo = e.pedidos.filter((p) => p.vendedor_id === e.usuario_id && yearMonthOf(p.data) === e.periodo && naBase(p, base));
     positivados = new Set(doPeriodo.map((p) => p.cliente_id).filter((c): c is string => Boolean(c))).size;
     realizado = realizadoDaMeta(e.pedidos, { usuario_id: e.usuario_id, periodo: e.periodo, base });
@@ -175,6 +181,12 @@ export interface LinhasDoPainel {
   visitas: ReadonlyArray<Removivel & { usuario_id: string; cliente_id: string; data_local: string }>;
   diarios: ReadonlyArray<Removivel & DiarioApuravel>;
   metas: ReadonlyArray<Removivel & { usuario_id: string; periodo: string; indicador: IndicadorMeta; valor: number }>;
+  /**
+   * T-0065 B (RN-CORE-21): pedidos e faturamentos vindos da consulta pública do Vendedor. Presente = o realizado e a
+   * positivação saem de `apuracao.ts` (emissão para meta de pedido, data do faturamento para meta de faturamento);
+   * ausente (fonte indisponível) = segue o read-model `indicador_diario`.
+   */
+  apuracao?: { tipo: TipoMeta; fuso: string; pedidos: readonly PedidoDaMeta[]; faturamentos?: readonly FaturamentoApuravel[] };
 }
 
 /**
@@ -184,8 +196,12 @@ export interface LinhasDoPainel {
  */
 export function painelDoUsuario(l: LinhasDoPainel): PainelDeMetas {
   const meu = <T extends Removivel & { usuario_id: string }>(x: T) => !x.deleted_at && x.usuario_id === l.usuario_id;
+  const a = l.apuracao;
+  const o = a ? { usuario_id: l.usuario_id, periodo: l.periodo, fuso: a.fuso } : null;
+  const apurado = a && o ? { realizado_cents: realizadoPorTipo(a.tipo, { pedidos: a.pedidos, faturamentos: a.faturamentos }, o), positivados: positivadosDoPeriodo(a.pedidos, o) } : undefined;
   return painelDeMetas(
     {
+      apurado,
       periodo: l.periodo,
       usuario_id: l.usuario_id,
       hoje: l.hoje,

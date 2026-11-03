@@ -18,6 +18,11 @@
  * Proteção do Zod (GHSA-mrhx-c7xc-m3w5: o Zod acumula um problema por elemento inválido de array, sem teto): todo corpo
  * JSON com mais de `MAX_ELEMENTOS_CORPO` elementos de array (somados, em qualquer profundidade) é recusado com 413
  * ANTES de qualquer schema, e a resposta 400 lista no máximo `MAX_PROBLEMAS_RESPOSTA` problemas.
+ *
+ * Teto de BYTES do corpo: 1 MiB (`LIMITE_CORPO_ROTA_PADRAO`) ou o `limiteCorpoBytes` da rota de módulo (até
+ * `LIMITE_CORPO_ROTA_MAX`, 32 MiB; ex.: CSV da carga por arquivo). Estourou: 413 `CORPO_GRANDE_DEMAIS` com a mensagem
+ * "Arquivo grande demais: o limite é X MB." (rota com limite próprio) ou "Envio grande demais: o limite é X MB. …" (demais),
+ * e `detalhes.limite_bytes`. Rota com limite acima do padrão exige `Authorization` antes de ler o corpo (401 sem buffer).
  */
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -29,11 +34,14 @@ import {
   retryAfterDoErroModulo,
   criarPermissoes,
   dependenciasDosManifestos,
+  erroCorpoGrande,
   ErroHttpModulo,
   escopoDoPerfil,
   fusoDoTenantOuPadrao,
+  LIMITE_CORPO_ROTA_PADRAO,
   modulosEfetivos,
   problemasApiConector,
+  problemasLimiteCorpo,
   promotorBarradoNaRota,
   SaudeRespostaSchema,
   SERVICO_API_MACUXI,
@@ -146,6 +154,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     ...(op.modulos ? [] : consultasSemImplementacao(modulos)),
     // ADR 0013: fixture montada sem definirModuloApi também passa pela checagem das rotas de Conector
     ...modulos.flatMap((m) => problemasApiConector(m.manifesto, m.conector).map((x) => `${m.manifesto.id}: ${x}`)),
+    // fixture sem definirModuloApi também passa pelo teto de corpo das rotas
+    ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasLimiteCorpo(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
   ];
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
@@ -189,6 +199,12 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   app.setErrorHandler((erro, req, reply) => {
     if (erro instanceof ErroHttp) return reply.code(erro.status).send(erro.corpo());
+    // corpo acima do teto de bytes da rota (o parser do Fastify recusa antes de ler o JSON): 413 com o limite em MB
+    if ((erro as { code?: string }).code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+      const limite = req.routeOptions.bodyLimit ?? LIMITE_CORPO_ROTA_PADRAO;
+      const arquivo = (req.routeOptions.config as ConfigRotaModulo | undefined)?.limiteCorpoProprio === true;
+      return reply.code(413).send(erroCorpoGrande(limite, arquivo));
+    }
     // erro do módulo (ErroHttpModulo e os casos ErroRegraNegocio 422 / ErroNaoEncontrado 404): status e código do módulo
     if (erro instanceof ErroHttpModulo) {
       const espera = retryAfterDoErroModulo(erro);
@@ -283,12 +299,33 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   return app;
 }
 
+/** `config` da rota Fastify de módulo: `limiteCorpoProprio` = a rota declarou `limiteCorpoBytes` (mensagem "Arquivo grande demais"). */
+interface ConfigRotaModulo {
+  limiteCorpoProprio?: boolean;
+}
+
 function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<typeof criarPermissoes>, manifesto: Manifesto, rota: RotaModulo): void {
   const modulo = manifesto.id;
   const url = `/v1/${modulo}${rota.caminho ? `/${rota.caminho}` : ''}`;
+  const limite = rota.limiteCorpoBytes;
   app.route({
     method: rota.metodo,
     url,
+    ...(limite !== undefined
+      ? {
+          bodyLimit: limite,
+          config: { limiteCorpoProprio: true } satisfies ConfigRotaModulo,
+          // corpo grande só é lido de quem diz estar autenticado: sem `Authorization`, 401 antes do parser (sem buffer de MBs);
+          // o token em si é conferido no handler, como em toda rota
+          ...(limite > LIMITE_CORPO_ROTA_PADRAO
+            ? {
+                onRequest: async (req: FastifyRequest) => {
+                  if (!req.headers.authorization) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
+                },
+              }
+            : {}),
+        }
+      : {}),
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
       const { ctx } = await p.preparar(req, modulo);
       const u = ctx.usuario;

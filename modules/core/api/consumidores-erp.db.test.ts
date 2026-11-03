@@ -263,10 +263,9 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
       });
     });
 
-    it('RN-CORE-19: medida da unidade não cadastrada no tenant = registro ignorado com aviso (rede de segurança; o Hub já recusa antes)', async () => {
+    it('RN-CORE-19: medida da unidade não cadastrada no tenant = referência ausente reprocessável (nada é gravado)', async () => {
       await emTransacao(A.tenantId, async (t) => {
-        await t.entregar('integracao.produto.atualizado@1', produto({ unidade: 'zz' }));
-        expect(t.warn).toHaveBeenCalled();
+        await expect(t.entregar('integracao.produto.atualizado@1', produto({ unidade: 'zz' }))).rejects.toBeInstanceOf(ReferenciaAusenteErp);
         expect(await lerEmbalagem(t)).toEqual([]);
       });
     });
@@ -293,11 +292,10 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
       });
     });
 
-    it('RN-CORE-19: embalagem com medida não cadastrada entra sem a embalagem (o produto não se perde)', async () => {
+    it('RN-CORE-19: embalagem com medida não cadastrada = referência ausente reprocessável (nada é gravado)', async () => {
       await emTransacao(A.tenantId, async (t) => {
-        await t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'zz', embalagem_quantidade: 12 }));
-        expect(t.warn).toHaveBeenCalled();
-        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: null, embalagem_quantidade: null }]);
+        await expect(t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'zz', embalagem_quantidade: 12 }))).rejects.toBeInstanceOf(ReferenciaAusenteErp);
+        expect(await lerEmbalagem(t)).toEqual([]);
       });
     });
   });

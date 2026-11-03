@@ -9,6 +9,9 @@ import {
   ErroHttpModulo,
   ErroNaoEncontrado,
   ErroRegraNegocio,
+  erroCorpoGrande,
+  LIMITE_CORPO_ROTA_MAX,
+  megabytesParaMensagem,
   promotorBarradoNaRota,
   retryAfterDoErroModulo,
   type RotaModulo,
@@ -52,6 +55,23 @@ describe('definirModuloApi (desenho T-0004 §3)', () => {
 
   it('RN-PRO-01: rota de pedido que aceita promotor é recusada na definição', () => {
     expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ perfis: ['vendedor', 'promotor'] })] })).toThrow(/RN-PRO-01/);
+  });
+
+  it('limiteCorpoBytes: inteiro de 1 até o teto global, só em rota com corpo', () => {
+    expect(definirModuloApi({ manifesto: vendedor, rotas: [rota({ metodo: 'POST', acao: 'pedido.criar', limiteCorpoBytes: 8 * 1024 * 1024 })] }).rotas).toHaveLength(1);
+    expect(definirModuloApi({ manifesto: vendedor, rotas: [rota({ metodo: 'POST', acao: 'pedido.criar', limiteCorpoBytes: LIMITE_CORPO_ROTA_MAX })] }).rotas).toHaveLength(1);
+    for (const ruim of [0, -1, 1.5, LIMITE_CORPO_ROTA_MAX + 1])
+      expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ metodo: 'POST', acao: 'pedido.criar', limiteCorpoBytes: ruim })] })).toThrow(/limiteCorpoBytes entre 1 e/);
+    expect(() => definirModuloApi({ manifesto: vendedor, rotas: [rota({ limiteCorpoBytes: 1024 })] })).toThrow(/só vale em rota com corpo/);
+  });
+
+  it('413 de corpo grande: código e mensagem em português com o limite em MB', () => {
+    expect(megabytesParaMensagem(1024 * 1024)).toBe('1');
+    expect(megabytesParaMensagem(32 * 1024 * 1024)).toBe('32');
+    expect(megabytesParaMensagem(1.5 * 1024 * 1024)).toBe('1,5');
+    expect(megabytesParaMensagem(500 * 1024)).toBe('0,49');
+    expect(erroCorpoGrande(8 * 1024 * 1024, true)).toEqual({ codigo: 'CORPO_GRANDE_DEMAIS', mensagem: 'Arquivo grande demais: o limite é 8 MB.', detalhes: { limite_bytes: 8 * 1024 * 1024 } });
+    expect(erroCorpoGrande(1024 * 1024, false).mensagem).toBe('Envio grande demais: o limite é 1 MB. Divida em partes menores.');
   });
 
   it('RN-PRO-01 / O-3: ação de leitura de pedido só em GET', () => {

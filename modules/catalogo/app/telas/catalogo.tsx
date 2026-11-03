@@ -57,7 +57,8 @@ export default function TelaCatalogo() {
   const [linha, setLinha] = useState<string | null>(null);
   const [soComEstoque, setSoComEstoque] = useState(false);
   const [marca, setMarca] = useState<string | null>(null);
-  const [soCampanha, setSoCampanha] = useState(false);
+  // chip "Campanha" cortado para o backlog (R-20261102-204330): filtro fica desligado até voltar
+  const soCampanha = false;
   const [noId, setNoId] = useState<string | null>(params.no ? String(params.no) : null);
   const [linhas, setLinhas] = useState<string[]>([]);
   const [marcas, setMarcas] = useState<string[]>([]);
@@ -200,8 +201,6 @@ export default function TelaCatalogo() {
         {linhas.map((l) => (
           <Chip key={l} label={l} active={linha === l} onPress={() => setLinha((atual) => (atual === l ? null : l))} testID={`catalogo-chip-${l}`} />
         ))}
-        {/* o chip "campanha" é o último (fila de corte da T-0061) */}
-        <Chip label="Campanha" active={soCampanha} onPress={() => setSoCampanha((v) => !v)} testID="catalogo-chip-campanha" />
       </LinhaChips>
 
       {lista.aviso ? (
