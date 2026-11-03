@@ -57,21 +57,16 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     const promotor = (await api.sessao('promotor@exemplo.com.br')).access_token;
     const supervisor = (await api.sessao('supervisor@exemplo.com.br')).access_token;
     const antes = await api.meusModulos(promotor);
-    // ativo: o pull de entidade do Promotor PASSA da licença (o ponto do teste: nunca 403 MODULO_INATIVO).
-    // Transição T-0056: sem provedor no main → 501 SYNC_NAO_IMPLEMENTADO; com a parte 2 (provedores de pull dos
-    // cadastros de trade do Promotor) → 200 com página de pull (`PaginaSync`: itens + proximo_cursor + horizonte).
-    // Aceita os dois estados, cada um estrito; depois do merge da parte 2, outro PR de testes fixa o 200.
+    // ativo: o pull de entidade do Promotor PASSA da licença (licença ativa ≠ 403 MODULO_INATIVO). Desde a T-0056
+    // parte 2 o Promotor tem provedor de pull dos cadastros de trade → 200 com página de pull (`PaginaSync`:
+    // itens + proximo_cursor + horizonte ISO).
     const pullAtivo = await api.chamar(promotor, { method: 'GET', url: '/v1/sync/pull?entidade=checklist_loja' });
-    expect([200, 501], pullAtivo.body).toContain(pullAtivo.statusCode);
-    if (pullAtivo.statusCode === 501) {
-      expect(erroDe(pullAtivo).codigo).toBe('SYNC_NAO_IMPLEMENTADO');
-    } else {
-      const pagina = pullAtivo.json() as { itens: unknown; proximo_cursor: unknown; horizonte?: unknown };
-      expect(Array.isArray(pagina.itens), pullAtivo.body).toBe(true);
-      expect(pagina.proximo_cursor === null || typeof pagina.proximo_cursor === 'string', pullAtivo.body).toBe(true);
-      expect(typeof pagina.horizonte, pullAtivo.body).toBe('string');
-      expect(Number.isNaN(Date.parse(pagina.horizonte as string))).toBe(false);
-    }
+    expect(pullAtivo.statusCode, pullAtivo.body).toBe(200);
+    const pagina = pullAtivo.json() as { itens: unknown; proximo_cursor: unknown; horizonte?: unknown };
+    expect(Array.isArray(pagina.itens), pullAtivo.body).toBe(true);
+    expect(pagina.proximo_cursor === null || typeof pagina.proximo_cursor === 'string', pullAtivo.body).toBe(true);
+    expect(typeof pagina.horizonte, pullAtivo.body).toBe('string');
+    expect(Number.isNaN(Date.parse(pagina.horizonte as string))).toBe(false);
 
     const r = await licenca(api, admin, 'tenant', 'promotor', false);
     expect(r.statusCode, r.body).toBe(200);
