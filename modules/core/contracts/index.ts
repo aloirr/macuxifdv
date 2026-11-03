@@ -494,3 +494,4 @@ export * from './produto-preco';
 export * from './medida';
 export * from './promotor-pedidos';
 export * from './enderecos';
+export * from './usuarios';
