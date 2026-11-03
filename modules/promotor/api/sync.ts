@@ -4,7 +4,7 @@
  * idempotência, RN-PRO-04/06/07, evento na outbox). Cada item na própria transação: regra violada rejeita só o item.
  * Dependência que ainda não chegou (visita ou foto da coleta, retentável) volta `SYNC_NAO_IMPLEMENTADO`: o motor do app
  * mantém o item `pendente` e o reenvia — o lote do push agrupa por entidade e não garante a ordem entre elas.
- * Os cadastros de trade (pull) ganham provedor quando a tabela existir (migração 0015); até lá, pull 501 (ADR 0009 §7).
+ * Os cadastros de trade (pull pelo cursor) têm provedores em `sync-cadastros.ts`.
  */
 import { ErroHttpModulo, SYNC_NAO_IMPLEMENTADO, type ContextoBase, type ItemPush, type ProvedorSync, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import { ENTIDADES_COLETA, type VisitaLoja } from '../contracts';

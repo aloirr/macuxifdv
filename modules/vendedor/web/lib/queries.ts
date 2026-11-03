@@ -9,7 +9,9 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { AuditoriaRespostaSchema, ROTA_AUDITORIA } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ } from '@macuxi/ui/web';
-import { DiscountPolicy, PedidosPage } from '../../contracts';
+import { DiscountPolicy, FreteParametros, PedidosPage, Transportadora } from '../../contracts';
+import { z } from 'zod';
+import { type FiltrosTransportadoras, queryDosFiltrosTransportadoras } from './transportadoras';
 import { type FiltrosPedidos, paraQuery } from './filtros-url';
 
 /**
@@ -24,7 +26,14 @@ export const qk = {
   pedido: (id: string) => ['vendedor', 'pedido', id] as const,
   alcadas: ['vendedor', 'alcadas'] as const,
   decisoes: ['vendedor', 'decisoes'] as const,
+  transportadoras: (f: FiltrosTransportadoras) => ['vendedor', 'transportadoras', f] as const,
+  digitadas: ['vendedor', 'transportadoras', 'digitadas'] as const,
+  frete: ['vendedor', 'frete', 'parametros'] as const,
 };
+
+const ListaTransportadoras = z.object({ itens: z.array(Transportadora) });
+export const Digitada = z.object({ nome: z.string(), documento: z.string(), telefone: z.string().nullable(), pedidos: z.number() });
+export type Digitada = z.infer<typeof Digitada>;
 
 function useAuthed() {
   return useSession().status === 'authenticated';
@@ -85,4 +94,30 @@ export function useDecisoesRecentes() {
       AuditoriaRespostaSchema.parse(await api<unknown>(ROTA_AUDITORIA.replace(/^\/v1/, ''), { query: { modulo: 'vendedor', entidade: 'pedido', limite: 30 } })).itens.filter((i) => i.acao !== 'pedido.criar'),
     enabled,
   });
+}
+
+/** Transportadoras do tenant (RN-VEN-16), com os filtros da URL. */
+export function useTransportadoras(f: FiltrosTransportadoras) {
+  const enabled = useAuthed();
+  return useQuery({
+    queryKey: qk.transportadoras(f),
+    queryFn: async ({ signal }) => ListaTransportadoras.parse(await api<unknown>('/vendedor/transportadoras', { query: queryDosFiltrosTransportadoras(f), signal })).itens,
+    enabled,
+  });
+}
+
+/** Digitadas pelos vendedores nos pedidos e ainda fora do cadastro (para o BKO cadastrar). */
+export function useTransportadorasDigitadas() {
+  const enabled = useAuthed();
+  return useQuery({
+    queryKey: qk.digitadas,
+    queryFn: async ({ signal }) => z.object({ itens: z.array(Digitada) }).parse(await api<unknown>('/vendedor/transportadoras/digitadas', { signal })).itens,
+    enabled,
+  });
+}
+
+/** Padrão do frete do tenant (CIF quando não configurado). */
+export function useFreteParametros() {
+  const enabled = useAuthed();
+  return useQuery({ queryKey: qk.frete, queryFn: async ({ signal }) => FreteParametros.parse(await api<unknown>('/vendedor/frete/parametros', { signal })), enabled });
 }

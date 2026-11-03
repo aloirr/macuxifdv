@@ -50,7 +50,7 @@ export interface RepositorioPromotor {
 
 /**
  * Implementação em memória (testes e desenvolvimento). NÃO usar em produção: some ao reiniciar o processo.
- * A API de produção só liga o recebimento quando houver o repositório SQL (migração 0015) — veja `api/index.ts`.
+ * A API de produção usa `criarRepositorioSql()` (`api/repositorio-sql.ts`, schema `promotor`, migração 0015).
  */
 export function criarRepositorioMemoria(
   fusoParaData: (instante: string, fuso: string) => string,

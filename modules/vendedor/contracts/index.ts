@@ -20,6 +20,7 @@ import {
 import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
+import { EnderecoRetrato, Frete, FreteDoPedido, ItemPush } from './frete';
 
 /** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
 export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
@@ -30,6 +31,7 @@ export { SITUACAO_ORCAMENTO_LABEL, SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '
 export * from './eventos';
 export * from './sync';
 export * from './pre-venda';
+export * from './frete';
 
 // ---------- pedidos ----------
 /** Inclui os status do retorno do ERP (EstadoPedidoErp): enviado=sent_to_erp, integrado=integrated, faturado_parcial=invoiced_partial, faturado_total=invoiced, cancelado=cancelled. */
@@ -49,8 +51,17 @@ export const OrderItem = z.object({
   quantity_invoiced: z.number().int().nonnegative().optional(),
   /** 0013 (desenho T-0061 §2.1): quantidade na unidade base (quantidade x fator); compara com `quantity_invoiced` */
   quantity_base: z.number().int().nonnegative().optional(),
-  /** T-0064/T-0061: sigla da medida vendida para a coluna Medida ("UN", "CX c/ 12"); ausente = UN */
+  // --- T-0061 (RN-VEN-15, RN-CORE-19): medida vendida e acréscimo do item; opcionais (pedido antigo = UN) ---
+  /** sigla da medida vendida (UN, CX) */
+  unit: z.string().optional(),
+  /** unidades base por unidade vendida (UN = 1) */
+  factor: z.number().int().positive().optional(),
+  /** igual a `quantity_base` (nome do desenho T-0061): quantidade em unidades base */
+  base_quantity: z.number().int().nonnegative().optional(),
+  /** coluna Medida do PDF e do detalhe: "UN" / "CX c/ 12" */
   unit_label: z.string().optional(),
+  /** acréscimo do item (RN-VEN-02); `discount_pct` passa a ser o desconto do item */
+  surcharge_pct: Pct.optional(),
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 
@@ -105,6 +116,15 @@ export const Order = z.object({
   /** T-0053: pedido nascido de orçamento / pedido em que o orçamento virou. */
   orcamento_origem_id: Id.nullable().optional(),
   convertido_pedido_id: Id.nullable().optional(),
+  // --- T-0061: acréscimo do pedido, desconto efetivo (RN-VEN-03, sem frete), frete CIF/FOB e endereço de entrega ---
+  /** acréscimo do pedido (RN-VEN-02); `discount_pct` é o desconto do pedido; os dois são excludentes */
+  surcharge_pct: Pct.optional(),
+  /** 1 − total dos itens ÷ total pela tabela; negativo = acréscimo; é o que a alçada olha (RN-VEN-10) */
+  effective_discount_pct: z.number().optional(),
+  freight: FreteDoPedido.nullable().optional(),
+  delivery_address: EnderecoRetrato.nullable().optional(),
+  /** nome da tabela de preço (o PDF interno mostra o nome, não o id) */
+  price_table_name: z.string().nullable().optional(),
 });
 export type Order = z.infer<typeof Order>;
 
@@ -203,7 +223,7 @@ export type CreateOrderRequest = z.infer<typeof CreateOrderRequest>;
  * instalados continua válida). O servidor recalcula tudo; total_cents é só informativo (RN-VEN-02).
  */
 export const PedidoPush = CreateOrderRequest.extend({
-  items: z.array(z.object({ product_id: Id, quantity: z.number().int().positive() })).min(1).max(200),
+  items: z.array(ItemPush).min(1).max(200),
   condicao_pagamento_id: z.string().uuid().nullable().optional(),
   observacao: z.string().max(500).nullable().optional(),
   visita_id: z.string().uuid().nullable().optional(),
@@ -214,6 +234,12 @@ export const PedidoPush = CreateOrderRequest.extend({
   tipo: z.enum(TIPOS_DOCUMENTO).optional(),
   /** T-0053: pedido que nasce da conversão de um orçamento (UUID do orçamento). Só em `tipo` pedido. */
   orcamento_origem_id: z.string().uuid().nullable().optional(),
+  /** T-0061 (RN-VEN-02): acréscimo do pedido; excludente com `discount_pct` > 0. */
+  acrescimo_pct: Pct.min(0).max(100).optional(),
+  /** T-0061 (RN-VEN-16): ausente = padrão do tenant (`frete.modalidade_padrao`, CIF). */
+  frete: Frete.nullable().optional(),
+  /** T-0061 (RN-VEN-17): ausente = endereço principal do cliente. */
+  endereco_entrega_id: z.string().uuid().nullable().optional(),
 });
 export type PedidoPush = z.infer<typeof PedidoPush>;
 
@@ -221,6 +247,8 @@ export type PedidoPush = z.infer<typeof PedidoPush>;
 export const CODIGOS_RECUSA_PEDIDO = [
   'RN-PRO-01', 'PERFIL_SEM_ACESSO', 'PAYLOAD_INVALIDO', 'ID_EM_USO', 'FORA_DA_CARTEIRA', 'RN-VEN-01', 'RN-VEN-10', 'RN-VEN-13', 'RN-VEN-14', 'RN-VEN-31', 'RN-CAT-06',
   'RN-VEN-32', 'ORCAMENTO_NAO_ENCONTRADO', 'ORCAMENTO_JA_CONVERTIDO', 'PRE_VENDA_INDISPONIVEL',
+  // T-0061: unidade, endereço de entrega, frete FOB e desconto/acréscimo (desenho §4.3)
+  'unidade_invalida', 'endereco_invalido', 'transportadora_obrigatoria', 'transportadora_invalida', 'desconto_e_acrescimo', 'preco_abaixo_minimo',
 ] as const;
 
 /** Edição: mesmo corpo da criação, sem o id (o pedido mantém id e número). */

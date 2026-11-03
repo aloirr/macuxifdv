@@ -88,3 +88,10 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 - **RN-CORE-15 (corte imediato)**: o JWT de acesso leva `did` (aparelho da sessão); `autenticar` consulta `core.dispositivo` pela chave primária a cada requisição e responde 423 `DISPOSITIVO_BLOQUEADO`. Sem cache: o bloqueio vale na próxima requisição. Sessão sem aparelho (login sem `dispositivo_id`) não tem `did`.
 - **RN-CORE-10 (raio)**: fonte única `plataforma.parametro` (`core`/`checkin.raio_m`, padrão 200). O servidor lê em `raioDoTenant`; o app recebe pelo pull `parametro` (somente essa chave) e usa `estado.raioCheckinM`; antes do primeiro sync vale `RAIO_CHECKIN_PADRAO_M` do domínio.
 - **T-0019**: pull `notificacao` (escopo `proprio`), push `notificacao_leitura` (`somente_insercao`), rotas `GET/POST notificacoes`, `POST notificacoes/:id/lida`, `PUT dispositivos/atual/push` (corpo com `dispositivo_id`), ação `notificacao.enviar`, evento `core.notificacao.criada@1` (sem título/corpo). Push real: `api/push.ts`, desligado até `MACUXI_PUSH_ATIVO=1` e o build EAS.
+
+## BKO — opção do perfil Promotor (T-0061; tela Usuários e módulos, nível Perfil › Promotor)
+| data-testid | Elemento |
+|---|---|
+| `promotor-pedidos.painel` | Painel "Opções do perfil Promotor" (só admin; some para os demais) |
+| `promotor-pedidos.estado` | Estado atual: `data-estado="ligado"` ou `"desligado"` |
+| `promotor-pedidos.toggle` | Botão role=switch liga/desliga "Promotor vê pedidos" (`aria-checked`) |

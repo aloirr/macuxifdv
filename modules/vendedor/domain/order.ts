@@ -96,7 +96,7 @@ export function availableCredit(c: CreditInput): Cents {
 }
 
 export interface OrderIssue {
-  code: 'empty_order' | 'discount_above_limit' | 'discount_blocked' | 'credit_exceeded' | 'overdue_receivables' | 'invalid_quantity' | 'price_not_found';
+  code: 'empty_order' | 'discount_above_limit' | 'discount_blocked' | 'credit_exceeded' | 'overdue_receivables' | 'invalid_quantity' | 'price_not_found' | 'invalid_item';
   message: string;
   /** true = o pedido não pode seguir nem com aprovação */
   blocking: boolean;
