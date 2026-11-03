@@ -14,6 +14,9 @@ import {
   Id,
   IsoDateTime,
   IndicadoresListaSchema,
+  CopiarMetasSchema,
+  type CopiarMetas,
+  type CopiarMetasResposta,
   MetaEquipeParamsSchema,
   MetaEquipeSchema,
   MetaParamsSchema,
@@ -30,7 +33,7 @@ import {
   type PutMeta,
   type MetasLista,
 } from '../contracts';
-import { dataDoFechamento, dataLocal, expandirEquipe, painelDoUsuario, podeEditarMetaDe, situacaoDoPeriodo, type BaseApuracao, type FaturamentoApuravel, type IndicadorMeta, type PedidoDaMeta, type TipoMeta } from '../domain';
+import { copiarMetas, dataDoFechamento, dataLocal, expandirEquipe, painelDoUsuario, podeEditarMetaDe, situacaoDoPeriodo, type BaseApuracao, type FaturamentoApuravel, type IndicadorMeta, type PedidoDaMeta, type TipoMeta } from '../domain';
 import { auditar } from './auditoria';
 import { erroHttp } from './erros';
 import { EQUIPES_DO_RESPONSAVEL } from './carteira';
@@ -287,6 +290,40 @@ export const rotasDeMetas: RotaModulo[] = [
           depois: { periodo, indicador: c.indicador, valor: c.valor, tipo: tipoFinal, usuarios: alvos },
         });
         return { equipe_id: equipeId, periodo, indicador: c.indicador, valor: c.valor, tipo: tipoFinal, usuarios: alvos, alterados };
+      });
+    },
+  },
+  {
+    metodo: 'POST',
+    caminho: 'metas/copiar',
+    acao: 'meta.editar',
+    carteira: 'filtrar_no_dominio',
+    corpo: CopiarMetasSchema,
+    executar: async (ctx): Promise<CopiarMetasResposta> => {
+      const c = ctx.corpo as CopiarMetas;
+      if (c.de === c.para) throw new ErroRegraNegocio('RN-CORE-20', 'O mês de origem e o de destino são o mesmo. Escolha o mês anterior como origem.');
+      return ctx.comTenant(async (db, tx) => {
+        const escopo = await escopoDeEdicao(db, ctx.usuario.id, ctx.usuario.perfil);
+        const filtroEquipe = c.equipe_id ? 'and u.equipe_id = $2' : '';
+        const lidas = async (periodo: string) =>
+          (
+            await db.query<{ usuario_id: string; indicador: IndicadorMeta; valor: number; tipo: TipoMeta }>(
+              `select m.usuario_id, m.indicador, m.valor::float8 as valor, m.tipo from core.meta m join core.usuario u on u.id = m.usuario_id
+                where m.deleted_at is null and u.deleted_at is null and u.ativo and u.perfil in ('vendedor', 'promotor') and m.periodo = $1 ${filtroEquipe}`,
+              c.equipe_id ? [periodo, c.equipe_id] : [periodo],
+            )
+          ).rows;
+        const anterior = (await lidas(c.de)).filter((m) => podeEditarMetaDe({ perfil: ctx.usuario.perfil, alvoId: m.usuario_id, editorId: ctx.usuario.id, ...escopo }).ok);
+        const novas = copiarMetas(anterior, await lidas(c.para));
+        for (const m of novas) await gravarMeta(db, tx, ctx.usuario.id, m.usuario_id, c.para, { indicador: m.indicador, valor: m.valor, tipo: m.tipo });
+        await auditar(db, ctx, {
+          acao: 'meta.copiar',
+          entidade: 'meta',
+          entidadeId: c.equipe_id ?? ctx.usuario.id,
+          antes: { periodo: c.de },
+          depois: { periodo: c.para, equipe_id: c.equipe_id ?? null, copiadas: novas.length, usuarios: [...new Set(novas.map((m) => m.usuario_id))] },
+        });
+        return { de: c.de, para: c.para, copiadas: novas.length, ignoradas: anterior.length - novas.length };
       });
     },
   },

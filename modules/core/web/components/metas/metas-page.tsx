@@ -6,10 +6,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, Notice, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll } from '@macuxi/ui/web';
-import { EquipeListaRespostaSchema, MetaEquipeRespostaSchema, PainelMetasBkoSchema, type LinhaMetaBko } from '../../../contracts';
+import { CopiarMetasRespostaSchema, EquipeListaRespostaSchema, MetaEquipeRespostaSchema, PainelMetasBkoSchema, type LinhaMetaBko } from '../../../contracts';
 import { INDICADORES_META } from '../../../contracts';
 import { ROTULO_INDICADOR } from '../../../app/lib/metas-formato';
-import { avisoDoLote, CABECALHO_METAS, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, ROTULO_TIPO, textoDeEdicao, totalEditavel, UNIDADE_DO_CAMPO } from '../../lib/metas';
+import { avisoDaCopia, avisoDoLote, mesAnterior, CABECALHO_METAS, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, ROTULO_TIPO, textoDeEdicao, totalEditavel, UNIDADE_DO_CAMPO } from '../../lib/metas';
 import { useHojeDoTenant } from '../../lib/queries';
 
 const CAMPO = 'h-[44px] rounded-xl border border-field bg-surface px-3 text-[14px] font-normal text-ink';
@@ -103,6 +103,18 @@ function MetasConteudo() {
     onError: (e) => setErro(errorMessage(e)),
   });
 
+  const copiar = useMutation({
+    mutationFn: async () => {
+      const r = CopiarMetasRespostaSchema.parse(await api<unknown>('/core/metas/copiar', { method: 'POST', body: { de: mesAnterior(mes), para: mes, ...(equipe ? { equipe_id: equipe } : {}) } }));
+      return avisoDaCopia(r.copiadas, r.ignoradas);
+    },
+    onSuccess: (texto) => {
+      setAviso(texto);
+      void qc.invalidateQueries({ queryKey: ['core', 'metas-painel'] });
+    },
+    onError: (e) => setAviso(errorMessage(e)),
+  });
+
   const d = painel.data;
   const linhas = d ? filtrarPorIndicador(d.linhas, indicador) : [];
   const alvoVenda = modal?.tipo === 'linha' ? modal.linha.indicador === 'venda_cents' : indEquipe === 'venda_cents';
@@ -120,6 +132,11 @@ function MetasConteudo() {
             <Button onClick={() => d && downloadBlob(new Blob([csvDeMetas(linhas)], { type: 'text/csv;charset=utf-8' }), `metas_${mes}.csv`)} disabled={linhas.length === 0} data-testid="metas.exportar-csv">
               Exportar CSV
             </Button>
+            {pode && (
+              <Button onClick={() => copiar.mutate()} disabled={!d || totalEditavel(d.linhas) === 0 || copiar.isPending} data-testid="metas.copiar-anterior">
+                {copiar.isPending ? 'Copiando…' : 'Copiar do mês anterior'}
+              </Button>
+            )}
             {pode && (
               <Button variant="primary" onClick={abrirEquipe} disabled={!d || totalEditavel(d.linhas) === 0} data-testid="metas.meta-equipe">
                 Meta da equipe

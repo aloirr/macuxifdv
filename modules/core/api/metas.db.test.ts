@@ -278,5 +278,25 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
       const painel = await chamar('GET', 'metas/painel', gerente, { query: { periodo: PERIODO } });
       expect(painel.linhas.every((l: { usuario_id: string }) => l.usuario_id !== vendedorB.id)).toBe(true);
     });
+
+    it('RN-CORE-20: copiar do mês anterior leva as metas editáveis, não sobrescreve as existentes e audita; supervisor não copia a equipe de outro', async () => {
+      const anterior = new Date(Date.UTC(Number(PERIODO.slice(0, 4)), Number(PERIODO.slice(5)) - 2, 1)).toISOString().slice(0, 7);
+      try {
+        await chamar('PUT', PUT, gerente, { params: { usuarioId: U.vendedor1, periodo: anterior }, corpo: { indicador: 'visitas', valor: 33 } });
+        await chamar('PUT', PUT, gerente, { params: { usuarioId: U.vendedor1, periodo: anterior }, corpo: { indicador: 'positivacao', valor: 8 } });
+        await chamar('PUT', PUT, gerente, { params: alvo(U.vendedor1), corpo: { indicador: 'visitas', valor: 44 } });
+        const r = await chamar('POST', 'metas/copiar', supervisor, { corpo: { de: anterior, para: PERIODO, equipe_id: A.equipes.equipe1 } });
+        expect(r.copiadas).toBe(1);
+        expect(r.ignoradas).toBe(1);
+        const atual = await comTenant(pool, A.tenantId, async (c) => (await c.query("select indicador, valor::float8 as valor from core.meta where usuario_id = $1 and periodo = $2 and indicador in ('visitas', 'positivacao') order by indicador", [U.vendedor1, PERIODO])).rows);
+        expect(atual).toEqual([{ indicador: 'positivacao', valor: 8 }, { indicador: 'visitas', valor: 44 }]);
+        const fora = await chamar('POST', 'metas/copiar', supervisor, { corpo: { de: anterior, para: PERIODO, equipe_id: A.equipes.equipe2 } });
+        expect(fora.copiadas).toBe(0);
+        const e = await chamar('POST', 'metas/copiar', analista, { corpo: { de: anterior, para: PERIODO } });
+        expect(e.copiadas).toBe(0);
+      } finally {
+        await comTenant(pool, A.tenantId, (c) => c.query('delete from core.meta where periodo = $1', [anterior]));
+      }
+    });
   });
 });

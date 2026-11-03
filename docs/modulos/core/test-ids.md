@@ -109,3 +109,14 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | `usuarios.ativo-confirmar` · `usuarios.ativo-cancelar` | diálogo de desativar/reativar |
 | `usuarios.senha-campo` · `usuarios.senha-confirmar` · `usuarios.senha-cancelar` | diálogo de redefinir senha |
 | `nav-core-usuarios` | item de menu do shell (supervisor, gerente e admin) |
+
+## Metas e RV (BKO, T-0068)
+
+| testID | Onde |
+|---|---|
+| `metas.tela` | raiz da página |
+| `metas.filtro-mes` · `metas.filtro-equipe` · `metas.filtro-indicador` | filtros (URL: `mes`, `equipe`, `indicador`) |
+| `metas.atualizar` · `metas.exportar-csv` · `metas.meta-equipe` · `metas.copiar-anterior` | ações do cabeçalho (as duas últimas só com `meta.editar`) |
+| `metas.linha.<usuario_id>.<indicador>` · `metas.editar.<usuario_id>.<indicador>` | linha da tabela e botão Definir/Editar |
+| `metas.valor` · `metas.tipo` · `metas.lote-equipe` · `metas.lote-indicador` | campos do diálogo (valor em R$, % ou contagem) |
+| `metas.salvar` · `metas.cancelar` · `metas.erro` | rodapé e erro da API |

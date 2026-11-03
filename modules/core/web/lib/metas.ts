@@ -80,3 +80,15 @@ export const totalEditavel = (linhas: readonly LinhaMetaBko[]): number => linhas
 /** Mensagem de sucesso do lote. */
 export const avisoDoLote = (alterados: number, total: number): string =>
   alterados === 0 ? 'Nada mudou: as metas da equipe já estavam com esse valor.' : `Meta aplicada a ${total} pessoa${total === 1 ? '' : 's'} da equipe (${alterados} alterada${alterados === 1 ? '' : 's'}) e registrada na auditoria.`;
+
+/** Mês anterior (AAAA-MM) a um mês AAAA-MM; entrada inválida devolve ''. */
+export function mesAnterior(mes: string): string {
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(mes);
+  if (!m) return '';
+  const ano = Number(m[1]);
+  const n = Number(m[2]);
+  return n === 1 ? `${ano - 1}-12` : `${ano}-${String(n - 1).padStart(2, '0')}`;
+}
+
+export const avisoDaCopia = (copiadas: number, ignoradas: number): string =>
+  copiadas === 0 ? 'Nada a copiar: o mês anterior não tem metas novas para este mês.' : `${copiadas} meta${copiadas === 1 ? '' : 's'} copiada${copiadas === 1 ? '' : 's'}${ignoradas > 0 ? `; ${ignoradas} já existia${ignoradas === 1 ? '' : 'm'} e ficou como estava` : ''}.`;

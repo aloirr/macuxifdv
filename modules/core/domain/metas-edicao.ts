@@ -39,3 +39,16 @@ export function expandirEquipe(membros: readonly MembroMeta[]): string[] {
   for (const m of membros) if (m.ativo && (m.perfil === 'vendedor' || m.perfil === 'promotor')) vistos.add(m.id);
   return [...vistos];
 }
+
+export interface MetaCopiavel {
+  usuario_id: string;
+  indicador: 'venda_cents' | 'positivacao' | 'cobertura_pct' | 'visitas';
+  valor: number;
+  tipo: 'pedido' | 'faturamento';
+}
+
+/** Metas do mês anterior que entram no mês de destino: só as que ainda não existem lá (usuário + indicador) e com valor > 0. */
+export function copiarMetas(anterior: readonly MetaCopiavel[], destino: readonly Pick<MetaCopiavel, 'usuario_id' | 'indicador'>[]): MetaCopiavel[] {
+  const existentes = new Set(destino.map((d) => `${d.usuario_id}|${d.indicador}`));
+  return anterior.filter((a) => a.valor > 0 && !existentes.has(`${a.usuario_id}|${a.indicador}`));
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expandirEquipe, podeEditarMetaDe } from './metas-edicao';
+import { copiarMetas, expandirEquipe, podeEditarMetaDe } from './metas-edicao';
 
 const equipe = new Set(['v1', 'v2']);
 const abaixo = new Set(['v3']);
@@ -38,5 +38,16 @@ describe('RN-CORE-20: alvos da meta por equipe', () => {
       { id: 'a', perfil: 'vendedor', ativo: true },
     ]);
     expect(ids).toEqual(['a', 'b']);
+  });
+});
+
+describe('RN-CORE-20: copiar metas do mês anterior', () => {
+  const m = (usuario_id: string, indicador: 'venda_cents' | 'visitas', valor: number, tipo: 'pedido' | 'faturamento' = 'pedido') => ({ usuario_id, indicador, valor, tipo });
+  it('RN-CORE-20: copia o que não existe no destino e nunca sobrescreve meta já definida', () => {
+    const r = copiarMetas([m('a', 'venda_cents', 1000, 'faturamento'), m('a', 'visitas', 40), m('b', 'visitas', 30)], [m('a', 'visitas', 50)]);
+    expect(r).toEqual([m('a', 'venda_cents', 1000, 'faturamento'), m('b', 'visitas', 30)]);
+  });
+  it('RN-CORE-20: meta com valor 0 não é copiada (0 = sem meta)', () => {
+    expect(copiarMetas([m('a', 'visitas', 0)], [])).toEqual([]);
   });
 });

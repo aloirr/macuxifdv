@@ -101,3 +101,9 @@ export const MetaEquipeRespostaSchema = z.object({
   alterados: z.number().int(),
 });
 export type MetaEquipeResposta = z.infer<typeof MetaEquipeRespostaSchema>;
+
+/** Copiar do mês anterior (T-0068): não sobrescreve meta já definida no mês de destino. */
+export const CopiarMetasSchema = z.object({ de: AnoMes, para: AnoMes, equipe_id: z.string().uuid().optional() }).strict();
+export type CopiarMetas = z.infer<typeof CopiarMetasSchema>;
+export const CopiarMetasRespostaSchema = z.object({ de: AnoMes, para: AnoMes, copiadas: z.number().int(), ignoradas: z.number().int() });
+export type CopiarMetasResposta = z.infer<typeof CopiarMetasRespostaSchema>;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LinhaMetaBko } from '../../contracts';
-import { avisoDoLote, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, textoDeEdicao, totalEditavel } from './metas';
+import { avisoDaCopia, avisoDoLote, mesAnterior, celulasDaLinha, corpoDaMeta, csvDeMetas, filtrarPorIndicador, textoDeEdicao, totalEditavel } from './metas';
 
 const ID = '0e500000-0000-4000-8000-000000000001';
 const linha = (o: Partial<LinhaMetaBko>): LinhaMetaBko => ({ usuario_id: ID, usuario_nome: 'Ana "A"', equipe_id: null, indicador: 'venda_cents', tipo: 'pedido', meta: 2500000, realizado: 1000000, atingimento_pct: 4000, editavel: true, ...o });
@@ -51,5 +51,17 @@ describe('RN-CORE-21: tabela e CSV do painel de metas', () => {
     expect(totalEditavel(ls)).toBe(1);
     expect(avisoDoLote(0, 3)).toContain('Nada mudou');
     expect(avisoDoLote(1, 1)).toContain('1 pessoa da equipe (1 alterada)');
+  });
+});
+
+describe('RN-CORE-20: copiar do mês anterior', () => {
+  it('RN-CORE-20: mês anterior vira o ano em janeiro', () => {
+    expect(mesAnterior('2026-03')).toBe('2026-02');
+    expect(mesAnterior('2026-01')).toBe('2025-12');
+    expect(mesAnterior('2026-13')).toBe('');
+  });
+  it('RN-CORE-20: aviso da cópia diz o que entrou e o que foi preservado', () => {
+    expect(avisoDaCopia(0, 2)).toContain('Nada a copiar');
+    expect(avisoDaCopia(3, 1)).toBe('3 metas copiadas; 1 já existia e ficou como estava.');
   });
 });
