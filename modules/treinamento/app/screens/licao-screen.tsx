@@ -34,6 +34,7 @@ export default function LicaoScreen() {
   const inicio = useRef(Date.now());
   const [segundos, setSegundos] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroMidia, setErroMidia] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [feito, setFeito] = useState<Conquistas | null>(null);
 
@@ -117,8 +118,16 @@ export default function LicaoScreen() {
             icon="file"
             variant="outline"
             height={48}
-            onPress={() => void Linking.openURL(licao.midia_url!)}
+            onPress={() => {
+              setErroMidia(null);
+              Linking.openURL(licao.midia_url!).catch(() => setErroMidia('Não foi possível abrir o conteúdo. Confira o sinal e tente de novo.'));
+            }}
           />
+          {erroMidia ? (
+            <Text style={[t.small, { color: colors.danger }]} testID="treinar-licao-midia-erro">
+              {erroMidia}
+            </Text>
+          ) : null}
         </Card>
       ) : null}
       {licao.texto ? (
