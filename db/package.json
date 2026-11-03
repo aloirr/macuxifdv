@@ -20,6 +20,8 @@
     "banco": "tsx scripts/banco.ts",
     "banco:subir": "tsx scripts/banco.ts subir",
     "banco:derrubar": "tsx scripts/banco.ts derrubar",
+    "banco:subir-testes": "tsx scripts/banco.ts subir-testes",
+    "limpar-testes": "node scripts/limpar-bancos-teste.mjs",
     "migrar": "tsx scripts/banco.ts migrar up",
     "migrar:desfazer": "tsx scripts/banco.ts migrar down",
     "seed:fase-m": "tsx scripts/banco.ts seed fase-m",

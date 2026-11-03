@@ -416,6 +416,22 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect((await hash()).rows).toEqual(hashAntes);
   });
 
+  it('recarga sem --recriar com a unidade padrão trocada (PAP-4 PC→UN, 02/11): volta à do seed sem violar o único', async () => {
+    const unidades = dadosDemo(HASH_FALSO)['core.produto_unidade'];
+    const cx = unidades.find((u) => u.unidade === 'CX')!;
+    const padrao = unidades.find((u) => u.produto_id === cx.produto_id && u.padrao === true)!;
+    // simula a base antiga: outra unidade do mesmo produto é a padrão
+    await comAdmin(b.nome, async (c) => {
+      await c.query('update core.produto_unidade set padrao = false where id = $1', [padrao.id]);
+      await c.query('update core.produto_unidade set padrao = true where id = $1', [cx.id]);
+    });
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+    const r = await comAdmin(b.nome, (c) =>
+      c.query<{ id: string }>('select id from core.produto_unidade where produto_id = $1 and padrao and deleted_at is null', [cx.produto_id]),
+    );
+    expect(r.rows.map((x) => x.id)).toEqual([padrao.id]);
+  });
+
   it('número legível: o contador do tenant continua depois dos pedidos da base e a recarga não o faz voltar', async () => {
     const proximo = () => comTenant(pool, TENANT_DEMO, async (c) => (await c.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n);
     const total = dadosDemo(HASH_FALSO)['vendedor.pedido'].length;

@@ -34,5 +34,49 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  # Postgres SÓ DOS TESTES (02/11: a carga dos testes derrubou o da demo 2x; crash recovery com fsync de ~190 bancos).
+  # Separado da demo: os testes (globalSetup, criarBancoDeTeste) usam este por padrão (lerConfigTestes em db/src/config.ts,
+  # MACUXI_PG_TESTES_URL ou MACUXI_PG_TESTES_PORTA). Configuração de teste: durabilidade desligada (fsync,
+  # synchronous_commit e full_page_writes off) e dados em tmpfs — numa queda NADA se recupera (nem precisa: os bancos
+  # de teste são efêmeros) e o restart é imediato. NUNCA use estes parâmetros num banco com dado que importa.
+  # Só sobe sob demanda (globalSetup ou "banco subir-testes"); "banco subir" (demo) sobe só o serviço postgres.
+  postgres-testes:
+    image: pgvector/pgvector:pg16
+    container_name: macuxi-postgres-testes
+    restart: "no"
+    environment:
+      POSTGRES_USER: ${MACUXI_PG_ADMIN_USUARIO:-postgres}
+      POSTGRES_PASSWORD: ${MACUXI_PG_ADMIN_SENHA:-postgres}
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    command:
+      - postgres
+      - -c
+      - timezone=UTC
+      - -c
+      - log_timezone=UTC
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      # muitos bancos e conexões em paralelo (shards do Vitest, subirApi por arquivo)
+      - -c
+      - max_connections=300
+      - -c
+      - log_min_duration_statement=1000
+    shm_size: 512mb
+    tmpfs:
+      - /var/lib/postgresql/data:size=4g
+    ports:
+      - "127.0.0.1:${MACUXI_PG_TESTES_PORTA:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 volumes:
   macuxi-pgdata:
