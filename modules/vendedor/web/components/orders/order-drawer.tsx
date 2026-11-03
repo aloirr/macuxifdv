@@ -7,7 +7,7 @@ import { errorMessage, imprimirHtml } from '@macuxi/platform-sdk/web';
 import { Button, Drawer, ErrorBlock, formatDateTime, LoadingBlock, type NoticeTone, Notice, td, tdNum, th, thNum } from '@macuxi/ui/web';
 import { ORDER_STATUS_LABEL, type Order, type OrderStatus } from '../../../contracts';
 import { enviadoAoErp, MSG_CANCELAR_APOS_ENVIO } from '../../../domain/order';
-import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, type OrderPdfView } from '../../../domain/pdf-pedido';
+import { buildOrderPdfHtml, orderPdfFileName, pdfDoPedido, textoFrete, type OrderPdfView } from '../../../domain/pdf-pedido';
 import { DICA_PDF_SEM_DETALHE, MSG_ITENS_INDISPONIVEIS, MSG_SEM_DOCUMENTO } from '../../lib/detalhe-pedido';
 import { usePedido, useSessaoDoBko } from '../../lib/queries';
 import { AvisoDeDecisao, BotoesDeDecisao } from './decisao';
@@ -86,6 +86,10 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
           {aprovacao && podeAprovar && aprovacao.pode_decidir && dados && (
             <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
               <h3 className="m-0 font-display text-[16px] font-bold">Decisão</h3>
+              <span className="text-[13px]" data-testid="pedido.decisao.vendedor">
+                Vendedor: <strong>{o.seller_name}</strong>
+                {dados.cliente ? ` · cliente ${o.customer_name}` : ''}
+              </span>
               <span className="text-[13px] text-ink-2">
                 Desconto {formatPct(aprovacao.desconto_efetivo_pct)} · alçada do vendedor {formatPct(aprovacao.limite_vendedor_pct)} · cabe ao nível {NIVEL[aprovacao.nivel] ?? aprovacao.nivel}
                 {aprovacao.acima_do_nivel ? ' (decisão registrada como acima do nível)' : ''}
@@ -102,6 +106,8 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
               {o.items_count} itens · {o.units} un.
             </Field>
             <Field label="Desconto">{formatPct(o.discount_pct)}</Field>
+            {dados?.freight ? <Field label="Frete">{textoFrete(dados.freight).replace(/^Frete: /, '')}</Field> : null}
+            {dados?.price_table_name ? <Field label="Tabela de preço">{dados.price_table_name}</Field> : null}
             {dados?.cliente?.documento ? <Field label="Documento do cliente">{dados.cliente.documento}</Field> : null}
           </div>
 
@@ -178,6 +184,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                       <tr>
                         <th scope="col" className={th}>Código</th>
                         <th scope="col" className={th}>Descrição</th>
+                        <th scope="col" className={th}>Medida</th>
                         <th scope="col" className={thNum}>Qtd</th>
                         <th scope="col" className={thNum}>Tabela</th>
                         <th scope="col" className={thNum}>Total</th>
@@ -189,6 +196,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                         <tr key={it.id}>
                           <td className={`${td} font-mono whitespace-nowrap`}>{it.erp_code}</td>
                           <td className={td}>{it.description}</td>
+                          <td className={`${td} whitespace-nowrap`}>{it.unit_label || 'UN'}</td>
                           <td className={tdNum}>{it.quantity}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.unit_price_cents)}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.total_cents)}</td>

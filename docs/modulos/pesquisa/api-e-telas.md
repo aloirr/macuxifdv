@@ -3,12 +3,37 @@
 Fatia vertical do módulo sobre o domain da T-0012 (`regras.md`): rotas `/v1/pesquisa`, sync do aparelho, telas do app
 (Campo e Gestão) e páginas do BKO. Regra de negócio só no `domain` (teste antes, citando RN); a API revalida tudo.
 
-## Dados: repositório em memória até a migração 0016
-As rotas e o sync falam só com `RepositorioPesquisa` (`modules/pesquisa/api/repositorio.ts`). Hoje a implementação é
-`criarRepositorioEmMemoria()` (por tenant, `updated_at` crescente com microssegundos para o cursor do pull): **os dados
-ficam no processo da API e somem ao reiniciar**. Quando a migração 0016 (schema `pesquisa`) chegar ao `main`, entra a
-implementação SQL com os mesmos métodos (`db` do `ctx.comTenant`, RLS) e `moduloApi` passa a usá-la — sem mudar rota,
-tela nem teste. O pedido ao banco-dados (tabelas, colunas, índices, consultas) está no recado da T-0057.
+## Dados: repositório Postgres (migração 0016)
+As rotas e o sync falam só com `RepositorioPesquisa` (`modules/pesquisa/api/repositorio.ts`). **A API em produção usa o
+Postgres**: `modules/pesquisa/api/index.ts` monta `moduloApi = criarApiPesquisa(criarRepositorioPostgres())`, como o
+Catálogo; `criarRepositorioEmMemoria()` ficou só para os testes de unidade (`apoio-teste.ts`, `api.test.ts`). O SQL de cada
+método está em `docs/banco/pesquisa.md` ("Consultas do repositório SQL") e em `api/repositorio-postgres.ts`; o espelho
+Drizzle é `modules/pesquisa/db/nuvem.ts` (comparado com o `create table` da 0016 em `db/nuvem.test.ts`).
+
+- **RLS**: tudo roda dentro de `ctx.comTenant`; leituras não filtram `tenant_id` (a política isola); o `tenant_id` do token só
+  preenche os INSERTs e a política recusa o que não for do tenant do contexto.
+- **Instantes**: instantes de negócio (vigência, `respondida_em`, `criado_em`...) voltam com milissegundos, como o JavaScript
+  os escreve; cursores (`updated_at` do pull) voltam com **microssegundos**. A comparação de conteúdo da resposta
+  (`impressaoDaResposta`) normaliza a hora do aparelho, então reenviar sem milissegundos não vira conflito.
+- **RN-PES-01 no banco**: o domain recusa antes; se algo passar, o banco recusa (gatilho, `23514`) e a API devolve o erro de
+  negócio, nunca 500 (`traduzirErroBanco`): `23514` → 422 `VERSAO_PUBLICADA_IMUTAVEL` / `VERSAO_NAO_PUBLICADA` /
+  `RASCUNHO_INVALIDO` / `RESPOSTA_INVALIDA`; `23505` → 409 `VERSAO_EM_EDICAO` (outro rascunho aberto ou número repetido),
+  `RESPOSTA_JA_EXISTE`, `JA_EXISTE`; `23503` → 422 `VERSAO_INEXISTENTE` / `RESPOSTA_INVALIDA` / `REFERENCIA_INVALIDA` ou 404.
+- **Push idempotente**: o UUID do aparelho é a chave. Reenvio igual = `aceito` sem duplicar linha, item, foto nem evento;
+  conteúdo diferente = `conflito` (nunca sobrescreve; o papel da API nem tem `update` em `resposta`). Duas entregas
+  simultâneas do mesmo UUID: a perdedora recebe `23505`, a transação dela é desfeita e o push **refaz uma vez**, já vendo a
+  vencedora (duplicada ou conflito). Foto: `tx.registrarArquivo` (finalidade `pesquisa_foto`) antes do INSERT; a mesma foto
+  em outra resposta é `ARQUIVO_JA_REFERENCIADO` e nada fica gravado. `resposta_item` e `resposta_foto` nascem do gatilho.
+- **Arquivar** só atualiza `pesquisa.questionario`; o gatilho toca o `updated_at` das versões publicadas e elas descem de novo
+  no pull com `arquivado_em` (o rascunho não desce).
+- **Pull de respostas**: o escopo (autoria/carteira) é decidido no código; o repositório lê lotes pelo cursor
+  (`(updated_at, id)`) até juntar `limite` linhas do escopo, para a página sair cheia e o motor não achar que acabou.
+- **Limites conhecidos**: `listarRespostas` (resultados, galeria, CSV) lê as respostas do questionário e o escopo/filtros
+  rodam em código (teto de 500 na tela); com centenas de milhares de respostas por questionário, a apuração deve migrar para
+  `resposta_item`/`resposta_foto` por SQL (agregação por `pergunta_id`), como o doc do banco prevê.
+
+Testes com Postgres real: `api/repositorio-postgres.db.test.ts` (fixture dois-tenants; sem hora fixa — o "agora" da API é o
+instante da fixture, `agoraDaFixture()`); sem Docker/Postgres pulam com aviso e com `MACUXI_PG_EXIGIR=1` falham.
 
 Eventos, auditoria e arquivos já são reais: `tx.publicar`, `tx.auditar` e `tx.registrarArquivo` gravam na transação do
 tenant (`plataforma.*`).
@@ -77,7 +102,7 @@ foto (`registrarArquivo`, finalidade `pesquisa_foto`) e publica `pesquisa.respos
    consulta/linha (recado ao modulo-core). O filtro de equipe nos resultados fica pronto (`?equipes=`), sem efeito até lá.
 2. **Região do cliente**: o `cliente` do Core não tem região; o público por região não casa no aparelho até o Core ter o campo.
 3. **Taxa de resposta**: sem o universo do público (usuários/clientes) vindo do Core, a taxa sai `null` ("—" na tela).
-4. **Repositório em memória** na API até a migração 0016 (dados somem ao reiniciar).
+4. **Repositório Postgres** na API (migração 0016); o em memória só serve aos testes de unidade.
 5. **Servidor revalida** perfil, versão e conteúdo; o público por equipe/segmento/região é checado só no aparelho (o
    servidor não tem esses dados ainda).
 6. **Resultados no app de Gestão** ficam fora (RF-PES-06 é do BKO 🖥️); a Gestão responde pesquisas como o Campo.

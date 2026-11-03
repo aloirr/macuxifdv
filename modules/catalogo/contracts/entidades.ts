@@ -1,6 +1,6 @@
 /** Entidades de sync do Catálogo (só pull; o servidor vence). Usadas pela API e pelo shell do aparelho. */
 import { definirEntidadeSync } from '@macuxi/platform-sdk';
-import { ClienteTabelaPrecoSyncSchema, TabelaPrecoItemSyncSchema, TabelaPrecoSyncSchema } from './sync';
+import { CatalogoNoSyncSchema, ClienteTabelaPrecoSyncSchema, ProdutoNoSyncSchema, TabelaPrecoItemSyncSchema, TabelaPrecoSyncSchema } from './sync';
 import { DepositoSyncSchema, EstoqueSaldoSyncSchema, ProdutoAtributoSyncSchema, ProdutoConteudoSyncSchema, SinonimoSyncSchema } from './sync-conteudo';
 
 export const entidadeTabelaPreco = definirEntidadeSync({ nome: 'tabela_preco', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: TabelaPrecoSyncSchema });
@@ -15,3 +15,8 @@ export const entidadeDeposito = definirEntidadeSync({ nome: 'deposito', modulo: 
 export const entidadeEstoqueSaldo = definirEntidadeSync({ nome: 'estoque_saldo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: EstoqueSaldoSyncSchema });
 export const entidadeProdutoConteudo = definirEntidadeSync({ nome: 'produto_conteudo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoConteudoSyncSchema });
 export const ENTIDADES_CONTEUDO = [entidadeProdutoAtributo, entidadeSinonimo, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoConteudo] as const;
+
+// T-0061 / RF-CAT-04: árvore do catálogo (níveis e nomes do ERP) para navegar offline
+export const entidadeCatalogoNo = definirEntidadeSync({ nome: 'catalogo_no', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: CatalogoNoSyncSchema });
+export const entidadeProdutoNo = definirEntidadeSync({ nome: 'produto_no', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoNoSyncSchema });
+export const ENTIDADES_ARVORE = [entidadeCatalogoNo, entidadeProdutoNo] as const;

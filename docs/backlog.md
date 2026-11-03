@@ -63,3 +63,6 @@
 - **Guardião v5 e o PATH do gh**: o hook falha fechado se o `gh` não estiver no PATH do processo (C:\Program Files\GitHub CLI). Procurar o gh no caminho padrão ou documentar o PATH.
 - **Guardião v7** (sem pressa): `gh api` de leitura com `$VAR` ou "merge" no --jq ainda é barrado; as ferramentas MCP que gravam direto no GitHub (push_files etc.) não passam por guardião (o CI da T-0049 detecta governança sem assinatura).
 - **Antes do piloto real** (fora de 06/11): teste de carga com 20 mil SKUs, onboarding de tenant e o resto da Sprint 9 que não couber.
+- **Guarda de ordem nos consumidores do ERP** (T-0066 🟡1, antes do 1º tenant real): versão antiga reentregue pela outbox não pode sobrescrever a nova (comparar alterado_em); banco-dados + modulo-core + modulo-catalogo.
+- **ERP não reativa o que o admin desligou** (T-0066 🟢4/5): vendedor e tabela de preço desativados no BKO não voltam sozinhos com a próxima carga; rota do ERP aplica as paradas presentes e só notifica se as de hoje mudaram (🟢3).
+- **Cortes da T-0061** (aceitos pelo Alexandre em 2026-11-02, R-20261102-204330): transportadora vinda do ERP (fica só o cadastro no BKO), preço próprio da CX na tabela (fica UN × fator), chip "campanha" na árvore do catálogo.

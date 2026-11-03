@@ -12,6 +12,8 @@ import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
 import * as nuvemGestor from '../../modules/gestor/db/nuvem';
+import * as nuvemTreinamento from '../../modules/treinamento/db/nuvem';
+import { TABELAS_PESQUISA_DO_GATILHO } from '../seeds/fixtures/pesquisa';
 import {
   CODIGOS_ERRO_LINHA,
   CODIGOS_ITEM_DESCARTADO,
@@ -30,6 +32,7 @@ import * as esquemaPlataforma from '../esquema/plataforma';
 import { ALCADAS_DEMO, dadosDemo } from '../seeds/demo/demo';
 import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
+import { dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
 import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
 import { idDeChave, idDeterministico, idFixo } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
@@ -54,8 +57,11 @@ const TABELAS_PROMOTOR = [
 /**
  * Schemas sem espelho Drizzle ainda (fora da comparação Drizzle x SQL).
  * espelho Drizzle do promotor: pendência do banco-dados local (modules/promotor/db/nuvem.ts).
+ * espelho Drizzle da pesquisa: pendência do banco-dados local (modules/pesquisa/db/nuvem.ts; código pronto em docs/banco/pesquisa.md).
  */
-const SEM_ESPELHO_DRIZZLE = ['promotor'];
+const SEM_ESPELHO_DRIZZLE = ['promotor', 'pesquisa'];
+/** Tabelas do schema pesquisa (0016, T-0057); resposta_item e resposta_foto são preenchidas pelo gatilho da resposta. */
+const TABELAS_PESQUISA = ['pesquisa.questionario', 'pesquisa.questionario_versao', 'pesquisa.resposta', 'pesquisa.resposta_item', 'pesquisa.resposta_foto'] as const;
 /** Tabelas novas da 0013 (catálogo, vendedor e core). */
 const TABELAS_0013 = [
   'core.produto_unidade', 'core.cliente_endereco', 'catalogo.uso_ia', 'catalogo.catalogo_no', 'catalogo.produto_no', 'catalogo.produto_conteudo',
@@ -64,6 +70,8 @@ const TABELAS_0013 = [
 ] as const;
 /** Tabelas do schema gestor (0014, T-0055). */
 const TABELAS_GESTOR = ['gestor.evento_aplicado', 'gestor.projecao_fato', 'gestor.alerta', 'gestor.alerta_regra'] as const;
+/** Tabelas do schema treinamento (0017, T-0058); detalhes em treinamento.test.ts. */
+const TABELAS_TREINAMENTO = [...ORDEM_TREINAMENTO];
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -79,7 +87,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor), ...Object.values(nuvemTreinamento)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -92,10 +100,12 @@ const escapar = (s: string) => s.replace(/\./g, '\\.');
 
 describe('migrações (estático)', () => {
   it('toda migração tem up e down, numeração contínua', () => {
-    // lerMigracoes já recusa buraco e par incompleto; aqui: as 13 primeiras (até a 0013), a 0014 do Gestor (T-0055) e a 0015 do Promotor (T-0056) no lugar certo
+    // lerMigracoes já recusa buraco e par incompleto; aqui: as 13 primeiras (até a 0013), a 0014 do Gestor (T-0055), a 0015 do Promotor (T-0056), a 0016 da Pesquisa (T-0057) e a 0017 do Treinamento (T-0058) no lugar certo
     const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
     expect(nomes[13]).toBe('0014_gestor');
     expect(nomes[14]).toBe('0015_promotor');
+    expect(nomes[15]).toBe('0016_pesquisa');
+    expect(nomes[16]).toBe('0017_treinamento');
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -113,7 +123,7 @@ describe('migrações (estático)', () => {
   });
 
   const criadas = tabelasCriadas();
-  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029, na T-0032, na T-0055 e na T-0056', () => {
+  it('cria as tabelas pedidas na T-0002, na T-0003 F2 (sessao, dispositivo), na Sprint 1 (lote A, arquivo, vendedor mínimo), na T-0029, na T-0032, na T-0055, na T-0056 e na T-0057', () => {
     expect([...criadas.keys()].sort()).toEqual(
       [
         'plataforma.tenant', 'plataforma.tenant_modulo', 'plataforma.perfil_modulo', 'plataforma.usuario_modulo',
@@ -129,6 +139,8 @@ describe('migrações (estático)', () => {
         ...TABELAS_0013,
         ...TABELAS_GESTOR,
         ...TABELAS_PROMOTOR,
+        ...TABELAS_PESQUISA,
+        ...TABELAS_TREINAMENTO,
       ].sort(),
     );
   });
@@ -681,7 +693,7 @@ describe('base de demo x T-0029 (estático)', () => {
 
 describe('Drizzle x migrações (estático)', () => {
   const drizzle = tabelasDrizzle();
-  // espelho Drizzle do promotor: pendência do banco-dados local (o schema promotor fica fora da comparação até lá)
+  // schemas de SEM_ESPELHO_DRIZZLE (promotor e pesquisa) ficam fora da comparação até ganharem espelho
   const criadas = new Map([...tabelasCriadas()].filter(([t]) => !SEM_ESPELHO_DRIZZLE.includes(t.split('.')[0]!)));
 
   it('toda tabela da migração tem espelho em Drizzle e vice-versa (menos os schemas de SEM_ESPELHO_DRIZZLE)', () => {
@@ -721,14 +733,16 @@ describe('perfis: SQL e Drizzle x @macuxi/platform-sdk (fonte única)', () => {
 });
 
 describe('fixture dois-tenants (estático)', () => {
-  const dados = dadosDoisTenants('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA');
+  const dados = { ...dadosDoisTenants('$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA'), ...dadosTreinamento(new Date(0)) }; // hora-fixa-ok: só conta linhas por tenant
   const A = DOIS_TENANTS.A.tenantId;
   const B = DOIS_TENANTS.B.tenantId;
   const comTenant = [...tabelasCriadas().keys()].filter((t) => !(t in TABELAS_SEM_TENANT_ID));
 
   it('cobre toda tabela com tenant_id, com pelo menos 1 linha em CADA tenant', () => {
-    expect([...ORDEM_TABELAS].sort()).toEqual([...tabelasCriadas().keys()].sort());
-    for (const t of comTenant) {
+    // pesquisa.resposta_item e pesquisa.resposta_foto: o gatilho da resposta as preenche (fora de ORDEM_TABELAS e de dados)
+    // treinamento (0017): fixture própria, carregada logo depois da dois-tenants (testes/fixture-treinamento.ts)
+    expect([...ORDEM_TABELAS, ...TABELAS_PESQUISA_DO_GATILHO, ...ORDEM_TREINAMENTO].sort()).toEqual([...tabelasCriadas().keys()].sort());
+    for (const t of comTenant.filter((x) => !(TABELAS_PESQUISA_DO_GATILHO as readonly string[]).includes(x))) {
       const linhas = dados[t as keyof typeof dados];
       expect(linhas.filter((l) => l.tenant_id === A).length, `${t} em A`).toBeGreaterThan(0);
       expect(linhas.filter((l) => l.tenant_id === B).length, `${t} em B`).toBeGreaterThan(0);
