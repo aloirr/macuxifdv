@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { PedidoAprovadoParaFila, PedidoParaErp, RetornoErp } from '../contracts';
-import { aplicarRetornoPedido, decidirEntradaNaFila, montarPedidoParaErp, selecionarPendentes, type Mapeamento, type PedidoNaFila } from './pedido-fila';
+import type { PedidoAprovadoConsumido, PedidoAprovadoParaFila, PedidoParaErp, RetornoErp } from '../contracts';
+import { aplicarRetornoPedido, decidirEntradaNaFila, ehRetencaoPorCadastro, montarPedidoParaErp, montarSnapshotParaFila, PREFIXO_RETENCAO_CADASTRO, selecionarPendentes, type Mapeamento, type PedidoNaFila } from './pedido-fila';
 
 const t0 = '2026-11-01T10:00:00.000Z';
 const min = (iso: string, m: number) => new Date(Date.parse(iso) + m * 60_000).toISOString();
@@ -447,5 +447,114 @@ describe('RN-INT-08 (T-0025 🟡 3 e 4): retido, reter com pedido não entregue 
     const base = naFila();
     const entrega = selecionarPendentes([retido(), naFila({ pedido_uuid: outro, payload: { ...(base.payload as PedidoParaErp), pedido_uuid: outro } })], t0);
     expect(entrega.entregar.map((p) => p.pedido_uuid)).toEqual([outro]);
+  });
+});
+
+describe('RN-INT-08 (T-0032 🟡): pedido aprovado sem as chaves do ERP fica RETIDO, nunca some', () => {
+  const evento = (extra: Partial<PedidoAprovadoConsumido> = {}): PedidoAprovadoConsumido => ({
+    pedido_uuid: UUID,
+    cliente_external_id: 'C1',
+    vendedor_external_id: 'V1',
+    condicao_pagamento_codigo: '30DD',
+    criado_em: '2026-11-01T09:00:00.000Z',
+    aprovado_em: '2026-11-01T09:30:00.000Z',
+    observacao: null,
+    itens: [
+      { sequencia: 1, produto_external_id: 'SKU1', quantidade: 10, preco_unitario_cents: 500, desconto_cents: 0, total_cents: 5000 },
+      { sequencia: 2, produto_external_id: 'SKU2', quantidade: 4, preco_unitario_cents: 250, desconto_cents: 0, total_cents: 1000 },
+    ],
+    desconto_total_cents: 0,
+    total_cents: 6000,
+    ...extra,
+  });
+  const comItem = (sequencia: number, produto: string | null) => ({ sequencia, produto_external_id: produto, quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, total_cents: 100 });
+
+  it('RN-INT-08: evento com todas as chaves vira o snapshot do contrato (observação e condição vazias viram nulas)', () => {
+    const r = montarSnapshotParaFila(evento({ observacao: '   ', condicao_pagamento_codigo: '' }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.snapshot).toMatchObject({ pedido_uuid: UUID, cliente_external_id: 'C1', observacao: null, condicao_pagamento_codigo: null });
+  });
+
+  it('RN-INT-08: cliente, vendedor e produtos sem external_id — a mensagem diz O QUE falta (por sequência) e o que fazer, sem dado do cliente', () => {
+    const r = montarSnapshotParaFila(evento({ cliente_external_id: null, vendedor_external_id: ' ', itens: [comItem(1, 'SKU1'), comItem(2, null), comItem(5, '')] }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.mensagem).toMatch(/cliente/);
+      expect(r.mensagem).toMatch(/vendedor/);
+      expect(r.mensagem).toMatch(/sequências? 2 e 5/);
+      expect(r.mensagem).not.toMatch(/SKU1/);
+      expect(r.mensagem).toMatch(/cancele este pedido/i);
+      expect(r.mensagem).not.toMatch(/reaprov/i);
+      expect(ehRetencaoPorCadastro(r.mensagem)).toBe(true);
+    }
+  });
+
+  it('RN-INT-08: só um produto sem chave cita a sequência no singular; só o cliente cita só o cliente', () => {
+    const a = montarSnapshotParaFila(evento({ itens: [comItem(3, null)] }));
+    const b = montarSnapshotParaFila(evento({ cliente_external_id: null }));
+    if (a.ok || b.ok) throw new Error('esperado recusa');
+    expect(a.mensagem).toMatch(/produto.*sequência 3/s);
+    expect(a.mensagem).not.toMatch(/cliente|vendedor/);
+    expect(b.mensagem).toMatch(/cliente/);
+    expect(b.mensagem).not.toMatch(/vendedor|produto/);
+  });
+
+  it('RN-INT-08: muitas sequências sem chave: lista as primeiras e diz quantas faltam (a mensagem cabe na coluna)', () => {
+    const itens = Array.from({ length: 40 }, (_, i) => comItem(i + 1, null));
+    const r = montarSnapshotParaFila(evento({ itens }));
+    if (r.ok) throw new Error('esperado recusa');
+    expect(r.mensagem.length).toBeLessThanOrEqual(1000);
+    expect(r.mensagem).toMatch(/e mais \d+/);
+  });
+
+  it('RN-INT-08: chaves presentes mas fora do contrato (external_id acima de 200 caracteres) também retém, citando o campo e nunca o valor', () => {
+    const longo = 'X'.repeat(201);
+    const r = montarSnapshotParaFila(evento({ cliente_external_id: longo }));
+    if (r.ok) throw new Error('esperado recusa');
+    expect(r.mensagem).toMatch(/cliente_external_id/);
+    expect(r.mensagem).not.toContain(longo);
+    // mesma família de retenção (cadastro): o monitor não conta como falta de de-para
+    expect(r.mensagem.startsWith(PREFIXO_RETENCAO_CADASTRO)).toBe(true);
+    expect(ehRetencaoPorCadastro(r.mensagem)).toBe(true);
+    expect(r.mensagem).toMatch(/cancele este pedido/i);
+    expect(r.mensagem).not.toMatch(/reaprov/i);
+  });
+
+  it('RN-INT-08: aprovado sem chaves → reter (inserir) com mapeamento_ausente e a mensagem específica; o pedido não é descartado', () => {
+    const inv = montarSnapshotParaFila(evento({ cliente_external_id: null }));
+    if (inv.ok) throw new Error('esperado recusa');
+    const r = decidirEntradaNaFila({ existente: null, statusPedido: 'aprovado', snapshot: null, invalido: { mensagem: inv.mensagem }, mapeamentos: mapas });
+    expect(r).toMatchObject({ acao: 'reter', codigo: 'mapeamento_ausente', persistencia: 'inserir', mensagem: inv.mensagem });
+  });
+
+  it('RN-INT-08: o mesmo evento 2x (mesma mensagem) não regrava; mensagem diferente (faltou outra coisa) atualiza o retido', () => {
+    const a = montarSnapshotParaFila(evento({ cliente_external_id: null }));
+    const b = montarSnapshotParaFila(evento({ vendedor_external_id: null }));
+    if (a.ok || b.ok) throw new Error('esperado recusa');
+    const retido = naFila({ payload: null, retencao_codigo: 'mapeamento_ausente', retencao_mensagem: a.mensagem });
+    expect(decidirEntradaNaFila({ existente: retido, statusPedido: 'aprovado', snapshot: null, invalido: { mensagem: a.mensagem }, mapeamentos: mapas })).toMatchObject({ acao: 'ignorar', motivo: 'ja_na_fila' });
+    expect(decidirEntradaNaFila({ existente: retido, statusPedido: 'aprovado', snapshot: null, invalido: { mensagem: b.mensagem }, mapeamentos: mapas })).toMatchObject({ acao: 'reter', persistencia: 'atualizar', mensagem: b.mensagem });
+  });
+
+  it('RN-INT-08: reaprovado com as chaves completas LIBERA o retido (atualizar_payload) e, se estava removido, reativa', () => {
+    const retido = naFila({ payload: null, retencao_codigo: 'mapeamento_ausente', retencao_mensagem: 'faltam chaves' });
+    const ok = montarSnapshotParaFila(evento());
+    if (!ok.ok) throw new Error('esperado ok');
+    expect(decidirEntradaNaFila({ existente: retido, statusPedido: 'aprovado', snapshot: ok.snapshot, mapeamentos: mapas })).toMatchObject({ acao: 'atualizar_payload' });
+    expect(decidirEntradaNaFila({ existente: { ...retido, removido_em: t0 }, statusPedido: 'aprovado', snapshot: ok.snapshot, mapeamentos: mapas })).toMatchObject({ acao: 'reativar' });
+  });
+
+  it('RN-INT-08: já entregue ao ERP, evento sem chaves não retém nada (o ERP já tem o pedido)', () => {
+    const r = decidirEntradaNaFila({ existente: naFila({ estado: 'enviado', enviado_em: t0, tentativas: 1 }), statusPedido: 'aprovado', snapshot: null, invalido: { mensagem: 'x' }, mapeamentos: mapas });
+    expect(r).toMatchObject({ acao: 'ignorar', motivo: 'alterado_apos_envio' });
+  });
+
+  it('RN-INT-08: retido por chaves e depois cancelado no Macuxi (antes da entrega) sai da fila', () => {
+    const retido = naFila({ payload: null, retencao_codigo: 'mapeamento_ausente', retencao_mensagem: 'faltam chaves' });
+    expect(decidirEntradaNaFila({ existente: retido, statusPedido: 'cancelado', snapshot: null, mapeamentos: [] })).toMatchObject({ acao: 'remover_da_fila' });
+  });
+
+  it('RN-INT-08: sem snapshot e sem motivo de invalidez continua sendo "sem dados do pedido" (ignorar)', () => {
+    expect(decidirEntradaNaFila({ existente: null, statusPedido: 'aprovado', snapshot: null, mapeamentos: [] })).toMatchObject({ acao: 'ignorar', motivo: 'sem_dados_do_pedido' });
   });
 });

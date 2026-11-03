@@ -7,16 +7,16 @@ import { resolverParametros, type ParametrosTreinamento } from '../domain/parame
 import manifest from '../manifest';
 import type { FabricaRepositorio, RepositorioTreinamento, UsuarioTreinamento } from './repositorio';
 
-export const MENSAGEM_INDISPONIVEL = 'O Treinamento ainda está sendo preparado no servidor. Tente de novo mais tarde; o que você fez no aparelho fica guardado.';
+export const MENSAGEM_INDISPONIVEL = 'O Treinamento não está disponível neste servidor. Tente de novo mais tarde; o que você fez no aparelho fica guardado.';
 
-/** Abre a transação do tenant com o repositório. Sem fábrica (migração ainda não aplicada) = 503, falha fechada. */
+/** Abre a transação do tenant com o repositório. Sem fábrica (montagem sem banco) = 503, falha fechada. */
 export function comRepositorio<T>(
   fabrica: FabricaRepositorio | null,
   ctx: ContextoBase,
   fn: (repo: RepositorioTreinamento, tx: TransacaoTenant) => Promise<T>,
 ): Promise<T> {
   if (!fabrica) throw new ErroHttpModulo(503, 'TREINAMENTO_INDISPONIVEL', MENSAGEM_INDISPONIVEL);
-  return ctx.comTenant((db, tx) => fn(fabrica.doTenant(db, ctx.usuario.tenant_id, () => ctx.agora()), tx));
+  return ctx.comTenant((db, tx) => fn(fabrica.doTenant(db, ctx.usuario.tenant_id, () => ctx.agora(), tx), tx));
 }
 
 /**
