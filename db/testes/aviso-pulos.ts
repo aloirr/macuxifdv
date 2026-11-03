@@ -14,7 +14,7 @@ export function textoAviso(motivo: string, pulados: number): string {
     `\n[db] ${curto}: ${pulados} ${testes}.` +
     (curto !== motivo ? `\n[db] Detalhe: ${motivo}` : '') +
     '\n[db] Para rodar: abra o Docker Desktop (os testes sobem o db/docker-compose.yml sozinhos) ou' +
-    '\n[db] "pnpm --filter @macuxi/db banco subir". No CI, MACUXI_PG_EXIGIR=1 transforma o pulo em falha.\n'
+    '\n[db] "pnpm --filter @macuxi/db banco subir-testes" (Postgres dos testes, 5434). No CI, MACUXI_PG_EXIGIR=1 transforma o pulo em falha.\n'
   );
 }
 

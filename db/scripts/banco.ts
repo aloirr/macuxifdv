@@ -3,7 +3,8 @@
  *   pnpm --filter @macuxi/db banco <comando> [opções]
  *
  * Comandos:
- *   subir                         sobe o Postgres (Docker, db/docker-compose.yml), cria o banco de dev e migra
+ *   subir                         sobe o Postgres da demo/dev (serviço postgres, 5432), cria o banco de dev e migra
+ *   subir-testes                  sobe só o Postgres dos testes (serviço postgres-testes, 5434, tmpfs, fsync off)
  *   derrubar [--limpar]           para o container (--limpar também apaga o volume de dados)
  *   recriar                       derrubar --limpar + subir (banco de dev do zero, migrado e vazio)
  *   status                        conexão, bancos de teste esquecidos e migrações aplicadas
@@ -13,14 +14,15 @@
  *   seed fase-m                   carrega o seed de demonstração da Fase M
  *   seed demo [--recriar] [--hoje AAAA-MM-DD]  base de demo (tenant "demo"); --recriar apaga o tenant demo e recarrega
  *   fixture dois-tenants          carrega a fixture dos testes de RLS
- *   criar-teste [--fixture dois-tenants|fase-m|demo]  cria banco efêmero migrado e imprime o nome
- *   apagar-teste <nome> | --todos apaga banco(s) de teste
+ *   criar-teste [--fixture dois-tenants|fase-m|demo]  cria banco efêmero migrado no Postgres DOS TESTES e imprime o nome
+ *   apagar-teste <nome> | --todos apaga banco(s) de teste do Postgres DOS TESTES
+ *   (sobras de teste no Postgres da demo: node db/scripts/limpar-bancos-teste.mjs [--apagar])
  * Opção comum: --banco <nome> (padrão MACUXI_PG_BANCO ou "macuxi").
  */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { lerConfig, type ConfigBanco } from '../src/config';
+import { lerConfig, lerConfigTestes, type ConfigBanco } from '../src/config';
 import { compose } from '../src/docker';
 import { apagarBanco, comAdmin, criarBanco, criarBancoDeTeste, listarBancosDeTeste, postgresDisponivel } from '../src/banco-teste';
 import { listarAplicadas, migrarDown, migrarUp } from '../src/migrador';
@@ -42,7 +44,7 @@ function docker(args: string[]): void {
 }
 
 async function exigirPostgres(cfg: ConfigBanco): Promise<void> {
-  const d = await postgresDisponivel(cfg, 3_000);
+  const d = await postgresDisponivel(cfg, 10_000); // 10 s: máquina carregada (02/11) estourava 3 s
   if (!d.ok) throw new Error(`Postgres indisponível em ${cfg.host}:${cfg.porta} (${d.motivo}). Rode "banco subir" antes.`);
 }
 
@@ -72,11 +74,19 @@ export async function executar(argv: string[]): Promise<void> {
     case 'subir': {
       // recriar = banco de dev do zero: apaga container e volume e sobe de novo (migrado, sem dados).
       if (comando === 'recriar') docker(['down', '-v']);
-      docker(['up', '-d', '--wait']);
+      // só o serviço da demo/dev: o dos testes (postgres-testes) sobe sob demanda (globalSetup ou subir-testes)
+      docker(['up', '-d', '--wait', 'postgres']);
       await exigir();
       await criarBanco(banco, cfg);
       const r = await comAdmin(banco, (c) => migrarUp(c), cfg);
       console.log(`[banco] pronto: ${cfg.host}:${cfg.porta}/${banco} — migrações aplicadas agora: ${r.aplicadas.join(', ') || 'nenhuma (já estava em dia)'}`);
+      return;
+    }
+    case 'subir-testes': {
+      const t = lerConfigTestes();
+      docker(['up', '-d', '--wait', 'postgres-testes']);
+      await exigirPostgres(t);
+      console.log(`[banco] Postgres dos testes pronto em ${t.host}:${t.porta} (sem dados persistentes: tmpfs, fsync off).`);
       return;
     }
     case 'derrubar':
@@ -149,11 +159,12 @@ export async function executar(argv: string[]): Promise<void> {
       console.log(`[banco] fixture dois-tenants carregada em ${banco}.`);
       return;
     case 'criar-teste': {
-      await exigir();
+      const cfgTestes = lerConfigTestes();
+      await exigirPostgres(cfgTestes);
       const fixture = values.fixture;
       if (fixture && fixture !== 'dois-tenants' && fixture !== 'fase-m' && fixture !== 'demo') throw new Error('--fixture: dois-tenants | fase-m | demo');
       const t = await criarBancoDeTeste({
-        cfg,
+        cfg: cfgTestes,
         preparar: fixture
           ? async (c) => {
               if (fixture === 'dois-tenants') await carregarDoisTenants(c);
@@ -162,23 +173,24 @@ export async function executar(argv: string[]): Promise<void> {
             }
           : undefined,
       });
-      console.log(`[banco] banco de teste criado: ${t.nome}${fixture ? ` (fixture ${fixture})` : ''}`);
+      console.log(`[banco] banco de teste criado em ${cfgTestes.host}:${cfgTestes.porta}: ${t.nome}${fixture ? ` (fixture ${fixture})` : ''}`);
       console.log(`MACUXI_PG_BANCO=${t.nome}`);
       return;
     }
     case 'apagar-teste': {
-      await exigir();
-      const alvos = values.todos ? await listarBancosDeTeste(cfg) : sub ? [sub] : [];
+      const cfgTestes = lerConfigTestes();
+      await exigirPostgres(cfgTestes);
+      const alvos = values.todos ? await listarBancosDeTeste(cfgTestes) : sub ? [sub] : [];
       if (alvos.length === 0) throw new Error('use: apagar-teste <nome> | apagar-teste --todos');
       for (const nome of alvos) {
         if (!nome.startsWith('macuxi_teste_')) throw new Error(`recusado: "${nome}" não é banco de teste`);
-        await apagarBanco(nome, cfg);
+        await apagarBanco(nome, cfgTestes);
         console.log(`[banco] apagado: ${nome}`);
       }
       return;
     }
     default:
-      console.log('Comandos: subir | derrubar [--limpar] | recriar | status | papeis | migrar up|down | seed fase-m | seed demo [--recriar] | fixture dois-tenants | criar-teste | apagar-teste');
+      console.log('Comandos: subir | subir-testes | derrubar [--limpar] | recriar | status | papeis | migrar up|down | seed fase-m | seed demo [--recriar] | fixture dois-tenants | criar-teste | apagar-teste');
       if (comando) process.exitCode = 1;
   }
 }

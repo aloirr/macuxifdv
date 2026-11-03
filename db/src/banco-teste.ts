@@ -1,11 +1,12 @@
 /**
- * Banco de teste efêmero (dono: banco-dados). Cria `macuxi_teste_<sufixo>` no Postgres do Docker,
+ * Banco de teste efêmero (dono: banco-dados). Cria `macuxi_teste_<sufixo>` no Postgres DOS TESTES (lerConfigTestes:
+ * container macuxi-postgres-testes, 5434, ou MACUXI_PG_TESTES_URL; no CI, o service do workflow) — nunca no da demo,
  * garante os papéis macuxi_app e macuxi_worker, aplica as migrações e (opcional) carrega uma fixture. `apagar()` remove.
  * Usado pelos testes de db/ e pelo agente `testes` (via `@macuxi/db/teste`).
  */
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
-import { lerConfig, urlAdmin, urlApp, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
+import { lerConfigTestes, urlAdmin, urlApp, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
 import { migrarUp } from './migrador';
 import { garantirPapelApp, garantirPapelWorker } from './papeis';
 
@@ -33,7 +34,7 @@ function descreverErro(e: unknown): string {
 }
 
 /** Tenta conectar como admin com timeout curto. Nunca lança. */
-export async function postgresDisponivel(cfg: ConfigBanco = lerConfig(), timeoutMs = 2_000): Promise<Disponibilidade> {
+export async function postgresDisponivel(cfg: ConfigBanco = lerConfigTestes(), timeoutMs = 2_000): Promise<Disponibilidade> {
   const c = new pg.Client({ connectionString: urlAdmin(cfg, 'postgres'), connectionTimeoutMillis: timeoutMs });
   try {
     await c.connect();
@@ -47,7 +48,7 @@ export async function postgresDisponivel(cfg: ConfigBanco = lerConfig(), timeout
 }
 
 /** Executa `fn` com um cliente admin conectado ao banco `banco`. */
-export async function comAdmin<T>(banco: string, fn: (c: pg.Client) => Promise<T>, cfg: ConfigBanco = lerConfig()): Promise<T> {
+export async function comAdmin<T>(banco: string, fn: (c: pg.Client) => Promise<T>, cfg: ConfigBanco = lerConfigTestes()): Promise<T> {
   const c = new pg.Client({ connectionString: urlAdmin(cfg, banco) });
   await c.connect();
   try {
@@ -57,7 +58,7 @@ export async function comAdmin<T>(banco: string, fn: (c: pg.Client) => Promise<T
   }
 }
 
-export async function criarBanco(nome: string, cfg: ConfigBanco = lerConfig()): Promise<void> {
+export async function criarBanco(nome: string, cfg: ConfigBanco = lerConfigTestes()): Promise<void> {
   validarNomeBanco(nome);
   await comAdmin('postgres', async (c) => {
     await garantirPapelApp(c, cfg.appSenha);
@@ -68,13 +69,13 @@ export async function criarBanco(nome: string, cfg: ConfigBanco = lerConfig()): 
   }, cfg);
 }
 
-export async function apagarBanco(nome: string, cfg: ConfigBanco = lerConfig()): Promise<void> {
+export async function apagarBanco(nome: string, cfg: ConfigBanco = lerConfigTestes()): Promise<void> {
   validarNomeBanco(nome);
   await comAdmin('postgres', (c) => c.query(`drop database if exists ${nome} with (force)`), cfg);
 }
 
 /** Bancos de teste esquecidos (execução interrompida). */
-export async function listarBancosDeTeste(cfg: ConfigBanco = lerConfig()): Promise<string[]> {
+export async function listarBancosDeTeste(cfg: ConfigBanco = lerConfigTestes()): Promise<string[]> {
   return comAdmin('postgres', async (c) => {
     const r = await c.query<{ datname: string }>("select datname from pg_database where datname like 'macuxi\\_teste\\_%' order by 1");
     return r.rows.map((x) => x.datname);
@@ -90,7 +91,7 @@ export interface OpcoesBancoDeTeste {
 }
 
 export async function criarBancoDeTeste(opcoes: OpcoesBancoDeTeste = {}): Promise<BancoDeTeste> {
-  const cfg = opcoes.cfg ?? lerConfig();
+  const cfg = opcoes.cfg ?? lerConfigTestes();
   const nome = validarNomeBanco(`macuxi_teste_${Date.now().toString(36)}_${process.pid}_${randomBytes(3).toString('hex')}`);
   await criarBanco(nome, cfg);
   try {

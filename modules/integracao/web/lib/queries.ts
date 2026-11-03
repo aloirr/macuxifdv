@@ -9,15 +9,19 @@
  */
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { MeusModulosRespostaSchema } from '@macuxi/core/contracts';
 import { relogioReal } from '@macuxi/comum/relogio';
 import type { Perfil } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
-import { DEFAULT_TZ } from '@macuxi/ui/web';
+import { DEFAULT_TZ, intervaloSyncAutoMs, PARAMETRO_SYNC_AUTO, SYNC_AUTO_PADRAO_MIN } from '@macuxi/ui/web';
 import { DecidirInativacaoResposta, ErrosLoteResposta, MonitorResumo, type DecidirInativacaoEntrada, type LinhaErro } from '../../contracts';
 import { perfilDaSessao } from './apresentacao';
 
-/** O monitor atualiza sozinho a cada 30 s (o sinal de vida do Conector é a cada 1 min). */
-export const MONITOR_REFETCH_MS = 30_000;
+/**
+ * RN-CORE-23: o monitor atualiza pelo `sync_auto_min` do tenant (padrão 30 min, mínimo 15), lido de `parametros.core` em
+ * `/v1/me/modulos`; fora isso, só o botão "Atualizar". Esta constante é o padrão enquanto a consulta carrega.
+ */
+export const MONITOR_REFETCH_MS = intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN);
 export const ERROS_POR_PAGINA = 100;
 /** CSV de erros: páginas de 500 (máximo do contrato) até este teto de linhas. */
 export const CSV_ERROS_MAX = 20_000;
@@ -29,10 +33,11 @@ export const qk = {
 
 const relogio = relogioReal();
 
-/** "Agora" da tela, renovado a cada 30 s (o tempo desde o último sinal anda sem recarregar). */
-export function useAgora(intervaloMs = MONITOR_REFETCH_MS): Date {
+/** "Agora" da tela, renovado no intervalo do tenant (o tempo desde o último sinal anda sem recarregar). */
+export function useAgora(intervaloMs = useIntervaloSyncAutoMs()): Date {
   const [agora, setAgora] = useState(() => relogio.agora());
   useEffect(() => {
+    // timer-permitido: sync_auto_min do tenant passado por intervaloSyncAutoMs (nunca abaixo de 15 min)
     const t = setInterval(() => setAgora(relogio.agora()), intervaloMs);
     return () => clearInterval(t);
   }, [intervaloMs]);
@@ -54,13 +59,30 @@ function useAutenticado() {
   return useSession().status === 'authenticated';
 }
 
+/** `sync_auto_min` do tenant (RN-CORE-23) em `/v1/me/modulos`; enquanto carrega ou se falhar, vale o padrão. */
+export function useIntervaloSyncAutoMs(): number {
+  const enabled = useAutenticado();
+  const q = useQuery({
+    queryKey: ['integracao', 'sync-auto-min'] as const,
+    enabled,
+    staleTime: 60_000,
+    queryFn: async ({ signal }) => {
+      const r = MeusModulosRespostaSchema.parse(await api<unknown>('/me/modulos', { signal }));
+      return intervaloSyncAutoMs(r.modulos.find((m) => m.id === 'core')?.parametros?.[PARAMETRO_SYNC_AUTO]);
+    },
+  });
+  return q.data ?? MONITOR_REFETCH_MS;
+}
+
 export function useMonitor() {
   const enabled = useAutenticado();
+  const intervalo = useIntervaloSyncAutoMs();
   return useQuery({
     queryKey: qk.monitor,
     queryFn: async ({ signal }) => MonitorResumo.parse(await api<unknown>('/integracao/monitor', { signal })),
     enabled,
-    refetchInterval: MONITOR_REFETCH_MS,
+    // timer-permitido: sync_auto_min do tenant passado por intervaloSyncAutoMs (nunca abaixo de 15 min)
+    refetchInterval: intervalo,
     placeholderData: (prev) => prev,
   });
 }
