@@ -27,6 +27,7 @@ import {
   idsDaSessaoNoLote,
   novaSessao,
   ordenarFilaAplicacao,
+  anotarLinhaDoArquivo,
   avisosCadastroIncompleto,
   avisosReferenciaFraca,
   siglasParaConferir,
@@ -63,6 +64,8 @@ interface LinhaLote {
 
 interface CorpoStaging {
   registros?: unknown[];
+  /** Carga por arquivo (RF-INT-03): linha física do arquivo de cada item de `registros`; os erros e avisos ganham "Linha N do arquivo:". */
+  linhas_arquivo?: number[];
   linhas_invalidas?: LinhaInvalidaConector[];
   linhas_invalidas_omitidas?: number;
 }
@@ -177,7 +180,7 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   const cls = classificarMudancas(aceitasValidas, existentes);
   const mudaram = [...cls.novas, ...cls.atualizadas];
   // RN-INT-14: cliente sem campo obrigatório é aplicado normalmente e ganha o aviso `cadastro_incompleto` (decisão do Core)
-  const avisos: AvisoLinha[] = [...v.avisos, ...avisosFracos, ...(lote.entidade === 'cliente' ? await avisarCadastroIncompleto(ctx, aceitasValidas) : [])];
+  const avisos: AvisoLinha[] = anotarLinhaDoArquivo([...v.avisos, ...avisosFracos, ...(lote.entidade === 'cliente' ? await avisarCadastroIncompleto(ctx, aceitasValidas) : [])], corpo.linhas_arquivo);
 
   // ---- gravação: upsert monotônico (a guarda repete a regra no banco) e visto_em/sessao_id de todo registro aceito
   for (const bloco of blocos(mudaram)) {
@@ -245,7 +248,8 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
     errosHub.push({ ...e, origem: 'hub' });
   }
   const registroPorIndice = new Map(v.validas.map((l) => [l.indice, l.registro]));
-  for (const bloco of blocos([...errosHub, ...trat.erros])) {
+  // as linhas inválidas do Conector/arquivo (`trat.erros`) já nascem com a mensagem pronta; só as do Hub (índice do lote) ganham a linha do arquivo
+  for (const bloco of blocos([...anotarLinhaDoArquivo(errosHub, corpo.linhas_arquivo), ...trat.erros])) {
     await db.query(
       `insert into integracao.lote_linha_erro (tenant_id, lote_id, indice, origem, codigo, campo, mensagem, reprocessavel, payload, external_id)
        select $1, $2, x.indice, x.origem, x.codigo, x.campo, x.mensagem, x.reprocessavel, x.payload::jsonb, x.external_id
