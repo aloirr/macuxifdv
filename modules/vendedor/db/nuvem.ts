@@ -163,6 +163,16 @@ export const pedidoItem = vendedor.table('pedido_item', {
   preco_minimo_cents: bigint('preco_minimo_cents', { mode: 'number' }),
   /** Soma faturada pelo ERP, na mesma unidade do item; 0 a quantidade. */
   quantidade_faturada: integer('quantidade_faturada').notNull().default(0),
+  // --- 0018 (RN-VEN-15, T-0063; espelho na T-0070): retrato da medida vendida, DERIVADO pelo gatilho pedido_item_medida
+  // a partir de unidade/fator/quantidade, que SEMPRE sobrescreve — SOMENTE LEITURA, nunca grave. Sem FK para core.medida
+  // (fronteira entre schemas); a API do Vendedor valida a sigla contra o Core. O $defaultFn só tira as duas NOT NULL do
+  // insert tipado (o banco não tem default; o valor enviado é sobrescrito pelo gatilho antes do CHECK).
+  /** Sigla da medida vendida (vendedor.medida_do_item(unidade): ^[A-Z]{1,4}$ ou nula para unidade histórica fora do formato). */
+  medida: text('medida'),
+  /** Unidades por embalagem (= fator; 1 na unidade). */
+  quantidade_embalagem: integer('quantidade_embalagem').notNull().$defaultFn(() => 1),
+  /** Total em unidades (= quantidade x fator = quantidade_base). */
+  quantidade_unidades: integer('quantidade_unidades').notNull().$defaultFn(() => 0),
 });
 
 /**

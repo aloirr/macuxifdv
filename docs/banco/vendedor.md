@@ -181,4 +181,6 @@ sobrescreve + CHECKs = mesma garantia (não divergem), sem quebrar a cópia.
 fora do formato (ex.: `CAIXA`, `CX12`, que a 0013 aceitava) **não aborta**: fica com `medida` nula e a migração emite um NOTICE
 `tenant <codigo> (<id>): '<unidade>' x<n>`. Item sem `unidade` ou com `medida` nula: exibir a `unidade` gravada (ou a do produto).
 PDF: "CX c/ 12" = `medida` + `quantidade_embalagem`.
-Espelho Drizzle em `modules/vendedor/db/nuvem.ts`: **pendente** (módulo travado; `COLUNAS_SEM_ESPELHO_DRIZZLE` em `db/src/excecoes.ts`).
+Espelho Drizzle em `modules/vendedor/db/nuvem.ts` (T-0070): as três colunas como comuns, documentadas "somente leitura — nunca grave"
+(`quantidade_embalagem`/`quantidade_unidades` com `$defaultFn` só para o insert tipado; o gatilho sobrescreve).
+`COLUNAS_SEM_ESPELHO_DRIZZLE` (`db/src/excecoes.ts`) ficou vazia.

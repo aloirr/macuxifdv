@@ -93,7 +93,7 @@ export default function QuizScreen() {
 
   return (
     <Screen testID="treinar-quiz">
-      <BackLink label={licao.titulo} fallback={hrefLicao(licao.id)} />
+      <BackLink label={trilha.titulo} fallback={hrefLicao(licao.id)} />
       <View style={{ gap: 4 }}>
         <Text style={t.small}>Quiz · nota mínima {tr.params.nota_minima_pct}%</Text>
         <Text style={t.h1Small}>{licao.titulo}</Text>

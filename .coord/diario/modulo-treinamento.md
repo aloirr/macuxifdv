@@ -12,3 +12,4 @@
 2026-11-03 — T-0058 — pull de trilhas filtra antes do limite (paginarFiltrando); aviso base_parcial na adesão do BKO
 2026-11-03 — T-0058 — Treinamento usa core.usuarios_resumo@1 (cursor, base_parcial dinâmico, fallback cadastro_resumo)
 2026-11-03 — sync.test instável — causa: lote com t(min)=agora-30+min cruzava a meia-noite de Manaus (04:00Z) quando o relógio caía em 04:10Z-04:30Z (streak e XP mudavam: 86≠82; 'streak' extra). Teste ancorado em 09:00 do dia do tenant; reproduzido com MACUXI_AGORA=04:20Z (2 falhas) e verde depois; só o teste mudou
+2026-11-03 — T-0070 — 4 🟡 da revisão de telas: BKO (aviso warning, campos de equipe escondidos) e app (voltar do quiz, catch no Linking)

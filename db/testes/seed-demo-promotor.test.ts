@@ -112,7 +112,7 @@ describe('base de demo: Promotor (estático)', () => {
     expect(ORDEM_DEMO_PROMOTOR.flatMap((t) => amanha[t].map((l) => l.id))).toEqual(ORDEM_DEMO_PROMOTOR.flatMap((t) => d[t].map((l) => l.id)));
   });
 
-  it('conteúdo para o BKO de trade: 3 categorias, mix de 5, metas gerais + loja 0, checklist com 5 etapas (2 obrigatórias), 2 concorrentes, 3 produtos, tarefa e ponto extra', () => {
+  it('conteúdo para o BKO de trade: 3 categorias, mix de 5, metas gerais + loja 0, checklist com 5 etapas (2 obrigatórias), 2 concorrentes, 4 produtos (um por categoria), tarefa e ponto extra', () => {
     expect(d['promotor.categoria_gondola'].map((c) => c.nome)).toEqual(['Mercearia', 'Bebidas', 'Limpeza']);
     const categoriasDoDemo = new Set(demo['core.produto'].map((p) => p.categoria));
     for (const c of d['promotor.categoria_gondola']) expect(categoriasDoDemo.has(c.nome)).toBe(true);
@@ -123,7 +123,8 @@ describe('base de demo: Promotor (estático)', () => {
     expect(d['promotor.meta_share'].map((m) => m.cliente_id)).toEqual([null, null, null, idClienteDemo(0)]);
     const itens = d['promotor.checklist_loja'][0]!.itens as Array<{ obrigatoria: boolean }>;
     expect([d['promotor.checklist_loja'].length, itens.length, itens.filter((i) => i.obrigatoria).length]).toEqual([1, 5, 2]);
-    expect([d['promotor.concorrente'].length, d['promotor.produto_concorrente'].length, d['promotor.tarefa_trade'].length]).toEqual([2, 3, 1]);
+    expect([d['promotor.concorrente'].length, d['promotor.produto_concorrente'].length, d['promotor.tarefa_trade'].length]).toEqual([2, 4, 1]);
+    expect(new Set(d['promotor.produto_concorrente'].map((p) => p.categoria_gondola_id)).size).toBe(3);
     expect(d['promotor.ponto_extra_negociado']).toEqual([expect.objectContaining({ cliente_id: idClienteDemo(0) })]);
     for (const p of d['promotor.produto_concorrente']) expect(produtosDemo.has(p.produto_id)).toBe(true);
     // ruptura: 1 item na v-pr1 e 2 na v-pr2; share das 3 categorias em cada visita

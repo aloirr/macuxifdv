@@ -53,12 +53,52 @@ export function erroDe(r: { json(): unknown }): ErroApi {
   return ErroApiSchema.parse(r.json());
 }
 
+/**
+ * Encerramento de pool sem corrida com o `drop database ... with (force)` do `banco.apagar()` (R-20261103-054924,
+ * 57P01 "terminating connection due to administrator command" solto no CI da carga). O `pool.end()` do pg-pool resolve
+ * assim que tira os clientes da lista, ANTES de cada socket fechar; se o drop chega nesse intervalo, o Postgres manda
+ * FATAL 57P01 a um cliente ainda ocioso e o pool o emite como 'error' sem ouvinte (erro não tratado → Vitest sai 1).
+ * Aqui: (1) conta os clientes vivos (connect/remove) e o `encerrar()` só volta quando todos fecharam de fato (teto de
+ * 10 s); (2) ouvinte de 'error' no pool que, DURANTE o encerramento, ignora só a queda de conexão do teardown; fora dele
+ * o erro continua subindo como antes (nada é engolido enquanto os casos rodam).
+ */
+const QUEDA_DO_TEARDOWN = new Set(['57P01', '57P02', '57P03']);
+export function poolComEncerramento(pool: pg.Pool): { pool: pg.Pool; encerrar(ms?: number): Promise<void> } {
+  let encerrando = false;
+  let vivos = 0;
+  let aoZerar: (() => void) | null = null;
+  pool.on('connect', () => {
+    vivos += 1;
+  });
+  pool.on('remove', () => {
+    vivos -= 1;
+    if (vivos <= 0) aoZerar?.();
+  });
+  pool.on('error', (err: Error & { code?: string }) => {
+    if (encerrando && (QUEDA_DO_TEARDOWN.has(err.code ?? '') || /Connection terminated/i.test(err.message))) return;
+    throw err;
+  });
+  return {
+    pool,
+    async encerrar(ms = 10_000) {
+      encerrando = true;
+      const fechados = new Promise<void>((r) => {
+        aoZerar = r;
+      });
+      await pool.end().catch(() => undefined);
+      if (vivos > 0) await Promise.race([fechados, new Promise((r) => setTimeout(r, ms))]);
+    },
+  };
+}
+
 export async function subirApi(
   opcoes: { logger?: FastifyServerOptions['logger']; poolMax?: number; /** Bytes das fotos (ADR 0010); sem ele o upload responde 503. */ arquivos?: ArmazenamentoArquivos } = {},
 ): Promise<ApiDeTeste> {
   const banco = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: SENHA }).then(() => undefined) });
-  const pool = new pg.Pool({ connectionString: banco.urlApp, max: opcoes.poolMax ?? 6 });
-  const admin = new pg.Pool({ connectionString: banco.urlAdmin, max: 2 });
+  const app_ = poolComEncerramento(new pg.Pool({ connectionString: banco.urlApp, max: opcoes.poolMax ?? 6 }));
+  const admin_ = poolComEncerramento(new pg.Pool({ connectionString: banco.urlAdmin, max: 2 }));
+  const pool = app_.pool;
+  const admin = admin_.pool;
   const coreApi = criarModuloApiCore({ segredo: () => SEGREDO_JWT });
   const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m));
   const app = createApp({ banco: criarBancoApp(pool), modulos, logger: opcoes.logger ?? false, arquivos: opcoes.arquivos ?? null });
@@ -92,8 +132,9 @@ export async function subirApi(
     },
     async fechar() {
       await app.close().catch(() => undefined);
-      await pool.end().catch(() => undefined);
-      await admin.end().catch(() => undefined);
+      // os dois pools fecham de fato (sockets encerrados) antes do drop com force
+      await app_.encerrar();
+      await admin_.encerrar();
       await banco.apagar().catch(() => undefined);
     },
   };

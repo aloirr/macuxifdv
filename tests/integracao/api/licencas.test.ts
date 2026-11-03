@@ -11,6 +11,13 @@ import { semBanco } from '@macuxi/db/teste/estado';
 import { A, B, erroDe, ids, licenca, subirApi, type ApiDeTeste } from '../apoio/api';
 
 const NAO_UUID = 'nao-e-uuid';
+/** Lotes concorrentes da varredura (o pool da API de teste tem 6 conexões). */
+const VARREDURA_LOTE = 6;
+async function emLotes<T, R>(xs: readonly T[], f: (x: T) => Promise<R>): Promise<R[]> {
+  const saida: R[] = [];
+  for (let i = 0; i < xs.length; i += VARREDURA_LOTE) saida.push(...(await Promise.all(xs.slice(i, i + VARREDURA_LOTE).map(f))));
+  return saida;
+}
 const itemChecklist = { entidade: 'checklist_loja', id: '0f000000-0000-4000-8000-000000000001', operacao: 'upsert' as const, payload: {} };
 
 describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API real (Postgres)', () => {
@@ -57,12 +64,17 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     const promotor = (await api.sessao('promotor@exemplo.com.br')).access_token;
     const supervisor = (await api.sessao('supervisor@exemplo.com.br')).access_token;
     const antes = await api.meusModulos(promotor);
-    // ativo: o pull de entidade do Promotor passa da licença. Com o pull dos cadastros de trade (#51, T-0056,
-    // modules/promotor/api/sync-cadastros.ts) → 200 com a página; antes dele → 501 SYNC_NAO_IMPLEMENTADO. Nunca 403.
+    // ativo: o pull de entidade do Promotor PASSA da licença (o ponto do teste: nunca 403 MODULO_INATIVO). Passo 3 da
+    // ordem do #73 (T-0056/T-0070): o provedor de pull dos cadastros de trade está no main (modules/promotor/api/
+    // sync-cadastros.ts), então o 200 fica FIXO, com a página de pull estrita (PaginaSync: itens + proximo_cursor +
+    // horizonte ISO). O ramo 501 SYNC_NAO_IMPLEMENTADO deixou de valer: voltar a ele é regressão.
     const pullAtivo = await api.chamar(promotor, { method: 'GET', url: '/v1/sync/pull?entidade=checklist_loja' });
-    expect([200, 501], pullAtivo.body).toContain(pullAtivo.statusCode);
-    if (pullAtivo.statusCode === 501) expect(erroDe(pullAtivo).codigo).toBe('SYNC_NAO_IMPLEMENTADO');
-    else expect(Array.isArray(pullAtivo.json().itens), pullAtivo.body).toBe(true);
+    expect(pullAtivo.statusCode, pullAtivo.body).toBe(200);
+    const pagina = pullAtivo.json() as { itens: unknown; proximo_cursor: unknown; horizonte?: unknown };
+    expect(Array.isArray(pagina.itens), pullAtivo.body).toBe(true);
+    expect(pagina.proximo_cursor === null || typeof pagina.proximo_cursor === 'string', pullAtivo.body).toBe(true);
+    expect(typeof pagina.horizonte, pullAtivo.body).toBe('string');
+    expect(Number.isNaN(Date.parse(pagina.horizonte as string)), pullAtivo.body).toBe(false);
 
     const r = await licenca(api, admin, 'tenant', 'promotor', false);
     expect(r.statusCode, r.body).toBe(200);
@@ -99,7 +111,8 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     } finally {
       expect((await licenca(api, admin, 'tenant', 'promotor', true)).statusCode).toBe(200);
     }
-    // controle: com o Promotor religado o mesmo item não cai mais em MODULO_INATIVO (sem provedor ainda, outro código)
+    // controle: com o Promotor religado o mesmo item não cai mais em MODULO_INATIVO (checklist_loja é cadastro só de
+    // pull: o push dele é recusado por outro motivo, nunca pela licença)
     const religado = await api.chamar(promotor, { method: 'POST', url: '/v1/sync/push', payload: { itens: [itemChecklist] } });
     expect(religado.statusCode, religado.body).toBe(200);
     expect(religado.json().resultados[0].codigo).not.toBe('MODULO_INATIVO');
@@ -208,27 +221,84 @@ describe.skipIf(semBanco())('T-0003 C3.1/C3.2 — licença de módulo pela API r
     }
   });
 
+  // Varredura com TODAS as rotas e entidades (nenhuma amostra): as chamadas vão em lotes concorrentes de
+  // VARREDURA_LOTE e cada resposta é conferida uma a uma; o teto do caso é folga de execução (máquina com vários
+  // agentes: ~3 s por login), não medida de desempenho (tests/plano/sprint-1.md, "Testes de tempo").
   it('S0-052/S0-087: varredura — TODA rota montada de módulo não-core responde 403 MODULO_INATIVO a quem não tem o módulo', async () => {
     // admin de A só tem o core: qualquer rota de outro módulo tem de recusar pela licença, antes de perfil e Zod
     const rotas = api.modulos.filter((m) => m.manifesto.id !== 'core').flatMap((m) => (m.rotas ?? []).map((r) => ({ modulo: m.manifesto.id, r })));
     expect(rotas.length).toBeGreaterThan(0);
-    for (const { modulo, r } of rotas) {
+    const respostasRotas = await emLotes(rotas, async ({ modulo, r }) => {
       const url = `/v1/${modulo}/${r.caminho.replace(/:[a-zA-Z_]+/g, NAO_UUID)}`;
-      const resp = await api.chamar(admin, { method: r.metodo, url, ...(r.metodo === 'GET' ? {} : { payload: {} }) });
-      expect(resp.statusCode, `${r.metodo} ${url}`).toBe(403);
-      expect(erroDe(resp), `${r.metodo} ${url}`).toMatchObject({ codigo: 'MODULO_INATIVO', detalhes: { modulo } });
+      return { modulo, rotulo: `${r.metodo} ${url}`, resp: await api.chamar(admin, { method: r.metodo, url, ...(r.metodo === 'GET' ? {} : { payload: {} }) }) };
+    });
+    expect(respostasRotas).toHaveLength(rotas.length);
+    for (const { modulo, rotulo, resp } of respostasRotas) {
+      expect(resp.statusCode, rotulo).toBe(403);
+      expect(erroDe(resp), rotulo).toMatchObject({ codigo: 'MODULO_INATIVO', detalhes: { modulo } });
     }
     // e toda entidade de sync de módulo não efetivo, no pull
-    for (const m of api.modulos.filter((x) => x.manifesto.id !== 'core')) {
-      for (const entidade of m.manifesto.sync) {
-        const p = await api.chamar(admin, { method: 'GET', url: `/v1/sync/pull?entidade=${entidade}` });
-        expect(p.statusCode, `pull ${entidade}`).toBe(403);
-        expect(erroDe(p).codigo, `pull ${entidade}`).toBe('MODULO_INATIVO');
-      }
+    const entidades = api.modulos.filter((x) => x.manifesto.id !== 'core').flatMap((m) => m.manifesto.sync);
+    expect(entidades.length).toBeGreaterThan(0);
+    const respostasPull = await emLotes(entidades, async (entidade) => ({ entidade, p: await api.chamar(admin, { method: 'GET', url: `/v1/sync/pull?entidade=${entidade}` }) }));
+    expect(respostasPull).toHaveLength(entidades.length);
+    for (const { entidade, p } of respostasPull) {
+      expect(p.statusCode, `pull ${entidade}`).toBe(403);
+      expect(erroDe(p).codigo, `pull ${entidade}`).toBe('MODULO_INATIVO');
     }
     // rota de módulo instalado que não existe: 404 (não confunde com licença)
     expect((await api.chamar(admin, { method: 'GET', url: '/v1/vendedor/nao-existe' })).statusCode).toBe(404);
     expect(rotas.some(({ r }) => ehCaminhoDePedido(r.caminho))).toBe(true);
+  }, 240_000);
+
+  // T-0061 × licença (T-0070): a opção do perfil Promotor `promotor_ve_pedidos` (Core, PUT /v1/core/parametros/
+  // promotor-ve-pedidos) só LIMITA a leitura de quem já tem o Vendedor; nunca concede módulo. Na licença da fixture o
+  // perfil Promotor não tem o Vendedor: com a opção ligada (padrão) a licença barra antes (403 MODULO_INATIVO), e
+  // mexer na opção não altera os módulos efetivos. A opção é parâmetro do Core que vai ao aparelho (me/modulos), então
+  // a versao_licencas MUDA a cada troca (o app relê; apps/api/src/me-modulos.ts) — RN-PRO-01, RN-CORE-02, regra 7.
+  it('T-0061 × licença: promotor_ve_pedidos ligada não dá o Vendedor ao promotor (403 MODULO_INATIVO em lista, detalhe e pull); desligar/religar a opção não muda os módulos efetivos, só o parâmetro do Core e a versao_licencas', async () => {
+    const promotor = (await api.sessao('promotor@exemplo.com.br')).access_token;
+    const URL_OPCAO = '/v1/core/parametros/promotor-ve-pedidos';
+    const opcao = await api.chamar(admin, { method: 'GET', url: URL_OPCAO });
+    expect([opcao.statusCode, opcao.json()], opcao.body).toEqual([200, { ligado: true }]);
+    const antes = await api.meusModulos(promotor);
+    expect(ids(antes)).toEqual(['core', 'promotor']);
+    const opcaoNoAparelho = (r: typeof antes) => r.modulos.find((m) => m.id === 'core')?.parametros?.promotor_ve_pedidos;
+
+    const barrado = async (rotulo: string) => {
+      for (const url of ['/v1/vendedor/pedidos', `/v1/vendedor/pedidos/${itemChecklist.id}`]) {
+        const r = await api.chamar(promotor, { method: 'GET', url });
+        expect(r.statusCode, `${rotulo} GET ${url}: ${r.body}`).toBe(403);
+        expect(erroDe(r), `${rotulo} GET ${url}`).toMatchObject({ codigo: 'MODULO_INATIVO', detalhes: { modulo: 'vendedor' } });
+      }
+      for (const entidade of ['pedido', 'pedido_item', 'pedido_evento']) {
+        const p = await api.chamar(promotor, { method: 'GET', url: `/v1/sync/pull?entidade=${entidade}` });
+        expect(p.statusCode, `${rotulo} pull ${entidade}: ${p.body}`).toBe(403);
+        expect(erroDe(p).codigo, `${rotulo} pull ${entidade}`).toBe('MODULO_INATIVO');
+      }
+    };
+    await barrado('opção ligada');
+
+    const desl = await api.chamar(admin, { method: 'PUT', url: URL_OPCAO, payload: { ligado: false } });
+    expect(desl.statusCode, desl.body).toBe(200);
+    let versaoDesligada = '';
+    try {
+      const durante = await api.meusModulos(promotor);
+      expect(ids(durante)).toEqual(['core', 'promotor']);
+      expect(opcaoNoAparelho(durante)).toBe(false);
+      expect(durante.versao_licencas).not.toBe(antes.versao_licencas);
+      await barrado('opção desligada');
+      versaoDesligada = durante.versao_licencas;
+    } finally {
+      const relig = await api.chamar(admin, { method: 'PUT', url: URL_OPCAO, payload: { ligado: true } });
+      expect(relig.statusCode, relig.body).toBe(200);
+    }
+    const depois = await api.meusModulos(promotor);
+    expect(ids(depois)).toEqual(['core', 'promotor']);
+    expect(opcaoNoAparelho(depois)).toBe(true);
+    expect(depois.versao_licencas).not.toBe(versaoDesligada);
+    const religada = await api.chamar(admin, { method: 'GET', url: URL_OPCAO });
+    expect([religada.statusCode, religada.json()], religada.body).toEqual([200, { ligado: true }]);
   });
 
   it('S0-054: precedência 401 → 403 MODULO_INATIVO → 403 PERFIL_SEM_ACESSO → 400 → 404', async () => {

@@ -9,6 +9,7 @@
  * Datas: tudo derivado do "hoje" da fixture (hojeDaFixture), nunca do relógio.
  */
 import { randomUUID } from 'node:crypto';
+import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -18,6 +19,7 @@ import {
 import { DESFECHOS_VISITA } from '../../modules/promotor/domain/checklist';
 import { CONFORMIDADES } from '../../modules/promotor/domain/gondola';
 import { TIPOS_PONTO_EXTRA } from '../../modules/promotor/domain/pontos-extras';
+import * as nuvemPromotor from '../../modules/promotor/db/nuvem';
 import { STATUS_PRESENCA } from '../../modules/promotor/domain/ruptura';
 import { dadosDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { COLETAS_PROMOTOR, ORDEM_PROMOTOR, PROMOTOR_FIXTURE } from '../seeds/fixtures/promotor';
@@ -89,6 +91,20 @@ describe('0015 promotor (estático)', () => {
     expect(valoresDoCheck('promotor.ponto_extra_negociado', 'tipo')).toEqual([...TIPOS_PONTO_EXTRA]);
     expect(valoresDoCheck('promotor.validade_item', 'tipo')).toEqual([...TipoOcorrenciaValidade.options]);
     expect(valoresDoCheck('promotor.acao_concorrencia', 'tipo')).toEqual([...AcaoConcorrencia.shape.tipo.options]);
+  });
+
+  it('espelho Drizzle (modules/promotor/db/nuvem.ts, T-0070): listas fechadas = CHECKs da 0015 e as 20 tabelas no schema promotor', () => {
+    expect([...nuvemPromotor.DESFECHOS_VISITA_BANCO]).toEqual(valoresDoCheck('promotor.visita_loja', 'desfecho'));
+    expect([...nuvemPromotor.TIPOS_FOTO_BANCO]).toEqual(valoresDoCheck('promotor.foto_coleta', 'tipo'));
+    expect([...nuvemPromotor.CONFORMIDADES_BANCO]).toEqual(valoresDoCheck('promotor.gondola_registro', 'conformidade'));
+    expect([...nuvemPromotor.STATUS_PRESENCA_BANCO]).toEqual(valoresDoCheck('promotor.ruptura_item', 'status'));
+    expect([...nuvemPromotor.TIPOS_PONTO_EXTRA_BANCO]).toEqual(valoresDoCheck('promotor.ponto_extra', 'tipo'));
+    expect([...nuvemPromotor.TIPOS_PONTO_EXTRA_BANCO]).toEqual(valoresDoCheck('promotor.ponto_extra_negociado', 'tipo'));
+    expect([...nuvemPromotor.TIPOS_VALIDADE_BANCO]).toEqual(valoresDoCheck('promotor.validade_item', 'tipo'));
+    expect([...nuvemPromotor.TIPOS_ACAO_CONCORRENCIA_BANCO]).toEqual(valoresDoCheck('promotor.acao_concorrencia', 'tipo'));
+    const tabelas = (Object.values(nuvemPromotor) as unknown[]).filter((v): v is PgTable => v instanceof PgTable).map((t) => getTableConfig(t));
+    expect(tabelas.every((t) => t.schema === 'promotor')).toBe(true);
+    expect(tabelas.map((t) => `promotor.${t.name}`).sort()).toEqual([...ORDEM_PROMOTOR].sort());
   });
 
   it('RN-PRO-01: nenhuma tabela, coluna, índice ou função da 0015 fala de pedido', () => {
