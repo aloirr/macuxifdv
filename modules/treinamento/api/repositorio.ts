@@ -110,6 +110,8 @@ export interface RepositorioTreinamento {
    * `repositorio-postgres.ts`).
    */
   usuarios(): Promise<UsuarioTreinamento[]>;
+  /** false = `usuarios()` só traz quem já teve atividade (sem a consulta de usuários do Core): o painel avisa "base parcial". */
+  readonly usuariosCompletos: boolean;
 }
 
 export interface FabricaRepositorio {

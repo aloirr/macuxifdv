@@ -120,6 +120,8 @@ export const AdesaoResposta = z
     mes: AnoMes,
     equipe_id: Uuid.nullable(),
     calculado_em: InstanteUtc,
+    /** true = a lista de pessoas só tem quem já usou o Treinamento (Core sem `core.usuarios_resumo@1`): a adesão pode sair inflada. */
+    base_parcial: z.boolean().default(false),
     adesao: z.object({ publico: z.number().int().nonnegative(), ativos_no_mes: z.number().int().nonnegative(), adesao_pct: PctOuNulo }).strict(),
     trilhas: z.array(IndicadorTrilhaContrato),
   })

@@ -160,6 +160,7 @@ export function criarRotas(fabrica: FabricaRepositorio | null): RotaModulo[] {
           mes,
           equipe_id: ctx.query.equipe_id ?? null,
           calculado_em: ctx.agora().toISOString(),
+          base_parcial: !repo.usuariosCompletos,
           adesao: { publico: p.adesao.publico, ativos_no_mes: p.adesao.ativos_no_mes, adesao_pct: p.adesao.adesao_pct },
           trilhas: p.trilhas.map((i) => {
             const t = porId.get(i.trilha_id)!;

@@ -118,6 +118,7 @@ export function fabricaEmMemoria(b: BancoTreinamentoMemoria): FabricaRepositorio
         async lancamentosDoTenant() {
           return meu(b.xp_lancamento).map(({ updated_at: _u, deleted_at: _d, ...l }) => l);
         },
+        usuariosCompletos: true,
         async usuarios() {
           return meu(b.usuarios).map(({ tenant_id: _t, ...u }) => u);
         },

@@ -59,6 +59,15 @@ describe('o repositório SQL nunca atualiza nem apaga dado do aluno (append-only
   });
 });
 
+describe('base de usuários do painel (RF-TRE-05)', () => {
+  const doTenant = (f: ReturnType<typeof criarFabricaPostgres>) => f.doTenant({ query: async () => ({ rows: [], rowCount: 0 }) } as unknown as ClienteBanco, 'x', () => new Date());
+  it('RF-TRE-05: sem a consulta de usuários do Core a base é parcial (o painel avisa); com fonte completa não', () => {
+    expect(doTenant(criarFabricaPostgres()).usuariosCompletos).toBe(false);
+    const completa = Object.assign(async () => [], { completa: true });
+    expect(doTenant(criarFabricaPostgres({ usuarios: completa })).usuariosCompletos).toBe(true);
+  });
+});
+
 describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A e B, idempotência e ranking', () => {
   let pool: pg.Pool;
   let admin: pg.Pool;

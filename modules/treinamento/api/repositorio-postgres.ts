@@ -43,7 +43,10 @@ const LOTE_CONSULTA = 500;
  * regional e `ativo`) ainda não existe (pedido R-20261102-131733-2); até lá usamos `core.cadastro_resumo@1` (id, nome,
  * perfil) para os usuários que aparecem no Treinamento. Sem equipe/regional (nulos) e `ativo = true`.
  */
-export type FonteDeUsuarios = (tx: TransacaoTenant, idsComAtividade: readonly string[]) => Promise<UsuarioTreinamento[]>;
+export type FonteDeUsuarios = ((tx: TransacaoTenant, idsComAtividade: readonly string[]) => Promise<UsuarioTreinamento[]>) & {
+  /** true = devolve o tenant inteiro (com equipe), não só quem tem atividade; ausente = base parcial. */
+  completa?: boolean;
+};
 
 const PERFIS_CONHECIDOS: ReadonlySet<string> = new Set(PERFIS);
 
@@ -365,6 +368,7 @@ export function criarFabricaPostgres(opcoes: OpcoesFabricaPostgres = {}): Fabric
           const r = await db.query<LancamentoXp>(`select ${COLUNAS_ALUNO.xp_lancamento} from treinamento.xp_lancamento where deleted_at is null`);
           return r.rows;
         },
+        usuariosCompletos: fonteDeUsuarios.completa === true,
         async usuarios() {
           if (!tx) throw new Error('usuarios(): a transação da rota é necessária para a consulta do Core (ADR 0012)');
           const r = await db.query<{ usuario_id: string }>(

@@ -8,3 +8,4 @@
 2026-10-31 — T-0011 (realinhamento) — desafio realinhado ao desenho T-0011 §2: itens somados por retorno, idempotência por evento_id (chave desafio:pedido:evento_id / desafio:pedido:total), candidatoDoDesafio único, regras.md com RN-TRE-01..08 e sem premissas (aviso R-20261031-172550-modulo-treinamento)
 2026-11-02 — T-0065 — licao-screen.tsx: setInterval do tempo mínimo marcado com timer-permitido (RN-TRE-04)
 2026-11-02 — T-0065 — licao-screen.tsx: setInterval do tempo mínimo marcado com timer-permitido (RN-TRE-04)
+2026-11-03 — T-0058 — adesão com base_parcial (usuários só com atividade) até o Core oferecer core.usuarios_resumo@1; pedido ao modulo-core; fonte completa já preparada

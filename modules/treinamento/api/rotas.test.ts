@@ -226,6 +226,7 @@ describe('painel de adesão (RF-TRE-05, RN-CORE-04)', () => {
     const pessoas = PessoasResposta.parse((await chamar(c.api, 'GET', 'adesao/pessoas', c.como(U.sara, { visiveis: equipe }))).corpo);
     expect(pessoas.pessoas.map((p) => p.nome)).toEqual(['Sara Supervisora', 'Vera Vendedora', 'Vitor Vendedor']);
     const tenant = AdesaoResposta.parse((await chamar(c.api, 'GET', 'adesao', c.como(U.ana, { visiveis: 'tenant' }))).corpo);
+    expect(tenant.base_parcial).toBe(false);
     expect(tenant.adesao).toMatchObject({ ativos_no_mes: 2 });
     expect(tenant.adesao.publico).toBe(6);
   });
