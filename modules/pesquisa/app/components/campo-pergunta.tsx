@@ -186,7 +186,7 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
                 <Text style={[t.bodyStrong, { color: '#FFFFFF' }]}>{fotos.length ? 'Tirar outra foto' : 'Tirar foto'}</Text>
               </Pressable>
             ) : (
-              <Text style={t.small}>Limite de {p.max_fotos} foto(s) atingido.</Text>
+              <Text style={t.small}>{p.max_fotos === 1 ? 'Limite de 1 foto atingido.' : `Limite de ${p.max_fotos} fotos atingido.`}</Text>
             )
           ) : (
             <Text style={t.small}>A câmera não está disponível neste aparelho. Atualize o app para responder com foto.</Text>
