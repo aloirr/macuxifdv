@@ -36,9 +36,8 @@ export const manifest = defineModule({
     'dispositivo.registrar_push': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Gravar o token de push do próprio aparelho (RF-CORE-09)' },
     'plano_rv.editar': { perfis: ['analista'], descricao: 'Editar o plano de RV (vigência futura)' },
   },
-  // TEMPORÁRIO: 'vendedor.pedidos_da_meta@1' fora de usaConsultas, pois o SDK exige o dono em depende/opcionais e isso cria ciclo
-  // core → vendedor → core. A meta cai no read-model indicador_diario (ver fontePorConsulta). Pendente: ajuste no SDK (engenheiro-software).
-  usaConsultas: [],
+  // ADR 0019: consulta opcional não cria aresta de dependência (sem ciclo core ↔ vendedor); sem o dono, cai no indicador_diario
+  usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1'],
   ofereceConsultas: ['core.cadastro_resumo@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1'],
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });

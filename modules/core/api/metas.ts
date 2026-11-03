@@ -90,8 +90,6 @@ export const fontePorConsulta =
       return await tx.consultar(CONSULTA_PEDIDOS_DA_META, q);
     } catch (e) {
       if (e instanceof ConsultaIndisponivel) return null;
-      // manifesto sem usaConsultas (ciclo de módulos, ver manifest.ts): sem consulta, cai no indicador_diario
-      if (e instanceof Error && e.message.includes('usaConsultas do manifesto')) return null;
       throw e;
     }
   };

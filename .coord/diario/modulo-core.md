@@ -43,3 +43,4 @@
 2026-11-03 — T-0066/T-0065 — consumidor integracao.nota.atualizado@1 (core.nota_erp + historico_compra), tipo da meta (contrato, PUT, pull, apuração) e porta FontePedidosDaMeta ligada à consulta vendedor.pedidos_da_meta@1
 2026-11-03 — T-0065 — correção: Core sem import de @macuxi/vendedor (espelho mínimo local da consulta vendedor.pedidos_da_meta@1 em api/metas.ts); fronteiras e grafo-turbo ok
 2026-11-03 — T-0058 — core.usuarios_resumo@1 (contrato, consulta paginada por cursor sob RLS, manifest, testes contrato e x Postgres 5434)
+2026-11-03 — T-0065 B — Core religa vendedor.pedidos_da_meta@1 por usaConsultasOpcionais (ADR 0019); metas.ts sem ramo de erro
