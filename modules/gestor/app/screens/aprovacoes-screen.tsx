@@ -9,6 +9,7 @@ import { Badge, Banner, Card, colors, Empty, Loading, Screen, SyncStamp, type as
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ItemFilaAprovacao } from '../../contracts';
 import { MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo } from '../lib/apresentacao';
+import { contagem, pct } from '../lib/formato';
 import { irParaPedidoDoVendedor } from '../rotas';
 import { useGestor } from '../state/use-gestor';
 
@@ -29,7 +30,7 @@ export default function AprovacoesScreen() {
       {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
       {fila ? (
         <Text style={t.sub} testID="gestor-fila-resumo">
-          {fila.resumo.para_mim} para você · {fila.resumo.vencidos} vencidos · {fila.resumo.vencendo} vencendo
+          {fila.resumo.para_mim} para você · {contagem(fila.resumo.vencidos, 'vencido', 'vencidos')} · {fila.resumo.vencendo} vencendo
         </Text>
       ) : null}
       {g.offline && fila && fila.itens.length > 0 ? <Banner>Sem conexão: aprovar ou rejeitar precisa de internet.</Banner> : null}
@@ -57,9 +58,9 @@ function ItemFila({ i, nome, ultimo }: { i: ItemFilaAprovacao; nome: string; ult
         <Text style={t.bodyStrong}>{formatBRL(i.total_cents)}</Text>
       </View>
       <Text style={t.small} numberOfLines={2}>
-        {i.motivos.map((m) => MOTIVO_ROTULO[m]).join(' · ')} · desconto {i.desconto_efetivo_pct}%
+        {i.motivos.map((m) => MOTIVO_ROTULO[m]).join(' · ')} · desconto {pct(i.desconto_efetivo_pct)}
         {i.credito ? ` · crédito disponível ${formatBRL0(i.credito.disponivel_cents)}` : ''}
-        {i.historico ? ` · ${i.historico.pedidos_90d} pedidos em 90 dias` : ''}
+        {i.historico ? ` · ${contagem(i.historico.pedidos_90d, 'pedido', 'pedidos')} em 90 dias` : ''}
       </Text>
       <View style={styles.linha}>
         <Badge label={prazo.label} tone={prazo.tom} />
