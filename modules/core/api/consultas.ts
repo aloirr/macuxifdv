@@ -3,11 +3,13 @@ import { implementarConsulta } from '@macuxi/platform-sdk';
 import {
   CONSULTA_CADASTRO_CLIENTE,
   CONSULTA_CADASTRO_RESUMO,
+  CONSULTA_PROMOTOR_VE_PEDIDOS,
   PARAMETRO_CAMPOS_OBRIGATORIOS,
   type CadastroClienteSaida,
   type CadastroResumoSaida,
 } from '../contracts';
 import { cadastroCompleto, camposExigidos } from '../domain/cadastro';
+import { lerPromotorVePedidos } from './promotor-pedidos';
 
 export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESUMO, async (entrada, ctx): Promise<CadastroResumoSaida> => {
   // Sequencial: um único cliente de banco na transação.
@@ -62,3 +64,9 @@ export const consultaCadastroCliente = implementarConsulta(CONSULTA_CADASTRO_CLI
     }),
   };
 });
+
+/**
+ * RN-CORE-01 / RN-PRO-01 (T-0061): o promotor vê pedidos neste tenant? Lida do banco a CADA chamada, na transação de quem
+ * pergunta (RLS): sem cache e sem valor em JWT/sessão. Sem registro = ligado.
+ */
+export const consultaPromotorVePedidos = implementarConsulta(CONSULTA_PROMOTOR_VE_PEDIDOS, async (_entrada, ctx) => ({ ligado: await lerPromotorVePedidos(ctx.db) }));

@@ -35,6 +35,11 @@ export interface AbaCliente<C = unknown> {
   testID: string;
   /** Componente que recebe `{ contexto: ContextoCliente }`. */
   componente: C;
+  /**
+   * Opcional (aditivo): a seção mostra pedidos. O Core a esconde do promotor quando a opção `promotor_ve_pedidos` está
+   * desligada (RN-PRO-01; T-0061). Itens com `acao` `pedido.*` já são filtrados sem esta marca.
+   */
+  mostraPedidos?: boolean;
 }
 
 /** Slot `cliente.acoes`: botão no rodapé da ficha (ex.: "Novo pedido"; o vendedor registra com `acao: 'pedido.criar'`). */
@@ -46,6 +51,8 @@ export interface AcaoCliente {
   icone?: string;
   /** Destaque visual (padrão: botão secundário). */
   destaque?: boolean;
+  /** Opcional (aditivo): a ação abre/mostra pedidos; o Core a esconde do promotor com `promotor_ve_pedidos` desligada (T-0061). */
+  mostraPedidos?: boolean;
   /** Executa a ação (navega, abre folha…). */
   abrir: (ctx: ContextoCliente) => void;
 }

@@ -2,11 +2,12 @@
  * Hook das telas Clientes e Ficha: lê as entidades de cliente que o sync deixou no aparelho (`motor.linhas`) e
  * recarrega quando uma sincronização termina. Sem rede, sem chamada ao servidor (offline-first, RF-CORE-04).
  */
-import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, TituloSync } from '../../contracts';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, ParametroSync, TituloSync } from '../../contracts';
+import type { LinhaSync } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
 import { useEffect, useState } from 'react';
 
-import { dataLocal } from '../../domain';
+import { dataLocal, pedidosVisiveisNoAparelho } from '../../domain';
 import { agruparPorCliente, montarCliente360Local, type BaseLocal, type Cliente360Local } from './cliente360-local';
 import { fusoDe } from './estado';
 import { useCore } from './usar-core';
@@ -18,9 +19,14 @@ export interface ClientesLocais extends BaseLocal {
   /** Há linhas de `cliente` no aparelho (o pull genérico já rodou); sem elas a tela cai na carga antiga da Fase M. */
   pronto: boolean;
   carregado: boolean;
+  /**
+   * RN-PRO-01 / RN-CORE-01: este usuário vê pedidos? Promotor com `promotor_ve_pedidos` desligado (parâmetro sincronizado) = false.
+   * Vendedor, gestor e demais perfis: sempre true. Offline: vem das linhas do aparelho.
+   */
+  verPedidos: boolean;
 }
 
-const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], pronto: false, carregado: false };
+const VAZIO: ClientesLocais = { clientes: [], financeiros: [], titulos: [], historico: [], contatos: [], enderecos: [], pronto: false, carregado: false, verPedidos: true };
 
 export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
   const { motor, estado } = useMotorSync();
@@ -32,15 +38,17 @@ export function useClientesLocais(): { dados: ClientesLocais; hoje: string } {
     if (!motor) return;
     let ativo = true;
     void (async () => {
-      const [clientes, contatos, financeiros, titulos, historico, enderecos] = await Promise.all([
+      const [clientes, contatos, financeiros, titulos, historico, enderecos, parametros] = await Promise.all([
         motor.linhas<ClienteSync>('cliente'),
         motor.linhas<ClienteContatoSync>('cliente_contato'),
         motor.linhas<ClienteFinanceiroSync>('cliente_financeiro'),
         motor.linhas<TituloSync>('titulo'),
         motor.linhas<HistoricoCompraSync>('historico_compra'),
         motor.linhas<ClienteEnderecoSync>('cliente_endereco'),
+        motor.linhas<ParametroSync & LinhaSync>('parametro'),
       ]);
-      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, pronto: clientes.length > 0, carregado: true });
+      const verPedidos = pedidosVisiveisNoAparelho(motor.ambiente.usuario()?.perfil, parametros);
+      if (ativo) setDados({ clientes, contatos, financeiros, titulos, historico, enderecos, pronto: clientes.length > 0, carregado: true, verPedidos });
     })();
     return () => {
       ativo = false;
@@ -64,5 +72,6 @@ export function montarFichaLocal(dados: ClientesLocais, clienteId: string, hoje:
       enderecos: agruparPorCliente(dados.enderecos).get(clienteId) ?? [],
     },
     hoje,
+    { verPedidos: dados.verPedidos },
   );
 }
