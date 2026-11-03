@@ -65,9 +65,9 @@ describe('O-3: ponto único da opção promotor_ve_pedidos', () => {
     expect(await promotorVePedidos(contexto('promotor').ctx)).toBe(true);
   });
 
-  it('O-3: no pull o comTenant não entrega tx (sem consultar): vale o padrão de fábrica LIGADA, sem quebrar', async () => {
+  it('O-3: comTenant sem tx.consultar é erro de montagem (não vira ligado silencioso)', async () => {
     const ctx = { usuario: { perfil: 'promotor' }, comTenant: async (fn: (db: unknown) => unknown) => fn({}) };
-    expect(await promotorVePedidos(ctx as never)).toBe(true);
+    await expect(promotorVePedidos(ctx as never)).rejects.toThrow(/Montagem/);
   });
 
   it('O-3: a opção só é consultada para o promotor (vendedor e supervisor não mudam)', async () => {

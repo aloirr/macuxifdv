@@ -26,3 +26,4 @@
 2026-11-03 — T-0061 — promotor_ve_pedidos: API consulta core.promotor_ve_pedidos@1 a cada requisição (lista/detalhe/pull 403 se desligada); testes unit + db 5434
 2026-11-03 — T-0065 — vendedor.pedidos_da_meta@1 publicada (contrato, domain, API, manifest ofereceConsultas); testes unit + db 5434
 2026-11-03 — T-0061 — corrige main vermelho: pull do promotor sem tx.consultar usa padrão ligada (teste explícito); manifest coerente; testes 5434 e typecheck verdes
+2026-11-03 — T-0061 — opcao-promotor sem padrão 'ligada sem tx.consultar' (erro de montagem); ctx falsos com tx.consultar; pull com opção desligada/ligada testado

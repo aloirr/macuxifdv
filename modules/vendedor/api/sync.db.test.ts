@@ -14,6 +14,7 @@ import {
   type PedidoPull,
   type UsuarioAutenticado,
 } from '@macuxi/platform-sdk';
+import { CONSULTA_PROMOTOR_VE_PEDIDOS } from '@macuxi/core/contracts';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import manifest from '../manifest';
@@ -29,6 +30,8 @@ const ANTIGO_ABERTO = '0e100000-0000-4000-8000-000000000002'; // 200 dias, aprov
 
 describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres (RLS)', () => {
   let pool: pg.Pool;
+  /** Core simulado: opção `promotor_ve_pedidos` (core.promotor_ve_pedidos@1) lida a cada pull. */
+  let opcaoPromotor = true;
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: banco().urlApp, max: 4 });
@@ -54,7 +57,15 @@ describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres 
   ): ContextoBase {
     return {
       usuario,
-      comTenant: (fn: (db: pg.ClientBase) => Promise<unknown>) => comTenant(pool, usuario.tenant_id, (c) => fn(c)),
+      comTenant: (fn: (db: pg.ClientBase, tx: unknown) => Promise<unknown>) =>
+        comTenant(pool, usuario.tenant_id, (c) =>
+          fn(c, {
+            consultar: async (def: { nome: string }) => {
+              if (def.nome === CONSULTA_PROMOTOR_VE_PEDIDOS.nome) return { ligado: opcaoPromotor };
+              throw new Error(`Consulta não simulada: ${def.nome}`);
+            },
+          }),
+        ),
       usuariosVisiveis: async () => visiveis,
       carteira: async () => carteira,
     } as unknown as ContextoBase;
@@ -118,6 +129,23 @@ describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres 
     // item segue o pedido pai: só os 2 itens de p1
     const itens = (await puxar(provedorItem, c)) as unknown as { pedido_id: string }[];
     expect(itens.map((i) => i.pedido_id)).toEqual([A.pedidos.p1, A.pedidos.p1]);
+  });
+
+  it('O-3: opção promotor_ve_pedidos DESLIGADA = o promotor não recebe pedido nenhum (nem item), mesmo com carteira', async () => {
+    opcaoPromotor = false;
+    try {
+      const c = ctx(promotor, 'tenant', new Set([A.clientes.c1]));
+      expect(await puxar(provedorPedido, c)).toEqual([]);
+      expect(await puxar(provedorItem, c)).toEqual([]);
+    } finally {
+      opcaoPromotor = true;
+    }
+  });
+
+  it('O-3: opção LIGADA = o promotor recebe só os pedidos da carteira (nunca c2/c3)', async () => {
+    opcaoPromotor = true;
+    const linhas = await puxar(provedorPedido, ctx(promotor, 'tenant', new Set([A.clientes.c1])));
+    expect(ids(linhas)).toEqual([A.pedidos.p1, ANTIGO_ABERTO].sort());
   });
 
   it('promotor com carteira vazia não recebe nada (não cai no tenant inteiro)', async () => {
