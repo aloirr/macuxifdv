@@ -15,6 +15,7 @@ import {
   ClienteContatoSyncSchema,
   ClienteFinanceiroSyncSchema,
   ClienteSyncSchema,
+  MedidaSyncSchema,
   ProdutoUnidadeSyncSchema,
   ClienteEnderecoSyncSchema,
   CheckinVisitaSchema,
@@ -73,7 +74,8 @@ export const TABELAS_SYNC = {
     // vigentes e encerradas há ≤ 40 dias
     janela: "(fim is null or fim >= {{hoje}} - 40)",
   },
-  produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, ativo', colunaCliente: null },
+  produto: { tabela: 'core.produto', colunas: 'sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, ativo', colunaCliente: null },
+  medida: { tabela: 'core.medida', colunas: 'sigla, descricao, ativo', colunaCliente: null },
   produto_unidade: { tabela: 'core.produto_unidade', colunas: 'produto_id, unidade, fator, ean, padrao, ativo', colunaCliente: null },
   cliente_endereco: {
     tabela: 'core.cliente_endereco',
@@ -197,6 +199,7 @@ const pull = (nome: string, schema: Parameters<typeof definirEntidadeSync>[0]['s
 export const entidadeCliente = pull('cliente', ClienteSyncSchema);
 export const entidadeCarteira = pull('carteira', CarteiraSyncSchema);
 export const entidadeProduto = pull('produto', ProdutoSyncSchema);
+export const entidadeMedida = pull('medida', MedidaSyncSchema);
 export const entidadeProdutoUnidade = pull('produto_unidade', ProdutoUnidadeSyncSchema);
 export const entidadeClienteEndereco = pull('cliente_endereco', ClienteEnderecoSyncSchema);
 export const entidadeClienteContato = pull('cliente_contato', ClienteContatoSyncSchema);
@@ -231,6 +234,7 @@ export const provedoresSyncCore: readonly ProvedorSync[] = [
   { entidade: entidadeCliente, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente) },
   { entidade: entidadeCarteira, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.carteira) },
   { entidade: entidadeProduto, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto) },
+  { entidade: entidadeMedida, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.medida) },
   { entidade: entidadeProdutoUnidade, escopo: 'tenant', puxar: puxarDe(TABELAS_SYNC.produto_unidade) },
   { entidade: entidadeClienteEndereco, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_endereco) },
   { entidade: entidadeClienteContato, escopo: 'carteira', puxar: puxarDe(TABELAS_SYNC.cliente_contato) },
