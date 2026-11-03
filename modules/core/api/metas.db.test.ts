@@ -151,11 +151,14 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     }
   });
 
-  it('escopo de equipe (RN-CORE-04): vendedor vê só a si; supervisor não enxerga nem define meta de outra equipe', async () => {
+  it('escopo de equipe (RN-CORE-04): vendedor vê só a si; supervisor não enxerga a equipe de outro e, a edição fora da equipe é 403', async () => {
     const meus = await chamar('GET', 'indicadores', vendedor1, { query: { periodo: PERIODO } });
     expect(meus.itens.map((i: { usuario_id: string }) => i.usuario_id)).toEqual([U.vendedor1]);
     await expect(chamar('GET', 'indicadores', supervisor, { query: { periodo: PERIODO, usuario_id: U.vendedor2 } })).rejects.toBeInstanceOf(ErroNaoEncontrado);
-    await expect(chamar('PUT', 'metas/:usuarioId/:periodo', supervisor, { params: { usuarioId: U.vendedor2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 3 } })).rejects.toBeInstanceOf(ErroNaoEncontrado);
+    // T-0068: a guarda de edição (RN-CORE-20) responde 403 META_FORA_DA_EQUIPE para usuário do mesmo tenant fora da equipe; 404 fica para inexistente/outro tenant (RLS)
+    const fora = await chamar('PUT', 'metas/:usuarioId/:periodo', supervisor, { params: { usuarioId: U.vendedor2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 3 } }).catch((x: unknown) => x);
+    expect((fora as { status?: number }).status).toBe(403);
+    expect((fora as { codigo?: string }).codigo).toBe('META_FORA_DA_EQUIPE');
     const lista = await chamar('GET', 'metas', vendedor1, { query: { periodo: PERIODO } });
     expect(lista.itens.every((m: { usuario_id: string }) => m.usuario_id === U.vendedor1)).toBe(true);
   });
@@ -257,7 +260,7 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     });
 
     it('RN-CORE-21: o painel traz 4 indicadores por vendedor com meta, tipo, realizado e atingimento da mesma apuração de /indicadores, e editavel por perfil', async () => {
-      await chamar('PUT', PUT, gerente, { params: alvo(U.vendedor1), corpo: { indicador: 'venda_cents', valor: 100000 } });
+      await chamar('PUT', PUT, gerente, { params: alvo(U.vendedor1), corpo: { indicador: 'venda_cents', valor: 100000, tipo: 'pedido' } });
       const painel = await chamar('GET', 'metas/painel', gerente, { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
       const ind = await chamar('GET', 'indicadores', gerente, { query: { periodo: PERIODO, usuario_id: U.vendedor1 } });
       const linhas = painel.linhas.filter((l: { usuario_id: string }) => l.usuario_id === U.vendedor1);
@@ -282,6 +285,8 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     it('RN-CORE-20: copiar do mês anterior leva as metas editáveis, não sobrescreve as existentes e audita; supervisor não copia a equipe de outro', async () => {
       const anterior = new Date(Date.UTC(Number(PERIODO.slice(0, 4)), Number(PERIODO.slice(5)) - 2, 1)).toISOString().slice(0, 7);
       try {
+        // isola o destino: testes anteriores do arquivo já gravaram positivacao/visitas do vendedor 1 em PERIODO
+        await comTenant(pool, A.tenantId, (c) => c.query("delete from core.meta where usuario_id = $1 and periodo = $2 and indicador in ('visitas', 'positivacao')", [U.vendedor1, PERIODO]));
         await chamar('PUT', PUT, gerente, { params: { usuarioId: U.vendedor1, periodo: anterior }, corpo: { indicador: 'visitas', valor: 33 } });
         await chamar('PUT', PUT, gerente, { params: { usuarioId: U.vendedor1, periodo: anterior }, corpo: { indicador: 'positivacao', valor: 8 } });
         await chamar('PUT', PUT, gerente, { params: alvo(U.vendedor1), corpo: { indicador: 'visitas', valor: 44 } });
