@@ -17,7 +17,11 @@ const padrao: LeitorOpcaoPromotor = async (ctx) => {
   const c = ctx as ContextoBase & { comTenant?: unknown };
   if (typeof c.comTenant !== 'function') return PROMOTOR_VE_PEDIDOS_PADRAO;
   try {
-    return await ctx.comTenant(async (_db, tx) => (await tx.consultar(CONSULTA_PROMOTOR_VE_PEDIDOS, {})).ligado);
+    // O comTenant do PULL (provedor de sync) não entrega `tx`: sem `consultar`, vale o padrão de fábrica (ligada).
+    // Pendente: recado ao engenheiro-software pedindo `tx` no comTenant do pull.
+    return await ctx.comTenant(async (_db, tx) =>
+      typeof tx?.consultar === 'function' ? (await tx.consultar(CONSULTA_PROMOTOR_VE_PEDIDOS, {})).ligado : PROMOTOR_VE_PEDIDOS_PADRAO,
+    );
   } catch (e) {
     if (ehConsultaIndisponivel(e)) return PROMOTOR_VE_PEDIDOS_PADRAO;
     throw e;

@@ -74,6 +74,8 @@ const TABELAS_GESTOR = ['gestor.evento_aplicado', 'gestor.projecao_fato', 'gesto
 const TABELAS_TREINAMENTO = [...ORDEM_TREINAMENTO];
 /** Tabelas novas da 0018 (T-0063, medidas). */
 const TABELAS_0018 = ['core.medida'] as const;
+/** Tabelas novas da 0019 (T-0066, notas do ERP; a 0019 também traz core.meta.tipo da T-0065). */
+const TABELAS_0019 = ['core.nota_erp'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -109,6 +111,7 @@ describe('migrações (estático)', () => {
     expect(nomes[15]).toBe('0016_pesquisa');
     expect(nomes[16]).toBe('0017_treinamento');
     expect(nomes[17]).toBe('0018_medidas');
+    expect(nomes[18]).toBe('0019_core_nota_erp_meta_tipo');
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -142,6 +145,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0013,
         ...TABELAS_GESTOR,
         ...TABELAS_0018,
+        ...TABELAS_0019,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,

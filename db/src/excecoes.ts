@@ -25,6 +25,8 @@ export const TABELAS_FORA_DO_SYNC = [
   'catalogo.uso_ia',
   /** Log de busca (0013, RF-CAT-07): só o BKO lê (termos sem resultado). */
   'catalogo.busca_log',
+  /** Notas do ERP (0019, T-0066): base do recálculo de core.historico_compra; só o resumo vai ao aparelho. */
+  'core.nota_erp',
   /** Hub de Integração (0010, T-0032): nada do schema integracao vai ao aparelho (o que o app vê chega pelos eventos). */
   'integracao.conector',
   'integracao.credencial',

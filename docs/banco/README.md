@@ -33,6 +33,9 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `quantidade_unidades` derivados de `unidade`/`fator`/`quantidade` por gatilho que sempre sobrescreve + CHECKs; embalagem do
 > produto de 2 a 9999; sigla fora do formato em produto aborta com tenant e sigla, em item antigo vira medida nula); dicionário em [core.md](core.md) e [vendedor.md](vendedor.md); seed da demo em
 > `db/seeds/demo/medidas.ts` (`gravarDemoMedidas`). **Depende da `0016` e da `0017` na pasta** (o executor recusa buraco).
+> **2026-11-03 (T-0066 e T-0065):** `0019_core_nota_erp_meta_tipo` (aditiva: `core.nota_erp` — notas de faturamento/devolução do ERP,
+> base idempotente do recálculo de `historico_compra`, fora do pull, único vivo por `external_id` e índices por cliente/mês e por mês —
+> e `core.meta.tipo` `pedido | faturamento`, padrão `pedido`, RN-CORE-21); dicionário em [core.md](core.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

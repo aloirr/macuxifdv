@@ -355,3 +355,4 @@ export type SyncPushResult = z.infer<typeof SyncPushResult>;
 /** `GET /v1/vendedor/pedidos`: página com cursor `(created_at desc, id)` (T-0029 §6). */
 export const PedidosPage = z.object({ itens: z.array(Order), proximo_cursor: z.string().nullable() });
 export type PedidosPage = z.infer<typeof PedidosPage>;
+export * from './pedidos-da-meta';

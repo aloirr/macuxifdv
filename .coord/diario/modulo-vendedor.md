@@ -24,3 +24,5 @@
 2026-11-02 — T-0064 — PDFs (limite de 20 s com erro amigável, CNPJ formatado, nome da tabela e da distribuidora, coluna Medida, frete CIF/FOB), vendedor no card de aprovação do BKO, lista do Campo por mês com mudança de status e seletor de mês, pedido_numero em status_alterado@1 e aprovacao_solicitada@1; timers do Vendedor já limpos na T-0054
 2026-11-03 — T-0061 — O-3: opção promotor_ve_pedidos (padrão ligada) — podeLerPedidos no domain, ponto único promotorVePedidos(ctx) na API; lista, detalhe e pull de pedido/item/evento do promotor testados ligada e desligada; escrita segue 403
 2026-11-03 — T-0061 — promotor_ve_pedidos: API consulta core.promotor_ve_pedidos@1 a cada requisição (lista/detalhe/pull 403 se desligada); testes unit + db 5434
+2026-11-03 — T-0065 — vendedor.pedidos_da_meta@1 publicada (contrato, domain, API, manifest ofereceConsultas); testes unit + db 5434
+2026-11-03 — T-0061 — corrige main vermelho: pull do promotor sem tx.consultar usa padrão ligada (teste explícito); manifest coerente; testes 5434 e typecheck verdes
