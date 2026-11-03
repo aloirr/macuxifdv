@@ -118,12 +118,17 @@ describe.skipIf(semBanco())('T-0061 — opção promotor_ve_pedidos pela consult
     vendedorB = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
     const c = await api.admin.connect();
     try {
-      const ins = 'insert into vendedor.pedido (id, tenant_id, cliente_id, vendedor_id, autor_id, status) values ($1, $2, $3, $4, $4, $5)';
+      // Fixture nasce ANTES do horizonte seguro do pull (`updated_at < now() − 2 s`, apps/api/src/banco.ts, desenho T-0004 §5):
+      // no runner do CI o arquivo inteiro roda em ~1,5 s, e um pedido com updated_at = now() ainda não sai no pull.
+      // Retroagir created_at/updated_at 1 h (também abaixo de transação aberta de outro arquivo, que entra no horizonte;
+      // a janela de 90 dias segue cobrindo) deixa o pull determinístico sem espera.
+      const ins =
+        "insert into vendedor.pedido (id, tenant_id, cliente_id, vendedor_id, autor_id, status, created_at, updated_at) values ($1, $2, $3, $4, $4, $5, now() - interval '1 hour', now() - interval '1 hour')";
       await c.query(ins, [PED.c1, A.tenantId, A.clientes.c1, A.usuarios.vendedor1, 'received']);
       await c.query(ins, [PED.c2, A.tenantId, A.clientes.c2, A.usuarios.vendedor2, 'received']);
       await c.query(ins, [PED.b1, B.tenantId, B.clientes.c1, B.usuarios.vendedor, 'received']);
       const item =
-        'insert into vendedor.pedido_item (id, tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, total_cents) values ($1, $2, $3, 1, $4, 2, 1000, 1000, 2000)';
+        "insert into vendedor.pedido_item (id, tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, total_cents, created_at, updated_at) values ($1, $2, $3, 1, $4, 2, 1000, 1000, 2000, now() - interval '1 hour', now() - interval '1 hour')";
       await c.query(item, [ITEM_C1, A.tenantId, PED.c1, A.produtos.p1]);
       await c.query(item, [ITEM_C2, A.tenantId, PED.c2, A.produtos.p1]);
     } finally {
