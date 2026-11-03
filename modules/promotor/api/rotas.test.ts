@@ -25,7 +25,7 @@ describe('permissões e licença das rotas (regra 6)', () => {
     PERFIS.filter((perfil) => criarPermissoes([manifest]).pode(acao, { perfil, modulosAtivos: ativos as never }));
 
   it('toda rota de escrita tem ação do manifesto que só o promotor executa', () => {
-    const escrita = api.rotas!.filter((r) => r.metodo !== 'GET');
+    const escrita = api.rotas!.filter((r) => r.metodo !== 'GET' && !r.caminho.startsWith('cadastros/'));
     expect(escrita.length).toBe(11);
     for (const r of escrita) expect(quem(r.acao!), `${r.metodo} ${r.caminho}`).toEqual(['promotor']);
   });

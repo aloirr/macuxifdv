@@ -8,8 +8,10 @@
  * SQL de referência: docs/banco/promotor.md ("SQL da RepositorioPromotor"). Sem dado pessoal em log nem em erro.
  */
 import { ErroHttpModulo } from '@macuxi/platform-sdk';
+import type { CadastroBko } from '../contracts';
 import type { ColetaDaVisita, VisitaLojaGuardada } from '../domain';
-import type { ColetaGuardada, FiltroVisitas, RepositorioPromotor, SessaoTenant } from './repositorio';
+import type { ColetaGuardada, FiltroVisitas, LinhaCadastro, RepositorioPromotor, SessaoTenant } from './repositorio';
+import { COLUNAS_BASE, TABELAS_CADASTRO } from './sync-cadastros';
 
 /** Entidade de coleta → tabela do schema `promotor` (lista fechada; interpolada no SQL só a partir daqui). */
 export const TABELA_DA_COLETA: Readonly<Record<ColetaDaVisita, string>> = {
@@ -61,8 +63,104 @@ const tabelaDa = (entidade: ColetaDaVisita): string => {
   return t;
 };
 
+/** Colunas EDITÁVEIS de cada cadastro (fixas no código, nunca texto do cliente); `itens` é jsonb. */
+const ALVO_VIGENCIA = ['cliente_id', 'segmento', 'vigencia_inicio', 'vigencia_fim'] as const;
+export const COLUNAS_ESCRITA: Readonly<Record<CadastroBko, readonly string[]>> = {
+  categoria_gondola: ['nome', 'ordem', 'ativo'],
+  checklist_loja: [...ALVO_VIGENCIA, 'nome', 'itens'],
+  mix_obrigatorio: [...ALVO_VIGENCIA, 'produto_id', 'categoria_gondola_id'],
+  meta_share: [...ALVO_VIGENCIA, 'categoria_gondola_id', 'meta_pct'],
+  concorrente: ['nome', 'ativo'],
+  produto_concorrente: ['concorrente_id', 'nome', 'produto_id', 'categoria_gondola_id', 'ativo'],
+};
+const COM_ATIVO: ReadonlySet<CadastroBko> = new Set(['categoria_gondola', 'concorrente', 'produto_concorrente']);
+const ORDEM: Readonly<Record<CadastroBko, string>> = {
+  categoria_gondola: 'ordem, lower(nome), id',
+  checklist_loja: 'lower(nome), vigencia_inicio desc, id',
+  mix_obrigatorio: 'vigencia_inicio desc, id',
+  meta_share: 'vigencia_inicio desc, id',
+  concorrente: 'lower(nome), id',
+  produto_concorrente: 'lower(nome), id',
+};
+/** Índice único violado (23505) → mensagem em português com a ação seguinte. */
+const MENSAGEM_RESTRICAO: Readonly<Record<string, string>> = {
+  categoria_gondola_nome_uk: 'Já existe uma categoria com esse nome.',
+  concorrente_nome_uk: 'Já existe um concorrente com esse nome.',
+  produto_concorrente_nome_uk: 'Esse concorrente já tem um produto com esse nome.',
+  checklist_loja_versao_uk: 'Já existe um checklist para esse alvo com o mesmo início de vigência. Edite o existente ou escolha outro início.',
+  mix_obrigatorio_versao_uk: 'Esse produto já está no mix desse alvo com o mesmo início de vigência.',
+  meta_share_versao_uk: 'Já existe uma meta para essa categoria e esse alvo com o mesmo início de vigência. Edite a existente ou escolha outro início.',
+};
+
+const marcador = (c: string, i: number) => (c === 'itens' ? `$${i}::jsonb` : `$${i}`);
+const valorDaColuna = (c: string, v: unknown) => (c === 'itens' ? JSON.stringify(v ?? []) : (v ?? null));
+
+/** SQL de escrita/leitura de um cadastro (exportado para o teste do texto). `updated_at` é sempre renovado (pull incremental). */
+export function sqlDoCadastro(cadastro: CadastroBko): { inserir: string; atualizar: string; desativar: string; ler: string; listar: (incluirRemovidos: boolean) => string } {
+  const t = TABELAS_CADASTRO[cadastro];
+  const cols = COLUNAS_ESCRITA[cadastro];
+  const selecao = `select ${COLUNAS_BASE}, ${t.colunas} from ${t.tabela} where tenant_id = $1`;
+  return {
+    inserir: `insert into ${t.tabela} (id, tenant_id, ${cols.join(', ')}) values ($1, $2, ${cols.map((c, i) => marcador(c, i + 3)).join(', ')})`,
+    atualizar: `update ${t.tabela} set ${cols.map((c, i) => `${c} = ${marcador(c, i + 3)}`).join(', ')}, updated_at = now() where tenant_id = $1 and id = $2 and deleted_at is null`,
+    desativar: `update ${t.tabela} set deleted_at = now(), updated_at = now()${COM_ATIVO.has(cadastro) ? ', ativo = false' : ''} where tenant_id = $1 and id = $2 and deleted_at is null`,
+    ler: `${selecao} and id = $2`,
+    listar: (incluirRemovidos) => `${selecao}${incluirRemovidos ? '' : ' and deleted_at is null'} order by ${ORDEM[cadastro]}`,
+  };
+}
+
+function traduzirErroDeCadastro(e: unknown): never {
+  const err = e as { code?: string; constraint?: string };
+  if (err.code === '23505') throw new ErroHttpModulo(409, 'CADASTRO_DUPLICADO', (err.constraint && MENSAGEM_RESTRICAO[err.constraint]) || 'Já existe um cadastro igual a este. Revise os dados.');
+  if (err.code === '23503') throw new ErroHttpModulo(422, 'REFERENCIA_INVALIDA', 'A categoria ou o concorrente escolhido não existe mais. Recarregue a tela e escolha outro.');
+  if (err.code === '23514') throw new ErroHttpModulo(422, 'CADASTRO_INVALIDO', 'Os dados não passaram na validação do banco. Revise os campos.');
+  throw e;
+}
+
+/** Lê a linha de volta (já com o `updated_at` do banco) depois de escrever. */
+async function reler(s: SessaoTenant, c: CadastroBko, id: string): Promise<LinhaCadastro> {
+  const r = await s.db.query<LinhaCadastro>(sqlDoCadastro(c).ler, [s.tenant_id, id]);
+  if (!r.rows[0]) throw new ErroHttpModulo(404, 'CADASTRO_NAO_ENCONTRADO', 'Cadastro não encontrado.');
+  return r.rows[0];
+}
+const valores = (c: CadastroBko, dados: Readonly<Record<string, unknown>>) => COLUNAS_ESCRITA[c].map((col) => valorDaColuna(col, dados[col]));
+
 export function criarRepositorioSql(): RepositorioPromotor {
   return {
+    async listarCadastro(s, c, incluirRemovidos) {
+      return (await s.db.query<LinhaCadastro>(sqlDoCadastro(c).listar(incluirRemovidos), [s.tenant_id])).rows;
+    },
+
+    async cadastro(s, c, id) {
+      const r = await s.db.query<LinhaCadastro>(`${sqlDoCadastro(c).ler} for update`, [s.tenant_id, id]);
+      return r.rows[0] ?? null;
+    },
+
+    async inserirCadastro(s, c, dados) {
+      try {
+        await s.db.query(sqlDoCadastro(c).inserir, [String(dados.id), s.tenant_id, ...valores(c, dados)]);
+      } catch (e) {
+        traduzirErroDeCadastro(e);
+      }
+      return reler(s, c, String(dados.id));
+    },
+
+    async atualizarCadastro(s, c, id, dados) {
+      let linhas = 0;
+      try {
+        linhas = (await s.db.query(sqlDoCadastro(c).atualizar, [s.tenant_id, id, ...valores(c, dados)])).rowCount ?? 0;
+      } catch (e) {
+        traduzirErroDeCadastro(e);
+      }
+      if (linhas === 0) throw new ErroHttpModulo(404, 'CADASTRO_NAO_ENCONTRADO', 'Cadastro não encontrado ou já desativado.');
+      return reler(s, c, id);
+    },
+
+    async desativarCadastro(s, c, id) {
+      await s.db.query(sqlDoCadastro(c).desativar, [s.tenant_id, id]);
+      return reler(s, c, id);
+    },
+
     async visita(s: SessaoTenant, id) {
       const r = await s.db.query<LinhaVisita>('select id, promotor_id, payload from promotor.visita_loja where tenant_id = $1 and id = $2 for update', [s.tenant_id, id]);
       return r.rows[0] ? paraVisita(r.rows[0]) : null;

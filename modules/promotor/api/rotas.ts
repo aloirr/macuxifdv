@@ -30,6 +30,7 @@ import {
 } from '../contracts';
 import { relatorioRupturaPorLoja, relatorioShareMeta, visitasQueContam, type ColetaDaVisita, type StatusPresenca } from '../domain';
 import { parametrosDoTenant } from './parametros';
+import { criarRotasCadastros } from './rotas-cadastros';
 import type { Recebimento, ResultadoRecebimento } from './recebimento';
 import type { RepositorioPromotor } from './repositorio';
 
@@ -160,5 +161,5 @@ export function criarRotasPromotor(repo: RepositorioPromotor, recebimento: Receb
     },
   };
 
-  return [visitaLoja, ...coletas, relatorioShare, relatorioRuptura];
+  return [visitaLoja, ...coletas, relatorioShare, relatorioRuptura, ...criarRotasCadastros(repo)];
 }

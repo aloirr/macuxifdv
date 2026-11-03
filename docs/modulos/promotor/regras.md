@@ -107,3 +107,28 @@ Payloads Zod dos seis eventos `promotor.*@1` em `contracts/eventos.ts`; emissão
 - `relatorioShareMeta`: por loja e categoria vale a **última** medição de visita que conta; atingimento e desvio recalculados (RN-PRO-03); resumo = `mediaShare`.
 - `relatorioRupturaPorLoja`: por loja, a **última** visita que conta com o mix conferido (`resumirRuptura`, RN-PRO-05); maior ruptura primeiro.
 - `parametrosDosBrutos` (`parametros.ts`): parâmetros do tenant vindos da API ou do aparelho; valor inválido cai no padrão e nunca derruba a requisição nem a tela.
+
+## 16. Cadastros de trade no BKO — RF-PRO-11, RN-PRO-03/06/10, RN-AUD-01 (`cadastros.ts`, `api/rotas-cadastros.ts`, T-0069)
+Página `trade-cadastros` ("Cadastros de trade", grupo Cadastros) em `modules/promotor/web`: abas Checklists de visita, Categorias, Metas de share, Mix de ruptura e Concorrentes e produtos, mais o bloco **Parâmetros do tenant (somente leitura)** com validade crítica (7 dias), validade em atenção (30 dias) e peso do parcial (0), lidos de `GET /v1/promotor/cadastros/parametros` (`parametrosDoTenant`). Aba e "mostrar desativados" ficam na URL; cada tabela exporta CSV.
+
+**Rotas** (`/v1/promotor/cadastros/<cadastro>`; `categorias`, `checklists`, `metas-share`, `mix`, `concorrentes`, `produtos-concorrente`):
+| Método | Quem | Efeito |
+|---|---|---|
+| `GET` (lista e `parametros`) | supervisor, gerente, analista, admin | lista os vivos; `?incluir_removidos=true` traz também os desativados |
+| `POST` | analista, admin (ação `*.gerenciar` do manifesto) | cria; idempotente pelo `id` do cliente (repetir = mesmo cadastro; mesmo id com outro conteúdo = 409) |
+| `PUT /:id` | analista, admin | edita; reenvio igual não altera nem audita; desativado = 409 |
+| `DELETE /:id` | analista, admin | **desativa** (lógico: `deleted_at`, e `ativo = false` onde existe); nunca apaga; repetir é idempotente |
+Supervisor e gerente recebem 403 na escrita (a ação não os inclui) e a tela esconde Novo/Editar/Desativar para eles. Toda rota passa por login, licença do módulo (`RN-CORE-02`), perfil e tenant do token (RLS). Ações: categoria `categoria_gondola.gerenciar`, checklist `checklist_modelo.gerenciar`, meta `meta_share.gerenciar`, mix `mix_obrigatorio.gerenciar`, concorrente e produto do concorrente `concorrente.gerenciar`.
+
+**Validação (domain `cadastros.ts`, revalidada na API pelo contrato `contracts/cadastros-bko.ts`):**
+- **Meta de share (RN-PRO-03)**: **percentual** (40 = 40%), entre 0 e 100 **inclusive**, até 2 casas (a coluna é `meta_pct numeric(5,2)`). Fora disso, `NaN` ou 3 casas = recusa.
+- **Checklist (RN-PRO-06)**: nome obrigatório, **pelo menos 1 etapa**, cada etapa com nome e id único; quais são obrigatórias é livre (as obrigatórias bloqueiam o checkout).
+- **Alvo (RN-PRO-10)**: loja OU segmento (canal) OU todas as lojas, nunca loja e segmento juntos; **vigência** com fim ≥ início. Duplicidade (mesmo nome entre vivos; mesma versão de alvo+início) = 409 com mensagem em português.
+- Nome obrigatório (categoria/concorrente até 120, produto do concorrente até 200); ordem inteira ≥ 0; `validarPrecoCents` (inteiro ≥ 0, RN-PRO-04) existe no domain para o preço de referência do concorrente, ainda sem coluna (ver pendências).
+- Referências: categoria e concorrente precisam existir e estar vivos; loja e produto são conferidos no Core pela consulta `core.cadastro_resumo@1` (ADR 0012, nenhuma leitura de tabela do Core).
+
+**Auditoria (RN-AUD-01)**: `tx.auditar` na mesma transação, ações `<cadastro>.criar|editar|desativar` (ex.: `meta_share.editar`), com `antes`/`depois` só de ids, números, flags e datas (metas: categoria e `meta_pct`; checklist: nº de etapas e de obrigatórias). Nunca o nome da categoria, do concorrente, do produto nem o texto das etapas.
+
+**Como a promotora recebe**: as escritas usam as MESMAS tabelas que `sync-cadastros.ts` lê no pull (`TABELAS_CADASTRO`) e renovam `updated_at` (gatilho do banco e `updated_at = now()` explícito); a desativação grava `deleted_at` e vira lápide no pull incremental `(updated_at, id)`. Sem migração e sem mexer no provedor de pull. Testes: `api/rotas-cadastros.test.ts` (memória: permissões, validação, idempotência, auditoria, SQL das escritas nas tabelas do pull) e `api/cadastros.db.test.ts` (Postgres: criar/editar/desativar aparecem no pull seguinte, lápide, RLS; pula sem Docker).
+
+**Pendências**: (1) "preço do concorrente": `promotor.produto_concorrente` não tem coluna de preço de referência (o preço vem das coletas, `coleta_preco`); para cadastrar preço no BKO faltaria `preco_referencia_cents bigint check (>= 0)` em `produto_concorrente` (e no `ProdutoConcorrenteSync` do pull). (2) Parâmetros do tenant só leitura; edição fica para outra tarefa. (3) Foto de referência, tarefas de campanha e ponto extra negociado (demais cadastros do pull) ainda sem tela. (4) Loja e produto são digitados por identificador, até existir seletor do Core no BKO.
