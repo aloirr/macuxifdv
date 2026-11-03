@@ -7,6 +7,7 @@
     },
     "campo": {
       "extends": "base",
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
       "env": { "APP_VARIANT": "campo", "EXPO_PUBLIC_API_URL": "https://api-demo.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "desenvolvimento" },
@@ -14,6 +15,7 @@
     },
     "gestao": {
       "extends": "base",
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
       "env": { "APP_VARIANT": "gestao", "EXPO_PUBLIC_API_URL": "https://api-demo.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "desenvolvimento" },
@@ -21,24 +23,28 @@
     },
     "campo-preview": {
       "extends": "base",
+      "environment": "preview",
       "distribution": "internal",
       "env": { "APP_VARIANT": "campo", "EXPO_PUBLIC_API_URL": "https://api-demo.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "preview" },
       "android": { "buildType": "apk" }
     },
     "gestao-preview": {
       "extends": "base",
+      "environment": "preview",
       "distribution": "internal",
       "env": { "APP_VARIANT": "gestao", "EXPO_PUBLIC_API_URL": "https://api-demo.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "preview" },
       "android": { "buildType": "apk" }
     },
     "campo-producao": {
       "extends": "base",
+      "environment": "production",
       "env": { "APP_VARIANT": "campo", "EXPO_PUBLIC_API_URL": "https://api.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "producao" },
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" }
     },
     "gestao-producao": {
       "extends": "base",
+      "environment": "production",
       "env": { "APP_VARIANT": "gestao", "EXPO_PUBLIC_API_URL": "https://api.macuxifdv.com.br/v1", "EXPO_PUBLIC_PERFIL_BUILD": "producao" },
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" }
