@@ -19,6 +19,7 @@
  *     `throw new ErroHttpModulo(423, 'USUARIO_BLOQUEADO', 'mensagem')`.
  */
 import type { z } from 'zod';
+import type { ErroApi } from './acesso';
 import type { MetodoHttp } from './ambiente';
 import type { NovoArquivo } from './arquivos';
 import { problemasApiConector, type ApiConector } from './conector';
@@ -224,7 +225,54 @@ export interface RotaModulo<
   params?: P;
   /** Status de sucesso (padrão 200; 201/204 em criação/remoção). */
   status?: number;
+  /**
+   * Teto de bytes do corpo desta rota (só em rota com corpo, ou seja, não GET). Padrão `LIMITE_CORPO_ROTA_PADRAO` (1 MiB);
+   * máximo `LIMITE_CORPO_ROTA_MAX` (32 MiB). Use em rota que recebe arquivo no JSON (ex.: CSV da carga por arquivo,
+   * RF-INT-03). Acima do teto a API responde 413 `CORPO_GRANDE_DEMAIS` "Arquivo grande demais: o limite é X MB."
+   * (`detalhes.limite_bytes`) antes de ler o JSON e antes do `executar`. Corpo acima do padrão só é lido com o cabeçalho
+   * `Authorization` presente (sem ele: 401 sem ler o corpo).
+   */
+  limiteCorpoBytes?: number;
   executar(ctx: ContextoRota<z.output<C>, z.output<Q>, z.output<P>>): Promise<unknown>;
+}
+
+/** Teto de bytes do corpo das rotas sem `limiteCorpoBytes` (o padrão do Fastify: 1 MiB). */
+export const LIMITE_CORPO_ROTA_PADRAO = 1024 * 1024;
+/** Teto global de `limiteCorpoBytes` numa rota de módulo (32 MiB, o mesmo do lote do Conector, ADR 0013). */
+export const LIMITE_CORPO_ROTA_MAX = 32 * 1024 * 1024;
+/** Código do 413 de corpo acima do limite (bytes ou elementos de array). */
+export const CODIGO_CORPO_GRANDE = 'CORPO_GRANDE_DEMAIS';
+
+/** Bytes em MB para mensagem (base 1024, pt-BR): 1048576 → "1", 1572864 → "1,5", 500 KiB → "0,49". */
+export function megabytesParaMensagem(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  const casas = Number.isInteger(mb) ? 0 : mb >= 1 ? 1 : 2;
+  // sem Intl (o SDK também roda no Hermes): arredonda, tira zeros à direita e usa vírgula decimal
+  return String(Number(mb.toFixed(casas))).replace('.', ',');
+}
+
+/**
+ * Corpo do 413 de corpo acima do limite em bytes (padrão de erro da API: `{ codigo, mensagem, detalhes }`).
+ * `arquivo: true` (rota com `limiteCorpoBytes`, que recebe arquivo) → "Arquivo grande demais: o limite é X MB.";
+ * senão → "Envio grande demais: o limite é X MB. Divida em partes menores.".
+ */
+export function erroCorpoGrande(limiteBytes: number, arquivo: boolean): ErroApi {
+  const mb = megabytesParaMensagem(limiteBytes);
+  return {
+    codigo: CODIGO_CORPO_GRANDE,
+    mensagem: arquivo ? `Arquivo grande demais: o limite é ${mb} MB.` : `Envio grande demais: o limite é ${mb} MB. Divida em partes menores.`,
+    detalhes: { limite_bytes: limiteBytes },
+  };
+}
+
+/** Problemas do `limiteCorpoBytes` de uma rota de módulo (vazio = ok). Usado por `definirModuloApi` e pela montagem da API. */
+export function problemasLimiteCorpo(rotulo: string, r: Pick<RotaModulo, 'metodo' | 'limiteCorpoBytes'>): string[] {
+  if (r.limiteCorpoBytes === undefined) return [];
+  const p: string[] = [];
+  if (!(Number.isInteger(r.limiteCorpoBytes) && r.limiteCorpoBytes > 0 && r.limiteCorpoBytes <= LIMITE_CORPO_ROTA_MAX))
+    p.push(`${rotulo}: limiteCorpoBytes entre 1 e ${LIMITE_CORPO_ROTA_MAX}`);
+  if (r.metodo === 'GET') p.push(`${rotulo}: limiteCorpoBytes só vale em rota com corpo (não GET)`);
+  return p;
 }
 
 /** Página do pull pedida ao módulo: linhas com `(updated_at, id)` > `desde` e `updated_at` < `ate`. */
@@ -537,6 +585,7 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     if (r.acao && ehAcaoDeLeituraDePedido(r.acao) && r.metodo !== 'GET')
       problemas.push(`${rotulo}: ação de leitura ${r.acao} só em GET (RN-PRO-01)`);
     if (r.carteira === undefined) problemas.push(`${rotulo}: declare o escopo de carteira (RN-CORE-04)`);
+    problemas.push(...problemasLimiteCorpo(rotulo, r));
   }
   const entidades = new Set<string>();
   for (const p of m.sync ?? []) {
