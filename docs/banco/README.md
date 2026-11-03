@@ -24,6 +24,10 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-02 (T-0057, nuvem):** `0016_pesquisa` (schema `pesquisa`: questionário, versões, respostas, itens e fotos;
 > RN-PES-01 e RF-PES-04 no banco); dicionário, consultas do repositório SQL e passos de integração em [pesquisa.md](pesquisa.md);
 > seed demo da Pesquisa em `db/seeds/demo/pesquisa.ts` (ligar no `carregarDemo`, ver pesquisa.md).
+> **2026-11-02 (T-0058):** `0017_treinamento` (schema `treinamento`: 14 tabelas — conteúdo, publicação, progresso, tentativas,
+> XP, medalhas e desafio de vendas); dicionário [treinamento.md](treinamento.md); fixture própria (`db/testes/fixture-treinamento.ts`,
+> carregada pelo globalSetup, ids nos grupos 0x170–0x17d) e seed da demo `db/seeds/demo/treinamento.ts` (licença do módulo na demo;
+> ligar no `carregarDemo`, ver treinamento.md).
 > **2026-11-02 (T-0063, nuvem):** `0018_medidas` (`core.medida` com lista inicial em todo tenant, FKs compostas de
 > `produto.unidade`/`embalagem_medida` e `produto_unidade.unidade`, item do pedido com `medida`/`quantidade_embalagem`/
 > `quantidade_unidades` derivados de `unidade`/`fator`/`quantidade` por gatilho que sempre sobrescreve + CHECKs; embalagem do

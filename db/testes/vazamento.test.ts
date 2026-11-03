@@ -10,6 +10,7 @@ import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comTenant } from '../src/contexto';
 import { banco, semBanco } from './estado';
 import { comCliente, emTransacao, erroDe, tabelasComTenant, type TabelaInfo } from './util';
+import { ORDEM_TREINAMENTO } from './fixture-treinamento';
 
 const A = DOIS_TENANTS.A.tenantId;
 const B = DOIS_TENANTS.B.tenantId;
@@ -80,6 +81,8 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
         'promotor.tarefa_execucao',
       ]),
     );
+    // T-0058 (0017): schema treinamento inteiro (fixture própria: testes/fixture-treinamento.ts, carregada no globalSetup)
+    expect(nomes).toEqual(expect.arrayContaining([...ORDEM_TREINAMENTO]));
     // T-0063 (0018): medidas do tenant (lista inicial semeada pelo gatilho em A e B)
     expect(nomes).toEqual(expect.arrayContaining(['core.medida']));
     expect(nomes.filter((n) => !idDeB.has(n))).toEqual([]);

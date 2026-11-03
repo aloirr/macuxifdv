@@ -28,6 +28,11 @@
  * - Metas do mês corrente, indicador diário coerente com os pedidos, motivos extras (os padrões vêm do gatilho
  *   core.semear_tenant) e 2 notificações.
  *
+ * - Módulos em arquivos próprios, gravados na MESMA transação, logo antes do commit: Promotor (promotor.ts, 0015:
+ *   cadastros de trade e visitas de loja da Joana) e Gestor (gestor.ts, 0014: licença para supervisor, gerente,
+ *   analista e admin + projeção montada pelo domain do Gestor) e Pesquisa (pesquisa.ts, 0016: 2 questionários
+ *   publicados e 16 respostas). Por isso a carga exige as migrações até a 0016.
+ *
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
  * `recriar: true` apaga TODAS as linhas do tenant demo (inclusive o que o app gravou no ensaio) e carrega do zero.
@@ -41,6 +46,9 @@ import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/da
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeChave, idDeterministico, idMotivoPadrao, type CodigoMotivoPadrao } from '../../src/ids';
 import { hashSenha, verificarSenha } from '../../src/senha';
+import { carregarDemoGestor } from './gestor';
+import { gravarPesquisaDemo } from './pesquisa';
+import { gravarDemoPromotor } from './promotor';
 
 export const TENANT_DEMO = 'dd000000-0000-4000-8000-000000000001';
 export const CODIGO_DEMO = 'demo';
@@ -1045,6 +1053,12 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
       await gravarLinhas(admin, tabela, linhas);
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }
+    // 0015 (T-0056): cadastros de trade e histórico da Joana (visitas de loja v-pr1/v-pr2), licença do Promotor
+    await gravarDemoPromotor(admin, { hoje: dados['core.rota'][0]!.data as string });
+    // 0016 (T-0057): questionários da Pesquisa (exposição do café e satisfação no checkout), 16 respostas, licença
+    await gravarPesquisaDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
+    // 0014 (T-0055): licença do Gestor (supervisor, gerente, analista, admin) e projeção montada pelo domain do Gestor
+    await carregarDemoGestor(admin, dados);
     await admin.query('commit');
     const usuarios = dados['core.usuario'];
     return {

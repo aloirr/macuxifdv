@@ -6,3 +6,5 @@
 2026-10-31 — T-0010 — ajuste das decisões do Alexandre: FotoColeta com sem_gps, indicador de fotos sem GPS e parciais, parâmetros peso_parcial_conformidade/validade via resolverParametros, regras.md sem premissas abertas
 2026-10-31 — T-0010 (seguimento) — avaliarCheckout consome ContextoCheckout.clienteFechado (RN-CORE-14); regra própria de loja fechada removida do checklist; regras.md e testes atualizados
 2026-11-01 — T-0040 — (registrado pelo gerente; sessão da nuvem) payloads Zod dos eventos promotor.*@1 no main pelo PR #30 (3090263)
+2026-11-02 — T-0056 — repositório SQL do Promotor + pull dos cadastros + preço da Loja iniciados no local; interrompido por duplicação com a sessão da nuvem (R-20261102-190636); testes de banco não rodaram (Docker travado)
+2026-11-02 — T-0056 — alterações locais de modules/promotor devolvidas ao HEAD (api/index.ts, tela-loja.tsx) e arquivos novos apagados, a pedido do gerente, para não conflitar com a sessão da nuvem
