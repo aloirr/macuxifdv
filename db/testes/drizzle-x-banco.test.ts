@@ -10,17 +10,19 @@ import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
 import * as nuvemGestor from '../../modules/gestor/db/nuvem';
 import * as nuvemTreinamento from '../../modules/treinamento/db/nuvem';
+import * as nuvemPromotor from '../../modules/promotor/db/nuvem';
+import * as nuvemPesquisa from '../../modules/pesquisa/db/nuvem';
 import * as esquemaPlataforma from '../esquema/plataforma';
 import { COLUNAS_SEM_ESPELHO_DRIZZLE } from '../src/excecoes';
 import { banco, semBanco } from './estado';
 import { comCliente, tabelasDeDominio } from './util';
 
-const valores: unknown[] = [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor), ...Object.values(nuvemTreinamento)];
-const SCHEMAS = ['plataforma', 'core', 'catalogo', 'vendedor', 'integracao', 'gestor', 'treinamento'];
+const valores: unknown[] = [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor), ...Object.values(nuvemTreinamento), ...Object.values(nuvemPromotor), ...Object.values(nuvemPesquisa)];
+const SCHEMAS = ['plataforma', 'core', 'catalogo', 'vendedor', 'integracao', 'gestor', 'treinamento', 'promotor', 'pesquisa'];
 const tabelas = valores.filter((v): v is PgTable => v instanceof PgTable).map((t) => getTableConfig(t));
 
 describe.skipIf(semBanco())('Drizzle x banco migrado', () => {
-  it('mesmo conjunto de tabelas em plataforma, core, catalogo, vendedor, integracao e gestor', async () => {
+  it('mesmo conjunto de tabelas em plataforma, core, catalogo, vendedor, integracao, gestor, treinamento, promotor e pesquisa', async () => {
     const doBanco = await comCliente(banco().urlAdmin, (c) => tabelasDeDominio(c));
     expect(doBanco.filter((t) => SCHEMAS.includes(t.schema)).map((t) => t.nome).sort()).toEqual(tabelas.map((t) => `${t.schema}.${t.name}`).sort());
   });

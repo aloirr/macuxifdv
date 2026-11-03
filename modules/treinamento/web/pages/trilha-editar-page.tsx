@@ -68,7 +68,7 @@ export function TrilhaEditarPage() {
   const [estado, setEstado] = useState<EditorTrilha | null>(() => (lerIdDaUrl() ? null : novaTrilha(gerarId)));
   const [base, setBase] = useState<BkoTrilhaDetalhe | null>(null);
   const [problemasLocais, setProblemasLocais] = useState<string[]>([]);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<{ texto: string; tom: 'success' | 'warning' } | null>(null);
   const [confirmar, setConfirmar] = useState<'publicar' | 'arquivar' | null>(null);
 
   // carrega (ou recarrega depois de salvar/publicar) o que veio da API
@@ -109,7 +109,7 @@ export function TrilhaEditarPage() {
             window.history.replaceState(window.history.state, '', hrefEditarTrilha(d.id));
             setId(d.id);
           }
-          setAviso(d.problemas_para_publicar.length === 0 ? 'Rascunho salvo. A trilha já pode ser publicada.' : 'Rascunho salvo.');
+          setAviso({ texto: d.problemas_para_publicar.length === 0 ? 'Rascunho salvo. A trilha já pode ser publicada.' : 'Rascunho salvo.', tom: 'success' });
         },
       },
     );
@@ -120,7 +120,7 @@ export function TrilhaEditarPage() {
     const acao = confirmar;
     setConfirmar(null);
     setAviso(null);
-    mudarStatus.mutate({ id: base.id, acao }, { onSuccess: (d) => setAviso(acao === 'arquivar' ? 'Trilha arquivada.' : d.status === 'publicada' ? 'Trilha publicada: já aparece no app do público.' : 'A trilha ainda não pode ser publicada.') });
+    mudarStatus.mutate({ id: base.id, acao }, { onSuccess: (d) => setAviso(acao === 'arquivar' ? { texto: 'Trilha arquivada.', tom: 'success' } : d.status === 'publicada' ? { texto: 'Trilha publicada: já aparece no app do público.', tom: 'success' } : { texto: 'A trilha ainda não pode ser publicada.', tom: 'warning' }) });
   };
 
   const erro = salvar.error ?? mudarStatus.error;
@@ -154,8 +154,8 @@ export function TrilhaEditarPage() {
       />
       {somenteLeitura && <Notice tone="info">{base?.status === 'publicada' ? 'Trilha publicada: só leitura. Para mudar o conteúdo, arquive e crie uma nova trilha.' : 'Trilha arquivada: só leitura.'}</Notice>}
       {aviso && (
-        <Notice tone="success" onClose={() => setAviso(null)}>
-          {aviso}
+        <Notice tone={aviso.tom} onClose={() => setAviso(null)}>
+          {aviso.texto}
         </Notice>
       )}
       {erro && <Notice tone="danger">{errorMessage(erro)}</Notice>}
@@ -206,7 +206,7 @@ export function TrilhaEditarPage() {
         </Panel>
 
         <Panel label="Público-alvo" title="Público-alvo">
-          <span className="text-[13px] text-ink-2">Sem perfil e sem equipe marcados, a trilha vale para toda a empresa. Com os dois, só quem tem o perfil E está numa das equipes.</span>
+          <span className="text-[13px] text-ink-2">Sem perfil marcado, a trilha vale para toda a empresa. Com perfis marcados, só quem tem um deles recebe a trilha.</span>
           <div className="mt-2 flex flex-wrap gap-4 text-[14px]">
             {PERFIS_DO_PUBLICO.map((p) => (
               <label key={p.id} className="flex min-h-[44px] items-center gap-2">
@@ -221,9 +221,6 @@ export function TrilhaEditarPage() {
               </label>
             ))}
           </div>
-          <Campo rotulo="Equipes (ids separados por vírgula; vazio = todas)" className="mt-2">
-            <textarea className={areaTexto} rows={2} value={estado.equipes} onChange={(e) => mudar((x) => ({ ...x, equipes: e.target.value }))} />
-          </Campo>
         </Panel>
 
         {estado.modulos.map((m, mi) => (

@@ -25,14 +25,21 @@
  *   fator (preço próprio da CX preparado, desligado até a consulta de preço filtrar a unidade), árvore de 3 níveis, conteúdo, atributos, sinônimos, documento de busca
  *   do servidor e estoque em 2 depósitos (com rupturas e saldos baixos). Pedidos com CNPJ no retrato, frete e entrega.
  * - Rota de HOJE (no fuso do tenant, calculada na hora do seed): 6 paradas do vendedor, 4 da vendedor2 e 4 do promotor.
- * - Metas do mês corrente, indicador diário coerente com os pedidos, motivos extras (os padrões vêm do gatilho
- *   core.semear_tenant) e 2 notificações.
+ * - Metas do mês corrente (Lucas, Camila e Joana), todas do tipo 'pedido' (0019, RN-CORE-21: a demo não tem faturamento do
+ *   ERP, uma meta de faturamento ficaria zerada), indicador diário coerente com os pedidos, motivos extras (os padrões vêm
+ *   do gatilho core.semear_tenant) e 2 notificações.
+ * - Hierarquia (BKO de usuários, T-0067): Lucas, Camila, Joana e Renata na Equipe Manaus, cuja responsável é a Renata
+ *   (supervisora); a equipe-pai Regional Norte tem o Marcelo (gerente) como responsável — supervisor e gerente de cada
+ *   usuário saem de core.equipe (responsavel_id e equipe_pai_id), sem coluna nova.
+ * - Medidas (medidas.ts, 0018, T-0063/T-0070): UN, CX, FD, LT e BD ativas, as demais da lista inicial inativas, e a caixa
+ *   de embarque de cada produto como embalagem (embalagem_medida/embalagem_quantidade), gravadas dentro do laço.
  *
  * - Módulos em arquivos próprios, gravados na MESMA transação, logo antes do commit: Promotor (promotor.ts, 0015:
  *   cadastros de trade e visitas de loja da Joana) e Gestor (gestor.ts, 0014: licença para supervisor, gerente,
  *   analista e admin + projeção montada pelo domain do Gestor) e Pesquisa (pesquisa.ts, 0016: 2 questionários
  *   publicados e 16 respostas) e Treinamento (treinamento.ts, 0017: licença para os 7 perfis, 3 trilhas, jornada de
- *   Lucas, Camila e Joana e o desafio do mês). Por isso a carga exige as migrações até a 0017.
+ *   Lucas, Camila e Joana e o desafio do mês). Por isso a carga exige as migrações até a 0019 (medidas da 0018 e
+ *   core.meta.tipo da 0019).
  *
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
@@ -48,6 +55,7 @@ import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeChave, idDeterministico, idMotivoPadrao, type CodigoMotivoPadrao } from '../../src/ids';
 import { hashSenha, verificarSenha } from '../../src/senha';
 import { carregarDemoGestor } from './gestor';
+import { gravarDemoMedidas } from './medidas';
 import { gravarPesquisaDemo } from './pesquisa';
 import { gravarDemoPromotor } from './promotor';
 import { gravarTreinamentoDemo } from './treinamento';
@@ -57,8 +65,10 @@ export const CODIGO_DEMO = 'demo';
 export const FUSO_DEMO = 'America/Manaus';
 export const SENHA_DEMO_PADRAO = 'demo-macuxi';
 export const MODULOS_DEMO = ['core', 'catalogo', 'vendedor', 'promotor'] as const;
-/** Última migração de que a base depende (T-0029 + 0013: conteúdo do Catálogo, unidades, endereços, frete e cadastro mínimo). */
-const MIGRACAO_MINIMA = '0013_catalogo_vendedor_prevenda';
+/** Última migração de que a base depende (0013: catálogo, unidades, frete; 0018: medidas; 0019: core.meta.tipo). */
+const MIGRACAO_MINIMA = '0019_core_nota_erp_meta_tipo';
+/** Tipo das metas da demo (0019, RN-CORE-21): pedido — sem faturamento do ERP na demo, a de faturamento ficaria zerada. */
+export const TIPO_METAS_DEMO = 'pedido' as const;
 
 const T = TENANT_DEMO;
 const id = (chave: string) => idDeterministico(`demo:${chave}`);
@@ -817,7 +827,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
   }));
 
   const metas: Linha[] = METAS.map(([quem, indicador, valor]) => ({
-    id: id(`meta:${quem}:${periodo}:${indicador}`), tenant_id: T, usuario_id: u(quem), periodo, indicador, valor, ...comuns,
+    id: id(`meta:${quem}:${periodo}:${indicador}`), tenant_id: T, usuario_id: u(quem), periodo, indicador, valor, tipo: TIPO_METAS_DEMO, ...comuns,
   }));
 
   const notificacao = (chave: string, quem: ChaveUsuario, extra: Partial<Linha>): Linha => ({
@@ -1015,6 +1025,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
   if (faltando.length > 0) {
     throw new Error(`[db] base de demo precisa das migrações até a ${MIGRACAO_MINIMA} (falta ${faltando[0]!.t}): rode "banco migrar up" antes.`);
   }
+  const metaTipo = await admin.query("select 1 from information_schema.columns where table_schema = 'core' and table_name = 'meta' and column_name = 'tipo'");
+  if (metaTipo.rowCount === 0) throw new Error(`[db] base de demo precisa das migrações até a ${MIGRACAO_MINIMA} (falta core.meta.tipo): rode "banco migrar up" antes.`);
   await admin.query('begin');
   try {
     if (opcoes.recriar) await apagarTenantDemo(admin);
@@ -1064,6 +1076,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
         );
       }
       await gravarLinhas(admin, tabela, linhas);
+      // 0018 (T-0063): medidas do tenant depois de plataforma.tenant (antes da FK do produto) e embalagens depois de core.produto
+      await gravarDemoMedidas(admin, tabela, dados);
       if (tabela === 'core.usuario') await gravarLinhas(admin, 'core.equipe', dados['core.equipe']);
     }
     // 0015 (T-0056): cadastros de trade e histórico da Joana (visitas de loja v-pr1/v-pr2), licença do Promotor

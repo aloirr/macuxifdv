@@ -6,7 +6,8 @@ visitas de loja, coletas (só metadados das fotos; os binários ficam em `plataf
 cadastros de trade; a licença `promotor` em `plataforma.tenant_modulo`/`perfil_modulo` fica. Pré-condição do down: 0016+ desfeitas.
 Contratos: `modules/promotor/contracts/coletas.ts` (coletas) e `contracts/cadastros.ts` (linhas do pull). Testes:
 `db/testes/promotor.test.ts` (estático + Postgres), `db/testes/seed-demo-promotor.test.ts`. Espelho Drizzle
-(`modules/promotor/db/nuvem.ts`): **pendente** (banco-dados local); o `estatico.test.ts` exclui o schema da comparação Drizzle × SQL.
+(`modules/promotor/db/nuvem.ts`, T-0070): as 20 tabelas, comparadas com a 0015 (`estatico.test.ts`) e com o banco migrado
+(`drizzle-x-banco.test.ts`); listas fechadas `*_BANCO` = CHECKs (`promotor.test.ts`). Colunas derivadas das coletas = somente leitura.
 
 Campos comuns (`id`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id`), RLS ligado e **forçado** com a
 política `isolamento_tenant` (`tenant_id = plataforma.tenant_atual()` no USING e no WITH CHECK, papel `macuxi_app`),
@@ -147,11 +148,11 @@ Ex.: em Manaus (UTC−4) o dia D vai de `D 04:00Z` a `D+1 04:00Z` (exclusivo): c
   transação do `carregarDemo`; exige a 0015, banco local e o tenant demo). Licença Promotor no tenant e para promotor,
   supervisor, gerente, analista e admin (mesmos ids do `demo.ts`; nunca Vendedor para o promotor); 3 categorias (Mercearia,
   Bebidas, Limpeza), mix de 5 produtos, metas de share (gerais + Mercearia da loja 0), checklist com 5 etapas (2 obrigatórias),
-  2 concorrentes e 3 produtos, 1 tarefa de campanha, 1 ponto extra negociado na loja 0, e as visitas de loja da Joana ligadas às
+  2 concorrentes e 4 produtos comparados (um por categoria; o de Bebidas entrou na T-0070 para o BKO de trade da T-0069), 1 tarefa de campanha, 1 ponto extra negociado na loja 0, e as visitas de loja da Joana ligadas às
   visitas `v-pr1` (loja 0) e `v-pr2` (loja 4) do Core com fotos, gôndola, share (domain), ruptura, preços, checklist, validade,
   ponto extra, concorrência e tarefa. Ligar no `demo.ts`: ver a entrega da T-0056 (uma linha no `carregarDemo`, antes do commit).
 - Fixture dois-tenants: `db/seeds/fixtures/promotor.ts` — ver [fixture-dois-tenants.md](fixture-dois-tenants.md) §T-0056.
 
 ## Pendências
-- Espelho Drizzle `modules/promotor/db/nuvem.ts` e, se o app usar, o esquema local `modules/promotor/db/local.ts` (banco-dados local).
+- Esquema local `modules/promotor/db/local.ts`, se o app usar (banco-dados local). O espelho Drizzle da nuvem entrou na T-0070.
 - `criarRepositorioSql()` em `modules/promotor/api` com o SQL acima (modulo-promotor).

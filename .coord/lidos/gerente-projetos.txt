@@ -271,3 +271,10 @@ R-20261103-061628-modulo-catalogo
 R-20261103-063411-modulo-treinamento
 R-20261103-065034-engenheiro-software
 R-20261103-070710-engenheiro-apps
+R-20261103-101138-engenheiro-apps
+R-20261103-101052-engenheiro-apps
+R-20261103-101958-modulo-integracao
+R-20261103-101852-engenheiro-software
+R-20261103-102356-engenheiro-software
+R-20261103-102952-engenheiro-software
+R-20261103-103616-modulo-treinamento

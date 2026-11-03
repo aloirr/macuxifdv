@@ -66,17 +66,6 @@ export function TrilhasPage() {
                 Mês
                 <input type="month" value={f.mes} onChange={(e) => mudar({ mes: e.target.value })} data-testid="treinamento.filtro-mes" className="h-[42px] rounded-xl border border-field bg-surface px-3 text-[14px] text-ink" />
               </label>
-              <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
-                Equipe (id)
-                <input
-                  type="text"
-                  value={f.equipe}
-                  placeholder="Todas do seu escopo"
-                  onChange={(e) => mudar({ equipe: e.target.value.trim() })}
-                  data-testid="treinamento.filtro-equipe"
-                  className="h-[42px] w-[320px] rounded-xl border border-field bg-surface px-3 text-[14px] text-ink"
-                />
-              </label>
             </FilterBar>
           )}
           {aba === 'adesao' && <AbaAdesao />}
@@ -215,7 +204,7 @@ function AbaTrilhas() {
   const q = useTrilhasBko(f, true);
   const status = useMudarStatus();
   const [confirmar, setConfirmar] = useState<{ trilha: BkoTrilhaResumo; acao: 'publicar' | 'arquivar' } | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<{ texto: string; tom: 'success' | 'warning' } | null>(null);
   const itens = q.data ?? [];
   const exportar = () => downloadBlob(new Blob([trilhasParaCsv(itens)], { type: 'text/csv;charset=utf-8' }), 'treinamento_trilhas.csv');
 
@@ -226,7 +215,7 @@ function AbaTrilhas() {
     status.mutate(
       { id: trilha.id, acao },
       {
-        onSuccess: (d) => setAviso(acao === 'arquivar' ? `"${d.titulo}" arquivada.` : d.status === 'publicada' ? `"${d.titulo}" publicada: já aparece no app do público.` : `"${d.titulo}" ainda não pode ser publicada.`),
+        onSuccess: (d) => setAviso(acao === 'arquivar' ? { texto: `"${d.titulo}" arquivada.`, tom: 'success' } : d.status === 'publicada' ? { texto: `"${d.titulo}" publicada: já aparece no app do público.`, tom: 'success' } : { texto: `"${d.titulo}" ainda não pode ser publicada.`, tom: 'warning' }),
       },
     );
   };
@@ -249,8 +238,8 @@ function AbaTrilhas() {
         </Button>
       </FilterBar>
       {aviso && (
-        <Notice tone="success" onClose={() => setAviso(null)}>
-          {aviso}
+        <Notice tone={aviso.tom} onClose={() => setAviso(null)}>
+          {aviso.texto}
         </Notice>
       )}
       {status.isError && <Notice tone="danger">{errorMessage(status.error)}</Notice>}
