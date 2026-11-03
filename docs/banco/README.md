@@ -28,6 +28,11 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > XP, medalhas e desafio de vendas); dicionário [treinamento.md](treinamento.md); fixture própria (`db/testes/fixture-treinamento.ts`,
 > carregada pelo globalSetup, ids nos grupos 0x170–0x17d) e seed da demo `db/seeds/demo/treinamento.ts` (licença do módulo na demo;
 > ligar no `carregarDemo`, ver treinamento.md).
+> **2026-11-02 (T-0063, nuvem):** `0018_medidas` (`core.medida` com lista inicial em todo tenant, FKs compostas de
+> `produto.unidade`/`embalagem_medida` e `produto_unidade.unidade`, item do pedido com `medida`/`quantidade_embalagem`/
+> `quantidade_unidades` derivados de `unidade`/`fator`/`quantidade` por gatilho que sempre sobrescreve + CHECKs; embalagem do
+> produto de 2 a 9999; sigla fora do formato em produto aborta com tenant e sigla, em item antigo vira medida nula); dicionário em [core.md](core.md) e [vendedor.md](vendedor.md); seed da demo em
+> `db/seeds/demo/medidas.ts` (`gravarDemoMedidas`). **Depende da `0016` e da `0017` na pasta** (o executor recusa buraco).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

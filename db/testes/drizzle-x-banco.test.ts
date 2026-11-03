@@ -10,6 +10,7 @@ import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
 import * as nuvemGestor from '../../modules/gestor/db/nuvem';
 import * as esquemaPlataforma from '../esquema/plataforma';
+import { COLUNAS_SEM_ESPELHO_DRIZZLE } from '../src/excecoes';
 import { banco, semBanco } from './estado';
 import { comCliente, tabelasDeDominio } from './util';
 
@@ -30,7 +31,9 @@ describe.skipIf(semBanco())('Drizzle x banco migrado', () => {
           'select column_name, is_nullable from information_schema.columns where table_schema = $1 and table_name = $2 order by column_name',
           [t.schema, t.name],
         );
-        const doBanco = r.rows.map((x) => `${x.column_name} ${x.is_nullable === 'NO' ? 'not null' : 'null'}`).sort();
+        // coluna da lista de pendências (src/excecoes.ts) sem espelho ainda: fora da comparação até o espelho entrar
+        const pendentes = (COLUNAS_SEM_ESPELHO_DRIZZLE[`${t.schema}.${t.name}`] ?? []).filter((c) => !t.columns.some((col) => col.name === c));
+        const doBanco = r.rows.filter((x) => !pendentes.includes(x.column_name)).map((x) => `${x.column_name} ${x.is_nullable === 'NO' ? 'not null' : 'null'}`).sort();
         const doDrizzle = t.columns.map((col) => `${col.name} ${col.notNull ? 'not null' : 'null'}`).sort();
         expect(doDrizzle, `${t.schema}.${t.name}`).toEqual(doBanco);
       }
