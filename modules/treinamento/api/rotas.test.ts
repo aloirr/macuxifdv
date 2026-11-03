@@ -53,13 +53,18 @@ describe('montagem da API (regra 6, ADR 0004)', () => {
     ]);
   });
 
-  it('sem a migração (produção hoje): licença e perfil primeiro, depois 503 TREINAMENTO_INDISPONIVEL; sync não servido', async () => {
+  it('produção: o moduloApi nasce com a fábrica SQL (T-0058) e serve as cinco entidades de sync', () => {
+    expect(apiTreinamento.sync?.map((p) => p.entidade.nome).sort()).toEqual(['medalha_usuario', 'progresso', 'tentativa', 'trilha', 'xp_lancamento']);
+  });
+
+  it('sem fábrica (montagem sem banco): licença e perfil primeiro, depois 503 TREINAMENTO_INDISPONIVEL; sync não servido', async () => {
     const relogio = criarRelogio();
-    expect(apiTreinamento.sync).toBeUndefined();
-    expect((await chamar(apiTreinamento, 'GET', 'jornada', { usuario: U.vera, relogio })).corpo).toMatchObject({ codigo: 'TREINAMENTO_INDISPONIVEL' });
-    expect((await chamar(apiTreinamento, 'GET', 'jornada', { usuario: U.vera, relogio })).status).toBe(503);
-    expect((await chamar(apiTreinamento, 'GET', 'jornada', { usuario: U.vera, relogio, modulos: ['core'] })).status).toBe(403);
-    expect((await chamar(apiTreinamento, 'GET', 'bko/trilhas', { usuario: U.vera, relogio })).corpo).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO' });
+    const semBanco = criarApiTreinamento();
+    expect(semBanco.sync).toBeUndefined();
+    expect((await chamar(semBanco, 'GET', 'jornada', { usuario: U.vera, relogio })).corpo).toMatchObject({ codigo: 'TREINAMENTO_INDISPONIVEL' });
+    expect((await chamar(semBanco, 'GET', 'jornada', { usuario: U.vera, relogio })).status).toBe(503);
+    expect((await chamar(semBanco, 'GET', 'jornada', { usuario: U.vera, relogio, modulos: ['core'] })).status).toBe(403);
+    expect((await chamar(semBanco, 'GET', 'bko/trilhas', { usuario: U.vera, relogio })).corpo).toMatchObject({ codigo: 'PERFIL_SEM_ACESSO' });
   });
 });
 

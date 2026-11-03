@@ -59,6 +59,13 @@ export interface OpcoesContexto {
   visiveis?: ReadonlySet<string> | 'tenant';
   parametros?: Record<string, unknown>;
   registro?: Registro;
+  /**
+   * Banco real (testes `*.db.test.ts`): executa `fn` na transação do tenant, com RLS. Sem isso o `ClienteBanco` é um
+   * objeto vazio (só serve ao repositório em memória).
+   */
+  executor?: <T>(tenant: string, fn: (db: ClienteBanco) => Promise<T>) => Promise<T>;
+  /** Cadastro do Core simulado para `tx.consultar(core.cadastro_resumo@1)` (usuários pedidos por id). */
+  cadastro?: readonly UsuarioTreinamento[];
 }
 
 export const novoRegistro = (): Registro => ({ eventos: [], auditoria: [], avisos: [] });
@@ -76,8 +83,11 @@ export function contexto(o: OpcoesContexto): ContextoBase & { registro: Registro
     async registrarArquivo() {
       throw new Error('o Treinamento não registra arquivo');
     },
-    async consultar() {
-      throw new Error('o Treinamento não consulta outro módulo');
+    async consultar(_def, entrada) {
+      if (!o.cadastro) throw new Error('o Treinamento não consulta outro módulo');
+      const ids = new Set((entrada as { usuario_ids?: string[] }).usuario_ids ?? []);
+      const usuarios = o.cadastro.filter((u) => ids.has(u.id)).map((u) => ({ id: u.id, nome: u.nome, perfil: u.perfil, external_id: null }));
+      return { clientes: [], produtos: [], usuarios } as never;
     },
     async auditar(r) {
       registro.auditoria.push(r);
@@ -89,7 +99,7 @@ export function contexto(o: OpcoesContexto): ContextoBase & { registro: Registro
     dependencias: {},
     requestId: 'req-teste',
     agora: () => o.relogio.agora(),
-    comTenant: (fn) => fn({ tenantId: tenant } as unknown as ClienteBanco, tx),
+    comTenant: (fn) => (o.executor ? o.executor(tenant, (db) => fn(db, tx)) : fn({ tenantId: tenant } as unknown as ClienteBanco, tx)),
     carteira: async () => 'tenant',
     usuariosVisiveis: async () => o.visiveis ?? new Set([o.usuario.id]),
     parametros: () => o.parametros ?? {},
