@@ -137,7 +137,7 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   ['DET-500', 'Detergente líquido 500 ml', 'Brilho', 'Limpeza', 'UN', 239],
   ['SAB-1K', 'Sabão em pó 1 kg', 'Brilho', 'Limpeza', 'UN', 1_290],
   ['DES-2L', 'Desinfetante 2 L', 'Brilho', 'Limpeza', 'UN', 990],
-  ['PAP-4', 'Papel higiênico folha dupla 4 rolos', 'Macio', 'Higiene', 'PC', 849],
+  ['PAP-4', 'Papel higiênico folha dupla 4 rolos', 'Macio', 'Higiene', 'UN', 849],
   ['SBN-90', 'Sabonete 90 g', 'Flor da Mata', 'Higiene', 'UN', 249],
   ['CRD-90', 'Creme dental 90 g', 'Sorriso', 'Higiene', 'UN', 459],
   // 0013 (T-0047): linha automotiva e o detergente de 5 L, para a busca em linguagem natural ("óleo para moto 150
