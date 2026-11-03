@@ -17,6 +17,7 @@ import {
   type RegistroAuditoria,
   type TransacaoTenant,
 } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import type { UsuarioTreinamento } from './repositorio';
 import type { BancoTreinamentoMemoria } from './memoria';
@@ -66,6 +67,10 @@ export interface OpcoesContexto {
   executor?: <T>(tenant: string, fn: (db: ClienteBanco) => Promise<T>) => Promise<T>;
   /** Cadastro do Core simulado para `tx.consultar(core.cadastro_resumo@1)` (usuários pedidos por id). */
   cadastro?: readonly UsuarioTreinamento[];
+  /** Tenant inteiro devolvido por `core.usuarios_resumo@1` (paginado pelo cursor); ausente = consulta indisponível. */
+  usuariosCore?: readonly UsuarioTreinamento[];
+  /** Tamanho da página simulada de `core.usuarios_resumo@1` (teste de cursor). */
+  paginaCore?: number;
 }
 
 export const novoRegistro = (): Registro => ({ eventos: [], auditoria: [], avisos: [] });
@@ -83,7 +88,16 @@ export function contexto(o: OpcoesContexto): ContextoBase & { registro: Registro
     async registrarArquivo() {
       throw new Error('o Treinamento não registra arquivo');
     },
-    async consultar(_def, entrada) {
+    async consultar(def, entrada) {
+      if (def.nome === 'core.usuarios_resumo@1') {
+        if (!o.usuariosCore) throw new ConsultaIndisponivel(def.nome, 'core');
+        const { apos_id, limite } = entrada as { apos_id?: string; limite: number };
+        const todos = [...o.usuariosCore].sort((a, b) => a.id.localeCompare(b.id));
+        const resto = apos_id ? todos.filter((u) => u.id > apos_id) : todos;
+        const n = Math.min(limite, o.paginaCore ?? limite);
+        const pagina = resto.slice(0, n);
+        return { usuarios: pagina, proximo_cursor: resto.length > n ? pagina[pagina.length - 1]!.id : null } as never;
+      }
       if (!o.cadastro) throw new Error('o Treinamento não consulta outro módulo');
       const ids = new Set((entrada as { usuario_ids?: string[] }).usuario_ids ?? []);
       const usuarios = o.cadastro.filter((u) => ids.has(u.id)).map((u) => ({ id: u.id, nome: u.nome, perfil: u.perfil, external_id: null }));

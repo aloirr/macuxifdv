@@ -19,7 +19,7 @@ import { BkoTrilhaDetalhe, RankingResposta } from '../contracts/api';
 import { TrilhaEdicao, TrilhaSyncLinha } from '../contracts/conteudo';
 import { EVENTO_LICAO_CONCLUIDA, EVENTO_MEDALHA_CONQUISTADA } from '../contracts/eventos';
 import { AtividadeEnvio, XpLancamentoSyncLinha } from '../contracts/sync';
-import { chamar, contexto, novoRegistro, uuid, type OpcoesContexto, type Registro } from './apoio-teste';
+import { chamar, contexto, novoRegistro, U, uuid, type OpcoesContexto, type Registro } from './apoio-teste';
 import { IDS, licaoEnvio, quizEnvio, trilhaEdicao } from './fixtures-teste';
 import { criarApiTreinamento } from './index';
 import { criarFabricaPostgres } from './repositorio-postgres';
@@ -59,12 +59,29 @@ describe('o repositório SQL nunca atualiza nem apaga dado do aluno (append-only
   });
 });
 
-describe('base de usuários do painel (RF-TRE-05)', () => {
-  const doTenant = (f: ReturnType<typeof criarFabricaPostgres>) => f.doTenant({ query: async () => ({ rows: [], rowCount: 0 }) } as unknown as ClienteBanco, 'x', () => new Date());
-  it('RF-TRE-05: sem a consulta de usuários do Core a base é parcial (o painel avisa); com fonte completa não', () => {
-    expect(doTenant(criarFabricaPostgres()).usuariosCompletos).toBe(false);
-    const completa = Object.assign(async () => [], { completa: true });
-    expect(doTenant(criarFabricaPostgres({ usuarios: completa })).usuariosCompletos).toBe(true);
+describe('base de usuários do painel (RF-TRE-05, RN-TRE-07)', () => {
+  const db = { query: async () => ({ rows: [], rowCount: 0 }) } as unknown as ClienteBanco;
+  const mk = (n: number): UsuarioTreinamento => ({ id: uuid(n, '0e600000'), nome: `U${n}`, perfil: 'vendedor', equipe_id: null, regional_id: null, ativo: true });
+  const relogio = criarRelogio({ fuso: A.fuso });
+  const repoCom = (o: Parameters<typeof contexto>[0]) => {
+    const ctx = contexto(o);
+    let repo!: ReturnType<ReturnType<typeof criarFabricaPostgres>['doTenant']>;
+    return ctx.comTenant(async (_d, tx) => {
+      repo = criarFabricaPostgres().doTenant(db, 'x', () => new Date(), tx);
+      return repo;
+    }).then(async (r) => ({ repo: r, antes: r.usuariosCompletos }));
+  };
+  it('RN-TRE-07: consulta do Core responde → tenant inteiro (paginado pelo cursor) e base_parcial=false', async () => {
+    const todos = [1, 2, 3, 4, 5].map(mk);
+    const { repo, antes } = await repoCom({ usuario: U.ana, relogio, usuariosCore: todos, paginaCore: 2 });
+    expect(antes).toBe(false);
+    expect((await repo.usuarios()).map((u) => u.id)).toEqual(todos.map((u) => u.id));
+    expect(repo.usuariosCompletos).toBe(true);
+  });
+  it('RF-TRE-05: consulta indisponível → só quem tem atividade (cadastro_resumo) e base_parcial=true', async () => {
+    const { repo } = await repoCom({ usuario: U.ana, relogio, cadastro: [] });
+    expect(await repo.usuarios()).toEqual([]);
+    expect(repo.usuariosCompletos).toBe(false);
   });
 });
 
@@ -147,7 +164,7 @@ describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A 
   // ---------------------------------------------------------------------------------------------------------------
   describe('BKO: trilha, árvore e linha do tempo (RF-TRE-01)', () => {
     it('RF-TRE-01: criar grava a árvore e ler devolve a mesma trilha; repetir o POST (id do cliente) não duplica', async () => {
-      const relogio = relogioDe('A');
+      const relogio = criarRelogio({ fuso: A.fuso });
       const c = CONF.A.conteudo;
       const corpo = TrilhaEdicao.parse({
         id: uuid(901, c),
@@ -197,7 +214,7 @@ describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A 
     });
 
     it('RF-TRE-01: editar o rascunho TROCA a árvore (sem nó órfão) e o updated_at da trilha sobe; publicada não é editada', async () => {
-      const relogio = relogioDe('A');
+      const relogio = criarRelogio({ fuso: A.fuso });
       const id = uuid(801, CONF.A.conteudo);
       const m1 = uuid(802, CONF.A.conteudo);
       const l1 = uuid(803, CONF.A.conteudo);
@@ -224,7 +241,7 @@ describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A 
     });
 
     it('RN-AUD-01: publicar e arquivar gravam a linha do tempo (trilha_publicacao); repetir a ação não grava linha nova', async () => {
-      const relogio = relogioDe('A');
+      const relogio = criarRelogio({ fuso: A.fuso });
       const { corpo, publicada } = await criarEPublicar('A', PESSOAS.A.bko, relogio, unica('A', 701));
       void corpo;
       expect(publicada).toMatchObject({ status: 'publicada', publicada_em: relogio.iso() });
@@ -247,7 +264,7 @@ describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A 
   // ---------------------------------------------------------------------------------------------------------------
   describe('pull com cursor (updated_at, id)', () => {
     it('ADR 0009: trilhasDesde pagina sem repetir nem pular (cursor em microssegundos) e respeita o horizonte `ate`', async () => {
-      const relogio = relogioDe('A');
+      const relogio = criarRelogio({ fuso: A.fuso });
       for (const n of [610, 620, 630]) await criarEPublicar('A', PESSOAS.A.bko, relogio, unica('A', n * 10));
       const fabrica = criarFabricaPostgres();
       const doBanco = await comTenant(pool, A.tenantId, (c) => relogioDoBanco(c));
@@ -270,7 +287,7 @@ describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A 
     });
 
     it('RN-TRE-07: o filtro do pull vale antes do limite (mais rascunhos que o limite não escondem as publicadas) e o cursor fica estável', async () => {
-      const relogio = relogioDe('A');
+      const relogio = criarRelogio({ fuso: A.fuso });
       for (const n of [810, 820, 830, 840, 850]) {
         const r = await chamar(api, 'POST', 'bko/trilhas', { ...como('A', PESSOAS.A.bko, relogio), corpo: trilhaDe('A', unica('A', n)) });
         expect(r.status).toBe(201);
@@ -294,7 +311,7 @@ describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A 
     });
 
     it('RN-TRE-07: o aluno baixa só trilha publicada do próprio tenant; rascunho não desce; B nunca vê o conteúdo de A', async () => {
-      const relogio = relogioDe('A');
+      const relogio = criarRelogio({ fuso: A.fuso });
       const rascunho = trilhaDe('A', { id: uuid(501, CONF.A.conteudo), modulos: [] });
       await chamar(api, 'POST', 'bko/trilhas', { ...como('A', PESSOAS.A.bko, relogio), corpo: rascunho });
       const { corpo: publicadaA } = await criarEPublicar('A', PESSOAS.A.bko, relogio, unica('A', 510));
@@ -313,7 +330,7 @@ describe.skipIf(semBanco())('Treinamento × Postgres: fábrica SQL, RLS entre A 
   // ---------------------------------------------------------------------------------------------------------------
   describe('idempotência do progresso, do XP e das medalhas (RN-TRE-01/04/06)', () => {
     it('o lote fora de ordem é aceito e gravado; reenviar o MESMO lote não cria linha nem soma XP; o evento sai uma vez só', async () => {
-      const relogio = relogioDe('A');
+      const relogio = criarRelogio({ fuso: A.fuso });
       const aluna = PESSOAS.A.aluna;
       await criarEPublicar('A', PESSOAS.A.bko, relogio);
       const eventosAntes = registro.eventos.length;

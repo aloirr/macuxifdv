@@ -15,7 +15,7 @@ import { criarRotas } from './rotas';
 import { criarProvedoresSync } from './sync';
 
 export type { FabricaRepositorio, RepositorioTreinamento, UsuarioTreinamento } from './repositorio';
-export { criarFabricaPostgres, usuariosPeloCadastroResumo, type FonteDeUsuarios } from './repositorio-postgres';
+export { criarFabricaPostgres, usuariosPeloCadastroResumo, usuariosPeloCoreResumo, type UsuariosLidos, type FonteDeUsuarios } from './repositorio-postgres';
 
 export function criarApiTreinamento(op: { fabrica?: FabricaRepositorio | null } = {}): ModuloApi {
   const fabrica = op.fabrica ?? null;

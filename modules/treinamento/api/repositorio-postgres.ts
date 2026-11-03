@@ -11,8 +11,8 @@
  *  - escrita do aluno serializada por `pg_advisory_xact_lock(hash(tenant:usuário))` (tetos de XP são ler-depois-gravar);
  *  - usuários do tenant: pela consulta pública do Core (ADR 0012), nunca por `core.*` (regra 1).
  */
-import { ErroHttpModulo, PERFIS, type ClienteBanco, type LinhaSync, type PedidoPull, type Perfil, type TransacaoTenant } from '@macuxi/platform-sdk';
-import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { ErroHttpModulo, PERFIS, ehConsultaIndisponivel, type ClienteBanco, type LinhaSync, type PedidoPull, type Perfil, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { CONSULTA_CADASTRO_RESUMO, CONSULTA_USUARIOS_RESUMO } from '@macuxi/core/contracts';
 import type { AlternativaConteudo, LicaoConteudo, ModuloConteudo, QuestaoConteudo, Trilha } from '../contracts/conteudo';
 import type { ConclusaoDoAluno, ConquistaDoAluno, TentativaDoAluno } from '../domain/atividade';
 import type { ConclusaoDoUsuario, TentativaDoUsuario } from '../domain/painel';
@@ -38,15 +38,18 @@ const CURSOR = `${ts('updated_at', US)} as updated_at, ${ts('deleted_at', US)} a
 
 const LOTE_CONSULTA = 500;
 
+/** O que a fonte devolveu e se é o tenant inteiro (`completa`) ou só quem tem atividade (base parcial). */
+export interface UsuariosLidos {
+  usuarios: UsuarioTreinamento[];
+  completa: boolean;
+}
+
 /**
- * Quem informa perfil/nome dos usuários do tenant. A consulta própria do Core (`core.usuarios_resumo@1`, com equipe,
- * regional e `ativo`) ainda não existe (pedido R-20261102-131733-2); até lá usamos `core.cadastro_resumo@1` (id, nome,
- * perfil) para os usuários que aparecem no Treinamento. Sem equipe/regional (nulos) e `ativo = true`.
+ * Quem informa perfil/equipe dos usuários do tenant. Padrão: `core.usuarios_resumo@1` (tenant inteiro, paginado por
+ * cursor, com equipe e `ativo`); se a consulta estiver indisponível, cai em `core.cadastro_resumo@1` só para quem tem
+ * atividade (equipe nula) e devolve `completa: false` (o painel avisa "base parcial").
  */
-export type FonteDeUsuarios = ((tx: TransacaoTenant, idsComAtividade: readonly string[]) => Promise<UsuarioTreinamento[]>) & {
-  /** true = devolve o tenant inteiro (com equipe), não só quem tem atividade; ausente = base parcial. */
-  completa?: boolean;
-};
+export type FonteDeUsuarios = (tx: TransacaoTenant, idsComAtividade: readonly string[]) => Promise<UsuariosLidos>;
 
 const PERFIS_CONHECIDOS: ReadonlySet<string> = new Set(PERFIS);
 
@@ -59,11 +62,31 @@ export const usuariosPeloCadastroResumo: FonteDeUsuarios = async (tx, ids) => {
       saida.push({ id: u.id, nome: u.nome, perfil: u.perfil as Perfil, equipe_id: null, regional_id: null, ativo: true });
     }
   }
-  return saida;
+  return { usuarios: saida, completa: false };
+};
+
+/** RN-TRE-07: usuários do tenant pelo Core, página a página (cursor); indisponível → cadastro_resumo (parcial). */
+export const usuariosPeloCoreResumo: FonteDeUsuarios = async (tx, ids) => {
+  const saida: UsuarioTreinamento[] = [];
+  try {
+    let apos: string | undefined;
+    do {
+      const r = await tx.consultar(CONSULTA_USUARIOS_RESUMO, { limite: LOTE_CONSULTA, ...(apos ? { apos_id: apos } : {}) });
+      for (const u of r.usuarios) {
+        if (!PERFIS_CONHECIDOS.has(u.perfil)) continue;
+        saida.push({ id: u.id, nome: u.nome, perfil: u.perfil as Perfil, equipe_id: u.equipe_id, regional_id: u.regional_id, ativo: u.ativo });
+      }
+      apos = r.proximo_cursor ?? undefined;
+    } while (apos);
+    return { usuarios: saida, completa: true };
+  } catch (e) {
+    if (!ehConsultaIndisponivel(e)) throw e;
+    return usuariosPeloCadastroResumo(tx, ids);
+  }
 };
 
 export interface OpcoesFabricaPostgres {
-  /** Troque quando o Core oferecer a consulta de usuários com equipe/regional. */
+  /** Padrão: `usuariosPeloCoreResumo`. */
   usuarios?: FonteDeUsuarios;
 }
 
@@ -211,12 +234,13 @@ const COLUNAS_ALUNO = {
 type LinhaTentativa = { respostas: { questao_id: string; alternativa_ids: string[] }[] };
 
 export function criarFabricaPostgres(opcoes: OpcoesFabricaPostgres = {}): FabricaRepositorio {
-  const fonteDeUsuarios = opcoes.usuarios ?? usuariosPeloCadastroResumo;
+  const fonteDeUsuarios = opcoes.usuarios ?? usuariosPeloCoreResumo;
   return {
     doTenant(db, tenantId, _agora, tx): RepositorioTreinamento {
       const doAluno = async <L>(entidade: EntidadeDoAluno, usuarioId: string): Promise<L[]> =>
         (await db.query<L>(`select ${COLUNAS_ALUNO[entidade]} from treinamento.${entidade} where usuario_id = $1::uuid and deleted_at is null order by updated_at, id`, [usuarioId])).rows;
 
+      let completa = false; // vira true quando usuarios() recebeu o tenant inteiro do Core
       return {
         async travarAluno(usuarioId) {
           await db.query(`select pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2::text, 0))`, [tenantId, usuarioId]);
@@ -368,7 +392,9 @@ export function criarFabricaPostgres(opcoes: OpcoesFabricaPostgres = {}): Fabric
           const r = await db.query<LancamentoXp>(`select ${COLUNAS_ALUNO.xp_lancamento} from treinamento.xp_lancamento where deleted_at is null`);
           return r.rows;
         },
-        usuariosCompletos: fonteDeUsuarios.completa === true,
+        get usuariosCompletos() {
+          return completa;
+        },
         async usuarios() {
           if (!tx) throw new Error('usuarios(): a transação da rota é necessária para a consulta do Core (ADR 0012)');
           const r = await db.query<{ usuario_id: string }>(
@@ -377,7 +403,9 @@ export function criarFabricaPostgres(opcoes: OpcoesFabricaPostgres = {}): Fabric
              union select usuario_id from treinamento.tentativa where deleted_at is null
              union select usuario_id from treinamento.medalha_usuario where deleted_at is null`,
           );
-          return fonteDeUsuarios(tx, r.rows.map((x) => x.usuario_id));
+          const lidos = await fonteDeUsuarios(tx, r.rows.map((x) => x.usuario_id));
+          completa = lidos.completa;
+          return lidos.usuarios;
         },
       };
     },

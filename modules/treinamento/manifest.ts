@@ -27,8 +27,8 @@ export const manifest = defineModule({
   publica: ['treinamento.licao.concluida@1', 'treinamento.medalha.conquistada@1'],
   consome: ['vendedor.pedido.faturado@1'],
   usaExtensoes: ['inicio.cards'],
-  // perfil/nome dos usuários do tenant (público-alvo, ranking, painel); T-0058: troca por core.usuarios_resumo@1 quando existir
-  usaConsultas: ['core.cadastro_resumo@1'],
+  // usuários do tenant (público-alvo RN-TRE-07, ranking, adesão); cadastro_resumo é o recurso quando usuarios_resumo está indisponível
+  usaConsultas: ['core.usuarios_resumo@1', 'core.cadastro_resumo@1'],
   acoes: {
     // --- aluno (apps Campo e Gestão; funciona offline, a API revalida: RN-TRE-02/04) ---
     'trilha.baixar_offline': { perfis: [...PERFIS_ALUNO], descricao: 'Baixar a trilha para estudar offline (RF-TRE-02); vídeo curto só no Wi-Fi' },
