@@ -136,7 +136,10 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   1 **rejeitado** pela supervisora (com motivo) e 1 **cancelado** depois de aprovado. Nada em `sent_to_erp` ou depois. Com
   itens e a visita que os gerou; visitas sem pedido com motivo; `core.indicador_diario` coerente com os pedidos.
 - **Metas do mês corrente** (venda, positivação, cobertura, visitas) dos vendedores e do promotor, todas com `tipo = 'pedido'`
-  (0019, RN-CORE-21; sem faturamento do ERP na demo) — BKO de metas da T-0068. **Hierarquia** (BKO de usuários da T-0067): a
+  (0019, RN-CORE-21; sem faturamento do ERP na demo) — BKO de metas da T-0068. **Metas do mês anterior** de Lucas e Camila
+  (mesmos 4 indicadores e tipo, valores um pouco menores) para o "copiar do mês anterior" da T-0068; o Gestor as projeta por
+  `usuário|mês` (o painel do mês corrente não muda). Na recarga `-Manter`, meta viva do ensaio no mesmo (usuário, período,
+  indicador) com outro id é mantida e o seed pula a dele (sem violar `meta_uk`). **Hierarquia** (BKO de usuários da T-0067): a
   Equipe Manaus (Lucas, Camila, Joana e Renata) tem a Renata como responsável e a Regional Norte (Marcelo) como pai: supervisor
   e gerente de cada usuário saem de `core.equipe`. **Medidas** (0018): UN, CX, FD, LT e BD ativas, as outras 6 da lista inicial
   inativas, e a caixa de embarque como embalagem do produto (`gravarDemoMedidas`); 33 produtos com marcas
