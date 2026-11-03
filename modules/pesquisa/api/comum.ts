@@ -31,6 +31,9 @@ export const naoEncontrado = (): never => {
   throw new ErroNaoEncontrado('QUESTIONARIO_NAO_ENCONTRADO', 'Questionário não encontrado.');
 };
 
+/** Código do 409 quando outra transação gravou a mesma resposta no mesmo instante (o push tenta de novo, ver sync.ts). */
+export const RESPOSTA_JA_EXISTE = 'RESPOSTA_JA_EXISTE';
+
 export const conflito = (codigo: string, mensagem: string): never => {
   throw new ErroHttpModulo(409, codigo, mensagem);
 };

@@ -11,6 +11,9 @@ import {
   ALCADAS_DEMO, carregarDemo, CLIENTE_SEM_CEP_DEMO, PRECO_PROPRIO_CX_LIGADO, CODIGO_DEMO, dadosDemo, DESCONTO_MAXIMO_PROPRIO_DEMO, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
   USUARIOS_DEMO,
 } from '../seeds/demo/demo';
+import { MODULO_GESTOR, PERFIS_GESTOR_DEMO } from '../seeds/demo/gestor';
+import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
+import { PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { comTenant } from '../src/contexto';
 import { anoMes, hojeNoFuso, somarDias } from '../src/datas';
@@ -19,6 +22,8 @@ import { semBanco } from './estado';
 import { tabelasComTenant } from './util';
 
 const SENHA = 'senha-do-teste-demo';
+/** Módulos ativos no tenant demo depois da carga: os do demo.ts + os dos seeds próprios ligados no carregarDemo (0014 Gestor, 0016 Pesquisa). */
+const MODULOS_ATIVOS_DEMO = [...new Set<string>([...MODULOS_DEMO, MODULO_GESTOR, MODULO_PESQUISA])].sort();
 const HASH_FALSO = '$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA';
 
 describe('base de demo (estático)', () => {
@@ -341,7 +346,29 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
       motivos: (await c.query<{ codigo: string }>("select codigo from core.motivo where tipo = 'cliente_fechado' order by codigo")).rows.map((x) => x.codigo),
       modulos: (await c.query<{ modulo: string }>('select modulo from plataforma.tenant_modulo where ativo order by modulo')).rows.map((x) => x.modulo),
     }));
-    expect(r).toEqual({ clientes: 30, paradas: 6, motivos: ['acesso_negado', 'loja_fechada'], modulos: [...MODULOS_DEMO].sort() });
+    expect(r).toEqual({ clientes: 30, paradas: 6, motivos: ['acesso_negado', 'loja_fechada'], modulos: MODULOS_ATIVOS_DEMO });
+  });
+
+  it('0014/0015/0016 ligados no carregarDemo: Gestor para a Renata (supervisora) com a equipe projetada; Promotor com as visitas de loja da Joana; Pesquisa publicada', async () => {
+    const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
+      gestor: (await c.query<{ perfil: string }>("select perfil from plataforma.perfil_modulo where modulo = 'gestor' and deleted_at is null order by perfil")).rows.map((x) => x.perfil),
+      promotor: (await c.query<{ perfil: string }>("select perfil from plataforma.perfil_modulo where modulo = 'promotor' and deleted_at is null order by perfil")).rows.map((x) => x.perfil),
+      fatos: (await c.query<{ n: number }>('select count(*)::int as n from gestor.projecao_fato')).rows[0]!.n,
+      eventos: (await c.query<{ n: number }>('select count(*)::int as n from gestor.evento_aplicado')).rows[0]!.n,
+      visitasLoja: (await c.query<{ n: number }>('select count(*)::int as n from promotor.visita_loja where deleted_at is null')).rows[0]!.n,
+      pesquisa: (await c.query<{ perfil: string }>("select perfil from plataforma.perfil_modulo where modulo = 'pesquisa' and deleted_at is null order by perfil")).rows.map((x) => x.perfil),
+      publicadas: (await c.query<{ n: number }>("select count(*)::int as n from pesquisa.questionario_versao where status = 'publicada'")).rows[0]!.n,
+      respostas: (await c.query<{ n: number }>('select count(*)::int as n from pesquisa.resposta')).rows[0]!.n,
+    }));
+    expect(r.gestor).toEqual([...PERFIS_GESTOR_DEMO].sort());
+    expect(r.gestor).toContain(USUARIOS_DEMO.supervisor.perfil);
+    expect(r.promotor).toEqual([...PERFIS_PROMOTOR_DEMO].sort());
+    expect(r.fatos).toBeGreaterThan(0);
+    expect(r.eventos).toBeGreaterThan(0);
+    expect(r.visitasLoja).toBe(2);
+    expect(r.pesquisa).toEqual([...PERFIS_PESQUISA_DEMO].sort());
+    expect(r.publicadas).toBe(2);
+    expect(r.respostas).toBe(16);
   });
 
   it('login: o código "demo" resolve o tenant e as senhas são argon2id que conferem', async () => {

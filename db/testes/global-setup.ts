@@ -2,7 +2,7 @@
  * Prepara o Postgres para os testes de db/ (roda no processo principal do Vitest).
  *
  * 1. Postgres acessível -> cria um banco efêmero `macuxi_teste_*`, aplica as migrações, carrega a
- *    fixture dois-tenants e apaga tudo no fim. Os testes de banco RODAM.
+ *    fixture dois-tenants (+ a do Treinamento, testes/fixture-treinamento.ts) e apaga tudo no fim. Os testes de banco RODAM.
  * 2. Postgres fora do ar, host local e Docker rodando -> sobe o db/docker-compose.yml (`up -d --wait`)
  *    e segue como em 1. Desligue com MACUXI_PG_AUTO_SUBIR=0.
  * 3. Sem Docker/Postgres -> os testes de banco PULAM e o relator (testes/aviso-pulos.ts) imprime no fim
@@ -16,6 +16,7 @@ import { criarBancoDeTeste, postgresDisponivel } from '../src/banco-teste';
 import { HOSTS_LOCAIS, lerConfig, type ConfigBanco } from '../src/config';
 import { dockerRodando, subirPostgres } from '../src/docker';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
+import { carregarTreinamentoDoisTenants } from './fixture-treinamento';
 import { agoraDosTestes } from '../src/datas';
 import { VAR_MOTIVO_PULO } from './aviso-pulos';
 
@@ -50,7 +51,14 @@ export default async function setup(project: TestProject): Promise<(() => Promis
     return;
   }
   delete process.env[VAR_MOTIVO_PULO];
-  const t = await criarBancoDeTeste({ cfg, preparar: (c) => carregarDoisTenants(c, { agora }).then(() => undefined) });
+  // 0017 (T-0058): o schema treinamento tem fixture própria (testes/fixture-treinamento.ts), carregada logo depois
+  const t = await criarBancoDeTeste({
+    cfg,
+    preparar: async (c) => {
+      await carregarDoisTenants(c, { agora });
+      await carregarTreinamentoDoisTenants(c, { agora });
+    },
+  });
   project.provide('banco', { disponivel: true, nome: t.nome, urlAdmin: t.urlAdmin, urlApp: t.urlApp, urlWorker: t.urlWorker, agora: agora.toISOString() });
   return async () => {
     await t.apagar();

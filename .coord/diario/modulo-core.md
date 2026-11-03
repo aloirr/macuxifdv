@@ -32,3 +32,4 @@
 2026-11-02 — T-0066 — produto_external_ids em core.cadastro_resumo@1; timer do relógio do atendimento marcado como exceção (RN-CORE-23)
 2026-11-02 — T-0065 — notificarSistema: envio_id uuid determinístico (evento+usuário); core 690/690
 2026-11-02 — T-0065 — token de push só do usuário da sessão, logout/DELETE apaga, inativo/bloqueado não recebe (testes PG)
+2026-11-02 — T-0042 — urgente: upsertDispositivo não troca dono nem zera token de aparelho bloqueado (RN-CORE-15), where bloqueado_em is null; sessao.test, autenticacao, notificacoes.db, consumidores.db verdes

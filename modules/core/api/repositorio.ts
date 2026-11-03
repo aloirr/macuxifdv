@@ -140,7 +140,8 @@ export function repositorioTenantSql(db: ClienteBanco): RepositorioTenant {
          on conflict (id) do update set ultimo_acesso_em = excluded.ultimo_acesso_em, nome = coalesce(excluded.nome, core.dispositivo.nome),
            push_token = case when core.dispositivo.usuario_id = excluded.usuario_id then core.dispositivo.push_token end,
            push_plataforma = case when core.dispositivo.usuario_id = excluded.usuario_id then core.dispositivo.push_plataforma end,
-           usuario_id = excluded.usuario_id`,
+           usuario_id = excluded.usuario_id
+         where core.dispositivo.bloqueado_em is null`,
         [dispositivoId, usuarioId, nome, agora],
       ));
     },

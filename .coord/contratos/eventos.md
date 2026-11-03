@@ -10,16 +10,16 @@
 | `core.visita.checkin@1` | core | promotor, pesquisa, gestor |
 | `core.visita.checkout@1` | core | gestor, promotor |
 | `core.usuario.modulos_alterados@1` | core | todos (shell) |
-| `core.notificacao.criada@1` | core | core (envio do push pela Expo atrás de `MACUXI_PUSH_ATIVO=1`; despachante pronto na T-0022, consumidor pedido ao modulo-core) |
+| `core.notificacao.criada@1` | core | core (envio do push pela Expo atrás de `MACUXI_PUSH_ATIVO=1`, `data.link` + `data.entidades`, T-0065; consumidor em `modules/core/api/consumidores.ts`) |
 | `core.rota.dia_planejado@1` | core | gestor (cobertura de rota, RN-GES; **planejado** — pedido do modulo-gestor via R-20261031-165536; payload a definir pelo modulo-core na T-0018, quando o BKO publica/gera a rota do dia) |
-| `core.meta.definida@1` | core | gestor (meta × realizado; a declarar). **Publicado** desde a T-0020 no `PUT metas/:usuarioId/:periodo`, só quando o valor muda; payload na nota "Sprint 1" abaixo |
+| `core.meta.definida@1` | core | core (push da meta, T-0065), gestor (meta × realizado; a declarar). **Publicado** desde a T-0020 no `PUT metas/:usuarioId/:periodo`, só quando o valor muda; payload na nota "Sprint 1" abaixo |
 | `catalogo.produto.visualizado@1` | catalogo | gestor (P2) |
 | `catalogo.busca.realizada@1` | catalogo | catalogo (analytics) |
 | `vendedor.pedido.criado@1` | vendedor | gestor, core (metas) |
 | `vendedor.pedido.status_alterado@1` | vendedor | gestor, integracao, core (metas) |
 | `vendedor.pedido.aprovacao_solicitada@1` | vendedor | gestor |
 | `vendedor.pedido.faturado@1` | vendedor | treinamento (desafio de vendas, RN-TRE), gestor e core (metas; a declarar) |
-| `vendedor.pedido.aprovado@1` | vendedor | integracao (fila de exportação ao ERP, RN-INT-08; a declarar). **Aprovado** (T-0029, ADR 0011 aceita em 2026-11-01; o manifesto do Vendedor passa a publicar na onda 2) |
+| `vendedor.pedido.aprovado@1` | vendedor | integracao (fila de exportação ao ERP, RN-INT-08; A8 declarado e consumido desde 2026-11-02, T-0032). **Aprovado** (T-0029, ADR 0011 aceita em 2026-11-01; o manifesto do Vendedor passa a publicar na onda 2) |
 | `promotor.visita_loja.concluida@1` | promotor | gestor |
 | `promotor.gondola.registrada@1` | promotor | gestor |
 | `promotor.share.medido@1` | promotor | gestor |
@@ -30,13 +30,13 @@
 | `treinamento.licao.concluida@1` | treinamento | gestor |
 | `treinamento.medalha.conquistada@1` | treinamento | gestor, core (notificação) |
 | `integracao.cliente.atualizado@1` | integracao | core |
-| `integracao.produto.atualizado@1` | integracao | core (dono de `core.produto`, ADR 0005; a declarar). O catálogo deixa de consumir |
-| `integracao.preco.atualizado@1` | integracao | catalogo |
-| `integracao.estoque.atualizado@1` | integracao | catalogo |
-| `integracao.vendedor.atualizado@1` | integracao | core (usuários/carteira; a declarar no manifesto do core) |
-| `integracao.titulo.atualizado@1` | integracao | core (dono de `core.titulo`, doc 04; a declarar — T-0016 corrige a sugestão anterior "vendedor": o Vendedor lê o título do Core por contrato/sync) |
+| `integracao.produto.atualizado@1` | integracao | core (dono de `core.produto`, ADR 0005; consumido desde a T-0066). O catálogo deixa de consumir |
+| `integracao.preco.atualizado@1` | integracao | catalogo (consumido desde a T-0066; produto achado por `core.cadastro_resumo@1` `produto_external_ids`) |
+| `integracao.estoque.atualizado@1` | integracao | catalogo (consumido desde a T-0066) |
+| `integracao.vendedor.atualizado@1` | integracao | core (usuários; consumido desde a T-0066) |
+| `integracao.titulo.atualizado@1` | integracao | core (dono de `core.titulo`, doc 04; consumido desde a T-0066 — T-0016 corrige a sugestão anterior "vendedor": o Vendedor lê o título do Core por contrato/sync) |
 | `integracao.nota.atualizado@1` | integracao | vendedor (nota do pedido; a declarar) |
-| `integracao.rota.atualizado@1` | integracao | core (roteiro de visitas; a declarar) |
+| `integracao.rota.atualizado@1` | integracao | core (rota datada das próximas 4 ocorrências; consumido desde a T-0066) |
 | `integracao.pedido.retorno_erp@1` | integracao | vendedor (aplica o status e publica `vendedor.pedido.faturado@1`; desenho T-0011) |
 | `integracao.lote.concluido@1` | integracao | integracao (monitor do BKO, RF-INT-04) |
 | `integracao.reconciliacao.divergente@1` | integracao | integracao (monitor do BKO), gestor (alertas; a declarar) |
