@@ -22,3 +22,4 @@
 2026-11-02 — T-0051 — rótulos das 4 entidades novas e avisos de linha em web/lib/apresentacao.ts; suíte do pacote verde
 2026-11-02 — T-0063 — medidas no Hub: embalagem_medida/embalagem_quantidade no produto (conferidas), core.medidas@1 tipado (usaConsultas), mensagem com sigla+campo, inativa pede reativar; testes dois-tenants com Postgres real
 2026-11-03 — T-0063 — rev. engenheiro 🟡4/🟡5: sigla de medida fora de ^[A-Z]{1,4}$ = formato_invalido não reprocessável (verificarMedidas, sempre conferida); embalagem_quantidade 2..9999 e fator ≤ 9999 no contrato; consumidores.db.test.ts sem SQL em core.medida (stub em memória por tenant; S0-014)
+2026-11-03 — T-0063 — Hub separado do #54: branch nuvem/T-0063-medidas-hub (wt-hub) independente do Core (lookup dinâmico de core.medidas@1, usaConsultas sem ela até o Core publicar); principal devolvido ao origin/main; integracao 478 testes verdes

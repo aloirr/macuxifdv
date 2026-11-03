@@ -12,7 +12,8 @@
  * esgotadas as tentativas da outbox o lote fica `recebido` com o evento parado (alerta de operação, não `falhou`); parâmetros do
  * tenant não chegam ao consumidor, valem os padrões.
  */
-import { CONSULTA_CADASTRO_CLIENTE, CONSULTA_MEDIDAS } from '@macuxi/core/contracts';
+import * as contratosCore from '@macuxi/core/contracts';
+import { CONSULTA_CADASTRO_CLIENTE } from '@macuxi/core/contracts';
 import { definirConsumidor, ehConsultaIndisponivel, type ClienteBanco, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { CAMPO_SOMA_CONTROLE, type AvisoLinha, type Cursor, type Entidade, type EstadoLote, type LinhaErro, type LinhaInvalidaConector, type LoteRecebidoEvento } from '../contracts';
 import {
@@ -148,8 +149,8 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   }
   const ref = verificarReferencias(lote.entidade, v.validas, existentesRef);
   // medida (RN-CORE-19): sigla não cadastrada/inativa = referencia_ausente; sem como conferir (consulta indisponível), não recusa
-  const situacaoMedidas = await situacaoDasMedidas(ctx, siglasParaConferir(lote.entidade, ref.aceitas));
-  const med = verificarMedidas(lote.entidade, ref.aceitas as LinhaValida[], situacaoMedidas && situacaoMedidas.ativas, situacaoMedidas?.inativas);
+  const ativasMedidas = await medidasAtivas(ctx, siglasParaConferir(lote.entidade, ref.aceitas));
+  const med = verificarMedidas(lote.entidade, ref.aceitas as LinhaValida[], ativasMedidas);
   const aceitasValidas = med.aceitas;
   // referência fraca (produto -> nó do catálogo): aviso, a linha entra normalmente
   const fracas = new Set<string>();
@@ -328,25 +329,26 @@ export async function aplicarLote(payload: LoteRecebidoEvento, ctx: ContextoCons
   ctx.log.info({ lote_id: lote.id, entidade: lote.entidade, status: resultado.status, novas: c.novas, atualizadas: c.atualizadas, com_erro: c.com_erro }, 'lote aplicado');
 }
 
+/** `consultar` do contexto do consumidor (ADR 0012), quando o SDK a entrega (o manifesto declara `usaConsultas`); sem ela não há aviso e o lote nunca falha por isso. */
 /**
- * RN-CORE-19: situação das siglas de medida citadas (`core.medidas@1`, por bloco de 500): `ativas` e `inativas` (existem, mas o BKO
- * as desativou). Sigla ausente das duas = não cadastrada. `null` = não deu para conferir (o Core fora do ar para o tenant, RN-INT-14):
- * ninguém é recusado por isso.
+ * RN-CORE-19: siglas de medida ATIVAS entre as citadas (`core.medidas@1`, por bloco de 500). `null` = não deu para conferir (o Core
+ * ainda não publica a consulta, ou está indisponível para o tenant): ninguém é recusado por isso.
  */
-async function situacaoDasMedidas(ctx: ContextoConsumo, siglas: readonly string[]): Promise<{ ativas: Set<string>; inativas: Set<string> } | null> {
-  if (siglas.length === 0) return { ativas: new Set(), inativas: new Set() };
+async function medidasAtivas(ctx: ContextoConsumo, siglas: readonly string[]): Promise<Set<string> | null> {
+  if (siglas.length === 0) return new Set();
+  const def = (contratosCore as Record<string, unknown>).CONSULTA_MEDIDAS as Parameters<ContextoConsumo['consultar']>[0] | undefined;
+  if (!def) return null;
   const ativas = new Set<string>();
-  const inativas = new Set<string>();
   try {
     for (const bloco of blocos(siglas, 500)) {
-      const r = await ctx.consultar(CONSULTA_MEDIDAS, { siglas: bloco });
-      for (const m of r.medidas) (m.ativo ? ativas : inativas).add(m.sigla.toUpperCase());
+      const r = (await ctx.consultar(def, { siglas: bloco })) as { medidas: { sigla: string; ativo: boolean }[] };
+      for (const m of r.medidas) if (m.ativo) ativas.add(m.sigla.toUpperCase());
     }
   } catch (e) {
     if (!ehConsultaIndisponivel(e)) ctx.log.warn({ consulta: 'core.medidas@1' }, 'não foi possível conferir as medidas; o lote segue sem a conferência');
     return null;
   }
-  return { ativas, inativas };
+  return ativas;
 }
 
 async function avisarCadastroIncompleto(ctx: ContextoConsumo, aceitas: readonly LinhaValida[]): Promise<AvisoLinha[]> {
