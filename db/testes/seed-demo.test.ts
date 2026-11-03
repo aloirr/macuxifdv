@@ -14,6 +14,7 @@ import {
 import { MODULO_GESTOR, PERFIS_GESTOR_DEMO } from '../seeds/demo/gestor';
 import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
 import { PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
+import { MODULO_TREINAMENTO, PERFIS_TREINAMENTO_DEMO, TRILHAS_DEMO } from '../seeds/demo/treinamento';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { comTenant } from '../src/contexto';
 import { anoMes, hojeNoFuso, somarDias } from '../src/datas';
@@ -22,8 +23,8 @@ import { semBanco } from './estado';
 import { tabelasComTenant } from './util';
 
 const SENHA = 'senha-do-teste-demo';
-/** Módulos ativos no tenant demo depois da carga: os do demo.ts + os dos seeds próprios ligados no carregarDemo (0014 Gestor, 0016 Pesquisa). */
-const MODULOS_ATIVOS_DEMO = [...new Set<string>([...MODULOS_DEMO, MODULO_GESTOR, MODULO_PESQUISA])].sort();
+/** Módulos ativos no tenant demo depois da carga: os do demo.ts + os dos seeds próprios ligados no carregarDemo (0014 Gestor, 0016 Pesquisa, 0017 Treinamento). */
+const MODULOS_ATIVOS_DEMO = [...new Set<string>([...MODULOS_DEMO, MODULO_GESTOR, MODULO_PESQUISA, MODULO_TREINAMENTO])].sort();
 const HASH_FALSO = '$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA';
 
 describe('base de demo (estático)', () => {
@@ -369,6 +370,29 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect(r.pesquisa).toEqual([...PERFIS_PESQUISA_DEMO].sort());
     expect(r.publicadas).toBe(2);
     expect(r.respostas).toBe(16);
+  });
+
+  it('0017 ligado no carregarDemo: licença do Treinamento para os 7 perfis, 3 trilhas (2 publicadas, 1 obrigatória) e o ranking de XP', async () => {
+    const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
+      perfis: (await c.query<{ perfil: string }>("select perfil from plataforma.perfil_modulo where modulo = 'treinamento' and deleted_at is null order by perfil")).rows.map((x) => x.perfil),
+      trilhas: (await c.query<{ titulo: string; status: string; obrigatoria: boolean }>(
+        'select titulo, status, obrigatoria from treinamento.trilha where deleted_at is null order by titulo',
+      )).rows,
+      xp: (await c.query<{ usuario_id: string; total: number }>(
+        'select usuario_id, sum(pontos)::int as total from treinamento.xp_lancamento group by usuario_id order by total desc',
+      )).rows,
+    }));
+    expect(r.perfis).toEqual([...PERFIS_TREINAMENTO_DEMO].sort());
+    expect(r.trilhas).toEqual(
+      [...TRILHAS_DEMO].map((t) => ({ titulo: t.titulo, status: t.status, obrigatoria: t.obrigatoria })).sort((a, b) => a.titulo.localeCompare(b.titulo)),
+    );
+    expect(r.trilhas.filter((t) => t.status === 'publicada')).toHaveLength(2);
+    expect(r.trilhas.filter((t) => t.obrigatoria)).toHaveLength(1);
+    expect(r.xp).toEqual([
+      { usuario_id: idUsuarioDemo('vendedor'), total: 115 },
+      { usuario_id: idUsuarioDemo('vendedor2'), total: 110 },
+      { usuario_id: idUsuarioDemo('promotor'), total: 10 },
+    ]);
   });
 
   it('login: o código "demo" resolve o tenant e as senhas são argon2id que conferem', async () => {
