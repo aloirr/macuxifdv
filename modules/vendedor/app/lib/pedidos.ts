@@ -5,8 +5,9 @@
 import type { CustomerSummary, Me } from '@macuxi/core/contracts';
 import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
-import { validateOrder, type OrderValidation } from '../../domain/order';
+import { validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import { toDomainPolicy } from './catalog';
+import { calcularPedido, fretePush, freteValido, linhasParaPush, type Ajuste, type CalculoPedido, type FreteDoRascunho, type UnidadeDaTela } from './novo-pedido';
 import type { PrefillLine } from './order-prefill';
 
 export interface Rascunho {
@@ -27,6 +28,15 @@ export interface Rascunho {
   notice?: string;
   /** T-0053 (RF-VEN-03): salvar como orçamento (só com `orcamento.ativo`); ausente = pedido */
   tipo?: 'pedido' | 'orcamento';
+  // --- T-0061: a chave de `lines` é o produto (unidade base) ou `produto@CX` (embalagem) ---
+  /** desconto OU acréscimo por linha (RN-VEN-02), por chave de `lines` */
+  ajustes?: Record<string, Ajuste>;
+  /** acréscimo do pedido (excludente com `discount_pct`) */
+  acrescimo_pct?: number;
+  /** RN-VEN-16: ausente = padrão do tenant (CIF) */
+  frete?: FreteDoRascunho;
+  /** RN-VEN-17: ausente = endereço principal do cliente */
+  endereco_entrega_id?: string | null;
 }
 
 export const PRAZO_PADRAO = '28/56 dias';
@@ -47,6 +57,11 @@ export interface OrderLineDisplay {
   quantity: number;
   unit_price_cents: number;
   total_cents: number;
+  /** T-0061: medida vendida (ex.: "CX c/ 12"); ausente = unidade base */
+  unit_label?: string;
+  /** T-0061: desconto OU acréscimo do ITEM (PDF interno); ausente em itens antigos da fila */
+  discount_pct?: number;
+  surcharge_pct?: number;
 }
 
 /** Resumo guardado junto do item da fila (a fila genérica só tem o `CreateOrderRequest`). */
@@ -79,38 +94,85 @@ export interface EntradaPrepararPedido {
   filaDoClienteCents: number;
   /** sem uso desde que o crédito saiu da fatia (P-6); mantido para as chamadas existentes */
   pedidoEditado?: Pick<Order, 'status' | 'total_cents'> | null;
+  /** T-0061: embalagens dos produtos (UN/CX), das linhas `produto_unidade` do aparelho */
+  unidades?: readonly UnidadeDaTela[];
 }
 
-/** Valida o rascunho e monta o resumo da fila. Recusado = lança `Error` em português com o que corrigir. */
-export function prepararPedido(e: EntradaPrepararPedido): { v: OrderValidation; display: OrderDisplay } {
+/** `OrderValidation` com o cálculo do novo pedido (medidas, ajustes, desconto efetivo) anexado. */
+export type ValidacaoDoPedido = OrderValidation & { calculo: CalculoPedido };
+
+/** Rótulo curto da medida de uma linha: "UN" ou "CX c/ 12". */
+function rotuloDaLinha(sigla: string, fator: number): string {
+  return fator > 1 ? `${sigla} c/ ${fator}` : sigla;
+}
+
+/**
+ * Valida o rascunho e monta o resumo da fila. Recusado = lança `Error` em português com o que corrigir.
+ * T-0061: o cálculo é o do domain de preço (UN/CX, desconto e acréscimo por item e por pedido); a alçada olha só o
+ * desconto efetivo (RN-VEN-03/10). Frete FOB sem transportadora bloqueia (RN-VEN-16).
+ */
+export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido; display: OrderDisplay } {
   if (!e.eu) throw new Error('Seu usuário não é vendedor com carteira. Peça ao gestor para vinculá-lo a um vendedor.');
   const byId = new Map(e.catalogo.map((p) => [p.id, p]));
-  const lines = Object.entries(e.rascunho.lines)
-    .filter(([, q]) => q > 0)
-    .map(([pid, q]) => ({ product: byId.get(pid), product_id: pid, quantity: q }));
-  const v = validateOrder({
+  const calculo = calcularPedido({
+    lines: e.rascunho.lines,
+    ajustes: e.rascunho.ajustes ?? {},
+    desconto_pct: e.rascunho.discount_pct,
+    acrescimo_pct: e.rascunho.acrescimo_pct ?? 0,
+    catalogo: e.catalogo,
+    unidades: e.unidades ?? [],
+    politica: e.politica,
+    vendedor_id: e.eu.id,
+  });
+  const validado = validateOrder({
     seller_id: e.eu.id,
-    discount_pct: e.rascunho.discount_pct,
-    lines: lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity, unit_price_cents: l.product?.price_cents ?? null })),
+    discount_pct: Math.max(0, calculo.desconto_alcada_pct),
+    lines: calculo.linhas.map((l) => ({ product_id: l.product_id, quantity: l.quantity, unit_price_cents: l.preco_tabela_cents })),
     policy: toDomainPolicy(e.politica),
     // P-6 (T-0029): crédito fora da fatia, igual ao servidor — nenhum pedido vai para aprovação por crédito
     credit: null,
   });
+  const issues: OrderIssue[] = [
+    ...(calculo.linhas.length === 0 && calculo.erros.length === 0 ? [validado.issues.find((i) => i.code === 'empty_order')].filter((i): i is OrderIssue => Boolean(i)) : []),
+    ...calculo.erros.map((message): OrderIssue => ({ code: /sem preço/i.test(message) ? 'price_not_found' : calculo.bloqueado && /alçada máxima/.test(message) ? 'discount_blocked' : 'invalid_item', message, blocking: true, needs_approval: false })),
+    ...validado.issues.filter((i) => i.code === 'discount_above_limit'),
+  ];
+  const aviso = e.rascunho.frete ? freteValido(e.rascunho.frete) : null;
+  if (aviso) issues.push({ code: 'invalid_item', message: aviso, blocking: true, needs_approval: false });
+  const outcome: OrderValidation['outcome'] = issues.some((i) => i.blocking) ? 'rejected' : issues.some((i) => i.needs_approval) ? 'pending_approval' : 'ok';
+  const totals: OrderTotals = {
+    units: calculo.unidades_base,
+    lines: calculo.linhas.map((l) => ({
+      product_id: l.product_id,
+      quantity: l.quantity,
+      unit_price_cents: l.preco_tabela_cents,
+      gross_cents: l.preco_tabela_cents * l.quantity,
+      discount_cents: Math.max(0, l.preco_tabela_cents * l.quantity - l.total_cents),
+      total_cents: l.total_cents,
+    })),
+    subtotal_cents: calculo.total_tabela_cents,
+    discount_cents: Math.max(0, calculo.total_tabela_cents - calculo.total_cents),
+    total_cents: calculo.total_cents,
+  };
+  const v: ValidacaoDoPedido = { ...validado, totals, issues, outcome, calculo };
   if (v.outcome === 'rejected') throw new Error(v.issues.filter((i) => i.blocking).map((i) => i.message).join(' '));
   const display: OrderDisplay = {
     customer_name: e.cliente.trade_name,
-    subtotal_cents: v.totals.subtotal_cents,
-    discount_cents: v.totals.discount_cents,
-    total_cents: v.totals.total_cents,
-    items_count: v.totals.lines.length,
-    units: v.totals.units,
-    lines: v.totals.lines.map((l) => ({
+    subtotal_cents: totals.subtotal_cents,
+    discount_cents: totals.discount_cents,
+    total_cents: totals.total_cents,
+    items_count: totals.lines.length,
+    units: totals.units,
+    lines: calculo.linhas.map((l) => ({
       product_id: l.product_id,
       erp_code: byId.get(l.product_id)?.erp_code ?? '',
       description: byId.get(l.product_id)?.description ?? '',
       quantity: l.quantity,
-      unit_price_cents: l.unit_price_cents,
+      unit_price_cents: l.preco_tabela_cents,
       total_cents: l.total_cents,
+      ...(l.unidade ? { unit_label: rotuloDaLinha(l.unidade_sigla, l.fator) } : {}),
+      discount_pct: l.desconto_pct,
+      ...(l.acrescimo_pct > 0 ? { surcharge_pct: l.acrescimo_pct } : {}),
     })),
     expected: v.outcome === 'pending_approval' ? 'pending_approval' : 'ok',
     notes: v.issues.map((i) => i.message),
@@ -118,7 +180,9 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: OrderValidation; 
   return { v, display };
 }
 
-export function montarPedido(args: { id: string; cliente: CustomerSummary; rascunho: Rascunho; v: OrderValidation; semSinal: boolean; agora: string }): PedidoPush {
+export function montarPedido(args: { id: string; cliente: CustomerSummary; rascunho: Rascunho; v: OrderValidation | ValidacaoDoPedido; semSinal: boolean; agora: string }): PedidoPush {
+  const calculo = 'calculo' in args.v ? (args.v as ValidacaoDoPedido).calculo : null;
+  const frete = fretePush(args.rascunho.frete);
   return {
     id: args.id,
     customer_id: args.cliente.id,
@@ -127,12 +191,16 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     created_offline_at: args.semSinal ? args.agora : null,
     route_stop_id: args.rascunho.route_stop_id,
     total_cents: args.v.totals.total_cents,
-    items: args.v.totals.lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity })),
+    items: calculo ? linhasParaPush(calculo.linhas) : args.v.totals.lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity })),
     condicao_pagamento_id: args.rascunho.condicao_pagamento_id ?? null,
     observacao: args.rascunho.observacao?.trim() ? args.rascunho.observacao.trim() : null,
     visita_id: args.rascunho.visit_id ?? null,
     // T-0053: só o orçamento leva `tipo` (o payload do pedido fica igual ao dos APKs anteriores)
     ...(args.rascunho.tipo === 'orcamento' ? { tipo: 'orcamento' as const } : {}),
+    // T-0061: campos novos só quando existem (RN-VEN-02/16/17); o resto do payload fica igual ao dos APKs anteriores
+    ...((args.rascunho.acrescimo_pct ?? 0) > 0 ? { acrescimo_pct: args.rascunho.acrescimo_pct } : {}),
+    ...(frete ? { frete } : {}),
+    ...(args.rascunho.endereco_entrega_id ? { endereco_entrega_id: args.rascunho.endereco_entrega_id } : {}),
   };
 }
 
@@ -237,7 +305,7 @@ export function fonteDoPedido(id: string, fila: PedidoNaFila[], detalhes: Record
     return {
       customer_id: q.payload.customer_id,
       number: '',
-      lines: q.payload.items.map((it) => ({ product_id: it.product_id, quantity: it.quantity, erp_code: meta.get(it.product_id)?.erp_code, description: meta.get(it.product_id)?.description })),
+      lines: q.payload.items.map((it) => ({ product_id: it.product_id, quantity: it.quantity, unidade: it.unidade ?? null, erp_code: meta.get(it.product_id)?.erp_code, description: meta.get(it.product_id)?.description })),
       discount_pct: q.payload.discount_pct,
       payment_terms: q.payload.payment_terms,
     };
@@ -247,7 +315,7 @@ export function fonteDoPedido(id: string, fila: PedidoNaFila[], detalhes: Record
   return {
     customer_id: d.customer_id,
     number: d.number,
-    lines: d.items.map((it) => ({ product_id: it.product_id, quantity: it.quantity, erp_code: it.erp_code, description: it.description })),
+    lines: d.items.map((it) => ({ product_id: it.product_id, quantity: it.quantity, unidade: it.unit && (it.factor ?? 1) > 1 ? it.unit : null, erp_code: it.erp_code, description: it.description })),
     discount_pct: d.discount_pct,
     payment_terms: d.payment_terms,
   };

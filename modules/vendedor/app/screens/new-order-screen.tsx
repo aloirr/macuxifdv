@@ -1,12 +1,13 @@
 /**
- * Novo pedido (Pedido.dc.html), em tela cheia sem abas.
- * Preço da tabela do cliente e estoque vêm do cache local (funciona sem sinal).
- * Alçada, crédito e totais calculados no aparelho com @fv/domain (validateOrder/computeOrderTotals).
+ * Novo pedido de distribuidora (T-0061), em 3 abas: Itens, Condições e Entrega e resumo, com o total fixo no rodapé.
+ * Preço da tabela do cliente, medidas (UN/CX), endereços e transportadoras vêm das linhas locais (funciona sem sinal).
+ * Preço, desconto e acréscimo por item e por pedido, desconto efetivo e alçada: domain de preço (`lib/novo-pedido`), a mesma
+ * regra que a API revalida. Frete CIF/FOB sem valor (RN-VEN-16); endereço de entrega do cadastro (RN-VEN-17).
  * Modo edição (`editId`): "Editar pedido 10xxx", mesmo cliente; rascunho em `edit:<id>` (preenchido pelo detalhe).
  * Duplicar chega aqui como novo pedido com o rascunho do cliente já preenchido.
  */
-import { formatBRL, formatPct } from '@macuxi/comum';
-import { usePode } from '@macuxi/platform-sdk/react';
+import { formatBRL } from '@macuxi/comum';
+import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Button, Card, colors, Empty, fonts, formatHHMM, Icon, radius, Screen, Strong, type as t } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -14,12 +15,12 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
-import type { Product } from '@macuxi/catalogo/contracts';
 import { AvisoRapido, useAviso } from '../components/aviso';
-import { limitarDesconto, PASSO_DESCONTO_PCT, podeEnviarPedido, quantidadePermitida } from '../../domain/quantidade';
-import { validarSemLancar } from '../lib/validar-rascunho';
-import { filterCustomers, parsePct, PAYMENT_TERMS, searchProducts, stockInfo } from '../lib/catalog';
-import { ESTOQUE_NAO_CONTROLADO } from '../lib/pull';
+import { podeEnviarPedido } from '../../domain/quantidade';
+import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
+import { AbaCondicoes, AbaEntrega, BarraDeAbas, ListaDeItens, PendenciasDoPedido, type AbaDoPedido } from '../components/novo-pedido';
+import { calcularPedido, freteValido, lerChaveDaLinha, limiteDoVendedor, textoDaAlcada, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
+import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
 import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
@@ -86,9 +87,11 @@ function CustomerPicker() {
 
 type Sent = { kind: 'sent'; order: OrderDetail; snapshot: Snapshot } | { kind: 'queued'; message: string; snapshot: Snapshot };
 interface Snapshot {
-  lines: Array<{ product: Product; qty: number }>;
-  discount_pct: number;
+  calculo: CalculoPedido;
+  nomes: Array<[string, string]>;
   payment_terms: string;
+  /** rascunho no momento do envio (o do aparelho é apagado depois de enviar): frete e endereço do resumo */
+  rascunho: Draft;
 }
 
 function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null }) {
@@ -112,7 +115,6 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const draft: Draft = dados.rascunhos[draftKey] ?? rascunhoVazio(customerId);
-  const [discountText, setDiscountText] = useState(fmtPctInput(draft.discount_pct));
 
   // pedido aberto pela ficha do cliente: liga o rascunho à visita e à parada da rota
   useEffect(() => {
@@ -136,24 +138,24 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     updateDraft(customerId, (d) => ({ ...d, payment_terms: padrao.descricao, condicao_pagamento_id: padrao.id }));
   }, [v1, condicoes, draft.condicao_pagamento_id, sent, editId]);
 
+  const ambiente = useAmbiente();
+  const fretePadrao = modalidadePadraoDosParametros(ambiente.parametros('vendedor'));
+  const [aba, setAba] = useState<AbaDoPedido>('itens');
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
-  const snapshotLines = sent ? sent.snapshot.lines : null;
-  const lines = snapshotLines ?? Object.entries(draft.lines).flatMap(([pid, qty]) => {
-    const product = byId.get(pid);
-    return product ? [{ product, qty }] : [];
-  });
-  const discountPct = sent ? sent.snapshot.discount_pct : draft.discount_pct;
-  const terms = sent ? sent.snapshot.payment_terms : draft.payment_terms;
-
   const politica = dados.politica;
-  const v = customer && politica && dados.me?.seller
-    ? validarSemLancar({
-        sellerId: dados.me.seller.id,
-        discountPct,
-        lines: lines.map((l) => ({ product_id: l.product.id, quantity: l.qty, unit_price_cents: l.product.price_cents })),
-        politica,
-      })
-    : null;
+  const vendedorId = dados.me?.seller?.id ?? '';
+  const calculoAtual = useMemo(
+    () =>
+      politica
+        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, catalogo: catalog, unidades: app.unidades, politica, vendedor_id: vendedorId })
+        : null,
+    [draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, catalog, app.unidades, politica, vendedorId],
+  );
+  const calculo = sent ? sent.snapshot.calculo : calculoAtual;
+  const terms = sent ? sent.snapshot.payment_terms : draft.payment_terms;
+  const nomes = useMemo(() => new Map<string, string>(sent ? sent.snapshot.nomes : catalog.map((p) => [p.id, p.description] as [string, string])), [sent, catalog]);
+  const frete = draft.frete ?? { modalidade: fretePadrao };
+  const freteAviso = freteValido(frete);
 
   if (editId && (!dados.rascunhos[draftKey] || !editTarget)) {
     return (
@@ -164,7 +166,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     );
   }
 
-  if (!customer || !v) {
+  if (!customer || !calculo || !politica) {
     return (
       <View style={[styles.root, { paddingTop: insets.top + 16, paddingHorizontal: 20 }]}>
         <BackLink label="Voltar" fallback="/" />
@@ -173,33 +175,25 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     );
   }
 
-  const setQty = (p: Product, qty: number) => {
-    const q = quantidadePermitida(p.stock_total, qty);
+  const setLinhas = (lines: Record<string, number>, ajustes: Record<string, Ajuste>) => {
     setError(null);
-    updateDraft(customerId, (d) => ({ ...d, lines: { ...d.lines, [p.id]: q } }));
-  };
-  const setDiscount = (pct: number) => {
-    const clean = limitarDesconto(pct);
-    setDiscountText(fmtPctInput(clean));
-    updateDraft(customerId, (d) => ({ ...d, discount_pct: clean }));
+    updateDraft(customerId, (d) => ({ ...d, lines, ajustes }));
   };
 
   const results = query.trim() ? searchProducts(catalog, query, 40) : [];
   const noSignal = offline;
-  const d = v.discount;
-  const blocking = v.issues.filter((i) => i.blocking && i.code !== 'empty_order');
+  const limiteVendedor = limiteDoVendedor(politica, vendedorId);
   // edição de pedido já enviado com "modo sem sinal" ligado: precisa de conexão (não enfileira)
   const editBlockedOffline = editingServer && offline;
-  const canSend = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: v.totals.lines.length, recusado: v.outcome === 'rejected', edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
-
-  const discountLine =
-    discountPct <= 0
-      ? { text: 'Sem desconto', color: colors.ink2 }
-      : d.level === 'within'
-        ? { text: `Desconto ${formatPct(discountPct)} · dentro da sua alçada`, color: colors.success }
-        : d.level === 'needs_approval'
-          ? { text: `Desconto ${formatPct(discountPct)} · acima da sua alçada (${formatPct(d.limit_pct)}) · vai para aprovação do gestor`, color: colors.accentInk }
-          : { text: `Desconto ${formatPct(discountPct)} · acima da alçada máxima (${formatPct(politica?.manager_pct ?? 0)}) · reduza para enviar`, color: colors.danger };
+  const bloqueado = calculo.erros.length > 0 || Boolean(freteAviso);
+  const canSend = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: calculo.linhas.length, recusado: bloqueado, edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
+  const alcada = textoDaAlcada(calculo, limiteVendedor);
+  const alcadaCor = alcada.tom === 'erro' ? colors.danger : alcada.tom === 'aviso' ? colors.accentInk : alcada.tom === 'ok' ? colors.success : colors.ink2;
+  const vaiParaAprovacao = calculo.nivel !== null;
+  const produtosDoRascunho = [...new Set(Object.keys(draft.lines).filter((k) => (draft.lines[k] ?? 0) > 0).map((k) => lerChaveDaLinha(k).product_id))].flatMap((id) => {
+    const p = byId.get(id);
+    return p ? [p] : [];
+  });
 
   const saveEdit = async () => {
     if (!editId || !podeEditar) return;
@@ -225,11 +219,12 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const send = async () => {
     setSending(true);
     setError(null);
-    const snapshot: Snapshot = { lines: lines.filter((l) => l.qty > 0), discount_pct: draft.discount_pct, payment_terms: draft.payment_terms };
+    const snapshot: Snapshot = { calculo, nomes: [...nomes.entries()], payment_terms: draft.payment_terms, rascunho: draft };
     try {
       const res = await submitOrder(draft, customer, catalog);
       setSent(res.kind === 'sent' ? { kind: 'sent', order: res.order, snapshot } : { kind: 'queued', message: res.message, snapshot });
       setQuery('');
+      setAba('entrega');
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -238,7 +233,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   };
 
   const orcamento = draft.tipo === 'orcamento';
-  let buttonLabel = orcamento ? 'Salvar orçamento' : v.outcome === 'pending_approval' ? 'Enviar para aprovação' : 'Enviar pedido';
+  let buttonLabel = orcamento ? 'Salvar orçamento' : vaiParaAprovacao ? 'Enviar para aprovação' : 'Enviar pedido';
   let buttonVariant: 'accent' | 'success' = 'accent';
   if (sent?.kind === 'queued') {
     buttonLabel = 'Salvo · aguardando sinal';
@@ -246,7 +241,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   } else if (sent?.kind === 'sent') {
     buttonLabel = `Enviado · pedido ${sent.order.number}`;
     buttonVariant = 'success';
-  } else if (noSignal && v.totals.lines.length > 0) {
+  } else if (noSignal && calculo.linhas.length > 0) {
     buttonLabel = 'Salvar no aparelho';
   }
   if (editId) {
@@ -254,24 +249,29 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
       ? 'Sem sinal · edição precisa de conexão'
       : !editingServer
         ? 'Salvar alterações no aparelho'
-        : v.outcome === 'pending_approval'
+        : vaiParaAprovacao
           ? 'Salvar e enviar para aprovação'
           : 'Salvar alterações';
   }
   const editTitle = editTarget?.number ? `Editar pedido ${editTarget.number}` : 'Editar pedido no aparelho';
+  const emRascunho = (fn: (r: Draft) => Draft) => updateDraft(customerId, fn);
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
+      <View style={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 8, gap: 2, backgroundColor: colors.surface }}>
         <AvisoRapido mensagem={sheets.aviso} />
         {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label={customer.trade_name} fallback={hrefPedidos()} />}
-        <View style={{ gap: 2 }}>
-          <Text style={t.h1Small} testID="order-editor-title">
-            {editId ? editTitle : 'Novo pedido'}
-          </Text>
-          {editId ? <Text style={t.sub}>{customer.trade_name} · cliente não pode ser trocado</Text> : null}
-        </View>
+        <Text style={t.h1Small} testID="order-editor-title">
+          {editId ? editTitle : 'Novo pedido'}
+        </Text>
+        <Text style={t.sub} numberOfLines={1}>
+          {customer.trade_name}
+          {editId ? ' · cliente não pode ser trocado' : ''}
+        </Text>
+      </View>
+      {!sent ? <BarraDeAbas aba={aba} onAba={setAba} itens={calculo.linhas.length} pendencias={{ condicoes: Boolean(freteAviso) }} /> : null}
 
+      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
         {draft.notice && !sent ? (
           <Banner icon="alert" testID="order-prefill-notice">
             {draft.notice}
@@ -295,119 +295,51 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
           </Banner>
         ) : null}
 
-        {!sent ? (
-          <View style={{ gap: 4 }}>
-            <Text style={t.label}>Buscar produto</Text>
-            <SearchBox value={query} onChange={setQuery} placeholder="Código, descrição ou veículo" testID="product-search" />
-          </View>
-        ) : null}
-
-        {query.trim() ? (
-          <View style={{ gap: 6 }}>
-            <Text style={t.small}>
-              {results.length === 0 ? 'Nenhum produto encontrado.' : `${results.length}${results.length === 40 ? '+' : ''} produto${results.length === 1 ? '' : 's'} · preço da tabela do cliente`}
-            </Text>
-            {results.length > 0 ? (
-              <Card>
-                {results.map((p, i) => (
-                  <ProductRow key={p.id} p={p} qty={draft.lines[p.id] ?? 0} last={i === results.length - 1} onQty={(q) => setQty(p, q)} />
-                ))}
-              </Card>
-            ) : null}
-          </View>
-        ) : (
+        {!sent && aba === 'itens' ? (
           <>
-            {lines.length > 0 ? (
-              <Card testID="order-lines">
-                {lines.map((l, i) => (
-                  <ProductRow key={l.product.id} p={l.product} qty={l.qty} last={i === lines.length - 1} onQty={(q) => setQty(l.product, q)} readOnly={Boolean(sent)} />
-                ))}
-              </Card>
+            <View style={{ gap: 4 }}>
+              <Text style={t.label}>Buscar produto</Text>
+              <SearchBox value={query} onChange={setQuery} placeholder="Código, descrição ou veículo" testID="product-search" />
+            </View>
+            {query.trim() ? (
+              <View style={{ gap: 6 }}>
+                <Text style={t.small}>
+                  {results.length === 0 ? 'Nenhum produto encontrado.' : `${results.length}${results.length === 40 ? '+' : ''} produto${results.length === 1 ? '' : 's'} · preço da tabela do cliente`}
+                </Text>
+                {results.length > 0 ? <ListaDeItens produtos={results} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} /> : null}
+              </View>
+            ) : produtosDoRascunho.length > 0 ? (
+              <View testID="order-lines">
+                <ListaDeItens produtos={produtosDoRascunho} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} />
+              </View>
             ) : (
               <Card style={{ padding: 16, gap: 4 }}>
                 <Text style={t.bodyStrong}>Nenhum item ainda</Text>
                 <Text style={t.small}>{catalog.length > 0 ? `Busque entre ${catalog.length} produtos da tabela do cliente.` : 'Sincronize com sinal para baixar a tabela de preços.'}</Text>
               </Card>
             )}
-
-            {!sent ? (
-              <Card style={{ padding: 14, gap: 14 }} testID="order-conditions">
-                <View style={{ gap: 8 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <Text style={t.label}>Desconto</Text>
-                    <Text style={t.small}>Sua alçada: {formatPct(d.limit_pct)}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <StepButton icon="minus" label="Diminuir desconto" onPress={() => setDiscount(draft.discount_pct - PASSO_DESCONTO_PCT)} />
-                    <View style={styles.pctBox}>
-                      <TextInput
-                        testID="discount-input"
-                        value={discountText}
-                        onChangeText={setDiscountText}
-                        onBlur={() => setDiscount(parsePct(discountText))}
-                        onSubmitEditing={() => setDiscount(parsePct(discountText))}
-                        keyboardType="decimal-pad"
-                        accessibilityLabel="Desconto em porcentagem"
-                        style={styles.pctInput}
-                        selectTextOnFocus
-                      />
-                      <Text style={styles.pctSuffix}>%</Text>
-                    </View>
-                    <StepButton icon="plus" label="Aumentar desconto" onPress={() => setDiscount(draft.discount_pct + PASSO_DESCONTO_PCT)} />
-                  </View>
-                </View>
-                <View style={{ gap: 8 }}>
-                  <Text style={t.label}>Prazo</Text>
-                  <View style={styles.segment}>
-                    {opcoesDePrazo.map((op) => {
-                      const on = op.id ? draft.condicao_pagamento_id === op.id : draft.payment_terms === op.rotulo;
-                      return (
-                        <Pressable
-                          key={op.id ?? op.rotulo}
-                          testID={`terms-${op.rotulo}`}
-                          accessibilityRole="radio"
-                          accessibilityState={{ checked: on }}
-                          onPress={() => updateDraft(customerId, (dr) => ({ ...dr, payment_terms: op.rotulo, condicao_pagamento_id: op.id }))}
-                          style={[styles.segItem, on && styles.segOn]}>
-                          <Text style={[styles.segText, on && { color: colors.surface }]}>{op.rotulo}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-                {app.preVendaLigada && !editId ? (
-                  // T-0053 (RF-VEN-03): pedido × orçamento; orçamento não vai para aprovação nem para o ERP (RN-VEN-32)
-                  <View style={{ gap: 8 }} testID="order-tipo">
-                    <Text style={t.label}>Tipo</Text>
-                    <View style={styles.segment}>
-                      {(['pedido', 'orcamento'] as const).map((tp) => {
-                        const on = (draft.tipo ?? 'pedido') === tp;
-                        return (
-                          <Pressable
-                            key={tp}
-                            testID={`tipo-${tp}`}
-                            accessibilityRole="radio"
-                            accessibilityState={{ checked: on }}
-                            onPress={() => updateDraft(customerId, (dr) => ({ ...dr, tipo: tp }))}
-                            style={[styles.segItem, on && styles.segOn]}>
-                            <Text style={[styles.segText, on && { color: colors.surface }]}>{tp === 'pedido' ? 'Pedido' : 'Orçamento'}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    {orcamento ? <Text style={t.small}>Orçamento não vai para aprovação nem para o ERP, não reserva estoque e vale pelo prazo da empresa (padrão 7 dias). Converta em pedido quando o cliente fechar.</Text> : null}
-                  </View>
-                ) : null}
-                {blocking.map((i) => (
-                  <Text key={i.code} style={[t.small, { color: colors.danger }]}>
-                    {i.message}
-                  </Text>
-                ))}
-              </Card>
-            ) : null}
           </>
-        )}
+        ) : null}
 
+        {!sent && aba === 'condicoes' ? (
+          <AbaCondicoes
+            rascunho={draft}
+            prazos={opcoesDePrazo}
+            transportadoras={app.transportadoras}
+            calculo={calculo}
+            limiteVendedor={limiteVendedor}
+            preVendaLigada={app.preVendaLigada}
+            edicao={Boolean(editId)}
+            onRascunho={emRascunho}
+            fretePadrao={fretePadrao}
+          />
+        ) : null}
+
+        {(sent || aba === 'entrega') ? (
+          <AbaEntrega rascunho={sent ? sent.snapshot.rascunho : draft} clienteId={customerId} enderecos={app.enderecos} transportadoras={app.transportadoras} calculo={calculo} limiteVendedor={limiteVendedor} fretePadrao={fretePadrao} prazo={terms} onRascunho={emRascunho} somenteLeitura={Boolean(sent)} nomes={nomes} />
+        ) : null}
+
+        {!sent ? <PendenciasDoPedido erros={calculo.erros} freteAviso={freteAviso} onIrPara={setAba} /> : null}
         {error ? (
           <Banner icon="alert" tone="danger" testID="order-error">
             {error}
@@ -415,22 +347,24 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
         ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: 22 + insets.bottom }]}>
+      <View style={[styles.footer, { paddingBottom: 22 + insets.bottom }]} testID="rodape-pedido">
         <View style={{ gap: 4 }}>
           <View style={styles.sumRow}>
-            <Text style={styles.sumLabel}>Subtotal · {v.totals.units} un.</Text>
-            <Text style={styles.sumValue}>{formatBRL(v.totals.subtotal_cents)}</Text>
+            <Text style={styles.sumLabel}>Subtotal · {calculo.unidades_base} un.</Text>
+            <Text style={styles.sumValue}>{formatBRL(calculo.total_tabela_cents)}</Text>
           </View>
-          <View style={styles.sumRow}>
-            <Text style={[styles.sumLabel, { color: discountLine.color, fontFamily: fonts.semibold, flex: 1 }]} testID="discount-line">
-              {discountLine.text}
-            </Text>
-            <Text style={[styles.sumValue, { color: discountLine.color }]}>− {formatBRL(v.totals.discount_cents)}</Text>
-          </View>
+          {calculo.desconto_efetivo_pct !== 0 ? (
+            <View style={styles.sumRow}>
+              <Text style={[styles.sumLabel, { color: alcadaCor, fontFamily: fonts.semibold, flex: 1 }]} testID="alcada-line">
+                {alcada.texto}
+              </Text>
+              <Text style={[styles.sumValue, { color: alcadaCor }]}>{calculo.total_cents <= calculo.total_tabela_cents ? `− ${formatBRL(calculo.total_tabela_cents - calculo.total_cents)}` : `+ ${formatBRL(calculo.total_cents - calculo.total_tabela_cents)}`}</Text>
+            </View>
+          ) : null}
           <View style={[styles.sumRow, { alignItems: 'baseline', marginTop: 2 }]}>
             <Text style={[styles.sumLabel, { color: colors.ink, fontFamily: fonts.semibold }]}>Total · prazo {terms}</Text>
             <Text style={styles.total} testID="order-total">
-              {formatBRL(v.totals.total_cents)}
+              {formatBRL(calculo.total_cents)}
             </Text>
           </View>
         </View>
@@ -472,69 +406,6 @@ function SentCard({ order }: { order: OrderDetail }) {
   );
 }
 
-function ProductRow({ p, qty, last, onQty, readOnly }: { p: Product; qty: number; last: boolean; onQty: (q: number) => void; readOnly?: boolean }) {
-  const s = stockInfo(p);
-  const [text, setText] = useState(String(qty));
-  useEffect(() => setText(String(qty)), [qty]);
-  const stockColor = s.tone === 'ok' ? colors.success : s.tone === 'low' ? colors.accentInk : colors.danger;
-  const noPrice = p.price_cents === null;
-  const semControleDeEstoque = p.stock_total >= ESTOQUE_NAO_CONTROLADO;
-  return (
-    <View style={[styles.prod, !last && styles.divider]} testID={`product-${p.erp_code}`}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-        <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-          <Text style={t.mono}>{p.erp_code}</Text>
-          <Text style={t.bodyStrong}>{p.description}</Text>
-          <Text style={t.small}>{p.applications}</Text>
-        </View>
-        <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }]}>{noPrice ? 'Sem preço' : formatBRL(p.price_cents ?? 0)}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          {semControleDeEstoque ? null : <Text style={[t.smallStrong, { color: stockColor }]}>{s.text}</Text>}
-          {noPrice ? <Text style={[t.smallStrong, { color: colors.danger }]} testID={`sem-preco-${p.erp_code}`}>Sem preço para este cliente</Text> : null}
-          {p.is_campaign ? <Badge label="Campanha" tone="accent" /> : null}
-        </View>
-        {readOnly ? (
-          <Text style={[t.bodyStrong, { fontFamily: fonts.bold }]}>{qty} un.</Text>
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <QtyButton icon="minus" label={`Diminuir ${p.description}`} disabled={qty <= 0} onPress={() => onQty(qty - 1)} testID={`dec-${p.erp_code}`} />
-            <TextInput
-              testID={`qty-${p.erp_code}`}
-              value={text}
-              onChangeText={(v) => setText(v.replace(/\D/g, ''))}
-              onBlur={() => onQty(Number(text || 0))}
-              onSubmitEditing={() => onQty(Number(text || 0))}
-              keyboardType="number-pad"
-              selectTextOnFocus
-              accessibilityLabel={`Quantidade de ${p.description}`}
-              style={styles.qty}
-            />
-            <QtyButton icon="plus" label={`Aumentar ${p.description}`} disabled={noPrice || qty >= p.stock_total} onPress={() => onQty(qty + 1)} testID={`inc-${p.erp_code}`} />
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
-
-function QtyButton({ icon, label, onPress, disabled, testID }: { icon: 'plus' | 'minus'; label: string; onPress: () => void; disabled?: boolean; testID?: string }) {
-  return (
-    <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.qtyBtn, disabled && { opacity: 0.4 }, pressed && { opacity: 0.6 }]} hitSlop={{ top: 4, bottom: 4 }}>
-      <Icon name={icon} size={16} color={colors.ink} strokeWidth={2.2} />
-    </Pressable>
-  );
-}
-
-function StepButton({ icon, label, onPress }: { icon: 'plus' | 'minus'; label: string; onPress: () => void }) {
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.step, pressed && { opacity: 0.6 }]}>
-      <Icon name={icon} size={16} color={colors.ink} strokeWidth={2.2} />
-    </Pressable>
-  );
-}
-
 function SearchBox({ value, onChange, placeholder, testID }: { value: string; onChange: (v: string) => void; placeholder: string; testID?: string }) {
   return (
     <View style={styles.search}>
@@ -547,10 +418,6 @@ function SearchBox({ value, onChange, placeholder, testID }: { value: string; on
       ) : null}
     </View>
   );
-}
-
-function fmtPctInput(n: number): string {
-  return n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 const styles = StyleSheet.create({

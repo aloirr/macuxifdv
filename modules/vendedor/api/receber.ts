@@ -24,17 +24,23 @@ import {
   dataDoPreco,
   historicoDoOrcamento,
   momentoDaConversao,
-  montarPedidoAprovado,
+  modalidadePadraoDosParametros,
+  MSG_RECUSA_FRETE,
   politicaDosParametros,
   recusaDePerfil,
+  resolverEnderecoEntrega,
+  resolverUnidadeDoItem,
   revalidarPedido,
   statusDoContrato,
   validadeDoOrcamento,
   validadeOrcamentoDias,
+  validarFrete,
   verificarConversao,
   verificarTipoParaCliente,
+  type FretePedido,
   type Recusa,
 } from '../domain';
+import { payloadAprovado } from './aprovado-erp';
 import { preVenda } from './pre-venda';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -70,6 +76,11 @@ export async function condicoesPermitidas(db: ClienteBanco, clienteId: string): 
   const padrao = todas.find((c) => c.padrao) ?? null;
   const permitidas = doCliente.length > 0 ? todas.filter((c) => doCliente.includes(c.id)) : padrao ? [padrao] : [];
   return { permitidas, padrao };
+}
+
+/** Retrato do endereço de entrega no aceite (RN-VEN-17; vem de core.cliente_endereco pela consulta do Core). */
+function retratoDoEndereco(e: { id: string; external_id: string | null; tipo: string; logradouro: string; numero: string | null; complemento: string | null; bairro: string | null; cidade: string; uf: string; cep: string | null; principal: boolean }) {
+  return { id: e.id, external_id: e.external_id, tipo: e.tipo, logradouro: e.logradouro, numero: e.numero, complemento: e.complemento, bairro: e.bairro, cidade: e.cidade, uf: e.uf, cep: e.cep, principal: e.principal, descricao: null };
 }
 
 const nomeDoEndereco = (logradouro: string | null, numero: string | null) => [logradouro, numero].filter((x) => x && x.trim() !== '').join(', ');
@@ -119,7 +130,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   }
 
   // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
-  const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: [eu] });
+  const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: [eu], endereco_ids: p.endereco_entrega_id ? [p.endereco_entrega_id] : [] });
   const cliente = cad.clientes.find((c) => c.id === p.customer_id);
   if (!cliente) return rejeitado(item.id, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
   const soOrcamento = verificarTipoParaCliente(tipo, cliente.ativo);
@@ -128,6 +139,37 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   const invalido = produtoIds.filter((id) => !produtos.get(id)?.ativo);
   if (invalido.length > 0) return rejeitado(item.id, 'RN-VEN-01', 'Há produto inativo ou inexistente no pedido. Atualize o catálogo e remova o item.');
   const vendedor = cad.usuarios.find((u) => u.id === eu);
+
+  // 4b) medida vendida (RN-VEN-15; o fator vem do Core), frete (RN-VEN-16) e endereço de entrega (RN-VEN-17)
+  const medidas = new Map<number, { unidade: string; fator: number }>();
+  for (const [idx, it] of p.items.entries()) {
+    const u = resolverUnidadeDoItem(it.unidade, produtos.get(it.product_id)!);
+    if (!u.ok) return rejeitado(item.id, u.codigo, 'Medida inválida para um dos produtos. Atualize o catálogo e escolha a medida de novo.');
+    medidas.set(idx, { unidade: u.unidade, fator: u.fator });
+  }
+  const frete: FretePedido = p.frete ?? { modalidade: modalidadePadraoDosParametros(ctx.parametros()) };
+  const recusaFrete = validarFrete(frete);
+  if (recusaFrete) return rejeitado(item.id, recusaFrete, MSG_RECUSA_FRETE[recusaFrete]);
+  let transportadora: { id: string | null; digitada: boolean; nome: string | null; documento: string | null; telefone: string | null } = { id: null, digitada: false, nome: null, documento: null, telefone: null };
+  if (frete.modalidade === 'FOB') {
+    if (frete.transportadora_id) {
+      const t = (
+        await db.query<{ id: string; nome: string; documento: string | null; telefone: string | null }>(
+          'select id, nome, documento, telefone from vendedor.transportadora where id = $1 and ativo and deleted_at is null',
+          [frete.transportadora_id],
+        )
+      ).rows[0];
+      if (!t) return rejeitado(item.id, 'transportadora_invalida', 'Transportadora não encontrada ou inativa. Atualize a lista e escolha de novo.');
+      transportadora = { id: t.id, digitada: false, nome: t.nome, documento: t.documento, telefone: t.telefone };
+    } else if (frete.transportadora_digitada) {
+      const d = frete.transportadora_digitada;
+      transportadora = { id: null, digitada: true, nome: d.nome.trim(), documento: d.cnpj.replace(/\D/g, ''), telefone: d.telefone?.trim() || null };
+    }
+  }
+  const enderecos = (cad.enderecos ?? []).filter((x) => x.cliente_id === p.customer_id);
+  const alvo = resolverEnderecoEntrega(p.endereco_entrega_id, enderecos);
+  if (!alvo.ok) return rejeitado(item.id, alvo.codigo, 'Endereço de entrega inválido para este cliente. Atualize os dados e escolha de novo.');
+  const enderecoRetrato = alvo.endereco_id ? enderecos.find((x) => x.id === alvo.endereco_id)! : null;
 
   // 5) preço na tabela do cliente, na data do pedido (RN-VEN-01, P-4; RN-CAT-06)
   const em = dataDoPreco(p.created_offline_at, agora);
@@ -150,7 +192,16 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     cliente_id: p.customer_id,
     carteira: [p.customer_id],
     desconto_pct: p.discount_pct,
-    itens: p.items.map((i) => ({ product_id: i.product_id, sku: produtos.get(i.product_id)?.sku ?? i.product_id, quantity: i.quantity })),
+    acrescimo_pct: p.acrescimo_pct ?? 0,
+    itens: p.items.map((i, idx) => ({
+      product_id: i.product_id,
+      sku: produtos.get(i.product_id)?.sku ?? i.product_id,
+      quantity: i.quantity,
+      unidade: medidas.get(idx)!.unidade,
+      fator: medidas.get(idx)!.fator,
+      desconto_pct: i.desconto_pct ?? 0,
+      acrescimo_pct: i.acrescimo_pct ?? 0,
+    })),
     precos: mapaPreco,
     policy: politicaDosParametros(ctx.parametros()),
     total_aparelho_cents: p.total_cents,
@@ -178,14 +229,19 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   const ins = await db.query(
     `insert into vendedor.pedido (id, tenant_id, cliente_id, vendedor_id, autor_id, status, condicao_pagamento, desconto_pct, total_tabela_cents, total_cents,
         observacao, visita_id, rota_parada_id, criado_no_aparelho_em, recebido_em, numero, hash_envio, cliente_resumo, cliente_nome, vendedor_nome,
-        tabela_preco_id, condicao_pagamento_id, condicao_pagamento_descricao, nivel_aprovacao, motivos_aprovacao, aprovacao_automatica)
-     values ($1, plataforma.tenant_atual(), $2, $3, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24)
+        tabela_preco_id, condicao_pagamento_id, condicao_pagamento_descricao, nivel_aprovacao, motivos_aprovacao, aprovacao_automatica,
+        acrescimo_pct, desconto_efetivo_pct, frete_modalidade, transportadora_id, transportadora_digitada, transportadora_nome,
+        transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega)
+     values ($1, plataforma.tenant_atual(), $2, $3, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
+        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb)
      on conflict (id) do nothing returning id`,
     [
       p.id, p.customer_id, eu, v.status, condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
       p.observacao ?? null, p.visita_id ?? null, p.route_stop_id ?? null, p.created_offline_at ?? null, recebidoEm, numero, hash,
       JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, vendedor?.nome ?? null,
       precos.tabela_preco_id, condicao?.id ?? null, condicao?.descricao ?? null, v.nivel, v.motivos, v.aprovacao_automatica,
+      v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada, transportadora.nome,
+      transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(retratoDoEndereco(enderecoRetrato)) : null,
     ],
   );
   // outro tenant com o mesmo id (chave primária global): não revela, só recusa
@@ -195,9 +251,9 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     const prod = produtos.get(it.product_id)!;
     await db.query(
       `insert into vendedor.pedido_item (tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, desconto_pct, total_cents,
-          produto_sku, produto_nome, unidade)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, prod.unidade],
+          produto_sku, produto_nome, unidade, fator, acrescimo_pct, preco_minimo_cents)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents],
     );
   }
   for (const h of v.historico) {
@@ -216,7 +272,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     entidade: 'pedido',
     entidade_id: p.id,
     antes: null,
-    depois: { status: v.status, numero, total_cents: v.total_cents, desconto_pct: v.desconto_pct, nivel: v.nivel, itens: v.itens.length, tipo, ...(origem ? { orcamento_origem_id: origem } : {}) },
+    depois: { status: v.status, numero, total_cents: v.total_cents, desconto_pct: v.desconto_pct, desconto_efetivo_pct: v.desconto_efetivo_pct, frete: frete.modalidade, nivel: v.nivel, itens: v.itens.length, tipo, ...(origem ? { orcamento_origem_id: origem } : {}) },
   });
   // RN-VEN-32: orçamento não publica evento de pedido (metas, Gestor e fila do ERP só veem pedido)
   if (tipo === 'orcamento') return aceito(item.id, await relogioDoBanco(db));
@@ -234,7 +290,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       total_cents: v.total_cents,
       total_tabela_cents: v.total_tabela_cents,
       criado_em: recebidoEm,
-      itens: v.itens.map((i) => ({ produto_id: i.product_id, quantidade: i.quantity, total_cents: i.total_cents })),
+      itens: v.itens.map((i) => ({ produto_id: i.product_id, quantidade: i.quantidade_base, total_cents: i.total_cents })),
       status: statusDoContrato(v.status),
     },
     p.id,
@@ -265,7 +321,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         solicitada_em: recebidoEm,
         nivel: v.nivel,
         motivos: v.motivos,
-        desconto_efetivo_pct: v.desconto_pct,
+        desconto_efetivo_pct: Math.max(0, v.desconto_efetivo_pct),
         total_cents: v.total_cents,
         credito: null,
         historico: null,
@@ -274,20 +330,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       p.id,
     );
   } else {
-    await tx.publicar(
-      EVENTO_PEDIDO_APROVADO,
-      montarPedidoAprovado({
-        pedido_uuid: p.id,
-        cliente_external_id: cliente.external_id,
-        vendedor_external_id: vendedor?.external_id ?? null,
-        condicao_pagamento_codigo: condicao?.codigo ?? null,
-        criado_em: p.created_offline_at ?? recebidoEm,
-        aprovado_em: recebidoEm,
-        observacao: p.observacao ?? null,
-        itens: v.itens.map((i) => ({ produto_external_id: produtos.get(i.product_id)?.external_id ?? null, quantidade: i.quantity, preco_tabela_cents: i.preco_tabela_cents, total_cents: i.total_cents })),
-      }),
-      p.id,
-    );
+    await tx.publicar(EVENTO_PEDIDO_APROVADO, await payloadAprovado(db, tx, p.id, recebidoEm), p.id);
   }
   return aceito(item.id, await relogioDoBanco(db));
 }

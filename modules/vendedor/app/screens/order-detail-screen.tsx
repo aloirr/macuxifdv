@@ -3,7 +3,7 @@
  * Pedido da fila mostra o que está no aparelho. Editar/excluir seguem orderActions (domain do Vendedor):
  * só enquanto o pedido não está no ERP, e só com a permissão por ação do manifesto (ADR 0004).
  */
-import { formatBRL, formatPct } from '@macuxi/comum';
+import { formatBRL, formatPct, formatarDocumento } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Button, Card, colors, dateTimeLabel, fonts, Icon, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -20,6 +20,7 @@ import { estadoDasAcoes, rotuloDoNivel, TEXTO_SEM_ITENS } from '../lib/acoes-ped
 import { toDomainPolicy } from '../lib/catalog';
 import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, textoFrete, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
+import { rotuloDoFrete, textoDoEndereco } from '../lib/novo-pedido';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
 import { orderNote, statusBadge } from '../lib/order-status';
 import { exportPdf } from '../lib/pdf-export';
@@ -39,8 +40,10 @@ interface Line {
   quantity_invoiced?: number;
   /** quantidade na unidade base (0013), para comparar com o faturado */
   quantity_base?: number;
-  /** sigla da medida vendida (UN, CX c/ 12) */
+  /** T-0061: medida vendida ("UN", "CX c/ 12") e desconto/acréscimo do item */
   unit_label?: string;
+  discount_pct?: number;
+  surcharge_pct?: number;
 }
 
 export default function OrderDetailScreen() {
@@ -98,8 +101,8 @@ export default function OrderDetailScreen() {
   const customerName = queued ? (qd?.customer_name ?? '') : base!.customer_name;
   const number = queued ? null : base!.number;
   const lines: Line[] = queued
-    ? (qd?.lines ?? []).map((l) => ({ key: l.product_id, ...l }))
-    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label }));
+    ? (qd?.lines ?? []).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
+    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
   const situacaoFaturamento = queued ? [] : (base?.situacao_faturamento ?? []);
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
@@ -108,6 +111,25 @@ export default function OrderDetailScreen() {
   const discount = queued ? (qd?.discount_cents ?? 0) : base!.discount_cents;
   const total = queued ? (qd?.total_cents ?? 0) : base!.total_cents;
   const discountPct = queued ? queued.payload.discount_pct : base!.discount_pct;
+  // T-0061 (RN-VEN-02/03/16/17): acréscimo, desconto efetivo, frete e endereço de entrega do pedido
+  const surchargePct = queued ? (queued.payload.acrescimo_pct ?? 0) : (base!.surcharge_pct ?? 0);
+  const effectivePct = queued ? null : (base!.effective_discount_pct ?? null);
+  const freteTexto = (() => {
+    if (queued) {
+      const f = queued.payload.frete;
+      return f ? rotuloDoFrete({ modalidade: f.modalidade, transportadora_id: f.modalidade === 'FOB' ? f.transportadora_id : null, transportadora_digitada: f.modalidade === 'FOB' ? f.transportadora_digitada : null }, app.transportadoras) : null;
+    }
+    const f = base!.freight;
+    if (!f) return null;
+    return f.modality === 'CIF' ? 'CIF · por conta da empresa' : `FOB · por conta do cliente${f.carrier_name ? ` · ${f.carrier_name}${f.carrier_document ? ` (CNPJ ${formatarDocumento(f.carrier_document)})` : ''}${f.carrier_typed ? ' · digitada' : ''}` : ''}`;
+  })();
+  const enderecoTexto = (() => {
+    if (queued) {
+      const e = queued.payload.endereco_entrega_id ? app.enderecos.find((x) => x.id === queued.payload.endereco_entrega_id) : null;
+      return e ? textoDoEndereco(e) : null;
+    }
+    return base!.delivery_address ? textoDoEndereco({ ...base!.delivery_address, numero: base!.delivery_address.numero ?? null, complemento: base!.delivery_address.complemento ?? null, bairro: base!.delivery_address.bairro ?? null }) : null;
+  })();
   const terms = queued ? queued.payload.payment_terms : base!.payment_terms;
   const note = queued ? queued.ultimo_erro : base ? orderNote(base) : '';
   const history: OrderEvent[] = queued
@@ -223,7 +245,7 @@ export default function OrderDetailScreen() {
       seller_name: mine?.name ?? (queued ? (ambiente.usuario()?.nome ?? '') : base!.seller_name),
       payment_terms: terms,
       discount_pct: discountPct,
-      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents })),
+      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}) })),
       subtotal_cents: subtotal,
       discount_cents: discount,
       total_cents: total,
@@ -234,6 +256,9 @@ export default function OrderDetailScreen() {
       erp_order_code: queued ? '' : base!.erp_order_code,
       seller_limit_pct: c?.policy && sellerId ? sellerDiscountLimit(toDomainPolicy(c.policy), sellerId) : null,
       history,
+      price_table_name: queued ? null : (base!.price_table_name ?? null),
+      ...(!queued && base!.freight ? { freight: base!.freight } : {}),
+      ...(enderecoTexto ? { delivery_address: enderecoTexto } : {}),
     };
   };
 
@@ -289,12 +314,20 @@ export default function OrderDetailScreen() {
 
       <Card style={{ padding: 14, gap: 6 }}>
         <Row label="Subtotal" value={formatBRL(subtotal)} />
-        <Row label={`Desconto ${formatPct(discountPct)}`} value={`− ${formatBRL(discount)}`} />
+        {surchargePct > 0 ? <Row label={`Acréscimo do pedido ${formatPct(surchargePct)}`} value={`+ ${formatBRL(Math.max(0, total - subtotal))}`} /> : <Row label={`Desconto ${formatPct(discountPct)}`} value={`− ${formatBRL(discount)}`} />}
+        {effectivePct !== null ? <Row label="Desconto efetivo (sem frete)" value={formatPct(effectivePct)} /> : null}
         <Row label={`Total · prazo ${terms}`} value={formatBRL(total)} strong />
         {base && !queued && base.branch_name ? <Row label="Filial" value={base.branch_name} /> : null}
         {!queued && detail?.freight ? <Row label="Frete" value={textoFrete(detail.freight).replace(/^Frete: /, '')} /> : null}
         {!queued && detail?.price_table_name ? <Row label="Tabela de preço" value={detail.price_table_name} /> : null}
       </Card>
+
+      {freteTexto || enderecoTexto ? (
+        <Card style={{ padding: 14, gap: 6 }} testID="order-delivery">
+          {freteTexto ? <Row label="Frete" value={freteTexto} /> : null}
+          {enderecoTexto ? <Row label="Entrega em" value={enderecoTexto} /> : null}
+        </Card>
+      ) : null}
 
       {situacaoFaturamento.length > 0 ? (
         <Card style={{ padding: 14, gap: 6 }} testID="order-invoicing">
@@ -344,6 +377,7 @@ export default function OrderDetailScreen() {
                 <Text style={t.bodyStrong}>{l.description}</Text>
                 <Text style={t.small}>
                   {l.quantity} {l.unit_label || 'UN'} × {formatBRL(l.unit_price_cents)}
+                  {(l.surcharge_pct ?? 0) > 0 ? ` · acréscimo ${formatPct(l.surcharge_pct!)}` : (l.discount_pct ?? 0) > 0 && effectivePct !== null ? ` · desconto ${formatPct(l.discount_pct!)}` : ''}
                 </Text>
                 {textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced) ? <Text style={[t.small, { color: colors.accentInk }]}>{textoItemFaturado(l.quantity_base ?? l.quantity, l.quantity_invoiced)}</Text> : null}
               </View>
