@@ -38,7 +38,9 @@ export function criarConsumidorPushNotificacao(opcoes: OpcoesPush = {}): Consumi
       if (!n || n.push_enviado_em || n.lida_em) return;
       const tokens = (
         await ctx.db.query<{ push_token: string }>(
-          'select push_token from core.dispositivo where usuario_id = $1 and push_token is not null and bloqueado_em is null and deleted_at is null',
+          `select d.push_token from core.dispositivo d join core.usuario u on u.id = d.usuario_id
+           where d.usuario_id = $1 and d.push_token is not null and d.bloqueado_em is null and d.deleted_at is null
+             and u.ativo and u.bloqueado_em is null and u.deleted_at is null`,
           [p.usuario_id],
         )
       ).rows;

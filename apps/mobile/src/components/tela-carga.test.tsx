@@ -198,7 +198,7 @@ describe('Tela de carga — sem nome técnico (R-20261102-090915)', () => {
       expect(texto(html)).toContain('Olá, Lucas');
       expect(texto(html)).toContain('50%');
     }
-  });
+  }, 30_000); // renderiza todas as etapas do motor: com a máquina carregada (bundle, outros agentes) passa de 5 s
 
   it('promotor: frase sem pedido; Gestão: frase da equipe', () => {
     sim.estado = { ...ESTADO_INICIAL, sincronizando: true, etapa: 'pedido', progresso: 0.2 };

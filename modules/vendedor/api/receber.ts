@@ -306,6 +306,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         alterado_em: recebidoEm,
         autor_id: eu,
         motivo: h.motivo,
+        pedido_numero: numero,
       },
       p.id,
     );
@@ -324,6 +325,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         total_cents: v.total_cents,
         credito: null,
         historico: null,
+        pedido_numero: numero,
       },
       p.id,
     );

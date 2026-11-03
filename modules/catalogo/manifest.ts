@@ -41,9 +41,13 @@ export const manifest = defineModule({
     'produto_midia',
     'produto_conteudo',
     'sinonimo',
+    // árvore do catálogo (RF-CAT-04, T-0061; nomes e níveis do ERP)
+    'catalogo_no',
+    'produto_no',
   ],
   publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
-  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'catalogo.busca.realizada@1'],
+  // produto: só o catalogo_no_external_id, para gravar produto_no; o cadastro do produto é do Core
+  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'catalogo.busca.realizada@1'],
   ofereceExtensoes: ['produto.acoes'],
   // T-0052: atalho "Ver catálogo" na ficha do cliente (abre o catálogo com o preço da tabela dele)
   usaExtensoes: ['cliente.acoes'],

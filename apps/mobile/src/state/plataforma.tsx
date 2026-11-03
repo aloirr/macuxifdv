@@ -56,9 +56,9 @@ import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
 import { CHAVE_LEASE, DONO_APP, leaseOcupado, type LeaseSync, type ResultadoSegundoPlano } from '@/lib/segundo-plano';
 import { testarServidor } from '@/lib/servidor';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
-import { ApiClient, HttpError } from '@/services/api';
+import { ApiClient, HttpError, NetworkError } from '@/services/api';
 import { armazenamentoDoUsuario } from '@/services/armazenamento';
-import { gravarTokens, lerTokens } from '@/services/credenciais';
+import { gravarSaidasPendentes, gravarTokens, lerSaidasPendentes, lerTokens } from '@/services/credenciais';
 import { modoApi, perfilBuildAtual, platformDefaultApiUrl } from '@/services/device';
 import { consultarModulosEfetivos, criarMotorDoUsuario, dispositivoId, trocarRefresh } from '@/services/motor-do-usuario';
 import {
@@ -71,6 +71,7 @@ import {
 import { keys, readJson, writeJson } from '@/services/storage';
 import { apagarFotosLocais } from '@/services/arquivos';
 import { esquecerRegistroPush } from '@/services/push';
+import { filaDeSaidas, reenviarSaidas, sairNoServidor, type ResultadoChamada } from '@/lib/saida-push';
 
 /** Usuário da sessão no shell: o do login real (Core) ou o fictício da Fase M (`role`, `team_name`...). */
 export interface UsuarioSessao extends Partial<Omit<FakeUser, 'id' | 'name' | 'email'>> {
@@ -105,6 +106,28 @@ const CHAVE_FALHA_SYNC = 'fv:diagnostico:falha_sync';
 
 /** Fora do desenvolvimento só https (R-20261101-023742-alexandre). */
 const EXIGIR_HTTPS = !__DEV__;
+
+/** Resultado de uma chamada do logout: sem sinal (rede, tempo, 5xx, 408, 429) volta para a fila; outro 4xx é recusa. */
+async function resultadoDe(p: Promise<unknown>): Promise<ResultadoChamada> {
+  try {
+    await p;
+    return 'ok';
+  } catch (e) {
+    if (e instanceof NetworkError) return 'sem_sinal';
+    if (e instanceof HttpError) return e.status >= 500 || e.status === 408 || e.status === 429 ? 'sem_sinal' : 'recusado';
+    return 'sem_sinal';
+  }
+}
+
+/** Reenvia o `/auth/logout` das saídas feitas sem sinal (o servidor revoga a sessão e limpa o push do aparelho). */
+async function reenviarSaidasPendentes(url: string): Promise<void> {
+  const fila = filaDeSaidas(await lerSaidasPendentes(), Date.now());
+  if (!fila.length) return;
+  const restam = await reenviarSaidas(fila, (x) =>
+    resultadoDe(new ApiClient(url, null).request('POST', '/auth/logout', { body: { refresh_token: x.refresh }, timeoutMs: 5000 })),
+  );
+  await gravarSaidasPendentes(restam);
+}
 
 export function usuarioDaFaseM(u: FakeUser): UsuarioSessao & FakeUser {
   return { ...u, perfil: perfilDaFaseM(u.role) };
@@ -259,6 +282,8 @@ function usePlataformaValor() {
       }
       offlineRef.current = Boolean(off);
       setOfflineState(Boolean(off));
+      // saídas feitas sem sinal (logout offline): tenta de novo agora, sem segurar a abertura
+      if (modo === 'v1') void reenviarSaidasPendentes(apiUrlRef.current).catch(() => undefined);
       if (sess) {
         sessaoRef.current = sess;
         setSessao(sess);
@@ -390,7 +415,10 @@ function usePlataformaValor() {
   const loginComSenha = useCallback(
     async (campos: CamposLogin) => {
       // o login vai só para o endereço que acabou de passar no teste (nunca para o que mudar no meio)
-      const cliente = new ApiClient(await garantirServidorMacuxi(), null);
+      const endereco = await garantirServidorMacuxi();
+      const cliente = new ApiClient(endereco, null);
+      // o servidor acabou de responder: é a hora de mandar as saídas que ficaram na fila (logout sem sinal)
+      void reenviarSaidasPendentes(endereco).catch(() => undefined);
       const post = async (caminho: string, corpo: unknown) => {
         try {
           return (await cliente.request<unknown>('POST', caminho, { body: corpo })).data;
@@ -443,8 +471,19 @@ function usePlataformaValor() {
   const logout = useCallback(async () => {
     const tokens = await lerTokens();
     if (modo === 'v1' && tokens?.refresh) {
-      // revoga a família do refresh no servidor (melhor esforço: sem sinal, o refresh expira sozinho)
-      await new ApiClient(apiUrlRef.current, null).request('POST', '/auth/logout', { body: { refresh_token: tokens.refresh }, timeoutMs: 5000 }).catch(() => undefined);
+      // R-20261102-174535 (🟡 1): apaga o token do push do aparelho e revoga a família do refresh (que no servidor também
+      // limpa o push). Sem sinal, a saída vai para a fila e é reenviada na abertura do app ou no próximo login.
+      const refresh = tokens.refresh;
+      const id = await dispositivoId();
+      const url = apiUrlRef.current;
+      const r = await sairNoServidor({
+        apagarPush: () => resultadoDe(new ApiClient(url, tokens.access).request('DELETE', '/dispositivos/atual/push', { query: { dispositivo_id: id }, timeoutMs: 5000 })),
+        revogar: () => resultadoDe(new ApiClient(url, null).request('POST', '/auth/logout', { body: { refresh_token: refresh }, timeoutMs: 5000 })),
+      });
+      if (r === 'pendente') {
+        const nova = { refresh, dispositivo_id: id, em: new Date().toISOString() };
+        await gravarSaidasPendentes(filaDeSaidas(await lerSaidasPendentes(), Date.now(), nova));
+      }
     }
     await gravarTokens(null);
     fecharSessaoLocal();

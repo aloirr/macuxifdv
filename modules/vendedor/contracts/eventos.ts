@@ -55,6 +55,8 @@ export const PedidoStatusAlteradoEvento = z.object({
   alterado_em: IsoDateTime,
   autor_id: Id.nullable(),
   motivo: z.string().max(500).nullable(),
+  /** número do pedido para o texto da notificação ("Pedido 000010 aprovado"); opcional, compatível com @1 */
+  pedido_numero: z.string().nullable().optional(),
 });
 export type PedidoStatusAlteradoEvento = z.infer<typeof PedidoStatusAlteradoEvento>;
 
@@ -71,6 +73,8 @@ export const AprovacaoSolicitadaEvento = z.object({
   /** crédito e histórico fora da fatia (T-0029 §14): sempre null */
   credito: z.null(),
   historico: z.null(),
+  /** número do pedido para o texto da notificação; opcional, compatível com @1 */
+  pedido_numero: z.string().nullable().optional(),
 });
 export type AprovacaoSolicitadaEvento = z.infer<typeof AprovacaoSolicitadaEvento>;
 

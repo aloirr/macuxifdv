@@ -266,7 +266,7 @@ function decidir(decisao: 'aprovar' | 'rejeitar'): RotaModulo {
         });
         await tx.publicar(
           EVENTO_PEDIDO_STATUS_ALTERADO,
-          { pedido_id: id, vendedor_id: linha.vendedor_id, de: 'em_aprovacao', para: statusDoContrato(r.para), alterado_em: agora, autor_id: eu, motivo: r.motivo },
+          { pedido_id: id, vendedor_id: linha.vendedor_id, de: 'em_aprovacao', para: statusDoContrato(r.para), alterado_em: agora, autor_id: eu, motivo: r.motivo, pedido_numero: linha.numero },
           id,
         );
         if (r.para === 'approved') await tx.publicar(EVENTO_PEDIDO_APROVADO, await payloadAprovado(db, tx, id, agora), id);
@@ -315,7 +315,7 @@ export const rotaCancelarPedido: RotaModulo = {
       if (orcamento) return { id, status: 'cancelled' };
       await tx.publicar(
         EVENTO_PEDIDO_STATUS_ALTERADO,
-        { pedido_id: id, vendedor_id: linha.vendedor_id, de: statusDoContrato(linha.status), para: 'cancelado', alterado_em: agora, autor_id: ctx.usuario.id, motivo },
+        { pedido_id: id, vendedor_id: linha.vendedor_id, de: statusDoContrato(linha.status), para: 'cancelado', alterado_em: agora, autor_id: ctx.usuario.id, motivo, pedido_numero: linha.numero },
         id,
       );
       return { id, status: 'cancelled' };
