@@ -40,3 +40,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Firebase: vem só da variável de arquivo GOOGLE_SERVICES_JSON do EAS (T-0065); nunca no repositório
+google-services.json
+GoogleService-Info.plist
