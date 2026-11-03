@@ -46,6 +46,25 @@ export interface OpcoesApiDemo {
   comDoisTenants?: boolean;
 }
 
+/**
+ * Blinda um pool de teste contra o `drop database ... with (force)` do `apagar()` (CI do main 0a073a4: FATAL 57P01
+ * admin_shutdown virou "unhandled error" no smoke-demo). O `error` de cliente OCIOSO vai ao pool e o de cliente EM USO
+ * (ex.: consulta presa de um caso que estourou o tempo) vai ao próprio cliente: os dois ganham ouvinte. A consulta
+ * em andamento continua rejeitando normalmente (o caso falha por ela, não por erro solto).
+ */
+export function blindarPool<P extends pg.Pool>(pool: P): P {
+  const ignorar = () => undefined;
+  pool.on('error', ignorar);
+  pool.on('connect', (c) => c.on('error', ignorar));
+  return pool;
+}
+
+/** `pool.end()` com teto: um cliente que nunca volta ao pool não pode segurar o `afterAll` até o hookTimeout. */
+export async function encerrarPool(pool: pg.Pool | undefined, ms = 10_000): Promise<void> {
+  if (!pool) return;
+  await Promise.race([pool.end().catch(() => undefined), new Promise((r) => setTimeout(r, ms))]);
+}
+
 export async function subirApiDemo(op: OpcoesApiDemo = {}): Promise<ApiDemo> {
   let hoje = '';
   const banco: BancoDeTeste = await criarBancoDeTeste({
@@ -54,8 +73,8 @@ export async function subirApiDemo(op: OpcoesApiDemo = {}): Promise<ApiDemo> {
       if (op.comDoisTenants) await carregarDoisTenants(c, { senha: SENHA });
     },
   });
-  const pool = new pg.Pool({ connectionString: banco.urlApp, max: 6 });
-  const admin = new pg.Pool({ connectionString: banco.urlAdmin, max: 2 });
+  const pool = blindarPool(new pg.Pool({ connectionString: banco.urlApp, max: 6 }));
+  const admin = blindarPool(new pg.Pool({ connectionString: banco.urlAdmin, max: 2 }));
   const coreApi = criarModuloApiCore({ segredo: () => SEGREDO_JWT });
   const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m));
   const app = createApp({ banco: criarBancoApp(pool), modulos, logger: false, arquivos: null });
@@ -105,8 +124,8 @@ export async function subirApiDemo(op: OpcoesApiDemo = {}): Promise<ApiDemo> {
     },
     async fechar() {
       await app.close().catch(() => undefined);
-      await pool.end().catch(() => undefined);
-      await admin.end().catch(() => undefined);
+      await encerrarPool(pool);
+      await encerrarPool(admin);
       await banco.apagar().catch(() => undefined);
     },
   };

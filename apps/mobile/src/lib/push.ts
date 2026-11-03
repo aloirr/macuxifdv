@@ -66,7 +66,7 @@ export function chaveRegistroPush(usuarioId: string): string {
 export interface RegistroPush {
   token: string;
   dispositivo_id: string;
-  /** ISO; o app registra de novo depois de 7 dias (o servidor pode ter limpado o token num novo login). */
+  /** ISO; o app registra de novo depois de 7 dias (garantia: o servidor limpa o token no logout e quando outro usuário registra o mesmo token). */
   em: string;
 }
 

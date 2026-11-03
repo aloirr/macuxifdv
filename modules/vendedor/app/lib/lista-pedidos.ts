@@ -10,13 +10,38 @@ export function rotuloDaAba(filtro: OrderFilter, gestao: boolean): boolean {
   return filtro !== 'queued' && filtro !== 'integrated';
 }
 
+/** Janela do pull no aparelho (dias): o seletor de mês não oferece meses fora dela. */
+export const JANELA_PEDIDOS_DIAS = 90;
+
 /**
- * Campo: pedidos do mês (no fuso do tenant) e o que ainda não terminou (fila, aguardando aprovação).
+ * Campo: pedidos do mês (no fuso do tenant) — criados no mês OU com mudança de status no mês (`updated_at`: aprovado,
+ * rejeitado, integrado, faturado, cancelado) — e, no mês atual, o que ainda não terminou (fila, aguardando aprovação).
  * Gestão: toda a janela do aparelho (a equipe inteira).
+ * `mesAtual` ausente = `mes` é o atual.
  */
-export function pedidosDaLista(pedidos: readonly PedidoDaLista[], o: { gestao: boolean; mes: string; tz: string }): PedidoDaLista[] {
+export function pedidosDaLista(pedidos: readonly PedidoDaLista[], o: { gestao: boolean; mes: string; tz: string; mesAtual?: string }): PedidoDaLista[] {
   if (o.gestao) return [...pedidos];
-  return pedidos.filter((p) => localIsoDate(p.received_at, o.tz).slice(0, 7) === o.mes || p.local || p.status === 'pending_approval');
+  const ehAtual = (o.mesAtual ?? o.mes) === o.mes;
+  return pedidos.filter((p) => {
+    if (ehAtual && (p.local || p.status === 'pending_approval')) return true;
+    if (p.local) return false;
+    return localIsoDate(p.received_at, o.tz).slice(0, 7) === o.mes || (Boolean(p.updated_at) && localIsoDate(p.updated_at, o.tz).slice(0, 7) === o.mes);
+  });
+}
+
+/** Meses (AAAA-MM, do mais novo ao mais antigo) que o seletor oferece: o atual e os que têm pedido dentro da janela de 90 dias. */
+export function mesesDoSeletor(pedidos: readonly PedidoDaLista[], o: { mesAtual: string; tz: string; agora: Date }): string[] {
+  const limite = localIsoDate(new Date(o.agora.getTime() - JANELA_PEDIDOS_DIAS * 86_400_000), o.tz).slice(0, 7);
+  const meses = new Set<string>([o.mesAtual]);
+  for (const p of pedidos) {
+    if (p.local) continue;
+    for (const iso of [p.received_at, p.updated_at]) {
+      if (!iso) continue;
+      const m = localIsoDate(iso, o.tz).slice(0, 7);
+      if (m >= limite && m <= o.mesAtual) meses.add(m);
+    }
+  }
+  return [...meses].sort().reverse();
 }
 
 /** Subtítulo honesto: a Gestão não filtra por mês, então não diz o mês. */

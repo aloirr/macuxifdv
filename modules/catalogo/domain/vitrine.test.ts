@@ -168,3 +168,34 @@ describe('vocabularioDe', () => {
     expect(vocabularioDe(PRODUTOS)).toEqual({ marcas: ['Aroma da Serra', 'Brilho', 'Grão Nobre'], linhas: ['Limpeza', 'Mercearia'] });
   });
 });
+
+describe('RF-CAT-04: navegação pela árvore filtra a vitrine', () => {
+  it('RF-CAT-04: o nó escolhido limita a vitrine aos produtos dele (e dos níveis abaixo), somando aos chips de marca e estoque', () => {
+    const sNo = new Set([id(1), id(2), id(3)]);
+    expect(listarVitrine({ produtos: PRODUTOS, contexto: ctx(), chips: { only_product_ids: sNo }, sinonimos: [], limit: 20, offset: 0 }).items.map((i) => i.id).sort()).toEqual([id(1), id(2), id(3)]);
+    const comEstoque = listarVitrine({ produtos: PRODUTOS, contexto: ctx(), chips: { only_product_ids: sNo, only_in_stock: true }, sinonimos: [], limit: 20, offset: 0 });
+    expect(comEstoque.items.map((i) => i.id).sort()).toEqual([id(1), id(2)]);
+    const marca = listarVitrine({ produtos: PRODUTOS, contexto: ctx(), chips: { only_product_ids: sNo, brand: 'Grão Nobre' }, sinonimos: [], limit: 20, offset: 0 });
+    expect(marca.items.map((i) => i.id).sort()).toEqual([id(2), id(3)]);
+  });
+
+  it('RF-CAT-04: nó sem produto devolve lista vazia (não a vitrine inteira)', () => {
+    expect(listarVitrine({ produtos: PRODUTOS, contexto: ctx(), chips: { only_product_ids: new Set() }, sinonimos: [], limit: 20, offset: 0 }).total).toBe(0);
+  });
+
+  it('RN-CAT-06: dentro do pedido (só da tabela do cliente) saem os produtos sem preço vigente na tabela dele', () => {
+    const r = listarVitrine({ produtos: PRODUTOS, contexto: ctx(), chips: { only_sellable: true }, sinonimos: [], limit: 20, offset: 0 });
+    expect(r.items.map((i) => i.id).sort()).toEqual([id(1), id(2), id(4)]);
+  });
+
+  it('RN-CAT-06: cliente sem tabela, dentro do pedido, não tem produto vendável', () => {
+    const r = listarVitrine({ produtos: PRODUTOS, contexto: ctx({ tabelaClienteId: null, itensPreco: [] }), chips: { only_sellable: true }, sinonimos: [], limit: 20, offset: 0 });
+    expect(r.total).toBe(0);
+  });
+
+  it('RN-CAT-05: para o promotor (sem preço) o nó filtra do mesmo jeito, só leitura, e o filtro de vendável não revela preço', () => {
+    const r = listarVitrine({ produtos: PRODUTOS, contexto: ctx({ perfil: 'promotor' }), chips: { only_product_ids: new Set([id(1), id(3)]) }, sinonimos: [], limit: 20, offset: 0 });
+    expect(r.items.map((i) => i.id).sort()).toEqual([id(1), id(3)]);
+    expect(r.items.every((i) => i.price === null)).toBe(true);
+  });
+});
