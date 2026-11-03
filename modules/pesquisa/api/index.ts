@@ -2,21 +2,23 @@
  * API do módulo Pesquisa (`/v1/pesquisa`; T-0057). Rotas declarativas; o `createApp` (apps/api) aplica autenticação,
  * licença do módulo, perfil/ação do manifesto, Zod e escopo de carteira em toda rota (CLAUDE.md regra 6). A regra de
  * negócio vive no domain e é revalidada aqui (regra 2).
- * Dados: atrás de `RepositorioPesquisa`. Hoje em memória (a migração 0016 do schema `pesquisa` ainda não está no
- * `main`; pedido ao banco-dados na T-0057) — troca pela implementação SQL sem mudar as rotas.
+ * Dados: atrás de `RepositorioPesquisa`. A API em produção usa o Postgres (`repositorio-postgres.ts`, schema `pesquisa`
+ * da migração 0016, RLS por tenant), como o Catálogo; o repositório em memória fica só para os testes de unidade
+ * (`criarApiPesquisa(criarRepositorioEmMemoria())`).
  */
 import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import { rotasDoConstrutor } from './construtor';
 import type { FabricaRepositorio } from './repositorio';
-import { criarRepositorioEmMemoria } from './repositorio-memoria';
+import { criarRepositorioPostgres } from './repositorio-postgres';
 import { rotasDeResultados } from './resultados';
 import { provedoresSync } from './sync';
 
 export type { FabricaRepositorio, RepositorioPesquisa } from './repositorio';
 export { criarRepositorioEmMemoria } from './repositorio-memoria';
+export { criarRepositorioPostgres, traduzirErroBanco } from './repositorio-postgres';
 
-/** Monta a API da Pesquisa sobre um repositório (testes passam o seu). */
+/** Monta a API da Pesquisa sobre um repositório (os testes passam o seu). */
 export function criarApiPesquisa(fabrica: FabricaRepositorio): ModuloApi {
   return definirModuloApi({
     manifesto: manifest,
@@ -25,8 +27,5 @@ export function criarApiPesquisa(fabrica: FabricaRepositorio): ModuloApi {
   });
 }
 
-/** Repositório do processo até a migração 0016 (dados somem ao reiniciar a API). */
-export const repositorioPadrao = criarRepositorioEmMemoria();
-
-export const moduloApi: ModuloApi = criarApiPesquisa(repositorioPadrao);
+export const moduloApi: ModuloApi = criarApiPesquisa(criarRepositorioPostgres());
 export default moduloApi;
