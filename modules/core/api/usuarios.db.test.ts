@@ -6,6 +6,7 @@
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import type { AcessoBanco, ClienteBanco, ContextoBase, RotaModulo, UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UsuarioItemSchema } from '../contracts';
@@ -19,6 +20,8 @@ const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const U = A.usuarios;
 const SENHA = 'Senha@Forte123';
+// sessao_token_hash_sha256 exige sha256 hex (64 caracteres minúsculos).
+const TOKEN_HASH_SESSAO = createHash('sha256').update('t0067-sessao').digest('hex');
 
 describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
   let pool: pg.Pool;
@@ -108,13 +111,13 @@ describe.skipIf(semBanco())('Core T-0067 × Postgres: usuários no BKO', () => {
     const token = assinarAcesso({ sub: criado.id, tid: A.tenantId, perfil: 'vendedor' }, agora, new Date(agora.getTime() + 15 * 60_000), segredo);
     const entrar = () => auth.autenticar({ authorization: `Bearer ${token}` }, acesso, agora);
     await comTenant(pool, A.tenantId, (c) =>
-      c.query("insert into core.sessao (tenant_id, usuario_id, familia_id, token_hash, expira_em) values ($1, $2, gen_random_uuid(), 'hash-t0067', now() + interval '1 day')", [A.tenantId, criado.id]),
+      c.query("insert into core.sessao (tenant_id, usuario_id, familia_id, token_hash, expira_em) values ($1, $2, gen_random_uuid(), $3, now() + interval '1 day')", [A.tenantId, criado.id, TOKEN_HASH_SESSAO]),
     );
     expect((await entrar())?.id).toBe(criado.id);
 
     await chamar('PUT', 'usuarios/:id/ativo', admin, { params: { id: criado.id }, corpo: { ativo: false } });
     expect(await entrar()).toBeNull();
-    const revogada = await comTenant(pool, A.tenantId, async (c) => (await c.query<{ revogado_em: Date | null }>("select revogado_em from core.sessao where token_hash = 'hash-t0067'")).rows[0]!.revogado_em);
+    const revogada = await comTenant(pool, A.tenantId, async (c) => (await c.query<{ revogado_em: Date | null }>("select revogado_em from core.sessao where token_hash = $1", [TOKEN_HASH_SESSAO])).rows[0]!.revogado_em);
     expect(revogada).not.toBeNull();
     expect(await auditorias('usuario.desativar', criado.id)).toHaveLength(1);
     const apagado = await comTenant(pool, A.tenantId, async (c) => (await c.query<{ deleted_at: Date | null }>('select deleted_at from core.usuario where id = $1', [criado.id])).rows[0]!.deleted_at);
