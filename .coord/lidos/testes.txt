@@ -98,3 +98,5 @@ R-20261102-230718-engenheiro-software
 R-20261102-233503-banco-dados
 R-20261102-233557-modulo-integracao
 R-20261103-001259-gerente-projetos
+R-20261103-004452-modulo-vendedor
+R-20261103-004804-gerente-projetos
