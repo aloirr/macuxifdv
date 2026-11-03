@@ -170,7 +170,7 @@ API, sync e telas: `api-e-telas.md`.
 
 ## Pendências
 - Limite de armazenamento de foto (bytes): definir com o app/storage (dimensões e qualidade já decididas, RN-PES-06).
-- Migração 0016 (schema `pesquisa`) e implementação SQL do `RepositorioPesquisa` (hoje em memória) — ver `api-e-telas.md`.
+- ~~Migração 0016 e implementação SQL do `RepositorioPesquisa`~~ — feito (T-0057, repositório Postgres); ver `api-e-telas.md`. Falta apurar resultados por SQL quando o volume pedir.
 - Equipe do usuário e universo do público (Core) para o público por equipe, o filtro por equipe e a taxa de resposta.
 - "Canal" volta ao público-alvo quando o Core tiver o campo (RN-PES-05).
 - Pesquisa que ofereça "Pesquisas" no Cliente 360 (`cliente.abas`) e o cartão na Gestão: telas e API, fora da T-0012.
