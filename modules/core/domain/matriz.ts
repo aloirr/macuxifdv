@@ -44,6 +44,9 @@ const MATRIZ: Readonly<Record<string, Linha>> = {
   'pesquisa.responder': linha(T(), T(), T(), T(), N, N, N),
   'pesquisa.criar': linha(N, N, N, N, T(), N, T()),
   'modulo.gerir_licencas': linha(N, N, N, N, N, N, T()),
+  // Usuários no BKO (RF-CORE-02): leitura recortada pelo escopo (supervisor/gerente = equipe), gestão só do admin
+  'usuario.ver': linha(N, N, L('equipe'), L('equipe'), N, N, L('tenant')),
+  'usuario.gerir': linha(N, N, N, N, N, N, T()),
 };
 
 export const ACOES_DA_MATRIZ: readonly string[] = Object.keys(MATRIZ);

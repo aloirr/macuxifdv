@@ -95,3 +95,17 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | `promotor-pedidos.painel` | Painel "Opções do perfil Promotor" (só admin; some para os demais) |
 | `promotor-pedidos.estado` | Estado atual: `data-estado="ligado"` ou `"desligado"` |
 | `promotor-pedidos.toggle` | Botão role=switch liga/desliga "Promotor vê pedidos" (`aria-checked`) |
+
+## BKO — tela Usuários (`/usuarios`, T-0067)
+| data-testid | Elemento |
+|---|---|
+| `usuarios.tela` · `usuarios.novo` · `usuarios.exportar-csv` | página; botão "Novo usuário" (só admin, ausente para os demais); CSV |
+| `usuarios.busca` · `usuarios.filtro-perfil` · `usuarios.filtro-equipe` · `usuarios.filtro-situacao` | filtros (ficam na URL: `q`, `perfil`, `equipe`, `situacao`) |
+| `usuarios.linha.<id>` | linha do usuário |
+| `usuarios.editar.<id>` · `usuarios.alternar.<id>` · `usuarios.senha.<id>` | Editar, Desativar/Reativar e Senha (só admin; ausentes para os demais) |
+| `usuarios.campo-nome` · `-email` · `-perfil` · `-equipe` · `-external-id` · `-senha` | campos do formulário (senha só na criação) |
+| `usuarios.superior` | texto do superior imediato resultante da equipe escolhida |
+| `usuarios.salvar` · `usuarios.cancelar` · `usuarios.erro` | formulário e erro da API (ex.: e-mail duplicado) |
+| `usuarios.ativo-confirmar` · `usuarios.ativo-cancelar` | diálogo de desativar/reativar |
+| `usuarios.senha-campo` · `usuarios.senha-confirmar` · `usuarios.senha-cancelar` | diálogo de redefinir senha |
+| `nav-core-usuarios` | item de menu do shell (supervisor, gerente e admin) |
