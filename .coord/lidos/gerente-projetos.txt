@@ -278,3 +278,10 @@ R-20261103-101852-engenheiro-software
 R-20261103-102356-engenheiro-software
 R-20261103-102952-engenheiro-software
 R-20261103-103616-modulo-treinamento
+R-20261103-110817-banco-dados
+R-20261103-110833-banco-dados
+R-20261103-111155-banco-dados
+R-20261103-112018-testes
+R-20261103-112048-testes
+R-20261103-112145-engenheiro-software
+R-20261103-113130-engenheiro-software

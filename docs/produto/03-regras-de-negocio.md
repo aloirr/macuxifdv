@@ -32,6 +32,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Conteúdo, sinônimos, destaques e termos sem resultado do catálogo | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Responder pesquisa | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Criar pesquisa / trilha | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Criar/editar/copiar metas do mês (BKO Metas e RV, T-0068) | ❌ (vê a própria no app) | ❌ | ✅ equipe (RN-CORE-04) | ✅ tenant | leitura | ✅ tenant |
 | Ativar/desativar módulos e usuários | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 > **Esclarecimento (gerente-projetos, 2026-10-31, observação O-3 da T-0006)**: pela matriz acima, o promotor **lê** os pedidos da própria carteira (somente leitura) e nunca cria, edita, cancela, duplica ou exclui (RN-PRO-01). A API deve liberar a leitura com escopo de carteira e continuar negando toda escrita.
@@ -108,6 +109,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-PRO-09** Alerta de ruptura vai ao vendedor responsável pelo cliente; se houver mais de um, ao da [linha do produto] ou ao primeiro da carteira.
 - **RN-PRO-10** Checklist, mix obrigatório e metas de share valem por vigência; a coleta guarda a versão vigente no momento.
 - **RN-PRO-11** Conformidade da gôndola (%) = (conformes + parciais × [peso do parcial]) ÷ gôndolas registradas × 100; peso padrão [0] (confirmado pelo Alexandre em 2026-11-02, R-20261102-204330: item parcial vale 0, parametrizável por tenant). Motivo obrigatório quando não conforme; o total de parciais aparece à parte.
+- **RN-PRO-12** Cadastro de trade em uso não se desativa no BKO: categoria com meta de share, mix ou produto de concorrente vivos, e concorrente com produto vivo, recebem 422 `CADASTRO_EM_USO` com as contagens (só do próprio tenant); desative antes os dependentes. Toda alteração de cadastro de trade grava auditoria (T-0069).
 
 ## 6. Pesquisa
 > Decisões do Alexandre em 2026-10-31 (R-20261031-125833), a partir das premissas da T-0012. As demais premissas de `docs/modulos/pesquisa/regras.md` ficam aceitas.
