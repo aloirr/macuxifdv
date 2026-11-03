@@ -5,10 +5,13 @@
  * Offline-first: tudo daqui nasce das linhas guardadas no aparelho.
  */
 import type { LinhaSync } from '@macuxi/platform-sdk';
-import type { ClienteSync, CustomerSummary, Me, ProdutoSync } from '@macuxi/core/contracts';
-import type { ClienteTabelaPrecoSync, Product } from '@macuxi/catalogo/contracts';
+import type { ClienteEnderecoSync, ClienteSync, CustomerSummary, Me, ProdutoSync, ProdutoUnidadeSync } from '@macuxi/core/contracts';
+import type { ClienteTabelaPrecoSync, Product, TabelaPrecoSync } from '@macuxi/catalogo/contracts';
 import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from '../../contracts';
 import type { CondicaoPagamentoSync, ClienteCondicaoSync, PedidoEventoSync, PedidoItemSync, PedidoSync } from '../../contracts/sync';
+import type { TransportadoraSync } from '../../contracts/frete';
+import { rotuloMedida } from '../../domain/preco-pedido';
+import type { EnderecoDaTela, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
 import { politicaDosParametros, quemDecide, textoPendencia } from '../../domain/aprovacao';
 import { camposFaturamento } from '../../domain/retorno-erp';
 
@@ -21,9 +24,14 @@ export interface LinhasVendedor {
   tabelasDoCliente: ClienteTabelaPrecoSync[];
   condicoes: CondicaoPagamentoSync[];
   condicoesDoCliente: ClienteCondicaoSync[];
+  // --- T-0061: embalagens (core), endereços de entrega (core), transportadoras (vendedor) e nome da tabela de preço (catálogo) ---
+  unidades: ProdutoUnidadeSync[];
+  enderecos: ClienteEnderecoSync[];
+  transportadoras: TransportadoraSync[];
+  tabelasPreco: TabelaPrecoSync[];
 }
 
-export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [] };
+export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [] };
 
 /** O que o motor oferece para ler as linhas locais (subconjunto estrutural de `MotorSync`). */
 export interface LeitorDeLinhas {
@@ -34,7 +42,7 @@ const vivas = <T extends { deleted_at: string | null }>(l: T[]): T[] => l.filter
 
 export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> {
   const ler = async <T extends LinhaSync>(e: string): Promise<T[]> => vivas(await motor.linhas<T>(e));
-  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente] = await Promise.all([
+  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco] = await Promise.all([
     ler<PedidoSync>('pedido'),
     ler<PedidoItemSync>('pedido_item'),
     ler<PedidoEventoSync>('pedido_evento'),
@@ -43,8 +51,12 @@ export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> 
     ler<ClienteTabelaPrecoSync>('cliente_tabela_preco'),
     ler<CondicaoPagamentoSync>('condicao_pagamento'),
     ler<ClienteCondicaoSync>('cliente_condicao'),
+    ler<ProdutoUnidadeSync>('produto_unidade'),
+    ler<ClienteEnderecoSync>('cliente_endereco'),
+    ler<TransportadoraSync>('transportadora'),
+    ler<TabelaPrecoSync>('tabela_preco'),
   ]);
-  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente };
+  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco };
 }
 
 // ---------- alçada e usuário ----------
@@ -166,6 +178,30 @@ export function condicoesDoCliente(l: LinhasVendedor, clienteId: string): Condic
   return lista.sort((a, b) => Number(b.padrao) - Number(a.padrao) || a.descricao.localeCompare(b.descricao, 'pt-BR'));
 }
 
+// ---------- medidas, endereços e transportadoras (T-0061) ----------
+export function unidadesDaTela(l: LinhasVendedor): UnidadeDaTela[] {
+  return l.unidades.filter((u) => u.ativo).map((u) => ({ produto_id: u.produto_id, unidade: u.unidade, fator: u.fator, padrao: u.padrao }));
+}
+export function enderecosDaTela(l: LinhasVendedor): EnderecoDaTela[] {
+  return l.enderecos.map((e) => ({ id: e.id, cliente_id: e.cliente_id, tipo: e.tipo, descricao: e.descricao, logradouro: e.logradouro, numero: e.numero, complemento: e.complemento, bairro: e.bairro, cidade: e.cidade, uf: e.uf, cep: e.cep, principal: e.principal, ativo: e.ativo }));
+}
+export function transportadorasDaTela(l: LinhasVendedor): TransportadoraDaTela[] {
+  return l.transportadoras.map((t) => ({ id: t.id, nome: t.nome, documento: t.documento, telefone: t.telefone, ativo: t.ativo }));
+}
+
+/** Frete e endereço do pedido, do retrato que veio no pull (RN-VEN-16/17). */
+function freteDaLinha(p: PedidoSync): Order['freight'] {
+  if (!p.frete_modalidade) return null;
+  const fob = p.frete_modalidade === 'FOB';
+  return { modality: p.frete_modalidade, carrier_name: fob ? (p.transportadora_nome ?? null) : null, carrier_document: fob ? (p.transportadora_documento ?? null) : null, carrier_phone: fob ? (p.transportadora_telefone ?? null) : null, carrier_typed: fob && p.transportadora_digitada === true };
+}
+function enderecoDaLinha(p: PedidoSync): Order['delivery_address'] {
+  const e = p.endereco_entrega;
+  if (!e || typeof e !== 'object') return null;
+  const t = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+  return { id: t(e.id), external_id: t(e.external_id), tipo: t(e.tipo) ?? undefined, descricao: t(e.descricao), logradouro: String(e.logradouro ?? ''), numero: t(e.numero), complemento: t(e.complemento), bairro: t(e.bairro), cidade: String(e.cidade ?? ''), uf: String(e.uf ?? ''), cep: t(e.cep), principal: e.principal === true };
+}
+
 // ---------- pedido ----------
 export function agruparPorPedido<T extends { pedido_id: string }>(linhas: readonly T[]): Map<string, T[]> {
   const m = new Map<string, T[]>();
@@ -177,7 +213,7 @@ export function agruparPorPedido<T extends { pedido_id: string }>(linhas: readon
   return m;
 }
 
-export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], parametros: Readonly<Record<string, unknown>>): Order {
+export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], parametros: Readonly<Record<string, unknown>>, tabelasPreco: readonly TabelaPrecoSync[] = []): Order {
   const limite = politicaDosParametros({ ...parametros }).seller_pct;
   return {
     id: p.id,
@@ -196,7 +232,7 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     total_cents: p.total_cents,
     payment_terms: p.condicao_pagamento_descricao ?? p.condicao_pagamento ?? '',
     status: p.status,
-    pending_reason: p.status === 'pending_approval' && p.nivel_aprovacao ? textoPendencia(p.nivel_aprovacao, p.desconto_pct, limite) : '',
+    pending_reason: p.status === 'pending_approval' && p.nivel_aprovacao ? textoPendencia(p.nivel_aprovacao, p.desconto_efetivo_pct ?? p.desconto_pct, limite) : '',
     rejection_reason: p.status === 'rejected' ? (p.motivo_rejeicao ?? '') : '',
     erp_order_code: p.numero_erp ?? '',
     created_offline_at: p.criado_no_aparelho_em,
@@ -209,6 +245,12 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     ...camposFaturamento(p),
     // T-0053 (0013): pré-venda; só quando a linha traz (linhas antigas ficam iguais)
     ...(p.tipo ? { tipo: p.tipo, validade_ate: p.validade_ate ?? null, orcamento_origem_id: p.orcamento_origem_id ?? null, convertido_pedido_id: p.convertido_pedido_id ?? null } : {}),
+    // T-0061: acréscimo, desconto efetivo, frete CIF/FOB e endereço de entrega (linhas antigas ficam iguais)
+    ...(p.acrescimo_pct ? { surcharge_pct: p.acrescimo_pct } : {}),
+    ...(p.desconto_efetivo_pct !== undefined && p.desconto_efetivo_pct !== null ? { effective_discount_pct: p.desconto_efetivo_pct } : {}),
+    ...(p.frete_modalidade ? { freight: freteDaLinha(p) } : {}),
+    ...(p.endereco_entrega ? { delivery_address: enderecoDaLinha(p) } : {}),
+    ...(p.tabela_preco_id ? { price_table_name: tabelasPreco.find((t) => t.id === p.tabela_preco_id)?.nome ?? null } : {}),
   };
 }
 
@@ -216,7 +258,7 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
 export function listaDePedidos(l: LinhasVendedor, parametros: Readonly<Record<string, unknown>>): Order[] {
   const itens = agruparPorPedido(l.itens);
   return l.pedidos
-    .map((p) => ordemDoPedido(p, itens.get(p.id) ?? [], parametros))
+    .map((p) => ordemDoPedido(p, itens.get(p.id) ?? [], parametros, l.tabelasPreco))
     .sort((a, b) => b.received_at.localeCompare(a.received_at) || b.id.localeCompare(a.id));
 }
 
@@ -232,7 +274,9 @@ function itemDoPedido(i: PedidoItemSync): OrderItem {
     discount_pct: i.desconto_pct,
     total_cents: i.total_cents,
     ...(i.quantidade_faturada === undefined || i.quantidade_faturada === null ? {} : { quantity_invoiced: i.quantidade_faturada }),
-    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: i.quantidade_base }),
+    ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: i.quantidade_base, base_quantity: i.quantidade_base }),
+    ...(i.unidade ? { unit: i.unidade, factor: i.fator ?? 1, unit_label: rotuloMedida(i.unidade, i.fator ?? 1) } : {}),
+    ...(i.acrescimo_pct ? { surcharge_pct: i.acrescimo_pct } : {}),
   };
 }
 
@@ -247,7 +291,7 @@ export function detalheDoPedido(l: LinhasVendedor, id: string, perfil: string, p
   const nivel = p.nivel_aprovacao ?? null;
   const q = nivel ? quemDecide(perfil, nivel) : null;
   return {
-    ...ordemDoPedido(p, itens, parametros),
+    ...ordemDoPedido(p, itens, parametros, l.tabelasPreco),
     items: itens.map(itemDoPedido),
     history: eventos.map((e) => ({
       at: e.ocorrido_em,
@@ -272,7 +316,7 @@ export function detalheDoPedido(l: LinhasVendedor, id: string, perfil: string, p
         ? {
             nivel: p.nivel_aprovacao,
             motivos: p.motivos_aprovacao ?? ['desconto'],
-            desconto_efetivo_pct: p.desconto_pct,
+            desconto_efetivo_pct: Math.max(0, p.desconto_efetivo_pct ?? p.desconto_pct),
             limite_vendedor_pct: limite,
             pode_decidir: p.status === 'pending_approval' && q.pode,
             acima_do_nivel: q.acima_do_nivel,

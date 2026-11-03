@@ -8,12 +8,13 @@
  * removidos incluídos. Item e evento: mesmo escopo e janela do pedido pai (join).
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
-import { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem } from '../contracts/entidades';
+import { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem, entidadeTransportadora } from '../contracts/entidades';
 import { ORDER_STATUSES_FINAIS } from '../domain/order';
+import { leituraDePedidosLiberada } from './opcao-promotor';
 import { receberPedidos } from './receber';
 import { FATURAMENTO_LIGADO } from './retorno-erp';
 
-export { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem };
+export { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem, entidadeTransportadora };
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const ts = (c: string, pre: string) => `to_char(${pre}${c} at time zone 'UTC', ${UTC}) as ${c}`;
@@ -33,8 +34,10 @@ const COLUNAS_PEDIDO = `p.id, ${ts('updated_at', 'p.')}, ${ts('deleted_at', 'p.'
  * item com `quantidade_base`/`fator`/`quantidade_faturada` na UNIDADE BASE (desenho T-0061 §2.1).
  */
 const COLUNAS_PEDIDO_FATURAMENTO = `, p.total_faturado_cents::float8 as faturado_cents, fat.notas as notas_faturamento, fat.ultima as ultima_nota_numero,
-  ${ts('faturado_em', 'p.')}`;
-const COLUNAS_ITEM_FATURAMENTO = ', i.quantidade_faturada, i.quantidade_base, i.fator';
+  ${ts('faturado_em', 'p.')},
+  p.acrescimo_pct::float8 as acrescimo_pct, p.desconto_efetivo_pct::float8 as desconto_efetivo_pct, p.frete_modalidade, p.transportadora_id,
+  p.transportadora_digitada, p.transportadora_nome, p.transportadora_documento, p.transportadora_telefone, p.endereco_entrega_id, p.endereco_entrega`;
+const COLUNAS_ITEM_FATURAMENTO = ', i.quantidade_faturada, i.quantidade_base, i.fator, i.acrescimo_pct::float8 as acrescimo_pct, i.preco_minimo_cents::float8 as preco_minimo_cents';
 /** T-0054: quantas notas de faturamento e a última NF (pedido_faturamento da 0013), por pedido. */
 export const JUNCAO_FATURAMENTO = `left join lateral (select count(*)::int as notas,
     (array_agg(f.nota_numero order by f.faturado_em desc, f.created_at desc))[1] as ultima
@@ -112,6 +115,8 @@ export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido): { sql: str
 }
 
 async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido) => { sql: string; valores: unknown[] }, ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
+  // O-3: promotor com `promotor_ve_pedidos` desligada não recebe pedido, item nem evento
+  if (!(await leituraDePedidosLiberada(ctx))) return [];
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
   const { sql, valores: v } = montar(pedido, e);
   return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
@@ -140,6 +145,17 @@ export function sqlClienteCondicao(pedido: PedidoPull, clientes: readonly string
   return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite, clientes === null ? null : [...clientes]] };
 }
 
+/** T-0061 (RN-VEN-16): transportadoras do tenant (o app lista só as ativas). */
+export function sqlTransportadora(pedido: PedidoPull): { sql: string; valores: unknown[] } {
+  const sql = `select ${BASE}, nome, documento, inscricao_estadual, telefone, ativo
+    from vendedor.transportadora
+   where updated_at < $1::timestamptz
+     and ($2::timestamptz is null or (updated_at, id) > ($2::timestamptz, $3::uuid))
+   order by updated_at, id
+   limit $4`;
+  return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite] };
+}
+
 export const provedoresSyncVendedor: readonly ProvedorSync[] = [
   { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e) => sqlPedido(x, e), ctx, p), receber: receberPedidos },
   { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e) => sqlPedidoItem(x, e), ctx, p) },
@@ -158,6 +174,14 @@ export const provedoresSyncVendedor: readonly ProvedorSync[] = [
     puxar: async (ctx, p) => {
       const c = await ctx.carteira();
       const { sql, valores: v } = sqlClienteCondicao(p, c === 'tenant' ? null : [...c]);
+      return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
+    },
+  },
+  {
+    entidade: entidadeTransportadora,
+    escopo: 'tenant',
+    puxar: async (ctx, p) => {
+      const { sql, valores: v } = sqlTransportadora(p);
       return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
     },
   },

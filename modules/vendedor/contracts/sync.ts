@@ -65,6 +65,18 @@ export const PedidoSyncSchema = z
     orcamento_origem_id: z.string().uuid().nullable().optional(),
     /** orçamento: o pedido em que ele virou */
     convertido_pedido_id: z.string().uuid().nullable().optional(),
+    // --- T-0061 (0013): acréscimo do pedido, desconto efetivo, frete CIF/FOB e endereço de entrega; opcionais ---
+    acrescimo_pct: z.number().min(0).max(100).nullable().optional(),
+    /** RN-VEN-03: sem frete; negativo = acréscimo */
+    desconto_efetivo_pct: z.number().nullable().optional(),
+    frete_modalidade: z.enum(['CIF', 'FOB']).nullable().optional(),
+    transportadora_id: z.string().uuid().nullable().optional(),
+    transportadora_digitada: z.boolean().nullable().optional(),
+    transportadora_nome: z.string().nullable().optional(),
+    transportadora_documento: z.string().nullable().optional(),
+    transportadora_telefone: z.string().nullable().optional(),
+    endereco_entrega_id: z.string().uuid().nullable().optional(),
+    endereco_entrega: z.record(z.unknown()).nullable().optional(),
   })
   .strict();
 export type PedidoSync = z.infer<typeof PedidoSyncSchema>;
@@ -89,6 +101,9 @@ export const PedidoItemSyncSchema = z
     /** 0013 (desenho T-0061 §2.1): quantidade x fator (unidade base) e o fator da unidade vendida */
     quantidade_base: z.number().int().nonnegative().nullable().optional(),
     fator: z.number().int().positive().nullable().optional(),
+    /** T-0061: acréscimo do item (RN-VEN-02); `desconto_pct` é o desconto do item */
+    acrescimo_pct: z.number().min(0).max(100).nullable().optional(),
+    preco_minimo_cents: z.number().int().nonnegative().nullable().optional(),
   })
   .strict();
 export type PedidoItemSync = z.infer<typeof PedidoItemSyncSchema>;

@@ -19,6 +19,7 @@ import type { MixSuggestion } from '@macuxi/catalogo/contracts';
 import type { CustomerDetail, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
+import { fretePush, linhasParaPush } from '../lib/novo-pedido';
 import {
   aceitosComoPedidos,
   draftKeyFor,
@@ -41,8 +42,11 @@ import {
   listaDeClientes,
   listaDePedidos,
   meDoAparelho,
+  enderecosDaTela,
   paraAprovar,
   politicaApi,
+  transportadorasDaTela,
+  unidadesDaTela,
   produtosComPrecos,
   type CondicaoDaTela,
   type LinhasVendedor,
@@ -266,6 +270,11 @@ export function useVendedor() {
     [v1, repo, recarregar, tabelaDe, ambiente],
   );
 
+  /** Medidas (UN/CX), endereços de entrega e transportadoras do aparelho (T-0061); vazios sem as entidades no sync. */
+  const unidades = useMemo(() => (v1 ? unidadesDaTela(linhas) : []), [v1, linhas]);
+  const enderecos = useMemo(() => (v1 ? enderecosDaTela(linhas) : []), [v1, linhas]);
+  const transportadoras = useMemo(() => (v1 ? transportadorasDaTela(linhas) : []), [v1, linhas]);
+
   /** Condições de pagamento permitidas ao cliente (RN-VEN-14), das linhas do aparelho. */
   const condicoesDe = useCallback((clienteId: string): CondicaoDaTela[] => (v1 ? condicoesDoCliente(linhasRef.current, clienteId) : []), [v1, linhas]);
 
@@ -296,7 +305,7 @@ export function useVendedor() {
       if (!pol) throw new Error('Alçadas ainda não estão no aparelho. Sincronize com sinal e tente de novo.');
       const editado = editId ? dadosRef.current.pedidos.find((o) => o.id === editId) ?? null : null;
       const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
-      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado });
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current) });
     },
     [v1, usuario],
   );
@@ -389,7 +398,7 @@ export function useVendedor() {
     async (orderId: string, rascunho: Rascunho, cliente: CustomerSummary, catalogo: Product[]): Promise<ResultadoAlteracao> => {
       if (!motor || !repo) throw new Error('Aplicativo ainda carregando. Aguarde um instante e tente de novo.');
       const { v, display } = prepararDoRascunho(rascunho, cliente, catalogo, orderId);
-      const itens = v.totals.lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity }));
+      const itens = linhasParaPush(v.calculo.linhas);
       const chave = draftKeyFor(cliente.id, orderId);
       const naFila = filaRef.current.find((o) => o.payload.id === orderId);
       if (naFila) {
@@ -402,6 +411,9 @@ export function useVendedor() {
             condicao_pagamento_id: rascunho.condicao_pagamento_id ?? null,
             total_cents: display.total_cents,
             items: itens,
+            acrescimo_pct: (rascunho.acrescimo_pct ?? 0) > 0 ? rascunho.acrescimo_pct : undefined,
+            frete: fretePush(rascunho.frete),
+            endereco_entrega_id: rascunho.endereco_entrega_id ?? null,
           } satisfies PedidoPush,
         });
         await repo.limparRascunho(chave);
@@ -551,6 +563,9 @@ export function useVendedor() {
     carregarFicha,
     garantirProdutos,
     condicoesDe,
+    unidades,
+    enderecos,
+    transportadoras,
     tabelaDe,
     rascunhoDe,
     atualizarRascunho,

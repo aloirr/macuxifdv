@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { criarPermissoes, verificarAcao, verificarAcesso } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
-import apiVendedor, { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './index';
+import apiVendedor, { rotasTransportadoras, rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './index';
 import { escopoDoPedido } from './sync';
 
 describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
@@ -56,8 +56,25 @@ describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
     expect(escopoDoPedido('analista', 'tenant', 'tenant')).toEqual({ vendedores: null, clientes: null });
   });
 
+  it('T-0061 / RN-VEN-16: transportadoras e padrão do frete — gerenciar só admin/analista/gerente, promotor e vendedor sem acesso, e sem licença do módulo nada passa', () => {
+    const perm = criarPermissoes([manifest]);
+    const como = (perfil: 'promotor' | 'vendedor' | 'supervisor' | 'gerente' | 'analista' | 'assistente' | 'admin', modulos: Array<'vendedor'> = ['vendedor']) => ({ id: 'u', tenant_id: 't', perfil, modulos });
+    for (const r of rotasTransportadoras) expect(r.acao).toBeTruthy();
+    for (const a of ['transportadora.ver', 'transportadora.gerenciar']) {
+      expect(verificarAcao(como('promotor'), perm, a)).toMatchObject({ ok: false, status: 403 });
+      expect(verificarAcao(como('vendedor'), perm, a)).toMatchObject({ ok: false, status: 403 });
+    }
+    for (const perfil of ['admin', 'analista', 'gerente'] as const) expect(verificarAcao(como(perfil), perm, 'transportadora.gerenciar')).toMatchObject({ ok: true });
+    for (const perfil of ['supervisor', 'assistente'] as const) {
+      expect(verificarAcao(como(perfil), perm, 'transportadora.ver')).toMatchObject({ ok: true });
+      expect(verificarAcao(como(perfil), perm, 'transportadora.gerenciar')).toMatchObject({ ok: false, status: 403 });
+    }
+    // licença: sem o módulo vendedor contratado, nem o gerente passa
+    expect(verificarAcao(como('gerente', []), perm, 'transportadora.gerenciar')).toMatchObject({ ok: false });
+  });
+
   it('a API do módulo é válida para o SDK', () => {
-    expect(apiVendedor.rotas).toHaveLength(6);
-    expect(apiVendedor.sync?.map((s) => s.entidade.nome)).toEqual(['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao']);
+    expect(apiVendedor.rotas).toHaveLength(12);
+    expect(apiVendedor.sync?.map((s) => s.entidade.nome)).toEqual(['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'transportadora']);
   });
 });
