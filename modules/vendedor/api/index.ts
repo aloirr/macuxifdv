@@ -10,12 +10,14 @@
 import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
+import { consultaPedidosDaMeta } from './consulta-pedidos-da-meta';
 import { consumidoresVendedor } from './retorno-erp';
 import { rotasTransportadoras } from './transportadoras';
 import { provedoresSyncVendedor } from './sync';
 
 export { aplicarRetornoErp, consumidorRetornoErp } from './retorno-erp';
 export { criarPreVendaEmMemoria, preVenda, preVendaIndisponivel, usarPreVenda, type DocumentoPreVenda, type RepositorioPreVenda } from './pre-venda';
+export { consultaPedidosDaMeta } from './consulta-pedidos-da-meta';
 export { rotasTransportadoras } from './transportadoras';
 export { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido };
 
@@ -24,6 +26,7 @@ export const apiVendedor: ModuloApi = definirModuloApi({
   rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido, ...rotasTransportadoras],
   sync: provedoresSyncVendedor,
   consumidores: consumidoresVendedor,
+  consultas: [consultaPedidosDaMeta],
 });
 /** Convenção do desenho T-0004 §3; o `default` também é aceito pela API. */
 export const moduloApi = apiVendedor;
