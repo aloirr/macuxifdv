@@ -44,6 +44,22 @@ export function idParametroCore(tenantId: string, chave: 'checkin.raio_m' | 'met
   return idDeChave(`${tenantId}:plataforma.parametro:core:${chave}`);
 }
 
+/**
+ * Medidas que a 0018 semeia em todo tenant (RN-CORE-19, RF-CORE-14; lista inicial do doc 02). Ordem = a da lista.
+ * O banco também semeia, nos tenants que já existiam na 0018, as siglas usadas em produto/produto_unidade (descrição =
+ * sigla). Ids: idMedida.
+ */
+export const MEDIDAS_INICIAIS = [
+  ['UN', 'Unidade'], ['CX', 'Caixa'], ['PCT', 'Pacote'], ['FD', 'Fardo'], ['LT', 'Lata'], ['BD', 'Balde'],
+  ['TB', 'Tubo'], ['GL', 'Galão'], ['KG', 'Quilograma'], ['DZ', 'Dúzia'], ['DP', 'Display'],
+] as const satisfies ReadonlyArray<readonly [string, string]>;
+export type SiglaMedidaInicial = (typeof MEDIDAS_INICIAIS)[number][0];
+
+/** Id da medida `sigla` no tenant (semeada pela 0018 / gatilho tenant_semear_medidas): uuid_de_chave('<tenant>:core.medida:<sigla>'). */
+export function idMedida(tenantId: string, sigla: string): string {
+  return idDeChave(`${tenantId}:core.medida:${sigla}`);
+}
+
 /** UUID (formato v5) derivado de uma chave textual: mesma chave => mesmo id em toda execução. */
 export function idDeterministico(chave: string): string {
   const h = createHash('sha1').update(`macuxi:${chave}`).digest();

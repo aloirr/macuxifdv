@@ -15,7 +15,7 @@ import type { ClientBase } from 'pg';
 import { exigirBancoLocal, hostDoCliente } from '../../src/config';
 import { anoMes, hojeNoFuso, menorData, somarDias } from '../../src/datas';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
-import { idDeterministico } from '../../src/ids';
+import { idDeterministico, idMedida } from '../../src/ids';
 import { hashSenha } from '../../src/senha';
 
 export const TENANT_FASE_M = '7d0c2f4e-1a2b-4c3d-8e9f-000000000001';
@@ -74,6 +74,9 @@ const PRODUTOS: Array<[string, string, string]> = [
   ['AMT-1150', 'Amortecedor dianteiro', 'Suspensão'], ['FLT-0330', 'Filtro de ar do motor diesel', 'Filtros'], ['PST-4450', 'Pastilha de freio dianteira diesel', 'Freios'],
   ['DSC-2230', 'Disco de freio diesel', 'Freios'], ['ROL-0130', 'Rolamento de roda diesel', 'Rolamentos'],
 ];
+
+/** Medidas da Fase M fora da lista inicial da 0018 (PC e JG, de unidadeDe). */
+const MEDIDAS_FASE_M: Array<[string, string]> = [['PC', 'Peça'], ['JG', 'Jogo']];
 
 const unidadeDe = (sku: string, linha: string) =>
   linha === 'Lubrificantes' || sku.startsWith('FLD') || sku.startsWith('ADT') ? 'UN' : sku.startsWith('VEL-05') || sku.startsWith('CAB-06') ? 'JG' : 'PC';
@@ -151,6 +154,8 @@ export const ORDEM_FASE_M = [
   'plataforma.parametro',
   'core.equipe',
   'core.usuario',
+  // 0018 (T-0063): siglas próprias da Fase M (a lista inicial vem do gatilho tenant_semear_medidas)
+  'core.medida',
   'core.produto',
   'core.cliente',
   'core.carteira',
@@ -322,6 +327,10 @@ export function dadosFaseM(senhaHash: string, opcoes: OpcoesFaseM = {}): DadosFa
       ...EQUIPES.map((nome) => ({ id: equipeId(nome), tenant_id: T, nome, equipe_pai_id: gerencia, responsavel_id: null, ativo: true, external_id: null })),
     ],
     'core.usuario': usuarios,
+    // medidas usadas pelos produtos fora da lista inicial (id = o da semeadura do banco: a recarga não colide)
+    'core.medida': MEDIDAS_FASE_M.map(([sigla, descricao]) => ({
+      id: idMedida(T, sigla), tenant_id: T, sigla, descricao, ativo: true, external_id: null,
+    })),
     'core.produto': PRODUTOS.map(([sku, nome, linha]) => ({
       id: id(`produto:${sku}`), tenant_id: T, sku, ean: null, nome, marca: MARCAS[linha] ?? 'Genérica', categoria: linha,
       unidade: unidadeDe(sku, linha), ativo: true, external_id: sku,
