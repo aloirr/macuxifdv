@@ -5,7 +5,7 @@
  */
 import { compararCursor, type LinhaSync, type PedidoPull } from '@macuxi/platform-sdk';
 import type { MedalhaUsuarioSyncLinha, ProgressoSyncLinha, TentativaSyncLinha, XpLancamentoSyncLinha } from '../contracts/sync';
-import type { EntidadeDoAluno, FabricaRepositorio, RepositorioTreinamento, TrilhaGravada, UsuarioTreinamento } from './repositorio';
+import type { EntidadeDoAluno, FabricaRepositorio, PublicacaoGravada, RepositorioTreinamento, TrilhaGravada, UsuarioTreinamento } from './repositorio';
 
 export interface BancoTreinamentoMemoria {
   trilhas: (TrilhaGravada & { tenant_id: string })[];
@@ -14,11 +14,13 @@ export interface BancoTreinamentoMemoria {
   xp_lancamento: XpLancamentoSyncLinha[];
   medalha_usuario: MedalhaUsuarioSyncLinha[];
   usuarios: (UsuarioTreinamento & { tenant_id: string })[];
+  /** Linha do tempo de publicação (`trilha_publicacao`), append-only. */
+  publicacoes: (PublicacaoGravada & { tenant_id: string })[];
   /** `tenant:usuario` de cada `travarAluno` (prova que a escrita do aluno é serializada). */
   travas: string[];
 }
 
-export const criarBancoEmMemoria = (): BancoTreinamentoMemoria => ({ trilhas: [], progresso: [], tentativa: [], xp_lancamento: [], medalha_usuario: [], usuarios: [], travas: [] });
+export const criarBancoEmMemoria = (): BancoTreinamentoMemoria => ({ trilhas: [], progresso: [], tentativa: [], xp_lancamento: [], medalha_usuario: [], usuarios: [], publicacoes: [], travas: [] });
 
 const naJanela = <L extends LinhaSync>(linhas: readonly L[], p: PedidoPull): L[] =>
   linhas.filter((l) => l.updated_at < p.ate && (!p.desde || compararCursor(l, p.desde) > 0)).sort(compararCursor).slice(0, p.limite);
@@ -46,11 +48,28 @@ export function fabricaEmMemoria(b: BancoTreinamentoMemoria): FabricaRepositorio
           if (t.tenant_id !== tenantId) throw new Error('trilha de outro tenant (RLS)');
           if (b.trilhas.some((x) => x.id === t.id)) throw Object.assign(new Error('chave duplicada'), { code: '23505' });
           b.trilhas.push({ ...copia(t), deleted_at: null });
+          return { created_at: t.created_at, updated_at: t.updated_at };
         },
         async atualizarTrilha(t) {
           const i = b.trilhas.findIndex((x) => x.id === t.id && x.tenant_id === tenantId);
           if (i < 0) throw new Error('trilha inexistente no tenant');
           b.trilhas[i] = { ...copia(t), deleted_at: b.trilhas[i]!.deleted_at };
+          return { created_at: t.created_at, updated_at: t.updated_at };
+        },
+        async mudarStatusTrilha(m) {
+          const i = b.trilhas.findIndex((x) => x.id === m.trilha_id && x.tenant_id === tenantId);
+          if (i < 0) throw new Error('trilha inexistente no tenant');
+          const atual = b.trilhas[i]!;
+          const updated_at = agora().toISOString();
+          b.trilhas[i] = { ...atual, status: m.para, publicada_em: m.publicada_em, arquivada_em: m.arquivada_em, updated_at };
+          const { publicada_em: _p, arquivada_em: _a, ...linha } = m;
+          b.publicacoes.push({ ...linha, tenant_id: tenantId });
+          return { created_at: atual.created_at, updated_at };
+        },
+        async publicacoesDaTrilha(id) {
+          return meu(b.publicacoes)
+            .filter((x) => x.trilha_id === id)
+            .map(({ tenant_id: _t, ...x }) => x);
         },
         async trilhasDesde(p) {
           return copia(naJanela(meu(b.trilhas), p));

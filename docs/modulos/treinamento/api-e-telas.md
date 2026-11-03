@@ -40,19 +40,28 @@ Desenho da fatia vertical do módulo sobre o domínio da T-0011 (`regras.md`). T
 
 Erros de regra: 422 com o código do domain e `detalhes.regra` (ex.: `TRILHA_INVALIDA` com `detalhes.problemas`).
 
-## 4. Repositório e o que falta no banco
-`api/repositorio.ts` define a interface; `api/memoria.ts` é a implementação em memória dos testes. **O `moduloApi` de produção ainda não tem fábrica**: as rotas respondem 503 `TREINAMENTO_INDISPONIVEL` depois de licença e perfil, e o sync não serve as entidades (o aparelho mantém a fila com `SYNC_NAO_IMPLEMENTADO`, retentável). Ligar = implementar `FabricaRepositorio` em SQL e passar em `criarApiTreinamento({ fabrica })`.
+## 4. Repositório SQL (ligado) e o que falta
+**A fábrica SQL está ligada** (T-0058): `api/repositorio-postgres.ts` (`criarFabricaPostgres()`) implementa `FabricaRepositorio` sobre o schema `treinamento` (migração 0017, dicionário em `docs/banco/treinamento.md`) e o `moduloApi` de produção (`api/index.ts`) a passa em `criarApiTreinamento({ fabrica })`: as rotas respondem de verdade e o sync serve as cinco entidades (`trilha`, `progresso`, `tentativa`, `xp_lancamento`, `medalha_usuario`). Sem fábrica (`criarApiTreinamento()`), continua o 503 `TREINAMENTO_INDISPONIVEL` depois de licença e perfil; `api/memoria.ts` segue como implementação em memória dos testes sem banco.
 
-Migração 0017 (banco-dados), schema `treinamento`, toda tabela com `id`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id` e RLS:
-- `trilha` (titulo, descricao, status, obrigatoria, sequencial, prazo date, publico_perfis text[], publico_equipes uuid[], publicada_em, arquivada_em) + árvore `modulo_trilha` (trilha_id, ordem, titulo, pre_requisitos uuid[]), `licao` (modulo_id, ordem, titulo, tipo, texto, midia_url, duracao_estimada_seg, pre_requisitos uuid[]), `quiz` (licao_id único), `questao` (quiz_id, ordem, enunciado), `alternativa` (questao_id, ordem, texto, correta). Alterar qualquer nó da árvore precisa subir o `updated_at` da trilha (o pull é por trilha).
-- `progresso` (usuario_id, trilha_id, licao_id, concluida_em, tempo_gasto_seg), único (tenant_id, usuario_id, licao_id).
-- `tentativa` (usuario_id, quiz_id, realizada_em, respostas jsonb, acertos, total_questoes, nota_pct numeric(5,2), aprovada, primeira_tentativa, finalizada).
-- `xp_lancamento` (usuario_id, origem, referencia_id varchar(128), pontos, pontos_base, limitado_pelo_teto, ocorrido_em, dia date), único (tenant_id, usuario_id, origem, referencia_id) — violação = `duplicado`.
-- `medalha_usuario` (usuario_id, medalha_codigo, conquistada_em), único (tenant_id, usuario_id, medalha_codigo).
-- Índices de pull `(tenant_id, updated_at, id)` e `(tenant_id, usuario_id, updated_at, id)`; `desafio_vendas`/`publico_alvo` seguem o recado da T-0011.
-- Seed da demo: 2 trilhas publicadas (uma obrigatória com quiz) e uma em rascunho.
+Como funciona (tudo dentro de `ctx.comTenant`: papel `macuxi_app`, RLS forçado; nenhum `tenant_id` vem de fora além do da transação):
+- `travarAluno`: `pg_advisory_xact_lock(hashtextextended(tenant || ':' || usuário, 0))`; a escrita do aluno é serializada (tetos de XP são ler-depois-gravar).
+- `trilhas`/`trilha`/`trilhasDesde`: a trilha é UMA linha do pull com a árvore montada a partir de `modulo_trilha → licao → quiz → questao → alternativa` (todo nó tem `trilha_id`); cursor `(updated_at, id)` em microssegundos (`to_char ... US`), incluindo removidas; `updated_at < ate`.
+- `inserirTrilha`/`atualizarTrilha`: o `updated_at` é do banco (`now()`, gatilho `tocar_trilha` sobe o da trilha a cada nó); editar **troca a árvore** (apaga alternativa → questão → quiz → lição → módulo por `trilha_id` e reinsere) na mesma transação e a rota devolve o `created_at`/`updated_at` lidos de volta.
+- `mudarStatusTrilha` (publicar/arquivar): muda só `status`/`publicada_em`/`arquivada_em` e grava a linha de `trilha_publicacao` (append-only; autor = usuário da sessão, `request_id` da requisição). A auditoria `plataforma.auditoria` continua sendo do `tx.auditar` da rota.
+- Aluno **append-only** (a aplicação só tem `select` e `insert`; UPDATE/DELETE = 42501 e o repositório nunca tenta): `gravarAtividade` usa `insert ... on conflict (<chave natural>) do nothing` — progresso `(tenant_id, usuario_id, licao_id)`, XP `(tenant_id, usuario_id, origem, referencia_id)`, medalha `(tenant_id, usuario_id, medalha_codigo)`, tentativa `(id)`. Reenvio não cria linha nem soma XP duas vezes.
+- Leituras do tenant para ranking e painel (`lancamentosDoTenant`, `conclusoesDoTenant`, `tentativasDoTenant`) = só linhas vivas do tenant da transação; o ranking é calculado no domain a partir dos lançamentos.
+- `usuarios()`: pela consulta pública do Core (ADR 0012), nunca por `core.*`. **Hoje** usa `core.cadastro_resumo@1` (declarada em `usaConsultas` do manifesto) para os usuários que têm atividade no Treinamento: traz id, nome e perfil; **equipe e regional vêm nulas e `ativo = true`**. Consequências: ranking `geral` e público por perfil funcionam; ranking por equipe/regional, público por equipe e a lista de pessoas sem atividade do painel dependem da consulta `core.usuarios_resumo@1` (`[{ id, nome, perfil, equipe_id, regional_id, ativo }]`, pedido ao engenheiro-software/modulo-core em R-20261102-131733-2). Quando existir, basta passar `criarFabricaPostgres({ usuarios })` com a nova fonte (`FonteDeUsuarios`).
 
-Usuários (perfil, equipe, regional, ativo, nome) vêm do **Core** — o Treinamento não lê `core.*` (regra 1). A implementação SQL de `usuarios()` precisa de uma consulta do Core (ADR 0012), proposta: `core.usuarios_resumo@1` → `[{ id, nome, perfil, equipe_id, regional_id, ativo }]` do tenant.
+Quem usa o quê: `api/rotas.ts` e `api/sync.ts` só falam com a interface `RepositorioTreinamento`; as consultas de uma rota rodam em série (a transação é uma conexão só).
+
+### Como testar
+- Sem banco: `pnpm --filter @macuxi/treinamento test` (domain, contracts, rotas e sync sobre o repositório em memória).
+- Com Postgres real (`api/repositorio-postgres.db.test.ts`, dois tenants A/B, papel `macuxi_app`, RLS):
+  `MACUXI_PG_EXIGIR=1 MACUXI_PG_AUTO_SUBIR=0 MACUXI_PG_HOST=localhost MACUXI_PG_PORTA=5432 MACUXI_PG_ADMIN_USUARIO=postgres MACUXI_PG_ADMIN_SENHA=postgres pnpm --filter @macuxi/treinamento test` (Node >= 24.7). O `vitest.config.ts` do módulo usa o globalSetup do `@macuxi/db` (banco efêmero com as migrações e as fixtures). Sem Postgres os testes de banco pulam com aviso; com `MACUXI_PG_EXIGIR=1` falham.
+- O que o teste de banco prova: árvore gravada e relida; edição troca a árvore sem nó órfão; publicar/arquivar gravam a linha do tempo uma vez; pull paginado por cursor; idempotência de progresso, XP e medalhas (reenvio e corrida de dois envios iguais); UPDATE/DELETE nos dados do aluno = 42501; ranking só do tenant; `dia` do XP no fuso do tenant (Manaus x São Paulo); tenant B não lê nem grava trilha/progresso de A. Sem hora fixa: datas derivam de `criarRelogio` (dia civil no fuso do tenant) ou do `now()` do banco.
+- Espelho Drizzle das 14 tabelas: código conferido em `docs/modulos/treinamento/espelho-drizzle.md` (vai para `modules/treinamento/db/nuvem.ts`, do banco-dados).
+
+Resumo da migração 0017 (banco-dados), schema `treinamento`, 14 tabelas, todas com `id`, `tenant_id`, `created_at`, `updated_at`, `deleted_at`, `external_id` e RLS: conteúdo (`trilha`, `modulo_trilha`, `licao`, `quiz`, `questao`, `alternativa`, `trilha_publicacao`), aluno (`progresso`, `tentativa`, `xp_lancamento`, `medalha_usuario`) e catálogos (`medalha`, `desafio_vendas`, `desafio_vendas_produto`). O público-alvo fica nos arrays da `trilha` (não há tabela `publico_alvo`). O desafio de vendas (consumo de `vendedor.pedido.faturado@1`) ainda não tem código no repositório.
 
 ## 5. Premissas (T-0058)
 - Trilha publicada não é editada (arquivar e criar outra); arquivada não volta.
