@@ -93,6 +93,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0067](tarefas/T-0067.md) | BKO de usuários e hierarquia — demo das 15h | modulo-core | nuvem (PR #82) | concluida (revisão sem 🔴 · mesclado em faad794 · 🟡 para depois da demo) |
 | [T-0068](tarefas/T-0068.md) | BKO de metas (Metas e RV sai do "em breve") — demo das 15h | modulo-core | nuvem (PR #83) | concluida (revisão sem 🔴 · mesclado em ac4ca3b · 🟡 para depois da demo) |
 | [T-0069](tarefas/T-0069.md) | Cadastros de trade no BKO — demo das 15h | modulo-promotor | nuvem (PR #81) | concluida (revisão sem 🔴 · mesclado em 4d6b443 · preço do concorrente na 0020) |
+| [T-0071](tarefas/T-0071.md) | Novo pedido em 3 abas (Itens · Detalhes · Resumo) e orçamento (RN-VEN-18) — Sprint 4 | modulo-vendedor | local (código só depois da demo de 03/11) | aberta (desenho com o engenheiro-software) |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | em_andamento (banco-dados, modulo-integracao, engenheiro-apps, testes; engenheiro-software em seguida) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | em_revisao (0 🔴; falta o consumidor de nota e o 🟡 da guarda de ordem) |
 | [T-0065](tarefas/T-0065.md) | Apuração da meta pelo tipo e atualização automática de 3–5 min — Sprint 4 | modulo-core | local + nuvem | aberta |

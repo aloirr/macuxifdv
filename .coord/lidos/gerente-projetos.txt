@@ -287,3 +287,8 @@ R-20261103-112145-engenheiro-software
 R-20261103-113130-engenheiro-software
 R-20261103-114836-banco-dados
 R-20261103-124249-engenheiro-software
+R-20261103-125023-testes
+R-20261103-123656-alexandre
+R-20261103-130003-alexandre
+R-20261103-130240-alexandre
+R-20261103-130027-engenheiro-software

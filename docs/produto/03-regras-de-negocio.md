@@ -84,6 +84,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - O frete nunca entra no desconto efetivo (RN-VEN-03) nem no realizado da meta (RN-CORE-21).
   - "Enviar pedido" fica bloqueado com FOB sem transportadora: "Informe a transportadora do frete FOB."
 - **RN-VEN-17** Endereço de entrega: padrão = endereço principal do cliente. O vendedor escolhe entre os endereços de entrega do cliente vindos do ERP; não digita endereço novo (endereço novo entra pelo cadastro no ERP).
+- **RN-VEN-18 Orçamento** O vendedor pode salvar o pedido como orçamento: válido por [`validade_orcamento_dias` 7] dias, não reserva estoque, não passa pela alçada, não vai ao ERP e não conta na meta. "Transformar em pedido" reconfere preço, estoque, preço mínimo e alçada no momento da transformação (avisa o que mudou) e segue o fluxo de "Enviar pedido". O vencido só pode ser duplicado. Cliente com cadastro incompleto ou bloqueado (RN-VEN-13) só pode salvar como orçamento. Desconto ou acréscimo em R$ no item é **por unidade**; no pedido, é sobre o total dos itens; a tela mostra sempre o equivalente (% ↔ R$). *(Alexandre, R-20261103-123656 e R-20261103-130003; referência visual na T-0071.)*
 - **RN-VEN-20** Disponível = saldo do ERP − reservas; reserva quando a API aceita o pedido; libera em cancelamento, rejeição ou faturamento. Insuficiente → [permitir com aviso | bloquear | cortar].
 - **RN-VEN-21** Quantidade múltipla do múltiplo de venda; item repetido soma quantidade.
 - **RN-VEN-22** Pedido mínimo [desativado].
@@ -196,6 +197,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Pedido mínimo | desativado |
 | Campos obrigatórios do cadastro do cliente (`cliente_campos_obrigatorios`) | razão social, CNPJ/CPF, IE ou isento (PJ), logradouro, número, bairro, município, UF, CEP |
 | Modalidade de frete padrão (`frete_modalidade_padrao`) | CIF |
+| Validade do orçamento (`validade_orcamento_dias`) | 7 dias |
 | Desconto máximo padrão do produto (`desconto_maximo_produto_pct`) | 15% |
 | Raio de check-in | 200 m |
 | Validade do orçamento | 7 dias |
