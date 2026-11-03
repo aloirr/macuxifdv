@@ -60,6 +60,120 @@ const aceito = (l: { lote_id: string; entidade: string; modo: string; recebidas:
     consulta: `/integracao/v1/lotes/${l.lote_id}`,
   }) as LoteAceito;
 
+type DbTenant = Parameters<Parameters<Ctx['comTenant']>[0]>[0];
+type TxTenant = Parameters<Parameters<Ctx['comTenant']>[0]>[1];
+
+/** Tudo de que o registro de um lote precisa, venha ele do Conector (`POST /lotes`) ou de um arquivo do BKO (RF-INT-03). */
+export interface EntradaGravarLote {
+  tenantId: string;
+  /** Conector dono do lote: `id` (uuid) e `identificador` (slug, vai no evento). */
+  conector: { id: string; identificador: string };
+  env: LoteEnvelopeValido;
+  /** Idempotency-Key já validada (RN-INT-12). */
+  chave: string;
+  hashConteudo: string;
+  recebidas: number;
+  versaoConector: string | null;
+  bytes: number;
+  agora: Date;
+  /** Conteúdo extra do staging (ex.: `origem` e `linhas_arquivo` da carga por arquivo), ao lado de registros e linhas inválidas. */
+  stagingExtra?: Record<string, unknown>;
+  log: { info(obj: Record<string, unknown>, msg: string): void };
+}
+
+export type ResultadoGravarLote =
+  | { tipo: 'aceito'; repetido: boolean; lote: { lote_id: string; entidade: string; modo: string; recebidas: number } }
+  | { tipo: 'conflito'; codigo: string; mensagem: string };
+
+/**
+ * O MESMO caminho de gravação para o Conector e para o arquivo (RN-INT-12, RN-INT-06): idempotência por (tenant, Conector, chave) —
+ * mesma chave e conteúdo repete o lote, conteúdo diferente é conflito —, sessão de carga completa, lote, staging e o evento
+ * `integracao.lote.recebido@1` na mesma transação. A validação do envelope e da topologia é de quem chama.
+ */
+export async function gravarLote(db: DbTenant, tx: TxTenant, e: EntradaGravarLote): Promise<ResultadoGravarLote> {
+  const { env } = e;
+  const lerPorChave = async (): Promise<LoteExistente | null> => {
+    const { rows } = await db.query<LoteExistente>(
+      `select id as lote_id, hash_conteudo, status, entidade, modo, recebidas
+         from integracao.lote where tenant_id = $1 and conector_id = $2 and chave_idempotencia = $3`,
+      [e.tenantId, e.conector.id, e.chave],
+    );
+    return rows[0] ?? null;
+  };
+  const decidir = (existente: LoteExistente | null) =>
+    decidirIdempotenciaLote({ chave: e.chave, hashConteudo: e.hashConteudo, existente: existente && { lote_id: existente.lote_id, hash_conteudo: existente.hash_conteudo, status: existente.status } });
+  const responder = (d: ReturnType<typeof decidir>, existente: LoteExistente | null): ResultadoGravarLote | null => {
+    if (d.acao === 'conflito') return { tipo: 'conflito', codigo: d.codigo, mensagem: d.mensagem };
+    if (d.acao === 'repetir' && existente) return { tipo: 'aceito', repetido: true, lote: existente };
+    return null;
+  };
+
+  const existente = await lerPorChave();
+  const resposta = responder(decidir(existente), existente);
+  if (resposta) return resposta;
+
+  // sessão de carga completa (RN-INT-06): uma linha por (Conector, sessao_uuid)
+  let sessaoId: string | null = null;
+  if (env.modo === 'completo' && env.sessao) {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into integracao.sessao_carga (tenant_id, sessao_uuid, conector_id, entidade, ultima_parte)
+       values ($1, $2, $3, $4, $5)
+       on conflict (tenant_id, conector_id, sessao_uuid) do update
+         set ultima_parte = coalesce(excluded.ultima_parte, integracao.sessao_carga.ultima_parte)
+       returning id`,
+      [e.tenantId, env.sessao.id, e.conector.id, env.entidade, env.sessao.ultimo ? env.sessao.parte : null],
+    );
+    sessaoId = rows[0]?.id ?? null;
+  }
+
+  const { rows: novo } = await db.query<{ id: string }>(
+    `insert into integracao.lote
+       (tenant_id, conector_id, entidade, modo, versao_contrato, sessao_id, sessao_parte, sessao_ultimo, chave_idempotencia, hash_conteudo,
+        recebidas, invalidas_omitidas, cursor_declarado, versao_conector, bytes)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)
+     on conflict (tenant_id, conector_id, chave_idempotencia) do nothing
+     returning id`,
+    [
+      e.tenantId,
+      e.conector.id,
+      env.entidade,
+      env.modo,
+      env.versao_contrato.slice(0, 10),
+      sessaoId,
+      sessaoId ? (env.sessao?.parte ?? null) : null,
+      sessaoId ? (env.sessao?.ultimo ?? null) : null,
+      e.chave,
+      e.hashConteudo,
+      e.recebidas,
+      env.linhas_invalidas_omitidas ?? 0,
+      env.cursor ? JSON.stringify(env.cursor) : null,
+      e.versaoConector,
+      e.bytes,
+    ],
+  );
+  const loteId = novo[0]?.id;
+  if (!loteId) {
+    // corrida na unique (mesma chave, dois POST ao mesmo tempo): quem perdeu relê e responde como repetição (ou conflito)
+    const outra = await lerPorChave();
+    const r = responder(decidir(outra), outra);
+    if (r) return r;
+    throw new Error('lote não gravado e sem lote para a chave de idempotência');
+  }
+
+  await db.query(`insert into integracao.lote_staging (tenant_id, lote_id, corpo) values ($1, $2, $3::jsonb)`, [
+    e.tenantId,
+    loteId,
+    JSON.stringify({ registros: env.registros, linhas_invalidas: env.linhas_invalidas ?? [], linhas_invalidas_omitidas: env.linhas_invalidas_omitidas ?? 0, ...(e.stagingExtra ?? {}) }),
+  ]);
+  await tx.publicar(
+    EVENTO_LOTE_RECEBIDO,
+    { lote_id: loteId, conector_id: e.conector.identificador, entidade: env.entidade, modo: env.modo, recebidas: e.recebidas, recebido_em: e.agora.toISOString() },
+    loteId,
+  );
+  e.log.info({ lote_id: loteId, entidade: env.entidade, modo: env.modo, recebidas: e.recebidas }, 'lote recebido');
+  return { tipo: 'aceito', repetido: false, lote: { lote_id: loteId, entidade: env.entidade, modo: env.modo, recebidas: e.recebidas } };
+}
+
 export async function enviarLote(ctx: Ctx): Promise<RespostaConector> {
   // 1) Idempotency-Key obrigatória (RN-INT-12)
   const chave = validarChaveIdempotencia(ctx.cabecalhos['idempotency-key']);
@@ -84,90 +198,24 @@ export async function enviarLote(ctx: Ctx): Promise<RespostaConector> {
   const recebidas = env.registros.length + (env.linhas_invalidas?.length ?? 0) + (env.linhas_invalidas_omitidas ?? 0);
   const versaoConector = (env.versao_conector ?? ctx.cabecalhos['x-macuxi-conector-versao'] ?? null)?.slice(0, 40) ?? null;
 
-  const lerPorChave = async (db: Parameters<Parameters<Ctx['comTenant']>[0]>[0]): Promise<LoteExistente | null> => {
-    const { rows } = await db.query<LoteExistente>(
-      `select id as lote_id, hash_conteudo, status, entidade, modo, recebidas
-         from integracao.lote where tenant_id = $1 and conector_id = $2 and chave_idempotencia = $3`,
-      [ctx.tenantId, ctx.conector.id, chave.chave],
-    );
-    return rows[0] ?? null;
-  };
-
   return ctx.comTenant(async (db, tx) => {
-    const decidir = (existente: LoteExistente | null) =>
-      decidirIdempotenciaLote({ chave: chave.chave, hashConteudo, existente: existente && { lote_id: existente.lote_id, hash_conteudo: existente.hash_conteudo, status: existente.status } });
-    const responder = (d: ReturnType<typeof decidir>, existente: LoteExistente | null): RespostaConector | null => {
-      if (d.acao === 'conflito') {
-        throw new ErroConector(409, { codigo: d.codigo, mensagem: d.mensagem, erros: [{ codigo: d.codigo, campo: 'Idempotency-Key', mensagem: d.mensagem }] });
-      }
-      if (d.acao === 'repetir' && existente) return new RespostaConector(aceito(existente, true), { status: 202, cabecalhos: { 'idempotent-replay': 'true' } });
-      return null;
-    };
-
-    const existente = await lerPorChave(db);
-    const resposta = responder(decidir(existente), existente);
-    if (resposta) return resposta;
-
-    // sessão de carga completa (RN-INT-06): uma linha por (Conector, sessao_uuid)
-    let sessaoId: string | null = null;
-    if (env.modo === 'completo' && env.sessao) {
-      const { rows } = await db.query<{ id: string }>(
-        `insert into integracao.sessao_carga (tenant_id, sessao_uuid, conector_id, entidade, ultima_parte)
-         values ($1, $2, $3, $4, $5)
-         on conflict (tenant_id, conector_id, sessao_uuid) do update
-           set ultima_parte = coalesce(excluded.ultima_parte, integracao.sessao_carga.ultima_parte)
-         returning id`,
-        [ctx.tenantId, env.sessao.id, ctx.conector.id, env.entidade, env.sessao.ultimo ? env.sessao.parte : null],
-      );
-      sessaoId = rows[0]?.id ?? null;
+    const r = await gravarLote(db, tx, {
+      tenantId: ctx.tenantId,
+      conector: { id: ctx.conector.id, identificador: ctx.conector.identificador },
+      env,
+      chave: chave.chave,
+      hashConteudo,
+      recebidas,
+      versaoConector,
+      bytes: ctx.bytesCorpo,
+      agora: ctx.agora(),
+      log: ctx.log,
+    });
+    if (r.tipo === 'conflito') {
+      throw new ErroConector(409, { codigo: r.codigo, mensagem: r.mensagem, erros: [{ codigo: r.codigo, campo: 'Idempotency-Key', mensagem: r.mensagem }] });
     }
-
-    const { rows: novo } = await db.query<{ id: string }>(
-      `insert into integracao.lote
-         (tenant_id, conector_id, entidade, modo, versao_contrato, sessao_id, sessao_parte, sessao_ultimo, chave_idempotencia, hash_conteudo,
-          recebidas, invalidas_omitidas, cursor_declarado, versao_conector, bytes)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)
-       on conflict (tenant_id, conector_id, chave_idempotencia) do nothing
-       returning id`,
-      [
-        ctx.tenantId,
-        ctx.conector.id,
-        env.entidade,
-        env.modo,
-        env.versao_contrato.slice(0, 10),
-        sessaoId,
-        sessaoId ? (env.sessao?.parte ?? null) : null,
-        sessaoId ? (env.sessao?.ultimo ?? null) : null,
-        chave.chave,
-        hashConteudo,
-        recebidas,
-        env.linhas_invalidas_omitidas ?? 0,
-        env.cursor ? JSON.stringify(env.cursor) : null,
-        versaoConector,
-        ctx.bytesCorpo,
-      ],
-    );
-    const loteId = novo[0]?.id;
-    if (!loteId) {
-      // corrida na unique (mesma chave, dois POST ao mesmo tempo): quem perdeu relê e responde como repetição (ou 409)
-      const outra = await lerPorChave(db);
-      const r = responder(decidir(outra), outra);
-      if (r) return r;
-      throw new Error('lote não gravado e sem lote para a chave de idempotência');
-    }
-
-    await db.query(`insert into integracao.lote_staging (tenant_id, lote_id, corpo) values ($1, $2, $3::jsonb)`, [
-      ctx.tenantId,
-      loteId,
-      JSON.stringify({ registros: env.registros, linhas_invalidas: env.linhas_invalidas ?? [], linhas_invalidas_omitidas: env.linhas_invalidas_omitidas ?? 0 }),
-    ]);
-    await tx.publicar(
-      EVENTO_LOTE_RECEBIDO,
-      { lote_id: loteId, conector_id: ctx.conector.identificador, entidade: env.entidade, modo: env.modo, recebidas, recebido_em: ctx.agora().toISOString() },
-      loteId,
-    );
-    ctx.log.info({ lote_id: loteId, entidade: env.entidade, modo: env.modo, recebidas }, 'lote recebido');
-    return new RespostaConector(aceito({ lote_id: loteId, entidade: env.entidade, modo: env.modo, recebidas }, false), { status: 202 });
+    if (r.repetido) return new RespostaConector(aceito(r.lote, true), { status: 202, cabecalhos: { 'idempotent-replay': 'true' } });
+    return new RespostaConector(aceito(r.lote, false), { status: 202 });
   });
 }
 
@@ -195,54 +243,64 @@ interface LinhaLote {
   sessao_ultimo: boolean | null;
 }
 
+/**
+ * Resultado de um lote com os erros por linha. `conectorId` limita ao lote do próprio Conector (Hub: 404 para outro Conector);
+ * sem ele vale o tenant inteiro (BKO). Em lote de arquivo, mensagens e avisos já levam "Linha N do arquivo:".
+ */
+export async function lerResultadoLote(db: DbTenant, tenantId: string, loteId: string, opcoes: { conectorId?: string; limiteErros: number }): Promise<LoteResultado | null> {
+  const { rows } = await db.query<LinhaLote>(
+    `select id, entidade, modo, status, recebidas, duplicadas_no_lote, com_erro, novas, atualizadas, inalteradas, obsoletas, inativadas,
+            invalidas_omitidas, cursor_resultante, avisos, recebido_em, concluido_em, sessao_id, sessao_ultimo
+       from integracao.lote where tenant_id = $1 and id = $2 and ($3::uuid is null or conector_id = $3::uuid)`,
+    [tenantId, loteId, opcoes.conectorId ?? null],
+  );
+  const l = rows[0];
+  if (!l) return null;
+
+  // falha_processamento primeiro (o Conector reenvia essas), depois pela posição da linha
+  const { rows: erros } = await db.query<{ indice: number; external_id: string | null; codigo: string; campo: string | null; mensagem: string; reprocessavel: boolean; origem: 'hub' | 'conector' }>(
+    `select indice, external_id, codigo, campo, mensagem, reprocessavel, origem
+       from integracao.lote_linha_erro where tenant_id = $1 and lote_id = $2
+      order by (codigo <> 'falha_processamento'), indice, origem limit $3`,
+    [tenantId, l.id, opcoes.limiteErros],
+  );
+  const { rows: total } = await db.query<{ n: string }>('select count(*)::text as n from integracao.lote_linha_erro where tenant_id = $1 and lote_id = $2', [tenantId, l.id]);
+  const errosTotal = Number(total[0]?.n ?? 0);
+
+  let inativacao: InativacaoLote | undefined;
+  if (l.modo === 'completo' && l.sessao_ultimo && l.sessao_id && (l.status === 'concluido' || l.status === 'concluido_com_erros')) {
+    inativacao = await inativacaoDoLote(db, tenantId, l);
+  }
+
+  return {
+    lote_id: l.id,
+    entidade: l.entidade,
+    modo: l.modo,
+    status: l.status,
+    contagens: { recebidas: l.recebidas, duplicadas_no_lote: l.duplicadas_no_lote, com_erro: l.com_erro, novas: l.novas, atualizadas: l.atualizadas, inalteradas: l.inalteradas, obsoletas: l.obsoletas },
+    erros,
+    avisos: l.avisos ?? [],
+    cursor: l.cursor_resultante ?? null,
+    invalidas_omitidas: l.invalidas_omitidas,
+    erros_total: errosTotal,
+    erros_omitidos: Math.max(0, errosTotal - erros.length),
+    ...(inativacao ? { inativacao } : {}),
+    inativadas: l.inativadas,
+    recebido_em: iso(l.recebido_em) as string,
+    concluido_em: iso(l.concluido_em),
+  } as LoteResultado;
+}
+
 export async function consultarLote(ctx: Ctx<unknown, ReturnType<typeof QueryConsultaLote.parse>, ReturnType<typeof ParamsLote.parse>>): Promise<LoteResultado> {
   return ctx.comTenant(async (db) => {
-    const { rows } = await db.query<LinhaLote>(
-      `select id, entidade, modo, status, recebidas, duplicadas_no_lote, com_erro, novas, atualizadas, inalteradas, obsoletas, inativadas,
-              invalidas_omitidas, cursor_resultante, avisos, recebido_em, concluido_em, sessao_id, sessao_ultimo
-         from integracao.lote where tenant_id = $1 and id = $2 and conector_id = $3`,
-      [ctx.tenantId, ctx.params.id, ctx.conector.id],
-    );
-    const l = rows[0];
-    if (!l) throw new ErroConector(404, { codigo: 'lote_nao_encontrado', mensagem: 'Lote não encontrado para este Conector. Se o envio foi interrompido, reenvie o lote com a mesma Idempotency-Key.' });
-
-    // falha_processamento primeiro (o Conector reenvia essas), depois pela posição da linha
-    const { rows: erros } = await db.query<{ indice: number; external_id: string | null; codigo: string; campo: string | null; mensagem: string; reprocessavel: boolean; origem: 'hub' | 'conector' }>(
-      `select indice, external_id, codigo, campo, mensagem, reprocessavel, origem
-         from integracao.lote_linha_erro where tenant_id = $1 and lote_id = $2
-        order by (codigo <> 'falha_processamento'), indice, origem limit $3`,
-      [ctx.tenantId, l.id, ctx.query.limite_erros],
-    );
-    const { rows: total } = await db.query<{ n: string }>('select count(*)::text as n from integracao.lote_linha_erro where tenant_id = $1 and lote_id = $2', [ctx.tenantId, l.id]);
-    const errosTotal = Number(total[0]?.n ?? 0);
-
-    let inativacao: InativacaoLote | undefined;
-    if (l.modo === 'completo' && l.sessao_ultimo && l.sessao_id && (l.status === 'concluido' || l.status === 'concluido_com_erros')) {
-      inativacao = await inativacaoDoLote(db, ctx.tenantId, l);
-    }
-
-    return {
-      lote_id: l.id,
-      entidade: l.entidade,
-      modo: l.modo,
-      status: l.status,
-      contagens: { recebidas: l.recebidas, duplicadas_no_lote: l.duplicadas_no_lote, com_erro: l.com_erro, novas: l.novas, atualizadas: l.atualizadas, inalteradas: l.inalteradas, obsoletas: l.obsoletas },
-      erros,
-      avisos: l.avisos ?? [],
-      cursor: l.cursor_resultante ?? null,
-      invalidas_omitidas: l.invalidas_omitidas,
-      erros_total: errosTotal,
-      erros_omitidos: Math.max(0, errosTotal - erros.length),
-      ...(inativacao ? { inativacao } : {}),
-      inativadas: l.inativadas,
-      recebido_em: iso(l.recebido_em) as string,
-      concluido_em: iso(l.concluido_em),
-    } as LoteResultado;
+    const r = await lerResultadoLote(db, ctx.tenantId, ctx.params.id, { conectorId: ctx.conector.id, limiteErros: ctx.query.limite_erros });
+    if (!r) throw new ErroConector(404, { codigo: 'lote_nao_encontrado', mensagem: 'Lote não encontrado para este Conector. Se o envio foi interrompido, reenvie o lote com a mesma Idempotency-Key.' });
+    return r;
   });
 }
 
 /** Situação da inativação no resultado do último lote da sessão (o que o Conector lê; RN-INT-06). */
-async function inativacaoDoLote(db: Parameters<Parameters<Ctx['comTenant']>[0]>[0], tenantId: string, l: LinhaLote): Promise<InativacaoLote> {
+async function inativacaoDoLote(db: DbTenant, tenantId: string, l: LinhaLote): Promise<InativacaoLote> {
   const { rows } = await db.query<{ estado: string; candidatos: number; percentual: string }>(
     'select estado, candidatos, percentual from integracao.pendencia_inativacao where tenant_id = $1 and sessao_id = $2',
     [tenantId, l.sessao_id],
