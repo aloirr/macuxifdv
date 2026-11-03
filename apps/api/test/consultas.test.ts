@@ -6,7 +6,7 @@
 import { manifest as catalogo } from '@macuxi/catalogo/manifest';
 import { manifest as promotor } from '@macuxi/promotor/manifest';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
-import { consultasSemImplementacao, defineModule, definirConsulta, definirModuloApi, implementarConsulta, type ClienteBanco, type ModuloApi } from '@macuxi/platform-sdk';
+import { consultasSemImplementacao, defineModule, definirConsulta, definirEntidadeSync, definirModuloApi, implementarConsulta, type ClienteBanco, type ContextoBase, type LinhaSync, type ModuloApi } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createApp } from '../src/app';
@@ -108,5 +108,78 @@ describe('E1 — tx.consultar no createApp (ADR 0012)', () => {
     expect(() => createApp({ ...opcoesDeTeste(), modulos: modulosDeTeste({ catalogo: semOferta, vendedor: vendedorApi }) })).toThrow(
       'vendedor usa a consulta catalogo.precos_cliente@1, que catalogo não oferece',
     );
+  });
+});
+
+/**
+ * R-20261103-020048 (T-0061): o provedor de sync recebe o MESMO `ctx.comTenant` das rotas, com `tx.consultar` no tenant e
+ * no usuário do pull/push/novidades (ex.: o Vendedor lê `core.promotor_ve_pedidos@1` no pull do promotor).
+ */
+describe('E1 — tx.consultar no provedor de sync (pull, novidades e push)', () => {
+  const ENTIDADE = definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'app_edita_ate_status', schema: z.object({}) });
+  const AGORA = new Date('2026-11-03T05:00:00.000Z');
+  const ID = '0e000000-0000-4000-8000-000000000001';
+  type Visto = { quem: string; fator: number; mesma_transacao: boolean; tenant: string; usuario: string };
+
+  function appSync() {
+    const vistos: Visto[] = [];
+    const consultar = (ctx: ContextoBase) =>
+      ctx.comTenant(async (db, tx) => {
+        const r = await tx.consultar(PRECOS, { cliente_id: CLIENTE, produto_ids: ['p1'] });
+        vistos.push({ quem: r.quem, fator: r.fator, mesma_transacao: dbDaConsulta === db, tenant: ctx.usuario.tenant_id, usuario: ctx.usuario.id });
+      });
+    const vendedorSync = definirModuloApi({
+      manifesto: defineModule({ ...vendedor, usaConsultas: ['catalogo.precos_cliente@1'] }),
+      sync: [
+        {
+          entidade: ENTIDADE,
+          escopo: 'usuarios',
+          puxar: async (ctx) => {
+            await consultar(ctx);
+            return [{ id: ID, updated_at: new Date(AGORA.getTime() - 10_000).toISOString(), deleted_at: null } satisfies LinhaSync];
+          },
+          receber: async (ctx, itens) => {
+            await consultar(ctx);
+            return itens.map((i) => ({ id: i.id, status: 'aceito' as const }));
+          },
+        },
+      ],
+    });
+    const base = opcoesDeTeste(LICENCAS_PADRAO, { banco: bancoFalso(() => new Date(AGORA.getTime() - 2_000)).banco, relogio: () => AGORA });
+    const app = createApp({
+      ...base,
+      modulos: modulosDeTeste({ catalogo: catalogoApi, vendedor: vendedorSync, promotor: promotorApi }),
+      licencas: async (u, b) => ({ ...(await base.licencas!(u, b)), parametros: { catalogo: { fator_teste: 3 } } }),
+    });
+    return { app, vistos };
+  }
+
+  it('pull: o provedor consulta na transação do tenant, com o usuário do pull (promotor)', async () => {
+    const { app, vistos } = appSync();
+    const r = await app.inject({ method: 'GET', url: '/v1/sync/pull?entidade=pedido', headers: cab('promotor') });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().itens.map((l: LinhaSync) => l.id)).toEqual([ID]);
+    const p = usuarios.promotor!;
+    expect(vistos).toEqual([{ quem: 'promotor', fator: 3, mesma_transacao: true, tenant: p.tenant_id, usuario: p.id }]);
+  });
+
+  it('novidades e push: o provedor também recebe tx.consultar', async () => {
+    const { app, vistos } = appSync();
+    const primeira = await app.inject({ method: 'GET', url: '/v1/sync/novidades', headers: cab('vendedor') });
+    expect(primeira.statusCode, primeira.body).toBe(200);
+    // com o cursor da primeira, a segunda chamada pergunta ao provedor (puxar com limite 1)
+    const desde = encodeURIComponent(primeira.json().cursor);
+    const segunda = await app.inject({ method: 'GET', url: `/v1/sync/novidades?desde=${desde}`, headers: cab('vendedor') });
+    expect(segunda.statusCode, segunda.body).toBe(200);
+    const push = await app.inject({
+      method: 'POST',
+      url: '/v1/sync/push',
+      headers: cab('vendedor'),
+      payload: { itens: [{ id: '0e000000-0000-4000-8000-000000000002', entidade: 'pedido', operacao: 'upsert', payload: {} }] },
+    });
+    expect(push.statusCode, push.body).toBe(200);
+    expect(push.json().resultados[0]).toMatchObject({ status: 'aceito' });
+    expect(vistos.length).toBe(2);
+    expect(vistos.every((v) => v.quem === 'vendedor' && v.mesma_transacao && v.usuario === usuarios.vendedor!.id)).toBe(true);
   });
 });

@@ -133,6 +133,9 @@ export interface ContextoBase {
   /**
    * Única via de tocar dado de tenant: abre transação com `app.tenant_id` = tenant do token
    * (papel macuxi_app, RLS). Sem banco configurado = erro 503 (falha fechada).
+   * `tx` vem SEMPRE, também no provedor de sync (`puxar`/`receber`, inclusive nas novidades): `tx.consultar` roda no
+   * tenant e no usuário da requisição de sync, com o módulo da entidade como consumidor (R-20261103-020048; teste em
+   * apps/api/test/consultas.test.ts). Contexto falso de teste do módulo precisa entregar `tx` também.
    */
   comTenant<T>(fn: (db: ClienteBanco, tx: TransacaoTenant) => Promise<T>): Promise<T>;
   /** Clientes visíveis ao usuário (RN-CORE-04): conjunto de ids ou `'tenant'` (tudo). */
