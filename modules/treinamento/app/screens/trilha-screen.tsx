@@ -60,7 +60,7 @@ export default function TrilhaScreen() {
         <Card style={{ padding: 14, gap: 8 }}>
           <View style={styles.linha}>
             <Text style={t.bodyStrong}>
-              {resumo.licoes_concluidas} de {resumo.licoes_total} lições
+              {resumo.licoes_concluidas} de {resumo.licoes_total} {resumo.licoes_total === 1 ? 'lição' : 'lições'}
             </Text>
             {trilha.status === 'arquivada' ? (
               <Badge label="Arquivada" tone="neutral" />

@@ -3,7 +3,7 @@
  * foram respondidas no período aparecem como indisponíveis, com o motivo e quando voltam (RN-PES-02).
  * A obrigatória do checkout não aparece aqui: ela é etapa da visita (`visita.etapas_checkout`).
  */
-import { Banner, Button, Card, Empty, Loading, Screen, Strong, type as t } from '@macuxi/ui/mobile';
+import { Banner, Button, Card, Empty, Loading, Screen, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { dataBr } from '../lib/entrada';
@@ -11,11 +11,13 @@ import { irParaResponder } from '../rotas';
 import { usePesquisa } from '../state/use-pesquisa';
 
 export default function PesquisasScreen() {
-  const { carregado, oferta, pendentesNaFila, offline, sincronizando, motor, usuario } = usePesquisa();
+  const { carregado, oferta, pendentesNaFila, offline, usuario, fuso } = usePesquisa();
+  /** RN-CORE-23: puxar = Sincronizar pelo agendador do app (trava de 30 s); o hook relê o retrato a cada sincronização. */
+  const auto = useAtualizacaoAutomatica({ tz: fuso });
   const { disponiveis, indisponiveis } = useMemo(() => oferta({ cliente_id: null, visita_id: null }), [oferta]);
 
   return (
-    <Screen testID="pesquisas" refreshing={sincronizando} onRefresh={() => void motor?.sincronizar()}>
+    <Screen testID="pesquisas" refreshing={auto.puxando} onRefresh={auto.puxar}>
       <View style={{ gap: 2 }}>
         <Text style={t.h1}>Pesquisas</Text>
         <Text style={t.sub}>Responda mesmo sem sinal: a resposta fica no aparelho e vai sozinha quando a conexão voltar.</Text>
@@ -52,6 +54,8 @@ export default function PesquisasScreen() {
           </Text>
         </Card>
       ))}
+
+      <Text style={[t.small, { textAlign: 'center' }]}>{auto.rodape}</Text>
     </Screen>
   );
 }

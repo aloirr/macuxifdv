@@ -42,7 +42,7 @@ export default function RankingScreen() {
       {r && !r.ranking ? <Empty text="Sem ranking guardado para esta combinação. Conecte-se e tente de novo." /> : null}
       {r?.ranking ? (
         <Card style={{ overflow: 'hidden' }}>
-          {r.ranking.linhas.length === 0 ? <Empty text="Ninguém da equipe tem este indicador (módulo desativado ou sem dado)." /> : null}
+          {r.ranking.linhas.length === 0 ? <Empty text="Ninguém da equipe tem este número ainda." /> : null}
           {r.ranking.linhas.map((l, i) => (
             <View key={l.usuario_id} testID={`ranking-linha-${l.usuario_id}`} style={[styles.linha, i < r.ranking!.linhas.length - 1 && styles.divisor]}>
               <Text style={[t.h2, styles.posicao]}>{l.posicao ?? '—'}</Text>

@@ -162,7 +162,8 @@ export default function QuizScreen() {
               {retorno.aprovada ? 'Aprovado!' : 'Ainda não foi desta vez'} · {retorno.correcao.nota_pct}%
             </Text>
             <Text style={t.body}>
-              {retorno.correcao.acertos} de {retorno.correcao.total} certas.{' '}
+              {retorno.correcao.acertos} de {retorno.correcao.total}{' '}
+              {retorno.correcao.total === 1 ? 'certa' : 'certas'}.{' '}
               {retorno.aprovada
                 ? retorno.licao_concluida
                   ? 'Lição concluída.'
