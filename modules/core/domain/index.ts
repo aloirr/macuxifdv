@@ -28,3 +28,4 @@ export * from './promotor-pedidos';
 export * from './produto-unidade';
 export * from './cliente-endereco';
 export * from './usuarios';
+export * from './metas-edicao';
