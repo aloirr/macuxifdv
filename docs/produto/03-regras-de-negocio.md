@@ -35,6 +35,8 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 | Ativar/desativar módulos e usuários | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 > **Esclarecimento (gerente-projetos, 2026-10-31, observação O-3 da T-0006)**: pela matriz acima, o promotor **lê** os pedidos da própria carteira (somente leitura) e nunca cria, edita, cancela, duplica ou exclui (RN-PRO-01). A API deve liberar a leitura com escopo de carteira e continuar negando toda escrita.
+>
+> **Decisão do Alexandre (2026-11-02, T-0061)**: a leitura é uma **opção do perfil Promotor**, `promotor_ve_pedidos` [sim], ligada por padrão. Na API de pedidos do Vendedor (lista, detalhe e pull), para o perfil promotor: opção **ligada** → leitura com escopo de carteira e nenhuma escrita (403); opção **desligada** → 403 em tudo e o pull não entrega pedidos. O Vendedor lê a opção pela consulta pública do Core (modulo-core publica); até ela existir, vale como ligada.
 
 ## 3. Core — visita, rota, metas
 - **RN-CORE-10** Check-in só dentro de [200 m] do cliente; fora do raio exige justificativa e fica sinalizado. Cliente sem coordenada: o 1º check-in sugere a coordenada para o BKO aprovar.
