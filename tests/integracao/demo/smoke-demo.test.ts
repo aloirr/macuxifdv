@@ -73,6 +73,14 @@ const PENDENTE_PROMOTOR = [
   /await\s+gravarDemoPromotor\(/.test(SEED_DEMO) ? null : 'seed do Promotor no carregarDemo (banco-dados)',
   /criarModuloApiPromotor\(\{\s*repositorio:\s*criarRepositorioSql\(\)/.test(fonte('modules/promotor/api/index.ts')) ? null : 'repositório SQL do Promotor (modulo-promotor)',
 ].filter((x): x is string => x !== null);
+/**
+ * Pull dos cadastros de trade (categoria_gondola, checklist_loja, mix_obrigatorio, meta_share): o #51 liga o SQL e o
+ * push das coletas, mas os provedores de pull ficam para a T-0056 parte 2 (pull 501, ADR 0009 §7 — a Loja abre sem
+ * checklist/categorias no aparelho). Enquanto isso o S9 pega os ids dos cadastros no banco e o S9a fica pendente.
+ * O #51 (2cf52f1) pôs os provedores de pull em sync-cadastros.ts: a detecção olha os dois arquivos.
+ */
+const FONTES_SYNC_PROMOTOR = fonte('modules/promotor/api/sync.ts') + fonte('modules/promotor/api/sync-cadastros.ts');
+const PENDENTE_PULL_PROMOTOR = /\bpuxar\s*[:(]/.test(FONTES_SYNC_PROMOTOR) ? [] : ['pull dos cadastros de trade do Promotor (modulo-promotor, T-0056 parte 2)'];
 const marca = (pendente: readonly string[]) => (pendente.length ? ` [pendente: ${pendente.join('; ')}]` : '');
 
 describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (base demo × createApp real × Postgres × despachante)', () => {
@@ -157,7 +165,7 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
     await esperarHorizonte();
     lucas = await aparelhoCampo(api, DEMO.vendedor);
     expect(await lucas.sincronizar(), lucas.motor.estado().erro ?? '').toBe(true);
-  }, 120_000);
+  }, 300_000); // máquina carregada (100% CPU com vários agentes): mesmo teto do hookTimeout global
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
@@ -368,7 +376,8 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
       const checklists = vivas(await m.linhas<ChecklistLojaSync & LinhaSync>('checklist_loja'));
       const metas = vivas(await m.linhas<MetaShareSync & LinhaSync>('meta_share'));
       const mix = vivas(await m.linhas<MixObrigatorioSync & LinhaSync>('mix_obrigatorio'));
-      expect({ categorias: categorias.length, checklists: checklists.length, mix: mix.length, metas: metas.length >= 3 }).toEqual({ categorias: 3, checklists: 1, mix: 5, metas: true });
+      // com o pull no servidor, o aparelho tem os cadastros do seed (S9a confere as contagens); sem ele, ids do banco
+      if (PENDENTE_PULL_PROMOTOR.length === 0) expect({ categorias: categorias.length, checklists: checklists.length, mix: mix.length, metas: metas.length >= 3 }).toEqual({ categorias: 3, checklists: 1, mix: 5, metas: true });
       // histórico do seed no servidor: 2 visitas de loja da Joana, com fotos
       const [hist] = await linhas<{ visitas: number; fotos: number }>(
         `select (select count(*)::int from promotor.visita_loja where tenant_id = $1 and deleted_at is null) as visitas,
@@ -407,19 +416,33 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
       const aberto = checkinAberto(await m.linhas<VisitaSync & LinhaSync>('visita'), m.estado().fila, usuarioId.promotor);
       expect(aberto?.visita_id).toBe(visitaId);
       const loja = { id: parada!.cliente_id, segmento: parada!.segmento ?? null };
-      const checklist = checklistDaLoja(checklists, loja, api.hoje);
+      const semPull = PENDENTE_PULL_PROMOTOR.length > 0;
+      const checklist = semPull
+        ? (
+            await linhas<{ id: string }>(
+              `select id from promotor.checklist_loja where tenant_id = $1 and deleted_at is null and vigencia_inicio <= $2::date
+                  and (vigencia_fim is null or vigencia_fim >= $2::date) and (cliente_id is null or cliente_id = $3) order by cliente_id nulls last limit 1`,
+              [TENANT_DEMO, api.hoje, parada!.cliente_id],
+            )
+          )[0] ?? null
+        : checklistDaLoja(checklists, loja, api.hoje);
       expect(checklist, 'checklist vigente para a loja').not.toBeNull();
       const vl = abrirVisitaLoja(randomUUID(), aberto!, checklist!.id);
       await m.enfileirar({ id: vl.id, entidade: 'visita_loja', payload: vl });
       // fotos da gôndola (câmera do shell: coordenada do momento) → gôndola conforme → share de uma categoria com meta
-      const cat = [...categorias].sort((a, b) => a.ordem - b.ordem)[0]!;
+      const cat = semPull
+        ? (await linhas<{ id: string }>('select id from promotor.categoria_gondola where tenant_id = $1 and deleted_at is null order by ordem, id limit 1', [TENANT_DEMO]))[0]!
+        : [...categorias].sort((a, b) => a.ordem - b.ordem)[0]!;
+      expect(cat, 'categoria de gôndola do seed').toBeDefined();
       const fotos = (['gondola_antes', 'gondola_depois'] as const).map((tipo) => montarFoto({ id: randomUUID(), visita_loja_id: vl.id, tipo, agora: new Date(), latitude: lat, longitude: lng }));
       for (const fo of fotos) await m.enfileirar({ id: fo.id, entidade: 'foto_coleta', payload: fo });
       const g = montarGondola({ id: randomUUID(), visita_loja_id: vl.id, categoria_gondola_id: cat.id, foto_antes_id: fotos[0]!.id, foto_depois_id: fotos[1]!.id, foto_referencia_id: null, conformidade: 'conforme', motivo: '', agora: new Date() });
       expect(g.ok).toBe(true);
       if (!g.ok) return;
       await m.enfileirar({ id: g.coleta.id, entidade: 'gondola_registro', payload: g.coleta });
-      const meta = metaDaCategoria(metas, cat.id, loja, api.hoje);
+      const meta = semPull
+        ? ((await linhas<{ id: string; meta_pct: number }>('select id, meta_pct::float8 as meta_pct from promotor.meta_share where tenant_id = $1 and categoria_gondola_id = $2 and deleted_at is null limit 1', [TENANT_DEMO, cat.id]))[0] ?? null)
+        : metaDaCategoria(metas, cat.id, loja, api.hoje);
       const sh = montarShare({ id: randomUUID(), visita_loja_id: vl.id, categoria_gondola_id: cat.id, frentes_nossas: '6', frentes_total: '15', meta: meta ? { id: meta.id, meta_pct: meta.meta_pct } : null, agora: new Date() });
       expect(sh.ok).toBe(true);
       if (!sh.ok) return;
@@ -446,6 +469,18 @@ describe.skipIf(semBanco())('SMOKE DEMO 03/11 — roteiro do dono do produto (ba
       expect(await linhas('select id from vendedor.pedido where id = $1', [pid])).toEqual([]);
       expect((await api.chamar(token.promotor, { method: 'POST', url: '/v1/vendedor/pedidos', payload: { id: pid, customer_id: parada!.cliente_id, items: [] } })).statusCode).toBeGreaterThanOrEqual(400);
       expect(joana.lotesEnviados.flat().filter((i) => i.entidade.startsWith('pedido'))).toEqual([]);
+    },
+    240_000,
+  );
+
+  it.skipIf(PENDENTE_PROMOTOR.length + PENDENTE_PULL_PROMOTOR.length > 0)(
+    `S9a. Loja da Joana (M-D21): o Sincronizar traz os cadastros de trade do seed — 3 categorias, 1 checklist, mix de 5 e as metas de share${marca([...PENDENTE_PROMOTOR, ...PENDENTE_PULL_PROMOTOR])}`,
+    async () => {
+      const joana = await aparelhoCampo(api, DEMO.promotor, { entidadesExtras: [...ENTIDADES_PROMOTOR] });
+      expect(await joana.sincronizar(), joana.motor.estado().erro ?? '').toBe(true);
+      const vivas = <T extends LinhaSync>(l: T[]) => l.filter((x) => !x.deleted_at);
+      const n = async (e: string) => vivas(await joana.motor.linhas<LinhaSync>(e)).length;
+      expect({ categorias: await n('categoria_gondola'), checklists: await n('checklist_loja'), mix: await n('mix_obrigatorio'), metas: (await n('meta_share')) >= 3 }).toEqual({ categorias: 3, checklists: 1, mix: 5, metas: true });
     },
     240_000,
   );

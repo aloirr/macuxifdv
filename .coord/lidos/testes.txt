@@ -91,3 +91,5 @@ R-20261102-180754-alexandre
 R-20261102-181952-engenheiro-apps
 R-20261102-185628-alexandre
 R-20261102-192202-gerente-projetos
+R-20261102-204544-alexandre
+R-20261102-210326-engenheiro-software
