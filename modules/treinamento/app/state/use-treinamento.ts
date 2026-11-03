@@ -4,6 +4,7 @@
  * houver sinal). A rede só confirma; nada aqui espera a rede para mostrar dados. O ranking (calculado no servidor) é a
  * única leitura online, com cache no armazenamento do módulo.
  */
+import { useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { DEFAULT_TZ, localIsoDate } from '@macuxi/ui/mobile/puro';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -48,6 +49,9 @@ export function useTreinamento() {
     setLinhas(await lerLinhas(motor));
     setCarregado(true);
   }, [motor]);
+
+  /** RN-CORE-23: puxar para baixo = Sincronizar (agendador, trava de 30 s); relê o aparelho a cada sincronização. */
+  const auto = useAtualizacaoAutomatica({ atualizar: recarregar, tz });
 
   // recarrega ao abrir e a cada sincronização concluída
   useEffect(() => {
@@ -129,7 +133,7 @@ export function useTreinamento() {
     novoId: () => ambiente.novoId(),
     agora: () => new Date().toISOString(),
     recarregar,
-    sincronizar: () => motor?.sincronizar(),
+    auto,
     registrar,
   };
 }
