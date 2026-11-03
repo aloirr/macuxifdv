@@ -1,10 +1,10 @@
 /** Metas e indicadores básicos (desenho T-0016 §6.2; RN-CORE-20 a 22). */
 import { z } from 'zod';
-import { INDICADORES_META } from './sync';
+import { INDICADORES_META, TIPOS_META } from './sync';
 
 const AnoMes = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 
-export const PutMetaSchema = z.object({ indicador: z.enum(INDICADORES_META), valor: z.number().int().min(0) }).strict();
+export const PutMetaSchema = z.object({ indicador: z.enum(INDICADORES_META), valor: z.number().int().min(0), tipo: z.enum(TIPOS_META).optional() }).strict();
 export type PutMeta = z.infer<typeof PutMetaSchema>;
 
 export const IndicadoresSchema = z.object({
@@ -27,7 +27,7 @@ export type MetasQuery = z.infer<typeof MetasQuerySchema>;
 export const MetaParamsSchema = z.object({ usuarioId: z.string().uuid(), periodo: AnoMes });
 export const MetasListaSchema = z.object({
   periodo: AnoMes,
-  itens: z.array(z.object({ usuario_id: z.string().uuid(), indicador: z.enum(INDICADORES_META), valor: z.number().int() })),
+  itens: z.array(z.object({ usuario_id: z.string().uuid(), indicador: z.enum(INDICADORES_META), valor: z.number().int(), tipo: z.enum(TIPOS_META) })),
 });
 export type MetasLista = z.infer<typeof MetasListaSchema>;
 

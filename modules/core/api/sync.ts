@@ -145,7 +145,7 @@ export const TABELAS_SYNC = {
   // T-0020: metas e vendas diárias dos usuários visíveis, do mês anterior em diante (desenho T-0016 §2)
   meta: {
     tabela: 'core.meta',
-    colunas: 'usuario_id, periodo, indicador, valor::float8 as valor',
+    colunas: 'usuario_id, periodo, indicador, valor::float8 as valor, tipo',
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
     janela: "periodo >= to_char({{hoje}} - interval '1 month', 'YYYY-MM')",

@@ -15,6 +15,7 @@ import { consumidorClienteEnderecoDoErp } from './consumidores-erp-cliente-ender
 import { consumidorProdutoDoErp } from './consumidores-erp-produto';
 import { consumidorProdutoUnidadeDoErp } from './consumidores-erp-produto-unidade';
 import { consumidorRotaDoErp } from './consumidores-erp-rota';
+import { consumidorNotaDoErp } from './consumidores-erp-nota';
 import { consumidorTituloDoErp } from './consumidores-erp-titulo';
 import { consumidorVendedorDoErp } from './consumidores-erp-vendedor';
 import { carteiraDoEvento } from './rotas';
@@ -124,5 +125,6 @@ export const consumidoresDoErp: ConsumidorEvento[] = [
   consumidorProdutoUnidadeDoErp,
   consumidorClienteEnderecoDoErp,
   consumidorTituloDoErp,
+  consumidorNotaDoErp,
   consumidorRotaDoErp,
 ];

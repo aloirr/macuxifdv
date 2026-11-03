@@ -5,10 +5,13 @@
  * Realizado de venda vem do read-model `core.indicador_diario` (o Core não lê `vendedor.*`); enquanto ele estiver
  * vazio, `realizado_cents` sai 0 e `positivados` nulo ("aguardando pedidos" no app).
  */
-import { ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
-import type { z } from 'zod';
+import { ConsultaIndisponivel, definirConsulta, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { z } from 'zod';
 import {
+  Cents,
   EVENTO_META_DEFINIDA,
+  Id,
+  IsoDateTime,
   IndicadoresListaSchema,
   MetaParamsSchema,
   MetasListaSchema,
@@ -21,6 +24,40 @@ import { dataDoFechamento, dataLocal, painelDoUsuario, situacaoDoPeriodo, type B
 import { auditar } from './auditoria';
 
 const naoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado na sua equipe. Atualize a lista e tente de novo.');
+
+/**
+ * Espelho mínimo (só os campos que a apuração usa) da consulta `vendedor.pedidos_da_meta@1`. O Core não importa o pacote do Vendedor
+ * (evita ciclo de pacotes); o nome é a chave de ligação e o schema de saída é tolerante a campos extras.
+ */
+const CONSULTA_PEDIDOS_DA_META = definirConsulta({
+  nome: 'vendedor.pedidos_da_meta@1',
+  entrada: z.object({ usuario_ids: z.array(Id).max(500), periodo: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }),
+  saida: z.object({
+    pedidos: z.array(
+      z.object({
+        vendedor_id: Id,
+        criado_por: Id.nullable(),
+        cliente_id: Id.nullable(),
+        emitido_em: IsoDateTime,
+        aprovado_em: IsoDateTime.nullable(),
+        status: z.enum(['aprovado', 'integrado', 'faturado']),
+        total_cents: Cents,
+        frete_cents: Cents.nullable(),
+        cancelado_cents: Cents.nullable(),
+      }),
+    ),
+    faturamentos: z.array(
+      z.object({
+        vendedor_id: Id,
+        cliente_id: Id.nullable(),
+        faturado_em: IsoDateTime,
+        valor_cents: Cents,
+        cancelado_cents: Cents.nullable(),
+        devolvido_cents: Cents.nullable(),
+      }),
+    ),
+  }),
+});
 
 /** Parâmetro `metas.base_apuracao` (aprovado|faturado); ausente ou inválido = aprovado. */
 export async function baseDeApuracao(db: ClienteBanco): Promise<BaseApuracao> {
@@ -36,8 +73,24 @@ export async function baseDeApuracao(db: ClienteBanco): Promise<BaseApuracao> {
  */
 export type FontePedidosDaMeta = (q: { usuario_ids: string[]; periodo: string }) => Promise<{ pedidos: PedidoDaMeta[]; faturamentos: FaturamentoApuravel[] } | null>;
 
-/** Tipo da meta de venda (RN-CORE-21). Enquanto `core.meta` não tem a coluna `tipo` (pedido ao banco-dados), vale 'pedido'. */
-const tipoDaMeta = (_usuarioId: string): TipoMeta => 'pedido';
+/** Tipo da meta de venda do usuário (RN-CORE-21): lê `core.meta.tipo` da meta `venda_cents`; sem meta vale 'pedido'. */
+const tipoDaMeta = (metas: ReadonlyArray<{ usuario_id: string; indicador: string; tipo: string }>, usuarioId: string): TipoMeta =>
+  metas.find((m) => m.usuario_id === usuarioId && m.indicador === 'venda_cents')?.tipo === 'faturamento' ? 'faturamento' : 'pedido';
+
+/**
+ * Liga a porta à consulta `vendedor.pedidos_da_meta@1` (`usaConsultas` no manifesto). Módulo Vendedor desligado ou não
+ * instalado no tenant (`ConsultaIndisponivel`) = `null`: o painel cai no read-model `indicador_diario`.
+ */
+export const fontePorConsulta =
+  (tx: Pick<TransacaoTenant, 'consultar'>): FontePedidosDaMeta =>
+  async (q) => {
+    try {
+      return await tx.consultar(CONSULTA_PEDIDOS_DA_META, q);
+    } catch (e) {
+      if (e instanceof ConsultaIndisponivel) return null;
+      throw e;
+    }
+  };
 
 const periodoDe = (hoje: string, informado?: string): string => informado ?? hoje.slice(0, 7);
 
@@ -80,13 +133,13 @@ export async function calcularIndicadores(db: ClienteBanco, visiveis: ReadonlySe
     "select usuario_id, to_char(data, 'YYYY-MM-DD') as data, pedidos, vendido_cents::float8 as vendido_cents, cancelado_cents::float8 as cancelado_cents from core.indicador_diario where deleted_at is null and usuario_id = any($1::uuid[]) and to_char(data, 'YYYY-MM') = $2",
     [ids, periodo],
   );
-  const metas = await db.query<{ usuario_id: string; periodo: string; indicador: IndicadorMeta; valor: number }>(
-    'select usuario_id, periodo, indicador, valor::float8 as valor from core.meta where deleted_at is null and usuario_id = any($1::uuid[]) and periodo = $2',
+  const metas = await db.query<{ usuario_id: string; periodo: string; indicador: IndicadorMeta; valor: number; tipo: TipoMeta }>(
+    'select usuario_id, periodo, indicador, valor::float8 as valor, tipo from core.meta where deleted_at is null and usuario_id = any($1::uuid[]) and periodo = $2',
     [ids, periodo],
   );
   const vendas = fonte ? await fonte({ usuario_ids: ids, periodo }) : null;
   const itens = usuarios.map((u) => {
-    const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, base, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows, apuracao: vendas ? { tipo: tipoDaMeta(u.id), fuso, pedidos: vendas.pedidos, faturamentos: vendas.faturamentos } : undefined });
+    const p = painelDoUsuario({ periodo, usuario_id: u.id, hoje, base, paradas: paradas.rows, visitas: visitas.rows, diarios: diarios.rows, metas: metas.rows, apuracao: vendas ? { tipo: tipoDaMeta(metas.rows, u.id), fuso, pedidos: vendas.pedidos, faturamentos: vendas.faturamentos } : undefined });
     return { usuario_id: u.id, usuario_nome: u.nome, indicadores: p.indicadores, metas: p.metas };
   });
   return IndicadoresListaSchema.parse({ periodo, base_apuracao: base, situacao, fechamento_em, itens });
@@ -105,8 +158,8 @@ export const rotasDeMetas: RotaModulo[] = [
         const hoje = dataLocal(ctx.agora(), ctx.fuso());
         const periodo = periodoDe(hoje, q.periodo);
         const usuarios = await usuariosDoPainel(db, visiveis, q.usuario_id);
-        const r = await db.query<{ usuario_id: string; indicador: IndicadorMeta; valor: number }>(
-          'select usuario_id, indicador, valor::float8 as valor from core.meta where deleted_at is null and periodo = $1 and usuario_id = any($2::uuid[]) order by usuario_id, indicador',
+        const r = await db.query<{ usuario_id: string; indicador: IndicadorMeta; valor: number; tipo: TipoMeta }>(
+          'select usuario_id, indicador, valor::float8 as valor, tipo from core.meta where deleted_at is null and periodo = $1 and usuario_id = any($2::uuid[]) order by usuario_id, indicador',
           [periodo, usuarios.map((u) => u.id)],
         );
         return MetasListaSchema.parse({ periodo, itens: r.rows });
@@ -126,24 +179,26 @@ export const rotasDeMetas: RotaModulo[] = [
       const visiveis = await ctx.usuariosVisiveis();
       if (visiveis !== 'tenant' && !visiveis.has(usuarioId)) throw naoEncontrado();
       if (c.indicador === 'cobertura_pct' && c.valor > 10000) throw new ErroRegraNegocio('RN-CORE-20', 'A meta de cobertura vai de 0 a 100%. Informe um valor até 100.');
+      if (c.tipo === 'faturamento' && c.indicador !== 'venda_cents') throw new ErroRegraNegocio('RN-CORE-21', 'Só a meta de venda pode ser apurada por faturamento. Use o tipo pedido para este indicador.');
       return ctx.comTenant(async (db, tx) => {
         const existe = await db.query('select 1 from core.usuario where id = $1 and deleted_at is null', [usuarioId]);
         if (existe.rowCount === 0) throw naoEncontrado();
         const atual = (
-          await db.query<{ id: string; valor: number }>('select id, valor::float8 as valor from core.meta where usuario_id = $1 and periodo = $2 and indicador = $3 and deleted_at is null', [usuarioId, periodo, c.indicador])
+          await db.query<{ id: string; valor: number; tipo: TipoMeta }>('select id, valor::float8 as valor, tipo from core.meta where usuario_id = $1 and periodo = $2 and indicador = $3 and deleted_at is null', [usuarioId, periodo, c.indicador])
         ).rows[0];
-        if (atual && atual.valor === c.valor) return { usuario_id: usuarioId, periodo, indicador: c.indicador, valor: c.valor };
-        if (atual) await db.query('update core.meta set valor = $2 where id = $1', [atual.id, c.valor]);
-        else await db.query('insert into core.meta (tenant_id, usuario_id, periodo, indicador, valor) values (plataforma.tenant_atual(), $1, $2, $3, $4)', [usuarioId, periodo, c.indicador, c.valor]);
+        const tipo: TipoMeta = c.indicador === 'venda_cents' ? (c.tipo ?? atual?.tipo ?? 'pedido') : 'pedido';
+        if (atual && atual.valor === c.valor && atual.tipo === tipo) return { usuario_id: usuarioId, periodo, indicador: c.indicador, valor: c.valor, tipo };
+        if (atual) await db.query('update core.meta set valor = $2, tipo = $3 where id = $1', [atual.id, c.valor, tipo]);
+        else await db.query('insert into core.meta (tenant_id, usuario_id, periodo, indicador, valor, tipo) values (plataforma.tenant_atual(), $1, $2, $3, $4, $5)', [usuarioId, periodo, c.indicador, c.valor, tipo]);
         await tx.publicar(EVENTO_META_DEFINIDA, { usuario_id: usuarioId, periodo, indicador: c.indicador, valor: c.valor, valor_anterior: atual?.valor ?? null, definido_por: ctx.usuario.id }, usuarioId);
         await auditar(db, ctx, {
           acao: 'meta.editar',
           entidade: 'meta',
           entidadeId: usuarioId,
-          antes: atual ? { indicador: c.indicador, valor: atual.valor } : null,
-          depois: { periodo, indicador: c.indicador, valor: c.valor },
+          antes: atual ? { indicador: c.indicador, valor: atual.valor, tipo: atual.tipo } : null,
+          depois: { periodo, indicador: c.indicador, valor: c.valor, tipo },
         });
-        return { usuario_id: usuarioId, periodo, indicador: c.indicador, valor: c.valor };
+        return { usuario_id: usuarioId, periodo, indicador: c.indicador, valor: c.valor, tipo };
       });
     },
   },
@@ -154,7 +209,7 @@ export const rotasDeMetas: RotaModulo[] = [
     query: MetasQuerySchema,
     executar: async (ctx): Promise<IndicadoresLista> => {
       const visiveis = await ctx.usuariosVisiveis();
-      return ctx.comTenant((db) => calcularIndicadores(db, visiveis, ctx.agora(), ctx.fuso(), ctx.query as z.infer<typeof MetasQuerySchema>));
+      return ctx.comTenant((db, tx) => calcularIndicadores(db, visiveis, ctx.agora(), ctx.fuso(), ctx.query as z.infer<typeof MetasQuerySchema>, fontePorConsulta(tx)));
     },
   },
 ];

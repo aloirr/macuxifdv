@@ -5,7 +5,7 @@
  */
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
-import { ErroNaoEncontrado, ErroRegraNegocio, type AcessoBanco, type ClienteBanco, type ContextoBase, type LinhaSync, type PedidoPull, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel, ErroNaoEncontrado, ErroRegraNegocio, type AcessoBanco, type ClienteBanco, type ContextoBase, type LinhaSync, type PedidoPull, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { painelLocal } from '../app/lib/metas-local';
@@ -35,8 +35,14 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
   const gerente = usuario(U.gerente, 'gerente');
   const vendedorB = usuario(B.usuarios.vendedor, 'vendedor', B.tenantId);
 
+  /** Resposta da consulta `vendedor.pedidos_da_meta@1` (null = Vendedor indisponível, cai no read-model). */
+  let respostaPedidosDaMeta: { pedidos: unknown[]; faturamentos: unknown[] } | null = null;
   function ctx(u: UsuarioAutenticado): ContextoBase {
     const tx = {
+      consultar: async (def: { nome: string }) => {
+        if (!respostaPedidosDaMeta) throw new ConsultaIndisponivel(def.nome, 'vendedor');
+        return respostaPedidosDaMeta;
+      },
       publicar: async (def: { nome: string }, payload: Record<string, unknown>) => {
         eventos.push({ nome: def.nome, payload });
         return {};
@@ -112,6 +118,37 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     const n = await comTenant(pool, A.tenantId, async (c) => Number((await c.query("select count(*) as n from plataforma.auditoria where acao = 'meta.editar' and entidade_id = $1", [U.vendedor1])).rows[0].n));
     expect(n).toBeGreaterThanOrEqual(2);
     await expect(chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'cobertura_pct', valor: 10001 } })).rejects.toBeInstanceOf(ErroRegraNegocio);
+  });
+
+  it('RN-CORE-21: o tipo da meta de venda é gravado, vai ao pull e define o realizado (pedido x faturamento) pela consulta vendedor.pedidos_da_meta@1', async () => {
+    const params = { usuarioId: U.vendedor1, periodo: PERIODO };
+    const em = (dia: string) => `${PERIODO}-${dia}T15:00:00Z`;
+    respostaPedidosDaMeta = {
+      pedidos: [{ vendedor_id: U.vendedor1, cliente_id: C.c1, emitido_em: em('03'), aprovado_em: em('03'), status: 'aprovado', total_cents: 30000, frete_cents: null, cancelado_cents: null, criado_por: U.vendedor1 }],
+      faturamentos: [{ vendedor_id: U.vendedor1, cliente_id: C.c1, faturado_em: em('05'), valor_cents: 20000, cancelado_cents: null, devolvido_cents: 5000 }],
+    };
+    try {
+      const venda = async () => (await chamar('GET', 'indicadores', gerente, { query: { periodo: PERIODO, usuario_id: U.vendedor1 } })).itens[0].indicadores.realizado_cents;
+      const padrao = await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params, corpo: { indicador: 'venda_cents', valor: 100000 } });
+      expect(padrao.tipo).toBe('pedido');
+      expect(await venda()).toBe(30000);
+      const fat = await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params, corpo: { indicador: 'venda_cents', valor: 100000, tipo: 'faturamento' } });
+      expect(fat.tipo).toBe('faturamento');
+      expect(await venda()).toBe(15000);
+      const lista = await chamar('GET', 'metas', gerente, { query: { periodo: PERIODO, usuario_id: U.vendedor1 } });
+      expect(lista.itens.find((m: { indicador: string }) => m.indicador === 'venda_cents').tipo).toBe('faturamento');
+      const linhas = await puxar('meta', gerente);
+      expect(linhas.map((l) => MetaSyncSchema.parse(l)).find((m) => m.indicador === 'venda_cents' && m.usuario_id === U.vendedor1 && m.periodo === PERIODO)?.tipo).toBe('faturamento');
+      // sem tipo no corpo, o tipo existente é mantido; outro indicador não aceita faturamento
+      await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params, corpo: { indicador: 'venda_cents', valor: 120000 } });
+      expect(await venda()).toBe(15000);
+      await expect(chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params, corpo: { indicador: 'visitas', valor: 3, tipo: 'faturamento' } })).rejects.toBeInstanceOf(ErroRegraNegocio);
+      // Vendedor indisponível: cai no read-model indicador_diario (líquido 40000)
+      respostaPedidosDaMeta = null;
+      expect(await venda()).toBe(40000);
+    } finally {
+      respostaPedidosDaMeta = null;
+    }
   });
 
   it('escopo de equipe (RN-CORE-04): vendedor vê só a si; supervisor não enxerga nem define meta de outra equipe', async () => {

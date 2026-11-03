@@ -15,7 +15,7 @@ export const manifest = defineModule({
   },
   sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_checkout', 'visita_etapa', 'motivo', 'parametro', 'meta', 'indicador_diario', 'notificacao', 'notificacao_leitura', 'produto', 'produto_unidade', 'cliente_endereco'],
   publica: ['core.cliente.atualizado@1', 'core.visita.checkin@1', 'core.visita.checkout@1', 'core.usuario.modulos_alterados@1', 'core.notificacao.criada@1', 'core.meta.definida@1'],
-  consome: ['core.notificacao.criada@1', 'core.meta.definida@1', 'vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'treinamento.medalha.conquistada@1', 'integracao.cliente.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.vendedor.atualizado@1', 'integracao.titulo.atualizado@1', 'integracao.rota.atualizado@1', 'integracao.produto_unidade.atualizado@1', 'integracao.cliente_endereco.atualizado@1'],
+  consome: ['core.notificacao.criada@1', 'core.meta.definida@1', 'vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'treinamento.medalha.conquistada@1', 'integracao.cliente.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.vendedor.atualizado@1', 'integracao.titulo.atualizado@1', 'integracao.nota.atualizado@1', 'integracao.rota.atualizado@1', 'integracao.produto_unidade.atualizado@1', 'integracao.cliente_endereco.atualizado@1'],
   acoes: {
     // Equivalem a canEditRoutes / canManagePeriod / canEditParams da Fase M (web/lib/rules.ts); a API revalida (RN-CORE-04).
     'rota.editar': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Montar e alterar a rota da semana (BKO)' },
@@ -35,6 +35,9 @@ export const manifest = defineModule({
     'dispositivo.registrar_push': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Gravar o token de push do próprio aparelho (RF-CORE-09)' },
     'plano_rv.editar': { perfis: ['analista'], descricao: 'Editar o plano de RV (vigência futura)' },
   },
+  // Vendedor é opcional (ADR 0012): sem ele a meta cai no read-model indicador_diario.
+  opcionais: ['vendedor'],
+  usaConsultas: ['vendedor.pedidos_da_meta@1'],
   ofereceConsultas: ['core.cadastro_resumo@1', 'core.cadastro_cliente@1', 'core.promotor_ve_pedidos@1'],
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });

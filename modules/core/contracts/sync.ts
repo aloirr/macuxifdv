@@ -278,6 +278,8 @@ export const NotificacaoSyncSchema = z
 export type NotificacaoSync = z.infer<typeof NotificacaoSyncSchema>;
 
 export const INDICADORES_META = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;
+/** RN-CORE-21: apuração da meta de venda (pedido aprovado por emissão | faturamento por data do ERP). Espelha `core.meta.tipo`. */
+export const TIPOS_META = ['pedido', 'faturamento'] as const;
 export const MetaSyncSchema = z
   .object({
     ...Base,
@@ -286,6 +288,8 @@ export const MetaSyncSchema = z
     indicador: z.enum(INDICADORES_META),
     /** Inteiro; `cobertura_pct` em pontos-base (8500 = 85,00%). */
     valor: z.number().int(),
+    /** Aditivo: ausente = 'pedido'. Só a meta de venda (`venda_cents`) usa 'faturamento'. */
+    tipo: z.enum(TIPOS_META).optional(),
   })
   .strict();
 export type MetaSync = z.infer<typeof MetaSyncSchema>;
