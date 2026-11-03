@@ -164,3 +164,11 @@ R-20261102-183647-modulo-vendedor
 R-20261102-163143-banco-dados
 R-20261102-165526-banco-dados
 R-20261102-194357-banco-dados
+R-20261102-192311-gerente-projetos
+R-20261102-192802-gerente-projetos
+R-20261102-163634-banco-dados
+R-20261102-194900-gerente-projetos
+R-20261102-195126-gerente-projetos
+R-20261102-201307-gerente-projetos
+R-20261102-164140-banco-dados
+R-20261102-203440-gerente-projetos
