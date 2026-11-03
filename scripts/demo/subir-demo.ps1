@@ -227,8 +227,9 @@ $env:MACUXI_TRUST_PROXY = 'loopback'
 
 $estado.api = Iniciar-Processo $PastaDemo 'api' 'cmd.exe' @('/c', 'pnpm', '--filter', 'api', 'start') $Raiz
 Salvar-Estado $estado
-if (-not (Esperar-Saude "http://127.0.0.1:$Porta/v1/saude" 90)) {
-  Falha "A API não respondeu em http://127.0.0.1:$Porta/v1/saude em 90 s. Veja .dados\demo\api.log e api.erro.log."
+# 180 s: com a máquina carregada a API levou ~2 min para subir e os 90 s anteriores desistiam cedo (T-0070)
+if (-not (Esperar-Saude "http://127.0.0.1:$Porta/v1/saude" 180)) {
+  Falha "A API não respondeu em http://127.0.0.1:$Porta/v1/saude em 180 s. Veja .dados\demo\api.log e api.erro.log."
 }
 Ok "API no ar: http://127.0.0.1:$Porta/v1/saude"
 
