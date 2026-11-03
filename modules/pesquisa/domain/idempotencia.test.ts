@@ -33,6 +33,13 @@ describe('RF-PES-04: respostas só por inserção, idempotentes pelo UUID do apa
     expect(decidirInsercao(r, { ...r, respondida_em: '2026-10-31T13:00:01Z' }).resultado).toBe('conflito');
   });
 
+  it('RF-PES-04: a mesma hora do aparelho em outra grafia (sem milissegundos, ou com microssegundos do banco) não vira conflito', () => {
+    const base = { ...r, respondida_em: '2026-10-31T13:00:00Z' };
+    expect(decidirInsercao({ ...base, respondida_em: '2026-10-31T13:00:00.000Z' }, base)).toEqual({ resultado: 'duplicada' });
+    expect(decidirInsercao({ ...base, respondida_em: '2026-10-31T13:00:00.123456Z' }, { ...base, respondida_em: '2026-10-31T13:00:00.123Z' })).toEqual({ resultado: 'duplicada' });
+    expect(decidirInsercao({ ...base, respondida_em: '2026-10-31T13:00:00.000Z' }, { ...base, respondida_em: '2026-10-31T13:00:01Z' }).resultado).toBe('conflito');
+  });
+
   it('RF-PES-04: campos do servidor (recebida_em, usuário) não entram na comparação', () => {
     const gravada = { ...r, tenant_id: u(900), usuario_id: u(1), equipe_id: null, recebida_em: '2026-10-31T14:00:00Z' };
     expect(decidirInsercao(gravada, r)).toEqual({ resultado: 'duplicada' });
