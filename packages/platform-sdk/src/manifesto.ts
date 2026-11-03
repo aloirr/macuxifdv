@@ -77,6 +77,13 @@ export const ManifestoSchema = z
      */
     ofereceConsultas: semRepetidos(NomeConsultaSchema),
     usaConsultas: semRepetidos(NomeConsultaSchema),
+    /**
+     * ADR 0019: consultas OPCIONAIS, sem aresta de ordenação. O dono NÃO entra em `depende`/`opcionais` (não pesa em
+     * `ordenarPorDependencia`, então não fecha ciclo, ex.: core → vendedor → core) e pode nem estar instalado. Dono
+     * ausente, inativo para o usuário/tenant ou sem implementação no canal → `ConsultaIndisponivel` (o consumidor trata e
+     * cai num plano B). Dono instalado que não oferece a consulta = a montagem recusa, como em `usaConsultas`.
+     */
+    usaConsultasOpcionais: semRepetidos(NomeConsultaSchema),
     /** Ações com permissão por perfil (ex.: 'pedido.criar'). Opcional; padrão: nenhuma. */
     acoes: z.record(NomeAcaoSchema, AcaoSchema).default({}),
     /** Versão mínima do app exigida por este módulo (RF: pede atualização só quando o módulo exige). */
@@ -100,7 +107,14 @@ export const ManifestoSchema = z
       const dono = lerNomeConsulta(c)?.modulo as ModuloId | undefined;
       if (dono === m.id) erro(['usaConsultas', i], `${c} é do próprio módulo (consulta é entre módulos)`);
       else if (!dono || (!m.depende.includes(dono) && !m.opcionais.includes(dono)))
-        erro(['usaConsultas', i], `${c}: o módulo ${dono ?? '?'} precisa estar em depende ou opcionais (ADR 0012)`);
+        erro(['usaConsultas', i], `${c}: o módulo ${dono ?? '?'} precisa estar em depende ou opcionais (ADR 0012); sem aresta de dependência, use usaConsultasOpcionais (ADR 0019)`);
+    });
+    m.usaConsultasOpcionais.forEach((c, i) => {
+      const dono = lerNomeConsulta(c)?.modulo as ModuloId | undefined;
+      if (dono === m.id) erro(['usaConsultasOpcionais', i], `${c} é do próprio módulo (consulta é entre módulos)`);
+      else if (m.usaConsultas.includes(c)) erro(['usaConsultasOpcionais', i], `${c} está em usaConsultas e em usaConsultasOpcionais`);
+      else if (dono && m.depende.includes(dono))
+        erro(['usaConsultasOpcionais', i], `${c}: ${dono} está em depende (sempre ativo); declare em usaConsultas (ADR 0019)`);
     });
     for (const [acao, def] of Object.entries(m.acoes)) {
       // RN-PRO-01 vale pelo perfil (doc 03, esclarecimentos de 2026-10-30 e O-3 de 2026-10-31): nenhum módulo concede ao
@@ -183,15 +197,18 @@ export function validarConjunto(manifestos: readonly Manifesto[]): string[] {
 }
 
 /**
- * Consultas entre módulos no conjunto instalado (ADR 0012): consulta usada cujo dono está instalado precisa estar em
- * `ofereceConsultas` dele. Dono ausente só acontece com módulo de `opcionais` (o de `depende` já falha antes): a
- * consulta fica indisponível em tempo de execução (`ConsultaIndisponivel`, RN-CORE-03).
+ * Consultas entre módulos no conjunto instalado (ADR 0012): consulta usada (em `usaConsultas` ou `usaConsultasOpcionais`)
+ * cujo dono está instalado precisa estar em `ofereceConsultas` dele. Dono ausente só acontece com módulo de `opcionais`
+ * ou com consulta opcional (ADR 0019; o de `depende` já falha antes): a consulta fica indisponível em tempo de execução
+ * (`ConsultaIndisponivel`, RN-CORE-03).
  */
-export function problemasDasConsultas(manifestos: readonly Pick<Manifesto, 'id' | 'ofereceConsultas' | 'usaConsultas'>[]): string[] {
+export function problemasDasConsultas(
+  manifestos: readonly (Pick<Manifesto, 'id' | 'ofereceConsultas' | 'usaConsultas'> & Partial<Pick<Manifesto, 'usaConsultasOpcionais'>>)[],
+): string[] {
   const problemas: string[] = [];
   const porId = new Map(manifestos.map((m) => [m.id, m] as const));
   for (const m of manifestos) {
-    for (const c of m.usaConsultas) {
+    for (const c of consultasDeclaradas(m)) {
       const dono = porId.get(lerNomeConsulta(c)?.modulo as ModuloId);
       if (dono && !dono.ofereceConsultas.includes(c)) problemas.push(`${m.id} usa a consulta ${c}, que ${dono.id} não oferece`);
     }
@@ -199,7 +216,18 @@ export function problemasDasConsultas(manifestos: readonly Pick<Manifesto, 'id' 
   return problemas;
 }
 
-/** Ordem de carga: dependências antes (obrigatórias e opcionais presentes). Erro em ciclo. */
+/**
+ * Todas as consultas que o módulo pode chamar: `usaConsultas` (dono em depende/opcionais) e `usaConsultasOpcionais`
+ * (ADR 0019, sem aresta de ordenação). É o que `tx.consultar`/`ambiente.consultar` aceitam; fora disso = erro de programação.
+ */
+export function consultasDeclaradas(m: Pick<Manifesto, 'usaConsultas'> & Partial<Pick<Manifesto, 'usaConsultasOpcionais'>>): readonly string[] {
+  return [...m.usaConsultas, ...(m.usaConsultasOpcionais ?? [])];
+}
+
+/**
+ * Ordem de carga: dependências antes (obrigatórias e opcionais presentes). Erro em ciclo. `usaConsultasOpcionais` NÃO
+ * entra aqui (ADR 0019): consulta é resolvida na chamada, pelo registro, então o dono pode subir depois do consumidor.
+ */
 export function ordenarPorDependencia<M extends Pick<Manifesto, 'id' | 'depende' | 'opcionais'>>(manifestos: readonly M[]): M[] {
   const porId = new Map(manifestos.map((m) => [m.id, m] as const));
   const estado = new Map<string, 'visitando' | 'feito'>();

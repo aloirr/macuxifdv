@@ -2,13 +2,14 @@
  * createApp (T-0004 critério 3): monta os 8 módulos pelo manifesto e checa, em toda rota,
  * autenticação, licença do módulo (RN-CORE-02), perfil/ação (ADR 0004, RN-PRO-01) e carteira (RN-CORE-04).
  */
-import { defineModule, definirModuloApi, ErroApiSchema, ErroHttpModulo, LIMITE_CORPO_ROTA_MAX, SaudeRespostaSchema, type Manifesto, type ModuloApi, type RotaModulo, type StatusErroModulo } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel, defineModule, definirConsulta, definirModuloApi, ErroApiSchema, implementarConsulta, ErroHttpModulo, LIMITE_CORPO_ROTA_MAX, SaudeRespostaSchema, type Manifesto, type ModuloApi, type RotaModulo, type StatusErroModulo } from '@macuxi/platform-sdk';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
 import { z } from 'zod';
 import { ErroModuloInativoSchema, MeusModulosRespostaSchema } from '@macuxi/core/contracts';
 import { manifest as core } from '@macuxi/core/manifest';
 import { describe, expect, it } from 'vitest';
 import { createApp, VERSAO_API } from '../src/app';
+import { MODULOS_API } from '../src/modulos';
 import { parametrosPorModulo } from '../src/licencas';
 import {
   bancoFalso,
@@ -529,5 +530,79 @@ describe('limite de corpo por rota (limiteCorpoBytes; T-0032 carga por arquivo, 
   it('teto global: fixture com limiteCorpoBytes acima de 32 MiB não monta (nem sem definirModuloApi)', () => {
     const vendedorBruto: ModuloApi = { ...vendedorApi, rotas: [rotaArquivo(LIMITE_CORPO_ROTA_MAX + 1)] };
     expect(() => createApp(opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ vendedor: vendedorBruto }) }))).toThrow(/limiteCorpoBytes entre 1 e/);
+  });
+});
+
+/**
+ * ADR 0019: consulta opcional SEM aresta de ordenação. O Core apura a meta pelo tipo (RN-CORE-21) com
+ * `vendedor.pedidos_da_meta@1`; o Vendedor depende do Core, então `opcionais: ['vendedor']` no Core fecha o ciclo e a API não
+ * sobe. Com `usaConsultasOpcionais` a API sobe, a consulta responde com o Vendedor ativo e vira `ConsultaIndisponivel` sem ele.
+ */
+describe('ADR 0019 — usaConsultasOpcionais no createApp (core ↔ vendedor sem ciclo)', () => {
+  const META = definirConsulta({
+    nome: 'vendedor.pedidos_da_meta@1',
+    entrada: z.object({ usuario_ids: z.array(z.string()).max(500) }),
+    saida: z.object({ pedidos: z.array(z.object({ id: z.string() })), quem: z.string() }),
+  });
+  const coreReal = MODULOS_API.find((m) => m.manifesto.id === 'core')!;
+  /** Core real + rota de teste que consulta o Vendedor; sem o dono, cai no plano B (como o indicador_diario do painel). */
+  const coreCom = (manifesto: Manifesto) =>
+    definirModuloApi({
+      ...coreReal,
+      manifesto,
+      rotas: [
+        ...(coreReal.rotas ?? []),
+        {
+          metodo: 'GET',
+          caminho: 'teste-meta',
+          carteira: 'nao_se_aplica',
+          executar: async (ctx) =>
+            ctx.comTenant(async (_db, tx) => {
+              try {
+                return { fonte: 'consulta', ...(await tx.consultar(META, { usuario_ids: ['u1'] })) };
+              } catch (e) {
+                if (e instanceof ConsultaIndisponivel) return { fonte: 'plano_b' };
+                throw e;
+              }
+            }),
+        },
+      ],
+    });
+  const coreOpcional = coreCom(defineModule({ ...core, usaConsultas: core.usaConsultas.filter((c) => c !== META.nome), usaConsultasOpcionais: [META.nome] }));
+  const vendedorComMeta = definirModuloApi({
+    ...vendedorApi,
+    manifesto: defineModule({ ...vendedorApi.manifesto, ofereceConsultas: [META.nome] }),
+    consultas: [implementarConsulta(META, async (e, ctx) => ({ pedidos: e.usuario_ids.map((id) => ({ id })), quem: ctx.usuario.perfil }))],
+  });
+  const op = (l: Licencas = LICENCAS_PADRAO, vendedorTambem = true) =>
+    opcoesDeTeste(l, {
+      banco: bancoFalso().banco,
+      modulos: vendedorTambem
+        ? modulosDeTeste({ core: coreOpcional, vendedor: vendedorComMeta })
+        : modulosDeTeste({ core: coreOpcional }).filter((m) => !['vendedor', 'gestor'].includes(m.manifesto.id)),
+    });
+
+  it('a API sobe com o Core usando a consulta do Vendedor; com opcionais: [vendedor] o ciclo derruba o createApp', () => {
+    expect(coreOpcional.manifesto.opcionais).not.toContain('vendedor');
+    expect(() => createApp(op())).not.toThrow();
+    const comAresta = coreCom(defineModule({ ...core, opcionais: ['vendedor'], usaConsultas: [...core.usaConsultas.filter((c) => c !== META.nome), META.nome] }));
+    expect(() => createApp(opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ core: comAresta, vendedor: vendedorComMeta }) }))).toThrow(
+      /dependência circular entre módulos: core → vendedor → core/,
+    );
+  });
+
+  it('Vendedor ativo para o usuário: a consulta responde (mesma transação, usuário da rota)', async () => {
+    const r = await createApp(op()).inject({ method: 'GET', url: '/v1/core/teste-meta', headers: cab('supervisor') });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({ fonte: 'consulta', pedidos: [{ id: 'u1' }], quem: 'supervisor' });
+  });
+
+  it('Vendedor fora da licença do usuário, ou nem instalado: ConsultaIndisponivel (plano B), nunca erro de programação', async () => {
+    const semVendedor: Licencas = { ...LICENCAS_PADRAO, perfil: { ...LICENCAS_PADRAO.perfil, supervisor: ['core', 'catalogo'] } };
+    const r = await createApp(op(semVendedor)).inject({ method: 'GET', url: '/v1/core/teste-meta', headers: cab('supervisor') });
+    expect(r.json()).toEqual({ fonte: 'plano_b' });
+    const naoInstalado = await createApp(op(LICENCAS_PADRAO, false)).inject({ method: 'GET', url: '/v1/core/teste-meta', headers: cab('supervisor') });
+    expect(naoInstalado.statusCode).toBe(200);
+    expect(naoInstalado.json()).toEqual({ fonte: 'plano_b' });
   });
 });

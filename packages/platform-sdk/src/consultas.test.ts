@@ -16,7 +16,7 @@ import {
   implementarConsultaAparelho,
   type ContextoConsultaAparelho,
 } from './consultas';
-import { defineModule, validarConjunto, type ManifestoEntrada } from './manifesto';
+import { consultasDeclaradas, defineModule, ordenarPorDependencia, validarConjunto, type ManifestoEntrada } from './manifesto';
 import { criarArmazenamentoEmMemoria, criarMotorSync } from './motor-sync';
 import { criarShell, definirModuloShell } from './shell';
 import { definirEntidadeSync, type LinhaSync } from './sync';
@@ -264,5 +264,82 @@ describe('E4 — item de extensão com apps (T-0029 §7)', () => {
     const gestao = criarShell('gestao', modulos).montar(ctx('supervisor'));
     expect(gestao.pode('pedido.criar')).toBe(true);
     expect(gestao.extensoes('cliente.acoes').map((i) => i.id)).toEqual(['ver-pedidos']);
+  });
+});
+
+/**
+ * ADR 0019: consulta opcional SEM aresta de ordenação (`usaConsultasOpcionais`). Caso real: o Core apura a meta pelo tipo
+ * (RN-CORE-21) com `vendedor.pedidos_da_meta@1`, e o Vendedor depende do Core; pôr o Vendedor em `opcionais` do Core fecha o
+ * ciclo core → vendedor → core e a API não sobe.
+ */
+describe('ADR 0019 — usaConsultasOpcionais (consulta opcional sem aresta de dependência)', () => {
+  const META = definirConsulta({
+    nome: 'vendedor.pedidos_da_meta@1',
+    entrada: z.object({ usuario_ids: z.array(z.string()).max(500) }),
+    saida: z.object({ pedidos: z.array(z.object({ id: z.string() })) }),
+  });
+  const coreComMeta = (extra: Partial<ManifestoEntrada> = {}) => mCore({ usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1'], ...extra });
+  const vendedorComMeta = (extra: Partial<ManifestoEntrada> = {}) => mVendedor({ ofereceConsultas: ['vendedor.pedidos_da_meta@1'], ...extra });
+
+  it('manifesto: o dono fica fora de depende/opcionais; recusa consulta própria, repetida em usaConsultas ou de dono em depende', () => {
+    expect(coreComMeta().usaConsultasOpcionais).toEqual(['vendedor.pedidos_da_meta@1']);
+    expect(coreComMeta().opcionais).toEqual([]);
+    expect(mCore().usaConsultasOpcionais).toEqual([]); // padrão
+    expect(consultasDeclaradas(coreComMeta())).toEqual(['vendedor.pedidos_da_meta@1']);
+    expect(() => mCore({ usaConsultasOpcionais: ['core.cadastro_resumo@1'] })).toThrow('é do próprio módulo');
+    expect(() => mVendedor({ usaConsultas: [], usaConsultasOpcionais: ['catalogo.precos_cliente@1'] })).toThrow('catalogo está em depende (sempre ativo); declare em usaConsultas');
+    expect(() => mVendedor({ depende: ['core'], opcionais: ['catalogo'], usaConsultasOpcionais: ['catalogo.precos_cliente@1'] })).toThrow(
+      'está em usaConsultas e em usaConsultasOpcionais',
+    );
+    expect(() => mCore({ usaConsultasOpcionais: ['vendedor.pedidos_da_meta'] })).toThrow('consulta no formato');
+    // sem o campo novo, o caminho antigo continua exigindo a aresta (e aponta o campo novo)
+    expect(() => mCore({ usaConsultas: ['vendedor.pedidos_da_meta@1'] })).toThrow('use usaConsultasOpcionais (ADR 0019)');
+  });
+
+  it('conjunto: sem ciclo core ↔ vendedor (o Core carrega primeiro); com opcionais o ciclo aparece', () => {
+    const conjunto = [vendedorComMeta(), mCatalogo(), coreComMeta()];
+    expect(validarConjunto(conjunto)).toEqual([]);
+    expect(ordenarPorDependencia(conjunto).map((m) => m.id)).toEqual(['core', 'catalogo', 'vendedor']);
+    // o que o Core tentou antes (commit 45049f5): opcionais: ['vendedor'] fecha o ciclo
+    const comAresta = mCore({ opcionais: ['vendedor'], usaConsultas: ['vendedor.pedidos_da_meta@1'] });
+    expect(validarConjunto([vendedorComMeta(), mCatalogo(), comAresta]).join(' ')).toContain('dependência circular entre módulos');
+  });
+
+  it('conjunto: dono ausente não é erro de montagem; dono instalado que não oferece, é', () => {
+    expect(validarConjunto([coreComMeta()])).toEqual([]);
+    expect(validarConjunto([coreComMeta(), mCatalogo(), mVendedor()])).toEqual(['core usa a consulta vendedor.pedidos_da_meta@1, que vendedor não oferece']);
+  });
+
+  it('aparelho: consulta opcional responde com o dono ativo e vira ConsultaIndisponivel com ele inativo', async () => {
+    const PEDIDO = definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'servidor_vence', schema: z.object({}) });
+    const ITEM = definirEntidadeSync({ nome: 'tabela_preco_item', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: z.object({}) });
+    const vendedorShell = definirModuloShell({
+      manifesto: vendedorComMeta(),
+      entidadesSync: [PEDIDO],
+      consultas: [implementarConsultaAparelho(META, async (_e, ctx) => ({ pedidos: (await ctx.linhas('pedido')).map((l) => ({ id: l.id })) }))],
+    });
+    const shell = criarShell('campo', [definirModuloShell({ manifesto: coreComMeta() }), definirModuloShell({ manifesto: mCatalogo(), entidadesSync: [ITEM] }), vendedorShell]);
+    const motor = criarMotorSync({
+      registro: shell.registroSync,
+      armazenamento: criarArmazenamentoEmMemoria({ 'ent:pedido': { x1: { id: 'x1', updated_at: '2026-11-01T00:00:00Z' } } }),
+      transporte: { push: async () => [], pull: async () => ({ itens: [], proximo_cursor: null }) },
+      consultas: shell.consultas,
+    });
+    await motor.carregar();
+    await motor.aplicarModulosAtivos(['core', 'catalogo', 'vendedor']);
+    await expect(motor.ambiente.consultar(META, { usuario_ids: ['u1'] })).resolves.toEqual({ pedidos: [{ id: 'x1' }] });
+    await motor.aplicarModulosAtivos(['core', 'catalogo']);
+    await expect(motor.ambiente.consultar(META, { usuario_ids: ['u1'] })).rejects.toBeInstanceOf(ConsultaIndisponivel);
+    // Vendedor nem instalado no app: shell sobe e a consulta fica indisponível (sem erro de programação)
+    const soCore = criarShell('campo', [definirModuloShell({ manifesto: coreComMeta() })]);
+    const m2 = criarMotorSync({
+      registro: soCore.registroSync,
+      armazenamento: criarArmazenamentoEmMemoria({}),
+      transporte: { push: async () => [], pull: async () => ({ itens: [], proximo_cursor: null }) },
+      consultas: soCore.consultas,
+    });
+    await m2.carregar();
+    await m2.aplicarModulosAtivos(['core']);
+    await expect(m2.ambiente.consultar(META, { usuario_ids: [] })).rejects.toBeInstanceOf(ConsultaIndisponivel);
   });
 });

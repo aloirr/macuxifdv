@@ -93,7 +93,7 @@ export interface TransacaoTenant {
   registrarArquivo(arquivo: NovoArquivo): Promise<{ criado: boolean }>;
   /**
    * ADR 0012: consulta a outro módulo NA MESMA transação (mesmo tenant, RLS, papel macuxi_app). Só consultas em
-   * `usaConsultas` do manifesto do módulo da rota (fora disso = erro de programação). Entrada e saída validadas pelo
+   * `usaConsultas` ou `usaConsultasOpcionais` (ADR 0019) do manifesto do módulo da rota (fora disso = erro de programação). Entrada e saída validadas pelo
    * contrato. Dono inativo para o usuário ou não instalado → `ConsultaIndisponivel` (503 se não tratada).
    */
   consultar<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(def: DefinicaoConsulta<E, S>, entrada: z.input<E>): Promise<z.output<S>>;
@@ -318,7 +318,7 @@ export interface ContextoConsumo {
   publicar: TransacaoTenant['publicar'];
   /**
    * ADR 0012 (T-0060, RN-INT-14): consulta a outro módulo NA MESMA transação do consumo (tenant do envelope, RLS,
-   * macuxi_app). Mesma semântica de `tx.consultar`: só consultas em `usaConsultas` do manifesto do módulo CONSUMIDOR
+   * macuxi_app). Mesma semântica de `tx.consultar`: só consultas em `usaConsultas`/`usaConsultasOpcionais` do manifesto do módulo CONSUMIDOR
    * (fora disso = erro de programação); entrada e saída validadas pelo contrato; dono não instalado ou inativo no
    * tenant → `ConsultaIndisponivel` (se não tratada, o consumo falha e o evento volta com espera crescente).
    * Não há pessoa: a implementação recebe o usuário de sistema (`USUARIO_SISTEMA_ID`, perfil `admin`, módulos efetivos

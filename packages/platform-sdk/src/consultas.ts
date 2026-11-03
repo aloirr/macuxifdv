@@ -5,7 +5,8 @@
  * - O DONO declara o contrato no próprio `contracts`: `definirConsulta({ nome: 'catalogo.precos_cliente@1', entrada, saida })`,
  *   lista em `ofereceConsultas` do manifesto e implementa na API (`ModuloApi.consultas` com `implementarConsulta`) e, se
  *   valer offline, no aparelho (`ModuloShell.consultas` com `implementarConsultaAparelho`, lendo só as próprias entidades).
- * - O CONSUMIDOR lista em `usaConsultas` (dono em `depende` ou `opcionais`) e chama `tx.consultar(def, entrada)` dentro do
+ * - O CONSUMIDOR lista em `usaConsultas` (dono em `depende` ou `opcionais`) ou, sem aresta de dependência (evita ciclo,
+ *   ADR 0019), em `usaConsultasOpcionais`, e chama `tx.consultar(def, entrada)` dentro do
  *   próprio `comTenant` (mesma transação, tenant e RLS) ou, no aparelho, `ambiente.consultar(def, entrada)`.
  * - Entrada e saída passam pelo Zod nos dois lados. Dono inativo para o usuário (ou não instalado, se opcional) →
  *   `ConsultaIndisponivel` (503 se ninguém tratar; RN-CORE-03). Consulta é leitura: sem efeito colateral e sem evento.
@@ -15,7 +16,7 @@ import type { z } from 'zod';
 import { ErroHttpModulo } from './api';
 import type { AmbienteAparelho, AmbienteModulo, UsuarioAmbiente } from './ambiente';
 import type { DefinicaoConsulta } from './consultas-tipos';
-import type { Manifesto } from './manifesto';
+import { consultasDeclaradas, type Manifesto } from './manifesto';
 import { lerNomeConsulta, type ModuloId } from './nomes';
 
 export type { DefinicaoConsulta } from './consultas-tipos';
@@ -136,7 +137,7 @@ export function criarRegistroConsultasAparelho(
 ): { registro: RegistroConsultasAparelho; problemas: string[] } {
   const problemas: string[] = [];
   const impls = new Map<string, ImplementacaoConsultaAparelho>();
-  const usadas = new Set(modulos.flatMap((m) => m.manifesto.usaConsultas));
+  const usadas = new Set(modulos.flatMap((m) => consultasDeclaradas(m.manifesto)));
   for (const m of modulos) {
     const id = m.manifesto.id;
     for (const i of m.consultas ?? []) {
@@ -150,7 +151,7 @@ export function criarRegistroConsultasAparelho(
   const registro: RegistroConsultasAparelho = {
     nomes: [...impls.keys()],
     async consultar(def, entrada, f) {
-      if (!usadas.has(def.nome)) throw new Error(`Consulta ${def.nome}: nenhum módulo instalado a declara em usaConsultas`);
+      if (!usadas.has(def.nome)) throw new Error(`Consulta ${def.nome}: nenhum módulo instalado a declara em usaConsultas/usaConsultasOpcionais`);
       const impl = impls.get(def.nome);
       if (!impl || !f.modulosAtivos().includes(def.modulo)) throw new ConsultaIndisponivel(def.nome, def.modulo);
       const dono = def.modulo;

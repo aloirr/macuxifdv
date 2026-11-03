@@ -11,6 +11,7 @@
 import {
   CODIGOS_ARQUIVO,
   ConsultaIndisponivel,
+  consultasDeclaradas,
   criarBarramento,
   ErroHttpModulo,
   executarConsulta,
@@ -113,10 +114,10 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
     async consultar(def, entrada) {
       if (!o.modulo) throw new Error('Rota da plataforma não usa consulta de módulo');
       const quem = o.manifestos.find((m) => m.id === o.modulo);
-      if (!quem?.usaConsultas.includes(def.nome))
+      if (!quem || !consultasDeclaradas(quem).includes(def.nome))
         throw new Error(`Consulta ${def.nome}: ${o.modulo} não a declara em usaConsultas do manifesto (ADR 0012)`);
       const impl = o.consultas?.get(def.nome);
-      // dono não instalado (opcional) ou inativo para o usuário agora (licença, RN-CORE-02/03)
+      // dono não instalado (opcional ou usaConsultasOpcionais, ADR 0019) ou inativo para o usuário agora (licença, RN-CORE-02/03)
       if (!impl || !o.usuario || !o.usuario.modulos.includes(def.modulo)) throw new ConsultaIndisponivel(def.nome, def.modulo);
       const usuario = o.usuario;
       const base = o.log ?? logMudo;
