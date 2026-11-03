@@ -7,7 +7,7 @@ import { EVENTOS_ATUALIZADO, ENTIDADES, PedidoAprovadoParaFila, PedidoParaErp, V
 import { montarAlertasMonitor } from './monitor';
 import { ordenarCarga, referenciasDoRegistro, verificarReferencias, avisosReferenciaFraca } from './ordem';
 import { validarLinhas } from './idempotencia';
-import { siglasParaConferir, verificarMedidas } from './medidas';
+import { siglasDeMedidaDoRegistro, siglasParaConferir, verificarMedidas } from './medidas';
 import { conectorAtendePedido, exigeConector, pedidosAguardandoConector } from './pedido-versao';
 import { montarPedidoParaErp, selecionarPendentes, type PedidoNaFila } from './pedido-fila';
 
@@ -114,6 +114,109 @@ describe('RN-CORE-19: medida desconhecida é referencia_ausente', () => {
     expect(siglasParaConferir('produto_unidade', [{ registro: { unidade: 'cx' } }, { registro: { unidade: 'CX' } }])).toEqual(['CX']);
     expect(siglasParaConferir('preco', [{ registro: {} }])).toEqual([]);
     expect(siglasParaConferir('cliente', [{ registro: { unidade: 'UN' } }])).toEqual([]);
+  });
+
+  it('RN-CORE-19: produto confere a unidade E a embalagem_medida (cada uma com o seu campo); embalagem ausente ou vazia não é conferida', () => {
+    expect(siglasDeMedidaDoRegistro('produto', { unidade: 'un', embalagem_medida: ' cx ', embalagem_quantidade: 12 })).toEqual([
+      { campo: 'unidade', sigla: 'UN' },
+      { campo: 'embalagem_medida', sigla: 'CX' },
+    ]);
+    expect(siglasDeMedidaDoRegistro('produto', { unidade: 'UN', embalagem_medida: null })).toEqual([{ campo: 'unidade', sigla: 'UN' }]);
+    expect(siglasDeMedidaDoRegistro('produto', { unidade: 'UN', embalagem_medida: '  ' })).toEqual([{ campo: 'unidade', sigla: 'UN' }]);
+    expect(siglasDeMedidaDoRegistro('produto_unidade', { unidade: 'CX', embalagem_medida: 'FD' })).toEqual([{ campo: 'unidade', sigla: 'CX' }]);
+    expect(siglasParaConferir('produto', [{ registro: { unidade: 'UN', embalagem_medida: 'CX' } }, { registro: { unidade: 'CX' } }])).toEqual(['UN', 'CX']);
+  });
+
+  it('RN-INT-04: embalagem_medida desconhecida recusa a linha (referencia_ausente reprocessável) citando a sigla e o campo', () => {
+    const l = [{ indice: 3, external_id: 'P9', registro: { unidade: 'UN', embalagem_medida: 'ZZ', embalagem_quantidade: 6 } }];
+    const r = verificarMedidas('produto', l, new Set(['UN', 'CX']));
+    expect(r.aceitas).toEqual([]);
+    expect(r.erros).toEqual([
+      {
+        indice: 3,
+        external_id: 'P9',
+        codigo: 'referencia_ausente',
+        campo: 'embalagem_medida',
+        mensagem: "Medida 'ZZ' não cadastrada (campo embalagem_medida). Cadastre em Parâmetros → Produtos e reprocesse.",
+        reprocessavel: true,
+      },
+    ]);
+  });
+
+  it('RN-INT-04: a mensagem cita a sigla e o campo; medida inativa pede para reativar, não para cadastrar', () => {
+    const l = [{ indice: 0, external_id: 'P1', registro: { unidade: 'xx' } }, { indice: 1, external_id: 'P2', registro: { unidade: 'LT' } }];
+    const r = verificarMedidas('produto', l, new Set(['UN']), new Set(['LT']));
+    expect(r.erros.map((e) => e.mensagem)).toEqual([
+      "Medida 'XX' não cadastrada (campo unidade). Cadastre em Parâmetros → Produtos e reprocesse.",
+      "Medida 'LT' está inativa (campo unidade). Reative em Parâmetros → Produtos e reprocesse.",
+    ]);
+    expect(r.erros.every((e) => e.codigo === 'referencia_ausente' && e.reprocessavel)).toBe(true);
+  });
+});
+
+describe('RN-CORE-19: sigla de medida fora do formato é erro de validação (não reprocessável)', () => {
+  const MSG = (s: string, campo: string) => `Medida '${s}' inválida (campo ${campo}): use de 1 a 4 letras. Corrija no ERP.`;
+
+  it('RN-CORE-19: sigla fora de ^[A-Z]{1,4}$ (após trim e maiúsculas) vira formato_invalido NÃO reprocessável, sem consultar o Core', () => {
+    const l = [
+      { indice: 0, external_id: 'P1', registro: { unidade: 'caixa' } },
+      { indice: 1, external_id: 'P2', registro: { unidade: 'CX12' } },
+      { indice: 2, external_id: 'P3', registro: { unidade: 'UN', embalagem_medida: 'c-x', embalagem_quantidade: 6 } },
+      { indice: 3, external_id: 'P4', registro: { unidade: ' un ' } },
+    ];
+    const r = verificarMedidas('produto', l, new Set(['UN']));
+    expect(r.aceitas.map((x) => x.external_id)).toEqual(['P4']);
+    expect(r.erros).toEqual([
+      { indice: 0, external_id: 'P1', codigo: 'formato_invalido', campo: 'unidade', mensagem: MSG('CAIXA', 'unidade'), reprocessavel: false },
+      { indice: 1, external_id: 'P2', codigo: 'formato_invalido', campo: 'unidade', mensagem: MSG('CX12', 'unidade'), reprocessavel: false },
+      { indice: 2, external_id: 'P3', codigo: 'formato_invalido', campo: 'embalagem_medida', mensagem: MSG('C-X', 'embalagem_medida'), reprocessavel: false },
+    ]);
+  });
+
+  it('RN-CORE-19: o formato é conferido mesmo sem como consultar o Core (consulta indisponível não deixa sigla ruim passar)', () => {
+    const r = verificarMedidas('produto', [{ indice: 0, external_id: 'P1', registro: { unidade: 'CAIXA' } }], null);
+    expect(r.aceitas).toEqual([]);
+    expect(r.erros[0]).toMatchObject({ codigo: 'formato_invalido', reprocessavel: false });
+  });
+
+  it('RN-CORE-19: sigla bem formada mas desconhecida segue referencia_ausente reprocessável (preço e produto_unidade também)', () => {
+    for (const e of ['preco', 'produto_unidade'] as const) {
+      const r = verificarMedidas(e, [{ indice: 0, external_id: 'X', registro: { unidade: 'zz' } }], new Set(['UN']));
+      expect(r.erros).toHaveLength(1);
+      expect(r.erros[0]).toMatchObject({ codigo: 'referencia_ausente', reprocessavel: true, campo: 'unidade' });
+    }
+    const f = verificarMedidas('preco', [{ indice: 0, external_id: 'X', registro: { unidade: 'CAIXA' } }], new Set(['UN']));
+    expect(f.erros[0]).toMatchObject({ codigo: 'formato_invalido', reprocessavel: false, campo: 'unidade', mensagem: MSG('CAIXA', 'unidade') });
+  });
+
+  it('RN-CORE-19: só siglas bem formadas vão à consulta do Core', () => {
+    expect(siglasParaConferir('produto', [{ registro: { unidade: 'UN', embalagem_medida: 'CAIXA' } }, { registro: { unidade: 'CX12' } }])).toEqual(['UN']);
+  });
+
+  it('RN-CORE-19: produto_unidade com sigla de 5 letras, número ou fator acima de 9999 é erro de linha; CX e fator 9999 passam', () => {
+    const r = validarLinhas('produto_unidade', [
+      { ...base, external_id: 'A', produto_external_id: 'P1', unidade: 'CX', fator: 9999 },
+      { ...base, external_id: 'B', produto_external_id: 'P1', unidade: 'CX12', fator: 6 },
+      { ...base, external_id: 'C', produto_external_id: 'P1', unidade: 'CAIXA', fator: 6 },
+      { ...base, external_id: 'D', produto_external_id: 'P1', unidade: 'CX', fator: 10000 },
+    ]);
+    expect(r.validas.map((l) => l.external_id)).toEqual(['A']);
+    expect(r.erros.map((e) => [e.external_id, e.campo, e.codigo, e.reprocessavel])).toEqual([
+      ['B', 'unidade', 'formato_invalido', false],
+      ['C', 'unidade', 'formato_invalido', false],
+      ['D', 'fator', 'valor_fora_da_faixa', false],
+    ]);
+  });
+
+  it('RN-CORE-19: embalagem_quantidade do produto é inteira de 2 a 9999; fora disso, valor_fora_da_faixa não reprocessável', () => {
+    const p = (q: number, id: string) => ({ ...base, external_id: id, sku: id, nome: 'n', unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: q });
+    const r = validarLinhas('produto', [p(2, 'A'), p(9999, 'B'), p(1, 'C'), p(10000, 'D'), p(2147483648, 'E')]);
+    expect(r.validas.map((l) => l.external_id)).toEqual(['A', 'B']);
+    expect(r.erros.map((e) => [e.external_id, e.campo, e.codigo, e.reprocessavel])).toEqual([
+      ['C', 'embalagem_quantidade', 'valor_fora_da_faixa', false],
+      ['D', 'embalagem_quantidade', 'valor_fora_da_faixa', false],
+      ['E', 'embalagem_quantidade', 'valor_fora_da_faixa', false],
+    ]);
   });
 });
 

@@ -10,7 +10,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
-import { rotuloEstoque, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
+import { rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
 import { fichaLocal } from '../lib/local';
 import { hrefCatalogo } from '../rotas';
 import { BotoesAcao } from './comum';
@@ -100,7 +100,7 @@ export default function TelaProduto() {
               {item.availability && item.availability.by_branch.length > 1
                 ? item.availability.by_branch.map((b) => (
                     <Text key={b.branch_id} style={t.small}>
-                      {b.branch_name}: {b.quantity ?? b.band.replace('_', ' ')}
+                      {rotuloEstoqueFilial(b)}
                     </Text>
                   ))
                 : null}
