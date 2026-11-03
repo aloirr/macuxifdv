@@ -259,3 +259,15 @@ R-20261101-235554-2-modulo-gestor
 R-20261102-001849-engenheiro-software
 R-20261102-003011-modulo-integracao
 R-20261102-003050-modulo-integracao
+R-20261103-041605-modulo-treinamento
+R-20261103-043037-testes
+R-20261103-043309-modulo-treinamento
+R-20261103-043632-modulo-core
+R-20261103-044911-testes
+R-20261103-050202-engenheiro-software
+R-20261103-051324-engenheiro-apps
+R-20261103-053623-testes
+R-20261103-061628-modulo-catalogo
+R-20261103-063411-modulo-treinamento
+R-20261103-065034-engenheiro-software
+R-20261103-070710-engenheiro-apps
