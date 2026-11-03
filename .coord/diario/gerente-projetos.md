@@ -166,3 +166,4 @@
 2026-11-02 — #39 e #45 — merges pela regra A; T-0062 (custo/preço mínimo) e T-0063 (medidas e PDF) abertas; RN-VEN-11, 15 e 16 novas, RN-CORE-18/19 nos docs 02/03/04/06; pull pendente do lockfile (engenheiro devolve ao HEAD)
 2026-11-02 — T-0063 — nuvem: 0018_medidas, cadastro de medidas no BKO, Hub com referencia_ausente; revisão 0🔴; PR #54 (38d0d38) aguardando 0017 e PAP-4 'UN' no main
 2026-11-03 — T-0063 — #54 reorganizado em PRs de um agente (testes S0-025, banco-dados 0018, modulo-core BKO, modulo-integracao #62) por causa da governança de nuvem/*
+2026-11-02 — merges da noite — #52, #55, #64, #58–#61 (T-0064), #56, #68, #62, #67, #71 mesclados; exceção da regra A (PRs sem arquivo em comum) aprovada até o build das 07h30; build das 22h (Campo fbe0099c, Gestão 08d530c2) do 7f3fbf0; Postgres local caiu às 21h30 e banco-dados separa o banco de testes
