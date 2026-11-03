@@ -30,6 +30,7 @@ import { payloadAprovado } from './aprovado-erp';
 import { paraDetalhe, paraOrder, type LinhaEvento, type LinhaItem, type LinhaNotaDevolucao, type LinhaNotaFaturamento, type LinhaPedido } from './mapeamento';
 import { preVenda, type DocumentoPreVenda } from './pre-venda';
 import { DEVOLUCAO_LIGADA, FATURAMENTO_LIGADO } from './retorno-erp';
+import { exigirLeituraDePedidos } from './opcao-promotor';
 import { escopoDoPedido, JUNCAO_FATURAMENTO } from './sync';
 
 /** T-0053: campos da pré-venda no pedido/orçamento (vazio para pedido sem pré-venda ou sem a 0013). */
@@ -140,6 +141,7 @@ export const rotaListarPedidos: RotaModulo = {
   carteira: 'filtrar_no_dominio',
   query: OrderListQuery,
   async executar(ctx) {
+    await exigirLeituraDePedidos(ctx); // O-3: opção `promotor_ve_pedidos` (só afeta o promotor)
     const q = ctx.query as z.infer<typeof OrderListQuery>;
     const limite = q.limite ?? q.limit ?? 50;
     const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
@@ -189,6 +191,7 @@ export const rotaVerPedido: RotaModulo = {
   carteira: 'filtrar_no_dominio',
   params: ParamsPedido,
   async executar(ctx) {
+    await exigirLeituraDePedidos(ctx); // O-3
     const { id } = ctx.params as z.infer<typeof ParamsPedido>;
     return ctx.comTenant(async (db) => {
       const r = await carregarDetalhe(ctx, db, id);

@@ -10,6 +10,7 @@
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
 import { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem, entidadeTransportadora } from '../contracts/entidades';
 import { ORDER_STATUSES_FINAIS } from '../domain/order';
+import { leituraDePedidosLiberada } from './opcao-promotor';
 import { receberPedidos } from './receber';
 import { FATURAMENTO_LIGADO } from './retorno-erp';
 
@@ -114,6 +115,8 @@ export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido): { sql: str
 }
 
 async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido) => { sql: string; valores: unknown[] }, ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
+  // O-3: promotor com `promotor_ve_pedidos` desligada não recebe pedido, item nem evento
+  if (!(await leituraDePedidosLiberada(ctx))) return [];
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
   const { sql, valores: v } = montar(pedido, e);
   return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);

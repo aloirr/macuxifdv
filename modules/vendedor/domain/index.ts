@@ -8,3 +8,4 @@ export * from './quantidade';
 export * from './retorno-erp';
 export * from './orcamento';
 export * from './preco-pedido';
+export * from './leitura-pedido';
