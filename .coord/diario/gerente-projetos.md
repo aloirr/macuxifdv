@@ -169,3 +169,4 @@
 2026-11-02 — T-0061 — PR aloirr/macuxifdv#72: novo pedido em 3 abas, revisão (1 🔴 corrigido), opção promotor_ve_pedidos (O-3), merge do main com a T-0064
 2026-11-03 — T-0061 — #72 vermelho só na governança (trailer Agente: com 3 nomes); reorganizado em PRs de um agente: nuvem/T-0061-vendedor, nuvem/T-0061-coord-engenheiro e nuvem/T-0061-coord-gerente
 2026-11-02 — merges da noite — #52, #55, #64, #58–#61 (T-0064), #56, #68, #62, #67, #71 mesclados; exceção da regra A (PRs sem arquivo em comum) aprovada até o build das 07h30; build das 22h (Campo fbe0099c, Gestão 08d530c2) do 7f3fbf0; Postgres local caiu às 21h30 e banco-dados separa o banco de testes
+2026-11-03 — madrugada — merges #63, #66, #75, #65, #74, #76, #77, #69 (exceção da regra A até 07h30); Postgres de testes separado e limpeza dos bancos; build passou para 03h (Alexandre)
