@@ -585,7 +585,15 @@ describe('ADR 0019 — usaConsultasOpcionais no createApp (core ↔ vendedor sem
   it('a API sobe com o Core usando a consulta do Vendedor; com opcionais: [vendedor] o ciclo derruba o createApp', () => {
     expect(coreOpcional.manifesto.opcionais).not.toContain('vendedor');
     expect(() => createApp(op())).not.toThrow();
-    const comAresta = coreCom(defineModule({ ...core, opcionais: ['vendedor'], usaConsultas: [...core.usaConsultas.filter((c) => c !== META.nome), META.nome] }));
+    // O Core real já traz a consulta em usaConsultasOpcionais: sai de lá para entrar em usaConsultas (sem duplicar).
+    const comAresta = coreCom(
+      defineModule({
+        ...core,
+        opcionais: ['vendedor'],
+        usaConsultas: [...core.usaConsultas.filter((c) => c !== META.nome), META.nome],
+        usaConsultasOpcionais: core.usaConsultasOpcionais.filter((c) => c !== META.nome),
+      }),
+    );
     expect(() => createApp(opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ core: comAresta, vendedor: vendedorComMeta }) }))).toThrow(
       /dependência circular entre módulos: core → vendedor → core/,
     );
