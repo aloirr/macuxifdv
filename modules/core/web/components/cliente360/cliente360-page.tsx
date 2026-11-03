@@ -8,7 +8,7 @@ import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { formatBRL } from '@macuxi/comum';
 import { Badge, ErrorBlock, EtiquetaCadastroIncompleto, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
 import { Cliente360Schema } from '../../../contracts';
-import { dataLocal, linksDeContato, observacaoComCadastro, situacaoTitulo } from '../../../domain';
+import { dataLocal, listarEnderecosDoCliente, linksDeContato, observacaoComCadastro, situacaoTitulo } from '../../../domain';
 import { useMe } from '../../lib/queries';
 import { quando, rotuloResultado, sinais } from '../../lib/visitas';
 
@@ -28,9 +28,11 @@ function Cliente360Conteudo() {
   if (!id) return <Notice tone="info">Abra um cliente pela Carteira ou pela lista de clientes.</Notice>;
   if (q.isPending) return <LoadingBlock label="Carregando o cliente…" />;
   if (q.isError) return <ErrorBlock message={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
-  const { cliente, contatos, financeiro, titulos, historico, resumo_compras: compras, resumo_financeiro: fin, ultimas_visitas: visitas } = q.data;
+  const { cliente, contatos, enderecos = [], financeiro, titulos, historico, resumo_compras: compras, resumo_financeiro: fin, ultimas_visitas: visitas } = q.data;
   const hoje = dataLocal(new Date(), fuso);
   const nome = cliente.nome_fantasia || cliente.razao_social;
+  // RF-CORE-12 / RN-VEN-17: a API já manda o padrão primeiro; a mesma função pura do app marca o padrão e monta a linha
+  const listaEnderecos = listarEnderecosDoCliente(enderecos, cliente.id);
   return (
     <div className="flex w-full max-w-[1180px] flex-col gap-5" data-testid="cliente360.tela">
       <PageHeader
@@ -84,6 +86,20 @@ function Cliente360Conteudo() {
               </li>
             );
           })}
+        </ul>
+      </Panel>
+
+      <Panel title={`Endereços de entrega (${listaEnderecos.length})`}>
+        {listaEnderecos.length === 0 && <p className="text-[13px] text-ink-2">Nenhum endereço vindo do ERP. Endereço novo entra pelo cadastro do cliente no ERP.</p>}
+        <ul className="flex flex-col gap-2">
+          {listaEnderecos.map((e) => (
+            <li key={e.id} className="flex flex-wrap items-center gap-2 text-[13px]" data-testid={`cliente360.endereco.${e.id}`}>
+              {e.padrao ? <Badge tone="success">Padrão</Badge> : null}
+              {e.tipo === 'cobranca' ? <Badge tone="neutral">Cobrança</Badge> : null}
+              {e.descricao ? <span className="font-semibold">{e.descricao}</span> : null}
+              <span className={e.padrao ? 'font-semibold' : undefined}>{e.resumo}</span>
+            </li>
+          ))}
         </ul>
       </Panel>
 
