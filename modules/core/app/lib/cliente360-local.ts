@@ -33,6 +33,11 @@ export interface Cliente360Local {
   historico: HistoricoCompraSync[];
   resumo_compras: ResumoCompras;
   resumo_financeiro: ResumoFinanceiro | null;
+  /**
+   * RN-PRO-01 / RN-CORE-01: `false` quando o promotor não vê pedidos (opção `promotor_ve_pedidos` desligada). Aí `historico` vem
+   * vazio e `resumo_compras` zerado: nem a contagem de pedidos nem os valores de compra chegam à tela.
+   */
+  pedidos_visiveis: boolean;
   /** Ligar e WhatsApp em 1 toque: do contato principal; cai no telefone do cadastro do cliente. */
   ligar: string | null;
   whatsapp: string | null;
@@ -58,7 +63,8 @@ export function historicoNaJanela(h: Pick<HistoricoCompraSync, 'ano_mes'>, hoje:
   return h.ano_mes >= inicio;
 }
 
-export function montarCliente360Local(l: LinhasCliente, hoje: string): Cliente360Local {
+export function montarCliente360Local(l: LinhasCliente, hoje: string, opcoes: { verPedidos?: boolean } = {}): Cliente360Local {
+  const verPedidos = opcoes.verPedidos ?? true;
   const titulos: TituloLocal[] = l.titulos
     .filter((t) => tituloNaJanela(t, hoje))
     .map((t) => {
@@ -66,7 +72,7 @@ export function montarCliente360Local(l: LinhasCliente, hoje: string): Cliente36
       return { ...t, situacao_calculada: s.situacao, dias_atraso: s.dias_atraso };
     })
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.id.localeCompare(b.id));
-  const historico = l.historico.filter((h) => historicoNaJanela(h, hoje)).sort((a, b) => b.ano_mes.localeCompare(a.ano_mes));
+  const historico = (verPedidos ? l.historico : []).filter((h) => historicoNaJanela(h, hoje)).sort((a, b) => b.ano_mes.localeCompare(a.ano_mes));
   const contatos: ContatoLocal[] = [...l.contatos]
     .sort((a, b) => Number(b.principal) - Number(a.principal) || a.nome.localeCompare(b.nome, 'pt-BR'))
     .map((c) => {
@@ -82,6 +88,7 @@ export function montarCliente360Local(l: LinhasCliente, hoje: string): Cliente36
     titulos,
     historico,
     resumo_compras: resumoCompras(historico, hoje),
+    pedidos_visiveis: verPedidos,
     resumo_financeiro: resumoFinanceiro(l.financeiro, titulos, hoje),
     ligar: principal?.tel ?? doCadastro.tel,
     whatsapp: principal?.whatsapp_url ?? doCadastro.whatsapp,

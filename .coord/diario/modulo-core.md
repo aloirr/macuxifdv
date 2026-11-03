@@ -33,3 +33,4 @@
 2026-11-02 — T-0065 — notificarSistema: envio_id uuid determinístico (evento+usuário); core 690/690
 2026-11-02 — T-0065 — token de push só do usuário da sessão, logout/DELETE apaga, inativo/bloqueado não recebe (testes PG)
 2026-11-02 — T-0042 — urgente: upsertDispositivo não troca dono nem zera token de aparelho bloqueado (RN-CORE-15), where bloqueado_em is null; sessao.test, autenticacao, notificacoes.db, consumidores.db verdes
+2026-11-03 — T-0061 — opção promotor_ve_pedidos (padrão ligado, plataforma.parametro): domain, consulta core.promotor_ve_pedidos@1, rotas admin GET/PUT com auditoria, pull offline, Cliente 360 do app sem pedidos para promotor, painel no BKO; doc promotor-ve-pedidos.md

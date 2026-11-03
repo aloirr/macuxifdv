@@ -67,12 +67,15 @@ export function SecoesCliente360({ ficha }: { ficha: Cliente360Local }) {
   const aVencer = ficha.titulos.filter((x) => x.situacao_calculada === 'a_vencer');
   return (
     <View style={{ gap: 14 }} testID="cliente-360">
-      <View style={styles.grid}>
-        <Stat label="Última compra" value={compras.dias_sem_compra === null ? 'Nunca comprou' : compras.dias_sem_compra === 0 ? 'Hoje' : `há ${compras.dias_sem_compra} dias`} aviso={compras.dias_sem_compra === null || compras.dias_sem_compra >= 45} />
-        <Stat label="Ticket médio" value={formatBRL0(compras.ticket_medio_cents)} />
-        <Stat label="Compras em 12 meses" value={formatBRL0(compras.total_12m_cents)} />
-        <Stat label="Frequência média" value={compras.frequencia_media_dias === null ? '—' : `a cada ${Math.round(compras.frequencia_media_dias)} dias`} />
-      </View>
+      {/* RN-PRO-01: com a opção promotor_ve_pedidos desligada o promotor não vê compras, valores nem contagem de pedidos */}
+      {ficha.pedidos_visiveis ? (
+        <View style={styles.grid}>
+          <Stat label="Última compra" value={compras.dias_sem_compra === null ? 'Nunca comprou' : compras.dias_sem_compra === 0 ? 'Hoje' : `há ${compras.dias_sem_compra} dias`} aviso={compras.dias_sem_compra === null || compras.dias_sem_compra >= 45} />
+          <Stat label="Ticket médio" value={formatBRL0(compras.ticket_medio_cents)} />
+          <Stat label="Compras em 12 meses" value={formatBRL0(compras.total_12m_cents)} />
+          <Stat label="Frequência média" value={compras.frequencia_media_dias === null ? '—' : `a cada ${Math.round(compras.frequencia_media_dias)} dias`} />
+        </View>
+      ) : null}
 
       <View style={{ gap: 8 }}>
         <SectionHeader title="Contatos" />
@@ -135,6 +138,7 @@ export function SecoesCliente360({ ficha }: { ficha: Cliente360Local }) {
         )}
       </View>
 
+      {ficha.pedidos_visiveis ? (
       <View style={{ gap: 8 }} testID="cliente-historico">
         <SectionHeader title="Compras dos últimos 12 meses" />
         {ficha.historico.length === 0 ? (
@@ -155,6 +159,7 @@ export function SecoesCliente360({ ficha }: { ficha: Cliente360Local }) {
           </Card>
         )}
       </View>
+      ) : null}
     </View>
   );
 }
