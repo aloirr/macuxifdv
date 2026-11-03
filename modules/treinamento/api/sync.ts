@@ -42,7 +42,10 @@ async function receberAtividades(fabrica: FabricaRepositorio | null, ctx: Contex
     await comRepositorio(fabrica, ctx, async (repo, tx) => {
       await repo.travarAluno(ctx.usuario.id);
       const params = parametrosDoTenant(ctx);
-      const [trilhas, gravado, usuarios] = await Promise.all([repo.trilhas(), repo.estadoDoAluno(ctx.usuario.id), repo.usuarios()]);
+      // em série: a transação é UMA conexão (o `pg` enfileira e avisa quando duas consultas disputam o mesmo cliente)
+      const trilhas = await repo.trilhas();
+      const gravado = await repo.estadoDoAluno(ctx.usuario.id);
+      const usuarios = await repo.usuarios();
       const estado: EstadoDoAluno = { tenant_id: ctx.usuario.tenant_id, usuario_id: ctx.usuario.id, usuario: alunoDaSessao(ctx, usuarios), ...gravado };
       const conteudo = conteudoParaDominio(trilhas);
       const { estado: final, resultados } = aplicarAtividades(estado, validas.map(paraAtividade), conteudo, { gerarId: uuidPadrao, params });
@@ -101,7 +104,8 @@ export function criarProvedoresSync(fabrica: FabricaRepositorio): ProvedorSync[]
       puxar: async (ctx, p) => {
         if (!perfilPode('trilha.baixar_offline', ctx.usuario.perfil)) return [];
         return comRepositorio(fabrica, ctx, async (repo) => {
-          const [trilhas, usuarios] = await Promise.all([repo.trilhasDesde(p), repo.usuarios()]);
+          const trilhas = await repo.trilhasDesde(p);
+          const usuarios = await repo.usuarios();
           const aluno = alunoDaSessao(ctx, usuarios);
           return trilhas.filter((t) => t.deleted_at !== null || (t.status !== 'rascunho' && usuarioNoPublico(t.publico_alvo, aluno)));
         });
