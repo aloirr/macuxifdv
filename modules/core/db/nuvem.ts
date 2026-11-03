@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -252,6 +252,28 @@ export const historicoCompra = core.table('historico_compra', {
   origem: text('origem', { enum: ['erp', 'macuxi'] }).notNull().default('erp'),
 });
 
+export const TIPOS_NOTA_ERP_BANCO = ['faturamento', 'devolucao'] as const;
+
+/**
+ * Notas do ERP (0019, T-0066): uma linha por nota de integracao.nota.atualizado@1, base idempotente do recálculo de
+ * historico_compra (soma das notas vivas e não canceladas por cliente e ano_mes). external_id OBRIGATÓRIO (chave da nota
+ * no ERP; único vivo nota_erp_external_uk). cliente_id com FK composta; pedido_uuid é retrato SEM FK (fronteira).
+ * ano_mes AAAA-MM no fuso do tenant (o consumidor calcula a partir de emitida_em). Fora do pull do app; sem DELETE.
+ */
+export const notaErp = core.table('nota_erp', {
+  ...comuns(),
+  cliente_id: uuid('cliente_id').notNull(),
+  tipo: text('tipo', { enum: TIPOS_NOTA_ERP_BANCO }).notNull(),
+  numero: text('numero').notNull(),
+  serie: text('serie'),
+  emitida_em: timestamp('emitida_em', { withTimezone: true }).notNull(),
+  ano_mes: text('ano_mes').notNull(),
+  total_cents: bigint('total_cents', { mode: 'number' }).notNull(),
+  quantidade_itens: integer('quantidade_itens').notNull().default(0),
+  pedido_uuid: uuid('pedido_uuid'),
+  cancelada: boolean('cancelada').notNull().default(false),
+});
+
 export const TIPOS_MOTIVO = ['nao_venda', 'cliente_fechado', 'fora_do_raio'] as const;
 
 /**
@@ -366,6 +388,9 @@ export const notificacao = core.table('notificacao', {
 
 export const INDICADORES_META_BANCO = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;
 
+/** Tipo da meta (0019, RN-CORE-21): realizado por pedido aprovado (data de emissão) ou por faturamento (data do ERP). */
+export const TIPOS_META_BANCO = ['pedido', 'faturamento'] as const;
+
 /** Meta mensal (AAAA-MM) por usuário e indicador; cobertura_pct em pontos-base (0–10000). */
 export const meta = core.table('meta', {
   ...comuns(),
@@ -373,6 +398,8 @@ export const meta = core.table('meta', {
   periodo: text('periodo').notNull(),
   indicador: text('indicador', { enum: INDICADORES_META_BANCO }).notNull(),
   valor: bigint('valor', { mode: 'number' }).notNull(),
+  /** 0019 (RN-CORE-21): padrão 'pedido' (as metas anteriores à 0019 ficaram 'pedido'); CHECK meta_tipo_valido. */
+  tipo: text('tipo', { enum: TIPOS_META_BANCO }).notNull().default('pedido'),
 });
 
 /** Read-model diário de vendas por vendedor (lote B; alimentado pelo consumidor de vendedor.pedido.* futuro). */

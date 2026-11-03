@@ -118,6 +118,8 @@ const G = {
   deposito: 0x4b,
   estoque_saldo: 0x4c,
   busca_log: 0x4d,
+  // 0019 (T-0066)
+  nota_erp: 0x2f,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -365,6 +367,8 @@ export const ORDEM_TABELAS = [
   'vendedor.pedido_evento',
   ...ORDEM_T0032,
   ...ORDEM_T0013,
+  // 0019 (T-0066): notas do ERP (FK do cliente)
+  'core.nota_erp',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -389,6 +393,28 @@ const usuario = (id: string, tenant_id: string, nome: string, email: string, per
   bloqueio_ate: null,
   external_id: null,
 });
+
+/**
+ * 0019 (T-0066): notas do ERP. A: c1 com faturamento (pedido p1 como retrato, sem FK) e faturamento cancelado no dia 1º do
+ * mês corrente e devolução no dia 10 do mês anterior (meses distintos em qualquer dia); B: c1 com um faturamento. ano_mes =
+ * mês da data civil de emissão (fuso do tenant; 15:00Z cai no mesmo dia em Manaus e em São Paulo).
+ */
+function dadosNotaErp(hojeA: string, hojeB: string): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const nota = (id: string, tenant_id: string, cliente_id: string, dia: string, n: Partial<Linha> & { tipo: string; numero: string; external_id: string; total_cents: number }): Linha => ({
+    id, tenant_id, cliente_id, serie: '1', emitida_em: instante(dia, '15:00'), ano_mes: anoMes(dia), quantidade_itens: 3, pedido_uuid: null, cancelada: false,
+    deleted_at: null, ...n,
+  });
+  const diaA = `${anoMes(hojeA)}-01`;
+  const mesPassadoA = `${anoMes(hojeA, -1)}-10`;
+  return [
+    nota(a('nota_erp', 1), A.tenantId, A.clientes.c1, diaA, { tipo: 'faturamento', numero: '5001', external_id: 'NF-1-5001', total_cents: 285_000, pedido_uuid: A.pedidos.p1 }),
+    nota(a('nota_erp', 2), A.tenantId, A.clientes.c1, diaA, { tipo: 'faturamento', numero: '5002', external_id: 'NF-1-5002', total_cents: 120_000, cancelada: true }),
+    nota(a('nota_erp', 3), A.tenantId, A.clientes.c1, mesPassadoA, { tipo: 'devolucao', numero: '7001', external_id: 'ND-1-7001', total_cents: 30_000, quantidade_itens: 1 }),
+    nota(b('nota_erp', 1), B.tenantId, B.clientes.c1, somarDias(hojeB, -1), { tipo: 'faturamento', numero: 'B-900', external_id: 'NF-1-B900', total_cents: 150_000 }),
+  ];
+}
 
 export interface OpcoesDadosFixture {
   /** Data (AAAA-MM-DD) usada como "hoje" nos DOIS tenants; padrão: hoje no fuso de cada tenant. */
@@ -532,6 +558,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosT0029(hojeA, hojeB),
     ...dadosT0032(hojeA),
     ...dadosT0013(hojeA, hojeB),
+    'core.nota_erp': dadosNotaErp(hojeA, hojeB),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {

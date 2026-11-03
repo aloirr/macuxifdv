@@ -216,6 +216,8 @@ parcial `visita_sugere_coordenada_ix (tenant_id, cliente_id, checkin_em desc) wh
 ## meta — meta mensal (RN-CORE-20..22). Pull por usuários visíveis, `periodo ≥ mês anterior`
 `usuario_id` (FK) · `periodo` `AAAA-MM` · `indicador` `venda_cents | positivacao | cobertura_pct | visitas` · `valor` bigint ≥ 0
 (`cobertura_pct` em pontos-base, ≤ 10000). Índices: único `meta_uk (tenant_id, usuario_id, periodo, indicador)` vivo; `meta_usuario_sync_ix`.
+`tipo` `pedido | faturamento` (0019, RN-CORE-21; padrão `pedido`, CHECK `meta_tipo_valido`): o realizado conta pedidos aprovados na
+data de emissão ou o faturado na data do ERP. O `meta_uk` não inclui o tipo (uma meta por usuário, período e indicador).
 
 ## indicador_diario — read-model diário de vendas (lote B do §7, criado a pedido do gerente). Sem pull na Sprint 1
 `usuario_id` (= vendedor, RN-CORE-21) · `data` (fuso do tenant) · `pedidos`, `vendido_cents`, `cancelado_cents` ≥ 0.
@@ -281,3 +283,30 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - Base de demo (`db/seeds/demo/medidas.ts`): ativas UN, CX, FD, LT e BD; PCT, TB, GL, KG, DZ e DP inativas (não ausentes: o
   banco semeia as 11 e medida não se apaga). Embalagem dos produtos = as caixas de embarque do demo.ts (CX c/ 4 a 24).
   Fixture dois-tenants: A tem a sigla própria PC (Peça, usada pelos produtos de A), B tem GF (Garrafa), além das 11.
+
+## 0019 — notas do ERP e tipo da meta (`0019_core_nota_erp_meta_tipo`; T-0066 e T-0065, RN-CORE-21)
+- **nota_erp** (nova, dono: Core; escrita só pelo consumidor de `integracao.nota.atualizado@1`): uma linha por nota de
+  `faturamento` ou `devolucao` (CHECK `nota_erp_tipo_valido`). Colunas: `cliente_id` uuid (FK composta `nota_erp_cliente_fk
+  (tenant_id, cliente_id) → cliente (tenant_id, id)`) · `tipo` · `numero` text (não vazio, `nota_erp_numero_preenchido`) ·
+  `serie` text null · `emitida_em` timestamptz · `ano_mes` text `AAAA-MM` (`nota_erp_ano_mes_formato`; **calculado pelo
+  consumidor no fuso do tenant** a partir de `emitida_em` — o banco só confere o formato) · `total_cents` bigint ≥ 0 ·
+  `quantidade_itens` int ≥ 0 (padrão 0) · `pedido_uuid` uuid null (**retrato sem FK**: o pedido é do schema vendedor; ADR
+  0005/0012) · `cancelada` bool (padrão false) + campos comuns. `external_id` **obrigatório** (chave da nota no ERP,
+  `nota_erp_external_id_preenchido`).
+  - Índices: único vivo `nota_erp_external_uk (tenant_id, external_id) where deleted_at is null` (idempotência: reentrega e
+    nota alterada/cancelada fazem `insert ... on conflict (tenant_id, external_id) where deleted_at is null do update`);
+    `nota_erp_cliente_mes_ix (tenant_id, cliente_id, ano_mes)` (recálculo do `historico_compra` do cliente no mês);
+    `nota_erp_mes_ix (tenant_id, ano_mes)` (somas do mês). Único `(tenant_id, id)`. Gatilho `nota_erp_updated_at`.
+  - RLS forçado `isolamento_tenant`; grant **select, insert, update** ao `macuxi_app` (sem DELETE: soft delete ou
+    `cancelada = true`). **Fora do pull do app** (`TABELAS_FORA_DO_SYNC`; só o resumo `historico_compra` vai ao aparelho).
+  - Recálculo (consulta principal): `select coalesce(sum(case tipo when 'faturamento' then total_cents else -total_cents end),
+    0), ... from core.nota_erp where tenant_id = $t and cliente_id = $c and ano_mes = $m and not cancelada and deleted_at is
+    null` — `nota_erp_cliente_mes_ix`. Volume: ~30 notas/ano por cliente.
+  - Fixture dois-tenants: A/c1 com faturamento do mês (pedido p1 como retrato), faturamento cancelado e devolução do mês
+    anterior; B/c1 com um faturamento. Demo: sem notas (vêm do ERP simulado).
+- **meta.tipo** (nova coluna): `text not null default 'pedido'` + CHECK `meta_tipo_valido (tipo in ('pedido', 'faturamento'))`.
+  Default constante: sem reescrita da tabela; as metas existentes (e as da demo) ficam `pedido`. Espelho Drizzle
+  `meta.tipo` / `TIPOS_META_BANCO`. A entidade `meta` do sync leva o campo (contrato do Core).
+- Caminho de volta: `0019_core_nota_erp_meta_tipo.down.sql` — **apaga** `nota_erp` com os dados (reconstruível pela
+  reentrega do ERP; `historico_compra` não é tocado) e a coluna `meta.tipo` (metas de faturamento voltam a ser lidas como
+  pedido).
