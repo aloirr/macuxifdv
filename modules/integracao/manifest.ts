@@ -27,8 +27,8 @@ export const manifest = defineModule({
     'integracao.lote.recebido@1',
   ],
   // RN-INT-14: o Hub pergunta ao Core se o cadastro do cliente do lote está completo (aviso `cadastro_incompleto`, nunca erro de linha);
-  // TODO(T-0063, depois do PR do Core com core.medidas@1): acrescentar 'core.medidas@1' (siglas de medida existentes/ativas, RN-CORE-19)
-  usaConsultas: ['core.cadastro_cliente@1'],
+  // RN-CORE-19: core.medidas@1 diz quais siglas de medida do lote existem/estão ativas (sigla desconhecida = referencia_ausente)
+  usaConsultas: ['core.cadastro_cliente@1', 'core.medidas@1'],
   // vendedor.pedido.aprovado@1 traz o pedido pronto para a fila do ERP; status_alterado@1 retira da fila (cancelado/devolvido antes da 1ª entrega)
   consome: ['vendedor.pedido.aprovado@1', 'vendedor.pedido.status_alterado@1', 'integracao.lote.recebido@1'],
   // T-0025: ações do BKO (ADR 0004). As rotas do Hub para o Conector (`/integracao/v1`) NÃO usam perfil: autenticam por chave de

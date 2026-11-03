@@ -24,3 +24,4 @@
 2026-11-03 — T-0063 — rev. engenheiro 🟡4/🟡5: sigla de medida fora de ^[A-Z]{1,4}$ = formato_invalido não reprocessável (verificarMedidas, sempre conferida); embalagem_quantidade 2..9999 e fator ≤ 9999 no contrato; consumidores.db.test.ts sem SQL em core.medida (stub em memória por tenant; S0-014)
 2026-11-03 — T-0063 — Hub separado do #54: branch nuvem/T-0063-medidas-hub (wt-hub) independente do Core (lookup dinâmico de core.medidas@1, usaConsultas sem ela até o Core publicar); principal devolvido ao origin/main; integracao 478 testes verdes
 2026-11-02 — T-0065 — monitor do Hub no BKO usa sync_auto_min (RN-CORE-23) e botão Atualizar; saem os timers de 30 s
+2026-11-03 — T-0070 — core.medidas@1 em usaConsultas do Hub e import estático de CONSULTA_MEDIDAS (fecha o 🟡 da re-revisão da T-0032); mock do teste removido
