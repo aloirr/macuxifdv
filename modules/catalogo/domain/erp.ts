@@ -72,3 +72,49 @@ export function planejarEstoqueDoErp(e: EventoErpBase<RegistroEstoqueErp>): Plan
     },
   };
 }
+
+export interface RegistroNoErp {
+  codigo: string;
+  nome: string;
+  pai_external_id?: string | null | undefined;
+  nivel: number;
+  ordem?: number | undefined;
+}
+
+export type PlanoNoErp =
+  | { tipo: 'ignorar' }
+  | { tipo: 'inativar'; external_id: string }
+  | { tipo: 'upsert'; linha: { external_id: string; codigo: string; nome: string; pai_external_id: string | null; nivel: number; ordem: number } };
+
+/** RF-CAT-04: nó da árvore do ERP. Raiz = nível 1 sem pai; filho = nível 2 ou mais (mesma regra do banco). */
+export function planejarNoDoErp(e: EventoErpBase<RegistroNoErp>): PlanoNoErp {
+  if (e.acao === 'inativado') return { tipo: 'inativar', external_id: e.external_id };
+  const r = e.registro;
+  if (!r) return { tipo: 'ignorar' };
+  if (r.ativo === false) return { tipo: 'inativar', external_id: e.external_id };
+  const codigo = r.codigo.trim();
+  const nome = r.nome.trim();
+  const pai = r.pai_external_id?.trim() || null;
+  if (!codigo || !nome || !Number.isInteger(r.nivel) || r.nivel < 1 || r.nivel > 8) return { tipo: 'ignorar' };
+  if ((pai === null) !== (r.nivel === 1)) return { tipo: 'ignorar' };
+  return { tipo: 'upsert', linha: { external_id: e.external_id, codigo, nome, pai_external_id: pai, nivel: r.nivel, ordem: Math.trunc(r.ordem ?? 0) } };
+}
+
+export interface RegistroProdutoNoErp {
+  catalogo_no_external_id?: string | null | undefined;
+}
+
+export type PlanoProdutoNoErp =
+  | { tipo: 'ignorar' }
+  | { tipo: 'desvincular'; produto_external_id: string }
+  | { tipo: 'vincular'; produto_external_id: string; no_external_id: string; external_id: string };
+
+/** RF-CAT-04: o Catálogo lê do produto do ERP só o nó da árvore (o cadastro do produto é do Core). Um nó por produto. */
+export function planejarProdutoNoDoErp(e: EventoErpBase<RegistroProdutoNoErp>): PlanoProdutoNoErp {
+  if (e.acao === 'inativado') return { tipo: 'desvincular', produto_external_id: e.external_id };
+  const r = e.registro;
+  if (!r) return { tipo: 'ignorar' };
+  const no = r.catalogo_no_external_id?.trim();
+  if (!no || r.ativo === false) return { tipo: 'desvincular', produto_external_id: e.external_id };
+  return { tipo: 'vincular', produto_external_id: e.external_id, no_external_id: no, external_id: e.external_id };
+}

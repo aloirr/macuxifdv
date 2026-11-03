@@ -6,7 +6,7 @@
  * não recebe nenhuma das três — o preço nem chega ao aparelho dele.
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
-import { entidadeClienteTabelaPreco, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
+import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeProdutoNo, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -21,7 +21,12 @@ const TABELAS = {
     colunaCliente: false,
   },
   cliente_tabela_preco: { tabela: 'catalogo.cliente_tabela_preco', colunas: 'cliente_id, tabela_preco_id', colunaCliente: true },
+  // árvore (RF-CAT-04): navegação, não preço (sem trava por perfil); o promotor navega só para leitura (regra 7)
+  catalogo_no: { tabela: 'catalogo.catalogo_no', colunas: 'pai_id, nivel::int as nivel, codigo, nome, ordem, ativo', colunaCliente: false },
+  produto_no: { tabela: 'catalogo.produto_no', colunas: 'produto_id, no_id', colunaCliente: false },
 } as const;
+
+const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no']);
 
 export function sqlPullPreco(nome: keyof typeof TABELAS, pedido: PedidoPull, clientes: readonly string[] | null): { sql: string; valores: unknown[] } {
   const t = TABELAS[nome];
@@ -38,7 +43,7 @@ export function sqlPullPreco(nome: keyof typeof TABELAS, pedido: PedidoPull, cli
 }
 
 async function puxar(nome: keyof typeof TABELAS, ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
-  if (!verPrecoDoPerfil(ctx.usuario.perfil, ctx.parametros())) return [];
+  if (!ARVORE.has(nome) && !verPrecoDoPerfil(ctx.usuario.perfil, ctx.parametros())) return [];
   let clientes: readonly string[] | null = null;
   if (TABELAS[nome].colunaCliente) {
     const c = await ctx.carteira();
@@ -52,4 +57,6 @@ export const provedoresSyncCatalogo: readonly ProvedorSync[] = [
   { entidade: entidadeTabelaPreco, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_preco', ctx, p) },
   { entidade: entidadeTabelaPrecoItem, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_preco_item', ctx, p) },
   { entidade: entidadeClienteTabelaPreco, escopo: 'carteira', puxar: (ctx, p) => puxar('cliente_tabela_preco', ctx, p) },
+  { entidade: entidadeCatalogoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('catalogo_no', ctx, p) },
+  { entidade: entidadeProdutoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_no', ctx, p) },
 ];

@@ -45,6 +45,7 @@ import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/da
 import { hashSenha } from '../../src/senha';
 import { dadosGestor, ORDEM_GESTOR } from './gestor';
 import { dadosPromotorFixture, ORDEM_PROMOTOR } from './promotor';
+import { dadosPesquisaFixture, ORDEM_PESQUISA } from './pesquisa';
 
 const G = {
   tenant: 0x00,
@@ -363,6 +364,8 @@ export const ORDEM_TABELAS = [
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
   ...ORDEM_PROMOTOR,
+  // 0016 (T-0057): schema pesquisa — linhas de A e B em ./pesquisa.ts (itens e fotos da resposta: gatilho do banco)
+  ...ORDEM_PESQUISA,
 ] as const;
 
 export type DadosFixture = Record<(typeof ORDEM_TABELAS)[number], Linha[]>;
@@ -400,6 +403,17 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
   const agora = opcoes.agora ?? new Date();
   const hojeA = opcoes.hoje ?? hojeNoFuso(A.fuso, agora);
   const hojeB = opcoes.hoje ?? hojeNoFuso(B.fuso, agora);
+
+  const sprint1 = dadosSprint1(hojeA, hojeB);
+  // 0016 (T-0057): Pesquisa — as fotos vão para plataforma.arquivo (junto das da Sprint 1), o resto no fim de ORDEM_TABELAS
+  const { arquivos: arquivosPesquisa, ...pesquisa } = dadosPesquisaFixture(
+    {
+      A: { tenantId: tA, vendedor: A.usuarios.vendedor1, analista: A.usuarios.analista, admin: A.usuarios.admin, equipe: A.equipes.equipe1, cliente: A.clientes.c1 },
+      B: { tenantId: tB, vendedor: B.usuarios.vendedor, admin: B.usuarios.admin, cliente: B.clientes.c1 },
+    },
+    hojeA,
+    hojeB,
+  );
 
   const perfilModulo: Array<[string, string, string]> = [
     // tenant, perfil, módulo — A conforme o plano §3 (+ admin/analista/assistente, complemento do banco)
@@ -501,7 +515,9 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       auditoria(a('auditoria', 1), tA, A.usuarios.admin, A.usuarios.vendedor2),
       auditoria(b('auditoria', 1), tB, B.usuarios.admin, B.usuarios.admin),
     ],
-    ...dadosSprint1(hojeA, hojeB),
+    ...sprint1,
+    // fotos da Pesquisa (0016) junto das da Sprint 1: plataforma.arquivo é gravada antes das respostas (FK de resposta_foto)
+    'plataforma.arquivo': [...sprint1['plataforma.arquivo'], ...arquivosPesquisa],
     ...dadosT0029(hojeA, hojeB),
     ...dadosT0032(hojeA),
     ...dadosT0013(hojeA, hojeB),
@@ -514,6 +530,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       hojeA,
       hojeB,
     ),
+    ...pesquisa,
   };
 }
 

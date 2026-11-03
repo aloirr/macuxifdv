@@ -8,7 +8,7 @@ import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../../domain/preco';
 import { MENSAGEM_ESCOLHA_CLIENTE } from '../../domain/vitrine';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_SEED_DEMO, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../../fixtures/base-demo';
-import { buscarLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, vitrineLocal, type LeitorLocal } from './local';
+import { arvoreLocal, buscarLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
 
 const relogio = criarRelogio();
 const QUANDO = relogio.relativo({ horas: -3 }).toISOString();
@@ -109,5 +109,56 @@ describe('vitrine e ficha offline', () => {
     expect(f).toMatchObject({ product: { erp_code: 'CAF-500', is_campaign: true }, content: { description: 'Torra média.', faq: [{ question: 'É moído?' }] } });
     expect(await fichaLocal(leitor(), { ...entrada, produtoId: idProdutoDemo('MAR-500') })).toBeNull();
     expect(await fichaLocal(leitor(), { ...entrada, produtoId: idDemo('nada') })).toBeNull();
+  });
+});
+
+describe('árvore do catálogo offline (RF-CAT-04)', () => {
+  const NO_BEBIDAS = idDemo('no:bebidas');
+  const NO_REFRI = idDemo('no:refri');
+  const NO_LIMPEZA = idDemo('no:limpeza');
+  const no = (id: string, pai: string | null, nivel: number, nome: string, ordem: number) => base(id, { pai_id: pai, nivel, codigo: nome, nome, ordem, ativo: true });
+  const vinc = (s: string, n: string) => base(idDemo(`pn:${s}`), { produto_id: idProdutoDemo(s), no_id: n });
+  function comArvore() {
+    return {
+      ...linhasDemo(),
+      catalogo_no: [no(NO_BEBIDAS, null, 1, 'Bebidas', 1), no(NO_REFRI, NO_BEBIDAS, 2, 'Refrigerantes', 1), no(NO_LIMPEZA, null, 1, 'Limpeza', 2)],
+      produto_no: [vinc('REF-2L', NO_REFRI), vinc('REF-350', NO_REFRI), vinc('AGU-500', NO_BEBIDAS), vinc('DET-500', NO_LIMPEZA)],
+    };
+  }
+
+  it('RF-CAT-04: lê nós e vínculos do aparelho e monta a árvore sem rede', async () => {
+    const { arvore, vinculos } = await arvoreLocal(leitor(comArvore()));
+    expect([...arvore.nos.keys()].sort()).toEqual([NO_BEBIDAS, NO_LIMPEZA, NO_REFRI].sort());
+    expect(vinculos).toHaveLength(4);
+  });
+
+  it('RF-CAT-04: escolher o nó filtra a vitrine local pelos produtos dele e dos níveis abaixo, com os chips somando', async () => {
+    const ids = await produtosDaNavegacao(leitor(comArvore()), { ...entrada, noId: NO_BEBIDAS, soDaTabelaDoCliente: false });
+    const r = await vitrineLocal(leitor(comArvore()), { ...entrada, chips: { ...(ids ? { only_product_ids: ids } : {}) }, limit: 50, offset: 0 });
+    expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['AGU-500', 'REF-2L', 'REF-350']);
+    const comEstoque = await vitrineLocal(leitor(comArvore()), { ...entrada, chips: { only_product_ids: ids!, only_in_stock: true }, limit: 50, offset: 0 });
+    expect(comEstoque.items.length).toBeGreaterThan(0);
+  });
+
+  it('RF-CAT-04: raiz sem nó escolhido não restringe (null); tenant sem árvore continua com a vitrine inteira', async () => {
+    expect(await produtosDaNavegacao(leitor(), { ...entrada, noId: null, soDaTabelaDoCliente: false })).toBeUndefined();
+    expect((await arvoreLocal(leitor())).arvore.nos.size).toBe(0);
+  });
+
+  it('RN-CAT-06: dentro do pedido só os produtos da tabela do cliente, também dentro do nó', async () => {
+    const ids = await produtosDaNavegacao(leitor(comArvore()), { ...entrada, noId: NO_BEBIDAS, soDaTabelaDoCliente: true });
+    const todos = await produtosDaNavegacao(leitor(comArvore()), { ...entrada, noId: NO_BEBIDAS, soDaTabelaDoCliente: false });
+    expect(ids!.size).toBeLessThanOrEqual(todos!.size);
+    const tabela = await vitrineLocal(leitor(comArvore()), { ...entrada, chips: { only_product_ids: ids!, only_sellable: true }, limit: 50, offset: 0 });
+    expect(tabela.items.every((i) => i.price?.sellable)).toBe(true);
+    const semTabela = await produtosDaNavegacao(leitor(comArvore()), { ...entrada, clienteId: null, noId: null, soDaTabelaDoCliente: true });
+    expect(semTabela!.size).toBe(0);
+  });
+
+  it('RN-CAT-05 / regra 7: o promotor navega a árvore só para leitura, sem preço nem estoque nos cartões', async () => {
+    const ids = await produtosDaNavegacao(leitor(comArvore()), { ...entrada, perfil: 'promotor', noId: NO_REFRI, soDaTabelaDoCliente: false });
+    const r = await vitrineLocal(leitor(comArvore()), { ...entrada, perfil: 'promotor', chips: { only_product_ids: ids! }, limit: 50, offset: 0 });
+    expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['REF-2L', 'REF-350']);
+    expect(r.items.every((i) => i.price === null && i.availability === null)).toBe(true);
   });
 });

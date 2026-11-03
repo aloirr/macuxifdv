@@ -36,7 +36,7 @@ export function repositorioRetornoErpMemoria(banco: BancoEmMemoria, tenantId: st
   return {
     async pedidoParaRetorno(id) {
       const p = pedido(id);
-      return p ? { id: p.id, vendedor_id: p.vendedor_id, status: p.status, numero_erp: p.numero_erp, itens: p.itens.map((i) => ({ ...i })) } : null;
+      return p ? { id: p.id, vendedor_id: p.vendedor_id, status: p.status, numero_erp: p.numero_erp, numero: (p as { numero?: string | null }).numero ?? null, itens: p.itens.map((i) => ({ ...i })) } : null;
     },
     async faturamentos(pedidoId): Promise<FaturamentoRegistrado[] | null> {
       if (sem) return null;

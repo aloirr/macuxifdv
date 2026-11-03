@@ -7,6 +7,7 @@
 import type { ConsultaTexto, LinhaSync, Perfil, ResultadoBusca as ResultadoFts } from '@macuxi/platform-sdk';
 import type { ProdutoSync } from '@macuxi/core/contracts';
 import type {
+  CatalogoNoSync,
   ClienteTabelaPrecoSync,
   DepositoSync,
   EstoqueSaldoSync,
@@ -14,11 +15,13 @@ import type {
   ItemTabelaPreco,
   ProdutoAtributoSync,
   ProdutoConteudoSync,
+  ProdutoNoSync,
   SinonimoSync,
   StockByBranch,
   TabelaPrecoItemSync,
   TabelaPrecoSync,
 } from '../../contracts';
+import { montarArvore, produtosDoNo, produtosVendaveisNaTabela, type Arvore, type VinculoProdutoNo } from '../../domain/arvore';
 import { montarFicha, type ConteudoGuardado } from '../../domain/conteudo';
 import { interpretarConsulta } from '../../domain/consulta';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
@@ -158,4 +161,28 @@ export async function fichaLocal(leitor: LeitorLocal, e: EntradaLocal & { produt
   const c = vivas(await leitor.linhas<ProdutoConteudoSync & LinhaSync>('produto_conteudo')).find((x) => x.produto_id === produto.id);
   const conteudo: ConteudoGuardado | null = c ? { description: c.descricao, selling_points: c.argumentos, faq: c.faq.map((f) => ({ question: f.pergunta, answer: f.resposta })), updated_at: c.updated_at } : null;
   return montarFicha(produto, itemDaVitrine(produto, contexto), conteudo, []);
+}
+
+/** Árvore do catálogo no aparelho (RF-CAT-04): nós e vínculos do sync; sem sinal navega igual. */
+export async function arvoreLocal(leitor: LeitorLocal): Promise<{ arvore: Arvore; vinculos: VinculoProdutoNo[] }> {
+  const nos = await leitor.linhas<CatalogoNoSync & LinhaSync>('catalogo_no');
+  const vinculos = vivas(await leitor.linhas<ProdutoNoSync & LinhaSync>('produto_no'));
+  return { arvore: montarArvore(nos), vinculos };
+}
+
+/**
+ * Produtos que a navegação pode mostrar (RF-CAT-04). `noId` limita ao nó e aos níveis abaixo (`null` = toda a árvore, ou
+ * sem filtro de nó se o tenant não tem árvore). Dentro do pedido (`soDaTabelaDoCliente`), só os com preço vigente na tabela
+ * do cliente (RN-CAT-06). `undefined` = sem restrição por esta via.
+ */
+export async function produtosDaNavegacao(leitor: LeitorLocal, e: EntradaLocal & { noId: string | null; soDaTabelaDoCliente: boolean }): Promise<ReadonlySet<string> | undefined> {
+  const { arvore, vinculos } = await arvoreLocal(leitor);
+  let ids: Set<string> | undefined = e.noId === null ? undefined : produtosDoNo(arvore, vinculos, e.noId);
+  if (e.soDaTabelaDoCliente) {
+    const produtos = await produtosLocais(leitor);
+    const ctx = await contextoLocal(leitor, e, produtos);
+    const vendaveis = produtosVendaveisNaTabela(ctx.itensPreco, ctx.tabelaClienteId, e.agora);
+    ids = ids ? new Set([...ids].filter((p) => vendaveis.has(p))) : vendaveis;
+  }
+  return ids;
 }

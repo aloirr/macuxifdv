@@ -11,3 +11,4 @@ export * from './atualizacao';
 export * from './atualizacao-hook';
 export * from './sincronizacao';
 export * from './cliente';
+export * from './navegacao';
