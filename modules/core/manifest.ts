@@ -20,7 +20,7 @@ export const manifest = defineModule({
     // Equivalem a canEditRoutes / canManagePeriod / canEditParams da Fase M (web/lib/rules.ts); a API revalida (RN-CORE-04).
     'rota.editar': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Montar e alterar a rota da semana (BKO)' },
     'meta.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Ver metas e indicadores do próprio escopo (RF-CORE-08)' },
-    'meta.editar': { perfis: ['supervisor', 'gerente', 'admin'], descricao: 'Definir a meta mensal de um usuário do escopo; publica core.meta.definida@1 (RN-CORE-20)' },
+    'meta.editar': { perfis: ['supervisor', 'gerente', 'analista', 'admin'], descricao: 'Definir a meta mensal de um usuário do escopo; publica core.meta.definida@1 (RN-CORE-20)' },
     'meta.fechar_periodo': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Fechar/reabrir o mês e exportar para o RH' },
     'modulo.gerir_licencas': { perfis: ['admin'], descricao: 'Ativar/desativar módulos por tenant, perfil e usuário (tela Usuários e módulos)' },
     'usuario.ver': { perfis: ['supervisor', 'gerente', 'admin'], descricao: 'Ver a lista de usuários no BKO, recortada pelo escopo: equipe (supervisor), equipes abaixo (gerente), tenant (admin) (RF-CORE-02, RN-CORE-04)' },

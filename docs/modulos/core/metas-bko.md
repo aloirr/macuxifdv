@@ -11,13 +11,13 @@ Tela "Metas e RV" (`web/index.ts`, página `metas`, hoje `MetasEmBreve`) passa a
 - Pull do app já inclui `core.meta` (com `tipo`): meta nova chega sem mudança no sync.
 
 ## Lacunas / decisões
-- Manifest: `meta.editar` está para gerente, analista, admin; precisa ser supervisor, gerente, admin (analista só lê). `meta.ver` já inclui analista.
-- Escopo de EDIÇÃO: supervisor = ele + equipe que responde; gerente = + equipes abaixo; admin = tenant. Hoje `usuariosVisiveis` dá tenant ao analista, então a edição NÃO pode usar só `visiveis`: nova função de domínio.
+- Manifest: `meta.editar` = supervisor, gerente, analista, admin (decisão do doc 03, T-0068); assistente só lê. `meta.ver` já inclui analista.
+- Escopo de EDIÇÃO: supervisor = ele + equipe que responde; gerente = + equipes abaixo; analista e admin = tenant. Hoje `usuariosVisiveis` dá tenant ao analista, então a edição NÃO pode usar só `visiveis`: nova função de domínio.
 - Meta de equipe NÃO tem coluna: `core.meta` é por `usuario_id` (`meta_uk`). "Meta por equipe" = aplicar o mesmo valor a todos os vendedores/promotores ativos da equipe (lote), gravando uma linha por usuário. Sem migração.
 - Mês e `periodo` AAAA-MM no fuso do tenant (`dataLocal(agora, fuso)`); valores em centavos (`venda_cents`); `positivacao`/`visitas` são contagens; `cobertura_pct` em pontos-base.
 
 ## Domínio (teste antes, `it('RN-CORE-20: ...')`)
-`domain/metas-edicao.ts`: `podeEditarMetaDe({perfil, alvoId, editorId, equipe, equipesAbaixo}) -> {ok} | {ok:false, codigo:'META_FORA_DA_EQUIPE'|'META_SEM_PERMISSAO', mensagem}`; reusa `escopoDeUsuarios` ignorando o atalho do analista. Regras: supervisor só equipe; gerente equipes abaixo; admin todos; analista/outros nunca. Mais `expandirEquipe` (alvos válidos: ativos, perfil vendedor/promotor) e `copiarMetas(anterior, destino)` (opcional).
+`domain/metas-edicao.ts`: `podeEditarMetaDe({perfil, alvoId, editorId, equipe, equipesAbaixo}) -> {ok} | {ok:false, codigo:'META_FORA_DA_EQUIPE'|'META_SEM_PERMISSAO', mensagem}`; reusa `escopoDeUsuarios` ignorando o atalho do analista. Regras: supervisor só equipe; gerente equipes abaixo; analista e admin todos; assistente, vendedor e promotor nunca. Mais `expandirEquipe` (alvos válidos: ativos, perfil vendedor/promotor) e `copiarMetas(anterior, destino)` (opcional).
 
 ## API (plugin `/v1/core`)
 - `GET /metas/painel?periodo&equipe_id&usuario_id`: junta metas + indicadores em linhas `{usuario_id, usuario_nome, equipe_id, indicador, tipo, meta, realizado, atingimento_pct}` + `situacao`, `editavel` por linha (domínio). Chama `calcularIndicadores`.

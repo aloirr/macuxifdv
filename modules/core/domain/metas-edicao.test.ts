@@ -21,9 +21,12 @@ describe('RN-CORE-20: quem pode editar a meta de quem', () => {
   it('RN-CORE-20: admin edita qualquer usuário do tenant', () => {
     expect(podeEditarMetaDe({ ...base, perfil: 'admin', alvoId: 'qualquer' })).toEqual({ ok: true });
   });
-  it('RN-CORE-20: analista só lê; vendedor, promotor e assistente nunca editam (META_SEM_PERMISSAO)', () => {
-    for (const perfil of ['analista', 'vendedor', 'promotor', 'assistente'] as const) {
-      expect(podeEditarMetaDe({ ...base, perfil })).toMatchObject({ ok: false, codigo: 'META_SEM_PERMISSAO' });
+  it('RN-CORE-04/RN-CORE-20: analista edita qualquer usuário do tenant, como o admin (doc 03, "Criar/editar/copiar metas do mês")', () => {
+    expect(podeEditarMetaDe({ ...base, perfil: 'analista', alvoId: 'qualquer', equipe: new Set(), equipesAbaixo: new Set() })).toEqual({ ok: true });
+  });
+  it('RN-CORE-04/RN-CORE-20: vendedor, promotor e assistente nunca editam (META_SEM_PERMISSAO; doc 03)', () => {
+    for (const perfil of ['vendedor', 'promotor', 'assistente'] as const) {
+      expect(podeEditarMetaDe({ ...base, perfil, alvoId: 'ed' })).toMatchObject({ ok: false, codigo: 'META_SEM_PERMISSAO' });
     }
   });
 });

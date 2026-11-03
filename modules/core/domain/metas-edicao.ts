@@ -1,7 +1,8 @@
 /**
  * Quem pode definir a meta de quem (RN-CORE-20; T-0068). Função pura: o escopo de EDIÇÃO é mais estreito que o de
- * leitura (`usuariosVisiveis` dá o tenant ao analista, que só lê). Supervisor = ele + a equipe que responde;
- * gerente = + equipes abaixo; admin = tenant; os demais nunca editam.
+ * leitura. Decisão do doc 03 (linha "Criar/editar/copiar metas do mês", T-0068): supervisor = ele + a equipe que
+ * responde; gerente = + equipes abaixo (RN-CORE-04); analista e admin = tenant inteiro; assistente só lê;
+ * vendedor e promotor nunca editam.
  */
 import type { Perfil } from '@macuxi/platform-sdk';
 import { escopoDeUsuarios } from './clientes';
@@ -19,7 +20,7 @@ export interface EntradaEdicaoMeta {
 }
 
 export function podeEditarMetaDe(e: EntradaEdicaoMeta): DecisaoEdicaoMeta {
-  if (e.perfil !== 'supervisor' && e.perfil !== 'gerente' && e.perfil !== 'admin') {
+  if (e.perfil !== 'supervisor' && e.perfil !== 'gerente' && e.perfil !== 'analista' && e.perfil !== 'admin') {
     return { ok: false, codigo: 'META_SEM_PERMISSAO', mensagem: 'Seu perfil só consulta metas. Peça a um supervisor ou gerente para definir.' };
   }
   const escopo = escopoDeUsuarios(e.perfil, { proprio: e.editorId, equipe: e.equipe, equipesAbaixo: e.equipesAbaixo });

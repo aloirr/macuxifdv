@@ -7,7 +7,7 @@ import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { ConsultaIndisponivel, ErroNaoEncontrado, ErroRegraNegocio, type AcessoBanco, type ClienteBanco, type ContextoBase, type LinhaSync, type PedidoPull, type RotaModulo, type UsuarioAutenticado } from '@macuxi/platform-sdk';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { painelLocal } from '../app/lib/metas-local';
 import { IndicadorDiarioSyncSchema, MetaSyncSchema } from '../contracts';
 import { dataLocal } from '../domain';
@@ -92,6 +92,10 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
       await c.query("insert into core.indicador_diario (id, tenant_id, usuario_id, data, pedidos, vendido_cents, cancelado_cents) values ($1, $2, $3, $4, 2, 50000, 10000)", [id(4), A.tenantId, U.vendedor1, DIA2]);
     });
   });
+  // cada teste parte do período sem metas (independe da ordem); o de cópia limpa também o mês de origem
+  beforeEach(async () => {
+    await comTenant(pool, A.tenantId, (c) => c.query('delete from core.meta where periodo = $1', [PERIODO]));
+  });
   afterAll(async () => {
     if (pool) await limpar();
     await pool?.end();
@@ -109,6 +113,7 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
   });
 
   it('PUT publica core.meta.definida@1 só quando o valor muda e audita; cobertura acima de 100% é recusada (RN-CORE-20)', async () => {
+    await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 4 } });
     const antes = eventos.filter((e) => e.nome === 'core.meta.definida@1').length;
     await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 4 } });
     expect(eventos.filter((e) => e.nome === 'core.meta.definida@1')).toHaveLength(antes);
@@ -174,11 +179,13 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     const diariosB = await puxar('indicador_diario', gerenteB);
     for (const l of metasB) expect(Object.values(A.usuarios)).not.toContain((l as unknown as { usuario_id: string }).usuario_id);
     for (const l of diariosB) expect(Object.values(A.usuarios)).not.toContain((l as unknown as { usuario_id: string }).usuario_id);
+    await chamar('PUT', 'metas/:usuarioId/:periodo', usuario(U.gerente, 'gerente'), { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 5 } });
     const valorA = await comTenant(pool, A.tenantId, async (c) => (await c.query("select valor from core.meta where usuario_id = $1 and periodo = $2 and indicador = 'visitas'", [U.vendedor1, PERIODO])).rows[0].valor);
     expect(Number(valorA)).toBe(5);
   });
 
   it('sync: meta e indicador_diario saem com o schema do contrato e só dos usuários visíveis', async () => {
+    await chamar('PUT', 'metas/:usuarioId/:periodo', gerente, { params: { usuarioId: U.vendedor1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 6 } });
     const metas = await puxar('meta', vendedor1);
     const diarios = await puxar('indicador_diario', vendedor1);
     for (const l of metas) MetaSyncSchema.parse(l);
@@ -229,8 +236,15 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
       expect(definidas()).toHaveLength(antes);
     });
 
-    it('RN-CORE-20: analista só lê, o PUT é 403 META_SEM_PERMISSAO', async () => {
-      const e = await chamar('PUT', PUT, analista, { params: alvo(U.vendedor1), corpo: { indicador: 'visitas', valor: 9 } }).catch((x: unknown) => x);
+    it('RN-CORE-04/RN-CORE-20: analista edita o usuário de qualquer equipe do tenant (doc 03), 200', async () => {
+      for (const uid of [U.vendedor1, U.vendedor2]) {
+        const r = await chamar('PUT', PUT, analista, { params: alvo(uid), corpo: { indicador: 'visitas', valor: 9 } });
+        expect(r).toMatchObject({ usuario_id: uid, indicador: 'visitas', valor: 9 });
+      }
+    });
+
+    it('RN-CORE-20: assistente só lê, o PUT é 403 META_SEM_PERMISSAO', async () => {
+      const e = await chamar('PUT', PUT, usuario(U.analista, 'assistente'), { params: alvo(U.vendedor1), corpo: { indicador: 'visitas', valor: 9 } }).catch((x: unknown) => x);
       expect(statusDe(e)).toBe(403);
       expect((e as { codigo?: string }).codigo).toBe('META_SEM_PERMISSAO');
     });
@@ -247,10 +261,10 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
       expect(gravada.valor).toBe(20);
     });
 
-    it('RN-CORE-20: lote do supervisor na equipe de outro é 403; lote do analista é 403', async () => {
+    it('RN-CORE-20: lote do supervisor na equipe de outro é 403; lote do assistente é 403', async () => {
       const e1 = await chamar('PUT', LOTE, supervisor, { params: { equipeId: A.equipes.equipe2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1 } }).catch((x: unknown) => x);
       expect(statusDe(e1)).toBe(403);
-      const e2 = await chamar('PUT', LOTE, analista, { params: { equipeId: A.equipes.equipe1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1 } }).catch((x: unknown) => x);
+      const e2 = await chamar('PUT', LOTE, usuario(U.analista, 'assistente'), { params: { equipeId: A.equipes.equipe1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1 } }).catch((x: unknown) => x);
       expect(statusDe(e2)).toBe(403);
     });
 
@@ -272,7 +286,9 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
       expect(painel.linhas.every((l: { usuario_id: string }) => l.usuario_id !== U.vendedor2)).toBe(true);
       const doAnalista = await chamar('GET', 'metas/painel', analista, { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
       expect(doAnalista.linhas.length).toBeGreaterThan(0);
-      expect(doAnalista.linhas.every((l: { editavel: boolean }) => !l.editavel)).toBe(true);
+      expect(doAnalista.linhas.every((l: { editavel: boolean }) => l.editavel)).toBe(true);
+      const doAssistente = await chamar('GET', 'metas/painel', usuario(U.analista, 'assistente'), { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
+      expect(doAssistente.linhas.every((l: { editavel: boolean }) => !l.editavel)).toBe(true);
       const doSup = await chamar('GET', 'metas/painel', supervisor, { query: { periodo: PERIODO } });
       expect(doSup.linhas.every((l: { usuario_id: string; editavel: boolean }) => l.usuario_id !== U.vendedor2)).toBe(true);
     });
@@ -284,9 +300,8 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
 
     it('RN-CORE-20: copiar do mês anterior leva as metas editáveis, não sobrescreve as existentes e audita; supervisor não copia a equipe de outro', async () => {
       const anterior = new Date(Date.UTC(Number(PERIODO.slice(0, 4)), Number(PERIODO.slice(5)) - 2, 1)).toISOString().slice(0, 7);
+      await comTenant(pool, A.tenantId, (c) => c.query('delete from core.meta where periodo = $1', [anterior]));
       try {
-        // isola o destino: testes anteriores do arquivo já gravaram positivacao/visitas do vendedor 1 em PERIODO
-        await comTenant(pool, A.tenantId, (c) => c.query("delete from core.meta where usuario_id = $1 and periodo = $2 and indicador in ('visitas', 'positivacao')", [U.vendedor1, PERIODO]));
         await chamar('PUT', PUT, gerente, { params: { usuarioId: U.vendedor1, periodo: anterior }, corpo: { indicador: 'visitas', valor: 33 } });
         await chamar('PUT', PUT, gerente, { params: { usuarioId: U.vendedor1, periodo: anterior }, corpo: { indicador: 'positivacao', valor: 8 } });
         await chamar('PUT', PUT, gerente, { params: alvo(U.vendedor1), corpo: { indicador: 'visitas', valor: 44 } });
@@ -297,7 +312,7 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
         expect(atual).toEqual([{ indicador: 'positivacao', valor: 8 }, { indicador: 'visitas', valor: 44 }]);
         const fora = await chamar('POST', 'metas/copiar', supervisor, { corpo: { de: anterior, para: PERIODO, equipe_id: A.equipes.equipe2 } });
         expect(fora.copiadas).toBe(0);
-        const e = await chamar('POST', 'metas/copiar', analista, { corpo: { de: anterior, para: PERIODO } });
+        const e = await chamar('POST', 'metas/copiar', usuario(U.analista, 'assistente'), { corpo: { de: anterior, para: PERIODO } });
         expect(e.copiadas).toBe(0);
       } finally {
         await comTenant(pool, A.tenantId, (c) => c.query('delete from core.meta where periodo = $1', [anterior]));
