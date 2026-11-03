@@ -32,6 +32,8 @@ const COERENCIA_DA_FK: Record<string, string> = {
   pedido_transportadora_fk: "frete_modalidade = 'FOB', transportadora_digitada = false",
   // pedido_orcamento_origem / pedido_orcamento_campos: só pedido (tipo 'pedido', sem validade nem conversão) aponta orçamento
   pedido_orcamento_fk: "tipo = 'pedido', orcamento_validade = null, convertido_em = null",
+  // 0018 (T-0063) produto_embalagem_completa / produto_embalagem_quantidade_minima: embalagem só com a quantidade (> 1)
+  produto_embalagem_medida_fk: 'embalagem_quantidade = 12',
 };
 
 interface Fk {
@@ -165,12 +167,25 @@ describe.skipIf(semBanco())('S0-025 escrita cruzada entre tenants (papel macuxi_
       const comTenant = new Set(tabelas.map((t) => t.nome));
       const compostas = fks.filter((f) => comTenant.has(f.filha) && comTenant.has(f.mae) && f.colunasFilha.length === 2);
       // acerto de coerência para FK que não existe mais = lista desatualizada (revisar junto com a migração)
-      expect(Object.keys(COERENCIA_DA_FK).filter((n) => !compostas.some((f) => f.nome === n))).toEqual([]);
+      // (produto_embalagem_medida_fk só existe com a 0018 na pasta: tolerada até a T-0063 entrar no main; depois, tirar daqui)
+      expect(Object.keys(COERENCIA_DA_FK).filter((n) => n !== 'produto_embalagem_medida_fk' && !compostas.some((f) => f.nome === n))).toEqual([]);
       for (const f of compostas) {
         const coluna = f.colunasFilha[1]!;
         const sqlFilha = f.filha.split('.').map((p) => `"${p}"`).join('.');
         const idFilhaA = linha.get(f.filha)!.A;
-        const idMaeB = linha.get(f.mae)!.B;
+        // FK que não aponta para o id (0018: (tenant_id, sigla) -> core.medida): o valor é a chave de uma linha de B que NÃO
+        // existe em A (ex.: GF), senão o UPDATE passaria por apontar para a linha de A com a mesma chave
+        const colunaMae = f.colunasMae[1]!;
+        const idMaeB =
+          colunaMae === 'id'
+            ? linha.get(f.mae)!.B
+            : (
+                await admin.query<{ v: string }>(
+                  `select "${colunaMae}"::text as v from ${f.mae.split('.').map((p) => `"${p}"`).join('.')} m where m.tenant_id = $1 and m."${colunaMae}" not in (select "${colunaMae}" from ${f.mae.split('.').map((p) => `"${p}"`).join('.')} where tenant_id = $2) order by 1 limit 1`,
+                  [B, A],
+                )
+              ).rows[0]?.v;
+        expect(idMaeB, `${f.nome}: falta em B uma linha de ${f.mae} com ${colunaMae} que A não tenha (fixture dois-tenants)`).toBeTruthy();
         const coerencia = COERENCIA_DA_FK[f.nome];
         const sql = `update ${sqlFilha} set "${coluna}" = $2${coerencia ? `, ${coerencia}` : ''} where id = $1`;
         const podeAlterar = (await app.query<{ p: boolean }>("select has_table_privilege(current_user, $1, 'UPDATE') as p", [f.filha])).rows[0]!.p;

@@ -15,7 +15,7 @@ export function CardPesquisas() {
   return (
     <Card testID="inicio.card-pesquisas" style={{ padding: 16, gap: 8 }}>
       <Text style={t.title16}>{n === 1 ? '1 pesquisa para responder' : `${n} pesquisas para responder`}</Text>
-      {pendentesNaFila > 0 ? <Text style={t.small}>{pendentesNaFila} resposta(s) aguardando sinal para enviar.</Text> : null}
+      {pendentesNaFila > 0 ? <Text style={t.small}>{pendentesNaFila === 1 ? '1 resposta aguardando' : `${pendentesNaFila} respostas aguardando`} sinal para enviar.</Text> : null}
       <Button testID="inicio.card-pesquisas-abrir" label="Abrir pesquisas" variant="outline" height={48} onPress={irParaPesquisas} />
     </Card>
   );

@@ -58,6 +58,7 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | `clientes-locais` | lista de Clientes do app lida do aparelho |
 | `filter-vencidos` · `filter-sem_compra` · `filter-bloqueados` | filtros da lista local |
 | `cliente-360` · `cliente-financeiro` · `cliente-historico` | seções da ficha (app) |
+| `cliente-enderecos` · `cliente-endereco-padrao` · `cliente-endereco` | endereços de entrega da ficha (app); o padrão vem destacado |
 | `cliente-acoes-contato` · `cliente-ligar` · `cliente-whatsapp` · `cliente-mapa` | ligar, WhatsApp e mapa em 1 toque (48 dp) |
 
 ## T-0018 — rotas, visitas, motivos e coordenadas (BKO) · check-in e checkout (app)
@@ -69,7 +70,8 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | `coordenadas.tela` · `coordenadas.sugestao.<visita_id>` · `coordenadas.aprovar.<visita_id>` | página Coordenadas sugeridas |
 | `motivos.tela` · `motivos.novo` · `motivos.linha.<codigo>` · `motivos.editar.<codigo>` · `motivos.remover.<codigo>` · `motivos.descricao` · `motivos.ativo` · `motivos.salvar` | página Motivos |
 | `carteira.tela` · `carteira.exportar-csv` · `carteira.filtro-usuario` · `carteira.busca` · `carteira.vincular.<cliente_id>` · `carteira.linha.<cliente_id>` · `carteira.frequencia.<cliente_id>` · `carteira.dia.<cliente_id>` · `carteira.desvincular.<cliente_id>` | página Carteira |
-| `cliente360.tela` · `cliente360.contato.<id>` | página Cliente 360 (`/cliente?id=`) |
+| `produtos.unidades.<sku>` | coluna Unidades de venda (UN, CX c/ fator; padrão marcada) da página Produtos (T-0061) |
+| `cliente360.tela` · `cliente360.contato.<id>` · `cliente360.endereco.<id>` | página Cliente 360 (`/cliente?id=`) |
 | `checkin-justificar` · `checkin-justificativa` · `checkin-confirmar-justificativa` · `checkin-cancelar` | folha do check-in fora do raio (RN-CORE-10) |
 | `checkout-atendido` · `reason-<codigo>` · `checkout-erro` | folha do checkout (promotor "atendido"; chips de motivo vindos de `motivo`) |
 

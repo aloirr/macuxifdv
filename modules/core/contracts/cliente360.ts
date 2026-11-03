@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import {
   ClienteContatoSyncSchema,
+  ClienteEnderecoSyncSchema,
   ClienteFinanceiroSyncSchema,
   ClienteSyncSchema,
   HistoricoCompraSyncSchema,
@@ -43,5 +44,9 @@ export const Cliente360Schema = z.object({
   resumo_compras: ResumoComprasSchema,
   resumo_financeiro: ResumoFinanceiroSchema.nullable(),
   ultimas_visitas: z.array(VisitaSyncSchema).max(5),
+  /** T-0061 (RF-CORE-12, RN-VEN-17): endereços ativos do cliente, o padrão primeiro. Opcional: o app antigo ignora. */
+  enderecos: z.array(ClienteEnderecoSyncSchema).optional(),
+  /** `id` do endereço padrão da entrega (principal; sem principal, o primeiro de entrega); `null` = sem endereço. */
+  endereco_padrao_id: z.string().uuid().nullable().optional(),
 });
 export type Cliente360 = z.infer<typeof Cliente360Schema>;

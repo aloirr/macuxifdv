@@ -118,7 +118,7 @@ export default function ResponderScreen() {
         <Text style={t.h1Small}>{versao.titulo}</Text>
         {versao.descricao ? <Text style={t.sub}>{versao.descricao}</Text> : null}
         <Text style={t.small} testID="pesquisa.progresso">
-          {pr.respondidas} de {pr.visiveis} respondidas{pr.obrigatorias_faltando ? ` · faltam ${pr.obrigatorias_faltando} obrigatória(s)` : ''} · rascunho salvo no aparelho
+          {pr.respondidas} de {pr.visiveis} respondidas{pr.obrigatorias_faltando ? ` · ${pr.obrigatorias_faltando === 1 ? 'falta 1 obrigatória' : `faltam ${pr.obrigatorias_faltando} obrigatórias`}` : ''} · rascunho salvo no aparelho
         </Text>
       </View>
 
