@@ -37,6 +37,22 @@ const FAIXA: Record<NonNullable<ItemVitrine['availability']>['band'], { texto: s
   sem_estoque: { texto: 'Sem estoque', tom: 'danger' },
 };
 
+/** Texto legível da faixa de estoque (nunca o código cru): "Disponível", "Estoque baixo", "Sem estoque". */
+export function rotuloFaixa(band: keyof typeof FAIXA): string {
+  return FAIXA[band].texto;
+}
+
+/** Linha por filial na ficha: "Matriz: Disponível · 1.200" (número em pt-BR quando o tenant o mostra). */
+export function rotuloEstoqueFilial(b: { branch_name: string; band: keyof typeof FAIXA; quantity: number | null }): string {
+  const faixa = rotuloFaixa(b.band);
+  return `${b.branch_name}: ${b.quantity !== null && b.band !== 'sem_estoque' ? `${faixa} · ${b.quantity.toLocaleString('pt-BR')}` : faixa}`;
+}
+
+/** Singular/plural pela contagem: `contagem(1, 'produto', 'produtos')` -> "1 produto". */
+export function contagem(n: number, singular: string, plural: string): string {
+  return `${n.toLocaleString('pt-BR')} ${n === 1 ? singular : plural}`;
+}
+
 /** Estoque do cartão (RN-CAT-07); `null` = o perfil não vê estoque. Sem nenhum saldo recebido: "sem informação". */
 export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string): RotuloEstoque | null {
   const a = item.availability;
