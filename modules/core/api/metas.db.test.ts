@@ -204,4 +204,79 @@ describe.skipIf(semBanco())('Core T-0020 × Postgres: metas e indicadores', () =
     expect(api.itens[0].indicadores).toEqual(JSON.parse(JSON.stringify(app.indicadores)));
     expect(api.itens[0].metas).toEqual(app.metas);
   });
+
+  describe('T-0068: BKO de metas (painel, guarda de edição, lote por equipe)', () => {
+    const analista = usuario(U.analista, 'analista');
+    const PUT = 'metas/:usuarioId/:periodo';
+    const LOTE = 'metas/equipe/:equipeId/:periodo';
+    const alvo = (uid: string) => ({ usuarioId: uid, periodo: PERIODO });
+    const definidas = () => eventos.filter((e) => e.nome === 'core.meta.definida@1');
+    const statusDe = (e: unknown) => (e as { status?: number }).status;
+
+    it('RN-CORE-20: supervisor edita a própria equipe (equipe 1)', async () => {
+      const r = await chamar('PUT', PUT, supervisor, { params: alvo(U.vendedor1), corpo: { indicador: 'positivacao', valor: 7 } });
+      expect(r).toMatchObject({ usuario_id: U.vendedor1, indicador: 'positivacao', valor: 7 });
+    });
+
+    it('RN-CORE-20: supervisor fora da equipe recebe 403 META_FORA_DA_EQUIPE e nada é gravado', async () => {
+      const antes = definidas().length;
+      const e = await chamar('PUT', PUT, supervisor, { params: alvo(U.vendedor2), corpo: { indicador: 'positivacao', valor: 7 } }).catch((x: unknown) => x);
+      expect(statusDe(e)).toBe(403);
+      expect((e as { codigo?: string }).codigo).toBe('META_FORA_DA_EQUIPE');
+      expect(definidas()).toHaveLength(antes);
+    });
+
+    it('RN-CORE-20: analista só lê, o PUT é 403 META_SEM_PERMISSAO', async () => {
+      const e = await chamar('PUT', PUT, analista, { params: alvo(U.vendedor1), corpo: { indicador: 'visitas', valor: 9 } }).catch((x: unknown) => x);
+      expect(statusDe(e)).toBe(403);
+      expect((e as { codigo?: string }).codigo).toBe('META_SEM_PERMISSAO');
+    });
+
+    it('RN-CORE-20: PUT em lote da equipe 2 pelo gerente grava uma linha por vendedor/promotor ativo, um evento por usuário e uma auditoria', async () => {
+      const antes = definidas().length;
+      const r = await chamar('PUT', LOTE, gerente, { params: { equipeId: A.equipes.equipe2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 20 } });
+      expect(r.usuarios).toContain(U.vendedor2);
+      expect(r.alterados).toBe(r.usuarios.length);
+      expect(definidas()).toHaveLength(antes + r.usuarios.length);
+      const n = await comTenant(pool, A.tenantId, async (c) => Number((await c.query("select count(*) as n from plataforma.auditoria where acao = 'meta.editar_equipe' and entidade_id = $1", [A.equipes.equipe2])).rows[0].n));
+      expect(n).toBeGreaterThanOrEqual(1);
+      const gravada = await comTenant(pool, A.tenantId, async (c) => (await c.query("select valor::float8 as valor from core.meta where usuario_id = $1 and periodo = $2 and indicador = 'visitas'", [U.vendedor2, PERIODO])).rows[0]);
+      expect(gravada.valor).toBe(20);
+    });
+
+    it('RN-CORE-20: lote do supervisor na equipe de outro é 403; lote do analista é 403', async () => {
+      const e1 = await chamar('PUT', LOTE, supervisor, { params: { equipeId: A.equipes.equipe2, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1 } }).catch((x: unknown) => x);
+      expect(statusDe(e1)).toBe(403);
+      const e2 = await chamar('PUT', LOTE, analista, { params: { equipeId: A.equipes.equipe1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1 } }).catch((x: unknown) => x);
+      expect(statusDe(e2)).toBe(403);
+    });
+
+    it('RN-CORE-20/21: lote valida cobertura acima de 100% e faturamento fora da venda', async () => {
+      await expect(chamar('PUT', LOTE, gerente, { params: { equipeId: A.equipes.equipe1, periodo: PERIODO }, corpo: { indicador: 'cobertura_pct', valor: 10001 } })).rejects.toBeInstanceOf(ErroRegraNegocio);
+      await expect(chamar('PUT', LOTE, gerente, { params: { equipeId: A.equipes.equipe1, periodo: PERIODO }, corpo: { indicador: 'visitas', valor: 1, tipo: 'faturamento' } })).rejects.toBeInstanceOf(ErroRegraNegocio);
+    });
+
+    it('RN-CORE-21: o painel traz 4 indicadores por vendedor com meta, tipo, realizado e atingimento da mesma apuração de /indicadores, e editavel por perfil', async () => {
+      await chamar('PUT', PUT, gerente, { params: alvo(U.vendedor1), corpo: { indicador: 'venda_cents', valor: 100000 } });
+      const painel = await chamar('GET', 'metas/painel', gerente, { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
+      const ind = await chamar('GET', 'indicadores', gerente, { query: { periodo: PERIODO, usuario_id: U.vendedor1 } });
+      const linhas = painel.linhas.filter((l: { usuario_id: string }) => l.usuario_id === U.vendedor1);
+      expect(linhas.map((l: { indicador: string }) => l.indicador).sort()).toEqual(['cobertura_pct', 'positivacao', 'venda_cents', 'visitas']);
+      expect(linhas.every((l: { equipe_id: string }) => l.equipe_id === A.equipes.equipe1)).toBe(true);
+      const venda = linhas.find((l: { indicador: string }) => l.indicador === 'venda_cents');
+      expect(venda).toMatchObject({ meta: 100000, tipo: 'pedido', realizado: ind.itens[0].indicadores.realizado_cents, editavel: true });
+      expect(venda.atingimento_pct).toBe(ind.itens[0].metas.find((m: { indicador: string }) => m.indicador === 'venda_cents').atingimento_pct);
+      expect(painel.linhas.every((l: { usuario_id: string }) => l.usuario_id !== U.vendedor2)).toBe(true);
+      const doAnalista = await chamar('GET', 'metas/painel', analista, { query: { periodo: PERIODO, equipe_id: A.equipes.equipe1 } });
+      expect(doAnalista.linhas.length).toBeGreaterThan(0);
+      expect(doAnalista.linhas.every((l: { editavel: boolean }) => !l.editavel)).toBe(true);
+      const doSup = await chamar('GET', 'metas/painel', supervisor, { query: { periodo: PERIODO } });
+      expect(doSup.linhas.every((l: { usuario_id: string; editavel: boolean }) => l.usuario_id !== U.vendedor2)).toBe(true);
+    });
+
+    it('RN-CORE-05: vendedor de outro tenant não aparece no painel', async () => {
+      const painel = await chamar('GET', 'metas/painel', gerente, { query: { periodo: PERIODO } });
+      expect(painel.linhas.every((l: { usuario_id: string }) => l.usuario_id !== vendedorB.id)).toBe(true);
+    });
+  });
 });
