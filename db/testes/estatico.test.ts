@@ -12,6 +12,7 @@ import * as nuvemCore from '../../modules/core/db/nuvem';
 import * as nuvemVendedor from '../../modules/vendedor/db/nuvem';
 import * as nuvemIntegracao from '../../modules/integracao/db/nuvem';
 import * as nuvemGestor from '../../modules/gestor/db/nuvem';
+import * as nuvemTreinamento from '../../modules/treinamento/db/nuvem';
 import { TABELAS_PESQUISA_DO_GATILHO } from '../seeds/fixtures/pesquisa';
 import {
   CODIGOS_ERRO_LINHA,
@@ -57,9 +58,8 @@ const TABELAS_PROMOTOR = [
  * Schemas sem espelho Drizzle ainda (fora da comparação Drizzle x SQL).
  * espelho Drizzle do promotor: pendência do banco-dados local (modules/promotor/db/nuvem.ts).
  * espelho Drizzle da pesquisa: pendência do banco-dados local (modules/pesquisa/db/nuvem.ts; código pronto em docs/banco/pesquisa.md).
- * espelho Drizzle do treinamento: pendência do banco-dados local (modules/treinamento/db/nuvem.ts; docs/banco/treinamento.md).
  */
-const SEM_ESPELHO_DRIZZLE = ['promotor', 'pesquisa', 'treinamento'];
+const SEM_ESPELHO_DRIZZLE = ['promotor', 'pesquisa'];
 /** Tabelas do schema pesquisa (0016, T-0057); resposta_item e resposta_foto são preenchidas pelo gatilho da resposta. */
 const TABELAS_PESQUISA = ['pesquisa.questionario', 'pesquisa.questionario_versao', 'pesquisa.resposta', 'pesquisa.resposta_item', 'pesquisa.resposta_foto'] as const;
 /** Tabelas novas da 0013 (catálogo, vendedor e core). */
@@ -89,7 +89,7 @@ function tabelasCriadas(): Map<string, string> {
 
 function tabelasDrizzle(): Map<string, ReturnType<typeof getTableConfig>> {
   const mapa = new Map<string, ReturnType<typeof getTableConfig>>();
-  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor)]) {
+  for (const v of [...Object.values(esquemaPlataforma), ...Object.values(nuvemCore), ...Object.values(nuvemCatalogo), ...Object.values(nuvemVendedor), ...Object.values(nuvemIntegracao), ...Object.values(nuvemGestor), ...Object.values(nuvemTreinamento)]) {
     if (v instanceof PgTable) {
       const cfg = getTableConfig(v);
       mapa.set(`${cfg.schema}.${cfg.name}`, cfg);
@@ -697,7 +697,7 @@ describe('base de demo x T-0029 (estático)', () => {
 
 describe('Drizzle x migrações (estático)', () => {
   const drizzle = tabelasDrizzle();
-  // espelho Drizzle do promotor: pendência do banco-dados local (o schema promotor fica fora da comparação até lá)
+  // schemas de SEM_ESPELHO_DRIZZLE (promotor e pesquisa) ficam fora da comparação até ganharem espelho
   const criadas = new Map([...tabelasCriadas()].filter(([t]) => !SEM_ESPELHO_DRIZZLE.includes(t.split('.')[0]!)));
 
   it('toda tabela da migração tem espelho em Drizzle e vice-versa (menos os schemas de SEM_ESPELHO_DRIZZLE)', () => {
