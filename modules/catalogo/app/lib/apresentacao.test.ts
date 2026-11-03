@@ -2,7 +2,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import { describe, expect, it } from 'vitest';
 import type { ItemVitrine } from '../../contracts';
 import { formatBRL } from '@macuxi/comum';
-import { rotuloEstoque, rotuloPreco, subtituloProduto } from './apresentacao';
+import { contagem, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloPreco, subtituloProduto } from './apresentacao';
 
 const relogio = criarRelogio();
 const AGORA = relogio.iso();
@@ -45,6 +45,21 @@ describe('textos do cartão do catálogo', () => {
     expect(rotuloEstoque(velho, AGORA, 'America/Manaus')!.detalhe).toMatch(/^Estoque desatualizado · /);
     const vazio = item({ availability: { ...item().availability!, band: 'sem_estoque', quantity: 0, by_branch: [], updated_at: null, stale: true } });
     expect(rotuloEstoque(vazio, AGORA, 'America/Manaus')).toMatchObject({ texto: 'Estoque sem informação', tom: 'neutral' });
+  });
+
+  it('RF-CAT-03: faixa por filial mostra rótulo legível (nunca o código cru) e número em pt-BR', () => {
+    expect(rotuloFaixa('disponivel')).toBe('Disponível');
+    expect(rotuloFaixa('baixo')).toBe('Estoque baixo');
+    expect(rotuloFaixa('sem_estoque')).toBe('Sem estoque');
+    expect(rotuloEstoqueFilial({ branch_name: 'Matriz', band: 'disponivel', quantity: 1200 })).toBe('Matriz: Disponível · 1.200');
+    expect(rotuloEstoqueFilial({ branch_name: 'Filial 2', band: 'baixo', quantity: null })).toBe('Filial 2: Estoque baixo');
+    expect(rotuloEstoqueFilial({ branch_name: 'Filial 3', band: 'sem_estoque', quantity: 0 })).toBe('Filial 3: Sem estoque');
+  });
+
+  it('textos: singular e plural pela contagem', () => {
+    expect(contagem(1, 'produto', 'produtos')).toBe('1 produto');
+    expect(contagem(0, 'produto', 'produtos')).toBe('0 produtos');
+    expect(contagem(1200, 'produto', 'produtos')).toBe('1.200 produtos');
   });
 
   it('subtítulo: marca e código', () => {

@@ -8,6 +8,7 @@ import { Badge, Banner, Button, Card, colors, Empty, Loading, Screen, SyncStamp,
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MembroComPainel, ResumoEquipe } from '../../contracts';
 import { fracao, STATUS_DIA_ROTULO } from '../lib/apresentacao';
+import { contagem, pct } from '../lib/formato';
 import { irParaMembro, irParaRanking } from '../rotas';
 import { useGestor } from '../state/use-gestor';
 
@@ -36,7 +37,7 @@ export default function EquipeScreen() {
             <View key={e.gestor_id} style={[styles.linha, { minHeight: 40, paddingHorizontal: 14 }]}>
               <Text style={[t.bodyStrong, { flex: 1 }]}>{v.gestores[i]?.nome ?? 'Equipe'}</Text>
               <Text style={t.small}>
-                {e.membros} pessoas · {e.vendas_cents === null ? '—' : formatBRL0(e.vendas_cents)}
+                {contagem(e.membros, 'pessoa', 'pessoas')} · {e.vendas_cents === null ? '—' : formatBRL0(e.vendas_cents)}
               </Text>
             </View>
           ))}
@@ -65,9 +66,9 @@ function Resumo({ r }: { r: ResumoEquipe }) {
       <View style={styles.linha}>
         <Indicador rotulo="Vendas hoje" valor={r.vendas_cents === null ? '—' : formatBRL0(r.vendas_cents)} />
         <Indicador rotulo="Visitas" valor={fracao(r.visitas_realizadas, r.visitas_planejadas)} />
-        <Indicador rotulo="Cobertura" valor={r.cobertura_pct === null ? '—' : `${Math.round(r.cobertura_pct)}%`} />
+        <Indicador rotulo="Cobertura" valor={r.cobertura_pct === null ? '—' : pct(Math.round(r.cobertura_pct))} />
       </View>
-      {r.atingimento_pct !== null ? <Text style={t.small}>Meta do mês: {Math.round(r.atingimento_pct)}% atingido</Text> : null}
+      {r.atingimento_pct !== null ? <Text style={t.small}>Meta do mês: {pct(Math.round(r.atingimento_pct))} atingido</Text> : null}
     </Card>
   );
 }
@@ -86,8 +87,8 @@ function LinhaMembro({ m, ultimo }: { m: MembroComPainel; ultimo: boolean }) {
   const p = m.painel;
   const detalhe =
     m.membro.perfil === 'promotor'
-      ? `Promotor · ${p.trade ? `${p.trade.lojas_visitadas} lojas` : `${p.visitas.realizadas} visitas`}`
-      : `${fracao(p.visitas.realizadas, p.visitas.planejadas)} visitas · ${p.vendas ? formatBRL0(p.vendas.vendas_cents) : '—'}`;
+      ? `Promotor · ${p.trade ? contagem(p.trade.lojas_visitadas, 'loja', 'lojas') : contagem(p.visitas.realizadas, 'visita', 'visitas')}`
+      : `${fracao(p.visitas.realizadas, p.visitas.planejadas)} ${(p.visitas.planejadas > 0 ? p.visitas.planejadas : p.visitas.realizadas) === 1 ? 'visita' : 'visitas'} · ${p.vendas ? formatBRL0(p.vendas.vendas_cents) : '—'}`;
   return (
     <Pressable
       testID={`gestor-membro-${m.membro.id}`}

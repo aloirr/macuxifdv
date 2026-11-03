@@ -4,8 +4,8 @@
  * linhas ao escopo do usuário (RN-CORE-04), então aqui não há filtro de carteira. Janelas do desenho §2: o que saiu
  * da janela (título liquidado antigo, histórico além de 12 meses) não aparece, mesmo que ainda esteja no aparelho.
  */
-import type { ClienteContatoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, TituloSync } from '../../contracts';
-import { linksDeContato, listarClientes, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type FiltroClientes, type SituacaoTitulo } from '../../domain';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, ResumoCompras, ResumoFinanceiro, TituloSync } from '../../contracts';
+import { enderecoPadrao, linksDeContato, listarClientes, listarEnderecosDoCliente, resumoCompras, resumoFinanceiro, situacaoTitulo, type ClienteLista, type EnderecoDoCliente, type FiltroClientes, type SituacaoTitulo } from '../../domain';
 
 export interface LinhasCliente {
   cliente: ClienteSync;
@@ -13,6 +13,8 @@ export interface LinhasCliente {
   financeiro: ClienteFinanceiroSync | null;
   titulos: TituloSync[];
   historico: HistoricoCompraSync[];
+  /** Endereços do pull (`cliente_endereco`); ausente = cliente sem endereço de entrega no aparelho. */
+  enderecos?: ClienteEnderecoSync[];
 }
 
 export interface TituloLocal extends TituloSync {
@@ -33,6 +35,9 @@ export interface Cliente360Local {
   historico: HistoricoCompraSync[];
   resumo_compras: ResumoCompras;
   resumo_financeiro: ResumoFinanceiro | null;
+  /** T-0061 (RF-CORE-12, RN-VEN-17): endereços ativos do cliente, o padrão primeiro e marcado (`padrao`); offline. */
+  enderecos: EnderecoDoCliente[];
+  endereco_padrao_id: string | null;
   /** Ligar e WhatsApp em 1 toque: do contato principal; cai no telefone do cadastro do cliente. */
   ligar: string | null;
   whatsapp: string | null;
@@ -73,6 +78,7 @@ export function montarCliente360Local(l: LinhasCliente, hoje: string): Cliente36
       const links = linksDeContato(c);
       return { ...c, tel: links.tel, whatsapp_url: links.whatsapp };
     });
+  const enderecos = listarEnderecosDoCliente(l.enderecos ?? [], l.cliente.id);
   const principal = contatos[0];
   const doCadastro = linksDeContato({ telefone: l.cliente.telefone, whatsapp: l.cliente.telefone });
   return {
@@ -83,6 +89,8 @@ export function montarCliente360Local(l: LinhasCliente, hoje: string): Cliente36
     historico,
     resumo_compras: resumoCompras(historico, hoje),
     resumo_financeiro: resumoFinanceiro(l.financeiro, titulos, hoje),
+    enderecos,
+    endereco_padrao_id: enderecoPadrao(enderecos)?.id ?? null,
     ligar: principal?.tel ?? doCadastro.tel,
     whatsapp: principal?.whatsapp_url ?? doCadastro.whatsapp,
   };
