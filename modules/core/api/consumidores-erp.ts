@@ -11,7 +11,9 @@ import { definirConsumidor, definirEvento, type ConsumidorEvento, type ContextoC
 import { EVENTO_CLIENTE_ATUALIZADO, PARAMETRO_CAMPOS_OBRIGATORIOS } from '../contracts';
 import { camposExigidos, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
 import { aplicarCarteiraDoErp, aplicarContatosDoErp, aplicarFinanceiroDoErp } from './consumidores-erp-cliente-extras';
+import { consumidorClienteEnderecoDoErp } from './consumidores-erp-cliente-endereco';
 import { consumidorProdutoDoErp } from './consumidores-erp-produto';
+import { consumidorProdutoUnidadeDoErp } from './consumidores-erp-produto-unidade';
 import { consumidorRotaDoErp } from './consumidores-erp-rota';
 import { consumidorTituloDoErp } from './consumidores-erp-titulo';
 import { consumidorVendedorDoErp } from './consumidores-erp-vendedor';
@@ -119,6 +121,8 @@ export const consumidoresDoErp: ConsumidorEvento[] = [
   consumidorVendedorDoErp,
   consumidorClienteDoErp,
   consumidorProdutoDoErp,
+  consumidorProdutoUnidadeDoErp,
+  consumidorClienteEnderecoDoErp,
   consumidorTituloDoErp,
   consumidorRotaDoErp,
 ];

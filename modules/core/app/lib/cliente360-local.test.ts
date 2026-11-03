@@ -6,7 +6,7 @@ import {
   type LinhaSync,
 } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import type { ClienteContatoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, TituloSync } from '../../contracts';
+import type { ClienteContatoSync, ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, HistoricoCompraSync, TituloSync } from '../../contracts';
 import { manifest } from '../../manifest';
 import { entidadesCliente } from './entidades-cliente';
 import { agruparPorCliente, historicoNaJanela, listarClientesLocais, montarCliente360Local, somarDias, tituloNaJanela } from './cliente360-local';
@@ -32,6 +32,25 @@ const cliente = (n: number, nome: string, extra: Partial<ClienteSync> = {}): Cli
   cep: null,
   latitude: '-3.100000',
   longitude: '-60.000000',
+  ativo: true,
+  ...extra,
+});
+const endereco = (n: number, cid: number, extra: Partial<ClienteEnderecoSync> = {}): ClienteEnderecoSync => ({
+  ...base,
+  id: id(n),
+  cliente_id: id(cid),
+  tipo: 'entrega',
+  descricao: null,
+  logradouro: `Rua ${n}`,
+  numero: String(n),
+  complemento: null,
+  bairro: 'Centro',
+  cidade: 'Manaus',
+  uf: 'AM',
+  cep: '69000000',
+  latitude: null,
+  longitude: null,
+  principal: false,
   ativo: true,
   ...extra,
 });
@@ -172,6 +191,37 @@ describe('lista de Clientes do aparelho (desenho T-0016 §3.4)', () => {
   });
 });
 
+describe('RF-CORE-12 / RN-VEN-17: endereços de entrega na ficha local', () => {
+  const l = { cliente: cliente(1, 'Auto Peças Um'), contatos: [], financeiro: null, titulos: [], historico: [] };
+
+  it('RN-VEN-17: a ficha traz os endereços ativos do cliente, o principal primeiro e marcado como padrão', () => {
+    const ficha = montarCliente360Local(
+      { ...l, enderecos: [endereco(60, 1, { logradouro: 'Rua Z' }), endereco(61, 1, { tipo: 'principal', principal: true, logradouro: 'Av. Principal' }), endereco(62, 1, { ativo: false }), endereco(63, 2)] },
+      HOJE,
+    );
+    expect(ficha.enderecos.map((e) => [e.id, e.padrao])).toEqual([[id(61), true], [id(60), false]]);
+    expect(ficha.endereco_padrao_id).toBe(id(61));
+    expect(ficha.enderecos[0]?.resumo).toBe('Av. Principal, 61 - Centro - Manaus/AM - CEP 69000-000');
+  });
+
+  it('RN-VEN-17: cliente sem endereço (ou linha antiga sem a lista) não quebra a ficha e não tem padrão', () => {
+    const ficha = montarCliente360Local(l, HOJE);
+    expect(ficha.enderecos).toEqual([]);
+    expect(ficha.endereco_padrao_id).toBeNull();
+  });
+
+  it('RN-VEN-17: sem principal, o padrão é o primeiro endereço de entrega ativo; cobrança aparece mas nunca é padrão', () => {
+    const ficha = montarCliente360Local({ ...l, enderecos: [endereco(70, 1, { tipo: 'cobranca', logradouro: 'Rua A Cobrança' }), endereco(71, 1, { logradouro: 'Rua B' })] }, HOJE);
+    expect(ficha.endereco_padrao_id).toBe(id(71));
+    expect(ficha.enderecos.map((e) => e.tipo)).toEqual(['entrega', 'cobranca']);
+  });
+
+  it('RN-VEN-17: linha removida no servidor (deleted_at) some da ficha', () => {
+    const ficha = montarCliente360Local({ ...l, enderecos: [endereco(80, 1, { deleted_at: '2026-10-31T09:00:00Z' })] }, HOJE);
+    expect(ficha.enderecos).toEqual([]);
+  });
+});
+
 describe('modo avião: abrir a ficha do cliente depois de um sync (critério 2 da T-0017)', () => {
   const linhas: Record<string, LinhaSync[]> = {
     cliente: [cliente(1, 'Auto Peças Um')],
@@ -180,6 +230,7 @@ describe('modo avião: abrir a ficha do cliente depois de um sync (critério 2 d
     cliente_financeiro: [financeiro(1, 5_000_000, 1_000_000)],
     titulo: [titulo(21, 1, '2026-10-21', 500_000), titulo(22, 1, '2026-11-20', 500_000)],
     historico_compra: [compras(31, 1, '2026-10', 800_000, 2, '2026-10-20')],
+    cliente_endereco: [endereco(60, 1, { tipo: 'principal', principal: true, descricao: 'Matriz' }), endereco(61, 1, { descricao: 'Depósito' })],
   };
 
   async function sincronizarOnline() {
@@ -210,9 +261,11 @@ describe('modo avião: abrir a ficha do cliente depois de um sync (critério 2 d
         financeiro: (await por<ClienteFinanceiroSync & LinhaSync>('cliente_financeiro'))[0] ?? null,
         titulos: await por<TituloSync & LinhaSync>('titulo'),
         historico: await por<HistoricoCompraSync & LinhaSync>('historico_compra'),
+        enderecos: await por<ClienteEnderecoSync & LinhaSync>('cliente_endereco'),
       },
       HOJE,
     );
+    expect(ficha.enderecos.map((e) => [e.descricao, e.padrao])).toEqual([['Matriz', true], ['Depósito', false]]);
     expect(ficha.resumo_financeiro).toMatchObject({ limite_cents: 5_000_000, credito_disponivel_cents: 4_000_000, vencidos_qtd: 1, a_vencer_qtd: 1 });
     expect(ficha.historico).toHaveLength(1);
     expect(ficha.ligar).toBe('tel:+559232220001');

@@ -10,10 +10,11 @@ import {
   CarteiraItemPutSchema,
   ClienteListaQuerySchema,
   type Cliente360,
+  type ClienteEnderecoSync,
   type ClienteListaResposta,
   type HierarquiaEquipe,
 } from '../contracts';
-import { dataLocal, montarHierarquia, papelCompativel, recortarHierarquia, resumoCompras, resumoFinanceiro, type EquipeLinha, type UsuarioLinha } from '../domain';
+import { dataLocal, enderecoPadrao, listarEnderecosDoCliente, montarHierarquia, papelCompativel, recortarHierarquia, resumoCompras, resumoFinanceiro, type EquipeLinha, type UsuarioLinha } from '../domain';
 import { auditar } from './auditoria';
 import { BASE, TABELAS_SYNC, comHoje } from './sync';
 
@@ -80,6 +81,9 @@ async function cliente360(ctx: ContextoBase, id: string): Promise<Cliente360> {
     const [financeiro = null] = await linhas(t.cliente_financeiro, 'cliente_id = $1', 'id');
     const titulos = await linhas(t.titulo, `cliente_id = $1 and ${comHoje(t.titulo.janela, hoje)}`, 'vencimento, id');
     const historico = await linhas(t.historico_compra, `cliente_id = $1 and ${comHoje(t.historico_compra.janela, hoje)}`, 'ano_mes desc, id');
+    // T-0061 (RF-CORE-12, RN-VEN-17): endereços ativos do cliente, o padrão primeiro. O escopo de carteira já foi checado acima.
+    const brutos = (await linhas(t.cliente_endereco, 'cliente_id = $1 and ativo', 'id')) as unknown as ClienteEnderecoSync[];
+    const enderecos = listarEnderecosDoCliente(brutos, id).map(({ padrao: _padrao, resumo: _resumo, ...e }) => e);
     const filtroUsuarios = usuarios === 'tenant' ? '' : 'and usuario_id = any($2::uuid[])';
     const ultimas = (
       await db.query(
@@ -106,6 +110,8 @@ async function cliente360(ctx: ContextoBase, id: string): Promise<Cliente360> {
       resumo_compras: resumoCompras(his, hoje),
       resumo_financeiro: resumoFinanceiro(fin, tit, hoje),
       ultimas_visitas: ultimas,
+      enderecos,
+      endereco_padrao_id: enderecoPadrao(enderecos)?.id ?? null,
     });
   });
 }

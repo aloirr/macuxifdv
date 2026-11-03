@@ -97,6 +97,30 @@ export function SecoesCliente360({ ficha }: { ficha: Cliente360Local }) {
         )}
       </View>
 
+      {/* RF-CORE-12 / RN-VEN-17: endereços de entrega do ERP, o padrão (principal) destacado e primeiro; lidos do aparelho */}
+      <View style={{ gap: 8 }} testID="cliente-enderecos">
+        <SectionHeader title="Endereços de entrega" />
+        {ficha.enderecos.length === 0 ? (
+          <Text style={t.sub}>Nenhum endereço de entrega neste aparelho. Sincronize quando houver sinal; endereço novo entra pelo cadastro no ERP.</Text>
+        ) : (
+          <Card>
+            {ficha.enderecos.map((e, i) => (
+              <View key={e.id} testID={e.padrao ? 'cliente-endereco-padrao' : 'cliente-endereco'} style={[styles.row, { minHeight: 48 }, i < ficha.enderecos.length - 1 && styles.divider, e.padrao && { backgroundColor: colors.surface }]}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {e.descricao ? <Text style={t.bodyStrong}>{e.descricao}</Text> : null}
+                    {e.padrao ? <Badge label="Padrão" tone="success" /> : null}
+                    {e.tipo === 'cobranca' ? <Badge label="Cobrança" tone="neutral" /> : null}
+                  </View>
+                  <Text style={e.padrao ? t.bodyStrong : t.body}>{e.resumo}</Text>
+                </View>
+                <Mini icon="navigate" label={`Abrir no mapa: ${e.resumo}`} onPress={() => void Linking.openURL(mapsUrl(num(e.latitude), num(e.longitude), e.resumo))} />
+              </View>
+            ))}
+          </Card>
+        )}
+      </View>
+
       {/* RN-CORE-17: linha automática de cadastro incompleto no topo, texto do ERP intacto abaixo (montada aqui, nunca gravada) */}
       <ObservacoesCliente automatica={observacaoComCadastro(null, ficha.cliente.cadastro_campos_faltantes ?? [])} texto={ficha.cliente.observacao ?? null} />
 
