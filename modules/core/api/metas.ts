@@ -82,8 +82,10 @@ const tipoDaMeta = (metas: ReadonlyArray<{ usuario_id: string; indicador: string
  * instalado no tenant (`ConsultaIndisponivel`) = `null`: o painel cai no read-model `indicador_diario`.
  */
 export const fontePorConsulta =
-  (tx: Pick<TransacaoTenant, 'consultar'>): FontePedidosDaMeta =>
+  (tx: Partial<Pick<TransacaoTenant, 'consultar'>>): FontePedidosDaMeta =>
   async (q) => {
+    // contexto sem `consultar` (testes, shells antigos): nem chama, cai no indicador_diario
+    if (typeof tx?.consultar !== 'function') return null;
     try {
       return await tx.consultar(CONSULTA_PEDIDOS_DA_META, q);
     } catch (e) {
