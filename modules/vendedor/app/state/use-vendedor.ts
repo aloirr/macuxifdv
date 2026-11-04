@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MixSuggestion } from '@macuxi/catalogo/contracts';
 import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
+import type { NivelDePreco } from '../../domain/preco-pedido';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import { copiaDoDetalhe, copiaDoPayload, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
 import { toDomainPolicy } from '../lib/catalog';
@@ -597,7 +598,7 @@ export function useVendedor() {
    * cliente), offline. `null` = sem tabela no aparelho para conferir (o servidor revalida ao receber).
    */
   const reconferirOrcamentoLocal = useCallback(
-    async (orcamentoId: string): Promise<{ mudancas: string[]; bloqueio: string | null; pode_enviar: boolean } | null> => {
+    async (orcamentoId: string): Promise<{ mudancas: string[]; bloqueio: string | null; pode_enviar: boolean; nivel: NivelDePreco | null; total_cents: number } | null> => {
       const d = detalheDoPedido(linhasRef.current, orcamentoId, perfil, parametrosRef.current);
       if (!d || d.items.length === 0) return null;
       const cliente = clientes.find((c) => c.id === d.customer_id);
@@ -614,7 +615,7 @@ export function useVendedor() {
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
       });
-      return { mudancas: r.mudancas.map((m) => textoDaMudanca(m, (id) => nomes.get(id) ?? 'Produto')), bloqueio: r.bloqueio, pode_enviar: r.pode_enviar };
+      return { mudancas: r.mudancas.map((m) => textoDaMudanca(m, (id) => nomes.get(id) ?? 'Produto')), bloqueio: r.bloqueio, pode_enviar: r.pode_enviar, nivel: r.calculo.nivel, total_cents: r.calculo.totais.total_cents };
     },
     [perfil, clientes, garantirProdutos],
   );

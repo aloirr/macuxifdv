@@ -1,7 +1,7 @@
 /**
  * Folhas das ações do pedido (detalhe do pedido):
  * - Excluir: confirmação com motivo opcional (excluir = cancelar; o pedido não é apagado);
- * - Exportar PDF: para o cliente (sem desconto) ou para o BKO (tabela, desconto, alçada, histórico).
+ * - Exportar PDF: para o cliente (sem desconto) ou para o escritório (tabela, desconto, alçada, histórico).
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon, colors, fonts, radius, type as t } from '@macuxi/ui/mobile';
@@ -9,6 +9,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderPdfView } from '../lib/order-pdf';
+import { textoCancelarDocumento } from '../lib/textos-pedido';
 
 /** Folha inferior (cópia local: o kit do Core não é importável pelo Vendedor). */
 export function BottomSheet({ visible, onClose, label, testID, children }: { visible: boolean; onClose: () => void; label: string; testID: string; children: ReactNode }) {
@@ -43,6 +44,7 @@ export function DeleteOrderSheet({
   visible,
   title,
   queued,
+  ehOrcamento = false,
   busy,
   error,
   onClose,
@@ -51,6 +53,7 @@ export function DeleteOrderSheet({
   visible: boolean;
   title: string;
   queued: boolean;
+  ehOrcamento?: boolean;
   busy: boolean;
   error: string | null;
   onClose: () => void;
@@ -60,13 +63,14 @@ export function DeleteOrderSheet({
   useEffect(() => {
     if (visible) setReason('');
   }, [visible]);
+  const x = textoCancelarDocumento({ ehOrcamento, naFila: queued, titulo: title });
   return (
-    <BottomSheet visible={visible} onClose={onClose} label="Excluir pedido" testID="delete-sheet">
+    <BottomSheet visible={visible} onClose={onClose} label={x.rotuloAcessivel} testID="delete-sheet">
       <View style={[styles.tile, { backgroundColor: colors.dangerBg }]}>
         <Icon name="trash" size={22} color={colors.danger} />
       </View>
-      <Text style={styles.title}>Excluir {title.toLowerCase()}?</Text>
-      <Text style={styles.para}>{queued ? 'O pedido sai da fila do aparelho e não será enviado.' : 'O pedido fica como Excluído no histórico; não é apagado.'}</Text>
+      <Text style={styles.title}>{x.titulo}</Text>
+      <Text style={styles.para}>{x.descricao}</Text>
       {!queued ? (
         <View style={{ gap: 4 }}>
           <Text style={t.label}>Motivo (opcional)</Text>
@@ -78,7 +82,7 @@ export function DeleteOrderSheet({
             placeholderTextColor={colors.ink3}
             maxLength={500}
             style={styles.input}
-            accessibilityLabel="Motivo da exclusão"
+            accessibilityLabel={ehOrcamento ? 'Motivo do cancelamento' : 'Motivo da exclusão'}
           />
         </View>
       ) : null}
@@ -87,7 +91,7 @@ export function DeleteOrderSheet({
           {error}
         </Text>
       ) : null}
-      <SheetButton testID="delete-confirm" label={busy ? 'Excluindo…' : 'Excluir pedido'} bg={colors.danger} fg="#FFFFFF" height={50} disabled={busy} onPress={() => onConfirm(reason)} />
+      <SheetButton testID="delete-confirm" label={busy ? x.ocupado : x.confirmar} bg={colors.danger} fg="#FFFFFF" height={50} disabled={busy} onPress={() => onConfirm(reason)} />
       <SheetButton testID="delete-cancel" label="Voltar" bg={colors.surface} fg={colors.ink} border={colors.lineStrong} height={46} onPress={onClose} />
     </BottomSheet>
   );
@@ -162,7 +166,7 @@ export function PdfSheet({ visible, busy, error, onClose, onPick }: { visible: b
       />
       <PdfOption
         testID="pdf-bko"
-        title={busy === 'bko' ? 'Gerando…' : 'Para o BKO'}
+        title={busy === 'bko' ? 'Gerando…' : 'Para o escritório'}
         text="Preço de tabela, desconto, líquido, alçada, status e histórico."
         disabled={busy !== null}
         onPress={() => onPick('bko')}
