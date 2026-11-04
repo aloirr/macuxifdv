@@ -53,8 +53,22 @@ export const RecadoEnviadoSchema = z
     destinatario_nome: z.string(),
     enviada_em: z.string(),
     lida_em: z.string().nullable(),
+    /** T-0073 (aditivo): dia civil em que o envio é "recado do dia" (marcação de hoje); null/ausente = não marcado. */
+    recado_do_dia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   })
   .strict();
 export type RecadoEnviado = z.infer<typeof RecadoEnviadoSchema>;
 export const RecadosEnviadosQuerySchema = z.object({ limite: z.coerce.number().int().min(1).max(200).default(100) }).strict();
 export const RecadosEnviadosRespostaSchema = z.object({ itens: z.array(RecadoEnviadoSchema) }).strict();
+
+/** `PUT/DELETE notificacoes/envios/:envioId/recado-do-dia` (RN-CORE-26; T-0073 §3.3). O servidor decide o dia (hoje no fuso do tenant); o corpo é vazio. */
+export const RecadoDoDiaParamsSchema = z.object({ envioId: z.string().uuid() });
+export const RecadoDoDiaCorpoSchema = z.object({}).strict();
+export const RecadoDoDiaMarcadoSchema = z
+  .object({ envio_id: z.string().uuid(), dia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), marcadas: z.number().int().nonnegative(), desmarcadas_outras: z.number().int().nonnegative() })
+  .strict();
+export type RecadoDoDiaMarcado = z.infer<typeof RecadoDoDiaMarcadoSchema>;
+export const RecadoDoDiaDesmarcadoSchema = z.object({ envio_id: z.string().uuid(), desmarcadas: z.number().int().nonnegative() }).strict();
+export type RecadoDoDiaDesmarcado = z.infer<typeof RecadoDoDiaDesmarcadoSchema>;
+/** Janela em que o recado ainda vai ao aparelho (criado há ≤ 30 dias): fora dela não vira recado do dia (RN-CORE-26). */
+export const RECADO_DO_DIA_JANELA_DIAS = 30;

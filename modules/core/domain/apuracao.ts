@@ -106,3 +106,40 @@ export function situacaoDoPeriodo(periodo: string, hoje: string, feriados: Itera
 export function periodoFechado(periodo: string, hoje: string, feriados: Iterable<string> = []): boolean {
   return situacaoDoPeriodo(periodo, hoje, feriados) === 'fechado';
 }
+
+export interface OpcoesApuracaoPartida extends OpcoesApuracao {
+  /** Dia civil de hoje no fuso do tenant (AAAA-MM-DD). */
+  hoje: string;
+}
+
+export interface RealizadoPartidoDoDia {
+  venda_cents: { ate_ontem: number; hoje: number };
+  /** `ate_ontem` = clientes positivados até ontem; `hoje` = clientes NOVOS hoje (quem já tinha pedido antes de hoje não conta de novo). */
+  positivacao: { ate_ontem: number; hoje: number };
+}
+
+/**
+ * RN-CORE-26: realizado do mês partido em "até ontem" e "hoje" (data civil no fuso do tenant; depois de hoje não conta),
+ * reaproveitando as regras do tipo da meta (RN-CORE-21): emissão para pedido, `faturado_em` para faturamento.
+ */
+export function realizadoPartido(
+  tipo: TipoMeta,
+  fonte: { pedidos?: readonly PedidoDaMeta[]; faturamentos?: readonly FaturamentoApuravel[] },
+  o: OpcoesApuracaoPartida,
+): RealizadoPartidoDoDia {
+  const pedidos = fonte.pedidos ?? [];
+  const faturamentos = fonte.faturamentos ?? [];
+  const ate = (limite: (d: string) => boolean) => ({
+    pedidos: pedidos.filter((p) => limite(dataCivil(p.emitido_em, o.fuso))),
+    faturamentos: faturamentos.filter((f) => limite(dataCivil(f.faturado_em, o.fuso))),
+  });
+  const ateOntem = ate((d) => d < o.hoje);
+  const ateHoje = ate((d) => d <= o.hoje);
+  const venda = (f: { pedidos: readonly PedidoDaMeta[]; faturamentos: readonly FaturamentoApuravel[] }) => realizadoPorTipo(tipo, f, o);
+  const vendaOntem = venda(ateOntem);
+  const posOntem = positivadosDoPeriodo(ateOntem.pedidos, o);
+  return {
+    venda_cents: { ate_ontem: vendaOntem, hoje: venda(ateHoje) - vendaOntem },
+    positivacao: { ate_ontem: posOntem, hoje: positivadosDoPeriodo(ateHoje.pedidos, o) - posOntem },
+  };
+}

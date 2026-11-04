@@ -80,8 +80,7 @@ Pedido do `testes` (R-20261030-235542-testes). **Contrato estável**: o nome só
 | testID | Onde |
 |---|---|
 | `notificacoes.tela` · `notificacoes.resumo` · `notificacoes.vazio` · `notificacoes.item.<id>` | tela Notificações do app (`/m/notificacoes`, offline) |
-| `inicio.card-notificacoes` | card "N avisos não lidos" no Início (slot `inicio.cards`) |
-| `recados.tela` · `recados.titulo` · `recados.corpo` · `recados.prioridade` · `recados.destino.<usuario_id>` · `recados.enviar` · `recados.caixa` · `recados.item.<id>` · `recados.enviados` · `recados.enviado.<notificacao_id>` (por destinatário: lida/não lida e lida_em; só quem enviou ou tem escopo) | página Recados do BKO (ação `notificacao.enviar`) |
+| `recados.tela` · `recados.titulo` · `recados.corpo` · `recados.prioridade` · `recados.destino.<usuario_id>` · `recados.enviar` · `recados.caixa` · `recados.item.<id>` · `recados.enviados` · `recados.envios` · `recados.envio.<envio_id>` · `recados.chip-recado-do-dia.<envio_id>` ("Recado do dia · hoje") · `recados.recado-do-dia.<envio_id>` (botão marcar/tirar; só com a ação `notificacao.recado_do_dia`) · `recados.enviado.<notificacao_id>` (por destinatário: lida/não lida e lida_em; só quem enviou ou tem escopo) | página Recados do BKO (ação `notificacao.enviar`) |
 
 ## Contratos e regras desta onda (O-5, RN-CORE-10, T-0019)
 
