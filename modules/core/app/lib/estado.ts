@@ -50,6 +50,8 @@ export const CHAVES = {
   me: 'me',
   metas: 'metas',
   pedidos: 'pedidos',
+  /** Cópia de `GET /v1/core/inicio` (etapa `core-inicio`, T-0073); a tela recalcula tudo com `montarInicio`. */
+  inicio: 'inicio',
   carregadoEm: 'carregado_em',
 } as const;
 
