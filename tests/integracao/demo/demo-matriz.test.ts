@@ -43,7 +43,7 @@ vi.mock('../../../modules/core/app/lib/dispositivo', () => ({
 
 const ETAPAS_CAMPO = [...etapasCore, ...etapasVendedor];
 
-/** Tamanho do catálogo da base demo (33 desde a 0013: +9 da linha automotiva e o detergente 5 L) e os 3 SKUs sem preço no Atacado (RN-CAT-06). */
+/** Tamanho do catálogo da base demo (33 desde a 0013: +9 da linha automotiva e o detergente 5 L; 36 desde a 0020: FIL-103, LPO-400, AGU-1500) e os 3 SKUs sem preço no Atacado (RN-CAT-06). */
 const PRODUTOS_DEMO = dadosDemo('x')['core.produto'].length;
 const SEM_PRECO_NO_ATACADO = ['ACA-1K', 'CRD-90', 'SUC-1L'];
 
@@ -276,23 +276,23 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       expect((listaDe(r.corpo) as Array<{ lida_em: string | null }>)[0]!.lida_em).toBeTruthy();
     });
 
-    it('D-C08a: os pedidos do Lucas CHEGAM ao aparelho pelo pull (7 pedidos, com itens; 1 aguardando aprovação)', async () => {
+    it('D-C08a: os pedidos do Lucas CHEGAM ao aparelho pelo pull (8 pedidos desde a 0020 — p11 novo, T-0071; com itens; 1 aguardando aprovação)', async () => {
       const c = await noCampo('vendedor');
       expect(await c.ap.sincronizar()).toBe(true);
       const pedidos = await c.ap.motor.linhas<LinhaSync & { status: string }>('pedido');
-      expect(pedidos).toHaveLength(7);
+      expect(pedidos).toHaveLength(8);
       expect(pedidos.filter((p) => p.status === 'pending_approval')).toHaveLength(1);
-      expect((await c.ap.motor.linhas('pedido_item')).length).toBeGreaterThan(7);
+      expect((await c.ap.motor.linhas('pedido_item')).length).toBeGreaterThan(8);
     });
 
-    it('D-C08: a aba Pedidos mostra os 7 pedidos do Lucas pelas linhas do aparelho (pull), offline (T-0029 §8)', async () => {
+    it('D-C08: a aba Pedidos mostra os 8 pedidos do Lucas pelas linhas do aparelho (pull), offline (T-0029 §8)', async () => {
       const c = await noCampo('vendedor');
       expect(await c.ap.sincronizar()).toBe(true);
       c.ap.online.valor = false;
       const lista = listaDePedidos(await lerLinhas(c.ap.motor), c.ap.motor.parametros('vendedor'));
       const doBanco = (await pedidosDoBanco()).filter((p) => p.vendedor_id === usuarioId.vendedor);
       expect(lista.map((o) => o.id).sort()).toEqual(doBanco.map((p) => p.id).sort());
-      expect(lista.length).toBeGreaterThanOrEqual(7);
+      expect(lista.length).toBeGreaterThanOrEqual(8);
       expect(lista.every((o) => o.number !== '' && o.customer_name !== '' && o.total_cents > 0)).toBe(true);
     });
 
@@ -310,7 +310,7 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       expect((r.corpo.items as unknown[]).length).toBe(local!.items.length);
     });
 
-    it('D-C10: novo pedido — o aparelho tem a carteira (18), as condições do cliente, os 33 produtos da demo (pull `produto` do Core, R-20261101-081147; 24 → 33 com a 0013, R-20261102-102834) e o preço da tabela do cliente pela consulta do Catálogo, offline (Atacado sem açaí, suco e creme dental: RN-CAT-06)', async () => {
+    it('D-C10: novo pedido — o aparelho tem a carteira (18), as condições do cliente, os 36 produtos da demo (pull `produto` do Core, R-20261101-081147; 24 → 33 com a 0013, R-20261102-102834; 33 → 36 com a 0020, T-0071) e o preço da tabela do cliente pela consulta do Catálogo, offline (Atacado sem açaí, suco e creme dental: RN-CAT-06)', async () => {
       const c = await noCampo('vendedor');
       expect(await c.ap.sincronizar()).toBe(true);
       c.ap.online.valor = false;
@@ -418,9 +418,9 @@ describe.skipIf(semBanco())('T-0028 — matriz da demo (base demo × createApp r
       expect(await c.ap.motor.linhas('cliente')).toHaveLength(30);
       expect(await c.ap.motor.linhas('notificacao')).toHaveLength(1);
       const pedidos = await c.ap.motor.linhas<LinhaSync & { status: string }>('pedido');
-      // a equipe da Renata = Lucas e Camila = todos os pedidos do tenant demo (10 da base + os enviados nesta rodada)
+      // a equipe da Renata = Lucas e Camila = todos os pedidos do tenant demo (11 da base desde a 0020 + os enviados nesta rodada)
       expect(pedidos.map((p) => p.id).sort()).toEqual((await pedidosDoBanco()).map((p) => p.id).sort());
-      expect(pedidos.length).toBeGreaterThanOrEqual(10);
+      expect(pedidos.length).toBeGreaterThanOrEqual(11);
       // a base de demo decide quantos aguardam (T-0029: p05 e p10 com a supervisora, p09 com o gerente): o aparelho traz todos
       const pendentes = await pedidosDoBanco('pending_approval');
       expect(pendentes.length).toBeGreaterThanOrEqual(3);
