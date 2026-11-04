@@ -7,7 +7,7 @@
 import { monthStart } from '@macuxi/ui/mobile/puro';
 import type { EtapaSync } from '@macuxi/platform-sdk';
 
-import type { SellerGoals } from '../../contracts';
+import { InicioSchema, type SellerGoals } from '../../contracts';
 import { CHAVES, fusoDe } from './estado';
 import { erroDeCliente, exigirHttp } from './http';
 import type { OrderLike } from './visit';
@@ -25,6 +25,12 @@ async function ou4xxNulo<T>(f: () => Promise<T>): Promise<T | null> {
     throw e;
   }
 }
+
+/** 401/423 sobem (sessão e aparelho bloqueado, RN-CORE-15); sem sinal, 403, 404 e 5xx mantêm a cópia anterior. */
+const erroDeSessao = (e: unknown): boolean => {
+  const s = (e as { status?: unknown } | null)?.status;
+  return s === 401 || s === 423;
+};
 
 export const etapasCore: readonly EtapaSync[] = [
   {
@@ -58,6 +64,25 @@ export const etapasCore: readonly EtapaSync[] = [
       const r = (await ou4xxNulo(() => http.get<Pagina<OrderLike>>('/orders', { from: monthStart(ctx.agora(), fuso), limit: 1000 }))) ?? { items: [] };
       const pedidos: OrderLike[] = r.items.map((o) => ({ id: o.id, number: o.number, customer_id: o.customer_id, status: o.status, total_cents: o.total_cents, received_at: o.received_at, created_offline_at: o.created_offline_at ?? null }));
       await ctx.armazenamento.gravar(CHAVES.pedidos, pedidos);
+    },
+  },
+  {
+    // T-0073 §1.4: copia o realizado de vendas/positivação (até ontem × hoje) e os nomes da equipe para o aparelho.
+    // Roda no ritmo do motor (RN-CORE-23: nenhum timer próprio). Falhou ou veio fora do contrato: mantém a cópia anterior.
+    id: 'core-inicio',
+    rotulo: 'Início (metas do dia)',
+    modulo: 'core',
+    async executar(ctx) {
+      const http = exigirHttp(ctx);
+      let corpo: unknown;
+      try {
+        corpo = await http.get<unknown>('/core/inicio');
+      } catch (e) {
+        if (erroDeSessao(e)) throw e;
+        return;
+      }
+      const r = InicioSchema.safeParse(corpo);
+      if (r.success) await ctx.armazenamento.gravar(CHAVES.inicio, r.data);
     },
   },
 ];
