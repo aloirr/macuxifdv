@@ -24,7 +24,7 @@ A demo e a homologação rodam na VM `macuxi-demo-se1` (177.93.129.233, br-se1) 
   - ✅ primeiro deploy verde (commit e626d0b, workflow run 41791896334): migrações 0001–0021, seed demo, api/worker/postgres/cloudflared saudáveis;
   - ✅ sonda do S3 ok (gravar, ler e remover no bucket);
   - ✅ `api-demo/v1/saude` responde 200;
-  - ⏳ `bko-demo/login` ainda dá 502: falta o Dockerfile do BKO (engenheiro-apps), que entra no próximo push.
+  - ✅ às 6h (Manaus), depois do deploy do 297dc60: `bko-demo/login` responde 200 e `tests/scripts/demo-no-ar-dominio.mjs` dá "demo no ar pelo domínio".
 
 ## Plano B: demo no PC, só com túnel rápido
 Os passos abaixo são do tempo em que a demo rodava no PC. **Servem só de plano B**, com o **túnel rápido** (trycloudflare, endereço temporário). Os APKs de preview não conectam por ele; só o build de desenvolvimento conecta.
