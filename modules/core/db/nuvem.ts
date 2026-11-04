@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -368,7 +368,11 @@ export const visitaEtapa = core.table('visita_etapa', {
 
 export const TIPOS_NOTIFICACAO_BANCO = ['recado', 'sistema', 'pedido', 'treinamento', 'trade'] as const;
 
-/** Notificação do usuário. Únicos parciais por (usuário, origem_evento_id) e (usuário, envio_id). */
+/**
+ * Notificação do usuário. Únicos parciais por (usuário, origem_evento_id) e (usuário, envio_id).
+ * 0021 (T-0073): recado do dia = recado_do_dia (dia civil do tenant) + recado_do_dia_por, juntos (CHECK _par), só em
+ * tipo = 'recado' (CHECK _so_recado), um por pessoa por dia (único vivo notificacao_recado_do_dia_uk).
+ */
 export const notificacao = core.table('notificacao', {
   ...comuns(),
   usuario_id: uuid('usuario_id').notNull(),
@@ -384,6 +388,8 @@ export const notificacao = core.table('notificacao', {
   lida_em: timestamp('lida_em', { withTimezone: true }),
   expira_em: timestamp('expira_em', { withTimezone: true }),
   push_enviado_em: timestamp('push_enviado_em', { withTimezone: true }),
+  recado_do_dia: date('recado_do_dia'),
+  recado_do_dia_por: uuid('recado_do_dia_por'),
 });
 
 export const INDICADORES_META_BANCO = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;
@@ -410,4 +416,10 @@ export const indicadorDiario = core.table('indicador_diario', {
   pedidos: integer('pedidos').notNull().default(0),
   vendido_cents: bigint('vendido_cents', { mode: 'number' }).notNull().default(0),
   cancelado_cents: bigint('cancelado_cents', { mode: 'number' }).notNull().default(0),
+  /**
+   * 0021 (T-0073 §1.1): clientes DISTINTOS com pedido que conta para a meta no dia; null = não apurado (linhas anteriores à
+   * 0021, sem backfill). CHECK indicador_diario_clientes_positivados_nao_negativo (>= 0). Fallback da positivação do Início
+   * com o Vendedor desligado.
+   */
+  clientes_positivados: integer('clientes_positivados'),
 });

@@ -116,6 +116,7 @@ describe('migrações (estático)', () => {
     expect(nomes[17]).toBe('0018_medidas');
     expect(nomes[18]).toBe('0019_core_nota_erp_meta_tipo');
     expect(nomes[19]).toBe('0020_pedido_ajuste_valor_produto_relacao');
+    expect(nomes[20]).toBe('0021_core_recado_do_dia'); // T-0073: colunas novas em core.notificacao e core.indicador_diario.clientes_positivados (recado-do-dia.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
