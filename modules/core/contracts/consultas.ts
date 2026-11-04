@@ -34,6 +34,8 @@ export const CadastroResumoSaidaSchema = z.object({
       cep: Texto.optional(),
       cadastro_incompleto: z.boolean().optional(),
       cadastro_campos_faltantes: z.array(z.string()).optional(),
+      /** T-0073 / RN-VEN-13 (aditivo): cliente bloqueado no financeiro (`cliente_financeiro.bloqueado`); só o Vendedor decide o que fazer (pedido vira orçamento). Ausente = não informado. */
+      bloqueado: z.boolean().optional(),
     }),
   ),
   produtos: z.array(
