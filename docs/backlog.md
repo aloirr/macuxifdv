@@ -67,4 +67,8 @@
 - **ERP não reativa o que o admin desligou** (T-0066 🟢4/5): vendedor e tabela de preço desativados no BKO não voltam sozinhos com a próxima carga; rota do ERP aplica as paradas presentes e só notifica se as de hoje mudaram (🟢3).
 - **Cortes da T-0061** (aceitos pelo Alexandre em 2026-11-02, R-20261102-204330): transportadora vinda do ERP (fica só o cadastro no BKO), preço próprio da CX na tabela (fica UN × fator), chip "campanha" na árvore do catálogo.
 - **Depois da demo de 03/11** (Alexandre, 03/11 manhã): passo `pnpm timers` no `.github/workflows/ci.yml` (governança; a varredura já está limpa); `licencas.test` refeito sobre o main atual; espelho Drizzle do Promotor e do item do pedido; `gravarDemoMedidas` no `db/seeds/demo/demo.ts`; `core.medidas@1` declarado no Hub (`usaConsultas` da Integração; re-revisão T-0032 🟡); nota em `docs/desenho/T-0061.md` e contrato marcado como implementado; queda 57P01 do teste de carga; coordenação da T-0056; PR do medidas-api.
+- **Ambiente Magalu (T-0074), depois do APK**:
+  - grupo de segurança próprio por ambiente quando a produção for criada;
+  - avaliar renomear o GitHub Environment `DEMO_SSH_KEY` para `demo`, o que exige recadastrar os secrets (o dono do produto faz quando o gerente pedir);
+  - renovar a API Key `macuxi-demo-s3` do Object Storage antes de 31/12/2026 (**o gerente avisa o dono do produto em 15/12**; a duplicata já foi revogada em 04/11).
 - Depois da demo: subir-demo.ps1 espera a API por 180 s em vez de 90 s (com a máquina carregada a API levou ~2 min e o script desistiu; engenheiro-software, R-20261103-065034)
