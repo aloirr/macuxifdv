@@ -1,5 +1,10 @@
 ﻿<#
 .SYNOPSIS
+  APOSENTADO EM 04/11/2026 (T-0074, ADR 0020). NÃO RODE: a demo agora fica na VM da Magalu Cloud, pelo túnel
+  macuxi-demo-nuvem. Este script reapontaria o DNS de api-demo e bko-demo para o PC e tiraria a VM do ar. Ele recusa
+  com saída 3, a menos que receba -EuSeiQueTiraAVmDoAr (só os testes simulados usam). Plano B local: subir-demo.ps1,
+  só com túnel rápido (scripts/demo/LEIA-ME.md).
+
   Configura UMA vez o domínio fixo da demonstração (T-0038): túnel nomeado macuxi-demo, DNS de api-demo e bko-demo e o
   config.yml do cloudflared. Pode rodar de novo: o que já existe é reaproveitado, e nada é duplicado.
 
@@ -29,8 +34,17 @@ param(
   # Sem winget/administrador: usa (ou baixa) o cloudflared portátil em .dados\demo\bin.
   [switch]$Portatil,
   # Pasta do config.yml e do marcador (padrão .dados\demo\cloudflared; os testes usam outra).
-  [string]$PastaConfig
+  [string]$PastaConfig,
+  # Aposentado (T-0074): sem esta chave o script recusa. Só os testes simulados (teste/tunel.test.ps1) passam.
+  [switch]$EuSeiQueTiraAVmDoAr
 )
+
+if (-not $EuSeiQueTiraAVmDoAr) {
+  Write-Host "configurar-dominio.ps1 está APOSENTADO (T-0074, ADR 0020): api-demo e bko-demo apontam para a VM da Magalu Cloud" -ForegroundColor Red
+  Write-Host "(túnel macuxi-demo-nuvem). Rodar este script reapontaria o DNS para o PC e tiraria a demo do ar. Nada foi feito." -ForegroundColor Red
+  Write-Host "Plano B local: scripts\demo\subir-demo.ps1 (só túnel rápido). Veja scripts\demo\LEIA-ME.md." -ForegroundColor Yellow
+  exit 3
+}
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest

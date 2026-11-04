@@ -1,0 +1,25 @@
+# Contexto do docker build = raiz do monorepo (T-0074; apps/api/Dockerfile e apps/web/Dockerfile).
+# Nada de segredo, dado local nem dependência instalada entra na imagem: o pnpm install roda dentro do build.
+**/node_modules
+**/.next
+**/.expo
+**/.turbo
+**/dist
+**/coverage
+**/*.log
+**/*.tsbuildinfo
+.git
+.dados
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+.claude
+.coord
+Claude outputs
+_instalar
+test-results
+playwright-report
+*.lnk
+docs
