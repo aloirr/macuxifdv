@@ -1,0 +1,266 @@
+/**
+ * Cópia completa do pedido ou orçamento no aparelho (T-0071; RN-VEN-18): Transformar, Duplicar e Editar levam medida,
+ * ajustes do item (% ou R$ por unidade), ajuste do pedido, frete, endereço, condição, observação e visita. Funções puras,
+ * offline. O preço NÃO é copiado: vale o da tabela de hoje (RN-VEN-01) e o servidor revalida a alçada (RN-VEN-10).
+ */
+import type { Product } from '@macuxi/catalogo/contracts';
+import { formatBRL } from '@macuxi/comum';
+import type { OrderDetail, PedidoPush } from '../../contracts';
+import {
+  reconferirOrcamento,
+  type DadosAtuais,
+  type FreteParaCopia,
+  type ItemParaCopia,
+  type MudancaNaConversao,
+  type OrcamentoParaPedido,
+  type OrcamentoParaReconferir,
+  type SituacaoCliente,
+} from '../../domain/orcamento';
+import type { AjusteItem } from '../../domain/preco-pedido';
+import { chaveDaLinha, unidadesDoProduto, type Ajuste, type FreteDoRascunho, type TransportadoraDaTela, type UnidadeDaTela } from './novo-pedido';
+import { prefillLines, prefillNotice } from './order-prefill';
+import type { Rascunho } from './pedidos';
+
+type ExtraCopia = {
+  condicaoId: string | null;
+  observacao: string | null;
+  visitaId?: string | null;
+  transportadoras?: readonly TransportadoraDaTela[];
+};
+
+const digitos = (s: string | null | undefined): string => (s ?? '').replace(/\D/g, '');
+
+/** Frete do detalhe → frete da cópia: FOB acha a transportadora da lista pelo CNPJ; senão vai como digitada (nome + CNPJ de 14 dígitos). */
+export function freteDaCopia(f: NonNullable<OrderDetail['freight']> | null | undefined, transportadoras: readonly TransportadoraDaTela[] = []): FreteParaCopia | undefined {
+  if (!f) return undefined;
+  if (f.modality === 'CIF') return { modalidade: 'CIF' };
+  const cnpj = digitos(f.carrier_document);
+  const cadastrada = cnpj ? transportadoras.find((t) => t.ativo && digitos(t.documento) === cnpj) : undefined;
+  if (cadastrada) return { modalidade: 'FOB', transportadora_id: cadastrada.id };
+  if (f.carrier_name && cnpj.length === 14) return { modalidade: 'FOB', transportadora_digitada: { nome: f.carrier_name, cnpj, telefone: f.carrier_phone ?? null } };
+  return { modalidade: 'FOB' };
+}
+
+/** Detalhe do pedido/orçamento (servidor ou pull) → cópia completa. */
+export type DetalheParaCopia = Pick<OrderDetail, 'id' | 'customer_id' | 'discount_pct' | 'items'> & Partial<OrderDetail>;
+
+export function copiaDoDetalhe(d: DetalheParaCopia, extra: ExtraCopia): OrcamentoParaPedido {
+  const frete = freteDaCopia(d.freight, extra.transportadoras);
+  return {
+    id: d.id,
+    cliente_id: d.customer_id,
+    desconto_pct: d.discount_pct,
+    ...((d.surcharge_pct ?? 0) > 0 ? { acrescimo_pct: d.surcharge_pct } : {}),
+    ...((d.order_discount_value_cents ?? 0) > 0 ? { desconto_valor_cents: d.order_discount_value_cents } : {}),
+    ...((d.order_surcharge_value_cents ?? 0) > 0 ? { acrescimo_valor_cents: d.order_surcharge_value_cents } : {}),
+    ...(d.order_adjust_mode ? { ajuste_em: d.order_adjust_mode } : {}),
+    condicao_pagamento_id: extra.condicaoId,
+    observacao: extra.observacao,
+    visita_id: extra.visitaId ?? null,
+    ...(frete ? { frete } : {}),
+    ...(d.delivery_address?.id ? { endereco_entrega_id: d.delivery_address.id } : {}),
+    itens: d.items.map(
+      (it): ItemParaCopia => ({
+        product_id: it.product_id,
+        quantity: it.quantity,
+        ...(it.unit && (it.factor ?? 1) > 1 ? { unidade: it.unit } : {}),
+        ...((it.discount_pct ?? 0) > 0 ? { desconto_pct: it.discount_pct } : {}),
+        ...((it.surcharge_pct ?? 0) > 0 ? { acrescimo_pct: it.surcharge_pct } : {}),
+        ...((it.unit_discount_cents ?? 0) > 0 ? { desconto_unitario_cents: it.unit_discount_cents } : {}),
+        ...((it.unit_surcharge_cents ?? 0) > 0 ? { acrescimo_unitario_cents: it.unit_surcharge_cents } : {}),
+        ...(it.adjust_mode ? { ajuste_em: it.adjust_mode } : {}),
+      }),
+    ),
+  };
+}
+
+/** Pedido da fila do aparelho (payload do push) → cópia completa. O modo do item é o que o payload leva (R$ por unidade ou %). */
+export function copiaDoPayload(p: PedidoPush, extra: Pick<ExtraCopia, 'observacao'> & { id?: string }): OrcamentoParaPedido {
+  const frete: FreteParaCopia | undefined = p.frete
+    ? p.frete.modalidade === 'CIF'
+      ? { modalidade: 'CIF' }
+      : { modalidade: 'FOB', transportadora_id: p.frete.transportadora_id ?? null, transportadora_digitada: p.frete.transportadora_digitada ?? null }
+    : undefined;
+  return {
+    id: extra.id ?? p.id,
+    cliente_id: p.customer_id,
+    desconto_pct: p.discount_pct,
+    ...((p.acrescimo_pct ?? 0) > 0 ? { acrescimo_pct: p.acrescimo_pct } : {}),
+    ...((p.desconto_valor_cents ?? 0) > 0 ? { desconto_valor_cents: p.desconto_valor_cents } : {}),
+    ...((p.acrescimo_valor_cents ?? 0) > 0 ? { acrescimo_valor_cents: p.acrescimo_valor_cents } : {}),
+    ...(p.ajuste_em ? { ajuste_em: p.ajuste_em } : {}),
+    condicao_pagamento_id: p.condicao_pagamento_id ?? null,
+    observacao: p.observacao ?? extra.observacao,
+    visita_id: p.visita_id ?? null,
+    ...(frete ? { frete } : {}),
+    ...(p.endereco_entrega_id ? { endereco_entrega_id: p.endereco_entrega_id } : {}),
+    itens: p.items.map(
+      (it): ItemParaCopia => ({
+        product_id: it.product_id,
+        quantity: it.quantity,
+        ...(it.unidade ? { unidade: it.unidade } : {}),
+        ...((it.desconto_pct ?? 0) > 0 ? { desconto_pct: it.desconto_pct } : {}),
+        ...((it.acrescimo_pct ?? 0) > 0 ? { acrescimo_pct: it.acrescimo_pct } : {}),
+        ...((it.desconto_unitario_cents ?? 0) > 0 ? { desconto_unitario_cents: it.desconto_unitario_cents } : {}),
+        ...((it.acrescimo_unitario_cents ?? 0) > 0 ? { acrescimo_unitario_cents: it.acrescimo_unitario_cents } : {}),
+        ...((it.desconto_unitario_cents ?? 0) > 0 || (it.acrescimo_unitario_cents ?? 0) > 0 ? { ajuste_em: 'valor' as const } : {}),
+      }),
+    ),
+  };
+}
+
+export interface RascunhoDaCopia {
+  rascunho: Pick<
+    Rascunho,
+    'lines' | 'ajustes' | 'discount_pct' | 'acrescimo_pct' | 'desconto_valor_cents' | 'acrescimo_valor_cents' | 'ajuste_em' | 'frete' | 'endereco_entrega_id' | 'observacao' | 'condicao_pagamento_id'
+  >;
+  /** itens que saíram (sem preço/inativos) e quantidade acima do estoque, em português */
+  aviso: string;
+  removidos: number;
+}
+
+function freteDoRascunho(f: FreteParaCopia | null | undefined): FreteDoRascunho | undefined {
+  if (!f) return undefined;
+  if (f.modalidade === 'CIF') return { modalidade: 'CIF' };
+  return {
+    modalidade: 'FOB',
+    transportadora_id: f.transportadora_id ?? null,
+    transportadora_digitada: f.transportadora_digitada ? { nome: f.transportadora_digitada.nome, cnpj: f.transportadora_digitada.cnpj, telefone: f.transportadora_digitada.telefone ?? null } : null,
+  };
+}
+
+function ajusteDoRascunho(i: ItemParaCopia): Ajuste | null {
+  if (i.ajuste_em === 'valor') {
+    if ((i.desconto_unitario_cents ?? 0) > 0) return { em: 'valor', desconto_cents: i.desconto_unitario_cents };
+    if ((i.acrescimo_unitario_cents ?? 0) > 0) return { em: 'valor', acrescimo_cents: i.acrescimo_unitario_cents };
+    return null;
+  }
+  if ((i.desconto_pct ?? 0) > 0) return { ...(i.ajuste_em === 'pct' ? { em: 'pct' as const } : {}), desconto_pct: i.desconto_pct };
+  if ((i.acrescimo_pct ?? 0) > 0) return { ...(i.ajuste_em === 'pct' ? { em: 'pct' as const } : {}), acrescimo_pct: i.acrescimo_pct };
+  return null;
+}
+
+/**
+ * Cópia → campos do rascunho (Duplicar, Editar). Usa o catálogo de hoje: item sem preço ou inativo sai com aviso. O ajuste
+ * do item segue a linha (produto + medida); o do pedido, o frete e o endereço vão como estavam.
+ */
+export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[]): RascunhoDaCopia {
+  const r = prefillLines(
+    c.itens.map((i) => ({ product_id: i.product_id, quantity: i.quantity, unidade: i.unidade ?? null })),
+    catalogo,
+  );
+  const ajustes: Record<string, Ajuste> = {};
+  for (const i of c.itens) {
+    const chave = chaveDaLinha(i.product_id, i.unidade ?? null);
+    if (!(chave in r.lines) || chave in ajustes) continue;
+    const a = ajusteDoRascunho(i);
+    if (a) ajustes[chave] = a;
+  }
+  const emValor = c.ajuste_em === 'valor';
+  const frete = freteDoRascunho(c.frete);
+  return {
+    rascunho: {
+      lines: r.lines,
+      ajustes,
+      discount_pct: emValor ? 0 : c.desconto_pct,
+      ...(emValor ? {} : (c.acrescimo_pct ?? 0) > 0 ? { acrescimo_pct: c.acrescimo_pct } : {}),
+      ...(emValor && (c.desconto_valor_cents ?? 0) > 0 ? { desconto_valor_cents: c.desconto_valor_cents } : {}),
+      ...(emValor && (c.acrescimo_valor_cents ?? 0) > 0 ? { acrescimo_valor_cents: c.acrescimo_valor_cents } : {}),
+      ...(c.ajuste_em ? { ajuste_em: c.ajuste_em } : {}),
+      ...(frete ? { frete } : {}),
+      ...(c.endereco_entrega_id ? { endereco_entrega_id: c.endereco_entrega_id } : {}),
+      ...(c.observacao ? { observacao: c.observacao } : {}),
+      condicao_pagamento_id: c.condicao_pagamento_id,
+    },
+    aviso: prefillNotice(r),
+    removidos: r.removed.length,
+  };
+}
+
+// ---------- Transformar: o que muda hoje (RN-VEN-18) ----------
+const NIVEL_ALCADA = { supervisor: 'supervisor', gerente: 'gerente', analista: 'analista' } as const;
+
+function ajusteItemDoDetalhe(it: OrderDetail['items'][number]): AjusteItem {
+  if (it.adjust_mode === 'valor') {
+    if ((it.unit_discount_cents ?? 0) > 0) return { sentido: 'desconto', em: 'valor', cents: it.unit_discount_cents! };
+    if ((it.unit_surcharge_cents ?? 0) > 0) return { sentido: 'acrescimo', em: 'valor', cents: it.unit_surcharge_cents! };
+    return null;
+  }
+  if ((it.surcharge_pct ?? 0) > 0) return { sentido: 'acrescimo', em: 'pct', pct: it.surcharge_pct! };
+  if ((it.discount_pct ?? 0) > 0) return { sentido: 'desconto', em: 'pct', pct: it.discount_pct };
+  return null;
+}
+
+function ajustePedidoDoDetalhe(d: OrderDetail): AjusteItem {
+  if (d.order_adjust_mode === 'valor') {
+    if ((d.order_discount_value_cents ?? 0) > 0) return { sentido: 'desconto', em: 'valor', cents: d.order_discount_value_cents! };
+    if ((d.order_surcharge_value_cents ?? 0) > 0) return { sentido: 'acrescimo', em: 'valor', cents: d.order_surcharge_value_cents! };
+    return null;
+  }
+  if ((d.surcharge_pct ?? 0) > 0) return { sentido: 'acrescimo', em: 'pct', pct: d.surcharge_pct! };
+  if (d.discount_pct > 0) return { sentido: 'desconto', em: 'pct', pct: d.discount_pct };
+  return null;
+}
+
+export function orcamentoParaReconferir(d: OrderDetail): OrcamentoParaReconferir {
+  return {
+    itens: d.items.map((it) => ({ product_id: it.product_id, unidade: it.unit ?? '', quantity: it.quantity, ajuste: ajusteItemDoDetalhe(it), tabela_cents: it.unit_price_cents })),
+    ajuste_pedido: ajustePedidoDoDetalhe(d),
+    alcada_nivel: d.nivel_aprovacao ? NIVEL_ALCADA[d.nivel_aprovacao] : null,
+  };
+}
+
+/** Dados de hoje do aparelho (tabela do cliente, medidas e estoque) no formato da reconferência. Sem controle de mínimo no aparelho. */
+export function dadosAtuaisDoAparelho(e: {
+  detalhe: OrderDetail;
+  catalogo: readonly Product[];
+  unidades: readonly UnidadeDaTela[];
+  embalagens?: Record<string, Record<string, number> | undefined>;
+  cliente: SituacaoCliente;
+  policy: DadosAtuais['policy'];
+  estoque_bloqueia: boolean;
+}): DadosAtuais {
+  const porId = new Map(e.catalogo.map((p) => [p.id, p]));
+  const itens: DadosAtuais['itens'] = {};
+  for (const it of e.detalhe.items) {
+    const p = porId.get(it.product_id);
+    if (!p) continue;
+    const medidas = unidadesDoProduto(p.id, e.unidades, p.unit);
+    const sigla = it.unit && (it.factor ?? 1) > 1 ? it.unit : null;
+    const medida = sigla ? medidas.find((m) => m.unidade === sigla) : medidas[0];
+    const fator = medida?.fator ?? it.factor ?? 1;
+    const proprio = sigla ? e.embalagens?.[p.id]?.[sigla] : undefined;
+    itens[p.id] = {
+      tabela_cents: p.price_cents === null ? null : (proprio ?? p.price_cents * fator),
+      medida_ativa: Boolean(medida),
+      estoque_base: Number.isFinite(p.stock_total) ? p.stock_total : null,
+      fator,
+      minimo_base_cents: null,
+    };
+  }
+  return { cliente: e.cliente, itens, policy: e.policy, estoque_bloqueia: e.estoque_bloqueia };
+}
+
+export function reconferirDocumento(e: Parameters<typeof dadosAtuaisDoAparelho>[0]) {
+  return reconferirOrcamento(orcamentoParaReconferir(e.detalhe), dadosAtuaisDoAparelho(e));
+}
+
+/** Uma frase por mudança, em português, com o nome do produto (a tela mostra antes de enviar o pedido). */
+export function textoDaMudanca(m: MudancaNaConversao, nome: (produtoId: string) => string): string {
+  switch (m.tipo) {
+    case 'preco':
+      return `${nome(m.produto_id)}: preço de ${formatBRL(m.de_cents)} para ${formatBRL(m.para_cents)}.`;
+    case 'sem_preco':
+      return `${nome(m.produto_id)}: sem preço na tabela de hoje. O item sai do pedido.`;
+    case 'estoque':
+      return `${nome(m.produto_id)}: pedido de ${m.pedido_base} un., estoque de ${m.disponivel_base} un.`;
+    case 'ajuste_travado':
+      return `${nome(m.produto_id)}: o desconto passava do preço mínimo e foi reduzido.`;
+    case 'medida_inativa':
+      return `${nome(m.produto_id)}: a medida ${m.unidade} não está mais ativa. O item sai do pedido.`;
+    case 'alcada':
+      return m.para ? `Alçada: agora o pedido vai para o ${m.para}.` : 'Alçada: agora o pedido vai direto ao ERP.';
+    case 'cliente':
+      return m.motivo === 'bloqueado' ? 'Cliente bloqueado: só orçamento.' : m.motivo === 'inativo' ? 'Cliente inativo: só orçamento.' : 'Cadastro do cliente incompleto: só orçamento.';
+  }
+}

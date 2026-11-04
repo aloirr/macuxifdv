@@ -3,8 +3,11 @@
  * Estático: roda sempre, sem Postgres (clientes falsos que registram as consultas).
  */
 import { describe, expect, it } from 'vitest';
+import { carregarDemo } from '../seeds/demo/demo';
 import { carregarFaseM } from '../seeds/fase-m/fase-m';
-import { ehBancoLocal, HOSTS_LOCAIS, lerConfig, SENHA_ADMIN_LOCAL, SENHA_APP_LOCAL } from '../src/config';
+import {
+  AMBIENTE_DEMO, ehBancoLocal, exigirBancoDemo, HOSTS_LOCAIS, lerConfig, lerConfigApp, SENHA_ADMIN_LOCAL, SENHA_APP_LOCAL, urlAdmin, urlApp, urlWorker,
+} from '../src/config';
 import { garantirPapelApp } from '../src/papeis';
 
 /** Cliente pg falso: guarda as consultas; `host` como o pg.Client conectado expõe. */
@@ -107,5 +110,82 @@ describe('seed Fase M (senha demo-macuxi): só no Postgres local', () => {
       if (antes === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = antes;
     }
+  });
+});
+
+describe('exigirBancoDemo: seed da demo num servidor só com MACUXI_AMBIENTE=demo (T-0074, ADR 0020 §5)', () => {
+  it('aceita o Postgres local e o servidor marcado com MACUXI_AMBIENTE=demo, mesmo em production', () => {
+    expect(() => exigirBancoDemo('localhost', 'Seed', {})).not.toThrow();
+    expect(() => exigirBancoDemo('postgres', 'Seed', { MACUXI_AMBIENTE: AMBIENTE_DEMO })).not.toThrow();
+    expect(() => exigirBancoDemo('postgres', 'Seed', { MACUXI_AMBIENTE: 'demo', NODE_ENV: 'production' })).not.toThrow();
+  });
+
+  it.each([{}, { MACUXI_AMBIENTE: 'DEMO' }, { MACUXI_AMBIENTE: 'demo ' }, { MACUXI_AMBIENTE: 'homologacao' }, { MACUXI_AMBIENTE: '' }])(
+    'recusa servidor sem a marca exata (%o)',
+    (env) => {
+      expect(() => exigirBancoDemo('postgres', 'Seed da demo', { NODE_ENV: 'production', ...env })).toThrow(/Seed da demo recusado.*MACUXI_AMBIENTE=demo/);
+    },
+  );
+
+  it('carregarDemo: sem a marca recusa sem consultar; com MACUXI_AMBIENTE=demo passa da trava (e cai na checagem das migrações)', async () => {
+    const antes = { amb: process.env.MACUXI_AMBIENTE, node: process.env.NODE_ENV };
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.MACUXI_AMBIENTE;
+      const semMarca = clienteFalso('postgres');
+      await expect(carregarDemo(semMarca, { senha: 'x' })).rejects.toThrow(/Seed da base de demonstração recusado/);
+      expect(semMarca.consultas).toEqual([]);
+      process.env.MACUXI_AMBIENTE = 'demo';
+      const comMarca = clienteFalso('postgres');
+      await expect(carregarDemo(comMarca, { senha: 'x' })).rejects.toThrow(/precisa das migrações/);
+      expect(comMarca.consultas.length).toBeGreaterThan(0);
+    } finally {
+      if (antes.amb === undefined) delete process.env.MACUXI_AMBIENTE;
+      else process.env.MACUXI_AMBIENTE = antes.amb;
+      if (antes.node === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = antes.node;
+    }
+  });
+
+  it('a marca não libera o seed da Fase M nem a senha pública dos papéis', async () => {
+    const env = { MACUXI_AMBIENTE: 'demo', NODE_ENV: 'production' };
+    expect(() => lerConfig({ ...env, MACUXI_PG_HOST: 'postgres', MACUXI_PG_ADMIN_SENHA: 'a', MACUXI_PG_APP_SENHA: SENHA_APP_LOCAL })).toThrow(/senha pública/);
+    const antes = process.env.MACUXI_AMBIENTE;
+    process.env.MACUXI_AMBIENTE = 'demo';
+    try {
+      const c = clienteFalso('db.exemplo.com.br');
+      await expect(carregarFaseM(c, { senha: 'x' })).rejects.toThrow(/Seed de demonstração da Fase M recusado/);
+      expect(c.consultas).toEqual([]);
+    } finally {
+      if (antes === undefined) delete process.env.MACUXI_AMBIENTE;
+      else process.env.MACUXI_AMBIENTE = antes;
+    }
+  });
+});
+
+describe('lerConfigApp: API e worker sem a senha do admin (T-0074)', () => {
+  const servidor = { NODE_ENV: 'production', MACUXI_PG_HOST: 'postgres', MACUXI_PG_APP_SENHA: 'app-forte', MACUXI_PG_WORKER_SENHA: 'worker-forte' };
+
+  it('fora do local, sem MACUXI_PG_ADMIN_SENHA: urlApp e urlWorker funcionam, urlAdmin lança', () => {
+    const cfg = lerConfigApp(servidor);
+    expect(cfg.adminSenha).toBe('');
+    expect(urlApp(cfg)).toBe('postgres://macuxi_app:app-forte@postgres:5432/macuxi');
+    expect(urlWorker(cfg)).toBe('postgres://macuxi_worker:worker-forte@postgres:5432/macuxi');
+    expect(() => urlAdmin(cfg)).toThrow(/MACUXI_PG_ADMIN_SENHA não definida/);
+  });
+
+  it('lerConfig (migrações, papéis, seeds) segue exigindo o admin', () => {
+    expect(() => lerConfig(servidor)).toThrow(/defina MACUXI_PG_ADMIN_SENHA/);
+  });
+
+  it('mantém as travas: senha do papel obrigatória e senhas públicas recusadas', () => {
+    expect(() => lerConfigApp({ ...servidor, MACUXI_PG_APP_SENHA: '' })).toThrow(/defina MACUXI_PG_APP_SENHA/);
+    expect(() => lerConfigApp({ ...servidor, MACUXI_PG_APP_SENHA: SENHA_APP_LOCAL })).toThrow(/senha pública/);
+    expect(() => lerConfigApp({ ...servidor, MACUXI_PG_ADMIN_SENHA: SENHA_ADMIN_LOCAL })).toThrow(/senha pública/);
+  });
+
+  it('no local continua igual ao lerConfig (padrões do docker-compose)', () => {
+    expect(lerConfigApp({})).toEqual(lerConfig({}));
+    expect(urlAdmin(lerConfigApp({}))).toContain('postgres:postgres@localhost:5432');
   });
 });

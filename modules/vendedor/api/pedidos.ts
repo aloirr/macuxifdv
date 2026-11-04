@@ -39,6 +39,7 @@ function camposPreVenda(doc: DocumentoPreVenda | undefined, status: string, agor
   return {
     tipo: doc.tipo,
     validade_ate: doc.validade_ate,
+    validade_data: doc.validade_data,
     situacao_orcamento: doc.tipo === 'orcamento' ? situacaoDoOrcamento({ status, validade_ate: doc.validade_ate, convertido_pedido_id: doc.convertido_pedido_id }, agora) : null,
     orcamento_origem_id: doc.orcamento_origem_id,
     convertido_pedido_id: doc.convertido_pedido_id,
@@ -47,6 +48,15 @@ function camposPreVenda(doc: DocumentoPreVenda | undefined, status: string, agor
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const ts = (c: string, pre = 'p.') => `to_char(${pre}${c} at time zone 'UTC', ${UTC}) as ${c}`;
+
+/**
+ * RN-VEN-18: situação do orçamento no SQL, igual a `situacaoDoOrcamento` (cancelado e convertido prevalecem; vencido ⇔ agora >= início
+ * do dia seguinte à `orcamento_validade` no fuso do tenant). $10 = fuso, $15 = agora. Só faz sentido com `tipo = 'orcamento'`.
+ */
+const SQL_SITUACAO_ORCAMENTO = `(case when p.status = 'cancelled' then 'cancelado'
+    when exists (select 1 from vendedor.pedido c where c.tenant_id = p.tenant_id and c.orcamento_id = p.id and c.deleted_at is null) then 'convertido'
+    when p.orcamento_validade is not null and $15::timestamptz >= ((p.orcamento_validade + 1)::timestamp at time zone $10) then 'expirado'
+    else 'aberto' end)`;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ParamsPedido = z.object({ id: z.string().uuid() });
@@ -61,7 +71,8 @@ const COLUNAS_BASE = `p.id, p.numero, p.vendedor_id, p.vendedor_nome, p.cliente_
   p.motivo_rejeicao, p.numero_erp, ${ts('criado_no_aparelho_em')}, ${ts('recebido_em')}, ${ts('created_at')}, ${ts('updated_at')},
   coalesce(x.itens, 0) as itens, coalesce(x.unidades, 0) as unidades,
   p.acrescimo_pct::float8 as acrescimo_pct, p.desconto_efetivo_pct::float8 as desconto_efetivo_pct, p.frete_modalidade, p.transportadora_nome,
-  p.transportadora_documento, p.transportadora_telefone, p.transportadora_digitada, p.endereco_entrega`;
+  p.transportadora_documento, p.transportadora_telefone, p.transportadora_digitada, p.endereco_entrega,
+  p.desconto_valor_cents::float8 as desconto_valor_cents, p.acrescimo_valor_cents::float8 as acrescimo_valor_cents, p.ajuste_em`;
 const COLUNAS = `${COLUNAS_BASE}${FATURAMENTO_LIGADO ? COLUNAS_FATURAMENTO : ''}`;
 const JUNCAO_ITENS = `left join lateral (select count(*)::int as itens, coalesce(sum(i.quantidade), 0)::int as unidades
     from vendedor.pedido_item i where i.tenant_id = p.tenant_id and i.pedido_id = p.id and i.deleted_at is null) x on true`;
@@ -95,7 +106,8 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
   const itens = (
     await db.query<LinhaItem>(
       `select id, produto_id, produto_sku, produto_nome, quantidade, preco_tabela_cents::float8 as preco_tabela_cents, desconto_pct::float8 as desconto_pct,
-              total_cents::float8 as total_cents, unidade, fator, acrescimo_pct::float8 as acrescimo_pct${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
+              total_cents::float8 as total_cents, unidade, fator, acrescimo_pct::float8 as acrescimo_pct,
+              desconto_unitario_cents::float8 as desconto_unitario_cents, acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, ajuste_em${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
          from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
       [id],
     )
@@ -108,7 +120,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
     )
   ).rows;
   const faturamento = FATURAMENTO_LIGADO ? await lerNotasDoPedido(db, id) : undefined;
-  const doc = (await preVenda().lerDocumentos(db, [id])).get(id);
+  const doc = (await preVenda().lerDocumentos(db, [id], ctx.fuso())).get(id);
   return { linha, detalhe: { ...paraDetalhe(linha, itens, eventos, ctx.usuario.perfil, ctx.parametros(), faturamento), ...camposPreVenda(doc, linha.status, ctx.agora()) } };
 }
 
@@ -150,6 +162,8 @@ export const rotaListarPedidos: RotaModulo = {
       .map((s) => s.trim())
       .filter((s): s is OrderStatus => (ORDER_STATUSES as readonly string[]).includes(s));
     const cursor = q.cursor ? decodificarCursor(q.cursor) : null;
+    // T-0071 §1.4 g: sem o parâmetro, a lista traz só pedidos (nenhum orçamento entra por engano em KPI, aprovação ou lista de pedidos)
+    const tipo = q.tipo ?? 'pedido';
     // filtros de id fora do formato nunca casam com nada (e não podem estourar o cast uuid do banco)
     if ((q.seller_id && !UUID.test(q.seller_id)) || (q.customer_id && !UUID.test(q.customer_id))) return { itens: [], proximo_cursor: null };
     if (q.cursor && !cursor) throw new ErroRegraNegocio('CURSOR_INVALIDO', 'Cursor inválido: recarregue a lista.');
@@ -168,13 +182,15 @@ export const rotaListarPedidos: RotaModulo = {
             and ($7::date is null or p.created_at < (($7::date) + 1)::timestamp at time zone $10)
             and ($8::text is null or p.cliente_nome ilike $8 or p.numero ilike $8)
             and ($11::timestamptz is null or (p.created_at, p.id) < ($11::timestamptz, $12::uuid))
+            and ($13::text is null or p.tipo = $13)
+            and ($14::text is null or ${SQL_SITUACAO_ORCAMENTO} = $14)
           order by p.created_at desc, p.id desc
           limit $9`,
-        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null],
+        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, ctx.agora().toISOString()],
       );
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];
-      const docs = await preVenda().lerDocumentos(db, pagina.map((l) => l.id));
+      const docs = await preVenda().lerDocumentos(db, pagina.map((l) => l.id), fuso);
       return {
         itens: pagina.map((l) => ({ ...paraOrder(l, ctx.parametros(), ctx.usuario.perfil), ...camposPreVenda(docs.get(l.id), l.status, ctx.agora()) })),
         proximo_cursor: rows.length > limite && ultimo ? codificarCursor(ultimo.created_at, ultimo.id) : null,
@@ -309,7 +325,7 @@ export const rotaCancelarPedido: RotaModulo = {
          values (plataforma.tenant_atual(), $1, $2, 'cancelled', $3, $4, $5, $6, null, false, $7)`,
         [id, linha.status, ctx.usuario.id, cad.usuarios[0]?.nome ?? null, ctx.usuario.perfil, motivo ?? 'Cancelado', agora],
       );
-      const orcamento = (await preVenda().lerDocumentos(db, [id])).get(id)?.tipo === 'orcamento';
+      const orcamento = (await preVenda().lerDocumentos(db, [id], ctx.fuso())).get(id)?.tipo === 'orcamento';
       await tx.auditar({ acao: 'pedido.cancelar', entidade: 'pedido', entidade_id: id, antes: { status: linha.status }, depois: { status: 'cancelled', ...(orcamento ? { tipo: 'orcamento' } : {}) } });
       // RN-VEN-32: orçamento não publica evento de pedido (nunca foi para metas, Gestor nem fila do ERP)
       if (orcamento) return { id, status: 'cancelled' };

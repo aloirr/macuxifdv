@@ -3,9 +3,9 @@
  * (se o engenheiro-apps promover algum para `packages/ui`, trocamos). Alvos de toque ≥ 48 dp; só lê e escreve o rascunho
  * do aparelho (offline-first). O cálculo e as regras vêm de `lib/novo-pedido.ts` (domain de preço), nada é calculado aqui.
  */
-import { formatBRL, formatPct } from '@macuxi/comum';
+import { formatBRL } from '@macuxi/comum';
 import type { Product } from '@macuxi/catalogo/contracts';
-import { Badge, Banner, Card, colors, fonts, Icon, radius, Strong, type as t } from '@macuxi/ui/mobile';
+import { Badge, Banner, Card, ChipEstado, colors, fonts, Icon, radius, Segmentado, Strong, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -14,49 +14,17 @@ import { rotuloMedida } from '../../domain/preco-pedido';
 import type { Rascunho } from '../lib/pedidos';
 import {
   alternarUnidade,
+  centsParaCampo,
   chaveDaLinha,
-  enderecosDoCliente,
-  freteValido,
-  rotuloDoFrete,
-  textoDaAlcada,
-  textoDoEndereco,
-  transportadorasAtivas,
+  reaisParaCents,
+  trocarModoDoAjuste,
   unidadesDoProduto,
   type Ajuste,
   type CalculoPedido,
-  type EnderecoDaTela,
-  type FreteDoRascunho,
-  type TransportadoraDaTela,
   type UnidadeDaTela,
 } from '../lib/novo-pedido';
 import { parsePct } from '../lib/catalog';
-
-export type AbaDoPedido = 'itens' | 'condicoes' | 'entrega';
-const ABAS: Array<{ id: AbaDoPedido; rotulo: string }> = [
-  { id: 'itens', rotulo: 'Itens' },
-  { id: 'condicoes', rotulo: 'Condições' },
-  { id: 'entrega', rotulo: 'Entrega e resumo' },
-];
-
-/** Barra de abas fixa no alto; a aba Itens mostra a contagem. */
-export function BarraDeAbas({ aba, onAba, itens, pendencias }: { aba: AbaDoPedido; onAba: (a: AbaDoPedido) => void; itens: number; pendencias: Partial<Record<AbaDoPedido, boolean>> }) {
-  return (
-    <View style={s.abas} accessibilityRole="tablist" testID="abas-pedido">
-      {ABAS.map((a) => {
-        const on = aba === a.id;
-        return (
-          <Pressable key={a.id} testID={`aba-${a.id}`} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onAba(a.id)} style={[s.aba, on && s.abaOn]}>
-            <Text style={[s.abaTexto, on && { color: colors.ink }]} numberOfLines={1}>
-              {a.rotulo}
-              {a.id === 'itens' && itens > 0 ? ` (${itens})` : ''}
-            </Text>
-            {pendencias[a.id] ? <View style={s.ponto} accessibilityLabel="Pendência nesta aba" /> : null}
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
+import { textoEquivalente, textoPrecoDaLinha } from '../lib/textos-pedido';
 
 // ---------- campos ----------
 function Passo({ icone, rotulo, onPress, desligado, testID }: { icone: 'plus' | 'minus'; rotulo: string; onPress: () => void; desligado?: boolean; testID?: string }) {
@@ -94,6 +62,33 @@ export function CampoPct({ valor, onChange, rotulo, testID, maximo }: { valor: n
         <Text style={s.pctSufixo}>%</Text>
       </View>
       <Passo icone="plus" rotulo={`Aumentar ${rotulo}`} onPress={() => aplicar(valor + PASSO_DESCONTO_PCT)} testID={`${testID}-mais`} />
+    </View>
+  );
+}
+
+/** Valor em R$ (centavos) com − e + de 48 dp e digitação direta. `maximo` em centavos (o desconto não passa do preço). */
+export function CampoReais({ valor, onChange, rotulo, testID, maximo, passo = 10 }: { valor: number; onChange: (cents: number) => void; rotulo: string; testID: string; maximo?: number; passo?: number }) {
+  const [texto, setTexto] = useState(centsParaCampo(valor));
+  useEffect(() => setTexto(centsParaCampo(valor)), [valor]);
+  const aplicar = (c: number) => onChange(Math.max(0, maximo === undefined ? c : Math.min(maximo, c)));
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <Passo icone="minus" rotulo={`Diminuir ${rotulo}`} desligado={valor <= 0} onPress={() => aplicar(valor - passo)} testID={`${testID}-menos`} />
+      <View style={s.pctBox}>
+        <Text style={s.reaisPrefixo}>R$</Text>
+        <TextInput
+          testID={testID}
+          value={texto}
+          onChangeText={setTexto}
+          onBlur={() => aplicar(reaisParaCents(texto))}
+          onSubmitEditing={() => aplicar(reaisParaCents(texto))}
+          keyboardType="decimal-pad"
+          accessibilityLabel={`${rotulo} em reais`}
+          style={s.pctInput}
+          selectTextOnFocus
+        />
+      </View>
+      <Passo icone="plus" rotulo={`Aumentar ${rotulo}`} desligado={maximo !== undefined && valor >= maximo} onPress={() => aplicar(valor + passo)} testID={`${testID}-mais`} />
     </View>
   );
 }
@@ -194,6 +189,7 @@ function LinhaDoProduto({
             rotulo={rotuloMedida(m.unidade, m.fator)}
             preco={precoMedida}
             qtd={qtd}
+            linha={linha ?? null}
             totalLinha={linha?.total_cents ?? null}
             ajuste={ajustes[chave] ?? {}}
             onQtd={(q) => onQtd(chave, q)}
@@ -207,27 +203,59 @@ function LinhaDoProduto({
   );
 }
 
-function MedidaDoItem({ p, rotulo, preco, qtd, totalLinha, ajuste, onQtd, onAjuste, somenteLeitura, comRotulo }: { p: Product; rotulo: string; preco: number | null; qtd: number; totalLinha: number | null; ajuste: Ajuste; onQtd: (q: number) => void; onAjuste: (a: Ajuste) => void; somenteLeitura?: boolean; comRotulo: boolean }) {
+function MedidaDoItem({
+  p,
+  rotulo,
+  preco,
+  qtd,
+  linha,
+  totalLinha,
+  ajuste,
+  onQtd,
+  onAjuste,
+  somenteLeitura,
+  comRotulo,
+}: {
+  p: Product;
+  rotulo: string;
+  preco: number | null;
+  qtd: number;
+  linha: CalculoPedido['linhas'][number] | null;
+  totalLinha: number | null;
+  ajuste: Ajuste;
+  onQtd: (q: number) => void;
+  onAjuste: (a: Ajuste) => void;
+  somenteLeitura?: boolean;
+  comRotulo: boolean;
+}) {
   const [texto, setTexto] = useState(String(qtd));
-  const [aberto, setAberto] = useState(Boolean((ajuste.desconto_pct ?? 0) > 0 || (ajuste.acrescimo_pct ?? 0) > 0));
+  const modo: 'pct' | 'valor' = ajuste.em === 'valor' ? 'valor' : 'pct';
+  const sentido: 'desconto' | 'acrescimo' = modo === 'valor' ? ((ajuste.acrescimo_cents ?? 0) > 0 ? 'acrescimo' : 'desconto') : (ajuste.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
+  const valorPct = sentido === 'acrescimo' ? (ajuste.acrescimo_pct ?? 0) : (ajuste.desconto_pct ?? 0);
+  const valorCents = sentido === 'acrescimo' ? (ajuste.acrescimo_cents ?? 0) : (ajuste.desconto_cents ?? 0);
+  const temAjuste = (modo === 'valor' ? valorCents : valorPct) > 0;
+  const [aberto, setAberto] = useState(temAjuste);
   useEffect(() => setTexto(String(qtd)), [qtd]);
-  const tipo: 'desconto' | 'acrescimo' = (ajuste.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
-  const valor = tipo === 'acrescimo' ? (ajuste.acrescimo_pct ?? 0) : (ajuste.desconto_pct ?? 0);
   const k = p.erp_code + (comRotulo ? `-${rotulo.split(' ')[0]}` : '');
+  const gravar = (s2: 'desconto' | 'acrescimo', m: 'pct' | 'valor', v: number): Ajuste =>
+    m === 'valor' ? { em: 'valor', ...(s2 === 'acrescimo' ? { acrescimo_cents: v } : { desconto_cents: v }) } : { em: 'pct', ...(s2 === 'acrescimo' ? { acrescimo_pct: v } : { desconto_pct: v }) };
+  const tetoDesconto = sentido === 'desconto' && modo === 'valor' && preco !== null ? preco : undefined;
+  const eq = linha ? textoEquivalente(linha) : '';
+  const nome = `${p.description} ${rotulo}`;
   return (
     <View style={{ gap: 6 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={t.smallStrong} numberOfLines={1}>
-            {comRotulo ? rotulo : 'Quantidade'}
-            {preco !== null ? ` · ${formatBRL(preco)}` : ''}
+        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <ChipEstado testID={`medida-${k}`} texto={rotulo} pequeno />
+          <Text style={t.smallStrong} numberOfLines={1} testID={`preco-${k}`}>
+            {preco === null ? '' : linha && qtd > 0 ? textoPrecoDaLinha(linha) : formatBRL(preco)}
           </Text>
         </View>
         {somenteLeitura ? (
           <Text style={[t.bodyStrong, { fontFamily: fonts.bold }]}>{qtd}</Text>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Passo icone="minus" rotulo={`Diminuir ${p.description} ${rotulo}`} desligado={qtd <= 0} onPress={() => onQtd(qtd - 1)} testID={`dec-${k}`} />
+            <Passo icone="minus" rotulo={`Diminuir ${nome}`} desligado={qtd <= 0} onPress={() => onQtd(qtd - 1)} testID={`dec-${k}`} />
             <TextInput
               testID={`qty-${k}`}
               value={texto}
@@ -236,10 +264,10 @@ function MedidaDoItem({ p, rotulo, preco, qtd, totalLinha, ajuste, onQtd, onAjus
               onSubmitEditing={() => onQtd(Number(texto || 0))}
               keyboardType="number-pad"
               selectTextOnFocus
-              accessibilityLabel={`Quantidade de ${p.description} em ${rotulo}`}
+              accessibilityLabel={`Quantidade de ${nome}`}
               style={s.qtd}
             />
-            <Passo icone="plus" rotulo={`Aumentar ${p.description} ${rotulo}`} desligado={preco === null} onPress={() => onQtd(qtd + 1)} testID={`inc-${k}`} />
+            <Passo icone="plus" rotulo={`Aumentar ${nome}`} desligado={preco === null} onPress={() => onQtd(qtd + 1)} testID={`inc-${k}`} />
           </View>
         )}
       </View>
@@ -247,26 +275,53 @@ function MedidaDoItem({ p, rotulo, preco, qtd, totalLinha, ajuste, onQtd, onAjus
         <View style={{ gap: 6 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             {somenteLeitura ? (
-              <Text style={t.small}>{valor > 0 ? `${tipo === 'acrescimo' ? 'Acréscimo' : 'Desconto'} de ${formatPct(valor)}` : ''}</Text>
+              <Text style={t.small}>{temAjuste ? `${sentido === 'acrescimo' ? 'Acréscimo' : 'Desconto'} ${eq}`.trim() : ''}</Text>
             ) : (
-              <Pressable testID={`ajuste-${k}`} accessibilityRole="button" accessibilityLabel={`Desconto ou acréscimo do item ${p.description}`} onPress={() => setAberto((a) => !a)} style={s.linkAjuste}>
-                <Text style={[t.smallStrong, { color: colors.accentInk }]}>{valor > 0 ? `${tipo === 'acrescimo' ? 'Acréscimo' : 'Desconto'} ${formatPct(valor)}` : 'Desconto ou acréscimo'}</Text>
+              <Pressable testID={`ajuste-${k}`} accessibilityRole="button" accessibilityLabel={`Desconto ou acréscimo do item ${nome}`} onPress={() => setAberto((a) => !a)} style={s.linkAjuste}>
+                <Text style={[t.smallStrong, { color: colors.accentInk }]} testID={`equivalente-${k}`}>
+                  {temAjuste ? eq || (sentido === 'acrescimo' ? 'Acréscimo' : 'Desconto') : '+ desconto'}
+                </Text>
               </Pressable>
             )}
-            {totalLinha !== null ? <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }]}>{formatBRL(totalLinha)}</Text> : null}
+            {totalLinha !== null ? (
+              <Text style={[t.bodyStrong, { fontVariant: ['tabular-nums'] }]} testID={`total-${k}`}>
+                {formatBRL(totalLinha)}
+              </Text>
+            ) : null}
           </View>
           {aberto && !somenteLeitura ? (
             <View style={s.ajuste} testID={`ajuste-painel-${k}`}>
-              <Segmentos
-                testID={`ajuste-tipo-${k}`}
-                valor={tipo}
-                opcoes={[
-                  { id: 'desconto', rotulo: 'Desconto' },
-                  { id: 'acrescimo', rotulo: 'Acréscimo' },
-                ]}
-                onChange={(novo) => onAjuste(novo === 'acrescimo' ? { acrescimo_pct: valor } : { desconto_pct: valor })}
-              />
-              <CampoPct valor={valor} rotulo={tipo === 'acrescimo' ? 'acréscimo do item' : 'desconto do item'} testID={`ajuste-pct-${k}`} onChange={(n) => onAjuste(tipo === 'acrescimo' ? { acrescimo_pct: n } : { desconto_pct: n })} />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Segmentado
+                  testID={`ajuste-tipo-${k}`}
+                  rotuloAcessivel="Desconto ou acréscimo do item"
+                  compacto
+                  style={{ flex: 1 }}
+                  valor={sentido}
+                  opcoes={[
+                    { id: 'desconto', rotulo: 'Desc.', rotuloAcessivel: 'Desconto' },
+                    { id: 'acrescimo', rotulo: 'Acrésc.', rotuloAcessivel: 'Acréscimo' },
+                  ]}
+                  onChange={(novo) => onAjuste(gravar(novo, modo, modo === 'valor' ? valorCents : valorPct))}
+                />
+                <Segmentado
+                  testID={`ajuste-modo-${k}`}
+                  rotuloAcessivel="Ajuste em porcentagem ou em reais"
+                  compacto
+                  style={{ flex: 1 }}
+                  valor={modo}
+                  opcoes={[
+                    { id: 'pct', rotulo: '%', rotuloAcessivel: 'Porcentagem' },
+                    { id: 'valor', rotulo: 'R$', rotuloAcessivel: 'Reais por unidade' },
+                  ]}
+                  onChange={(novo) => onAjuste(trocarModoDoAjuste(ajuste, novo, linha?.equivalente ?? null))}
+                />
+              </View>
+              {modo === 'valor' ? (
+                <CampoReais valor={valorCents} maximo={tetoDesconto} rotulo={sentido === 'acrescimo' ? 'acréscimo do item' : 'desconto do item'} testID={`ajuste-valor-${k}`} onChange={(n) => onAjuste(gravar(sentido, 'valor', n))} />
+              ) : (
+                <CampoPct valor={valorPct} rotulo={sentido === 'acrescimo' ? 'acréscimo do item' : 'desconto do item'} testID={`ajuste-pct-${k}`} onChange={(n) => onAjuste(gravar(sentido, 'pct', n))} />
+              )}
             </View>
           ) : null}
         </View>
@@ -275,252 +330,15 @@ function MedidaDoItem({ p, rotulo, preco, qtd, totalLinha, ajuste, onQtd, onAjus
   );
 }
 
-// ---------- aba Condições ----------
-export interface PropsAbaCondicoes {
-  rascunho: Rascunho;
-  prazos: Array<{ id: string | null; rotulo: string }>;
-  transportadoras: readonly TransportadoraDaTela[];
-  calculo: CalculoPedido;
-  limiteVendedor: number;
-  preVendaLigada: boolean;
-  edicao: boolean;
-  onRascunho: (fn: (r: Rascunho) => Rascunho) => void;
-  /** frete padrão do tenant (parâmetro `frete.modalidade_padrao`), usado quando o rascunho ainda não escolheu */
-  fretePadrao: 'CIF' | 'FOB';
-}
-
-export function AbaCondicoes(p: PropsAbaCondicoes) {
-  const { rascunho: r, onRascunho } = p;
-  const frete: FreteDoRascunho = r.frete ?? { modalidade: p.fretePadrao };
-  const ativas = transportadorasAtivas(p.transportadoras);
-  const digitando = frete.modalidade === 'FOB' && !frete.transportadora_id && frete.transportadora_digitada != null;
-  const tipoPedido: 'desconto' | 'acrescimo' = (r.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
-  const valorPedido = tipoPedido === 'acrescimo' ? (r.acrescimo_pct ?? 0) : r.discount_pct;
-  const setFrete = (f: FreteDoRascunho) => onRascunho((d) => ({ ...d, frete: f }));
-  const alcada = textoDaAlcada(p.calculo, p.limiteVendedor);
-  const msgFrete = freteValido(frete);
-  return (
-    <View style={{ gap: 12 }} testID="aba-condicoes-conteudo">
-      <Card style={{ padding: 14, gap: 14 }}>
-        <View style={{ gap: 8 }}>
-          <Text style={t.label}>Desconto ou acréscimo do pedido</Text>
-          <Segmentos
-            testID="pedido-ajuste-tipo"
-            valor={tipoPedido}
-            opcoes={[
-              { id: 'desconto', rotulo: 'Desconto' },
-              { id: 'acrescimo', rotulo: 'Acréscimo' },
-            ]}
-            onChange={(novo) => onRascunho((d) => (novo === 'acrescimo' ? { ...d, discount_pct: 0, acrescimo_pct: valorPedido } : { ...d, acrescimo_pct: 0, discount_pct: valorPedido }))}
-          />
-          <CampoPct
-            valor={valorPedido}
-            rotulo={tipoPedido === 'acrescimo' ? 'acréscimo do pedido' : 'desconto do pedido'}
-            testID="discount-input"
-            onChange={(n) => onRascunho((d) => (tipoPedido === 'acrescimo' ? { ...d, discount_pct: 0, acrescimo_pct: n } : { ...d, acrescimo_pct: 0, discount_pct: n }))}
-          />
-          <Text style={[t.smallStrong, { color: alcada.tom === 'erro' ? colors.danger : alcada.tom === 'aviso' ? colors.accentInk : alcada.tom === 'ok' ? colors.success : colors.ink2 }]} testID="discount-line">
-            {alcada.texto}
-          </Text>
-          <Text style={t.small}>A alçada olha o desconto efetivo do pedido inteiro (itens e pedido juntos, sem frete).</Text>
-        </View>
-        <View style={{ gap: 8 }}>
-          <Text style={t.label}>Prazo</Text>
-          <View style={s.segmento}>
-            {p.prazos.map((op) => {
-              const on = op.id ? r.condicao_pagamento_id === op.id : r.payment_terms === op.rotulo;
-              return (
-                <Pressable key={op.id ?? op.rotulo} testID={`terms-${op.rotulo}`} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => onRascunho((d) => ({ ...d, payment_terms: op.rotulo, condicao_pagamento_id: op.id }))} style={[s.segItem, on && s.segOn]}>
-                  <Text style={[s.segTexto, on && { color: colors.surface }]}>{op.rotulo}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-        {p.preVendaLigada && !p.edicao ? (
-          <View style={{ gap: 8 }} testID="order-tipo">
-            <Text style={t.label}>Tipo</Text>
-            <Segmentos
-              testID="tipo"
-              valor={r.tipo ?? 'pedido'}
-              opcoes={[
-                { id: 'pedido', rotulo: 'Pedido' },
-                { id: 'orcamento', rotulo: 'Orçamento' },
-              ]}
-              onChange={(tp) => onRascunho((d) => ({ ...d, tipo: tp }))}
-            />
-            {r.tipo === 'orcamento' ? <Text style={t.small}>Orçamento não vai para aprovação nem para o ERP, não reserva estoque e vale pelo prazo da empresa (padrão 7 dias). Converta em pedido quando o cliente fechar.</Text> : null}
-          </View>
-        ) : null}
-      </Card>
-
-      <Card style={{ padding: 14, gap: 12 }} testID="frete-card">
-        <Text style={t.label}>Frete</Text>
-        <Segmentos
-          testID="frete"
-          valor={frete.modalidade}
-          opcoes={[
-            { id: 'CIF', rotulo: 'CIF · empresa paga' },
-            { id: 'FOB', rotulo: 'FOB · cliente paga' },
-          ]}
-          onChange={(m) => setFrete(m === 'CIF' ? { modalidade: 'CIF' } : { modalidade: 'FOB', transportadora_id: frete.transportadora_id ?? null, transportadora_digitada: frete.transportadora_digitada ?? null })}
-        />
-        {frete.modalidade === 'CIF' ? (
-          <Text style={t.small}>O frete está no preço. O pedido não leva valor de frete nem transportadora.</Text>
-        ) : (
-          <View style={{ gap: 8 }}>
-            <Text style={t.small}>O cliente paga o frete direto à transportadora. Escolha da lista ou informe uma nova.</Text>
-            {ativas.map((tr) => {
-              const on = frete.transportadora_id === tr.id;
-              return (
-                <Pressable key={tr.id} testID={`transp-${tr.nome}`} accessibilityRole="radio" accessibilityState={{ checked: on }} onPress={() => setFrete({ modalidade: 'FOB', transportadora_id: tr.id, transportadora_digitada: null })} style={[s.opcao, on && s.opcaoOn]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={t.bodyStrong}>{tr.nome}</Text>
-                    {tr.documento ? <Text style={t.small}>CNPJ {tr.documento}</Text> : null}
-                  </View>
-                  {on ? <Icon name="check" size={18} color={colors.success} strokeWidth={2.4} /> : null}
-                </Pressable>
-              );
-            })}
-            <Pressable testID="transp-outra" accessibilityRole="radio" accessibilityState={{ checked: digitando }} onPress={() => setFrete({ modalidade: 'FOB', transportadora_id: null, transportadora_digitada: frete.transportadora_digitada ?? { nome: '', cnpj: '', telefone: '' } })} style={[s.opcao, digitando && s.opcaoOn]}>
-              <Text style={[t.bodyStrong, { flex: 1 }]}>Outra transportadora (digitar)</Text>
-              {digitando ? <Icon name="check" size={18} color={colors.success} strokeWidth={2.4} /> : null}
-            </Pressable>
-            {digitando && frete.transportadora_digitada ? (
-              <View style={{ gap: 8 }} testID="transp-digitada">
-                <CampoTexto rotulo="Nome da transportadora" valor={frete.transportadora_digitada.nome} testID="transp-nome" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, nome: v } })} />
-                <CampoTexto rotulo="CNPJ (14 dígitos)" valor={frete.transportadora_digitada.cnpj} testID="transp-cnpj" teclado="number-pad" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, cnpj: v.replace(/\D/g, '').slice(0, 14) } })} />
-                <CampoTexto rotulo="Telefone (opcional)" valor={frete.transportadora_digitada.telefone ?? ''} testID="transp-telefone" teclado="phone-pad" onChange={(v) => setFrete({ ...frete, transportadora_digitada: { ...frete.transportadora_digitada!, telefone: v } })} />
-              </View>
-            ) : null}
-            {msgFrete ? (
-              <Text style={[t.smallStrong, { color: colors.danger }]} testID="frete-aviso">
-                {msgFrete}
-              </Text>
-            ) : null}
-          </View>
-        )}
-      </Card>
-
-      <Card style={{ padding: 14, gap: 8 }}>
-        <Text style={t.label}>Observação (opcional)</Text>
-        <TextInput
-          testID="observacao"
-          value={r.observacao ?? ''}
-          onChangeText={(v) => onRascunho((d) => ({ ...d, observacao: v.slice(0, 500) }))}
-          placeholder="Ex.: entregar pela manhã"
-          placeholderTextColor={colors.ink3}
-          multiline
-          accessibilityLabel="Observação do pedido"
-          style={[s.texto, { minHeight: 72, textAlignVertical: 'top', paddingTop: 10 }]}
-        />
-      </Card>
-    </View>
-  );
-}
-
-function CampoTexto({ rotulo, valor, onChange, testID, teclado }: { rotulo: string; valor: string; onChange: (v: string) => void; testID: string; teclado?: 'number-pad' | 'phone-pad' }) {
-  return (
-    <View style={{ gap: 4 }}>
-      <Text style={t.smallStrong}>{rotulo}</Text>
-      <TextInput testID={testID} value={valor} onChangeText={onChange} keyboardType={teclado} accessibilityLabel={rotulo} style={s.texto} autoCorrect={false} />
-    </View>
-  );
-}
-
-// ---------- aba Entrega e resumo ----------
-export interface PropsAbaEntrega {
-  rascunho: Rascunho;
-  clienteId: string;
-  enderecos: readonly EnderecoDaTela[];
-  transportadoras: readonly TransportadoraDaTela[];
-  calculo: CalculoPedido;
-  limiteVendedor: number;
-  fretePadrao: 'CIF' | 'FOB';
-  prazo: string;
-  onRascunho: (fn: (r: Rascunho) => Rascunho) => void;
-  somenteLeitura?: boolean;
-  /** descrição dos produtos por id, para o resumo */
-  nomes: ReadonlyMap<string, string>;
-}
-
-export function AbaEntrega(p: PropsAbaEntrega) {
-  const lista = enderecosDoCliente(p.enderecos, p.clienteId);
-  const principal = lista.find((e) => e.principal || e.tipo === 'principal') ?? null;
-  const escolhido = p.rascunho.endereco_entrega_id ? (lista.find((e) => e.id === p.rascunho.endereco_entrega_id) ?? null) : principal;
-  const frete = p.rascunho.frete ?? { modalidade: p.fretePadrao };
-  return (
-    <View style={{ gap: 12 }} testID="aba-entrega-conteudo">
-      <Card style={{ padding: 14, gap: 8 }}>
-        <Text style={t.label}>Endereço de entrega</Text>
-        {lista.length === 0 ? (
-          <Text style={t.small} testID="sem-endereco">
-            Este cliente não tem endereço de entrega sincronizado. O pedido segue com o endereço do cadastro do cliente no ERP.
-          </Text>
-        ) : (
-          lista.map((e) => {
-            const on = escolhido?.id === e.id;
-            const ehPrincipal = e.principal || e.tipo === 'principal';
-            return (
-              <Pressable key={e.id} testID={`endereco-${e.id}`} accessibilityRole="radio" accessibilityState={{ checked: on }} disabled={p.somenteLeitura} onPress={() => p.onRascunho((d) => ({ ...d, endereco_entrega_id: ehPrincipal ? null : e.id }))} style={[s.opcao, on && s.opcaoOn]}>
-                <View style={{ flex: 1, gap: 1 }}>
-                  <Text style={t.bodyStrong}>
-                    {e.descricao || (ehPrincipal ? 'Endereço principal' : 'Entrega')}
-                    {ehPrincipal ? ' · padrão' : ''}
-                  </Text>
-                  <Text style={t.small}>{textoDoEndereco(e)}</Text>
-                </View>
-                {on ? <Icon name="check" size={18} color={colors.success} strokeWidth={2.4} /> : null}
-              </Pressable>
-            );
-          })
-        )}
-        <Text style={t.small}>Endereço novo entra pelo cadastro no ERP.</Text>
-      </Card>
-
-      <Card style={{ padding: 14, gap: 6 }} testID="resumo-pedido">
-        <Text style={t.label}>Resumo</Text>
-        {p.calculo.linhas.length === 0 ? <Text style={t.small}>Nenhum item ainda.</Text> : null}
-        {p.calculo.linhas.map((l) => (
-          <View key={l.chave} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-            <Text style={[t.small, { flex: 1 }]} numberOfLines={2}>
-              {l.quantity} {l.unidade ? rotuloMedida(l.unidade_sigla, l.fator) : l.unidade_sigla} · {p.nomes.get(l.product_id) ?? ''}
-              {l.desconto_pct > 0 ? ` · desc. ${formatPct(l.desconto_pct)}` : l.acrescimo_pct > 0 ? ` · acrésc. ${formatPct(l.acrescimo_pct)}` : ''}
-            </Text>
-            <Text style={[t.small, { fontVariant: ['tabular-nums'] }]}>{formatBRL(l.total_cents)}</Text>
-          </View>
-        ))}
-        <Linha rotulo="Total pela tabela" valor={formatBRL(p.calculo.total_tabela_cents)} />
-        {p.calculo.desconto_cents > 0 ? <Linha rotulo="Descontos" valor={`− ${formatBRL(p.calculo.desconto_cents)}`} /> : null}
-        {p.calculo.total_cents > p.calculo.total_tabela_cents ? <Linha rotulo="Acréscimos" valor={`+ ${formatBRL(p.calculo.total_cents - p.calculo.total_tabela_cents)}`} /> : null}
-        <Linha rotulo="Desconto efetivo" valor={formatPct(p.calculo.desconto_efetivo_pct)} />
-        <Linha rotulo="Frete" valor={rotuloDoFrete(frete, p.transportadoras)} />
-        <Linha rotulo="Prazo" valor={p.prazo} />
-        <Linha rotulo="Entrega em" valor={escolhido ? textoDoEndereco(escolhido) : 'Endereço do cadastro'} />
-        <Text style={[t.small, { marginTop: 4 }]}>O frete não tem valor no pedido: o cliente paga direto à transportadora (FOB) ou já está no preço (CIF).</Text>
-      </Card>
-    </View>
-  );
-}
-
-function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
-      <Text style={t.small}>{rotulo}</Text>
-      <Text style={[t.smallStrong, { flexShrink: 1, textAlign: 'right' }]}>{valor}</Text>
-    </View>
-  );
-}
-
 /** Aviso do que falta (aparece acima do rodapé quando o botão está desligado por regra). */
-export function PendenciasDoPedido({ erros, freteAviso, onIrPara }: { erros: string[]; freteAviso: string | null; onIrPara: (a: AbaDoPedido) => void }) {
+export function PendenciasDoPedido({ erros, freteAviso, onIrPara }: { erros: string[]; freteAviso: string | null; onIrPara: () => void }) {
   if (erros.length === 0 && !freteAviso) return null;
   return (
     <Banner icon="alert" tone="danger" testID="pendencias-pedido">
       {erros.length > 0 ? <Text>{erros.join(' ')} </Text> : null}
       {freteAviso ? (
-        <Text onPress={() => onIrPara('condicoes')}>
-          <Strong>{freteAviso}</Strong> Toque aqui para abrir Condições.
+        <Text onPress={onIrPara}>
+          <Strong>{freteAviso}</Strong> Toque aqui para corrigir.
         </Text>
       ) : null}
     </Banner>
@@ -543,6 +361,7 @@ const s = StyleSheet.create({
   ajuste: { gap: 8, padding: 10, borderRadius: radius.md, backgroundColor: colors.ground },
   pctBox: { flex: 1, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
   pctInput: { flex: 1, minWidth: 0, height: 46, textAlign: 'right', fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink, padding: 0 },
+  reaisPrefixo: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink2, marginRight: 4 },
   pctSufixo: { flex: 1, fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink2, marginLeft: 2 },
   segmento: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   segItem: { flexGrow: 1, minWidth: 72, paddingHorizontal: 10, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },

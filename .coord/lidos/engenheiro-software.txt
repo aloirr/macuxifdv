@@ -109,3 +109,7 @@ R-20261101-194126-gerente-projetos
 R-20261103-162722-modulo-catalogo
 R-20261103-140707-alexandre
 R-20261103-133746-alexandre
+R-20261104-035911-banco-dados
+R-20261104-024010-engenheiro-apps
+R-20261103-235438-designer-ux
+R-20261104-000840-banco-dados

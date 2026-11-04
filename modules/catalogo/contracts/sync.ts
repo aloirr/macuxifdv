@@ -44,3 +44,19 @@ export type CatalogoNoSync = z.infer<typeof CatalogoNoSyncSchema>;
 
 export const ProdutoNoSyncSchema = z.object({ ...Base, produto_id: z.string().uuid(), no_id: z.string().uuid() });
 export type ProdutoNoSync = z.infer<typeof ProdutoNoSyncSchema>;
+
+/**
+ * Relação entre produtos (RF-CAT-03; desenho T-0071 §4.2/§5): complementar ("combina com"), superior ("leve mais") e
+ * substituto (ficha e ruptura). Escopo tenant. `produto_id`/`relacionado_id` sem FK no banco (outro schema).
+ */
+export const TIPOS_RELACAO_PRODUTO = ['complementar', 'superior', 'substituto'] as const;
+export type TipoRelacaoProduto = (typeof TIPOS_RELACAO_PRODUTO)[number];
+export const ProdutoRelacaoSyncSchema = z.object({
+  ...Base,
+  produto_id: z.string().uuid(),
+  relacionado_id: z.string().uuid(),
+  tipo: z.enum(TIPOS_RELACAO_PRODUTO),
+  ordem: z.number().int(),
+  ativo: z.boolean(),
+});
+export type ProdutoRelacaoSync = z.infer<typeof ProdutoRelacaoSyncSchema>;

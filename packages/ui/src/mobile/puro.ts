@@ -6,4 +6,7 @@
 export * from './time';
 export * from './text';
 export * from './atualizacao';
+export * from './componentes';
+export * from './tokens';
+export * from './movimento';
 export * from '../comum/cadastro';

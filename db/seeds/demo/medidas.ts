@@ -12,11 +12,11 @@
  *   demo.ts (linha de core.produto_unidade com fator > 1 — "CX c/ 12" etc.); os demais ficam sem embalagem.
  *
  * Idempotente (upsert por id determinístico idMedida = o da semeadura do banco; o UPDATE da embalagem regrava o mesmo
- * valor). Só tenant demo; só Postgres local (exigirBancoLocal). Exige a 0018 (`to_regclass('core.medida')`).
+ * valor). Só tenant demo; só Postgres local ou servidor da demo (exigirBancoDemo). Exige a 0018 (`to_regclass('core.medida')`).
  * CICLO DE IMPORT: o demo.ts importa este arquivo; daqui só o TIPO de './demo' (import de valor seria circular).
  */
 import type { ClientBase } from 'pg';
-import { exigirBancoLocal, hostDoCliente } from '../../src/config';
+import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { gravarLinhas, type Linha } from '../../src/gravar';
 import { idMedida, MEDIDAS_INICIAIS } from '../../src/ids';
 import type { DadosDemo } from './demo';
@@ -62,7 +62,7 @@ export function dadosDemoMedidas(dados: Pick<DadosDemo, 'plataforma.tenant' | 'c
  */
 export async function gravarDemoMedidas(admin: ClientBase, tabela: string, dados: DadosDemo): Promise<void> {
   if (tabela !== 'plataforma.tenant' && tabela !== 'core.produto') return;
-  exigirBancoLocal(hostDoCliente(admin), 'Seed das medidas da demo');
+  exigirBancoDemo(hostDoCliente(admin), 'Seed das medidas da demo');
   const r = await admin.query<{ ok: boolean }>("select to_regclass('core.medida') is not null as ok");
   if (!r.rows[0]?.ok) throw new Error('[db] medidas da demo precisam da migração até a 0018 (falta core.medida): rode "banco migrar up" antes.');
   const d = dadosDemoMedidas(dados);

@@ -46,6 +46,10 @@ export interface LinhaPedido {
   transportadora_telefone?: string | null;
   transportadora_digitada?: boolean | null;
   endereco_entrega?: Record<string, unknown> | null;
+  // T-0071 (0020): ajuste do pedido em R$ e modo digitado
+  desconto_valor_cents?: number | null;
+  acrescimo_valor_cents?: number | null;
+  ajuste_em?: 'pct' | 'valor' | null;
 }
 
 /** T-0054: nota de faturamento e de devolução do pedido (detalhe). */
@@ -79,6 +83,10 @@ export interface LinhaItem {
   unidade?: string | null;
   fator?: number | null;
   acrescimo_pct?: number | null;
+  // T-0071 (0020): R$ por unidade da medida vendida e modo digitado
+  desconto_unitario_cents?: number | null;
+  acrescimo_unitario_cents?: number | null;
+  ajuste_em?: 'pct' | 'valor' | null;
 }
 
 export interface LinhaEvento {
@@ -164,6 +172,7 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     ...(l.desconto_efetivo_pct !== undefined && l.desconto_efetivo_pct !== null ? { effective_discount_pct: num(l.desconto_efetivo_pct) } : {}),
     ...(l.frete_modalidade ? { freight: freteDoPedido(l) } : {}),
     ...(l.endereco_entrega ? { delivery_address: enderecoDoPedido(l) } : {}),
+    ...(l.ajuste_em ? { order_adjust_mode: l.ajuste_em, order_discount_value_cents: num(l.desconto_valor_cents ?? 0), order_surcharge_value_cents: num(l.acrescimo_valor_cents ?? 0) } : {}),
   };
 }
 
@@ -214,6 +223,7 @@ export function paraItem(i: LinhaItem): OrderItem {
     ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: num(i.quantidade_base), base_quantity: num(i.quantidade_base) }),
     ...(i.unidade ? { unit: i.unidade, factor: num(i.fator ?? 1), unit_label: rotuloMedida(i.unidade, num(i.fator ?? 1)) } : {}),
     ...(i.acrescimo_pct !== undefined && i.acrescimo_pct !== null && num(i.acrescimo_pct) > 0 ? { surcharge_pct: num(i.acrescimo_pct) } : {}),
+    ...(i.ajuste_em ? { adjust_mode: i.ajuste_em, unit_discount_cents: num(i.desconto_unitario_cents ?? 0), unit_surcharge_cents: num(i.acrescimo_unitario_cents ?? 0) } : {}),
   };
 }
 

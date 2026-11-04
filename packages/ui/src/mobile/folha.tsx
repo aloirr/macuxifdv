@@ -1,0 +1,242 @@
+/**
+ * Folha inferior, opção da folha e diálogo de confirmação (T-0071, fatia 4; medidas da referência do Novo pedido:
+ * `.dim`, `.sheet`, `.opt`, `.ic`). Generaliza o `BottomSheet` do Vendedor e do Core.
+ * Nenhum texto fixo: título, opções, "Voltar" e o rótulo do fundo para o leitor de tela chegam por props.
+ * Alvos de toque ≥ 48 dp. O botão Voltar do Android fecha (onRequestClose).
+ * Movimento (T-0072): a folha sobe de baixo em 280 ms e o fundo escurece junto; ao fechar, desce antes de sumir. Com
+ * "reduzir movimento", aparece e some sem deslocamento. O diálogo só esmaece (200 ms; nada com movimento reduzido).
+ */
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Modal, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { ALVO_TOQUE } from './componentes';
+import { Icon, type IconName } from './icon';
+import { deslocamentoDaFolha, duracaoMovimento } from './movimento';
+import { curvaPadrao, Pressionavel, useReduzirMovimento } from './movimento-rn';
+import { colors, fonts, radius, shadow } from './theme';
+
+/** Mantém montado durante a saída e devolve o progresso 0 → 1 da entrada (0 = fechado). */
+function useEntradaSaida(visivel: boolean, duracao: number) {
+  const [montado, setMontado] = useState(visivel);
+  const progresso = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (visivel) setMontado(true);
+    const fim = () => {
+      if (!visivel) setMontado(false);
+    };
+    if (duracao === 0) {
+      progresso.setValue(visivel ? 1 : 0);
+      fim();
+      return;
+    }
+    const a = Animated.timing(progresso, { toValue: visivel ? 1 : 0, duration: duracao, easing: curvaPadrao, useNativeDriver: true });
+    a.start(fim);
+    return () => a.stop();
+  }, [visivel, duracao, progresso]);
+  return { montado: montado || visivel, progresso };
+}
+
+export interface AcaoTexto {
+  rotulo: string;
+  onPress: () => void;
+  testID?: string;
+}
+
+export function Folha({
+  visivel,
+  onFechar,
+  rotuloFechar,
+  titulo,
+  rotuloAcessivel,
+  rodape,
+  children,
+  testID = 'folha',
+}: {
+  visivel: boolean;
+  onFechar: () => void;
+  /** Rótulo do fundo escurecido para o leitor de tela (toque fora fecha). */
+  rotuloFechar: string;
+  /** Título visível ("Salvar pedido"); opcional. */
+  titulo?: string;
+  /** Nome da folha para o leitor de tela; sem ele usa o título. */
+  rotuloAcessivel?: string;
+  /** Ação de texto centralizada no fim (ex.: "Voltar"). */
+  rodape?: AcaoTexto;
+  children?: ReactNode;
+  testID?: string;
+}) {
+  const insets = useSafeAreaInsets();
+  const reduzir = useReduzirMovimento();
+  const { montado, progresso } = useEntradaSaida(visivel, duracaoMovimento('folha', reduzir));
+  const [altura, setAltura] = useState(600);
+  const desloc = deslocamentoDaFolha(altura, reduzir);
+  return (
+    <Modal visible={montado} transparent animationType="none" onRequestClose={onFechar} statusBarTranslucent>
+      <Animated.View style={[s.fundo, { opacity: progresso }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onFechar} accessibilityRole="button" accessibilityLabel={rotuloFechar} testID={`${testID}-fundo`} />
+      </Animated.View>
+      <Animated.View
+        onLayout={(e: LayoutChangeEvent) => setAltura(e.nativeEvent.layout.height)}
+        style={[s.folha, { paddingBottom: 22 + insets.bottom, transform: [{ translateY: progresso.interpolate({ inputRange: [0, 1], outputRange: [desloc, 0] }) }] }]}
+        testID={testID}
+        accessibilityViewIsModal
+        accessibilityLabel={rotuloAcessivel ?? titulo}>
+        <View style={s.alca} />
+        {titulo ? (
+          <Text style={s.titulo} accessibilityRole="header">
+            {titulo}
+          </Text>
+        ) : null}
+        {children}
+        {rodape ? (
+          <Pressionavel testID={rodape.testID ?? `${testID}-rodape`} accessibilityRole="button" onPress={rodape.onPress} escala={false} style={s.rodape}>
+            <Text style={s.rodapeTexto}>{rodape.rotulo}</Text>
+          </Pressionavel>
+        ) : null}
+      </Animated.View>
+    </Modal>
+  );
+}
+
+export type TomOpcaoFolha = 'destaque' | 'neutro' | 'perigo';
+
+export function OpcaoFolha({
+  icone,
+  titulo,
+  subtitulo,
+  subtituloErro,
+  tom = 'destaque',
+  onPress,
+  desligado,
+  testID,
+}: {
+  icone: IconName;
+  titulo: string;
+  /** Linha curta abaixo do título ("Vai direto ao ERP.", "Válido até 10/11."). */
+  subtitulo?: string;
+  /** Mostra o subtítulo na cor de erro (motivo do desligado, ex.: "Informe a transportadora do frete FOB."). */
+  subtituloErro?: boolean;
+  /** Cor do quadradinho do ícone: laranja (`destaque`), cinza (`neutro`) ou vermelho (`perigo`). */
+  tom?: TomOpcaoFolha;
+  onPress: () => void;
+  desligado?: boolean;
+  testID?: string;
+}) {
+  const c = TOM_OPCAO[tom];
+  return (
+    <Pressionavel
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={subtitulo ? `${titulo}. ${subtitulo}` : titulo}
+      accessibilityState={{ disabled: Boolean(desligado) }}
+      disabled={desligado}
+      onPress={onPress}
+      style={s.opcao}>
+      <View style={[s.icone, { backgroundColor: c.bg }, desligado && s.desligado]}>
+        <Icon name={icone} size={18} color={c.fg} strokeWidth={2.2} />
+      </View>
+      <View style={s.opcaoTextos}>
+        <Text style={[s.opcaoTitulo, desligado && { color: colors.ink3 }]}>{titulo}</Text>
+        {subtitulo ? <Text style={[s.opcaoSub, subtituloErro && { color: colors.danger }]}>{subtitulo}</Text> : null}
+      </View>
+    </Pressionavel>
+  );
+}
+
+const TOM_OPCAO: Record<TomOpcaoFolha, { fg: string; bg: string }> = {
+  destaque: { fg: colors.accent, bg: colors.accentSoft },
+  neutro: { fg: colors.ink, bg: colors.neutralBg },
+  perigo: { fg: colors.danger, bg: colors.dangerBg },
+};
+
+export function Dialogo({
+  visivel,
+  titulo,
+  mensagem,
+  cancelar,
+  confirmar,
+  perigo,
+  onFechar,
+  testID = 'dialogo',
+}: {
+  visivel: boolean;
+  /** Ex.: "Descartar este pedido?". */
+  titulo: string;
+  /** Linha opcional abaixo do título (use só quando o título não basta). */
+  mensagem?: string;
+  /** Botão da esquerda (ex.: "Voltar"); também é o que o botão Voltar do Android faz quando não há `onFechar`. */
+  cancelar: AcaoTexto;
+  /** Botão da direita (ex.: "Descartar"). */
+  confirmar: AcaoTexto & { ocupado?: boolean };
+  /** Confirmar em vermelho (ação destrutiva). */
+  perigo?: boolean;
+  onFechar?: () => void;
+  testID?: string;
+}) {
+  const fechar = onFechar ?? cancelar.onPress;
+  const reduzir = useReduzirMovimento();
+  const { montado, progresso } = useEntradaSaida(visivel, duracaoMovimento('dialogo', reduzir));
+  return (
+    <Modal visible={montado} transparent animationType="none" onRequestClose={fechar} statusBarTranslucent>
+      <Animated.View style={[s.dialogoFundo, { opacity: progresso }]}>
+        <View style={s.dialogo} testID={testID} accessibilityViewIsModal accessibilityRole="alert">
+          <Text style={s.dialogoTitulo} accessibilityRole="header">
+            {titulo}
+          </Text>
+          {mensagem ? <Text style={s.dialogoMsg}>{mensagem}</Text> : null}
+          <View style={s.dialogoBotoes}>
+            <Pressionavel testID={cancelar.testID ?? `${testID}-cancelar`} accessibilityRole="button" onPress={cancelar.onPress} style={[s.dialogoBotao, s.dialogoBotaoFora]}>
+              <Text style={[s.dialogoBotaoTexto, { color: colors.ink }]} numberOfLines={1}>
+                {cancelar.rotulo}
+              </Text>
+            </Pressionavel>
+            <Pressionavel
+              testID={confirmar.testID ?? `${testID}-confirmar`}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: Boolean(confirmar.ocupado), busy: Boolean(confirmar.ocupado) }}
+              disabled={confirmar.ocupado}
+              onPress={confirmar.onPress}
+              vibrar
+              style={[s.dialogoBotao, { backgroundColor: perigo ? colors.danger : colors.accent }, confirmar.ocupado && s.desligado]}>
+              <Text style={[s.dialogoBotaoTexto, { color: colors.surface }]} numberOfLines={1}>
+                {confirmar.rotulo}
+              </Text>
+            </Pressionavel>
+          </View>
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+const FUNDO = colors.scrim;
+
+const s = StyleSheet.create({
+  pressionado: { opacity: 0.7 },
+  desligado: { opacity: 0.45 },
+  // .dim / .sheet
+  fundo: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: FUNDO },
+  folha: { position: 'absolute', left: 0, right: 0, bottom: 0, alignSelf: 'center', width: '100%', maxWidth: 560, backgroundColor: colors.surface, borderTopLeftRadius: radius.folha, borderTopRightRadius: radius.folha, paddingTop: 8, paddingHorizontal: 16, gap: 9, ...shadow.folha },
+  /** alça visual no topo (indica que a folha desce) */
+  alca: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong, marginBottom: 6 },
+  titulo: { fontFamily: fonts.display, fontSize: 19, color: colors.ink, marginBottom: 0 },
+  rodape: { minHeight: ALVO_TOQUE, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
+  rodapeTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
+  // .opt / .ic
+  opcao: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, minHeight: 56, paddingVertical: 11, paddingHorizontal: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  icone: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  opcaoTextos: { flex: 1, minWidth: 0, gap: 2 },
+  opcaoTitulo: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
+  opcaoSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink2 },
+  // diálogo central
+  dialogoFundo: { flex: 1, backgroundColor: FUNDO, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  dialogo: { width: '100%', maxWidth: 420, backgroundColor: colors.surface, borderRadius: radius.xxl, padding: 18, gap: 8 },
+  dialogoTitulo: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
+  dialogoMsg: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
+  dialogoBotoes: { flexDirection: 'row', gap: 9, marginTop: 8 },
+  dialogoBotao: { flex: 1, minHeight: ALVO_TOQUE, borderRadius: radius.botaoMedio, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  /** nível neutro do guia (Cancelar) */
+  dialogoBotaoFora: { backgroundColor: colors.lineSoft },
+  dialogoBotaoTexto: { fontFamily: fonts.semibold, fontSize: 14 },
+});

@@ -62,6 +62,10 @@ export const OrderItem = z.object({
   unit_label: z.string().optional(),
   /** acréscimo do item (RN-VEN-02); `discount_pct` passa a ser o desconto do item */
   surcharge_pct: Pct.optional(),
+  // --- T-0071 (RN-VEN-02): R$ por unidade da medida vendida e modo digitado; opcionais ---
+  unit_discount_cents: z.number().int().nonnegative().optional(),
+  unit_surcharge_cents: z.number().int().nonnegative().optional(),
+  adjust_mode: z.enum(['pct', 'valor']).optional(),
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 
@@ -125,6 +129,12 @@ export const Order = z.object({
   delivery_address: EnderecoRetrato.nullable().optional(),
   /** nome da tabela de preço (o PDF interno mostra o nome, não o id) */
   price_table_name: z.string().nullable().optional(),
+  // --- T-0071: validade por data civil e ajuste do pedido em R$ (sobre o total dos itens); opcionais ---
+  /** RN-VEN-18: "até 10/11" sem conta de fuso no app (AAAA-MM-DD) */
+  validade_data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  order_adjust_mode: z.enum(['pct', 'valor']).optional(),
+  order_discount_value_cents: z.number().int().nonnegative().optional(),
+  order_surcharge_value_cents: z.number().int().nonnegative().optional(),
 });
 export type Order = z.infer<typeof Order>;
 
@@ -236,6 +246,11 @@ export const PedidoPush = CreateOrderRequest.extend({
   orcamento_origem_id: z.string().uuid().nullable().optional(),
   /** T-0061 (RN-VEN-02): acréscimo do pedido; excludente com `discount_pct` > 0. */
   acrescimo_pct: Pct.min(0).max(100).optional(),
+  /** T-0071 (RN-VEN-02): R$ sobre o TOTAL DOS ITENS; excludente com `discount_pct`/`acrescimo_pct` > 0 e entre si. */
+  desconto_valor_cents: z.number().int().nonnegative().optional(),
+  acrescimo_valor_cents: z.number().int().nonnegative().optional(),
+  /** T-0071 (RN-VEN-02): o que o vendedor digitou, para Editar e Duplicar reabrirem no mesmo modo. */
+  ajuste_em: z.enum(['pct', 'valor']).optional(),
   /** T-0061 (RN-VEN-16): ausente = padrão do tenant (`frete.modalidade_padrao`, CIF). */
   frete: Frete.nullable().optional(),
   /** T-0061 (RN-VEN-17): ausente = endereço principal do cliente. */
@@ -249,7 +264,18 @@ export const CODIGOS_RECUSA_PEDIDO = [
   'RN-VEN-32', 'ORCAMENTO_NAO_ENCONTRADO', 'ORCAMENTO_JA_CONVERTIDO', 'PRE_VENDA_INDISPONIVEL',
   // T-0061: unidade, endereço de entrega, frete FOB e desconto/acréscimo (desenho §4.3)
   'unidade_invalida', 'endereco_invalido', 'transportadora_obrigatoria', 'transportadora_invalida', 'desconto_e_acrescimo', 'preco_abaixo_minimo',
+  // T-0071: orçamento vencido/convertido/cancelado (RN-VEN-18), ajuste em % e R$ juntos ou acima do limite, edição concorrente
+  'RN-VEN-18', 'ajuste_invalido', 'ORCAMENTO_ALTERADO',
 ] as const;
+
+/**
+ * T-0071 (desenho §2.1): edição do orçamento já recebido (precisa de sinal, ação `pedido.criar`). `atualizado_em` é a
+ * concorrência otimista: diferente do `updated_at` atual = 409 ORCAMENTO_ALTERADO. Vencido/convertido/cancelado = 422 RN-VEN-18.
+ */
+export const EditarOrcamentoRequest = PedidoPush.omit({ id: true, tipo: true, orcamento_origem_id: true, created_offline_at: true })
+  .extend({ atualizado_em: z.string() })
+  .strict();
+export type EditarOrcamentoRequest = z.infer<typeof EditarOrcamentoRequest>;
 
 /** Edição: mesmo corpo da criação, sem o id (o pedido mantém id e número). */
 export const UpdateOrderRequest = z.object({
@@ -275,6 +301,10 @@ export const OrderListQuery = z.object({
   q: z.string().max(100).optional(),
   cursor: z.string().optional(),
   limite: z.coerce.number().int().min(1).max(200).optional(),
+  /** T-0071 (§1.4 g): ausente = só pedidos; `orcamento` traz os orçamentos; `todos` os dois. */
+  tipo: z.enum(['pedido', 'orcamento', 'todos']).optional(),
+  /** só com `tipo=orcamento` */
+  situacao: z.enum(SITUACOES_ORCAMENTO).optional(),
 });
 
 /** Aprovar: 1 toque, comentário opcional (RN-GES-08). */

@@ -247,6 +247,11 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     ...(p.tipo ? { tipo: p.tipo, validade_ate: p.validade_ate ?? null, orcamento_origem_id: p.orcamento_origem_id ?? null, convertido_pedido_id: p.convertido_pedido_id ?? null } : {}),
     // T-0061: acréscimo, desconto efetivo, frete CIF/FOB e endereço de entrega (linhas antigas ficam iguais)
     ...(p.acrescimo_pct ? { surcharge_pct: p.acrescimo_pct } : {}),
+    // T-0071 (0020): validade por data civil e ajuste do pedido em R$ (Editar, Transformar e Duplicar reabrem no mesmo modo)
+    ...(p.validade_data ? { validade_data: p.validade_data } : {}),
+    ...(p.ajuste_em ? { order_adjust_mode: p.ajuste_em } : {}),
+    ...(p.desconto_valor_cents ? { order_discount_value_cents: p.desconto_valor_cents } : {}),
+    ...(p.acrescimo_valor_cents ? { order_surcharge_value_cents: p.acrescimo_valor_cents } : {}),
     ...(p.desconto_efetivo_pct !== undefined && p.desconto_efetivo_pct !== null ? { effective_discount_pct: p.desconto_efetivo_pct } : {}),
     ...(p.frete_modalidade ? { freight: freteDaLinha(p) } : {}),
     ...(p.endereco_entrega ? { delivery_address: enderecoDaLinha(p) } : {}),
@@ -277,6 +282,10 @@ function itemDoPedido(i: PedidoItemSync): OrderItem {
     ...(i.quantidade_base === undefined || i.quantidade_base === null ? {} : { quantity_base: i.quantidade_base, base_quantity: i.quantidade_base }),
     ...(i.unidade ? { unit: i.unidade, factor: i.fator ?? 1, unit_label: rotuloMedida(i.unidade, i.fator ?? 1) } : {}),
     ...(i.acrescimo_pct ? { surcharge_pct: i.acrescimo_pct } : {}),
+    // T-0071 (0020): R$ por unidade da medida vendida e o modo digitado
+    ...(i.desconto_unitario_cents ? { unit_discount_cents: i.desconto_unitario_cents } : {}),
+    ...(i.acrescimo_unitario_cents ? { unit_surcharge_cents: i.acrescimo_unitario_cents } : {}),
+    ...(i.ajuste_em ? { adjust_mode: i.ajuste_em } : {}),
   };
 }
 

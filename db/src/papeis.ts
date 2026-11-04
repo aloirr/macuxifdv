@@ -29,6 +29,11 @@ async function garantirPapel(admin: ClientBase, papel: string, senha: string): P
   await admin.query('begin');
   try {
     await admin.query('select pg_advisory_xact_lock($1)', [CHAVE_LOCK_PAPEL]);
+    // A senha vai em texto no ALTER ROLE: nesta transação nada de log de comando (log_min_duration_statement=300 do
+    // servidor da demo registraria o texto se o comando demorasse). Só superusuário muda esses parâmetros; sem ele, segue.
+    await admin.query(
+      "select set_config('log_min_duration_statement', '-1', true), set_config('log_statement', 'none', true) where current_setting('is_superuser') = 'on'",
+    );
     const existe = await admin.query('select 1 from pg_roles where rolname = $1', [papel]);
     const verbo = existe.rowCount === 0 ? 'create' : 'alter';
     await admin.query(`${verbo} role ${papel} ${ATRIBUTOS} password ${senhaSql}`);

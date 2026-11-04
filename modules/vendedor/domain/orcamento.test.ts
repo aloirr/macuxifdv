@@ -38,22 +38,23 @@ describe('RN-VEN-32: validade do orçamento', () => {
     for (const ruim of [0, -1, 91, 2.5, 'x', null]) expect(validadeOrcamentoDias({ 'orcamento.validade_dias': ruim })).toBe(7);
   });
 
-  it('RN-VEN-32: expira N dias depois de criado (instante UTC)', () => {
-    expect(validadeDoOrcamento(CRIADO, 7)).toBe('2026-11-09T12:00:00.000Z');
+  it('RN-VEN-18: vale até o fim do dia civil de criação + N dias no fuso (instante UTC)', () => {
+    expect(validadeDoOrcamento(CRIADO, 7, 'America/Manaus')).toEqual({ data: '2026-11-09', ate: '2026-11-10T04:00:00.000Z' });
   });
 
   it('RN-VEN-32: situação aberto → expirado; cancelado e convertido prevalecem', () => {
     expect(situacaoDoOrcamento(ORC, mais(CRIADO, 24))).toBe('aberto');
-    expect(situacaoDoOrcamento(ORC, mais(ORC.validade_ate!, 0))).toBe('aberto');
+    expect(situacaoDoOrcamento(ORC, mais(ORC.validade_ate!, -0.001))).toBe('aberto');
+    expect(situacaoDoOrcamento(ORC, mais(ORC.validade_ate!, 0))).toBe('expirado'); // RN-VEN-18: vencido ⇔ agora ≥ validade_ate
     expect(situacaoDoOrcamento(ORC, mais(ORC.validade_ate!, 1))).toBe('expirado');
     expect(situacaoDoOrcamento({ ...ORC, status: 'cancelled' }, mais(CRIADO, 1))).toBe('cancelado');
     expect(situacaoDoOrcamento({ ...ORC, convertido_pedido_id: 'p9' }, mais(ORC.validade_ate!, 48))).toBe('convertido');
   });
 
-  it('RF-VEN-03: ações por situação (converter só aberto; cancelar aberto ou expirado; duplicar sempre)', () => {
+  it('RN-VEN-18: ações por situação (converter e cancelar só no aberto; vencido só duplica; duplicar sempre)', () => {
     expect(acoesDoOrcamento('aberto')).toMatchObject({ pode_converter: true, pode_cancelar: true, pode_duplicar: true });
-    expect(acoesDoOrcamento('expirado')).toMatchObject({ pode_converter: false, pode_cancelar: true, pode_duplicar: true });
-    expect(acoesDoOrcamento('expirado').texto).toMatch(/expirou/i);
+    expect(acoesDoOrcamento('expirado')).toMatchObject({ pode_converter: false, pode_cancelar: false, pode_duplicar: true }); // RN-VEN-18: o vencido não se cancela
+    expect(acoesDoOrcamento('expirado').texto).toMatch(/vencido/i);
     expect(acoesDoOrcamento('convertido')).toMatchObject({ pode_converter: false, pode_cancelar: false });
     expect(acoesDoOrcamento('cancelado')).toMatchObject({ pode_converter: false, pode_cancelar: false });
   });
@@ -88,8 +89,8 @@ describe('RF-VEN-03 / RN-VEN-32: converter orçamento em pedido', () => {
   });
 
   it('RN-VEN-32: expirado, cancelado ou já convertido em OUTRO pedido não converte; o mesmo pedido é idempotente (RN-VEN-33)', () => {
-    expect(verificarConversao({ ...base, orcamento: ORC, momento: mais(ORC.validade_ate!, 1) })).toMatchObject({ codigo: 'RN-VEN-32', http: 422 });
-    expect(verificarConversao({ ...base, orcamento: { ...ORC, status: 'cancelled' }, momento: mais(CRIADO, 1) })).toMatchObject({ codigo: 'RN-VEN-32' });
+    expect(verificarConversao({ ...base, orcamento: ORC, momento: mais(ORC.validade_ate!, 1) })).toMatchObject({ codigo: 'RN-VEN-18', http: 422 });
+    expect(verificarConversao({ ...base, orcamento: { ...ORC, status: 'cancelled' }, momento: mais(CRIADO, 1) })).toMatchObject({ codigo: 'RN-VEN-18' });
     expect(verificarConversao({ ...base, orcamento: { ...ORC, convertido_pedido_id: 'p2' }, momento: mais(CRIADO, 1) })).toMatchObject({ codigo: 'ORCAMENTO_JA_CONVERTIDO', http: 409 });
     expect(verificarConversao({ ...base, orcamento: { ...ORC, convertido_pedido_id: 'p1' }, momento: mais(CRIADO, 1) })).toBeNull();
   });

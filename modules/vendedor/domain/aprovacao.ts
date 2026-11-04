@@ -3,7 +3,7 @@
  * usam a mesma regra (RN-VEN-10), e a API sempre revalida.
  */
 import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus, type OrderValidation } from './order';
-import { precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, MSG_DESCONTO_E_ACRESCIMO } from './preco-pedido';
+import { precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, MSG_DESCONTO_E_ACRESCIMO, type AjusteItem } from './preco-pedido';
 
 // ---------- vocabulário ----------
 /** Níveis de alçada (RN-VEN-10); iguais aos `NivelAprovacao` do Gestor. */
@@ -157,6 +157,9 @@ export interface ItemRevalidar {
   /** T-0061 (RN-VEN-02): desconto OU acréscimo do item */
   desconto_pct?: number;
   acrescimo_pct?: number;
+  /** T-0071 (RN-VEN-02): R$ por unidade da MEDIDA VENDIDA; no máximo um dos quatro ajustes do item > 0 */
+  desconto_unitario_cents?: number;
+  acrescimo_unitario_cents?: number;
   /** T-0061 (RN-VEN-11): mínimo por unidade base; ausente = sem trava */
   preco_minimo_base_cents?: number | null;
 }
@@ -170,9 +173,14 @@ export interface RevalidarEntrada {
   desconto_pct: number;
   /** T-0061: acréscimo do pedido, excludente com `desconto_pct` */
   acrescimo_pct?: number;
+  /** T-0071 (RN-VEN-02): R$ sobre o total dos itens; exclusivo com os % do pedido e entre si */
+  desconto_valor_cents?: number;
+  acrescimo_valor_cents?: number;
   itens: ItemRevalidar[];
   /** preço da UNIDADE BASE na tabela do cliente na data do pedido (centavos); `null`/ausente = sem preço (RN-CAT-06) */
   precos: Record<string, number | null | undefined>;
+  /** T-0071 (RN-VEN-15): preço próprio da embalagem (`produto_id` → `unidade` → centavos da medida); ausente = UN × fator */
+  precos_embalagem?: Record<string, Record<string, number> | undefined>;
   policy: DiscountPolicy;
   /** informativo; o servidor nunca usa (RN-VEN-02) */
   total_aparelho_cents?: number;
@@ -192,6 +200,11 @@ export interface ItemRevalidado {
   /** desconto/acréscimo do ITEM */
   desconto_pct: number;
   acrescimo_pct: number;
+  /** T-0071: R$ por unidade vendida, sempre preenchido (digitado, ou tabela − final) */
+  desconto_unitario_cents: number;
+  acrescimo_unitario_cents: number;
+  /** o que foi digitado no item */
+  ajuste_em: 'pct' | 'valor';
   /** total da linha depois do item e do pedido (a soma das linhas = total do pedido) */
   total_cents: number;
   preco_minimo_cents: number | null;
@@ -206,6 +219,10 @@ export type RevalidarResultado =
       /** desconto do pedido (RN-VEN-02) */
       desconto_pct: number;
       acrescimo_pct: number;
+      /** T-0071: R$ do ajuste do pedido (sempre preenchido: digitado ou derivado do %) e o modo digitado */
+      desconto_valor_cents: number;
+      acrescimo_valor_cents: number;
+      ajuste_em: 'pct' | 'valor';
       /** RN-VEN-03: sem frete; negativo = acréscimo */
       desconto_efetivo_pct: number;
     } & Omit<Extract<ResultadoRecebimento, { aceito: true }>, 'aceito'>)
@@ -214,6 +231,8 @@ export type RevalidarResultado =
 const PERFIS_QUE_CRIAM = ['vendedor'] as const;
 
 const pct2 = (n: number) => Math.round(n * 100) / 100;
+/** % com 2 casas de `parte` sobre `base` (centavos); 0 se a base é 0. */
+const pctDe = (parte: number, base: number) => (base > 0 ? Math.round((parte * 10_000) / base) / 100 : 0);
 
 /**
  * Revalida o pedido recebido do aparelho (RF-VEN-01, RN-VEN-01/02/03/10/11/15/21, RN-CAT-06, RN-CORE-04, RN-PRO-01).
@@ -228,8 +247,14 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
     return { ok: false, codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não cria pedidos pelo aplicativo.' };
   }
   const acrescimoPedido = e.acrescimo_pct ?? 0;
+  const descValor = e.desconto_valor_cents ?? 0;
+  const acreValor = e.acrescimo_valor_cents ?? 0;
   if (validarAcrescimoOuDesconto({ desconto_pct: e.desconto_pct, acrescimo_pct: acrescimoPedido })) {
     return { ok: false, codigo: 'desconto_e_acrescimo', http: 422, mensagem: `Pedido: ${MSG_DESCONTO_E_ACRESCIMO}` };
+  }
+  // T-0071 (RN-VEN-02): % e R$ juntos, ou desconto e acréscimo em R$ juntos, no pedido
+  if ((descValor > 0 && acreValor > 0) || ((descValor > 0 || acreValor > 0) && (e.desconto_pct > 0 || acrescimoPedido > 0))) {
+    return { ok: false, codigo: 'ajuste_invalido', http: 422, mensagem: 'Pedido: use % ou R$, e só desconto ou só acréscimo.' };
   }
   // RN-VEN-21: o mesmo produto na mesma medida soma a quantidade (mantém o desconto/acréscimo da primeira linha)
   const somados = new Map<string, ItemRevalidar>();
@@ -239,6 +264,10 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
     }
     if (validarAcrescimoOuDesconto({ desconto_pct: it.desconto_pct ?? 0, acrescimo_pct: it.acrescimo_pct ?? 0 })) {
       return { ok: false, codigo: 'desconto_e_acrescimo', http: 422, mensagem: `Item ${it.sku}: ${MSG_DESCONTO_E_ACRESCIMO}` };
+    }
+    const qtdAjustes = [it.desconto_pct, it.acrescimo_pct, it.desconto_unitario_cents, it.acrescimo_unitario_cents].filter((n) => (n ?? 0) > 0).length;
+    if (qtdAjustes > 1) {
+      return { ok: false, codigo: 'ajuste_invalido', http: 422, mensagem: `Item ${it.sku}: use % ou R$, e só desconto ou só acréscimo.` };
     }
     const chave = `${it.product_id}|${it.unidade ?? ''}`;
     const atual = somados.get(chave);
@@ -254,22 +283,43 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   if (semPreco.length > 0) {
     return { ok: false, codigo: 'RN-CAT-06', http: 422, mensagem: `Sem preço para este cliente: ${semPreco.map((i) => i.sku).join(', ')}.` };
   }
-  const paraPreco = itens.map((i) => ({
-    preco_tabela_unidade_cents: e.precos[i.product_id] as number,
-    quantidade: i.quantity,
-    fator: i.fator ?? 1,
-    desconto_pct: pct2(i.desconto_pct ?? 0),
-    acrescimo_pct: pct2(i.acrescimo_pct ?? 0),
-    preco_minimo_base_cents: i.preco_minimo_base_cents ?? null,
-  }));
+  const paraPreco = itens.map((i) => {
+    const emValor = (i.desconto_unitario_cents ?? 0) > 0 || (i.acrescimo_unitario_cents ?? 0) > 0;
+    const ajuste: AjusteItem | undefined = emValor
+      ? (i.desconto_unitario_cents ?? 0) > 0
+        ? { sentido: 'desconto', em: 'valor', cents: i.desconto_unitario_cents! }
+        : { sentido: 'acrescimo', em: 'valor', cents: i.acrescimo_unitario_cents! }
+      : undefined;
+    return {
+      preco_tabela_unidade_cents: e.precos[i.product_id] as number,
+      quantidade: i.quantity,
+      fator: i.fator ?? 1,
+      preco_proprio_unidade_cents: (i.unidade ? e.precos_embalagem?.[i.product_id]?.[i.unidade] : undefined) ?? null,
+      desconto_pct: pct2(i.desconto_pct ?? 0),
+      acrescimo_pct: pct2(i.acrescimo_pct ?? 0),
+      ...(ajuste ? { ajuste } : {}),
+      preco_minimo_base_cents: i.preco_minimo_base_cents ?? null,
+    };
+  });
+  // R$ do desconto acima do preço de tabela da medida: ajuste_invalido (antes de calcular)
+  const acimaDaTabela = itens.filter((i, idx) => (i.desconto_unitario_cents ?? 0) > precoDoItem({ ...paraPreco[idx]!, ajuste: null }).preco_tabela_cents);
+  if (acimaDaTabela.length > 0) {
+    return { ok: false, codigo: 'ajuste_invalido', http: 422, mensagem: `Desconto em R$ acima do preço de tabela: ${acimaDaTabela.map((i) => i.sku).join(', ')}.` };
+  }
   const abaixo = itens.filter((_, idx) => !itemRespeitaPrecoMinimo(paraPreco[idx]!));
   if (abaixo.length > 0) {
     return { ok: false, codigo: 'preco_abaixo_minimo', http: 422, mensagem: `Desconto acima do máximo do produto: ${abaixo.map((i) => i.sku).join(', ')}. Reduza o desconto do item.` };
   }
   const precosItens = paraPreco.map((p) => precoDoItem(p));
+  const totalItens = precosItens.reduce((s, p) => s + p.total_cents, 0);
+  if (descValor > totalItens) {
+    return { ok: false, codigo: 'ajuste_invalido', http: 422, mensagem: 'Desconto em R$ do pedido acima do total dos itens.' };
+  }
+  const ajustePedido: AjusteItem = descValor > 0 ? { sentido: 'desconto', em: 'valor', cents: descValor } : acreValor > 0 ? { sentido: 'acrescimo', em: 'valor', cents: acreValor } : null;
+  const emValorPedido = ajustePedido !== null;
   const totais = totaisDoPedido(
-    precosItens.map((p, idx) => ({ preco_tabela_cents: p.preco_tabela_cents, quantidade: itens[idx]!.quantity, total_cents: p.total_cents, desconto_pct: paraPreco[idx]!.desconto_pct, acrescimo_pct: paraPreco[idx]!.acrescimo_pct })),
-    { desconto_pct: pct2(e.desconto_pct), acrescimo_pct: pct2(acrescimoPedido) },
+    precosItens.map((p, idx) => ({ preco_tabela_cents: p.preco_tabela_cents, quantidade: itens[idx]!.quantity, total_cents: p.total_cents, desconto_pct: paraPreco[idx]!.desconto_pct, acrescimo_pct: paraPreco[idx]!.acrescimo_pct, ...(paraPreco[idx]!.ajuste ? { ajuste: paraPreco[idx]!.ajuste } : {}) })),
+    emValorPedido ? ajustePedido : { desconto_pct: pct2(e.desconto_pct), acrescimo_pct: pct2(acrescimoPedido) },
   );
   // RN-VEN-10: só o desconto efetivo (valor nominal exato, sem folga: `descontoEfetivoAlcadaPct`)
   const validacao = validateOrder({
@@ -286,14 +336,18 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   return {
     ok: true,
     ...resto,
-    desconto_pct: pct2(e.desconto_pct),
-    acrescimo_pct: pct2(acrescimoPedido),
+    desconto_pct: emValorPedido ? pctDe(totais.desconto_cents, totais.total_itens_cents) : pct2(e.desconto_pct),
+    acrescimo_pct: emValorPedido ? pctDe(totais.acrescimo_cents, totais.total_itens_cents) : pct2(acrescimoPedido),
+    desconto_valor_cents: totais.desconto_cents,
+    acrescimo_valor_cents: totais.acrescimo_cents,
+    ajuste_em: emValorPedido ? 'valor' : 'pct',
     desconto_efetivo_pct: totais.desconto_efetivo_pct,
     total_tabela_cents: totais.total_tabela_cents,
     total_cents: totais.total_cents,
     itens: itens.map((i, idx) => {
       const p = precosItens[idx]!;
       const total = totais.linhas_cents[idx]!;
+      const emValor = paraPreco[idx]!.ajuste !== undefined;
       return {
         product_id: i.product_id,
         sku: i.sku,
@@ -302,9 +356,13 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
         fator: i.fator ?? 1,
         quantidade_base: p.quantidade_base,
         preco_tabela_cents: p.preco_tabela_cents,
-        preco_unitario_cents: i.quantity > 0 ? Math.floor((total * 2 + i.quantity) / (2 * i.quantity)) : 0,
-        desconto_pct: paraPreco[idx]!.desconto_pct,
-        acrescimo_pct: paraPreco[idx]!.acrescimo_pct,
+        // T-0071: preço final da medida DEPOIS do ajuste do item e ANTES do ajuste do pedido (o rateio fica só no total da linha)
+        preco_unitario_cents: p.preco_unitario_cents,
+        desconto_pct: emValor ? pctDe(Math.max(0, p.preco_tabela_cents - p.preco_unitario_cents), p.preco_tabela_cents) : paraPreco[idx]!.desconto_pct,
+        acrescimo_pct: emValor ? pctDe(Math.max(0, p.preco_unitario_cents - p.preco_tabela_cents), p.preco_tabela_cents) : paraPreco[idx]!.acrescimo_pct,
+        desconto_unitario_cents: Math.max(0, p.preco_tabela_cents - p.preco_unitario_cents),
+        acrescimo_unitario_cents: Math.max(0, p.preco_unitario_cents - p.preco_tabela_cents),
+        ajuste_em: emValor ? ('valor' as const) : ('pct' as const),
         total_cents: total,
         preco_minimo_cents: p.preco_minimo_cents,
       };

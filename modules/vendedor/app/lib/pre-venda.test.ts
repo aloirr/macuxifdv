@@ -10,9 +10,11 @@ const depois = (dias: number) => new Date(CRIADO.getTime() + dias * 86_400_000);
 const orc = { status: 'received' as const, tipo: 'orcamento' as const, validade_ate: depois(7).toISOString(), convertido_pedido_id: null };
 
 describe('T-0053: pré-venda no app', () => {
-  it('RF-VEN-03: o orçamento só aparece com o parâmetro orcamento.ativo (padrão desligado até a 0013)', () => {
-    expect(preVendaAtiva({})).toBe(false);
+  it('RF-VEN-03: o orçamento vem LIGADO por padrão (T-0071 §1.4 a) e o tenant pode desligar com orcamento.ativo = false', () => {
+    expect(preVendaAtiva({})).toBe(true);
     expect(preVendaAtiva({ 'orcamento.ativo': false })).toBe(false);
+    expect(preVendaAtiva({ 'orcamento.ativo': 'false' })).toBe(false);
+    expect(preVendaAtiva({ 'orcamento.ativo': 0 })).toBe(false);
     expect(preVendaAtiva({ 'orcamento.ativo': true })).toBe(true);
     expect(preVendaAtiva({ 'orcamento.ativo': 'true' })).toBe(true);
   });

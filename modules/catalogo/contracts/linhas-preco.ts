@@ -14,6 +14,8 @@ export const ItemTabelaPreco = z.object({
   valid_from: z.string().datetime().nullable().optional(),
   /** Fim da vigência (exclusivo), ISO UTC; nulo = sem fim. */
   valid_to: z.string().datetime().nullable().optional(),
+  /** Preço próprio da embalagem (RN-VEN-15): 'CX' etc.; nulo/ausente = unidade base. */
+  unit: z.string().nullable().optional(),
 });
 export type ItemTabelaPreco = z.infer<typeof ItemTabelaPreco>;
 

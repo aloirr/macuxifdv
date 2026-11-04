@@ -1,4 +1,34 @@
-# Demonstração — app novo + API real (T-0026, T-0029 e T-0038)
+# Demonstração — app novo + API real (T-0026, T-0029, T-0038 e T-0074)
+
+## Ambiente principal: Magalu Cloud, sempre ligado (T-0074, desde 04/11/2026)
+A demo e a homologação rodam na VM `macuxi-demo-se1` (177.93.129.233, br-se1) e **não dependem do PC**. O PC fica só com desenvolvimento e com o Postgres de testes (5434).
+- Endereços:
+  - app: `https://api-demo.macuxifdv.com.br/v1` (já vem nos APKs de preview; não é preciso build nova);
+  - BKO: `https://bko-demo.macuxifdv.com.br`.
+- Na VM, pelo Docker Compose (`scripts/deploy/demo/compose.yml`):
+  - `api` (8100), `worker`, `bko` (3100);
+  - `postgres` (`pgvector/pgvector:pg16`), só na rede interna;
+  - `cloudflared`, que liga o túnel `macuxi-demo-nuvem` pelo token.
+- **Publicar:** todo push no `main` com CI verde dispara o workflow **demo — publicar** (`.github/workflows/demo-publicar.yml`). Ele monta as imagens no GHCR, roda as migrações, sobe o Compose e limpa as imagens velhas. Também dá para rodar manualmente em Actions.
+- **Recriar a base demo:** workflow manual **demo — recriar base** (`demo-recriar-base.yml`), que pede para digitar `RECRIAR`.
+- **Fotos e arquivos:** bucket privado `macuxi-demo-arquivos` (Object Storage da Magalu), pelo adaptador S3 (ADR 0010, complemento). A chave `macuxi-demo-s3` vale até 31/12/2026; o gerente avisa o dono do produto em 15/12 para renovar.
+- **Segredos:** os do GitHub ficam no environment `DEMO_SSH_KEY`. JWT e senhas dos papéis do banco são gerados na própria VM, em `/opt/macuxi/.env` (modo 600). Nenhum fica no repositório.
+- **VM endurecida:**
+  - SSH só por chave, sem senha e sem root;
+  - fail2ban;
+  - atualizações de segurança automáticas;
+  - fuso UTC;
+  - grupo de segurança só com a porta 22.
+- **Backup:** `pg_dump` diário no bucket (`backups/`, 7 dias). Está com o banco-dados na T-0074; esta seção é atualizada quando a restauração for testada.
+- **Estado em 04/11/2026, 3h30 (Manaus):**
+  - ✅ primeiro deploy verde (commit e626d0b, workflow run 41791896334): migrações 0001–0021, seed demo, api/worker/postgres/cloudflared saudáveis;
+  - ✅ sonda do S3 ok (gravar, ler e remover no bucket);
+  - ✅ `api-demo/v1/saude` responde 200;
+  - ⏳ `bko-demo/login` ainda dá 502: falta o Dockerfile do BKO (engenheiro-apps), que entra no próximo push.
+
+## Plano B: demo no PC, só com túnel rápido
+Os passos abaixo são do tempo em que a demo rodava no PC. **Servem só de plano B**, com o **túnel rápido** (trycloudflare, endereço temporário). Os APKs de preview não conectam por ele; só o build de desenvolvimento conecta.
+> ⚠️ **Não use `configurar-dominio.ps1`.** Ele sobrescreveria o DNS de `api-demo`/`bko-demo`, que hoje aponta para o túnel da nuvem. O script agora recusa rodar.
 
 ## Antes do dia
 - Docker Desktop instalado; `pnpm install` na raiz.
@@ -13,7 +43,7 @@
     - Neles, digite `https://api-demo.macuxifdv.com.br/v1` em Servidor → Testar e salvar (ou o endereço do túnel rápido).
 - Recomendado: `MACUXI_JWT_SEGREDO` (32+ caracteres) no .env da raiz. Sem ele, cada subida usa um segredo temporário.
 
-## Uma vez só (por PC): domínio fixo
+## Uma vez só (por PC): domínio fixo — APOSENTADO desde 04/11/2026 (não rode; ver o aviso acima)
 1. `cloudflared tunnel login` (o navegador abre; escolha **macuxifdv.com.br**). A autorização fica em `%USERPROFILE%\.cloudflared`, fora do repositório e fora do alcance dos agentes (doc 07).
 2. `powershell -ExecutionPolicy Bypass -File scripts\demo\configurar-dominio.ps1`: cria o túnel `macuxi-demo`, aponta `api-demo` e `bko-demo` e grava o config. Pode rodar de novo sem duplicar nada. Se um nome já apontar para outro lugar, use `-SobrescreverDns`.
 

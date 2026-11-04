@@ -40,6 +40,7 @@ import {
 } from '@macuxi/platform-sdk';
 import { ENTIDADES_PRECO } from '@macuxi/catalogo/contracts';
 import { consultaPrecosClienteAparelho } from '../../../modules/catalogo/app/consultas';
+import { consultaSugestoesPedidoAparelho } from '../../../modules/catalogo/app/sugestoes';
 import { entidadesCliente } from '../../../modules/core/app/lib/entidades-cliente';
 import { entidadesNotificacao } from '../../../modules/core/app/lib/entidades-notificacao';
 import { entidadesProduto } from '../../../modules/core/app/lib/entidades-produto';
@@ -97,10 +98,11 @@ export interface OpcoesAparelho {
 
 /**
  * Consultas entre módulos no aparelho (ADR 0012), como o `criarShell(...).consultas` do app: o Catálogo responde
- * `catalogo.precos_cliente@1` sobre as linhas locais (preço do cliente, offline, no novo pedido).
+ * `catalogo.precos_cliente@1` sobre as linhas locais (preço do cliente, offline, no novo pedido) e `catalogo.sugestoes_pedido@1`
+ * (T-0071: "Combina com o pedido" e "Leve mais"; precisa das entidades `produto_relacao` e `estoque_saldo` em `entidadesExtras`).
  */
 const CONSULTAS_CAMPO = criarRegistroConsultasAparelho(
-  MANIFESTOS_CAMPO.map((m) => (m.id === 'catalogo' ? { manifesto: m, consultas: [consultaPrecosClienteAparelho] } : { manifesto: m })),
+  MANIFESTOS_CAMPO.map((m) => (m.id === 'catalogo' ? { manifesto: m, consultas: [consultaPrecosClienteAparelho, consultaSugestoesPedidoAparelho] } : { manifesto: m })),
 ).registro;
 
 export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAparelho = {}): Promise<AparelhoCampo> {

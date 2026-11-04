@@ -128,7 +128,7 @@ function Rodar-Configurar([string]$Pasta) {
   $antes = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   try {
-    $saida = & $Shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Demo 'configurar-dominio.ps1') -PastaConfig $pastaConfig 2>&1 | Out-String
+    $saida = & $Shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Demo 'configurar-dominio.ps1') -PastaConfig $pastaConfig -EuSeiQueTiraAVmDoAr 2>&1 | Out-String
     $codigo = $LASTEXITCODE
   } finally { $ErrorActionPreference = $antes; Remove-Item Env:\MACUXI_CLOUDFLARED -ErrorAction SilentlyContinue }
   $log = Join-Path $Pasta 'chamadas.log'

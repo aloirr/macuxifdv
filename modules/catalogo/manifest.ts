@@ -44,6 +44,8 @@ export const manifest = defineModule({
     // árvore do catálogo (RF-CAT-04, T-0061; nomes e níveis do ERP)
     'catalogo_no',
     'produto_no',
+    // relação entre produtos: complementar, superior, substituto (RF-CAT-03; T-0071)
+    'produto_relacao',
   ],
   publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
   // produto: só o catalogo_no_external_id, para gravar produto_no; o cadastro do produto é do Core
@@ -52,7 +54,7 @@ export const manifest = defineModule({
   // T-0052: atalho "Ver catálogo" na ficha do cliente (abre o catálogo com o preço da tabela dele)
   usaExtensoes: ['cliente.acoes'],
   // ADR 0012: o Vendedor lê o preço da tabela do cliente por consulta, nunca pela tabela (T-0029)
-  ofereceConsultas: ['catalogo.precos_cliente@1'],
+  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1'],
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
   usaConsultas: ['core.cadastro_resumo@1'],
   acoes: {

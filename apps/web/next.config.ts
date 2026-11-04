@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import type { NextConfig } from 'next';
 
 // API real (padrão, porta 8100) ou mock-api da demonstração (NEXT_PUBLIC_API_MODO=demo, porta 8000): ver @macuxi/platform-sdk/web
@@ -32,6 +34,15 @@ export function hostsDoBko(origem: string | undefined | null): string[] {
 
 const HOSTS = hostsDoBko(process.env.MACUXI_BKO_ORIGEM);
 
+/**
+ * Imagem Docker do BKO (T-0074, apps/web/Dockerfile): `MACUXI_NEXT_STANDALONE=1` no build gera `.next/standalone`
+ * (server.js + só os node_modules rastreados), com a raiz do monorepo como raiz do rastreio. No PC (pnpm dev e o
+ * `next start` do scripts/demo) a variável não existe e nada muda.
+ */
+export function opcoesStandalone(valor: string | undefined, raizDoWeb: string = process.cwd()): Partial<NextConfig> {
+  return valor?.trim() === '1' ? { output: 'standalone', outputFileTracingRoot: path.resolve(raizDoWeb, '..', '..') } : {};
+}
+
 const nextConfig: NextConfig = {
   // pacotes e módulos do monorepo são publicados como TypeScript puro (sem build)
   transpilePackages: [
@@ -49,6 +60,7 @@ const nextConfig: NextConfig = {
     '@macuxi/integracao',
   ],
   reactStrictMode: true,
+  ...opcoesStandalone(process.env.MACUXI_NEXT_STANDALONE),
   // BKO atrás do túnel (T-0038): origem permitida no `next dev` e nas Server Actions
   allowedDevOrigins: HOSTS,
   experimental: { serverActions: { allowedOrigins: HOSTS } },

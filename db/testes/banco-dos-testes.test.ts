@@ -3,7 +3,7 @@
  * Estático: roda sempre, sem Postgres.
  */
 import { describe, expect, it } from 'vitest';
-import { ehBancoDeTeste } from '../scripts/limpar-bancos-teste.mjs';
+import { classificar, ehBancoDeTeste, IDADE_MIN_HORAS_PADRAO, instanteDoNome } from '../scripts/limpar-bancos-teste.mjs';
 import { HOSTS_LOCAIS, lerConfig, lerConfigTestes, PORTA_TESTES_PADRAO } from '../src/config';
 
 describe('lerConfigTestes: os testes nunca usam o Postgres da demo por padrão', () => {
@@ -52,5 +52,42 @@ describe('limpar-bancos-teste.mjs: só apaga nomes criados pelos testes', () => 
       expect(ehBancoDeTeste(n, protegidos), n).toBe(false);
     }
     expect(ehBancoDeTeste('macuxi_teste_abc_12_a1b2c3', ['macuxi_teste_abc_12_a1b2c3'])).toBe(false);
+  });
+});
+
+describe('limpar-bancos-teste.mjs: com outra rodada rodando, só sai banco sem conexão e com mais de 2 h', () => {
+  const protegidos = ['postgres', 'macuxi'];
+  const agora = Date.UTC(2026, 10, 4, 7, 0, 0); // hora-fixa-ok: relógio injetado na função pura
+  const H = 3_600_000;
+  const nomeEm = (ms: number, sufixo: string) => `macuxi_teste_${ms.toString(36)}_123_${sufixo}`;
+  const banco = (datname: string, conexoes = 0, criadoEm: number | null = null) => ({ datname, datistemplate: false, conexoes, criadoEm });
+
+  it('instanteDoNome lê o Date.now() em base 36 dos dois padrões', () => {
+    expect(instanteDoNome(nomeEm(agora, 'a1b2c3'))).toBe(agora);
+    expect(instanteDoNome(`macuxi_conector_teste_${agora.toString(36)}_0f9e8d`)).toBe(agora);
+    expect(instanteDoNome('macuxi_teste_abc_12_a1b2c3')).toBeNull(); // "abc" em base 36 não é um instante plausível
+    expect(instanteDoNome('macuxi')).toBeNull();
+  });
+
+  it('classifica: conexão aberta fica, recente fica, antigo sem conexão sai; demo/postgres/template nunca', () => {
+    const velho = banco(nomeEm(agora - 3 * H, 'aaaaaa'));
+    const ocupado = banco(nomeEm(agora - 30 * H, 'bbbbbb'), 1);
+    const recente = banco(nomeEm(agora - 30 * 60_000, 'cccccc'));
+    // nome antigo, mas o arquivo do banco é recente (relógio torto): vale a data mais nova, fica
+    const arquivoNovo = banco(nomeEm(agora - 5 * H, 'dddddd'), 0, agora - 10 * 60_000);
+    const fixos = [banco('postgres', 3), banco('macuxi', 2), { ...banco('template1'), datistemplate: true }];
+    const r = classificar([velho, ocupado, recente, arquivoNovo, ...fixos], { protegidos, agora, idadeMinMs: IDADE_MIN_HORAS_PADRAO * H, forcar: false });
+    expect(r.apagaveis).toEqual([velho]);
+    expect(r.ocupados).toEqual([ocupado]);
+    expect(r.recentes).toEqual([recente, arquivoNovo]);
+    expect(r.ficam.map((d) => d.datname)).toEqual(['postgres', 'macuxi', 'template1']);
+  });
+
+  it('sem data nenhuma só sai com idade mínima 0; --forcar só ignora a conexão, não a idade', () => {
+    const semData = banco('macuxi_teste_zzzzzzzzzzzzzz_1_a1b2c3');
+    expect(classificar([semData], { protegidos, agora, idadeMinMs: 2 * H, forcar: false }).recentes).toEqual([semData]);
+    expect(classificar([semData], { protegidos, agora, idadeMinMs: 0, forcar: false }).apagaveis).toEqual([semData]);
+    const ocupadoRecente = banco(nomeEm(agora - 60_000, 'eeeeee'), 2);
+    expect(classificar([ocupadoRecente], { protegidos, agora, idadeMinMs: 2 * H, forcar: true }).recentes).toEqual([ocupadoRecente]);
   });
 });

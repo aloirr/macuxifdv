@@ -47,3 +47,8 @@ Converter ── push (pedido novo, orcamento_origem_id) ► valida a validade e
 
 ## Fora desta parte (backlog)
 Evento "enviado" do Hub (hoje o Vendedor vê `integrado` direto do `aprovado`), reenvio ao ERP pelo BKO, aba/filtro "Orçamentos" no BKO, PDF com o selo "Orçamento — válido até", crédito/estoque no orçamento.
+
+## T-0071 — tela do orçamento no app Campo (04/11)
+- **Detalhe do orçamento**: selo de validade ("Orçamento · até 10/11", "Vencido", "Virou pedido 000015") pela data civil no fuso do tenant (`validade_data` do pull; linha antiga usa `validade_ate`; na fila, criação + `orcamento.validade_dias`), tudo offline.
+- **Transformar em pedido** (RN-VEN-18): cria um pedido NOVO na fila com `orcamento_origem_id`, copiando medida, ajustes do item e do pedido (no modo gravado), frete, endereço, condição, observação e visita; o preço não é copiado. Antes, `reconferirOrcamento` (domain) roda no aparelho: se preço, estoque, medida, alçada ou cliente mudaram, a folha "Mudou desde o orçamento" lista em português e pede confirmação; cliente bloqueado/incompleto só com orçamento.
+- **Editar**: orçamento na fila edita offline; orçamento já recebido edita pela API (`PUT /v1/vendedor/orcamentos/:id` com `atualizado_em`), com sinal. **Duplicar** (inclusive vencido) reabre o rascunho com os mesmos ajustes. **PDF** sai com o título "Orçamento" e a validade. **Cancelar orçamento** usa `POST /v1/vendedor/orcamentos/:id/cancelar`.

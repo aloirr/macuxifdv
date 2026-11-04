@@ -35,7 +35,8 @@ export const REFERENCIA: ManifestoEntrada[] = [
     sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_etapa', 'motivo', 'meta', 'indicador_diario', 'notificacao'],
     publica: ['core.cliente.atualizado@1', 'core.visita.checkin@1', 'core.visita.checkout@1', 'core.usuario.modulos_alterados@1'],
     // T-0029 (ADR 0012): retrato do cliente, do produto e do usuário para o pedido (só API nesta fatia)
-    ofereceConsultas: ['core.cadastro_resumo@1'],
+    // em dia com modules/core/manifest.ts em 2026-11-04 (T-0071, R-20261104-001250)
+    ofereceConsultas: ['core.cadastro_resumo@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1'],
     consome: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'treinamento.medalha.conquistada@1', 'integracao.cliente.atualizado@1', 'integracao.produto.atualizado@1'],
     acoes: {
       'rota.editar': { perfis: ['gerente', 'analista', 'admin'] },
@@ -56,7 +57,8 @@ export const REFERENCIA: ManifestoEntrada[] = [
     apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo'] } },
     sync: ['tabela_preco', 'tabela_preco_item', 'cliente_tabela_preco', 'deposito', 'estoque_saldo', 'categoria', 'marca', 'produto_atributo', 'produto_midia', 'produto_conteudo', 'sinonimo'],
     // T-0029 (ADR 0012): preço da tabela do cliente (RN-CAT-06) na API e no aparelho
-    ofereceConsultas: ['catalogo.precos_cliente@1'],
+    // T-0071: sugestões do novo pedido ("Combina com o pedido" e "Leve mais"), no aparelho e na API
+    ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1'],
     publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
     consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'catalogo.busca.realizada@1'],
     ofereceExtensoes: ['produto.acoes'],
@@ -90,7 +92,8 @@ export const REFERENCIA: ManifestoEntrada[] = [
       'vendedor.pedido.faturado@1',
     ],
     consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1'],
-    usaConsultas: ['catalogo.precos_cliente@1', 'core.cadastro_resumo@1'],
+    // T-0071 (R-20261104-001250): sugestões do Catálogo no novo pedido e a opção do perfil do promotor (O-3)
+    usaConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'core.cadastro_resumo@1', 'core.promotor_ve_pedidos@1'],
     acoes: {
       'pedido.ver': { perfis: [...PEDIDO, 'admin', 'promotor'] },
       'pedido.criar': { perfis: [...PEDIDO] },
@@ -275,7 +278,7 @@ describe('manifestos de referência dos 8 módulos (desenho T-0001)', () => {
         expect(dono, `${m.id} usa ${c}`).toBeDefined();
         expect([...m.depende, ...m.opcionais], `${m.id} usa ${c}`).toContain(dono);
       }
-    expect(manifestos.find((m) => m.id === 'vendedor')!.usaConsultas).toEqual(['catalogo.precos_cliente@1', 'core.cadastro_resumo@1']);
+    expect(manifestos.find((m) => m.id === 'vendedor')!.usaConsultas).toEqual(['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'core.cadastro_resumo@1', 'core.promotor_ve_pedidos@1']);
   });
 
   it('T-0029 §7: o Vendedor aparece no Gestão para supervisor e gerente; o promotor continua fora (RN-PRO-01)', () => {

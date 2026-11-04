@@ -67,6 +67,7 @@ describe.skipIf(semBanco())('Vendedor: pull de pedido e pedido_item × Postgres 
           }),
         ),
       usuariosVisiveis: async () => visiveis,
+      fuso: () => 'America/Manaus',
       carteira: async () => carteira,
     } as unknown as ContextoBase;
   }

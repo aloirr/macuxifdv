@@ -58,9 +58,11 @@ describe('RN-VEN-02: preço do item (desconto ou acréscimo por item)', () => {
     expect(precoDoItem(item({ preco_tabela_unidade_cents: 110, desconto_pct: 7.5 })).total_cents).toBe(102);
     expect(precoDoItem(item({ preco_tabela_unidade_cents: 50, desconto_pct: 5 })).total_cents).toBe(48);
   });
-  it('RN-VEN-02: o total é arredondado na linha, não por unidade', () => {
-    // 3 × 33 = 99 × 0,95 = 94,05 → 94 (por unidade seria 31,35 → 31 × 3 = 93)
-    expect(precoDoItem(item({ preco_tabela_unidade_cents: 33, quantidade: 3, desconto_pct: 5 })).total_cents).toBe(94);
+  it('RN-VEN-02 (v2, T-0071): arredonda-se o preço UNITÁRIO e o total da linha é unitário × quantidade', () => {
+    // 33 × 0,95 = 31,35 → 31 ; 31 × 3 = 93 (antes arredondava a linha: 94)
+    const r = precoDoItem(item({ preco_tabela_unidade_cents: 33, quantidade: 3, desconto_pct: 5 }));
+    expect(r.preco_unitario_cents).toBe(31);
+    expect(r.total_cents).toBe(93);
   });
 });
 

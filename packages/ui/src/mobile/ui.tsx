@@ -1,5 +1,8 @@
 /**
- * Peças de interface reutilizadas pelas telas (seguem os mockups).
+ * Peças de interface reutilizadas pelas telas (seguem os mockups). Visual revisto na T-0072 (guia de 03/11) com as
+ * MESMAS props: `Button` segue os níveis (accent = principal; outlineDark = secundário; ghost = neutro; danger = perigo),
+ * desabilitado cinza legível e toque que afunda (escala 0,97; só opacidade com "reduzir movimento").
+ * Para tela nova, prefira `Botao`, `Cartao` e `ChipEstado` (base.tsx).
  */
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
@@ -7,8 +10,9 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from './icon';
+import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
-import { colors, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
+import { BOTAO_DESABILITADO, colors, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
 
 /** Área rolável da tela com o respiro do mockup (28 no topo, 20 nas laterais). */
 export function Screen({
@@ -43,16 +47,17 @@ export function Screen({
 
 export function BackLink({ label, fallback }: { label: string; fallback: string }) {
   return (
-    <Pressable
+    <Pressionavel
       accessibilityRole="link"
       accessibilityLabel={`Voltar para ${label}`}
       onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback as never))}
-      style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
+      escala={false}
+      style={styles.back}>
       <Icon name="back" size={18} color={colors.ink2} />
       <Text style={styles.backText} numberOfLines={1}>
         {label}
       </Text>
-    </Pressable>
+    </Pressionavel>
   );
 }
 
@@ -83,42 +88,49 @@ export function Button({
   testID?: string;
   accessibilityLabel?: string;
 }) {
-  const v = BUTTON[variant];
+  const off = Boolean(disabled || loading);
+  const v = disabled ? { ...BUTTON[variant], bg: BOTAO_DESABILITADO.fundo, fg: BOTAO_DESABILITADO.texto, border: 'transparent', borderWidth: 0 } : BUTTON[variant];
+  const grande = height >= 52;
   return (
-    <Pressable
+    <Pressionavel
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled: Boolean(disabled || loading) }}
-      disabled={disabled || loading}
+      accessibilityState={{ disabled: off, busy: Boolean(loading) }}
+      disabled={off}
       onPress={onPress}
-      style={({ pressed }) => [
+      vibrar={variant === 'accent'}
+      style={[
         styles.button,
-        { height, backgroundColor: v.bg, borderColor: v.border, borderWidth: v.border === 'transparent' ? 0 : 1, borderRadius: height >= 52 ? radius.lg : radius.md },
-        disabled && styles.disabled,
-        pressed && styles.pressed,
+        { height, backgroundColor: v.bg, borderColor: v.border, borderWidth: v.borderWidth, borderRadius: grande ? radius.botao : radius.botaoMedio },
         style,
       ]}>
-      {loading ? <ActivityIndicator color={v.fg} size="small" /> : icon ? <Icon name={icon} size={16} color={v.fg} /> : null}
-      <Text style={[styles.buttonText, { color: v.fg, fontSize: height >= 52 ? 15 : 14 }, textStyle]} numberOfLines={1}>
+      {loading ? <ActivityIndicator color={v.fg} size="small" /> : icon ? <Icon name={icon} size={grande ? 18 : 16} color={v.fg} /> : null}
+      <Text style={[styles.buttonText, { color: v.fg, fontSize: grande ? 16 : 14 }, textStyle]} numberOfLines={1}>
         {label}
       </Text>
-    </Pressable>
+    </Pressionavel>
   );
 }
 
-const BUTTON: Record<ButtonVariant, { bg: string; fg: string; border: string }> = {
-  accent: { bg: colors.accent, fg: '#FFFFFF', border: 'transparent' },
-  dark: { bg: colors.ink, fg: '#FFFFFF', border: 'transparent' },
-  outline: { bg: colors.surface, fg: colors.ink, border: colors.lineStrong },
-  outlineDark: { bg: colors.surface, fg: colors.ink, border: colors.ink },
-  success: { bg: colors.success, fg: '#FFFFFF', border: 'transparent' },
-  ghost: { bg: colors.ground, fg: colors.ink, border: 'transparent' },
-  danger: { bg: colors.surface, fg: colors.danger, border: colors.danger },
+/** Variantes antigas → níveis do guia (T-0072). */
+const BUTTON: Record<ButtonVariant, { bg: string; fg: string; border: string; borderWidth: number }> = {
+  /** = nível principal (um só por tela) */
+  accent: { bg: colors.accent, fg: '#FFFFFF', border: 'transparent', borderWidth: 0 },
+  dark: { bg: colors.ink, fg: '#FFFFFF', border: 'transparent', borderWidth: 0 },
+  /** secundário claro (borda cinza) */
+  outline: { bg: colors.surface, fg: colors.ink, border: colors.lineStrong, borderWidth: 1 },
+  /** = nível secundário (borda grafite 1,5) */
+  outlineDark: { bg: colors.surface, fg: colors.ink, border: colors.ink, borderWidth: 1.5 },
+  success: { bg: colors.success, fg: '#FFFFFF', border: 'transparent', borderWidth: 0 },
+  /** = nível neutro (Cancelar) */
+  ghost: { bg: colors.lineSoft, fg: colors.ink, border: 'transparent', borderWidth: 0 },
+  /** = nível perigo (Rejeitar, Excluir) */
+  danger: { bg: colors.dangerBg, fg: colors.danger, border: 'transparent', borderWidth: 0 },
   /** check-in bloqueado por outro atendimento aberto (cinza com cadeado) */
-  locked: { bg: colors.lineSoft, fg: colors.ink3, border: 'transparent' },
+  locked: { bg: colors.lineSoft, fg: colors.ink3, border: 'transparent', borderWidth: 0 },
   /** ação já feita (ex.: "Visitado") */
-  muted: { bg: colors.lineSoft, fg: colors.ink3, border: 'transparent' },
+  muted: { bg: colors.lineSoft, fg: colors.ink3, border: 'transparent', borderWidth: 0 },
 };
 
 export function Badge({ label, tone, fg, bg, style }: { label: string; tone?: Tone; fg?: string; bg?: string; style?: StyleProp<ViewStyle> }) {
@@ -132,17 +144,22 @@ export function Badge({ label, tone, fg, bg, style }: { label: string; tone?: To
   );
 }
 
-export function Chip({ label, active, onPress, testID }: { label: string; active: boolean; onPress: () => void; testID?: string }) {
+/**
+ * Chip de escolha (prazo, transportadora, filtro). `rotuloAcessivel` é o que o leitor de tela lê quando o rótulo visível é
+ * abreviado ("28 d" → "28 dias"); sem ele, lê o `label` (T-0072, revisão de UX do novo pedido).
+ */
+export function Chip({ label, active, onPress, testID, rotuloAcessivel }: { label: string; active: boolean; onPress: () => void; testID?: string; rotuloAcessivel?: string }) {
   return (
-    <Pressable
+    <Pressionavel
       testID={testID}
       accessibilityRole="button"
+      accessibilityLabel={rotuloAcessivel ?? label}
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      hitSlop={{ top: 4, bottom: 4 }}
-      style={({ pressed }) => [styles.chip, active ? styles.chipOn : styles.chipOff, pressed && styles.pressed]}>
+      hitSlop={{ top: 6, bottom: 6 }}
+      style={[styles.chip, active ? styles.chipOn : styles.chipOff]}>
       <Text style={[styles.chipText, { color: active ? '#FFFFFF' : colors.ink }]}>{label}</Text>
-    </Pressable>
+    </Pressionavel>
   );
 }
 
@@ -237,19 +254,20 @@ export const styles = StyleSheet.create({
   disabled: { opacity: 0.45 },
   back: { alignSelf: 'flex-start', height: TOUCH, flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%' },
   backText: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
-  button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 14 },
+  button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
   buttonText: { fontFamily: fonts.semibold, fontSize: 14 },
-  badge: { borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' },
-  badgeText: { fontFamily: fonts.bold, fontSize: 11 },
+  /** chip de estado pequeno do guia (24 dp, pílula); a cor sempre vem com o texto */
+  badge: { borderRadius: radius.pilula, paddingHorizontal: 10, minHeight: 24, justifyContent: 'center', alignSelf: 'flex-start' },
+  badgeText: { fontFamily: fonts.semibold, fontSize: 12 },
   chip: { height: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipOff: { backgroundColor: colors.surface, borderColor: colors.lineStrong },
   chipText: { fontFamily: fonts.semibold, fontSize: 13 },
-  banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: radius.lg, paddingVertical: 10, paddingHorizontal: 12 },
+  banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderRadius: radius.cartao, paddingVertical: 12, paddingHorizontal: 14 },
   bannerText: { flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   sectionLink: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accent },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.xl },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.cartao },
   stamp: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   stampText: { fontFamily: fonts.body, fontSize: 12 },
 });

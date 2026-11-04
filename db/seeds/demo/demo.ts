@@ -40,18 +40,24 @@
  *   cadastros de trade e visitas de loja da Joana) e Gestor (gestor.ts, 0014: licença para supervisor, gerente,
  *   analista e admin + projeção montada pelo domain do Gestor) e Pesquisa (pesquisa.ts, 0016: 2 questionários
  *   publicados e 16 respostas) e Treinamento (treinamento.ts, 0017: licença para os 7 perfis, 3 trilhas, jornada de
- *   Lucas, Camila e Joana e o desafio do mês). Por isso a carga exige as migrações até a 0019 (medidas da 0018 e
- *   core.meta.tipo da 0019).
+ *   Lucas, Camila e Joana e o desafio do mês). Por isso a carga exige as migrações até a 0020 (medidas da 0018,
+ *   core.meta.tipo da 0019 e catalogo.produto_relacao da 0020).
+ * - T-0071 (0020, referência do novo pedido R-20261103-130003): Mini Box Japiim vira o cliente da referência (cód. C5110,
+ *   Mercadinho, Av. Ajuricaba 1200 + endereço de entrega, sem título vencido nem bloqueio — o vencido/bloqueado passou para a
+ *   Mercearia do Porto); AGU-500 FD R$ 17,90, CAF-500 UN R$ 18,90 com CX c/ 12 de preço próprio R$ 215,46 (preço próprio da CX
+ *   LIGADO), BIS-400 com CX c/ 20 (R$ 117,80 = UN × fator), açúcar a R$ 4,99 e 3 produtos novos (filtro de papel, leite em pó
+ *   e água 1,5 L); relacionados (catalogo.produto_relacao): complementares do café e versão superior da água; o Lucas com
+ *   pedidos recentes em 2 mercadinhos (clientes parecidos do Mini Box) — 11 pedidos na base, o próximo número é o 000012.
  *
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
  * `recriar: true` apaga TODAS as linhas do tenant demo (inclusive o que o app gravou no ensaio) e carrega do zero.
- * Só roda contra o Postgres local (exigirBancoLocal), como o seed da Fase M. Nunca toca linha de outro tenant.
+ * Só roda contra o Postgres local ou o servidor da demo com MACUXI_AMBIENTE=demo (exigirBancoDemo). Nunca toca linha de outro tenant.
  */
 import type { ClientBase } from 'pg';
 import { politicaDosParametros, revalidarPedido } from '../../../modules/vendedor/domain/aprovacao';
 import type { OrderStatus } from '../../../modules/vendedor/domain/order';
-import { exigirBancoLocal, hostDoCliente } from '../../src/config';
+import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeChave, idDeterministico, idMotivoPadrao, type CodigoMotivoPadrao } from '../../src/ids';
@@ -67,8 +73,8 @@ export const CODIGO_DEMO = 'demo';
 export const FUSO_DEMO = 'America/Manaus';
 export const SENHA_DEMO_PADRAO = 'demo-macuxi';
 export const MODULOS_DEMO = ['core', 'catalogo', 'vendedor', 'promotor'] as const;
-/** Última migração de que a base depende (0013: catálogo, unidades, frete; 0018: medidas; 0019: core.meta.tipo). */
-const MIGRACAO_MINIMA = '0019_core_nota_erp_meta_tipo';
+/** Última migração de que a base depende (0013: catálogo, unidades, frete; 0018: medidas; 0019: core.meta.tipo; 0020: produto_relacao). */
+const MIGRACAO_MINIMA = '0020_pedido_ajuste_valor_produto_relacao';
 /** Tipo das metas da demo (0019, RN-CORE-21): pedido — sem faturamento do ERP na demo, a de faturamento ficaria zerada. */
 export const TIPO_METAS_DEMO = 'pedido' as const;
 
@@ -131,7 +137,8 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   ['CAF-500', 'Café torrado e moído 500 g', 'Aroma da Serra', 'Mercearia', 'UN', 1_890],
   ['ARR-5K', 'Arroz tipo 1 5 kg', 'Grão Nobre', 'Mercearia', 'UN', 2_690],
   ['FEI-1K', 'Feijão carioca 1 kg', 'Grão Nobre', 'Mercearia', 'UN', 899],
-  ['ACU-1K', 'Açúcar cristal 1 kg', 'Doce Vale', 'Mercearia', 'UN', 479],
+  // T-0071: R$ 4,99 (complementar do café na referência do novo pedido; era R$ 4,79)
+  ['ACU-1K', 'Açúcar cristal 1 kg', 'Doce Vale', 'Mercearia', 'UN', 499],
   ['OLE-900', 'Óleo de soja 900 ml', 'Campo Verde', 'Mercearia', 'UN', 749],
   ['FAR-1K', 'Farinha de mandioca 1 kg', 'Sabor do Norte', 'Mercearia', 'UN', 690],
   ['MAC-500', 'Macarrão espaguete 500 g', 'Bella Massa', 'Mercearia', 'UN', 459],
@@ -163,6 +170,11 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   ['VEL-150', 'Vela de ignição para moto 150 cc', 'Faísca', 'Automotivo', 'UN', 1_590],
   ['CAM-18', 'Câmara de ar aro 18 para moto', 'Rodaforte', 'Automotivo', 'UN', 2_990],
   ['LAM-H4', 'Lâmpada de farol H4 12 V 60/55 W', 'Luzmax', 'Automotivo', 'UN', 2_190],
+  // T-0071 (0020): complementares do café e versão superior da água, para as sugestões do novo pedido (desenho §5). No FIM da
+  // lista: margem e saldo usam o índice do produto, os anteriores não mudam
+  ['FIL-103', 'Filtro de papel 103 c/ 30', 'Aroma da Serra', 'Mercearia', 'UN', 549],
+  ['LPO-400', 'Leite em pó integral 400 g', 'Leite Bom', 'Laticínios', 'UN', 1_690],
+  ['AGU-1500', 'Água mineral 1,5 L (fardo 6)', 'Fonte Clara', 'Bebidas', 'FD', 1_990],
 ];
 const PRECO = new Map(PRODUTOS.map(([sku, , , , , preco]) => [sku, preco]));
 const PRODUTO = new Map(PRODUTOS.map(([sku, nome, , , unidade]) => [sku, { nome, unidade }]));
@@ -175,11 +187,16 @@ export const DESCONTO_MAXIMO_PROPRIO_DEMO: Record<string, number> = { 'OLE-4T-1L
 /** Margem esperada (%) do produto i: de 20% a 40%, estável. custo = preço de venda × (1 − margem). */
 const margemDemo = (i: number) => 20 + ((i * 7) % 21);
 
-/** Liga as linhas de preço próprio da CX na tabela Varejo (ver o comentário no uso). */
-export const PRECO_PROPRIO_CX_LIGADO = false;
+/**
+ * Liga as linhas de preço próprio da CX na tabela Varejo (ver o comentário no uso). Ligado na T-0071 (café CX c/ 12 a R$ 215,46
+ * da referência): exige a correção de precosDoCliente do Catálogo (preço base só das linhas com unidade nula; as com unidade
+ * vão para embalagens[] de catalogo.precos_cliente@1), entregue na mesma T-0071.
+ */
+export const PRECO_PROPRIO_CX_LIGADO = true;
 /** Caixas de embarque (RN-VEN-15): [sku, fator, preço próprio da CX no Varejo em % do preço da UN × fator (ou null)]. */
 const CAIXAS: Array<[string, number, number | null]> = [
-  ['CAF-500', 10, null], ['ARR-5K', 6, null], ['FEI-1K', 10, null], ['OLE-900', 20, 0.96], ['LEI-1L', 12, 0.95], ['DET-500', 24, null],
+  // T-0071: café CX c/ 12 com preço próprio −5% (18,90 × 12 × 0,95 = R$ 215,46) e biscoito cream cracker CX c/ 20 (UN × fator)
+  ['CAF-500', 12, 0.95], ['BIS-400', 20, null], ['ARR-5K', 6, null], ['FEI-1K', 10, null], ['OLE-900', 20, 0.96], ['LEI-1L', 12, 0.95], ['DET-500', 24, null],
   ['BIS-140', 24, null], ['OLE-4T-1L', 12, 0.94], ['DET-5L', 4, null],
 ];
 
@@ -224,7 +241,7 @@ const ARVORE: Array<[string, string, string | null]> = [
 /** Grupo (folha da árvore) de cada produto. */
 const GRUPO: Record<string, string> = {
   'ARR-5K': 'ALI-MER-GRA', 'FEI-1K': 'ALI-MER-GRA', 'FAR-1K': 'ALI-MER-GRA', 'ACU-1K': 'ALI-MER-GRA', 'MAC-500': 'ALI-MER-MAS', 'MOL-340': 'ALI-MER-MAS',
-  'OLE-900': 'ALI-MER-OLE', 'SAR-125': 'ALI-MER-OLE', 'CAF-500': 'ALI-MER-CAF', 'LEI-1L': 'ALI-LAT-LEI', 'MAR-500': 'ALI-LAT-LEI', 'BIS-400': 'ALI-BIS-SAL',
+  'OLE-900': 'ALI-MER-OLE', 'SAR-125': 'ALI-MER-OLE', 'CAF-500': 'ALI-MER-CAF', 'FIL-103': 'ALI-MER-CAF', 'LPO-400': 'ALI-LAT-LEI', 'AGU-1500': 'BEB-AGS-AGU', 'LEI-1L': 'ALI-LAT-LEI', 'MAR-500': 'ALI-LAT-LEI', 'BIS-400': 'ALI-BIS-SAL',
   'BIS-140': 'ALI-BIS-DOC', 'ACA-1K': 'ALI-CON-POL', 'REF-2L': 'BEB-REF-GUA', 'REF-350': 'BEB-REF-GUA', 'AGU-500': 'BEB-AGS-AGU', 'SUC-1L': 'BEB-AGS-SUC',
   'DET-500': 'LIH-LIM-LOU', 'DET-5L': 'LIH-LIM-LOU', 'SAB-1K': 'LIH-LIM-ROU', 'DES-2L': 'LIH-LIM-CAS', 'SBN-90': 'LIH-HIG-PES', 'CRD-90': 'LIH-HIG-PES',
   'PAP-4': 'LIH-HIG-PAP', 'OLE-4T-1L': 'AUT-LUB-MOT', 'OLE-4T-SEMI': 'AUT-LUB-MOT', 'OLE-5W30': 'AUT-LUB-CAR', 'FLU-DOT4': 'AUT-LUB-FLU',
@@ -289,6 +306,19 @@ const SINONIMOS: Array<[string, string[]]> = [
   ['refri', ['refrigerante']],
   ['oleo', ['lubrificante']],
   ['galao', ['5l', '5_litros']],
+];
+
+/**
+ * Relacionados do produto (0020, T-0071; catalogo.produto_relacao): [produto, relacionado, tipo, ordem]. Os complementares do
+ * café e a versão superior da água são os da referência do novo pedido ("Combina com o pedido" e "Leve mais").
+ */
+export const RELACOES_DEMO: Array<[string, string, 'complementar' | 'superior' | 'substituto', number]> = [
+  ['CAF-500', 'ACU-1K', 'complementar', 1],
+  ['CAF-500', 'FIL-103', 'complementar', 2],
+  ['CAF-500', 'LPO-400', 'complementar', 3],
+  ['AGU-500', 'AGU-1500', 'superior', 1],
+  // ficha do produto (substituto em ruptura): os dois óleos de moto
+  ['OLE-4T-1L', 'OLE-4T-SEMI', 'substituto', 1],
 ];
 
 /** Depósitos e saldo (na unidade base) por produto i: CD Manaus e Loja Centro; alguns zerados (ruptura) e alguns baixos. */
@@ -394,7 +424,7 @@ const CLIENTES: Array<[string, string, string, string, Dono, boolean]> = [
   ['Empório Ponta Negra', 'Conveniência', 'Ponta Negra', 'Av. do Turismo', 'vendedor', true],
   ['Mercadinho Primavera', 'Mercadinho', 'Dom Pedro', 'Rua das Primaveras', 'vendedor', false],
   ['Comercial Rio Negro', 'Atacarejo', 'Compensa', 'Rua Rio Negro', 'vendedor', false],
-  ['Mini Box Japiim', 'Mercadinho', 'Japiim', 'Rua Tucunaré', 'vendedor', false],
+  ['Mini Box Japiim', 'Mercadinho', 'Japiim', 'Av. Ajuricaba', 'vendedor', false],
   ['Supermercado Econômico', 'Supermercado', 'Planalto', 'Av. Planalto', 'vendedor', true],
   ['Mercearia do Porto', 'Mercadinho', 'Educandos', 'Rua do Porto', 'vendedor', false],
   ['Panificadora Amazonas', 'Padaria', 'Alvorada', 'Rua Curió', 'vendedor', false],
@@ -414,17 +444,32 @@ const CLIENTES: Array<[string, string, string, string, Dono, boolean]> = [
 ];
 export const idClienteDemo = (n: number) => id(`cliente:${n}`);
 
+/**
+ * Cliente da referência do novo pedido (T-0071, R-20261103-130003): Mini Box Japiim, cód. C5110, Av. Ajuricaba, 1200 · Japiim ·
+ * 69077-000, com um endereço de entrega, sem título vencido nem bloqueio (pode enviar pedido) e condições À vista, 28 e 28/56.
+ */
+export const CLIENTE_REFERENCIA_DEMO = 13;
+/** Código do cliente no ERP (external_id e retrato do pedido): C5001.. pela posição; o da referência é C5110. */
+export const codigoErpDemo = (n: number) => (n === CLIENTE_REFERENCIA_DEMO ? 'C5110' : `C${String(5000 + n + 1)}`);
+/** Número do endereço principal (o da referência: 1200). */
+const numeroDemo = (n: number) => (n === CLIENTE_REFERENCIA_DEMO ? '1200' : String(100 + ((n * 37) % 900)));
+/** CEP do endereço principal (o da referência: 69077-000). */
+const cepClienteDemo = (n: number) => (n === CLIENTE_REFERENCIA_DEMO ? '69077000' : cepDemo(n));
+
 /** Cliente com cadastro incompleto (RN-CORE-16/17): Atacado Boto Rosa sem CEP — pedido dele só como orçamento. */
 export const CLIENTE_SEM_CEP_DEMO = 27;
 /** Cliente com IE "ISENTO" (Panificadora Pão Dourado). */
 const ISENTO_IE = 2;
 /** Clientes com um 2º endereço de entrega (RN-VEN-17); clientes cujos pedidos da demo são FOB (RN-VEN-16): índice -> transportadora. */
-const COM_ENTREGA = [0, 4, 9, 19, 22] as const;
+const COM_ENTREGA = [0, 4, 9, 13, 19, 22] as const;
 const FRETE_FOB: Record<number, string> = { 0: 'rio-negro', 9: 'rio-negro', 12: 'expresso-amazonas', 27: 'expresso-amazonas' };
 
-/** Índices (0-based) com título vencido; o 13 (Mini Box Japiim) está bloqueado por atraso. */
-const COM_VENCIDO = new Set([1, 5, 9, 13, 17, 21, 25, 29]);
-const BLOQUEADO = 13;
+/**
+ * Índices (0-based) com título vencido; o 15 (Mercearia do Porto) está bloqueado por atraso. Até a T-0071 o vencido/bloqueado era
+ * o 13 (Mini Box Japiim), que virou o cliente da referência do novo pedido (envia pedido, prazo 28/56).
+ */
+const COM_VENCIDO = new Set([1, 5, 9, 15, 17, 21, 25, 29]);
+const BLOQUEADO = 15;
 
 /** Rotas de HOJE: índices dos clientes na ordem da visita. */
 const ROTAS_HOJE: Array<[ChaveUsuario, number[]]> = [
@@ -449,13 +494,17 @@ const PEDIDOS: Array<[string, number, Dono, Desfecho, number, number, CodigoCond
   ['p03', 4, 'vendedor', 'recebido', 3, 5, '28-56', [['REF-2L', 36], ['REF-350', 6], ['AGU-500', 8]]],
   ['p04', 6, 'vendedor', 'recebido', 2, 0, '28D', [['SAB-1K', 24], ['DET-500', 48], ['PAP-4', 20]]],
   // 8%: acima da alçada do vendedor (5%), aguarda a supervisora — é o pedido "de ontem" do recado da Renata
-  ['p05', 1, 'vendedor', 'recebido', 1, 8, '28D', [['CAF-500', 24], ['BIS-400', 30], ['MOL-340', 48]]],
+  // T-0071: leite em pó no lugar do molho — os mercadinhos do Lucas (clientes parecidos do Mini Box Japiim) só compraram itens
+  // da referência ou complementares do café, e o "Combina com o pedido" mostra os 3 da referência
+  ['p05', 1, 'vendedor', 'recebido', 1, 8, '28D', [['CAF-500', 24], ['BIS-400', 30], ['LPO-400', 12]]],
   ['p06', 8, 'vendedor', 'rejeitado', 2, 9, 'AVISTA', [['ACA-1K', 10], ['SUC-1L', 12]]],
   ['p07', 10, 'vendedor', 'cancelado', 5, 0, '28D', [['SAR-125', 48]]],
   ['p08', 18, 'vendedor2', 'recebido', 10, 0, '28D', [['ARR-5K', 15], ['FEI-1K', 20], ['FAR-1K', 20]]],
   // 12%: acima da alçada do supervisor (10%), aguarda o gerente
   ['p09', 20, 'vendedor2', 'recebido', 2, 12, '28-56', [['REF-2L', 24], ['BIS-140', 60]]],
   ['p10', 22, 'vendedor2', 'recebido', 1, 7, '30-60-90', [['OLE-900', 48], ['MAC-500', 60]]],
+  // T-0071: 2º mercadinho do Lucas com pedido recente (clientes parecidos do Mini Box Japiim, desenho §4.3), dentro da alçada
+  ['p11', 11, 'vendedor', 'recebido', 4, 2, '28-56', [['CAF-500', 12], ['ACU-1K', 24], ['FIL-103', 12], ['AGU-500', 4]]],
 ];
 /** Contam como venda na base "aprovado" (parâmetro metas.base_apuracao). */
 const VENDIDO: ReadonlySet<string> = new Set(['approved', 'sent_to_erp', 'invoiced', 'cancelled']);
@@ -528,6 +577,8 @@ export const ORDEM_DEMO = [
   'core.cliente_endereco',
   'catalogo.catalogo_no',
   'catalogo.produto_no',
+  // 0020 (T-0071): relacionados do produto
+  'catalogo.produto_relacao',
   'catalogo.produto_conteudo',
   'catalogo.produto_atributo',
   'catalogo.sinonimo',
@@ -599,9 +650,9 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     const semCep = n === CLIENTE_SEM_CEP_DEMO;
     return {
       id: c(n), tenant_id: T, documento: cnpjDemo(n + 1), razao_social: `${nome} Comércio de Alimentos Ltda`, nome_fantasia: nome, segmento,
-      telefone: `9230000${String(n + 1).padStart(3, '0')}`, email: null, logradouro: rua, numero: String(100 + ((n * 37) % 900)), bairro,
-      cidade: 'Manaus', uf: 'AM', cep: semCep ? null : cepDemo(n), latitude, longitude, ativo: true, deleted_at: null,
-      external_id: `C${String(5000 + n + 1)}`,
+      telefone: `9230000${String(n + 1).padStart(3, '0')}`, email: null, logradouro: rua, numero: numeroDemo(n), bairro,
+      cidade: 'Manaus', uf: 'AM', cep: semCep ? null : cepClienteDemo(n), latitude, longitude, ativo: true, deleted_at: null,
+      external_id: codigoErpDemo(n),
       // 0013 (RN-CORE-16/17): todos com CNPJ fictício válido e IE; 1 sem CEP (cadastro incompleto) para a demonstração
       inscricao_estadual: ieDemo(n), observacao: semCep ? 'Receber mercadoria só pela manhã (doca 2).' : null,
       cadastro_incompleto: semCep, cadastro_campos_faltantes: arrayDeTexto(semCep ? ['cep'] : []),
@@ -779,7 +830,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       });
     });
     const [nome, , bairro, rua] = CLIENTES[n]!;
-    const cli = { logradouro: rua, numero: String(100 + ((n * 37) % 900)) };
+    const cli = { logradouro: rua, numero: numeroDemo(n) };
     // 0013: frete (R-20261102-105040: FOB = o cliente paga, com a transportadora; senão CIF) e entrega no endereço principal
     const fob = FRETE_FOB[n];
     const transp = fob ? TRANSPORTADORAS.find(([k]) => k === fob)! : null;
@@ -792,14 +843,14 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       numero: null, hash_envio: null,
       cliente_resumo: {
         razao_social: `${nome} Comércio de Alimentos Ltda`, nome_fantasia: nome, documento: cnpjDemo(n + 1), endereco: `${cli.logradouro}, ${cli.numero}`, bairro,
-        cidade: 'Manaus', uf: 'AM', codigo_erp: `C${String(5000 + n + 1)}`,
+        cidade: 'Manaus', uf: 'AM', codigo_erp: codigoErpDemo(n),
       },
       desconto_efetivo_pct: tabelaCents > 0 ? Math.round((1 - r.total_cents / tabelaCents) * 10_000) / 100 : 0,
       frete_modalidade: transp ? 'FOB' : 'CIF',
       transportadora_id: transp ? idTransportadoraDemo(transp[0]) : null, transportadora_digitada: false, transportadora_nome: transp?.[1] ?? null,
       transportadora_documento: transp ? cnpjDemo(900 + TRANSPORTADORAS.indexOf(transp)) : null, transportadora_telefone: transp?.[2] ?? null,
       endereco_entrega_id: idEnderecoDemo(n, 'principal'),
-      endereco_entrega: { logradouro: cli.logradouro, numero: cli.numero, complemento: null, bairro, cidade: 'Manaus', uf: 'AM', cep: n === CLIENTE_SEM_CEP_DEMO ? null : cepDemo(n), descricao: 'Principal' },
+      endereco_entrega: { logradouro: cli.logradouro, numero: cli.numero, complemento: null, bairro, cidade: 'Manaus', uf: 'AM', cep: n === CLIENTE_SEM_CEP_DEMO ? null : cepClienteDemo(n), descricao: 'Principal' },
       cliente_nome: nome, vendedor_nome: vendedor.nome, tabela_preco_id: idTabela(tabela), condicao_pagamento_id: idCondicaoDemo(condicao),
       condicao_pagamento_descricao: DESCRICAO_CONDICAO.get(condicao)!, nivel_aprovacao: r.nivel, motivos_aprovacao: arrayDeTexto(r.motivos),
       aprovacao_automatica: r.aprovacao_automatica, decidido_por_id: decisao?.por ?? null, decidido_em: decisao?.em ?? null,
@@ -888,8 +939,8 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       const base = { tenant_id: T, cliente_id: c(n), complemento: null, cidade: 'Manaus', uf: 'AM', ativo: true, ...comuns };
       return [
         {
-          ...base, id: idEnderecoDemo(n, 'principal'), tipo: 'principal', descricao: 'Principal', logradouro: rua, numero: String(100 + ((n * 37) % 900)), bairro,
-          cep: n === CLIENTE_SEM_CEP_DEMO ? null : cepDemo(n), latitude, longitude, principal: true,
+          ...base, id: idEnderecoDemo(n, 'principal'), tipo: 'principal', descricao: 'Principal', logradouro: rua, numero: numeroDemo(n), bairro,
+          cep: n === CLIENTE_SEM_CEP_DEMO ? null : cepClienteDemo(n), latitude, longitude, principal: true,
         },
         ...((COM_ENTREGA as readonly number[]).includes(n)
           ? [{
@@ -903,6 +954,9 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
       id: idNo(codigo), tenant_id: T, pai_id: pai ? idNo(pai) : null, nivel: nivelDe(codigo), codigo, nome, ordem: i + 1, ativo: true, ...comuns, external_id: codigo,
     })),
     'catalogo.produto_no': PRODUTOS.map(([sku]) => ({ id: id(`produto_no:${sku}`), tenant_id: T, produto_id: id(`produto:${sku}`), no_id: idNo(GRUPO[sku]!), ...comuns })),
+    'catalogo.produto_relacao': RELACOES_DEMO.map(([sku, rel, tipo, ordem]) => ({
+      id: id(`produto_relacao:${sku}:${rel}:${tipo}`), tenant_id: T, produto_id: id(`produto:${sku}`), relacionado_id: id(`produto:${rel}`), tipo, ordem, ativo: true, ...comuns,
+    })),
     'catalogo.produto_conteudo': PRODUTOS.map(([sku, nome, , categoria]) => {
       const [descricao, aplicacoes, argumentos_venda, faq] = conteudoDe(sku, nome, categoria);
       return {
@@ -1035,7 +1089,7 @@ export interface ResultadoDemo {
  * zerados a cada carga (a demo não trava por senha digitada errado no ensaio).
  */
 export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; recriar?: boolean } & OpcoesDemo = {}): Promise<ResultadoDemo> {
-  exigirBancoLocal(hostDoCliente(admin), 'Seed da base de demonstração');
+  exigirBancoDemo(hostDoCliente(admin), 'Seed da base de demonstração');
   const senha = opcoes.senha ?? process.env.MACUXI_SENHA_DEMO ?? SENHA_DEMO_PADRAO;
   const faltando = (await admin.query<{ t: string }>("select t from unnest($1::text[]) t where to_regclass(t) is null", [[...ORDEM_DEMO]])).rows;
   if (faltando.length > 0) {
@@ -1102,6 +1156,16 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
           'update vendedor.pedido set numero = vendedor.proximo_numero_pedido() where tenant_id = $1 and numero = any($2::text[]) and id <> all($3::uuid[])',
           [T, linhas.map((l) => l.numero), linhas.map((l) => l.id)],
         );
+        // a numeração dos pedidos do seed pode andar entre cargas (T-0071: p11 entrou no meio da linha do tempo). O único
+        // pedido_numero_uk não é adiável: sem isto, o upsert da linha que vai para o número de outra ainda não regravada quebra.
+        // Solta só os números do seed que mudam; o upsert grava os novos.
+        const numeroNovo = new Map(linhas.map((l) => [String(l.id), String(l.numero)]));
+        const atuais = await admin.query<{ id: string; numero: string | null }>('select id, numero from vendedor.pedido where tenant_id = $1 and id = any($2::uuid[])', [
+          T,
+          [...numeroNovo.keys()],
+        ]);
+        const mudam = atuais.rows.filter((r) => r.numero !== null && r.numero !== numeroNovo.get(r.id)).map((r) => r.id);
+        if (mudam.length > 0) await admin.query('update vendedor.pedido set numero = null where tenant_id = $1 and id = any($2::uuid[])', [T, mudam]);
       }
       await gravarLinhas(admin, tabela, linhas);
       // 0018 (T-0063): medidas do tenant depois de plataforma.tenant (antes da FK do produto) e embalagens depois de core.produto

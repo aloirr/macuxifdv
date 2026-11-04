@@ -68,3 +68,10 @@ recebem corpo binário.
   Upload de outro usuário responde como "sem referência" (não revela o id). Foto sem `cliente_id` no GET: escopo de usuários.
 - App: `apps/mobile/src/services/arquivos.ts` (`expo-file-system`), `PUT` binário no `ApiClient`, "Fotos pendentes: N" no Perfil.
   O módulo chama `motor.enfileirarArquivo({ id, modulo, rotulo })` depois de `enfileirar` o comando (T-0018, modulo-core).
+
+## Complemento (T-0074, 2026-11-04): adaptador S3
+O §3 previa "armazenamento de objetos (S3 compatível) com ADR própria": é a [ADR 0020](0020-ambiente-demo-magalu-cloud.md) §7.
+`apps/api/src/armazenamento-s3.ts` implementa a mesma porta `ArmazenamentoArquivos` sobre o protocolo S3 (SigV4 com `fetch` e
+`node:crypto`, sem SDK). A escolha é por variável (`MACUXI_ARQUIVOS_DRIVER=disco|s3`, `MACUXI_S3_*`; `lerArmazenamentoDoAmbiente`).
+A chave, as rotas e as regras de acesso não mudam. O disco continua o padrão em dev e no CI. O teste de isolamento entre tenants com
+S3 (RN-CORE-05) está em `apps/api/test/arquivos-s3.banco.test.ts`, contra um S3 falso local que confere a assinatura.

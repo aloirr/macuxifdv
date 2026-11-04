@@ -43,7 +43,7 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
     try {
       const html = buildOrderPdfHtml(pdfDoPedido(dados), view, { tenant_name: sessao.empresa, product_name: 'Macuxi FDV', tz, generated_at: new Date().toISOString() });
       // o título vira o nome sugerido do arquivo no "Salvar como PDF" do navegador
-      await imprimirHtml(html, orderPdfFileName(dados.number || null, view).replace(/\.pdf$/, ''));
+      await imprimirHtml(html, orderPdfFileName(dados.number || null, view, dados.tipo).replace(/\.pdf$/, ''));
     } catch (e) {
       setErroPdf(errorMessage(e));
     } finally {

@@ -1,7 +1,8 @@
 /**
  * Schema `catalogo` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0008_catalogo_preco.up.sql (T-0029 §10) e 0013_catalogo_vendedor_prevenda.up.sql (cota de IA, árvore,
- * conteúdo, busca do servidor, estoque e log de busca), para uso INTERNO do módulo Catálogo (modules/catalogo/api).
+ * conteúdo, busca do servidor, estoque e log de busca) e 0020_pedido_ajuste_valor_produto_relacao (produto_relacao, T-0071),
+ * para uso INTERNO do módulo Catálogo (modules/catalogo/api).
  * Nenhum outro módulo importa este arquivo: o Vendedor obtém preço pela consulta `catalogo.precos_cliente@1` (ADR 0012).
  *
  * A fonte da verdade é o SQL versionado (FKs compostas, índices, CHECKs, RLS e grants ficam lá). Sem FK para o schema
@@ -190,4 +191,22 @@ export const buscaLog = catalogo.table('busca_log', {
   resultados: integer('resultados').notNull(),
   duracao_ms: integer('duracao_ms'),
   ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// --- 0020 (T-0071, desenho §4.2/§5): relacionados do produto ---
+/** Tipos de relação (CHECK produto_relacao_tipo_valido; = TIPOS_RELACAO_PRODUTO do contrato, conferido em db/testes). */
+export const TIPOS_RELACAO_PRODUTO_BANCO = ['complementar', 'superior', 'substituto'] as const;
+
+/**
+ * Relacionados do produto (RF-CAT-03): complementar ("Combina com o pedido"), superior ("Leve mais": versão superior) e
+ * substituto (ficha/ruptura). produto_id e relacionado_id SEM FK (core.produto é outro schema; a API valida) e diferentes
+ * entre si (CHECK). (produto, relacionado, tipo) único vivo; ordem = posição dentro do produto. Pull escopo tenant.
+ */
+export const produtoRelacao = catalogo.table('produto_relacao', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  relacionado_id: uuid('relacionado_id').notNull(),
+  tipo: text('tipo', { enum: TIPOS_RELACAO_PRODUTO_BANCO }).notNull(),
+  ordem: integer('ordem').notNull().default(0),
+  ativo: boolean('ativo').notNull().default(true),
 });

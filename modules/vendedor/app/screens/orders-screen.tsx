@@ -11,7 +11,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { mesesDoSeletor, pedidosDaLista, rotuloDaAba, subtituloDaLista } from '../lib/lista-pedidos';
+import { mesesDoSeletor, pedidosDaLista, porTipo, rotuloDaAba, subtituloDaLista } from '../lib/lista-pedidos';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { rotuloDoDocumento } from '../lib/pre-venda';
 import { filterCounts, matchesFilter, ORDER_FILTERS, orderNote, statusBadge, type OrderFilter } from '../lib/order-status';
@@ -20,13 +20,14 @@ import { irParaNovoPedido, irParaPedido } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
 export default function OrdersScreen() {
-  const { pedidos: orders, tz, offline, atualizarPedidos: refreshOrders, sincronizarAgora, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
+  const { pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizarAgora, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
   // Gestão (supervisor/gerente): lista da equipe com a aba "Para aprovar" primeiro (T-0029 §8); o Campo é do vendedor
   const gestao = useVisaoShell().app === 'gestao';
   const paraDecidir = useMemo(() => new Set(aguardandoMinhaDecisao.map((p) => p.id)), [aguardandoMinhaDecisao]);
   const sync = { running: sincronizando, error: erroSync };
   const syncAll = () => motor?.sincronizar();
   const [filtro, setFiltro] = useState<OrderFilter | 'decide' | 'approved' | null>(null);
+  const [tipo, setTipo] = useState<'pedido' | 'orcamento'>('pedido');
   const [refreshing, setRefreshing] = useState(false);
   const [mesEscolhido, setMesEscolhido] = useState<string | null>(null);
   const [seletorAberto, setSeletorAberto] = useState(false);
@@ -42,12 +43,17 @@ export default function OrdersScreen() {
   const month = mesEscolhido ?? mesAtual;
   // seletor de mês: só meses dentro da janela de 90 dias que já estão no aparelho (sem nova consulta ao servidor)
   const meses = useMemo(() => mesesDoSeletor(orders, { mesAtual, tz, agora: new Date() }), [orders, mesAtual, tz]);
-  const monthOrders = useMemo(() => pedidosDaLista(orders, { gestao, mes: month, mesAtual, tz }), [orders, tz, month, mesAtual, gestao]);
+  const doMes = useMemo(() => pedidosDaLista(orders, { gestao, mes: month, mesAtual, tz }), [orders, tz, month, mesAtual, gestao]);
+  // RN-VEN-18: orçamento tem a própria visão e fica fora dos totais (RN-CORE-21)
+  const monthOrders = useMemo(() => porTipo(doMes, 'pedido', new Date()), [doMes]);
+  const orcamentos = useMemo(() => porTipo(doMes, 'orcamento', new Date()), [doMes]);
   const counts = filterCounts(monthOrders);
   const filter = filtro ?? (gestao && paraDecidir.size > 0 ? 'decide' : 'all');
   const aprovados = monthOrders.filter((o) => o.status === 'approved').length;
   const visible =
-    filter === 'decide'
+    tipo === 'orcamento'
+      ? orcamentos
+      : filter === 'decide'
       ? monthOrders.filter((o) => paraDecidir.has(o.id))
       : filter === 'approved'
         ? monthOrders.filter((o) => o.status === 'approved')
@@ -105,6 +111,14 @@ export default function OrdersScreen() {
         </Banner>
       ) : null}
 
+      {preVendaLigada ? (
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <Chip testID="tipo-pedido" label="Pedidos" active={tipo === 'pedido'} onPress={() => setTipo('pedido')} />
+          <Chip testID="tipo-orcamento" label={`Orçamentos ${orcamentos.length}`} active={tipo === 'orcamento'} onPress={() => setTipo('orcamento')} />
+        </View>
+      ) : null}
+
+      {tipo === 'pedido' ? (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}>
         {gestao ? <Chip testID="chip-decide" label={`Para aprovar ${paraDecidir.size}`} active={filter === 'decide'} onPress={() => setFiltro('decide')} /> : null}
         <Chip testID="chip-approved" label={`Aprovados ${aprovados}`} active={filter === 'approved'} onPress={() => setFiltro('approved')} />
@@ -112,9 +126,10 @@ export default function OrdersScreen() {
           <Chip key={f.id} testID={`chip-${f.id}`} label={`${f.label} ${counts[f.id]}`} active={filter === f.id} onPress={() => setFiltro(f.id)} />
         ))}
       </ScrollView>
+      ) : null}
 
       <Card style={{ overflow: 'hidden' }}>
-        {visible.length === 0 ? <Empty text={filter === 'decide' ? 'Nada para aprovar agora.' : filter === 'all' ? (gestao ? 'Nenhum pedido da equipe ainda.' : 'Nenhum pedido neste mês. Toque em Novo para começar.') : 'Nenhum pedido com este status.'} /> : null}
+        {visible.length === 0 ? <Empty text={tipo === 'orcamento' ? 'Nenhum orçamento.' : filter === 'decide' ? 'Nada para aprovar agora.' : filter === 'all' ? (gestao ? 'Nenhum pedido da equipe ainda.' : 'Nenhum pedido neste mês. Toque em Novo para começar.') : 'Nenhum pedido com este status.'} /> : null}
         {visible.map((o, i) => (
           <OrderRow key={o.id} o={o} last={i === visible.length - 1} tz={tz} mostrarVendedor={gestao} />
         ))}

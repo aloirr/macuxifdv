@@ -30,7 +30,7 @@ param(
   [switch]$SemBko,
   # Não abre o túnel (só API e BKO locais, ex.: emulador ou aparelho na mesma rede).
   [switch]$SemTunel,
-  # Usa o túnel rápido (trycloudflare) mesmo com o domínio fixo configurado.
+  # Mantido por compatibilidade: desde a T-0074 o PC só abre túnel rápido (trycloudflare); o domínio fixo é da VM.
   [switch]$TunelRapido,
   # Sem winget/administrador: usa (ou baixa) o cloudflared portátil em .dados\demo\bin.
   [switch]$Portatil,
@@ -269,8 +269,8 @@ if ($SemTunel) {
   catch { Falha $_.Exception.Message }
   Ok "cloudflared: $exeCf"
 
-  # nomeado (domínio fixo) se configurado e conectado; senão o rápido, com aviso (tunel.ps1, Abrir-TunelDemo)
-  $t = Abrir-TunelDemo $exeCf $PastaDemo $PastaCloudflared $Porta $PortaBko $Raiz -Rapido:$TunelRapido
+  # T-0074 (ADR 0020): SÓ túnel rápido. api-demo/bko-demo são da VM da Magalu (túnel macuxi-demo-nuvem); o PC é plano B
+  $t = Abrir-TunelDemo $exeCf $PastaDemo $PastaCloudflared $Porta $PortaBko $Raiz -Rapido:$true
   if (-not $t) { Falha 'O cloudflared não informou o endereço em 3 min. Veja .dados\demo\tunel-rapido.erro.log (internet? firewall?).' }
   $estado.tunel = $t.Pid; $estado.modo = $t.Modo; $urlApi = $t.Api; $urlBko = $t.Bko
   Salvar-Estado $estado

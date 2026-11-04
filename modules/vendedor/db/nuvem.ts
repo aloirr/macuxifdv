@@ -1,7 +1,8 @@
 /**
  * Schema `vendedor` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0007_vendedor_pedido.up.sql, 0009_vendedor_pedido_completo.up.sql (T-0029) e 0013_catalogo_vendedor_prevenda
- * (orçamento, frete CIF/FOB, transportadora, endereço de entrega, unidade/fator, acréscimo e faturamento), para uso INTERNO do
+ * (orçamento, frete CIF/FOB, transportadora, endereço de entrega, unidade/fator, acréscimo e faturamento), 0018 (medida do item)
+ * e 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071), para uso INTERNO do
  * módulo Vendedor (modules/vendedor/api). Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs, índices, CHECKs, RLS e grants ficam lá). Sem FK para outros schemas:
@@ -32,6 +33,8 @@ const comuns = () => ({
 export const TIPOS_PEDIDO = ['pedido', 'orcamento'] as const;
 /** Modalidade do frete (0013, RN-VEN-16, R-20261102-105040): CIF = a empresa paga; FOB = o cliente paga (transportadora obrigatória). */
 export const MODALIDADES_FRETE = ['CIF', 'FOB'] as const;
+/** Modo digitado do ajuste (0020, RN-VEN-02, T-0071): % ou R$ (item: por unidade vendida; pedido: sobre o total dos itens). */
+export const MODOS_AJUSTE = ['pct', 'valor'] as const;
 
 /** Retrato do endereço de entrega no aceite (0013, RN-VEN-17; vem de core.cliente_endereco). */
 export interface EnderecoEntregaPedido {
@@ -135,6 +138,13 @@ export const pedido = vendedor.table('pedido', {
   integrado_em: timestamp('integrado_em', { withTimezone: true }),
   faturado_em: timestamp('faturado_em', { withTimezone: true }),
   total_faturado_cents: bigint('total_faturado_cents', { mode: 'number' }).notNull().default(0),
+  // --- 0020 (T-0071, RN-VEN-02): ajuste do PEDIDO em R$, sobre o total dos itens ---
+  /** R$ do desconto do pedido (digitado ou derivado do %); >= 0, excludente com acrescimo_valor_cents. 0 em pedido antigo. */
+  desconto_valor_cents: bigint('desconto_valor_cents', { mode: 'number' }).notNull().default(0),
+  /** R$ do acréscimo do pedido; >= 0. Sentido coerente com o %: desconto em R$ exige acrescimo_pct = 0 e vice-versa (CHECK). */
+  acrescimo_valor_cents: bigint('acrescimo_valor_cents', { mode: 'number' }).notNull().default(0),
+  /** O que o vendedor digitou no ajuste do pedido (Editar/Duplicar reabrem no mesmo modo). */
+  ajuste_em: text('ajuste_em', { enum: MODOS_AJUSTE }).notNull().default('pct'),
 });
 
 /** Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. */
@@ -173,6 +183,16 @@ export const pedidoItem = vendedor.table('pedido_item', {
   quantidade_embalagem: integer('quantidade_embalagem').notNull().$defaultFn(() => 1),
   /** Total em unidades (= quantidade x fator = quantidade_base). */
   quantidade_unidades: integer('quantidade_unidades').notNull().$defaultFn(() => 0),
+  // --- 0020 (T-0071, RN-VEN-02/15): ajuste do ITEM em R$ por unidade da MEDIDA VENDIDA (1 FD, 1 CX, 1 UN) ---
+  /**
+   * R$ de desconto por unidade vendida, SEMPRE gravado (digitado, ou tabela − final no modo %); 0 a preco_tabela_cents.
+   * Com R$ gravado: preco_unitario_cents = preco_tabela_cents − desconto_unitario_cents + acrescimo_unitario_cents (CHECK).
+   */
+  desconto_unitario_cents: bigint('desconto_unitario_cents', { mode: 'number' }).notNull().default(0),
+  /** R$ de acréscimo por unidade vendida; excludente com o desconto em R$ e coerente com o % (CHECKs). */
+  acrescimo_unitario_cents: bigint('acrescimo_unitario_cents', { mode: 'number' }).notNull().default(0),
+  /** O que o vendedor digitou no ajuste do item. */
+  ajuste_em: text('ajuste_em', { enum: MODOS_AJUSTE }).notNull().default('pct'),
 });
 
 /**

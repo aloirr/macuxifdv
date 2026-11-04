@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mesesDoSeletor, pedidosDaLista, rotuloDaAba, subtituloDaLista } from './lista-pedidos';
+import { mesesDoSeletor, pedidosDaLista, porTipo, rotuloDaAba, subtituloDaLista } from './lista-pedidos';
 
 const base = { local: false, local_error: '' };
 const ped = (id: string, received_at: string, extra: object = {}) => ({ id, received_at, status: 'approved', total_cents: 100, ...base, ...extra }) as never;
@@ -46,5 +46,23 @@ describe('lista de pedidos', () => {
   it('subtítulo: o Campo mostra o mês; a Gestão mostra "Equipe" (a lista não é filtrada por mês)', () => {
     expect(subtituloDaLista({ gestao: false, mesNome: 'Novembro', quantidade: 2, totalTexto: 'R$ 1' })).toBe('Novembro · 2 pedidos · R$ 1');
     expect(subtituloDaLista({ gestao: true, mesNome: 'Novembro', quantidade: 1, totalTexto: 'R$ 1' })).toBe('Equipe · 1 pedido · R$ 1');
+  });
+});
+
+describe('filtro Pedidos | Orçamentos (RN-VEN-18)', () => {
+  const agora = new Date('2026-11-05T12:00:00Z');
+  const orc = (id: string, validade_ate: string, extra: object = {}) => ped(id, '2026-11-01T12:00:00Z', { tipo: 'orcamento', status: 'received', validade_ate, ...extra });
+  const lista = [
+    ped('p1', '2026-11-02T12:00:00Z'),
+    orc('longe', '2026-11-20T03:00:00Z'),
+    orc('perto', '2026-11-08T03:00:00Z'),
+    orc('vencido', '2026-11-03T03:00:00Z'),
+    orc('virou', '2026-11-20T03:00:00Z', { convertido_pedido_id: 'p9' }),
+  ];
+  it('RN-VEN-18: "Pedidos" não traz orçamento', () => {
+    expect(porTipo(lista, 'pedido', agora).map((o) => o.id)).toEqual(['p1']);
+  });
+  it('RN-VEN-18: "Orçamentos" põe os abertos primeiro, por validade (o mais perto de vencer no topo), depois os outros', () => {
+    expect(porTipo(lista, 'orcamento', agora).map((o) => o.id)).toEqual(['perto', 'longe', 'vencido', 'virou']);
   });
 });

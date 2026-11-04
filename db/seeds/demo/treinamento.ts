@@ -22,7 +22,7 @@
  * Sozinho (base demo já carregada): `carregarTreinamentoDemo(admin)`.
  */
 import type { ClientBase } from 'pg';
-import { exigirBancoLocal, hostDoCliente } from '../../src/config';
+import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { hojeNoFuso, somarDias } from '../../src/datas';
 import { gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
@@ -436,7 +436,7 @@ export async function gravarTreinamentoDemo(admin: ClientBase, opcoes: OpcoesTre
 
 /** Carrega a base do Treinamento sozinha (base demo já carregada), numa transação. Só no Postgres local. */
 export async function carregarTreinamentoDemo(admin: ClientBase, opcoes: OpcoesTreinamentoDemo = {}): Promise<DadosTreinamentoDemo> {
-  exigirBancoLocal(hostDoCliente(admin), 'Seed da base de demonstração do Treinamento');
+  exigirBancoDemo(hostDoCliente(admin), 'Seed da base de demonstração do Treinamento');
   const faltando = (await admin.query<{ t: string }>('select t from unnest($1::text[]) t where to_regclass(t) is null', [[...ORDEM_TREINAMENTO_DEMO]])).rows;
   if (faltando.length > 0) throw new Error(`[db] base de demo do Treinamento precisa da migração ${MIGRACAO_MINIMA} (falta ${faltando[0]!.t}): rode "banco migrar up" antes.`);
   const usuarios = await admin.query('select 1 from core.usuario where tenant_id = $1 and id = $2', [T, idUsuarioDemo('vendedor')]);

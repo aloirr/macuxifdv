@@ -77,6 +77,11 @@ export const PedidoSyncSchema = z
     transportadora_telefone: z.string().nullable().optional(),
     endereco_entrega_id: z.string().uuid().nullable().optional(),
     endereco_entrega: z.record(z.unknown()).nullable().optional(),
+    // --- T-0071 (migração 0020, pedida ao banco-dados): validade por data civil e ajuste do pedido em R$; opcionais ---
+    validade_data: z.string().nullable().optional(),
+    desconto_valor_cents: z.number().int().nonnegative().nullable().optional(),
+    acrescimo_valor_cents: z.number().int().nonnegative().nullable().optional(),
+    ajuste_em: z.enum(['pct', 'valor']).nullable().optional(),
   })
   .strict();
 export type PedidoSync = z.infer<typeof PedidoSyncSchema>;
@@ -104,6 +109,10 @@ export const PedidoItemSyncSchema = z
     /** T-0061: acréscimo do item (RN-VEN-02); `desconto_pct` é o desconto do item */
     acrescimo_pct: z.number().min(0).max(100).nullable().optional(),
     preco_minimo_cents: z.number().int().nonnegative().nullable().optional(),
+    // --- T-0071 (migração 0020): R$ por unidade da medida vendida e modo digitado; opcionais ---
+    desconto_unitario_cents: z.number().int().nonnegative().nullable().optional(),
+    acrescimo_unitario_cents: z.number().int().nonnegative().nullable().optional(),
+    ajuste_em: z.enum(['pct', 'valor']).nullable().optional(),
   })
   .strict();
 export type PedidoItemSync = z.infer<typeof PedidoItemSyncSchema>;

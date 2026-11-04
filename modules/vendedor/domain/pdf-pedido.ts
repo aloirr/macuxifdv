@@ -89,6 +89,11 @@ export interface OrderPdfOrder {
   surcharge_pct?: number;
   /** desconto efetivo (RN-VEN-03); negativo = acréscimo */
   effective_discount_pct?: number | null;
+  // --- T-0071 (RF-VEN-03, RN-VEN-18) ---
+  /** ausente = pedido */
+  tipo?: 'pedido' | 'orcamento';
+  /** último dia válido do orçamento (AAAA-MM-DD, data civil do tenant) */
+  validade_data?: string | null;
 }
 
 export interface OrderPdfContext {
@@ -163,10 +168,16 @@ export function textoFrete(f: OrderPdfFreight | null | undefined): string {
   return `Frete: FOB – por conta do cliente${transp}`;
 }
 
-/** Nome sugerido do arquivo: pedido-10521-cliente.pdf · pedido-no-aparelho-bko.pdf */
-export function orderPdfFileName(number: string | null, view: OrderPdfView): string {
+/** Nome sugerido do arquivo: pedido-10521-cliente.pdf · pedido-no-aparelho-bko.pdf · orcamento-10521-cliente.pdf */
+export function orderPdfFileName(number: string | null, view: OrderPdfView, tipo: 'pedido' | 'orcamento' = 'pedido'): string {
   const n = number ? number.replace(/[^\w-]/g, '') : 'no-aparelho';
-  return `pedido-${n}-${view === 'customer' ? 'cliente' : 'bko'}.pdf`;
+  return `${tipo === 'orcamento' ? 'orcamento' : 'pedido'}-${n}-${view === 'customer' ? 'cliente' : 'bko'}.pdf`;
+}
+
+/** AAAA-MM-DD -> dd/mm/aaaa (data civil: sem conta de fuso). Formato inesperado = vazio. */
+export function dataCivilBr(d: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d ?? '');
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
 const CSS = `
@@ -222,15 +233,19 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
   const place = [c.address, c.district, c.city].filter((x) => x && x.trim()).join(' · ');
   const freteTxt = textoFrete(order.freight).replace(/^Frete: /, '');
   const freteHtml = freteTxt ? `<span class="k">Frete</span><span>${escapeHtml(freteTxt)}</span>` : '';
-  const numberText = order.number ? `Pedido ${escapeHtml(order.number)}` : 'Pedido no aparelho';
+  const orc = order.tipo === 'orcamento';
+  const doc = orc ? 'Orçamento' : 'Pedido';
+  const numberText = order.number ? `${doc} ${escapeHtml(order.number)}` : `${doc} no aparelho`;
+  const validade = orc && dataCivilBr(order.validade_data) ? `<div class="muted">Válido até ${dataCivilBr(order.validade_data)}</div>` : '';
   return `
 <div class="top">
   <div>
     <div class="brand">${escapeHtml(ctx.tenant_name)}</div>
   </div>
   <div class="doc-title">
-    <div class="kind">${view === 'customer' ? 'Pedido de venda' : 'Pedido · conferência BKO'}</div>
+    <div class="kind">${view === 'customer' ? (orc ? 'Orçamento' : 'Pedido de venda') : `${doc} · conferência BKO`}</div>
     <div class="num">${numberText}</div>
+    ${validade}
     <div class="muted">${escapeHtml(pdfDateTime(order.created_at, ctx.tz))}${order.number ? '' : ' · ainda na fila do aparelho'}</div>
   </div>
 </div>
@@ -421,6 +436,9 @@ export interface DetalheParaPdf {
     codigo_erp: string;
   } | null;
   aprovacao?: { limite_vendedor_pct: number } | null;
+  /** T-0071: orçamento sai com título e validade; ausente = pedido */
+  tipo?: 'pedido' | 'orcamento';
+  validade_data?: string | null;
 }
 
 /**
@@ -470,5 +488,6 @@ export function pdfDoPedido(d: DetalheParaPdf): OrderPdfOrder {
     ...(d.delivery_address ? { delivery_address: enderecoEmLinha(d.delivery_address) } : {}),
     ...(d.surcharge_pct ? { surcharge_pct: d.surcharge_pct } : {}),
     ...(d.effective_discount_pct != null ? { effective_discount_pct: d.effective_discount_pct } : {}),
+    ...(d.tipo === 'orcamento' ? { tipo: 'orcamento' as const, validade_data: d.validade_data ?? null } : {}),
   };
 }

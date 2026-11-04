@@ -10,7 +10,8 @@
  *   - corpo que não é JPEG (FF D8 FF) ou vazio → 400 ARQUIVO_INVALIDO; acima de 2 MB → 413 ARQUIVO_GRANDE_DEMAIS;
  *     outro Content-Type → 415 TIPO_NAO_ACEITO.
  * A autenticação roda ANTES de ler o corpo (gancho `onRequest`): sem sessão, 401 sem receber os 2 MB.
- * Os bytes ficam atrás da porta `ArmazenamentoArquivos` (disco local em `MACUXI_ARQUIVOS_DIR`; objeto/S3 com ADR própria).
+ * Os bytes ficam atrás da porta `ArmazenamentoArquivos`: disco local em `MACUXI_ARQUIVOS_DIR` (dev, CI) ou objeto S3
+ * (`armazenamento-s3.ts`, ADR 0020; `MACUXI_ARQUIVOS_DRIVER=s3`).
  * Log sem dado pessoal: só id, tamanho e tempo.
  */
 import { createHash } from 'node:crypto';
@@ -42,7 +43,8 @@ export interface ArmazenamentoArquivos {
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const UUID_RE = new RegExp(`^${UUID}$`, 'i');
 /** Formato fechado da chave: nada de `..`, barra invertida ou caminho absoluto chega ao disco. */
-const CHAVE_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}\\.jpg$`);
+export const CHAVE_ARQUIVO_RE = new RegExp(`^${UUID}/[a-z][a-z0-9-]*/\\d{4}-\\d{2}/${UUID}\\.jpg$`);
+const CHAVE_RE = CHAVE_ARQUIVO_RE;
 
 export function chaveDoArquivo(a: { tenant_id: string; modulo: string; id: string }, quando: Date): string {
   const mes = quando.toISOString().slice(0, 7);

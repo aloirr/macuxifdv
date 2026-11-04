@@ -4,7 +4,7 @@
  * Segredo do JWT do Core: `MACUXI_JWT_SEGREDO` (mín. 32 caracteres, só no .env). Fora do ambiente local a API não sobe
  * sem ele (falha fechada); no local sobe com aviso e o login responde 503 (`config.ts`).
  * Fotos (ADR 0010): bytes no disco em `MACUXI_ARQUIVOS_DIR` (padrão `./.dados/arquivos`, relativo à pasta da API; fora
- * do git). Em servidor, aponte para um volume que entra no backup.
+ * do git), ou num bucket S3 com `MACUXI_ARQUIVOS_DRIVER=s3` e `MACUXI_S3_*` (ADR 0020, `armazenamento-s3.ts`; demo na Magalu).
  * Hub do Conector (ADR 0013): `MACUXI_HUB_CHAVE_PEPPER` (≥ 32 bytes) lido pelo módulo Integração; sem ele as rotas
  * `/integracao/v1` respondem 503 (falha fechada).
  * Atrás de proxy/túnel: `MACUXI_TRUST_PROXY` (`config.ts`, `lerTrustProxy`) para o IP real valer nos limites por IP.
@@ -12,7 +12,7 @@
 import { lerConfig, urlApp } from '@macuxi/db';
 import pg from 'pg';
 import { createApp } from './app';
-import { criarArmazenamentoEmDisco, DIR_ARQUIVOS_PADRAO } from './arquivos';
+import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
 import { criarBancoApp } from './banco';
 import { conferirSegredoJwt, lerTrustProxy, opcoesLogger } from './config';
 
@@ -20,6 +20,13 @@ const cfg = lerConfig(); // carrega o .env (raiz e db/) antes de ler as variáve
 const segredoJwt = conferirSegredoJwt(process.env, cfg.host);
 if (!segredoJwt.ok && segredoJwt.fatal) {
   console.error(`[api] ${segredoJwt.mensagem}`);
+  process.exit(1);
+}
+let arquivos: ReturnType<typeof lerArmazenamentoDoAmbiente>;
+try {
+  arquivos = lerArmazenamentoDoAmbiente(process.env);
+} catch (e) {
+  console.error(`[api] ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
 }
 const pool = new pg.Pool({
@@ -31,13 +38,14 @@ const pool = new pg.Pool({
 
 const app = createApp({
   banco: criarBancoApp(pool),
-  arquivos: criarArmazenamentoEmDisco(process.env.MACUXI_ARQUIVOS_DIR || DIR_ARQUIVOS_PADRAO),
+  arquivos: arquivos.armazenamento,
   trustProxy: lerTrustProxy(process.env),
   // sem dado pessoal em log (CLAUDE.md regra 8): nada de cabeçalhos, IP, query string ou corpo; chave do Conector redigida
   logger: opcoesLogger(process.env.MACUXI_API_LOG ?? 'info'),
 });
 
 if (!segredoJwt.ok) app.log.warn(segredoJwt.mensagem);
+app.log.info({ armazenamento: arquivos.descricao }, 'armazenamento de arquivos');
 
 const porta = Number(process.env.MACUXI_API_PORTA ?? 8100);
 const host = process.env.MACUXI_API_HOST ?? '127.0.0.1';

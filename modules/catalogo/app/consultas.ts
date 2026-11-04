@@ -25,7 +25,7 @@ export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULT
       const pedidos = new Set(entrada.produto_ids);
       itens = (await ctx.linhas<TabelaPrecoItemSync>('tabela_preco_item'))
         .filter((l) => l.tabela_preco_id === id && pedidos.has(l.produto_id) && !l.deleted_at)
-        .map((l) => ({ price_table_id: id, product_id: l.produto_id, price_cents: l.preco_cents, valid_from: l.vigencia_inicio, valid_to: l.vigencia_fim }));
+        .map((l) => ({ price_table_id: id, product_id: l.produto_id, price_cents: l.preco_cents, valid_from: l.vigencia_inicio, valid_to: l.vigencia_fim, unit: l.unidade ?? null }));
     }
   }
   return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco });

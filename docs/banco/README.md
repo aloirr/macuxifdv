@@ -36,6 +36,7 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > **2026-11-03 (T-0066 e T-0065):** `0019_core_nota_erp_meta_tipo` (aditiva: `core.nota_erp` — notas de faturamento/devolução do ERP,
 > base idempotente do recálculo de `historico_compra`, fora do pull, único vivo por `external_id` e índices por cliente/mês e por mês —
 > e `core.meta.tipo` `pedido | faturamento`, padrão `pedido`, RN-CORE-21); dicionário em [core.md](core.md).
+> **2026-11-03 (T-0071):** `0020_pedido_ajuste_valor_produto_relacao` (aditiva: ajuste em R$ no pedido — `desconto_valor_cents`/`acrescimo_valor_cents`/`ajuste_em` — e no item por unidade da medida vendida — `desconto_unitario_cents`/`acrescimo_unitario_cents`/`ajuste_em` — com CHECKs de exclusividade, sentido coerente com o %, R$ do item <= tabela e preço unitário coerente; índice `pedido_orcamento_aberto_ix`; nova `catalogo.produto_relacao` (complementar/superior/substituto, sem FK para o Core, pull tenant)); dicionário em [vendedor.md](vendedor.md) e [catalogo.md](catalogo.md); base demo com a referência do novo pedido (Mini Box Japiim C5110). **Não aplicada na demo (5432) até o gerente decidir.**
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -73,11 +74,14 @@ esquecidos). Desde então são **dois serviços** no `db/docker-compose.yml`:
   3. padrão: `localhost:5434` (`MACUXI_PG_TESTES_PORTA`).
   Atenção: quem põe `MACUXI_PG_PORTA` no `.env` local (ex.: 5433 por porta ocupada) volta a testar no servidor da demo;
   nesse caso defina também `MACUXI_PG_TESTES_URL`.
-- **Limpeza de sobras no Postgres da demo**: `node db/scripts/limpar-bancos-teste.mjs` só **lista**; com `--apagar`
-  apaga um por vez, só nomes no padrão exato de quem cria banco de teste (`macuxi_teste_<base36>_<pid>_<hex6>`,
-  de `criarBancoDeTeste`, e `macuxi_conector_teste_<base36>_<hex6>`, do teste do Conector); nunca `macuxi`
-  (`MACUXI_PG_BANCO`), `postgres` nem `template*`; pula banco com conexão aberta (`--forcar` derruba). Só host local;
-  `--porta 5434` limpa o dos testes. Node puro + `pg` (sem tsx).
+- **Limpeza de sobras de teste** (`node db/scripts/limpar-bancos-teste.mjs`, padrão **5434**, o Postgres dos testes;
+  a demo só com `--porta 5432` explícito): sem opção só **lista**; com `--apagar` apaga um por vez. Só sai banco
+  com nome no padrão exato de quem cria banco de teste (`macuxi_teste_<base36>_<pid>_<hex6>`, de `criarBancoDeTeste`,
+  e `macuxi_conector_teste_<base36>_<hex6>`, do teste do Conector), **sem conexão** em `pg_stat_activity` e **criado há
+  mais de 2 h** (`--idade-min-horas H`; idade = a data mais nova entre o `Date.now()` do nome e o `PG_VERSION` do banco).
+  Pode rodar com outra rodada de testes em andamento. Nunca `macuxi` (`MACUXI_PG_BANCO`), `postgres` nem `template*`;
+  `--forcar` derruba conexões (não ignora a idade). Mostra o espaço liberado. Só host local. Node puro + `pg` (sem tsx).
+  04/11: 58 órfãos apagados na 5434 (1.024,5 MB; tmpfs de 1.151 para 138 MB).
 
 Porta ocupada (outro Postgres em 5432)? Defina `MACUXI_PG_PORTA=5433` no `.env` da raiz: o compose e
 o CLI usam a mesma variável.
@@ -100,7 +104,7 @@ Base para a demonstração com o gestor externo (app novo + API real; R-20261031
 | Fixar o "hoje" (ensaio de outro dia) | `... banco seed demo --hoje AAAA-MM-DD` |
 | Banco de teste efêmero com a base | `... banco criar-teste --fixture demo` |
 
-Pré-requisito: banco migrado até a `0019` (`banco subir` ou `banco migrar up`); sem isso o seed para com
+Pré-requisito: banco migrado até a `0020` (`banco subir` ou `banco migrar up`); sem isso o seed para com
 `rode "banco migrar up" antes`. Só roda no Postgres local (mesma trava do seed da Fase M: `exigirBancoLocal`).
 
 **Login no app** — código da empresa **`demo`** · senha de todos **`demo-macuxi`** (ou o valor de `MACUXI_SENHA_DEMO` no
@@ -108,9 +112,9 @@ Pré-requisito: banco migrado até a `0019` (`banco subir` ou `banco migrar up`)
 
 | Perfil | E-mail | Nome (fictício) | O que vê |
 |---|---|---|---|
-| vendedor | `vendedor@exemplo.com.br` | Lucas Andrade | 18 clientes; **rota de hoje com 6 paradas** (a 1ª é cliente do Atacado); 7 pedidos (1 aguardando a supervisora, 1 rejeitado, 1 cancelado); recado do supervisor |
+| vendedor | `vendedor@exemplo.com.br` | Lucas Andrade | 18 clientes; **rota de hoje com 6 paradas** (a 1ª é cliente do Atacado); 8 pedidos (1 aguardando a supervisora, 1 rejeitado, 1 cancelado); recado do supervisor |
 | vendedor | `vendedor2@exemplo.com.br` | Camila Freitas | 12 clientes; rota de hoje com 4 paradas; 3 pedidos |
-| supervisor | `supervisor@exemplo.com.br` | Renata Barros | responsável pela "Equipe Manaus": carteira dos dois vendedores e do promotor (30 clientes), metas e indicadores, 2 pedidos para aprovar no nível dela (10 pedidos da equipe, 3 aguardando aprovação) |
+| supervisor | `supervisor@exemplo.com.br` | Renata Barros | responsável pela "Equipe Manaus": carteira dos dois vendedores e do promotor (30 clientes), metas e indicadores, 2 pedidos para aprovar no nível dela (11 pedidos da equipe, 3 aguardando aprovação) |
 | gerente | `gerente@exemplo.com.br` | Marcelo Tavares | responsável pela "Regional Norte", pai da "Equipe Manaus" (vê a equipe da supervisora, RN-CORE-04); 1 pedido para aprovar no nível dele (12%); app Gestão |
 | promotor | `promotor@exemplo.com.br` | Joana Prado | 7 supermercados/lojas na carteira de promotor; rota de hoje com 4 paradas; sem módulo Vendedor (RN-PRO-01) |
 | analista | `analista@exemplo.com.br` | Paulo Ribeiro | tenant inteiro (BKO) |
@@ -126,12 +130,12 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   licença na demo.
 - **30 clientes** de distribuição de alimentos em 30 bairros de Manaus (logradouro, número, CEP, coordenadas), contato
   principal com telefone fictício (prefixos não atribuídos: fixo `92 3000-0xxx`, celular `92 9 0000-xxxx`), financeiro,
-  3 títulos por cliente (**8 com título vencido**, 1 bloqueado por atraso: Mini Box Japiim) e 12 meses de histórico.
+  3 títulos por cliente (**8 com título vencido**, 1 bloqueado por atraso: Mercearia do Porto; até a T-0071 era o Mini Box Japiim, hoje o cliente da referência do novo pedido) e 12 meses de histórico.
 - **Rota de hoje** no fuso do tenant, calculada na hora do seed (vendedor 6 paradas, vendedor2 4, promotor 4), sem visita:
   a demo faz os check-ins ao vivo. Raio de check-in 200 m (padrão): longe do cliente, o app pede justificativa de
   fora do raio (motivos extras `gps_impreciso` e `endereco_desatualizado`).
 - **Pedidos** (T-0029) dos últimos dias úteis, **recalculados pela tabela do cliente com a regra do servidor** (`revalidarPedido`
-  do Vendedor), com número `000001`..`000010`, retratos e linha do tempo (`vendedor.pedido_evento`): 6 aprovados dentro da
+  do Vendedor), com número `000001`..`000011` (o próximo, 000012, é o do orçamento da referência), retratos e linha do tempo (`vendedor.pedido_evento`): 7 aprovados dentro da
   alçada (automático), 2 aguardando o **supervisor** (Lucas 8%, Camila 7%), 1 aguardando o **gerente** (Camila 12%),
   1 **rejeitado** pela supervisora (com motivo) e 1 **cancelado** depois de aprovado. Nada em `sent_to_erp` ou depois. Com
   itens e a visita que os gerou; visitas sem pedido com motivo; `core.indicador_diario` coerente com os pedidos.
@@ -142,11 +146,11 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   indicador) com outro id é mantida e o seed pula a dele (sem violar `meta_uk`). **Hierarquia** (BKO de usuários da T-0067): a
   Equipe Manaus (Lucas, Camila, Joana e Renata) tem a Renata como responsável e a Regional Norte (Marcelo) como pai: supervisor
   e gerente de cada usuário saem de `core.equipe`. **Medidas** (0018): UN, CX, FD, LT e BD ativas, as outras 6 da lista inicial
-  inativas, e a caixa de embarque como embalagem do produto (`gravarDemoMedidas`); 33 produtos com marcas
-  fictícias (24 de mercearia/limpeza/higiene + 9 da linha automotiva e o detergente 5 L, 0013); 3 notificações (recado do supervisor ao vendedor, pedidos para aprovar à supervisora e ao gerente).
+  inativas, e a caixa de embarque como embalagem do produto (`gravarDemoMedidas`); 36 produtos com marcas
+  fictícias (24 de mercearia/limpeza/higiene + 9 da linha automotiva e o detergente 5 L, 0013; + filtro de papel, leite em pó e água 1,5 L, T-0071); 3 notificações (recado do supervisor ao vendedor, pedidos para aprovar à supervisora e ao gerente).
 - Parâmetros: os padrões do Core semeados pelo gatilho (`checkin.raio_m`, `metas.base_apuracao`) e as **alçadas do Vendedor**
   `alcada.vendedor_pct = 5`, `alcada.supervisor_pct = 10`, `alcada.gerente_pct = 15`, `alcada.acima_gerente = "analista"`.
-- **Preço** (schema `catalogo`, [catalogo.md](catalogo.md)): tabelas "Varejo" (todos os 33 produtos) e "Atacado" (≈ 7% menor,
+- **Preço** (schema `catalogo`, [catalogo.md](catalogo.md)): tabelas "Varejo" (todos os 36 produtos) e "Atacado" (≈ 7% menor,
   **sem** açaí `ACA-1K`, suco `SUC-1L` e creme dental `CRD-90` → "Sem preço para este cliente", RN-CAT-06); supermercados e
   atacarejos no Atacado, os demais no Varejo; vigência desde o 1º dia do mês anterior.
 - **0013** ([core.md](core.md), [catalogo.md](catalogo.md), [vendedor.md](vendedor.md)): **CNPJ fictício gerado (dígito
@@ -154,7 +158,7 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   (`cadastro_incompleto`, falta `cep`: pedido dele só como orçamento, RN-VEN-13); pedidos com o CNPJ no retrato (o
   `000010` abre no BKO), frete (FOB com transportadora em 4 clientes, CIF no resto; sem valor de frete, R-20261102-105040) e endereço de entrega
   principal; custo com margem de 20% a 40%, desconto máximo próprio em `OLE-4T-1L` 25%, `VEL-150` 5% e `DET-5L` 10%
-  (padrão 15% sem linha de parâmetro); UN e CX em 9 produtos; árvore do catálogo de 3 níveis; conteúdo, atributos,
+  (padrão 15% sem linha de parâmetro); UN e CX em 10 produtos (preço próprio da CX ligado na T-0071: café, óleo de soja, leite e óleo 4T); árvore do catálogo de 3 níveis; conteúdo, atributos,
   sinônimos e documento de busca ("óleo para moto 150 cilindradas" acha `OLE-4T-1L`); 2 depósitos com rupturas e
   saldos baixos; 2 transportadoras; endereço de entrega extra em 5 clientes.
 - **Condições de pagamento** ([vendedor.md](vendedor.md)): À vista (padrão), 28 dias, 28/56 e 30/60/90; os 8 clientes com título
@@ -184,6 +188,18 @@ diferente de `production`. Fora disso:
   `banco papeis`/`migrar`/`criar-teste` nunca gravam a senha pública no papel `macuxi_app`;
   `garantirPapelApp` ainda recusa a senha pública se o cliente não estiver num host local (segunda trava).
 - `banco seed fase-m` (`carregarFaseM`: senha `demo-macuxi` e usuários fictícios) **recusa** rodar.
+- `banco seed demo` (`carregarDemo` e os seeds de módulo em `db/seeds/demo/`) recusa, **salvo com `MACUXI_AMBIENTE=demo`**
+  (valor exato; `exigirBancoDemo`): é a permissão explícita do servidor da demo (VM da Magalu, ADR 0020 §5), que vale
+  também com `NODE_ENV=production`. Ela não libera a senha pública dos papéis, o seed da Fase M nem a fixture dos testes.
+  Na VM, a senha dos logins da demo é `MACUXI_SENHA_DEMO`, se definida, ou a padrão da seção "Base de demo".
+- **API e worker usam `lerConfigApp`**: fora do local, exige só `MACUXI_PG_APP_SENHA` (e `MACUXI_PG_WORKER_SENHA` para o
+  worker); `MACUXI_PG_ADMIN_SENHA` é opcional e, sem ela, `urlAdmin` lança. Migrações, papéis e seeds seguem com
+  `lerConfig` (admin obrigatório).
+- `garantirPapel` (papéis `macuxi_app`/`macuxi_worker`) desliga o log de comando na própria transação
+  (`log_min_duration_statement=-1`, `log_statement=none`, só se o admin for superusuário): a senha do `ALTER ROLE` não
+  cai no log do servidor.
+- Backup do servidor da demo: [db/backup/LEIA-ME.md](../../db/backup/LEIA-ME.md). Faz `pg_dump` diário para
+  `backups/` no bucket, com 7 dias de retenção e restauração testada em `db/testes/backup.test.ts`.
 - Segredos só no `.env` (CLAUDE.md regra 8). Testes: `db/testes/ambiente-local.test.ts`.
 
 ## Logs do Postgres
@@ -210,7 +226,8 @@ parâmetros da consulta (aqui só dados fictícios). Em nuvem, para não levar d
 | Parar e APAGAR o volume de dados | `pnpm --filter @macuxi/db banco derrubar --limpar` |
 | Testes do banco | `pnpm --filter @macuxi/db test` |
 | Subir só o Postgres dos testes (5434, tmpfs) | `pnpm --filter @macuxi/db banco subir-testes` |
-| Listar / apagar sobras de teste no Postgres da demo | `pnpm --filter @macuxi/db limpar-testes` · `... limpar-testes -- --apagar` |
+| Listar / apagar sobras de teste (5434; sem conexão e com mais de 2 h) | `pnpm --filter @macuxi/db limpar-testes` · `... limpar-testes -- --apagar` |
+| Backup / restauração da demo (VM) | `db/backup/backup-vm.sh` · `db/backup/restaurar-vm.sh` ([LEIA-ME](../../db/backup/LEIA-ME.md)) |
 
 Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 
@@ -290,6 +307,8 @@ await pool.end(); await banco.apagar();
 | `db/src/docker.ts` | acha o Docker (inclusive fora do PATH no Windows), diz se está rodando, sobe o compose |
 | `db/testes/global-setup.ts`, `db/testes/aviso-pulos.ts` | setup dos testes de banco (sobe/pula/exige) e aviso de pulados |
 | `db/scripts/medir-sync.ts` | medição do sync com volume ([desempenho-sync.md](desempenho-sync.md)) |
+| `db/scripts/limpar-bancos-teste.mjs` | limpeza das sobras de teste (lista; `--apagar`; idade e conexão) |
+| `db/backup/` | backup da demo para o Object Storage: `backup.mjs`/`s3.mjs` (Node puro, SigV4), `backup-vm.sh`, `restaurar-vm.sh`, `contagem.sql` |
 
 ## Migrações: regras
 1. Uma migração = `NNNN_nome.up.sql` + `NNNN_nome.down.sql`, numeração contínua (o executor recusa buraco).

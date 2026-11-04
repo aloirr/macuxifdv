@@ -27,18 +27,20 @@ export const consultaPrecosCliente = implementarConsulta(CONSULTA_PRECOS_CLIENTE
       const r = await ctx.db.query(
         `select produto_id, preco_cents::float8 as preco_cents,
                 to_char(vigencia_inicio at time zone 'UTC', ${UTC}) as vigencia_inicio,
-                to_char(vigencia_fim at time zone 'UTC', ${UTC}) as vigencia_fim
+                to_char(vigencia_fim at time zone 'UTC', ${UTC}) as vigencia_fim,
+                unidade
            from catalogo.tabela_preco_item
           where tabela_preco_id = $1::uuid and produto_id = any($2::uuid[]) and deleted_at is null`,
         [tabelaId, entrada.produto_ids],
       );
       const id = tabelaId;
-      itens = (r.rows as Array<{ produto_id: string; preco_cents: number; vigencia_inicio: string | null; vigencia_fim: string | null }>).map((x) => ({
+      itens = (r.rows as Array<{ produto_id: string; preco_cents: number; vigencia_inicio: string | null; vigencia_fim: string | null; unidade: string | null }>).map((x) => ({
         price_table_id: id,
         product_id: x.produto_id,
         price_cents: x.preco_cents,
         valid_from: x.vigencia_inicio,
         valid_to: x.vigencia_fim,
+        unit: x.unidade,
       }));
     }
   }

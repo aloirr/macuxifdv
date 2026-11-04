@@ -36,6 +36,13 @@ describe('ações do detalhe do pedido', () => {
   it('sem itens no aparelho: texto de sincronização, não "com sinal"', () => {
     expect(estadoDasAcoes({ ...base, temItens: false }).motivoBloqueio).toBe(TEXTO_SEM_ITENS);
   });
+  it('RN-VEN-18: orçamento aberto já recebido edita (com sinal) e explica a falta de sinal; sem permissão não edita', () => {
+    const orc = { ...base, naFila: false, status: 'received', orcamentoAberto: true };
+    expect(estadoDasAcoes(orc)).toMatchObject({ podeEditar: true, motivoBloqueio: '' });
+    expect(estadoDasAcoes({ ...orc, offline: true })).toMatchObject({ podeEditar: false });
+    expect(estadoDasAcoes({ ...orc, offline: true }).motivoBloqueio).toMatch(/Sem sinal/);
+    expect(estadoDasAcoes({ ...orc, pode: { editar: false, cancelar: true } }).podeEditar).toBe(false);
+  });
   it('rótulo do nível de aprovação', () => {
     expect(rotuloDoNivel('gerente')).toBe('Gerente');
   });

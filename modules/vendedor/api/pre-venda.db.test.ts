@@ -1,7 +1,7 @@
 /**
  * T-0053 × Postgres real (fixture dois-tenants, papel macuxi_app, RLS): retorno do ERP aplicado ao pedido (consumidor de
- * `integracao.pedido.retorno_erp@1`) e orçamento/conversão no push com o repositório de pré-venda em memória (a 0013 ainda
- * não está no main). As consultas entre módulos são simuladas como em `pedido.db.test.ts`. Pula sem Postgres.
+ * `integracao.pedido.retorno_erp@1`) e orçamento/conversão no push com o repositório SQL de pré-venda (T-0071 §1.4 a: a 0013 e a
+ * 0020 estão no banco; só o teste de "indisponível" troca o repositório). As consultas entre módulos são simuladas como em `pedido.db.test.ts`. Pula sem Postgres.
  * Relógio único do arquivo: lido do banco no beforeAll (sem hora fixa contra o relógio real).
  */
 import { randomUUID } from 'node:crypto';
@@ -16,8 +16,9 @@ import manifest from '../manifest';
 import { RetornoErpConsumido } from '../contracts';
 import { entidadePedido } from '../contracts/entidades';
 import { apiVendedor } from './index';
-import { rotaCancelarPedido, rotaVerPedido } from './pedidos';
-import { criarPreVendaEmMemoria, usarPreVenda } from './pre-venda';
+import { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
+import { rotaCancelarPedido, rotaListarPedidos, rotaVerPedido } from './pedidos';
+import { preVendaIndisponivel, preVendaSql, usarPreVenda } from './pre-venda';
 import { aplicarRetornoErp, repositorioRetornoErpPg } from './retorno-erp';
 import { provedoresSyncVendedor } from './sync';
 
@@ -55,6 +56,12 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
   let prod1 = '';
   let prod2 = '';
   const INATIVOS = new Set<string>();
+  const INCOMPLETOS = new Set<string>();
+  /** Colunas da pré-venda lidas pelo repositório SQL, como a API lê. */
+  const doc = (idDoc: string, tenant = A.tenantId) => comTenant(pool, tenant, async (c) => (await preVendaSql.lerDocumentos(c, [idDoc], 'America/Manaus')).get(idDoc));
+  /** Sinal de concorrência do orçamento (updated_at em UTC com microssegundos, como o pull entrega). */
+  const atualizadoEm = async (idDoc: string) =>
+    (await comTenant(pool, A.tenantId, async (c) => (await c.query("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as t from vendedor.pedido where id = $1", [idDoc])).rows[0])).t as string;
 
   function contexto(u: UsuarioAutenticado, o: { parametros?: Record<string, unknown>; agora?: Date; eventos?: Evento[] } = {}) {
     const eventos = o.eventos ?? [];
@@ -76,7 +83,7 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
                 const pegar = (tabela: 'cliente' | 'produto' | 'usuario', ids: string[], campos: string[]) =>
                   CADASTRO[tabela]
                     .filter((l) => ids.includes(l.id as string) && l.tenant_id === u.tenant_id)
-                    .map((l) => ({ ...Object.fromEntries(campos.map((k) => [k, l[k] ?? null])), ...(tabela === 'cliente' && INATIVOS.has(l.id as string) ? { ativo: false } : {}) }));
+                    .map((l) => ({ ...Object.fromEntries(campos.map((k) => [k, l[k] ?? null])), ...(tabela === 'cliente' && INATIVOS.has(l.id as string) ? { ativo: false } : {}), ...(tabela === 'cliente' && INCOMPLETOS.has(l.id as string) ? { cadastro_incompleto: true, cadastro_campos_faltantes: ['cep', 'inscricao_estadual'] } : {}) }));
                 return CONSULTA_CADASTRO_RESUMO.saida.parse({
                   clientes: pegar('cliente', ent.cliente_ids, ['id', 'razao_social', 'nome_fantasia', 'documento', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'ativo', 'external_id']),
                   produtos: pegar('produto', ent.produto_ids, ['id', 'sku', 'nome', 'unidade', 'ativo', 'external_id']),
@@ -247,9 +254,11 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
       restaurar?.();
       restaurar = null;
       INATIVOS.clear();
+      INCOMPLETOS.clear();
     });
 
-    it('sem a 0013 (repositório indisponível, padrão): orçamento e conversão são recusados sem gravar nada', async () => {
+    it('repositório indisponível (contingência): orçamento e conversão são recusados sem gravar nada', async () => {
+      restaurar = usarPreVenda(preVendaIndisponivel);
       const { ctx } = contexto(vendedor1);
       const [r1, r2] = await receber(ctx, push(id(10), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }), push(id(11), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), orcamento_origem_id: id(12) }));
       expect(r1).toMatchObject({ status: 'rejeitado', codigo: 'PRE_VENDA_INDISPONIVEL' });
@@ -258,8 +267,6 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
     });
 
     it('RN-VEN-32: orçamento fica recebido, sem alçada, sem evento e sem fila do ERP, com validade do parâmetro', async () => {
-      const repo = criarPreVendaEmMemoria();
-      restaurar = usarPreVenda(repo);
       const { ctx, eventos } = contexto(vendedor1, { parametros: { 'orcamento.validade_dias': 10 } });
       // 8% passaria pela alçada do supervisor num pedido; no orçamento não
       expect((await receber(ctx, push(id(13), { customer_id: A.clientes.c1, discount_pct: 8, items: itens(), tipo: 'orcamento' })))[0]).toMatchObject({ status: 'aceito' });
@@ -269,16 +276,18 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
       expect(ev).toHaveLength(1);
       expect(ev[0].motivo).toMatch(/não reserva estoque nem consome crédito/);
       expect(eventos).toEqual([]);
-      const doc = repo.estado.get(id(13))!;
-      expect(doc.tipo).toBe('orcamento');
-      expect(Date.parse(doc.validade_ate!) - AGORA.getTime()).toBe(10 * DIA);
+      // RN-VEN-18: data civil no fuso do tenant; vale até o fim do 10º dia (início do dia seguinte em Manaus = 04:00 UTC)
+      const d = (await doc(id(13)))!;
+      expect(d.tipo).toBe('orcamento');
+      const hojeManaus = new Date(AGORA.getTime() - 4 * 3_600_000).toISOString().slice(0, 10);
+      expect(d.validade_data).toBe(new Date(Date.parse(`${hojeManaus}T00:00:00Z`) + 10 * DIA).toISOString().slice(0, 10));
+      expect(d.validade_ate).toBe(`${new Date(Date.parse(`${d.validade_data}T00:00:00Z`) + DIA).toISOString().slice(0, 10)}T04:00:00.000000Z`);
 
       const detalhe = (await rotaVerPedido.executar({ ...(ctx as object), params: { id: id(13) } } as never)) as Record<string, unknown>;
       expect(detalhe).toMatchObject({ tipo: 'orcamento', situacao_orcamento: 'aberto', status: 'received' });
     });
 
     it('RN-VEN-13: cliente inativo só aceita orçamento', async () => {
-      restaurar = usarPreVenda(criarPreVendaEmMemoria());
       INATIVOS.add(A.clientes.c2);
       const { ctx } = contexto(vendedor1);
       const [r1, r2] = await receber(ctx, push(id(14), { customer_id: A.clientes.c2, discount_pct: 0, items: itens() }), push(id(15), { customer_id: A.clientes.c2, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
@@ -287,8 +296,6 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
     });
 
     it('RF-VEN-03: converter gera pedido novo (alçada e eventos de pedido), marca o orçamento e só converte uma vez; reenvio é idempotente', async () => {
-      const repo = criarPreVendaEmMemoria();
-      restaurar = usarPreVenda(repo);
       const { ctx } = contexto(vendedor1);
       await receber(ctx, push(id(16), { customer_id: A.clientes.c1, discount_pct: 3, items: itens(), tipo: 'orcamento' }));
       const conv = contexto(vendedor1);
@@ -296,8 +303,8 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
       expect((await receber(conv.ctx, pedido))[0]).toMatchObject({ status: 'aceito' });
       expect((await lerPedido(id(17))).p.status).toBe('approved');
       expect(conv.eventos.map((e) => e.nome)).toContain('vendedor.pedido.aprovado@1');
-      expect(repo.estado.get(id(16))!.convertido_pedido_id).toBe(id(17));
-      expect(repo.estado.get(id(17))).toMatchObject({ tipo: 'pedido', orcamento_origem_id: id(16) });
+      expect((await doc(id(16)))!.convertido_pedido_id).toBe(id(17));
+      expect(await doc(id(17))).toMatchObject({ tipo: 'pedido', orcamento_origem_id: id(16) });
 
       expect((await receber(conv.ctx, pedido))[0]).toMatchObject({ status: 'aceito' }); // RN-VEN-33
       const outro = await receber(ctx, push(id(18), { customer_id: A.clientes.c1, discount_pct: 3, items: itens(), orcamento_origem_id: id(16) }));
@@ -308,10 +315,9 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
     });
 
     it('RN-VEN-32: orçamento expirado não converte; de outro vendedor ou de outro tenant é "não encontrado"; promotor nunca', async () => {
-      restaurar = usarPreVenda(criarPreVendaEmMemoria());
       await receber(contexto(vendedor1, { parametros: { 'orcamento.validade_dias': 1 } }).ctx, push(id(19), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
       const depois = contexto(vendedor1, { agora: new Date(AGORA.getTime() + 2 * DIA) });
-      expect((await receber(depois.ctx, push(id(20), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), orcamento_origem_id: id(19) })))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-32' });
+      expect((await receber(depois.ctx, push(id(20), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), orcamento_origem_id: id(19) })))[0]).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-18' });
 
       await receber(contexto(vendedor1).ctx, push(id(21), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
       expect((await receber(contexto(vendedor2).ctx, push(id(22), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), orcamento_origem_id: id(21) })))[0]).toMatchObject({ codigo: 'ORCAMENTO_NAO_ENCONTRADO' });
@@ -321,8 +327,99 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
       expect((await receber(contexto(promotor).ctx, push(id(24), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' })))[0]).toMatchObject({ codigo: 'RN-PRO-01' });
     });
 
+    it('RN-VEN-13 (T-0071 §1.4 e): cadastro incompleto só faz orçamento; a recusa de pedido é 422 RN-VEN-13 com os campos que faltam', async () => {
+      INCOMPLETOS.add(A.clientes.c2);
+      const { ctx } = contexto(vendedor1);
+      const [r1, r2] = await receber(ctx, push(id(26), { customer_id: A.clientes.c2, discount_pct: 0, items: itens() }), push(id(27), { customer_id: A.clientes.c2, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
+      expect(r1).toMatchObject({ status: 'rejeitado', codigo: 'RN-VEN-13', mensagem: expect.stringMatching(/cep, inscricao_estadual/) });
+      expect(r2).toMatchObject({ status: 'aceito' });
+    });
+
+    it('RN-VEN-02 (0020): R$ por unidade no item e R$ no pedido são gravados e voltam no pull; orçamento nunca vira evento nem fila do ERP', async () => {
+      const { ctx, eventos } = contexto(vendedor1);
+      const r = await receber(
+        ctx,
+        push(id(28), {
+          customer_id: A.clientes.c1,
+          discount_pct: 0,
+          tipo: 'orcamento',
+          desconto_valor_cents: 1_000,
+          items: [{ product_id: prod1, quantity: 2, desconto_unitario_cents: 5_000 }, { product_id: prod2, quantity: 1 }],
+        }),
+      );
+      expect(r[0]).toMatchObject({ status: 'aceito' });
+      // (100000 - 5000) x 2 + 50000 = 240000; menos 1000 do pedido = 239000
+      const { p } = await lerPedido(id(28));
+      expect(p).toMatchObject({ desconto_valor_cents: '1000', acrescimo_valor_cents: '0', ajuste_em: 'valor', status: 'received' });
+      expect(Number(p.total_cents)).toBe(239_000);
+      const itensGravados = await comTenant(pool, A.tenantId, async (c) => (await c.query('select * from vendedor.pedido_item where pedido_id = $1 order by sequencia', [id(28)])).rows);
+      expect(itensGravados[0]).toMatchObject({ desconto_unitario_cents: '5000', acrescimo_unitario_cents: '0', ajuste_em: 'valor', preco_unitario_cents: '95000' });
+      expect(itensGravados[1]).toMatchObject({ desconto_unitario_cents: '0', ajuste_em: 'pct' });
+      expect(eventos).toEqual([]);
+
+      // pull: as colunas novas e a janela do orçamento (§1.4 b)
+      const linhas = (await provedoresSyncVendedor[0]!.puxar!(ctx, { ate: new Date(AGORA.getTime() + DIA).toISOString(), desde: null, limite: 500 } as never)) as unknown as Array<Record<string, unknown>>;
+      expect(linhas.find((l) => l.id === id(28))).toMatchObject({ tipo: 'orcamento', desconto_valor_cents: 1000, ajuste_em: 'valor', convertido_pedido_id: null, orcamento_origem_id: null });
+    });
+
+    it('RN-VEN-18: PUT edita o orçamento aberto (preço refeito, mesma validade e número); atualizado_em velho = 409 ORCAMENTO_ALTERADO', async () => {
+      await receber(contexto(vendedor1).ctx, push(id(29), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
+      const antes = (await lerPedido(id(29))).p;
+      const validadeAntes = await doc(id(29));
+      const sinal = await atualizadoEm(id(29));
+      const corpo = (em: string) => ({ customer_id: A.clientes.c1, discount_pct: 0, payment_terms: '28/56 dias', items: [{ product_id: prod1, quantity: 5 }], atualizado_em: em });
+      const editar = contexto(vendedor1);
+      const ok = (await rotaEditarOrcamento.executar({ ...(editar.ctx as object), params: { id: id(29) }, corpo: corpo(sinal) } as never)) as Record<string, unknown>;
+      expect(ok).toMatchObject({ id: id(29), tipo: 'orcamento', total_cents: 500_000 });
+      const depois = (await lerPedido(id(29))).p;
+      expect(depois.numero).toBe(antes.numero);
+      expect(Number(depois.total_cents)).toBe(500_000);
+      expect((await doc(id(29)))!.validade_data).toBe(validadeAntes!.validade_data);
+      expect(editar.eventos).toEqual([]);
+      // repetir com o sinal velho
+      await expect(rotaEditarOrcamento.executar({ ...(editar.ctx as object), params: { id: id(29) }, corpo: corpo(sinal) } as never)).rejects.toMatchObject({ status: 409, codigo: 'ORCAMENTO_ALTERADO' });
+    });
+
+    it('RN-VEN-18: editar/cancelar orçamento vencido, convertido ou cancelado = 422 RN-VEN-18; de outro vendedor ou tenant = 404', async () => {
+      await receber(contexto(vendedor1, { parametros: { 'orcamento.validade_dias': 1 } }).ctx, push(id(30), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
+      const corpo = async (idDoc: string) => ({ customer_id: A.clientes.c1, discount_pct: 0, payment_terms: '28/56 dias', items: [{ product_id: prod1, quantity: 1 }], atualizado_em: await atualizadoEm(idDoc) });
+      // vencido (3 dias depois)
+      const tarde = contexto(vendedor1, { agora: new Date(AGORA.getTime() + 3 * DIA) });
+      await expect(rotaEditarOrcamento.executar({ ...(tarde.ctx as object), params: { id: id(30) }, corpo: await corpo(id(30)) } as never)).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-18' });
+      await expect(rotaCancelarOrcamento.executar({ ...(tarde.ctx as object), params: { id: id(30) }, corpo: {} } as never)).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-18' });
+      // outro vendedor e outro tenant
+      await expect(rotaEditarOrcamento.executar({ ...(contexto(vendedor2).ctx as object), params: { id: id(30) }, corpo: await corpo(id(30)) } as never)).rejects.toMatchObject({ status: 404 });
+      await expect(rotaCancelarOrcamento.executar({ ...(contexto(vendedorB).ctx as object), params: { id: id(30) }, corpo: {} } as never)).rejects.toMatchObject({ status: 404 });
+      // cancelado, e cancelar de novo é idempotente
+      await receber(contexto(vendedor1).ctx, push(id(31), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
+      const c = contexto(vendedor1);
+      expect(await rotaCancelarOrcamento.executar({ ...(c.ctx as object), params: { id: id(31) }, corpo: { motivo: 'cliente desistiu' } } as never)).toEqual({ id: id(31), status: 'cancelled' });
+      expect(await rotaCancelarOrcamento.executar({ ...(c.ctx as object), params: { id: id(31) }, corpo: {} } as never)).toEqual({ id: id(31), status: 'cancelled' });
+      expect(c.eventos).toEqual([]);
+      await expect(rotaEditarOrcamento.executar({ ...(c.ctx as object), params: { id: id(31) }, corpo: await corpo(id(31)) } as never)).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-18' });
+      // convertido
+      await receber(contexto(vendedor1).ctx, push(id(32), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
+      await receber(contexto(vendedor1).ctx, push(id(33), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), orcamento_origem_id: id(32), created_offline_at: AGORA.toISOString() }));
+      await expect(rotaEditarOrcamento.executar({ ...(c.ctx as object), params: { id: id(32) }, corpo: await corpo(id(32)) } as never)).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-18' });
+      await expect(rotaCancelarOrcamento.executar({ ...(c.ctx as object), params: { id: id(32) }, corpo: {} } as never)).rejects.toMatchObject({ status: 422, codigo: 'RN-VEN-18' });
+    });
+
+    it('§1.4 g: a lista sem tipo traz só pedidos; tipo=orcamento (+ situacao) traz os orçamentos', async () => {
+      await receber(contexto(vendedor1).ctx, push(id(34), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }), push(id(35), { customer_id: A.clientes.c1, discount_pct: 0, items: itens() }));
+      const c = contexto(vendedor1).ctx;
+      const lista = async (query: Record<string, unknown>) => ((await rotaListarPedidos.executar({ ...(c as object), query } as never)) as { itens: Array<{ id: string }> }).itens.map((i) => i.id);
+      const so = await lista({});
+      expect(so).toContain(id(35));
+      expect(so).not.toContain(id(34));
+      const orc = await lista({ tipo: 'orcamento' });
+      expect(orc).toContain(id(34));
+      expect(orc).not.toContain(id(35));
+      expect(await lista({ tipo: 'orcamento', situacao: 'aberto' })).toContain(id(34));
+      expect(await lista({ tipo: 'orcamento', situacao: 'cancelado' })).not.toContain(id(34));
+      expect(await lista({ tipo: 'todos' })).toEqual(expect.arrayContaining([id(34), id(35)]));
+    });
+
     it('RN-VEN-32: cancelar orçamento não publica evento de pedido', async () => {
-      restaurar = usarPreVenda(criarPreVendaEmMemoria());
       await receber(contexto(vendedor1).ctx, push(id(25), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
       const c = contexto(vendedor1);
       expect(await rotaCancelarPedido.executar({ ...(c.ctx as object), params: { id: id(25) }, corpo: {} } as never)).toEqual({ id: id(25), status: 'cancelled' });

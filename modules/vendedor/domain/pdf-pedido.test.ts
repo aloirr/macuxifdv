@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildOrderPdfHtml, formatCnpj, nomeDaDistribuidora, pdfDoPedido, statusText, textoFrete, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
+import { buildOrderPdfHtml, formatCnpj, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, statusText, textoFrete, type DetalheParaPdf, type OrderPdfContext } from './pdf-pedido';
 
 const ctx: OrderPdfContext = { tenant_name: 'Distribuidora Exemplo Norte', product_name: 'Macuxi FDV', tz: 'America/Manaus', generated_at: '2026-11-01T18:00:00.000Z' };
 
@@ -164,5 +164,24 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
     const html = buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', ctx);
     expect(html).not.toContain('Frete:');
     expect(html).toContain('>UN<');
+  });
+  it('RF-VEN-03 / RN-VEN-18: orçamento sai com o título Orçamento e "Válido até dd/mm/aaaa", sem o texto de pedido de venda', () => {
+    const d = detalhe({ status: 'received', tipo: 'orcamento', validade_data: '2026-11-10' });
+    const cliente = buildOrderPdfHtml(pdfDoPedido(d), 'customer', ctx);
+    expect(cliente).toContain('>Orçamento<');
+    expect(cliente).toContain('Orçamento PED-000123');
+    expect(cliente).toContain('Válido até 10/11/2026');
+    expect(cliente).not.toContain('Pedido de venda');
+    const bko = buildOrderPdfHtml(pdfDoPedido(d), 'bko', ctx);
+    expect(bko).toContain('Orçamento · conferência BKO');
+    expect(bko).toContain('Válido até 10/11/2026');
+  });
+  it('orçamento sem validade conhecida não inventa data; pedido nunca mostra "Válido até"', () => {
+    expect(buildOrderPdfHtml(pdfDoPedido(detalhe({ tipo: 'orcamento', validade_data: null })), 'customer', ctx)).not.toContain('Válido até');
+    expect(buildOrderPdfHtml(pdfDoPedido(detalhe({ tipo: 'pedido', validade_data: '2026-11-10' })), 'customer', ctx)).not.toContain('Válido até');
+  });
+  it('nome do arquivo do orçamento começa com orcamento-', () => {
+    expect(orderPdfFileName('PED-000123', 'customer', 'orcamento')).toBe('orcamento-PED-000123-cliente.pdf');
+    expect(orderPdfFileName('10521', 'bko')).toBe('pedido-10521-bko.pdf');
   });
 });

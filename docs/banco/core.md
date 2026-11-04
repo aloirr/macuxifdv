@@ -212,6 +212,7 @@ parcial `visita_sugere_coordenada_ix (tenant_id, cliente_id, checkin_em desc) wh
 Índices: `notificacao_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`; parcial `notificacao_nao_lidas_ix
 (tenant_id, usuario_id, created_at desc) where lida_em is null and vivo`; únicos parciais `notificacao_evento_uk
 (tenant_id, usuario_id, origem_evento_id)` e `notificacao_envio_uk (tenant_id, usuario_id, envio_id)` quando preenchidos.
+Recado do dia (0021, T-0073): `recado_do_dia` date · `recado_do_dia_por` (FK usuário) — ver a seção 0021 abaixo.
 
 ## meta — meta mensal (RN-CORE-20..22). Pull por usuários visíveis, `periodo ≥ mês anterior`
 `usuario_id` (FK) · `periodo` `AAAA-MM` · `indicador` `venda_cents | positivacao | cobertura_pct | visitas` · `valor` bigint ≥ 0
@@ -220,7 +221,8 @@ parcial `visita_sugere_coordenada_ix (tenant_id, cliente_id, checkin_em desc) wh
 data de emissão ou o faturado na data do ERP. O `meta_uk` não inclui o tipo (uma meta por usuário, período e indicador).
 
 ## indicador_diario — read-model diário de vendas (lote B do §7, criado a pedido do gerente). Sem pull na Sprint 1
-`usuario_id` (= vendedor, RN-CORE-21) · `data` (fuso do tenant) · `pedidos`, `vendido_cents`, `cancelado_cents` ≥ 0.
+`usuario_id` (= vendedor, RN-CORE-21) · `data` (fuso do tenant) · `pedidos`, `vendido_cents`, `cancelado_cents` ≥ 0 ·
+`clientes_positivados` integer null ≥ 0 (0021, T-0073 — ver a seção 0021 abaixo).
 Único `indicador_diario_uk (tenant_id, usuario_id, data)` vivo. Alimentado pelo consumidor de `vendedor.pedido.*` quando
 houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 
@@ -310,3 +312,33 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - Caminho de volta: `0019_core_nota_erp_meta_tipo.down.sql` — **apaga** `nota_erp` com os dados (reconstruível pela
   reentrega do ERP; `historico_compra` não é tocado) e a coluna `meta.tipo` (metas de faturamento voltam a ser lidas como
   pedido).
+
+## 0021 — recado do dia e positivação diária (`0021_core_recado_do_dia`; T-0073, desenho docs/desenho/T-0073.md §3.4 e §1.1)
+- **notificacao.recado_do_dia** `date` null: dia **civil do tenant** (a API calcula com o fuso de `plataforma.tenant`) em que o
+  recado aparece como "recado do dia" no Início do destinatário; null = não marcado. Só em recado: CHECK
+  `notificacao_recado_do_dia_so_recado (recado_do_dia is null or tipo = 'recado')`.
+- **notificacao.recado_do_dia_por** `uuid` null: quem marcou (supervisor ou gerente; permissão e escopo da equipe ficam na API
+  do Core). Preenchido junto com a data: CHECK `notificacao_recado_do_dia_par ((recado_do_dia is null) = (recado_do_dia_por is
+  null))`. Do próprio tenant: FK composta `notificacao_recado_do_dia_por_fk (tenant_id, recado_do_dia_por) → usuario (tenant_id, id)`.
+- Índices: único parcial `notificacao_recado_do_dia_uk (tenant_id, usuario_id, recado_do_dia) where recado_do_dia is not null
+  and deleted_at is null` (um recado do dia por pessoa por dia: para trocar, a API desmarca o anterior na mesma transação);
+  `notificacao_envio_ix (tenant_id, envio_id) where envio_id is not null` (marcar/desmarcar todas as cópias de um envio; o
+  `notificacao_envio_uk` começa por `usuario_id` e não serve a essa busca).
+- Consultas principais: marcar por envio `update core.notificacao set recado_do_dia = $d, recado_do_dia_por = $u where
+  tenant_id = $t and envio_id = $e and deleted_at is null` (`notificacao_envio_ix`); recado do dia da pessoa `where tenant_id
+  = $t and usuario_id = $p and recado_do_dia = $hoje and deleted_at is null` (`notificacao_recado_do_dia_uk`). No aparelho, o
+  pull de `notificacao` (índices de sync da 0006) leva as colunas novas. Volume: 1 marcação por pessoa por dia.
+- RLS: a política `isolamento_tenant` (0006) já cobre as colunas; nenhuma política nova, grants iguais. Espelho Drizzle
+  `notificacao.recado_do_dia` / `notificacao.recado_do_dia_por`. Sem seed: na demo, a marcação é feita ao vivo no BKO.
+- **indicador_diario.clientes_positivados** `integer` null (pedido R-20261103-235827-gerente-projetos; desenho T-0073 §1.1):
+  clientes **distintos** com pedido que conta para a meta (RN-CORE-21) do usuário naquele dia civil do tenant. É o fallback da
+  positivação do Início quando o Vendedor está desligado (`vendedor.pedidos_da_meta@1` → `ConsultaIndisponivel`). null = não
+  apurado (linhas anteriores à 0021 e consumidor que ainda não conta): **sem backfill**, sem padrão; o Core trata null como
+  "sem fonte" (`positivacao = null`), não como zero. CHECK `indicador_diario_clientes_positivados_nao_negativo
+  (clientes_positivados is null or clientes_positivados >= 0)`. Atenção: a contagem é distinta **no dia**; somar os dias dá
+  um teto da positivação do mês (o mesmo cliente em dois dias conta duas vezes) — a deduplicação mensal fica no consumidor do
+  Core. Consulta: `where tenant_id = $t and usuario_id = any($u) and data between $ini and $fim and deleted_at is null`
+  (`indicador_diario_uk`). Volume: 1 linha por vendedor por dia com venda. Espelho Drizzle `indicadorDiario.clientes_positivados`.
+- Caminho de volta: `0021_core_recado_do_dia.down.sql` — **apaga** as marcações (os recados continuam; o Início volta à
+  frase padrão `inicio.recado_do_dia_padrao`) e a coluna `indicador_diario.clientes_positivados` (pedidos e valores ficam;
+  o Início sem o Vendedor volta a `positivacao = null`).

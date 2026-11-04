@@ -6,7 +6,7 @@
  * não recebe nenhuma das três — o preço nem chega ao aparelho dele.
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
-import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeProdutoNo, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
+import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeProdutoNo, entidadeProdutoRelacao, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -17,16 +17,18 @@ const TABELAS = {
   tabela_preco: { tabela: 'catalogo.tabela_preco', colunas: 'codigo, nome, ativo', colunaCliente: false },
   tabela_preco_item: {
     tabela: 'catalogo.tabela_preco_item',
-    colunas: `tabela_preco_id, produto_id, preco_cents::float8 as preco_cents, ${ts('vigencia_inicio')}, ${ts('vigencia_fim')}`,
+    colunas: `tabela_preco_id, produto_id, preco_cents::float8 as preco_cents, ${ts('vigencia_inicio')}, ${ts('vigencia_fim')}, unidade`,
     colunaCliente: false,
   },
   cliente_tabela_preco: { tabela: 'catalogo.cliente_tabela_preco', colunas: 'cliente_id, tabela_preco_id', colunaCliente: true },
   // árvore (RF-CAT-04): navegação, não preço (sem trava por perfil); o promotor navega só para leitura (regra 7)
   catalogo_no: { tabela: 'catalogo.catalogo_no', colunas: 'pai_id, nivel::int as nivel, codigo, nome, ordem, ativo', colunaCliente: false },
   produto_no: { tabela: 'catalogo.produto_no', colunas: 'produto_id, no_id', colunaCliente: false },
+  // relação entre produtos (RF-CAT-03; T-0071 §5, migração 0020): sem preço nem estoque, só ligação entre ids
+  produto_relacao: { tabela: 'catalogo.produto_relacao', colunas: 'produto_id, relacionado_id, tipo, ordem::int as ordem, ativo', colunaCliente: false },
 } as const;
 
-const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no']);
+const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no', 'produto_relacao']);
 
 export function sqlPullPreco(nome: keyof typeof TABELAS, pedido: PedidoPull, clientes: readonly string[] | null): { sql: string; valores: unknown[] } {
   const t = TABELAS[nome];
@@ -59,4 +61,5 @@ export const provedoresSyncCatalogo: readonly ProvedorSync[] = [
   { entidade: entidadeClienteTabelaPreco, escopo: 'carteira', puxar: (ctx, p) => puxar('cliente_tabela_preco', ctx, p) },
   { entidade: entidadeCatalogoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('catalogo_no', ctx, p) },
   { entidade: entidadeProdutoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_no', ctx, p) },
+  { entidade: entidadeProdutoRelacao, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_relacao', ctx, p) },
 ];

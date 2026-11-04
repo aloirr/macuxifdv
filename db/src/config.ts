@@ -8,6 +8,9 @@
  * assim a senha pública nunca é gravada no papel da API (garantirPapelApp) de um banco compartilhado.
  * O papel do worker da outbox (macuxi_worker, ADR 0007) usa MACUXI_PG_WORKER_SENHA: fora do local ela é
  * opcional (sem ela o papel fica NOLOGIN e workerSenha = ''), mas a senha pública local é recusada.
+ * API e worker usam lerConfigApp: fora do local não exigem MACUXI_PG_ADMIN_SENHA (o contêiner não recebe a senha do
+ * admin; urlAdmin falha se for chamada). Migrações, papéis e seeds seguem com lerConfig (admin obrigatório).
+ * Seed da base de DEMONSTRAÇÃO num servidor (VM da demo, ADR 0020 §5): só com MACUXI_AMBIENTE=demo (exigirBancoDemo).
  */
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -71,6 +74,25 @@ export function exigirBancoLocal(host: string | undefined, oQue: string, env: No
   throw new Error(`[db] ${oQue} recusado: banco fora do ambiente local (${onde}). Só vale para o Postgres local do db/docker-compose.yml.`);
 }
 
+/** Valor de MACUXI_AMBIENTE que libera o seed da base de demonstração (dados fictícios) fora do Postgres local. */
+export const AMBIENTE_DEMO = 'demo';
+
+/**
+ * Seed da base de DEMONSTRAÇÃO (tenant demo, dados fictícios): aceita o Postgres local OU um servidor marcado
+ * explicitamente com MACUXI_AMBIENTE=demo (a VM da demo, ADR 0020 §5), mesmo com NODE_ENV=production. Só o valor
+ * exato "demo" vale. Não libera a senha pública dos papéis (lerConfig segue exigindo senhas próprias fora do local)
+ * nem o seed da Fase M, nem a fixture dos testes, que continuam só no local (exigirBancoLocal).
+ */
+export function exigirBancoDemo(host: string | undefined, oQue: string, env: NodeJS.ProcessEnv = process.env): void {
+  if (env.MACUXI_AMBIENTE === AMBIENTE_DEMO) return;
+  if (ehBancoLocal(host, env)) return;
+  const onde = env.NODE_ENV === 'production' ? `NODE_ENV=production, host ${host ?? 'desconhecido'}` : `host ${host ?? 'desconhecido'} não é local`;
+  throw new Error(
+    `[db] ${oQue} recusado: banco fora do ambiente local (${onde}). Só vale para o Postgres local do db/docker-compose.yml ` +
+      `ou para o servidor da demo com MACUXI_AMBIENTE=${AMBIENTE_DEMO}.`,
+  );
+}
+
 /** Host de um cliente `pg` conectado (pg.Client e PoolClient expõem `host`); undefined se desconhecido. */
 export function hostDoCliente(cliente: object): string | undefined {
   const host = (cliente as { host?: unknown }).host;
@@ -88,14 +110,30 @@ export function carregarEnv(): void {
   }
 }
 
+/** Configuração de quem administra o banco (migrações, papéis, seeds): fora do local exige a senha do admin. */
 export function lerConfig(env: NodeJS.ProcessEnv = process.env): ConfigBanco {
+  return lerConfigInterno(env, true);
+}
+
+/**
+ * Configuração da API e do worker (só urlApp/urlWorker): fora do local MACUXI_PG_ADMIN_SENHA é OPCIONAL, para o
+ * contêiner da aplicação não precisar da senha do admin. Sem ela, adminSenha = '' e urlAdmin lança. As demais travas
+ * são as de lerConfig (MACUXI_PG_APP_SENHA obrigatória; senha pública local recusada, inclusive a do admin se vier).
+ */
+export function lerConfigApp(env: NodeJS.ProcessEnv = process.env): ConfigBanco {
+  return lerConfigInterno(env, false);
+}
+
+function lerConfigInterno(env: NodeJS.ProcessEnv, exigirAdmin: boolean): ConfigBanco {
   if (env === process.env) carregarEnv();
   const porta = Number(env.MACUXI_PG_PORTA ?? '5432');
   if (!Number.isInteger(porta) || porta <= 0) throw new Error(`MACUXI_PG_PORTA inválida: ${env.MACUXI_PG_PORTA}`);
   const host = env.MACUXI_PG_HOST || 'localhost';
-  if (!ehBancoLocal(host, env)) {
+  const local = ehBancoLocal(host, env);
+  if (!local) {
     const onde = env.NODE_ENV === 'production' ? `NODE_ENV=production, host ${host}` : `host ${host} não é local`;
-    const faltando = (['MACUXI_PG_ADMIN_SENHA', 'MACUXI_PG_APP_SENHA'] as const).filter((v) => !env[v]);
+    const exigidas = exigirAdmin ? (['MACUXI_PG_ADMIN_SENHA', 'MACUXI_PG_APP_SENHA'] as const) : (['MACUXI_PG_APP_SENHA'] as const);
+    const faltando = exigidas.filter((v) => !env[v]);
     if (faltando.length > 0) {
       throw new Error(
         `[db] Banco fora do ambiente local (${onde}): defina ${faltando.join(' e ')} no .env. ` +
@@ -110,10 +148,10 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): ConfigBanco {
     host,
     porta,
     adminUsuario: env.MACUXI_PG_ADMIN_USUARIO || 'postgres',
-    adminSenha: env.MACUXI_PG_ADMIN_SENHA || SENHA_ADMIN_LOCAL,
+    adminSenha: env.MACUXI_PG_ADMIN_SENHA || (local ? SENHA_ADMIN_LOCAL : ''),
     banco: env.MACUXI_PG_BANCO || 'macuxi',
     appSenha: env.MACUXI_PG_APP_SENHA || SENHA_APP_LOCAL,
-    workerSenha: env.MACUXI_PG_WORKER_SENHA || (ehBancoLocal(host, env) ? SENHA_WORKER_LOCAL : ''),
+    workerSenha: env.MACUXI_PG_WORKER_SENHA || (local ? SENHA_WORKER_LOCAL : ''),
   };
 }
 
@@ -170,6 +208,7 @@ function url(usuario: string, senha: string, cfg: ConfigBanco, banco: string): s
 
 /** URL do administrador (migrações, criação de banco). `banco` padrão: o de desenvolvimento. */
 export function urlAdmin(cfg: ConfigBanco, banco = cfg.banco): string {
+  if (!cfg.adminSenha) throw new Error('[db] MACUXI_PG_ADMIN_SENHA não definida: esta configuração (lerConfigApp) não administra o banco.');
   return url(cfg.adminUsuario, cfg.adminSenha, cfg, banco);
 }
 

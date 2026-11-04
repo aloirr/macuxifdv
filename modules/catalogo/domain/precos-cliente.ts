@@ -32,6 +32,18 @@ export interface EntradaPrecosCliente {
   verPreco: boolean;
 }
 
+/** RN-VEN-15: preço próprio por medida (linhas com unidade), vigente em `quando`; uma entrada por unidade, na ordem de aparição. */
+function embalagensDoProduto(produtoId: string, daTabela: readonly ItemTabelaPreco[], tabelaId: string, quando: string): Array<{ unidade: string; preco_cents: number }> {
+  const unidades = [...new Set(daTabela.filter((i) => i.product_id === produtoId && i.unit != null).map((i) => i.unit as string))];
+  const saida: Array<{ unidade: string; preco_cents: number }> = [];
+  for (const unidade of unidades) {
+    const linhas = daTabela.filter((i) => i.unit === unidade).map((i) => ({ ...i, unit: null }));
+    const p = precoVisivel(produtoId, linhas, [], { agora: quando, tabela_cliente_id: tabelaId });
+    if (p.sellable && p.price_cents !== null) saida.push({ unidade, preco_cents: p.price_cents });
+  }
+  return saida;
+}
+
 export function precosDoCliente(e: EntradaPrecosCliente): PrecosClienteSaida {
   const ids = [...new Set(e.produtoIds)];
   if (!e.verPreco) {
@@ -40,15 +52,22 @@ export function precosDoCliente(e: EntradaPrecosCliente): PrecosClienteSaida {
   if (e.tabelaId === null) {
     return { tabela_preco_id: null, itens: ids.map((produto_id) => ({ produto_id, preco_cents: null, motivo_sem_preco: MENSAGEM_SEM_PRECO_CLIENTE })) };
   }
+  const tabelaId = e.tabelaId;
   const quando = dataDoPreco(e.em, e.agora);
-  const itens = e.itens.filter((i) => i.price_table_id === e.tabelaId);
+  const daTabela = e.itens.filter((i) => i.price_table_id === e.tabelaId);
+  // RN-VEN-15: preco_cents é só da unidade base (unit nula); a linha de embalagem (ex.: CX) nunca vira o preço da UN
+  const itens = daTabela.filter((i) => i.unit == null);
   return {
     tabela_preco_id: e.tabelaId,
     itens: ids.map((produto_id) => {
       const p = precoVisivel(produto_id, itens, [], { agora: quando, tabela_cliente_id: e.tabelaId });
-      return p.sellable && p.price_cents !== null
-        ? { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null }
-        : { produto_id, preco_cents: null, motivo_sem_preco: p.notice ?? MENSAGEM_SEM_PRECO_CLIENTE };
+      if (p.sellable && p.price_cents !== null) {
+        const embalagens = embalagensDoProduto(produto_id, daTabela, tabelaId, quando);
+        return embalagens.length > 0
+          ? { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null, embalagens }
+          : { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null };
+      }
+      return { produto_id, preco_cents: null, motivo_sem_preco: p.notice ?? MENSAGEM_SEM_PRECO_CLIENTE };
     }),
   };
 }

@@ -34,6 +34,10 @@ const COERENCIA_DA_FK: Record<string, string> = {
   pedido_orcamento_fk: "tipo = 'pedido', orcamento_validade = null, convertido_em = null",
   // 0018 (T-0063) produto_embalagem_completa / produto_embalagem_quantidade_minima: embalagem só com a quantidade (> 1)
   produto_embalagem_medida_fk: 'embalagem_quantidade = 12',
+  // 0021 (T-0073) notificacao_recado_do_dia_par / notificacao_recado_do_dia_so_recado: quem marcou só existe com o dia
+  // marcado, e o dia só em recado (tipo 'recado'); a fixture não marca recado do dia, então o único parcial
+  // notificacao_recado_do_dia_uk não colide
+  notificacao_recado_do_dia_por_fk: "tipo = 'recado', recado_do_dia = date '2026-01-01'",
 };
 
 interface Fk {

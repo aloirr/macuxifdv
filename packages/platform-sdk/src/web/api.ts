@@ -19,6 +19,15 @@ export function urlPadraoDaApi(modo: ModoApiWeb): string {
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? urlPadraoDaApi(MODO_API)).replace(/\/$/, '');
 
+/**
+ * Falha de rede no navegador. Na API real a chamada vai ao proxy same-origin (`/api-proxy`), e o endereço gravado no build
+ * (na imagem da demo, o interno `http://api:8100/v1`, T-0074) não diz nada ao usuário, então não aparece. Na demonstração
+ * (mock-api) o endereço ajuda quem está rodando no PC.
+ */
+export function mensagemSemConexao(modo: ModoApiWeb, url: string = API_URL): string {
+  return modo === 'demo' ? `Sem conexão com o servidor (${url}). Confira se o mock-api está rodando.` : 'Sem conexão com o servidor. Confira a internet e tente de novo.';
+}
+
 /** Erro no formato da API: v1 `{ codigo, mensagem, detalhes }` (ErroApiSchema) ou Fase M `{ code, message, details }`. */
 export class ApiRequestError extends Error {
   constructor(
@@ -123,7 +132,7 @@ export async function apiFetch(path: string, opts: RequestOptions = {}, repetida
     });
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') throw e;
-    throw new ApiRequestError(0, 'network', `Sem conexão com o servidor (${API_URL}). Confira se ${MODO_API === 'demo' ? 'o mock-api' : 'a API'} está rodando.`);
+    throw new ApiRequestError(0, 'network', mensagemSemConexao(MODO_API));
   }
   if (!res.ok) {
     // 401 com sessão: tenta o refresh uma vez e repete a chamada

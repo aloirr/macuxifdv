@@ -18,14 +18,14 @@
  *   Todo payload = contrato de modules/promotor/contracts/coletas.ts (conferido em db/testes/seed-demo-promotor.test.ts).
  *
  * Idempotente (upsert por id determinístico `demo:promotor:<chave>`); em outro dia as datas andam junto com as visitas do
- * Core (mesmos ids). Só tenant demo; só Postgres local (exigirBancoLocal). Exige a 0015 (`to_regclass`).
+ * Core (mesmos ids). Só tenant demo; só Postgres local ou servidor da demo (exigirBancoDemo). Exige a 0015 (`to_regclass`).
  * CICLO DE IMPORT: o demo.ts importa este arquivo e este importa o demo.ts. Nada do './demo' é lido no topo do módulo
  * (só dentro das funções), senão dá TDZ quando o demo.ts é o ponto de entrada.
  */
 import type { ClientBase } from 'pg';
 import { indicePreco, precoEfetivoCents } from '../../../modules/promotor/domain/preco';
 import { atingimentoShare, calcularShare } from '../../../modules/promotor/domain/share';
-import { exigirBancoLocal, hostDoCliente } from '../../src/config';
+import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { anoMes, hojeNoFuso, somarDias } from '../../src/datas';
 import { gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
@@ -291,7 +291,7 @@ export function conferirSoTenantDemoPromotor(dados: DadosDemoPromotor): void {
  * abre e fecha). Exige a 0015 e o tenant demo já gravado. Rodar 2× não duplica (upsert por id).
  */
 export async function gravarDemoPromotor(admin: ClientBase, opcoes: OpcoesDemoPromotor = {}): Promise<DadosDemoPromotor> {
-  exigirBancoLocal(hostDoCliente(admin), 'Seed do Promotor na base de demonstração');
+  exigirBancoDemo(hostDoCliente(admin), 'Seed do Promotor na base de demonstração');
   const r = await admin.query<{ ok: boolean }>("select to_regclass('promotor.visita_loja') is not null as ok");
   if (!r.rows[0]?.ok) throw new Error('[db] seed demo promotor: falta o schema promotor — rode "banco migrar up" até a 0015_promotor antes.');
   const tenant = await admin.query('select 1 from plataforma.tenant where id = $1', [T()]);

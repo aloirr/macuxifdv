@@ -20,7 +20,7 @@ import { useEffect } from 'react';
 
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import type { VisaoShell } from '@macuxi/platform-sdk';
-import { colors } from '@macuxi/ui/mobile';
+import { colors, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobile';
 import { AreaSeguraSuperior } from '@/components/area-segura';
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
 import { registrarCameraNosModulos } from '@/services/camera';
@@ -57,6 +57,8 @@ export default function RootLayout() {
 /** Só renderiza as rotas depois de carregar fontes, sessão e fila do aparelho. */
 function Gate({ fontsReady }: { fontsReady: boolean }) {
   const { ready, visao, motor, ambiente } = usePlataforma();
+  // T-0072: avançar lateral em 240 ms; com "reduzir movimento", troca instantânea (docs/design/componentes.md §6)
+  const reduzir = useReduzirMovimento();
   const show = fontsReady && ready;
   useEffect(() => {
     if (show) void SplashScreen.hideAsync().catch(() => {});
@@ -68,11 +70,12 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
       {/* RN-CORE-23: botão Sincronizar, puxar para baixo e push usam o agendador único do app */}
       <SincronizacaoDoShell>
         <AreaSeguraSuperior>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground } }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="login" />
-            <Stack.Screen name="sync" />
-            <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+          {/* login, carga e abas trocam sem deslizar (não é "avançar"); o perfil entra pela direita */}
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground }, ...transicaoDeAvancar(reduzir) }}>
+            <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+            <Stack.Screen name="login" options={{ animation: 'none' }} />
+            <Stack.Screen name="sync" options={{ animation: 'none' }} />
+            <Stack.Screen name="profile" />
           </Stack>
         </AreaSeguraSuperior>
       </SincronizacaoDoShell>

@@ -9,17 +9,21 @@
  *  - Demonstração (mock-api da Fase M): as cargas REST de `etapas.ts` alimentam o armazenamento do módulo, como antes.
  * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
-import { CONSULTA_PRECOS_CLIENTE, type Product } from '@macuxi/catalogo/contracts';
+import { CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import type { CustomerSummary } from '@macuxi/core/contracts';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MixSuggestion } from '@macuxi/catalogo/contracts';
-import type { CustomerDetail, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
+import type { CustomerDetail, EditarOrcamentoRequest, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { fretePush, linhasParaPush } from '../lib/novo-pedido';
+import { copiaDoDetalhe, copiaDoPayload, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
+import { toDomainPolicy } from '../lib/catalog';
+import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
+import { embalagensDaConsulta, linhasParaPush } from '../lib/novo-pedido';
+import { situacaoDoClienteSync } from '../lib/textos-pedido';
 import {
   aceitosComoPedidos,
   draftKeyFor,
@@ -35,6 +39,7 @@ import {
   type Rascunho,
 } from '../lib/pedidos';
 import {
+  agruparPorPedido,
   condicoesDoCliente,
   detalheDoPedido,
   LINHAS_VAZIAS,
@@ -244,13 +249,17 @@ export function useVendedor() {
         try {
           const ativos = linhasRef.current.produtos.filter((p) => p.ativo);
           const precos = new Map<string, number | null>();
+          const itensConsulta: Array<{ produto_id: string; embalagens?: Array<{ unidade: string; preco_cents: number }> }> = [];
           const agora = new Date().toISOString();
           for (let i = 0; i < ativos.length; i += LOTE_PRECOS) {
             const r = await ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente.id, produto_ids: ativos.slice(i, i + LOTE_PRECOS).map((p) => p.id), em: agora });
-            for (const it of r.itens) precos.set(it.produto_id, it.preco_cents);
+            for (const it of r.itens) {
+              precos.set(it.produto_id, it.preco_cents);
+              itensConsulta.push(it);
+            }
           }
           const items = produtosComPrecos(linhasRef.current, precos);
-          await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora } }));
+          await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora, embalagens: embalagensDaConsulta(itensConsulta) } }));
           await recarregar();
           return items;
         } catch {
@@ -270,6 +279,9 @@ export function useVendedor() {
     [v1, repo, recarregar, tabelaDe, ambiente],
   );
 
+  /** RN-VEN-13: situação do cliente na linha do sync (ativo, cadastro incompleto) */
+  const situacaoDoCliente = useCallback((clienteId: string) => situacaoDoClienteSync(linhas.clientes.find((c) => c.id === clienteId)), [linhas.clientes]);
+
   /** Medidas (UN/CX), endereços de entrega e transportadoras do aparelho (T-0061); vazios sem as entidades no sync. */
   const unidades = useMemo(() => (v1 ? unidadesDaTela(linhas) : []), [v1, linhas]);
   const enderecos = useMemo(() => (v1 ? enderecosDaTela(linhas) : []), [v1, linhas]);
@@ -280,6 +292,16 @@ export function useVendedor() {
 
   // ---------- rascunho ----------
   const rascunhoDe = useCallback((chave: string, customerId: string): Rascunho => dadosRef.current.rascunhos[chave] ?? rascunhoVazio(customerId), []);
+
+  /** Descarta o rascunho do aparelho (só depois de confirmar o diálogo "Descartar este pedido?"). */
+  const descartarRascunho = useCallback(
+    async (chave: string) => {
+      if (!repo) return;
+      await repo.limparRascunho(chave);
+      await recarregar();
+    },
+    [repo, recarregar],
+  );
 
   const atualizarRascunho = useCallback(
     async (chave: string, customerId: string, fn: (r: Rascunho) => Rascunho) => {
@@ -305,7 +327,7 @@ export function useVendedor() {
       if (!pol) throw new Error('Alçadas ainda não estão no aparelho. Sincronize com sinal e tente de novo.');
       const editado = editId ? dadosRef.current.pedidos.find((o) => o.id === editId) ?? null : null;
       const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
-      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current) });
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens });
     },
     [v1, usuario],
   );
@@ -358,6 +380,8 @@ export function useVendedor() {
     [motor, repo, prepararDoRascunho, recarregar, carregarPedido, ambiente, v1, perfil],
   );
 
+  const unidadesTransportadoras = useCallback(() => (v1 ? transportadorasDaTela(linhasRef.current) : []), [v1]);
+
   /** Duplicar (`duplicate`) ou editar (`edit`, só o que está na fila — P-2): rascunho com o mesmo cliente/itens e os preços de hoje. */
   const prepararRascunhoDoPedido = useCallback(
     async (orderId: string, modo: 'duplicate' | 'edit'): Promise<{ customerId: string; chave: string }> => {
@@ -370,27 +394,39 @@ export function useVendedor() {
       if (!cliente) throw new Error('Cliente fora da carteira sincronizada no aparelho.');
       const catalogo = await garantirProdutos(cliente);
       if (catalogo.length === 0) throw new Error('Tabela de preços do cliente não está no aparelho. Sincronize com sinal.');
-      const r = prefillLines(src.lines, catalogo);
-      if (Object.keys(r.lines).length === 0 && modo === 'duplicate') throw new Error(`Nenhum item do pedido está ativo com preço na tabela. ${prefillNotice(r)}`);
+      // T-0071: a cópia leva medida, ajustes do item (% ou R$), ajuste do pedido, frete e endereço (RN-VEN-02/16/17)
+      const naFila = filaRef.current.find((o) => o.payload.id === orderId);
+      const linhaPedido = linhasRef.current.pedidos.find((p) => p.id === orderId);
+      const copia = naFila
+        ? copiaDoPayload(naFila.payload, { observacao: null })
+        : det
+          ? copiaDoDetalhe(det, { condicaoId: v1 ? (linhaPedido?.condicao_pagamento_id ?? null) : null, observacao: linhaPedido?.observacao ?? null, transportadoras: unidadesTransportadoras() })
+          : null;
+      const c = copia ? rascunhoDaCopia(copia, catalogo) : null;
+      const r = c ? null : prefillLines(src.lines, catalogo);
+      const linhasDoRascunho = c ? c.rascunho.lines : r!.lines;
+      const aviso = c ? c.aviso : prefillNotice(r!);
+      if (Object.keys(linhasDoRascunho).length === 0 && modo === 'duplicate') throw new Error(`Nenhum item do pedido está ativo com preço na tabela. ${aviso}`);
       const origem = src.number ? `pedido ${src.number}` : 'pedido no aparelho';
       const cabeca = modo === 'duplicate' ? `Cópia do ${origem} com os preços de hoje da tabela do cliente.` : 'Preços atualizados pela tabela de hoje do cliente.';
       const chave = draftKeyFor(cliente.id, modo === 'edit' ? orderId : null);
+      const ehOrcamento = naFila?.payload.tipo === 'orcamento' || linhaPedido?.tipo === 'orcamento';
       await repo.guardarRascunho(chave, {
+        ...(c ? c.rascunho : { lines: r!.lines, discount_pct: src.discount_pct }),
         customer_id: cliente.id,
-        lines: r.lines,
-        discount_pct: src.discount_pct,
         payment_terms: src.payment_terms,
-        condicao_pagamento_id: v1 ? (linhasRef.current.pedidos.find((p) => p.id === orderId)?.condicao_pagamento_id ?? null) : null,
+        condicao_pagamento_id: v1 ? (linhaPedido?.condicao_pagamento_id ?? naFila?.payload.condicao_pagamento_id ?? null) : null,
         visit_id: null,
         route_stop_id: null,
         updated_at: new Date().toISOString(),
         edit_order_id: modo === 'edit' ? orderId : null,
-        notice: [cabeca, prefillNotice(r)].filter(Boolean).join(' '),
+        ...(modo === 'edit' && ehOrcamento ? { tipo: 'orcamento' as const } : {}),
+        notice: [cabeca, aviso].filter(Boolean).join(' '),
       });
       await recarregar();
       return { customerId: cliente.id, chave };
     },
-    [repo, garantirProdutos, recarregar, detalhe, clientes, v1],
+    [repo, garantirProdutos, recarregar, detalhe, clientes, v1, unidadesTransportadoras],
   );
 
   /** Salva a edição. P-2: só o pedido que ainda está na fila do aparelho (funciona sem sinal); o servidor não edita pedido aceito. */
@@ -403,23 +439,43 @@ export function useVendedor() {
       const naFila = filaRef.current.find((o) => o.payload.id === orderId);
       if (naFila) {
         await repo.guardarExibicao(orderId, display);
+        const novo = montarPedido({ id: orderId, cliente, rascunho, v, semSinal: false, agora: naFila.payload.created_offline_at ?? new Date().toISOString() });
         await motor.alterar(orderId, {
+          // refaz o payload pelo rascunho (ajustes em % ou R$, frete, endereço, observação) e guarda o que o rascunho não tem
           payload: {
-            ...naFila.payload,
-            discount_pct: rascunho.discount_pct,
-            payment_terms: rascunho.payment_terms,
-            condicao_pagamento_id: rascunho.condicao_pagamento_id ?? null,
+            ...novo,
             total_cents: display.total_cents,
-            items: itens,
-            acrescimo_pct: (rascunho.acrescimo_pct ?? 0) > 0 ? rascunho.acrescimo_pct : undefined,
-            frete: fretePush(rascunho.frete),
-            endereco_entrega_id: rascunho.endereco_entrega_id ?? null,
+            created_offline_at: naFila.payload.created_offline_at ?? null,
+            route_stop_id: naFila.payload.route_stop_id ?? null,
+            visita_id: naFila.payload.visita_id ?? null,
+            ...(naFila.payload.branch_id ? { branch_id: naFila.payload.branch_id } : {}),
+            ...(naFila.payload.tipo ? { tipo: naFila.payload.tipo } : {}),
+            ...(naFila.payload.orcamento_origem_id ? { orcamento_origem_id: naFila.payload.orcamento_origem_id } : {}),
           } satisfies PedidoPush,
         });
         await repo.limparRascunho(chave);
         await recarregar();
         if (ambiente.online()) void motor.enviar({ incluirFalhos: true });
         return { kind: 'local' };
+      }
+      const linhaOrc = linhasRef.current.pedidos.find((p) => p.id === orderId);
+      if (v1 && linhaOrc?.tipo === 'orcamento') {
+        // T-0071 (RN-VEN-18): orçamento aberto já recebido edita pela API, com a versão que o aparelho tem (concorrência otimista)
+        if (!ambiente.online()) throw new Error('Sem sinal: para salvar a edição de um orçamento já enviado, conecte-se. Suas alterações continuam aqui.');
+        const { id: _id, tipo: _tipo, orcamento_origem_id: _origem, created_offline_at: _criado, ...corpoBase } = montarPedido({ id: orderId, cliente, rascunho, v, semSinal: false, agora: new Date().toISOString() });
+        void [_id, _tipo, _origem, _criado];
+        const corpo: EditarOrcamentoRequest = { ...corpoBase, atualizado_em: linhaOrc.updated_at };
+        try {
+          await ambiente.http.requisitar('PUT', `/vendedor/orcamentos/${encodeURIComponent(orderId)}`, { body: corpo });
+        } catch (e) {
+          if (ehSemConexao(e)) throw new Error('Sem conexão: conecte-se para salvar a edição do orçamento. Suas alterações continuam aqui.');
+          throw e;
+        }
+        await motor.sincronizar().catch(() => false);
+        await repo.limparRascunho(chave);
+        await recarregar();
+        const atualizado = detalheDoPedido(linhasRef.current, orderId, perfil, parametrosRef.current);
+        return atualizado ? { kind: 'server', order: atualizado } : { kind: 'local' };
       }
       if (v1) throw new Error('Pedido já recebido pelo servidor não é editado. Duplique-o para fazer um novo.');
       if (!ambiente.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL} Desligue no Perfil quando tiver sinal.`);
@@ -436,7 +492,7 @@ export function useVendedor() {
       await recarregar();
       return { kind: 'server', order };
     },
-    [motor, repo, prepararDoRascunho, recarregar, ambiente, v1],
+    [motor, repo, prepararDoRascunho, recarregar, ambiente, v1, perfil],
   );
 
   /** Excluir = cancelar (nunca apaga no servidor). Pedido ainda na fila: sai da fila do aparelho. */
@@ -453,7 +509,8 @@ export function useVendedor() {
       if (!ambiente.online()) throw new Error(`Modo sem sinal: ${PRECISA_SINAL}`);
       try {
         if (v1) {
-          await ambiente.http.requisitar('POST', `/vendedor/pedidos/${encodeURIComponent(orderId)}/cancelar`, { body: motivo.trim() ? { motivo: motivo.trim() } : {} });
+          const ehOrc = linhasRef.current.pedidos.find((p) => p.id === orderId)?.tipo === 'orcamento';
+          await ambiente.http.requisitar('POST', `/vendedor/${ehOrc ? 'orcamentos' : 'pedidos'}/${encodeURIComponent(orderId)}/cancelar`, { body: motivo.trim() ? { motivo: motivo.trim() } : {} });
           await motor.sincronizar().catch(() => false);
           await recarregar();
           const det = detalheDoPedido(linhasRef.current, orderId, perfil, parametrosRef.current);
@@ -512,7 +569,7 @@ export function useVendedor() {
       if (!d || d.items.length === 0) throw new Error('Itens do orçamento ainda não sincronizados. Sincronize e tente de novo.');
       const linha = linhasRef.current.pedidos.find((x) => x.id === orcamentoId);
       const id = ambiente.novoId();
-      const payload = pedidoDaConversao(d, { condicaoId: linha?.condicao_pagamento_id ?? null, observacao: linha?.observacao ?? null, novoId: id, agora: relogioReal().agora().toISOString() });
+      const payload = pedidoDaConversao(d, { condicaoId: linha?.condicao_pagamento_id ?? null, observacao: linha?.observacao ?? null, novoId: id, agora: relogioReal().agora().toISOString(), transportadoras: transportadorasDaTela(linhasRef.current) });
       await motor.enfileirar({ id, entidade: 'pedido', payload, rotulo: `Pedido · ${d.customer_name}`, detalhe: `do orçamento ${d.number}` });
       if (!ambiente.online()) {
         await recarregar();
@@ -534,6 +591,64 @@ export function useVendedor() {
       return { kind: 'queued', message: 'Sem conexão: o pedido será enviado quando o sinal voltar.' };
     },
     [motor, repo, recarregar, ambiente, perfil],
+  );
+  /**
+   * T-0071 (RN-VEN-18): o que muda ao transformar o orçamento com os dados de hoje do aparelho (preço, estoque, mínimo, alçada,
+   * cliente), offline. `null` = sem tabela no aparelho para conferir (o servidor revalida ao receber).
+   */
+  const reconferirOrcamentoLocal = useCallback(
+    async (orcamentoId: string): Promise<{ mudancas: string[]; bloqueio: string | null; pode_enviar: boolean } | null> => {
+      const d = detalheDoPedido(linhasRef.current, orcamentoId, perfil, parametrosRef.current);
+      if (!d || d.items.length === 0) return null;
+      const cliente = clientes.find((c) => c.id === d.customer_id);
+      if (!cliente) return null;
+      const catalogo = await garantirProdutos(cliente);
+      if (catalogo.length === 0) return null;
+      const nomes = new Map(d.items.map((i) => [i.product_id, `${i.erp_code} ${i.description}`.trim()]));
+      const r = reconferirDocumento({
+        detalhe: d,
+        catalogo,
+        unidades: unidadesDaTela(linhasRef.current),
+        embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens,
+        cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id)),
+        policy: toDomainPolicy(politicaApi(parametrosRef.current)),
+        estoque_bloqueia: false,
+      });
+      return { mudancas: r.mudancas.map((m) => textoDaMudanca(m, (id) => nomes.get(id) ?? 'Produto')), bloqueio: r.bloqueio, pode_enviar: r.pode_enviar };
+    },
+    [perfil, clientes, garantirProdutos],
+  );
+  /**
+   * T-0071 (RF-CAT-03): "Combina com o pedido" e "Leve mais" da aba Detalhes. A consulta `catalogo.sugestoes_pedido@1` roda no
+   * aparelho (offline); clientes parecidos e embalagem maior saem das linhas locais. Falha na consulta = só o que é local.
+   */
+  const sugestoesDoPedido = useCallback(
+    async (cliente: CustomerSummary, lines: Record<string, number>, catalogo: Product[]): Promise<SugestoesDaTela> => {
+      const ids = [...new Set(Object.entries(lines).filter(([, q]) => q > 0).map(([k]) => (k.includes('@') ? k.slice(0, k.indexOf('@')) : k)))];
+      if (ids.length === 0 || catalogo.length === 0) return SUGESTOES_VAZIAS;
+      let consulta: SugestoesPedidoSaida | null = null;
+      if (v1) {
+        try {
+          consulta = await ambiente.consultar(CONSULTA_SUGESTOES_PEDIDO, { cliente_id: cliente.id, produto_ids: ids.slice(0, 200), em: new Date().toISOString(), limite: 5 });
+        } catch {
+          consulta = null;
+        }
+      }
+      const l = linhasRef.current;
+      const itens = agruparPorPedido(l.itens);
+      return montarSugestoes({
+        consulta,
+        lines,
+        catalogo,
+        unidades: unidadesDaTela(l),
+        embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens,
+        cliente_id: cliente.id,
+        clientes: l.clientes.map((c) => ({ id: c.id, segmento: c.segmento ?? null })),
+        pedidos: l.pedidos.map((p) => ({ cliente_id: p.cliente_id, tipo: p.tipo ?? 'pedido', status: p.status, criado_em: p.recebido_em ?? p.created_at, produto_ids: (itens.get(p.id) ?? []).map((i) => i.produto_id) })),
+        agora: new Date(),
+      });
+    },
+    [v1, ambiente],
   );
   const preVendaLigada = v1 && preVendaAtiva(parametros);
 
@@ -564,14 +679,18 @@ export function useVendedor() {
     garantirProdutos,
     condicoesDe,
     unidades,
+    situacaoDoCliente,
     enderecos,
     transportadoras,
     tabelaDe,
     rascunhoDe,
     atualizarRascunho,
+    descartarRascunho,
     prepararDoRascunho,
     enviarPedido,
     converterOrcamento,
+    reconferirOrcamentoLocal,
+    sugestoesDoPedido,
     preVendaLigada,
     prepararRascunhoDoPedido,
     salvarEdicao,
