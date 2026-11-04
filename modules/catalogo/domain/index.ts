@@ -17,3 +17,4 @@ export * from './vitrine';
 export * from './conteudo';
 export * from './erp';
 export * from './arvore';
+export * from './sugestoes';

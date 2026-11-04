@@ -12,6 +12,7 @@ import { consumidoresDoErp } from './consumidores-erp';
 import { criarPortaInterpretacaoHttp } from './ia';
 import { criarRepositorioPostgres } from './repositorio-postgres';
 import { criarRotasCatalogo, type DependenciasRotas } from './rotas';
+import { consultaSugestoesPedido } from './sugestoes';
 import { provedoresSyncCatalogo } from './sync';
 
 export { criarRotasCatalogo, type DependenciasRotas } from './rotas';
@@ -26,7 +27,7 @@ export function portaIaDoAmbiente(env: Readonly<Record<string, string | undefine
 }
 
 export function criarModuloApiCatalogo(dep: DependenciasRotas): ModuloApi {
-  return definirModuloApi({ manifesto: manifest, rotas: criarRotasCatalogo(dep), sync: provedoresSyncCatalogo, consumidores: consumidoresDoErp, consultas: [consultaPrecosCliente] });
+  return definirModuloApi({ manifesto: manifest, rotas: criarRotasCatalogo(dep), sync: provedoresSyncCatalogo, consumidores: consumidoresDoErp, consultas: [consultaPrecosCliente, consultaSugestoesPedido] });
 }
 
 export const moduloApi: ModuloApi = criarModuloApiCatalogo({ repositorio: criarRepositorioPostgres(), portaIa: portaIaDoAmbiente() });

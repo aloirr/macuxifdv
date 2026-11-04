@@ -1,6 +1,6 @@
 /** Entidades de sync do Catálogo (só pull; o servidor vence). Usadas pela API e pelo shell do aparelho. */
 import { definirEntidadeSync } from '@macuxi/platform-sdk';
-import { CatalogoNoSyncSchema, ClienteTabelaPrecoSyncSchema, ProdutoNoSyncSchema, TabelaPrecoItemSyncSchema, TabelaPrecoSyncSchema } from './sync';
+import { CatalogoNoSyncSchema, ClienteTabelaPrecoSyncSchema, ProdutoNoSyncSchema, ProdutoRelacaoSyncSchema, TabelaPrecoItemSyncSchema, TabelaPrecoSyncSchema } from './sync';
 import { DepositoSyncSchema, EstoqueSaldoSyncSchema, ProdutoAtributoSyncSchema, ProdutoConteudoSyncSchema, SinonimoSyncSchema } from './sync-conteudo';
 
 export const entidadeTabelaPreco = definirEntidadeSync({ nome: 'tabela_preco', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: TabelaPrecoSyncSchema });
@@ -20,3 +20,6 @@ export const ENTIDADES_CONTEUDO = [entidadeProdutoAtributo, entidadeSinonimo, en
 export const entidadeCatalogoNo = definirEntidadeSync({ nome: 'catalogo_no', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: CatalogoNoSyncSchema });
 export const entidadeProdutoNo = definirEntidadeSync({ nome: 'produto_no', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoNoSyncSchema });
 export const ENTIDADES_ARVORE = [entidadeCatalogoNo, entidadeProdutoNo] as const;
+
+// T-0071 / RF-CAT-03: relação entre produtos (complementar, superior, substituto) para as sugestões offline
+export const entidadeProdutoRelacao = definirEntidadeSync({ nome: 'produto_relacao', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoRelacaoSyncSchema });

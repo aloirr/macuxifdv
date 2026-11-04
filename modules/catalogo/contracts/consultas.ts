@@ -22,6 +22,11 @@ export const PrecoClienteItemSchema = z.object({
   preco_cents: Cents.nullable(),
   /** Texto para o usuário quando `preco_cents` é nulo. */
   motivo_sem_preco: z.string().nullable(),
+  /**
+   * Preço próprio por medida (`tabela_preco_item.unidade` não nula, vigente em `em`; RN-VEN-15). Aditivo na mesma versão:
+   * o consumidor antigo ignora. Ausente = a embalagem vale UN × fator.
+   */
+  embalagens: z.array(z.object({ unidade: z.string(), preco_cents: Cents })).optional(),
 });
 export type PrecoClienteItem = z.infer<typeof PrecoClienteItemSchema>;
 
@@ -41,3 +46,41 @@ export const CONSULTA_PRECOS_CLIENTE = definirConsulta({
 
 /** Quanto a data do preço pode recuar em relação a agora (P-4). */
 export const DIAS_RETROATIVO_PRECO = 7;
+
+/**
+ * `catalogo.sugestoes_pedido@1` (T-0071 §4.2; RF-CAT-03): complementares ("combina com o pedido") e superiores ("leve
+ * mais") dos produtos do pedido, só da tabela do cliente e com estoque. Perfil sem preço (RN-CAT-05): saída vazia.
+ */
+export const SugestoesPedidoEntradaSchema = z
+  .object({
+    cliente_id: Id,
+    /** Produtos já no pedido, na ordem das linhas. */
+    produto_ids: z.array(Id).min(1).max(200),
+    /** Data do preço (ISO UTC; P-4, como em `precos_cliente@1`). */
+    em: z.string().datetime(),
+    limite: z.number().int().min(1).max(5).default(5),
+  })
+  .strict();
+export type SugestoesPedidoEntrada = z.infer<typeof SugestoesPedidoEntradaSchema>;
+
+export const SugestaoProdutoSchema = z.object({
+  produto_id: Id,
+  tipo: z.enum(['complementar', 'superior']),
+  /** Item do pedido que gerou a sugestão. */
+  origem_produto_id: Id,
+  /** Tabela do cliente, unidade base. */
+  preco_cents: Cents,
+});
+export type SugestaoProduto = z.infer<typeof SugestaoProdutoSchema>;
+
+export const SugestoesPedidoSaidaSchema = z.object({
+  complementares: z.array(SugestaoProdutoSchema).max(5),
+  superiores: z.array(SugestaoProdutoSchema).max(5),
+});
+export type SugestoesPedidoSaida = z.infer<typeof SugestoesPedidoSaidaSchema>;
+
+export const CONSULTA_SUGESTOES_PEDIDO = definirConsulta({
+  nome: 'catalogo.sugestoes_pedido@1',
+  entrada: SugestoesPedidoEntradaSchema,
+  saida: SugestoesPedidoSaidaSchema,
+});

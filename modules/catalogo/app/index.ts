@@ -1,11 +1,12 @@
 import type { ComponentType } from 'react';
 import type { AcaoCliente } from '@macuxi/core/contracts';
 import { definirModuloShell } from '@macuxi/platform-sdk';
-import { ENTIDADES_ARVORE, ENTIDADES_CONTEUDO, ENTIDADES_PRECO } from '../contracts';
+import { ENTIDADES_ARVORE, ENTIDADES_CONTEUDO, ENTIDADES_PRECO, entidadeProdutoRelacao } from '../contracts';
 import { migracoesAparelho } from '../db/aparelho';
 import { manifest } from '../manifest';
 import { consultaPrecosClienteAparelho } from './consultas';
 import { INDICE_BUSCA_CATALOGO } from './indice';
+import { consultaSugestoesPedidoAparelho } from './sugestoes';
 import { irParaCatalogo } from './rotas';
 import TelaCatalogo from './telas/catalogo';
 import TelaProduto from './telas/produto';
@@ -23,8 +24,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'catalogo', caminho: 'catalogo', titulo: 'Catálogo', navegacao: 'Catálogo', icone: 'search', ordem: 60, acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaCatalogo },
     { id: 'produto', caminho: 'produto', titulo: 'Produto', acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaProduto },
   ],
-  entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO, ...ENTIDADES_ARVORE],
-  consultas: [consultaPrecosClienteAparelho],
+  entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO, ...ENTIDADES_ARVORE, entidadeProdutoRelacao],
+  consultas: [consultaPrecosClienteAparelho, consultaSugestoesPedidoAparelho],
   migracoesAparelho,
   indicesBusca: [INDICE_BUSCA_CATALOGO],
   extensoes: [
