@@ -63,7 +63,7 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
   const atualizadoEm = async (idDoc: string) =>
     (await comTenant(pool, A.tenantId, async (c) => (await c.query("select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') as t from vendedor.pedido where id = $1", [idDoc])).rows[0])).t as string;
 
-  function contexto(u: UsuarioAutenticado, o: { parametros?: Record<string, unknown>; agora?: Date; eventos?: Evento[] } = {}) {
+  function contexto(u: UsuarioAutenticado, o: { parametros?: Record<string, unknown>; agora?: Date; eventos?: Evento[]; auditorias?: Array<{ acao: string; antes?: unknown; depois?: unknown }> } = {}) {
     const eventos = o.eventos ?? [];
     const base = {
       usuario: { ...u, modulos: ['core', 'catalogo', 'vendedor'] },
@@ -101,7 +101,9 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
               eventos.push({ nome: def.nome, payload: def.schema.parse(payload) as Record<string, unknown> });
               return {};
             },
-            async auditar() {},
+            async auditar(r: { acao: string; antes?: unknown; depois?: unknown }) {
+              o.auditorias?.push(r);
+            },
             async registrarArquivo() {
               throw new Error('não usado');
             },
@@ -376,8 +378,31 @@ describe.skipIf(semBanco())('Vendedor T-0053 × Postgres: retorno do ERP e pré-
       expect(Number(depois.total_cents)).toBe(500_000);
       expect((await doc(id(29)))!.validade_data).toBe(validadeAntes!.validade_data);
       expect(editar.eventos).toEqual([]);
-      // repetir com o sinal velho
-      await expect(rotaEditarOrcamento.executar({ ...(editar.ctx as object), params: { id: id(29) }, corpo: corpo(sinal) } as never)).rejects.toMatchObject({ status: 409, codigo: 'ORCAMENTO_ALTERADO' });
+      // corpo diferente com o sinal velho = 409
+      const outro = { ...corpo(sinal), items: [{ product_id: prod1, quantity: 6 }] };
+      await expect(rotaEditarOrcamento.executar({ ...(editar.ctx as object), params: { id: id(29) }, corpo: outro } as never)).rejects.toMatchObject({ status: 409, codigo: 'ORCAMENTO_ALTERADO' });
+    });
+
+    it('RN-VEN-33: PUT repetido com o mesmo corpo (resposta perdida) é idempotente; grava o hash e o push com outro conteúdo dá conflito; auditoria traz o antes real', async () => {
+      await receber(contexto(vendedor1).ctx, push(id(31), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
+      const sinal = await atualizadoEm(id(31));
+      const totalAntes = Number((await lerPedido(id(31))).p.total_cents);
+      const corpo = { customer_id: A.clientes.c1, discount_pct: 0, payment_terms: '28/56 dias', items: [{ product_id: prod1, quantity: 5 }], atualizado_em: sinal };
+      const auditorias: Array<{ acao: string; antes?: unknown; depois?: unknown }> = [];
+      const editar = contexto(vendedor1, { auditorias });
+      const rodar = () => rotaEditarOrcamento.executar({ ...(editar.ctx as object), params: { id: id(31) }, corpo } as never) as Promise<Record<string, unknown>>;
+      const primeira = await rodar();
+      const repetida = await rodar();
+      expect(repetida).toEqual(primeira);
+      const hash = (await comTenant(pool, A.tenantId, async (c) => (await c.query('select hash_envio from vendedor.pedido where id = $1', [id(31)])).rows[0])) as { hash_envio: string | null };
+      expect(hash.hash_envio).toMatch(/^[0-9a-f]{64}$/);
+      expect(auditorias.filter((x) => x.acao === 'orcamento.editar')).toHaveLength(1);
+      expect(auditorias[0]!.antes).toMatchObject({ tipo: 'orcamento', total_cents: totalAntes, itens: 2 });
+      // push atrasado: outro conteúdo = conflito; o mesmo conteúdo da edição = aceito
+      const atrasado = await receber(contexto(vendedor1).ctx, push(id(31), { customer_id: A.clientes.c1, discount_pct: 0, items: itens(), tipo: 'orcamento' }));
+      expect(atrasado[0]!.status).toBe('conflito');
+      const igual = await receber(contexto(vendedor1).ctx, push(id(31), { customer_id: A.clientes.c1, discount_pct: 0, payment_terms: '28/56 dias', items: [{ product_id: prod1, quantity: 5 }], tipo: 'orcamento' }));
+      expect(igual[0]!.status).toBe('aceito');
     });
 
     it('RN-VEN-18: editar/cancelar orçamento vencido, convertido ou cancelado = 422 RN-VEN-18; de outro vendedor ou tenant = 404', async () => {
