@@ -14,6 +14,7 @@ export const AGENTES = [
   'gerente-projetos',
   'engenheiro-software',
   'engenheiro-apps',
+  'designer-ux',
   'banco-dados',
   'testes',
   'modulo-core',

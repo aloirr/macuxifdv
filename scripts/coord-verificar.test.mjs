@@ -388,10 +388,10 @@ const commitarCom = (dir, msg, agente) => commitar(dir, agente ? `${msg}\n\nAgen
 test('A1: só arquivo do próprio agente → OK, código 0', () => {
   const dir = criarRepoReal();
   escrever(dir, 'packages/ui/src/mobile/puro.ts');
-  const r = rodar(dir, ['verificar', 'engenheiro-apps']);
+  const r = rodar(dir, ['verificar', 'designer-ux']);
   assert.equal(r.codigo, 0, r.tudo);
   assert.deepEqual(secao(r.saida, 'OK'), ['A packages/ui/src/mobile/puro.ts']);
-  assert.match(r.saida, /Resultado: OK — 1 arquivo\(s\) alterado\(s\), nenhuma violação para engenheiro-apps/);
+  assert.match(r.saida, /Resultado: OK — 1 arquivo\(s\) alterado\(s\), nenhuma violação para designer-ux/);
 });
 
 test('A2: arquivo de outro agente na mesma árvore → "Outros donos", código 0', () => {
@@ -483,7 +483,7 @@ test('A9: sem agente e sem --base (branch sem padrão) → lista por dono, recad
   const r = rodar(dir, ['verificar']);
   assert.equal(r.codigo, 0, r.tudo);
   assert.match(r.saida, /^Alterações por dono — árvore de trabalho × HEAD/);
-  assert.match(r.saida, /engenheiro-apps \(1\):\n {2}A packages\/ui\/src\/novo\.ts/);
+  assert.match(r.saida, /designer-ux \(1\):\n {2}A packages\/ui\/src\/novo\.ts/);
   assert.match(r.saida, /modulo-core \(2\):\n {2}M modules\/core\/app\/lib\/cargas\.ts\n {2}A \.coord\/recados\/testes\/R-20261031-070003-modulo-core\.md/);
   assert.match(r.saida, /modulo-vendedor \(1\):\n {2}M \.coord\/diario\/modulo-vendedor\.md/);
   assert.doesNotMatch(r.saida, /gerente-projetos|testes \(/);
@@ -566,7 +566,7 @@ test('B2: com --base não existe "outros donos": arquivo de outro dono → VIOLA
   assert.deepEqual(secao(r.saida, 'Outros donos'), []);
   const v = secao(r.saida, 'VIOLAÇÃO');
   assert.equal(v.length, 1);
-  assert.ok(v[0].startsWith('M packages/ui/src/web/ui.tsx → dono: engenheiro-apps'), v[0]);
+  assert.ok(v[0].startsWith('M packages/ui/src/web/ui.tsx → dono: designer-ux'), v[0]);
 });
 
 test('B3: o main andou depois do branch (CLAUDE.md) → não aparece (merge-base)', () => {
@@ -620,7 +620,7 @@ test('B6: apagar arquivo de outro dono é VIOLAÇÃO; renomear confere os dois c
   const v = secao(r.saida, 'VIOLAÇÃO');
   assert.equal(v.length, 2, r.saida);
   assert.ok(v.some((l) => l.startsWith('D modules/vendedor/x.ts → dono: modulo-vendedor')));
-  assert.ok(v.some((l) => l.startsWith('D packages/ui/src/web/ui.tsx → dono: engenheiro-apps')));
+  assert.ok(v.some((l) => l.startsWith('D packages/ui/src/web/ui.tsx → dono: designer-ux')));
 });
 
 test('B7: agente explícito vence a inferência do branch', () => {

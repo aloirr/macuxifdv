@@ -95,6 +95,10 @@
       "dono": "modulo-integracao"
     },
     {
+      "padrao": "docs/design/**",
+      "dono": "designer-ux"
+    },
+    {
       "padrao": "docs/**",
       "dono": "gerente-projetos"
     },
@@ -160,7 +164,7 @@
     },
     {
       "padrao": "packages/ui/**",
-      "dono": "engenheiro-apps"
+      "dono": "designer-ux"
     },
     {
       "padrao": "packages/**",
