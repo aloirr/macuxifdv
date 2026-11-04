@@ -13,7 +13,8 @@
  *     `orcamento_origem_id`) → mesmo total, aprovado sem alçada, publica criado/aprovado e PASSA a contar na meta pela data
  *     de emissão do pedido novo; o orçamento fica `convertido` e não vira outro pedido.
  *  O4–O7 `PUT /v1/vendedor/orcamentos/:id` e `POST .../cancelar`: edição com a referência (37979), concorrência otimista
- *     (409 ORCAMENTO_ALTERADO), troca de cliente (422), cancelar idempotente, vencido/convertido/cancelado = 422 RN-VEN-18.
+ *     (RN-VEN-33: corpo diferente com atualizado_em antigo = 409 ORCAMENTO_ALTERADO; corpo idêntico ao último = repetição, 200 sem
+ *     mudar nada), troca de cliente (422), cancelar idempotente, vencido/convertido/cancelado = 422 RN-VEN-18.
  *  O8 regra 7 / RN-PRO-01: o promotor não cria nem edita pedido ou orçamento (push, PUT e cancelar), com e sem o Vendedor
  *     licenciado ao perfil; nada é gravado.
  *  O9 multi-tenant (base demo + fixture dois-tenants no mesmo banco): o tenant A não lê, não edita, não cancela nem
@@ -341,11 +342,50 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
       atualizado = corpo.atualizado_em;
     });
 
-    it('O5. concorrência otimista: PUT com o atualizado_em antigo → 409 ORCAMENTO_ALTERADO; trocar o cliente → 422 PAYLOAD_INVALIDO; nada muda', async () => {
-      const velho = await put(token.vendedor, ED, corpoPut(atualizadoVelho));
-      expect([velho.statusCode, codigo(velho)], velho.body).toEqual([409, 'ORCAMENTO_ALTERADO']);
+    /** Tudo o que um PUT recusado ou repetido NÃO pode mexer: cabeçalho, versão, hash, itens (vivos e removidos), auditoria e eventos. */
+    const retrato = async (pid: string) => ({
+      pedido: (
+        await q(
+          `select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as atualizado_em, hash_envio, status, numero, orcamento_validade::text,
+                  cliente_id, observacao, desconto_pct::float8 as desconto_pct, total_tabela_cents::float8 as total_tabela_cents, total_cents::float8 as total_cents
+             from vendedor.pedido where id = $1`,
+          [pid],
+        )
+      )[0],
+      itens: await itensNoBanco(pid, false),
+      auditoria: await q("select acao, created_at::text from plataforma.auditoria where entidade_id = $1 order by created_at, acao", [pid]),
+      eventos: await eventos(pid),
+    });
+
+    it('O5a. RN-VEN-33 concorrência otimista: PUT com corpo DIFERENTE e o atualizado_em antigo → 409 ORCAMENTO_ALTERADO; nada muda (versão, itens, total, auditoria)', async () => {
+      const antes = await retrato(ED);
+      expect(antes.pedido).toMatchObject({ atualizado_em: atualizado, total_cents: 37979 });
+      const obs = await put(token.vendedor, ED, corpoPut(atualizadoVelho, { observacao: 'outra edição em outro aparelho' }));
+      expect([obs.statusCode, codigo(obs)], obs.body).toEqual([409, 'ORCAMENTO_ALTERADO']);
+      const itens = itensReferencia();
+      itens[0] = { ...itens[0]!, quantity: 5 };
+      const qtd = await put(token.vendedor, ED, corpoPut(atualizadoVelho, { items: itens }));
+      expect([qtd.statusCode, codigo(qtd)], qtd.body).toEqual([409, 'ORCAMENTO_ALTERADO']);
+      expect(await retrato(ED), 'nada muda no banco').toEqual(antes);
+      await conferirReferencia(ED, 'orcamento');
+    });
+
+    it('O5b. RN-VEN-33 idempotência: PUT IDÊNTICO ao último aceito, com o atualizado_em antigo (resposta perdida) → 200 com o orçamento atual; nada muda (mesmo atualizado_em, itens e total; nenhuma auditoria nova)', async () => {
+      const antes = await retrato(ED);
+      const repete = await put(token.vendedor, ED, corpoPut(atualizadoVelho));
+      expect(repete.statusCode, repete.body).toBe(200);
+      const corpo = repete.json() as { id: string; tipo: string; total_cents: number; validade_data: string; atualizado_em: string };
+      expect(corpo).toMatchObject({ id: ED, tipo: 'orcamento', total_cents: 37979, validade_data: validade, atualizado_em: atualizado });
+      expect(await retrato(ED), 'nada muda no banco (nem versão, nem itens, nem auditoria)').toEqual(antes);
+      expect(antes.auditoria.filter((a) => a.acao === 'orcamento.editar'), 'só a edição do O4 na auditoria').toHaveLength(1);
+      await conferirReferencia(ED, 'orcamento');
+    });
+
+    it('O5c. RN-VEN-33 trocar o cliente → 422 PAYLOAD_INVALIDO; nada muda', async () => {
+      const antes = await retrato(ED);
       const troca = await put(token.vendedor, ED, corpoPut(atualizado, { customer_id: outroCliente }));
       expect([troca.statusCode, codigo(troca)], troca.body).toEqual([422, 'PAYLOAD_INVALIDO']);
+      expect(await retrato(ED), 'nada muda no banco').toEqual(antes);
       expect((await noBanco(ED))!.total_cents).toBe(37979);
     });
 
