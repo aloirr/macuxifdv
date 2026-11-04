@@ -87,4 +87,12 @@ describe('parâmetros vindos da plataforma (T-0055)', () => {
     expect(r.params.prazo_aprovacao_dias_uteis).toBe(1);
     expect(r.erro).toMatch(/prazo_aprovacao_dias_uteis/);
   });
+
+  it('RN-CORE-26: inicio.parado_min do tenant vira parado_min (padrão 60); valor inválido volta ao padrão com aviso', () => {
+    expect(PARAMETROS_PADRAO.parado_min).toBe(60);
+    expect(parametrosDoTenant({ 'inicio.parado_min': 45 }, 'America/Manaus').params.parado_min).toBe(45);
+    const ruim = parametrosDoTenant({ 'inicio.parado_min': 0 }, 'America/Manaus');
+    expect(ruim.params.parado_min).toBe(60);
+    expect(ruim.erro).toMatch(/parado_min/);
+  });
 });

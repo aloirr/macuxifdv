@@ -27,10 +27,12 @@ const PERFIS_TENANT = ['analista', 'admin'] as const;
  *   equipe). A decisão da aprovação continua no Vendedor (ADR 0011): a aba Aprovações abre o detalhe do pedido dele.
  * - RN-GES-07: `painel_tenant.ver` é a leitura do tenant (painel, ranking, alertas e fila) para analista e admin; eles
  *   não têm `fila_aprovacao.decidir` nem `alerta_equipe.dispensar`.
+ * - T-0073 (0.7.0): card "Pedidos para aprovar" no slot `inicio.cards` (`ordem` 10, só `gestao` com `fila_aprovacao.ver`) e "Equipe agora"
+ *   com a regra de parado (RN-CORE-26; `inicio.parado_min` = 60): fatos da rota no `PainelDia` (aditivos) e `statusAgora` no aparelho.
  */
 export const manifest = defineModule({
   id: 'gestor',
-  versao: '0.6.0',
+  versao: '0.7.0',
   depende: ['core'],
   opcionais: ['vendedor', 'promotor', 'pesquisa', 'treinamento'],
   perfis: ['supervisor', 'gerente', 'analista', 'admin'],

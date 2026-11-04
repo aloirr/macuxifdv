@@ -93,6 +93,7 @@ export function visaoDaEquipe(e: EntradaVisao): VisaoEquipe {
     equipes,
     gestores: equipes.map((q) => porId.get(q.gestor_id)!).filter(Boolean),
     membros,
+    parado_min: params.parado_min,
     calculado_em: e.agora,
   };
 }
