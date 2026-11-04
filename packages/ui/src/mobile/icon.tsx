@@ -36,6 +36,7 @@ export type IconName =
   | 'trash'
   | 'file'
   | 'menu'
+  | 'swap'
   | 'x';
 
 interface Props {
@@ -186,6 +187,8 @@ function render(name: IconName, c: Common) {
           <Path d="M14 3v5h5M9 13h6M9 17h4" {...c} />
         </>
       );
+    case 'swap':
+      return <Path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" {...c} />;
     case 'menu':
       return <Path d="M4 6h16M4 12h16M4 18h16" {...c} />;
     case 'user':

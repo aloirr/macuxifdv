@@ -6,4 +6,5 @@
 export * from './time';
 export * from './text';
 export * from './atualizacao';
+export * from './componentes';
 export * from '../comum/cadastro';

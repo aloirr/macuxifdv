@@ -24,11 +24,20 @@ export interface ItemTrilha {
 export function Trilha({
   itens,
   onEscolher,
+  compacta,
+  rotuloAcessivel,
   testID = 'trilha',
 }: {
   /** Do mais geral ao atual; o último é o lugar atual. */
   itens: readonly ItemTrilha[];
   onEscolher: (id: string) => void;
+  /**
+   * Visual curto da referência do Novo pedido (T-0071): "Mercearia › Bebidas" em 13, anteriores em cinza e o atual em
+   * laranja. O alvo de toque continua 48 dp.
+   */
+  compacta?: boolean;
+  /** Leitura de cada item no leitor de tela; sem ela, "Ir para X" / "X, você está aqui". */
+  rotuloAcessivel?: (item: ItemTrilha, atual: boolean) => string;
   testID?: string;
 }) {
   if (itens.length === 0) return null;
@@ -38,16 +47,16 @@ export function Trilha({
         const atual = i === itens.length - 1;
         return (
           <View key={item.id} style={s.item}>
-            {i > 0 ? <Icon name="chevron" size={14} color={colors.ink3} /> : null}
+            {i > 0 ? <Icon name="chevron" size={compacta ? 12 : 14} color={colors.ink3} /> : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={atual ? `${item.rotulo}, você está aqui` : `Ir para ${item.rotulo}`}
+              accessibilityLabel={rotuloAcessivel ? rotuloAcessivel(item, atual) : atual ? `${item.rotulo}, você está aqui` : `Ir para ${item.rotulo}`}
               accessibilityState={{ disabled: atual, selected: atual }}
               disabled={atual}
               onPress={() => onEscolher(item.id)}
-              style={({ pressed }) => [s.passo, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [s.passo, compacta && s.passoCompacto, pressed && { opacity: 0.6 }]}
               testID={item.testID ?? `${testID}-${item.id}`}>
-              <Text style={atual ? s.atual : s.link}>{item.rotulo}</Text>
+              <Text style={compacta ? (atual ? s.atualCompacto : s.linkCompacto) : atual ? s.atual : s.link}>{item.rotulo}</Text>
             </Pressable>
           </View>
         );
@@ -80,4 +89,8 @@ const s = StyleSheet.create({
   passo: { minHeight: ALVO, justifyContent: 'center', paddingHorizontal: 6 },
   link: { fontFamily: fonts.medium, fontSize: 14, color: colors.accent },
   atual: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
+  // .crumb / .crumb b da referência do Novo pedido
+  passoCompacto: { paddingHorizontal: 4 },
+  linkCompacto: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
+  atualCompacto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accent },
 });

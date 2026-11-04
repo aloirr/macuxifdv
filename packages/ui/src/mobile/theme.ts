@@ -27,6 +27,9 @@ export const colors = {
   dangerBg: '#FDE8E6',
   neutralBg: '#E6E9E2',
   neutralInk: '#34404D',
+  /** roxo da referência do Novo pedido (selo de orçamento, T-0071): contraste 7,9:1 sobre o fundo */
+  violet: '#4B2FA3',
+  violetBg: '#ECE7FB',
   darkMuted: '#C9D0D8',
   darkTrack: '#34404D',
   mapBg: '#E6E9E2',
@@ -47,8 +50,8 @@ export const fonts = {
 
 export const radius = { sm: 8, md: 12, lg: 14, xl: 16, xxl: 18 } as const;
 
-/** Alvo de toque mínimo. */
-export const TOUCH = 44;
+/** Alvo de toque mínimo (48 dp, Material; era 44 até a T-0071). */
+export const TOUCH = 48;
 
 export type Tone = 'success' | 'warning' | 'danger' | 'accent' | 'neutral';
 

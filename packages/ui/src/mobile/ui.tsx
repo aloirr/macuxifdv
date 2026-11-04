@@ -139,7 +139,7 @@ export function Chip({ label, active, onPress, testID }: { label: string; active
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      hitSlop={{ top: 4, bottom: 4 }}
+      hitSlop={{ top: 6, bottom: 6 }}
       style={({ pressed }) => [styles.chip, active ? styles.chipOn : styles.chipOff, pressed && styles.pressed]}>
       <Text style={[styles.chipText, { color: active ? '#FFFFFF' : colors.ink }]}>{label}</Text>
     </Pressable>

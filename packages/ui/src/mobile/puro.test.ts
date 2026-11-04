@@ -10,7 +10,7 @@ describe('@macuxi/ui/mobile/puro', () => {
   });
 
   it('não importa react-native, expo nem svg (nem indiretamente pelos arquivos que reexporta)', () => {
-    for (const arq of ['./puro.ts', './time.ts', './text.ts', './atualizacao.ts']) {
+    for (const arq of ['./puro.ts', './time.ts', './text.ts', './atualizacao.ts', './componentes.ts']) {
       const src = readFileSync(new URL(arq, import.meta.url), 'utf8');
       expect(src, arq).not.toMatch(/from ['"](react-native|expo|react-native-svg|react)/);
     }

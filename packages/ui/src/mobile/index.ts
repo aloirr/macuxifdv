@@ -12,3 +12,7 @@ export * from './atualizacao-hook';
 export * from './sincronizacao';
 export * from './cliente';
 export * from './navegacao';
+export * from './componentes';
+export * from './formulario';
+export * from './folha';
+export * from './valores';
