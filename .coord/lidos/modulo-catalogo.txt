@@ -22,3 +22,6 @@ R-20261101-042340-gerente-projetos
 R-20261101-051151-engenheiro-software
 R-20261101-053914-banco-dados
 R-20261101-061438-engenheiro-software
+R-20261103-123656-alexandre
+R-20261103-130003-alexandre
+R-20261103-130240-alexandre

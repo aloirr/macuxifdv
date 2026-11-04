@@ -10,3 +10,4 @@
 2026-11-02 — T-0061 — árvore do catálogo (RF-CAT-04): domain/arvore + chips, sync catalogo_no/produto_no, consumidores catalogo_no e produto (nó), tela com trilha/níveis/chips offline, ?pedido=1 só tabela do cliente
 2026-11-02 — T-0064 — Catálogo: chip Campanha escondido; trilha/chips já eram os comuns de @macuxi/ui
 2026-11-03 — fix-relogio — apresentacao.test.ts com relógio fixo e teste da virada do dia (00h00–00h05 Manaus)
+2026-11-03 — T-0071 — Catálogo: sugestoes_pedido@1 (domain, aparelho, API), produto_relacao (contrato, manifesto, provedor de pull), embalagens[] em precos_cliente@1 e correção do preco_cents (só unidade base)
