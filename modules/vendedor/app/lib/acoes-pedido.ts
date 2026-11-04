@@ -14,6 +14,8 @@ export interface EntradaAcoes {
   /** vendedor dono do pedido (na Gestão a edição/duplicação não existe) */
   ehVendedor: boolean;
   temItens: boolean;
+  /** T-0071 (RN-VEN-18): orçamento aberto já recebido também edita (pela API, com sinal) */
+  orcamentoAberto?: boolean;
   pode: { editar: boolean; cancelar: boolean };
   /** o que `orderActions` (domain) já calculou */
   acoes: { can_edit: boolean; can_cancel: boolean; locked_reason: string };
@@ -27,12 +29,12 @@ export interface EstadoAcoes {
 
 export function estadoDasAcoes(e: EntradaAcoes): EstadoAcoes {
   const precisaSinal = !e.naFila && e.offline;
-  const editavel = !e.v1 ? e.acoes.can_edit && !precisaSinal : e.naFila && editavelNaFatia(e.status as OrderStatus);
+  const editavel = !e.v1 ? e.acoes.can_edit && !precisaSinal : (e.naFila && editavelNaFatia(e.status as OrderStatus)) || (e.orcamentoAberto === true && !precisaSinal);
   const podeEditar = e.ehVendedor && e.pode.editar && editavel && e.temItens;
   const podeExcluir = e.pode.cancelar && e.acoes.can_cancel && !precisaSinal;
   let motivoBloqueio = '';
   if (e.acoes.locked_reason) motivoBloqueio = e.acoes.locked_reason;
-  else if (e.v1 && !e.naFila && e.ehVendedor && !editavel) motivoBloqueio = 'Pedido já recebido pelo servidor: não pode ser editado. Duplique para fazer um novo.';
+  else if (e.v1 && !e.naFila && e.ehVendedor && !editavel && !e.orcamentoAberto) motivoBloqueio = 'Pedido já recebido pelo servidor: não pode ser editado. Duplique para fazer um novo.';
   else if (precisaSinal) motivoBloqueio = 'Sem sinal: editar ou excluir pedido já enviado precisa de conexão.';
   else if (!e.temItens) motivoBloqueio = TEXTO_SEM_ITENS;
   return { podeEditar, podeExcluir, motivoBloqueio };

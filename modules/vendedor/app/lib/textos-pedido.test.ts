@@ -90,4 +90,10 @@ describe('Resumo: item compacto, linha de entrega e totais (referência enxuta)'
     expect(linhasDeTotais({ total_tabela_cents: 1000, desconto_cents: 0, acrescimo_cents: 0, total_cents: 1000 }).linhas).toHaveLength(1);
     expect(linhasDeTotais({ total_tabela_cents: 1000, desconto_cents: 0, acrescimo_cents: 20, total_cents: 1020 }).linhas[1]!.rotulo).toBe('Acréscimos');
   });
+
+  it('RN-VEN-03: a faixa mostra o % de 1 casa calculado dos inteiros (4,647 → 4,6%), nunca o de 2 casas arredondado de novo (4,7%)', () => {
+    const f = textoDaFaixa({ desconto_efetivo_pct: 4.65, desconto_efetivo_exibicao_pct: 4.6, nivel: null, bloqueado: false }, 5);
+    expect(f?.texto.replace(/\s/g, ' ')).toBe('4,6% · dentro da alçada');
+    expect(f?.tom).toBe('ok');
+  });
 });

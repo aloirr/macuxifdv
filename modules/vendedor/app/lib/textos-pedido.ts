@@ -36,8 +36,9 @@ export interface FaixaDaAlcada {
 }
 
 /** RN-VEN-10 / RN-VEN-03: a faixa da aba Resumo. Zero = sem faixa (null). */
-export function textoDaFaixa(c: Pick<CalculoPedido, 'desconto_efetivo_pct' | 'nivel' | 'bloqueado'>, _limiteVendedor: number): FaixaDaAlcada | null {
-  const pct = c.desconto_efetivo_pct;
+export function textoDaFaixa(c: Pick<CalculoPedido, 'desconto_efetivo_pct' | 'nivel' | 'bloqueado'> & Partial<Pick<CalculoPedido, 'desconto_efetivo_exibicao_pct'>>, _limiteVendedor: number): FaixaDaAlcada | null {
+  // RN-VEN-03: o que a tela mostra é o % de 1 casa calculado dos inteiros (4,647 → 4,6), não o de 2 casas arredondado de novo
+  const pct = c.desconto_efetivo_pct === 0 ? 0 : (c.desconto_efetivo_exibicao_pct ?? c.desconto_efetivo_pct);
   if (pct === 0) return null;
   if (pct < 0) return { texto: `Acréscimo ${formatPct(-pct)}`, tom: 'ok', icone: null };
   if (c.bloqueado) return { texto: `${formatPct(pct)} · acima da alçada`, tom: 'erro', icone: 'alert' };
@@ -86,4 +87,46 @@ export function linhasDeTotais(c: Pick<CalculoPedido, 'total_tabela_cents' | 'de
   if (c.desconto_cents > 0) linhas.push({ id: 'descontos', rotulo: 'Descontos', valor: `− ${formatBRL(c.desconto_cents)}` });
   if (c.acrescimo_cents > 0) linhas.push({ id: 'acrescimos', rotulo: 'Acréscimos', valor: `+ ${formatBRL(c.acrescimo_cents)}` });
   return { linhas, total: { rotulo: 'Total', valor: formatBRL(c.total_cents) } };
+}
+
+// ---------- item da aba Itens (T-0071, referência enxuta) ----------
+/** "R$ 17,90 → 17,01" (com ajuste) ou "R$ 17,90" (sem). A segunda moeda vem sem o símbolo, como na referência. */
+export function textoPrecoDaLinha(l: { preco_tabela_cents: number; preco_unitario_cents: number }): string {
+  if (l.preco_unitario_cents === l.preco_tabela_cents) return formatBRL(l.preco_tabela_cents);
+  return `${formatBRL(l.preco_tabela_cents)} → ${formatBRL(l.preco_unitario_cents).replace(/^R\$\s?/, '')}`;
+}
+
+/** O que o ajuste vale na outra moeda: "−R$ 0,89" (digitou %) ou "= 5,3%" (digitou R$); acréscimo com "+". Sem ajuste, vazio. */
+export function textoEquivalente(l: { ajuste_em: 'pct' | 'valor'; equivalente: { sentido: 'desconto' | 'acrescimo'; cents: number; pct_exibicao: number } | null }): string {
+  const e = l.equivalente;
+  if (!e) return '';
+  const sinal = e.sentido === 'desconto' ? '−' : '+';
+  if (l.ajuste_em === 'valor') return e.sentido === 'desconto' ? `= ${formatPct(e.pct_exibicao)}` : `+ ${formatPct(e.pct_exibicao)}`;
+  return `${sinal}${formatBRL(e.cents)}`;
+}
+
+/** Trilha do catálogo do item: "Mercearia › Bebidas" (linha e marca do cadastro). Vazio quando o produto não traz nenhuma. */
+export function trilhaDoProduto(p: { line?: string | null; brand?: string | null }): string {
+  return [p.line, p.brand].map((x) => x?.trim()).filter((x): x is string => Boolean(x)).join(' › ');
+}
+
+/** Rótulo do ajuste do pedido, ex.: "Desconto do pedido" / "Acréscimo do pedido". */
+export function rotuloDoAjusteDoPedido(sentido: 'desconto' | 'acrescimo'): string {
+  return sentido === 'acrescimo' ? 'Acréscimo do pedido' : 'Desconto do pedido';
+}
+
+// ---------- sugestões da aba Detalhes ----------
+export const TITULO_COMBINA = 'Combina com o pedido';
+export const TITULO_LEVE_MAIS = 'Leve mais';
+
+/** Nome da sugestão: o produto; na troca de embalagem, "Café 500 g em CX c/ 12". */
+export function nomeDaSugestao(nome: string, s: { origem: string; para_unidade?: string; para_fator?: number }): string {
+  if (s.origem === 'embalagem_maior' && s.para_unidade) return `${nome} em ${s.para_fator && s.para_fator > 1 ? `${s.para_unidade} c/ ${s.para_fator}` : s.para_unidade}`;
+  return nome;
+}
+
+/** Selo da troca de embalagem ("−5%" quando a economia é de 1% ou mais); sem economia mostra o preço. */
+export function seloDaSugestao(s: { origem: string; economia_pct?: number; preco_cents: number }): { tipo: 'selo' | 'preco'; texto: string } {
+  if (s.origem === 'embalagem_maior' && (s.economia_pct ?? 0) >= 1) return { tipo: 'selo', texto: `−${s.economia_pct}%` };
+  return { tipo: 'preco', texto: formatBRL(s.preco_cents) };
 }

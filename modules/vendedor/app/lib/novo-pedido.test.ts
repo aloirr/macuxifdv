@@ -161,3 +161,66 @@ describe('embalagens[] do catalogo.precos_cliente@1 (RN-VEN-15 / RN-CAT-06)', ()
     ).toEqual({ a: { CX: 10_000 } });
   });
 });
+
+describe('T-0071: preço v2 no app (RN-VEN-02/03/10) com ajuste em % ou R$', () => {
+  const REF = [P('agua', 1790), P('cafe', 1890), P('gas', 11780)];
+  const refEntrada = (o: Partial<EntradaCalculo> = {}): EntradaCalculo =>
+    entrada({
+      catalogo: REF,
+      unidades: [],
+      lines: { agua: 3, cafe: 12, gas: 1 },
+      ajustes: { agua: { desconto_pct: 5 }, cafe: { em: 'valor', desconto_cents: 100 } },
+      desconto_pct: 1,
+      ...o,
+    });
+  it('RN-VEN-02/03: referência 398,30 → 379,79 (tabela 39830, itens 38363, pedido 384, descontos 1851, exibido 4,6%)', () => {
+    const c = calcularPedido(refEntrada());
+    expect(c.linhas.map((l) => l.preco_unitario_cents)).toEqual([1701, 1790, 11780]);
+    expect(c.total_tabela_cents).toBe(39830);
+    expect(c.total_itens_cents).toBe(38363);
+    expect(c.desconto_cents).toBe(384);
+    expect(c.linhas.map((l) => l.total_cents)).toEqual([5052, 21265, 11662]);
+    expect(c.total_cents).toBe(37979);
+    expect(c.descontos_cents).toBe(1851);
+    expect(c.desconto_efetivo_exibicao_pct).toBe(4.6);
+    expect(c.nivel).toBeNull();
+    expect(c.erros).toEqual([]);
+  });
+  it('RN-VEN-02: desconto do pedido em R$ 3,84 dá o mesmo total que 1%', () => {
+    const c = calcularPedido(refEntrada({ desconto_pct: 0, ajuste_em: 'valor', desconto_valor_cents: 384 }));
+    expect(c.total_cents).toBe(37979);
+    expect(c.ajuste_pedido).toEqual({ sentido: 'desconto', cents: 384, pct_exibicao: 1 });
+  });
+  it('RN-VEN-02: equivalente do item ("R$ 17,90 → 17,01" e "= 5,3%") sai do cálculo', () => {
+    const c = calcularPedido(refEntrada());
+    expect(c.linhas[0]!.equivalente).toEqual({ sentido: 'desconto', cents: 89, pct_exibicao: 5 });
+    expect(c.linhas[1]).toMatchObject({ ajuste_em: 'valor', desconto_unitario_cents: 100, preco_unitario_cents: 1790 });
+    expect(c.linhas[1]!.equivalente).toEqual({ sentido: 'desconto', cents: 100, pct_exibicao: 5.3 });
+    expect(c.linhas[2]!.equivalente).toBeNull();
+  });
+  it('RN-VEN-02: acréscimo em R$ por unidade soma ao preço da medida; acima do preço de tabela o desconto em R$ é erro de tela', () => {
+    const c = calcularPedido(entrada({ lines: { a: 2 }, ajustes: { a: { em: 'valor', acrescimo_cents: 50 } } }));
+    expect(c.linhas[0]).toMatchObject({ preco_unitario_cents: 1050, total_cents: 2100 });
+    const e = calcularPedido(entrada({ lines: { a: 1 }, ajustes: { a: { em: 'valor', desconto_cents: 1001 } } }));
+    expect(e.erros.join(' ')).toMatch(/passa do preço de tabela/);
+  });
+  it('RN-VEN-02: só o modo escolhido vale (R$ ignora o % que sobrou) e desconto + acréscimo em R$ são excludentes', () => {
+    const c = calcularPedido(entrada({ lines: { a: 1 }, ajustes: { a: { em: 'valor', desconto_cents: 100, desconto_pct: 50 } } }));
+    expect(c.linhas[0]!.total_cents).toBe(900);
+    expect(calcularPedido(entrada({ lines: { a: 1 }, ajustes: { a: { em: 'valor', desconto_cents: 10, acrescimo_cents: 10 } } })).erros.join(' ')).toMatch(/excludentes/);
+    expect(calcularPedido(entrada({ ajuste_em: 'valor', desconto_valor_cents: 10, acrescimo_valor_cents: 10 })).erros.join(' ')).toMatch(/excludentes/);
+  });
+  it('RN-VEN-02: desconto do pedido em R$ acima do total dos itens é erro de tela', () => {
+    const c = calcularPedido(entrada({ ajuste_em: 'valor', desconto_valor_cents: 999_999 }));
+    expect(c.erros.join(' ')).toMatch(/passa do total dos itens/);
+  });
+  it('RN-VEN-10: o R$ do pedido entra no efetivo da alçada pelo valor nominal', () => {
+    const c = calcularPedido(refEntrada({ desconto_pct: 0, ajuste_em: 'valor', desconto_valor_cents: 384 }));
+    expect(c.desconto_alcada_pct).toBe(4.65);
+  });
+  it('RN-VEN-02: o push leva R$ por unidade da medida (sem % junto) e a CX segue por unidade vendida', () => {
+    const c = calcularPedido(entrada({ lines: { 'a@CX': 2 }, ajustes: { 'a@CX': { em: 'valor', desconto_cents: 500, desconto_pct: 7 } } }));
+    expect(c.linhas[0]).toMatchObject({ preco_unitario_cents: 11_500, total_cents: 23_000 });
+    expect(linhasParaPush(c.linhas)).toEqual([{ product_id: 'a', quantity: 2, unidade: 'CX', desconto_unitario_cents: 500, ajuste_em: 'valor' }]);
+  });
+});

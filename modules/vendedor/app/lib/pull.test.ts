@@ -99,6 +99,16 @@ describe('telas sobre o pull (T-0029 §8)', () => {
     }
   });
 
+  it('RN-VEN-18/02 (T-0071, 0020): o pull leva validade civil e o ajuste em R$ do pedido e dos itens para o app (Editar, Transformar, Duplicar)', () => {
+    const p = pedido({ id: U(16), tipo: 'orcamento', validade_data: '2026-11-10', validade_ate: '2026-11-11T04:00:00.000Z', ajuste_em: 'valor', desconto_valor_cents: 384 });
+    const l = linhas({ pedidos: [p], itens: [{ ...item(1, U(16), 1, 12, 1890), desconto_unitario_cents: 100, ajuste_em: 'valor' }, item(2, U(16), 2, 1, 11780)] });
+    const d = detalheDoPedido(l, U(16), 'vendedor', {})!;
+    expect(d).toMatchObject({ tipo: 'orcamento', validade_data: '2026-11-10', order_adjust_mode: 'valor', order_discount_value_cents: 384 });
+    expect(d.items[0]).toMatchObject({ unit_discount_cents: 100, adjust_mode: 'valor' });
+    expect(d.items[1]).not.toHaveProperty('adjust_mode');
+    expect(d).not.toHaveProperty('order_surcharge_value_cents');
+  });
+
   it('T-0054: linha de pedido sem as colunas do faturamento (APK/servidor anterior) não ganha campos de faturamento', () => {
     const [o] = listaDePedidos(linhas({ pedidos: [pedido({ id: U(15), status: 'integrated' })], itens: [item(1, U(15), 1, 1, 100)] }), {});
     expect(o).not.toHaveProperty('faturado_cents');

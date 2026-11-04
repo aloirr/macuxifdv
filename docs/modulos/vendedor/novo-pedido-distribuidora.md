@@ -71,3 +71,10 @@ Hub); (2) preço próprio da CX na tabela (hoje CX = UN × fator; o domain já a
 nova tela (o selo "Campanha" do produto continua). A lista das digitadas (3) **foi feita**. Pendentes de outros donos: edição do padrão do frete pelo BKO (rota do Core para `plataforma.parametro`); árvore/trilha do Catálogo
 (T-0052), RN-VEN-11 na API depende de `preco_venda_cents`/`desconto_maximo_pct` no `core.cadastro_resumo@1` e no `ProdutoSync`, nome da tabela
 de preço em `catalogo.precos_cliente@1`, número do pedido nos eventos (T-0065).
+
+## T-0071 — fatia 6 (app Campo, 04/11)
+- **Ajuste em % ou R$** no item (R$ por unidade da medida vendida) e no pedido (R$ sobre o total dos itens): `app/lib/novo-pedido.ts` usa o preço v2 do domain (arredondamento no unitário, rateio pelo maior resto, RN-VEN-02). O rascunho guarda `ajustes[chave].em` e `ajuste_em`/`desconto_valor_cents`/`acrescimo_valor_cents` no pedido; o push leva `desconto_unitario_cents`/`acrescimo_unitario_cents` (+ `ajuste_em: 'valor'`) e nunca % e R$ juntos. Referência: 398,30 → 379,79 (39830/1467/384/37979, 4,6%) com teste no app.
+- **Aba Itens**: chip da medida ("FD c/ 12"), "R$ 17,90 → 17,01", equivalente ("−R$ 0,89" / "= 5,3%"), seletor Desc.|Acrésc. e %|R$ (a troca de modo leva o equivalente) e trilha do catálogo ("Mercearia › Bebidas") que abre a árvore do Catálogo só com os produtos da tabela do cliente.
+- **Aba Detalhes**: "Combina com o pedido" e "Leve mais" pela consulta `catalogo.sugestoes_pedido@1` (roda no aparelho) mais clientes parecidos e embalagem maior; "+" soma 1 UN, "⇄" troca pela embalagem maior (ajuste zerado).
+- **Aba Resumo**: Descontos = tabela − total, faixa com o % de 1 casa calculado dos inteiros (4,6%), seletor %|R$ do pedido.
+- Código: `app/lib/documento.ts` (cópia completa), `app/lib/sugestoes-pedido.ts`, `app/components/novo-pedido*.tsx`.

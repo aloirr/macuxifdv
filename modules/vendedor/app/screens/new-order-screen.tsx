@@ -22,12 +22,14 @@ import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
 import { ListaDeItens, PendenciasDoPedido } from '../components/novo-pedido';
 import { AbaDetalhes, AbaResumo, CardFreteEPrazo, DialogoDescartar, FolhaSalvar } from '../components/novo-pedido-abas';
 import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
-import { abasDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
+import { abasDoPedido, trilhaDoProduto, type AbaNovoPedido } from '../lib/textos-pedido';
+import { unidadesDoProduto } from '../lib/novo-pedido';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
 import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
-import { hrefPedido, hrefPedidos, irParaPedidos } from '../rotas';
+import { hrefPedido, hrefPedidos, irParaCatalogoDoPedido, irParaPedidos } from '../rotas';
+import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { useVendedor } from '../state/use-vendedor';
 
 export default function NewOrderScreen() {
@@ -152,11 +154,24 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const calculoAtual = useMemo(
     () =>
       politica
-        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, catalogo: catalog, unidades: app.unidades, embalagens: dados.produtos[tableKey]?.embalagens, politica, vendedor_id: vendedorId })
+        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, embalagens: dados.produtos[tableKey]?.embalagens, politica, vendedor_id: vendedorId })
         : null,
-    [draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
+    [draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
   const calculo = sent ? sent.snapshot.calculo : calculoAtual;
+  // T-0071 (RF-CAT-03): sugestões da aba Detalhes, calculadas no aparelho (offline) só quando a aba está aberta
+  const [sugestoes, setSugestoes] = useState<SugestoesDaTela>(SUGESTOES_VAZIAS);
+  const chaveSugestoes = JSON.stringify(draft.lines);
+  useEffect(() => {
+    if (aba !== 'detalhes' || sent || !customer) return;
+    let vivo = true;
+    void app.sugestoesDoPedido(customer, draft.lines, catalog).then((r) => {
+      if (vivo) setSugestoes(r);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [aba, sent, chaveSugestoes, catalog.length, customer?.id]);
   const terms = sent ? sent.snapshot.payment_terms : draft.payment_terms;
   const nomes = useMemo(() => new Map<string, string>(sent ? sent.snapshot.nomes : catalog.map((p) => [p.id, p.description] as [string, string])), [sent, catalog]);
   const frete = draft.frete ?? { modalidade: fretePadrao };
@@ -214,7 +229,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
       const res = await saveOrderEdit(editId, draft, customer, catalog);
       if (res.kind === 'server') {
         const b = statusBadge(res.order.status);
-        sheets.mostrar(`Pedido ${res.order.number} atualizado · ${b.label}.`);
+        sheets.mostrar(res.order.tipo === 'orcamento' ? `Orçamento ${res.order.number} atualizado.` : `Pedido ${res.order.number} atualizado · ${b.label}.`);
       } else {
         sheets.mostrar(offline ? 'Pedido da fila atualizado no aparelho. Será enviado quando o sinal voltar.' : 'Pedido da fila atualizado.');
       }
@@ -245,8 +260,9 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     }
   };
 
-  const rotuloEdicao = editBlockedOffline ? 'Sem sinal · edição precisa de conexão' : !editingServer ? 'Salvar alterações no aparelho' : vaiParaAprovacao ? 'Salvar e enviar para aprovação' : 'Salvar alterações';
-  const editTitle = editTarget?.number ? `Editar pedido ${editTarget.number}` : 'Editar pedido no aparelho';
+  const rotuloEdicao = editBlockedOffline ? 'Sem sinal · edição precisa de conexão' : !editingServer ? 'Salvar alterações no aparelho' : editTarget?.tipo === 'orcamento' ? 'Salvar orçamento' : vaiParaAprovacao ? 'Salvar e enviar para aprovação' : 'Salvar alterações';
+  const docEdicao = editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orçamento' : 'pedido';
+  const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const emRascunho = (fn: (r: Draft) => Draft) => updateDraft(customerId, fn);
 
   const abas = abasDoPedido(calculo.linhas.length);
@@ -303,6 +319,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
         {!sent && aba === 'itens' ? (
           <>
             <CardFreteEPrazo rascunho={draft} fretePadrao={fretePadrao} prazos={opcoesDePrazo} transportadoras={app.transportadoras} onRascunho={emRascunho} />
+            <TrilhaDoCatalogo trilha={trilhaDoProduto(produtosDoRascunho[produtosDoRascunho.length - 1] ?? {})} onAbrir={() => irParaCatalogoDoPedido(customerId)} />
             <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder="Código, descrição ou veículo" rotuloAcessivel="Buscar produto" testID="product-search" />
             {query.trim() ? (
               results.length === 0 ? (
@@ -323,7 +340,25 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
           </>
         ) : null}
 
-        {!sent && aba === 'detalhes' ? <AbaDetalhes rascunho={draft} clienteId={customerId} enderecos={app.enderecos} motivoCadastro={opcoes.motivo_so_orcamento} onRascunho={emRascunho} /> : null}
+        {!sent && aba === 'detalhes' ? (
+          <AbaDetalhes
+            rascunho={draft}
+            clienteId={customerId}
+            enderecos={app.enderecos}
+            motivoCadastro={opcoes.motivo_so_orcamento}
+            sugestoes={sugestoes}
+            nomeDoProduto={(id) => byId.get(id)?.description ?? 'Produto'}
+            onAdicionar={(id) => setLinhas(adicionarSugestao(draft.lines, id), draft.ajustes ?? {})}
+            onTrocar={(sg) => {
+              const p = byId.get(sg.produto_id);
+              const medidas = p ? unidadesDoProduto(p.id, app.unidades, p.unit) : [];
+              const de = medidas.find((m) => m.unidade === sg.de_unidade) ?? medidas[0];
+              const r = aplicarTrocaDeEmbalagem(draft.lines, draft.ajustes ?? {}, sg, { unidade_base: p?.unit ?? sg.de_unidade, fator: de?.fator ?? 1 });
+              setLinhas(r.lines, r.ajustes);
+            }}
+            onRascunho={emRascunho}
+          />
+        ) : null}
 
         {noResumo ? (
           <AbaResumo
@@ -370,6 +405,18 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
       <FolhaSalvar visivel={salvarAberto} opcoes={opcoes} comOrcamento={app.preVendaLigada} onEnviar={() => void send('pedido')} onOrcamento={() => void send('orcamento')} onFechar={() => setSalvarAberto(false)} />
       <DialogoDescartar visivel={descartarAberto} onVoltar={() => setDescartarAberto(false)} onDescartar={() => void descartar()} />
     </KeyboardAvoidingView>
+  );
+}
+
+/** Trilha do catálogo do último item ("Mercearia › Bebidas"); toque abre a árvore do Catálogo só com os produtos da tabela do cliente. */
+function TrilhaDoCatalogo({ trilha, onAbrir }: { trilha: string; onAbrir: () => void }) {
+  return (
+    <Pressable testID="trilha-catalogo" accessibilityRole="button" accessibilityLabel={trilha ? `Catálogo: ${trilha}` : 'Abrir o catálogo'} onPress={onAbrir} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <Icon name="search" size={14} color={colors.accentInk} />
+      <Text style={[t.smallStrong, { color: colors.accentInk }]} numberOfLines={1}>
+        {trilha || 'Catálogo'}
+      </Text>
+    </Pressable>
   );
 }
 

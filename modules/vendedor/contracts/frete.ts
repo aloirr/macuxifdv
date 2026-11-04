@@ -39,6 +39,8 @@ export const ItemPush = z.object({
   /** T-0071 (RN-VEN-02): R$ por unidade da MEDIDA VENDIDA (1 FD, 1 CX, 1 UN). No máximo UM dos quatro > 0 (senão `ajuste_invalido`). */
   desconto_unitario_cents: z.number().int().nonnegative().optional(),
   acrescimo_unitario_cents: z.number().int().nonnegative().optional(),
+  /** T-0071: o que o vendedor digitou no item (Editar e Duplicar reabrem no mesmo modo). O servidor deriva o modo do campo preenchido; ausente = legado em %. */
+  ajuste_em: z.enum(['pct', 'valor']).optional(),
 });
 export type ItemPush = z.infer<typeof ItemPush>;
 

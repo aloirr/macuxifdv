@@ -33,10 +33,30 @@ export interface Rascunho {
   ajustes?: Record<string, Ajuste>;
   /** acréscimo do pedido (excludente com `discount_pct`) */
   acrescimo_pct?: number;
+  /** T-0071 (RN-VEN-02): ajuste do pedido em R$ sobre o total dos itens e o modo digitado (seletor % | R$); ausente = % */
+  desconto_valor_cents?: number;
+  acrescimo_valor_cents?: number;
+  ajuste_em?: 'pct' | 'valor';
   /** RN-VEN-16: ausente = padrão do tenant (CIF) */
   frete?: FreteDoRascunho;
   /** RN-VEN-17: ausente = endereço principal do cliente */
   endereco_entrega_id?: string | null;
+}
+
+/**
+ * T-0071 (RN-VEN-02): grava o ajuste do pedido no rascunho no modo escolhido (% ou R$ sobre o total dos itens). Só um dos quatro
+ * valores fica > 0 (desconto e acréscimo, em % e em R$, são excludentes) e `ajuste_em` guarda o modo digitado.
+ */
+export function aplicarAjusteDoPedido(r: Rascunho, a: { modo: 'pct' | 'valor'; sentido: 'desconto' | 'acrescimo'; valor: number }): Rascunho {
+  const v = Math.max(0, a.valor);
+  return {
+    ...r,
+    ajuste_em: a.modo,
+    discount_pct: a.modo === 'pct' && a.sentido === 'desconto' ? v : 0,
+    acrescimo_pct: a.modo === 'pct' && a.sentido === 'acrescimo' ? v : 0,
+    desconto_valor_cents: a.modo === 'valor' && a.sentido === 'desconto' ? v : 0,
+    acrescimo_valor_cents: a.modo === 'valor' && a.sentido === 'acrescimo' ? v : 0,
+  };
 }
 
 export const PRAZO_PADRAO = '28/56 dias';
@@ -121,6 +141,9 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     ajustes: e.rascunho.ajustes ?? {},
     desconto_pct: e.rascunho.discount_pct,
     acrescimo_pct: e.rascunho.acrescimo_pct ?? 0,
+    desconto_valor_cents: e.rascunho.desconto_valor_cents,
+    acrescimo_valor_cents: e.rascunho.acrescimo_valor_cents,
+    ajuste_em: e.rascunho.ajuste_em,
     catalogo: e.catalogo,
     unidades: e.unidades ?? [],
     embalagens: e.embalagens,
@@ -189,7 +212,8 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
   return {
     id: args.id,
     customer_id: args.cliente.id,
-    discount_pct: args.rascunho.discount_pct,
+    // em R$ o pedido leva só o valor (os % ficam de fora: % e R$ juntos dão 422 ajuste_invalido)
+    discount_pct: args.rascunho.ajuste_em === 'valor' ? 0 : args.rascunho.discount_pct,
     payment_terms: args.rascunho.payment_terms,
     created_offline_at: args.semSinal ? args.agora : null,
     route_stop_id: args.rascunho.route_stop_id,
@@ -201,7 +225,10 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     // T-0053: só o orçamento leva `tipo` (o payload do pedido fica igual ao dos APKs anteriores)
     ...(args.rascunho.tipo === 'orcamento' ? { tipo: 'orcamento' as const } : {}),
     // T-0061: campos novos só quando existem (RN-VEN-02/16/17); o resto do payload fica igual ao dos APKs anteriores
-    ...((args.rascunho.acrescimo_pct ?? 0) > 0 ? { acrescimo_pct: args.rascunho.acrescimo_pct } : {}),
+    ...(args.rascunho.ajuste_em !== 'valor' && (args.rascunho.acrescimo_pct ?? 0) > 0 ? { acrescimo_pct: args.rascunho.acrescimo_pct } : {}),
+    ...(args.rascunho.ajuste_em === 'valor' && (args.rascunho.desconto_valor_cents ?? 0) > 0 ? { desconto_valor_cents: args.rascunho.desconto_valor_cents } : {}),
+    ...(args.rascunho.ajuste_em === 'valor' && (args.rascunho.acrescimo_valor_cents ?? 0) > 0 ? { acrescimo_valor_cents: args.rascunho.acrescimo_valor_cents } : {}),
+    ...(args.rascunho.ajuste_em ? { ajuste_em: args.rascunho.ajuste_em } : {}),
     ...(frete ? { frete } : {}),
     ...(args.rascunho.endereco_entrega_id ? { endereco_entrega_id: args.rascunho.endereco_entrega_id } : {}),
   };

@@ -7,6 +7,7 @@ import {
   BlocoTotais,
   Button,
   Card,
+  Cartao,
   Chip,
   colors,
   Dialogo,
@@ -16,16 +17,18 @@ import {
   OpcaoFolha,
   RotuloSecao,
   Segmentado,
+  Selo,
   type as t,
 } from '@macuxi/ui/mobile';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { opcoesDoSalvar } from '../../domain/orcamento';
-import { enderecosDoCliente, freteValido, textoDoEndereco, transportadorasAtivas, type CalculoPedido, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
-import type { Rascunho } from '../lib/pedidos';
-import { itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, textoDaFaixa, tituloDaFolhaSalvar } from '../lib/textos-pedido';
-import { CampoPct } from './novo-pedido';
+import { enderecosDoCliente, freteValido, textoDoEndereco, transportadorasAtivas, trocarModoDoAjuste, type CalculoPedido, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
+import { aplicarAjusteDoPedido, type Rascunho } from '../lib/pedidos';
+import type { SugestaoDaTela, SugestoesDaTela } from '../lib/sugestoes-pedido';
+import { nomeDaSugestao, seloDaSugestao, TITULO_COMBINA, TITULO_LEVE_MAIS, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, rotuloDoAjusteDoPedido, textoDaFaixa, textoEquivalente, tituloDaFolhaSalvar } from '../lib/textos-pedido';
+import { CampoPct, CampoReais } from './novo-pedido';
 
 type OpcoesDoSalvar = ReturnType<typeof opcoesDoSalvar>;
 type OnRascunho = (fn: (r: Rascunho) => Rascunho) => void;
@@ -116,6 +119,10 @@ export function AbaDetalhes({
   clienteId,
   enderecos,
   motivoCadastro,
+  sugestoes,
+  nomeDoProduto,
+  onAdicionar,
+  onTrocar,
   onRascunho,
 }: {
   rascunho: Rascunho;
@@ -123,6 +130,11 @@ export function AbaDetalhes({
   enderecos: readonly EnderecoDaTela[];
   /** RN-CORE-17: linha automática só de leitura (não é copiada para a observação do pedido) */
   motivoCadastro: string | null;
+  /** T-0071 (RF-CAT-03): "Combina com o pedido" e "Leve mais", do aparelho (offline) */
+  sugestoes: SugestoesDaTela;
+  nomeDoProduto: (produtoId: string) => string;
+  onAdicionar: (produtoId: string) => void;
+  onTrocar: (s: Extract<SugestaoDaTela, { origem: 'embalagem_maior' }>) => void;
   onRascunho: OnRascunho;
 }) {
   const [trocando, setTrocando] = useState(false);
@@ -153,6 +165,8 @@ export function AbaDetalhes({
           style={[s.texto, { minHeight: 72, textAlignVertical: 'top', paddingTop: 10 }]}
         />
       </Card>
+      <BlocoSugestoes titulo={TITULO_COMBINA} testID="sugestoes-combina" itens={sugestoes.combina} nomeDoProduto={nomeDoProduto} onAdicionar={onAdicionar} onTrocar={onTrocar} />
+      <BlocoSugestoes titulo={TITULO_LEVE_MAIS} testID="sugestoes-leve-mais" itens={sugestoes.leve_mais} nomeDoProduto={nomeDoProduto} onAdicionar={onAdicionar} onTrocar={onTrocar} />
       <Folha visivel={trocando} onFechar={() => setTrocando(false)} rotuloFechar="Fechar" titulo="Entrega" testID="folha-entrega" rodape={{ rotulo: 'Voltar', onPress: () => setTrocando(false) }}>
         {lista.map((e) => {
           const ehPrincipal = e.principal || e.tipo === 'principal';
@@ -173,6 +187,54 @@ export function AbaDetalhes({
         })}
       </Folha>
     </View>
+  );
+}
+
+/** Até 5 sugestões com 1 toque: "+" adiciona 1 unidade; "⇄" troca pela embalagem maior (selo "−5%"). Alvo de toque de 48 dp. */
+function BlocoSugestoes({
+  titulo,
+  testID,
+  itens,
+  nomeDoProduto,
+  onAdicionar,
+  onTrocar,
+}: {
+  titulo: string;
+  testID: string;
+  itens: readonly SugestaoDaTela[];
+  nomeDoProduto: (produtoId: string) => string;
+  onAdicionar: (produtoId: string) => void;
+  onTrocar: (s: Extract<SugestaoDaTela, { origem: 'embalagem_maior' }>) => void;
+}) {
+  if (itens.length === 0) return null;
+  return (
+    <Cartao gap={4} testID={testID}>
+      <RotuloSecao texto={titulo} />
+      {itens.map((sg) => {
+        const troca = sg.origem === 'embalagem_maior';
+        const nome = nomeDaSugestao(nomeDoProduto(sg.produto_id), sg);
+        const selo = seloDaSugestao(sg);
+        return (
+          <Pressable
+            key={`${sg.origem}-${sg.produto_id}`}
+            testID={`${troca ? 'sug-troca' : 'sug-add'}-${sg.produto_id}`}
+            accessibilityRole="button"
+            accessibilityLabel={troca ? `Trocar por ${nome}` : `Adicionar ${nome}`}
+            onPress={() => (sg.origem === 'embalagem_maior' ? onTrocar(sg) : onAdicionar(sg.produto_id))}
+            style={s.sugestao}>
+            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+              <Text style={t.bodyStrong} numberOfLines={2}>
+                {nome}
+              </Text>
+              {selo.tipo === 'selo' ? <Selo texto={selo.texto} tom="sucesso" rotuloAcessivel={`${selo.texto.replace('−', '')} mais barato`} /> : <Text style={t.small}>{selo.texto}</Text>}
+            </View>
+            <View style={s.sugestaoBotao}>
+              <Text style={[t.h1Small, { color: colors.accentInk }]}>{troca ? '⇄' : '+'}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </Cartao>
   );
 }
 
@@ -209,9 +271,14 @@ export function AbaResumo({
   somenteLeitura: boolean;
 }) {
   const frete = r.frete ?? { modalidade: fretePadrao };
-  const tipoPedido: 'desconto' | 'acrescimo' = (r.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
-  const valorPedido = tipoPedido === 'acrescimo' ? (r.acrescimo_pct ?? 0) : r.discount_pct;
-  const totais = linhasDeTotais(calculo);
+  // T-0071 (RN-VEN-02): o ajuste do pedido é em % ou em R$ sobre o total dos itens
+  const modoPedido: 'pct' | 'valor' = r.ajuste_em === 'valor' ? 'valor' : 'pct';
+  const tipoPedido: 'desconto' | 'acrescimo' = modoPedido === 'valor' ? ((r.acrescimo_valor_cents ?? 0) > 0 ? 'acrescimo' : 'desconto') : (r.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
+  const valorPct = tipoPedido === 'acrescimo' ? (r.acrescimo_pct ?? 0) : r.discount_pct;
+  const valorCents = tipoPedido === 'acrescimo' ? (r.acrescimo_valor_cents ?? 0) : (r.desconto_valor_cents ?? 0);
+  const valorPedido = modoPedido === 'valor' ? valorCents : valorPct;
+  const equivalentePedido = textoEquivalente({ ajuste_em: modoPedido, equivalente: calculo.ajuste_pedido });
+  const totais = linhasDeTotais({ total_tabela_cents: calculo.total_tabela_cents, desconto_cents: Math.max(0, calculo.descontos_cents), acrescimo_cents: Math.max(0, -calculo.descontos_cents), total_cents: calculo.total_cents });
   const faixa = textoDaFaixa(calculo, limiteVendedor);
   return (
     <View style={{ gap: 12 }} testID="aba-resumo-conteudo">
@@ -224,23 +291,48 @@ export function AbaResumo({
         </Text>
       </Card>
       <Card style={s.card}>
-        <RotuloSecao texto="Desconto do pedido" />
-        <Segmentado
-          testID="pedido-ajuste-tipo"
-          rotuloAcessivel="Tipo do ajuste do pedido"
-          valor={tipoPedido}
-          opcoes={[
-            { id: 'desconto', rotulo: 'Desc.', rotuloAcessivel: 'Desconto' },
-            { id: 'acrescimo', rotulo: 'Acrésc.', rotuloAcessivel: 'Acréscimo' },
-          ]}
-          onChange={(novo) => onRascunho((d) => (novo === 'acrescimo' ? { ...d, discount_pct: 0, acrescimo_pct: valorPedido } : { ...d, acrescimo_pct: 0, discount_pct: valorPedido }))}
-        />
-        <CampoPct
-          valor={valorPedido}
-          rotulo={tipoPedido === 'acrescimo' ? 'acréscimo do pedido' : 'desconto do pedido'}
-          testID="discount-input"
-          onChange={(n) => onRascunho((d) => (tipoPedido === 'acrescimo' ? { ...d, discount_pct: 0, acrescimo_pct: n } : { ...d, acrescimo_pct: 0, discount_pct: n }))}
-        />
+        <RotuloSecao texto={rotuloDoAjusteDoPedido(tipoPedido)} />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Segmentado
+            testID="pedido-ajuste-tipo"
+            rotuloAcessivel="Tipo do ajuste do pedido"
+            compacto
+            style={{ flex: 1 }}
+            valor={tipoPedido}
+            opcoes={[
+              { id: 'desconto', rotulo: 'Desc.', rotuloAcessivel: 'Desconto' },
+              { id: 'acrescimo', rotulo: 'Acrésc.', rotuloAcessivel: 'Acréscimo' },
+            ]}
+            onChange={(novo) => onRascunho((d) => aplicarAjusteDoPedido(d, { modo: modoPedido, sentido: novo, valor: valorPedido }))}
+          />
+          <Segmentado
+            testID="pedido-ajuste-modo"
+            rotuloAcessivel="Ajuste do pedido em porcentagem ou em reais"
+            compacto
+            style={{ flex: 1 }}
+            valor={modoPedido}
+            opcoes={[
+              { id: 'pct', rotulo: '%', rotuloAcessivel: 'Porcentagem' },
+              { id: 'valor', rotulo: 'R$', rotuloAcessivel: 'Reais sobre o total dos itens' },
+            ]}
+            onChange={(novo) => {
+              const atual: Parameters<typeof trocarModoDoAjuste>[0] = modoPedido === 'valor' ? { em: 'valor', desconto_cents: tipoPedido === 'desconto' ? valorCents : 0, acrescimo_cents: tipoPedido === 'acrescimo' ? valorCents : 0 } : { em: 'pct', desconto_pct: tipoPedido === 'desconto' ? valorPct : 0, acrescimo_pct: tipoPedido === 'acrescimo' ? valorPct : 0 };
+              const convertido = trocarModoDoAjuste(atual, novo, calculo.ajuste_pedido);
+              const v = novo === 'valor' ? (tipoPedido === 'acrescimo' ? (convertido.acrescimo_cents ?? 0) : (convertido.desconto_cents ?? 0)) : tipoPedido === 'acrescimo' ? (convertido.acrescimo_pct ?? 0) : (convertido.desconto_pct ?? 0);
+              onRascunho((d) => aplicarAjusteDoPedido(d, { modo: novo, sentido: tipoPedido, valor: v }));
+            }}
+          />
+        </View>
+        {modoPedido === 'valor' ? (
+          <CampoReais valor={valorCents} rotulo={rotuloDoAjusteDoPedido(tipoPedido).toLowerCase()} testID="discount-valor" onChange={(n) => onRascunho((d) => aplicarAjusteDoPedido(d, { modo: 'valor', sentido: tipoPedido, valor: n }))} />
+        ) : (
+          <CampoPct valor={valorPct} rotulo={rotuloDoAjusteDoPedido(tipoPedido).toLowerCase()} testID="discount-input" onChange={(n) => onRascunho((d) => aplicarAjusteDoPedido(d, { modo: 'pct', sentido: tipoPedido, valor: n }))} />
+        )}
+        {equivalentePedido ? (
+          <Text style={[t.smallStrong, { color: colors.accentInk }]} testID="pedido-equivalente">
+            {equivalentePedido}
+          </Text>
+        ) : null}
       </Card>
       <BlocoTotais linhas={totais.linhas} total={totais.total} testID="totais-pedido">
         {faixa ? <Faixa tom={faixa.tom} texto={faixa.texto} icone={faixa.icone} testID="faixa-alcada" /> : null}
@@ -291,5 +383,7 @@ const s = StyleSheet.create({
   rotuloLinha: { width: 64, fontSize: 12, fontWeight: '700', color: colors.ink2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   botoes: { flexDirection: 'row', gap: 10 },
+  sugestao: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6 },
+  sugestaoBotao: { width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
   texto: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingHorizontal: 12, fontSize: 15, color: colors.ink },
 });
