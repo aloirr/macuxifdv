@@ -29,3 +29,5 @@ export * from './produto-unidade';
 export * from './cliente-endereco';
 export * from './usuarios';
 export * from './metas-edicao';
+export * from './meta-do-dia';
+export * from './inicio';

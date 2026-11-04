@@ -5,7 +5,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice, PageHeader, Panel, SelectField } from '@macuxi/ui/web';
-import { EnviarNotificacaoRespostaSchema, HierarquiaEquipeSchema, NotificacaoSyncSchema, RecadosEnviadosRespostaSchema, type NotificacaoSync } from '../../../contracts';
+import { EnviarNotificacaoRespostaSchema, HierarquiaEquipeSchema, NotificacaoSyncSchema, RecadoDoDiaDesmarcadoSchema, RecadoDoDiaMarcadoSchema, RecadosEnviadosRespostaSchema, type NotificacaoSync } from '../../../contracts';
+import { useMe } from '../../lib/queries';
+import { ACAO_RECADO_DO_DIA, agruparPorEnvio, mensagemDoRecadoDoDia, podeMarcarRecadoDoDia } from '../../lib/recado-do-dia';
 
 /**
  * Tela "Recados" do BKO (RF-CORE-09): envia um recado a pessoas do seu escopo (ação `notificacao.enviar`; a API
@@ -14,6 +16,8 @@ import { EnviarNotificacaoRespostaSchema, HierarquiaEquipeSchema, NotificacaoSyn
  */
 export function RecadosPage() {
   const pode = usePode('notificacao.enviar');
+  const podeRecadoDoDia = usePode(ACAO_RECADO_DO_DIA);
+  const fuso = useMe().data.tenant.timezone;
   const [titulo, setTitulo] = useState('');
   const [corpo, setCorpo] = useState('');
   const [prioridade, setPrioridade] = useState<'normal' | 'alta'>('normal');
@@ -53,6 +57,21 @@ export function RecadosPage() {
     },
     onError: (e) => setAviso({ tom: 'danger', texto: errorMessage(e) }),
   });
+
+  // RN-CORE-26: marcar/tirar o recado do dia por envio. O servidor decide o dia (hoje no fuso do tenant); o corpo é vazio.
+  const marcar = useMutation({
+    mutationFn: async (v: { envioId: string; marcar: boolean }) => {
+      const caminho = `/core/notificacoes/envios/${v.envioId}/recado-do-dia`;
+      if (v.marcar) return RecadoDoDiaMarcadoSchema.parse(await api(caminho, { method: 'PUT', body: {} }));
+      return RecadoDoDiaDesmarcadoSchema.parse(await api(caminho, { method: 'DELETE' }));
+    },
+    onSuccess: (_r, v) => {
+      setAviso({ tom: 'success', texto: v.marcar ? 'Pronto: este recado aparece como recado do dia no Início do app hoje.' : 'Recado do dia retirado. O Início volta à frase padrão.' });
+      void enviados.refetch();
+    },
+    onError: (e) => setAviso({ tom: 'danger', texto: mensagemDoRecadoDoDia(e, errorMessage(e)) }),
+  });
+  const envios = useMemo(() => agruparPorEnvio(enviados.data ?? [], new Date(), fuso), [enviados.data, fuso]);
 
   const alternar = (id: string) =>
     setEscolhidos((atual) => {
@@ -122,6 +141,53 @@ export function RecadosPage() {
           {enviados.isPending && <LoadingBlock label="Carregando…" />}
           {enviados.isError && <ErrorBlock message={errorMessage(enviados.error)} onRetry={() => void enviados.refetch()} />}
           {enviados.data && enviados.data.length === 0 && <p className="m-0 text-[13px]">Nenhum recado enviado ainda.</p>}
+          {envios.length > 0 && (
+            <table className="mb-4 w-full border-collapse text-[13px]" data-testid="recados.envios">
+              <thead>
+                <tr className="text-left text-ink-2">
+                  <th className="py-1 pr-2">Envio</th>
+                  <th className="py-1 pr-2">Pessoas</th>
+                  <th className="py-1 pr-2">Enviado em</th>
+                  <th className="py-1 pr-2">Lidas</th>
+                  {podeRecadoDoDia && <th className="py-1">Recado do dia</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {envios.map((e) => (
+                  <tr key={e.envio_id} className="border-t border-line" data-testid={`recados.envio.${e.envio_id}`}>
+                    <td className="py-1 pr-2">
+                      {e.titulo}{' '}
+                      {e.recado_do_dia_hoje && (
+                        <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[12px] font-semibold text-accent" data-testid={`recados.chip-recado-do-dia.${e.envio_id}`}>
+                          Recado do dia · hoje
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-1 pr-2">{e.destinatarios}</td>
+                    <td className="py-1 pr-2">{new Date(e.enviada_em).toLocaleString('pt-BR')}</td>
+                    <td className="py-1 pr-2">
+                      {e.lidas} de {e.destinatarios}
+                    </td>
+                    {podeRecadoDoDia && (
+                      <td className="py-1">
+                        {podeMarcarRecadoDoDia(podeRecadoDoDia, e) && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={marcar.isPending}
+                            onClick={() => marcar.mutate({ envioId: e.envio_id, marcar: !e.recado_do_dia_hoje })}
+                            data-testid={`recados.recado-do-dia.${e.envio_id}`}
+                          >
+                            {e.recado_do_dia_hoje ? 'Tirar recado do dia' : 'Marcar como recado do dia'}
+                          </Button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
           {enviados.data && enviados.data.length > 0 && (
             <table className="w-full border-collapse text-[13px]" data-testid="recados.enviados">
               <thead>
