@@ -8,7 +8,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, BackLink, Badge, Banner, Button, Card, CampoBusca, colors, Empty, fonts, formatHHMM, Icon, radius, RodapeTotal, Screen, Strong, type as t } from '@macuxi/ui/mobile';
+import { Abas, AvisoRodape, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, formatHHMM, Icon, Loading, radius, RodapeTotal, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -22,7 +22,7 @@ import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
 import { ListaDeItens, PendenciasDoPedido } from '../components/novo-pedido';
 import { AbaDetalhes, AbaResumo, CardFreteEPrazo, DialogoDescartar, FolhaSalvar } from '../components/novo-pedido-abas';
 import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
-import { abasDoPedido, trilhaDoProduto, type AbaNovoPedido } from '../lib/textos-pedido';
+import { abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, textoBuscaSemResultado, trilhaDoProduto, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
@@ -35,18 +35,18 @@ import { useVendedor } from '../state/use-vendedor';
 export default function NewOrderScreen() {
   const { customerId, editId, visitId, stopId } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string }>();
   const { carregado, dados } = useVendedor();
-  if (!carregado) return <AvisoDaTela texto="Carregando os dados do aparelho…" />;
-  if (!dados.me || !dados.politica) return <AvisoDaTela texto="Faltam dados no aparelho. Abra a tela Sincronizar, com sinal, e tente de novo." />;
+  if (!carregado) return <Loading />;
+  if (!dados.me || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
   if (!customerId) return <CustomerPicker />;
   return <OrderEditor key={`${customerId}:${editId ?? ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} />;
 }
 
 /** Mensagem dentro de Screen (área segura) e com caminho de volta para Pedidos. */
-function AvisoDaTela({ texto }: { texto: string }) {
+function AvisoDaTela({ titulo, texto, acao }: { titulo: string; texto?: string; acao?: { rotulo: string; onPress: () => void } }) {
   return (
     <Screen testID="new-order-aviso">
       <BackLink label="Pedidos" fallback={hrefPedidos()} />
-      <Empty text={texto} />
+      <EstadoVazio titulo={titulo} texto={texto} acao={acao} />
     </Screen>
   );
 }
@@ -103,6 +103,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const app = useVendedor();
   const insets = useSafeAreaInsets();
   const sheets = useAviso();
+  const avisoRodape = useAvisoRodape();
   const podeEditar = usePode('pedido.editar');
   const { dados, tz, offline, garantirProdutos: ensureProducts, enviarPedido: submitOrder, salvarEdicao: saveOrderEdit, condicoesDe, v1 } = app;
   const draftKey = draftKeyFor(customerId, editId);
@@ -181,7 +182,11 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     return (
       <View style={[styles.root, { paddingTop: insets.top + 16, paddingHorizontal: 20, gap: 8 }]}>
         <BackLink label="Pedido" fallback={hrefPedido(editId)} />
-        <Text style={t.sub}>{editTarget ? 'Edição não iniciada. Volte ao pedido e toque em Editar.' : 'Pedido não encontrado no aparelho.'}</Text>
+        <EstadoVazio
+          titulo={editTarget ? 'A edição ainda não começou' : 'Este pedido não está no aparelho'}
+          texto={editTarget ? 'Volte ao pedido e toque em Editar.' : 'Conecte-se e puxe a tela de Pedidos para baixo para sincronizar.'}
+          acao={{ rotulo: editTarget ? 'Voltar ao pedido' : 'Ir para Pedidos', onPress: () => (editTarget ? router.replace(hrefPedido(editId) as never) : irParaPedidos()) }}
+        />
       </View>
     );
   }
@@ -189,8 +194,8 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   if (!customer || !calculo || !politica) {
     return (
       <View style={[styles.root, { paddingTop: insets.top + 16, paddingHorizontal: 20 }]}>
-        <BackLink label="Voltar" fallback="/" />
-        <Text style={t.sub}>Cliente não encontrado na carteira sincronizada.</Text>
+        <BackLink label="Voltar" fallback={hrefPedidos()} />
+        <EstadoVazio titulo="Cliente não encontrado" texto="Sincronize com sinal para atualizar a carteira." acao={{ rotulo: 'Ir para Pedidos', onPress: () => irParaPedidos() }} />
       </View>
     );
   }
@@ -260,12 +265,12 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     }
   };
 
-  const rotuloEdicao = editBlockedOffline ? 'Sem sinal · edição precisa de conexão' : !editingServer ? 'Salvar alterações no aparelho' : editTarget?.tipo === 'orcamento' ? 'Salvar orçamento' : vaiParaAprovacao ? 'Salvar e enviar para aprovação' : 'Salvar alterações';
+  const rotuloEdicao = !editingServer ? 'Salvar alterações no aparelho' : editTarget?.tipo === 'orcamento' ? 'Salvar orçamento' : vaiParaAprovacao ? 'Salvar e enviar para aprovação' : 'Salvar alterações';
   const docEdicao = editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orçamento' : 'pedido';
   const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const emRascunho = (fn: (r: Draft) => Draft) => updateDraft(customerId, fn);
 
-  const abas = abasDoPedido(calculo.linhas.length);
+  const abas = abasDoPedido(calculo.linhas.length, Boolean(freteAviso) || calculo.erros.length > 0);
   const noResumo = aba === 'resumo' || Boolean(sent);
   const aoSalvar = () => {
     if (editId) void saveEdit();
@@ -282,7 +287,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 8, gap: 2, backgroundColor: colors.surface }}>
         <AvisoRapido mensagem={sheets.aviso} />
-        {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label="Clientes" fallback={hrefPedidos()} />}
+        {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label="Voltar" fallback={hrefPedidos()} />}
         <Text style={t.h1Small} testID="order-editor-title">
           {editId ? editTitle : 'Novo pedido'}
         </Text>
@@ -300,16 +305,16 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
         ) : null}
         {editBlockedOffline ? (
           <Banner tone="danger" testID="banner-edit-offline">
-            <Strong>Sem sinal.</Strong> Para editar um pedido já enviado, desligue o modo sem sinal no Perfil.
+            <Strong>Sem sinal.</Strong> Para editar um pedido já enviado, conecte-se à internet ou desligue o modo sem sinal no Perfil.
           </Banner>
         ) : null}
 
         {sent?.kind === 'queued' ? (
           <Banner testID="banner-saved">
-            <Strong>Salvo no aparelho.</Strong> Envia quando o sinal voltar.
+            <Strong>{avisoSalvoNoAparelho(sent.snapshot.rascunho.tipo === 'orcamento' ? 'orcamento' : 'pedido').titulo}</Strong> {avisoSalvoNoAparelho('pedido').nota}
           </Banner>
         ) : sent?.kind === 'sent' ? (
-          <SentCard order={sent.order} />
+          <SentCard order={sent.order} tipo={sent.snapshot.rascunho.tipo === 'orcamento' ? 'orcamento' : 'pedido'} validadeData={validade.data} />
         ) : noSignal && !editBlockedOffline ? (
           <Banner testID="banner-offline">
             <Strong>Sem sinal.</Strong> Preço e estoque de {formatHHMM(productsAt, tz)}.
@@ -323,7 +328,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
             <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder="Código, descrição ou veículo" rotuloAcessivel="Buscar produto" testID="product-search" />
             {query.trim() ? (
               results.length === 0 ? (
-                <Text style={t.small}>Nenhum produto.</Text>
+                <EstadoVazio titulo={textoBuscaSemResultado(query).titulo} texto={textoBuscaSemResultado(query).texto} testID="busca-sem-resultado" />
               ) : (
                 <ListaDeItens produtos={results} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} />
               )
@@ -348,13 +353,19 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
             motivoCadastro={opcoes.motivo_so_orcamento}
             sugestoes={sugestoes}
             nomeDoProduto={(id) => byId.get(id)?.description ?? 'Produto'}
-            onAdicionar={(id) => setLinhas(adicionarSugestao(draft.lines, id), draft.ajustes ?? {})}
+            onAdicionar={(id) => {
+              const antes = { lines: draft.lines, ajustes: draft.ajustes ?? {} };
+              setLinhas(adicionarSugestao(draft.lines, id), draft.ajustes ?? {});
+              avisoRodape.mostrar({ texto: avisoSugestaoAdicionada(byId.get(id)?.description ?? 'Produto', false), acao: { rotulo: 'Desfazer', onPress: () => setLinhas(antes.lines, antes.ajustes), testID: 'sugestao-desfazer' } });
+            }}
             onTrocar={(sg) => {
               const p = byId.get(sg.produto_id);
               const medidas = p ? unidadesDoProduto(p.id, app.unidades, p.unit) : [];
               const de = medidas.find((m) => m.unidade === sg.de_unidade) ?? medidas[0];
+              const antes = { lines: draft.lines, ajustes: draft.ajustes ?? {} };
               const r = aplicarTrocaDeEmbalagem(draft.lines, draft.ajustes ?? {}, sg, { unidade_base: p?.unit ?? sg.de_unidade, fator: de?.fator ?? 1 });
               setLinhas(r.lines, r.ajustes);
+              avisoRodape.mostrar({ texto: avisoSugestaoAdicionada(nomeDaSugestao(p?.description ?? 'Produto', sg), true), acao: { rotulo: 'Desfazer', onPress: () => setLinhas(antes.lines, antes.ajustes), testID: 'sugestao-desfazer' } });
             }}
             onRascunho={emRascunho}
           />
@@ -398,10 +409,11 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
       ) : null}
       {sent ? (
         <View style={[styles.footer, { paddingBottom: 22 + insets.bottom }]}>
-          <Button testID="send-order-done" label={sent.kind === 'sent' ? `Enviado · pedido ${sent.order.number}` : 'Salvo · aguardando sinal'} variant="success" height={52} onPress={() => irParaPedidos()} />
+          <Botao testID="send-order-done" nivel="principal" rotulo="Ir para Pedidos" onPress={() => irParaPedidos()} />
         </View>
       ) : null}
 
+      <AvisoRodape {...avisoRodape.props} respiroInferior={insets.bottom + 72} />
       <FolhaSalvar visivel={salvarAberto} opcoes={opcoes} comOrcamento={app.preVendaLigada} onEnviar={() => void send('pedido')} onOrcamento={() => void send('orcamento')} onFechar={() => setSalvarAberto(false)} />
       <DialogoDescartar visivel={descartarAberto} onVoltar={() => setDescartarAberto(false)} onDescartar={() => void descartar()} />
     </KeyboardAvoidingView>
@@ -420,21 +432,18 @@ function TrilhaDoCatalogo({ trilha, onAbrir }: { trilha: string; onAbrir: () => 
   );
 }
 
-function SentCard({ order }: { order: OrderDetail }) {
+function SentCard({ order, tipo, validadeData }: { order: OrderDetail; tipo: 'pedido' | 'orcamento'; validadeData: string }) {
   const b = statusBadge(order.status);
-  const note = order.status === 'pending_approval' ? order.pending_reason : order.status === 'rejected' ? order.rejection_reason : order.status === 'approved' ? 'Dentro da alçada: aprovado na hora.' : 'Recebido pelo servidor.';
+  const c = confirmacaoDoEnvio({ tipo, numero: order.number, status: order.status, validade_data: validadeData, pending_reason: order.pending_reason, rejection_reason: order.rejection_reason });
   return (
     <View style={styles.sent} testID="sent-card">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <Icon name="check" size={18} color={colors.success} strokeWidth={2.4} />
-        <Text style={[t.bodyStrong, { color: colors.success }]}>Pedido {order.number} recebido</Text>
-        <Badge label={b.label} fg={b.fg} bg={b.bg} />
+        <Text style={[t.bodyStrong, { color: colors.success }]}>{c.titulo}</Text>
+        {c.mostrarStatus ? <Badge label={b.label} fg={b.fg} bg={b.bg} /> : null}
       </View>
-      {note ? <Text style={[t.small, { color: colors.ink }]}>{note}</Text> : null}
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Button label="Ver pedido" variant="outline" style={{ flex: 1 }} onPress={() => router.navigate(hrefPedido(order.id) as never)} />
-        <Button label="Voltar" variant="outline" style={{ flex: 1 }} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
-      </View>
+      {c.nota ? <Text style={[t.small, { color: colors.ink }]}>{c.nota}</Text> : null}
+      <Botao testID="ver-pedido-enviado" rotulo={tipo === 'orcamento' ? 'Ver orçamento' : 'Ver pedido'} onPress={() => router.navigate(hrefPedido(order.id) as never)} />
     </View>
   );
 }

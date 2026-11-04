@@ -5,20 +5,21 @@
  */
 import { formatBRL, formatPct, formatarDocumento } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Banner, Botao, Button, Card, colors, dateTimeLabel, fonts, Folha, Icon, SectionHeader, Selo, type as t } from '@macuxi/ui/mobile';
+import { BackLink, Badge, Banner, Botao, Button, Card, colors, dateTimeLabel, EstadoVazio, fonts, Folha, Icon, LinhaValor, Loading, OpcaoFolha, SectionHeader, Selo, type as t } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderEvent } from '../../contracts';
+import type { NivelDePreco } from '../../domain/preco-pedido';
 import { sellerDiscountLimit } from '../../domain/order';
 import { textoItemFaturado } from '../../domain/retorno-erp';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, rotuloDoNivel, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { toDomainPolicy } from '../lib/catalog';
-import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, textoFrete, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
+import { buildOrderPdfHtml, nomeDaDistribuidora, orderPdfFileName, pdfDoPedido, type OrderPdfOrder, type OrderPdfView } from '../lib/order-pdf';
 import { errorMessage } from '../lib/erros';
 import { rotuloDoFrete, textoDoEndereco } from '../lib/novo-pedido';
 import { pedidoSomenteLeitura } from '../lib/somente-leitura';
@@ -26,7 +27,7 @@ import { orderNote, statusBadge } from '../lib/order-status';
 import { exportPdf } from '../lib/pdf-export';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { acoesNaTela, rotuloDoDocumento, situacaoNaTela, validadeCivilDoDocumento } from '../lib/pre-venda';
-import { seloDoOrcamento } from '../lib/textos-pedido';
+import { folhaDoTransformar, seloDoOrcamento, TEXTO_PEDIDO_FORA_DO_APARELHO, textoNaoFoiAceito } from '../lib/textos-pedido';
 import { validadeOrcamentoDias } from '../../domain/orcamento';
 import { hrefPedidos, irParaNovoPedido, irParaPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
@@ -68,7 +69,9 @@ export default function OrderDetailScreen() {
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState<OrderPdfView | null>(null);
   /** RN-VEN-18: o que mudou desde o orçamento; o vendedor confirma antes de transformar */
-  const [conferencia, setConferencia] = useState<{ mudancas: string[]; bloqueio: string | null } | null>(null);
+  const [conferencia, setConferencia] = useState<{ mudancas: string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number } | null>(null);
+  /** desenho §1.5: a folha do Transformar abre sempre (toque 1); o envio é o toque 2 */
+  const [transformarAberto, setTransformarAberto] = useState(false);
   const detail = app.detalhe(id ?? '');
   const summary = orders.find((o) => o.id === id) ?? null;
   const queued = fila.find((o) => o.payload.id === id) ?? null;
@@ -94,7 +97,7 @@ export default function OrderDetailScreen() {
     return (
       <View style={[styles.root, { paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20 }]}>
         <BackLink label="Pedidos" fallback={hrefPedidos()} />
-        <Text style={t.sub}>{offline ? 'Pedido fora do cache do aparelho.' : 'Carregando…'}</Text>
+        {offline ? <EstadoVazio titulo={TEXTO_PEDIDO_FORA_DO_APARELHO.titulo} texto={TEXTO_PEDIDO_FORA_DO_APARELHO.texto} testID="pedido-fora-do-aparelho" /> : <Loading />}
       </View>
     );
   }
@@ -171,6 +174,8 @@ export default function OrderDetailScreen() {
   const podeExcluirDoc = canDelete && (acoesOrc ? acoesOrc.pode_cancelar : true);
   const podeDuplicarDoc = acoesOrc ? acoesOrc.pode_duplicar : acts.can_duplicate;
 
+  const folhaTransformar = folhaDoTransformar(conferencia);
+
   const converter = async () => {
     setBusy('convert');
     setActionError(null);
@@ -185,22 +190,19 @@ export default function OrderDetailScreen() {
     }
   };
 
-  /** RN-VEN-18: Transformar reconfere preço, estoque, mínimo e alçada com os dados do aparelho; só pergunta se algo mudou. */
+  /** RN-VEN-18: Transformar reconfere preço, estoque, mínimo e alçada com os dados do aparelho e abre sempre a folha "Enviar pedido" com a alçada. */
   const transformar = async () => {
     setBusy('convert');
     setActionError(null);
-    let achou: { mudancas: string[]; bloqueio: string | null } | null = null;
     try {
       const c = v1 ? await app.reconferirOrcamentoLocal(id ?? '') : null;
-      if (c && (c.mudancas.length > 0 || c.bloqueio)) achou = c;
+      setConferencia(c ? { mudancas: c.mudancas, bloqueio: c.bloqueio, nivel: c.nivel, total_cents: c.total_cents } : null);
+      setTransformarAberto(true);
     } catch (e) {
       setActionError(errorMessage(e));
+    } finally {
       setBusy(null);
-      return;
     }
-    setBusy(null);
-    if (achou) setConferencia(achou);
-    else await converter();
   };
 
   const startDraft = async (mode: 'duplicate' | 'edit') => {
@@ -315,6 +317,93 @@ export default function OrderDetailScreen() {
     }
   };
 
+  const mostrarEditar = ehOrc ? Boolean(acoesOrc?.pode_editar) : true;
+  const mostrarDuplicar = ehOrc ? Boolean(acoesOrc?.pode_duplicar) : true;
+  const mostrarPdf = ehOrc ? Boolean(acoesOrc?.pode_pdf) : true;
+  const mostrarCancelar = ehOrc ? Boolean(acoesOrc?.pode_cancelar) : true;
+  const blocoAcoes = somenteLeitura ? null : (
+    <View style={{ gap: 8 }} testID="order-actions">
+      {ehOrc ? null : <SectionHeader title="Ações" />}
+      <Card style={{ padding: 14, gap: 10 }}>
+        {ehOrc && acoesOrc?.pode_converter && !queued ? (
+          <Botao
+            testID="orcamento-converter"
+            rotulo="Transformar em pedido"
+            icone="send"
+            nivel="principal"
+            desligado={!podeCriar || !hasLines || busy !== null}
+            ocupado={busy === 'convert'}
+            onPress={() => void transformar()}
+          />
+        ) : null}
+        {ehOrc && acoesOrc?.texto ? <Text style={t.small}>{acoesOrc.texto}</Text> : null}
+        {ehVendedor && (mostrarEditar || mostrarDuplicar) ? (
+          <View style={styles.actionsRow}>
+            {mostrarEditar ? (
+              <Botao testID="pedido-editar" rotulo="Editar" icone="edit" alto style={{ flex: 1 }} desligado={!canEdit || busy !== null} ocupado={busy === 'edit'} onPress={() => void startDraft('edit')} />
+            ) : null}
+            {mostrarDuplicar ? (
+              <Botao
+                testID="pedido-duplicar"
+                rotulo="Duplicar"
+                icone="copy"
+                alto
+                style={{ flex: 1 }}
+                desligado={!ehVendedor || !podeCriar || !podeDuplicarDoc || !hasLines || busy !== null}
+                ocupado={busy === 'duplicate'}
+                onPress={() => void startDraft('duplicate')}
+              />
+            ) : null}
+          </View>
+        ) : null}
+        <View style={styles.actionsRow}>
+          {mostrarPdf ? (
+            <Botao
+              testID="action-pdf"
+              rotulo="PDF"
+              icone="file"
+              alto
+              style={{ flex: 1 }}
+              desligado={!hasLines}
+              onPress={() => {
+                setSheetError(null);
+                setSheet('pdf');
+              }}
+            />
+          ) : null}
+          {mostrarCancelar ? (
+            <Botao
+              testID="pedido-excluir"
+              rotulo={ehOrc ? 'Cancelar orçamento' : 'Excluir'}
+              icone="trash"
+              nivel="perigo"
+              alto
+              style={{ flex: 1 }}
+              desligado={!podeExcluirDoc}
+              onPress={() => {
+                setSheetError(null);
+                setSheet('delete');
+              }}
+            />
+          ) : null}
+        </View>
+        {lockedReason ? (
+          <View style={styles.locked}>
+            <Icon name="lock" size={14} color={colors.ink3} />
+            <Text style={[t.small, { flex: 1 }]} testID="order-locked-reason">
+              {lockedReason}
+            </Text>
+          </View>
+        ) : null}
+        {actionError ? (
+          <Text style={[t.small, { color: colors.danger }]} testID="order-action-error">
+            {actionError}
+          </Text>
+        ) : null}
+      </Card>
+    </View>
+  );
+
   return (
     <ScrollView
       style={styles.root}
@@ -338,7 +427,7 @@ export default function OrderDetailScreen() {
       {queued ? (
         <View style={{ gap: 8 }}>
           <Banner>
-            {queued.failed ? `Recusado pelo servidor: ${queued.ultimo_erro}` : offline ? 'Na fila do aparelho. Envio automático quando o sinal voltar.' : 'Na fila do aparelho. Nova tentativa a cada 15 s.'}
+            {queued.failed ? textoNaoFoiAceito(queued.ultimo_erro ?? '') : offline ? 'Na fila do aparelho. Envio automático quando o sinal voltar.' : 'Na fila do aparelho. Nova tentativa a cada 15 s.'}
           </Banner>
           {!offline ? <Button label="Enviar agora" icon="send" variant="dark" loading={flushing} onPress={() => void reenviarFila().then(() => irParaPedidos())} /> : null}
           {qd && qd.notes.length > 0 ? <Text style={[t.small, { color: colors.accentInk }]}>{qd.notes.join(' ')}</Text> : null}
@@ -346,12 +435,11 @@ export default function OrderDetailScreen() {
       ) : null}
 
       <Card style={{ padding: 14, gap: 6 }}>
-        <Row label="Subtotal" value={formatBRL(subtotal)} />
-        {surchargePct > 0 ? <Row label={`Acréscimo do pedido ${formatPct(surchargePct)}`} value={`+ ${formatBRL(Math.max(0, total - subtotal))}`} /> : <Row label={`Desconto ${formatPct(discountPct)}`} value={`− ${formatBRL(discount)}`} />}
+        <Row label={ehOrc ? 'Total dos itens' : 'Subtotal'} value={formatBRL(subtotal)} />
+        {surchargePct > 0 ? <Row label={`Acréscimo do pedido ${formatPct(surchargePct)}`} value={`+ ${formatBRL(Math.max(0, total - subtotal))}`} /> : discount > 0 ? <Row label={ehOrc ? `Desconto do pedido (${formatPct(discountPct)})` : `Desconto ${formatPct(discountPct)}`} value={`− ${formatBRL(discount)}`} /> : null}
         {effectivePct !== null ? <Row label="Desconto efetivo (sem frete)" value={formatPct(effectivePct)} /> : null}
         <Row label={`Total · prazo ${terms}`} value={formatBRL(total)} strong />
         {base && !queued && base.branch_name ? <Row label="Filial" value={base.branch_name} /> : null}
-        {!queued && detail?.freight ? <Row label="Frete" value={textoFrete(detail.freight).replace(/^Frete: /, '')} /> : null}
         {!queued && detail?.price_table_name ? <Row label="Tabela de preço" value={detail.price_table_name} /> : null}
       </Card>
 
@@ -420,6 +508,8 @@ export default function OrderDetailScreen() {
         </Card>
       </View>
 
+      {ehOrc ? blocoAcoes : null}
+
       <View style={{ gap: 8 }}>
         <SectionHeader title="Histórico" />
         <Card style={{ padding: 14, gap: 12 }}>
@@ -445,93 +535,11 @@ export default function OrderDetailScreen() {
         </Card>
       </View>
 
-      {somenteLeitura ? null : (
-      <View style={{ gap: 8 }} testID="order-actions">
-        <SectionHeader title="Ações" />
-        <Card style={{ padding: 14, gap: 10 }}>
-          {ehOrc && acoesOrc?.pode_converter && !queued ? (
-            <Botao
-              testID="orcamento-converter"
-              rotulo="Transformar em pedido"
-              icone="send"
-              nivel="principal"
-              desligado={!podeCriar || !hasLines || busy !== null}
-              ocupado={busy === 'convert'}
-              onPress={() => void transformar()}
-            />
-          ) : null}
-          {ehOrc && acoesOrc?.texto ? <Text style={t.small}>{acoesOrc.texto}</Text> : null}
-          {ehVendedor ? (
-            <View style={styles.actionsRow}>
-              <Botao
-                testID="pedido-editar"
-                rotulo="Editar"
-                icone="edit"
-                alto
-                style={{ flex: 1 }}
-                desligado={!canEdit || busy !== null}
-                ocupado={busy === 'edit'}
-                onPress={() => void startDraft('edit')}
-              />
-              <Botao
-                testID="pedido-duplicar"
-                rotulo="Duplicar"
-                icone="copy"
-                alto
-                style={{ flex: 1 }}
-                desligado={!ehVendedor || !podeCriar || !podeDuplicarDoc || !hasLines || busy !== null}
-                ocupado={busy === 'duplicate'}
-                onPress={() => void startDraft('duplicate')}
-              />
-            </View>
-          ) : null}
-          <View style={styles.actionsRow}>
-            <Botao
-              testID="action-pdf"
-              rotulo="PDF"
-              icone="file"
-              alto
-              style={{ flex: 1 }}
-              desligado={!hasLines || (acoesOrc ? !acoesOrc.pode_pdf : false)}
-              onPress={() => {
-                setSheetError(null);
-                setSheet('pdf');
-              }}
-            />
-            <Botao
-              testID="pedido-excluir"
-              rotulo={ehOrc ? 'Cancelar orçamento' : 'Excluir'}
-              icone="trash"
-              nivel="perigo"
-              alto
-              style={{ flex: 1 }}
-              desligado={!podeExcluirDoc}
-              onPress={() => {
-                setSheetError(null);
-                setSheet('delete');
-              }}
-            />
-          </View>
-          {lockedReason ? (
-            <View style={styles.locked}>
-              <Icon name="lock" size={14} color={colors.ink3} />
-              <Text style={[t.small, { flex: 1 }]} testID="order-locked-reason">
-                {lockedReason}
-              </Text>
-            </View>
-          ) : null}
-          {actionError ? (
-            <Text style={[t.small, { color: colors.danger }]} testID="order-action-error">
-              {actionError}
-            </Text>
-          ) : null}
-        </Card>
-      </View>
-      )}
+      {ehOrc ? null : blocoAcoes}
 
-      <DeleteOrderSheet visible={sheet === 'delete'} title={title} queued={isQueued} busy={deleting} error={sheetError} onClose={() => setSheet(null)} onConfirm={(r) => void confirmDelete(r)} />
+      <DeleteOrderSheet visible={sheet === 'delete'} title={title} queued={isQueued} ehOrcamento={ehOrc} busy={deleting} error={sheetError} onClose={() => setSheet(null)} onConfirm={(r) => void confirmDelete(r)} />
       <DecisionSheet visible={sheet === 'reject'} title={title} busy={deciding} error={sheetError} onClose={() => setSheet(null)} onConfirm={(motivo) => void decidir('rejeitar', motivo)} />
-      <Folha visivel={conferencia !== null} onFechar={() => setConferencia(null)} rotuloFechar="Fechar" titulo="Mudou desde o orçamento" testID="folha-conferencia" rodape={{ rotulo: 'Voltar', onPress: () => setConferencia(null), testID: 'conferencia-voltar' }}>
+      <Folha visivel={transformarAberto} onFechar={() => setTransformarAberto(false)} rotuloFechar="Fechar" titulo={folhaTransformar.titulo} testID="folha-conferencia" rodape={{ rotulo: 'Voltar', onPress: () => setTransformarAberto(false), testID: 'conferencia-voltar' }}>
         <View style={{ gap: 8 }}>
           {conferencia?.bloqueio ? (
             <Text style={[t.smallStrong, { color: colors.danger }]} testID="conferencia-bloqueio">
@@ -543,18 +551,29 @@ export default function OrderDetailScreen() {
               {m}
             </Text>
           ))}
-          {conferencia && !conferencia.bloqueio ? (
+          {folhaTransformar.mostrarTotal && conferencia ? <LinhaValor rotulo="Total" valor={formatBRL(conferencia.total_cents)} destaque divisor testID="conferencia-total" /> : null}
+          {folhaTransformar.mostrarTotal && acoesOrc?.pode_editar && ehVendedor ? (
             <Botao
-              testID="conferencia-enviar"
-              rotulo="Enviar pedido"
-              nivel="principal"
-              ocupado={busy === 'convert'}
+              testID="conferencia-editar"
+              rotulo="Editar"
+              icone="edit"
               onPress={() => {
-                setConferencia(null);
-                void converter();
+                setTransformarAberto(false);
+                void startDraft('edit');
               }}
             />
           ) : null}
+          <OpcaoFolha
+            testID="conferencia-enviar"
+            icone="send"
+            titulo="Enviar pedido"
+            subtitulo={folhaTransformar.subtitulo}
+            desligado={!folhaTransformar.podeEnviar || busy === 'convert'}
+            onPress={() => {
+              setTransformarAberto(false);
+              void converter();
+            }}
+          />
         </View>
       </Folha>
       <PdfSheet visible={sheet === 'pdf'} busy={pdfBusy} error={sheetError} onClose={() => setSheet(null)} onPick={(v) => void exportPdfFor(v)} />
