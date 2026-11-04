@@ -52,12 +52,12 @@
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
  * `recriar: true` apaga TODAS as linhas do tenant demo (inclusive o que o app gravou no ensaio) e carrega do zero.
- * Só roda contra o Postgres local (exigirBancoLocal), como o seed da Fase M. Nunca toca linha de outro tenant.
+ * Só roda contra o Postgres local ou o servidor da demo com MACUXI_AMBIENTE=demo (exigirBancoDemo). Nunca toca linha de outro tenant.
  */
 import type { ClientBase } from 'pg';
 import { politicaDosParametros, revalidarPedido } from '../../../modules/vendedor/domain/aprovacao';
 import type { OrderStatus } from '../../../modules/vendedor/domain/order';
-import { exigirBancoLocal, hostDoCliente } from '../../src/config';
+import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeChave, idDeterministico, idMotivoPadrao, type CodigoMotivoPadrao } from '../../src/ids';
@@ -1089,7 +1089,7 @@ export interface ResultadoDemo {
  * zerados a cada carga (a demo não trava por senha digitada errado no ensaio).
  */
 export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; recriar?: boolean } & OpcoesDemo = {}): Promise<ResultadoDemo> {
-  exigirBancoLocal(hostDoCliente(admin), 'Seed da base de demonstração');
+  exigirBancoDemo(hostDoCliente(admin), 'Seed da base de demonstração');
   const senha = opcoes.senha ?? process.env.MACUXI_SENHA_DEMO ?? SENHA_DEMO_PADRAO;
   const faltando = (await admin.query<{ t: string }>("select t from unnest($1::text[]) t where to_regclass(t) is null", [[...ORDEM_DEMO]])).rows;
   if (faltando.length > 0) {

@@ -19,7 +19,7 @@
  * de tenant, usuários e clientes seguem a mesma chave `demo:<...>` (conferido em db/testes/pesquisa.test.ts).
  */
 import type { ClientBase } from 'pg';
-import { exigirBancoLocal, hostDoCliente } from '../../src/config';
+import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { hojeNoFuso, instante, somarDias } from '../../src/datas';
 import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
@@ -227,7 +227,7 @@ export async function gravarPesquisaDemo(admin: ClientBase, opcoes: { hoje?: str
 
 /** Carga avulsa (fora do carregarDemo), numa transação própria. Só no Postgres local, como o seed demo. */
 export async function carregarPesquisaDemo(admin: ClientBase, opcoes: { hoje?: string } = {}): Promise<DadosPesquisaDemo> {
-  exigirBancoLocal(hostDoCliente(admin), 'Seed da base de demonstração (Pesquisa)');
+  exigirBancoDemo(hostDoCliente(admin), 'Seed da base de demonstração (Pesquisa)');
   const tenant = await admin.query('select 1 from plataforma.tenant where id = $1', [T]);
   if (tenant.rowCount === 0) throw new Error('[db] seed demo (pesquisa): carregue a base demo antes ("banco seed demo").');
   await admin.query('begin');

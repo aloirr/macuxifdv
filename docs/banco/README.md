@@ -74,11 +74,14 @@ esquecidos). Desde então são **dois serviços** no `db/docker-compose.yml`:
   3. padrão: `localhost:5434` (`MACUXI_PG_TESTES_PORTA`).
   Atenção: quem põe `MACUXI_PG_PORTA` no `.env` local (ex.: 5433 por porta ocupada) volta a testar no servidor da demo;
   nesse caso defina também `MACUXI_PG_TESTES_URL`.
-- **Limpeza de sobras no Postgres da demo**: `node db/scripts/limpar-bancos-teste.mjs` só **lista**; com `--apagar`
-  apaga um por vez, só nomes no padrão exato de quem cria banco de teste (`macuxi_teste_<base36>_<pid>_<hex6>`,
-  de `criarBancoDeTeste`, e `macuxi_conector_teste_<base36>_<hex6>`, do teste do Conector); nunca `macuxi`
-  (`MACUXI_PG_BANCO`), `postgres` nem `template*`; pula banco com conexão aberta (`--forcar` derruba). Só host local;
-  `--porta 5434` limpa o dos testes. Node puro + `pg` (sem tsx).
+- **Limpeza de sobras de teste** (`node db/scripts/limpar-bancos-teste.mjs`, padrão **5434**, o Postgres dos testes;
+  a demo só com `--porta 5432` explícito): sem opção só **lista**; com `--apagar` apaga um por vez. Só sai banco
+  com nome no padrão exato de quem cria banco de teste (`macuxi_teste_<base36>_<pid>_<hex6>`, de `criarBancoDeTeste`,
+  e `macuxi_conector_teste_<base36>_<hex6>`, do teste do Conector), **sem conexão** em `pg_stat_activity` e **criado há
+  mais de 2 h** (`--idade-min-horas H`; idade = a data mais nova entre o `Date.now()` do nome e o `PG_VERSION` do banco).
+  Pode rodar com outra rodada de testes em andamento. Nunca `macuxi` (`MACUXI_PG_BANCO`), `postgres` nem `template*`;
+  `--forcar` derruba conexões (não ignora a idade). Mostra o espaço liberado. Só host local. Node puro + `pg` (sem tsx).
+  04/11: 58 órfãos apagados na 5434 (1.024,5 MB; tmpfs de 1.151 para 138 MB).
 
 Porta ocupada (outro Postgres em 5432)? Defina `MACUXI_PG_PORTA=5433` no `.env` da raiz: o compose e
 o CLI usam a mesma variável.
@@ -185,6 +188,18 @@ diferente de `production`. Fora disso:
   `banco papeis`/`migrar`/`criar-teste` nunca gravam a senha pública no papel `macuxi_app`;
   `garantirPapelApp` ainda recusa a senha pública se o cliente não estiver num host local (segunda trava).
 - `banco seed fase-m` (`carregarFaseM`: senha `demo-macuxi` e usuários fictícios) **recusa** rodar.
+- `banco seed demo` (`carregarDemo` e os seeds de módulo em `db/seeds/demo/`) recusa, **salvo com `MACUXI_AMBIENTE=demo`**
+  (valor exato; `exigirBancoDemo`): é a permissão explícita do servidor da demo (VM da Magalu, ADR 0020 §5), que vale
+  também com `NODE_ENV=production`. Ela não libera a senha pública dos papéis, o seed da Fase M nem a fixture dos testes.
+  Na VM, a senha dos logins da demo é `MACUXI_SENHA_DEMO`, se definida, ou a padrão da seção "Base de demo".
+- **API e worker usam `lerConfigApp`**: fora do local, exige só `MACUXI_PG_APP_SENHA` (e `MACUXI_PG_WORKER_SENHA` para o
+  worker); `MACUXI_PG_ADMIN_SENHA` é opcional e, sem ela, `urlAdmin` lança. Migrações, papéis e seeds seguem com
+  `lerConfig` (admin obrigatório).
+- `garantirPapel` (papéis `macuxi_app`/`macuxi_worker`) desliga o log de comando na própria transação
+  (`log_min_duration_statement=-1`, `log_statement=none`, só se o admin for superusuário): a senha do `ALTER ROLE` não
+  cai no log do servidor.
+- Backup do servidor da demo: [db/backup/LEIA-ME.md](../../db/backup/LEIA-ME.md). Faz `pg_dump` diário para
+  `backups/` no bucket, com 7 dias de retenção e restauração testada em `db/testes/backup.test.ts`.
 - Segredos só no `.env` (CLAUDE.md regra 8). Testes: `db/testes/ambiente-local.test.ts`.
 
 ## Logs do Postgres
@@ -211,7 +226,8 @@ parâmetros da consulta (aqui só dados fictícios). Em nuvem, para não levar d
 | Parar e APAGAR o volume de dados | `pnpm --filter @macuxi/db banco derrubar --limpar` |
 | Testes do banco | `pnpm --filter @macuxi/db test` |
 | Subir só o Postgres dos testes (5434, tmpfs) | `pnpm --filter @macuxi/db banco subir-testes` |
-| Listar / apagar sobras de teste no Postgres da demo | `pnpm --filter @macuxi/db limpar-testes` · `... limpar-testes -- --apagar` |
+| Listar / apagar sobras de teste (5434; sem conexão e com mais de 2 h) | `pnpm --filter @macuxi/db limpar-testes` · `... limpar-testes -- --apagar` |
+| Backup / restauração da demo (VM) | `db/backup/backup-vm.sh` · `db/backup/restaurar-vm.sh` ([LEIA-ME](../../db/backup/LEIA-ME.md)) |
 
 Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 
@@ -291,6 +307,8 @@ await pool.end(); await banco.apagar();
 | `db/src/docker.ts` | acha o Docker (inclusive fora do PATH no Windows), diz se está rodando, sobe o compose |
 | `db/testes/global-setup.ts`, `db/testes/aviso-pulos.ts` | setup dos testes de banco (sobe/pula/exige) e aviso de pulados |
 | `db/scripts/medir-sync.ts` | medição do sync com volume ([desempenho-sync.md](desempenho-sync.md)) |
+| `db/scripts/limpar-bancos-teste.mjs` | limpeza das sobras de teste (lista; `--apagar`; idade e conexão) |
+| `db/backup/` | backup da demo para o Object Storage: `backup.mjs`/`s3.mjs` (Node puro, SigV4), `backup-vm.sh`, `restaurar-vm.sh`, `contagem.sql` |
 
 ## Migrações: regras
 1. Uma migração = `NNNN_nome.up.sql` + `NNNN_nome.down.sql`, numeração contínua (o executor recusa buraco).

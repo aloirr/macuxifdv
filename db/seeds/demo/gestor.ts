@@ -27,7 +27,7 @@ import { achatarEstado } from '../../../modules/gestor/db/projecao';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from '../../../modules/gestor/domain/projecao';
 import { statusDoContrato } from '../../../modules/vendedor/domain/aprovacao';
 import type { OrderStatus } from '../../../modules/vendedor/domain/order';
-import { exigirBancoLocal, hostDoCliente } from '../../src/config';
+import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { idDeterministico } from '../../src/ids';
 import { gravarLinhas, type Linha } from '../../src/gravar';
 // só TIPO de demo.ts: demo.ts importa este arquivo (import de valor aqui seria circular)
@@ -164,7 +164,7 @@ export interface ResultadoDemoGestor {
  * migrações até a 0014 (schema gestor).
  */
 export async function carregarDemoGestor(admin: ClientBase, dados: DadosDemo): Promise<ResultadoDemoGestor> {
-  exigirBancoLocal(hostDoCliente(admin), 'Seed da base de demonstração do Gestor');
+  exigirBancoDemo(hostDoCliente(admin), 'Seed da base de demonstração do Gestor');
   const falta = await admin.query<{ ok: boolean }>("select to_regclass('gestor.projecao_fato') is not null as ok");
   if (!falta.rows[0]?.ok) throw new Error('[db] base de demo do Gestor precisa da migração 0014_gestor: rode "banco migrar up" antes.');
   const g = dadosGestorDemo(dados);
