@@ -36,6 +36,8 @@
  *   pendências (A confirmada pelo analista + aguardando até 2099; B recusada pelo admin) com auditoria, cursor, reconciliação,
  *   mapeamento, fila do ERP (p3 de A, p1 de B) com retorno e item descartado. Instantes operacionais relativos ao "hoje" da carga (dia de operação = hoje − 2; T-0042). Os módulos dos
  *   tenants NÃO mudaram (a licença 'integracao' não está na fixture).
+ * - T-0071 (0020): relacionados do produto (catalogo.produto_relacao, grupo 0x4e) em A (ativa, inativa e apagada) e em B;
+ *   os pedidos da fixture seguem com ajuste em % (colunas de R$ no padrão 0/0/'pct').
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
@@ -120,6 +122,8 @@ const G = {
   busca_log: 0x4d,
   // 0019 (T-0066)
   nota_erp: 0x2f,
+  // 0020 (T-0071)
+  produto_relacao: 0x4e,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -369,6 +373,8 @@ export const ORDEM_TABELAS = [
   ...ORDEM_T0013,
   // 0019 (T-0066): notas do ERP (FK do cliente)
   'core.nota_erp',
+  // 0020 (T-0071): relacionados do produto (sem FK para core.produto)
+  'catalogo.produto_relacao',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -413,6 +419,26 @@ function dadosNotaErp(hojeA: string, hojeB: string): Linha[] {
     nota(a('nota_erp', 2), A.tenantId, A.clientes.c1, diaA, { tipo: 'faturamento', numero: '5002', external_id: 'NF-1-5002', total_cents: 120_000, cancelada: true }),
     nota(a('nota_erp', 3), A.tenantId, A.clientes.c1, mesPassadoA, { tipo: 'devolucao', numero: '7001', external_id: 'ND-1-7001', total_cents: 30_000, quantidade_itens: 1 }),
     nota(b('nota_erp', 1), B.tenantId, B.clientes.c1, somarDias(hojeB, -1), { tipo: 'faturamento', numero: 'B-900', external_id: 'NF-1-B900', total_cents: 150_000 }),
+  ];
+}
+
+/**
+ * 0020 (T-0071): relacionados do produto (RF-CAT-03). A: p2 (filtro) complementa p1 (pastilha) e p1 é o substituto do p2,
+ * mais uma relação INATIVA (superior) e uma APAGADA (soft delete) do mesmo par, para o pull e a consulta das sugestões
+ * filtrarem ativo/deleted_at. B: o p1 com um superior de id que não está na carga (sem FK: a API do Catálogo valida).
+ */
+function dadosProdutoRelacao(): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const rel = (id: string, tenant_id: string, produto_id: string, relacionado_id: string, tipo: string, extra: Partial<Linha> = {}): Linha => ({
+    id, tenant_id, produto_id, relacionado_id, tipo, ordem: 1, ativo: true, deleted_at: null, external_id: null, ...extra,
+  });
+  return [
+    rel(a('produto_relacao', 1), A.tenantId, A.produtos.p1, A.produtos.p2, 'complementar', { external_id: 'REL-A-1' }),
+    rel(a('produto_relacao', 2), A.tenantId, A.produtos.p2, A.produtos.p1, 'substituto'),
+    rel(a('produto_relacao', 3), A.tenantId, A.produtos.p1, A.produtos.p2, 'superior', { ordem: 2, ativo: false }),
+    rel(a('produto_relacao', 4), A.tenantId, A.produtos.p2, A.produtos.p1, 'complementar', { deleted_at: DATA_FIXA_ACESSO }),
+    rel(b('produto_relacao', 1), B.tenantId, b('produto', 1), b('produto', 2), 'superior', { external_id: 'REL-B-1' }),
   ];
 }
 
@@ -559,6 +585,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosT0032(hojeA),
     ...dadosT0013(hojeA, hojeB),
     'core.nota_erp': dadosNotaErp(hojeA, hojeB),
+    'catalogo.produto_relacao': dadosProdutoRelacao(),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {

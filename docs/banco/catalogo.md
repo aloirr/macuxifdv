@@ -109,6 +109,34 @@ campos comuns, RLS forçado, `updated_at` por gatilho e FKs compostas só dentro
 33 produtos (linha automotiva + detergente 5 L para a busca em linguagem natural: "óleo para moto 150 cilindradas" acha
 `OLE-4T-1L`), árvore de 3 níveis (Alimentos, Bebidas, Limpeza e higiene, Automotivo), conteúdo, atributos, 5 sinônimos,
 documento de busca, 2 depósitos (CD Manaus, Loja Centro) com rupturas e saldos baixos, CX em 9 produtos. O preço
-próprio da CX (3 produtos no Varejo) está pronto no seed mas DESLIGADO (`PRECO_PROPRIO_CX_LIGADO = false`) até a consulta
+próprio da CX (3 produtos no Varejo; o café entrou na T-0071) estava pronto no seed mas DESLIGADO — **ligado na T-0071**, ver "produto_relacao" abaixo — (`PRECO_PROPRIO_CX_LIGADO = false`) até a consulta
 `catalogo.precos_cliente@1` filtrar `unidade is null` para o preço base: hoje ela lê todas as linhas do produto e leria a
 da CX como preço da UN.
+
+## produto_relacao (0020, `0020_pedido_ajuste_valor_produto_relacao`; T-0071, RF-CAT-03)
+Relacionados do produto, base das sugestões do novo pedido (consulta `catalogo.sugestoes_pedido@1`, desenho
+`docs/desenho/T-0071.md` §4.2) e da ficha. Pull escopo **tenant** (~5 linhas por produto; entidade `produto_relacao`).
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `produto_id` | uuid not null | produto de origem (core.produto, **sem FK**: fronteira; a API do Catálogo valida) |
+| `relacionado_id` | uuid not null | produto sugerido (sem FK); `produto_relacao_nao_e_de_si`: diferente de `produto_id` |
+| `tipo` | text not null | `complementar` ("Combina com o pedido"), `superior` ("Leve mais": versão superior), `substituto` (ficha/ruptura) — `produto_relacao_tipo_valido` = `TIPOS_RELACAO_PRODUTO` do contrato |
+| `ordem` | integer not null default 0 | posição dentro do produto (a consulta percorre os produtos do pedido na ordem das linhas e, em cada um, pela `ordem`) |
+| `ativo` | boolean not null default true | inativa = não sugere (fica para o BKO reativar) |
+
+Únicos/índices: `produto_relacao_uk (tenant_id, produto_id, relacionado_id, tipo) where deleted_at is null` (também atende a
+consulta das sugestões `produto_id = any(...) and tipo in (...)`), `produto_relacao_external_uk` (external_id vivo),
+`produto_relacao_sync_ix (tenant_id, updated_at, id)`. RLS forçado (`isolamento_tenant`), gatilho `produto_relacao_updated_at`,
+grant select/insert/update/delete ao `macuxi_app`. Origem hoje: base demo; depois entidade canônica no Hub (ERP) e aba
+"Relacionados" no BKO do Catálogo (fila de corte). Volta: `.down.sql` apaga a tabela com os dados.
+Testes: `db/testes/ajuste-valor-produto-relacao.test.ts` (RLS, checks, únicos, gatilho, up/down).
+
+### Base de demo (T-0071)
+Produtos novos (Varejo e Atacado, com estoque): `FIL-103` Filtro de papel 103 c/ 30 (R$ 5,49), `LPO-400` Leite em pó integral
+400 g (R$ 16,90) e `AGU-1500` Água mineral 1,5 L (fardo 6) (R$ 19,90). `ACU-1K` Açúcar cristal 1 kg passa a R$ 4,99.
+Relações: `CAF-500` → `ACU-1K`, `FIL-103`, `LPO-400` (complementar, ordem 1..3); `AGU-500` → `AGU-1500` (superior). Embalagens
+da referência: `CAF-500` CX c/ 12 com **preço próprio** no Varejo (R$ 215,46 = 18,90 × 12 × 0,95) e `BIS-400` CX c/ 20 sem preço
+próprio (UN × fator = R$ 117,80). O preço próprio da CX ficou **ligado** (`PRECO_PROPRIO_CX_LIGADO = true`): depende da correção
+de `precosDoCliente` (só `unidade is null` no preço base; linhas com unidade em `embalagens[]`), entregue pelo modulo-catalogo na
+mesma T-0071 — carregar esta base na demo só depois dela.

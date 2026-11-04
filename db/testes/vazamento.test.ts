@@ -85,6 +85,8 @@ describe.skipIf(semBanco())('RLS: vazamento entre tenants (papel de aplicação)
     expect(nomes).toEqual(expect.arrayContaining([...ORDEM_TREINAMENTO]));
     // T-0063 (0018): medidas do tenant (lista inicial semeada pelo gatilho em A e B)
     expect(nomes).toEqual(expect.arrayContaining(['core.medida']));
+    // T-0071 (0020): relacionados do produto do Catálogo
+    expect(nomes).toEqual(expect.arrayContaining(['catalogo.produto_relacao']));
     expect(nomes.filter((n) => !idDeB.has(n))).toEqual([]);
   });
 

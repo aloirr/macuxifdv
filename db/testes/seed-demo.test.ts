@@ -9,7 +9,7 @@ import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenant
 import { politicaDosParametros, revalidarPedido } from '../../modules/vendedor/domain/aprovacao';
 import {
   ALCADAS_DEMO, carregarDemo, CLIENTE_SEM_CEP_DEMO, PRECO_PROPRIO_CX_LIGADO, CODIGO_DEMO, dadosDemo, DESCONTO_MAXIMO_PROPRIO_DEMO, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
-  METAS_MES_ANTERIOR_DEMO, TIPO_METAS_DEMO, USUARIOS_DEMO,
+  METAS_MES_ANTERIOR_DEMO, TIPO_METAS_DEMO, USUARIOS_DEMO, CLIENTE_REFERENCIA_DEMO, codigoErpDemo, RELACOES_DEMO,
 } from '../seeds/demo/demo';
 import { dadosDemoMedidas, MEDIDAS_ATIVAS_DEMO } from '../seeds/demo/medidas';
 import { dadosGestorDemo, MODULO_GESTOR, PERFIS_GESTOR_DEMO, projecaoDemo } from '../seeds/demo/gestor';
@@ -212,6 +212,81 @@ describe('base de demo (estático)', () => {
     });
   });
 
+  describe('T-0071: referência do novo pedido (Mini Box Japiim, preços e embalagens, relacionados, clientes parecidos, alçada)', () => {
+    const porSku = new Map(d['core.produto'].map((p) => [String(p.sku), String(p.id)]));
+    const varejo = d['catalogo.tabela_preco'].find((t) => t.codigo === 'VAREJO')!.id;
+    const precoVarejo = (sku: string, unidade: string | null = null) =>
+      d['catalogo.tabela_preco_item'].find((i) => i.tabela_preco_id === varejo && i.produto_id === porSku.get(sku) && i.unidade === unidade)?.preco_cents as number | undefined;
+    const unidadesDe = (sku: string) => d['core.produto_unidade'].filter((u) => u.produto_id === porSku.get(sku)).map((u) => [u.unidade, u.fator, u.padrao]);
+    const miniBox = idClienteDemo(CLIENTE_REFERENCIA_DEMO);
+
+    it('Mini Box Japiim: cód. C5110, Mercadinho, Av. Ajuricaba 1200 (CEP 69077-000) + 1 endereço de entrega, no Varejo, sem vencido nem bloqueio, prazos À vista/28/28-56', () => {
+      const c = d['core.cliente'].find((x) => x.id === miniBox)!;
+      expect(c).toMatchObject({ nome_fantasia: 'Mini Box Japiim', external_id: 'C5110', segmento: 'Mercadinho', logradouro: 'Av. Ajuricaba', numero: '1200', bairro: 'Japiim', cep: '69077000', cadastro_incompleto: false });
+      expect(codigoErpDemo(CLIENTE_REFERENCIA_DEMO)).toBe('C5110');
+      expect(new Set(d['core.cliente'].map((x) => x.external_id)).size).toBe(30);
+      const enderecos = d['core.cliente_endereco'].filter((e) => e.cliente_id === miniBox);
+      expect(enderecos.map((e) => [e.tipo, e.principal]).sort()).toEqual([['entrega', false], ['principal', true]]);
+      expect(enderecos.find((e) => e.principal)).toMatchObject({ logradouro: 'Av. Ajuricaba', numero: '1200', cep: '69077000' });
+      expect(d['catalogo.cliente_tabela_preco'].find((x) => x.cliente_id === miniBox)!.tabela_preco_id).toBe(varejo);
+      expect(d['core.cliente_financeiro'].find((f) => f.cliente_id === miniBox)).toMatchObject({ bloqueado: false });
+      expect(d['core.titulo'].filter((t) => t.cliente_id === miniBox && t.situacao === 'aberto' && String(t.vencimento) < hoje)).toEqual([]);
+      const prazos = d['vendedor.cliente_condicao'].filter((x) => x.cliente_id === miniBox).map((x) => x.condicao_pagamento_id);
+      const codigo = new Map(d['vendedor.condicao_pagamento'].map((x) => [x.id, x.codigo]));
+      expect(prazos.map((x) => codigo.get(x)).sort()).toEqual(['28-56', '28D', 'AVISTA']);
+      // está na carteira do Lucas e na rota de hoje dele
+      expect(d['core.carteira'].some((x) => x.cliente_id === miniBox && x.usuario_id === idUsuarioDemo('vendedor'))).toBe(true);
+    });
+
+    it('preços e medidas da referência: AGU-500 FD R$ 17,90; CAF-500 UN R$ 18,90 com CX c/ 12 de preço próprio R$ 215,46; BIS-400 CX c/ 20 = R$ 117,80; tabela R$ 398,30', () => {
+      expect([precoVarejo('AGU-500'), d['core.produto'].find((p) => p.sku === 'AGU-500')!.unidade]).toEqual([1790, 'FD']);
+      expect(precoVarejo('CAF-500')).toBe(1890);
+      expect(unidadesDe('CAF-500')).toEqual([['UN', 1, true], ['CX', 12, false]]);
+      expect(precoVarejo('CAF-500', 'CX')).toBe(21_546);
+      expect(Math.round(1890 * 12 * 0.95)).toBe(21_546);
+      expect(unidadesDe('BIS-400')).toEqual([['UN', 1, true], ['CX', 20, false]]);
+      expect(precoVarejo('BIS-400', 'CX')).toBeUndefined(); // sem preço próprio: UN × fator
+      expect(precoVarejo('BIS-400')! * 20).toBe(11_780);
+      // 3 FD de água + 12 UN de café + 1 CX de biscoito (desenho §3.2)
+      expect(3 * precoVarejo('AGU-500')! + 12 * precoVarejo('CAF-500')! + 20 * precoVarejo('BIS-400')!).toBe(39_830);
+      expect(ALCADAS_DEMO['alcada.vendedor_pct']).toBe(5);
+    });
+
+    it('relacionados: complementares do café (açúcar R$ 4,99, filtro R$ 5,49, leite em pó R$ 16,90) e superior da água (1,5 L FD R$ 19,90), com estoque', () => {
+      const rel = d['catalogo.produto_relacao'];
+      expect(rel).toHaveLength(RELACOES_DEMO.length);
+      const do_ = (sku: string, tipo: string) => rel.filter((r) => r.produto_id === porSku.get(sku) && r.tipo === tipo).sort((x, y) => Number(x.ordem) - Number(y.ordem)).map((r) => r.relacionado_id);
+      expect(do_('CAF-500', 'complementar')).toEqual(['ACU-1K', 'FIL-103', 'LPO-400'].map((s) => porSku.get(s)));
+      expect(do_('AGU-500', 'superior')).toEqual([porSku.get('AGU-1500')]);
+      expect(['ACU-1K', 'FIL-103', 'LPO-400', 'AGU-1500'].map((s) => precoVarejo(s))).toEqual([499, 549, 1690, 1990]);
+      expect(d['core.produto'].find((p) => p.sku === 'AGU-1500')!.unidade).toBe('FD');
+      const saldo = (sku: string) => d['catalogo.estoque_saldo'].filter((e) => e.produto_id === porSku.get(sku)).reduce((t, e) => t + Number(e.quantidade), 0);
+      for (const sku of ['ACU-1K', 'FIL-103', 'LPO-400', 'AGU-1500']) expect(saldo(sku), sku).toBeGreaterThan(0);
+      // "Leve mais": a CX do café exige estoque >= fator na unidade base
+      expect(saldo('CAF-500')).toBeGreaterThanOrEqual(12);
+      for (const r of rel) expect(r.produto_id).not.toBe(r.relacionado_id);
+      expect(new Set(rel.map((r) => `${String(r.produto_id)}|${String(r.relacionado_id)}|${String(r.tipo)}`)).size).toBe(rel.length);
+      // todo produto das relações existe na base (sem FK no banco: a base garante)
+      const ids = new Set(porSku.values());
+      for (const r of rel) expect(ids.has(String(r.produto_id)) && ids.has(String(r.relacionado_id))).toBe(true);
+    });
+
+    it('clientes parecidos (desenho §4.3): 2 mercadinhos do Lucas com pedido recente que conta (nem cancelado nem rejeitado), só com itens da referência ou complementares', () => {
+      const lucas = idUsuarioDemo('vendedor');
+      const carteira = new Set(d['core.carteira'].filter((x) => x.usuario_id === lucas && x.papel === 'vendedor').map((x) => x.cliente_id));
+      const mercadinhos = new Set(d['core.cliente'].filter((c) => c.segmento === 'Mercadinho' && c.id !== miniBox && carteira.has(c.id)).map((c) => c.id));
+      const contam = d['vendedor.pedido'].filter((p) => p.vendedor_id === lucas && mercadinhos.has(p.cliente_id) && !['cancelled', 'rejected'].includes(String(p.status)));
+      expect(new Set(contam.map((p) => p.cliente_id)).size).toBe(2);
+      expect(contam.every((p) => String(p.created_at) >= `${somarDias(hoje, -90)}`)).toBe(true);
+      const skus = new Set(d['vendedor.pedido_item'].filter((i) => contam.some((p) => p.id === i.pedido_id)).map((i) => String(i.produto_sku)));
+      expect([...skus].sort()).toEqual(['ACU-1K', 'AGU-500', 'BIS-400', 'CAF-500', 'FIL-103', 'LPO-400']);
+      // o Mini Box não tem pedido (nada a tirar do "Combina" por já ter comprado)
+      expect(d['vendedor.pedido'].filter((p) => p.cliente_id === miniBox)).toEqual([]);
+      // 11 pedidos na base: o próximo número (orçamento da referência) é o 000012
+      expect(d['vendedor.numeracao_pedido'][0]!.ultimo).toBe(11);
+    });
+  });
+
   describe('T-0029: fatia do pedido (preço, condições, alçadas, gerente e pedidos)', () => {
     const pedidos = d['vendedor.pedido'];
     const tabelaDoCliente = new Map(d['catalogo.cliente_tabela_preco'].map((x) => [x.cliente_id, x.tabela_preco_id]));
@@ -284,9 +359,9 @@ describe('base de demo (estático)', () => {
       expect(pedidos.filter((p) => p.status === 'cancelled')).toHaveLength(1);
       expect(pedidos.every((p) => ['approved', 'pending_approval', 'rejected', 'cancelled'].includes(String(p.status)))).toBe(true);
       expect(pedidos.filter((p) => p.status === 'approved').every((p) => p.aprovacao_automatica === true)).toBe(true);
-      // o Lucas segue com 7 pedidos e 1 aguardando aprovação (o "de ontem", do recado)
+      // o Lucas com 8 pedidos (7 + o p11 da T-0071, clientes parecidos) e 1 aguardando aprovação (o "de ontem", do recado)
       const lucas = pedidos.filter((p) => p.vendedor_id === idUsuarioDemo('vendedor'));
-      expect([lucas.length, lucas.filter((p) => p.status === 'pending_approval').length]).toEqual([7, 1]);
+      expect([lucas.length, lucas.filter((p) => p.status === 'pending_approval').length]).toEqual([8, 1]);
     });
 
     it('pedidos recalculados pela tabela do cliente, com número, retratos e condição permitida', () => {
@@ -534,6 +609,20 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
       await c.query('delete from core.meta where id = $1', [ensaio]);
       await c.query('update core.meta set deleted_at = null where id = $1', [daSeed.id]);
     });
+  });
+
+  it('T-0071: recarga sem --recriar com a numeração dos pedidos do seed trocada (p11 entrou no meio da linha do tempo) volta à do seed sem violar o único', async () => {
+    const seed = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'];
+    const [x, y] = [seed[0]!, seed[1]!];
+    // simula a base de antes: dois pedidos do seed com os números trocados
+    await comAdmin(b.nome, async (c) => {
+      await c.query('update vendedor.pedido set numero = null where id = $1', [x.id]);
+      await c.query('update vendedor.pedido set numero = $2 where id = $1', [y.id, x.numero]);
+      await c.query('update vendedor.pedido set numero = $2 where id = $1', [x.id, y.numero]);
+    });
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+    const r = await comAdmin(b.nome, (c) => c.query<{ id: string; numero: string }>('select id, numero from vendedor.pedido where id = any($1::uuid[]) order by numero', [[x.id, y.id]]));
+    expect(Object.fromEntries(r.rows.map((l) => [l.id, l.numero]))).toEqual({ [String(x.id)]: x.numero, [String(y.id)]: y.numero });
   });
 
   it('recarga sem --recriar com a unidade padrão trocada (PAP-4 PC→UN, 02/11): volta à do seed sem violar o único', async () => {

@@ -184,3 +184,36 @@ PDF: "CX c/ 12" = `medida` + `quantidade_embalagem`.
 Espelho Drizzle em `modules/vendedor/db/nuvem.ts` (T-0070): as três colunas como comuns, documentadas "somente leitura — nunca grave"
 (`quantidade_embalagem`/`quantidade_unidades` com `$defaultFn` só para o insert tipado; o gatilho sobrescreve).
 `COLUNAS_SEM_ESPELHO_DRIZZLE` (`db/src/excecoes.ts`) ficou vazia.
+
+## 0020 — ajuste em R$ no pedido e no item (`0020_pedido_ajuste_valor_produto_relacao`; T-0071, RN-VEN-02/03/18)
+Desenho `docs/desenho/T-0071.md` §5 (premissas confirmadas em R-20261103-140707). **Aditiva**: padrões constantes, nenhuma
+linha reescrita; pedido anterior fica `0`/`0`/`'pct'` (quem precisa do R$ dele usa Σ (`preco_unitario_cents` × `quantidade`) − `total_cents`).
+
+**pedido** (novas): `desconto_valor_cents` e `acrescimo_valor_cents` bigint not null default 0 = o R$ do ajuste do PEDIDO,
+**sobre o total dos itens** (digitado, ou derivado do % pela API); `ajuste_em` text not null default `'pct'` ∈ `pct | valor`
+(`MODOS_AJUSTE` no Drizzle) = o que o vendedor digitou (Editar e Duplicar reabrem no mesmo modo). `desconto_pct`/`acrescimo_pct`
+continuam com o % (digitado, ou o equivalente com 2 casas no modo `valor`): quem já lê o pedido não muda.
+CHECKs: `pedido_ajuste_valor_nao_negativo` (>= 0), `pedido_ajuste_valor_exclusivo` (desconto **ou** acréscimo em R$),
+`pedido_ajuste_sentido_coerente` (% e R$ em sentidos opostos são recusados: desconto em R$ exige `acrescimo_pct = 0` e acréscimo em
+R$ exige `desconto_pct = 0`), `pedido_ajuste_em_valido`. "R$ do pedido > total dos itens" é recusado pela API (`ajuste_invalido`).
+Índice **`pedido_orcamento_aberto_ix`** `(tenant_id, vendedor_id, orcamento_validade) where tipo = 'orcamento' and convertido_em
+is null and deleted_at is null`: lista de Orçamentos por vendedor/validade e janela do pull (orçamento aberto entra mesmo com
+mais de 90 dias; desenho §1.4 b).
+
+**pedido_item** (novas): `desconto_unitario_cents` e `acrescimo_unitario_cents` bigint not null default 0 = R$ por unidade da
+**medida vendida** (1 FD, 1 CX, 1 UN), **sempre gravado** (digitado, ou `preco_tabela_cents − preco_unitario_cents` no modo %);
+`ajuste_em` ∈ `pct | valor`. Semântica gravada (desenho §2.1): `preco_unitario_cents` = preço final da medida vendida depois do
+ajuste do item e antes do ajuste do pedido; `total_cents` da linha = `preco_unitario_cents × quantidade − rateio do ajuste do pedido`.
+CHECKs: `pedido_item_ajuste_valor_nao_negativo`, `pedido_item_ajuste_valor_exclusivo`, `pedido_item_ajuste_sentido_coerente`
+(como no pedido, contra `desconto_pct`/`acrescimo_pct` do item), **`pedido_item_desconto_unitario_ate_tabela`**
+(`desconto_unitario_cents <= preco_tabela_cents`), **`pedido_item_ajuste_unitario_coerente`** (com R$ gravado:
+`preco_unitario_cents = preco_tabela_cents − desconto_unitario_cents + acrescimo_unitario_cents`; item legado 0/0 fica fora) e
+`pedido_item_ajuste_em_valido`. O teto do preço mínimo (RN-VEN-11) continua na API (`preco_abaixo_minimo`).
+Caso da referência (desenho §3.2): café 1890 − R$ 1,00 → `desconto_unitario_cents = 100`, `preco_unitario_cents = 1790`,
+`desconto_pct = 5.29`, `ajuste_em = 'valor'`; água 1790 com 5% → 1701, `desconto_unitario_cents = 89`, `ajuste_em = 'pct'`.
+**Volta** (`.down.sql`): apaga as colunas e o índice; o pedido mantém o % equivalente, o preço final e o total (só se perde o
+modo digitado e o R$ exato). Testes: `db/testes/ajuste-valor-produto-relacao.test.ts` (checks, padrão, up/down com dados).
+
+**Base de demo (T-0071)**: cliente **Mini Box Japiim** (`C5110`, Mercadinho, Av. Ajuricaba 1200 + endereço de entrega, sem
+título vencido nem bloqueio, condições À vista/28/28-56) para reproduzir a referência; pedidos recentes do Lucas em 3 mercadinhos
+(clientes parecidos, desenho §4.3); alçada do vendedor 5%. Ver [README.md](README.md), "Base de demo".
