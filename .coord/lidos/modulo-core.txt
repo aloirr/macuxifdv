@@ -11,3 +11,5 @@ R-20261031-123853-engenheiro-software
 R-20261031-130832-gerente-projetos
 R-20261031-182159-engenheiro-software
 R-20261031-212613-gerente-projetos
+R-20261104-004740-banco-dados
+R-20261104-043034-modulo-gestor

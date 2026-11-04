@@ -102,6 +102,11 @@ export const rotasDeMedidas: RotaModulo[] = [
         const existente = await medidaPorId(db, c.id);
         if (existente) return MedidaSchema.parse(existente);
         const igual = (await db.query<{ id: string; deleted_at: string | null }>('select id, deleted_at from core.medida where sigla = $1', [v.medida.sigla])).rows[0];
+        if (igual && igual.deleted_at === null && igual.id === c.id) {
+          // Corrida: a outra requisição com o MESMO id gravou entre a leitura por id e a leitura por sigla; devolve a medida dela.
+          const jaCriada = await medidaPorId(db, c.id);
+          if (jaCriada) return MedidaSchema.parse(jaCriada);
+        }
         if (igual && igual.deleted_at === null) throw new ErroRegraNegocio(ERROS_MEDIDA.duplicada, `Já existe a medida ${v.medida.sigla}. Use outra sigla ou edite a existente.`);
         const gravou = await comErroDeMedida(async () => {
           if (igual) {
