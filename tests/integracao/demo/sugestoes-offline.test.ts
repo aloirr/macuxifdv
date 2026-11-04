@@ -13,23 +13,15 @@
  *
  * Oráculo dos ids: o banco (relação ativa × preço na tabela do cliente × saldo > 0), não números fixos do seed.
  *
- * DEFEITO T-0071-P4 (04/11): a API não tem provedor de pull para `estoque_saldo` (modules/catalogo/api/sync.ts só publica preço,
- * árvore e `produto_relacao`), então o aparelho nunca tem saldo e a consulta do aparelho devolve SEMPRE vazio (exige estoque > 0).
- * Convenção da demo-matriz: `it` = funciona hoje; `it.fails` = quebrado. Quando o provedor entrar, `ESTOQUE_NO_PULL` vira true,
- * os `it.fails` passam a `it` sozinhos e o P4-00 (vazio por falta de saldo) deixa de rodar.
+ * DEFEITO T-0071-P4 (04/11) CORRIGIDO: modules/catalogo/api/sync.ts passou a publicar `deposito` e `estoque_saldo` no pull
+ * (R-20261104-055029-modulo-catalogo). P4-0, P4a, P4b e P4c viraram `it`; o P4-00 (vazio por falta de saldo) saiu.
  */
 import { semBanco } from '@macuxi/db/teste/estado';
 import { CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, entidadeEstoqueSaldo, entidadeProdutoRelacao } from '@macuxi/catalogo/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { provedoresSyncCatalogo } from '../../../modules/catalogo/api/sync';
 import { licenca } from '../apoio/api';
 import { aparelhoCampo, esperarHorizonte, type AparelhoCampo } from '../apoio/campo';
 import { DEMO, subirApiDemo, TENANT_DEMO, type ApiDemo, type ChaveDemo } from '../apoio/demo';
-
-/** A API publica o saldo no pull? (hoje não: defeito T-0071-P4, recado ao modulo-catalogo). */
-const ESTOQUE_NO_PULL = provedoresSyncCatalogo.some((p) => p.entidade.nome === 'estoque_saldo');
-const seEstoque = ESTOQUE_NO_PULL ? it : it.fails;
-const marca = (id: string) => `${id}${ESTOQUE_NO_PULL ? '' : ' QUEBRADO (sem estoque_saldo no pull)'}`;
 
 describe.skipIf(semBanco())('T-0071 P4 — sugestões do novo pedido offline no aparelho (base demo × createApp real × motor de sync)', () => {
   let api: ApiDemo;
@@ -89,24 +81,11 @@ describe.skipIf(semBanco())('T-0071 P4 — sugestões do novo pedido offline no 
     await api?.fechar();
   });
 
-  seEstoque(marca('P4-0') + ': o saldo (estoque_saldo) chega ao aparelho pelo pull', async () => {
+  it('P4-0. o saldo (estoque_saldo) chega ao aparelho pelo pull', async () => {
     expect((await lucas.motor.linhas('estoque_saldo')).length, 'estoque_saldo no aparelho').toBeGreaterThan(0);
   });
 
-  it.skipIf(ESTOQUE_NO_PULL)('P4-00. hoje, sem saldo no aparelho, a consulta falha FECHADA: relação e preço locais, mas nada é sugerido (RN-CAT-06: sem estoque conhecido não sugere)', async () => {
-    expect(await lucas.motor.linhas('estoque_saldo')).toEqual([]);
-    lucas.online.valor = false;
-    try {
-      expect(await esperado(['AGU-500', 'CAF-500', 'BIS-400'], 'complementar'), 'no SERVIDOR há complementar vendável').not.toEqual([]);
-      const precos = await lucas.motor.ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: miniBox, produto_ids: [sku['ACU-1K']!], em: new Date().toISOString() });
-      expect(precos.itens[0]?.preco_cents ?? 0, 'preço do ACU-1K no aparelho').toBeGreaterThan(0);
-      expect(await sugestoes(['AGU-500', 'CAF-500', 'BIS-400'])).toEqual({ complementares: [], superiores: [] });
-    } finally {
-      lucas.online.valor = true;
-    }
-  });
-
-  seEstoque(marca('P4a') + '. modo avião: "Combina com o pedido" = complementares do café (ordem do cadastro) e "Leve mais" = AGU-1500, com o preço do cliente; nada sai do aparelho', async () => {
+  it('P4a. modo avião: "Combina com o pedido" = complementares do café (ordem do cadastro) e "Leve mais" = AGU-1500, com o preço do cliente; nada sai do aparelho', async () => {
     lucas.online.valor = false;
     const lotes = lucas.lotesEnviados.length;
     const chamadas = lucas.chamadasEtapas.length;
@@ -133,7 +112,7 @@ describe.skipIf(semBanco())('T-0071 P4 — sugestões do novo pedido offline no 
     }
   });
 
-  seEstoque(marca('P4b') + '. o que já está no pedido não é sugerido (RN-CAT-06) e o limite corta a lista', async () => {
+  it('P4b. o que já está no pedido não é sugerido (RN-CAT-06) e o limite corta a lista', async () => {
     lucas.online.valor = false;
     try {
       const comAcucar = await sugestoes(['CAF-500', 'ACU-1K']);
@@ -149,7 +128,7 @@ describe.skipIf(semBanco())('T-0071 P4 — sugestões do novo pedido offline no 
     }
   });
 
-  seEstoque(marca('P4c') + '. relação desativada no servidor: depois do pull a sugestão some também offline (servidor vence)', async () => {
+  it('P4c. relação desativada no servidor: depois do pull a sugestão some também offline (servidor vence)', async () => {
     const antes = (await sugestoes(['AGU-500'])).superiores.map((x) => skuDe(x.produto_id));
     const [rel] = await q<{ id: string }>(
       "select id from catalogo.produto_relacao where tenant_id = $1 and produto_id = $2 and relacionado_id = $3 and tipo = 'superior'",
