@@ -25,3 +25,5 @@ R-20261103-004804-gerente-projetos
 R-20261103-100516-gerente-projetos
 R-20261103-162623-engenheiro-apps
 R-20261103-173639-engenheiro-software
+R-20261104-014237-engenheiro-software
+R-20261104-034438-engenheiro-apps

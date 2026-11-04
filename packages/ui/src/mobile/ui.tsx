@@ -144,11 +144,16 @@ export function Badge({ label, tone, fg, bg, style }: { label: string; tone?: To
   );
 }
 
-export function Chip({ label, active, onPress, testID }: { label: string; active: boolean; onPress: () => void; testID?: string }) {
+/**
+ * Chip de escolha (prazo, transportadora, filtro). `rotuloAcessivel` é o que o leitor de tela lê quando o rótulo visível é
+ * abreviado ("28 d" → "28 dias"); sem ele, lê o `label` (T-0072, revisão de UX do novo pedido).
+ */
+export function Chip({ label, active, onPress, testID, rotuloAcessivel }: { label: string; active: boolean; onPress: () => void; testID?: string; rotuloAcessivel?: string }) {
   return (
     <Pressionavel
       testID={testID}
       accessibilityRole="button"
+      accessibilityLabel={rotuloAcessivel ?? label}
       accessibilityState={{ selected: active }}
       onPress={onPress}
       hitSlop={{ top: 6, bottom: 6 }}

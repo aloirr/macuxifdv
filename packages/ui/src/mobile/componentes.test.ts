@@ -83,4 +83,10 @@ describe('componentes genéricos (T-0071, fatia 4): conferência estática', () 
     expect(ui).toContain('hitSlop={{ top: 6, bottom: 6 }}');
     expect(ui).toMatch(/chip: \{ height: 36,/);
   });
+
+  it('Chip lê o rótulo completo quando o visível é abreviado ("28 d" → "28 dias")', () => {
+    const ui = ler('./ui.tsx');
+    expect(ui).toMatch(/export function Chip\(\{[^}]*rotuloAcessivel[^}]*\}: \{[^}]*rotuloAcessivel\?: string/);
+    expect(ui).toContain('accessibilityLabel={rotuloAcessivel ?? label}');
+  });
 });

@@ -100,6 +100,23 @@ Regras:
 - Erro diz o que houve e o que fazer; nunca culpa a pessoa.
 - Cor nunca fala sozinha: todo verde/âmbar/vermelho vem com palavra.
 
+## 7.1 Padrões do pedido e do orçamento (revisão de UX da T-0071, 2026-11-04)
+- **Sinal de menos**: no valor do ajuste, colado ("−R$ 0,89", "−R$ 3,84"); na linha de total, com espaço ("Descontos − R$ 18,51"),
+  como na referência. O equivalente do ajuste em R$ é sempre "= 5,3%", no desconto e no acréscimo (o sentido já está no seletor).
+- **Cancelar ao lado de Salvar** no Resumo: secundário de borda cinza (`Button variant="outline"`, 52), como na referência; é a
+  única exceção ao "Cancelar = neutro".
+- **Tela de só leitura** (pedido já enviado, orçamento de outro vendedor): nenhum campo editável na tela. O ajuste do pedido vira
+  uma `LinhaValor` ("Desconto do pedido 1,0% · −R$ 3,84").
+- **Sugestão com 1 toque** (+ / ⇄): a linha inteira é tocável, com `BotaoIcone` (`plus` ou `swap`; nunca o caractere ⇄ em texto),
+  e o toque mostra `AvisoRodape` ("Açúcar cristal 1 kg adicionado" · Desfazer), porque a linha some da lista.
+- **Ação que não volta atrás** (Enviar, Transformar em pedido): sempre 2 toques, o segundo numa `Folha` que diz para onde vai
+  ("Vai direto ao ERP." / "Vai para o supervisor.").
+- **Ação que não se aplica** à situação (orçamento vencido, convertido, cancelado): some. Desabilitado só quando falta um dado que a
+  pessoa pode resolver, e com o motivo perto.
+- **Chip abreviado** ("28 d", "28/56"): passe `rotuloAcessivel` com o texto completo ("28 dias").
+- **Palavras**: orçamento nunca é chamado de pedido na confirmação ("Orçamento 000012 salvo"); sem "servidor", "cache", "BKO" na
+  tela do vendedor (use "Macuxi", "aparelho", "escritório").
+
 ## 8. Checklist da revisão de UX (designer-ux, antes do merge)
 1. Um só principal; os demais no nível certo. 2. Alvos ≥ 48 dp. 3. Contraste ≥ 4,5:1 (tokens do kit já passam; cor solta = 🟡).
 4. Chips com texto. 5. Tarefa principal em até 3 toques a partir do Início. 6. Estados vazio, erro, carregando e sem sinal desenhados.
