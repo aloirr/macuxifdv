@@ -96,6 +96,8 @@ export interface EntradaPrepararPedido {
   pedidoEditado?: Pick<Order, 'status' | 'total_cents'> | null;
   /** T-0061: embalagens dos produtos (UN/CX), das linhas `produto_unidade` do aparelho */
   unidades?: readonly UnidadeDaTela[];
+  /** RN-VEN-15: preço próprio das embalagens (embalagens[] do Catálogo) */
+  embalagens?: Record<string, Record<string, number>>;
 }
 
 /** `OrderValidation` com o cálculo do novo pedido (medidas, ajustes, desconto efetivo) anexado. */
@@ -121,6 +123,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     acrescimo_pct: e.rascunho.acrescimo_pct ?? 0,
     catalogo: e.catalogo,
     unidades: e.unidades ?? [],
+    embalagens: e.embalagens,
     politica: e.politica,
     vendedor_id: e.eu.id,
   });

@@ -209,21 +209,38 @@ export interface OrcamentoParaPedido {
   itens: ReadonlyArray<ItemParaCopia>;
 }
 
-const CAMPOS_DO_ITEM = ['unidade', 'desconto_pct', 'acrescimo_pct', 'desconto_unitario_cents', 'acrescimo_unitario_cents', 'ajuste_em'] as const;
-const CAMPOS_DO_PEDIDO = ['acrescimo_pct', 'desconto_valor_cents', 'acrescimo_valor_cents', 'ajuste_em', 'frete', 'endereco_entrega_id'] as const;
-
-/** Copia só o que existe (campo ausente continua ausente: o contrato é aditivo e o APK antigo não conhece os novos). Nunca o preço. */
+/** Só o modo gravado (ajuste_em) segue: o servidor grava os dois (R$ e % equivalente) e receber os dois dá 422 ajuste_invalido (RN-VEN-02). Ausente = legado em %. */
 function copiarItens(itens: ReadonlyArray<ItemParaCopia>): ItemParaCopia[] {
   return itens.map((i) => {
     const out: Record<string, unknown> = { product_id: i.product_id, quantity: i.quantity };
-    for (const c of CAMPOS_DO_ITEM) if (i[c] !== undefined) out[c] = i[c];
+    if (i.unidade !== undefined) out.unidade = i.unidade;
+    if (i.ajuste_em === 'valor') {
+      out.ajuste_em = 'valor';
+      if ((i.desconto_unitario_cents ?? 0) > 0) out.desconto_unitario_cents = i.desconto_unitario_cents;
+      else if ((i.acrescimo_unitario_cents ?? 0) > 0) out.acrescimo_unitario_cents = i.acrescimo_unitario_cents;
+    } else {
+      if (i.ajuste_em === 'pct') out.ajuste_em = 'pct';
+      if ((i.desconto_pct ?? 0) > 0) out.desconto_pct = i.desconto_pct;
+      else if ((i.acrescimo_pct ?? 0) > 0) out.acrescimo_pct = i.acrescimo_pct;
+    }
     return out as unknown as ItemParaCopia;
   });
 }
 
-function copiarCabecalho(o: OrcamentoParaPedido): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const c of CAMPOS_DO_PEDIDO) if (o[c] !== undefined) out[c] = o[c];
+/** Cabeçalho: frete e endereço sempre; o ajuste do pedido só no modo gravado (RN-VEN-02). */
+function copiarCabecalho(o: OrcamentoParaPedido): { discount_pct: number } & Record<string, unknown> {
+  const out: { discount_pct: number } & Record<string, unknown> = { discount_pct: 0 };
+  if (o.ajuste_em === 'valor') {
+    out.ajuste_em = 'valor';
+    if ((o.desconto_valor_cents ?? 0) > 0) out.desconto_valor_cents = o.desconto_valor_cents;
+    else if ((o.acrescimo_valor_cents ?? 0) > 0) out.acrescimo_valor_cents = o.acrescimo_valor_cents;
+  } else {
+    if (o.ajuste_em === 'pct') out.ajuste_em = 'pct';
+    if ((o.desconto_pct ?? 0) > 0) out.discount_pct = o.desconto_pct;
+    else if ((o.acrescimo_pct ?? 0) > 0) out.acrescimo_pct = o.acrescimo_pct;
+  }
+  if (o.frete !== undefined) out.frete = o.frete;
+  if (o.endereco_entrega_id !== undefined) out.endereco_entrega_id = o.endereco_entrega_id;
   return out;
 }
 
@@ -238,7 +255,6 @@ export function pedidoDoOrcamento(o: OrcamentoParaPedido, novoId: string, criado
     tipo: 'pedido' as const,
     orcamento_origem_id: o.id,
     customer_id: o.cliente_id,
-    discount_pct: o.desconto_pct,
     ...copiarCabecalho(o),
     condicao_pagamento_id: o.condicao_pagamento_id,
     observacao: o.observacao,

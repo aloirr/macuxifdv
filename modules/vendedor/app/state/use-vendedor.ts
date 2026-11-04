@@ -19,7 +19,8 @@ import type { MixSuggestion } from '@macuxi/catalogo/contracts';
 import type { CustomerDetail, Order, OrderDetail, PedidoPush, UpdateOrderRequest } from '../../contracts';
 import { orderActions, type OrderStatus } from '../../domain/order';
 import { prefillLines, prefillNotice } from '../lib/order-prefill';
-import { fretePush, linhasParaPush } from '../lib/novo-pedido';
+import { embalagensDaConsulta, fretePush, linhasParaPush } from '../lib/novo-pedido';
+import { situacaoDoClienteSync } from '../lib/textos-pedido';
 import {
   aceitosComoPedidos,
   draftKeyFor,
@@ -244,13 +245,17 @@ export function useVendedor() {
         try {
           const ativos = linhasRef.current.produtos.filter((p) => p.ativo);
           const precos = new Map<string, number | null>();
+          const itensConsulta: Array<{ produto_id: string; embalagens?: Array<{ unidade: string; preco_cents: number }> }> = [];
           const agora = new Date().toISOString();
           for (let i = 0; i < ativos.length; i += LOTE_PRECOS) {
             const r = await ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente.id, produto_ids: ativos.slice(i, i + LOTE_PRECOS).map((p) => p.id), em: agora });
-            for (const it of r.itens) precos.set(it.produto_id, it.preco_cents);
+            for (const it of r.itens) {
+              precos.set(it.produto_id, it.preco_cents);
+              itensConsulta.push(it);
+            }
           }
           const items = produtosComPrecos(linhasRef.current, precos);
-          await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora } }));
+          await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora, embalagens: embalagensDaConsulta(itensConsulta) } }));
           await recarregar();
           return items;
         } catch {
@@ -270,6 +275,9 @@ export function useVendedor() {
     [v1, repo, recarregar, tabelaDe, ambiente],
   );
 
+  /** RN-VEN-13: situação do cliente na linha do sync (ativo, cadastro incompleto) */
+  const situacaoDoCliente = useCallback((clienteId: string) => situacaoDoClienteSync(linhas.clientes.find((c) => c.id === clienteId)), [linhas.clientes]);
+
   /** Medidas (UN/CX), endereços de entrega e transportadoras do aparelho (T-0061); vazios sem as entidades no sync. */
   const unidades = useMemo(() => (v1 ? unidadesDaTela(linhas) : []), [v1, linhas]);
   const enderecos = useMemo(() => (v1 ? enderecosDaTela(linhas) : []), [v1, linhas]);
@@ -280,6 +288,16 @@ export function useVendedor() {
 
   // ---------- rascunho ----------
   const rascunhoDe = useCallback((chave: string, customerId: string): Rascunho => dadosRef.current.rascunhos[chave] ?? rascunhoVazio(customerId), []);
+
+  /** Descarta o rascunho do aparelho (só depois de confirmar o diálogo "Descartar este pedido?"). */
+  const descartarRascunho = useCallback(
+    async (chave: string) => {
+      if (!repo) return;
+      await repo.limparRascunho(chave);
+      await recarregar();
+    },
+    [repo, recarregar],
+  );
 
   const atualizarRascunho = useCallback(
     async (chave: string, customerId: string, fn: (r: Rascunho) => Rascunho) => {
@@ -305,7 +323,7 @@ export function useVendedor() {
       if (!pol) throw new Error('Alçadas ainda não estão no aparelho. Sincronize com sinal e tente de novo.');
       const editado = editId ? dadosRef.current.pedidos.find((o) => o.id === editId) ?? null : null;
       const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
-      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current) });
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens });
     },
     [v1, usuario],
   );
@@ -564,11 +582,13 @@ export function useVendedor() {
     garantirProdutos,
     condicoesDe,
     unidades,
+    situacaoDoCliente,
     enderecos,
     transportadoras,
     tabelaDe,
     rascunhoDe,
     atualizarRascunho,
+    descartarRascunho,
     prepararDoRascunho,
     enviarPedido,
     converterOrcamento,

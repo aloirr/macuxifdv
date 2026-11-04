@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { politicaDosParametros } from './aprovacao';
+import { politicaDosParametros, revalidarPedido } from './aprovacao';
 import {
   acoesDoOrcamento,
   duplicarDocumento,
@@ -199,5 +199,59 @@ describe('RN-VEN-18 / RF-VEN-03: o pedido que nasce do orçamento leva tudo, men
     expect(d).toMatchObject({ id: 'dup', tipo: 'pedido', desconto_valor_cents: 384, endereco_entrega_id: 'end1', frete: { modalidade: 'FOB', transportadora_id: 'tr1' } });
     expect(d).not.toHaveProperty('orcamento_origem_id');
     expect(d.items[1]).toEqual({ product_id: 'caf', quantity: 12, unidade: 'UN', desconto_unitario_cents: 100, ajuste_em: 'valor' });
+  });
+});
+
+describe('RN-VEN-18 / RN-VEN-02: a cópia leva só o modo gravado (ajuste_em), como a linha chega do pull', () => {
+  // o servidor grava SEMPRE os dois (R$ e % equivalente); copiar os dois daria 422 ajuste_invalido
+  const DO_PULL = {
+    id: '00000000-0000-4000-8000-000000000002',
+    cliente_id: 'c1',
+    desconto_pct: 1,
+    desconto_valor_cents: 384,
+    acrescimo_pct: 0,
+    acrescimo_valor_cents: 0,
+    ajuste_em: 'valor' as const,
+    condicao_pagamento_id: null,
+    observacao: null,
+    visita_id: null,
+    itens: [
+      { product_id: 'caf', quantity: 12, unidade: 'UN', desconto_pct: 5.3, desconto_unitario_cents: 100, acrescimo_unitario_cents: 0, ajuste_em: 'valor' as const },
+      { product_id: 'agu', quantity: 3, unidade: 'FD', desconto_pct: 5, desconto_unitario_cents: 89, ajuste_em: 'pct' as const },
+    ],
+  };
+  const aceita = (p: Pick<ReturnType<typeof pedidoDoOrcamento>, 'discount_pct' | 'items'>) =>
+    revalidarPedido({
+      perfil: 'vendedor',
+      vendedor_id: 'v1',
+      cliente_id: 'c1',
+      carteira: ['c1'],
+      desconto_pct: p.discount_pct,
+      acrescimo_pct: (p as { acrescimo_pct?: number }).acrescimo_pct,
+      desconto_valor_cents: (p as { desconto_valor_cents?: number }).desconto_valor_cents,
+      acrescimo_valor_cents: (p as { acrescimo_valor_cents?: number }).acrescimo_valor_cents,
+      itens: p.items.map((i) => ({ ...(i as object), sku: i.product_id })) as never,
+      precos: { caf: 1890, agu: 1790 },
+      policy: { seller_pct: 5, supervisor_pct: 10, manager_pct: 15, above_manager: 'director', exceptions: {} },
+    });
+  it('RN-VEN-18: Transformar com R$ no item e R$ no pedido leva só o valor e passa no receber', () => {
+    const p = pedidoDoOrcamento(DO_PULL, 'novo', 'agora');
+    expect(p.items[0]).toEqual({ product_id: 'caf', quantity: 12, unidade: 'UN', desconto_unitario_cents: 100, ajuste_em: 'valor' });
+    expect(p.items[1]).toEqual({ product_id: 'agu', quantity: 3, unidade: 'FD', desconto_pct: 5, ajuste_em: 'pct' });
+    expect(p.discount_pct).toBe(0);
+    expect(p).toMatchObject({ desconto_valor_cents: 384, ajuste_em: 'valor' });
+    expect(aceita(p)).toMatchObject({ ok: true });
+  });
+  it('RN-VEN-02: Duplicar com R$ no item e % no pedido leva só o %', () => {
+    const d = duplicarDocumento({ ...DO_PULL, desconto_pct: 1, ajuste_em: 'pct' }, 'dup', 'agora');
+    expect(d.discount_pct).toBe(1);
+    expect(d).not.toHaveProperty('desconto_valor_cents');
+    expect(d).not.toHaveProperty('acrescimo_valor_cents');
+    expect(aceita(d)).toMatchObject({ ok: true });
+  });
+  it('RN-VEN-02: acréscimo do pedido em % (legado, sem ajuste_em) copia só o %', () => {
+    const p = pedidoDoOrcamento({ ...DO_PULL, desconto_pct: 0, desconto_valor_cents: 0, acrescimo_pct: 2, ajuste_em: undefined }, 'novo', 'agora');
+    expect(p).toMatchObject({ discount_pct: 0, acrescimo_pct: 2 });
+    expect(p).not.toHaveProperty('desconto_valor_cents');
   });
 });

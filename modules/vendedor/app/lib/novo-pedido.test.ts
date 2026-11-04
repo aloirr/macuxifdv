@@ -5,6 +5,7 @@ import { politicaApi } from './pull';
 import {
   alternarUnidade,
   calcularPedido,
+  embalagensDaConsulta,
   chaveDaLinha,
   enderecosDoCliente,
   freteValido,
@@ -136,5 +137,27 @@ describe('RN-VEN-17: endereço de entrega', () => {
   });
   it('RN-VEN-17: texto curto do endereço', () => {
     expect(textoDoEndereco(E[1]!)).toBe('Rua Central, 10 · Centro · Manaus/AM');
+  });
+});
+
+describe('embalagens[] do catalogo.precos_cliente@1 (RN-VEN-15 / RN-CAT-06)', () => {
+  it('RN-VEN-15: a caixa usa o preço próprio da embalagem quando a consulta traz; a UN continua pelo preço da unidade', () => {
+    // CX de 12 a R$ 100,00 (preço próprio) em vez de 12 × R$ 10,00 = R$ 120,00
+    const c = calcularPedido(entrada({ lines: { 'a@CX': 2, b: 1 }, embalagens: { a: { CX: 10_000 } } }));
+    expect(c.linhas.find((l) => l.chave === 'a@CX')!.total_cents).toBe(20_000);
+    expect(c.linhas.find((l) => l.chave === 'b')!.total_cents).toBe(5000);
+  });
+  it('RN-VEN-15: sem embalagens[] na consulta, a caixa é unidade × fator (como antes)', () => {
+    const c = calcularPedido(entrada({ lines: { 'a@CX': 2 } }));
+    expect(c.linhas[0]!.total_cents).toBe(24_000);
+  });
+  it('RN-VEN-15: embalagensDaConsulta indexa por produto e unidade e ignora item sem embalagens', () => {
+    expect(
+      embalagensDaConsulta([
+        { produto_id: 'a', embalagens: [{ unidade: 'CX', preco_cents: 10_000 }] },
+        { produto_id: 'b' },
+        { produto_id: 'c', embalagens: [] },
+      ]),
+    ).toEqual({ a: { CX: 10_000 } });
   });
 });

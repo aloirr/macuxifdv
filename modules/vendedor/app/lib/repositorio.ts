@@ -12,6 +12,8 @@ import type { OrderDisplay, Rascunho } from './pedidos';
 export interface TabelaDePrecos {
   items: Product[];
   synced_at: string;
+  /** preço próprio das embalagens (produto → unidade → centavos), de embalagens[] da consulta de preço; ausente = UN × fator */
+  embalagens?: Record<string, Record<string, number>>;
 }
 
 export interface DadosVendedor {

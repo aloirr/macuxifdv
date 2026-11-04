@@ -8,7 +8,7 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Banner, Button, Card, colors, Empty, fonts, formatHHMM, Icon, radius, Screen, Strong, type as t } from '@macuxi/ui/mobile';
+import { Abas, BackLink, Badge, Banner, Button, Card, CampoBusca, colors, Empty, fonts, formatHHMM, Icon, radius, RodapeTotal, Screen, Strong, type as t } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -16,10 +16,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
 import { AvisoRapido, useAviso } from '../components/aviso';
+import { opcoesDoSalvar, validadeDoOrcamento, validadeOrcamentoDias } from '../../domain/orcamento';
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
-import { AbaCondicoes, AbaEntrega, BarraDeAbas, ListaDeItens, PendenciasDoPedido, type AbaDoPedido } from '../components/novo-pedido';
-import { calcularPedido, freteValido, lerChaveDaLinha, limiteDoVendedor, textoDaAlcada, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
+import { ListaDeItens, PendenciasDoPedido } from '../components/novo-pedido';
+import { AbaDetalhes, AbaResumo, CardFreteEPrazo, DialogoDescartar, FolhaSalvar } from '../components/novo-pedido-abas';
+import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
+import { abasDoPedido, type AbaNovoPedido } from '../lib/textos-pedido';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
@@ -140,16 +143,18 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
 
   const ambiente = useAmbiente();
   const fretePadrao = modalidadePadraoDosParametros(ambiente.parametros('vendedor'));
-  const [aba, setAba] = useState<AbaDoPedido>('itens');
+  const [aba, setAba] = useState<AbaNovoPedido>('itens');
+  const [salvarAberto, setSalvarAberto] = useState(false);
+  const [descartarAberto, setDescartarAberto] = useState(false);
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
   const politica = dados.politica;
   const vendedorId = dados.me?.seller?.id ?? '';
   const calculoAtual = useMemo(
     () =>
       politica
-        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, catalogo: catalog, unidades: app.unidades, politica, vendedor_id: vendedorId })
+        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, catalogo: catalog, unidades: app.unidades, embalagens: dados.produtos[tableKey]?.embalagens, politica, vendedor_id: vendedorId })
         : null,
-    [draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, catalog, app.unidades, politica, vendedorId],
+    [draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
   const calculo = sent ? sent.snapshot.calculo : calculoAtual;
   const terms = sent ? sent.snapshot.payment_terms : draft.payment_terms;
@@ -187,9 +192,15 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const editBlockedOffline = editingServer && offline;
   const bloqueado = calculo.erros.length > 0 || Boolean(freteAviso);
   const canSend = podeEnviarPedido({ jaEnviado: Boolean(sent), itens: calculo.linhas.length, recusado: bloqueado, edicaoSemSinal: editBlockedOffline, edicao: Boolean(editId), podeEditar });
-  const alcada = textoDaAlcada(calculo, limiteVendedor);
-  const alcadaCor = alcada.tom === 'erro' ? colors.danger : alcada.tom === 'aviso' ? colors.accentInk : alcada.tom === 'ok' ? colors.success : colors.ink2;
   const vaiParaAprovacao = calculo.nivel !== null;
+  const situacaoCliente = app.situacaoDoCliente(customerId);
+  const diasValidade = validadeOrcamentoDias(ambiente.parametros('vendedor'));
+  const validade = validadeDoOrcamento(new Date().toISOString(), diasValidade, tz);
+  const opcoes = opcoesDoSalvar({ cliente: situacaoCliente, calculo, frete_erro: freteAviso, validade_data: validade.data });
+  const rascunhoVisivel: Draft = sent ? sent.snapshot.rascunho : draft;
+  const enderecosCliente = enderecosDoCliente(app.enderecos, customerId);
+  const enderecoPadrao = enderecosCliente.find((e) => e.principal || e.tipo === 'principal') ?? null;
+  const enderecoEscolhido = rascunhoVisivel.endereco_entrega_id ? (enderecosCliente.find((e) => e.id === rascunhoVisivel.endereco_entrega_id) ?? null) : enderecoPadrao;
   const produtosDoRascunho = [...new Set(Object.keys(draft.lines).filter((k) => (draft.lines[k] ?? 0) > 0).map((k) => lerChaveDaLinha(k).product_id))].flatMap((id) => {
     const p = byId.get(id);
     return p ? [p] : [];
@@ -216,15 +227,17 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     }
   };
 
-  const send = async () => {
+  const send = async (tipo: 'pedido' | 'orcamento' = 'pedido') => {
+    setSalvarAberto(false);
     setSending(true);
     setError(null);
-    const snapshot: Snapshot = { calculo, nomes: [...nomes.entries()], payment_terms: draft.payment_terms, rascunho: draft };
+    const rascunhoEnviado: Draft = { ...draft, tipo };
+    const snapshot: Snapshot = { calculo, nomes: [...nomes.entries()], payment_terms: draft.payment_terms, rascunho: rascunhoEnviado };
     try {
-      const res = await submitOrder(draft, customer, catalog);
+      const res = await submitOrder(rascunhoEnviado, customer, catalog);
       setSent(res.kind === 'sent' ? { kind: 'sent', order: res.order, snapshot } : { kind: 'queued', message: res.message, snapshot });
       setQuery('');
-      setAba('entrega');
+      setAba('resumo');
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -232,46 +245,38 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     }
   };
 
-  const orcamento = draft.tipo === 'orcamento';
-  let buttonLabel = orcamento ? 'Salvar orçamento' : vaiParaAprovacao ? 'Enviar para aprovação' : 'Enviar pedido';
-  let buttonVariant: 'accent' | 'success' = 'accent';
-  if (sent?.kind === 'queued') {
-    buttonLabel = 'Salvo · aguardando sinal';
-    buttonVariant = 'success';
-  } else if (sent?.kind === 'sent') {
-    buttonLabel = `Enviado · pedido ${sent.order.number}`;
-    buttonVariant = 'success';
-  } else if (noSignal && calculo.linhas.length > 0) {
-    buttonLabel = 'Salvar no aparelho';
-  }
-  if (editId) {
-    buttonLabel = editBlockedOffline
-      ? 'Sem sinal · edição precisa de conexão'
-      : !editingServer
-        ? 'Salvar alterações no aparelho'
-        : vaiParaAprovacao
-          ? 'Salvar e enviar para aprovação'
-          : 'Salvar alterações';
-  }
+  const rotuloEdicao = editBlockedOffline ? 'Sem sinal · edição precisa de conexão' : !editingServer ? 'Salvar alterações no aparelho' : vaiParaAprovacao ? 'Salvar e enviar para aprovação' : 'Salvar alterações';
   const editTitle = editTarget?.number ? `Editar pedido ${editTarget.number}` : 'Editar pedido no aparelho';
   const emRascunho = (fn: (r: Draft) => Draft) => updateDraft(customerId, fn);
+
+  const abas = abasDoPedido(calculo.linhas.length);
+  const noResumo = aba === 'resumo' || Boolean(sent);
+  const aoSalvar = () => {
+    if (editId) void saveEdit();
+    else setSalvarAberto(true);
+  };
+  const descartar = async () => {
+    setDescartarAberto(false);
+    await app.descartarRascunho(draftKey);
+    if (router.canGoBack()) router.back();
+    else router.replace(hrefPedidos() as never);
+  };
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 8, gap: 2, backgroundColor: colors.surface }}>
         <AvisoRapido mensagem={sheets.aviso} />
-        {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label={customer.trade_name} fallback={hrefPedidos()} />}
+        {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label="Clientes" fallback={hrefPedidos()} />}
         <Text style={t.h1Small} testID="order-editor-title">
           {editId ? editTitle : 'Novo pedido'}
         </Text>
         <Text style={t.sub} numberOfLines={1}>
-          {customer.trade_name}
-          {editId ? ' · cliente não pode ser trocado' : ''}
+          {customer.trade_name} · cód. {customer.erp_code}
         </Text>
       </View>
-      {!sent ? <BarraDeAbas aba={aba} onAba={setAba} itens={calculo.linhas.length} pendencias={{ condicoes: Boolean(freteAviso) }} /> : null}
+      {!sent ? <Abas abas={abas} valor={aba} onChange={setAba} rotuloPendencia="Pendência nesta aba" testID="abas-pedido" /> : null}
 
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
+      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
         {draft.notice && !sent ? (
           <Banner icon="alert" testID="order-prefill-notice">
             {draft.notice}
@@ -279,67 +284,67 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
         ) : null}
         {editBlockedOffline ? (
           <Banner tone="danger" testID="banner-edit-offline">
-            <Strong>Modo sem sinal.</Strong> A edição de pedido já enviado precisa de conexão. Desligue o modo sem sinal no Perfil para salvar.
+            <Strong>Sem sinal.</Strong> Para editar um pedido já enviado, desligue o modo sem sinal no Perfil.
           </Banner>
         ) : null}
 
         {sent?.kind === 'queued' ? (
           <Banner testID="banner-saved">
-            <Strong>Pedido salvo no aparelho.</Strong> Será enviado ao ERP assim que o sinal voltar.
+            <Strong>Salvo no aparelho.</Strong> Envia quando o sinal voltar.
           </Banner>
         ) : sent?.kind === 'sent' ? (
           <SentCard order={sent.order} />
         ) : noSignal && !editBlockedOffline ? (
           <Banner testID="banner-offline">
-            <Strong>Sem conexão.</Strong> Preço e estoque da sincronização das {formatHHMM(productsAt, tz)}. Você pode fechar o pedido normalmente.
+            <Strong>Sem sinal.</Strong> Preço e estoque de {formatHHMM(productsAt, tz)}.
           </Banner>
         ) : null}
 
         {!sent && aba === 'itens' ? (
           <>
-            <View style={{ gap: 4 }}>
-              <Text style={t.label}>Buscar produto</Text>
-              <SearchBox value={query} onChange={setQuery} placeholder="Código, descrição ou veículo" testID="product-search" />
-            </View>
+            <CardFreteEPrazo rascunho={draft} fretePadrao={fretePadrao} prazos={opcoesDePrazo} transportadoras={app.transportadoras} onRascunho={emRascunho} />
+            <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder="Código, descrição ou veículo" rotuloAcessivel="Buscar produto" testID="product-search" />
             {query.trim() ? (
-              <View style={{ gap: 6 }}>
-                <Text style={t.small}>
-                  {results.length === 0 ? 'Nenhum produto encontrado.' : `${results.length}${results.length === 40 ? '+' : ''} produto${results.length === 1 ? '' : 's'} · preço da tabela do cliente`}
-                </Text>
-                {results.length > 0 ? <ListaDeItens produtos={results} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} /> : null}
-              </View>
+              results.length === 0 ? (
+                <Text style={t.small}>Nenhum produto.</Text>
+              ) : (
+                <ListaDeItens produtos={results} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} />
+              )
             ) : produtosDoRascunho.length > 0 ? (
               <View testID="order-lines">
                 <ListaDeItens produtos={produtosDoRascunho} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} />
               </View>
             ) : (
               <Card style={{ padding: 16, gap: 4 }}>
-                <Text style={t.bodyStrong}>Nenhum item ainda</Text>
-                <Text style={t.small}>{catalog.length > 0 ? `Busque entre ${catalog.length} produtos da tabela do cliente.` : 'Sincronize com sinal para baixar a tabela de preços.'}</Text>
+                <Text style={t.bodyStrong}>Nenhum item</Text>
+                <Text style={t.small}>{catalog.length > 0 ? 'Busque um produto acima.' : 'Sincronize com sinal para baixar os preços.'}</Text>
               </Card>
             )}
           </>
         ) : null}
 
-        {!sent && aba === 'condicoes' ? (
-          <AbaCondicoes
-            rascunho={draft}
-            prazos={opcoesDePrazo}
-            transportadoras={app.transportadoras}
+        {!sent && aba === 'detalhes' ? <AbaDetalhes rascunho={draft} clienteId={customerId} enderecos={app.enderecos} motivoCadastro={opcoes.motivo_so_orcamento} onRascunho={emRascunho} /> : null}
+
+        {noResumo ? (
+          <AbaResumo
+            rascunho={rascunhoVisivel}
             calculo={calculo}
+            nomes={nomes}
+            prazo={terms}
+            endereco={enderecoEscolhido ? textoDoEndereco(enderecoEscolhido) : null}
             limiteVendedor={limiteVendedor}
-            preVendaLigada={app.preVendaLigada}
-            edicao={Boolean(editId)}
-            onRascunho={emRascunho}
             fretePadrao={fretePadrao}
+            onRascunho={emRascunho}
+            onSalvar={aoSalvar}
+            onCancelar={() => setDescartarAberto(true)}
+            salvando={sending}
+            podeSalvar={!sent && canSend}
+            rotuloSalvar={editId ? rotuloEdicao : 'Salvar'}
+            somenteLeitura={Boolean(sent)}
           />
         ) : null}
 
-        {(sent || aba === 'entrega') ? (
-          <AbaEntrega rascunho={sent ? sent.snapshot.rascunho : draft} clienteId={customerId} enderecos={app.enderecos} transportadoras={app.transportadoras} calculo={calculo} limiteVendedor={limiteVendedor} fretePadrao={fretePadrao} prazo={terms} onRascunho={emRascunho} somenteLeitura={Boolean(sent)} nomes={nomes} />
-        ) : null}
-
-        {!sent ? <PendenciasDoPedido erros={calculo.erros} freteAviso={freteAviso} onIrPara={setAba} /> : null}
+        {!sent ? <PendenciasDoPedido erros={calculo.erros} freteAviso={freteAviso} onIrPara={() => setAba('itens')} /> : null}
         {error ? (
           <Banner icon="alert" tone="danger" testID="order-error">
             {error}
@@ -347,42 +352,23 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
         ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: 22 + insets.bottom }]} testID="rodape-pedido">
-        <View style={{ gap: 4 }}>
-          <View style={styles.sumRow}>
-            <Text style={styles.sumLabel}>Subtotal · {calculo.unidades_base} un.</Text>
-            <Text style={styles.sumValue}>{formatBRL(calculo.total_tabela_cents)}</Text>
-          </View>
-          {calculo.desconto_efetivo_pct !== 0 ? (
-            <View style={styles.sumRow}>
-              <Text style={[styles.sumLabel, { color: alcadaCor, fontFamily: fonts.semibold, flex: 1 }]} testID="alcada-line">
-                {alcada.texto}
-              </Text>
-              <Text style={[styles.sumValue, { color: alcadaCor }]}>{calculo.total_cents <= calculo.total_tabela_cents ? `− ${formatBRL(calculo.total_tabela_cents - calculo.total_cents)}` : `+ ${formatBRL(calculo.total_cents - calculo.total_tabela_cents)}`}</Text>
-            </View>
-          ) : null}
-          <View style={[styles.sumRow, { alignItems: 'baseline', marginTop: 2 }]}>
-            <Text style={[styles.sumLabel, { color: colors.ink, fontFamily: fonts.semibold }]}>Total · prazo {terms}</Text>
-            <Text style={styles.total} testID="order-total">
-              {formatBRL(calculo.total_cents)}
-            </Text>
-          </View>
-        </View>
-        <Button
-          testID="send-order"
-          label={buttonLabel}
-          variant={buttonVariant}
-          height={52}
-          textStyle={{ fontSize: 16 }}
-          loading={sending}
-          disabled={!sent && !canSend}
-          onPress={() => {
-            if (sent) irParaPedidos();
-            else if (editId) void saveEdit();
-            else void send();
-          }}
+      {!noResumo ? (
+        <RodapeTotal
+          testID="rodape-pedido"
+          rotulo="Total dos itens"
+          valor={formatBRL(calculo.total_itens_cents)}
+          respiroInferior={insets.bottom}
+          acao={{ rotulo: 'Avançar', seta: true, testID: 'avancar', onPress: () => setAba(aba === 'itens' ? 'detalhes' : 'resumo') }}
         />
-      </View>
+      ) : null}
+      {sent ? (
+        <View style={[styles.footer, { paddingBottom: 22 + insets.bottom }]}>
+          <Button testID="send-order-done" label={sent.kind === 'sent' ? `Enviado · pedido ${sent.order.number}` : 'Salvo · aguardando sinal'} variant="success" height={52} onPress={() => irParaPedidos()} />
+        </View>
+      ) : null}
+
+      <FolhaSalvar visivel={salvarAberto} opcoes={opcoes} comOrcamento={app.preVendaLigada} onEnviar={() => void send('pedido')} onOrcamento={() => void send('orcamento')} onFechar={() => setSalvarAberto(false)} />
+      <DialogoDescartar visivel={descartarAberto} onVoltar={() => setDescartarAberto(false)} onDescartar={() => void descartar()} />
     </KeyboardAvoidingView>
   );
 }

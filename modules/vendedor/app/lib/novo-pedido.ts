@@ -79,6 +79,8 @@ export interface EntradaCalculo {
   unidades: readonly UnidadeDaTela[];
   politica: AlcadaApi;
   vendedor_id: string;
+  /** preço próprio da embalagem (produto → unidade → centavos da medida), de `catalogo.precos_cliente@1` embalagens[]; ausente = UN × fator */
+  embalagens?: Record<string, Record<string, number> | undefined>;
 }
 
 export interface LinhaDoPedido {
@@ -123,6 +125,16 @@ function pct2(n: number | undefined): number {
   return clampPct(n ?? 0);
 }
 
+/** RN-VEN-15: embalagens[] da consulta de preço do Catálogo → produto → unidade → preço da medida. Item sem embalagens fica de fora. */
+export function embalagensDaConsulta(itens: ReadonlyArray<{ produto_id: string; embalagens?: ReadonlyArray<{ unidade: string; preco_cents: number }> }>): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const i of itens) {
+    if (!i.embalagens || i.embalagens.length === 0) continue;
+    out[i.produto_id] = Object.fromEntries(i.embalagens.map((x) => [x.unidade, x.preco_cents]));
+  }
+  return out;
+}
+
 export function calcularPedido(e: EntradaCalculo): CalculoPedido {
   const porId = new Map(e.catalogo.map((p) => [p.id, p]));
   const erros: string[] = [];
@@ -151,7 +163,7 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
       erros.push(`${nome}: ${MSG_DESCONTO_E_ACRESCIMO} Limpe um dos dois no item.`);
       continue;
     }
-    const preco = precoDoItem({ preco_tabela_unidade_cents: produto.price_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct });
+    const preco = precoDoItem({ preco_tabela_unidade_cents: produto.price_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ...(medida.fator > 1 && e.embalagens?.[product_id]?.[medida.unidade] !== undefined ? { preco_proprio_unidade_cents: e.embalagens[product_id]![medida.unidade]! } : {}) });
     parcial.push({ preco_tabela_cents: preco.preco_tabela_cents, quantidade: quantity, total_cents: preco.total_cents, desconto_pct, acrescimo_pct });
     linhas.push({
       chave,
