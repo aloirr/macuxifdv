@@ -48,13 +48,13 @@ describe('componentes genéricos (T-0071, fatia 4): parte pura', () => {
 });
 
 describe('componentes genéricos (T-0071, fatia 4): conferência estática', () => {
-  const ARQUIVOS = ['./formulario.tsx', './folha.tsx', './valores.tsx'];
+  const ARQUIVOS = ['./formulario.tsx', './folha.tsx', './valores.tsx', './base.tsx'];
 
   it('exporta todos os componentes no índice do kit mobile', () => {
     const indice = ler('./index.ts');
-    for (const arq of ['./componentes', './formulario', './folha', './valores', './navegacao']) expect(indice).toContain(`export * from '${arq}'`);
+    for (const arq of ['./componentes', './formulario', './folha', './valores', './navegacao', './base', './movimento-rn']) expect(indice).toContain(`export * from '${arq}'`);
     const fonte = ARQUIVOS.map(ler).join('\n') + ler('./navegacao.tsx');
-    for (const nome of ['Abas', 'Segmentado', 'Passo', 'CampoBusca', 'RotuloSecao', 'ChipMedida', 'BotaoIcone', 'Folha', 'OpcaoFolha', 'Dialogo', 'RodapeTotal', 'LinhaValor', 'BlocoTotais', 'Faixa', 'Selo', 'Trilha']) {
+    for (const nome of ['Abas', 'Segmentado', 'Passo', 'CampoBusca', 'RotuloSecao', 'ChipMedida', 'BotaoIcone', 'Folha', 'OpcaoFolha', 'Dialogo', 'RodapeTotal', 'LinhaValor', 'BlocoTotais', 'Faixa', 'Selo', 'Trilha', 'Botao', 'Cartao', 'ChipEstado', 'AvisoRodape', 'useAvisoRodape', 'BarraAbas', 'EstadoVazio']) {
       expect(fonte, nome).toMatch(new RegExp(`export function ${nome}\\b`));
     }
   });

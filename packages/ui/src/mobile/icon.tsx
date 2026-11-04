@@ -37,7 +37,10 @@ export type IconName =
   | 'file'
   | 'menu'
   | 'swap'
-  | 'x';
+  | 'x'
+  | 'bell'
+  | 'sun'
+  | 'map';
 
 interface Props {
   name: IconName;
@@ -196,6 +199,27 @@ function render(name: IconName, c: Common) {
         <>
           <Circle cx={12} cy={8} r={4} {...c} />
           <Path d="M4 21c1-4 4.5-6 8-6s7 2 8 6" {...c} />
+        </>
+      );
+    case 'bell':
+      return (
+        <>
+          <Path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" {...c} />
+          <Path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" {...c} />
+        </>
+      );
+    case 'sun':
+      return (
+        <>
+          <Circle cx={12} cy={12} r={4} {...c} />
+          <Path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" {...c} />
+        </>
+      );
+    case 'map':
+      return (
+        <>
+          <Path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" {...c} />
+          <Path d="M9 4v14M15 6v14" {...c} />
         </>
       );
   }

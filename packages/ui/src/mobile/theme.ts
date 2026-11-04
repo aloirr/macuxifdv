@@ -1,42 +1,18 @@
 /**
- * Tokens visuais do app do vendedor (docs/05-app-mobile.md e mockups em /mockups).
- * Um único lugar para cor, fonte, raio e espaçamento.
+ * Tema do app (Campo e Gestão): reexporta os tokens puros (`tokens.ts`) e monta os estilos de texto do React Native.
+ * Um único lugar para cor, fonte, raio, espaçamento, sombra e movimento (T-0072; guia em docs/design/componentes.md).
  */
 import { StyleSheet } from 'react-native';
 
-export const colors = {
-  ground: '#F3F4F1',
-  surface: '#FFFFFF',
-  ink: '#16202A',
-  ink2: '#4A5562',
-  ink3: '#5B6673',
-  line: '#E1E4DE',
-  lineSoft: '#ECEEE9',
-  lineStrong: '#C9CEC6',
-  accent: '#C2540A',
-  accentLight: '#F59A52',
-  accentSoft: '#FBE9DC',
-  accentInk: '#8F3D06',
-  accentTint: '#FDF4EC',
-  success: '#1D6B4F',
-  successBg: '#E2F1EA',
-  warning: '#7A4F00',
-  warningInk: '#5C3B00',
-  warningBg: '#FFF1D6',
-  danger: '#A8261B',
-  dangerBg: '#FDE8E6',
-  neutralBg: '#E6E9E2',
-  neutralInk: '#34404D',
-  /** roxo da referência do Novo pedido (selo de orçamento, T-0071): contraste 7,9:1 sobre o fundo */
-  violet: '#4B2FA3',
-  violetBg: '#ECE7FB',
-  darkMuted: '#C9D0D8',
-  darkTrack: '#34404D',
-  mapBg: '#E6E9E2',
-  mapBorder: '#D6DAD1',
-} as const;
+import { colors, radius } from './tokens';
 
-/** Famílias carregadas em app/_layout.tsx (uma família por peso: não usar fontWeight). */
+export * from './tokens';
+export * from './movimento';
+
+/**
+ * Famílias carregadas em apps/mobile/src/app/_layout.tsx (`@expo-google-fonts/*`, já no shell: uma família por peso,
+ * não usar fontWeight). Archivo nos títulos e números; IBM Plex Sans no texto.
+ */
 export const fonts = {
   display: 'Archivo_800ExtraBold',
   displayBold: 'Archivo_700Bold',
@@ -47,8 +23,6 @@ export const fonts = {
   bold: 'IBMPlexSans_700Bold',
   mono: 'IBMPlexMono_500Medium',
 } as const;
-
-export const radius = { sm: 8, md: 12, lg: 14, xl: 16, xxl: 18 } as const;
 
 /** Alvo de toque mínimo (48 dp, Material; era 44 até a T-0071). */
 export const TOUCH = 48;
@@ -63,8 +37,12 @@ export const toneColors: Record<Tone, { fg: string; bg: string }> = {
   neutral: { fg: colors.neutralInk, bg: colors.neutralBg },
 };
 
+/**
+ * Tipografia. Títulos e números em Archivo; texto em IBM Plex Sans. Nomes antigos mantidos (h1, h2, sub, body…);
+ * os novos (`saudacao`, `titulo`, `secao`, `numeroGrande`, `rotulo`, `botao`) seguem o guia de 03/11.
+ */
 export const type = StyleSheet.create({
-  h1: { fontFamily: fonts.display, fontSize: 26, letterSpacing: -0.26, color: colors.ink },
+  h1: { fontFamily: fonts.display, fontSize: 26, letterSpacing: -0.3, color: colors.ink },
   h1Small: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28, color: colors.ink },
   h2: { fontFamily: fonts.displayBold, fontSize: 17, color: colors.ink },
   sub: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
@@ -76,10 +54,22 @@ export const type = StyleSheet.create({
   label: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink2 },
   mono: { fontFamily: fonts.mono, fontSize: 11, color: colors.ink2 },
   number: { fontFamily: fonts.displayBold, fontSize: 19, color: colors.ink, fontVariant: ['tabular-nums'] },
+  /** "Bom dia, Lucas" */
+  saudacao: { fontFamily: fonts.display, fontSize: 26, letterSpacing: -0.3, color: colors.ink },
+  /** título de folha e de diálogo */
+  titulo: { fontFamily: fonts.display, fontSize: 19, color: colors.ink },
+  /** título de seção ("Sua meta de hoje") */
+  secao: { fontFamily: fonts.displayBold, fontSize: 17, color: colors.ink },
+  /** valor em destaque (R$ 1.240, 2 de 6) */
+  numeroGrande: { fontFamily: fonts.displayBold, fontSize: 19, color: colors.ink, fontVariant: ['tabular-nums'] },
+  /** rótulo pequeno em maiúsculas ("RECADO DO DIA") */
+  rotulo: { fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.ink2 },
+  /** texto de botão de 44 (o de 52 usa 16) */
+  botao: { fontFamily: fonts.semibold, fontSize: 14 },
 });
 
 export const ui = StyleSheet.create({
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.xl },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.cartao },
   row: { flexDirection: 'row', alignItems: 'center' },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
 });

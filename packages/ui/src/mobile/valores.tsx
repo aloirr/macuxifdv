@@ -9,11 +9,11 @@
  * Os valores chegam já formatados (dinheiro a partir de centavos, % no domain); nenhum texto fixo no componente.
  */
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { ALVO_TOQUE } from './componentes';
 import { Icon, type IconName } from './icon';
-import { colors, fonts, radius } from './theme';
+import { Pressionavel } from './movimento-rn';
+import { ALTURA, BOTAO_DESABILITADO, colors, fonts, radius } from './theme';
 
 // ---------- RodapeTotal ----------
 export function RodapeTotal({
@@ -34,6 +34,7 @@ export function RodapeTotal({
   testID?: string;
 }) {
   const off = Boolean(acao.desligado || acao.ocupado);
+  const corTexto = acao.desligado ? BOTAO_DESABILITADO.texto : colors.surface;
   return (
     <View style={[s.rodape, { paddingBottom: 10 + respiroInferior }]} testID={testID}>
       <View style={s.rodapeValor} accessible accessibilityLabel={`${rotulo}: ${valor}`}>
@@ -44,20 +45,21 @@ export function RodapeTotal({
           {valor}
         </Text>
       </View>
-      <Pressable
+      <Pressionavel
         testID={acao.testID ?? `${testID}-acao`}
         accessibilityRole="button"
         accessibilityLabel={acao.rotulo}
         accessibilityState={{ disabled: off, busy: Boolean(acao.ocupado) }}
         disabled={off}
         onPress={acao.onPress}
-        style={({ pressed }) => [s.rodapeBotao, off && s.desligado, pressed && s.pressionado]}>
-        {acao.ocupado ? <ActivityIndicator color={colors.surface} size="small" /> : null}
-        <Text style={s.rodapeBotaoTexto} numberOfLines={1}>
+        vibrar
+        style={[s.rodapeBotao, acao.desligado && s.rodapeBotaoDesligado]}>
+        {acao.ocupado ? <ActivityIndicator color={corTexto} size="small" /> : null}
+        <Text style={[s.rodapeBotaoTexto, { color: corTexto }]} numberOfLines={1}>
           {acao.rotulo}
         </Text>
-        {acao.seta ? <Icon name="chevron" size={16} color={colors.surface} strokeWidth={2.4} /> : null}
-      </Pressable>
+        {acao.seta ? <Icon name="chevron" size={16} color={corTexto} strokeWidth={2.4} /> : null}
+      </Pressionavel>
     </View>
   );
 }
@@ -216,8 +218,10 @@ const s = StyleSheet.create({
   rodapeValor: { flexShrink: 1, minWidth: 0 },
   rodapeRotulo: { fontFamily: fonts.body, fontSize: 12, color: colors.ink2 },
   rodapeNumero: { fontFamily: fonts.display, fontSize: 18, color: colors.ink, fontVariant: ['tabular-nums'] },
-  rodapeBotao: { minHeight: ALVO_TOQUE, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 22, borderRadius: radius.md, backgroundColor: colors.accent },
-  rodapeBotaoTexto: { fontFamily: fonts.bold, fontSize: 14, color: colors.surface },
+  /** botão principal do guia (52 dp, raio 14, 16 semibold) */
+  rodapeBotao: { minHeight: ALTURA.principal, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 22, borderRadius: radius.botao, backgroundColor: colors.accent },
+  rodapeBotaoDesligado: { backgroundColor: BOTAO_DESABILITADO.fundo },
+  rodapeBotaoTexto: { fontFamily: fonts.semibold, fontSize: 16, color: colors.surface },
   // .line
   linha: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingVertical: 3 },
   linhaDivisor: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: 4, paddingTop: 7 },

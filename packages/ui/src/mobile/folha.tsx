@@ -3,14 +3,39 @@
  * `.dim`, `.sheet`, `.opt`, `.ic`). Generaliza o `BottomSheet` do Vendedor e do Core.
  * Nenhum texto fixo: título, opções, "Voltar" e o rótulo do fundo para o leitor de tela chegam por props.
  * Alvos de toque ≥ 48 dp. O botão Voltar do Android fecha (onRequestClose).
+ * Movimento (T-0072): a folha sobe de baixo em 280 ms e o fundo escurece junto; ao fechar, desce antes de sumir. Com
+ * "reduzir movimento", aparece e some sem deslocamento. O diálogo só esmaece (200 ms; nada com movimento reduzido).
  */
-import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Modal, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ALVO_TOQUE } from './componentes';
 import { Icon, type IconName } from './icon';
-import { colors, fonts, radius } from './theme';
+import { deslocamentoDaFolha, duracaoMovimento } from './movimento';
+import { curvaPadrao, Pressionavel, useReduzirMovimento } from './movimento-rn';
+import { colors, fonts, radius, shadow } from './theme';
+
+/** Mantém montado durante a saída e devolve o progresso 0 → 1 da entrada (0 = fechado). */
+function useEntradaSaida(visivel: boolean, duracao: number) {
+  const [montado, setMontado] = useState(visivel);
+  const progresso = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (visivel) setMontado(true);
+    const fim = () => {
+      if (!visivel) setMontado(false);
+    };
+    if (duracao === 0) {
+      progresso.setValue(visivel ? 1 : 0);
+      fim();
+      return;
+    }
+    const a = Animated.timing(progresso, { toValue: visivel ? 1 : 0, duration: duracao, easing: curvaPadrao, useNativeDriver: true });
+    a.start(fim);
+    return () => a.stop();
+  }, [visivel, duracao, progresso]);
+  return { montado: montado || visivel, progresso };
+}
 
 export interface AcaoTexto {
   rotulo: string;
@@ -42,10 +67,22 @@ export function Folha({
   testID?: string;
 }) {
   const insets = useSafeAreaInsets();
+  const reduzir = useReduzirMovimento();
+  const { montado, progresso } = useEntradaSaida(visivel, duracaoMovimento('folha', reduzir));
+  const [altura, setAltura] = useState(600);
+  const desloc = deslocamentoDaFolha(altura, reduzir);
   return (
-    <Modal visible={visivel} transparent animationType="fade" onRequestClose={onFechar} statusBarTranslucent>
-      <Pressable style={s.fundo} onPress={onFechar} accessibilityRole="button" accessibilityLabel={rotuloFechar} testID={`${testID}-fundo`} />
-      <View style={[s.folha, { paddingBottom: 22 + insets.bottom }]} testID={testID} accessibilityViewIsModal accessibilityLabel={rotuloAcessivel ?? titulo}>
+    <Modal visible={montado} transparent animationType="none" onRequestClose={onFechar} statusBarTranslucent>
+      <Animated.View style={[s.fundo, { opacity: progresso }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onFechar} accessibilityRole="button" accessibilityLabel={rotuloFechar} testID={`${testID}-fundo`} />
+      </Animated.View>
+      <Animated.View
+        onLayout={(e: LayoutChangeEvent) => setAltura(e.nativeEvent.layout.height)}
+        style={[s.folha, { paddingBottom: 22 + insets.bottom, transform: [{ translateY: progresso.interpolate({ inputRange: [0, 1], outputRange: [desloc, 0] }) }] }]}
+        testID={testID}
+        accessibilityViewIsModal
+        accessibilityLabel={rotuloAcessivel ?? titulo}>
+        <View style={s.alca} />
         {titulo ? (
           <Text style={s.titulo} accessibilityRole="header">
             {titulo}
@@ -53,11 +90,11 @@ export function Folha({
         ) : null}
         {children}
         {rodape ? (
-          <Pressable testID={rodape.testID ?? `${testID}-rodape`} accessibilityRole="button" onPress={rodape.onPress} style={({ pressed }) => [s.rodape, pressed && s.pressionado]}>
+          <Pressionavel testID={rodape.testID ?? `${testID}-rodape`} accessibilityRole="button" onPress={rodape.onPress} escala={false} style={s.rodape}>
             <Text style={s.rodapeTexto}>{rodape.rotulo}</Text>
-          </Pressable>
+          </Pressionavel>
         ) : null}
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -88,14 +125,14 @@ export function OpcaoFolha({
 }) {
   const c = TOM_OPCAO[tom];
   return (
-    <Pressable
+    <Pressionavel
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={subtitulo ? `${titulo}. ${subtitulo}` : titulo}
       accessibilityState={{ disabled: Boolean(desligado) }}
       disabled={desligado}
       onPress={onPress}
-      style={({ pressed }) => [s.opcao, pressed && s.pressionado]}>
+      style={s.opcao}>
       <View style={[s.icone, { backgroundColor: c.bg }, desligado && s.desligado]}>
         <Icon name={icone} size={18} color={c.fg} strokeWidth={2.2} />
       </View>
@@ -103,7 +140,7 @@ export function OpcaoFolha({
         <Text style={[s.opcaoTitulo, desligado && { color: colors.ink3 }]}>{titulo}</Text>
         {subtitulo ? <Text style={[s.opcaoSub, subtituloErro && { color: colors.danger }]}>{subtitulo}</Text> : null}
       </View>
-    </Pressable>
+    </Pressionavel>
   );
 }
 
@@ -138,46 +175,51 @@ export function Dialogo({
   testID?: string;
 }) {
   const fechar = onFechar ?? cancelar.onPress;
+  const reduzir = useReduzirMovimento();
+  const { montado, progresso } = useEntradaSaida(visivel, duracaoMovimento('dialogo', reduzir));
   return (
-    <Modal visible={visivel} transparent animationType="fade" onRequestClose={fechar} statusBarTranslucent>
-      <View style={s.dialogoFundo}>
+    <Modal visible={montado} transparent animationType="none" onRequestClose={fechar} statusBarTranslucent>
+      <Animated.View style={[s.dialogoFundo, { opacity: progresso }]}>
         <View style={s.dialogo} testID={testID} accessibilityViewIsModal accessibilityRole="alert">
           <Text style={s.dialogoTitulo} accessibilityRole="header">
             {titulo}
           </Text>
           {mensagem ? <Text style={s.dialogoMsg}>{mensagem}</Text> : null}
           <View style={s.dialogoBotoes}>
-            <Pressable testID={cancelar.testID ?? `${testID}-cancelar`} accessibilityRole="button" onPress={cancelar.onPress} style={({ pressed }) => [s.dialogoBotao, s.dialogoBotaoFora, pressed && s.pressionado]}>
+            <Pressionavel testID={cancelar.testID ?? `${testID}-cancelar`} accessibilityRole="button" onPress={cancelar.onPress} style={[s.dialogoBotao, s.dialogoBotaoFora]}>
               <Text style={[s.dialogoBotaoTexto, { color: colors.ink }]} numberOfLines={1}>
                 {cancelar.rotulo}
               </Text>
-            </Pressable>
-            <Pressable
+            </Pressionavel>
+            <Pressionavel
               testID={confirmar.testID ?? `${testID}-confirmar`}
               accessibilityRole="button"
               accessibilityState={{ disabled: Boolean(confirmar.ocupado), busy: Boolean(confirmar.ocupado) }}
               disabled={confirmar.ocupado}
               onPress={confirmar.onPress}
-              style={({ pressed }) => [s.dialogoBotao, { backgroundColor: perigo ? colors.danger : colors.accent }, confirmar.ocupado && s.desligado, pressed && s.pressionado]}>
+              vibrar
+              style={[s.dialogoBotao, { backgroundColor: perigo ? colors.danger : colors.accent }, confirmar.ocupado && s.desligado]}>
               <Text style={[s.dialogoBotaoTexto, { color: colors.surface }]} numberOfLines={1}>
                 {confirmar.rotulo}
               </Text>
-            </Pressable>
+            </Pressionavel>
           </View>
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
 
-const FUNDO = 'rgba(15,20,25,0.45)';
+const FUNDO = colors.scrim;
 
 const s = StyleSheet.create({
   pressionado: { opacity: 0.7 },
   desligado: { opacity: 0.45 },
   // .dim / .sheet
   fundo: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: FUNDO },
-  folha: { position: 'absolute', left: 0, right: 0, bottom: 0, alignSelf: 'center', width: '100%', maxWidth: 560, backgroundColor: colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 16, paddingHorizontal: 16, gap: 9 },
+  folha: { position: 'absolute', left: 0, right: 0, bottom: 0, alignSelf: 'center', width: '100%', maxWidth: 560, backgroundColor: colors.surface, borderTopLeftRadius: radius.folha, borderTopRightRadius: radius.folha, paddingTop: 8, paddingHorizontal: 16, gap: 9, ...shadow.folha },
+  /** alça visual no topo (indica que a folha desce) */
+  alca: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong, marginBottom: 6 },
   titulo: { fontFamily: fonts.display, fontSize: 19, color: colors.ink, marginBottom: 0 },
   rodape: { minHeight: ALVO_TOQUE, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   rodapeTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
@@ -193,7 +235,8 @@ const s = StyleSheet.create({
   dialogoTitulo: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
   dialogoMsg: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
   dialogoBotoes: { flexDirection: 'row', gap: 9, marginTop: 8 },
-  dialogoBotao: { flex: 1, minHeight: ALVO_TOQUE, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  dialogoBotaoFora: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  dialogoBotaoTexto: { fontFamily: fonts.bold, fontSize: 14 },
+  dialogoBotao: { flex: 1, minHeight: ALVO_TOQUE, borderRadius: radius.botaoMedio, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  /** nível neutro do guia (Cancelar) */
+  dialogoBotaoFora: { backgroundColor: colors.lineSoft },
+  dialogoBotaoTexto: { fontFamily: fonts.semibold, fontSize: 14 },
 });
