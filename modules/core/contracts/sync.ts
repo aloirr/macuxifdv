@@ -6,6 +6,7 @@
  * Mesma definição no app (`app/index.ts`) e na API (`api/sync.ts`) — o motor valida o schema dos dois lados.
  */
 import { z } from 'zod';
+import { PerfilSchema } from './auth';
 import { ModuloIdSchema } from './modulos';
 import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
 
@@ -288,6 +289,11 @@ export const NotificacaoSyncSchema = z
     prioridade: z.enum(['normal', 'alta']),
     lida_em: z.string().nullable().optional(),
     expira_em: z.string().nullable().optional(),
+    /** T-0073 (aditivo, migração 0021): dia civil no fuso do tenant em que o recado vale como "recado do dia"; null/ausente = não marcado. */
+    recado_do_dia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    /** T-0073 (aditivo): nome e perfil de quem enviou (subconsulta em core.usuario); só para exibir o autor do recado. */
+    autor_nome: z.string().nullable().optional(),
+    autor_perfil: PerfilSchema.nullable().optional(),
   })
   .strict();
 export type NotificacaoSync = z.infer<typeof NotificacaoSyncSchema>;

@@ -5,7 +5,7 @@
  * O evento `core.notificacao.criada@1` não leva título nem corpo (dado pessoal fica no banco). O push real (Expo)
  * fica atrás de `MACUXI_PUSH_ATIVO` (ver `push.ts`): sem a configuração nada é enviado e a caixa funciona igual.
  */
-import { definirEntidadeSync, ErroHttpModulo, ErroNaoEncontrado, type ContextoBase, type ItemPush, type ProvedorSync, type ResultadoItemPush, type RotaModulo } from '@macuxi/platform-sdk';
+import { definirEntidadeSync, type ClienteBanco, ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type ContextoBase, type ItemPush, type ProvedorSync, type ResultadoItemPush, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
   EnviarNotificacaoRespostaSchema,
@@ -15,12 +15,20 @@ import {
   NotificacaoListaQuerySchema,
   NotificacaoSyncSchema,
   PushTokenSchema,
+  RecadoDoDiaCorpoSchema,
+  RecadoDoDiaDesmarcadoSchema,
+  RecadoDoDiaMarcadoSchema,
+  RecadoDoDiaParamsSchema,
+  RECADO_DO_DIA_JANELA_DIAS,
   RecadosEnviadosQuerySchema,
   RecadosEnviadosRespostaSchema,
   type EnviarNotificacao,
   type EnviarNotificacaoResposta,
   type LeituraNotificacao,
+  type RecadoDoDiaDesmarcado,
+  type RecadoDoDiaMarcado,
 } from '../contracts';
+import { dataLocal } from '../domain';
 import { auditar } from './auditoria';
 import { BASE, sqlDoPull, type Tabela } from './sync';
 
@@ -29,7 +37,7 @@ const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
 const TABELA_NOTIFICACAO: Tabela = {
   tabela: 'core.notificacao',
-  colunas: `usuario_id, tipo, titulo, corpo, link, origem_modulo, autor_id, prioridade, to_char(lida_em at time zone 'UTC', ${UTC}) as lida_em, to_char(expira_em at time zone 'UTC', ${UTC}) as expira_em`,
+  colunas: `usuario_id, tipo, titulo, corpo, link, origem_modulo, autor_id, prioridade, to_char(lida_em at time zone 'UTC', ${UTC}) as lida_em, to_char(expira_em at time zone 'UTC', ${UTC}) as expira_em, to_char(recado_do_dia, 'YYYY-MM-DD') as recado_do_dia, (select u.nome from core.usuario u where u.id = autor_id) as autor_nome, (select u.perfil from core.usuario u where u.id = autor_id) as autor_perfil`,
   colunaCliente: null,
   colunaUsuario: 'usuario_id',
   // desenho T-0016 §2: criada há ≤ 30 dias e não expirada (removidas passam sempre)
@@ -68,7 +76,21 @@ export const provedoresDeNotificacao: readonly ProvedorSync[] = [
 ];
 
 const naoEncontrada = () => new ErroNaoEncontrado('NOTIFICACAO_NAO_ENCONTRADA', 'Notificação não encontrada. Atualize a lista e tente de novo.');
+const recadoNaoEncontrado = () => new ErroNaoEncontrado('RECADO_NAO_ENCONTRADO', 'Recado não encontrado na sua equipe. Atualize a lista e tente de novo.');
 const foraDoEscopo = () => new ErroHttpModulo(403, 'FORA_DO_ESCOPO', 'Você só pode enviar recados para pessoas da sua equipe. Revise os destinatários.');
+
+/** Linhas (uma por destinatário) do envio de recado que estão no escopo de quem marca; `na_janela` = ainda vai ao aparelho (RN-CORE-26). */
+async function linhasDoEnvio(db: ClienteBanco, envioId: string, visiveis: ReadonlySet<string> | 'tenant', agora: Date) {
+  const lista = visiveis === 'tenant' ? null : [...visiveis];
+  const r = await db.query<{ id: string; usuario_id: string; na_janela: boolean }>(
+    `select id, usuario_id, (created_at >= $3::timestamptz - interval '${RECADO_DO_DIA_JANELA_DIAS} days' and (expira_em is null or expira_em > $3::timestamptz)) as na_janela
+       from core.notificacao
+      where envio_id = $1 and tipo = 'recado' and deleted_at is null and ($2::uuid[] is null or usuario_id = any($2::uuid[]))
+      order by id`,
+    [envioId, lista, agora.toISOString()],
+  );
+  return r.rows;
+}
 
 export const rotasDeNotificacoes: readonly RotaModulo[] = [
   {
@@ -104,7 +126,7 @@ export const rotasDeNotificacoes: readonly RotaModulo[] = [
           (
             await db.query(
               `select n.id, n.envio_id, n.titulo, n.prioridade, n.autor_id, n.usuario_id as destinatario_id, u.nome as destinatario_nome,
-                      to_char(n.created_at at time zone 'UTC', ${UTC}) as enviada_em, to_char(n.lida_em at time zone 'UTC', ${UTC}) as lida_em
+                      to_char(n.created_at at time zone 'UTC', ${UTC}) as enviada_em, to_char(n.lida_em at time zone 'UTC', ${UTC}) as lida_em, to_char(n.recado_do_dia, 'YYYY-MM-DD') as recado_do_dia
                  from core.notificacao n join core.usuario u on u.id = n.usuario_id
                 where n.tipo = 'recado' and n.deleted_at is null
                   and (n.autor_id = $1 or (n.usuario_id <> $1 and ($2::uuid[] is null or n.usuario_id = any($2::uuid[]))))
@@ -150,6 +172,60 @@ export const rotasDeNotificacoes: readonly RotaModulo[] = [
         }
         if (criadas > 0) await auditar(db, ctx, { acao: 'notificacao.enviar', entidade: 'notificacao', entidadeId: c.id, antes: null, depois: { destinatarios: criadas, prioridade: c.prioridade } });
         return EnviarNotificacaoRespostaSchema.parse({ criadas, ja_existentes: alvos.length - criadas });
+      });
+    },
+  },
+  {
+    // RN-CORE-26: marca o envio como recado do dia de HOJE (fuso do tenant, decidido aqui) para os destinatários do escopo
+    metodo: 'PUT',
+    caminho: 'notificacoes/envios/:envioId/recado-do-dia',
+    acao: 'notificacao.recado_do_dia',
+    carteira: 'filtrar_no_dominio',
+    params: RecadoDoDiaParamsSchema,
+    corpo: RecadoDoDiaCorpoSchema,
+    executar: async (ctx): Promise<RecadoDoDiaMarcado> => {
+      const visiveis = await ctx.usuariosVisiveis();
+      const hoje = dataLocal(ctx.agora(), ctx.fuso());
+      const envioId = ctx.params.envioId;
+      return ctx.comTenant(async (db) => {
+        const linhas = await linhasDoEnvio(db, envioId, visiveis, ctx.agora());
+        if (linhas.length === 0) throw recadoNaoEncontrado();
+        // só se marca recado que ainda vai ao aparelho (criado há ≤ 30 dias e não expirado)
+        const alvo = linhas.filter((l) => l.na_janela);
+        if (alvo.length === 0) throw new ErroRegraNegocio('RN-CORE-26', 'Este recado é antigo demais para virar recado do dia. Envie um recado novo.');
+        const usuarios = [...new Set(alvo.map((l) => l.usuario_id))];
+        // um por pessoa por dia: a marcação de hoje de OUTRO envio sai dos mesmos destinatários, antes de gravar esta (índice único da 0021)
+        const outras = await db.query(
+          `update core.notificacao set recado_do_dia = null, recado_do_dia_por = null
+            where usuario_id = any($1::uuid[]) and recado_do_dia = $2::date and envio_id is distinct from $3::uuid and deleted_at is null`,
+          [usuarios, hoje, envioId],
+        );
+        const nova = await db.query('update core.notificacao set recado_do_dia = $2::date, recado_do_dia_por = $3 where id = any($1::uuid[]) and recado_do_dia is distinct from $2::date', [alvo.map((l) => l.id), hoje, ctx.usuario.id]);
+        const desmarcadas_outras = outras.rowCount ?? 0;
+        if ((nova.rowCount ?? 0) > 0 || desmarcadas_outras > 0) {
+          await auditar(db, ctx, { acao: 'notificacao.recado_do_dia', entidade: 'notificacao', entidadeId: envioId, antes: null, depois: { envio_id: envioId, dia: hoje, marcadas: alvo.length, desmarcadas_outras } });
+        }
+        return RecadoDoDiaMarcadoSchema.parse({ envio_id: envioId, dia: hoje, marcadas: alvo.length, desmarcadas_outras });
+      });
+    },
+  },
+  {
+    metodo: 'DELETE',
+    caminho: 'notificacoes/envios/:envioId/recado-do-dia',
+    acao: 'notificacao.recado_do_dia',
+    carteira: 'filtrar_no_dominio',
+    params: RecadoDoDiaParamsSchema,
+    executar: async (ctx): Promise<RecadoDoDiaDesmarcado> => {
+      const visiveis = await ctx.usuariosVisiveis();
+      const hoje = dataLocal(ctx.agora(), ctx.fuso());
+      const envioId = ctx.params.envioId;
+      return ctx.comTenant(async (db) => {
+        const linhas = await linhasDoEnvio(db, envioId, visiveis, ctx.agora());
+        if (linhas.length === 0) throw recadoNaoEncontrado();
+        const r = await db.query('update core.notificacao set recado_do_dia = null, recado_do_dia_por = null where id = any($1::uuid[]) and recado_do_dia = $2::date', [linhas.map((l) => l.id), hoje]);
+        const desmarcadas = r.rowCount ?? 0;
+        if (desmarcadas > 0) await auditar(db, ctx, { acao: 'notificacao.recado_do_dia', entidade: 'notificacao', entidadeId: envioId, antes: { envio_id: envioId, dia: hoje, marcadas: desmarcadas }, depois: { envio_id: envioId, dia: null, marcadas: 0 } });
+        return RecadoDoDiaDesmarcadoSchema.parse({ envio_id: envioId, desmarcadas });
       });
     },
   },
