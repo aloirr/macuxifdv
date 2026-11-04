@@ -15,7 +15,6 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
-import { AvisoRapido, useAviso } from '../components/aviso';
 import { opcoesDoSalvar, validadeDoOrcamento, validadeOrcamentoDias } from '../../domain/orcamento';
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
@@ -30,6 +29,7 @@ import { statusBadge } from '../lib/order-status';
 import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
 import { hrefPedido, hrefPedidos, irParaCatalogoDoPedido, irParaPedidos } from '../rotas';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
+import { deixarAvisoPendente } from '../lib/aviso-pendente';
 import { useVendedor } from '../state/use-vendedor';
 
 export default function NewOrderScreen() {
@@ -102,7 +102,6 @@ interface Snapshot {
 function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null }) {
   const app = useVendedor();
   const insets = useSafeAreaInsets();
-  const sheets = useAviso();
   const avisoRodape = useAvisoRodape();
   const podeEditar = usePode('pedido.editar');
   const { dados, tz, offline, garantirProdutos: ensureProducts, enviarPedido: submitOrder, salvarEdicao: saveOrderEdit, condicoesDe, v1 } = app;
@@ -234,9 +233,9 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
       const res = await saveOrderEdit(editId, draft, customer, catalog);
       if (res.kind === 'server') {
         const b = statusBadge(res.order.status);
-        sheets.mostrar(res.order.tipo === 'orcamento' ? `Orçamento ${res.order.number} atualizado.` : `Pedido ${res.order.number} atualizado · ${b.label}.`);
+        deixarAvisoPendente(res.order.tipo === 'orcamento' ? `Orçamento ${res.order.number} atualizado` : `Pedido ${res.order.number} atualizado · ${b.label}`);
       } else {
-        sheets.mostrar(offline ? 'Pedido da fila atualizado no aparelho. Será enviado quando o sinal voltar.' : 'Pedido da fila atualizado.');
+        deixarAvisoPendente(offline ? 'Pedido da fila atualizado no aparelho. Será enviado quando o sinal voltar' : 'Pedido da fila atualizado');
       }
       if (router.canGoBack()) router.back();
       else router.replace(hrefPedido(editId) as never);
@@ -286,7 +285,6 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 8, gap: 2, backgroundColor: colors.surface }}>
-        <AvisoRapido aviso={sheets.aviso} />
         {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label="Voltar" fallback={hrefPedidos()} />}
         <Text style={t.h1Small} testID="order-editor-title">
           {editId ? editTitle : 'Novo pedido'}

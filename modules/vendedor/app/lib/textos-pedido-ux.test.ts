@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { abasDoPedido, avisoSalvoNoAparelho, confirmacaoDoEnvio, folhaDoTransformar, linhaDoAjusteSomenteLeitura, TEXTO_PEDIDO_FORA_DO_APARELHO, TEXTO_SEM_ITEM_NO_RESUMO, textoBuscaSemResultado, textoCancelarDocumento, textoEquivalente, textoNaoFoiAceito } from './textos-pedido';
+import { abasDoPedido, avisoSalvoNoAparelho, confirmacaoDoEnvio, folhaDoTransformar, linhaDoAjusteSomenteLeitura, TEXTO_PEDIDO_FORA_DO_APARELHO, estadoDoDetalheAusente, textoDoAviso, TEXTO_SEM_ITEM_NO_RESUMO, textoBuscaSemResultado, textoCancelarDocumento, textoEquivalente, textoNaoFoiAceito } from './textos-pedido';
 
 const limpa = (s: string | undefined) => (s ?? '').replace(/\s/g, ' ');
 
@@ -14,7 +14,7 @@ describe('confirmacaoDoEnvio (T-0071, revisão de UX 🔴 2): orçamento nunca �
   it('RN-VEN-10: pedido recebido segue com "Pedido N recebido", selo de status e a nota da alçada', () => {
     expect(confirmacaoDoEnvio({ tipo: 'pedido', numero: '000013', status: 'pending_approval', pending_reason: 'Desconto de 8% acima da alçada.' })).toEqual({ titulo: 'Pedido 000013 recebido', nota: 'Desconto de 8% acima da alçada.', mostrarStatus: true, rodape: 'Ir para Pedidos' });
     expect(confirmacaoDoEnvio({ tipo: 'pedido', numero: '000013', status: 'approved' }).nota).toBe('Dentro da alçada: aprovado na hora.');
-    expect(confirmacaoDoEnvio({ tipo: 'pedido', numero: '000013', status: 'received' }).nota).toBe('Recebido.');
+    expect(confirmacaoDoEnvio({ tipo: 'pedido', numero: '000013', status: 'received' }).nota).toBe('');
   });
   it('RN-VEN-13: sem sinal, o aviso do aparelho fala do documento certo', () => {
     expect(avisoSalvoNoAparelho('orcamento')).toEqual({ titulo: 'Orçamento salvo no aparelho.', nota: 'Envia quando o sinal voltar.' });
@@ -115,5 +115,20 @@ describe('textoEquivalente do acréscimo (guia §7.1)', () => {
   it('RN-VEN-02: digitou R$, o equivalente é "= 5,3%" no desconto e no acréscimo', () => {
     expect(textoEquivalente({ ajuste_em: 'valor', equivalente: { sentido: 'acrescimo', cents: 100, pct_exibicao: 5.3 } })).toBe('= 5,3%');
     expect(textoEquivalente({ ajuste_em: 'valor', equivalente: { sentido: 'desconto', cents: 100, pct_exibicao: 5.3 } })).toBe('= 5,3%');
+  });
+});
+
+describe('detalhe sem pedido e avisos (T-0071, revisão de UX 23, 25 e 26)', () => {
+  it('RN-CORE-23: com sinal, a carga que termina sem o pedido mostra erro com "Tentar de novo", não spinner eterno', () => {
+    expect(estadoDoDetalheAusente({ offline: false, carregando: true })).toEqual({ tipo: 'carregando' });
+    const fim = estadoDoDetalheAusente({ offline: false, carregando: false });
+    expect(fim).toMatchObject({ tipo: 'vazio', tentarDeNovo: true });
+  });
+  it('RN-CORE-23: sem sinal, o vazio pede conexão e não oferece nova tentativa', () => {
+    expect(estadoDoDetalheAusente({ offline: true, carregando: true })).toMatchObject({ tipo: 'vazio', titulo: 'Este pedido não está no aparelho', tentarDeNovo: false });
+  });
+  it('aviso de rodapé sai sem ponto final e mantém pontos do meio', () => {
+    expect(textoDoAviso('Pedido 000013 aprovado.')).toBe('Pedido 000013 aprovado');
+    expect(textoDoAviso('Pedido da fila atualizado no aparelho. Será enviado quando o sinal voltar.')).toBe('Pedido da fila atualizado no aparelho. Será enviado quando o sinal voltar');
   });
 });
