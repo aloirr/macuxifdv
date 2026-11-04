@@ -1,12 +1,12 @@
 /**
- * Provedores de pull de preço do Catálogo (T-0029; docs/banco/catalogo.md): `tabela_preco`, `tabela_preco_item`
+ * Provedores de pull de preço e estoque do Catálogo (T-0029; docs/banco/catalogo.md): `tabela_preco`, `tabela_preco_item`
  * (escopo tenant; restringir às tabelas da carteira fica para depois) e `cliente_tabela_preco` (escopo carteira,
  * RN-CORE-04). Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos, removidos incluídos, dinheiro em
  * centavos como número. RN-CAT-05: perfil sem direito ao preço (promotor com `promotor_ve_preco_estoque = false`)
  * não recebe nenhuma das três — o preço nem chega ao aparelho dele.
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
-import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeProdutoNo, entidadeProdutoRelacao, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
+import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoNo, entidadeProdutoRelacao, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -26,6 +26,13 @@ const TABELAS = {
   produto_no: { tabela: 'catalogo.produto_no', colunas: 'produto_id, no_id', colunaCliente: false },
   // relação entre produtos (RF-CAT-03; T-0071 §5, migração 0020): sem preço nem estoque, só ligação entre ids
   produto_relacao: { tabela: 'catalogo.produto_relacao', colunas: 'produto_id, relacionado_id, tipo, ordem::int as ordem, ativo', colunaCliente: false },
+  // estoque (RF-CAT-03, RN-CAT-05/07; T-0071-P4): depósito e saldo por produto, escopo tenant, na unidade base. Só para quem vê estoque.
+  deposito: { tabela: 'catalogo.deposito', colunas: 'codigo, nome, ativo', colunaCliente: false },
+  estoque_saldo: {
+    tabela: 'catalogo.estoque_saldo',
+    colunas: `deposito_id, produto_id, quantidade::float8 as quantidade, to_char(atualizado_erp_em at time zone 'UTC', ${UTC}) as atualizado_em`,
+    colunaCliente: false,
+  },
 } as const;
 
 const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no', 'produto_relacao']);
@@ -62,4 +69,6 @@ export const provedoresSyncCatalogo: readonly ProvedorSync[] = [
   { entidade: entidadeCatalogoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('catalogo_no', ctx, p) },
   { entidade: entidadeProdutoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_no', ctx, p) },
   { entidade: entidadeProdutoRelacao, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_relacao', ctx, p) },
+  { entidade: entidadeDeposito, escopo: 'tenant', puxar: (ctx, p) => puxar('deposito', ctx, p) },
+  { entidade: entidadeEstoqueSaldo, escopo: 'tenant', puxar: (ctx, p) => puxar('estoque_saldo', ctx, p) },
 ];
