@@ -1,0 +1,56 @@
+name: demo — recriar base demo
+
+# T-0074 (ADR 0020). Só manual (Actions → "demo — recriar base demo" → Run workflow): na VM da Magalu Cloud, apaga o
+# tenant "demo" e recarrega a base de demonstração (db/scripts/banco.ts "seed demo --recriar", dados fictícios) com a
+# imagem já publicada. Não mexe em imagem, migração nem nos outros tenants. Fotos antigas no bucket ficam órfãs
+# (sem linha em plataforma.arquivo, ninguém lê).
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Digite RECRIAR para apagar o tenant demo e recarregar a base'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-vm
+  cancel-in-progress: false
+
+jobs:
+  recriar:
+    name: seed demo --recriar na VM
+    if: ${{ inputs.confirmar == 'RECRIAR' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: DEMO_SSH_KEY
+    steps:
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.DEMO_SSH_KEY }}
+          HOST: ${{ secrets.DEMO_HOST }}
+        run: |
+          install -d -m 700 ~/.ssh
+          # sem CR: chave colada no Windows quebraria o formato OpenSSH
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/demo
+          chmod 600 ~/.ssh/demo
+          ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host demo\n  HostName %s\n  IdentityFile ~/.ssh/demo\n  IdentitiesOnly yes\n  BatchMode yes\n  ServerAliveInterval 30\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: seed demo --recriar
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+        run: |
+          ssh -l "$USUARIO" demo 'set -e; cd /opt/macuxi
+            dc() { docker compose --env-file .env --env-file imagens.env "$@"; }
+            dc --profile ferramentas run --rm seed-demo --recriar
+            touch .base-demo-carregada
+            curl -fsS -o /dev/null http://127.0.0.1:8100/v1/saude && echo "api: /v1/saude ok"'
+
+      - name: limpar a chave do runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/demo ~/.ssh/config

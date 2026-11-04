@@ -1,0 +1,173 @@
+name: demo — publicar
+
+# T-0074 (ADR 0020). Publica o ambiente demo/homologação na VM da Magalu Cloud (macuxi-demo-se1):
+#   1. imagens: monta apps/api/Dockerfile (API, worker, migrações e seed) e, se existir, apps/web/Dockerfile (BKO) e
+#      publica no GHCR (pacotes privados) com o GITHUB_TOKEN, tags <sha> e main;
+#   2. deploy (environment DEMO_SSH_KEY): copia scripts/deploy/demo para a VM, roda o preparar-vm.sh (idempotente),
+#      grava os segredos vindos do GitHub em /opt/macuxi (modo 600), faz login no GHCR NA VM com o GITHUB_TOKEN deste run,
+#      roda o implantar.sh (pull, migrações, seed só no 1º deploy, compose up -d, conferência, docker image prune -f)
+#      e sai do GHCR.
+# Gatilho: o CI terminar VERDE num push ao main (workflow_run), ou manual (Actions → "demo — publicar" → Run workflow).
+# Nenhum segredo vai para log: os secrets chegam por variável de ambiente e por stdin do ssh, nunca na linha de comando.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Uma publicação por vez; a mais nova espera a anterior terminar (nunca dois compose up ao mesmo tempo na VM).
+concurrency:
+  group: demo-vm
+  cancel-in-progress: false
+
+env:
+  # commit publicado: o do CI verde (workflow_run) ou o do branch escolhido (manual)
+  SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  imagens:
+    name: imagens no GHCR
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      bko: ${{ steps.bko.outputs.existe }}
+      dono: ${{ steps.dono.outputs.dono }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - name: dono do registro (minúsculo)
+        id: dono
+        env:
+          DONO: ${{ github.repository_owner }}
+        run: echo "dono=${DONO,,}" >> "$GITHUB_OUTPUT"
+
+      - name: BKO tem Dockerfile?
+        id: bko
+        run: |
+          if [ -f apps/web/Dockerfile ]; then echo "existe=1" >> "$GITHUB_OUTPUT"; else echo "existe=0" >> "$GITHUB_OUTPUT"; echo "::notice::apps/web/Dockerfile ainda não existe: publica só a API"; fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: imagem da API e do worker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          provenance: false
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          tags: |
+            ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-api:${{ env.SHA }}
+            ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-api:main
+          cache-from: type=gha,scope=macuxi-api
+          cache-to: type=gha,scope=macuxi-api,mode=max
+
+      - name: imagem do BKO
+        if: ${{ steps.bko.outputs.existe == '1' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          provenance: false
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          tags: |
+            ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-bko:${{ env.SHA }}
+            ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-bko:main
+          cache-from: type=gha,scope=macuxi-bko
+          cache-to: type=gha,scope=macuxi-bko,mode=max
+
+  deploy:
+    name: deploy na VM
+    needs: imagens
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: DEMO_SSH_KEY
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+          sparse-checkout: scripts/deploy/demo
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.DEMO_SSH_KEY }}
+          HOST: ${{ secrets.DEMO_HOST }}
+        run: |
+          install -d -m 700 ~/.ssh
+          # sem CR: chave colada no Windows quebraria o formato OpenSSH
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/demo
+          chmod 600 ~/.ssh/demo
+          # chave do host na primeira conexão (a VM só aceita a 22 e é nossa); fica só neste runner
+          ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host demo\n  HostName %s\n  IdentityFile ~/.ssh/demo\n  IdentitiesOnly yes\n  BatchMode yes\n  ServerAliveInterval 30\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: copiar scripts e preparar a VM (idempotente)
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+        run: |
+          ssh -l "$USUARIO" demo 'rm -rf ~/macuxi-deploy && mkdir -p ~/macuxi-deploy'
+          scp -q -o User="$USUARIO" scripts/deploy/demo/* demo:macuxi-deploy/
+          ssh -l "$USUARIO" demo 'sudo bash ~/macuxi-deploy/preparar-vm.sh "$USER"'
+
+      - name: segredos do GitHub na VM (modo 600)
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+          S3_ID: ${{ secrets.DEMO_S3_KEY_ID }}
+          S3_SEGREDO: ${{ secrets.DEMO_S3_SECRET }}
+          TUNEL: ${{ secrets.DEMO_CLOUDFLARE_TUNNEL_TOKEN }}
+        run: |
+          printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO" \
+            | ssh -l "$USUARIO" demo 'umask 077; cat > /opt/macuxi/segredos.env'
+          printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" \
+            | ssh -l "$USUARIO" demo 'umask 077; cat > /opt/macuxi/tunel.env'
+
+      - name: publicar (login no GHCR na VM, migrações, compose up, prune)
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATOR: ${{ github.actor }}
+          BKO: ${{ needs.imagens.outputs.bko }}
+        run: |
+          printf '%s' "$TOKEN" | ssh -l "$USUARIO" demo "docker login ghcr.io -u '$ATOR' --password-stdin >/dev/null"
+          opcoes=""
+          [ "$BKO" = "1" ] && opcoes="--bko"
+          set +e
+          ssh -l "$USUARIO" demo "bash ~/macuxi-deploy/implantar.sh '$SHA' $opcoes"
+          saida=$?
+          ssh -l "$USUARIO" demo 'docker logout ghcr.io >/dev/null 2>&1 || true'
+          exit $saida
+
+      - name: conferir pelo domínio
+        if: ${{ success() }}
+        env:
+          BKO: ${{ needs.imagens.outputs.bko }}
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS -o /dev/null https://api-demo.macuxifdv.com.br/v1/saude; then echo "api-demo: ok"; break; fi
+            [ "$i" = 20 ] && { echo "::warning::api-demo.macuxifdv.com.br/v1/saude não respondeu (confira o túnel macuxi-demo-nuvem no painel)"; }
+            sleep 6
+          done
+          if [ "$BKO" = "1" ]; then
+            curl -fsS -o /dev/null https://bko-demo.macuxifdv.com.br/login && echo "bko-demo: ok" || echo "::warning::bko-demo.macuxifdv.com.br/login não respondeu"
+          fi
+
+      - name: limpar a chave do runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/demo ~/.ssh/config
