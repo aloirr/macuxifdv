@@ -27,3 +27,6 @@
 2026-11-03 — T-0065 — vendedor.pedidos_da_meta@1 publicada (contrato, domain, API, manifest ofereceConsultas); testes unit + db 5434
 2026-11-03 — T-0061 — corrige main vermelho: pull do promotor sem tx.consultar usa padrão ligada (teste explícito); manifest coerente; testes 5434 e typecheck verdes
 2026-11-03 — T-0061 — opcao-promotor sem padrão 'ligada sem tx.consultar' (erro de montagem); ctx falsos com tx.consultar; pull com opção desligada/ligada testado
+2026-11-03 — T-0071 — fatia 2: preço v2 (R$ por unidade, rateio maior resto, pctExibicao), orçamento (validade civil, ações, reconferir, cópia completa, opcoesDoSalvar), sugestões e contratos aditivos; caso §3.2 verde; API/SQL na próxima rodada
+2026-11-03 — T-0071 — fatia 5 (API): pré-venda SQL ligada, pull com tipo/validade/janela e 0020, receber com R$ (item e pedido) e RN-VEN-13 de cadastro, PUT/cancelar de orçamento, lista por tipo, conversão com RN-VEN-18, PDF Orçamento; verificação final em andamento
+2026-11-03 — T-0071 — fatia 5 (API) verificada: typecheck e lint verdes; vitest dos arquivos tocados (79 testes, 5434) verdes
