@@ -18,7 +18,11 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
   const lista = async (ids: string[], sql: string, extra: unknown[] = []) => (ids.length === 0 ? [] : (await ctx.db.query(sql, [ids, ...extra])).rows);
   const clientes = await lista(
     entrada.cliente_ids,
-    'select id, razao_social, nome_fantasia, documento, logradouro, numero, bairro, cidade, uf, ativo, external_id, inscricao_estadual, cep, cadastro_incompleto, cadastro_campos_faltantes from core.cliente where deleted_at is null and id = any($1::uuid[]) order by id',
+    // bloqueado (T-0073 / RN-VEN-13): `cliente_financeiro.bloqueado` do próprio Core; sem linha financeira = não bloqueado
+    `select c.id, c.razao_social, c.nome_fantasia, c.documento, c.logradouro, c.numero, c.bairro, c.cidade, c.uf, c.ativo, c.external_id, c.inscricao_estadual, c.cep, c.cadastro_incompleto, c.cadastro_campos_faltantes,
+            coalesce(f.bloqueado, false) as bloqueado
+       from core.cliente c left join core.cliente_financeiro f on f.cliente_id = c.id and f.deleted_at is null
+      where c.deleted_at is null and c.id = any($1::uuid[]) order by c.id`,
   );
   const produtos = (
     entrada.produto_ids.length === 0 && entrada.produto_external_ids.length === 0

@@ -3,6 +3,7 @@ import {
   dataDoFechamento,
   periodoFechado,
   positivadosDoPeriodo,
+  realizadoPartido,
   realizadoPorTipo,
   situacaoDoPeriodo,
   type FaturamentoApuravel,
@@ -122,5 +123,41 @@ describe('RN-CORE-21: fechamento no 2º dia útil do mês seguinte', () => {
   it('RN-CORE-21: o mês corrente e os futuros são sempre parciais', () => {
     expect(situacaoDoPeriodo('2026-11', '2026-11-15')).toBe('parcial');
     expect(situacaoDoPeriodo('2026-12', '2026-11-15')).toBe('parcial');
+  });
+});
+
+describe('RN-CORE-26: realizado partido em até ontem × hoje, no fuso do tenant', () => {
+  const o = { usuario_id: V1, periodo: '2026-11', fuso: MANAUS, hoje: '2026-11-10' };
+  it('RN-CORE-26: pedido emitido em 09/11 às 23h30 em Manaus (10/11 03h30 UTC) conta em "até ontem" no dia 10', () => {
+    const p = pedido({ emitido_em: '2026-11-10T03:30:00Z', total_cents: 5_000 });
+    const r = realizadoPartido('pedido', { pedidos: [p] }, o);
+    expect(r.venda_cents).toEqual({ ate_ontem: 5_000, hoje: 0 });
+  });
+  it('RN-CORE-26: pedido emitido hoje (10/11 10h em Manaus) conta em "hoje"; pedido de amanhã não conta', () => {
+    const hoje = pedido({ emitido_em: '2026-11-10T14:00:00Z', total_cents: 7_000 });
+    const amanha = pedido({ emitido_em: '2026-11-11T14:00:00Z', total_cents: 900 });
+    expect(realizadoPartido('pedido', { pedidos: [hoje, amanha] }, o).venda_cents).toEqual({ ate_ontem: 0, hoje: 7_000 });
+  });
+  it('RN-CORE-26: pedido emitido em 31/10 e aprovado em 02/11 não entra em novembro', () => {
+    const p = pedido({ emitido_em: '2026-10-31T20:00:00Z', aprovado_em: '2026-11-02T14:00:00Z' });
+    const r = realizadoPartido('pedido', { pedidos: [p] }, o);
+    expect(r.venda_cents).toEqual({ ate_ontem: 0, hoje: 0 });
+    expect(r.positivacao).toEqual({ ate_ontem: 0, hoje: 0 });
+  });
+  it('RN-CORE-26: meta de faturamento usa faturado_em', () => {
+    const f = [faturamento({ faturado_em: '2026-11-05T15:00:00Z', valor_cents: 4_000 }), faturamento({ faturado_em: '2026-11-10T15:00:00Z', valor_cents: 3_000 })];
+    const p = pedido({ emitido_em: '2026-11-10T15:00:00Z', total_cents: 99_000 });
+    expect(realizadoPartido('faturamento', { pedidos: [p], faturamentos: f }, o).venda_cents).toEqual({ ate_ontem: 4_000, hoje: 3_000 });
+  });
+  it('RN-CORE-26: o cliente positivado ontem que comprou de novo hoje não conta em positivacao.hoje; o novo conta', () => {
+    const ontem = pedido({ emitido_em: '2026-11-09T14:00:00Z', cliente_id: C1 });
+    const hojeC1 = pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1 });
+    const hojeC2 = pedido({ emitido_em: '2026-11-10T15:00:00Z', cliente_id: C2 });
+    expect(realizadoPartido('pedido', { pedidos: [ontem, hojeC1] }, o).positivacao).toEqual({ ate_ontem: 1, hoje: 0 });
+    expect(realizadoPartido('pedido', { pedidos: [ontem, hojeC1, hojeC2] }, o).positivacao).toEqual({ ate_ontem: 1, hoje: 1 });
+  });
+  it('RN-CORE-26: só o vendedor da meta entra', () => {
+    const outro = pedido({ vendedor_id: V2, emitido_em: '2026-11-10T14:00:00Z' });
+    expect(realizadoPartido('pedido', { pedidos: [outro] }, o).venda_cents).toEqual({ ate_ontem: 0, hoje: 0 });
   });
 });
