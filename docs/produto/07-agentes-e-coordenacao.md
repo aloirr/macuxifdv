@@ -7,12 +7,13 @@
                      ┌─────────────┴─────────────┐
                      │  GERENTE DE PROJETOS SÊNIOR │  ← sessão principal do Claude Code
                      └─────────────┬─────────────┘
-     ┌────────────────────┬───────┴────────────┬────────────────────┐
-  Engenheiro de        Engenheiro de        Desenvolvedor de     Testes Sênior
-  Software Sênior      Aplicativos          Banco Sênior         (e2e, integração,
-  (arquitetura, API,   (shells mobile/web,  (schemas, migrações, carga, regressão)
-  plataforma, revisão) ui, EAS, telas)      RLS, Conector)
-     └────────────────────┴───────┬────────────┴────────────────────┘
+     ┌──────────────────┬──────────────────┬┴─────────────────┬──────────────────┐
+  Engenheiro de      Engenheiro de      Designer UX        Desenvolvedor de   Testes Sênior
+  Software Sênior    Aplicativos        (packages/ui,      Banco Sênior       (e2e, integração,
+  (arquitetura, API, (shells mobile/web,docs/design,       (schemas, migra-   carga, regressão)
+  plataforma,        transições, EAS,   visual, textos,    ções, RLS,
+  revisão final)     revisão técnica)   3 toques)          Conector)
+     └──────────────────┴──────────────────┬──────────────────┴──────────────────┘
    ┌──────────┬──────────┬─────────┼─────────┬──────────┬──────────┬──────────┐
  modulo-   modulo-    modulo-   modulo-   modulo-   modulo-    modulo-     modulo-
  core      catalogo   vendedor  promotor  gestor    pesquisa   treinamento integracao
@@ -23,7 +24,8 @@
 |---|---|---|
 | **gerente-projetos** | Comanda o time: quebra demandas em tarefas `T-nnnn`, delega, acompanha recados e bloqueios, mantém quadro, roadmap e docs de produto, fecha sprints e reporta ao Alexandre | Não escreve código |
 | **engenheiro-software** | Arquitetura e plataforma: `apps/api`, `platform-sdk`, `packages/comum` e `config`, contratos entre módulos, regras de fronteira, ADRs, desenhos de tarefa, CI (`.github/`), `scripts/`, raiz e lockfile; **revisão final de arquitetura** de toda tarefa | Não implementa regra de módulo |
-| **engenheiro-apps** | Telas e shells: `apps/mobile` (variantes campo/gestao, EAS), `apps/web` (shell do BKO), `packages/ui`, navegação, login e seleção de servidor, acessibilidade e "3 toques", builds EAS; **revisão das telas** dos módulos (`modules/<m>/app` e `modules/<m>/web`) | Não corrige código alheio (recado 🔴/🟡/🟢 ao dono); não mexe em API, SDK, CI nem raiz (recado ao engenheiro-software) |
+| **engenheiro-apps** | Shells: `apps/mobile` (variantes campo/gestao, EAS), `apps/web` (shell do BKO), navegação, transições do shell, login e seleção de servidor, builds EAS; **revisão técnica das telas** dos módulos (offline, navegação, desempenho, bundle) | Não mexe em `packages/ui` (é do designer-ux); não corrige código alheio (recado 🔴/🟡/🟢 ao dono); não mexe em API, SDK, CI nem raiz (recado ao engenheiro-software) |
+| **designer-ux** | Visual e UX (R-20261103-161508): `packages/ui` (tokens, componentes base, movimento) e `docs/design/` (especificações e referências); **revisão de visual, hierarquia, textos e "3 toques"** das telas dos módulos antes do merge | Não escreve regra nem tela de módulo (recado ao dono); não mexe nos shells (recado ao engenheiro-apps) |
 | **banco-dados** | Todos os schemas (nuvem e SQLite), migrações, RLS, índices, seeds, desempenho, views-modelo do Conector | Não escreve tela nem regra |
 | **testes** | Plano de testes, e2e (Playwright), integração entre módulos, sync offline, multi-tenant, carga; relatório critério → teste → resultado | Não corrige código de produção — abre recado com o defeito |
 | **modulo-core** | Login/perfis, carteira, Cliente 360, rotas/visitas, sync no app, metas, notificações | — |
@@ -37,7 +39,7 @@
 
 **Fronteira entre os dois engenheiros** (decisão do Alexandre, R-20261101-073742):
 - Dependência nova, ponto de extensão de UI no SDK, mudança no CI ou na raiz: o engenheiro-apps pede por recado ao engenheiro-software; ADR de UI ele redige como proposta e o engenheiro-software registra em `docs/decisoes/`.
-- **Quem revisa o quê**: telas de módulo e shells → engenheiro-apps (usabilidade, offline, `packages/ui`, sem regra na tela); arquitetura, contratos, API, segurança e fronteiras → engenheiro-software, que continua o revisor final antes do fechamento. Tarefa com tela passa pelas duas revisões.
+- **Quem revisa o quê** (R-20261103-161508): visual, hierarquia, textos e "3 toques" → **designer-ux**; offline, navegação, desempenho e bundle → **engenheiro-apps**; arquitetura, contratos, API, segurança e fronteiras → **engenheiro-software**, que continua o revisor final antes do fechamento. Tarefa com tela passa pelas três revisões.
 - **Transição**: até o Alexandre mudar o `.coord/donos.json` (`apps/mobile/**`, `apps/web/**` e `packages/ui/**` → engenheiro-apps), esses caminhos seguem com o engenheiro-software e o engenheiro-apps não é disparado. O gerente avisa o Alexandre com "pronto para a divisão" quando não houver nada em andamento nesses caminhos.
 
 **Testes em duas instâncias**: quando houver trabalho de teste em pastas separadas (ex.: `tests/integracao` e `tests/e2e`), o gerente dispara o agente `testes` em duas instâncias ao mesmo tempo, cada uma com a sua pasta escrita no pedido; o diário continua um só (só acrescentar linhas).

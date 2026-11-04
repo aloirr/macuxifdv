@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<style>
+:root{--ink:#17212B;--ink2:#5B6670;--ink3:#8A949C;--ground:#F3F2EF;--surface:#FFFFFF;--line:#E4E2DD;--accent:#C2550A;--accentSoft:#FBE7D8;--success:#1F6B4A;--successBg:#E3F1EA;--warn:#9A4A08;--warnBg:#FDEBD7;--danger:#B42318}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,sans-serif;background:#D9D6CF;padding:28px;color:var(--ink)}
+h1.page{font-size:22px;margin:0 0 4px 6px}
+p.page{font-size:13px;color:#4a4a4a;margin:0 0 18px 6px}
+.row{display:flex;gap:26px;align-items:flex-start}
+.cap{font-size:13px;font-weight:700;margin:0 0 8px 4px;color:#333}
+.phone{width:360px;height:780px;background:var(--ground);border-radius:34px;border:10px solid #111;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.sb{height:26px;display:flex;justify-content:space-between;padding:6px 20px 0;font-size:12px;font-weight:600;color:var(--ink)}
+.head{padding:8px 18px 0}
+.back{font-size:13px;color:var(--ink2)}
+.title{font-size:23px;font-weight:800;margin-top:4px}
+.sub{font-size:12px;color:var(--ink2)}
+.tabs{display:flex;margin-top:10px;border-bottom:1px solid var(--line);background:var(--ground)}
+.tab{flex:1;text-align:center;font-size:13px;color:var(--ink2);padding:9px 0 8px;font-weight:500}
+.tab.on{color:var(--ink);font-weight:700;border-bottom:3px solid var(--accent)}
+.body{flex:1;overflow:hidden;padding:10px 12px;display:flex;flex-direction:column;gap:9px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 12px}
+.lbl{font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.seg{display:flex;gap:6px}
+.seg span{flex:1;text-align:center;border:1px solid var(--line);border-radius:9px;padding:7px 0;font-size:12.5px;font-weight:600;background:#fff}
+.seg span.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.seg.sm span{padding:4px 0;font-size:11.5px}
+.hint{font-size:11px;color:var(--ink2);margin-top:5px}
+.search{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;color:var(--ink3)}
+.crumb{font-size:11.5px;color:var(--ink2);margin-top:6px}
+.crumb b{color:var(--accent);font-weight:600}
+.item{border-top:1px solid var(--line);padding:9px 0 3px}
+.item:first-child{border-top:0;padding-top:2px}
+.code{font-family:'DejaVu Sans Mono',monospace;font-size:10px;color:var(--ink3)}
+.nm{font-size:13px;font-weight:600}
+.r{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.qty{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700}
+.qty i{font-style:normal;width:26px;height:26px;border:1px solid var(--line);border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-weight:500;background:#fff}
+.chip{display:inline-block;font-size:11px;font-weight:700;border:1px solid var(--line);border-radius:6px;padding:2px 6px;background:#fff}
+.adj{display:flex;gap:5px;align-items:center;margin-top:6px}
+.adj .t{font-size:11px;border:1px solid var(--line);border-radius:7px;padding:3px 7px;background:#fff}
+.adj .t.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.adj .v{flex:1;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:12px;font-weight:700;text-align:right;background:#fff}
+.eq{font-size:11px;color:var(--success);font-weight:600}
+.tot{font-size:13.5px;font-weight:800}
+.small{font-size:11.5px;color:var(--ink2)}
+.foot{background:#fff;border-top:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+.foot .big{font-size:18px;font-weight:800}
+.btn{background:var(--accent);color:#fff;border-radius:12px;padding:10px 22px;font-weight:700;font-size:14px;text-align:center}
+.btn.out{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.dark{background:var(--ink)}
+.nav{height:50px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;font-size:10.5px;color:var(--ink2)}
+.nav b{color:var(--accent);font-weight:600}
+.sug{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:7px 0}
+.sug:first-of-type{border-top:0}
+.plus{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--accent);background:#fff;flex:none}
+.tag{font-size:10px;font-weight:700;border-radius:5px;padding:1px 5px;background:var(--successBg);color:var(--success)}
+.tag.w{background:var(--warnBg);color:var(--warn)}
+.line{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0}
+.okbox{background:var(--successBg);color:var(--success);border-radius:9px;padding:7px 9px;font-size:12px;font-weight:600}
+.dim{position:absolute;inset:0;background:rgba(15,20,25,.45)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:16px 16px 22px}
+.opt{border:1px solid var(--line);border-radius:14px;padding:11px 12px;margin-top:9px;display:flex;gap:10px;align-items:flex-start}
+.ic{width:34px;height:34px;border-radius:10px;background:var(--accentSoft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}
+.ic.g{background:#ECEBE7;color:var(--ink)}
+.pill{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;background:#ECE7FB;color:#4B2FA3}
+textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:7px;font:12px Inter;height:46px;resize:none;color:var(--ink)}
+</style></head><body>
+<h1 class="page">Novo pedido — proposta para validação</h1>
+<p class="page">Versão enxuta · dados fictícios · alçada do vendedor 5,0%</p>
+<div class="row">
+
+<!-- 1 ITENS -->
+<div><div class="cap">1 · Aba Itens</div>
+<div class="phone">
+ <div class="sb"><span>12:30</span><span>5G ▮ 63%</span></div>
+ <div class="head"><div class="back">‹ Clientes</div><div class="title">Novo pedido</div><div class="sub">Mini Box Japiim · cód. C5110</div></div>
+ <div class="tabs"><div class="tab on">Itens (3)</div><div class="tab">Detalhes</div><div class="tab">Resumo</div></div>
+ <div class="body">
+  <div class="card">
+   <div class="r"><div style="flex:1"><div class="lbl">Frete</div><div class="seg sm"><span class="on">CIF</span><span>FOB</span></div></div>
+   <div style="flex:1.4"><div class="lbl">Prazo</div><div class="seg sm"><span>À vista</span><span class="on">28 d</span><span>28/56</span></div></div></div>
+   
+  </div>
+  <div class="search">🔍 Código, descrição ou veículo</div>
+  <div class="crumb">Mercearia › <b>Bebidas</b></div>
+  <div class="card" style="padding-top:8px">
+   <div class="item">
+    <div class="r"><div><div class="code">AGU-500</div><div class="nm">Água mineral 500 ml</div></div><span class="chip">FD c/ 12</span></div>
+    <div class="r" style="margin-top:5px"><span class="small">R$ 17,90 → <b style="color:var(--ink)">17,01</b></span><div class="qty"><i>−</i>3<i>+</i></div></div>
+    <div class="adj"><span class="t on">Desc.</span><span class="t">Acrésc.</span><span class="t on">%</span><span class="t">R$</span><span class="v">5,0 %</span></div>
+    <div class="r" style="margin-top:4px"><span class="eq">−R$ 0,89</span><span class="tot">R$ 51,03</span></div>
+   </div>
+   <div class="item">
+    <div class="r"><div><div class="code">CAF-500</div><div class="nm">Café torrado e moído 500 g</div></div><span class="chip">UN</span></div>
+    <div class="r" style="margin-top:5px"><span class="small">R$ 18,90 → <b style="color:var(--ink)">17,90</b></span><div class="qty"><i>−</i>12<i>+</i></div></div>
+    <div class="adj"><span class="t on">Desc.</span><span class="t">Acrésc.</span><span class="t">%</span><span class="t on">R$</span><span class="v">R$ 1,00</span></div>
+    <div class="r" style="margin-top:4px"><span class="eq">= 5,3%</span><span class="tot">R$ 214,80</span></div>
+   </div>
+   <div class="item">
+    <div class="r"><div><div class="code">BIS-400</div><div class="nm">Biscoito cream cracker 400 g</div></div><span class="chip">CX c/ 20</span></div>
+    <div class="r" style="margin-top:5px"><span class="small">R$ 117,80</span><div class="qty"><i>−</i>1<i>+</i></div></div>
+    <div class="r" style="margin-top:4px"><span class="small" style="color:var(--accent);font-weight:600">+ desconto</span><span class="tot">R$ 117,80</span></div>
+   </div>
+  </div>
+ </div>
+ <div class="foot"><div><div class="small">Total dos itens</div><div class="big">R$ 383,63</div></div><div class="btn">Avançar ›</div></div>
+ <div class="nav"><span>Início</span><span>Rota</span><span>Clientes</span><b>Pedidos</b><span>Mais</span></div>
+</div></div>
+
+<!-- 2 DETALHES -->
+<div><div class="cap">2 · Aba Detalhes</div>
+<div class="phone">
+ <div class="sb"><span>12:31</span><span>5G ▮ 63%</span></div>
+ <div class="head"><div class="back">‹ Clientes</div><div class="title">Novo pedido</div><div class="sub">Mini Box Japiim · cód. C5110</div></div>
+ <div class="tabs"><div class="tab">Itens (3)</div><div class="tab on">Detalhes</div><div class="tab">Resumo</div></div>
+ <div class="body">
+  <div class="card">
+   <div class="r"><div class="lbl" style="margin:0">Entrega</div><span style="font-size:12px;color:var(--accent);font-weight:700">Trocar</span></div>
+      <div class="small">Av. Ajuricaba, 1200 · Japiim · Manaus/AM · 69077-000</div>
+     </div>
+  <div class="card">
+   <div class="lbl">Observações</div>
+   <textarea>Entregar pela manhã, até 11h.</textarea>
+     </div>
+  <div class="card">
+   <div class="r"><div class="lbl" style="margin:0">Combina com o pedido</div></div>
+   <div class="sug"><div><div class="nm" style="font-size:12.5px">Açúcar cristal 1 kg</div><div class="small">R$ 4,99</div></div><div class="plus">+</div></div>
+   <div class="sug"><div><div class="nm" style="font-size:12.5px">Filtro de papel 103 c/ 30</div><div class="small">R$ 5,49</div></div><div class="plus">+</div></div>
+   <div class="sug"><div><div class="nm" style="font-size:12.5px">Leite em pó 400 g</div><div class="small">R$ 16,90</div></div><div class="plus">+</div></div>
+  </div>
+  <div class="card">
+   <div class="r"><div class="lbl" style="margin:0">Leve mais</div></div>
+   <div class="sug"><div><div class="nm" style="font-size:12.5px">Café 500 g em CX c/ 12</div><div class="small"><span class="tag">−5%</span></div></div><div class="plus">⇄</div></div>
+   <div class="sug"><div><div class="nm" style="font-size:12.5px">Água mineral 1,5 L FD c/ 6</div><div class="small">R$ 19,90</div></div><div class="plus">+</div></div>
+  </div>
+ </div>
+ <div class="foot"><div><div class="small">Total dos itens</div><div class="big">R$ 383,63</div></div><div class="btn">Avançar ›</div></div>
+ <div class="nav"><span>Início</span><span>Rota</span><span>Clientes</span><b>Pedidos</b><span>Mais</span></div>
+</div></div>
+
+<!-- 3 RESUMO -->
+<div><div class="cap">3 · Aba Resumo</div>
+<div class="phone">
+ <div class="sb"><span>12:32</span><span>5G ▮ 62%</span></div>
+ <div class="head"><div class="back">‹ Clientes</div><div class="title">Novo pedido</div><div class="sub">Mini Box Japiim · cód. C5110</div></div>
+ <div class="tabs"><div class="tab">Itens (3)</div><div class="tab">Detalhes</div><div class="tab on">Resumo</div></div>
+ <div class="body">
+  <div class="card">
+   <div class="line"><span>Água mineral 500 ml · 3 FD</span><b>R$ 51,03</b></div>
+   <div class="line"><span>Café torrado 500 g · 12 UN</span><b>R$ 214,80</b></div>
+   <div class="line"><span>Biscoito cream cracker · 1 CX</span><b>R$ 117,80</b></div>
+   <div class="small" style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px">CIF · 28 dias · Av. Ajuricaba, 1200</div>
+  </div>
+  <div class="card">
+   <div class="lbl">Desconto do pedido</div>
+   <div class="adj" style="margin:0"><span class="t on">Desc.</span><span class="t">Acrésc.</span><span class="t on">%</span><span class="t">R$</span><span class="v">1,0 %</span></div>
+   <div class="eq" style="margin-top:4px">−R$ 3,84</div>
+  </div>
+  <div class="card">
+   <div class="line"><span>Tabela</span><span>R$ 398,30</span></div>
+   <div class="line"><span>Descontos</span><span>− R$ 18,51</span></div>
+   <div class="line" style="border-top:1px solid var(--line);margin-top:4px;padding-top:7px"><b style="font-size:15px">Total</b><b style="font-size:19px">R$ 379,79</b></div>
+   <div class="okbox" style="margin-top:7px">✓ 4,6% · dentro da alçada</div>
+  </div>
+  <div style="display:flex;gap:9px;margin-top:2px"><div class="btn out" style="flex:1">Cancelar</div><div class="btn" style="flex:1.4">Salvar</div></div>
+ </div>
+ <div class="nav"><span>Início</span><span>Rota</span><span>Clientes</span><b>Pedidos</b><span>Mais</span></div>
+</div></div>
+
+<!-- 4 SALVAR -->
+<div><div class="cap">4 · Ao tocar em Salvar</div>
+<div class="phone">
+ <div class="sb"><span>12:32</span><span>5G ▮ 62%</span></div>
+ <div class="head"><div class="back">‹ Clientes</div><div class="title">Novo pedido</div><div class="sub">Mini Box Japiim · cód. C5110</div></div>
+ <div class="tabs"><div class="tab">Itens (3)</div><div class="tab">Detalhes</div><div class="tab on">Resumo</div></div>
+ <div class="body"><div class="card" style="height:300px"></div></div>
+ <div class="dim"></div>
+ <div class="sheet">
+  <div style="font-size:19px;font-weight:800">Salvar pedido</div>
+  <div class="opt"><div class="ic">➜</div><div><div style="font-weight:700;font-size:14px">Enviar pedido</div><div class="small">Vai direto ao ERP.</div></div></div>
+  <div class="opt"><div class="ic g">✎</div><div><div style="font-weight:700;font-size:14px">Salvar como orçamento</div><div class="small">Válido até 10/11.</div></div></div>
+  <div style="text-align:center;font-weight:600;font-size:13px;margin-top:14px;color:var(--ink2)">Voltar</div>
+ </div>
+</div></div>
+
+<!-- 5 ORCAMENTO -->
+<div><div class="cap">5 · Orçamento salvo (em Pedidos)</div>
+<div class="phone">
+ <div class="sb"><span>12:40</span><span>5G ▮ 61%</span></div>
+ <div class="head"><div class="back">‹ Pedidos</div><div class="title">Orçamento 000012</div><div class="sub">Mini Box Japiim · Lucas Andrade</div></div>
+ <div class="body" style="padding-top:12px">
+  <div><span class="tag w" style="font-size:11.5px;padding:3px 8px">Orçamento · até 10/11</span></div>
+  <div class="card">
+   <div class="line"><span>Água mineral 500 ml · 3 FD</span><b>R$ 51,03</b></div>
+   <div class="line"><span>Café torrado 500 g · 12 UN</span><b>R$ 214,80</b></div>
+   <div class="line"><span>Biscoito cream cracker · 1 CX</span><b>R$ 117,80</b></div>
+   <div class="line"><span>Desconto do pedido (1,0%)</span><span>− R$ 3,84</span></div>
+   <div class="line" style="border-top:1px solid var(--line);margin-top:4px;padding-top:7px"><b>Total</b><b style="font-size:18px">R$ 379,79</b></div>
+   <div class="small" style="margin-top:5px">CIF · 28 dias</div>
+  </div>
+    <div class="btn" style="margin-top:4px">Transformar em pedido</div>
+  <div style="display:flex;gap:9px"><div class="btn out" style="flex:1">Editar</div><div class="btn out" style="flex:1">PDF</div></div>
+ </div>
+ <div class="nav"><span>Início</span><span>Rota</span><span>Clientes</span><b>Pedidos</b><span>Mais</span></div>
+</div></div>
+
+</div></body></html>
