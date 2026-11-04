@@ -76,6 +76,8 @@ export const ParametrosGestorSchema = z
     dias_sem_visita_padrao: z.number().int().nonnegative().default(30),
     /** RN-GES-02: cliente nunca visitado só alerta depois de N dias na carteira. */
     dias_carencia_cliente_novo: z.number().int().nonnegative().default(15),
+    /** T-0073 / RN-CORE-26: minutos sem check-in depois do último checkout, com paradas pendentes, para marcar "parado" (chave do tenant: `inicio.parado_min`). */
+    parado_min: z.number().int().positive().default(60),
     /** RN-GES-03: horário comercial em que corre o prazo da aprovação. */
     horario_comercial: HorarioComercial.default(() => ({ ...HORARIO_COMERCIAL_PADRAO, dias_semana: [...HORARIO_COMERCIAL_PADRAO.dias_semana] })),
   })

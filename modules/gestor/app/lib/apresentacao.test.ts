@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatBRL } from '@macuxi/comum';
 import { STATUS_DIA, TIPOS_ALERTA, MOTIVOS_APROVACAO, INDICADORES_RANKING } from '../../contracts';
-import { fracao, INDICADOR_ROTULO, MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo, STATUS_DIA_ROTULO, TIPO_ALERTA_ROTULO, valorDoIndicador } from './apresentacao';
+import { fracao, INDICADOR_ROTULO, MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo, STATUS_DIA_ROTULO, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP, valorDoIndicador } from './apresentacao';
 
 describe('apresentação das telas do Gestor', () => {
   it('todo status, motivo, tipo de alerta e indicador do contrato tem rótulo em português', () => {
@@ -29,5 +29,9 @@ describe('apresentação das telas do Gestor', () => {
     expect(nomesDaVisao({ membros: [{ membro: { id: 'a', nome: 'Vera' } } as never] }).get('a')).toBe('Vera');
     expect(fracao(3, 5)).toBe('3 de 5');
     expect(fracao(2, 0)).toBe('2');
+  });
+
+  it('T-0072: todo tom do Gestor tem um tom de ChipEstado (cor sempre com texto)', () => {
+    expect(TOM_PARA_CHIP).toEqual({ success: 'sucesso', warning: 'aviso', danger: 'erro', accent: 'destaque', neutral: 'neutro' });
   });
 });
