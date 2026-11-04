@@ -339,7 +339,10 @@ export default function OrderDetailScreen() {
   const mostrarDuplicar = ehOrc ? Boolean(acoesOrc?.pode_duplicar) : true;
   const mostrarPdf = ehOrc ? Boolean(acoesOrc?.pode_pdf) : true;
   const mostrarCancelar = ehOrc ? Boolean(acoesOrc?.pode_cancelar) : true;
-  const blocoAcoes = somenteLeitura ? null : (
+  const blocoAcoes = (
+    <>
+      {/* RN-PRO-01: sem permissão de escrita, nenhuma ação renderiza */}
+      {somenteLeitura ? null : (
     <View style={{ gap: 8 }} testID="order-actions">
       {ehOrc ? null : <SectionHeader title="Ações" />}
       <Card style={{ padding: 14, gap: 10 }}>
@@ -420,6 +423,8 @@ export default function OrderDetailScreen() {
         ) : null}
       </Card>
     </View>
+      )}
+    </>
   );
 
   return (
