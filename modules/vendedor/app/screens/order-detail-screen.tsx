@@ -16,6 +16,7 @@ import type { NivelDePreco } from '../../domain/preco-pedido';
 import { sellerDiscountLimit } from '../../domain/order';
 import { textoItemFaturado } from '../../domain/retorno-erp';
 import { AvisoRapido, useAviso } from '../components/aviso';
+import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
 import { estadoDasAcoes, rotuloDoNivel, TEXTO_SEM_ITENS } from '../lib/acoes-pedido';
 import { toDomainPolicy } from '../lib/catalog';
@@ -27,7 +28,7 @@ import { orderNote, statusBadge } from '../lib/order-status';
 import { exportPdf } from '../lib/pdf-export';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { acoesNaTela, rotuloDoDocumento, situacaoNaTela, validadeCivilDoDocumento } from '../lib/pre-venda';
-import { folhaDoTransformar, seloDoOrcamento, TEXTO_PEDIDO_FORA_DO_APARELHO, textoNaoFoiAceito } from '../lib/textos-pedido';
+import { estadoDoDetalheAusente, folhaDoTransformar, ROTULO_TENTAR_DE_NOVO, seloDoOrcamento, textoNaoFoiAceito } from '../lib/textos-pedido';
 import { validadeOrcamentoDias } from '../../domain/orcamento';
 import { hrefPedidos, irParaNovoPedido, irParaPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
@@ -81,10 +82,16 @@ export default function OrderDetailScreen() {
   // RN-CORE-23 (T-0054): ao focar, só relê o aparelho; sem consulta periódica (o pull é do motor de sync da plataforma)
   useFocusEffect(
     useCallback(() => {
+      const avisoDeEdicao = pegarAvisoPendente();
+      if (avisoDeEdicao) sheets.mostrar(avisoDeEdicao);
       if (isQueued || !id) return;
-      void loadOrder(id);
+      setCarregando(true);
+      void loadOrder(id)
+        .catch(() => undefined)
+        .finally(() => setCarregando(false));
     }, [id, loadOrder, isQueued]),
   );
+  const [carregando, setCarregando] = useState(true);
   const [sincronizandoTela, setSincronizandoTela] = useState(false);
   /** RN-CORE-23: puxar para baixo = Sincronizar. */
   const puxarParaSincronizar = useCallback(() => {
@@ -94,10 +101,21 @@ export default function OrderDetailScreen() {
 
   const base = detail ?? summary;
   if (!base && !queued) {
+    const ausente = estadoDoDetalheAusente({ offline, carregando });
+    const tentarDeNovo = () => {
+      setCarregando(true);
+      void loadOrder(id ?? '')
+        .catch(() => undefined)
+        .finally(() => setCarregando(false));
+    };
     return (
       <View style={[styles.root, { paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20 }]}>
         <BackLink label="Pedidos" fallback={hrefPedidos()} />
-        {offline ? <EstadoVazio titulo={TEXTO_PEDIDO_FORA_DO_APARELHO.titulo} texto={TEXTO_PEDIDO_FORA_DO_APARELHO.texto} testID="pedido-fora-do-aparelho" /> : <Loading />}
+        {ausente.tipo === 'carregando' ? (
+          <Loading />
+        ) : (
+          <EstadoVazio titulo={ausente.titulo} texto={ausente.texto} testID="pedido-fora-do-aparelho" acao={ausente.tentarDeNovo ? { rotulo: ROTULO_TENTAR_DE_NOVO, onPress: tentarDeNovo } : undefined} />
+        )}
       </View>
     );
   }
@@ -224,7 +242,7 @@ export default function OrderDetailScreen() {
     try {
       const r = await app.decidirPedido(id ?? '', decisao, texto);
       setSheet(null);
-      sheets.mostrar(decisao === 'aprovar' ? `Pedido ${r.number} aprovado.` : `Pedido ${r.number} rejeitado. O vendedor vê o motivo.`);
+      sheets.mostrar(decisao === 'aprovar' ? `Pedido ${r.number} aprovado` : `Pedido ${r.number} rejeitado. O vendedor vê o motivo`);
     } catch (e) {
       setSheetError(errorMessage(e));
     } finally {
@@ -239,10 +257,10 @@ export default function OrderDetailScreen() {
       const r = await app.excluirPedido(id ?? '', reason);
       setSheet(null);
       if (r.kind === 'local') {
-        sheets.mostrar('Pedido removido da fila do aparelho.');
+        sheets.mostrar('Pedido removido da fila do aparelho');
         irParaPedidos();
       } else {
-        sheets.mostrar(`Pedido ${r.order.number} excluído.`);
+        sheets.mostrar(`Pedido ${r.order.number} excluído`);
       }
     } catch (e) {
       setSheetError(errorMessage(e));
@@ -405,11 +423,11 @@ export default function OrderDetailScreen() {
   );
 
   return (
+    <View style={styles.root}>
     <ScrollView
       style={styles.root}
       contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
       refreshControl={<RefreshControl refreshing={sincronizandoTela} onRefresh={puxarParaSincronizar} />}>
-      <AvisoRapido aviso={sheets.aviso} />
       <BackLink label="Pedidos" fallback={hrefPedidos()} />
       <View style={{ gap: 6 }}>
         <Text style={t.h1Small} testID="order-title">
@@ -578,6 +596,8 @@ export default function OrderDetailScreen() {
       </Folha>
       <PdfSheet visible={sheet === 'pdf'} busy={pdfBusy} error={sheetError} onClose={() => setSheet(null)} onPick={(v) => void exportPdfFor(v)} />
     </ScrollView>
+    <AvisoRapido aviso={sheets.aviso} />
+    </View>
   );
 }
 

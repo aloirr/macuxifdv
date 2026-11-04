@@ -141,7 +141,7 @@ export function confirmacaoDoEnvio(e: { tipo: 'pedido' | 'orcamento'; numero: st
     const [, m, d] = (e.validade_data ?? '').split('-');
     return { titulo: `Orçamento ${e.numero} salvo`, nota: m && d ? `Válido até ${d}/${m}.` : '', mostrarStatus: false, rodape: ROTULO_IR_PARA_PEDIDOS };
   }
-  const nota = e.status === 'pending_approval' ? (e.pending_reason ?? '') : e.status === 'rejected' ? (e.rejection_reason ?? '') : e.status === 'approved' ? 'Dentro da alçada: aprovado na hora.' : 'Recebido.';
+  const nota = e.status === 'pending_approval' ? (e.pending_reason ?? '') : e.status === 'rejected' ? (e.rejection_reason ?? '') : e.status === 'approved' ? 'Dentro da alçada: aprovado na hora.' : '';
   return { titulo: `Pedido ${e.numero} recebido`, nota, mostrarStatus: true, rodape: ROTULO_IR_PARA_PEDIDOS };
 }
 
@@ -189,6 +189,20 @@ export function textoNaoFoiAceito(motivo: string): string {
 }
 
 export const TEXTO_PEDIDO_FORA_DO_APARELHO = { titulo: 'Este pedido não está no aparelho', texto: 'Conecte-se e puxe a tela para baixo para sincronizar.' } as const;
+export const ROTULO_TENTAR_DE_NOVO = 'Tentar de novo';
+
+/** Pedido ausente no detalhe: carregando enquanto a leitura roda; terminada sem achar, vazio (offline: pede sinal; com sinal: pede nova tentativa). */
+export function estadoDoDetalheAusente(e: { offline: boolean; carregando: boolean }): { tipo: 'carregando' } | { tipo: 'vazio'; titulo: string; texto: string; tentarDeNovo: boolean } {
+  if (e.offline) return { tipo: 'vazio', ...TEXTO_PEDIDO_FORA_DO_APARELHO, tentarDeNovo: false };
+  if (e.carregando) return { tipo: 'carregando' };
+  return { tipo: 'vazio', titulo: 'Não achamos este pedido', texto: 'Toque em Tentar de novo ou volte para Pedidos.', tentarDeNovo: true };
+}
+
+/** Aviso de rodapé não leva ponto final (guia de UX); pontos no meio do texto ficam. */
+export function textoDoAviso(texto: string): string {
+  return texto.trim().replace(/\.+$/, '');
+}
+
 export const TEXTO_SEM_ITEM_NO_RESUMO = 'Adicione um item na aba Itens.';
 
 export function textoBuscaSemResultado(busca: string): { titulo: string; texto: string } {
