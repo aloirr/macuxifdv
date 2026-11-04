@@ -89,6 +89,8 @@ export interface EtapaCheckout<C = unknown> {
 export interface CardInicio<C = unknown> {
   testID: string;
   componente: C;
+  /** T-0073 (aditivo): menor primeiro; ausente = 100. Ex.: o card "Pedidos para aprovar" do Gestor usa 10. */
+  ordem?: number;
 }
 
 /** Slot `menu.itens`: item no menu do Perfil/BKO. */

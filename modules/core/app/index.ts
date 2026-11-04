@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
-import type { CardInicio } from '../contracts';
 import { comVisitas } from './components/visit-sheets';
 import { etapasCore } from './lib/cargas';
 import { entidadesCliente } from './lib/entidades-cliente';
@@ -12,12 +11,12 @@ import { entidadesRota } from './lib/entidades-rota';
 import { TelaCliente } from './telas/cliente';
 import { TelaClientes } from './telas/clientes';
 import { TelaMetas } from './telas/metas';
-import { CardNotificacoes } from './components/card-notificacoes';
 import { TelaNotificacoes } from './telas/notificacoes';
 import { TelaMeusModulos } from './telas/meus-modulos';
 import { TelaRota } from './telas/rota';
 
 export { definirCapturaFoto, type CapturaFoto } from './lib/foto-fachada';
+export { useInicio } from './lib/usar-inicio';
 export { OpenVisitBar } from './components/open-visit-bar';
 export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
 
@@ -49,7 +48,8 @@ export const moduloApp = definirModuloShell<ComponentType>({
     // Produto (T-0029): catálogo mestre para o Novo pedido do Vendedor
     ...entidadesProduto,
   ],
-  extensoes: [{ slot: 'inicio.cards', id: 'notificacoes', payload: { testID: 'inicio.card-notificacoes', componente: CardNotificacoes } satisfies CardInicio<ComponentType> }],
+  // O card antigo de notificações saiu do slot `inicio.cards` (T-0073): o Início novo mostra as 3 últimas pelo `useInicio()`.
+  extensoes: [],
   etapasSync: etapasCore,
 });
 

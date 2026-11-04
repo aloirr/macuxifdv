@@ -36,6 +36,9 @@ export const manifest = defineModule({
     'notificacao.enviar': { perfis: ['supervisor', 'gerente', 'analista', 'admin'], descricao: 'Enviar recado a usuários do próprio escopo (RF-CORE-09)' },
     'notificacao.ler': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Marcar como lida uma notificação própria (RF-CORE-09)' },
     'dispositivo.registrar_push': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'], descricao: 'Gravar o token de push do próprio aparelho (RF-CORE-09)' },
+    'inicio.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente'], descricao: 'Ver o Início de boas-vindas: meta do dia, recado do dia, rota e equipe agora; analista e admin não têm Início (RN-CORE-26)' },
+    'notificacao.recado_do_dia': { perfis: ['supervisor', 'gerente'], descricao: 'Marcar/desmarcar um recado enviado como recado do dia de hoje para a equipe destinatária do próprio escopo (RN-CORE-26)' },
+    'parametro.inicio': { perfis: ['analista', 'admin'], descricao: 'Editar os parâmetros do Início: metas.dias_uteis_semana, inicio.recado_do_dia_padrao e inicio.parado_min (RN-CORE-26)' },
     'plano_rv.editar': { perfis: ['analista'], descricao: 'Editar o plano de RV (vigência futura)' },
   },
   // ADR 0019: consulta opcional não cria aresta de dependência (sem ciclo core ↔ vendedor); sem o dono, cai no indicador_diario
