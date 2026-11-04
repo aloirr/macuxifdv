@@ -5,13 +5,14 @@
  *    edição; a validade e o número não mudam.
  *  - `POST /v1/vendedor/orcamentos/:id/cancelar` — ação `pedido.cancelar`.
  * Promotor nunca (RN-PRO-01, 403 pela ação do manifesto); só o dono do orçamento edita/cancela (404 para os demais, sem revelar);
- * cliente fora da carteira = 403. Orçamento NUNCA publica `vendedor.pedido.*` nem entra na fila do ERP (RN-VEN-32).
+ * cliente fora da carteira = 403 (só no PUT; o cancelar não confere a carteira, como o cancelar de pedido). Orçamento NUNCA publica `vendedor.pedido.*` nem entra na fila do ERP (RN-VEN-32).
  */
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { ErroHttpModulo, ErroNaoEncontrado, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { CancelarOrcamentoRequest, EditarOrcamentoRequest, PedidoPush } from '../contracts';
-import { acoesDoOrcamento, situacaoDoOrcamento } from '../domain';
+import { acoesDoOrcamento, conteudoDoEnvio, situacaoDoOrcamento } from '../domain';
 import { calcularDocumento } from './receber';
 import { preVenda } from './pre-venda';
 
@@ -25,6 +26,9 @@ interface LinhaOrcamento {
   cliente_id: string;
   status: string;
   atualizado_em: string;
+  hash_envio: string | null;
+  total_cents: string;
+  itens: number;
 }
 
 /** Orçamento do usuário, com trava de linha. `null` = inexistente, de outro vendedor/tenant ou não é orçamento. */
@@ -32,7 +36,8 @@ async function orcamentoDoDono(db: ClienteBanco, id: string, eu: string): Promis
   await db.query('select pg_advisory_xact_lock(hashtext($1))', [`pedido:${id}`]);
   const r = (
     await db.query<LinhaOrcamento>(
-      `select id, vendedor_id, cliente_id, status, to_char(updated_at at time zone 'UTC', ${UTC}) as atualizado_em
+      `select id, vendedor_id, cliente_id, status, to_char(updated_at at time zone 'UTC', ${UTC}) as atualizado_em, hash_envio, total_cents::text as total_cents,
+            (select count(*)::int from vendedor.pedido_item i where i.pedido_id = pedido.id and i.deleted_at is null) as itens
          from vendedor.pedido where id = $1 and tipo = 'orcamento' and deleted_at is null for update`,
       [id],
     )
@@ -72,7 +77,13 @@ export const rotaEditarOrcamento: RotaModulo = {
       const doc = (await preVenda().lerDocumentos(db, [id], ctx.fuso())).get(id);
       if (!doc || !doc.validade_ate || !doc.validade_data) throw new ErroNaoEncontrado(...NAO_ENCONTRADO);
       exigirAberto(situacaoDoOrcamento({ status: atual.status, validade_ate: doc.validade_ate, convertido_pedido_id: doc.convertido_pedido_id }, agora));
+      // RN-VEN-33: hash do corpo aceito (mesma base do push), para o PUT repetido ser idempotente e o push atrasado conflitar
+      const hash = createHash('sha256').update(conteudoDoEnvio(p as unknown as Record<string, unknown>)).digest('hex');
       if (atual.atualizado_em !== atualizado_em) {
+        // resposta perdida: o mesmo corpo do mesmo autor devolve o que já foi gravado
+        if (atual.hash_envio === hash) {
+          return { id, tipo: 'orcamento', status: atual.status, total_cents: Number(atual.total_cents), validade_data: doc.validade_data, atualizado_em: atual.atualizado_em };
+        }
         throw new ErroHttpModulo(409, 'ORCAMENTO_ALTERADO', 'Este orçamento foi alterado em outro aparelho. Abra de novo para ver a versão atual.');
       }
 
@@ -82,7 +93,7 @@ export const rotaEditarOrcamento: RotaModulo = {
         const mensagem = calc.status === 'rejeitado' ? calc.mensagem : 'Orçamento recusado.';
         throw new ErroHttpModulo(codigo === 'FORA_DA_CARTEIRA' || codigo === 'RN-PRO-01' ? 403 : 422, codigo, mensagem);
       }
-      const { cliente, produtos, vendedor, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v } = calc;
+      const { cliente, produtos, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v } = calc;
       const resumo = {
         razao_social: cliente.razao_social,
         nome_fantasia: cliente.nome_fantasia ?? '',
@@ -98,7 +109,7 @@ export const rotaEditarOrcamento: RotaModulo = {
             cliente_resumo = $8::jsonb, cliente_nome = $9, tabela_preco_id = $10, condicao_pagamento_id = $11, condicao_pagamento_descricao = $12,
             acrescimo_pct = $13, desconto_efetivo_pct = $14, frete_modalidade = $15, transportadora_id = $16, transportadora_digitada = $17,
             transportadora_nome = $18, transportadora_documento = $19, transportadora_telefone = $20, endereco_entrega_id = $21, endereco_entrega = $22::jsonb,
-            desconto_valor_cents = $23, acrescimo_valor_cents = $24, ajuste_em = $25, hash_envio = null
+            desconto_valor_cents = $23, acrescimo_valor_cents = $24, ajuste_em = $25, hash_envio = $26
           where id = $1`,
         [
           id, condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents, p.observacao ?? null, p.visita_id ?? null,
@@ -108,7 +119,7 @@ export const rotaEditarOrcamento: RotaModulo = {
           enderecoRetrato
             ? JSON.stringify({ id: enderecoRetrato.id, external_id: enderecoRetrato.external_id, tipo: enderecoRetrato.tipo, logradouro: enderecoRetrato.logradouro, numero: enderecoRetrato.numero, complemento: enderecoRetrato.complemento, bairro: enderecoRetrato.bairro, cidade: enderecoRetrato.cidade, uf: enderecoRetrato.uf, cep: enderecoRetrato.cep, principal: enderecoRetrato.principal, descricao: null })
             : null,
-          v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em,
+          v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, hash,
         ],
       );
       // itens: os antigos saem por exclusão lógica (o pull leva a remoção) e os novos entram com sequência depois da última
@@ -127,8 +138,8 @@ export const rotaEditarOrcamento: RotaModulo = {
         acao: 'orcamento.editar',
         entidade: 'pedido',
         entidade_id: id,
-        antes: { total_cents: null },
-        depois: { tipo: 'orcamento', total_cents: v.total_cents, itens: v.itens.length, ...(vendedor ? {} : {}) },
+        antes: { tipo: 'orcamento', total_cents: Number(atual.total_cents), itens: atual.itens },
+        depois: { tipo: 'orcamento', total_cents: v.total_cents, itens: v.itens.length },
       });
       // RN-VEN-32: nenhum evento de pedido
       const novo = (await db.query<{ atualizado_em: string }>(`select to_char(updated_at at time zone 'UTC', ${UTC}) as atualizado_em from vendedor.pedido where id = $1`, [id])).rows[0]!;

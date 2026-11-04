@@ -286,7 +286,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 8, gap: 2, backgroundColor: colors.surface }}>
-        <AvisoRapido mensagem={sheets.aviso} />
+        <AvisoRapido aviso={sheets.aviso} />
         {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label="Voltar" fallback={hrefPedidos()} />}
         <Text style={t.h1Small} testID="order-editor-title">
           {editId ? editTitle : 'Novo pedido'}

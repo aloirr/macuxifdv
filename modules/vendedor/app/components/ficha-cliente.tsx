@@ -62,7 +62,7 @@ export function AbaMix({ contexto }: { contexto: ContextoCliente }) {
           </View>
         );
       })}
-      <AvisoRapido mensagem={aviso} />
+      <AvisoRapido aviso={aviso} />
     </Card>
   );
 }

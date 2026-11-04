@@ -409,7 +409,7 @@ export default function OrderDetailScreen() {
       style={styles.root}
       contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
       refreshControl={<RefreshControl refreshing={sincronizandoTela} onRefresh={puxarParaSincronizar} />}>
-      <AvisoRapido mensagem={sheets.aviso} />
+      <AvisoRapido aviso={sheets.aviso} />
       <BackLink label="Pedidos" fallback={hrefPedidos()} />
       <View style={{ gap: 6 }}>
         <Text style={t.h1Small} testID="order-title">
