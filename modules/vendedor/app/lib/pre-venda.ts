@@ -56,7 +56,7 @@ export function pedidoDaConversao(
   extra: { condicaoId: string | null; observacao: string | null; novoId: string; agora: string; transportadoras?: readonly TransportadoraDaTela[] },
 ): PedidoPush {
   const base = pedidoDoOrcamento(copiaDoDetalhe(d, { condicaoId: extra.condicaoId, observacao: extra.observacao, transportadoras: extra.transportadoras }), extra.novoId, extra.agora);
-  return { ...base, payment_terms: d.payment_terms || '28/56 dias' } as PedidoPush;
+  return { ...base, payment_terms: d.payment_terms || '28/56 dias' } satisfies PedidoPush;
 }
 
 /**
