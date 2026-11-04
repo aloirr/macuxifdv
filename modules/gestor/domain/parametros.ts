@@ -25,6 +25,8 @@ export function resolverParametros(parcial: Partial<ParametrosGestor> = {}): Par
  */
 export function parametrosDoTenant(brutos: Readonly<Record<string, unknown>>, fuso: string): { params: ParametrosGestor; erro: string | null } {
   const conhecidos = Object.fromEntries(Object.entries(brutos).filter(([k]) => Object.hasOwn(PARAMETROS_PADRAO, k))) as Partial<ParametrosGestor>;
+  // T-0073: o limite do "parado" é parâmetro do Início (Core): chave `inicio.parado_min` (aceita também `parado_min`)
+  if (conhecidos.parado_min === undefined && brutos['inicio.parado_min'] !== undefined) conhecidos.parado_min = brutos['inicio.parado_min'] as number;
   try {
     return { params: resolverParametros({ ...conhecidos, fuso }), erro: null };
   } catch (e) {

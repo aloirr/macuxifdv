@@ -6,6 +6,7 @@
  */
 import { businessDays, localDate } from '@macuxi/comum';
 import { ATENDIMENTO_POR_DESFECHO, type PainelDia, type PainelFaturamento, type PainelMes, type PainelPesquisa, type PainelTrade, type PainelTreinamento, type PainelVendas, type PainelVisitas, type StatusDia, type VisitaLojaConcluidaV1 } from '../contracts';
+import { situacaoDaRota } from './agora';
 import { statusAtual, vendasApuradas } from './apuracao';
 import { arredondar, dividirCents, instanteMs, percentual, somarDias } from './numeros';
 import { resolverParametros, type ParametrosGestor } from './parametros';
@@ -377,6 +378,7 @@ export function montarPainelDia(estado: EstadoProjecao, usuario: UsuarioPainel, 
     perfil: usuario.perfil,
     data,
     status_dia: statusDoDia(estado, usuario.id, data, params),
+    ...situacaoDaRota(estado, usuario.id, data, params.fuso),
     visitas: visitasDoPeriodo(estado, usuario, data, data, params, vendedorOn),
     vendas: vendedorOn ? vendasDoPeriodo(estado, usuario.id, data, data, params) : null,
     faturamento: vendedorOn ? faturamentoDoPeriodo(estado, usuario.id, data, data, params) : null,

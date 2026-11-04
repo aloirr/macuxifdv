@@ -37,6 +37,7 @@ describe('contratos do Gestor: parâmetros do tenant (doc 03)', () => {
       pct_tolerancia_frequencia: 50,
       dias_sem_visita_padrao: 30,
       dias_carencia_cliente_novo: 15,
+      parado_min: 60,
       horario_comercial: { dias_semana: [1, 2, 3, 4, 5], inicio: '08:00', fim: '18:00' },
     });
   });

@@ -1,7 +1,9 @@
 import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
+import { CardAprovacoes } from './components/card-aprovacoes';
 import { etapasGestor } from './etapas';
+import { extensoesDoInicio } from './registro-inicio';
 import AlertasScreen from './screens/alertas-screen';
 import AprovacoesScreen from './screens/aprovacoes-screen';
 import EquipeScreen from './screens/equipe-screen';
@@ -24,4 +26,6 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'ranking', caminho: 'equipe-ranking', titulo: 'Ranking', apps: ['gestao'], acao: 'ranking_equipe.ver', componente: RankingScreen },
   ],
   etapasSync: etapasGestor,
+  // T-0073: card "Pedidos para aprovar" no Início (slot `inicio.cards`, ordem 10)
+  extensoes: extensoesDoInicio<ComponentType>(CardAprovacoes),
 });

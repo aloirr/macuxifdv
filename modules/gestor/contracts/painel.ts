@@ -131,6 +131,10 @@ export const PainelDia = z
     /** Data civil no fuso do tenant. */
     data: IsoDate,
     status_dia: StatusDia,
+    /** T-0073 (aditivo): fatos da rota do dia para o "parado" da Equipe agora (RN-CORE-26); ausentes em painel antigo. */
+    paradas_planejadas: ContagemNaoNeg.optional(),
+    paradas_pendentes: ContagemNaoNeg.optional(),
+    ultimo_checkout_em: InstanteUtc.nullable().optional(),
     visitas: PainelVisitas,
     vendas: PainelVendas.nullable(),
     /** RN-GES-06: vendido × faturado do dia; `null` sem Vendedor ou perfil que não vende. */

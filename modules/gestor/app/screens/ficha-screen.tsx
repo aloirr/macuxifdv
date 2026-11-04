@@ -6,12 +6,15 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Banner, Button, Card, Empty, Loading, Screen, type as t } from '@macuxi/ui/mobile';
+import { BackLink, Banner, Botao, Cartao, ChipEstado, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { ContextoPedidoEmNome, FichaMembro, PainelDia } from '../../contracts';
-import { fracao, STATUS_DIA_ROTULO } from '../lib/apresentacao';
+import { relogioReal } from '@macuxi/comum/relogio';
+import { statusAgora } from '../../domain/agora-status';
+import { fracao } from '../lib/apresentacao';
+import { PARADO_MIN_PADRAO, STATUS_AGORA_ROTULO } from '../lib/equipe-agora';
 import { pct } from '../lib/formato';
 import { CAMINHO_EQUIPE } from '../rotas';
 import { useGestor } from '../state/use-gestor';
@@ -40,11 +43,12 @@ export default function FichaScreen() {
     return (
       <Screen testID="gestor-ficha">
         <BackLink label="Equipe" fallback={`/m/${CAMINHO_EQUIPE}`} />
-        <Empty text={estado.erro ?? 'Esta pessoa não está na sua equipe.'} />
+        <EstadoVazio icone="users" titulo="Esta pessoa não está na sua equipe" texto={estado.erro ?? 'Volte à equipe e escolha outra pessoa.'} />
       </Screen>
     );
   }
-  const s = STATUS_DIA_ROTULO[f.painel.status_dia];
+  const p = f.painel;
+  const s = STATUS_AGORA_ROTULO[statusAgora({ status_dia: p.status_dia, paradas_planejadas: p.paradas_planejadas, paradas_pendentes: p.paradas_pendentes, ultimo_checkout_em: p.ultimo_checkout_em, parado_min: g.visao?.parado_min ?? PARADO_MIN_PADRAO, agora: relogioReal().agora().toISOString() }).status];
   const acao = f.pedido_em_nome.permitido && g.usuarioId ? emNome[0] : undefined;
   return (
     <Screen testID="gestor-ficha">
@@ -53,17 +57,18 @@ export default function FichaScreen() {
         <Text style={t.h1}>{f.membro.nome}</Text>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           <Text style={t.small}>{f.membro.perfil === 'promotor' ? 'Promotor' : 'Vendedor'}</Text>
-          <Badge label={s.label} tone={s.tom} />
+          <ChipEstado texto={s.label} tom={s.tom} pequeno />
         </View>
       </View>
       {estado.doCache ? <Banner>Sem conexão: mostrando os números guardados no aparelho.</Banner> : null}
       {estado.erro && !estado.doCache ? <Banner tone="danger">{estado.erro}</Banner> : null}
       <Secoes p={f.painel} />
       {acao && g.usuarioId ? (
-        <Button
+        <Botao
           testID="gestor-pedido-em-nome"
-          label={acao.payload.rotulo ?? `Fazer pedido em nome de ${f.membro.nome.split(' ')[0]}`}
-          icon="plus"
+          nivel="principal"
+          rotulo={acao.payload.rotulo ?? `Fazer pedido em nome de ${f.membro.nome.split(' ')[0]}`}
+          icone="plus"
           onPress={() => acao.payload.abrir({ vendedor_id: f.membro.id, autor_id: g.usuarioId! })}
         />
       ) : null}
@@ -75,41 +80,41 @@ export default function FichaScreen() {
 function Secoes({ p }: { p: PainelDia }) {
   return (
     <>
-      <Card style={{ padding: 14, gap: 6 }}>
+      <Cartao preenchimento={14} gap={6}>
         <Text style={t.h2}>Visitas</Text>
         <Linha rotulo="Realizadas" valor={fracao(p.visitas.realizadas, p.visitas.planejadas)} />
         <Linha rotulo="Cobertura da rota" valor={p.visitas.cobertura_pct === null ? '—' : pct(Math.round(p.visitas.cobertura_pct))} />
         <Linha rotulo="Tempo em cliente" valor={`${Math.round(p.visitas.tempo_total_min)} min`} />
         {p.visitas.curtas > 0 ? <Linha rotulo="Visitas curtas" valor={String(p.visitas.curtas)} /> : null}
-      </Card>
+      </Cartao>
       {p.vendas ? (
-        <Card style={{ padding: 14, gap: 6 }}>
+        <Cartao preenchimento={14} gap={6}>
           <Text style={t.h2}>Vendas do dia</Text>
           <Linha rotulo="Vendido" valor={formatBRL0(p.vendas.vendas_cents)} />
           <Linha rotulo="Pedidos" valor={String(p.vendas.pedidos)} />
           <Linha rotulo="Positivados" valor={String(p.vendas.clientes_positivados)} />
           <Linha rotulo="Desconto médio" valor={pct(p.vendas.desconto_medio_pct)} />
           {p.faturamento ? <Linha rotulo="A faturar" valor={formatBRL0(p.faturamento.a_faturar_cents)} /> : null}
-        </Card>
+        </Cartao>
       ) : null}
       {p.mes ? (
-        <Card style={{ padding: 14, gap: 6 }}>
+        <Cartao preenchimento={14} gap={6}>
           <Text style={t.h2}>Mês</Text>
           <Linha rotulo="Vendido no mês" valor={formatBRL0(p.mes.vendas_cents)} />
           <Linha rotulo="Meta" valor={p.mes.meta_cents === null ? 'sem meta' : formatBRL0(p.mes.meta_cents)} />
           <Linha rotulo="Atingido" valor={p.mes.atingimento_pct === null ? '—' : pct(Math.round(p.mes.atingimento_pct))} />
           <Linha rotulo="Precisa por dia" valor={p.mes.necessidade_diaria_cents === null ? '—' : formatBRL0(p.mes.necessidade_diaria_cents)} />
-        </Card>
+        </Cartao>
       ) : null}
       {p.trade ? (
-        <Card style={{ padding: 14, gap: 6 }}>
+        <Cartao preenchimento={14} gap={6}>
           <Text style={t.h2}>Trade</Text>
           <Linha rotulo="Lojas visitadas" valor={String(p.trade.lojas_visitadas)} />
           <Linha rotulo="Gôndola conforme" valor={pct(p.trade.conformidade_pct)} />
           <Linha rotulo="Share médio" valor={pct(p.trade.share_medio_pct)} />
           <Linha rotulo="Ruptura" valor={pct(p.trade.ruptura_pct)} />
           <Linha rotulo="Tarefas concluídas" valor={String(p.trade.tarefas_concluidas)} />
-        </Card>
+        </Cartao>
       ) : null}
     </>
   );

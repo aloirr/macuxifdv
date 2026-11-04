@@ -55,6 +55,8 @@ export const VisaoEquipe = z
     /** Quem lidera cada equipe de `equipes` (nome para a tela), na mesma ordem. */
     gestores: z.array(MembroEquipe),
     membros: z.array(MembroComPainel),
+    /** T-0073 (aditivo): limite do "parado" do tenant (`inicio.parado_min`); ausente = 60. */
+    parado_min: z.number().int().positive().optional(),
     calculado_em: InstanteUtc,
   })
   .strict();
