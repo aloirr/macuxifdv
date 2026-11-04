@@ -2,9 +2,13 @@
  * Textos e tons das telas do Gestor (app e BKO). Só APRESENTAÇÃO: prazos, indicadores e alertas já chegam calculados
  * pelo domain/API (RN-GES-03, RF-GES-03/07); aqui eles viram rótulo em português e cor.
  */
+import type { TomEstado } from '@macuxi/ui/mobile/puro';
 import type { IndicadorRanking, ItemFilaAprovacao, MotivoAprovacao, PeriodoRanking, Severidade, StatusDia, TipoAlerta, VisaoEquipe } from '../../contracts';
 
 export type Tom = 'success' | 'warning' | 'danger' | 'accent' | 'neutral';
+
+/** Tom do `ChipEstado` (T-0072) para um tom do Gestor: a cor nunca vai sem o texto do chip. */
+export const TOM_PARA_CHIP: Readonly<Record<Tom, TomEstado>> = { success: 'sucesso', warning: 'aviso', danger: 'erro', accent: 'destaque', neutral: 'neutro' };
 
 export const STATUS_DIA_ROTULO: Readonly<Record<StatusDia, { label: string; tom: Tom }>> = {
   em_visita: { label: 'Em visita', tom: 'success' },

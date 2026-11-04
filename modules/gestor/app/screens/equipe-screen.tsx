@@ -4,18 +4,24 @@
  * Toque na pessoa = ficha (RF-GES-02/10). Escopo e números vêm prontos da API/domain (RN-CORE-04).
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { Badge, Banner, Button, Card, colors, Empty, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { relogioReal } from '@macuxi/comum/relogio';
+import { Banner, Botao, Cartao, ChipEstado, colors, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { MembroComPainel, ResumoEquipe } from '../../contracts';
-import { fracao, STATUS_DIA_ROTULO } from '../lib/apresentacao';
+import type { ResumoEquipe } from '../../contracts';
+import { fracao } from '../lib/apresentacao';
+import { contarParados, linhasAgora, type LinhaAgora } from '../lib/equipe-agora';
 import { contagem, pct } from '../lib/formato';
 import { irParaMembro, irParaRanking } from '../rotas';
 import { useGestor } from '../state/use-gestor';
+
+const relogio = relogioReal();
 
 export default function EquipeScreen() {
   const g = useGestor();
   if (!g.carregado) return <Loading />;
   const v = g.visao;
+  // RN-CORE-26: o "parado" depende do relógio de agora; a regra é do domain, aqui só se aplica e ordena
+  const linhas = v ? linhasAgora(v, relogio.agora().toISOString()) : [];
   return (
     <Screen
       testID="gestor-equipe"
@@ -26,42 +32,51 @@ export default function EquipeScreen() {
           <Text style={t.h1}>Equipe</Text>
           <SyncStamp at={g.sincronizado_em} offline={g.offline} tz={g.tz} />
         </View>
-        <Button testID="gestor-abrir-ranking" label="Ranking" icon="target" variant="outline" onPress={irParaRanking} />
+        <Botao testID="gestor-abrir-ranking" rotulo="Ranking" icone="target" onPress={irParaRanking} />
       </View>
       {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
-      {!v ? <Empty text={g.offline ? 'Sem dados no aparelho ainda. Conecte-se à internet e puxe para baixo para sincronizar.' : 'Nenhum dado da equipe ainda. Puxe para baixo para sincronizar.'} /> : null}
-      {v ? <Resumo r={v.resumo} /> : null}
+      {!v ? (
+        <EstadoVazio
+          icone="users"
+          titulo="Sem dados da equipe ainda"
+          texto={g.offline ? 'Conecte-se à internet e puxe para baixo para sincronizar.' : 'Puxe para baixo para sincronizar.'}
+        />
+      ) : null}
+      {v ? <Resumo r={v.resumo} linhas={linhas} /> : null}
       {v && v.equipes.length > 0 ? (
-        <Card testID="gestor-equipes">
+        <Cartao testID="gestor-equipes" preenchimento={0}>
           {v.equipes.map((e, i) => (
-            <View key={e.gestor_id} style={[styles.linha, { minHeight: 40, paddingHorizontal: 14 }]}>
+            <View key={e.gestor_id} style={[styles.linha, { minHeight: 48, paddingHorizontal: 14 }]}>
               <Text style={[t.bodyStrong, { flex: 1 }]}>{v.gestores[i]?.nome ?? 'Equipe'}</Text>
               <Text style={t.small}>
                 {contagem(e.membros, 'pessoa', 'pessoas')} · {e.vendas_cents === null ? '—' : formatBRL0(e.vendas_cents)}
               </Text>
             </View>
           ))}
-        </Card>
+        </Cartao>
       ) : null}
       {v ? (
-        <Card style={{ overflow: 'hidden' }}>
-          {v.membros.length === 0 ? <Empty text="Ninguém da sua equipe aparece aqui ainda." /> : null}
-          {v.membros.map((m, i) => (
-            <LinhaMembro key={m.membro.id} m={m} ultimo={i === v.membros.length - 1} />
+        <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
+          {linhas.length === 0 ? <EstadoVazio titulo="Ninguém na sua equipe ainda" texto="Quando houver vendedores ou promotores sob você, eles aparecem aqui." /> : null}
+          {linhas.map((l, i) => (
+            <LinhaMembro key={l.m.membro.id} l={l} ultimo={i === linhas.length - 1} />
           ))}
-        </Card>
+        </Cartao>
       ) : null}
     </Screen>
   );
 }
 
-function Resumo({ r }: { r: ResumoEquipe }) {
+function Resumo({ r, linhas }: { r: ResumoEquipe; linhas: readonly LinhaAgora[] }) {
+  const parados = contarParados(linhas);
+  const n = (s: LinhaAgora['status']) => linhas.filter((l) => l.status === s).length;
   return (
-    <Card testID="gestor-resumo" style={{ gap: 8, padding: 14 }}>
+    <Cartao testID="gestor-resumo" gap={8} preenchimento={14}>
       <View style={styles.linha}>
-        <Indicador rotulo="Em visita" valor={String(r.em_visita)} cor={colors.success} />
-        <Indicador rotulo="Em rota" valor={String(r.em_rota)} cor={colors.accent} />
-        <Indicador rotulo="Sem check-in" valor={String(r.sem_checkin)} cor={colors.warning} />
+        <Indicador rotulo="Em visita" valor={String(n('em_visita'))} cor={colors.success} />
+        <Indicador rotulo="Em rota" valor={String(n('em_rota'))} cor={colors.accent} />
+        <Indicador rotulo="Parados" valor={String(parados)} cor={parados > 0 ? colors.danger : undefined} />
+        <Indicador rotulo="Sem check-in" valor={String(n('sem_checkin'))} cor={colors.warning} />
       </View>
       <View style={styles.linha}>
         <Indicador rotulo="Vendas hoje" valor={r.vendas_cents === null ? '—' : formatBRL0(r.vendas_cents)} />
@@ -69,7 +84,7 @@ function Resumo({ r }: { r: ResumoEquipe }) {
         <Indicador rotulo="Cobertura" valor={r.cobertura_pct === null ? '—' : pct(Math.round(r.cobertura_pct))} />
       </View>
       {r.atingimento_pct !== null ? <Text style={t.small}>Meta do mês: {pct(Math.round(r.atingimento_pct))} atingido</Text> : null}
-    </Card>
+    </Cartao>
   );
 }
 
@@ -82,8 +97,8 @@ function Indicador({ rotulo, valor, cor }: { rotulo: string; valor: string; cor?
   );
 }
 
-function LinhaMembro({ m, ultimo }: { m: MembroComPainel; ultimo: boolean }) {
-  const s = STATUS_DIA_ROTULO[m.painel.status_dia];
+function LinhaMembro({ l, ultimo }: { l: LinhaAgora; ultimo: boolean }) {
+  const { m } = l;
   const p = m.painel;
   const detalhe =
     m.membro.perfil === 'promotor'
@@ -93,7 +108,7 @@ function LinhaMembro({ m, ultimo }: { m: MembroComPainel; ultimo: boolean }) {
     <Pressable
       testID={`gestor-membro-${m.membro.id}`}
       accessibilityRole="button"
-      accessibilityLabel={`${m.membro.nome}, ${s.label}`}
+      accessibilityLabel={`${m.membro.nome}, ${l.label}${l.detalhe ? `. ${l.detalhe}` : ''}`}
       onPress={() => irParaMembro(m.membro.id)}
       style={({ pressed }) => [styles.membro, !ultimo && styles.divisor, pressed && { backgroundColor: colors.ground }]}>
       <View style={{ flex: 1, gap: 2 }}>
@@ -103,8 +118,13 @@ function LinhaMembro({ m, ultimo }: { m: MembroComPainel; ultimo: boolean }) {
         <Text style={t.small} numberOfLines={1}>
           {detalhe}
         </Text>
+        {l.detalhe ? (
+          <Text style={[t.small, { color: l.status === 'parado' ? colors.danger : colors.ink2 }]} numberOfLines={1}>
+            {l.detalhe}
+          </Text>
+        ) : null}
       </View>
-      <Badge label={s.label} tone={s.tom} />
+      <ChipEstado texto={l.label} tom={l.tom} pequeno />
     </Pressable>
   );
 }

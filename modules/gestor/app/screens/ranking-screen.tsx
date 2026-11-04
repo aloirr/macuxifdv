@@ -3,7 +3,7 @@
  * Online busca a API; offline mostra o último ranking guardado da mesma combinação.
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { BackLink, Banner, Card, Chip, colors, Empty, Loading, Screen, type as t } from '@macuxi/ui/mobile';
+import { BackLink, Banner, Cartao, Chip, colors, EstadoVazio, Loading, Screen, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { INDICADORES_RANKING, PERIODOS_RANKING, type IndicadorRanking, type PeriodoRanking, type RankingEquipe } from '../../contracts';
@@ -39,10 +39,10 @@ export default function RankingScreen() {
       {g.offline ? <Banner>Sem conexão: mostrando o último ranking guardado no aparelho.</Banner> : null}
       {r?.erro ? <Banner tone="danger">{r.erro}</Banner> : null}
       {!r ? <Loading /> : null}
-      {r && !r.ranking ? <Empty text="Sem ranking guardado para esta combinação. Conecte-se e tente de novo." /> : null}
+      {r && !r.ranking ? <EstadoVazio icone="target" titulo="Sem ranking guardado" texto="Conecte-se à internet e escolha esta combinação de novo." /> : null}
       {r?.ranking ? (
-        <Card style={{ overflow: 'hidden' }}>
-          {r.ranking.linhas.length === 0 ? <Empty text="Ninguém da equipe tem este número ainda." /> : null}
+        <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
+          {r.ranking.linhas.length === 0 ? <EstadoVazio icone="target" titulo="Ninguém tem este número ainda" texto="Escolha outro indicador ou período." /> : null}
           {r.ranking.linhas.map((l, i) => (
             <View key={l.usuario_id} testID={`ranking-linha-${l.usuario_id}`} style={[styles.linha, i < r.ranking!.linhas.length - 1 && styles.divisor]}>
               <Text style={[t.h2, styles.posicao]}>{l.posicao ?? '—'}</Text>
@@ -52,7 +52,7 @@ export default function RankingScreen() {
               <Text style={t.bodyStrong}>{valorDoIndicador(indicador, l.valor, formatBRL0)}</Text>
             </View>
           ))}
-        </Card>
+        </Cartao>
       ) : null}
     </Screen>
   );

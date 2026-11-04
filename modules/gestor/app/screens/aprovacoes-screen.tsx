@@ -5,10 +5,10 @@
  * Offline: a fila vem do cache; a decisão precisa de internet (aviso do Vendedor).
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
-import { Badge, Banner, Card, colors, Empty, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
+import { Banner, Cartao, ChipEstado, colors, EstadoVazio, Loading, Screen, SyncStamp, type as t } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ItemFilaAprovacao } from '../../contracts';
-import { MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo } from '../lib/apresentacao';
+import { MOTIVO_ROTULO, nomesDaVisao, rotuloDoPrazo, TOM_PARA_CHIP } from '../lib/apresentacao';
 import { contagem, pct } from '../lib/formato';
 import { irParaPedidoDoVendedor } from '../rotas';
 import { useGestor } from '../state/use-gestor';
@@ -34,10 +34,16 @@ export default function AprovacoesScreen() {
         </Text>
       ) : null}
       {g.offline && fila && fila.itens.length > 0 ? <Banner>Sem conexão: aprovar ou rejeitar precisa de internet.</Banner> : null}
-      <Card style={{ overflow: 'hidden' }}>
-        {!fila || fila.itens.length === 0 ? <Empty text={fila ? 'Nada aguardando aprovação na sua equipe.' : 'Sem dados no aparelho ainda. Puxe para baixo para sincronizar.'} /> : null}
+      <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
+        {!fila || fila.itens.length === 0 ? (
+          fila ? (
+            <EstadoVazio icone="check" titulo="Nada aguardando aprovação" texto="Quando um vendedor da sua equipe pedir, o pedido aparece aqui." />
+          ) : (
+            <EstadoVazio icone="check" titulo="Sem dados no aparelho ainda" texto="Puxe para baixo para sincronizar." />
+          )
+        ) : null}
         {fila?.itens.map((i, n) => <ItemFila key={i.pedido_id} i={i} nome={nomes.get(i.vendedor_id) ?? 'Vendedor'} ultimo={n === fila.itens.length - 1} />)}
-      </Card>
+      </Cartao>
     </Screen>
   );
 }
@@ -63,7 +69,7 @@ function ItemFila({ i, nome, ultimo }: { i: ItemFilaAprovacao; nome: string; ult
         {i.historico ? ` · ${contagem(i.historico.pedidos_90d, 'pedido', 'pedidos')} em 90 dias` : ''}
       </Text>
       <View style={styles.linha}>
-        <Badge label={prazo.label} tone={prazo.tom} />
+        <ChipEstado texto={prazo.label} tom={TOM_PARA_CHIP[prazo.tom]} pequeno />
         {i.pode_decidir ? <Text style={[t.smallStrong, { color: colors.accent }]}>{i.acima_do_nivel ? 'Decidir (nível do supervisor)' : 'Decidir'}</Text> : <Text style={t.small}>Acompanhar</Text>}
       </View>
     </Pressable>

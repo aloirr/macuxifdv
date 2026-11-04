@@ -16,6 +16,7 @@ export const hrefMembro = (id: string) => `/m/${CAMINHO_MEMBRO}?id=${encodeURICo
 export const hrefRanking = () => `/m/${CAMINHO_RANKING}`;
 export const hrefPedidoVendedor = (id: string) => `/m/${CAMINHO_PEDIDO_VENDEDOR}?id=${encodeURIComponent(id)}`;
 
+export const irParaAprovacoes = () => router.push(`/m/${CAMINHO_APROVACOES}` as never);
 export const irParaMembro = (id: string) => router.push(hrefMembro(id) as never);
 export const irParaRanking = () => router.push(hrefRanking() as never);
 export const irParaPedidoDoVendedor = (id: string) => router.push(hrefPedidoVendedor(id) as never);
