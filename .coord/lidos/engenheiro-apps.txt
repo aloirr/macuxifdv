@@ -39,3 +39,8 @@ R-20261102-115631-gerente-projetos
 R-20261102-153030-engenheiro-software
 R-20261102-150312-engenheiro-software
 R-20261102-174535-engenheiro-software
+R-20261103-004804-gerente-projetos
+R-20261103-123656-alexandre
+R-20261103-130003-alexandre
+R-20261103-130240-alexandre
+R-20261102-232351-modulo-vendedor
