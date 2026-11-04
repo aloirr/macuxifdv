@@ -13,6 +13,8 @@ import {
   Dialogo,
   Faixa,
   Folha,
+  fonts,
+  Icon,
   LinhaValor,
   OpcaoFolha,
   RotuloSecao,
@@ -27,7 +29,7 @@ import type { opcoesDoSalvar } from '../../domain/orcamento';
 import { enderecosDoCliente, freteValido, textoDoEndereco, transportadorasAtivas, trocarModoDoAjuste, type CalculoPedido, type EnderecoDaTela, type FreteDoRascunho, type TransportadoraDaTela } from '../lib/novo-pedido';
 import { aplicarAjusteDoPedido, type Rascunho } from '../lib/pedidos';
 import type { SugestaoDaTela, SugestoesDaTela } from '../lib/sugestoes-pedido';
-import { nomeDaSugestao, seloDaSugestao, TITULO_COMBINA, TITULO_LEVE_MAIS, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, rotuloDoAjusteDoPedido, textoDaFaixa, textoEquivalente, tituloDaFolhaSalvar } from '../lib/textos-pedido';
+import { linhaDoAjusteSomenteLeitura, nomeDaSugestao, seloDaSugestao, TEXTO_SEM_ITEM_NO_RESUMO, TITULO_COMBINA, TITULO_LEVE_MAIS, itemCompacto, linhaDeEntrega, linhasDeTotais, rotuloCurtoDaCondicao, rotuloDoAjusteDoPedido, textoDaFaixa, textoEquivalente, tituloDaFolhaSalvar } from '../lib/textos-pedido';
 import { CampoPct, CampoReais } from './novo-pedido';
 
 type OpcoesDoSalvar = ReturnType<typeof opcoesDoSalvar>;
@@ -101,7 +103,7 @@ export function CardFreteEPrazo({
         <View style={[s.chips, { flex: 1 }]}>
           {prazos.map((op) => {
             const on = op.id ? r.condicao_pagamento_id === op.id : r.payment_terms === op.rotulo;
-            return <Chip key={op.id ?? op.rotulo} testID={`terms-${op.rotulo}`} label={rotuloCurtoDaCondicao(op.rotulo)} active={on} onPress={() => onRascunho((d) => ({ ...d, payment_terms: op.rotulo, condicao_pagamento_id: op.id }))} />;
+            return <Chip key={op.id ?? op.rotulo} testID={`terms-${op.rotulo}`} label={rotuloCurtoDaCondicao(op.rotulo)} rotuloAcessivel={op.rotulo} active={on} onPress={() => onRascunho((d) => ({ ...d, payment_terms: op.rotulo, condicao_pagamento_id: op.id }))} />;
           })}
         </View>
       </View>
@@ -221,7 +223,7 @@ function BlocoSugestoes({
             accessibilityRole="button"
             accessibilityLabel={troca ? `Trocar por ${nome}` : `Adicionar ${nome}`}
             onPress={() => (sg.origem === 'embalagem_maior' ? onTrocar(sg) : onAdicionar(sg.produto_id))}
-            style={s.sugestao}>
+            style={({ pressed }) => [s.sugestao, pressed && s.sugestaoPressionada]}>
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
               <Text style={t.bodyStrong} numberOfLines={2}>
                 {nome}
@@ -229,7 +231,7 @@ function BlocoSugestoes({
               {selo.tipo === 'selo' ? <Selo texto={selo.texto} tom="sucesso" rotuloAcessivel={`${selo.texto.replace('−', '')} mais barato`} /> : <Text style={t.small}>{selo.texto}</Text>}
             </View>
             <View style={s.sugestaoBotao}>
-              <Text style={[t.h1Small, { color: colors.accentInk }]}>{troca ? '⇄' : '+'}</Text>
+              <Icon name={troca ? 'swap' : 'plus'} size={20} color={colors.accentInk} strokeWidth={2.2} />
             </View>
           </Pressable>
         );
@@ -280,6 +282,7 @@ export function AbaResumo({
   const equivalentePedido = textoEquivalente({ ajuste_em: modoPedido, equivalente: calculo.ajuste_pedido });
   const totais = linhasDeTotais({ total_tabela_cents: calculo.total_tabela_cents, desconto_cents: Math.max(0, calculo.descontos_cents), acrescimo_cents: Math.max(0, -calculo.descontos_cents), total_cents: calculo.total_cents });
   const faixa = textoDaFaixa(calculo, limiteVendedor);
+  const linhaSomenteLeitura = linhaDoAjusteSomenteLeitura(calculo.ajuste_pedido);
   return (
     <View style={{ gap: 12 }} testID="aba-resumo-conteudo">
       <Card style={s.card} testID="resumo-pedido">
@@ -290,6 +293,13 @@ export function AbaResumo({
           {linhaDeEntrega({ modalidade: frete.modalidade, prazo, endereco })}
         </Text>
       </Card>
+      {somenteLeitura ? (
+        linhaSomenteLeitura ? (
+          <Card style={s.card} testID="resumo-ajuste-leitura">
+            <LinhaValor rotulo={linhaSomenteLeitura.rotulo} valor={linhaSomenteLeitura.valor} />
+          </Card>
+        ) : null
+      ) : (
       <Card style={s.card}>
         <RotuloSecao texto={rotuloDoAjusteDoPedido(tipoPedido)} />
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -334,9 +344,15 @@ export function AbaResumo({
           </Text>
         ) : null}
       </Card>
+      )}
       <BlocoTotais linhas={totais.linhas} total={totais.total} testID="totais-pedido">
         {faixa ? <Faixa tom={faixa.tom} texto={faixa.texto} icone={faixa.icone} testID="faixa-alcada" /> : null}
       </BlocoTotais>
+      {somenteLeitura ? null : calculo.linhas.length === 0 ? (
+        <Text style={t.small} testID="resumo-sem-itens">
+          {TEXTO_SEM_ITEM_NO_RESUMO}
+        </Text>
+      ) : null}
       {somenteLeitura ? null : (
         <View style={s.botoes}>
           <Button testID="cancelar-pedido" label="Cancelar" variant="outline" height={52} style={{ flex: 1 }} onPress={onCancelar} />
@@ -380,10 +396,11 @@ export function DialogoDescartar({ visivel, onVoltar, onDescartar }: { visivel: 
 const s = StyleSheet.create({
   card: { padding: 12, gap: 10 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rotuloLinha: { width: 64, fontSize: 12, fontWeight: '700', color: colors.ink2 },
+  rotuloLinha: { width: 64, fontFamily: fonts.bold, fontSize: 12, color: colors.ink2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   botoes: { flexDirection: 'row', gap: 10 },
   sugestao: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6 },
+  sugestaoPressionada: { backgroundColor: colors.ground },
   sugestaoBotao: { width: 48, height: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
-  texto: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingHorizontal: 12, fontSize: 15, color: colors.ink },
+  texto: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink },
 });

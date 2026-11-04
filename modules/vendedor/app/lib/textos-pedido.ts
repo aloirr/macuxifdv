@@ -4,15 +4,16 @@
  */
 import { formatBRL, formatPct } from '@macuxi/comum';
 
-import type { SituacaoCliente, SituacaoOrcamento } from '../../domain/orcamento';
+import { opcoesDoSalvar, type SituacaoCliente, type SituacaoOrcamento } from '../../domain/orcamento';
+import type { NivelDePreco } from '../../domain/preco-pedido';
 import type { CalculoPedido } from './novo-pedido';
 
 export type AbaNovoPedido = 'itens' | 'detalhes' | 'resumo';
 
 /** Abas do novo pedido: Itens (com a contagem), Detalhes e Resumo. */
-export function abasDoPedido(itens: number): Array<{ id: AbaNovoPedido; rotulo: string; contador?: number | null }> {
+export function abasDoPedido(itens: number, itensPendente?: boolean): Array<{ id: AbaNovoPedido; rotulo: string; contador?: number | null; pendente?: boolean }> {
   return [
-    { id: 'itens', rotulo: 'Itens', contador: itens > 0 ? itens : null },
+    { id: 'itens', rotulo: 'Itens', contador: itens > 0 ? itens : null, ...(itensPendente === undefined ? {} : { pendente: itensPendente }) },
     { id: 'detalhes', rotulo: 'Detalhes' },
     { id: 'resumo', rotulo: 'Resumo' },
   ];
@@ -101,7 +102,7 @@ export function textoEquivalente(l: { ajuste_em: 'pct' | 'valor'; equivalente: {
   const e = l.equivalente;
   if (!e) return '';
   const sinal = e.sentido === 'desconto' ? '−' : '+';
-  if (l.ajuste_em === 'valor') return e.sentido === 'desconto' ? `= ${formatPct(e.pct_exibicao)}` : `+ ${formatPct(e.pct_exibicao)}`;
+  if (l.ajuste_em === 'valor') return `= ${formatPct(e.pct_exibicao)}`;
   return `${sinal}${formatBRL(e.cents)}`;
 }
 
@@ -129,4 +130,72 @@ export function nomeDaSugestao(nome: string, s: { origem: string; para_unidade?:
 export function seloDaSugestao(s: { origem: string; economia_pct?: number; preco_cents: number }): { tipo: 'selo' | 'preco'; texto: string } {
   if (s.origem === 'embalagem_maior' && (s.economia_pct ?? 0) >= 1) return { tipo: 'selo', texto: `−${s.economia_pct}%` };
   return { tipo: 'preco', texto: formatBRL(s.preco_cents) };
+}
+
+// ---------- revisão de UX da fatia 6 (T-0071) ----------
+const ROTULO_IR_PARA_PEDIDOS = 'Ir para Pedidos';
+
+/** Confirmação depois de enviar: orçamento é "salvo" (com a validade), pedido é "recebido" (com o status e a nota da alçada). */
+export function confirmacaoDoEnvio(e: { tipo: 'pedido' | 'orcamento'; numero: string; status: string; validade_data?: string | null; pending_reason?: string | null; rejection_reason?: string | null }): { titulo: string; nota: string; mostrarStatus: boolean; rodape: string } {
+  if (e.tipo === 'orcamento') {
+    const [, m, d] = (e.validade_data ?? '').split('-');
+    return { titulo: `Orçamento ${e.numero} salvo`, nota: m && d ? `Válido até ${d}/${m}.` : '', mostrarStatus: false, rodape: ROTULO_IR_PARA_PEDIDOS };
+  }
+  const nota = e.status === 'pending_approval' ? (e.pending_reason ?? '') : e.status === 'rejected' ? (e.rejection_reason ?? '') : e.status === 'approved' ? 'Dentro da alçada: aprovado na hora.' : 'Recebido.';
+  return { titulo: `Pedido ${e.numero} recebido`, nota, mostrarStatus: true, rodape: ROTULO_IR_PARA_PEDIDOS };
+}
+
+/** Sem sinal: o documento ficou na fila do aparelho. */
+export function avisoSalvoNoAparelho(tipo: 'pedido' | 'orcamento'): { titulo: string; nota: string } {
+  return { titulo: tipo === 'orcamento' ? 'Orçamento salvo no aparelho.' : 'Pedido salvo no aparelho.', nota: 'Envia quando o sinal voltar.' };
+}
+
+export const ROTULO_IR_PARA_PEDIDOS_RODAPE = ROTULO_IR_PARA_PEDIDOS;
+
+/**
+ * RN-VEN-18 / desenho §1.5: a folha do Transformar abre SEMPRE (toque 1), com a alçada e o "Enviar pedido" (toque 2). Sem mudança
+ * o título é "Transformar em pedido"; com mudança ou bloqueio, "Mudou desde o orçamento" (com o total novo).
+ * `null` = sem tabela no aparelho para conferir (a plataforma confere ao receber).
+ */
+export function folhaDoTransformar(c: { mudancas: readonly string[]; bloqueio: string | null; nivel: NivelDePreco | null; total_cents: number | null } | null): { titulo: string; subtitulo: string; podeEnviar: boolean; mostrarTotal: boolean } {
+  if (!c) return { titulo: 'Transformar em pedido', subtitulo: 'Confere preço e alçada ao enviar.', podeEnviar: true, mostrarTotal: false };
+  const mudou = c.mudancas.length > 0 || c.bloqueio !== null;
+  const subtitulo = opcoesDoSalvar({ cliente: { ativo: true, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] }, calculo: { nivel: c.nivel }, frete_erro: null, validade_data: '2000-01-01' }).enviar.subtitulo;
+  return { titulo: mudou ? 'Mudou desde o orçamento' : 'Transformar em pedido', subtitulo, podeEnviar: c.bloqueio === null, mostrarTotal: mudou && c.total_cents !== null };
+}
+
+/** Resumo depois do envio (só leitura): o ajuste do pedido vira uma linha de valor. Zero = sem linha. */
+export function linhaDoAjusteSomenteLeitura(a: { sentido: 'desconto' | 'acrescimo'; cents: number; pct_exibicao: number } | null): { rotulo: string; valor: string } | null {
+  if (!a || a.cents <= 0) return null;
+  return { rotulo: `${rotuloDoAjusteDoPedido(a.sentido)} (${formatPct(a.pct_exibicao)})`, valor: `${a.sentido === 'acrescimo' ? '+' : '−'} ${formatBRL(a.cents)}` };
+}
+
+/** Folha de cancelar: o orçamento é "cancelado", o pedido é "excluído" (RF-VEN-03/04). */
+export function textoCancelarDocumento(e: { ehOrcamento: boolean; naFila: boolean; titulo: string }): { rotuloAcessivel: string; titulo: string; descricao: string; confirmar: string; ocupado: string } {
+  if (e.ehOrcamento) {
+    return { rotuloAcessivel: 'Cancelar orçamento', titulo: 'Cancelar este orçamento?', descricao: e.naFila ? 'O orçamento sai da fila do aparelho e não será enviado.' : 'O orçamento fica como Cancelado no histórico; não é apagado.', confirmar: 'Cancelar orçamento', ocupado: 'Cancelando…' };
+  }
+  return {
+    rotuloAcessivel: 'Excluir pedido',
+    titulo: `Excluir ${e.titulo.toLowerCase()}?`,
+    descricao: e.naFila ? 'O pedido sai da fila do aparelho e não será enviado.' : 'O pedido fica como Excluído no histórico; não é apagado.',
+    confirmar: 'Excluir pedido',
+    ocupado: 'Excluindo…',
+  };
+}
+
+export function textoNaoFoiAceito(motivo: string): string {
+  return `Não foi aceito: ${motivo}`;
+}
+
+export const TEXTO_PEDIDO_FORA_DO_APARELHO = { titulo: 'Este pedido não está no aparelho', texto: 'Conecte-se e puxe a tela para baixo para sincronizar.' } as const;
+export const TEXTO_SEM_ITEM_NO_RESUMO = 'Adicione um item na aba Itens.';
+
+export function textoBuscaSemResultado(busca: string): { titulo: string; texto: string } {
+  return { titulo: `Nenhum produto com “${busca.trim()}”`, texto: 'Confira o código ou a descrição.' };
+}
+
+/** Aviso do rodapé depois de tocar numa sugestão (com Desfazer). */
+export function avisoSugestaoAdicionada(nome: string, troca: boolean): string {
+  return troca ? `Trocado por ${nome}` : `${nome} adicionado`;
 }
