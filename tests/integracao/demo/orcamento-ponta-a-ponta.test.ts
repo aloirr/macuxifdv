@@ -109,7 +109,8 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
     { product_id: prod.BIS, quantity: 1, unidade: 'CX' },
   ];
   const cabecalhoReferencia = () => ({ customer_id: miniBox, discount_pct: 1, ajuste_em: 'pct', payment_terms: '28 dias', condicao_pagamento_id: cond28 });
-  const orcamento = (pid: string, extra: Record<string, unknown> = {}): ItemPush => ({
+  /** `payload` do ItemPush é `unknown` no SDK: aqui é sempre um objeto (o spread nos casos O6 e O8 precisa disso). */
+  const orcamento = (pid: string, extra: Record<string, unknown> = {}): ItemPush & { payload: Record<string, unknown> } => ({
     entidade: 'pedido',
     id: pid,
     operacao: 'upsert',
@@ -410,7 +411,7 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
       const pedidoId = randomUUID();
       const orcId = randomUUID();
       const res = await push(token.promotor, [orcamento(orcId), { ...orcamento(pedidoId), payload: { ...orcamento(pedidoId).payload, tipo: 'pedido' } }]);
-      expect(res.map((x) => [x.status, x.codigo]), JSON.stringify(res)).toEqual([
+      expect(res.map((x) => [x.status, x.status === 'rejeitado' ? x.codigo : undefined]), JSON.stringify(res)).toEqual([
         ['rejeitado', codigoPush],
         ['rejeitado', codigoPush],
       ]);
@@ -467,7 +468,7 @@ describe.skipIf(semBanco())('T-0071 — orçamento de ponta a ponta: offline →
       expect(idsA).not.toContain(ABERTO);
       expect(idsA).not.toContain(ORC);
       const orcsA = await api.get(tokenA, '/v1/vendedor/pedidos?tipo=todos&limite=200');
-      expect(listaDe(orcsA.corpo).some((x) => [ABERTO, ORC, PED].includes((x as { id: string }).id))).toBe(false);
+      expect(listaDe(orcsA.corpo).some((x) => ([ABERTO, ORC, PED] as string[]).includes((x as { id: string }).id))).toBe(false);
       const deA = (await q<{ id: string }>('select id from vendedor.pedido where tenant_id = $1', [A.tenantId])).map((x) => x.id);
       const vistosDemo = listaDe((await api.get(token.analista, '/v1/vendedor/pedidos?tipo=todos&limite=200')).corpo).map((x) => (x as { id: string }).id);
       expect(vistosDemo.filter((x) => deA.includes(x)), 'a demo não vê pedido de A').toEqual([]);

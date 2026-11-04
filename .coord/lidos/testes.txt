@@ -103,3 +103,4 @@ R-20261103-004804-gerente-projetos
 R-20261103-090756-alexandre
 R-20261103-100516-gerente-projetos
 R-20261104-025708-modulo-vendedor
+R-20261104-035957-banco-dados
