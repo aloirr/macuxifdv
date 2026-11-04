@@ -62,17 +62,24 @@ export function metaDoDia(e: EntradaMetaDoDia): MetaDoDia {
 
 /**
  * RN-CORE-26: meta do dia da equipe = SOMA das metas do dia de cada pessoa COM meta no indicador; null sem ninguém.
- * Cobertura (`do_mes`): `meta_mes` e realizados saem como média arredondada; a média ponderada pelas paradas, se quiserem, é de quem chama.
+ * Cobertura (`do_mes`): `meta_mes` e realizados saem como média PONDERADA pelas paradas planejadas do mês de cada pessoa
+ * (`paradas_planejadas`; ausente = 0), arredondada em pontos-base como o resto do módulo; sem nenhuma parada planejada = null
+ * (decisão do Alexandre, T-0073: 2 paradas a 100% + 10 a 50% = (2×100 + 10×50)/12 = 58,3%).
  */
-export function metaDoDiaDaEquipe(indicador: IndicadorMeta, itens: readonly MetaDoDia[]): MetaDoDia | null {
+export type ItemEquipe = MetaDoDia & { paradas_planejadas?: number };
+
+export function metaDoDiaDaEquipe(indicador: IndicadorMeta, itens: readonly ItemEquipe[]): MetaDoDia | null {
   const l = itens.filter((i) => i.indicador === indicador);
   if (l.length === 0) return null;
-  const soma = (f: (i: MetaDoDia) => number) => l.reduce((s, i) => s + f(i), 0);
+  const soma = (f: (i: ItemEquipe) => number) => l.reduce((s, i) => s + f(i), 0);
   const membros = soma((i) => i.membros);
   const membrosBatido = soma((i) => i.membros_mes_batido);
   const dias = Math.max(...l.map((i) => i.dias_uteis_restantes));
   if (indicador === 'cobertura_pct') {
-    const media = (f: (i: MetaDoDia) => number) => Math.round(soma(f) / l.length);
+    const peso = (i: ItemEquipe) => Math.max(0, i.paradas_planejadas ?? 0);
+    const pesoTotal = soma(peso);
+    if (pesoTotal === 0) return null;
+    const media = (f: (i: MetaDoDia) => number) => Math.round(soma((i) => f(i) * peso(i)) / pesoTotal);
     return { indicador, situacao: 'do_mes', meta_mes: media((i) => i.meta_mes), realizado_ate_ontem: media((i) => i.realizado_ate_ontem), realizado_hoje: media((i) => i.realizado_hoje), meta_dia: null, atingimento_hoje_pct: null, dias_uteis_restantes: dias, membros, membros_mes_batido: membrosBatido };
   }
   const metaMes = soma((i) => i.meta_mes);

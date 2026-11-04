@@ -13,6 +13,7 @@ import {
   metaDoDia,
   metaDoDiaDaEquipe,
   realizadoPartido,
+  type ItemEquipe,
   type CalendarioTenant,
   type IndicadorMeta,
   type TipoMeta,
@@ -107,23 +108,26 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
   });
 
   const doDia: MetaDoDia[] = [];
-  const porIndicador = new Map<IndicadorMeta, MetaDoDia[]>();
+  const porIndicador = new Map<IndicadorMeta, ItemEquipe[]>();
   for (const u of saidaUsuarios) {
     const meus = { paradas: paradas.filter((p) => p.usuario_id === u.usuario_id).map((p) => ({ cliente_id: p.cliente_id, data: p.data })), visitas: visitas.filter((v) => v.usuario_id === u.usuario_id) };
     const ateOntem = indicadoresDoPeriodo({ periodo, usuario_id: u.usuario_id, hoje: dia, paradas: meus.paradas, visitas: meus.visitas.filter((v) => v.data_local < dia) });
     const total = indicadoresDoPeriodo({ periodo, usuario_id: u.usuario_id, hoje: dia, paradas: meus.paradas, visitas: meus.visitas.filter((v) => v.data_local <= dia) });
-    const realizado: Record<IndicadorMeta, [number, number]> = {
-      venda_cents: [u.venda_cents?.ate_ontem ?? 0, u.venda_cents?.hoje ?? 0],
-      positivacao: [u.positivacao?.ate_ontem ?? 0, u.positivacao?.hoje ?? 0],
+    // Decisão do Alexandre (T-0073): indicador sem fonte (null) não entra nas metas do dia nem como zero
+    const realizado: Record<IndicadorMeta, [number, number] | null> = {
+      venda_cents: u.venda_cents ? [u.venda_cents.ate_ontem, u.venda_cents.hoje] : null,
+      positivacao: u.positivacao ? [u.positivacao.ate_ontem, u.positivacao.hoje] : null,
       visitas: [ateOntem.visitados, total.visitados - ateOntem.visitados],
       cobertura_pct: [ateOntem.cobertura_pct, Math.max(0, total.cobertura_pct - ateOntem.cobertura_pct)],
     };
     for (const ind of ORDEM) {
       const meta = metaDe(u.usuario_id, ind);
       if (!meta) continue;
-      const [ate, hoje] = realizado[ind];
+      const r = realizado[ind];
+      if (!r) continue;
+      const [ate, hoje] = r;
       const m = metaDoDia({ indicador: ind, periodo, hoje: dia, calendario, meta_mes: Math.round(meta.valor), realizado_ate_ontem: ate, realizado_hoje: hoje });
-      porIndicador.set(ind, [...(porIndicador.get(ind) ?? []), m]);
+      porIndicador.set(ind, [...(porIndicador.get(ind) ?? []), { ...m, paradas_planejadas: total.planejados }]);
     }
   }
   for (const ind of ORDEM) {
@@ -131,7 +135,7 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
     if (equipe) {
       const soma = metaDoDiaDaEquipe(ind, itens);
       if (soma) doDia.push(soma);
-    } else doDia.push(...itens);
+    } else doDia.push(...itens.map(({ paradas_planejadas: _p, ...m }) => m));
   }
   return InicioSchema.parse({ dia, periodo, calculado_em, escopo: equipe ? 'equipe' : 'proprio', usuarios: saidaUsuarios, metas_do_dia: doDia });
 }

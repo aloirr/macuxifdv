@@ -68,11 +68,22 @@ describe('RN-CORE-26: calcularInicio do vendedor', () => {
     expect(r.usuarios[0]!.venda_cents).toEqual({ ate_ontem: 5_000, hoje: 0 });
   });
 
-  it('RN-CORE-26: sem o Vendedor e sem read-model, venda e positivação ficam nulos (sem fonte) e a conta segue com zero', async () => {
+  it('RN-CORE-26: decisão do Alexandre (T-0073): sem o Vendedor e sem linha no indicador_diario, venda e positivação são nulas e NÃO entram nas metas do dia como zero', async () => {
     const { db } = fakeDb(respostas);
     const r = await calcularInicio(db, {}, entrada, async () => null);
     expect(r.usuarios[0]).toMatchObject({ venda_cents: null, positivacao: null });
-    expect(r.metas_do_dia.find((m) => m.indicador === 'venda_cents')!.realizado_hoje).toBe(0);
+    const inds = r.metas_do_dia.map((m) => m.indicador);
+    expect(inds).not.toContain('venda_cents');
+    expect(inds).not.toContain('positivacao');
+  });
+
+  it('RN-CORE-26: decisão do Alexandre (T-0073): com linha no indicador_diario a venda vem do read-model; positivação segue nula (a tabela não tem coluna de positivados)', async () => {
+    const { db } = fakeDb([...respostas, [/from core.indicador_diario/, [{ usuario_id: VEND, data: '2026-11-10', vendido_cents: 20_000, cancelado_cents: 0 }]]]);
+    const r = await calcularInicio(db, {}, entrada, async () => null);
+    expect(r.usuarios[0]).toMatchObject({ venda_cents: { ate_ontem: 0, hoje: 20_000 }, positivacao: null });
+    const inds = r.metas_do_dia.map((m) => m.indicador);
+    expect(inds).toContain('venda_cents');
+    expect(inds).not.toContain('positivacao');
   });
 
   it('RN-CORE-26: sem o Vendedor cai no read-model indicador_diario (líquido de cancelamento)', async () => {

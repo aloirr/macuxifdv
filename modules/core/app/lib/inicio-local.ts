@@ -21,6 +21,7 @@ import {
   metaDoDiaDaEquipe,
   recadoDoDia,
   type IndicadorMeta,
+  type ItemEquipe,
 } from '../../domain';
 import { linkNavegavel, montarCaixa } from './notificacoes';
 import { pendentesDaFila } from './rota-local';
@@ -80,7 +81,7 @@ export function montarInicio(
   const visitas = [...l.visitas.filter((v) => !v.deleted_at && v.usuario_id !== o.usuarioId), ...minhasComFila];
   const paradas = l.paradas.filter((p) => !p.deleted_at);
 
-  const porIndicador = new Map<IndicadorMeta, MetaDoDia[]>();
+  const porIndicador = new Map<IndicadorMeta, ItemEquipe[]>();
   for (const uid of ids) {
     const ps = paradas.filter((p) => p.usuario_id === uid).map((p) => ({ cliente_id: p.cliente_id, data: p.data }));
     const vs = visitas.filter((v) => v.usuario_id === uid);
@@ -88,8 +89,9 @@ export function montarInicio(
     const total = indicadoresDoPeriodo({ periodo, usuario_id: uid, hoje, paradas: ps, visitas: vs.filter((v) => v.data_local <= hoje) });
     const u = base?.usuarios.get(uid);
     const realizado: Record<IndicadorMeta, [number, number] | null> = {
-      venda_cents: u ? [u.venda_cents?.ate_ontem ?? 0, u.venda_cents?.hoje ?? 0] : null,
-      positivacao: u ? [u.positivacao?.ate_ontem ?? 0, u.positivacao?.hoje ?? 0] : null,
+      // Decisão do Alexandre (T-0073): indicador null (sem fonte) fica fora da visão, nunca como zero
+      venda_cents: u?.venda_cents ? [u.venda_cents.ate_ontem, u.venda_cents.hoje] : null,
+      positivacao: u?.positivacao ? [u.positivacao.ate_ontem, u.positivacao.hoje] : null,
       visitas: [ateOntem.visitados, total.visitados - ateOntem.visitados],
       cobertura_pct: [ateOntem.cobertura_pct, Math.max(0, total.cobertura_pct - ateOntem.cobertura_pct)],
     };
@@ -98,7 +100,7 @@ export function montarInicio(
       const r = realizado[ind];
       if (!meta || !r) continue;
       const m = metaDoDia({ indicador: ind, periodo, hoje, calendario, meta_mes: meta.valor, realizado_ate_ontem: r[0], realizado_hoje: r[1] });
-      porIndicador.set(ind, [...(porIndicador.get(ind) ?? []), m]);
+      porIndicador.set(ind, [...(porIndicador.get(ind) ?? []), { ...m, paradas_planejadas: total.planejados }]);
     }
   }
   const metas: MetaDoDia[] = [];
@@ -107,7 +109,7 @@ export function montarInicio(
     if (equipe) {
       const soma = metaDoDiaDaEquipe(ind, itens);
       if (soma) metas.push(soma);
-    } else metas.push(...itens);
+    } else metas.push(...itens.map(({ paradas_planejadas: _p, ...m }) => m));
   }
 
   const caixa = montarCaixa(l.notificacoes, fila, o.agora);

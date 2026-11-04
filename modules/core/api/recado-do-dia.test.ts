@@ -137,3 +137,12 @@ describe('RN-CORE-26: SQL do pull e da lista enviada', () => {
     expect(chamadas[0]!.sql).toMatch(/as autor_perfil/);
   });
 });
+
+describe('RN-CORE-26: recado de outro dia pode ser remarcado para hoje (decisão do Alexandre (T-0073))', () => {
+  it('RN-CORE-26: decisão do Alexandre (T-0073): recado enviado em outro dia, ainda na janela de 30 dias e não expirado, é remarcado para HOJE (200, sem 422)', async () => {
+    const { db, chamadas } = fakeDb([[/from core.notificacao\s+where envio_id/, linhas(true)], [/set recado_do_dia = null/, { rowCount: 0 }], [/set recado_do_dia = \$2::date/, { rowCount: 2 }]]);
+    const r = await chamar('PUT', contexto(db));
+    expect(r).toMatchObject({ dia: '2026-11-10', marcadas: 2 });
+    expect(chamadas.find((c) => /set recado_do_dia = \$2::date/.test(c.sql))!.valores[1]).toBe('2026-11-10');
+  });
+});

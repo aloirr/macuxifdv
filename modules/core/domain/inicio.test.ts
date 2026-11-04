@@ -22,6 +22,10 @@ describe('RN-CORE-26: recado do dia no aparelho', () => {
     expect(recadoDoDia([notif({ recado_do_dia: '2026-11-09' })], ctx).origem).toBe('padrao');
     expect(recadoDoDia([], ctx)).toMatchObject({ origem: 'padrao', texto: RECADO_DO_DIA_PADRAO, titulo: null, notificacao_id: null });
   });
+  it('RN-CORE-26: decisão do Alexandre (T-0073): recado enviado em outro dia (updated_at de 20 dias atrás) e remarcado para hoje aparece como o recado do dia', () => {
+    const r = recadoDoDia([notif({ updated_at: '2026-10-21T12:00:00Z', recado_do_dia: HOJE })], ctx);
+    expect(r).toMatchObject({ origem: 'recado', notificacao_id: N1 });
+  });
   it('RN-CORE-26: recado removido (deleted_at) volta ao padrão', () => {
     expect(recadoDoDia([notif({ deleted_at: '2026-11-10T13:00:00Z' })], ctx).origem).toBe('padrao');
   });

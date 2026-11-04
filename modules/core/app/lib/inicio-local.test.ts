@@ -107,10 +107,33 @@ describe('RN-CORE-26: montarInicio (Início offline com as mesmas funções pura
     expect(Object.keys(v)).not.toContain('pedidos_para_aprovar');
   });
 
-  it('RN-PRO-01: promotor com meta de venda mas sem fonte (venda_cents nulo na cópia) mostra o agregado com realizado 0, sem listar pedido', () => {
+  it('RN-CORE-26: decisão do Alexandre (T-0073): indicador sem fonte (venda_cents e positivacao nulos na cópia) não entra na visão — ausente, não zero', () => {
     const c = copia('2026-11-10', { usuarios: [{ usuario_id: EU, nome: 'Paulo', perfil: 'promotor', equipe_id: null, tipo_meta_venda: 'pedido', venda_cents: null, positivacao: null }] });
-    const v = montarInicio({ ...vazio, metas: [meta(EU, 'venda_cents', 100_000)] }, c, [], { ...eu, perfil: 'promotor' });
-    expect(v.metas[0]).toMatchObject({ indicador: 'venda_cents', realizado_ate_ontem: 0, realizado_hoje: 0 });
+    const v = montarInicio({ ...vazio, metas: [meta(EU, 'venda_cents', 100_000), meta(EU, 'positivacao', 40), meta(EU, 'visitas', 40)] }, c, [], { ...eu, perfil: 'promotor' });
+    expect(v.metas.map((m) => m.indicador)).toEqual(['visitas']);
+  });
+
+  it('RN-CORE-26: decisão do Alexandre (T-0073): vendedor desligado com venda do read-model e positivação nula mostra só a venda', () => {
+    const c = copia('2026-11-10', { usuarios: [{ ...copia('x').usuarios[0]!, venda_cents: { ate_ontem: 1_200_000, hoje: 0 }, positivacao: null }] });
+    const v = montarInicio({ ...vazio, metas: [meta(EU, 'venda_cents', 3_000_000), meta(EU, 'positivacao', 40)] }, c, [], eu);
+    expect(v.metas.map((m) => m.indicador)).toEqual(['venda_cents']);
+  });
+
+  it('RN-CORE-26: decisão do Alexandre (T-0073): cobertura da equipe pondera pelas paradas planejadas de cada vendedor (2 paradas a 100% + 10 a 50% = 58,3%)', () => {
+    const c = copia('2026-11-10', {
+      escopo: 'equipe',
+      usuarios: [
+        { usuario_id: EU, nome: 'Ana', perfil: 'vendedor', equipe_id: null, tipo_meta_venda: 'pedido', venda_cents: null, positivacao: null },
+        { usuario_id: OUTRO, nome: 'Bia', perfil: 'vendedor', equipe_id: null, tipo_meta_venda: 'pedido', venda_cents: null, positivacao: null },
+      ],
+    });
+    const paradasEu = [1, 2].map((n) => parada(n, EU, 10 + n, '2026-11-03'));
+    const paradasOutro = Array.from({ length: 10 }, (_, n) => parada(10 + n, OUTRO, 30 + n, '2026-11-03'));
+    const visitasEu = [1, 2].map((n) => visita(n, EU, 10 + n, '2026-11-03', '2026-11-03T12:00:00Z', '2026-11-03T12:30:00Z'));
+    const visitasOutro = Array.from({ length: 5 }, (_, n) => visita(10 + n, OUTRO, 30 + n, '2026-11-03', '2026-11-03T12:00:00Z', '2026-11-03T12:30:00Z'));
+    const l: LinhasInicio = { ...vazio, metas: [meta(EU, 'cobertura_pct', 9000), meta(OUTRO, 'cobertura_pct', 9000)], paradas: [...paradasEu, ...paradasOutro], visitas: [...visitasEu, ...visitasOutro] };
+    const v = montarInicio(l, c, [], { ...eu, usuarioId: id(9), perfil: 'supervisor' });
+    expect(v.metas[0]).toMatchObject({ indicador: 'cobertura_pct', situacao: 'do_mes', realizado_ate_ontem: 5833 });
   });
 
   it('RN-CORE-26: recado do dia marcado para hoje aparece; marcado ontem cai na frase padrão do tenant', () => {

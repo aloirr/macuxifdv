@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { MetaDoDia } from '../contracts/inicio';
 import { CALENDARIO_PADRAO, calendarioDoTenant, diasUteisRestantes, ehDiaUtil, metaDoDia, metaDoDiaDaEquipe, type CalendarioTenant } from './meta-do-dia';
 
 const SEG_SEX: CalendarioTenant = { dias_uteis_semana: [1, 2, 3, 4, 5] };
@@ -132,10 +131,32 @@ describe('RN-CORE-26: meta do dia da equipe é a soma das metas do dia (caso 6)'
   it('RN-CORE-26: dia não útil para o tenant vale para a equipe, e cobertura da equipe é do_mes', () => {
     const dom = (m: Partial<Parameters<typeof metaDoDia>[0]>) => metaDoDia({ ...entrada, hoje: '2026-11-15', ...m });
     expect(metaDoDiaDaEquipe('venda_cents', [dom({}), dom({ meta_mes: 1_800_000, realizado_ate_ontem: 2_000_000 })])!.situacao).toBe('dia_nao_util');
-    const cob: MetaDoDia[] = [dom({ indicador: 'cobertura_pct', meta_mes: 8000, realizado_ate_ontem: 6000 }), dom({ indicador: 'cobertura_pct', meta_mes: 10000, realizado_ate_ontem: 8000 })];
+    const cob = [{ ...dom({ indicador: 'cobertura_pct', meta_mes: 8000, realizado_ate_ontem: 6000 }), paradas_planejadas: 5 }, { ...dom({ indicador: 'cobertura_pct', meta_mes: 10000, realizado_ate_ontem: 8000 }), paradas_planejadas: 5 }];
     const eq = metaDoDiaDaEquipe('cobertura_pct', cob)!;
     expect(eq.situacao).toBe('do_mes');
     expect(eq.meta_dia).toBeNull();
     expect(eq.membros).toBe(2);
+  });
+});
+
+describe('RN-CORE-26: cobertura da equipe é média ponderada pelas paradas planejadas (decisão do Alexandre (T-0073))', () => {
+  const cobertura = (ate: number, paradas?: number) => ({
+    ...metaDoDia({ ...base, indicador: 'cobertura_pct', hoje: '2026-11-10', meta_mes: 9000, realizado_ate_ontem: ate }),
+    ...(paradas === undefined ? {} : { paradas_planejadas: paradas }),
+  });
+  it('RN-CORE-26: decisão do Alexandre (T-0073): A (2 paradas, 100%) e B (10 paradas, 50%) = 58,3% ((2×100 + 10×50)/12 = 58,33…; em pontos-base 5833)', () => {
+    const eq = metaDoDiaDaEquipe('cobertura_pct', [cobertura(10_000, 2), cobertura(5_000, 10)])!;
+    expect(eq.situacao).toBe('do_mes');
+    expect(eq.realizado_ate_ontem).toBe(5833); // pontos-base (10000 = 100%), Math.round como no resto do módulo
+    expect(eq.meta_mes).toBe(9000);
+    expect(eq.membros).toBe(2);
+    expect(eq.meta_dia).toBeNull();
+  });
+  it('RN-CORE-26: decisão do Alexandre (T-0073): a média simples (75%) não vale; quem tem mais paradas pesa mais', () => {
+    expect(metaDoDiaDaEquipe('cobertura_pct', [cobertura(10_000, 2), cobertura(5_000, 10)])!.realizado_ate_ontem).not.toBe(7500);
+  });
+  it('RN-CORE-26: decisão do Alexandre (T-0073): quem não tem parada planejada não pesa; equipe sem nenhuma parada = null', () => {
+    expect(metaDoDiaDaEquipe('cobertura_pct', [cobertura(10_000, 0), cobertura(5_000, 10)])!.realizado_ate_ontem).toBe(5000);
+    expect(metaDoDiaDaEquipe('cobertura_pct', [cobertura(10_000, 0), cobertura(5_000)])).toBeNull();
   });
 });
