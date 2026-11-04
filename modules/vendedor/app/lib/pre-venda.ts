@@ -1,7 +1,7 @@
 /**
  * Pré-venda no aparelho (T-0053; RF-VEN-03, RN-VEN-32). Puro, sem React: as regras vêm do domain (as mesmas do servidor).
- * - Orçamento só aparece com o parâmetro do tenant `orcamento.ativo` (desligado até a migração 0013 chegar ao servidor:
- *   sem ele o servidor recusa com `PRE_VENDA_INDISPONIVEL`).
+ * - Orçamento aparece com o parâmetro do tenant `orcamento.ativo`, LIGADO por padrão desde a T-0071 (a migração 0013 está no
+ *   banco e a API usa o repositório SQL); o tenant desliga com `false`.
  * - Converter é offline: o pedido novo entra na fila do aparelho com `orcamento_origem_id`; o servidor revalida tudo.
  */
 import type { Order, OrderDetail, PedidoPush } from '../../contracts';
@@ -10,10 +10,11 @@ import { ORDER_STATUS_LABEL, type OrderStatus } from '../../domain/order';
 
 export const PARAMETRO_PRE_VENDA_ATIVA = 'orcamento.ativo';
 
-/** O tenant liberou o orçamento no app? Padrão: não. */
+/** O tenant liberou o orçamento no app? Padrão: sim (ausente = ligado). */
 export function preVendaAtiva(parametros: Readonly<Record<string, unknown>>): boolean {
   const v = parametros[PARAMETRO_PRE_VENDA_ATIVA];
-  return v === true || v === 'true' || v === 1;
+  if (v === undefined || v === null) return true;
+  return !(v === false || v === 'false' || v === 0 || v === '0');
 }
 
 type DocumentoNaTela = Pick<Order, 'status'> & Partial<Pick<Order, 'tipo' | 'validade_ate' | 'convertido_pedido_id' | 'situacao_orcamento'>>;

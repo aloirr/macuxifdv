@@ -4,7 +4,8 @@
  *    vendedor/supervisor/gerente/analista...: `vendedor_id` ∈ `ctx.usuariosVisiveis()` (próprios, equipe, tenant);
  *    promotor (só leitura, `pedido.ver`): pedidos dos clientes da carteira (`ctx.carteira()`), nunca por vendedor.
  *  - `condicao_pagamento` (tenant) e `cliente_condicao` (carteira).
- * Janela: criado ≥ hoje − 90 dias OU status não final. Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos,
+ * Janela: criado ≥ hoje − 90 dias OU status não final; orçamento (T-0071 §1.4 b): criado ≥ hoje − 90 dias OU aberto (não convertido,
+ * não cancelado e com `orcamento_validade` ≥ hoje no fuso do tenant). O vencido antigo sai da janela. Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos,
  * removidos incluídos. Item e evento: mesmo escopo e janela do pedido pai (join).
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
@@ -27,7 +28,13 @@ const COLUNAS_PEDIDO = `p.id, ${ts('updated_at', 'p.')}, ${ts('deleted_at', 'p.'
   p.visita_id, p.rota_parada_id, ${ts('criado_no_aparelho_em', 'p.')}, ${ts('recebido_em', 'p.')},
   p.numero_erp, p.motivo_cancelamento, ${ts('created_at', 'p.')},
   p.numero, p.cliente_nome, p.vendedor_nome, p.tabela_preco_id, p.condicao_pagamento_id, p.condicao_pagamento_descricao,
-  p.nivel_aprovacao, p.motivos_aprovacao, p.aprovacao_automatica, p.decidido_por_id, ${ts('decidido_em', 'p.')}, p.motivo_rejeicao`;
+  p.nivel_aprovacao, p.motivos_aprovacao, p.aprovacao_automatica, p.decidido_por_id, ${ts('decidido_em', 'p.')}, p.motivo_rejeicao,
+  p.tipo, p.orcamento_validade::text as validade_data,
+  case when p.orcamento_validade is null then null
+       else to_char(((p.orcamento_validade + 1)::timestamp at time zone $8) at time zone 'UTC', ${UTC}) end as validade_ate,
+  p.orcamento_id as orcamento_origem_id,
+  (select c.id from vendedor.pedido c where c.tenant_id = p.tenant_id and c.orcamento_id = p.id and c.deleted_at is null limit 1) as convertido_pedido_id,
+  p.desconto_valor_cents::float8 as desconto_valor_cents, p.acrescimo_valor_cents::float8 as acrescimo_valor_cents, p.ajuste_em`;
 
 /**
  * T-0054: resumo do retorno do ERP no pedido e no item (0013, `FATURAMENTO_LIGADO`). `faturado_cents` = total faturado;
@@ -47,7 +54,8 @@ export const JUNCAO_FATURAMENTO = `left join lateral (select count(*)::int as no
 const COLUNAS_ITEM = `i.id, ${ts('updated_at', 'i.')}, ${ts('deleted_at', 'i.')}, i.external_id,
   i.pedido_id, i.sequencia, i.produto_id, i.quantidade, i.preco_tabela_cents::float8 as preco_tabela_cents,
   i.preco_unitario_cents::float8 as preco_unitario_cents, i.desconto_pct::float8 as desconto_pct, i.total_cents::float8 as total_cents,
-  i.produto_sku, i.produto_nome, i.unidade`;
+  i.produto_sku, i.produto_nome, i.unidade,
+  i.desconto_unitario_cents::float8 as desconto_unitario_cents, i.acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, i.ajuste_em`;
 
 const COLUNAS_EVENTO = `e.id, ${ts('updated_at', 'e.')}, ${ts('deleted_at', 'e.')}, e.external_id,
   e.pedido_id, e.de, e.para, e.autor_id, e.autor_nome, e.autor_perfil, e.motivo, e.nivel, e.acima_do_nivel,
@@ -70,16 +78,18 @@ export function escopoDoPedido(
   return { vendedores: usuarios === 'tenant' ? null : [...usuarios], clientes: null };
 }
 
-/** Filtro de escopo e janela sobre o alias `p` (pedido). Parâmetros: $1 ate, $5 vendedores, $6 clientes, $7 status finais. */
+/** Filtro de escopo e janela sobre o alias `p` (pedido). Parâmetros: $1 ate, $5 vendedores, $6 clientes, $7 status finais, $8 fuso do tenant. */
 export const FILTROS_PEDIDO = `and ($5::uuid[] is null or p.vendedor_id = any($5::uuid[]))
      and ($6::uuid[] is null or p.cliente_id = any($6::uuid[]))
-     and (p.created_at >= $1::timestamptz - make_interval(days => ${JANELA_DIAS}) or p.status <> all($7::text[]))`;
+     and (p.created_at >= $1::timestamptz - make_interval(days => ${JANELA_DIAS})
+          or (p.status <> all($7::text[])
+              and (p.tipo = 'pedido' or (p.convertido_em is null and p.orcamento_validade >= ($1::timestamptz at time zone $8)::date))))`;
 
-function valores(pedido: PedidoPull, e: EscopoPedido): unknown[] {
-  return [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite, e.vendedores, e.clientes, [...ORDER_STATUSES_FINAIS]];
+function valores(pedido: PedidoPull, e: EscopoPedido, fuso: string): unknown[] {
+  return [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite, e.vendedores, e.clientes, [...ORDER_STATUSES_FINAIS], fuso];
 }
 
-export function sqlPedido(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO): { sql: string; valores: unknown[] } {
+export function sqlPedido(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO, fuso = 'UTC'): { sql: string; valores: unknown[] } {
   const sql = `select ${COLUNAS_PEDIDO}${comFaturamento ? COLUNAS_PEDIDO_FATURAMENTO : ''}
     from vendedor.pedido p ${comFaturamento ? JUNCAO_FATURAMENTO : ''}
    where p.updated_at < $1::timestamptz
@@ -87,10 +97,10 @@ export function sqlPedido(pedido: PedidoPull, e: EscopoPedido, comFaturamento = 
      ${FILTROS_PEDIDO}
    order by p.updated_at, p.id
    limit $4`;
-  return { sql, valores: valores(pedido, e) };
+  return { sql, valores: valores(pedido, e, fuso) };
 }
 
-export function sqlPedidoItem(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO): { sql: string; valores: unknown[] } {
+export function sqlPedidoItem(pedido: PedidoPull, e: EscopoPedido, comFaturamento = FATURAMENTO_LIGADO, fuso = 'UTC'): { sql: string; valores: unknown[] } {
   const sql = `select ${COLUNAS_ITEM}${comFaturamento ? COLUNAS_ITEM_FATURAMENTO : ''}
     from vendedor.pedido_item i
     join vendedor.pedido p on p.tenant_id = i.tenant_id and p.id = i.pedido_id
@@ -99,10 +109,10 @@ export function sqlPedidoItem(pedido: PedidoPull, e: EscopoPedido, comFaturament
      ${FILTROS_PEDIDO}
    order by i.updated_at, i.id
    limit $4`;
-  return { sql, valores: valores(pedido, e) };
+  return { sql, valores: valores(pedido, e, fuso) };
 }
 
-export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido): { sql: string; valores: unknown[] } {
+export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido, fuso = 'UTC'): { sql: string; valores: unknown[] } {
   const sql = `select ${COLUNAS_EVENTO}
     from vendedor.pedido_evento e
     join vendedor.pedido p on p.tenant_id = e.tenant_id and p.id = e.pedido_id
@@ -111,14 +121,14 @@ export function sqlPedidoEvento(pedido: PedidoPull, e: EscopoPedido): { sql: str
      ${FILTROS_PEDIDO}
    order by e.updated_at, e.id
    limit $4`;
-  return { sql, valores: valores(pedido, e) };
+  return { sql, valores: valores(pedido, e, fuso) };
 }
 
-async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido) => { sql: string; valores: unknown[] }, ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
+async function puxarDe(montar: (p: PedidoPull, e: EscopoPedido, fuso: string) => { sql: string; valores: unknown[] }, ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> {
   // O-3: promotor com `promotor_ve_pedidos` desligada não recebe pedido, item nem evento
   if (!(await leituraDePedidosLiberada(ctx))) return [];
   const e = escopoDoPedido(ctx.usuario.perfil, await ctx.usuariosVisiveis(), await ctx.carteira());
-  const { sql, valores: v } = montar(pedido, e);
+  const { sql, valores: v } = montar(pedido, e, ctx.fuso());
   return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
 }
 
@@ -157,8 +167,8 @@ export function sqlTransportadora(pedido: PedidoPull): { sql: string; valores: u
 }
 
 export const provedoresSyncVendedor: readonly ProvedorSync[] = [
-  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e) => sqlPedido(x, e), ctx, p), receber: receberPedidos },
-  { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e) => sqlPedidoItem(x, e), ctx, p) },
+  { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e, f) => sqlPedido(x, e, FATURAMENTO_LIGADO, f), ctx, p), receber: receberPedidos },
+  { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e, f) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO, f), ctx, p) },
   { entidade: entidadePedidoEvento, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe(sqlPedidoEvento, ctx, p) },
   {
     entidade: entidadeCondicaoPagamento,

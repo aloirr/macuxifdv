@@ -273,7 +273,7 @@ export default function OrderDetailScreen() {
         tz,
         generated_at: new Date().toISOString(),
       });
-      await exportPdf(html, orderPdfFileName(number, view));
+      await exportPdf(html, orderPdfFileName(number, view, pdfOrder().tipo));
       setSheet(null);
     } catch (e) {
       setSheetError(errorMessage(e));

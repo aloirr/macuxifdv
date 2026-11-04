@@ -36,6 +36,9 @@ export const ItemPush = z.object({
   unidade: z.string().regex(/^[A-Z0-9]{1,6}$/).optional(),
   desconto_pct: Pct.min(0).max(100).optional(),
   acrescimo_pct: Pct.min(0).max(100).optional(),
+  /** T-0071 (RN-VEN-02): R$ por unidade da MEDIDA VENDIDA (1 FD, 1 CX, 1 UN). No máximo UM dos quatro > 0 (senão `ajuste_invalido`). */
+  desconto_unitario_cents: z.number().int().nonnegative().optional(),
+  acrescimo_unitario_cents: z.number().int().nonnegative().optional(),
 });
 export type ItemPush = z.infer<typeof ItemPush>;
 

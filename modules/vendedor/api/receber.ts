@@ -85,6 +85,126 @@ function retratoDoEndereco(e: { id: string; external_id: string | null; tipo: st
 
 const nomeDoEndereco = (logradouro: string | null, numero: string | null) => [logradouro, numero].filter((x) => x && x.trim() !== '').join(', ');
 
+/**
+ * Passos 4 a 7 do recebimento (cadastro, medida, frete, endereço, preço, condição, alçada), compartilhados com a edição do
+ * orçamento (`orcamentos.ts`). Recusa devolve o `ResultadoItemPush` pronto; o chamador decide se vira 422 ou item rejeitado.
+ */
+export async function calcularDocumento(
+  ctx: ContextoBase,
+  db: ClienteBanco,
+  tx: TransacaoTenant,
+  p: PedidoPush,
+  tipo: 'pedido' | 'orcamento',
+  itemId: string,
+  validadeFixa?: { data: string; ate: string },
+) {
+  const eu = ctx.usuario.id;
+  const agora = ctx.agora();
+  const produtoIds = [...new Set(p.items.map((i) => i.product_id))];
+  // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
+  const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: [eu], endereco_ids: p.endereco_entrega_id ? [p.endereco_entrega_id] : [] });
+  const cliente = cad.clientes.find((c) => c.id === p.customer_id);
+  if (!cliente) return rejeitado(itemId, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
+  // RN-VEN-13 (T-0071 §1.4 e): inativo, bloqueado ou cadastro incompleto só faz orçamento (422 com os campos que faltam)
+  const soOrcamento = verificarTipoParaCliente(tipo, { ativo: cliente.ativo, bloqueado: false, cadastro_incompleto: cliente.cadastro_incompleto ?? false, campos_faltantes: cliente.cadastro_campos_faltantes ?? [] });
+  if (soOrcamento) return recusa(itemId, soOrcamento);
+  const produtos = new Map(cad.produtos.map((x) => [x.id, x]));
+  const invalido = produtoIds.filter((id) => !produtos.get(id)?.ativo);
+  if (invalido.length > 0) return rejeitado(itemId, 'RN-VEN-01', 'Há produto inativo ou inexistente no pedido. Atualize o catálogo e remova o item.');
+  const vendedor = cad.usuarios.find((u) => u.id === eu);
+
+  // 4b) medida vendida (RN-VEN-15; o fator vem do Core), frete (RN-VEN-16) e endereço de entrega (RN-VEN-17)
+  const medidas = new Map<number, { unidade: string; fator: number }>();
+  for (const [idx, it] of p.items.entries()) {
+    const u = resolverUnidadeDoItem(it.unidade, produtos.get(it.product_id)!);
+    if (!u.ok) return rejeitado(itemId, u.codigo, 'Medida inválida para um dos produtos. Atualize o catálogo e escolha a medida de novo.');
+    medidas.set(idx, { unidade: u.unidade, fator: u.fator });
+  }
+  const frete: FretePedido = p.frete ?? { modalidade: modalidadePadraoDosParametros(ctx.parametros()) };
+  const recusaFrete = validarFrete(frete);
+  if (recusaFrete) return rejeitado(itemId, recusaFrete, MSG_RECUSA_FRETE[recusaFrete]);
+  let transportadora: { id: string | null; digitada: boolean; nome: string | null; documento: string | null; telefone: string | null } = { id: null, digitada: false, nome: null, documento: null, telefone: null };
+  if (frete.modalidade === 'FOB') {
+    if (frete.transportadora_id) {
+      const t = (
+        await db.query<{ id: string; nome: string; documento: string | null; telefone: string | null }>(
+          'select id, nome, documento, telefone from vendedor.transportadora where id = $1 and ativo and deleted_at is null',
+          [frete.transportadora_id],
+        )
+      ).rows[0];
+      if (!t) return rejeitado(itemId, 'transportadora_invalida', 'Transportadora não encontrada ou inativa. Atualize a lista e escolha de novo.');
+      transportadora = { id: t.id, digitada: false, nome: t.nome, documento: t.documento, telefone: t.telefone };
+    } else if (frete.transportadora_digitada) {
+      const d = frete.transportadora_digitada;
+      transportadora = { id: null, digitada: true, nome: d.nome.trim(), documento: d.cnpj.replace(/\D/g, ''), telefone: d.telefone?.trim() || null };
+    }
+  }
+  const enderecos = (cad.enderecos ?? []).filter((x) => x.cliente_id === p.customer_id);
+  const alvo = resolverEnderecoEntrega(p.endereco_entrega_id, enderecos);
+  if (!alvo.ok) return rejeitado(itemId, alvo.codigo, 'Endereço de entrega inválido para este cliente. Atualize os dados e escolha de novo.');
+  const enderecoRetrato = alvo.endereco_id ? enderecos.find((x) => x.id === alvo.endereco_id)! : null;
+
+  // 5) preço na tabela do cliente, na data do pedido (RN-VEN-01, P-4; RN-CAT-06)
+  const em = dataDoPreco(p.created_offline_at, agora);
+  const precos = await tx.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: p.customer_id, produto_ids: produtoIds, em });
+  const mapaPreco: Record<string, number | null> = {};
+  const mapaEmbalagem: Record<string, Record<string, number>> = {};
+  for (const i of precos.itens) {
+    mapaPreco[i.produto_id] = i.preco_cents;
+    // RN-VEN-15 (T-0071 §1.4 f): preço próprio da embalagem na tabela do cliente
+    if (i.embalagens && i.embalagens.length > 0) mapaEmbalagem[i.produto_id] = Object.fromEntries(i.embalagens.map((x) => [x.unidade, x.preco_cents]));
+  }
+
+  // 6) condição de pagamento (RN-VEN-14)
+  const { permitidas, padrao } = await condicoesPermitidas(db, p.customer_id);
+  let condicao: CondicaoLinha | null = padrao;
+  if (p.condicao_pagamento_id) {
+    condicao = permitidas.find((c) => c.id === p.condicao_pagamento_id) ?? null;
+    if (!condicao) return rejeitado(itemId, 'RN-VEN-14', 'Condição de pagamento não permitida para este cliente. Escolha outra.');
+  }
+
+  // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
+  const rv = revalidarPedido({
+    perfil: ctx.usuario.perfil,
+    vendedor_id: eu,
+    cliente_id: p.customer_id,
+    carteira: [p.customer_id],
+    desconto_pct: p.discount_pct,
+    acrescimo_pct: p.acrescimo_pct ?? 0,
+    desconto_valor_cents: p.desconto_valor_cents ?? 0,
+    acrescimo_valor_cents: p.acrescimo_valor_cents ?? 0,
+    itens: p.items.map((i, idx) => ({
+      product_id: i.product_id,
+      sku: produtos.get(i.product_id)?.sku ?? i.product_id,
+      quantity: i.quantity,
+      unidade: medidas.get(idx)!.unidade,
+      fator: medidas.get(idx)!.fator,
+      desconto_pct: i.desconto_pct ?? 0,
+      acrescimo_pct: i.acrescimo_pct ?? 0,
+      desconto_unitario_cents: i.desconto_unitario_cents ?? 0,
+      acrescimo_unitario_cents: i.acrescimo_unitario_cents ?? 0,
+    })),
+    precos: mapaPreco,
+    precos_embalagem: mapaEmbalagem,
+    policy: politicaDosParametros(ctx.parametros()),
+    total_aparelho_cents: p.total_cents,
+  });
+  if (!rv.ok) return recusa(itemId, rv);
+  // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
+  const recebidoEm = agora.toISOString();
+  // RN-VEN-18: data civil no fuso do tenant, contada do momento do aparelho (mesma janela do preço, P-4)
+  // edição do orçamento recebido NÃO renova a validade (desenho §1.3): `validadeFixa` traz a original
+  const validadeCivil = tipo === 'orcamento' ? (validadeFixa ?? validadeDoOrcamento(momentoDaConversao(p.created_offline_at, agora).toISOString(), validadeOrcamentoDias(ctx.parametros()), ctx.fuso())) : null;
+  const validade = validadeCivil?.ate ?? null;
+  const v = validade
+    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validade, ctx.fuso()) }
+    : rv;
+  return { cliente, produtos, vendedor, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v, validade, validadeCivil, recebidoEm };
+}
+
+/** Tudo que o servidor decide sobre o documento antes de gravar (preço, alçada, medida, frete, endereço, condição). */
+export type DocumentoCalculado = Exclude<Awaited<ReturnType<typeof calcularDocumento>>, ResultadoItemPush>;
+
 async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenant, item: ItemPush): Promise<ResultadoItemPush> {
   const p = item.payload as PedidoPush;
   const eu = ctx.usuario.id;
@@ -114,7 +234,6 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   if (!UUID.test(p.customer_id) || p.items.some((i) => !UUID.test(i.product_id))) {
     return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'Cliente ou produto com identificador inválido.');
   }
-  const produtoIds = [...new Set(p.items.map((i) => i.product_id))];
 
   // 3b) pré-venda (T-0053): orçamento e conversão só com o repositório da 0013
   const tipo = p.tipo ?? 'pedido';
@@ -125,94 +244,13 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   }
   if (tipo === 'orcamento' && origem) return rejeitado(item.id, 'PAYLOAD_INVALIDO', 'Orçamento não nasce de outro orçamento.');
   if (origem) {
-    const r = verificarConversao({ orcamento: await repo.buscarOrcamento(db, origem), vendedor_id: eu, cliente_id: p.customer_id, pedido_id: p.id, momento: momentoDaConversao(p.created_offline_at, agora) });
+    const r = verificarConversao({ orcamento: await repo.buscarOrcamento(db, origem, ctx.fuso()), vendedor_id: eu, cliente_id: p.customer_id, pedido_id: p.id, momento: momentoDaConversao(p.created_offline_at, agora) });
     if (r) return recusa(item.id, r);
   }
 
-  // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
-  const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: [eu], endereco_ids: p.endereco_entrega_id ? [p.endereco_entrega_id] : [] });
-  const cliente = cad.clientes.find((c) => c.id === p.customer_id);
-  if (!cliente) return rejeitado(item.id, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
-  const soOrcamento = verificarTipoParaCliente(tipo, cliente.ativo);
-  if (soOrcamento) return recusa(item.id, soOrcamento);
-  const produtos = new Map(cad.produtos.map((x) => [x.id, x]));
-  const invalido = produtoIds.filter((id) => !produtos.get(id)?.ativo);
-  if (invalido.length > 0) return rejeitado(item.id, 'RN-VEN-01', 'Há produto inativo ou inexistente no pedido. Atualize o catálogo e remova o item.');
-  const vendedor = cad.usuarios.find((u) => u.id === eu);
-
-  // 4b) medida vendida (RN-VEN-15; o fator vem do Core), frete (RN-VEN-16) e endereço de entrega (RN-VEN-17)
-  const medidas = new Map<number, { unidade: string; fator: number }>();
-  for (const [idx, it] of p.items.entries()) {
-    const u = resolverUnidadeDoItem(it.unidade, produtos.get(it.product_id)!);
-    if (!u.ok) return rejeitado(item.id, u.codigo, 'Medida inválida para um dos produtos. Atualize o catálogo e escolha a medida de novo.');
-    medidas.set(idx, { unidade: u.unidade, fator: u.fator });
-  }
-  const frete: FretePedido = p.frete ?? { modalidade: modalidadePadraoDosParametros(ctx.parametros()) };
-  const recusaFrete = validarFrete(frete);
-  if (recusaFrete) return rejeitado(item.id, recusaFrete, MSG_RECUSA_FRETE[recusaFrete]);
-  let transportadora: { id: string | null; digitada: boolean; nome: string | null; documento: string | null; telefone: string | null } = { id: null, digitada: false, nome: null, documento: null, telefone: null };
-  if (frete.modalidade === 'FOB') {
-    if (frete.transportadora_id) {
-      const t = (
-        await db.query<{ id: string; nome: string; documento: string | null; telefone: string | null }>(
-          'select id, nome, documento, telefone from vendedor.transportadora where id = $1 and ativo and deleted_at is null',
-          [frete.transportadora_id],
-        )
-      ).rows[0];
-      if (!t) return rejeitado(item.id, 'transportadora_invalida', 'Transportadora não encontrada ou inativa. Atualize a lista e escolha de novo.');
-      transportadora = { id: t.id, digitada: false, nome: t.nome, documento: t.documento, telefone: t.telefone };
-    } else if (frete.transportadora_digitada) {
-      const d = frete.transportadora_digitada;
-      transportadora = { id: null, digitada: true, nome: d.nome.trim(), documento: d.cnpj.replace(/\D/g, ''), telefone: d.telefone?.trim() || null };
-    }
-  }
-  const enderecos = (cad.enderecos ?? []).filter((x) => x.cliente_id === p.customer_id);
-  const alvo = resolverEnderecoEntrega(p.endereco_entrega_id, enderecos);
-  if (!alvo.ok) return rejeitado(item.id, alvo.codigo, 'Endereço de entrega inválido para este cliente. Atualize os dados e escolha de novo.');
-  const enderecoRetrato = alvo.endereco_id ? enderecos.find((x) => x.id === alvo.endereco_id)! : null;
-
-  // 5) preço na tabela do cliente, na data do pedido (RN-VEN-01, P-4; RN-CAT-06)
-  const em = dataDoPreco(p.created_offline_at, agora);
-  const precos = await tx.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: p.customer_id, produto_ids: produtoIds, em });
-  const mapaPreco: Record<string, number | null> = {};
-  for (const i of precos.itens) mapaPreco[i.produto_id] = i.preco_cents;
-
-  // 6) condição de pagamento (RN-VEN-14)
-  const { permitidas, padrao } = await condicoesPermitidas(db, p.customer_id);
-  let condicao: CondicaoLinha | null = padrao;
-  if (p.condicao_pagamento_id) {
-    condicao = permitidas.find((c) => c.id === p.condicao_pagamento_id) ?? null;
-    if (!condicao) return rejeitado(item.id, 'RN-VEN-14', 'Condição de pagamento não permitida para este cliente. Escolha outra.');
-  }
-
-  // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
-  const rv = revalidarPedido({
-    perfil: ctx.usuario.perfil,
-    vendedor_id: eu,
-    cliente_id: p.customer_id,
-    carteira: [p.customer_id],
-    desconto_pct: p.discount_pct,
-    acrescimo_pct: p.acrescimo_pct ?? 0,
-    itens: p.items.map((i, idx) => ({
-      product_id: i.product_id,
-      sku: produtos.get(i.product_id)?.sku ?? i.product_id,
-      quantity: i.quantity,
-      unidade: medidas.get(idx)!.unidade,
-      fator: medidas.get(idx)!.fator,
-      desconto_pct: i.desconto_pct ?? 0,
-      acrescimo_pct: i.acrescimo_pct ?? 0,
-    })),
-    precos: mapaPreco,
-    policy: politicaDosParametros(ctx.parametros()),
-    total_aparelho_cents: p.total_cents,
-  });
-  if (!rv.ok) return recusa(item.id, rv);
-  // RN-VEN-32: orçamento não vai para aprovação nem para o ERP; fica `received` com a validade
-  const recebidoEm = agora.toISOString();
-  const validade = tipo === 'orcamento' ? validadeDoOrcamento(recebidoEm, validadeOrcamentoDias(ctx.parametros())) : null;
-  const v = validade
-    ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validade, ctx.fuso()) }
-    : rv;
+  const calc = await calcularDocumento(ctx, db, tx, p, tipo, item.id);
+  if ('status' in calc) return calc;
+  const { cliente, produtos, vendedor, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v, validade, validadeCivil, recebidoEm } = calc;
 
   // 8) grava (pedido, itens, histórico, auditoria, eventos) na mesma transação
   const numero = (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
@@ -231,9 +269,10 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         observacao, visita_id, rota_parada_id, criado_no_aparelho_em, recebido_em, numero, hash_envio, cliente_resumo, cliente_nome, vendedor_nome,
         tabela_preco_id, condicao_pagamento_id, condicao_pagamento_descricao, nivel_aprovacao, motivos_aprovacao, aprovacao_automatica,
         acrescimo_pct, desconto_efetivo_pct, frete_modalidade, transportadora_id, transportadora_digitada, transportadora_nome,
-        transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega)
+        transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
+        desconto_valor_cents, acrescimo_valor_cents, ajuste_em)
      values ($1, plataforma.tenant_atual(), $2, $3, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
-        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb)
+        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37)
      on conflict (id) do nothing returning id`,
     [
       p.id, p.customer_id, eu, v.status, condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
@@ -242,6 +281,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       precos.tabela_preco_id, condicao?.id ?? null, condicao?.descricao ?? null, v.nivel, v.motivos, v.aprovacao_automatica,
       v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada, transportadora.nome,
       transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(retratoDoEndereco(enderecoRetrato)) : null,
+      v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em,
     ],
   );
   // outro tenant com o mesmo id (chave primária global): não revela, só recusa
@@ -251,9 +291,9 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     const prod = produtos.get(it.product_id)!;
     await db.query(
       `insert into vendedor.pedido_item (tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, desconto_pct, total_cents,
-          produto_sku, produto_nome, unidade, fator, acrescimo_pct, preco_minimo_cents)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents],
+          produto_sku, produto_nome, unidade, fator, acrescimo_pct, preco_minimo_cents, desconto_unitario_cents, acrescimo_unitario_cents, ajuste_em)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents, it.desconto_unitario_cents, it.acrescimo_unitario_cents, it.ajuste_em],
     );
   }
   for (const h of v.historico) {
@@ -264,7 +304,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     );
   }
 
-  if (tipo === 'orcamento' || origem) await repo.marcarDocumento(db, p.id, { tipo, validade_ate: validade, orcamento_origem_id: origem });
+  if (tipo === 'orcamento' || origem) await repo.marcarDocumento(db, p.id, { tipo, validade_ate: validade, validade_data: validadeCivil?.data ?? null, orcamento_origem_id: origem });
   if (origem) await repo.marcarConvertido(db, origem, p.id);
 
   await tx.auditar({

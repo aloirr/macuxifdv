@@ -74,7 +74,7 @@ describe('leitura de pedidos pelo promotor (RN-PRO-01, O-3)', () => {
   });
 
   it('a API do módulo é válida para o SDK', () => {
-    expect(apiVendedor.rotas).toHaveLength(12);
+    expect(apiVendedor.rotas).toHaveLength(14);
     expect(apiVendedor.sync?.map((s) => s.entidade.nome)).toEqual(['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'transportadora']);
   });
 });

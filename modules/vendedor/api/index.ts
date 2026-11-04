@@ -11,19 +11,25 @@ import { definirModuloApi, type ModuloApi } from '@macuxi/platform-sdk';
 import manifest from '../manifest';
 import { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido } from './pedidos';
 import { consultaPedidosDaMeta } from './consulta-pedidos-da-meta';
+import { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
+import { preVendaSql, usarPreVenda } from './pre-venda';
 import { consumidoresVendedor } from './retorno-erp';
 import { rotasTransportadoras } from './transportadoras';
 import { provedoresSyncVendedor } from './sync';
 
 export { aplicarRetornoErp, consumidorRetornoErp } from './retorno-erp';
-export { criarPreVendaEmMemoria, preVenda, preVendaIndisponivel, usarPreVenda, type DocumentoPreVenda, type RepositorioPreVenda } from './pre-venda';
+export { criarPreVendaEmMemoria, preVenda, preVendaIndisponivel, preVendaSql, usarPreVenda, type DocumentoPreVenda, type RepositorioPreVenda } from './pre-venda';
 export { consultaPedidosDaMeta } from './consulta-pedidos-da-meta';
+export { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
 export { rotasTransportadoras } from './transportadoras';
 export { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido };
 
+// T-0071 §1.4 a: a 0013 está no banco; produção usa o repositório SQL da pré-venda (testes trocam por `usarPreVenda`)
+usarPreVenda(preVendaSql);
+
 export const apiVendedor: ModuloApi = definirModuloApi({
   manifesto: manifest,
-  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido, ...rotasTransportadoras],
+  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido, rotaEditarOrcamento, rotaCancelarOrcamento, ...rotasTransportadoras],
   sync: provedoresSyncVendedor,
   consumidores: consumidoresVendedor,
   consultas: [consultaPedidosDaMeta],
