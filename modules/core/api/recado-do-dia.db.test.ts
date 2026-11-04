@@ -1,6 +1,6 @@
 /**
- * T-0073 × Postgres real (fixture dois-tenants, RLS): recado do dia (RN-CORE-26). Depende da migração 0021
- * (`core.notificacao.recado_do_dia` e `recado_do_dia_por`, banco-dados): sem a coluna os casos pulam. Pula sem Postgres.
+ * T-0073 × Postgres real (fixture dois-tenants, RLS): recado do dia (RN-CORE-26). Exige a migração 0021
+ * (`core.notificacao.recado_do_dia` e `recado_do_dia_por`, banco-dados). Pula só sem Postgres.
  */
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
@@ -21,7 +21,6 @@ const FUSO = 'America/Manaus';
 describe.skipIf(semBanco())('Core T-0073 × Postgres: recado do dia (migração 0021)', () => {
   let pool: pg.Pool;
   let acesso: AcessoBanco;
-  let tem0021 = false;
   let agora = new Date();
   const usuario = (uid: string, perfil: UsuarioAutenticado['perfil'], tenant = A.tenantId): UsuarioAutenticado => ({ id: uid, tenant_id: tenant, perfil });
   const supervisor = usuario(U.supervisor, 'supervisor');
@@ -54,16 +53,14 @@ describe.skipIf(semBanco())('Core T-0073 × Postgres: recado do dia (migração 
       comTenant: (tenantId, fn) => comTenant(pool, tenantId, (c) => fn(c as unknown as ClienteBanco)),
       semTenant: (fn) => fn({ query: async () => ({ rows: [], rowCount: 0 }) } as unknown as ClienteBanco),
     };
-    tem0021 = await comTenant(pool, A.tenantId, async (c) => (await c.query("select 1 from information_schema.columns where table_schema = 'core' and table_name = 'notificacao' and column_name = 'recado_do_dia'")).rows.length > 0);
     agora = new Date();
   });
   afterAll(async () => {
-    if (pool && tem0021) await comTenant(pool, A.tenantId, (c) => c.query('delete from core.notificacao where envio_id::text like $1', ['0e900000-%']));
+    if (pool) await comTenant(pool, A.tenantId, (c) => c.query('delete from core.notificacao where envio_id::text like $1', ['0e900000-%']));
     await pool?.end();
   });
 
-  it('RN-CORE-26: supervisor marca o envio; o pull do vendedor traz recado_do_dia de hoje, autor_nome e autor_perfil; marcar de novo é idempotente', async (t) => {
-    if (!tem0021) return t.skip();
+  it('RN-CORE-26: supervisor marca o envio; o pull do vendedor traz recado_do_dia de hoje, autor_nome e autor_perfil; marcar de novo é idempotente', async () => {
     await enviar(supervisor, 1);
     const hoje = dataLocal(agora, FUSO);
     expect(await marcar(supervisor, 1)).toEqual({ envio_id: id(1), dia: hoje, marcadas: 1, desmarcadas_outras: 0 });
@@ -73,24 +70,21 @@ describe.skipIf(semBanco())('Core T-0073 × Postgres: recado do dia (migração 
     expect(typeof linha.autor_nome).toBe('string');
   });
 
-  it('RN-CORE-26: um recado do dia por pessoa por dia: marcar outro envio desmarca o anterior na mesma transação', async (t) => {
-    if (!tem0021) return t.skip();
+  it('RN-CORE-26: um recado do dia por pessoa por dia: marcar outro envio desmarca o anterior na mesma transação', async () => {
     await enviar(supervisor, 2);
     expect(await marcar(supervisor, 2)).toMatchObject({ marcadas: 1, desmarcadas_outras: 1 });
     const marcados = (await puxar(vendedor1)).map((l) => NotificacaoSyncSchema.parse(l)).filter((l) => l.recado_do_dia);
     expect(marcados.map((l) => l.titulo)).toEqual(['Recado 2']);
   });
 
-  it('RN-CORE-26: desmarcar tira o recado do dia (idempotente); vendedor não marca (a rota exige a ação) e o outro tenant responde 404', async (t) => {
-    if (!tem0021) return t.skip();
+  it('RN-CORE-26: desmarcar tira o recado do dia (idempotente); vendedor não marca (a rota exige a ação) e o outro tenant responde 404', async () => {
     expect(await desmarcar(supervisor, 2)).toEqual({ envio_id: id(2), desmarcadas: 1 });
     expect(await desmarcar(supervisor, 2)).toEqual({ envio_id: id(2), desmarcadas: 0 });
     expect(rota('PUT', 'notificacoes/envios/:envioId/recado-do-dia').acao).toBe('notificacao.recado_do_dia');
     await expect(marcar(vendedorB, 1)).rejects.toMatchObject({ codigo: 'RECADO_NAO_ENCONTRADO' });
   });
 
-  it('RN-CORE-26: recado criado há mais de 30 dias é 422 RN-CORE-26', async (t) => {
-    if (!tem0021) return t.skip();
+  it('RN-CORE-26: recado criado há mais de 30 dias é 422 RN-CORE-26', async () => {
     await enviar(supervisor, 3);
     await comTenant(pool, A.tenantId, (c) => c.query("update core.notificacao set created_at = now() - interval '31 days' where envio_id = $1", [id(3)]));
     await expect(marcar(supervisor, 3)).rejects.toMatchObject({ status: 422, codigo: 'RN-CORE-26' });
