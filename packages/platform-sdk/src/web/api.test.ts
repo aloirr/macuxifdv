@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { ApiRequestError, baseDaChamada, buildUrl, errorMessage, filenameFromDisposition, lerCorpoDeErro, lerModoApiWeb, PROXY_BASE, MENSAGEM_ERRO_PADRAO, MENSAGEM_FORMATO_INESPERADO, urlPadraoDaApi } from './api';
+import { ApiRequestError, baseDaChamada, buildUrl, errorMessage, filenameFromDisposition, lerCorpoDeErro, lerModoApiWeb, mensagemSemConexao, PROXY_BASE, MENSAGEM_ERRO_PADRAO, MENSAGEM_FORMATO_INESPERADO, urlPadraoDaApi } from './api';
 
 describe('cliente da API', () => {
   it('monta a URL ignorando filtros vazios', () => {
     expect(buildUrl('/dashboards/orders', { period: 'today', branch_id: '', team_id: undefined, status: null }, 'http://localhost:8000/v1')).toBe('http://localhost:8000/v1/dashboards/orders?period=today');
+  });
+
+  it('T-0074: sem conexão na API real não mostra o endereço interno gravado no build (http://api:8100/v1)', () => {
+    expect(mensagemSemConexao('v1', 'http://api:8100/v1')).toBe('Sem conexão com o servidor. Confira a internet e tente de novo.');
+    expect(mensagemSemConexao('v1', 'http://api:8100/v1')).not.toContain('api:8100');
+    expect(mensagemSemConexao('demo', 'http://localhost:8000/v1')).toBe('Sem conexão com o servidor (http://localhost:8000/v1). Confira se o mock-api está rodando.');
   });
 
   it('PUT passa pelo proxy same-origin (CORS do mock-api)', () => {
