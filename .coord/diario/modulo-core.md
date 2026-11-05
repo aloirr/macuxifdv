@@ -49,3 +49,4 @@
 2026-11-04 — T-0076 — Cliente 360: grade única na ordem da referência, topo sem folga dobrada, 'hoje' minúsculo
 2026-11-04 — T-0076 — C1: leitor tolerante (strip recursivo) para core.inicio@1 e login no app do Core; testes de campo extra/obrigatório
 2026-11-04 — T-0077 — D2: API do Core revalida promotor_ve_pedidos no Cliente 360 (historico vazio) e no pull de historico_compra (removido); domain perfilRecebeHistoricoDeCompra; teste de banco para o CI
+2026-11-04 — T-0077 — D2: fixture do promotor-historico.db.test usa mês livre do c1 (historico_compra_mes_uk)

@@ -60,7 +60,10 @@ describe.skipIf(semBanco())('Core T-0077 D2 × Postgres: histórico de compras d
     await comTenant(pool, A.tenantId, (c) =>
       c.query(
         `insert into core.historico_compra (id, tenant_id, cliente_id, ano_mes, valor_cents, pedidos, itens, ultima_compra_em)
-         values ($1, $2, $3, to_char(current_date, 'YYYY-MM'), 5000, 2, 4, current_date)
+         select $1::uuid, $2::uuid, $3::uuid, m.ano_mes, 5000, 2, 4, current_date
+           from (select to_char(current_date - (g || ' months')::interval, 'YYYY-MM') as ano_mes from generate_series(0, 11) g) m
+          where not exists (select 1 from core.historico_compra h where h.tenant_id = $2::uuid and h.cliente_id = $3::uuid and h.ano_mes = m.ano_mes and h.deleted_at is null)
+          order by m.ano_mes desc limit 1
          on conflict (id) do update set deleted_at = null`,
         [HISTORICO, A.tenantId, C1],
       ),
