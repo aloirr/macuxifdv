@@ -1,6 +1,6 @@
 # ADR 0020 — Ambiente demo/homologação na Magalu Cloud: VM com Docker Compose, túnel da Cloudflare, imagens no GHCR e fotos em Object Storage S3
 
-- **Status**: proposta (para aprovação do dono do produto)
+- **Status**: aprovada (04/11/2026, por Alexandre, R-20261104-213539)
 - **Data**: 2026-11-04
 - **Tarefa**: T-0074 (desenho: [docs/desenho/T-0074.md](../desenho/T-0074.md))
 - **Autor**: engenheiro-software
@@ -52,11 +52,12 @@ criou a VM `macuxi-demo-se1` (br-se1-a, Ubuntu 24.04, 2 vCPU, 8 GB, 40 GB; só T
    do túnel) ficam só nos secrets do environment e chegam à VM pelo stdin. Nada disso entra no repositório nem na imagem
    (`.dockerignore` exclui `.env*`, `.dados`, `.git`, `.claude` e `.coord`).
 5. **Base de demonstração na VM.** O `@macuxi/db` só aceita o seed da demo (dados fictícios, senha `demo-macuxi`
-   documentada) num "Postgres local" (`exigirBancoLocal`). Na VM, o Postgres é um contêiner privado do compose. O serviço
-   avulso `seed-demo` fala com ele pelo alias de rede `macuxi-postgres`, que é o nome que o `@macuxi/db` já reconhece como
-   contêiner local, com `NODE_ENV=development`. API, worker e migrações usam o host `postgres` com `NODE_ENV=production`
-   e falham fechados: sem segredo JWT ou com a senha pública local, não sobem. **Transitório**: pedido ao banco-dados de
-   uma permissão explícita (`MACUXI_AMBIENTE=demo`) para o seed, que substitui o alias.
+   documentada) num Postgres local ou com a permissão explícita `MACUXI_AMBIENTE=demo` (`exigirBancoDemo`, banco-dados).
+   Na VM, o serviço avulso `seed-demo` usa o mesmo host `postgres` e o mesmo `NODE_ENV=production` dos outros, com
+   `MACUXI_AMBIENTE: demo`. A permissão vale só para o seed demo e os seeds de módulo em `db/seeds/demo/`: não libera a
+   senha pública dos papéis, o seed da Fase M nem a fixture. API, worker e migrações falham fechados (sem segredo JWT ou
+   com a senha pública local, não sobem). *Atualizado em 04/11: substitui o alias de rede `macuxi-postgres` com
+   `NODE_ENV=development`, que era transitório.*
 6. **Endurecimento da VM** (`preparar-vm.sh`):
    - SSH só por chave (`PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `PermitRootLogin no`, num
      `sshd_config.d/00-macuxi.conf`, que vence os arquivos do cloud-init). Antes de aplicar, o script confere se há
@@ -104,8 +105,10 @@ criou a VM `macuxi-demo-se1` (br-se1-a, Ubuntu 24.04, 2 vCPU, 8 GB, 40 GB; só T
   "demo — publicar" manualmente.
 - A chave do host SSH é aceita na primeira conexão de cada runner (`ssh-keyscan`). Endurecer depois com um secret
   `DEMO_HOST_KEY` fixo.
-- O `.env` da VM também entrega a senha do admin do Postgres à API, porque o `lerConfig` exige as duas fora do local.
-  Fica como pendência do banco-dados: admin opcional para quem só usa `urlApp`.
+- API e worker leem a configuração com `lerConfigApp` (banco-dados, 04/11): fora do local só exigem
+  `MACUXI_PG_APP_SENHA` (e `MACUXI_PG_WORKER_SENHA` no worker). O `compose.yml` zera `MACUXI_PG_ADMIN_SENHA` nos dois,
+  porque o `.env` da VM (que também serve às migrações e ao seed) traz a senha do admin; `urlAdmin` lança se alguém a
+  chamar ali. Migrações, papéis e seed continuam com `lerConfig` (admin obrigatório).
 - **Premissa a confirmar no primeiro upload.** O endpoint `https://br-se1.magaluobjects.com` (Object Storage da Magalu
   Cloud, compatível com S3) e o endereçamento por caminho vêm da documentação pública da Magalu, mas não foram
   conferidos online nesta rodada (o agente não tem acesso à web). Se o primeiro upload falhar com `SignatureDoesNotMatch`
@@ -113,5 +116,17 @@ criou a VM `macuxi-demo-se1` (br-se1-a, Ubuntu 24.04, 2 vCPU, 8 GB, 40 GB; só T
   endpoint.
 - Renovar a API Key `macuxi-demo-s3` antes de 31/12/2026 (o gerente avisa o dono do produto em 15/12), e depois
   atualizar os secrets `DEMO_S3_KEY_ID` e `DEMO_S3_SECRET` e rodar "demo — publicar".
-- O backup diário (`pg_dump` → `backups/`, 7 dias) é do banco-dados (`db/backup/`) e entra no compose como serviço próprio
-  quando ficar pronto.
+- **Backup diário** (`pg_dump -Fc` → `backups/` do mesmo bucket, 7 dias; código do banco-dados em `db/backup/`):
+  - o timer do systemd `macuxi-backup.timer` (`preparar-vm.sh`) roda todo dia às 06:15 UTC (02:15 em Manaus), com
+    `Persistent=true` (backup perdido com a VM desligada roda quando ela volta) e até 5 min de atraso aleatório. Ele chama
+    `/opt/macuxi/backup/backup-vm.sh` como o usuário de deploy. Timer em vez de serviço no compose porque o `pg_dump`
+    roda dentro do contêiner `postgres` e o envio é um `compose run` avulso: nada fica ligado o dia todo;
+  - os scripts do host (`backup-vm.sh`, `restaurar-vm.sh`, `contagem.sql`) saem da própria imagem publicada pelo
+    `implantar.sh`, a cada deploy, porque o workflow só copia `scripts/deploy/demo`. Assim a versão dos scripts é a do
+    serviço `backup`;
+  - o serviço `backup` do compose (perfil `ferramentas`, imagem `macuxi-api`, `node db/backup/backup.mjs`) não recebe o
+    `.env` nem a rede interna: o dump chega pelo stdin e ele só fala com o Object Storage (`segredos.env`);
+  - a cada deploy, o `implantar.sh` lista `backups/` e **avisa** (`::warning::`, sem falhar) se, depois do primeiro
+    backup, o mais novo tiver 26 h ou mais;
+  - restauração: `/opt/macuxi/backup/restaurar-vm.sh` (ao lado, num banco novo, e `--trocar` para pôr no lugar),
+    descrita em `scripts/demo/LEIA-ME.md` e `db/backup/LEIA-ME.md`. Testada no PC (`db/testes/backup.test.ts`).
