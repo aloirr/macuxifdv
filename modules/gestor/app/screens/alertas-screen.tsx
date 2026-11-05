@@ -41,6 +41,7 @@ export default function AlertasScreen() {
       </View>
       {g.erro ? <Banner tone="danger">{g.erro}</Banner> : null}
       {aviso ? <Banner tone="danger">{aviso}</Banner> : null}
+      {g.offline ? <Banner>Sem conexão: dispensar precisa de internet.</Banner> : null}
       <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
         {itens.length === 0 ? (
           g.alertas ? (
@@ -71,7 +72,6 @@ export default function AlertasScreen() {
           </View>
         ))}
       </Cartao>
-      {g.offline ? <Text style={[t.small, { textAlign: 'center', color: colors.warning }]}>Sem conexão: dispensar precisa de internet.</Text> : null}
     </Screen>
     <AvisoRodape {...avisoRodape.props} respiroInferior={0} />
     </View>

@@ -20,6 +20,7 @@ import {
   VENDEDOR,
   visitaLoja,
   type DesfechoTeste,
+  meta,
 } from './fixtures';
 import { atendida, calcularMeta, diaLocal, faturadoDoPedido, faturamentoDoPeriodo, montarPainelDia, painelDoMes, statusDoDia, tradeDoPeriodo, vendasDoPeriodo, visitasDoPeriodo } from './painel';
 import { aplicarEvento, aplicarEventos, estadoInicial, execucoesDaTarefa, type EventoRecebido } from './projecao';
@@ -124,7 +125,7 @@ describe('RN-CORE-21/22: meta, falta e necessidade por dia útil', () => {
 
   it('painelDoMes soma o mês até o dia, lê a meta do mês e usa o calendário do tenant (feriado tira dia útil)', () => {
     const s = montar([
-      ev('core.meta.definida@1', '2026-10-01T08:00:00Z', { usuario_id: VENDEDOR, mes: '2026-10', meta_cents: 2_200_000 }),
+      meta(VENDEDOR, '2026-10', 2_200_000, '2026-10-01T08:00:00Z'),
       ...venda(1, { total: 900_000, em: '2026-10-15T15:00:00Z' }),
       ...venda(2, { total: 100_000, em: '2026-10-20T15:00:00Z', cliente: CLIENTE_B }),
       ...venda(3, { total: 999_999, em: '2026-10-21T15:00:00Z' }), // depois do dia consultado: fora
@@ -137,7 +138,7 @@ describe('RN-CORE-21/22: meta, falta e necessidade por dia útil', () => {
   });
 
   it('meta de outro mês não vale; sem meta definida o mês vem com meta null', () => {
-    const s = montar([ev('core.meta.definida@1', '2026-09-01T08:00:00Z', { usuario_id: VENDEDOR, mes: '2026-09', meta_cents: 5_000_000 })]);
+    const s = montar([meta(VENDEDOR, '2026-09', 5_000_000, '2026-09-01T08:00:00Z')]);
     expect(painelDoMes(s, VENDEDOR, '2026-10-20')).toMatchObject({ meta_cents: null, atingimento_pct: null, necessidade_diaria_cents: null });
   });
 });
@@ -400,7 +401,7 @@ describe('RN-GES-05: cobertura de rota limitada a 100% e visitas extras à parte
 describe('RN-GES-06: vendido × faturado (inclusive parcial pelos itens) e a faturar', () => {
   const P_A = u(800), P_B = u(801), P_C = u(802);
   const criado = (pedido: string, total: number, itens: { produto_id: string; quantidade: number; total_cents: number }[] | null, em = '2026-10-30T14:00:00Z', extra: Record<string, unknown> = {}) =>
-    ev('vendedor.pedido.criado@1', em, { pedido_id: pedido, vendedor_id: VENDEDOR, autor_id: VENDEDOR, cliente_id: CLIENTE_A, visita_id: null, tipo: 'pedido', total_cents: total, total_tabela_cents: total, criado_em: em, itens, ...extra });
+    ev('vendedor.pedido.criado@1', em, { pedido_id: pedido, vendedor_id: VENDEDOR, autor_id: VENDEDOR, cliente_id: CLIENTE_A, visita_id: null, tipo: 'pedido', total_cents: total, total_tabela_cents: total, criado_em: em, itens: itens ?? [], ...extra });
   const faturou = (pedido: string, parcial: boolean, itens: { produto_id: string; quantidade: number }[], em = '2026-10-31T14:00:00Z', id?: string) =>
     ev('vendedor.pedido.faturado@1', em, { pedido_id: pedido, vendedor_id: VENDEDOR, faturado_em: em, parcial, itens }, id);
   const ITENS_A = [

@@ -33,9 +33,15 @@ export default function FichaScreen() {
   const g = useGestor();
   const [estado, setEstado] = useState<{ ficha: FichaMembro | null; doCache: boolean; erro: string | null } | null>(null);
   const emNome = useExtensoes<AcaoPedidoEmNome>('pedido.criar_em_nome');
+  const [tentativa, setTentativa] = useState(0);
   useEffect(() => {
     if (id && g.carregado) void g.ficha(id).then(setEstado);
-  }, [id, g.carregado, g.ficha]);
+  }, [id, g.carregado, g.ficha, tentativa]);
+  /** Tentar de novo: volta ao carregando e refaz a carga da ficha. */
+  const tentarDeNovo = () => {
+    setEstado(null);
+    setTentativa((n) => n + 1);
+  };
 
   if (!estado) return <Loading />;
   const f = estado.ficha;
@@ -43,7 +49,8 @@ export default function FichaScreen() {
     return (
       <Screen testID="gestor-ficha">
         <BackLink label="Equipe" fallback={`/m/${CAMINHO_EQUIPE}`} />
-        <EstadoVazio icone="users" titulo="Esta pessoa não está na sua equipe" texto={estado.erro ?? 'Volte à equipe e escolha outra pessoa.'} />
+        <EstadoVazio icone="users" titulo={estado.erro ? 'Não deu para abrir a ficha' : 'Esta pessoa não está na sua equipe'} texto={estado.erro ?? 'Volte à equipe e escolha outra pessoa.'} />
+        {estado.erro ? <Botao testID="gestor-ficha-tentar-de-novo" nivel="principal" rotulo="Tentar de novo" icone="sync" onPress={tentarDeNovo} /> : null}
       </Screen>
     );
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RankingEquipe, type MembroEquipe } from '../contracts';
-import { CLIENTE_A, CLIENTE_B, CLIENTE_C, ev, pedidoCriado, statusAlterado, u } from './fixtures';
+import { CLIENTE_A, CLIENTE_B, CLIENTE_C, pedidoCriado, statusAlterado, u, meta } from './fixtures';
 import { INDICADORES, intervaloDoPeriodo, ordenarRanking, rankingDaEquipe, type EntradaOrdenacao } from './ranking';
 import { aplicarEventos, estadoInicial, type EventoRecebido } from './projecao';
 
@@ -66,8 +66,8 @@ describe('RF-GES-03: ordenação e desempate do ranking', () => {
 
 describe('RF-GES-03: ranking da equipe com escopo (RN-CORE-04) e módulos', () => {
   const s = aplicarEventos(estadoInicial(), [
-    ev('core.meta.definida@1', '2026-10-01T08:00:00Z', { usuario_id: A, mes: '2026-10', meta_cents: 100_000 }),
-    ev('core.meta.definida@1', '2026-10-01T08:00:00Z', { usuario_id: B, mes: '2026-10', meta_cents: 40_000 }),
+    meta(A, '2026-10', 100_000, '2026-10-01T08:00:00Z'),
+    meta(B, '2026-10', 40_000, '2026-10-01T08:00:00Z'),
     ...venda(1, A, 60_000, '2026-10-30T15:00:00Z'),
     ...venda(2, B, 30_000, '2026-10-29T15:00:00Z', CLIENTE_B),
     ...venda(3, B, 20_000, '2026-10-30T15:00:00Z', CLIENTE_C),

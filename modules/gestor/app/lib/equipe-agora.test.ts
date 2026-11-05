@@ -17,7 +17,7 @@ function membro(n: number, nome: string, painel: Record<string, unknown>): Membr
 describe('T-0073 / RN-CORE-26: Equipe agora na aba Equipe do Gestão', () => {
   it('RN-CORE-26: 60 min sem check-in depois do último checkout, com paradas pendentes → "Parado" com o tempo', () => {
     const [l] = linhasAgora({ membros: [membro(1, 'Lucas', { paradas_planejadas: 6, paradas_pendentes: 4, ultimo_checkout_em: ha(100) })] }, AGORA);
-    expect(l).toMatchObject({ status: 'parado', label: 'Parado', tom: 'erro', detalhe: 'Sem check-in há 1h40' });
+    expect(l).toMatchObject({ status: 'parado', label: 'Parado', tom: 'aviso', detalhe: 'Sem check-in há 1h40' });
   });
 
   it('RN-CORE-26: 59 min ainda é "Em rota"; o limite vem de inicio.parado_min da visão', () => {

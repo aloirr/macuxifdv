@@ -117,7 +117,7 @@ const aprovacaoSolicitada = (r: ReturnType<typeof criarRelogio>, o: { pedido: st
   evento_id: `apr-${o.pedido}`,
   nome: 'vendedor.pedido.aprovacao_solicitada@1',
   ocorrido_em: iso(r, '10:31'),
-  payload: { pedido_id: o.pedido, vendedor_id: o.vendedor, cliente_id: u(505), solicitada_em: iso(r, '10:31'), nivel: o.nivel, motivos: ['desconto'], desconto_efetivo_pct: 12.5, total_cents: 80_000 },
+  payload: { pedido_id: o.pedido, vendedor_id: o.vendedor, cliente_id: u(505), solicitada_em: iso(r, '10:31'), nivel: o.nivel, motivos: ['desconto'], desconto_efetivo_pct: 12.5, total_cents: 80_000, credito: null, historico: null },
 });
 
 describe('API do Gestor: declaração, licença e perfis (regra 6)', () => {
