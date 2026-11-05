@@ -9,7 +9,7 @@ import { CentsNaoNeg, InstanteUtc, MotivoAprovacao, NivelAprovacao, PctNumero, U
 /** RN-GES-08: rejeitar exige motivo (mínimo 3 caracteres); aprovar continua em 1 toque, sem comentário. */
 export const MENSAGEM_MOTIVO_REJEICAO = 'RN-GES-08: informe o motivo da rejeição (mínimo 3 caracteres).';
 const motivoValido = (d: { decisao: string; comentario: string | null }) => d.decisao !== 'rejeitar' || (d.comentario ?? '').trim().length >= 3;
-import { CreditoClienteV1, HistoricoClienteV1 } from './eventos-consumidos';
+import { CreditoClienteEvento, HistoricoClienteEvento } from '../../vendedor/contracts';
 
 export const SITUACOES_PRAZO = ['no_prazo', 'vencendo', 'vencido'] as const;
 export const SituacaoPrazo = z.enum(SITUACOES_PRAZO);
@@ -25,8 +25,8 @@ export const ItemFilaAprovacao = z
     motivos: z.array(MotivoAprovacao).min(1),
     total_cents: CentsNaoNeg,
     desconto_efetivo_pct: PctNumero.nonnegative(),
-    credito: CreditoClienteV1.nullable(),
-    historico: HistoricoClienteV1.nullable(),
+    credito: CreditoClienteEvento.nullable(),
+    historico: HistoricoClienteEvento.nullable(),
     /** RN-GES-03: prazo em dias úteis — mesmo horário local do N-ésimo dia útil depois do início da contagem. */
     prazo_em: InstanteUtc,
     /** Horas ÚTEIS até o prazo (negativo = vencido há N horas úteis), 2 casas. */

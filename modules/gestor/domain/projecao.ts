@@ -22,6 +22,7 @@ import {
   type LicaoConcluidaV1,
   type MedalhaConquistadaV1,
   type MetaDefinidaV1,
+  type MetaDoMes,
   type PedidoCriadoV1,
   type PedidoFaturadoV1,
   type PrecoColetadoV1,
@@ -107,7 +108,7 @@ export interface EstadoProjecao {
   /** Chave `<usuario_id>|<AAAA-MM-DD>`. */
   planejadas: Tabela<RotaDiaPlanejadoV1>;
   /** Chave `<usuario_id>|<AAAA-MM>`. */
-  metas: Tabela<MetaDefinidaV1>;
+  metas: Tabela<MetaDoMes>;
   pedidos: Record<string, PedidoFato>;
   aprovacoes: Tabela<AprovacaoSolicitadaV1>;
   visitas: Record<string, VisitaFato>;
@@ -171,6 +172,16 @@ function pedidoDe(estado: EstadoProjecao, id: string): PedidoFato {
   return estado.pedidos[id] ?? { historico: {} };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const IDS_DO_VENDEDOR = ['pedido_id', 'vendedor_id', 'cliente_id'] as const;
+
+/** Campos de instante dos eventos do Vendedor que o schema do dono não restringe a ISO UTC (RN-GES-03/06: prazo e faturado dependem deles). */
+const INSTANTES_DO_VENDEDOR: Record<string, readonly string[]> = {
+  'vendedor.pedido.criado@1': ['criado_em'],
+  'vendedor.pedido.aprovacao_solicitada@1': ['solicitada_em'],
+  'vendedor.pedido.faturado@1': ['faturado_em'],
+};
+
 /**
  * Aplica UM evento. Nunca lança por dado ruim: payload inválido volta como `invalido` com o motivo; evento de
  * outro módulo/versão volta como `ignorado`. O estado devolvido é novo (o recebido não é mutado).
@@ -184,6 +195,17 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
   if (!lido.success) {
     const i = lido.error.issues[0]!;
     return { estado, situacao: 'invalido', motivo: `Payload de ${evento.nome} inválido em "${i.path.join('.')}": ${i.message}` };
+  }
+  // T-0024: o Vendedor publica id e instante como texto livre (`Id`, `IsoDateTime`); o Gestor exige UUID e data válida, como antes.
+  if (evento.nome.startsWith('vendedor.')) {
+    for (const campo of IDS_DO_VENDEDOR) {
+      const valor = (lido.data as Record<string, unknown>)[campo];
+      if (valor !== undefined && (typeof valor !== 'string' || !UUID.test(valor))) return { estado, situacao: 'invalido', motivo: `Payload de ${evento.nome} inválido em "${campo}": identificador inválido.` };
+    }
+  }
+  for (const campo of INSTANTES_DO_VENDEDOR[evento.nome] ?? []) {
+    const valor = (lido.data as Record<string, unknown>)[campo];
+    if (typeof valor !== 'string' || Number.isNaN(Date.parse(valor))) return { estado, situacao: 'invalido', motivo: `Payload de ${evento.nome} inválido em "${campo}": data e hora inválidas.` };
   }
   const p = lido.data as never;
   const v = carimbo(evento);
@@ -215,7 +237,6 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
         cliente_id: d.cliente_id,
         vendedor_id: d.vendedor_id,
         ativo: d.ativo ?? true,
-        ...(d.nome !== undefined ? { nome: d.nome } : {}),
         frequencia_visita: d.frequencia_visita ?? null,
         na_carteira_desde: d.na_carteira_desde ?? null,
         v,
@@ -245,7 +266,10 @@ export function aplicarEvento(estado: EstadoProjecao, evento: EventoRecebido): R
     }
     case 'core.meta.definida@1': {
       const d = p as MetaDefinidaV1;
-      return ok({ ...base, metas: gravar(base.metas, `${d.usuario_id}|${d.mes}`, { ...d, v }) });
+      // T-0024: formato oficial do Core; o Gestor só usa a meta de venda (centavos). Outro indicador não entra no painel.
+      if (d.indicador !== 'venda_cents') return ok(base);
+      const meta: MetaDoMes = { usuario_id: d.usuario_id, mes: d.periodo, meta_cents: d.valor };
+      return ok({ ...base, metas: gravar(base.metas, `${d.usuario_id}|${d.periodo}`, { ...meta, v }) });
     }
     case 'vendedor.pedido.criado@1': {
       const d = p as PedidoCriadoV1;

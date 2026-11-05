@@ -1,21 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { ClienteAtualizadoSchema, VisitaCheckoutSchema } from '@macuxi/core/contracts';
+import { schemaOficialDe } from '@macuxi/platform-sdk';
+import { EVENTO_CLIENTE_ATUALIZADO, EVENTO_META_DEFINIDA, EVENTO_ROTA_DIA_PLANEJADO, EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT, VisitaCheckoutSchema } from '@macuxi/core/contracts';
+import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_CRIADO, EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO } from '../../vendedor/contracts';
+import { EVENTOS_PROMOTOR } from '../../promotor/contracts';
+import { DEF_RESPOSTA_REGISTRADA } from '../../pesquisa/contracts';
+import { DEFINICAO_LICAO_CONCLUIDA, DEFINICAO_MEDALHA_CONQUISTADA } from '../../treinamento/contracts';
 import {
   Alerta,
-  AprovacaoSolicitadaV1,
   AvisoDecisaoAoSupervisor,
-  ClienteAtualizadoV1,
   ContextoPedidoEmNome,
   DecisaoAprovacao,
   EVENTOS_CONSUMIDOS,
   LinhaRanking,
   MembroEquipe,
-  MetaDefinidaV1,
   PainelDia,
   ParametrosGestorSchema,
-  PedidoCriadoV1,
-  PedidoFaturadoV1,
-  PedidoStatusAlteradoV1,
   RankingEquipe,
   RegraAlerta,
   RegistroDecisaoAprovacao,
@@ -55,73 +54,105 @@ describe('contratos do Gestor: parâmetros do tenant (doc 03)', () => {
   });
 });
 
-describe('espelhos dos eventos consumidos', () => {
-  it('registro por nome cobre os 16 eventos do manifesto + 2 propostos, todos no formato <modulo>.<entidade>.<fato>@vN', () => {
-    const nomes = Object.keys(EVENTOS_CONSUMIDOS);
+describe('eventos consumidos: schemas do dono, leitura tolerante (T-0024)', () => {
+  const C = EVENTOS_CONSUMIDOS;
+  const pedidoCriado = { pedido_id: u(1), vendedor_id: u(2), autor_id: u(3), cliente_id: u(4), visita_id: null, tipo: 'pedido', total_cents: 10_000, total_tabela_cents: 10_000, criado_em: T0, itens: [{ produto_id: u(5), quantidade: 2, total_cents: 10_000 }], status: 'em_aprovacao' };
+
+  it('registro por nome cobre os 17 eventos do manifesto + 1 proposto, todos no formato <modulo>.<entidade>.<fato>@vN', () => {
+    const nomes = Object.keys(C);
     expect(nomes).toHaveLength(18);
     expect(nomes).toContain('vendedor.pedido.faturado@1');
     for (const n of nomes) expect(n).toMatch(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*@[1-9]\d*$/);
   });
 
-  it('pedido criado: dinheiro em centavos inteiros; padrão é pedido (não orçamento); chave extra do publicador é ignorada (compatível)', () => {
-    const base = { pedido_id: u(1), vendedor_id: u(2), autor_id: u(3), cliente_id: u(4), total_cents: 10_000, criado_em: T0, campo_novo_do_vendedor: 'x' };
-    const ok = PedidoCriadoV1.parse(base);
+  it('T-0024: cada evento consumido usa o schema OFICIAL do dono (nenhuma cópia de payload)', () => {
+    const donos = {
+      'core.cliente.atualizado@1': EVENTO_CLIENTE_ATUALIZADO.schema,
+      'core.visita.checkin@1': EVENTO_VISITA_CHECKIN.schema,
+      'core.visita.checkout@1': EVENTO_VISITA_CHECKOUT.schema,
+      'core.rota.dia_planejado@1': EVENTO_ROTA_DIA_PLANEJADO.schema,
+      'core.meta.definida@1': EVENTO_META_DEFINIDA.schema,
+      'vendedor.pedido.criado@1': EVENTO_PEDIDO_CRIADO.schema,
+      'vendedor.pedido.status_alterado@1': EVENTO_PEDIDO_STATUS_ALTERADO.schema,
+      'vendedor.pedido.aprovacao_solicitada@1': EVENTO_PEDIDO_APROVACAO_SOLICITADA.schema,
+      'vendedor.pedido.faturado@1': EVENTO_PEDIDO_FATURADO.schema,
+      'promotor.visita_loja.concluida@1': EVENTOS_PROMOTOR['promotor.visita_loja.concluida@1'],
+      'promotor.gondola.registrada@1': EVENTOS_PROMOTOR['promotor.gondola.registrada@1'],
+      'promotor.share.medido@1': EVENTOS_PROMOTOR['promotor.share.medido@1'],
+      'promotor.preco.coletado@1': EVENTOS_PROMOTOR['promotor.preco.coletado@1'],
+      'promotor.ruptura.registrada@1': EVENTOS_PROMOTOR['promotor.ruptura.registrada@1'],
+      'promotor.tarefa.concluida@1': EVENTOS_PROMOTOR['promotor.tarefa.concluida@1'],
+      'pesquisa.resposta.registrada@1': DEF_RESPOSTA_REGISTRADA.schema,
+      'treinamento.licao.concluida@1': DEFINICAO_LICAO_CONCLUIDA.schema,
+      'treinamento.medalha.conquistada@1': DEFINICAO_MEDALHA_CONQUISTADA.schema,
+    } as const;
+    for (const [nome, oficial] of Object.entries(donos)) expect(schemaOficialDe(C[nome as keyof typeof C]), nome).toBe(oficial);
+    expect(Object.keys(donos).sort()).toEqual(Object.keys(C).sort());
+  });
+
+  it('pedido criado: dinheiro em centavos inteiros; chave extra do publicador é ignorada (leitura tolerante)', () => {
+    const s = C['vendedor.pedido.criado@1'];
+    const ok = s.parse({ ...pedidoCriado, campo_novo_do_vendedor: 'x' });
     expect(ok.tipo).toBe('pedido');
-    expect(ok.visita_id).toBeNull();
-    expect(ok.total_tabela_cents).toBeNull();
     expect('campo_novo_do_vendedor' in ok).toBe(false);
-    expect(PedidoCriadoV1.safeParse({ ...base, total_cents: 99.9 }).success).toBe(false);
-    expect(PedidoCriadoV1.safeParse({ ...base, total_cents: -1 }).success).toBe(false);
+    expect(s.safeParse({ ...pedidoCriado, total_cents: 99.9 }).success).toBe(false);
+    expect(s.safeParse({ ...pedidoCriado, total_cents: -1 }).success).toBe(false);
   });
 
-  it('instantes precisam ser ISO UTC e ids precisam ser UUID', () => {
-    expect(PedidoStatusAlteradoV1.safeParse({ pedido_id: u(1), vendedor_id: u(2), para: 'aprovado', alterado_em: '30/10/2026' }).success).toBe(false);
-    expect(PedidoStatusAlteradoV1.safeParse({ pedido_id: 'x', vendedor_id: u(2), para: 'aprovado', alterado_em: T0 }).success).toBe(false);
-    expect(PedidoStatusAlteradoV1.safeParse({ pedido_id: u(1), vendedor_id: u(2), para: 'enviado', alterado_em: T0 }).success).toBe(false);
+  it('status do vocabulário do Vendedor (id e instante inválidos são barrados na projeção, T-0024)', () => {
+    const s = C['vendedor.pedido.status_alterado@1'];
+    const base = { pedido_id: u(1), vendedor_id: u(2), de: null, para: 'aprovado', alterado_em: T0, autor_id: null, motivo: null };
+    expect(s.safeParse(base).success).toBe(true);
+    expect(s.safeParse({ ...base, para: 'inexistente' }).success).toBe(false);
   });
 
-  it('T-0046: core.cliente.atualizado@1 parte do schema oficial do Core; a carteira é opcional (o Core ainda não publica)', () => {
+  it('T-0046: core.cliente.atualizado@1 é o oficial do Core, com a carteira opcional', () => {
+    const s = C['core.cliente.atualizado@1'];
     const publicado = { cliente_id: u(1), campos: ['latitude', 'longitude'], origem: 'bko' };
-    expect(ClienteAtualizadoSchema.safeParse(publicado).success).toBe(true);
-    expect(ClienteAtualizadoV1.parse(publicado)).toEqual(publicado);
-    expect(ClienteAtualizadoV1.safeParse({ cliente_id: u(1), vendedor_id: u(2) }).success).toBe(false); // sem campos/origem do Core
+    expect(s.parse(publicado)).toEqual(publicado);
+    expect(s.safeParse({ cliente_id: u(1), vendedor_id: u(2) }).success).toBe(false); // sem campos/origem do Core
     const comCarteira = { ...publicado, campos: ['vendedor_id'], vendedor_id: u(2), ativo: true, frequencia_visita: 'quinzenal', na_carteira_desde: T0 };
-    expect(ClienteAtualizadoV1.parse(comCarteira)).toMatchObject({ vendedor_id: u(2), frequencia_visita: 'quinzenal', na_carteira_desde: T0 });
-    expect(ClienteAtualizadoV1.safeParse({ ...comCarteira, frequencia_visita: 'diaria' }).success).toBe(false);
+    expect(s.parse(comCarteira)).toMatchObject({ vendedor_id: u(2), frequencia_visita: 'quinzenal', na_carteira_desde: T0 });
+    expect(s.safeParse({ ...comCarteira, frequencia_visita: 'diaria' }).success).toBe(false);
+    expect('nome' in s.parse({ ...comCarteira, nome: 'Loja' })).toBe(false); // o nome vem de core.cadastro_resumo@1
   });
 
-  it('T-0046 / RN-CORE-11: core.visita.checkout@1 é o schema oficial do Core (fechada_por, permanencia_s)', () => {
-    expect(EVENTOS_CONSUMIDOS['core.visita.checkout@1']).toBe(VisitaCheckoutSchema);
+  it('T-0046 / RN-CORE-11: core.visita.checkout@1 (fechada_por, permanencia_s) e chave a mais tolerada', () => {
+    const s = C['core.visita.checkout@1'];
     const base = { visita_id: u(1), usuario_id: u(2), cliente_id: u(3), checkin_em: T0, checkout_em: T0, data_local: '2026-10-31', resultado: 'atendido', motivo_codigo: null, pedido_id: null, fechada_por: 'usuario', permanencia_s: 0 };
     expect(VisitaCheckoutSchema.safeParse(base).success).toBe(true);
-    expect(VisitaCheckoutSchema.safeParse({ ...base, fechada_por: 'servidor' }).success).toBe(false);
+    expect(s.safeParse({ ...base, campo_novo: 1 }).success).toBe(true);
+    expect(s.safeParse({ ...base, fechada_por: 'servidor' }).success).toBe(false);
     const { fechada_por: _f, ...antigo } = base;
-    expect(VisitaCheckoutSchema.safeParse({ ...antigo, encerramento: 'automatico' }).success).toBe(false); // formato do espelho antigo
+    expect(s.safeParse({ ...antigo, encerramento: 'automatico' }).success).toBe(false); // formato do espelho antigo
   });
 
-  it('RN-GES-06: pedido criado com itens opcionais (centavos) e faturamento pelos itens, igual ao publicado pelo Vendedor', () => {
-    const base = { pedido_id: u(1), vendedor_id: u(2), autor_id: u(3), cliente_id: u(4), total_cents: 10_000, criado_em: T0 };
-    expect(PedidoCriadoV1.parse(base).itens).toBeNull();
-    expect(PedidoCriadoV1.parse({ ...base, itens: [{ produto_id: u(5), quantidade: 2, total_cents: 10_000 }] }).itens).toHaveLength(1);
-    expect(PedidoCriadoV1.safeParse({ ...base, itens: [{ produto_id: u(5), quantidade: 0, total_cents: 10_000 }] }).success).toBe(false);
+  it('RN-GES-06: pedido criado sempre com itens (centavos) e faturamento pelos itens, igual ao publicado pelo Vendedor', () => {
+    const s = C['vendedor.pedido.criado@1'];
+    expect(s.parse(pedidoCriado).itens).toHaveLength(1);
+    expect(s.safeParse({ ...pedidoCriado, itens: [{ produto_id: u(5), quantidade: 0, total_cents: 10_000 }] }).success).toBe(false);
+    const f = C['vendedor.pedido.faturado@1'];
     const fat = { pedido_id: u(1), vendedor_id: u(2), faturado_em: T0, parcial: true, itens: [{ produto_id: u(5), quantidade: 1 }] };
-    expect(PedidoFaturadoV1.safeParse(fat).success).toBe(true);
-    expect(PedidoFaturadoV1.safeParse({ ...fat, itens: [] }).success).toBe(false);
+    expect(f.safeParse(fat).success).toBe(true);
+    expect(f.safeParse({ ...fat, itens: [] }).success).toBe(false);
   });
 
-  it('aprovação solicitada: nível, motivos e desconto efetivo; crédito e histórico são opcionais', () => {
-    const base = { pedido_id: u(1), vendedor_id: u(2), cliente_id: u(3), solicitada_em: T0, nivel: 'supervisor', motivos: ['desconto'], desconto_efetivo_pct: 12.5, total_cents: 100_000 };
-    const ok = AprovacaoSolicitadaV1.parse(base);
-    expect(ok.credito).toBeNull();
-    expect(ok.historico).toBeNull();
-    expect(AprovacaoSolicitadaV1.safeParse({ ...base, motivos: [] }).success).toBe(false);
-    expect(AprovacaoSolicitadaV1.safeParse({ ...base, nivel: 'diretor' }).success).toBe(false);
+  it('aprovação solicitada: nível, motivos e desconto efetivo; crédito e histórico objeto ou null (RF-GES-04)', () => {
+    const s = C['vendedor.pedido.aprovacao_solicitada@1'];
+    const base = { pedido_id: u(1), vendedor_id: u(2), cliente_id: u(3), solicitada_em: T0, nivel: 'supervisor', motivos: ['desconto'], desconto_efetivo_pct: 12.5, total_cents: 100_000, credito: null, historico: null };
+    expect(s.parse(base).credito).toBeNull();
+    const comContexto = { ...base, credito: { limite_cents: 500_000, saldo_aberto_cents: 100_000, disponivel_cents: 400_000 }, historico: { ultima_compra_em: T0, pedidos_90d: 3, ticket_medio_cents: 90_000 } };
+    expect(s.parse(comContexto).credito?.disponivel_cents).toBe(400_000);
+    expect(s.safeParse({ ...base, motivos: [] }).success).toBe(false);
+    expect(s.safeParse({ ...base, nivel: 'diretor' }).success).toBe(false);
   });
 
-  it('meta: mês no formato AAAA-MM e valor em centavos', () => {
-    expect(MetaDefinidaV1.safeParse({ usuario_id: u(1), mes: '2026-10', meta_cents: 2_200_000 }).success).toBe(true);
-    expect(MetaDefinidaV1.safeParse({ usuario_id: u(1), mes: '10/2026', meta_cents: 1 }).success).toBe(false);
-    expect(MetaDefinidaV1.safeParse({ usuario_id: u(1), mes: '2026-10', meta_cents: 10.5 }).success).toBe(false);
+  it('meta (formato oficial do Core): período AAAA-MM, indicador e valor inteiro', () => {
+    const s = C['core.meta.definida@1'];
+    const base = { usuario_id: u(1), periodo: '2026-10', indicador: 'venda_cents', valor: 2_200_000, valor_anterior: null, definido_por: u(9) };
+    expect(s.safeParse(base).success).toBe(true);
+    expect(s.safeParse({ ...base, periodo: '10/2026' }).success).toBe(false);
+    expect(s.safeParse({ ...base, valor: 10.5 }).success).toBe(false);
   });
 });
 

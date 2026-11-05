@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { EVENTOS_PROMOTOR, NOMES_EVENTOS_PROMOTOR } from '../../promotor/contracts';
+import { schemaOficialDe } from '@macuxi/platform-sdk';
 import { EVENTOS_CONSUMIDOS } from '../contracts';
 import { manifest } from '../manifest';
 import { CLIENTE_A, gondola, precoColetado, rupturaRegistrada, shareMedido, tarefaConcluida, u, visitaLoja } from './fixtures';
@@ -29,8 +30,8 @@ const VALIDOS: Record<(typeof NOMES_EVENTOS_PROMOTOR)[number], EventoRecebido> =
 };
 
 describe('T-0046: eventos promotor.*@1 validados com o contrato oficial do Promotor', () => {
-  it('EVENTOS_CONSUMIDOS usa a MESMA referência de schema do EVENTOS_PROMOTOR (sem cópia do formato)', () => {
-    for (const nome of NOMES_EVENTOS_PROMOTOR) expect(EVENTOS_CONSUMIDOS[nome], nome).toBe(EVENTOS_PROMOTOR[nome]);
+  it('EVENTOS_CONSUMIDOS parte do schema OFICIAL do EVENTOS_PROMOTOR, em leitura tolerante (sem cópia do formato)', () => {
+    for (const nome of NOMES_EVENTOS_PROMOTOR) expect(schemaOficialDe(EVENTOS_CONSUMIDOS[nome]), nome).toBe(EVENTOS_PROMOTOR[nome]);
   });
 
   it('o Gestor consome todos os eventos que o Promotor publica (manifesto)', () => {
@@ -52,10 +53,18 @@ describe('T-0046: eventos promotor.*@1 validados com o contrato oficial do Promo
     expect(estado.tarefas[u(9101)]?.tarefa_id).toBe(u(9001));
   });
 
-  it('payload incompleto, com chave a mais ou id que não é UUID é inválido em todos os tipos (estado intacto)', () => {
+  it('T-0024: chave a mais (campo novo e opcional do Promotor no @1) é tolerada e descartada, sem entrar no read-model', () => {
+    for (const nome of NOMES_EVENTOS_PROMOTOR) {
+      const r = situacao(comPayload(VALIDOS[nome], { nome_loja: 'Mercado X' }));
+      expect(r.situacao, nome).toBe('aplicado');
+      expect(JSON.stringify(r.estado)).not.toContain('Mercado X');
+    }
+  });
+
+  it('payload incompleto ou com id que não é UUID é inválido em todos os tipos (estado intacto)', () => {
     for (const nome of NOMES_EVENTOS_PROMOTOR) {
       const ok = VALIDOS[nome];
-      const casos = [comPayload(ok, { nome_loja: 'Mercado X' }), comPayload(ok, {}, ['cliente_id']), comPayload(ok, { promotor_id: '123' })];
+      const casos = [comPayload(ok, {}, ['cliente_id']), comPayload(ok, { promotor_id: '123' })];
       for (const e of casos) {
         const r = situacao(e);
         expect(r.situacao, `${nome} ${JSON.stringify(e.payload).slice(0, 40)}`).toBe('invalido');

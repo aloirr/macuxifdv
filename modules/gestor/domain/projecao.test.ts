@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { apuracaoDoPedido, statusAtual, vendasApuradas } from './apuracao';
-import { CLIENTE_A, CLIENTE_B, checkin, checkout, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR } from './fixtures';
+import { CLIENTE_A, CLIENTE_B, checkin, checkout, ev, pedidoCriado, PROMOTOR, statusAlterado, u, VENDEDOR, meta } from './fixtures';
 import { aplicarEvento, aplicarEventos, estadoInicial } from './projecao';
 
 describe('projeção idempotente dos eventos consumidos (read-model painel_vendedor_dia)', () => {
@@ -41,8 +41,8 @@ describe('projeção idempotente dos eventos consumidos (read-model painel_vende
   });
 
   it('mesma chave de negócio com evento_id novo: vence a versão mais recente, em qualquer ordem', () => {
-    const v1 = ev('core.meta.definida@1', '2026-10-01T08:00:00Z', { usuario_id: VENDEDOR, mes: '2026-10', meta_cents: 100_000 }, 'm1');
-    const v2 = ev('core.meta.definida@1', '2026-10-15T08:00:00Z', { usuario_id: VENDEDOR, mes: '2026-10', meta_cents: 150_000 }, 'm2');
+    const v1 = meta(VENDEDOR, '2026-10', 100_000, '2026-10-01T08:00:00Z', 'm1');
+    const v2 = meta(VENDEDOR, '2026-10', 150_000, '2026-10-15T08:00:00Z', 'm2');
     const a = aplicarEventos(estadoInicial(), [v1, v2]).estado;
     const b = aplicarEventos(estadoInicial(), [v2, v1]).estado;
     expect(a).toEqual(b);
@@ -101,8 +101,24 @@ describe('apuração do pedido (RN-CORE-21, RN-VEN-30)', () => {
     expect(apuracaoDoPedido(emRevalidacao.pedidos[u(1000)]!, 'aprovado').conta).toBe(false);
   });
 
-  it('RN-VEN-32: orçamento não é venda', () => {
-    const s = montar([pedidoCriado({ total: 10_000, tipo: 'orcamento' }), statusAlterado({ para: 'aprovado', em: '2026-10-30T15:00:00Z' })]);
+  it('T-0024: instante do Vendedor que não é data válida deixa o evento inválido (o schema do dono aceita texto livre)', () => {
+    const base = pedidoCriado({ total: 10_000 }).payload as Record<string, unknown>;
+    const r = aplicarEvento(estadoInicial(), ev('vendedor.pedido.criado@1', '2026-10-30T14:00:00Z', { ...base, criado_em: '30/10/2026' }));
+    expect(r.situacao).toBe('invalido');
+    expect(r.motivo).toContain('criado_em');
+    expect(r.estado).toEqual(estadoInicial());
+  });
+
+  it('T-0024: id do Vendedor que não é UUID deixa o evento inválido (o schema do dono aceita texto livre)', () => {
+    const base = pedidoCriado({ total: 10_000 }).payload as Record<string, unknown>;
+    const r = aplicarEvento(estadoInicial(), ev('vendedor.pedido.criado@1', '2026-10-30T14:00:00Z', { ...base, pedido_id: 'x' }));
+    expect(r.situacao).toBe('invalido');
+    expect(r.motivo).toContain('pedido_id');
+  });
+
+  it('RN-VEN-32: orçamento não é venda (o contrato do Vendedor só publica tipo pedido; orçamento é evento inválido)', () => {
+    const orcamento = ev('vendedor.pedido.criado@1', '2026-10-30T14:00:00Z', { ...(pedidoCriado({ total: 10_000 }).payload as Record<string, unknown>), tipo: 'orcamento' });
+    const s = montar([orcamento, statusAlterado({ para: 'aprovado', em: '2026-10-30T15:00:00Z' })]);
     expect(vendasApuradas(s, 'aprovado')).toEqual([]);
   });
 
