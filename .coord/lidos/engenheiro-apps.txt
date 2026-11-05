@@ -116,3 +116,6 @@ R-20261105-135855-designer-ux
 R-20261105-160716-designer-ux
 R-20261105-163657-modulo-vendedor
 R-20261105-163720-modulo-vendedor
+R-20261105-164122-engenheiro-software
+R-20261105-184833-modulo-vendedor
+R-20261105-164122-engenheiro-software
