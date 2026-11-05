@@ -3,16 +3,19 @@
  * Usadas por db/dbaas/teste-compatibilidade.ts (roda num contêiner da imagem da API, na VM da demo) e testadas em
  * db/testes/dbaas.test.ts. Nada aqui conecta em banco nem lê ambiente.
  *
- * Regra do relatório: só ✅/❌ por item, versões e tempos. Nenhuma senha (mascarar) e nenhum dado pessoal.
+ * Regra do relatório: ✅ (passou como está), ⚠️ (passou só pelo caminho alternativo do plano B, por falta de privilégio
+ * no DBaaS) ou ❌ por item, versões e tempos. Nenhuma senha (mascarar) e nenhum dado pessoal.
  */
+import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
 
-export type Situacao = 'ok' | 'falha';
+export type Situacao = 'ok' | 'alternativa' | 'falha';
 
 /**
  * Grupos do relatório. `pre` e `c1`..`c4` (critérios 1–4 da T-0075) decidem o código de saída; `comp` (complementares)
- * só informa; `limpeza` falhando dá o código LIMPEZA (a base ficou no DBaaS).
+ * só informa; `planob` mede os caminhos alternativos (B1, B2) e também só informa; `limpeza` falhando dá o código
+ * LIMPEZA (sobrou base ou papel de teste no DBaaS).
  */
-export type Grupo = 'pre' | 'c1' | 'c2' | 'c3' | 'c4' | 'comp' | 'limpeza';
+export type Grupo = 'pre' | 'c1' | 'c2' | 'c3' | 'c4' | 'comp' | 'planob' | 'limpeza';
 
 export const TITULOS_GRUPO: Record<Grupo, string> = {
   pre: 'Pré-requisitos (alcance, conexão, versão)',
@@ -21,6 +24,7 @@ export const TITULOS_GRUPO: Record<Grupo, string> = {
   c3: 'Critério 3 — RLS na prática e suíte de banco (@macuxi/db, com o vazamento entre tenants)',
   c4: 'Critério 4 — índice HNSW criado e usado na busca (EXPLAIN)',
   comp: 'Complementares (não mudam o código de saída; entram no ADR)',
+  planob: 'Caminhos alternativos medidos (plano B, sem SUPERUSER nem BYPASSRLS)',
   limpeza: 'Limpeza (bases de teste apagadas; a instância quem apaga é o dono do produto)',
 };
 
@@ -48,9 +52,81 @@ export const SAIDA = {
   CONFIGURACAO: 2,
   /** O DBaaS não respondeu em host:porta (rede, VPC, grupo de segurança). Nada foi tocado no DBaaS. */
   SEM_ALCANCE: 3,
-  /** Critérios 1–4 ✅, mas sobrou base de teste no DBaaS (apague à mão ou apague a instância). */
+  /** Critérios 1–4 sem ❌, mas sobrou base ou papel de teste no DBaaS (apague à mão ou apague a instância). */
   LIMPEZA: 4,
+  /** Nenhum ❌ nos pré-requisitos e critérios 1–4, mas algum ⚠️: só passa com o plano B (seção do relatório). */
+  PLANO_B: 5,
 } as const;
+
+/** Legenda dos códigos de saída (relatório e script da VM). */
+export const LEGENDA_SAIDA = '0 = ok · 1 = critério ❌ · 2 = configuração · 3 = sem alcance · 4 = limpeza ❌ · 5 = só com o plano B (⚠️)';
+
+/**
+ * Erro causado por falta de privilégio no DBaaS (sem SUPERUSER/BYPASSRLS), e não por incompatibilidade do schema:
+ * 42501, RLS que barra o dono das tabelas (FORCE), session_replication_role, atributo de papel que só superusuário muda.
+ */
+export function ehBloqueioDePrivilegio(mensagem: string): boolean {
+  return /42501|permission denied|row-level security|session_replication_role|must be superuser|only roles with the|precisa de superusu[aá]rio|exige superusu[aá]rio/i.test(
+    mensagem,
+  );
+}
+
+/**
+ * Verificador SCRAM-SHA-256 no formato do pg_authid (`SCRAM-SHA-256$<iter>:<sal>$<StoredKey>:<ServerKey>`, RFC 5802/7677),
+ * calculado no cliente: o CREATE/ALTER ROLE ... PASSWORD leva o verificador e a senha em texto nunca chega ao servidor
+ * (nem ao pgaudit/log_statement do DBaaS). Só ASCII imprimível sem espaço (as senhas do teste são hex): dispensa o SASLprep.
+ */
+export function verificadorScram(senha: string, sal: Buffer = randomBytes(16), iteracoes = 4096): string {
+  if (!/^[\x21-\x7e]+$/.test(senha)) throw new Error('verificadorScram: só senha ASCII imprimível, sem espaço');
+  const salgada = pbkdf2Sync(senha, sal, iteracoes, 32, 'sha256');
+  const chaveCliente = createHmac('sha256', salgada).update('Client Key').digest();
+  const chaveGuardada = createHash('sha256').update(chaveCliente).digest();
+  const chaveServidor = createHmac('sha256', salgada).update('Server Key').digest();
+  return `SCRAM-SHA-256$${iteracoes}:${sal.toString('base64')}$${chaveGuardada.toString('base64')}:${chaveServidor.toString('base64')}`;
+}
+
+/** Chave estrangeira entre tabelas com tenant_id (catálogo pg_constraint), para a exclusão de tenant em ordem de FK. */
+export interface ChaveEstrangeira {
+  nome: string;
+  /** Tabela que referencia ("esquema.tabela", já citada com aspas se precisar). */
+  filha: string;
+  /** Tabela referenciada. */
+  mae: string;
+  /** Colunas da filha na FK, sem tenant_id (as que o UPDATE ... SET NULL anula para quebrar um ciclo), já citadas. */
+  colunas: string[];
+  /** Todas as `colunas` aceitam nulo (com MATCH SIMPLE, uma coluna nula desliga a conferência da FK). */
+  anulavel: boolean;
+}
+
+export type PassoExclusao = { tipo: 'anular'; tabela: string; colunas: string[]; fk: string } | { tipo: 'apagar'; tabela: string };
+
+/**
+ * Ordem de exclusão das linhas de um tenant SEM session_replication_role (plano B, B2): filhas antes das mães; ciclo
+ * (ex.: core.usuario <-> core.equipe) quebrado antes anulando as colunas de uma FK anulável do ciclo. FK da tabela para
+ * ela mesma fica de fora (um DELETE só apaga todas as linhas do tenant; NO ACTION confere no fim do comando).
+ * `erro` diz as tabelas de um ciclo sem FK anulável (aí só com gatilho/FK desligados ou FK DEFERRABLE).
+ */
+export function ordemExclusao(tabelas: readonly string[], fks: readonly ChaveEstrangeira[]): { passos: PassoExclusao[]; erro: string | null } {
+  const restantes = new Set(tabelas);
+  let arestas = fks.filter((f) => f.filha !== f.mae && restantes.has(f.filha) && restantes.has(f.mae));
+  const passos: PassoExclusao[] = [];
+  while (restantes.size > 0) {
+    const prontas = [...restantes].filter((t) => !arestas.some((a) => a.mae === t)).sort();
+    if (prontas.length > 0) {
+      for (const t of prontas) {
+        passos.push({ tipo: 'apagar', tabela: t });
+        restantes.delete(t);
+      }
+      arestas = arestas.filter((a) => restantes.has(a.filha) && restantes.has(a.mae));
+      continue;
+    }
+    const quebra = arestas.filter((a) => a.anulavel && a.colunas.length > 0).sort((a, b) => a.nome.localeCompare(b.nome))[0];
+    if (!quebra) return { passos, erro: `ciclo de FK sem coluna anulável entre: ${[...restantes].sort().join(', ')}` };
+    passos.push({ tipo: 'anular', tabela: quebra.filha, colunas: quebra.colunas, fk: quebra.nome });
+    arestas = arestas.filter((a) => a !== quebra);
+  }
+  return { passos, erro: null };
+}
 
 /** Troca cada segredo (e a forma URL-encoded dele) por *** e esconde credencial de URL postgres://. */
 export function mascarar(texto: string, segredos: readonly string[]): string {
@@ -169,7 +245,7 @@ export function formatarMs(ms: number): string {
 
 /** Uma linha do relatório: "✅ C2.3 Título (1.2 s) — detalhe". */
 export function formatarItem(item: Item): string {
-  const marca = item.situacao === 'ok' ? '✅' : '❌';
+  const marca = item.situacao === 'ok' ? '✅' : item.situacao === 'alternativa' ? '⚠️' : '❌';
   const tempo = item.ms === undefined ? '' : ` (${formatarMs(item.ms)})`;
   const detalhe = item.detalhe ? ` — ${item.detalhe}` : '';
   return `${marca} ${item.codigo} ${item.titulo}${tempo}${detalhe}`;
@@ -177,22 +253,106 @@ export function formatarItem(item: Item): string {
 
 const DECIDEM: readonly Grupo[] = ['pre', 'c1', 'c2', 'c3', 'c4'];
 
-export function resumir(itens: readonly Item[]): { total: number; falhas: number; codigo: number; linha: string } {
+export function resumir(itens: readonly Item[]): { total: number; falhas: number; alternativas: number; codigo: number; linha: string } {
   const falhos = itens.filter((i) => i.situacao === 'falha');
+  const alternativos = itens.filter((i) => i.situacao === 'alternativa');
   const decisivos = falhos.filter((i) => DECIDEM.includes(i.grupo));
+  const decisivosAlt = alternativos.filter((i) => DECIDEM.includes(i.grupo));
   const limpeza = falhos.filter((i) => i.grupo === 'limpeza');
-  const codigo = decisivos.length > 0 ? SAIDA.FALHA : limpeza.length > 0 ? SAIDA.LIMPEZA : SAIDA.OK;
+  const codigo = decisivos.length > 0 ? SAIDA.FALHA : limpeza.length > 0 ? SAIDA.LIMPEZA : decisivosAlt.length > 0 ? SAIDA.PLANO_B : SAIDA.OK;
   const lista = (xs: Item[]) => xs.map((i) => i.codigo).join(', ');
+  const alt = decisivosAlt.length > 0 ? `; ⚠️ só pelo caminho alternativo: ${lista(decisivosAlt)}` : '';
   let linha: string;
   if (codigo === SAIDA.OK) {
     const extra = falhos.length > 0 ? ` (complementares com ❌: ${lista(falhos)})` : '';
-    linha = `✅ RESULTADO: critérios 1–4 ✅ — ${itens.length - falhos.length}/${itens.length} itens ✅${extra}`;
+    linha = `✅ RESULTADO: critérios 1–4 ✅ — ${itens.length - falhos.length - alternativos.length}/${itens.length} itens ✅${extra}`;
   } else if (codigo === SAIDA.LIMPEZA) {
-    linha = `❌ RESULTADO: critérios 1–4 ✅, mas a limpeza falhou (${lista(limpeza)}): sobrou base de teste no DBaaS`;
+    linha = `❌ RESULTADO: critérios 1–4 sem ❌, mas a limpeza falhou (${lista(limpeza)}): sobrou base ou papel de teste no DBaaS${alt}`;
+  } else if (codigo === SAIDA.PLANO_B) {
+    linha = `⚠️ RESULTADO: critérios 1–4 sem ❌, mas ${decisivosAlt.length} item(ns) só passam pelo caminho alternativo (${lista(decisivosAlt)}): aprovado só com o plano B (seção "Plano B")`;
   } else {
-    linha = `❌ RESULTADO: ${decisivos.length} item(ns) dos critérios com ❌ (${lista(decisivos)}); ${falhos.length} de ${itens.length} itens ❌ no total`;
+    linha = `❌ RESULTADO: ${decisivos.length} item(ns) dos critérios com ❌ (${lista(decisivos)})${alt}; ${falhos.length} de ${itens.length} itens ❌ no total`;
   }
-  return { total: itens.length, falhas: falhos.length, codigo, linha };
+  return { total: itens.length, falhas: falhos.length, alternativas: alternativos.length, codigo, linha };
+}
+
+/** Medições que decidem o texto da seção "Plano B" do relatório (null = não medido nesta execução). */
+export interface MedicoesPlanoB {
+  adminIgnoraRls: boolean | null;
+  replicacaoPermitida: boolean | null;
+  mgc: { existe: boolean; setRole: boolean | null; superusuario: boolean | null; ignoraRls: boolean | null } | null;
+  /** ALTER ROLE <admin> BYPASSRLS ou CREATE ROLE ... BYPASSRLS passou (dentro de transação desfeita). */
+  bypassConcedivel: boolean | null;
+  vectorDireto: boolean | null;
+  vectorViaMgc: boolean | null;
+  /** B1 (política de manutenção) aplicado e com o seed/DEFINER funcionando; tabelas com RLS cobertas. */
+  b1: { ok: boolean; variante: string; tabelas: number } | null;
+  /** B2 (exclusão de tenant em ordem de FK): resultado, passos, ciclos anulados e gatilhos de DELETE vistos. */
+  b2: { ok: boolean; passos: number; anuladas: string[]; gatilhos: string[]; erro: string | null } | null;
+  /** O servidor registra comandos de papel (log_statement ddl/all ou pgaudit.log com role/ddl/all). */
+  logRegistraPapel: boolean | null;
+  suiteBloqueada: boolean;
+}
+
+const simNao = (v: boolean | null | undefined, sim = 'sim', nao = 'não'): string => (v === null || v === undefined ? 'não medido' : v ? sim : nao);
+
+/**
+ * Seção "Plano B" (T-0075): o que fazer no código se o DBaaS não der SUPERUSER nem BYPASSRLS, com o custo de cada
+ * mudança. O texto fixo é a proposta do banco-dados; as linhas "Medido" vêm desta execução.
+ */
+export function secaoPlanoB(med: MedicoesPlanoB): string[] {
+  const l: string[] = ['## Plano B — sem SUPERUSER nem BYPASSRLS (proposta do banco-dados, com o custo)', ''];
+  if (med.adminIgnoraRls && med.replicacaoPermitida) {
+    l.push('O admin ignora RLS e muda session_replication_role: o plano B não é necessário (só o B0 continua recomendado).', '');
+  }
+  const mgc = med.mgc;
+  l.push(
+    '**Medido nesta execução**',
+    '',
+    `- Admin ignora RLS (SUPERUSER/BYPASSRLS): ${simNao(med.adminIgnoraRls)} · session_replication_role: ${simNao(med.replicacaoPermitida, 'permitido', 'negado')}`,
+    `- mgc_superuser: ${mgc ? (mgc.existe ? `SET ROLE ${simNao(mgc.setRole, 'funciona', 'negado')} · SUPERUSER ${simNao(mgc.superusuario)} · BYPASSRLS ${simNao(mgc.ignoraRls)}` : 'não existe') : 'não medido'}`,
+    `- BYPASSRLS concedível pelo admin (ALTER ROLE ou CREATE ROLE, desfeito): ${simNao(med.bypassConcedivel)}`,
+    `- CREATE EXTENSION vector: direto (pgextwlist) ${simNao(med.vectorDireto, 'funciona', 'negado')}${med.vectorViaMgc === null ? '' : ` · via SET ROLE mgc_superuser ${simNao(med.vectorViaMgc, 'funciona', 'negado')}`}`,
+    `- B1 política de manutenção: ${med.b1 ? `${med.b1.ok ? '⚠️ funciona' : '❌ não resolveu'} (${med.b1.variante}; ${med.b1.tabelas} tabelas com RLS)` : 'não aplicado'}`,
+    `- B2 exclusão em ordem de FK: ${med.b2 ? `${med.b2.ok ? '⚠️ funciona' : '❌ falhou'} (${med.b2.passos} passos${med.b2.anuladas.length ? `; ciclos quebrados em ${med.b2.anuladas.join(', ')}` : ''}${med.b2.gatilhos.length ? `; ${med.b2.gatilhos.length} gatilho(s) de DELETE disparam` : ''}${med.b2.erro ? `; ${med.b2.erro}` : ''})` : 'não medido'}`,
+    `- O servidor registra comandos de papel no log: ${simNao(med.logRegistraPapel)}${med.suiteBloqueada ? ' · a suíte ficou bloqueada por privilégio (B0/B1)' : ''}`,
+    '',
+  );
+  if (mgc?.setRole && (mgc.ignoraRls || mgc.superusuario)) {
+    l.push(
+      '**Atalho medido (sem migração):** `SET ROLE mgc_superuser` dá BYPASSRLS/superusuário. Seed, fixture e exclusão de tenant podem rodar sob esse papel e as funções SECURITY DEFINER podem ter `ALTER FUNCTION ... OWNER TO mgc_superuser` — confirmar com a Magalu que o papel é estável e suportado antes de depender dele; os itens B1 e B2 abaixo continuam sendo o caminho que não depende do provedor.',
+      '',
+    );
+  }
+  l.push(
+    '**B0 — papéis sem ALTER de atributo (necessário em qualquer DBaaS; sem migração).** No PostgreSQL 16, quem não é superusuário não pode citar SUPERUSER/NOSUPERUSER, REPLICATION nem BYPASSRLS num ALTER ROLE (foi o "permission denied to alter role" da C2.2). `db/src/papeis.ts`: papel novo = CREATE ROLE com os atributos; papel existente = só `ALTER ROLE ... LOGIN PASSWORD <verificador SCRAM>` e conferência dos atributos em pg_roles (erro claro se tiver SUPERUSER/BYPASSRLS). A senha vai como verificador SCRAM calculado no cliente, nunca em texto (o DBaaS carrega pgaudit). Custo: 1 arquivo (~30 linhas) + 1 teste sem banco em db/testes; nenhum chamador muda. Este script já faz assim (C2.1).',
+    '',
+    '**B1 — papel de manutenção no lugar do BYPASSRLS (X1).** Migração nova `00nn_plataforma_manutencao`: `create role macuxi_manutencao nologin` (sem BYPASSRLS), `grant macuxi_manutencao to current_user with inherit true` (o migrador) e, num laço DO sobre toda tabela com RLS, `create policy manutencao on <t> for all to macuxi_manutencao using (true) with check (true)` — o mesmo padrão das políticas do macuxi_worker (0003). Como o migrador é dono das funções SECURITY DEFINER e herda o papel, as 5 migrações com DEFINER (0001, 0010, 0011, 0024, 0027) e a 0029 (provisionar_tenant) voltam a enxergar todos os tenants sem ALTER FUNCTION. Seed demo e Fase M, as 5 fixtures (dois-tenants, gestor, pesquisa, promotor, treinamento) e os ~25 testes que preparam dados pela conexão admin passam sem mudar código. Custo: 1 migração + down; `db/scripts/conferir-rls.sql` e `tests/integracao/banco/conformidade.test.ts` passam a exigir a política `manutencao` em toda tabela (e toda migração futura com tabela nova a cria junto); `docs/banco/rls.md`. Risco: o mesmo de hoje com superusuário (a conexão admin vê todos os tenants); a API e o worker nunca usam o admin (S0-028). A sugestão de rodar seed e fixture só com `SET app.tenant_id` por tenant NÃO basta: as políticas atuais são `to macuxi_app`, e o admin com o tenant na sessão continua sem política (0 linhas, INSERT negado). Variante mais restrita (B1′): política de manutenção `using (tenant_id = plataforma.tenant_atual())` e `using (true)` só de leitura nas tabelas que as DEFINER entre tenants leem; custo extra: seed, as 5 fixtures e o --recriar passam a fazer `set_config(\'app.tenant_id\', ...)` por tenant (~8 arquivos em db/seeds e db/testes) e a política difere por tabela.',
+    '',
+    '**B2 — exclusão de tenant e --recriar sem session_replication_role (X2).** Migração nova recriando `plataforma.excluir_tenant(uuid, text)` (mesma assinatura e retorno da 0024; o down volta ao corpo da 0024) com DELETE em ordem de FK calculada no catálogo (filhas antes; ciclo como core.usuario <-> core.equipe quebrado com `update ... set <fk> = null` antes), sem desligar gatilhos: os gatilhos de DELETE listados no item B2 passam a disparar e precisam ignorar a exclusão de tenant (`current_setting(\'app.excluindo_tenant\', true) = \'on\'`, só na transação) ou ser aceitos. `db/seeds/demo/demo.ts` (apagarTenantDemo, ~10 linhas) chama a mesma ordem; `db/testes/lgpd-outbox.test.ts` ajusta. Custo: 1 migração + down, 2 arquivos TS; depende do B1 (o admin precisa enxergar as linhas). Alternativa sem código: pedir à Magalu `GRANT SET ON PARAMETER session_replication_role TO macuxi_admin` (só superusuário concede).',
+    '',
+    '**B3 — vector.** Se o CREATE EXTENSION direto falhar, pedir à Magalu a vector na lista do pgextwlist (extwlist.extensions) para o admin; sem a extensão, a busca semântica do Catálogo (embeddings, HNSW) não roda e o critério 4 reprova.',
+    '',
+    '**Ordem sugerida:** B0 (antes de qualquer nova execução com a suíte) → B1 → B2 → nova execução deste teste, que então deve sair com ✅/⚠️ apenas no que depender do provedor.',
+  );
+  return l;
+}
+
+/** Classifica o resultado da suíte: ❌ só por falha real; bloqueio de privilégio do DBaaS = ⚠️ (depende do plano B). */
+export function classificarSuite(
+  resumo: ResumoSuite,
+  motivoGeral: string,
+  travaLocal: RegExp,
+): { situacao: Situacao; reais: ResumoSuite['falhas']; bloqueadas: ResumoSuite['falhas']; trava: ResumoSuite['falhas'] } {
+  const trava = resumo.falhas.filter((f) => travaLocal.test(f.mensagem));
+  const resto = resumo.falhas.filter((f) => !travaLocal.test(f.mensagem));
+  const bloqueadas = resto.filter((f) => ehBloqueioDePrivilegio(f.mensagem));
+  const reais = resto.filter((f) => !ehBloqueioDePrivilegio(f.mensagem));
+  let situacao: Situacao;
+  if (resumo.arquivos === 0) situacao = ehBloqueioDePrivilegio(motivoGeral) ? 'alternativa' : 'falha';
+  else if (reais.length > 0) situacao = 'falha';
+  else situacao = bloqueadas.length > 0 ? 'alternativa' : 'ok';
+  return { situacao, reais, bloqueadas, trava };
 }
 
 export interface CabecalhoRelatorio {
@@ -203,7 +363,7 @@ export interface CabecalhoRelatorio {
 }
 
 /** Relatório em Markdown (vai inteiro para o resumo do job do workflow dbaas-teste.yml). */
-export function montarMarkdown(cab: CabecalhoRelatorio, itens: readonly Item[], explainHnsw: string | null): string {
+export function montarMarkdown(cab: CabecalhoRelatorio, itens: readonly Item[], explainHnsw: string | null, planoB: readonly string[] = []): string {
   const r = resumir(itens);
   const linhas: string[] = [
     '# Teste de compatibilidade do DBaaS PostgreSQL da Magalu (T-0075)',
@@ -225,7 +385,8 @@ export function montarMarkdown(cab: CabecalhoRelatorio, itens: readonly Item[], 
     }
     if (g === 'c4' && explainHnsw) linhas.push('', 'EXPLAIN (ANALYZE) da busca por vizinhos:', '', '```', explainHnsw, '```');
   }
-  linhas.push('', `Código de saída: ${r.codigo} (0 = ok · 1 = critério ❌ · 2 = configuração · 3 = sem alcance · 4 = limpeza ❌)`, '');
+  if (planoB.length > 0) linhas.push('', ...planoB);
+  linhas.push('', `Código de saída: ${r.codigo} (${LEGENDA_SAIDA})`, '');
   return linhas.join('\n');
 }
 

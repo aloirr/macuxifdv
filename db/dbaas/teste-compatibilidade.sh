@@ -19,12 +19,17 @@
 #   1. confere a rota (não pode sair por rede do Docker) e o alcance TCP de DBAAS_HOST:DBAAS_PORTA; falha com código 3;
 #   2. sobe um contêiner da imagem da API (--network host, root só dentro dele, sem o .env da demo, sem a rede do compose)
 #      com esta pasta em /app/db/dbaas e $DBAAS_SAIDA em /saida, e roda teste-compatibilidade.ts: base nova
-#      macuxi_dbaas_AAAAMMDD_HHMMSS, papéis, migrações 0001..0027, RLS forçado, SECURITY DEFINER, extensões (vector),
-#      seed demo, RLS na prática, HNSW com EXPLAIN, suíte do @macuxi/db e, no fim, apaga as bases de teste;
+#      macuxi_dbaas_AAAAMMDD_HHMMSS (CREATE DATABASE direto, sem ALTER ROLE), papéis (sem ALTER de atributo), o que o
+#      admin pode (mgc_superuser, BYPASSRLS, session_replication_role), migrações 0001..0027, RLS forçado, SECURITY
+#      DEFINER, vector, seed demo, RLS na prática, exclusão de tenant, HNSW com EXPLAIN, suíte do @macuxi/db; onde falta
+#      privilégio, roda o caminho alternativo do plano B e marca ⚠️; no fim (sempre) apaga as bases e os papéis de teste;
 #   3. confere que a senha não aparece em nenhum arquivo de $DBAAS_SAIDA (apaga o arquivo e falha se aparecer).
-# Saída: $DBAAS_RELATORIO (Markdown, só ✅/❌, versões e tempos), $DBAAS_SAIDA/execucao.log, suite.json e suite.log.
+# Saída: $DBAAS_RELATORIO (Markdown com ✅/⚠️/❌, versões, tempos e a seção "Plano B"), $DBAAS_SAIDA/execucao.log,
+# suite.json e suite.log. DBAAS_SUITE=forcar roda a suíte mesmo com o log do servidor registrando comandos de papel;
+# DBAAS_MANTER_PAPEIS=1 não apaga macuxi_app/macuxi_worker no fim.
 # Código: 0 = pré-requisitos e critérios 1–4 ✅ · 1 = algum critério ❌ · 2 = configuração · 3 = sem alcance/rota ·
-#         4 = critérios ✅ mas sobrou base de teste · 130 = interrompido (as bases de teste são apagadas antes de sair).
+#         4 = critérios sem ❌ mas sobrou base/papel de teste · 5 = critérios sem ❌, mas algum ⚠️ (só com o plano B) ·
+#         130 = interrompido (as bases e os papéis de teste são apagados antes de sair).
 # Nunca toca o Postgres da demo: host local é recusado e o contêiner não entra na rede do compose nem lê o .env da demo.
 set -uo pipefail
 umask 077
@@ -73,7 +78,7 @@ relatorio_minimo() {
     echo
     echo "**❌ RESULTADO: o teste não rodou — $1**"
     echo
-    echo "Código de saída: $2 (0 = ok · 1 = critério ❌ · 2 = configuração · 3 = sem alcance · 4 = limpeza ❌)"
+    echo "Código de saída: $2 (0 = ok · 1 = critério ❌ · 2 = configuração · 3 = sem alcance · 4 = limpeza ❌ · 5 = só com o plano B (⚠️))"
   } > "$DBAAS_RELATORIO"
 }
 
@@ -148,7 +153,7 @@ limpar_emergencia() {
   trap - INT TERM
   log "interrompido: parando o contêiner e apagando as bases de teste do DBaaS"
   docker rm -f "$NOME" >/dev/null 2>&1 || true
-  # só apaga as bases macuxi_dbaas_* e macuxi_teste_* (conexões com timeout de 15 s; drop … with force)
+  # só apaga as bases macuxi_dbaas_* e macuxi_teste_* e os papéis de teste (conexões com timeout de 15 s; drop … with force)
   rodar_conteiner "$NOME-limpeza" --so-limpar 2>&1 | tee -a "$DBAAS_SAIDA/execucao.log" || true
   exit 130
 }

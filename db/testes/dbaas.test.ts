@@ -6,9 +6,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PASTA_DB } from '../src/config';
+import { createHash, createHmac } from 'node:crypto';
 import {
   classificarErroConexao,
+  classificarSuite,
+  ehBloqueioDePrivilegio,
   formatarItem,
+  LEGENDA_SAIDA,
+  ordemExclusao,
+  secaoPlanoB,
+  verificadorScram,
+  type ChaveEstrangeira,
+  type MedicoesPlanoB,
   indicesDoPlano,
   mascarar,
   montarMarkdown,
@@ -138,6 +147,136 @@ describe('relatório do DBaaS (T-0075)', () => {
     expect(indicesDoPlano([{ Plan: { 'Node Type': 'Seq Scan' } }])).toEqual([]);
     expect(versaoVitestDoLock('packages:\n\n  vitest@3.2.7:\n    resolution: x\n')).toBe('3.2.7');
     expect(versaoVitestDoLock('nada')).toBeNull();
+  });
+});
+
+describe('plano B do DBaaS sem SUPERUSER/BYPASSRLS (T-0075, 2ª versão)', () => {
+  it('⚠️ (alternativa) nos critérios dá o código PLANO_B; ❌ continua mandando; ⚠️ em complementar não muda o código', () => {
+    const alt = (grupo: Item['grupo'], codigo: string): Item => ({ grupo, codigo, titulo: `item ${codigo}`, situacao: 'alternativa' });
+    expect(resumir([item('pre', 'P1', true), alt('c2', 'C2.7'), alt('c3', 'C3.2')]).codigo).toBe(SAIDA.PLANO_B);
+    expect(resumir([item('pre', 'P1', true), alt('c2', 'C2.7')]).linha).toContain('plano B');
+    expect(resumir([alt('c2', 'C2.7'), item('c4', 'C4.1', false)]).codigo).toBe(SAIDA.FALHA);
+    expect(resumir([alt('c2', 'C2.7'), item('c4', 'C4.1', false)]).linha).toContain('⚠️ só pelo caminho alternativo: C2.7');
+    expect(resumir([alt('c2', 'C2.7'), item('limpeza', 'L3', false)]).codigo).toBe(SAIDA.LIMPEZA);
+    expect(resumir([item('c1', 'C1.2', true), alt('planob', 'B2')]).codigo).toBe(SAIDA.OK);
+    expect(formatarItem(alt('c2', 'C2.7'))).toBe('⚠️ C2.7 item C2.7');
+    expect(LEGENDA_SAIDA).toContain('5 = só com o plano B');
+    expect(montarMarkdown({ quando: 'x', alvo: 'y', versoes: [], duracaoMs: 1 }, [alt('c2', 'C2.7')], null, ['## Plano B — teste'])).toMatch(
+      /## Plano B — teste[\s\S]*Código de saída: 5/,
+    );
+  });
+
+  it('reconhece erro de privilégio do DBaaS (e não confunde com erro de schema)', () => {
+    expect(ehBloqueioDePrivilegio('permission denied to alter role')).toBe(true);
+    expect(ehBloqueioDePrivilegio('new row violates row-level security policy for table "tenant"')).toBe(true);
+    expect(ehBloqueioDePrivilegio('permission denied to set parameter "session_replication_role"')).toBe(true);
+    expect(ehBloqueioDePrivilegio('Only roles with the SUPERUSER attribute may change the SUPERUSER attribute.')).toBe(true);
+    expect(ehBloqueioDePrivilegio('relation "core.cliente" does not exist')).toBe(false);
+    expect(ehBloqueioDePrivilegio('expected 3 to be 2')).toBe(false);
+  });
+
+  it('verificador SCRAM-SHA-256 confere com o exemplo da RFC 7677 (user/pencil)', () => {
+    const sal = Buffer.from('W22ZaJ0SNY7soEsUEjb6gQ==', 'base64');
+    const v = verificadorScram('pencil', sal, 4096);
+    const m = /^SCRAM-SHA-256\$4096:([^$]+)\$([^:]+):(.+)$/.exec(v);
+    expect(m).not.toBeNull();
+    expect(m![1]).toBe('W22ZaJ0SNY7soEsUEjb6gQ==');
+    const guardada = Buffer.from(m![2]!, 'base64');
+    const servidor = Buffer.from(m![3]!, 'base64');
+    const nonce = 'rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0';
+    const mensagem = `n=user,r=rOprNGfwEbeRWgbNEkqO,r=${nonce},s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096,c=biws,r=${nonce}`;
+    // ServerSignature da RFC
+    expect(createHmac('sha256', servidor).update(mensagem).digest('base64')).toBe('6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=');
+    // ClientProof da RFC: ClientKey = prova XOR HMAC(StoredKey, mensagem); SHA-256(ClientKey) = StoredKey
+    const prova = Buffer.from('dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=', 'base64');
+    const assinatura = createHmac('sha256', guardada).update(mensagem).digest();
+    const chaveCliente = Buffer.from(prova.map((b, i) => b ^ assinatura[i]!));
+    expect(createHash('sha256').update(chaveCliente).digest().equals(guardada)).toBe(true);
+    // a senha nunca aparece no verificador; sal aleatório muda o verificador
+    expect(verificadorScram('a1b2c3d4')).not.toContain('a1b2c3d4');
+    expect(verificadorScram('a1b2c3d4')).not.toBe(verificadorScram('a1b2c3d4'));
+    expect(() => verificadorScram('com espaço')).toThrow();
+  });
+
+  it('ordem de exclusão do tenant: filhas antes das mães, ciclo quebrado pela FK anulável, autorreferência ignorada', () => {
+    const fk = (nome: string, filha: string, mae: string, anulavel = false, colunas = ['x']): ChaveEstrangeira => ({ nome, filha, mae, colunas, anulavel });
+    const simples = ordemExclusao(['core.cliente', 'vendedor.pedido', 'vendedor.pedido_item'], [
+      fk('item_pedido_fk', 'vendedor.pedido_item', 'vendedor.pedido'),
+      fk('pedido_cliente_fk', 'vendedor.pedido', 'core.cliente'),
+      fk('cliente_matriz_fk', 'core.cliente', 'core.cliente', true),
+      fk('pedido_tenant_fk', 'vendedor.pedido', 'plataforma.tenant'),
+    ]);
+    expect(simples.erro).toBeNull();
+    expect(simples.passos).toEqual([
+      { tipo: 'apagar', tabela: 'vendedor.pedido_item' },
+      { tipo: 'apagar', tabela: 'vendedor.pedido' },
+      { tipo: 'apagar', tabela: 'core.cliente' },
+    ]);
+    const ciclo = ordemExclusao(['core.equipe', 'core.usuario'], [
+      fk('usuario_equipe_fk', 'core.usuario', 'core.equipe', true, ['equipe_id']),
+      fk('equipe_supervisor_fk', 'core.equipe', 'core.usuario', false, ['supervisor_id']),
+    ]);
+    expect(ciclo.erro).toBeNull();
+    expect(ciclo.passos[0]).toEqual({ tipo: 'anular', tabela: 'core.usuario', colunas: ['equipe_id'], fk: 'usuario_equipe_fk' });
+    expect(ciclo.passos.slice(1)).toEqual([
+      { tipo: 'apagar', tabela: 'core.equipe' },
+      { tipo: 'apagar', tabela: 'core.usuario' },
+    ]);
+    const travado = ordemExclusao(['a.x', 'a.y'], [fk('x_y', 'a.x', 'a.y'), fk('y_x', 'a.y', 'a.x')]);
+    expect(travado.erro).toContain('ciclo de FK sem coluna anulável entre: a.x, a.y');
+  });
+
+  it('suíte: ❌ só por falha real; bloqueio de privilégio (inclusive no globalSetup) é ⚠️; trava local não reprova', () => {
+    const trava = /fora do ambiente local/i;
+    const base = { arquivos: 2, arquivosVerdes: 1, casos: 3, casosVerdes: 2, casosFalhos: 1, casosPulados: 0 };
+    const falha = (mensagem: string) => ({ ...base, falhas: [{ arquivo: 'db/testes/x.test.ts', casos: ['x'], mensagem }] });
+    expect(classificarSuite(falha('new row violates row-level security policy for table "tenant"'), '', trava).situacao).toBe('alternativa');
+    expect(classificarSuite(falha('expected 0 to be 1'), '', trava).situacao).toBe('falha');
+    expect(classificarSuite(falha('Seed da Fase M fora do ambiente local'), '', trava).situacao).toBe('ok');
+    const vazia = { ...base, arquivos: 0, arquivosVerdes: 0, falhas: [] };
+    expect(classificarSuite(vazia, 'error: permission denied to alter role', trava).situacao).toBe('alternativa');
+    expect(classificarSuite(vazia, 'Error: Cannot find module', trava).situacao).toBe('falha');
+  });
+
+  it('seção "Plano B" traz B0–B3 com custo e o que foi medido; o atalho do mgc_superuser só aparece se ele der BYPASSRLS', () => {
+    const med: MedicoesPlanoB = {
+      adminIgnoraRls: false,
+      replicacaoPermitida: false,
+      mgc: { existe: true, setRole: true, superusuario: false, ignoraRls: false },
+      bypassConcedivel: false,
+      vectorDireto: true,
+      vectorViaMgc: null,
+      b1: { ok: true, variante: 'papel macuxi_dbaas_manutencao', tabelas: 98 },
+      b2: { ok: true, passos: 90, anuladas: ['core.usuario (usuario_equipe_fk)'], gatilhos: ['core.x: g'], erro: null },
+      logRegistraPapel: false,
+      suiteBloqueada: true,
+    };
+    const texto = secaoPlanoB(med).join('\n');
+    for (const trecho of ['## Plano B', '**B0', '**B1', '**B2', '**B3', 'Custo:', 'papeis.ts', 'conferir-rls.sql', 'excluir_tenant', 'SET app.tenant_id', '98 tabelas']) {
+      expect(texto).toContain(trecho);
+    }
+    expect(texto).not.toContain('Atalho medido');
+    const comAtalho = secaoPlanoB({ ...med, mgc: { existe: true, setRole: true, superusuario: false, ignoraRls: true } }).join('\n');
+    expect(comAtalho).toContain('Atalho medido');
+  });
+});
+
+describe('script do contêiner (db/dbaas/teste-compatibilidade.ts)', () => {
+  const ts = readFileSync(join(PASTA_DB, 'dbaas', 'teste-compatibilidade.ts'), 'utf8');
+
+  it('não usa os caminhos do @macuxi/db que fazem ALTER ROLE com atributo (criarBanco, garantirPapel*)', () => {
+    const codigo = ts.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*\*)/.test(l));
+    expect(codigo.filter((l) => /\bcriarBanco\b|\bgarantirPapelApp\b|\bgarantirPapelWorker\b/.test(l))).toEqual([]);
+    expect(codigo.filter((l) => /alter role/i.test(l) && /no(superuser|bypassrls|replication)/i.test(l))).toEqual([]);
+    expect(ts).toContain('verificadorScram(senha)');
+  });
+
+  it('a limpeza apaga bases e papéis de teste no finally e no --so-limpar; tentativas de privilégio ficam em transação desfeita', () => {
+    expect(ts).toMatch(/finally \{[\s\S]*await limpar\(/);
+    expect(ts).toContain("'L3'");
+    expect(ts).toContain("rolname like 'macuxi\\\\_dbaas\\\\_%'");
+    expect(ts).toContain("tentar(c, 'alter role current_user bypassrls')");
+    expect((ts.match(/await c\.query\('rollback'\)\.catch/g) ?? []).length).toBeGreaterThanOrEqual(4);
   });
 });
 
