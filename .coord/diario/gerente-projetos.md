@@ -262,3 +262,5 @@
 2026-11-05 — coord — lote P (coordenação) no main (f702090..158bdec), CI verde; fora: recados/lidos do Alexandre e _instalar (governança/Alexandre)
 2026-11-05 — T-0071/T-0052 — Adicionar ao pedido: 🔴 do engenheiro-apps (setParams cria entrada na pilha: voltar em 2 toques, produto pode voltar ao pedido) + 🟡 do designer → modulo-vendedor; não entra em lote antes da reconferência
 2026-11-05 — T-0026 — 000011 duplicado: seed passa a numerar acima do maior número já emitido (numerarPedidosDemo), em revisão pelo engenheiro-software
+2026-11-05 — T-0026/T-0052 — lote Q (dce8f39: seed sem número repetido, vitrine com um principal, rodapé do kit) no CI 42126286809; Adicionar ao pedido fora até o 🔴 do pedido em edição; guardião bloqueou um comando meu que gravava arquivo e citava o Alexandre num filtro — refeito sem o filtro
+2026-11-05 — T-0026/T-0052 — lote Q no main (158bdec..dce8f39, 6 commits): seed sem número repetido, vitrine com um principal, rodapé do kit sem sinal; CI verde no commit exato, verificar e trailer OK
