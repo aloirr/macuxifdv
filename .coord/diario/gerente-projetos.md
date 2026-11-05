@@ -231,3 +231,10 @@
 2026-11-05 — T-0072 — #94: revisão de UX com o designer-ux; a do engenheiro-software entra na próxima vaga
 2026-11-05 — T-0072 — #94 sem 🔴 de UX (R-20261105-133817; 6 🟡 e 10 🟢 viram tarefa do modulo-core depois do merge); falta a revisão técnica e o main verde
 2026-11-05 — T-0072 — shell: aba acesa pela dona da pilha, useVoltarDoShell, E1 (substituição marcada no JUMP_TO, sem janela de tempo) e E2 (testes de guarda do expo-router) — condição da ADR 0026 cumprida; SDK: versaoLinhas/linhasPorCampo/contarLinhas com o engenheiro-software
+2026-11-05 — T-0072 — #94 sem 🔴 técnico (R-20261105-134013; 1 🟡 check-in preso em falha + 5 🟢 → modulo-core depois do merge); lote L (c8326fe, sem Catálogo/SDK/kit) no CI 42077831853 para deixar o main verde e liberar o merge do #94
+2026-11-05 — T-0071/T-0072 — lote L no main (9e5e931..c8326fe, 6 commits): RN-VEN-11 arredondado para cima, orçamentos no Gestão, valor pendente, histórico de telas por aba (ADR 0026), aba acesa; CI verde no commit exato, verificar e trailer OK
+2026-11-05 — T-0072 — PR #94 mesclado pela regra A (squash 21aa690, Agente: modulo-core); modules/core/app destravado no quadro
+2026-11-05 — status — status das 14h por recado; lote M (Catálogo) com 4 falhas de banco no 1º CI → modulo-catalogo e testes
+2026-11-05 — T-0052/T-0008 — motor de sync com linhasPorCampo, contarLinhas e versaoLinhas (SQLite com json_each; estoque 40 mil linhas de 930 para 31 ms); adoção no Catálogo e índices no aparelho pendentes; build de preview do 21aa690 com o engenheiro-apps
+2026-11-05 — T-0081/T-0082 — 🟢/🟡 do Farol e do Plano de RV entregues (422 para mês futuro, aviso do mês passado, 409 no PUT simultâneo, plano_id por pessoa, confirmação ao sair do editor, licencaDoTenant comum); modulo-core segue no app: chip Etapa pendente, selo no Cliente 360, check-in preso, sobreEscuro e 🟡 de UX do #94
+2026-11-05 — T-0052 — decisão: busca sem nenhum acerto (nem prefixo) acima de ~5 mil produtos devolve vazio em vez de varrer (93 s); busca_log era limpeza do teste (urlAdmin), sem GRANT novo
