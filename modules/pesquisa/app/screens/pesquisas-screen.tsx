@@ -1,61 +1,121 @@
 /**
- * Aba "Pesquisas" (RF-PES-03): pesquisas avulsas disponíveis agora para o usuário, offline. As que pedem cliente ou já
- * foram respondidas no período aparecem como indisponíveis, com o motivo e quando voltam (RN-PES-02).
+ * Aba "Pesquisas" (RF-PES-03): pesquisas avulsas disponíveis agora para o usuário, offline. As já respondidas no período
+ * aparecem em "Respondidas" (com o dia em que voltam, RN-PES-02) e as que pedem cliente em "Na ficha do cliente".
  * A obrigatória do checkout não aparece aqui: ela é etapa da visita (`visita.etapas_checkout`).
+ * Visual T-0072 (docs/design/componentes.md): cartões tocáveis, chips de estado com texto, estados vazios; sem principal.
  */
-import { Banner, Button, Card, Empty, Loading, Screen, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Cartao, ChipEstado, colors, EstadoVazio, Icon, Loading, RotuloSecao, Screen, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { dataBr } from '../lib/entrada';
 import { irParaResponder } from '../rotas';
 import { usePesquisa } from '../state/use-pesquisa';
+
+const perguntas = (n: number) => (n === 1 ? '1 pergunta' : `${n} perguntas`);
 
 export default function PesquisasScreen() {
   const { carregado, oferta, pendentesNaFila, offline, usuario, fuso } = usePesquisa();
   /** RN-CORE-23: puxar = Sincronizar pelo agendador do app (trava de 30 s); o hook relê o retrato a cada sincronização. */
   const auto = useAtualizacaoAutomatica({ tz: fuso });
   const { disponiveis, indisponiveis } = useMemo(() => oferta({ cliente_id: null, visita_id: null }), [oferta]);
+  // RN-PES-02: "FREQUENCIA" = já respondida no período; o resto mostrado aqui pede um cliente (CLIENTE_FORA_DO_PUBLICO)
+  const respondidas = indisponiveis.filter((d) => d.motivo === 'FREQUENCIA');
+  const doCliente = indisponiveis.filter((d) => d.motivo !== 'FREQUENCIA');
+  const semNada = disponiveis.length === 0 && indisponiveis.length === 0;
 
   return (
     <Screen testID="pesquisas" refreshing={auto.puxando} onRefresh={auto.puxar}>
-      <View style={{ gap: 2 }}>
-        <Text style={t.h1}>Pesquisas</Text>
-        <Text style={t.sub}>Responda mesmo sem sinal: a resposta fica no aparelho e vai sozinha quando a conexão voltar.</Text>
+      <View style={estilos.topo}>
+        <Text style={[t.h1, { flex: 1 }]}>Pesquisas</Text>
+        {pendentesNaFila > 0 ? (
+          <ChipEstado
+            testID="pesquisas.fila"
+            tom={offline ? 'aviso' : 'neutro'}
+            icone={offline ? 'wifiOff' : 'sync'}
+            texto={`${pendentesNaFila} na fila`}
+            rotuloAcessivel={`${pendentesNaFila === 1 ? '1 resposta' : `${pendentesNaFila} respostas`} na fila${offline ? ', sem sinal' : ', enviando'}`}
+          />
+        ) : null}
       </View>
 
-      {pendentesNaFila > 0 ? (
-        <Banner testID="pesquisas.fila">
-          <Strong>{pendentesNaFila === 1 ? '1 resposta na fila do aparelho.' : `${pendentesNaFila} respostas na fila do aparelho.`}</Strong> {offline ? 'Envio automático quando o sinal voltar.' : 'Enviando…'}
-        </Banner>
+      {!carregado ? <Loading /> : null}
+      {carregado && !usuario?.perfil ? <EstadoVazio icone="user" titulo="Entre com seu usuário" testID="pesquisas.sem-usuario" /> : null}
+      {carregado && usuario?.perfil && semNada ? (
+        <Cartao preenchimento={0}>
+          <EstadoVazio icone="clipboard" titulo="Nenhuma pesquisa agora" texto="Puxe para baixo para sincronizar." testID="pesquisas.vazio" />
+        </Cartao>
       ) : null}
 
-      {!carregado ? <Loading /> : null}
-      {carregado && !usuario?.perfil ? <Empty text="Entre com seu usuário para ver as pesquisas." /> : null}
-      {carregado && usuario?.perfil && disponiveis.length === 0 && indisponiveis.length === 0 ? <Empty text="Nenhuma pesquisa disponível agora. Puxe a tela para sincronizar." /> : null}
+      {disponiveis.length > 0 ? <RotuloSecao texto={`Para responder · ${disponiveis.length}`} testID="pesquisas.secao-disponiveis" /> : null}
+      {disponiveis.map((d, i) => {
+        const n = d.versao.perguntas.length;
+        return (
+          <Cartao
+            key={d.questionario_id}
+            testID={`pesquisas.disponivel-${i + 1}`}
+            onPress={() => irParaResponder({ questionario: d.questionario_id })}
+            rotuloAcessivel={`Responder ${d.titulo}, ${perguntas(n)}`}
+            gap={4}>
+            <View style={estilos.linha}>
+              <Text style={[estilos.titulo, { flex: 1 }]} numberOfLines={2}>
+                {d.titulo}
+              </Text>
+              <Icon name="chevron" size={18} color={colors.ink3} />
+            </View>
+            {d.versao.descricao ? (
+              <Text style={t.sub} numberOfLines={2}>
+                {d.versao.descricao}
+              </Text>
+            ) : null}
+            <Text style={t.small} testID={`pesquisas.responder-${i + 1}`}>
+              {perguntas(n)}
+            </Text>
+          </Cartao>
+        );
+      })}
 
-      {disponiveis.map((d, i) => (
-        <Card key={d.questionario_id} testID={`pesquisas.disponivel-${i + 1}`} style={{ padding: 16, gap: 10 }}>
-          <Text style={t.title16}>{d.titulo}</Text>
-          {d.versao.descricao ? <Text style={t.sub}>{d.versao.descricao}</Text> : null}
-          <Text style={t.small}>
-            {d.versao.perguntas.length} {d.versao.perguntas.length === 1 ? 'pergunta' : 'perguntas'}
-          </Text>
-          <Button testID={`pesquisas.responder-${i + 1}`} label="Responder" icon="edit" height={48} onPress={() => irParaResponder({ questionario: d.questionario_id })} />
-        </Card>
-      ))}
+      {respondidas.length > 0 ? <RotuloSecao texto={`Respondidas · ${respondidas.length}`} testID="pesquisas.secao-respondidas" /> : null}
+      {respondidas.length > 0 ? (
+        <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
+          {respondidas.map((d, i) => (
+            <View key={d.questionario_id} testID={`pesquisas.respondida-${i + 1}`} style={[estilos.item, i < respondidas.length - 1 && estilos.divisor]}>
+              <View style={estilos.linha}>
+                <Text style={[estilos.titulo, { flex: 1 }]} numberOfLines={2}>
+                  {d.titulo}
+                </Text>
+                <ChipEstado pequeno tom="sucesso" icone="check" texto="Respondida" />
+              </View>
+              {d.liberada_em ? <Text style={t.small}>Volta em {dataBr(d.liberada_em)}</Text> : null}
+            </View>
+          ))}
+        </Cartao>
+      ) : null}
 
-      {indisponiveis.length > 0 ? <Text style={[t.label, { marginTop: 6 }]}>INDISPONÍVEIS AGORA</Text> : null}
-      {indisponiveis.map((d, i) => (
-        <Card key={d.questionario_id} testID={`pesquisas.indisponivel-${i + 1}`} style={{ padding: 16, gap: 4 }}>
-          <Text style={t.bodyStrong}>{d.titulo}</Text>
-          <Text style={t.small}>
-            {d.mensagem}
-            {d.liberada_em ? ` Volta em ${dataBr(d.liberada_em)}.` : ''}
-          </Text>
-        </Card>
-      ))}
+      {doCliente.length > 0 ? <RotuloSecao texto="Na ficha do cliente" testID="pesquisas.secao-cliente" /> : null}
+      {doCliente.length > 0 ? (
+        <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
+          {doCliente.map((d, i) => (
+            <View key={d.questionario_id} testID={`pesquisas.indisponivel-${i + 1}`} style={[estilos.item, i < doCliente.length - 1 && estilos.divisor]}>
+              <View style={estilos.linha}>
+                <Text style={[estilos.titulo, { flex: 1 }]} numberOfLines={2}>
+                  {d.titulo}
+                </Text>
+                <ChipEstado pequeno tom="neutro" icone="users" texto="Por cliente" rotuloAcessivel="Responda na ficha do cliente" />
+              </View>
+            </View>
+          ))}
+        </Cartao>
+      ) : null}
 
       <Text style={[t.small, { textAlign: 'center' }]}>{auto.rodape}</Text>
     </Screen>
   );
 }
+
+const estilos = StyleSheet.create({
+  topo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  linha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  titulo: { ...t.bodyStrong, fontSize: 15 },
+  item: { gap: 4, paddingVertical: 12, paddingHorizontal: 14 },
+  divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+});
