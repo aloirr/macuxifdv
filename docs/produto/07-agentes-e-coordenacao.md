@@ -122,6 +122,14 @@ criado_em: 2026-10-31T14:05:12-04:00
 - PR de governança exige, na caixa do gerente, um recado `R-...-alexandre.md` com `de: alexandre` e a frase "autorizo o merge do PR #N no commit <sha>", com o mesmo N e SHA. Nenhum agente cria recado em nome do Alexandre (o guardião barra).
 - Depois que a T-0049 entrar, o CI do main fica vermelho se um commit mexer em governança sem `Agente: alexandre`.
 
+**Lotes locais direto ao `main`, sem PR** (decisão do Alexandre, 04/11/2026, para os lotes do APK): o gerente monta um branch `verificacao/<tarefas>-lote` em cima do `main`, com um commit por dono e o trailer `Agente: <dono>`. Esse branch só sobe com as quatro condições:
+1. CI completo (`workflow_dispatch`) verde **exatamente no commit que vai subir**;
+2. push **fast-forward**, sem force e sem rebase de commit já enviado;
+3. `node scripts/coord.mjs verificar --por-commit origin/main..<commit>` OK em todos os commits;
+4. revisão do engenheiro-software sem 🔴 e do designer-ux sem 🔴 nas telas.
+
+Se alguma falhar, o lote não sobe e o gerente avisa o Alexandre. Os PRs da nuvem continuam pela regra A, e a governança, pelo rito de autorização acima. O gerente manda um status com os hashes a cada lote que sobe.
+
 **Merge pelo gerente de PR pronto que não é de governança** (decisão do Alexandre, R-20261101-165024): vale para PR da nuvem marcado "[PRONTO PARA MERGE]" que não toca `.claude/**`, `.coord/donos.json`, `scripts/coord*.mjs` nem `.github/**`. Com o CI do `main` verde, o gerente confere três coisas:
 - o CI do PR está verde (com o main já mesclado no branch, se o GitHub exigir);
 - o head SHA é o do momento da marcação;
