@@ -172,3 +172,7 @@ R-20261105-141239-modulo-core
 R-20261105-141248-modulo-core
 R-20261105-133422-testes
 R-20261105-135219-modulo-catalogo
+R-20261105-162501-modulo-vendedor
+R-20261105-162536-modulo-vendedor
+R-20261105-163624-modulo-vendedor
+R-20261105-164705-modulo-catalogo

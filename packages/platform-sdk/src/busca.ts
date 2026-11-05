@@ -13,9 +13,9 @@ import { MODULOS, type ModuloId } from './nomes';
 import { ENTIDADE_SYNC_RE } from './nomes';
 import type { ArmazenamentoSync } from './motor-sync';
 import type { LinhaSync } from './sync';
-import type { BuscaTextoSync, ConsultaTexto, ResultadoBusca } from './busca-tipos';
+import type { BuscaTextoSync, ConsultaTexto, DesfechoBusca, ResultadoBusca } from './busca-tipos';
 
-export type { BuscaTextoSync, ConsultaTexto, ResultadoBusca } from './busca-tipos';
+export type { BuscaTextoSync, ConsultaTexto, DesfechoBusca, MotivoSemBusca, ResultadoBusca } from './busca-tipos';
 
 // ---------- consulta ----------
 
@@ -216,12 +216,16 @@ export function leitorSobre(base: ArmazenamentoSync): LeitorLinhas {
  */
 export function comBuscaEmJs(base: ArmazenamentoSync, indices: readonly IndiceBusca[]): ArmazenamentoSync {
   const porId = new Map(indices.map((i) => [i.id, i] as const));
-  const busca: BuscaTextoSync = {
+  const busca: Required<Pick<BuscaTextoSync, 'buscar' | 'buscarComDesfecho'>> = {
     async buscar(id, consulta) {
+      const d = await busca.buscarComDesfecho(id, consulta);
+      return d.buscou ? d.resultados : [];
+    },
+    async buscarComDesfecho(id, consulta): Promise<DesfechoBusca> {
       const indice = porId.get(id);
       if (!indice) throw new Error(`Índice de busca ${id} não registrado`);
       const grupos = prepararConsulta(consulta);
-      if (!grupos) return [];
+      if (!grupos) return { buscou: false, motivo: 'consulta_vazia' };
       const ler = leitorSobre(base);
       const chaves = new Set<string>();
       for (const f of indice.fontes)
@@ -239,8 +243,8 @@ export function comBuscaEmJs(base: ArmazenamentoSync, indices: readonly IndiceBu
         if (pontuacao !== null) achados.push({ chave, pontuacao });
       }
       achados.sort((a, b) => a.pontuacao - b.pontuacao || (a.chave < b.chave ? -1 : a.chave > b.chave ? 1 : 0));
-      return achados.slice(0, limiteDaConsulta(consulta));
+      return { buscou: true, resultados: achados.slice(0, limiteDaConsulta(consulta)) };
     },
   };
-  return { ...base, busca };
+  return { ...base, busca: busca satisfies BuscaTextoSync };
 }

@@ -24,6 +24,7 @@ import {
   montarConsultaFts,
   type BuscaTextoSync,
   type ConsultaTexto,
+  type DesfechoBusca,
   type IndiceBusca,
   type LeitorLinhas,
   type ResultadoBusca,
@@ -82,9 +83,12 @@ export interface OpcoesArmazenamentoSqlite {
   registrarErro?: (mensagem: string) => void;
 }
 
+/** A busca do SQLite sempre separa "não achou" de "não buscou" (`buscarComDesfecho` obrigatório; T-0052). */
+export type BuscaSqlite = BuscaTextoSync & Required<Pick<BuscaTextoSync, 'buscarComDesfecho'>>;
+
 export interface ArmazenamentoSqlite extends ArmazenamentoSync {
   linhas: LinhasSync;
-  busca: BuscaTextoSync;
+  busca: BuscaSqlite;
   /** Abertura concluída (PRAGMAs e migrações). Toda operação já espera por ela. */
   pronto: Promise<void>;
   /** Módulos cujas migrações locais falharam nesta abertura. */
@@ -612,15 +616,20 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
     removerModulo: (m) => removerModuloEm(tx, m),
   });
 
-  const busca: BuscaTextoSync = {
+  const busca: BuscaSqlite = {
     async buscar(id: string, consulta: ConsultaTexto): Promise<ResultadoBusca[]> {
+      const d = await busca.buscarComDesfecho(id, consulta);
+      return d.buscou ? d.resultados : [];
+    },
+    async buscarComDesfecho(id: string, consulta: ConsultaTexto): Promise<DesfechoBusca> {
       await aberto();
       const i = indicePorId.get(id);
       if (!i) throw new Error(`Índice de busca ${id} não registrado`);
       const fts = montarConsultaFts(consulta);
-      if (!fts) return [];
-      if (indisponiveis.has(i.modulo) && !(await serializar(() => garantirModulo(driver, i.modulo)))) return [];
-      if (!(await serializar(() => indiceValido(driver, i)))) return [];
+      if (!fts) return { buscou: false, motivo: 'consulta_vazia' };
+      if (indisponiveis.has(i.modulo) && !(await serializar(() => garantirModulo(driver, i.modulo))))
+        return { buscou: false, motivo: 'modulo_indisponivel' };
+      if (!(await serializar(() => indiceValido(driver, i)))) return { buscou: false, motivo: 'indice_invalido' };
       await reindexarSeMarcado(i);
       if ((await lerKv<boolean>(driver, chaveSujo(i.id))) === true)
         await serializar(() => transacao((tx) => reconstruir(tx, i)));
@@ -633,11 +642,11 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
             ORDER BY pontuacao, chave LIMIT ?`,
           [fts, limiteDaConsulta(consulta)],
         );
-        return rs.map((r) => ({ chave: r.chave, pontuacao: r.pontuacao }));
+        return { buscou: true, resultados: rs.map((r) => ({ chave: r.chave, pontuacao: r.pontuacao })) };
       } catch (e) {
-        // erro do FTS vira lista vazia; o log leva só o tamanho e o índice (nunca o texto digitado)
+        // erro do FTS = não buscou (em `buscar`, lista vazia); o log leva só o tamanho e o índice (nunca o texto digitado)
         registrarErro(`busca ${i.id} recusada pelo FTS (consulta de ${fts.length} caracteres): ${(e as Error).message}`);
-        return [];
+        return { buscou: false, motivo: 'erro_busca' };
       }
     },
     async finalizar() {

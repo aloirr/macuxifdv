@@ -52,7 +52,7 @@ import {
   type ResultadoEnvioArquivo,
   type TipoArquivo,
 } from './arquivos';
-import type { BuscaTextoSync, ConsultaTexto, ResultadoBusca } from './busca-tipos';
+import type { BuscaTextoSync, ConsultaTexto, DesfechoBusca, ResultadoBusca } from './busca-tipos';
 import { MODULOS, type ModuloId } from './nomes';
 import type { NovidadesResposta } from './novidades';
 import type { ItemPush, LinhaSync, PaginaSync, RegistroSync, ResultadoItemPush } from './sync';
@@ -608,25 +608,59 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     for (const f of ouvintes) f(estado);
   };
 
-  const gravarFila = async (fila: ItemOutbox[]) => {
-    mudar({ fila });
-    await op.armazenamento.gravar(CHAVE.fila, fila);
+  // ---------- gravação das filas (D-T0039d) ----------
+  /**
+   * Fila, aceitos, arquivos, limpeza e módulos: o DISCO primeiro, o estado em memória só depois. Gravação que falha
+   * (disco cheio, SQLite travado) deixa memória e disco como estavam — sem item "fantasma" que a tela mostra e o envio
+   * manda, mas que some ao fechar o app. As mudanças rodam uma por vez e cada uma calcula a lista nova sobre o estado
+   * DA SUA VEZ: sem isso, duas mudanças simultâneas (ex.: `enfileirar` durante o `push`) leriam a mesma lista e a
+   * segunda apagaria a primeira. Regra: nada chamado dentro de `emSerie` chama `emSerie` de novo (travaria).
+   */
+  let gravacoes: Promise<unknown> = Promise.resolve();
+  const emSerie = <T>(fn: () => Promise<T>): Promise<T> => {
+    const r = gravacoes.then(fn);
+    gravacoes = r.catch(() => undefined);
+    return r;
   };
 
-  const gravarAceitos = async (aceitos: ItemAceito[]) => {
-    mudar({ aceitos });
-    await op.armazenamento.gravar(CHAVE.aceitos, aceitos);
-  };
+  /** Listas novas da fila e/ou dos aceitos; `primeiro` = a que GANHA itens (vai primeiro ao disco). */
+  type MudancaFila = { fila?: ItemOutbox[]; aceitos?: ItemAceito[]; primeiro?: 'fila' | 'aceitos' };
 
   /**
-   * Fila e aceitos mudam juntos no estado (a tela nunca vê o item fora dos dois). No disco, aceitos primeiro: se o app
-   * cair entre as gravações, o item fica nos dois — é reenviado (idempotente) e a sobreposição repetida é inofensiva.
+   * Muda fila e aceitos: `calcular` recebe o estado da vez (`null` = nada muda). Com as duas listas, grava primeiro a
+   * que ganha itens (padrão: aceitos, o item vai da fila para a sobreposição): se a segunda gravação falhar ou o app
+   * cair entre as duas, o item fica nos dois — é reenviado (idempotente) e a sobreposição repetida é inofensiva; nunca
+   * fica em nenhum. A memória segue o disco também nesse caso (só a lista gravada muda).
    */
-  const gravarFilaEAceitos = async (fila: ItemOutbox[], aceitos: ItemAceito[]) => {
-    mudar({ fila, aceitos });
-    await op.armazenamento.gravar(CHAVE.aceitos, aceitos);
-    await op.armazenamento.gravar(CHAVE.fila, fila);
-  };
+  const mudarFila = (calcular: (e: EstadoMotorSync) => MudancaFila | null): Promise<void> =>
+    emSerie(async () => {
+      const m = calcular(estado);
+      if (!m || (!m.fila && !m.aceitos)) return;
+      const ordem: Array<'fila' | 'aceitos'> = m.primeiro === 'fila' ? ['fila', 'aceitos'] : ['aceitos', 'fila'];
+      const gravadas: Partial<EstadoMotorSync> = {};
+      try {
+        for (const k of ordem) {
+          const lista = m[k];
+          if (!lista) continue;
+          await op.armazenamento.gravar(k === 'fila' ? CHAVE.fila : CHAVE.aceitos, lista);
+          Object.assign(gravadas, { [k]: lista });
+        }
+      } finally {
+        if (Object.keys(gravadas).length > 0) mudar(gravadas);
+      }
+    });
+
+  const gravarFila = (fila: (atual: readonly ItemOutbox[]) => ItemOutbox[] | null) =>
+    mudarFila((e) => {
+      const nova = fila(e.fila);
+      return nova ? { fila: nova } : null;
+    });
+
+  const gravarAceitos = (aceitos: (atual: readonly ItemAceito[]) => ItemAceito[] | null) =>
+    mudarFila((e) => {
+      const nova = aceitos(e.aceitos);
+      return nova ? { aceitos: nova } : null;
+    });
 
   /** O pull cobre o aceite? Com os campos do servidor, compara no relógio do banco; sem eles, no do aparelho. */
   const cobre = (item: ItemAceito, c: Cobertura | undefined): boolean => {
@@ -649,20 +683,24 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   /** Fim da sincronização: sai da sobreposição o aceito cuja linha o pull já trouxe (D-3). */
   const liberarAceitos = async (coberturas: ReadonlyMap<string, Cobertura>) => {
     if (estado.aceitos.length === 0) return;
-    const ficam = estado.aceitos.filter((i) => !alvosDoAceite(i).every((e) => cobre(i, coberturas.get(e))));
-    if (ficam.length !== estado.aceitos.length) await gravarAceitos(ficam);
+    await gravarAceitos((atual) => {
+      const ficam = atual.filter((i) => !alvosDoAceite(i).every((e) => cobre(i, coberturas.get(e))));
+      return ficam.length !== atual.length ? ficam : null;
+    });
   };
 
   /** RN-CORE-02: os aceitos do módulo desativado saem da sobreposição (os dados dele saem do aparelho). */
-  const descartarAceitosDoModulo = async (modulo: ModuloId) => {
-    if (estado.aceitos.some((i) => i.modulo === modulo))
-      await gravarAceitos(estado.aceitos.filter((i) => i.modulo !== modulo));
-  };
+  const descartarAceitosDoModulo = (modulo: ModuloId) =>
+    gravarAceitos((atual) => (atual.some((i) => i.modulo === modulo) ? atual.filter((i) => i.modulo !== modulo) : null));
 
-  const gravarArquivos = async (arquivos: ItemArquivo[]) => {
-    mudar({ arquivos });
-    await op.armazenamento.gravar(CHAVE.arquivos, arquivos);
-  };
+  /** Fila de arquivos: mesmo cuidado da fila de itens (disco primeiro, uma mudança por vez, sobre o estado da vez). */
+  const gravarArquivos = (calcular: (atual: readonly ItemArquivo[]) => ItemArquivo[] | null): Promise<void> =>
+    emSerie(async () => {
+      const arquivos = calcular(estado.arquivos);
+      if (!arquivos) return;
+      await op.armazenamento.gravar(CHAVE.arquivos, arquivos);
+      mudar({ arquivos });
+    });
 
   /** Apaga o arquivo local sem derrubar o fluxo (arquivo já ausente não é erro). */
   const removerLocal = async (caminho: string) => {
@@ -679,16 +717,19 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
   /** RN-CORE-02: os arquivos do módulo desativado saem da fila e do aparelho. */
   const descartarArquivosDoModulo = async (modulo: ModuloId) => {
-    const doModulo = estado.arquivos.filter((a) => a.modulo === modulo);
-    if (doModulo.length === 0) return;
-    await gravarArquivos(estado.arquivos.filter((a) => a.modulo !== modulo));
+    let doModulo: ItemArquivo[] = [];
+    await gravarArquivos((atual) => {
+      doModulo = atual.filter((a) => a.modulo === modulo);
+      return doModulo.length > 0 ? atual.filter((a) => a.modulo !== modulo) : null;
+    });
     for (const a of doModulo) await removerLocal(a.caminho);
   };
 
-  const gravarLimpeza = async (limpezaPendente: ModuloId[]) => {
-    mudar({ limpezaPendente });
-    await op.armazenamento.gravar(CHAVE.limpeza, limpezaPendente);
-  };
+  const gravarLimpeza = (limpezaPendente: ModuloId[]) =>
+    emSerie(async () => {
+      await op.armazenamento.gravar(CHAVE.limpeza, limpezaPendente);
+      mudar({ limpezaPendente });
+    });
 
   const ativos = () => new Set(estado.modulosAtivos);
 
@@ -751,7 +792,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   const trocarGeracao = async (nova: string): Promise<void> => {
     mudar({ etapa: 'A base do servidor mudou: enviando a fila', progresso: 0 });
     // 1. aceitos ainda sobrepostos voltam para a fila (a base nova pode não ter recebido)
-    if (estado.aceitos.length > 0) await gravarFilaEAceitos(filaNaTrocaDeGeracao(estado.fila, estado.aceitos), []);
+    //    (a fila ganha os itens: vai primeiro ao disco — se o app cair entre as gravações, o item fica nos dois, nunca em nenhum)
+    await mudarFila((e) =>
+      e.aceitos.length > 0 ? { fila: filaNaTrocaDeGeracao(e.fila, e.aceitos), aceitos: [], primeiro: 'fila' } : null,
+    );
     // 2. a fila vai primeiro (o que a base nova recusar fica `falhou`, visível)
     await motor.enviar();
     mudar({ etapa: 'A base do servidor mudou: recarregando os dados' });
@@ -780,8 +824,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     const resultados: ResultadoItemPush[] = [];
     if (!online()) return resultados;
     if (incluirFalhos) {
-      await gravarFila(
-        estado.fila.map((i) => (i.situacao === 'falhou' ? { ...i, situacao: 'pendente' as const } : i)),
+      await gravarFila((atual) =>
+        atual.some((i) => i.situacao === 'falhou')
+          ? atual.map((i) => (i.situacao === 'falhou' ? { ...i, situacao: 'pendente' as const } : i))
+          : null,
       );
     }
     // itens de módulo recém-desativado continuam 'pendente' e vão: o servidor devolve MODULO_INATIVO e o usuário vê (RN-CORE-02)
@@ -806,8 +852,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         } catch (e) {
           const ids = new Set(lote.map((it) => it.id));
           const erro = msg(e);
-          await gravarFila(
-            estado.fila.map((it) =>
+          await gravarFila((atual) =>
+            atual.map((it) =>
               ids.has(it.id)
                 ? { ...it, tentativas: it.tentativas + 1, ultimo_erro: erro, ultima_tentativa_em: quando }
                 : it,
@@ -818,67 +864,74 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         const porId = new Map(resposta.map((r) => [r.id, r] as const));
         resultados.push(...resposta);
         let parar = false;
-        const fila: ItemOutbox[] = [];
-        const aceitos: ItemAceito[] = [];
-        for (const it of estado.fila) {
-          const r = porId.get(it.id);
-          if (!lote.some((l) => l.id === it.id)) {
-            fila.push(it);
-          } else if (!r) {
-            parar = true;
-            fila.push({
-              ...it,
-              tentativas: it.tentativas + 1,
-              ultimo_erro: 'O servidor não respondeu por este item.',
-              ultima_tentativa_em: quando,
-            });
-          } else if (r.status === 'aceito') {
-            // enviado: sai da fila, mas continua sobreposto até o pull trazer a linha (D-3, ADR 0009 §3)
-            aceitos.push({
-              ...it,
-              situacao: 'aceito',
-              tentativas: it.tentativas + 1,
-              ultimo_erro: '',
-              ultima_tentativa_em: quando,
-              codigo: null,
-              aceito_em: agora().toISOString(),
-              aceito_servidor_em: r.em ?? null,
-            });
-          } else if (r.status === 'rejeitado' && CODIGOS_RETENTAVEIS.includes(r.codigo)) {
-            // ADR 0009 §7: o servidor ainda não recebe a entidade — o item não tem culpa, continua na fila
-            fila.push({
-              ...it,
-              tentativas: it.tentativas + 1,
-              ultimo_erro: r.mensagem,
-              ultima_tentativa_em: quando,
-              situacao: 'pendente',
-              codigo: r.codigo,
-            });
-          } else if (r.status === 'rejeitado') {
-            const situacao: SituacaoItemOutbox = r.codigo === 'MODULO_INATIVO' ? 'modulo_inativo' : 'falhou';
-            fila.push({
-              ...it,
-              tentativas: it.tentativas + 1,
-              ultimo_erro: r.mensagem,
-              ultima_tentativa_em: quando,
-              situacao,
-              codigo: r.codigo,
-            });
-          } else {
-            fila.push({
-              ...it,
-              tentativas: it.tentativas + 1,
-              ultimo_erro: r.mensagem,
-              ultima_tentativa_em: quando,
-              situacao: 'falhou',
-              codigo: 'CONFLITO',
-            });
+        // calculado na vez da gravação, sobre a fila de então (o que entrou ou saiu durante o push é respeitado)
+        const enviados = new Map(lote.map((l) => [l.id, l] as const));
+        await mudarFila((e) => {
+          parar = false;
+          const fila: ItemOutbox[] = [];
+          const aceitos: ItemAceito[] = [];
+          for (const it of e.fila) {
+            const r = porId.get(it.id);
+            const enviado = enviados.get(it.id);
+            // fora do lote, ou alterado (`alterar`) com o push em voo: o servidor recebeu a versão anterior; esta fica
+            // pendente como está e vai no próximo push (upsert idempotente pelo mesmo id) — a edição não se perde
+            if (!enviado || it.payload !== enviado.payload || it.operacao !== enviado.operacao) {
+              fila.push(it);
+            } else if (!r) {
+              parar = true;
+              fila.push({
+                ...it,
+                tentativas: it.tentativas + 1,
+                ultimo_erro: 'O servidor não respondeu por este item.',
+                ultima_tentativa_em: quando,
+              });
+            } else if (r.status === 'aceito') {
+              // enviado: sai da fila, mas continua sobreposto até o pull trazer a linha (D-3, ADR 0009 §3)
+              aceitos.push({
+                ...it,
+                situacao: 'aceito',
+                tentativas: it.tentativas + 1,
+                ultimo_erro: '',
+                ultima_tentativa_em: quando,
+                codigo: null,
+                aceito_em: agora().toISOString(),
+                aceito_servidor_em: r.em ?? null,
+              });
+            } else if (r.status === 'rejeitado' && CODIGOS_RETENTAVEIS.includes(r.codigo)) {
+              // ADR 0009 §7: o servidor ainda não recebe a entidade — o item não tem culpa, continua na fila
+              fila.push({
+                ...it,
+                tentativas: it.tentativas + 1,
+                ultimo_erro: r.mensagem,
+                ultima_tentativa_em: quando,
+                situacao: 'pendente',
+                codigo: r.codigo,
+              });
+            } else if (r.status === 'rejeitado') {
+              const situacao: SituacaoItemOutbox = r.codigo === 'MODULO_INATIVO' ? 'modulo_inativo' : 'falhou';
+              fila.push({
+                ...it,
+                tentativas: it.tentativas + 1,
+                ultimo_erro: r.mensagem,
+                ultima_tentativa_em: quando,
+                situacao,
+                codigo: r.codigo,
+              });
+            } else {
+              fila.push({
+                ...it,
+                tentativas: it.tentativas + 1,
+                ultimo_erro: r.mensagem,
+                ultima_tentativa_em: quando,
+                situacao: 'falhou',
+                codigo: 'CONFLITO',
+              });
+            }
           }
-        }
-        if (aceitos.length > 0) {
+          if (aceitos.length === 0) return { fila };
           const novos = new Set(aceitos.map((x) => x.id));
-          await gravarFilaEAceitos(fila, [...estado.aceitos.filter((x) => !novos.has(x.id)), ...aceitos]);
-        } else await gravarFila(fila);
+          return { fila, aceitos: [...e.aceitos.filter((x) => !novos.has(x.id)), ...aceitos] };
+        });
         if (parar) break;
       }
     } finally {
@@ -893,22 +946,26 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     const enviarArquivo = op.transporte.enviarArquivo?.bind(op.transporte);
     // aceitos há 7 dias ou mais: apaga o arquivo local e sai da fila (a tela já não precisa da foto offline)
     const limite = agora().getTime() - DIAS_RETENCAO_ARQUIVO_LOCAL * DIA_MS;
-    const vencidos = estado.arquivos.filter(
-      (a) => a.situacao === 'enviado' && a.enviado_em !== null && Date.parse(a.enviado_em) <= limite,
-    );
-    if (vencidos.length > 0) {
-      const ids = new Set(vencidos.map((a) => a.id));
-      await gravarArquivos(estado.arquivos.filter((a) => !ids.has(a.id)));
-      for (const a of vencidos) await removerLocal(a.caminho);
-    }
-    if (incluirFalhos && estado.arquivos.some((a) => a.situacao === 'falhou'))
-      await gravarArquivos(
-        estado.arquivos.map((a) => (a.situacao === 'falhou' ? { ...a, situacao: 'pendente' as const } : a)),
+    const vencido = (a: ItemArquivo) =>
+      a.situacao === 'enviado' && a.enviado_em !== null && Date.parse(a.enviado_em) <= limite;
+    let vencidos: ItemArquivo[] = [];
+    await gravarArquivos((atual) => {
+      vencidos = atual.filter(vencido);
+      return vencidos.length > 0 ? atual.filter((a) => !vencido(a)) : null;
+    });
+    for (const a of vencidos) await removerLocal(a.caminho);
+    if (incluirFalhos)
+      await gravarArquivos((atual) =>
+        atual.some((a) => a.situacao === 'falhou')
+          ? atual.map((a) => (a.situacao === 'falhou' ? { ...a, situacao: 'pendente' as const } : a))
+          : null,
       );
     if (!ler || !enviarArquivo || !online()) return;
     const aEnviar = estado.arquivos.filter((a) => a.situacao === 'pendente').map((a) => a.id);
     const atualizar = (id: string, mudanca: Partial<ItemArquivo>) =>
-      gravarArquivos(estado.arquivos.map((a) => (a.id === id ? { ...a, ...mudanca } : a)));
+      gravarArquivos((atual) =>
+        atual.some((a) => a.id === id) ? atual.map((a) => (a.id === id ? { ...a, ...mudanca } : a)) : null,
+      );
     for (const id of aEnviar) {
       if (!online()) break;
       const item = estado.arquivos.find((a) => a.id === id);
@@ -1194,26 +1251,29 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
     /** Lê do armazenamento a fila, os módulos e as pendências (chamar uma vez ao abrir o app / trocar de usuário). */
     async carregar(): Promise<void> {
-      const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params, geracao] = await Promise.all([
-        op.armazenamento.ler<ItemOutbox[]>(CHAVE.fila),
-        op.armazenamento.ler<ModuloId[]>(CHAVE.modulos),
-        op.armazenamento.ler<ModuloId[]>(CHAVE.limpeza),
-        op.armazenamento.ler<string>(CHAVE.sincronizadoEm),
-        op.armazenamento.ler<ItemArquivo[]>(CHAVE.arquivos),
-        op.armazenamento.ler<ItemAceito[]>(CHAVE.aceitos),
-        op.armazenamento.ler<ParametrosModulos>(CHAVE.parametros),
-        op.armazenamento.ler<string>(CHAVE.geracao),
-      ]);
-      geracaoGuardada = geracao;
-      parametros = filtrarParametros(params ?? {}, modulos ?? []);
-      mudar({
-        fila: fila ?? [],
-        aceitos: aceitos ?? [],
-        arquivos: arquivos ?? [],
-        modulosAtivos: modulos ?? [],
-        limpezaPendente: limpeza ?? [],
-        sincronizado_em: sincronizadoEm,
-        erro: null,
+      // na vez das gravações: nunca lê o disco antes de uma gravação em curso e sobrescreve a memória depois dela
+      await emSerie(async () => {
+        const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params, geracao] = await Promise.all([
+          op.armazenamento.ler<ItemOutbox[]>(CHAVE.fila),
+          op.armazenamento.ler<ModuloId[]>(CHAVE.modulos),
+          op.armazenamento.ler<ModuloId[]>(CHAVE.limpeza),
+          op.armazenamento.ler<string>(CHAVE.sincronizadoEm),
+          op.armazenamento.ler<ItemArquivo[]>(CHAVE.arquivos),
+          op.armazenamento.ler<ItemAceito[]>(CHAVE.aceitos),
+          op.armazenamento.ler<ParametrosModulos>(CHAVE.parametros),
+          op.armazenamento.ler<string>(CHAVE.geracao),
+        ]);
+        geracaoGuardada = geracao;
+        parametros = filtrarParametros(params ?? {}, modulos ?? []);
+        mudar({
+          fila: fila ?? [],
+          aceitos: aceitos ?? [],
+          arquivos: arquivos ?? [],
+          modulosAtivos: modulos ?? [],
+          limpezaPendente: limpeza ?? [],
+          sincronizado_em: sincronizadoEm,
+          erro: null,
+        });
       });
     },
 
@@ -1256,8 +1316,18 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         situacao: 'pendente',
         codigo: null,
       };
-      await gravarFila([...estado.fila, item]);
-      return item;
+      // D-T0039d: só entra no estado depois de gravado; disco cheio = exceção e a fila fica como estava.
+      // A checagem do id repete na vez da gravação: dois `enfileirar` simultâneos do mesmo id gravam um só.
+      let gravado = item;
+      await gravarFila((atual) => {
+        const ja = atual.find((i) => i.id === item.id);
+        if (ja) {
+          gravado = ja;
+          return null;
+        }
+        return [...atual, item];
+      });
+      return gravado;
     },
 
     /** Altera um item ainda na fila (ex.: editar pedido não enviado), mantendo id e posição. */
@@ -1265,19 +1335,19 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       id: string,
       mudanca: Partial<Pick<ItemOutbox, 'payload' | 'rotulo' | 'detalhe'>>,
     ): Promise<boolean> {
-      if (!estado.fila.some((i) => i.id === id)) return false;
-      await gravarFila(
-        estado.fila.map((i) =>
-          i.id === id
-            ? { ...i, ...mudanca, situacao: 'pendente' as const, ultimo_erro: '', codigo: null }
-            : i,
-        ),
-      );
-      return true;
+      let achou = false;
+      await gravarFila((atual) => {
+        achou = atual.some((i) => i.id === id);
+        if (!achou) return null;
+        return atual.map((i) =>
+          i.id === id ? { ...i, ...mudanca, situacao: 'pendente' as const, ultimo_erro: '', codigo: null } : i,
+        );
+      });
+      return achou;
     },
 
     async descartar(id: string): Promise<void> {
-      await gravarFila(estado.fila.filter((i) => i.id !== id));
+      await gravarFila((atual) => (atual.some((i) => i.id === id) ? atual.filter((i) => i.id !== id) : null));
     },
 
     /**
@@ -1305,16 +1375,26 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         codigo: null,
         enviado_em: null,
       };
-      await gravarArquivos([...estado.arquivos, item]);
-      return item;
+      let gravado = item;
+      await gravarArquivos((atual) => {
+        const ja = atual.find((a) => a.id === id);
+        if (ja) {
+          gravado = ja;
+          return null;
+        }
+        return [...atual, item];
+      });
+      return gravado;
     },
 
     /** Tira o arquivo da fila e apaga o arquivo local (o usuário desistiu dele ou vai registrar de novo). */
     async descartarArquivo(id: string): Promise<void> {
-      const a = estado.arquivos.find((x) => x.id === id.toLowerCase());
-      if (!a) return;
-      await gravarArquivos(estado.arquivos.filter((x) => x.id !== a.id));
-      await removerLocal(a.caminho);
+      const saiu: ItemArquivo[] = [];
+      await gravarArquivos((atual) => {
+        saiu.push(...atual.filter((x) => x.id === id.toLowerCase()));
+        return saiu.length > 0 ? atual.filter((x) => x.id !== id.toLowerCase()) : null;
+      });
+      for (const a of saiu) await removerLocal(a.caminho);
     },
 
     /** Arquivos ainda não aceitos pelo servidor ("Fotos pendentes: N" na tela de sync). */
@@ -1423,28 +1503,26 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     async aplicarModulosAtivos(modulos: readonly ModuloId[], novosParametros?: ParametrosModulos): Promise<void> {
       const anteriores = estado.modulosAtivos;
       const novos = new Set(modulos);
-      parametros = filtrarParametros(novosParametros ?? parametros, modulos);
-      await op.armazenamento.gravar(CHAVE.parametros, parametros);
-      mudar({ modulosAtivos: [...modulos] });
-      await op.armazenamento.gravar(CHAVE.modulos, [...modulos]);
+      // disco primeiro, memória depois (D-T0039d)
+      const novosParams = filtrarParametros(novosParametros ?? parametros, modulos);
+      await emSerie(async () => {
+        await op.armazenamento.gravar(CHAVE.parametros, novosParams);
+        parametros = novosParams;
+        await op.armazenamento.gravar(CHAVE.modulos, [...modulos]);
+        mudar({ modulosAtivos: [...modulos] });
+      });
       // módulo que voltou: itens marcados como "módulo desativado" voltam para a fila
-      const voltaram = estado.fila.some((i) => i.situacao === 'modulo_inativo' && novos.has(i.modulo));
-      if (estado.arquivos.some((a) => a.situacao === 'modulo_inativo' && novos.has(a.modulo)))
-        await gravarArquivos(
-          estado.arquivos.map((a) =>
-            a.situacao === 'modulo_inativo' && novos.has(a.modulo)
-              ? { ...a, situacao: 'pendente' as const, codigo: null, ultimo_erro: '' }
-              : a,
-          ),
-        );
-      if (voltaram)
-        await gravarFila(
-          estado.fila.map((i) =>
-            i.situacao === 'modulo_inativo' && novos.has(i.modulo)
-              ? { ...i, situacao: 'pendente' as const, codigo: null, ultimo_erro: '' }
-              : i,
-          ),
-        );
+      const voltou = (x: { situacao: string; modulo: ModuloId }) => x.situacao === 'modulo_inativo' && novos.has(x.modulo);
+      await gravarArquivos((atual) =>
+        atual.some(voltou)
+          ? atual.map((a) => (voltou(a) ? { ...a, situacao: 'pendente' as const, codigo: null, ultimo_erro: '' } : a))
+          : null,
+      );
+      await gravarFila((atual) =>
+        atual.some(voltou)
+          ? atual.map((i) => (voltou(i) ? { ...i, situacao: 'pendente' as const, codigo: null, ultimo_erro: '' } : i))
+          : null,
+      );
       let limpeza = estado.limpezaPendente.filter((m) => !novos.has(m));
       let tentarEnviar = false;
       for (const m of anteriores.filter((x) => !novos.has(x))) {
@@ -1464,17 +1542,20 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     /** O usuário viu os itens não enviados do módulo desativado: apaga a fila e os dados locais dele. */
     async confirmarLimpeza(modulo: ModuloId): Promise<void> {
       if (!estado.limpezaPendente.includes(modulo)) return;
-      const fila = estado.fila.filter((i) => i.modulo !== modulo);
-      const limpeza = estado.limpezaPendente.filter((m) => m !== modulo);
-      // fila, dados e pendência juntos (com `emTransacao`, tudo ou nada); o estado só muda depois de gravado
-      await apagandoLinhas(() =>
-        emTransacao(async (a) => {
-          await a.gravar(CHAVE.fila, fila);
-          await limparModulo(modulo, a);
-          await a.gravar(CHAVE.limpeza, limpeza);
-        }),
-      );
-      mudar({ fila, limpezaPendente: limpeza });
+      // fila, dados e pendência juntos (com `emTransacao`, tudo ou nada); o estado só muda depois de gravado, e a fila
+      // nova é calculada na vez da gravação (o que entrou na fila enquanto isso não se perde)
+      await emSerie(async () => {
+        const fila = estado.fila.filter((i) => i.modulo !== modulo);
+        const limpeza = estado.limpezaPendente.filter((m) => m !== modulo);
+        await apagandoLinhas(() =>
+          emTransacao(async (a) => {
+            await a.gravar(CHAVE.fila, fila);
+            await limparModulo(modulo, a);
+            await a.gravar(CHAVE.limpeza, limpeza);
+          }),
+        );
+        mudar({ fila, limpezaPendente: limpeza });
+      });
       await descartarArquivosDoModulo(modulo);
       await descartarAceitosDoModulo(modulo);
     },
@@ -1485,16 +1566,20 @@ export function criarMotorSync(op: OpcoesMotorSync) {
      * que ela conhece). Numa transação quando o adaptador sabe. Fotos ainda não enfileiradas são do shell (pasta `fotos/`).
      */
     async limparAparelho(): Promise<void> {
-      const arquivos = estado.arquivos;
-      await apagandoLinhas(() =>
-        emTransacao(async (a) => {
-          for (const m of MODULOS) await limparModulo(m, a);
-          for (const k of await a.chaves('')) await a.remover(k);
-        }),
-      );
-      parametros = {};
-      geracaoGuardada = null;
-      mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null, carga: CARGA_VAZIA });
+      // na vez das gravações da fila: o que entrou antes também sai; o estado só muda depois de apagado
+      const arquivos = await emSerie(async () => {
+        const conhecidos = estado.arquivos;
+        await apagandoLinhas(() =>
+          emTransacao(async (a) => {
+            for (const m of MODULOS) await limparModulo(m, a);
+            for (const k of await a.chaves('')) await a.remover(k);
+          }),
+        );
+        parametros = {};
+        geracaoGuardada = null;
+        mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null, carga: CARGA_VAZIA });
+        return conhecidos;
+      });
       for (const x of arquivos) await removerLocal(x.caminho);
     },
 
@@ -1578,6 +1663,20 @@ export function criarMotorSync(op: OpcoesMotorSync) {
      */
     async buscar(indice: string, consulta: ConsultaTexto): Promise<ResultadoBusca[] | null> {
       return op.armazenamento.busca ? op.armazenamento.busca.buscar(indice, consulta) : null;
+    },
+
+    /**
+     * Como `buscar`, separando "busquei e não achei" (`{ buscou: true, resultados: [] }`) de "não consegui buscar"
+     * (`{ buscou: false, motivo }`: sem a capacidade, consulta vazia/1 letra, módulo indisponível, índice inválido, erro
+     * do FTS). Só o primeiro autoriza concluir "nenhum resultado"; no segundo, o caminho de reserva (varredura).
+     * Armazenamento de fora do SDK sem `buscarComDesfecho`: acerto = `buscou`, lista vazia = `indeterminado`.
+     */
+    async buscarComDesfecho(indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca> {
+      const busca = op.armazenamento.busca;
+      if (!busca) return { buscou: false, motivo: 'sem_busca' };
+      if (busca.buscarComDesfecho) return busca.buscarComDesfecho(indice, consulta);
+      const resultados = await busca.buscar(indice, consulta);
+      return resultados.length > 0 ? { buscou: true, resultados } : { buscou: false, motivo: 'indeterminado' };
     },
 
     /** Parâmetros do tenant do módulo (último `GET /v1/me/modulos`; offline vale o guardado). Módulo inativo = `{}`. */

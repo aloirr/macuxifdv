@@ -17,10 +17,44 @@ export interface ResultadoBusca {
   pontuacao: number;
 }
 
+/**
+ * Por que a busca NÃO foi feita (`DesfechoBusca` com `buscou: false`). Nesses casos não se sabe se há acerto: quem chama
+ * cai no caminho de reserva (ex.: varrer em memória), nunca conclui "nenhum produto".
+ * - `consulta_vazia`: nada pesquisável (vazia, só símbolos, 1 letra no prefixo).
+ * - `modulo_indisponivel`: as migrações locais do módulo dono do índice falharam (SQLite).
+ * - `indice_invalido`: tabelas do índice ausentes ou com colunas diferentes das declaradas (SQLite).
+ * - `erro_busca`: o mecanismo recusou a consulta (erro do FTS5; o log leva só o tamanho, nunca o texto).
+ * - `sem_busca`: o armazenamento não tem a extensão `busca` (só pelo motor).
+ * - `indeterminado`: armazenamento de fora do SDK só com `buscar` devolveu lista vazia (não distingue os casos).
+ */
+export type MotivoSemBusca =
+  | 'consulta_vazia'
+  | 'modulo_indisponivel'
+  | 'indice_invalido'
+  | 'erro_busca'
+  | 'sem_busca'
+  | 'indeterminado';
+
+/**
+ * Desfecho da busca (T-0052, R-20261105-145745): `buscou: true` com `resultados: []` = "busquei e não achei" (dá para
+ * concluir que não há acerto); `buscou: false` = "não consegui buscar", com o motivo.
+ */
+export type DesfechoBusca =
+  | { readonly buscou: true; readonly resultados: ResultadoBusca[] }
+  | { readonly buscou: false; readonly motivo: MotivoSemBusca };
+
 /** Extensão opcional do armazenamento (`ArmazenamentoSync.busca`). */
 export interface BuscaTextoSync {
-  /** Até `limite` chaves em ordem de relevância. Consulta vazia/1 letra/hostil = lista vazia; nunca lança por entrada. */
+  /**
+   * Até `limite` chaves em ordem de relevância. Consulta vazia/1 letra/hostil = lista vazia; nunca lança por entrada.
+   * Lista vazia também quando NÃO conseguiu buscar (compatibilidade); para separar os casos, `buscarComDesfecho`.
+   */
   buscar(indice: string, consulta: ConsultaTexto): Promise<ResultadoBusca[]>;
+  /**
+   * Igual a `buscar`, mas diz se buscou (`resultados`: mesmo conteúdo e ordem de `buscar`) ou por que não buscou.
+   * Opcional para não quebrar armazenamentos de fora do SDK; os do SDK (SQLite e `comBuscaEmJs`) implementam.
+   */
+  buscarComDesfecho?(indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca>;
   /** Fim do sync: reconstrói índices marcados (carga em massa) e otimiza depois de muitas mudanças. */
   finalizar?(): Promise<void>;
 }

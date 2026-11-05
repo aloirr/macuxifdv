@@ -441,3 +441,103 @@ describe('índice de busca no shell (desenho T-0008 §2.1)', () => {
     expect(() => definirIndiceBusca({ ...base, colunas: { 'nome; drop': 1 } })).toThrow(/coluna inválida/);
   });
 });
+
+// T-0052 (R-20261105-145745): "busquei e não achei" × "não consegui buscar". Antes do limiar dos 5 mil do Catálogo
+// (R-20261105-142853), só o primeiro pode virar "nenhum produto"; o segundo continua na varredura.
+describe.each(FABRICAS)('desfecho da busca [%s]', (_nome, fabrica) => {
+  it('buscou: com acerto, resultados iguais (conteúdo e ordem) aos de buscar', async () => {
+    const { motor, armazenamento } = await carregado(fabrica);
+    for (const c of [q(['freio']), qp(['rol']), q(['ceramica'])]) {
+      const d = await motor.buscarComDesfecho(INDICE.id, c);
+      expect(d).toEqual({ buscou: true, resultados: await motor.buscar(INDICE.id, c) });
+      expect(await armazenamento.busca!.buscarComDesfecho!(INDICE.id, c)).toEqual(d);
+    }
+  });
+
+  it('buscou e não achou: { buscou: true, resultados: [] }', async () => {
+    const { motor } = await carregado(fabrica);
+    expect(await motor.buscarComDesfecho(INDICE.id, q(['inexistente']))).toEqual({ buscou: true, resultados: [] });
+    expect(await motor.buscarComDesfecho(INDICE.id, qp(['zzz']))).toEqual({ buscou: true, resultados: [] });
+  });
+
+  it('consulta vazia, só símbolos ou 1 letra no prefixo: não buscou (consulta_vazia); buscar segue com []', async () => {
+    const { motor } = await carregado(fabrica);
+    for (const c of [q([]), qp(['a']), q(['  ', '!!'])]) {
+      expect(await motor.buscarComDesfecho(INDICE.id, c)).toEqual({ buscou: false, motivo: 'consulta_vazia' });
+      expect(await motor.buscar(INDICE.id, c)).toEqual([]);
+    }
+  });
+
+  it('índice não registrado continua lançando (erro de programação, não de entrada)', async () => {
+    const { motor } = await carregado(fabrica);
+    await expect(motor.buscarComDesfecho('catalogo.outro', q(['freio']))).rejects.toThrow(/não registrado/);
+  });
+});
+
+describe('desfecho da busca no motor sem a capacidade completa', () => {
+  it('armazenamento sem busca: sem_busca (buscar segue null)', async () => {
+    const { motor } = await carregado(() => criarArmazenamentoEmMemoria());
+    expect(await motor.buscarComDesfecho(INDICE.id, q(['freio']))).toEqual({ buscou: false, motivo: 'sem_busca' });
+    expect(await motor.buscar(INDICE.id, q(['freio']))).toBeNull();
+  });
+
+  it('busca de fora do SDK só com buscar: acerto = buscou; lista vazia = indeterminado (nunca "não achou")', async () => {
+    const legado = (): ArmazenamentoSync => {
+      const a = comBuscaEmJs(criarArmazenamentoEmMemoria(), [INDICE]);
+      const { buscar } = a.busca!;
+      return { ...a, busca: { buscar } };
+    };
+    const { motor } = await carregado(legado);
+    const d = await motor.buscarComDesfecho(INDICE.id, q(['rolamento']));
+    expect(d.buscou && d.resultados.map((r) => r.chave).sort()).toEqual(['p1', 'p2']);
+    expect(await motor.buscarComDesfecho(INDICE.id, q(['inexistente']))).toEqual({ buscou: false, motivo: 'indeterminado' });
+  });
+});
+
+describe('desfecho da busca no SQLite: falhas que antes viravam lista vazia', () => {
+  it('índice inválido (colunas diferentes): indice_invalido; buscar segue com []', async () => {
+    const a = criarArmazenamentoSqlite(criarDriverNode(), {
+      migracoesModulos: { catalogo: [{ versao: 1, sql: MIGRACOES[0]!.sql.replace('marca, atributos,', 'atributos, marca,') }] },
+      indicesBusca: [INDICE],
+      entidades: ENTIDADES,
+      registrarErro: () => {},
+    });
+    await a.linhas.aplicar('produto', PRODUTOS, 'k');
+    expect(await a.busca.buscarComDesfecho(INDICE.id, q(['rolamento']))).toEqual({ buscou: false, motivo: 'indice_invalido' });
+    expect(await a.busca.buscar(INDICE.id, q(['rolamento']))).toEqual([]);
+  });
+
+  it('módulo indisponível (migração local falhou): modulo_indisponivel; buscar segue com []', async () => {
+    const erros: string[] = [];
+    const a = criarArmazenamentoSqlite(criarDriverNode(), {
+      migracoesModulos: { catalogo: [{ versao: 1, sql: 'CREATE TABLE catalogo__quebrada (' }] },
+      indicesBusca: [INDICE],
+      entidades: ENTIDADES,
+      registrarErro: (m) => erros.push(m),
+    });
+    await a.pronto;
+    expect(a.modulosIndisponiveis()).toEqual(['catalogo']);
+    expect(await a.busca.buscarComDesfecho(INDICE.id, q(['rolamento']))).toEqual({ buscou: false, motivo: 'modulo_indisponivel' });
+    expect(await a.busca.buscar(INDICE.id, q(['rolamento']))).toEqual([]);
+    expect(erros.join(' ')).toMatch(/catalogo indisponível/);
+  });
+
+  it('erro do FTS na consulta: erro_busca, sem o texto digitado no log; buscar segue com []', async () => {
+    const erros: string[] = [];
+    const driver = criarDriverNode(':memory:');
+    const a = criarArmazenamentoSqlite(driver, {
+      migracoesModulos: { catalogo: MIGRACOES },
+      indicesBusca: [INDICE],
+      entidades: ENTIDADES,
+      registrarErro: (m) => erros.push(m),
+    });
+    await a.linhas.aplicar('produto', PRODUTOS, 'k');
+    expect((await a.busca.buscarComDesfecho(INDICE.id, q(['rolamento']))).buscou).toBe(true);
+    // índice já validado nesta abertura; a tabela de documentos some depois (falha na própria consulta)
+    await driver.executar('DROP TABLE catalogo__teste_doc');
+    expect(await a.busca.buscarComDesfecho(INDICE.id, q(['rolamento']))).toEqual({ buscou: false, motivo: 'erro_busca' });
+    expect(await a.busca.buscar(INDICE.id, q(['rolamento']))).toEqual([]);
+    expect(erros.join(' ')).toMatch(/recusada pelo FTS/);
+    expect(erros.join(' ')).not.toMatch(/rolamento/);
+  });
+});

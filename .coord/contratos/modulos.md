@@ -78,3 +78,15 @@ Contrato do `MotorSync` (`@macuxi/platform-sdk`) para os módulos no app. Só ac
 | `motor.contarLinhas(e)` | quantidade de linhas locais | sem ler as linhas |
 | `motor.versaoLinhas(e)` | número opaco (compare com `===`) | muda a cada gravação do pull na entidade e quando o motor apaga linhas; leia ANTES das linhas; não inclui a fila |
 | `LinhasSync.porCampo?` | extensão opcional do armazenamento | SQLite implementa; sem ela o motor filtra `listar` em JS |
+| `motor.buscarComDesfecho(indice, consulta)` (T-0052, 2026-11-05) | `DesfechoBusca`: `{ buscou: true, resultados }` ou `{ buscou: false, motivo }` | Separa "busquei e não achei" (`buscou: true`, `resultados: []`) de "não consegui buscar". `MotivoSemBusca`: `consulta_vazia` (vazia, só símbolos, 1 letra no prefixo), `modulo_indisponivel`, `indice_invalido`, `erro_busca` (FTS recusou), `sem_busca` (armazenamento sem `busca`), `indeterminado` (busca de fora do SDK só com `buscar` e lista vazia). Só `buscou: true` autoriza concluir "nenhum resultado"; `buscou: false` = caminho de reserva (varredura). `resultados` = mesmo conteúdo e ordem de `motor.buscar` |
+| `BuscaTextoSync.buscarComDesfecho?` | extensão opcional da `busca` do armazenamento | SQLite (`BuscaSqlite`, obrigatória) e `comBuscaEmJs` implementam. `buscar`/`motor.buscar` NÃO mudaram (`[]` nos dois casos; `null` sem a capacidade). Testes: `packages/platform-sdk/src/busca.test.ts` (desfecho nos 3 armazenamentos + falhas do SQLite) |
+
+## Fila do aparelho: memória segue o disco (SDK, D-T0039d, 2026-11-05)
+
+Comportamento do `MotorSync` para quem enfileira (assinaturas sem mudança). Testes: `packages/platform-sdk/src/motor-sync.gravacao.test.ts` (3 armazenamentos).
+
+| Função | Comportamento |
+|---|---|
+| `enfileirar`, `alterar`, `descartar`, `enfileirarArquivo`, `descartarArquivo`, `aplicarModulosAtivos` | Gravam no disco ANTES de mudar `estado()`/ouvintes. Falha de gravação (disco cheio) = a promessa rejeita e memória e disco ficam como estavam (sem item "fantasma"). Quem chama trata o erro (ex.: `tentarCheckin` do Core). |
+| Ordem e concorrência | As mudanças da fila rodam uma por vez, cada uma sobre o estado da sua vez: chamadas simultâneas mantêm a ordem de chamada (FIFO) e o mesmo UUID entra uma vez só. A rede do push fica FORA da vez (não trava `enfileirar`); `confirmarLimpeza` e `limparAparelho` seguram a vez enquanto apagam. |
+| `alterar` com o push em voo | O servidor recebe a versão anterior; a versão alterada fica `pendente` na fila e vai no próximo push (upsert idempotente pelo mesmo id). `descartar` com o push em voo: o servidor já recebeu; o item não volta à sobreposição. |
