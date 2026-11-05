@@ -22,6 +22,7 @@ const NAO_DECLARADA = definirConsulta({ nome: 'catalogo.outra@1', entrada: z.obj
 
 const CLIENTE = '0c000000-0000-4000-8000-000000000001';
 let dbDaConsulta: ClienteBanco | null = null;
+let fusoDaConsulta: string | null = null;
 
 /** Catálogo de teste: oferece e implementa a consulta (lê os parâmetros do PRÓPRIO módulo e o usuário da requisição). */
 const catalogoApi = definirModuloApi({
@@ -29,6 +30,7 @@ const catalogoApi = definirModuloApi({
   consultas: [
     implementarConsulta(PRECOS, async (e, ctx) => {
       dbDaConsulta = ctx.db;
+      fusoDaConsulta = ctx.fuso();
       const fator = Number(ctx.parametros().fator_teste ?? 1);
       return { itens: e.produto_ids.map((p) => ({ produto_id: p, preco_cents: p === 'sem' ? null : 1000 * fator })), quem: ctx.usuario.perfil, fator };
     }),
@@ -81,6 +83,23 @@ describe('E1 — tx.consultar no createApp (ADR 0012)', () => {
       // E3: a rota vê os parâmetros do PRÓPRIO módulo; a consulta, os do dono
       parametros_da_rota: { 'alcada.vendedor_pct': 5 },
     });
+  });
+
+  it('R-20261105-015806: a consulta recebe o fuso do tenant de quem consulta (o mesmo ctx.fuso() da rota; inválido = America/Manaus)', async () => {
+    const comFuso = (fuso: string | null) => {
+      const base = opcoesDeTeste(LICENCAS_PADRAO, { banco: bancoFalso().banco });
+      return createApp({
+        ...base,
+        modulos: modulosDeTeste({ catalogo: catalogoApi, vendedor: vendedorApi, promotor: promotorApi }),
+        licencas: async (u, b) => ({ ...(await base.licencas!(u, b)), fuso }),
+      });
+    };
+    for (const [fuso, esperado] of [['America/Sao_Paulo', 'America/Sao_Paulo'], ['America/Rio_Branco', 'America/Rio_Branco'], [null, 'America/Manaus'], ['Marte/Olympus', 'America/Manaus']] as const) {
+      fusoDaConsulta = null;
+      const r = await comFuso(fuso).inject({ method: 'GET', url: '/v1/vendedor/teste-precos', headers: cab('vendedor') });
+      expect(r.statusCode, r.body).toBe(200);
+      expect(fusoDaConsulta).toBe(esperado);
+    }
   });
 
   it('dono opcional inativo para o usuário → ConsultaIndisponivel, 503 CONSULTA_INDISPONIVEL se a rota não tratar', async () => {

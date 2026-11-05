@@ -71,6 +71,7 @@ import { LINHAS_VAZIAS as LINHAS_VAZIAS_T, lerLinhas, listaDeClientes, listaDePe
 import { ENTIDADES_VENDEDOR } from '../../modules/vendedor/contracts/entidades';
 import { periodoParcialNaJanela, resumoDaSituacao, situacaoEfetiva } from '../../modules/vendedor/domain/busca-periodo';
 import { filtrarPorVendedor, opcoesDeVendedor, TODOS_OS_VENDEDORES } from '../../modules/vendedor/domain/filtro-vendedor';
+import { estadoDaConsulta, mensagemForaDaJanela } from '../../modules/vendedor/app/lib/consulta-periodo';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
@@ -305,8 +306,28 @@ describe('T-0077 critério 3 — janela do aparelho (90 dias) e "Disponível com
   });
 
   it('a tela: fora da janela e sem sinal mostra "Disponível com conexão"; com texto na busca não vale a janela', () => {
+    // a decisão (função pura de app/lib/consulta-periodo, a mesma que a tela chama)
+    expect(estadoDaConsulta({ fora: true, offline: true })).toBe('disponivel_com_conexao');
+    expect(estadoDaConsulta({ fora: true, offline: false })).toBe('consultar');
+    expect(estadoDaConsulta({ fora: false, offline: true })).toBe('local');
+    expect(estadoDaConsulta({ fora: false, offline: false })).toBe('local');
+    expect(mensagemForaDaJanela('disponivel_com_conexao')).toBe('Disponível com conexão');
+    expect(mensagemForaDaJanela('carregando')).not.toBe('Disponível com conexão');
+    expect(mensagemForaDaJanela('erro')).not.toBe('Disponível com conexão');
+    // o que a tela calcula, com as mesmas peças: julho/2026 fica fora da janela; com texto na busca a janela não vale
+    const foraNaTela = (buscando: boolean, p: Periodo) => !buscando && periodoForaDaJanela(p, AGORA, MANAUS);
+    expect(estadoDaConsulta({ fora: foraNaTela(false, mes('2026-07')), offline: true })).toBe('disponivel_com_conexao');
+    expect(estadoDaConsulta({ fora: foraNaTela(true, mes('2026-07')), offline: true })).toBe('local');
+    expect(estadoDaConsulta({ fora: foraNaTela(false, mes('2026-11')), offline: true })).toBe('local');
+    // a fiação na tela (nomes estáveis): `fora` exige busca vazia; sem sinal = offline do sync OU ambiente sem rede;
+    // o vazio fora da janela vem de mensagemForaDaJanela com 'disponivel_com_conexao' e aparece no <Empty>
     expect(TELA).toMatch(/const fora = !buscando && !semPeriodo && periodoForaDaJanela\(periodo, agora, tz\)/);
-    expect(TELA).toMatch(/fora\s*\?\s*offline\s*\?\s*'Disponível com conexão'/);
+    expect(TELA).toMatch(/const semSinal = offline \|\| !ambiente\.online\(\)/);
+    expect(TELA).toMatch(/const modoConsulta = estadoDaConsulta\(\{ fora, offline: semSinal \}\)/);
+    expect(TELA).toMatch(/const vazio = fora\s*\?[\s\S]{0,160}mensagemForaDaJanela\(modoConsulta === 'disponivel_com_conexao' \? 'disponivel_com_conexao'/);
+    expect(TELA).toMatch(/visiveis\.length === 0 \? <Empty text=\{vazio\} \/> : null/);
+    // sem sinal não há consulta ao servidor: o efeito só roda no estado 'consultar'
+    expect(TELA).toMatch(/if \(modoConsulta !== 'consultar'\) return;/);
   });
 });
 
@@ -504,7 +525,14 @@ describe('T-0077 critério 4 — filtro por vendedor no Gestão (RN-CORE-04, RN-
   it('no Campo o seletor não existe: opções e filtro só com `gestao`, o botão "orders-vendedor" só no ramo do Gestão', () => {
     expect(TELA).toMatch(/const gestao = useVisaoShell\(\)\.app === 'gestao'/);
     expect(TELA).toMatch(/const opcoes = useMemo\(\(\) => \(gestao \? opcoesDeVendedor\(orders\) : \[\]\)/);
-    expect(TELA).toMatch(/const doVendedor = useMemo\(\(\) => \(gestao \? filtrarPorVendedor\(orders, vendedorAtivo\) : orders\)/);
+    // a fonte é a mesma nos dois ramos (aparelho ou, fora dos 90 dias, a consulta ao servidor); só o Gestão filtra
+    const doVendedor = /const doVendedor = useMemo\(\(\) => \(gestao \? filtrarPorVendedor\((\w+), vendedorAtivo\) : (\w+)\)/.exec(TELA);
+    expect(doVendedor, 'doVendedor filtrado só no ramo do Gestão').not.toBeNull();
+    expect(doVendedor![1]).toBe(doVendedor![2]);
+    expect(TELA).toMatch(new RegExp(`const ${doVendedor![1]} = doServidor\\?\\.estado === 'ok' \\? doServidor\\.itens : orders`));
+    expect(TELA).toMatch(/\{gestao \? \(\s*<Folha [^\n]{0,300}testID="orders-vendedor-folha"/);
+    expect((TELA.match(/filtrarPorVendedor\(/g) ?? []).length).toBe(1);
+    expect((TELA.match(/opcoesDeVendedor\(/g) ?? []).length).toBe(1);
     expect(TELA).toMatch(/\{gestao \? \(\s*<Pressable\s+testID="orders-vendedor"/);
     // o filtro vale antes da busca, do período, dos chips e do resumo: os itens nascem de `doVendedor`
     expect(TELA).toMatch(/doVendedor\.map\(/);

@@ -145,6 +145,8 @@ describe('consumidor de evento: ctx.consultar, parametros e fuso (ADR 0012; RN-I
     expect(consulta.ctx.usuario).toEqual({ id: USUARIO_SISTEMA_ID, tenant_id: TENANT, perfil: 'admin', modulos: ['core', 'integracao'] });
     expect(consulta.ctx.parametros()).toEqual({ campos_obrigatorios: ['documento'] });
     expect(consulta.ctx.requestId).toBe('req-1');
+    // R-20261105-015806: a consulta recebe o MESMO fuso do tenant do consumo
+    expect(consulta.ctx.fuso()).toBe('America/Sao_Paulo');
     // entrada validada pelo contrato antes da implementação
     expect((consulta.entrada as { clientes: { chave: string }[] }).clientes[0]!.chave).toBe('C-1');
   });
@@ -154,6 +156,7 @@ describe('consumidor de evento: ctx.consultar, parametros e fuso (ADR 0012; RN-I
     await d.ciclo();
     expect(r.consultas[0]!.ctx.requestId).toBe('22222222-2222-4222-8222-222222222222');
     expect(r.consumos[0]!.ctx.fuso()).toBe('America/Manaus');
+    expect(r.consultas[0]!.ctx.fuso()).toBe('America/Manaus');
   });
 
   it('consulta fora de usaConsultas do consumidor = erro de programação: o consumo falha e o evento volta', async () => {

@@ -2,13 +2,13 @@
  * Consumidor do cliente do ERP (`integracao.cliente.atualizado@1`; T-0060, RN-CORE-16/17). Aplica o plano puro de
  * `domain/cliente-erp.ts` em `core.cliente` (upsert por `external_id`, idempotente) e grava `cadastro_incompleto` e
  * `cadastro_campos_faltantes`; depois publica `core.cliente.atualizado@1` com os mesmos campos (só nomes, nunca valores).
- * O schema abaixo é estrutural (subconjunto do `ClientePayload` do Hub): o Core não depende de pacote do Integracao.
+ * O payload vem do `contracts` do Integracao (`EVENTO_ERP_CLIENTE_ATUALIZADO`), com leitura tolerante (T-0024).
  * T-0066: depois do cadastro, aplica carteira (`vendedor_external_id`), contatos e financeiro (limite, bloqueio) do mesmo
  * payload (`consumidores-erp-cliente-extras.ts`). Vendedor ainda ausente = `ReferenciaAusenteErp` (a outbox repete, RN-INT-04).
  */
-import { z } from 'zod';
-import { definirConsumidor, definirEvento, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_CLIENTE_ATUALIZADO, PARAMETRO_CAMPOS_OBRIGATORIOS } from '../contracts';
+import { EVENTO_ERP_CLIENTE_ATUALIZADO } from '../../integracao/contracts';
 import { camposExigidos, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
 import { aplicarCarteiraDoErp, aplicarContatosDoErp, aplicarFinanceiroDoErp } from './consumidores-erp-cliente-extras';
 import { consumidorClienteEnderecoDoErp } from './consumidores-erp-cliente-endereco';
@@ -18,40 +18,10 @@ import { consumidorRotaDoErp } from './consumidores-erp-rota';
 import { consumidorNotaDoErp } from './consumidores-erp-nota';
 import { consumidorTituloDoErp } from './consumidores-erp-titulo';
 import { consumidorVendedorDoErp } from './consumidores-erp-vendedor';
+
 import { carteiraDoEvento } from './rotas';
 
-const Texto = z.string().nullish();
-const RegistroCliente = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  razao_social: z.string(),
-  nome_fantasia: Texto,
-  documento: Texto,
-  inscricao_estadual: Texto,
-  observacao: Texto,
-  telefone: Texto,
-  email: Texto,
-  latitude: z.number().nullish(),
-  longitude: z.number().nullish(),
-  vendedor_external_id: Texto,
-  limite_credito_cents: z.number().nullish(),
-  bloqueado: z.boolean().optional(),
-  contatos: z.array(z.object({ nome: z.string(), cargo: Texto, telefone: Texto, email: Texto })).optional(),
-  endereco: z
-    .object({ logradouro: Texto, numero: Texto, complemento: Texto, bairro: Texto, cidade: Texto, uf: Texto, cep: Texto })
-    .nullish(),
-});
-
-export const EventoIntegracaoClienteAtualizado = definirEvento(
-  'integracao.cliente.atualizado@1',
-  z.object({
-    external_id: z.string().min(1),
-    acao: z.enum(['criado', 'atualizado', 'inativado']),
-    registro: RegistroCliente.optional(),
-    ocorrido_em: z.string(),
-  }),
-);
+export const EventoIntegracaoClienteAtualizado = eventoTolerante(EVENTO_ERP_CLIENTE_ATUALIZADO);
 
 const COLUNAS_GRAVADAS = [
   'razao_social', 'nome_fantasia', 'documento', 'inscricao_estadual', 'observacao', 'telefone', 'email',
@@ -96,7 +66,7 @@ export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
     );
     const id = r.rows[0]?.id;
     if (!id) return;
-    const bruto = (p as { registro?: z.infer<typeof RegistroCliente> }).registro;
+    const bruto = p.registro;
     if (bruto) {
       await aplicarCarteiraDoErp(ctx.db, id, l.external_id, bruto.vendedor_external_id?.trim() || null, ctx.agora());
       await aplicarContatosDoErp(ctx.db, id, l.external_id, bruto.contatos ?? [], ctx.agora());

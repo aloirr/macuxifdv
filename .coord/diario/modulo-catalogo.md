@@ -13,3 +13,4 @@
 2026-11-03 — T-0071 — Catálogo: sugestoes_pedido@1 (domain, aparelho, API), produto_relacao (contrato, manifesto, provedor de pull), embalagens[] em precos_cliente@1 e correção do preco_cents (só unidade base)
 2026-11-03 — T-0071 — contratos do Catálogo: removidas cópias duplicadas (entidades.ts, sync.ts); aviso ao vendedor sobre sugestoes_pedido@1/embalagens[]
 2026-11-04 — T-0071 — estoque_saldo e deposito no pull do Catálogo (P4), teste sync-estoque.db.test.ts
+2026-11-05 — T-0024 — contracts/eventos.ts (schemas strict + definições de catalogo.produto.visualizado@1 e busca.realizada@1) e consumidores do ERP lendo integracao.{produto,preco,estoque,catalogo_no}.atualizado@1 do contracts do dono (eventoTolerante); fixtures do db test no formato do Hub

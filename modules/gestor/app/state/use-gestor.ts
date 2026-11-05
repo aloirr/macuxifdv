@@ -10,6 +10,7 @@ import { useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, type IndicadorRanking, type PeriodoRanking } from '../../contracts';
+import { aplicarParadoMinDoTenant } from '../lib/parado-min';
 import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
 
 export const PRECISA_SINAL = 'Sem conexão: esta ação precisa de internet. Tente de novo quando o sinal voltar.';
@@ -26,9 +27,12 @@ export function useGestor() {
 
   const recarregar = useCallback(async () => {
     if (!cache) return;
-    setDados(await cache.carregar());
+    const d = await cache.carregar();
+    // RN-CORE-26: o `inicio.parado_min` do tenant (pull `parametro` do Core) vence o valor da visão do Gestor
+    const linhas = motor ? await motor.linhas<{ id: string; updated_at: string; deleted_at: string | null; modulo: string; chave: string; valor: unknown }>('parametro').catch(() => []) : [];
+    setDados({ ...d, visao: aplicarParadoMinDoTenant(d.visao, linhas) });
     setCarregado(true);
-  }, [cache]);
+  }, [cache, motor]);
 
   // relê o cache ao montar e sempre que o motor conclui uma sincronização (a etapa do Gestor gravou dados novos)
   useEffect(() => {

@@ -1,40 +1,14 @@
 /**
- * Nota do ERP consumida pelo Vendedor (T-0054). ESPELHO do schema oficial do dono (`modules/integracao/contracts`:
- * `eventoEntidadeAtualizado('nota')`/`NotaPayload`), só com o que o Vendedor lê. O retorno do ERP usa o
- * `RetornoErpConsumido` dos contracts do Vendedor (T-0053), também um espelho. Campo novo opcional no publicador continua `@1` e é ignorado aqui (o Zod descarta chave
- * desconhecida). Espelho e não import: o import relativo de outro pacote exige os inputs do turbo (regra R2 do
- * `scripts/ci/grafo-turbo.mjs`), pedidos ao engenheiro-software; quando existirem, trocar pelo import oficial.
- * Divergência com o dono = recado ao modulo-integracao. Ficam na API: o app não consome eventos.
+ * Eventos da integração que o Vendedor consome (T-0024): a definição vem do `contracts` do dono
+ * (`modules/integracao/contracts`) e a leitura é tolerante (chave nova do publicador some, tipos e enums seguem o contrato).
+ * Ficam na API: o app não consome eventos, e o import do contracts da integração em `contracts/` fecharia ciclo.
+ *  - `integracao.pedido.retorno_erp@1` (RN-INT-08): status, faturamento e devolução do pedido.
  *  - `integracao.nota.atualizado@1` (RN-INT-02): nota do ERP; o Vendedor usa só a de `devolucao` com `pedido_uuid`.
  */
-import { definirEvento } from '@macuxi/platform-sdk';
-import { z } from 'zod';
+import { eventoTolerante } from '@macuxi/platform-sdk';
+import { EVENTO_ERP_NOTA_ATUALIZADO, EVENTO_PEDIDO_RETORNO_ERP, PedidoRetornoErpEvento } from '../../integracao/contracts';
 
-const Uuid = z.string().uuid();
-const DataHoraUtc = z.string().min(1);
+export const EVENTO_RETORNO_ERP_CONSUMIDO = eventoTolerante(EVENTO_PEDIDO_RETORNO_ERP);
+export const EVENTO_NOTA_ATUALIZADA = eventoTolerante(EVENTO_ERP_NOTA_ATUALIZADO);
 
-/** Espelho de `NotaPayload` (só os campos lidos). */
-export const NotaLida = z.object({
-  external_id: z.string().min(1),
-  tipo: z.enum(['faturamento', 'devolucao']),
-  numero: z.string().min(1),
-  serie: z.string().nullish(),
-  emitida_em: DataHoraUtc,
-  total_cents: z.number().int(),
-  pedido_uuid: Uuid.nullish(),
-  cancelada: z.boolean().default(false),
-});
-
-/** Espelho de `integracao.nota.atualizado@1` (`registro` omitido em `inativado`). */
-export const NotaAtualizadaLida = z.object({
-  lote_id: Uuid,
-  entidade: z.literal('nota'),
-  external_id: z.string().min(1),
-  acao: z.enum(['criado', 'atualizado', 'inativado']),
-  hash: z.string().min(1),
-  registro: NotaLida.optional(),
-  ocorrido_em: DataHoraUtc,
-});
-export type NotaAtualizadaLida = z.infer<typeof NotaAtualizadaLida>;
-
-export const EVENTO_NOTA_ATUALIZADA = definirEvento('integracao.nota.atualizado@1', NotaAtualizadaLida);
+export type RetornoErpConsumido = PedidoRetornoErpEvento;

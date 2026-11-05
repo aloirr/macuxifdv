@@ -71,25 +71,20 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
   const estoque = criarConsumidorEstoqueDoErp(resolver);
   const noCons = criarConsumidorCatalogoNoDoErp();
   const produtoNo = criarConsumidorProdutoNoDoErp(resolver);
-  const evNo = (id: string, pai: string | null, nivel: number, extra: Record<string, unknown> = {}, acao = 'criado') => ({
-    external_id: id,
-    acao,
-    ocorrido_em: '2026-11-04T10:00:00Z',
-    registro: { codigo: id, nome: `Nó ${id}`, pai_external_id: pai, nivel, ordem: 1, ...extra },
-  });
-  const evProdutoNo = (no: string | null, acao = 'atualizado') => ({ external_id: 'P-1', acao, ocorrido_em: '2026-11-04T10:00:00Z', registro: { catalogo_no_external_id: no } });
-  const evPreco = (extra: Record<string, unknown> = {}, acao = 'criado', external_id = 'PR-T66') => ({
+  // Envelope e registro no formato do contracts do Integracao (T-0024): lote, entidade, hash e alterado_em/external_id do registro.
+  const env = (entidade: string, external_id: string, acao: string, registro: Record<string, unknown>) => ({
+    lote_id: '11111111-1111-4111-8111-111111111111',
+    entidade,
     external_id,
     acao,
+    hash: 'h',
     ocorrido_em: '2026-11-04T10:00:00Z',
-    registro: { tabela_external_id: 'TAB-T66', tabela_nome: 'Atacado ERP', vigencia_inicio: '2026-11-01', vigencia_fim: null, produto_external_id: 'P-1', preco_cents: 1500, ...extra },
+    registro: { external_id, alterado_em: '2026-11-04T10:00:00Z', ...registro },
   });
-  const evEstoque = (extra: Record<string, unknown> = {}, acao = 'criado') => ({
-    external_id: 'ES-T66',
-    acao,
-    ocorrido_em: '2026-11-04T10:00:00Z',
-    registro: { deposito_external_id: 'DEP-T66', deposito_nome: 'Matriz', produto_external_id: 'P-1', saldo: 12.5, ...extra },
-  });
+  const evNo = (id: string, pai: string | null, nivel: number, extra: Record<string, unknown> = {}, acao = 'criado') => env('catalogo_no', id, acao, { codigo: id, nome: `Nó ${id}`, pai_external_id: pai, nivel, ordem: 1, ...extra });
+  const evProdutoNo = (no: string | null, acao = 'atualizado') => env('produto', 'P-1', acao, { sku: 'SKU-1', nome: 'Produto 1', unidade: 'UN', catalogo_no_external_id: no });
+  const evPreco = (extra: Record<string, unknown> = {}, acao = 'criado', external_id = 'PR-T66') => env('preco', external_id, acao, { tabela_external_id: 'TAB-T66', tabela_nome: 'Atacado ERP', vigencia_inicio: '2026-11-01', vigencia_fim: null, produto_external_id: 'P-1', preco_cents: 1500, ...extra });
+  const evEstoque = (extra: Record<string, unknown> = {}, acao = 'criado') => env('estoque', 'ES-T66', acao, { deposito_external_id: 'DEP-T66', deposito_nome: 'Matriz', produto_external_id: 'P-1', saldo: 12.5, ...extra });
   const itens = (t: Teste) => t.q<{ preco_cents: string; vigencia_fim: string | null }>("select preco_cents, vigencia_fim from catalogo.tabela_preco_item where external_id = 'PR-T66' and deleted_at is null");
 
   it('RN-INT-02: preço cria tabela e item; reentrega e atualização não duplicam; inativação faz soft delete', async () => {
@@ -102,7 +97,7 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
       expect(i.length).toBe(1);
       expect(Number(i[0]!.preco_cents)).toBe(1700);
       expect(i[0]!.vigencia_fim).not.toBeNull();
-      await t.entregar(preco, { external_id: 'PR-T66', acao: 'inativado', ocorrido_em: '2026-11-04T11:00:00Z' });
+      await t.entregar(preco, { lote_id: '11111111-1111-4111-8111-111111111111', entidade: 'preco', external_id: 'PR-T66', acao: 'inativado', hash: 'h2', ocorrido_em: '2026-11-04T11:00:00Z' });
       expect((await itens(t)).length).toBe(0);
       expect((await t.q("select 1 from catalogo.tabela_preco_item where external_id = 'PR-T66'")).length).toBe(1);
     });
@@ -125,7 +120,7 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
       const s = await t.q<{ quantidade: string }>("select quantidade from catalogo.estoque_saldo where external_id = 'ES-T66' and deleted_at is null");
       expect(s.length).toBe(1);
       expect(Number(s[0]!.quantidade)).toBe(3);
-      await t.entregar(estoque, { external_id: 'ES-T66', acao: 'inativado', ocorrido_em: '2026-11-04T11:00:00Z' });
+      await t.entregar(estoque, { lote_id: '11111111-1111-4111-8111-111111111111', entidade: 'estoque', external_id: 'ES-T66', acao: 'inativado', hash: 'h2', ocorrido_em: '2026-11-04T11:00:00Z' });
       expect((await t.q("select 1 from catalogo.estoque_saldo where external_id = 'ES-T66' and deleted_at is null")).length).toBe(0);
     });
   });
@@ -138,7 +133,7 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
       await t.entregar(noCons, evNo('N-T61-2', 'N-T61-1', 2, { nome: 'Renomeado' }, 'atualizado'));
       const nos = await t.q<{ nome: string; nivel: number }>("select nome, nivel from catalogo.catalogo_no where external_id like 'N-T61-%' and deleted_at is null order by nivel");
       expect(nos.map((n) => n.nome)).toEqual(['Nó N-T61-1', 'Renomeado']);
-      await t.entregar(noCons, { external_id: 'N-T61-2', acao: 'inativado', ocorrido_em: '2026-11-04T11:00:00Z' });
+      await t.entregar(noCons, { lote_id: '11111111-1111-4111-8111-111111111111', entidade: 'catalogo_no', external_id: 'N-T61-2', acao: 'inativado', hash: 'h2', ocorrido_em: '2026-11-04T11:00:00Z' });
       expect((await t.q("select 1 from catalogo.catalogo_no where external_id = 'N-T61-2' and deleted_at is null")).length).toBe(0);
     });
   });

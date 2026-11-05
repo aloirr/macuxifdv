@@ -109,3 +109,11 @@ foto (`registrarArquivo`, finalidade `pesquisa_foto`) e publica `pesquisa.respos
 7. Dependências de tela (`react`, `react-native`, `expo-router`, `@tanstack/react-query`, `@macuxi/ui`) resolvem pelo
    `node_modules` achatado (`nodeLinker: hoisted`); declarar no `package.json` do módulo depende do lockfile
    (engenheiro-software).
+
+## Consulta `pesquisa.etapas_checkout@1` (T-0039)
+
+Oferecida ao Core (ADR 0012), com os schemas de `modules/core/contracts/etapas-checkout.ts`. O Core a chama no `visita_checkout` e não confia nas etapas do aparelho (RN-CORE-12).
+
+- Devolve no máximo uma etapa agregada, `pesquisa.obrigatoria`. `obrigatoria` e `concluida` vêm do domain (`verificarEtapasCheckoutServidor`, RN-PES-03): concluída = resposta registrada no servidor para a mesma visita e o mesmo cliente. Sem pesquisa obrigatória aplicável, lista vazia.
+- Cliente fechado (RN-CORE-14) dispensa: `obrigatoria=false`, `concluida=true` (o Core também dispensa).
+- Limite: a consulta só recebe visita, cliente, usuário e cliente fechado, e não chama outro módulo. Perfil vem do usuário da requisição. Pesquisa com público restrito por equipe, segmento ou região NÃO vira etapa (não dá para verificar; não bloqueia a visita por engano). Pesquisa sem restrição, por perfil ou por cliente nominal é verificada. Pendência: campos aditivos no contrato (recado ao Core).

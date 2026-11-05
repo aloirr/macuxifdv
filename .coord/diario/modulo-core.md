@@ -51,3 +51,25 @@
 2026-11-04 — T-0077 — D2: API do Core revalida promotor_ve_pedidos no Cliente 360 (historico vazio) e no pull de historico_compra (removido); domain perfilRecebeHistoricoDeCompra; teste de banco para o CI
 2026-11-04 — T-0077 — D2: fixture do promotor-historico.db.test usa mês livre do c1 (historico_compra_mes_uk)
 2026-11-04 — T-0077 — D2: teste de banco inseria em mês já ocupado pelo seed (c1 tem 12 meses); agora usa hoje−12m; D2-a toca updated_at ao ligar e desligar; D2-b linha oculta sem valores; teste incremental
+2026-11-04 — T-0073 passo 7 — parâmetros do Início no BKO (GET/PUT parametros/inicio, domain inicio-parametros, painel em Metas e RV, auditoria RN-AUD-01); 🟢 tenant_id explícito em promotor-pedidos.ts
+2026-11-04 — T-0073 — passo 7: 7 🟡 do designer-ux no painel Parâmetros do Início (erro no campo, contador, min, salvo success, ajuda dos dias, aria-label, frase em branco)
+2026-11-04 — T-0073 — positivação acumulada do mês no fallback do core.inicio@1 (core.positivacao_do_mes), positivadosDoDia + gravarPositivadosDoDia; 🟡 do passo 7 (ErroRegraNegocio RN-CORE-26, erros {campo,mensagem} e painel por chave); parametros-inicio.db.test e indicador-diario.db.test para o CI; 🟢 parametrosInicioDasLinhas no app aguarda destravar
+2026-11-04 — T-0039 — checkout validado na API (domain checkout-servidor, contrato etapas-checkout, verificador por consulta, rejeição no push); testes de banco no CI
+2026-11-05 — T-0039 — checkout aceita motivo desativado após o checkout offline (RN-CORE-12), domain+api, testes
+2026-11-05 — T-0079 — CI A2: pull de parametro inclui as 3 chaves do Início (sync.ts); teste de checkout separado em motivo desativado antes/depois
+2026-11-05 — T-0024 — schema core.rota.dia_planejado@1, consumo tolerante de vendedor.pedido.* e integracao.* (helper eventoErp), paradoMinDasLinhas nos contracts
+2026-11-05 — T-0073 — Positivação por evento: vendedor.pedido.status_alterado@1 (consumidor existente do Core) recalcula core.indicador_diario via vendedor.pedidos_da_meta@1; domain positivadosPorDia, api/consumidores-positivacao.ts, testes unit e db
+2026-11-05 — T-0024 — eventoErp removido; consumidores-erp*.ts usam eventoTolerante(EVENTO_ERP_*) direto do contracts da integração
+2026-11-05 — T-0080 — positivação pelas notas do ERP (RN-CORE-27): domain, consumidores e Início; db.test aguarda 0025
+2026-11-05 — T-0024 (lote C) — eventoErpTolerante: consumidores do ERP (exceto nota) ignoram payload fora do contrato com aviso em vez de lançar ZodError
+2026-11-05 — T-0080 — consumidor de nota usa eventoErpTolerante; registro fora do contrato ignorado com aviso
+2026-11-05 — T-0080 — 🔴 revisão lote C: eventoErpTolerante removido, 8 consumidores com eventoTolerante, 3 testes viraram consumidores-erp-contrato.test.ts, trim no vendedor
+2026-11-05 — T-0039 — domain puro da tolerância no checkout (checkout-tolerancia.ts + contracts/etapas-pendencia.ts), 14 testes; ligação na API pendente
+2026-11-05 — R-20261105-024844 — removida guarda morta e comentário em consumidores-erp-nota.ts (sem mudança de comportamento)
+2026-11-05 — T-0039 — textoAlertaPendencia devolve {titulo, corpo} por destinatário conforme docs/design/checkout-pendencia.md
+2026-11-05 — T-0080 — D-T0080a: fonte das notas ERP do Início vale pela licença do tenant (integracaoNoTenant), teste da rota sem integracao no perfil
+2026-11-05 — T-0039 — checkout-tolerancia.ts importa constante, faixa e tipo de contracts/etapas-pendencia (sem mudar comportamento)
+2026-11-05 — T-0039 — BKO da pendência de etapa (filtro, selo, diálogo com dispensa, CSV, prazo do alerta)
+2026-11-05 — T-0039 — tolerância do checkout ligada na API: consulta da Pesquisa, avaliarCheckoutTolerante, pendência/contagem, baixa por pesquisa.resposta.registrada@1, alertarPendenciasVencidas (sem agendador ainda), dispensa manual, parâmetro do prazo, etapas_pendentes no pull
+2026-11-05 — T-0039 — BKO: prazo da etapa pendente na rota própria checkout-pendencia; diálogo de etapas com erro da API em Notice, autoFocus e contador n/300
+2026-11-05 — T-0039 — revisão da API: ordem de trava visita->etapa (deadlock), tarefa periódica alerta_pendencia_checkout (ADR 0022), 3 🟢

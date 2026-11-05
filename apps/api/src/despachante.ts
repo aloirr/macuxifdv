@@ -40,6 +40,7 @@ import {
 import type pg from 'pg';
 import { ErroPapelBanco } from './banco';
 import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
+import { mensagemSegura } from './log-seguro';
 import { publicadorTenant, registroDeConsultas, transacaoTenant } from './outbox';
 
 export interface OpcoesDespachante {
@@ -126,7 +127,8 @@ interface TenantDoCiclo {
   fuso: string;
 }
 
-const mensagemDe = (e: unknown): string => (e instanceof Error ? `${e.name}: ${e.message}` : String(e)).slice(0, MAX_ERRO);
+/** Sem `detail`/valores do erro do Postgres (T-0078 D-L1a): vai para o log e para a coluna de erro da outbox. */
+const mensagemDe = (e: unknown): string => mensagemSegura(e).slice(0, MAX_ERRO);
 
 /** Falha fechada na subida: a conexão do despachante tem de ser o `macuxi_worker`, sem SUPERUSER nem BYPASSRLS. */
 export async function verificarPapelWorker(pool: Pick<pg.Pool, 'query'>): Promise<void> {
@@ -137,6 +139,11 @@ export async function verificarPapelWorker(pool: Pick<pg.Pool, 'query'>): Promis
   if (!papel) throw new ErroPapelBanco('Não foi possível ler o papel da conexão do despachante.');
   if (papel.usuario !== PAPEL_WORKER) throw new ErroPapelBanco(`O despachante só lê a outbox como ${PAPEL_WORKER} (conectou como ${papel.usuario}).`);
   if (papel.superusuario || papel.ignora_rls) throw new ErroPapelBanco(`${PAPEL_WORKER} não pode ser superusuário nem ter BYPASSRLS.`);
+}
+
+/** Eventos com consumidor instalado (o despachante só olha estes; os outros ficam na outbox). Também no resumo de `/v1/saude`. */
+export function nomesConsumidos(modulos: readonly ModuloApi[]): string[] {
+  return [...new Set(modulos.flatMap((m) => (m.consumidores ?? []).map((c) => c.evento.nome)))];
 }
 
 export function criarDespachante(op: OpcoesDespachante) {
@@ -211,6 +218,7 @@ export function criarDespachante(op: OpcoesDespachante) {
               usuario: t.sistema,
               consultas,
               parametros: t.parametros,
+              fuso: () => t.fuso,
               log: logConsumidor,
             }).consultar,
             parametros: () => t.parametros(a.modulo),

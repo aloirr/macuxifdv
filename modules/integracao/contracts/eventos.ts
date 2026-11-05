@@ -3,6 +3,7 @@
  * Registro: `.coord/contratos/eventos.md`. Mudança incompatível = nova versão + ADR (RN-INT-09).
  */
 import { z } from 'zod';
+import { definirEvento, type DefinicaoEvento } from '@macuxi/platform-sdk/eventos';
 import { DataHoraUtc, Uuid } from './base';
 import { ENTIDADES, SCHEMA_REGISTRO, type Entidade } from './entidades';
 import { EstadoLote, ModoCarga } from './lote';
@@ -23,7 +24,7 @@ export function eventoEntidadeAtualizado<E extends Entidade>(entidade: E) {
     external_id: z.string().min(1),
     acao: AcaoRegistro,
     hash: z.string().min(1),
-    registro: SCHEMA_REGISTRO[entidade].optional(),
+    registro: z.optional(SCHEMA_REGISTRO[entidade] as (typeof SCHEMA_REGISTRO)[E]),
     ocorrido_em: DataHoraUtc,
   });
 }
@@ -96,3 +97,40 @@ export const LoteRecebidoEvento = z.object({
   recebido_em: DataHoraUtc,
 });
 export type LoteRecebidoEvento = z.infer<typeof LoteRecebidoEvento>;
+
+// ---------- definições (T-0024): `tx.publicar(EVENTO_..., payload, agregadoId)` e consumo com `eventoTolerante(EVENTO_...)` ----------
+export const EVENTO_LOTE_RECEBIDO = definirEvento('integracao.lote.recebido@1', LoteRecebidoEvento);
+export const EVENTO_LOTE_CONCLUIDO = definirEvento('integracao.lote.concluido@1', LoteConcluidoEvento);
+export const EVENTO_PEDIDO_RETORNO_ERP = definirEvento('integracao.pedido.retorno_erp@1', PedidoRetornoErpEvento);
+export const EVENTO_RECONCILIACAO_DIVERGENTE = definirEvento('integracao.reconciliacao.divergente@1', ReconciliacaoDivergenteEvento);
+
+export const EVENTO_ERP_VENDEDOR_ATUALIZADO = definirEvento('integracao.vendedor.atualizado@1', EVENTOS_ATUALIZADO.vendedor);
+export const EVENTO_ERP_CLIENTE_ATUALIZADO = definirEvento('integracao.cliente.atualizado@1', EVENTOS_ATUALIZADO.cliente);
+export const EVENTO_ERP_PRODUTO_ATUALIZADO = definirEvento('integracao.produto.atualizado@1', EVENTOS_ATUALIZADO.produto);
+export const EVENTO_ERP_PRECO_ATUALIZADO = definirEvento('integracao.preco.atualizado@1', EVENTOS_ATUALIZADO.preco);
+export const EVENTO_ERP_ESTOQUE_ATUALIZADO = definirEvento('integracao.estoque.atualizado@1', EVENTOS_ATUALIZADO.estoque);
+export const EVENTO_ERP_TITULO_ATUALIZADO = definirEvento('integracao.titulo.atualizado@1', EVENTOS_ATUALIZADO.titulo);
+export const EVENTO_ERP_NOTA_ATUALIZADO = definirEvento('integracao.nota.atualizado@1', EVENTOS_ATUALIZADO.nota);
+export const EVENTO_ERP_ROTA_ATUALIZADO = definirEvento('integracao.rota.atualizado@1', EVENTOS_ATUALIZADO.rota);
+export const EVENTO_ERP_CATALOGO_NO_ATUALIZADO = definirEvento('integracao.catalogo_no.atualizado@1', EVENTOS_ATUALIZADO.catalogo_no);
+export const EVENTO_ERP_PRODUTO_UNIDADE_ATUALIZADO = definirEvento('integracao.produto_unidade.atualizado@1', EVENTOS_ATUALIZADO.produto_unidade);
+export const EVENTO_ERP_CLIENTE_ENDERECO_ATUALIZADO = definirEvento('integracao.cliente_endereco.atualizado@1', EVENTOS_ATUALIZADO.cliente_endereco);
+export const EVENTO_ERP_TRANSPORTADORA_ATUALIZADO = definirEvento('integracao.transportadora.atualizado@1', EVENTOS_ATUALIZADO.transportadora);
+
+/** `integracao.<entidade>.atualizado@1`, uma definição por entidade (o payload é validado pelo schema da entidade). */
+export const EVENTOS_ENTIDADE_ATUALIZADO = {
+  vendedor: EVENTO_ERP_VENDEDOR_ATUALIZADO,
+  cliente: EVENTO_ERP_CLIENTE_ATUALIZADO,
+  produto: EVENTO_ERP_PRODUTO_ATUALIZADO,
+  preco: EVENTO_ERP_PRECO_ATUALIZADO,
+  estoque: EVENTO_ERP_ESTOQUE_ATUALIZADO,
+  titulo: EVENTO_ERP_TITULO_ATUALIZADO,
+  nota: EVENTO_ERP_NOTA_ATUALIZADO,
+  rota: EVENTO_ERP_ROTA_ATUALIZADO,
+  catalogo_no: EVENTO_ERP_CATALOGO_NO_ATUALIZADO,
+  produto_unidade: EVENTO_ERP_PRODUTO_UNIDADE_ATUALIZADO,
+  cliente_endereco: EVENTO_ERP_CLIENTE_ENDERECO_ATUALIZADO,
+  transportadora: EVENTO_ERP_TRANSPORTADORA_ATUALIZADO,
+} as const;
+
+export const eventoAtualizado = (entidade: Entidade): DefinicaoEvento => EVENTOS_ENTIDADE_ATUALIZADO[entidade] as DefinicaoEvento;

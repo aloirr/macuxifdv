@@ -3,6 +3,7 @@ import { CONSULTA_CADASTRO_RESUMO, CadastroResumoSaidaSchema } from './consultas
 import { InicioSchema, InicioQuerySchema, MetaDoDiaSchema, VisaoInicioSchema } from './inicio';
 import { RecadoDoDiaCorpoSchema, RecadoEnviadoSchema } from './notificacao';
 import { NotificacaoSyncSchema } from './sync';
+import { PARADO_MIN_MAX, PARADO_MIN_MIN, PARADO_MIN_PADRAO, PARAMETRO_PARADO_MIN, paradoMinDasLinhas } from './inicio-parametros';
 import type { CardInicio } from './extensoes';
 
 const U = '0e800000-0000-4000-8000-000000000001';
@@ -83,5 +84,21 @@ describe('RN-VEN-13 e RN-CORE-16: core.cadastro_resumo@1 informa o cliente bloqu
   });
   it('RN-CORE-16: bloqueado só aceita booleano', () => {
     expect(CadastroResumoSaidaSchema.safeParse(saida({ ...cliente, bloqueado: 'sim' })).success).toBe(false);
+  });
+});
+
+describe('RN-CORE-26: inicio.parado_min nos contracts (Gestão lê sem copiar a faixa)', () => {
+  const linha = (valor: unknown, extra: object = {}) => ({ modulo: 'core', chave: PARAMETRO_PARADO_MIN, valor, ...extra });
+  it('RN-CORE-26: faixa 15..480 e padrão 60', () => {
+    expect([PARADO_MIN_MIN, PARADO_MIN_MAX, PARADO_MIN_PADRAO]).toEqual([15, 480, 60]);
+  });
+  it('RN-CORE-26: paradoMinDasLinhas devolve o valor válido; ausente, removido, de outro módulo ou fora da faixa cai no padrão', () => {
+    expect(paradoMinDasLinhas([linha(90)])).toBe(90);
+    expect(paradoMinDasLinhas([linha(15)])).toBe(15);
+    expect(paradoMinDasLinhas([linha(480)])).toBe(480);
+    expect(paradoMinDasLinhas([])).toBe(60);
+    expect(paradoMinDasLinhas([linha(90, { deleted_at: '2026-11-01T00:00:00Z' })])).toBe(60);
+    expect(paradoMinDasLinhas([linha(90, { modulo: 'vendedor' })])).toBe(60);
+    for (const v of [14, 481, 30.5, '90', null]) expect(paradoMinDasLinhas([linha(v)])).toBe(60);
   });
 });

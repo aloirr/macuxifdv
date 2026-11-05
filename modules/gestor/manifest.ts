@@ -12,9 +12,9 @@ const PERFIS_TENANT = ['analista', 'admin'] as const;
  * - Nomes das ações são globais na plataforma (conflito = erro na montagem): por isso o prefixo da entidade do Gestor.
  * - Aprovação: `fila_aprovacao.decidir` é a tela do Gestor; quem executa e valida a alçada é a API pública do Vendedor
  *   (`pedido.aprovar`).
- * - `consome`: só eventos já registrados em `.coord/contratos/eventos.md`. PENDENTES de registro (pedido T-0014 ao
- *   engenheiro-software): `core.rota.dia_planejado@1` (visitas planejadas) e `core.meta.definida@1` (meta mensal);
- *   entram aqui quando existirem.
+ * - `consome`: só eventos já registrados em `.coord/contratos/eventos.md`. `core.rota.dia_planejado@1` (visitas planejadas) segue
+ *   fora até o Core publicá-lo. T-0024: nenhum payload alheio é copiado; os schemas são os do `contracts` do dono, em leitura
+ *   tolerante; `core.meta.definida@1` (indicador `venda_cents`) passa a ser consumido.
  * - RN-GES-06: consome `vendedor.pedido.faturado@1` (itens faturados por retorno do ERP) para o "faturado" parcial.
  * - T-0046: `promotor.*@1` validados com os schemas oficiais do Promotor (contracts); desfecho `realizada` |
  *   `loja_fechada` | `acesso_negado` e tarefas por `execucao_id`. 0.5.0: `PainelTrade` ganhou `visitas_sem_atendimento`
@@ -42,6 +42,7 @@ export const manifest = defineModule({
     'core.cliente.atualizado@1',
     'core.visita.checkin@1',
     'core.visita.checkout@1',
+    'core.meta.definida@1',
     'vendedor.pedido.criado@1',
     'vendedor.pedido.status_alterado@1',
     'vendedor.pedido.aprovacao_solicitada@1',

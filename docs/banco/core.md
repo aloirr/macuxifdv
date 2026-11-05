@@ -192,6 +192,7 @@ de `@macuxi/db/teste` (fixtures e testes referenciam sem consultar). A mesma fun
 | pedido_id | uuid | **sem FK** (schema vendedor: fronteira) |
 | foto_fachada_id | uuid | FK composta para `plataforma.arquivo`, **adiável** (inicialmente imediata): para gravar a visita antes do arquivo, `set constraints core.visita_foto_fachada_fk deferred` na transação |
 | recebido_em | timestamptz not null | chegada ao servidor (default `now()`) |
+| etapas_pendentes | smallint not null default 0 | contagem das etapas `pendente` vivas em `visita_etapa` (0026, T-0039 §2); ≥ 0; mantida pelo Core na mesma transação; vai no pull |
 
 Checks: `checkout_em`, `resultado` e `fechada_por` andam juntos (os três nulos = aberta); **`resultado = 'cliente_fechado' ⇒
 motivo_id e foto_fachada_id`** (RN-CORE-14). O tipo do motivo (cliente_fechado) é conferido pela API.
@@ -201,8 +202,9 @@ trava final); `visita_usuario_sync_ix (tenant_id, usuario_id, updated_at, id)`; 
 parcial `visita_sugere_coordenada_ix (tenant_id, cliente_id, checkin_em desc) where sugere_coordenada and vivo` (BKO);
 `(tenant_id, rota_parada_id)`.
 
-## visita_etapa — etapas do checkout por módulo. Sem pull na Sprint 1
-`visita_id` (FK) · `modulo` · `etapa` · `situacao` `concluida | dispensada` · `referencia_id` · `registrada_em`.
+## visita_etapa — etapas do checkout por módulo. Sem pull
+`visita_id` (FK) · `modulo` · `etapa` · `situacao` `concluida | dispensada | pendente` · `referencia_id` · `registrada_em` ·
+`rotulo` · `pendente_desde` · `resolvida_em` · `alertada_em` (as quatro e o `pendente` desde a 0026 — ver a seção 0026 abaixo).
 Único **constraint** `visita_etapa_uk (tenant_id, visita_id, modulo, etapa)` (serve de alvo de `on conflict`).
 
 ## notificacao — caixa do usuário (RF-CORE-09). Pull só do próprio usuário
@@ -342,3 +344,90 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - Caminho de volta: `0021_core_recado_do_dia.down.sql` — **apaga** as marcações (os recados continuam; o Início volta à
   frase padrão `inicio.recado_do_dia_padrao`) e a coluna `indicador_diario.clientes_positivados` (pedidos e valores ficam;
   o Início sem o Vendedor volta a `positivacao = null`).
+
+## 0023 — positivação acumulada do mês (`0023_core_positivacao_mes`; opção 3 do dono do produto, 04/11, pendência do PR #84)
+- **indicador_diario.clientes_positivados_ids** `uuid[]` null: **quais** clientes (`core.cliente.id` do próprio tenant) o
+  usuário positivou naquele dia civil do tenant, sem repetição. null = não apurado (linhas anteriores à 0023 e consumidor que
+  ainda não grava): **sem backfill**, sem padrão. Gravada junto com `clientes_positivados` (0021): CHECK
+  `indicador_diario_clientes_positivados_ids_coerente` (lista de 1 dimensão, sem elemento nulo e `clientes_positivados =
+  cardinality(lista)`). Cancelamento/devolução que tira o cliente do dia: o consumidor regrava a lista e a contagem do dia.
+  Sem FK por elemento (array); a API só grava id de cliente do próprio tenant. Volume: dezenas de ids por linha (1 linha
+  por vendedor por dia com venda). Espelho Drizzle `indicadorDiario.clientes_positivados_ids`. Fora do pull hoje (o
+  `TABELAS_SYNC.indicador_diario` do Core lista as colunas).
+- **core.positivacao_do_mes(p_usuario_ids uuid[], p_periodo text 'AAAA-MM', p_hoje date default null)** →
+  `table (usuario_id uuid, ate_ontem integer, hoje integer, mes integer)`, uma linha por usuário pedido (ordem por
+  `usuario_id`). Cada cliente conta **uma vez no mês**, no **primeiro** dia civil em que o usuário o positivou
+  (RN-CORE-20): `ate_ontem` = clientes com primeiro dia < `p_hoje`; `hoje` = clientes com primeiro dia = `p_hoje` (os
+  **novos** hoje, RN-CORE-26, igual ao `realizadoPartido` do domain do Core); `mes` = todos do mês. `p_hoje` nulo = hoje
+  no fuso do tenant do contexto. **null nos três = sem fonte** (o usuário não tem nenhuma linha com lista até o fim do mês);
+  com fonte e sem cliente no mês = 0 (mês novo zera). SECURITY INVOKER (RLS da tabela vale; sem contexto = tudo sem
+  fonte), `search_path` fixo, EXECUTE só para o `macuxi_app`. Índice: `indicador_diario_uk (tenant_id, usuario_id, data)`
+  vivo. Consumidor: `core.inicio@1` com o Vendedor desligado (campos `positivacao.ate_ontem` / `positivacao.hoje`).
+- RLS: a política `isolamento_tenant` (0006) já cobre a coluna; nenhuma política nova, grants da tabela iguais.
+- Caminho de volta: `0023_core_positivacao_mes.down.sql` — **apaga** a função e as listas (pedidos, valores e
+  `clientes_positivados` do dia ficam; o Início sem o Vendedor volta a `positivacao = null`).
+
+## 0025 — vendedor da nota do ERP (`0025_core_nota_erp_vendedor`; T-0080, RN-CORE-27, desenho docs/desenho/T-0080.md §2)
+- **nota_erp.vendedor_external_id** `text` null: chave do vendedor no ERP como veio no `NotaPayload`
+  (`integracao.nota.atualizado@1`, contrato sem mudança), **aparada pelo consumidor; vazio = null**. CHECK
+  `nota_erp_vendedor_external_id_preenchido (vendedor_external_id is null or (btrim(vendedor_external_id) <> '' and
+  char_length(vendedor_external_id) <= 200))` (200 = `EXTERNAL_ID_MAX` do contrato). Guarda a chave para completar o
+  `usuario_id` quando o vendedor chegar depois da nota.
+- **nota_erp.usuario_id** `uuid` null: vendedor da nota, usuário do **próprio tenant** — FK composta `nota_erp_usuario_fk
+  (tenant_id, usuario_id) → usuario (tenant_id, id)`. null = nota sem vendedor ou vendedor ainda não recebido do ERP (não é
+  erro: a nota continua valendo para o `historico_compra`; não conta para a positivação de ninguém, RN-CORE-27).
+- Índices: `nota_erp_usuario_mes_ix (tenant_id, usuario_id, ano_mes) where deleted_at is null and usuario_id is not null`
+  (positivação do mês no Início com o Vendedor desligado e o teste "existe fonte ERP no tenant"); parcial
+  `nota_erp_vendedor_orfa_ix (tenant_id, vendedor_external_id) where usuario_id is null and deleted_at is null and
+  vendedor_external_id is not null` (completar as órfãs; fica pequeno).
+- Consultas principais: Início `select usuario_id, cliente_id, min(emitida_em) from core.nota_erp where deleted_at is null and
+  usuario_id = any($u) and ano_mes = $m and tipo = 'faturamento' and not cancelada group by usuario_id, cliente_id`
+  (`nota_erp_usuario_mes_ix`); consumidor de `integracao.vendedor.atualizado@1` `update core.nota_erp set usuario_id = $id
+  where vendedor_external_id = $ext and usuario_id is null and deleted_at is null` (`nota_erp_vendedor_orfa_ix`;
+  idempotente). Volume: ~30 notas/ano por cliente; órfãs só enquanto o vendedor não chega.
+- **Sem backfill**: as notas gravadas antes da 0025 ficam com as duas colunas **nulas** (sem mexer em `updated_at`) até a
+  próxima carga completa do ERP regravá-las pelo upsert. RLS: a política `isolamento_tenant` (0019) já cobre as colunas;
+  nenhuma política nova, grants iguais; continua fora do pull do app. `indicador_diario` e `positivacao_do_mes` não mudam.
+  Espelho Drizzle `notaErp.vendedor_external_id` / `notaErp.usuario_id`. Fixture e demo: sem notas com vendedor (a demo
+  não tem notas; os testes de banco inserem as suas, `db/testes/nota-erp-vendedor.test.ts`).
+- Caminho de volta: `0025_core_nota_erp_vendedor.down.sql` — **apaga** os índices e as duas colunas (a atribuição das notas
+  se perde e volta na próxima carga do ERP depois de reaplicar; notas e `historico_compra` ficam; o Início sem o Vendedor
+  volta à fonte `core.positivacao_do_mes`).
+
+## 0026 — pendência de etapa do checkout (`0026_core_visita_etapa_pendente`; T-0039 §2, complemento da RN-CORE-12, desenho docs/desenho/T-0039.md §2.2)
+- **visita_etapa.situacao** aceita `'pendente'` (CHECK `visita_etapa_situacao_valida`: `concluida | dispensada | pendente`;
+  lista igual a `SITUACOES_VISITA_ETAPA` de `modules/core/contracts/etapas-pendencia.ts`, conferida no teste). `pendente` =
+  etapa obrigatória de **outro módulo** (consulta `<modulo>.etapas_checkout@1`) não concluída no servidor quando o checkout
+  chegou: o checkout é aceito. A baixa troca para `concluida`. Cliente fechado continua `dispensada` (RN-CORE-14).
+- Colunas novas, todas `null` (sem backfill): **rotulo** `text` (texto da consulta, para BKO e notificação; CHECK
+  `visita_etapa_rotulo_preenchido`: null ou não vazio, até 120 = `EtapaCheckoutSchema.rotulo`); **pendente_desde**
+  `timestamptz` (instante do servidor no checkout; obrigatório em `pendente`, CHECK `visita_etapa_pendente_tem_desde`;
+  continua preenchido depois da baixa); **resolvida_em** `timestamptz` (baixa pelo evento `pesquisa.resposta.registrada@1`
+  com reconsulta; só fora de `pendente` e com `pendente_desde`, CHECK `visita_etapa_resolvida_coerente`); **alertada_em**
+  `timestamptz` (job do alerta, uma vez por pendência; só com `pendente_desde`, CHECK `visita_etapa_alertada_coerente`).
+- **visita.etapas_pendentes** `smallint not null default 0` (CHECK `visita_etapas_pendentes_nao_negativa`): contagem das linhas
+  `pendente` vivas da visita, **mantida pelo Core** na mesma transação que mexe em `visita_etapa` (o banco não recalcula). Vai
+  no pull da visita; `visita_etapa` continua sem pull.
+- Índices: parcial `visita_etapa_pendente_ix (tenant_id, pendente_desde) where situacao = 'pendente' and deleted_at is null`
+  (varredura do alerta por tenant e idade; lista de pendências abertas; fica pequeno); parcial `visita_etapas_pendentes_ix
+  (tenant_id, checkin_em desc) where etapas_pendentes > 0 and deleted_at is null` (filtro "Com etapa pendente" do BKO). A
+  baixa por visita usa o único `visita_etapa_uk`.
+- Consultas principais: checkout `insert … on conflict on constraint visita_etapa_uk do update … where
+  core.visita_etapa.situacao <> 'concluida'` (nunca rebaixa) + `update core.visita set etapas_pendentes = (select count(*) …
+  situacao = 'pendente' and vivo)`; baixa `update core.visita_etapa set situacao = 'concluida', resolvida_em, referencia_id
+  where visita_id and modulo and etapa and situacao = 'pendente'` (idempotente); alerta `select … where tenant_id = $t and
+  situacao = 'pendente' and deleted_at is null and pendente_desde < $limite and alertada_em is null`
+  (`visita_etapa_pendente_ix`); BKO `select … from core.visita where tenant_id = $t and etapas_pendentes > 0 and vivo order by
+  checkin_em desc` (`visita_etapas_pendentes_ix`). Volume: no máximo poucas pendências por visita, só enquanto a resposta
+  não chega.
+- **Parâmetro do prazo**: `plataforma.parametro` (módulo `core`, chave `checkout_pendencia_alerta_h`, inteiro 1..168 horas).
+  **Sem linha semeada**: ausente = padrão **24** (`CHECKOUT_PENDENCIA_ALERTA_H_PADRAO` do contrato do Core), mesma convenção de
+  `inicio.parado_min` (0021). O BKO grava a linha quando o admin muda; nada novo no banco (tabela, único e RLS da 0001).
+- RLS: as políticas `isolamento_tenant` (0006) das duas tabelas cobrem as colunas; nenhuma política nova, grants iguais. A FK
+  `visita_etapa_visita_fk (tenant_id, visita_id)` prende a etapa à visita do próprio tenant. Espelho Drizzle
+  `visita.etapas_pendentes`, `visitaEtapa.{rotulo, pendente_desde, resolvida_em, alertada_em}` e
+  `SITUACOES_VISITA_ETAPA_BANCO`. Fixture e demo sem pendências (os testes inserem as suas,
+  `db/testes/visita-etapa-pendente.test.ts`). Aplicar no ambiente só quando o gerente liberar a §2 da T-0039.
+- Caminho de volta: `0026_core_visita_etapa_pendente.down.sql` — **apaga** as linhas `pendente` de `visita_etapa` (a visita
+  continua concluída, sem a marca), as quatro colunas, `visita.etapas_pendentes` e os dois índices; volta o CHECK
+  `concluida | dispensada`. Linhas `checkout_pendencia_alerta_h` do BKO ficam, sem efeito.

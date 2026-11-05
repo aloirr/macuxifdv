@@ -1,6 +1,6 @@
 /**
  * Schema `plataforma` em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas pela
- * migrações db/migrations/0001_plataforma.up.sql, 0003_plataforma_worker.up.sql e 0005_plataforma_arquivo.up.sql, para consultas da API.
+ * migrações db/migrations/0001_plataforma.up.sql, 0003_plataforma_worker.up.sql, 0005_plataforma_arquivo.up.sql e 0022_plataforma_geracao_base.up.sql, para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
@@ -35,6 +35,11 @@ export const tenant = plataforma.table('tenant', {
   fuso: text('fuso').notNull().default('America/Sao_Paulo'),
   plano: text('plano').notNull().default('piloto'),
   status: text('status', { enum: ['ativo', 'suspenso', 'encerrado'] }).notNull().default('ativo'),
+  /**
+   * 0022 (T-0079): geração dos dados do tenant. Gira (plataforma.girar_geracao_base, só o dono do banco) no seed --recriar
+   * e na restauração de backup; nunca no uso normal. O aparelho compara com o guardado e, se mudou, limpa a cópia local.
+   */
+  geracao_base: uuid('geracao_base').notNull().defaultRandom(),
   ...auditaveis(),
 });
 

@@ -4,15 +4,16 @@
  */
 import { SePode } from '@macuxi/platform-sdk/react';
 import {
-  Badge,
   Banner,
-  Button,
-  Card,
+  Botao,
+  Cartao,
+  ChipEstado,
   colors,
-  Empty,
-  Icon,
+  EstadoVazio,
+  Loading,
   ProgressBar,
   Screen,
+  space,
   Strong,
   SyncStamp,
   type as t,
@@ -27,22 +28,20 @@ export default function TreinarScreen() {
   const tr = useTreinamento();
   const { jornada } = tr;
   const nivel = jornada.nivel;
+  // Um só botão principal na tela: o da primeira trilha com lição a fazer (a lista já vem com obrigatórias antes).
+  const destaque = tr.listaDeTrilhas.find((x) => x.proxima_licao_id)?.trilha_id ?? null;
 
   return (
-    <Screen
-      testID="treinar"
-      refreshing={tr.auto.puxando}
-      onRefresh={tr.auto.puxar}
-    >
+    <Screen testID="treinar" refreshing={tr.auto.puxando} onRefresh={tr.auto.puxar}>
       <View style={styles.header}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={t.h1}>Treinar</Text>
           <Text style={t.sub}>
             {jornada.obrigatorias_pendentes > 0
               ? jornada.obrigatorias_pendentes === 1
-                ? '1 trilha obrigatória para fazer'
-                : `${jornada.obrigatorias_pendentes} trilhas obrigatórias para fazer`
-              : 'Aprenda um pouco todo dia'}
+                ? '1 obrigatória pendente'
+                : `${jornada.obrigatorias_pendentes} obrigatórias pendentes`
+              : 'Tudo em dia'}
           </Text>
         </View>
         <SyncStamp at={tr.sincronizadoEm} offline={tr.offline} tz={tr.tz} />
@@ -66,9 +65,9 @@ export default function TreinarScreen() {
         </Banner>
       ) : null}
 
-      <Card testID="treinar-nivel" style={styles.cardNivel}>
+      <Cartao testID="treinar-nivel" tom="escuro" gap={10}>
         <View style={styles.linha}>
-          <Text style={[t.h2, { color: '#FFFFFF' }]}>Nível {nivel.nivel}</Text>
+          <Text style={[t.h2, { color: colors.surface }]}>Nível {nivel.nivel}</Text>
           <Text style={[t.bodyStrong, { color: colors.darkMuted }]}>{jornada.xp_total} XP</Text>
         </View>
         <ProgressBar pct={nivel.progresso_pct} track={colors.darkTrack} color={colors.accentLight} />
@@ -77,11 +76,12 @@ export default function TreinarScreen() {
             ? 'Nível máximo alcançado!'
             : `Faltam ${nivel.xp_faltante} XP para o nível ${nivel.nivel + 1}`}
         </Text>
-      </Card>
+      </Cartao>
 
       <View style={styles.kpis}>
-        <Card
+        <Cartao
           testID="treinar-sequencia"
+          gap={space.xs}
           style={[styles.kpi, jornada.streak.em_risco && { borderColor: colors.warning }]}
         >
           <Text style={t.label}>Sequência</Text>
@@ -90,28 +90,29 @@ export default function TreinarScreen() {
           </Text>
           <Text style={[t.small, jornada.streak.em_risco && { color: colors.warning }]}>
             {jornada.streak.em_risco
-              ? 'Faça uma lição hoje para não perder'
+              ? 'Faça uma lição hoje'
               : jornada.streak.ativa_hoje
                 ? 'Hoje já conta'
                 : 'Comece hoje'}
           </Text>
-        </Card>
-        <Card testID="treinar-xp-hoje" style={styles.kpi}>
+        </Cartao>
+        <Cartao testID="treinar-xp-hoje" gap={space.xs} style={styles.kpi}>
           <Text style={t.label}>XP de hoje</Text>
           <Text style={t.number}>{jornada.xp_hoje}</Text>
           <Text style={t.small}>
             Recorde: {jornada.streak.maior} {jornada.streak.maior === 1 ? 'dia' : 'dias'}
           </Text>
-        </Card>
+        </Cartao>
       </View>
 
       <View style={styles.medalhas} testID="treinar-medalhas">
         {jornada.medalhas.map((m) => (
-          <Badge
+          <ChipEstado
             key={m.codigo}
-            label={m.nome}
-            tone={m.conquistada_em ? 'success' : 'neutral'}
-            style={!m.conquistada_em && { opacity: 0.6 }}
+            texto={m.conquistada_em ? m.nome : `${m.nome} · a conquistar`}
+            tom={m.conquistada_em ? 'sucesso' : 'neutro'}
+            icone={m.conquistada_em ? 'check' : 'lock'}
+            pequeno
           />
         ))}
       </View>
@@ -119,31 +120,35 @@ export default function TreinarScreen() {
       <View style={styles.linha}>
         <Text style={t.h2}>Trilhas</Text>
         <SePode acao="ranking.ver">
-          <Button
+          <Botao
             testID="treinar-abrir-ranking"
-            label="Ranking"
-            icon="target"
-            variant="outline"
-            height={48}
+            rotulo="Ranking"
+            icone="target"
+            nivel="neutro"
             onPress={irParaRanking}
-            style={{ paddingHorizontal: 14 }}
           />
         </SePode>
       </View>
-      <Card style={{ overflow: 'hidden' }}>
-        {tr.listaDeTrilhas.length === 0 ? (
-          <Empty
-            text={
-              tr.carregado
-                ? 'Nenhuma trilha para você agora. Puxe para atualizar quando tiver sinal.'
-                : 'Carregando as trilhas do aparelho…'
-            }
-          />
-        ) : null}
-        {tr.listaDeTrilhas.map((tl, i) => (
-          <LinhaTrilha key={tl.trilha_id} t={tl} ultima={i === tr.listaDeTrilhas.length - 1} />
-        ))}
-      </Card>
+      {tr.listaDeTrilhas.length === 0 ? (
+        <Cartao>
+          {tr.carregado ? (
+            <EstadoVazio icone="file" titulo="Nenhuma trilha agora" texto="Puxe para atualizar com sinal." />
+          ) : (
+            <Loading />
+          )}
+        </Cartao>
+      ) : (
+        <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
+          {tr.listaDeTrilhas.map((tl, i) => (
+            <LinhaTrilha
+              key={tl.trilha_id}
+              t={tl}
+              ultima={i === tr.listaDeTrilhas.length - 1}
+              principal={tl.trilha_id === destaque}
+            />
+          ))}
+        </Cartao>
+      )}
       {tr.erroSync && !tr.sincronizando ? (
         <Text style={[t.small, { textAlign: 'center', color: colors.danger }]}>{tr.erroSync}</Text>
       ) : null}
@@ -152,7 +157,15 @@ export default function TreinarScreen() {
   );
 }
 
-function LinhaTrilha({ t: tl, ultima }: { t: TrilhaDaLista; ultima: boolean }) {
+function LinhaTrilha({
+  t: tl,
+  ultima,
+  principal,
+}: {
+  t: TrilhaDaLista;
+  ultima: boolean;
+  principal: boolean;
+}) {
   const prazo = rotuloDoPrazo(tl);
   return (
     <View style={[styles.trilha, !ultima && styles.divisor]}>
@@ -168,30 +181,33 @@ function LinhaTrilha({ t: tl, ultima }: { t: TrilhaDaLista; ultima: boolean }) {
             {tl.titulo}
           </Text>
           {tl.concluida ? (
-            <Badge label="Concluída" tone="success" />
+            <ChipEstado texto="Concluída" tom="sucesso" pequeno />
           ) : tl.obrigatoria ? (
-            <Badge label="Obrigatória" tone={tl.atrasada ? 'danger' : 'accent'} />
+            <ChipEstado
+              texto={tl.atrasada ? 'Atrasada' : 'Obrigatória'}
+              tom={tl.atrasada ? 'erro' : 'destaque'}
+              pequeno
+            />
+          ) : tl.licoes_concluidas > 0 ? (
+            <ChipEstado texto="Em andamento" tom="aviso" pequeno />
           ) : null}
         </View>
         <ProgressBar pct={tl.progresso_pct} />
         <Text style={[t.small, tl.atrasada && { color: colors.danger }]}>
-          {tl.licoes_concluidas} de {tl.licoes_total} {tl.licoes_total === 1 ? 'lição' : 'lições'}{prazo ? ` · ${prazo}` : ''}
+          {tl.licoes_concluidas} de {tl.licoes_total} {tl.licoes_total === 1 ? 'lição' : 'lições'}
+          {prazo ? ` · ${prazo}` : ''}
         </Text>
       </Pressable>
       {tl.proxima_licao_id ? (
-        <Button
+        <Botao
           testID={`treinar-continuar-${tl.trilha_id}`}
-          label={tl.licoes_concluidas === 0 ? 'Começar' : 'Continuar'}
-          icon="chevron"
-          variant="accent"
-          height={48}
+          rotulo={tl.licoes_concluidas === 0 ? 'Começar' : 'Continuar'}
+          seta
+          nivel={principal ? 'principal' : 'secundario'}
           onPress={() => irParaLicao(tl.proxima_licao_id!)}
         />
       ) : !tl.concluida ? (
-        <View style={styles.linha}>
-          <Icon name="lock" size={14} color={colors.ink3} />
-          <Text style={t.small}>Abra a trilha para ver o que falta.</Text>
-        </View>
+        <Text style={t.small}>Abra a trilha para ver o que falta.</Text>
       ) : null}
     </View>
   );
@@ -200,10 +216,9 @@ function LinhaTrilha({ t: tl, ultima }: { t: TrilhaDaLista; ultima: boolean }) {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  cardNivel: { padding: 16, gap: 10, backgroundColor: colors.ink, borderColor: colors.ink },
   kpis: { flexDirection: 'row', gap: 10 },
-  kpi: { flex: 1, padding: 14, gap: 4 },
+  kpi: { flex: 1 },
   medalhas: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  trilha: { padding: 14, gap: 10 },
+  trilha: { padding: space.md + 2, gap: 10 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
 });

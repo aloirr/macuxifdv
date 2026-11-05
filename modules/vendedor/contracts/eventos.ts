@@ -60,6 +60,23 @@ export const PedidoStatusAlteradoEvento = z.object({
 });
 export type PedidoStatusAlteradoEvento = z.infer<typeof PedidoStatusAlteradoEvento>;
 
+/** Crédito do cliente (RN-VEN-12), formato que o Gestor lê. T-0024. */
+export const CreditoClienteEvento = z.object({
+  limite_cents: CentsNaoNeg,
+  saldo_aberto_cents: CentsNaoNeg,
+  /** limite − saldo em aberto − aprovados não faturados (pode ser negativo) */
+  disponivel_cents: z.number().int(),
+});
+export type CreditoClienteEvento = z.infer<typeof CreditoClienteEvento>;
+
+/** Histórico de compra do cliente, formato que o Gestor lê. T-0024. */
+export const HistoricoClienteEvento = z.object({
+  ultima_compra_em: IsoDateTime.nullable(),
+  pedidos_90d: z.number().int().nonnegative(),
+  ticket_medio_cents: CentsNaoNeg.nullable(),
+});
+export type HistoricoClienteEvento = z.infer<typeof HistoricoClienteEvento>;
+
 /** `vendedor.pedido.aprovacao_solicitada@1` — entrou em `em_aprovacao`. Espelho do `AprovacaoSolicitadaV1`. */
 export const AprovacaoSolicitadaEvento = z.object({
   pedido_id: Id,
@@ -70,9 +87,9 @@ export const AprovacaoSolicitadaEvento = z.object({
   motivos: z.array(MotivoEvento).min(1),
   desconto_efetivo_pct: z.number().nonnegative(),
   total_cents: CentsNaoNeg,
-  /** crédito e histórico fora da fatia (T-0029 §14): sempre null */
-  credito: z.null(),
-  historico: z.null(),
+  /** fora da fatia (T-0029 §14) segue publicando null; objeto é aditivo no @1 (T-0024) */
+  credito: CreditoClienteEvento.nullable(),
+  historico: HistoricoClienteEvento.nullable(),
   /** número do pedido para o texto da notificação; opcional, compatível com @1 */
   pedido_numero: z.string().nullable().optional(),
 });

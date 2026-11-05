@@ -43,3 +43,9 @@
 2026-11-04 — T-0077 — R1 (busca sempre em Todos) e amarelos Y1-Y10 na tela Pedidos; Y11 e G1-G3 ficam para depois do APK
 2026-11-04 — T-0076 — V1: filtro vindo do card Orçamentos usa orcamentoEmAberto (mesma regra do card); teste lista = contagem do card
 2026-11-04 — T-0077 — D1: período por mudança de status usa o último pedido_evento (ultimaMudancaDeStatus), Order.status_changed_at
+2026-11-04 — T-0079/T-0077/backlog — aoTrocarGeracao do Vendedor (limpa cópia do servidor, guarda rascunhos e exibições da fila), listagem de pedidos por período com por_status e consulta ao servidor fora dos 90 dias, acabamento de Pedidos (Y11, G1-G3, chip no lugar, Hoje texto, bordas)
+2026-11-04 — T-0077 — V1 por_status via pedido_evento (+caso de banco) e V2 poda de exibições órfãs com planoBaseRecriada
+2026-11-04 — T-0077 — Y12 a Y14 do designer-ux: resumo some sem resposta fora dos 90 dias, Hoje com Pressionavel do kit, texto do erro impessoal
+2026-11-05 — T-0079 — lote A: tirado eslint-disable inexistente em orders-screen.tsx; listagem-periodo.test.ts atualizado para a regra por pedido_evento
+2026-11-05 — T-0024 — credito/historico no aprovacao_solicitada@1, conferirEventosPublicados, consumo de integracao.* pelo contracts do dono com leitura tolerante
+2026-11-05 — T-0077 — V3 (PedidosPage.parse) e V4 (aviso de 1.000 mais recentes) em orders-screen.tsx

@@ -2,7 +2,7 @@
  * Período da lista de Pedidos (T-0077, RF-VEN-05): seletor Dia | Mês | Ano, valor com ‹ › e folha com calendário (Dia) ou
  * lista de meses/anos. Marca os dias que têm pedido. Toda a conta de datas está em `domain/busca-periodo`.
  */
-import { Button, colors, Folha, type as t } from '@macuxi/ui/mobile';
+import { Button, colors, Folha, Pressionavel, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -143,17 +143,17 @@ export function SeletorDePeriodo({
             ))}
             <Text style={t.small}>● dia com pedido</Text>
             <View style={s.acoes}>
-              <Button
+              <Pressionavel
                 testID="periodo-hoje"
-                label="Hoje"
-                variant="ghost"
-                height={52}
-                style={{ flex: 1 }}
+                accessibilityRole="button"
+                accessibilityLabel="Ir para hoje"
+                style={s.hoje}
                 onPress={() => {
                   onChange(periodoDe('dia', hoje.agora, hoje.tz));
                   setAberto(false);
-                }}
-              />
+                }}>
+                <Text style={[t.bodyStrong, { color: colors.accentInk }]}>Hoje</Text>
+              </Pressionavel>
               <Button
                 testID="periodo-aplicar"
                 label="Aplicar"
@@ -193,7 +193,7 @@ const s = StyleSheet.create({
   tipos: { flexDirection: 'row', backgroundColor: colors.neutralBg, borderRadius: 14, padding: 4 },
   tipo: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
   tipoAtivo: { backgroundColor: colors.surface },
-  valor: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.line },
+  valor: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.lineStrong },
   seta: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   setaTexto: { fontSize: 26, color: colors.accentInk },
   linhaMes: { flexDirection: 'row', justifyContent: 'flex-end' },
@@ -202,7 +202,8 @@ const s = StyleSheet.create({
   dia: { height: 48, borderRadius: 12 },
   diaAtivo: { backgroundColor: colors.ink },
   ponto: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.accentInk, position: 'absolute', bottom: 6 },
-  acoes: { flexDirection: 'row', gap: 12, marginTop: 6 },
+  acoes: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
+  hoje: { flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
   grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  opcao: { minWidth: '30%', flexGrow: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.lineSoft },
+  opcao: { minWidth: '30%', flexGrow: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.lineStrong },
 });

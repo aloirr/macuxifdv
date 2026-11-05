@@ -5,27 +5,12 @@
  * mês novo e do mês/cliente antigos (a nota pode mudar de mês ou de cliente): valor = faturamento menos devolução das notas
  * vivas e não canceladas; pedidos/itens/última compra contam só faturamento. Log sem dado pessoal (só contagens).
  */
-import { z } from 'zod';
-import { definirConsumidor, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { dataLocal } from '../domain';
-import { clientePorExternalId, eventoIntegracao, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
+import { clientePorExternalId, ReferenciaAusenteErp, usuarioPorExternalId } from './erp-apoio';
+import { EVENTO_ERP_NOTA_ATUALIZADO } from '../../integracao/contracts';
 
-const RegistroNota = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  cliente_external_id: z.string(),
-  tipo: z.enum(['faturamento', 'devolucao']),
-  numero: z.string(),
-  serie: TextoErp,
-  emitida_em: z.string(),
-  total_cents: z.number().int().min(0),
-  quantidade_itens: z.number().int().min(0).nullish(),
-  pedido_uuid: z.string().uuid().nullish(),
-  cancelada: z.boolean().optional(),
-});
-
-export const EventoIntegracaoNotaAtualizado = eventoIntegracao('nota', RegistroNota);
+export const EventoIntegracaoNotaAtualizado = eventoTolerante(EVENTO_ERP_NOTA_ATUALIZADO);
 
 /** Recalcula o consolidado mensal do cliente a partir das notas vivas (sem notas = linha do ERP removida). */
 export async function recalcularHistoricoCompra(db: ClienteBanco, clienteId: string, anoMes: string, fuso: string): Promise<void> {
@@ -68,14 +53,18 @@ export const consumidorNotaDoErp: ConsumidorEvento = definirConsumidor({
     const clienteId = await clientePorExternalId(ctx.db, r.cliente_external_id);
     if (!clienteId) throw new ReferenciaAusenteErp('cliente');
     const anoMes = dataLocal(r.emitida_em, fuso).slice(0, 7);
+    // RN-CORE-27 (T-0080): vendedor da nota. Ausente/desconhecido NÃO é erro: usuario_id fica nulo e o consumidor do vendedor completa depois.
+    const vendedorExt = r.vendedor_external_id?.trim() || null;
+    const usuarioId = vendedorExt ? await usuarioPorExternalId(ctx.db, vendedorExt) : null;
     await ctx.db.query(
-      `insert into core.nota_erp (tenant_id, external_id, cliente_id, tipo, numero, serie, emitida_em, ano_mes, total_cents, quantidade_itens, pedido_uuid, cancelada)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9, $10, $11)
+      `insert into core.nota_erp (tenant_id, external_id, cliente_id, tipo, numero, serie, emitida_em, ano_mes, total_cents, quantidade_itens, pedido_uuid, cancelada, vendedor_external_id, usuario_id)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9, $10, $11, $12, $13)
        on conflict (tenant_id, external_id) where deleted_at is null
        do update set cliente_id = excluded.cliente_id, tipo = excluded.tipo, numero = excluded.numero, serie = excluded.serie, emitida_em = excluded.emitida_em,
                      ano_mes = excluded.ano_mes, total_cents = excluded.total_cents, quantidade_itens = excluded.quantidade_itens,
-                     pedido_uuid = excluded.pedido_uuid, cancelada = excluded.cancelada`,
-      [r.external_id, clienteId, r.tipo, r.numero.trim(), r.serie?.trim() || null, r.emitida_em, anoMes, r.total_cents, r.quantidade_itens ?? 0, r.pedido_uuid ?? null, r.cancelada ?? false],
+                     pedido_uuid = excluded.pedido_uuid, cancelada = excluded.cancelada,
+                     vendedor_external_id = excluded.vendedor_external_id, usuario_id = excluded.usuario_id`,
+      [r.external_id, clienteId, r.tipo, r.numero.trim(), r.serie?.trim() || null, r.emitida_em, anoMes, r.total_cents, r.quantidade_itens ?? 0, r.pedido_uuid ?? null, r.cancelada ?? false, vendedorExt, usuarioId],
     );
     await recalcularHistoricoCompra(ctx.db, clienteId, anoMes, fuso);
     if (anterior && (anterior.cliente_id !== clienteId || anterior.ano_mes !== anoMes)) await recalcularHistoricoCompra(ctx.db, anterior.cliente_id, anterior.ano_mes, fuso);

@@ -1,10 +1,12 @@
 /**
  * Campo de uma pergunta no formulário do app (RF-PES-01: os nove tipos). Alvos de toque de 48 dp; erro em português
  * embaixo do campo. A validação de verdade é do domain (`prepararEnvio`); aqui só a entrada e a conversão de formato.
+ * Visual T-0072: Cartao por pergunta, chip "Obrigatória", opções com Pressionavel, foto com Botao secundário e
+ * remoção com Desfazer (AvisoRodape do ResponderScreen via `avisar`).
  */
-import { colors, fonts, radius, type as t } from '@macuxi/ui/mobile';
+import { BotaoIcone, Botao, Cartao, ChipEstado, colors, fonts, Icon, Pressionavel, radius, type EstadoAviso, type as t } from '@macuxi/ui/mobile';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import type { FotoResposta, ItemResposta, Pergunta } from '../../contracts';
 import { dataBr, lerData, lerNumero } from '../lib/entrada';
 import { capturaDisponivel, capturarFotoPesquisa } from '../lib/foto';
@@ -19,20 +21,22 @@ export interface PropsCampo {
   agora: () => Date;
   onResponder: (item: ItemResposta) => void;
   onLimpar: () => void;
+  /** Mostra o aviso no rodapé da tela (ex.: "Foto removida" com Desfazer). */
+  avisar?: (aviso: EstadoAviso) => void;
 }
 
 function Opcao({ rotulo, marcada, onPress, testID, multipla }: { rotulo: string; marcada: boolean; onPress: () => void; testID: string; multipla?: boolean }) {
   return (
-    <Pressable
+    <Pressionavel
       testID={testID}
       accessibilityRole={multipla ? 'checkbox' : 'radio'}
       accessibilityState={{ checked: marcada }}
       accessibilityLabel={rotulo}
       onPress={onPress}
-      style={({ pressed }) => [estilos.opcao, marcada && estilos.opcaoMarcada, pressed && { opacity: 0.85 }]}>
+      style={[estilos.opcao, marcada && estilos.opcaoMarcada]}>
       <View style={[multipla ? estilos.caixa : estilos.radio, marcada && estilos.marcaAtiva]} />
       <Text style={[t.body, { flex: 1 }]}>{rotulo}</Text>
-    </Pressable>
+    </Pressionavel>
   );
 }
 
@@ -57,7 +61,7 @@ function CampoTexto({ valorInicial, teclado, placeholder, multilinha, onTexto, t
   );
 }
 
-export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onResponder, onLimpar }: PropsCampo) {
+export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onResponder, onLimpar, avisar }: PropsCampo) {
   const id = p.id;
   const tid = (s: string) => `pesquisa.pergunta-${ordem}.${s}`;
   let corpo: React.ReactNode = null;
@@ -68,7 +72,7 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
       corpo = (
         <View style={estilos.linha}>
           {[true, false].map((b) => (
-            <Pressable
+            <Pressionavel
               key={String(b)}
               testID={tid(b ? 'sim' : 'nao')}
               accessibilityRole="radio"
@@ -76,7 +80,7 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
               onPress={() => onResponder({ pergunta_id: id, tipo: 'sim_nao', valor: b })}
               style={[estilos.botaoMetade, v === b && estilos.opcaoMarcada]}>
               <Text style={t.bodyStrong}>{b ? 'Sim' : 'Não'}</Text>
-            </Pressable>
+            </Pressionavel>
           ))}
         </View>
       );
@@ -132,9 +136,9 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
         <View style={{ gap: 6 }}>
           <View style={[estilos.linha, { flexWrap: 'wrap' }]}>
             {pontos.map((n) => (
-              <Pressable key={n} testID={tid(`escala-${n}`)} accessibilityRole="radio" accessibilityState={{ checked: v === n }} onPress={() => onResponder({ pergunta_id: id, tipo: 'escala', valor: n })} style={[estilos.ponto, v === n && estilos.opcaoMarcada]}>
+              <Pressionavel key={n} testID={tid(`escala-${n}`)} accessibilityRole="radio" accessibilityState={{ checked: v === n }} onPress={() => onResponder({ pergunta_id: id, tipo: 'escala', valor: n })} style={[estilos.ponto, v === n && estilos.opcaoMarcada]}>
                 <Text style={t.bodyStrong}>{n}</Text>
-              </Pressable>
+              </Pressionavel>
             ))}
           </View>
           {p.rotulo_minimo || p.rotulo_maximo ? (
@@ -174,22 +178,31 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
         <View style={{ gap: 8 }}>
           {fotos.map((f, i) => (
             <View key={f.id} style={[estilos.linha, { justifyContent: 'space-between' }]}>
-              <Text style={t.body}>Foto {i + 1} tirada</Text>
-              <Pressable testID={tid(`foto-remover-${i + 1}`)} accessibilityRole="button" onPress={() => onResponder({ pergunta_id: id, tipo: 'foto', fotos: fotos.filter((x) => x.id !== f.id) })} style={estilos.link}>
-                <Text style={[t.bodyStrong, { color: colors.danger }]}>Remover</Text>
-              </Pressable>
+              <View style={estilos.linha}>
+                <Text style={t.body}>Foto {i + 1}</Text>
+                <ChipEstado pequeno tom="sucesso" icone="check" texto="Tirada" />
+              </View>
+              <BotaoIcone
+                testID={tid(`foto-remover-${i + 1}`)}
+                icone="trash"
+                cor={colors.danger}
+                tamanho={40}
+                rotuloAcessivel={`Remover foto ${i + 1}`}
+                onPress={() => {
+                  onResponder({ pergunta_id: id, tipo: 'foto', fotos: fotos.filter((x) => x.id !== f.id) });
+                  avisar?.({ texto: 'Foto removida', acao: { rotulo: 'Desfazer', onPress: () => onResponder({ pergunta_id: id, tipo: 'foto', fotos }) } });
+                }}
+              />
             </View>
           ))}
           {capturaDisponivel() ? (
             fotos.length < p.max_fotos ? (
-              <Pressable testID={tid('foto-tirar')} accessibilityRole="button" onPress={() => void tirar()} style={[estilos.botaoCheio]}>
-                <Text style={[t.bodyStrong, { color: '#FFFFFF' }]}>{fotos.length ? 'Tirar outra foto' : 'Tirar foto'}</Text>
-              </Pressable>
+              <Botao testID={tid('foto-tirar')} rotulo={fotos.length ? 'Tirar outra' : 'Tirar foto'} icone="camera" onPress={() => void tirar()} />
             ) : (
-              <Text style={t.small}>{p.max_fotos === 1 ? 'Limite de 1 foto atingido.' : `Limite de ${p.max_fotos} fotos atingido.`}</Text>
+              <Text style={t.small}>{p.max_fotos === 1 ? 'Limite de 1 foto' : `Limite de ${p.max_fotos} fotos`}</Text>
             )
           ) : (
-            <Text style={t.small}>A câmera não está disponível neste aparelho. Atualize o app para responder com foto.</Text>
+            <Text style={t.small}>Câmera indisponível. Atualize o app.</Text>
           )}
         </View>
       );
@@ -201,33 +214,33 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
   }
 
   return (
-    <View style={estilos.cartao} testID={`pesquisa.pergunta-${ordem}`}>
+    <Cartao testID={`pesquisa.pergunta-${ordem}`} gap={10} style={erro ? { borderColor: colors.danger } : undefined}>
       <Text style={t.title16}>
         {ordem}. {p.enunciado}
-        {p.obrigatoria ? <Text style={{ color: colors.danger }}> *</Text> : null}
       </Text>
+      {p.obrigatoria ? <ChipEstado pequeno tom="neutro" texto="Obrigatória" /> : null}
       {p.ajuda ? <Text style={t.small}>{p.ajuda}</Text> : null}
       <View style={{ gap: 8 }}>{corpo}</View>
       {erro ? (
-        <Text style={[t.small, { color: colors.danger }]} testID={tid('erro')}>
-          {erro}
-        </Text>
+        <View style={estilos.linha}>
+          <Icon name="alert" size={14} color={colors.danger} />
+          <Text style={[t.small, { color: colors.danger, flex: 1 }]} testID={tid('erro')}>
+            {erro}
+          </Text>
+        </View>
       ) : null}
-    </View>
+    </Cartao>
   );
 }
 
 const estilos = StyleSheet.create({
-  cartao: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.xl, padding: 16, gap: 10 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   opcao: { minHeight: ALVO, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.surface },
-  opcaoMarcada: { borderColor: colors.accent, backgroundColor: colors.accentTint },
+  opcaoMarcada: { borderColor: colors.accentLine, backgroundColor: colors.accentSoft },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.lineStrong },
   caixa: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: colors.lineStrong },
   marcaAtiva: { borderColor: colors.accent, backgroundColor: colors.accent },
   botaoMetade: { flex: 1, minHeight: ALVO, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.md },
   ponto: { width: ALVO, height: ALVO, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.md },
   entrada: { minHeight: ALVO, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink },
-  botaoCheio: { minHeight: ALVO, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.accent },
-  link: { minHeight: ALVO, justifyContent: 'center', paddingHorizontal: 8 },
 });

@@ -10,27 +10,12 @@
  * retentativa sem fim; o Hub também barra o teto). RN-VEN-15: se a embalagem tem a mesma sigla de uma unidade de venda viva do ERP
  * (`core.produto_unidade`), o ERP prevalece: `embalagem_quantidade` passa a ser o `fator` (log só com external_id e sigla).
  */
-import { z } from 'zod';
-import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { planejarProdutoDoErp, reconciliarEmbalagemComErp, type EventoProdutoAtualizado } from '../domain';
-import { comMedidaAusente, eventoIntegracao, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
+import { comMedidaAusente, ReferenciaAusenteErp } from './erp-apoio';
+import { EVENTO_ERP_PRODUTO_ATUALIZADO } from '../../integracao/contracts';
 
-const RegistroProduto = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  sku: z.string(),
-  ean: TextoErp,
-  nome: z.string(),
-  marca: TextoErp,
-  categoria: TextoErp,
-  unidade: z.string(),
-  // RN-CORE-19: embalagem opcional (aditivo, mesma versão do evento)
-  embalagem_medida: TextoErp,
-  embalagem_quantidade: z.number().nullish(),
-});
-
-export const EventoIntegracaoProdutoAtualizado = eventoIntegracao('produto', RegistroProduto);
+export const EventoIntegracaoProdutoAtualizado = eventoTolerante(EVENTO_ERP_PRODUTO_ATUALIZADO);
 
 export const consumidorProdutoDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoProdutoAtualizado,

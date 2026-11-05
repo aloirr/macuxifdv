@@ -42,7 +42,9 @@ O serviço **não** precisa do `.env` do admin nem da rede `interna`: o dump che
 ## Restauração (`restaurar-vm.sh`)
 1. Baixa o backup pelo serviço `backup`, que confere o sha256, e confere o índice com `pg_restore -l`.
 2. Cria um banco **novo**, por padrão `macuxi_restaurado_<UTC>`, e faz `pg_restore --exit-on-error --single-transaction`.
-   Se der erro, desfaz tudo e apaga o banco novo.
+   Se der erro, desfaz tudo e apaga o banco novo. Depois gira `plataforma.tenant.geracao_base` de **todos** os tenants
+   do restaurado (`plataforma.girar_geracao_base(null)`, 0022, T-0079): os aparelhos percebem a base voltada, reenviam a
+   fila e limpam a cópia local. Backup anterior à 0022 não tem a função; o `banco migrar up` do deploy cria o marcador.
 3. Compara `contagem.sql` do restaurado com a do banco atual: linhas por tabela, políticas de RLS, tabelas com FORCE
    RLS e privilégios de `macuxi_app`/`macuxi_worker`. Diferença nas linhas é normal se houve uso depois do backup.
 4. Sem `--trocar`, para aqui e o banco em uso não é tocado. Com `--trocar`:

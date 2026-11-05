@@ -153,6 +153,45 @@ describe('POST /v1/sync/push', () => {
     expect(p.json().resultados[0]).toMatchObject({ status: 'rejeitado', codigo: 'PAYLOAD_INVALIDO' });
   });
 
+  it('D-T0039a: processa na ordem da fila — só itens CONSECUTIVOS do mesmo provedor vão juntos; 4xx rejeita só o run; 5xx para os runs seguintes', async () => {
+    const chamadas: string[][] = [];
+    const falha = { em: '' as string, status: 422 };
+    const receber = (nome: string) => async (_ctx: unknown, itens: readonly { id: string }[]) => {
+      if (falha.em === nome) {
+        falha.em = '';
+        if (falha.status >= 500) throw new Error('falha transitória');
+        throw new ErroRegraNegocio('RN-VEN-02', 'Recusado.');
+      }
+      chamadas.push(itens.map((i) => `${nome}:${i.id}`));
+      return itens.map((i) => ({ id: i.id, status: 'aceito' as const }));
+    };
+    const cond = definirEntidadeSync({ nome: 'cliente_condicao', modulo: 'vendedor', direcao: 'ambos', conflito: 'servidor_vence', schema: z.unknown() });
+    const api = definirModuloApi({ ...vendedorApi, sync: [{ entidade: pedido, receber: receber('pedido') }, { entidade: cond, receber: receber('cond') }] });
+    const { banco } = bancoFalso(() => new Date(AGORA.getTime() - 2000));
+    const base = opcoesDeTeste(LICENCAS_PADRAO, { banco, relogio: () => AGORA });
+    const app = createApp({ ...base, modulos: base.modulos!.map((m) => (m.manifesto.id === 'vendedor' ? api : m)) });
+    // [pedido 1, pedido 2, cond 3, pedido 4, cond 5]: 4 runs, na ordem da fila (antes: pedido 1,2,4 e só depois cond 3,5)
+    const itens = [item(1), item(2), item(3, 'cliente_condicao'), item(4), item(5, 'cliente_condicao')];
+    const r = await app.inject({ method: 'POST', url: '/v1/sync/push', headers: cab('vendedor'), payload: { itens } });
+    expect(r.statusCode).toBe(200);
+    expect(chamadas).toEqual([[`pedido:${U(1)}`, `pedido:${U(2)}`], [`cond:${U(3)}`], [`pedido:${U(4)}`], [`cond:${U(5)}`]]);
+    expect(r.json().resultados.map((x: { id: string }) => x.id)).toEqual([U(1), U(2), U(3), U(4), U(5)]);
+    // 4xx no run do meio: só ele é rejeitado, os seguintes seguem
+    chamadas.length = 0;
+    falha.em = 'cond';
+    falha.status = 422;
+    const r4 = await app.inject({ method: 'POST', url: '/v1/sync/push', headers: cab('vendedor'), payload: { itens } });
+    expect(r4.json().resultados.map((x: { status: string; codigo?: string }) => x.codigo ?? x.status)).toEqual(['aceito', 'aceito', 'RN-VEN-02', 'aceito', 'aceito']);
+    expect(chamadas).toEqual([[`pedido:${U(1)}`, `pedido:${U(2)}`], [`pedido:${U(4)}`], [`cond:${U(5)}`]]);
+    // 5xx: o lote inteiro volta 500 e nada depois do run que falhou é processado (o motor reenvia o lote na mesma ordem)
+    chamadas.length = 0;
+    falha.em = 'cond';
+    falha.status = 500;
+    const r5 = await app.inject({ method: 'POST', url: '/v1/sync/push', headers: cab('vendedor'), payload: { itens } });
+    expect(r5.statusCode).toBe(500);
+    expect(chamadas).toEqual([[`pedido:${U(1)}`, `pedido:${U(2)}`]]);
+  });
+
   it('lote inválido (id que não é UUID do aparelho) → 400', async () => {
     const { app } = montar([]);
     const r = await app.inject({ method: 'POST', url: '/v1/sync/push', headers: cab('vendedor'), payload: { itens: [{ id: '1', entidade: 'pedido', payload: {} }] } });

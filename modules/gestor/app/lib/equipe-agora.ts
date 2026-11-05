@@ -11,11 +11,11 @@ import { ORDEM_STATUS_AGORA, statusAgora, type StatusAgora } from '../../domain/
 export const PARADO_MIN_PADRAO = 60;
 
 export const STATUS_AGORA_ROTULO: Readonly<Record<StatusAgora, { label: string; tom: TomEstado }>> = {
-  parado: { label: 'Parado', tom: 'erro' },
+  parado: { label: 'Parado', tom: 'aviso' },
   sem_checkin: { label: 'Sem check-in', tom: 'aviso' },
   em_rota: { label: 'Em rota', tom: 'destaque' },
   em_visita: { label: 'Em visita', tom: 'sucesso' },
-  rota_concluida: { label: 'Rota concluída', tom: 'neutro' },
+  rota_concluida: { label: 'Rota concluída', tom: 'sucesso' },
 };
 
 /** 45 → "45 min"; 100 → "1h40"; 120 → "2h". */

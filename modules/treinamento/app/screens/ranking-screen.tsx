@@ -4,9 +4,23 @@
  */
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useHttp } from '@macuxi/platform-sdk/react';
-import { BackLink, Card, Chip, colors, Empty, fonts, formatHHMM, Screen, type as t } from '@macuxi/ui/mobile';
+import {
+  BackLink,
+  Cartao,
+  Chip,
+  ChipEstado,
+  colors,
+  EstadoVazio,
+  Loading,
+  fonts,
+  formatHHMM,
+  LinhaChips,
+  Screen,
+  space,
+  type as t,
+} from '@macuxi/ui/mobile';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { RankingResposta, ROTAS_TREINAMENTO, type LinhaRankingContrato } from '../../contracts';
 import { chaveDoRanking } from '../lib/estado';
 import { hrefTreinar } from '../rotas';
@@ -72,12 +86,7 @@ export default function RankingScreen() {
     <Screen testID="treinar-ranking" refreshing={carregando} onRefresh={() => void carregar()}>
       <BackLink label="Treinar" fallback={hrefTreinar()} />
       <Text style={t.h1}>Ranking</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chips}
-        contentContainerStyle={styles.chipsConteudo}
-      >
+      <LinhaChips>
         {PERIODOS.map((p) => (
           <Chip
             key={p.id}
@@ -87,13 +96,8 @@ export default function RankingScreen() {
             onPress={() => setPeriodo(p.id)}
           />
         ))}
-      </ScrollView>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chips}
-        contentContainerStyle={styles.chipsConteudo}
-      >
+      </LinhaChips>
+      <LinhaChips>
         {ESCOPOS.map((x) => (
           <Chip
             key={x.id}
@@ -103,31 +107,39 @@ export default function RankingScreen() {
             onPress={() => setEscopo(x.id)}
           />
         ))}
-      </ScrollView>
+      </LinhaChips>
       {aviso ? (
         <Text style={[t.small, { color: colors.warning }]} testID="ranking-aviso">
           {aviso}
         </Text>
       ) : null}
       {dados?.minha_linha ? (
-        <Card testID="ranking-minha-posicao" style={[styles.minha]}>
+        <Cartao testID="ranking-minha-posicao" tom="escuro" gap={space.xs}>
           <Text style={[t.label, { color: colors.darkMuted }]}>Sua posição</Text>
-          <Text style={[t.h2, { color: '#FFFFFF' }]}>
+          <Text style={[t.h2, { color: colors.surface }]}>
             {dados.minha_linha.posicao}º · {dados.minha_linha.pontos} XP
           </Text>
-        </Card>
+        </Cartao>
       ) : null}
-      <Card style={{ overflow: 'hidden' }}>
+      <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
         {!dados || dados.linhas.length === 0 ? (
-          <Empty text={carregando ? 'Carregando…' : 'Ninguém pontuou neste período ainda.'} />
+          carregando ? (
+            <Loading />
+          ) : (
+            <EstadoVazio
+              icone="target"
+              titulo="Ninguém pontuou ainda"
+              texto="Conclua uma lição para entrar."
+            />
+          )
         ) : null}
         {dados?.linhas.map((l, i) => (
           <Linha key={l.usuario_id} l={l} ultima={i === dados.linhas.length - 1} />
         ))}
-      </Card>
+      </Cartao>
       {dados ? (
         <Text style={[t.small, { textAlign: 'center' }]}>
-          Atualizado às {formatHHMM(dados.calculado_em, tr.tz)} · desempate: quem chegou primeiro ao XP
+          Atualizado às {formatHHMM(dados.calculado_em, tr.tz)} · empate: quem chegou primeiro ao XP
         </Text>
       ) : null}
     </Screen>
@@ -144,21 +156,18 @@ function Linha({ l, ultima }: { l: LinhaRankingContrato; ultima: boolean }) {
       <View style={{ flex: 1 }}>
         <Text style={t.bodyStrong} numberOfLines={1}>
           {l.nome}
-          {l.eu ? ' (você)' : ''}
         </Text>
         <Text style={t.small}>
           {l.trilhas_concluidas === 1 ? '1 trilha concluída' : `${l.trilhas_concluidas} trilhas concluídas`}
         </Text>
       </View>
+      {l.eu ? <ChipEstado texto="Você" tom="destaque" pequeno /> : null}
       <Text style={t.bodyStrong}>{l.pontos} XP</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  chips: { marginHorizontal: -20, flexGrow: 0 },
-  chipsConteudo: { gap: 6, paddingHorizontal: 20 },
-  minha: { padding: 14, gap: 4, backgroundColor: colors.ink, borderColor: colors.ink },
   linha: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -722,6 +722,22 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     }
   });
 
+  it('T-0079 (0022): recarga sem --recriar mantém a geração da base; --recriar gira só a do tenant demo', async () => {
+    const geracoes = () =>
+      comAdmin(b.nome, (c) => c.query<{ id: string; g: string }>('select id, geracao_base as g from plataforma.tenant order by id')).then(
+        (r) => new Map(r.rows.map((x) => [x.id, x.g])),
+      );
+    const inicial = await geracoes();
+    expect(inicial.get(TENANT_DEMO)).toMatch(/^[0-9a-f-]{36}$/);
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+    expect(await geracoes()).toEqual(inicial);
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, recriar: true, hoje: hojeCarga }));
+    const depois = await geracoes();
+    expect(depois.get(TENANT_DEMO)).toMatch(/^[0-9a-f-]{36}$/);
+    expect(depois.get(TENANT_DEMO)).not.toBe(inicial.get(TENANT_DEMO));
+    for (const [id, g] of inicial) if (id !== TENANT_DEMO) expect(depois.get(id)).toBe(g);
+  });
+
   it('pelo papel macuxi_app: cada cliente com uma tabela de preço viva e 3 produtos sem preço no Atacado', async () => {
     const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
       clientes: (await c.query<{ n: number }>('select count(distinct cliente_id)::int as n from catalogo.cliente_tabela_preco where deleted_at is null')).rows[0]!.n,

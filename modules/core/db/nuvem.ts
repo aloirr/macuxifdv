@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -259,6 +259,8 @@ export const TIPOS_NOTA_ERP_BANCO = ['faturamento', 'devolucao'] as const;
  * historico_compra (soma das notas vivas e não canceladas por cliente e ano_mes). external_id OBRIGATÓRIO (chave da nota
  * no ERP; único vivo nota_erp_external_uk). cliente_id com FK composta; pedido_uuid é retrato SEM FK (fronteira).
  * ano_mes AAAA-MM no fuso do tenant (o consumidor calcula a partir de emitida_em). Fora do pull do app; sem DELETE.
+ * 0025 (T-0080, RN-CORE-27): vendedor_external_id (chave do vendedor no ERP, aparada; vazio = null) e usuario_id (FK composta
+ * nota_erp_usuario_fk para core.usuario; null = sem vendedor ou vendedor ainda não recebido; completado pelo consumidor do vendedor).
  */
 export const notaErp = core.table('nota_erp', {
   ...comuns(),
@@ -272,6 +274,8 @@ export const notaErp = core.table('nota_erp', {
   quantidade_itens: integer('quantidade_itens').notNull().default(0),
   pedido_uuid: uuid('pedido_uuid'),
   cancelada: boolean('cancelada').notNull().default(false),
+  vendedor_external_id: text('vendedor_external_id'),
+  usuario_id: uuid('usuario_id'),
 });
 
 export const TIPOS_MOTIVO = ['nao_venda', 'cliente_fechado', 'fora_do_raio'] as const;
@@ -325,6 +329,8 @@ export const RESULTADOS_VISITA_BANCO = ['atendido', 'pedido', 'sem_pedido', 'cli
  * visita_aberta_uk). checkout_id único (idempotência do checkout). RN-CORE-10: fora_do_raio ⇒ justificativa.
  * RN-CORE-14: cliente_fechado ⇒ motivo_id e foto_fachada_id. checkout_em, resultado e fechada_por andam juntos.
  * pedido_id sem FK (schema vendedor).
+ * 0026 (T-0039 §2, RN-CORE-12): etapas_pendentes = contagem das linhas 'pendente' vivas de visita_etapa, mantida pelo Core
+ * na mesma transação (CHECK >= 0; vai no pull da visita); índice parcial visita_etapas_pendentes_ix (filtro do BKO).
  */
 export const visita = core.table('visita', {
   ...comuns(),
@@ -353,17 +359,31 @@ export const visita = core.table('visita', {
   foto_fachada_id: uuid('foto_fachada_id'),
   fechada_por: text('fechada_por', { enum: ['usuario', 'auto'] }),
   recebido_em: timestamp('recebido_em', { withTimezone: true }).notNull().defaultNow(),
+  etapas_pendentes: smallint('etapas_pendentes').notNull().default(0),
 });
 
-/** Etapa do checkout registrada por módulo (única por visita + módulo + etapa). */
+/** Situações aceitas pelo banco em visita_etapa (CHECK visita_etapa_situacao_valida; 'pendente' desde a 0026). */
+export const SITUACOES_VISITA_ETAPA_BANCO = ['concluida', 'dispensada', 'pendente'] as const;
+
+/**
+ * Etapa do checkout registrada por módulo (única por visita + módulo + etapa, visita_etapa_uk).
+ * 0026 (T-0039 §2, RN-CORE-12): 'pendente' = obrigatória de outro módulo não concluída no servidor no checkout (aceito).
+ * rotulo (1..120, da consulta) · pendente_desde (servidor; obrigatório em 'pendente') · resolvida_em (baixa; só fora de
+ * 'pendente' e com pendente_desde) · alertada_em (job do alerta; só com pendente_desde). Índice parcial
+ * visita_etapa_pendente_ix (tenant_id, pendente_desde) where situacao = 'pendente' and vivo.
+ */
 export const visitaEtapa = core.table('visita_etapa', {
   ...comuns(),
   visita_id: uuid('visita_id').notNull(),
   modulo: text('modulo').notNull(),
   etapa: text('etapa').notNull(),
-  situacao: text('situacao', { enum: ['concluida', 'dispensada'] }).notNull(),
+  situacao: text('situacao', { enum: SITUACOES_VISITA_ETAPA_BANCO }).notNull(),
   referencia_id: uuid('referencia_id'),
   registrada_em: timestamp('registrada_em', { withTimezone: true }).notNull().defaultNow(),
+  rotulo: text('rotulo'),
+  pendente_desde: timestamp('pendente_desde', { withTimezone: true }),
+  resolvida_em: timestamp('resolvida_em', { withTimezone: true }),
+  alertada_em: timestamp('alertada_em', { withTimezone: true }),
 });
 
 export const TIPOS_NOTIFICACAO_BANCO = ['recado', 'sistema', 'pedido', 'treinamento', 'trade'] as const;
@@ -422,4 +442,11 @@ export const indicadorDiario = core.table('indicador_diario', {
    * com o Vendedor desligado.
    */
   clientes_positivados: integer('clientes_positivados'),
+  /**
+   * 0023 (positivação acumulada do mês, opção 3): QUAIS clientes o usuário positivou no dia, sem repetição; null = não
+   * apurado. Gravada junto com clientes_positivados (CHECK indicador_diario_clientes_positivados_ids_coerente: 1 dimensão,
+   * sem nulo, cardinality = clientes_positivados). A contagem do mês sem repetir cliente entre dias sai de
+   * core.positivacao_do_mes(usuarios, 'AAAA-MM', hoje) → (usuario_id, ate_ontem, hoje, mes).
+   */
+  clientes_positivados_ids: uuid('clientes_positivados_ids').array(),
 });

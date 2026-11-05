@@ -8,15 +8,18 @@
  * Hub do Conector (ADR 0013): `MACUXI_HUB_CHAVE_PEPPER` (≥ 32 bytes) lido pelo módulo Integração; sem ele as rotas
  * `/integracao/v1` respondem 503 (falha fechada).
  * Atrás de proxy/túnel: `MACUXI_TRUST_PROXY` (`config.ts`, `lerTrustProxy`) para o IP real valer nos limites por IP.
+ * T-0078: a cada `MACUXI_METRICAS_INTERVALO_MS` (padrão 5 min; 0 desliga) registra no log a linha `tipo: metricas` do
+ * `/v1/saude` (5xx da janela, outbox, alertas), em `warn` quando há alerta. Cada linha de requisição já leva `request_id`.
  */
-import { lerConfig, urlApp } from '@macuxi/db';
+import { lerConfigApp, urlApp } from '@macuxi/db';
 import pg from 'pg';
 import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
 import { criarBancoApp } from './banco';
 import { conferirSegredoJwt, lerTrustProxy, opcoesLogger } from './config';
+import { registrarMetricasApi } from './observabilidade';
 
-const cfg = lerConfig(); // carrega o .env (raiz e db/) antes de ler as variáveis abaixo
+const cfg = lerConfigApp(); // carrega o .env (raiz e db/) antes de ler as variáveis abaixo; fora do local não exige a senha do admin
 const segredoJwt = conferirSegredoJwt(process.env, cfg.host);
 if (!segredoJwt.ok && segredoJwt.fatal) {
   console.error(`[api] ${segredoJwt.mensagem}`);
@@ -50,7 +53,14 @@ app.log.info({ armazenamento: arquivos.descricao }, 'armazenamento de arquivos')
 const porta = Number(process.env.MACUXI_API_PORTA ?? 8100);
 const host = process.env.MACUXI_API_HOST ?? '127.0.0.1';
 
+/** Mesma leitura do monitor externo: o `/v1/saude` (sonda com cache e prazo) vira uma linha de log (`observabilidade.ts`). */
+const registrarMetricas = () => registrarMetricasApi(app, app.log);
+const intervaloMetricas = Number(process.env.MACUXI_METRICAS_INTERVALO_MS ?? 300_000);
+const timerMetricas = intervaloMetricas > 0 ? setInterval(() => void registrarMetricas(), intervaloMetricas) : undefined;
+timerMetricas?.unref();
+
 const encerrar = async () => {
+  if (timerMetricas) clearInterval(timerMetricas);
   await app.close();
   await pool.end();
   process.exit(0);

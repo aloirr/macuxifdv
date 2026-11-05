@@ -44,7 +44,7 @@ export const rotasDePromotorPedidos: RotaModulo[] = [
         if (antes !== c.ligado) {
           // T-0077 D2: em qualquer mudança toca o updated_at do histórico: ao desligar, o pull incremental entrega as linhas como removidas
           // ao promotor; ao religar, o aparelho puxa de novo (todos os perfis rebaixam o histórico; troca rara, aceitável)
-          await db.query('update core.historico_compra set updated_at = now() where deleted_at is null');
+          await db.query('update core.historico_compra set updated_at = now() where tenant_id = plataforma.tenant_atual() and deleted_at is null');
           await auditar(db, ctx, {
             acao: 'parametro.promotor_ve_pedidos',
             entidade: 'parametro',

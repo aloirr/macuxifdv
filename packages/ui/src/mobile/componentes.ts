@@ -37,3 +37,19 @@ export function lerQuantidade(texto: string): number | null {
 export function folgaDeToque(visual: number, alvo = ALVO_TOQUE): number {
   return Math.max(0, Math.ceil((alvo - visual) / 2));
 }
+
+/** Altura mínima do carregando dentro de cartão (ranking, lista de trilhas): o cartão não colapsa enquanto busca. */
+export const ALTURA_CARREGANDO_EMBUTIDO = 96;
+
+/** Layout do carregando (sem cor). Tela cheia ocupa o espaço que sobra; embutido (dentro de cartão) não estica:
+ * altura mínima fixa, centralizado, e o fundo fica com o cartão (sem faixa cinza). */
+export function layoutCarregando(embutido: boolean): {
+  flex?: number;
+  minHeight?: number;
+  alignSelf?: 'stretch';
+  alignItems: 'center';
+  justifyContent: 'center';
+} {
+  if (embutido) return { minHeight: ALTURA_CARREGANDO_EMBUTIDO, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' };
+  return { flex: 1, alignItems: 'center', justifyContent: 'center' };
+}

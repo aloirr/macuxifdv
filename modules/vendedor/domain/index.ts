@@ -14,3 +14,4 @@ export * from './sugestoes';
 export * from './resumo-inicio';
 export * from './busca-periodo';
 export * from './filtro-vendedor';
+export * from './base-recriada';

@@ -81,10 +81,13 @@ export function dadosGestorDemo(dados: DadosDemo): DadosGestorDemo {
     });
   }
 
-  // 2. visitas (check-in e checkout do usuário)
+  // 2. visitas (check-in e checkout do usuário), no formato oficial do Core (VisitaCheckinSchema/VisitaCheckoutSchema)
   for (const v of dados['core.visita']) {
     const base = { visita_id: String(v.id), usuario_id: String(v.usuario_id), cliente_id: String(v.cliente_id), checkin_em: iso(v.checkin_em) };
-    evento(`checkin:${base.visita_id}`, 'core.visita.checkin@1', base.checkin_em, base);
+    evento(`checkin:${base.visita_id}`, 'core.visita.checkin@1', base.checkin_em, {
+      ...base, rota_parada_id: v.rota_parada_id ? String(v.rota_parada_id) : null, data_local: String(v.data_local), fora_do_raio: v.fora_do_raio === true,
+      distancia_m: v.distancia_m == null ? null : Number(v.distancia_m), sem_gps: v.sem_gps === true, extra: v.extra === true,
+    });
     if (!v.checkout_em) continue;
     const checkout_em = iso(v.checkout_em);
     evento(`checkout:${base.visita_id}`, 'core.visita.checkout@1', checkout_em, {
@@ -99,9 +102,13 @@ export function dadosGestorDemo(dados: DadosDemo): DadosGestorDemo {
     evento(`rota:${String(r.id)}`, 'core.rota.dia_planejado@1', inicioDaBase, { usuario_id: String(r.usuario_id), data: String(r.data), cliente_ids: paradas.map((p) => String(p.cliente_id)) });
   }
 
-  // 4. metas de venda do mês (core.meta.definida@1 no formato lido pelo Gestor)
+  // 4. metas de venda do mês (core.meta.definida@1 no formato oficial do Core: MetaDefinidaSchema; quem define é o gerente)
+  const definidoPor = dados['core.usuario'].find((u) => u.perfil === 'gerente')?.id;
+  if (!definidoPor) throw new Error('[db] seed demo gestor: gerente da demo não encontrado (definido_por das metas)');
   for (const m of dados['core.meta'].filter((x) => x.indicador === 'venda_cents')) {
-    evento(`meta:${String(m.id)}`, 'core.meta.definida@1', inicioDaBase, { usuario_id: String(m.usuario_id), mes: String(m.periodo), meta_cents: Number(m.valor) });
+    evento(`meta:${String(m.id)}`, 'core.meta.definida@1', inicioDaBase, {
+      usuario_id: String(m.usuario_id), periodo: String(m.periodo), indicador: 'venda_cents', valor: Number(m.valor), valor_anterior: null, definido_por: String(definidoPor),
+    });
   }
 
   // 5. pedidos: criado, linha do tempo (status_alterado) e aprovação solicitada (com o crédito do cliente)
@@ -110,12 +117,16 @@ export function dadosGestorDemo(dados: DadosDemo): DadosGestorDemo {
     const pedido_id = String(p.id);
     const criado_em = iso(p.created_at);
     const itens = dados['vendedor.pedido_item'].filter((i) => i.pedido_id === p.id).sort((x, y) => Number(x.sequencia) - Number(y.sequencia));
+    const linhaDoTempo = dados['vendedor.pedido_evento'].filter((x) => x.pedido_id === p.id);
+    // status na criação (como o emissor real, receber.ts): o último `para` da linha do tempo no instante da criação
+    const naCriacao = linhaDoTempo.filter((e) => iso(e.ocorrido_em) <= criado_em).at(-1)?.para ?? p.status;
     evento(`pedido:${pedido_id}`, 'vendedor.pedido.criado@1', criado_em, {
       pedido_id, vendedor_id: String(p.vendedor_id), autor_id: String(p.autor_id), cliente_id: String(p.cliente_id), visita_id: p.visita_id ? String(p.visita_id) : null,
       tipo: 'pedido', total_cents: Number(p.total_cents), total_tabela_cents: Number(p.total_tabela_cents), criado_em,
       itens: itens.map((i) => ({ produto_id: String(i.produto_id), quantidade: Number(i.quantidade), total_cents: Number(i.total_cents) })),
+      status: statusDoContrato(naCriacao as OrderStatus),
     });
-    for (const e of dados['vendedor.pedido_evento'].filter((x) => x.pedido_id === p.id)) {
+    for (const e of linhaDoTempo) {
       const alterado_em = iso(e.ocorrido_em);
       evento(`status:${String(e.id)}`, 'vendedor.pedido.status_alterado@1', alterado_em, {
         pedido_id, vendedor_id: String(p.vendedor_id), de: e.de ? statusDoContrato(e.de as OrderStatus) : null, para: statusDoContrato(e.para as OrderStatus),

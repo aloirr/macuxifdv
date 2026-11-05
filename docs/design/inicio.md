@@ -1,6 +1,6 @@
 # Início (boas-vindas) — Campo vendedor, Campo promotor e Gestão (T-0076)
 
-> 2026-11-04 · designer-ux · **referência aprovada pelo Alexandre:** `.coord/recados/anexos/R-20261104-164000-alexandre-inicio-cliente360.png`
+> 2026-11-04 · designer-ux · **referência aprovada pelo Alexandre:** `docs/produto/referencias/R-20261104-164000-alexandre-inicio-cliente360.png`
 > (fonte `.html` ao lado), spec R-20261104-164000-alexandre, tarefa `.coord/tarefas/T-0076.md`.
 > **Substitui o layout da T-0073** (`referencia-2026-11-03/Main.dc.html` e `Supervisor.dc.html`): saíram o sino no cabeçalho,
 > o cartão escuro "Recado do dia", a grade "Sua meta de hoje", o botão "Começar a rota", a lista "Seus módulos" e a hora da

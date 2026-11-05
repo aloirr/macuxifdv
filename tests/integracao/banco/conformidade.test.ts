@@ -30,6 +30,9 @@ const DEFINER_REVISADAS: Record<string, string> = {
   'plataforma.tenant_por_codigo(p_codigo text)': 'login: resolve o tenant pelo código antes do contexto; devolve só id, nome, fuso, status',
   'integracao.autenticar_chave(p_hash text)':
     'Hub: única leitura sem tenant (ADR 0013); resolve a credencial pelo HMAC da chave; no máximo 1 linha, sem o hash; apagados = 0 linhas',
+  // T-0078 (0024; R-20261105-001055-banco-dados): /v1/saude
+  'plataforma.resumo_outbox(p_nomes text[], p_max_tentativas integer)':
+    'saúde: só agregados da outbox de todos os tenants (pendentes, parados, segundos do mais antigo); sem id, tenant, payload ou erro',
 };
 
 /**
@@ -42,6 +45,9 @@ const DEFINER_REVISADAS_WORKER: Record<string, string> = {
     'retenção do Hub entre tenants; lote cascateia em lote_staging/lote_linha_erro; o expurgo não aborta por FK',
   'plataforma.expurgar_outbox(p_agora timestamp with time zone DEFAULT now(), p_limite integer DEFAULT 10000)':
     'retenção da outbox; evento pendente nunca sai; consumo e evento apagados na mesma transação; parâmetro limitado a 7..365',
+  // T-0039 §2.3 passo 3 (0027; ADR 0022; R-20261105-040202-banco-dados): NÃO entra em DEFINER_REVISADAS (o app não executa)
+  'plataforma.tenants_ativos()':
+    'agendador das tarefas periódicas (ADR 0022): só ids dos tenants ativos (status ativo, deleted_at nulo), ordenados; nenhuma outra coluna',
 };
 
 /**

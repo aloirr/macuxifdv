@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<style>
+:root{--ink:#17212B;--ink2:#5B6670;--ink3:#8A949C;--ground:#F3F2EF;--line:#E4E2DD;--accent:#C2550A;--accentSoft:#FBE7D8;--success:#1F6B4A;--successBg:#E3F1EA;--warn:#9A4A08;--warnBg:#FDEBD7}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,sans-serif;background:#D9D6CF;padding:26px;color:var(--ink)}
+h1.page{font-size:21px;margin:0 0 16px 4px}
+.row{display:flex;gap:28px}
+.cap{font-size:13px;font-weight:700;margin:0 0 8px 4px;color:#333}
+.phone{width:360px;height:780px;background:var(--ground);border-radius:34px;border:10px solid #111;overflow:hidden;display:flex;flex-direction:column}
+.sb{height:30px;display:flex;justify-content:space-between;padding:8px 22px 0;font-size:12px;font-weight:600}
+.body{flex:1;overflow:hidden;padding:12px 14px 8px;display:flex;flex-direction:column;gap:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 13px}
+.lbl{font-size:11px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.4px}
+.r{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.small{font-size:11.5px;color:var(--ink2)}
+.big{font-size:20px;font-weight:800}
+.bar{height:7px;background:#ECEAE5;border-radius:9px;overflow:hidden;margin:7px 0 5px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:9px}
+.rec{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line)}
+.rec:first-of-type{border-top:0}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:5px;flex:none}
+.dot.g{background:var(--success)}.dot.n{background:#B9BEC3}
+.t{font-size:12.5px;font-weight:600}
+.link{font-size:12px;font-weight:700;color:var(--accent)}
+.duo{display:flex;gap:10px}.duo .card{flex:1}
+.badge{font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 7px;background:var(--accentSoft);color:var(--accent)}
+.sync{padding:10px 14px 10px;background:var(--ground)}
+.btn{border-radius:13px;padding:13px;font-weight:700;font-size:14.5px;text-align:center}
+.btn.dark{background:var(--ink);color:#fff}
+.btn.acc{background:var(--accent);color:#fff}
+.btn.out{background:#ECEBE7;color:var(--ink2)}
+.nav{height:52px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;font-size:10.5px;color:var(--ink2)}
+.nav b{color:var(--accent);font-weight:600}
+.chip{font-size:11px;font-weight:600;border-radius:999px;padding:4px 10px;background:#E8E6E1}
+.chip.g{background:var(--successBg);color:var(--success)}
+.act{flex:1;text-align:center;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 0;font-size:12.5px;font-weight:600}
+.k{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 11px;flex:1}
+.k .v{font-size:16px;font-weight:800;margin-top:2px}
+</style></head><body>
+<h1 class="page">Início e Cliente 360 — proposta (dados fictícios)</h1>
+<div class="row">
+
+<div><div class="cap">Início (Campo)</div>
+<div class="phone">
+ <div class="sb"><span>16:26</span><span>5G ▮ 95%</span></div>
+ <div class="body">
+  <div style="margin-top:6px"><div class="small">Quarta, 4 de novembro</div><div style="font-size:25px;font-weight:800">Boa tarde, Lucas</div><div class="small" style="margin-top:2px">6 visitas hoje · 3 feitas</div></div>
+
+  <div class="card">
+   <div class="r"><div class="lbl">Recados de hoje</div><span class="badge">3 novos</span></div>
+   <div style="margin-top:6px">
+    <div class="rec"><span class="dot g"></span><div><div class="t">Pedido 000010 aprovado</div><div class="small">Mercadinho São Jorge · 14:02</div></div></div>
+    <div class="rec"><span class="dot"></span><div><div class="t">Supervisor: priorize o Atacadinho hoje</div><div class="small">Marcos · 09:15</div></div></div>
+    <div class="rec"><span class="dot n"></span><div><div class="t">Campanha Café termina sexta</div><div class="small">Faltam 12 un. para a meta</div></div></div>
+   </div>
+   <div class="link" style="margin-top:4px">Ver todos</div>
+  </div>
+
+  <div class="card">
+   <div class="r"><div class="lbl">Meta de hoje</div><span class="small">mês 40%</span></div>
+   <div class="r" style="margin-top:5px"><div class="big">R$ 1.240</div><div class="small">de R$ 3.200</div></div>
+   <div class="bar"><i style="width:39%"></i></div>
+   <div class="small">Faltam R$ 1.960 hoje</div>
+  </div>
+
+  <div class="duo">
+   <div class="card"><div class="lbl">Orçamentos</div><div class="big" style="margin-top:4px">3</div><div class="small">R$ 1.150 · 1 vence amanhã</div></div>
+   <div class="card"><div class="lbl">A faturar</div><div class="big" style="margin-top:4px">5</div><div class="small">R$ 2.980 · 1 aguardando aprovação</div></div>
+  </div>
+ </div>
+ <div class="sync"><div class="btn dark">⟳  Sincronizar</div><div class="small" style="text-align:center;margin-top:6px">Última sincronização 16:25 · 0 na fila</div></div>
+ <div class="nav"><b>Início</b><span>Rota</span><span>Clientes</span><span>Pedidos</span><span>Mais</span></div>
+</div></div>
+
+<div><div class="cap">Cliente 360 (sem "Ver catálogo")</div>
+<div class="phone">
+ <div class="sb"><span>16:25</span><span>5G ▮ 94%</span></div>
+ <div class="body">
+  <div class="small" style="margin-top:4px">‹ Rota de hoje</div>
+  <div><div style="font-size:22px;font-weight:800">Supermercado Bom Preço</div><div class="small">Rua dos Andradas, 100 · Centro · cliente desde 2026</div></div>
+  <div style="display:flex;gap:6px"><span class="chip">Curva C</span><span class="chip">Supermercado</span><span class="chip g">Positivado em nov</span></div>
+  <div style="display:flex;gap:8px"><span class="act">Ligar</span><span class="act">WhatsApp</span><span class="act">Mapa</span></div>
+  <div style="display:flex;gap:8px"><div class="k"><div class="small">Compra média/mês</div><div class="v">R$ 14.900</div></div><div class="k"><div class="small">Última compra</div><div class="v">hoje</div></div></div>
+  <div style="display:flex;gap:8px"><div class="k"><div class="small">Limite disponível</div><div class="v">R$ 8.800</div></div><div class="k"><div class="small">Títulos vencidos</div><div class="v" style="color:var(--success)">Nenhum</div></div></div>
+  <div style="display:flex;gap:8px"><div class="k"><div class="small">Ticket médio</div><div class="v">R$ 5.960</div></div><div class="k"><div class="small">Frequência</div><div class="v">11 dias</div></div></div>
+  <div style="display:flex;gap:8px"><div class="k"><div class="small">Compras em 12 meses</div><div class="v">R$ 178.800</div></div></div>
+  <div class="lbl" style="margin-top:4px">Contatos</div>
+  <div class="card" style="padding:9px 12px"><div class="t">Rita Souza · compras</div><div class="small">(92) 99999-0000</div></div>
+ </div>
+ <div class="sync" style="display:flex;gap:9px"><div class="btn out" style="flex:1">Visitado</div><div class="btn acc" style="flex:1.6">+ Novo pedido</div></div>
+ <div class="nav"><span>Início</span><span>Rota</span><b>Clientes</b><span>Pedidos</span><span>Mais</span></div>
+</div></div>
+
+</div></body></html>

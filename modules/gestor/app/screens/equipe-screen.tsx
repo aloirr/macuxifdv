@@ -75,8 +75,10 @@ function Resumo({ r, linhas }: { r: ResumoEquipe; linhas: readonly LinhaAgora[] 
       <View style={styles.linha}>
         <Indicador rotulo="Em visita" valor={String(n('em_visita'))} cor={colors.success} />
         <Indicador rotulo="Em rota" valor={String(n('em_rota'))} cor={colors.accent} />
-        <Indicador rotulo="Parados" valor={String(parados)} cor={parados > 0 ? colors.danger : undefined} />
-        <Indicador rotulo="Sem check-in" valor={String(n('sem_checkin'))} cor={colors.warning} />
+      </View>
+      <View style={styles.linha}>
+        <Indicador rotulo="Parados" valor={String(parados)} cor={parados > 0 ? colors.warningInk : undefined} />
+        <Indicador rotulo="Sem check-in" valor={String(n('sem_checkin'))} cor={colors.warningInk} />
       </View>
       <View style={styles.linha}>
         <Indicador rotulo="Vendas hoje" valor={r.vendas_cents === null ? '—' : formatBRL0(r.vendas_cents)} />
@@ -119,7 +121,7 @@ function LinhaMembro({ l, ultimo }: { l: LinhaAgora; ultimo: boolean }) {
           {detalhe}
         </Text>
         {l.detalhe ? (
-          <Text style={[t.small, { color: l.status === 'parado' ? colors.danger : colors.ink2 }]} numberOfLines={1}>
+          <Text style={[t.small, { color: l.status === 'parado' ? colors.warningInk : colors.ink2 }]} numberOfLines={1}>
             {l.detalhe}
           </Text>
         ) : null}

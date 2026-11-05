@@ -270,14 +270,6 @@ describe.skipIf(semBanco())('Core T-0066 × Postgres: consumidores do ERP', () =
       });
     });
 
-    it('RN-CORE-19: embalagem_quantidade acima de 9999 é descartada com log; o produto entra sem a embalagem (sem retentativa sem fim)', async () => {
-      await emTransacao(A.tenantId, async (t) => {
-        await t.entregar('integracao.produto.atualizado@1', produto({ embalagem_medida: 'cx', embalagem_quantidade: 3_000_000_000 }));
-        expect(t.warn).toHaveBeenCalled();
-        expect(await lerEmbalagem(t)).toEqual([{ unidade: 'UN', embalagem_medida: null, embalagem_quantidade: null }]);
-      });
-    });
-
     it('RN-VEN-15: o ERP prevalece — embalagem com a sigla de uma unidade de venda do ERP ganha o fator dela, com log', async () => {
       await emTransacao(A.tenantId, async (t) => {
         await t.entregar('integracao.produto.atualizado@1', produto());

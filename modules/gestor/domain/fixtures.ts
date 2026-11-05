@@ -5,10 +5,32 @@ import type { EventoRecebido } from './projecao';
 export const u = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 let seq = 0;
+
+/**
+ * T-0024: os payloads são os OFICIAIS do dono (todo campo obrigatório presente). Para os testes não repetirem campos que o
+ * Gestor não usa, o `ev` completa o que faltar com um valor neutro; campo informado nunca é trocado. Payload ruim (ex.: só
+ * `{ pedido_id: 'x' }`) continua ruim, porque o campo essencial segue ausente ou inválido.
+ */
+const COMPLETAR: Record<string, (p: Record<string, unknown>, ocorrido_em: string) => Record<string, unknown>> = {
+  'core.visita.checkin@1': (p) => ({ rota_parada_id: null, data_local: String(p.checkin_em ?? '').slice(0, 10), fora_do_raio: false, distancia_m: null, sem_gps: false, extra: false }),
+  'vendedor.pedido.criado@1': (p) => ({ visita_id: null, tipo: 'pedido', total_tabela_cents: p.total_cents, itens: [], status: 'em_aprovacao' }),
+  'vendedor.pedido.status_alterado@1': () => ({ de: null, autor_id: null, motivo: null }),
+  'vendedor.pedido.aprovacao_solicitada@1': () => ({ credito: null, historico: null }),
+  'pesquisa.resposta.registrada@1': (p) => ({ tenant_id: u(1), versao_id: u(9102), equipe_id: null, cliente_id: null, visita_id: null, modo: 'avulsa', recebida_em: p.respondida_em, total_itens: 1 }),
+  'treinamento.licao.concluida@1': () => ({ tenant_id: u(1), tempo_gasto_seg: 60, nota_quiz_pct: null }),
+  'treinamento.medalha.conquistada@1': () => ({ tenant_id: u(1), nome: 'Medalha' }),
+};
+
+/** Meta mensal de venda no formato OFICIAL de `core.meta.definida@1`. */
+export function meta(usuario: string, mes: string, cents: number, em: string, id?: string) {
+  return ev('core.meta.definida@1', em, { usuario_id: usuario, periodo: mes, indicador: 'venda_cents', valor: cents, valor_anterior: null, definido_por: u(9) }, id);
+}
+
 /** Evento recebido com id sequencial único (ou o `evento_id` informado, para testar reentrega). */
 export function ev(nome: string, ocorrido_em: string, payload: Record<string, unknown>, evento_id?: string): EventoRecebido {
   seq += 1;
-  return { evento_id: evento_id ?? `ev-${seq}`, nome, ocorrido_em, payload };
+  const completo = { ...(COMPLETAR[nome]?.(payload, ocorrido_em) ?? {}), ...payload };
+  return { evento_id: evento_id ?? `ev-${seq}`, nome, ocorrido_em, payload: completo };
 }
 
 export const VENDEDOR = u(100);
@@ -20,7 +42,7 @@ export const CLIENTE_A = u(501);
 export const CLIENTE_B = u(502);
 export const CLIENTE_C = u(503);
 
-export function pedidoCriado(o: { pedido?: string; vendedor?: string; autor?: string; cliente?: string; total: number; tabela?: number | null; em?: string; tipo?: 'pedido' | 'orcamento'; visita?: string | null }, id?: string) {
+export function pedidoCriado(o: { pedido?: string; vendedor?: string; autor?: string; cliente?: string; total: number; tabela?: number; em?: string; visita?: string | null }, id?: string) {
   return ev(
     'vendedor.pedido.criado@1',
     o.em ?? '2026-10-30T14:00:00Z',
@@ -30,7 +52,7 @@ export function pedidoCriado(o: { pedido?: string; vendedor?: string; autor?: st
       autor_id: o.autor ?? o.vendedor ?? VENDEDOR,
       cliente_id: o.cliente ?? CLIENTE_A,
       visita_id: o.visita ?? null,
-      tipo: o.tipo ?? 'pedido',
+      tipo: 'pedido',
       total_cents: o.total,
       total_tabela_cents: o.tabela === undefined ? o.total : o.tabela,
       criado_em: o.em ?? '2026-10-30T14:00:00Z',

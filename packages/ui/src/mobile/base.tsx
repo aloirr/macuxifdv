@@ -10,7 +10,7 @@
  * - `EstadoVazio`: tela/lista sem conteúdo, com ação opcional.
  * Nenhum texto fixo: tudo chega por props. Alvo de toque ≥ 48 dp. Movimento respeita "reduzir movimento".
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Animated, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { folgaDeToque } from './componentes';
@@ -79,6 +79,13 @@ export function Botao({
 }
 
 // ---------- Cartao ----------
+/** Avisa os filhos de que estão dentro de um cartão (ex.: `Loading` vira compacto, sem flex nem fundo cinza). */
+const DentroDeCartaoCtx = createContext(false);
+export const DentroDeCartao = DentroDeCartaoCtx.Provider;
+export function useDentroDeCartao(): boolean {
+  return useContext(DentroDeCartaoCtx);
+}
+
 export type TomCartao = 'padrao' | 'destaque' | 'sucesso' | 'escuro' | 'suave';
 
 const TOM_CARTAO: Record<TomCartao, { bg: string; borda: string | null; raio: number }> = {
@@ -118,13 +125,13 @@ export function Cartao({
   if (!onPress) {
     return (
       <View testID={testID} style={estilo}>
-        {children}
+        <DentroDeCartao value>{children}</DentroDeCartao>
       </View>
     );
   }
   return (
     <Pressionavel testID={testID} accessibilityRole="button" accessibilityLabel={rotuloAcessivel} onPress={onPress} style={estilo}>
-      {children}
+      <DentroDeCartao value>{children}</DentroDeCartao>
     </Pressionavel>
   );
 }

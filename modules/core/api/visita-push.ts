@@ -20,7 +20,10 @@ import {
 } from '@macuxi/platform-sdk';
 import type { CheckinVisita, CheckoutVisita } from '../contracts';
 import { EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT } from '../contracts';
-import { avaliarCheckin, avaliarCheckoutVisita, dataLocal, idDoPayloadConfere, RAIO_CHECKIN_PADRAO_M, resolverCheckin } from '../domain';
+import { avaliarCheckin, avaliarCheckoutTolerante, dataLocal, idDoPayloadConfere, RAIO_CHECKIN_PADRAO_M, resolverCheckin } from '../domain';
+
+import { verificadorPorConsulta, type VerificarEtapas } from './etapas-checkout';
+import { gravarEtapasDoCheckout } from './etapas-pendencia';
 
 const aceito = (id: string): ResultadoItemPush => ({ id, status: 'aceito' });
 const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
@@ -162,11 +165,12 @@ interface VisitaCheckout {
   fechada_por: string | null;
 }
 
-export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPush[]): Promise<ResultadoItemPush[]> {
+export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPush[], verificarFixo?: VerificarEtapas): Promise<ResultadoItemPush[]> {
   const eu = ctx.usuario.id;
   const vendedorEfetivo = ctx.usuario.modulos.includes('vendedor');
   return porItem(ctx, itens, async (db, tx, item) => {
     const p = item.payload as CheckoutVisita;
+    const verificar = verificarFixo ?? verificadorPorConsulta(tx);
     // 1) visita inexistente ou de outro usuário: mesma resposta nos dois casos
     const v = (
       await db.query<VisitaCheckout>(
@@ -182,23 +186,26 @@ export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPu
     }
     const comandoEmUso = await db.query('select 1 from core.visita where checkout_id = $1', [p.id]);
     if (comandoEmUso.rows.length > 0) return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de checkout já pertence a outra visita.');
-    // 3) RN-CORE-12 / RN-CORE-14
+    // 3) RN-CORE-12 / RN-CORE-14: o servidor revalida tudo; as etapas dos outros módulos vêm da verificação deles, não do aparelho
     const motivo = p.motivo_id
-      ? (await db.query<{ tipo: string; codigo: string }>('select tipo, codigo from core.motivo where id = $1 and deleted_at is null', [p.motivo_id])).rows[0]
+      ? (await db.query<{ tipo: 'nao_venda' | 'cliente_fechado' | 'fora_do_raio'; codigo: string; ativo: boolean; updated_at: Date; deleted_at: Date | null }>('select tipo, codigo, ativo, updated_at, deleted_at from core.motivo where id = $1', [p.motivo_id])).rows[0]
       : undefined;
-    if (p.motivo_id && !motivo) return rejeitado(item.id, 'MOTIVO_INVALIDO', 'Motivo não encontrado. Atualize os motivos e escolha de novo.');
-    const aval = avaliarCheckoutVisita({
-      resultado: p.resultado,
+    const verificacoes = await verificar({ visita_id: v.id, cliente_id: v.cliente_id, usuario_id: eu, cliente_fechado: p.resultado === 'cliente_fechado' });
+    const aval = avaliarCheckoutTolerante({
+      resultadoInformado: p.resultado,
       vendedorEfetivo,
-      temMotivo: Boolean(motivo) || Boolean(p.motivo_texto?.trim()),
-      motivoClienteFechado: motivo?.tipo === 'cliente_fechado',
+      motivoId: p.motivo_id ?? null,
+      motivoTexto: p.motivo_texto ?? null,
+      // RLS limita ao tenant; sem coluna de desativação, `deleted_at` (ou `updated_at` do motivo inativo) é o melhor marco
+      motivo: motivo ? { tipo: motivo.tipo, ativo: motivo.ativo && !motivo.deleted_at, desativadoEm: motivo.deleted_at ? iso(motivo.deleted_at) : motivo.ativo ? null : iso(motivo.updated_at) } : null,
+      checkoutEm: iso(p.checkout_em),
       fotoFachada: Boolean(p.foto_fachada_id),
       temPedido: Boolean(p.pedido_id),
-      etapas: [], // etapas dos outros módulos: o servidor confere só o que é do Core na Sprint 1 (desenho §4.3)
+      verificacoes,
     });
-    if (!aval.pode) {
-      const codigo = p.resultado === 'cliente_fechado' ? 'RN-CORE-14' : 'RN-CORE-12';
-      return rejeitado(item.id, codigo, `Checkout incompleto (${aval.pendencias.join(', ')}).`);
+    if (aval.decisao === 'recusar') {
+      if (aval.codigo === 'MOTIVO_INVALIDO') return rejeitado(item.id, 'MOTIVO_INVALIDO', 'Motivo não encontrado. Atualize os motivos e escolha de novo.');
+      return rejeitado(item.id, aval.codigo ?? 'RN-CORE-12', `Checkout incompleto (${aval.pendencias.join(', ')}). Conclua o que falta e envie de novo.`);
     }
     const fechado = p.resultado === 'cliente_fechado';
     // 4) foto da fachada: linha em plataforma.arquivo ANTES do update (FK imediata); 409 se o id for de outra entidade
@@ -211,15 +218,16 @@ export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPu
         where id = $1`,
       [v.id, p.id, checkoutEm, p.lat ?? null, p.lng ?? null, p.resultado, p.motivo_id ?? null, p.motivo_texto?.trim() || null, p.pedido_id ?? null, fechado ? p.foto_fachada_id : null],
     );
-    for (const e of p.etapas) {
-      const ref = e.referencia_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.referencia_id) ? e.referencia_id : null;
-      await db.query(
-        `insert into core.visita_etapa (tenant_id, visita_id, modulo, etapa, situacao, referencia_id)
-         values (plataforma.tenant_atual(), $1, $2, $3, $4, $5)
-         on conflict (tenant_id, visita_id, modulo, etapa) do update set situacao = excluded.situacao, referencia_id = excluded.referencia_id`,
-        [v.id, e.modulo, e.etapa, e.situacao, ref],
-      );
-    }
+    // etapas gravadas: as verificadas pelo servidor (concluída/dispensada/PENDENTE: tolerância, RN-CORE-12 T-0039 §2); a referência vem do que o aparelho informou
+    const referencias = new Map(p.etapas.map((x) => [`${x.modulo}|${x.etapa}`, x.referencia_id] as const));
+    // etapas sem verificação no servidor (módulo ainda sem a consulta) ficam só como registro informado pelo aparelho; não liberam nada
+    const doServidor = new Set(aval.etapasRegistro.map((x) => `${x.modulo}|${x.etapa}`));
+    const informadas = p.etapas
+      .filter((x) => !doServidor.has(`${x.modulo}|${x.etapa}`) && !verificacoes.some((vf) => vf.modulo === x.modulo && vf.etapa === x.etapa))
+      .map((x) => ({ modulo: x.modulo, etapa: x.etapa, situacao: x.situacao, rotulo: null }));
+    const registro = [...aval.etapasRegistro, ...informadas].map((e) => ({ ...e, referenciaId: referencias.get(`${e.modulo}|${e.etapa}`) ?? null }));
+    // linha pendente e contagem na MESMA transação (sem rebaixar `concluida`)
+    if (registro.length > 0) await gravarEtapasDoCheckout(db, v.id, registro, ctx.agora());
     const fuso = ctx.fuso();
     await tx.publicar(
       EVENTO_VISITA_CHECKOUT,

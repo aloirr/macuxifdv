@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { PedidoAprovadoConsumido, PedidoAprovadoParaFila, PedidoParaErp, RetornoErp } from '../contracts';
+import type { PedidoAprovadoEvento as PedidoAprovadoConsumido } from '../../vendedor/contracts';
+import type { PedidoAprovadoParaFila, PedidoParaErp, RetornoErp } from '../contracts';
 import { aplicarRetornoPedido, decidirEntradaNaFila, ehRetencaoPorCadastro, montarPedidoParaErp, montarSnapshotParaFila, PREFIXO_RETENCAO_CADASTRO, selecionarPendentes, type Mapeamento, type PedidoNaFila } from './pedido-fila';
 
 const t0 = '2026-11-01T10:00:00.000Z';

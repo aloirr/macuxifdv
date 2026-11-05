@@ -112,12 +112,12 @@ export const TABELAS_SYNC = {
     colunas: 'tipo, codigo, descricao, exige_foto, sistema, ativo, ordem',
     colunaCliente: null,
   },
-  // RN-CORE-10 / T-0061: só o raio do check-in e a opção promotor_ve_pedidos vão ao aparelho (lista fixa; nada de outros parâmetros do tenant)
+  // RN-CORE-10 / T-0061: o raio do check-in, a opção promotor_ve_pedidos e (T-0073) os parâmetros do Início vão ao aparelho (lista fixa; nada de outros parâmetros do tenant)
   parametro: {
     tabela: 'plataforma.parametro',
     colunas: 'modulo, chave, valor',
     colunaCliente: null,
-    onde: "modulo = 'core' and chave in ('checkin.raio_m', 'promotor_ve_pedidos')",
+    onde: "modulo = 'core' and chave in ('checkin.raio_m', 'promotor_ve_pedidos', 'metas.dias_uteis_semana', 'inicio.recado_do_dia_padrao', 'inicio.parado_min')",
   },
   rota: {
     tabela: 'core.rota',
@@ -140,7 +140,7 @@ export const TABELAS_SYNC = {
       to_char(checkin_em at time zone 'UTC', ${UTC}) as checkin_em, checkin_lat::float8 as checkin_lat, checkin_lng::float8 as checkin_lng,
       sem_gps, distancia_m, fora_do_raio, justificativa_fora_raio, sugere_coordenada, extra,
       to_char(checkout_em at time zone 'UTC', ${UTC}) as checkout_em, resultado, motivo_id, motivo_texto, pedido_id, foto_fachada_id,
-      fechada_por, checkout_id`,
+      fechada_por, checkout_id, etapas_pendentes`,
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
     janela: 'data_local >= {{hoje}} - 40',

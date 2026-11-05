@@ -5,7 +5,9 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, api, downloadBlob, errorMessage } from '@macuxi/platform-sdk/web';
 import { Badge, Button, Dialog, ErrorBlock, FilterBar, intervaloSyncAutoMs, LoadingBlock, PageHeader, Panel, SelectField, SYNC_AUTO_PADRAO_MIN, td, th, TableScroll } from '@macuxi/ui/web';
-import { VisitasListaSchema, type VisitaBko } from '../../../contracts';
+import type { VisitaBko } from '../../../contracts';
+import { filtrarPorEtapas, filtroEtapasDaUrl, rotuloAcessivelSelo, rotuloSeloEtapas, VisitasComEtapasListaSchema, type VisitaComEtapas } from '../../lib/etapas-visita';
+import { EtapasDialog } from './etapas-dialog';
 import { useHojeDoTenant, useSellersDeCampo } from '../../lib/queries';
 import { csvDeVisitas, permanenciaMin, quando, rotuloResultado, sinais } from '../../lib/visitas';
 
@@ -44,6 +46,7 @@ function VisitasConteudo() {
   const router = useRouter();
   const pathname = usePathname();
   const [foto, setFoto] = useState<VisitaBko | null>(null);
+  const [etapasId, setEtapasId] = useState<string | null>(null);
   const vendedores = useSellersDeCampo();
   const hoje = useHojeDoTenant();
 
@@ -51,12 +54,13 @@ function VisitasConteudo() {
   const de = params.get('de') ?? somar(ate, -6);
   const usuario = params.get('usuario') ?? '';
   const fora = params.get('fora') ?? '';
+  const pendente = filtroEtapasDaUrl(params.get('pendente'));
 
   const lista = useQuery({
     queryKey: ['core', 'visitas', de, ate, usuario, fora],
     queryFn: async () => {
       const r = await api<unknown>('/core/visitas', { query: { de, ate, ...(usuario ? { usuario_id: usuario } : {}), ...(fora ? { fora_do_raio: fora } : {}) } });
-      return VisitasListaSchema.parse(r).itens;
+      return VisitasComEtapasListaSchema.parse(r).itens;
     },
     refetchInterval: intervaloSyncAutoMs(SYNC_AUTO_PADRAO_MIN), // RN-CORE-23 item 6: sync_auto_min (30, mín. 15); o botão Atualizar cobre o resto
   });
@@ -71,7 +75,8 @@ function VisitasConteudo() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  const itens = lista.data ?? [];
+  const itens = filtrarPorEtapas(lista.data ?? [], pendente);
+  const visitaEtapas: VisitaComEtapas | null = (lista.data ?? []).find((v) => v.id === etapasId) ?? null;
   const foraDoRaio = itens.filter((v) => v.fora_do_raio).length;
   return (
     <div className="flex w-full max-w-[1280px] flex-col gap-5" data-testid="visitas.tela">
@@ -110,6 +115,11 @@ function VisitasConteudo() {
           <option value="">Todas</option>
           <option value="true">Só fora do raio</option>
           <option value="false">Só dentro do raio</option>
+        </SelectField>
+        <SelectField label="Etapas" value={pendente} onChange={(e) => set({ pendente: e.target.value })} data-testid="visitas.filtro-etapas">
+          <option value="">Todas</option>
+          <option value="true">Com etapa pendente</option>
+          <option value="false">Sem pendência</option>
         </SelectField>
       </FilterBar>
 
@@ -158,6 +168,17 @@ function VisitasConteudo() {
                               {s}
                             </Badge>
                           ))}
+                          {v.etapas_pendentes > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setEtapasId(v.id)}
+                              aria-label={rotuloAcessivelSelo(v.cliente_nome)}
+                              data-testid={`visitas.ver-etapas.${v.id}`}
+                              className="h-[44px] rounded-xl border border-field bg-surface px-2 hover:bg-ground"
+                            >
+                              <Badge tone="warning">{rotuloSeloEtapas(v.etapas_pendentes)}</Badge>
+                            </button>
+                          ) : null}
                         </div>
                         {v.fora_do_raio ? (
                           <span className="mt-1 block text-ink-2" data-testid={`visitas.justificativa.${v.id}`}>
@@ -180,6 +201,7 @@ function VisitasConteudo() {
           </TableScroll>
         </Panel>
       )}
+      {visitaEtapas && <EtapasDialog visita={visitaEtapas} fuso={FUSO_PADRAO} onClose={() => setEtapasId(null)} />}
       {foto?.foto_fachada_id && <FotoFachada id={foto.foto_fachada_id} cliente={foto.cliente_nome} onClose={() => setFoto(null)} />}
     </div>
   );

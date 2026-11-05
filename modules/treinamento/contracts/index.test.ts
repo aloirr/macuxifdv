@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { conferirEventosPublicados, lerPayloadTolerante } from '@macuxi/platform-sdk';
+import { EVENTO_PEDIDO_FATURADO } from '../../vendedor/contracts';
+import * as contratos from './index';
 import {
   AdesaoMes,
   DesafioVendasContrato,
-  EVENTO_PEDIDO_FATURADO,
   EventoFaturadoNoDesafio,
   lerPedidoFaturado,
   EVENTOS_TREINAMENTO,
@@ -157,10 +159,10 @@ describe('eventos publicados treinamento.*@1', () => {
 });
 
 describe('RF-TRE-06: leitura tolerante do pedido FATURADO (`vendedor.pedido.faturado@1`)', () => {
-  const p = { pedido_id: u(1), vendedor_id: u(2), faturado_em: T0, itens: [{ produto_id: u(3), quantidade: 2 }] };
+  const p = { pedido_id: u(1), vendedor_id: u(2), faturado_em: T0, itens: [{ produto_id: u(3), quantidade: 2 }], parcial: false };
   it('lê o que precisa e ignora campos a mais do Vendedor', () => {
     const r = PedidoFaturadoLido.parse({ ...p, total_cents: 12345, cliente_id: u(9), itens: [{ produto_id: u(3), quantidade: 2, preco_cents: 500 }] });
-    expect(r).toEqual({ ...p, parcial: false });
+    expect(r).toEqual(p);
   });
   it('Ajuste C: pedido apenas criado (sem faturado_em) é recusado e não pontua; o antigo criado_em não vale', () => {
     const { faturado_em: _f, ...criado } = p;
@@ -173,18 +175,24 @@ describe('RF-TRE-06: leitura tolerante do pedido FATURADO (`vendedor.pedido.fatu
     expect(PedidoFaturadoLido.safeParse(semVendedor).success).toBe(false);
     expect(PedidoFaturadoLido.safeParse({ ...p, itens: [{ produto_id: u(3), quantidade: 0 }] }).success).toBe(false);
   });
-  it('Ajuste C v2: `parcial` é opcional (padrão false); itens ausentes viram lista vazia (o domínio ignora o parcial sem itens)', () => {
-    expect(PedidoFaturadoLido.parse(p).parcial).toBe(false);
+  it('T-0024: contrato oficial do Vendedor — `parcial` obrigatório, `itens` com ao menos 1 e quantidade inteira > 0', () => {
     expect(PedidoFaturadoLido.parse({ ...p, parcial: true }).parcial).toBe(true);
     expect(PedidoFaturadoLido.safeParse({ ...p, parcial: 'sim' }).success).toBe(false);
+    const { parcial: _p, ...semParcial } = p;
+    expect(PedidoFaturadoLido.safeParse(semParcial).success).toBe(false);
     const { itens: _i, ...semItens } = p;
-    expect(PedidoFaturadoLido.parse({ ...semItens, parcial: true })).toMatchObject({ itens: [], parcial: true });
-    expect(PedidoFaturadoLido.parse({ ...p, parcial: true, itens: [] }).itens).toEqual([]);
+    expect(PedidoFaturadoLido.safeParse(semItens).success).toBe(false);
+    expect(PedidoFaturadoLido.safeParse({ ...p, itens: [] }).success).toBe(false);
+    expect(PedidoFaturadoLido.safeParse({ ...p, itens: [{ produto_id: u(3), quantidade: 1.5 }] }).success).toBe(false);
+  });
+  it('T-0024: a leitura tolerante do evento oficial descarta chaves a mais (lerPayloadTolerante)', () => {
+    expect(lerPayloadTolerante(EVENTO_PEDIDO_FATURADO, { ...p, novo: 1 })).toEqual(p);
+    expect(lerPayloadTolerante(EVENTO_PEDIDO_FATURADO, { ...p, itens: [] })).toBeNull();
   });
   it('T-0036: `lerPedidoFaturado` junta o payload ao evento_id e ao tenant_id do envelope (tipo único `EventoFaturadoNoDesafio`)', () => {
     const env = { evento_id: u(7), tenant_id: u(8) };
-    expect(lerPedidoFaturado(p, env)).toEqual({ ...p, parcial: false, ...env });
-    expect(EventoFaturadoNoDesafio.parse({ ...p, ...env })).toEqual({ ...p, parcial: false, ...env });
+    expect(lerPedidoFaturado(p, env)).toEqual({ ...p, ...env });
+    expect(EventoFaturadoNoDesafio.parse({ ...p, ...env })).toEqual({ ...p, ...env });
     // o envelope prevalece sobre campos homônimos do payload
     expect(lerPedidoFaturado({ ...p, evento_id: u(90), tenant_id: u(91) }, env)).toMatchObject(env);
   });
@@ -200,7 +208,7 @@ describe('RF-TRE-06: leitura tolerante do pedido FATURADO (`vendedor.pedido.fatu
   });
   it('T-0036: o evento lido é o que o manifesto consome', async () => {
     const { default: manifest } = await import('../manifest');
-    expect(manifest.consome).toContain(EVENTO_PEDIDO_FATURADO);
+    expect(manifest.consome).toContain(EVENTO_PEDIDO_FATURADO.nome);
   });
   it('desafio: vigência com fim antes do início é recusada', () => {
     const d = { id: u(1), tenant_id: u(2), nome: 'Semana do Café', ativo: true, produto_ids: [u(3)], vigencia_inicio: '2026-10-26', vigencia_fim: '2026-11-01', xp_por_unidade: 2, xp_max_por_pedido: 20 };
@@ -230,5 +238,12 @@ describe('parâmetros do tenant', () => {
   it('faixas de nível que não crescem são recusadas', () => {
     expect(ParametrosTreinamentoSchema.safeParse({ niveis_xp_min: [0, 100, 100] }).success).toBe(false);
     expect(ParametrosTreinamentoSchema.safeParse({ niveis_xp_min: [10, 100] }).success).toBe(false);
+  });
+});
+
+describe('T-0024: eventos publicados pelo Treinamento', () => {
+  it('todo `publica` do manifesto tem DefinicaoEvento exportada e nenhuma é de evento alheio', async () => {
+    const { default: manifest } = await import('../manifest');
+    expect(conferirEventosPublicados(manifest, contratos)).toEqual([]);
   });
 });

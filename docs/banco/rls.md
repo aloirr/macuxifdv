@@ -95,6 +95,16 @@ e `plataforma.auditoria`.
   `expurgar_outbox`) usam `pg_catalog, <schema>, pg_temp` (pg_temp por último: o schema temporário da sessão não sombreia
   nome do dono). Função SECURITY DEFINER nova nasce assim. Único índice único sem `tenant_id`: `integracao.credencial_hash_uk`
   (exceção nominal com condição de validade em [integracao.md](integracao.md#credencial)).
+- **`plataforma.resumo_outbox`** (0024, T-0078): quinta `SECURITY DEFINER`, já com `pg_temp` no fim do `search_path`;
+  `execute` só ao `macuxi_app`; devolve só contagens da outbox de todos os tenants (`/v1/saude`). As funções da LGPD da 0024
+  (`anonimizar_*`, `excluir_tenant`) são `SECURITY INVOKER`, sem `execute` para os papéis da aplicação ([lgpd.md](lgpd.md)).
+- **`plataforma.tenants_ativos()`** (0027, T-0039, ADR 0022): sexta `SECURITY DEFINER`, `pg_temp` no fim do `search_path`;
+  `execute` só ao `macuxi_worker` (que segue sem `SELECT` em `plataforma.tenant`); devolve só os ids dos tenants `ativo` e não
+  apagados, para o agendador das tarefas periódicas. `macuxi_app` e `public` sem EXECUTE.
+- **Conferência B1** (T-0078): `db/scripts/conferir-rls.sql` lista toda tabela de domínio com RLS desligado, RLS não forçado,
+  sem política, sem política para o `macuxi_app` ou com coluna comum ausente, de outro tipo ou anulável. Esperado: zero linhas
+  (exceções de `db/src/excecoes.ts`: `plataforma.tenant` sem `tenant_id`; `public.macuxi_migracao` fora). À mão, só leitura:
+  `psql "$URL_ADMIN" -v ON_ERROR_STOP=1 -f db/scripts/conferir-rls.sql`.
 
 ## Testes que provam
 | ID | Onde |
@@ -105,4 +115,7 @@ e `plataforma.auditoria`.
 | S0-026 falha fechada | idem |
 | S0-027 pool de 1 conexão A/B/A | idem |
 | S0-028 papel sem SUPERUSER/BYPASSRLS, não dono | `db/testes/conformidade.test.ts` |
+| B1 (T-0078) conferência numa consulta só: zero tabelas sem RLS forçado, sem política ou sem coluna comum; a consulta acusa uma tabela criada sem RLS | `db/testes/conformidade.test.ts` + `db/scripts/conferir-rls.sql` |
+| `resumo_outbox`: só agregados de todos os tenants para o `macuxi_app`; worker sem EXECUTE | `db/testes/lgpd-outbox.test.ts` |
+| `tenants_ativos`: worker recebe só os ids dos ativos de todos os tenants (suspenso, encerrado e apagado fora); app 42501 | `db/testes/tenants-ativos.test.ts` |
 | macuxi_worker: lê A e B, 42501 fora das colunas/tabelas concedidas, só marca 3 colunas, sem BYPASSRLS; app sem contexto = 0 | `db/testes/worker.test.ts` |

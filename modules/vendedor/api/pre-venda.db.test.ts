@@ -13,7 +13,7 @@ import type { ClienteBanco, ContextoBase, ContextoConsumo, DefinicaoEvento, Item
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import manifest from '../manifest';
-import { RetornoErpConsumido } from '../contracts';
+import { PedidoRetornoErpEvento as RetornoErpConsumido } from '../../integracao/contracts';
 import { entidadePedido } from '../contracts/entidades';
 import { apiVendedor } from './index';
 import { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
