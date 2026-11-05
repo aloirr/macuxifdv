@@ -9,7 +9,7 @@ import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenant
 import { politicaDosParametros, revalidarPedido } from '../../modules/vendedor/domain/aprovacao';
 import {
   ALCADAS_DEMO, carregarDemo, CLIENTE_SEM_CEP_DEMO, PRECO_PROPRIO_CX_LIGADO, CODIGO_DEMO, dadosDemo, DESCONTO_MAXIMO_PROPRIO_DEMO, diasUteisAtras, idClienteDemo, idUsuarioDemo, MODULOS_DEMO, SEM_PRECO_NO_ATACADO, TENANT_DEMO,
-  METAS_MES_ANTERIOR_DEMO, TIPO_METAS_DEMO, USUARIOS_DEMO, CLIENTE_REFERENCIA_DEMO, codigoErpDemo, RELACOES_DEMO,
+  METAS_MES_ANTERIOR_DEMO, TIPO_METAS_DEMO, USUARIOS_DEMO, CLIENTE_REFERENCIA_DEMO, codigoErpDemo, RELACOES_DEMO, numerarPedidosDemo,
 } from '../seeds/demo/demo';
 import { dadosDemoMedidas, MEDIDAS_ATIVAS_DEMO } from '../seeds/demo/medidas';
 import { dadosGestorDemo, MODULO_GESTOR, PERFIS_GESTOR_DEMO, projecaoDemo } from '../seeds/demo/gestor';
@@ -403,6 +403,72 @@ describe('base de demo (estático)', () => {
     expect(diasUteisAtras('2026-11-03', 2)).toBe('2026-10-31');
   });
 
+  describe('T-0026: numerarPedidosDemo (número já emitido não volta nem muda de dono)', () => {
+    const n = (k: number) => String(k).padStart(6, '0');
+    const seed = [1, 2, 3].map((k) => ({ id: `s${k}`, numero: n(k) }));
+    const semNada = { seed, antes: new Map<string, string>(), deVerdade: [], teto: 0 };
+
+    it('base nova: 000001… pela ordem do seed e contador no último', () => {
+      const r = numerarPedidosDemo(semNada);
+      expect([...r.seed.values()]).toEqual([n(1), n(2), n(3)]);
+      expect([r.ultimo, r.renumerar, r.trocadosNoSeed]).toEqual([3, [], []]);
+    });
+
+    it('recarga: o seed guarda o número que já tinha (mesmo fora da ordem) e a do aparelho fica; idempotente', () => {
+      const antes = new Map([['s1', n(2)], ['s2', n(1)], ['s3', n(3)]]);
+      const deVerdade = [{ id: 'a1', numero: n(4), recebido_em: '2026-11-02T13:19:00' }];
+      const r = numerarPedidosDemo({ seed, antes, deVerdade, teto: 4 });
+      expect(Object.fromEntries(r.seed)).toEqual({ s1: n(2), s2: n(1), s3: n(3) });
+      expect([r.ultimo, r.renumerar, r.trocadosNoSeed]).toEqual([4, [], []]);
+      expect(numerarPedidosDemo({ seed, antes: r.seed, deVerdade, teto: r.ultimo })).toEqual(r);
+    });
+
+    it('000011: pedido novo no seed cujo número da base nova já saiu para um aparelho ganha o próximo do contador', () => {
+      // seed tinha s1 e s2; o aparelho recebeu 000003; o s3 entrou no seed depois
+      const antes = new Map([['s1', n(1)], ['s2', n(2)]]);
+      const deVerdade = [{ id: 'a1', numero: n(3), recebido_em: '2026-11-02T13:19:00' }];
+      const r = numerarPedidosDemo({ seed, antes, deVerdade, teto: 3 });
+      expect(Object.fromEntries(r.seed)).toEqual({ s1: n(1), s2: n(2), s3: n(4) });
+      expect([r.ultimo, r.renumerar, r.trocadosNoSeed]).toEqual([4, [], []]);
+    });
+
+    it('--recriar: o aparelho some, mas o número emitido a ele não volta para pedido novo do seed', () => {
+      // antes do --recriar: s1 e s2 com número, aparelho com 000003 e 000004 (contador 4); o s3 é novo no seed
+      const r = numerarPedidosDemo({ seed, antes: new Map([['s1', n(1)], ['s2', n(2)]]), deVerdade: [], teto: 4 });
+      expect(Object.fromEntries(r.seed)).toEqual({ s1: n(1), s2: n(2), s3: n(5) });
+      expect(r.ultimo).toBe(5);
+    });
+
+    it('número da base nova acima do teto e livre é usado (nunca foi emitido)', () => {
+      const r = numerarPedidosDemo({ seed, antes: new Map([['s1', n(1)]]), deVerdade: [], teto: 1 });
+      expect(Object.fromEntries(r.seed)).toEqual({ s1: n(1), s2: n(2), s3: n(3) });
+      expect(r.ultimo).toBe(3);
+    });
+
+    it('repetido de verdade: o mais antigo fica, o outro ganha número novo; do seed no número de um pedido de verdade, quem muda é o do seed', () => {
+      const deVerdade = [
+        { id: 'a2', numero: n(5), recebido_em: '2026-11-03T10:00:00' },
+        { id: 'a1', numero: n(5), recebido_em: '2026-11-02T10:00:00' },
+        { id: 'a3', numero: n(1), recebido_em: '2026-11-02T11:00:00' },
+      ];
+      const antes = new Map([['s1', n(1)], ['s2', n(2)], ['s3', n(3)]]);
+      const r = numerarPedidosDemo({ seed, antes, deVerdade, teto: 5 });
+      expect(Object.fromEntries(r.seed)).toEqual({ s1: n(6), s2: n(2), s3: n(3) });
+      expect(r.renumerar).toEqual([{ id: 'a2', de: n(5), para: n(7), origem: 'aparelho' }]);
+      expect(r.trocadosNoSeed).toEqual([{ id: 's1', de: n(1), para: n(6), origem: 'seed' }]);
+      expect(r.ultimo).toBe(7);
+      const todos = [...r.seed.values(), n(5), n(1), n(7)];
+      expect(new Set(todos).size).toBe(todos.length);
+    });
+
+    it('número fora do formato (só dígitos) não conta para o teto, mas continua ocupado', () => {
+      const deVerdade = [{ id: 'a1', numero: 'ERP-9', recebido_em: null }];
+      const r = numerarPedidosDemo({ seed, antes: new Map(), deVerdade, teto: 0 });
+      expect([...r.seed.values()]).toEqual([n(1), n(2), n(3)]);
+      expect(r.ultimo).toBe(3);
+    });
+  });
+
   it('recusa banco que não é local, antes de qualquer consulta', async () => {
     let consultou = false;
     const remoto = { host: 'db.homologacao.exemplo.com', query: async () => { consultou = true; return { rows: [] }; } };
@@ -611,18 +677,28 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     });
   });
 
-  it('T-0071: recarga sem --recriar com a numeração dos pedidos do seed trocada (p11 entrou no meio da linha do tempo) volta à do seed sem violar o único', async () => {
+  it('T-0071/T-0026: recarga sem --recriar com a numeração dos pedidos do seed trocada guarda os números gravados (número já mostrado não muda) sem violar o único', async () => {
     const seed = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'];
     const [x, y] = [seed[0]!, seed[1]!];
-    // simula a base de antes: dois pedidos do seed com os números trocados
-    await comAdmin(b.nome, async (c) => {
-      await c.query('update vendedor.pedido set numero = null where id = $1', [x.id]);
-      await c.query('update vendedor.pedido set numero = $2 where id = $1', [y.id, x.numero]);
-      await c.query('update vendedor.pedido set numero = $2 where id = $1', [x.id, y.numero]);
-    });
-    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
-    const r = await comAdmin(b.nome, (c) => c.query<{ id: string; numero: string }>('select id, numero from vendedor.pedido where id = any($1::uuid[]) order by numero', [[x.id, y.id]]));
-    expect(Object.fromEntries(r.rows.map((l) => [l.id, l.numero]))).toEqual({ [String(x.id)]: x.numero, [String(y.id)]: y.numero });
+    const trocar = () =>
+      comAdmin(b.nome, async (c) => {
+        const r = await c.query<{ id: string; numero: string }>('select id::text as id, numero from vendedor.pedido where id = any($1::uuid[])', [[x.id, y.id]]);
+        const n = new Map(r.rows.map((l) => [l.id, l.numero]));
+        await c.query('update vendedor.pedido set numero = null where id = $1', [x.id]);
+        await c.query('update vendedor.pedido set numero = $2 where id = $1', [y.id, n.get(String(x.id))]);
+        await c.query('update vendedor.pedido set numero = $2 where id = $1', [x.id, n.get(String(y.id))]);
+      });
+    // simula a base de antes (p11 entrou no meio da linha do tempo): dois pedidos do seed com os números trocados
+    await trocar();
+    try {
+      const r0 = await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+      expect(r0.numerosTrocados).toEqual([]);
+      const r = await numerosPorId([String(x.id), String(y.id)]);
+      expect(Object.fromEntries(r)).toEqual({ [String(x.id)]: y.numero, [String(y.id)]: x.numero });
+      expect(await repetidos()).toEqual([]);
+    } finally {
+      await trocar(); // volta à numeração da base nova para os testes seguintes
+    }
   });
 
   it('recarga sem --recriar com a unidade padrão trocada (PAP-4 PC→UN, 02/11): volta à do seed sem violar o único', async () => {
@@ -673,6 +749,14 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
       return { id: r.rows[0]!.id, numero: n };
     });
   const apagarPedidos = (ids: string[]) => comAdmin(b.nome, (c) => c.query('delete from vendedor.pedido where id = any($1::uuid[])', [ids]));
+  const contador = async () =>
+    Number((await comAdmin(b.nome, (c) => c.query<{ ultimo: string }>('select ultimo from vendedor.numeracao_pedido where tenant_id = $1', [TENANT_DEMO]))).rows[0]?.ultimo ?? 0);
+  const numerosPorId = async (ids: string[]) =>
+    new Map(
+      (await comAdmin(b.nome, (c) => c.query<{ id: string; numero: string }>('select id::text as id, numero from vendedor.pedido where id = any($1::uuid[])', [ids]))).rows.map(
+        (r) => [r.id, r.numero] as const,
+      ),
+    );
 
   it('T-0026: dois pedidos aceitos em paralelo não repetem o número (o contador do tenant numera em fila)', async () => {
     const aceitos = await Promise.all([aceitarPedido(), aceitarPedido(), aceitarPedido()]);
@@ -686,7 +770,7 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     }
   });
 
-  it('T-0026: recarga sem --recriar com pedido do aparelho no número que o seed usa: o do aparelho ganha número novo (e updated_at novo para o pull)', async () => {
+  it('T-0026: recarga sem --recriar com pedido do aparelho no número que o seed usaria: o do aparelho guarda o número; o do seed ganha o próximo do contador', async () => {
     const seed = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'];
     const ultimoDoSeed = seed.reduce((m, p) => (String(p.numero) > m ? String(p.numero) : m), '');
     const doSeed = seed.find((p) => p.numero === ultimoDoSeed)!;
@@ -694,18 +778,114 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     await comAdmin(b.nome, (c) => c.query('update vendedor.pedido set numero = null where id = $1', [doSeed.id]));
     const aparelho = await aceitarPedido(ultimoDoSeed);
     try {
-      const antes = await comAdmin(b.nome, (c) => c.query<{ updated_at: Date }>('select updated_at from vendedor.pedido where id = $1', [aparelho.id]));
-      await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
-      const r = await comAdmin(b.nome, (c) =>
-        c.query<{ id: string; numero: string; updated_at: Date }>('select id, numero, updated_at from vendedor.pedido where id = any($1::uuid[])', [[doSeed.id, aparelho.id]]),
-      );
-      const porId = new Map(r.rows.map((l) => [l.id, l]));
-      expect(porId.get(String(doSeed.id))!.numero).toBe(ultimoDoSeed);
-      expect(Number(porId.get(aparelho.id)!.numero)).toBeGreaterThan(seed.length);
-      expect(porId.get(aparelho.id)!.updated_at.getTime()).toBeGreaterThan(antes.rows[0]!.updated_at.getTime());
+      const contadorAntes = await contador();
+      const r0 = await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+      const porId = await numerosPorId([String(doSeed.id), aparelho.id]);
+      expect(porId.get(aparelho.id)).toBe(ultimoDoSeed);
+      const novo = porId.get(String(doSeed.id))!;
+      expect(Number(novo)).toBe(Math.max(contadorAntes, Number(ultimoDoSeed)) + 1);
+      expect(await contador()).toBe(Number(novo));
+      expect(r0.numerosTrocados).toEqual([]); // o do seed não tinha número: não é troca de número já mostrado
       expect(await repetidos()).toEqual([]);
+      // idempotente: a próxima recarga não mexe em nenhum dos dois
+      await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+      expect(await numerosPorId([String(doSeed.id), aparelho.id])).toEqual(porId);
     } finally {
       await apagarPedidos([aparelho.id]);
+      await comAdmin(b.nome, (c) => c.query('update vendedor.pedido set numero = $2 where id = $1', [doSeed.id, ultimoDoSeed]));
+    }
+  });
+
+  it('T-0026: seed duas vezes, --recriar e pedido novo depois: nenhum número repetido nem reusado, e os do seed não mudam', async () => {
+    const todos = async () =>
+      new Map(
+        (
+          await comAdmin(b.nome, (c) =>
+            c.query<{ id: string; numero: string }>('select id::text as id, numero from vendedor.pedido where tenant_id = $1 and numero is not null', [TENANT_DEMO]),
+          )
+        ).rows.map((r) => [r.id, r.numero]),
+      );
+    const a = await aceitarPedido();
+    const novos: string[] = [];
+    try {
+      const antes = await todos();
+      const vistos = new Set(antes.values());
+      await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+      await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+      expect(await todos()).toEqual(antes); // duas recargas: nenhum número muda (nem o do aparelho, nem os do seed)
+      expect(await repetidos()).toEqual([]);
+
+      const r = await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, recriar: true, hoje: hojeCarga }));
+      expect(r.numerosTrocados).toEqual([]);
+      const recriada = await todos();
+      expect(recriada.has(a.id)).toBe(false); // o --recriar zera o ensaio
+      for (const [id, n] of recriada) expect(n, `pedido do seed ${id} guarda o número de antes do --recriar`).toBe(antes.get(id));
+      expect(await contador()).toBeGreaterThanOrEqual(Number(a.numero));
+
+      const depois = await aceitarPedido();
+      novos.push(depois.id);
+      expect(Number(depois.numero)).toBe(Number(a.numero) + 1);
+      expect(vistos.has(depois.numero), `${depois.numero} já tinha sido emitido`).toBe(false);
+      expect(await repetidos()).toEqual([]);
+    } finally {
+      await apagarPedidos([a.id, ...novos]);
+    }
+  });
+
+  it('T-0026 (000011): pedido que entra no seed depois de o número ter saído para um aparelho, com --recriar, não reusa o número', async () => {
+    const seed = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'];
+    const ultimoDoSeed = seed.reduce((m, p) => (String(p.numero) > m ? String(p.numero) : m), '');
+    const doSeed = seed.find((p) => p.numero === ultimoDoSeed)!;
+    // base de antes do T-0071: o p11 ainda não tinha número e o 000011 saiu para o aparelho (Atacadinho Cachoeirinha)
+    await comAdmin(b.nome, (c) => c.query('update vendedor.pedido set numero = null where id = $1', [doSeed.id]));
+    const aparelho = await aceitarPedido(ultimoDoSeed);
+    const contadorAntes = await contador();
+    try {
+      await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, recriar: true, hoje: hojeCarga }));
+      const novo = (await numerosPorId([String(doSeed.id)])).get(String(doSeed.id))!;
+      expect(novo).not.toBe(ultimoDoSeed);
+      expect(Number(novo)).toBe(Math.max(contadorAntes, Number(ultimoDoSeed)) + 1);
+      const seguinte = await aceitarPedido();
+      try {
+        expect(Number(seguinte.numero)).toBe(Number(novo) + 1);
+        expect(await repetidos()).toEqual([]);
+      } finally {
+        await apagarPedidos([seguinte.id]);
+      }
+    } finally {
+      await apagarPedidos([aparelho.id]); // o --recriar já apagou; não falha
+      await comAdmin(b.nome, (c) => c.query('update vendedor.pedido set numero = $2 where id = $1', [doSeed.id, ultimoDoSeed]));
+    }
+  });
+
+  it('T-0026: repetido de verdade (base sem o único pedido_numero_uk) é renumerado pela recarga, o mais antigo fica, e a 2ª recarga não mexe', async () => {
+    const seed = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'];
+    const p1 = seed.find((p) => p.numero === '000001')!;
+    let ids: string[] = [];
+    await comAdmin(b.nome, (c) => c.query('drop index vendedor.pedido_numero_uk'));
+    try {
+      const velho = await aceitarPedido();
+      const repetido = await aceitarPedido(velho.numero); // mesmo número, recebido depois
+      const noDoSeed = await aceitarPedido('000001'); // pedido de verdade no número de um pedido do seed
+      ids = [velho.id, repetido.id, noDoSeed.id];
+      // hora-fixa-ok: só a ordem de chegada entre os três importa (o mais antigo guarda o número); nunca comparado ao relógio
+      const chegada: Array<[string, string]> = [[velho.id, '2026-11-02T10:00:00Z'], [noDoSeed.id, '2026-11-02T10:30:00Z'], [repetido.id, '2026-11-02T11:00:00Z']];
+      for (const [id, em] of chegada) await comAdmin(b.nome, (c) => c.query('update vendedor.pedido set recebido_em = $2 where id = $1', [id, em]));
+      const r = await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+      const porId = await numerosPorId([velho.id, repetido.id, noDoSeed.id, String(p1.id)]);
+      expect(porId.get(velho.id)).toBe(velho.numero);
+      expect(porId.get(repetido.id)).not.toBe(velho.numero);
+      expect(porId.get(noDoSeed.id)).toBe('000001'); // o de verdade guarda o número; o do seed (fictício) é que muda
+      expect(porId.get(String(p1.id))).not.toBe('000001');
+      expect(r.numerosTrocados.map((t) => `${t.origem}:${t.id}`).sort()).toEqual([`aparelho:${repetido.id}`, `seed:${String(p1.id)}`].sort());
+      expect(await repetidos()).toEqual([]);
+      const r2 = await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+      expect(r2.numerosTrocados).toEqual([]);
+      expect(await numerosPorId([...porId.keys()])).toEqual(porId);
+    } finally {
+      await apagarPedidos(ids);
+      await comAdmin(b.nome, (c) => c.query('update vendedor.pedido set numero = $2 where id = $1', [p1.id, '000001']));
+      await comAdmin(b.nome, (c) => c.query('create unique index if not exists pedido_numero_uk on vendedor.pedido (tenant_id, numero) where numero is not null'));
     }
   });
 

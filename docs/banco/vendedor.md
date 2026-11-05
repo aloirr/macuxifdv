@@ -125,7 +125,8 @@ carteira. Volume = clientes × 1..4.
 | ultimo | bigint not null | último número usado; ≥ 0 |
 
 Uma linha por tenant (único `(tenant_id)`; id = `plataforma.uuid_de_chave('<tenant>:vendedor.numeracao_pedido')`). Fora do sync
-(`TABELAS_FORA_DO_SYNC`). A aplicação lê, insere e atualiza (sem DELETE). Os seeds nunca baixam o contador.
+(`TABELAS_FORA_DO_SYNC`). A aplicação lê, insere e atualiza (sem DELETE). Os seeds nunca baixam o contador; o seed demo
+não reusa número já emitido, nem no `--recriar` (T-0026, ver [README.md](README.md), "Número do pedido na recarga").
 
 No `pg` cru: `bigint` e `numeric` chegam como string (converta no provedor); `text[]` chega como array.
 

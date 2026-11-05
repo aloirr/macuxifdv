@@ -1082,12 +1082,108 @@ export async function girarGeracaoBase(admin: ClientBase, tenantId: string): Pro
   if (Number(r.rows[0]?.n) !== 1) throw new Error(`[db] seed demo: a geração da base do tenant ${tenantId} não girou (precisa de superusuário ou da política manutencao da 0031)`);
 }
 
+/** Número legível do pedido no formato do contador (lpad 6, como vendedor.proximo_numero_pedido()). */
+const formatarNumeroPedido = (n: number) => String(n).padStart(6, '0');
+/** Valor numérico do número legível (texto só de dígitos); outro formato (ex.: vindo de fora) não conta para o teto. */
+const valorDoNumero = (numero: string | null | undefined): number | null => (numero && /^\d+$/.test(numero) ? Number(numero) : null);
+
+/** Número que mudou na carga (só id e números: sem dado pessoal no log). */
+export interface NumeroTrocado {
+  id: string;
+  de: string | null;
+  para: string;
+  /** 'seed': pedido fictício da base; 'aparelho': pedido de verdade (feito no ensaio) que estava repetido. */
+  origem: 'seed' | 'aparelho';
+}
+
+export interface EntradaNumeracaoDemo {
+  /** Pedidos do seed na ordem da base nova; `numero` é o da base nova (000001… pela ordem de chegada). */
+  seed: ReadonlyArray<{ id: string; numero: string }>;
+  /** Número que cada pedido do seed tinha no banco antes da carga (lido antes do --recriar apagar). */
+  antes: ReadonlyMap<string, string>;
+  /** Pedidos do tenant que ficam no banco fora do seed (feitos no ensaio; vazio depois do --recriar). */
+  deVerdade: ReadonlyArray<{ id: string; numero: string | null; recebido_em: string | null }>;
+  /** Maior número já emitido no tenant antes da carga: max(contador, maior número gravado), lido antes do --recriar. */
+  teto: number;
+}
+
+export interface NumeracaoDemo {
+  /** Número final de cada pedido do seed. */
+  seed: Map<string, string>;
+  /** Pedidos de verdade com número repetido (só sem o único pedido_numero_uk): o mais antigo fica, os outros ganham número novo. */
+  renumerar: NumeroTrocado[];
+  /** Pedidos do seed cujo número muda em relação ao banco (pedido novo do seed fica fora: não tinha número). */
+  trocadosNoSeed: NumeroTrocado[];
+  /** Contador do tenant depois da carga: nunca abaixo do teto nem de um número atribuído. */
+  ultimo: number;
+}
+
+/**
+ * T-0026 (R-20261104-163228, 000011 em dois pedidos): numeração dos pedidos do seed sem reusar número já emitido.
+ * Regras, nesta ordem:
+ * 1. Pedido de verdade (fora do seed) nunca perde o número que o aparelho já mostra. Repetido (só se o único faltar):
+ *    o mais antigo (recebido_em, id) fica e os outros ganham número novo do contador.
+ * 2. Pedido do seed que já tinha número (no banco ou antes do --recriar) guarda o número: recarga não renumera.
+ * 3. Pedido do seed sem número (base nova, ou pedido que entrou no seed depois) usa o da base nova se ele estiver acima
+ *    do teto (nunca emitido) e livre; senão ganha o próximo do contador. Em base nova (teto 0) fica 000001…
+ * Pura e determinística: rodar de novo com o resultado aplicado não muda nada (idempotente).
+ */
+export function numerarPedidosDemo(e: EntradaNumeracaoDemo): NumeracaoDemo {
+  let maior = Math.max(0, Math.trunc(e.teto));
+  const usados = new Set<string>();
+  const ocupar = (numero: string) => {
+    usados.add(numero);
+    const v = valorDoNumero(numero);
+    if (v !== null && v > maior) maior = v;
+  };
+  const idsSeed = new Set(e.seed.map((s) => s.id));
+  const repetidos: Array<{ id: string; numero: string }> = [];
+  const deVerdade = e.deVerdade
+    .filter((p) => !idsSeed.has(p.id) && p.numero !== null)
+    .sort((a, b) => String(a.recebido_em ?? '').localeCompare(String(b.recebido_em ?? '')) || a.id.localeCompare(b.id));
+  for (const p of deVerdade) {
+    if (usados.has(p.numero!)) repetidos.push({ id: p.id, numero: p.numero! });
+    else ocupar(p.numero!);
+  }
+  const final = new Map<string, string>();
+  for (const s of e.seed) {
+    const m = e.antes.get(s.id);
+    if (m && !usados.has(m)) {
+      final.set(s.id, m);
+      ocupar(m);
+    }
+  }
+  const novos = e.seed.filter((s) => !final.has(s.id));
+  for (const s of novos) {
+    const v = valorDoNumero(s.numero);
+    if (v !== null && v > e.teto && !usados.has(s.numero)) {
+      final.set(s.id, s.numero);
+      ocupar(s.numero);
+    }
+  }
+  const emitir = () => {
+    let n = maior + 1;
+    while (usados.has(formatarNumeroPedido(n))) n += 1;
+    const numero = formatarNumeroPedido(n);
+    ocupar(numero);
+    return numero;
+  };
+  for (const s of e.seed) if (!final.has(s.id)) final.set(s.id, emitir());
+  const renumerar = repetidos.map((r): NumeroTrocado => ({ id: r.id, de: r.numero, para: emitir(), origem: 'aparelho' }));
+  const trocadosNoSeed = e.seed
+    .filter((s) => e.antes.has(s.id) && e.antes.get(s.id) !== final.get(s.id))
+    .map((s): NumeroTrocado => ({ id: s.id, de: e.antes.get(s.id)!, para: final.get(s.id)!, origem: 'seed' }));
+  return { seed: final, renumerar, trocadosNoSeed, ultimo: maior };
+}
+
 export interface ResultadoDemo {
   tenantId: string;
   codigo: string;
   hoje: string;
   logins: Array<{ email: string; perfil: string; nome: string }>;
   dados: DadosDemo;
+  /** T-0026: números que a carga trocou (pedido do seed ou repetido de verdade); vazio na recarga comum. */
+  numerosTrocados: NumeroTrocado[];
 }
 
 /**
@@ -1108,7 +1204,15 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
   try {
     // T-0026 (R-20261104-163228): o --recriar apaga o tenant, mas o número legível já saiu para os aparelhos (e para o ERP);
     // o contador nunca volta atrás, nem no --recriar: um pedido novo depois da recriação não repete um número já emitido.
-    const ultimoAntes = Number((await admin.query<{ ultimo: string | number }>('select ultimo from vendedor.numeracao_pedido where tenant_id = $1', [T])).rows[0]?.ultimo ?? 0);
+    // A linha do contador fica travada até o commit: o receber da API (proximo_numero_pedido) espera a carga terminar.
+    const ultimoAntes = Number(
+      (await admin.query<{ ultimo: string | number }>('select ultimo from vendedor.numeracao_pedido where tenant_id = $1 for update', [T])).rows[0]?.ultimo ?? 0,
+    );
+    // números de antes da carga (e do --recriar): o do seed fica com o pedido; o teto é o maior já emitido no tenant
+    const numerosAntes = (
+      await admin.query<{ id: string; numero: string }>('select id::text as id, numero from vendedor.pedido where tenant_id = $1 and numero is not null', [T])
+    ).rows;
+    const teto = numerosAntes.reduce((m, r) => Math.max(m, valorDoNumero(r.numero) ?? 0), ultimoAntes);
     if (opcoes.recriar) await apagarTenantDemo(admin);
     const atuais = await admin.query<{ id: string; senha_hash: string | null }>('select id, senha_hash from core.usuario where tenant_id = $1', [T]);
     const hashAtual = new Map(atuais.rows.map((r) => [r.id, r.senha_hash]));
@@ -1118,6 +1222,23 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     };
     const dados = dadosDemo(hashDe, { hoje: opcoes.hoje });
     conferirSoTenantDemo(dados);
+    // T-0026: número já emitido (a um aparelho ou a um pedido do seed) não volta nem muda de dono (numerarPedidosDemo)
+    const pedidosSeed = dados['vendedor.pedido'];
+    const idsSeed = new Set(pedidosSeed.map((p) => String(p.id)));
+    const ficam = (
+      await admin.query<{ id: string; numero: string | null; recebido_em: string | null }>(
+        "select id::text as id, numero, to_char(recebido_em at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US') as recebido_em from vendedor.pedido where tenant_id = $1",
+        [T],
+      )
+    ).rows.filter((r) => !idsSeed.has(r.id));
+    const numeracao = numerarPedidosDemo({
+      seed: pedidosSeed.map((p) => ({ id: String(p.id), numero: String(p.numero) })),
+      antes: new Map(numerosAntes.filter((r) => idsSeed.has(r.id)).map((r) => [r.id, r.numero])),
+      deVerdade: ficam,
+      teto,
+    });
+    for (const p of pedidosSeed) p.numero = numeracao.seed.get(String(p.id))!;
+    dados['vendedor.numeracao_pedido'][0]!.ultimo = numeracao.ultimo;
     for (const tabela of ORDEM_DEMO) {
       // equipe antes do responsável: grava sem responsavel_id e completa depois dos usuários
       let linhas: Linha[] = tabela === 'core.equipe' ? dados[tabela].map((e) => ({ ...e, responsavel_id: null })) : dados[tabela];
@@ -1155,27 +1276,18 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
         await admin.query(
           `insert into vendedor.numeracao_pedido as x (id, tenant_id, ultimo) values ($1, $2, $3)
            on conflict (tenant_id) do update set ultimo = greatest(x.ultimo, excluded.ultimo), deleted_at = null`,
-          [n.id, T, Math.max(Number(n.ultimo), ultimoAntes)],
+          [n.id, T, Math.max(Number(n.ultimo), teto)],
         );
         continue;
       }
-      // pedido do ensaio (fora do seed) com um número que o seed usa ganha número novo do contador (único por tenant)
       if (tabela === 'vendedor.pedido') {
-        await admin.query("select set_config('app.tenant_id', $1, true)", [T]);
-        await admin.query(
-          'update vendedor.pedido set numero = vendedor.proximo_numero_pedido() where tenant_id = $1 and numero = any($2::text[]) and id <> all($3::uuid[])',
-          [T, linhas.map((l) => l.numero), linhas.map((l) => l.id)],
-        );
-        // a numeração dos pedidos do seed pode andar entre cargas (T-0071: p11 entrou no meio da linha do tempo). O único
-        // pedido_numero_uk não é adiável: sem isto, o upsert da linha que vai para o número de outra ainda não regravada quebra.
-        // Solta só os números do seed que mudam; o upsert grava os novos.
-        const numeroNovo = new Map(linhas.map((l) => [String(l.id), String(l.numero)]));
-        const atuais = await admin.query<{ id: string; numero: string | null }>('select id, numero from vendedor.pedido where tenant_id = $1 and id = any($2::uuid[])', [
-          T,
-          [...numeroNovo.keys()],
-        ]);
-        const mudam = atuais.rows.filter((r) => r.numero !== null && r.numero !== numeroNovo.get(r.id)).map((r) => r.id);
-        if (mudam.length > 0) await admin.query('update vendedor.pedido set numero = null where tenant_id = $1 and id = any($2::uuid[])', [T, mudam]);
+        // repetido de verdade (só sem o único pedido_numero_uk): o mais antigo fica; o gatilho anda o updated_at e o pull traz o novo
+        for (const r of numeracao.renumerar) {
+          await admin.query('update vendedor.pedido set numero = $3 where tenant_id = $1 and id = $2', [T, r.id, r.para]);
+        }
+        // pedido_numero_uk não é adiável: um número do seed que muda (só no conserto de repetido) é solto antes do upsert
+        const trocam = numeracao.trocadosNoSeed.map((x) => x.id);
+        if (trocam.length > 0) await admin.query('update vendedor.pedido set numero = null where tenant_id = $1 and id = any($2::uuid[])', [T, trocam]);
       }
       await gravarLinhas(admin, tabela, linhas);
       // 0018 (T-0063): medidas do tenant depois de plataforma.tenant (antes da FK do produto) e embalagens depois de core.produto
@@ -1203,6 +1315,7 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
       hoje: dados['core.rota'][0]!.data as string,
       logins: usuarios.map((x) => ({ email: String(x.email), perfil: String(x.perfil), nome: String(x.nome) })),
       dados,
+      numerosTrocados: [...numeracao.renumerar, ...numeracao.trocadosNoSeed],
     };
   } catch (e) {
     await admin.query('rollback');

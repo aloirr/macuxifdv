@@ -37,6 +37,8 @@ function imprimirDemo(r: ResultadoDemo, banco: string, recriada: boolean): void 
   console.log(`[banco] código da empresa: ${r.codigo}`);
   for (const l of r.logins) console.log(`[banco]   ${l.perfil.padEnd(10)} ${l.email}  (${l.nome})`);
   console.log(`[banco] senha: ${process.env.MACUXI_SENHA_DEMO ? 'a de MACUXI_SENHA_DEMO' : 'a padrão da demo (docs/banco/README.md, "Base de demo")'}`);
+  // T-0026: número de pedido que a carga trocou (repetido consertado); só id e números
+  for (const t of r.numerosTrocados) console.log(`[banco] número do pedido ${t.id} (${t.origem}): ${t.de ?? '(sem número)'} -> ${t.para}`);
 }
 
 function docker(args: string[]): void {

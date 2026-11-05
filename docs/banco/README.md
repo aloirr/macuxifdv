@@ -165,7 +165,13 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   vencido só À vista e 28 dias (RN-VEN-14); os demais 3 ou 4.
 - **Roteiro do ensaio** que a base permite: o Lucas tira pedido de 3% (aprova sozinho), de 8% (vai à Renata) e de 12% (vai
   ao Marcelo), e no Supermercado Bom Preço (Atacado) o açaí aparece sem preço. Os números do ensaio seguem o contador
-  (`000011` em diante); recarregar a base nunca volta o contador.
+  (depois do maior número da base); recarregar a base, com ou sem `--recriar`, nunca volta o contador.
+- **Número do pedido na recarga** (T-0026, R-20261104-163228; `numerarPedidosDemo` em `db/seeds/demo/demo.ts`): número já
+  emitido não volta nem muda de dono. Pedido do ensaio guarda o número; pedido do seed que já tinha número (no banco ou antes
+  do `--recriar`) guarda o dele; pedido novo do seed só usa o número da base nova (000001…) se estiver acima do maior já
+  emitido (contador e maior número gravado, lidos antes do `--recriar`), senão ganha o próximo do contador. Repetido de
+  verdade (só sem o único `pedido_numero_uk`): o mais antigo fica, os outros ganham número novo, e o `seed demo` imprime
+  `número do pedido <id> (seed|aparelho): de -> para`. A linha do contador fica travada durante a carga.
 - **Limitação no começo do mês** (R-20261101-045314, O-2): pedidos, visitas e `core.indicador_diario` da base são dos dias
   úteis ANTERIORES ao "hoje". Até o 1º dia útil depois do dia 1º, eles caem todos no mês anterior e Metas (app) e
   Indicadores (BKO) do mês mostram 0%. Para o ensaio nesses dias, rode o ensaio a partir do 2º dia útil do mês ou mostre
