@@ -51,8 +51,8 @@ export const manifest = defineModule({
   // produto: só o catalogo_no_external_id, para gravar produto_no; o cadastro do produto é do Core
   consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'catalogo.busca.realizada@1'],
   ofereceExtensoes: ['produto.acoes'],
-  // T-0052: atalho "Ver catálogo" na ficha do cliente (abre o catálogo com o preço da tabela dele)
-  usaExtensoes: ['cliente.acoes'],
+  // T-0076: não contribui mais com 'cliente.acoes' (o "Ver catálogo" saiu do Cliente 360)
+  usaExtensoes: [],
   // ADR 0012: o Vendedor lê o preço da tabela do cliente por consulta, nunca pela tabela (T-0029)
   ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1'],
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`

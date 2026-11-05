@@ -26,7 +26,6 @@ const catalogo = definirModuloShell<string>({
   consultas: [consultaPrecosClienteAparelho],
   migracoesAparelho,
   indicesBusca: [INDICE_BUSCA_CATALOGO],
-  extensoes: [{ slot: 'cliente.acoes', id: 'ver-catalogo', acao: 'produto.consultar', payload: { rotulo: 'Ver catálogo' } }],
 });
 /** Core de apoio (fronteira: o módulo não importa o manifesto do Core): o que o Catálogo usa dele. */
 const manifestoCore = defineModule({
@@ -61,12 +60,12 @@ describe('moduloApp do Catálogo no shell (T-0052; pedidos R-20261101-155035-eng
         const v = shell.montar({ perfil, modulosAtivos: efetivos(perfil) });
         expect(v.navegacao.map((n) => n.rotulo), perfil).toContain('Catálogo');
         expect(v.pagina('produto'), perfil).not.toBeNull();
-        expect(v.extensoes('cliente.acoes').map((e) => `${e.modulo}/${e.id}`), perfil).toEqual(['catalogo/ver-catalogo']);
+        expect(v.extensoes('cliente.acoes').map((e) => `${e.modulo}/${e.id}`), perfil).toEqual([]);
       }
     });
   }
 
-  it('RN-CORE-03: sem o Catálogo efetivo, nem aba nem atalho', () => {
+  it('RN-CORE-03: sem o Catálogo efetivo, não há aba (T-0076: o Catálogo não contribui mais com cliente.acoes)', () => {
     const v = criarShell('campo', [core, catalogo]).montar({ perfil: 'vendedor', modulosAtivos: ['core'] });
     expect(v.navegacao.map((n) => n.rotulo)).not.toContain('Catálogo');
     expect(v.extensoes('cliente.acoes')).toEqual([]);

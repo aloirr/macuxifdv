@@ -1,5 +1,4 @@
 import type { ComponentType } from 'react';
-import type { AcaoCliente } from '@macuxi/core/contracts';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { ENTIDADES_ARVORE, ENTIDADES_CONTEUDO, ENTIDADES_PRECO, entidadeProdutoRelacao } from '../contracts';
 import { migracoesAparelho } from '../db/aparelho';
@@ -7,7 +6,6 @@ import { manifest } from '../manifest';
 import { consultaPrecosClienteAparelho } from './consultas';
 import { INDICE_BUSCA_CATALOGO } from './indice';
 import { consultaSugestoesPedidoAparelho } from './sugestoes';
-import { irParaCatalogo } from './rotas';
 import TelaCatalogo from './telas/catalogo';
 import TelaProduto from './telas/produto';
 
@@ -16,7 +14,7 @@ import TelaProduto from './telas/produto';
  * T-0052: aba Catálogo (vitrine + busca offline FTS5) e ficha do produto, nas duas variantes, para todos os perfis do
  * módulo (`produto.consultar`, RN-CAT-04); preço e estoque só para quem vê (RN-CAT-05, decidido no domain). Esquema
  * local e índice de busca do banco-dados (`db/aparelho.ts`, T-0008). "Adicionar ao pedido" NÃO é do Catálogo: o
- * Vendedor registra no slot `produto.acoes` (RN-PRO-01). Atalho "Ver catálogo" na ficha do cliente (slot do Core).
+ * Vendedor registra no slot `produto.acoes` (RN-PRO-01). T-0076: sem atalho "Ver catálogo" na ficha do cliente (rodapé do Cliente 360 só com Visitado e Novo pedido).
  */
 export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
@@ -28,13 +26,5 @@ export const moduloApp = definirModuloShell<ComponentType>({
   consultas: [consultaPrecosClienteAparelho, consultaSugestoesPedidoAparelho],
   migracoesAparelho,
   indicesBusca: [INDICE_BUSCA_CATALOGO],
-  extensoes: [
-    {
-      slot: 'cliente.acoes',
-      id: 'ver-catalogo',
-      acao: 'produto.consultar',
-      payload: { rotulo: 'Ver catálogo', testID: 'cliente-ver-catalogo', icone: 'search', abrir: (ctx) => irParaCatalogo(ctx.clienteId) } satisfies AcaoCliente,
-    },
-  ],
 });
 export default moduloApp;
