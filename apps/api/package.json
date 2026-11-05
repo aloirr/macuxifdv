@@ -9,6 +9,7 @@
     "dev:worker": "tsx watch --clear-screen=false src/worker.ts",
     "start": "tsx src/servidor.ts",
     "worker": "tsx src/worker.ts",
+    "tenant": "tsx src/cli/tenant.ts",
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

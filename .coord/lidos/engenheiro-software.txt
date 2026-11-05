@@ -138,3 +138,12 @@ R-20261105-022940-modulo-core
 R-20261105-021031-modulo-pesquisa
 R-20261105-021610-modulo-pesquisa
 R-20261105-025921-banco-dados
+R-20261105-064826-banco-dados
+R-20261105-071929-modulo-core
+R-20261105-065024-modulo-core
+R-20261105-072631-banco-dados
+R-20261105-072635-banco-dados
+R-20261105-024133-engenheiro-apps
+R-20261105-081844-designer-ux
+R-20261105-081459-testes
+R-20261105-081512-testes
