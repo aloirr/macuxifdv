@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   corpoDoErroModulo,
   definirConsumidor,
@@ -14,7 +14,12 @@ import {
   megabytesParaMensagem,
   promotorBarradoNaRota,
   retryAfterDoErroModulo,
+  type ContextoConsumo,
+  type ContextoTarefa,
+  type LicencaConsulta,
+  type OpcoesConsulta,
   type RotaModulo,
+  type TransacaoTenant,
 } from './api';
 import { definirEvento } from './eventos';
 import { defineModule } from './manifesto';
@@ -198,5 +203,18 @@ describe('definirModuloApi — consumidores de evento (ADR 0007; T-0022)', () =>
     );
     const c = definirConsumidor({ evento: checkin, executar: async () => undefined });
     expect(() => definirModuloApi({ manifesto: consumidor, consumidores: [c, c] })).toThrow(/repetido/);
+  });
+});
+
+describe("tx.consultar com { licenca } (ADR 0025, complemento da ADR 0012)", () => {
+  it("a opção é o 3º argumento, opcional, de tx.consultar, do consumidor de evento e da tarefa; só 'usuario' | 'tenant'", () => {
+    expectTypeOf<Parameters<TransacaoTenant['consultar']>[2]>().toEqualTypeOf<OpcoesConsulta | undefined>();
+    expectTypeOf<ContextoConsumo['consultar']>().toEqualTypeOf<TransacaoTenant['consultar']>();
+    expectTypeOf<ContextoTarefa['consultar']>().toEqualTypeOf<TransacaoTenant['consultar']>();
+    expectTypeOf<NonNullable<OpcoesConsulta['licenca']>>().toEqualTypeOf<LicencaConsulta>();
+    expectTypeOf<LicencaConsulta>().toEqualTypeOf<'usuario' | 'tenant'>();
+    // quem só passa (def, entrada) continua compilando: o padrão é a licença de quem consulta
+    const chamar = (tx: TransacaoTenant, def: Parameters<TransacaoTenant['consultar']>[0]) => [tx.consultar(def, {}), tx.consultar(def, {}, { licenca: 'tenant' })];
+    expect(typeof chamar).toBe('function');
   });
 });

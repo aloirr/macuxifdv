@@ -6,12 +6,27 @@
 import { manifest as catalogo } from '@macuxi/catalogo/manifest';
 import { manifest as promotor } from '@macuxi/promotor/manifest';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
-import { consultasSemImplementacao, defineModule, definirConsulta, definirEntidadeSync, definirModuloApi, implementarConsulta, type ClienteBanco, type ContextoBase, type LinhaSync, type ModuloApi } from '@macuxi/platform-sdk';
+import {
+  ConsultaIndisponivel,
+  consultasSemImplementacao,
+  defineModule,
+  definirConsulta,
+  definirEntidadeSync,
+  definirModuloApi,
+  implementarConsulta,
+  USUARIO_SISTEMA_ID,
+  type ClienteBanco,
+  type ContextoBase,
+  type LinhaSync,
+  type ModuloApi,
+  type ModuloId,
+} from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createApp } from '../src/app';
 import { MODULOS_API } from '../src/modulos';
-import { bancoFalso, cab, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, usuarios } from './apoio';
+import { registroDeConsultas, transacaoTenant } from '../src/outbox';
+import { bancoFalso, cab, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, TENANT, usuarios } from './apoio';
 
 const PRECOS = definirConsulta({
   nome: 'catalogo.precos_cliente@1',
@@ -200,5 +215,114 @@ describe('E1 — tx.consultar no provedor de sync (pull, novidades e push)', () 
     expect(push.json().resultados[0]).toMatchObject({ status: 'aceito' });
     expect(vistos.length).toBe(2);
     expect(vistos.every((v) => v.quem === 'vendedor' && v.mesma_transacao && v.usuario === usuarios.vendedor!.id)).toBe(true);
+  });
+});
+
+/**
+ * ADR 0025 (complemento da ADR 0012; T-0082, D-T0082a, RN-CORE-27): `tx.consultar(def, entrada, { licenca: 'tenant' })`
+ * decide o dono pela licença do TENANT, não pelos módulos de quem consulta. Só a checagem de módulo muda: a implementação
+ * recebe o mesmo usuário (id e perfil, sem elevação), a mesma transação e o mesmo tenant. Só em leitura (GET).
+ */
+describe("ADR 0025 — tx.consultar com { licenca: 'tenant' }", () => {
+  type Visto = { id: string; perfil: string; tenant: string; modulos: readonly string[] };
+  const vistos: Visto[] = [];
+  const catalogoQueVe = definirModuloApi({
+    manifesto: defineModule({ ...catalogo, ofereceConsultas: ['catalogo.precos_cliente@1'] }),
+    consultas: [
+      implementarConsulta(PRECOS, async (e, ctx) => {
+        dbDaConsulta = ctx.db;
+        vistos.push({ id: ctx.usuario.id, perfil: ctx.usuario.perfil, tenant: ctx.usuario.tenant_id, modulos: ctx.usuario.modulos });
+        return { itens: e.produto_ids.map((p) => ({ produto_id: p, preco_cents: 1000 })), quem: ctx.usuario.perfil, fator: 1 };
+      }),
+    ],
+  });
+  type Ctx = Parameters<NonNullable<ModuloApi['rotas']>[number]['executar']>[0];
+  const consultarCom = (licenca: 'usuario' | 'tenant' | undefined) => (ctx: Ctx) =>
+    ctx.comTenant(async (db, tx) => {
+      const r = await tx.consultar(PRECOS, { cliente_id: CLIENTE, produto_ids: ['p1'] }, licenca ? { licenca } : undefined);
+      return { quem: r.quem, mesma_transacao: dbDaConsulta === db };
+    });
+  // Promotor: Catálogo opcional (o dono pode ficar fora do perfil sem derrubar o consumidor)
+  // a escrita precisa de ação do manifesto (ADR 0004): `coleta.registrar` (perfil promotor)
+  const rota = (metodo: 'GET' | 'POST', caminho: string, licenca: 'usuario' | 'tenant' | undefined) =>
+    metodo === 'GET'
+      ? { metodo, caminho, carteira: 'nao_se_aplica' as const, perfis: ['promotor' as const], executar: consultarCom(licenca) }
+      : { metodo, caminho, carteira: 'nao_se_aplica' as const, acao: 'coleta.registrar', executar: consultarCom(licenca) };
+  const promotorConsulta = definirModuloApi({
+    manifesto: defineModule({ ...promotor, usaConsultas: ['catalogo.precos_cliente@1'] }),
+    rotas: [rota('GET', 'lic-tenant', 'tenant'), rota('GET', 'lic-usuario', 'usuario'), rota('GET', 'lic-padrao', undefined), rota('POST', 'lic-tenant', 'tenant')],
+  });
+  const promotorId = usuarios.promotor!.id;
+  function appLic(l: Partial<typeof LICENCAS_PADRAO> = {}) {
+    const base = opcoesDeTeste({ ...LICENCAS_PADRAO, ...l }, { banco: bancoFalso().banco });
+    return createApp({ ...base, modulos: modulosDeTeste({ catalogo: catalogoQueVe, vendedor: vendedorApi, promotor: promotorConsulta }) });
+  }
+  const pedir = (a: ReturnType<typeof appLic>, url: string, method: 'GET' | 'POST' = 'GET') =>
+    a.inject({ method, url: `/v1/promotor/${url}`, headers: cab('promotor'), ...(method === 'POST' ? { payload: {} } : {}) });
+
+  it("Catálogo ativo no tenant e fora dos módulos de quem consulta: 'usuario' (e o padrão) = 503; 'tenant' = responde", async () => {
+    const semCatalogoNoPerfil = appLic({ removidos: { [promotorId]: ['catalogo'] } });
+    for (const url of ['lic-usuario', 'lic-padrao']) {
+      const r = await pedir(semCatalogoNoPerfil, url);
+      expect(r.statusCode, url).toBe(503);
+      expect(r.json()).toMatchObject({ codigo: 'CONSULTA_INDISPONIVEL', detalhes: { consulta: 'catalogo.precos_cliente@1', modulo: 'catalogo' } });
+    }
+    vistos.length = 0;
+    const r = await pedir(semCatalogoNoPerfil, 'lic-tenant');
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json()).toEqual({ quem: 'promotor', mesma_transacao: true });
+    // sem elevação: o MESMO usuário (id, perfil, tenant e os módulos DELE), nunca o usuário de sistema
+    const p = usuarios.promotor!;
+    expect(vistos).toHaveLength(1);
+    expect(vistos[0]).toMatchObject({ id: p.id, perfil: 'promotor', tenant: p.tenant_id });
+    expect(vistos[0]!.modulos).not.toContain('catalogo');
+    expect(vistos[0]!.id).not.toBe(USUARIO_SISTEMA_ID);
+  });
+
+  it("dono desligado no TENANT: 'tenant' também = 503 (a opção nunca liga módulo sem licença)", async () => {
+    const r = await pedir(appLic({ tenant: ['core', 'vendedor', 'promotor'] }), 'lic-tenant');
+    expect(r.statusCode).toBe(503);
+    expect(r.json()).toMatchObject({ codigo: 'CONSULTA_INDISPONIVEL' });
+  });
+
+  it('com o dono nos módulos do usuário, as duas licenças dão o mesmo resultado', async () => {
+    const a = appLic();
+    const u = await pedir(a, 'lic-usuario');
+    const t = await pedir(a, 'lic-tenant');
+    expect(u.statusCode).toBe(200);
+    expect(t.json()).toEqual(u.json());
+  });
+
+  it("escrita (POST) com 'tenant' = erro de programação (500, sem detalhes), mesmo com o dono ativo", async () => {
+    const r = await pedir(appLic(), 'lic-tenant', 'POST');
+    expect(r.statusCode).toBe(500);
+    expect(r.json()).toEqual({ codigo: 'ERRO_INTERNO', mensagem: expect.any(String) });
+  });
+});
+
+describe('ADR 0025 — transacaoTenant (executor) fora da rota de usuário', () => {
+  const instalados = modulosDeTeste({ catalogo: catalogoApi, vendedor: vendedorApi });
+  const consultas = registroDeConsultas(instalados);
+  const manifestos = instalados.map((m) => m.manifesto);
+  const db: ClienteBanco = { query: async () => ({ rows: [], rowCount: 0 }) };
+  const origem = { manifestos, modulo: 'vendedor' as const, tenantId: TENANT, usuarioId: null, requestId: 'r-1', agora: () => INSTANTE, consultas };
+  const entrada = { cliente_id: CLIENTE, produto_ids: ['p1'] };
+  const efetivos: ModuloId[] = ['core', 'catalogo', 'vendedor'];
+  const INSTANTE = new Date('2026-11-05T14:00:00.000Z');
+
+  it("rota de Conector (sem usuário): 'tenant' continua ConsultaIndisponivel", async () => {
+    const tx = transacaoTenant(db, { ...origem, modulosDoTenant: efetivos });
+    await expect(tx.consultar(PRECOS, entrada, { licenca: 'tenant' })).rejects.toBeInstanceOf(ConsultaIndisponivel);
+  });
+
+  it('consumidor/tarefa: usuário de sistema com os efetivos do tenant; a opção não muda o resultado', async () => {
+    const sistema = { id: USUARIO_SISTEMA_ID, tenant_id: TENANT, perfil: 'admin' as const, modulos: efetivos };
+    const tx = transacaoTenant(db, { ...origem, usuario: sistema, modulosDoTenant: efetivos });
+    expect(await tx.consultar(PRECOS, entrada, { licenca: 'tenant' })).toEqual(await tx.consultar(PRECOS, entrada));
+  });
+
+  it("licença fora de 'usuario' | 'tenant' = erro de programação", async () => {
+    const usuario = { id: usuarios.vendedor!.id, tenant_id: TENANT, perfil: 'vendedor' as const, modulos: efetivos };
+    await expect(transacaoTenant(db, { ...origem, usuario }).consultar(PRECOS, entrada, { licenca: 'perfil' as never })).rejects.toThrow('licenca inválida');
   });
 });

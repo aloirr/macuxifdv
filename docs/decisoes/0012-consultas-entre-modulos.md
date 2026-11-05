@@ -1,6 +1,7 @@
 # ADR 0012 — Consultas entre módulos na API e no aparelho
 
-- **Status**: aceita (2026-11-01, OK do gerente R-20261101-042340 ao desenho T-0029)
+- **Status**: aceita (2026-11-01, OK do gerente R-20261101-042340 ao desenho T-0029) · complementos: ADR 0019 (`usaConsultasOpcionais`),
+  ADR 0025 (`{ licenca: 'tenant' }`)
 - **Data**: 2026-11-01
 - **Tarefa**: T-0029 (desenho: [docs/desenho/T-0029.md](../desenho/T-0029.md) §3.5 e §11, item E1)
 - **Autor**: engenheiro-software
@@ -51,3 +52,6 @@ ser validado na hora do push.
 - Módulos: Catálogo e Core oferecem; Vendedor usa. Novas consultas seguem o mesmo caminho (próxima prevista:
   `core.financeiro_cliente@1`, crédito e títulos para RN-VEN-12/13).
 - dependency-cruiser não muda: o consumidor importa só o `contracts` do provedor.
+- **Complemento (ADR 0025, 2026-11-05)**: `tx.consultar(def, entrada, { licenca: 'tenant' })` checa o provedor pela licença do
+  tenant, e não pelos módulos de quem consulta. O usuário e o escopo são os mesmos. Vale só para leitura agregada de
+  indicador (RN-CORE-27).

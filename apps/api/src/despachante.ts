@@ -216,6 +216,8 @@ export function criarDespachante(op: OpcoesDespachante) {
               ...origem,
               requestId: env.request_id ?? env.evento_id,
               usuario: t.sistema,
+              // ADR 0025: no consumo a licença já é a do tenant; `{ licenca: 'tenant' }` dá o mesmo resultado
+              modulosDoTenant: t.sistema.modulos,
               consultas,
               parametros: t.parametros,
               fuso: () => t.fuso,

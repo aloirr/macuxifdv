@@ -6,7 +6,8 @@
  *
  * Na mesma transação, o comando que referencia uma foto registra a linha `aguardando` em `plataforma.arquivo`
  * (`registrarArquivo`, ADR 0010); o upload (`arquivos.ts`) só a completa. Também na mesma transação: a consulta a outro
- * módulo (`consultar`, ADR 0012: mesmo `ClienteBanco`, tenant e RLS) e a auditoria (`auditar`, RN-AUD-01).
+ * módulo (`consultar`, ADR 0012: mesmo `ClienteBanco`, tenant e RLS; `{ licenca: 'tenant' }` só em leitura, ADR 0025) e a
+ * auditoria (`auditar`, RN-AUD-01).
  */
 import {
   CODIGOS_ARQUIVO,
@@ -77,6 +78,12 @@ export interface OrigemTransacao {
   agora: () => Date;
   /** Para `consultar` (ADR 0012): usuário com os módulos efetivos AGORA, consultas instaladas, parâmetros e log. */
   usuario?: UsuarioDaRequisicao;
+  /**
+   * ADR 0025: módulos efetivos do TENANT para `consultar(def, entrada, { licenca: 'tenant' })`. Presente só onde a opção vale:
+   * rota de usuário em GET/HEAD (leitura), consumidor de evento e tarefa periódica. Ausente (rota de escrita, push do sync) =
+   * pedir `'tenant'` é erro de programação.
+   */
+  modulosDoTenant?: readonly ModuloId[];
   consultas?: RegistroConsultasApi;
   parametros?: (modulo: ModuloId) => Readonly<Record<string, unknown>>;
   /** Fuso do tenant para `ContextoConsulta.fuso()` (o mesmo `ctx.fuso()` de quem consulta). Ausente/inválido = America/Manaus. */
@@ -114,18 +121,28 @@ export function publicadorTenant(db: ClienteBanco, o: OrigemPublicacao): Transac
 export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): TransacaoTenant {
   return {
     publicar: publicadorTenant(db, o),
-    async consultar(def, entrada) {
+    async consultar(def, entrada, opcoes) {
       if (!o.modulo) throw new Error('Rota da plataforma não usa consulta de módulo');
       const quem = o.manifestos.find((m) => m.id === o.modulo);
       if (!quem || !consultasDeclaradas(quem).includes(def.nome))
         throw new Error(`Consulta ${def.nome}: ${o.modulo} não a declara em usaConsultas do manifesto (ADR 0012)`);
+      const licenca = opcoes?.licenca ?? 'usuario';
+      if (licenca !== 'usuario' && licenca !== 'tenant') throw new Error(`Consulta ${def.nome}: licenca inválida (use 'usuario' ou 'tenant', ADR 0025)`);
       const impl = o.consultas?.get(def.nome);
-      // dono não instalado (opcional ou usaConsultasOpcionais, ADR 0019) ou inativo para o usuário agora (licença, RN-CORE-02/03)
-      if (!impl || !o.usuario || !o.usuario.modulos.includes(def.modulo)) throw new ConsultaIndisponivel(def.nome, def.modulo);
+      // sem usuário (rota de Conector, ADR 0013): indisponível com qualquer licença
+      if (!impl || !o.usuario) throw new ConsultaIndisponivel(def.nome, def.modulo);
+      // ADR 0025: 'tenant' só em leitura; só a checagem de módulo muda (o usuário, o escopo, o tenant e a RLS são os mesmos)
+      let ativos: readonly ModuloId[] = o.usuario.modulos;
+      if (licenca === 'tenant') {
+        if (!o.modulosDoTenant) throw new Error(`Consulta ${def.nome}: licenca 'tenant' só vale em leitura (GET), nunca em escrita (ADR 0025)`);
+        ativos = o.modulosDoTenant;
+      }
+      // dono não instalado (opcional ou usaConsultasOpcionais, ADR 0019) ou inativo agora (licença do usuário ou do tenant, RN-CORE-02/03)
+      if (!ativos.includes(def.modulo)) throw new ConsultaIndisponivel(def.nome, def.modulo);
       const usuario = o.usuario;
       const base = o.log ?? logMudo;
-      // log da consulta: dono, consulta e request_id; nunca a entrada nem a saída
-      const log = (base as LogComFilho).child?.({ modulo: def.modulo, consulta: def.nome, consumidor: o.modulo }) ?? base;
+      // log da consulta: dono, consulta, licença e request_id; nunca a entrada nem a saída
+      const log = (base as LogComFilho).child?.({ modulo: def.modulo, consulta: def.nome, consumidor: o.modulo, licenca }) ?? base;
       return executarConsulta(def, entrada, (e) =>
         impl.executar(e, { db, usuario, requestId: o.requestId, agora: o.agora, parametros: () => o.parametros?.(def.modulo) ?? {}, fuso: () => fusoDoTenantOuPadrao(o.fuso?.()), log }),
       );

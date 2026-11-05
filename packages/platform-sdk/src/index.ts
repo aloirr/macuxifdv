@@ -29,3 +29,4 @@ export * from './busca';
 export * from './sqlite';
 export * from './saude';
 export * from './fuso';
+export * from './onboarding';

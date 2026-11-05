@@ -11,7 +11,8 @@
  * `comTenant` com o tenant do token (papel macuxi_app). Corpo de erro: `ErroApiSchema` `{ codigo, mensagem, detalhes? }`;
  * o status do erro do módulo é o do `ErroHttpModulo` (401/403/404/409/410/422/423/503) e `ctx.dependencias` traz o
  * `depende` de todos os manifestos instalados (RN-CORE-03). `ctx.parametros()` = parâmetros do tenant do módulo da rota;
- * `tx.consultar` liga as consultas dos módulos instalados (ADR 0012) e `tx.auditar` grava a auditoria (RN-AUD-01).
+ * `tx.consultar` liga as consultas dos módulos instalados (ADR 0012; `{ licenca: 'tenant' }` só em GET/HEAD, ADR 0025) e
+ * `tx.auditar` grava a auditoria (RN-AUD-01).
  *
  * Rotas de Conector (ADR 0013): `conector.ts` monta `/<modulo>/v1/*` do módulo com `conector` (chave de API, sem JWT).
  *
@@ -248,6 +249,10 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     const licencas = await fonteLicencas(token, acesso);
     const efetivos = modulosEfetivos({ manifestos, ...licencas });
     const usuario: UsuarioDaRequisicao = { id: token.id, tenant_id: token.tenant_id, perfil: token.perfil, modulos: efetivos };
+    // ADR 0025: `tx.consultar(..., { licenca: 'tenant' })` só em leitura (GET/HEAD; o pull do sync é GET, o push não):
+    // efetivos do TENANT (todos os instalados no lugar do perfil), com as mesmas dependências (RN-CORE-03) e o core sempre ativo
+    const leitura = req.method === 'GET' || req.method === 'HEAD';
+    const modulosDoTenant = leitura ? modulosEfetivos({ manifestos, ativosNoTenant: licencas.ativosNoTenant, doPerfil: manifestos.map((x) => x.id) }) : undefined;
     let carteira: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     let usuariosVisiveis: Promise<ReadonlySet<string> | 'tenant'> | null = null;
     // parâmetros do tenant (`plataforma.parametro`) lidos junto com as licenças, por requisição (T-0029 E3)
@@ -271,6 +276,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
               requestId: req.id,
               agora: relogio,
               usuario,
+              ...(modulosDoTenant ? { modulosDoTenant } : {}),
               consultas,
               parametros,
               fuso: () => fuso,

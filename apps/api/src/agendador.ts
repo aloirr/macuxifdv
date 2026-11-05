@@ -105,6 +105,8 @@ export function criarAgendador(op: OpcoesAgendador) {
         agora: relogio,
         // ADR 0012: não há pessoa; a consulta recebe o usuário de sistema com os efetivos do tenant
         usuario: { id: USUARIO_SISTEMA_ID, tenant_id: tenantId, perfil: 'admin', modulos: efetivos },
+        // ADR 0025: na tarefa a licença já é a do tenant; `{ licenca: 'tenant' }` dá o mesmo resultado
+        modulosDoTenant: efetivos,
         consultas,
         parametros,
         fuso: () => fuso,

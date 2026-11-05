@@ -95,13 +95,35 @@ export interface TransacaoTenant {
    * ADR 0012: consulta a outro módulo NA MESMA transação (mesmo tenant, RLS, papel macuxi_app). Só consultas em
    * `usaConsultas` ou `usaConsultasOpcionais` (ADR 0019) do manifesto do módulo da rota (fora disso = erro de programação). Entrada e saída validadas pelo
    * contrato. Dono inativo para o usuário ou não instalado → `ConsultaIndisponivel` (503 se não tratada).
+   * `{ licenca: 'tenant' }` (ADR 0025): o dono vale se estiver ativo NO TENANT, não nos módulos de quem consulta; só leitura
+   * (GET) de indicador agregado cuja fonte a regra decide pela licença do tenant (RN-CORE-27). Ver `OpcoesConsulta`.
    */
-  consultar<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(def: DefinicaoConsulta<E, S>, entrada: z.input<E>): Promise<z.output<S>>;
+  consultar<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(def: DefinicaoConsulta<E, S>, entrada: z.input<E>, opcoes?: OpcoesConsulta): Promise<z.output<S>>;
   /**
    * RN-AUD-01: grava em `plataforma.auditoria` NA MESMA transação do fato, com o módulo da rota, o usuário e o
    * `request_id`. `antes`/`depois` só com ids, códigos, status e valores — nunca nome, documento, e-mail ou telefone.
    */
   auditar(registro: RegistroAuditoria): Promise<void>;
+}
+
+/**
+ * De quem é a licença que decide se o DONO da consulta está ativo (ADR 0025, complemento da ADR 0012):
+ * - `'usuario'` (padrão): módulos efetivos de quem consulta (RN-CORE-01/02/03);
+ * - `'tenant'`: módulos efetivos do TENANT (ativos no tenant ∩ instalados, menos quem perdeu dependência), como no consumidor
+ *   de evento e na tarefa periódica. Só a checagem de módulo muda: a implementação recebe o MESMO usuário da requisição
+ *   (id, perfil e escopo; nunca o usuário de sistema), a mesma transação, o mesmo tenant e a mesma RLS. Não há elevação de
+ *   escopo nem de perfil.
+ */
+export type LicencaConsulta = 'usuario' | 'tenant';
+
+export interface OpcoesConsulta {
+  /**
+   * `'tenant'` só para LEITURA AGREGADA de indicador cuja fonte a regra decide pela licença do tenant (RN-CORE-27: Início,
+   * painel de metas, RV, Farol). Nunca para escrita: na API, rota com método diferente de GET/HEAD (inclusive o push do sync)
+   * que pede `'tenant'` = erro de programação (500). Rota de Conector (sem usuário) continua `ConsultaIndisponivel`. No
+   * consumidor de evento e na tarefa periódica a licença já é a do tenant: a opção não muda nada.
+   */
+  licenca?: LicencaConsulta;
 }
 
 /** Linha de auditoria (RN-AUD-01). `entidade_id` = UUID da entidade (ou `null`). */
