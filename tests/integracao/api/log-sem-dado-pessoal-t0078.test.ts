@@ -4,10 +4,11 @@
  * cobre login e refresh com Postgres) pedido no R-20261104-233908-engenheiro-software: aqui, SEM banco,
  *  - a sincronização inteira (novidades sem e com cursor, pull de todas as entidades e páginas, push aceito, rejeitado e
  *    inválido) com linhas e itens cheios de e-mail, nome, CNPJ, CPF, telefone e senha fictícios;
- *  - a linha `tipo: metricas` da API (a mesma montagem do `registrarMetricas` de apps/api/src/servidor.ts: `/v1/saude` →
- *    `linhaDeMetricas`, `info` sem alerta e `warn` com alerta) e do worker (apps/api/src/worker.ts: `resumoDaLinha` →
- *    `avaliarAlertas` → `linhaDeMetricas`, inclusive o ramo `alerta: banco` com a mensagem de erro);
- *  - o logger é o REAL da API (`opcoesLogger` de apps/api/src/config.ts) e a API é o `createApp` real (apoio
+ *  - a linha `tipo: metricas` da API (`registrarMetricasApi` de apps/api/src/observabilidade.ts, a mesma que
+ *    apps/api/src/servidor.ts usa: `/v1/saude` → `linhaDeMetricas`, `info` sem alerta e `warn` com alerta) e do worker
+ *    (`registrarMetricasWorker`, a mesma de apps/api/src/worker.ts, inclusive o ramo `alerta: banco` com `mensagemSegura`);
+ *  - o logger é o REAL da API (`opcoesLogger` de apps/api/src/config.ts, com o `serializarErro` de
+ *    apps/api/src/log-seguro.ts) e a API é o `createApp` real (apoio
  *    tests/integracao/apoio/sync-memoria.ts: só os provedores de sync são em memória).
  * O que precisa de Postgres (login, refresh, provedores reais, despachante com handlers) segue no S0-073 e no CI.
  *
@@ -19,7 +20,8 @@ import pg from 'pg';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import { opcoesLogger } from '../../../apps/api/src/config';
-import { avaliarAlertas, linhaDeMetricas, resumoDaLinha, type CodigoAlerta, type JanelaMetricas, type ResumoOutbox } from '../../../apps/api/src/observabilidade';
+import { serializarErro } from '../../../apps/api/src/log-seguro';
+import { registrarMetricasApi, registrarMetricasWorker } from '../../../apps/api/src/observabilidade';
 import { DADO_PESSOAL, montarApiSyncMemoria, type ApiSyncMemoria } from '../apoio/sync-memoria';
 
 const REQUEST_ID = '7a000000-0000-4000-8000-000000000078';
@@ -45,16 +47,6 @@ function semDadoPessoal(linhas: readonly string[], segredos: readonly string[]) 
   const tudo = linhas.join('\n');
   for (const x of segredos) expect(tudo.includes(x), `vazou no log: ${x.slice(0, 10)}…`).toBe(false);
   expect(tudo).not.toMatch(/authorization|bearer|"body"|"payload"|"headers"|"query"/i);
-}
-
-/** Mesma montagem de apps/api/src/servidor.ts (`registrarMetricas`), que não é exportada. */
-async function registrarMetricasComoServidor(api: ApiSyncMemoria) {
-  const r = await api.app.inject({ method: 'GET', url: '/v1/saude' });
-  const s = r.json() as { metricas: JanelaMetricas; dependencias: { outbox: ResumoOutbox | null }; alertas: CodigoAlerta[] };
-  const linha = linhaDeMetricas(s.metricas, s.dependencias.outbox, s.alertas);
-  if (s.alertas.length > 0) api.app.log.warn(linha, 'alerta');
-  else api.app.log.info(linha, 'métricas');
-  return s;
 }
 
 /** Sincronização completa como o motor do app (ADR 0018): novidades → pull de cada entidade (todas as páginas). */
@@ -120,9 +112,8 @@ describe('T-0078 L1 — API: sincronização inteira e linha de métricas sem da
       expect(invalido.statusCode).toBe(400);
       // sem sessão (401) e token desconhecido com dado pessoal no lugar do token
       expect((await api.app.inject({ method: 'GET', url: '/v1/sync/novidades', headers: { authorization: `Bearer ${DADO_PESSOAL.email}` } })).statusCode).toBe(401);
-      // métricas: linha sem alerta (info)
-      const s = await registrarMetricasComoServidor(api);
-      expect(s.alertas).toEqual([]);
+      // métricas: linha sem alerta (info), pela função real do servidor.ts
+      await registrarMetricasApi(api.app, api.app.log);
 
       const linhas = log.json();
       expect(linhas.length).toBeGreaterThan(20);
@@ -157,8 +148,7 @@ describe('T-0078 L1 — API: sincronização inteira e linha de métricas sem da
         expect(r.statusCode).toBe(500);
         expect(r.body).not.toContain(DADO_PESSOAL.email);
       }
-      const s = await registrarMetricasComoServidor(api);
-      expect(s.alertas).toEqual(['ERROS_5XX']);
+      await registrarMetricasApi(api.app, api.app.log);
       semDadoPessoal(log.linhas, proibidos(api));
       const alerta = log.json().find((l) => l.tipo === 'metricas');
       expect(alerta).toMatchObject({ level: 40, msg: 'alerta', alertas: ['ERROS_5XX'], erros_5xx: 5 });
@@ -169,14 +159,12 @@ describe('T-0078 L1 — API: sincronização inteira e linha de métricas sem da
   });
 
   /**
-   * DEFEITO T-0078-L1a (aberto em 05/11): o `setErrorHandler` de apps/api/src/app.ts registra `req.log.error({ err })` e o
-   * serializador de erro do pino copia TODAS as propriedades do erro. Um erro do Postgres que sobe sem tratamento até a
-   * rota (violação de unique/check/not null num provedor ou rota de módulo) leva `detail` com os VALORES da linha
-   * ("Key (tenant_id, email)=(…, maria@…) already exists", "Failing row contains (…, nome, e-mail, telefone …)") para o
-   * log. Correção esperada (engenheiro-software): serializador `err` em `opcoesLogger` só com `type`, `message`, `code`,
-   * `stack` (sem `detail`, `where`, `hint`, `internalQuery`, `parameters`) — ou o handler logar só `{ codigo, constraint }`.
+   * D-L1a (aberto e corrigido em 05/11, R-20261105-010609-engenheiro-software): o serializador `err` do pino copiava todas
+   * as propriedades do erro, e o `detail` do Postgres ("Key (tenant_id, email)=(…, maria@…) already exists") ia ao log.
+   * Agora `opcoesLogger` usa `serializarErro` (apps/api/src/log-seguro.ts): sem `detail`, `where`, `hint`, `internalQuery`,
+   * `parameters` nem a mensagem do driver; ficam o SQLSTATE e a constraint para diagnóstico.
    */
-  it.fails('D-L1a: erro do Postgres (DatabaseError com detail) no 500 não leva os valores da linha ao log', async () => {
+  it('D-L1a: erro do Postgres (DatabaseError com detail) no 500 não leva os valores da linha ao log', async () => {
     const log = coletor();
     const api = montarApiSyncMemoria({ pedidoLivre: true, logger: { ...opcoesLogger('trace'), stream: log.stream } });
     await api.app.ready();
@@ -193,6 +181,10 @@ describe('T-0078 L1 — API: sincronização inteira e linha de métricas sem da
       expect(r.body).not.toContain(DADO_PESSOAL.email); // a resposta já é genérica (ERRO_INTERNO)
       expect(log.linhas.some((l) => l.includes('erro não tratado'))).toBe(true);
       semDadoPessoal(log.linhas, proibidos(api));
+      // o diagnóstico continua: SQLSTATE e constraint, sem o detail
+      const linhaErro = log.json().find((l) => l.msg === 'erro não tratado') as { err?: Record<string, unknown> } | undefined;
+      expect(linhaErro?.err).toMatchObject({ code: '23505', constraint: 'cliente_contato_email_key' });
+      expect(linhaErro?.err).not.toHaveProperty('detail');
     } finally {
       await api.app.close();
     }
@@ -200,32 +192,32 @@ describe('T-0078 L1 — API: sincronização inteira e linha de métricas sem da
 });
 
 describe('T-0078 L1 — worker: linha de métricas da outbox sem dado pessoal (pino do worker em trace)', () => {
-  /** Mesmo logger e mesma montagem de apps/api/src/worker.ts (`registrarMetricas`), que não é exportada. */
+  type LinhaResumo = Awaited<ReturnType<Parameters<typeof registrarMetricasWorker>[0]>>;
+  /** Mesmas opções do pino de apps/api/src/worker.ts (que não é exportado), em trace; a montagem é a real. */
   function workerLog() {
     const c = coletor();
-    const log = pino({ level: 'trace', base: { processo: 'despachante' } }, c.stream);
-    const registrar = (linha: Parameters<typeof resumoDaLinha>[0] | Error) => {
-      if (linha instanceof Error) {
-        log.warn({ ...linhaDeMetricas(null, null, ['BANCO_FALHA']), erro: linha.message }, 'alerta: banco');
-        return;
-      }
-      const outbox = resumoDaLinha(linha);
-      const alertas = avaliarAlertas({ banco: 'ok', outbox, erros_5xx: 0 });
-      if (alertas.length > 0) log.warn(linhaDeMetricas(null, outbox, alertas), 'alerta: outbox');
-      else log.info(linhaDeMetricas(null, outbox, alertas), 'métricas da outbox');
-    };
+    const log = pino({ level: 'trace', base: { processo: 'despachante' }, serializers: { err: serializarErro } }, c.stream);
+    const registrar = (linha: LinhaResumo | Error) =>
+      registrarMetricasWorker(async () => {
+        if (linha instanceof Error) throw linha;
+        return linha;
+      }, log);
     return { ...c, registrar };
   }
 
-  it('sem alerta, com OUTBOX_ATRASADA/OUTBOX_PARADA e com o banco fora: só contagens, segundos e códigos', () => {
+  it('sem alerta, com OUTBOX_ATRASADA/OUTBOX_PARADA e com o banco fora: só contagens, segundos e códigos', async () => {
     const w = workerLog();
-    w.registrar({ pendentes: '3', parados: '0', mais_antigo_s: '4.2' });
-    w.registrar({ pendentes: 40, parados: 2, mais_antigo_s: 900 });
-    w.registrar(undefined);
-    // mensagem típica do pg com o banco fora (o worker registra só `e.message`)
-    w.registrar(new Error('getaddrinfo ENOTFOUND banco.interno'));
+    await w.registrar({ pendentes: '3', parados: '0', mais_antigo_s: '4.2' });
+    await w.registrar({ pendentes: 40, parados: 2, mais_antigo_s: 900 });
+    await w.registrar(undefined);
+    // mensagem típica do pg com o banco fora
+    await w.registrar(new Error('getaddrinfo ENOTFOUND banco.interno'));
+    // erro do Postgres com dado pessoal na mensagem do driver e no detail: sai só o SQLSTATE (mensagemSegura)
+    const erroPg = new pg.DatabaseError(`invalid input syntax for type uuid: "${DADO_PESSOAL.email}"`, 0, 'error');
+    Object.assign(erroPg, { code: '22P02', detail: `Failing row contains (${DADO_PESSOAL.nome}, ${DADO_PESSOAL.cpfDigitos}).` });
+    await w.registrar(erroPg);
     const linhas = w.json();
-    expect(linhas).toHaveLength(4);
+    expect(linhas).toHaveLength(5);
     semDadoPessoal(w.linhas, proibidos());
     const permitidas = new Set(['level', 'time', 'pid', 'hostname', 'processo', 'msg', 'tipo', 'outbox_pendentes', 'outbox_parados', 'outbox_mais_antigo_s', 'alertas', 'erro']);
     for (const l of linhas) {
@@ -238,7 +230,9 @@ describe('T-0078 L1 — worker: linha de métricas da outbox sem dado pessoal (p
       [40, 'alerta: outbox', ['OUTBOX_ATRASADA', 'OUTBOX_PARADA']],
       [30, 'métricas da outbox', []],
       [40, 'alerta: banco', ['BANCO_FALHA']],
+      [40, 'alerta: banco', ['BANCO_FALHA']],
     ]);
     expect(linhas[0]).toMatchObject({ outbox_pendentes: 3, outbox_parados: 0, outbox_mais_antigo_s: 4 });
+    expect(linhas[4]!.erro).toBe('DatabaseError: erro do Postgres (SQLSTATE 22P02)');
   });
 });
