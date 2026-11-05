@@ -15,6 +15,7 @@
 #   docker compose --env-file .env --env-file imagens.env up -d
 #   docker compose --env-file .env --env-file imagens.env run --rm banco migrar up
 #   docker compose --env-file .env --env-file imagens.env run --rm seed-demo --recriar
+#   /opt/macuxi/backup/backup-vm.sh  ·  /opt/macuxi/backup/restaurar-vm.sh [ultimo|<chave>] [--trocar]   (backup)
 name: macuxi-demo
 
 x-imagem-api: &imagem-api
@@ -66,12 +67,9 @@ services:
       - log_parameter_max_length_on_error=0
     volumes:
       - pgdata:/var/lib/postgresql/data
-    networks:
-      interna:
-        # "macuxi-postgres" é o nome que o @macuxi/db reconhece como Postgres de contêiner local (HOSTS_LOCAIS): só o
-        # serviço seed-demo usa, para a base de DEMONSTRAÇÃO (dados fictícios). API, worker e migrações usam "postgres"
-        # com NODE_ENV=production (falha fechada: senha pública recusada). Ver ADR 0020 §5.
-        aliases: [macuxi-postgres]
+    # Só o nome "postgres" (sem o alias macuxi-postgres de antes): todos falam com NODE_ENV=production e falha fechada; o
+    # seed da demo entra pela permissão explícita MACUXI_AMBIENTE=demo (ADR 0020 §5).
+    networks: [interna]
     healthcheck:
       # por TCP (-h 127.0.0.1): no 1º boot o initdb sobe um servidor temporário só no socket, e o pg_isready pelo socket
       # dava "healthy" antes do servidor de verdade (a migração caía em timeout)
@@ -87,6 +85,8 @@ services:
       <<: *ambiente-api
       MACUXI_API_HOST: 0.0.0.0
       MACUXI_API_PORTA: '8100'
+      # a API não administra o banco (lerConfigApp): a senha do admin, que o .env traz para as migrações, fica vazia aqui
+      MACUXI_PG_ADMIN_SENHA: ''
       # o cloudflared fala com a API pela rede do compose (faixa privada): o IP real do cliente vem no X-Forwarded-For
       MACUXI_TRUST_PROXY: uniquelocal
     depends_on:
@@ -110,6 +110,8 @@ services:
     command: ['node', '--import', 'tsx', 'apps/api/src/worker.ts']
     environment:
       <<: *ambiente-api
+      # o worker também não administra o banco (lerConfigApp)
+      MACUXI_PG_ADMIN_SENHA: ''
     depends_on:
       postgres:
         condition: service_healthy
@@ -157,7 +159,9 @@ services:
         condition: service_healthy
     networks: [interna]
 
-  # Base de demonstração (tenant "demo", dados fictícios): "seed-demo" ou "seed-demo --recriar".
+  # Base de demonstração (tenant "demo", dados fictícios): "seed-demo" ou "seed-demo --recriar". Mesmo host e mesmo
+  # NODE_ENV=production dos outros; MACUXI_AMBIENTE=demo é a permissão explícita do @macuxi/db (exigirBancoDemo) só para
+  # o seed demo e os seeds de módulo em db/seeds/demo/ (não libera senha pública, seed da Fase M nem fixture).
   seed-demo:
     <<: *imagem-api
     profiles: [ferramentas]
@@ -165,12 +169,35 @@ services:
     entrypoint: ['node', '--import', 'tsx', 'db/scripts/banco.ts', 'seed', 'demo']
     environment:
       <<: *ambiente-api
-      NODE_ENV: development
-      MACUXI_PG_HOST: macuxi-postgres
+      MACUXI_AMBIENTE: demo
     depends_on:
       postgres:
         condition: service_healthy
     networks: [interna]
+
+  # Backup diário (dono do código: banco-dados, db/backup/; LEIA-ME lá). Quem chama é o /opt/macuxi/backup/backup-vm.sh
+  # no HOST (timer macuxi-backup.timer, 06:15 UTC, instalado pelo preparar-vm.sh): o pg_dump roda dentro do "postgres" e
+  # o dump chega aqui pelo stdin. Por isso este serviço não recebe o .env (nenhuma senha do Postgres) nem a rede interna:
+  # só o S3 (segredos.env) e a saída para o Object Storage.
+  #   ... run --rm -T backup enviar < dump · backup listar · backup baixar <ultimo|chave> · backup podar --simular
+  backup:
+    image: ${MACUXI_IMAGEM_API:-ghcr.io/aloirr/macuxi-api}:${MACUXI_TAG:-main}
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint: ['node', 'db/backup/backup.mjs']
+    env_file:
+      # sem ele o backup.mjs para dizendo quais variáveis faltam (nunca os valores)
+      - path: segredos.env
+        required: false
+    environment:
+      TZ: UTC
+      MACUXI_S3_ENDPOINT: https://br-se1.magaluobjects.com
+      MACUXI_S3_REGIAO: br-se1
+      MACUXI_S3_BUCKET: macuxi-demo-arquivos
+      MACUXI_BACKUP_PREFIXO: backups/
+      MACUXI_BACKUP_DIAS: '7'
+      # MACUXI_S3_ESTILO: virtual   # só se o estilo caminho falhar na Magalu (a mesma troca da API)
+    networks: [borda]
 
 networks:
   # sem saída para a internet: só o Postgres e quem fala com ele

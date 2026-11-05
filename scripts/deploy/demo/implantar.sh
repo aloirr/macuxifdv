@@ -10,7 +10,8 @@
 #
 # Ordem: compose.yml para /opt/macuxi → pull → Postgres no ar → migrações (com os papéis macuxi_app e macuxi_worker
 # e as senhas do .env) → seed da demo (só no primeiro deploy, ou com --recriar-base) → up -d → conferência local
-# (/v1/saude e /login) → docker image prune -f. Qualquer falha para o script com saída != 0 (o workflow fica vermelho).
+# (/v1/saude e /login) → scripts do backup em /opt/macuxi/backup (tirados da imagem) e conferência do backup mais novo
+# (só aviso) → docker image prune -f. Qualquer falha, menos as do backup, para o script com saída != 0 (workflow vermelho).
 # Nenhum segredo é impresso: os .env só são lidos pelo compose.
 set -euo pipefail
 
@@ -96,6 +97,61 @@ if [ "$BKO" = 1 ]; then
   done
   log "bko: /login ok"
 fi
+
+# ---------- backup (db/backup/, dono banco-dados; timer macuxi-backup.timer do preparar-vm.sh) ----------
+# Os scripts do host saem da PRÓPRIA imagem publicada (mesma versão do serviço "backup"); o workflow só copia
+# scripts/deploy/demo. Falha aqui é AVISO: o deploy da demo não depende do backup.
+instalar_backup() {
+  local destino="$PASTA/backup" tmp
+  [ -d "$destino" ] || { echo "::warning::backup: $destino ausente (o preparar-vm.sh cria); scripts do backup não instalados"; return 0; }
+  tmp="$(mktemp -d)"
+  if dc --profile ferramentas run --rm --no-deps -T --entrypoint tar backup \
+       -C /app/db/backup -cf - backup-vm.sh restaurar-vm.sh contagem.sql > "$tmp/b.tar" \
+     && tar -xf "$tmp/b.tar" -C "$tmp" \
+     && install -m 700 "$tmp/backup-vm.sh" "$tmp/restaurar-vm.sh" "$destino/" \
+     && install -m 600 "$tmp/contagem.sql" "$destino/"; then
+    log "backup: scripts em $destino ($(systemctl is-active macuxi-backup.timer 2>/dev/null || echo 'timer ?'))"
+  else
+    echo "::warning::backup: não consegui copiar db/backup/*.sh e contagem.sql da imagem para $destino"
+  fi
+  rm -rf "$tmp"
+}
+
+# Idade em horas do backup mais novo, lida da saída do "backup listar" (chave<TAB>tamanho, mais novo por último;
+# chave <prefixo><banco>-AAAAMMDDTHHMMSSZ.dump). Sem backup: saída vazia.
+idade_backup_horas() { # $1 = saída do listar, $2 = agora em epoch (opcional)
+  local ultimo c quando
+  ultimo="$(printf '%s\n' "$1" | cut -f1 | grep -E -- '-[0-9]{8}T[0-9]{6}Z\.dump$' | tail -n 1 || true)"
+  [ -n "$ultimo" ] || return 0
+  c="${ultimo%.dump}"; c="${c##*-}"
+  quando="$(date -u -d "${c:0:4}-${c:4:2}-${c:6:2} ${c:9:2}:${c:11:2}:${c:13:2}" +%s)" || return 0
+  echo $(( (${2:-$(date -u +%s)} - quando) / 3600 ))
+}
+
+# Aviso (nunca falha) se, depois do primeiro backup, não houver dump com menos de 26 h em backups/.
+conferir_backup() {
+  local saida idade disparou
+  disparou="$(systemctl show macuxi-backup.timer -p LastTriggerUSec --value 2>/dev/null || true)"
+  if ! saida="$(dc --profile ferramentas run --rm --no-deps -T backup listar 2>/dev/null)"; then
+    echo "::warning::backup: não consegui listar backups/ no bucket (confira os secrets DEMO_S3_* e journalctl -u macuxi-backup)"
+    return 0
+  fi
+  idade="$(idade_backup_horas "$saida")"
+  if [ -z "$idade" ]; then
+    if [ -z "$disparou" ] || [ "$disparou" = "n/a" ] || [ "$disparou" = "0" ]; then
+      log "backup: nenhum ainda (o primeiro roda às 06:15 UTC; na mão: /opt/macuxi/backup/backup-vm.sh)"
+    else
+      echo "::warning::backup: o timer já rodou e não há nenhum dump em backups/ (journalctl -u macuxi-backup)"
+    fi
+  elif [ "$idade" -ge 26 ]; then
+    echo "::warning::backup: o dump mais novo em backups/ tem ${idade} h (mais de 26 h): veja journalctl -u macuxi-backup"
+  else
+    log "backup: o mais novo tem ${idade} h"
+  fi
+}
+
+instalar_backup || true
+conferir_backup || true
 
 docker image prune -f >/dev/null
 dc ps --format 'table {{.Service}}\t{{.Status}}'

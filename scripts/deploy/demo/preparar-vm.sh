@@ -16,7 +16,11 @@
 #   6. /opt/macuxi (dono: usuário de deploy) e /opt/macuxi/.env (modo 600) com os segredos GERADOS AQUI, na VM
 #      (openssl rand): senhas do Postgres (admin, macuxi_app, macuxi_worker), MACUXI_JWT_SEGREDO e
 #      MACUXI_HUB_CHAVE_PEPPER. Nunca saem da VM, nunca são impressos e nunca são regenerados (só acrescenta o que falta;
-#      trocar a senha do admin depois do primeiro "up" exigiria ALTER ROLE).
+#      trocar a senha do admin depois do primeiro "up" exigiria ALTER ROLE);
+#   7. backup diário do Postgres (código do banco-dados em db/backup/): pasta /opt/macuxi/backup (os scripts chegam
+#      pelo implantar.sh, tirados da imagem publicada) e o timer do systemd macuxi-backup.timer, todo dia às 06:15 UTC
+#      (02:15 em Manaus), Persistent=true (backup perdido com a VM desligada roda quando ela volta), rodando
+#      /opt/macuxi/backup/backup-vm.sh como o usuário de deploy. Log: journalctl -u macuxi-backup.
 # Os segredos que vêm do GitHub (S3 e token do túnel) NÃO passam por aqui: o workflow grava /opt/macuxi/segredos.env.
 set -euo pipefail
 
@@ -165,5 +169,60 @@ acrescentar MACUXI_HUB_CHAVE_PEPPER "$(openssl rand -hex 32)"
 chown "$USUARIO:$USUARIO" "$ENV"
 chmod 600 "$ENV"
 [ -f "$PASTA/segredos.env" ] && { chown "$USUARIO:$USUARIO" "$PASTA/segredos.env"; chmod 600 "$PASTA/segredos.env"; }
+
+# ---------- 7. backup diário (timer do systemd) ----------
+install -d -m 700 -o "$USUARIO" -g "$USUARIO" "$PASTA/backup"
+UNIDADE_SVC=/etc/systemd/system/macuxi-backup.service
+UNIDADE_SVC_NOVO="# Gerado por scripts/deploy/demo/preparar-vm.sh (T-0074). Não edite à mão.
+[Unit]
+Description=Macuxi demo: backup diario do Postgres para o Object Storage (db/backup/backup-vm.sh)
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+# antes do primeiro deploy com os scripts, o timer dispara e a unidade só é pulada (sem erro)
+ConditionPathExists=$PASTA/backup/backup-vm.sh
+
+[Service]
+Type=oneshot
+User=$USUARIO
+Group=$USUARIO
+SupplementaryGroups=docker
+WorkingDirectory=$PASTA
+Environment=MACUXI_DIR=$PASTA
+ExecStart=$PASTA/backup/backup-vm.sh
+TimeoutStartSec=1h"
+UNIDADE_TMR=/etc/systemd/system/macuxi-backup.timer
+UNIDADE_TMR_NOVO="# Gerado por scripts/deploy/demo/preparar-vm.sh (T-0074). Não edite à mão.
+[Unit]
+Description=Macuxi demo: backup diario as 06:15 UTC (02:15 em Manaus)
+
+[Timer]
+OnCalendar=*-*-* 06:15:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target"
+mudou_unidade=0
+if [ "$(cat "$UNIDADE_SVC" 2>/dev/null)" != "$UNIDADE_SVC_NOVO" ]; then
+  printf '%s\n' "$UNIDADE_SVC_NOVO" > "$UNIDADE_SVC"; chmod 644 "$UNIDADE_SVC"; mudou_unidade=1
+fi
+if [ "$(cat "$UNIDADE_TMR" 2>/dev/null)" != "$UNIDADE_TMR_NOVO" ]; then
+  printf '%s\n' "$UNIDADE_TMR_NOVO" > "$UNIDADE_TMR"; chmod 644 "$UNIDADE_TMR"; mudou_unidade=1
+fi
+# falha do systemd aqui é AVISO: o deploy da demo não depende do agendamento do backup
+if [ "$mudou_unidade" = 1 ]; then
+  systemctl daemon-reload || echo "::warning::backup: systemctl daemon-reload falhou"
+  log "backup: unidades macuxi-backup.service/.timer gravadas"
+fi
+if ! systemctl is-enabled --quiet macuxi-backup.timer || ! systemctl is-active --quiet macuxi-backup.timer; then
+  if systemctl enable --now macuxi-backup.timer >/dev/null 2>&1; then
+    log "backup: timer ligado (próximo: $(systemctl show macuxi-backup.timer -p NextElapseUSecRealtime --value 2>/dev/null || echo '?'))"
+  else
+    echo "::warning::backup: não consegui ligar o macuxi-backup.timer (systemctl status macuxi-backup.timer)"
+  fi
+elif [ "$mudou_unidade" = 1 ]; then
+  systemctl restart macuxi-backup.timer || echo "::warning::backup: restart do macuxi-backup.timer falhou"
+fi
 
 log "pronto: docker $(docker --version | awk '{print $3}' | tr -d ,), compose $(docker compose version --short), fuso $(timedatectl show -p Timezone --value)"
