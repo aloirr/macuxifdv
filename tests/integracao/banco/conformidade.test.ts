@@ -30,6 +30,9 @@ const DEFINER_REVISADAS: Record<string, string> = {
   'plataforma.tenant_por_codigo(p_codigo text)': 'login: resolve o tenant pelo código antes do contexto; devolve só id, nome, fuso, status',
   'integracao.autenticar_chave(p_hash text)':
     'Hub: única leitura sem tenant (ADR 0013); resolve a credencial pelo HMAC da chave; no máximo 1 linha, sem o hash; apagados = 0 linhas',
+  // T-0078 (0024; R-20261105-001055-banco-dados): /v1/saude
+  'plataforma.resumo_outbox(p_nomes text[], p_max_tentativas integer)':
+    'saúde: só agregados da outbox de todos os tenants (pendentes, parados, segundos do mais antigo); sem id, tenant, payload ou erro',
 };
 
 /**
