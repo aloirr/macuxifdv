@@ -127,6 +127,7 @@ describe('migrações (estático)', () => {
     expect(nomes[26]).toBe('0027_plataforma_tenants_ativos'); // T-0039 §2.3 (ADR 0022): plataforma.tenants_ativos() só ao macuxi_worker (tenants-ativos.test.ts)
     expect(nomes[27]).toBe('0028_core_plano_rv'); // T-0082: core.plano_rv (RN-CORE-30), regras em jsonb, RLS forçado (plano-rv.test.ts)
     expect(nomes[28]).toBe('0029_plataforma_provisionar_tenant'); // T-0083: plataforma.provisionar_tenant(jsonb), só a conexão de administração (provisionar-tenant.test.ts)
+    expect(nomes[29]).toBe('0030_core_notificacao_subtipo'); // T-0039: core.notificacao.subtipo (text nulo, CHECK de formato, sem índice) e backfill do alerta (notificacao-subtipo.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',

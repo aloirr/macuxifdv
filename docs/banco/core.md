@@ -215,6 +215,7 @@ parcial `visita_sugere_coordenada_ix (tenant_id, cliente_id, checkin_em desc) wh
 (tenant_id, usuario_id, created_at desc) where lida_em is null and vivo`; únicos parciais `notificacao_evento_uk
 (tenant_id, usuario_id, origem_evento_id)` e `notificacao_envio_uk (tenant_id, usuario_id, envio_id)` quando preenchidos.
 Recado do dia (0021, T-0073): `recado_do_dia` date · `recado_do_dia_por` (FK usuário) — ver a seção 0021 abaixo.
+Subtipo (0030, T-0039): `subtipo` text null, formato `^[a-z_]{1,40}$` — ver a seção 0030 abaixo.
 
 ## meta — meta mensal (RN-CORE-20..22). Pull por usuários visíveis, `periodo ≥ mês anterior`
 `usuario_id` (FK) · `periodo` `AAAA-MM` · `indicador` `venda_cents | positivacao | cobertura_pct | visitas` · `valor` bigint ≥ 0
@@ -457,3 +458,20 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
   mês do primeiro seed (o mês não anda nas recargas), R$ 2.000,00, venda 50% / positivação 30% / visitas 20% com faixas
   0: zero · 80: proporcional · 100: fixo 100 · 110: fixo 120, cobertura como gatilho; banco sem a 0028 = o seed não grava.
 - Caminho de volta: `0028_core_plano_rv.down.sql` (APAGA a tabela e os planos). Teste: `db/testes/plano-rv.test.ts`.
+
+## 0030 — subtipo da notificação (`0030_core_notificacao_subtipo`; T-0039 §2.3, pedido R-20261105-071918-modulo-core)
+- **notificacao.subtipo** `text` null, sem padrão: marcador **estável** dentro do `tipo` (a categoria larga da caixa), para o
+  app reconhecer a notificação sem depender do título. CHECK `notificacao_subtipo_formato (subtipo is null or subtipo ~
+  '^[a-z_]{1,40}$')`. A lista de valores é do Core (contrato `NotificacaoSyncSchema`, campo aditivo e opcional), não do banco:
+  subtipo novo não pede migração. Conhecido hoje (Drizzle `SUBTIPOS_NOTIFICACAO_CONHECIDOS`): `etapa_pendente_checkout` =
+  alerta da etapa obrigatória pendente no checkout, gravado pelo job do alerta (`modules/core/api/etapas-pendencia.ts`).
+- Sem índice: a leitura é o pull da caixa do usuário (`notificacao_usuario_sync_ix`, 0006), que leva a coluna; o Gestão filtra
+  em memória. Volume: o mesmo da notificação.
+- Backfill na migração: as notificações do alerta já gravadas (`tipo = 'sistema'`, `origem_modulo = 'core'`, título
+  `Etapa pendente na visita…` e `envio_id` = `visita_etapa` do mesmo tenant com `pendente_desde`) ganham
+  `etapa_pendente_checkout`; o gatilho `notificacao_updated_at` avança o `updated_at` delas (voltam no próximo pull). Com dono
+  das tabelas sem superusuário (DBaaS), o FORCE RLS faz o backfill não ver linha: as antigas ficam null e o Gestão usa o
+  fallback pelo título.
+- RLS: a mesma de `notificacao` (enable/force, `isolamento_tenant`); nenhuma política nova, grants iguais.
+- Caminho de volta: `0030_core_notificacao_subtipo.down.sql` (APAGA a coluna e o CHECK; as notificações ficam). Teste:
+  `db/testes/notificacao-subtipo.test.ts`.

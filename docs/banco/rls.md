@@ -14,6 +14,17 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
 - A migração 0003 cria `macuxi_worker` como `NOLOGIN`; `garantirPapelWorker` (`@macuxi/db`) liga o `LOGIN` com
   `MACUXI_PG_WORKER_SENHA` (local: `macuxi_worker_local`; fora do local é opcional — sem ela o papel fica `NOLOGIN`
   e `urlWorker(cfg)` lança erro; a senha pública local é recusada). O `down` da 0003 revoga tudo do papel no banco.
+- **Como o executor mexe no papel** (`garantirPapelDeLogin`, B0 do plano B do DBaaS, T-0075, 05/11): papel **novo** =
+  `CREATE ROLE ... LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD ...`; papel **existente** =
+  só `ALTER ROLE <papel> LOGIN PASSWORD ...`, sem citar atributo (no PG 16, citar `NOSUPERUSER`/`NOBYPASSRLS`/
+  `NOREPLICATION` num `ALTER ROLE` exige superusuário — era o "permission denied to alter role" do DBaaS). Os atributos do
+  papel existente são **conferidos** em `pg_roles`: `SUPERUSER`, `BYPASSRLS`, `CREATEDB`, `CREATEROLE` ou `REPLICATION` =
+  erro com a correção (`alter role <papel> nosuperuser ...` por um superusuário, ou apagar o papel); nada é alterado
+  (antes, o `ALTER ROLE` corrigia em silêncio). Com `password_encryption = scram-sha-256` (padrão do PG 14+, demo e CI) e
+  senha ASCII imprimível sem espaço, a senha vai como **verificador SCRAM** calculado no cliente (`db/src/scram.ts`, com o
+  `scram_iterations` do servidor): o servidor guarda a mesma credencial e a senha em texto não chega a ele nem a log. Fora
+  disso (md5 ou outros caracteres), vai em texto, como antes, na transação sem log de comando. Na demo e no CI nada muda:
+  os papéis nascem pelas migrações 0001/0003 com os atributos certos e o passo dá `LOGIN` e a senha.
 - Todas as tabelas têm `ENABLE` **e** `FORCE ROW LEVEL SECURITY` (defesa extra caso um dia o dono não seja superusuário).
 - Grants explícitos por tabela. `plataforma.tenant`: só `SELECT`. `plataforma.auditoria`: só `SELECT, INSERT` (RN-AUD-01).
   `public.macuxi_migracao`: nenhum acesso.
