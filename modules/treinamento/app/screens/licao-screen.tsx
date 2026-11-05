@@ -5,12 +5,12 @@
  */
 import {
   BackLink,
-  Badge,
   Banner,
-  Button,
-  Card,
+  Botao,
+  Cartao,
+  ChipEstado,
   colors,
-  Empty,
+  EstadoVazio,
   Screen,
   Strong,
   type as t,
@@ -52,10 +52,10 @@ export default function LicaoScreen() {
     return (
       <Screen testID="treinar-licao">
         <BackLink label="Treinar" fallback={hrefTreinar()} />
-        <Empty
-          text={
-            tr.carregado ? 'Lição não encontrada no aparelho. Volte e puxe para atualizar.' : 'Carregando…'
-          }
+        <EstadoVazio
+          icone="file"
+          titulo={tr.carregado ? 'Lição não encontrada' : 'Carregando'}
+          texto={tr.carregado ? 'Volte e puxe para atualizar.' : undefined}
         />
       </Screen>
     );
@@ -95,29 +95,24 @@ export default function LicaoScreen() {
       </View>
       {tela.status === 'bloqueada' ? (
         <Banner testID="treinar-licao-bloqueada" tone="warning" icon="lock">
-          <Strong>Lição bloqueada.</Strong> Conclua as lições anteriores da trilha para liberar esta.
+          <Strong>Lição bloqueada.</Strong> Conclua as anteriores.
         </Banner>
       ) : null}
 
       {licao.midia_url ? (
-        <Card style={{ padding: 14, gap: 8 }}>
-          {licao.tipo === 'video' ? (
-            <Text style={t.small}>
-              Vídeo curto: prefira assistir no Wi-Fi para não gastar seu pacote de dados.
-            </Text>
-          ) : null}
-          <Button
+        <Cartao gap={8}>
+          {licao.tipo === 'video' ? <Text style={t.small}>Vídeo: use o Wi-Fi.</Text> : null}
+          <Botao
             testID="treinar-licao-midia"
-            label={
+            rotulo={
               licao.tipo === 'video'
                 ? 'Assistir ao vídeo'
                 : licao.tipo === 'pdf'
                   ? 'Abrir o PDF'
                   : 'Abrir o link'
             }
-            icon="file"
-            variant="outline"
-            height={48}
+            icone="file"
+            nivel="secundario"
             onPress={() => {
               setErroMidia(null);
               Linking.openURL(licao.midia_url!).catch(() => setErroMidia('Não foi possível abrir o conteúdo. Confira o sinal e tente de novo.'));
@@ -128,46 +123,45 @@ export default function LicaoScreen() {
               {erroMidia}
             </Text>
           ) : null}
-        </Card>
+        </Cartao>
       ) : null}
       {licao.texto ? (
-        <Card style={{ padding: 16 }}>
+        <Cartao>
           <Text style={[t.body, { lineHeight: 21 }]} testID="treinar-licao-texto">
             {licao.texto}
           </Text>
-        </Card>
+        </Cartao>
       ) : null}
 
       {feito ? (
         <View style={{ gap: 10 }}>
           <Celebracao c={feito} />
           {proxima && proxima !== licao.id ? (
-            <Button
+            <Botao
               testID="treinar-proxima-licao"
-              label="Próxima lição"
-              icon="chevron"
-              height={52}
+              rotulo="Próxima lição"
+              seta
+              nivel="principal"
               onPress={() => irParaLicao(proxima)}
             />
           ) : (
-            <Button
+            <Botao
               testID="treinar-voltar-trilha"
-              label="Voltar à trilha"
-              variant="outline"
-              height={52}
+              rotulo="Voltar à trilha"
+              nivel="principal"
               onPress={() => irParaTrilha(trilha.id)}
             />
           )}
         </View>
       ) : concluida ? (
         <View style={styles.linha}>
-          <Badge label="Lição concluída" tone="success" />
+          <ChipEstado texto="Concluída" tom="sucesso" icone="check" />
           {proxima ? (
-            <Button
+            <Botao
               testID="treinar-proxima-licao"
-              label="Próxima lição"
-              icon="chevron"
-              height={48}
+              rotulo="Próxima lição"
+              seta
+              nivel="principal"
               onPress={() => irParaLicao(proxima)}
             />
           ) : null}
@@ -176,33 +170,33 @@ export default function LicaoScreen() {
         <View style={{ gap: 8 }}>
           <View style={styles.linha}>
             <Text style={t.small} testID="treinar-cronometro">
-              Tempo na lição: {textoDoTempo(segundos)}
+              Tempo: {textoDoTempo(segundos)}
             </Text>
             <Text style={[t.small, { color: atingiu ? colors.success : colors.ink3 }]}>
-              {atingiu ? 'Tempo mínimo atingido' : `Mínimo: ${textoDoTempo(tela.tempo_minimo_seg)}`}
+              {atingiu ? 'Mínimo atingido' : `Mínimo: ${textoDoTempo(tela.tempo_minimo_seg)}`}
             </Text>
           </View>
           {tela.precisa_quiz ? (
-            <Button
+            <Botao
               testID="treinar-fazer-quiz"
-              label={
+              nivel="principal"
+              rotulo={
                 atingiu ? 'Fazer o quiz' : `Leia por mais ${textoDoTempo(tela.tempo_minimo_seg - segundos)}`
               }
-              icon="clipboard"
-              height={52}
-              disabled={!atingiu}
+              icone="clipboard"
+              desligado={!atingiu}
               onPress={() => irParaQuiz(licao.id, segundos)}
             />
           ) : (
-            <Button
+            <Botao
               testID="treinar-concluir"
-              label={
+              nivel="principal"
+              rotulo={
                 atingiu ? 'Concluir lição' : `Leia por mais ${textoDoTempo(tela.tempo_minimo_seg - segundos)}`
               }
-              icon="check"
-              height={52}
-              disabled={!atingiu}
-              loading={salvando}
+              icone="check"
+              desligado={!atingiu}
+              ocupado={salvando}
               onPress={() => void concluir()}
             />
           )}
