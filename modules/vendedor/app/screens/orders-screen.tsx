@@ -39,7 +39,7 @@ import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, mensagemForaDaJanela, pe
 import { rotuloDoDocumento } from '../lib/pre-venda';
 import { orderNote, statusBadge } from '../lib/order-status';
 import type { PedidoDaLista } from '../lib/pedidos';
-import type { Order } from '../../contracts';
+import { PedidosPage, type Order } from '../../contracts';
 import { irParaNovoPedido, irParaPedido } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
 
@@ -70,7 +70,7 @@ export default function OrdersScreen() {
   }, [filtroDoInicio]);
   const [refreshing, setRefreshing] = useState(false);
   // T-0077 item 6: período fora dos 90 dias do aparelho = consulta ao servidor (com sinal); sem sinal, 'Disponível com conexão'
-  const [consulta, setConsulta] = useState<{ chave: string; itens: PedidoDaLista[]; estado: 'carregando' | 'ok' | 'erro' } | null>(null);
+  const [consulta, setConsulta] = useState<{ chave: string; itens: PedidoDaLista[]; estado: 'carregando' | 'ok' | 'erro'; cortada?: boolean } | null>(null);
   const [tentativa, setTentativa] = useState(0);
 
   // RN-CORE-23: ao focar, só relê o aparelho (sem rede, sem timer)
@@ -96,14 +96,16 @@ export default function OrdersScreen() {
     void (async () => {
       try {
         const todos: Order[] = [];
+        let cortada = false;
         let cursor: string | null = null;
         for (let pagina = 0; pagina < PAGINAS_MAXIMAS_DA_CONSULTA; pagina++) {
-          const r: { itens: Order[]; proximo_cursor: string | null } = await ambiente.http.requisitar('GET', caminhoDaConsultaPorPeriodo(periodo, cursor));
+          const r = PedidosPage.parse(await ambiente.http.requisitar('GET', caminhoDaConsultaPorPeriodo(periodo, cursor)));
           todos.push(...r.itens);
           cursor = r.proximo_cursor;
           if (!cursor) break;
+          if (pagina === PAGINAS_MAXIMAS_DA_CONSULTA - 1) cortada = true;
         }
-        if (!cancelado) setConsulta({ chave: chaveConsulta, itens: pedidosDaConsulta(todos), estado: 'ok' });
+        if (!cancelado) setConsulta({ chave: chaveConsulta, itens: pedidosDaConsulta(todos), estado: 'ok', cortada });
       } catch {
         if (!cancelado) setConsulta({ chave: chaveConsulta, itens: [], estado: 'erro' });
       }
@@ -292,6 +294,11 @@ export default function OrdersScreen() {
           {parcial ? (
             <Text style={t.small} testID="orders-parcial">
               Só os últimos 90 dias do aparelho
+            </Text>
+          ) : null}
+          {doServidor?.estado === 'ok' && doServidor.cortada ? (
+            <Text style={t.small} testID="orders-cortada">
+              Mostrando os 1.000 mais recentes. Use um período menor para ver os demais.
             </Text>
           ) : null}
           {queued > 0 ? (
