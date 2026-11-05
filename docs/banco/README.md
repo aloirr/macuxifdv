@@ -245,6 +245,12 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
 - **Sem Docker/Postgres:** esses arquivos são **pulados** e, no fim, aparece
   `[db] Docker não está rodando: N testes de banco pulados.` (relator `db/testes/aviso-pulos.ts`).
 - **CI:** defina `MACUXI_PG_EXIGIR=1` — aí a ausência do banco é **erro** (não pula).
+- **Admin sem superusuário** (DBaaS da Magalu; modo do CI com `db/scripts/admin-sem-superusuario.ts` e
+  `MACUXI_PG_ADMIN_SEM_SUPER=1`): o globalSetup mede `adminIgnoraRls` e `local` e os põe no estado. Up/down com dados numa
+  versão anterior à 0031 pulam com `motivoSemSuperusuario('<versão>')`, e o seed da Fase M pula fora do local com
+  `motivoForaDoLocal`. Os dois põem o motivo no título (`comMotivo`, marca `[pulado: ...]`). Com superusuário e Postgres
+  local, tudo roda. Teste novo de up/down com dados: passe a versão em que os dados entram (ver
+  [dbaas-magalu.md](dbaas-magalu.md#suíte-do-c34-sem-superusuário-3ª-execução)).
 - **Relógio simulado:** `MACUXI_AGORA=2026-11-04T03:59:00Z pnpm --filter @macuxi/db test` carrega a fixture como se
   fosse esse instante (prova de que nada depende da hora do dia nem da virada de data no fuso). Regra: teste não
   compara instante da fixture com `now()` — use `checkin_em + interval` ou instante fixo (ver fixture-dois-tenants.md).

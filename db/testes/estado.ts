@@ -7,7 +7,21 @@ import { hojeNoFuso } from '../src/datas';
  * Vem também quando o banco está indisponível, para os testes terem uma linha do tempo só (T-0042, B3).
  */
 export type EstadoBanco =
-  | { disponivel: true; nome: string; urlAdmin: string; urlApp: string; urlWorker: string | null; agora: string }
+  | {
+      disponivel: true;
+      nome: string;
+      urlAdmin: string;
+      urlApp: string;
+      urlWorker: string | null;
+      agora: string;
+      /**
+       * O admin dos testes ignora RLS por atributo (SUPERUSER ou BYPASSRLS)? false no DBaaS da Magalu e no modo do CI
+       * que simula o admin sem superusuário (db/scripts/admin-sem-superusuario.ts). Ausente = true (como antes).
+       */
+      adminIgnoraRls?: boolean;
+      /** O Postgres dos testes é local (ehBancoLocal)? false no DBaaS. Ausente = true (como antes). */
+      local?: boolean;
+    }
   | { disponivel: false; motivo: string; agora: string };
 
 declare module 'vitest' {
@@ -48,4 +62,40 @@ export function agoraDaFixture(): Date {
  */
 export function hojeDaFixture(fuso = 'America/Manaus'): string {
   return hojeNoFuso(fuso, agoraDaFixture());
+}
+
+/**
+ * Versão da migração que cria a política manutencao (0031, B1 do plano B do DBaaS, T-0075). Dali em diante o admin sem
+ * superusuário (dono das tabelas, FORCE RLS) lê e grava linha de tenant; ANTES dela, não: insert do teste dá "new row
+ * violates row-level security policy" e o backfill de migração vê 0 linha.
+ */
+export const VERSAO_MANUTENCAO = '0031';
+
+/** Marca do motivo no título de describe/it pulado; o relatório do DBaaS conta os pulados por motivo (db/dbaas/relatorio.ts). */
+export const MARCA_PULO = '[pulado: ';
+
+/**
+ * Motivo para pular um teste que tem dados no banco numa versão ANTERIOR à 0031 (up/down com dados: grava como admin na
+ * versão `versaoComDados` e confere o backfill das migrações seguintes) quando o admin não ignora RLS; null = roda.
+ * Com superusuário (CI e Postgres local) o teste SEMPRE roda: nada do que ele protege deixa de ser conferido; sem
+ * superusuário ele não tem como rodar (o admin não enxerga as linhas antes da política manutencao, e a migração testada é
+ * anterior a ela: no DBaaS ela roda numa base vazia). Teste de migração da 0032 em diante roda nos dois modos.
+ */
+export function motivoSemSuperusuario(versaoComDados: string): string | null {
+  if (!/^\d{4}$/.test(versaoComDados)) throw new Error(`motivoSemSuperusuario: versão NNNN, não "${versaoComDados}"`);
+  const e = estadoBanco();
+  if (!e.disponivel || e.adminIgnoraRls !== false || versaoComDados >= VERSAO_MANUTENCAO) return null;
+  return `admin sem superusuário — dados na versão ${versaoComDados}, antes da política manutencao da ${VERSAO_MANUTENCAO}; roda no CI com superusuário`;
+}
+
+/** Motivo para pular o que só roda no Postgres local (exigirBancoLocal: seed da Fase M) quando o servidor não é local; null = roda. */
+export function motivoForaDoLocal(oQue: string): string | null {
+  const e = estadoBanco();
+  if (!e.disponivel || e.local !== false) return null;
+  return `trava de ambiente local — ${oQue} só roda no Postgres local (exigirBancoLocal); roda no CI`;
+}
+
+/** Título com a marca do motivo do pulo (quando há), para o relatório e o log mostrarem por que o caso não rodou. */
+export function comMotivo(titulo: string, motivo: string | null): string {
+  return motivo ? `${titulo} ${MARCA_PULO}${motivo}]` : titulo;
 }

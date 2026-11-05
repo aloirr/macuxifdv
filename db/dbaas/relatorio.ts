@@ -371,16 +371,28 @@ export function secaoPlanoB(med: MedicoesPlanoB): string[] {
   return l;
 }
 
-/** Classifica o resultado da suíte: ❌ só por falha real; bloqueio de privilégio do DBaaS = ⚠️ (depende do plano B). */
+/**
+ * Classifica o resultado da suíte: ❌ só por falha real; bloqueio de privilégio do DBaaS = ⚠️ (depende do plano B); trava
+ * de ambiente local não reprova. CASO A CASO (3ª execução: o migracoes.test.ts tinha 1 caso da trava e 3 de RLS e saiu
+ * inteiro como "trava" pela 1ª mensagem): o arquivo é "trava" só se todo caso falho é da trava; "bloqueado" se todo caso
+ * falho é trava ou privilégio, com ao menos um de privilégio; senão é falha real, com a 1ª mensagem que não é nenhum dos dois.
+ */
 export function classificarSuite(
   resumo: ResumoSuite,
   motivoGeral: string,
   travaLocal: RegExp,
 ): { situacao: Situacao; reais: ResumoSuite['falhas']; bloqueadas: ResumoSuite['falhas']; trava: ResumoSuite['falhas'] } {
-  const trava = resumo.falhas.filter((f) => travaLocal.test(f.mensagem));
-  const resto = resumo.falhas.filter((f) => !travaLocal.test(f.mensagem));
-  const bloqueadas = resto.filter((f) => ehBloqueioDePrivilegio(f.mensagem));
-  const reais = resto.filter((f) => !ehBloqueioDePrivilegio(f.mensagem));
+  const trava: ResumoSuite['falhas'] = [];
+  const bloqueadas: ResumoSuite['falhas'] = [];
+  const reais: ResumoSuite['falhas'] = [];
+  for (const f of resumo.falhas) {
+    const msgs = f.mensagens && f.mensagens.length > 0 ? f.mensagens : [f.mensagem];
+    const ehTrava = (x: string) => travaLocal.test(x);
+    const real = msgs.find((x) => !ehTrava(x) && !ehBloqueioDePrivilegio(x));
+    if (real !== undefined) reais.push({ ...f, mensagem: real });
+    else if (msgs.every(ehTrava)) trava.push(f);
+    else bloqueadas.push({ ...f, mensagem: msgs.find((x) => !ehTrava(x)) ?? f.mensagem });
+  }
   let situacao: Situacao;
   if (resumo.arquivos === 0) situacao = ehBloqueioDePrivilegio(motivoGeral) ? 'alternativa' : 'falha';
   else if (reais.length > 0) situacao = 'falha';
@@ -431,8 +443,29 @@ export interface ResumoSuite {
   casosVerdes: number;
   casosFalhos: number;
   casosPulados: number;
-  falhas: Array<{ arquivo: string; casos: string[]; mensagem: string }>;
+  /**
+   * Casos pulados com motivo no título (marca "[pulado: <motivo> — <detalhe>]" de db/testes/estado.ts, comMotivo): quantos
+   * por motivo. Ex.: "admin sem superusuário" (up/down com dados antes da 0031) e "trava de ambiente local" (Fase M).
+   */
+  puladosPorMotivo: Record<string, number>;
+  /** `mensagem` = 1ª linha útil do 1º caso falho; `mensagens` = a de cada caso falho, na ordem de `casos`. */
+  falhas: Array<{ arquivo: string; casos: string[]; mensagem: string; mensagens?: string[] }>;
 }
+
+/** Marca do motivo de pulo no título do describe/it (db/testes/estado.ts, comMotivo). */
+export const MARCA_PULO = '[pulado: ';
+
+/** Motivo da marca "[pulado: <motivo> — <detalhe>]" num título; null sem marca. */
+export function motivoDoPulo(titulo: string): string | null {
+  const i = titulo.indexOf(MARCA_PULO);
+  if (i < 0) return null;
+  const resto = titulo.slice(i + MARCA_PULO.length);
+  const fim = resto.search(/ — |\]/);
+  return (fim < 0 ? resto : resto.slice(0, fim)).trim() || null;
+}
+
+/** Arquivo que falhou sem caso falho (erro no beforeAll/afterAll ou na coleta): o JSON do Vitest não traz a mensagem. */
+export const SEM_MENSAGEM_NO_JSON = 'falhou fora dos casos (beforeAll/afterAll ou coleta) e o JSON do Vitest não traz a mensagem: veja o suite.log';
 
 interface JsonVitest {
   numTotalTests?: number;
@@ -456,8 +489,18 @@ export function resumirVitest(json: unknown): ResumoSuite {
     const casos = (a.assertionResults ?? []).filter((c) => c.status === 'failed');
     if (a.status !== 'failed' && casos.length === 0) continue;
     const nome = (a.name ?? '?').replace(/\\/g, '/').replace(/^.*\/db\//, 'db/');
-    const primeira = casos.find((c) => c.failureMessages?.length)?.failureMessages?.[0] ?? a.message ?? '';
-    falhas.push({ arquivo: nome, casos: casos.map((c) => c.fullName ?? c.title ?? '?'), mensagem: primeiraLinhaUtil(primeira) });
+    const mensagens = casos.map((c) => primeiraLinhaUtil(c.failureMessages?.[0] ?? ''));
+    const doArquivo = primeiraLinhaUtil(a.message ?? '');
+    const primeira = mensagens.find((x) => x !== '') ?? (doArquivo || SEM_MENSAGEM_NO_JSON);
+    falhas.push({ arquivo: nome, casos: casos.map((c) => c.fullName ?? c.title ?? '?'), mensagem: primeira, mensagens: casos.length > 0 ? mensagens : [primeira] });
+  }
+  const puladosPorMotivo: Record<string, number> = {};
+  for (const a of arquivos) {
+    for (const c of a.assertionResults ?? []) {
+      if (c.status !== 'skipped' && c.status !== 'pending' && c.status !== 'todo') continue;
+      const motivo = motivoDoPulo(c.fullName ?? c.title ?? '');
+      if (motivo) puladosPorMotivo[motivo] = (puladosPorMotivo[motivo] ?? 0) + 1;
+    }
   }
   return {
     arquivos: arquivos.length,
@@ -466,6 +509,7 @@ export function resumirVitest(json: unknown): ResumoSuite {
     casosVerdes: j.numPassedTests ?? 0,
     casosFalhos: j.numFailedTests ?? 0,
     casosPulados: (j.numPendingTests ?? 0) + (j.numTodoTests ?? 0),
+    puladosPorMotivo,
     falhas,
   };
 }
@@ -551,13 +595,157 @@ export function errosDoPgRestore(stderr: string): string[] {
     .map((l) => l.slice(0, 240));
 }
 
-/** Diferença entre dois retratos (linhas do catálogo ou "tabela contagem"): o que só existe de um lado. */
-export function compararRetratos(origem: readonly string[], destino: readonly string[]): { iguais: boolean; soNaOrigem: string[]; soNoDestino: string[] } {
-  const a = new Set(origem);
-  const b = new Set(destino);
-  const soNaOrigem = [...a].filter((x) => !b.has(x)).sort();
-  const soNoDestino = [...b].filter((x) => !a.has(x)).sort();
-  return { iguais: soNaOrigem.length === 0 && soNoDestino.length === 0, soNaOrigem, soNoDestino };
+/**
+ * Diferença entre dois retratos (linhas do catálogo ou "tabela contagem"): o que só existe de um lado, comparando cada
+ * linha pela forma normalizada de normalizarExpressaoSql. `soForma` lista as linhas da origem que só diferem na forma
+ * (parênteses redundantes, AND/OR aninhado): mesma expressão, reescrita pelo PostgreSQL no restore (3ª execução, A9).
+ */
+export function compararRetratos(
+  origem: readonly string[],
+  destino: readonly string[],
+): { iguais: boolean; soNaOrigem: string[]; soNoDestino: string[]; soForma: string[] } {
+  const normA = new Map(origem.map((x) => [x, normalizarExpressaoSql(x)]));
+  const normB = new Map(destino.map((x) => [x, normalizarExpressaoSql(x)]));
+  const a = new Set(normA.values());
+  const b = new Set(normB.values());
+  const brutoB = new Set(destino);
+  const soNaOrigem = [...normA].filter(([, n]) => !b.has(n)).map(([x]) => x).sort();
+  const soNoDestino = [...normB].filter(([, n]) => !a.has(n)).map(([x]) => x).sort();
+  const soForma = [...normA].filter(([x, n]) => !brutoB.has(x) && b.has(n)).map(([x]) => x).sort();
+  return { iguais: soNaOrigem.length === 0 && soNoDestino.length === 0, soNaOrigem: [...new Set(soNaOrigem)], soNoDestino: [...new Set(soNoDestino)], soForma };
+}
+
+type NoExpressao = { tipo: 'lista'; op: 'AND' | 'OR'; itens: NoExpressao[] } | { tipo: 'atomo'; texto: string };
+
+/** Fim de um literal 'texto' ou identificador "citado" que começa em `i` ('' e "" escapam): índice do caractere seguinte. */
+function fimDoCitado(s: string, i: number): number {
+  const q = s[i];
+  let j = i + 1;
+  while (j < s.length) {
+    if (s[j] === q) {
+      if (s[j + 1] === q) {
+        j += 2;
+        continue;
+      }
+      return j + 1;
+    }
+    j++;
+  }
+  return s.length;
+}
+
+/** Índice do ")" que fecha o "(" em `i` (fora de citados); -1 se não fecha. */
+function fechamento(s: string, i: number): number {
+  let prof = 0;
+  for (let j = i; j < s.length; ) {
+    const ch = s[j];
+    if (ch === "'" || ch === '"') {
+      j = fimDoCitado(s, j);
+      continue;
+    }
+    if (ch === '(') prof++;
+    else if (ch === ')') {
+      prof--;
+      if (prof === 0) return j;
+    }
+    j++;
+  }
+  return -1;
+}
+
+/** Divide no nível 0 (fora de parênteses e citados) pelos conectivos " AND " e " OR "; null se os parênteses não fecham. */
+function dividirNoTopo(s: string): { termos: string[]; ops: Array<'AND' | 'OR'> } | null {
+  const termos: string[] = [];
+  const ops: Array<'AND' | 'OR'> = [];
+  let prof = 0;
+  let inicio = 0;
+  for (let i = 0; i < s.length; ) {
+    const ch = s[i];
+    if (ch === "'" || ch === '"') {
+      i = fimDoCitado(s, i);
+      continue;
+    }
+    if (ch === '(') prof++;
+    else if (ch === ')') prof--;
+    else if (prof === 0 && ch === ' ') {
+      const m = /^ (AND|OR) /.exec(s.slice(i, i + 5));
+      if (m) {
+        termos.push(s.slice(inicio, i));
+        ops.push(m[1] as 'AND' | 'OR');
+        i += m[0].length;
+        inicio = i;
+        continue;
+      }
+    }
+    if (prof < 0) return null;
+    i++;
+  }
+  if (prof !== 0) return null;
+  termos.push(s.slice(inicio));
+  return { termos, ops };
+}
+
+/** Normaliza o conteúdo de cada par de parênteses do texto (os parênteses ficam: chamada de função, aritmética, IN). */
+function normalizarGrupos(s: string): string {
+  let saida = '';
+  let ultimo = 0;
+  for (let i = 0; i < s.length; ) {
+    const ch = s[i];
+    if (ch === "'" || ch === '"') {
+      i = fimDoCitado(s, i);
+      continue;
+    }
+    if (ch === '(') {
+      const j = fechamento(s, i);
+      if (j < 0) return s;
+      saida += `${s.slice(ultimo, i)}(${imprimirExpressao(analisarExpressao(s.slice(i + 1, j)), true)})`;
+      ultimo = j + 1;
+      i = j + 1;
+      continue;
+    }
+    i++;
+  }
+  return saida + s.slice(ultimo);
+}
+
+function analisarExpressao(texto: string): NoExpressao {
+  const t = texto.trim();
+  const d = dividirNoTopo(t);
+  if (!d) return { tipo: 'atomo', texto: t };
+  if (d.ops.length === 0) {
+    // grupo inteiro entre parênteses redundantes: "((x))" = "x"
+    if (t.startsWith('(') && fechamento(t, 0) === t.length - 1) return analisarExpressao(t.slice(1, -1));
+    return { tipo: 'atomo', texto: normalizarGrupos(t) };
+  }
+  const op = d.ops[0]!;
+  // AND e OR misturados sem parênteses no mesmo nível (o PostgreSQL não escreve assim): fica como está
+  if (d.ops.some((o) => o !== op)) return { tipo: 'atomo', texto: normalizarGrupos(t) };
+  const itens: NoExpressao[] = [];
+  for (const termo of d.termos) {
+    const n = analisarExpressao(termo);
+    // associatividade: (a AND b) AND c = a AND b AND c (o parser do PostgreSQL achata "a AND b AND c" ao reler o texto)
+    if (n.tipo === 'lista' && n.op === op) itens.push(...n.itens);
+    else itens.push(n);
+  }
+  return { tipo: 'lista', op, itens };
+}
+
+function imprimirExpressao(n: NoExpressao, interno = false): string {
+  if (n.tipo === 'atomo') return n.texto;
+  const corpo = n.itens.map((i) => (i.tipo === 'lista' ? `(${imprimirExpressao(i, true)})` : i.texto)).join(` ${n.op} `);
+  return interno ? corpo : `(${corpo})`;
+}
+
+/**
+ * Forma canônica de uma linha do retrato com expressões SQL (pg_get_constraintdef, pg_get_expr, pg_get_indexdef): tira
+ * parênteses redundantes e achata AND/OR aninhado do mesmo conectivo. Só reescreve o que é equivalente: a precedência
+ * fica (um OR dentro de AND continua entre parênteses), parênteses de função, aritmética e IN ficam, e literais e
+ * identificadores citados não são tocados. Motivo (3ª execução, A9): o CHECK pedido_retorno_erro_textos_tamanho da
+ * origem sai como `(((a) AND (b)) AND ((c) AND (d)))` (BETWEEN expandido, AND aninhado) e, relido pelo pg_restore,
+ * como `((a) AND (b) AND ((c) AND (d)))` (o parser achata o AND da esquerda): a mesma regra.
+ */
+export function normalizarExpressaoSql(linha: string): string {
+  return imprimirExpressao(analisarExpressao(linha), true);
 }
 
 /** Proposta quando a imagem do teste não traz o pg_dump/pg_restore 16 (o A9 não roda; dono do Dockerfile: engenheiro-software). */

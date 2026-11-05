@@ -7,7 +7,7 @@ import { carregarFaseM } from '../seeds/fase-m/fase-m';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { listarAplicadas, lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
-import { semBanco } from './estado';
+import { comMotivo, motivoForaDoLocal, motivoSemSuperusuario, semBanco } from './estado';
 import { retratoDoCatalogo } from './util';
 
 const criados: BancoDeTeste[] = [];
@@ -17,6 +17,15 @@ const NOMES = lerMigracoes().map((m) => `${m.versao}_${m.nome}`);
 const aPartirDe = (v: string) => NOMES.filter((n) => n.slice(0, 4) >= v);
 /** Migrações a partir da versão `v`, em ordem de descida (da última até `v`). */
 const descendoAte = (v: string) => [...aPartirDe(v)].reverse();
+/**
+ * Sem superusuário (DBaaS, modo do CI sem superusuário) os casos com dados numa versão anterior à 0031 pulam com o motivo
+ * no título (motivoSemSuperusuario); o seed da Fase M só roda no Postgres local (motivoForaDoLocal). Com superusuário e
+ * Postgres local (CI, PC) todos rodam como antes.
+ */
+const faseMSoLocal = motivoForaDoLocal('o seed da Fase M');
+const dadosNa0003 = motivoSemSuperusuario('0003');
+const dadosNa0004 = motivoSemSuperusuario('0004');
+const dadosNa0007 = motivoSemSuperusuario('0007');
 async function bancoVazio(): Promise<BancoDeTeste> {
   const b = await criarBancoDeTeste({ migrar: false });
   criados.push(b);
@@ -73,7 +82,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
     });
   });
 
-  it('S0-022 down com o seed da Fase M carregado não falha (e apaga os dados, documentado)', async () => {
+  it.skipIf(faseMSoLocal !== null)(comMotivo('S0-022 down com o seed da Fase M carregado não falha (e apaga os dados, documentado)', faseMSoLocal), async () => {
     const b = await bancoVazio();
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c);
@@ -114,7 +123,8 @@ describe.skipIf(semBanco())('migrações up/down', () => {
     });
   });
 
-  it('0004 com a fixture carregada: up -> down -> up volta ao catálogo da 0003 e a fixture recarrega', async () => {
+  // a fixture fica nas tabelas na descida até a 0003 e na subida de novo (o backfill da 0006 semeia os motivos dos tenants)
+  it.skipIf(dadosNa0003 !== null)(comMotivo('0004 com a fixture carregada: up -> down -> up volta ao catálogo da 0003 e a fixture recarrega', dadosNa0003), async () => {
     const b = await bancoVazio();
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c, { ate: '0003' });
@@ -142,7 +152,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
     });
   });
 
-  it('T-0029 (0008–0009) com dados: pedidos antigos ganham nível/motivo, up -> down -> up volta ao catálogo da 0007 e a fixture recarrega', async () => {
+  it.skipIf(dadosNa0007 !== null)(comMotivo('T-0029 (0008–0009) com dados: pedidos antigos ganham nível/motivo, up -> down -> up volta ao catálogo da 0007 e a fixture recarrega', dadosNa0007), async () => {
     const b = await bancoVazio();
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c, { ate: '0007' });
@@ -188,7 +198,7 @@ describe.skipIf(semBanco())('migrações up/down', () => {
     });
   });
 
-  it('Sprint 1 (0005–0007) com a fixture: up -> down -> up volta ao catálogo da 0004; padrões semeados nos tenants existentes', async () => {
+  it.skipIf(dadosNa0004 !== null)(comMotivo('Sprint 1 (0005–0007) com a fixture: up -> down -> up volta ao catálogo da 0004; padrões semeados nos tenants existentes', dadosNa0004), async () => {
     const b = await bancoVazio();
     await comAdmin(b.nome, async (c) => {
       await migrarUp(c, { ate: '0004' });

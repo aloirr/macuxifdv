@@ -12,10 +12,13 @@
  * Com MACUXI_PG_EXIGIR=1 (CI), o caso 3 é ERRO em vez de pulo.
  * MACUXI_AGORA=<instante ISO> simula o relógio no "hoje" da fixture (prova de que nada depende da hora do dia).
  * O instante da carga vai aos testes no estado (`agora`, ISO): use agoraDaFixture()/hojeDaFixture(fuso) de @macuxi/db/teste.
+ * O estado leva também `adminIgnoraRls` (SUPERUSER ou BYPASSRLS do admin) e `local` (ehBancoLocal do host): sem eles o
+ * teste não roda no DBaaS (motivoSemSuperusuario, motivoForaDoLocal em testes/estado.ts). MACUXI_PG_ADMIN_SEM_SUPER=1 (modo
+ * do CI que simula o admin do DBaaS, db/scripts/admin-sem-superusuario.ts) EXIGE admin que não ignora RLS: senão é erro.
  */
 import type { TestProject } from 'vitest/node';
-import { criarBancoDeTeste, postgresDisponivel } from '../src/banco-teste';
-import { lerConfigTestes, type ConfigBanco } from '../src/config';
+import { comAdmin, criarBancoDeTeste, postgresDisponivel } from '../src/banco-teste';
+import { ehBancoLocal, lerConfigTestes, type ConfigBanco } from '../src/config';
 import { dockerRodando, subirPostgres } from '../src/docker';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
 import { carregarTreinamentoDoisTenants } from './fixture-treinamento';
@@ -78,7 +81,32 @@ export default async function setup(project: TestProject): Promise<(() => Promis
       await carregarTreinamentoDoisTenants(c, { agora });
     },
   });
-  project.provide('banco', { disponivel: true, nome: t.nome, urlAdmin: t.urlAdmin, urlApp: t.urlApp, urlWorker: t.urlWorker, agora: agora.toISOString() });
+  const admin = await comAdmin(
+    t.nome,
+    async (c) =>
+      (
+        await c.query<{ usuario: string; ignora: boolean }>(
+          'select current_user as usuario, (rolsuper or rolbypassrls) as ignora from pg_roles where rolname = current_user',
+        )
+      ).rows[0],
+    cfg,
+  );
+  const adminIgnoraRls = admin?.ignora !== false;
+  if (process.env.MACUXI_PG_ADMIN_SEM_SUPER === '1' && adminIgnoraRls) {
+    await t.apagar().catch(() => undefined);
+    throw new Error(`[db] MACUXI_PG_ADMIN_SEM_SUPER=1, mas o admin dos testes (${admin?.usuario ?? '?'}) ignora RLS (SUPERUSER ou BYPASSRLS): o modo sem superusuário não estaria simulado.`);
+  }
+  if (!adminIgnoraRls) console.info(`[db] admin dos testes ${admin?.usuario ?? '?'} sem SUPERUSER/BYPASSRLS: up/down com dados antes da 0031 pulam (motivoSemSuperusuario).`);
+  project.provide('banco', {
+    disponivel: true,
+    nome: t.nome,
+    urlAdmin: t.urlAdmin,
+    urlApp: t.urlApp,
+    urlWorker: t.urlWorker,
+    agora: agora.toISOString(),
+    adminIgnoraRls,
+    local: ehBancoLocal(cfg.host),
+  });
   return async () => {
     await t.apagar();
   };

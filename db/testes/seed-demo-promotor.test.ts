@@ -23,6 +23,7 @@ import { somarDias } from '../src/datas';
 import { idDeterministico } from '../src/ids';
 import { migrarUp } from '../src/migrador';
 import { hojeDaFixture, semBanco } from './estado';
+import { semMarcaDeAmbiente } from './util';
 
 const SENHA = 'senha-do-teste-demo-promotor';
 const HASH_FALSO = '$argon2id$v=19$m=1,t=1,p=1$c2Fs$aGFzaA';
@@ -139,7 +140,7 @@ describe('base de demo: Promotor (estático)', () => {
   it('recusa banco que não é local, antes de qualquer consulta', async () => {
     let consultou = false;
     const remoto = { host: 'db.homologacao.exemplo.com', query: async () => { consultou = true; return { rows: [] }; } };
-    await expect(gravarDemoPromotor(remoto as unknown as pg.Client, { hoje })).rejects.toThrow(/recusado: banco fora do ambiente local/);
+    await semMarcaDeAmbiente(() => expect(gravarDemoPromotor(remoto as unknown as pg.Client, { hoje })).rejects.toThrow(/recusado: banco fora do ambiente local/));
     expect(consultou).toBe(false);
   });
 });

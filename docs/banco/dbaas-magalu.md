@@ -90,6 +90,48 @@ o caso do DBaaS); só fica de fora se o servidor registrar comandos de papel **e
 Esse teste roda no Postgres do CI (`pgvector/pgvector:pg16`: pgvector 0.8.2, `en_US.utf8` da glibc) e prova lá as
 mesmas listas e os mesmos casos. A ordem só é exigida em base en_US. Também roda dentro da suíte do C3.4, contra o DBaaS.
 
+**Comparação normalizada do A9** (3ª execução, run 42043636610). O `pg_get_constraintdef` da origem escreve o CHECK
+`integracao.pedido_retorno_erro_textos_tamanho` (dois BETWEEN) como `(((a) AND (b)) AND ((c) AND (d)))`. O pg_restore relê
+esse texto e o parser achata o AND da esquerda: `((a) AND (b) AND ((c) AND (d)))`. É a mesma regra, mas o retrato dava
+"DIFERENTES". Agora o `compararRetratos` compara cada linha pela forma de `normalizarExpressaoSql` (db/dbaas/relatorio.ts):
+tira parênteses redundantes e achata AND/OR aninhado do mesmo conectivo. A precedência fica (OR dentro de AND continua
+entre parênteses), parênteses de função, aritmética e IN ficam, literais e identificadores citados não são tocados. As
+linhas que só mudaram de forma aparecem num subitem informativo do A9 ("iguais depois de normalizar a forma").
+
+## Suíte do C3.4 sem superusuário (3ª execução)
+Dos 17 ❌ da suíte na 3ª execução, nenhum era incompatibilidade do DBaaS. Eram do arnês dos testes:
+- **Up/down com dados antes da 0031** (9 arquivos e 3 casos do `migracoes.test.ts`). O teste grava como admin numa versão
+  anterior à política `manutencao` e confere o backfill das migrações seguintes. Sem superusuário, o admin não grava nem
+  lê essas linhas, e o backfill vê 0 linha. Não há como rodar esses casos sem superusuário: até tirar o FORCE falha, porque
+  a tabela criada na própria migração já nasce com FORCE. No DBaaS essas migrações rodam numa base vazia. Agora
+  `motivoSemSuperusuario('<versão com dados>')` (db/testes/estado.ts) pula o caso só quando o admin não ignora RLS e a
+  versão é anterior à 0031, com o motivo no título (`[pulado: admin sem superusuário — ...]`). Com superusuário (CI, PC),
+  todos rodam como antes. Teste de migração da 0032 em diante roda nos dois modos. O `db/testes/dbaas.test.ts` falha se um
+  "up/down com dados" anterior à 0031 não usar o helper.
+- **lgpd-outbox** ("permission denied to set role macuxi_tlgpd_*"). O papel descartável agora dá ao admin a filiação só com
+  SET, como o B0 (`SQL_PRECISA_SET_ROLE` + `comandoSetRole`).
+- **Seed da Fase M** (`seed-fase-m.test.ts` com 0 caso, e o S0-022 do `migracoes.test.ts`). Era a trava de ambiente local
+  (`exigirBancoLocal`) no beforeAll, e o JSON do Vitest não traz a mensagem de hook. Agora o caso pula fora do local
+  (`motivoForaDoLocal`). A trava em si é conferida no `ambiente-local.test.ts`.
+- **"recusa banco que não é local"** do seed demo e do Promotor. A suíte do DBaaS roda com `MACUXI_AMBIENTE=demo` (libera
+  o seed da demo), e o caso caía na checagem seguinte. Agora ele roda sem a marca (`semMarcaDeAmbiente`, db/testes/util.ts).
+
+O classificador do relatório (`classificarSuite`) passou a olhar **caso a caso**. Na 3ª execução, o `migracoes.test.ts`
+tinha 1 caso da trava e 3 de RLS, e saiu inteiro como "trava" pela 1ª mensagem. Agora o arquivo é:
+- "trava" só se todo caso falho for da trava;
+- ⚠️ se todo caso falho for trava ou privilégio;
+- ❌ com a mensagem da falha real, nos outros casos.
+
+Arquivo vermelho sem caso falho (erro de hook) ganha a mensagem "veja o suite.log". O `suite.log` agora tem a saída do
+reporter padrão, além do JSON. Os pulados aparecem contados por motivo.
+
+**Modo do CI que simula o admin do DBaaS.** O `db/scripts/admin-sem-superusuario.ts` roda como superusuário num Postgres
+local e descartável (o service de um job). Ele cria o `macuxi_admin_sem_super` com LOGIN, CREATEDB e CREATEROLE, sem
+SUPERUSER, BYPASSRLS ou REPLICATION, e com as filiações `pg_read_all_data` e `pg_write_all_data`, como o admin medido no
+P3. Também apaga `macuxi_app`, `macuxi_worker` e `macuxi_manutencao`, para o admin criá-los como no DBaaS. A suíte então
+roda com esse admin e `MACUXI_PG_ADMIN_SEM_SUPER=1`. Com essa variável, o globalSetup recusa admin que ignora RLS, para o
+modo não passar calado com superusuário. O job no `ci.yml` é do engenheiro-software.
+
 **Locks na produção** (🟢 4 da revisão R-20261105-093536). Migração com `ALTER TABLE` em laço, como a 0031, pega
 AccessExclusiveLock tabela por tabela. Na demo, o `implantar.sh` tenta 3 vezes. Na produção, migre na janela de
 manutenção ou com `PGOPTIONS='-c lock_timeout=5s'` na conexão do migrador. Assim, a migração não muda.

@@ -1493,6 +1493,9 @@ async function principal(): Promise<number> {
             `contagens: ${antes.tabelas} tabelas, ${antes.linhas} linhas na origem · ${cont.iguais ? 'iguais' : `${cont.soNaOrigem.length} tabela(s) com contagem diferente`}`,
             `conferir-rls.sql na restaurada: ${problemasRls === null ? 'arquivo não encontrado na imagem' : `${problemasRls.length} problema(s)`}`,
             ...erros.slice(0, 10).map((e) => `pg_restore: ${e}`),
+            ...(cat.soForma.length > 0
+              ? [`iguais depois de normalizar a forma (parênteses redundantes, AND/OR aninhado; normalizarExpressaoSql): ${cat.soForma.length} linha(s), ex.: ${cat.soForma[0]}`]
+              : []),
             ...cat.soNaOrigem.slice(0, 10).map((x) => `só na origem: ${x}`),
             ...cat.soNoDestino.slice(0, 10).map((x) => `só na restaurada: ${x}`),
             ...cont.soNaOrigem.slice(0, 10).map((x) => `contagem na origem: ${x}`),
@@ -1573,7 +1576,7 @@ async function principal(): Promise<number> {
           delete envSuite.DBAAS_SENHA;
           const r = spawnSync(
             process.execPath,
-            [join(PASTA_RAIZ, 'node_modules', 'vitest', 'vitest.mjs'), 'run', '--reporter=json', `--outputFile=${arqJson}`, `--maxWorkers=${workers}`, '--minWorkers=1'],
+            [join(PASTA_RAIZ, 'node_modules', 'vitest', 'vitest.mjs'), 'run', '--reporter=default', '--reporter=json', `--outputFile.json=${arqJson}`, `--maxWorkers=${workers}`, '--minWorkers=1'],
             { cwd: PASTA_DB, env: envSuite, encoding: 'utf8', timeout: limiteMin * 60_000, maxBuffer: 256 * 1024 * 1024 },
           );
           gravarSaida(saida, 'suite.log', `${r.stdout ?? ''}\n${r.stderr ?? ''}`);
@@ -1593,7 +1596,8 @@ async function principal(): Promise<number> {
           const subitens = [
             ...cl.reais.map((f) => `❌ ${f.arquivo}: ${f.casos.length} caso(s) — ${f.mensagem}`),
             ...cl.bloqueadas.map((f) => `⚠️ ${f.arquivo}: ${f.casos.length} caso(s) — falta de privilégio do DBaaS (plano B): ${f.mensagem}`),
-            ...cl.trava.map((f) => `❌ ${f.arquivo}: ${f.casos.length} caso(s) — trava de ambiente local do @macuxi/db (não é incompatibilidade do DBaaS): ${f.mensagem}`),
+            ...cl.trava.map((f) => `· ${f.arquivo}: ${f.casos.length} caso(s) — trava de ambiente local do @macuxi/db (não reprova; não é incompatibilidade do DBaaS): ${f.mensagem}`),
+            ...Object.entries(resumo.puladosPorMotivo).map(([motivo, n]) => `· pulados por "${motivo}": ${n} caso(s) (marca [pulado: ...] no título; rodam no CI com superusuário e Postgres local)`),
           ];
           return {
             ok: cl.situacao !== 'falha',

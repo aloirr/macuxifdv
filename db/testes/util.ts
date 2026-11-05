@@ -12,6 +12,21 @@ export async function comCliente<T>(url: string, fn: (c: pg.Client) => Promise<T
 }
 
 /**
+ * Roda `fn` SEM a marca MACUXI_AMBIENTE (devolvida no fim, mesmo com erro). Para os casos que provam a recusa de banco que
+ * não é local: no servidor da demo e no DBaaS (db/dbaas/teste-compatibilidade.ts) a suíte roda com MACUXI_AMBIENTE=demo,
+ * que libera o seed da demo (exigirBancoDemo) e fazia o caso cair na checagem seguinte em vez da trava (3ª execução).
+ */
+export async function semMarcaDeAmbiente<T>(fn: () => Promise<T>): Promise<T> {
+  const antes = process.env.MACUXI_AMBIENTE;
+  delete process.env.MACUXI_AMBIENTE;
+  try {
+    return await fn();
+  } finally {
+    if (antes !== undefined) process.env.MACUXI_AMBIENTE = antes;
+  }
+}
+
+/**
  * Roda `fn` numa transação com o contexto dado e SEMPRE faz ROLLBACK (não suja a fixture).
  * contexto: UUID do tenant | '' (vazio) | qualquer texto (inválido) | null (sem set_config).
  */

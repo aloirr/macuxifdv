@@ -22,7 +22,7 @@ import { comTenant } from '../src/contexto';
 import { anoMes, hojeNoFuso, somarDias } from '../src/datas';
 import { verificarSenha } from '../src/senha';
 import { semBanco } from './estado';
-import { tabelasComTenant } from './util';
+import { semMarcaDeAmbiente, tabelasComTenant } from './util';
 
 const SENHA = 'senha-do-teste-demo';
 /** Módulos ativos no tenant demo depois da carga: os do demo.ts + os dos seeds próprios ligados no carregarDemo (0014 Gestor, 0016 Pesquisa, 0017 Treinamento). */
@@ -406,7 +406,7 @@ describe('base de demo (estático)', () => {
   it('recusa banco que não é local, antes de qualquer consulta', async () => {
     let consultou = false;
     const remoto = { host: 'db.homologacao.exemplo.com', query: async () => { consultou = true; return { rows: [] }; } };
-    await expect(carregarDemo(remoto as unknown as pg.Client, { senha: SENHA })).rejects.toThrow(/recusado: banco fora do ambiente local/);
+    await semMarcaDeAmbiente(() => expect(carregarDemo(remoto as unknown as pg.Client, { senha: SENHA })).rejects.toThrow(/recusado: banco fora do ambiente local/));
     expect(consultou).toBe(false);
   });
 });

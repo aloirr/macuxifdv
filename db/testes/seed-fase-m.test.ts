@@ -6,13 +6,19 @@ import { carregarFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { agoraDosTestes, hojeNoFuso } from '../src/datas';
 import { verificarSenha } from '../src/senha';
-import { semBanco } from './estado';
+import { comMotivo, motivoForaDoLocal, semBanco } from './estado';
 
 const SENHA = 'senha-do-teste';
 /** Carga e recarga no mesmo "hoje" (sem corrida na virada do dia; respeita MACUXI_AGORA). */
 const HOJE = hojeNoFuso('America/Manaus', agoraDosTestes());
 
-describe.skipIf(semBanco())('seed Fase M', () => {
+/**
+ * O seed da Fase M recusa servidor que não é local (exigirBancoLocal: senha pública e usuários fake nunca vão para banco
+ * compartilhado). No DBaaS (3ª execução) o beforeAll caía nessa trava e o arquivo saía vermelho com 0 caso e sem mensagem no
+ * JSON do Vitest: agora pula com o motivo no título. A trava em si é conferida em testes/ambiente-local.test.ts.
+ */
+const soLocal = motivoForaDoLocal('o seed da Fase M');
+describe.skipIf(semBanco() || soLocal !== null)(comMotivo('seed Fase M', soLocal), () => {
   let b: BancoDeTeste;
   beforeAll(async () => {
     b = await criarBancoDeTeste({ preparar: (c) => carregarFaseM(c, { senha: SENHA, hoje: HOJE }).then(() => undefined) });

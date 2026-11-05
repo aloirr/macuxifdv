@@ -18,6 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
+import { comandoSetRole, SQL_PRECISA_SET_ROLE } from '../src/papeis';
 import { agoraDaFixture, banco, semBanco } from './estado';
 import { carregarTreinamentoDoisTenants } from './fixture-treinamento';
 import { emTransacao, erroDe, retratoDoCatalogo, tabelasComTenant } from './util';
@@ -313,6 +314,9 @@ describe.skipIf(semBanco())('0032 excluir_tenant sem superusuário (banco efême
    * Papel descartável SEM superusuário e sem BYPASSRLS, que não é dono de nada (como o admin do DBaaS diante do FORCE
    * RLS): DML em toda tabela dos schemas com tenant_id e EXECUTE na excluir_tenant; com `manutencao`, membro do
    * macuxi_manutencao (INHERIT). Tudo numa transação desfeita: o papel e os grants somem no ROLLBACK.
+   * Admin sem superusuário (DBaaS, PG 16): quem cria o papel ganha só ADMIN OPTION e não pode `set role` nele (3ª execução:
+   * "permission denied to set role macuxi_tlgpd_*"); como no garantirPapelDeLogin (B0), o admin recebe a filiação só com
+   * SET, sem INHERIT (não herda os grants nem a manutencao do papel). Com superusuário nada muda (a consulta dá false).
    */
   const comoPapelSemSuperusuario = async <T>(manutencao: boolean, fn: (c: pg.Client) => Promise<T>) =>
     comAdmin(b.nome, async (c) => {
@@ -321,6 +325,8 @@ describe.skipIf(semBanco())('0032 excluir_tenant sem superusuário (banco efême
       try {
         await c.query(`create role ${papel} nologin nosuperuser nobypassrls`);
         if (manutencao) await c.query(`grant macuxi_manutencao to ${papel} with inherit true`);
+        const set = await c.query<{ precisa: boolean }>(SQL_PRECISA_SET_ROLE, [papel]);
+        if (set.rows[0]?.precisa === true) await c.query(comandoSetRole(papel));
         const schemas = (
           await c.query<{ s: string }>(
             `select distinct ns.nspname as s from pg_attribute a join pg_class k on k.oid = a.attrelid join pg_namespace ns on ns.oid = k.relnamespace

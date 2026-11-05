@@ -2,7 +2,7 @@
  * T-0075 — teste de compatibilidade do DBaaS PostgreSQL da Magalu: funções puras do relatório (db/dbaas/relatorio.ts) e
  * travas estáticas do script da VM (db/dbaas/teste-compatibilidade.sh). Não usa banco: roda também sem Postgres.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PASTA_DB } from '../src/config';
@@ -53,7 +53,12 @@ import {
   tlsLibpq,
   versaoMaiorPg,
   vizinhosEsperados,
+  MARCA_PULO,
+  motivoDoPulo,
+  normalizarExpressaoSql,
+  SEM_MENSAGEM_NO_JSON,
 } from '../dbaas/relatorio';
+import { comMotivo, MARCA_PULO as MARCA_PULO_ESTADO } from './estado';
 
 const item = (grupo: Item['grupo'], codigo: string, ok: boolean): Item => ({ grupo, codigo, titulo: `item ${codigo}`, situacao: ok ? 'ok' : 'falha' });
 
@@ -156,9 +161,42 @@ describe('relatório do DBaaS (T-0075)', () => {
     });
     expect(r.arquivos).toBe(2);
     expect(r.arquivosVerdes).toBe(1);
-    expect(r.falhas).toEqual([{ arquivo: 'db/testes/b.test.ts', casos: ['b falha'], mensagem: 'Error: permission denied to set parameter "session_replication_role"' }]);
+    expect(r.falhas).toEqual([
+      {
+        arquivo: 'db/testes/b.test.ts',
+        casos: ['b falha'],
+        mensagem: 'Error: permission denied to set parameter "session_replication_role"',
+        mensagens: ['Error: permission denied to set parameter "session_replication_role"'],
+      },
+    ]);
+    expect(r.puladosPorMotivo).toEqual({});
     expect(resumirVitest(null).arquivos).toBe(0);
     expect(primeiraLinhaUtil('\n   at a\nok')).toBe('ok');
+  });
+
+  it('3ª execução: arquivo vermelho sem caso falho (beforeAll) ganha mensagem; pulados contados pelo motivo do título', () => {
+    const r = resumirVitest({
+      numTotalTests: 4,
+      numPendingTests: 3,
+      testResults: [
+        { name: '/app/db/testes/seed-fase-m.test.ts', status: 'failed', message: '', assertionResults: [{ fullName: 'seed Fase M S0-031', status: 'skipped' }] },
+        {
+          name: '/app/db/testes/x.test.ts',
+          status: 'passed',
+          assertionResults: [
+            { fullName: comMotivo('0030 up/down com dados (banco efêmero)', 'admin sem superusuário — dados na versão 0029') + ' backfill', status: 'skipped' },
+            { fullName: comMotivo('seed Fase M', 'trava de ambiente local — o seed da Fase M só roda no Postgres local') + ' S0-031', status: 'pending' },
+            { fullName: 'outro', status: 'passed' },
+          ],
+        },
+      ],
+    });
+    expect(r.falhas).toEqual([{ arquivo: 'db/testes/seed-fase-m.test.ts', casos: [], mensagem: SEM_MENSAGEM_NO_JSON, mensagens: [SEM_MENSAGEM_NO_JSON] }]);
+    expect(r.puladosPorMotivo).toEqual({ 'admin sem superusuário': 1, 'trava de ambiente local': 1 });
+    expect(MARCA_PULO).toBe(MARCA_PULO_ESTADO);
+    expect(motivoDoPulo('x [pulado: trava de ambiente local] y')).toBe('trava de ambiente local');
+    expect(motivoDoPulo('sem marca')).toBeNull();
+    expect(comMotivo('t', null)).toBe('t');
   });
 
   it('acha o índice no plano JSON e a versão do Vitest no lock', () => {
@@ -274,7 +312,7 @@ describe('plano B do DBaaS sem SUPERUSER/BYPASSRLS (T-0075, 2ª versão)', () =>
 
   it('suíte: ❌ só por falha real; bloqueio de privilégio (inclusive no globalSetup) é ⚠️; trava local não reprova', () => {
     const trava = /fora do ambiente local/i;
-    const base = { arquivos: 2, arquivosVerdes: 1, casos: 3, casosVerdes: 2, casosFalhos: 1, casosPulados: 0 };
+    const base = { arquivos: 2, arquivosVerdes: 1, casos: 3, casosVerdes: 2, casosFalhos: 1, casosPulados: 0, puladosPorMotivo: {} };
     const falha = (mensagem: string) => ({ ...base, falhas: [{ arquivo: 'db/testes/x.test.ts', casos: ['x'], mensagem }] });
     expect(classificarSuite(falha('new row violates row-level security policy for table "tenant"'), '', trava).situacao).toBe('alternativa');
     expect(classificarSuite(falha('expected 0 to be 1'), '', trava).situacao).toBe('falha');
@@ -282,6 +320,28 @@ describe('plano B do DBaaS sem SUPERUSER/BYPASSRLS (T-0075, 2ª versão)', () =>
     const vazia = { ...base, arquivos: 0, arquivosVerdes: 0, falhas: [] };
     expect(classificarSuite(vazia, 'error: permission denied to alter role', trava).situacao).toBe('alternativa');
     expect(classificarSuite(vazia, 'Error: Cannot find module', trava).situacao).toBe('falha');
+  });
+
+  it('suíte caso a caso (3ª execução): trava só se todo caso é trava; trava + privilégio = ⚠️; qualquer falha real = ❌ com a mensagem dela', () => {
+    const trava = /fora do ambiente local/i;
+    const base = { arquivos: 2, arquivosVerdes: 1, casos: 4, casosVerdes: 1, casosFalhos: 3, casosPulados: 0, puladosPorMotivo: {} };
+    const arq = (mensagens: string[]) => ({
+      ...base,
+      falhas: [{ arquivo: 'db/testes/migracoes.test.ts', casos: mensagens.map((_, i) => `c${i}`), mensagem: mensagens[0]!, mensagens }],
+    });
+    const local = 'Error: [db] Seed de demonstração da Fase M recusado: banco fora do ambiente local (host 172.18.3.212 não é local).';
+    const rls = 'error: new row violates row-level security policy for table "tenant"';
+    const fk = 'error: insert or update on table "visita" violates foreign key constraint "visita_motivo_fk"';
+    expect(classificarSuite(arq([local, local]), '', trava).situacao).toBe('ok');
+    const misto = classificarSuite(arq([local, rls, rls]), '', trava);
+    expect(misto.situacao).toBe('alternativa');
+    expect(misto.bloqueadas[0]!.mensagem).toBe(rls);
+    const real = classificarSuite(arq([local, fk, rls]), '', trava);
+    expect(real.situacao).toBe('falha');
+    expect(real.reais[0]!.mensagem).toBe(fk);
+    expect(real.trava).toEqual([]);
+    // arquivo vermelho sem caso falho e sem mensagem não passa calado
+    expect(classificarSuite(arq([SEM_MENSAGEM_NO_JSON]), '', trava).situacao).toBe('falha');
   });
 
   it('seção "Plano B" traz B0–B3 (no código: papeis.ts, 0031, 0032) e o que foi medido; o atalho do mgc_superuser só aparece se ele der BYPASSRLS', () => {
@@ -375,8 +435,38 @@ describe('complementares da ADR 0024 (A9 restauração, A11 vector, A12 collatio
     ].join('\n');
     expect(errosDoPgRestore(stderr)).toEqual(['pg_restore: error: could not execute query: ERROR:  must be owner of extension vector']);
     expect(errosDoPgRestore('')).toEqual([]);
-    expect(compararRetratos(['a 1', 'b 2'], ['b 2', 'a 1'])).toEqual({ iguais: true, soNaOrigem: [], soNoDestino: [] });
-    expect(compararRetratos(['a 1', 'b 2'], ['a 1', 'b 3'])).toEqual({ iguais: false, soNaOrigem: ['b 2'], soNoDestino: ['b 3'] });
+    expect(compararRetratos(['a 1', 'b 2'], ['b 2', 'a 1'])).toEqual({ iguais: true, soNaOrigem: [], soNoDestino: [], soForma: [] });
+    expect(compararRetratos(['a 1', 'b 2'], ['a 1', 'b 3'])).toEqual({ iguais: false, soNaOrigem: ['b 2'], soNoDestino: ['b 3'], soForma: [] });
+  });
+
+  it('A9 (3ª execução): o CHECK reescrito pelo restore é igual depois de normalizar; precedência, literais e aritmética não mudam', () => {
+    const origem =
+      'con integracao.pedido_retorno_erro pedido_retorno_erro_textos_tamanho CHECK ((((char_length(campo) >= 1) AND (char_length(campo) <= 200)) AND ((char_length(motivo) >= 1) AND (char_length(motivo) <= 1000))))';
+    const restaurada =
+      'con integracao.pedido_retorno_erro pedido_retorno_erro_textos_tamanho CHECK (((char_length(campo) >= 1) AND (char_length(campo) <= 200) AND ((char_length(motivo) >= 1) AND (char_length(motivo) <= 1000))))';
+    expect(normalizarExpressaoSql(origem)).toBe(normalizarExpressaoSql(restaurada));
+    expect(normalizarExpressaoSql(origem)).toBe(
+      'con integracao.pedido_retorno_erro pedido_retorno_erro_textos_tamanho CHECK (char_length(campo) >= 1 AND char_length(campo) <= 200 AND char_length(motivo) >= 1 AND char_length(motivo) <= 1000)',
+    );
+    expect(compararRetratos([origem, 'tab x rls=true force=true'], [restaurada, 'tab x rls=true force=true'])).toEqual({
+      iguais: true,
+      soNaOrigem: [],
+      soNoDestino: [],
+      soForma: [origem],
+    });
+    // o que é diferente continua diferente
+    const n = normalizarExpressaoSql;
+    expect(n('CHECK (((a = 1) OR (b = 2)) AND (c = 3))')).not.toBe(n('CHECK ((a = 1) OR ((b = 2) AND (c = 3)))'));
+    expect(n('CHECK (((a = 1) OR (b = 2)) AND (c = 3))')).toBe('CHECK ((a = 1 OR b = 2) AND c = 3)');
+    expect(n('CHECK ((a = 1) AND (b = 2))')).not.toBe(n('CHECK ((a = 1) OR (b = 2))'));
+    expect(n('CHECK ((char_length(campo) <= 200))')).not.toBe(n('CHECK ((char_length(campo) <= 100))'));
+    expect(n('CHECK (((a + b) * c) > 0)')).toBe('CHECK (((a + b) * c) > 0)');
+    // literal com " AND (" e parêntese dentro não é tocado
+    expect(n("pol p using=((x = ' AND (y'::text) AND (z = 1))")).toBe("pol p using=(x = ' AND (y'::text AND z = 1)");
+    expect(n("CHECK (status = ANY (ARRAY['a'::text, 'b'::text]))")).toBe(n("CHECK ((status = ANY (ARRAY['a'::text, 'b'::text])))"));
+    // linha sem expressão fica igual; parêntese sem par não quebra
+    expect(n('tab core.cliente rls=true force=true')).toBe('tab core.cliente rls=true force=true');
+    expect(n('CHECK ((a = 1)')).toBe('CHECK ((a = 1)');
   });
 
   it('A11: conjunto fixo determinístico, sem vetor nulo e sem empate até o k-ésimo vizinho', () => {
@@ -467,5 +557,55 @@ describe('script da VM (db/dbaas/teste-compatibilidade.sh)', () => {
     expect(sh).toMatch(/localhost \| 127\.\* \| 0\.0\.0\.0 \| ::1 \| postgres \|/);
     expect(sh).not.toMatch(/--network\s+(macuxi|interna)/);
     expect(sh).not.toMatch(/--env-file|\/opt\/macuxi\/\.env/);
+  });
+});
+
+describe('arnês dos testes de banco sem superusuário (T-0075, 3ª execução)', () => {
+  const pasta = join(PASTA_DB, 'testes');
+  const arquivos = readdirSync(pasta).filter((a) => a.endsWith('.test.ts'));
+
+  it('todo "up/down com dados" com dados antes da 0031 pula sem superusuário (motivoSemSuperusuario), com o motivo no título', () => {
+    const achados: string[] = [];
+    for (const a of arquivos) {
+      const ts = readFileSync(join(pasta, a), 'utf8');
+      for (const m of ts.matchAll(/describe\.skipIf\((.*?)\)\((comMotivo\()?'(\d{4}) up\/down com dados/g)) {
+        const anterior = String(Number(m[3]) - 1).padStart(4, '0');
+        if (anterior >= '0031') continue;
+        achados.push(a);
+        expect(m[1], `${a}: ${m[3]}`).toContain('semSuperusuario !== null');
+        expect(m[2], `${a}: ${m[3]} sem comMotivo`).toBe('comMotivo(');
+        expect(ts, a).toContain(`motivoSemSuperusuario('${anterior}')`);
+      }
+    }
+    expect(achados.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it('seed da Fase M (só local) pula fora do local; os casos de recusa de banco remoto rodam sem MACUXI_AMBIENTE', () => {
+    expect(readFileSync(join(pasta, 'seed-fase-m.test.ts'), 'utf8')).toContain("describe.skipIf(semBanco() || soLocal !== null)(comMotivo('seed Fase M', soLocal)");
+    expect(readFileSync(join(pasta, 'migracoes.test.ts'), 'utf8')).toContain("it.skipIf(faseMSoLocal !== null)(comMotivo('S0-022");
+    for (const a of ['seed-demo.test.ts', 'seed-demo-promotor.test.ts']) {
+      expect(readFileSync(join(pasta, a), 'utf8'), a).toMatch(/semMarcaDeAmbiente\(\(\) => expect\(\w+\(remoto as unknown as pg\.Client/);
+    }
+  });
+
+  it('papel descartável do lgpd-outbox: o admin sem superusuário ganha SET nele (SQL_PRECISA_SET_ROLE + comandoSetRole)', () => {
+    const ts = readFileSync(join(pasta, 'lgpd-outbox.test.ts'), 'utf8');
+    const i = ts.indexOf('create role ${papel} nologin nosuperuser nobypassrls');
+    expect(i).toBeGreaterThan(0);
+    const trecho = ts.slice(i, ts.indexOf('set local role ${papel}', i));
+    expect(trecho).toContain('SQL_PRECISA_SET_ROLE, [papel]');
+    expect(trecho).toContain('comandoSetRole(papel)');
+  });
+
+  it('modo do CI sem superusuário: papel com os atributos do admin do DBaaS, só no local, e o globalSetup recusa admin que ignora RLS', () => {
+    const sc = readFileSync(join(PASTA_DB, 'scripts', 'admin-sem-superusuario.ts'), 'utf8');
+    expect(sc).toContain("'login nosuperuser nobypassrls createdb createrole noreplication'");
+    expect(sc).toContain("['pg_read_all_data', 'pg_write_all_data']");
+    expect(sc.indexOf('exigirBancoLocal(cfg.host')).toBeGreaterThan(0);
+    expect(sc.indexOf('exigirBancoLocal(cfg.host')).toBeLessThan(sc.indexOf('new pg.Client'));
+    expect(sc).toContain('drop role if exists ${papel}');
+    const gs = readFileSync(join(pasta, 'global-setup.ts'), 'utf8');
+    expect(gs).toContain("process.env.MACUXI_PG_ADMIN_SEM_SUPER === '1' && adminIgnoraRls");
+    expect(gs).toContain('(rolsuper or rolbypassrls) as ignora');
   });
 });

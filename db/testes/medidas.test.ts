@@ -15,7 +15,7 @@ import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { idMedida, MEDIDAS_INICIAIS } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
-import { banco, semBanco } from './estado';
+import { banco, comMotivo, motivoSemSuperusuario, semBanco } from './estado';
 import { comCliente, emTransacao, erroDe, retratoDoCatalogo } from './util';
 
 const A = DOIS_TENANTS.A.tenantId;
@@ -300,7 +300,10 @@ describe.skipIf(semBanco())('0018 medidas (banco, papel de aplicação)', () => 
   });
 });
 
-describe.skipIf(semBanco())('0018 up/down com dados (banco efêmero)', () => {
+// Os dados entram na 0017 (antes da 0018), anterior à política manutencao da 0031: sem superusuário (DBaaS) o admin não
+// grava nem lê essas linhas e o caso pula com o motivo no título; com superusuário (CI, local) roda sempre.
+const semSuperusuario = motivoSemSuperusuario('0017');
+describe.skipIf(semBanco() || semSuperusuario !== null)(comMotivo('0018 up/down com dados (banco efêmero)', semSuperusuario), () => {
   let b: BancoDeTeste;
   const T = 'cccccccc-0000-4000-8000-000000000018';
   const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
