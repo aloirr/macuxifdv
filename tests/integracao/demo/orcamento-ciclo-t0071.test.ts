@@ -14,14 +14,15 @@
  *     (RN-VEN-01/02); o total do aparelho = o do servidor; o orçamento guarda o preço dele.
  *  C4 vencido: selo "Vencido" (no detalhe e na linha da lista), só Duplicar e PDF; na lista fica depois dos abertos.
  *  C5 Duplicar o vencido: orçamento novo (número e validade novos, sem origem) ou pedido, com o preço de hoje; o vencido não muda.
- *  C6 RN-VEN-11 (preço mínimo) no envio e no Transformar — it.fails: a API não confere o mínimo (pendência R-20261102-232350).
+ *  C6 RN-VEN-11 (preço mínimo = preço de venda × (1 − desconto máximo efetivo), do core.cadastro_resumo@1) no envio, no PUT do
+ *     orçamento e no Transformar: recusa `preco_abaixo_minimo` (422 no PUT; `rejeitado` no push), nada gravado.
  *  C7 RN-VEN-20 (estoque) na reconferência do Transformar: o aparelho soma o saldo local por produto (produtosComPrecos).
- *  C8 Gestão (supervisora da demo): vê o orçamento da equipe em Orçamentos, sem Transformar nem Cancelar; fora de "Para aprovar";
- *     PUT, cancelar e Transformar pela API recusados; nada muda.
+ *  C8 Gestão (supervisora da demo): vê o orçamento da equipe em Orçamentos, sem Transformar, Editar nem Cancelar (só PDF);
+ *     fora de "Para aprovar"; PUT, cancelar e Transformar pela API recusados; nada muda.
  *  C9 RN-VEN-13: cadastro incompleto (Atacado Boto Rosa) e cliente bloqueado (Mercearia do Porto) só orçamento — pedido e
  *     Transformar recusados.
  *
- * Os `it.fails` são defeitos com recado ao dono; quando a correção entrar, eles ficam vermelhos e viram `it` (agente testes).
+ * Sem `it.fails` desde 05/11 (C6 e C7 corrigidos). Defeito novo vira `it.fails` com recado ao dono; corrigido, volta a `it` (agente testes).
  */
 import { randomUUID } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE, entidadeEstoqueSaldo } from '@macuxi/catalogo/contracts';
@@ -416,7 +417,7 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
     });
   });
 
-  // ---------------------------------------------------------------------- C6: RN-VEN-11 (preço mínimo) — defeito conhecido
+  // ------------------------------------------------------------------------------------ C6: RN-VEN-11 (preço mínimo)
   describe('RN-VEN-11 — o teto do desconto é o preço mínimo, no envio e no Transformar', () => {
     const ORC = randomUUID();
     const itemCafe = (pct: number): ItemRef[] => [{ product_id: prod.CAF, quantity: 12, unidade: 'UN', desconto_pct: pct, ajuste_em: 'pct' }];
@@ -429,16 +430,43 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       expect(r).toMatchObject({ id: ORC, status: 'aceito' });
     });
 
-    // DEFEITO conhecido (R-20261102-232350, modulo-core → modulo-vendedor): core.cadastro_resumo@1 não traz preco_venda_cents nem
-    // desconto_maximo_pct, então receber.ts não passa preco_minimo_base_cents a revalidarPedido e a API aceita qualquer desconto.
-    it.fails('C6a. [defeito] pedido com 30% no Café (final R$ 13,23 < mínimo R$ 16,07) → rejeitado preco_abaixo_minimo, nada gravado', async () => {
+    // T-0071-C6 (corrigido, R-20261105-121415): receber.ts passa preco_minimo_base_cents = precoMinimoBaseCents(preco_venda_cents,
+    // desconto_maximo_pct efetivo do core.cadastro_resumo@1) a revalidarPedido. Café: mínimo = 1890 × (1 − 15%) = 1606,5 → 1607 (para cima, RN-VEN-11);
+    // 15% dá unitário 1607 (meia para cima, RN-VEN-02) = mínimo → aceito; 15,01% dá 1890 × 0,8499 = 1606,31 → 1606 < 1607 → rejeitado.
+    it('C6a. pedido com 30% no Café (final R$ 13,23 < mínimo R$ 16,07) → rejeitado preco_abaixo_minimo, nada gravado', async () => {
       const id = randomUUID();
       const [r] = await push(token.vendedor, [item({ ...payloadOrcamento(id, { discount_pct: 0, items: itemCafe(30) }), tipo: 'pedido' })]);
       expect(r).toMatchObject({ id, status: 'rejeitado', codigo: 'preco_abaixo_minimo' });
       expect(await noBanco(id)).toBeUndefined();
     });
 
-    it.fails('C6b. [defeito] o desconto máximo do Café cai para 5% depois do orçamento de 10%: Transformar → rejeitado preco_abaixo_minimo (a reconferência pede para reduzir)', async () => {
+    it('C6a2. limite: 15% no Café dá R$ 16,07 por unidade (= mínimo) → aceito; 15,01% cai abaixo → rejeitado preco_abaixo_minimo', async () => {
+      const ok = randomUUID();
+      const [a] = await push(token.vendedor, [item(payloadOrcamento(ok, { discount_pct: 0, items: itemCafe(15) }))]);
+      expect(a).toMatchObject({ id: ok, status: 'aceito' });
+      expect((await itensNoBanco(ok)).find((i) => i.produto_id === prod.CAF)!.preco_unitario_cents, '1890 × 0,85 = 1606,5 → 1607').toBe(1607);
+      const fura = randomUUID();
+      const [b] = await push(token.vendedor, [item(payloadOrcamento(fura, { discount_pct: 0, items: itemCafe(15.01) }))]);
+      expect(b).toMatchObject({ id: fura, status: 'rejeitado', codigo: 'preco_abaixo_minimo' });
+      expect(await noBanco(fura)).toBeUndefined();
+    });
+
+    it('C6c. PUT do orçamento de 10% para 30% no Café → 422 preco_abaixo_minimo; o orçamento não muda', async () => {
+      const antes = await noBanco(ORC);
+      const itensAntes = await itensNoBanco(ORC);
+      const [linha] = await q<{ atualizado_em: string }>(`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as atualizado_em from vendedor.pedido where id = $1`, [ORC]);
+      const r = await api.chamar(token.vendedor, {
+        method: 'PUT',
+        url: `/v1/vendedor/orcamentos/${ORC}`,
+        payload: { ...payloadOrcamento(ORC, { discount_pct: 0, items: itemCafe(30) }), id: undefined, tipo: undefined, created_offline_at: undefined, atualizado_em: linha!.atualizado_em },
+      });
+      expect(r.statusCode, r.body).toBe(422);
+      expect((r.json() as { codigo?: string }).codigo).toBe('preco_abaixo_minimo');
+      expect(await noBanco(ORC)).toEqual(antes);
+      expect(await itensNoBanco(ORC)).toEqual(itensAntes);
+    });
+
+    it('C6b. o desconto máximo do Café cai para 5% depois do orçamento de 10%: Transformar → rejeitado preco_abaixo_minimo (a reconferência pede para reduzir)', async () => {
       await api.admin.query('update core.produto set desconto_maximo_pct = 5 where id = $1', [prod.CAF]);
       try {
         const id = randomUUID();
@@ -499,12 +527,15 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       atualizado = String((await lucas.motor.linhas<LinhaSync>('pedido')).find((p) => p.id === ORC)!.updated_at);
     });
 
-    it('C8a. no aparelho da supervisora: o orçamento do Lucas está em Orçamentos ("Orçamento · até dd/mm"), sem Transformar nem Cancelar, e fora de "Para aprovar"', async () => {
+    it('C8a. no aparelho da supervisora: o orçamento do Lucas está em Orçamentos ("Orçamento · até dd/mm"), sem Transformar, Editar nem Cancelar (só PDF), e fora de "Para aprovar"', async () => {
       const { l, det } = await naTela(sup, ORC, 'supervisor');
       expect(det).toMatchObject({ tipo: 'orcamento', seller_id: usuarioId.vendedor, total_cents: 37979 });
       const [, m, d] = det.validade_data!.split('-');
       expect(seloDoOrcamento({ situacao: situacaoNaTela(det, new Date())!, validade_data: det.validade_data!, pedido_numero: null }).texto).toBe(`Orçamento · até ${d}/${m}`);
-      expect(acoesNaTela(det, new Date(), false)).toMatchObject({ pode_converter: false, pode_cancelar: false });
+      // variante gestao (order-detail-screen: ehVendedor = !v1 || perfil === 'vendedor' → false): acoesNaTela zera converter, editar e
+      // cancelar; Duplicar continua no domain, mas a tela só mostra Duplicar com ehVendedor (e a API recusa o pedido da supervisora)
+      expect(acoesNaTela(det, new Date(), false)).toMatchObject({ pode_converter: false, pode_editar: false, pode_cancelar: false, pode_pdf: true });
+      expect(acoesNaTela(det, new Date(), true), 'o mesmo orçamento aberto no Campo (vendedor dono) tem todas as ações').toMatchObject({ pode_converter: true, pode_editar: true, pode_cancelar: true, pode_pdf: true });
       const orcs = porTipo(listaDePedidos(l, sup.motor.parametros('vendedor')).map((o) => ({ ...o, local: false, local_error: '' })), 'orcamento', new Date());
       expect(orcs.map((o) => o.id)).toContain(ORC);
       expect(porTipo(listaDePedidos(l, sup.motor.parametros('vendedor')).map((o) => ({ ...o, local: false, local_error: '' })), 'pedido', new Date()).map((o) => o.id), 'a aba Pedidos não traz orçamento').not.toContain(ORC);

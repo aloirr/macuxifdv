@@ -131,3 +131,9 @@ R-20261105-110403-modulo-core
 R-20261105-110749-modulo-vendedor
 R-20261105-110803-modulo-vendedor
 R-20261105-110818-modulo-vendedor
+R-20261105-121415-modulo-vendedor
+R-20261105-125015-modulo-vendedor
+R-20261105-123953-modulo-vendedor
+R-20261105-131126-modulo-catalogo
+R-20261105-131136-modulo-catalogo
+R-20261105-131115-modulo-catalogo

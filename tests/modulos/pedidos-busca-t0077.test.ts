@@ -71,7 +71,7 @@ import { LINHAS_VAZIAS as LINHAS_VAZIAS_T, lerLinhas, listaDeClientes, listaDePe
 import { ENTIDADES_VENDEDOR } from '../../modules/vendedor/contracts/entidades';
 import { periodoParcialNaJanela, resumoDaSituacao, situacaoEfetiva } from '../../modules/vendedor/domain/busca-periodo';
 import { filtrarPorVendedor, opcoesDeVendedor, TODOS_OS_VENDEDORES } from '../../modules/vendedor/domain/filtro-vendedor';
-import { estadoDaConsulta, mensagemForaDaJanela } from '../../modules/vendedor/app/lib/consulta-periodo';
+import { estadoDaConsulta, mensagemForaDaJanela, textoDoVazio } from '../../modules/vendedor/app/lib/consulta-periodo';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
@@ -336,15 +336,29 @@ describe('T-0077 critério 3 — janela do aparelho (90 dias) e "Disponível com
     expect(estadoDaConsulta({ fora: foraNaTela(false, mes('2026-07')), offline: true })).toBe('disponivel_com_conexao');
     expect(estadoDaConsulta({ fora: foraNaTela(true, mes('2026-07')), offline: true })).toBe('local');
     expect(estadoDaConsulta({ fora: foraNaTela(false, mes('2026-11')), offline: true })).toBe('local');
+    // o texto do vazio (função pura textoDoVazio, a mesma que a tela chama): fora da janela e sem sinal → "Disponível com
+    // conexão"; com texto na busca `fora` é falso e vale o texto da busca, nunca o da janela
+    const vazioDe = (buscando: boolean, p: Periodo, semSinal: boolean) => {
+      const fora = foraNaTela(buscando, p);
+      return textoDoVazio({ fora, modoConsulta: estadoDaConsulta({ fora, offline: semSinal }), estadoDoServidor: null, buscando, situacao: 'todos', gestao: false });
+    };
+    expect(textoDoVazio({ fora: true, modoConsulta: 'disponivel_com_conexao', estadoDoServidor: null, buscando: false, situacao: 'todos', gestao: false })).toBe('Disponível com conexão');
+    expect(vazioDe(false, mes('2026-07'), true)).toBe('Disponível com conexão');
+    expect(vazioDe(true, mes('2026-07'), true)).not.toBe('Disponível com conexão');
+    expect(vazioDe(true, mes('2026-07'), true)).toBe(textoDoVazio({ fora: false, modoConsulta: 'local', estadoDoServidor: null, buscando: true, situacao: 'todos', gestao: false }));
+    expect(vazioDe(false, mes('2026-11'), true)).not.toBe('Disponível com conexão');
+    // com sinal, fora da janela: enquanto consulta não é "Disponível com conexão"; com a resposta 'ok' vazia, o texto do período
+    expect(textoDoVazio({ fora: true, modoConsulta: 'consultar', estadoDoServidor: null, buscando: false, situacao: 'todos', gestao: false })).not.toBe('Disponível com conexão');
+    expect(textoDoVazio({ fora: true, modoConsulta: 'consultar', estadoDoServidor: 'ok', buscando: false, situacao: 'todos', gestao: false })).not.toBe('Disponível com conexão');
     // a fiação na tela (nomes estáveis): `fora` exige busca vazia; sem sinal = offline do sync OU ambiente sem rede;
-    // o vazio fora da janela vem de mensagemForaDaJanela com 'disponivel_com_conexao' e aparece no <Empty>
+    // o texto do vazio vem de textoDoVazio com o `fora` e o `modoConsulta` da tela e aparece no <Empty>
     expect(TELA).toMatch(/const fora = !buscando && !semPeriodo && periodoForaDaJanela\(periodo, agora, tz\)/);
     expect(TELA).toMatch(/const semSinal = offline \|\| !ambiente\.online\(\)/);
     expect(TELA).toMatch(/const modoConsulta = estadoDaConsulta\(\{ fora, offline: semSinal \}\)/);
-    expect(TELA).toMatch(/const vazio = fora\s*\?[\s\S]{0,160}mensagemForaDaJanela\(modoConsulta === 'disponivel_com_conexao' \? 'disponivel_com_conexao'/);
+    expect(TELA).toMatch(/const vazio = textoDoVazio\(\{ fora, modoConsulta,/);
     // o <Empty text={vazio}> aparece quando `visiveis` está vazia: na lista virtualizada (V9) é o ListEmptyComponent da
-    // FlatList com data={visiveis}; na forma antiga, o ternário explícito. Até a tela ter a função pura do texto do vazio
-    // (pedido ao modulo-vendedor, R-20261105-121758-testes), a fiação é conferida aqui sem depender da forma do JSX.
+    // FlatList com data={visiveis}; na forma antiga, o ternário explícito. O texto já é decidido pela função pura
+    // textoDoVazio (R-20261105-121758-testes, atendido); aqui fica só a fiação do JSX, sem depender da forma dele.
     expect(vazioLigadoAosVisiveis(TELA), 'orders-screen.tsx: <Empty text={vazio} /> não aparece quando `visiveis` está vazia').toBe(true);
     // sem sinal não há consulta ao servidor: o efeito só roda no estado 'consultar'
     expect(TELA).toMatch(/if \(modoConsulta !== 'consultar'\) return;/);
