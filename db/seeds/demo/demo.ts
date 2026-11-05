@@ -1099,6 +1099,9 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
   if (metaTipo.rowCount === 0) throw new Error(`[db] base de demo precisa das migrações até a ${MIGRACAO_MINIMA} (falta core.meta.tipo): rode "banco migrar up" antes.`);
   await admin.query('begin');
   try {
+    // T-0026 (R-20261104-163228): o --recriar apaga o tenant, mas o número legível já saiu para os aparelhos (e para o ERP);
+    // o contador nunca volta atrás, nem no --recriar: um pedido novo depois da recriação não repete um número já emitido.
+    const ultimoAntes = Number((await admin.query<{ ultimo: string | number }>('select ultimo from vendedor.numeracao_pedido where tenant_id = $1', [T])).rows[0]?.ultimo ?? 0);
     if (opcoes.recriar) await apagarTenantDemo(admin);
     const atuais = await admin.query<{ id: string; senha_hash: string | null }>('select id, senha_hash from core.usuario where tenant_id = $1', [T]);
     const hashAtual = new Map(atuais.rows.map((r) => [r.id, r.senha_hash]));
@@ -1139,13 +1142,13 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
           [T, padroes.map((l) => l.produto_id), padroes.map((l) => l.id)],
         );
       }
-      // contador do número: nunca volta atrás (o ensaio pode já ter numerado pedidos com ele)
+      // contador do número: nunca volta atrás (o ensaio pode já ter numerado pedidos com ele; o --recriar guarda o de antes)
       if (tabela === 'vendedor.numeracao_pedido') {
         const n = linhas[0]!;
         await admin.query(
           `insert into vendedor.numeracao_pedido as x (id, tenant_id, ultimo) values ($1, $2, $3)
            on conflict (tenant_id) do update set ultimo = greatest(x.ultimo, excluded.ultimo), deleted_at = null`,
-          [n.id, T, n.ultimo],
+          [n.id, T, Math.max(Number(n.ultimo), ultimoAntes)],
         );
         continue;
       }

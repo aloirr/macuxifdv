@@ -652,6 +652,76 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     await expect(pool.query('select vendedor.proximo_numero_pedido()')).rejects.toThrow();
   });
 
+  // T-0026 (R-20261104-163228, número 000011 repetido no Campo): o banco nunca repete número no tenant.
+  const repetidos = () =>
+    comAdmin(b.nome, async (c) =>
+      (await c.query<{ numero: string; n: number }>(
+        'select numero, count(*)::int as n from vendedor.pedido where tenant_id = $1 and numero is not null group by numero having count(*) > 1',
+        [TENANT_DEMO],
+      )).rows,
+    );
+  /** Pedido "do aparelho" (fora do seed), como o receber do Vendedor grava: número do contador na mesma transação. */
+  const aceitarPedido = (numero?: string) =>
+    comTenant(pool, TENANT_DEMO, async (c) => {
+      const p = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'][0]!;
+      const n = numero ?? (await c.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
+      const r = await c.query<{ id: string }>(
+        `insert into vendedor.pedido (tenant_id, cliente_id, vendedor_id, autor_id, status, numero)
+         values (plataforma.tenant_atual(), $1, $2, $2, 'approved', $3) returning id`,
+        [p.cliente_id, idUsuarioDemo('vendedor'), n],
+      );
+      return { id: r.rows[0]!.id, numero: n };
+    });
+  const apagarPedidos = (ids: string[]) => comAdmin(b.nome, (c) => c.query('delete from vendedor.pedido where id = any($1::uuid[])', [ids]));
+
+  it('T-0026: dois pedidos aceitos em paralelo não repetem o número (o contador do tenant numera em fila)', async () => {
+    const aceitos = await Promise.all([aceitarPedido(), aceitarPedido(), aceitarPedido()]);
+    try {
+      const numeros = aceitos.map((a) => Number(a.numero)).sort((x, y) => x - y);
+      expect(new Set(numeros).size).toBe(3);
+      expect(numeros[2]! - numeros[0]!).toBe(2); // consecutivos: nenhum número perdido nem repetido
+      expect(await repetidos()).toEqual([]);
+    } finally {
+      await apagarPedidos(aceitos.map((a) => a.id));
+    }
+  });
+
+  it('T-0026: recarga sem --recriar com pedido do aparelho no número que o seed usa: o do aparelho ganha número novo (e updated_at novo para o pull)', async () => {
+    const seed = dadosDemo(HASH_FALSO, { hoje: hojeCarga })['vendedor.pedido'];
+    const ultimoDoSeed = seed.reduce((m, p) => (String(p.numero) > m ? String(p.numero) : m), '');
+    const doSeed = seed.find((p) => p.numero === ultimoDoSeed)!;
+    // base de antes do T-0071 (10 pedidos no seed): o número mais alto do seed estava livre e o aparelho o recebeu
+    await comAdmin(b.nome, (c) => c.query('update vendedor.pedido set numero = null where id = $1', [doSeed.id]));
+    const aparelho = await aceitarPedido(ultimoDoSeed);
+    try {
+      const antes = await comAdmin(b.nome, (c) => c.query<{ updated_at: Date }>('select updated_at from vendedor.pedido where id = $1', [aparelho.id]));
+      await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, hoje: hojeCarga }));
+      const r = await comAdmin(b.nome, (c) =>
+        c.query<{ id: string; numero: string; updated_at: Date }>('select id, numero, updated_at from vendedor.pedido where id = any($1::uuid[])', [[doSeed.id, aparelho.id]]),
+      );
+      const porId = new Map(r.rows.map((l) => [l.id, l]));
+      expect(porId.get(String(doSeed.id))!.numero).toBe(ultimoDoSeed);
+      expect(Number(porId.get(aparelho.id)!.numero)).toBeGreaterThan(seed.length);
+      expect(porId.get(aparelho.id)!.updated_at.getTime()).toBeGreaterThan(antes.rows[0]!.updated_at.getTime());
+      expect(await repetidos()).toEqual([]);
+    } finally {
+      await apagarPedidos([aparelho.id]);
+    }
+  });
+
+  it('T-0026: --recriar não faz o contador voltar (número já emitido para um aparelho nunca é reusado por pedido novo)', async () => {
+    const emitido = await aceitarPedido();
+    await comAdmin(b.nome, (c) => carregarDemo(c, { senha: SENHA, recriar: true, hoje: hojeCarga }));
+    // o --recriar apagou o pedido do ensaio; o próximo pedido aceito continua depois do número que o aparelho já tem
+    const novo = await aceitarPedido();
+    try {
+      expect(Number(novo.numero)).toBe(Number(emitido.numero) + 1);
+      expect(await repetidos()).toEqual([]);
+    } finally {
+      await apagarPedidos([novo.id]);
+    }
+  });
+
   it('pelo papel macuxi_app: cada cliente com uma tabela de preço viva e 3 produtos sem preço no Atacado', async () => {
     const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
       clientes: (await c.query<{ n: number }>('select count(distinct cliente_id)::int as n from catalogo.cliente_tabela_preco where deleted_at is null')).rows[0]!.n,
