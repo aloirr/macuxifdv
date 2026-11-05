@@ -60,6 +60,21 @@ export const TIPOS_ALERTA = [
 export const TipoAlerta = z.enum(TIPOS_ALERTA);
 export type TipoAlerta = z.infer<typeof TipoAlerta>;
 
+/**
+ * Alerta que existe só no APARELHO (T-0039 §4.3): vem da notificação do Core, não de regra de servidor; por isso fica
+ * fora de `TIPOS_ALERTA` (CHECK de `gestor.alerta`/`alerta_regra`, regras do BKO e dispensa).
+ */
+export const ALERTA_PENDENCIA_CHECKOUT = 'etapa_pendente_checkout' as const;
+export interface AlertaPendenciaCheckout {
+  id: string;
+  tipo: typeof ALERTA_PENDENCIA_CHECKOUT;
+  titulo: string;
+  mensagem: string;
+  cliente_id: string;
+  severidade: 'atencao';
+  aberto_em: string;
+}
+
 export const SEVERIDADES = ['info', 'atencao', 'critica'] as const;
 export const Severidade = z.enum(SEVERIDADES);
 export type Severidade = z.infer<typeof Severidade>;

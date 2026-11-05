@@ -7,9 +7,10 @@ import { relogioReal } from '@macuxi/comum/relogio';
 import { SePode } from '@macuxi/platform-sdk/react';
 import { AvisoRodape, Banner, Botao, Cartao, ChipEstado, colors, EstadoVazio, Loading, relativeWhen, Screen, SyncStamp, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Alerta } from '../../contracts';
 import { nomesDaVisao, SEVERIDADE_TOM, TIPO_ALERTA_ROTULO, TOM_PARA_CHIP } from '../lib/apresentacao';
+import { irParaCliente } from '../rotas';
 import { useGestor } from '../state/use-gestor';
 
 const relogio = relogioReal();
@@ -22,6 +23,7 @@ export default function AlertasScreen() {
   if (!g.carregado) return <Loading />;
   const nomes = nomesDaVisao(g.visao);
   const itens = g.alertas?.itens ?? [];
+  const pendencias = g.pendencias;
   const dispensar = async (a: Alerta) => {
     setEnviando(a.id);
     const r = await g.dispensar(a.id);
@@ -43,7 +45,23 @@ export default function AlertasScreen() {
       {aviso ? <Banner tone="danger">{aviso}</Banner> : null}
       {g.offline ? <Banner>Sem conexão: dispensar precisa de internet.</Banner> : null}
       <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
-        {itens.length === 0 ? (
+        {pendencias.map((p, i) => (
+          <Pressable
+            key={p.id}
+            testID={`gestor-pendencia-${p.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={`${p.titulo}. ${p.mensagem}`}
+            onPress={() => irParaCliente(p.cliente_id)}
+            style={[styles.item, styles.alvo, (i < pendencias.length - 1 || itens.length > 0) && styles.divisor]}>
+            <View style={styles.linha}>
+              <Text style={[t.bodyStrong, { flex: 1 }]}>{p.titulo}</Text>
+              <ChipEstado pequeno texto="Atenção" tom={TOM_PARA_CHIP.warning} />
+            </View>
+            <Text style={t.body}>{p.mensagem}</Text>
+            <Text style={t.small}>desde {relativeWhen(p.aberto_em, relogio.agora(), g.tz)}</Text>
+          </Pressable>
+        ))}
+        {itens.length === 0 && pendencias.length === 0 ? (
           g.alertas ? (
             <EstadoVazio icone="alert" titulo="Nenhum alerta na sua equipe" texto="Os alertas novos aparecem aqui quando houver algo para ver." />
           ) : (
@@ -80,6 +98,7 @@ export default function AlertasScreen() {
 
 const styles = StyleSheet.create({
   item: { gap: 6, paddingVertical: 12, paddingHorizontal: 14 },
+  alvo: { minHeight: 48 },
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
 });
