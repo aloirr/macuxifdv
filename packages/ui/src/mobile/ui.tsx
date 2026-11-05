@@ -9,6 +9,8 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DentroDeCartao, useDentroDeCartao } from './base';
+import { layoutCarregando } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
@@ -208,7 +210,7 @@ export function SectionHeader({ title, right, onRightPress, rightTestID }: { tit
 export function Card({ children, style, testID }: { children: ReactNode; style?: StyleProp<ViewStyle>; testID?: string }) {
   return (
     <View testID={testID} style={[styles.card, style]}>
-      {children}
+      <DentroDeCartao value>{children}</DentroDeCartao>
     </View>
   );
 }
@@ -241,9 +243,15 @@ export function Empty({ text }: { text: string }) {
   return <Text style={[t.sub, { paddingVertical: 20, paddingHorizontal: 14 }]}>{text}</Text>;
 }
 
-export function Loading() {
+/**
+ * Carregando. Em tela cheia ocupa o espaço que sobra com o fundo da tela; dentro de `Cartao`/`Card` (detectado
+ * sozinho) ou com `embutido`, fica compacto: altura mínima de 96, sem flex e sem fundo próprio (o do cartão).
+ */
+export function Loading({ embutido, testID }: { embutido?: boolean; testID?: string } = {}) {
+  const dentroDeCartao = useDentroDeCartao();
+  const compacto = embutido ?? dentroDeCartao;
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ground }}>
+    <View testID={testID} style={[layoutCarregando(compacto), compacto ? null : { backgroundColor: colors.ground }]}>
       <ActivityIndicator color={colors.accent} />
     </View>
   );

@@ -44,3 +44,8 @@ R-20261104-231248-alexandre
 R-20261104-231342-modulo-core
 R-20261104-235735-modulo-vendedor
 R-20261105-001807-modulo-gestor
+R-20261105-004932-engenheiro-apps
+R-20261105-012504-modulo-promotor
+R-20261105-012543-modulo-pesquisa
+R-20261105-013701-modulo-gestor
+R-20261105-013736-engenheiro-apps
