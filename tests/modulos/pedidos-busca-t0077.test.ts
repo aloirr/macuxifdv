@@ -77,6 +77,23 @@ const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
 const TELA = ler('modules/vendedor/app/screens/orders-screen.tsx');
 
+/**
+ * O vazio da lista mostra `vazio` quando não há linha visível, em qualquer das duas formas da tela:
+ * - ternário explícito: `visiveis.length === 0 ? <Empty text={vazio} /> : null`;
+ * - lista virtualizada: `<FlatList ... data={visiveis} ... ListEmptyComponent={ ... <Empty text={vazio} /> ... }`
+ *   (a FlatList só desenha o ListEmptyComponent com `data` vazia).
+ */
+function vazioLigadoAosVisiveis(fonte: string): boolean {
+  if (/visiveis\.length === 0\s*\?\s*(?:\(\s*)?<Empty text=\{vazio\}\s*\/>/.test(fonte)) return true;
+  const inicio = fonte.indexOf('<FlatList');
+  if (inicio < 0) return false;
+  const lista = fonte.slice(inicio);
+  // `data={visiveis}` nas props da própria FlatList (antes do primeiro filho/cabeçalho) e o <Empty text={vazio}> dentro do
+  // ListEmptyComponent (sem atravessar para outra prop da lista)
+  const props = lista.slice(0, lista.search(/ListHeaderComponent=|ListEmptyComponent=/) + 1 || 3_000);
+  return /\bdata=\{visiveis\}/.test(props) && /ListEmptyComponent=\{(?:(?!ListHeaderComponent=|ListFooterComponent=|renderItem=)[\s\S]){0,200}<Empty text=\{vazio\}\s*\/>/.test(lista);
+}
+
 const MANAUS = 'America/Manaus'; // UTC−4
 const SP = 'America/Sao_Paulo'; // UTC−3
 const NORONHA = 'America/Noronha'; // UTC−2
@@ -325,9 +342,20 @@ describe('T-0077 critério 3 — janela do aparelho (90 dias) e "Disponível com
     expect(TELA).toMatch(/const semSinal = offline \|\| !ambiente\.online\(\)/);
     expect(TELA).toMatch(/const modoConsulta = estadoDaConsulta\(\{ fora, offline: semSinal \}\)/);
     expect(TELA).toMatch(/const vazio = fora\s*\?[\s\S]{0,160}mensagemForaDaJanela\(modoConsulta === 'disponivel_com_conexao' \? 'disponivel_com_conexao'/);
-    expect(TELA).toMatch(/visiveis\.length === 0 \? <Empty text=\{vazio\} \/> : null/);
+    // o <Empty text={vazio}> aparece quando `visiveis` está vazia: na lista virtualizada (V9) é o ListEmptyComponent da
+    // FlatList com data={visiveis}; na forma antiga, o ternário explícito. Até a tela ter a função pura do texto do vazio
+    // (pedido ao modulo-vendedor, R-20261105-121758-testes), a fiação é conferida aqui sem depender da forma do JSX.
+    expect(vazioLigadoAosVisiveis(TELA), 'orders-screen.tsx: <Empty text={vazio} /> não aparece quando `visiveis` está vazia').toBe(true);
     // sem sinal não há consulta ao servidor: o efeito só roda no estado 'consultar'
     expect(TELA).toMatch(/if \(modoConsulta !== 'consultar'\) return;/);
+  });
+
+  it('a conferência do vazio aceita as duas formas da tela e recusa o vazio desligado dos visíveis', () => {
+    expect(vazioLigadoAosVisiveis('{visiveis.length === 0 ? <Empty text={vazio} /> : null}')).toBe(true);
+    expect(vazioLigadoAosVisiveis('<FlatList data={visiveis} renderItem={r} ListEmptyComponent={\n<Card>\n<Empty text={vazio} />\n</Card>} />')).toBe(true);
+    expect(vazioLigadoAosVisiveis('<FlatList data={outros} ListEmptyComponent={<Empty text={vazio} />} />')).toBe(false);
+    expect(vazioLigadoAosVisiveis('<FlatList data={visiveis} ListEmptyComponent={null} ListFooterComponent={<Empty text={vazio} />} />')).toBe(false);
+    expect(vazioLigadoAosVisiveis('<ScrollView><Empty text={vazio} /></ScrollView>')).toBe(false);
   });
 });
 
