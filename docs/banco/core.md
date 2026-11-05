@@ -342,3 +342,25 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - Caminho de volta: `0021_core_recado_do_dia.down.sql` — **apaga** as marcações (os recados continuam; o Início volta à
   frase padrão `inicio.recado_do_dia_padrao`) e a coluna `indicador_diario.clientes_positivados` (pedidos e valores ficam;
   o Início sem o Vendedor volta a `positivacao = null`).
+
+## 0023 — positivação acumulada do mês (`0023_core_positivacao_mes`; opção 3 do dono do produto, 04/11, pendência do PR #84)
+- **indicador_diario.clientes_positivados_ids** `uuid[]` null: **quais** clientes (`core.cliente.id` do próprio tenant) o
+  usuário positivou naquele dia civil do tenant, sem repetição. null = não apurado (linhas anteriores à 0023 e consumidor que
+  ainda não grava): **sem backfill**, sem padrão. Gravada junto com `clientes_positivados` (0021): CHECK
+  `indicador_diario_clientes_positivados_ids_coerente` (lista de 1 dimensão, sem elemento nulo e `clientes_positivados =
+  cardinality(lista)`). Cancelamento/devolução que tira o cliente do dia: o consumidor regrava a lista e a contagem do dia.
+  Sem FK por elemento (array); a API só grava id de cliente do próprio tenant. Volume: dezenas de ids por linha (1 linha
+  por vendedor por dia com venda). Espelho Drizzle `indicadorDiario.clientes_positivados_ids`. Fora do pull hoje (o
+  `TABELAS_SYNC.indicador_diario` do Core lista as colunas).
+- **core.positivacao_do_mes(p_usuario_ids uuid[], p_periodo text 'AAAA-MM', p_hoje date default null)** →
+  `table (usuario_id uuid, ate_ontem integer, hoje integer, mes integer)`, uma linha por usuário pedido (ordem por
+  `usuario_id`). Cada cliente conta **uma vez no mês**, no **primeiro** dia civil em que o usuário o positivou
+  (RN-CORE-20): `ate_ontem` = clientes com primeiro dia < `p_hoje`; `hoje` = clientes com primeiro dia = `p_hoje` (os
+  **novos** hoje, RN-CORE-26, igual ao `realizadoPartido` do domain do Core); `mes` = todos do mês. `p_hoje` nulo = hoje
+  no fuso do tenant do contexto. **null nos três = sem fonte** (o usuário não tem nenhuma linha com lista até o fim do mês);
+  com fonte e sem cliente no mês = 0 (mês novo zera). SECURITY INVOKER (RLS da tabela vale; sem contexto = tudo sem
+  fonte), `search_path` fixo, EXECUTE só para o `macuxi_app`. Índice: `indicador_diario_uk (tenant_id, usuario_id, data)`
+  vivo. Consumidor: `core.inicio@1` com o Vendedor desligado (campos `positivacao.ate_ontem` / `positivacao.hoje`).
+- RLS: a política `isolamento_tenant` (0006) já cobre a coluna; nenhuma política nova, grants da tabela iguais.
+- Caminho de volta: `0023_core_positivacao_mes.down.sql` — **apaga** a função e as listas (pedidos, valores e
+  `clientes_positivados` do dia ficam; o Início sem o Vendedor volta a `positivacao = null`).

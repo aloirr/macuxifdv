@@ -422,4 +422,11 @@ export const indicadorDiario = core.table('indicador_diario', {
    * com o Vendedor desligado.
    */
   clientes_positivados: integer('clientes_positivados'),
+  /**
+   * 0023 (positivação acumulada do mês, opção 3): QUAIS clientes o usuário positivou no dia, sem repetição; null = não
+   * apurado. Gravada junto com clientes_positivados (CHECK indicador_diario_clientes_positivados_ids_coerente: 1 dimensão,
+   * sem nulo, cardinality = clientes_positivados). A contagem do mês sem repetir cliente entre dias sai de
+   * core.positivacao_do_mes(usuarios, 'AAAA-MM', hoje) → (usuario_id, ate_ontem, hoje, mes).
+   */
+  clientes_positivados_ids: uuid('clientes_positivados_ids').array(),
 });

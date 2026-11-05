@@ -86,7 +86,7 @@ const sqlUp = migracoes.map((m) => m.up).join('\n');
 function tabelasCriadas(): Map<string, string> {
   const mapa = new Map<string, string>();
   for (const m of /create table ([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g[Symbol.matchAll](sqlUp)) mapa.set(m[1]!, m[2]!);
-  for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column ([a-z_]+) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
+  for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column (?:if not exists )?([a-z_]+) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
     mapa.set(m[1]!, `${mapa.get(m[1]!) ?? ''}\n  ${m[2]!} ${m[3]!}`);
   }
   return mapa;
@@ -117,6 +117,9 @@ describe('migrações (estático)', () => {
     expect(nomes[18]).toBe('0019_core_nota_erp_meta_tipo');
     expect(nomes[19]).toBe('0020_pedido_ajuste_valor_produto_relacao');
     expect(nomes[20]).toBe('0021_core_recado_do_dia'); // T-0073: colunas novas em core.notificacao e core.indicador_diario.clientes_positivados (recado-do-dia.test.ts)
+    expect(nomes[21]).toBe('0022_plataforma_geracao_base'); // T-0079: plataforma.tenant.geracao_base e girar_geracao_base (geracao-base.test.ts)
+    expect(nomes[22]).toBe('0023_core_positivacao_mes'); // positivação acumulada do mês: indicador_diario.clientes_positivados_ids e core.positivacao_do_mes (positivacao-mes.test.ts)
+    expect(nomes[23]).toBe('0024_plataforma_resumo_outbox_lgpd'); // T-0078: resumo_outbox (/v1/saude), anonimização e exclusão de tenant (lgpd-outbox.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -592,9 +595,15 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
       expect(m12.up).toContain(`alter function ${f} set search_path = pg_catalog, ${schema}, pg_temp;`);
       expect(m12.down).toContain(`alter function ${f} set search_path = pg_catalog, ${schema};`);
     }
-    // toda função SECURITY DEFINER criada até aqui está na lista (nova função = pg_temp já no create)
-    const definers = migracoes.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)].map((x) => x[1]));
-    expect(definers.sort()).toEqual(funcoes.map(([f]) => f.slice(0, f.indexOf('('))).sort());
+    // toda função SECURITY DEFINER criada até a 0012 está na lista; as criadas depois nascem com pg_temp por último no create
+    const definersAte = (ate: string) =>
+      migracoes.filter((m) => m.versao <= ate).flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)].map((x) => x[1]));
+    expect(definersAte('0012').sort()).toEqual(funcoes.map(([f]) => f.slice(0, f.indexOf('('))).sort());
+    const depois = migracoes.filter((m) => m.versao > '0012');
+    const novas = depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer\s+set search_path = ([^\n]+)/g)]);
+    expect(novas.map((x) => x[1]).sort()).toEqual(['plataforma.resumo_outbox']); // 0024 (T-0078): só agregados da outbox
+    for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
+    expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
   });
 
   it('fixture: chave do Conector como HMAC-SHA256(pepper da fixture, chave), sem a chave em claro no banco', () => {
