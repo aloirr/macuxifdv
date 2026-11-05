@@ -254,3 +254,8 @@
 2026-11-05 — T-0039 — causa do S1-047: com as gravações em série, um enviar chamado durante uma passada sem sinal recebia a mesma promessa e não enviava; corrigido no motor (passada extra única); ajuste do teste ordem-pesquisa-checkout L218 com o testes
 2026-11-05 — T-0039 — lote N refeito com a correção do motor e o O-A3 (f0dcf03, 9 commits) no CI 42111338200
 2026-11-05 — T-0039/T-0052/T-0072/T-0082 — lote N no main (8ce8733..f0dcf03, 9 commits): chip e aviso da etapa pendente, Minha RV, fila do motor sem perda (D-T0039d) e envio com passada extra, busca sem acerto acima de 5 mil, vazio novo, ‹ Início, testes; CI verde no commit exato
+2026-11-05 — T-0039/T-0082 — main f0dcf03 com CI e demo verdes; build de preview com o engenheiro-apps; lote O (f702090) no CI 42114180130
+2026-11-05 — T-0052/T-0061/T-0071 — lote O no main (f0dcf03..f702090, 6 commits): tabela_preco_nome em precos_cliente@1, codigoCompacto único, PDF com CPF/CNPJ e 'não informado', triagens; CI verde no commit exato
+2026-11-05 — T-0081/T-0083 — concluídas (definição de pronto: CI verde, revisões sem 🔴, critérios demonstrados nos testes de integração, quadro e diário)
+2026-11-05 — status — status das 18h por recado; demo no f702090
+2026-11-05 — T-0039/T-0082/T-0008 — APKs de preview do f0dcf03 (Campo 84cf6500, Gestão b0c1f817) enviados ao Alexandre com o roteiro A–F + 8 itens
