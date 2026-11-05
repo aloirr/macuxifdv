@@ -134,6 +134,11 @@ describe('campo em R$ e troca de modo (RN-VEN-02)', () => {
     expect(reaisParaCents('1,00')).toBe(100);
     expect(reaisParaCents('R$ 1.234,56')).toBe(123_456);
     expect(reaisParaCents('5')).toBe(500);
+    // W4: ponto único com até 2 casas é decimal; com 3 casas é milhar
+    expect(reaisParaCents('1.5')).toBe(150);
+    expect(reaisParaCents('1.50')).toBe(150);
+    expect(reaisParaCents('1.234')).toBe(123_400);
+    expect(reaisParaCents('1.234.567')).toBe(123_456_700);
     expect(reaisParaCents('abc')).toBe(0);
     expect(reaisParaCents('-3')).toBe(0);
     expect(centsParaCampo(100)).toBe('1,00');

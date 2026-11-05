@@ -396,9 +396,12 @@ export function limiteDoVendedor(politica: AlcadaApi, vendedorId: string): numbe
 }
 
 // ---------- campo em R$ (T-0071) ----------
-/** "1,00" / "R$ 1.234,56" / "5" → centavos inteiros; inválido ou negativo = 0. */
+/** "1,00" / "1.5" / "R$ 1.234,56" / "5" → centavos inteiros; inválido ou negativo = 0. */
 export function reaisParaCents(texto: string): number {
-  const limpo = texto.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+  const bruto = texto.replace(/[^\d,.-]/g, '');
+  // W4: um único "." sem vírgula e com até 2 casas depois é decimal ("1.5" = 1,50); com 3 casas ou mais de um ponto é milhar
+  const pontoDecimal = !bruto.includes(',') && /^-?\d*\.\d{0,2}$/.test(bruto);
+  const limpo = pontoDecimal ? bruto : bruto.replace(/\./g, '').replace(',', '.');
   const n = Number(limpo);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.round(Number((n * 100).toFixed(4)));

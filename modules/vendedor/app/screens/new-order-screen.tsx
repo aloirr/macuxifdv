@@ -9,8 +9,8 @@
 import { formatBRL } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { Abas, AvisoRodape, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, formatHHMM, Icon, Loading, radius, RodapeTotal, Screen, Strong, Trilha, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,6 +31,7 @@ import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } fro
 import { hrefPedido, hrefPedidos, irParaCatalogoDoPedido, irParaPedidos } from '../rotas';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { deixarAvisoPendente } from '../lib/aviso-pendente';
+import { aplicarValorPendente } from '../lib/valor-pendente';
 import { useVendedor } from '../state/use-vendedor';
 
 export default function NewOrderScreen() {
@@ -147,18 +148,22 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const ambiente = useAmbiente();
   const fretePadrao = modalidadePadraoDosParametros(ambiente.parametros('vendedor'));
   const [aba, setAba] = useState<AbaNovoPedido>('itens');
+  const saveEditRef = useRef<() => Promise<void>>(async () => undefined);
   const [salvarAberto, setSalvarAberto] = useState(false);
   const [descartarAberto, setDescartarAberto] = useState(false);
   // V1: o campo com foco fica acima do teclado (Android edge-to-edge); V13: o voltar do Android volta uma aba
   const rolagem = useCampoAcimaDoTeclado();
-  useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (sent || aba === 'itens' || salvarAberto || descartarAberto) return false;
-      setAba(aba === 'resumo' ? 'detalhes' : 'itens');
-      return true;
-    });
-    return () => sub.remove();
-  }, [aba, sent, salvarAberto, descartarAberto]);
+  // W2: o voltar do Android só vale com a tela em foco
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (sent || aba === 'itens' || salvarAberto || descartarAberto) return false;
+        setAba(aba === 'resumo' ? 'detalhes' : 'itens');
+        return true;
+      });
+      return () => sub.remove();
+    }, [aba, sent, salvarAberto, descartarAberto]),
+  );
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
   const politica = dados.politica;
   const vendedorId = dados.me?.seller?.id ?? '';
@@ -292,9 +297,18 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
 
   const abas = abasDoPedido(calculo.linhas.length, Boolean(freteAviso) || calculo.erros.length > 0);
   const noResumo = aba === 'resumo' || Boolean(sent);
+  // o valor digitado no campo em foco vale já no toque (RN-VEN-02): "0" ou vazio tira o item, número válido grava
+  saveEditRef.current = saveEdit;
+  const irParaAba = (destino: AbaNovoPedido) => {
+    aplicarValorPendente();
+    setAba(destino);
+  };
   const aoSalvar = () => {
-    if (editId) void saveEdit();
-    else setSalvarAberto(true);
+    const havia = aplicarValorPendente();
+    if (!editId) setSalvarAberto(true);
+    // com o rascunho atualizado na próxima renderização, a edição salva a versão nova
+    else if (havia) setTimeout(() => void saveEditRef.current(), 0);
+    else void saveEdit();
   };
   const descartar = async () => {
     setDescartarAberto(false);
@@ -314,10 +328,10 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
           {customer.trade_name} · cód. {customer.erp_code}
         </Text>
       </View>
-      {!sent ? <Abas abas={abas} valor={aba} onChange={setAba} rotuloPendencia="Pendência nesta aba" testID="abas-pedido" /> : null}
+      {!sent ? <Abas abas={abas} valor={aba} onChange={irParaAba} rotuloPendencia="Pendência nesta aba" testID="abas-pedido" /> : null}
 
       <AcimaDoTeclado>
-      <ScrollView ref={rolagem.ref} onScroll={rolagem.onScroll} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
+      <ScrollView ref={rolagem.ref} onScroll={rolagem.onScroll} onLayout={rolagem.onLayout} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
         {draft.notice && !sent ? (
           <Banner icon="alert" testID="order-prefill-notice">
             {draft.notice}
@@ -425,7 +439,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
           rotulo="Total dos itens"
           valor={formatBRL(calculo.total_itens_cents)}
           respiroInferior={insets.bottom}
-          acao={{ rotulo: 'Avançar', seta: true, testID: 'avancar', onPress: () => setAba(aba === 'itens' ? 'detalhes' : 'resumo') }}
+          acao={{ rotulo: 'Avançar', seta: true, testID: 'avancar', onPress: () => irParaAba(aba === 'itens' ? 'detalhes' : 'resumo') }}
         />
       ) : null}
       {sent ? (

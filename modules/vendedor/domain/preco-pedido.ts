@@ -168,10 +168,10 @@ export function precoDoItem(i: ItemParaPreco): PrecoDoItem {
 }
 
 // ---------- preço mínimo (RN-VEN-11) ----------
-/** Mínimo por unidade base: preço de venda × (1 − desconto máximo), meia para cima. `null` = produto sem preço de venda. */
+/** Mínimo por unidade base: preço de venda × (1 − desconto máximo), arredondado PARA CIMA ao centavo (igual ao `precoMinimoCents` do Core que o BKO mostra; a API nunca aceita abaixo do exibido). `null` = produto sem preço de venda. */
 export function precoMinimoBaseCents(p: { preco_venda_cents: number | null; desconto_maximo_pct: number }): number | null {
   if (p.preco_venda_cents == null) return null;
-  return aplicarPontosBase(p.preco_venda_cents, -pontosBase(clampPct(p.desconto_maximo_pct)));
+  return Math.ceil((p.preco_venda_cents * (10_000 - pontosBase(clampPct(p.desconto_maximo_pct)))) / 10_000);
 }
 
 /** "Desconto máximo deste produto: X%": maior desconto do item que não fura o mínimo (2 casas, truncado); 0 se a tabela já está abaixo. */

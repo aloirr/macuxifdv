@@ -30,7 +30,8 @@ describe('T-0053: pré-venda no app', () => {
 
   it('RF-VEN-03: converter e cancelar só para o vendedor dono; gestão só vê', () => {
     expect(acoesNaTela(orc, depois(1), true)).toMatchObject({ pode_converter: true, pode_cancelar: true });
-    expect(acoesNaTela(orc, depois(1), false)).toMatchObject({ pode_converter: false, pode_cancelar: false, pode_duplicar: true });
+    expect(acoesNaTela(orc, depois(1), false)).toMatchObject({ pode_converter: false, pode_cancelar: false, pode_editar: false, pode_duplicar: true });
+    expect(acoesNaTela(orc, depois(1), true)).toMatchObject({ pode_editar: true });
     expect(acoesNaTela({ status: 'approved' }, depois(1), true)).toBeNull();
   });
 

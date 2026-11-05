@@ -1,7 +1,7 @@
 /** T-0077 item 6: consulta ao servidor fora da janela de 90 dias do aparelho (RF-VEN-05). Funções puras. */
 import { describe, expect, it } from 'vitest';
 import type { Order } from '../../contracts';
-import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, mensagemForaDaJanela, pedidosDaConsulta } from './consulta-periodo';
+import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, mensagemForaDaJanela, pedidosDaConsulta, textoDoVazio } from './consulta-periodo';
 
 describe('RF-VEN-05: consulta por período ao servidor', () => {
   it('monta o caminho com from/to, emitido OU mudou de status, pedidos e orçamentos', () => {
@@ -24,5 +24,27 @@ describe('RF-VEN-05: consulta por período ao servidor', () => {
   it('pedidos do servidor entram na lista como pedidos já enviados (fora da fila)', () => {
     const o = { id: 'a', number: '000001' } as Order;
     expect(pedidosDaConsulta([o])).toEqual([{ id: 'a', number: '000001', local: false, local_error: '' }]);
+  });
+});
+
+describe('textoDoVazio (T-0077)', () => {
+  const b = { fora: false, modoConsulta: null, estadoDoServidor: null, buscando: false, situacao: 'todos', gestao: false };
+  it('fora da janela sem sinal: Disponível com conexão', () => {
+    expect(textoDoVazio({ ...b, fora: true, modoConsulta: 'disponivel_com_conexao' })).toBe('Disponível com conexão');
+  });
+  it('fora da janela: carregando, erro e ok', () => {
+    expect(textoDoVazio({ ...b, fora: true })).toBe('Buscando no servidor…');
+    expect(textoDoVazio({ ...b, fora: true, estadoDoServidor: 'erro' })).toMatch(/Puxe para baixo/);
+    expect(textoDoVazio({ ...b, fora: true, estadoDoServidor: 'ok' })).toBe('Nenhum pedido neste período.');
+  });
+  it('com busca: orienta a conferir ou limpar', () => {
+    expect(textoDoVazio({ ...b, buscando: true })).toMatch(/limpe a busca/);
+  });
+  it('por situação e perfil', () => {
+    expect(textoDoVazio({ ...b, situacao: 'orc_abertos' })).toBe('Nenhum orçamento neste período.');
+    expect(textoDoVazio({ ...b, situacao: 'decide' })).toBe('Nada para aprovar agora.');
+    expect(textoDoVazio({ ...b, gestao: true })).toBe('Nenhum pedido da equipe neste período.');
+    expect(textoDoVazio(b)).toMatch(/Toque em Novo/);
+    expect(textoDoVazio({ ...b, situacao: 'queued' })).toBe('Nenhum pedido com esta situação neste período.');
   });
 });

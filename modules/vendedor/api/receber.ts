@@ -27,6 +27,7 @@ import {
   modalidadePadraoDosParametros,
   MSG_RECUSA_FRETE,
   politicaDosParametros,
+  precoMinimoBaseCents,
   recusaDePerfil,
   resolverEnderecoEntrega,
   resolverUnidadeDoItem,
@@ -183,6 +184,8 @@ export async function calcularDocumento(
       acrescimo_pct: i.acrescimo_pct ?? 0,
       desconto_unitario_cents: i.desconto_unitario_cents ?? 0,
       acrescimo_unitario_cents: i.acrescimo_unitario_cents ?? 0,
+      // RN-VEN-11: mínimo por unidade base = preço de venda × (1 − desconto máximo efetivo), do Core (null = sem preço de venda, sem mínimo)
+      preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100 }),
     })),
     precos: mapaPreco,
     precos_embalagem: mapaEmbalagem,

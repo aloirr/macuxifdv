@@ -168,6 +168,17 @@ describe('telas sobre o pull (T-0029 §8)', () => {
     expect(paraAprovar(l, 'vendedor')).toEqual([]);
   });
 
+  it('RN-VEN-18: orçamento da equipe nunca entra em "para aprovar", mesmo com status/nível de aprovação por engano', () => {
+    const l = linhas({
+      pedidos: [
+        pedido({ id: U(34), tipo: 'orcamento', status: 'pending_approval', nivel_aprovacao: 'supervisor' } as never),
+        pedido({ id: U(35), tipo: 'orcamento', status: 'received' } as never),
+      ],
+    });
+    expect(paraAprovar(l, 'supervisor')).toEqual([]);
+    expect(paraAprovar(l, 'gerente')).toEqual([]);
+  });
+
   it('RN-CAT-06: produto sem preço para o cliente aparece como "sem preço" (nunca cai na tabela padrão) e o estoque não limita', () => {
     const l = linhas({ produtos: [produto(1), produto(2), produto(3, false)] });
     const lista = produtosComPrecos(l, new Map([[U(301), 100_000]]));

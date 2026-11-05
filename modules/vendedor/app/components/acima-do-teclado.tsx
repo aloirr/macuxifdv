@@ -17,26 +17,48 @@ export function AcimaDoTeclado({ children }: { children: ReactNode }) {
   );
 }
 
-/** Ao abrir o teclado, rola o `ScrollView` até o campo com foco ficar inteiro acima dele. Passe `ref` e `onScroll` ao ScrollView. */
-export function useCampoAcimaDoTeclado(): { ref: RefObject<ScrollView | null>; onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void } {
+/**
+ * Ao abrir o teclado, rola o `ScrollView` até o campo com foco ficar inteiro acima dele. Passe `ref`, `onScroll` e `onLayout` ao
+ * ScrollView. W3: a rolagem espera o evento de teclado mostrado e o layout da área encolhida (onLayout); se o layout não mudar
+ * (a área já cabia), um prazo curto roda a rolagem mesmo assim.
+ */
+export function useCampoAcimaDoTeclado(): {
+  ref: RefObject<ScrollView | null>;
+  onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onLayout: () => void;
+} {
   const ref = useRef<ScrollView | null>(null);
   const y = useRef(0);
+  const pendente = useRef<{ tecladoTopo: number } | null>(null);
+  const prazo = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     y.current = e.nativeEvent.contentOffset.y;
   }, []);
-  useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidShow', (e) => {
-      const campo = TextInput.State.currentlyFocusedInput?.();
-      if (!campo) return;
-      // o layout encolhido (padding) só vale no próximo quadro; antes disso a rolagem ainda seria limitada pelo tamanho antigo
-      requestAnimationFrame(() => {
-        campo.measureInWindow((_x, topo, _w, altura) => {
-          const dy = rolagemParaCampo({ campoBaixo: topo + altura, tecladoTopo: e.endCoordinates.screenY });
-          if (dy > 0) ref.current?.scrollTo({ y: y.current + dy, animated: true });
-        });
+  const rolar = useCallback(() => {
+    const p = pendente.current;
+    pendente.current = null;
+    if (prazo.current) clearTimeout(prazo.current);
+    prazo.current = null;
+    if (!p) return;
+    const campo = TextInput.State.currentlyFocusedInput?.();
+    if (!campo) return;
+    requestAnimationFrame(() => {
+      campo.measureInWindow((_x, topo, _w, altura) => {
+        const dy = rolagemParaCampo({ campoBaixo: topo + altura, tecladoTopo: p.tecladoTopo });
+        if (dy > 0) ref.current?.scrollTo({ y: y.current + dy, animated: true });
       });
     });
-    return () => sub.remove();
   }, []);
-  return { ref, onScroll };
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', (e) => {
+      pendente.current = { tecladoTopo: e.endCoordinates.screenY };
+      if (prazo.current) clearTimeout(prazo.current);
+      prazo.current = setTimeout(rolar, 250);
+    });
+    return () => {
+      sub.remove();
+      if (prazo.current) clearTimeout(prazo.current);
+    };
+  }, [rolar]);
+  return { ref, onScroll, onLayout: rolar };
 }

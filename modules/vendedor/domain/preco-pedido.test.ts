@@ -184,10 +184,14 @@ describe('RN-VEN-10: alçada olha só o desconto efetivo', () => {
 });
 
 describe('RN-VEN-11: preço mínimo e desconto máximo do item', () => {
-  it('RN-VEN-11: preço mínimo = preço de venda × (1 − desconto máximo), meia para cima', () => {
+  it('RN-VEN-11: preço mínimo = preço de venda × (1 − desconto máximo), arredondado para cima (= precoMinimoCents do Core)', () => {
     expect(precoMinimoBaseCents({ preco_venda_cents: 10000, desconto_maximo_pct: 15 })).toBe(8500);
     expect(precoMinimoBaseCents({ preco_venda_cents: 1005, desconto_maximo_pct: 5 })).toBe(955); // 954,75
+    expect(precoMinimoBaseCents({ preco_venda_cents: 1891, desconto_maximo_pct: 15 })).toBe(1608); // 1607,35 sobe: R$ 16,08 (igual ao BKO)
+    expect(precoMinimoBaseCents({ preco_venda_cents: 999, desconto_maximo_pct: 15 })).toBe(850); // 849,15
+    expect(precoMinimoBaseCents({ preco_venda_cents: 1234, desconto_maximo_pct: 7.5 })).toBe(1142); // 1141,45
     expect(precoMinimoBaseCents({ preco_venda_cents: 10000, desconto_maximo_pct: 25 })).toBe(7500);
+    expect(precoMinimoBaseCents({ preco_venda_cents: 1890, desconto_maximo_pct: 15 })).toBe(1607); // caso C6a: R$ 16,07
   });
   it('RN-VEN-11: produto sem preço de venda não tem mínimo (null)', () => {
     expect(precoMinimoBaseCents({ preco_venda_cents: null, desconto_maximo_pct: 15 })).toBeNull();

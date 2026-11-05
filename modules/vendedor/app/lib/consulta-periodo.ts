@@ -30,3 +30,25 @@ export function mensagemForaDaJanela(e: 'disponivel_com_conexao' | 'carregando' 
 export function pedidosDaConsulta(itens: readonly Order[]): PedidoDaLista[] {
   return itens.map((o) => ({ ...o, local: false, local_error: '' }));
 }
+
+export interface EntradaTextoDoVazio {
+  fora: boolean;
+  modoConsulta: string | null | undefined;
+  estadoDoServidor: 'ok' | 'erro' | 'carregando' | null | undefined;
+  buscando: boolean;
+  situacao: string;
+  gestao: boolean;
+}
+
+/** Texto da lista vazia de Pedidos: fora da janela sem resposta, com busca, ou conforme a situação. */
+export function textoDoVazio(e: EntradaTextoDoVazio): string {
+  if (e.fora) {
+    if (e.estadoDoServidor === 'ok') return 'Nenhum pedido neste período.';
+    return mensagemForaDaJanela(e.modoConsulta === 'disponivel_com_conexao' ? 'disponivel_com_conexao' : e.estadoDoServidor === 'erro' ? 'erro' : 'carregando');
+  }
+  if (e.buscando) return 'Nenhum pedido encontrado. Confira o nome ou o número, ou limpe a busca.';
+  if (e.situacao === 'orcamentos' || e.situacao === 'orc_abertos') return 'Nenhum orçamento neste período.';
+  if (e.situacao === 'decide') return 'Nada para aprovar agora.';
+  if (e.situacao === 'todos') return e.gestao ? 'Nenhum pedido da equipe neste período.' : 'Nenhum pedido neste período. Toque em Novo para começar.';
+  return 'Nenhum pedido com esta situação neste período.';
+}

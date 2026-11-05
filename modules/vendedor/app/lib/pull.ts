@@ -352,6 +352,6 @@ export function detalheDoPedido(l: LinhasVendedor, id: string, perfil: string, p
 
 /** Pedidos que o perfil pode decidir agora (aba "Para aprovar" da Gestão; matriz §2, P-3). */
 export function paraAprovar(l: LinhasVendedor, perfil: string): PedidoSync[] {
-  return l.pedidos.filter((p) => p.status === 'pending_approval' && p.nivel_aprovacao != null && quemDecide(perfil, p.nivel_aprovacao).pode);
+  return l.pedidos.filter((p) => p.tipo !== 'orcamento' && p.status === 'pending_approval' && p.nivel_aprovacao != null && quemDecide(perfil, p.nivel_aprovacao).pode);
 }
 

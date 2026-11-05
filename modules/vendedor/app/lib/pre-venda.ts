@@ -44,7 +44,8 @@ export function acoesNaTela(o: DocumentoNaTela, agora: Date, ehVendedor: boolean
   const s = situacaoNaTela(o, agora);
   if (!s) return null;
   const a = acoesDoOrcamento(s);
-  return ehVendedor ? a : { ...a, pode_converter: false, pode_cancelar: false };
+  // gestão (supervisor/gerente) só vê: sem Transformar, Editar nem Cancelar do orçamento de outro vendedor
+  return ehVendedor ? a : { ...a, pode_converter: false, pode_cancelar: false, pode_editar: false };
 }
 
 /**

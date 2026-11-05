@@ -24,7 +24,7 @@ import {
 } from '../lib/novo-pedido';
 import { medidasVisiveis, proximaMedida, trocarMedidaDaLinha } from '../lib/medida-do-item';
 import { textoEquivalente, textoPrecoDaLinha } from '../lib/textos-pedido';
-import { textoAposMudancaDoValor, valorPendentePct, valorPendenteQuantidade, valorPendenteReais } from '../lib/valor-pendente';
+import { quantidadeAoConfirmar, quantidadeAoDigitar, quantidadeBaseDoPasso, registrarValorPendente, textoAposMudancaDoValor, valorPendentePct, valorPendenteQuantidade, valorPendenteReais } from '../lib/valor-pendente';
 
 // ---------- campos ----------
 function Passo({ icone, rotulo, onPress, desligado, testID }: { icone: 'plus' | 'minus'; rotulo: string; onPress: () => void; desligado?: boolean; testID?: string }) {
@@ -222,7 +222,7 @@ function LinhaDoProduto({
         <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
           <Text style={t.mono}>{p.erp_code}</Text>
           <Text style={t.bodyStrong}>{p.description}</Text>
-          {p.applications ? <Text style={t.small}>{p.applications}</Text> : null}
+          {p.applications ? <Text style={t.small} numberOfLines={2}>{p.applications}</Text> : null}
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           {unica !== null ? chipDe(unica, tocavel) : null}
@@ -291,6 +291,11 @@ function MedidaDoItem({
 }) {
   const [texto, setTexto] = useState(String(qtd));
   const focado = useRef(false);
+  // o campo em foco expõe o que está digitado a Salvar/Avançar/abas/+− (o "0" só vale ao confirmar)
+  const vivo = useRef({ texto, qtd, onQtd });
+  vivo.current = { texto, qtd, onQtd };
+  const desregistrar = useRef<(() => void) | null>(null);
+  useEffect(() => () => desregistrar.current?.(), []);
   const modo: 'pct' | 'valor' = ajuste.em === 'valor' ? 'valor' : 'pct';
   const sentido: 'desconto' | 'acrescimo' = modo === 'valor' ? ((ajuste.acrescimo_cents ?? 0) > 0 ? 'acrescimo' : 'desconto') : (ajuste.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
   const valorPct = sentido === 'acrescimo' ? (ajuste.acrescimo_pct ?? 0) : (ajuste.desconto_pct ?? 0);
@@ -316,22 +321,27 @@ function MedidaDoItem({
           <Text style={[t.bodyStrong, { fontFamily: fonts.bold }]}>{qtd}</Text>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Passo icone="minus" rotulo={`Diminuir ${nome}`} desligado={qtd <= 0} onPress={() => onQtd(qtd - 1)} testID={`dec-${k}`} />
+            <Passo icone="minus" rotulo={`Diminuir ${nome}`} desligado={qtd <= 0} onPress={() => onQtd(quantidadeBaseDoPasso({ texto, focado: focado.current, qtd }) - 1)} testID={`dec-${k}`} />
             <TextInput
               testID={`qty-${k}`}
               value={texto}
               onChangeText={(v) => {
                 const limpo = v.replace(/\D/g, '');
                 setTexto(limpo);
-                const n = valorPendenteQuantidade(limpo);
+                // W1: zero ou vazio no meio da digitação não tira o item; vale ao sair do campo ou pelo −
+                const n = quantidadeAoDigitar(limpo);
                 if (n !== null) onQtd(n);
               }}
               onFocus={() => {
                 focado.current = true;
+                desregistrar.current?.();
+                desregistrar.current = registrarValorPendente(() => vivo.current.onQtd(quantidadeAoConfirmar(vivo.current.texto)));
               }}
               onBlur={() => {
                 focado.current = false;
-                const n = valorPendenteQuantidade(texto) ?? 0;
+                desregistrar.current?.();
+                desregistrar.current = null;
+                const n = quantidadeAoConfirmar(texto);
                 setTexto(String(n));
                 onQtd(n);
               }}
@@ -341,7 +351,7 @@ function MedidaDoItem({
               accessibilityLabel={`Quantidade de ${nome}`}
               style={s.qtd}
             />
-            <Passo icone="plus" rotulo={`Aumentar ${nome}`} desligado={preco === null} onPress={() => onQtd(qtd + 1)} testID={`inc-${k}`} />
+            <Passo icone="plus" rotulo={`Aumentar ${nome}`} desligado={preco === null} onPress={() => onQtd(quantidadeBaseDoPasso({ texto, focado: focado.current, qtd }) + 1)} testID={`inc-${k}`} />
           </View>
         )}
       </View>

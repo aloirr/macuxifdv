@@ -40,3 +40,41 @@ export function textoAposMudancaDoValor(e: { texto: string; valor: number; focad
   if (p === null || p === e.valor) return e.texto;
   return e.formatar(e.valor);
 }
+
+/** Quantidade a gravar enquanto digita: zero ou vazio não tira o item (só ao sair do campo ou pelo botão −). */
+export function quantidadeAoDigitar(texto: string): number | null {
+  const n = valorPendenteQuantidade(texto);
+  return n !== null && n > 0 ? n : null;
+}
+
+/**
+ * Quantidade a gravar ao confirmar (Salvar, Avançar, trocar de aba, +/−, sair do campo): "0" ou campo vazio tira o item
+ * (0); um número válido grava. É o complemento de `quantidadeAoDigitar`, que durante a digitação ignora o zero (W1).
+ */
+export function quantidadeAoConfirmar(texto: string): number {
+  return valorPendenteQuantidade(texto) ?? 0;
+}
+
+/** Base do passo +/−: com o campo em foco vale o que está digitado ("0" + 1 = 1); sem foco, a quantidade gravada. */
+export function quantidadeBaseDoPasso(e: { texto: string; focado: boolean; qtd: number }): number {
+  return e.focado ? quantidadeAoConfirmar(e.texto) : e.qtd;
+}
+
+// Registro do campo em foco: quem confirma a tela (Salvar, Avançar, aba) aplica o valor pendente antes de seguir.
+let pendente: (() => void) | null = null;
+
+/** O campo em foco registra como aplicar o que está digitado; devolve a função que desfaz o registro (no blur/desmonte). */
+export function registrarValorPendente(aplicar: () => void): () => void {
+  pendente = aplicar;
+  return () => {
+    if (pendente === aplicar) pendente = null;
+  };
+}
+
+/** Aplica o valor pendente do campo em foco, se houver. Devolve `true` quando havia um campo pendente. */
+export function aplicarValorPendente(): boolean {
+  const f = pendente;
+  if (!f) return false;
+  f();
+  return true;
+}

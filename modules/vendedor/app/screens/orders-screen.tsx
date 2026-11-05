@@ -36,7 +36,7 @@ import { pedidoAFaturar } from '../../domain/resumo-inicio';
 import { orcamentosEmAberto } from '../lib/resumo-inicio';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { SeletorDePeriodo } from '../components/seletor-periodo';
-import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, mensagemForaDaJanela, pedidosDaConsulta, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
+import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, pedidosDaConsulta, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
 import { seloDaLinha } from '../lib/selo-lista';
 import { orderNote, statusBadge } from '../lib/order-status';
 import type { PedidoDaLista } from '../lib/pedidos';
@@ -181,21 +181,7 @@ export default function OrdersScreen() {
   };
   // Y12: fora dos 90 dias sem resposta do servidor, "0 pedidos" seria falso; o cartão mostra o estado
   const semResposta = fora && doServidor?.estado !== 'ok';
-  const vazio = fora
-    ? doServidor?.estado === 'ok'
-      ? 'Nenhum pedido neste período.'
-      : mensagemForaDaJanela(modoConsulta === 'disponivel_com_conexao' ? 'disponivel_com_conexao' : doServidor?.estado === 'erro' ? 'erro' : 'carregando')
-    : buscando
-      ? 'Nenhum pedido encontrado. Confira o nome ou o número, ou limpe a busca.'
-      : atual === 'orcamentos' || atual === 'orc_abertos'
-        ? 'Nenhum orçamento neste período.'
-        : atual === 'decide'
-          ? 'Nada para aprovar agora.'
-          : atual === 'todos'
-            ? gestao
-              ? 'Nenhum pedido da equipe neste período.'
-              : 'Nenhum pedido neste período. Toque em Novo para começar.'
-            : 'Nenhum pedido com esta situação neste período.';
+  const vazio = textoDoVazio({ fora, modoConsulta, estadoDoServidor: doServidor?.estado, buscando, situacao: atual, gestao });
 
   return (
     <FlatList
