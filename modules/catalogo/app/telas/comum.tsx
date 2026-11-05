@@ -3,7 +3,7 @@
  * registra "Adicionar ao pedido" com `acao: 'pedido.criar'`; o shell já esconde do promotor — RN-PRO-01, regra 7).
  */
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { Badge, Button, Card, colors, fonts, type as t, type IconName } from '@macuxi/ui/mobile';
+import { ALTURA, Badge, Button, Card, colors, fonts, type as t, type IconName } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AcaoProduto, ContextoProduto, ItemVitrine } from '../../contracts';
 import { rotuloEstoque, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
@@ -17,6 +17,9 @@ export function contextoDoProduto(item: ItemVitrine, clienteId: string | null): 
   return { produtoId: item.id, sku: item.erp_code, nomeProduto: item.description, clienteId, vendavel: item.price ? item.price.sellable : null };
 }
 
+/** Só a ficha leva o botão principal (laranja, 52): na vitrine cada cartão seria um principal por tela. */
+const principal = (destaque: boolean | undefined, compacto: boolean) => !!destaque && !compacto;
+
 export function BotoesAcao({ item, clienteId, compacto = false }: { item: ItemVitrine; clienteId: string | null; compacto?: boolean }) {
   const acoes = useAcoesProduto();
   if (acoes.length === 0) return null;
@@ -29,8 +32,8 @@ export function BotoesAcao({ item, clienteId, compacto = false }: { item: ItemVi
           testID={`${a.payload.testID}-${item.erp_code}`}
           label={a.payload.rotulo}
           icon={a.payload.icone as IconName | undefined}
-          variant={a.payload.destaque ? 'accent' : 'outline'}
-          height={48}
+          variant={principal(a.payload.destaque, compacto) ? 'accent' : 'outline'}
+          height={principal(a.payload.destaque, compacto) ? ALTURA.principal : ALTURA.toque}
           onPress={() => a.payload.abrir(ctx)}
           style={compacto ? s.botaoCompacto : undefined}
         />
