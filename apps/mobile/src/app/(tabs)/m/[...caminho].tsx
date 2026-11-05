@@ -6,9 +6,12 @@
  * "reduzir movimento" não deslocam (lib/transicao-modulo.ts).
  * Histórico por aba (T-0071): cada tela que abre entra na pilha da aba (lib/historico-telas.ts), que o voltar do Android e
  * o `BackLink` desempilham pelo roteador do Tabs ((tabs)/_layout.tsx).
+ * Rótulo do voltar (T-0072, R-20261105-132419 / R-20261105-135855): a tela fica dentro do `ProvedorVoltar` do kit com o
+ * valor do shell (`useVoltarDoShell`), lido já no render: na raiz de uma pilha aberta pelo Início o `BackLink` mostra
+ * "‹ Início" (lido "Voltar para Início") desde o primeiro quadro; no resto (`null`) vale o rótulo do módulo.
  */
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
-import { curvaPadrao, Empty, Screen, useReduzirMovimento } from '@macuxi/ui/mobile';
+import { curvaPadrao, Empty, ProvedorVoltar, Screen, useReduzirMovimento } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, useRoute } from 'expo-router';
 import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { Animated, useWindowDimensions } from 'react-native';
@@ -16,6 +19,7 @@ import { Animated, useWindowDimensions } from 'react-native';
 import { chaveDosParams, registrarTelaAberta, type ParamsDaRota } from '@/lib/historico-telas';
 import { animacaoDeEntrada } from '@/lib/transicao-modulo';
 import type { ComponenteTela } from '@/lib/modulos';
+import { useVoltarDoShell } from '@/state/historico-do-shell';
 
 export default function TelaDeModulo() {
   const { caminho } = useLocalSearchParams<{ caminho: string | string[] }>();
@@ -41,9 +45,14 @@ export default function TelaDeModulo() {
   );
 }
 
-/** Registra a tela na pilha da aba e anima a entrada quando a rota muda (deslocamento lateral + esmaecer, driver nativo). */
+/**
+ * Registra a tela na pilha da aba, anima a entrada quando a rota muda (deslocamento lateral + esmaecer, driver nativo) e
+ * dá à tela o rótulo do voltar do shell (`ProvedorVoltar`).
+ */
 function EntradaDaTela({ chave, params, testID, children }: { chave: string; params: ParamsDaRota | undefined; testID: string; children: ReactNode }) {
   const reduzir = useReduzirMovimento();
+  // previsão pura sobre o retrato do histórico: já certo antes do registro no useLayoutEffect (sem piscar "Pedidos")
+  const voltar = useVoltarDoShell(params);
   const { width } = useWindowDimensions();
   // valores animados criados uma vez (useState preguiçoso: sem ler ref no render, amigo do React Compiler)
   const [x] = useState(() => new Animated.Value(0));
@@ -68,7 +77,7 @@ function EntradaDaTela({ chave, params, testID, children }: { chave: string; par
   }, [chave]);
   return (
     <Animated.View testID={testID} style={{ flex: 1, opacity: opacidade, transform: [{ translateX: x }] }}>
-      {children}
+      <ProvedorVoltar value={voltar}>{children}</ProvedorVoltar>
     </Animated.View>
   );
 }
