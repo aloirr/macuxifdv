@@ -19,4 +19,6 @@ export const hrefPedidoVendedor = (id: string) => `/m/${CAMINHO_PEDIDO_VENDEDOR}
 export const irParaAprovacoes = () => router.push(`/m/${CAMINHO_APROVACOES}` as never);
 export const irParaMembro = (id: string) => router.push(hrefMembro(id) as never);
 export const irParaRanking = () => router.push(hrefRanking() as never);
+/** Ficha do cliente do Core (`/m/cliente?id=`), a mesma do link da notificação de etapa pendente. */
+export const irParaCliente = (id: string) => router.push(`/m/cliente?id=${encodeURIComponent(id)}` as never);
 export const irParaPedidoDoVendedor = (id: string) => router.push(hrefPedidoVendedor(id) as never);

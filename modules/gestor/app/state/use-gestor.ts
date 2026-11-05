@@ -8,19 +8,25 @@
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { DEFAULT_TZ } from '@macuxi/ui/mobile/puro';
+import { relogioReal } from '@macuxi/comum/relogio';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { alertasDePendenciaCheckout, type NotificacaoPendencia } from '../../domain/alertas-pendencia-checkout';
 import { Alerta, FichaMembro, RankingEquipe, ROTAS_GESTOR, type IndicadorRanking, type PeriodoRanking } from '../../contracts';
 import { aplicarParadoMinDoTenant } from '../lib/parado-min';
 import { chaveRanking, criarCache, DADOS_VAZIOS, mensagemDeErro, type DadosGestor } from '../lib/cache';
 
+const relogio = relogioReal();
 export const PRECISA_SINAL = 'Sem conexão: esta ação precisa de internet. Tente de novo quando o sinal voltar.';
 
-export function useGestor() {
+/** `pendencias: true` só na aba Alertas: as demais telas não leem as notificações do SQLite (T-0039 G1). */
+export function useGestor(opcoes: { pendencias?: boolean } = {}) {
+  const lerPendencias = opcoes.pendencias === true;
   const { motor, estado } = useMotorSync();
   const ambiente = useAmbiente();
   const cache = useMemo(() => (motor ? criarCache(motor.armazenamentoDoModulo('gestor')) : null), [motor]);
   const [dados, setDados] = useState<DadosGestor>(DADOS_VAZIOS);
   const [carregado, setCarregado] = useState(false);
+  const [notificacoes, setNotificacoes] = useState<NotificacaoPendencia[]>([]);
   const usuario = ambiente.usuario();
   const tz = usuario?.fuso ?? DEFAULT_TZ;
   const offline = !ambiente.online();
@@ -30,9 +36,11 @@ export function useGestor() {
     const d = await cache.carregar();
     // RN-CORE-26: o `inicio.parado_min` do tenant (pull `parametro` do Core) vence o valor da visão do Gestor
     const linhas = motor ? await motor.linhas<{ id: string; updated_at: string; deleted_at: string | null; modulo: string; chave: string; valor: unknown }>('parametro').catch(() => []) : [];
+    // T-0039 §4.3: a notificação do Core (pull `notificacao`) já está no aparelho; o Gestor só a lê
+    if (lerPendencias) setNotificacoes(motor ? await motor.linhas<NotificacaoPendencia>('notificacao').catch(() => []) : []);
     setDados({ ...d, visao: aplicarParadoMinDoTenant(d.visao, linhas) });
     setCarregado(true);
-  }, [cache, motor]);
+  }, [cache, motor, lerPendencias]);
 
   // relê o cache ao montar e sempre que o motor conclui uma sincronização (a etapa do Gestor gravou dados novos)
   useEffect(() => {
@@ -94,5 +102,7 @@ export function useGestor() {
     [ambiente, cache],
   );
 
-  return { ...dados, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, auto, dispensar, ficha, ranking };
+  const pendencias = useMemo(() => alertasDePendenciaCheckout(notificacoes, { perfil: usuario?.perfil, agora: relogio.agora().toISOString() }), [notificacoes, usuario?.perfil, estado.sincronizado_em]);
+
+  return { ...dados, pendencias, usuarioId: usuario?.id ?? null, carregado, sincronizando: estado.sincronizando, erro: estado.erro, offline, tz, auto, dispensar, ficha, ranking };
 }

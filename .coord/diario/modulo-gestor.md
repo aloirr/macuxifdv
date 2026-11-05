@@ -14,3 +14,7 @@
 2026-11-05 — T-0072 — 4 🟡 do designer-ux: título da ficha com erro, tons parado/rota concluída, resumo 2x2, Banner sem sinal em Alertas
 2026-11-05 — T-0072 — ficha do Gestão: ação 'Tentar de novo' no erro (botão principal único)
 2026-11-05 — T-0039 — verificado: pendência de etapa no Gestão é do Core (ficha /m/cliente); Gestor sem alteração; §4.3 (Alertas) adiado
+2026-11-05 — T-0039 — alerta de etapa pendente do checkout na aba Alertas do Gestão (tipo de aparelho, domain com teste, pedido de marcador ao Core)
+2026-11-05 — T-0039 — alerta Etapa pendente: título único, toque abre /m/cliente, divisória da última pendência
+2026-11-05 — T-0039 — Gestor: tipo do Core, janela de 30 dias, detecção por subtipo com reserva por título, 🟢 da revisão final
+2026-11-05 — T-0039 — G1 (notificações só na aba Alertas) e 🟢 da revisão; interseção de subtipo removida
