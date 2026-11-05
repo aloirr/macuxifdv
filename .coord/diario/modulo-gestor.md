@@ -18,3 +18,4 @@
 2026-11-05 — T-0039 — alerta Etapa pendente: título único, toque abre /m/cliente, divisória da última pendência
 2026-11-05 — T-0039 — Gestor: tipo do Core, janela de 30 dias, detecção por subtipo com reserva por título, 🟢 da revisão final
 2026-11-05 — T-0039 — G1 (notificações só na aba Alertas) e 🟢 da revisão; interseção de subtipo removida
+2026-11-05 — T-0071 — item 5: lista de orçamentos da equipe é do Vendedor (recado enviado); 4 testes de não-contagem de orçamento no Gestor (orcamento-equipe.test.ts)
