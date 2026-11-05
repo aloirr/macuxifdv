@@ -33,7 +33,7 @@ export function AbaPesquisasCliente({ contexto }: { contexto: ContextoCliente })
               {d.liberada_em ? <Text style={t.small}>Volta em {dataBr(d.liberada_em)}</Text> : null}
             </View>
           ) : (
-            <ChipEstado pequeno tom="neutro" texto="Fora do público" />
+            <ChipEstado pequeno tom="neutro" texto="Não vale para este cliente" />
           )}
         </View>
       ))}

@@ -125,7 +125,7 @@ export default function ResponderScreen() {
         <View style={{ alignItems: 'center', gap: 10, paddingTop: 24 }} testID="pesquisa.enviada">
           <Icon name="check" size={32} color={colors.success} />
           <Text style={t.h1}>Resposta registrada</Text>
-          {offline ? <ChipEstado tom="aviso" icone="wifiOff" texto="Na fila" /> : <ChipEstado tom="sucesso" icone="check" texto="Registrada" />}
+          {offline ? <ChipEstado tom="aviso" icone="wifiOff" texto="Na fila" /> : null}
           {offline ? <Text style={t.sub}>Vai quando o sinal voltar</Text> : null}
         </View>
         <Botao testID="pesquisa.voltar" rotulo="Voltar" onPress={voltar} />

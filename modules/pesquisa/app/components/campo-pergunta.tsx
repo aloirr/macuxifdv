@@ -197,7 +197,7 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
           ))}
           {capturaDisponivel() ? (
             fotos.length < p.max_fotos ? (
-              <Botao testID={tid('foto-tirar')} rotulo={fotos.length ? 'Tirar outra' : 'Tirar foto'} onPress={() => void tirar()} />
+              <Botao testID={tid('foto-tirar')} rotulo={fotos.length ? 'Tirar outra' : 'Tirar foto'} icone="camera" onPress={() => void tirar()} />
             ) : (
               <Text style={t.small}>{p.max_fotos === 1 ? 'Limite de 1 foto' : `Limite de ${p.max_fotos} fotos`}</Text>
             )
@@ -218,7 +218,7 @@ export function CampoPergunta({ pergunta: p, item, ordem, erro, agora, onRespond
       <Text style={t.title16}>
         {ordem}. {p.enunciado}
       </Text>
-      {p.obrigatoria ? <ChipEstado pequeno tom="aviso" texto="Obrigatória" /> : null}
+      {p.obrigatoria ? <ChipEstado pequeno tom="neutro" texto="Obrigatória" /> : null}
       {p.ajuda ? <Text style={t.small}>{p.ajuda}</Text> : null}
       <View style={{ gap: 8 }}>{corpo}</View>
       {erro ? (
