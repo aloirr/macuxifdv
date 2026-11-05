@@ -21,6 +21,9 @@
  * D-3 (ADR 0009 §3): a página leva `horizonte` e o item aceito leva `em` (relógio do banco, lido DEPOIS dos provedores
  * gravarem). O aparelho mantém o item aceito sobreposto até um pull com `horizonte > em`: aí a linha já veio.
  *
+ * ADR 0021: a página e as novidades levam `geracao_base` (`plataforma.tenant.geracao_base`, lida pela RLS do tenant da sessão);
+ * banco sem a coluna = sem o campo. O aparelho que vê outra geração reenvia a fila, apaga a cópia local e puxa tudo.
+ *
  * Novidades — RN-CORE-23 (ADR 0018): `GET /v1/sync/novidades?desde=<cursor>` → `{ entidades, cursor, horizonte,
  * modulos_mudaram, modulos? }`. Entidades elegíveis = as que o pull serviria ao usuário (módulo efetivo, provedor com
  * `puxar`, regra do promotor). Cursor ausente/ilegível, módulos efetivos (ou parâmetros) mudados ou carteira/equipe
@@ -148,11 +151,13 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
       .sort(compararCursor);
     const itens = validas.slice(0, TAMANHO_PAGINA_SYNC);
     const ultimo = itens[itens.length - 1];
+    const geracao = await p.banco.geracaoBase?.(ctx.usuario.tenant_id);
     return {
       itens,
       proximo_cursor: validas.length > TAMANHO_PAGINA_SYNC && ultimo ? codificarCursor(ultimo) : null,
       ...(versao !== undefined ? { versao_escopo: versao } : {}),
       horizonte: ate,
+      ...(geracao ? { geracao_base: geracao } : {}),
     };
   });
 
@@ -193,12 +198,14 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
         if (mudou) entidades.push(prov.entidade.nome);
       }
     }
+    const geracao = await p.banco.geracaoBase?.(u.tenant_id);
     return {
       entidades,
       cursor: codificarCursorNovidades({ horizonte: ate, licencas: modulos.versao_licencas, escopo }),
       horizonte: ate,
       modulos_mudaram: modulosMudaram,
       ...(modulosMudaram ? { modulos } : {}),
+      ...(geracao ? { geracao_base: geracao } : {}),
     };
   });
 

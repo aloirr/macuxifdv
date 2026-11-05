@@ -5,15 +5,18 @@
  * no Postgres local do db/docker-compose.yml valem as padrão). Falha fechada: não sobe com papel errado.
  * Variáveis: `MACUXI_DESPACHANTE_INTERVALO_MS` (padrão 1000), `MACUXI_DESPACHANTE_LOTE` (padrão 20),
  * `MACUXI_API_LOG` (nível do log), e as dos handlers (ex.: `MACUXI_PUSH_ATIVO=1` liga o push do Core).
+ * T-0078: a cada `MACUXI_METRICAS_INTERVALO_MS` (padrão 5 min; 0 desliga) registra o resumo da outbox (`tipo: metricas`,
+ * só contagens) e, se passar do limite (`observabilidade.ts`), a mesma linha em `warn` com `alertas`.
  */
-import { lerConfig, urlApp, urlWorker } from '@macuxi/db';
+import { lerConfigApp, urlApp, urlWorker } from '@macuxi/db';
 import pg from 'pg';
 import pino from 'pino';
 import { criarBancoApp } from './banco';
-import { criarDespachante, LOTE_PADRAO, verificarPapelWorker } from './despachante';
+import { criarDespachante, LOTE_PADRAO, MAX_TENTATIVAS_PADRAO, verificarPapelWorker } from './despachante';
 import { MODULOS_API } from './modulos';
+import { avaliarAlertas, linhaDeMetricas, resumoDaLinha, SQL_RESUMO_OUTBOX } from './observabilidade';
 
-const cfg = lerConfig(); // carrega o .env (raiz e db/)
+const cfg = lerConfigApp(); // carrega o .env (raiz e db/); fora do local não exige a senha do admin
 const log = pino({ level: process.env.MACUXI_API_LOG ?? 'info', base: { processo: 'despachante' } });
 
 // o lote fica travado no worker enquanto os handlers rodam: sem idle_in_transaction curto aqui
@@ -41,7 +44,22 @@ async function principal(): Promise<void> {
   });
   log.info({ eventos: despachante.eventos() }, 'despachante no ar');
   const execucao = despachante.iniciar({ intervaloMs: Number(process.env.MACUXI_DESPACHANTE_INTERVALO_MS ?? 1_000) });
+  const registrarMetricas = async () => {
+    try {
+      const r = await poolWorker.query(SQL_RESUMO_OUTBOX, [despachante.eventos(), MAX_TENTATIVAS_PADRAO]);
+      const outbox = resumoDaLinha(r.rows[0]);
+      const alertas = avaliarAlertas({ banco: 'ok', outbox, erros_5xx: 0 });
+      if (alertas.length > 0) log.warn(linhaDeMetricas(null, outbox, alertas), 'alerta: outbox');
+      else log.info(linhaDeMetricas(null, outbox, alertas), 'métricas da outbox');
+    } catch (e) {
+      log.warn({ ...linhaDeMetricas(null, null, ['BANCO_FALHA']), erro: e instanceof Error ? e.message : String(e) }, 'alerta: banco');
+    }
+  };
+  const intervaloMetricas = Number(process.env.MACUXI_METRICAS_INTERVALO_MS ?? 300_000);
+  const timerMetricas = intervaloMetricas > 0 ? setInterval(() => void registrarMetricas(), intervaloMetricas) : undefined;
+  timerMetricas?.unref();
   const encerrar = async () => {
+    if (timerMetricas) clearInterval(timerMetricas);
     await execucao.parar();
     await Promise.all([poolWorker.end(), poolApp.end()]);
     process.exit(0);

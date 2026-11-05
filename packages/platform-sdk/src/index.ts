@@ -18,6 +18,7 @@ export * from './permissoes';
 export * from './perfis';
 export * from './ambiente';
 export * from './motor-sync';
+export * from './geracao-base';
 export * from './shell';
 export * from './api';
 export * from './conector';

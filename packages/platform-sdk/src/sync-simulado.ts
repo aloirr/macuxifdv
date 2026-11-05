@@ -4,7 +4,7 @@
  * desconhecida, MODULO_INATIVO, payload inválido) e `paginar` (cursor `(updated_at, id)`, inclui removidos).
  * ADR 0009: `versoesEscopo` (versão do conjunto visível por entidade), `semProvedor` (pull 501) e `semReceptor`
  * (push `rejeitado/SYNC_NAO_IMPLEMENTADO`), como a API real. D-3: com `relogio`, o aceito leva `em` e a página leva
- * `horizonte` (`relogio() - margemHorizonteMs`), como a API real.
+ * `horizonte` (`relogio() - margemHorizonteMs`), como a API real. ADR 0021: `geracao_base` vai em toda página e nas novidades.
  */
 import type { ModuloId } from './nomes';
 import { codificarCursorNovidades, decodificarCursorNovidades, type NovidadesResposta } from './novidades';
@@ -61,6 +61,8 @@ export interface ServidorSyncSimulado extends TransporteSync {
   margemHorizonteMs: number;
   /** Parâmetros do tenant por módulo devolvidos em `novidades().modulos` (como `GET /v1/me/modulos`). */
   parametros: Partial<Record<ModuloId, Record<string, unknown>>>;
+  /** Geração da base (ADR 0021) em toda página do pull e nas novidades; `null` = servidor sem o campo. */
+  geracao_base: string | null;
 }
 
 /** Hash curto (djb2, hex) só para o cursor simulado: o SDK roda no aparelho, sem `node:crypto`. */
@@ -91,6 +93,7 @@ export function criarServidorSyncSimulado(
     relogio: null,
     margemHorizonteMs: 2_000,
     parametros: {},
+    geracao_base: null,
     async push(itens) {
       s.chamadas.push++;
       if (!s.online) throw new ErroRedeSimulada();
@@ -127,6 +130,7 @@ export function criarServidorSyncSimulado(
         ...pagina,
         ...(versao === undefined ? {} : { versao_escopo: versao }),
         ...(horizonte ? { horizonte: horizonte.toISOString() } : {}),
+        ...(s.geracao_base ? { geracao_base: s.geracao_base } : {}),
       };
     },
   };
@@ -162,6 +166,7 @@ export function criarServidorSyncSimulado(
         ...(modulosMudaram
           ? { modulos: { modulos: ativos.map((id) => ({ id, parametros: s.parametros[id] ?? {} })), versao_licencas: licencas } }
           : {}),
+        ...(s.geracao_base ? { geracao_base: s.geracao_base } : {}),
       };
     };
   }

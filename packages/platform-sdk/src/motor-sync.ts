@@ -34,9 +34,14 @@
  *   (`transporte.novidades`) e pull só das entidades que mudaram (ou só das que o push silencioso indicou). Sem mudança
  *   = 1 requisição. O cursor de novidades (`sync:novidades`) só anda depois de todas as entidades puxadas; a sincronização
  *   completa grava um cursor-base no fim. As etapas extras (REST da Fase M) só rodam na completa.
+ * - ADR 0021 (T-0079): `geracao_base` da página do pull e das novidades diferente da guardada = a base do tenant foi recriada
+ *   ou restaurada. Troca de geração: aceitos sobrepostos voltam para a fila, a fila é enviada, linhas/cursores/escopos são
+ *   apagados (a fila de itens e a de arquivos ficam), cada etapa limpa o próprio cache (`aoTrocarGeracao`) e o pull completo
+ *   roda de novo na mesma sincronização. Sem o campo, nada muda; a primeira geração vista é adotada sem apagar nada.
  */
 import { ambienteIndisponivel, type AmbienteAparelho, type AmbienteModulo } from './ambiente';
 import { completarAmbiente, type RegistroConsultasAparelho } from './consultas';
+import { decidirGeracao, filaNaTrocaDeGeracao, normalizarGeracao } from './geracao-base';
 import {
   caminhoFoto,
   CODIGOS_ARQUIVO,
@@ -314,6 +319,12 @@ export interface EtapaSync {
   rotulo: string;
   modulo: ModuloId;
   executar(ctx: ContextoEtapaSync): Promise<void>;
+  /**
+   * ADR 0021: a base do servidor foi recriada ou restaurada. A etapa apaga do armazenamento do módulo (`ctx.armazenamento`)
+   * o que é cópia do servidor e guarda o que é do usuário (rascunho). Roda depois do envio da fila e antes do pull completo,
+   * em todas as etapas registradas. Erro aqui = a sincronização termina com erro e a troca é repetida na próxima.
+   */
+  aoTrocarGeracao?(ctx: ContextoEtapaSync): Promise<void>;
 }
 
 export interface ContextoEtapaSync extends AmbienteModulo {
@@ -434,6 +445,8 @@ const CHAVE = {
   carga: 'sync:carga',
   /** Cursor de `GET /v1/sync/novidades` (RN-CORE-23, ADR 0018): grava só depois de puxar o que ele apontou. */
   novidades: 'sync:novidades',
+  /** Última `geracao_base` vista no servidor (ADR 0021). */
+  geracao: 'sync:geracao_base',
   entidade: (e: string) => `ent:${e}`,
   modulo: (m: string) => `mod:${m}:`,
 };
@@ -467,6 +480,18 @@ export const MENSAGEM_PULL_INDISPONIVEL =
   'Ainda não disponível no servidor; os outros dados foram sincronizados.';
 
 type Linhas = Record<string, LinhaSync>;
+
+/** Mensagem quando a geração da base muda de novo durante a própria troca (ADR 0021 §5). */
+export const MENSAGEM_GERACAO_INSTAVEL =
+  'A base do servidor mudou durante a sincronização. Tente sincronizar de novo em instantes; nada da fila foi perdido.';
+
+/** Sinal interno: a página trouxe outra geração (ADR 0021). Nunca sai do motor. */
+class GeracaoTrocada extends Error {
+  constructor(readonly nova: string) {
+    super('geração da base trocada');
+    this.name = 'GeracaoTrocada';
+  }
+}
 
 /** Até onde a passada completa do pull da entidade garante ter trazido as linhas (D-3); `indisponivel` = 501. */
 type Cobertura = { horizonte: string | null; inicio: string } | 'indisponivel';
@@ -630,6 +655,68 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     }
     for (const k of await a.chaves(CHAVE.modulo(modulo))) await a.remover(k);
     await a.removerModulo?.(modulo);
+  };
+
+  /** Contexto de uma etapa de módulo (`executar` e `aoTrocarGeracao`). */
+  const contextoDaEtapa = (e: EtapaSync): ContextoEtapaSync => ({
+    armazenamento: comPrefixo(op.armazenamento, CHAVE.modulo(e.modulo)),
+    agora,
+    http: ambiente.http,
+    online,
+    novoId: () => ambiente.novoId(),
+    usuario: () => ambiente.usuario(),
+    consultar: ambiente.consultar,
+    parametros: ambiente.parametros,
+  });
+
+  // ---------- geração da base (ADR 0021) ----------
+  /** `undefined` = ainda não lida do armazenamento. */
+  let geracaoGuardada: string | null | undefined;
+  const lerGeracao = async (): Promise<string | null> => {
+    if (geracaoGuardada === undefined) geracaoGuardada = await op.armazenamento.ler<string>(CHAVE.geracao);
+    return geracaoGuardada;
+  };
+  const gravarGeracao = async (g: string) => {
+    const valor = normalizarGeracao(g);
+    await op.armazenamento.gravar(CHAVE.geracao, valor);
+    geracaoGuardada = valor;
+  };
+  /** Adota a primeira geração vista; outra = `GeracaoTrocada` (quem sincroniza faz a troca e recomeça). */
+  const conferirGeracao = async (recebida: string | null | undefined): Promise<void> => {
+    const decisao = decidirGeracao(await lerGeracao(), recebida);
+    if (decisao === 'adotar') await gravarGeracao(recebida!);
+    else if (decisao === 'trocou') throw new GeracaoTrocada(recebida!);
+  };
+
+  /**
+   * Troca de geração (ADR 0021 §5), idempotente: se o app cair no meio, a geração guardada ainda é a antiga e a próxima
+   * sincronização repete tudo. Nada da fila de itens nem da fila de arquivos é apagado.
+   */
+  const trocarGeracao = async (nova: string): Promise<void> => {
+    mudar({ etapa: 'A base do servidor mudou: enviando a fila', progresso: 0 });
+    // 1. aceitos ainda sobrepostos voltam para a fila (a base nova pode não ter recebido)
+    if (estado.aceitos.length > 0) await gravarFilaEAceitos(filaNaTrocaDeGeracao(estado.fila, estado.aceitos), []);
+    // 2. a fila vai primeiro (o que a base nova recusar fica `falhou`, visível)
+    await motor.enviar();
+    mudar({ etapa: 'A base do servidor mudou: recarregando os dados' });
+    // 3. cópia local do servidor: linhas, cursores, escopos, ressincronizações, carga e cursor de novidades
+    await emTransacao(async (a) => {
+      for (const { nome } of op.registro.entidadesAtivas(MODULOS)) {
+        if (a.linhas) await a.linhas.limpar(nome);
+        else {
+          await a.remover(CHAVE.entidade(nome));
+          await a.remover(CHAVE.cursor(nome));
+        }
+        await a.remover(CHAVE.escopo(nome));
+        await a.remover(CHAVE.ressinc(nome));
+      }
+      await a.remover(CHAVE.carga);
+      await a.remover(CHAVE.novidades);
+    });
+    // 4. cache próprio de cada módulo (só ele sabe o que é cópia do servidor e o que é rascunho)
+    for (const e of op.etapas ?? []) if (e.aoTrocarGeracao) await e.aoTrocarGeracao(contextoDaEtapa(e));
+    // 5. só agora: a geração nova vale
+    await gravarGeracao(nova);
   };
 
   // ---------- envio (push) ----------
@@ -848,6 +935,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         }
         throw e;
       }
+      // ADR 0021: outra geração = a base foi recriada; nada desta página é aplicado sobre a cópia antiga
+      await conferirGeracao(pagina.geracao_base);
       if (!pagina.horizonte) semHorizonte = true;
       else if (horizonte === null || Date.parse(pagina.horizonte) < Date.parse(horizonte)) horizonte = pagina.horizonte;
       const versao = pagina.versao_escopo;
@@ -911,6 +1000,124 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     return 'ok';
   };
 
+  /**
+   * Sincronização completa (corpo de `motor.sincronizar`, sem o controle de uma-por-vez). `podeTrocar` = pode fazer a troca de
+   * geração e recomeçar (ADR 0021); na passada que já recomeçou, outra troca termina com erro.
+   */
+  const passadaCompleta = async (podeTrocar: boolean): Promise<boolean> => {
+    if (!online()) {
+      mudar({ erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' });
+      return false;
+    }
+    const defs = op.registro.entidadesAtivas(estado.modulosAtivos, 'pull');
+    const entidades = defs.map((e) => e.nome);
+    const moduloDe = new Map(defs.map((d) => [d.nome, d.modulo] as const));
+    const etapas = (op.etapas ?? []).filter((e) => ativos().has(e.modulo));
+    const total = 1 + entidades.length + etapas.length;
+    // T-0059: na CARGA INICIAL (ainda sem `sincronizado_em`), uma passada anterior interrompida (app encerrado no meio) e
+    // recente = pula o que ela já concluiu. Depois da carga, cada entidade já continua do seu cursor (delta barato).
+    const cargaInicial = estado.sincronizado_em === null;
+    const anterior = cargaInicial ? await op.armazenamento.ler<RegistroCarga>(CHAVE.carga) : null;
+    const retomar =
+      anterior !== null && agora().getTime() - Date.parse(anterior.iniciada_em) < VALIDADE_RETOMADA_MS;
+    const registro: RegistroCarga = retomar
+      ? { iniciada_em: anterior.iniciada_em, concluidas: [...anterior.concluidas], coberturas: { ...(anterior.coberturas ?? {}) } }
+      : { iniciada_em: agora().toISOString(), concluidas: [], coberturas: {} };
+    const jaFeitas = new Set(registro.concluidas);
+    const chaveEtapa = (id: string) => `etapa:${id}`;
+    const puladas =
+      entidades.filter((e) => jaFeitas.has(e)).length + etapas.filter((e) => jaFeitas.has(chaveEtapa(e.id))).length;
+    const carga = (parcial: Partial<ProgressoCarga>): ProgressoCarga => ({ ...estado.carga, ...parcial });
+    mudar({
+      sincronizando: true,
+      erro: null,
+      etapa: 'Enviando a fila',
+      progresso: puladas / total,
+      avisos: [],
+      carga: { entidade: null, modulo: null, concluidas: puladas, total, paginas: 0, retomada: retomar && puladas > 0 },
+    });
+    if (cargaInicial) await op.armazenamento.gravar(CHAVE.carga, registro);
+    const coberturas = new Map<string, Cobertura>();
+    // entidades puladas na retomada: valem as coberturas da passada interrompida (D-3)
+    for (const [e, c] of Object.entries(registro.coberturas ?? {})) if (jaFeitas.has(e)) coberturas.set(e, c);
+    const concluir = async (chave: string) => {
+      registro.concluidas.push(chave);
+      const c = coberturas.get(chave);
+      if (c !== undefined) registro.coberturas = { ...(registro.coberturas ?? {}), [chave]: c };
+      if (cargaInicial) await op.armazenamento.gravar(CHAVE.carga, registro);
+    };
+    try {
+      await motor.enviar();
+      // ADR 0018: cursor-base das novidades lido ANTES dos pulls (o horizonte dele fica abaixo do de cada pull). Retomada
+      // com entidades puladas não grava (elas foram puxadas antes deste horizonte). Servidor sem a rota: segue sem cursor.
+      const base =
+        op.transporte.novidades && puladas === 0 ? await op.transporte.novidades(null).catch(() => null) : null;
+      let feito = 1 + puladas;
+      const avisos: AvisoSync[] = [];
+      for (const e of entidades) {
+        if (jaFeitas.has(e)) continue;
+        mudar({ etapa: e, progresso: feito / total, carga: carga({ entidade: e, modulo: moduloDe.get(e) ?? null, paginas: 0 }) });
+        const resultado = await puxarEntidade(e, coberturas, () => mudar({ carga: carga({ paginas: estado.carga.paginas + 1 }) }));
+        if (resultado === 'indisponivel') {
+          avisos.push({
+            entidade: e,
+            codigo: SYNC_NAO_IMPLEMENTADO,
+            mensagem: MENSAGEM_PULL_INDISPONIVEL,
+          });
+          mudar({ avisos: [...avisos] });
+        }
+        feito++;
+        await concluir(e);
+        mudar({ carga: carga({ concluidas: feito - 1 }) });
+      }
+      for (const e of etapas) {
+        if (jaFeitas.has(chaveEtapa(e.id))) continue;
+        mudar({ etapa: e.rotulo, progresso: feito / total, carga: carga({ entidade: e.id, modulo: e.modulo, paginas: 0 }) });
+        await e.executar(contextoDaEtapa(e));
+        feito++;
+        await concluir(chaveEtapa(e.id));
+        mudar({ carga: carga({ concluidas: feito - 1 }) });
+      }
+      // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3)
+      await op.armazenamento.busca?.finalizar?.();
+      await liberarAceitos(coberturas);
+      const quando = agora().toISOString();
+      await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
+      if (base) await op.armazenamento.gravar(CHAVE.novidades, base.cursor);
+      else await op.armazenamento.remover(CHAVE.novidades);
+      if (cargaInicial) await op.armazenamento.remover(CHAVE.carga);
+      mudar({
+        sincronizando: false,
+        etapa: 'Pronto',
+        progresso: 1,
+        sincronizado_em: quando,
+        carga: carga({ entidade: null, modulo: null, concluidas: total, paginas: 0 }),
+      });
+      return true;
+    } catch (e) {
+      if (e instanceof GeracaoTrocada) return depoisDaGeracaoTrocada(e, podeTrocar);
+      // o que já foi puxado nesta passada vale: sai da sobreposição o aceito que as entidades que chegaram cobrem
+      await liberarAceitos(coberturas).catch(() => undefined);
+      mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
+      return false;
+    }
+  };
+
+  /** ADR 0021: troca a geração e faz a passada completa de novo (uma vez); falha na troca = erro, a próxima repete. */
+  const depoisDaGeracaoTrocada = async (e: GeracaoTrocada, podeTrocar: boolean): Promise<boolean> => {
+    if (!podeTrocar) {
+      mudar({ sincronizando: false, etapa: '', progresso: 0, erro: MENSAGEM_GERACAO_INSTAVEL });
+      return false;
+    }
+    try {
+      await trocarGeracao(e.nova);
+    } catch (erro) {
+      mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(erro) });
+      return false;
+    }
+    return passadaCompleta(false);
+  };
+
   const motor = {
     /** Ambiente do aparelho (o mesmo que as etapas recebem): telas usam via `useAmbiente()`. */
     ambiente,
@@ -919,7 +1126,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
 
     /** Lê do armazenamento a fila, os módulos e as pendências (chamar uma vez ao abrir o app / trocar de usuário). */
     async carregar(): Promise<void> {
-      const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params] = await Promise.all([
+      const [fila, modulos, limpeza, sincronizadoEm, arquivos, aceitos, params, geracao] = await Promise.all([
         op.armazenamento.ler<ItemOutbox[]>(CHAVE.fila),
         op.armazenamento.ler<ModuloId[]>(CHAVE.modulos),
         op.armazenamento.ler<ModuloId[]>(CHAVE.limpeza),
@@ -927,7 +1134,9 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         op.armazenamento.ler<ItemArquivo[]>(CHAVE.arquivos),
         op.armazenamento.ler<ItemAceito[]>(CHAVE.aceitos),
         op.armazenamento.ler<ParametrosModulos>(CHAVE.parametros),
+        op.armazenamento.ler<string>(CHAVE.geracao),
       ]);
+      geracaoGuardada = geracao;
       parametros = filtrarParametros(params ?? {}, modulos ?? []);
       mudar({
         fila: fila ?? [],
@@ -1064,112 +1273,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     /** Sincronização completa: envia a fila, puxa as entidades dos módulos efetivos e roda as etapas extras. */
     sincronizar(): Promise<boolean> {
       if (syncEmCurso) return syncEmCurso;
-      syncEmCurso = (async () => {
-        if (!online()) {
-          mudar({ erro: 'Sem sinal: a sincronização fica para quando a conexão voltar.' });
-          return false;
-        }
-        const defs = op.registro.entidadesAtivas(estado.modulosAtivos, 'pull');
-        const entidades = defs.map((e) => e.nome);
-        const moduloDe = new Map(defs.map((d) => [d.nome, d.modulo] as const));
-        const etapas = (op.etapas ?? []).filter((e) => ativos().has(e.modulo));
-        const total = 1 + entidades.length + etapas.length;
-        // T-0059: na CARGA INICIAL (ainda sem `sincronizado_em`), uma passada anterior interrompida (app encerrado no meio) e
-        // recente = pula o que ela já concluiu. Depois da carga, cada entidade já continua do seu cursor (delta barato).
-        const cargaInicial = estado.sincronizado_em === null;
-        const anterior = cargaInicial ? await op.armazenamento.ler<RegistroCarga>(CHAVE.carga) : null;
-        const retomar =
-          anterior !== null && agora().getTime() - Date.parse(anterior.iniciada_em) < VALIDADE_RETOMADA_MS;
-        const registro: RegistroCarga = retomar
-          ? { iniciada_em: anterior.iniciada_em, concluidas: [...anterior.concluidas], coberturas: { ...(anterior.coberturas ?? {}) } }
-          : { iniciada_em: agora().toISOString(), concluidas: [], coberturas: {} };
-        const jaFeitas = new Set(registro.concluidas);
-        const chaveEtapa = (id: string) => `etapa:${id}`;
-        const puladas =
-          entidades.filter((e) => jaFeitas.has(e)).length + etapas.filter((e) => jaFeitas.has(chaveEtapa(e.id))).length;
-        const carga = (parcial: Partial<ProgressoCarga>): ProgressoCarga => ({ ...estado.carga, ...parcial });
-        mudar({
-          sincronizando: true,
-          erro: null,
-          etapa: 'Enviando a fila',
-          progresso: puladas / total,
-          avisos: [],
-          carga: { entidade: null, modulo: null, concluidas: puladas, total, paginas: 0, retomada: retomar && puladas > 0 },
-        });
-        if (cargaInicial) await op.armazenamento.gravar(CHAVE.carga, registro);
-        const coberturas = new Map<string, Cobertura>();
-        // entidades puladas na retomada: valem as coberturas da passada interrompida (D-3)
-        for (const [e, c] of Object.entries(registro.coberturas ?? {})) if (jaFeitas.has(e)) coberturas.set(e, c);
-        const concluir = async (chave: string) => {
-          registro.concluidas.push(chave);
-          const c = coberturas.get(chave);
-          if (c !== undefined) registro.coberturas = { ...(registro.coberturas ?? {}), [chave]: c };
-          if (cargaInicial) await op.armazenamento.gravar(CHAVE.carga, registro);
-        };
-        try {
-          await motor.enviar();
-          // ADR 0018: cursor-base das novidades lido ANTES dos pulls (o horizonte dele fica abaixo do de cada pull). Retomada
-          // com entidades puladas não grava (elas foram puxadas antes deste horizonte). Servidor sem a rota: segue sem cursor.
-          const base =
-            op.transporte.novidades && puladas === 0 ? await op.transporte.novidades(null).catch(() => null) : null;
-          let feito = 1 + puladas;
-          const avisos: AvisoSync[] = [];
-          for (const e of entidades) {
-            if (jaFeitas.has(e)) continue;
-            mudar({ etapa: e, progresso: feito / total, carga: carga({ entidade: e, modulo: moduloDe.get(e) ?? null, paginas: 0 }) });
-            const resultado = await puxarEntidade(e, coberturas, () => mudar({ carga: carga({ paginas: estado.carga.paginas + 1 }) }));
-            if (resultado === 'indisponivel') {
-              avisos.push({
-                entidade: e,
-                codigo: SYNC_NAO_IMPLEMENTADO,
-                mensagem: MENSAGEM_PULL_INDISPONIVEL,
-              });
-              mudar({ avisos: [...avisos] });
-            }
-            feito++;
-            await concluir(e);
-            mudar({ carga: carga({ concluidas: feito - 1 }) });
-          }
-          for (const e of etapas) {
-            if (jaFeitas.has(chaveEtapa(e.id))) continue;
-            mudar({ etapa: e.rotulo, progresso: feito / total, carga: carga({ entidade: e.id, modulo: e.modulo, paginas: 0 }) });
-            await e.executar({
-              armazenamento: comPrefixo(op.armazenamento, CHAVE.modulo(e.modulo)),
-              agora,
-              http: ambiente.http,
-              online,
-              novoId: () => ambiente.novoId(),
-              usuario: () => ambiente.usuario(),
-              consultar: ambiente.consultar,
-              parametros: ambiente.parametros,
-            });
-            feito++;
-            await concluir(chaveEtapa(e.id));
-            mudar({ carga: carga({ concluidas: feito - 1 }) });
-          }
-          // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3)
-          await op.armazenamento.busca?.finalizar?.();
-          await liberarAceitos(coberturas);
-          const quando = agora().toISOString();
-          await op.armazenamento.gravar(CHAVE.sincronizadoEm, quando);
-          if (base) await op.armazenamento.gravar(CHAVE.novidades, base.cursor);
-          else await op.armazenamento.remover(CHAVE.novidades);
-          if (cargaInicial) await op.armazenamento.remover(CHAVE.carga);
-          mudar({
-            sincronizando: false,
-            etapa: 'Pronto',
-            progresso: 1,
-            sincronizado_em: quando,
-            carga: carga({ entidade: null, modulo: null, concluidas: total, paginas: 0 }),
-          });
-          return true;
-        } catch (e) {
-          // o que já foi puxado nesta passada vale: sai da sobreposição o aceito que as entidades que chegaram cobrem
-          await liberarAceitos(coberturas).catch(() => undefined);
-          mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
-          return false;
-        }
-      })().finally(() => {
+      syncEmCurso = passadaCompleta(true).finally(() => {
         syncEmCurso = null;
       });
       return syncEmCurso;
@@ -1210,6 +1314,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
                 Object.fromEntries(lista.map((m) => [m.id, m.parametros ?? {}])) as ParametrosModulos,
               );
             }
+            // ADR 0021: base recriada → troca de geração e passada completa (o `catch` abaixo)
+            await conferirGeracao(r.geracao_base);
             const ativas = ativasPull();
             alvo = [...new Set(r.entidades)].filter((e) => ativas.has(e)).sort();
             cursorNovo = r.cursor;
@@ -1229,6 +1335,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           mudar({ sincronizando: false, etapa: 'Pronto', progresso: 1, sincronizado_em: quando, avisos });
           return true;
         } catch (e) {
+          if (e instanceof GeracaoTrocada) return depoisDaGeracaoTrocada(e, true);
           await liberarAceitos(coberturas).catch(() => undefined);
           mudar({ sincronizando: false, etapa: '', progresso: 0, erro: msg(e) });
           return false;
@@ -1314,6 +1421,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         for (const k of await a.chaves('')) await a.remover(k);
       });
       parametros = {};
+      geracaoGuardada = null;
       mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null, carga: CARGA_VAZIA });
       for (const x of arquivos) await removerLocal(x.caminho);
     },

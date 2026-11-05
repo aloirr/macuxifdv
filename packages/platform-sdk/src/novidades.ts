@@ -92,5 +92,7 @@ export const NovidadesRespostaSchema = z.object({
   modulos_mudaram: z.boolean(),
   /** Presente quando `modulos_mudaram`: a resposta de `/v1/me/modulos`, para o aparelho aplicar sem outra requisição. */
   modulos: ModulosNovidadesSchema.optional(),
+  /** Geração da base do tenant (ADR 0021), a mesma do pull. Aditivo: servidor sem a coluna não manda. */
+  geracao_base: z.string().min(1).max(100).optional(),
 });
 export type NovidadesResposta = z.infer<typeof NovidadesRespostaSchema>;

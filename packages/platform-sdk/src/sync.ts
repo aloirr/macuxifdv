@@ -157,6 +157,11 @@ export interface PaginaSync<L> {
    * e depois do cursor já veio. O motor compara com `ResultadoItemPush.em` para soltar o aceito da sobreposição (D-3).
    */
   horizonte?: string;
+  /**
+   * Geração da base do tenant (ADR 0021): muda quando a base é recriada ou restaurada. Aditivo: servidor sem a coluna não
+   * manda; o motor compara com a guardada (`decidirGeracao`) e, se mudou, reenvia a fila, apaga a cópia local e puxa tudo.
+   */
+  geracao_base?: string;
 }
 
 /** Página após o cursor (inclui removidos). Usado no motor em memória e como referência do SQL. */
