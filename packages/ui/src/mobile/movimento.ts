@@ -74,9 +74,10 @@ export function transicaoDeFolha(reduzir: boolean): TransicaoPilha {
 
 // ---------- vibração leve ----------
 /**
- * O kit não depende de `expo-haptics`: o shell registra a vibração com `definirVibracao` (ex.:
- * `() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)`). Sem registro, `vibrarLeve` não faz nada. A vibração
- * não é movimento visual: continua com "reduzir movimento"; quem quiser desligar passa `vibrar={false}` no botão.
+ * O kit não depende de `expo-haptics`: o shell registra a vibração com `definirVibracao` (apps/mobile/src/services/vibracao.ts:
+ * Android com `performAndroidHapticsAsync`, que respeita o retorno tátil do sistema; iOS com `impactAsync(Light)`). Sem
+ * registro, `vibrarLeve` não faz nada. Com "reduzir movimento" ligado o shell registra `null` e nada vibra (decisão de
+ * 2026-11-04, R-20261104-231036); um botão isolado pode desligar com `vibrar={false}`.
  */
 type Vibracao = () => unknown;
 let vibracao: Vibracao | null = null;
