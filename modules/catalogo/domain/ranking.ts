@@ -56,7 +56,8 @@ export function nivelDaPalavra(q: string, termo: string): number {
   if (q.length >= 3 && termo.length > q.length && termo.startsWith(q)) return NIVEL.prefixo;
   if (q.length >= 4) {
     const tolerancia = q.length >= 8 ? 2 : 1;
-    if (distanciaEdicao(q, termo) <= tolerancia) return NIVEL.digitacao;
+    // T-0052-B4: a distância é no mínimo a diferença de tamanho; evita montar a matriz para quase todos os termos
+    if (Math.abs(q.length - termo.length) <= tolerancia && distanciaEdicao(q, termo) <= tolerancia) return NIVEL.digitacao;
   }
   return 0;
 }
@@ -86,7 +87,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   if (grupos.length === 0) return { pontos: 0, casados: 0, total: 0 };
   const campos: { termos: string[]; peso: number }[] = [
     { termos: tokensDeBusca(doc.nome), peso: PESO_CAMPO.nome },
-    { termos: tokensDeBusca(`${doc.sku} ${doc.ean ?? ''}`.trim()).concat([doc.sku, doc.ean ?? ''].map((c) => chaveDeTermo(c)).filter(Boolean)), peso: PESO_CAMPO.codigo },
+    { termos: tokensDeBusca(`${doc.sku} ${doc.ean ?? ''}`.trim()).concat([doc.sku, doc.ean ?? ''].map((c) => chaveDeTermo(c)).filter(Boolean), codigoCompacto(doc.sku) || []), peso: PESO_CAMPO.codigo },
     { termos: tokensDeBusca(doc.marca), peso: PESO_CAMPO.marca },
     { termos: tokensDeBusca(doc.categoria), peso: PESO_CAMPO.categoria },
     { termos: tokensDeBusca(doc.atributos), peso: PESO_CAMPO.atributos },
@@ -151,9 +152,15 @@ export interface EntradaRanking {
 
 const mesmaChave = (a: string, b: string) => chaveDeTermo(a) === chaveDeTermo(b);
 
+/** Forma compacta de um código (`PAS-DIA-150` → `pasdia150`): só letras e dígitos, sem acento nem caixa (T-0052-B1). */
+export function codigoCompacto(s: string | null | undefined): string {
+  return s ? s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+}
+
 function casaComCodigo(d: DocBusca, code: NonNullable<FiltrosInterpretados['code']>): boolean {
-  const v = code.value.trim().toUpperCase();
-  return code.type === 'ean' ? d.ean === code.value : d.sku.trim().toUpperCase() === v || d.ean === code.value;
+  if (code.type === 'ean') return d.ean === code.value;
+  const v = codigoCompacto(code.value);
+  return d.ean === code.value || (v !== '' && codigoCompacto(d.sku) === v);
 }
 
 /** Filtros estruturados (RN-CAT-01): marca, categoria, faixa de preço e estoque. O código é tratado à parte. */

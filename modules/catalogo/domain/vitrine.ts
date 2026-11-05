@@ -188,7 +188,8 @@ export function listarVitrine(e: Omit<EntradaBuscaProdutos, 'filtros' | 'semanti
 export function vocabularioDe(produtos: readonly ProdutoCatalogo[]): VocabularioTenant {
   const unicos = (valores: string[]) => {
     const porChave = new Map<string, string>();
-    for (const v of valores) {
+    // T-0052-B4: marcas e categorias se repetem em milhares de produtos; normaliza cada texto uma vez só
+    for (const v of new Set(valores)) {
       const k = chaveDeTermo(v);
       if (k && !porChave.has(k)) porChave.set(k, v.trim());
     }

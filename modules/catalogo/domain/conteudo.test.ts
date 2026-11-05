@@ -20,7 +20,7 @@ describe('normalizarSinonimo — BKO de sinônimos (RF-CAT-07, RF-CAT-02)', () =
   });
 });
 
-describe('conflitoDeSinonimo (RF-CAT-02: o mesmo termo em dois grupos ativos deixaria a busca ambígua)', () => {
+describe('conflitoDeSinonimo (RF-CAT-02: um termo vivo por tenant; o índice sinonimo_termo_uk vale também para grupo inativo)', () => {
   const existentes = [
     { id: id(1), term: 'refrigerante', synonyms: ['refri'], active: true },
     { id: id(2), term: 'bolacha', synonyms: ['biscoito'], active: false },
@@ -28,10 +28,16 @@ describe('conflitoDeSinonimo (RF-CAT-02: o mesmo termo em dois grupos ativos dei
   it('RF-CAT-07: termo já usado por outro grupo ativo = conflito (mensagem diz qual editar)', () => {
     expect(conflitoDeSinonimo(id(9), { term: 'Refrigerantes', synonyms: ['soda'], active: true }, existentes)).toMatch(/Já existe um grupo ativo para "refrigerante"/);
   });
-  it('RF-CAT-07: o próprio grupo, grupo inativo ou o novo grupo inativo não conflitam', () => {
+  it('RF-CAT-02: termo de um grupo INATIVO também conflita (o banco recusa; a mensagem manda reativar ou editar o existente)', () => {
+    expect(conflitoDeSinonimo(id(9), { term: 'bolacha', synonyms: ['cookie'], active: true }, existentes)).toMatch(/Já existe um grupo inativo para "bolacha"/);
+  });
+  it('RF-CAT-02: o novo grupo inativo com o termo de um ativo também conflita', () => {
+    expect(conflitoDeSinonimo(id(9), { term: 'refrigerante', synonyms: ['soda'], active: false }, existentes)).toMatch(/Já existe um grupo ativo para "refrigerante"/);
+  });
+  it('RF-CAT-07: o próprio grupo e termo livre não conflitam', () => {
     expect(conflitoDeSinonimo(id(1), { term: 'refrigerante', synonyms: ['soda'], active: true }, existentes)).toBeNull();
-    expect(conflitoDeSinonimo(id(9), { term: 'bolacha', synonyms: ['cookie'], active: true }, existentes)).toBeNull();
-    expect(conflitoDeSinonimo(id(9), { term: 'refrigerante', synonyms: ['soda'], active: false }, existentes)).toBeNull();
+    expect(conflitoDeSinonimo(id(2), { term: 'bolacha', synonyms: ['cookie'], active: false }, existentes)).toBeNull();
+    expect(conflitoDeSinonimo(id(9), { term: 'suco', synonyms: ['néctar'], active: true }, existentes)).toBeNull();
   });
 });
 

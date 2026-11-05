@@ -6,7 +6,7 @@
  * não recebe nenhuma das três — o preço nem chega ao aparelho dele.
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
-import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoNo, entidadeProdutoRelacao, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
+import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -33,9 +33,20 @@ const TABELAS = {
     colunas: `deposito_id, produto_id, quantidade::float8 as quantidade, to_char(atualizado_erp_em at time zone 'UTC', ${UTC}) as atualizado_em`,
     colunaCliente: false,
   },
+  // conteúdo (RF-CAT-02/03/07; 0013): sem preço nem estoque, o promotor também recebe. Escopo tenant, RLS pela transação.
+  sinonimo: { tabela: 'catalogo.sinonimo', colunas: 'termo, sinonimos, ativo', colunaCliente: false },
+  produto_atributo: { tabela: 'catalogo.produto_atributo', colunas: 'produto_id, nome, valor, ordem::int as ordem', colunaCliente: false },
+  produto_conteudo: {
+    tabela: 'catalogo.produto_conteudo',
+    // argumentos_venda (texto, um por linha) vira a lista do contrato; campanha vale também para o destaque
+    colunas: `produto_id, descricao,
+      array(select btrim(x) from unnest(string_to_array(coalesce(argumentos_venda, ''), E'\n')) x where btrim(x) <> '') as argumentos,
+      faq, (campanha or destaque) as campanha`,
+    colunaCliente: false,
+  },
 } as const;
 
-const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no', 'produto_relacao']);
+const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no', 'produto_relacao', 'sinonimo', 'produto_atributo', 'produto_conteudo']);
 
 export function sqlPullPreco(nome: keyof typeof TABELAS, pedido: PedidoPull, clientes: readonly string[] | null): { sql: string; valores: unknown[] } {
   const t = TABELAS[nome];
@@ -71,4 +82,7 @@ export const provedoresSyncCatalogo: readonly ProvedorSync[] = [
   { entidade: entidadeProdutoRelacao, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_relacao', ctx, p) },
   { entidade: entidadeDeposito, escopo: 'tenant', puxar: (ctx, p) => puxar('deposito', ctx, p) },
   { entidade: entidadeEstoqueSaldo, escopo: 'tenant', puxar: (ctx, p) => puxar('estoque_saldo', ctx, p) },
+  { entidade: entidadeSinonimo, escopo: 'tenant', puxar: (ctx, p) => puxar('sinonimo', ctx, p) },
+  { entidade: entidadeProdutoAtributo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_atributo', ctx, p) },
+  { entidade: entidadeProdutoConteudo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_conteudo', ctx, p) },
 ];

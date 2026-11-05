@@ -78,6 +78,20 @@ function formatarQuantidade(n: number): string {
  * (`2 litros` → `2000ml`, `1,5 kg` → `1500g`, `2 m` → `200cm`), embalagens (`caixa` → `cx`) e `12x500ml` → `12 x 500ml`.
  */
 export function normalizarTexto(texto: string): string {
+  const bruto = String(texto ?? '');
+  const memo = MEMO_NORMALIZADO.get(bruto);
+  if (memo !== undefined) return memo;
+  const r = normalizarSemMemo(bruto);
+  // memória limitada (T-0052-B4): nomes, marcas e categorias se repetem entre buscas; ao encher, recomeça
+  if (MEMO_NORMALIZADO.size >= LIMITE_MEMO) MEMO_NORMALIZADO.clear();
+  MEMO_NORMALIZADO.set(bruto, r);
+  return r;
+}
+
+const MEMO_NORMALIZADO = new Map<string, string>();
+const LIMITE_MEMO = 60_000;
+
+function normalizarSemMemo(texto: string): string {
   let t = semAcento(String(texto ?? '').toLowerCase());
   // multipack colado: 12x500ml → 12 x 500ml
   t = t.replace(/(\d)\s*x\s*(\d)/g, '$1 x $2');

@@ -94,6 +94,44 @@ describe('busca offline no aparelho (RF-CAT-02)', () => {
   });
 });
 
+describe('pré-seleção do FTS5 em catálogo grande (T-0052-B2/B4)', () => {
+  const grande = () => {
+    const linhas = linhasDemo();
+    const extras = Array.from({ length: LIMIAR_PRESELECAO_FTS }, (_, i) => base(idDemo(`extra:${i}`), { sku: `X-${i}`, ean: null, nome: `Parafuso ${i}`, marca: 'Ferro', categoria: 'Ferragens', unidade: 'UN', ativo: true }));
+    linhas.produto = [...linhas.produto!, ...extras];
+    return linhas;
+  };
+
+  it('RF-CAT-02: cada termo vira uma consulta própria e o conjunto é a união (a mesma semântica do catálogo pequeno)', async () => {
+    const chamadas: string[] = [];
+    const fts: LeitorLocal['buscar'] = async (_i, c) => {
+      chamadas.push(JSON.stringify(c.grupos));
+      const g = c.grupos[0]![0];
+      return g === 'cafe' ? [{ chave: idProdutoDemo('CAF-500'), pontuacao: -2 }] : [{ chave: idProdutoDemo('ACU-1K'), pontuacao: -1 }];
+    };
+    const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'café açúcar', limit: 20, offset: 0, offline: true });
+    expect(chamadas).toEqual(['[["cafe"]]', '[["acucar"]]']);
+    expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['ACU-1K', 'CAF-500']);
+  });
+
+  it('RF-CAT-02: FTS5 sem nenhum acerto cai na varredura do domain (tolerância a erro de digitação continua valendo)', async () => {
+    const fts: LeitorLocal['buscar'] = async () => [];
+    const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'cafee', limit: 20, offset: 0, offline: true });
+    expect(r.items.map((i) => sku(i.id))).toContain('CAF-500');
+  });
+
+  it('RF-CAT-01: o código digitado entra como termo próprio na consulta ao FTS5', async () => {
+    const chamadas: string[] = [];
+    const fts: LeitorLocal['buscar'] = async (_i, c) => {
+      chamadas.push(JSON.stringify(c.grupos));
+      return [{ chave: idProdutoDemo('CAF-500'), pontuacao: -1 }];
+    };
+    const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'caf500', limit: 20, offset: 0, offline: true });
+    expect(chamadas).toContain('[["CAF500"]]');
+    expect(r.items.map((i) => sku(i.id))).toEqual(['CAF-500']);
+  });
+});
+
 describe('vitrine e ficha offline', () => {
   it('vitrine: campanha primeiro (boost), chips de categoria; filtros locais para os chips', async () => {
     const v = await vitrineLocal(leitor(), { ...entrada, limit: 50, offset: 0 });

@@ -32,8 +32,15 @@ import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type Chips
 
 /** Id do índice FTS5 do Catálogo no aparelho (`app/indice.ts`). */
 export const ID_INDICE_BUSCA = 'catalogo.produto';
-/** Acima disto a busca local pré-seleciona candidatos pelo FTS5 antes do ranking (abaixo, o ranking varre tudo). */
-export const LIMIAR_PRESELECAO_FTS = 2000;
+/**
+ * Acima disto a busca local pré-seleciona candidatos pelo FTS5 antes do ranking (abaixo, o ranking varre tudo).
+ * T-0052-B4: o ranking do domain custa ~0,3 a 1 ms por produto no aparelho; com 500 produtos a varredura cabe no orçamento.
+ */
+export const LIMIAR_PRESELECAO_FTS = 500;
+/** Candidatos que cada termo (com sinônimos) pede ao FTS5, em ordem de relevância (`bm25`). */
+export const CANDIDATOS_POR_TERMO = 150;
+/** Teto de candidatos que chegam ao ranking do domain. */
+export const MAXIMO_CANDIDATOS = 400;
 
 /** O que a busca local precisa do motor de sync (`useMotorSync().motor`). */
 export interface LeitorLocal {
@@ -119,13 +126,37 @@ export interface ResultadoLocal extends PaginaProdutos {
   aviso: string | null;
 }
 
-/** Candidatos pelo FTS5 quando o catálogo é grande; `null` = varrer todos (catálogo pequeno ou sem índice). */
-async function preselecionar(leitor: LeitorLocal, texto: string, sinonimos: readonly SinonimoDoTenant[], total: number): Promise<Set<string> | null> {
-  if (total <= LIMIAR_PRESELECAO_FTS || !leitor.buscar || !texto) return null;
+/**
+ * Candidatos pelo FTS5 quando o catálogo é grande; `null` = varrer todos (catálogo pequeno, sem índice ou FTS5 sem
+ * nenhum acerto). Mesma semântica do domain em qualquer tamanho (T-0052-B2): o domain pontua quem casa QUALQUER termo
+ * e o ranking decide; por isso cada termo (com seus sinônimos) vira uma consulta própria e o conjunto é a união, com
+ * quem casa mais termos primeiro e o `bm25` desempatando. O ranking só roda sobre esses candidatos (T-0052-B4).
+ */
+export async function preselecionar(
+  leitor: LeitorLocal,
+  texto: string,
+  codigo: string | null,
+  sinonimos: readonly SinonimoDoTenant[],
+  total: number,
+): Promise<Set<string> | null> {
+  if (total <= LIMIAR_PRESELECAO_FTS || !leitor.buscar) return null;
   const grupos = expandirSinonimos(texto, sinonimos);
+  if (codigo) grupos.push([codigo]);
   if (grupos.length === 0) return null;
-  const r = await leitor.buscar(ID_INDICE_BUSCA, { grupos, prefixoNoUltimo: true, limite: 500 });
-  return r && r.length > 0 ? new Set(r.map((x) => x.chave)) : null;
+  const achados = new Map<string, { termos: number; melhor: number }>();
+  for (const grupo of grupos.slice(0, 8)) {
+    const r = await leitor.buscar(ID_INDICE_BUSCA, { grupos: [grupo], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
+    (r ?? []).forEach((x, posicao) => {
+      const a = achados.get(x.chave);
+      if (a) {
+        a.termos++;
+        a.melhor = Math.min(a.melhor, posicao);
+      } else achados.set(x.chave, { termos: 1, melhor: posicao });
+    });
+  }
+  if (achados.size === 0) return null;
+  const ordem = [...achados.entries()].sort(([, x], [, y]) => y.termos - x.termos || x.melhor - y.melhor);
+  return new Set(ordem.slice(0, MAXIMO_CANDIDATOS).map(([chave]) => chave));
 }
 
 /** Busca no aparelho (sem IA): regras locais + sinônimos + ranking do domain; com `offline`, devolve o aviso. */
@@ -133,7 +164,7 @@ export async function buscarLocal(leitor: LeitorLocal, e: EntradaLocal & { q: st
   const produtos = await produtosLocais(leitor);
   const sinonimos = await sinonimosLocais(leitor);
   const filtros = interpretarConsulta(e.q, vocabularioDe(produtos));
-  const candidatos = await preselecionar(leitor, filtros.text, sinonimos, produtos.length);
+  const candidatos = await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, produtos.length);
   const universo = candidatos ? produtos.filter((p) => candidatos.has(p.id)) : produtos;
   const contexto = await contextoLocal(leitor, e, universo);
   const pagina = buscarProdutos({ produtos: universo, contexto, filtros, chips: e.chips ?? {}, sinonimos, limit: e.limit, offset: e.offset });
