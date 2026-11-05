@@ -1,0 +1,254 @@
+name: stack isolado (demo)
+
+# T-0074 (ADR 0020; decisão do dono do produto no R-20261105-053835, item 2: sem Docker no PC, o stack isolado roda aqui).
+# Repete NO RUNNER, com segredos de TESTE gerados no próprio job, o caminho da VM da demo:
+#   preparar-vm.sh (2 vezes: idempotente, .env gerado e nunca regenerado, timer macuxi-backup.timer)
+#   → imagem da API do commit (apps/api/Dockerfile) num registro LOCAL do runner
+#   → implantar.sh (pull, Postgres, migrações e papéis, seed demo com MACUXI_AMBIENTE=demo, up --wait, /v1/saude,
+#     sonda do S3, scripts do backup tirados da imagem, conferência das 26 h)
+#   → backup pela unidade do systemd (backup-vm.sh: pg_dump → pg_restore -l → serviço backup → bucket)
+#   → restaurar-vm.sh ao lado (contagem.sql igual à de antes do backup) → restaurar-vm.sh --trocar → /v1/saude
+#   → implantar.sh de novo sobre a base restaurada (sem seed; backup de 0 h).
+# Diferenças em relação à VM (scripts/deploy/stack-isolado/compose.ci.yml): Object Storage = S3 falso no compose (SigV4
+# conferida), host da Magalu → 127.0.0.1 nos contêineres, cloudflared desligado. Nada acessa a VM nem a Magalu; nenhum
+# secret do repositório é usado (permissions: contents: read, sem environment).
+# Verde aqui = o backup no deploy (d40267d) pode subir. Como ler o resultado: docs/desenho/T-0074.md, "Stack isolado no CI".
+
+on:
+  # manual: só depois que este arquivo estiver no main (regra do GitHub para workflow_dispatch)
+  workflow_dispatch:
+  # branch de verificação do gerente (lote local, doc 07): roda já no 1º push, antes de o workflow existir no main
+  push:
+    branches: ['verificacao/**']
+    paths:
+      - 'scripts/deploy/**'
+      - 'db/backup/**'
+      - '.github/workflows/stack-isolado.yml'
+  pull_request:
+    paths:
+      - 'scripts/deploy/**'
+      - 'db/backup/**'
+      - '.github/workflows/stack-isolado.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stack-isolado-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # bash --noprofile --norc -eo pipefail: o "| tee" não esconde falha
+    shell: bash
+
+jobs:
+  stack:
+    name: compose da demo → migrações e seed → backup → restauração → contagem
+    # mesma versão da VM macuxi-demo-se1 (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TAG: ${{ github.sha }}
+      # lidos pelo docker compose em todos os scripts (implantar, backup-vm, restaurar-vm) sem mudar nenhum deles
+      MACUXI_IMAGEM_API: localhost:5000/macuxi-api
+      COMPOSE_FILE: /opt/macuxi/compose.yml:/opt/macuxi/compose.ci.yml
+      SAIDA: /tmp/macuxi-stack
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: pré-requisitos do preparar-vm.sh no runner
+        run: |
+          mkdir -p "$SAIDA"
+          sudo apt-get update -q
+          # o passo 3 do preparar-vm.sh valida o sshd (sshd -t / sshd -T)
+          sudo apt-get install -y -q openssh-server
+          # o preparar-vm.sh recusa desligar a senha do SSH sem authorized_keys (proteção da VM): chave DESCARTÁVEL,
+          # a privada é apagada na hora (ninguém entra no runner por ela)
+          if [ ! -s ~/.ssh/authorized_keys ]; then
+            install -d -m 700 ~/.ssh
+            ssh-keygen -q -t ed25519 -N '' -C stack-isolado -f "$RUNNER_TEMP/descartavel"
+            cat "$RUNNER_TEMP/descartavel.pub" >> ~/.ssh/authorized_keys
+            chmod 600 ~/.ssh/authorized_keys
+            rm -f "$RUNNER_TEMP/descartavel" "$RUNNER_TEMP/descartavel.pub"
+          fi
+
+      - name: preparar-vm.sh (1ª vez)
+        run: |
+          sudo bash scripts/deploy/demo/preparar-vm.sh "$(id -un)" 2>&1 | tee "$SAIDA/preparar-1.log"
+          # segredos gerados NO RUNNER (openssl rand): mascarados no log, nunca impressos
+          while IFS='=' read -r nome valor; do
+            case "$nome" in *SENHA|*SEGREDO|*PEPPER) echo "::add-mask::$valor" ;; esac
+          done < /opt/macuxi/.env
+          test "$(stat -c '%a %U' /opt/macuxi/.env)" = "600 $(id -un)" || { echo "::error::/opt/macuxi/.env sem modo 600 do usuário de deploy"; exit 1; }
+          for n in MACUXI_PG_ADMIN_USUARIO MACUXI_PG_ADMIN_SENHA MACUXI_PG_APP_SENHA MACUXI_PG_WORKER_SENHA MACUXI_JWT_SEGREDO MACUXI_HUB_CHAVE_PEPPER; do
+            grep -q "^$n=." /opt/macuxi/.env || { echo "::error::preparar-vm.sh não gerou $n"; exit 1; }
+          done
+          sha256sum /opt/macuxi/.env | cut -d' ' -f1 > "$RUNNER_TEMP/env.sha"
+
+      - name: preparar-vm.sh (2ª vez, idempotente) e timer do backup
+        run: |
+          sudo bash scripts/deploy/demo/preparar-vm.sh "$(id -un)" 2>&1 | tee "$SAIDA/preparar-2.log"
+          if grep -q '\[preparar-vm\] gerado ' "$SAIDA/preparar-2.log" || [ "$(sha256sum /opt/macuxi/.env | cut -d' ' -f1)" != "$(cat "$RUNNER_TEMP/env.sha")" ]; then
+            echo "::error::a 2ª execução do preparar-vm.sh mexeu no /opt/macuxi/.env (deveria só acrescentar o que falta)"; exit 1
+          fi
+          systemctl is-enabled --quiet macuxi-backup.timer || { echo "::error::macuxi-backup.timer não está habilitado"; exit 1; }
+          systemctl is-active --quiet macuxi-backup.timer || { echo "::error::macuxi-backup.timer não está ativo"; exit 1; }
+          test "$(stat -c '%a %U' /opt/macuxi/backup)" = "700 $(id -un)" || { echo "::error::/opt/macuxi/backup sem modo 700 do usuário de deploy"; exit 1; }
+          systemctl list-timers macuxi-backup.timer --no-pager
+          systemctl cat macuxi-backup.service macuxi-backup.timer --no-pager
+          # SÓ NO CI: a unidade roda o backup-vm.sh igual à VM, mas com o compose do CI (S3 falso) e a imagem local
+          sudo install -d /etc/systemd/system/macuxi-backup.service.d
+          printf '[Service]\nEnvironment=COMPOSE_FILE=%s\nEnvironment=MACUXI_IMAGEM_API=%s\n' "$COMPOSE_FILE" "$MACUXI_IMAGEM_API" \
+            | sudo tee /etc/systemd/system/macuxi-backup.service.d/ci.conf
+          sudo systemctl daemon-reload
+
+      - name: registro local do runner (só 127.0.0.1)
+        run: |
+          # depois do preparar-vm.sh: o passo 5 dele reinicia o Docker (rotação de log)
+          docker run -d --name registro --restart always -p 127.0.0.1:5000:5000 registry:2
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:5000/v2/ && break; [ "$i" = 30 ] && exit 1; sleep 1; done
+
+      - uses: docker/setup-buildx-action@v3
+        with:
+          # o builder alcança o registro em localhost:5000
+          driver-opts: network=host
+
+      - name: imagem da API do commit (registro local)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          provenance: false
+          tags: localhost:5000/macuxi-api:${{ github.sha }}
+          # lê o cache do "demo — publicar" (só leitura) e grava num escopo próprio
+          cache-from: |
+            type=gha,scope=macuxi-api
+            type=gha,scope=macuxi-api-stack
+          cache-to: type=gha,scope=macuxi-api-stack,mode=max
+
+      - name: segredos de TESTE e compose do CI em /opt/macuxi
+        run: |
+          umask 077
+          # o que na VM vem dos secrets DEMO_S3_* e DEMO_CLOUDFLARE_TUNNEL_TOKEN: aqui, valores de teste do próprio job
+          segredo="$(openssl rand -hex 32)"
+          echo "::add-mask::$segredo"
+          printf 'MACUXI_S3_CHAVE_ID=ci-%s\nMACUXI_S3_SEGREDO=%s\n' "$(openssl rand -hex 8)" "$segredo" > /opt/macuxi/segredos.env
+          printf 'TUNNEL_TOKEN=ci-sem-tunel\n' > /opt/macuxi/tunel.env
+          install -m 644 scripts/deploy/stack-isolado/compose.ci.yml scripts/deploy/stack-isolado/s3-falso.mjs /opt/macuxi/
+          cd /opt/macuxi
+          # o modelo combinado é válido e NENHUM serviço fala com a Magalu (a saída do config tem os segredos: só o jq lê)
+          docker compose --env-file .env --profile ferramentas config --format json > "$RUNNER_TEMP/config.json"
+          for s in api worker backup; do
+            e="$(jq -r --arg s "$s" '.services[$s].environment.MACUXI_S3_ENDPOINT' "$RUNNER_TEMP/config.json")"
+            [ "$e" = "http://s3-falso:9000" ] || { echo "::error::$s com MACUXI_S3_ENDPOINT=$e (esperado o S3 falso)"; exit 1; }
+          done
+          # fora do modelo (perfil inativo) ou presente só com o perfil ci-sem-tunel, que ninguém liga
+          jq -e '(.services.cloudflared // null) == null or ((.services.cloudflared.profiles // []) | index("ci-sem-tunel") != null)' "$RUNNER_TEMP/config.json" > /dev/null \
+            || { echo "::error::cloudflared ligado no CI"; exit 1; }
+          rm -f "$RUNNER_TEMP/config.json"
+
+      - name: implantar.sh (1º deploy - migrações, seed demo, up, sonda, scripts do backup)
+        run: |
+          bash scripts/deploy/demo/implantar.sh "$TAG" 2>&1 | tee "$SAIDA/implantar-1.log"
+          l="$SAIDA/implantar-1.log"
+          falta() { echo "::error::implantar.sh (1º deploy): $1"; exit 1; }
+          grep -q 'primeiro deploy: seed demo' "$l" || falta "não carregou a base de demo"
+          grep -q 'api: /v1/saude ok' "$l" || falta "sem /v1/saude"
+          grep -q '\[sonda\] armazenamento ok' "$l" || falta "sonda do S3 não passou"
+          grep -q 'backup: scripts em /opt/macuxi/backup' "$l" || falta "scripts do backup não saíram da imagem"
+          grep -q 'backup: nenhum ainda' "$l" || falta "conferência do backup não disse 'nenhum ainda'"
+          ! grep -q '::warning::' "$l" || falta "houve aviso (veja as linhas ::warning:: acima)"
+          test "$(stat -c '%a' /opt/macuxi/backup/backup-vm.sh) $(stat -c '%a' /opt/macuxi/backup/restaurar-vm.sh) $(stat -c '%a' /opt/macuxi/backup/contagem.sql)" = "700 700 600" \
+            || falta "modos dos scripts do backup (esperado 700 700 600)"
+
+      - name: retrato do banco antes do backup (contagem.sql)
+        run: |
+          cd /opt/macuxi
+          dc() { docker compose --env-file .env --env-file imagens.env "$@"; }
+          # api e worker parados: ninguém escreve entre o retrato, o backup e a restauração (comparação EXATA)
+          dc stop api worker
+          dc exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d macuxi -At -F "|"' < backup/contagem.sql > "$SAIDA/contagem-antes.txt"
+          tenants="$(awk -F'|' '$1 == "linhas" && $2 == "plataforma.tenant" {print $3}' "$SAIDA/contagem-antes.txt")"
+          linhas="$(awk -F'|' '$1 == "linhas" {s += $3} END {print s + 0}' "$SAIDA/contagem-antes.txt")"
+          politicas="$(awk -F'|' '$1 == "politicas" {print $2}' "$SAIDA/contagem-antes.txt")"
+          echo "tenants=${tenants:-0} linhas=$linhas politicas=${politicas:-0} tabelas=$(grep -c '^linhas|' "$SAIDA/contagem-antes.txt")"
+          [ "${tenants:-0}" -ge 1 ] && [ "${politicas:-0}" -ge 1 ] || { echo "::error::base sem tenant ou sem política de RLS depois do seed"; exit 1; }
+
+      - name: backup pela unidade do systemd (backup-vm.sh → bucket)
+        run: |
+          sudo systemctl start macuxi-backup.service || true
+          sudo journalctl -u macuxi-backup --no-pager -o cat | tee "$SAIDA/backup.log"
+          [ "$(systemctl show macuxi-backup.service -p Result --value)" = "success" ] || { echo "::error::macuxi-backup.service falhou"; exit 1; }
+          grep -q '\[backup-vm\] .* pronto' "$SAIDA/backup.log" || { echo "::error::backup-vm.sh não chegou ao fim"; exit 1; }
+          cd /opt/macuxi
+          docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T backup listar | tee "$SAIDA/listar.txt"
+          grep -Eq 'backups/macuxi-[0-9]{8}T[0-9]{6}Z\.dump' "$SAIDA/listar.txt" || { echo "::error::nenhum dump em backups/ no bucket"; exit 1; }
+
+      - name: restaurar-vm.sh ao lado e contagem igual à de antes
+        run: |
+          bash /opt/macuxi/backup/restaurar-vm.sh ultimo 2>&1 | tee "$SAIDA/restaurar-1.log"
+          grep -q 'contagem IGUAL' "$SAIDA/restaurar-1.log" || { echo "::error::restaurar-vm.sh: contagem diferente da do banco atual"; exit 1; }
+          destino="$(grep -o 'macuxi_restaurado_[0-9]\{14\}' "$SAIDA/restaurar-1.log" | head -n 1)"
+          [ -n "$destino" ] || { echo "::error::não achei o banco restaurado no log"; exit 1; }
+          cd /opt/macuxi
+          docker compose --env-file .env --env-file imagens.env exec -T postgres \
+            sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1" -At -F "|"' _ "$destino" < backup/contagem.sql > "$SAIDA/contagem-restaurado.txt"
+          if ! diff -u "$SAIDA/contagem-antes.txt" "$SAIDA/contagem-restaurado.txt"; then
+            echo "::error::contagem.sql do restaurado ($destino) difere do retrato de antes do backup"; exit 1
+          fi
+          echo "contagem.sql idêntica: $(grep -c '^linhas|' "$SAIDA/contagem-antes.txt") tabelas, políticas, FORCE RLS e privilégios"
+
+      - name: restaurar-vm.sh --trocar e API de volta
+        run: |
+          bash /opt/macuxi/backup/restaurar-vm.sh ultimo --trocar 2>&1 | tee "$SAIDA/restaurar-2.log"
+          grep -q 'contagem IGUAL' "$SAIDA/restaurar-2.log" || { echo "::error::restaurar-vm.sh --trocar: contagem diferente"; exit 1; }
+          grep -q 'pronto: macuxi é o restaurado' "$SAIDA/restaurar-2.log" || { echo "::error::restaurar-vm.sh --trocar não trocou o banco"; exit 1; }
+          for i in $(seq 1 60); do curl -fsS -o /dev/null http://127.0.0.1:8100/v1/saude && break; [ "$i" = 60 ] && { echo "::error::/v1/saude não voltou depois da troca"; exit 1; }; sleep 2; done
+          cd /opt/macuxi
+          echo "select datname from pg_database where datname like 'macuxi%' order by 1" \
+            | docker compose --env-file .env --env-file imagens.env exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres -At' \
+            | tee "$SAIDA/bancos.txt"
+          grep -Eq '^macuxi_antes_[0-9]{14}$' "$SAIDA/bancos.txt" || { echo "::error::o banco anterior (macuxi_antes_*) não ficou guardado"; exit 1; }
+
+      - name: implantar.sh de novo sobre a base restaurada (sem seed, backup de 0 h)
+        run: |
+          bash scripts/deploy/demo/implantar.sh "$TAG" 2>&1 | tee "$SAIDA/implantar-2.log"
+          l="$SAIDA/implantar-2.log"
+          falta() { echo "::error::implantar.sh (2º deploy): $1"; exit 1; }
+          ! grep -q 'primeiro deploy: seed demo' "$l" || falta "recarregou a base de demo (a marca .base-demo-carregada deveria evitar)"
+          grep -Eq 'backup: o mais novo tem [0-9]+ h' "$l" || falta "a conferência não achou o backup recém-feito"
+          ! grep -q '::warning::' "$l" || falta "houve aviso (veja as linhas ::warning:: acima)"
+          grep -q "publicado: $TAG" "$l" || falta "não terminou"
+
+      - name: estado final e logs (sempre)
+        if: ${{ always() }}
+        run: |
+          cd /opt/macuxi 2>/dev/null || exit 0
+          [ -f imagens.env ] || exit 0
+          dc() { docker compose --env-file .env --env-file imagens.env "$@"; }
+          dc ps --all --format 'table {{.Service}}\t{{.Status}}' || true
+          # logs da aplicação (pino, sem segredo) e do S3 falso: uma linha por pedido, sem credencial
+          for s in api worker postgres s3-falso; do dc logs --no-color --tail 200 "$s" > "$SAIDA/log-$s.txt" 2>&1 || true; done
+          tail -n 40 "$SAIDA/log-s3-falso.txt" || true
+          {
+            echo "### Stack isolado (T-0074)"
+            echo "| etapa | log |"
+            echo "|---|---|"
+            for f in preparar-1 preparar-2 implantar-1 backup restaurar-1 restaurar-2 implantar-2; do
+              [ -f "$SAIDA/$f.log" ] && echo "| $f | $(tail -n 1 "$SAIDA/$f.log" | tr '|' '/') |"
+            done
+            [ -f "$SAIDA/contagem-antes.txt" ] && echo "" && echo "contagem.sql antes do backup: $(grep -c '^linhas|' "$SAIDA/contagem-antes.txt") tabelas, $(awk -F'|' '$1 == "linhas" {s += $3} END {print s + 0}' "$SAIDA/contagem-antes.txt") linhas"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: artefato com os logs e as contagens
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-isolado-${{ github.run_id }}
+          path: /tmp/macuxi-stack
+          retention-days: 7
+          if-no-files-found: ignore
