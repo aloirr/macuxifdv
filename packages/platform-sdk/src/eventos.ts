@@ -9,6 +9,10 @@
  *
  * Aqui ficam o contrato e uma implementação em memória (testes e dev). O adaptador Postgres +
  * pg-boss mora em apps/api.
+ *
+ * Subpath leve `@macuxi/platform-sdk/eventos` (T-0024, decisão a): os `contracts` que também rodam fora da API (o da
+ * Integracao vai no pacote do Conector) importam `definirEvento` daqui, sem puxar o índice inteiro do SDK. Por isso este
+ * arquivo só importa em tempo de execução `./nomes` (conferido em `eventos-subpath.test.ts`).
  */
 import type { z } from 'zod';
 import type { Manifesto } from './manifesto';

@@ -14,10 +14,11 @@ import pino from 'pino';
 import { criarBancoApp } from './banco';
 import { criarDespachante, LOTE_PADRAO, MAX_TENTATIVAS_PADRAO, verificarPapelWorker } from './despachante';
 import { MODULOS_API } from './modulos';
-import { avaliarAlertas, linhaDeMetricas, resumoDaLinha, SQL_RESUMO_OUTBOX } from './observabilidade';
+import { mensagemSegura, serializarErro } from './log-seguro';
+import { registrarMetricasWorker, SQL_RESUMO_OUTBOX } from './observabilidade';
 
 const cfg = lerConfigApp(); // carrega o .env (raiz e db/); fora do local não exige a senha do admin
-const log = pino({ level: process.env.MACUXI_API_LOG ?? 'info', base: { processo: 'despachante' } });
+const log = pino({ level: process.env.MACUXI_API_LOG ?? 'info', base: { processo: 'despachante' }, serializers: { err: serializarErro } });
 
 // o lote fica travado no worker enquanto os handlers rodam: sem idle_in_transaction curto aqui
 const poolWorker = new pg.Pool({ connectionString: urlWorker(cfg), max: 2, options: '-c statement_timeout=30000' });
@@ -44,17 +45,8 @@ async function principal(): Promise<void> {
   });
   log.info({ eventos: despachante.eventos() }, 'despachante no ar');
   const execucao = despachante.iniciar({ intervaloMs: Number(process.env.MACUXI_DESPACHANTE_INTERVALO_MS ?? 1_000) });
-  const registrarMetricas = async () => {
-    try {
-      const r = await poolWorker.query(SQL_RESUMO_OUTBOX, [despachante.eventos(), MAX_TENTATIVAS_PADRAO]);
-      const outbox = resumoDaLinha(r.rows[0]);
-      const alertas = avaliarAlertas({ banco: 'ok', outbox, erros_5xx: 0 });
-      if (alertas.length > 0) log.warn(linhaDeMetricas(null, outbox, alertas), 'alerta: outbox');
-      else log.info(linhaDeMetricas(null, outbox, alertas), 'métricas da outbox');
-    } catch (e) {
-      log.warn({ ...linhaDeMetricas(null, null, ['BANCO_FALHA']), erro: e instanceof Error ? e.message : String(e) }, 'alerta: banco');
-    }
-  };
+  const registrarMetricas = () =>
+    registrarMetricasWorker(async () => (await poolWorker.query(SQL_RESUMO_OUTBOX, [despachante.eventos(), MAX_TENTATIVAS_PADRAO])).rows[0], log);
   const intervaloMetricas = Number(process.env.MACUXI_METRICAS_INTERVALO_MS ?? 300_000);
   const timerMetricas = intervaloMetricas > 0 ? setInterval(() => void registrarMetricas(), intervaloMetricas) : undefined;
   timerMetricas?.unref();
@@ -69,7 +61,7 @@ async function principal(): Promise<void> {
 }
 
 principal().catch(async (e: unknown) => {
-  log.error({ erro: e instanceof Error ? e.message : String(e) }, 'o despachante não subiu');
+  log.error({ erro: mensagemSegura(e) }, 'o despachante não subiu');
   await Promise.all([poolWorker.end(), poolApp.end()]).catch(() => undefined);
   process.exit(1);
 });

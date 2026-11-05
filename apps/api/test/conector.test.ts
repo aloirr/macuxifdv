@@ -18,6 +18,7 @@ import {
   type ModuloApi,
   type ModuloId,
 } from '@macuxi/platform-sdk';
+import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createApp, type OpcoesApp } from '../src/app';
@@ -105,6 +106,21 @@ const conectorApi: ApiConector = definirApiConector<ConectorFixture>({
       caminho: '/falha',
       executar: async () => {
         throw new Error('detalhe interno que não pode sair');
+      },
+    },
+    {
+      id: 'falha_pg',
+      metodo: 'GET',
+      caminho: '/falha-pg',
+      executar: async () => {
+        // T-0078 D-L1a: erro do Postgres sem tratamento, com o valor da linha no detail
+        throw Object.assign(new pg.DatabaseError('duplicate key value violates unique constraint "contato_email_key"', 0, 'error'), {
+          code: '23505',
+          constraint: 'contato_email_key',
+          table: 'contato',
+          detail: 'Key (tenant_id, email)=(0a000000-0000-4000-8000-0000000000f8, maria.pessoal@exemplo.com.br) already exists.',
+          where: 'SQL statement "INSERT ... maria.pessoal@exemplo.com.br"',
+        });
       },
     },
     {
@@ -330,6 +346,26 @@ describe('rotas de Conector /integracao/v1 (ADR 0013, T-0032)', () => {
     expect(log).not.toContain(CHAVE_A);
     expect(log).toContain('"motivo":"chave_desconhecida"');
     expect(log).toContain('[omitido]');
+  });
+
+  it('erro do Postgres sem tratamento (T-0078 D-L1a): 500 genérico e o log só com SQLSTATE, constraint e tabela', async () => {
+    const linhas: string[] = [];
+    const stream = new Writable({
+      write(c: Buffer, _e, cb) {
+        linhas.push(c.toString());
+        cb();
+      },
+    });
+    const app = montar({ logger: { ...opcoesLogger('trace'), stream } });
+    const r = await app.inject({ method: 'GET', url: '/integracao/v1/falha-pg', headers: cabA });
+    expect(r.statusCode).toBe(500);
+    expect(r.body).not.toContain('maria.pessoal');
+    expect(r.body).not.toContain('Key (');
+    const log = linhas.join('');
+    expect(log).not.toContain('maria.pessoal');
+    expect(log).not.toMatch(/"detail"|"where"|duplicate key/);
+    const erro = linhas.map((l) => JSON.parse(l) as { msg?: string; err?: Record<string, unknown> }).find((l) => l.msg?.startsWith('erro não tratado'));
+    expect(erro?.err).toEqual({ type: 'DatabaseError', code: '23505', message: 'erro do Postgres (SQLSTATE 23505)', constraint: 'contato_email_key', table: 'contato' });
   });
 
   it('createApp recusa rotas de Conector em módulo sem apps.conector (fixture montada sem definirModuloApi)', () => {

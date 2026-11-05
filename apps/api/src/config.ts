@@ -7,6 +7,8 @@
  * - no ambiente local a API sobe com aviso e o login responde 503 `AUTENTICACAO_INDISPONIVEL` (ninguém autentica).
  */
 
+import { serializarErro, type ErroDeLog } from './log-seguro';
+
 /** Mesmo mínimo do Core (`modules/core/api/seguranca.ts`). */
 export const SEGREDO_JWT_MIN = 32;
 
@@ -52,7 +54,9 @@ export function lerTrustProxy(env: NodeJS.ProcessEnv): boolean | string[] | ((en
 /**
  * Opções do logger pino da API (CLAUDE.md regra 8; ADR 0013 §6): `req` só com método, caminho sem query e `request_id`;
  * `res` só com o status. Redação de reforço: `Authorization`, `Cookie` e todo `X-Macuxi-*` (chave e identificador do Conector)
- * nunca saem, mesmo que alguém registre um objeto de cabeçalhos por engano.
+ * nunca saem, mesmo que alguém registre um objeto de cabeçalhos por engano. `err` passa pelo `serializarErro`
+ * (`log-seguro.ts`, T-0078 D-L1a): erro do Postgres sai só com SQLSTATE, `constraint` e nomes de tabela/coluna — nunca
+ * `detail`, `where`, `parameters` nem a mensagem com valores da linha.
  */
 export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   'headers.authorization',
@@ -76,6 +80,8 @@ export function opcoesLogger(nivel: string) {
     serializers: {
       req: (req: { method: string; url: string; id: string }) => ({ method: req.method, url: req.url.split('?')[0], request_id: req.id }),
       res: (res: { statusCode: number }) => ({ status: res.statusCode }),
+      // o tipo do Fastify exige `stack`; o erro do Postgres sai sem ela (a pilha é a do parser do driver, sem valor)
+      err: serializarErro as (e: Error) => ErroDeLog & { stack: string },
     },
   };
 }

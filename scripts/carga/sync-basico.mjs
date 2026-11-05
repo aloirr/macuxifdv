@@ -49,7 +49,7 @@ async function chamar(caminho, token, corpo) {
     return { status: 0, json: null };
   } finally {
     // o login não entra na latência do sync
-    if (!caminho.startsWith('/core/auth/')) amostras.push(performance.now() - inicio);
+    if (!caminho.startsWith('/auth/')) amostras.push(performance.now() - inicio);
   }
 }
 
@@ -85,7 +85,7 @@ async function principal() {
     console.error('[carga] defina MACUXI_CARGA_EMPRESA, MACUXI_CARGA_EMAIL e MACUXI_CARGA_SENHA (a senha não é impressa).');
     process.exit(2);
   }
-  const login = await chamar('/core/auth/login', null, { codigo_empresa: empresa, email, senha });
+  const login = await chamar('/auth/login', null, { codigo_empresa: empresa, email, senha });
   const token = login.json?.access_token;
   if (login.status !== 200 || !token) {
     console.error(`[carga] login falhou (status ${login.status}); confira a URL e as credenciais.`);

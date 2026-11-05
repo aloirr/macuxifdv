@@ -40,6 +40,7 @@ import {
 import type pg from 'pg';
 import { ErroPapelBanco } from './banco';
 import { licencasDoTenantNoBanco, type LicencasTenant } from './licencas';
+import { mensagemSegura } from './log-seguro';
 import { publicadorTenant, registroDeConsultas, transacaoTenant } from './outbox';
 
 export interface OpcoesDespachante {
@@ -126,7 +127,8 @@ interface TenantDoCiclo {
   fuso: string;
 }
 
-const mensagemDe = (e: unknown): string => (e instanceof Error ? `${e.name}: ${e.message}` : String(e)).slice(0, MAX_ERRO);
+/** Sem `detail`/valores do erro do Postgres (T-0078 D-L1a): vai para o log e para a coluna de erro da outbox. */
+const mensagemDe = (e: unknown): string => mensagemSegura(e).slice(0, MAX_ERRO);
 
 /** Falha fechada na subida: a conexão do despachante tem de ser o `macuxi_worker`, sem SUPERUSER nem BYPASSRLS. */
 export async function verificarPapelWorker(pool: Pick<pg.Pool, 'query'>): Promise<void> {

@@ -8,6 +8,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./eventos": "./src/eventos.ts",
     "./web": "./src/web/index.ts",
     "./react": "./src/react/index.tsx",
     "./sqlite-node": "./src/sqlite/driver-node.ts"
