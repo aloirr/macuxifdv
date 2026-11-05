@@ -188,11 +188,16 @@ export function sqlDoPull(t: Tabela, pedido: PedidoPull, visiveis: ReadonlySet<s
 
 /**
  * RN-PRO-01 / T-0077 D2: `historico_compra` é leitura de pedidos. Promotor com `promotor_ve_pedidos` desligada recebe as linhas
- * como removidas (`deleted_at` = `updated_at`): o aparelho limpa o que já tinha e o cursor avança normalmente. Ao religar a
- * opção, a rota toca o `updated_at` do histórico do tenant para o aparelho puxar de novo.
+ * como removidas (`deleted_at` = `updated_at`): o aparelho limpa o que já tinha e o cursor avança normalmente. A rota do parâmetro
+ * toca o `updated_at` do histórico do tenant ao desligar (pull incremental recebe a remoção) e ao religar (aparelho puxa de novo;
+ * todos os perfis rebaixam o histórico, aceitável porque a troca é rara). A linha oculta não leva dado de compra: os campos que o
+ * `HistoricoCompraSyncSchema@1` exige seguem presentes, mas zerados (`valor_cents`, `pedidos`, `itens`) ou nulos (`ultima_compra_em`).
  */
 export function ocultarHistorico(linhas: LinhaSync[]): LinhaSync[] {
-  return linhas.map((l) => ({ ...l, deleted_at: (l as { updated_at: string }).updated_at }) as LinhaSync);
+  return linhas.map((l) => {
+    const { id, updated_at, external_id, cliente_id, ano_mes, origem } = l as unknown as Record<string, unknown>;
+    return { id, updated_at, deleted_at: updated_at, external_id, cliente_id, ano_mes, valor_cents: 0, pedidos: 0, itens: 0, ultima_compra_em: null, origem } as unknown as LinhaSync;
+  });
 }
 
 function puxarDe(t: Tabela) {

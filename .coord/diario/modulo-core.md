@@ -50,3 +50,4 @@
 2026-11-04 — T-0076 — C1: leitor tolerante (strip recursivo) para core.inicio@1 e login no app do Core; testes de campo extra/obrigatório
 2026-11-04 — T-0077 — D2: API do Core revalida promotor_ve_pedidos no Cliente 360 (historico vazio) e no pull de historico_compra (removido); domain perfilRecebeHistoricoDeCompra; teste de banco para o CI
 2026-11-04 — T-0077 — D2: fixture do promotor-historico.db.test usa mês livre do c1 (historico_compra_mes_uk)
+2026-11-04 — T-0077 — D2: teste de banco inseria em mês já ocupado pelo seed (c1 tem 12 meses); agora usa hoje−12m; D2-a toca updated_at ao ligar e desligar; D2-b linha oculta sem valores; teste incremental
