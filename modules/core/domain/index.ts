@@ -32,3 +32,4 @@ export * from './metas-edicao';
 export * from './meta-do-dia';
 export * from './inicio';
 export * from './rodape-cliente';
+export * from './inicio-parametros';

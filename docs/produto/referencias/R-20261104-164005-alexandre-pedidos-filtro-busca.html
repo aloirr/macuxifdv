@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<style>
+:root{--ink:#17212B;--ink2:#5B6670;--ink3:#8A949C;--ground:#F3F2EF;--line:#E4E2DD;--accent:#C2550A;--accentSoft:#FBE7D8;--success:#1F6B4A;--successBg:#E3F1EA;--warn:#9A4A08;--warnBg:#FDEBD7;--danger:#B42318;--dangerBg:#FBE4E1}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,sans-serif;background:#D9D6CF;padding:26px;color:var(--ink)}
+h1.page{font-size:21px;margin:0 0 16px 4px}
+.row{display:flex;gap:28px}
+.cap{font-size:13px;font-weight:700;margin:0 0 8px 4px;color:#333}
+.phone{width:360px;height:780px;background:var(--ground);border-radius:34px;border:10px solid #111;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.sb{height:30px;display:flex;justify-content:space-between;padding:8px 22px 0;font-size:12px;font-weight:600}
+.body{flex:1;overflow:hidden;padding:10px 14px;display:flex;flex-direction:column;gap:10px}
+.r{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.small{font-size:11.5px;color:var(--ink2)}
+.btn{background:var(--accent);color:#fff;border-radius:12px;padding:9px 16px;font-weight:700;font-size:13.5px}
+.search{background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:13px;color:var(--ink3)}
+.search.on{color:var(--ink);border-color:var(--ink)}
+.seg{display:flex;background:#E8E6E1;border-radius:10px;padding:3px}
+.seg span{flex:1;text-align:center;font-size:12.5px;font-weight:600;padding:6px 0;border-radius:8px;color:var(--ink2)}
+.seg span.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.per{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:11px;padding:8px 12px;font-weight:700;font-size:14px}
+.per i{font-style:normal;color:var(--accent);font-size:18px;padding:0 6px}
+.chips{display:flex;gap:6px;overflow:hidden;white-space:nowrap}
+.chips span{font-size:12px;font-weight:600;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 11px}
+.chips span.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.list{background:#fff;border:1px solid var(--line);border-radius:14px}
+.o{padding:10px 13px;border-top:1px solid var(--line)}
+.o:first-child{border-top:0}
+.nm{font-size:13.5px;font-weight:700}
+.val{font-size:13.5px;font-weight:700}
+.mono{font-family:'DejaVu Sans Mono',monospace;font-size:11px;color:var(--ink2)}
+.st{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px}
+.st.a{background:var(--successBg);color:var(--success)}.st.w{background:var(--warnBg);color:var(--warn)}.st.d{background:var(--dangerBg);color:var(--danger)}
+.nav{height:52px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;font-size:10.5px;color:var(--ink2)}
+.nav b{color:var(--accent);font-weight:600}
+mark{background:#FFE7B8;color:inherit;border-radius:3px}
+.dim{position:absolute;inset:0;background:rgba(15,20,25,.45)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:16px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12.5px;margin-top:10px}
+.cal b{font-size:11px;color:var(--ink3);font-weight:600}
+.cal span{padding:7px 0;border-radius:8px}
+.cal span.on{background:var(--ink);color:#fff;font-weight:700}
+.cal span.d{color:#C3C7CB}
+.cal span.p{position:relative}
+.cal span.p:after{content:'';position:absolute;left:50%;bottom:2px;width:4px;height:4px;border-radius:50%;background:var(--accent);transform:translateX(-50%)}
+</style></head><body>
+<h1 class="page">Pedidos — filtro por dia, mês e ano + busca (dados fictícios)</h1>
+<div class="row">
+
+<!-- 1 -->
+<div><div class="cap">1 · Lista (filtro Mês)</div>
+<div class="phone">
+ <div class="sb"><span>16:31</span><span>5G ▮ 100%</span></div>
+ <div class="body">
+  <div class="r" style="margin-top:4px"><div style="font-size:24px;font-weight:800">Pedidos</div><div class="btn">+ Novo</div></div>
+  <div class="search">🔍 Nome fantasia, razão social ou nº</div>
+  <div class="seg"><span>Dia</span><span class="on">Mês</span><span>Ano</span></div>
+  <div class="per"><i>‹</i><span>Novembro 2026</span><i>›</i></div>
+  <div class="chips"><span class="on">Todos 9</span><span>Aguardando 1</span><span>Aprovados 6</span><span>Rejeitados 1</span><span>Orçamentos 0</span></div>
+  <div class="small">9 pedidos · R$ 4.023</div>
+  <div class="list">
+   <div class="o"><div class="r"><span class="nm">Mercadinho São Jorge</span><span class="val">R$ 766,45</span></div><div class="r" style="margin-top:4px"><span class="mono">000012 · 03/11 · 3 itens</span><span class="st w">Aguardando</span></div></div>
+   <div class="o"><div class="r"><span class="nm">Mercado Estrela do Norte</span><span class="val">R$ 306,56</span></div><div class="r" style="margin-top:4px"><span class="mono">000009 · 02/11 · 2 itens</span><span class="st d">Rejeitado</span></div></div>
+   <div class="o"><div class="r"><span class="nm">Atacadinho Cachoeirinha</span><span class="val">R$ 552,56</span></div><div class="r" style="margin-top:4px"><span class="mono">000008 · 02/11 · 3 itens</span><span class="st a">Aprovado</span></div></div>
+   <div class="o"><div class="r"><span class="nm">Atacadinho Cachoeirinha</span><span class="val">R$ 33,30</span></div><div class="r" style="margin-top:4px"><span class="mono">000011 · 02/11 · 1 item</span><span class="st a">Aprovado</span></div></div>
+   <div class="o"><div class="r"><span class="nm">Supermercado Família</span><span class="val">R$ 592,17</span></div><div class="r" style="margin-top:4px"><span class="mono">000005 · 01/11 · 3 itens</span><span class="st a">Aprovado</span></div></div>
+  </div>
+ </div>
+ <div class="nav"><span>Início</span><span>Rota</span><span>Clientes</span><b>Pedidos</b><span>Mais</span></div>
+</div></div>
+
+<!-- 2 -->
+<div><div class="cap">2 · Filtro Dia (toque na data abre o calendário)</div>
+<div class="phone">
+ <div class="sb"><span>16:32</span><span>5G ▮ 100%</span></div>
+ <div class="body">
+  <div class="r" style="margin-top:4px"><div style="font-size:24px;font-weight:800">Pedidos</div><div class="btn">+ Novo</div></div>
+  <div class="search">🔍 Nome fantasia, razão social ou nº</div>
+  <div class="seg"><span class="on">Dia</span><span>Mês</span><span>Ano</span></div>
+  <div class="per"><i>‹</i><span>Seg, 02/11/2026</span><i>›</i></div>
+ </div>
+ <div class="dim"></div>
+ <div class="sheet">
+  <div class="r"><div style="font-size:17px;font-weight:800">Novembro 2026</div><div class="small">‹ ›</div></div>
+  <div class="cal">
+   <b>D</b><b>S</b><b>T</b><b>Q</b><b>Q</b><b>S</b><b>S</b>
+   <span class="p">1</span><span class="on">2</span><span class="p">3</span><span class="p">4</span><span>5</span><span>6</span><span>7</span>
+   <span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span>
+   <span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span>
+   <span>22</span><span>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span>28</span>
+   <span>29</span><span>30</span><span class="d">1</span><span class="d">2</span><span class="d">3</span><span class="d">4</span><span class="d">5</span>
+  </div>
+  <div class="small" style="margin-top:8px">● dia com pedido</div>
+  <div class="r" style="margin-top:12px;gap:9px"><div style="flex:1;text-align:center;font-weight:600;font-size:13px;color:var(--ink2);padding:10px">Hoje</div><div class="btn" style="flex:1;text-align:center;padding:11px">Aplicar</div></div>
+ </div>
+</div></div>
+
+<!-- 3 -->
+<div><div class="cap">3 · Busca</div>
+<div class="phone">
+ <div class="sb"><span>16:33</span><span>5G ▮ 100%</span></div>
+ <div class="body">
+  <div class="r" style="margin-top:4px"><div style="font-size:24px;font-weight:800">Pedidos</div><div class="btn">+ Novo</div></div>
+  <div class="search on">🔍 cachoeir<span style="float:right;color:var(--ink3)">✕</span></div>
+  <div class="small">2 resultados · últimos 90 dias</div>
+  <div class="list">
+   <div class="o"><div class="r"><span class="nm">Atacadinho <mark>Cachoeir</mark>inha</span><span class="val">R$ 552,56</span></div><div class="small">Atacadinho <mark>Cachoeir</mark>inha Comércio Ltda</div><div class="r" style="margin-top:4px"><span class="mono">000008 · 02/11 · 3 itens</span><span class="st a">Aprovado</span></div></div>
+   <div class="o"><div class="r"><span class="nm">Atacadinho <mark>Cachoeir</mark>inha</span><span class="val">R$ 33,30</span></div><div class="small">Atacadinho <mark>Cachoeir</mark>inha Comércio Ltda</div><div class="r" style="margin-top:4px"><span class="mono">000011 · 02/11 · 1 item</span><span class="st a">Aprovado</span></div></div>
+  </div>
+  <div class="small" style="text-align:center"></div>
+ </div>
+ <div class="nav"><span>Início</span><span>Rota</span><span>Clientes</span><b>Pedidos</b><span>Mais</span></div>
+</div></div>
+
+</div></body></html>
