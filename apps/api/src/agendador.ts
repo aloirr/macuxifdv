@@ -184,7 +184,8 @@ export function criarAgendador(op: OpcoesAgendador) {
         }
         if (ativo) {
           timer = setTimeout(() => (atual = passo()), INTERVALO_MS);
-          timer.unref?.();
+          // Sob a lib DOM (tests/tsconfig) o retorno é number; em Node é Timeout com unref (não segura o processo).
+          (timer as unknown as { unref?: () => void }).unref?.();
         }
       };
       if (ativo) atual = passo();
