@@ -1,0 +1,333 @@
+name: DBaaS — teste de compatibilidade (T-0075)
+
+# T-0075 (instrução do dono do produto, chat de 05/11). Roda o teste de compatibilidade do DBaaS PostgreSQL da Magalu
+# (instância TEMPORÁRIA, IP privado na VPC da VM) A PARTIR DA VM da demo, porque o runner não alcança a VPC:
+#   1. entra na VM pelo mesmo SSH do demo-publicar (environment DEMO_SSH_KEY: DEMO_SSH_KEY, DEMO_HOST, DEMO_USER);
+#   2. confere na VM que a rota até o DBaaS NÃO passa por uma ponte do Docker (a rede do compose da demo nunca é o alvo);
+#   3. copia só db/dbaas/ (script do banco-dados) para um diretório temporário da VM (mktemp -d, modo 700); o resto do
+#      código (migrações, seeds, @macuxi/db) vem da imagem macuxi-api do commit no GHCR (a do demo-publicar), que o
+#      script baixa com um DOCKER_CONFIG isolado nesse diretório;
+#   4. roda `bash ./teste-compatibilidade.sh --senha-stdin` com host/porta/usuário nas variáveis DBAAS_* e a senha
+#      (secret DBAAS_TESTE_SENHA) na 1ª linha do stdin do ssh: o script a lê numa variável não exportada e a repassa ao
+#      contêiner pelo stdin do `docker run -i` (nunca em argv, em -e/docker inspect, no ambiente exportado nem em disco);
+#   5. traz $DBAAS_SAIDA (relatório e logs) para o resumo do job e um artefato, depois de conferir que a senha não
+#      aparece em nenhum arquivo; apaga o diretório temporário da VM e a chave do runner (sempre, mesmo com falha).
+# Nunca toca no Postgres da demo, no compose da demo, em /opt/macuxi nem nos segredos do deploy.
+# Interface com o script (dono: banco-dados): docs/decisoes/ (ADR do resultado) e o recado da T-0075; resumo:
+#   entrada  db/dbaas/teste-compatibilidade.sh, rodado com `bash` dentro de $DBAAS_DIR/script
+#   chamada  cd $DBAAS_DIR/script && timeout -k 2m 28m bash ./teste-compatibilidade.sh --senha-stdin  (senha no stdin)
+#   variáveis DBAAS_HOST DBAAS_PORTA DBAAS_USUARIO DBAAS_BANCO DBAAS_SSLMODE DBAAS_DIR DBAAS_SAIDA DBAAS_RELATORIO
+#            MACUXI_IMAGEM_API (sem tag) + MACUXI_SHA (tag) e DOCKER_CONFIG (login no GHCR isolado, herdado pelo pull)
+#   rede     a VM precisa de saída para registry.npmjs.org:443 (o contêiner instala o Vitest em /tmp; sem ela, C3.3 ❌)
+#   saída    $DBAAS_RELATORIO (markdown, vai ao resumo) e execucao.log, suite.json, suite.log em $DBAAS_SAIDA (artefato)
+#   retorno  0 ok · 1 critério ❌ · 2 configuração · 3 sem alcance/rota · 4 critérios ✅ mas sobrou base de teste ·
+#            124/137 estourou o tempo (o trap do TERM apaga as bases) · 130 interrompido
+# Como disparar: Actions → "DBaaS — teste de compatibilidade (T-0075)" → Run workflow (depois de estar no main), ou
+# push num branch verificacao/** que mude este arquivo ou db/dbaas/ (1º run, antes do main).
+
+on:
+  # manual: só depois que este arquivo estiver no main (regra do GitHub para workflow_dispatch)
+  workflow_dispatch:
+    inputs:
+      host:
+        description: IP ou nome PRIVADO do DBaaS (na VPC da VM)
+        default: 172.18.3.212
+      porta:
+        description: porta do DBaaS
+        default: '5432'
+      usuario:
+        description: usuário admin do DBaaS (a senha vem do secret DBAAS_TESTE_SENHA)
+        default: macuxi_admin
+      banco:
+        description: banco de manutenção para a conexão inicial
+        default: postgres
+      sslmode:
+        description: sslmode do libpq
+        type: choice
+        options: [prefer, require, verify-full, disable]
+        default: prefer
+      imagem_tag:
+        description: tag da imagem macuxi-api no GHCR (migrações/seeds/suíte); vazio = o SHA deste commit (demo-publicar)
+        default: ''
+  # branch de verificação do gerente (lote local, doc 07): roda no 1º push, antes de o workflow existir no main;
+  # só quando o próprio workflow ou o script mudam (nunca em todo push)
+  push:
+    branches: ['verificacao/**']
+    paths:
+      - '.github/workflows/dbaas-teste.yml'
+      - 'db/dbaas/**'
+
+permissions:
+  contents: read
+  # pull da imagem macuxi-api na VM, com credencial isolada no diretório temporário
+  packages: read
+
+# grupo próprio: não entra na fila do demo-vm (um pendente novo cancelaria o deploy pendente); um teste por vez
+concurrency:
+  group: dbaas-teste
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # bash --noprofile --norc -eo pipefail; nenhum set -x neste arquivo (a senha está no ambiente)
+    shell: bash
+
+jobs:
+  teste:
+    name: compatibilidade do DBaaS pela VM
+    runs-on: ubuntu-24.04
+    # 28 min do script + 2 min do kill do timeout + preparo e limpeza
+    timeout-minutes: 38
+    environment: DEMO_SSH_KEY
+    env:
+      SCRIPT_DIR: db/dbaas
+      SCRIPT: teste-compatibilidade.sh
+      # entradas vazias no push → padrões do T-0075
+      ENT_HOST: ${{ inputs.host || '172.18.3.212' }}
+      ENT_PORTA: ${{ inputs.porta || '5432' }}
+      ENT_USUARIO: ${{ inputs.usuario || 'macuxi_admin' }}
+      ENT_BANCO: ${{ inputs.banco || 'postgres' }}
+      ENT_SSLMODE: ${{ inputs.sslmode || 'prefer' }}
+      # dispatch: a tag informada ou o SHA do commit (imagem do demo-publicar; a partir do af6c368 tem a 0027);
+      # push em verificacao/**: esse SHA não é publicado, então usa a main (o script montado vem do próprio branch)
+      ENT_TAG: ${{ inputs.imagem_tag || (github.event_name == 'push' && 'main') || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: pasta de saída no runner (fora do checkout)
+        run: |
+          echo "LOCAL=$RUNNER_TEMP/dbaas-saida" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/dbaas-saida/saida"
+
+      - name: senha mascarada (nunca impressa)
+        env:
+          DBAAS_SENHA: ${{ secrets.DBAAS_TESTE_SENHA }}
+        run: |
+          if [ -z "$DBAAS_SENHA" ]; then
+            echo "::error::secret DBAAS_TESTE_SENHA vazio ou fora do environment DEMO_SSH_KEY"; exit 1
+          fi
+          case "$DBAAS_SENHA" in *$'\n'*|*$'\r'*) echo "::error::DBAAS_TESTE_SENHA tem quebra de linha"; exit 1;; esac
+          # o GitHub já mascara secrets; reforço explícito, também na forma URL-codificada (se o script montar uma URL)
+          echo "::add-mask::$DBAAS_SENHA"
+          codificada=$(jq -rn --arg s "$DBAAS_SENHA" '$s|@uri')
+          echo "::add-mask::$codificada"
+
+      - name: parâmetros e script
+        env:
+          DEMO_HOST: ${{ secrets.DEMO_HOST }}
+          DONO: ${{ github.repository_owner }}
+        run: |
+          [[ "$ENT_HOST" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$ ]] || { echo "::error::host inválido"; exit 1; }
+          [[ "$ENT_PORTA" =~ ^[0-9]{1,5}$ ]] && [ "$ENT_PORTA" -ge 1 ] && [ "$ENT_PORTA" -le 65535 ] || { echo "::error::porta inválida"; exit 1; }
+          [[ "$ENT_USUARIO" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || { echo "::error::usuário inválido"; exit 1; }
+          [[ "$ENT_BANCO" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || { echo "::error::banco inválido"; exit 1; }
+          [[ "$ENT_SSLMODE" =~ ^(prefer|require|verify-full|disable)$ ]] || { echo "::error::sslmode inválido"; exit 1; }
+          [[ "$ENT_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo "::error::tag da imagem inválida"; exit 1; }
+          # o alvo nunca é a própria VM (lá mora o Postgres da demo)
+          minusculo=${ENT_HOST,,}
+          case "$minusculo" in
+            localhost|localhost.*|127.*|0.*|::1|host.docker.internal)
+              echo "::error::host $ENT_HOST aponta para a própria VM: o Postgres da demo nunca é alvo deste teste"; exit 1;;
+          esac
+          if [ -n "$DEMO_HOST" ] && [ "$minusculo" = "${DEMO_HOST,,}" ]; then
+            echo "::error::host é o da VM da demo: o Postgres da demo nunca é alvo deste teste"; exit 1
+          fi
+          if [ ! -f "$SCRIPT_DIR/$SCRIPT" ]; then
+            echo "::error::$SCRIPT_DIR/$SCRIPT não existe neste commit (dono: banco-dados)"; exit 1
+          fi
+          bash -n "$SCRIPT_DIR/$SCRIPT"
+          if grep -rnE --include='*.sh' '^[[:space:]]*set[[:space:]]+(-[a-wyz]*x|-o[[:space:]]+xtrace)' "$SCRIPT_DIR"; then
+            echo "::error::set -x no script do DBaaS imprimiria a senha: remova antes de rodar"; exit 1
+          fi
+          {
+            echo "DBAAS_HOST=$ENT_HOST"
+            echo "DBAAS_PORTA=$ENT_PORTA"
+            echo "DBAAS_USUARIO=$ENT_USUARIO"
+            echo "DBAAS_BANCO=$ENT_BANCO"
+            echo "DBAAS_SSLMODE=$ENT_SSLMODE"
+            echo "IMAGEM=ghcr.io/${DONO,,}/macuxi-api"
+            echo "IMAGEM_TAG=$ENT_TAG"
+          } >> "$GITHUB_ENV"
+          echo "alvo: $ENT_HOST:$ENT_PORTA usuário $ENT_USUARIO banco $ENT_BANCO sslmode $ENT_SSLMODE · imagem macuxi-api:$ENT_TAG"
+
+      - name: a imagem da API existe no GHCR
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATOR: ${{ github.actor }}
+        run: |
+          # falha cedo, antes de entrar na VM; config própria e descartada (não fica login no runner)
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-ghcr"
+          printf '%s' "$TOKEN" | docker login ghcr.io -u "$ATOR" --password-stdin >/dev/null \
+            || { echo "::error::login no GHCR falhou no runner (permissions: packages: read?)"; exit 1; }
+          if ! docker manifest inspect "$IMAGEM:$IMAGEM_TAG" >/dev/null 2>&1; then
+            rm -rf "$DOCKER_CONFIG"
+            echo "::error::imagem $IMAGEM:$IMAGEM_TAG não está no GHCR: rode o demo-publicar deste commit ou informe imagem_tag"; exit 1
+          fi
+          rm -rf "$DOCKER_CONFIG"
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.DEMO_SSH_KEY }}
+          HOST: ${{ secrets.DEMO_HOST }}
+        run: |
+          install -d -m 700 ~/.ssh
+          # sem CR: chave colada no Windows quebraria o formato OpenSSH
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/demo
+          chmod 600 ~/.ssh/demo
+          ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host demo\n  HostName %s\n  IdentityFile ~/.ssh/demo\n  IdentitiesOnly yes\n  BatchMode yes\n  ServerAliveInterval 30\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: rota até o DBaaS fora das redes do Docker
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+        run: |
+          rota=$(ssh -l "$USUARIO" demo "ip -o route get '$DBAAS_HOST' 2>&1" || true)
+          echo "rota na VM: $rota"
+          dispositivo=$(printf '%s\n' "$rota" | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)
+          if [ -z "$dispositivo" ]; then
+            echo "::error::a VM não tem rota para $DBAAS_HOST (instância na mesma VPC?)"; exit 1
+          fi
+          case "$dispositivo" in
+            docker*|br-*|veth*|lo)
+              echo "::error::$DBAAS_HOST sai pela interface $dispositivo da VM (rede do Docker/compose da demo ou loopback): teste abortado"; exit 1;;
+          esac
+
+      - name: diretório temporário na VM e cópia do script
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+        run: |
+          dir=$(ssh -l "$USUARIO" demo 'umask 077; mktemp -d /tmp/macuxi-dbaas.XXXXXXXX')
+          [[ "$dir" =~ ^/tmp/macuxi-dbaas\.[A-Za-z0-9]{8}$ ]] || { echo "::error::mktemp remoto devolveu '$dir'"; exit 1; }
+          echo "DBAAS_DIR=$dir" >> "$GITHUB_ENV"
+          ssh -l "$USUARIO" demo "umask 077; mkdir -p '$dir/script' '$dir/saida' '$dir/docker'"
+          # só db/dbaas/ (o script monta esta pasta em /app/db/dbaas:ro; o resto vem da imagem)
+          tar -C "$SCRIPT_DIR" -cf - . | ssh -l "$USUARIO" demo "tar -C '$dir/script' -xf -"
+          echo "VM: $dir (apagado no fim do job)"
+
+      - name: saída da VM para registry.npmjs.org (Vitest do C3.3)
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+        run: |
+          # a imagem é --prod (ADR 0023) e não traz o Vitest: o contêiner (--network host) faz npm install em /tmp
+          if ssh -l "$USUARIO" demo "timeout 8 bash -c 'exec 3<>/dev/tcp/registry.npmjs.org/443'" 2>/dev/null; then
+            echo "VM alcança registry.npmjs.org:443"
+          else
+            echo "::warning::a VM não alcança registry.npmjs.org:443 em 8 s: o Vitest não instala e C3.3/C3.4 saem ❌ (libere a saída HTTPS da VM)"
+          fi
+
+      - name: login no GHCR isolado no diretório temporário
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATOR: ${{ github.actor }}
+        run: |
+          # DOCKER_CONFIG próprio: não mexe no login do deploy (~/.docker) e some com o diretório
+          printf '%s' "$TOKEN" | ssh -l "$USUARIO" demo "DOCKER_CONFIG='$DBAAS_DIR/docker' docker login ghcr.io -u '$ATOR' --password-stdin >/dev/null" \
+            || echo "::warning::login no GHCR falhou: o script só terá as imagens já presentes na VM"
+
+      - name: rodar o teste na VM
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+          DBAAS_SENHA: ${{ secrets.DBAAS_TESTE_SENHA }}
+        run: |
+          # a senha vai na 1ª linha do stdin do ssh; o script a lê (--senha-stdin) numa variável não exportada e a
+          # repassa ao contêiner pelo stdin do docker run -i: nada em argv, em -e/docker inspect nem em disco
+          remoto="set -u; cd '$DBAAS_DIR/script' || exit 90;"
+          remoto+=" export DBAAS_HOST='$DBAAS_HOST' DBAAS_PORTA='$DBAAS_PORTA' DBAAS_USUARIO='$DBAAS_USUARIO'"
+          remoto+=" DBAAS_BANCO='$DBAAS_BANCO' DBAAS_SSLMODE='$DBAAS_SSLMODE' DBAAS_DIR='$DBAAS_DIR'"
+          remoto+=" DBAAS_SAIDA='$DBAAS_DIR/saida' DBAAS_RELATORIO='$DBAAS_DIR/saida/relatorio.md'"
+          remoto+=" MACUXI_IMAGEM_API='$IMAGEM' MACUXI_SHA='$IMAGEM_TAG' DOCKER_CONFIG='$DBAAS_DIR/docker';"
+          # 28 min (a suíte tem 16) + 2 min de kill: o TERM do timeout aciona o trap do script, que remove o
+          # contêiner e apaga as bases macuxi_dbaas_*/macuxi_teste_*; termina antes do limite do job e não sobra
+          # processo na VM se o ssh cair
+          remoto+=" exec timeout -k 2m 28m bash './$SCRIPT' --senha-stdin"
+          set +e
+          printf '%s\n' "$DBAAS_SENHA" | ssh -l "$USUARIO" demo "$remoto" 2>&1 | tee "$LOCAL/saida/ssh.log"
+          codigo=${PIPESTATUS[1]}
+          set -e
+          echo "RESULTADO=$codigo" >> "$GITHUB_ENV"
+          echo "código de retorno do script: $codigo"
+
+      - name: trazer o relatório da VM
+        if: ${{ always() && env.DBAAS_DIR != '' }}
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+        run: |
+          ssh -l "$USUARIO" demo "tar -C '$DBAAS_DIR/saida' -cf - ." | tar -C "$LOCAL/saida" -xf - \
+            || echo "::warning::não foi possível trazer $DBAAS_DIR/saida"
+
+      - name: a senha não aparece no que sai do job
+        if: ${{ always() }}
+        env:
+          DBAAS_SENHA: ${{ secrets.DBAAS_TESTE_SENHA }}
+        run: |
+          [ -d "$LOCAL/saida" ] || exit 0
+          [ -n "$DBAAS_SENHA" ] || exit 0
+          # padrão pelo descritor (process substitution), não pela linha de comando
+          vazou=$(grep -rlF -f <(printf '%s\n' "$DBAAS_SENHA") "$LOCAL/saida" || true)
+          if [ -n "$vazou" ]; then
+            printf '%s\n' "$vazou" | while IFS= read -r arquivo; do rm -f -- "$arquivo"; done
+            echo "VAZOU=1" >> "$GITHUB_ENV"
+            echo "::error::a senha apareceu em arquivo(s) de saída do script; eles foram apagados e o job falha (corrigir o script do banco-dados)"
+          fi
+
+      - name: resumo do job
+        if: ${{ always() }}
+        run: |
+          {
+            echo "## DBaaS PostgreSQL da Magalu — compatibilidade (T-0075)"
+            echo
+            echo "- alvo: \`$DBAAS_HOST:$DBAAS_PORTA\` · usuário \`$DBAAS_USUARIO\` · sslmode \`$DBAAS_SSLMODE\`"
+            case "${RESULTADO:-}" in
+              0) sentido="critérios 1–4 ✅";;
+              1) sentido="algum critério ❌";;
+              2) sentido="erro de configuração";;
+              3) sentido="sem alcance ou rota até o DBaaS";;
+              4) sentido="critérios ✅, mas sobrou base de teste no DBaaS (apagar à mão)";;
+              124|137) sentido="estourou os 28 min";;
+              130) sentido="interrompido";;
+              '') sentido="não rodou";;
+              *) sentido="inesperado";;
+            esac
+            echo "- commit: \`$GITHUB_SHA\` · imagem: \`macuxi-api:$IMAGEM_TAG\` · código de retorno: \`${RESULTADO:-—}\` ($sentido)"
+            [ "${VAZOU:-0}" = 1 ] && echo "- **senha encontrada em arquivo de saída: arquivo(s) apagado(s), job reprovado**"
+            echo
+            if [ -s "$LOCAL/saida/relatorio.md" ]; then
+              cat "$LOCAL/saida/relatorio.md"
+            else
+              echo "_Sem relatorio.md. Veja o log do passo \"rodar o teste na VM\" e o artefato._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: artefato
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbaas-teste-${{ github.run_id }}
+          path: ${{ runner.temp }}/dbaas-saida/saida
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: apagar o diretório temporário da VM
+        if: ${{ always() && env.DBAAS_DIR != '' }}
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+        run: |
+          [[ "$DBAAS_DIR" =~ ^/tmp/macuxi-dbaas\.[A-Za-z0-9]{8}$ ]] || { echo "::error::DBAAS_DIR inesperado: '$DBAAS_DIR'"; exit 1; }
+          ssh -l "$USUARIO" demo "rm -rf -- '$DBAAS_DIR'"
+          echo "VM: $DBAAS_DIR apagado"
+
+      - name: limpar o runner
+        if: ${{ always() }}
+        run: rm -rf ~/.ssh/demo ~/.ssh/config "$LOCAL"
+
+      - name: resultado
+        run: |
+          [ "${VAZOU:-0}" = 1 ] && exit 1
+          if [ "${RESULTADO:-1}" != 0 ]; then
+            echo "::error::teste de compatibilidade falhou (código ${RESULTADO:-?}): veja o resumo do job e o artefato"; exit 1
+          fi
+          echo "teste de compatibilidade verde"
