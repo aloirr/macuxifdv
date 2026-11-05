@@ -9,6 +9,22 @@
 - [T-0010](../.coord/tarefas/T-0010.md) — Promotor: domínio de trade marketing (em revisão)
 
 ## Futuro
+- **Etapa pendente — resto (T-0039, 05/11)**:
+  - botão "Ver fila" no aviso da ficha, junto com o "Descartar" da fila (§4.2 de docs/design/checkout-pendencia.md); depende do caminho do shell até a seção Fila do Perfil;
+  - aviso no app Gestão (§2.2), que hoje não guarda as visitas da equipe (a notificação do §2.1 já cobre);
+  - selo no Cliente 360 do BKO (§3.3), quando o contrato da lista de visitas trouxer `etapas_pendentes`.
+- **Catálogo (T-0052, 05/11)**:
+  - busca sem nenhum acerto acima de ~5 mil produtos devolve vazio, depois de o SDK separar "não buscou" de "não achou" (decisão do gerente);
+  - 🟢6 (`codigoCompacto` único no ranking e no índice).
+- **Plano de RV (T-0082, 05/11)**: fim da vigência por perfil; normalizar o gatilho com peso ou faixas; confirmação no "voltar" do navegador (o Next não oferece gancho estável).
+- **Vendedor, triagem de 05/11 (R-20261105-164314)**:
+  - pedido em nome do vendedor: o slot `pedido.criar_em_nome` e `vendedor_id`/`autor_id` no novo pedido (mexe em new-order-screen);
+  - "Adicionar ao pedido" de `produto.acoes`, com o novo pedido recebendo o produto por parâmetro;
+  - `useAtualizacaoAutomatica` e rodapé em orders-screen e order-detail-screen, e o `refreshing` sem `sync.running`;
+  - "Gerando…" do PDF: reteste no APK (o limite de 20 s já existe);
+  - número 000011 duplicado na base demo: o banco-dados avança a sequência no seed e renumera o duplicado;
+  - teste de unidade do cliente bloqueado no receber; revalidar estoque na API antes de ligar `estoque_bloqueia`.
+- **CI sem superusuário**: job do @macuxi/db com admin sem superusuário no `ci.yml` (proposta do banco-dados, apoiada pelo engenheiro-software); espera a autorização do Alexandre (governança).
 - **RN-CORE-01 — exceção que acrescenta módulo**: hoje a exceção do usuário só remove (decisão de 2026-10-30).
 - **RN-CORE-12 em função de domínio**: a regra está só na folha de checkout (B2 do core); falta a função pura com teste em `modules/core/domain`.
 - **`canApprove` duplicado**: o vendedor/web tem cópia local até a permissão vir do platform-sdk (débito do desenho da T-0001).
