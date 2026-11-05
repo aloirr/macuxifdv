@@ -1056,36 +1056,30 @@ export function conferirSoTenantDemo(dados: DadosDemo): void {
   }
 }
 
-/** Tabelas com tenant_id (todas as schemas de domínio), para o `recriar`. */
-async function tabelasDoTenant(admin: ClientBase): Promise<string[]> {
-  const r = await admin.query<{ nome: string }>(`
-    select format('%I.%I', c.table_schema, c.table_name) as nome
-      from information_schema.columns c
-      join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name
-     where c.column_name = 'tenant_id' and t.table_type = 'BASE TABLE'
-       and c.table_schema not in ('pg_catalog', 'information_schema', 'pg_toast', 'pgboss')
-     order by 1`);
-  return r.rows.map((x) => x.nome);
-}
-
-/** Apaga todas as linhas do tenant demo (só dele), na transação aberta. Exige superusuário (local/Docker). */
+/**
+ * Apaga todas as linhas do tenant demo (só dele), na transação aberta, pela plataforma.excluir_tenant (0032, B2 do DBaaS,
+ * T-0075): DELETE em ordem de FK calculada no catálogo, sem session_replication_role (que exige superusuário) e com os
+ * gatilhos ligados. Marca o tenant como 'encerrado' antes (trava da função); a carga logo depois grava o tenant de novo,
+ * ativo. Sem superusuário, o admin enxerga as linhas pela política manutencao (0031, B1). Tenant ausente: nada a apagar.
+ */
 async function apagarTenantDemo(admin: ClientBase): Promise<void> {
-  // replica: desliga gatilhos e FKs só nesta transação (ciclo usuario <-> equipe, auditoria, cascatas)
-  await admin.query("set local session_replication_role = 'replica'");
-  for (const tabela of await tabelasDoTenant(admin)) await admin.query(`delete from ${tabela} where tenant_id = $1`, [T]);
-  await admin.query('delete from plataforma.tenant where id = $1', [T]);
-  await admin.query("set local session_replication_role = 'origin'");
+  const funcao = await admin.query<{ ok: boolean }>("select to_regprocedure('plataforma.excluir_tenant(uuid,text)') is not null as ok");
+  if (!funcao.rows[0]?.ok) throw new Error('[db] seed demo --recriar precisa da plataforma.excluir_tenant (migração 0024+): rode "banco migrar up" antes.');
+  const atual = await admin.query<{ codigo: string }>("update plataforma.tenant set status = 'encerrado' where id = $1 returning codigo", [T]);
+  const codigo = atual.rows[0]?.codigo;
+  if (codigo === undefined) return;
+  await admin.query('select count(*) from plataforma.excluir_tenant($1, $2)', [T, codigo]);
 }
 
 /**
  * 0022 (T-0079): troca plataforma.tenant.geracao_base do tenant (plataforma.girar_geracao_base). Banco anterior à 0022
- * (sem a função) não tem o marcador: nada a girar. Exige superusuário (FORCE RLS no tenant): girar 0 linhas é erro.
+ * (sem a função) não tem o marcador: nada a girar. Exige superusuário ou a política manutencao (0031; FORCE RLS no tenant): girar 0 linhas é erro.
  */
 export async function girarGeracaoBase(admin: ClientBase, tenantId: string): Promise<void> {
   const existe = await admin.query<{ ok: boolean }>("select to_regprocedure('plataforma.girar_geracao_base(uuid)') is not null as ok");
   if (!existe.rows[0]?.ok) return;
   const r = await admin.query<{ n: number }>('select plataforma.girar_geracao_base($1) as n', [tenantId]);
-  if (Number(r.rows[0]?.n) !== 1) throw new Error(`[db] seed demo: a geração da base do tenant ${tenantId} não girou (precisa de superusuário)`);
+  if (Number(r.rows[0]?.n) !== 1) throw new Error(`[db] seed demo: a geração da base do tenant ${tenantId} não girou (precisa de superusuário ou da política manutencao da 0031)`);
 }
 
 export interface ResultadoDemo {

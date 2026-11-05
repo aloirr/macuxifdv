@@ -6,7 +6,10 @@
  * Regra do relatório: ✅ (passou como está), ⚠️ (passou só pelo caminho alternativo do plano B, por falta de privilégio
  * no DBaaS) ou ❌ por item, versões e tempos. Nenhuma senha (mascarar) e nenhum dado pessoal.
  */
-import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
+import { verificadorScram } from '../src/scram';
+
+/** Verificador SCRAM-SHA-256 do @macuxi/db (db/src/scram.ts, o mesmo do B0 em db/src/papeis.ts): uma implementação só. */
+export { verificadorScram };
 
 export type Situacao = 'ok' | 'alternativa' | 'falha';
 
@@ -69,20 +72,6 @@ export function ehBloqueioDePrivilegio(mensagem: string): boolean {
   return /42501|permission denied|row-level security|session_replication_role|must be superuser|only roles with the|precisa de superusu[aá]rio|exige superusu[aá]rio/i.test(
     mensagem,
   );
-}
-
-/**
- * Verificador SCRAM-SHA-256 no formato do pg_authid (`SCRAM-SHA-256$<iter>:<sal>$<StoredKey>:<ServerKey>`, RFC 5802/7677),
- * calculado no cliente: o CREATE/ALTER ROLE ... PASSWORD leva o verificador e a senha em texto nunca chega ao servidor
- * (nem ao pgaudit/log_statement do DBaaS). Só ASCII imprimível sem espaço (as senhas do teste são hex): dispensa o SASLprep.
- */
-export function verificadorScram(senha: string, sal: Buffer = randomBytes(16), iteracoes = 4096): string {
-  if (!/^[\x21-\x7e]+$/.test(senha)) throw new Error('verificadorScram: só senha ASCII imprimível, sem espaço');
-  const salgada = pbkdf2Sync(senha, sal, iteracoes, 32, 'sha256');
-  const chaveCliente = createHmac('sha256', salgada).update('Client Key').digest();
-  const chaveGuardada = createHash('sha256').update(chaveCliente).digest();
-  const chaveServidor = createHmac('sha256', salgada).update('Server Key').digest();
-  return `SCRAM-SHA-256$${iteracoes}:${sal.toString('base64')}$${chaveGuardada.toString('base64')}:${chaveServidor.toString('base64')}`;
 }
 
 /** Chave estrangeira entre tabelas com tenant_id (catálogo pg_constraint), para a exclusão de tenant em ordem de FK. */
@@ -230,6 +219,41 @@ export function problemasSearchPath(searchPath: string | null): string[] {
   return problemas;
 }
 
+/** Schemas do Macuxi (um por módulo, docs/banco/): só as funções deles (ou do migrador) entram na C2.5. */
+export const SCHEMAS_MACUXI = ['plataforma', 'core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const;
+
+/** Função SECURITY DEFINER do catálogo (pg_proc), para a C2.5. */
+export interface FuncaoDefiner {
+  /** "esquema.nome(argumentos)". */
+  funcao: string;
+  esquema: string;
+  dono: string;
+  config: readonly string[] | null;
+  /** EXECUTE para PUBLIC. */
+  publico: boolean;
+}
+
+/**
+ * C2.5 (T-0075, 3ª execução): confere só as funções SECURITY DEFINER do Macuxi — schema do Macuxi ou dono = migrador.
+ * As outras são do provedor (no DBaaS da Magalu, public.pgaudit_ddl_command_end e public.pgaudit_sql_drop, do pgaudit,
+ * dono postgres) e saem só como informativo: não são nossas nem dá para corrigi-las.
+ */
+export function conferirDefiners(
+  funcoes: readonly FuncaoDefiner[],
+  migrador: string,
+): { nossas: FuncaoDefiner[]; provedor: FuncaoDefiner[]; problemas: string[] } {
+  const ehNossa = (f: FuncaoDefiner) => (SCHEMAS_MACUXI as readonly string[]).includes(f.esquema) || f.dono === migrador;
+  const nossas = funcoes.filter(ehNossa);
+  const provedor = funcoes.filter((f) => !ehNossa(f));
+  const problemas: string[] = [];
+  for (const f of nossas) {
+    const ps = problemasSearchPath(searchPathDoProconfig(f.config));
+    if (f.publico) ps.push('EXECUTE para PUBLIC');
+    if (ps.length) problemas.push(`${f.funcao}: ${ps.join('; ')}`);
+  }
+  return { nossas, provedor, problemas };
+}
+
 /** search_path de um proconfig (`{search_path=pg_catalog, plataforma, pg_temp}`); null se não houver. */
 export function searchPathDoProconfig(proconfig: readonly string[] | null): string | null {
   const achado = (proconfig ?? []).find((c) => c.startsWith('search_path='));
@@ -281,14 +305,23 @@ export interface MedicoesPlanoB {
   adminIgnoraRls: boolean | null;
   replicacaoPermitida: boolean | null;
   mgc: { existe: boolean; setRole: boolean | null; superusuario: boolean | null; ignoraRls: boolean | null } | null;
-  /** ALTER ROLE <admin> BYPASSRLS ou CREATE ROLE ... BYPASSRLS passou (dentro de transação desfeita). */
+  /** O PRÓPRIO admin: ALTER ROLE <admin> BYPASSRLS ou CREATE ROLE ... BYPASSRLS passou (dentro de transação desfeita; X1.2). */
   bypassConcedivel: boolean | null;
+  /** Só sob SET ROLE mgc_superuser: CREATE ROLE ... BYPASSRLS passou (desfeito; X1.1). Não conta como concedível pelo admin. */
+  bypassViaMgc: boolean | null;
   vectorDireto: boolean | null;
   vectorViaMgc: boolean | null;
-  /** B1 (política de manutenção) aplicado e com o seed/DEFINER funcionando; tabelas com RLS cobertas. */
-  b1: { ok: boolean; variante: string; tabelas: number } | null;
-  /** B2 (exclusão de tenant em ordem de FK): resultado, passos, ciclos anulados e gatilhos de DELETE vistos. */
-  b2: { ok: boolean; passos: number; anuladas: string[]; gatilhos: string[]; erro: string | null } | null;
+  /**
+   * B1 (política de manutenção) com o seed/DEFINER funcionando; tabelas com RLS cobertas. viaMigracao = pela migração
+   * 0031 do código (✅); senão, aplicado por este script na base de teste (⚠️, base migrada antes da 0031).
+   */
+  b1: { ok: boolean; variante: string; tabelas: number; viaMigracao?: boolean } | null;
+  /**
+   * B2 (exclusão de tenant sem session_replication_role): resultado, passos, ciclos anulados e gatilhos de DELETE vistos.
+   * viaMigracao = a plataforma.excluir_tenant instalada (0032) funcionou como está (✅); senão, a ordem de FK foi feita
+   * por este script (⚠️).
+   */
+  b2: { ok: boolean; passos: number; anuladas: string[]; gatilhos: string[]; erro: string | null; viaMigracao?: boolean } | null;
   /** O servidor registra comandos de papel (log_statement ddl/all ou pgaudit.log com role/ddl/all). */
   logRegistraPapel: boolean | null;
   suiteBloqueada: boolean;
@@ -311,29 +344,29 @@ export function secaoPlanoB(med: MedicoesPlanoB): string[] {
     '',
     `- Admin ignora RLS (SUPERUSER/BYPASSRLS): ${simNao(med.adminIgnoraRls)} · session_replication_role: ${simNao(med.replicacaoPermitida, 'permitido', 'negado')}`,
     `- mgc_superuser: ${mgc ? (mgc.existe ? `SET ROLE ${simNao(mgc.setRole, 'funciona', 'negado')} · SUPERUSER ${simNao(mgc.superusuario)} · BYPASSRLS ${simNao(mgc.ignoraRls)}` : 'não existe') : 'não medido'}`,
-    `- BYPASSRLS concedível pelo admin (ALTER ROLE ou CREATE ROLE, desfeito): ${simNao(med.bypassConcedivel)}`,
+    `- BYPASSRLS concedível pelo próprio admin (ALTER ROLE ou CREATE ROLE, desfeito; X1.2): ${simNao(med.bypassConcedivel)}${med.bypassViaMgc ? ' · só sob SET ROLE mgc_superuser (X1.1): CREATE ROLE ... BYPASSRLS permitido' : ''}`,
     `- CREATE EXTENSION vector: direto (pgextwlist) ${simNao(med.vectorDireto, 'funciona', 'negado')}${med.vectorViaMgc === null ? '' : ` · via SET ROLE mgc_superuser ${simNao(med.vectorViaMgc, 'funciona', 'negado')}`}`,
-    `- B1 política de manutenção: ${med.b1 ? `${med.b1.ok ? '⚠️ funciona' : '❌ não resolveu'} (${med.b1.variante}; ${med.b1.tabelas} tabelas com RLS)` : 'não aplicado'}`,
-    `- B2 exclusão em ordem de FK: ${med.b2 ? `${med.b2.ok ? '⚠️ funciona' : '❌ falhou'} (${med.b2.passos} passos${med.b2.anuladas.length ? `; ciclos quebrados em ${med.b2.anuladas.join(', ')}` : ''}${med.b2.gatilhos.length ? `; ${med.b2.gatilhos.length} gatilho(s) de DELETE disparam` : ''}${med.b2.erro ? `; ${med.b2.erro}` : ''})` : 'não medido'}`,
-    `- O servidor registra comandos de papel no log: ${simNao(med.logRegistraPapel)}${med.suiteBloqueada ? ' · a suíte ficou bloqueada por privilégio (B0/B1)' : ''}`,
+    `- B1 política de manutenção: ${med.b1 ? `${med.b1.ok ? (med.b1.viaMigracao ? '✅ no código' : '⚠️ funciona') : '❌ não resolveu'} (${med.b1.variante}; ${med.b1.tabelas} tabelas com RLS)` : 'não aplicado'}`,
+    `- B2 exclusão sem session_replication_role: ${med.b2 ? `${med.b2.ok ? (med.b2.viaMigracao ? '✅ no código (plataforma.excluir_tenant da 0032)' : '⚠️ funciona') : '❌ falhou'} (${med.b2.viaMigracao ? 'ordem de FK calculada pela função' : `${med.b2.passos} passos`}${med.b2.anuladas.length ? `; ciclos quebrados em ${med.b2.anuladas.join(', ')}` : ''}${med.b2.gatilhos.length ? `; ${med.b2.gatilhos.length} gatilho(s) de DELETE disparam` : ''}${med.b2.erro ? `; ${med.b2.erro}` : ''})` : 'não medido'}`,
+    `- O servidor registra comandos de papel no log: ${simNao(med.logRegistraPapel)}${med.suiteBloqueada ? ' · a suíte ficou bloqueada por privilégio' : ''}`,
     '',
   );
   if (mgc?.setRole && (mgc.ignoraRls || mgc.superusuario)) {
     l.push(
-      '**Atalho medido (sem migração):** `SET ROLE mgc_superuser` dá BYPASSRLS/superusuário. Seed, fixture e exclusão de tenant podem rodar sob esse papel e as funções SECURITY DEFINER podem ter `ALTER FUNCTION ... OWNER TO mgc_superuser` — confirmar com a Magalu que o papel é estável e suportado antes de depender dele; os itens B1 e B2 abaixo continuam sendo o caminho que não depende do provedor.',
+      '**Atalho medido (não usado, ADR 0024):** `SET ROLE mgc_superuser` dá BYPASSRLS (não SUPERUSER). É papel interno do provedor, sem contrato público: o código não depende dele; B0, B1 e B2 abaixo são o caminho, e o atalho só vale para manutenção manual se a Magalu confirmar por escrito que o papel é estável e suportado.',
       '',
     );
   }
   l.push(
-    '**B0 — papéis sem ALTER de atributo (necessário em qualquer DBaaS; sem migração).** No PostgreSQL 16, quem não é superusuário não pode citar SUPERUSER/NOSUPERUSER, REPLICATION nem BYPASSRLS num ALTER ROLE (foi o "permission denied to alter role" da C2.2). `db/src/papeis.ts`: papel novo = CREATE ROLE com os atributos; papel existente = só `ALTER ROLE ... LOGIN PASSWORD <verificador SCRAM>` e conferência dos atributos em pg_roles (erro claro se tiver SUPERUSER/BYPASSRLS). A senha vai como verificador SCRAM calculado no cliente, nunca em texto (o DBaaS carrega pgaudit). Custo: 1 arquivo (~30 linhas) + 1 teste sem banco em db/testes; nenhum chamador muda. Este script já faz assim (C2.1).',
+    '**B0 — papéis sem ALTER de atributo (no código: db/src/papeis.ts).** No PostgreSQL 16, quem não é superusuário não pode citar SUPERUSER/NOSUPERUSER, REPLICATION nem BYPASSRLS num ALTER ROLE. Papel novo = CREATE ROLE com os atributos; papel existente = só `ALTER ROLE ... LOGIN PASSWORD <verificador SCRAM>` e conferência dos atributos em pg_roles (erro claro se tiver SUPERUSER/BYPASSRLS); a senha vai como verificador SCRAM calculado no cliente (db/src/scram.ts), nunca em texto (o DBaaS carrega pgaudit). Sem superusuário, o admin ganha SET (sem INHERIT) nos papéis que cria, para `set role` em testes e manutenção.',
     '',
-    '**B1 — papel de manutenção no lugar do BYPASSRLS (X1).** Migração nova `00nn_plataforma_manutencao`: `create role macuxi_manutencao nologin` (sem BYPASSRLS), `grant macuxi_manutencao to current_user with inherit true` (o migrador) e, num laço DO sobre toda tabela com RLS, `create policy manutencao on <t> for all to macuxi_manutencao using (true) with check (true)` — o mesmo padrão das políticas do macuxi_worker (0003). Como o migrador é dono das funções SECURITY DEFINER e herda o papel, as 5 migrações com DEFINER (0001, 0010, 0011, 0024, 0027) e a 0029 (provisionar_tenant) voltam a enxergar todos os tenants sem ALTER FUNCTION. Seed demo e Fase M, as 5 fixtures (dois-tenants, gestor, pesquisa, promotor, treinamento) e os ~25 testes que preparam dados pela conexão admin passam sem mudar código. Custo: 1 migração + down; `db/scripts/conferir-rls.sql` e `tests/integracao/banco/conformidade.test.ts` passam a exigir a política `manutencao` em toda tabela (e toda migração futura com tabela nova a cria junto); `docs/banco/rls.md`. Risco: o mesmo de hoje com superusuário (a conexão admin vê todos os tenants); a API e o worker nunca usam o admin (S0-028). A sugestão de rodar seed e fixture só com `SET app.tenant_id` por tenant NÃO basta: as políticas atuais são `to macuxi_app`, e o admin com o tenant na sessão continua sem política (0 linhas, INSERT negado). Variante mais restrita (B1′): política de manutenção `using (tenant_id = plataforma.tenant_atual())` e `using (true)` só de leitura nas tabelas que as DEFINER entre tenants leem; custo extra: seed, as 5 fixtures e o --recriar passam a fazer `set_config(\'app.tenant_id\', ...)` por tenant (~8 arquivos em db/seeds e db/testes) e a política difere por tabela.',
+    '**B1 — papel de manutenção no lugar do BYPASSRLS (no código: migração 0031_plataforma_manutencao).** `macuxi_manutencao` NOLOGIN e sem BYPASSRLS, herdado pelo migrador (`grant ... to current_user with inherit true`), e a política `manutencao` (`for all to macuxi_manutencao using (true) with check (true)`) em toda tabela com RLS. O dono das tabelas e das funções SECURITY DEFINER enxerga todos os tenants sem superusuário: seed, fixtures, backfill de migração e funções entre tenants funcionam. macuxi_app e macuxi_worker nunca são membros (a 0031 aborta se forem; conferir-rls.sql e o diagnóstico S0-028 acusam). Toda migração com tabela nova cria a política junto (conferir-rls.sql, db/testes/conformidade.test.ts e db/testes/estatico.test.ts falham sem ela). Risco: o mesmo do superusuário (a conexão de administração vê todos os tenants); a API e o worker nunca a usam (S0-028).',
     '',
-    '**B2 — exclusão de tenant e --recriar sem session_replication_role (X2).** Migração nova recriando `plataforma.excluir_tenant(uuid, text)` (mesma assinatura e retorno da 0024; o down volta ao corpo da 0024) com DELETE em ordem de FK calculada no catálogo (filhas antes; ciclo como core.usuario <-> core.equipe quebrado com `update ... set <fk> = null` antes), sem desligar gatilhos: os gatilhos de DELETE listados no item B2 passam a disparar e precisam ignorar a exclusão de tenant (`current_setting(\'app.excluindo_tenant\', true) = \'on\'`, só na transação) ou ser aceitos. `db/seeds/demo/demo.ts` (apagarTenantDemo, ~10 linhas) chama a mesma ordem; `db/testes/lgpd-outbox.test.ts` ajusta. Custo: 1 migração + down, 2 arquivos TS; depende do B1 (o admin precisa enxergar as linhas). Alternativa sem código: pedir à Magalu `GRANT SET ON PARAMETER session_replication_role TO macuxi_admin` (só superusuário concede).',
+    '**B2 — exclusão de tenant e --recriar sem session_replication_role (no código: migração 0032_plataforma_excluir_tenant_ordem_fk).** `plataforma.excluir_tenant(uuid, text)` com a mesma assinatura e o mesmo retorno da 0024: DELETE em ordem de FK calculada no catálogo (filhas antes; ciclo core.usuario <-> core.equipe quebrado com `update ... set <fk> = null`), com FKs e gatilhos ligados (os 5 *_toca_trilha do Treinamento só tocam a trilha do mesmo tenant, apagada depois). O `seed demo --recriar` (db/seeds/demo/demo.ts) chama a mesma função. Depende do B1. Alternativa sem código, não usada: pedir à Magalu `GRANT SET ON PARAMETER session_replication_role TO macuxi_admin`.',
     '',
     '**B3 — vector.** Se o CREATE EXTENSION direto falhar, pedir à Magalu a vector na lista do pgextwlist (extwlist.extensions) para o admin; sem a extensão, a busca semântica do Catálogo (embeddings, HNSW) não roda e o critério 4 reprova.',
     '',
-    '**Ordem sugerida:** B0 (antes de qualquer nova execução com a suíte) → B1 → B2 → nova execução deste teste, que então deve sair com ✅/⚠️ apenas no que depender do provedor.',
+    '**Com B0, B1 e B2 no código**, esta execução deve sair com 0 (tudo ✅) ou 5 (⚠️ só no que depende do provedor).',
   );
   return l;
 }

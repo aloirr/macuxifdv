@@ -8,7 +8,7 @@ import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { lerConfigTestes, urlAdmin, urlApp, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
 import { migrarUp } from './migrador';
-import { garantirPapelApp, garantirPapelWorker } from './papeis';
+import { garantirPapelApp, garantirPapelManutencao, garantirPapelWorker } from './papeis';
 
 export interface BancoDeTeste {
   nome: string;
@@ -64,6 +64,8 @@ export async function criarBanco(nome: string, cfg: ConfigBanco = lerConfigTeste
     await garantirPapelApp(c, cfg.appSenha);
     // Antes da migração 0003: com o papel já criado (e com LOGIN), o "create role" da migração não corre em paralelo.
     if (cfg.workerSenha) await garantirPapelWorker(c, cfg.workerSenha);
+    // Idem para a 0031 (B1, T-0075): papel macuxi_manutencao e a filiação do admin prontos antes das migrações paralelas.
+    await garantirPapelManutencao(c);
     const existe = await c.query('select 1 from pg_database where datname = $1', [nome]);
     if (existe.rowCount === 0) await c.query(`create database ${nome}`);
   }, cfg);

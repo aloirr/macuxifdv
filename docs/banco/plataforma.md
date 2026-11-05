@@ -172,4 +172,8 @@ Os bytes NUNCA ficam no banco (porta `ArmazenamentoArquivos`); o down da 0005 de
   p_cliente)`, `anonimizar_contato(p_tenant, p_contato)` e `excluir_tenant(p_tenant, p_codigo)`. Todas `SECURITY INVOKER`,
   `search_path` fixo, sem `execute` para `public`, `macuxi_app` ou `macuxi_worker`: só o dono do banco roda, à mão. Devolvem
   `(item|tabela, quantidade)`. `excluir_tenant` exige o código do tenant e `status = 'encerrado'` e apaga toda tabela com
-  `tenant_id` (descoberta pelo catálogo) com `session_replication_role = replica` local à transação (superusuário).
+  `tenant_id` (descoberta pelo catálogo). Desde a 0032 (T-0075, B2 do DBaaS; mesma assinatura e retorno) apaga em ordem de
+  FK calculada no catálogo, com o ciclo `core.usuario` <-> `core.equipe` quebrado por `update ... = null`, sem
+  `session_replication_role` e com gatilhos ligados: roda sem superusuário, pela política `manutencao` (0031). O down da 0032
+  volta ao corpo da 0024 (`session_replication_role = replica`, só superusuário).
+- Papel `macuxi_manutencao` e política `manutencao` (0031, T-0075, B1 do DBaaS): ver [rls.md](rls.md), "Papel de manutenção".

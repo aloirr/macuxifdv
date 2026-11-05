@@ -6,20 +6,27 @@
  *   titular, mantêm os ids (histórico fiscal ligado) e não tocam o outro tenant; excluir_tenant apaga TODAS as linhas do tenant
  *   (toda tabela com tenant_id) e a linha do tenant, só com o código certo e o tenant encerrado, sem tocar o outro tenant.
  *   Nenhuma das quatro é executável pelos papéis da aplicação.
- * Banco: fixture dois-tenants, sempre com ROLLBACK (admin); up/down num banco efêmero. Nada roda em base real.
+ * - 0032 (T-0075, B2 do plano B do DBaaS): excluir_tenant com a mesma assinatura, sem session_replication_role (DELETE em
+ *   ordem de FK do catálogo, ciclo core.usuario <-> core.equipe quebrado por UPDATE, gatilhos ligados); vale também para
+ *   um papel SEM superusuário que só enxerga as linhas pela política manutencao da 0031 (B1).
+ * Banco: fixture dois-tenants, sempre com ROLLBACK (admin); up/down e o caso sem superusuário num banco efêmero. Nada roda
+ * em base real.
  */
+import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
+import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
-import { banco, semBanco } from './estado';
+import { agoraDaFixture, banco, semBanco } from './estado';
+import { carregarTreinamentoDoisTenants } from './fixture-treinamento';
 import { emTransacao, erroDe, retratoDoCatalogo, tabelasComTenant } from './util';
 
 const A = DOIS_TENANTS.A;
 const B = DOIS_TENANTS.B;
 const migracoes = lerMigracoes();
 const m24 = migracoes.find((m) => m.versao === '0024')!;
+const m32 = migracoes.find((m) => m.versao === '0032')!;
 const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
 const FUNCOES_LGPD = [
   'plataforma.anonimizar_usuario(uuid, uuid)',
@@ -51,6 +58,40 @@ describe('0024 resumo da outbox e LGPD (estático)', () => {
 
   it('down apaga as cinco funções (idempotente)', () => {
     for (const f of ['plataforma.resumo_outbox(text[], integer)', ...FUNCOES_LGPD]) expect(m24.down).toContain(`drop function if exists ${f};`);
+  });
+});
+
+describe('0032 excluir_tenant em ordem de FK (estático, T-0075 B2)', () => {
+  /** Texto da função excluir_tenant num SQL (do create até o revoke). */
+  const funcao = (sql: string) =>
+    /create (?:or replace )?function plataforma\.excluir_tenant[\s\S]*?\n\$\$;\nrevoke all on function plataforma\.excluir_tenant\(uuid, text\) from public;/.exec(sql)?.[0] ?? '';
+
+  it('nome e posição: 0032_plataforma_excluir_tenant_ordem_fk logo depois da 0031 (B1, política de manutenção)', () => {
+    const nomes = migracoes.map((m) => `${m.versao}_${m.nome}`);
+    expect(nomes[nomes.indexOf('0031_plataforma_manutencao') + 1]).toBe('0032_plataforma_excluir_tenant_ordem_fk');
+  });
+
+  it('mesma assinatura e retorno da 0024, invoker, search_path fixo, revoke de public, sem grant; sem session_replication_role', () => {
+    const sql = semComentarios(m32.up);
+    expect(sql).toMatch(
+      /create or replace function plataforma\.excluir_tenant\(p_tenant uuid, p_codigo text\)\s+returns table \(tabela text, quantidade bigint\)\s+language plpgsql volatile\s+set search_path = pg_catalog, plataforma, pg_temp/,
+    );
+    expect(semComentarios(m24.up)).toMatch(/create function plataforma\.excluir_tenant\(p_tenant uuid, p_codigo text\)\s+returns table \(tabela text, quantidade bigint\)/);
+    expect(sql).not.toMatch(/security definer|session_replication_role|disable trigger|alter table/i);
+    expect(sql).toContain('revoke all on function plataforma.excluir_tenant(uuid, text) from public;');
+    expect(sql).not.toMatch(/\bgrant\b/);
+    expect(sql).not.toMatch(/create (table|policy)|drop (table|policy|function)/);
+    // as mesmas travas da 0024 (códigos de erro)
+    for (const c of ["'22004'", "'P0002'", "'22023'", "'55000'"]) expect(sql).toContain(`errcode = ${c}`);
+    // ordem de FK pelo catálogo; ciclo quebrado por UPDATE ... = null
+    expect(sql).toContain("con.contype = 'f' and con.conparentid = 0");
+    expect(sql).toContain("format('update %s set %s where tenant_id = $1 and (%s)'");
+  });
+
+  it('down volta exatamente ao corpo da 0024 (com session_replication_role)', () => {
+    const da0024 = funcao(m24.up);
+    expect(da0024).toContain("perform set_config('session_replication_role', 'replica', true);");
+    expect(funcao(m32.down)).toBe(da0024.replace(/^create function/, 'create or replace function'));
   });
 });
 
@@ -242,9 +283,100 @@ describe.skipIf(semBanco())('0024 resumo da outbox e LGPD (banco, fixture dois-t
       expect((await admin.query('select count(*)::int as n from plataforma.tenant where id = $1', [A.tenantId])).rows[0].n).toBe(0);
       expect(await contar(B.tenantId)).toEqual(bAntes);
       expect((await admin.query("select current_setting('session_replication_role') as v")).rows[0].v).toBe('origin');
+      // 0032 (B2): a função instalada não usa session_replication_role (roda sem superusuário) e segue invoker
+      const def = await admin.query<{ d: string; definer: boolean }>(
+        "select pg_get_functiondef(p.oid) as d, p.prosecdef as definer from pg_proc p where p.oid = 'plataforma.excluir_tenant(uuid,text)'::regprocedure",
+      );
+      expect(def.rows[0]!.d).not.toContain('session_replication_role');
+      expect(def.rows[0]!.definer).toBe(false);
     });
     // ROLLBACK: a fixture volta
     expect((await admin.query('select count(*)::int as n from plataforma.tenant where id = $1', [A.tenantId])).rows[0].n).toBe(1);
+  });
+});
+
+describe.skipIf(semBanco())('0032 excluir_tenant sem superusuário (banco efêmero, B1 + B2 do DBaaS)', () => {
+  let b: BancoDeTeste;
+  beforeAll(async () => {
+    b = await criarBancoDeTeste({
+      preparar: async (c) => {
+        await carregarDoisTenants(c, { agora: agoraDaFixture() });
+        await carregarTreinamentoDoisTenants(c, { agora: agoraDaFixture() });
+      },
+    });
+  });
+  afterAll(async () => {
+    await b?.apagar();
+  });
+
+  /**
+   * Papel descartável SEM superusuário e sem BYPASSRLS, que não é dono de nada (como o admin do DBaaS diante do FORCE
+   * RLS): DML em toda tabela dos schemas com tenant_id e EXECUTE na excluir_tenant; com `manutencao`, membro do
+   * macuxi_manutencao (INHERIT). Tudo numa transação desfeita: o papel e os grants somem no ROLLBACK.
+   */
+  const comoPapelSemSuperusuario = async <T>(manutencao: boolean, fn: (c: pg.Client) => Promise<T>) =>
+    comAdmin(b.nome, async (c) => {
+      const papel = `macuxi_tlgpd_${randomBytes(4).toString('hex')}`;
+      await c.query('begin');
+      try {
+        await c.query(`create role ${papel} nologin nosuperuser nobypassrls`);
+        if (manutencao) await c.query(`grant macuxi_manutencao to ${papel} with inherit true`);
+        const schemas = (
+          await c.query<{ s: string }>(
+            `select distinct ns.nspname as s from pg_attribute a join pg_class k on k.oid = a.attrelid join pg_namespace ns on ns.oid = k.relnamespace
+              where a.attname = 'tenant_id' and k.relkind in ('r', 'p') and ns.nspname not like 'pg\\_%' and ns.nspname <> 'information_schema'
+              union select 'plataforma' order by 1`,
+          )
+        ).rows.map((x) => c.escapeIdentifier(x.s));
+        await c.query(`grant usage on schema ${schemas.join(', ')} to ${papel}`);
+        await c.query(`grant select, insert, update, delete on all tables in schema ${schemas.join(', ')} to ${papel}`);
+        await c.query(`grant execute on function plataforma.excluir_tenant(uuid, text) to ${papel}`);
+        await c.query("update plataforma.tenant set status = 'encerrado' where id = $1", [A.tenantId]);
+        await c.query(`set local role ${papel}`);
+        const s = await c.query<{ s: string; bypass: boolean }>(
+          "select current_setting('is_superuser') as s, (select rolbypassrls from pg_roles where rolname = current_user) as bypass",
+        );
+        expect(s.rows[0]).toEqual({ s: 'off', bypass: false });
+        return await fn(c);
+      } finally {
+        await c.query('rollback');
+      }
+    });
+
+  it('com a política manutencao (0031): apaga todas as linhas do tenant A e o tenant, com FKs e gatilhos ligados; B intacto', async () => {
+    await comoPapelSemSuperusuario(true, async (c) => {
+      const tabelas = await tabelasComTenant(c);
+      const contar = async (tenant: string) => {
+        let n = 0;
+        for (const t of tabelas) n += (await c.query<{ n: number }>(`select count(*)::int as n from ${t.schema}.${t.tabela} where tenant_id = $1`, [tenant])).rows[0]!.n;
+        return n;
+      };
+      const aAntes = await contar(A.tenantId);
+      const bAntes = await contar(B.tenantId);
+      expect(aAntes).toBeGreaterThan(100);
+      // a fixture tem o ciclo usuario <-> equipe preenchido (o UPDATE do passo 2 tem o que anular) e conteúdo do Treinamento
+      // (os gatilhos *_toca_trilha disparam no DELETE)
+      expect((await c.query<{ n: number }>('select count(*)::int as n from core.equipe where tenant_id = $1 and responsavel_id is not null', [A.tenantId])).rows[0]!.n).toBeGreaterThan(0);
+      expect((await c.query<{ n: number }>('select count(*)::int as n from treinamento.alternativa where tenant_id = $1', [A.tenantId])).rows[0]!.n).toBeGreaterThan(0);
+      const r = await c.query<{ tabela: string; quantidade: string }>('select tabela, quantidade from plataforma.excluir_tenant($1, $2)', [A.tenantId, A.codigo]);
+      expect(r.rows.at(-1)).toEqual({ tabela: 'plataforma.tenant', quantidade: '1' });
+      expect(r.rows.slice(0, -1).reduce((soma, x) => soma + Number(x.quantidade), 0)).toBe(aAntes);
+      // filhas antes das mães
+      const pos = (t: string) => r.rows.findIndex((x) => x.tabela === t);
+      expect(pos('core.sessao')).toBeGreaterThanOrEqual(0);
+      expect(pos('core.usuario')).toBeGreaterThan(pos('core.sessao'));
+      expect(pos('core.cliente')).toBeGreaterThan(pos('core.carteira'));
+      expect(await contar(A.tenantId)).toBe(0);
+      expect((await c.query<{ n: number }>('select count(*)::int as n from plataforma.tenant where id = $1', [A.tenantId])).rows[0]!.n).toBe(0);
+      expect(await contar(B.tenantId)).toBe(bAntes);
+    });
+  });
+
+  it('sem a política manutencao: o papel não enxerga o tenant (P0002) e nada é apagado (a 0031 é o que permite a exclusão)', async () => {
+    const e = await erroDe(comoPapelSemSuperusuario(false, (c) => c.query('select * from plataforma.excluir_tenant($1, $2)', [A.tenantId, A.codigo])));
+    expect(e?.code).toBe('P0002');
+    const n = await comAdmin(b.nome, (c) => c.query<{ n: number }>('select count(*)::int as n from core.usuario where tenant_id = $1', [A.tenantId]));
+    expect(n.rows[0]!.n).toBeGreaterThan(0);
   });
 });
 

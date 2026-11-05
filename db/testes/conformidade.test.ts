@@ -81,13 +81,87 @@ describe.skipIf(semBanco())('conformidade do banco migrado', () => {
         const r = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
         const deB1 = r.rows.filter((x) => x.tabela === 'plataforma.b1_sem_rls').map((x) => x.problema);
         expect(deB1).toEqual(
-          expect.arrayContaining(['RLS desligado', 'RLS não forçado', 'sem política', 'sem política para o macuxi_app', 'coluna created_at ausente, de outro tipo ou anulável']),
+          expect.arrayContaining([
+            'RLS desligado', 'RLS não forçado', 'sem política', 'sem política para o macuxi_app', 'sem política de manutenção',
+            'coluna created_at ausente, de outro tipo ou anulável',
+          ]),
         );
         expect(r.rows.filter((x) => x.tabela !== 'plataforma.b1_sem_rls')).toEqual([]);
       } finally {
         await admin.query('rollback');
       }
     });
+  });
+
+  it('B1 do DBaaS (0031, T-0075): tabela nova com RLS e só a isolamento_tenant é acusada (regra para as migrações futuras)', async () => {
+    await comCliente(banco().urlAdmin, async (admin) => {
+      await admin.query('begin');
+      try {
+        await admin.query(`create table plataforma.b1_sem_manutencao (
+          id uuid primary key, tenant_id uuid not null references plataforma.tenant (id), created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now(), deleted_at timestamptz, external_id text)`);
+        await admin.query('alter table plataforma.b1_sem_manutencao enable row level security');
+        await admin.query('alter table plataforma.b1_sem_manutencao force row level security');
+        await admin.query(`create policy isolamento_tenant on plataforma.b1_sem_manutencao for all to macuxi_app
+          using (tenant_id = plataforma.tenant_atual()) with check (tenant_id = plataforma.tenant_atual())`);
+        const antes = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
+        expect(antes.rows).toEqual([{ tabela: 'plataforma.b1_sem_manutencao', problema: 'sem política de manutenção' }]);
+        // política com outro nome, outro comando ou que não é "true" não vale
+        await admin.query('create policy manutencao on plataforma.b1_sem_manutencao for select to macuxi_manutencao using (true)');
+        expect((await admin.query(SQL_CONFERIR_RLS)).rows).toHaveLength(1);
+        await admin.query('drop policy manutencao on plataforma.b1_sem_manutencao');
+        await admin.query('create policy manutencao on plataforma.b1_sem_manutencao for all to macuxi_manutencao using (true) with check (true)');
+        expect((await admin.query(SQL_CONFERIR_RLS)).rows).toEqual([]);
+      } finally {
+        await admin.query('rollback');
+      }
+    });
+  });
+
+  it('B1 do DBaaS (0031): macuxi_app e macuxi_worker NÃO são membros do macuxi_manutencao (nem herdam nem assumem); o migrador herda', async () => {
+    await comCliente(banco().urlAdmin, async (admin) => {
+      const r = await admin.query<{ papel: string; membro: boolean; herda: boolean; assume: boolean }>(
+        `select a.rolname as papel, pg_has_role(a.oid, m.oid, 'MEMBER') as membro, pg_has_role(a.oid, m.oid, 'USAGE') as herda,
+                pg_has_role(a.oid, m.oid, 'SET') as assume
+           from pg_roles a join pg_roles m on m.rolname = 'macuxi_manutencao'
+          where a.rolname in ('macuxi_app', 'macuxi_worker') order by 1`,
+      );
+      expect(r.rows).toEqual([
+        { papel: 'macuxi_app', membro: false, herda: false, assume: false },
+        { papel: 'macuxi_worker', membro: false, herda: false, assume: false },
+      ]);
+      const papel = await admin.query<{ rolcanlogin: boolean; rolsuper: boolean; rolbypassrls: boolean }>(
+        "select rolcanlogin, rolsuper, rolbypassrls from pg_roles where rolname = 'macuxi_manutencao'",
+      );
+      expect(papel.rows).toEqual([{ rolcanlogin: false, rolsuper: false, rolbypassrls: false }]);
+      // o migrador (conexão admin) herda: as políticas manutencao valem para ele mesmo sem superusuário
+      const migrador = await admin.query<{ herda: boolean }>("select pg_has_role(current_user, 'macuxi_manutencao', 'USAGE') as herda");
+      expect(migrador.rows[0]!.herda).toBe(true);
+      // e um papel da aplicação que virasse membro seria acusado pela conferência e pelo diagnóstico (S0-028)
+      await admin.query('begin');
+      try {
+        await admin.query('grant macuxi_manutencao to macuxi_worker');
+        const c = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
+        expect(c.rows).toEqual([{ tabela: '(papel) macuxi_worker', problema: 'membro de macuxi_manutencao (ignoraria a RLS)' }]);
+        expect((await diagnosticarPapelApp(admin, 'macuxi_worker')).ignoraRls).toBe(true);
+      } finally {
+        await admin.query('rollback');
+      }
+    });
+  });
+
+  it('B1 do DBaaS (0031): toda tabela com RLS tem a política manutencao (for all, using true, with check true) só para macuxi_manutencao', async () => {
+    const r = await comCliente(banco().urlAdmin, (admin) =>
+      admin.query<{ tabela: string }>(
+        `select c.oid::regclass::text as tabela
+           from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where c.relkind in ('r', 'p') and c.relrowsecurity and n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+            and not exists (select 1 from pg_policies p where p.schemaname = n.nspname and p.tablename = c.relname
+                              and p.policyname = 'manutencao' and p.roles = '{macuxi_manutencao}' and p.cmd = 'ALL'
+                              and p.permissive = 'PERMISSIVE' and p.qual = 'true' and p.with_check = 'true')`,
+      ),
+    );
+    expect(r.rows).toEqual([]);
   });
 
   it('S0-028 papel de aplicação: sem SUPERUSER, sem BYPASSRLS e não é dono de nenhuma tabela', async () => {

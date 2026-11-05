@@ -19,7 +19,9 @@ function clienteFalso(host: string | undefined) {
     escapeLiteral: (s: string) => `'${s.replace(/'/g, "''")}'`,
     query: async (sql: string) => {
       consultas.push(sql);
-      return { rows: [], rowCount: sql.startsWith('select 1 from pg_roles') ? 1 : 0 };
+      // papel já existente, com os atributos certos (garantirPapelDeLogin confere em pg_roles e só dá LOGIN e a senha)
+      if (sql.startsWith('select rolsuper')) return { rows: [{ rolsuper: false, rolbypassrls: false, rolcreatedb: false, rolcreaterole: false, rolreplication: false }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
     },
   };
   return cliente as typeof cliente & Parameters<typeof garantirPapelApp>[0];

@@ -7,20 +7,24 @@
  *   node --import tsx db/dbaas/teste-compatibilidade.ts --so-limpar  só apaga as bases macuxi_dbaas_* e macuxi_teste_*
  *
  * Ambiente: DBAAS_HOST, DBAAS_PORTA (5432), DBAAS_USUARIO (macuxi_admin), DBAAS_BANCO (postgres), DBAAS_SSLMODE
- * (prefer|require|verify-full|disable), DBAAS_MIGRAR_ATE (0027), DBAAS_SUITE (1; 0 pula a suíte), DBAAS_VITEST_WORKERS (2),
+ * (prefer|require|verify-full|disable), DBAAS_MIGRAR_ATE (vazio = a última migração da imagem), DBAAS_SUITE (1; 0 pula a suíte), DBAAS_VITEST_WORKERS (2),
  * DBAAS_TEMPO_SUITE_MIN (16), DBAAS_HNSW_LINHAS (5000), DBAAS_HNSW_DIM (1536), DBAAS_SAIDA_CONTEINER (/saida),
  * DBAAS_RELATORIO_CONTEINER (/saida/relatorio.md), DBAAS_DONO (uid:gid dos arquivos de saída), DBAAS_IMAGEM (só para o
  * relatório). Senha do admin: 1ª linha do stdin com DBAAS_SENHA_STDIN=1 (o .sh usa assim) ou DBAAS_SENHA.
  * As senhas de macuxi_app e macuxi_worker são geradas aqui, só na memória, e vão ao servidor como verificador SCRAM.
- * DBAAS_SUITE=forcar roda a suíte mesmo com o servidor registrando comandos de papel (o db/src/papeis.ts manda a senha
- * do papel em texto); DBAAS_MANTER_PAPEIS=1 não apaga macuxi_app/macuxi_worker no fim.
+ * DBAAS_SUITE=forcar roda a suíte mesmo com o servidor registrando comandos de papel e sem scram-sha-256 (aí o
+ * db/src/papeis.ts mandaria a senha do papel em texto); DBAAS_MANTER_PAPEIS=1 não apaga macuxi_app/macuxi_worker/
+ * macuxi_manutencao no fim.
  *
+ * 3ª versão (B0, B1 e B2 no código, ADR 0024): com as migrações 0031 (política manutencao) e 0032 (excluir_tenant em ordem
+ * de FK) na imagem, seed, DEFINER entre tenants e exclusão de tenant passam como estão (✅); o caminho alternativo deste
+ * script só entra em base migrada antes delas (DBAAS_MIGRAR_ATE). A C2.5 só confere as funções do Macuxi.
  * Sem SUPERUSER nem BYPASSRLS (DBaaS da Magalu, 1ª execução 42015544833), o teste não desiste no primeiro erro: mede o
  * que o admin pode (mgc_superuser, BYPASSRLS concedível, session_replication_role), cria a base e os papéis sem ALTER
  * de atributo, e onde falta privilégio roda o caminho alternativo do plano B (B1 política de manutenção, B2 exclusão de
  * tenant em ordem de FK) e marca ⚠️. A seção "Plano B" do relatório traz a proposta com o custo.
  * Limpeza (sempre, no finally e no --so-limpar): bases macuxi_dbaas_* / macuxi_teste_* criadas e papéis macuxi_dbaas_*,
- * macuxi_app e macuxi_worker.
+ * macuxi_app, macuxi_worker e macuxi_manutencao (0031).
  *
  * Saída: linhas ✅/❌ no stdout, relatório Markdown no DBAAS_RELATORIO_CONTEINER e, na mesma pasta, suite.json e
  * suite.log (mascarados). Nunca imprime senha nem URL com senha (mascarar) nem dado pessoal (só dados fictícios da demo,
@@ -35,11 +39,12 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { HOSTS_LOCAIS, lerConfig, PASTA_DB, PASTA_RAIZ, urlAdmin, urlApp, urlWorker, validarNomeBanco, type ConfigBanco } from '../src/config';
 import { lerMigracoes, listarAplicadas, migrarUp } from '../src/migrador';
-import { diagnosticarPapelApp } from '../src/papeis';
+import { diagnosticarPapelApp, PAPEL_MANUTENCAO as PAPEL_MANUTENCAO_0031, senhaDoPapel } from '../src/papeis';
 import { carregarDemo, TENANT_DEMO } from '../seeds/demo/demo';
 import {
   classificarErroConexao,
   classificarSuite,
+  conferirDefiners,
   ehBloqueioDePrivilegio,
   formatarItem,
   formatarMs,
@@ -50,17 +55,16 @@ import {
   ordemExclusao,
   percentil,
   primeiraLinhaUtil,
-  problemasSearchPath,
   resumir,
   resumirVitest,
   SAIDA,
-  searchPathDoProconfig,
   secaoPlanoB,
   tentativasTls,
   verificadorScram,
   versaoAtende,
   versaoVitestDoLock,
   type ChaveEstrangeira,
+  type FuncaoDefiner,
   type Grupo,
   type Item,
   type MedicoesPlanoB,
@@ -80,6 +84,7 @@ const PARAMETROS = [
   'TimeZone',
   'server_encoding',
   'password_encryption',
+  'scram_iterations',
   'ssl',
   'shared_preload_libraries',
   'log_statement',
@@ -91,7 +96,12 @@ const PARAMETROS = [
 ];
 /** Papéis de login da aplicação (criados pelo teste; apagados no fim, salvo DBAAS_MANTER_PAPEIS=1). */
 const PAPEIS_APLICACAO = ['macuxi_app', 'macuxi_worker'] as const;
-/** Papel NOLOGIN do B1 (política de manutenção); prefixo macuxi_dbaas_ = apagado na limpeza. */
+/** Papéis que a limpeza apaga junto com os da aplicação: os de login e o de manutenção da 0031 (B1). */
+const PAPEIS_DO_TESTE = [...PAPEIS_APLICACAO, PAPEL_MANUTENCAO_0031] as const;
+/**
+ * Papel NOLOGIN do B1 DESTE script (só para base migrada antes da 0031, que traz o macuxi_manutencao); prefixo
+ * macuxi_dbaas_ = apagado na limpeza.
+ */
 const PAPEL_MANUTENCAO = 'macuxi_dbaas_manutencao';
 const POLITICA_MANUTENCAO = 'dbaas_manutencao';
 /** Falha de teste causada pela trava de ambiente local do @macuxi/db (seed da Fase M, senha pública), não pelo DBaaS. */
@@ -192,12 +202,15 @@ async function garantirPapelDbaas(c: pg.Client, papel: string, senha: string): P
   return 'já existia (só LOGIN e senha)';
 }
 
-/** Papéis que a limpeza apaga: macuxi_dbaas_* sempre; macuxi_app/macuxi_worker salvo DBAAS_MANTER_PAPEIS=1. */
+/**
+ * Papéis que a limpeza apaga: macuxi_dbaas_* sempre; macuxi_app/macuxi_worker/macuxi_manutencao salvo DBAAS_MANTER_PAPEIS=1
+ * (depois das bases: o macuxi_manutencao só sai quando nenhuma base tem política para ele).
+ */
 async function apagarPapeisDeTeste(cfg: ConfigBanco, bancoManutencao: string, incluirAplicacao: boolean): Promise<{ apagados: string[]; falhas: string[] }> {
   return com(urlAdmin(cfg, bancoManutencao), async (c) => {
     const r = await c.query<{ rolname: string }>(
       "select rolname from pg_roles where rolname like 'macuxi\\_dbaas\\_%' or ($1 and rolname = any($2::text[])) order by 1",
-      [incluirAplicacao, [...PAPEIS_APLICACAO]],
+      [incluirAplicacao, [...PAPEIS_DO_TESTE]],
     );
     const apagados: string[] = [];
     const falhas: string[] = [];
@@ -283,14 +296,15 @@ function lerConfiguracao(): { cfg: Config | null; erros: string[] } {
   const usuario = (env.DBAAS_USUARIO ?? 'macuxi_admin').trim();
   const bancoManutencao = (env.DBAAS_BANCO ?? 'postgres').trim();
   const modoTls = (env.DBAAS_SSLMODE ?? 'prefer').trim();
-  const ate = (env.DBAAS_MIGRAR_ATE ?? '0027').trim();
+  // vazio = a última migração do pacote da imagem (3ª execução: até a 0032, com B1 e B2)
+  const ate = (env.DBAAS_MIGRAR_ATE ?? '').trim() || (lerMigracoes().at(-1)?.versao ?? '');
   if (!host) erros.push('DBAAS_HOST vazio');
   else if (ehHostLocal(host)) erros.push(`DBAAS_HOST=${host} é local ou o Postgres da demo: recusado (só o DBaaS)`);
   if (!Number.isInteger(porta) || porta <= 0 || porta > 65_535) erros.push('DBAAS_PORTA inválida');
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(usuario)) erros.push('DBAAS_USUARIO inválido');
   if (!/^[a-z_][a-z0-9_]{0,62}$/.test(bancoManutencao)) erros.push('DBAAS_BANCO inválido');
   if (!tentativasTls(modoTls)) erros.push('DBAAS_SSLMODE: use prefer, require, verify-full ou disable');
-  if (!/^\d{4}$/.test(ate)) erros.push('DBAAS_MIGRAR_ATE: 4 dígitos (ex.: 0027)');
+  if (!/^\d{4}$/.test(ate)) erros.push('DBAAS_MIGRAR_ATE: 4 dígitos (ex.: 0032) ou vazio (a última da imagem)');
   return { cfg: erros.length ? null : { host, porta, usuario, bancoManutencao, modoTls, ate }, erros };
 }
 
@@ -345,11 +359,11 @@ async function limpar(cfg: ConfigBanco, bancoManutencao: string, base: string | 
     return { ok: falhas.length === 0, detalhe: `${alvos.length - falhas.length} de ${alvos.length} apagadas`, subitens: falhas };
   });
   const manter = env.DBAAS_MANTER_PAPEIS === '1';
-  await passo('limpeza', 'L3', `Papéis de teste apagados (macuxi_dbaas_*${manter ? '' : ', macuxi_app, macuxi_worker'})`, async () => {
+  await passo('limpeza', 'L3', `Papéis de teste apagados (macuxi_dbaas_*${manter ? '' : ', macuxi_app, macuxi_worker, macuxi_manutencao'})`, async () => {
     const r = await apagarPapeisDeTeste(cfg, bancoManutencao, !manter);
     return {
       ok: r.falhas.length === 0,
-      detalhe: `${r.apagados.length} apagado(s): ${r.apagados.join(', ') || 'nenhum'}${manter ? ' · DBAAS_MANTER_PAPEIS=1: macuxi_app e macuxi_worker ficam' : ''}`,
+      detalhe: `${r.apagados.length} apagado(s): ${r.apagados.join(', ') || 'nenhum'}${manter ? ' · DBAAS_MANTER_PAPEIS=1: macuxi_app, macuxi_worker e macuxi_manutencao ficam' : ''}`,
       subitens: r.falhas,
     };
   });
@@ -517,6 +531,9 @@ interface Estado {
   /** Alvo das políticas do B1 (papel de manutenção ou current_user) e a descrição da variante. */
   b1Alvo: string | null;
   b1Variante: string | null;
+  /** password_encryption e scram_iterations do servidor (X3): decidem se o B0 manda a senha como verificador SCRAM. */
+  cifraSenha: string | null;
+  iteracoesScram: string | null;
 }
 
 /** Linha mais útil de uma saída de erro: a 1ª que fala em erro/falha; senão a 1ª que não é pilha. */
@@ -563,6 +580,7 @@ async function principal(): Promise<number> {
       replicacaoPermitida: null,
       mgc: null,
       bypassConcedivel: null,
+      bypassViaMgc: null,
       vectorDireto: null,
       vectorViaMgc: null,
       b1: null,
@@ -572,6 +590,8 @@ async function principal(): Promise<number> {
     },
     b1Alvo: null,
     b1Variante: null,
+    cifraSenha: null,
+    iteracoesScram: null,
   };
   const pb = st.planoB;
 
@@ -707,7 +727,8 @@ async function principal(): Promise<number> {
             `sob SET ROLE: session_replication_role = replica ${descreverTentativa(replicacao)}`,
             `sob SET ROLE: CREATE ROLE ... BYPASSRLS ${descreverTentativa(bypass)} (desfeito)`,
           );
-          if (bypass.ok) pb.bypassConcedivel = true;
+          // só sob o papel do provedor: não conta como "concedível pelo admin" (X1.2 mede o próprio admin)
+          pb.bypassViaMgc = bypass.ok;
           return { ok: superusuario || ignora, detalhe: `SET ROLE funciona · dá SUPERUSER ${superusuario ? 'sim' : 'não'} · dá BYPASSRLS ${ignora ? 'sim' : 'não'}`, subitens };
         } finally {
           await c.query('rollback').catch(() => undefined);
@@ -724,7 +745,7 @@ async function principal(): Promise<number> {
           const criar = await tentar(c, 'create role macuxi_dbaas_bypass_teste nologin bypassrls');
           const parametro = await tentar(c, 'grant set on parameter session_replication_role to current_user');
           const ok = alterar.ok || criar.ok;
-          pb.bypassConcedivel = (pb.bypassConcedivel ?? false) || ok;
+          pb.bypassConcedivel = ok;
           return {
             ok,
             detalhe: ok ? 'o admin consegue BYPASSRLS: o plano B (B1) não é necessário' : 'o admin não consegue BYPASSRLS de nenhum jeito',
@@ -768,6 +789,8 @@ async function principal(): Promise<number> {
         .map((x) => x.trim().toLowerCase())
         .filter((x) => !x.startsWith('-'));
       pb.logRegistraPapel = ['ddl', 'all'].includes(valor('log_statement').toLowerCase()) || auditoria.some((x) => ['all', 'role', 'ddl'].includes(x));
+      st.cifraSenha = valor('password_encryption') || null;
+      st.iteracoesScram = valor('scram_iterations') || null;
       return {
         ok: true,
         detalhe: r.rows.map((x) => `${x.name}=${x.valor || '(vazio)'}`).join(' · '),
@@ -911,7 +934,7 @@ async function principal(): Promise<number> {
     } else naoRodou('c2', 'C2.3', `Migrações 0001..${conf.ate}`, 'sem base de teste (C2.2)');
 
     if (migrou) {
-      await passo('c2', 'C2.4', 'RLS ligado e FORCE em toda tabela, com política do macuxi_app (db/scripts/conferir-rls.sql = 0 linhas)', async () => {
+      await passo('c2', 'C2.4', 'RLS ligado e FORCE em toda tabela, com política do macuxi_app e a manutencao da 0031 (db/scripts/conferir-rls.sql = 0 linhas)', async () => {
         const arq = [join(PASTA_DBAAS, 'conferir-rls.sql'), join(PASTA_DB, 'scripts', 'conferir-rls.sql')].find((f) => existsSync(f));
         if (!arq) return { ok: false, detalhe: 'conferir-rls.sql não encontrado na imagem' };
         const sql = readFileSync(arq, 'utf8');
@@ -921,33 +944,48 @@ async function principal(): Promise<number> {
               where c.relkind in ('r', 'p') and n.nspname not in ('pg_catalog', 'information_schema', 'public') and n.nspname not like 'pg\\_%'`,
           );
           const r = await c.query<{ tabela: string; problema: string }>(sql);
+          // B1 no código (0031): política manutencao em toda tabela com RLS e o admin herdando o macuxi_manutencao
+          const b1 = await c.query<{ rls: number; manutencao: number; herda: boolean }>(
+            `select count(*) filter (where c.relrowsecurity)::int as rls,
+                    count(*) filter (where c.relrowsecurity and exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'manutencao'))::int as manutencao,
+                    coalesce((select pg_has_role(current_user, m.oid, 'USAGE') from pg_roles m where m.rolname = $1), false) as herda
+               from pg_class c join pg_namespace n on n.oid = c.relnamespace
+              where c.relkind in ('r', 'p') and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\\_%'`,
+            [PAPEL_MANUTENCAO_0031],
+          );
+          const q = b1.rows[0];
+          if (q && q.manutencao > 0) {
+            pb.b1 = { ok: false, variante: `migração 0031: papel ${PAPEL_MANUTENCAO_0031} (NOLOGIN, sem BYPASSRLS) herdado pelo admin: ${q.herda ? 'sim' : 'NÃO'}`, tabelas: q.rls, viaMigracao: true };
+          }
           return {
             ok: r.rows.length === 0,
-            detalhe: `${total.rows[0]?.n ?? 0} tabelas conferidas · ${r.rows.length} problema(s)`,
+            detalhe: `${total.rows[0]?.n ?? 0} tabelas conferidas · ${r.rows.length} problema(s) · política manutencao (0031) em ${q?.manutencao ?? 0} de ${q?.rls ?? 0} tabelas com RLS`,
             subitens: r.rows.slice(0, 20).map((x) => `${x.tabela}: ${x.problema}`),
           };
         });
       });
 
-      await passo('c2', 'C2.5', 'Funções SECURITY DEFINER com search_path fixo e seguro (pg_temp por último) e sem EXECUTE para PUBLIC', async () =>
+      await passo('c2', 'C2.5', 'Funções SECURITY DEFINER do Macuxi (schemas do Macuxi ou dono = migrador) com search_path fixo e seguro (pg_temp por último) e sem EXECUTE para PUBLIC', async () =>
         com(urlAdmin(cfg, nomeBase), async (c) => {
-          const r = await c.query<{ funcao: string; config: string[] | null; dono: string; publico: boolean }>(
+          const r = await c.query<FuncaoDefiner>(
             `select n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as funcao,
-                    p.proconfig as config, pg_get_userbyid(p.proowner) as dono,
+                    n.nspname as esquema, p.proconfig as config, pg_get_userbyid(p.proowner) as dono,
                     coalesce(exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                                       where a.grantee = 0 and a.privilege_type = 'EXECUTE'), false) as publico
                from pg_proc p join pg_namespace n on n.oid = p.pronamespace
               where p.prosecdef and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\\_%'
               order by 1`,
           );
-          const problemas: string[] = [];
-          for (const f of r.rows) {
-            const ps = problemasSearchPath(searchPathDoProconfig(f.config));
-            if (f.publico) ps.push('EXECUTE para PUBLIC');
-            if (ps.length) problemas.push(`${f.funcao}: ${ps.join('; ')}`);
-          }
-          const donos = [...new Set(r.rows.map((x) => x.dono))].join(', ') || '-';
-          return { ok: r.rows.length > 0 && problemas.length === 0, detalhe: `${r.rows.length} funções · dono: ${donos} · ${problemas.length} problema(s)`, subitens: problemas.slice(0, 20) };
+          const d = conferirDefiners(r.rows, conf.usuario);
+          const donos = [...new Set(d.nossas.map((x) => x.dono))].join(', ') || '-';
+          return {
+            ok: d.nossas.length > 0 && d.problemas.length === 0,
+            detalhe: `${d.nossas.length} funções do Macuxi · dono: ${donos} · ${d.problemas.length} problema(s)${d.provedor.length ? ` · ${d.provedor.length} do provedor fora da conferência` : ''}`,
+            subitens: [
+              ...d.problemas.slice(0, 20),
+              ...d.provedor.map((x) => `do provedor (informativo, não é do Macuxi): ${x.funcao}, dono ${x.dono}`),
+            ],
+          };
         }),
       );
 
@@ -975,13 +1013,18 @@ async function principal(): Promise<number> {
     let semeou = false;
     if (migrou) {
       // (e) seed como está; se o FORCE RLS barrar o admin, aplica o B1 (política de manutenção) e semeia de novo (⚠️)
-      semeou = await passo('c2', 'C2.7', 'Seed demo (tenant demo, dados fictícios) como o admin; sem BYPASSRLS, pelo B1', async () => {
+      semeou = await passo('c2', 'C2.7', 'Seed demo (tenant demo, dados fictícios) como o admin; sem BYPASSRLS, pela política manutencao (B1)', async () => {
         const contar = (r: Awaited<ReturnType<typeof carregarDemo>>) =>
           `${Object.values(r.dados).filter((l) => l.length > 0).length} tabelas, ${Object.values(r.dados).reduce((s, l) => s + l.length, 0)} linhas`;
         const jaComB1 = st.b1Alvo !== null;
         try {
           const r = await com(urlAdmin(cfg, nomeBase), (c) => carregarDemo(c));
-          return { ok: true, alternativa: jaComB1, detalhe: `${contar(r)}${jaComB1 ? ' (com o B1 já aplicado na C2.3)' : ''}` };
+          const pela0031 = !jaComB1 && pb.b1?.viaMigracao === true && pb.adminIgnoraRls === false;
+          return {
+            ok: true,
+            alternativa: jaComB1,
+            detalhe: `${contar(r)}${jaComB1 ? ' (com o B1 deste script já aplicado na C2.3)' : ''}${pela0031 ? ' · sem superusuário, pela política manutencao da 0031 (B1 no código)' : ''}`,
+          };
         } catch (e) {
           const comoEsta = msgErro(e);
           if (!ehBloqueioDePrivilegio(comoEsta) || jaComB1) throw e;
@@ -1014,7 +1057,11 @@ async function principal(): Promise<number> {
       await passo('c3', 'C3.2', 'SECURITY DEFINER entre tenants funciona sem superusuário (plataforma.tenants_ativos() como macuxi_worker)', async () => {
         const n = await com(urlWorker(cfg, nomeBase), async (c) => (await c.query<{ n: number }>('select count(*)::int as n from plataforma.tenants_ativos()')).rows[0]?.n ?? 0);
         if (!st.b1Alvo) {
-          return { ok: n >= 1, detalhe: `${n} tenant(s) ativo(s) visto(s)${n === 0 ? ' — o dono da função (admin) não enxerga as linhas por causa do FORCE RLS' : ''}` };
+          const pela0031 = pb.b1?.viaMigracao === true && pb.adminIgnoraRls === false;
+          return {
+            ok: n >= 1,
+            detalhe: `${n} tenant(s) ativo(s) visto(s)${n === 0 ? ' — o dono da função (admin) não enxerga as linhas por causa do FORCE RLS' : ''}${pela0031 && n >= 1 ? ' · o dono herda o macuxi_manutencao (0031, B1 no código)' : ''}`,
+          };
         }
         // com o B1: mede também "como está" (sem a política de manutenção em plataforma.tenant), numa transação desfeita do dono
         const semB1 = await com(urlAdmin(cfg, nomeBase), async (c) => {
@@ -1071,23 +1118,49 @@ async function principal(): Promise<number> {
 
     // ---------------- plano B, B2: exclusão de tenant sem session_replication_role ----------------
     if (semeou) {
-      await passo('planob', 'B2', 'Exclusão do tenant demo sem session_replication_role: excluir_tenant da 0024 como está e DELETE em ordem de FK (transação desfeita)', async () =>
+      await passo('planob', 'B2', 'Exclusão do tenant demo sem session_replication_role: plataforma.excluir_tenant instalada (0032) e, se falhar, DELETE em ordem de FK (transação desfeita)', async () =>
         com(urlAdmin(cfg, nomeBase), async (c) => {
           await c.query('begin');
           try {
             const tenant = (await c.query<{ codigo: string }>('select codigo from plataforma.tenant where id = $1', [TENANT_DEMO])).rows[0];
             if (!tenant) return { ok: false, detalhe: 'o admin não enxerga o tenant demo (FORCE RLS sem o B1)' };
             const subitens: string[] = [];
-            // 1) a função da 0024 como está (exige status encerrado; usa session_replication_role)
-            await c.query("update plataforma.tenant set status = 'encerrado' where id = $1", [TENANT_DEMO]);
-            const como0024 = await tentar(c, 'select count(*)::int as n from plataforma.excluir_tenant($1, $2)', [TENANT_DEMO, tenant.codigo]);
-            subitens.push(`plataforma.excluir_tenant da 0024 como está: ${como0024.ok ? 'funcionou' : `falhou (${como0024.erro})`}`);
-            if (como0024.ok) {
-              pb.b2 = { ok: true, passos: 0, anuladas: [], gatilhos: [], erro: null };
-              return { ok: true, detalhe: 'a função da 0024 funciona como está (o B2 não é necessário)', subitens };
-            }
-            // 2) caminho alternativo: ordem de FK calculada no catálogo, gatilhos ligados
             const grafo = await grafoDoTenant(c);
+            /** Linhas do tenant demo que sobraram em alguma tabela (e o próprio tenant). */
+            const sobrasDoTenant = async () => {
+              const sobras: string[] = [];
+              for (const t of grafo.tabelas) {
+                const n = (await c.query<{ n: number }>(`select count(*)::int as n from ${t} where tenant_id = $1`, [TENANT_DEMO])).rows[0]?.n ?? 0;
+                if (n > 0) sobras.push(`${t}: ${n}`);
+              }
+              if (((await c.query('select 1 from plataforma.tenant where id = $1', [TENANT_DEMO])).rowCount ?? 0) > 0) sobras.push('plataforma.tenant: 1');
+              return sobras;
+            };
+            // 1) a função instalada como está (0032: ordem de FK; 0024: session_replication_role, só com superusuário).
+            // Exige status encerrado. tentar() usa savepoint: se falhar, o caminho alternativo segue na mesma transação.
+            const usaReplicacao = (
+              await c.query<{ r: boolean }>(
+                "select position('session_replication_role' in pg_get_functiondef('plataforma.excluir_tenant(uuid,text)'::regprocedure)) > 0 as r",
+              )
+            ).rows[0]?.r;
+            const versao = usaReplicacao ? 'da 0024 (session_replication_role)' : 'da 0032 (ordem de FK)';
+            await c.query("update plataforma.tenant set status = 'encerrado' where id = $1", [TENANT_DEMO]);
+            const t0f = performance.now();
+            const instalada = await tentar(c, 'select tabela, quantidade from plataforma.excluir_tenant($1, $2)', [TENANT_DEMO, tenant.codigo]);
+            if (instalada.ok) {
+              const ms = performance.now() - t0f;
+              const sobras = await sobrasDoTenant();
+              const ok = sobras.length === 0;
+              pb.b2 = { ok, passos: 0, anuladas: [], gatilhos: grafo.gatilhos, erro: ok ? null : `sobraram linhas em ${sobras.length} tabela(s)`, viaMigracao: !usaReplicacao };
+              subitens.push(`plataforma.excluir_tenant ${versao} como está: funcionou`, ...sobras.slice(0, 20));
+              return {
+                ok,
+                detalhe: `a função instalada ${versao} funciona como está em ${formatarMs(ms)} (${instalada.n - 1} tabela(s) com linhas) · ${ok ? 'nenhuma linha do tenant sobrou' : `sobraram linhas em ${sobras.length} tabela(s)`}`,
+                subitens,
+              };
+            }
+            subitens.push(`plataforma.excluir_tenant ${versao} como está: falhou (${instalada.erro})`);
+            // 2) caminho alternativo: ordem de FK calculada no catálogo, gatilhos ligados
             const ordem = ordemExclusao(grafo.tabelas, grafo.fks);
             const anuladas = ordem.passos.flatMap((p) => (p.tipo === 'anular' ? [`${p.tabela} (${p.fk})`] : []));
             const resultado = { ok: false, passos: ordem.passos.length, anuladas, gatilhos: grafo.gatilhos, erro: ordem.erro };
@@ -1114,13 +1187,7 @@ async function principal(): Promise<number> {
               return { ok: false, detalhe: resultado.erro, subitens };
             }
             const ms = performance.now() - t0;
-            const sobras: string[] = [];
-            for (const t of grafo.tabelas) {
-              const n = (await c.query<{ n: number }>(`select count(*)::int as n from ${t} where tenant_id = $1`, [TENANT_DEMO])).rows[0]?.n ?? 0;
-              if (n > 0) sobras.push(`${t}: ${n}`);
-            }
-            const tenantResta = ((await c.query('select 1 from plataforma.tenant where id = $1', [TENANT_DEMO])).rowCount ?? 0) > 0;
-            if (tenantResta) sobras.push('plataforma.tenant: 1');
+            const sobras = await sobrasDoTenant();
             resultado.ok = sobras.length === 0;
             return {
               ok: resultado.ok,
@@ -1217,8 +1284,10 @@ async function principal(): Promise<number> {
     }
 
     // ---------------- critério 3: suíte @macuxi/db ----------------
-    // A base do teste sai antes da suíte e os papéis da aplicação são apagados: o globalSetup (db/src/papeis.ts) então
-    // os CRIA (CREATE aceita NOSUPERUSER sem superusuário) em vez de cair no ALTER ROLE ... NOSUPERUSER (B0 pendente).
+    // A base do teste sai antes da suíte e os papéis da aplicação são apagados: o globalSetup (db/src/papeis.ts, B0) então
+    // os CRIA com o verificador SCRAM e dá SET ao admin; o macuxi_manutencao (0031) fica e a filiação do admin também.
+    // B0: com password_encryption = scram-sha-256 a senha (hex) vai como verificador; só sem SCRAM ela iria em texto.
+    const senhaVaiComoScram = senhaDoPapel(appSenha, { cifra: st.cifraSenha, iteracoes: st.iteracoesScram }).forma === 'scram';
     const tituloSuite = 'Suíte de banco @macuxi/db contra o DBaaS';
     if (st.base) {
       st.baseApagada = await limparBase(cfg, conf.bancoManutencao, st.base);
@@ -1227,13 +1296,13 @@ async function principal(): Promise<number> {
       naoRodou('c3', 'C3.4', tituloSuite, 'DBAAS_SUITE=0');
     } else if (!papeisOk) {
       naoRodou('c3', 'C3.4', tituloSuite, 'papéis não criados (C2.1)');
-    } else if (pb.logRegistraPapel !== false && env.DBAAS_SUITE !== 'forcar') {
+    } else if (pb.logRegistraPapel !== false && !senhaVaiComoScram && env.DBAAS_SUITE !== 'forcar') {
       pb.suiteBloqueada = true;
       naoRodou(
         'c3',
         'C3.4',
         tituloSuite,
-        `o servidor registra comandos de papel no log (X3${pb.logRegistraPapel === null ? ': não medido' : ''}) e o db/src/papeis.ts do globalSetup manda a senha do macuxi_app em texto no CREATE/ALTER ROLE; roda depois do B0 (ou com DBAAS_SUITE=forcar, senha descartável)`,
+        `o servidor registra comandos de papel no log (X3${pb.logRegistraPapel === null ? ': não medido' : ''}) e password_encryption = ${st.cifraSenha ?? '?'} (não scram-sha-256): o db/src/papeis.ts mandaria a senha do macuxi_app em texto; rode com DBAAS_SUITE=forcar (senha descartável)`,
         'alternativa',
       );
     } else {

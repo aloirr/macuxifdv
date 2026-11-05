@@ -7,9 +7,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PASTA_DB } from '../src/config';
 import { createHash, createHmac } from 'node:crypto';
+import { verificadorScram as verificadorDoDb } from '../src/scram';
 import {
   classificarErroConexao,
   classificarSuite,
+  conferirDefiners,
+  SCHEMAS_MACUXI,
   ehBloqueioDePrivilegio,
   formatarItem,
   LEGENDA_SAIDA,
@@ -196,6 +199,32 @@ describe('plano B do DBaaS sem SUPERUSER/BYPASSRLS (T-0075, 2ª versão)', () =>
     expect(verificadorScram('a1b2c3d4')).not.toContain('a1b2c3d4');
     expect(verificadorScram('a1b2c3d4')).not.toBe(verificadorScram('a1b2c3d4'));
     expect(() => verificadorScram('com espaço')).toThrow();
+    // uma implementação só: o relatório reexporta a do @macuxi/db (db/src/scram.ts)
+    expect(verificadorScram).toBe(verificadorDoDb);
+  });
+
+  it('C2.5 só confere as SECURITY DEFINER do Macuxi (schema do Macuxi ou dono = migrador); as do provedor saem como informativo', () => {
+    const f = (funcao: string, dono: string, config: string[] | null, publico = false) => ({ funcao, esquema: funcao.split('.')[0]!, dono, config, publico });
+    const seguro = ['search_path=pg_catalog, plataforma, pg_temp'];
+    const r = conferirDefiners(
+      [
+        f('plataforma.tenants_ativos()', 'macuxi_admin', seguro),
+        f('integracao.autenticar_chave(p_hash text)', 'macuxi_admin', ['search_path=pg_catalog, integracao']),
+        f('public.pgaudit_ddl_command_end()', 'postgres', null, true),
+        f('public.pgaudit_sql_drop()', 'postgres', null, true),
+        f('public.funcao_do_migrador()', 'macuxi_admin', null, true),
+      ],
+      'macuxi_admin',
+    );
+    expect(r.nossas.map((x) => x.funcao)).toEqual(['plataforma.tenants_ativos()', 'integracao.autenticar_chave(p_hash text)', 'public.funcao_do_migrador()']);
+    expect(r.provedor.map((x) => x.funcao)).toEqual(['public.pgaudit_ddl_command_end()', 'public.pgaudit_sql_drop()']);
+    expect(r.problemas).toEqual([
+      'integracao.autenticar_chave(p_hash text): pg_temp não é o último do search_path',
+      'public.funcao_do_migrador(): sem search_path fixo; EXECUTE para PUBLIC',
+    ]);
+    // função de schema do Macuxi com outro dono continua sendo conferida
+    expect(conferirDefiners([f('core.x()', 'outro', null)], 'macuxi_admin').problemas).toEqual(['core.x(): sem search_path fixo']);
+    expect(SCHEMAS_MACUXI).toEqual(['plataforma', 'core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao']);
   });
 
   it('ordem de exclusão do tenant: filhas antes das mães, ciclo quebrado pela FK anulável, autorreferência ignorada', () => {
@@ -238,12 +267,13 @@ describe('plano B do DBaaS sem SUPERUSER/BYPASSRLS (T-0075, 2ª versão)', () =>
     expect(classificarSuite(vazia, 'Error: Cannot find module', trava).situacao).toBe('falha');
   });
 
-  it('seção "Plano B" traz B0–B3 com custo e o que foi medido; o atalho do mgc_superuser só aparece se ele der BYPASSRLS', () => {
+  it('seção "Plano B" traz B0–B3 (no código: papeis.ts, 0031, 0032) e o que foi medido; o atalho do mgc_superuser só aparece se ele der BYPASSRLS', () => {
     const med: MedicoesPlanoB = {
       adminIgnoraRls: false,
       replicacaoPermitida: false,
       mgc: { existe: true, setRole: true, superusuario: false, ignoraRls: false },
       bypassConcedivel: false,
+      bypassViaMgc: null,
       vectorDireto: true,
       vectorViaMgc: null,
       b1: { ok: true, variante: 'papel macuxi_dbaas_manutencao', tabelas: 98 },
@@ -252,12 +282,34 @@ describe('plano B do DBaaS sem SUPERUSER/BYPASSRLS (T-0075, 2ª versão)', () =>
       suiteBloqueada: true,
     };
     const texto = secaoPlanoB(med).join('\n');
-    for (const trecho of ['## Plano B', '**B0', '**B1', '**B2', '**B3', 'Custo:', 'papeis.ts', 'conferir-rls.sql', 'excluir_tenant', 'SET app.tenant_id', '98 tabelas']) {
+    for (const trecho of [
+      '## Plano B', '**B0', '**B1', '**B2', '**B3', 'papeis.ts', '0031_plataforma_manutencao', '0032_plataforma_excluir_tenant_ordem_fk',
+      'conferir-rls.sql', 'excluir_tenant', '98 tabelas', '⚠️ funciona (papel macuxi_dbaas_manutencao',
+    ]) {
       expect(texto).toContain(trecho);
     }
     expect(texto).not.toContain('Atalho medido');
     const comAtalho = secaoPlanoB({ ...med, mgc: { existe: true, setRole: true, superusuario: false, ignoraRls: true } }).join('\n');
     expect(comAtalho).toContain('Atalho medido');
+    // 3ª execução: B1 e B2 pelas migrações = ✅ no código
+    const noCodigo = secaoPlanoB({
+      ...med,
+      b1: { ok: true, variante: 'migração 0031', tabelas: 116, viaMigracao: true },
+      b2: { ok: true, passos: 0, anuladas: [], gatilhos: [], erro: null, viaMigracao: true },
+    }).join('\n');
+    expect(noCodigo).toContain('B1 política de manutenção: ✅ no código (migração 0031; 116 tabelas com RLS)');
+    expect(noCodigo).toContain('B2 exclusão sem session_replication_role: ✅ no código (plataforma.excluir_tenant da 0032)');
+  });
+
+  it('BYPASSRLS concedível: o do próprio admin (X1.2) não se mistura com o que só vale sob SET ROLE mgc_superuser (X1.1)', () => {
+    const base: MedicoesPlanoB = {
+      adminIgnoraRls: false, replicacaoPermitida: false, mgc: { existe: true, setRole: true, superusuario: false, ignoraRls: true },
+      bypassConcedivel: false, bypassViaMgc: true, vectorDireto: true, vectorViaMgc: null, b1: null, b2: null, logRegistraPapel: true, suiteBloqueada: false,
+    };
+    const linha = secaoPlanoB(base).find((l) => l.includes('BYPASSRLS concedível'))!;
+    expect(linha).toContain('pelo próprio admin (ALTER ROLE ou CREATE ROLE, desfeito; X1.2): não');
+    expect(linha).toContain('só sob SET ROLE mgc_superuser (X1.1)');
+    expect(secaoPlanoB({ ...base, bypassViaMgc: false }).find((l) => l.includes('BYPASSRLS concedível'))).not.toContain('mgc_superuser');
   });
 });
 

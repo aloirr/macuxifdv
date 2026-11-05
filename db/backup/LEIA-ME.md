@@ -55,8 +55,9 @@ O serviço **não** precisa do `.env` do admin nem da rede `interna`: o dump che
    Se o rename falhar (conexão aberta), nada muda e `api`/`worker` voltam.
 
 **VM nova** (volume vazio): rode `banco migrar up` uma vez **antes** de restaurar. É ele que cria os papéis
-`macuxi_app` e `macuxi_worker` com as senhas do `/opt/macuxi/.env`. Os papéis são do cluster e não vão no dump; os
-GRANTs do dump citam esses papéis.
+`macuxi_app` e `macuxi_worker` com as senhas do `/opt/macuxi/.env` e o `macuxi_manutencao` (0031, NOLOGIN). Os papéis
+são do cluster e não vão no dump; os GRANTs e as políticas do dump (`manutencao ... to macuxi_manutencao`) citam esses
+papéis.
 
 Teste local (critério 3 da T-0074): `db/testes/backup.test.ts` monta a base de demo num banco de teste e segue o
 caminho completo: `pg_dump -Fc` → `enviarBackup` → S3 falso, que recalcula a assinatura → `baixarBackup` →

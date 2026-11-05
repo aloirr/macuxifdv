@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -388,10 +388,15 @@ export const visitaEtapa = core.table('visita_etapa', {
 
 export const TIPOS_NOTIFICACAO_BANCO = ['recado', 'sistema', 'pedido', 'treinamento', 'trade'] as const;
 
+/** Subtipos de notificação conhecidos (0030, T-0039): 'etapa_pendente_checkout' = alerta da etapa pendente no checkout. */
+export const SUBTIPOS_NOTIFICACAO_CONHECIDOS = ['etapa_pendente_checkout'] as const;
+
 /**
  * Notificação do usuário. Únicos parciais por (usuário, origem_evento_id) e (usuário, envio_id).
  * 0021 (T-0073): recado do dia = recado_do_dia (dia civil do tenant) + recado_do_dia_por, juntos (CHECK _par), só em
  * tipo = 'recado' (CHECK _so_recado), um por pessoa por dia (único vivo notificacao_recado_do_dia_uk).
+ * 0030 (T-0039): subtipo (text, nulo, formato ^[a-z_]{1,40}$, sem índice); valores conhecidos em SUBTIPOS_NOTIFICACAO_CONHECIDOS
+ * (a lista é do Core, não do banco: subtipo novo não pede migração).
  */
 export const notificacao = core.table('notificacao', {
   ...comuns(),
@@ -410,6 +415,8 @@ export const notificacao = core.table('notificacao', {
   push_enviado_em: timestamp('push_enviado_em', { withTimezone: true }),
   recado_do_dia: date('recado_do_dia'),
   recado_do_dia_por: uuid('recado_do_dia_por'),
+  /** 0030 (T-0039): marcador estável dentro do tipo; null = sem subtipo. CHECK notificacao_subtipo_formato (^[a-z_]{1,40}$). */
+  subtipo: text('subtipo'),
 });
 
 export const INDICADORES_META_BANCO = ['venda_cents', 'positivacao', 'cobertura_pct', 'visitas'] as const;

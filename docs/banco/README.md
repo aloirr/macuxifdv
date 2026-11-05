@@ -175,8 +175,9 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
 Idempotência: upsert por id determinístico. Rodar de novo no mesmo dia não muda nada (nem o hash da senha, que só é
 refeito se não conferir com a senha informada); zera `tentativas_falhas`/`bloqueio_ate` (ninguém fica travado por senha
 errada no ensaio). Em outro dia entra a rota do novo dia (as anteriores ficam como histórico, com paradas não
-visitadas) e as datas relativas andam; para a demo, prefira `--recriar`. `--recriar` usa
-`session_replication_role = replica` só na transação (precisa do superusuário do Docker) e apaga apenas `tenant_id = demo`.
+visitadas) e as datas relativas andam; para a demo, prefira `--recriar`. `--recriar` marca o tenant demo como
+`encerrado` e chama `plataforma.excluir_tenant` (0032: ordem de FK, sem `session_replication_role`, gatilhos ligados) na
+mesma transação da carga; apaga apenas `tenant_id = demo` e roda também sem superusuário (política `manutencao` da 0031).
 O teste confere que nenhuma linha de outro tenant muda e que, pelo `macuxi_app`, os tenants não se enxergam.
 
 ## Banco que não é o local (homologação, nuvem)

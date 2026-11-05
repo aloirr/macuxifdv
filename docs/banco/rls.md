@@ -5,7 +5,8 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
 ## Papéis
 | Papel | Atributos | Uso |
 |---|---|---|
-| admin / migrador (`postgres` no Docker local) | superusuário, dono de todos os objetos | aplica migrações, cria bancos de teste, carrega seed/fixture. **Ignora RLS** — nunca é usado pela API nem para provar isolamento |
+| admin / migrador (`postgres` no Docker local; `macuxi_admin` no DBaaS) | superusuário, dono de todos os objetos (no DBaaS: sem SUPERUSER/BYPASSRLS, com CREATEDB/CREATEROLE, membro com INHERIT do `macuxi_manutencao`) | aplica migrações, cria bancos de teste, carrega seed/fixture. **Ignora RLS** (superusuário ou política `manutencao`) — nunca é usado pela API nem para provar isolamento |
+| `macuxi_manutencao` (0031) | NOLOGIN, NOSUPERUSER, **NOBYPASSRLS**; ninguém conecta com ele | só existe para a política `manutencao` (`for all ... using (true) with check (true)`) valer para o migrador, que o herda. **Nunca** concedido a `macuxi_app` nem a `macuxi_worker` |
 | `macuxi_app` | `LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION`, não é dono de nada | **único** papel da API e dos testes de vazamento |
 | `macuxi_worker` | mesmos atributos (**NOBYPASSRLS**), não é dono de nada | despachante da outbox (ADR 0007): só lê e marca `plataforma.evento` de todos os tenants |
 
@@ -14,9 +15,43 @@ RN-CORE-05: isolamento total entre tenants (`tenant_id` do token + Row Level Sec
 - A migração 0003 cria `macuxi_worker` como `NOLOGIN`; `garantirPapelWorker` (`@macuxi/db`) liga o `LOGIN` com
   `MACUXI_PG_WORKER_SENHA` (local: `macuxi_worker_local`; fora do local é opcional — sem ela o papel fica `NOLOGIN`
   e `urlWorker(cfg)` lança erro; a senha pública local é recusada). O `down` da 0003 revoga tudo do papel no banco.
+- **Como o executor mexe no papel** (`garantirPapelDeLogin`, B0 do plano B do DBaaS, T-0075, 05/11): papel **novo** =
+  `CREATE ROLE ... LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD ...`; papel **existente** =
+  só `ALTER ROLE <papel> LOGIN PASSWORD ...`, sem citar atributo (no PG 16, citar `NOSUPERUSER`/`NOBYPASSRLS`/
+  `NOREPLICATION` num `ALTER ROLE` exige superusuário — era o "permission denied to alter role" do DBaaS). Os atributos do
+  papel existente são **conferidos** em `pg_roles`: `SUPERUSER`, `BYPASSRLS`, `CREATEDB`, `CREATEROLE` ou `REPLICATION` =
+  erro com a correção (`alter role <papel> nosuperuser ...` por um superusuário, ou apagar o papel); nada é alterado
+  (antes, o `ALTER ROLE` corrigia em silêncio). Com `password_encryption = scram-sha-256` (padrão do PG 14+, demo e CI) e
+  senha ASCII imprimível sem espaço, a senha vai como **verificador SCRAM** calculado no cliente (`db/src/scram.ts`, com o
+  `scram_iterations` do servidor): o servidor guarda a mesma credencial e a senha em texto não chega a ele nem a log. Fora
+  disso (md5 ou outros caracteres), vai em texto, como antes, na transação sem log de comando. Na demo e no CI nada muda:
+  os papéis nascem pelas migrações 0001/0003 com os atributos certos e o passo dá `LOGIN` e a senha.
 - Todas as tabelas têm `ENABLE` **e** `FORCE ROW LEVEL SECURITY` (defesa extra caso um dia o dono não seja superusuário).
 - Grants explícitos por tabela. `plataforma.tenant`: só `SELECT`. `plataforma.auditoria`: só `SELECT, INSERT` (RN-AUD-01).
   `public.macuxi_migracao`: nenhum acesso.
+
+## Papel de manutenção (0031, T-0075 — B1 do plano B do DBaaS, ADR 0024)
+
+No DBaaS da Magalu o admin **não** é superusuário, não tem BYPASSRLS e não consegue ganhá-lo (relatório do run
+42021914715, X1/X1.2). Com `FORCE ROW LEVEL SECURITY`, o dono das tabelas sem política não lê nem grava linha de tenant:
+seed, fixtures, backfill de migração (0 linhas, sem erro) e as funções `SECURITY DEFINER` entre tenants quebravam.
+
+- `macuxi_manutencao`: NOLOGIN, sem BYPASSRLS. Criado pela 0031 (ou antes, por `garantirPapelManutencao` em
+  `db/src/papeis.ts`, que `criarBanco` chama com advisory lock para os bancos de teste paralelos).
+- `grant macuxi_manutencao to current_user with inherit true` (PG 16): o migrador herda o papel. Dentro das funções
+  `SECURITY DEFINER` o `current_user` é o dono, então elas também enxergam todos os tenants, sem `ALTER FUNCTION`.
+- Política **`manutencao`** em **toda tabela com RLS**: `for all to macuxi_manutencao using (true) with check (true)` (mesmo
+  padrão das `despacho_outbox*` do worker, 0003). Num superusuário (demo, CI) nada muda.
+- **Regra para tabela nova (0032 em diante)**: a migração cria, junto da `isolamento_tenant`,
+  `create policy manutencao on <schema>.<tabela> for all to macuxi_manutencao using (true) with check (true);`. Falham sem
+  ela: `db/scripts/conferir-rls.sql` ("sem política de manutenção"), `db/testes/conformidade.test.ts` (no banco) e
+  `db/testes/estatico.test.ts` (nas migrações).
+- **Trava**: `macuxi_app` e `macuxi_worker` nunca são membros (nem INHERIT nem SET). A 0031 aborta (42501) se forem;
+  `conferir-rls.sql` lista "(papel) <nome>"; `diagnosticarPapelApp` (S0-028) conta a filiação como `ignoraRls`.
+- Risco: o mesmo do superusuário (a conexão de administração vê todos os tenants); API e worker nunca a usam.
+- Down da 0031: apaga só as políticas `manutencao`; o papel e a filiação ficam (objetos do cluster, como o `macuxi_worker`).
+- B0 (no mesmo plano): sem superusuário, `garantirPapelDeLogin` dá ao admin `SET` (sem INHERIT) nos papéis que cria, para
+  `set role macuxi_app/macuxi_worker` nos testes e na manutenção; o admin não herda as políticas deles.
 
 ## Contexto do tenant (como a aplicação define)
 Em **cada transação**, antes de qualquer consulta:
@@ -76,7 +111,8 @@ e `plataforma.auditoria`.
 - **Login** (código da empresa + e-mail + senha): `plataforma.tenant_por_codigo(codigo)` é
   `SECURITY DEFINER` (roda como o dono, que ignora RLS) e devolve só `id, nome, fuso, status`. Depois a
   API abre transação com o tenant resolvido e busca o usuário por `lower(email)`.
-  Premissa: o dono das funções é superusuário ou tem `BYPASSRLS` (em nuvem gerenciada, conceder ao papel migrador).
+  Premissa: o dono das funções é superusuário ou herda o `macuxi_manutencao` (0031; é o caso do DBaaS, onde BYPASSRLS
+  não é concedível).
 - **Despacho do outbox** (ADR 0007, migração 0003): papel `macuxi_worker` **NOBYPASSRLS** (`BYPASSRLS` vale para o
   papel inteiro, não dá para restringir a uma tabela) com **políticas próprias** só em `plataforma.evento`:
   `despacho_outbox` (`for select to macuxi_worker using (true)`) e `despacho_outbox_marcar`
@@ -103,10 +139,11 @@ e `plataforma.auditoria`.
   apagados, para o agendador das tarefas periódicas. `macuxi_app` e `public` sem EXECUTE.
 - **`plataforma.provisionar_tenant(jsonb)`** (0029, T-0083): `SECURITY INVOKER` (NÃO entra na lista das DEFINER), `search_path`
   fixo com `pg_temp` no fim, sem EXECUTE para `public`, `macuxi_app` e `macuxi_worker` (42501): só a conexão de administração
-  (superusuário/BYPASSRLS) cria tenant. Grava com o contexto do tenant novo ligado e restaurado no fim.
+  (superusuário ou herdeira do `macuxi_manutencao`, 0031) cria tenant. Grava com o contexto do tenant novo ligado e restaurado no fim.
 - **`core.plano_rv`** (0028, T-0082): enable + force + `isolamento_tenant`, como toda tabela de domínio.
 - **Conferência B1** (T-0078): `db/scripts/conferir-rls.sql` lista toda tabela de domínio com RLS desligado, RLS não forçado,
-  sem política, sem política para o `macuxi_app` ou com coluna comum ausente, de outro tipo ou anulável. Esperado: zero linhas
+  sem política, sem política para o `macuxi_app`, sem a política `manutencao` (0031) ou com coluna comum ausente, de outro
+  tipo ou anulável, e os papéis `macuxi_app`/`macuxi_worker` que forem membros do `macuxi_manutencao`. Esperado: zero linhas
   (exceções de `db/src/excecoes.ts`: `plataforma.tenant` sem `tenant_id`; `public.macuxi_migracao` fora). À mão, só leitura:
   `psql "$URL_ADMIN" -v ON_ERROR_STOP=1 -f db/scripts/conferir-rls.sql`.
 
@@ -125,3 +162,5 @@ e `plataforma.auditoria`.
 | `provisionar_tenant`: app e worker 42501; 2x a mesma entrada = mesmas contagens; só `redefinir_senha` troca o hash | `db/testes/provisionar-tenant.test.ts` |
 | `core.plano_rv`: A não lê nem grava B; sem contexto = 0; FK do autor no próprio tenant | `db/testes/plano-rv.test.ts` |
 | macuxi_worker: lê A e B, 42501 fora das colunas/tabelas concedidas, só marca 3 colunas, sem BYPASSRLS; app sem contexto = 0 | `db/testes/worker.test.ts` |
+| B1 do DBaaS (0031): política `manutencao` em toda tabela com RLS; tabela nova sem ela é acusada; app e worker não são membros (nem herdam nem assumem); o migrador herda | `db/testes/conformidade.test.ts` + `db/testes/estatico.test.ts` |
+| B2 do DBaaS (0032): `excluir_tenant` sem `session_replication_role`, por um papel sem superusuário só com a política `manutencao` (sem ela: P0002) | `db/testes/lgpd-outbox.test.ts` |

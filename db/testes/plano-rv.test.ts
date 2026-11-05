@@ -173,13 +173,13 @@ describe.skipIf(semBanco())('0028 core.plano_rv (banco, fixture dois-tenants)', 
   it('catálogo: RLS ligado e forçado, política isolamento_tenant, grants do app, gatilho de updated_at', async () => {
     const r = await admin.query<{ rls: boolean; force: boolean; politicas: string[]; app: string[]; gatilhos: string[] }>(
       `select c.relrowsecurity as rls, c.relforcerowsecurity as force,
-              array(select policyname::text from pg_policies where schemaname = 'core' and tablename = 'plano_rv') as politicas,
+              array(select policyname::text from pg_policies where schemaname = 'core' and tablename = 'plano_rv' order by 1) as politicas,
               array(select privilege_type::text from information_schema.role_table_grants
                      where table_schema = 'core' and table_name = 'plano_rv' and grantee = 'macuxi_app' order by 1) as app,
               array(select tgname::text from pg_trigger where tgrelid = c.oid and not tgisinternal) as gatilhos
          from pg_class c where c.oid = 'core.plano_rv'::regclass`,
     );
-    expect(r.rows).toEqual([{ rls: true, force: true, politicas: ['isolamento_tenant'], app: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], gatilhos: ['plano_rv_updated_at'] }]);
+    expect(r.rows).toEqual([{ rls: true, force: true, politicas: ['isolamento_tenant', 'manutencao'], app: ['DELETE', 'INSERT', 'SELECT', 'UPDATE'], gatilhos: ['plano_rv_updated_at'] }]);
   });
 });
 

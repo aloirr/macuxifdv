@@ -11,7 +11,7 @@
 #   manutenção) · DBAAS_SSLMODE (prefer | require | verify-full | disable) · DBAAS_SENHA (obrigatória) ·
 #   DBAAS_DIR (pasta pai desta) · DBAAS_SAIDA ($DBAAS_DIR/saida) · DBAAS_RELATORIO ($DBAAS_SAIDA/relatorio.md) ·
 #   MACUXI_IMAGEM_API (imagem com tag; sem tag usa MACUXI_SHA, o MACUXI_TAG de /opt/macuxi/imagens.env ou "main") ·
-#   DBAAS_MIGRAR_ATE (0027) · DBAAS_SUITE (1; 0 pula a suíte) · DBAAS_VITEST_WORKERS (2) · DBAAS_TEMPO_SUITE_MIN (16) ·
+#   DBAAS_MIGRAR_ATE (vazio = a última migração da imagem) · DBAAS_SUITE (1; 0 pula a suíte) · DBAAS_VITEST_WORKERS (2) · DBAAS_TEMPO_SUITE_MIN (16) ·
 #   DBAAS_HNSW_LINHAS (5000) · DBAAS_HNSW_DIM (1536) · DBAAS_VITEST_VERSAO (a do pnpm-lock.yaml da imagem).
 #   DBAAS_REPO_TGZ e DOCKER_CONFIG: não usados aqui (o código vem da imagem; o docker pull usa o DOCKER_CONFIG herdado).
 #
@@ -20,13 +20,13 @@
 #   2. sobe um contêiner da imagem da API (--network host, root só dentro dele, sem o .env da demo, sem a rede do compose)
 #      com esta pasta em /app/db/dbaas e $DBAAS_SAIDA em /saida, e roda teste-compatibilidade.ts: base nova
 #      macuxi_dbaas_AAAAMMDD_HHMMSS (CREATE DATABASE direto, sem ALTER ROLE), papéis (sem ALTER de atributo), o que o
-#      admin pode (mgc_superuser, BYPASSRLS, session_replication_role), migrações 0001..0027, RLS forçado, SECURITY
+#      admin pode (mgc_superuser, BYPASSRLS, session_replication_role), migrações até a última da imagem (0031 B1 e 0032 B2), RLS forçado, SECURITY
 #      DEFINER, vector, seed demo, RLS na prática, exclusão de tenant, HNSW com EXPLAIN, suíte do @macuxi/db; onde falta
 #      privilégio, roda o caminho alternativo do plano B e marca ⚠️; no fim (sempre) apaga as bases e os papéis de teste;
 #   3. confere que a senha não aparece em nenhum arquivo de $DBAAS_SAIDA (apaga o arquivo e falha se aparecer).
 # Saída: $DBAAS_RELATORIO (Markdown com ✅/⚠️/❌, versões, tempos e a seção "Plano B"), $DBAAS_SAIDA/execucao.log,
 # suite.json e suite.log. DBAAS_SUITE=forcar roda a suíte mesmo com o log do servidor registrando comandos de papel;
-# DBAAS_MANTER_PAPEIS=1 não apaga macuxi_app/macuxi_worker no fim.
+# DBAAS_MANTER_PAPEIS=1 não apaga macuxi_app/macuxi_worker/macuxi_manutencao no fim.
 # Código: 0 = pré-requisitos e critérios 1–4 ✅ · 1 = algum critério ❌ · 2 = configuração · 3 = sem alcance/rota ·
 #         4 = critérios sem ❌ mas sobrou base/papel de teste · 5 = critérios sem ❌, mas algum ⚠️ (só com o plano B) ·
 #         130 = interrompido (as bases e os papéis de teste são apagados antes de sair).
@@ -57,7 +57,7 @@ export DBAAS_PORTA="${DBAAS_PORTA:-5432}"
 export DBAAS_USUARIO="${DBAAS_USUARIO:-macuxi_admin}"
 export DBAAS_BANCO="${DBAAS_BANCO:-postgres}"
 export DBAAS_SSLMODE="${DBAAS_SSLMODE:-prefer}"
-export DBAAS_MIGRAR_ATE="${DBAAS_MIGRAR_ATE:-0027}"
+export DBAAS_MIGRAR_ATE="${DBAAS_MIGRAR_ATE:-}"
 DBAAS_DIR="${DBAAS_DIR:-$(dirname "$ORIGEM")}"
 DBAAS_SAIDA="${DBAAS_SAIDA:-$DBAAS_DIR/saida}"
 DBAAS_RELATORIO="${DBAAS_RELATORIO:-$DBAAS_SAIDA/relatorio.md}"

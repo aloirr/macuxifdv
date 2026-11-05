@@ -7,8 +7,9 @@
 # contagem de linhas, políticas e privilégios com o banco atual. O banco em uso NÃO é tocado.
 # --trocar: depois de restaurar e conferir, para api e worker, renomeia o banco atual para macuxi_antes_<UTC> (fica,
 #           nada é apagado), põe o restaurado no lugar e sobe api e worker de novo.
-# Pré-requisito numa VM nova (volume vazio): "banco migrar up" uma vez antes, para criar os papéis macuxi_app e
-# macuxi_worker (os GRANTs do dump citam esses papéis; papel é do cluster e não vai no dump).
+# Pré-requisito numa VM nova (volume vazio): "banco migrar up" uma vez antes, para criar os papéis macuxi_app,
+# macuxi_worker e macuxi_manutencao (0031) (os GRANTs e as políticas do dump citam esses papéis; papel é do cluster e não
+# vai no dump).
 set -euo pipefail
 umask 077
 

@@ -96,8 +96,12 @@ quando, qual tenant). A aplicação não executa estas funções: `macuxi_app` e
    ```
    A função apaga todas as linhas do tenant em **toda tabela com `tenant_id`**. A lista de tabelas vem do catálogo, então
    tabela nova fica coberta sem mudar a função. Por fim apaga a linha de `plataforma.tenant`. Ela recusa código errado
-   (22023), tenant que não está encerrado (55000) e tenant que não existe (P0002). Usa `session_replication_role = replica`
-   só dentro da transação: as FKs e os gatilhos não disparam, por isso apaga tudo de uma vez. Exige superusuário.
+   (22023), tenant que não está encerrado (55000) e tenant que não existe (P0002). Desde a 0032 (T-0075, B2 do DBaaS) não usa
+   `session_replication_role` nem desliga gatilho ou FK: apaga em **ordem de FK calculada no catálogo** (filhas antes das
+   mães; o ciclo `core.usuario` <-> `core.equipe` é quebrado antes com `update ... set <fk> = null`), e por fim o tenant.
+   Os gatilhos de DELETE disparam (os 5 `*_toca_trilha` do Treinamento só tocam a trilha do mesmo tenant, que sai depois).
+   Roda sem superusuário: o dono enxerga as linhas pela política `manutencao` da 0031 ([rls.md](rls.md)). Uma linha que
+   sobrar faz a FK para `plataforma.tenant` falhar (23503) e a transação desfaz tudo.
 5. **Depois**: os backups com o tenant expiram em 7 dias (ou 30, se o Alexandre decidir assim). Restaurar um backup antigo
    traz o tenant de volta: repita o passo 4 depois de qualquer restauração. Os aparelhos do tenant deixam de autenticar,
    porque o login e o refresh falham. Apagar a cópia local é com o app, fora do banco.
@@ -107,6 +111,8 @@ quando, qual tenant). A aplicação não executa estas funções: `macuxi_app` e
 - `pnpm --filter @macuxi/db exec vitest run testes/lgpd-outbox.test.ts`, no CI ou com o Postgres de testes (5434). Cobre: as três anonimizações (o
   dado sai, os ids ficam, o outro tenant e os outros registros não mudam), o payload do ERP anulado, os erros P0002, 22004,
   22023 e 55000, a exclusão de tenant (zero linhas do tenant em toda tabela com `tenant_id`, o tenant B idêntico,
-  `session_replication_role` de volta a `origin`) e o 42501 para `macuxi_app` e `macuxi_worker`.
+  `session_replication_role` intocado) e o 42501 para `macuxi_app` e `macuxi_worker`. A 0032 também é provada por um papel
+  SEM superusuário, num banco efêmero: com a política `manutencao` apaga tudo do tenant (FKs e gatilhos ligados); sem ela
+  não enxerga o tenant (P0002) e nada sai.
 - Teste estático, que roda sem banco: só uma função `SECURITY DEFINER` na 0024 (`resumo_outbox`); as funções da LGPD com
   `revoke` de `public` e sem `grant`.

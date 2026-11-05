@@ -127,6 +127,9 @@ describe('migrações (estático)', () => {
     expect(nomes[26]).toBe('0027_plataforma_tenants_ativos'); // T-0039 §2.3 (ADR 0022): plataforma.tenants_ativos() só ao macuxi_worker (tenants-ativos.test.ts)
     expect(nomes[27]).toBe('0028_core_plano_rv'); // T-0082: core.plano_rv (RN-CORE-30), regras em jsonb, RLS forçado (plano-rv.test.ts)
     expect(nomes[28]).toBe('0029_plataforma_provisionar_tenant'); // T-0083: plataforma.provisionar_tenant(jsonb), só a conexão de administração (provisionar-tenant.test.ts)
+    expect(nomes[29]).toBe('0030_core_notificacao_subtipo'); // T-0039: core.notificacao.subtipo (text nulo, CHECK de formato, sem índice) e backfill do alerta (notificacao-subtipo.test.ts)
+    expect(nomes[30]).toBe('0031_plataforma_manutencao'); // T-0075 B1 (ADR 0024): papel macuxi_manutencao e política manutencao em toda tabela com RLS (conformidade.test.ts)
+    expect(nomes[31]).toBe('0032_plataforma_excluir_tenant_ordem_fk'); // T-0075 B2 (ADR 0024): excluir_tenant em ordem de FK, sem session_replication_role (lgpd-outbox.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -239,6 +242,53 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'alter table plataforma.evento drop column if exists usuario_id;',
       'revoke usage on schema plataforma from macuxi_worker;',
     ]) expect(m.down).toContain(trecho);
+  });
+});
+
+describe('0031 papel de manutenção (estático, T-0075 B1, ADR 0024)', () => {
+  const m31 = migracoes.find((x) => x.versao === '0031')!;
+  const semComentarios = (sql: string) => sql.replace(/--.*$/gm, '');
+
+  it('papel NOLOGIN sem BYPASSRLS, herdado só pelo migrador (current_user, WITH INHERIT TRUE), com trava contra app/worker', () => {
+    const sql = semComentarios(m31.up);
+    expect(sql).toContain('create role macuxi_manutencao nologin nosuperuser nobypassrls nocreatedb nocreaterole noreplication;');
+    expect(sql).toContain('grant macuxi_manutencao to current_user with inherit true;');
+    expect(sql).toContain("pg_has_role(v_papel, 'macuxi_manutencao', 'MEMBER')");
+    expect(sql).toContain("array['macuxi_app', 'macuxi_worker']");
+    expect(sql).toMatch(/errcode = '42501'/);
+  });
+
+  it('política manutencao em toda tabela com RLS (laço no catálogo): for all to macuxi_manutencao using (true) with check (true)', () => {
+    const sql = semComentarios(m31.up);
+    expect(sql).toContain("execute format('create policy manutencao on %s for all to macuxi_manutencao using (true) with check (true)', v_t.tabela);");
+    expect(sql).toMatch(/where c\.relkind in \('r', 'p'\) and c\.relrowsecurity/);
+    expect(sql).toContain("not exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'manutencao')");
+  });
+
+  it('nenhuma migração concede macuxi_manutencao a outro papel que não o migrador, nem dá política a ele fora do padrão', () => {
+    const tudo = semComentarios(sqlUp);
+    expect([...tudo.matchAll(/grant macuxi_manutencao to ([a-z_]+)/g)].map((x) => x[1])).toEqual(['current_user']);
+    expect(tudo).not.toMatch(/grant [a-z_, ]*macuxi_manutencao[a-z_, ]* to macuxi_(app|worker)/);
+    for (const [, corpo] of tudo.matchAll(/create policy manutencao on ([^;]+);/g)) {
+      expect(corpo).toMatch(/^(%s|[a-z_]+\.[a-z_]+) for all to macuxi_manutencao using \(true\) with check \(true\)'?(, v_t\.tabela\))?$/);
+    }
+  });
+
+  it('regra para tabela nova (0032+): toda create table leva a política manutencao na mesma migração', () => {
+    for (const m of migracoes.filter((x) => x.versao > '0031')) {
+      for (const [, tabela] of m.up.matchAll(/create table (?:if not exists )?([a-z_]+\.[a-z_]+) \(/g)) {
+        expect(m.up, `${m.versao}: ${tabela} sem a política manutencao (0031)`).toContain(
+          `create policy manutencao on ${tabela} for all to macuxi_manutencao using (true) with check (true);`,
+        );
+      }
+    }
+  });
+
+  it('down apaga só as políticas manutencao; o papel e a filiação ficam (objetos do cluster, como o macuxi_worker)', () => {
+    const sql = semComentarios(m31.down);
+    expect(sql).toContain("where p.polname = 'manutencao'");
+    expect(sql).toContain("execute format('drop policy if exists manutencao on %s', v_t.tabela);");
+    expect(sql).not.toMatch(/drop role|revoke/);
   });
 });
 
