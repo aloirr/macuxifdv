@@ -226,21 +226,97 @@ describe.skipIf(semBanco())('0026 pendência de etapa do checkout (banco, papel 
     expect(semCtx.rows[0]!.n).toBe(0);
   });
 
+  it('catálogo: visita_etapa_pendente_ix e visita_etapas_pendentes_ix válidos, com as colunas e o predicado do desenho', async () => {
+    const r = await q<{ nome: string; def: string; valido: boolean }>(
+      `select c.relname as nome, pg_get_indexdef(i.indexrelid) as def, (i.indisvalid and i.indisready) as valido
+         from pg_index i
+         join pg_class c on c.oid = i.indexrelid
+         join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'core' and c.relname = any($1::text[])`,
+      [['visita_etapa_pendente_ix', 'visita_etapas_pendentes_ix']],
+    );
+    const idx = Object.fromEntries(r.rows.map((x) => [x.nome, x]));
+    expect(Object.keys(idx).sort()).toEqual(['visita_etapa_pendente_ix', 'visita_etapas_pendentes_ix']);
+    expect(r.rows.every((x) => x.valido)).toBe(true);
+    const termos = (def: string) => def.split(' WHERE ')[1]!.replace(/[()]/g, '').split(' AND ').sort();
+    expect(idx.visita_etapa_pendente_ix!.def).toContain('ON core.visita_etapa USING btree (tenant_id, pendente_desde) WHERE ');
+    expect(termos(idx.visita_etapa_pendente_ix!.def)).toEqual(['deleted_at IS NULL', "situacao = 'pendente'::text"]);
+    expect(idx.visita_etapas_pendentes_ix!.def).toContain('ON core.visita USING btree (tenant_id, checkin_em DESC) WHERE ');
+    expect(termos(idx.visita_etapas_pendentes_ix!.def)).toEqual(['deleted_at IS NULL', 'etapas_pendentes > 0']);
+  });
+});
+
+/**
+ * Índices usáveis pelas consultas: banco efêmero com volume (3000 visitas fechadas, 6000 etapas, 1% pendente) e ANALYZE,
+ * papel de aplicação com RLS e seqscan desligado. Na fixture (poucas linhas, sem estatística) o planejador pode escolher
+ * outro índice de tenant, o que torna o EXPLAIN instável.
+ */
+describe.skipIf(semBanco())('0026 EXPLAIN com volume (banco efêmero)', () => {
+  let b: BancoDeTeste;
+  let app: pg.Client;
+  const T = 'cccccccc-0000-4000-8000-000000000126';
+  beforeAll(async () => {
+    b = await criarBancoDeTeste({
+      preparar: async (c) => {
+        await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'volume26', 'Volume 26')", [T]);
+        await c.query(
+          `insert into core.usuario (id, tenant_id, nome, email, perfil)
+           select md5('u26-' || g)::uuid, $1, 'Vendedor ' || g, 'v' || g || '@exemplo.com.br', 'vendedor' from generate_series(1, 20) g`,
+          [T],
+        );
+        await c.query("insert into core.cliente (id, tenant_id, razao_social) select md5('c26-' || g)::uuid, $1, 'Cliente ' || g from generate_series(1, 30) g", [T]);
+        // 3000 visitas fechadas; 1 em cada 100 com etapa pendente
+        await c.query(
+          `insert into core.visita (id, tenant_id, usuario_id, cliente_id, data_local, checkin_em, checkout_em, resultado, fechada_por, etapas_pendentes)
+           select md5('v26-' || g)::uuid, $1, md5('u26-' || (g % 20 + 1))::uuid, md5('c26-' || (g % 30 + 1))::uuid,
+                  ((timestamptz '2029-01-01T12:00:00Z' + g * interval '1 hour') at time zone 'UTC')::date,
+                  timestamptz '2029-01-01T12:00:00Z' + g * interval '1 hour',
+                  timestamptz '2029-01-01T12:30:00Z' + g * interval '1 hour',
+                  'atendido', 'usuario', case when g % 100 = 0 then 1 else 0 end
+             from generate_series(1, 3000) g`,
+          [T],
+        );
+        await c.query(
+          `insert into core.visita_etapa (tenant_id, visita_id, modulo, etapa, situacao)
+           select $1, md5('v26-' || g)::uuid, 'pesquisa', 'questionario', 'concluida' from generate_series(1, 3000) g`,
+          [T],
+        );
+        await c.query(
+          `insert into core.visita_etapa (tenant_id, visita_id, modulo, etapa, situacao, pendente_desde, alertada_em)
+           select $1, md5('v26-' || g)::uuid, 'promotor', 'gondola',
+                  case when g % 100 = 0 then 'pendente' else 'concluida' end,
+                  case when g % 100 = 0 then timestamptz '2029-01-01T12:30:00Z' + g * interval '1 hour' end,
+                  case when g % 200 = 0 then timestamptz '2029-12-01T12:00:00Z' end
+             from generate_series(1, 3000) g`,
+          [T],
+        );
+        await c.query('analyze core.visita');
+        await c.query('analyze core.visita_etapa');
+      },
+    });
+    app = new pg.Client({ connectionString: b.urlApp });
+    await app.connect();
+  });
+  afterAll(async () => {
+    await app?.end();
+    await b?.apagar();
+  });
+
   it('EXPLAIN: varredura do alerta pelo visita_etapa_pendente_ix e filtro do BKO pelo visita_etapas_pendentes_ix', async () => {
     const plano = (sql: string, params: unknown[]) =>
-      emTransacao(app, A, async () => {
-        await q('set local enable_seqscan = off');
-        const r = await q<{ 'QUERY PLAN': string }>(`explain ${sql}`, params);
+      emTransacao(app, T, async () => {
+        await app.query('set local enable_seqscan = off');
+        const r = await app.query<{ 'QUERY PLAN': string }>(`explain ${sql}`, params);
         return r.rows.map((x) => x['QUERY PLAN']).join('\n');
       });
     expect(
       await plano(
         "select id, visita_id, modulo, etapa from core.visita_etapa where tenant_id = $1 and situacao = 'pendente' and deleted_at is null and pendente_desde < $2::timestamptz and alertada_em is null",
-        [A, DESDE],
+        [T, '2029-12-31T00:00:00Z'],
       ),
     ).toContain('visita_etapa_pendente_ix');
     expect(
-      await plano('select id from core.visita where tenant_id = $1 and etapas_pendentes > 0 and deleted_at is null order by checkin_em desc limit 50', [A]),
+      await plano('select id from core.visita where tenant_id = $1 and etapas_pendentes > 0 and deleted_at is null order by checkin_em desc limit 50', [T]),
     ).toContain('visita_etapas_pendentes_ix');
   });
 });

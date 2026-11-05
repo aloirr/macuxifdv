@@ -9,6 +9,7 @@
  * Banco: papel de APLICAÇÃO (macuxi_app) sobre a fixture dois-tenants, sempre com ROLLBACK; up/down num banco efêmero.
  * Datas: mês literal sem dado da fixture (2030-03).
  */
+import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -201,21 +202,100 @@ describe.skipIf(semBanco())('0025 vendedor da nota do ERP (banco, papel de aplic
     expect(semCtx.rows[0]!.n).toBe(0);
   });
 
+  it('catálogo: nota_erp_usuario_mes_ix e nota_erp_vendedor_orfa_ix válidos, com as colunas e o predicado do desenho', async () => {
+    const r = await q<{ nome: string; def: string; valido: boolean }>(
+      `select c.relname as nome, pg_get_indexdef(i.indexrelid) as def, (i.indisvalid and i.indisready) as valido
+         from pg_index i
+         join pg_class c on c.oid = i.indexrelid
+         join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'core' and c.relname = any($1::text[])`,
+      [['nota_erp_usuario_mes_ix', 'nota_erp_vendedor_orfa_ix']],
+    );
+    const idx = Object.fromEntries(r.rows.map((x) => [x.nome, x]));
+    expect(Object.keys(idx).sort()).toEqual(['nota_erp_usuario_mes_ix', 'nota_erp_vendedor_orfa_ix']);
+    expect(r.rows.every((x) => x.valido)).toBe(true);
+    const termos = (def: string) => def.split(' WHERE ')[1]!.replace(/[()]/g, '').split(' AND ').sort();
+    expect(idx.nota_erp_usuario_mes_ix!.def).toContain('ON core.nota_erp USING btree (tenant_id, usuario_id, ano_mes) WHERE ');
+    expect(termos(idx.nota_erp_usuario_mes_ix!.def)).toEqual(['deleted_at IS NULL', 'usuario_id IS NOT NULL']);
+    expect(idx.nota_erp_vendedor_orfa_ix!.def).toContain('ON core.nota_erp USING btree (tenant_id, vendedor_external_id) WHERE ');
+    expect(termos(idx.nota_erp_vendedor_orfa_ix!.def)).toEqual(['deleted_at IS NULL', 'usuario_id IS NULL', 'vendedor_external_id IS NOT NULL']);
+  });
+});
+
+/**
+ * Índices usáveis pelas consultas: banco efêmero com volume (40 vendedores × 12 meses + órfãs) e ANALYZE, papel de
+ * aplicação com RLS e seqscan desligado. Na fixture (poucas linhas, sem estatística) o planejador pode escolher outro
+ * índice de tenant (ex.: nota_erp_cliente_mes_ix para o GROUP BY), o que tornava o EXPLAIN instável.
+ */
+describe.skipIf(semBanco())('0025 EXPLAIN com volume (banco efêmero)', () => {
+  let b: BancoDeTeste;
+  let app: pg.Client;
+  const T = 'cccccccc-0000-4000-8000-000000000125';
+  /** Mesmo uuid que o md5(texto)::uuid do Postgres (hex sem hífens é entrada válida de uuid). */
+  const uuidDe = (texto: string) => createHash('md5').update(texto).digest('hex');
+  beforeAll(async () => {
+    b = await criarBancoDeTeste({
+      preparar: async (c) => {
+        await c.query("insert into plataforma.tenant (id, codigo, nome) values ($1, 'volume25', 'Volume 25')", [T]);
+        await c.query(
+          `insert into core.usuario (id, tenant_id, nome, email, perfil)
+           select md5('u25-' || g)::uuid, $1, 'Vendedor ' || g, 'v' || g || '@exemplo.com.br', 'vendedor' from generate_series(1, 40) g`,
+          [T],
+        );
+        await c.query("insert into core.cliente (id, tenant_id, razao_social) select md5('c25-' || g)::uuid, $1, 'Cliente ' || g from generate_series(1, 50) g", [T]);
+        // 2400 notas com vendedor conhecido: cada (vendedor, mês de 2029) com ~5 notas
+        await c.query(
+          `insert into core.nota_erp (tenant_id, cliente_id, tipo, numero, emitida_em, ano_mes, total_cents, external_id, vendedor_external_id, usuario_id)
+           select $1, md5('c25-' || (g % 50 + 1))::uuid, 'faturamento', g::text,
+                  make_timestamptz(2029, (g / 40) % 12 + 1, 10, 15, 0, 0, 'UTC'), '2029-' || lpad(((g / 40) % 12 + 1)::text, 2, '0'),
+                  1000, 'NF-' || g, 'V-' || (g % 40 + 1), md5('u25-' || (g % 40 + 1))::uuid
+             from generate_series(1, 2400) g`,
+          [T],
+        );
+        // 300 órfãs (vendedor ainda desconhecido)
+        await c.query(
+          `insert into core.nota_erp (tenant_id, cliente_id, tipo, numero, emitida_em, ano_mes, total_cents, external_id, vendedor_external_id)
+           select $1, md5('c25-' || (g % 50 + 1))::uuid, 'faturamento', 'O' || g, '2029-03-10T15:00:00Z', '2029-03', 1000, 'NO-' || g, 'V-ORFA-' || (g % 30 + 1)
+             from generate_series(1, 300) g`,
+          [T],
+        );
+        await c.query('analyze core.nota_erp');
+      },
+    });
+    app = new pg.Client({ connectionString: b.urlApp });
+    await app.connect();
+  });
+  afterAll(async () => {
+    await app?.end();
+    await b?.apagar();
+  });
+
   it('EXPLAIN: mês do usuário pelo nota_erp_usuario_mes_ix e órfãs do vendedor pelo nota_erp_vendedor_orfa_ix', async () => {
     const plano = (sql: string, params: unknown[]) =>
-      emTransacao(app, A, async () => {
-        await q('set local enable_seqscan = off');
-        const r = await q<{ 'QUERY PLAN': string }>(`explain ${sql}`, params);
+      emTransacao(app, T, async () => {
+        await app.query('set local enable_seqscan = off');
+        const r = await app.query<{ 'QUERY PLAN': string }>(`explain ${sql}`, params);
         return r.rows.map((x) => x['QUERY PLAN']).join('\n');
       });
     expect(
       await plano(
         "select cliente_id, min(emitida_em) from core.nota_erp where deleted_at is null and usuario_id = $1 and ano_mes = $2 and tipo = 'faturamento' and not cancelada group by cliente_id",
-        [UA.vendedor1, MES],
+        [uuidDe('u25-1'), '2029-03'],
       ),
     ).toContain('nota_erp_usuario_mes_ix');
     expect(
-      await plano('update core.nota_erp set usuario_id = $1 where vendedor_external_id = $2 and usuario_id is null and deleted_at is null', [UA.vendedor1, 'V-NOVO']),
+      await plano(
+        `select usuario_id, cliente_id, min(emitida_em) as primeira_em
+           from core.nota_erp
+          where deleted_at is null and usuario_id = any($1::uuid[]) and ano_mes = $2
+            and tipo = 'faturamento' and not cancelada
+          group by usuario_id, cliente_id
+          order by usuario_id, cliente_id`,
+        [[uuidDe('u25-1'), uuidDe('u25-2')], '2029-03'],
+      ),
+    ).toContain('nota_erp_usuario_mes_ix');
+    expect(
+      await plano('update core.nota_erp set usuario_id = $1 where vendedor_external_id = $2 and usuario_id is null and deleted_at is null', [uuidDe('u25-1'), 'V-ORFA-7']),
     ).toContain('nota_erp_vendedor_orfa_ix');
   });
 });
