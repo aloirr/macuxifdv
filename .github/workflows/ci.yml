@@ -155,6 +155,11 @@ jobs:
         if: ${{ !cancelled() }}
         run: pnpm fronteiras
 
+      # RN-CORE-23 (ADR 0018): nenhum timer automático < 15 min no app e no BKO (exceções com "timer-permitido:")
+      - name: timers de sincronização
+        if: ${{ !cancelled() }}
+        run: node --test scripts/ci/timers-sync.test.mjs && pnpm timers
+
       - uses: ./.github/actions/salvar-turbo
         if: ${{ !cancelled() }}
         with:
