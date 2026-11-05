@@ -109,3 +109,6 @@ R-20261104-204823-gerente-projetos
 R-20261104-205600-modulo-vendedor
 R-20261104-233840-engenheiro-software
 R-20261104-231218-alexandre
+R-20261104-211721-modulo-core
+R-20261104-224712-alexandre
+R-20261104-224824-alexandre
