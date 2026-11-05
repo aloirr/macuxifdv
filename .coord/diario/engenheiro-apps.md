@@ -37,3 +37,4 @@
 2026-11-05 — T-0078 — builds preview finais Campo (97efbbf3) e Gestão (7769a77f) do 6113a9b (lote C2, mesmo do deploy da demo), frozen-lockfile ok, bundles verdes, Expo registrou o commit, ~32 min
 2026-11-05 — T-0078 — builds preview Campo (1853bfdd) e Gestão (19ccf727) do af6c368 (lote D, T-0039, mesmo do deploy da demo), frozen-lockfile ok, bundles verdes, Expo registrou o commit, ~28 min
 2026-11-05 — T-0074 — Dockerfile do BKO: pnpm install em camada própria só com os manifestos (estágio manifestos + COPY --from), cache type=gha acerta quando só muda código; sem pnpm fetch/turbo prune; validado por leitura (sem Docker no PC).
+2026-11-05 — T-0008 — builds preview Campo (c6277df9) e Gestão (3db52299) do 68ea7d9 (lote E: expo-sqlite 57.0.4 + tela oculta de medição), frozen-lockfile ok, bundles verdes, plugin expo-sqlite (enableFTS) no config, Expo registrou o commit, ~35 min
