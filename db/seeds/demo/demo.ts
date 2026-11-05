@@ -1075,6 +1075,17 @@ async function apagarTenantDemo(admin: ClientBase): Promise<void> {
   await admin.query("set local session_replication_role = 'origin'");
 }
 
+/**
+ * 0022 (T-0079): troca plataforma.tenant.geracao_base do tenant (plataforma.girar_geracao_base). Banco anterior à 0022
+ * (sem a função) não tem o marcador: nada a girar. Exige superusuário (FORCE RLS no tenant): girar 0 linhas é erro.
+ */
+export async function girarGeracaoBase(admin: ClientBase, tenantId: string): Promise<void> {
+  const existe = await admin.query<{ ok: boolean }>("select to_regprocedure('plataforma.girar_geracao_base(uuid)') is not null as ok");
+  if (!existe.rows[0]?.ok) return;
+  const r = await admin.query<{ n: number }>('select plataforma.girar_geracao_base($1) as n', [tenantId]);
+  if (Number(r.rows[0]?.n) !== 1) throw new Error(`[db] seed demo: a geração da base do tenant ${tenantId} não girou (precisa de superusuário)`);
+}
+
 export interface ResultadoDemo {
   tenantId: string;
   codigo: string;
@@ -1183,6 +1194,9 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     await gravarTreinamentoDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0014 (T-0055): licença do Gestor (supervisor, gerente, analista, admin) e projeção montada pelo domain do Gestor
     await carregarDemoGestor(admin, dados);
+    // 0022 (T-0079): o --recriar apagou e regravou o tenant; gira a geração da base para o aparelho limpar a cópia local
+    // (a linha nova já nasce com outro valor; a chamada deixa a regra explícita). Recarga sem --recriar não gira.
+    if (opcoes.recriar) await girarGeracaoBase(admin, T);
     await admin.query('commit');
     const usuarios = dados['core.usuario'];
     return {

@@ -2,11 +2,23 @@
  * Conformidade do banco migrado (plano S0-023 e S0-028; CLAUDE.md regra 5): campos comuns, RLS
  * ligado e forçado com política, índice de sync e papel de aplicação sem privilégio de ignorar RLS.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { diagnosticarPapelApp } from '../src/papeis';
 import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
 import { banco, semBanco } from './estado';
 import { comCliente, tabelasDeDominio } from './util';
+
+/** Consulta de conferência do checklist B1 (T-0078): zero linhas = toda tabela de domínio conforme. */
+const SQL_CONFERIR_RLS = readFileSync(new URL('../scripts/conferir-rls.sql', import.meta.url), 'utf8');
+
+describe('B1 conferência de RLS (estático)', () => {
+  it('as exceções da consulta são as de db/src/excecoes.ts', () => {
+    expect([...SQL_CONFERIR_RLS.matchAll(/^\s+values \('([a-z_]+\.[a-z_]+)'\)$/gm)].map((m) => m[1])).toEqual(
+      Object.keys(TABELAS_SEM_TENANT_ID).filter((n) => !n.startsWith('public.')),
+    );
+  });
+});
 
 const COMUNS: Record<string, string> = {
   id: 'uuid',
@@ -49,6 +61,31 @@ describe.skipIf(semBanco())('conformidade do banco migrado', () => {
           ]);
           expect(idx.rowCount, `${t.nome}: falta índice (tenant_id, updated_at, id)`).toBe(1);
         }
+      }
+    });
+  });
+
+  it('B1 (T-0078) conferência de RLS: db/scripts/conferir-rls.sql não lista nenhuma tabela', async () => {
+    const r = await comCliente(banco().urlAdmin, (admin) => admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS));
+    expect(r.rows).toEqual([]);
+    // a consulta enxerga as tabelas de domínio (não é vazia por filtro errado)
+    const n = await comCliente(banco().urlAdmin, (admin) => tabelasDeDominio(admin));
+    expect(n.length).toBeGreaterThanOrEqual(80);
+  });
+
+  it('B1 (T-0078) a conferência acusa tabela sem RLS, sem política e sem coluna comum', async () => {
+    await comCliente(banco().urlAdmin, async (admin) => {
+      await admin.query('begin');
+      try {
+        await admin.query('create table plataforma.b1_sem_rls (id uuid primary key, tenant_id uuid not null)');
+        const r = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
+        const deB1 = r.rows.filter((x) => x.tabela === 'plataforma.b1_sem_rls').map((x) => x.problema);
+        expect(deB1).toEqual(
+          expect.arrayContaining(['RLS desligado', 'RLS não forçado', 'sem política', 'sem política para o macuxi_app', 'coluna created_at ausente, de outro tipo ou anulável']),
+        );
+        expect(r.rows.filter((x) => x.tabela !== 'plataforma.b1_sem_rls')).toEqual([]);
+      } finally {
+        await admin.query('rollback');
       }
     });
   });
