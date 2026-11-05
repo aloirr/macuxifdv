@@ -232,13 +232,18 @@ describe.each(FABRICAS_ARMAZENAMENTO)('motor de sync do aparelho [%s]', (_nome, 
     expect(motor.estado().fila).toEqual([]);
   });
 
-  it('uma execução por vez: chamadas simultâneas de enviar compartilham a mesma promessa', async () => {
+  it('uma passada por vez: chamadas no meio de um envio esperam e compartilham UMA passada seguinte (sem push repetido)', async () => {
     const { motor, servidor } = montar();
     await motor.enfileirar(pedido(1));
-    const [a, b] = [motor.enviar(), motor.enviar()];
-    expect(a).toBe(b);
+    const [a, b, c] = [motor.enviar(), motor.enviar(), motor.enviar()];
+    expect(b).not.toBe(a);
+    expect(c).toBe(b);
+    expect(motor.estado().enviando).toBe(true);
+    await b;
+    expect(servidor.chamadas.push, 'a passada seguinte não tem mais nada pendente').toBe(1);
+    expect(motor.estado()).toMatchObject({ fila: [], enviando: false });
     await a;
-    expect(servidor.chamadas.push).toBe(1);
+    expect(motor.enviar()).not.toBe(b);
   });
 
   // ---------- ADR 0009 (D-2, escopo, sobreposição) ----------

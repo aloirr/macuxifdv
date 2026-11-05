@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { CODIGOS_ARQUIVO, type EnvioArquivo, type ResultadoEnvioArquivo } from './arquivos';
 import { defineModule } from './manifesto';
 import { criarArmazenamentoEmMemoria, criarMotorSync, rotuloDoArquivo, type ArmazenamentoSync, type TransporteSync } from './motor-sync';
+import { FABRICAS_ARMAZENAMENTO } from './motor-sync.fabricas';
 import { criarRegistroSync, definirEntidadeSync, type ItemPush } from './sync';
 
 const manifestos = [
@@ -225,5 +226,66 @@ describe('motor: fila de arquivos (ADR 0010 §4)', () => {
     await motor.enfileirarArquivo({ id: FOTO, modulo: 'core' });
     await motor.enviar();
     expect(motor.arquivosPendentes()).toHaveLength(1);
+  });
+});
+
+/**
+ * T-0039 (lote N, S1-047 no CI): a tela faz `void enviar()` sem sinal (check-in/checkout na rua); o sinal volta e o
+ * `sincronizar`/`enviar` chega com aquela passada ainda em curso. Antes, a chamada recebia a MESMA passada — que começou
+ * sem sinal, não mandou os itens e ainda tentava a foto antes do comando (ARQUIVO_SEM_REFERENCIA): fila e foto ficavam
+ * pendentes depois de um sync "ok". Agora a chamada espera a passada em curso e faz mais uma; a passada que começou sem
+ * sinal não manda arquivo. Mesmos casos nos três adaptadores.
+ */
+describe.each(FABRICAS_ARMAZENAMENTO)('motor: envio pedido com uma passada em curso [%s]', (_nome, fabrica) => {
+  const preparar = async () => {
+    let sinal = false;
+    const t = montar({ armazenamento: fabrica(), online: () => sinal });
+    await t.motor.aplicarModulosAtivos(['core']);
+    await t.motor.enfileirar({ id: VISITA, entidade: 'visita', payload: { foto_fachada_id: FOTO } });
+    await t.motor.enfileirarArquivo({ id: FOTO, modulo: 'core', rotulo: 'Foto da fachada' });
+    return { ...t, ligar: () => (sinal = true) };
+  };
+
+  it('enviar com a passada sem sinal em curso: espera, faz outra passada e o item vai ANTES da foto; fila e fotos vazias', async () => {
+    const t = await preparar();
+    const semSinal = t.motor.enviar(); // o `void enviar()` da tela
+    t.ligar();
+    const comSinal = t.motor.enviar();
+    expect(comSinal).not.toBe(semSinal);
+    expect(await semSinal).toEqual([]);
+    expect(await comSinal).toEqual([{ id: VISITA, status: 'aceito' }]);
+    expect(t.ordem, 'nenhum upload antes do comando que o referencia').toEqual([`push:${VISITA}`, `arquivo:${FOTO}`]);
+    expect(t.motor.estado().fila).toEqual([]);
+    expect(t.motor.arquivosPendentes()).toEqual([]);
+    expect(t.motor.estado().arquivos[0]).toMatchObject({ situacao: 'enviado', tentativas: 1 });
+    expect(await t.armazenamento.ler('sync:fila')).toEqual([]);
+    expect(await t.armazenamento.ler('sync:arquivos')).toEqual(t.motor.estado().arquivos);
+  });
+
+  it('sincronizar logo depois do void enviar() sem sinal (S1-047): termina true com a fila e as fotos vazias', async () => {
+    const t = await preparar();
+    void t.motor.enviar();
+    t.ligar();
+    expect(await t.motor.sincronizar()).toBe(true);
+    expect(t.ordem).toEqual([`push:${VISITA}`, `arquivo:${FOTO}`]);
+    expect(t.motor.estado().fila).toEqual([]);
+    expect(t.motor.arquivosPendentes()).toEqual([]);
+  });
+
+  it('várias chamadas no meio compartilham UMA passada seguinte; incluirFalhos de qualquer uma vale para ela', async () => {
+    const t = await preparar();
+    t.responder(() => ({ status: 'rejeitado', codigo: CODIGOS_ARQUIVO.divergente, mensagem: 'outro conteúdo' }));
+    t.ligar();
+    await t.motor.enviar();
+    expect(t.motor.estado().arquivos[0]).toMatchObject({ situacao: 'falhou' });
+    t.responder(() => ({ status: 'aceito' }));
+    const primeira = t.motor.enviar();
+    const b = t.motor.enviar();
+    const c = t.motor.enviar({ incluirFalhos: true });
+    expect(c).toBe(b);
+    await Promise.all([primeira, b]);
+    expect(t.ordem.filter((x) => x.startsWith('arquivo:')), 'falhou só vai na passada pedida com incluirFalhos').toHaveLength(2);
+    expect(t.motor.estado().arquivos[0]).toMatchObject({ situacao: 'enviado' });
+    expect(t.motor.estado().enviando).toBe(false);
   });
 });

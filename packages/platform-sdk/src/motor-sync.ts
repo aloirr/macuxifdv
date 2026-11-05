@@ -582,6 +582,9 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     carga: CARGA_VAZIA,
   };
   let envioEmCurso: Promise<ResultadoItemPush[]> | null = null;
+  /** Passada pedida com um envio em curso: roda depois dele (uma só para todos os pedidos que chegaram no meio). */
+  let proximoEnvio: Promise<ResultadoItemPush[]> | null = null;
+  let proximoIncluiFalhos = false;
   let syncEmCurso: Promise<boolean> | null = null;
 
   // ---------- versão das linhas (T-0052-B4) ----------
@@ -941,7 +944,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   };
 
   // ---------- envio de arquivos (ADR 0010 §4) ----------
-  const enviarArquivosAgora = async (incluirFalhos: boolean): Promise<void> => {
+  /** `comSinal` = a passada começou online (o push dos itens rodou): sem ele, nenhum upload vai antes do seu comando. */
+  const enviarArquivosAgora = async (incluirFalhos: boolean, comSinal: boolean): Promise<void> => {
     const ler = op.arquivos?.ler;
     const enviarArquivo = op.transporte.enviarArquivo?.bind(op.transporte);
     // aceitos há 7 dias ou mais: apaga o arquivo local e sai da fila (a tela já não precisa da foto offline)
@@ -960,7 +964,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           ? atual.map((a) => (a.situacao === 'falhou' ? { ...a, situacao: 'pendente' as const } : a))
           : null,
       );
-    if (!ler || !enviarArquivo || !online()) return;
+    if (!ler || !enviarArquivo || !comSinal || !online()) return;
     const aEnviar = estado.arquivos.filter((a) => a.situacao === 'pendente').map((a) => a.id);
     const atualizar = (id: string, mudanca: Partial<ItemArquivo>) =>
       gravarArquivos((atual) =>
@@ -1403,19 +1407,40 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     },
 
     /**
-     * Envia a fila de itens em ordem e, depois, a fila de arquivos (ADR 0010 §4). Uma execução por vez (chamadas
-     * simultâneas recebem a mesma promessa). Devolve os resultados dos itens.
+     * Envia a fila de itens em ordem e, depois, a fila de arquivos (ADR 0010 §4). Uma passada por vez. Chamada com uma
+     * passada em curso espera por ela e faz MAIS UMA (a mesma para todas as chamadas que chegaram no meio): a passada
+     * em curso pode ter começado sem sinal ou antes de itens e edições novos, e quem chama (ex.: `sincronizar` logo
+     * depois do `void enviar()` de uma tela, feito sem sinal) precisa que o que já estava na fila tenha ido. Devolve os
+     * resultados dos itens da passada que a chamada esperou.
      */
     enviar(opcoes: { incluirFalhos?: boolean } = {}): Promise<ResultadoItemPush[]> {
-      if (envioEmCurso) return envioEmCurso;
-      envioEmCurso = (async () => {
-        const r = await enviarAgora(!!opcoes.incluirFalhos);
-        await enviarArquivosAgora(!!opcoes.incluirFalhos);
-        return r;
-      })().finally(() => {
-        envioEmCurso = null;
-      });
-      return envioEmCurso;
+      const passada = (incluirFalhos: boolean): Promise<ResultadoItemPush[]> => {
+        const envio = (async () => {
+          const comSinal = online();
+          const r = await enviarAgora(incluirFalhos);
+          await enviarArquivosAgora(incluirFalhos, comSinal);
+          return r;
+        })().finally(() => {
+          if (envioEmCurso === envio) envioEmCurso = null;
+        });
+        envioEmCurso = envio;
+        return envio;
+      };
+      if (!envioEmCurso) return passada(!!opcoes.incluirFalhos);
+      if (opcoes.incluirFalhos) proximoIncluiFalhos = true;
+      if (!proximoEnvio) {
+        proximoEnvio = envioEmCurso
+          .catch(() => undefined)
+          .then(() => {
+            const incluirFalhos = proximoIncluiFalhos;
+            proximoEnvio = null;
+            proximoIncluiFalhos = false;
+            // alguém começou uma passada entre o fim da anterior e este ponto: ela já começou depois dos pedidos
+            if (!envioEmCurso) return passada(incluirFalhos);
+            return incluirFalhos ? motor.enviar({ incluirFalhos }) : envioEmCurso;
+          });
+      }
+      return proximoEnvio;
     },
 
     /** Sincronização completa: envia a fila, puxa as entidades dos módulos efetivos e roda as etapas extras. */
