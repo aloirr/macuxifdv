@@ -215,11 +215,13 @@ describe('T-0039 A — aparelho: ordem em que a fila sai (motor real + servidor 
     const res = await responder(motor, relogio, cli, vis);
     const envio = motor.enviar(); // o `void motor.enviar()` do use-pesquisa, rede lenta
     const chk = await checkout(motor, relogio, vis);
-    expect(motor.enviar()).toBe(envio); // o `void motor.enviar()` do fazerCheckout recebe a mesma promessa
+    // o `void motor.enviar()` do fazerCheckout: com passada em curso, o motor espera por ela e faz MAIS UMA
+    const seguinte = motor.enviar();
+    expect(seguinte).not.toBe(envio);
     soltar();
     await envio;
     expect(motor.estado().fila.map((i) => i.id)).toEqual([chk]);
-    await motor.enviar();
+    await seguinte;
     expect(lotes.slice(1)).toEqual([[res.id], [chk]]);
     expect(antes(chegada, res.id, chk)).toBe(true);
   });
