@@ -5,7 +5,7 @@
  */
 import { formatBRL, formatPct, formatarDocumento } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Banner, Botao, Button, Card, colors, dateTimeLabel, EstadoVazio, fonts, Folha, Icon, LinhaValor, Loading, OpcaoFolha, SectionHeader, Selo, type as t } from '@macuxi/ui/mobile';
+import { BackLink, Badge, Banner, Botao, Button, Card, colors, dateTimeLabel, EstadoVazio, fonts, Folha, Icon, LinhaValor, Loading, OpcaoFolha, SectionHeader, Selo, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState, type ReactElement } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -92,12 +92,8 @@ export default function OrderDetailScreen() {
     }, [id, loadOrder, isQueued]),
   );
   const [carregando, setCarregando] = useState(true);
-  const [sincronizandoTela, setSincronizandoTela] = useState(false);
-  /** RN-CORE-23: puxar para baixo = Sincronizar. */
-  const puxarParaSincronizar = useCallback(() => {
-    setSincronizandoTela(true);
-    void app.sincronizarAgora().finally(() => setSincronizandoTela(false));
-  }, [app]);
+  // RN-CORE-23: puxar para baixo = Sincronizar (agendador do app); depois de cada sync relê o pedido no aparelho; rodapé de última sincronização
+  const auto = useAtualizacaoAutomatica({ tz });
 
   const base = detail ?? summary;
   if (!base && !queued) {
@@ -516,7 +512,7 @@ export default function OrderDetailScreen() {
     <ScrollView
       style={styles.root}
       contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}
-      refreshControl={<RefreshControl refreshing={sincronizandoTela} onRefresh={puxarParaSincronizar} />}>
+      refreshControl={<RefreshControl refreshing={auto.puxando} onRefresh={auto.puxar} />}>
       <BackLink label="Pedidos" fallback={hrefPedidos()} />
       <View style={{ gap: 6 }}>
         <Text style={t.h1Small} testID="order-title">
@@ -700,6 +696,9 @@ export default function OrderDetailScreen() {
           />
         </View>
       </Folha>
+      <Text style={[t.small, { textAlign: 'center' }]} testID="order-sync-rodape">
+        {auto.rodape}
+      </Text>
       <PdfSheet visible={sheet === 'pdf'} busy={pdfBusy} error={sheetError} onClose={() => setSheet(null)} onPick={(v) => void exportPdfFor(v)} />
     </ScrollView>
     <AvisoRapido aviso={sheets.aviso} />

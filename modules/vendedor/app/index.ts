@@ -2,10 +2,12 @@ import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { ENTIDADES_VENDEDOR } from '../contracts/entidades';
 import { manifest } from '../manifest';
+import type { AcaoProduto } from '@macuxi/catalogo/contracts';
 import type { AbaCliente, AcaoCliente, CardInicio, ContextoCliente } from '@macuxi/core/contracts';
 import { CardsPedidosInicio } from './components/cards-inicio';
 import { AbaMix, AbaUltimosPedidos } from './components/ficha-cliente';
 import { etapasVendedor } from './etapas';
+import { deixarProdutoPendente, pegarOrigemEditor } from './lib/produto-pendente';
 import { irParaNovoPedido } from './rotas';
 import NewOrderScreen from './screens/new-order-screen';
 import OrderDetailScreen from './screens/order-detail-screen';
@@ -59,6 +61,27 @@ export const moduloApp = definirModuloShell<ComponentType>({
         destaque: true,
         abrir: (ctx) => irParaNovoPedido({ customerId: ctx.clienteId, visitId: ctx.visitaId ?? undefined, stopId: ctx.paradaId ?? undefined }),
       } satisfies AcaoCliente,
+    },
+    // T-0052: o Catálogo oferece produto.acoes; o promotor não vê (acao pedido.criar, regra 7). Sem cliente em contexto, o novo pedido abre o seletor.
+    {
+      slot: 'produto.acoes',
+      id: 'adicionar-ao-pedido',
+      acao: 'pedido.criar',
+      apps: ['campo'],
+      payload: {
+        rotulo: 'Adicionar ao pedido',
+        testID: 'produto-adicionar',
+        icone: 'plus',
+        destaque: true,
+        abrir: (ctx) => {
+          // o produto fica pendente em memória (consumido uma vez pelo editor); a URL é a do pedido, sem produtoId
+          // se o Catálogo foi aberto de dentro de um editor (pedido novo, edição ou ficha), volta a essa mesma URL: o shell
+          // volta até a entrada da pilha, sem editor duplicado, e o item vai para aquele pedido
+          const origem = pegarOrigemEditor(ctx.clienteId);
+          deixarProdutoPendente({ produtoId: ctx.produtoId, clienteId: ctx.clienteId ?? null, editId: origem?.editId ?? null });
+          irParaNovoPedido(origem ?? { customerId: ctx.clienteId ?? undefined });
+        },
+      } satisfies AcaoProduto,
     },
     // T-0076: cards Orçamentos e A faturar no Início do Campo. `acao: 'pedido.criar'` esconde o card do promotor (RN-PRO-01).
     {

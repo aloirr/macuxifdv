@@ -30,12 +30,16 @@ import { statusBadge } from '../lib/order-status';
 import { draftKeyFor, ligarRascunho, rascunhoVazio, type Rascunho as Draft } from '../lib/pedidos';
 import { hrefPedido, hrefPedidos, irParaCatalogoDoPedido, irParaPedidos } from '../rotas';
 import { adicionarSugestao, aplicarTrocaDeEmbalagem, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
+import { rascunhoComProduto, rascunhoSemProduto, textoRetornoProduto } from '../lib/rascunho-com-produto';
+import { descartarOrigemEditor, descartarProdutoPendente, fixarClienteDoPendente, guardarOrigemEditor, pegarProdutoPendente, produtoPendente } from '../lib/produto-pendente';
 import { deixarAvisoPendente } from '../lib/aviso-pendente';
 import { aplicarValorPendente } from '../lib/valor-pendente';
 import { useVendedor } from '../state/use-vendedor';
 
 export default function NewOrderScreen() {
   const { customerId, editId, visitId, stopId } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string }>();
+  // desistiu antes de escolher o cliente: o produto pendente não sobra para o próximo pedido
+  useEffect(() => () => descartarProdutoPendente(), []);
   const { carregado, dados } = useVendedor();
   if (!carregado) return <Loading />;
   if (!dados.me || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
@@ -59,12 +63,23 @@ function CustomerPicker() {
   const { dados } = useVendedor();
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
+  // lido no render sem reagir: o pendente só muda antes de navegar para cá, nunca com o seletor aberto
+  const idEmEspera = produtoPendente()?.produtoId;
+  const produtoEmEspera = useMemo(() => {
+    if (!idEmEspera) return null;
+    for (const tabela of Object.values(dados.produtos)) {
+      const achado = tabela.items.find((p) => p.id === idEmEspera);
+      if (achado) return achado.description;
+    }
+    return null;
+  }, [dados.produtos, idEmEspera]);
   const list = useMemo(() => filterCustomers(dados.clientes, q, []).slice(0, 60), [dados.clientes, q]);
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 12 }} keyboardShouldPersistTaps="handled">
       <BackLink label="Pedidos" fallback={hrefPedidos()} />
       <Text style={t.h1Small}>Novo pedido</Text>
       <Text style={t.sub}>Para qual cliente?</Text>
+      {produtoEmEspera ? <Text style={t.small}>Item: {produtoEmEspera}</Text> : null}
       <SearchBox value={q} onChange={setQ} placeholder="Nome, código ou bairro" testID="picker-search" />
       <Card>
         {list.map((c, i) => (
@@ -72,7 +87,10 @@ function CustomerPicker() {
             key={c.id}
             testID={`pick-${c.trade_name}`}
             accessibilityRole="button"
-            onPress={() => router.setParams({ customerId: c.id })}
+            onPress={() => {
+              fixarClienteDoPendente(c.id);
+              router.setParams({ customerId: c.id });
+            }}
             style={({ pressed }) => [styles.pickRow, i < list.length - 1 && styles.divider, pressed && { backgroundColor: colors.ground }]}>
             <View style={{ flex: 1, gap: 1 }}>
               <Text style={t.bodyStrong} numberOfLines={1}>
@@ -131,6 +149,28 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   useEffect(() => {
     if (customer && catalog.length === 0) void ensureProducts(customer);
   }, [customer, catalog.length, ensureProducts]);
+
+  // T-0052: "Adicionar ao pedido" do Catálogo. O produto vem de um pendente em memória (consumido uma vez, fora da URL):
+  // no catálogo carregado e ao voltar do Catálogo aberto de dentro do pedido (a tela já montada ganha o foco).
+  const draftAtual = useRef(draft);
+  draftAtual.current = draft;
+  const aplicarProdutoPendente = useCallback(() => {
+    if (sent || catalog.length === 0) return;
+    const id = pegarProdutoPendente(customerId, editId);
+    if (!id) return;
+    const r = rascunhoComProduto(draftAtual.current, id, catalog);
+    if (r.resultado === 'adicionado') {
+      updateDraft(customerId, (d) => rascunhoComProduto(d, id, catalog).rascunho);
+      const desfazer = () => updateDraft(customerId, (d) => rascunhoSemProduto(d, id));
+      avisoRodape.mostrar({ texto: textoRetornoProduto(r), acao: { rotulo: 'Desfazer', onPress: desfazer, testID: 'produto-desfazer' } });
+    } else {
+      avisoRodape.mostrar({ texto: textoRetornoProduto(r) });
+    }
+  }, [editId, sent, catalog, customerId, avisoRodape.mostrar]);
+  // voltou ao editor sem escolher produto: a origem do Catálogo não sobra para outro fluxo
+  useEffect(() => descartarOrigemEditor(), []);
+  useEffect(() => aplicarProdutoPendente(), [aplicarProdutoPendente]);
+  useFocusEffect(aplicarProdutoPendente);
 
   // RN-VEN-14: prazo entre as condições permitidas ao cliente (API v1); a demonstração usa a lista fixa da Fase M
   const opcoesDePrazo = useMemo(
@@ -359,7 +399,10 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
           <>
             <CardFreteEPrazo rascunho={draft} fretePadrao={fretePadrao} prazos={opcoesDePrazo} transportadoras={app.transportadoras} onRascunho={emRascunho} />
             <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder="Código, descrição ou veículo" rotuloAcessivel="Buscar produto" testID="product-search" />
-            <Trilha compacta atualTocavel itens={niveisDaTrilha(produtosDoRascunho[produtosDoRascunho.length - 1] ?? null)} onEscolher={() => irParaCatalogoDoPedido(customerId)} rotuloAcessivel={(i) => `Abrir o catálogo: ${i.rotulo}`} testID="trilha-catalogo" />
+            <Trilha compacta atualTocavel itens={niveisDaTrilha(produtosDoRascunho[produtosDoRascunho.length - 1] ?? null)} onEscolher={() => {
+                guardarOrigemEditor({ customerId, editId: editId ?? undefined, visitId: visitId ?? undefined, stopId: stopId ?? undefined });
+                irParaCatalogoDoPedido(customerId);
+              }} rotuloAcessivel={(i) => `Abrir o catálogo: ${i.rotulo}`} testID="trilha-catalogo" />
             {query.trim() ? (
               results.length === 0 ? (
                 <EstadoVazio titulo={textoBuscaSemResultado(query).titulo} texto={textoBuscaSemResultado(query).texto} testID="busca-sem-resultado" />

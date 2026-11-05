@@ -6,7 +6,7 @@
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, Banner, Button, Card, Chip, colors, Empty, Folha, fonts, radius, relativeWhen, Selo, Strong, type as t } from '@macuxi/ui/mobile';
+import { Badge, Banner, Button, Card, Chip, colors, Empty, Folha, fonts, radius, relativeWhen, Selo, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -47,7 +47,7 @@ import { useVendedor } from '../state/use-vendedor';
 type Situacao = SituacaoDaLista | 'decide' | 'a_faturar' | 'orc_abertos';
 
 export default function OrdersScreen() {
-  const { dados, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizarAgora, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
+  const { dados, pedidos: orders, preVendaLigada, tz, offline, atualizarPedidos: refreshOrders, sincronizando, erroSync, motor, aguardandoMinhaDecisao } = useVendedor();
   // Gestão (supervisor/gerente): lista da equipe com a aba "Para aprovar" primeiro (T-0029 §8); o Campo é do vendedor
   const gestao = useVisaoShell().app === 'gestao';
   const paraDecidir = useMemo(() => new Set(aguardandoMinhaDecisao.map((p) => p.id)), [aguardandoMinhaDecisao]);
@@ -69,7 +69,8 @@ export default function OrdersScreen() {
     else return;
     setSemPeriodo(true);
   }, [filtroDoInicio]);
-  const [refreshing, setRefreshing] = useState(false);
+  // RN-CORE-23: puxar para baixo = Sincronizar; o spinner é só do puxar (o sync do agendador não gira a lista); depois de cada sync relê o aparelho
+  const auto = useAtualizacaoAutomatica({ tz });
   // T-0077 item 6: período fora dos 90 dias do aparelho = consulta ao servidor (com sinal); sem sinal, 'Disponível com conexão'
   const [consulta, setConsulta] = useState<{ chave: string; itens: PedidoDaLista[]; estado: 'carregando' | 'ok' | 'erro'; cortada?: boolean } | null>(null);
   const [tentativa, setTentativa] = useState(0);
@@ -195,12 +196,10 @@ export default function OrdersScreen() {
       maxToRenderPerBatch={12}
       windowSize={7}
       removeClippedSubviews
-      refreshing={refreshing || sync.running}
+      refreshing={auto.puxando}
       onRefresh={() => {
-        setRefreshing(true);
-        // RN-CORE-23: puxar para baixo = Sincronizar (envia a fila e roda o sync do motor da plataforma)
         setTentativa((n) => n + 1);
-        void sincronizarAgora().finally(() => setRefreshing(false));
+        auto.puxar();
       }}
       renderItem={({ item: i, index: k }) => {
         const pedido = pedidoPorId.get(i.id);
@@ -324,7 +323,7 @@ export default function OrdersScreen() {
       }
       ListFooterComponent={
     <View style={styles.rodape}>
-      {!offline ? <Text style={[t.small, { textAlign: 'center' }]}>Puxe para sincronizar</Text> : null}
+      <Text style={[t.small, { textAlign: 'center' }]} testID="orders-sync-rodape">{auto.rodape}</Text>
       {offline ? (
         <Pressable accessibilityRole="button" onPress={() => router.push('/profile' as never)}>
           <Text style={[t.small, { textAlign: 'center', color: colors.warning }]}>Modo sem sinal ligado · desligue no Perfil</Text>

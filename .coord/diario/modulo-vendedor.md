@@ -59,3 +59,6 @@
 2026-11-05 — T-0071 — V1: valor pendente do campo de quantidade em foco (0 tira o item, número grava) aplicado em Salvar, Avançar, aba e +/−; W1 mantida; testes e checks verdes
 2026-11-05 — T-0071/T-0077/T-0079 — triagem de 28 pedidos antigos: 20 encerrados (já no main), 1 feito (PDF imprime 'CNPJ/CPF não informado', teste), 8 abertos com resposta e backlog (slots criar_em_nome e produto.acoes, hook/rodapé nas telas de Pedidos e detalhe, reteste do PDF, número duplicado da demo, V1/V2 da revisão do lote J)
 2026-11-05 — T-0071 — revisão do PDF: regex do teste /CNPJ\s*(<|·)/ corrigida e rótulo CPF/CNPJ pelo tamanho do documento, com teste
+2026-11-05 — T-0071/T-0052 — Adicionar ao pedido (produto.acoes) com rascunho puro testado e Pedidos (lista e detalhe) no useAtualizacaoAutomatica com rodapé, sem sync.running no refreshing
+2026-11-05 — T-0071/T-0052 — produto pendente em memória (sem setParams), aviso de rodapé com Desfazer, sem releitura dobrada, seletor mostra o item; reconferência pedida
+2026-11-05 — T-0071/T-0052 — Adicionar ao pedido volta ao editor de origem (edição e ficha, via origem em memória e pendente com editId); Desfazer cobre id@medida; seletor fixa cliente; testes puros
