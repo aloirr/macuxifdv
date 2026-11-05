@@ -4,9 +4,13 @@ name: DBaaS — teste de compatibilidade (T-0075)
 # (instância TEMPORÁRIA, IP privado na VPC da VM) A PARTIR DA VM da demo, porque o runner não alcança a VPC:
 #   1. entra na VM pelo mesmo SSH do demo-publicar (environment DEMO_SSH_KEY: DEMO_SSH_KEY, DEMO_HOST, DEMO_USER);
 #   2. confere na VM que a rota até o DBaaS NÃO passa por uma ponte do Docker (a rede do compose da demo nunca é o alvo);
+#   0. (job "imagem", no runner) monta o alvo teste-db do apps/api/Dockerfile DESTE commit (a imagem da API + o Vitest
+#      do pnpm-lock) e publica ghcr.io/<dono>/macuxi-api-teste:<sha>: a VM não tem saída para o registry.npmjs.org e
+#      só baixa imagem do GHCR, como já baixa a da API. Com imagem_tag preenchida, usa a macuxi-api:<tag> do
+#      demo-publicar (sem Vitest: aí a VM precisaria do npm, e C3.3/C3.4 saem ❌ sem ele);
 #   3. copia só db/dbaas/ (script do banco-dados) para um diretório temporário da VM (mktemp -d, modo 700); o resto do
-#      código (migrações, seeds, @macuxi/db) vem da imagem macuxi-api do commit no GHCR (a do demo-publicar), que o
-#      script baixa com um DOCKER_CONFIG isolado nesse diretório;
+#      código (migrações, seeds, @macuxi/db) vem da imagem do mesmo commit no GHCR, que o script baixa com um
+#      DOCKER_CONFIG isolado nesse diretório; no fim, a imagem de teste é apagada da VM;
 #   4. roda `bash ./teste-compatibilidade.sh --senha-stdin` com host/porta/usuário nas variáveis DBAAS_* e a senha
 #      (secret DBAAS_TESTE_SENHA) na 1ª linha do stdin do ssh: o script a lê numa variável não exportada e a repassa ao
 #      contêiner pelo stdin do `docker run -i` (nunca em argv, em -e/docker inspect, no ambiente exportado nem em disco);
@@ -18,10 +22,16 @@ name: DBaaS — teste de compatibilidade (T-0075)
 #   chamada  cd $DBAAS_DIR/script && timeout -k 2m 28m bash ./teste-compatibilidade.sh --senha-stdin  (senha no stdin)
 #   variáveis DBAAS_HOST DBAAS_PORTA DBAAS_USUARIO DBAAS_BANCO DBAAS_SSLMODE DBAAS_DIR DBAAS_SAIDA DBAAS_RELATORIO
 #            MACUXI_IMAGEM_API (sem tag) + MACUXI_SHA (tag) e DOCKER_CONFIG (login no GHCR isolado, herdado pelo pull)
-#   rede     a VM precisa de saída para registry.npmjs.org:443 (o contêiner instala o Vitest em /tmp; sem ela, C3.3 ❌)
+#            DBAAS_SUITE (input suite: 1 roda · 0 pula · forcar roda mesmo com o log do servidor registrando comandos
+#            de papel); DBAAS_MANTER_PAPEIS não é repassado (o padrão do script apaga os papéis de teste no fim)
+#   rede     nenhuma saída além do GHCR: o Vitest já vem na macuxi-api-teste (/app/node_modules/vitest) e o script não
+#            chama o npm; só com imagem_tag (macuxi-api, --prod) a VM precisaria de registry.npmjs.org:443
 #   saída    $DBAAS_RELATORIO (markdown, vai ao resumo) e execucao.log, suite.json, suite.log em $DBAAS_SAIDA (artefato)
-#   retorno  0 ok · 1 critério ❌ · 2 configuração · 3 sem alcance/rota · 4 critérios ✅ mas sobrou base de teste ·
+#   retorno  0 aprovado · 1 critério ❌ (reprovado) · 2 configuração · 3 sem alcance/rota ·
+#            4 critérios sem ❌ mas sobrou base/papel de teste · 5 critérios sem ❌, mas algum ⚠️: aprovado só com o
+#            plano B (seção "Plano B" do relatório; LEGENDA_SAIDA em db/dbaas/relatorio.ts) ·
 #            124/137 estourou o tempo (o trap do TERM apaga as bases) · 130 interrompido
+#   job      verde com 0; verde com ::warning:: com 5 (resultado vale para o ADR 0024 como "plano B"); vermelho no resto
 # Como disparar: Actions → "DBaaS — teste de compatibilidade (T-0075)" → Run workflow (depois de estar no main), ou
 # push num branch verificacao/** que mude este arquivo ou db/dbaas/ (1º run, antes do main).
 
@@ -47,8 +57,13 @@ on:
         options: [prefer, require, verify-full, disable]
         default: prefer
       imagem_tag:
-        description: tag da imagem macuxi-api no GHCR (migrações/seeds/suíte); vazio = o SHA deste commit (demo-publicar)
+        description: vazio (recomendado) = monta a macuxi-api-teste deste commit, com o Vitest; preenchido = usa a macuxi-api:<tag> do demo-publicar (sem Vitest; a VM precisaria do npm)
         default: ''
+      suite:
+        description: suíte do @macuxi/db no DBaaS (1 roda · 0 pula · forcar roda mesmo com comandos de papel no log do servidor)
+        type: choice
+        options: ['1', '0', forcar]
+        default: '1'
   # branch de verificação do gerente (lote local, doc 07): roda no 1º push, antes de o workflow existir no main;
   # só quando o próprio workflow ou o script mudam (nunca em todo push)
   push:
@@ -59,7 +74,7 @@ on:
 
 permissions:
   contents: read
-  # pull da imagem macuxi-api na VM, com credencial isolada no diretório temporário
+  # pull da imagem na VM, com credencial isolada no diretório temporário (só o job "imagem" sobe para packages: write)
   packages: read
 
 # grupo próprio: não entra na fila do demo-vm (um pendente novo cancelaria o deploy pendente); um teste por vez
@@ -73,8 +88,57 @@ defaults:
     shell: bash
 
 jobs:
+  imagem:
+    name: imagem de teste do banco no GHCR (Vitest do lock)
+    # sem imagem_tag (sempre no push em verificacao/**): a imagem é a deste commit, com as migrações e o db/src/scram.ts
+    # que o script montado espera
+    if: ${{ !inputs.imagem_tag }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: dono do registro (minúsculo)
+        id: dono
+        env:
+          DONO: ${{ github.repository_owner }}
+        run: echo "dono=${DONO,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: macuxi-api-teste (alvo teste-db do apps/api/Dockerfile)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: teste-db
+          push: true
+          provenance: false
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          # só a tag do commit (nunca main/latest): a imagem não é da demo nem de produção
+          tags: ghcr.io/${{ steps.dono.outputs.dono }}/macuxi-api-teste:${{ github.sha }}
+          # as camadas da API vêm do cache do demo-publicar; as do vitest-db, do cache próprio
+          cache-from: |
+            type=gha,scope=macuxi-api
+            type=gha,scope=macuxi-api-teste
+          cache-to: type=gha,scope=macuxi-api-teste,mode=max
+
   teste:
     name: compatibilidade do DBaaS pela VM
+    needs: imagem
+    # com a imagem de teste publicada, ou sem o job "imagem" (imagem_tag informada); nunca se a imagem falhou
+    if: ${{ !cancelled() && (needs.imagem.result == 'success' || needs.imagem.result == 'skipped') }}
     runs-on: ubuntu-24.04
     # 28 min do script + 2 min do kill do timeout + preparo e limpeza
     timeout-minutes: 38
@@ -88,9 +152,10 @@ jobs:
       ENT_USUARIO: ${{ inputs.usuario || 'macuxi_admin' }}
       ENT_BANCO: ${{ inputs.banco || 'postgres' }}
       ENT_SSLMODE: ${{ inputs.sslmode || 'prefer' }}
-      # dispatch: a tag informada ou o SHA do commit (imagem do demo-publicar; a partir do af6c368 tem a 0027);
-      # push em verificacao/**: esse SHA não é publicado, então usa a main (o script montado vem do próprio branch)
-      ENT_TAG: ${{ inputs.imagem_tag || (github.event_name == 'push' && 'main') || github.sha }}
+      ENT_SUITE: ${{ inputs.suite || '1' }}
+      # sem imagem_tag: macuxi-api-teste:<este commit> (job "imagem"); com ela: macuxi-api:<tag> do demo-publicar
+      ENT_TAG: ${{ inputs.imagem_tag || github.sha }}
+      ENT_IMAGEM_TESTE: ${{ !inputs.imagem_tag && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -124,6 +189,7 @@ jobs:
           [[ "$ENT_USUARIO" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || { echo "::error::usuário inválido"; exit 1; }
           [[ "$ENT_BANCO" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || { echo "::error::banco inválido"; exit 1; }
           [[ "$ENT_SSLMODE" =~ ^(prefer|require|verify-full|disable)$ ]] || { echo "::error::sslmode inválido"; exit 1; }
+          [[ "$ENT_SUITE" =~ ^(0|1|forcar)$ ]] || { echo "::error::suite inválida (0, 1 ou forcar)"; exit 1; }
           [[ "$ENT_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo "::error::tag da imagem inválida"; exit 1; }
           # o alvo nunca é a própria VM (lá mora o Postgres da demo)
           minusculo=${ENT_HOST,,}
@@ -147,12 +213,15 @@ jobs:
             echo "DBAAS_USUARIO=$ENT_USUARIO"
             echo "DBAAS_BANCO=$ENT_BANCO"
             echo "DBAAS_SSLMODE=$ENT_SSLMODE"
-            echo "IMAGEM=ghcr.io/${DONO,,}/macuxi-api"
+            echo "DBAAS_SUITE=$ENT_SUITE"
+            if [ "$ENT_IMAGEM_TESTE" = 1 ]; then echo "IMAGEM=ghcr.io/${DONO,,}/macuxi-api-teste"; else echo "IMAGEM=ghcr.io/${DONO,,}/macuxi-api"; fi
             echo "IMAGEM_TAG=$ENT_TAG"
+            echo "IMAGEM_TESTE=$ENT_IMAGEM_TESTE"
           } >> "$GITHUB_ENV"
-          echo "alvo: $ENT_HOST:$ENT_PORTA usuário $ENT_USUARIO banco $ENT_BANCO sslmode $ENT_SSLMODE · imagem macuxi-api:$ENT_TAG"
+          nome=macuxi-api; [ "$ENT_IMAGEM_TESTE" = 1 ] && nome=macuxi-api-teste
+          echo "alvo: $ENT_HOST:$ENT_PORTA usuário $ENT_USUARIO banco $ENT_BANCO sslmode $ENT_SSLMODE · suíte $ENT_SUITE · imagem $nome:$ENT_TAG"
 
-      - name: a imagem da API existe no GHCR
+      - name: a imagem existe no GHCR
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ATOR: ${{ github.actor }}
@@ -163,7 +232,12 @@ jobs:
             || { echo "::error::login no GHCR falhou no runner (permissions: packages: read?)"; exit 1; }
           if ! docker manifest inspect "$IMAGEM:$IMAGEM_TAG" >/dev/null 2>&1; then
             rm -rf "$DOCKER_CONFIG"
-            echo "::error::imagem $IMAGEM:$IMAGEM_TAG não está no GHCR: rode o demo-publicar deste commit ou informe imagem_tag"; exit 1
+            if [ "$IMAGEM_TESTE" = 1 ]; then
+              echo "::error::imagem $IMAGEM:$IMAGEM_TAG não está no GHCR (o job imagem deveria tê-la publicado)"
+            else
+              echo "::error::imagem $IMAGEM:$IMAGEM_TAG não está no GHCR: rode o demo-publicar desse commit ou deixe imagem_tag vazio"
+            fi
+            exit 1
           fi
           rm -rf "$DOCKER_CONFIG"
 
@@ -207,11 +281,13 @@ jobs:
           tar -C "$SCRIPT_DIR" -cf - . | ssh -l "$USUARIO" demo "tar -C '$dir/script' -xf -"
           echo "VM: $dir (apagado no fim do job)"
 
-      - name: saída da VM para registry.npmjs.org (Vitest do C3.3)
+      - name: saída da VM para registry.npmjs.org (só com imagem_tag)
+        # a macuxi-api-teste já traz o Vitest: nada a conferir
+        if: ${{ env.IMAGEM_TESTE != '1' }}
         env:
           USUARIO: ${{ secrets.DEMO_USER }}
         run: |
-          # a imagem é --prod (ADR 0023) e não traz o Vitest: o contêiner (--network host) faz npm install em /tmp
+          # a macuxi-api é --prod (ADR 0023) e não traz o Vitest: o contêiner (--network host) faria npm install em /tmp
           if ssh -l "$USUARIO" demo "timeout 8 bash -c 'exec 3<>/dev/tcp/registry.npmjs.org/443'" 2>/dev/null; then
             echo "VM alcança registry.npmjs.org:443"
           else
@@ -237,7 +313,7 @@ jobs:
           # repassa ao contêiner pelo stdin do docker run -i: nada em argv, em -e/docker inspect nem em disco
           remoto="set -u; cd '$DBAAS_DIR/script' || exit 90;"
           remoto+=" export DBAAS_HOST='$DBAAS_HOST' DBAAS_PORTA='$DBAAS_PORTA' DBAAS_USUARIO='$DBAAS_USUARIO'"
-          remoto+=" DBAAS_BANCO='$DBAAS_BANCO' DBAAS_SSLMODE='$DBAAS_SSLMODE' DBAAS_DIR='$DBAAS_DIR'"
+          remoto+=" DBAAS_BANCO='$DBAAS_BANCO' DBAAS_SSLMODE='$DBAAS_SSLMODE' DBAAS_SUITE='$DBAAS_SUITE' DBAAS_DIR='$DBAAS_DIR'"
           remoto+=" DBAAS_SAIDA='$DBAAS_DIR/saida' DBAAS_RELATORIO='$DBAAS_DIR/saida/relatorio.md'"
           remoto+=" MACUXI_IMAGEM_API='$IMAGEM' MACUXI_SHA='$IMAGEM_TAG' DOCKER_CONFIG='$DBAAS_DIR/docker';"
           # 28 min (a suíte tem 16) + 2 min de kill: o TERM do timeout aciona o trap do script, que remove o
@@ -282,17 +358,18 @@ jobs:
             echo
             echo "- alvo: \`$DBAAS_HOST:$DBAAS_PORTA\` · usuário \`$DBAAS_USUARIO\` · sslmode \`$DBAAS_SSLMODE\`"
             case "${RESULTADO:-}" in
-              0) sentido="critérios 1–4 ✅";;
-              1) sentido="algum critério ❌";;
+              0) sentido="aprovado: critérios 1–4 ✅";;
+              1) sentido="reprovado: algum critério ❌";;
               2) sentido="erro de configuração";;
               3) sentido="sem alcance ou rota até o DBaaS";;
-              4) sentido="critérios ✅, mas sobrou base de teste no DBaaS (apagar à mão)";;
+              4) sentido="critérios sem ❌, mas sobrou base ou papel de teste no DBaaS (apagar à mão)";;
+              5) sentido="plano B: critérios sem ❌, mas algum ⚠️ — aprovado só com o plano B (veja a seção \"Plano B\" do relatório)";;
               124|137) sentido="estourou os 28 min";;
               130) sentido="interrompido";;
               '') sentido="não rodou";;
               *) sentido="inesperado";;
             esac
-            echo "- commit: \`$GITHUB_SHA\` · imagem: \`macuxi-api:$IMAGEM_TAG\` · código de retorno: \`${RESULTADO:-—}\` ($sentido)"
+            echo "- commit: \`$GITHUB_SHA\` · imagem: \`${IMAGEM##*/}:$IMAGEM_TAG\` · suíte: \`${DBAAS_SUITE:-—}\` · código de retorno: \`${RESULTADO:-—}\` ($sentido)"
             [ "${VAZOU:-0}" = 1 ] && echo "- **senha encontrada em arquivo de saída: arquivo(s) apagado(s), job reprovado**"
             echo
             if [ -s "$LOCAL/saida/relatorio.md" ]; then
@@ -320,6 +397,17 @@ jobs:
           ssh -l "$USUARIO" demo "rm -rf -- '$DBAAS_DIR'"
           echo "VM: $DBAAS_DIR apagado"
 
+      - name: apagar a imagem de teste da VM
+        if: ${{ always() && env.IMAGEM_TESTE == '1' && env.IMAGEM != '' && env.IMAGEM_TAG != '' }}
+        env:
+          USUARIO: ${{ secrets.DEMO_USER }}
+        run: |
+          # só a macuxi-api-teste:<sha> deste run; as imagens da demo (macuxi-api, macuxi-bko) nunca são tocadas
+          [[ "$IMAGEM" =~ ^ghcr\.io/[a-z0-9_.-]+/macuxi-api-teste$ ]] || { echo "::error::IMAGEM inesperada: '$IMAGEM'"; exit 1; }
+          [[ "$IMAGEM_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo "::error::IMAGEM_TAG inesperada"; exit 1; }
+          ssh -l "$USUARIO" demo "docker image rm '$IMAGEM:$IMAGEM_TAG' >/dev/null 2>&1 || true"
+          echo "VM: $IMAGEM:$IMAGEM_TAG apagada (se estava lá)"
+
       - name: limpar o runner
         if: ${{ always() }}
         run: rm -rf ~/.ssh/demo ~/.ssh/config "$LOCAL"
@@ -327,7 +415,8 @@ jobs:
       - name: resultado
         run: |
           [ "${VAZOU:-0}" = 1 ] && exit 1
-          if [ "${RESULTADO:-1}" != 0 ]; then
-            echo "::error::teste de compatibilidade falhou (código ${RESULTADO:-?}): veja o resumo do job e o artefato"; exit 1
-          fi
-          echo "teste de compatibilidade verde"
+          case "${RESULTADO:-1}" in
+            0) echo "teste de compatibilidade verde: aprovado";;
+            5) echo "::warning::DBaaS aprovado só com o plano B (código 5): critérios sem ❌, mas algum ⚠️; veja a seção \"Plano B\" do relatório no resumo do job";;
+            *) echo "::error::teste de compatibilidade falhou (código ${RESULTADO:-?}): veja o resumo do job e o artefato"; exit 1;;
+          esac
