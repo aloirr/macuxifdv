@@ -80,3 +80,20 @@ export const MetaDefinidaSchema = z.object({
   definido_por: Uuid,
 });
 export const EVENTO_META_DEFINIDA = definirEvento('core.meta.definida@1', MetaDefinidaSchema);
+
+/**
+ * Rota do dia planejada (RN-CORE-03; T-0024). PLANEJADO: definição publicada para o Gestor (cobertura de rota, RN-GES), mas
+ * o evento fica FORA do `publica` do manifest até o Core publicá-lo de fato (quando o BKO gerar/alterar a rota do dia).
+ * Só ids e dia civil; sem nome nem dado pessoal (o nome vem da consulta `core.cadastro_resumo@1`).
+ */
+export const RotaDiaPlanejadoSchema = z
+  .object({
+    usuario_id: Uuid,
+    /** Dia civil no fuso do tenant. */
+    data: z.string().regex(DATA_CIVIL),
+    /** Clientes da rota do dia, na ordem planejada. */
+    cliente_ids: z.array(Uuid),
+    rota_id: Uuid.optional(),
+  })
+  .strict();
+export const EVENTO_ROTA_DIA_PLANEJADO = definirEvento('core.rota.dia_planejado@1', RotaDiaPlanejadoSchema);

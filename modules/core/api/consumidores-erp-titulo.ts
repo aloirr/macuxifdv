@@ -4,27 +4,12 @@
  * Depois de gravar, recalcula `core.cliente_financeiro.saldo_aberto_cents` (soma dos títulos abertos vivos).
  * `baixado` do Hub vira `liquidado`; título sem emissão usa o vencimento (a coluna é obrigatória).
  */
-import { z } from 'zod';
-import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { situacaoTituloDoErp } from '../domain';
-import { clientePorExternalId, eventoIntegracao, recalcularSaldoFinanceiro, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
+import { clientePorExternalId, recalcularSaldoFinanceiro, ReferenciaAusenteErp } from './erp-apoio';
+import { EVENTO_ERP_TITULO_ATUALIZADO } from '../../integracao/contracts';
 
-const RegistroTitulo = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  cliente_external_id: z.string(),
-  numero: z.string(),
-  parcela: z.number().nullish(),
-  emissao: TextoErp,
-  vencimento: z.string(),
-  valor_cents: z.number().int(),
-  saldo_cents: z.number().int(),
-  situacao: z.enum(['aberto', 'baixado', 'cancelado']),
-  baixado_em: TextoErp,
-});
-
-export const EventoIntegracaoTituloAtualizado = eventoIntegracao('titulo', RegistroTitulo);
+export const EventoIntegracaoTituloAtualizado = eventoTolerante(EVENTO_ERP_TITULO_ATUALIZADO);
 
 export const consumidorTituloDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoTituloAtualizado,

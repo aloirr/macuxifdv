@@ -12,6 +12,7 @@ import {
   indicadoresDoPeriodo,
   metaDoDia,
   metaDoDiaDaEquipe,
+  positivacaoPorNotas,
   realizadoPartido,
   type ItemEquipe,
   type CalendarioTenant,
@@ -37,6 +38,8 @@ interface LinhaMeta {
 
 export interface EntradaInicio {
   usuarioId: string;
+  /** Licença do TENANT (não do perfil de quem pede): Integração ativa liga a fonte das notas do ERP (RN-CORE-27; D-T0080a). */
+  integracaoNoTenant?: boolean;
   perfil: string;
   visiveis: ReadonlySet<string> | 'tenant';
   agora: Date;
@@ -95,9 +98,17 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
           [paraConsultar, periodo],
         )).rows
       : [];
-  // Opção 3 (T-0073): sem o Vendedor, positivação ACUMULADA do mês pelo read-model (cliente conta uma vez, no primeiro dia). null nos três = sem fonte
+  // RN-CORE-27 (T-0080): Vendedor desligado + Integração ativa com notas atribuídas = positivação lida na hora de core.nota_erp (nunca soma com o read-model)
+  const fonteErp = paraConsultar.length > 0 && !vendas && (e.integracaoNoTenant ?? false) && (await db.query('select 1 from core.nota_erp where deleted_at is null and usuario_id is not null limit 1')).rows.length > 0;
+  const notasErp = fonteErp
+    ? (await db.query<{ usuario_id: string; cliente_id: string; emitida_em: Date | string }>(
+        "select usuario_id, cliente_id, min(emitida_em) as emitida_em from core.nota_erp where deleted_at is null and usuario_id = any($1::uuid[]) and ano_mes = $2 and tipo = 'faturamento' and not cancelada group by usuario_id, cliente_id",
+        [paraConsultar, periodo],
+      )).rows
+    : [];
+  // Opção 3 (T-0073): sem o Vendedor e sem fonte ERP, positivação ACUMULADA do mês pelo read-model (cliente conta uma vez, no primeiro dia). null nos três = sem fonte
   const positivadosMes =
-    paraConsultar.length > 0 && !vendas
+    paraConsultar.length > 0 && !vendas && !fonteErp
       ? (await db.query<{ usuario_id: string; ate_ontem: number | null; hoje: number | null; mes: number | null }>('select usuario_id, ate_ontem, hoje, mes from core.positivacao_do_mes($1::uuid[], $2, $3::date)', [paraConsultar, periodo, dia])).rows
       : [];
   const paradas = (await db.query<{ usuario_id: string; cliente_id: string; data: string }>("select usuario_id, cliente_id, to_char(data, 'YYYY-MM-DD') as data from core.rota_parada where deleted_at is null and usuario_id = any($1::uuid[]) and to_char(data, 'YYYY-MM') = $2", [ids, periodo])).rows;
@@ -113,8 +124,13 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
       positivacao = p.positivacao;
     } else if (consultado) {
       // Vendedor desligado/ausente: venda do read-model diário; positivação acumulada de core.positivacao_do_mes (sem fonte = nula)
-      const pos = positivadosMes.find((x) => x.usuario_id === u.id);
-      if (pos && pos.ate_ontem !== null && pos.hoje !== null) positivacao = { ate_ontem: pos.ate_ontem, hoje: pos.hoje };
+      if (fonteErp) {
+        const p = positivacaoPorNotas(notasErp.filter((n) => n.usuario_id === u.id), { periodo, fuso: e.fuso, hoje: dia });
+        positivacao = { ate_ontem: p.ate_ontem, hoje: p.hoje };
+      } else {
+        const pos = positivadosMes.find((x) => x.usuario_id === u.id);
+        if (pos && pos.ate_ontem !== null && pos.hoje !== null) positivacao = { ate_ontem: pos.ate_ontem, hoje: pos.hoje };
+      }
       const meus = diarios.filter((d) => d.usuario_id === u.id);
       if (meus.length > 0) {
         const liquido = (d: { vendido_cents: number; cancelado_cents: number }) => Math.max(0, d.vendido_cents - d.cancelado_cents);
@@ -166,7 +182,11 @@ export const rotasDeInicio: RotaModulo[] = [
     query: InicioQuerySchema,
     executar: async (ctx): Promise<Inicio> => {
       const visiveis = await ctx.usuariosVisiveis();
-      return ctx.comTenant((db, tx) => calcularInicio(db, tx, { usuarioId: ctx.usuario.id, perfil: ctx.usuario.perfil, visiveis, agora: ctx.agora(), fuso: ctx.fuso() }));
+      return ctx.comTenant(async (db, tx) => {
+        // Licença do tenant (RN-CORE-03/27): o Core é o dono do licenciamento e já lê tenant_modulo em licencas.ts
+        const lic = await db.query("select 1 from plataforma.tenant_modulo where modulo = 'integracao' and ativo and deleted_at is null limit 1");
+        return calcularInicio(db, tx, { usuarioId: ctx.usuario.id, integracaoNoTenant: lic.rows.length > 0, perfil: ctx.usuario.perfil, visiveis, agora: ctx.agora(), fuso: ctx.fuso() });
+      });
     },
   },
 ];

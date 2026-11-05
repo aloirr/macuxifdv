@@ -6,23 +6,12 @@
  * `planejarProdutoUnidadeDoErp`, no domain). Unidade cuja chave já pertence a outra linha do ERP é ignorada com aviso; a de
  * cadastro sem `external_id` é adotada. O schema abaixo é estrutural (subconjunto do `ProdutoUnidadePayload` do Hub).
  */
-import { z } from 'zod';
-import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { planejarProdutoUnidadeDoErp, type EventoProdutoUnidadeAtualizado } from '../domain';
-import { comMedidaAusente, eventoIntegracao, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
+import { comMedidaAusente, ReferenciaAusenteErp } from './erp-apoio';
+import { EVENTO_ERP_PRODUTO_UNIDADE_ATUALIZADO } from '../../integracao/contracts';
 
-const RegistroProdutoUnidade = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  produto_external_id: z.string(),
-  unidade: z.string(),
-  fator: z.number(),
-  ean: TextoErp,
-  padrao: z.boolean().optional(),
-});
-
-export const EventoIntegracaoProdutoUnidadeAtualizado = eventoIntegracao('produto_unidade', RegistroProdutoUnidade);
+export const EventoIntegracaoProdutoUnidadeAtualizado = eventoTolerante(EVENTO_ERP_PRODUTO_UNIDADE_ATUALIZADO);
 
 export const consumidorProdutoUnidadeDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoProdutoUnidadeAtualizado,

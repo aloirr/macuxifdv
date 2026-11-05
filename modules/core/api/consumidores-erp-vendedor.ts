@@ -6,21 +6,17 @@
  * (vendedor/promotor cadastrado antes) é ADOTADO: ganha o `external_id`, mantém perfil, equipe e senha. Perfil e equipe
  * nunca são alterados pelo ERP depois de criado. Nada de dado pessoal no log.
  */
-import { z } from 'zod';
-import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { emailDoVendedorErp } from '../domain';
-import { eventoIntegracao, TextoErp } from './erp-apoio';
 
-const RegistroVendedor = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  nome: z.string(),
-  email: TextoErp,
-  telefone: TextoErp,
-});
+import { EVENTO_ERP_VENDEDOR_ATUALIZADO } from '../../integracao/contracts';
 
-export const EventoIntegracaoVendedorAtualizado = eventoIntegracao('vendedor', RegistroVendedor);
+export const EventoIntegracaoVendedorAtualizado = eventoTolerante(EVENTO_ERP_VENDEDOR_ATUALIZADO);
+
+/** RN-CORE-27 (T-0080): notas que chegaram antes do vendedor ganham o usuário (idempotente: só toca `usuario_id is null`). */
+async function completarNotasDoVendedor(ctx: ContextoConsumo, usuarioId: string, externalId: string): Promise<void> {
+  await ctx.db.query('update core.nota_erp set usuario_id = $1 where vendedor_external_id = $2 and usuario_id is null and deleted_at is null', [usuarioId, externalId.trim()]);
+}
 
 export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoVendedorAtualizado,
@@ -39,12 +35,14 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
       // E-mail real só troca se ninguém mais o usa (índice único por tenant); o provisório nunca sobrescreve um e-mail real.
       const livre = provisorio ? false : (await ctx.db.query('select 1 from core.usuario where lower(email) = $1 and deleted_at is null and id <> $2', [email, atual.id])).rows.length === 0;
       await ctx.db.query('update core.usuario set nome = $2, ativo = true, email = case when $3::boolean then $4 else email end where id = $1', [atual.id, nome, livre, email]);
+      await completarNotasDoVendedor(ctx, atual.id, r.external_id);
       return;
     }
 
     const igual = (await ctx.db.query<{ id: string; external_id: string | null; perfil: string }>('select id, external_id, perfil from core.usuario where lower(email) = $1 and deleted_at is null', [email])).rows[0];
     if (igual && !igual.external_id && !provisorio && (igual.perfil === 'vendedor' || igual.perfil === 'promotor')) {
       await ctx.db.query('update core.usuario set external_id = $2, ativo = true where id = $1', [igual.id, r.external_id]);
+      await completarNotasDoVendedor(ctx, igual.id, r.external_id);
       return;
     }
     const emailFinal = igual ? emailDoVendedorErp(null, r.external_id).email : email;
@@ -53,5 +51,7 @@ export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
        on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null do update set nome = excluded.nome, ativo = true`,
       [r.external_id, nome, emailFinal],
     );
+    const criado = (await ctx.db.query<{ id: string }>('select id from core.usuario where external_id = $1 and deleted_at is null', [r.external_id])).rows[0];
+    if (criado) await completarNotasDoVendedor(ctx, criado.id, r.external_id);
   },
 });

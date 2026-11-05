@@ -95,6 +95,26 @@ describe('RN-CORE-26: calcularInicio do vendedor', () => {
     expect(r.metas_do_dia.find((x) => x.indicador === 'positivacao')).toMatchObject({ realizado_hoje: 2 });
   });
 
+  it('RN-CORE-27: Vendedor desligado + Integração ativa com notas: a positivação vem das notas (um cliente uma vez) e core.positivacao_do_mes nem é chamada', async () => {
+    const erp: Resposta[] = [[/select 1 from core.nota_erp/, [{ '?column?': 1 }]], [/group by usuario_id, cliente_id/, [{ usuario_id: VEND, cliente_id: CLI, emitida_em: '2026-11-03T15:00:00Z' }, { usuario_id: VEND, cliente_id: 'c2', emitida_em: '2026-11-10T15:00:00Z' }]]];
+    const { db, chamadas } = fakeDb([...respostas, ...erp]);
+    const r = await calcularInicio(db, {}, { ...entrada, integracaoNoTenant: true }, async () => null);
+    expect(r.usuarios[0]!.positivacao).toEqual({ ate_ontem: 1, hoje: 1 });
+    expect(chamadas.some((x) => /core.positivacao_do_mes/.test(x.sql))).toBe(false);
+  });
+
+  it('RN-CORE-27: sem notas atribuídas, ou com a Integração desligada, vale o read-model de antes; Vendedor ligado ignora as notas', async () => {
+    const posm: Resposta = [/core.positivacao_do_mes/, [{ usuario_id: VEND, ate_ontem: 5, hoje: 1, mes: 6 }]];
+    const semNota = fakeDb([...respostas, posm]);
+    expect((await calcularInicio(semNota.db, {}, { ...entrada, integracaoNoTenant: true }, async () => null)).usuarios[0]!.positivacao).toEqual({ ate_ontem: 5, hoje: 1 });
+    const semInteg = fakeDb([...respostas, posm, [/select 1 from core.nota_erp/, [{ '?column?': 1 }]]]);
+    expect((await calcularInicio(semInteg.db, {}, { ...entrada, integracaoNoTenant: false }, async () => null)).usuarios[0]!.positivacao).toEqual({ ate_ontem: 5, hoje: 1 });
+    expect(semInteg.chamadas.some((x) => /core.nota_erp/.test(x.sql))).toBe(false);
+    const ligado = fakeDb([...respostas, [/select 1 from core.nota_erp/, [{ '?column?': 1 }]]]);
+    await calcularInicio(ligado.db, {}, { ...entrada, integracaoNoTenant: true }, async () => ({ pedidos: [], faturamentos: [] }));
+    expect(ligado.chamadas.some((x) => /core.nota_erp/.test(x.sql))).toBe(false);
+  });
+
   it('RN-CORE-26: mês novo com fonte e sem cliente positivado vale zero (não nulo) e a meta de positivação entra', async () => {
     const { db } = fakeDb([...respostas, [/core.positivacao_do_mes/, [{ usuario_id: VEND, ate_ontem: 0, hoje: 0, mes: 0 }]]]);
     const r = await calcularInicio(db, {}, entrada, async () => null);
@@ -197,5 +217,26 @@ describe('RN-CORE-26: rota usa a data do fuso do tenant', () => {
     const rota = rotasDeInicio[0] as RotaModulo;
     const r = (await rota.executar(ctx as never)) as { dia: string };
     expect(r.dia).toBe('2026-11-10');
+  });
+});
+
+describe('RN-CORE-27: a fonte das notas vale pela licença do tenant (D-T0080a)', () => {
+  it('RN-CORE-27: vendedor sem "integracao" no perfil recebe a positivação das notas quando o tenant tem a Integração ativa', async () => {
+    const { db, chamadas } = fakeDb([
+      [/from core.usuario/, [usuarioV]], [/from core.meta/, []],
+      [/plataforma.tenant_modulo/, [{ '?column?': 1 }]],
+      [/select 1 from core.nota_erp/, [{ '?column?': 1 }]],
+      [/group by usuario_id, cliente_id/, [{ usuario_id: VEND, cliente_id: CLI, emitida_em: '2026-11-10T15:00:00Z' }]],
+    ]);
+    const ctx = {
+      usuario: { id: VEND, tenant_id: TENANT, perfil: 'vendedor', modulos: ['core'] },
+      agora: () => new Date('2026-11-11T01:00:00Z'),
+      fuso: () => 'America/Manaus',
+      comTenant: (fn: (d: ClienteBanco, t: TransacaoTenant) => Promise<unknown>) => fn(db, {} as unknown as TransacaoTenant),
+      usuariosVisiveis: async () => new Set([VEND]),
+      query: {},
+    } as unknown as ContextoBase;
+    await (rotasDeInicio[0] as RotaModulo).executar(ctx as never);
+    expect(chamadas.some((x) => /core.nota_erp/.test(x.sql))).toBe(true);
   });
 });

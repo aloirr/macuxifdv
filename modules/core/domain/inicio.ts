@@ -4,12 +4,13 @@
  */
 import { formatHHMM, zonedParts } from '@macuxi/comum/fuso';
 import type { Perfil } from '@macuxi/platform-sdk';
+import { PARADO_MIN_PADRAO } from '../contracts/inicio-parametros';
 import type { MembroAgoraContrato, StatusAgoraContrato, VisaoInicio } from '../contracts/inicio';
 
 /** Frase padrão do sistema quando o tenant não definiu `inicio.recado_do_dia_padrao`. */
 export const RECADO_DO_DIA_PADRAO = 'Bom trabalho hoje!';
 /** Padrão do parâmetro `inicio.parado_min`. */
-export const PARADO_MIN_PADRAO = 60;
+export { PARADO_MIN_PADRAO };
 
 export interface NotificacaoParaRecado {
   id: string;

@@ -93,6 +93,24 @@ export function positivadosDoDia(pedidos: readonly PedidoDaMeta[], o: { usuario_
   return { clientes_positivados_ids: lista, clientes_positivados: lista.length };
 }
 
+/**
+ * RN-CORE-20/26 (T-0073): positivados de CADA dia do mês, para o consumidor do evento do pedido regravar o read-model.
+ * Entram os dias em que há pedido aprovado do vendedor (emissão no fuso do tenant) e os `diasGravados` (dias que já tinham lista:
+ * se um cancelamento tirou o último cliente, o dia volta com lista vazia e zera). Ordem crescente; recalcular é idempotente.
+ */
+export function positivadosPorDia(
+  pedidos: readonly PedidoDaMeta[],
+  o: { usuario_id: string; periodo: string; fuso: string; diasGravados?: readonly string[] },
+): Array<{ dia: string; clientes_positivados_ids: string[]; clientes_positivados: number }> {
+  const dias = new Set<string>((o.diasGravados ?? []).filter((d) => yearMonthOf(d) === o.periodo));
+  for (const p of pedidos) {
+    if (p.vendedor_id !== o.usuario_id || !contaComoAprovado(p.status) || !p.cliente_id) continue;
+    const dia = dataCivil(p.emitido_em, o.fuso);
+    if (yearMonthOf(dia) === o.periodo) dias.add(dia);
+  }
+  return [...dias].sort().map((dia) => ({ dia, ...positivadosDoDia(pedidos, { usuario_id: o.usuario_id, dia, fuso: o.fuso }) }));
+}
+
 function proximoMes(periodo: string): string {
   const [a, m] = periodo.split('-').map(Number) as [number, number];
   return m === 12 ? `${a + 1}-01` : `${a}-${String(m + 1).padStart(2, '0')}`;

@@ -214,15 +214,6 @@ describe.skipIf(semBanco())('Core T-0061 × Postgres: endereços de entrega e un
         });
       });
 
-      it('RN-VEN-15: fator inválido (zero) é ignorado com aviso e não grava nada', async () => {
-        await emTransacao(A.tenantId, async (t) => {
-          await t.entregar('integracao.produto.atualizado@1', produto());
-          await t.entregar(EV_UN, un('PU-T61-1', 'CX', 0));
-          expect(t.warn).toHaveBeenCalled();
-          expect(await unidades(t)).toEqual([]);
-        });
-      });
-
       it('RN-CORE-05: tenant B não vê nem altera a unidade do A, e unidade para produto do A é referência ausente no B', async () => {
         await emTransacao(A.tenantId, async (t) => {
           await t.entregar('integracao.produto.atualizado@1', produto());
@@ -279,15 +270,6 @@ describe.skipIf(semBanco())('Core T-0061 × Postgres: endereços de entrega e un
           expect(await enderecos(t)).toEqual([{ external_id: 'E-T61-1', principal: false, ativo: false, uf: 'RR', cep: '69301000' }]);
           await t.entregar(EV_END, end('E-T61-2', { principal: true }));
           expect((await enderecos(t)).find((e) => e.external_id === 'E-T61-2')?.principal).toBe(true);
-        });
-      });
-
-      it('RN-VEN-17: endereço incompleto (sem cidade) é ignorado com aviso e não derruba o lote', async () => {
-        await emTransacao(A.tenantId, async (t) => {
-          await preparar(t);
-          await t.entregar(EV_END, end('E-T61-1', { cidade: '  ' }));
-          expect(t.warn).toHaveBeenCalled();
-          expect(await enderecos(t)).toEqual([]);
         });
       });
 

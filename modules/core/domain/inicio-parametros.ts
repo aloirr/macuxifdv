@@ -2,13 +2,12 @@
  * Parâmetros do Início por tenant (RN-CORE-26; T-0073 passo 7). Funções puras: a API valida o PUT com `validarParametrosInicio`
  * e lê o valor efetivo com `parametrosInicioDasLinhas`; o app e o BKO usam as mesmas faixas. Ausente ou inválido = padrão.
  */
-import { PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, PARAMETRO_RECADO_PADRAO, type ErroParametroInicio, type ParametrosInicio } from '../contracts/inicio-parametros';
+import { PARADO_MIN_MAX, PARADO_MIN_MIN, PARAMETRO_DIAS_UTEIS, PARAMETRO_PARADO_MIN, paradoMinValido, PARAMETRO_RECADO_PADRAO, type ErroParametroInicio, type ParametrosInicio } from '../contracts/inicio-parametros';
 import { PARADO_MIN_PADRAO, RECADO_DO_DIA_PADRAO } from './inicio';
 import { CALENDARIO_PADRAO, calendarioDoTenant } from './meta-do-dia';
 
 export const RECADO_PADRAO_MAX = 140;
-export const PARADO_MIN_MIN = 15;
-export const PARADO_MIN_MAX = 480;
+export { PARADO_MIN_MAX, PARADO_MIN_MIN };
 
 export const PARAMETROS_INICIO_PADRAO: ParametrosInicio = {
   dias_uteis_semana: [...CALENDARIO_PADRAO.dias_uteis_semana],
@@ -18,7 +17,7 @@ export const PARAMETROS_INICIO_PADRAO: ParametrosInicio = {
 
 type Linha = { modulo: string; chave: string; valor?: unknown; deleted_at?: string | null };
 
-const paradoValido = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= PARADO_MIN_MIN && n <= PARADO_MIN_MAX;
+const paradoValido = paradoMinValido;
 
 /** Valor efetivo das três chaves a partir das linhas do pull `parametro`; cada chave cai no padrão sozinha. */
 export function parametrosInicioDasLinhas(linhas: readonly Linha[]): ParametrosInicio {

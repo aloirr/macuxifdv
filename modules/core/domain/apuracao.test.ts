@@ -3,6 +3,7 @@ import {
   dataDoFechamento,
   periodoFechado,
   positivadosDoDia,
+  positivadosPorDia,
   positivadosDoPeriodo,
   realizadoPartido,
   realizadoPorTipo,
@@ -187,5 +188,28 @@ describe('RN-CORE-20/26: clientes positivados do dia (lista que alimenta indicad
     const p = pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1 });
     expect(positivadosDoDia([p], o).clientes_positivados).toBe(1);
     expect(positivadosDoDia([{ ...p, status: 'cancelado' }], o)).toEqual({ clientes_positivados_ids: [], clientes_positivados: 0 });
+  });
+});
+
+describe('RN-CORE-26: positivados de cada dia do mês (T-0073)', () => {
+  const o = { usuario_id: V1, periodo: '2026-11', fuso: MANAUS };
+  it('RN-CORE-20: agrupa por dia civil do fuso, cliente repetido no dia conta uma vez e o mês vizinho fica fora', () => {
+    const ps = [
+      pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1 }),
+      pedido({ emitido_em: '2026-11-10T15:00:00Z', cliente_id: C1 }),
+      pedido({ emitido_em: '2026-11-11T14:00:00Z', cliente_id: C2 }),
+      pedido({ emitido_em: '2026-12-01T10:00:00Z', cliente_id: C2 }),
+    ];
+    expect(positivadosPorDia(ps, o)).toEqual([
+      { dia: '2026-11-10', clientes_positivados_ids: [C1], clientes_positivados: 1 },
+      { dia: '2026-11-11', clientes_positivados_ids: [C2], clientes_positivados: 1 },
+    ]);
+  });
+  it('RN-CORE-26: dia já gravado cujo único pedido foi cancelado volta com lista vazia (zera); dia de outro mês gravado é ignorado', () => {
+    expect(positivadosPorDia([], { ...o, diasGravados: ['2026-11-10', '2026-10-31'] })).toEqual([{ dia: '2026-11-10', clientes_positivados_ids: [], clientes_positivados: 0 }]);
+  });
+  it('RN-CORE-26: rodar duas vezes com a mesma fonte dá o mesmo resultado (idempotente)', () => {
+    const ps = [pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1 })];
+    expect(positivadosPorDia(ps, o)).toEqual(positivadosPorDia(ps, o));
   });
 });

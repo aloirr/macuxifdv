@@ -9,6 +9,23 @@ export const PARAMETRO_DIAS_UTEIS = 'metas.dias_uteis_semana';
 export const PARAMETRO_RECADO_PADRAO = 'inicio.recado_do_dia_padrao';
 export const PARAMETRO_PARADO_MIN = 'inicio.parado_min';
 
+/** Faixa e padrão de `inicio.parado_min` em minutos (RN-CORE-26). Única fonte: o domain, o BKO e o Gestão leem daqui. */
+export const PARADO_MIN_MIN = 15;
+export const PARADO_MIN_MAX = 480;
+export const PARADO_MIN_PADRAO = 60;
+
+/** Inteiro dentro da faixa 15..480 (RN-CORE-26). */
+export const paradoMinValido = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= PARADO_MIN_MIN && n <= PARADO_MIN_MAX;
+
+/**
+ * Valor efetivo de `inicio.parado_min` a partir das linhas da entidade de sync `parametro` (`motor.linhas('parametro')`);
+ * sem linha viva do módulo `core`, ou valor fora da faixa, vale o padrão (60). Mesmo molde de `promotorVePedidosDasLinhas`.
+ */
+export function paradoMinDasLinhas(linhas: readonly { modulo: string; chave: string; valor?: unknown; deleted_at?: string | null }[]): number {
+  const l = linhas.find((x) => x.modulo === 'core' && x.chave === PARAMETRO_PARADO_MIN && !x.deleted_at);
+  return paradoMinValido(l?.valor) ? l.valor : PARADO_MIN_PADRAO;
+}
+
 /** Forma do parâmetro (só o formato; a regra de faixa é do domain: `validarParametrosInicio`). */
 export const ParametrosInicioPutSchema = z
   .object({
