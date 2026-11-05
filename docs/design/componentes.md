@@ -62,6 +62,17 @@ neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda 
   contraste testado em `tokens.test.ts`. Sem a prop, nada muda.
 - Faixa "Em atendimento": `<Botao rotulo="Fazer checkout" sobreEscuro />` e `<Botao rotulo="Ver cliente" nivel="neutro" sobreEscuro />`.
 
+### 3.2 Texto sobre o grafite (cartão escuro, aviso no rodapé)
+| Token | Valor | Contraste | Uso |
+|---|---|---|---|
+| `colors.surface` | `#FFFFFF` | 16:1 | texto principal e valor |
+| `colors.darkMuted` | `#C9D0D8` | 10,6:1 | rótulo, data, assinatura do recado |
+| `colors.accentLight` | `#F59A52` | 7,6:1 | ação ("Desfazer") |
+| `colors.successOnDark` | `#7FD1A8` | 9,1:1 | ícone e texto de ok |
+| `colors.dangerOnDark` | `#F7A59C` | 8,5:1 (5,4:1 sobre `darkTrack`) | alerta: aviso do gatilho no cartão Minha RV (T-0082) |
+- Nunca use `colors.danger` (`#A8261B`) nem `colors.success` sobre o grafite: ficam abaixo de 4,5:1. Nenhuma cor escrita à mão.
+- O alerta vermelho sempre vem com a palavra ("Gatilho de Positivação ainda não atingido…"), nunca só a cor.
+
 ## 4. Cartões, chips e listas
 - `Cartao` (`tom`): `padrao` (branco, borda), `destaque` (laranja claro: "Pedidos para aprovar"), `sucesso` (meta batida),
   `escuro` (recado do dia, raio 18), `suave` (dentro de outro cartão). `onPress` deixa o cartão inteiro tocável (afunda ao toque).
@@ -184,7 +195,9 @@ destas regras; elas valem para o voltar do Android e para o `BackLink` do kit (o
 Referência: `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.html` (telas 1 a 5, versão enxuta).
 - **Busca antes da trilha** (aba Itens): `CampoBusca` e, logo abaixo, `Trilha compacta atualTocavel` ("Mercearia › **Bebidas**").
   Sem ícone de lupa na trilha (a lupa é da busca). Tocar em qualquer nível abre o catálogo do pedido. Sem item no pedido, a
-  trilha é um item só: "Catálogo". A trilha usa `accentInk` (o `accent` sobre o fundo dá 4,17:1).
+  trilha é um item só: "Catálogo". A trilha usa `accentInk` (o `accent` sobre o fundo dá 4,17:1). Com `atualTocavel`, o último
+  item é um botão como os outros ("Ir para Bebidas") e não é anunciado como selecionado (`selected` segue `desligado`), de
+  propósito: na trilha-atalho ele leva ao catálogo, não marca onde a pessoa está.
 - **Uma linha por produto**, com o `ChipMedida` no alto à direita ("UN", "CX c/ 20"). Com duas medidas, o chip é tocável e alterna
   a medida da linha (mantém a quantidade; `AvisoRodape` "Medida trocada para CX c/ 20" · Desfazer). Uma segunda linha do mesmo
   produto só aparece quando as duas medidas têm quantidade (ex.: depois do "Leve mais"); aí os chips ficam só leitura.

@@ -28,8 +28,10 @@ Quando a visita da parada tem `etapas_pendentes > 0`:
 - Não é "Pendente" sozinho: na rota, "pendente" já quer dizer parada não visitada.
 
 ### 1.2 Ficha do cliente (`modules/core/app/telas/cliente.tsx`)
-Se alguma visita deste cliente no aparelho tiver `etapas_pendentes > 0` (vale a mais recente), um `Banner`
-`tone="warning"` `icon="clock"`, logo abaixo do cabeçalho do cliente e acima das abas:
+Se alguma visita deste cliente no aparelho tiver `etapas_pendentes > 0`, um `Banner`
+`tone="warning"` `icon="clock"`, logo abaixo do cabeçalho do cliente e acima das abas. Data e contagem vêm da **mais recente
+entre as visitas com pendência** (esclarecido em 05/11): uma visita nova sem pendência **não** esconde a pendência de uma
+visita anterior, que continua real até o pull trazer 0.
 
 | Situação | Linha 1 (forte, `t.bodyStrong`) | Linha 2 (`t.small`) |
 |---|---|---|
@@ -41,8 +43,10 @@ Linha 2, pelo `useSincronizacao()` do kit (só a contagem `naFila`, sem ler a fi
 - `naFila > 0` e com sinal: **`Ela vai sozinha da fila quando houver sinal. Se a fila mostrar erro, fale com seu supervisor`**
 - `naFila > 0` e sem sinal (`semSinal`): **`Ela vai sozinha da fila quando houver sinal`**
 - `naFila = 0`: **`Fale com seu supervisor`**
+- Com N etapas (concordância, 05/11): **`Elas vão sozinhas da fila…`** no lugar de "Ela vai sozinha da fila…"; o resto igual.
 
-Ação: quando `naFila > 0`, um `Botao` **secundário** (44) **`Ver fila`**, ícone `sync`, logo abaixo do Banner. Ele abre o
+Ação (**backlog**, decidido em 05/11: entra quando o engenheiro-apps confirmar o caminho do Perfil na seção Fila, junto
+com o §4.2): quando `naFila > 0`, um `Botao` **secundário** (44) **`Ver fila`**, ícone `sync`, logo abaixo do Banner. Ele abre o
 Perfil na seção "Fila do aparelho" (rota do shell: o engenheiro-apps confirma o caminho). O principal da tela continua sendo
 o Check-in. Com `naFila = 0` não há botão, porque não há o que fazer no aparelho.
 
@@ -67,7 +71,10 @@ Mesma tela e mesmas regras do §1.3. O destinatário é o supervisor da equipe:
   - ex.: `Pesquisa obrigatória: "Gôndola do mês" · visita de 04/11 · não chegou em 24 h`
 - `link`: `/m/cliente?id=<cliente_id>`. A ficha do cliente já existe no Gestão (`apps: ['campo','gestao']`).
 
-### 2.2 Ficha do cliente no Gestão
+### 2.2 Ficha do cliente no Gestão (**backlog**, 05/11)
+Hoje o estado do Core no aparelho só traz as visitas do próprio usuário (`rota-local.ts`, filtro por `usuario_id`), então
+no Gestão o Banner do §1.2 não aparece e o texto do vendedor não vaza para o supervisor. A notificação do §2.1 já leva
+etapa, data e prazo. Quando entrar:
 Mesmo `Banner` do §1.2, com outro texto, se a visita estiver no aparelho pelo pull da equipe:
 - Linha 1: `Uma etapa da visita de <primeiro nome> em <dd/mm> ainda não chegou ao Macuxi` (N: `2 etapas … ainda não chegaram …`)
 - Linha 2: `Peça a <primeiro nome> para abrir a fila do aparelho e sincronizar`

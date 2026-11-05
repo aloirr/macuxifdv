@@ -28,6 +28,8 @@ export const colors = {
   successTrack: '#C6E3D5',
   /** verde do ícone sobre o grafite (aviso no rodapé) */
   successOnDark: '#7FD1A8',
+  /** vermelho de alerta sobre o grafite (ex.: aviso do gatilho no cartão Minha RV, T-0082): 8,5:1 sobre ink, 5,4:1 sobre darkTrack */
+  dangerOnDark: '#F7A59C',
   warning: '#7A4F00',
   warningInk: '#5C3B00',
   warningBg: '#FFF1D6',

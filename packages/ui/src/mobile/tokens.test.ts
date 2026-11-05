@@ -57,6 +57,8 @@ describe('tokens (T-0072): identidade e contraste', () => {
       ['aviso: Desfazer no grafite', colors.accentLight, colors.ink],
       ['aviso: ícone de ok no grafite', colors.successOnDark, colors.ink],
       ['recado: assinatura no grafite', colors.darkMuted, colors.ink],
+      ['alerta vermelho no grafite (dangerOnDark)', colors.dangerOnDark, colors.ink],
+      ['alerta vermelho no trilho escuro (dangerOnDark)', colors.dangerOnDark, colors.darkTrack],
       ['contador branco no laranja', colors.surface, colors.accent],
       ['meta batida', colors.success, colors.successBg],
       ['cartão em destaque', colors.accentInk, colors.accentSoft],
