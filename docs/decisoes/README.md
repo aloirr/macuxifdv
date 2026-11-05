@@ -30,3 +30,4 @@ da própria ADR; em caso de divergência, vale o arquivo da ADR.
 | [0023](0023-dependencias-do-app-fora-da-imagem-da-api.md) | Dependências do app fora da imagem da API: `overrides` `drizzle-orm>expo-sqlite: "-"` e imagem com `--prod` (sem `.pnpmfile.cjs`) | proposta |
 | [0024](0024-dbaas-magalu-postgres-producao.md) | PostgreSQL gerenciado (DBaaS) da Magalu Cloud como banco de produção: teste de compatibilidade (`dbaas-teste.yml`) | proposta · resultado: compatível com plano B (B0, B1, B2); aceita após custo aprovado, B0–B2 no main e 3ª execução com a suíte verde |
 | [0025](0025-consulta-pela-licenca-do-tenant.md) | Consulta entre módulos pela licença do tenant (`{ licenca: 'tenant' }`), complemento da ADR 0012 | aceita |
+| [0026](0026-historico-por-aba-no-roteador-do-tabs.md) | Histórico das telas de módulo por aba no roteador do Tabs (`UNSTABLE_router` do expo-router 57; sem `__unsafe_action__`; testes de guarda e gate de atualização) | aceita com condições |
