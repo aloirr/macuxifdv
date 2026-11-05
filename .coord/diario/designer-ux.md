@@ -19,3 +19,4 @@
 2026-11-05 — T-0039 — especificação da etapa pendente no checkout (docs/design/checkout-pendencia.md): Campo, Gestão, BKO e textos da notificação; textoAlertaPendencia apontado ao modulo-core
 2026-11-05 — T-0039 — conferência de UX do BKO da pendência de etapa: 🔴 prazo do alerta gravado na rota do Início (strict), 🟡 erro da API no campo, foco e contador da justificativa; §3.3 adiado aceito; §3.2 da spec ganhou o bloco Dispensar; Gestor confirmado sem alteração
 2026-11-05 — T-0039 — conferidas as correções do BKO da pendência (prazo em /core/parametros/checkout-pendencia com permissão própria; Notice de erro, foco e contador no diálogo de etapas): sem 🔴, fio encerrado
+2026-11-05 — T-0039 — conferência UX do alerta 'Etapa pendente na visita' na aba Alertas do Gestão: sem 🔴, 3 🟡 ao modulo-gestor
