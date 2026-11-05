@@ -149,3 +149,29 @@ critérios continuam valendo) e não reescreve nada acima.
   P2 (especificação do banco-dados em `docs/banco/aparelho-sqlite.md` e DDL do Catálogo) e P6 (carga, testes).
 - **Nome**: a consulta estruturada do SDK chama-se `ConsultaTexto` (no desenho T-0008 §2.5 era `ConsultaBusca`), para não colidir
   com o contrato `ConsultaBusca` do Catálogo (corpo de `/v1/catalogo/busca`).
+
+## Adendo de 2026-11-05 — T-0052-B4: leituras parciais do motor (aditivo, sem cache de linhas)
+- **Contexto**: com 20 mil SKUs, a busca offline do Catálogo já pré-seleciona candidatos no FTS5 (~10 ms) e ranqueia em ~5 ms, mas
+  ainda lê a entidade inteira a cada busca: `motor.linhas('produto')` (~140 ms de parse) e estoque/preço/depósito (~120 ms)
+  (R-20261105-131143). Proposta R-20261105-132933, aprovada pelo gerente-projetos.
+- **Decisão**: três leituras novas no motor (`packages/platform-sdk/src/motor-sync.ts`), todas aditivas:
+  1. `motor.linhasPorCampo(e, campo, valores[])`: linhas com `<campo>` de primeiro nível em `valores` (texto ou número finito;
+     comparação estrita de tipo; repetidos, `null` e NaN ignorados; sem ordem garantida; campo fora de `[a-z][a-z0-9_]*` = erro).
+     Extensão OPCIONAL `LinhasSync.porCampo`: o SQLite faz UMA consulta com os valores num parâmetro JSON
+     (`json_extract(dados, '$.<campo>') IN (SELECT value FROM json_each(?))`, sem limite de parâmetros); o adaptador sem ela cai
+     no filtro de `listar` em JS. Fica rápido só com o índice de expressão do dono escrito exatamente
+     `json_extract(dados, '$.<campo>')` (o teste confere o plano `SEARCH ... USING INDEX`); sem índice, a varredura em C custa
+     quase o mesmo que `listar`.
+  2. `motor.contarLinhas(e)`: `LinhasSync.contar` (SQLite `count(*)`) ou o tamanho do mapa no chave→JSON.
+  3. `motor.versaoLinhas(e)`: número opaco que muda quando uma página do pull grava linhas da entidade, quando a ressincronização
+     apaga o que saiu do escopo (ADR 0009 §4) e quando o motor apaga linhas (RN-CORE-02, troca de geração da ADR 0021, RN-CORE-15).
+     Invalidação DEPOIS da gravação/transação (também na falha); relógio do processo, então dois motores nunca repetem número.
+     O módulo lê a versão ANTES das linhas e memoriza o derivado com ela. Não cobre a fila (`sobreposicao()` continua à parte).
+- **Alternativas recusadas**: cache genérico de linhas no motor (memória do aparelho de 3 GB com 20 mil SKUs, invalidação de
+  quem não precisa, risco de servir linha velha a outro módulo); ler por id no Catálogo sem `porCampo` (estoque e preço são
+  achados por `produto_id`, não pelo `id` da linha).
+- **Consequências**: nenhum consumidor muda; o Catálogo adota em `app/lib/local.ts` e os índices de expressão das entidades
+  dele entram numa versão nova de `modules/catalogo/db/aparelho.ts` (banco-dados). Índice em `ent_produto` continua proibido
+  ao Catálogo (é do Core): produto se lê por `linhasPorIds` e o derivado da lista inteira fica memorizado por `versaoLinhas`.
+  Medição no `node:sqlite` (máquina carregada, 400 candidatos): estoque de 40 mil linhas 930 ms (`listar`) → 31 ms (`porCampo`
+  com índice); preço de 20 mil 360 ms → 15 ms; `porIds` de 400 produtos 23 ms; `contarLinhas` 0,1 ms.

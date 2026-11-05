@@ -28,7 +28,7 @@ import {
   type LeitorLinhas,
   type ResultadoBusca,
 } from '../busca';
-import type { ArmazenamentoSync, LinhasSync } from '../motor-sync';
+import { validarCampoLinha, valoresDeCampo, type ArmazenamentoSync, type LinhasSync, type ValorCampoLinha } from '../motor-sync';
 import { MODULOS, type ModuloId } from '../nomes';
 import type { LinhaSync } from '../sync';
 import type { DriverSqlite, ValorSql } from './driver';
@@ -215,6 +215,28 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
       const l = achadas.get(id);
       return l ? [l] : [];
     });
+  };
+
+  /**
+   * T-0052-B4: uma consulta só, com os valores num parâmetro JSON (`json_each`): sem limite de parâmetros e sem lotes.
+   * Com o índice de expressão `json_extract(dados, '$.<campo>')` do dono, o plano é `SEARCH ... USING INDEX` por valor.
+   * Tipos do JSON preservados (texto só casa texto; número só casa número), igual ao `===` do caminho em JS.
+   */
+  const linhasPorCampo = async <L extends LinhaSync>(
+    d: DriverSqlite,
+    e: string,
+    campo: string,
+    valores: readonly ValorCampoLinha[],
+  ): Promise<L[]> => {
+    validarCampoLinha(campo);
+    const unicos = valoresDeCampo(valores);
+    const t = tabelaDaEntidade(e);
+    if (unicos.length === 0 || !(await existeTabela(d, t))) return [];
+    const rs = await d.todas<LinhaEnt>(
+      `SELECT id, dados FROM ${t} WHERE json_extract(dados, '$.${campo}') IN (SELECT value FROM json_each(?)) ORDER BY id`,
+      [JSON.stringify(unicos)],
+    );
+    return rs.map((r) => JSON.parse(r.dados) as L);
   };
 
   const leitor = (d: DriverSqlite): LeitorLinhas => ({
@@ -446,6 +468,7 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
       aplicar,
       listar: (e) => ler(() => listarLinhas(d, e)),
       porIds: (e, ids) => ler(() => linhasPorIds(d, e, ids)),
+      porCampo: (e, campo, valores) => ler(() => linhasPorCampo(d, e, campo, valores)),
       ids: (e) => ler(async () => (await listarLinhas(d, e)).map((l) => l.id)),
       contar: (e) =>
         ler(async () => {

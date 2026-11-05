@@ -66,3 +66,15 @@ Eventos: nenhum novo e nenhuma versão nova (orçamento não publica `vendedor.p
 
 > Próxima prevista: `core.financeiro_cliente@1` (crédito e títulos, RN-VEN-12/13). Espelho com teste:
 > `packages/platform-sdk/src/manifestos-referencia.test.ts` (estado-alvo da T-0029).
+
+## Leituras do motor de sync no aparelho (SDK, aditivo, T-0052-B4)
+
+Contrato do `MotorSync` (`@macuxi/platform-sdk`) para os módulos no app. Só acréscimos; nada existente mudou. ADR 0003, adendo de 2026-11-05.
+
+| Função | O que devolve | Observações |
+|---|---|---|
+| `motor.linhasPorIds(e, ids)` | linhas pelos ids, na ordem pedida | já existia (T-0008 P1) |
+| `motor.linhasPorCampo(e, campo, valores)` | linhas com `<campo>` (1º nível) ∈ `valores` | texto ou número, tipo estrito, sem ordem; rápido no SQLite só com índice `<m>__*` em `json_extract(dados, '$.<campo>')` sobre `ent_<e>` do próprio módulo |
+| `motor.contarLinhas(e)` | quantidade de linhas locais | sem ler as linhas |
+| `motor.versaoLinhas(e)` | número opaco (compare com `===`) | muda a cada gravação do pull na entidade e quando o motor apaga linhas; leia ANTES das linhas; não inclui a fila |
+| `LinhasSync.porCampo?` | extensão opcional do armazenamento | SQLite implementa; sem ela o motor filtra `listar` em JS |

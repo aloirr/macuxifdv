@@ -94,12 +94,47 @@ export interface LinhasSync {
   /** Sem ordem garantida entre adaptadores (SQLite: por `id`; chave→JSON: por chegada) — quem precisa, ordena. */
   listar<L extends LinhaSync>(entidade: string): Promise<L[]>;
   porIds<L extends LinhaSync>(entidade: string, ids: readonly string[]): Promise<L[]>;
+  /**
+   * T-0052-B4 (opcional): linhas com `<campo>` (raiz da linha) igual a um dos `valores`, comparação estrita de tipo
+   * (`'5'` não casa `5`). Sem ordem garantida. O motor já valida o campo e filtra os valores (`valoresDeCampo`); sem ela,
+   * o motor filtra `listar` em JS. No SQLite usa o índice de expressão `json_extract(dados, '$.<campo>')` do dono.
+   */
+  porCampo?<L extends LinhaSync>(entidade: string, campo: string, valores: readonly ValorCampoLinha[]): Promise<L[]>;
   /** Ids das linhas guardadas (ressincronização do escopo, ADR 0009 §4). */
   ids(entidade: string): Promise<string[]>;
   contar(entidade: string): Promise<number>;
   /** Apaga as linhas e o cursor da entidade. */
   limpar(entidade: string): Promise<void>;
 }
+
+/** Valor aceito em `linhasPorCampo` (ids, códigos, números). `null`, booleano e objeto ficam de fora. */
+export type ValorCampoLinha = string | number;
+
+/** Campo de primeiro nível de uma linha (vira `$.<campo>` no SQLite: nada além de `[a-z0-9_]`). */
+const CAMPO_LINHA_RE = /^[a-z][a-z0-9_]*$/;
+
+/** Campo validado (erro do app, não do usuário): mesmo erro em todo adaptador. */
+export function validarCampoLinha(campo: string): string {
+  if (!CAMPO_LINHA_RE.test(campo)) throw new Error(`Campo inválido: ${campo}`);
+  return campo;
+}
+
+/** Valores únicos utilizáveis: strings e números finitos (NaN/Infinity nunca casam, igual ao SQLite). */
+export function valoresDeCampo(valores: readonly ValorCampoLinha[]): ValorCampoLinha[] {
+  return [...new Set(valores.filter((v) => typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v))))];
+}
+
+/** Filtro em JS de `linhasPorCampo` (caminho sem `porCampo` no adaptador). `valores` já passou por `valoresDeCampo`. */
+function filtrarPorCampo<L extends LinhaSync>(linhas: readonly L[], campo: string, valores: readonly ValorCampoLinha[]): L[] {
+  const alvo = new Set<unknown>(valores);
+  return linhas.filter((l) => alvo.has((l as unknown as Record<string, unknown>)[campo]));
+}
+
+/**
+ * Relógio das versões de linhas (`motor.versaoLinhas`). Do processo, não do motor: dois motores (troca de usuário) nunca
+ * devolvem o mesmo número para dados diferentes, então o derivado memorizado de um nunca vale no outro.
+ */
+let relogioVersoes = 0;
 
 /** Transporte com o servidor. Lançar exceção = falha de transporte (o motor tenta de novo depois). */
 export interface TransporteSync {
@@ -172,6 +207,8 @@ export function comLinhasEmChaveJson(base: ArmazenamentoSync): ArmazenamentoSync
       const m = await mapa(e);
       return ids.flatMap((id) => (m[id] ? [m[id] as L] : []));
     },
+    porCampo: async <L extends LinhaSync>(e: string, campo: string, valores: readonly ValorCampoLinha[]) =>
+      filtrarPorCampo(Object.values(await mapa(e)) as L[], campo, valores),
     ids: async (e) => Object.keys(await mapa(e)),
     contar: async (e) => Object.keys(await mapa(e)).length,
     async limpar(e) {
@@ -547,6 +584,25 @@ export function criarMotorSync(op: OpcoesMotorSync) {
   let envioEmCurso: Promise<ResultadoItemPush[]> | null = null;
   let syncEmCurso: Promise<boolean> | null = null;
 
+  // ---------- versão das linhas (T-0052-B4) ----------
+  /** Entidade → versão das linhas locais; ausente = ainda não perguntada desde a última mudança (ganha número novo). */
+  const versoes = new Map<string, number>();
+  /**
+   * Chamado DEPOIS de gravar (e depois do fim da transação): quem lê a versão ANTES das linhas, no pior caso, guarda o
+   * derivado novo com a versão velha e relê uma vez a mais; nunca guarda derivado velho com a versão nova.
+   */
+  const linhasMudaram = (entidade: string) => versoes.set(entidade, ++relogioVersoes);
+  /** Limpeza de módulo, troca de geração, aparelho bloqueado: invalida todas (raro; mais simples que listar as tocadas). */
+  const todasAsLinhasMudaram = () => versoes.clear();
+  /** Escrita que apaga linhas de várias entidades: invalida as versões no fim, deu certo ou não (sem transação, pode ter apagado parte). */
+  const apagandoLinhas = async <T>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } finally {
+      todasAsLinhasMudaram();
+    }
+  };
+
   const mudar = (parcial: Partial<EstadoMotorSync>) => {
     estado = { ...estado, ...parcial };
     for (const f of ouvintes) f(estado);
@@ -700,7 +756,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     await motor.enviar();
     mudar({ etapa: 'A base do servidor mudou: recarregando os dados' });
     // 3. cópia local do servidor: linhas, cursores, escopos, ressincronizações, carga e cursor de novidades
-    await emTransacao(async (a) => {
+    await apagandoLinhas(() => emTransacao(async (a) => {
       for (const { nome } of op.registro.entidadesAtivas(MODULOS)) {
         if (a.linhas) await a.linhas.limpar(nome);
         else {
@@ -712,7 +768,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       }
       await a.remover(CHAVE.carga);
       await a.remover(CHAVE.novidades);
-    });
+    }));
     // 4. cache próprio de cada módulo (só ele sabe o que é cópia do servidor e o que é rascunho)
     for (const e of op.etapas ?? []) if (e.aoTrocarGeracao) await e.aoTrocarGeracao(contextoDaEtapa(e));
     // 5. só agora: a geração nova vale
@@ -961,14 +1017,19 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       }
       const ultimo = pagina.itens[pagina.itens.length - 1];
       const proximo = pagina.proximo_cursor ?? (ultimo ? codificarCursor(ultimo) : cursor);
-      if (a.linhas) await a.linhas.aplicar(entidade, pagina.itens, proximo);
-      else {
-        for (const l of pagina.itens) {
-          if (l.deleted_at) delete mapa[l.id];
-          else mapa[l.id] = l;
+      try {
+        if (a.linhas) await a.linhas.aplicar(entidade, pagina.itens, proximo);
+        else {
+          for (const l of pagina.itens) {
+            if (l.deleted_at) delete mapa[l.id];
+            else mapa[l.id] = l;
+          }
+          await a.gravar(CHAVE.entidade(entidade), mapa);
+          if (proximo) await a.gravar(CHAVE.cursor(entidade), proximo);
         }
-        await a.gravar(CHAVE.entidade(entidade), mapa);
-        if (proximo) await a.gravar(CHAVE.cursor(entidade), proximo);
+      } finally {
+        // também na falha: a página grande vai em lotes (SQLite) e parte dela pode ter sido gravada
+        if (pagina.itens.length > 0) linhasMudaram(entidade);
       }
       cursor = proximo;
       aoGravarPagina?.();
@@ -982,15 +1043,22 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       } else if (a.linhas) {
         const quando = agora().toISOString();
         const sobra = (await a.linhas.ids(entidade)).filter((id) => !vistos.has(id));
-        if (sobra.length > 0)
-          await a.linhas.aplicar(
-            entidade,
-            sobra.map((id) => ({ id, updated_at: quando, deleted_at: quando })),
-            null,
-          );
+        if (sobra.length > 0) {
+          try {
+            await a.linhas.aplicar(
+              entidade,
+              sobra.map((id) => ({ id, updated_at: quando, deleted_at: quando })),
+              null,
+            );
+          } finally {
+            linhasMudaram(entidade);
+          }
+        }
       } else {
-        for (const id of Object.keys(mapa)) if (!vistos.has(id)) delete mapa[id];
+        const sobra = Object.keys(mapa).filter((id) => !vistos.has(id));
+        for (const id of sobra) delete mapa[id];
         await a.gravar(CHAVE.entidade(entidade), mapa);
+        if (sobra.length > 0) linhasMudaram(entidade);
       }
       // só agora: se o app cair no meio, a próxima passada vê a versão antiga e RETOMA pela `sync:ressinc` (T-0059)
       await a.gravar(CHAVE.escopo(entidade), versao);
@@ -1384,7 +1452,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
           if (!limpeza.includes(m)) limpeza = [...limpeza, m];
           tentarEnviar = true;
         } else {
-          await emTransacao((a) => limparModulo(m, a));
+          await apagandoLinhas(() => emTransacao((a) => limparModulo(m, a)));
           await descartarArquivosDoModulo(m);
           await descartarAceitosDoModulo(m);
         }
@@ -1399,11 +1467,13 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       const fila = estado.fila.filter((i) => i.modulo !== modulo);
       const limpeza = estado.limpezaPendente.filter((m) => m !== modulo);
       // fila, dados e pendência juntos (com `emTransacao`, tudo ou nada); o estado só muda depois de gravado
-      await emTransacao(async (a) => {
-        await a.gravar(CHAVE.fila, fila);
-        await limparModulo(modulo, a);
-        await a.gravar(CHAVE.limpeza, limpeza);
-      });
+      await apagandoLinhas(() =>
+        emTransacao(async (a) => {
+          await a.gravar(CHAVE.fila, fila);
+          await limparModulo(modulo, a);
+          await a.gravar(CHAVE.limpeza, limpeza);
+        }),
+      );
       mudar({ fila, limpezaPendente: limpeza });
       await descartarArquivosDoModulo(modulo);
       await descartarAceitosDoModulo(modulo);
@@ -1416,10 +1486,12 @@ export function criarMotorSync(op: OpcoesMotorSync) {
      */
     async limparAparelho(): Promise<void> {
       const arquivos = estado.arquivos;
-      await emTransacao(async (a) => {
-        for (const m of MODULOS) await limparModulo(m, a);
-        for (const k of await a.chaves('')) await a.remover(k);
-      });
+      await apagandoLinhas(() =>
+        emTransacao(async (a) => {
+          for (const m of MODULOS) await limparModulo(m, a);
+          for (const k of await a.chaves('')) await a.remover(k);
+        }),
+      );
       parametros = {};
       geracaoGuardada = null;
       mudar({ fila: [], aceitos: [], arquivos: [], limpezaPendente: [], modulosAtivos: [], sincronizado_em: null, avisos: [], erro: null, carga: CARGA_VAZIA });
@@ -1441,6 +1513,48 @@ export function criarMotorSync(op: OpcoesMotorSync) {
       if (op.armazenamento.linhas) return op.armazenamento.linhas.porIds<L>(entidade, ids);
       const l = (await op.armazenamento.ler<Record<string, L>>(CHAVE.entidade(entidade))) ?? {};
       return ids.flatMap((id) => (l[id] ? [l[id]] : []));
+    },
+
+    /**
+     * T-0052-B4: registros locais com `<campo>` (de primeiro nível) igual a um dos `valores` — ex.: estoque, preço e
+     * atributos só dos produtos candidatos. Comparação estrita de tipo (`'5'` não casa `5`); `null`, NaN e repetidos
+     * são ignorados; sem ordem garantida. Campo fora de `[a-z][a-z0-9_]*` = erro do app. No SQLite fica rápido com o
+     * índice de expressão do dono da entidade, escrito EXATAMENTE `json_extract(dados, '$.<campo>')`; sem índice, uma
+     * varredura em C da tabela (ainda sem montar as linhas que não casam em JS).
+     */
+    async linhasPorCampo<L extends LinhaSync = LinhaSync>(
+      entidade: string,
+      campo: string,
+      valores: readonly ValorCampoLinha[],
+    ): Promise<L[]> {
+      validarCampoLinha(campo);
+      const unicos = valoresDeCampo(valores);
+      if (unicos.length === 0) return [];
+      if (op.armazenamento.linhas?.porCampo) return op.armazenamento.linhas.porCampo<L>(entidade, campo, unicos);
+      return filtrarPorCampo(await motor.linhas<L>(entidade), campo, unicos);
+    },
+
+    /** T-0052-B4: quantas linhas locais a entidade tem, sem ler as linhas (SQLite: `count(*)`). */
+    async contarLinhas(entidade: string): Promise<number> {
+      if (op.armazenamento.linhas) return op.armazenamento.linhas.contar(entidade);
+      const l = (await op.armazenamento.ler<Record<string, LinhaSync>>(CHAVE.entidade(entidade))) ?? {};
+      return Object.keys(l).length;
+    },
+
+    /**
+     * T-0052-B4: versão das linhas locais da entidade, para o módulo MEMORIZAR o que deriva delas (mapa por produto,
+     * vocabulário) e só reler quando o sync mudar. Opaca: só compare com `===`. Muda quando uma página do pull grava
+     * linhas da entidade, quando a ressincronização apaga o que saiu do escopo e quando o motor apaga linhas (módulo
+     * desativado, troca de geração, aparelho bloqueado). Única no processo (outro motor, outro usuário = outro número).
+     * Uso: leia a versão ANTES das linhas e guarde o derivado com ela. Não cobre a fila: sobreponha `sobreposicao()`.
+     */
+    versaoLinhas(entidade: string): number {
+      let v = versoes.get(entidade);
+      if (v === undefined) {
+        v = ++relogioVersoes;
+        versoes.set(entidade, v);
+      }
+      return v;
     },
 
     /**
