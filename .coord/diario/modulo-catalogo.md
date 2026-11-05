@@ -22,3 +22,4 @@
 2026-11-05 — T-0052 — vazio da busca com EstadoVazio: 4 casos em app/lib/vazio-busca.ts (puro, testado), título cortado em 30, ações Limpar filtros/Limpar a busca
 2026-11-05 — T-0052 — 🟢6: codigoCompacto único (domain/ranking.ts) usado também em app/indice.ts (compacto removido), com teste; busca offline T-0052 sem mudança
 2026-11-05 — T-0052 — caixa limpa: 6 recados encerrados, tabela_preco_nome em precos_cliente@1 (aditivo), X da busca volta na hora; buscarComDesfecho fica para o lote N
+2026-11-05 — T-0061/T-0052 — precos.db.test: tabela_preco_nome na expectativa + contraprova sem o campo (fix do CI do lote O)
