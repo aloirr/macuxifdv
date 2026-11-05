@@ -1,12 +1,12 @@
 /**
- * Peças do novo pedido de distribuidora em 3 abas (T-0061): Itens, Condições e Entrega/Resumo. Componentes locais do Vendedor
+ * Peças do novo pedido de distribuidora em 3 abas (T-0061/T-0071): Itens, Detalhes e Resumo. Componentes locais do Vendedor
  * (se o engenheiro-apps promover algum para `packages/ui`, trocamos). Alvos de toque ≥ 48 dp; só lê e escreve o rascunho
  * do aparelho (offline-first). O cálculo e as regras vêm de `lib/novo-pedido.ts` (domain de preço), nada é calculado aqui.
  */
 import { formatBRL } from '@macuxi/comum';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { Badge, Banner, Botao, Card, ChipMedida, colors, fonts, Icon, radius, Segmentado, type as t } from '@macuxi/ui/mobile';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { limitarDesconto, PASSO_DESCONTO_PCT } from '../../domain/quantidade';
@@ -16,15 +16,15 @@ import {
   alternarUnidade,
   centsParaCampo,
   chaveDaLinha,
-  reaisParaCents,
   trocarModoDoAjuste,
   unidadesDoProduto,
   type Ajuste,
   type CalculoPedido,
   type UnidadeDaTela,
 } from '../lib/novo-pedido';
-import { parsePct } from '../lib/catalog';
+import { medidasVisiveis, proximaMedida, trocarMedidaDaLinha } from '../lib/medida-do-item';
 import { textoEquivalente, textoPrecoDaLinha } from '../lib/textos-pedido';
+import { textoAposMudancaDoValor, valorPendentePct, valorPendenteQuantidade, valorPendenteReais } from '../lib/valor-pendente';
 
 // ---------- campos ----------
 function Passo({ icone, rotulo, onPress, desligado, testID }: { icone: 'plus' | 'minus'; rotulo: string; onPress: () => void; desligado?: boolean; testID?: string }) {
@@ -39,11 +39,13 @@ function fmtPct(n: number): string {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: n % 1 === 0 ? 0 : 1, maximumFractionDigits: 2 });
 }
 
-/** Percentual com − e + de 48 dp e digitação direta. */
+/** Percentual com − e + de 48 dp e digitação direta. O que está digitado vale a cada número válido (V2). */
 export function CampoPct({ valor, onChange, rotulo, testID, maximo }: { valor: number; onChange: (n: number) => void; rotulo: string; testID: string; maximo?: number }) {
+  const teto = maximo ?? 100;
   const [texto, setTexto] = useState(fmtPct(valor));
-  useEffect(() => setTexto(fmtPct(valor)), [valor]);
-  const aplicar = (n: number) => onChange(Math.min(maximo ?? 100, limitarDesconto(n)));
+  const focado = useRef(false);
+  useEffect(() => setTexto((atual) => textoAposMudancaDoValor({ texto: atual, valor, focado: focado.current, pendente: (x) => valorPendentePct(x, teto), formatar: fmtPct })), [valor, teto]);
+  const aplicar = (n: number) => onChange(Math.min(teto, limitarDesconto(n)));
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       <Passo icone="minus" rotulo={`Diminuir ${rotulo}`} desligado={valor <= 0} onPress={() => aplicar(valor - PASSO_DESCONTO_PCT)} testID={`${testID}-menos`} />
@@ -51,10 +53,22 @@ export function CampoPct({ valor, onChange, rotulo, testID, maximo }: { valor: n
         <TextInput
           testID={testID}
           value={texto}
-          onChangeText={setTexto}
-          onBlur={() => aplicar(parsePct(texto))}
-          onSubmitEditing={() => aplicar(parsePct(texto))}
+          onChangeText={(v) => {
+            setTexto(v);
+            const n = valorPendentePct(v, teto);
+            if (n !== null && n !== valor) onChange(n);
+          }}
+          onFocus={() => {
+            focado.current = true;
+          }}
+          onBlur={() => {
+            focado.current = false;
+            const n = valorPendentePct(texto, teto) ?? 0;
+            setTexto(fmtPct(n));
+            if (n !== valor) onChange(n);
+          }}
           keyboardType="decimal-pad"
+          returnKeyType="done"
           accessibilityLabel={`${rotulo} em porcentagem`}
           style={s.pctInput}
           selectTextOnFocus
@@ -66,10 +80,11 @@ export function CampoPct({ valor, onChange, rotulo, testID, maximo }: { valor: n
   );
 }
 
-/** Valor em R$ (centavos) com − e + de 48 dp e digitação direta. `maximo` em centavos (o desconto não passa do preço). */
+/** Valor em R$ (centavos) com − e + de 48 dp e digitação direta. `maximo` em centavos (o desconto não passa do preço). Vale a cada número válido (V2). */
 export function CampoReais({ valor, onChange, rotulo, testID, maximo, passo = 10 }: { valor: number; onChange: (cents: number) => void; rotulo: string; testID: string; maximo?: number; passo?: number }) {
   const [texto, setTexto] = useState(centsParaCampo(valor));
-  useEffect(() => setTexto(centsParaCampo(valor)), [valor]);
+  const focado = useRef(false);
+  useEffect(() => setTexto((atual) => textoAposMudancaDoValor({ texto: atual, valor, focado: focado.current, pendente: (x) => valorPendenteReais(x, maximo), formatar: centsParaCampo })), [valor, maximo]);
   const aplicar = (c: number) => onChange(Math.max(0, maximo === undefined ? c : Math.min(maximo, c)));
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -79,10 +94,22 @@ export function CampoReais({ valor, onChange, rotulo, testID, maximo, passo = 10
         <TextInput
           testID={testID}
           value={texto}
-          onChangeText={setTexto}
-          onBlur={() => aplicar(reaisParaCents(texto))}
-          onSubmitEditing={() => aplicar(reaisParaCents(texto))}
+          onChangeText={(v) => {
+            setTexto(v);
+            const n = valorPendenteReais(v, maximo);
+            if (n !== null && n !== valor) onChange(n);
+          }}
+          onFocus={() => {
+            focado.current = true;
+          }}
+          onBlur={() => {
+            focado.current = false;
+            const n = valorPendenteReais(texto, maximo) ?? 0;
+            setTexto(centsParaCampo(n));
+            if (n !== valor) onChange(n);
+          }}
           keyboardType="decimal-pad"
+          returnKeyType="done"
           accessibilityLabel={`${rotulo} em reais`}
           style={s.pctInput}
           selectTextOnFocus
@@ -104,10 +131,11 @@ export interface PropsAbaItens {
   somenteLeitura?: boolean;
 }
 
-export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, somenteLeitura }: { produtos: readonly Product[] } & Omit<PropsAbaItens, 'catalogo' | 'resultados'>) {
+export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, somenteLeitura, aoTrocarMedida }: { produtos: readonly Product[]; aoTrocarMedida?: (texto: string, desfazer: () => void) => void } & Omit<PropsAbaItens, 'catalogo' | 'resultados'>) {
   const ajustes = rascunho.ajustes ?? {};
   const setQtd = (chave: string, q: number) => {
     const n = Math.max(0, Math.trunc(q));
+    if ((rascunho.lines[chave] ?? 0) === n) return;
     const lines = { ...rascunho.lines };
     if (n > 0) lines[chave] = n;
     else delete lines[chave];
@@ -116,10 +144,20 @@ export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, 
     onLinhas(lines, novos);
   };
   const setAjuste = (chave: string, aj: Ajuste) => onLinhas(rascunho.lines, { ...ajustes, [chave]: aj });
+  // V4: a troca da medida leva a quantidade para a outra linha do produto; o aviso do rodapé desfaz
+  const trocarMedida = (tr: { de: string; para: string; rotuloPara: string; voltar: () => void }) => {
+    const antes = { lines: rascunho.lines, ajustes };
+    const r = trocarMedidaDaLinha(rascunho.lines, ajustes, tr.de, tr.para);
+    onLinhas(r.lines, r.ajustes);
+    aoTrocarMedida?.(`Medida trocada para ${tr.rotuloPara}`, () => {
+      onLinhas(antes.lines, antes.ajustes);
+      tr.voltar();
+    });
+  };
   return (
     <Card>
       {produtos.map((p, i) => (
-        <LinhaDoProduto key={p.id} p={p} medidas={unidadesDoProduto(p.id, unidades, p.unit)} lines={rascunho.lines} ajustes={ajustes} calculo={calculo} ultimo={i === produtos.length - 1} onQtd={setQtd} onAjuste={setAjuste} somenteLeitura={somenteLeitura} />
+        <LinhaDoProduto key={p.id} p={p} medidas={unidadesDoProduto(p.id, unidades, p.unit)} lines={rascunho.lines} ajustes={ajustes} calculo={calculo} ultimo={i === produtos.length - 1} onQtd={setQtd} onAjuste={setAjuste} onTrocarMedida={trocarMedida} somenteLeitura={somenteLeitura} />
       ))}
     </Card>
   );
@@ -134,6 +172,7 @@ function LinhaDoProduto({
   ultimo,
   onQtd,
   onAjuste,
+  onTrocarMedida,
   somenteLeitura,
 }: {
   p: Product;
@@ -144,43 +183,77 @@ function LinhaDoProduto({
   ultimo: boolean;
   onQtd: (chave: string, q: number) => void;
   onAjuste: (chave: string, a: Ajuste) => void;
+  onTrocarMedida: (tr: { de: string; para: string; rotuloPara: string; voltar: () => void }) => void;
   somenteLeitura?: boolean;
 }) {
   const semPreco = p.price_cents === null;
+  const chaves = medidas.map((m, idx) => chaveDaLinha(p.id, idx === 0 ? null : m.unidade));
+  const rotulos = medidas.map((m) => rotuloMedida(m.unidade, m.fator));
+  const qtds = chaves.map((ch) => lines[ch] ?? 0);
+  const [escolhida, setEscolhida] = useState<number | null>(null);
+  const visiveis = medidasVisiveis(qtds, escolhida);
+  const unica = visiveis.length === 1 ? visiveis[0]! : null;
+  const idxComQtd = qtds.findIndex((q) => q > 0);
+  // a medida em uso (a que tem quantidade) vira a escolhida: se a quantidade zerar, a linha não volta para a principal
+  useEffect(() => {
+    if (unica !== null && idxComQtd >= 0) setEscolhida(unica);
+  }, [unica, idxComQtd]);
+  const kDe = (idx: number) => p.erp_code + (medidas.length > 1 ? `-${rotulos[idx]!.split(' ')[0]}` : '');
+  const chipDe = (idx: number, tocavel: boolean) => {
+    const prox = proximaMedida(idx, medidas.length);
+    return tocavel ? (
+      <ChipMedida
+        testID={`medida-${kDe(idx)}`}
+        rotulo={rotulos[idx]!}
+        rotuloAcessivel={`Medida ${rotulos[idx]}, tocar para trocar por ${rotulos[prox]}`}
+        onPress={() => {
+          setEscolhida(prox);
+          if (qtds[idx]! > 0) onTrocarMedida({ de: chaves[idx]!, para: chaves[prox]!, rotuloPara: rotulos[prox]!, voltar: () => setEscolhida(idx) });
+        }}
+      />
+    ) : (
+      <ChipMedida testID={`medida-${kDe(idx)}`} rotulo={rotulos[idx]!} />
+    );
+  };
+  const tocavel = medidas.length > 1 && unica !== null && !somenteLeitura;
   return (
     <View style={[s.produto, !ultimo && s.divisor]} testID={`product-${p.erp_code}`}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
           <Text style={t.mono}>{p.erp_code}</Text>
           <Text style={t.bodyStrong}>{p.description}</Text>
           {p.applications ? <Text style={t.small}>{p.applications}</Text> : null}
         </View>
-        {p.is_campaign ? <Badge label="Campanha" tone="accent" /> : null}
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          {unica !== null ? chipDe(unica, tocavel) : null}
+          {p.is_campaign ? <Badge label="Campanha" tone="accent" /> : null}
+        </View>
       </View>
       {semPreco ? (
         <Text style={[t.smallStrong, { color: colors.danger }]} testID={`sem-preco-${p.erp_code}`}>
           Sem preço para este cliente
         </Text>
       ) : null}
-      {medidas.map((m, idx) => {
-        const chave = chaveDaLinha(p.id, idx === 0 ? null : m.unidade);
-        const qtd = lines[chave] ?? 0;
+      {visiveis.map((idx) => {
+        const m = medidas[idx]!;
+        const chave = chaves[idx]!;
         const linha = calculo.linhas.find((l) => l.chave === chave);
         const precoMedida = semPreco ? null : (p.price_cents ?? 0) * m.fator;
         return (
           <MedidaDoItem
             key={chave}
             p={p}
-            rotulo={rotuloMedida(m.unidade, m.fator)}
+            rotulo={rotulos[idx]!}
+            chip={unica === null ? chipDe(idx, false) : null}
             preco={precoMedida}
-            qtd={qtd}
+            qtd={qtds[idx]!}
             linha={linha ?? null}
             totalLinha={linha?.total_cents ?? null}
             ajuste={ajustes[chave] ?? {}}
             onQtd={(q) => onQtd(chave, q)}
-            onAjuste={(a) => onAjuste(chave, a)}
+            onAjuste={(aj) => onAjuste(chave, aj)}
             somenteLeitura={somenteLeitura}
-            comRotulo={medidas.length > 1}
+            k={kDe(idx)}
           />
         );
       })}
@@ -191,6 +264,7 @@ function LinhaDoProduto({
 function MedidaDoItem({
   p,
   rotulo,
+  chip,
   preco,
   qtd,
   linha,
@@ -199,10 +273,12 @@ function MedidaDoItem({
   onQtd,
   onAjuste,
   somenteLeitura,
-  comRotulo,
+  k,
 }: {
   p: Product;
   rotulo: string;
+  /** chip da medida na linha (só quando o produto tem duas medidas com quantidade; senão fica no alto do produto) */
+  chip: ReactNode;
   preco: number | null;
   qtd: number;
   linha: CalculoPedido['linhas'][number] | null;
@@ -211,17 +287,17 @@ function MedidaDoItem({
   onQtd: (q: number) => void;
   onAjuste: (a: Ajuste) => void;
   somenteLeitura?: boolean;
-  comRotulo: boolean;
+  k: string;
 }) {
   const [texto, setTexto] = useState(String(qtd));
+  const focado = useRef(false);
   const modo: 'pct' | 'valor' = ajuste.em === 'valor' ? 'valor' : 'pct';
   const sentido: 'desconto' | 'acrescimo' = modo === 'valor' ? ((ajuste.acrescimo_cents ?? 0) > 0 ? 'acrescimo' : 'desconto') : (ajuste.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
   const valorPct = sentido === 'acrescimo' ? (ajuste.acrescimo_pct ?? 0) : (ajuste.desconto_pct ?? 0);
   const valorCents = sentido === 'acrescimo' ? (ajuste.acrescimo_cents ?? 0) : (ajuste.desconto_cents ?? 0);
   const temAjuste = (modo === 'valor' ? valorCents : valorPct) > 0;
   const [aberto, setAberto] = useState(temAjuste);
-  useEffect(() => setTexto(String(qtd)), [qtd]);
-  const k = p.erp_code + (comRotulo ? `-${rotulo.split(' ')[0]}` : '');
+  useEffect(() => setTexto((atual) => textoAposMudancaDoValor({ texto: atual, valor: qtd, focado: focado.current, pendente: valorPendenteQuantidade, formatar: String })), [qtd]);
   const gravar = (s2: 'desconto' | 'acrescimo', m: 'pct' | 'valor', v: number): Ajuste =>
     m === 'valor' ? { em: 'valor', ...(s2 === 'acrescimo' ? { acrescimo_cents: v } : { desconto_cents: v }) } : { em: 'pct', ...(s2 === 'acrescimo' ? { acrescimo_pct: v } : { desconto_pct: v }) };
   const tetoDesconto = sentido === 'desconto' && modo === 'valor' && preco !== null ? preco : undefined;
@@ -231,7 +307,7 @@ function MedidaDoItem({
     <View style={{ gap: 6 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <ChipMedida testID={`medida-${k}`} rotulo={rotulo} />
+          {chip}
           <Text style={t.smallStrong} numberOfLines={1} testID={`preco-${k}`}>
             {preco === null ? '' : linha && qtd > 0 ? textoPrecoDaLinha(linha) : formatBRL(preco)}
           </Text>
@@ -244,10 +320,23 @@ function MedidaDoItem({
             <TextInput
               testID={`qty-${k}`}
               value={texto}
-              onChangeText={(v) => setTexto(v.replace(/\D/g, ''))}
-              onBlur={() => onQtd(Number(texto || 0))}
-              onSubmitEditing={() => onQtd(Number(texto || 0))}
+              onChangeText={(v) => {
+                const limpo = v.replace(/\D/g, '');
+                setTexto(limpo);
+                const n = valorPendenteQuantidade(limpo);
+                if (n !== null) onQtd(n);
+              }}
+              onFocus={() => {
+                focado.current = true;
+              }}
+              onBlur={() => {
+                focado.current = false;
+                const n = valorPendenteQuantidade(texto) ?? 0;
+                setTexto(String(n));
+                onQtd(n);
+              }}
               keyboardType="number-pad"
+              returnKeyType="done"
               selectTextOnFocus
               accessibilityLabel={`Quantidade de ${nome}`}
               style={s.qtd}
@@ -263,7 +352,7 @@ function MedidaDoItem({
               <Text style={t.small}>{temAjuste ? `${sentido === 'acrescimo' ? 'Acréscimo' : 'Desconto'} ${eq}`.trim() : ''}</Text>
             ) : (
               <Pressable testID={`ajuste-${k}`} accessibilityRole="button" accessibilityLabel={`Desconto ou acréscimo do item ${nome}`} onPress={() => setAberto((a) => !a)} style={s.linkAjuste}>
-                <Text style={[t.smallStrong, { color: colors.accentInk }]} testID={`equivalente-${k}`}>
+                <Text style={[t.smallStrong, { color: !temAjuste ? colors.accentInk : sentido === 'acrescimo' ? colors.ink2 : colors.success }]} testID={`equivalente-${k}`}>
                   {temAjuste ? eq || (sentido === 'acrescimo' ? 'Acréscimo' : 'Desconto') : '+ desconto'}
                 </Text>
               </Pressable>

@@ -67,9 +67,9 @@ export function seloDoOrcamento(e: { situacao: SituacaoOrcamento; validade_data:
 }
 
 /** RN-VEN-13 / RN-CORE-17: situação do cliente (linha do sync) para a folha do Salvar. Não achou no aparelho = só orçamento. */
-export function situacaoDoClienteSync(c: { ativo?: boolean; cadastro_incompleto?: boolean; cadastro_campos_faltantes?: readonly string[] } | null | undefined): SituacaoCliente {
+export function situacaoDoClienteSync(c: { ativo?: boolean; cadastro_incompleto?: boolean; cadastro_campos_faltantes?: readonly string[] } | null | undefined, financeiro?: { bloqueado?: boolean } | null): SituacaoCliente {
   if (!c) return { ativo: false, bloqueado: false, cadastro_incompleto: false, campos_faltantes: [] };
-  return { ativo: c.ativo !== false, bloqueado: false, cadastro_incompleto: c.cadastro_incompleto === true, campos_faltantes: c.cadastro_campos_faltantes ?? [] };
+  return { ativo: c.ativo !== false, bloqueado: financeiro?.bloqueado === true, cadastro_incompleto: c.cadastro_incompleto === true, campos_faltantes: c.cadastro_campos_faltantes ?? [] };
 }
 
 /** Item compacto do Resumo: "Água mineral 500 ml · 3 FD". */
@@ -212,4 +212,15 @@ export function textoBuscaSemResultado(busca: string): { titulo: string; texto: 
 /** Aviso do rodapé depois de tocar numa sugestão (com Desfazer). */
 export function avisoSugestaoAdicionada(nome: string, troca: boolean): string {
   return troca ? `Trocado por ${nome}` : `${nome} adicionado`;
+}
+
+/** Níveis da trilha do catálogo (V3): linha e marca do último item; sem item, um só nível "Catálogo" que abre o catálogo do pedido. */
+export function niveisDaTrilha(p: { line?: string | null; brand?: string | null } | null): Array<{ id: string; rotulo: string }> {
+  const niveis = p ? [p.line, p.brand].map((x) => x?.trim()).filter((x): x is string => Boolean(x)) : [];
+  return niveis.length > 0 ? niveis.map((rotulo, i) => ({ id: `nivel-${i}`, rotulo })) : [{ id: 'catalogo', rotulo: 'Catálogo' }];
+}
+
+/** Aviso do rodapé no detalhe, depois de salvar um orçamento (V8): com sinal o número; sem sinal, que ficou no aparelho. */
+export function avisoDoOrcamentoSalvo(numero: string | null): string {
+  return numero ? `Orçamento ${numero} salvo` : textoDoAviso(avisoSalvoNoAparelho('orcamento').titulo);
 }

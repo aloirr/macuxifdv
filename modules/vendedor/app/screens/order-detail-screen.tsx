@@ -7,7 +7,7 @@ import { formatBRL, formatPct, formatarDocumento } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Banner, Botao, Button, Card, colors, dateTimeLabel, EstadoVazio, fonts, Folha, Icon, LinhaValor, Loading, OpcaoFolha, SectionHeader, Selo, type as t } from '@macuxi/ui/mobile';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactElement } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,7 +28,7 @@ import { orderNote, statusBadge } from '../lib/order-status';
 import { exportPdf } from '../lib/pdf-export';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { acoesNaTela, rotuloDoDocumento, situacaoNaTela, validadeCivilDoDocumento } from '../lib/pre-venda';
-import { estadoDoDetalheAusente, folhaDoTransformar, ROTULO_TENTAR_DE_NOVO, seloDoOrcamento, textoNaoFoiAceito } from '../lib/textos-pedido';
+import { estadoDoDetalheAusente, folhaDoTransformar, itemCompacto, linhaDeEntrega, linhaDoAjusteSomenteLeitura, ROTULO_TENTAR_DE_NOVO, seloDoOrcamento, textoNaoFoiAceito } from '../lib/textos-pedido';
 import { validadeOrcamentoDias } from '../../domain/orcamento';
 import { hrefPedidos, irParaNovoPedido, irParaPedido, irParaPedidos } from '../rotas';
 import { useVendedor } from '../state/use-vendedor';
@@ -335,16 +335,100 @@ export default function OrderDetailScreen() {
     }
   };
 
+  // V6 (tela 5 da referência): um só cartão com os itens compactos, o ajuste do pedido, o Total e "CIF · 28 dias"; os botões logo abaixo
+  const ajusteOrc = linhaDoAjusteSomenteLeitura(surchargePct > 0 ? { sentido: 'acrescimo', cents: Math.max(0, total - subtotal), pct_exibicao: surchargePct } : discount > 0 ? { sentido: 'desconto', cents: discount, pct_exibicao: discountPct } : null);
+  const modalidadeOrc = queued ? (queued.payload.frete?.modalidade ?? null) : (base?.freight?.modality ?? null);
+  const entregaOrc = modalidadeOrc ? linhaDeEntrega({ modalidade: modalidadeOrc, prazo: terms, endereco: null }) : terms;
+  const vencido = ehOrc && situacaoOrc === 'expirado';
   const mostrarEditar = ehOrc ? Boolean(acoesOrc?.pode_editar) : true;
   const mostrarDuplicar = ehOrc ? Boolean(acoesOrc?.pode_duplicar) : true;
   const mostrarPdf = ehOrc ? Boolean(acoesOrc?.pode_pdf) : true;
   const mostrarCancelar = ehOrc ? Boolean(acoesOrc?.pode_cancelar) : true;
+  const filaDeBotoes = (itens: Array<ReactElement | false | null>, testID: string) => {
+    const presentes = itens.filter((x): x is ReactElement => Boolean(x));
+    return presentes.length > 0 ? (
+      <View style={styles.actionsRow} testID={testID}>
+        {presentes}
+      </View>
+    ) : null;
+  };
+  const botaoEditar = mostrarEditar && ehVendedor ? <Botao key="editar" testID="pedido-editar" rotulo="Editar" icone="edit" alto style={{ flex: 1 }} desligado={!canEdit || busy !== null} ocupado={busy === 'edit'} onPress={() => void startDraft('edit')} /> : null;
+  const botaoPdf = mostrarPdf ? (
+    <Botao
+      key="pdf"
+      testID="action-pdf"
+      rotulo="PDF"
+      icone="file"
+      alto
+      style={{ flex: 1 }}
+      desligado={!hasLines}
+      onPress={() => {
+        setSheetError(null);
+        setSheet('pdf');
+      }}
+    />
+  ) : null;
+  const botaoDuplicar =
+    mostrarDuplicar && ehVendedor ? (
+      <Botao
+        key="duplicar"
+        testID="pedido-duplicar"
+        rotulo="Duplicar"
+        icone="copy"
+        nivel={vencido ? 'principal' : 'neutro'}
+        alto={!vencido}
+        style={vencido ? undefined : { flex: 1 }}
+        desligado={!ehVendedor || !podeCriar || !podeDuplicarDoc || !hasLines || busy !== null}
+        ocupado={busy === 'duplicate'}
+        onPress={() => void startDraft('duplicate')}
+      />
+    ) : null;
+  const botaoCancelarOrc = mostrarCancelar ? (
+    <Botao
+      key="cancelar"
+      testID="pedido-excluir"
+      rotulo="Cancelar orçamento"
+      icone="trash"
+      nivel="perigo"
+      alto
+      style={{ flex: 1 }}
+      desligado={!podeExcluirDoc}
+      onPress={() => {
+        setSheetError(null);
+        setSheet('delete');
+      }}
+    />
+  ) : null;
+  const blocoOrcamento = somenteLeitura ? null : (
+    <View style={{ gap: 10 }} testID="order-actions">
+      {acoesOrc?.pode_converter && !queued ? (
+        <Botao testID="orcamento-converter" rotulo="Transformar em pedido" icone="send" nivel="principal" desligado={!podeCriar || !hasLines || busy !== null} ocupado={busy === 'convert'} onPress={() => void transformar()} />
+      ) : null}
+      {vencido ? botaoDuplicar : null}
+      {filaDeBotoes([botaoEditar, botaoPdf], 'orcamento-fila-1')}
+      {vencido ? null : filaDeBotoes([botaoDuplicar, botaoCancelarOrc], 'orcamento-fila-2')}
+      {acoesOrc?.texto ? <Text style={t.small}>{acoesOrc.texto}</Text> : null}
+      {lockedReason ? (
+        <View style={styles.locked}>
+          <Icon name="lock" size={14} color={colors.ink3} />
+          <Text style={[t.small, { flex: 1 }]} testID="order-locked-reason">
+            {lockedReason}
+          </Text>
+        </View>
+      ) : null}
+      {actionError ? (
+        <Text style={[t.small, { color: colors.danger }]} testID="order-action-error">
+          {actionError}
+        </Text>
+      ) : null}
+    </View>
+  );
   const blocoAcoes = (
     <>
       {/* RN-PRO-01: sem permissão de escrita, nenhuma ação renderiza */}
       {somenteLeitura ? null : (
     <View style={{ gap: 8 }} testID="order-actions">
-      {ehOrc ? null : <SectionHeader title="Ações" />}
+      <SectionHeader title="Ações" />
       <Card style={{ padding: 14, gap: 10 }}>
         {ehOrc && acoesOrc?.pode_converter && !queued ? (
           <Botao
@@ -440,7 +524,7 @@ export default function OrderDetailScreen() {
         </Text>
         <Text style={t.sub}>{sellerNameHeader ? `${customerName} · ${sellerNameHeader}` : customerName}</Text>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-          {selo ? <Selo testID="orcamento-selo" texto={selo.texto} tom={selo.tom} tamanho="m" pilula /> : ehOrc ? <Badge label={rotuloDoDocumento(doc, agoraTela)} tone="neutral" /> : null}
+          {selo ? <Selo testID="orcamento-selo" texto={selo.texto} tom={selo.tom} tamanho="m" pilula /> : ehOrc ? <Selo testID="orcamento-selo" texto={rotuloDoDocumento(doc, agoraTela)} tom="neutro" tamanho="m" pilula /> : null}
           {ehOrc && !queued ? null : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
           {base && !queued && base.erp_order_code ? <Badge label={`ERP ${base.erp_order_code}`} tone="neutral" /> : null}
         </View>
@@ -457,16 +541,33 @@ export default function OrderDetailScreen() {
         </View>
       ) : null}
 
+      {ehOrc ? (
+        <>
+          <Card style={{ padding: 14, gap: 8 }} testID="orcamento-resumo">
+            {lines.length === 0 ? <Text style={t.sub}>{TEXTO_SEM_ITENS}</Text> : null}
+            {lines.map((l) => (
+              <LinhaValor key={l.key} forte rotulo={itemCompacto(l.description, l.quantity, l.unit_label || 'UN')} valor={formatBRL(l.total_cents)} />
+            ))}
+            {ajusteOrc ? <LinhaValor rotulo={ajusteOrc.rotulo} valor={ajusteOrc.valor} /> : null}
+            <LinhaValor destaque divisor rotulo="Total" valor={formatBRL(total)} testID="orcamento-total" />
+            <Text style={t.small} testID="orcamento-entrega">
+              {entregaOrc}
+            </Text>
+          </Card>
+          {blocoOrcamento}
+        </>
+      ) : (
       <Card style={{ padding: 14, gap: 6 }}>
-        <Row label={ehOrc ? 'Total dos itens' : 'Subtotal'} value={formatBRL(subtotal)} />
-        {surchargePct > 0 ? <Row label={`Acréscimo do pedido ${formatPct(surchargePct)}`} value={`+ ${formatBRL(Math.max(0, total - subtotal))}`} /> : discount > 0 ? <Row label={ehOrc ? `Desconto do pedido (${formatPct(discountPct)})` : `Desconto ${formatPct(discountPct)}`} value={`− ${formatBRL(discount)}`} /> : null}
+        <Row label="Subtotal" value={formatBRL(subtotal)} />
+        {surchargePct > 0 ? <Row label={`Acréscimo do pedido ${formatPct(surchargePct)}`} value={`+ ${formatBRL(Math.max(0, total - subtotal))}`} /> : discount > 0 ? <Row label={`Desconto ${formatPct(discountPct)}`} value={`− ${formatBRL(discount)}`} /> : null}
         {effectivePct !== null ? <Row label="Desconto efetivo (sem frete)" value={formatPct(effectivePct)} /> : null}
         <Row label={`Total · prazo ${terms}`} value={formatBRL(total)} strong />
         {base && !queued && base.branch_name ? <Row label="Filial" value={base.branch_name} /> : null}
         {!queued && detail?.price_table_name ? <Row label="Tabela de preço" value={detail.price_table_name} /> : null}
       </Card>
+      )}
 
-      {freteTexto || enderecoTexto ? (
+      {!ehOrc && (freteTexto || enderecoTexto) ? (
         <Card style={{ padding: 14, gap: 6 }} testID="order-delivery">
           {freteTexto ? <Row label="Frete" value={freteTexto} /> : null}
           {enderecoTexto ? <Row label="Entrega em" value={enderecoTexto} /> : null}
@@ -510,6 +611,7 @@ export default function OrderDetailScreen() {
         </Card>
       ) : null}
 
+      {ehOrc ? null : (
       <View style={{ gap: 8 }}>
         <SectionHeader title="Itens" right={lines.length > 0 ? `${lines.length} ${lines.length === 1 ? 'item' : 'itens'}` : undefined} />
         <Card>
@@ -530,8 +632,7 @@ export default function OrderDetailScreen() {
           ))}
         </Card>
       </View>
-
-      {ehOrc ? blocoAcoes : null}
+      )}
 
       <View style={{ gap: 8 }}>
         <SectionHeader title="Histórico" />

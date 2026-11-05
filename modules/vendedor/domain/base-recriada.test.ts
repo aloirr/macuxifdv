@@ -1,23 +1,8 @@
 /** T-0079: base recriada no servidor. O que o aparelho preserva antes de apagar a cópia local. Funções puras. */
 import { describe, expect, it } from 'vitest';
-import { baseFoiRecriada, chavesAApagarNaBaseRecriada, planoBaseRecriada, type ItemDaFila } from './base-recriada';
+import { chavesAApagarNaBaseRecriada, planoBaseRecriada, type ItemDaFila } from './base-recriada';
 
 const item = (id: string, entidade: string, situacao: ItemDaFila['situacao'] = 'pendente'): ItemDaFila => ({ id, entidade, situacao });
-
-describe('RN-CORE-23: detectar base recriada (geracao_base)', () => {
-  it('geração igual não recria', () => {
-    expect(baseFoiRecriada('g1', 'g1')).toBe(false);
-  });
-  it('geração diferente recria', () => {
-    expect(baseFoiRecriada('g1', 'g2')).toBe(true);
-  });
-  it('app antigo / servidor antigo sem o campo: nada muda', () => {
-    expect(baseFoiRecriada(null, 'g2')).toBe(false); // primeira vez: só memoriza
-    expect(baseFoiRecriada('g1', null)).toBe(false);
-    expect(baseFoiRecriada(undefined, undefined)).toBe(false);
-    expect(baseFoiRecriada('g1', '')).toBe(false);
-  });
-});
 
 describe('RN-CORE-23: base recriada preserva a fila de pedidos e orçamentos não enviados', () => {
   it('pedidos pendentes e com falha ficam na fila; nenhum se perde', () => {

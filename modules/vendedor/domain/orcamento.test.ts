@@ -54,7 +54,9 @@ describe('RN-VEN-32: validade do orçamento', () => {
   it('RN-VEN-18: ações por situação (converter e cancelar só no aberto; vencido só duplica; duplicar sempre)', () => {
     expect(acoesDoOrcamento('aberto')).toMatchObject({ pode_converter: true, pode_cancelar: true, pode_duplicar: true });
     expect(acoesDoOrcamento('expirado')).toMatchObject({ pode_converter: false, pode_cancelar: false, pode_duplicar: true }); // RN-VEN-18: o vencido não se cancela
-    expect(acoesDoOrcamento('expirado').texto).toMatch(/vencido/i);
+    // V14 (T-0071): o selo "Vencido" já diz o motivo; a tela não repete a explicação
+    expect(acoesDoOrcamento('expirado').texto).toBe('');
+    expect(acoesDoOrcamento('convertido').texto).toBe('');
     expect(acoesDoOrcamento('convertido')).toMatchObject({ pode_converter: false, pode_cancelar: false });
     expect(acoesDoOrcamento('cancelado')).toMatchObject({ pode_converter: false, pode_cancelar: false });
   });

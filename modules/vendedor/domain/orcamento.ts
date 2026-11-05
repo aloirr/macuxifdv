@@ -67,10 +67,10 @@ export const SITUACOES_ORCAMENTO = ['aberto', 'expirado', 'convertido', 'cancela
 export type SituacaoOrcamento = (typeof SITUACOES_ORCAMENTO)[number];
 
 export const SITUACAO_ORCAMENTO_LABEL: Record<SituacaoOrcamento, string> = {
-  aberto: 'Orçamento aberto',
-  expirado: 'Orçamento expirado',
-  convertido: 'Convertido em pedido',
-  cancelado: 'Orçamento cancelado',
+  aberto: 'Orçamento',
+  expirado: 'Vencido',
+  convertido: 'Virou pedido',
+  cancelado: 'Cancelado',
 };
 
 export interface OrcamentoEstado {
@@ -104,9 +104,9 @@ export function acoesDoOrcamento(s: SituacaoOrcamento): AcoesOrcamento {
     case 'aberto':
       return { pode_converter: true, pode_editar: true, pode_cancelar: true, pode_duplicar: true, pode_pdf: true, texto: '' };
     case 'expirado':
-      return { pode_converter: false, pode_editar: false, pode_cancelar: false, pode_duplicar: true, pode_pdf: true, texto: 'Orçamento vencido. Duplique para fazer um novo com o preço de hoje.' };
+      return { pode_converter: false, pode_editar: false, pode_cancelar: false, pode_duplicar: true, pode_pdf: true, texto: '' };
     case 'convertido':
-      return { pode_converter: false, pode_editar: false, pode_cancelar: false, pode_duplicar: true, pode_pdf: true, texto: 'Este orçamento já virou pedido.' };
+      return { pode_converter: false, pode_editar: false, pode_cancelar: false, pode_duplicar: true, pode_pdf: true, texto: '' };
     case 'cancelado':
       return { pode_converter: false, pode_editar: false, pode_cancelar: false, pode_duplicar: true, pode_pdf: false, texto: 'Orçamento cancelado.' };
   }

@@ -49,3 +49,7 @@
 2026-11-05 — T-0079 — lote A: tirado eslint-disable inexistente em orders-screen.tsx; listagem-periodo.test.ts atualizado para a regra por pedido_evento
 2026-11-05 — T-0024 — credito/historico no aprovacao_solicitada@1, conferirEventosPublicados, consumo de integracao.* pelo contracts do dono com leitura tolerante
 2026-11-05 — T-0077 — V3 (PedidosPage.parse) e V4 (aviso de 1.000 mais recentes) em orders-screen.tsx
+2026-11-05 — T-0077/T-0079 — recados de revisão encerrados (D1, V1, UX já no main; removida baseFoiRecriada)
+2026-11-05 — T-0071 — conferência da fatia 6: nenhum código novo necessário no Vendedor (vitest 675/675 fora dos db.test, eslint e tsc json/app verdes); restam integração do orçamento e APK
+2026-11-05 — T-0071 — correções do testes: RN-VEN-13 (bloqueado na API e no aparelho), RN-VEN-20 (saldo local na reconferência), rótulo 'Vencido'; preço mínimo (RN-VEN-11) aguarda campos do Core (reforço enviado)
+2026-11-05 — T-0071 — V1 a V9 da revisão (teclado Android edge-to-edge, valor pendente, busca antes da trilha, chip de medida por linha, equivalente verde, detalhe do orçamento = tela 5, Vencido na lista, replace após salvar, FlatList em Pedidos): vitest 693 verdes, eslint e tsc (json, web, app) limpos; aguarda conferência no APK

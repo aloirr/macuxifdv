@@ -65,6 +65,10 @@ describe('situacaoDoClienteSync (RN-VEN-13 / RN-CORE-17)', () => {
   it('RN-CORE-17: cadastro incompleto leva os campos que faltam', () => {
     expect(situacaoDoClienteSync({ ativo: true, cadastro_incompleto: true, cadastro_campos_faltantes: ['CEP'] })).toMatchObject({ cadastro_incompleto: true, campos_faltantes: ['CEP'] });
   });
+  it('RN-VEN-13: cliente bloqueado no financeiro só faz orçamento (pedido recusado)', () => {
+    expect(situacaoDoClienteSync({ ativo: true }, { bloqueado: true }).bloqueado).toBe(true);
+    expect(situacaoDoClienteSync({ ativo: true }, { bloqueado: false }).bloqueado).toBe(false);
+  });
   it('RN-VEN-13: cliente não encontrado no aparelho conta como inativo (só orçamento)', () => {
     expect(situacaoDoClienteSync(null).ativo).toBe(false);
   });
@@ -95,5 +99,23 @@ describe('Resumo: item compacto, linha de entrega e totais (referência enxuta)'
     const f = textoDaFaixa({ desconto_efetivo_pct: 4.65, desconto_efetivo_exibicao_pct: 4.6, nivel: null, bloqueado: false }, 5);
     expect(f?.texto.replace(/\s/g, ' ')).toBe('4,6% · dentro da alçada');
     expect(f?.tom).toBe('ok');
+  });
+});
+
+describe('trilha do catálogo e aviso do orçamento salvo (T-0071 V3 e V8)', () => {
+  it('V3: a trilha tem a linha e a marca do último item; sem item, um só nível Catálogo', async () => {
+    const { niveisDaTrilha } = await import('./textos-pedido');
+    expect(niveisDaTrilha({ line: 'Mercearia', brand: 'Bebidas' })).toEqual([
+      { id: 'nivel-0', rotulo: 'Mercearia' },
+      { id: 'nivel-1', rotulo: 'Bebidas' },
+    ]);
+    expect(niveisDaTrilha({ line: ' ', brand: null })).toEqual([{ id: 'catalogo', rotulo: 'Catálogo' }]);
+    expect(niveisDaTrilha(null)).toEqual([{ id: 'catalogo', rotulo: 'Catálogo' }]);
+  });
+
+  it('RN-VEN-18 V8: o aviso do orçamento salvo traz o número com sinal e "salvo no aparelho" sem sinal, sem ponto final', async () => {
+    const { avisoDoOrcamentoSalvo } = await import('./textos-pedido');
+    expect(avisoDoOrcamentoSalvo('000012')).toBe('Orçamento 000012 salvo');
+    expect(avisoDoOrcamentoSalvo(null)).toBe('Orçamento salvo no aparelho');
   });
 });

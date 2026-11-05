@@ -5,8 +5,8 @@
  * Offline-first: tudo daqui nasce das linhas guardadas no aparelho.
  */
 import type { LinhaSync } from '@macuxi/platform-sdk';
-import type { ClienteEnderecoSync, ClienteSync, CustomerSummary, Me, ProdutoSync, ProdutoUnidadeSync } from '@macuxi/core/contracts';
-import type { ClienteTabelaPrecoSync, Product, TabelaPrecoSync } from '@macuxi/catalogo/contracts';
+import type { ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, CustomerSummary, Me, ProdutoSync, ProdutoUnidadeSync } from '@macuxi/core/contracts';
+import type { ClienteTabelaPrecoSync, EstoqueSaldoSync, Product, TabelaPrecoSync } from '@macuxi/catalogo/contracts';
 import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from '../../contracts';
 import type { CondicaoPagamentoSync, ClienteCondicaoSync, PedidoEventoSync, PedidoItemSync, PedidoSync } from '../../contracts/sync';
 import type { TransportadoraSync } from '../../contracts/frete';
@@ -30,9 +30,13 @@ export interface LinhasVendedor {
   enderecos: ClienteEnderecoSync[];
   transportadoras: TransportadoraSync[];
   tabelasPreco: TabelaPrecoSync[];
+  /** RN-VEN-13: situação financeira do cliente (bloqueado) vinda do pull do Core; ausente = sem bloqueio conhecido */
+  financeiros?: ClienteFinanceiroSync[];
+  /** RN-VEN-20: saldo por depósito (catálogo); produto sem linha = estoque não controlado */
+  saldos?: EstoqueSaldoSync[];
 }
 
-export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [] };
+export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [], financeiros: [], saldos: [] };
 
 /** O que o motor oferece para ler as linhas locais (subconjunto estrutural de `MotorSync`). */
 export interface LeitorDeLinhas {
@@ -43,7 +47,7 @@ const vivas = <T extends { deleted_at: string | null }>(l: T[]): T[] => l.filter
 
 export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> {
   const ler = async <T extends LinhaSync>(e: string): Promise<T[]> => vivas(await motor.linhas<T>(e));
-  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco] = await Promise.all([
+  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos] = await Promise.all([
     ler<PedidoSync>('pedido'),
     ler<PedidoItemSync>('pedido_item'),
     ler<PedidoEventoSync>('pedido_evento'),
@@ -56,8 +60,10 @@ export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> 
     ler<ClienteEnderecoSync>('cliente_endereco'),
     ler<TransportadoraSync>('transportadora'),
     ler<TabelaPrecoSync>('tabela_preco'),
+    ler<ClienteFinanceiroSync>('cliente_financeiro'),
+    ler<EstoqueSaldoSync>('estoque_saldo'),
   ]);
-  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco };
+  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos };
 }
 
 // ---------- alçada e usuário ----------
@@ -138,7 +144,7 @@ export function listaDeClientes(l: LinhasVendedor, vendedor: { id: string; name:
 export const ESTOQUE_NAO_CONTROLADO = 1_000_000;
 
 /** Produto do seletor com o preço da tabela do cliente (`null` = "Sem preço para este cliente", RN-CAT-06). */
-export function produtoComPreco(p: ProdutoSync, precoCents: number | null): Product {
+export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldoBase: number | null = null): Product {
   return {
     id: p.id,
     erp_code: p.sku,
@@ -152,15 +158,23 @@ export function produtoComPreco(p: ProdutoSync, precoCents: number | null): Prod
     applications: '',
     is_campaign: false,
     price_cents: precoCents,
-    stock_total: ESTOQUE_NAO_CONTROLADO,
+    stock_total: saldoBase ?? ESTOQUE_NAO_CONTROLADO,
     stock: [],
   };
 }
 
+/** RN-VEN-20: soma dos depósitos por produto (unidade base); produto sem linha de saldo fica de fora = não controlado. */
+export function saldoPorProduto(saldos: readonly EstoqueSaldoSync[] | undefined): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const s of saldos ?? []) if (!(s as { deleted_at?: string | null }).deleted_at) m.set(s.produto_id, (m.get(s.produto_id) ?? 0) + Number(s.quantidade));
+  return m;
+}
+
 export function produtosComPrecos(l: LinhasVendedor, precos: ReadonlyMap<string, number | null>): Product[] {
+  const saldos = saldoPorProduto(l.saldos);
   return l.produtos
     .filter((p) => p.ativo)
-    .map((p) => produtoComPreco(p, precos.get(p.id) ?? null))
+    .map((p) => produtoComPreco(p, precos.get(p.id) ?? null, saldos.get(p.id) ?? null))
     .sort((a, b) => a.description.localeCompare(b.description, 'pt-BR'));
 }
 

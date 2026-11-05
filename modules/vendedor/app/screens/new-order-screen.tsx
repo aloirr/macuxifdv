@@ -1,5 +1,5 @@
 /**
- * Novo pedido de distribuidora (T-0061), em 3 abas: Itens, Condições e Entrega e resumo, com o total fixo no rodapé.
+ * Novo pedido de distribuidora (T-0061/T-0071), em 3 abas: Itens, Detalhes e Resumo, com o total fixo no rodapé.
  * Preço da tabela do cliente, medidas (UN/CX), endereços e transportadoras vêm das linhas locais (funciona sem sinal).
  * Preço, desconto e acréscimo por item e por pedido, desconto efetivo e alçada: domain de preço (`lib/novo-pedido`), a mesma
  * regra que a API revalida. Frete CIF/FOB sem valor (RN-VEN-16); endereço de entrega do cadastro (RN-VEN-17).
@@ -8,20 +8,21 @@
  */
 import { formatBRL } from '@macuxi/comum';
 import { useAmbiente, usePode } from '@macuxi/platform-sdk/react';
-import { Abas, AvisoRodape, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, formatHHMM, Icon, Loading, radius, RodapeTotal, Screen, Strong, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
+import { Abas, AvisoRodape, BackLink, Badge, Banner, Botao, Card, CampoBusca, colors, EstadoVazio, fonts, formatHHMM, Icon, Loading, radius, RodapeTotal, Screen, Strong, Trilha, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
 import { opcoesDoSalvar, validadeDoOrcamento, validadeOrcamentoDias } from '../../domain/orcamento';
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
+import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { ListaDeItens, PendenciasDoPedido } from '../components/novo-pedido';
 import { AbaDetalhes, AbaResumo, CardFreteEPrazo, DialogoDescartar, FolhaSalvar } from '../components/novo-pedido-abas';
 import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
-import { abasDoPedido, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, nomeDaSugestao, textoBuscaSemResultado, trilhaDoProduto, type AbaNovoPedido } from '../lib/textos-pedido';
+import { abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, niveisDaTrilha, nomeDaSugestao, textoBuscaSemResultado, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
@@ -148,6 +149,16 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const [aba, setAba] = useState<AbaNovoPedido>('itens');
   const [salvarAberto, setSalvarAberto] = useState(false);
   const [descartarAberto, setDescartarAberto] = useState(false);
+  // V1: o campo com foco fica acima do teclado (Android edge-to-edge); V13: o voltar do Android volta uma aba
+  const rolagem = useCampoAcimaDoTeclado();
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sent || aba === 'itens' || salvarAberto || descartarAberto) return false;
+      setAba(aba === 'resumo' ? 'detalhes' : 'itens');
+      return true;
+    });
+    return () => sub.remove();
+  }, [aba, sent, salvarAberto, descartarAberto]);
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
   const politica = dados.politica;
   const vendedorId = dados.me?.seller?.id ?? '';
@@ -254,6 +265,15 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     const snapshot: Snapshot = { calculo, nomes: [...nomes.entries()], payment_terms: draft.payment_terms, rascunho: rascunhoEnviado };
     try {
       const res = await submitOrder(rascunhoEnviado, customer, catalog);
+      if (tipo === 'orcamento') {
+        // V8: o orçamento salvo abre em Pedidos ("‹ Pedidos"); o editor sai da pilha (replace) e o aviso vai para o detalhe
+        const destino = res.kind === 'sent' ? res.order.id : (res.id ?? null);
+        if (destino) {
+          deixarAvisoPendente(avisoDoOrcamentoSalvo(res.kind === 'sent' ? res.order.number : null));
+          router.replace(hrefPedido(destino) as never);
+          return;
+        }
+      }
       setSent(res.kind === 'sent' ? { kind: 'sent', order: res.order, snapshot } : { kind: 'queued', message: res.message, snapshot });
       setQuery('');
       setAba('resumo');
@@ -268,6 +288,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const docEdicao = editTarget?.tipo === 'orcamento' || draft.tipo === 'orcamento' ? 'orçamento' : 'pedido';
   const editTitle = editTarget?.number ? `Editar ${docEdicao} ${editTarget.number}` : `Editar ${docEdicao} no aparelho`;
   const emRascunho = (fn: (r: Draft) => Draft) => updateDraft(customerId, fn);
+  const aoTrocarMedida = (texto: string, desfazer: () => void) => avisoRodape.mostrar({ texto, acao: { rotulo: 'Desfazer', onPress: desfazer, testID: 'medida-desfazer' } });
 
   const abas = abasDoPedido(calculo.linhas.length, Boolean(freteAviso) || calculo.erros.length > 0);
   const noResumo = aba === 'resumo' || Boolean(sent);
@@ -283,7 +304,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={styles.root}>
       <View style={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 8, gap: 2, backgroundColor: colors.surface }}>
         {editId ? <BackLink label="Pedido" fallback={hrefPedido(editId)} /> : <BackLink label="Voltar" fallback={hrefPedidos()} />}
         <Text style={t.h1Small} testID="order-editor-title">
@@ -295,7 +316,8 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
       </View>
       {!sent ? <Abas abas={abas} valor={aba} onChange={setAba} rotuloPendencia="Pendência nesta aba" testID="abas-pedido" /> : null}
 
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
+      <AcimaDoTeclado>
+      <ScrollView ref={rolagem.ref} onScroll={rolagem.onScroll} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 16, gap: 12 }} keyboardShouldPersistTaps="handled" testID="new-order">
         {draft.notice && !sent ? (
           <Banner icon="alert" testID="order-prefill-notice">
             {draft.notice}
@@ -322,17 +344,17 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
         {!sent && aba === 'itens' ? (
           <>
             <CardFreteEPrazo rascunho={draft} fretePadrao={fretePadrao} prazos={opcoesDePrazo} transportadoras={app.transportadoras} onRascunho={emRascunho} />
-            <TrilhaDoCatalogo trilha={trilhaDoProduto(produtosDoRascunho[produtosDoRascunho.length - 1] ?? {})} onAbrir={() => irParaCatalogoDoPedido(customerId)} />
             <CampoBusca valor={query} onChange={setQuery} onLimpar={() => setQuery('')} rotuloLimpar="Limpar busca" placeholder="Código, descrição ou veículo" rotuloAcessivel="Buscar produto" testID="product-search" />
+            <Trilha compacta atualTocavel itens={niveisDaTrilha(produtosDoRascunho[produtosDoRascunho.length - 1] ?? null)} onEscolher={() => irParaCatalogoDoPedido(customerId)} rotuloAcessivel={(i) => `Abrir o catálogo: ${i.rotulo}`} testID="trilha-catalogo" />
             {query.trim() ? (
               results.length === 0 ? (
                 <EstadoVazio titulo={textoBuscaSemResultado(query).titulo} texto={textoBuscaSemResultado(query).texto} testID="busca-sem-resultado" />
               ) : (
-                <ListaDeItens produtos={results} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} />
+                <ListaDeItens produtos={results} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} aoTrocarMedida={aoTrocarMedida} />
               )
             ) : produtosDoRascunho.length > 0 ? (
               <View testID="order-lines">
-                <ListaDeItens produtos={produtosDoRascunho} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} />
+                <ListaDeItens produtos={produtosDoRascunho} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} aoTrocarMedida={aoTrocarMedida} />
               </View>
             ) : (
               <Card style={{ padding: 16, gap: 4 }}>
@@ -395,6 +417,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
           </Banner>
         ) : null}
       </ScrollView>
+      </AcimaDoTeclado>
 
       {!noResumo ? (
         <RodapeTotal
@@ -414,19 +437,7 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
       <AvisoRodape {...avisoRodape.props} respiroInferior={insets.bottom + 72} />
       <FolhaSalvar visivel={salvarAberto} opcoes={opcoes} comOrcamento={app.preVendaLigada} onEnviar={() => void send('pedido')} onOrcamento={() => void send('orcamento')} onFechar={() => setSalvarAberto(false)} />
       <DialogoDescartar visivel={descartarAberto} onVoltar={() => setDescartarAberto(false)} onDescartar={() => void descartar()} />
-    </KeyboardAvoidingView>
-  );
-}
-
-/** Trilha do catálogo do último item ("Mercearia › Bebidas"); toque abre a árvore do Catálogo só com os produtos da tabela do cliente. */
-function TrilhaDoCatalogo({ trilha, onAbrir }: { trilha: string; onAbrir: () => void }) {
-  return (
-    <Pressable testID="trilha-catalogo" accessibilityRole="button" accessibilityLabel={trilha ? `Catálogo: ${trilha}` : 'Abrir o catálogo'} onPress={onAbrir} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <Icon name="search" size={14} color={colors.accentInk} />
-      <Text style={[t.smallStrong, { color: colors.accentInk }]} numberOfLines={1}>
-        {trilha || 'Catálogo'}
-      </Text>
-    </Pressable>
+    </View>
   );
 }
 

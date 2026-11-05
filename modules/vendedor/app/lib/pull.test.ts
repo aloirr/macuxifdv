@@ -260,3 +260,17 @@ describe('pedido no aparelho (P-6, RN-VEN-14, ADR 0009 §3)', () => {
     expect(rotuloDaAba('queued', false)).toBe(true);
   });
 });
+
+describe('estoque do catálogo do aparelho (RN-VEN-20)', () => {
+  const saldo = (n: number, produto_id: string, quantidade: number) => ({ ...base, id: U(900 + n), produto_id, deposito_id: U(950 + n), quantidade, atualizado_em: null });
+  it('RN-VEN-20: soma os depósitos do produto; sem linha de saldo = estoque não controlado', () => {
+    const l = linhas({ produtos: [produto(1), produto(2)], saldos: [saldo(1, U(301), 1), saldo(2, U(301), 2)] });
+    const cat = produtosComPrecos(l, new Map());
+    expect(cat.find((p) => p.id === U(301))!.stock_total).toBe(3);
+    expect(cat.find((p) => p.id === U(302))!.stock_total).toBe(ESTOQUE_NAO_CONTROLADO);
+  });
+  it('RN-VEN-20: saldo removido não conta', () => {
+    const l = linhas({ produtos: [produto(1)], saldos: [saldo(1, U(301), 5), { ...saldo(2, U(301), 9), deleted_at: '2026-11-02T00:00:00.000000Z' }] });
+    expect(produtosComPrecos(l, new Map())[0]!.stock_total).toBe(5);
+  });
+});

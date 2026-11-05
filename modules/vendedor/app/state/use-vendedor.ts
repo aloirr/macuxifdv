@@ -65,7 +65,8 @@ import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 const PRECISA_SINAL = 'editar ou excluir pedido já enviado precisa de conexão (o status pode ter mudado no servidor).';
 const LOTE_PRECOS = 500;
 
-export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; message: string };
+/** `id` do documento na fila (T-0071, V8): a tela abre o detalhe dele em vez de ficar no editor */
+export type ResultadoEnvio = { kind: 'sent'; order: OrderDetail } | { kind: 'queued'; message: string; id?: string };
 export type ResultadoAlteracao = { kind: 'local' } | { kind: 'server'; order: OrderDetail };
 
 export function useVendedor() {
@@ -290,7 +291,7 @@ export function useVendedor() {
   );
 
   /** RN-VEN-13: situação do cliente na linha do sync (ativo, cadastro incompleto) */
-  const situacaoDoCliente = useCallback((clienteId: string) => situacaoDoClienteSync(linhas.clientes.find((c) => c.id === clienteId)), [linhas.clientes]);
+  const situacaoDoCliente = useCallback((clienteId: string) => situacaoDoClienteSync(linhas.clientes.find((c) => c.id === clienteId), (linhas.financeiros ?? []).find((f) => f.cliente_id === clienteId)), [linhas.clientes, linhas.financeiros]);
 
   /** Medidas (UN/CX), endereços de entrega e transportadoras do aparelho (T-0061); vazios sem as entidades no sync. */
   const unidades = useMemo(() => (v1 ? unidadesDaTela(linhas) : []), [v1, linhas]);
@@ -355,7 +356,7 @@ export function useVendedor() {
       await repo.limparRascunho(draftKeyFor(cliente.id));
       if (!ambiente.online()) {
         await recarregar();
-        return { kind: 'queued', message: 'Modo sem sinal: o pedido será enviado quando o sinal voltar.' };
+        return { kind: 'queued', id, message: 'Modo sem sinal: o pedido será enviado quando o sinal voltar.' };
       }
       const resultados = await motor.enviar();
       const r = resultados.find((x) => x.id === id);
@@ -366,14 +367,14 @@ export function useVendedor() {
           await recarregar();
           const det = detalheDoPedido(linhasRef.current, id, perfil, parametrosRef.current);
           if (det) return { kind: 'sent', order: det };
-          return { kind: 'queued', message: 'Pedido recebido pelo servidor. O número e o status aparecem na próxima atualização.' };
+          return { kind: 'queued', id, message: 'Pedido recebido pelo servidor. O número e o status aparecem na próxima atualização.' };
         }
         await carregarPedido(id);
         await repo.removerExibicao(id);
         await recarregar();
         const det = dadosRef.current.detalhes[id];
         if (det) return { kind: 'sent', order: det };
-        return { kind: 'queued', message: 'Pedido enviado. Os detalhes aparecem na próxima atualização.' };
+        return { kind: 'queued', id, message: 'Pedido enviado. Os detalhes aparecem na próxima atualização.' };
       }
       if (r) {
         // recusado pelo servidor: sai da fila e volta para o vendedor corrigir
@@ -385,7 +386,7 @@ export function useVendedor() {
       }
       await recarregar();
       const item = motor.estado().fila.find((i) => i.id === id);
-      return { kind: 'queued', message: item?.ultimo_erro || 'Sem conexão: o pedido será enviado quando o sinal voltar.' };
+      return { kind: 'queued', id, message: item?.ultimo_erro || 'Sem conexão: o pedido será enviado quando o sinal voltar.' };
     },
     [motor, repo, prepararDoRascunho, recarregar, carregarPedido, ambiente, v1, perfil],
   );
@@ -620,7 +621,7 @@ export function useVendedor() {
         catalogo,
         unidades: unidadesDaTela(linhasRef.current),
         embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens,
-        cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id)),
+        cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
       });

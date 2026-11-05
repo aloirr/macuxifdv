@@ -9,12 +9,6 @@ export interface ItemDaFila {
   situacao: 'pendente' | 'falhou' | 'modulo_inativo' | 'aceito';
 }
 
-/** Aparelho antigo ou servidor antigo (sem o campo) nunca recria; a primeira geração vista só é memorizada. */
-export function baseFoiRecriada(geracaoLocal: string | null | undefined, geracaoServidor: string | null | undefined): boolean {
-  if (!geracaoLocal || !geracaoServidor) return false;
-  return geracaoLocal !== geracaoServidor;
-}
-
 export interface EntradaPlanoBaseRecriada<E, R> {
   fila: readonly ItemDaFila[];
   /** exibição por id do item da fila (cache do que a tela mostra) */

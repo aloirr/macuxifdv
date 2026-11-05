@@ -1,15 +1,16 @@
 /**
- * Pedidos (Pedidos.dc.html; T-0077): busca (fantasia, razão social ou nº), período Dia | Mês | Ano e uma linha de situações,
+ * Pedidos (Pedidos.dc.html; T-0077; V9 da T-0071: lista virtualizada): busca (fantasia, razão social ou nº), período Dia | Mês | Ano e uma linha de situações,
  * incluindo os pedidos na fila do aparelho. A busca ignora o período e procura em toda a janela de 90 dias do aparelho.
  * RN-CORE-23 (T-0054): sem consulta periódica própria. Ao abrir a tela só relê o aparelho; o pull vem do motor de sync da
  * plataforma (a cada `sync_auto_min`, ao abrir o app e ao voltar ao primeiro plano depois de 30 min); puxar = Sincronizar.
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, Banner, Button, Card, Chip, colors, Empty, Folha, fonts, relativeWhen, Screen, Strong, type as t } from '@macuxi/ui/mobile';
+import { Badge, Banner, Button, Card, Chip, colors, Empty, Folha, fonts, radius, relativeWhen, Selo, Strong, type as t } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   casaComBusca,
@@ -36,7 +37,7 @@ import { orcamentosEmAberto } from '../lib/resumo-inicio';
 import { relogioReal } from '@macuxi/comum/relogio';
 import { SeletorDePeriodo } from '../components/seletor-periodo';
 import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, mensagemForaDaJanela, pedidosDaConsulta, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
-import { rotuloDoDocumento } from '../lib/pre-venda';
+import { seloDaLinha } from '../lib/selo-lista';
 import { orderNote, statusBadge } from '../lib/order-status';
 import type { PedidoDaLista } from '../lib/pedidos';
 import { PedidosPage, type Order } from '../../contracts';
@@ -142,9 +143,13 @@ export default function OrdersScreen() {
     [itens, periodo, busca, tz, semPeriodo, buscando],
   );
   const contagem = contarPorSituacao(base);
+  // V9: busca por id em Map (era um find dentro do map de cada linha, O(n²))
+  const pedidoPorId = useMemo(() => new Map(itens.map((i) => [i.id, i.pedido])), [itens]);
   const aFaturar = useMemo(() => itens.filter(pedidoAFaturar), [itens]);
   // V1: o card do Início conta só os orçamentos em aberto (RN-VEN-18); a lista aberta por ele usa a mesma função
   const diasValidade = validadeOrcamentoDias(ambiente.parametros('vendedor'));
+  const numeroDoPedido = useCallback((id: string) => pedidoPorId.get(id)?.number ?? null, [pedidoPorId]);
+  const insets = useSafeAreaInsets();
   const orcAbertos = useMemo(() => {
     const ids = new Set(orcamentosEmAberto(itens.map((i) => i.pedido), { agora: new Date(), fuso: tz, diasValidade }).map((p) => p.id));
     return itens.filter((i) => ids.has(i.id));
@@ -193,15 +198,35 @@ export default function OrdersScreen() {
             : 'Nenhum pedido com esta situação neste período.';
 
   return (
-    <Screen
+    <FlatList
       testID="orders"
+      style={styles.root}
+      contentContainerStyle={{ paddingTop: Math.max(28, insets.top + 16), paddingHorizontal: 20, paddingBottom: 20 }}
+      keyboardShouldPersistTaps="handled"
+      data={visiveis}
+      keyExtractor={(i) => i.id}
+      initialNumToRender={12}
+      maxToRenderPerBatch={12}
+      windowSize={7}
+      removeClippedSubviews
       refreshing={refreshing || sync.running}
       onRefresh={() => {
         setRefreshing(true);
         // RN-CORE-23: puxar para baixo = Sincronizar (envia a fila e roda o sync do motor da plataforma)
         setTentativa((n) => n + 1);
         void sincronizarAgora().finally(() => setRefreshing(false));
-      }}>
+      }}
+      renderItem={({ item: i, index: k }) => {
+        const pedido = pedidoPorId.get(i.id);
+        return pedido ? <OrderRow o={pedido} razao={i.razao_social} busca={busca} primeiro={k === 0} last={k === visiveis.length - 1} tz={tz} mostrarVendedor={gestao} diasValidade={diasValidade} numeroDoPedido={numeroDoPedido} /> : null;
+      }}
+      ListEmptyComponent={
+        <Card>
+          <Empty text={vazio} />
+        </Card>
+      }
+      ListHeaderComponent={
+    <View style={styles.cabecalho}>
       <View style={styles.header}>
         <Text style={[t.h1, { flex: 1 }]}>{gestao ? 'Pedidos da equipe' : 'Pedidos'}</Text>
         <SePode acao="pedido.criar">
@@ -309,12 +334,10 @@ export default function OrdersScreen() {
         </>
       )}
 
-      <Card style={{ overflow: 'hidden' }}>
-        {visiveis.length === 0 ? <Empty text={vazio} /> : null}
-        {visiveis.map((i, k) => (
-          <OrderRow key={i.id} o={itens.find((x) => x.id === i.id)!.pedido} razao={i.razao_social} busca={busca} last={k === visiveis.length - 1} tz={tz} mostrarVendedor={gestao} />
-        ))}
-      </Card>
+    </View>
+      }
+      ListFooterComponent={
+    <View style={styles.rodape}>
       {!offline ? <Text style={[t.small, { textAlign: 'center' }]}>Puxe para sincronizar</Text> : null}
       {offline ? (
         <Pressable accessibilityRole="button" onPress={() => router.push('/profile' as never)}>
@@ -326,7 +349,9 @@ export default function OrdersScreen() {
           <Text style={[t.small, { textAlign: 'center', color: colors.danger }]}>{sync.error}</Text>
         </Pressable>
       ) : null}
-    </Screen>
+    </View>
+      }
+    />
   );
 }
 
@@ -348,13 +373,14 @@ function primeiroNome(nome: string): string {
   return nome.trim().split(/\s+/)[0] ?? nome;
 }
 
-function OrderRow({ o, razao, busca, last, tz, mostrarVendedor }: { o: PedidoDaLista; razao: string; busca: string; last: boolean; tz: string; mostrarVendedor: boolean }) {
+const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, mostrarVendedor, diasValidade, numeroDoPedido }: { o: PedidoDaLista; razao: string; busca: string; primeiro: boolean; last: boolean; tz: string; mostrarVendedor: boolean; diasValidade: number; numeroDoPedido: (id: string) => string | null }) {
   const b = statusBadge(o.status);
   const note = orderNote(o);
   const buscando = normalizarTexto(busca) !== '';
-  // T-0053: orçamento mostra a situação (offline, pela validade; RN-VEN-32)
-  const rotuloOrc = o.tipo === 'orcamento' ? rotuloDoDocumento(o, relogioReal().agora()) : null;
+  // T-0053: orçamento mostra a situação (offline, pela validade; RN-VEN-32); V7: o mesmo selo do detalhe
+  const seloOrc = o.tipo === 'orcamento' ? seloDaLinha(o, { agora: relogioReal().agora(), fuso: tz, dias: diasValidade, numeroDoPedido }) : null;
   return (
+    <View style={[styles.linhaCartao, primeiro && styles.linhaPrimeira, last && styles.linhaUltima]}>
     <Pressable
       testID={`order-${o.number || o.id}`}
       accessibilityRole="button"
@@ -380,14 +406,22 @@ function OrderRow({ o, razao, busca, last, tz, mostrarVendedor }: { o: PedidoDaL
           )}{' '}
           · {mostrarVendedor && o.seller_name ? `${o.seller_name} · ` : ''}{relativeWhen(o.received_at, new Date(), tz)} · {o.items_count} {o.items_count === 1 ? 'item' : 'itens'}
         </Text>
-        {rotuloOrc ? <Badge label={rotuloOrc} tone="neutral" /> : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
+        {seloOrc ? <Selo texto={seloOrc.texto} tom={seloOrc.tom} tamanho="p" pilula /> : <Badge label={b.label} fg={b.fg} bg={b.bg} />}
       </View>
       {note ? <Text style={[t.small, { color: b.fg }]}>{note}</Text> : null}
     </Pressable>
+    </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.ground },
+  cabecalho: { gap: 14, marginBottom: 14 },
+  rodape: { gap: 14, marginTop: 14 },
+  // a lista virtualizada desenha o Card linha a linha: borda dos lados em todas, em cima na primeira e embaixo na última
+  linhaCartao: { backgroundColor: colors.surface, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line },
+  linhaPrimeira: { borderTopWidth: 1, borderTopLeftRadius: radius.cartao, borderTopRightRadius: radius.cartao, overflow: 'hidden' },
+  linhaUltima: { borderBottomWidth: 1, borderBottomLeftRadius: radius.cartao, borderBottomRightRadius: radius.cartao, overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   linhaBusca: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   vendedor: { minHeight: 52, maxWidth: 150, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.lineStrong },

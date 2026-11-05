@@ -339,7 +339,7 @@ export function AbaResumo({
           <CampoPct valor={valorPct} rotulo={rotuloDoAjusteDoPedido(tipoPedido).toLowerCase()} testID="discount-input" onChange={(n) => onRascunho((d) => aplicarAjusteDoPedido(d, { modo: 'pct', sentido: tipoPedido, valor: n }))} />
         )}
         {equivalentePedido ? (
-          <Text style={[t.smallStrong, { color: colors.accentInk }]} testID="pedido-equivalente">
+          <Text style={[t.smallStrong, { color: tipoPedido === 'acrescimo' ? colors.ink2 : colors.success }]} testID="pedido-equivalente">
             {equivalentePedido}
           </Text>
         ) : null}
