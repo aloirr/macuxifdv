@@ -259,3 +259,6 @@
 2026-11-05 — T-0081/T-0083 — concluídas (definição de pronto: CI verde, revisões sem 🔴, critérios demonstrados nos testes de integração, quadro e diário)
 2026-11-05 — status — status das 18h por recado; demo no f702090
 2026-11-05 — T-0039/T-0082/T-0008 — APKs de preview do f0dcf03 (Campo 84cf6500, Gestão b0c1f817) enviados ao Alexandre com o roteiro A–F + 8 itens
+2026-11-05 — coord — lote P (coordenação) no main (f702090..158bdec), CI verde; fora: recados/lidos do Alexandre e _instalar (governança/Alexandre)
+2026-11-05 — T-0071/T-0052 — Adicionar ao pedido: 🔴 do engenheiro-apps (setParams cria entrada na pilha: voltar em 2 toques, produto pode voltar ao pedido) + 🟡 do designer → modulo-vendedor; não entra em lote antes da reconferência
+2026-11-05 — T-0026 — 000011 duplicado: seed passa a numerar acima do maior número já emitido (numerarPedidosDemo), em revisão pelo engenheiro-software
