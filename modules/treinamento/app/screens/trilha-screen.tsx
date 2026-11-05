@@ -4,10 +4,10 @@
  */
 import {
   BackLink,
-  Badge,
-  Card,
+  Cartao,
+  ChipEstado,
   colors,
-  Empty,
+  EstadoVazio,
   IconTile,
   ProgressBar,
   Screen,
@@ -39,10 +39,10 @@ export default function TrilhaScreen() {
     return (
       <Screen testID="treinar-trilha">
         <BackLink label="Treinar" fallback={hrefTreinar()} />
-        <Empty
-          text={
-            tr.carregado ? 'Trilha não encontrada no aparelho. Volte e puxe para atualizar.' : 'Carregando…'
-          }
+        <EstadoVazio
+          icone="file"
+          titulo={tr.carregado ? 'Trilha não encontrada' : 'Carregando'}
+          texto={tr.carregado ? 'Volte e puxe para atualizar.' : undefined}
         />
       </Screen>
     );
@@ -57,20 +57,24 @@ export default function TrilhaScreen() {
         {trilha.descricao ? <Text style={t.sub}>{trilha.descricao}</Text> : null}
       </View>
       {resumo ? (
-        <Card style={{ padding: 14, gap: 8 }}>
+        <Cartao gap={8}>
           <View style={styles.linha}>
             <Text style={t.bodyStrong}>
               {resumo.licoes_concluidas} de {resumo.licoes_total} {resumo.licoes_total === 1 ? 'lição' : 'lições'}
             </Text>
             {trilha.status === 'arquivada' ? (
-              <Badge label="Arquivada" tone="neutral" />
+              <ChipEstado texto="Arquivada" tom="neutro" pequeno />
+            ) : resumo.concluida ? (
+              <ChipEstado texto="Concluída" tom="sucesso" pequeno />
             ) : trilha.obrigatoria ? (
-              <Badge label="Obrigatória" tone={resumo.atrasada ? 'danger' : 'accent'} />
+              <ChipEstado texto={resumo.atrasada ? 'Atrasada' : 'Obrigatória'} tom={resumo.atrasada ? 'erro' : 'destaque'} pequeno />
+            ) : resumo.licoes_concluidas > 0 ? (
+              <ChipEstado texto="Em andamento" tom="aviso" pequeno />
             ) : null}
           </View>
           <ProgressBar pct={resumo.progresso_pct} />
           {prazo ? <Text style={[t.small, resumo.atrasada && { color: colors.danger }]}>{prazo}</Text> : null}
-        </Card>
+        </Cartao>
       ) : null}
 
       {mapa.map((m, mi) => (
@@ -79,14 +83,13 @@ export default function TrilhaScreen() {
             <Text style={t.h2}>
               {mi + 1}. {m.titulo}
             </Text>
-            <Badge
-              label={
-                m.status === 'concluido' ? 'Concluído' : m.status === 'liberado' ? 'Liberado' : 'Bloqueado'
-              }
-              tone={m.status === 'concluido' ? 'success' : m.status === 'liberado' ? 'accent' : 'neutral'}
+            <ChipEstado
+              texto={m.status === 'concluido' ? 'Concluído' : m.status === 'liberado' ? 'Em andamento' : 'Bloqueado'}
+              tom={m.status === 'concluido' ? 'sucesso' : m.status === 'liberado' ? 'aviso' : 'neutro'}
+              pequeno
             />
           </View>
-          <Card style={{ overflow: 'hidden' }}>
+          <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
             {m.licoes.map((l, li) => {
               const bloqueada = l.status === 'bloqueada';
               return (
@@ -117,14 +120,18 @@ export default function TrilhaScreen() {
                     <Text style={t.small}>
                       {TIPO[l.tipo]}
                       {l.tem_quiz ? ' · com quiz' : ''}
-                      {bloqueada ? ' · conclua as anteriores' : ''}
                     </Text>
                   </View>
+                  <ChipEstado
+                    texto={l.status === 'concluida' ? 'Concluída' : bloqueada ? 'Bloqueada' : 'Liberada'}
+                    tom={l.status === 'concluida' ? 'sucesso' : bloqueada ? 'neutro' : 'destaque'}
+                    pequeno
+                  />
                 </Pressable>
               );
             })}
-            {m.licoes.length === 0 ? <Empty text="Módulo sem lições." /> : null}
-          </Card>
+            {m.licoes.length === 0 ? <EstadoVazio titulo="Módulo sem lições" /> : null}
+          </Cartao>
         </View>
       ))}
     </Screen>

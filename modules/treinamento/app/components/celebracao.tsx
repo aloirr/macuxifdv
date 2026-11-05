@@ -2,7 +2,7 @@
  * Celebração discreta (RN-TRE-06): nível novo e medalha nova depois de concluir lição ou quiz. Sem animação longa:
  * um cartão com o que mudou e o próximo passo.
  */
-import { Card, colors, Icon, type as t } from '@macuxi/ui/mobile';
+import { Cartao, colors, Icon, type as t } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
 import type { ResultadoAtividade } from '../../domain';
 
@@ -29,24 +29,23 @@ export function conquistasDe(resultados: readonly { resultado: ResultadoAtividad
 export function Celebracao({ c, testID = 'treinar-celebracao' }: { c: Conquistas; testID?: string }) {
   if (c.xp === 0 && c.nivel === null && c.medalhas.length === 0) return null;
   return (
-    <Card testID={testID} style={styles.card}>
+    <Cartao testID={testID} tom="sucesso" gap={6}>
       <View style={styles.linha}>
         <Icon name="check" size={18} color={colors.success} />
         <Text style={t.bodyStrong}>{c.xp > 0 ? `+${c.xp} XP` : 'Atividade registrada'}</Text>
       </View>
       {c.nivel !== null ? (
-        <Text style={t.body}>Você subiu para o nível {c.nivel}. Continue assim!</Text>
+        <Text style={t.body}>Nível {c.nivel} alcançado.</Text>
       ) : null}
       {c.medalhas.map((m) => (
         <Text key={m} style={t.body}>
           Medalha nova: {m}
         </Text>
       ))}
-    </Card>
+    </Cartao>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 14, gap: 6, backgroundColor: colors.successBg, borderColor: colors.successBg },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

@@ -3,7 +3,18 @@
  * correção do domain por questão, a nota e se passou. A tentativa vai para a fila do aparelho; se aprovada, a conclusão
  * da lição vai junto, logo atrás (o servidor aplica na ordem e recorrige, RN-TRE-04).
  */
-import { BackLink, Badge, Button, Card, colors, Empty, Icon, Screen, type as t } from '@macuxi/ui/mobile';
+import {
+  BackLink,
+  Botao,
+  Cartao,
+  ChipEstado,
+  colors,
+  EstadoVazio,
+  Folha,
+  Icon,
+  Screen,
+  type as t,
+} from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -33,15 +44,16 @@ export default function QuizScreen() {
   const [retorno, setRetorno] = useState<Retorno | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
 
   if (!tela || !tela.licao.quiz) {
     return (
       <Screen testID="treinar-quiz">
         <BackLink label="Treinar" fallback={hrefTreinar()} />
-        <Empty
-          text={
-            tr.carregado ? 'Quiz não encontrado no aparelho. Volte e puxe para atualizar.' : 'Carregando…'
-          }
+        <EstadoVazio
+          icone="clipboard"
+          titulo={tr.carregado ? 'Quiz não encontrado' : 'Carregando'}
+          texto={tr.carregado ? 'Volte e puxe para atualizar.' : undefined}
         />
       </Screen>
     );
@@ -54,6 +66,7 @@ export default function QuizScreen() {
     retorno?.correcao.por_questao.find((p) => p.questao_id === questaoId)?.correta ?? null;
 
   const enviar = async () => {
+    setConfirmando(false);
     setErro(null);
     setEnviando(true);
     try {
@@ -102,11 +115,11 @@ export default function QuizScreen() {
       {questoes.map((q, qi) => {
         const certo = acertou(q.id);
         return (
-          <Card
+          <Cartao
             key={q.id}
             testID={`treinar-questao-${q.id}`}
+            gap={8}
             style={[
-              styles.questao,
               certo === true && { borderColor: colors.success },
               certo === false && { borderColor: colors.danger },
             ]}
@@ -116,10 +129,15 @@ export default function QuizScreen() {
                 {qi + 1}. {q.enunciado}
               </Text>
               {certo === null ? null : (
-                <Badge label={certo ? 'Certa' : 'Errada'} tone={certo ? 'success' : 'danger'} />
+                <ChipEstado
+                  texto={certo ? 'Certa' : 'Errada'}
+                  tom={certo ? 'sucesso' : 'erro'}
+                  icone={certo ? 'check' : 'alert'}
+                  pequeno
+                />
               )}
             </View>
-            {q.multipla ? <Text style={t.small}>Marque todas as corretas.</Text> : null}
+            {q.multipla ? <Text style={t.small}>Marque todas as certas.</Text> : null}
             {q.alternativas.map((a) => {
               const marcada = (marcadas[q.id] ?? []).includes(a.id);
               return (
@@ -145,22 +163,24 @@ export default function QuizScreen() {
                 </Pressable>
               );
             })}
-          </Card>
+          </Cartao>
         );
       })}
 
       {retorno ? (
         <View style={{ gap: 10 }}>
-          <Card
+          <Cartao
             testID="treinar-quiz-resultado"
-            style={[
-              styles.resultado,
-              { backgroundColor: retorno.aprovada ? colors.successBg : colors.dangerBg },
-            ]}
+            tom={retorno.aprovada ? 'sucesso' : 'padrao'}
+            gap={6}
+            style={!retorno.aprovada && { backgroundColor: colors.dangerBg, borderColor: colors.dangerBg }}
           >
-            <Text style={t.h2}>
-              {retorno.aprovada ? 'Aprovado!' : 'Ainda não foi desta vez'} · {retorno.correcao.nota_pct}%
-            </Text>
+            <ChipEstado
+              texto={retorno.aprovada ? 'Aprovado' : 'Reprovado'}
+              tom={retorno.aprovada ? 'sucesso' : 'erro'}
+              icone={retorno.aprovada ? 'check' : 'alert'}
+            />
+            <Text style={t.h2}>Nota {retorno.correcao.nota_pct}%</Text>
             <Text style={t.body}>
               {retorno.correcao.acertos} de {retorno.correcao.total}{' '}
               {retorno.correcao.total === 1 ? 'certa' : 'certas'}.{' '}
@@ -168,60 +188,62 @@ export default function QuizScreen() {
                 ? retorno.licao_concluida
                   ? 'Lição concluída.'
                   : ''
-                : 'Revise a lição e tente de novo.'}
+                : 'Revise a lição.'}
             </Text>
             {retorno.aviso ? <Text style={[t.small, { color: colors.warning }]}>{retorno.aviso}</Text> : null}
-          </Card>
+          </Cartao>
           <Celebracao c={retorno.conquistas} />
           {retorno.aprovada ? (
             proxima ? (
-              <Button
+              <Botao
                 testID="treinar-proxima-licao"
-                label="Próxima lição"
-                icon="chevron"
-                height={52}
+                rotulo="Próxima lição"
+                seta
+                nivel="principal"
                 onPress={() => irParaLicao(proxima)}
               />
-            ) : (
-              <Button
-                testID="treinar-voltar-trilha"
-                label="Voltar à trilha"
-                variant="outline"
-                height={52}
-                onPress={() => irParaTrilha(trilha.id)}
-              />
-            )
+            ) : null
           ) : (
-            <Button
+            <Botao
               testID="treinar-quiz-de-novo"
-              label="Tentar de novo"
-              variant="outline"
-              height={52}
+              rotulo="Tentar de novo"
+              nivel="principal"
               onPress={() => {
                 setRetorno(null);
                 setMarcadas({});
               }}
             />
           )}
+          <Botao
+            testID="treinar-voltar-trilha"
+            rotulo="Voltar à trilha"
+            nivel={retorno.aprovada && !proxima ? 'principal' : 'neutro'}
+            alto
+            onPress={() => irParaTrilha(trilha.id)}
+          />
         </View>
       ) : (
         <View style={{ gap: 8 }}>
-          <Button
+          <Botao
             testID="treinar-quiz-enviar"
-            label={
+            rotulo={
               respondidas < questoes.length
-                ? `Enviar (${respondidas} de ${questoes.length} respondidas)`
+                ? `Enviar (${respondidas} de ${questoes.length})`
                 : 'Enviar respostas'
             }
-            icon="send"
-            height={52}
-            disabled={respondidas === 0}
-            loading={enviando}
-            onPress={() => void enviar()}
+            icone="send"
+            nivel="principal"
+            desligado={respondidas === 0}
+            ocupado={enviando}
+            onPress={() => (respondidas < questoes.length ? setConfirmando(true) : void enviar())}
           />
-          {respondidas > 0 && respondidas < questoes.length ? (
-            <Text style={t.small}>Questão em branco conta como errada e não mantém a sequência de dias.</Text>
-          ) : null}
+          <Botao
+            testID="treinar-voltar-trilha"
+            rotulo="Voltar à trilha"
+            nivel="neutro"
+            alto
+            onPress={() => irParaTrilha(trilha.id)}
+          />
           {erro ? (
             <Text style={[t.small, { color: colors.danger }]} testID="treinar-quiz-erro">
               {erro}
@@ -229,13 +251,33 @@ export default function QuizScreen() {
           ) : null}
         </View>
       )}
+      <Folha
+        visivel={confirmando}
+        onFechar={() => setConfirmando(false)}
+        rotuloFechar="Fechar e voltar ao quiz"
+        titulo="Enviar com questões em branco?"
+        rodape={{ rotulo: 'Voltar ao quiz', onPress: () => setConfirmando(false), testID: 'treinar-quiz-revisar' }}
+      >
+        <Text style={t.body}>
+          {questoes.length - respondidas === 1
+            ? '1 em branco conta como errada'
+            : `${questoes.length - respondidas} em branco contam como erradas`}{' '}
+          e a sequência de dias não segue.
+        </Text>
+        <Botao
+          testID="treinar-quiz-enviar-assim"
+          rotulo="Enviar assim"
+          nivel="principal"
+          ocupado={enviando}
+          onPress={() => void enviar()}
+        />
+      </Folha>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   linha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  questao: { padding: 14, gap: 8 },
   alternativa: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -247,5 +289,4 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   marcada: { borderColor: colors.accent, backgroundColor: colors.accentTint },
-  resultado: { padding: 14, gap: 6, borderWidth: 0 },
 });
