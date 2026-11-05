@@ -124,6 +124,8 @@ const G = {
   nota_erp: 0x2f,
   // 0020 (T-0071)
   produto_relacao: 0x4e,
+  // 0028 (T-0082)
+  plano_rv: 0x39,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -375,6 +377,8 @@ export const ORDEM_TABELAS = [
   'core.nota_erp',
   // 0020 (T-0071): relacionados do produto (sem FK para core.produto)
   'catalogo.produto_relacao',
+  // 0028 (T-0082): plano de RV (FK atualizado_por -> core.usuario)
+  'core.plano_rv',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
   ...ORDEM_GESTOR,
   // 0015 (T-0056): schema promotor — linhas de A e B em ./promotor.ts
@@ -439,6 +443,30 @@ function dadosProdutoRelacao(): Linha[] {
     rel(a('produto_relacao', 3), A.tenantId, A.produtos.p1, A.produtos.p2, 'superior', { ordem: 2, ativo: false }),
     rel(a('produto_relacao', 4), A.tenantId, A.produtos.p2, A.produtos.p1, 'complementar', { deleted_at: DATA_FIXA_ACESSO }),
     rel(b('produto_relacao', 1), B.tenantId, b('produto', 1), b('produto', 2), 'superior', { external_id: 'REL-B-1' }),
+  ];
+}
+
+/**
+ * 0028 (T-0082, RN-CORE-30): plano de RV. A: vigente desde o mês da fixture para vendedor e promotor (gravado pelo
+ * analista) e uma versão APAGADA (soft delete) do mesmo mês de início — o único parcial deixa; B: só vendedor, sem autor.
+ * Regras no formato RegraRvSchema (o banco só exige array JSON).
+ */
+function dadosPlanoRv(hojeA: string, hojeB: string): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const faixas = [{ de_pct: 0, modo: 'zero', pagamento_pct: 0 }, { de_pct: 80, modo: 'proporcional', pagamento_pct: 0 }, { de_pct: 100, modo: 'fixo', pagamento_pct: 100 }];
+  const regras = [
+    { indicador: 'venda_cents', peso_pct: 70, gatilho: false, faixas },
+    { indicador: 'visitas', peso_pct: 30, gatilho: false, faixas },
+    { indicador: 'cobertura_pct', peso_pct: 0, gatilho: true, faixas: [] },
+  ];
+  const plano = (id: string, tenant_id: string, vigencia_inicio: string, perfis: string[], atualizado_por: string | null, extra: Partial<Linha> = {}): Linha => ({
+    id, tenant_id, nome: 'Plano de RV da fixture', vigencia_inicio, perfis: arrayDeTexto(perfis), valor_maximo_cents: 150_000, regras, atualizado_por,
+    deleted_at: null, external_id: null, ...extra,
+  });
+  return [
+    plano(a('plano_rv', 1), A.tenantId, anoMes(hojeA), ['vendedor', 'promotor'], A.usuarios.analista, { external_id: 'RV-A-1' }),
+    plano(a('plano_rv', 2), A.tenantId, anoMes(hojeA), ['vendedor'], A.usuarios.admin, { deleted_at: DATA_FIXA_ACESSO }),
+    plano(b('plano_rv', 1), DOIS_TENANTS.B.tenantId, anoMes(hojeB), ['vendedor'], null),
   ];
 }
 
@@ -586,6 +614,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosT0013(hojeA, hojeB),
     'core.nota_erp': dadosNotaErp(hojeA, hojeB),
     'catalogo.produto_relacao': dadosProdutoRelacao(),
+    'core.plano_rv': dadosPlanoRv(hojeA, hojeB),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
       {

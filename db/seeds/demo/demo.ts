@@ -40,7 +40,8 @@
  *   cadastros de trade e visitas de loja da Joana) e Gestor (gestor.ts, 0014: licença para supervisor, gerente,
  *   analista e admin + projeção montada pelo domain do Gestor) e Pesquisa (pesquisa.ts, 0016: 2 questionários
  *   publicados e 16 respostas) e Treinamento (treinamento.ts, 0017: licença para os 7 perfis, 3 trilhas, jornada de
- *   Lucas, Camila e Joana e o desafio do mês). Por isso a carga exige as migrações até a 0020 (medidas da 0018,
+ *   Lucas, Camila e Joana e o desafio do mês) e o plano de RV (plano-rv.ts, 0028: vendedor, R$ 2.000,00, se a 0028 estiver
+ *   aplicada). Por isso a carga exige as migrações até a 0020 (medidas da 0018,
  *   core.meta.tipo da 0019 e catalogo.produto_relacao da 0020).
  * - T-0071 (0020, referência do novo pedido R-20261103-130003): Mini Box Japiim vira o cliente da referência (cód. C5110,
  *   Mercadinho, Av. Ajuricaba 1200 + endereço de entrega, sem título vencido nem bloqueio — o vencido/bloqueado passou para a
@@ -65,6 +66,7 @@ import { hashSenha, verificarSenha } from '../../src/senha';
 import { carregarDemoGestor } from './gestor';
 import { gravarDemoMedidas } from './medidas';
 import { gravarPesquisaDemo } from './pesquisa';
+import { gravarDemoPlanoRv } from './plano-rv';
 import { gravarDemoPromotor } from './promotor';
 import { gravarTreinamentoDemo } from './treinamento';
 
@@ -1192,6 +1194,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     await gravarPesquisaDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0017 (T-0058): licença do Treinamento (7 perfis), 3 trilhas, jornada de Lucas/Camila/Joana e desafio do mês
     await gravarTreinamentoDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
+    // 0028 (T-0082): plano de RV do vendedor vigente desde o mês do primeiro seed (plano-rv.ts; banco sem a 0028 = nada)
+    await gravarDemoPlanoRv(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, atualizadoPor: idUsuarioDemo('analista') });
     // 0014 (T-0055): licença do Gestor (supervisor, gerente, analista, admin) e projeção montada pelo domain do Gestor
     await carregarDemoGestor(admin, dados);
     // 0022 (T-0079): o --recriar apagou e regravou o tenant; gira a geração da base para o aparelho limpar a cópia local

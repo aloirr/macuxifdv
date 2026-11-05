@@ -79,13 +79,15 @@ const TABELAS_0018 = ['core.medida'] as const;
 const TABELAS_0019 = ['core.nota_erp'] as const;
 /** Tabelas novas da 0020 (T-0071, relacionados do produto; a 0020 também traz o ajuste em R$ de vendedor.pedido e pedido_item). */
 const TABELAS_0020 = ['catalogo.produto_relacao'] as const;
+/** Tabelas novas da 0028 (T-0082, plano de RV; fora de TABELAS_SYNC: o aparelho não recebe o plano). */
+const TABELAS_0028 = ['core.plano_rv'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
 /** Blocos `create table x.y ( ... );` das migrações up, mais as colunas de `alter table x.y add column` posteriores. */
 function tabelasCriadas(): Map<string, string> {
   const mapa = new Map<string, string>();
-  for (const m of /create table ([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g[Symbol.matchAll](sqlUp)) mapa.set(m[1]!, m[2]!);
+  for (const m of /create table (?:if not exists )?([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g[Symbol.matchAll](sqlUp)) mapa.set(m[1]!, m[2]!);
   for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column (?:if not exists )?([a-z_]+) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
     mapa.set(m[1]!, `${mapa.get(m[1]!) ?? ''}\n  ${m[2]!} ${m[3]!}`);
   }
@@ -123,6 +125,8 @@ describe('migrações (estático)', () => {
     expect(nomes[24]).toBe('0025_core_nota_erp_vendedor'); // T-0080: core.nota_erp.vendedor_external_id e usuario_id, 2 índices (nota-erp-vendedor.test.ts)
     expect(nomes[25]).toBe('0026_core_visita_etapa_pendente'); // T-0039 §2: visita_etapa 'pendente' + 4 colunas e visita.etapas_pendentes, 2 índices parciais (visita-etapa-pendente.test.ts)
     expect(nomes[26]).toBe('0027_plataforma_tenants_ativos'); // T-0039 §2.3 (ADR 0022): plataforma.tenants_ativos() só ao macuxi_worker (tenants-ativos.test.ts)
+    expect(nomes[27]).toBe('0028_core_plano_rv'); // T-0082: core.plano_rv (RN-CORE-30), regras em jsonb, RLS forçado (plano-rv.test.ts)
+    expect(nomes[28]).toBe('0029_plataforma_provisionar_tenant'); // T-0083: plataforma.provisionar_tenant(jsonb), só a conexão de administração (provisionar-tenant.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -158,6 +162,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0018,
         ...TABELAS_0019,
         ...TABELAS_0020,
+        ...TABELAS_0028,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,

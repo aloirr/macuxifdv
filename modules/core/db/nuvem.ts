@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -10,7 +10,7 @@
  * comparado com eles em db/testes/estatico.test.ts.
  * db/testes/drizzle-x-banco.test.ts confere colunas x banco migrado.
  */
-import { bigint, boolean, date, integer, numeric, pgSchema, smallint, text, time, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, date, integer, jsonb, numeric, pgSchema, smallint, text, time, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { PERFIS } from '@macuxi/platform-sdk';
 
 export const core = pgSchema('core');
@@ -449,4 +449,37 @@ export const indicadorDiario = core.table('indicador_diario', {
    * core.positivacao_do_mes(usuarios, 'AAAA-MM', hoje) → (usuario_id, ate_ontem, hoje, mes).
    */
   clientes_positivados_ids: uuid('clientes_positivados_ids').array(),
+});
+
+/** 0028 (T-0082, RN-CORE-30): perfis que um plano de RV pode abranger; CHECK plano_rv_perfis_validos. */
+export const PERFIS_PLANO_RV_BANCO = ['vendedor', 'promotor'] as const;
+
+/** Faixa de atingimento de uma regra do plano (mesmos nomes de FaixaRvSchema em modules/core/contracts/plano-rv.ts). */
+export interface FaixaPlanoRvBanco {
+  de_pct: number;
+  modo: 'zero' | 'proporcional' | 'fixo';
+  pagamento_pct: number;
+}
+/** Regra por indicador do plano (mesmos nomes de RegraRvSchema); o banco só exige que `regras` seja um array JSON. */
+export interface RegraPlanoRvBanco {
+  indicador: (typeof INDICADORES_META_BANCO)[number];
+  peso_pct: number;
+  gatilho: boolean;
+  faixas: FaixaPlanoRvBanco[];
+}
+
+/**
+ * Plano de RV do tenant (0028, T-0082; RN-CORE-29/30), versionado por mês de início: vale de vigencia_inicio ('AAAA-MM')
+ * até o mês anterior ao próximo plano vivo; um vivo por (tenant, mês de início) — único parcial plano_rv_vigencia_uk.
+ * valor_maximo_cents > 0; perfis não vazio ⊆ PERFIS_PLANO_RV_BANCO; regras = array JSON (formato e pesos validados no
+ * domain/API, validarPlanoRv). atualizado_por: FK composta para core.usuario (null = carga). Fora de TABELAS_SYNC.
+ */
+export const planoRv = core.table('plano_rv', {
+  ...comuns(),
+  nome: text('nome').notNull(),
+  vigencia_inicio: text('vigencia_inicio').notNull(),
+  perfis: text('perfis', { enum: PERFIS_PLANO_RV_BANCO }).array().notNull(),
+  valor_maximo_cents: bigint('valor_maximo_cents', { mode: 'number' }).notNull(),
+  regras: jsonb('regras').$type<RegraPlanoRvBanco[]>().notNull(),
+  atualizado_por: uuid('atualizado_por'),
 });

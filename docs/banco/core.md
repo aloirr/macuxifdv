@@ -431,3 +431,29 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - Caminho de volta: `0026_core_visita_etapa_pendente.down.sql` — **apaga** as linhas `pendente` de `visita_etapa` (a visita
   continua concluída, sem a marca), as quatro colunas, `visita.etapas_pendentes` e os dois índices; volta o CHECK
   `concluida | dispensada`. Linhas `checkout_pendencia_alerta_h` do BKO ficam, sem efeito.
+
+## 0028 — plano de RV (`0028_core_plano_rv`; T-0082, RN-CORE-29/30, desenho docs/desenho/T-0082.md §5)
+## plano_rv — plano de remuneração variável do tenant, versionado por mês de início. Sem pull (fora de `TABELAS_SYNC`)
+| Coluna | Tipo | Regra |
+|---|---|---|
+| comuns da regra 5 | | `id`, `tenant_id` (FK `plataforma.tenant`), `created_at`, `updated_at` (gatilho `plano_rv_updated_at`), `deleted_at`, `external_id` |
+| nome | `text not null` | 1..80, não vazio (CHECK `plano_rv_nome_preenchido`) |
+| vigencia_inicio | `text not null` | `AAAA-MM` (CHECK `plano_rv_vigencia_formato`, o mesmo de `core.meta.periodo`). Vale até o mês anterior ao próximo plano vivo |
+| perfis | `text[] not null` | não vazio, 1 dimensão, sem nulo, ⊆ {`vendedor`, `promotor`} (CHECK `plano_rv_perfis_validos`; Drizzle `PERFIS_PLANO_RV_BANCO`) |
+| valor_maximo_cents | `bigint not null` | > 0, centavos (CHECK `plano_rv_valor_maximo_positivo`) |
+| regras | `jsonb not null` | array JSON (CHECK `plano_rv_regras_array`); cada item `{ indicador, peso_pct, gatilho, faixas: [{ de_pct, modo, pagamento_pct }] }` = `RegraRvSchema` de `modules/core/contracts/plano-rv.ts`. Pesos e faixas: `validarPlanoRv` (domain) e a API, não o banco |
+| atualizado_por | `uuid null` | quem gravou a versão (analista/admin); FK composta `plano_rv_atualizado_por_fk (tenant_id, atualizado_por) → core.usuario`; null = carga (seed) |
+- Índices: único parcial `plano_rv_vigencia_uk (tenant_id, vigencia_inicio) where deleted_at is null` (um plano vivo por mês de
+  início; o soft delete libera o mês); `plano_rv_sync_ix (tenant_id, updated_at, id)` (regra; sem pull nesta tarefa);
+  `plano_rv_external_uk (tenant_id, external_id)` parcial; `plano_rv_tenant_id_uk unique (tenant_id, id)` para FK composta futura.
+- Regras que ficam na API (não no banco): plano que já valeu para mês fechado não muda (RN-CORE-30, depende do fechamento da
+  RN-CORE-21); exclusão = soft delete; edição na auditoria com antes/depois (RN-AUD-01). RV é calculada na consulta (nada gravado).
+- Consultas principais: `select … from core.plano_rv where tenant_id = $t and deleted_at is null order by vigencia_inicio`
+  (vigente + versões; poucas linhas por tenant, `plano_rv_vigencia_uk`); upsert do PUT por `id` (UUID do cliente) dentro do
+  contexto do tenant. Volume: poucas versões por ano por tenant.
+- RLS: enable + force + `isolamento_tenant`; `macuxi_app` com select/insert/update/delete; `macuxi_worker` sem acesso.
+- Fixture dois-tenants: A com um plano vivo do mês da fixture (vendedor e promotor, autor analista) + uma versão apagada do
+  mesmo mês; B com um plano sem autor (grupo de UUID `0x39`). Demo (`db/seeds/demo/plano-rv.ts`): plano do vendedor desde o
+  mês do primeiro seed (o mês não anda nas recargas), R$ 2.000,00, venda 50% / positivação 30% / visitas 20% com faixas
+  0: zero · 80: proporcional · 100: fixo 100 · 110: fixo 120, cobertura como gatilho; banco sem a 0028 = o seed não grava.
+- Caminho de volta: `0028_core_plano_rv.down.sql` (APAGA a tabela e os planos). Teste: `db/testes/plano-rv.test.ts`.

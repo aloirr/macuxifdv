@@ -101,6 +101,10 @@ e `plataforma.auditoria`.
 - **`plataforma.tenants_ativos()`** (0027, T-0039, ADR 0022): sexta `SECURITY DEFINER`, `pg_temp` no fim do `search_path`;
   `execute` só ao `macuxi_worker` (que segue sem `SELECT` em `plataforma.tenant`); devolve só os ids dos tenants `ativo` e não
   apagados, para o agendador das tarefas periódicas. `macuxi_app` e `public` sem EXECUTE.
+- **`plataforma.provisionar_tenant(jsonb)`** (0029, T-0083): `SECURITY INVOKER` (NÃO entra na lista das DEFINER), `search_path`
+  fixo com `pg_temp` no fim, sem EXECUTE para `public`, `macuxi_app` e `macuxi_worker` (42501): só a conexão de administração
+  (superusuário/BYPASSRLS) cria tenant. Grava com o contexto do tenant novo ligado e restaurado no fim.
+- **`core.plano_rv`** (0028, T-0082): enable + force + `isolamento_tenant`, como toda tabela de domínio.
 - **Conferência B1** (T-0078): `db/scripts/conferir-rls.sql` lista toda tabela de domínio com RLS desligado, RLS não forçado,
   sem política, sem política para o `macuxi_app` ou com coluna comum ausente, de outro tipo ou anulável. Esperado: zero linhas
   (exceções de `db/src/excecoes.ts`: `plataforma.tenant` sem `tenant_id`; `public.macuxi_migracao` fora). À mão, só leitura:
@@ -118,4 +122,6 @@ e `plataforma.auditoria`.
 | B1 (T-0078) conferência numa consulta só: zero tabelas sem RLS forçado, sem política ou sem coluna comum; a consulta acusa uma tabela criada sem RLS | `db/testes/conformidade.test.ts` + `db/scripts/conferir-rls.sql` |
 | `resumo_outbox`: só agregados de todos os tenants para o `macuxi_app`; worker sem EXECUTE | `db/testes/lgpd-outbox.test.ts` |
 | `tenants_ativos`: worker recebe só os ids dos ativos de todos os tenants (suspenso, encerrado e apagado fora); app 42501 | `db/testes/tenants-ativos.test.ts` |
+| `provisionar_tenant`: app e worker 42501; 2x a mesma entrada = mesmas contagens; só `redefinir_senha` troca o hash | `db/testes/provisionar-tenant.test.ts` |
+| `core.plano_rv`: A não lê nem grava B; sem contexto = 0; FK do autor no próprio tenant | `db/testes/plano-rv.test.ts` |
 | macuxi_worker: lê A e B, 42501 fora das colunas/tabelas concedidas, só marca 3 colunas, sem BYPASSRLS; app sem contexto = 0 | `db/testes/worker.test.ts` |

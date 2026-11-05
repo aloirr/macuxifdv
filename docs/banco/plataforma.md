@@ -26,6 +26,20 @@ pg_temp`, `execute` **só ao `macuxi_worker`**; `macuxi_app` e `public` sem EXEC
 `deleted_at is null`, ordenados por id. Só o id sai; o agendador das tarefas periódicas (`apps/api/src/agendador.ts`) lê
 licenças, parâmetros e fuso depois em `comTenant` (macuxi_app, RLS). Caminho de volta: `0027_plataforma_tenants_ativos.down.sql`
 (apaga a função; o worker vê `to_regprocedure` nulo e deixa o agendador desligado com warn). Teste: `db/testes/tenants-ativos.test.ts`.
+Função `provisionar_tenant(p jsonb) → jsonb` (0029, T-0083, RN-CORE-31; SECURITY INVOKER, `search_path = pg_catalog, plataforma,
+pg_temp`, sem EXECUTE para `public`, `macuxi_app` e `macuxi_worker`): porta do comando `pnpm tenant:criar` (conexão de
+administração). Entrada `{ codigo, nome, documento?, fuso? (America/Sao_Paulo), plano? (piloto), modulos: [{ modulo, licencas?,
+perfis }], admin: { email, nome, senha_hash (argon2id PHC) }, redefinir_senha? }`; saída `{ tenant_id, resultado:
+criado|atualizado|sem_mudanca, modulos_adicionados, admin: criado|existente|senha_redefinida, avisos }`. Idempotente pelo código
+(`on conflict (lower(codigo)) do nothing`): tenant existente não muda (aviso); só os módulos que faltam entram, com os perfis
+pedidos; perfis de módulo existente e módulo desativado não mudam (aviso); admin por `(tenant_id, lower(email))`: cria (perfil
+admin, ativo, sem equipe) ou mantém, e só `redefinir_senha = true` troca o `senha_hash`. Nenhuma linha em `parametro` (os
+gatilhos `tenant_semear_core` e `tenant_semear_medidas` seguem como em qualquer tenant). Uma linha de `auditoria`
+`tenant.provisionar` (módulo `core`, ator nulo) só quando algo muda, sem e-mail, nome ou hash. Entrada inválida = 22023 (sem dado
+pessoal na mensagem; o hash é conferido antes do insert para o CHECK não expor a linha); tenant encerrado ou excluído = 55000.
+Com superusuário, desliga `log_statement` e `log_min_duration_statement` na transação (o comando também desliga antes da
+chamada). Premissa: o admin é superusuário ou BYPASSRLS (como `excluir_tenant`). Caminho de volta:
+`0029_plataforma_provisionar_tenant.down.sql` (apaga a função; tenants já criados ficam). Teste: `db/testes/provisionar-tenant.test.ts`.
 
 ## tenant_modulo — módulos do tenant (RN-CORE-01/02)
 | Coluna | Tipo | Regra |
@@ -152,6 +166,8 @@ Os bytes NUNCA ficam no banco (porta `ArmazenamentoArquivos`); o down da 0005 de
   gêmeo de `idDeChave` em `db/src/ids.ts`. Usado nas linhas padrão semeadas em todo tenant.
 - `plataforma.resumo_outbox(text[], integer)` (0024): contagens da outbox para o `/v1/saude` (seção evento).
 - `plataforma.tenants_ativos()` (0027): ids dos tenants ativos para o agendador do worker (seção tenant); só `macuxi_worker`.
+- `plataforma.provisionar_tenant(jsonb)` (0029): onboarding de tenant pelo comando `pnpm tenant:criar` (seção tenant); SECURITY
+  INVOKER, só o dono/admin do banco executa.
 - LGPD (0024, T-0078; roteiro [lgpd.md](lgpd.md)): `anonimizar_usuario(p_tenant, p_usuario)`, `anonimizar_cliente(p_tenant,
   p_cliente)`, `anonimizar_contato(p_tenant, p_contato)` e `excluir_tenant(p_tenant, p_codigo)`. Todas `SECURITY INVOKER`,
   `search_path` fixo, sem `execute` para `public`, `macuxi_app` ou `macuxi_worker`: só o dono do banco roda, à mão. Devolvem
