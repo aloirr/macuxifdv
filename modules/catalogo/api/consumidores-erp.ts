@@ -6,12 +6,13 @@
  * (reentrega não duplica); inativação do ERP = soft delete do item (nunca apaga de verdade). O produto do payload é achado
  * pelo `external_id` na consulta `core.cadastro_resumo@1` (ADR 0012, nunca `core.produto`); produto que ainda não chegou
  * lança `ReferenciaAusenteErp`: a transação do consumo desfaz e a outbox repete com espera crescente, sem gravar órfão.
- * O schema do envelope é estrutural (subconjunto do payload do Hub): o Catálogo não importa pacote do Integracao.
+ * Os payloads vêm do `contracts` do Integracao (`EVENTO_ERP_*_ATUALIZADO`, leitura tolerante; T-0024), sem cópia local.
  */
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
-import { definirConsumidor, definirEvento, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
-import { planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, type EventoErpBase, type RegistroEstoqueErp, type RegistroNoErp, type RegistroPrecoErp, type RegistroProdutoNoErp } from '../domain';
+import { CatalogoNoPayload, EstoquePayload, EVENTO_ERP_CATALOGO_NO_ATUALIZADO, EVENTO_ERP_ESTOQUE_ATUALIZADO, EVENTO_ERP_PRECO_ATUALIZADO, EVENTO_ERP_PRODUTO_ATUALIZADO, PrecoPayload, ProdutoPayload } from '../../integracao/contracts';
+import { planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, type EventoErpBase } from '../domain';
 
 export class ReferenciaAusenteErp extends Error {
   constructor(
@@ -33,51 +34,20 @@ export const resolverProdutosPelaConsulta: ResolverProdutos = async (ctx, extern
   return mapa;
 };
 
-function envelope<S extends z.ZodTypeAny>(entidade: string, registro: S) {
-  return definirEvento(
-    `integracao.${entidade}.atualizado@1`,
-    z.object({
-      external_id: z.string().min(1),
-      acao: z.enum(['criado', 'atualizado', 'inativado']),
-      registro: registro.optional(),
-      ocorrido_em: z.string(),
-    }),
-  );
-}
-
-const RegistroPreco = z.object({
-  ativo: z.boolean().optional(),
-  tabela_external_id: z.string().min(1),
-  tabela_nome: z.string(),
-  vigencia_inicio: z.string().min(10),
-  vigencia_fim: z.string().nullish(),
-  produto_external_id: z.string().min(1),
-  preco_cents: z.number().nonnegative(),
-});
-const RegistroEstoque = z.object({
-  ativo: z.boolean().optional(),
-  deposito_external_id: z.string().min(1),
-  deposito_nome: z.string().nullish(),
-  produto_external_id: z.string().min(1),
-  saldo: z.number(),
-});
-
-export const EventoIntegracaoPrecoAtualizado = envelope('preco', RegistroPreco);
-export const EventoIntegracaoEstoqueAtualizado = envelope('estoque', RegistroEstoque);
-
-const RegistroNo = z.object({
-  ativo: z.boolean().optional(),
-  codigo: z.string().min(1),
-  nome: z.string(),
-  pai_external_id: z.string().nullish(),
-  nivel: z.number().int(),
-  ordem: z.number().int().optional(),
-});
+export const EventoIntegracaoPrecoAtualizado = eventoTolerante(EVENTO_ERP_PRECO_ATUALIZADO);
+export const EventoIntegracaoEstoqueAtualizado = eventoTolerante(EVENTO_ERP_ESTOQUE_ATUALIZADO);
+export const EventoIntegracaoCatalogoNoAtualizado = eventoTolerante(EVENTO_ERP_CATALOGO_NO_ATUALIZADO);
 /** Do produto do ERP o Catálogo lê só o nó da árvore; o cadastro do produto é do Core (que consome o mesmo evento). */
-const RegistroProdutoNo = z.object({ ativo: z.boolean().optional(), catalogo_no_external_id: z.string().nullish() }).passthrough();
+export const EventoIntegracaoProdutoAtualizado = eventoTolerante(EVENTO_ERP_PRODUTO_ATUALIZADO);
 
-export const EventoIntegracaoCatalogoNoAtualizado = envelope('catalogo_no', RegistroNo);
-export const EventoIntegracaoProdutoAtualizado = envelope('produto', RegistroProdutoNo);
+/**
+ * O `registro` do evento do dono pode vir tipado como união das 12 entidades: `safeParse` do schema da entidade devolve o
+ * registro certo (inválido vira `undefined` = "ignorar", como registro ausente).
+ */
+function comRegistro<S extends z.ZodTypeAny>(p: { external_id: string; acao: 'criado' | 'atualizado' | 'inativado'; registro?: unknown }, schema: S): EventoErpBase<z.output<S>> {
+  const r = p.registro === undefined ? undefined : schema.safeParse(p.registro);
+  return { external_id: p.external_id, acao: p.acao, registro: r?.success ? (r.data as z.output<S>) : undefined };
+}
 
 async function produtoId(ctx: ContextoConsumo, resolver: ResolverProdutos, externalId: string): Promise<string> {
   const id = (await resolver(ctx, [externalId])).get(externalId);
@@ -108,7 +78,7 @@ export function criarConsumidorPrecoDoErp(resolver: ResolverProdutos = resolverP
   return definirConsumidor({
     evento: EventoIntegracaoPrecoAtualizado,
     async executar(p, ctx: ContextoConsumo) {
-      const plano = planejarPrecoDoErp(p as EventoErpBase<RegistroPrecoErp>);
+      const plano = planejarPrecoDoErp(comRegistro(p, PrecoPayload));
       if (plano.tipo === 'ignorar') return;
       if (plano.tipo === 'inativar') {
         await ctx.db.query('update catalogo.tabela_preco_item set deleted_at = now() where external_id = $1 and deleted_at is null', [plano.external_id]);
@@ -134,7 +104,7 @@ export function criarConsumidorEstoqueDoErp(resolver: ResolverProdutos = resolve
   return definirConsumidor({
     evento: EventoIntegracaoEstoqueAtualizado,
     async executar(p, ctx: ContextoConsumo) {
-      const plano = planejarEstoqueDoErp(p as EventoErpBase<RegistroEstoqueErp>);
+      const plano = planejarEstoqueDoErp(comRegistro(p, EstoquePayload));
       if (plano.tipo === 'ignorar') return;
       if (plano.tipo === 'inativar') {
         await ctx.db.query('update catalogo.estoque_saldo set deleted_at = now() where external_id = $1 and deleted_at is null', [plano.external_id]);
@@ -170,7 +140,7 @@ export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
   return definirConsumidor({
     evento: EventoIntegracaoCatalogoNoAtualizado,
     async executar(p, ctx: ContextoConsumo) {
-      const plano = planejarNoDoErp(p as EventoErpBase<RegistroNoErp>);
+      const plano = planejarNoDoErp(comRegistro(p, CatalogoNoPayload));
       if (plano.tipo === 'ignorar') return;
       if (plano.tipo === 'inativar') {
         await ctx.db.query('update catalogo.catalogo_no set deleted_at = now() where external_id = $1 and deleted_at is null', [plano.external_id]);
@@ -196,7 +166,7 @@ export function criarConsumidorProdutoNoDoErp(resolver: ResolverProdutos = resol
   return definirConsumidor({
     evento: EventoIntegracaoProdutoAtualizado,
     async executar(p, ctx: ContextoConsumo) {
-      const plano = planejarProdutoNoDoErp(p as EventoErpBase<RegistroProdutoNoErp>);
+      const plano = planejarProdutoNoDoErp(comRegistro(p, ProdutoPayload));
       if (plano.tipo === 'ignorar') return;
       if (plano.tipo === 'desvincular') {
         await ctx.db.query('update catalogo.produto_no set deleted_at = now() where external_id = $1 and deleted_at is null', [plano.produto_external_id]);
