@@ -113,6 +113,15 @@ export function useVendedor() {
     })();
   }, [recarregar, estado.sincronizado_em, v1, repo]);
 
+  // T-0079 / V2: depois da troca de geração da base, exibição que não é de item da fila/aceito é órfã e sai (planoBaseRecriada)
+  useEffect(() => {
+    if (!repo || estado.sincronizando) return;
+    const itens = [...estado.fila, ...estado.aceitos]
+      .filter((i) => i.modulo === 'vendedor')
+      .map((i) => ({ id: i.id, entidade: i.entidade, situacao: 'pendente' as const }));
+    void repo.podarExibicoesOrfas(itens).then((podou) => (podou ? recarregar() : undefined));
+  }, [repo, estado.sincronizando, estado.fila, estado.aceitos, recarregar]);
+
   // a decisão já feita volta ao normal quando o pull traz o estado novo
   useEffect(() => {
     setDecididos((d) => {

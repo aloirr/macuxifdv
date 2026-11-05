@@ -515,6 +515,39 @@ describe.skipIf(semBanco())('Vendedor × Postgres: receber, aprovação, leitura
       expect(await ids('America/Sao_Paulo', '2026-10-31', '2026-10-31')).toEqual([]);
     });
 
+    it('T-0077 D1: por_status=1 usa a última transição em pedido_evento, não o updated_at (edição ou retorno do ERP sem troca de status não conta)', async () => {
+      const a = id(56); // emitido 16/10, aprovado 16/10 e só regravado em novembro
+      const b = id(57); // emitido 31/10, aprovado 02/11
+      const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });
+      await receber(ctx, push(a, { customer_id: A.clientes.c1, discount_pct: 1, items: itens() }));
+      await receber(ctx, push(b, { customer_id: A.clientes.c1, discount_pct: 1, items: itens() }));
+      const admin = new pg.Client({ connectionString: banco().urlAdmin });
+      await admin.connect();
+      try {
+        const poe = async (pid: string, dias: Array<[string | null, string, string]>, criado: string) => {
+          await admin.query('delete from vendedor.pedido_evento where pedido_id = $1', [pid]);
+          await admin.query('update vendedor.pedido set created_at = $2 where id = $1', [pid, criado]);
+          for (const [de, para, quando] of dias)
+            await admin.query('insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, ocorrido_em) select tenant_id, id, $2, $3, $4 from vendedor.pedido where id = $1', [pid, de, para, quando]);
+        };
+        // hora-fixa-ok: datas escolhidas para provar a fronteira do mês, nunca comparadas com o relógio
+        await poe(a, [[null, 'received', '2026-10-16T15:00:00Z'], ['received', 'approved', '2026-10-16T18:00:00Z']], '2026-10-16T15:00:00Z'); // hora-fixa-ok
+        await poe(b, [[null, 'received', '2026-10-31T15:00:00Z'], ['received', 'approved', '2026-11-02T15:00:00Z']], '2026-10-31T15:00:00Z'); // hora-fixa-ok
+        // regrava o pedido A em novembro (o gatilho leva o updated_at para agora, sem transição)
+        await admin.query("update vendedor.pedido set numero_erp = 'ERP-1' where id = $1", [a]);
+      } finally {
+        await admin.end();
+      }
+      const an = contexto(analista, { visiveis: 'tenant', fuso: 'America/Manaus' });
+      const ids = async (de: string, ate: string, porStatus: boolean) => {
+        const l = (await chamar(rotaListarPedidos, an.ctx, { query: { from: de, to: ate, limite: 200, ...(porStatus ? { por_status: '1' } : {}) } })) as { itens: Array<{ id: string }> };
+        return l.itens.map((o) => o.id).filter((x) => x === a || x === b).sort();
+      };
+      expect(await ids('2026-11-01', '2026-11-30', true)).toEqual([b]); // A não: só foi regravado
+      expect(await ids('2026-10-01', '2026-10-31', true)).toEqual([a, b].sort()); // B pela emissão, A pela emissão e pela aprovação
+      expect(await ids('2026-11-01', '2026-11-30', false)).toEqual([]); // sem por_status, só a data de emissão
+    });
+
     it('detalhe: itens, histórico, retrato do cliente e aprovação com pode_decidir por perfil; passa no contrato OrderDetail', async () => {
       const pid = id(50);
       const { ctx } = contexto(vendedor1, { carteira: new Set([A.clientes.c1]) });

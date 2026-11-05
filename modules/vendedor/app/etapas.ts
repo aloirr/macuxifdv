@@ -4,11 +4,12 @@
  * Falha de rede não apaga o que já está no aparelho.
  */
 import type { CustomerSummary, Me } from '@macuxi/core/contracts';
-import type { EtapaSync } from '@macuxi/platform-sdk';
+import type { ContextoEtapaSync, EtapaSync } from '@macuxi/platform-sdk';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import type { DiscountPolicy, Order } from '../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
-import { criarRepositorio, type DadosVendedor } from './lib/repositorio';
+import { chavesAApagarNaBaseRecriada } from '../domain/base-recriada';
+import { criarRepositorio, DADOS_VAZIOS, MARCA_PODAR_EXIBICOES, type DadosVendedor } from './lib/repositorio';
 
 interface Pagina<T> {
   items: T[];
@@ -34,9 +35,25 @@ export function toleraSemRota(etapa: EtapaSync): EtapaSync {
   };
 }
 
+/**
+ * ADR 0021 / T-0079: a base do servidor foi recriada. O motor já reenviou a fila e guarda o que não foi aceito; aqui sai a
+ * cópia do servidor no armazenamento do módulo (pedido fantasma). Ficam os rascunhos e as exibições, que o use-vendedor
+ * poda em seguida para só as dos itens da fila e aceitos (`podarExibicoesOrfas`; sem elas o pedido na fila perderia o nome do cliente). Roda na API v1 também (não passa por soNaDemonstracao).
+ * Idempotente: o motor repete a troca se o app cair no meio.
+ */
+export async function apagarCopiaDoServidor(ctx: ContextoEtapaSync): Promise<void> {
+  const repo = criarRepositorio(ctx.armazenamento);
+  for (const chave of chavesAApagarNaBaseRecriada(Object.keys(DADOS_VAZIOS))) {
+    await repo.gravar(chave as keyof DadosVendedor, DADOS_VAZIOS[chave as keyof DadosVendedor] as never);
+  }
+  // o contexto da etapa não traz a fila: a poda das exibições órfãs (planoBaseRecriada) roda no use-vendedor, que a enxerga
+  await ctx.armazenamento.gravar(MARCA_PODAR_EXIBICOES, true);
+}
+
 const etapasFaseM: readonly EtapaSync[] = [
   {
     id: 'alcadas',
+    aoTrocarGeracao: apagarCopiaDoServidor,
     rotulo: 'Alçadas de desconto',
     modulo: 'vendedor',
     executar: async (ctx) => {
