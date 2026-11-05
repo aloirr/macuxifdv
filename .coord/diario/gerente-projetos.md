@@ -249,3 +249,8 @@
 2026-11-05 — status — status das 16h por recado; D-T0039d corrigido no motor (disco antes da memória); ProvedorVoltar no shell
 2026-11-05 — T-0071 — triagem do Vendedor (22 encerrados, 1 feito, 6 no backlog); mês da meta = data de emissão (RN-CORE-20/21, sem decisão nova)
 2026-11-05 — T-0039/T-0052/T-0072/T-0082 — lote N liberado pelo engenheiro (sem 🔴); ele corrigiu também a edição perdida com o push em voo (motor de sync); espera o 🟡 da validação da cópia da RV; itens pequenos (tabela de preço, SKU compacto, manifesto do Catálogo, PDF do Vendedor) ficam para o lote seguinte, em revisão
+2026-11-05 — T-0039/T-0052/T-0072/T-0082 — lote N (e3c3e2b, 7 commits; sem os itens pequenos do Catálogo e o PDF do Vendedor) no CI 42107880176
+2026-11-05 — T-0039 — lote N vermelho só no S1-047 (fila de arquivos com 2 itens depois do envio; suspeita: mudança da fila do motor) → engenheiro-software
+2026-11-05 — T-0039 — causa do S1-047: com as gravações em série, um enviar chamado durante uma passada sem sinal recebia a mesma promessa e não enviava; corrigido no motor (passada extra única); ajuste do teste ordem-pesquisa-checkout L218 com o testes
+2026-11-05 — T-0039 — lote N refeito com a correção do motor e o O-A3 (f0dcf03, 9 commits) no CI 42111338200
+2026-11-05 — T-0039/T-0052/T-0072/T-0082 — lote N no main (8ce8733..f0dcf03, 9 commits): chip e aviso da etapa pendente, Minha RV, fila do motor sem perda (D-T0039d) e envio com passada extra, busca sem acerto acima de 5 mil, vazio novo, ‹ Início, testes; CI verde no commit exato
