@@ -30,7 +30,7 @@ describe.skipIf(semBanco())('RN-CORE-23 × Postgres: notificações de pedido', 
   let pool: pg.Pool;
   const publicar = vi.fn();
   const ctxDe = (db: pg.ClientBase, tenant: string, eventoId: string) =>
-    ({ db, agora: () => new Date(), envelope: { evento_id: eventoId, tenant_id: tenant }, publicar, log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }) as unknown as ContextoConsumo;
+    ({ db, agora: () => new Date(), fuso: () => 'America/Manaus', consultar: vi.fn(async () => ({ pedidos: [], faturamentos: [] })), envelope: { evento_id: eventoId, tenant_id: tenant }, publicar, log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }) as unknown as ContextoConsumo;
   const status = (tenant: string, eventoId: string, para: string, motivo: string | null = null) =>
     comTenant(pool, tenant, (db) => consumidorPedidoStatus.executar({ pedido_id: PEDIDO, vendedor_id: A.usuarios.vendedor1, para, motivo }, ctxDe(db, tenant, eventoId)));
   const contar = (tenant: string, eventoId: string) =>

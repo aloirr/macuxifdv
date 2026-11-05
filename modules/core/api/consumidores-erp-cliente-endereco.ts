@@ -6,31 +6,12 @@
  * `planejarEnderecoDoErp`, no domain). O schema abaixo é estrutural (subconjunto do `ClienteEnderecoPayload` do Hub).
  * Sem dado pessoal no log (só `external_id` e o motivo).
  */
-import { z } from 'zod';
-import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { planejarEnderecoDoErp, type EventoEnderecoAtualizado } from '../domain';
-import { clientePorExternalId, eventoIntegracao, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
+import { clientePorExternalId, ReferenciaAusenteErp } from './erp-apoio';
+import { EVENTO_ERP_CLIENTE_ENDERECO_ATUALIZADO } from '../../integracao/contracts';
 
-const RegistroEndereco = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  cliente_external_id: z.string(),
-  tipo: z.enum(['principal', 'entrega', 'cobranca']).optional(),
-  descricao: TextoErp,
-  logradouro: z.string(),
-  numero: TextoErp,
-  complemento: TextoErp,
-  bairro: TextoErp,
-  cidade: z.string(),
-  uf: z.string(),
-  cep: TextoErp,
-  latitude: z.number().nullish(),
-  longitude: z.number().nullish(),
-  principal: z.boolean().optional(),
-});
-
-export const EventoIntegracaoClienteEnderecoAtualizado = eventoIntegracao('cliente_endereco', RegistroEndereco);
+export const EventoIntegracaoClienteEnderecoAtualizado = eventoTolerante(EVENTO_ERP_CLIENTE_ENDERECO_ATUALIZADO);
 
 export const consumidorClienteEnderecoDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoClienteEnderecoAtualizado,

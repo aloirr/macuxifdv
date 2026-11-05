@@ -1,30 +1,17 @@
 /**
  * Notificações de pedido (RN-CORE-23 item 3; RF-CORE-09). Consome os eventos públicos do Vendedor
- * (`vendedor.pedido.status_alterado@1` e `vendedor.pedido.aprovacao_solicitada@1`), gera UMA notificação por
+ * (`vendedor.pedido.status_alterado@1` e `vendedor.pedido.aprovacao_solicitada@1`; definições do `contracts` do Vendedor, leitura tolerante, T-0024), gera UMA notificação por
  * destinatário em `core.notificacao` e publica `core.notificacao.criada@1` (o consumidor de `consumidores.ts` envia o
  * push com `data.link` e `data.entidades`). Idempotente: `envio_id` = id do evento, único por destinatário
  * (reentrega não repete). Destinatários: o vendedor do pedido; para "para aprovar", os responsáveis das equipes acima
  * dele (supervisor, gerente...) e, sem ninguém, os usuários de perfil gerente/analista/admin do tenant.
  * O texto não leva dado pessoal.
  */
-import { definirConsumidor, definirEvento, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { z } from 'zod';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_NOTIFICACAO_CRIADA } from '../contracts';
+import { EVENTO_PEDIDO_APROVACAO_SOLICITADA, EVENTO_PEDIDO_STATUS_ALTERADO } from '../../vendedor/contracts';
+import { apurarPositivacaoDoStatus } from './consumidores-positivacao';
 import { notificacaoDePedido, type EntradaNotificacaoPedido } from '../domain';
-
-/**
- * Leitura ESTRUTURAL dos eventos do Vendedor (como `domain/produto.ts` faz com o Hub): o Core não depende do pacote do
- * Vendedor (que depende do Core). Só os campos usados; o resto do payload (contrato em
- * `modules/vendedor/contracts/eventos.ts`) é ignorado pelo Zod.
- */
-const EVENTO_PEDIDO_STATUS_ALTERADO = definirEvento(
-  'vendedor.pedido.status_alterado@1',
-  z.object({ pedido_id: z.string().uuid(), vendedor_id: z.string().uuid(), para: z.string(), motivo: z.string().nullable(), pedido_numero: z.union([z.number(), z.string()]).nullish() }),
-);
-const EVENTO_PEDIDO_APROVACAO_SOLICITADA = definirEvento(
-  'vendedor.pedido.aprovacao_solicitada@1',
-  z.object({ pedido_id: z.string().uuid(), vendedor_id: z.string().uuid(), pedido_numero: z.union([z.number(), z.string()]).nullish() }),
-);
 
 /** Responsáveis (ativos) das equipes acima do vendedor; sem equipe/responsável, os perfis de alçada do tenant. */
 async function aprovadoresDe(ctx: ContextoConsumo, vendedorId: string): Promise<string[]> {
@@ -61,12 +48,16 @@ async function notificar(ctx: ContextoConsumo, vendedorId: string, entrada: Entr
 }
 
 export const consumidorPedidoStatus: ConsumidorEvento = definirConsumidor({
-  evento: EVENTO_PEDIDO_STATUS_ALTERADO,
-  executar: (p, ctx) => notificar(ctx, p.vendedor_id, { tipo: 'status', para: p.para, pedidoId: p.pedido_id, motivo: p.motivo, numero: p.pedido_numero }),
+  evento: eventoTolerante(EVENTO_PEDIDO_STATUS_ALTERADO),
+  executar: async (p, ctx) => {
+    await notificar(ctx, p.vendedor_id, { tipo: 'status', para: p.para, pedidoId: p.pedido_id, motivo: p.motivo, numero: p.pedido_numero });
+    // RN-CORE-20/26 (T-0073): o mesmo evento alimenta a positivação do dia em core.indicador_diario
+    await apurarPositivacaoDoStatus(p, ctx);
+  },
 });
 
 export const consumidorPedidoParaAprovar: ConsumidorEvento = definirConsumidor({
-  evento: EVENTO_PEDIDO_APROVACAO_SOLICITADA,
+  evento: eventoTolerante(EVENTO_PEDIDO_APROVACAO_SOLICITADA),
   executar: (p, ctx) => notificar(ctx, p.vendedor_id, { tipo: 'aprovacao_solicitada', pedidoId: p.pedido_id, numero: p.pedido_numero }),
 });
 

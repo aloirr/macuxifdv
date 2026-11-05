@@ -6,21 +6,12 @@
  * (vendedor/promotor cadastrado antes) é ADOTADO: ganha o `external_id`, mantém perfil, equipe e senha. Perfil e equipe
  * nunca são alterados pelo ERP depois de criado. Nada de dado pessoal no log.
  */
-import { z } from 'zod';
-import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { emailDoVendedorErp } from '../domain';
-import { eventoIntegracao, TextoErp } from './erp-apoio';
 
-const RegistroVendedor = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  nome: z.string(),
-  email: TextoErp,
-  telefone: TextoErp,
-});
+import { EVENTO_ERP_VENDEDOR_ATUALIZADO } from '../../integracao/contracts';
 
-export const EventoIntegracaoVendedorAtualizado = eventoIntegracao('vendedor', RegistroVendedor);
+export const EventoIntegracaoVendedorAtualizado = eventoTolerante(EVENTO_ERP_VENDEDOR_ATUALIZADO);
 
 export const consumidorVendedorDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoVendedorAtualizado,

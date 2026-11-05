@@ -7,25 +7,15 @@
  * Vendedor ou cliente ainda ausente = `ReferenciaAusenteErp` (a outbox repete). Dia que já tem rota de outra origem
  * para o mesmo vendedor não é sobrescrito (aviso). Limite da v1: a janela de 4 semanas só avança quando o ERP reenvia a rota.
  */
-import { z } from 'zod';
-import { definirConsumidor, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { dataLocal, datasDaRotaErp, notificacaoDeRotaDoDia, planejarParadasErp } from '../domain';
 import { notificarSistema } from './consumidores-sistema';
-import { clientePorExternalId, eventoIntegracao, ReferenciaAusenteErp, usuarioPorExternalId } from './erp-apoio';
+import { clientePorExternalId, ReferenciaAusenteErp, usuarioPorExternalId } from './erp-apoio';
+import { EVENTO_ERP_ROTA_ATUALIZADO } from '../../integracao/contracts';
 
 const SEMANAS_MATERIALIZADAS = 4;
 
-const RegistroRota = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  nome: z.string(),
-  vendedor_external_id: z.string(),
-  dia_semana: z.number().int().min(0).max(6).nullish(),
-  paradas: z.array(z.object({ ordem: z.number().int(), cliente_external_id: z.string() })).default([]),
-});
-
-export const EventoIntegracaoRotaAtualizado = eventoIntegracao('rota', RegistroRota);
+export const EventoIntegracaoRotaAtualizado = eventoTolerante(EVENTO_ERP_ROTA_ATUALIZADO);
 
 export const consumidorRotaDoErp: ConsumidorEvento = definirConsumidor({
   evento: EventoIntegracaoRotaAtualizado,

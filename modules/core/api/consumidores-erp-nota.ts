@@ -5,27 +5,12 @@
  * mês novo e do mês/cliente antigos (a nota pode mudar de mês ou de cliente): valor = faturamento menos devolução das notas
  * vivas e não canceladas; pedidos/itens/última compra contam só faturamento. Log sem dado pessoal (só contagens).
  */
-import { z } from 'zod';
-import { definirConsumidor, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { dataLocal } from '../domain';
-import { clientePorExternalId, eventoIntegracao, ReferenciaAusenteErp, TextoErp } from './erp-apoio';
+import { clientePorExternalId, ReferenciaAusenteErp } from './erp-apoio';
+import { EVENTO_ERP_NOTA_ATUALIZADO } from '../../integracao/contracts';
 
-const RegistroNota = z.object({
-  external_id: z.string(),
-  alterado_em: z.string(),
-  ativo: z.boolean().optional(),
-  cliente_external_id: z.string(),
-  tipo: z.enum(['faturamento', 'devolucao']),
-  numero: z.string(),
-  serie: TextoErp,
-  emitida_em: z.string(),
-  total_cents: z.number().int().min(0),
-  quantidade_itens: z.number().int().min(0).nullish(),
-  pedido_uuid: z.string().uuid().nullish(),
-  cancelada: z.boolean().optional(),
-});
-
-export const EventoIntegracaoNotaAtualizado = eventoIntegracao('nota', RegistroNota);
+export const EventoIntegracaoNotaAtualizado = eventoTolerante(EVENTO_ERP_NOTA_ATUALIZADO);
 
 /** Recalcula o consolidado mensal do cliente a partir das notas vivas (sem notas = linha do ERP removida). */
 export async function recalcularHistoricoCompra(db: ClienteBanco, clienteId: string, anoMes: string, fuso: string): Promise<void> {

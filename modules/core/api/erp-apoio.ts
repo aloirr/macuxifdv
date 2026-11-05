@@ -1,23 +1,9 @@
 /**
- * Apoio dos consumidores do ERP (`integracao.<entidade>.atualizado@1`; T-0066). Os schemas são estruturais (subconjunto do
- * payload canônico do Hub): o Core não importa pacote do Integracao. Referência ausente (RN-INT-04) lança
+ * Apoio dos consumidores do ERP (`integracao.<entidade>.atualizado@1`; T-0066). Os payloads vêm do `contracts` do Integracao
+ * (`EVENTO_ERP_*_ATUALIZADO`, leitura tolerante; T-0024). Referência ausente (RN-INT-04) lança
  * `ReferenciaAusenteErp`: a transação do consumo desfaz e a outbox repete com espera crescente, nunca grava órfão.
  */
-import { z } from 'zod';
-import { definirEvento, type ClienteBanco } from '@macuxi/platform-sdk';
-
-/** Envelope `integracao.<entidade>.atualizado@1` (campos extras do Hub, como `lote_id` e `hash`, são ignorados). */
-export function eventoIntegracao<S extends z.ZodTypeAny>(entidade: string, registro: S) {
-  return definirEvento(
-    `integracao.${entidade}.atualizado@1`,
-    z.object({
-      external_id: z.string().min(1),
-      acao: z.enum(['criado', 'atualizado', 'inativado']),
-      registro: registro.optional(),
-      ocorrido_em: z.string(),
-    }),
-  );
-}
+import type { ClienteBanco } from '@macuxi/platform-sdk';
 
 export class ReferenciaAusenteErp extends Error {
   constructor(
@@ -42,9 +28,6 @@ export async function comMedidaAusente<T>(gravar: () => Promise<T>): Promise<T> 
     throw e;
   }
 }
-
-/** Texto opcional do payload. */
-export const TextoErp = z.string().nullish();
 
 export async function usuarioPorExternalId(db: ClienteBanco, externalId: string): Promise<string | null> {
   const r = await db.query<{ id: string }>('select id from core.usuario where external_id = $1 and deleted_at is null', [externalId]);

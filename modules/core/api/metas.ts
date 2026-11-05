@@ -44,7 +44,7 @@ const naoEncontrado = () => new ErroNaoEncontrado('USUARIO_NAO_ENCONTRADO', 'Usu
  * Espelho mínimo (só os campos que a apuração usa) da consulta `vendedor.pedidos_da_meta@1`. O Core não importa o pacote do Vendedor
  * (evita ciclo de pacotes); o nome é a chave de ligação e o schema de saída é tolerante a campos extras.
  */
-const CONSULTA_PEDIDOS_DA_META = definirConsulta({
+export const CONSULTA_PEDIDOS_DA_META = definirConsulta({
   nome: 'vendedor.pedidos_da_meta@1',
   entrada: z.object({ usuario_ids: z.array(Id).max(500), periodo: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }),
   saida: z.object({
