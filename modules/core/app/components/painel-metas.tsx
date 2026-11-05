@@ -2,7 +2,7 @@
  * Painel "Indicadores do mês" (RF-CORE-08; RN-CORE-20..22): visitados, cobertura, positivação, meta × realizado e
  * necessidade diária, lidos do aparelho (funciona sem rede). Mesmos números do BKO: a conta é a do domínio.
  */
-import { Card, colors, fonts, ProgressBar, type as t } from '@macuxi/ui/mobile';
+import { Cartao, colors, EstadoVazio, fonts, ProgressBar, type as t } from '@macuxi/ui/mobile';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { textoDaLinha, textoNecessidadeDiaria } from '../lib/metas-formato';
@@ -15,7 +15,7 @@ export function PainelMetas() {
   return (
     <View style={{ gap: 10 }} testID="painel-metas">
       <Text style={t.h2}>Indicadores do mês</Text>
-      <Card>
+      <Cartao preenchimento={0}>
         <View style={styles.linha} testID="indicador-visitados">
           <Text style={styles.nome}>Visitados na rota</Text>
           <Text style={styles.valor}>
@@ -25,13 +25,11 @@ export function PainelMetas() {
         <Text style={[t.small, { paddingHorizontal: 14, paddingBottom: 12 }]} testID="indicador-necessidade">
           {textoNecessidadeDiaria(i)}
         </Text>
-      </Card>
+      </Cartao>
       {painel.metas.length === 0 ? (
-        <Card style={{ padding: 14 }}>
-          <Text style={t.sub}>Seu gestor ainda não definiu metas para este mês.</Text>
-        </Card>
+        <EstadoVazio testID="painel-metas-vazio" icone="target" titulo="Sem metas neste mês" texto="Seu gestor ainda não definiu as metas." />
       ) : (
-        <Card>
+        <Cartao preenchimento={0}>
           {painel.metas.map((m) => {
             const x = textoDaLinha(m);
             return (
@@ -47,7 +45,7 @@ export function PainelMetas() {
               </View>
             );
           })}
-        </Card>
+        </Cartao>
       )}
     </View>
   );

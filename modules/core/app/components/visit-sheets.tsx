@@ -9,9 +9,9 @@
  * obrigatória pendente de módulo ativo (RN-CORE-12).
  */
 import { useExtensoes, useMotorSync } from '@macuxi/platform-sdk/react';
-import { colors, fonts, formatHHMM, Icon, radius, type as t } from '@macuxi/ui/mobile';
+import { Botao, ChipEstado, colors, Folha, fonts, formatHHMM, Icon, radius, space, type as t } from '@macuxi/ui/mobile';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CheckoutVisita, ContextoCheckout, EtapaCheckout, MotivoClienteFechado } from '../../contracts';
@@ -129,15 +129,11 @@ export function comVisitas(Tela: ComponentType): ComponentType {
   return Envolvida;
 }
 
-export function BottomSheet({ visible, onClose, label, testID, children }: { visible: boolean; onClose: () => void; label: string; testID: string; children: ReactNode }) {
-  const insets = useSafeAreaInsets();
+export function BottomSheet({ visible, onClose, label, testID, children, rodape }: { visible: boolean; onClose: () => void; label: string; testID: string; children: ReactNode; rodape?: { rotulo: string; onPress: () => void; testID?: string } }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Fechar" />
-      <View style={[styles.sheet, { paddingBottom: 24 + insets.bottom }]} testID={testID} accessibilityViewIsModal accessibilityLabel={label}>
-        {children}
-      </View>
-    </Modal>
+    <Folha visivel={visible} onFechar={onClose} rotuloFechar="Fechar" rotuloAcessivel={label} rodape={rodape} testID={testID}>
+      <View style={{ gap: space.md }}>{children}</View>
+    </Folha>
   );
 }
 
@@ -146,7 +142,7 @@ function BlockedSheet({ sheet, onClose, onCheckout }: { sheet: Extract<Sheet, { 
   const openName = openVisit?.customer_name || sheet?.openName || 'outro cliente';
   const openAt = openVisit?.checkin_at ?? sheet?.openAt ?? null;
   return (
-    <BottomSheet visible={sheet !== null} onClose={onClose} label="Check-in bloqueado" testID="blocked-sheet">
+    <BottomSheet visible={sheet !== null} onClose={onClose} label="Check-in bloqueado" testID="blocked-sheet" rodape={{ rotulo: 'Voltar', onPress: onClose, testID: 'blocked-back' }}>
       <View style={styles.lockTile}>
         <Icon name="lock" size={22} color={colors.warning} />
       </View>
@@ -165,8 +161,7 @@ function BlockedSheet({ sheet, onClose, onCheckout }: { sheet: Extract<Sheet, { 
         </Text>
       )}
       <Text style={styles.free}>Pedidos para outros clientes continuam liberados.</Text>
-      <SheetButton testID="blocked-checkout" label={`Fazer checkout de ${openName}`} bg={colors.ink} fg="#FFFFFF" height={50} disabled={!openVisit} onPress={onCheckout} />
-      <SheetButton testID="blocked-back" label="Voltar" bg={colors.surface} fg={colors.ink} border={colors.lineStrong} height={46} onPress={onClose} />
+      <Botao testID="blocked-checkout" nivel="principal" rotulo={`Fazer checkout de ${openName}`} desligado={!openVisit} onPress={onCheckout} />
     </BottomSheet>
   );
 }
@@ -278,7 +273,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} label="Checkout" testID="checkout-sheet">
+    <BottomSheet visible={visible} onClose={onClose} label="Checkout" testID="checkout-sheet" rodape={{ rotulo: 'Continuar no atendimento', onPress: onClose, testID: 'checkout-continue' }}>
       <View style={{ gap: 2 }}>
         <Text style={styles.overline}>CHECKOUT</Text>
         <Text style={styles.title}>{name}</Text>
@@ -338,7 +333,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
         <View testID="checkout-foto-fachada" style={styles.etapa}>
           <Text style={[t.bodyStrong, { flex: 1 }]}>Foto da fachada (obrigatória)</Text>
           <Text style={t.small}>Cliente fechado: as etapas obrigatórias da visita ficam dispensadas.</Text>
-          <SheetButton testID="checkout-tirar-foto" label={fotoFachada ? 'Foto tirada · refazer' : 'Tirar foto da fachada'} bg={colors.surface} fg={colors.ink} border={colors.lineStrong} height={48} onPress={() => void tirarFoto()} />
+          <Botao testID="checkout-tirar-foto" nivel="secundario" rotulo={fotoFachada ? 'Foto tirada · refazer' : 'Tirar foto da fachada'} onPress={() => void tirarFoto()} />
           {erroFoto ? <Text style={styles.pendencia}>{erroFoto}</Text> : null}
         </View>
       ) : null}
@@ -349,7 +344,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
           <View key={`${e.modulo}-${e.id}`} testID={e.payload.testID} style={styles.etapa}>
             <View style={styles.etapaTop}>
               <Text style={[t.bodyStrong, { flex: 1 }]}>{e.payload.rotulo}</Text>
-              <Text style={[styles.etapaTag, { color: ok ? colors.success : e.payload.obrigatoria ? colors.danger : colors.ink2 }]}>{ok ? 'Feita' : e.payload.obrigatoria ? 'Obrigatória' : 'Opcional'}</Text>
+              <ChipEstado pequeno texto={ok ? 'Feita' : e.payload.obrigatoria ? 'Obrigatória' : 'Opcional'} tom={ok ? 'sucesso' : e.payload.obrigatoria ? 'erro' : 'neutro'} />
             </View>
             <Etapa contexto={contexto} />
           </View>
@@ -365,54 +360,28 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
           {erro}
         </Text>
       ) : null}
-      <SheetButton testID="checkout-confirm" label="Concluir checkout" bg={canConfirm ? colors.accent : '#B9C0C8'} fg="#FFFFFF" height={50} disabled={!canConfirm} onPress={() => void confirm()} />
-      <Pressable testID="checkout-continue" accessibilityRole="button" onPress={onClose} style={styles.textBtn}>
-        <Text style={styles.textBtnLabel}>Continuar no atendimento</Text>
-      </Pressable>
+      <Botao testID="checkout-confirm" nivel="principal" rotulo="Concluir checkout" desligado={!canConfirm} ocupado={salvando} onPress={() => void confirm()} />
     </BottomSheet>
   );
 }
 
-export function SheetButton({ label, onPress, bg, fg, border, height, disabled, testID }: { label: string; onPress: () => void; bg: string; fg: string; border?: string; height: number; disabled?: boolean; testID?: string }) {
-  return (
-    <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(disabled) }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [styles.sheetBtn, { height, backgroundColor: bg, borderColor: border ?? 'transparent', borderWidth: border ? 1 : 0 }, pressed && { opacity: 0.8 }]}>
-      <Text style={[styles.sheetBtnText, { color: fg, fontSize: height >= 50 ? 15 : 14 }]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(22,32,42,0.45)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 18, paddingTop: 20, gap: 12, maxWidth: 560, alignSelf: 'center', width: '100%' },
-  lockTile: { width: 44, height: 44, borderRadius: radius.lg, backgroundColor: colors.warningBg, alignItems: 'center', justifyContent: 'center' },
+  lockTile: { width: 48, height: 48, borderRadius: radius.cartao, backgroundColor: colors.warningBg, alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: fonts.display, fontSize: 20, color: colors.ink },
   overline: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.7, color: colors.ink2 },
   para: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink2 },
   strong: { fontFamily: fonts.semibold, color: colors.ink },
   free: { fontFamily: fonts.semibold, fontSize: 13, color: colors.success },
-  sheetBtn: { borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  sheetBtnText: { fontFamily: fonts.semibold },
-  option: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingVertical: 10, paddingHorizontal: 12 },
+  option: { borderRadius: radius.cartao, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, paddingVertical: 10, paddingHorizontal: 12 },
   optionOrderOn: { borderWidth: 2, borderColor: colors.success, backgroundColor: colors.successBg },
   optionNoOrderOn: { borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.ground },
   optionTitle: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
   reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  reason: { height: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  reasonText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.ink },
-  etapa: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, padding: 12, gap: 8 },
+  reason: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pilula, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  reasonText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  etapa: { borderRadius: radius.cartao, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, padding: 12, gap: 8 },
   etapaTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  etapaTag: { fontFamily: fonts.semibold, fontSize: 12 },
   pendencia: { fontFamily: fonts.semibold, fontSize: 13, color: colors.danger },
-  textBtn: { height: 44, alignItems: 'center', justifyContent: 'center' },
-  textBtnLabel: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
   toast: { position: 'absolute', left: 14, right: 14, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 12, shadowColor: '#16202A', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
   toastText: { fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5, color: '#FFFFFF' },
 });
