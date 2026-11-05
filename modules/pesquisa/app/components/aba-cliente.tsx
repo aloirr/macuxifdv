@@ -25,15 +25,19 @@ export function AbaPesquisasCliente({ contexto }: { contexto: ContextoCliente })
         </View>
       ))}
       {indisponiveis.map((d) => (
-        <View key={d.questionario_id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={[t.body, { flex: 1 }]}>{d.titulo}</Text>
-          {d.motivo === 'FREQUENCIA' ? (
-            <View style={{ alignItems: 'flex-end', gap: 2 }}>
+        <View key={d.questionario_id} style={{ gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={[t.body, { flex: 1 }]}>{d.titulo}</Text>
+            {d.motivo === 'FREQUENCIA' ? (
               <ChipEstado pequeno tom="sucesso" icone="check" texto="Respondida" />
-              {d.liberada_em ? <Text style={t.small}>Volta em {dataBr(d.liberada_em)}</Text> : null}
-            </View>
+            ) : (
+              <ChipEstado pequeno tom="neutro" texto="Não se aplica" rotuloAcessivel="Não vale para este cliente" />
+            )}
+          </View>
+          {d.motivo === 'FREQUENCIA' ? (
+            d.liberada_em ? <Text style={t.small}>Volta em {dataBr(d.liberada_em)}</Text> : null
           ) : (
-            <ChipEstado pequeno tom="neutro" texto="Não vale para este cliente" />
+            <Text style={t.small}>Não vale para este cliente</Text>
           )}
         </View>
       ))}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { avaliarEtapaCheckout, clienteFechadoNoContexto, type EntradaCheckout } from './checkout';
+import { avaliarEtapaCheckout, clienteFechadoNoContexto, verificarEtapasCheckoutServidor, type EntradaCheckout } from './checkout';
 import type { Questionario } from '../contracts';
 import { QUEST, TENANT, publicada, u } from './util-teste';
 
@@ -107,5 +107,77 @@ describe('RN-PES-03 / RN-CORE-14: cliente fechado vindo do ContextoCheckout do C
     const r = avaliarEtapaCheckout(entrada({ cliente_fechado: clienteFechadoNoContexto({ motivoClienteFechado: 'acesso_negado' }) }));
     expect(r.bloqueia_checkout).toBe(false);
     expect(r.concluida).toBe(true);
+  });
+});
+
+describe('RN-PES-03 / RN-CORE-12: etapa verificada no servidor (pesquisa.etapas_checkout@1)', () => {
+  const resp = (extra: Partial<{ visita_id: string; cliente_id: string | null }> = {}) => ({
+    questionario_id: QUEST,
+    usuario_id: u(1),
+    cliente_id: u(60),
+    visita_id: u(70),
+    respondida_em: '2026-10-31T14:00:00Z',
+    ...extra,
+  });
+  const semPublico = { perfis: [], equipes: [], segmentos: [], regioes: [], clientes: [] };
+
+  it('RN-PES-03: pesquisa obrigatória aplicável e sem resposta na visita vira etapa obrigatória e não concluída', () => {
+    expect(verificarEtapasCheckoutServidor(entrada())).toEqual([
+      { etapa: 'pesquisa.obrigatoria', rotulo: 'Pesquisa obrigatória: "Gôndola do mês"', obrigatoria: true, concluida: false },
+    ]);
+  });
+
+  it('RN-PES-03: resposta registrada para a visita e o cliente conclui a etapa', () => {
+    expect(verificarEtapasCheckoutServidor(entrada({ respostas: [resp()] }))[0]).toMatchObject({ obrigatoria: true, concluida: true });
+  });
+
+  it('RN-PES-03: resposta da mesma visita mas de outro cliente não conclui a etapa', () => {
+    expect(verificarEtapasCheckoutServidor(entrada({ respostas: [resp({ cliente_id: u(61) })] }))[0]).toMatchObject({ concluida: false });
+  });
+
+  it('RN-PES-03: resposta de outra visita não conclui a etapa', () => {
+    expect(verificarEtapasCheckoutServidor(entrada({ respostas: [resp({ visita_id: u(71) })] }))[0]).toMatchObject({ concluida: false });
+  });
+
+  it('RN-PES-03 / RN-CORE-14: cliente fechado dispensa — a etapa deixa de ser obrigatória', () => {
+    expect(verificarEtapasCheckoutServidor(entrada({ cliente_fechado: true }))).toEqual([
+      { etapa: 'pesquisa.obrigatoria', rotulo: 'Pesquisa obrigatória', obrigatoria: false, concluida: true },
+    ]);
+  });
+
+  it('RF-PES-02: fora do público (perfil) ou da vigência, nenhuma etapa', () => {
+    const restrita = [{ questionario: q(QUEST), versoes: [publicada({ modo: 'checkout_obrigatoria', publico_alvo: { ...semPublico, perfis: ['vendedor'] } })] }];
+    expect(verificarEtapasCheckoutServidor(entrada({ pesquisas: restrita }))).toEqual([]);
+    const vencida = [{ questionario: q(QUEST), versoes: [publicada({ modo: 'checkout_obrigatoria', vigencia: { inicio: '2026-09-01T00:00:00Z', fim: '2026-09-30T00:00:00Z' } })] }];
+    expect(verificarEtapasCheckoutServidor(entrada({ pesquisas: vencida }))).toEqual([]);
+  });
+
+  it('RF-PES-03: pesquisa avulsa nunca vira etapa; sem pesquisas, lista vazia', () => {
+    expect(verificarEtapasCheckoutServidor(entrada({ pesquisas: [{ questionario: q(QUEST), versoes: [publicada({ modo: 'avulsa' })] }] }))).toEqual([]);
+    expect(verificarEtapasCheckoutServidor(entrada({ pesquisas: [] }))).toEqual([]);
+  });
+
+  it('RN-PES-03: várias pendentes viram um rótulo só e o rótulo nunca passa de 120 caracteres', () => {
+    const outra = u(801);
+    const pesquisas = [
+      { questionario: q(QUEST), versoes: [publicada({ modo: 'checkout_obrigatoria' })] },
+      { questionario: q(outra), versoes: [publicada({ id: u(701), questionario_id: outra, modo: 'checkout_obrigatoria', titulo: 'Outra' })] },
+    ];
+    expect(verificarEtapasCheckoutServidor(entrada({ pesquisas }))[0]).toMatchObject({ rotulo: 'Pesquisas obrigatórias pendentes: 2', concluida: false });
+    const longa = [{ questionario: q(QUEST), versoes: [publicada({ modo: 'checkout_obrigatoria', titulo: 'X'.repeat(200) })] }];
+    expect(verificarEtapasCheckoutServidor(entrada({ pesquisas: longa }))[0]!.rotulo.length).toBeLessThanOrEqual(120);
+  });
+
+  it('RN-PES-03: uma concluída e outra pendente — etapa obrigatória, não concluída, com o título da pendente', () => {
+    const outra = u(801);
+    const pesquisas = [
+      { questionario: q(QUEST), versoes: [publicada({ modo: 'checkout_obrigatoria' })] },
+      { questionario: q(outra), versoes: [publicada({ id: u(701), questionario_id: outra, modo: 'checkout_obrigatoria', titulo: 'Outra' })] },
+    ];
+    expect(verificarEtapasCheckoutServidor(entrada({ pesquisas, respostas: [resp()] }))[0]).toMatchObject({
+      obrigatoria: true,
+      concluida: false,
+      rotulo: 'Pesquisa obrigatória: "Outra"',
+    });
   });
 });

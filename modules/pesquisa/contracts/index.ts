@@ -13,3 +13,4 @@ export * from './parametros';
 export * from './eventos';
 export * from './api';
 export * from './entidades';
+export * from './consulta-etapas-checkout';

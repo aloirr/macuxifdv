@@ -23,6 +23,8 @@ export const manifest = defineModule({
   sync: ['questionario', 'questionario_versao', 'pergunta', 'resposta_pesquisa'],
   publica: ['pesquisa.resposta.registrada@1'],
   consome: ['core.visita.checkout@1'],
+  // T-0039: o Core pergunta no checkout se a pesquisa obrigatória foi cumprida no servidor (RN-PES-03, RN-CORE-12)
+  ofereceConsultas: ['pesquisa.etapas_checkout@1'],
   usaExtensoes: ['cliente.abas', 'visita.etapas_checkout', 'inicio.cards'],
   acoes: {
     // --- responder (apps Campo e Gestão; funciona offline, a API revalida: RN-PES-01/03/04) ---

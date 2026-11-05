@@ -295,6 +295,19 @@ export function criarRepositorioPostgres(opcoes: OpcoesRepositorioPostgres = {})
         return linhas.map(respostaDaLinha);
       },
 
+      async respostasParaCheckout(f) {
+        if (f.questionario_ids.length === 0) return [];
+        const linhas = await sql<{ questionario_id: string; usuario_id: string; cliente_id: string | null; visita_id: string | null; respondida_em: string }>(
+          `select r.questionario_id, r.usuario_id, r.cliente_id, r.visita_id, ${ms('r.respondida_em')} as respondida_em
+             from pesquisa.resposta r
+            where r.deleted_at is null
+              and r.questionario_id = any($1::uuid[])
+              and (r.visita_id = $2::uuid or ((r.cliente_id = $3::uuid or r.usuario_id = $4::uuid) and r.respondida_em >= $5::timestamptz))`,
+          [[...f.questionario_ids], f.visita_id, f.cliente_id, f.usuario_id, f.desde],
+        );
+        return linhas;
+      },
+
       async puxarVersoes(janela) {
         const linhas = await sql<LinhaVersao & { updated_at: string; deleted_at: string | null; arquivado_em: string | null; questionario_criado_em: string }>(
           `select ${COLUNAS_VERSAO}, ${us('v.updated_at')} as updated_at, ${us('v.deleted_at')} as deleted_at,

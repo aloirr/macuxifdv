@@ -106,6 +106,17 @@ export function criarRepositorioEmMemoria(): FabricaRepositorio & { limpar(): vo
       async listarRespostas(qid) {
         return [...d.respostas.values()].filter((r) => r.dado.questionario_id === qid).map((r) => copia(r.dado));
       },
+      async respostasParaCheckout(f) {
+        const desde = Date.parse(f.desde);
+        return [...d.respostas.values()]
+          .map((r) => r.dado)
+          .filter(
+            (r) =>
+              f.questionario_ids.includes(r.questionario_id) &&
+              (r.visita_id === f.visita_id || ((r.cliente_id === f.cliente_id || r.usuario_id === f.usuario_id) && Date.parse(r.respondida_em) >= desde)),
+          )
+          .map((r) => ({ questionario_id: r.questionario_id, usuario_id: r.usuario_id, cliente_id: r.cliente_id, visita_id: r.visita_id, respondida_em: r.respondida_em }));
+      },
       async puxarVersoes(janela) {
         const linhas: QuestionarioVersaoSync[] = [];
         for (const v of d.versoes.values()) {

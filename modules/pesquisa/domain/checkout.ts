@@ -91,3 +91,38 @@ export interface ContextoClienteFechado {
 export function clienteFechadoNoContexto(ctx: ContextoClienteFechado): boolean {
   return ctx.clienteFechado === true || ctx.motivoClienteFechado === 'loja_fechada' || ctx.motivoClienteFechado === 'acesso_negado';
 }
+
+/** Etapa como o Core espera (`EtapaCheckoutVerificada`); tipo estrutural, sem importar o Core no domain. */
+export interface EtapaVerificada {
+  etapa: string;
+  rotulo: string;
+  obrigatoria: boolean;
+  concluida: boolean;
+}
+
+/** Id da etapa agregada; igual ao `ETAPA_PESQUISA_OBRIGATORIA` dos contracts. */
+const ID_ETAPA = 'pesquisa.obrigatoria';
+const LIMITE_ROTULO = 120;
+
+const cortar = (s: string) => (s.length <= LIMITE_ROTULO ? s : `${s.slice(0, LIMITE_ROTULO - 1)}…`);
+
+/**
+ * RN-PES-03 / RN-CORE-12 no servidor (`pesquisa.etapas_checkout@1`): a resposta só conta se foi registrada no servidor para
+ * ESTA visita e ESTE cliente. Devolve no máximo uma etapa agregada (`pesquisa.obrigatoria`); nenhuma pesquisa obrigatória
+ * aplicável = lista vazia. Cliente fechado (RN-CORE-14) dispensa: a etapa deixa de ser obrigatória (o Core também dispensa).
+ */
+export function verificarEtapasCheckoutServidor(entrada: EntradaCheckout): EtapaVerificada[] {
+  const doCliente = entrada.respostas.filter(
+    (r) => r.visita_id === entrada.visita_id && (r.cliente_id === null || entrada.cliente === null || r.cliente_id === entrada.cliente.id),
+  );
+  const r = avaliarEtapaCheckout({ ...entrada, respostas: doCliente });
+  if (r.itens.length === 0) return [];
+  const pend = r.pendentes;
+  const rotulo =
+    pend.length === 0
+      ? 'Pesquisa obrigatória'
+      : pend.length === 1
+        ? cortar(`Pesquisa obrigatória: "${pend[0]!.titulo}"`)
+        : `Pesquisas obrigatórias pendentes: ${pend.length}`;
+  return [{ etapa: ID_ETAPA, rotulo, obrigatoria: r.itens.some((i) => i.estado !== 'dispensada'), concluida: !r.bloqueia_checkout }];
+}

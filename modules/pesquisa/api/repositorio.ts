@@ -21,6 +21,16 @@ export interface JanelaPull {
   limite: number;
 }
 
+export interface FiltroRespostasCheckout {
+  questionario_ids: readonly string[];
+  visita_id: string;
+  cliente_id: string;
+  usuario_id: string;
+  /** ISO UTC; limite inferior de `respondida_em` para as respostas fora da visita. */
+  desde: string;
+}
+export type RespostaCheckout = Pick<RespostaPesquisa, 'questionario_id' | 'usuario_id' | 'cliente_id' | 'visita_id' | 'respondida_em'>;
+
 export interface RepositorioPesquisa {
   listarQuestionarios(): Promise<(QuestionarioCarregado & { respostas: number })[]>;
   /** `null` = não existe neste tenant (ou foi removido). */
@@ -34,6 +44,11 @@ export interface RepositorioPesquisa {
   /** Só inserção (RF-PES-04): nunca atualiza resposta existente. */
   inserirResposta(r: RespostaPesquisa, agora: string): Promise<void>;
   listarRespostas(questionarioId: string): Promise<RespostaPesquisa[]>;
+  /**
+   * Enxuto para o checkout (T-0039, RN-PES-03): só as colunas de `RespostaAnterior`, da visita OU (do cliente ou do usuário)
+   * respondidas desde `desde` (cobre frequência semana/mês). Sem `itens`.
+   */
+  respostasParaCheckout(f: FiltroRespostasCheckout): Promise<RespostaCheckout[]>;
   /** Pull de `questionario_versao`: só publicadas, com `arquivado_em` do questionário. */
   puxarVersoes(janela: JanelaPull): Promise<QuestionarioVersaoSync[]>;
   /** Pull de `resposta_pesquisa` (resumo), já filtrado pelo escopo do aparelho. */
