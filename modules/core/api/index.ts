@@ -28,6 +28,7 @@ import { rotasDeInicio } from './inicio';
 import { rotasDeMetas } from './metas';
 import { rotasDeProdutos } from './produtos';
 import { rotasDePromotorPedidos } from './promotor-pedidos';
+import { rotasDeParametrosInicio } from './parametros-inicio';
 import { rotasDeRotasEVisitas } from './rotas';
 import { rotasDeUsuarios } from './usuarios';
 import { provedoresSyncCore } from './sync';
@@ -39,7 +40,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
   const auth = criarAutenticacao(deps);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeNotificacoes],
+    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorMetaDefinida, ...consumidoresDoErp],
     consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaMedidas, consultaPromotorVePedidos, consultaUsuariosResumo],

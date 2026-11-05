@@ -496,3 +496,4 @@ export * from './promotor-pedidos';
 export * from './enderecos';
 export * from './usuarios';
 export * from './inicio';
+export * from './inicio-parametros';
