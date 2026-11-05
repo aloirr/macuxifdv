@@ -13,3 +13,7 @@
 2026-11-04 — T-0072 — vibração: guia §6 e comentário de movimento.ts alinhados à decisão R-20261104-231036 (com reduzir movimento, não vibra), resposta ao engenheiro-apps
 2026-11-04 — T-0077/T-0072 — condição 4 do lote: acabamento de Pedidos sem 🔴 (3 🟡 ao modulo-vendedor, R-20261104-234710) e vibração 01165dc sem 🔴 (1 🟡 ao engenheiro-apps, R-20261104-234713); entrega R-20261104-234729
 2026-11-05 — T-0072 — condição 4 do lote: correções dos 🟡 de #91 promotor (8/9; ícone camera fica), #92 treinamento (6/6) e #93 pesquisa (5/5, 1 🟡 novo no chip da aba do cliente) conferidas, todas sem 🔴; pendência minha no kit: Loading embutido em Cartao; entrega ao gerente
+2026-11-05 — T-0072 — Loading do kit compacto em cartão (contexto DentroDeCartao no Cartao/Card + prop embutido; altura mínima 96, sem flex nem fundo); tela cheia intacta; teste carregando.test.ts; entrega ao gerente
+2026-11-05 — T-0072 — conferência de UX do lote: Gestão (4 🟡 atendidos), Promotor (ícone camera) e Pesquisa (chip 'Não se aplica') verdes, sem 🔴 nem 🟡 novo
+2026-11-05 — T-0008 — revisão de UX da tela oculta de diagnóstico de carga e da linha de versão do Perfil: sem 🔴; 5 🟡 ao engenheiro-apps (tela acesa, etapa X de 6, contador explicado, veredito no topo, próximo passo no erro).
+2026-11-05 — T-0039 — especificação da etapa pendente no checkout (docs/design/checkout-pendencia.md): Campo, Gestão, BKO e textos da notificação; textoAlertaPendencia apontado ao modulo-core
