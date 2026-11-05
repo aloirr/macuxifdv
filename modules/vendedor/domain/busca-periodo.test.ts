@@ -19,6 +19,7 @@ import {
   chipsComAtivo,
   rotuloDoPeriodo,
   type ItemDaBusca,
+  intervaloDoPeriodo,
 } from './busca-periodo';
 
 const TZ = 'America/Manaus';
@@ -235,5 +236,23 @@ describe('T-0077 D1: data da última mudança de status', async () => {
   it('RF-VEN-05: sem nenhum evento no aparelho cai no updated_at', () => {
     expect(ultimaMudancaDeStatus([], '2026-11-03T15:00:00Z')).toBe('2026-11-03T15:00:00Z');
     expect(ultimaMudancaDeStatus([], '')).toBeNull();
+  });
+});
+
+describe('RF-VEN-05 / T-0077 item 6: intervalo do período para consultar o servidor', () => {
+  it('dia, mês e ano viram from/to em data civil (fuso do tenant)', () => {
+    expect(intervaloDoPeriodo({ tipo: 'dia', valor: '2026-02-03' })).toEqual({ from: '2026-02-03', to: '2026-02-03' });
+    expect(intervaloDoPeriodo({ tipo: 'mes', valor: '2026-02' })).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+    expect(intervaloDoPeriodo({ tipo: 'mes', valor: '2024-02' })).toEqual({ from: '2024-02-01', to: '2024-02-29' });
+    expect(intervaloDoPeriodo({ tipo: 'ano', valor: '2025' })).toEqual({ from: '2025-01-01', to: '2025-12-31' });
+  });
+});
+
+describe('T-0077 (acabamento): chip ativo com 0 fica no lugar dele na ordem', () => {
+  it('RF-VEN-05: Rejeitados 0 entra entre Aprovados e Na fila, não no fim', () => {
+    const c = contarPorSituacao([item({ id: '1' }), item({ id: '2', local: true })]);
+    expect(c.chips.map((x) => x.id)).toEqual(['todos', 'aprovados', 'na_fila']);
+    expect(chipsComAtivo(c.chips, 'rejeitados').map((x) => `${x.id}:${x.quantidade}`)).toEqual(['todos:1', 'aprovados:1', 'rejeitados:0', 'na_fila:1'].map((x) => (x === 'todos:1' ? 'todos:2' : x)));
+    expect(chipsComAtivo(c.chips, 'aguardando').map((x) => x.id)).toEqual(['todos', 'aguardando', 'aprovados', 'na_fila']);
   });
 });

@@ -330,6 +330,8 @@ export const OrderListQuery = z.object({
   tipo: z.enum(['pedido', 'orcamento', 'todos']).optional(),
   /** só com `tipo=orcamento` */
   situacao: z.enum(SITUACOES_ORCAMENTO).optional(),
+  /** T-0077 item 6: `1` = o período (`from`/`to`) traz também o que mudou de status nele (`updated_at`), além do emitido nele */
+  por_status: z.enum(['0', '1']).optional(),
 });
 
 /** Aprovar: 1 toque, comentário opcional (RN-GES-08). */

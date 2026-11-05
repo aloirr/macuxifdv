@@ -7,6 +7,7 @@ import type { ArmazenamentoSync } from '@macuxi/platform-sdk';
 import type { CustomerSummary, Me } from '@macuxi/core/contracts';
 import type { DiscountPolicy, Order, OrderDetail } from '../../contracts';
 import type { MixSuggestion, Product } from '@macuxi/catalogo/contracts';
+import { planoBaseRecriada, type ItemDaFila } from '../../domain/base-recriada';
 import type { OrderDisplay, Rascunho } from './pedidos';
 
 export interface TabelaDePrecos {
@@ -36,6 +37,9 @@ export interface DadosVendedor {
 export const DADOS_VAZIOS: DadosVendedor = { me: null, politica: null, clientes: [], produtos: {}, pedidos: [], detalhes: {}, rascunhos: {}, exibicoes: {}, mix: {}, ultimos: {}, sincronizado_em: null };
 
 type Chave = keyof DadosVendedor;
+
+/** Fora de `DadosVendedor` de propósito: a limpeza da base recriada não a apaga. */
+export const MARCA_PODAR_EXIBICOES = 'podar_exibicoes';
 
 export function criarRepositorio(arm: ArmazenamentoSync) {
   const ler = async <K extends Chave>(k: K): Promise<DadosVendedor[K]> => (await arm.ler<DadosVendedor[K]>(k)) ?? DADOS_VAZIOS[k];
@@ -85,6 +89,17 @@ export function criarRepositorio(arm: ArmazenamentoSync) {
     },
     async guardarExibicao(id: string, exibicao: OrderDisplay): Promise<void> {
       await alterar('exibicoes', (e) => ({ ...e, [id]: exibicao }));
+    },
+    /**
+     * T-0079 / V2: depois da troca de geração, deixa só as exibições dos itens ainda na fila (e aceitos aguardando o pull);
+     * o resto é órfão da base antiga. O marcador é posto por `apagarCopiaDoServidor`, que não enxerga a fila. Devolve se podou.
+     */
+    async podarExibicoesOrfas(fila: readonly ItemDaFila[]): Promise<boolean> {
+      if (!(await arm.ler<boolean>(MARCA_PODAR_EXIBICOES))) return false;
+      const plano = planoBaseRecriada({ fila, exibicoes: await ler('exibicoes'), rascunhos: {} });
+      await gravar('exibicoes', plano.exibicoes_preservadas);
+      await arm.remover(MARCA_PODAR_EXIBICOES);
+      return true;
     },
     async removerExibicao(id: string): Promise<void> {
       await alterar('exibicoes', (e) => {
