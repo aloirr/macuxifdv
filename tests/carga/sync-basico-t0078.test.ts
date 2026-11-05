@@ -16,7 +16,7 @@
  * saem no console com o prefixo `[carga T-0078]` e vão para o checklist (item C1).
  *
  * Proibido: rodar contra a demo da VM (api-demo); a URL aqui é sempre a do servidor local que o próprio teste sobe.
- * Convenção: `it.fails` = defeito aberto (fica vermelho quando corrigir e vira `it`).
+ * Convenção: `it` = vale hoje; `it.fails` = defeito aberto (fica vermelho quando corrigir e vira `it`). Nenhum aberto aqui.
  */
 import { spawn } from 'node:child_process';
 import type { AddressInfo } from 'node:net';
@@ -142,19 +142,21 @@ describe('T-0078 C1 — carga básica do sync SEM banco (API real, provedores em
   }
 
   /**
-   * DEFEITO T-0078-C1a (aberto em 05/11): scripts/carga/sync-basico.mjs faz o login em `${URL}/core/auth/login`
-   * (= `/v1/core/auth/login`), mas a rota pública do Core é `/v1/auth/login` (modules/core/api/index.ts, `auth/login`;
-   * montada em `/v1/<caminho>` por `montarRotaPublica` em apps/api/src/app.ts). Contra a API real (local ou demo) a
-   * ferramenta sai com "login falhou (status 404)". Os casos acima só rodam porque o apoio em memória também responde no
-   * caminho errado. Correção (engenheiro-software): `chamar('/auth/login', …)` e o filtro da latência por `'/auth/'`.
+   * D-C1a (aberto e corrigido em 05/11, R-20261105-010615-engenheiro-software): a ferramenta fazia login em
+   * `/v1/core/auth/login`; a rota pública do Core é `/v1/auth/login` (modules/core/api/index.ts, `auth/login`, montada em
+   * `/v1/<caminho>` por `montarRotaPublica` de apps/api/src/app.ts). Agora o apoio em memória só responde no caminho real
+   * (o legado dá 404) e o C1 com Postgres não tem mais repasse: os casos acima e este provam o caminho certo.
    */
-  it.fails('D-C1a: a ferramenta entra pelo caminho real do login (/v1/auth/login) e roda contra uma API sem o caminho legado', async () => {
-    const real = montarApiSyncMemoria({ caminhosLogin: ['/v1/auth/login'] });
+  it('D-C1a: a ferramenta entra pelo caminho real do login (/v1/auth/login) e roda contra uma API sem o caminho legado', async () => {
+    const real = montarApiSyncMemoria();
     try {
+      const legado = await real.app.inject({ method: 'POST', url: '/v1/core/auth/login', payload: { codigo_empresa: 'demo', email: 'x@exemplo.com.br', senha: 'x' } });
+      expect(legado.statusCode).toBe(404);
       const u = await escutar(real.app);
       const r = await rodarFerramenta({ url: u, empresa: 'demo', email: 'vendedor.carga@exemplo.com.br', senha: 'senha-so-de-teste', aparelhos: 1 });
       expect(r.stderr).not.toMatch(/login falhou/);
       expect(r.codigo).toBe(0);
+      expect(r.resultado?.erros).toEqual({});
     } finally {
       await real.app.close();
     }
@@ -171,11 +173,6 @@ describe.skipIf(semBanco())('T-0078 C1 — carga básica do sync COM Postgres (A
     const p = poolComEncerramento(new pg.Pool({ connectionString: banco.urlApp, max: 10 }));
     const coreApi = criarModuloApiCore({ segredo: () => SEGREDO_JWT });
     app = createApp({ banco: criarBancoApp(p.pool), modulos: MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m)), logger: false });
-    // compatibilidade com o D-C1a enquanto a ferramenta chama /v1/core/auth/login: repassa ao login REAL do Core
-    app.post('/v1/core/auth/login', async (req, reply) => {
-      const r = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: req.body as object, remoteAddress: req.ip });
-      return reply.code(r.statusCode).header('content-type', 'application/json').send(r.body);
-    });
     url = await escutar(app);
     await new Promise((r) => setTimeout(r, 2_500)); // horizonte do pull
     fechar = async () => {

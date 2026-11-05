@@ -92,7 +92,14 @@ export function poolComEncerramento(pool: pg.Pool): { pool: pg.Pool; encerrar(ms
 }
 
 export async function subirApi(
-  opcoes: { logger?: FastifyServerOptions['logger']; poolMax?: number; /** Bytes das fotos (ADR 0010); sem ele o upload responde 503. */ arquivos?: ArmazenamentoArquivos } = {},
+  opcoes: {
+    logger?: FastifyServerOptions['logger'];
+    poolMax?: number;
+    /** Bytes das fotos (ADR 0010); sem ele o upload responde 503. */
+    arquivos?: ArmazenamentoArquivos;
+    /** Relógio das rotas (`ctx.agora()`; T-0080). A verificação do JWT segue o relógio real: faça o login com ele no real. */
+    relogio?: () => Date;
+  } = {},
 ): Promise<ApiDeTeste> {
   const banco = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: SENHA }).then(() => undefined) });
   const app_ = poolComEncerramento(new pg.Pool({ connectionString: banco.urlApp, max: opcoes.poolMax ?? 6 }));
@@ -101,7 +108,7 @@ export async function subirApi(
   const admin = admin_.pool;
   const coreApi = criarModuloApiCore({ segredo: () => SEGREDO_JWT });
   const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m));
-  const app = createApp({ banco: criarBancoApp(pool), modulos, logger: opcoes.logger ?? false, arquivos: opcoes.arquivos ?? null });
+  const app = createApp({ banco: criarBancoApp(pool), modulos, logger: opcoes.logger ?? false, arquivos: opcoes.arquivos ?? null, ...(opcoes.relogio ? { relogio: opcoes.relogio } : {}) });
   await app.ready();
 
   const entrar: ApiDeTeste['entrar'] = (email, o = {}) =>

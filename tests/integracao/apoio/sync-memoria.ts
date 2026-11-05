@@ -90,8 +90,6 @@ export function montarApiSyncMemoria(
     comDadoPessoal?: boolean;
     /** Payload do push do `pedido` sem o schema real (o teste L1 manda texto livre com dado pessoal até o provedor). */
     pedidoLivre?: boolean;
-    /** Caminhos do login de teste (padrão: o real `/v1/auth/login` e o `/v1/core/auth/login` que a ferramenta de carga usa, D1). */
-    caminhosLogin?: readonly string[];
   } = {},
 ): ApiSyncMemoria {
   const token = `carga-${randomUUID()}`;
@@ -154,10 +152,9 @@ export function montarApiSyncMemoria(
     usuariosVisiveis: async (u) => new Set([u.id]),
   });
 
-  // login de teste: `/v1/auth/login` é o caminho real do Core (modules/core/api/index.ts, rota pública `auth/login`);
-  // `/v1/core/auth/login` só existe aqui porque scripts/carga/sync-basico.mjs chama esse caminho (defeito D1 da T-0078).
-  const login = async () => ({ access_token: token, token_type: 'Bearer', expires_in: 900, refresh_token: `${TENANT_MEMORIA}.x` });
-  for (const c of op.caminhosLogin ?? ['/v1/auth/login', '/v1/core/auth/login']) app.post(c, login);
+  // login de teste só no caminho real do Core (modules/core/api/index.ts, rota pública `auth/login` → `/v1/auth/login`);
+  // o caminho legado `/v1/core/auth/login` saiu com a correção do D-C1a (T-0078).
+  app.post('/v1/auth/login', async () => ({ access_token: token, token_type: 'Bearer', expires_in: 900, refresh_token: `${TENANT_MEMORIA}.x` }));
 
   return {
     app,
