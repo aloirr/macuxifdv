@@ -224,9 +224,14 @@ export function desenhoBotaoSincronizar(s: {
   };
 }
 
-/** Rodapé das listas: "Atualizado às hh:mm · puxe para sincronizar"; depois de um toque dentro da proteção, "Atualizado há instantes". */
-export function rodapeAtualizacao(atualizadoEm: number | string | Date | null | undefined, tz?: string, opcoes: { recente?: boolean } = {}): string {
+/**
+ * Rodapé das listas: "Atualizado às hh:mm · puxe para sincronizar"; depois de um toque dentro da proteção, "Atualizado há instantes".
+ * Modo sem sinal (T-0071, revisão de UX): só a hora, sem o convite a puxar (o puxar não sincroniza; a tela mostra o motivo).
+ */
+export function rodapeAtualizacao(atualizadoEm: number | string | Date | null | undefined, tz?: string, opcoes: { recente?: boolean; semSinal?: boolean } = {}): string {
+  const semHora = atualizadoEm === null || atualizadoEm === undefined || atualizadoEm === '';
+  if (opcoes.semSinal) return semHora ? 'Ainda não sincronizado' : `Atualizado às ${formatHHMM(atualizadoEm, tz)}`;
   if (opcoes.recente) return 'Atualizado há instantes';
-  if (atualizadoEm === null || atualizadoEm === undefined || atualizadoEm === '') return 'Puxe para sincronizar';
+  if (semHora) return 'Puxe para sincronizar';
   return `Atualizado às ${formatHHMM(atualizadoEm, tz)} · puxe para sincronizar`;
 }

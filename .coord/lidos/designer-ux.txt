@@ -70,3 +70,6 @@ R-20261105-154619-modulo-core
 R-20261105-154632-modulo-core
 R-20261105-155429-modulo-catalogo
 R-20261105-155919-engenheiro-apps
+R-20261105-184235-modulo-catalogo
+R-20261105-184836-modulo-vendedor
+R-20261105-184926-engenheiro-software

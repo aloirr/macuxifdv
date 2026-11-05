@@ -24,7 +24,7 @@ export interface UsoAtualizacaoAutomatica {
   puxar: () => void;
   /** Última sincronização concluída (ms) ou null. */
   atualizadoEm: number | null;
-  /** "Atualizado às hh:mm · puxe para sincronizar" ou "Atualizado há instantes". */
+  /** "Atualizado às hh:mm · puxe para sincronizar", "Atualizado há instantes" ou, sem sinal, só "Atualizado às hh:mm". */
   rodape: string;
 }
 
@@ -73,6 +73,6 @@ export function useAtualizacaoAutomatica({
     puxando: sync ? sync.estado.puxando : puxandoLocal,
     puxar,
     atualizadoEm: atualizadoEm !== null && Number.isFinite(atualizadoEm) ? atualizadoEm : null,
-    rodape: rodapeAtualizacao(sincronizadoEm, tz ?? sync?.tz, { recente: sync?.estado.recente ?? false }),
+    rodape: rodapeAtualizacao(sincronizadoEm, tz ?? sync?.tz, { recente: sync?.estado.recente ?? false, semSinal: sync?.semSinal ?? false }),
   };
 }

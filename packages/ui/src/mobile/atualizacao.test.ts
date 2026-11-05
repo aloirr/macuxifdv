@@ -108,6 +108,10 @@ describe('textos', () => {
     expect(rodapeAtualizacao(null)).toBe('Puxe para sincronizar');
     expect(rodapeAtualizacao(INICIO, 'America/Manaus')).toBe('Atualizado às 11:00 · puxe para sincronizar');
     expect(rodapeAtualizacao(INICIO, 'America/Manaus', { recente: true })).toBe('Atualizado há instantes');
+    // modo sem sinal: só a hora, sem convidar a puxar (o puxar não sincroniza)
+    expect(rodapeAtualizacao(INICIO, 'America/Manaus', { semSinal: true })).toBe('Atualizado às 11:00');
+    expect(rodapeAtualizacao(INICIO, 'America/Manaus', { semSinal: true, recente: true })).toBe('Atualizado às 11:00');
+    expect(rodapeAtualizacao(null, 'America/Manaus', { semSinal: true })).toBe('Ainda não sincronizado');
   });
 });
 
