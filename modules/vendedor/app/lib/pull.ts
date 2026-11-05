@@ -13,6 +13,7 @@ import type { TransportadoraSync } from '../../contracts/frete';
 import { rotuloMedida } from '../../domain/preco-pedido';
 import type { EnderecoDaTela, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
 import { politicaDosParametros, quemDecide, textoPendencia } from '../../domain/aprovacao';
+import { ultimaMudancaDeStatus } from '../../domain/busca-periodo';
 import { camposFaturamento } from '../../domain/retorno-erp';
 
 export interface LinhasVendedor {
@@ -262,8 +263,9 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
 /** Lista de pedidos do aparelho (vivos), do mais novo ao mais antigo. */
 export function listaDePedidos(l: LinhasVendedor, parametros: Readonly<Record<string, unknown>>): Order[] {
   const itens = agruparPorPedido(l.itens);
+  const eventos = agruparPorPedido(l.eventos);
   return l.pedidos
-    .map((p) => ordemDoPedido(p, itens.get(p.id) ?? [], parametros, l.tabelasPreco))
+    .map((p) => ({ ...ordemDoPedido(p, itens.get(p.id) ?? [], parametros, l.tabelasPreco), status_changed_at: ultimaMudancaDeStatus(eventos.get(p.id) ?? [], p.updated_at) }))
     .sort((a, b) => b.received_at.localeCompare(a.received_at) || b.id.localeCompare(a.id));
 }
 

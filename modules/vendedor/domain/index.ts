@@ -11,3 +11,6 @@ export * from './preco-pedido';
 export * from './leitura-pedido';
 export * from './pedidos-da-meta';
 export * from './sugestoes';
+export * from './resumo-inicio';
+export * from './busca-periodo';
+export * from './filtro-vendedor';

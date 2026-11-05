@@ -35,3 +35,11 @@
 2026-11-04 — T-0071 — revisão de UX da fatia 6: 3 vermelhos (Resumo somente leitura, orçamento confirmado como orçamento, folha do Transformar sempre aberta com a alçada) e amarelos 4 a 16 + 17 a 22 e 24; textos-pedido-ux.test.ts; suíte do Vendedor 688 verdes (5434); fica: item 23 e 3 amarelos do PUT do orçamento (R-20261104-042158)
 2026-11-04 — T-0071 — PUT do orçamento idempotente, hash_envio gravado, auditoria com antes real, 3 🟢 da revisão e AvisoRodape no lugar do AvisoRapido
 2026-11-04 — T-0071 — UX: detalhe sem pedido com 'Tentar de novo', nota 'Recebido.' removida, avisos sem ponto, na raiz da tela e mostrados no destino após salvar edição
+2026-11-04 — T-0071 — CI do PR #86: O-3 corrigido (ponto único {somenteLeitura ? null : (...)} no detalhe do pedido); O5 contradiz a regra RN-VEN-33 (recado ao testes)
+2026-11-04 — T-0076 — cards Orçamentos e A faturar no inicio.cards (item pedidos-resumo, ordem 20), domain resumo-inicio, filtro ?filtro= em Pedidos; rodapé do Cliente 360 já só tem [Novo pedido] do Vendedor
+2026-11-04 — T-0076/T-0077 — A faturar ajustado (enviado ao ERP/integrado contam, na fila não); domain busca-periodo (+periodoForaDaJanela), SeletorDePeriodo e tela Pedidos com busca, Dia|Mês|Ano e uma linha de situações; export em contracts e recado ao modulo-gestor
+2026-11-04 — T-0077 — item 5: seletor de vendedor na OrdersScreen (Gestão), domain filtro-vendedor com teste
+2026-11-04 — T-0076 — cards do Início: rótulo com t.rotulo e gap 12 (revisão do designer-ux)
+2026-11-04 — T-0077 — R1 (busca sempre em Todos) e amarelos Y1-Y10 na tela Pedidos; Y11 e G1-G3 ficam para depois do APK
+2026-11-04 — T-0076 — V1: filtro vindo do card Orçamentos usa orcamentoEmAberto (mesma regra do card); teste lista = contagem do card
+2026-11-04 — T-0077 — D1: período por mudança de status usa o último pedido_evento (ultimaMudancaDeStatus), Order.status_changed_at

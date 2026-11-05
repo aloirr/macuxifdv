@@ -2,7 +2,8 @@ import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { ENTIDADES_VENDEDOR } from '../contracts/entidades';
 import { manifest } from '../manifest';
-import type { AbaCliente, AcaoCliente, ContextoCliente } from '@macuxi/core/contracts';
+import type { AbaCliente, AcaoCliente, CardInicio, ContextoCliente } from '@macuxi/core/contracts';
+import { CardsPedidosInicio } from './components/cards-inicio';
 import { AbaMix, AbaUltimosPedidos } from './components/ficha-cliente';
 import { etapasVendedor } from './etapas';
 import { irParaNovoPedido } from './rotas';
@@ -58,6 +59,14 @@ export const moduloApp = definirModuloShell<ComponentType>({
         destaque: true,
         abrir: (ctx) => irParaNovoPedido({ customerId: ctx.clienteId, visitId: ctx.visitaId ?? undefined, stopId: ctx.paradaId ?? undefined }),
       } satisfies AcaoCliente,
+    },
+    // T-0076: cards Orçamentos e A faturar no Início do Campo. `acao: 'pedido.criar'` esconde o card do promotor (RN-PRO-01).
+    {
+      slot: 'inicio.cards',
+      id: 'pedidos-resumo',
+      acao: 'pedido.criar',
+      apps: ['campo'],
+      payload: { testID: 'inicio.cards-vendedor', componente: CardsPedidosInicio, ordem: 20 } satisfies CardInicio<ComponentType>,
     },
   ],
 });

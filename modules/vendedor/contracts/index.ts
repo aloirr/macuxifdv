@@ -28,6 +28,29 @@ export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
 export { ORDER_STATUSES, ORDER_STATUS_LABEL } from '../domain/order';
 export { MOTIVOS_APROVACAO, MOTIVO_REJEICAO_MIN, NIVEIS_APROVACAO, STATUS_CONTRATO } from '../domain/aprovacao';
 export { SITUACAO_ORCAMENTO_LABEL, SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
+// T-0077 (RF-VEN-05): busca e período da lista de Pedidos, reusados pelo Gestão (filtro de vendedor fica no Gestor)
+export {
+  JANELA_DIAS,
+  ROTULO_SITUACAO,
+  casaComBusca,
+  contarPorSituacao,
+  deslocarPeriodo,
+  destacarTrecho,
+  diasComPedido,
+  filtrarLista,
+  itemNaSituacao,
+  itemNoPeriodo,
+  mesesDoPeriodo,
+  nomeDoMes,
+  normalizarTexto,
+  numeroSemZeros,
+  periodoDe,
+  periodoForaDaJanela,
+  resumoDaLista,
+  rotuloDoPeriodo,
+  situacaoDoItem,
+} from '../domain/busca-periodo';
+export type { ContagemPorSituacao, ItemDaBusca, Periodo, SituacaoDaLista, TipoPeriodo, TrechoDoTexto } from '../domain/busca-periodo';
 export * from './eventos';
 export * from './sync';
 export * from './pre-venda';
@@ -97,6 +120,8 @@ export const Order = z.object({
   created_offline_at: IsoDateTime.nullable(),
   received_at: IsoDateTime,
   updated_at: IsoDateTime,
+  /** T-0077 D1: data da última mudança de status (pedido_evento); ausente = usar updated_at */
+  status_changed_at: IsoDateTime.nullable().optional(),
   items_count: z.number().int(),
   units: z.number().int(),
   /** T-0029: nível que decide o pedido pendente e se QUEM CONSULTA pode decidir agora (a lista do BKO mostra os botões só a quem pode) */

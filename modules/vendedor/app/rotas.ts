@@ -17,6 +17,9 @@ const rota = (caminho: string, params: Record<string, string | undefined> = {}) 
 };
 
 export const hrefPedidos = () => rota(CAMINHO_PEDIDOS);
+/** T-0076: a lista de Pedidos já filtrada pelos cards do Início. */
+export type FiltroDoInicio = 'orcamentos' | 'a_faturar';
+export const hrefPedidosFiltrados = (filtro: FiltroDoInicio) => rota(CAMINHO_PEDIDOS, { filtro });
 export const hrefPedido = (id: string) => rota(CAMINHO_PEDIDO, { id });
 export const hrefNovoPedido = (params: { customerId?: string; editId?: string; visitId?: string; stopId?: string } = {}) => rota(CAMINHO_NOVO_PEDIDO, params);
 
@@ -27,3 +30,4 @@ export const irParaCatalogoDoPedido = (clienteId: string) => router.push(hrefCat
 export const irParaPedidos = () => router.navigate(hrefPedidos() as never);
 export const irParaPedido = (id: string) => router.navigate(hrefPedido(id) as never);
 export const irParaNovoPedido = (params: { customerId?: string; editId?: string; visitId?: string; stopId?: string } = {}) => router.push(hrefNovoPedido(params) as never);
+export const irParaPedidosFiltrados = (filtro: FiltroDoInicio) => router.navigate(hrefPedidosFiltrados(filtro) as never);
