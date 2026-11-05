@@ -57,3 +57,5 @@
 2026-11-05 — T-0071/T-0077 — W1-W4 (digitação, voltar no foco, rolagem do teclado, R$ com ponto), Y1 (aplicação 2 linhas), textoDoVazio extraída
 2026-11-05 — T-0071 — RN-VEN-11: precoMinimoBaseCents arredonda para cima (igual ao Core), testes 1890→1607 e 1891→1608
 2026-11-05 — T-0071 — V1: valor pendente do campo de quantidade em foco (0 tira o item, número grava) aplicado em Salvar, Avançar, aba e +/−; W1 mantida; testes e checks verdes
+2026-11-05 — T-0071/T-0077/T-0079 — triagem de 28 pedidos antigos: 20 encerrados (já no main), 1 feito (PDF imprime 'CNPJ/CPF não informado', teste), 8 abertos com resposta e backlog (slots criar_em_nome e produto.acoes, hook/rodapé nas telas de Pedidos e detalhe, reteste do PDF, número duplicado da demo, V1/V2 da revisão do lote J)
+2026-11-05 — T-0071 — revisão do PDF: regex do teste /CNPJ\s*(<|·)/ corrigida e rótulo CPF/CNPJ pelo tamanho do documento, com teste

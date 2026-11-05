@@ -184,4 +184,20 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
     expect(orderPdfFileName('PED-000123', 'customer', 'orcamento')).toBe('orcamento-PED-000123-cliente.pdf');
     expect(orderPdfFileName('10521', 'bko')).toBe('pedido-10521-bko.pdf');
   });
+  it('RF-VEN-06 / T-0026: cliente sem CNPJ/CPF imprime "CNPJ/CPF não informado" nos dois PDFs (documento nulo não derruba)', () => {
+    const d = detalhe({ cliente: { razao_social: 'Mercado Exemplo Ltda', nome_fantasia: 'Mercado Exemplo', documento: null, endereco: 'Rua A, 1', bairro: 'Centro', cidade: 'Manaus', codigo_erp: 'C9' } });
+    for (const v of ['customer', 'bko'] as const) {
+      const html = buildOrderPdfHtml(pdfDoPedido(d), v, ctx);
+      expect(html).toContain('CNPJ/CPF não informado');
+      expect(html).not.toMatch(/CNPJ\s*(<|·)/);
+    }
+  });
+  it('RF-VEN-06 / T-0061: documento de 11 dígitos imprime "CPF" e de 14 imprime "CNPJ"', () => {
+    const d = detalhe({ cliente: { razao_social: 'Maria', nome_fantasia: 'Maria', documento: '12345678909', endereco: 'Rua A, 1', bairro: 'Centro', cidade: 'Manaus', codigo_erp: 'C9' } });
+    for (const v of ['customer', 'bko'] as const) {
+      const html = buildOrderPdfHtml(pdfDoPedido(d), v, ctx);
+      expect(html).toContain('CPF 123.456.789-09');
+      expect(html).not.toContain('CNPJ 123');
+    }
+  });
 });

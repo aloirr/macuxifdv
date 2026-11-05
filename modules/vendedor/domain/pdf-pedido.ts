@@ -151,6 +151,13 @@ export function formatCnpj(cnpj: string): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
+/** Rótulo e valor do documento do cliente: 11 dígitos = CPF, 14 = CNPJ; outro tamanho mantém "CNPJ" com o texto original. */
+export function documentoCliente(doc: string): { rotulo: 'CPF' | 'CNPJ'; valor: string } {
+  const d = doc.replace(/\D/g, '');
+  if (d.length === 11) return { rotulo: 'CPF', valor: `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` };
+  return { rotulo: 'CNPJ', valor: formatCnpj(doc) };
+}
+
 /** Tabela de preço: o nome; sem nome, o id técnico (UUID) nunca aparece. */
 export function priceTableLabel(id: string, nome?: string | null): string {
   if (nome && nome.trim()) return nome.trim();
@@ -254,7 +261,7 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
     <div class="label">Cliente</div>
     <div class="strong">${escapeHtml(c.legal_name || c.trade_name)}</div>
     ${c.legal_name && c.trade_name && c.legal_name !== c.trade_name ? `<div>${escapeHtml(c.trade_name)}</div>` : ''}
-    <div class="muted">CNPJ ${escapeHtml(formatCnpj(c.cnpj))}${c.erp_code ? ` · cód. ${escapeHtml(c.erp_code)}` : ''}</div>
+    <div class="muted">${c.cnpj ? (() => { const dc = documentoCliente(c.cnpj); return `${dc.rotulo} ${escapeHtml(dc.valor)}`; })() : 'CNPJ/CPF não informado'}${c.erp_code ? ` · cód. ${escapeHtml(c.erp_code)}` : ''}</div>
     ${place ? `<div class="muted">${escapeHtml(place)}</div>` : ''}
   </div>
   <div class="box kv">
@@ -429,7 +436,7 @@ export interface DetalheParaPdf {
   cliente?: {
     razao_social: string;
     nome_fantasia: string;
-    documento: string;
+    documento: string | null;
     endereco: string;
     bairro: string;
     cidade: string;
@@ -454,7 +461,7 @@ export function pdfDoPedido(d: DetalheParaPdf): OrderPdfOrder {
     customer: {
       legal_name: c?.razao_social ?? d.customer_name,
       trade_name: c?.nome_fantasia ?? d.customer_name,
-      cnpj: c?.documento ?? '',
+      cnpj: c?.documento?.trim() ?? '',
       address: c?.endereco ?? '',
       district: c?.bairro ?? '',
       city: c?.cidade ?? '',
