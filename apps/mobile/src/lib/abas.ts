@@ -11,6 +11,8 @@
 import type { ItemNavegacao, ModuloId } from '@macuxi/platform-sdk';
 import type { IconName } from '@macuxi/ui/mobile';
 
+import type { OrigemPilha } from './historico-telas';
+
 export interface AbaShell {
   href: string;
   label: string;
@@ -59,4 +61,27 @@ export function abaAtiva(aba: AbaShell, atual: string, mais: readonly AbaShell[]
   if (aba.href === '/') return atual === '/';
   if (aba.href === HREF_MAIS) return casa(HREF_MAIS) || mais.some((m) => casa(m.href));
   return casa(aba.href);
+}
+
+/** Dona da pilha das telas de módulo (lib/historico-telas.ts): a aba e de onde a pilha foi aberta. */
+export interface DonoDaPilha {
+  aba: string | null;
+  origem: OrigemPilha;
+}
+
+/**
+ * Aba acesa na barra (T-0072, R-20261105-125027; docs/design/componentes.md §6.1 "Aba acesa = aba dona da pilha").
+ * Fora das telas de módulo, pelo caminho (Início em `/`, "Mais" em `/mais`). Numa tela de módulo, pela dona da pilha,
+ * não pelo caminho (o detalhe `/m/pedido` é da pilha de Pedidos): (1) aba da barra, ela acende; (2) item do "Mais",
+ * acende o "Mais"; (3) pilha aberta de fora cuja raiz não é aba (ex.: cartão do Início que abre `/m/pedido`), acende a
+ * tela de origem, para onde o voltar leva (o Início; o "Mais" se a pilha veio dele). Sem dona conhecida, pelo caminho.
+ */
+export function abaAcesa(abas: AbasDoShell, atual: string, dono: DonoDaPilha): AbaShell | null {
+  const porCaminho = () => abas.barra.find((a) => abaAtiva(a, atual, abas.mais)) ?? null;
+  if (!atual.startsWith('/m/') || dono.aba === null) return porCaminho();
+  const naBarra = abas.barra.find((a) => a.href === dono.aba);
+  if (naBarra) return naBarra;
+  const mais = abas.barra.find((a) => a.href === HREF_MAIS) ?? null;
+  if (mais && (dono.origem === 'mais' || abas.mais.some((a) => a.href === dono.aba))) return mais;
+  return abas.barra.find((a) => a.href === INICIO.href) ?? null;
 }

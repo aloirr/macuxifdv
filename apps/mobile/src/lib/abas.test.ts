@@ -7,7 +7,7 @@
 import { criarShell, definirModuloShell, modulosEfetivos, type ModuloId, type ModuloShell, type PaginaShell, type Perfil } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 
-import { abaAtiva, abasDoShell, HREF_MAIS, MAX_ABAS_BARRA } from './abas';
+import { abaAcesa, abaAtiva, abasDoShell, HREF_MAIS, MAX_ABAS_BARRA } from './abas';
 import { efetivosSemServidor } from './efetivos-locais';
 import { MANIFESTOS_INSTALADOS } from './instalados';
 
@@ -93,6 +93,26 @@ describe('T-0034 — abas do shell mobile', () => {
     expect(abaAtiva(barra[0]!, '/', mais)).toBe(true);
     expect(abaAtiva(barra[0]!, '/m/rota', mais)).toBe(false);
     expect(barra.map((a) => a.testID)).toEqual(['tab-inicio', 'tab-core-rota', 'tab-core-clientes', 'tab-core-metas', 'tab-mais']);
+  });
+
+  // T-0072 (R-20261105-125027; docs/design/componentes.md §6.1): numa tela de módulo, acende a aba dona da pilha
+  it('aba acesa = dona da pilha: detalhe e editor acendem a aba de onde vieram; pilha aberta pelo Início acende o Início', () => {
+    const abas = abasDoShell(criarShell('campo', MODULOS).montar({ perfil: 'vendedor', modulosAtivos: ['core', 'catalogo', 'vendedor'] }).navegacao);
+    const acesa = (atual: string, aba: string | null, origem: 'aba' | 'inicio' | 'mais' | 'outra' = 'aba') => abaAcesa(abas, atual, { aba, origem })?.testID;
+    // aba da barra: a ficha do cliente (/m/cliente) é da pilha de Clientes
+    expect(acesa('/m/cliente', '/m/clientes')).toBe('tab-core-clientes');
+    expect(abaAtiva(abas.barra[2]!, '/m/cliente', abas.mais)).toBe(false); // pelo caminho não acenderia
+    // item do "Mais": Pedidos › detalhe e Pedidos › Novo pedido acendem o "Mais"
+    expect(acesa('/m/pedido', '/m/pedidos')).toBe('tab-mais');
+    expect(acesa('/m/novo-pedido', '/m/pedidos')).toBe('tab-mais');
+    // pilha aberta de fora pelo Início, raiz que não é aba nem item do "Mais"
+    expect(acesa('/m/pedido', '/m/pedido', 'inicio')).toBe('tab-inicio');
+    expect(acesa('/m/pedido', '/m/pedido', 'mais')).toBe('tab-mais');
+    // fora das telas de módulo, pelo caminho
+    expect(acesa('/', '/m/clientes')).toBe('tab-inicio');
+    expect(acesa(HREF_MAIS, '/m/clientes')).toBe('tab-mais');
+    // uma aba só acende por vez
+    expect(abas.barra.filter((a) => a === abaAcesa(abas, '/m/pedido', { aba: '/m/pedidos', origem: 'aba' }))).toHaveLength(1);
   });
 });
 

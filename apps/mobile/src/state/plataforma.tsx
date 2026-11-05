@@ -44,7 +44,7 @@ import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
-import { limparHistoricoDoShell } from '@/lib/transicao-modulo';
+import { limparHistoricoDoShell } from '@/lib/historico-telas';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
 import { observarFalhasDeSync, type FalhaSync } from '@/lib/diagnostico-sync';

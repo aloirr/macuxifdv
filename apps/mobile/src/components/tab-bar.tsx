@@ -5,6 +5,9 @@
  * `lib/abas.ts`, puro e testado (T-0034). O desenho é a `BarraAbas` do kit (T-0072, docs/design/componentes.md §5).
  * testID estável: `tab-bar`, `tab-inicio`, `tab-<modulo>-<id>` (= `nav-<modulo>-<id>` do registro) e `tab-mais`.
  * Contador = itens do módulo ainda na fila do aparelho, em âmbar ("Mais" soma os módulos que estão dentro dele).
+ * Aba de módulo (T-0071): volta ao topo da pilha guardada da aba; tocada de novo numa tela de módulo, volta à raiz da aba
+ * (lib/historico-telas.ts). Troca de aba não desliza (T-0072).
+ * Aba acesa (T-0072, R-20261105-125027): a dona da pilha da tela de módulo em uso, não o caminho (`abaAcesa`).
  */
 import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,14 +15,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ModuloId } from '@macuxi/platform-sdk';
 import { BarraAbas } from '@macuxi/ui/mobile';
 
-import { abaAtiva, type AbasDoShell } from '@/lib/abas';
-import { marcarTrocaDeAba } from '@/lib/transicao-modulo';
+import { abaAcesa, type AbasDoShell } from '@/lib/abas';
+import { abrirAba } from '@/lib/historico-telas';
+import { useDonoDaPilha } from '@/state/historico-do-shell';
 
 export { abasDoShell, type AbaShell, type AbasDoShell } from '@/lib/abas';
 
 export function TabBar({ abas, badges }: { abas: AbasDoShell; badges?: Partial<Record<ModuloId, number>> }) {
   const insets = useSafeAreaInsets();
   const atual = usePathname();
+  // aba acesa = dona da pilha (o detalhe e o editor acendem a aba de onde vieram), relida a cada mudança do histórico
+  const acesa = abaAcesa(abas, atual, useDonoDaPilha());
   const itens = abas.barra.map((tab) => {
     // "Mais" soma a fila dos módulos que estão dentro dele
     const contador = tab.modulo ? badges?.[tab.modulo] : tab.href === '/' ? undefined : somaBadges(abas.mais, badges);
@@ -27,14 +33,13 @@ export function TabBar({ abas, badges }: { abas: AbasDoShell; badges?: Partial<R
       id: tab.testID,
       rotulo: tab.label,
       icone: tab.icon,
-      ativo: abaAtiva(tab, atual, abas.mais),
+      ativo: tab === acesa,
       contador,
       rotuloContador: contador ? `${contador} na fila` : undefined,
       testID: tab.testID,
       onPress: () => {
-        // troca de aba não desliza (T-0072): só a navegação dentro do módulo anima
-        if (tab.href.startsWith('/m/')) marcarTrocaDeAba();
-        router.navigate(tab.href as never);
+        const destino = tab.href.startsWith('/m/') ? abrirAba(tab.href, atual.startsWith('/m/')) : tab.href;
+        router.navigate(destino as never);
       },
     };
   });
