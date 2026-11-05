@@ -87,7 +87,7 @@ describe('RN-CORE-26 / RN-AUD-01: PUT parametros/inicio', () => {
   });
   it('RN-CORE-26: a API revalida: valor fora da faixa vira 422 em português e nada é gravado', async () => {
     const { db, chamadas } = fakeDb([]);
-    await expect(chamar('PUT', db, { ...valido, parado_min: 5 })).rejects.toMatchObject({ status: 422, codigo: 'PARAMETROS_INICIO_INVALIDOS' });
+    await expect(chamar('PUT', db, { ...valido, parado_min: 5 })).rejects.toMatchObject({ status: 422, codigo: 'RN-CORE-26', detalhes: { erros: [{ campo: 'parado_min', mensagem: expect.stringContaining('15 a 480') }] } });
     await expect(chamar('PUT', db, { ...valido, dias_uteis_semana: [] })).rejects.toMatchObject({ status: 422 });
     expect(chamadas).toHaveLength(0);
   });

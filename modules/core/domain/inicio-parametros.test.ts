@@ -27,17 +27,22 @@ describe('RN-CORE-26: parâmetros do Início por tenant', () => {
     for (const dias of [[], [7], [-1], [1.5]]) {
       const r = validarParametrosInicio({ ...ok, dias_uteis_semana: dias });
       expect(r.ok, JSON.stringify(dias)).toBe(false);
-      if (!r.ok) expect(r.erros[0]).toMatch(/dia/i);
+      if (!r.ok) expect(r.erros).toEqual([{ campo: 'dias_uteis_semana', mensagem: expect.stringMatching(/dia/i) }]);
     }
   });
   it('RN-CORE-26: recado padrão vazio volta ao padrão do sistema; acima de 140 caracteres é recusado', () => {
     const vazio = validarParametrosInicio({ ...ok, recado_do_dia_padrao: '   ' });
     expect(vazio).toMatchObject({ ok: true, valores: { recado_do_dia_padrao: RECADO_DO_DIA_PADRAO } });
-    expect(validarParametrosInicio({ ...ok, recado_do_dia_padrao: 'a'.repeat(141) }).ok).toBe(false);
+    expect(validarParametrosInicio({ ...ok, recado_do_dia_padrao: 'a'.repeat(141) })).toMatchObject({ ok: false, erros: [{ campo: 'recado_do_dia_padrao' }] });
     expect(validarParametrosInicio({ ...ok, recado_do_dia_padrao: 'a'.repeat(140) }).ok).toBe(true);
   });
   it('RN-CORE-26: parado_min aceita inteiro de 15 a 480; fora disso é recusado', () => {
     for (const n of [15, 60, 480]) expect(validarParametrosInicio({ ...ok, parado_min: n }).ok, String(n)).toBe(true);
-    for (const n of [14, 481, 0, 30.5, Number.NaN]) expect(validarParametrosInicio({ ...ok, parado_min: n }).ok, String(n)).toBe(false);
+    for (const n of [14, 481, 0, 30.5, Number.NaN]) expect(validarParametrosInicio({ ...ok, parado_min: n }), String(n)).toMatchObject({ ok: false, erros: [{ campo: 'parado_min' }] });
+  });
+  it('RN-CORE-26: cada erro leva a chave do campo (a tela liga por ela, não pela redação); vários erros juntos', () => {
+    const r = validarParametrosInicio({ dias_uteis_semana: [], recado_do_dia_padrao: 'a'.repeat(141), parado_min: 1 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.erros.map((e) => e.campo)).toEqual(['dias_uteis_semana', 'recado_do_dia_padrao', 'parado_min']);
   });
 });

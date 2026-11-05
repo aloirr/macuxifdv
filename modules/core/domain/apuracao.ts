@@ -78,6 +78,21 @@ export function positivadosDoPeriodo(pedidos: readonly PedidoDaMeta[], o: Opcoes
   return new Set(pedidosDoPeriodo(pedidos, o).map((p) => p.cliente_id).filter((c): c is string => Boolean(c))).size;
 }
 
+/**
+ * RN-CORE-20/26: clientes distintos positivados pelo vendedor em UM dia civil do tenant (pedido aprovado emitido nesse dia, fuso do tenant),
+ * em ordem estável. É o que o consumidor do read-model grava em `core.indicador_diario.clientes_positivados_ids` junto com a contagem
+ * (CHECK da 0023: contagem = tamanho da lista). Cancelamento: recalcular com o pedido cancelado e regravar o dia.
+ */
+export function positivadosDoDia(pedidos: readonly PedidoDaMeta[], o: { usuario_id: string; dia: string; fuso: string }): { clientes_positivados_ids: string[]; clientes_positivados: number } {
+  const ids = new Set<string>();
+  for (const p of pedidos) {
+    if (p.vendedor_id !== o.usuario_id || !contaComoAprovado(p.status) || !p.cliente_id || dataCivil(p.emitido_em, o.fuso) !== o.dia) continue;
+    ids.add(p.cliente_id);
+  }
+  const lista = [...ids].sort();
+  return { clientes_positivados_ids: lista, clientes_positivados: lista.length };
+}
+
 function proximoMes(periodo: string): string {
   const [a, m] = periodo.split('-').map(Number) as [number, number];
   return m === 12 ? `${a + 1}-01` : `${a}-${String(m + 1).padStart(2, '0')}`;

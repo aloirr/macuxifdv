@@ -53,3 +53,7 @@
 2026-11-04 — T-0077 — D2: teste de banco inseria em mês já ocupado pelo seed (c1 tem 12 meses); agora usa hoje−12m; D2-a toca updated_at ao ligar e desligar; D2-b linha oculta sem valores; teste incremental
 2026-11-04 — T-0073 passo 7 — parâmetros do Início no BKO (GET/PUT parametros/inicio, domain inicio-parametros, painel em Metas e RV, auditoria RN-AUD-01); 🟢 tenant_id explícito em promotor-pedidos.ts
 2026-11-04 — T-0073 — passo 7: 7 🟡 do designer-ux no painel Parâmetros do Início (erro no campo, contador, min, salvo success, ajuda dos dias, aria-label, frase em branco)
+2026-11-04 — T-0073 — positivação acumulada do mês no fallback do core.inicio@1 (core.positivacao_do_mes), positivadosDoDia + gravarPositivadosDoDia; 🟡 do passo 7 (ErroRegraNegocio RN-CORE-26, erros {campo,mensagem} e painel por chave); parametros-inicio.db.test e indicador-diario.db.test para o CI; 🟢 parametrosInicioDasLinhas no app aguarda destravar
+2026-11-04 — T-0039 — checkout validado na API (domain checkout-servidor, contrato etapas-checkout, verificador por consulta, rejeição no push); testes de banco no CI
+2026-11-05 — T-0039 — checkout aceita motivo desativado após o checkout offline (RN-CORE-12), domain+api, testes
+2026-11-05 — T-0079 — CI A2: pull de parametro inclui as 3 chaves do Início (sync.ts); teste de checkout separado em motivo desativado antes/depois

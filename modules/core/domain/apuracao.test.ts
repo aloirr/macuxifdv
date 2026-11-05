@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dataDoFechamento,
   periodoFechado,
+  positivadosDoDia,
   positivadosDoPeriodo,
   realizadoPartido,
   realizadoPorTipo,
@@ -159,5 +160,32 @@ describe('RN-CORE-26: realizado partido em até ontem × hoje, no fuso do tenant
   it('RN-CORE-26: só o vendedor da meta entra', () => {
     const outro = pedido({ vendedor_id: V2, emitido_em: '2026-11-10T14:00:00Z' });
     expect(realizadoPartido('pedido', { pedidos: [outro] }, o).venda_cents).toEqual({ ate_ontem: 0, hoje: 0 });
+  });
+});
+
+describe('RN-CORE-20/26: clientes positivados do dia (lista que alimenta indicador_diario.clientes_positivados_ids)', () => {
+  const o = { usuario_id: V1, dia: '2026-11-10', fuso: MANAUS };
+  it('RN-CORE-20: cliente com dois pedidos no dia entra uma vez; a contagem é o tamanho da lista (CHECK da 0023)', () => {
+    const ps = [pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C2 }), pedido({ emitido_em: '2026-11-10T15:00:00Z', cliente_id: C2 }), pedido({ emitido_em: '2026-11-10T16:00:00Z', cliente_id: C1 })];
+    expect(positivadosDoDia(ps, o)).toEqual({ clientes_positivados_ids: [C1, C2], clientes_positivados: 2 });
+  });
+  it('RN-CORE-26: o dia civil é o do fuso do tenant (23h30 em Manaus de 09/11 é 03h30 UTC de 10/11 e fica no dia 09)', () => {
+    const p = pedido({ emitido_em: '2026-11-10T03:30:00Z', cliente_id: C1 });
+    expect(positivadosDoDia([p], o).clientes_positivados).toBe(0);
+    expect(positivadosDoDia([p], { ...o, dia: '2026-11-09' }).clientes_positivados_ids).toEqual([C1]);
+  });
+  it('RN-CORE-20: só pedido aprovado, do vendedor e com cliente conta; cancelado/aguardando e pedido sem cliente ficam fora', () => {
+    const ps = [
+      pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1, status: 'cancelado' }),
+      pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1, status: 'aguardando' }),
+      pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: null }),
+      pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1, vendedor_id: V2 }),
+    ];
+    expect(positivadosDoDia(ps, o)).toEqual({ clientes_positivados_ids: [], clientes_positivados: 0 });
+  });
+  it('RN-CORE-26: cancelamento que tira o cliente do dia: regravar a lista sem ele zera a contagem do dia', () => {
+    const p = pedido({ emitido_em: '2026-11-10T14:00:00Z', cliente_id: C1 });
+    expect(positivadosDoDia([p], o).clientes_positivados).toBe(1);
+    expect(positivadosDoDia([{ ...p, status: 'cancelado' }], o)).toEqual({ clientes_positivados_ids: [], clientes_positivados: 0 });
   });
 });
