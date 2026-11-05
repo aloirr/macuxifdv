@@ -4,7 +4,7 @@
  * leitor (o motor de sync no app, um mapa nos testes); nada de React Native aqui.
  * Sem sinal a busca é textual (regras locais, sem IA) e vem com o aviso discreto `AVISO_BUSCA_OFFLINE`.
  */
-import type { ConsultaTexto, LinhaSync, Perfil, ResultadoBusca as ResultadoFts } from '@macuxi/platform-sdk';
+import type { ConsultaTexto, DesfechoBusca, LinhaSync, Perfil, ResultadoBusca as ResultadoFts } from '@macuxi/platform-sdk';
 import type { ProdutoSync } from '@macuxi/core/contracts';
 import type {
   CatalogoNoSync,
@@ -41,11 +41,19 @@ export const LIMIAR_PRESELECAO_FTS = 500;
 export const CANDIDATOS_POR_TERMO = 150;
 /** Teto de candidatos que chegam ao ranking do domain. */
 export const MAXIMO_CANDIDATOS = 400;
+/**
+ * T-0052 (R-20261105-142853): acima disto, consulta sem nenhum acerto no FTS5 (nem pelo prefixo de 4/3 letras) devolve
+ * vazio sem varrer o catálogo (a varredura de 20 mil produtos levava ~93 s). Só vale quando TODAS as buscas disseram
+ * `buscou: true`; qualquer `buscou: false` (módulo indisponível, erro, consulta curta) mantém a varredura.
+ */
+export const LIMIAR_SEM_VARREDURA = 5000;
 
 /** O que a busca local precisa do motor de sync (`useMotorSync().motor`). */
 export interface LeitorLocal {
   linhas<L extends LinhaSync>(entidade: string): Promise<L[]>;
   buscar?(indice: string, consulta: ConsultaTexto): Promise<ResultadoFts[] | null>;
+  /** Separa 'buscou e não achou' de 'não consegui buscar' (SDK). Sem ele, a regra do vazio sem varredura não se aplica. */
+  buscarComDesfecho?(indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca>;
   /**
    * Leituras do motor de sync (T-0052-B4, opcionais: sem elas — leitor de mapa dos testes — cai em `linhas`). Com as três
    * últimas o custo de ler o catálogo inteiro cai para uma vez por sync, e preço/estoque só dos candidatos.
@@ -192,14 +200,30 @@ export interface ResultadoLocal extends PaginaProdutos {
 /** Tamanhos de prefixo tentados quando o termo inteiro não acha nada (erro de digitação perto do fim da palavra). */
 const PREFIXOS_TOLERANTES = [4, 3] as const;
 
-async function porPrefixo(leitor: LeitorLocal, grupo: readonly string[]): Promise<ResultadoFts[]> {
+/** Resultado de uma consulta ao FTS5; `certo` = o aparelho garantiu que buscou (lista vazia = nada achado de fato). */
+interface Consultado {
+  lista: ResultadoFts[];
+  certo: boolean;
+}
+
+async function consultar(leitor: LeitorLocal, consulta: ConsultaTexto): Promise<Consultado> {
+  if (leitor.buscarComDesfecho) {
+    const d = await leitor.buscarComDesfecho(ID_INDICE_BUSCA, consulta);
+    return d.buscou ? { lista: d.resultados, certo: true } : { lista: [], certo: false };
+  }
+  return { lista: (await leitor.buscar!(ID_INDICE_BUSCA, consulta)) ?? [], certo: false };
+}
+
+async function porPrefixo(leitor: LeitorLocal, grupo: readonly string[]): Promise<Consultado> {
+  let certo = true;
   for (const n of PREFIXOS_TOLERANTES) {
     const prefixos = [...new Set(grupo.filter((t) => t.length > n).map((t) => t.slice(0, n)))];
     if (prefixos.length === 0) continue;
-    const r = await leitor.buscar!(ID_INDICE_BUSCA, { grupos: [prefixos], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
-    if (r && r.length > 0) return r;
+    const r = await consultar(leitor, { grupos: [prefixos], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
+    certo &&= r.certo;
+    if (r.lista.length > 0) return r;
   }
-  return [];
+  return { lista: [], certo };
 }
 
 /**
@@ -215,17 +239,20 @@ export async function preselecionar(
   sinonimos: readonly SinonimoDoTenant[],
   total: number,
 ): Promise<Set<string> | null> {
-  if (total <= LIMIAR_PRESELECAO_FTS || !leitor.buscar) return null;
+  if (total <= LIMIAR_PRESELECAO_FTS || !(leitor.buscar || leitor.buscarComDesfecho)) return null;
   const grupos = expandirSinonimos(texto, sinonimos);
   if (codigo) grupos.push([codigo]);
   if (grupos.length === 0) return null;
   const achados = new Map<string, { termos: number; melhor: number }>();
+  let tudoCerto = true;
   for (const grupo of grupos.slice(0, 8)) {
-    let r = await leitor.buscar(ID_INDICE_BUSCA, { grupos: [grupo], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
+    let r = await consultar(leitor, { grupos: [grupo], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
     // sem acerto = provável erro de digitação (T-0052, caso lento): o prefixo do termo aproxima a tolerância do domain
     // sem cair na varredura de todo o catálogo
-    if (r && r.length === 0) r = await porPrefixo(leitor, grupo);
-    (r ?? []).forEach((x, posicao) => {
+    tudoCerto &&= r.certo;
+    if (r.lista.length === 0) r = await porPrefixo(leitor, grupo);
+    tudoCerto &&= r.certo;
+    r.lista.forEach((x, posicao) => {
       const a = achados.get(x.chave);
       if (a) {
         a.termos++;
@@ -233,7 +260,7 @@ export async function preselecionar(
       } else achados.set(x.chave, { termos: 1, melhor: posicao });
     });
   }
-  if (achados.size === 0) return null;
+  if (achados.size === 0) return tudoCerto && total > LIMIAR_SEM_VARREDURA ? new Set() : null;
   const ordem = [...achados.entries()].sort(([, x], [, y]) => y.termos - x.termos || x.melhor - y.melhor);
   return new Set(ordem.slice(0, MAXIMO_CANDIDATOS).map(([chave]) => chave));
 }

@@ -17,3 +17,8 @@
 2026-11-05 — T-0052 — B3 (repositório Postgres e pull ligados à 0013), B4 (pré-seleção FTS5 por termo: 2.154 produtos de 3,8–14 s para 36–66 ms), B1 (SKU compacto), B2 (mesma semântica em qualquer tamanho); testes e docs atualizados
 2026-11-05 — T-0052 — revisão final: destaque grava campanha+destaque, conflito de sinônimo inclui inativos (409 também na corrida), repositorio-postgres.db.test.ts, texto da pré-seleção corrigido
 2026-11-05 — T-0052 — 🟢5 (prefixo no FTS5), 🟢7 (busca_log melhor esforço), 🟢8 (selling_points sem quebra de linha); busca com versaoLinhas/linhasPorCampo; limpeza do busca_log no db.test pelo admin; 🟢6 fica para depois (ranking.ts/indice.ts no lote M)
+2026-11-05 — T-0052 — db.test do lote M2: expectativa de salvarConteudo alinhada a 'description' (contrato da API); busca sem varredura (5 mil) aguarda recado do SDK (null × [])
+2026-11-05 — T-0052 — busca offline com buscarComDesfecho: acima de LIMIAR_SEM_VARREDURA=5000 produtos, consulta sem acerto (todas buscou:true) devolve vazio sem varrer; 7 testes novos em local.test.ts; texto do vazio pedido ao designer-ux
+2026-11-05 — T-0052 — vazio da busca com EstadoVazio: 4 casos em app/lib/vazio-busca.ts (puro, testado), título cortado em 30, ações Limpar filtros/Limpar a busca
+2026-11-05 — T-0052 — 🟢6: codigoCompacto único (domain/ranking.ts) usado também em app/indice.ts (compacto removido), com teste; busca offline T-0052 sem mudança
+2026-11-05 — T-0052 — caixa limpa: 6 recados encerrados, tabela_preco_nome em precos_cliente@1 (aditivo), X da busca volta na hora; buscarComDesfecho fica para o lote N

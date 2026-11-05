@@ -12,7 +12,7 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, Chip, colors, DEFAULT_TZ, Empty, fonts, Icon, LinhaChips, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, fonts, Icon, LinhaChips, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -22,6 +22,7 @@ import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { contagem } from '../lib/apresentacao';
+import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, filtrosLocais, produtosDaNavegacao, vitrineLocal } from '../lib/local';
 import { irParaProduto } from '../rotas';
 import { NiveisArvore, type NoComContagem } from './arvore';
@@ -184,7 +185,7 @@ export default function TelaCatalogo() {
           style={s.campo}
         />
         {texto ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Limpar a busca" onPress={() => setTexto('')} style={s.limpar} hitSlop={8}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Limpar a busca" onPress={() => { setTexto(''); setConsulta(''); }} style={s.limpar} hitSlop={8}>
             <Icon name="close" size={18} color={colors.ink2} />
           </Pressable>
         ) : null}
@@ -211,7 +212,25 @@ export default function TelaCatalogo() {
 
       {lista.carregando && lista.itens.length === 0 ? <ActivityIndicator color={colors.accent} style={{ paddingVertical: 20 }} /> : null}
       {!lista.carregando && lista.itens.length === 0 ? (
-        <Empty text={consulta ? `Nada encontrado para "${consulta}". Tente outra palavra, o código ou tire um filtro.` : 'Nenhum produto neste aparelho ainda. Puxe a tela para sincronizar.'} />
+        consulta ? (
+          <VazioDaBusca
+            consulta={consulta}
+            filtroLigado={soComEstoque || linha !== null || marca !== null}
+            semInternet={lista.aviso === AVISO_BUSCA_OFFLINE}
+            dentroDoPedido={dentroDoPedido}
+            onLimparFiltros={() => {
+              setSoComEstoque(false);
+              setLinha(null);
+              setMarca(null);
+            }}
+            onLimparBusca={() => {
+              setTexto('');
+              setConsulta('');
+            }}
+          />
+        ) : (
+          <Empty text="Nenhum produto neste aparelho ainda. Puxe a tela para sincronizar." />
+        )
       ) : null}
 
       {lista.itens.length > 0 ? (
@@ -237,3 +256,30 @@ const s = StyleSheet.create({
   limpar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   contagem: { fontFamily: fonts.medium, fontSize: 12, color: colors.ink2 },
 });
+
+function VazioDaBusca({
+  consulta,
+  filtroLigado,
+  semInternet,
+  dentroDoPedido,
+  onLimparFiltros,
+  onLimparBusca,
+}: {
+  consulta: string;
+  filtroLigado: boolean;
+  semInternet: boolean;
+  dentroDoPedido: boolean;
+  onLimparFiltros: () => void;
+  onLimparBusca: () => void;
+}) {
+  const v = vazioDaBusca({ consulta, filtroLigado, semInternet, dentroDoPedido });
+  return (
+    <EstadoVazio
+      testID="catalogo-vazio"
+      icone="search"
+      titulo={v.titulo}
+      texto={v.apoio}
+      acao={{ rotulo: v.rotuloAcao, onPress: v.caso === 'filtro' ? onLimparFiltros : onLimparBusca, testID: 'catalogo-vazio-acao' }}
+    />
+  );
+}

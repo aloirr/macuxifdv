@@ -2,13 +2,13 @@
  * Catálogo offline no aparelho (RF-CAT-02, T-0052): as linhas locais do sync da base demo passam pelo mesmo domain da API.
  */
 import { criarRelogio } from '@macuxi/comum/relogio';
-import type { LinhaSync } from '@macuxi/platform-sdk';
+import type { DesfechoBusca, LinhaSync, MotivoSemBusca } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../../domain/preco';
 import { MENSAGEM_ESCOLHA_CLIENTE } from '../../domain/vitrine';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_SEED_DEMO, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../../fixtures/base-demo';
-import { arvoreLocal, buscarLocal, esquecerMemoriaLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
+import { arvoreLocal, buscarLocal, esquecerMemoriaLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, LIMIAR_SEM_VARREDURA, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
 
 const relogio = criarRelogio();
 const QUANDO = relogio.relativo({ horas: -3 }).toISOString();
@@ -140,6 +140,76 @@ describe('pré-seleção do FTS5 em catálogo grande (T-0052-B2/B4)', () => {
     const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'caf500', limit: 20, offset: 0, offline: true });
     expect(chamadas).toContain('[["CAF500"]]');
     expect(r.items.map((i) => sku(i.id))).toEqual(['CAF-500']);
+  });
+});
+
+describe('consulta sem acerto em catálogo grande (T-0052, R-20261105-142853)', () => {
+  const comProdutos = (n: number) => {
+    const linhas = linhasDemo();
+    const extras = Array.from({ length: n }, (_, i) => base(idDemo(`vazio:${i}`), { sku: `V-${i}`, ean: null, nome: `Parafuso ${i}`, marca: 'Ferro', categoria: 'Ferragens', unidade: 'UN', ativo: true }));
+    linhas.produto = [...linhas.produto!, ...extras];
+    return linhas;
+  };
+  const comDesfecho = (linhas: Record<string, LinhaSync[]>, d: (g: string) => DesfechoBusca) => {
+    const chamadas: string[] = [];
+    let varreduras = 0;
+    const l: LeitorLocal = {
+      linhas: async <L extends LinhaSync>(e: string) => {
+        if (e === 'produto') varreduras++;
+        return (linhas[e] ?? []) as L[];
+      },
+      buscarComDesfecho: async (_i, c) => {
+        chamadas.push(c.grupos[0]![0]!);
+        return d(c.grupos[0]![0]!);
+      },
+    };
+    return { l, chamadas, varreduras: () => varreduras };
+  };
+  const nada: DesfechoBusca = { buscou: true, resultados: [] };
+  const semBusca = (motivo: MotivoSemBusca): DesfechoBusca => ({ buscou: false, motivo });
+  const busca = (l: LeitorLocal, q: string) => buscarLocal(l, { ...entrada, q, limit: 20, offset: 0, offline: true });
+
+  it('RF-CAT-02: acima de 5.000 produtos, todas as buscas (termo e prefixos) sem acerto e com buscou:true devolvem vazio sem varrer', async () => {
+    const { l, chamadas } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA), () => nada);
+    const r = await busca(l, 'xyzwkqpl');
+    expect(r.items).toEqual([]);
+    expect(chamadas).toEqual(['xyzwkqpl', 'xyzw', 'xyz']);
+  });
+
+  it.each<MotivoSemBusca>(['modulo_indisponivel', 'erro_busca', 'indice_invalido'])('RF-CAT-02: acima de 5.000 produtos, um termo que não conseguiu buscar (%s) mantém a varredura', async (motivo) => {
+    const { l } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA), (g) => (g === 'cafee' ? semBusca(motivo) : nada));
+    const r = await busca(l, 'cafee');
+    expect(r.items.map((i) => sku(i.id))).toContain('CAF-500');
+  });
+
+  it('RF-CAT-02: o prefixo que não conseguiu buscar também mantém a varredura', async () => {
+    const { l } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA), (g) => (g === 'cafe' ? semBusca('erro_busca') : nada));
+    const r = await busca(l, 'cafee');
+    expect(r.items.map((i) => sku(i.id))).toContain('CAF-500');
+  });
+
+  it('RF-CAT-02: até 5.000 produtos, sem acerto no FTS5 varre como antes (tolerância a erro de digitação)', async () => {
+    const { l } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA - 100), () => nada);
+    const r = await busca(l, 'cafee');
+    expect(r.items.map((i) => sku(i.id))).toContain('CAF-500');
+  });
+
+  it('RF-CAT-02: consulta curta (consulta_vazia) acima de 5.000 produtos varre, não devolve vazio', async () => {
+    const { l } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA), () => semBusca('consulta_vazia'));
+    const r = await busca(l, 'cafee');
+    expect(r.items.map((i) => sku(i.id))).toContain('CAF-500');
+  });
+
+  it('RF-CAT-02: sem buscarComDesfecho (leitor só com buscar) a regra do vazio não se aplica: varre', async () => {
+    const r = await busca(leitor(comProdutos(LIMIAR_SEM_VARREDURA), async () => []), 'cafee');
+    expect(r.items.map((i) => sku(i.id))).toContain('CAF-500');
+  });
+
+  it('RF-CAT-02: busca só com chips não consulta o FTS5 e continua varrendo', async () => {
+    const { l, chamadas } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA), () => nada);
+    const r = await buscarLocal(l, { ...entrada, q: '', chips: { brand: 'Ferro' }, limit: 20, offset: 0, offline: true });
+    expect(chamadas).toEqual([]);
+    expect(r.total).toBeGreaterThan(0);
   });
 });
 
