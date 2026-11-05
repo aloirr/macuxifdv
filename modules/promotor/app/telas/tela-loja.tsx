@@ -265,8 +265,8 @@ function Gondola({ l, categoria, avisar }: { l: UsoLoja; categoria: string | nul
     <Cartao testID="loja.gondola" gap={10}>
       <SectionHeader title="Arrumação da gôndola" />
       <View style={s.linha}>
-        <Botao rotulo="Foto antes" nivel="neutro" alto icone={antes ? 'check' : undefined} rotuloAcessivel={antes ? 'Foto antes tirada, tirar de novo' : undefined} onPress={() => void foto('gondola_antes')} testID="loja.gondola.antes" style={s.flex} />
-        <Botao rotulo="Foto depois" nivel="neutro" alto icone={depois ? 'check' : undefined} rotuloAcessivel={depois ? 'Foto depois tirada, tirar de novo' : undefined} onPress={() => void foto('gondola_depois')} testID="loja.gondola.depois" style={s.flex} />
+        <Botao rotulo="Foto antes" nivel="neutro" alto icone={antes ? 'check' : 'camera'} rotuloAcessivel={antes ? 'Foto antes tirada, tirar de novo' : undefined} onPress={() => void foto('gondola_antes')} testID="loja.gondola.antes" style={s.flex} />
+        <Botao rotulo="Foto depois" nivel="neutro" alto icone={depois ? 'check' : 'camera'} rotuloAcessivel={depois ? 'Foto depois tirada, tirar de novo' : undefined} onPress={() => void foto('gondola_depois')} testID="loja.gondola.depois" style={s.flex} />
       </View>
       <View style={s.chips}>
         {CONFORMIDADES.map((c) => (
