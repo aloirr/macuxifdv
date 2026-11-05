@@ -96,7 +96,13 @@ tela nova. Se a pendência entrar na aba Alertas, veja o §4.3.
 | `rotulo` | `Badge`: `Concluída` (success) · `Dispensada` (neutral) · `Pendente` (warning) | `pendente_desde` (fuso do tenant) ou `—` | `alertada_em` ou `—` |
 
 - Abaixo da tabela, só se houver pendente: texto `text-ink-2` **`A visita conta como concluída. A pendência some sozinha quando a resposta chegar`**
-- Rodapé: `Button` secundário **`Fechar`**. Não há ação de "resolver" nem de "dispensar" à mão nesta tarefa.
+- Rodapé: `Button` secundário **`Fechar`**. Não há ação de "resolver" à mão.
+- **Dispensar** (acrescentado em 05/11, regra do desenho T-0039 §2.5a aprovada pelo gerente; só com `visita.dispensar_etapa`):
+  coluna **`Ação`** com botão neutro **`Dispensar`** (44 px) na linha pendente; abre, abaixo da tabela, o bloco
+  **`Justificativa para dispensar "<rótulo>"`**, ajuda **`Fica registrada na auditoria, com o seu nome. De 3 a 300 caracteres`**,
+  `textarea` com foco ao abrir e contador `N de 300` perto do limite; botões **`Dispensar etapa`** (principal) e **`Cancelar`**.
+  Fora da faixa: **`Escreva a justificativa com 3 a 300 caracteres`** (no campo). Erro da API: `Notice tone="danger"` acima do
+  bloco, não no campo. Sucesso: `Notice tone="success"` **`Etapa dispensada. A visita segue como concluída`**.
 - Carregando: `LoadingBlock label="Carregando as etapas…"`. Erro: `ErrorBlock` com `onRetry`.
 - Dados: o diálogo precisa da lista de `visita_etapa` da visita (rótulo, situação, desde, alertada em). O modulo-core
   decide se ela vem na lista ou numa rota de detalhe.
