@@ -16,7 +16,7 @@ import { manifest as catalogo } from '@macuxi/catalogo/manifest';
 import { manifest as core } from '@macuxi/core/manifest';
 import { manifest as promotor } from '@macuxi/promotor/manifest';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
-import { criarShell, ehAcaoDeEscritaDePedido, ehAcaoDeLeituraDePedido, ehAcaoDePedido, mensagemPerfilForaDoApp, type ModuloShell, type PaginaShell } from '@macuxi/platform-sdk';
+import { criarShell, ehAcaoDeEscritaDePedido, ehAcaoDeLeituraDePedido, ehAcaoDePedido, mensagemPerfilForaDoApp, type ModuloShell, type PaginaShell, type Perfil } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { SHELL_WEB } from '../../apps/web/lib/modulos';
 
@@ -35,6 +35,8 @@ interface ItemLido {
   navegacao?: string;
   acao?: string;
   apps?: string[];
+  /** T-0077: a página declara `perfis: PERFIS_PAGINAS` (= `manifest.perfis` do Vendedor, sem promotor). */
+  perfisDoManifesto?: boolean;
 }
 
 /** Páginas (`{ id, caminho, ... }` numa linha) e extensões (`slot: ...` até o próximo `slot:`) declaradas no fonte. */
@@ -51,6 +53,7 @@ function lerModuloApp(fonte: string): ItemLido[] {
       navegacao: /navegacao: '([^']+)'/.exec(linha)?.[1],
       acao: /\bacao: '([^']+)'/.exec(linha)?.[1],
       apps: /apps: \[([^\]]*)\]/.exec(linha)?.[1]?.match(/'([^']+)'/g)?.map((x) => x.slice(1, -1)),
+      perfisDoManifesto: /perfis: PERFIS_PAGINAS\b/.test(linha),
     });
   }
   const ext = fonte.slice(fonte.indexOf('extensoes:'));
@@ -65,7 +68,8 @@ function lerModuloApp(fonte: string): ItemLido[] {
   return itens;
 }
 
-const itensVendedorApp = lerModuloApp(ler('modules/vendedor/app/index.ts'));
+const FONTE_VENDEDOR_APP = ler('modules/vendedor/app/index.ts');
+const itensVendedorApp = lerModuloApp(FONTE_VENDEDOR_APP);
 
 describe('C3.3 no BKO (shell web real)', () => {
   it('S0-066: promotor (e vendedor) não entram no BKO: o login mostra o app certo e encerra a sessão', () => {
@@ -92,7 +96,15 @@ describe('C3.3 no BKO (shell web real)', () => {
 describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fonte)', () => {
   it('a leitura do fonte encontrou as páginas e extensões do Vendedor', () => {
     expect(itensVendedorApp.filter((i) => i.tipo === 'pagina').map((i) => i.id)).toEqual(['pedidos', 'pedido', 'novo-pedido']);
-    expect(itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => `${i.slot}/${i.id}`)).toEqual(['cliente.abas/mix', 'cliente.abas/ultimos-pedidos', 'cliente.acoes/novo-pedido']);
+    // T-0076: + card Orçamentos/A faturar no Início (inicio.cards/pedidos-resumo, também com acao pedido.criar)
+    expect(itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => `${i.slot}/${i.id}`)).toEqual(['cliente.abas/mix', 'cliente.abas/ultimos-pedidos', 'cliente.acoes/novo-pedido', 'inicio.cards/pedidos-resumo']);
+  });
+
+  it('T-0077 (R-20261104-204823): toda página do Vendedor declara `perfis` = manifest.perfis, que não tem o promotor (RN-PRO-01)', () => {
+    expect(FONTE_VENDEDOR_APP).toMatch(/const PERFIS_PAGINAS = manifest\.perfis;/);
+    for (const p of itensVendedorApp.filter((i) => i.tipo === 'pagina')) expect(p.perfisDoManifesto, p.id).toBe(true);
+    expect(vendedor.perfis).not.toContain('promotor');
+    expect(vendedor.perfis).toEqual(expect.arrayContaining(['vendedor', 'supervisor', 'gerente']));
   });
 
   it('S0-061: toda AÇÃO de pedido declarada no app (novo pedido e extensões da ficha) exige uma ação pedido.* do manifesto', () => {
@@ -105,10 +117,20 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     }
   });
 
+  // T-0077: as páginas entram COM o `perfis` que declaram no fonte (antes eram montadas sem ele, e o caso O-3 passava por isso).
   const shellCampo = () => {
     const paginas: PaginaShell<string>[] = itensVendedorApp
       .filter((i) => i.tipo === 'pagina')
-      .map((i) => ({ id: i.id, caminho: i.caminho!, titulo: i.id, componente: i.id, ...(i.navegacao ? { navegacao: i.navegacao } : {}), ...(i.acao ? { acao: i.acao } : {}), ...(i.apps ? { apps: i.apps as ('campo' | 'gestao')[] } : {}) }));
+      .map((i) => ({
+        id: i.id,
+        caminho: i.caminho!,
+        titulo: i.id,
+        componente: i.id,
+        ...(i.navegacao ? { navegacao: i.navegacao } : {}),
+        ...(i.acao ? { acao: i.acao } : {}),
+        ...(i.apps ? { apps: i.apps as ('campo' | 'gestao')[] } : {}),
+        ...(i.perfisDoManifesto ? { perfis: vendedor.perfis as readonly Perfil[] } : {}),
+      }));
     const extensoes = itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => ({ slot: i.slot!, id: i.id, ...(i.acao ? { acao: i.acao } : {}), payload: { rotulo: i.id } }));
     const modulos: ModuloShell<string>[] = [{ manifesto: core }, { manifesto: catalogo }, { manifesto: vendedor, paginas, extensoes }, { manifesto: promotor }];
     return criarShell('campo', modulos);
@@ -127,15 +149,24 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     expect(vend.extensoes('cliente.acoes').map((e) => e.id)).toEqual(['novo-pedido']);
   });
 
-  // O-3 RESOLVIDO (T-0015; doc 03 §2 e esclarecimento abaixo da matriz): com o Vendedor licenciado o promotor vê a aba
-  // "Pedidos" só de leitura (lista e detalhe), e a API agora responde a leitura na carteira (200) e 404 fora dela
-  // (tests/integracao/api/promotor-pedido.test.ts). Escrita: nenhuma, nem na UI nem na API.
-  it('O-3: promotor com o Vendedor licenciado vê a aba Pedidos e o detalhe, só de leitura (sem nenhuma ação de escrita)', () => {
+  // O-3 (T-0015; doc 03 §2) REVISTO na T-0077 pela decisão do gerente R-20261104-204823: o promotor LÊ os pedidos da
+  // carteira (só leitura, conforme `promotor_ve_pedidos`) no Cliente 360 do Core e na API (tests/integracao/api/
+  // promotor-ve-pedidos.test.ts), mas a aba/tela Pedidos do Vendedor NÃO é dele: as páginas têm `perfis` = manifest.perfis,
+  // sem promotor. O caso antigo afirmava o contrário e só passava porque montava as páginas sem o `perfis`.
+  // A leitura no Cliente 360 (ligada × desligada) está em tests/modulos/pedidos-busca-t0077.test.ts (R-05..R-08).
+  it('O-3 / T-0077: promotor com o Vendedor licenciado NÃO recebe a aba Pedidos nem o detalhe; a permissão de leitura (pedido.ver) continua', () => {
     const v = shellCampo().montar({ perfil: 'promotor', modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor'] });
-    expect(v.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo)).toEqual(['Pedidos']);
-    expect(v.pagina('pedidos')).not.toBeNull();
-    expect(v.pagina('pedido')).not.toBeNull();
-    expect(v.navegacao.every((n) => !n.pagina.acao || !ehAcaoDeEscritaDePedido(n.pagina.acao))).toBe(true);
+    expect(v.navegacao.filter((n) => n.modulo === 'vendedor')).toEqual([]);
+    expect(v.pagina('pedidos')).toBeNull();
+    expect(v.pagina('pedido')).toBeNull();
+    expect(v.pagina('novo-pedido')).toBeNull();
+    expect(v.pode('pedido.ver')).toBe(true); // leitura no Cliente 360 e na API
+    for (const a of ACOES_DE_ESCRITA) expect(v.pode(a), a).toBe(false);
+    // controle positivo no mesmo shell: o vendedor recebe a aba e o detalhe
+    const vend = shellCampo().montar({ perfil: 'vendedor', modulosAtivos: ['core', 'catalogo', 'vendedor'] });
+    expect(vend.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo)).toEqual(['Pedidos']);
+    expect(vend.pagina('pedidos')).not.toBeNull();
+    expect(vend.pagina('pedido')).not.toBeNull();
   });
 
   it('O-3 / RN-PRO-01: o detalhe do pedido fica somente leitura sem permissão de escrita (botões não renderizam)', () => {

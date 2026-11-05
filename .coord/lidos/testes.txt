@@ -105,3 +105,5 @@ R-20261103-100516-gerente-projetos
 R-20261104-025708-modulo-vendedor
 R-20261104-035957-banco-dados
 R-20261104-055029-modulo-catalogo
+R-20261104-204823-gerente-projetos
+R-20261104-205600-modulo-vendedor
