@@ -7,7 +7,7 @@ import type { ContextoConsumo, DefinicaoEvento, EnvelopeEvento } from '@macuxi/p
 import { describe, expect, it } from 'vitest';
 import manifest from '../manifest';
 import { PedidoFaturadoEvento, PedidoStatusAlteradoEvento } from '../contracts';
-import { EVENTO_RETORNO_ERP_CONSUMIDO as EVENTO_RETORNO_ERP } from '../contracts';
+import { EVENTO_RETORNO_ERP_CONSUMIDO as EVENTO_RETORNO_ERP } from './eventos-consumidos';
 import { EVENTO_NOTA_ATUALIZADA } from './eventos-consumidos';
 import { bancoEmMemoria, repositorioRetornoErpMemoria, type BancoEmMemoria, type PedidoEmMemoria } from './retorno-erp-memoria';
 import {

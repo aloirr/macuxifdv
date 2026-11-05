@@ -16,7 +16,7 @@
  * banco-dados); até lá o consumidor da nota não é registrado e o devolvido fica 0 (docs/modulos/vendedor/retorno-erp.md).
  */
 import { definirConsumidor, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo, type LogRota } from '@macuxi/platform-sdk';
-import { EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO, EVENTO_RETORNO_ERP_CONSUMIDO, type RetornoErpConsumido } from '../contracts';
+import { EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO } from '../contracts';
 import {
   decidirNotaDevolucao,
   eventoFaturadoDosItens,
@@ -29,7 +29,8 @@ import {
   type ResumoFaturamento,
 } from '../domain';
 import type { OrderStatus } from '../domain/order';
-import { EVENTO_NOTA_ATUALIZADA } from './eventos-consumidos';
+import { NotaPayload } from '../../integracao/contracts';
+import { EVENTO_NOTA_ATUALIZADA, EVENTO_RETORNO_ERP_CONSUMIDO, type RetornoErpConsumido } from './eventos-consumidos';
 
 /** Persistência do faturamento, resumo no pull e notas no detalhe (migração 0013 no `main`). */
 export const FATURAMENTO_LIGADO = true;
@@ -389,12 +390,18 @@ export function criarConsumidorRetornoErp(fabrica: FabricaRepositorio = (db) => 
   });
 }
 
+/** O `registro` do evento é a união das entidades da integração; aqui a entidade é sempre `nota`. */
+const registroDaNota = (registro: unknown): NotaRecebida['registro'] => {
+  const r = NotaPayload.safeParse(registro);
+  return r.success ? r.data : undefined;
+};
+
 /** `integracao.nota.atualizado@1` → devolução do pedido (só nota `devolucao` com `pedido_uuid`). */
 export function criarConsumidorNotaDevolucao(fabrica: FabricaRepositorio = (db) => repositorioRetornoErpPg(db)): ConsumidorEvento {
   return definirConsumidor({
     evento: EVENTO_NOTA_ATUALIZADA,
     async executar(p, ctx) {
-      await aplicarNotaDevolucao(fabrica(ctx.db), { acao: p.acao, external_id: p.external_id, registro: p.registro }, contextoDe(ctx));
+      await aplicarNotaDevolucao(fabrica(ctx.db), { acao: p.acao, external_id: p.external_id, registro: registroDaNota(p.registro) }, contextoDe(ctx));
     },
   });
 }
