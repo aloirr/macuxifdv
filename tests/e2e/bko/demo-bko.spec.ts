@@ -6,8 +6,10 @@
  *
  * Convenção: `test` = funciona hoje; `test.fail` = quebrado (a página trava em "Carregando…" ou mostra "Rota não
  * encontrada" porque chama rota da Fase M que a API nova não tem). Quando a correção chega, o `test.fail` fica
- * vermelho e vira `test`. T-0030: D-B10 (Rotas) funciona; D-B21/23/25 esperam a página "em construção"
- * (EmBrevePage). Matriz e causas: tests/plano/demo-matriz.md (IDs D-Bnn).
+ * vermelho e vira `test`. T-0030: D-B10 (Rotas) funciona. T-0081: D-B21 é o Farol real (GET /v1/core/farol) e D-B23
+ * a tela de Metas; só o D-B25 (Plano de RV, T-0082) segue "em construção" (EmBrevePage) até a tela real chegar.
+ * D-B31 (T-0081, R-20261105-072330): nenhuma página do menu tem `table table` no DOM (o verificador estático está em
+ * tests/modulos/bko-sem-tabela-aninhada.test.ts). Matriz e causas: tests/plano/demo-matriz.md (IDs D-Bnn).
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -148,19 +150,38 @@ for (const quem of ['analista', 'admin'] as const) {
       expect(a.chamadas.some((c) => c.startsWith('GET /core/rotas')), 'chamou /v1/core/rotas').toBe(true);
     });
 
-    // ---------------------------------------------------------------- "em construção" (T-0030: sem rota v1; Sprint 2)
-    for (const [id, nav, pagina] of [
-      ['D-B21 Clientes (farol)', 'nav-core-clientes', 'pagina-core-clientes'],
-      ['D-B23 Metas e RV', 'nav-core-metas', 'pagina-core-metas'],
-      ['D-B25 Plano de RV', 'nav-core-plano-rv', 'pagina-core-plano-rv'],
-    ] as const) {
-      test(`${id} EM BREVE: abre pelo menu, mostra "em construção" sem travar e sem chamar rota da Fase M`, async ({ page }) => {
-        await abrirPeloMenu(page, a, nav, pagina);
-        await expect(page.getByTestId(pagina)).toContainText('Esta tela está em construção');
-        await semQuebra(page, a);
-        expect(a.chamadas.filter((c) => FASE_M.test(c.split(' ')[1]!)), 'chamadas a rotas da Fase M').toEqual([]);
-      });
-    }
+    // ---------------------------------------------------------------- T-0081: Farol de clientes (deixou de ser "em construção")
+    test('D-B21 Clientes (farol, T-0081): abre pelo menu, chama GET /v1/core/farol, mostra o farol e não está "em construção"', async ({ page }) => {
+      await abrirPeloMenu(page, a, 'nav-core-clientes', 'pagina-core-clientes');
+      await expect(page.getByTestId('farol.tela')).toBeVisible({ timeout: 30_000 });
+      await semQuebra(page, a);
+      await expect(page.getByTestId('pagina-core-clientes')).not.toContainText('Esta tela está em construção');
+      expect(a.chamadas.some((c) => c.startsWith('GET /core/farol')), 'chamou /v1/core/farol').toBe(true);
+      expect(a.chamadas.filter((c) => FASE_M.test(c.split(' ')[1]!)), 'chamadas a rotas da Fase M').toEqual([]);
+      await expect(page.locator('[data-testid^="farol.cliente."], [data-testid^="farol.vendedor."]').first()).toBeVisible({ timeout: 30_000 });
+    });
+
+    test('D-B23 Metas e RV: abre pelo menu a tela de metas (não mais "em construção"), sem rota da Fase M', async ({ page }) => {
+      await abrirPeloMenu(page, a, 'nav-core-metas', 'pagina-core-metas');
+      await expect(page.getByTestId('metas.tela')).toBeVisible({ timeout: 30_000 });
+      await semQuebra(page, a);
+      await expect(page.getByTestId('pagina-core-metas')).not.toContainText('Esta tela está em construção');
+      expect(a.chamadas.filter((c) => FASE_M.test(c.split(' ')[1]!)), 'chamadas a rotas da Fase M').toEqual([]);
+    });
+
+    // ---------------------------------------------------------------- D-B25 Plano de RV (T-0082 em andamento)
+    // Enquanto modules/core/web/index.ts ligar o EmBrevePage, a página mostra "em construção"; quando a tela real entrar
+    // (plano-rv-editor.tsx, testIDs plano-rv.*), o mesmo caso passa a exigir a tela, sem precisar editar o e2e.
+    test('D-B25 Plano de RV: abre pelo menu sem travar e sem rota da Fase M; "em construção" ou a tela real (plano-rv.*)', async ({ page }) => {
+      await abrirPeloMenu(page, a, 'nav-core-plano-rv', 'pagina-core-plano-rv');
+      await semQuebra(page, a);
+      expect(a.chamadas.filter((c) => FASE_M.test(c.split(' ')[1]!)), 'chamadas a rotas da Fase M').toEqual([]);
+      const emBreve = (await page.getByTestId('pagina-core-plano-rv').getByText('Esta tela está em construção').count()) > 0;
+      if (!emBreve) {
+        await expect(page.locator('[data-testid^="plano-rv."]').first()).toBeVisible({ timeout: 30_000 });
+        expect(a.chamadas.some((c) => c.startsWith('GET /core/')), 'a tela real chama a API v1 do Core').toBe(true);
+      }
+    });
 
     // ---------------------------------------------------------------- T-0029: Pedidos e Alçadas pela API nova
     // (o fluxo completo de Pedidos — lista, filtro, detalhe e aprovar — está em pedidos-bko.spec.ts)
@@ -194,6 +215,25 @@ for (const quem of ['analista', 'admin'] as const) {
       });
       await page.goto('/pedidos');
       await expect(page.getByTestId('pagina-vendedor-pedidos')).toBeVisible({ timeout: 20_000 });
+    });
+
+    test('D-B31 (T-0081): nenhuma página do menu tem tabela dentro de tabela no DOM (table table)', async ({ page }) => {
+      test.slow(); // percorre o menu inteiro
+      const navs = await page.locator('[data-testid^="nav-"]').evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute('data-testid') ?? ''))].filter(Boolean));
+      expect(navs.length, 'itens de menu').toBeGreaterThan(8);
+      const aninhadas: string[] = [];
+      let comTabela = 0;
+      for (const nav of navs) {
+        // nem todo item tem `pagina-*` (Auditoria do shell, itens de extensão): clica e espera as consultas assentarem
+        await page.getByTestId(nav).first().click();
+        await expect(page.locator('main')).toBeVisible({ timeout: 30_000 });
+        await page.waitForTimeout(3_000);
+        if ((await page.locator('main table').count()) > 0) comTabela += 1;
+        const n = await page.locator('table table').count();
+        if (n > 0) aninhadas.push(`${nav}: ${n}`);
+      }
+      expect(aninhadas, 'páginas com table table').toEqual([]);
+      expect(comTabela, 'páginas com tabela (o caso não passa no vazio)').toBeGreaterThan(2);
     });
   });
 }

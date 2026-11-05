@@ -118,3 +118,5 @@ R-20261105-010621-engenheiro-software
 R-20261105-022426-engenheiro-software
 R-20261105-022432-engenheiro-software
 R-20261105-030359-modulo-core
+R-20261105-041655-engenheiro-software
+R-20261105-065004-modulo-core

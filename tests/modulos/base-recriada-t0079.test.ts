@@ -10,7 +10,7 @@
  * Critério 4 da T-0079: geração igual → nada muda; diferente → a fila de pedidos/orçamentos é reenviada ANTES da limpeza,
  * a cópia local some (inclusive as exibições órfãs) e a fila sobrevive; app antigo sem `geracao_base` → nada quebra;
  * dois tenants isolados. A parte com a API real e o Postgres (girar_geracao_base da 0022) é a matriz D-6..D-9 de
- * docs/testes/T-0079.md (pendente de banco).
+ * docs/testes/T-0079.md (tests/integracao/api/base-recriada-t0079.test.ts, só no CI).
  */
 import { manifest as catalogo } from '@macuxi/catalogo/manifest';
 import type { ClienteSync } from '@macuxi/core/contracts';

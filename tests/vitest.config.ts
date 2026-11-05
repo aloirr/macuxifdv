@@ -12,6 +12,8 @@ import AvisoPulos from '@macuxi/db/teste/aviso-pulos';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // JSX automático (React 19), como no tsconfig das telas: os testes de renderização (react-dom/server) importam .tsx do kit
+  esbuild: { jsx: 'automatic' },
   test: {
     root: __dirname,
     include: ['**/*.test.ts'],
