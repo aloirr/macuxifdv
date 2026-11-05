@@ -32,6 +32,7 @@ import {
   type PlanoRvPut,
 } from '../../../contracts';
 import {
+  avisoDoPrimeiroPlanoNoPassado,
   csvDeRv,
   formDoPlano,
   formNovo,
@@ -51,6 +52,7 @@ import { PlanoRvEditor } from './plano-rv-editor';
 const CAMPO =
   'h-[38px] rounded-[10px] border border-field bg-surface px-2.5 text-[14px] font-medium text-ink';
 const CHAVE_PLANOS = ['core', 'plano-rv'] as const;
+const TEXTO_DESCARTAR = 'Há alterações não salvas neste plano. Sair e descartar?';
 
 type Edicao =
   | { tipo: 'novo'; id: string; inicial: ReturnType<typeof formNovo>; origem?: string }
@@ -378,6 +380,7 @@ function PlanoRvConteudo() {
   const abridor = useRef<HTMLElement | null>(null);
   const voltarFoco = useRef(false);
   const [edicao, setEdicao] = useState<Edicao>(null);
+  const [sujo, setSujo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ tom: 'success' | 'danger'; texto: string } | null>(null);
   const planos = useQuery({
@@ -395,6 +398,30 @@ function PlanoRvConteudo() {
       : document.querySelector<HTMLElement>('[data-testid="plano-rv.novo"]');
     alvo?.focus();
   }, [edicao, planos.dataUpdatedAt]);
+
+  // Editor com alterações não salvas: fechar a aba/atualizar pede confirmação do navegador, e clicar em qualquer link da própria
+  // página (menu, voltar) pergunta antes de descartar (a navegação interna do Next não dispara o beforeunload).
+  useEffect(() => {
+    if (!sujo) return;
+    const aoSair = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    const aoClicar = (e: MouseEvent) => {
+      const link = (e.target as HTMLElement | null)?.closest?.('a[href]');
+      if (!link || link.getAttribute('target') === '_blank') return;
+      if (!window.confirm(TEXTO_DESCARTAR)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('beforeunload', aoSair);
+    document.addEventListener('click', aoClicar, true);
+    return () => {
+      window.removeEventListener('beforeunload', aoSair);
+      document.removeEventListener('click', aoClicar, true);
+    };
+  }, [sujo]);
 
   const depois = async () => {
     setEdicao(null);
@@ -528,12 +555,16 @@ function PlanoRvConteudo() {
           inicial={edicao.tipo === 'novo' ? edicao.inicial : formDoPlano(edicao.plano)}
           salvando={gravar.isPending}
           erroApi={erro}
+          aoMudarSujo={setSujo}
           aoCancelar={() => {
+            if (sujo && !window.confirm(TEXTO_DESCARTAR)) return;
             setEdicao(null);
             setErro(null);
             voltarFoco.current = true;
           }}
           aoSalvar={(corpo) => {
+            const confirmacao = avisoDoPrimeiroPlanoNoPassado(corpo.vigencia_inicio, hoje(), d?.planos.length ?? 0);
+            if (confirmacao && !window.confirm(confirmacao)) return;
             setErro(null);
             gravar.mutate({ id: edicao.tipo === 'novo' ? edicao.id : edicao.plano.id, corpo });
           }}

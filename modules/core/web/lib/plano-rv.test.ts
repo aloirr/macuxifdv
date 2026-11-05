@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RvPainel } from '../../contracts';
-import { centavosDoTexto, corpoDoFormulario, csvDeRv, formDoPlano, formNovo, simularRv, somaDosPesos, protegerFormula, textoDaSituacao, textoDasFaixas, textoDePbp, textoDoErroRv, textoDoGatilho, textoDosPesos } from './plano-rv';
+import { avisoDoPrimeiroPlanoNoPassado, centavosDoTexto, formularioAlterado, corpoDoFormulario, csvDeRv, formDoPlano, formNovo, simularRv, somaDosPesos, protegerFormula, textoDaSituacao, textoDasFaixas, textoDePbp, textoDoErroRv, textoDoGatilho, textoDosPesos } from './plano-rv';
 
 const preenchido = () => ({ ...formNovo('2026-12'), nome: 'Plano 2026', valor_maximo: '2.000,00' });
 
@@ -141,5 +141,25 @@ describe('RN-CORE-29: textos e CSV da RV', () => {
     expect(protegerFormula('Ana')).toBe('Ana');
     const csv = csvDeRv({ ...painel, pessoas: [{ ...painel.pessoas[0]!, nome: '=HYPERLINK("http://x")' }] });
     expect(csv).toContain('"\'=HYPERLINK(""http://x"")"');
+  });
+});
+
+describe('RN-CORE-30: editor aberto e primeiro plano no passado', () => {
+  it('RN-CORE-30: formularioAlterado só acusa mudança real (voltar ao valor original não é alteração)', () => {
+    const base = preenchido();
+    expect(formularioAlterado(base, preenchido())).toBe(false);
+    const mudado = preenchido();
+    mudado.regras[0]!.faixas[1]!.de = '85';
+    expect(formularioAlterado(base, mudado)).toBe(true);
+    mudado.regras[0]!.faixas[1]!.de = '80';
+    expect(formularioAlterado(base, mudado)).toBe(false);
+  });
+  it('RN-CORE-30: o primeiro plano com início antes do mês aberto pede confirmação (nasce valendo para mês fechado, sem edição nem exclusão)', () => {
+    const aviso = avisoDoPrimeiroPlanoNoPassado('2026-09', '2026-11-05', 0);
+    expect(aviso).toMatch(/meses já fechados/);
+    expect(aviso).toMatch(/não poderá ser alterado/);
+    expect(avisoDoPrimeiroPlanoNoPassado('2026-11', '2026-11-05', 0)).toBeNull(); // mês aberto
+    expect(avisoDoPrimeiroPlanoNoPassado('2026-12', '2026-11-05', 0)).toBeNull(); // futuro
+    expect(avisoDoPrimeiroPlanoNoPassado('2026-09', '2026-11-05', 2)).toBeNull(); // não é o primeiro: a API já recusa reescrever mês fechado
   });
 });

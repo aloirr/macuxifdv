@@ -205,6 +205,8 @@ export const Visit = z.object({
   checkout_at: IsoDateTime.nullable(),
   /** seller = checkout feito pelo vendedor; auto = fechado sozinho (virada do dia ou check-in duplicado) */
   closed_by: z.enum(['seller', 'auto']).nullable(),
+  /** T-0039: etapas obrigatórias pendentes (RN-CORE-12), do pull da visita; ausente = 0. */
+  etapas_pendentes: z.number().int().min(0).optional(),
 });
 export type Visit = z.infer<typeof Visit>;
 

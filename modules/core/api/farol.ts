@@ -24,6 +24,7 @@ import {
 } from '../contracts';
 import { corDoCliente, dataLocal, diasSemCompraDoFarol, mascararDocumentoDoFarol, ordenarClientesDoFarol, parametrosFarolDasLinhas, resumirFarol, validarParametrosFarol, type LinhaFarol } from '../domain';
 import { auditar } from './auditoria';
+import { licencaDoTenant } from './licenca-tenant';
 
 const CHAVES = [PARAMETRO_FAROL_VERDE_DIAS, PARAMETRO_FAROL_AMARELO_DIAS, PARAMETRO_FAROL_POSITIVACAO_VERDE, PARAMETRO_FAROL_POSITIVACAO_AMARELO] as const;
 /** Teto de vínculos por consulta, como o `GET carteira`. Acima disso o recorte precisa de filtro. */
@@ -66,6 +67,8 @@ export async function calcularFarol(db: ClienteBanco, tx: Partial<Pick<Transacao
   const q = e.query;
   const hoje = dataLocal(e.agora, e.fuso);
   const periodo = q.periodo ?? hoje.slice(0, 7);
+  // Revalida na API o que a UI já barra: mês futuro (no fuso do tenant) não tem compra nem positivação.
+  if (periodo > hoje.slice(0, 7)) throw new ErroRegraNegocio('RN-CORE-28', 'O mês escolhido ainda não começou. Escolha o mês atual ou um mês anterior.');
   const parametros = await lerParametrosFarol(db);
 
   // Vendedores do recorte: escopo (RN-CORE-04) x equipe x vendedor. Fora do escopo = vazio (nunca 403: não revela que existe).
@@ -103,7 +106,11 @@ export async function calcularFarol(db: ClienteBanco, tx: Partial<Pick<Transacao
     )
   ).rows;
   const historicoDe = new Map<string, typeof historico>();
-  for (const h of historico) historicoDe.set(h.cliente_id, [...(historicoDe.get(h.cliente_id) ?? []), h]);
+  for (const h of historico) {
+    const lista = historicoDe.get(h.cliente_id);
+    if (lista) lista.push(h);
+    else historicoDe.set(h.cliente_id, [h]);
+  }
 
   // Positivação do mês pela fonte do tenant, nunca somadas (RN-CORE-20 x RN-CORE-27; mesma decisão do Início).
   // A fonte é decidida pela LICENÇA DO TENANT (RN-CORE-27: devolução não tira), nunca pelos módulos de quem consulta.
@@ -119,8 +126,8 @@ export async function calcularFarol(db: ClienteBanco, tx: Partial<Pick<Transacao
     for (const n of r.rows) positivados.add(`${n.usuario_id}|${n.cliente_id}`);
   } else {
     const r = await db.query<{ usuario_id: string; ids: string[] | null }>(
-      "select usuario_id, clientes_positivados_ids as ids from core.indicador_diario where deleted_at is null and usuario_id = any($1::uuid[]) and to_char(data, 'YYYY-MM') = $2",
-      [idsUsuarios, periodo],
+      "select usuario_id, clientes_positivados_ids as ids from core.indicador_diario where deleted_at is null and usuario_id = any($1::uuid[]) and data >= $2::date and data < ($2::date + interval '1 month')",
+      [idsUsuarios, `${periodo}-01`],
     );
     if (r.rows.length > 0) fonte = 'pedido';
     for (const d of r.rows) for (const id of d.ids ?? []) positivados.add(`${d.usuario_id}|${id}`);
@@ -185,9 +192,8 @@ export const rotasDeFarol: RotaModulo[] = [
       const clientesVisiveis = await ctx.carteira();
       return ctx.comTenant(async (db, tx) => {
         // Licença do tenant (RN-CORE-03/27), como o Início: Integração ativa liga a fonte das notas do ERP
-        const lic = await db.query<{ modulo: string }>("select modulo from plataforma.tenant_modulo where modulo in ('integracao', 'vendedor') and ativo and deleted_at is null");
-        const licenciado = (m: string) => lic.rows.some((r) => r.modulo === m);
-        return calcularFarol(db, tx, { usuariosVisiveis, clientesVisiveis, agora: ctx.agora(), fuso: ctx.fuso(), integracaoNoTenant: licenciado('integracao'), vendedorNoTenant: licenciado('vendedor'), query: ctx.query as FarolQuery });
+        const lic = await licencaDoTenant(db);
+        return calcularFarol(db, tx, { usuariosVisiveis, clientesVisiveis, agora: ctx.agora(), fuso: ctx.fuso(), ...lic, query: ctx.query as FarolQuery });
       });
     },
   },

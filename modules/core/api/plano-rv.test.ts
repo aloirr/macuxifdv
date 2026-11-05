@@ -1,4 +1,4 @@
-import { criarPermissoes, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel, criarPermissoes, verificarAcao, PERFIS, type ClienteBanco, type ContextoBase } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { manifest } from '../manifest';
 import { rotasDePlanoRv } from './plano-rv';
@@ -46,6 +46,8 @@ interface Respostas {
   membros?: unknown[];
   /** o insert do plano não grava (id de outro tenant: `on conflict do nothing`) */
   insercaoIgnorada?: boolean;
+  /** a escrita do plano colide com outra requisição (unique violation) */
+  colisao?: { constraint: string };
 }
 function fakeDb(r: Respostas) {
   const chamadas: Array<{ sql: string; valores: readonly unknown[] }> = [];
@@ -61,6 +63,7 @@ function fakeDb(r: Respostas) {
       else if (sql.includes('select id, nome from core.usuario')) rows = r.usuarios ?? [];
       else if (sql.includes('from core.indicador_diario')) rows = r.diarios ?? [];
       else if (sql.includes('from core.meta')) rows = r.metas ?? [];
+      if (r.colisao && /^\s*(insert into|update) core\.plano_rv/.test(sql)) throw Object.assign(new Error('duplicate key'), { code: '23505', constraint: r.colisao.constraint });
       if (/^\s*insert into core\.plano_rv/.test(sql)) rows = r.insercaoIgnorada ? [] : [{ id: valores[0] }];
       return { rows: rows as never[], rowCount: rows.length };
     },
@@ -163,6 +166,22 @@ describe('RN-CORE-30 / RN-AUD-01: PUT plano-rv/:id', () => {
     await expect(chamar('PUT', 'plano-rv/:id', db, { params: { id: P2 }, corpo: corpo({ vigencia_inicio: '2026-12' }) })).rejects.toMatchObject({ status: 404 });
     expect(chamadas.filter(ehAuditoria)).toHaveLength(0);
   });
+  it('RN-CORE-30: PUT simultâneo que colide no id ou no mês de início (23505) responde 409 com a ação seguinte, nunca 500', async () => {
+    for (const constraint of ['plano_rv_pkey', 'plano_rv_vigencia_uk']) {
+      const { db, chamadas } = fakeDb({ planos: [linhaPlano(P1, '2026-01')], colisao: { constraint } });
+      await expect(chamar('PUT', 'plano-rv/:id', db, { params: { id: P2 }, corpo: corpo({ vigencia_inicio: '2026-12' }) })).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/Atualize/) });
+      expect(chamadas.filter(ehAuditoria)).toHaveLength(0);
+    }
+  });
+  it('RN-CORE-30: outro erro do banco na escrita segue como está (não vira 409)', async () => {
+    const { db } = fakeDb({ planos: [linhaPlano(P1, '2026-01')] });
+    const original = db.query;
+    db.query = async (sql, valores) => {
+      if (/^\s*insert into core\.plano_rv/.test(sql)) throw Object.assign(new Error('boom'), { code: '08006' });
+      return original(sql, valores);
+    };
+    await expect(chamar('PUT', 'plano-rv/:id', db, { params: { id: P2 }, corpo: corpo({ vigencia_inicio: '2026-12' }) })).rejects.toThrow('boom');
+  });
   it('RN-CORE-30: pesos que não somam 100 são recusados (422) e nada é gravado', async () => {
     const { db, chamadas } = fakeDb({});
     const ruim = corpo({ regras: [{ ...regras[0], peso_pct: 60 }, regras[1]] });
@@ -240,6 +259,7 @@ describe('RN-CORE-29: GET rv', () => {
     expect(r.pessoas.map((p: { nome: string }) => p.nome)).toEqual(['Ana']);
     const ana = r.pessoas[0];
     expect(ana.indicadores.find((i: { indicador: string }) => i.indicador === 'venda_cents')).toMatchObject({ atingimento_pbp: 10000, pagamento_pct: 100, valor_cents: 100_000 });
+    expect(ana.plano_id).toBe(P1);
     expect(ana.rv_cents).toBe(100_000); // 50% de R$ 2.000,00 cheio; positivação e cobertura sem meta pagam 0
   });
   it('RN-CORE-27/29: admin e analista veem a mesma RV (consulta pela licença do tenant, ADR 0025)', async () => {
@@ -250,12 +270,14 @@ describe('RN-CORE-29: GET rv', () => {
       metas: [meta(V1, 'venda_cents', 100_000)],
       diarios: [{ usuario_id: V1, data: '2026-10-10', pedidos: 3, vendido_cents: 100_000, cancelado_cents: 0 }],
     };
-    const pedido = { vendedor_id: V1, emitido_em: '2026-10-10T15:00:00Z', status: 'aprovado', total_cents: 100_000 };
+    const pedido = { vendedor_id: V1, emitido_em: '2026-10-10T15:00:00Z', status: 'aprovado', total_cents: 150_000 }; // diferente do read-model (100_000): só a consulta do Vendedor chega a 150_000
     const opcoesVistas: unknown[] = [];
     const rodar = async (perfil: string) => {
       const r = rota('GET', 'rv');
       const consultar = async (_d: unknown, _q: unknown, opcoes?: unknown) => {
         opcoesVistas.push(opcoes);
+        // como o SDK: sem { licenca: 'tenant' } o Vendedor não está na licença de quem consulta, então a consulta é indisponível
+        if ((opcoes as { licenca?: string } | undefined)?.licenca !== 'tenant') throw new ConsultaIndisponivel('vendedor.pedidos_da_meta@1', 'vendedor');
         return { pedidos: [pedido], faturamentos: [] };
       };
       const ctx = {
@@ -272,8 +294,23 @@ describe('RN-CORE-29: GET rv', () => {
     };
     const analista = await rodar('analista');
     expect(await rodar('admin')).toEqual(analista);
+    const venda = (analista as { pessoas: Array<{ indicadores: Array<{ indicador: string; realizado: number }> }> }).pessoas[0]!.indicadores.find((i) => i.indicador === 'venda_cents');
+    expect(venda!.realizado).toBe(150_000); // veio da consulta do Vendedor; se a RV deixar de passar a opção, cai no read-model (100_000) e o teste falha
     expect(opcoesVistas.length).toBeGreaterThan(0);
     expect(opcoesVistas.every((o) => (o as { licenca?: string }).licenca === 'tenant')).toBe(true);
+  });
+  it('RN-CORE-30: com planos diferentes para vendedor e promotor, cada pessoa traz o plano que usou (plano_id por pessoa)', async () => {
+    const { db } = fakeDb({
+      planos: [linhaPlano(P1, '2026-01'), linhaPlano(P2, '2026-01', { perfis: ['promotor'] })],
+      usuarios,
+      info,
+      metas: [meta(V1, 'venda_cents', 100_000), meta(V2, 'venda_cents', 100_000)],
+      diarios: [],
+    });
+    const r = await chamar('GET', 'rv', db, { query: { periodo: '2026-10' } });
+    const porNome = Object.fromEntries(r.pessoas.map((p: { nome: string; plano_id: string }) => [p.nome, p.plano_id]));
+    expect(porNome).toEqual({ Ana: P1, Beto: P2 });
+    expect(r.plano_id).toBe(P1); // o do vendedor continua como plano principal do painel
   });
   it('RN-CORE-29: mês aberto fica parcial e a venda usa a projeção em dias úteis', async () => {
     const { db } = fakeDb({

@@ -48,7 +48,7 @@ export const CadastroResumoSaidaSchema = z.object({
       external_id: Texto,
       /** T-0071 / RN-VEN-11 (aditivo): preço de venda em centavos; null = não informado (sem preço mínimo). Ausente = emissor antigo. */
       preco_venda_cents: z.number().int().nonnegative().nullable().optional(),
-      /** T-0071 / RN-VEN-11 (aditivo): desconto máximo EFETIVO em % (próprio ?? parâmetro produto.desconto_maximo_pct do tenant ?? 15). */
+      /** T-0071 / RN-VEN-11 (aditivo): desconto máximo EFETIVO em % (próprio ?? parâmetro core.desconto_maximo_produto_pct do tenant ?? 15). */
       desconto_maximo_pct: z.number().min(0).max(100).optional(),
       unidades: z.array(z.object({ unidade: z.string(), fator: z.number().int().positive(), padrao: z.boolean(), ativo: z.boolean(), external_id: Texto })).optional(),
     }),

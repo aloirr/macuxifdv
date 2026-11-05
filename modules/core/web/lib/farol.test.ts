@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FarolCliente } from '../../contracts';
-import { aoEscolherEquipe, consultaDoFarol, csvDoFarol, filtrosDaUrl, legendaDasFaixas, legendaEmLinhas, aoEscolherVendedor, protegerFormula, mesMaximo, rotuloDoExportar, rotuloDaCor, ROTULO_COR_PLURAL, textoDeDias, textoDePositivacao, textoDoResumo, textosDosParametros, tomDaCor, validarFormularioDoFarol } from './farol';
+import { aoEscolherEquipe, avisoDoMesPassado, consultaDoFarol, csvDoFarol, filtrosDaUrl, legendaDasFaixas, legendaEmLinhas, aoEscolherVendedor, protegerFormula, mesMaximo, rotuloDoExportar, rotuloDaCor, ROTULO_COR_PLURAL, textoDeDias, textoDePositivacao, textoDoResumo, textosDosParametros, tomDaCor, validarFormularioDoFarol } from './farol';
 
 const PADRAO = { verde_ate_dias: 30, amarelo_ate_dias: 45, positivacao_verde_pct: 70, positivacao_amarelo_pct: 50 };
 const url = (o: Record<string, string>) => ({ get: (k: string) => o[k] ?? null });
@@ -63,6 +63,10 @@ describe('RN-CORE-28: apresentação do farol no BKO', () => {
     expect(l.map((x) => x.rotulo)).toEqual(['Cliente', 'Vendedor']);
     expect(l[0]?.faixas[2]).toEqual({ cor: 'vermelho', texto: 'acima de 45 dias' });
     expect(l[1]?.faixas[0]?.texto).toBe('a partir de 70%');
+  });
+  it('RN-CORE-28: mês passado avisa que carteira e dias sem compra são de hoje; mês atual não avisa', () => {
+    expect(avisoDoMesPassado('2026-10', '2026-11-05')).toMatch(/carteira e os dias sem compra são os de hoje/);
+    expect(avisoDoMesPassado('2026-11', '2026-11-05')).toBeNull();
   });
   it('RN-CORE-28: vendedor escolhido limpa a equipe; mês máximo é o atual; exportar diz quantos', () => {
     expect(aoEscolherVendedor('v1')).toEqual({ vendedor: 'v1', equipe: null });

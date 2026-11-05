@@ -99,6 +99,20 @@ export function formDoPlano(p: PlanoRvDto | PlanoRv): FormPlano {
   };
 }
 
+/** O formulário mudou em relação ao que foi aberto? (para pedir confirmação ao sair com o editor aberto). */
+export function formularioAlterado(inicial: FormPlano, atual: FormPlano): boolean {
+  return JSON.stringify(inicial) !== JSON.stringify(atual);
+}
+
+/**
+ * RN-CORE-30: o primeiro plano do tenant com início antes do mês aberto vale para meses já fechados e nasce sem edição nem exclusão.
+ * Qualquer outro caso com início no passado a API já recusa (reescreveria mês fechado).
+ */
+export function avisoDoPrimeiroPlanoNoPassado(vigenciaInicio: string, hoje: string, planosExistentes: number): string | null {
+  if (planosExistentes > 0 || vigenciaInicio >= hoje.slice(0, 7)) return null;
+  return `Este plano começa em ${textoDoMes(vigenciaInicio)} e vai valer para meses já fechados. Depois de salvo, não poderá ser alterado nem excluído; só dá para criar uma versão nova a partir do mês aberto. Salvar mesmo assim?`;
+}
+
 /** "2.000,00" ou "2000" -> centavos; texto inválido = null. */
 export function centavosDoTexto(texto: string): number | null {
   const limpo = texto.trim().replace(/\./g, '').replace(',', '.');

@@ -35,6 +35,7 @@ import {
   filtrosDaUrl,
   legendaEmLinhas,
   mesMaximo,
+  avisoDoMesPassado,
   ORDEM_DAS_CORES,
   ROTULO_COR_PLURAL,
   rotuloDaCor,
@@ -225,6 +226,12 @@ function FarolConteudo() {
           />
         </label>
       </FilterBar>
+
+      {avisoDoMesPassado(mes, hoje()) && (
+        <Notice tone="info" data-testid="farol.aviso-mes-passado">
+          {avisoDoMesPassado(mes, hoje())}
+        </Notice>
+      )}
 
       {lista.isError && (
         <ErrorBlock message={errorMessage(lista.error)} onRetry={() => void lista.refetch()} />

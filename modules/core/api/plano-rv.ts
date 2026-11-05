@@ -4,7 +4,7 @@
  * com auditoria antes/depois (RN-AUD-01). RV: calculada na hora pelo domain (`calcularRvDaPessoa`) sobre o realizado da
  * MESMA apuração do `GET metas/painel` (`calcularIndicadores`); nada de RV é gravado. Escopo: `usuariosVisiveis()` (RN-CORE-04).
  */
-import { ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
+import { ErroHttpModulo, ErroNaoEncontrado, ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import {
   PlanoRvParamsSchema,
@@ -94,6 +94,21 @@ const erroDeRegra = (erros: string[]) => new ErroRegraNegocio('RN-CORE-30', erro
 
 const planoDoCorpo = (id: string, c: PlanoRvPut): PlanoRv => normalizarPlano({ id, ...c });
 
+/**
+ * Duas gravações simultâneas do mesmo plano novo (id) ou do mesmo mês de início batem na chave primária ou no `plano_rv_vigencia_uk`
+ * (23505). Depois do erro a transação do Postgres está abortada e não dá para reler nela: responde 409 e a tela recarrega a lista.
+ */
+async function gravar<T>(escrita: () => Promise<T>): Promise<T> {
+  try {
+    return await escrita();
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code === '23505') {
+      throw new ErroHttpModulo(409, 'PLANO_RV_CONFLITO', 'Outra pessoa gravou um plano com o mesmo mês de início ao mesmo tempo. Atualize a lista e confira antes de salvar de novo.');
+    }
+    throw e;
+  }
+}
+
 export const rotasDePlanoRv: RotaModulo[] = [
   {
     metodo: 'GET',
@@ -128,17 +143,21 @@ export const rotasDePlanoRv: RotaModulo[] = [
         if (!atual || JSON.stringify(atual) !== JSON.stringify(novo)) {
           const valores = [id, novo.nome, novo.vigencia_inicio, novo.perfis, novo.valor_maximo_cents, JSON.stringify(novo.regras), ctx.usuario.id];
           if (atual) {
-            await db.query(
+            await gravar(() =>
+              db.query(
               'update core.plano_rv set nome = $2, vigencia_inicio = $3, perfis = $4::text[], valor_maximo_cents = $5, regras = $6::jsonb, atualizado_por = $7 where id = $1 and deleted_at is null',
               valores,
+              ),
             );
           } else {
             // id de outro tenant: o RLS esconde a linha e a chave primária colidiria (500). `on conflict do nothing` = 404 sem vazar.
-            const novoPlano = await db.query(
+            const novoPlano = await gravar(() =>
+              db.query(
               `insert into core.plano_rv (id, tenant_id, nome, vigencia_inicio, perfis, valor_maximo_cents, regras, atualizado_por)
                values ($1, plataforma.tenant_atual(), $2, $3, $4::text[], $5, $6::jsonb, $7)
                on conflict (id) do nothing returning id`,
               valores,
+              ),
             );
             if ((novoPlano.rowCount ?? 0) === 0) throw new ErroNaoEncontrado('PLANO_RV_NAO_ENCONTRADO', 'Plano de RV não encontrado. Atualize a lista e tente de novo.');
           }
@@ -228,6 +247,7 @@ export const rotasDePlanoRv: RotaModulo[] = [
             usuario_id: item.usuario_id,
             nome: item.usuario_nome,
             equipe_id: u?.equipe_id ?? null,
+            plano_id: plano.id,
             rv_cents: rv.rv_cents,
             rv_bruta_cents: rv.rv_bruta_cents,
             bloqueada_por: rv.bloqueada_por,

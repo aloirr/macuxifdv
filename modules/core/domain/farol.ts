@@ -111,7 +111,11 @@ export function resumirFarol(linhas: readonly LinhaFarol[], p: ParametrosFarol):
     if (!atual || (l.positivado_mes && !atual.positivado_mes)) unicos.set(l.cliente_id, l);
   }
   const porVendedor = new Map<string, LinhaFarol[]>();
-  for (const l of linhas) porVendedor.set(l.usuario_id, [...(porVendedor.get(l.usuario_id) ?? []), l]);
+  for (const l of linhas) {
+    const grupo = porVendedor.get(l.usuario_id);
+    if (grupo) grupo.push(l);
+    else porVendedor.set(l.usuario_id, [l]);
+  }
   return {
     resumo: resumirGrupo([...unicos.values()], p),
     vendedores: [...porVendedor.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([usuario_id, ls]) => ({ usuario_id, ...resumirGrupo(ls, p) })),

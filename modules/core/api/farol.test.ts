@@ -152,6 +152,30 @@ describe('RN-CORE-28: GET /v1/core/farol (cálculo)', () => {
     expect(p2.clientes).toHaveLength(1);
     expect(p2.proximo_cursor).toBeNull();
   });
+  it('RN-CORE-28: período futuro (depois do mês corrente no fuso do tenant) é recusado com 422 e a ação seguinte', async () => {
+    const { db } = fakeDb({ usuarios, vinculos: [vinc(C1, V1, 'Alfa')] });
+    await expect(calcularFarol(db, {}, entrada({ query: { periodo: '2026-12' } }))).rejects.toMatchObject({ status: 422, codigo: 'RN-CORE-28', message: expect.stringMatching(/Escolha/) });
+    // virada do mês no fuso: 01/12 02:00Z ainda é 30/11 em Manaus (dezembro segue futuro); 01/12 05:00Z já é dezembro
+    await expect(calcularFarol(db, {}, entrada({ agora: new Date('2026-12-01T02:00:00Z'), query: { periodo: '2026-12' } }))).rejects.toMatchObject({ codigo: 'RN-CORE-28' });
+    await expect(calcularFarol(db, {}, entrada({ agora: new Date('2026-12-01T05:00:00Z'), query: { periodo: '2026-12' } }))).resolves.toMatchObject({ periodo: '2026-12' });
+    // o mês atual e os passados valem
+    await expect(calcularFarol(db, {}, entrada({ query: { periodo: '2026-11' } }))).resolves.toMatchObject({ periodo: '2026-11' });
+    await expect(calcularFarol(db, {}, entrada({ query: { periodo: '2025-01' } }))).resolves.toMatchObject({ periodo: '2025-01' });
+  });
+  it('RN-CORE-28: vendedor desligado (ativo = false) com vínculo vivo continua no farol: a carteira só sai pela reatribuição', async () => {
+    const { db, chamadas } = fakeDb({ usuarios: [{ id: V1, nome: 'Ana (desligada)', equipe_id: null }], vinculos: [vinc(C1, V1, 'Alfa')] });
+    const f = await calcularFarol(db, {}, entrada());
+    expect(f.vendedores.map((v) => [v.nome, v.carteira])).toEqual([['Ana (desligada)', 1]]);
+    expect(f.clientes.map((c) => c.nome)).toEqual(['Alfa']);
+    expect(chamadas.find((c) => c.sql.includes('from core.usuario'))!.sql).not.toMatch(/\bativo\b/);
+  });
+  it('RN-CORE-28: a leitura do read-model usa faixa de datas (índice por data), não to_char', async () => {
+    const { db, chamadas } = fakeDb({ usuarios, vinculos: [vinc(C1, V1, 'Alfa')] });
+    await calcularFarol(db, {}, entrada({ query: { periodo: '2026-10' } }));
+    const consulta = chamadas.find((c) => c.sql.includes('from core.indicador_diario'))!;
+    expect(consulta.sql).not.toContain('to_char');
+    expect(consulta.valores[1]).toBe('2026-10-01');
+  });
   it('RN-CORE-28: recorte acima do teto de vínculos é recusado com a ação seguinte', async () => {
     const muitos = Array.from({ length: 5001 }, (_, i) => vinc(`0c000000-0000-4000-8000-${String(i).padStart(12, '0')}`, V1, 'X'));
     await expect(calcularFarol(fakeDb({ usuarios, vinculos: muitos }).db, {}, entrada())).rejects.toThrow(/Escolha uma equipe ou um vendedor/);

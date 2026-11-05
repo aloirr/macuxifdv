@@ -20,6 +20,7 @@ import {
   type TipoMeta,
 } from '../domain';
 import { fontePorConsulta, type FontePedidosDaMeta } from './metas';
+import { licencaDoTenant } from './licenca-tenant';
 
 const ORDEM: readonly IndicadorMeta[] = ['venda_cents', 'positivacao', 'visitas', 'cobertura_pct'];
 
@@ -186,8 +187,8 @@ export const rotasDeInicio: RotaModulo[] = [
       const visiveis = await ctx.usuariosVisiveis();
       return ctx.comTenant(async (db, tx) => {
         // Licença do tenant (RN-CORE-03/27): o Core é o dono do licenciamento e já lê tenant_modulo em licencas.ts
-        const lic = await db.query<{ modulo: string }>("select modulo from plataforma.tenant_modulo where modulo in ('integracao', 'vendedor') and ativo and deleted_at is null");
-        return calcularInicio(db, tx, { usuarioId: ctx.usuario.id, integracaoNoTenant: lic.rows.some((r) => r.modulo === 'integracao'), vendedorNoTenant: lic.rows.some((r) => r.modulo === 'vendedor'), perfil: ctx.usuario.perfil, visiveis, agora: ctx.agora(), fuso: ctx.fuso() });
+        const lic = await licencaDoTenant(db);
+        return calcularInicio(db, tx, { usuarioId: ctx.usuario.id, ...lic, perfil: ctx.usuario.perfil, visiveis, agora: ctx.agora(), fuso: ctx.fuso() });
       });
     },
   },

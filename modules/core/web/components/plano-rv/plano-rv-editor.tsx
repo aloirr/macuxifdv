@@ -8,6 +8,7 @@ import { INDICADORES_META } from '../../../contracts';
 import type { IndicadorRv } from '../../../domain';
 import {
   corpoDoFormulario,
+  formularioAlterado,
   ROTULO_INDICADOR_RV,
   ROTULO_MODO,
   ROTULO_PERFIL_RV,
@@ -176,6 +177,7 @@ export function PlanoRvEditor({
   salvando,
   erroApi,
   motivoLeitura,
+  aoMudarSujo,
 }: {
   inicial: FormPlano;
   titulo: string;
@@ -186,6 +188,8 @@ export function PlanoRvEditor({
   erroApi: string | null;
   /** plano só para consulta: 'fechado' = já valeu para mês fechado; 'permissao' = o perfil não altera planos */
   motivoLeitura?: 'fechado' | 'permissao';
+  /** avisa a página quando o formulário passa a diferir do que foi aberto (e quando volta): a página pede confirmação ao sair */
+  aoMudarSujo?: (sujo: boolean) => void;
 }) {
   const [form, setForm] = useState<FormPlano>(inicial);
   const [erros, setErros] = useState<string[]>([]);
@@ -202,6 +206,11 @@ export function PlanoRvEditor({
     setErros([]);
     aoSalvar(v.corpo);
   };
+  const sujo = !motivoLeitura && formularioAlterado(inicial, form);
+  useEffect(() => {
+    aoMudarSujo?.(sujo);
+    return () => aoMudarSujo?.(false);
+  }, [sujo]);
   // ao abrir: rola até o editor e leva o foco ao primeiro campo (ou ao próprio editor, no modo consulta)
   useEffect(() => {
     const menos = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;

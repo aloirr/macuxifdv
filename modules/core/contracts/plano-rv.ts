@@ -82,6 +82,8 @@ export const RvPainelSchema = z.object({
       usuario_id: Uuid,
       nome: z.string(),
       equipe_id: Uuid.nullable(),
+      /** Plano que valeu para esta pessoa no mês (vendedor e promotor podem ter planos diferentes). Aditivo: ausente em respostas antigas. */
+      plano_id: Uuid.optional(),
       rv_cents: z.number().int(),
       rv_bruta_cents: z.number().int(),
       bloqueada_por: z.array(z.enum(INDICADORES_META)),

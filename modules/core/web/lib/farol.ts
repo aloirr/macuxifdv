@@ -127,6 +127,12 @@ export function mesMaximo(hoje: string): string {
   return hoje.slice(0, 7);
 }
 
+/** Aviso da tela quando o mês escolhido é passado: só a positivação é do mês; carteira vigente e dias sem compra são de hoje (RN-CORE-28 item 2). */
+export function avisoDoMesPassado(mes: string, hoje: string): string | null {
+  if (mes >= hoje.slice(0, 7)) return null;
+  return 'Mês anterior: a positivação é a do mês escolhido, mas a carteira e os dias sem compra são os de hoje.';
+}
+
 export const CABECALHO_CSV = [
   'Cliente',
   'Documento',
