@@ -11,8 +11,8 @@ import type { Role, SellerGoals } from '../../contracts';
 
 /** Aprovar/recusar pedido fora da alçada: só gestor (e admin). */
 export const canApprove = (role: Role | undefined) => role === 'manager' || role === 'admin';
-/** Parâmetros (plano de RV e alçadas): só o perfil analista edita. */
-export const canEditParams = (role: Role | undefined) => role === 'analyst';
+/** Parâmetros (plano de RV e alçadas): analista e admin editam (RN-CORE-30). */
+export const canEditParams = (role: Role | undefined) => role === 'analyst' || role === 'admin';
 /** Fechar/reabrir mês e exportar para o RH. */
 export const canManagePeriod = (role: Role | undefined) => role === 'analyst' || role === 'manager' || role === 'admin';
 /** Incluir cliente na rota da semana. */

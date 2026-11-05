@@ -73,3 +73,8 @@
 2026-11-05 — T-0039 — tolerância do checkout ligada na API: consulta da Pesquisa, avaliarCheckoutTolerante, pendência/contagem, baixa por pesquisa.resposta.registrada@1, alertarPendenciasVencidas (sem agendador ainda), dispensa manual, parâmetro do prazo, etapas_pendentes no pull
 2026-11-05 — T-0039 — BKO: prazo da etapa pendente na rota própria checkout-pendencia; diálogo de etapas com erro da API em Notice, autoFocus e contador n/300
 2026-11-05 — T-0039 — revisão da API: ordem de trava visita->etapa (deadlock), tarefa periódica alerta_pendencia_checkout (ADR 0022), 3 🟢
+2026-11-05 — T-0082 — domain plano-rv (RN-CORE-29/30) com 16 testes e contratos Zod do plano; rotas/tela aguardam migração 0028
+2026-11-05 — T-0081 — Farol de clientes (RN-CORE-28): domain farol, contratos, GET /v1/core/farol e parametros/farol, tela BKO no lugar de FarolEmBreve; testes locais verdes, db só CI
+2026-11-05 — T-0081 — 10 amarelos de UX do Farol no BKO aplicados (filtro vendedor/equipe, vazio, legenda, KPIs clicáveis, atalho de parâmetros, mês máx, CSV, alvos 44px); testes/eslint/tsc verdes
+2026-11-05 — T-0083/T-0039 — reexport normalizarEmail/validarSenhaInicial em core/api (RN-CORE-31); marcador de pendência do checkout depende de coluna subtipo (pedida ao banco-dados)
+2026-11-05 — T-0082 — Plano de RV: rotas /v1/core/plano-rv (GET/PUT/DELETE, plano_rv.ver/editar) e /v1/core/rv (cálculo na hora pelo domain), domain acrescido (dias úteis do tenant, meses fechados, vigência que não reescreve mês fechado), página BKO Plano de RV (editor, simulador, RV por vendedor, CSV), testes de rota com banco simulado e plano-rv.db.test.ts (CI); app fica para depois (#94)

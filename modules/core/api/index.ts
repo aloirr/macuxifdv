@@ -25,6 +25,8 @@ import { consumidorMetaDefinida } from './consumidores-sistema';
 import { rotasDeLicencas } from './licencas';
 import { alertarPendenciasVencidas, consumidorBaixaPorResposta, rotasDePendenciaCheckout } from './etapas-pendencia';
 import { consultaMedidas, rotasDeMedidas } from './medidas';
+import { rotasDeFarol } from './farol';
+import { rotasDePlanoRv } from './plano-rv';
 import { rotasDeInicio } from './inicio';
 import { rotasDeMetas } from './metas';
 import { rotasDeProdutos } from './produtos';
@@ -41,7 +43,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
   const auth = criarAutenticacao(deps);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes],
+    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
@@ -87,3 +89,5 @@ export default moduloApi;
 
 export { criarAutenticacao } from './autenticacao';
 export type { Autenticacao } from './autenticacao';
+/** T-0083 (RN-CORE-31): política do admin inicial, lida pelo comando `pnpm tenant:criar` (a fronteira não deixa o shell importar o domain). */
+export { normalizarEmail, validarSenhaInicial } from '../domain/usuarios';
