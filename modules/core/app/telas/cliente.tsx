@@ -14,11 +14,10 @@ import { BackLink, Badge, Button, colors, daysAgoLabel, fonts, formatHHMM, Icon,
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AbaCliente, AcaoCliente, ContextoCliente } from '../../contracts';
-import { filtrarExtensoesDePedido, isVisitOpen } from '../../domain';
-import { AcoesContato, CabecalhoCliente, SecoesCliente360 } from '../components/cliente360';
+import { acoesDoRodapeCliente, filtrarExtensoesDePedido, isVisitOpen } from '../../domain';
+import { AcoesContato, CabecalhoCliente, SecoesCliente360, ultimaCompraDaFicha } from '../components/cliente360';
 import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais';
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
@@ -33,7 +32,6 @@ export function TelaCliente() {
   const params = useLocalSearchParams<{ id?: string; from?: string; checkin?: string }>();
   const id = String(params.id ?? '');
   const core = useCore();
-  const insets = useSafeAreaInsets();
   const sheets = useVisitSheets();
   const abasTodas = useExtensoes<AbaCliente<ComponentType<{ contexto: ContextoCliente }>>>('cliente.abas');
   const acoesTodas = useExtensoes<AcaoCliente>('cliente.acoes');
@@ -95,7 +93,7 @@ export function TelaCliente() {
   if (!customer && ficha) {
     return (
       <View style={styles.root}>
-        <ScrollView contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
+        <ScrollView contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
           <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
           <OpenVisitBar from={ficha.cliente.nome_fantasia ?? ficha.cliente.razao_social} />
           <CabecalhoCliente ficha={ficha} />
@@ -117,7 +115,7 @@ export function TelaCliente() {
 
   if (!customer) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top + 16, paddingHorizontal: 20 }]}>
+      <View style={[styles.root, { paddingTop: 16, paddingHorizontal: 20 }]}>
         <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
         <Text style={t.sub}>Cliente não encontrado na carteira sincronizada. Sincronize e tente de novo.</Text>
       </View>
@@ -131,9 +129,29 @@ export function TelaCliente() {
   const acaoDestaque = acoes.find((a) => a.payload.destaque) ?? acoes[0] ?? null;
   const rotuloDe = (a: AcaoCliente, ctx: ContextoCliente) => (typeof a.rotulo === 'function' ? a.rotulo(ctx) : a.rotulo);
 
+  const diasUltimaCompra = ficha ? ficha.resumo_compras.dias_sem_compra : customer.days_since_purchase;
+  const indicadoresDoCliente = (
+    <>
+      {locais.verPedidos ? <Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} /> : null}
+      {locais.verPedidos ? (
+        <Stat
+          label="Última compra"
+          value={ficha ? ultimaCompraDaFicha(diasUltimaCompra) : daysAgoLabel(diasUltimaCompra)}
+          color={diasUltimaCompra !== null && diasUltimaCompra >= 45 ? colors.warning : undefined}
+        />
+      ) : null}
+      <Stat label="Limite disponível" value={formatBRL0(customer.available_credit_cents)} color={customer.available_credit_cents <= 0 ? colors.danger : undefined} />
+      <Stat
+        label="Títulos vencidos"
+        value={customer.overdue_count === 0 ? 'Nenhum' : `${customer.overdue_count} · ${formatBRL0(customer.overdue_cents)}`}
+        color={customer.overdue_count === 0 ? colors.success : colors.danger}
+      />
+    </>
+  );
+
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 16, gap: 14 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 16, gap: 14 }}>
         <BackLink label={params.from ?? 'Clientes'} fallback="/m/clientes" />
         <OpenVisitBar from={customer.trade_name} />
         <View style={{ gap: 6 }}>
@@ -172,18 +190,12 @@ export function TelaCliente() {
         </View>
         )}
 
-        <View style={styles.grid}>
-          {locais.verPedidos ? <Stat label="Compra média/mês" value={formatBRL0(customer.avg_monthly_cents)} /> : null}
-          {locais.verPedidos ? <Stat label="Última compra" value={daysAgoLabel(customer.days_since_purchase)} color={customer.days_since_purchase !== null && customer.days_since_purchase >= 45 ? colors.warning : undefined} /> : null}
-          <Stat label="Limite disponível" value={formatBRL0(customer.available_credit_cents)} color={customer.available_credit_cents <= 0 ? colors.danger : undefined} />
-          <Stat
-            label="Títulos vencidos"
-            value={customer.overdue_count === 0 ? 'Nenhum' : `${customer.overdue_count} · ${formatBRL0(customer.overdue_cents)}`}
-            color={customer.overdue_count === 0 ? colors.success : colors.danger}
-          />
-        </View>
-
-        {ficha ? <SecoesCliente360 ficha={ficha} /> : null}
+        {/* T-0076: uma grade só, na ordem da referência (Compra média · Última compra · Limite · Títulos · Ticket · Frequência · 12 meses) */}
+        {ficha ? (
+          <SecoesCliente360 ficha={ficha} indicadoresIniciais={indicadoresDoCliente} />
+        ) : (
+          <View style={styles.grid}>{indicadoresDoCliente}</View>
+        )}
 
         {abas.map((a) => {
           const Aba = a.payload.componente;
@@ -213,7 +225,7 @@ export function TelaCliente() {
             else if (!visited) void startCheckin();
           }}
         />
-        {acoes.map((a) => (
+        {acoesDoRodapeCliente(acoes).map((a) => (
           <Button
             key={`${a.modulo}-${a.id}`}
             testID={a.payload.testID}

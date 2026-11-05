@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CALENDARIO_PADRAO, calendarioDoTenant, diasUteisRestantes, ehDiaUtil, metaDoDia, metaDoDiaDaEquipe, type CalendarioTenant } from './meta-do-dia';
+import { CALENDARIO_PADRAO, calendarioDoTenant, diasUteisRestantes, ehDiaUtil, metaDoDia, metaDoDiaDaEquipe, resumoMetaDeHoje, type CalendarioTenant } from './meta-do-dia';
 
 const SEG_SEX: CalendarioTenant = { dias_uteis_semana: [1, 2, 3, 4, 5] };
 const base = { indicador: 'venda_cents' as const, periodo: '2026-11', calendario: CALENDARIO_PADRAO, meta_mes: 3_000_000, realizado_ate_ontem: 1_200_000, realizado_hoje: 0 };
@@ -158,5 +158,24 @@ describe('RN-CORE-26: cobertura da equipe é média ponderada pelas paradas plan
   it('RN-CORE-26: decisão do Alexandre (T-0073): quem não tem parada planejada não pesa; equipe sem nenhuma parada = null', () => {
     expect(metaDoDiaDaEquipe('cobertura_pct', [cobertura(10_000, 0), cobertura(5_000, 10)])!.realizado_ate_ontem).toBe(5000);
     expect(metaDoDiaDaEquipe('cobertura_pct', [cobertura(10_000, 0), cobertura(5_000)])).toBeNull();
+  });
+});
+
+describe('RN-CORE-26: resumo da meta de hoje no Início (T-0076)', () => {
+  const m = (o: Partial<Parameters<typeof metaDoDia>[0]> = {}) => metaDoDia({ ...base, hoje: '2026-11-10', ...o });
+  it('RN-CORE-26: faltam hoje = meta do dia − realizado de hoje, e o mês = realizado ÷ meta do mês', () => {
+    // meta 30.000 | até ontem 12.000 | 18 dias → meta do dia 1.000,00 (ceil 18000/18); hoje 400
+    const r = resumoMetaDeHoje(m({ realizado_hoje: 40_000 }));
+    expect(r).toEqual({ indicador: 'venda_cents', situacao: 'a_cumprir', realizado_hoje: 40_000, meta_dia: 100_000, faltam_hoje: 60_000, mes_pct: 4_000 + 133 });
+  });
+  it('RN-CORE-26: dia batido não tem falta (zero) e o realizado de hoje entra no % do mês', () => {
+    const r = resumoMetaDeHoje(m({ realizado_hoje: 150_000 }));
+    expect(r.faltam_hoje).toBe(0);
+    expect(r.mes_pct).toBe(Math.round(((1_200_000 + 150_000) / 3_000_000) * 10_000));
+  });
+  it('RN-CORE-26: mês batido e dia não útil: faltam_hoje zero e null; sem meta no mês o % é null', () => {
+    expect(resumoMetaDeHoje(m({ realizado_ate_ontem: 3_000_000 })).faltam_hoje).toBe(0);
+    expect(resumoMetaDeHoje(m({ hoje: '2026-11-15' })).faltam_hoje).toBeNull();
+    expect(resumoMetaDeHoje({ ...m(), meta_mes: 0 }).mes_pct).toBeNull();
   });
 });

@@ -193,3 +193,52 @@ describe('RN-CORE-26: montarInicio (Início offline com as mesmas funções pura
     expect(VisaoInicioSchema.safeParse(montarInicio(vazio, null, [], eu)).success).toBe(true);
   });
 });
+
+describe('RN-CORE-26 / RN-CORE-23: Início pela referência aprovada (T-0076)', () => {
+  const sync = { sincronizadoEm: '2026-11-10T12:25:00.000Z', filaPendentes: 2 };
+  it('RN-CORE-26: boas-vindas e visitas hoje/feitas vêm da rota do aparelho; saudação no fuso do tenant', () => {
+    const l: LinhasInicio = { ...vazio, paradas: [parada(1, EU, 11, '2026-11-10'), parada(2, EU, 12, '2026-11-10')], visitas: [visita(1, EU, 11, '2026-11-10', '2026-11-10T12:00:00Z', '2026-11-10T12:30:00Z')] };
+    const v = montarInicio(l, null, [], { ...eu, ...sync });
+    expect(v.saudacao).toBe('Bom dia'); // 09h em Manaus
+    expect(v.rota).toMatchObject({ paradas_hoje: 2, visitadas_hoje: 1 });
+    expect(VisaoInicioSchema.safeParse(v).success).toBe(true);
+  });
+  it('RN-CORE-26: meta de hoje com faltam hoje e % do mês (caso do desenho: meta 3.200 por dia)', () => {
+    const v = montarInicio({ ...vazio, metas: [meta(EU, 'venda_cents', 3_000_000)] }, copia('2026-11-10'), [], eu);
+    expect(v.meta_hoje).toMatchObject({ indicador: 'venda_cents', realizado_hoje: 50_000, meta_dia: 100_000, faltam_hoje: 50_000, mes_pct: 4_167 });
+    expect(v.sem_realizado).toEqual([]);
+  });
+  it('RN-CORE-26: meta de venda sem cópia = sem_realizado (não "sem meta") e o cartão não cai em outro indicador', () => {
+    const v = montarInicio({ ...vazio, metas: [meta(EU, 'venda_cents', 3_000_000), meta(EU, 'visitas', 40)] }, null, [], eu);
+    expect(v.sem_realizado).toContain('venda_cents');
+    expect(v.meta_hoje).toBeNull();
+  });
+  it('RN-PRO-01: promotor sem meta de venda mostra a primeira meta que tem', () => {
+    const v = montarInicio({ ...vazio, metas: [meta(EU, 'visitas', 40)] }, null, [], { ...eu, perfil: 'promotor' });
+    expect(v.meta_hoje?.indicador).toBe('visitas');
+    expect(v.sem_realizado).toEqual([]);
+  });
+  it('RF-CORE-09: recados de hoje: o do dia primeiro e destacado, "N novos" e no máximo 3', () => {
+    const l: LinhasInicio = { ...vazio, notificacoes: [notif(1, { tipo: 'sistema', updated_at: '2026-11-10T12:00:00Z' }), notif(2, { tipo: 'sistema', updated_at: '2026-11-10T11:00:00Z' }), notif(3, { tipo: 'sistema', updated_at: '2026-11-10T10:00:00Z' }), notif(4, { recado_do_dia: '2026-11-10', updated_at: '2026-11-09T10:00:00Z' })] };
+    const v = montarInicio(l, null, [], eu);
+    expect(v.recados_hoje?.itens).toHaveLength(3);
+    expect(v.recados_hoje?.itens[0]).toMatchObject({ id: id(504), destaque: true });
+    expect(v.recados_hoje?.novos).toBe(4);
+  });
+  it('RN-CORE-23: sincronização mostra a hora da última (fuso do tenant) e o tamanho da fila', () => {
+    const v = montarInicio(vazio, null, [], { ...eu, ...sync });
+    expect(v.sincronizacao).toEqual({ ultima_em: '2026-11-10T12:25:00.000Z', hora: '08:25', fila: 2 });
+    expect(montarInicio(vazio, null, [], eu).sincronizacao).toEqual({ ultima_em: null, hora: null, fila: 0 });
+  });
+  it('RN-CORE-26: equipe_nome da cópia e cliente em visita do membro (Gestão)', () => {
+    const c = copia('2026-11-10', {
+      escopo: 'equipe',
+      equipe_nome: 'Equipe Manaus',
+      usuarios: [{ ...copia('x').usuarios[0]!, usuario_id: OUTRO, nome: 'Bia' }],
+    });
+    const l: LinhasInicio = { ...vazio, clientes: [cliente(11, 'Atacado Boto Rosa')], visitas: [visita(1, OUTRO, 11, '2026-11-10', '2026-11-10T12:50:00Z')] };
+    const v = montarInicio(l, c, [], { ...eu, usuarioId: id(9), perfil: 'supervisor' });
+    expect(v.equipe_nome).toBe('Equipe Manaus');
+    expect(v.equipe_agora?.[0]).toMatchObject({ status: 'em_visita', cliente_nome: 'Atacado Boto Rosa' });
+  });
+});

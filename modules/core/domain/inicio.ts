@@ -2,6 +2,7 @@
  * Regras do Início do Campo e do Gestão (RN-CORE-26; T-0073 §1.5 e §3.2). Funções puras: o aparelho (offline) e a API fazem a mesma conta.
  * Sem relógio, sem GPS e sem expediente: quem chama passa `agora` e `hoje` (dia civil no fuso do tenant).
  */
+import { formatHHMM, zonedParts } from '@macuxi/comum/fuso';
 import type { Perfil } from '@macuxi/platform-sdk';
 import type { MembroAgoraContrato, StatusAgoraContrato, VisaoInicio } from '../contracts/inicio';
 
@@ -92,4 +93,36 @@ export function equipeAgora(e: {
     return { ...comum, status: minutos >= e.parado_min ? 'parado' : 'em_rota', desde: ultimoCheckout, cliente_id: null, minutos_sem_atividade: minutos };
   });
   return lista.sort((a, b) => ORDEM_STATUS[a.status] - ORDEM_STATUS[b.status] || a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** "Bom dia" (0h–11h59, exceto madrugada), "Boa tarde" (12h–17h59), "Boa noite" (18h–4h59), no fuso do tenant (T-0076). */
+export function saudacaoDoDia(agora: Date, fuso: string): 'Bom dia' | 'Boa tarde' | 'Boa noite' {
+  const h = zonedParts(agora, fuso).hour;
+  if (h >= 5 && h < 12) return 'Bom dia';
+  if (h >= 12 && h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+export interface RecadoDaCaixa {
+  id: string;
+  titulo: string;
+  corpo: string;
+  tipo: string;
+  updated_at: string;
+  lida: boolean;
+  link: string | null;
+}
+export type RecadosDeHoje = NonNullable<VisaoInicio['recados_hoje']>;
+
+/**
+ * T-0076 (RF-CORE-09): "Recados de hoje" = as 3 primeiras da caixa (já ordenada: não lidas, alta prioridade, mais novas) com o
+ * recado do dia (RN-CORE-26) sempre em primeiro e destacado; "N novos" = todas as não lidas da caixa.
+ */
+export function recadosDeHoje(caixa: readonly RecadoDaCaixa[], recadoDoDiaId: string | null, fuso: string): RecadosDeHoje {
+  const destaque = recadoDoDiaId ? caixa.find((n) => n.id === recadoDoDiaId) : undefined;
+  const ordem = destaque ? [destaque, ...caixa.filter((n) => n.id !== destaque.id)] : [...caixa];
+  return {
+    novos: caixa.filter((n) => !n.lida).length,
+    itens: ordem.slice(0, 3).map((n) => ({ id: n.id, titulo: n.titulo, subtitulo: n.corpo, tipo: n.tipo, criada_em: n.updated_at, hora: formatHHMM(n.updated_at, fuso), lida: n.lida, link: n.link, destaque: n.id === destaque?.id })),
+  };
 }

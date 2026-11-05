@@ -45,3 +45,7 @@
 2026-11-03 — T-0058 — core.usuarios_resumo@1 (contrato, consulta paginada por cursor sob RLS, manifest, testes contrato e x Postgres 5434)
 2026-11-03 — T-0065 B — Core religa vendedor.pedidos_da_meta@1 por usaConsultasOpcionais (ADR 0019); metas.ts sem ramo de erro
 2026-11-04 — T-0063 — POST de medidas idempotente na corrida (mesmo id, sigla já gravada); 13/20 verdes no 5434, 7 com queda de conexão do banco; respostas ao Gestor e ao banco sobre o PR #84
+2026-11-04 — T-0076 — Início: campos aditivos no core.inicio@1 (saudacao, recados_hoje, meta_hoje, sem_realizado, sincronizacao, equipe_nome, cliente_nome), useNotificacoes exportado; Cliente 360: Última compra única, rodapé só com a ação de destaque, área segura
+2026-11-04 — T-0076 — Cliente 360: grade única na ordem da referência, topo sem folga dobrada, 'hoje' minúsculo
+2026-11-04 — T-0076 — C1: leitor tolerante (strip recursivo) para core.inicio@1 e login no app do Core; testes de campo extra/obrigatório
+2026-11-04 — T-0077 — D2: API do Core revalida promotor_ve_pedidos no Cliente 360 (historico vazio) e no pull de historico_compra (removido); domain perfilRecebeHistoricoDeCompra; teste de banco para o CI

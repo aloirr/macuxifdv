@@ -5,6 +5,7 @@
  * `metaDoDiaDaEquipe`, `recadoDoDia`, `equipeAgora`). Meta do mês vem sempre do pull; visitas e cobertura são 100% locais
  * (RN-CORE-20); vendas e positivação vêm da cópia, recalculada na virada do dia sem sinal. Sem relógio: `agora` vem de quem chama.
  */
+import { formatHHMM } from '@macuxi/comum/fuso';
 import type { ItemSobreposicao } from '@macuxi/platform-sdk';
 
 import type { ClienteSync, Inicio, InicioUsuario, MetaDoDia, MetaSync, NotificacaoSync, ParametroSync, RotaParadaSync, VisaoInicio, VisitaSync } from '../../contracts';
@@ -20,6 +21,9 @@ import {
   metaDoDia,
   metaDoDiaDaEquipe,
   recadoDoDia,
+  recadosDeHoje,
+  resumoMetaDeHoje,
+  saudacaoDoDia,
   type IndicadorMeta,
   type ItemEquipe,
 } from '../../domain';
@@ -57,11 +61,13 @@ function realizadoDaCopia(copia: Inicio | null, hoje: string): { usuarios: Reado
   return { usuarios: new Map(copia.usuarios.map((u) => [u.usuario_id, { ...u, venda_cents: virar(u.venda_cents), positivacao: virar(u.positivacao) }])), defasado };
 }
 
+const realizadoDeFonte = (u: InicioUsuario | undefined, ind: IndicadorMeta) => (ind === 'venda_cents' ? (u?.venda_cents ?? null) : ind === 'positivacao' ? (u?.positivacao ?? null) : true);
+
 export function montarInicio(
   l: LinhasInicio,
   copia: Inicio | null,
   fila: readonly ItemSobreposicao[],
-  o: { usuarioId: string; perfil: string; fuso: string; agora: Date },
+  o: { usuarioId: string; perfil: string; fuso: string; agora: Date; /** Última sincronização (UTC) do motor e itens ainda na fila de envio (RN-CORE-23). */ sincronizadoEm?: string | null; filaPendentes?: number },
 ): VisaoInicio {
   const hoje = dataLocal(o.agora, o.fuso);
   const periodo = hoje.slice(0, 7);
@@ -116,6 +122,11 @@ export function montarInicio(
   const padrao = parametro(l.parametros, 'inicio.recado_do_dia_padrao');
   const recado = recadoDoDia(l.notificacoes, { usuario_id: o.usuarioId, hoje, agora: o.agora, padrao: typeof padrao === 'string' ? padrao : null });
 
+  // T-0076: indicadores com meta no mês e sem realizado (sem cópia de vendas/positivação) ≠ sem meta.
+  const semRealizado = ORDEM.filter((ind) => ids.some((uid) => metaDe(uid, ind)) && !ids.some((uid) => realizadoDeFonte(base?.usuarios.get(uid), ind) !== null) && (ind === 'venda_cents' || ind === 'positivacao'));
+  const vendaSemCopia = semRealizado.includes('venda_cents');
+  const principal = metas.find((m) => m.indicador === 'venda_cents') ?? (vendaSemCopia ? undefined : metas[0]);
+
   const nomeDe = (cid: string) => {
     const c = l.clientes.find((x) => x.id === cid);
     return c ? c.nome_fantasia?.trim() || c.razao_social : '';
@@ -164,7 +175,17 @@ export function montarInicio(
       ultimas: caixa.slice(0, 3).map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo, criada_em: n.updated_at, lida: Boolean(n.lida_em), link: linkNavegavel(n.link) })),
     },
     rota,
-    equipe_agora: equipeAgoraLista,
+    equipe_agora: equipeAgoraLista?.map((m) => (m.status === 'em_visita' && m.cliente_id ? { ...m, cliente_nome: nomeDe(m.cliente_id) || null } : m)) ?? null,
+    saudacao: saudacaoDoDia(o.agora, o.fuso),
+    equipe_nome: copia?.equipe_nome ?? null,
+    recados_hoje: recadosDeHoje(
+      caixa.map((n) => ({ id: n.id, titulo: n.titulo, corpo: n.corpo, tipo: n.tipo, updated_at: n.updated_at, lida: Boolean(n.lida_em), link: linkNavegavel(n.link) })),
+      recado.notificacao_id,
+      o.fuso,
+    ),
+    meta_hoje: principal ? resumoMetaDeHoje(principal) : null,
+    sem_realizado: semRealizado,
+    sincronizacao: { ultima_em: o.sincronizadoEm ?? null, hora: o.sincronizadoEm ? formatHHMM(o.sincronizadoEm, o.fuso) : null, fila: o.filaPendentes ?? fila.length },
     base: { dia: base ? (copia as Inicio).dia : null, calculado_em: base ? (copia as Inicio).calculado_em : null, defasado: base?.defasado ?? false },
   };
 }

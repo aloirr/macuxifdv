@@ -5,6 +5,7 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { Badge, Card, EtiquetaCadastroIncompleto, ObservacoesCliente, colors, fonts, Icon, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import type { ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Cliente360Local } from '../lib/cliente360-local';
@@ -60,7 +61,11 @@ export function CabecalhoCliente({ ficha }: { ficha: Cliente360Local }) {
   );
 }
 
-export function SecoesCliente360({ ficha }: { ficha: Cliente360Local }) {
+/**
+ * `indicadoresIniciais`: cartões que a tela já montou (ex.: Compra média, Última compra, Limite, Títulos vencidos) e que
+ * entram no começo da MESMA grade, na ordem da referência (T-0076). Com eles, "Última compra" não se repete aqui.
+ */
+export function SecoesCliente360({ ficha, indicadoresIniciais }: { ficha: Cliente360Local; indicadoresIniciais?: ReactNode }) {
   const fin = ficha.resumo_financeiro;
   const compras = ficha.resumo_compras;
   const vencidos = ficha.titulos.filter((x) => x.situacao_calculada === 'vencido');
@@ -68,12 +73,17 @@ export function SecoesCliente360({ ficha }: { ficha: Cliente360Local }) {
   return (
     <View style={{ gap: 14 }} testID="cliente-360">
       {/* RN-PRO-01: com a opção promotor_ve_pedidos desligada o promotor não vê compras, valores nem contagem de pedidos */}
-      {ficha.pedidos_visiveis ? (
+      {ficha.pedidos_visiveis || indicadoresIniciais ? (
         <View style={styles.grid}>
-          <Stat label="Última compra" value={compras.dias_sem_compra === null ? 'Nunca comprou' : compras.dias_sem_compra === 0 ? 'Hoje' : `há ${compras.dias_sem_compra} dias`} aviso={compras.dias_sem_compra === null || compras.dias_sem_compra >= 45} />
-          <Stat label="Ticket médio" value={formatBRL0(compras.ticket_medio_cents)} />
-          <Stat label="Compras em 12 meses" value={formatBRL0(compras.total_12m_cents)} />
-          <Stat label="Frequência média" value={compras.frequencia_media_dias === null ? '—' : `a cada ${Math.round(compras.frequencia_media_dias)} dias`} />
+          {indicadoresIniciais}
+          {ficha.pedidos_visiveis ? (
+            <>
+              {indicadoresIniciais ? null : <Stat label="Última compra" value={ultimaCompraDaFicha(compras.dias_sem_compra)} aviso={compras.dias_sem_compra === null || compras.dias_sem_compra >= 45} />}
+              <Stat label="Ticket médio" value={formatBRL0(compras.ticket_medio_cents)} />
+              <Stat label="Frequência média" value={compras.frequencia_media_dias === null ? '—' : `a cada ${Math.round(compras.frequencia_media_dias)} dias`} />
+              <Stat label="Compras em 12 meses" value={formatBRL0(compras.total_12m_cents)} />
+            </>
+          ) : null}
         </View>
       ) : null}
 
@@ -210,6 +220,11 @@ function Mini({ icon, label, onPress }: { icon: IconName; label: string; onPress
       <Icon name={icon} size={18} color={colors.ink} strokeWidth={1.9} />
     </Pressable>
   );
+}
+
+/** Valor do cartão "Última compra" (minúsculo, como na referência). */
+export function ultimaCompraDaFicha(dias: number | null): string {
+  return dias === null ? 'Nunca comprou' : dias === 0 ? 'hoje' : `há ${dias} dias`;
 }
 
 function Stat({ label, value, aviso }: { label: string; value: string; aviso?: boolean }) {

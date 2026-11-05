@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PARAMETRO_PROMOTOR_VE_PEDIDOS } from '../contracts';
-import { perfilPodeEscreverPedido, perfilPodeVerPedidos, promotorVePedidos, promotorVePedidosDasLinhas } from './promotor-pedidos';
+import { perfilPodeEscreverPedido, perfilRecebeHistoricoDeCompra, perfilPodeVerPedidos, promotorVePedidos, promotorVePedidosDasLinhas } from './promotor-pedidos';
 
 const linha = (valor: unknown, extra: Record<string, unknown> = {}) => ({ modulo: 'core', chave: 'promotor_ve_pedidos', valor, ...extra });
 
@@ -43,5 +43,18 @@ describe('RN-CORE-01 / RN-PRO-01: opção promotor_ve_pedidos (padrão ligado)',
   it('RN-PRO-01: promotor nunca escreve pedido, com a opção ligada ou desligada', () => {
     expect(perfilPodeEscreverPedido('promotor')).toBe(false);
     expect(perfilPodeEscreverPedido('vendedor')).toBe(true);
+  });
+});
+
+describe('RN-PRO-01 / T-0077 D2: histórico de compras segue promotor_ve_pedidos', () => {
+  it('RN-PRO-01: promotor só recebe o histórico de compras com a opção ligada', () => {
+    expect(perfilRecebeHistoricoDeCompra('promotor', true)).toBe(true);
+    expect(perfilRecebeHistoricoDeCompra('promotor', false)).toBe(false);
+  });
+  it('RN-PRO-01: demais perfis recebem o histórico independentemente da opção', () => {
+    for (const p of ['vendedor', 'supervisor', 'gerente', 'admin']) {
+      expect(perfilRecebeHistoricoDeCompra(p, false)).toBe(true);
+      expect(perfilRecebeHistoricoDeCompra(p, true)).toBe(true);
+    }
   });
 });

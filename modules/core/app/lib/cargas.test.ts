@@ -83,6 +83,11 @@ describe('RN-CORE-23 / RN-CORE-26: etapa core-inicio (cópia de core.inicio@1 no
     await expect(p).resolves.toBeUndefined();
     expect(gravados).toHaveLength(0);
   });
+  it('T-0076 C1: campo novo (campo_futuro) é ignorado e a cópia é gravada sem ele', async () => {
+    const { p, gravados } = rodarInicio(async () => ({ ...copia, campo_futuro: 'x' }));
+    await p;
+    expect(gravados).toEqual([['inicio', copia]]);
+  });
   it('resposta fora do contrato não sobrescreve a cópia', async () => {
     const { p, gravados } = rodarInicio(async () => ({ dia: 'ontem' }));
     await p;

@@ -10,6 +10,7 @@ import type { EtapaSync } from '@macuxi/platform-sdk';
 import { InicioSchema, type SellerGoals } from '../../contracts';
 import { CHAVES, fusoDe } from './estado';
 import { erroDeCliente, exigirHttp } from './http';
+import { tolerante } from './leitor-tolerante';
 import type { OrderLike } from './visit';
 
 interface Pagina<T> {
@@ -81,7 +82,7 @@ export const etapasCore: readonly EtapaSync[] = [
         if (erroDeSessao(e)) throw e;
         return;
       }
-      const r = InicioSchema.safeParse(corpo);
+      const r = tolerante(InicioSchema).safeParse(corpo);
       if (r.success) await ctx.armazenamento.gravar(CHAVES.inicio, r.data);
     },
   },

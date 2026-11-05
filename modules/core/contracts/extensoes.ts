@@ -10,7 +10,7 @@
  *
  * Tela dona de cada slot (app Campo/Gestão):
  *  - `cliente.abas`            → ficha do cliente (caminho `cliente`)
- *  - `cliente.acoes`           → rodapé da ficha do cliente
+ *  - `cliente.acoes`           → rodapé da ficha do cliente; só a ação com `destaque: true` (o "+ Novo pedido") entra, ao lado do Visitado (T-0076)
  *  - `visita.etapas_checkout`  → folha de checkout (RN-CORE-12)
  *  - `inicio.cards`            → tela Início do shell
  *  - `menu.itens`              → menu/Perfil do shell

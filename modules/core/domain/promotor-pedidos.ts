@@ -13,6 +13,14 @@ export function perfilPodeVerPedidos(perfil: string, promotorVe: boolean): boole
   return perfil === 'promotor' ? promotorVe : true;
 }
 
+/**
+ * RN-PRO-01 + decisão R-20261102-204544 (T-0077 D2): o histórico de compras (`historico_compra`, `resumo_compras`) é leitura de
+ * pedidos. Promotor só o recebe com `promotor_ve_pedidos` ligada; os demais perfis seguem o escopo de carteira de sempre.
+ */
+export function perfilRecebeHistoricoDeCompra(perfil: string, promotorVe: boolean): boolean {
+  return perfilPodeVerPedidos(perfil, promotorVe);
+}
+
 /** RN-PRO-01: promotor nunca cria, edita, cancela, duplica nem exclui pedido, independente da opção. */
 export function perfilPodeEscreverPedido(perfil: string): boolean {
   return perfil !== 'promotor';

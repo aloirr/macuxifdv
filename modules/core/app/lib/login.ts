@@ -6,6 +6,7 @@
  */
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { AVISO_APARELHO_LIMPO, CODIGO_DISPOSITIVO_BLOQUEADO, CODIGOS_AUTH, LoginSenhaRequestSchema, SessaoRespostaSchema, type LoginSenhaRequest, type SessaoResposta } from '../../contracts';
+import { tolerante } from './leitor-tolerante';
 
 export interface CamposLogin {
   codigo_empresa: string;
@@ -82,5 +83,5 @@ export async function entrarComSenha(post: PostSemSessao, campos: CamposLogin, a
     ...(aparelho.id ? { dispositivo_id: aparelho.id } : {}),
     ...(aparelho.nome ? { dispositivo_nome: aparelho.nome } : {}),
   });
-  return SessaoRespostaSchema.parse(await post('/auth/login', corpo));
+  return tolerante(SessaoRespostaSchema).parse(await post('/auth/login', corpo));
 }

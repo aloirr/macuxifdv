@@ -65,6 +65,8 @@ export const InicioSchema = z
     escopo: z.enum(['proprio', 'equipe']),
     /** proprio: só ele; equipe: vendedores e promotores ATIVOS do escopo. */
     usuarios: z.array(InicioUsuarioSchema),
+    /** T-0076 (aditivo): nome da equipe de quem pede (responsável ou membro); null = sem equipe. Cabeçalho da Gestão. */
+    equipe_nome: z.string().nullable().optional(),
     /** Mesma conta do aparelho, sobre o banco (conferência app × API). */
     metas_do_dia: z.array(MetaDoDiaSchema),
   })
@@ -81,6 +83,8 @@ export const MembroAgoraSchema = z
     /** Instante UTC da última atividade. */
     desde: z.string().nullable(),
     cliente_id: z.string().uuid().nullable(),
+    /** T-0076 (aditivo): nome do cliente em visita ("Em visita · Atacado Boto Rosa"); null fora de em_visita ou sem cópia do cliente. */
+    cliente_nome: z.string().nullable().optional(),
     paradas_hoje: Inteiro,
     visitadas_hoje: Inteiro,
     vendas_hoje_cents: Inteiro.nullable(),
@@ -141,6 +145,52 @@ export const VisaoInicioSchema = z
     /** null no escopo proprio. */
     equipe_agora: z.array(MembroAgoraSchema).nullable(),
     base: z.object({ dia: Data.nullable(), calculado_em: z.string().nullable(), defasado: z.boolean() }).strict(),
+    /** T-0076 (aditivo; tudo opcional no @1): boas-vindas, recados, meta de hoje e sincronização do Início pela referência aprovada. */
+    saudacao: z.enum(['Bom dia', 'Boa tarde', 'Boa noite']).optional(),
+    /** Nome da equipe do usuário (cabeçalho da Gestão); null = sem equipe ou sem a cópia. */
+    equipe_nome: z.string().nullable().optional(),
+    /** 'Recados de hoje': até 3 itens, o recado do dia primeiro e destacado; novos = não lidas da caixa. */
+    recados_hoje: z
+      .object({
+        novos: Inteiro,
+        itens: z
+          .array(
+            z
+              .object({
+                id: z.string().uuid(),
+                titulo: z.string(),
+                subtitulo: z.string(),
+                tipo: z.string(),
+                criada_em: z.string(),
+                /** HH:mm no fuso do tenant. */
+                hora: z.string(),
+                lida: z.boolean(),
+                link: z.string().nullable(),
+                destaque: z.boolean(),
+              })
+              .strict(),
+          )
+          .max(3),
+      })
+      .strict()
+      .optional(),
+    /** Cartão 'Meta de hoje': a meta de venda (ou, sem ela, a primeira meta do usuário); null = sem meta/realizado. Pontos-base: 10000 = 100%. */
+    meta_hoje: z
+      .object({
+        indicador: z.enum(INDICADORES_META),
+        situacao: z.enum(SITUACOES_META_DIA),
+        realizado_hoje: Inteiro,
+        meta_dia: Inteiro.nullable(),
+        faltam_hoje: Inteiro.nullable(),
+        mes_pct: Inteiro.nullable(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    /** Indicadores COM meta no mês e SEM realizado na cópia ('Sincronize para ver as vendas'; não confundir com 'sem meta'). */
+    sem_realizado: z.array(z.enum(INDICADORES_META)).optional(),
+    /** Rodapé do Sincronizar (RN-CORE-23): última sincronização (UTC) e itens na fila de envio. */
+    sincronizacao: z.object({ ultima_em: z.string().nullable(), hora: z.string().nullable(), fila: Inteiro }).strict().optional(),
   })
   .strict();
 export type VisaoInicio = z.infer<typeof VisaoInicioSchema>;

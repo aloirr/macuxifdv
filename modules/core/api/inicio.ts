@@ -56,6 +56,15 @@ async function usuariosDoInicio(db: ClienteBanco, e: EntradaInicio, equipe: bool
   return r.rows;
 }
 
+/** T-0076: equipe de quem pede (a que ele responde ou, sem ela, a dele). */
+async function nomeDaEquipe(db: ClienteBanco, usuarioId: string): Promise<string | null> {
+  const r = await db.query<{ nome: string }>(
+    "select nome from (select e.nome, 0 as ordem from core.equipe e where e.responsavel_id = $1 and e.deleted_at is null and e.ativo union all select e.nome, 1 from core.usuario u join core.equipe e on e.id = u.equipe_id where u.id = $1 and e.deleted_at is null) t order by ordem, nome limit 1",
+    [usuarioId],
+  );
+  return r.rows[0]?.nome ?? null;
+}
+
 /** Cálculo do Início (puro sobre o banco da transação; exportado para teste). */
 export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<TransacaoTenant, 'consultar'>>, e: EntradaInicio, fonteInjetada?: FontePedidosDaMeta): Promise<Inicio> {
   const dia = dataLocal(e.agora, e.fuso);
@@ -64,7 +73,8 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
   const usuarios = await usuariosDoInicio(db, e, equipe);
   const ids = usuarios.map((u) => u.id);
   const calculado_em = e.agora.toISOString();
-  if (ids.length === 0) return InicioSchema.parse({ dia, periodo, calculado_em, escopo: equipe ? 'equipe' : 'proprio', usuarios: [], metas_do_dia: [] });
+  const equipe_nome = (await nomeDaEquipe(db, e.usuarioId)) ?? null;
+  if (ids.length === 0) return InicioSchema.parse({ dia, periodo, calculado_em, equipe_nome, escopo: equipe ? 'equipe' : 'proprio', usuarios: [], metas_do_dia: [] });
 
   const parametros = await db.query<{ modulo: string; chave: string; valor: unknown; deleted_at: string | null }>(
     "select modulo, chave, valor, null::text as deleted_at from plataforma.parametro where modulo = 'core' and chave = 'metas.dias_uteis_semana' and deleted_at is null",
@@ -137,7 +147,7 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
       if (soma) doDia.push(soma);
     } else doDia.push(...itens.map(({ paradas_planejadas: _p, ...m }) => m));
   }
-  return InicioSchema.parse({ dia, periodo, calculado_em, escopo: equipe ? 'equipe' : 'proprio', usuarios: saidaUsuarios, metas_do_dia: doDia });
+  return InicioSchema.parse({ dia, periodo, calculado_em, equipe_nome, escopo: equipe ? 'equipe' : 'proprio', usuarios: saidaUsuarios, metas_do_dia: doDia });
 }
 
 export const rotasDeInicio: RotaModulo[] = [

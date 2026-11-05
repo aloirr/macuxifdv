@@ -17,6 +17,7 @@ import { TelaRota } from './telas/rota';
 
 export { definirCapturaFoto, type CapturaFoto } from './lib/foto-fachada';
 export { useInicio } from './lib/usar-inicio';
+export { useNotificacoes } from './lib/usar-notificacoes';
 export { OpenVisitBar } from './components/open-visit-bar';
 export { VisitSheetsProvider, useVisitSheets } from './components/visit-sheets';
 

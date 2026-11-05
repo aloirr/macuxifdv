@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { equipeAgora, RECADO_DO_DIA_PADRAO, recadoDoDia, type NotificacaoParaRecado, type ParadaDoDia, type VisitaDoDia } from './inicio';
+import { equipeAgora, RECADO_DO_DIA_PADRAO, recadoDoDia, recadosDeHoje, saudacaoDoDia, type NotificacaoParaRecado, type ParadaDoDia, type VisitaDoDia } from './inicio';
 
 const U = '0e700000-0000-4000-8000-000000000001';
 const N1 = '0e700000-0000-4000-8000-0000000000a1';
@@ -108,5 +108,28 @@ describe('RN-CORE-26: equipe agora (em_visita, em_rota, parado, sem_checkin, rot
     ];
     const r = equipeAgora({ hoje: HOJE, agora: agoraEm(90), parado_min: 60, membros: todos, paradas: par, visitas: v });
     expect(r.map((m) => `${m.status}:${m.nome}`)).toEqual(['parado:Davi', 'parado:Zeca', 'sem_checkin:Caio', 'em_rota:Bia', 'em_visita:Ana', 'rota_concluida:Eva']);
+  });
+});
+
+describe('RN-CORE-26: saudação e recados de hoje (T-0076)', () => {
+  it('RN-CORE-26: saudação no fuso do tenant (Manaus): 11h = Bom dia, 12h = Boa tarde, 18h = Boa noite, 3h = Boa noite', () => {
+    expect(saudacaoDoDia(new Date('2026-11-10T15:00:00Z'), 'America/Manaus')).toBe('Bom dia'); // 11h
+    expect(saudacaoDoDia(new Date('2026-11-10T16:00:00Z'), 'America/Manaus')).toBe('Boa tarde'); // 12h
+    expect(saudacaoDoDia(new Date('2026-11-10T22:00:00Z'), 'America/Manaus')).toBe('Boa noite'); // 18h
+    expect(saudacaoDoDia(new Date('2026-11-10T07:00:00Z'), 'America/Manaus')).toBe('Boa noite'); // 3h
+    expect(saudacaoDoDia(new Date('2026-11-10T15:00:00Z'), 'America/Sao_Paulo')).toBe('Boa tarde'); // 12h em SP
+  });
+  const caixa = (id: string, t: string, lida = false) => ({ id, titulo: `T ${id}`, corpo: `C ${id}`, tipo: 'sistema', updated_at: t, lida, link: null as string | null });
+  it('RN-CORE-26: o recado do dia entra primeiro e destacado; os outros são os mais recentes, até 3; novos = não lidas', () => {
+    const itens = [caixa('a', '2026-11-10T15:00:00Z'), caixa('b', '2026-11-10T14:00:00Z', true), caixa('c', '2026-11-10T13:00:00Z'), caixa('d', '2026-11-10T12:00:00Z')];
+    const r = recadosDeHoje(itens, 'd', 'America/Manaus');
+    expect(r.itens.map((i) => [i.id, i.destaque])).toEqual([['d', true], ['a', false], ['b', false]]);
+    expect(r.novos).toBe(3);
+    expect(r.itens[1]).toMatchObject({ subtitulo: 'C a', hora: '11:00' });
+  });
+  it('RN-CORE-26: sem recado do dia marcado, só as 3 mais recentes, sem destaque', () => {
+    const r = recadosDeHoje([caixa('a', '2026-11-10T15:00:00Z')], null, 'America/Manaus');
+    expect(r.itens).toHaveLength(1);
+    expect(r.itens[0]!.destaque).toBe(false);
   });
 });

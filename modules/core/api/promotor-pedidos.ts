@@ -42,6 +42,8 @@ export const rotasDePromotorPedidos: RotaModulo[] = [
           [PARAMETRO_PROMOTOR_VE_PEDIDOS, JSON.stringify(c.ligado)],
         );
         if (antes !== c.ligado) {
+          // T-0077 D2: ao religar, o histórico foi entregue como removido ao promotor; tocar o updated_at faz o aparelho puxar de novo
+          if (c.ligado) await db.query('update core.historico_compra set updated_at = now() where deleted_at is null');
           await auditar(db, ctx, {
             acao: 'parametro.promotor_ve_pedidos',
             entidade: 'parametro',

@@ -31,7 +31,8 @@ import {
   TituloSyncSchema,
   VisitaSyncSchema,
 } from '../contracts';
-import { dataLocal } from '../domain';
+import { dataLocal, perfilRecebeHistoricoDeCompra } from '../domain';
+import { lerPromotorVePedidos } from './promotor-pedidos';
 import { receberCheckins, receberCheckouts } from './visita-push';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -185,11 +186,24 @@ export function sqlDoPull(t: Tabela, pedido: PedidoPull, visiveis: ReadonlySet<s
   return { sql, valores };
 }
 
+/**
+ * RN-PRO-01 / T-0077 D2: `historico_compra` é leitura de pedidos. Promotor com `promotor_ve_pedidos` desligada recebe as linhas
+ * como removidas (`deleted_at` = `updated_at`): o aparelho limpa o que já tinha e o cursor avança normalmente. Ao religar a
+ * opção, a rota toca o `updated_at` do histórico do tenant para o aparelho puxar de novo.
+ */
+export function ocultarHistorico(linhas: LinhaSync[]): LinhaSync[] {
+  return linhas.map((l) => ({ ...l, deleted_at: (l as { updated_at: string }).updated_at }) as LinhaSync);
+}
+
 function puxarDe(t: Tabela) {
   return async (ctx: ContextoBase, pedido: PedidoPull): Promise<LinhaSync[]> => {
     const visiveis = t.colunaCliente ? await ctx.carteira() : t.colunaUsuario ? await ctx.usuariosVisiveis() : 'tenant';
     const { sql, valores } = sqlDoPull(t, pedido, visiveis, dataLocal(ctx.agora(), ctx.fuso()));
-    return ctx.comTenant(async (db) => (await db.query(sql, valores)).rows as unknown as LinhaSync[]);
+    return ctx.comTenant(async (db) => {
+      const linhas = (await db.query(sql, valores)).rows as unknown as LinhaSync[];
+      if (t.tabela !== 'core.historico_compra' || ctx.usuario.perfil !== 'promotor') return linhas;
+      return perfilRecebeHistoricoDeCompra('promotor', await lerPromotorVePedidos(db)) ? linhas : ocultarHistorico(linhas);
+    });
   };
 }
 

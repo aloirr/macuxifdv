@@ -91,3 +91,21 @@ export function metaDoDiaDaEquipe(indicador: IndicadorMeta, itens: readonly Item
   if (l.every((i) => i.situacao === 'mes_batido' || i.situacao === 'dia_nao_util')) return { ...comum, situacao: 'dia_nao_util', meta_dia: null, atingimento_hoje_pct: null };
   return { ...comum, situacao: somaDia > 0 && hoje >= somaDia ? 'dia_batido' : 'a_cumprir', meta_dia: somaDia, atingimento_hoje_pct: atingimento(hoje, somaDia) };
 }
+
+/** Resumo para o cartão "Meta de hoje" do Início (T-0076; RN-CORE-22/26). Pontos-base: 10000 = 100%. */
+export interface ResumoMetaDeHoje {
+  indicador: IndicadorMeta;
+  situacao: MetaDoDia['situacao'];
+  realizado_hoje: number;
+  /** Necessidade diária; null em dia não útil e em indicador do mês. */
+  meta_dia: number | null;
+  /** max(0, meta_dia − realizado_hoje); null sem meta do dia; 0 com o mês batido. */
+  faltam_hoje: number | null;
+  /** (realizado até ontem + hoje) ÷ meta do mês; null sem meta do mês. */
+  mes_pct: number | null;
+}
+export function resumoMetaDeHoje(m: MetaDoDia): ResumoMetaDeHoje {
+  const faltam = m.meta_dia === null ? null : Math.max(0, m.meta_dia - m.realizado_hoje);
+  const mes = m.meta_mes > 0 ? Math.round(((m.realizado_ate_ontem + m.realizado_hoje) / m.meta_mes) * 10_000) : null;
+  return { indicador: m.indicador, situacao: m.situacao, realizado_hoje: m.realizado_hoje, meta_dia: m.meta_dia, faltam_hoje: faltam, mes_pct: mes };
+}
