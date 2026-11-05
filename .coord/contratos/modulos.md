@@ -40,6 +40,7 @@ o consumidor sempre tem plano B. Dono em `depende` → use `usaConsultas`.
 | `core.cadastro_resumo@1` | core | sim | não (o Vendedor lê `cliente`/`produto` locais com os tipos de `@macuxi/core/contracts`) | vendedor, catalogo (consumidores de preço/estoque do ERP, T-0066) | implementada; `produto_external_ids` opcional (padrão []) acrescentado em 2026-11-02 (d5ba7f2), compatível, mesma versão (ADR 0012) |
 | `core.cadastro_cliente@1` | core | sim | não | integracao (consumidor A7 de `integracao.lote.recebido@1`, aviso `cadastro_incompleto`, RN-INT-14) | implementada (T-0060); `ctx.consultar` no consumidor (SDK, 2026-11-02) |
 | `core.medidas@1` | core | sim | não (o app lê a entidade `medida` do pull) | integracao (A7: sigla não cadastrada ou inativa = `referencia_ausente`, RN-CORE-19) | proposta (desenho T-0061 §4.1, 2026-11-02) |
+| `pesquisa.etapas_checkout@1` | pesquisa | sim | não (o Campo usa a extensão `visita.etapas_checkout`) | core (`visita_checkout`, baixa por `pesquisa.resposta.registrada@1` e alerta, T-0039 §2) em `usaConsultasOpcionais` (ADR 0019); sem a Pesquisa = sem etapa | ligada no Core em 2026-11-05 (`modules/core/api/etapas-checkout.ts`) |
 | `vendedor.pedidos_da_meta@1` | vendedor | sim | não | core (painel de metas, RN-CORE-21) em `usaConsultasOpcionais` (ADR 0019); sem o Vendedor, cai no `indicador_diario` | oferecida pelo Vendedor; Core religa pelo campo novo (2026-11-03) |
 
 ## Entidades de sync e campos aditivos (T-0071)

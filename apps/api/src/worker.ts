@@ -7,10 +7,14 @@
  * `MACUXI_API_LOG` (nível do log), e as dos handlers (ex.: `MACUXI_PUSH_ATIVO=1` liga o push do Core).
  * T-0078: a cada `MACUXI_METRICAS_INTERVALO_MS` (padrão 5 min; 0 desliga) registra o resumo da outbox (`tipo: metricas`,
  * só contagens) e, se passar do limite (`observabilidade.ts`), a mesma linha em `warn` com `alertas`.
+ * ADR 0022: o agendador das tarefas periódicas dos módulos (`ModuloApi.tarefas`, a cada 15 min, por tenant ativo) roda
+ * aqui também; os tenants vêm de `plataforma.tenants_ativos()` (papel `macuxi_worker`). Sem a função no banco (migração
+ * ainda não aplicada) ou sem tarefa instalada, o agendador não liga e o despachante segue.
  */
 import { lerConfigApp, urlApp, urlWorker } from '@macuxi/db';
 import pg from 'pg';
 import pino from 'pino';
+import { criarAgendador } from './agendador';
 import { criarBancoApp } from './banco';
 import { criarDespachante, LOTE_PADRAO, MAX_TENTATIVAS_PADRAO, verificarPapelWorker } from './despachante';
 import { MODULOS_API } from './modulos';
@@ -50,14 +54,38 @@ async function principal(): Promise<void> {
   const intervaloMetricas = Number(process.env.MACUXI_METRICAS_INTERVALO_MS ?? 300_000);
   const timerMetricas = intervaloMetricas > 0 ? setInterval(() => void registrarMetricas(), intervaloMetricas) : undefined;
   timerMetricas?.unref();
+  const agendamento = await iniciarAgendador();
   const encerrar = async () => {
     if (timerMetricas) clearInterval(timerMetricas);
+    await agendamento?.parar();
     await execucao.parar();
     await Promise.all([poolWorker.end(), poolApp.end()]);
     process.exit(0);
   };
   process.on('SIGINT', encerrar);
   process.on('SIGTERM', encerrar);
+}
+
+/** ADR 0022: liga o agendador se houver tarefa instalada e a função de tenants ativos existir no banco. */
+async function iniciarAgendador(): Promise<{ parar(): Promise<void> } | undefined> {
+  const agendador = criarAgendador({
+    app,
+    modulos: MODULOS_API,
+    tenantsAtivos: async () => (await poolWorker.query<{ id: string }>('select id from plataforma.tenants_ativos()')).rows.map((r) => r.id),
+    log: {
+      info: (o, msg) => log.info(o, msg),
+      warn: (o, msg) => log.warn(o, msg),
+      error: (o, msg) => log.error(o, msg),
+    },
+  });
+  if (agendador.tarefas().length === 0) return undefined;
+  const existe = await poolWorker.query<{ ok: boolean }>("select to_regprocedure('plataforma.tenants_ativos()') is not null as ok");
+  if (!existe.rows[0]?.ok) {
+    log.warn({ tarefas: agendador.tarefas() }, 'agendador desligado: falta plataforma.tenants_ativos() no banco');
+    return undefined;
+  }
+  log.info({ tarefas: agendador.tarefas() }, 'agendador no ar');
+  return agendador.iniciar();
 }
 
 principal().catch(async (e: unknown) => {

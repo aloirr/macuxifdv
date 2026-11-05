@@ -28,7 +28,7 @@
 | `promotor.preco.coletado@1` | promotor | gestor | **dono** `promotor: EVENTO_PRECO_COLETADO` · gestor tolerante |
 | `promotor.ruptura.registrada@1` | promotor | gestor, vendedor (alerta, P1) | **dono** `promotor: EVENTO_RUPTURA_REGISTRADA` · gestor tolerante (vendedor ainda sem consumidor) |
 | `promotor.tarefa.concluida@1` | promotor | gestor | **dono** `promotor: EVENTO_TAREFA_CONCLUIDA` · gestor tolerante |
-| `pesquisa.resposta.registrada@1` | pesquisa | gestor; core (baixa da pendência de etapa do checkout, desenho T-0039 §2 — a declarar, não ligado) | **dono** `pesquisa: DEF_RESPOSTA_REGISTRADA` · gestor tolerante (`EVENTOS_CONSUMIDOS`) |
+| `pesquisa.resposta.registrada@1` | pesquisa | gestor; core (baixa da pendência de etapa do checkout, desenho T-0039 §2: `consumidorBaixaPorResposta` em `modules/core/api/etapas-pendencia.ts`, tolerante, ligado 2026-11-05) | **dono** `pesquisa: DEF_RESPOSTA_REGISTRADA` · gestor tolerante (`EVENTOS_CONSUMIDOS`) |
 | `treinamento.licao.concluida@1` | treinamento | gestor | **dono** `treinamento: DEFINICAO_LICAO_CONCLUIDA` · gestor tolerante (`EVENTOS_CONSUMIDOS`) |
 | `treinamento.medalha.conquistada@1` | treinamento | gestor, core (notificação) | **dono** `treinamento: DEFINICAO_MEDALHA_CONQUISTADA` · gestor tolerante (`EVENTOS_CONSUMIDOS`); core ainda sem consumidor |
 | `integracao.cliente.atualizado@1` | integracao | core | **dono** `integracao: EVENTO_ERP_CLIENTE_ATUALIZADO` · tolerante: core |

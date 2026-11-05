@@ -361,6 +361,65 @@ export function definirConsumidor<S extends z.ZodTypeAny>(c: ConsumidorEvento<S>
   return c as unknown as ConsumidorEvento;
 }
 
+/**
+ * Tarefas periódicas do módulo (ADR 0022): rodam no worker (`apps/api/src/agendador.ts`), POR TENANT ativo com o módulo
+ * efetivo (licença, RN-CORE-02/03), cada uma na sua transação `comTenant` (macuxi_app, RLS). O agendador acorda a cada
+ * `INTERVALO_MINIMO_TAREFA_MIN` e nenhum período é menor que isso (RN-CORE-23: nenhum timer abaixo de 15 min).
+ * Dois processos não rodam a mesma tarefa no mesmo tenant ao mesmo tempo (trava consultiva), mas a tarefa TEM de ser
+ * idempotente: reinício do worker roda de novo, e uma falha só volta no período seguinte.
+ */
+export const INTERVALO_MINIMO_TAREFA_MIN = 15;
+
+export interface ContextoTarefa {
+  /** Tenant da execução (já é o da transação; nunca há acesso a outro). */
+  tenantId: string;
+  /** Transação do tenant (macuxi_app, RLS). Tudo o que a tarefa faz num tenant é atômico. */
+  db: ClienteBanco;
+  /** Publica evento do módulo (`publica` do manifesto) na mesma transação; sem autor (sistema). */
+  publicar: TransacaoTenant['publicar'];
+  /** Mesma semântica de `ContextoConsumo.consultar` (usuário de sistema, ADR 0012). */
+  consultar: TransacaoTenant['consultar'];
+  /** Parâmetros do tenant para o módulo da tarefa. */
+  parametros(): Readonly<Record<string, unknown>>;
+  /** Fuso IANA do tenant (RN-CORE-11); ausente ou inválido = `America/Manaus`. */
+  fuso(): string;
+  agora(): Date;
+  /** Logger com tenant_id, modulo, tarefa e request_id (nunca registre dado pessoal). */
+  log: LogRota;
+}
+
+/**
+ * Contagens devolvidas pela tarefa (ex.: `{ alertadas: 2 }`): só os campos numéricos vão ao log do worker, e só quando
+ * algum é > 0. `object` (e não `Record`) para aceitar a interface de resultado do módulo sem cópia. Nada de dado pessoal.
+ */
+export type ResultadoTarefa = void | object;
+
+export interface TarefaPeriodica {
+  /** Nome único no módulo (`[a-z][a-z0-9_]*`), ex.: `alerta_pendencia_checkout`. */
+  nome: string;
+  /** Período em minutos: múltiplo de `INTERVALO_MINIMO_TAREFA_MIN` (15, 30, 60, 1440…). */
+  cadaMin: number;
+  executar(ctx: ContextoTarefa): Promise<ResultadoTarefa>;
+}
+
+const NOME_TAREFA_RE = /^[a-z][a-z0-9_]*$/;
+
+/** Problemas de uma tarefa periódica (vazio = válida). Usado por `definirTarefa` e `definirModuloApi`. */
+export function problemasTarefa(t: Pick<TarefaPeriodica, 'nome' | 'cadaMin'>): string[] {
+  const p: string[] = [];
+  if (!NOME_TAREFA_RE.test(t.nome)) p.push(`tarefa ${t.nome}: nome inválido (minúsculas, dígitos e _)`);
+  if (!Number.isInteger(t.cadaMin) || t.cadaMin < INTERVALO_MINIMO_TAREFA_MIN || t.cadaMin % INTERVALO_MINIMO_TAREFA_MIN !== 0)
+    p.push(`tarefa ${t.nome}: cadaMin ${t.cadaMin} precisa ser múltiplo de ${INTERVALO_MINIMO_TAREFA_MIN} min (RN-CORE-23)`);
+  return p;
+}
+
+/** Declara uma tarefa periódica (falha na subida se o nome ou o período forem inválidos). */
+export function definirTarefa(t: TarefaPeriodica): TarefaPeriodica {
+  const p = problemasTarefa(t);
+  if (p.length > 0) throw new Error(p.join('; '));
+  return t;
+}
+
 /** Acesso ao banco fora de uma requisição autenticada (login, autenticação do token). */
 export interface AcessoBanco {
   /** Transação com o tenant informado (RLS). Use só depois de resolver o tenant por um meio confiável. */
@@ -439,6 +498,8 @@ export interface ModuloApi {
   consumidores?: readonly ConsumidorEvento[];
   /** Consultas que o módulo oferece (ADR 0012): uma por nome de `ofereceConsultas`, todas implementadas. */
   consultas?: readonly ImplementacaoConsulta[];
+  /** Tarefas periódicas por tenant, rodadas pelo agendador do worker (ADR 0022; `apps/api/src/agendador.ts`). */
+  tarefas?: readonly TarefaPeriodica[];
   /**
    * Rotas chamadas pelo Conector (ADR 0013; `conector.ts`), montadas em `/<modulo>/v1/<caminho>` com chave de API, sem JWT.
    * Só módulo com `apps.conector` no manifesto (hoje a Integração).
@@ -633,6 +694,12 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     else if (!m.manifesto.ofereceConsultas.includes(nome)) problemas.push(`consulta ${nome}: não está em "ofereceConsultas" do manifesto de ${id}`);
     if (implementadas.has(nome)) problemas.push(`consulta ${nome}: implementação repetida`);
     implementadas.add(nome);
+  }
+  const tarefas = new Set<string>();
+  for (const t of m.tarefas ?? []) {
+    problemas.push(...problemasTarefa(t));
+    if (tarefas.has(t.nome)) problemas.push(`tarefa ${t.nome}: repetida`);
+    tarefas.add(t.nome);
   }
   if (id !== 'core' && (m.rotasPublicas?.length || m.servicos))
     problemas.push('só o core declara rotas públicas e serviços de plataforma');
