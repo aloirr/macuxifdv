@@ -4,7 +4,8 @@
  * aparelho (push do lote + MOTOR DE SYNC real no pull) → `createApp` REAL (8 módulos, JWT de verdade) → Core (`visita_checkout`
  * chamando `pesquisa.etapas_checkout@1` da Pesquisa REAL) → Postgres como `macuxi_app` (RLS), banco efêmero próprio do arquivo
  * com a fixture dois-tenants; baixa pelo DESPACHANTE real (`pesquisa.resposta.registrada@1`, papel macuxi_worker); alerta pela
- * varredura do Core (`alertarPendenciasVencidas`) na transação do tenant, com as consultas e o publicador reais da API.
+ * varredura do Core (`alertarPendenciasVencidas`) na transação do tenant, com as consultas e o publicador reais da API, e pelo
+ * AGENDADOR real do worker (`criarAgendador`, tarefa `core.alerta_pendencia_checkout`, tenants de `plataforma.tenants_ativos()`).
  * PRECISA DE BANCO: pula sem Postgres; no CI (MACUXI_PG_EXIGIR=1) roda.
  *
  * Fixture: tenant A tem a pesquisa "Satisfação no checkout" (checkout_obrigatoria, a cada visita, público = perfil vendedor;
@@ -16,7 +17,7 @@
  * `pendente_desde` no banco em vez de esperar.
  *
  * Convenção: `it` = vale com a ligação do modulo-core no working tree de 05/11 (modules/core/api/etapas-pendencia.ts,
- * visita-push.ts com `avaliarCheckoutTolerante`); `it.todo` = parte que ainda não existe. Matriz: docs/testes/T-0039.md
+ * visita-push.ts com `avaliarCheckoutTolerante`) e o agendador de apps/api/src/agendador.ts (TP-15). Matriz: docs/testes/T-0039.md
  * (bloco "Tolerância ponta a ponta", TP-01..TP-15).
  */
 import { randomUUID } from 'node:crypto';
@@ -25,6 +26,7 @@ import { semBanco } from '@macuxi/db/teste/estado';
 import { ehAcaoDePedido, USUARIO_SISTEMA_ID, type ItemPush, type LinhaSync, type ModuloId, type ResultadoItemPush } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { criarAgendador } from '../../../apps/api/src/agendador';
 import { criarBancoApp } from '../../../apps/api/src/banco';
 import { criarDespachante } from '../../../apps/api/src/despachante';
 import { registroDeConsultas, transacaoTenant } from '../../../apps/api/src/outbox';
@@ -137,7 +139,7 @@ describe.skipIf(semBanco())('T-0039 §2 — tolerância no checkout: Campo (moto
   };
   /**
    * Varredura do alerta do Core em A, como o agendador rodaria: transação do tenant, usuário de sistema (perfil admin, como o
-   * despachante), consultas e publicador reais da API. O agendador do worker chamando a tarefa do Core é o TP-15 (it.todo).
+   * despachante), consultas e publicador reais da API. O agendador do worker chamando a tarefa do Core é o TP-15.
    */
   const rodarAlerta = () =>
     criarBancoApp(api.pool).comTenant(A.tenantId, async (db) => {
@@ -196,10 +198,12 @@ describe.skipIf(semBanco())('T-0039 §2 — tolerância no checkout: Campo (moto
     await worker?.end().catch(() => undefined);
     await api?.fechar();
   });
-  // cada cenário começa sem atendimento aberto dos usuários de campo (um caso que falha não contamina o seguinte)
+  // cada cenário começa sem atendimento aberto dos usuários de campo (um caso que falha não contamina o seguinte).
+  // `greatest(now(), checkin_em)`: a aberta da fixture (v2c2Aberta, vendedor-2) tem check-in às 14:00Z de hoje; antes dessa
+  // hora ela está no FUTURO e checkout_em = now() viola visita_checkout_depois_do_checkin (CI de 05/11, 08:17Z).
   beforeEach(async () => {
     await api.admin.query(
-      "update core.visita set checkout_em = now(), resultado = 'nao_finalizado', fechada_por = 'auto' where usuario_id = any($1::uuid[]) and checkout_em is null",
+      "update core.visita set checkout_em = greatest(now(), checkin_em), resultado = 'nao_finalizado', fechada_por = 'auto' where usuario_id = any($1::uuid[]) and checkout_em is null",
       [[U.vendedor1, U.vendedor2, U.promotor]],
     );
   });
@@ -298,7 +302,7 @@ describe.skipIf(semBanco())('T-0039 §2 — tolerância no checkout: Campo (moto
         expect(await etapas(k.vid)).toEqual([]);
         expect(await eventos('core.visita.checkout@1', k.vid)).toBe(0);
         expect(Number((await api.admin.query('select count(*)::int as n from core.visita where checkout_id = $1', [k.cmd])).rows[0].n)).toBe(0);
-        await api.admin.query("update core.visita set checkout_em = now(), resultado = 'nao_finalizado', fechada_por = 'auto' where usuario_id = $1 and checkout_em is null", [U.vendedor1]);
+        await api.admin.query("update core.visita set checkout_em = greatest(now(), checkin_em), resultado = 'nao_finalizado', fechada_por = 'auto' where usuario_id = $1 and checkout_em is null", [U.vendedor1]);
       }
     }
   });
@@ -504,9 +508,52 @@ describe.skipIf(semBanco())('T-0039 §2 — tolerância no checkout: Campo (moto
   // Alerta sozinho: agendador do worker (ADR 0022) com plataforma.tenants_ativos() (0027) pelo macuxi_worker
   // ---------------------------------------------------------------------------------------------------------------------
 
-  it.todo(
-    'TP-15 RN-CORE-12 / RN-CORE-23: o agendador do worker (criarAgendador real, tenants de plataforma.tenants_ativos() pelo macuxi_worker) roda core.alerta_pendencia_checkout em A e B, alerta a pendência de 24 h uma vez só, não volta antes de 60 min; macuxi_app → 42501 na função — bloqueado: apps/api/src/agendador.ts:187 (timer.unref) não compila sob o tests/tsconfig.json (lib DOM: setTimeout devolve number); pedido ao engenheiro-software',
-  );
+  it('TP-15 RN-CORE-12 / RN-CORE-23: o agendador do worker (criarAgendador real) roda a tarefa core.alerta_pendencia_checkout (60 min) em cada tenant ativo, com os tenants de plataforma.tenants_ativos() pelo macuxi_worker; alerta a pendência vencida uma vez só; não volta antes do período; o macuxi_app não lista tenants (42501)', async () => {
+    const r = await api.pool.query('select id from plataforma.tenants_ativos()').then(
+      () => 'executou',
+      (e: { code?: string }) => e.code,
+    );
+    expect(r, 'macuxi_app sem EXECUTE em plataforma.tenants_ativos()').toBe('42501');
+    const tenantsAtivos = async () => (await worker.query<{ id: string }>('select id from plataforma.tenants_ativos()')).rows.map((l) => l.id);
+    expect(await tenantsAtivos()).toEqual([A.tenantId, B.tenantId].sort());
+
+    const tarefaCore = api.modulos.find((m) => m.manifesto.id === 'core')?.tarefas?.find((t) => t.nome === 'alerta_pendencia_checkout');
+    expect(tarefaCore, 'tarefa periódica do Core instalada').toBeDefined();
+    expect(tarefaCore!.cadaMin).toBe(60);
+    /** Tarefas instaladas (todos os módulos) com período de até `min` minutos: as que voltam a ser devidas depois de `min`. */
+    const ate = (min: number) => api.modulos.flatMap((m) => m.tarefas ?? []).filter((t) => t.cadaMin <= min).length;
+
+    const { vid, linha } = await visitaComPendencia(tk.vendedor1, C.c1);
+    await recuarPendencia(linha.id, 24 + 1 / 60);
+    let deslocamento = 0;
+    const agendador = criarAgendador({ app: criarBancoApp(api.pool), modulos: api.modulos, tenantsAtivos, agora: () => new Date(Date.now() + deslocamento) });
+    expect(agendador.tarefas()).toContain('core.alerta_pendencia_checkout');
+    const tarefas = agendador.tarefas().length;
+
+    // subida: toda tarefa é devida; a do Core roda em A e em B (Core efetivo nos dois), uma transação por tenant
+    const primeiro = await agendador.ciclo();
+    expect(primeiro).toMatchObject({ devidas: tarefas, ocupadas: 0, falhas: 0 });
+    expect(primeiro.execucoes).toBeGreaterThanOrEqual(2);
+    expect((await notificacoes(linha.id)).map((n) => n.usuario_id).sort()).toEqual([U.supervisor, U.vendedor1].sort());
+    const alertada = await etapaPesquisa(vid);
+    expect(alertada).toMatchObject({ situacao: 'pendente' });
+    expect(alertada!.alertada_em).not.toBeNull();
+    expect(await visita(vid)).toMatchObject({ etapas_pendentes: 1 });
+
+    // 15 min depois: a tarefa de 60 min ainda não é devida (nenhuma tarefa abaixo de 15 min, RN-CORE-23)
+    deslocamento = 15 * MIN;
+    expect(ate(15), 'nenhuma tarefa com período menor que 15 min').toBe(0);
+    expect(await agendador.ciclo()).toMatchObject({ devidas: 0, execucoes: 0, ocupadas: 0, falhas: 0 });
+
+    // 61 min depois: volta (a do Core é devida de novo), mas a pendência já alertada não repete
+    deslocamento = 61 * MIN;
+    const terceiro = await agendador.ciclo();
+    expect(terceiro).toMatchObject({ devidas: ate(61), ocupadas: 0, falhas: 0 });
+    expect(terceiro.devidas).toBeGreaterThanOrEqual(1);
+    expect(terceiro.execucoes).toBeGreaterThanOrEqual(2);
+    expect(await notificacoes(linha.id)).toHaveLength(2);
+    expect((await etapaPesquisa(vid))!.alertada_em).toEqual(alertada!.alertada_em);
+  });
 });
 
 describe.skipIf(semBanco())('T-0039 §2 — prazo do alerta (checkout_pendencia_alerta_h) × API real × Postgres', () => {
