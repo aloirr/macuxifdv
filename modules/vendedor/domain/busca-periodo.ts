@@ -186,6 +186,9 @@ export function itemNaSituacao(i: Pick<ItemDaBusca, 'tipo' | 'status' | 'local'>
   return s === 'todos' || situacaoDoItem(i) === s;
 }
 
+/** Ordem fixa da linha de chips. */
+const ORDEM_DOS_CHIPS: readonly SituacaoDaLista[] = ['todos', 'aguardando', 'aprovados', 'rejeitados', 'orcamentos', 'na_fila'];
+
 export type ContagemPorSituacao = Record<SituacaoDaLista, number> & { chips: Array<{ id: SituacaoDaLista; rotulo: string; quantidade: number }> };
 
 /** Contagem para a linha única de chips; `chips` traz só as situações que têm itens (e Todos). */
@@ -195,8 +198,7 @@ export function contarPorSituacao(itens: readonly ItemDaBusca[]): ContagemPorSit
     const s = situacaoDoItem(i);
     if (s) c[s] += 1;
   }
-  const ordem: SituacaoDaLista[] = ['todos', 'aguardando', 'aprovados', 'rejeitados', 'orcamentos', 'na_fila'];
-  const chips = ordem.filter((id) => id === 'todos' || c[id] > 0).map((id) => ({ id, rotulo: ROTULO_SITUACAO[id], quantidade: c[id] }));
+  const chips = ORDEM_DOS_CHIPS.filter((id) => id === 'todos' || c[id] > 0).map((id) => ({ id, rotulo: ROTULO_SITUACAO[id], quantidade: c[id] }));
   return { ...c, chips };
 }
 
@@ -247,7 +249,10 @@ export function situacaoEfetiva<S extends string>(escolhida: S, buscando: boolea
 export function chipsComAtivo(chips: ContagemPorSituacao['chips'], ativo: string): ContagemPorSituacao['chips'] {
   if (chips.some((c) => c.id === ativo) || !(ativo in ROTULO_SITUACAO)) return chips;
   const id = ativo as SituacaoDaLista;
-  return [...chips, { id, rotulo: ROTULO_SITUACAO[id], quantidade: 0 }];
+  const novo = { id, rotulo: ROTULO_SITUACAO[id], quantidade: 0 };
+  const posicao = (x: string) => ORDEM_DOS_CHIPS.indexOf(x as SituacaoDaLista);
+  const depois = chips.findIndex((c) => posicao(c.id) > posicao(id));
+  return depois < 0 ? [...chips, novo] : [...chips.slice(0, depois), novo, ...chips.slice(depois)];
 }
 
 /** Resumo da tela: com o chip Orçamentos ativo conta e soma os orçamentos; nos demais, os pedidos que valem. */
@@ -269,4 +274,10 @@ export function ultimaMudancaDeStatus(eventos: ReadonlyArray<{ de: string | null
   let ultima: string | null = null;
   for (const e of eventos) if (e.de !== null && (ultima === null || e.ocorrido_em > ultima)) ultima = e.ocorrido_em;
   return ultima;
+}
+
+/** Primeiro e último dia (AAAA-MM-DD) do período: o `from`/`to` da consulta ao servidor (T-0077 item 6). */
+export function intervaloDoPeriodo(p: Periodo): { from: string; to: string } {
+  const from = p.tipo === 'dia' ? p.valor : p.tipo === 'mes' ? `${p.valor}-01` : `${p.valor}-01-01`;
+  return { from, to: ultimoDia(p) };
 }

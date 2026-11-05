@@ -178,15 +178,20 @@ export const rotaListarPedidos: RotaModulo = {
             and ($3::text[] is null or p.status = any($3::text[]))
             and ($4::uuid is null or p.vendedor_id = $4)
             and ($5::uuid is null or p.cliente_id = $5)
-            and ($6::date is null or p.created_at >= ($6::date)::timestamp at time zone $10)
-            and ($7::date is null or p.created_at < (($7::date) + 1)::timestamp at time zone $10)
+            and ((($6::date is null or p.created_at >= ($6::date)::timestamp at time zone $10)
+                  and ($7::date is null or p.created_at < (($7::date) + 1)::timestamp at time zone $10))
+                 or ($16::boolean and ($6::date is not null or $7::date is not null)
+                     and exists (select 1 from vendedor.pedido_evento ev
+                                  where ev.tenant_id = p.tenant_id and ev.pedido_id = p.id and ev.deleted_at is null and ev.de is not null
+                                    and ($6::date is null or ev.ocorrido_em >= ($6::date)::timestamp at time zone $10)
+                                    and ($7::date is null or ev.ocorrido_em < (($7::date) + 1)::timestamp at time zone $10))))
             and ($8::text is null or p.cliente_nome ilike $8 or p.numero ilike $8)
             and ($11::timestamptz is null or (p.created_at, p.id) < ($11::timestamptz, $12::uuid))
             and ($13::text is null or p.tipo = $13)
             and ($14::text is null or ${SQL_SITUACAO_ORCAMENTO} = $14)
           order by p.created_at desc, p.id desc
           limit $9`,
-        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, ctx.agora().toISOString()],
+        [e.vendedores, e.clientes, status.length > 0 ? status : null, q.seller_id ?? null, q.customer_id ?? null, q.from ?? null, q.to ?? null, busca, limite + 1, fuso, cursor?.createdAt ?? null, cursor?.id ?? null, tipo === 'todos' ? null : tipo, tipo === 'orcamento' ? (q.situacao ?? null) : null, ctx.agora().toISOString(), q.por_status === '1'],
       );
       const pagina = rows.slice(0, limite);
       const ultimo = pagina[pagina.length - 1];
