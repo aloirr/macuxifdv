@@ -29,7 +29,7 @@ export function useGestor() {
     if (!cache) return;
     const d = await cache.carregar();
     // RN-CORE-26: o `inicio.parado_min` do tenant (pull `parametro` do Core) vence o valor da visão do Gestor
-    const linhas = motor ? await motor.linhas<{ id: string; modulo: string; chave: string; valor: unknown; deleted_at?: string | null }>('parametro').catch(() => []) : [];
+    const linhas = motor ? await motor.linhas<{ id: string; updated_at: string; deleted_at: string | null; modulo: string; chave: string; valor: unknown }>('parametro').catch(() => []) : [];
     setDados({ ...d, visao: aplicarParadoMinDoTenant(d.visao, linhas) });
     setCarregado(true);
   }, [cache, motor]);

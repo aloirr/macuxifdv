@@ -9,3 +9,4 @@
 2026-11-04 — T-0077 — domain pedidos-equipe (filtro de vendedor da equipe, 5 testes); tela de Pedidos do Gestão é a do Vendedor, encaixe do seletor pedido por recado
 2026-11-04 — T-0077 — removido pedidos-equipe (sem uso; seletor de vendedor é do Vendedor), G1 da revisão
 2026-11-05 — T-0073 — Gestão usa inicio.parado_min do tenant (pull parametro do Core) com fallback do Gestor; teste RN-CORE-26
+2026-11-05 — fix — tipo da linha parametro em use-gestor.ts (LinhaSync); mobile typecheck verde
