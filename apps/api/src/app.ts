@@ -273,6 +273,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
               usuario,
               consultas,
               parametros,
+              fuso: () => fuso,
               log: req.log.child({ tenant_id: usuario.tenant_id, request_id: req.id }),
             }),
           ),

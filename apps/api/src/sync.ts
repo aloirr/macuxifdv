@@ -2,6 +2,7 @@
  * Rotas de sincronização da plataforma (doc 04 "Sincronização offline"; desenho T-0004 §5):
  *   GET  /v1/sync/pull?entidade=<nome>&cursor=<updated_at|id>  → { itens, proximo_cursor, versao_escopo?, horizonte }
  *   POST /v1/sync/push { itens }                                → { resultados } (um por item, na ordem)
+ *   O push processa na ordem da fila: runs de itens consecutivos do mesmo provedor (D-T0039a; desenho T-0039 §1).
  *
  * Pull — horizonte seguro: o módulo só devolve linhas com `updated_at < horizonte`, onde
  * `horizonte = least(now() - margem, início da transação aberta mais antiga)` (`BancoApp.horizonteSync`).
@@ -219,7 +220,9 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
       perfil: ctx.usuario.perfil,
     });
     const porId = new Map<string, ResultadoItemPush>(rejeitados.map((r) => [r.id, r]));
-    const grupos = new Map<ProvedorSync, ItemPush[]>();
+    // D-T0039a: processa na ORDEM DA FILA do aparelho; só itens CONSECUTIVOS do mesmo provedor viram um lote (run).
+    // Ex.: [visita A, checkout A, visita B, resposta B, checkout B] = 5 runs, e a resposta de B chega antes do checkout de B.
+    const runs: { prov: ProvedorSync; itens: ItemPush[] }[] = [];
     for (const item of validos) {
       const prov = provedores.get(item.entidade)!;
       if (!prov.receber) {
@@ -232,13 +235,16 @@ export function registrarSync(app: FastifyInstance, p: Plataforma): void {
         });
         continue;
       }
-      grupos.set(prov, [...(grupos.get(prov) ?? []), item]);
+      const ultimo = runs[runs.length - 1];
+      if (ultimo?.prov === prov) ultimo.itens.push(item);
+      else runs.push({ prov, itens: [item] });
     }
-    for (const [prov, itens] of grupos) {
+    for (const { prov, itens } of runs) {
       try {
         for (const r of await prov.receber!(doModulo(prov.entidade.modulo), itens)) porId.set(r.id, r);
       } catch (e) {
-        // 4xx do módulo (regra, não encontrado, conflito) rejeita os itens; 5xx/503: o motor tenta o lote de novo, na mesma ordem
+        // 4xx do módulo (regra, não encontrado, conflito) rejeita os itens do run; 5xx/503: para aqui (os runs seguintes
+        // não são processados) e o motor tenta o lote de novo, na mesma ordem — os runs já gravados são idempotentes
         if (!(e instanceof ErroHttpModulo) || e.status >= 500) throw e;
         for (const i of itens)
           porId.set(i.id, { id: i.id, status: 'rejeitado', codigo: e.codigo, mensagem: e.message });

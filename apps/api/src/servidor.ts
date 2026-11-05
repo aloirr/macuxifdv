@@ -17,7 +17,7 @@ import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
 import { criarBancoApp } from './banco';
 import { conferirSegredoJwt, lerTrustProxy, opcoesLogger } from './config';
-import { linhaDeMetricas, type CodigoAlerta, type JanelaMetricas, type ResumoOutbox } from './observabilidade';
+import { registrarMetricasApi } from './observabilidade';
 
 const cfg = lerConfigApp(); // carrega o .env (raiz e db/) antes de ler as variáveis abaixo; fora do local não exige a senha do admin
 const segredoJwt = conferirSegredoJwt(process.env, cfg.host);
@@ -53,18 +53,8 @@ app.log.info({ armazenamento: arquivos.descricao }, 'armazenamento de arquivos')
 const porta = Number(process.env.MACUXI_API_PORTA ?? 8100);
 const host = process.env.MACUXI_API_HOST ?? '127.0.0.1';
 
-/** Mesma leitura do monitor externo: o `/v1/saude` (sonda com cache e prazo) vira uma linha de log. */
-const registrarMetricas = async () => {
-  try {
-    const r = await app.inject({ method: 'GET', url: '/v1/saude' });
-    const s = r.json() as { metricas: JanelaMetricas; dependencias: { outbox: ResumoOutbox | null }; alertas: CodigoAlerta[] };
-    const linha = linhaDeMetricas(s.metricas, s.dependencias.outbox, s.alertas);
-    if (s.alertas.length > 0) app.log.warn(linha, 'alerta');
-    else app.log.info(linha, 'métricas');
-  } catch (e) {
-    app.log.warn({ tipo: 'metricas', erro: e instanceof Error ? e.message : String(e) }, 'métricas indisponíveis');
-  }
-};
+/** Mesma leitura do monitor externo: o `/v1/saude` (sonda com cache e prazo) vira uma linha de log (`observabilidade.ts`). */
+const registrarMetricas = () => registrarMetricasApi(app, app.log);
 const intervaloMetricas = Number(process.env.MACUXI_METRICAS_INTERVALO_MS ?? 300_000);
 const timerMetricas = intervaloMetricas > 0 ? setInterval(() => void registrarMetricas(), intervaloMetricas) : undefined;
 timerMetricas?.unref();

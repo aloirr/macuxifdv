@@ -15,6 +15,7 @@ import {
   criarBarramento,
   ErroHttpModulo,
   executarConsulta,
+  fusoDoTenantOuPadrao,
   validarNovoArquivo,
   type ClienteBanco,
   type EnvelopeEvento,
@@ -78,6 +79,8 @@ export interface OrigemTransacao {
   usuario?: UsuarioDaRequisicao;
   consultas?: RegistroConsultasApi;
   parametros?: (modulo: ModuloId) => Readonly<Record<string, unknown>>;
+  /** Fuso do tenant para `ContextoConsulta.fuso()` (o mesmo `ctx.fuso()` de quem consulta). Ausente/inválido = America/Manaus. */
+  fuso?: () => string;
   log?: LogComFilho;
 }
 
@@ -124,7 +127,7 @@ export function transacaoTenant(db: ClienteBanco, o: OrigemTransacao): Transacao
       // log da consulta: dono, consulta e request_id; nunca a entrada nem a saída
       const log = (base as LogComFilho).child?.({ modulo: def.modulo, consulta: def.nome, consumidor: o.modulo }) ?? base;
       return executarConsulta(def, entrada, (e) =>
-        impl.executar(e, { db, usuario, requestId: o.requestId, agora: o.agora, parametros: () => o.parametros?.(def.modulo) ?? {}, log }),
+        impl.executar(e, { db, usuario, requestId: o.requestId, agora: o.agora, parametros: () => o.parametros?.(def.modulo) ?? {}, fuso: () => fusoDoTenantOuPadrao(o.fuso?.()), log }),
       );
     },
     async auditar(r) {

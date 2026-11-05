@@ -172,6 +172,12 @@ export interface ContextoConsulta {
   requestId: string;
   agora(): Date;
   parametros(): Readonly<Record<string, unknown>>;
+  /**
+   * Fuso IANA do tenant de quem consulta (RN-CORE-11; T-0080/R-20261105-015806): o MESMO valor de `ctx.fuso()` da rota,
+   * do consumidor de evento ou da rota do Conector que chamou `tx.consultar`. Use para virar dia/semana/mês na consulta
+   * (ex.: frequência de pesquisa). Nunca lança: fuso ausente ou inválido = `America/Manaus` (`FUSO_PADRAO_TENANT`).
+   */
+  fuso(): string;
   log: LogRota;
 }
 

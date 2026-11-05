@@ -9,6 +9,7 @@
  *
  * Nada aqui leva dado pessoal nem de tenant: só contagens, segundos e códigos.
  */
+import { mensagemSegura } from './log-seguro';
 
 export interface JanelaMetricas {
   janela_min: number;
@@ -133,4 +134,44 @@ export function comPrazo<T>(p: Promise<T>, ms: number): Promise<T> {
     timer = setTimeout(() => rejeitar(new Error('prazo esgotado')), ms);
   });
   return Promise.race([p, prazo]).finally(() => clearTimeout(timer));
+}
+
+/** Log mínimo das linhas de métricas (pino da API/worker ou o logger do Fastify). */
+export interface LogMetricas {
+  info(o: object, msg: string): void;
+  warn(o: object, msg: string): void;
+}
+
+/**
+ * Linha `tipo: metricas` da API (servidor.ts, a cada `MACUXI_METRICAS_INTERVALO_MS`): a mesma leitura do monitor externo,
+ * o `/v1/saude` (sonda com cache e prazo), em `info` sem alerta e `warn` com alerta. Exportada para o teste L1 (T-0078).
+ */
+export async function registrarMetricasApi(
+  app: { inject(op: { method: 'GET'; url: string }): PromiseLike<{ json(): unknown }> },
+  log: LogMetricas,
+): Promise<void> {
+  try {
+    const r = await app.inject({ method: 'GET', url: '/v1/saude' });
+    const s = r.json() as { metricas: JanelaMetricas; dependencias: { outbox: ResumoOutbox | null }; alertas: CodigoAlerta[] };
+    const linha = linhaDeMetricas(s.metricas, s.dependencias.outbox, s.alertas);
+    if (s.alertas.length > 0) log.warn(linha, 'alerta');
+    else log.info(linha, 'métricas');
+  } catch (e) {
+    log.warn({ tipo: 'metricas', erro: mensagemSegura(e) }, 'métricas indisponíveis');
+  }
+}
+
+/**
+ * Linha `tipo: metricas` do worker (worker.ts): `consultar` devolve a linha do `SQL_RESUMO_OUTBOX`; com o banco fora,
+ * `warn` com `BANCO_FALHA` e a mensagem segura do erro (sem `detail` do Postgres).
+ */
+export async function registrarMetricasWorker(consultar: () => Promise<Parameters<typeof resumoDaLinha>[0]>, log: LogMetricas): Promise<void> {
+  try {
+    const outbox = resumoDaLinha(await consultar());
+    const alertas = avaliarAlertas({ banco: 'ok', outbox, erros_5xx: 0 });
+    if (alertas.length > 0) log.warn(linhaDeMetricas(null, outbox, alertas), 'alerta: outbox');
+    else log.info(linhaDeMetricas(null, outbox, alertas), 'métricas da outbox');
+  } catch (e) {
+    log.warn({ ...linhaDeMetricas(null, null, ['BANCO_FALHA']), erro: mensagemSegura(e) }, 'alerta: banco');
+  }
 }

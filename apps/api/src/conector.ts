@@ -212,7 +212,7 @@ export function registrarConector(app: FastifyInstance, modulo: ModuloApi, dep: 
           log,
           comTenant: (fn) =>
             dep.acesso.comTenant(tenantId, (db) =>
-              fn(db, transacaoTenant(db, { manifestos: dep.manifestos, modulo: id, tenantId, usuarioId: null, requestId: req.id, agora: dep.relogio, log })),
+              fn(db, transacaoTenant(db, { manifestos: dep.manifestos, modulo: id, tenantId, usuarioId: null, requestId: req.id, agora: dep.relogio, fuso: () => fuso, log })),
             ),
         };
 
