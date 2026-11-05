@@ -122,6 +122,7 @@ describe('migrações (estático)', () => {
     expect(nomes[23]).toBe('0024_plataforma_resumo_outbox_lgpd'); // T-0078: resumo_outbox (/v1/saude), anonimização e exclusão de tenant (lgpd-outbox.test.ts)
     expect(nomes[24]).toBe('0025_core_nota_erp_vendedor'); // T-0080: core.nota_erp.vendedor_external_id e usuario_id, 2 índices (nota-erp-vendedor.test.ts)
     expect(nomes[25]).toBe('0026_core_visita_etapa_pendente'); // T-0039 §2: visita_etapa 'pendente' + 4 colunas e visita.etapas_pendentes, 2 índices parciais (visita-etapa-pendente.test.ts)
+    expect(nomes[26]).toBe('0027_plataforma_tenants_ativos'); // T-0039 §2.3 (ADR 0022): plataforma.tenants_ativos() só ao macuxi_worker (tenants-ativos.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -204,7 +205,7 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
     expect(m.up).toMatch(/create policy despacho_outbox_marcar on plataforma\.evento for update to macuxi_worker\s+using \(true\) with check \(true\);/);
   });
 
-  it('grants do worker: usage em plataforma, colunas de plataforma.evento e só EXECUTE nas funções de expurgo (0010, 0011)', () => {
+  it('grants do worker: usage em plataforma, colunas de plataforma.evento e só EXECUTE nas funções de expurgo (0010, 0011) e em tenants_ativos (0027)', () => {
     const grants = [...semComentarios(sqlUp).matchAll(/grant ([^;]*?) to macuxi_worker;/g)].map((g) => g[1]!.replace(/\s+/g, ' '));
     expect(grants).toEqual([
       'usage on schema plataforma',
@@ -213,6 +214,7 @@ describe('0003 macuxi_worker (estático, ADR 0007)', () => {
       'usage on schema integracao',
       'execute on function integracao.expurgar_retencao(timestamptz, integer)',
       'execute on function plataforma.expurgar_outbox(timestamptz, integer)',
+      'execute on function plataforma.tenants_ativos()', // 0027 (T-0039, ADR 0022): agendador das tarefas periódicas
     ]);
   });
 
@@ -603,7 +605,8 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     expect(definersAte('0012').sort()).toEqual(funcoes.map(([f]) => f.slice(0, f.indexOf('('))).sort());
     const depois = migracoes.filter((m) => m.versao > '0012');
     const novas = depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer\s+set search_path = ([^\n]+)/g)]);
-    expect(novas.map((x) => x[1]).sort()).toEqual(['plataforma.resumo_outbox']); // 0024 (T-0078): só agregados da outbox
+    // 0024 (T-0078): só agregados da outbox; 0027 (T-0039, ADR 0022): só ids dos tenants ativos, ao worker
+    expect(novas.map((x) => x[1]).sort()).toEqual(['plataforma.resumo_outbox', 'plataforma.tenants_ativos']);
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
   });

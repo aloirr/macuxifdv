@@ -21,6 +21,11 @@ Função `girar_geracao_base(p_tenant uuid default null) → integer` (0022, SEC
 `macuxi_app` ou `macuxi_worker`): troca `geracao_base` do tenant (null = todos) e devolve quantos girou. Só o dono do banco
 (superusuário do seed e do restaurar-vm.sh) roda; a tabela tem FORCE RLS, então papel sem BYPASSRLS gira 0 (o seed trata como erro).
 Caminho de volta: `0022_plataforma_geracao_base.down.sql` (apaga coluna e função; app volta ao comportamento sem marcador).
+Função `tenants_ativos() → table (id uuid)` (0027, T-0039, ADR 0022; SECURITY DEFINER, `search_path = pg_catalog, plataforma,
+pg_temp`, `execute` **só ao `macuxi_worker`**; `macuxi_app` e `public` sem EXECUTE): ids dos tenants com `status = 'ativo'` e
+`deleted_at is null`, ordenados por id. Só o id sai; o agendador das tarefas periódicas (`apps/api/src/agendador.ts`) lê
+licenças, parâmetros e fuso depois em `comTenant` (macuxi_app, RLS). Caminho de volta: `0027_plataforma_tenants_ativos.down.sql`
+(apaga a função; o worker vê `to_regprocedure` nulo e deixa o agendador desligado com warn). Teste: `db/testes/tenants-ativos.test.ts`.
 
 ## tenant_modulo — módulos do tenant (RN-CORE-01/02)
 | Coluna | Tipo | Regra |
@@ -146,6 +151,7 @@ Os bytes NUNCA ficam no banco (porta `ArmazenamentoArquivos`); o down da 0005 de
 - `plataforma.uuid_de_chave(text)` (0005): UUID determinístico (md5 de `macuxi:<chave>` com versão 5 e variante RFC 4122),
   gêmeo de `idDeChave` em `db/src/ids.ts`. Usado nas linhas padrão semeadas em todo tenant.
 - `plataforma.resumo_outbox(text[], integer)` (0024): contagens da outbox para o `/v1/saude` (seção evento).
+- `plataforma.tenants_ativos()` (0027): ids dos tenants ativos para o agendador do worker (seção tenant); só `macuxi_worker`.
 - LGPD (0024, T-0078; roteiro [lgpd.md](lgpd.md)): `anonimizar_usuario(p_tenant, p_usuario)`, `anonimizar_cliente(p_tenant,
   p_cliente)`, `anonimizar_contato(p_tenant, p_contato)` e `excluir_tenant(p_tenant, p_codigo)`. Todas `SECURITY INVOKER`,
   `search_path` fixo, sem `execute` para `public`, `macuxi_app` ou `macuxi_worker`: só o dono do banco roda, à mão. Devolvem
