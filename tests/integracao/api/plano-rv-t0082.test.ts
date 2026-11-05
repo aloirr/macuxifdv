@@ -16,7 +16,10 @@
  * 15/06/2030 12h de Manaus: o plano da fixture (início no mês real do CI) já valeu para meses fechados; 2030-05 está fechado
  * (2º dia útil de junho passou) e 2030-06 aberto, com 12 dos 25 dias úteis encerrados (calendário padrão seg-sáb, RN-CORE-26).
  *
- * Matriz: docs/testes/T-0082.md (R-01..R-08). Defeitos fechados: D-T0082a (R-08a, era `it.fails`: realizado pela licença de
+ * RN-CORE-30 (revisão de 05/11, R-20261105-151507): `rv.ver` inclui vendedor e promotor, que veem SÓ a própria RV (R-01b,
+ * R-08b); o assistente segue sem ver; `plano_rv.ver` e `plano_rv.editar` não mudaram.
+ *
+ * Matriz: docs/testes/T-0082.md (R-01..R-08b). Defeitos fechados: D-T0082a (R-08a, era `it.fails`: realizado pela licença de
  * quem consulta; corrigido com `{ licenca: 'tenant' }`, ADR 0025, R-20261105-110403) e D-T0082b (R-03b: PUT com id de plano
  * de outro tenant responde 404).
  */
@@ -28,7 +31,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { calcularRvDaPessoa, calendarioDoTenant, diasUteisDoMes, type IndicadorRv, type PlanoRv } from '../../../modules/core/domain';
 import { A, B, erroDe, ids, licenca, subirApi, type ApiDeTeste } from '../apoio/api';
 
-type Quem = 'admin' | 'analista' | 'assistente' | 'gerente' | 'supervisor' | 'vendedor' | 'promotor' | 'adminB';
+type Quem = 'admin' | 'analista' | 'assistente' | 'gerente' | 'supervisor' | 'vendedor' | 'promotor' | 'adminB' | 'vendedorB';
 const EMAIL: Record<Quem, [string, typeof A | typeof B]> = {
   admin: ['admin@exemplo.com.br', A],
   analista: ['analista@exemplo.com.br', A],
@@ -38,10 +41,16 @@ const EMAIL: Record<Quem, [string, typeof A | typeof B]> = {
   vendedor: ['vendedor@exemplo.com.br', A],
   promotor: ['promotor@exemplo.com.br', A],
   adminB: ['admin.b@exemplo.com.br', B],
+  /** mesmo e-mail do vendedor-1 de A (caso S0-072), login no tenant B */
+  vendedorB: ['vendedor@exemplo.com.br', B],
 };
-/** RN-CORE-30 e manifesto do Core: `plano_rv.ver` e `rv.ver` (supervisor, gerente, analista, admin); `plano_rv.editar` (analista, admin). */
+/**
+ * RN-CORE-30 e manifesto do Core: `plano_rv.ver` (supervisor, gerente, analista, admin); `rv.ver` (os mesmos + vendedor e
+ * promotor, recortados à própria pessoa; assistente não); `plano_rv.editar` (analista, admin).
+ */
 const VEEM: Quem[] = ['supervisor', 'gerente', 'analista', 'admin'];
-const NAO_VEEM: Quem[] = ['assistente', 'vendedor', 'promotor'];
+const NAO_VEEM_PLANO: Quem[] = ['assistente', 'vendedor', 'promotor'];
+const SO_A_PROPRIA: Quem[] = ['vendedor', 'promotor'];
 const EDITAM: Quem[] = ['analista', 'admin'];
 const NAO_EDITAM: Quem[] = ['supervisor', 'gerente', 'assistente', 'vendedor', 'promotor'];
 
@@ -123,15 +132,14 @@ describe.skipIf(semBanco())('T-0082 — Plano de RV e RV pela API real (createAp
     await api?.fechar();
   });
 
-  it('R-01 RN-CORE-30: perfis — GET plano-rv e GET rv: supervisor, gerente, analista e admin 200; assistente, vendedor e promotor 403; PUT/DELETE só analista e admin (403 não grava)', async () => {
+  it('R-01 RN-CORE-30: perfis — GET plano-rv: supervisor, gerente, analista e admin 200; assistente, vendedor e promotor 403. GET rv: os quatro + vendedor e promotor 200; assistente 403. PUT/DELETE só analista e admin (403 não grava)', async () => {
     for (const q of VEEM) {
       expect((await planos(q)).vigente, q).not.toBeNull();
       await rv(q);
     }
-    for (const q of NAO_VEEM) {
-      negado(await get(q, '/v1/core/plano-rv'), `${q} GET plano-rv`);
-      negado(await get(q, '/v1/core/rv'), `${q} GET rv`);
-    }
+    for (const q of NAO_VEEM_PLANO) negado(await get(q, '/v1/core/plano-rv'), `${q} GET plano-rv`);
+    for (const q of SO_A_PROPRIA) await rv(q); // recorte à própria pessoa: R-01b
+    negado(await get('assistente', '/v1/core/rv'), 'assistente GET rv');
     const anonimo = await api.chamar(null, { method: 'GET', url: '/v1/core/rv' });
     expect(anonimo.statusCode).toBe(401);
 
@@ -155,6 +163,54 @@ describe.skipIf(semBanco())('T-0082 — Plano de RV e RV pela API real (createAp
       expect(r.statusCode, r.body).toBe(200);
       expect((await linhaPlano(criados[i]!))?.deleted_at).not.toBeNull();
     }
+  });
+
+  it('R-01b RN-CORE-30 / RN-CORE-04: vendedor e promotor veem SÓ a própria RV — sem filtro, com o próprio usuario_id e com a própria equipe; usuario_id de outro (mesma equipe, outra equipe, outro tenant) 404 USUARIO_NAO_ENCONTRADO sem dado alheio; equipe de outro vazia; assistente 403 até com filtro; vendedor e promotor não editam o plano', async () => {
+    const casos: ReadonlyArray<readonly [Quem, string, string, () => string]> = [
+      ['vendedor', A.usuarios.vendedor1, A.usuarios.promotor, () => planoFixture.A],
+      ['promotor', A.usuarios.promotor, A.usuarios.vendedor1, () => planoFixture.A],
+      ['vendedorB', B.usuarios.vendedor, A.usuarios.vendedor1, () => planoFixture.B],
+    ];
+    const outrosSempre = [A.usuarios.vendedor2, A.usuarios.supervisor, B.usuarios.vendedor];
+    for (const [q, eu, colega, plano] of casos) {
+      const alheios = [colega, ...outrosSempre].filter((i) => i !== eu);
+      // sem filtro: só ele, com o plano do próprio tenant, e nenhum id de outra pessoa na resposta
+      const r = await get(q, '/v1/core/rv');
+      expect(r.statusCode, `${q} GET rv: ${r.body}`).toBe(200);
+      const painel = RvPainelSchema.parse(r.json());
+      expect(painel.pessoas.map((p) => p.usuario_id), `${q}: só a própria pessoa`).toEqual([eu]);
+      expect(painel.plano_id, q).toBe(plano());
+      expect(painel.pessoas[0]?.plano_id, q).toBe(plano());
+      for (const id of alheios) expect(r.body, `${q}: nenhum dado de ${id}`).not.toContain(id);
+      // o próprio usuario_id: 200 com ele
+      expect((await rv(q, `?usuario_id=${eu}`)).pessoas.map((p) => p.usuario_id), q).toEqual([eu]);
+      // usuario_id de outra pessoa (colega de equipe, outra equipe, superior, outro tenant): 404 sem revelar nada dela
+      for (const alvo of alheios) {
+        const f = await get(q, `/v1/core/rv?usuario_id=${alvo}`);
+        expect(f.statusCode, `${q} → ${alvo}: ${f.body}`).toBe(404);
+        expect(erroDe(f).codigo, `${q} → ${alvo}`).toBe('USUARIO_NAO_ENCONTRADO');
+        expect(f.body, `${q} → ${alvo}: o 404 não traz dado da pessoa`).not.toContain(alvo);
+      }
+    }
+    // equipe_id: a própria equipe (vendedor-1 e promotor estão na equipe 1) devolve só ele; a equipe de outro, vazia
+    expect((await rv('vendedor', `?equipe_id=${A.equipes.equipe1}`)).pessoas.map((p) => p.usuario_id)).toEqual([A.usuarios.vendedor1]);
+    expect((await rv('promotor', `?equipe_id=${A.equipes.equipe1}`)).pessoas.map((p) => p.usuario_id)).toEqual([A.usuarios.promotor]);
+    expect((await rv('vendedor', `?equipe_id=${A.equipes.equipe2}`)).pessoas).toEqual([]);
+    // assistente: 403 com e sem filtro (não vira "a própria")
+    for (const query of ['', `?usuario_id=${A.usuarios.vendedor1}`, `?equipe_id=${A.equipes.equipe1}`]) {
+      negado(await get('assistente', `/v1/core/rv${query}`), `assistente GET rv${query}`);
+    }
+    // vendedor e promotor não editam: PUT com mudança e DELETE no plano vivo da fixture → 403; linha e auditoria intactas
+    const antes = await linhaPlano(planoFixture.A);
+    const audAntes = await auditorias(planoFixture.A);
+    const vivo = (await planos('analista')).planos.find((p) => p.id === planoFixture.A)!;
+    const { id: _i, updated_at: _u, atualizado_por_nome: _n, editavel: _e, ...resto } = vivo;
+    for (const q of SO_A_PROPRIA) {
+      negado(await put(q, planoFixture.A, { ...resto, valor_maximo_cents: resto.valor_maximo_cents + 1 }), `${q} PUT plano vivo`);
+      negado(await del(q, planoFixture.A), `${q} DELETE plano vivo`);
+    }
+    expect(await linhaPlano(planoFixture.A)).toEqual(antes);
+    expect(await auditorias(planoFixture.A)).toBe(audAntes);
   });
 
   it('R-02 RN-CORE-04: escopo pelo app real — supervisor só a equipe 1; vendedor fora do escopo 404 USUARIO_NAO_ENCONTRADO; equipe fora do escopo 200 vazia; gerente a regional', async () => {
@@ -218,7 +274,7 @@ describe.skipIf(semBanco())('T-0082 — Plano de RV e RV pela API real (createAp
     expect(await auditorias(planoFixture.B), 'o 404 não audita').toBe(auditoriasAntes);
   });
 
-  it('R-04 RN-CORE-01/03: plano e RV são do Core (sempre ativo) — não há MODULO_INATIVO: o core não desliga (422) e desligar Vendedor e Promotor no tenant não derruba as rotas', async () => {
+  it('R-04 RN-CORE-01/03: plano e RV são do Core (sempre ativo) — não há MODULO_INATIVO: o core não desliga (422) e desligar Vendedor e Promotor no tenant não derruba as rotas (nem a RV própria do vendedor)', async () => {
     for (const r of [
       await licenca(api, token.admin, 'tenant', 'core', false),
       await licenca(api, token.admin, 'perfil', 'core', false, 'analista'),
@@ -231,6 +287,8 @@ describe.skipIf(semBanco())('T-0082 — Plano de RV e RV pela API real (createAp
       expect(ids(await api.meusModulos(token.supervisor))).not.toContain('vendedor');
       expect((await planos('supervisor')).vigente?.id).toBe(planoFixture.A);
       expect((await rv('supervisor')).pessoas.map((p) => p.usuario_id)).toContain(A.usuarios.vendedor1);
+      // a RV é do Core: o vendedor segue vendo a própria com o módulo Vendedor desligado no tenant
+      expect((await rv('vendedor')).pessoas.map((p) => p.usuario_id)).toEqual([A.usuarios.vendedor1]);
     } finally {
       for (const m of ['vendedor', 'promotor']) await licenca(api, token.admin, 'tenant', m, true);
     }
@@ -390,6 +448,21 @@ describe.skipIf(semBanco())('T-0082 — Plano de RV e RV pela API real (createAp
       expect(venda(doAnalista)).toBeTypeOf('number');
       expect(venda(doAdmin)).toBe(venda(doAnalista));
       expect(v1(doAdmin).rv_cents).toBe(v1(doAnalista).rv_cents);
+    });
+
+    it('R-08b RN-CORE-30 / RN-CORE-29: a RV própria do vendedor-1 em 2030-06 é a mesma que o analista vê dele (indicadores, valor e bloqueio), e só ele', async () => {
+      const doAnalista = (await rv('analista', '?periodo=2030-06')).pessoas.find((x) => x.usuario_id === A.usuarios.vendedor1)!;
+      expect(doAnalista, 'pré-condição: o analista vê o vendedor-1 em 2030-06').toBeDefined();
+      const proprio = await rv('vendedor', '?periodo=2030-06');
+      expect(proprio).toMatchObject({ periodo: '2030-06', situacao: 'parcial', plano_id: PLANO_JUNHO });
+      expect(proprio.pessoas.map((p) => p.usuario_id)).toEqual([A.usuarios.vendedor1]);
+      const eu = proprio.pessoas[0]!;
+      expect(eu.indicadores).toEqual(doAnalista.indicadores);
+      expect([eu.rv_cents, eu.rv_bruta_cents, eu.bloqueada_por]).toEqual([doAnalista.rv_cents, doAnalista.rv_bruta_cents, doAnalista.bloqueada_por]);
+      // o vendedor-2 (meta e realizado de junho gravados no R-07) não vaza pelo filtro
+      const f = await get('vendedor', `/v1/core/rv?periodo=2030-06&usuario_id=${A.usuarios.vendedor2}`);
+      expect(f.statusCode, f.body).toBe(404);
+      expect(f.body).not.toContain(A.usuarios.vendedor2);
     });
 
     it('R-08 RN-CORE-30: B não enxerga a versão nova de A nem A a de B, mesmo com o relógio no futuro', async () => {

@@ -138,3 +138,7 @@ R-20261105-131126-modulo-catalogo
 R-20261105-131136-modulo-catalogo
 R-20261105-131115-modulo-catalogo
 R-20261105-134512-modulo-catalogo
+R-20261105-140444-gerente-projetos
+R-20261105-145109-engenheiro-software
+R-20261105-154625-modulo-core
+R-20261105-155126-engenheiro-software
