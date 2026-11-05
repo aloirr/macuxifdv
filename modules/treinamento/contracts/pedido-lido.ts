@@ -1,51 +1,31 @@
 /**
- * Leitura TOLERANTE do evento `vendedor.pedido.faturado@1` ("pedido faturado"), só com o que o desafio de vendas
- * (RF-TRE-06) precisa. O XP é pago no FATURAMENTO (status vindo do ERP pelo Hub), não na criação do pedido.
- * O publicador e o registro do evento em .coord/contratos/eventos.md são do engenheiro-software.
- * O Treinamento não importa nada do módulo Vendedor (nem seus contracts): este schema é a "visão" que o consumidor
- * tem do payload. Campos a mais são ignorados (objeto não estrito) e o Treinamento segue funcionando sem o Vendedor.
- * Se o Vendedor mudar nomes ou tipos, o evento é recusado aqui (não pontua) até alinharmos o contrato.
- * Contrato oficial (docs/desenho/T-0011.md §2; .coord/contratos/eventos.md): um evento por retorno aceito do ERP;
- * `itens` = o que foi faturado NESTE retorno (o consumidor soma; o total depois de parciais traz só o saldo);
- * `parcial` (padrão false) marca faturamento parcial; parcial sem itens (vazio ou ausente) é lido, mas ignorado pelo
- * domínio (`PARCIAL_SEM_ITENS`). O consumidor é idempotente por `evento_id`, que vem do ENVELOPE (não do payload):
- * quem consome o junta ao payload com `lerPedidoFaturado` (T-0036).
+ * Leitura TOLERANTE do evento `vendedor.pedido.faturado@1` ("pedido faturado"), RF-TRE-06. O XP é pago no FATURAMENTO
+ * (status vindo do ERP pelo Hub), não na criação do pedido. T-0024: o schema é o OFICIAL do Vendedor
+ * (`modules/vendedor/contracts`, importado por caminho relativo; sem cópia do payload), lido com `tolerante`: chave
+ * desconhecida some em qualquer nível; tipos, `quantidade` inteira > 0, `itens` com pelo menos 1 e `parcial` obrigatório
+ * seguem o contrato do dono. Payload fora do contrato = recusado (não pontua). Campo que falta = recado ao Vendedor.
+ * `itens` = o que foi faturado NESTE retorno (o consumidor soma). O consumidor é idempotente por `evento_id`, que vem
+ * do ENVELOPE (não do payload): quem consome o junta ao payload com `lerPedidoFaturado` (T-0036).
  *
- * Tipo ÚNICO (T-0036, revisão final da T-0011 🟡1): `PedidoFaturadoLido` é o payload; `EventoFaturadoNoDesafio` é o
- * mesmo schema estendido com `evento_id` e `tenant_id` do envelope. O domínio (domain/desafio.ts) e o consumidor da
- * API recebem só `EventoFaturadoNoDesafio`: mudar o contrato quebra o typecheck do domínio (regra 3 do CLAUDE.md).
+ * A definição do evento (`EVENTO_PEDIDO_FATURADO`) NÃO é reexportada aqui (a catraca `conferirEventosPublicados`
+ * reprova definição alheia no contracts); o consumidor da API a importa do Vendedor e usa `eventoTolerante`.
+ *
+ * Tipo ÚNICO (T-0036): `PedidoFaturadoLido` é o payload; `EventoFaturadoNoDesafio` é o mesmo schema estendido com
+ * `evento_id` e `tenant_id` do envelope. O domínio e o consumidor da API recebem só `EventoFaturadoNoDesafio`.
  */
 import { z } from 'zod';
-import { InstanteUtc, Uuid } from './base';
+import { tolerante } from '@macuxi/platform-sdk';
+import { PedidoFaturadoEvento } from '../../vendedor/contracts';
+import { Uuid } from './base';
 
-export const PedidoItemLido = z.object({
-  produto_id: Uuid,
-  /** Unidades vendidas (aceita fração, p.ex. kg). */
-  quantidade: z.number().positive(),
-});
-export type PedidoItemLido = z.infer<typeof PedidoItemLido>;
-
-export const PedidoFaturadoLido = z.object({
-  pedido_id: Uuid,
-  /** Vendedor dono do pedido (quem recebe o XP); em pedido "em nome", é o vendedor, não o gestor. */
-  vendedor_id: Uuid,
-  /** Instante UTC do faturamento (define o dia da vigência e do XP). Pedido sem este campo (só criado) é recusado. */
-  faturado_em: InstanteUtc,
-  /** Itens faturados NESTE evento, a somar com os dos outros eventos do pedido (ausente = vazio). */
-  itens: z.array(PedidoItemLido).max(500).default([]),
-  /** Faturamento parcial (padrão false = total). Em qualquer caso, `quantidade` é a faturada neste evento. */
-  parcial: z.boolean().default(false),
-});
+export const PedidoFaturadoLido = tolerante(PedidoFaturadoEvento);
 export type PedidoFaturadoLido = z.infer<typeof PedidoFaturadoLido>;
-
-/** Nome do evento consumido (deve estar em `consome` do manifesto). */
-export const EVENTO_PEDIDO_FATURADO = 'vendedor.pedido.faturado@1';
 
 /**
  * O pedido faturado como o Treinamento o processa (RF-TRE-06, RN-TRE-08): payload lido + `evento_id` (chave de
  * idempotência do retorno) e `tenant_id` do ENVELOPE. É a entrada de `avaliarPedidoNoDesafio`/`candidatoDoDesafio`.
  */
-export const EventoFaturadoNoDesafio = PedidoFaturadoLido.extend({
+export const EventoFaturadoNoDesafio = tolerante(PedidoFaturadoEvento).extend({
   /** `evento_id` do envelope (não vem no payload). */
   evento_id: Uuid,
   /** Tenant do envelope (o despachante abre a transação com ele; RLS). */

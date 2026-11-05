@@ -309,7 +309,7 @@ describe('T-0036: leitura do evento `vendedor.pedido.faturado@1` com o tipo úni
   const TENANT = u(100);
   const dUuid: DesafioVendas = { ...desafio, id: u(50), tenant_id: TENANT, produto_ids: [u(3)] };
   const envelope = { evento_id: u(70), tenant_id: TENANT };
-  const payload = { pedido_id: u(1), vendedor_id: u(2), faturado_em: '2026-10-28T14:00:00Z', itens: [{ produto_id: u(3), quantidade: 4 }], total_cents: 999 };
+  const payload = { pedido_id: u(1), vendedor_id: u(2), faturado_em: '2026-10-28T14:00:00Z', itens: [{ produto_id: u(3), quantidade: 4 }], parcial: false, total_cents: 999 };
 
   it('RN-TRE-08: a entrada do domínio é o tipo do contrato — payload lido + evento_id e tenant_id do envelope (muda o contrato, quebra o typecheck)', () => {
     type Entrada = Parameters<typeof candidatoDoDesafio>[1];
