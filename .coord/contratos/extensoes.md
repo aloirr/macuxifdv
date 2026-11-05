@@ -23,6 +23,26 @@ Ex.: "Novo pedido" do Vendedor em `cliente.acoes` com `apps: ['campo']` não apa
 > - `visita.etapas_checkout` passa a receber do Core, além do motivo de cliente fechado (RN-CORE-14), o `resultado` do checkout
 >   (`atendido | pedido | sem_pedido | cliente_fechado`); cada etapa concluída/dispensada vai no payload do comando `visita_checkout`
 >   (`etapas[]`) e vira linha de `core.visita_etapa`.
-> - **`visita.etapas_checkout` no servidor** (planejado, sem data): cada módulo com etapa obrigatória com estado no servidor
->   (Pesquisa, Promotor) expõe por contrato a verificação da própria etapa, e o Core a chama no `receber` do `visita_checkout`
->   (RN-CORE-12 revalidada na API). Entra com a primeira etapa real; tipo em `modules/core/contracts/extensoes.ts`.
+
+## `visita.etapas_checkout` no servidor (T-0039, contrato aditivo, revisado em 05/11)
+
+RN-CORE-12/14 revalidadas na API: no `receber` do comando `visita_checkout` o Core chama `avaliarCheckoutNoServidor`
+(`modules/core/domain/checkout-servidor.ts`). **O servidor não confia nas etapas que o aparelho diz ter cumprido**: só libera
+o checkout o que o módulo dono da etapa confirma no servidor. Checkout inválido = item `rejeitado` no push (`codigo`
+`RN-CORE-12`, `RN-CORE-14` ou `MOTIVO_INVALIDO`, mensagem em português), nada gravado em `core.visita`, nenhum evento.
+
+| Consulta | Oferece | Schemas (em `modules/core/contracts/etapas-checkout.ts`) | Chamada por | Estado |
+|---|---|---|---|---|
+| `<modulo>.etapas_checkout@1` | cada módulo com etapa obrigatória e estado no servidor (pesquisa, promotor) | entrada `EtapasCheckoutEntradaSchema` (`visita_id`, `cliente_id`, `usuario_id`, `cliente_fechado`); saída `EtapasCheckoutSaidaSchema` (`etapas[]`: `etapa`, `rotulo`, `obrigatoria`, `concluida`; até 20) | core (`api/etapas-checkout.ts`, `verificadorPorConsulta`) | contrato publicado; **nenhum módulo oferece ainda** (`CONSULTAS_ETAPAS_CHECKOUT` vazia) |
+
+Como um módulo entra: `definirConsulta({ nome: '<modulo>.etapas_checkout@1', entrada: EtapasCheckoutEntradaSchema, saida: EtapasCheckoutSaidaSchema })`
+nos `contracts` do próprio módulo (importando os schemas de `modules/core/contracts`), implementação no `api`, nome em
+`ofereceConsultas` do manifesto; depois **recado ao modulo-core** para incluir a definição em `CONSULTAS_ETAPAS_CHECKOUT` e em
+`usaConsultasOpcionais` do manifesto do Core. O id `etapa` é o mesmo do item do slot no app (`pesquisa.preco`) e vira
+`core.visita_etapa.etapa`.
+
+Regras do Core sobre a resposta: módulo desligado no tenant/usuário (`ConsultaIndisponivel`) = sem etapa daquele módulo;
+saída fora do schema = erro (500, não libera); `cliente_fechado` (RN-CORE-14) dispensa as obrigatórias e grava `dispensada`.
+Etapas informadas pelo aparelho de módulo sem a consulta continuam gravadas em `core.visita_etapa` só como registro
+informativo e **não liberam nada**. Até a primeira consulta publicada valem só as regras do Core (resultado, motivo, pedido,
+foto da fachada), as mesmas da folha do app (`prepararCheckoutVisita`).

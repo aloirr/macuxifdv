@@ -25,3 +25,4 @@ da própria ADR; em caso de divergência, vale o arquivo da ADR.
 | [0018](0018-modelo-de-sincronizacao.md) | Modelo de sincronização do app: Sincronizar, fila automática, push e novidades | aceita |
 | [0019](0019-consulta-opcional-sem-aresta-de-dependencia.md) | Consulta opcional sem aresta de dependência (`usaConsultasOpcionais`) | aceita |
 | [0020](0020-ambiente-demo-magalu-cloud.md) | Ambiente demo/homologação na Magalu Cloud: VM com Docker Compose, túnel da Cloudflare, imagens no GHCR e fotos em Object Storage S3 | aprovada (04/11/2026, por Alexandre, R-20261104-213539) |
+| [0021](0021-geracao-da-base-no-sync.md) | Geração da base do tenant no sync: o aparelho percebe a base recriada ou restaurada | proposta |

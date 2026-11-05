@@ -7,6 +7,7 @@
 import { comTenant, PAPEL_APP } from '@macuxi/db';
 import type { AcessoBanco, ClienteBanco } from '@macuxi/platform-sdk';
 import type pg from 'pg';
+import { resumoDaLinha, type ResumoOutbox } from './observabilidade';
 
 export interface BancoApp extends AcessoBanco {
   /** Confere o papel da conexão; erro = a API não sobe. */
@@ -18,6 +19,16 @@ export interface BancoApp extends AcessoBanco {
   horizonteSync(): Promise<Date>;
   /** Relógio do banco agora (`clock_timestamp()`): instante do aceite no push, comparável ao horizonte (D-3). */
   instanteSync(): Promise<Date>;
+  /**
+   * ADR 0021: `plataforma.tenant.geracao_base` do tenant (pela RLS do `macuxi_app`). `undefined` = banco sem a coluna (antes
+   * da 0022) ou tenant sem linha: o pull e as novidades seguem sem o campo. Opcional para os bancos falsos dos testes.
+   */
+  geracaoBase?(tenantId: string): Promise<string | undefined>;
+  /**
+   * T-0078: contagens da outbox de todos os tenants (`plataforma.resumo_outbox`, SECURITY DEFINER, só números) para
+   * `GET /v1/saude`. `undefined` = banco sem a função. Opcional para os bancos falsos dos testes.
+   */
+  resumoOutbox?(nomes: readonly string[], maxTentativas: number): Promise<ResumoOutbox | undefined>;
 }
 
 export class ErroPapelBanco extends Error {
@@ -33,6 +44,11 @@ export interface OpcoesBanco {
 }
 
 export const MARGEM_HORIZONTE_PADRAO_MS = 2_000;
+
+/** Coluna ausente (banco antes da 0022): a API tenta de novo depois deste intervalo, sem repetir o erro a cada página. */
+const ESPERA_SEM_COLUNA_MS = 60_000;
+const COLUNA_INEXISTENTE = '42703';
+const FUNCAO_INEXISTENTE = '42883';
 
 /**
  * Transações de OUTROS backends do mesmo banco. O `macuxi_app` só enxerga `xact_start` de sessões do próprio
@@ -51,6 +67,8 @@ const SQL_HORIZONTE = `
 
 export function criarBancoApp(pool: pg.Pool, op: OpcoesBanco = {}): BancoApp {
   const margem = op.margemHorizonteMs ?? MARGEM_HORIZONTE_PADRAO_MS;
+  let semColunaAte = 0;
+  let semResumoAte = 0;
   return {
     async verificar() {
       const r = await pool.query<{ usuario: string; superusuario: boolean; ignora_rls: boolean }>(
@@ -83,6 +101,36 @@ export function criarBancoApp(pool: pg.Pool, op: OpcoesBanco = {}): BancoApp {
     async instanteSync() {
       const r = await pool.query<{ agora: Date }>('select clock_timestamp() as agora');
       return r.rows[0]!.agora;
+    },
+    async geracaoBase(tenantId) {
+      if (Date.now() < semColunaAte) return undefined;
+      try {
+        return await comTenant(pool, tenantId, async (c) => {
+          const r = await c.query<{ geracao: string | null }>(
+            'select geracao_base::text as geracao from plataforma.tenant where id = $1',
+            [tenantId],
+          );
+          return r.rows[0]?.geracao ?? undefined;
+        });
+      } catch (e) {
+        if ((e as { code?: unknown }).code !== COLUNA_INEXISTENTE) throw e;
+        semColunaAte = Date.now() + ESPERA_SEM_COLUNA_MS;
+        return undefined;
+      }
+    },
+    async resumoOutbox(nomes, maxTentativas) {
+      if (Date.now() < semResumoAte) return undefined;
+      try {
+        const r = await pool.query<{ pendentes: number; parados: number; mais_antigo_s: number | null }>(
+          'select pendentes, parados, mais_antigo_s from plataforma.resumo_outbox($1::text[], $2::int)',
+          [[...nomes], maxTentativas],
+        );
+        return resumoDaLinha(r.rows[0]);
+      } catch (e) {
+        if ((e as { code?: unknown }).code !== FUNCAO_INEXISTENTE) throw e;
+        semResumoAte = Date.now() + ESPERA_SEM_COLUNA_MS;
+        return undefined;
+      }
     },
   };
 }

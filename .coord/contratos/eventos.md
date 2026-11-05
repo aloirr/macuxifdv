@@ -2,45 +2,51 @@
 
 > Dono: engenheiro-software. O schema de cada evento fica em `modules/<publicador>/contracts/eventos.ts`. Mudança incompatível = nova versão + recado aos consumidores.
 >
+> **Padrão T-0024 ([desenho](../../docs/desenho/T-0024.md))**: o dono exporta do `contracts` a `DefinicaoEvento` (`definirEvento(nome, Schema)`) de cada evento do `publica`; o consumidor importa essa definição do `contracts` do dono e lê com `eventoTolerante(EVENTO_X)` do platform-sdk (chave desconhecida descartada, o resto validado como no contrato), **sem cópia** do payload. A catraca `apps/api/test/eventos-contratos.test.ts` reprova evento publicado sem definição, `contracts` que exporta definição de evento alheio e consumidor com cópia. Coluna "Schema em": **dono** = definição oficial exportada; "cópia" = consumidor que ainda mantém espelho (a trocar na T-0024).
+>
 > **Entrega (T-0022, ADR 0007 "Implementação")**: o despachante (`pnpm --filter api worker`) entrega cada evento aos módulos que o declaram em `consome` **e** registram `consumidores: [definirConsumidor({ evento, executar })]` no `definirModuloApi`; só a quem tem o módulo ativo no tenant; idempotente por (consumidor, evento_id); falha retenta com espera crescente. A coluna "Consome" abaixo é o planejado: o evento só chega quando o consumidor estiver registrado na API do módulo.
 
-| Evento | Publica | Consome |
-|---|---|---|
-| `core.cliente.atualizado@1` | core | gestor, catalogo |
-| `core.visita.checkin@1` | core | promotor, pesquisa, gestor |
-| `core.visita.checkout@1` | core | gestor, promotor |
-| `core.usuario.modulos_alterados@1` | core | todos (shell) |
-| `core.notificacao.criada@1` | core | core (envio do push pela Expo atrás de `MACUXI_PUSH_ATIVO=1`, `data.link` + `data.entidades`, T-0065; consumidor em `modules/core/api/consumidores.ts`) |
-| `core.rota.dia_planejado@1` | core | gestor (cobertura de rota, RN-GES; **planejado** — pedido do modulo-gestor via R-20261031-165536; payload a definir pelo modulo-core na T-0018, quando o BKO publica/gera a rota do dia) |
-| `core.meta.definida@1` | core | core (push da meta, T-0065), gestor (meta × realizado; a declarar). **Publicado** desde a T-0020 no `PUT metas/:usuarioId/:periodo`, só quando o valor muda; payload na nota "Sprint 1" abaixo |
-| `catalogo.produto.visualizado@1` | catalogo | gestor (P2) |
-| `catalogo.busca.realizada@1` | catalogo | catalogo (analytics) |
-| `vendedor.pedido.criado@1` | vendedor | gestor, core (metas) |
-| `vendedor.pedido.status_alterado@1` | vendedor | gestor, integracao, core (metas) |
-| `vendedor.pedido.aprovacao_solicitada@1` | vendedor | gestor |
-| `vendedor.pedido.faturado@1` | vendedor | treinamento (desafio de vendas, RN-TRE), gestor e core (metas; a declarar) |
-| `vendedor.pedido.aprovado@1` | vendedor | integracao (fila de exportação ao ERP, RN-INT-08; A8 declarado e consumido desde 2026-11-02, T-0032). **Aprovado** (T-0029, ADR 0011 aceita em 2026-11-01; o manifesto do Vendedor passa a publicar na onda 2) |
-| `promotor.visita_loja.concluida@1` | promotor | gestor |
-| `promotor.gondola.registrada@1` | promotor | gestor |
-| `promotor.share.medido@1` | promotor | gestor |
-| `promotor.preco.coletado@1` | promotor | gestor |
-| `promotor.ruptura.registrada@1` | promotor | gestor, vendedor (alerta, P1) |
-| `promotor.tarefa.concluida@1` | promotor | gestor |
-| `pesquisa.resposta.registrada@1` | pesquisa | gestor |
-| `treinamento.licao.concluida@1` | treinamento | gestor |
-| `treinamento.medalha.conquistada@1` | treinamento | gestor, core (notificação) |
-| `integracao.cliente.atualizado@1` | integracao | core |
-| `integracao.produto.atualizado@1` | integracao | core (dono de `core.produto`, ADR 0005; consumido desde a T-0066). O catálogo deixa de consumir |
-| `integracao.preco.atualizado@1` | integracao | catalogo (consumido desde a T-0066; produto achado por `core.cadastro_resumo@1` `produto_external_ids`) |
-| `integracao.estoque.atualizado@1` | integracao | catalogo (consumido desde a T-0066) |
-| `integracao.vendedor.atualizado@1` | integracao | core (usuários; consumido desde a T-0066) |
-| `integracao.titulo.atualizado@1` | integracao | core (dono de `core.titulo`, doc 04; consumido desde a T-0066 — T-0016 corrige a sugestão anterior "vendedor": o Vendedor lê o título do Core por contrato/sync) |
-| `integracao.nota.atualizado@1` | integracao | vendedor (nota do pedido; a declarar) |
-| `integracao.rota.atualizado@1` | integracao | core (rota datada das próximas 4 ocorrências; consumido desde a T-0066) |
-| `integracao.pedido.retorno_erp@1` | integracao | vendedor (aplica o status e publica `vendedor.pedido.faturado@1`; desenho T-0011) |
-| `integracao.lote.concluido@1` | integracao | integracao (monitor do BKO, RF-INT-04) |
-| `integracao.reconciliacao.divergente@1` | integracao | integracao (monitor do BKO), gestor (alertas; a declarar) |
-| `integracao.lote.recebido@1` | integracao | integracao — **interno** (T-0025; ADR 0013 §7): a outbox como fila; o `POST /integracao/v1/lotes` publica na transação do lote (`LoteRecebidoEvento`: ids e contagens, sem linhas) e o consumidor do próprio módulo aplica o lote. Nenhum outro módulo consome |
+| Evento | Publica | Consome | Schema em (T-0024, 05/11) |
+|---|---|---|---|
+| `core.cliente.atualizado@1` | core | gestor, catalogo | **dono** `core: EVENTO_CLIENTE_ATUALIZADO` · cópia: gestor (`ClienteAtualizadoV1`, extend) |
+| `core.visita.checkin@1` | core | promotor, pesquisa, gestor | **dono** `core: EVENTO_VISITA_CHECKIN` · cópia: gestor (`VisitaCheckinV1`) |
+| `core.visita.checkout@1` | core | gestor, promotor | **dono** `core: EVENTO_VISITA_CHECKOUT` · gestor usa o oficial (sem tolerante) |
+| `core.usuario.modulos_alterados@1` | core | todos (shell) | **dono** `core: EVENTO_MODULOS_ALTERADOS` |
+| `core.notificacao.criada@1` | core | core (envio do push pela Expo atrás de `MACUXI_PUSH_ATIVO=1`, `data.link` + `data.entidades`, T-0065; consumidor em `modules/core/api/consumidores.ts`) | **dono** `core: EVENTO_NOTIFICACAO_CRIADA` (consumo próprio) |
+| `core.rota.dia_planejado@1` | core | gestor (cobertura de rota, RN-GES; **planejado** — pedido do modulo-gestor via R-20261031-165536; payload a definir pelo modulo-core na T-0018, quando o BKO publica/gera a rota do dia) | **nenhum** (planejado) · proposta só no gestor (`RotaDiaPlanejadoV1`) → core publica o schema |
+| `core.meta.definida@1` | core | core (push da meta, T-0065), gestor (meta × realizado; a declarar). **Publicado** desde a T-0020 no `PUT metas/:usuarioId/:periodo`, só quando o valor muda; payload na nota "Sprint 1" abaixo | **dono** `core: EVENTO_META_DEFINIDA` · cópia divergente: gestor (`MetaDefinidaV1` `{mes, meta_cents}`) |
+| `catalogo.produto.visualizado@1` | catalogo | gestor (P2) | **nenhum** (está em `publica` sem schema) |
+| `catalogo.busca.realizada@1` | catalogo | catalogo (analytics) | **nenhum** (está em `publica` sem schema) |
+| `vendedor.pedido.criado@1` | vendedor | gestor, core (metas) | **dono** `vendedor: EVENTO_PEDIDO_CRIADO` · cópia: gestor (`PedidoCriadoV1`) |
+| `vendedor.pedido.status_alterado@1` | vendedor | gestor, integracao, core (metas) | **dono** `vendedor: EVENTO_PEDIDO_STATUS_ALTERADO` · cópias: gestor, core (`consumidores-pedido.ts`), integracao (`PedidoStatusAlteradoConsumido`) |
+| `vendedor.pedido.aprovacao_solicitada@1` | vendedor | gestor | **dono** `vendedor: EVENTO_PEDIDO_APROVACAO_SOLICITADA` · cópias: gestor (`AprovacaoSolicitadaV1`), core |
+| `vendedor.pedido.faturado@1` | vendedor | treinamento (desafio de vendas, RN-TRE), gestor e core (metas; a declarar) | **dono** `vendedor: EVENTO_PEDIDO_FATURADO` · cópias: gestor (`PedidoFaturadoV1`), treinamento (`PedidoFaturadoLido`) |
+| `vendedor.pedido.aprovado@1` | vendedor | integracao (fila de exportação ao ERP, RN-INT-08; A8 declarado e consumido desde 2026-11-02, T-0032). **Aprovado** (T-0029, ADR 0011 aceita em 2026-11-01; o manifesto do Vendedor passa a publicar na onda 2) | **dono** `vendedor: EVENTO_PEDIDO_APROVADO` · cópia: integracao (`PedidoAprovadoConsumido`) |
+| `promotor.visita_loja.concluida@1` | promotor | gestor | **dono** `promotor: EVENTO_VISITA_LOJA_CONCLUIDA` · gestor usa o oficial (sem tolerante); campos: docs/modulos/promotor/eventos.md |
+| `promotor.gondola.registrada@1` | promotor | gestor | **dono** `promotor: EVENTO_GONDOLA_REGISTRADA` · idem |
+| `promotor.share.medido@1` | promotor | gestor | **dono** `promotor: EVENTO_SHARE_MEDIDO` · idem |
+| `promotor.preco.coletado@1` | promotor | gestor | **dono** `promotor: EVENTO_PRECO_COLETADO` · idem |
+| `promotor.ruptura.registrada@1` | promotor | gestor, vendedor (alerta, P1) | **dono** `promotor: EVENTO_RUPTURA_REGISTRADA` · idem (vendedor ainda sem consumidor) |
+| `promotor.tarefa.concluida@1` | promotor | gestor | **dono** `promotor: EVENTO_TAREFA_CONCLUIDA` · idem |
+| `pesquisa.resposta.registrada@1` | pesquisa | gestor | **dono** `pesquisa: DEF_RESPOSTA_REGISTRADA` · cópia: gestor (`RespostaRegistradaV1`) |
+| `treinamento.licao.concluida@1` | treinamento | gestor | **dono** `treinamento: DEFINICAO_LICAO_CONCLUIDA` · cópia: gestor (`LicaoConcluidaV1`) |
+| `treinamento.medalha.conquistada@1` | treinamento | gestor, core (notificação) | **dono** `treinamento: DEFINICAO_MEDALHA_CONQUISTADA` · cópia: gestor (`MedalhaConquistadaV1`); core ainda sem consumidor |
+| `integracao.cliente.atualizado@1` | integracao | core | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: core (`consumidores-erp.ts`) |
+| `integracao.produto.atualizado@1` | integracao | core (dono de `core.produto`, ADR 0005; consumido desde a T-0066). O catálogo deixa de consumir | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópias: core (`erp-apoio.ts`), catalogo (`consumidores-erp.ts`) |
+| `integracao.preco.atualizado@1` | integracao | catalogo (consumido desde a T-0066; produto achado por `core.cadastro_resumo@1` `produto_external_ids`) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: catalogo |
+| `integracao.estoque.atualizado@1` | integracao | catalogo (consumido desde a T-0066) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: catalogo |
+| `integracao.vendedor.atualizado@1` | integracao | core (usuários; consumido desde a T-0066) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: core |
+| `integracao.titulo.atualizado@1` | integracao | core (dono de `core.titulo`, doc 04; consumido desde a T-0066 — T-0016 corrige a sugestão anterior "vendedor": o Vendedor lê o título do Core por contrato/sync) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: core |
+| `integracao.nota.atualizado@1` | integracao | vendedor (nota do pedido; a declarar) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópias: core, vendedor (`api/eventos-consumidos.ts`) |
+| `integracao.rota.atualizado@1` | integracao | core (rota datada das próximas 4 ocorrências; consumido desde a T-0066) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: core |
+| `integracao.catalogo_no.atualizado@1` | integracao | catalogo (consumido desde a T-0066) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: catalogo |
+| `integracao.produto_unidade.atualizado@1` | integracao | core (unidades do produto, T-0061) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: core |
+| `integracao.cliente_endereco.atualizado@1` | integracao | core (endereços de entrega, T-0061) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts · cópia: core |
+| `integracao.transportadora.atualizado@1` | integracao | — (sem consumidor; a declarar) | só schema no dono (`EVENTOS_ATUALIZADO`); a `DefinicaoEvento` está em `api/eventos.ts` → mover para contracts |
+| `integracao.pedido.retorno_erp@1` | integracao | vendedor (aplica o status e publica `vendedor.pedido.faturado@1`; desenho T-0011) | só schema no dono (`PedidoRetornoErpEvento`); definição em `api/eventos.ts` · cópia: vendedor (`contracts/pre-venda.ts` `RetornoErpConsumido`) |
+| `integracao.lote.concluido@1` | integracao | integracao (monitor do BKO, RF-INT-04) | só schema no dono (`LoteConcluidoEvento`); definição em `api/eventos.ts` |
+| `integracao.reconciliacao.divergente@1` | integracao | integracao (monitor do BKO), gestor (alertas; a declarar) | só schema no dono (`ReconciliacaoDivergenteEvento`); definição em `api/eventos.ts` |
+| `integracao.lote.recebido@1` | integracao | integracao — **interno** (T-0025; ADR 0013 §7): a outbox como fila; o `POST /integracao/v1/lotes` publica na transação do lote (`LoteRecebidoEvento`: ids e contagens, sem linhas) e o consumidor do próprio módulo aplica o lote. Nenhum outro módulo consome | só schema no dono (`LoteRecebidoEvento`); definição em `api/eventos.ts` (consumo próprio) |
 
 > Integração (T-0009): a antiga linha curinga `integracao.<entidade>.atualizado@1` virou uma linha por entidade,
 > para que cada consumidor seja explícito. "a declarar" = consumidor sugerido que ainda não está no `consome` do manifesto;

@@ -139,6 +139,11 @@ export async function verificarPapelWorker(pool: Pick<pg.Pool, 'query'>): Promis
   if (papel.superusuario || papel.ignora_rls) throw new ErroPapelBanco(`${PAPEL_WORKER} não pode ser superusuário nem ter BYPASSRLS.`);
 }
 
+/** Eventos com consumidor instalado (o despachante só olha estes; os outros ficam na outbox). Também no resumo de `/v1/saude`. */
+export function nomesConsumidos(modulos: readonly ModuloApi[]): string[] {
+  return [...new Set(modulos.flatMap((m) => (m.consumidores ?? []).map((c) => c.evento.nome)))];
+}
+
 export function criarDespachante(op: OpcoesDespachante) {
   const relogio = op.agora ?? (() => new Date());
   const lote = op.lote ?? LOTE_PADRAO;
