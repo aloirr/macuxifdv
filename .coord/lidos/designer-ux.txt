@@ -53,3 +53,6 @@ R-20261105-020053-modulo-gestor
 R-20261105-020938-engenheiro-apps
 R-20261105-025934-modulo-core
 R-20261105-033356-modulo-core
+R-20261105-054146-alexandre
+R-20261105-064206-modulo-gestor
+R-20261105-075547-engenheiro-software
