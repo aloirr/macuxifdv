@@ -141,7 +141,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: escritas do BKO (T-0052)', (
     expect(await noTenant(A.tenantId, (r) => r.salvarConteudo(P_CONT, conteudo(a2, 'Nova'), AGORA))).toEqual({ criado: false });
 
     const { conteudo: c } = await noTenant(A.tenantId, (r) => r.conteudo(P_CONT));
-    expect(c).toMatchObject({ descricao: 'Nova' });
+    expect(c).toMatchObject({ description: 'Nova' });
     const vivos = await noTenant(A.tenantId, async (_r, db) => (await db.query('select nome, valor from catalogo.produto_atributo where produto_id = $1 and deleted_at is null order by ordem', [P_CONT])).rows);
     expect(vivos).toEqual([
       { nome: 'Peso', valor: '2 kg' },
