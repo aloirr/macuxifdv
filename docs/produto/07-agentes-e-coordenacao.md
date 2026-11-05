@@ -93,7 +93,7 @@ criado_em: 2026-10-31T14:05:12-04:00
 > Decisão do Alexandre, 2026-10-31 (versão final; vale a partir de agora, sem pedir confirmação).
 
 **1. Frentes**
-- **Local** (este VS Code, agentes de `.claude/`): tudo que precisa do Docker/Postgres, da pasta da Fase M, de build ou aparelho Android, ou que mexe em arquivos de um agente ativo.
+- **Local** (este VS Code, agentes de `.claude/`): tudo que precisa da pasta da Fase M, de build ou aparelho Android, ou que mexe em arquivos de um agente ativo. **Sem Docker no PC** (decisão do Alexandre, R-20261105-053835): nenhum agente local roda `docker` nem depende do Postgres local; testes de banco e o stack isolado rodam no CI do GitHub (branch de verificação e `stack-isolado.yml`), e o CI verde é o critério.
 - **Nuvem** (claude.ai/code, sessões abertas pelo Alexandre sobre o GitHub `aloirr/macuxifdv`): tarefas só de código e testes, sem dependência local, cada uma no seu branch (`nuvem/*`, `alexandre/*` ou `agente/*`), com **merge automático no `main` quando os testes passam**.
 
 **2. Trava de arquivos**

@@ -26,8 +26,11 @@ A demo e a homologação rodam na VM `macuxi-demo-se1` (177.93.129.233, br-se1) 
   - ✅ `api-demo/v1/saude` responde 200;
   - ✅ às 6h (Manaus), depois do deploy do 297dc60: `bko-demo/login` responde 200 e `tests/scripts/demo-no-ar-dominio.mjs` dá "demo no ar pelo domínio".
 
-## Plano B: demo no PC, só com túnel rápido
-Os passos abaixo são do tempo em que a demo rodava no PC. **Servem só de plano B**, com o **túnel rápido** (trycloudflare, endereço temporário). Os APKs de preview não conectam por ele; só o build de desenvolvimento conecta.
+## Plano B: recriar a base na VM (não mais o PC)
+**Desde 05/11/2026 (R-20261105-053835) não há Docker no PC do dono do produto.** O plano B da demo é recriar a base na VM da Magalu pelo workflow `demo-recriar-base` (GitHub Actions, manual). A seção abaixo é só histórico do tempo em que a demo rodava no PC — **não use**.
+
+## Histórico: demo no PC, só com túnel rápido (APOSENTADO)
+Os passos abaixo são do tempo em que a demo rodava no PC, com o **túnel rápido** (trycloudflare, endereço temporário). Os APKs de preview não conectam por ele; só o build de desenvolvimento conecta.
 > ⚠️ **Não use `configurar-dominio.ps1`.** Ele sobrescreveria o DNS de `api-demo`/`bko-demo`, que hoje aponta para o túnel da nuvem. O script agora recusa rodar.
 
 ## Antes do dia

@@ -17,6 +17,7 @@ packages/{platform-sdk,ui,config} · db/ (migrações, RLS, seeds, views do Cone
 ## Comandos
 `pnpm install` · `pnpm dev` · `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm --filter <pacote> test`
 Repositório: `C:\macuxifdv`. A Fase M (mockup com Excel) fica em `C:\Users\domon\dev\forca-vendas` — só consulta e cópia, nunca alterar. Ambiente Windows/PowerShell.
+**Sem Docker no PC do dono do produto** (R-20261105-053835): nenhum agente roda `docker` nem depende do Postgres local (5432/5434). Testes de banco (`*.db.test.ts`, integração) e o stack isolado rodam no CI do GitHub (branch de verificação, workflow `stack-isolado.yml`); o resultado do CI é o critério. A demo roda na Magalu (ADR 0020); o plano B é recriar a base na VM pelo workflow `demo-recriar-base`.
 Coordenação: `node scripts/coord.mjs` (caixa, enviar, pendencias, dono, verificar).
 
 ## Regras inegociáveis

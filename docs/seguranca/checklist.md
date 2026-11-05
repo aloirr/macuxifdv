@@ -27,7 +27,7 @@ Legenda: ✅ feito, com prova · 🟡 parcial ou pendente (com o que falta).
 ### LGPD
 - 🟡 G1 — Retenção: backup diário com 7 cópias (`db/backup/LEIA-ME.md`); o doc 04 pede 30 dias. Prazos de logs da busca e da auditoria: aguardando o banco-dados.
 - 🟡 G2 — Exclusão sob pedido (titular ou tenant): aguardando o banco-dados (o que existe: soft delete por `deleted_at`; falta o roteiro de anonimização e de exclusão por tenant).
-- 🟡 G3 — Termo de uso do dado do ERP: não existe documento; precisa de texto aprovado pelo Alexandre (o que o Hub lê, para quê, por quanto tempo, quem acessa).
+- 🟡 G3 — Termo de uso do dado do ERP: rascunho em docs/seguranca/termo-dado-erp.md (05/11, engenheiro-software); aguarda revisão jurídica e aprovação do dono do produto.
 - ✅ G4 — Localização só no check-in/checkout (doc 04 "LGPD"); fotos com orientação "sem rostos".
 
 ### Observabilidade
