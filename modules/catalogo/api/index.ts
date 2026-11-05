@@ -1,7 +1,7 @@
 /**
  * API do Catálogo (`/v1/catalogo`). T-0029: provedores de pull de preço e a consulta `catalogo.precos_cliente@1`
  * (ADR 0012). T-0052: rotas de busca, vitrine, ficha, filtros e o BKO de conteúdo (`rotas.ts`), sobre o repositório
- * Postgres (`repositorio-postgres.ts`; o que espera a migração 0013 está descrito lá).
+ * Postgres (`repositorio-postgres.ts`; tabelas da migração 0013 ligadas).
  * Provedor de IA da busca (opcional): `MACUXI_CATALOGO_IA_URL` (+ `MACUXI_CATALOGO_IA_CHAVE`, enviada como
  * `Authorization: Bearer`) no `.env`. Sem URL, a busca usa só as regras locais (sem aviso: não há IA a perder).
  */

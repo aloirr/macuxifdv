@@ -14,3 +14,6 @@
 2026-11-03 — T-0071 — contratos do Catálogo: removidas cópias duplicadas (entidades.ts, sync.ts); aviso ao vendedor sobre sugestoes_pedido@1/embalagens[]
 2026-11-04 — T-0071 — estoque_saldo e deposito no pull do Catálogo (P4), teste sync-estoque.db.test.ts
 2026-11-05 — T-0024 — contracts/eventos.ts (schemas strict + definições de catalogo.produto.visualizado@1 e busca.realizada@1) e consumidores do ERP lendo integracao.{produto,preco,estoque,catalogo_no}.atualizado@1 do contracts do dono (eventoTolerante); fixtures do db test no formato do Hub
+2026-11-05 — T-0052 — B3 (repositório Postgres e pull ligados à 0013), B4 (pré-seleção FTS5 por termo: 2.154 produtos de 3,8–14 s para 36–66 ms), B1 (SKU compacto), B2 (mesma semântica em qualquer tamanho); testes e docs atualizados
+2026-11-05 — T-0052 — revisão final: destaque grava campanha+destaque, conflito de sinônimo inclui inativos (409 também na corrida), repositorio-postgres.db.test.ts, texto da pré-seleção corrigido
+2026-11-05 — T-0052 — 🟢5 (prefixo no FTS5), 🟢7 (busca_log melhor esforço), 🟢8 (selling_points sem quebra de linha); busca com versaoLinhas/linhasPorCampo; limpeza do busca_log no db.test pelo admin; 🟢6 fica para depois (ranking.ts/indice.ts no lote M)

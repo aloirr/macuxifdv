@@ -88,7 +88,7 @@ export type PerguntaFrequente = z.infer<typeof PerguntaFrequente>;
 /** Conteúdo comercial da ficha cadastrado no BKO (RF-CAT-07): texto, argumentos de venda e FAQ. */
 export const ConteudoProduto = z.object({
   description: z.string().trim().max(4000).nullable().default(null),
-  selling_points: z.array(z.string().trim().min(1).max(200)).max(10).default([]),
+  selling_points: z.array(z.string().trim().min(1).max(200).regex(/^[^\r\n]+$/, 'Cada argumento de venda deve ficar em uma linha só.')).max(10).default([]),
   faq: z.array(PerguntaFrequente).max(20).default([]),
 });
 export type ConteudoProduto = z.infer<typeof ConteudoProduto>;

@@ -2,7 +2,7 @@
  * Repositório do Catálogo na API (T-0052): o que as rotas leem e gravam, atrás de uma interface. Duas implementações:
  * - `criarRepositorioMemoria` (este arquivo): testes do módulo e base demo sem banco; isolada por tenant (RN-CAT-01).
  * - `criarRepositorioPostgres` (`repositorio-postgres.ts`): preço real (0008) e cadastro base pela consulta do Core
- *   (ADR 0012); estoque, conteúdo, sinônimos, cota de IA e registro de buscas esperam a migração 0013 (banco-dados).
+ *   (ADR 0012); estoque, conteúdo, sinônimos, cota de IA e registro de buscas pelas tabelas da 0013 (RLS do tenant).
  * Toda leitura/escrita acontece dentro de `ctx.comTenant` (RLS do tenant do token); a fábrica recebe o cliente e a
  * transação da requisição.
  */

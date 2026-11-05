@@ -263,3 +263,57 @@ describe('RN-CAT-01: filtros estruturados no ranking', () => {
     expect(ean).toEqual([]);
   });
 });
+
+describe('RF-CAT-01: código exato pela forma compacta (T-0052-B1)', () => {
+  const P = PARAMETROS_PADRAO;
+  const docs = [doc({ id: 'a', sku: 'PAS-DIA-150', nome: 'Pastilha de freio dianteira' }), doc({ id: 'b', sku: 'PAS-TRA-150', nome: 'Pastilha de freio traseira' })];
+  const achar = (value: string) =>
+    rankear(docs, { filtros: filtros({ text: value.toLowerCase().replace(/[^a-z0-9]/g, ''), code: { type: 'sku', value } }), sinonimos: [], parametros: P })
+      .filter((i) => i.exato)
+      .map((i) => i.doc.id);
+
+  it('RF-CAT-01: SKU digitado sem hífen, em minúsculas ou com ponto acha o mesmo produto', () => {
+    expect(achar('PASDIA150')).toEqual(['a']);
+    expect(achar('pasdia150')).toEqual(['a']);
+    expect(achar('PAS.DIA.150')).toEqual(['a']);
+    expect(achar('PAS-DIA-150')).toEqual(['a']);
+  });
+
+  it('RF-CAT-01: código parecido, mas diferente, não vira acerto exato', () => {
+    expect(achar('PASDIA15')).toEqual([]);
+  });
+});
+
+describe('RF-CAT-02: desempenho do ranking com catálogo grande (T-0052-B4; limite folgado, sem relógio de negócio)', () => {
+  const P = PARAMETROS_PADRAO;
+  const palavras = ['freio', 'pastilha', 'oleo', 'filtro', 'cabo', 'corrente', 'pneu', 'vela', 'lona', 'fluido', 'sapata', 'disco', 'bateria', 'lampada', 'retrovisor'];
+  const motos = ['CG 150', 'Biz 125', 'Fan 160', 'Bros 160', 'XRE 300', 'Factor 150'];
+  const catalogo = (n: number): DocBusca[] =>
+    Array.from({ length: n }, (_, i) =>
+      doc({
+        id: `p${i}`,
+        sku: `SKU-${String(i).padStart(5, '0')}`,
+        nome: `${palavras[i % palavras.length]} ${palavras[(i * 7 + 3) % palavras.length]} ${motos[i % motos.length]} ref ${i}`,
+        marca: `Marca ${i % 40}`,
+        categoria: `Linha ${i % 12}`,
+        atributos: `Aplicação ${motos[(i + 1) % motos.length]} cor ${i % 5}`,
+      }),
+    );
+  const medir = (docs: DocBusca[], q: string) => {
+    const t0 = performance.now();
+    const r = rankear(docs, { filtros: filtros({ text: grupos(q).map((g) => g[0]).join(' ') }), sinonimos: [], parametros: P });
+    return { ms: performance.now() - t0, r };
+  };
+
+  it('RF-CAT-02: 400 candidatos (o que o FTS5 entrega) rankeiam em menos de 3 s, mesmo na primeira busca (antes: 1,2 s sem carga; folga para máquina ocupada)', () => {
+    const { ms, r } = medir(catalogo(400), 'freio dianteiro');
+    expect(r.length).toBeGreaterThan(0);
+    expect(ms).toBeLessThan(3000);
+  });
+
+  it('RF-CAT-02: 2.154 produtos na varredura completa (pior caso, sem FTS5) não passam de 5 s (eram 3,8 a 14 s)', () => {
+    const { ms, r } = medir(catalogo(2154), 'freio dianteiro');
+    expect(r.length).toBeGreaterThan(0);
+    expect(ms).toBeLessThan(5000);
+  });
+});

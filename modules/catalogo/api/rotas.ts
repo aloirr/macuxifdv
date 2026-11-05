@@ -154,7 +154,14 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
         const sinonimos: readonly SinonimoDoTenant[] = leitura.sinonimos;
         const pagina = buscarProdutos({ produtos: leitura.produtos, contexto, filtros: interp.filtros, chips: { line: q.line, brand: q.brand, only_in_stock: q.only_in_stock }, sinonimos, limit: q.limit, offset: q.offset });
         const termo = termoDeBusca(q.q);
-        if (termo && q.offset === 0) await repo.registrarBusca({ termo, resultados: pagina.total, em: ctx.agora().toISOString(), interpretado_por: interp.interpreted_by });
+        if (termo && q.offset === 0) {
+          // melhor esforço (T-0052 🟢7): falha no registro não derruba a busca; o log não leva o termo (dado do usuário)
+          try {
+            await repo.registrarBusca({ termo, resultados: pagina.total, em: ctx.agora().toISOString(), interpretado_por: interp.interpreted_by });
+          } catch {
+            ctx.log.warn({ evento: 'catalogo.busca_log_falhou' }, 'Registro da busca não gravado.');
+          }
+        }
         ctx.log.info({ evento: 'catalogo.busca', resultados: pagina.total, interpretado_por: interp.interpreted_by, degradada: interp.degraded, com_cliente: clienteId !== null }, 'Busca do catálogo.');
         return { ...pagina, filters: { ...interp.filtros, measures: [...interp.filtros.measures] }, interpreted_by: interp.interpreted_by, degraded: interp.degraded, notice: interp.notice, from_cache: false, remaining_ai_queries: interp.remaining_ai_queries };
       });

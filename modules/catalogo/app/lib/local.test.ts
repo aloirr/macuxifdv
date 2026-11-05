@@ -8,7 +8,7 @@ import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../../domain/preco';
 import { MENSAGEM_ESCOLHA_CLIENTE } from '../../domain/vitrine';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_SEED_DEMO, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../../fixtures/base-demo';
-import { arvoreLocal, buscarLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
+import { arvoreLocal, buscarLocal, esquecerMemoriaLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
 
 const relogio = criarRelogio();
 const QUANDO = relogio.relativo({ horas: -3 }).toISOString();
@@ -94,6 +94,55 @@ describe('busca offline no aparelho (RF-CAT-02)', () => {
   });
 });
 
+describe('pré-seleção do FTS5 em catálogo grande (T-0052-B2/B4)', () => {
+  const grande = () => {
+    const linhas = linhasDemo();
+    const extras = Array.from({ length: LIMIAR_PRESELECAO_FTS }, (_, i) => base(idDemo(`extra:${i}`), { sku: `X-${i}`, ean: null, nome: `Parafuso ${i}`, marca: 'Ferro', categoria: 'Ferragens', unidade: 'UN', ativo: true }));
+    linhas.produto = [...linhas.produto!, ...extras];
+    return linhas;
+  };
+
+  it('RF-CAT-02: cada termo vira uma consulta própria e o conjunto é a união (a mesma semântica do catálogo pequeno)', async () => {
+    const chamadas: string[] = [];
+    const fts: LeitorLocal['buscar'] = async (_i, c) => {
+      chamadas.push(JSON.stringify(c.grupos));
+      const g = c.grupos[0]![0];
+      return g === 'cafe' ? [{ chave: idProdutoDemo('CAF-500'), pontuacao: -2 }] : [{ chave: idProdutoDemo('ACU-1K'), pontuacao: -1 }];
+    };
+    const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'café açúcar', limit: 20, offset: 0, offline: true });
+    expect(chamadas).toEqual(['[["cafe"]]', '[["acucar"]]']);
+    expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['ACU-1K', 'CAF-500']);
+  });
+
+  it('RF-CAT-02: FTS5 sem nenhum acerto cai na varredura do domain (tolerância a erro de digitação continua valendo)', async () => {
+    const fts: LeitorLocal['buscar'] = async () => [];
+    const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'cafee', limit: 20, offset: 0, offline: true });
+    expect(r.items.map((i) => sku(i.id))).toContain('CAF-500');
+  });
+
+  it('RF-CAT-02: termo sem acerto no FTS5 (erro de digitação) é refeito pelo prefixo de 4 letras, sem varrer o catálogo', async () => {
+    const chamadas: string[] = [];
+    const fts: LeitorLocal['buscar'] = async (_i, c) => {
+      chamadas.push(JSON.stringify(c.grupos));
+      return c.grupos[0]![0] === 'cafe' ? [{ chave: idProdutoDemo('CAF-500'), pontuacao: -1 }] : [];
+    };
+    const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'cafee', limit: 20, offset: 0, offline: true });
+    expect(chamadas).toEqual(['[["cafee"]]', '[["cafe"]]']);
+    expect(r.items.map((i) => sku(i.id))).toEqual(['CAF-500']);
+  });
+
+  it('RF-CAT-01: o código digitado entra como termo próprio na consulta ao FTS5', async () => {
+    const chamadas: string[] = [];
+    const fts: LeitorLocal['buscar'] = async (_i, c) => {
+      chamadas.push(JSON.stringify(c.grupos));
+      return [{ chave: idProdutoDemo('CAF-500'), pontuacao: -1 }];
+    };
+    const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'caf500', limit: 20, offset: 0, offline: true });
+    expect(chamadas).toContain('[["CAF500"]]');
+    expect(r.items.map((i) => sku(i.id))).toEqual(['CAF-500']);
+  });
+});
+
 describe('vitrine e ficha offline', () => {
   it('vitrine: campanha primeiro (boost), chips de categoria; filtros locais para os chips', async () => {
     const v = await vitrineLocal(leitor(), { ...entrada, limit: 50, offset: 0 });
@@ -160,5 +209,58 @@ describe('árvore do catálogo offline (RF-CAT-04)', () => {
     const r = await vitrineLocal(leitor(comArvore()), { ...entrada, perfil: 'promotor', chips: { only_product_ids: ids! }, limit: 50, offset: 0 });
     expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['REF-2L', 'REF-350']);
     expect(r.items.every((i) => i.price === null && i.availability === null)).toBe(true);
+  });
+});
+
+describe('leituras do motor com versão (T-0052-B4)', () => {
+  /** Leitor com `versaoLinhas`/`linhasPorCampo`, que conta as leituras de cada entidade. */
+  function leitorVersionado(linhas = linhasDemo()) {
+    const versoes = new Map<string, number>();
+    const lidas: string[] = [];
+    const porCampo: string[] = [];
+    const l: LeitorLocal = {
+      linhas: async <L extends LinhaSync>(e: string) => {
+        lidas.push(e);
+        return (linhas[e] ?? []) as L[];
+      },
+      linhasPorCampo: async <L extends LinhaSync>(e: string, campo: string, valores: readonly string[]) => {
+        porCampo.push(`${e}.${campo}:${valores.length}`);
+        return (linhas[e] ?? []).filter((x) => valores.includes((x as unknown as Record<string, string>)[campo]!)) as L[];
+      },
+      linhasPorIds: async <L extends LinhaSync>(e: string, ids: readonly string[]) => (linhas[e] ?? []).filter((x) => ids.includes(x.id)) as L[],
+      versaoLinhas: (e) => versoes.get(e) ?? 1,
+    };
+    return { l, lidas, porCampo, versoes };
+  }
+  const buscar = (l: LeitorLocal, q = 'café') => buscarLocal(l, { ...entrada, q, limit: 20, offset: 0, offline: true });
+
+  it('RF-CAT-02: produtos, atributos e sinônimos só são relidos quando a versão das linhas muda', async () => {
+    esquecerMemoriaLocal();
+    const { l, lidas, versoes } = leitorVersionado();
+    const primeira = await buscar(l);
+    const leituras = lidas.filter((e) => e === 'produto').length;
+    expect(leituras).toBe(1);
+    expect((await buscar(l)).items).toEqual(primeira.items);
+    expect(lidas.filter((e) => e === 'produto'), 'segunda busca sai da memória').toHaveLength(1);
+    expect(lidas.filter((e) => e === 'sinonimo')).toHaveLength(1);
+    versoes.set('produto', 2); // o sync gravou produtos
+    await buscar(l);
+    expect(lidas.filter((e) => e === 'produto'), 'versão nova = relê').toHaveLength(2);
+    expect(lidas.filter((e) => e === 'sinonimo'), 'sinônimos não mudaram').toHaveLength(1);
+  });
+
+  it('RN-CAT-06: com poucos candidatos, estoque e preço do cliente vêm por campo, só dos candidatos, com o mesmo resultado', async () => {
+    esquecerMemoriaLocal();
+    const completo = await buscar(leitor(), 'café');
+    esquecerMemoriaLocal();
+    const { l, lidas, porCampo } = leitorVersionado();
+    const r = await buscarLocal(l, { ...entrada, clienteId: CLIENTE_ATACADO, q: 'café', limit: 20, offset: 0, offline: true });
+    const igual = await buscarLocal(leitor(), { ...entrada, clienteId: CLIENTE_ATACADO, q: 'café', limit: 20, offset: 0, offline: true });
+    expect(r.items).toEqual(igual.items);
+    expect(completo.items.length).toBeGreaterThan(0);
+    expect(porCampo.some((c) => c.startsWith('estoque_saldo.produto_id'))).toBe(true);
+    expect(porCampo.some((c) => c.startsWith('tabela_preco_item.produto_id'))).toBe(true);
+    expect(lidas, 'nada de ler a tabela inteira').not.toContain('estoque_saldo');
+    expect(lidas).not.toContain('tabela_preco_item');
   });
 });

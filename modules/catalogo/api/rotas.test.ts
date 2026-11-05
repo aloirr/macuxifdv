@@ -14,7 +14,7 @@ import { MENSAGEM_SEM_PRECO_CLIENTE } from '../domain/preco';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_DEMO, saldosDemo, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../fixtures/base-demo';
 import { manifest } from '../manifest';
 import { criarRepositorioMemoria, type DadosTenantMemoria } from './repositorio';
-import { conteudoIndisponivel, criarRepositorioPostgres } from './repositorio-postgres';
+import { criarRepositorioPostgres } from './repositorio-postgres';
 import { criarRotasCatalogo, type DependenciasRotas } from './rotas';
 
 const relogio = criarRelogio();
@@ -367,7 +367,7 @@ describe('BKO de conteúdo (RF-CAT-07, RN-CAT-04: analista e admin)', () => {
   });
 });
 
-describe('repositório Postgres (até a 0013)', () => {
+describe('repositório Postgres (0013 ligada)', () => {
   const fake = (rows: Record<string, unknown[]>) => {
     const sqls: string[] = [];
     const db = {
@@ -409,11 +409,17 @@ describe('repositório Postgres (até a 0013)', () => {
     expect(await repo.precos(CLIENTE_VAREJO, [idDemo('p1')])).toEqual({ tabelaClienteId: null, itens: [] });
   });
 
-  it('antes da 0013: cota indisponível (IA não é chamada) e escrita do BKO = 503 com a ação seguinte', async () => {
-    const f = fake({});
-    const repo = criarRepositorioPostgres()(ctx, f.db, f.tx as never);
-    expect(await repo.usoIa('2026-11-02')).toBe('indisponivel');
-    await expect(repo.salvarSinonimo(idDemo('s'), { term: 'a', synonyms: ['b'], active: true })).rejects.toMatchObject({ status: 503, codigo: 'CATALOGO_CONTEUDO_INDISPONIVEL' });
-    expect(() => conteudoIndisponivel()).toThrow(/Tente de novo depois da próxima atualização/);
+  it('RN-CAT-03: cota pelas funções atômicas do banco (nulo = limite atingido); sinônimo e estoque saem das tabelas da 0013 (RLS, sem core.)', async () => {
+    const f = fake({
+      'catalogo.consultas_ia_do_dia': [{ n: 3 }],
+      'catalogo.debitar_cota_ia': [{ n: null }],
+      'from catalogo.sinonimo': [{ id: idDemo('s'), termo: 'sapata', sinonimos: ['pastilha'], ativo: true, external_id: null }],
+    });
+    const repo = criarRepositorioPostgres()({ usuario: usuario('vendedor'), agora: () => new Date('2026-11-02T15:00:00Z') } as never, f.db, f.tx as never);
+    expect(await repo.usoIa('2026-11-02')).toEqual({ dia: '2026-11-02', consultas: 3 });
+    expect(await repo.debitarIa('2026-11-02', 3)).toBe(false);
+    expect(await repo.sinonimos()).toEqual([{ id: idDemo('s'), term: 'sapata', synonyms: ['pastilha'], active: true, external_id: null }]);
+    expect(await repo.saldos([])).toEqual(new Map());
+    expect(f.sqls.every((s) => !/\bcore\./.test(s))).toBe(true);
   });
 });

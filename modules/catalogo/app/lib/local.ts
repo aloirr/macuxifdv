@@ -32,14 +32,63 @@ import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type Chips
 
 /** Id do índice FTS5 do Catálogo no aparelho (`app/indice.ts`). */
 export const ID_INDICE_BUSCA = 'catalogo.produto';
-/** Acima disto a busca local pré-seleciona candidatos pelo FTS5 antes do ranking (abaixo, o ranking varre tudo). */
-export const LIMIAR_PRESELECAO_FTS = 2000;
+/**
+ * Acima disto a busca local pré-seleciona candidatos pelo FTS5 antes do ranking (abaixo, o ranking varre tudo).
+ * T-0052-B4: o ranking do domain custa ~0,3 a 1 ms por produto no aparelho; com 500 produtos a varredura cabe no orçamento.
+ */
+export const LIMIAR_PRESELECAO_FTS = 500;
+/** Candidatos que cada termo (com sinônimos) pede ao FTS5, em ordem de relevância (`bm25`). */
+export const CANDIDATOS_POR_TERMO = 150;
+/** Teto de candidatos que chegam ao ranking do domain. */
+export const MAXIMO_CANDIDATOS = 400;
 
 /** O que a busca local precisa do motor de sync (`useMotorSync().motor`). */
 export interface LeitorLocal {
   linhas<L extends LinhaSync>(entidade: string): Promise<L[]>;
   buscar?(indice: string, consulta: ConsultaTexto): Promise<ResultadoFts[] | null>;
+  /**
+   * Leituras do motor de sync (T-0052-B4, opcionais: sem elas — leitor de mapa dos testes — cai em `linhas`). Com as três
+   * últimas o custo de ler o catálogo inteiro cai para uma vez por sync, e preço/estoque só dos candidatos.
+   */
+  linhasPorIds?<L extends LinhaSync>(entidade: string, ids: readonly string[]): Promise<L[]>;
+  linhasPorCampo?<L extends LinhaSync>(entidade: string, campo: string, valores: readonly string[]): Promise<L[]>;
+  contarLinhas?(entidade: string): Promise<number>;
+  versaoLinhas?(entidade: string): number;
 }
+
+/**
+ * Memória de uma posição, chaveada pela versão das linhas (`versaoLinhas`, única no processo: outro motor ou outro
+ * usuário = outra versão). Guarda só o derivado (o SDK não guarda linhas; ADR 0003). Sem `versaoLinhas`, não memoriza.
+ */
+function memorizar<T>(posicao: Map<string, { chave: string; valor: T }>, nome: string, leitor: LeitorLocal, entidades: readonly string[]) {
+  return async (calcular: () => Promise<T>): Promise<T> => {
+    if (!leitor.versaoLinhas) return calcular();
+    // a versão é lida ANTES das linhas: se o sync gravar durante a leitura, a próxima busca relê
+    const chave = entidades.map((e) => leitor.versaoLinhas!(e)).join('|');
+    const guardado = posicao.get(nome);
+    if (guardado && guardado.chave === chave) return guardado.valor;
+    const valor = await calcular();
+    posicao.set(nome, { chave, valor });
+    return valor;
+  };
+}
+const memoria = new Map<string, { chave: string; valor: unknown }>();
+const lembrar = <T>(nome: string, leitor: LeitorLocal, entidades: readonly string[], calcular: () => Promise<T>) =>
+  memorizar(memoria as Map<string, { chave: string; valor: T }>, nome, leitor, entidades)(calcular);
+/** Só para testes: esquece o que foi memorizado. */
+export function esquecerMemoriaLocal(): void {
+  memoria.clear();
+  vocabularios = new WeakMap();
+}
+let vocabularios = new WeakMap<readonly ProdutoCatalogo[], ReturnType<typeof vocabularioDe>>();
+const vocabularioMemorizado = (produtos: readonly ProdutoCatalogo[]) => {
+  let v = vocabularios.get(produtos);
+  if (!v) {
+    v = vocabularioDe(produtos);
+    vocabularios.set(produtos, v);
+  }
+  return v;
+};
 
 export interface EntradaLocal {
   perfil: Perfil | null;
@@ -52,7 +101,11 @@ export interface EntradaLocal {
 const vivas = <L extends LinhaSync>(l: L[]) => l.filter((x) => !x.deleted_at);
 
 /** Produtos do Core enriquecidos com atributos e campanha do Catálogo. */
-export async function produtosLocais(leitor: LeitorLocal): Promise<ProdutoCatalogo[]> {
+export function produtosLocais(leitor: LeitorLocal): Promise<ProdutoCatalogo[]> {
+  return lembrar('produtos', leitor, ['produto', 'produto_atributo', 'produto_conteudo'], () => montarProdutosLocais(leitor));
+}
+
+async function montarProdutosLocais(leitor: LeitorLocal): Promise<ProdutoCatalogo[]> {
   const produtos = vivas(await leitor.linhas<ProdutoSync & LinhaSync>('produto'));
   const atributos = vivas(await leitor.linhas<ProdutoAtributoSync & LinhaSync>('produto_atributo'));
   const conteudos = vivas(await leitor.linhas<ProdutoConteudoSync & LinhaSync>('produto_conteudo'));
@@ -75,9 +128,14 @@ export async function produtosLocais(leitor: LeitorLocal): Promise<ProdutoCatalo
   }));
 }
 
-export async function sinonimosLocais(leitor: LeitorLocal): Promise<SinonimoDoTenant[]> {
-  return vivas(await leitor.linhas<SinonimoSync & LinhaSync>('sinonimo')).map((s) => ({ term: s.termo, synonyms: s.sinonimos, active: s.ativo }));
+export function sinonimosLocais(leitor: LeitorLocal): Promise<SinonimoDoTenant[]> {
+  return lembrar('sinonimos', leitor, ['sinonimo'], async () =>
+    vivas(await leitor.linhas<SinonimoSync & LinhaSync>('sinonimo')).map((s) => ({ term: s.termo, synonyms: s.sinonimos, active: s.ativo })),
+  );
 }
+
+/** Acima disto (ex.: a vitrine inteira) ler tudo é mais barato que pedir por campo. */
+const MAXIMO_POR_CAMPO = 1000;
 
 /**
  * Preço e estoque locais do usuário. RN-CAT-05: o aparelho do promotor nem recebe preço (o pull devolve vazio); mesmo
@@ -90,22 +148,34 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
   const base = { perfil, parametros, agora: e.agora, clienteId: e.clienteId };
   if (e.perfil === null || !podeVerPrecoEstoque(perfil, parametros)) return { ...base, tabelaClienteId: null, itensPreco: [], promocoes: [], saldos: new Map(), filiais: [] };
 
+  // só os candidatos (busca com FTS5) leem por campo; a vitrine inteira lê tudo (T-0052-B4)
+  const porCampo = !!leitor.linhasPorCampo && produtos.length <= MAXIMO_POR_CAMPO;
   let tabelaClienteId: string | null = null;
   let itensPreco: ItemTabelaPreco[] = [];
   if (e.clienteId) {
-    const vinculo = vivas(await leitor.linhas<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco')).find((v) => v.cliente_id === e.clienteId);
-    const tabela = vinculo ? vivas(await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco')).find((t) => t.id === vinculo.tabela_preco_id && t.ativo) : undefined;
+    const vinculos = porCampo
+      ? await leitor.linhasPorCampo!<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco', 'cliente_id', [e.clienteId])
+      : await leitor.linhas<ClienteTabelaPrecoSync & LinhaSync>('cliente_tabela_preco');
+    const vinculo = vivas(vinculos).find((v) => v.cliente_id === e.clienteId);
+    const tabelas = !vinculo ? [] : leitor.linhasPorIds ? await leitor.linhasPorIds<TabelaPrecoSync & LinhaSync>('tabela_preco', [vinculo.tabela_preco_id]) : await leitor.linhas<TabelaPrecoSync & LinhaSync>('tabela_preco');
+    const tabela = vinculo ? vivas(tabelas).find((t) => t.id === vinculo.tabela_preco_id && t.ativo) : undefined;
     if (tabela) {
       tabelaClienteId = tabela.id;
       const ids = new Set(produtos.map((p) => p.id));
-      itensPreco = vivas(await leitor.linhas<TabelaPrecoItemSync & LinhaSync>('tabela_preco_item'))
+      const linhasPreco = porCampo
+        ? await leitor.linhasPorCampo!<TabelaPrecoItemSync & LinhaSync>('tabela_preco_item', 'produto_id', [...ids])
+        : await leitor.linhas<TabelaPrecoItemSync & LinhaSync>('tabela_preco_item');
+      itensPreco = vivas(linhasPreco)
         .filter((i) => i.tabela_preco_id === tabela.id && ids.has(i.produto_id))
         .map((i) => ({ price_table_id: tabela.id, product_id: i.produto_id, price_cents: i.preco_cents, valid_from: i.vigencia_inicio, valid_to: i.vigencia_fim }));
     }
   }
-  const depositos = new Map(vivas(await leitor.linhas<DepositoSync & LinhaSync>('deposito')).map((d) => [d.id, d.nome]));
+  const depositos = await lembrar('depositos', leitor, ['deposito'], async () => new Map(vivas(await leitor.linhas<DepositoSync & LinhaSync>('deposito')).map((d) => [d.id, d.nome])));
   const saldos = new Map<string, StockByBranch[]>();
-  for (const s of vivas(await leitor.linhas<EstoqueSaldoSync & LinhaSync>('estoque_saldo'))) {
+  const linhasSaldo = porCampo
+    ? await leitor.linhasPorCampo!<EstoqueSaldoSync & LinhaSync>('estoque_saldo', 'produto_id', produtos.map((p) => p.id))
+    : await leitor.linhas<EstoqueSaldoSync & LinhaSync>('estoque_saldo');
+  for (const s of vivas(linhasSaldo)) {
     const l = saldos.get(s.produto_id) ?? [];
     l.push({ branch_id: s.deposito_id, branch_name: depositos.get(s.deposito_id) ?? 'Depósito', quantity: Math.trunc(s.quantidade), updated_at: s.atualizado_em });
     saldos.set(s.produto_id, l);
@@ -119,21 +189,61 @@ export interface ResultadoLocal extends PaginaProdutos {
   aviso: string | null;
 }
 
-/** Candidatos pelo FTS5 quando o catálogo é grande; `null` = varrer todos (catálogo pequeno ou sem índice). */
-async function preselecionar(leitor: LeitorLocal, texto: string, sinonimos: readonly SinonimoDoTenant[], total: number): Promise<Set<string> | null> {
-  if (total <= LIMIAR_PRESELECAO_FTS || !leitor.buscar || !texto) return null;
+/** Tamanhos de prefixo tentados quando o termo inteiro não acha nada (erro de digitação perto do fim da palavra). */
+const PREFIXOS_TOLERANTES = [4, 3] as const;
+
+async function porPrefixo(leitor: LeitorLocal, grupo: readonly string[]): Promise<ResultadoFts[]> {
+  for (const n of PREFIXOS_TOLERANTES) {
+    const prefixos = [...new Set(grupo.filter((t) => t.length > n).map((t) => t.slice(0, n)))];
+    if (prefixos.length === 0) continue;
+    const r = await leitor.buscar!(ID_INDICE_BUSCA, { grupos: [prefixos], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
+    if (r && r.length > 0) return r;
+  }
+  return [];
+}
+
+/**
+ * Candidatos pelo FTS5 quando o catálogo é grande; `null` = varrer todos (catálogo pequeno, sem índice ou FTS5 sem
+ * nenhum acerto). Mesma semântica do domain em qualquer tamanho (T-0052-B2): o domain pontua quem casa QUALQUER termo
+ * e o ranking decide; por isso cada termo (com seus sinônimos) vira uma consulta própria e o conjunto é a união, com
+ * quem casa mais termos primeiro e o `bm25` desempatando. O ranking só roda sobre esses candidatos (T-0052-B4).
+ */
+export async function preselecionar(
+  leitor: LeitorLocal,
+  texto: string,
+  codigo: string | null,
+  sinonimos: readonly SinonimoDoTenant[],
+  total: number,
+): Promise<Set<string> | null> {
+  if (total <= LIMIAR_PRESELECAO_FTS || !leitor.buscar) return null;
   const grupos = expandirSinonimos(texto, sinonimos);
+  if (codigo) grupos.push([codigo]);
   if (grupos.length === 0) return null;
-  const r = await leitor.buscar(ID_INDICE_BUSCA, { grupos, prefixoNoUltimo: true, limite: 500 });
-  return r && r.length > 0 ? new Set(r.map((x) => x.chave)) : null;
+  const achados = new Map<string, { termos: number; melhor: number }>();
+  for (const grupo of grupos.slice(0, 8)) {
+    let r = await leitor.buscar(ID_INDICE_BUSCA, { grupos: [grupo], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
+    // sem acerto = provável erro de digitação (T-0052, caso lento): o prefixo do termo aproxima a tolerância do domain
+    // sem cair na varredura de todo o catálogo
+    if (r && r.length === 0) r = await porPrefixo(leitor, grupo);
+    (r ?? []).forEach((x, posicao) => {
+      const a = achados.get(x.chave);
+      if (a) {
+        a.termos++;
+        a.melhor = Math.min(a.melhor, posicao);
+      } else achados.set(x.chave, { termos: 1, melhor: posicao });
+    });
+  }
+  if (achados.size === 0) return null;
+  const ordem = [...achados.entries()].sort(([, x], [, y]) => y.termos - x.termos || x.melhor - y.melhor);
+  return new Set(ordem.slice(0, MAXIMO_CANDIDATOS).map(([chave]) => chave));
 }
 
 /** Busca no aparelho (sem IA): regras locais + sinônimos + ranking do domain; com `offline`, devolve o aviso. */
 export async function buscarLocal(leitor: LeitorLocal, e: EntradaLocal & { q: string; chips?: ChipsVitrine; limit: number; offset: number; offline: boolean }): Promise<ResultadoLocal> {
   const produtos = await produtosLocais(leitor);
   const sinonimos = await sinonimosLocais(leitor);
-  const filtros = interpretarConsulta(e.q, vocabularioDe(produtos));
-  const candidatos = await preselecionar(leitor, filtros.text, sinonimos, produtos.length);
+  const filtros = interpretarConsulta(e.q, vocabularioMemorizado(produtos));
+  const candidatos = await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, produtos.length);
   const universo = candidatos ? produtos.filter((p) => candidatos.has(p.id)) : produtos;
   const contexto = await contextoLocal(leitor, e, universo);
   const pagina = buscarProdutos({ produtos: universo, contexto, filtros, chips: e.chips ?? {}, sinonimos, limit: e.limit, offset: e.offset });
@@ -149,7 +259,7 @@ export async function vitrineLocal(leitor: LeitorLocal, e: EntradaLocal & { chip
 
 /** Marcas e categorias locais (chips). */
 export async function filtrosLocais(leitor: LeitorLocal): Promise<{ marcas: string[]; linhas: string[] }> {
-  const v = vocabularioDe(await produtosLocais(leitor));
+  const v = vocabularioMemorizado(await produtosLocais(leitor));
   return { marcas: [...v.marcas], linhas: [...v.linhas] };
 }
 

@@ -126,3 +126,11 @@ describe('contracts da busca e da vitrine (RF-CAT-01..05)', () => {
     expect(ParametrosCatalogo.safeParse({ inventado: 1 }).success).toBe(false);
   });
 });
+
+describe('ConteudoProduto — argumentos de venda (T-0052 🟢8)', () => {
+  it('RF-CAT-07: argumento de venda com quebra de linha é recusado (o repositório guarda um por linha)', async () => {
+    const { ConteudoProduto } = await import('./rotas');
+    expect(ConteudoProduto.safeParse({ selling_points: ['Giro alto\nMargem boa'] }).success).toBe(false);
+    expect(ConteudoProduto.safeParse({ selling_points: ['Giro alto', 'Margem boa'] }).success).toBe(true);
+  });
+});

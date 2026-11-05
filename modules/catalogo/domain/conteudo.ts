@@ -30,14 +30,17 @@ export function normalizarSinonimo(s: SalvarSinonimo): Resultado<SalvarSinonimo>
 }
 
 /**
- * RF-CAT-02/07: o mesmo termo em dois grupos ATIVOS deixaria a busca ambígua. Devolve a mensagem do conflito (com o
- * termo a editar) ou `null`. O próprio grupo (`id`), grupos inativos e o novo grupo inativo não conflitam.
+ * RF-CAT-02/07: um termo vivo por tenant. O índice único `sinonimo_termo_uk` (tenant, lower(termo), sem removidos) vale
+ * também para grupo inativo, então o mesmo termo em dois grupos (ativos ou não) é conflito. Devolve a mensagem (com o
+ * termo e a ação seguinte) ou `null`. O próprio grupo (`id`) não conflita.
  */
 export function conflitoDeSinonimo(id: string, novo: SalvarSinonimo, existentes: readonly Pick<Sinonimo, 'id' | 'term' | 'active'>[]): string | null {
-  if (!novo.active) return null;
   const k = chaveDeTermo(novo.term);
-  const outro = existentes.find((e) => e.id !== id && e.active && chaveDeTermo(e.term) === k);
-  return outro ? `Já existe um grupo ativo para "${outro.term}". Edite esse grupo ou desative-o antes de criar outro.` : null;
+  const outro = existentes.find((e) => e.id !== id && chaveDeTermo(e.term) === k);
+  if (!outro) return null;
+  return outro.active
+    ? `Já existe um grupo ativo para "${outro.term}". Edite esse grupo ou desative-o antes de criar outro.`
+    : `Já existe um grupo inativo para "${outro.term}". Reative e edite esse grupo, ou remova-o antes de criar outro.`;
 }
 
 /** Tamanho máximo do termo guardado no registro de buscas. */
