@@ -53,6 +53,8 @@ const IP_B = '203.0.113.5';
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 type Entidade = 'vendedor' | 'cliente' | 'nota';
+/** Entidades que o teste carrega pelo Hub nos DOIS tenants (o Conector de cada um precisa estar cadastrado para elas). */
+const ENTIDADES_CARREGADAS: readonly Entidade[] = ['vendedor', 'cliente', 'nota'];
 type Positivacao = { ate_ontem: number; hoje: number } | null;
 
 /** `alterado_em` sempre crescente e no passado (o Hub aplica o mais novo por external_id; RN-INT-05). */
@@ -152,6 +154,8 @@ describe.skipIf(semBanco())('T-0080 — positivação do mês pelas notas do ERP
   let congelado: Date | null = null;
   const tk = { adminA: '', adminB: '', vendedor1: '', vendedor2: '', supervisor: '', vendedorB: '' };
   const pepperAntes = process.env.MACUXI_HUB_CHAVE_PEPPER;
+  /** Lista original de `integracao.conector.entidades` por Conector (restaurada no afterAll). */
+  const entidadesAntes = new Map<string, string[]>();
   /** Linha de base com o Vendedor LIGADO, antes de qualquer nota (out/2026): o que o pedido dá sozinho. */
   let baseVendedorLigado: Positivacao = null;
   /** Linha de base com o Vendedor DESLIGADO e sem nota atribuída no tenant (ramo antigo, core.positivacao_do_mes). */
@@ -223,6 +227,17 @@ describe.skipIf(semBanco())('T-0080 — positivação do mês pelas notas do ERP
     tk.supervisor = (await api.sessao('supervisor@exemplo.com.br', A)).access_token;
     tk.vendedorB = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
     for (const token of [tk.adminA, tk.adminB]) await ligar(token, 'tenant', 'integracao', true);
+    // RN-INT-13 (v1: cada entidade vem de um único Conector por empresa): o Hub recusa com 422 `entidade_de_outro_conector` o
+    // lote de entidade que não está em `integracao.conector.entidades`. Na fixture o Conector de A já alimenta as 8; o de B só
+    // cliente e produto. Cadastra no Conector de cada tenant as entidades que o teste carrega (sem tirar as que ele já tinha) e
+    // devolve a lista original no afterAll.
+    for (const t of [A, B]) {
+      const [orig] = await linhas<{ entidades: string[] }>('select entidades from integracao.conector where id = $1 and tenant_id = $2', [t.integracao.conector, t.tenantId]);
+      if (!orig) throw new Error(`Conector ${t.integracao.identificador} não encontrado na fixture`);
+      entidadesAntes.set(t.integracao.conector, orig.entidades);
+      const faltam = ENTIDADES_CARREGADAS.filter((e) => !orig.entidades.includes(e));
+      if (faltam.length) await api.admin.query('update integracao.conector set entidades = entidades || $2::text[] where id = $1', [t.integracao.conector, faltam]);
+    }
     // eventos antigos da fixture e lotes `recebido` sem staging não podem segurar a fila (mesma premissa da T-0032)
     await despachar();
     // hora-fixa-ok: concluido_em do lote antigo da fixture, nunca comparado
@@ -235,6 +250,7 @@ describe.skipIf(semBanco())('T-0080 — positivação do mês pelas notas do ERP
   }, 240_000);
 
   afterAll(async () => {
+    for (const [id, entidades] of entidadesAntes) await api?.admin.query('update integracao.conector set entidades = $2::text[] where id = $1', [id, entidades]).catch(() => undefined);
     if (pepperAntes === undefined) delete process.env.MACUXI_HUB_CHAVE_PEPPER;
     else process.env.MACUXI_HUB_CHAVE_PEPPER = pepperAntes;
     await worker?.end().catch(() => undefined);
