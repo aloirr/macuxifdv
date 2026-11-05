@@ -8,3 +8,4 @@
 2026-11-04 — T-0077 — revisão de UX da tela Pedidos (busca, Dia|Mês|Ano, calendário, chips, resumo) pela referência R-20261104-164005: NÃO fechada, 1 🔴 (busca filtrada por chip escondido, e ignorada vindo de 'A faturar'), 11 🟡; seletor Vendedor do Gestão serve para o APK com 3 🟡 (seta cortada, fundo no ativo, lista em Folha) (R-20261104-200745)
 2026-11-04 — T-0077 — conferida a correção da tela Pedidos (R1 busca em Todos e Y1-Y10): revisão de UX fechada sem 🔴; ficam para depois do APK Y11, G1-G3 e 2 observações 🟢.
 2026-11-04 — T-0072/T-0071 — condição 4 do push (lote 1): telas do Gestão em 4d08116 revisadas pela primeira vez, sem 🔴, 4 🟡 ao modulo-gestor (R-20261104-213818); 🟡 finais 23a/b/c, 25 e 26 do vendedor em ff9ea98 conferidos e atendidos; veredito: lote 1 sem 🔴
+2026-11-04 — T-0073 — revisão de UX do painel Parâmetros do Início (BKO, Metas e RV): sem 🔴, 7 🟡 ao modulo-core (R-20261104-230412)
