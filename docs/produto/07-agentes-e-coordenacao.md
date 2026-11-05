@@ -125,7 +125,7 @@ criado_em: 2026-10-31T14:05:12-04:00
 **Lotes locais direto ao `main`, sem PR** (decisão do Alexandre, 04/11/2026, para os lotes do APK): o gerente monta um branch `verificacao/<tarefas>-lote` em cima do `main`, com um commit por dono e o trailer `Agente: <dono>`. Esse branch só sobe com as quatro condições:
 1. CI completo (`workflow_dispatch`) verde **exatamente no commit que vai subir**;
 2. push **fast-forward**, sem force e sem rebase de commit já enviado;
-3. `node scripts/coord.mjs verificar --por-commit origin/main..<commit>` OK em todos os commits;
+3. `node scripts/coord.mjs verificar --por-commit origin/main..<commit>` OK em todos os commits **e** `node scripts/ci/brechas-governanca.mjs trailer origin/main..<commit>` OK. Commit que toca caminho de governança leva `Agente: alexandre` no **último bloco** da mensagem, na mesma linha seguida do `Co-Authored-By`, sem linha em branco entre os dois. O 108e18a de 05/11 saiu com os dois em blocos separados e deixou o CI do `main` vermelho (R-20261105-124257);
 4. revisão do engenheiro-software sem 🔴 e do designer-ux sem 🔴 nas telas.
 
 Se alguma falhar, o lote não sobe e o gerente avisa o Alexandre. Os PRs da nuvem continuam pela regra A, e a governança, pelo rito de autorização acima. O gerente manda um status com os hashes a cada lote que sobe.
