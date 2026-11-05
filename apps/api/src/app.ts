@@ -73,6 +73,8 @@ import { registroDeConsultas, transacaoTenant } from './outbox';
 import { registrarArquivos, type ArmazenamentoArquivos } from './arquivos';
 import { registrarAuditoria } from './auditoria';
 import { registrarSync } from './sync';
+import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
+import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
 import { respostaMeusModulos } from './me-modulos';
 import type { Plataforma } from './tipos';
 import { ErroHttp } from './erros';
@@ -109,7 +111,14 @@ export interface OpcoesApp {
   versao?: string;
   /** Licenças do tenant sem usuário, para as rotas de Conector (ADR 0013; padrão: tabelas `plataforma.*` via `comTenant`). */
   licencasTenant?: FonteLicencasTenant;
+  /** Contagem de respostas (T-0078; padrão: uma nova por app). O servidor passa a mesma para o log periódico. */
+  metricas?: MetricasApi;
 }
+
+/** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
+const CACHE_SAUDE_MS = 10_000;
+/** Prazo de cada sonda do `/v1/saude`. */
+const PRAZO_SONDA_SAUDE_MS = 2_000;
 
 /** Versão do pacote da API (package.json), lida uma vez. */
 export const VERSAO_API: string = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
@@ -187,6 +196,12 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   app.addHook('onRequest', async (req, reply) => {
     reply.header('x-request-id', req.id);
+  });
+
+  // T-0078: contagem por status (5xx) na janela; o `/v1/saude` e o log periódico do servidor leem daqui
+  const metricas = op.metricas ?? criarMetricasApi({ relogio });
+  app.addHook('onResponse', async (_req, reply) => {
+    metricas.registrar(reply.statusCode);
   });
 
   if (banco) app.addHook('onReady', () => banco.verificar());
@@ -277,7 +292,32 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   // ---------- plataforma ----------
   // identificação verificável (R-20261101-023742-alexandre): o app só salva o servidor e só envia o login se `servico` for macuxi-api
   const saude = SaudeRespostaSchema.parse({ ok: true, servico: SERVICO_API_MACUXI, versao: op.versao ?? (process.env.MACUXI_VERSAO || VERSAO_API), modulos: manifestos.map((m) => m.id) });
-  app.get('/v1/saude', async () => saude);
+  // T-0078: dependências (banco e outbox, só contagens), métricas da janela e códigos de alerta; sempre 200 enquanto o processo
+  // responde (o app identifica o servidor por aqui). Quem monitora olha `alertas` (scripts/deploy/demo/alerta-saude.sh).
+  const eventosComConsumidor = nomesConsumidos(modulos);
+  let sonda: { em: number; valor: Promise<{ banco: EstadoBanco; outbox: ResumoOutbox | null }> } | null = null;
+  const sondar = async (): Promise<{ banco: EstadoBanco; outbox: ResumoOutbox | null }> => {
+    if (!banco) return { banco: 'ausente', outbox: null };
+    const estadoBanco: EstadoBanco = await comPrazo(banco.instanteSync(), PRAZO_SONDA_SAUDE_MS).then(
+      () => 'ok' as const,
+      () => 'falha' as const,
+    );
+    if (estadoBanco !== 'ok' || !banco.resumoOutbox) return { banco: estadoBanco, outbox: null };
+    const outbox = await comPrazo(banco.resumoOutbox(eventosComConsumidor, MAX_TENTATIVAS_PADRAO), PRAZO_SONDA_SAUDE_MS).catch(() => undefined);
+    return { banco: estadoBanco, outbox: outbox ?? null };
+  };
+  app.get('/v1/saude', async () => {
+    const agora = relogio().getTime();
+    if (!sonda || agora - sonda.em >= CACHE_SAUDE_MS) sonda = { em: agora, valor: sondar() };
+    const dependencias = await sonda.valor;
+    const janela = metricas.janela();
+    return {
+      ...saude,
+      dependencias,
+      metricas: janela,
+      alertas: avaliarAlertas({ ...dependencias, erros_5xx: janela.erros_5xx }),
+    };
+  });
 
   app.get(ROTA_ME_MODULOS, async (req) => {
     const { ctx, licencas } = await preparar(req, 'core');
