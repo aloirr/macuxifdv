@@ -39,6 +39,8 @@ describe('tokens (T-0072): identidade e contraste', () => {
       ['aba ativa', colors.accentInk, colors.surface],
       ['aba inativa', colors.ink2, colors.surface],
       ['link laranja no cartão', colors.accentInk, colors.surface],
+      ['trilha (link e atual) no fundo', colors.accentInk, colors.ground],
+      ['equivalente do desconto no cartão', colors.success, colors.surface],
       ['aviso: texto no grafite', colors.surface, colors.ink],
       ['aviso: Desfazer no grafite', colors.accentLight, colors.ink],
       ['aviso: ícone de ok no grafite', colors.successOnDark, colors.ink],

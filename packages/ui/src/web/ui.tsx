@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, type ButtonHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { cloneElement, useEffect, type ButtonHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
 import { ehMensagemTecnica, MENSAGEM_ERRO_PADRAO, mensagemParaTela } from './erros';
 import { IconAlert, IconCheck, IconInfo } from './icons';
+import { estiloDaTabela, tabelaPronta } from './tabela';
 
 export function cx(...c: Array<string | false | null | undefined>): string {
   return c.filter(Boolean).join(' ');
@@ -81,13 +82,21 @@ export function Panel({ title, aside, children, className, label }: { title?: Re
   );
 }
 
-/** Tabela que rola na horizontal dentro do próprio quadro. */
+/**
+ * Tabela que rola na horizontal dentro do próprio quadro. Aceita o miolo (`<thead>`/`<tbody>`), que vai no `<table>` do
+ * kit, ou um `<table>` pronto da tela (com `data-testid`), que só ganha a largura mínima: nunca tabela dentro de tabela.
+ */
 export function TableScroll({ children, minWidth }: { children: ReactNode; minWidth: number }) {
+  const pronta = tabelaPronta(children);
   return (
     <div className="-mx-1 overflow-x-auto px-1">
-      <table className="w-full border-collapse text-[13px]" style={{ minWidth }}>
-        {children}
-      </table>
+      {pronta ? (
+        cloneElement(pronta, { style: estiloDaTabela(minWidth, pronta.props.style) })
+      ) : (
+        <table className="w-full border-collapse text-[13px]" style={{ minWidth }}>
+          {children}
+        </table>
+      )}
     </div>
   );
 }

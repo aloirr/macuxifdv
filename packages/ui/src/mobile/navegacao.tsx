@@ -1,7 +1,7 @@
 /**
  * Navegação comum das telas (pedido R-20261102-174719 do modulo-catalogo, RF-CAT-04):
  * - `Trilha`: trilha clicável (breadcrumb). Itens anteriores são botões; o último é o lugar atual (não clicável, lido
- *   pelo leitor de tela como "atual"). Quebra de linha quando não cabe; alvo de toque de 48 dp.
+ *   pelo leitor de tela como "atual"; com `atualTocavel` também vira botão). Quebra de linha quando não cabe; alvo de toque de 48 dp.
  * - `LinhaChips`: uma linha de chips com rolagem horizontal (não empurra a lista para baixo quando há muitos filtros).
  * Só apresentação: quem decide o que entra na trilha ou nos chips é a tela/domain do módulo.
  */
@@ -25,6 +25,7 @@ export function Trilha({
   itens,
   onEscolher,
   compacta,
+  atualTocavel,
   rotuloAcessivel,
   testID = 'trilha',
 }: {
@@ -36,6 +37,11 @@ export function Trilha({
    * laranja. O alvo de toque continua 48 dp.
    */
   compacta?: boolean;
+  /**
+   * O último item também é tocável (chama `onEscolher` com o id dele). Para atalhos que levam a outra tela, como a trilha do
+   * catálogo no Novo pedido (T-0071, V3): ali a trilha não é "onde você está", e sim o caminho para abrir o catálogo.
+   */
+  atualTocavel?: boolean;
   /** Leitura de cada item no leitor de tela; sem ela, "Ir para X" / "X, você está aqui". */
   rotuloAcessivel?: (item: ItemTrilha, atual: boolean) => string;
   testID?: string;
@@ -45,14 +51,15 @@ export function Trilha({
     <View style={s.trilha} testID={testID}>
       {itens.map((item, i) => {
         const atual = i === itens.length - 1;
+        const desligado = atual && !atualTocavel;
         return (
           <View key={item.id} style={s.item}>
             {i > 0 ? <Icon name="chevron" size={compacta ? 12 : 14} color={colors.ink3} /> : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={rotuloAcessivel ? rotuloAcessivel(item, atual) : atual ? `${item.rotulo}, você está aqui` : `Ir para ${item.rotulo}`}
-              accessibilityState={{ disabled: atual, selected: atual }}
-              disabled={atual}
+              accessibilityLabel={rotuloAcessivel ? rotuloAcessivel(item, atual) : desligado ? `${item.rotulo}, você está aqui` : `Ir para ${item.rotulo}`}
+              accessibilityState={{ disabled: desligado, selected: atual }}
+              disabled={desligado}
               onPress={() => onEscolher(item.id)}
               style={({ pressed }) => [s.passo, compacta && s.passoCompacto, pressed && { opacity: 0.6 }]}
               testID={item.testID ?? `${testID}-${item.id}`}>
@@ -87,10 +94,11 @@ const s = StyleSheet.create({
   trilha: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   item: { flexDirection: 'row', alignItems: 'center' },
   passo: { minHeight: ALVO, justifyContent: 'center', paddingHorizontal: 6 },
-  link: { fontFamily: fonts.medium, fontSize: 14, color: colors.accent },
+  // accentInk: o laranja `accent` sobre o fundo da tela dá 4,17:1 (abaixo de 4,5:1); accentInk dá 6,7:1 (T-0071, V3)
+  link: { fontFamily: fonts.medium, fontSize: 14, color: colors.accentInk },
   atual: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   // .crumb / .crumb b da referência do Novo pedido
   passoCompacto: { paddingHorizontal: 4 },
   linkCompacto: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
-  atualCompacto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accent },
+  atualCompacto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
 });

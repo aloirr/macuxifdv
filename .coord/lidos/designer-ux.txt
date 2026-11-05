@@ -53,3 +53,10 @@ R-20261105-020053-modulo-gestor
 R-20261105-020938-engenheiro-apps
 R-20261105-025934-modulo-core
 R-20261105-033356-modulo-core
+R-20261105-054146-alexandre
+R-20261105-064206-modulo-gestor
+R-20261105-075547-engenheiro-software
+R-20261105-090545-modulo-vendedor
+R-20261105-094411-modulo-core
+R-20261105-101645-gerente-projetos
+R-20261105-104349-engenheiro-apps
