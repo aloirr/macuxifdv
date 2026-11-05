@@ -29,3 +29,8 @@ export const ParametrosInicioSchema = z
   })
   .strict();
 export type ParametrosInicio = z.infer<typeof ParametrosInicioSchema>;
+
+/** Campo do formulário a que um erro de validação pertence (RN-CORE-26); a tela liga a mensagem ao campo por esta chave. */
+export const CAMPOS_PARAMETROS_INICIO = ['dias_uteis_semana', 'recado_do_dia_padrao', 'parado_min'] as const;
+export const ErroParametroInicioSchema = z.object({ campo: z.enum(CAMPOS_PARAMETROS_INICIO), mensagem: z.string().min(1) }).strict();
+export type ErroParametroInicio = z.infer<typeof ErroParametroInicioSchema>;

@@ -77,13 +77,35 @@ describe('RN-CORE-26: calcularInicio do vendedor', () => {
     expect(inds).not.toContain('positivacao');
   });
 
-  it('RN-CORE-26: decisão do Alexandre (T-0073): com linha no indicador_diario a venda vem do read-model; positivação segue nula (a tabela não tem coluna de positivados)', async () => {
+  it('RN-CORE-26: decisão do dono do produto (T-0073): com linha no indicador_diario a venda vem do read-model; positivação segue nula quando core.positivacao_do_mes não tem fonte (nulos)', async () => {
     const { db } = fakeDb([...respostas, [/from core.indicador_diario/, [{ usuario_id: VEND, data: '2026-11-10', vendido_cents: 20_000, cancelado_cents: 0 }]]]);
     const r = await calcularInicio(db, {}, entrada, async () => null);
     expect(r.usuarios[0]).toMatchObject({ venda_cents: { ate_ontem: 0, hoje: 20_000 }, positivacao: null });
     const inds = r.metas_do_dia.map((m) => m.indicador);
     expect(inds).toContain('venda_cents');
     expect(inds).not.toContain('positivacao');
+  });
+
+  it('RN-CORE-20/26: sem o Vendedor a positivação vem de core.positivacao_do_mes (cliente conta uma vez no mês): até ontem × novos hoje, com o dia e o período do tenant', async () => {
+    const { db, chamadas } = fakeDb([...respostas, [/core.positivacao_do_mes/, [{ usuario_id: VEND, ate_ontem: 12, hoje: 2, mes: 14 }]]]);
+    const r = await calcularInicio(db, {}, entrada, async () => null);
+    expect(r.usuarios[0]).toMatchObject({ positivacao: { ate_ontem: 12, hoje: 2 } });
+    const c = chamadas.find((x) => /core.positivacao_do_mes/.test(x.sql))!;
+    expect(c.valores).toEqual([[VEND], '2026-11', '2026-11-10']);
+    expect(r.metas_do_dia.find((x) => x.indicador === 'positivacao')).toMatchObject({ realizado_hoje: 2 });
+  });
+
+  it('RN-CORE-26: mês novo com fonte e sem cliente positivado vale zero (não nulo) e a meta de positivação entra', async () => {
+    const { db } = fakeDb([...respostas, [/core.positivacao_do_mes/, [{ usuario_id: VEND, ate_ontem: 0, hoje: 0, mes: 0 }]]]);
+    const r = await calcularInicio(db, {}, entrada, async () => null);
+    expect(r.usuarios[0]!.positivacao).toEqual({ ate_ontem: 0, hoje: 0 });
+    expect(r.metas_do_dia.map((m) => m.indicador)).toContain('positivacao');
+  });
+
+  it('RN-CORE-26: com o Vendedor ligado a consulta dele manda e core.positivacao_do_mes nem é chamada', async () => {
+    const { db, chamadas } = fakeDb(respostas);
+    await calcularInicio(db, {}, entrada, async () => ({ pedidos: [], faturamentos: [] }));
+    expect(chamadas.some((x) => /core.positivacao_do_mes/.test(x.sql))).toBe(false);
   });
 
   it('RN-CORE-26: sem o Vendedor cai no read-model indicador_diario (líquido de cancelamento)', async () => {

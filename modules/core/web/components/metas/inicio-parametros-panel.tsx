@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
-import { ParametrosInicioSchema } from '../../../contracts';
+import { ErroParametroInicioSchema, ParametrosInicioSchema, type ErroParametroInicio } from '../../../contracts';
 import { PARADO_MIN_MAX, PARADO_MIN_MIN, RECADO_DO_DIA_PADRAO, RECADO_PADRAO_MAX, validarParametrosInicio } from '../../../domain';
 
 const CHAVE = ['core', 'parametros', 'inicio'] as const;
@@ -24,15 +24,16 @@ const PERTO_DO_LIMITE = 120;
 
 type CampoParam = 'dias' | 'recado' | 'parado';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
+const CAMPO_DA_CHAVE: Record<ErroParametroInicio['campo'], CampoParam> = { dias_uteis_semana: 'dias', recado_do_dia_padrao: 'recado', parado_min: 'parado' };
 
-/** Liga cada frase de erro do domain (local ou 422 da API) ao campo dela; sem correspondência, vai para o aviso do topo. */
-function mapearErros(mensagens: readonly string[]): { campos: ErrosCampo; soltos: string[] } {
+/** Liga cada erro (local ou 422 da API) ao campo pela CHAVE `campo`; sem campo, vai para o aviso do topo. */
+function mapearErros(erros: readonly ErroParametroInicio[]): { campos: ErrosCampo; soltos: string[] } {
   const campos: ErrosCampo = {};
   const soltos: string[] = [];
-  for (const m of mensagens) {
-    const c: CampoParam | null = /dia útil/i.test(m) ? 'dias' : /frase padrão/i.test(m) ? 'recado' : /parado/i.test(m) ? 'parado' : null;
-    if (!c) soltos.push(m);
-    else campos[c] = campos[c] ? `${campos[c]} ${m}` : m;
+  for (const e of erros) {
+    const c = CAMPO_DA_CHAVE[e.campo];
+    if (!c) soltos.push(e.mensagem);
+    else campos[c] = campos[c] ? `${campos[c]} ${e.mensagem}` : e.mensagem;
   }
   return { campos, soltos };
 }
@@ -82,7 +83,7 @@ export function InicioParametrosPanel() {
     onError: (e) => {
       setSalvo(false);
       const bruto = e instanceof ApiRequestError && e.status === 422 ? e.details?.erros : undefined;
-      const lista = Array.isArray(bruto) ? bruto.filter((x): x is string => typeof x === 'string') : [];
+      const lista = Array.isArray(bruto) ? bruto.flatMap((x) => { const r = ErroParametroInicioSchema.safeParse(x); return r.success ? [r.data] : []; }) : [];
       if (lista.length === 0) return setAviso(errorMessage(e));
       const m = mapearErros(lista);
       setErros(m.campos);

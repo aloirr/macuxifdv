@@ -481,6 +481,7 @@ export * from './licencas';
 export * from './sync';
 export * from './eventos';
 export * from './visita';
+export * from './etapas-checkout';
 export * from './rota';
 export * from './carteira';
 export * from './cliente360';

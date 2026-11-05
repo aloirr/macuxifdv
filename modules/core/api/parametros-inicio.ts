@@ -3,7 +3,7 @@
  * (analista e admin; a licença do módulo é checada pelo SDK). Três linhas em `plataforma.parametro` (modulo `core`, RLS do tenant).
  * A API revalida com `validarParametrosInicio` (domain). Escrita idempotente: só grava e audita (antes/depois) o que mudou.
  */
-import type { ClienteBanco, RotaModulo } from '@macuxi/platform-sdk';
+import { ErroRegraNegocio, type ClienteBanco, type RotaModulo } from '@macuxi/platform-sdk';
 import {
   PARAMETRO_DIAS_UTEIS,
   PARAMETRO_PARADO_MIN,
@@ -15,7 +15,6 @@ import {
 } from '../contracts';
 import { parametrosInicioDasLinhas, validarParametrosInicio } from '../domain';
 import { auditar } from './auditoria';
-import { erroHttp } from './erros';
 
 const CHAVES = [PARAMETRO_DIAS_UTEIS, PARAMETRO_RECADO_PADRAO, PARAMETRO_PARADO_MIN] as const;
 
@@ -44,7 +43,7 @@ export const rotasDeParametrosInicio: RotaModulo[] = [
     corpo: ParametrosInicioPutSchema,
     executar: async (ctx) => {
       const v = validarParametrosInicio(ctx.corpo as ParametrosInicioPut);
-      if (!v.ok) throw erroHttp(422, 'PARAMETROS_INICIO_INVALIDOS', v.erros.join(' '), { erros: v.erros });
+      if (!v.ok) throw new ErroRegraNegocio('RN-CORE-26', v.erros.map((e) => e.mensagem).join(' '), { erros: v.erros });
       const novo = v.valores;
       return ctx.comTenant(async (db): Promise<ParametrosInicio> => {
         const antes = await lerParametrosInicio(db);

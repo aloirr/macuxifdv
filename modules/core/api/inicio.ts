@@ -95,6 +95,11 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
           [paraConsultar, periodo],
         )).rows
       : [];
+  // Opção 3 (T-0073): sem o Vendedor, positivação ACUMULADA do mês pelo read-model (cliente conta uma vez, no primeiro dia). null nos três = sem fonte
+  const positivadosMes =
+    paraConsultar.length > 0 && !vendas
+      ? (await db.query<{ usuario_id: string; ate_ontem: number | null; hoje: number | null; mes: number | null }>('select usuario_id, ate_ontem, hoje, mes from core.positivacao_do_mes($1::uuid[], $2, $3::date)', [paraConsultar, periodo, dia])).rows
+      : [];
   const paradas = (await db.query<{ usuario_id: string; cliente_id: string; data: string }>("select usuario_id, cliente_id, to_char(data, 'YYYY-MM-DD') as data from core.rota_parada where deleted_at is null and usuario_id = any($1::uuid[]) and to_char(data, 'YYYY-MM') = $2", [ids, periodo])).rows;
   const visitas = (await db.query<{ usuario_id: string; cliente_id: string; data_local: string }>("select usuario_id, cliente_id, to_char(data_local, 'YYYY-MM-DD') as data_local from core.visita where deleted_at is null and usuario_id = any($1::uuid[]) and to_char(data_local, 'YYYY-MM') = $2", [ids, periodo])).rows;
 
@@ -107,7 +112,9 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
       venda_cents = p.venda_cents;
       positivacao = p.positivacao;
     } else if (consultado) {
-      // Vendedor desligado/ausente: o read-model diário só sabe vender; positivação fica sem fonte
+      // Vendedor desligado/ausente: venda do read-model diário; positivação acumulada de core.positivacao_do_mes (sem fonte = nula)
+      const pos = positivadosMes.find((x) => x.usuario_id === u.id);
+      if (pos && pos.ate_ontem !== null && pos.hoje !== null) positivacao = { ate_ontem: pos.ate_ontem, hoje: pos.hoje };
       const meus = diarios.filter((d) => d.usuario_id === u.id);
       if (meus.length > 0) {
         const liquido = (d: { vendido_cents: number; cancelado_cents: number }) => Math.max(0, d.vendido_cents - d.cancelado_cents);
