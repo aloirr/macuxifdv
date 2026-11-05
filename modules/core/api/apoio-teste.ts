@@ -2,9 +2,9 @@
  * Apoio dos testes do Core: repositórios em memória (mesma interface do SQL), banco falso e contexto público.
  * Não é importado pelo código de produção.
  */
+import * as crypto from 'node:crypto';
 import type { AcessoBanco, ClienteBanco, ContextoPublico, LogRota } from '@macuxi/platform-sdk';
 import type { FabricaRepositorios, NovaSessao, RepositorioPublico, RepositorioTenant, SessaoRefresh, UsuarioLogin } from './repositorio';
-import { hashSenha } from './seguranca';
 
 export const TENANT_A = '0a000000-0000-4000-8000-0000000000aa';
 export const TENANT_B = '0a000000-0000-4000-8000-0000000000bb';
@@ -19,11 +19,21 @@ export interface EstadoMemoria {
   leituraDeExibicao: string[];
 }
 
+/** Hash argon2id PHC com custo mínimo (m=8, t=1): só para os testes; o verificarSenha de produção lê os parâmetros do próprio hash. */
+function hashBarato(senha: string): Promise<string> {
+  const fn = (crypto as unknown as { argon2: (a: 'argon2id', p: Record<string, unknown>, cb: (e: Error | null, t: Buffer) => void) => void }).argon2;
+  const sal = crypto.randomBytes(16);
+  const b64 = (b: Buffer) => b.toString('base64').replace(/=+$/, '');
+  return new Promise((ok, falha) =>
+    fn('argon2id', { message: senha, nonce: sal, parallelism: 1, tagLength: 32, memory: 8, passes: 1 }, (e, tag) => (e ? falha(e) : ok(`$argon2id$v=19$m=8,t=1,p=1$${b64(sal)}$${b64(tag)}`))),
+  );
+}
+
 export async function estadoInicial(): Promise<EstadoMemoria> {
   const e: EstadoMemoria = { tenants: new Map(), usuarios: new Map(), sessoes: [], dispositivos: new Map(), leituraDeExibicao: [] };
   e.tenants.set('alfa', { id: TENANT_A, codigo: 'alfa', nome: 'Distribuidora Alfa', fuso: 'America/Manaus', status: 'ativo' });
   e.tenants.set('beta', { id: TENANT_B, codigo: 'beta', nome: 'Comercial Beta', fuso: 'America/Sao_Paulo', status: 'ativo' });
-  const hash = await hashSenha('Teste@1234');
+  const hash = await hashBarato('Teste@1234');
   const base = { nome_curto: null, senha_hash: hash, ativo: true, bloqueado_em: null, bloqueio_ate: null, tentativas_falhas: 0 };
   e.usuarios.set('u-vend', { ...base, id: '0b000000-0000-4000-8000-000000000001', tenant_id: TENANT_A, nome: 'Vera Vendedora', email: 'vendedor@exemplo.com.br', perfil: 'vendedor' });
   e.usuarios.set('u-prom', { ...base, id: '0b000000-0000-4000-8000-000000000002', tenant_id: TENANT_A, nome: 'Paulo Promotor', email: 'promotor@exemplo.com.br', perfil: 'promotor' });

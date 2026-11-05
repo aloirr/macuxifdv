@@ -126,9 +126,25 @@ export async function reconsultarEBaixar(
         where visita_id = $1 and modulo = $2 and etapa = $3 and situacao = 'pendente'`,
       [o.visitaId, o.modulo, b.etapa, b.resolvidaEm, ref],
     );
+    const linha = linhas.find((l) => l.modulo === o.modulo && l.etapa === b.etapa);
+    if (linha) await baixarNotificacoesDaPendencia(db, linha.id, o.agora);
   }
   if (r.baixar.length > 0) await recalcularEtapasPendentes(db, o.visitaId);
   return { baixadas: r.baixar.length, pendentes: r.etapasPendentes };
+}
+
+/**
+ * RN-CORE-12: a pendência deixou de existir (chegou ou foi dispensada) = as notificações dela (vendedor e supervisor) são
+ * removidas com `deleted_at`, para o pull levar a exclusão ao aparelho (a janela do pull esconde `expira_em`, não `deleted_at`).
+ * Idempotente; roda na mesma transação da baixa.
+ */
+export async function baixarNotificacoesDaPendencia(db: ClienteBanco, etapaId: string, agora: Date): Promise<number> {
+  const r = await db.query(
+    `update core.notificacao set deleted_at = $2::timestamptz, updated_at = $2::timestamptz
+      where envio_id = $1 and origem_modulo = 'core' and tipo = 'sistema' and deleted_at is null`,
+    [etapaId, iso(agora)],
+  );
+  return r.rowCount ?? 0;
 }
 
 /** `pesquisa.resposta.registrada@1` com `visita_id`: reconsulta e baixa a pendência da visita (evento antes do checkout = nada). */
@@ -216,8 +232,8 @@ export async function alertarPendenciasVencidas(
     }
     for (const d of destinos) {
       const n = await db.query<{ id: string }>(
-        `insert into core.notificacao (tenant_id, usuario_id, tipo, titulo, corpo, link, origem_modulo, envio_id, prioridade)
-         select plataforma.tenant_atual(), u.id, 'sistema', $2, $3, $4, 'core', $5, 'normal' from core.usuario u where u.id = $1 and u.deleted_at is null and u.ativo
+        `insert into core.notificacao (tenant_id, usuario_id, tipo, titulo, corpo, link, origem_modulo, envio_id, prioridade, subtipo)
+         select plataforma.tenant_atual(), u.id, 'sistema', $2, $3, $4, 'core', $5, 'normal', 'etapa_pendente_checkout' from core.usuario u where u.id = $1 and u.deleted_at is null and u.ativo
          on conflict (tenant_id, usuario_id, envio_id) where envio_id is not null do nothing
          returning id`,
         [d.uid, d.texto.titulo.slice(0, 120), d.texto.corpo.slice(0, 1000), `/m/cliente?id=${p.cliente_id}`, p.id],
@@ -264,6 +280,7 @@ export const rotasDePendenciaCheckout: readonly RotaModulo[] = [
           return DispensarEtapaRespostaSchema.parse({ ...base, situacao: e.situacao, alterada: false, etapas_pendentes: Number(n?.n ?? 0) });
         }
         await db.query("update core.visita_etapa set situacao = 'dispensada', resolvida_em = $2 where id = $1 and situacao = 'pendente'", [e.id, ctx.agora().toISOString()]);
+        await baixarNotificacoesDaPendencia(db, e.id, ctx.agora());
         const restam = await recalcularEtapasPendentes(db, ctx.params.id);
         await auditar(db, ctx, {
           acao: 'visita.dispensar_etapa',

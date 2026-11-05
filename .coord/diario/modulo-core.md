@@ -73,3 +73,18 @@
 2026-11-05 — T-0039 — tolerância do checkout ligada na API: consulta da Pesquisa, avaliarCheckoutTolerante, pendência/contagem, baixa por pesquisa.resposta.registrada@1, alertarPendenciasVencidas (sem agendador ainda), dispensa manual, parâmetro do prazo, etapas_pendentes no pull
 2026-11-05 — T-0039 — BKO: prazo da etapa pendente na rota própria checkout-pendencia; diálogo de etapas com erro da API em Notice, autoFocus e contador n/300
 2026-11-05 — T-0039 — revisão da API: ordem de trava visita->etapa (deadlock), tarefa periódica alerta_pendencia_checkout (ADR 0022), 3 🟢
+2026-11-05 — T-0082 — domain plano-rv (RN-CORE-29/30) com 16 testes e contratos Zod do plano; rotas/tela aguardam migração 0028
+2026-11-05 — T-0081 — Farol de clientes (RN-CORE-28): domain farol, contratos, GET /v1/core/farol e parametros/farol, tela BKO no lugar de FarolEmBreve; testes locais verdes, db só CI
+2026-11-05 — T-0081 — 10 amarelos de UX do Farol no BKO aplicados (filtro vendedor/equipe, vazio, legenda, KPIs clicáveis, atalho de parâmetros, mês máx, CSV, alvos 44px); testes/eslint/tsc verdes
+2026-11-05 — T-0083/T-0039 — reexport normalizarEmail/validarSenhaInicial em core/api (RN-CORE-31); marcador de pendência do checkout depende de coluna subtipo (pedida ao banco-dados)
+2026-11-05 — T-0082 — Plano de RV: rotas /v1/core/plano-rv (GET/PUT/DELETE, plano_rv.ver/editar) e /v1/core/rv (cálculo na hora pelo domain), domain acrescido (dias úteis do tenant, meses fechados, vigência que não reescreve mês fechado), página BKO Plano de RV (editor, simulador, RV por vendedor, CSV), testes de rota com banco simulado e plano-rv.db.test.ts (CI); app fica para depois (#94)
+2026-11-05 — T-0082/T-0081 — UX do Plano de RV (4 vermelhos e maioria dos amarelos), gatilho do mês aberto pela projeção, CSV do Farol e do Plano de RV protegido contra fórmula
+2026-11-05 — T-0082/T-0039 — Plano de RV: foco volta ao botão que abriu (efeito pós-commit, fallback Novo plano) e 🟡 baratos; notificação ganha subtipo etapa_pendente_checkout (contrato + pull) e é removida (deleted_at) na baixa/dispensa da pendência; hash barato nos testes de autenticação
+2026-11-05 — T-0081/T-0082 — lote de revisão: Farol F1 (+ só com hasNextPage), F2-F5; Plano de RV P1 (bloqueio e DELETE 404 idempotente), P2 (equipe/pessoa como no Farol), prettier e foco; web 138 testes, eslint, tsc e prettier verdes
+2026-11-05 — T-0081/T-0082 — defeitos do testes: Farol e RV pela licença do tenant (RN-CORE-27), PUT plano-rv de outro tenant = 404; testes unitários novos
+2026-11-05 — T-0026/T-0080 — autenticacao.test.ts não reproduz a falha (6 execuções verdes; suíte do Core 1098 verdes); Início passa a decidir a positivação pelas notas do ERP também pela licença do Vendedor no tenant (vendedorNoTenant, como o Farol), com teste RN-CORE-27
+2026-11-05 — T-0082 — R1: GET /v1/core/rv volta a fontePorConsulta(tx); teste de igualdade entre perfis em skip até a opção licenca:'tenant'
+2026-11-05 — T-0081 — corrigido import de ROTULO_COR_PLURAL no farol-page + teste do rótulo plural; tsc (3 tsconfigs), vitest web e eslint verdes
+2026-11-05 — T-0082/T-0080 — fontePorConsulta com { licenca: 'tenant' } (ADR 0025); teste da mesma RV volta a it; novo teste da fonte
+2026-11-05 — T-0071/T-0073 — core.cadastro_resumo@1 ganha produtos[].preco_venda_cents e desconto_maximo_pct efetivo (RN-VEN-11); bloqueado do cliente confirmado na consulta e no pull (RN-VEN-13); testes de contrato e consulta
+2026-11-05 — T-0071/T-0073 — consultas-bloqueado.test.ts(47) com ?. (TS2532); comentário do plano-rv.ts atualizado (RV usa licença do tenant); tsc dos 3 tsconfigs limpo

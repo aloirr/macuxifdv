@@ -34,5 +34,7 @@ export * from './meta-do-dia';
 export * from './inicio';
 export * from './rodape-cliente';
 export * from './inicio-parametros';
+export * from './farol';
 export * from './positivacao-notas';
 export * from './checkout-tolerancia';
+export * from './plano-rv';

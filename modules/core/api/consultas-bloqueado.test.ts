@@ -17,3 +17,41 @@ describe('RN-VEN-13 e RN-CORE-16: core.cadastro_resumo@1 traz o bloqueio do clie
     expect(sqls.join(' ')).not.toMatch(/vendedor\.|gestor\./);
   });
 });
+
+describe('RN-VEN-11: core.cadastro_resumo@1 traz preço de venda e desconto máximo efetivo do produto', () => {
+  const P1 = '0ea00000-0000-4000-8000-0000000000a1';
+  const P2 = '0ea00000-0000-4000-8000-0000000000a2';
+  const prod = (id: string, preco: number | null, desc: number | null) => ({ id, sku: id.slice(-2), nome: 'P', unidade: 'UN', ativo: true, external_id: null, preco_venda_cents: preco, desconto_maximo_pct: desc });
+  const rodar = async (padrao: unknown) => {
+    const sqls: string[] = [];
+    const db: ClienteBanco = {
+      query: async (sql) => {
+        sqls.push(sql);
+        if (/from core\.produto where/.test(sql)) return { rows: [prod(P1, 10000, 5), prod(P2, null, null)], rowCount: 2 } as never;
+        if (/plataforma\.parametro/.test(sql)) return { rows: padrao === undefined ? [] : [{ valor: padrao }], rowCount: 1 } as never;
+        return { rows: [], rowCount: 0 } as never;
+      },
+    };
+    const r = await consultaCadastroResumo.executar(CadastroResumoEntradaSchema.parse({ produto_ids: [P1, P2] }), { db } as unknown as ContextoConsulta);
+    return { saida: CadastroResumoSaidaSchema.parse(r), sqls };
+  };
+
+  it('RN-VEN-11: desconto efetivo = próprio ?? parâmetro do tenant ?? 15; preço sem cadastro sai null', async () => {
+    const { saida, sqls } = await rodar(20);
+    expect(saida.produtos[0]).toMatchObject({ preco_venda_cents: 10000, desconto_maximo_pct: 5 });
+    expect(saida.produtos[1]).toMatchObject({ preco_venda_cents: null, desconto_maximo_pct: 20 });
+    expect(sqls.join(' ')).not.toMatch(/vendedor\.|gestor\./);
+  });
+  it('RN-VEN-11: sem parâmetro do tenant o padrão é 15%', async () => {
+    const { saida } = await rodar(undefined);
+    expect(saida.produtos[1]?.desconto_maximo_pct).toBe(15);
+  });
+  it('RN-VEN-11: contrato aditivo, emissor antigo (sem os campos) continua válido; valores inválidos são recusados', () => {
+    const base = { clientes: [], usuarios: [], produtos: [{ id: P1, sku: 'S', nome: 'P', unidade: 'UN', ativo: true, external_id: null }] };
+    expect(CadastroResumoSaidaSchema.safeParse(base).success).toBe(true);
+    const com = (extra: object) => ({ ...base, produtos: [{ ...base.produtos[0], ...extra }] });
+    expect(CadastroResumoSaidaSchema.safeParse(com({ preco_venda_cents: null, desconto_maximo_pct: 15 })).success).toBe(true);
+    expect(CadastroResumoSaidaSchema.safeParse(com({ desconto_maximo_pct: 101 })).success).toBe(false);
+    expect(CadastroResumoSaidaSchema.safeParse(com({ preco_venda_cents: 10.5 })).success).toBe(false);
+  });
+});

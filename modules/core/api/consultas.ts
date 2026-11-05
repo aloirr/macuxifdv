@@ -11,6 +11,8 @@ import {
   type CadastroResumoSaida,
 } from '../contracts';
 import { cadastroCompleto, camposExigidos } from '../domain/cadastro';
+import { descontoMaximoAplicavel } from '../domain/produto-preco';
+import { padraoDeDesconto } from './produtos';
 import { lerPromotorVePedidos } from './promotor-pedidos';
 
 export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESUMO, async (entrada, ctx): Promise<CadastroResumoSaida> => {
@@ -29,12 +31,19 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
       ? []
       : (
           await ctx.db.query(
-            'select id, sku, nome, unidade, ativo, external_id from core.produto where deleted_at is null and (id = any($1::uuid[]) or external_id = any($2::text[])) order by id',
+            'select id, sku, nome, unidade, ativo, external_id, preco_venda_cents::float8 as preco_venda_cents, desconto_maximo_pct::float8 as desconto_maximo_pct from core.produto where deleted_at is null and (id = any($1::uuid[]) or external_id = any($2::text[])) order by id',
             [entrada.produto_ids, entrada.produto_external_ids],
           )
         ).rows
   ) as Array<CadastroResumoSaida['produtos'][number]>;
   if (produtos.length > 0) {
+    // RN-VEN-11: desconto máximo efetivo = próprio ?? padrão do tenant ?? 15 (o Vendedor calcula o preço mínimo com isso)
+    const padrao = await padraoDeDesconto(ctx.db);
+    for (const p of produtos) {
+      const r = p as unknown as { preco_venda_cents: number | null; desconto_maximo_pct: number | null };
+      p.preco_venda_cents = r.preco_venda_cents ?? null;
+      p.desconto_maximo_pct = descontoMaximoAplicavel(r.desconto_maximo_pct, padrao);
+    }
     const unidades = await lista(
       produtos.map((p) => p.id),
       'select produto_id, unidade, fator, padrao, ativo, external_id from core.produto_unidade where deleted_at is null and produto_id = any($1::uuid[]) order by produto_id, unidade',

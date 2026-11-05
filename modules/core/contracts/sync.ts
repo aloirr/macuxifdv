@@ -297,6 +297,8 @@ export const NotificacaoSyncSchema = z
     /** T-0073 (aditivo): nome e perfil de quem enviou (subconsulta em core.usuario); só para exibir o autor do recado. */
     autor_nome: z.string().nullable().optional(),
     autor_perfil: PerfilSchema.nullable().optional(),
+    /** T-0039 (aditivo, migração 0030): marcador estável dentro do tipo (ex.: `etapa_pendente_checkout`); null/ausente = sem subtipo. */
+    subtipo: z.string().regex(/^[a-z_]{1,40}$/).nullable().optional(),
   })
   .strict();
 export type NotificacaoSync = z.infer<typeof NotificacaoSyncSchema>;

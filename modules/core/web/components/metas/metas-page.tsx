@@ -23,7 +23,7 @@ type Modal = { tipo: 'linha'; linha: LinhaMetaBko } | { tipo: 'equipe' } | null;
  * Tela "Metas e RV" do BKO (T-0068; RF-CORE-08, RN-CORE-20/21): painel mês × equipe com meta, realizado e atingimento
  * (a mesma apuração do app), edição por pessoa e meta por equipe (o mesmo valor para cada vendedor/promotor ativo).
  * Botões só para quem tem `meta.editar`; a API revalida o escopo (403 fora da equipe). Mês e filtros na URL.
- * O Plano de RV segue "em breve".
+ * O Plano de RV e a RV por vendedor ficam na página "Plano de RV" (T-0082).
  */
 function MetasConteudo() {
   const params = useSearchParams();

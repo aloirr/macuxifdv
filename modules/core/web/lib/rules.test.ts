@@ -9,7 +9,7 @@ const permissoes = criarPermissoes([manifest]);
 describe('permissões por perfil', () => {
   it.each([
     ['manager', true, false, true, true],
-    ['admin', true, false, true, true],
+    ['admin', true, true, true, true],
     ['analyst', false, true, true, true],
     ['bko_assistant', false, false, false, false],
     ['seller', false, false, false, false],

@@ -40,6 +40,8 @@ export interface EntradaInicio {
   usuarioId: string;
   /** Licença do TENANT (não do perfil de quem pede): Integração ativa liga a fonte das notas do ERP (RN-CORE-27; D-T0080a). */
   integracaoNoTenant?: boolean;
+  /** Licença do Vendedor no tenant (RN-CORE-27): ligado = fonte do Vendedor, nunca as notas, mesmo que a consulta falhe/volte nula. */
+  vendedorNoTenant?: boolean;
   perfil: string;
   visiveis: ReadonlySet<string> | 'tenant';
   agora: Date;
@@ -99,7 +101,7 @@ export async function calcularInicio(db: ClienteBanco, tx: Partial<Pick<Transaca
         )).rows
       : [];
   // RN-CORE-27 (T-0080): Vendedor desligado + Integração ativa com notas atribuídas = positivação lida na hora de core.nota_erp (nunca soma com o read-model)
-  const fonteErp = paraConsultar.length > 0 && !vendas && (e.integracaoNoTenant ?? false) && (await db.query('select 1 from core.nota_erp where deleted_at is null and usuario_id is not null limit 1')).rows.length > 0;
+  const fonteErp = paraConsultar.length > 0 && !vendas && !(e.vendedorNoTenant ?? false) && (e.integracaoNoTenant ?? false) && (await db.query('select 1 from core.nota_erp where deleted_at is null and usuario_id is not null limit 1')).rows.length > 0;
   const notasErp = fonteErp
     ? (await db.query<{ usuario_id: string; cliente_id: string; emitida_em: Date | string }>(
         "select usuario_id, cliente_id, min(emitida_em) as emitida_em from core.nota_erp where deleted_at is null and usuario_id = any($1::uuid[]) and ano_mes = $2 and tipo = 'faturamento' and not cancelada group by usuario_id, cliente_id",
@@ -184,8 +186,8 @@ export const rotasDeInicio: RotaModulo[] = [
       const visiveis = await ctx.usuariosVisiveis();
       return ctx.comTenant(async (db, tx) => {
         // Licença do tenant (RN-CORE-03/27): o Core é o dono do licenciamento e já lê tenant_modulo em licencas.ts
-        const lic = await db.query("select 1 from plataforma.tenant_modulo where modulo = 'integracao' and ativo and deleted_at is null limit 1");
-        return calcularInicio(db, tx, { usuarioId: ctx.usuario.id, integracaoNoTenant: lic.rows.length > 0, perfil: ctx.usuario.perfil, visiveis, agora: ctx.agora(), fuso: ctx.fuso() });
+        const lic = await db.query<{ modulo: string }>("select modulo from plataforma.tenant_modulo where modulo in ('integracao', 'vendedor') and ativo and deleted_at is null");
+        return calcularInicio(db, tx, { usuarioId: ctx.usuario.id, integracaoNoTenant: lic.rows.some((r) => r.modulo === 'integracao'), vendedorNoTenant: lic.rows.some((r) => r.modulo === 'vendedor'), perfil: ctx.usuario.perfil, visiveis, agora: ctx.agora(), fuso: ctx.fuso() });
       });
     },
   },

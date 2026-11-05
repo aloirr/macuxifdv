@@ -95,6 +95,8 @@ const tipoDaMeta = (metas: ReadonlyArray<{ usuario_id: string; indicador: string
 /**
  * Liga a porta à consulta `vendedor.pedidos_da_meta@1` (`usaConsultas` no manifesto). Módulo Vendedor desligado ou não
  * instalado no tenant (`ConsultaIndisponivel`) = `null`: o painel cai no read-model `indicador_diario`.
+ * Decidida pela licença do tenant (`{ licenca: 'tenant' }`, ADR 0025, RN-CORE-27): só leitura agregada de indicador, em rota GET;
+ * o escopo continua o de quem consulta.
  */
 export const fontePorConsulta =
   (tx: Partial<Pick<TransacaoTenant, 'consultar'>>): FontePedidosDaMeta =>
@@ -102,7 +104,7 @@ export const fontePorConsulta =
     // contexto sem `consultar` (testes, shells antigos): nem chama, cai no indicador_diario
     if (typeof tx?.consultar !== 'function') return null;
     try {
-      return await tx.consultar(CONSULTA_PEDIDOS_DA_META, q);
+      return await tx.consultar(CONSULTA_PEDIDOS_DA_META, q, { licenca: 'tenant' });
     } catch (e) {
       if (e instanceof ConsultaIndisponivel) return null;
       throw e;

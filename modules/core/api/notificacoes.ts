@@ -37,7 +37,7 @@ const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
 const TABELA_NOTIFICACAO: Tabela = {
   tabela: 'core.notificacao',
-  colunas: `usuario_id, tipo, titulo, corpo, link, origem_modulo, autor_id, prioridade, to_char(lida_em at time zone 'UTC', ${UTC}) as lida_em, to_char(expira_em at time zone 'UTC', ${UTC}) as expira_em, to_char(recado_do_dia, 'YYYY-MM-DD') as recado_do_dia, (select u.nome from core.usuario u where u.id = autor_id) as autor_nome, (select u.perfil from core.usuario u where u.id = autor_id) as autor_perfil`,
+  colunas: `usuario_id, tipo, titulo, corpo, link, origem_modulo, autor_id, prioridade, to_char(lida_em at time zone 'UTC', ${UTC}) as lida_em, to_char(expira_em at time zone 'UTC', ${UTC}) as expira_em, to_char(recado_do_dia, 'YYYY-MM-DD') as recado_do_dia, (select u.nome from core.usuario u where u.id = autor_id) as autor_nome, (select u.perfil from core.usuario u where u.id = autor_id) as autor_perfil, subtipo`,
   colunaCliente: null,
   colunaUsuario: 'usuario_id',
   // desenho T-0016 §2: criada há ≤ 30 dias e não expirada (removidas passam sempre)

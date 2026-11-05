@@ -96,6 +96,30 @@ describe('RN-CORE-12: baixa da pendência por pesquisa.resposta.registrada@1', (
     expect(t.comandos.some((s) => s.includes('set etapas_pendentes'))).toBe(true);
   });
 
+  it('RN-CORE-12: a baixa remove (deleted_at e updated_at) as notificações da pendência, na mesma transação', async () => {
+    const t = montar({ concluidaNoModulo: true });
+    await consumidorBaixaPorResposta.executar(evento() as never, t.ctx);
+    const n = t.comandos.findIndex((s) => s.includes('update core.notificacao set deleted_at'));
+    expect(n).toBeGreaterThan(-1);
+    expect(t.comandos[n]).toContain('updated_at');
+    expect(t.comandos[n]).toContain('deleted_at is null');
+    expect(t.params[n]).toEqual([ETAPA_ID, AGORA.toISOString()]);
+    expect(n).toBeGreaterThan(t.comandos.findIndex((s) => s.includes("set situacao = 'concluida'")));
+  });
+
+  it('RN-CORE-12: sem baixa (reconsulta ainda pendente) as notificações ficam', async () => {
+    const t = montar({ concluidaNoModulo: false });
+    await consumidorBaixaPorResposta.executar(evento() as never, t.ctx);
+    expect(t.comandos.some((s) => s.includes('update core.notificacao'))).toBe(false);
+  });
+
+  it('RN-CORE-12: o alerta grava o subtipo etapa_pendente_checkout', async () => {
+    const t = montar();
+    await alertarPendenciasVencidas(t.ctx);
+    const i = t.comandos.findIndex((s) => s.includes('insert into core.notificacao'));
+    expect(t.comandos[i]).toContain("'etapa_pendente_checkout'");
+  });
+
   it('RN-CORE-12: uma resposta que não cobre todas as obrigatórias NÃO baixa (a reconsulta manda)', async () => {
     const t = montar({ concluidaNoModulo: false });
     await consumidorBaixaPorResposta.executar(evento() as never, t.ctx);
@@ -213,6 +237,8 @@ describe('RN-CORE-12 / RN-AUD-01: dispensa manual da etapa pendente (T-0039 §2.
     expect(r).toMatchObject({ visita_id: VISITA, situacao: 'dispensada', alterada: true, etapas_pendentes: 0 });
     const up = t.comandos.findIndex((s) => s.includes("set situacao = 'dispensada'"));
     expect(t.params[up]).toEqual([ETAPA_ID, AGORA.toISOString()]);
+    const n = t.comandos.findIndex((s) => s.includes('update core.notificacao set deleted_at'));
+    expect(t.params[n]).toEqual([ETAPA_ID, AGORA.toISOString()]);
     const aud = t.comandos.findIndex((s) => s.includes('plataforma.auditoria'));
     expect(t.params[aud]![1]).toBe('visita.dispensar_etapa');
     expect(String(t.params[aud]![5])).toContain('Questionário foi desativado');

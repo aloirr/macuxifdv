@@ -115,6 +115,14 @@ describe('RN-CORE-26: calcularInicio do vendedor', () => {
     expect(ligado.chamadas.some((x) => /core.nota_erp/.test(x.sql))).toBe(false);
   });
 
+  it('RN-CORE-27: Vendedor licenciado no tenant com a consulta indisponível NÃO cai nas notas do ERP (decide a licença, não quem consulta)', async () => {
+    const posm: Resposta = [/core.positivacao_do_mes/, [{ usuario_id: VEND, ate_ontem: 5, hoje: 1, mes: 6 }]];
+    const { db, chamadas } = fakeDb([...respostas, posm, [/select 1 from core.nota_erp/, [{ '?column?': 1 }]]]);
+    const r = await calcularInicio(db, {}, { ...entrada, integracaoNoTenant: true, vendedorNoTenant: true }, async () => null);
+    expect(r.usuarios[0]!.positivacao).toEqual({ ate_ontem: 5, hoje: 1 });
+    expect(chamadas.some((x) => /core.nota_erp/.test(x.sql))).toBe(false);
+  });
+
   it('RN-CORE-26: mês novo com fonte e sem cliente positivado vale zero (não nulo) e a meta de positivação entra', async () => {
     const { db } = fakeDb([...respostas, [/core.positivacao_do_mes/, [{ usuario_id: VEND, ate_ontem: 0, hoje: 0, mes: 0 }]]]);
     const r = await calcularInicio(db, {}, entrada, async () => null);
@@ -224,7 +232,7 @@ describe('RN-CORE-27: a fonte das notas vale pela licença do tenant (D-T0080a)'
   it('RN-CORE-27: vendedor sem "integracao" no perfil recebe a positivação das notas quando o tenant tem a Integração ativa', async () => {
     const { db, chamadas } = fakeDb([
       [/from core.usuario/, [usuarioV]], [/from core.meta/, []],
-      [/plataforma.tenant_modulo/, [{ '?column?': 1 }]],
+      [/plataforma.tenant_modulo/, [{ modulo: 'integracao' }]],
       [/select 1 from core.nota_erp/, [{ '?column?': 1 }]],
       [/group by usuario_id, cliente_id/, [{ usuario_id: VEND, cliente_id: CLI, emitida_em: '2026-11-10T15:00:00Z' }]],
     ]);

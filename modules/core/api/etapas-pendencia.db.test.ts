@@ -67,6 +67,8 @@ describe.skipIf(semBanco())('Core T-0039 × Postgres: pendência de etapa do che
     expect((await linha()).alertada_em).not.toBeNull();
     const notificados = await noTenant(A.tenantId, async (c) => (await c.query("select usuario_id from core.notificacao where origem_modulo = 'core' and envio_id in (select id from core.visita_etapa where visita_id = $1)", [VISITA])).rows.map((x) => x.usuario_id));
     expect(notificados).toContain(A.usuarios.vendedor1);
+    const subtipos = await noTenant(A.tenantId, async (c) => (await c.query("select distinct subtipo from core.notificacao where origem_modulo = 'core' and envio_id in (select id from core.visita_etapa where visita_id = $1)", [VISITA])).rows.map((x) => x.subtipo));
+    expect(subtipos).toEqual(['etapa_pendente_checkout']);
     const r2 = await executar();
     expect(r2.alertadas).toBe(0);
   });
@@ -77,6 +79,9 @@ describe.skipIf(semBanco())('Core T-0039 × Postgres: pendência de etapa do che
     const baixar = () => noTenant(A.tenantId, (c) => reconsultarEBaixar(c, consultar as never, { visitaId: VISITA, modulo: 'pesquisa', referenciaId: resposta, agora: AGORA }));
     expect((await baixar()).baixadas).toBe(1);
     expect(await contagem()).toBe(0);
+    // a notificação da pendência sai do pull como exclusão (deleted_at + updated_at)
+    const restantes = await noTenant(A.tenantId, async (c) => (await c.query("select count(*)::int as n from core.notificacao where origem_modulo = 'core' and envio_id in (select id from core.visita_etapa where visita_id = $1) and deleted_at is null", [VISITA])).rows[0].n);
+    expect(restantes).toBe(0);
     const l = await linha();
     expect(l.situacao).toBe('concluida');
     expect(l.resolvida_em).not.toBeNull();
