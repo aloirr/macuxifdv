@@ -11,7 +11,6 @@ import { usePode } from '@macuxi/platform-sdk/react';
 import { AvisoRodape, Banner, Botao, Cartao, Chip, ChipEstado, colors, EstadoVazio, Folha, Loading, OpcaoFolha, ProgressBar, Screen, SectionHeader, type as t, useAvisoRodape } from '@macuxi/ui/mobile';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ROTULO_CONFORMIDADE, CONFORMIDADES, type Conformidade } from '../../domain';
 import { montarGondola, montarPreco, montarResposta, montarRuptura, montarShare, montarTarefa } from '../lib/loja';
 import { useLoja, type UsoLoja } from '../state/use-loja';
@@ -67,14 +66,17 @@ function Checklist({ l, avisar }: { l: UsoLoja; avisar: Avisar }) {
                   onPress={() =>
                     void l
                       .registrar('checklist_resposta', montarResposta({ id: l.novoId(), visita_loja_id: v.id, checklist_item_id: i.id, obrigatoria: i.obrigatoria, concluida: true, agora: l.agora() }), `etapa:${i.id}`, i.rotulo)
-                      .then((e) => (setErro(e), e || avisar('Etapa feita')))
+                      .then((e) => {
+                        setErro(e);
+                        if (!e) avisar(`${i.rotulo} feita`);
+                      })
                   }
                 />
               )}
             </View>
           );
         })}
-      <Text style={t.small}>* obrigatória</Text>
+      <Text style={t.small}>* obrigatória para encerrar</Text>
       <Aviso msg={erro} />
     </Cartao>
   );
@@ -105,7 +107,7 @@ function Share({ l, categoria, setCategoria, avisar }: { l: UsoLoja; categoria: 
     <Cartao testID="loja.share" gap={10}>
       <SectionHeader title="Share de gôndola" />
       {l.categorias.length === 0 ? (
-        <EstadoVazio testID="loja.share.vazio" titulo="Sem categorias" texto="Cadastre no BKO de trade." />
+        <EstadoVazio testID="loja.share.vazio" titulo="Sem categorias" texto="O escritório cadastra as categorias de gôndola." />
       ) : (
         <>
           <View style={s.chips}>
@@ -137,7 +139,7 @@ function Ruptura({ l, avisar }: { l: UsoLoja; avisar: Avisar }) {
     if (!r.ok) return setErro(r.erro);
     const e = await l.registrar('ruptura_item', r.coleta, `ruptura:${m.mix.id}`, r.coleta.status === 'presente' ? 'Presente' : r.coleta.status === 'ruptura_gondola' ? 'Falta na gôndola' : 'Sem estoque');
     setErro(e);
-    if (!e) avisar('Mix registrado');
+    if (!e) avisar(`${m.nome}: ${r.coleta.status === 'presente' ? 'presente' : r.coleta.status === 'ruptura_gondola' ? 'falta na gôndola' : 'sem estoque'}`);
   };
   return (
     <Cartao testID="loja.ruptura" gap={10}>
@@ -215,7 +217,7 @@ function Preco({ l, avisar }: { l: UsoLoja; avisar: Avisar }) {
         {l.mix.map((m) => (
           <OpcaoFolha
             key={m.mix.id}
-            icone="check"
+            icone={produto === m.mix.produto_id ? 'check' : 'file'}
             tom={produto === m.mix.produto_id ? 'destaque' : 'neutro'}
             titulo={m.nome}
             subtitulo={feito(l, `preco:${m.mix.produto_id}`) ? 'Preço já coletado' : undefined}
@@ -263,8 +265,8 @@ function Gondola({ l, categoria, avisar }: { l: UsoLoja; categoria: string | nul
     <Cartao testID="loja.gondola" gap={10}>
       <SectionHeader title="Arrumação da gôndola" />
       <View style={s.linha}>
-        <Botao rotulo="Foto antes" nivel="neutro" alto icone={antes ? 'check' : undefined} onPress={() => void foto('gondola_antes')} testID="loja.gondola.antes" style={s.flex} />
-        <Botao rotulo="Foto depois" nivel="neutro" alto icone={depois ? 'check' : undefined} onPress={() => void foto('gondola_depois')} testID="loja.gondola.depois" style={s.flex} />
+        <Botao rotulo="Foto antes" nivel="neutro" alto icone={antes ? 'check' : undefined} rotuloAcessivel={antes ? 'Foto antes tirada, tirar de novo' : undefined} onPress={() => void foto('gondola_antes')} testID="loja.gondola.antes" style={s.flex} />
+        <Botao rotulo="Foto depois" nivel="neutro" alto icone={depois ? 'check' : undefined} rotuloAcessivel={depois ? 'Foto depois tirada, tirar de novo' : undefined} onPress={() => void foto('gondola_depois')} testID="loja.gondola.depois" style={s.flex} />
       </View>
       <View style={s.chips}>
         {CONFORMIDADES.map((c) => (
@@ -299,7 +301,7 @@ function Tarefas({ l, avisar }: { l: UsoLoja; avisar: Avisar }) {
       {l.tarefas.map((x) => (
         <View key={x.id} style={s.linha}>
           <Text style={[t.body, s.flex]}>{x.titulo}</Text>
-          {feito(l, `tarefa:${x.id}`) ? <ChipEstado texto="Concluída" tom="sucesso" icone="check" pequeno /> : <Botao rotulo="Concluir com foto" nivel="neutro" onPress={() => void concluir(x.id, x.titulo)} testID={`loja.tarefa.${x.id}`} />}
+          {feito(l, `tarefa:${x.id}`) ? <ChipEstado texto="Concluída" tom="sucesso" icone="check" pequeno /> : <Botao rotulo="Concluir com foto" onPress={() => void concluir(x.id, x.titulo)} testID={`loja.tarefa.${x.id}`} />}
         </View>
       ))}
       <Aviso msg={erro} />
@@ -310,11 +312,11 @@ function Tarefas({ l, avisar }: { l: UsoLoja; avisar: Avisar }) {
 export function TelaLoja() {
   const l = useLoja();
   const podeColetar = usePode('coleta.registrar');
-  const insets = useSafeAreaInsets();
   const aviso = useAvisoRodape();
   const [categoria, setCategoria] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const nRegistros = l.registros.filter((r) => r.entidade !== 'foto_coleta').length;
   const avisar = useCallback<Avisar>((texto) => aviso.mostrar({ texto, tom: 'sucesso' }), [aviso.mostrar]);
   const acao = useCallback(async (fn: () => Promise<string | null>) => {
     setOcupado(true);
@@ -335,7 +337,7 @@ export function TelaLoja() {
     <>
       <Screen testID="loja.tela" onRefresh={() => void l.recarregar()}>
         <Text style={t.h1}>Loja</Text>
-        {l.offline && <Banner>Sem sinal: as coletas ficam no aparelho e seguem quando voltar.</Banner>}
+        {l.offline && <Banner>Sem sinal: as coletas ficam no aparelho e seguem quando o sinal voltar.</Banner>}
         {!l.checkin || !l.loja ? (
           <EstadoVazio testID="loja.sem-checkin" titulo="Sem check-in" texto="Faça o check-in na Rota ou em Clientes." icone="pin" />
         ) : !l.visita ? (
@@ -355,7 +357,7 @@ export function TelaLoja() {
             <Cartao gap={6}>
               <Text style={t.h2}>{l.loja.nome}</Text>
               <Text style={t.sub}>
-                Desde {formatHHMM(l.visita.checkin_em, l.fuso)} · {l.registros.filter((r) => r.entidade !== 'foto_coleta').length} registro(s)
+                Desde {formatHHMM(l.visita.checkin_em, l.fuso)} · {nRegistros} {nRegistros === 1 ? 'registro' : 'registros'}
               </Text>
             </Cartao>
             <Checklist l={l} avisar={avisar} />
@@ -369,7 +371,7 @@ export function TelaLoja() {
         )}
         <Aviso msg={msg} />
       </Screen>
-      <AvisoRodape {...aviso.props} respiroInferior={insets.bottom} testID="loja.aviso" />
+      <AvisoRodape {...aviso.props} testID="loja.aviso" />
     </>
   );
 }
