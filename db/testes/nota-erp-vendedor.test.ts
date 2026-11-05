@@ -330,7 +330,13 @@ describe.skipIf(semBanco())('0025 up/down com dados (banco efêmero)', () => {
       );
       const linha = () => c.query('select id, cliente_id, tipo, total_cents, cancelada, updated_at from core.nota_erp where id = $1', [N]).then((r) => r.rows);
       const linhaAntes = await linha();
-      expect((await migrarUp(c)).aplicadas).toEqual(desde0025);
+      // políticas conferidas logo depois da 0025: as migrações seguintes podem acrescentar a sua (a 0031 cria a manutencao
+      // em toda tabela com RLS), mas a 0025 não cria, troca nem apaga política nenhuma
+      const ate0025 = await migrarUp(c, { ate: '0025' });
+      const polNa0025 = (await retratoDoCatalogo(c)).filter((l) => l.startsWith('pol '));
+      const seguintes = await migrarUp(c);
+      expect([...ate0025.aplicadas, ...seguintes.aplicadas]).toEqual(desde0025);
+      expect(ate0025.aplicadas).toEqual([desde0025[0]]);
       const depois = await retratoDoCatalogo(c);
       expect(await linha()).toEqual(linhaAntes);
       expect((await c.query('select vendedor_external_id, usuario_id from core.nota_erp where id = $1', [N])).rows).toEqual([{ vendedor_external_id: null, usuario_id: null }]);
@@ -339,7 +345,7 @@ describe.skipIf(semBanco())('0025 up/down com dados (banco efêmero)', () => {
       expect(depois.some((l) => l.startsWith('con core.nota_erp_usuario_fk FOREIGN KEY (tenant_id, usuario_id) REFERENCES ') && l.endsWith('usuario(tenant_id, id)'))).toBe(true);
       expect(depois.some((l) => l.startsWith('idx core CREATE INDEX nota_erp_usuario_mes_ix '))).toBe(true);
       expect(depois.some((l) => l.startsWith('idx core CREATE INDEX nota_erp_vendedor_orfa_ix '))).toBe(true);
-      expect(depois.filter((l) => l.includes('core.nota_erp') && l.startsWith('pol '))).toEqual(antes.filter((l) => l.includes('core.nota_erp') && l.startsWith('pol ')));
+      expect(polNa0025.filter((l) => l.includes('core.nota_erp'))).toEqual(antes.filter((l) => l.includes('core.nota_erp') && l.startsWith('pol ')));
       expect(depois).toContain('rel core.nota_erp r rls=true force=true');
       // idempotente: rodar o up de novo não muda o catálogo nem a nota
       await c.query(m25.up);

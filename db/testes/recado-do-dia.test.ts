@@ -323,7 +323,13 @@ describe.skipIf(semBanco())('0021 up/down com dados (banco efêmero)', () => {
         c.query('select id, pedidos, vendido_cents, cancelado_cents, updated_at from core.indicador_diario where id = $1', [I]).then((r) => r.rows);
       const recadoAntes = await recado();
       const indicadorAntes = await indicador();
-      expect((await migrarUp(c)).aplicadas).toEqual(desde0021);
+      // políticas conferidas logo depois da 0021: as migrações seguintes podem acrescentar a sua (a 0031 cria a manutencao
+      // em toda tabela com RLS), mas a 0021 não cria, troca nem apaga política nenhuma
+      const ate0021 = await migrarUp(c, { ate: '0021' });
+      const polNa0021 = (await retratoDoCatalogo(c)).filter((l) => l.startsWith('pol '));
+      const seguintes = await migrarUp(c);
+      expect([...ate0021.aplicadas, ...seguintes.aplicadas]).toEqual(desde0021);
+      expect(ate0021.aplicadas).toEqual([desde0021[0]]);
       const depois = await retratoDoCatalogo(c);
       expect(await recado()).toEqual(recadoAntes);
       // indicador existente: números e updated_at intactos, contagem null (sem backfill)
@@ -334,7 +340,7 @@ describe.skipIf(semBanco())('0021 up/down com dados (banco efêmero)', () => {
       ]);
       // a RLS da tabela é a mesma de antes (enable/force), nenhuma política nova
       expect(depois).toContain('rel core.notificacao r rls=true force=true');
-      expect(depois.filter((l) => l.includes('core.notificacao') && l.startsWith('pol '))).toEqual(
+      expect(polNa0021.filter((l) => l.includes('core.notificacao'))).toEqual(
         antes.filter((l) => l.includes('core.notificacao') && l.startsWith('pol ')),
       );
       // marca e desfaz: o down apaga a marcação e mantém o recado

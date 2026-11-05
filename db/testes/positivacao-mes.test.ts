@@ -249,12 +249,18 @@ describe.skipIf(semBanco())('0023 up/down com dados (banco efêmero)', () => {
       const indicador = () =>
         c.query('select id, pedidos, vendido_cents, cancelado_cents, clientes_positivados, updated_at from core.indicador_diario where id = $1', [I]).then((r) => r.rows);
       const indicadorAntes = await indicador();
-      expect((await migrarUp(c)).aplicadas).toEqual(desde0023);
+      // políticas conferidas logo depois da 0023: as migrações seguintes podem acrescentar a sua (a 0031 cria a manutencao
+      // em toda tabela com RLS), mas a 0023 não cria, troca nem apaga política nenhuma
+      const ate0023 = await migrarUp(c, { ate: '0023' });
+      const polNa0023 = (await retratoDoCatalogo(c)).filter((l) => l.startsWith('pol '));
+      const seguintes = await migrarUp(c);
+      expect([...ate0023.aplicadas, ...seguintes.aplicadas]).toEqual(desde0023);
+      expect(ate0023.aplicadas).toEqual([desde0023[0]]);
       const depois = await retratoDoCatalogo(c);
       expect(await indicador()).toEqual(indicadorAntes);
       expect((await c.query('select clientes_positivados_ids from core.indicador_diario where id = $1', [I])).rows).toEqual([{ clientes_positivados_ids: null }]);
       expect(depois).toContain('rel core.indicador_diario r rls=true force=true');
-      expect(depois.filter((l) => l.includes('core.indicador_diario') && l.startsWith('pol '))).toEqual(
+      expect(polNa0023.filter((l) => l.includes('core.indicador_diario'))).toEqual(
         antes.filter((l) => l.includes('core.indicador_diario') && l.startsWith('pol ')),
       );
       await c.query("update core.indicador_diario set clientes_positivados_ids = '{cccccccc-0023-4000-8000-0000000000c1,cccccccc-0023-4000-8000-0000000000c2}' where id = $1", [I]);

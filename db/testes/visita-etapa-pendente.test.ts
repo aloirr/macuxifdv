@@ -356,7 +356,13 @@ describe.skipIf(semBanco())('0026 up/down com dados (banco efêmero)', () => {
           c.query('select id, situacao, updated_at from core.visita_etapa where id = $1', [E]).then((r) => r.rows),
         ]);
       const linhasAntes = await linhas();
-      expect((await migrarUp(c)).aplicadas).toEqual(desde0026);
+      // políticas conferidas logo depois da 0026: as migrações seguintes podem acrescentar a sua (a 0031 cria a manutencao
+      // em toda tabela com RLS), mas a 0026 não cria, troca nem apaga política nenhuma
+      const ate0026 = await migrarUp(c, { ate: '0026' });
+      const polNa0026 = (await retratoDoCatalogo(c)).filter((l) => l.startsWith('pol '));
+      const seguintes = await migrarUp(c);
+      expect([...ate0026.aplicadas, ...seguintes.aplicadas]).toEqual(desde0026);
+      expect(ate0026.aplicadas).toEqual([desde0026[0]]);
       const depois = await retratoDoCatalogo(c);
       expect(await linhas()).toEqual(linhasAntes);
       expect((await c.query('select etapas_pendentes from core.visita where id = $1', [V])).rows).toEqual([{ etapas_pendentes: 0 }]);
@@ -368,7 +374,7 @@ describe.skipIf(semBanco())('0026 up/down com dados (banco efêmero)', () => {
       expect(depois.some((l) => l.startsWith('idx core CREATE INDEX visita_etapa_pendente_ix '))).toBe(true);
       expect(depois.some((l) => l.startsWith('idx core CREATE INDEX visita_etapas_pendentes_ix '))).toBe(true);
       for (const t of ['core.visita', 'core.visita_etapa']) {
-        expect(depois.filter((l) => l.includes(t) && l.startsWith('pol '))).toEqual(antes.filter((l) => l.includes(t) && l.startsWith('pol ')));
+        expect(polNa0026.filter((l) => l.includes(t))).toEqual(antes.filter((l) => l.includes(t) && l.startsWith('pol ')));
       }
       expect(depois).toContain('rel core.visita_etapa r rls=true force=true');
       // idempotente: rodar o up de novo não muda o catálogo

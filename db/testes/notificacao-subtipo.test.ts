@@ -182,7 +182,13 @@ describe.skipIf(semBanco())('0030 up/down com dados (banco efêmero)', () => {
       await c.query("insert into core.notificacao (id, tenant_id, usuario_id, tipo, titulo, corpo) values ($1, $2, $3, 'recado', 'Etapa pendente na visita?', 'Recado')", [N_RECADO, T, U]);
       const todas = () => c.query('select id, tipo, titulo, corpo, link, envio_id, updated_at from core.notificacao order by id').then((r) => r.rows);
       const linhasAntes = await todas();
-      expect((await migrarUp(c)).aplicadas).toEqual(desde0030);
+      // políticas conferidas logo depois da 0030: as migrações seguintes podem acrescentar a sua (a 0031 cria a manutencao
+      // em toda tabela com RLS), mas a 0030 não cria, troca nem apaga política nenhuma
+      const ate0030 = await migrarUp(c, { ate: '0030' });
+      const polNa0030 = (await retratoDoCatalogo(c)).filter((l) => l.startsWith('pol '));
+      const seguintes = await migrarUp(c);
+      expect([...ate0030.aplicadas, ...seguintes.aplicadas]).toEqual(desde0030);
+      expect(ate0030.aplicadas).toEqual([desde0030[0]]);
       const depois = await retratoDoCatalogo(c);
       const subtipos = await c.query<{ id: string; subtipo: string | null }>('select id, subtipo from core.notificacao order by id');
       expect(subtipos.rows).toEqual([
@@ -204,7 +210,7 @@ describe.skipIf(semBanco())('0030 up/down com dados (banco efêmero)', () => {
       expect(depois).toContain('col core.notificacao.subtipo text nn=false');
       expect(depois.filter((l) => l.startsWith('idx ') && l.includes('subtipo'))).toEqual([]);
       expect(depois).toContain('rel core.notificacao r rls=true force=true');
-      expect(depois.filter((l) => l.includes('core.notificacao') && l.startsWith('pol '))).toEqual(
+      expect(polNa0030.filter((l) => l.includes('core.notificacao'))).toEqual(
         antes.filter((l) => l.includes('core.notificacao') && l.startsWith('pol ')),
       );
       expect((await migrarDown(c, { passos: desde0030.length })).aplicadas).toEqual([...desde0030].reverse());
