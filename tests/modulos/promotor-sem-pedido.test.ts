@@ -9,6 +9,8 @@
  *   manifestos reais. Se alguém acrescentar página/extensão de pedido sem `acao`, a leitura do fonte pega.
  * - Telas: os botões de editar/cancelar/duplicar/novo pedido dependem de `usePode`/`SePode` da ação de pedido.
  * O pior caso é sempre o promotor COM o Vendedor licenciado (RN-PRO-01 independe da licença).
+ * - T-0052/T-0071: "Adicionar ao pedido" (slot `produto.acoes` do Catálogo, registrado pelo Vendedor com `acao: 'pedido.criar'`,
+ *   `apps: ['campo']`) nunca chega ao promotor: nem no shell do Campo, nem no `produto.acoes` efetivo, nem com todos os módulos.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,13 +18,26 @@ import { manifest as catalogo } from '@macuxi/catalogo/manifest';
 import { manifest as core } from '@macuxi/core/manifest';
 import { manifest as promotor } from '@macuxi/promotor/manifest';
 import { manifest as vendedor } from '@macuxi/vendedor/manifest';
-import { criarShell, ehAcaoDeEscritaDePedido, ehAcaoDeLeituraDePedido, ehAcaoDePedido, mensagemPerfilForaDoApp, type ModuloShell, type PaginaShell, type Perfil } from '@macuxi/platform-sdk';
+import {
+  criarShell,
+  ehAcaoDeEscritaDePedido,
+  ehAcaoDeLeituraDePedido,
+  ehAcaoDePedido,
+  mensagemPerfilForaDoApp,
+  modulosEfetivos,
+  type Manifesto,
+  type ModuloId,
+  type ModuloShell,
+  type PaginaShell,
+  type Perfil,
+} from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
+import { MANIFESTOS_INSTALADOS } from '../../apps/mobile/src/lib/instalados';
 import { SHELL_WEB } from '../../apps/web/lib/modulos';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
-const TODOS = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const;
+const TODOS = ['core', 'catalogo', 'vendedor', 'promotor', 'gestor', 'pesquisa', 'treinamento', 'integracao'] as const satisfies readonly ModuloId[];
 const ACOES_DE_PEDIDO = Object.keys(vendedor.acoes).filter(ehAcaoDePedido);
 /** RN-PRO-01: o que o promotor nunca pode. A leitura (`pedido.ver`) é liberada pela matriz §2 (O-3). */
 const ACOES_DE_ESCRITA = ACOES_DE_PEDIDO.filter(ehAcaoDeEscritaDePedido);
@@ -63,6 +78,8 @@ function lerModuloApp(fonte: string): ItemLido[] {
       slot: /^'([^']+)'/.exec(bloco)?.[1],
       id: /\bid: '([^']+)'/.exec(bloco)?.[1] ?? '?',
       acao: /\bacao: '([^']+)'/.exec(bloco)?.[1],
+      // T-0052: o `apps` da extensão entra no shell (o "Adicionar ao pedido" é só do Campo)
+      apps: /\bapps: \[([^\]]*)\]/.exec(bloco)?.[1]?.match(/'([^']+)'/g)?.map((x) => x.slice(1, -1)),
     });
   }
   return itens;
@@ -93,11 +110,42 @@ describe('C3.3 no BKO (shell web real)', () => {
   });
 });
 
+/** Shell do app (Campo ou Gestão) com os manifestos reais e o que o Vendedor declara no fonte. T-0077: as páginas entram COM o `perfis` que declaram no fonte (antes eram montadas sem ele, e o caso O-3 passava por isso). */
+const shellDoApp = (app: 'campo' | 'gestao') => {
+  const paginas: PaginaShell<string>[] = itensVendedorApp
+    .filter((i) => i.tipo === 'pagina')
+    .map((i) => ({
+      id: i.id,
+      caminho: i.caminho!,
+      titulo: i.id,
+      componente: i.id,
+      ...(i.navegacao ? { navegacao: i.navegacao } : {}),
+      ...(i.acao ? { acao: i.acao } : {}),
+      ...(i.apps ? { apps: i.apps as ('campo' | 'gestao')[] } : {}),
+      ...(i.perfisDoManifesto ? { perfis: vendedor.perfis as readonly Perfil[] } : {}),
+    }));
+  const extensoes = itensVendedorApp
+    .filter((i) => i.tipo === 'extensao')
+    .map((i) => ({ slot: i.slot!, id: i.id, ...(i.acao ? { acao: i.acao } : {}), ...(i.apps ? { apps: i.apps as ('campo' | 'gestao')[] } : {}), payload: { rotulo: i.id } }));
+  const modulos: ModuloShell<string>[] = [{ manifesto: core }, { manifesto: catalogo }, { manifesto: vendedor, paginas, extensoes }, { manifesto: promotor }];
+  return criarShell(app, modulos);
+};
+const shellCampo = () => shellDoApp('campo');
+
 describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fonte)', () => {
   it('a leitura do fonte encontrou as páginas e extensões do Vendedor', () => {
     expect(itensVendedorApp.filter((i) => i.tipo === 'pagina').map((i) => i.id)).toEqual(['pedidos', 'pedido', 'novo-pedido']);
     // T-0076: + card Orçamentos/A faturar no Início (inicio.cards/pedidos-resumo, também com acao pedido.criar)
-    expect(itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => `${i.slot}/${i.id}`)).toEqual(['cliente.abas/mix', 'cliente.abas/ultimos-pedidos', 'cliente.acoes/novo-pedido', 'inicio.cards/pedidos-resumo']);
+    // T-0052: + "Adicionar ao pedido" no slot produto.acoes do Catálogo (acao pedido.criar, só Campo)
+    expect(itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => `${i.slot}/${i.id}`)).toEqual([
+      'cliente.abas/mix',
+      'cliente.abas/ultimos-pedidos',
+      'cliente.acoes/novo-pedido',
+      'produto.acoes/adicionar-ao-pedido',
+      'inicio.cards/pedidos-resumo',
+    ]);
+    // toda extensão do Vendedor é só do Campo (a leitura do `apps` funciona e entra no shell abaixo)
+    for (const e of itensVendedorApp.filter((i) => i.tipo === 'extensao')) expect(e.apps, `${e.slot}/${e.id}`).toEqual(['campo']);
   });
 
   it('T-0077 (R-20261104-204823): toda página do Vendedor declara `perfis` = manifest.perfis, que não tem o promotor (RN-PRO-01)', () => {
@@ -109,7 +157,8 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
 
   it('S0-061: toda AÇÃO de pedido declarada no app (novo pedido e extensões da ficha) exige uma ação pedido.* do manifesto', () => {
     const acoes = itensVendedorApp.filter((i) => i.id.includes('novo') || i.tipo === 'extensao');
-    expect(acoes.length).toBeGreaterThanOrEqual(4);
+    expect(acoes.length).toBeGreaterThanOrEqual(5);
+    expect(acoes.map((i) => i.id)).toContain('adicionar-ao-pedido');
     for (const i of acoes) {
       expect(i.acao, `${i.tipo} ${i.id}`).toBeDefined();
       expect(ehAcaoDeEscritaDePedido(i.acao!), `${i.tipo} ${i.id}`).toBe(true);
@@ -117,24 +166,6 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     }
   });
 
-  // T-0077: as páginas entram COM o `perfis` que declaram no fonte (antes eram montadas sem ele, e o caso O-3 passava por isso).
-  const shellCampo = () => {
-    const paginas: PaginaShell<string>[] = itensVendedorApp
-      .filter((i) => i.tipo === 'pagina')
-      .map((i) => ({
-        id: i.id,
-        caminho: i.caminho!,
-        titulo: i.id,
-        componente: i.id,
-        ...(i.navegacao ? { navegacao: i.navegacao } : {}),
-        ...(i.acao ? { acao: i.acao } : {}),
-        ...(i.apps ? { apps: i.apps as ('campo' | 'gestao')[] } : {}),
-        ...(i.perfisDoManifesto ? { perfis: vendedor.perfis as readonly Perfil[] } : {}),
-      }));
-    const extensoes = itensVendedorApp.filter((i) => i.tipo === 'extensao').map((i) => ({ slot: i.slot!, id: i.id, ...(i.acao ? { acao: i.acao } : {}), payload: { rotulo: i.id } }));
-    const modulos: ModuloShell<string>[] = [{ manifesto: core }, { manifesto: catalogo }, { manifesto: vendedor, paginas, extensoes }, { manifesto: promotor }];
-    return criarShell('campo', modulos);
-  };
 
   it('S0-061/S0-062: promotor com o Vendedor licenciado — sem "Novo pedido" (rota direta nula), sem abas/ações de pedido na ficha', () => {
     const v = shellCampo().montar({ perfil: 'promotor', modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor'] });
@@ -193,5 +224,84 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
     for (const a of ['pedido.editar', 'pedido.cancelar', 'pedido.criar']) expect(detalhe, a).toContain(`usePode('${a}')`);
     expect(ler('modules/vendedor/app/screens/orders-screen.tsx')).toContain('<SePode acao="pedido.criar">');
     expect(ler('modules/vendedor/app/screens/new-order-screen.tsx')).toContain("usePode('pedido.editar')");
+  });
+});
+
+/**
+ * T-0052/T-0071 — "Adicionar ao pedido" (produto.acoes/adicionar-ao-pedido do Vendedor, testID produto-adicionar) e a regra 7.
+ * A vitrine e a ficha do produto do Catálogo desenham SÓ o que `useExtensoes('produto.acoes')` devolve (o `extensoes` do shell);
+ * então provar o `extensoes('produto.acoes')` do shell é provar o que o promotor vê. Recado R-20261105-182427 (modulo-vendedor).
+ * O shell aqui é o do describe acima (manifestos reais + páginas/extensões do Vendedor lidas do fonte, COM `apps`).
+ */
+describe('T-0052 — "Adicionar ao pedido" (produto.acoes) nunca chega ao promotor (regra 7, RN-PRO-01)', () => {
+  const adicionar = itensVendedorApp.find((i) => i.slot === 'produto.acoes');
+  const porId = new Map(MANIFESTOS_INSTALADOS.map((m) => [m.id, m] as const));
+  /** Módulos efetivos de verdade: ligados no tenant E aceitos pelo perfil no manifesto, com dependências (RN-CORE-03). */
+  const efetivos = (ativos: readonly ModuloId[], perfil: Perfil) =>
+    modulosEfetivos({ manifestos: MANIFESTOS_INSTALADOS as Manifesto[], ativosNoTenant: [...ativos], doPerfil: ativos.filter((id) => porId.get(id)!.perfis.includes(perfil)) });
+  const ids = (app: 'campo' | 'gestao', perfil: Perfil, ativos: readonly ModuloId[]) =>
+    shellDoApp(app)
+      .montar({ perfil, modulosAtivos: [...ativos] })
+      .extensoes('produto.acoes')
+      .map((e) => `${e.modulo}/${e.id}`);
+
+  it('fonte: a ação exige pedido.criar, é só do Campo; o slot é oferecido pelo Catálogo e usado pelo Vendedor', () => {
+    expect(adicionar).toMatchObject({ tipo: 'extensao', slot: 'produto.acoes', id: 'adicionar-ao-pedido', acao: 'pedido.criar', apps: ['campo'] });
+    expect(FONTE_VENDEDOR_APP).toMatch(/id: 'adicionar-ao-pedido'[\s\S]{0,300}testID: 'produto-adicionar'/);
+    expect(vendedor.acoes['pedido.criar']!.perfis).not.toContain('promotor');
+    expect(catalogo.ofereceExtensoes).toContain('produto.acoes');
+    expect(vendedor.usaExtensoes).toContain('produto.acoes');
+    // o Promotor não contribui nada em produto.acoes (o manifesto dele nem usa o slot)
+    expect(promotor.usaExtensoes).not.toContain('produto.acoes');
+  });
+
+  it('pior caso: promotor no Campo com o Vendedor (e todos os módulos) ligados na sessão → produto.acoes vazio', () => {
+    expect(ids('campo', 'promotor', ['core', 'catalogo', 'vendedor', 'promotor'])).toEqual([]);
+    expect(ids('campo', 'promotor', TODOS)).toEqual([]);
+    const v = shellCampo().montar({ perfil: 'promotor', modulosAtivos: [...TODOS] });
+    expect(v.pode('pedido.criar')).toBe(false);
+    expect(v.pagina('novo-pedido')).toBeNull(); // nem a rota que a ação abriria
+  });
+
+  it('prova de que é a `acao: pedido.criar` que barra: a mesma extensão SEM a ação apareceria ao promotor (mutação controlada)', () => {
+    const semAcao = { slot: 'produto.acoes', id: 'adicionar-ao-pedido', apps: ['campo' as const], payload: { rotulo: 'x' } };
+    const shell = criarShell<string>('campo', [{ manifesto: core }, { manifesto: catalogo }, { manifesto: vendedor, extensoes: [semAcao] }, { manifesto: promotor }]);
+    expect(shell.montar({ perfil: 'promotor', modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor'] }).extensoes('produto.acoes').map((e) => e.id)).toEqual(['adicionar-ao-pedido']);
+    // com a ação (como no fonte) some — é o caso acima
+    expect(ids('campo', 'promotor', ['core', 'catalogo', 'vendedor', 'promotor'])).toEqual([]);
+  });
+
+  it('caso real: promotor com tudo licenciado no tenant → o Vendedor não é efetivo para ele e produto.acoes fica vazio', () => {
+    const ef = efetivos(TODOS, 'promotor');
+    expect(ef).not.toContain('vendedor');
+    expect(ef).toContain('catalogo'); // o promotor VÊ o Catálogo (vitrine e ficha), só não recebe a ação de pedido
+    expect(ids('campo', 'promotor', ef)).toEqual([]);
+  });
+
+  it('controle positivo: o vendedor no Campo recebe "Adicionar ao pedido"', () => {
+    expect(ids('campo', 'vendedor', efetivos(['core', 'catalogo', 'vendedor'], 'vendedor'))).toEqual(['vendedor/adicionar-ao-pedido']);
+    expect(ids('campo', 'vendedor', TODOS)).toEqual(['vendedor/adicionar-ao-pedido']);
+  });
+
+  it('só Campo: no app Gestão ninguém recebe a ação (nem supervisor/gerente, que podem pedido.criar)', () => {
+    for (const perfil of ['supervisor', 'gerente', 'promotor'] as const) expect(ids('gestao', perfil, TODOS), perfil).toEqual([]);
+  });
+
+  it('módulo desativado: sem o Vendedor ou sem o Catálogo (dono do slot), a ação some também para o vendedor', () => {
+    expect(ids('campo', 'vendedor', ['core', 'catalogo'])).toEqual([]);
+    expect(ids('campo', 'vendedor', ['core', 'vendedor'])).toEqual([]);
+  });
+
+  it('as telas do Catálogo não desenham ação de pedido própria: os botões saem só de useExtensoes("produto.acoes")', () => {
+    expect(ler('modules/catalogo/app/telas/comum.tsx')).toMatch(/useExtensoes<AcaoProduto>\('produto\.acoes'\)/);
+    for (const tela of ['catalogo.tsx', 'produto.tsx', 'comum.tsx']) {
+      // sem comentários: o cabeçalho de comum.tsx cita `acao: 'pedido.criar'` para explicar a regra
+      const fonte = ler(`modules/catalogo/app/telas/${tela}`)
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      expect(fonte, tela).not.toMatch(/['"]pedido\.(criar|editar)['"]/);
+      expect(fonte, tela).not.toContain('produto-adicionar');
+      expect(fonte, tela).not.toMatch(/@macuxi\/vendedor/);
+    }
   });
 });
