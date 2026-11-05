@@ -24,6 +24,7 @@ import { colors, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobi
 import { AreaSeguraSuperior } from '@/components/area-segura';
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
 import { registrarCameraNosModulos } from '@/services/camera';
+import { useVibracaoDoShell } from '@/services/vibracao';
 import { PlataformaProvider, usePlataforma } from '@/state/plataforma';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -59,6 +60,8 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
   const { ready, visao, motor, ambiente } = usePlataforma();
   // T-0072: avançar lateral em 240 ms; com "reduzir movimento", troca instantânea (docs/design/componentes.md §6)
   const reduzir = useReduzirMovimento();
+  // T-0072: vibração leve do kit (principal, confirmar e Desfazer); desligada com "reduzir movimento" (R-20261104-231036)
+  useVibracaoDoShell(reduzir);
   const show = fontsReady && ready;
   useEffect(() => {
     if (show) void SplashScreen.hideAsync().catch(() => {});
