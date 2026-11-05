@@ -27,3 +27,11 @@ R-20261103-162623-engenheiro-apps
 R-20261103-173639-engenheiro-software
 R-20261104-014237-engenheiro-software
 R-20261104-034438-engenheiro-apps
+R-20261104-054240-modulo-vendedor
+R-20261104-043147-engenheiro-software
+R-20261104-043247-engenheiro-software
+R-20261104-123101-modulo-vendedor
+R-20261104-164046-engenheiro-apps
+R-20261104-200254-modulo-core
+R-20261104-200629-modulo-vendedor
+R-20261104-201242-modulo-vendedor

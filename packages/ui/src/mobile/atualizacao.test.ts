@@ -3,11 +3,13 @@
  * ao primeiro plano depois de 30 min, a cada `sync_auto_min` (padrão 30, mínimo 15) e no aviso do servidor; puxar para
  * baixo = Sincronizar com proteção de 30 s. Relógio simulado.
  */
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   criarAgendadorSync,
   dentroDaProtecao,
+  desenhoBotaoSincronizar,
   intervaloSyncAutoMs,
   PARAMETRO_SYNC_AUTO,
   PROTECAO_PUXAR_MS,
@@ -81,6 +83,26 @@ describe('textos', () => {
     expect(textoUltimaSincronizacao(INICIO, 0, 'America/Manaus')).toBe('Última sincronização 11:00 · 0 na fila');
     expect(textoUltimaSincronizacao('2026-11-02T15:00:00.000Z', 3, 'America/Manaus')).toBe('Última sincronização 11:00 · 3 na fila');
     expect(textoUltimaSincronizacao(null, 2)).toBe('Ainda não sincronizado · 2 na fila');
+  });
+  it('BotaoSincronizar (T-0076): rótulo curto, situação e motivo do sem sinal numa linha própria', () => {
+    expect(desenhoBotaoSincronizar({ semSinal: false, recente: false, sincronizadoEm: INICIO, naFila: 0, tz: 'America/Manaus' })).toEqual({
+      rotulo: 'Sincronizar',
+      situacao: 'Última sincronização 11:00 · 0 na fila',
+      aviso: null,
+    });
+    expect(desenhoBotaoSincronizar({ semSinal: false, recente: true, sincronizadoEm: INICIO, naFila: 2 }).situacao).toBe('Atualizado há instantes');
+    const semSinal = desenhoBotaoSincronizar({ semSinal: true, recente: false, sincronizadoEm: null, naFila: 3 });
+    expect(semSinal).toEqual({ rotulo: 'Sem sinal', situacao: 'Ainda não sincronizado · 3 na fila', aviso: 'Desligue o modo sem sinal para sincronizar' });
+    // o rótulo cabe numa linha do botão (o Button corta em uma linha)
+    expect(semSinal.rotulo.length).toBeLessThanOrEqual(12);
+  });
+  it('BotaoSincronizar (T-0076): botão de 52 dp e linha de situação centralizada, como na referência', () => {
+    const src = readFileSync(new URL('./sincronizacao.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('height={ALTURA.principal}');
+    expect(src).toMatch(/testID=\{`\$\{testID\}-situacao`\}/);
+    expect(src.match(/textAlign: 'center'/g)?.length).toBe(2);
+    expect(src).toContain('desenhoBotaoSincronizar(');
+    expect(src).not.toContain('Sem sinal: desligue');
   });
   it('rodapé das listas', () => {
     expect(rodapeAtualizacao(null)).toBe('Puxe para sincronizar');

@@ -205,6 +205,25 @@ export function textoUltimaSincronizacao(sincronizadoEm: number | string | Date 
   return `Última sincronização ${formatHHMM(sincronizadoEm, tz)} · ${fila}`;
 }
 
+/**
+ * Textos do `BotaoSincronizar` (T-0076, referência R-20261104-164000-alexandre): botão curto ("Sincronizar"; sem sinal,
+ * "Sem sinal", desabilitado) e, abaixo, centralizada, a linha "Última sincronização hh:mm · N na fila". O motivo do
+ * desabilitado vai numa linha própria: o rótulo do botão é de uma linha só e o texto longo cortava em 360 dp.
+ */
+export function desenhoBotaoSincronizar(s: {
+  semSinal: boolean;
+  recente: boolean;
+  sincronizadoEm: number | string | Date | null | undefined;
+  naFila: number;
+  tz?: string;
+}): { rotulo: string; situacao: string; aviso: string | null } {
+  return {
+    rotulo: s.semSinal ? 'Sem sinal' : 'Sincronizar',
+    situacao: s.recente ? 'Atualizado há instantes' : textoUltimaSincronizacao(s.sincronizadoEm, s.naFila, s.tz),
+    aviso: s.semSinal ? 'Desligue o modo sem sinal para sincronizar' : null,
+  };
+}
+
 /** Rodapé das listas: "Atualizado às hh:mm · puxe para sincronizar"; depois de um toque dentro da proteção, "Atualizado há instantes". */
 export function rodapeAtualizacao(atualizadoEm: number | string | Date | null | undefined, tz?: string, opcoes: { recente?: boolean } = {}): string {
   if (opcoes.recente) return 'Atualizado há instantes';
