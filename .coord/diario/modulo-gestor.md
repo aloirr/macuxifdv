@@ -13,3 +13,4 @@
 2026-11-05 — T-0024 — Gestor troca as cópias de payload pelos schemas dos donos (tolerante), meta.definida@1 consumida, parado_min do Core
 2026-11-05 — T-0072 — 4 🟡 do designer-ux: título da ficha com erro, tons parado/rota concluída, resumo 2x2, Banner sem sinal em Alertas
 2026-11-05 — T-0072 — ficha do Gestão: ação 'Tentar de novo' no erro (botão principal único)
+2026-11-05 — T-0039 — verificado: pendência de etapa no Gestão é do Core (ficha /m/cliente); Gestor sem alteração; §4.3 (Alertas) adiado
