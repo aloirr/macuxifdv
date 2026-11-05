@@ -35,3 +35,10 @@ R-20261104-164046-engenheiro-apps
 R-20261104-200254-modulo-core
 R-20261104-200629-modulo-vendedor
 R-20261104-201242-modulo-vendedor
+R-20261104-224712-alexandre
+R-20261104-224824-alexandre
+R-20261104-231124-alexandre
+R-20261104-231147-alexandre
+R-20261104-231218-alexandre
+R-20261104-231248-alexandre
+R-20261104-231342-modulo-core

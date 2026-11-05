@@ -77,20 +77,33 @@ Regras:
     houver sinal.");
   - sem sinal: `Banner` âmbar (`wifiOff`) e `SyncStamp`; nada some da tela por falta de sinal.
 
+### 5.1 Banner, Chip e ícones (decisão de 2026-11-04, revisão do #92)
+- **`Banner` continua no kit** e não é trocado pelo `AvisoRodape`: o Banner é o aviso **que fica na tela** enquanto a situação
+  dura (erro a corrigir, sem sinal, lição bloqueada, fila esperando); o `AvisoRodape` é o retorno **passageiro** de uma ação
+  feita (some em 2,5 s, com Desfazer). Regra: se a pessoa precisa ler depois de 3 s, é Banner.
+- **`Chip` continua no kit** e não é trocado pelo `ChipEstado`: o Chip é **escolha** (filtro, período, categoria, conformidade;
+  tocável, com `selected`), dentro de `LinhaChips` quando há muitos; o `ChipEstado` é **estado** (não tocável, sempre com texto).
+  Chip de escolha nunca mostra estado e ChipEstado nunca filtra.
+- **Ícones** (`Icon`, traço 2, caixa 24): `camera` para foto (check-in, gôndola, fachada, pergunta com foto; "Tirar foto",
+  "Foto antes"), `inbox` para caixa de entrada (Notificações, estado vazio de recebidos). `icon.test.ts` confere que todo nome
+  do tipo tem desenho.
+
 ## 6. Movimento (sempre com "reduzir movimento")
 | Movimento | Token | Duração | Com "reduzir movimento" | Quem liga |
 |---|---|---|---|---|
 | Avançar (lista → detalhe entra pela direita; voltar sai pela direita) | `transicaoDeAvancar(reduzir)` | 240 ms | sem animação | engenheiro-apps (pilha do shell) |
 | Folha (de baixo, fundo escurece) | `Folha` · `transicaoDeFolha(reduzir)` | 280 ms | aparece sem deslocamento | kit / shell (modais de rota) |
-| Toque (afunda 0,97) + vibração leve ao confirmar | `Pressionavel` (`Botao`, `Button`, `Cartao`, `RodapeTotal`) | 120 ms | sem escala; opacidade 0,7 | kit |
+| Toque (afunda 0,97) + vibração leve ao confirmar | `Pressionavel` (`Botao`, `Button`, `Cartao`, `RodapeTotal`) | 120 ms | sem escala; opacidade 0,7; sem vibração | kit (vibração: shell) |
 | Aviso no rodapé | `AvisoRodape` | entra em 200 ms, fica 2,5 s | aparece sem deslocamento | kit |
 | Diálogo | `Dialogo` | esmaece em 200 ms | instantâneo | kit |
 
 - `useReduzirMovimento()` lê `AccessibilityInfo.isReduceMotionEnabled()` e acompanha `reduceMotionChanged`. Tudo passa por
   `duracaoMovimento(tipo, reduzir)` (0 com reduzir); nenhuma duração escrita à mão (teste em `tokens.test.ts`).
 - Curva padrão `CURVA_PADRAO` = cubic-bezier(0.2, 0, 0, 1).
-- Vibração: `vibrarLeve()` só vibra se o shell registrar `definirVibracao(...)` (expo-haptics, pedido ao engenheiro-software).
-  Vibra o principal, o confirmar do diálogo e o Desfazer. Não vibra em navegação nem em rolagem.
+- Vibração: `vibrarLeve()` só vibra se o shell registrar `definirVibracao(...)` (expo-haptics, no `_layout` raiz do shell).
+  Vibra o principal, o confirmar do diálogo e o Desfazer. Não vibra em navegação nem em rolagem. **Com "reduzir movimento"
+  ligado, não vibra** (o shell registra `null`; decisão de 2026-11-04, R-20261104-231036). No Android segue a opção de retorno
+  tátil do sistema.
 
 ## 7. Textos curtos (pt-BR)
 - Frases curtas, sem jargão de sistema ("sincronizar" sim; "payload", "status 500" não). Sem ponto final em botão, chip e aba.
