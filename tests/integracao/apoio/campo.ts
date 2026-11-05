@@ -10,6 +10,8 @@
  *
  * Controles do teste: `online.valor = false` é o modo avião (nada sai); `rede.push = false` derruba só o envio
  * (rede instável: o pull responde e o push cai), para provar a sobreposição da fila (ADR 0009 §3).
+ * `rede.respostaPerdida = true` (T-0071): o lote CHEGA ao servidor e é gravado, mas a resposta se perde no caminho (o
+ * aparelho vê falha de rede e o item fica na fila): prova que o reenvio do mesmo UUID não duplica (RN-VEN-33).
  * `respostaEtapas.valor = { status, codigo }` faz o HTTP das etapas (`ctx.http`) receber esse erro sem ir ao servidor:
  * as rotas REST da Fase M não existem na API real (404 antes da autenticação), então 401/403/423 nas etapas só se
  * provocam assim; é o mesmo erro com `status` que o `ApiClient` do app levanta (D-4).
@@ -68,8 +70,8 @@ export interface AparelhoCampo {
   token: { valor: string };
   /** `false` = modo avião (nada sai do aparelho). */
   online: { valor: boolean };
-  /** `push: false` = o envio cai por falha de rede (o pull continua). */
-  rede: { push: boolean };
+  /** `push: false` = o envio cai por falha de rede (o pull continua); `respostaPerdida: true` = o servidor grava e a resposta se perde. */
+  rede: { push: boolean; respostaPerdida: boolean };
   /** Fotos gravadas pela "câmera" (caminho relativo → bytes), lidas pelo motor no upload. */
   fotos: Map<string, Uint8Array>;
   /** Todo lote que chegou ao servidor (para provar o reenvio do mesmo lote). */
@@ -112,7 +114,7 @@ export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAp
   const sessao = login.json() as SessaoResposta;
   const token = { valor: sessao.access_token };
   const online = { valor: true };
-  const rede = { push: true };
+  const rede = { push: true, respostaPerdida: false };
   const fotos = new Map<string, Uint8Array>();
   const lotesEnviados: ItemPush[][] = [];
   const chamadasEtapas: Array<{ caminho: string; status: number }> = [];
@@ -129,6 +131,7 @@ export async function aparelhoCampo(api: ApiDeTeste, email: string, op: OpcoesAp
       if (!rede.push) throw new ErroHttpTeste(0, 'SEM_CONEXAO', 'rede caiu no envio');
       const r = await api.chamar(token.valor, { method: 'POST', url: '/v1/sync/push', payload: { itens } });
       lotesEnviados.push(itens);
+      if (rede.respostaPerdida) throw new ErroHttpTeste(0, 'SEM_CONEXAO', 'resposta perdida depois de o servidor gravar');
       if (r.statusCode === 200) return (r.json() as { resultados: ResultadoItemPush[] }).resultados;
       const e = r.json() as { codigo: string; mensagem: string };
       if (r.statusCode >= 500 || r.statusCode === 401 || r.statusCode === 423) throw new ErroHttpTeste(r.statusCode, e.codigo, e.mensagem);

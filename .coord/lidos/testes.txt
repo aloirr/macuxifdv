@@ -118,3 +118,16 @@ R-20261105-010621-engenheiro-software
 R-20261105-022426-engenheiro-software
 R-20261105-022432-engenheiro-software
 R-20261105-030359-modulo-core
+R-20261105-041655-engenheiro-software
+R-20261105-065004-modulo-core
+R-20261105-053835-alexandre
+R-20261105-054146-alexandre
+R-20261105-074705-engenheiro-software
+R-20261105-074713-engenheiro-software
+R-20261105-100141-modulo-core
+R-20261105-100148-modulo-core
+R-20261105-101645-gerente-projetos
+R-20261105-110403-modulo-core
+R-20261105-110749-modulo-vendedor
+R-20261105-110803-modulo-vendedor
+R-20261105-110818-modulo-vendedor
