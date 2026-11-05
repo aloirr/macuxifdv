@@ -8,6 +8,7 @@
  *  - A8: pedido aprovado → fila → Conector retira; sem de-para ou sem as chaves do ERP fica retido (visível no monitor, libera ao reaprovar); cancelado antes da entrega sai; depois, não; reentrega
  *    do evento não duplica; multi-tenant.
  */
+import type { PedidoStatusAlteradoEvento } from '../../vendedor/contracts';
 import { createHash, randomUUID } from 'node:crypto';
 import { comTenant, DOIS_TENANTS } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
@@ -503,7 +504,7 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
     const fila = (tenantId: string, uuid: string) =>
       comTenant(pool, tenantId, async (db) => (await db.query<{ estado: string; tentativas: number; retencao_codigo: string | null; deleted_at: Date | null; payload: Record<string, unknown> | null }>('select estado, tentativas, retencao_codigo, deleted_at, payload from integracao.pedido_fila_erp where pedido_uuid = $1', [uuid])).rows[0]);
     const aprovar = (tenantId: string, p: ReturnType<typeof pedido>) => rodar(tenantId, (ctx) => entrarNaFila(p, ctx));
-    const cancelar = (tenantId: string, uuid: string, para = 'cancelado') => rodar(tenantId, (ctx) => sairDaFila({ pedido_id: uuid, para, alterado_em: AGORA.toISOString() }, ctx));
+    const cancelar = (tenantId: string, uuid: string, para: PedidoStatusAlteradoEvento['para'] = 'cancelado') => rodar(tenantId, (ctx) => sairDaFila({ pedido_id: uuid, para, alterado_em: AGORA.toISOString() }, ctx));
     /** O que o Conector A recebe em GET /pedidos/pendentes (handler real, com o `comTenant` da fixture). */
     const retirar = (versao = '1.2.1') =>
       pedidosPendentes({

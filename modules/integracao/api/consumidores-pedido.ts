@@ -8,13 +8,12 @@
  * Limite conhecido: a ordem entre os dois eventos não é garantida (ADR 0007); um cancelamento que chegue ANTES do aprovado do
  * mesmo pedido não é revisto aqui (o `alterado_em` do status não é gravado na fila).
  */
-import { definirConsumidor, definirEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
-import { PedidoAprovadoConsumido, PedidoStatusAlteradoConsumido } from '../contracts';
+import { definirConsumidor, eventoTolerante, type ContextoConsumo } from '@macuxi/platform-sdk';
+// T-0024: a definição é do dono (Vendedor); leitura tolerante, sem espelho do payload
+import { EVENTO_PEDIDO_APROVADO, EVENTO_PEDIDO_STATUS_ALTERADO, type PedidoAprovadoEvento, type PedidoStatusAlteradoEvento } from '../../vendedor/contracts';
 import { decidirEntradaNaFila, exigeConector, montarSnapshotParaFila, type Mapeamento, type PedidoNaFila } from '../domain';
 import { naFila, type LinhaFila } from './rotas-pedidos';
 
-export const EVENTO_VENDEDOR_PEDIDO_APROVADO = definirEvento('vendedor.pedido.aprovado@1', PedidoAprovadoConsumido);
-export const EVENTO_VENDEDOR_PEDIDO_STATUS_ALTERADO = definirEvento('vendedor.pedido.status_alterado@1', PedidoStatusAlteradoConsumido);
 
 async function lerFila(ctx: ContextoConsumo, pedidoUuid: string): Promise<PedidoNaFila | null> {
   const { rows } = await ctx.db.query<LinhaFila>(
@@ -25,7 +24,7 @@ async function lerFila(ctx: ContextoConsumo, pedidoUuid: string): Promise<Pedido
   return rows[0] ? naFila(rows[0]) : null;
 }
 
-export async function entrarNaFila(p: PedidoAprovadoConsumido, ctx: ContextoConsumo): Promise<void> {
+export async function entrarNaFila(p: PedidoAprovadoEvento, ctx: ContextoConsumo): Promise<void> {
   const tenantId = ctx.envelope.tenant_id;
   const existente = await lerFila(ctx, p.pedido_uuid);
   const { rows: map } = await ctx.db.query<Mapeamento>(
@@ -92,7 +91,7 @@ export async function entrarNaFila(p: PedidoAprovadoConsumido, ctx: ContextoCons
   ctx.log.info({ acao: d.acao, ...(d.acao === 'ignorar' ? { motivo: d.motivo } : {}) }, 'pedido aprovado tratado na fila do ERP');
 }
 
-export async function sairDaFila(p: PedidoStatusAlteradoConsumido, ctx: ContextoConsumo): Promise<void> {
+export async function sairDaFila(p: Pick<PedidoStatusAlteradoEvento, 'pedido_id' | 'para' | 'alterado_em'>, ctx: ContextoConsumo): Promise<void> {
   if (p.para === 'aprovado') return;
   const existente = await lerFila(ctx, p.pedido_id);
   const d = decidirEntradaNaFila({ existente, statusPedido: p.para, snapshot: null, mapeamentos: [] });
@@ -101,5 +100,5 @@ export async function sairDaFila(p: PedidoStatusAlteradoConsumido, ctx: Contexto
   ctx.log.info({ acao: d.acao }, 'pedido saiu da fila do ERP antes da entrega');
 }
 
-export const consumidorPedidoAprovado = definirConsumidor({ evento: EVENTO_VENDEDOR_PEDIDO_APROVADO, executar: entrarNaFila });
-export const consumidorPedidoStatusAlterado = definirConsumidor({ evento: EVENTO_VENDEDOR_PEDIDO_STATUS_ALTERADO, executar: sairDaFila });
+export const consumidorPedidoAprovado = definirConsumidor({ evento: eventoTolerante(EVENTO_PEDIDO_APROVADO), executar: entrarNaFila });
+export const consumidorPedidoStatusAlterado = definirConsumidor({ evento: eventoTolerante(EVENTO_PEDIDO_STATUS_ALTERADO), executar: sairDaFila });

@@ -12,13 +12,14 @@ import {
   type ItemFaturado,
   type Mapeamento as MapeamentoContrato,
   PedidoAprovadoParaFila as PedidoAprovadoParaFilaSchema,
-  type PedidoAprovadoConsumido,
   type PedidoAprovadoParaFila,
   type PedidoParaErp,
   type PedidoRetornoErpEvento,
   type RetornoErp,
   VERSAO_CONTRATO,
 } from '../contracts';
+// T-0024: o tipo vem do dono do evento (só tipo: o domain não carrega o contracts do Vendedor em tempo de execução)
+import type { PedidoAprovadoEvento as PedidoAprovadoConsumido } from '../../vendedor/contracts';
 import { aplicarTimeoutEnvio, chaveNotaRetorno, podeEntrarNaFila, transicionarRetornoPedidoErp, type NotaChave } from './estados';
 import { hashRegistro } from './idempotencia';
 import { PARAMETROS_PADRAO } from './parametros';
