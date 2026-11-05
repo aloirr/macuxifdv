@@ -120,6 +120,8 @@ describe('migrações (estático)', () => {
     expect(nomes[21]).toBe('0022_plataforma_geracao_base'); // T-0079: plataforma.tenant.geracao_base e girar_geracao_base (geracao-base.test.ts)
     expect(nomes[22]).toBe('0023_core_positivacao_mes'); // positivação acumulada do mês: indicador_diario.clientes_positivados_ids e core.positivacao_do_mes (positivacao-mes.test.ts)
     expect(nomes[23]).toBe('0024_plataforma_resumo_outbox_lgpd'); // T-0078: resumo_outbox (/v1/saude), anonimização e exclusão de tenant (lgpd-outbox.test.ts)
+    expect(nomes[24]).toBe('0025_core_nota_erp_vendedor'); // T-0080: core.nota_erp.vendedor_external_id e usuario_id, 2 índices (nota-erp-vendedor.test.ts)
+    expect(nomes[25]).toBe('0026_core_visita_etapa_pendente'); // T-0039 §2: visita_etapa 'pendente' + 4 colunas e visita.etapas_pendentes, 2 índices parciais (visita-etapa-pendente.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
