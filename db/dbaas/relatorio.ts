@@ -501,3 +501,176 @@ export function versaoVitestDoLock(lock: string): string | null {
   const m = /^ {2}vitest@(\d+\.\d+\.\d+):/m.exec(lock);
   return m ? m[1]! : null;
 }
+
+// =====================================================================================================================
+// Itens complementares da ADR 0024 (§ O que falta para produção, itens 9, 11 e 12), 3ª execução. Códigos A9, A11, A12.
+// As consultas que usam estas funções ficam em db/dbaas/referencias.ts (A11, A12; também rodam no CI pelo
+// db/testes/dbaas-referencia.test.ts, que fixa "o esperado do CI") e em db/dbaas/teste-compatibilidade.ts (A9).
+// =====================================================================================================================
+
+// ---------------- A9: pg_dump da base de teste restaurado numa 2ª base ----------------
+
+/** Major de "pg_dump (PostgreSQL) 16.4 (Debian 16.4-1.pgdg120+2)"; null se não for a saída de um binário do PostgreSQL. */
+export function versaoMaiorPg(texto: string): number | null {
+  const m = /\(PostgreSQL\)\s+(\d+)(?:\.\d+)?/.exec(texto);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Variáveis do libpq (pg_dump/pg_restore) para o modo de TLS que funcionou no node-pg (P1). 'no-verify' (TLS sem conferir
+ * certificado) = sslmode=require; 'verify-full' confere cadeia e nome com as CAs do sistema (sslrootcert=system, PG 16).
+ */
+export function tlsLibpq(modoNodePg: string): { PGSSLMODE: string; PGSSLROOTCERT?: string } {
+  if (modoNodePg === 'verify-full') return { PGSSLMODE: 'verify-full', PGSSLROOTCERT: 'system' };
+  if (modoNodePg === 'disable') return { PGSSLMODE: 'disable' };
+  return { PGSSLMODE: 'require' };
+}
+
+/**
+ * Lista do `pg_restore -l` sem os objetos do PROVEDOR, que a base nova já traz do template1 e que o admin sem superusuário
+ * não recria: gatilhos de evento e funções do pgaudit (public.pgaudit_*, dono postgres) e o COMMENT ON EXTENSION (só o
+ * dono da extensão comenta; a vector é criada pelo pgextwlist com dono postgres). Devolve a lista filtrada e o removido.
+ */
+export function filtrarListaRestauracao(lista: string): { lista: string; removidos: string[] } {
+  const removidos: string[] = [];
+  const mantidas = lista.split(/\r?\n/).filter((l) => {
+    if (l.trim() === '' || l.startsWith(';')) return true;
+    const doProvedor = / EVENT TRIGGER /.test(l) || /\bpgaudit_/.test(l) || / COMMENT - EXTENSION /.test(l);
+    if (doProvedor) removidos.push(l.replace(/^\d+;\s*\d+\s+\d+\s+/, '').trim());
+    return !doProvedor;
+  });
+  return { lista: `${mantidas.join('\n')}\n`, removidos };
+}
+
+/** Erros do stderr do pg_restore (sem --exit-on-error ele segue e conta os erros no fim). */
+export function errosDoPgRestore(stderr: string): string[] {
+  return stderr
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => /^pg_restore: error:|^ERROR:/i.test(l))
+    .map((l) => l.slice(0, 240));
+}
+
+/** Diferença entre dois retratos (linhas do catálogo ou "tabela contagem"): o que só existe de um lado. */
+export function compararRetratos(origem: readonly string[], destino: readonly string[]): { iguais: boolean; soNaOrigem: string[]; soNoDestino: string[] } {
+  const a = new Set(origem);
+  const b = new Set(destino);
+  const soNaOrigem = [...a].filter((x) => !b.has(x)).sort();
+  const soNoDestino = [...b].filter((x) => !a.has(x)).sort();
+  return { iguais: soNaOrigem.length === 0 && soNoDestino.length === 0, soNaOrigem, soNoDestino };
+}
+
+/** Proposta quando a imagem do teste não traz o pg_dump/pg_restore 16 (o A9 não roda; dono do Dockerfile: engenheiro-software). */
+export const PROPOSTA_PG_DUMP =
+  'a imagem não tem pg_dump/pg_restore 16 (o node:24-bookworm-slim não traz o postgresql-client, e o do Debian bookworm é o 15, que não faz dump de servidor 16). ' +
+  'Proposta: no alvo teste-db do apps/api/Dockerfile, instalar o postgresql-client-16 do repositório PGDG (apt.postgresql.org, bookworm-pgdg); ' +
+  'o script acha o binário no PATH, em /usr/lib/postgresql/16/bin ou em DBAAS_PG_BIN';
+
+// ---------------- A11: vector 0.8.5 (DBaaS) × 0.8.2 (CI e demo) ----------------
+
+/** Conjunto fixo do A11: 48 vetores e 3 consultas de dimensão 8, componentes inteiros de -9 a 9 (somas exatas em float). */
+export const REFERENCIA_VETORES = { quantidade: 48, dimensao: 8, consultas: 3, k: 10, semente: 20261105 } as const;
+
+/** Operador da opclass vector_cosine_ops do HNSW (o que a busca do Catálogo usa: `order by embedding <=> $1`). */
+export const OPERADOR_COSSENO_ESPERADO = '<=>(vector,vector)';
+
+/** Vetores determinísticos (LCG de 32 bits; nenhum vetor nulo, porque o cosseno de vetor nulo é NaN). */
+export function vetoresReferencia(n: number, dim: number, semente: number): number[][] {
+  let x = semente >>> 0;
+  const prox = () => {
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    return x >>> 16;
+  };
+  const lista: number[][] = [];
+  while (lista.length < n) {
+    const v = Array.from({ length: dim }, () => (prox() % 19) - 9);
+    if (v.some((c) => c !== 0)) lista.push(v);
+  }
+  return lista;
+}
+
+/** Os 48 vetores e as 3 consultas do A11 (as consultas saem da mesma geradora com outra semente). */
+export function conjuntoReferencia(): { vetores: number[][]; consultas: number[][] } {
+  const r = REFERENCIA_VETORES;
+  return { vetores: vetoresReferencia(r.quantidade, r.dimensao, r.semente), consultas: vetoresReferencia(r.consultas, r.dimensao, r.semente ^ 0x5bd1e995) };
+}
+
+/** Distância de cosseno como a do pgvector (1 − a·b / √(|a|²·|b|²), similaridade limitada a [−1, 1]). */
+export function distanciaCosseno(a: readonly number[], b: readonly number[]): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i]! * b[i]!;
+    na += a[i]! * a[i]!;
+    nb += b[i]! * b[i]!;
+  }
+  const s = Math.max(-1, Math.min(1, dot / Math.sqrt(na * nb)));
+  return 1 - s;
+}
+
+/** k vizinhos exatos (ids de 1 a n, na ordem da lista), por distância e depois por id. */
+export function vizinhosEsperados(vetores: readonly number[][], consulta: readonly number[], k: number): Array<{ id: number; distancia: number }> {
+  return vetores
+    .map((v, i) => ({ id: i + 1, distancia: distanciaCosseno(v, consulta) }))
+    .sort((a, b) => a.distancia - b.distancia || a.id - b.id)
+    .slice(0, k);
+}
+
+/** Menor folga entre distâncias vizinhas até a posição k (inclusive a fronteira k/k+1): > 0 = ordem sem empate. */
+export function folgaMinima(vetores: readonly number[][], consulta: readonly number[], k: number): number {
+  const ds = vetores.map((v) => distanciaCosseno(v, consulta)).sort((a, b) => a - b);
+  let folga = Number.POSITIVE_INFINITY;
+  for (let i = 1; i <= Math.min(k, ds.length - 1); i++) folga = Math.min(folga, ds[i]! - ds[i - 1]!);
+  return folga;
+}
+
+/** Literal de vector do pgvector: [1,-2,3]. */
+export const literalVetor = (v: readonly number[]): string => `[${v.join(',')}]`;
+
+// ---------------- A12: collation e ctype ----------------
+
+/** Nomes com acento do A12, na ordem de entrada (embaralhada). */
+export const NOMES_COLACAO: readonly string[] = [
+  'Zélia', 'Igor', 'José', 'Úrsula', 'Andréa', 'Otávio', 'Eduardo', 'Conceição', 'Jose', 'Ícaro', 'Álvaro', 'Ubirajara', 'João', 'Édson', 'Cecília', 'Óscar',
+];
+
+/**
+ * Ordem linguística esperada (a do CI: en_US.utf8 da glibc no pgvector/pgvector:pg16; igual à do ICU pt-BR e en-US):
+ * o acento não muda a letra (Álvaro antes de Andréa) e só desempata (Jose antes de José).
+ */
+export const ORDEM_ESPERADA_NOMES: readonly string[] = [
+  'Álvaro', 'Andréa', 'Cecília', 'Conceição', 'Édson', 'Eduardo', 'Ícaro', 'Igor', 'João', 'Jose', 'José', 'Óscar', 'Otávio', 'Ubirajara', 'Úrsula', 'Zélia',
+];
+
+/** Ordem por bytes UTF-8 (a do COLLATE "C"): as maiúsculas acentuadas vão para o fim. */
+export function ordemBytes(nomes: readonly string[]): string[] {
+  return [...nomes].sort((a, b) => Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8')));
+}
+
+/** Primeira posição em que duas listas diferem ("posição 1: Andréa × esperado Álvaro"); null = iguais. */
+export function primeiraDiferenca(obtido: readonly string[], esperado: readonly string[]): string | null {
+  for (let i = 0; i < Math.max(obtido.length, esperado.length); i++) {
+    if (obtido[i] !== esperado[i]) return `posição ${i + 1}: ${obtido[i] ?? '(nada)'} × esperado ${esperado[i] ?? '(nada)'}`;
+  }
+  return null;
+}
+
+/**
+ * Casos de texto do A12 (o que o app usa): lower/upper e ILIKE com acento dependem do ctype; catalogo.sem_acento (0013,
+ * translate sobre lower) e a busca FTS 'portuguese' do Catálogo. SQL fixo, sem parâmetro. ILIKE NÃO ignora acento (caso
+ * 4): as buscas de cliente, produto e usuário por ILIKE exigem o acento certo em qualquer servidor.
+ */
+export const CASOS_TEXTO: ReadonlyArray<{ rotulo: string; sql: string; esperado: string; catalogo?: true }> = [
+  { rotulo: 'lower com acento (ctype)', sql: "lower('ÁGUA SANITÁRIA PÃO DE AÇÚCAR')", esperado: 'água sanitária pão de açúcar' },
+  { rotulo: 'upper com acento (ctype)', sql: "upper('conceição ávila')", esperado: 'CONCEIÇÃO ÁVILA' },
+  { rotulo: 'ILIKE acentuado sem diferenciar maiúscula', sql: "('JOSÉ DA CONCEIÇÃO' ilike '%conceição%')", esperado: 'true' },
+  { rotulo: 'ILIKE não ignora acento', sql: "('Óleo de soja' ilike 'oleo%')", esperado: 'false' },
+  { rotulo: 'catalogo.sem_acento', sql: "catalogo.sem_acento('ÁGUA Sanitária PÃO Ç Ñ')", esperado: 'agua sanitaria pao c n', catalogo: true },
+  {
+    rotulo: "busca do Catálogo (FTS 'portuguese' sem acento)",
+    sql: "(to_tsvector('portuguese', catalogo.sem_acento('Óleo para motor 4T')) @@ plainto_tsquery('portuguese', catalogo.sem_acento('ÓLEO motor')))",
+    esperado: 'true',
+    catalogo: true,
+  },
+];

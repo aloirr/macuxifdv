@@ -102,6 +102,12 @@ quando, qual tenant). A aplicação não executa estas funções: `macuxi_app` e
    Os gatilhos de DELETE disparam (os 5 `*_toca_trilha` do Treinamento só tocam a trilha do mesmo tenant, que sai depois).
    Roda sem superusuário: o dono enxerga as linhas pela política `manutencao` da 0031 ([rls.md](rls.md)). Uma linha que
    sobrar faz a FK para `plataforma.tenant` falhar (23503) e a transação desfaz tudo.
+   **Tempo esperado.** Com FKs ligadas, cada DELETE de tabela mãe confere a FK nas filhas. No DBaaS (2ª execução da
+   T-0075), o tenant demo inteiro saiu em 175 ms (1.802 linhas, 115 passos). Num tenant grande, o tempo só fica
+   proporcional às linhas se toda FK entre tabelas de tenant tiver índice que comece pelas colunas dela (`tenant_id`,
+   `x_id`); sem esse índice, a conferência varre a filha a cada linha apagada da mãe. Pendente (🟢 2 da revisão
+   R-20261105-093536): um caso na conformidade que exija esse índice, medido antes no CI para não reprovar o que já existe.
+   Para produção, rode a exclusão fora do horário de uso e com `set local lock_timeout` na própria transação do passo 4.
 5. **Depois**: os backups com o tenant expiram em 7 dias (ou 30, se o Alexandre decidir assim). Restaurar um backup antigo
    traz o tenant de volta: repita o passo 4 depois de qualquer restauração. Os aparelhos do tenant deixam de autenticar,
    porque o login e o refresh falham. Apagar a cópia local é com o app, fora do banco.

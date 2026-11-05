@@ -36,6 +36,23 @@ import {
   versaoAtende,
   versaoVitestDoLock,
   type Item,
+  CASOS_TEXTO,
+  compararRetratos,
+  conjuntoReferencia,
+  distanciaCosseno,
+  errosDoPgRestore,
+  filtrarListaRestauracao,
+  folgaMinima,
+  literalVetor,
+  NOMES_COLACAO,
+  ORDEM_ESPERADA_NOMES,
+  ordemBytes,
+  primeiraDiferenca,
+  PROPOSTA_PG_DUMP,
+  REFERENCIA_VETORES,
+  tlsLibpq,
+  versaoMaiorPg,
+  vizinhosEsperados,
 } from '../dbaas/relatorio';
 
 const item = (grupo: Item['grupo'], codigo: string, ok: boolean): Item => ({ grupo, codigo, titulo: `item ${codigo}`, situacao: ok ? 'ok' : 'falha' });
@@ -313,8 +330,110 @@ describe('plano B do DBaaS sem SUPERUSER/BYPASSRLS (T-0075, 2ª versão)', () =>
   });
 });
 
+describe('complementares da ADR 0024 (A9 restauração, A11 vector, A12 collation)', () => {
+  it('A9: versão do pg_dump, TLS do libpq a partir do modo do node-pg', () => {
+    expect(versaoMaiorPg('pg_dump (PostgreSQL) 16.4 (Debian 16.4-1.pgdg120+2)')).toBe(16);
+    expect(versaoMaiorPg('pg_restore (PostgreSQL) 15.8')).toBe(15);
+    expect(versaoMaiorPg('bash: pg_dump: command not found')).toBeNull();
+    expect(tlsLibpq('no-verify')).toEqual({ PGSSLMODE: 'require' });
+    expect(tlsLibpq('verify-full')).toEqual({ PGSSLMODE: 'verify-full', PGSSLROOTCERT: 'system' });
+    expect(tlsLibpq('disable')).toEqual({ PGSSLMODE: 'disable' });
+    expect(PROPOSTA_PG_DUMP).toContain('postgresql-client-16');
+  });
+
+  it('A9: a lista do pg_restore tira só os objetos do provedor (pgaudit, gatilhos de evento, COMMENT ON EXTENSION)', () => {
+    const lista = [
+      ';',
+      '; Archive created at 2026-11-05 12:00:00 UTC',
+      '3; 3079 16385 EXTENSION - vector',
+      '4512; 0 0 COMMENT - EXTENSION vector',
+      '230; 1255 16390 FUNCTION public pgaudit_ddl_command_end() postgres',
+      '231; 1255 16391 FUNCTION public pgaudit_sql_drop() postgres',
+      '4600; 3466 16392 EVENT TRIGGER - pgaudit_ddl_command_end postgres',
+      '250; 1259 16400 TABLE core cliente macuxi_admin',
+      '4100; 0 16400 TABLE DATA core cliente macuxi_admin',
+      '4300; 3256 16500 POLICY core cliente manutencao macuxi_admin',
+      '4301; 0 0 ROW SECURITY core cliente macuxi_admin',
+    ].join('\n');
+    const r = filtrarListaRestauracao(lista);
+    expect(r.removidos).toEqual([
+      'COMMENT - EXTENSION vector',
+      'FUNCTION public pgaudit_ddl_command_end() postgres',
+      'FUNCTION public pgaudit_sql_drop() postgres',
+      'EVENT TRIGGER - pgaudit_ddl_command_end postgres',
+    ]);
+    for (const fica of ['EXTENSION - vector', 'TABLE core cliente', 'TABLE DATA core cliente', 'POLICY core cliente manutencao', 'ROW SECURITY core cliente', '; Archive created'])
+      expect(r.lista).toContain(fica);
+    expect(r.lista).not.toMatch(/pgaudit|EVENT TRIGGER|COMMENT - EXTENSION/);
+  });
+
+  it('A9: erros do pg_restore e comparação de retratos', () => {
+    const stderr = [
+      'pg_restore: error: could not execute query: ERROR:  must be owner of extension vector',
+      'Command was: COMMENT ON EXTENSION vector IS ...',
+      'pg_restore: warning: errors ignored on restore: 1',
+    ].join('\n');
+    expect(errosDoPgRestore(stderr)).toEqual(['pg_restore: error: could not execute query: ERROR:  must be owner of extension vector']);
+    expect(errosDoPgRestore('')).toEqual([]);
+    expect(compararRetratos(['a 1', 'b 2'], ['b 2', 'a 1'])).toEqual({ iguais: true, soNaOrigem: [], soNoDestino: [] });
+    expect(compararRetratos(['a 1', 'b 2'], ['a 1', 'b 3'])).toEqual({ iguais: false, soNaOrigem: ['b 2'], soNoDestino: ['b 3'] });
+  });
+
+  it('A11: conjunto fixo determinístico, sem vetor nulo e sem empate até o k-ésimo vizinho', () => {
+    const { vetores, consultas } = conjuntoReferencia();
+    expect(vetores).toHaveLength(REFERENCIA_VETORES.quantidade);
+    expect(consultas).toHaveLength(REFERENCIA_VETORES.consultas);
+    for (const v of [...vetores, ...consultas]) {
+      expect(v).toHaveLength(REFERENCIA_VETORES.dimensao);
+      expect(v.some((x) => x !== 0)).toBe(true);
+      expect(v.every((x) => Number.isInteger(x) && x >= -9 && x <= 9)).toBe(true);
+    }
+    // mesma semente, mesmo conjunto (o CI e o DBaaS comparam com a mesma lista)
+    expect(conjuntoReferencia()).toEqual({ vetores, consultas });
+    for (const q of consultas) {
+      expect(folgaMinima(vetores, q, REFERENCIA_VETORES.k)).toBeGreaterThan(1e-4);
+      const viz = vizinhosEsperados(vetores, q, REFERENCIA_VETORES.k);
+      expect(viz).toHaveLength(REFERENCIA_VETORES.k);
+      expect(new Set(viz.map((x) => x.id)).size).toBe(REFERENCIA_VETORES.k);
+    }
+    expect(literalVetor([1, -2, 0])).toBe('[1,-2,0]');
+  });
+
+  it('A11: distância de cosseno como a do pgvector (0 = mesmo sentido, 1 = ortogonal, 2 = oposto)', () => {
+    expect(distanciaCosseno([1, 0], [2, 0])).toBe(0);
+    expect(distanciaCosseno([1, 0], [0, 3])).toBe(1);
+    expect(distanciaCosseno([1, 1], [-1, -1])).toBe(2);
+    expect(distanciaCosseno([3, 4], [4, 3])).toBeCloseTo(1 - 24 / 25, 12);
+  });
+
+  it('A12: a ordem esperada é a linguística (acento só desempata) e difere da ordem por bytes do COLLATE "C"', () => {
+    expect([...NOMES_COLACAO].sort()).toEqual([...ORDEM_ESPERADA_NOMES].sort());
+    expect(new Set(NOMES_COLACAO).size).toBe(NOMES_COLACAO.length);
+    expect([...NOMES_COLACAO].sort(new Intl.Collator('pt-BR').compare)).toEqual(ORDEM_ESPERADA_NOMES);
+    const c = ordemBytes(NOMES_COLACAO);
+    expect(c.slice(-5)).toEqual(['Álvaro', 'Édson', 'Ícaro', 'Óscar', 'Úrsula']);
+    expect(primeiraDiferenca(c, ORDEM_ESPERADA_NOMES)).toBe('posição 1: Andréa × esperado Álvaro');
+    expect(primeiraDiferenca(ORDEM_ESPERADA_NOMES, ORDEM_ESPERADA_NOMES)).toBeNull();
+    // ILIKE não ignora acento; sem_acento e a FTS dependem do catálogo (base migrada)
+    expect(CASOS_TEXTO.find((x) => x.rotulo === 'ILIKE não ignora acento')?.esperado).toBe('false');
+    expect(CASOS_TEXTO.filter((x) => x.catalogo).map((x) => x.rotulo)).toHaveLength(2);
+  });
+});
+
 describe('script do contêiner (db/dbaas/teste-compatibilidade.ts)', () => {
   const ts = readFileSync(join(PASTA_DB, 'dbaas', 'teste-compatibilidade.ts'), 'utf8');
+
+  it('A9: dump com --enable-row-security, senha só em PGPASSWORD, 2ª base apagada antes da suíte e arquivos temporários removidos', () => {
+    expect(ts).toContain("'--enable-row-security'");
+    expect(ts).toContain('PGPASSWORD: cfg.adminSenha');
+    expect(ts).not.toMatch(/['"`]--password|PGPASSWORD=|\$\{cfg\.adminSenha\}/);
+    expect(ts).toContain("'L1.2'");
+    expect(ts.indexOf("'L1.2'")).toBeLessThan(ts.indexOf("'X7'"));
+    expect(ts).toMatch(/finally \{\s*rmSync\(pasta, \{ recursive: true, force: true \}\);/);
+    expect(ts).toContain('validarNomeBanco(`${origem}_r`)');
+    // A11/A12 pelo mesmo código do CI (db/testes/dbaas-referencia.test.ts)
+    expect(ts).toContain("from './referencias'");
+  });
 
   it('não usa os caminhos do @macuxi/db que fazem ALTER ROLE com atributo (criarBanco, garantirPapel*)', () => {
     const codigo = ts.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*\*)/.test(l));

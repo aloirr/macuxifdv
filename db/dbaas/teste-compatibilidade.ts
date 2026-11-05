@@ -23,8 +23,13 @@
  * que o admin pode (mgc_superuser, BYPASSRLS concedível, session_replication_role), cria a base e os papéis sem ALTER
  * de atributo, e onde falta privilégio roda o caminho alternativo do plano B (B1 política de manutenção, B2 exclusão de
  * tenant em ordem de FK) e marca ⚠️. A seção "Plano B" do relatório traz a proposta com o custo.
- * Limpeza (sempre, no finally e no --so-limpar): bases macuxi_dbaas_* / macuxi_teste_* criadas e papéis macuxi_dbaas_*,
- * macuxi_app, macuxi_worker e macuxi_manutencao (0031).
+ * Complementares da ADR 0024 (§ O que falta, itens 9, 11 e 12; não mudam o código de saída): A9 pg_dump -Fc da base
+ * migrada e com seed restaurado numa 2ª base de teste (<base>_r), com contagens, RLS e políticas iguais (pg_dump/pg_restore
+ * da imagem; sem eles, o item registra a proposta); A11 vector do DBaaS × o do CI (opclass, operador e HNSW × busca exata
+ * num conjunto fixo); A12 collation e ctype (ordem de nomes com acento, ILIKE, sem_acento, FTS) contra o esperado do CI.
+ * A11 e A12 usam db/dbaas/referencias.ts, o mesmo código do db/testes/dbaas-referencia.test.ts no CI.
+ * Limpeza (sempre, no finally e no --so-limpar): bases macuxi_dbaas_* / macuxi_teste_* criadas (a do teste, a restaurada
+ * do A9 e as da suíte) e papéis macuxi_dbaas_*, macuxi_app, macuxi_worker e macuxi_manutencao (0031).
  *
  * Saída: linhas ✅/❌ no stdout, relatório Markdown no DBAAS_RELATORIO_CONTEINER e, na mesma pasta, suite.json e
  * suite.log (mascarados). Nunca imprime senha nem URL com senha (mascarar) nem dado pessoal (só dados fictícios da demo,
@@ -32,7 +37,8 @@
  */
 import { spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { chownSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chownSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
@@ -41,11 +47,15 @@ import { HOSTS_LOCAIS, lerConfig, PASTA_DB, PASTA_RAIZ, urlAdmin, urlApp, urlWor
 import { lerMigracoes, listarAplicadas, migrarUp } from '../src/migrador';
 import { diagnosticarPapelApp, PAPEL_MANUTENCAO as PAPEL_MANUTENCAO_0031, senhaDoPapel } from '../src/papeis';
 import { carregarDemo, TENANT_DEMO } from '../seeds/demo/demo';
+import { conferirColacaoReferencia, conferirVectorReferencia } from './referencias';
 import {
   classificarErroConexao,
   classificarSuite,
+  compararRetratos,
   conferirDefiners,
   ehBloqueioDePrivilegio,
+  errosDoPgRestore,
+  filtrarListaRestauracao,
   formatarItem,
   formatarMs,
   indicesDoPlano,
@@ -55,13 +65,16 @@ import {
   ordemExclusao,
   percentil,
   primeiraLinhaUtil,
+  PROPOSTA_PG_DUMP,
   resumir,
   resumirVitest,
   SAIDA,
   secaoPlanoB,
   tentativasTls,
+  tlsLibpq,
   verificadorScram,
   versaoAtende,
+  versaoMaiorPg,
   versaoVitestDoLock,
   type ChaveEstrangeira,
   type FuncaoDefiner,
@@ -345,7 +358,7 @@ async function limparBase(cfg: ConfigBanco, bancoManutencao: string, base: strin
 /** Apaga a base do teste (se ainda existir), toda base criada durante o teste e os papéis de teste (L3). */
 async function limpar(cfg: ConfigBanco, bancoManutencao: string, base: string | null, antes: Set<string> | null, baseJaApagada = false): Promise<void> {
   if (base && !baseJaApagada) await limparBase(cfg, bancoManutencao, base);
-  await passo('limpeza', 'L2', 'Bases criadas pela suíte apagadas', async () => {
+  await passo('limpeza', 'L2', 'Bases criadas no run apagadas (as da suíte e, se sobrou, a restaurada do A9)', async () => {
     const agora = await listarBases(cfg, bancoManutencao);
     const alvos = agora.filter((n) => n !== base && (antes ? !antes.has(n) : /^macuxi_(teste|dbaas)_/.test(n)));
     const falhas: string[] = [];
@@ -478,6 +491,105 @@ function instalarVitest(): string {
   return (JSON.parse(readFileSync(join(link, 'package.json'), 'utf8')) as { version: string }).version;
 }
 
+/** db/scripts/conferir-rls.sql da imagem (ou a cópia em db/dbaas); null se não houver. */
+function lerConferirRls(): string | null {
+  const arq = [join(PASTA_DBAAS, 'conferir-rls.sql'), join(PASTA_DB, 'scripts', 'conferir-rls.sql')].find((f) => existsSync(f));
+  return arq ? readFileSync(arq, 'utf8') : null;
+}
+
+/**
+ * A9: pg_dump e pg_restore com major >= o do servidor (pg_dump não faz dump de servidor mais novo). Procura em DBAAS_PG_BIN,
+ * no PATH e em /usr/lib/postgresql/{17,16}/bin. Nada é instalado: sem binário, o A9 registra a proposta (PROPOSTA_PG_DUMP).
+ */
+function acharBinariosPg(maiorServidor: number): { dump: string; restore: string; versao: string } | { erro: string } {
+  const pastaEnv = (env.DBAAS_PG_BIN ?? '').trim();
+  if (pastaEnv && !/^\/[\w./-]+$/.test(pastaEnv)) return { erro: 'DBAAS_PG_BIN inválido (caminho absoluto, sem espaço)' };
+  const pastas = [pastaEnv, '', '/usr/lib/postgresql/17/bin', '/usr/lib/postgresql/16/bin'].filter((p, i) => i === 1 || p !== '');
+  const vistos: string[] = [];
+  for (const p of pastas) {
+    const dump = p ? join(p, 'pg_dump') : 'pg_dump';
+    const restore = p ? join(p, 'pg_restore') : 'pg_restore';
+    const v = spawnSync(dump, ['--version'], { encoding: 'utf8', timeout: 10_000 });
+    if (v.error || v.status !== 0) continue;
+    const texto = (v.stdout ?? '').trim();
+    const maior = versaoMaiorPg(texto);
+    vistos.push(`${dump}: ${texto || '?'}`);
+    if (maior === null || maior < maiorServidor) continue;
+    const vr = spawnSync(restore, ['--version'], { encoding: 'utf8', timeout: 10_000 });
+    if (vr.error || vr.status !== 0 || (versaoMaiorPg(vr.stdout ?? '') ?? 0) < maiorServidor) continue;
+    return { dump, restore, versao: texto };
+  }
+  return { erro: vistos.length ? `só há pg_dump mais antigo que o servidor ${maiorServidor} (${vistos.join('; ')})` : 'pg_dump/pg_restore não encontrados' };
+}
+
+/** Ambiente do pg_dump/pg_restore: sem nenhuma outra credencial; a senha do admin só em PGPASSWORD (nunca em argv). */
+function ambientePg(cfg: ConfigBanco, base: string, tls: string): NodeJS.ProcessEnv {
+  return {
+    ...ambienteSemSegredo(),
+    PGHOST: cfg.host,
+    PGPORT: String(cfg.porta),
+    PGUSER: cfg.adminUsuario,
+    PGPASSWORD: cfg.adminSenha,
+    PGDATABASE: base,
+    PGCONNECT_TIMEOUT: '15',
+    PGAPPNAME: 'macuxi-dbaas-a9',
+    ...tlsLibpq(tls),
+  };
+}
+
+/**
+ * A9: retrato do catálogo comparado entre a base do teste e a restaurada: RLS e FORCE por tabela, políticas (comando,
+ * papéis, using e with check), índices, constraints, gatilhos, funções (DEFINER e search_path) dos schemas do Macuxi,
+ * privilégios de tabela dos papéis da aplicação e de manutenção, extensões. Sem schemas do sistema.
+ */
+const SQL_RETRATO = `
+with ns as (
+  select oid, nspname from pg_namespace where nspname not in ('pg_catalog', 'information_schema') and nspname not like 'pg\\_%'
+)
+select 'tab ' || c.oid::regclass::text || ' rls=' || c.relrowsecurity::text || ' force=' || c.relforcerowsecurity::text as l
+  from pg_class c join ns on ns.oid = c.relnamespace where c.relkind in ('r', 'p')
+union all
+select 'pol ' || p.polrelid::regclass::text || ' ' || p.polname || ' cmd=' || p.polcmd::text || ' permissiva=' || p.polpermissive::text
+       || ' para=' || coalesce((select string_agg(n, ',' order by n)
+                                  from (select case r when 0 then 'public' else pg_get_userbyid(r) end as n from unnest(p.polroles) as u(r)) s), '-')
+       || ' using=' || coalesce(pg_get_expr(p.polqual, p.polrelid), '-') || ' check=' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '-')
+  from pg_policy p
+union all
+select 'idx ' || pg_get_indexdef(i.indexrelid) from pg_index i join pg_class c on c.oid = i.indrelid join ns on ns.oid = c.relnamespace
+union all
+select 'con ' || co.conrelid::regclass::text || ' ' || co.conname || ' ' || pg_get_constraintdef(co.oid)
+  from pg_constraint co join ns on ns.oid = co.connamespace where co.conrelid <> 0
+union all
+select 'trg ' || t.tgrelid::regclass::text || ' ' || t.tgname || ' ' || t.tgenabled::text
+  from pg_trigger t join pg_class c on c.oid = t.tgrelid join ns on ns.oid = c.relnamespace where not t.tgisinternal
+union all
+select 'fn ' || p.oid::regprocedure::text || ' definer=' || p.prosecdef::text || ' ' || coalesce(array_to_string(p.proconfig, ';'), '-')
+       || ' dono=' || pg_get_userbyid(p.proowner)
+  from pg_proc p join ns on ns.oid = p.pronamespace where ns.nspname <> 'public'
+union all
+select 'acl ' || c.oid::regclass::text || ' ' || pg_get_userbyid(a.grantee) || ' ' || a.privilege_type
+  from pg_class c join ns on ns.oid = c.relnamespace cross join lateral aclexplode(c.relacl) a
+ where c.relacl is not null and a.grantee in (select oid from pg_roles where rolname in ('macuxi_app', 'macuxi_worker', 'macuxi_manutencao'))
+union all
+select 'ext ' || e.extname || ' ' || e.extversion from pg_extension e`;
+
+/** A9: retrato do catálogo e contagem de linhas de toda tabela (como o admin, que enxerga todos os tenants pelo B1). */
+async function retratoBase(c: pg.Client): Promise<{ catalogo: string[]; contagens: string[]; tabelas: number; linhas: number }> {
+  const catalogo = (await c.query<{ l: string }>(SQL_RETRATO)).rows.map((r) => r.l);
+  const t = await c.query<{ t: string }>(
+    `select c.oid::regclass::text as t from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where c.relkind = 'r' and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\\_%' order by 1`,
+  );
+  const contagens: string[] = [];
+  let linhas = 0;
+  for (const { t: tabela } of t.rows) {
+    const n = Number((await c.query<{ n: string }>(`select count(*) as n from ${tabela}`)).rows[0]?.n ?? 0);
+    linhas += n;
+    contagens.push(`${tabela} ${n}`);
+  }
+  return { catalogo, contagens, tabelas: t.rows.length, linhas };
+}
+
 function gravarSaida(pasta: string, nome: string, conteudo: string): void {
   try {
     mkdirSync(pasta, { recursive: true });
@@ -534,6 +646,10 @@ interface Estado {
   /** password_encryption e scram_iterations do servidor (X3): decidem se o B0 manda a senha como verificador SCRAM. */
   cifraSenha: string | null;
   iteracoesScram: string | null;
+  /** Modo de TLS do node-pg que funcionou no P1 (o pg_dump/pg_restore do A9 usa o equivalente do libpq). */
+  tls: string;
+  /** 2ª base de teste do A9 (restauração do dump); apagada no fim do A9 (L1.2) e, se sobrar, no L2. */
+  baseRestaurada: string | null;
 }
 
 /** Linha mais útil de uma saída de erro: a 1ª que fala em erro/falha; senão a 1ª que não é pilha. */
@@ -592,6 +708,8 @@ async function principal(): Promise<number> {
     b1Variante: null,
     cifraSenha: null,
     iteracoesScram: null,
+    tls: 'no-verify',
+    baseRestaurada: null,
   };
   const pb = st.planoB;
 
@@ -623,6 +741,7 @@ async function principal(): Promise<number> {
             return r.rows[0] ?? null;
           });
           tlsUsado = t;
+          st.tls = t;
           ultimo = null;
           break;
         } catch (e) {
@@ -998,7 +1117,21 @@ async function principal(): Promise<number> {
             ok &&= !d.superusuario && !d.ignoraRls && d.tabelasDeQueEDono.length === 0;
             partes.push(`${papel}: ${d.tabelasDeQueEDono.length} tabela(s) própria(s)`);
           }
-          return { ok, detalhe: partes.join(' · ') };
+          // informativo (🟢 3 da revisão R-20261105-093536): papéis de LOGIN além do migrador que são membros do
+          // macuxi_manutencao. Mede antes de generalizar a trava, para um papel do provedor não virar falso positivo.
+          const outros = await c.query<{ papel: string }>(
+            `select a.rolname as papel from pg_roles a join pg_roles m on m.rolname = $1
+              where a.rolcanlogin and not a.rolsuper and a.rolname <> current_user and a.oid <> m.oid and pg_has_role(a.oid, m.oid, 'MEMBER')
+              order by 1`,
+            [PAPEL_MANUTENCAO_0031],
+          );
+          return {
+            ok,
+            detalhe: partes.join(' · '),
+            subitens: [
+              `papéis de LOGIN (sem SUPERUSER, fora o migrador) membros do ${PAPEL_MANUTENCAO_0031}: ${outros.rows.map((r) => r.papel).join(', ') || 'nenhum'} (informativo)`,
+            ],
+          };
         }),
       );
     } else {
@@ -1283,6 +1416,109 @@ async function principal(): Promise<number> {
       naoRodou('c4', 'C4.2', 'EXPLAIN da busca por vizinhos usa o HNSW', 'sem índice (C4.1)');
     }
 
+    // ---------------- complementares da ADR 0024: itens 12, 11 e 9 ----------------
+    if (migrou) {
+      await passo('comp', 'A12', 'Collation e ctype (ADR 0024 item 12): ordem de nomes com acento, lower/upper, ILIKE, catalogo.sem_acento e FTS iguais ao esperado do CI (transação desfeita)', async () =>
+        com(urlAdmin(cfg, nomeBase), async (c) => {
+          const r = await conferirColacaoReferencia(c);
+          return { ok: r.ok, detalhe: r.detalhe, subitens: r.subitens };
+        }),
+      );
+    } else naoRodou('comp', 'A12', 'Collation e ctype (ADR 0024 item 12)', 'migrações não aplicadas (C2.3)');
+
+    if (migrou && vectorVersao) {
+      await passo('comp', 'A11', `vector ${vectorVersao} × 0.8.2 do CI (ADR 0024 item 11): opclass vector_cosine_ops com <=>, HNSW = busca exata = esperado num conjunto fixo (transação desfeita)`, async () =>
+        com(urlAdmin(cfg, nomeBase), async (c) => {
+          const r = await conferirVectorReferencia(c);
+          return { ok: r.ok, detalhe: r.detalhe, subitens: r.subitens };
+        }),
+      );
+    } else naoRodou('comp', 'A11', 'vector do DBaaS × 0.8.2 do CI (ADR 0024 item 11)', migrou ? 'sem extensão vector (C1.2)' : 'migrações não aplicadas (C2.3)');
+
+    if (semeou && st.base && !st.baseApagada) {
+      const origem = st.base;
+      await passo('comp', 'A9', 'Restauração do nosso dump no DBaaS (ADR 0024 item 9): pg_dump -Fc da base migrada e com seed → 2ª base de teste, com contagens, RLS e políticas iguais', async () => {
+        const bin = acharBinariosPg(Math.floor(servidor.num / 10_000));
+        if ('erro' in bin) return { ok: false, detalhe: `não rodou: ${bin.erro} · ${PROPOSTA_PG_DUMP}` };
+        const destino = validarNomeBanco(`${origem}_r`);
+        const pasta = join(tmpdir(), `macuxi-dbaas-a9-${process.pid}`);
+        mkdirSync(pasta, { recursive: true, mode: 0o700 });
+        const arqDump = join(pasta, 'base.dump');
+        const arqLista = join(pasta, 'lista.txt');
+        const subitens: string[] = [`${bin.versao} (${bin.dump})`];
+        try {
+          // 1) dump como o admin: sem BYPASSRLS, o FORCE RLS exige --enable-row-security (com row_security=off o pg_dump
+          // aborta); a política manutencao (0031) deixa o admin ler todos os tenants.
+          const t0 = performance.now();
+          const d = spawnSync(bin.dump, ['--format=custom', '--compress=6', '--enable-row-security', '--no-password', `--file=${arqDump}`], {
+            env: ambientePg(cfg, origem, st.tls),
+            encoding: 'utf8',
+            timeout: 6 * 60_000,
+            maxBuffer: 64 * 1024 * 1024,
+          });
+          if (d.error || d.status !== 0) return { ok: false, detalhe: `pg_dump falhou (código ${d.status ?? '?'}): ${m(linhaDeErro(`${d.stderr ?? ''}\n${d.error?.message ?? ''}`))}`, subitens };
+          const msDump = performance.now() - t0;
+          const tamanho = statSync(arqDump).size;
+          // 2) índice do dump sem os objetos do provedor (pgaudit, gatilhos de evento, COMMENT ON EXTENSION)
+          const l = spawnSync(bin.restore, ['--list', arqDump], { encoding: 'utf8', timeout: 2 * 60_000, maxBuffer: 64 * 1024 * 1024 });
+          if (l.error || l.status !== 0) return { ok: false, detalhe: `pg_restore --list falhou: ${m(linhaDeErro(`${l.stderr ?? ''}\n${l.error?.message ?? ''}`))}`, subitens };
+          const filtrada = filtrarListaRestauracao(l.stdout ?? '');
+          writeFileSync(arqLista, filtrada.lista, { mode: 0o600 });
+          subitens.push(`fora da restauração (objetos do provedor, já na base nova pelo template1): ${filtrada.removidos.join('; ') || 'nenhum'}`);
+          // 3) 2ª base de teste (CREATE DATABASE direto, como a C2.2) e restauração como o admin, com donos e privilégios
+          st.baseRestaurada = destino; // antes do CREATE: se ele falhar no meio, a limpeza confere
+          await com(urlAdmin(cfg, conf.bancoManutencao), (c) => c.query(`create database ${destino}`));
+          const t1 = performance.now();
+          const r = spawnSync(bin.restore, ['--no-password', `--dbname=${destino}`, `--use-list=${arqLista}`, arqDump], {
+            env: ambientePg(cfg, destino, st.tls),
+            encoding: 'utf8',
+            timeout: 8 * 60_000,
+            maxBuffer: 64 * 1024 * 1024,
+          });
+          const msRestauracao = performance.now() - t1;
+          const erros = errosDoPgRestore(r.stderr ?? '').map(m);
+          if (r.error) erros.unshift(`pg_restore não terminou: ${msgErro(r.error)}`);
+          // 4) comparação: catálogo (RLS, políticas, índices, constraints, gatilhos, funções, privilégios), contagens e conferir-rls
+          const antes = await com(urlAdmin(cfg, origem), retratoBase);
+          const depois = await com(urlAdmin(cfg, destino), retratoBase);
+          const cat = compararRetratos(antes.catalogo, depois.catalogo);
+          const cont = compararRetratos(antes.contagens, depois.contagens);
+          const sqlConferir = lerConferirRls();
+          const problemasRls = sqlConferir ? (await com(urlAdmin(cfg, destino), (c) => c.query<{ tabela: string; problema: string }>(sqlConferir))).rows : null;
+          const contar = (prefixo: string, lista: string[]) => lista.filter((x) => x.startsWith(prefixo)).length;
+          const ok =
+            r.status === 0 && !r.error && erros.length === 0 && cat.iguais && cont.iguais && antes.linhas > 0 && problemasRls !== null && problemasRls.length === 0;
+          subitens.push(
+            `catálogo: ${contar('tab ', antes.catalogo)} tabelas, ${contar('pol ', antes.catalogo)} políticas, ${contar('idx ', antes.catalogo)} índices, ${contar('con ', antes.catalogo)} constraints, ${contar('trg ', antes.catalogo)} gatilhos, ${contar('fn ', antes.catalogo)} funções, ${contar('acl ', antes.catalogo)} privilégios · ${cat.iguais ? 'igual na restaurada' : `${cat.soNaOrigem.length} só na origem, ${cat.soNoDestino.length} só na restaurada`}`,
+            `contagens: ${antes.tabelas} tabelas, ${antes.linhas} linhas na origem · ${cont.iguais ? 'iguais' : `${cont.soNaOrigem.length} tabela(s) com contagem diferente`}`,
+            `conferir-rls.sql na restaurada: ${problemasRls === null ? 'arquivo não encontrado na imagem' : `${problemasRls.length} problema(s)`}`,
+            ...erros.slice(0, 10).map((e) => `pg_restore: ${e}`),
+            ...cat.soNaOrigem.slice(0, 10).map((x) => `só na origem: ${x}`),
+            ...cat.soNoDestino.slice(0, 10).map((x) => `só na restaurada: ${x}`),
+            ...cont.soNaOrigem.slice(0, 10).map((x) => `contagem na origem: ${x}`),
+            ...(problemasRls ?? []).slice(0, 10).map((x) => `conferir-rls: ${x.tabela}: ${x.problema}`),
+          );
+          return {
+            ok,
+            detalhe: `dump ${formatarMs(msDump)} (${(tamanho / 1_048_576).toFixed(1)} MiB) · restauração ${formatarMs(msRestauracao)}${r.status === 0 ? '' : ` (código ${r.status ?? '?'})`} · ${erros.length} erro(s) · contagens ${cont.iguais ? 'iguais' : 'DIFERENTES'} · RLS e políticas ${cat.iguais ? 'iguais' : 'DIFERENTES'}`,
+            subitens,
+          };
+        } finally {
+          rmSync(pasta, { recursive: true, force: true });
+        }
+      });
+      const restaurada = st.baseRestaurada;
+      if (restaurada) {
+        // antes da suíte: o DROP ROLE do X7 falha se uma base qualquer ainda tiver privilégio do macuxi_app
+        await passo('limpeza', 'L1.2', `Base restaurada do A9 ${restaurada} apagada`, async () => {
+          await apagarBaseDireto(cfg, conf.bancoManutencao, restaurada);
+          const resta = (await listarBases(cfg, conf.bancoManutencao)).includes(restaurada);
+          if (!resta) st.baseRestaurada = null;
+          return { ok: !resta, detalhe: resta ? 'a base ainda existe' : 'drop database … with (force)' };
+        });
+      }
+    } else naoRodou('comp', 'A9', 'Restauração do nosso dump no DBaaS (ADR 0024 item 9)', 'sem seed demo (C2.7)');
+
     // ---------------- critério 3: suíte @macuxi/db ----------------
     // A base do teste sai antes da suíte e os papéis da aplicação são apagados: o globalSetup (db/src/papeis.ts, B0) então
     // os CRIA com o verificador SCRAM e dá SET ao admin; o macuxi_manutencao (0031) fica e a filiação do admin também.
@@ -1321,9 +1557,10 @@ async function principal(): Promise<number> {
         return { ok: r.length === 0, detalhe: r.length === 0 ? 'macuxi_app e macuxi_worker apagados' : 'algum papel ficou (o globalSetup vai cair no ALTER ROLE)', subitens: r };
       });
       let vitest = '';
-      const instalou = await passo('c3', 'C3.3', 'Vitest no contêiner (versão do pnpm-lock; nada instalado na VM)', async () => {
+      const instalou = await passo('c3', 'C3.3', 'Vitest da imagem macuxi-api-teste (alvo teste-db, versão do pnpm-lock; nada instalado na VM)', async () => {
+        const daImagem = existsSync(join(PASTA_RAIZ, 'node_modules', 'vitest', 'package.json'));
         vitest = instalarVitest();
-        return { ok: true, detalhe: `vitest ${vitest}` };
+        return { ok: true, detalhe: `vitest ${vitest} · ${daImagem ? 'veio na imagem (/app/node_modules/vitest)' : 'instalado pelo npm só no contêiner (a imagem não tinha)'}` };
       });
       if (vitest) versoes.push(`Vitest ${vitest}`);
       if (instalou) {

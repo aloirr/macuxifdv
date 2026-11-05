@@ -12,7 +12,8 @@
 #   DBAAS_DIR (pasta pai desta) · DBAAS_SAIDA ($DBAAS_DIR/saida) · DBAAS_RELATORIO ($DBAAS_SAIDA/relatorio.md) ·
 #   MACUXI_IMAGEM_API (imagem com tag; sem tag usa MACUXI_SHA, o MACUXI_TAG de /opt/macuxi/imagens.env ou "main") ·
 #   DBAAS_MIGRAR_ATE (vazio = a última migração da imagem) · DBAAS_SUITE (1; 0 pula a suíte) · DBAAS_VITEST_WORKERS (2) · DBAAS_TEMPO_SUITE_MIN (16) ·
-#   DBAAS_HNSW_LINHAS (5000) · DBAAS_HNSW_DIM (1536) · DBAAS_VITEST_VERSAO (a do pnpm-lock.yaml da imagem).
+#   DBAAS_HNSW_LINHAS (5000) · DBAAS_HNSW_DIM (1536) · DBAAS_VITEST_VERSAO (a do pnpm-lock.yaml da imagem) ·
+#   DBAAS_PG_BIN (pasta do pg_dump/pg_restore 16 DENTRO da imagem, para o A9; vazio = PATH e /usr/lib/postgresql/1[67]/bin).
 #   DBAAS_REPO_TGZ e DOCKER_CONFIG: não usados aqui (o código vem da imagem; o docker pull usa o DOCKER_CONFIG herdado).
 #
 # O que faz:
@@ -21,8 +22,10 @@
 #      com esta pasta em /app/db/dbaas e $DBAAS_SAIDA em /saida, e roda teste-compatibilidade.ts: base nova
 #      macuxi_dbaas_AAAAMMDD_HHMMSS (CREATE DATABASE direto, sem ALTER ROLE), papéis (sem ALTER de atributo), o que o
 #      admin pode (mgc_superuser, BYPASSRLS, session_replication_role), migrações até a última da imagem (0031 B1 e 0032 B2), RLS forçado, SECURITY
-#      DEFINER, vector, seed demo, RLS na prática, exclusão de tenant, HNSW com EXPLAIN, suíte do @macuxi/db; onde falta
-#      privilégio, roda o caminho alternativo do plano B e marca ⚠️; no fim (sempre) apaga as bases e os papéis de teste;
+#      DEFINER, vector, seed demo, RLS na prática, exclusão de tenant, HNSW com EXPLAIN, os complementares da ADR 0024
+#      (A12 collation e ctype, A11 vector × CI, A9 pg_dump/pg_restore numa 2ª base <base>_r, apagada logo depois) e a
+#      suíte do @macuxi/db; onde falta privilégio, roda o caminho alternativo do plano B e marca ⚠️; no fim (sempre) apaga
+#      as bases (a do teste, a restaurada e as da suíte) e os papéis de teste;
 #   3. confere que a senha não aparece em nenhum arquivo de $DBAAS_SAIDA (apaga o arquivo e falha se aparecer).
 # Saída: $DBAAS_RELATORIO (Markdown com ✅/⚠️/❌, versões, tempos e a seção "Plano B"), $DBAAS_SAIDA/execucao.log,
 # suite.json e suite.log. DBAAS_SUITE=forcar roda a suíte mesmo com o log do servidor registrando comandos de papel;
@@ -61,7 +64,7 @@ export DBAAS_MIGRAR_ATE="${DBAAS_MIGRAR_ATE:-}"
 DBAAS_DIR="${DBAAS_DIR:-$(dirname "$ORIGEM")}"
 DBAAS_SAIDA="${DBAAS_SAIDA:-$DBAAS_DIR/saida}"
 DBAAS_RELATORIO="${DBAAS_RELATORIO:-$DBAAS_SAIDA/relatorio.md}"
-for v in DBAAS_SUITE DBAAS_VITEST_WORKERS DBAAS_TEMPO_SUITE_MIN DBAAS_HNSW_LINHAS DBAAS_HNSW_DIM DBAAS_VITEST_VERSAO; do
+for v in DBAAS_SUITE DBAAS_VITEST_WORKERS DBAAS_TEMPO_SUITE_MIN DBAAS_HNSW_LINHAS DBAAS_HNSW_DIM DBAAS_VITEST_VERSAO DBAAS_PG_BIN; do
   # shellcheck disable=SC2163
   [ -n "${!v:-}" ] && export "$v"
 done
@@ -141,7 +144,7 @@ rodar_conteiner() {
   printf '%s\n' "$DBAAS_SENHA" | docker run -i --rm --name "$1" --network host --user 0:0 \
     -e DBAAS_SENHA_STDIN=1 \
     -e DBAAS_HOST -e DBAAS_PORTA -e DBAAS_USUARIO -e DBAAS_BANCO -e DBAAS_SSLMODE -e DBAAS_MIGRAR_ATE \
-    -e DBAAS_SUITE -e DBAAS_VITEST_WORKERS -e DBAAS_TEMPO_SUITE_MIN -e DBAAS_HNSW_LINHAS -e DBAAS_HNSW_DIM -e DBAAS_VITEST_VERSAO \
+    -e DBAAS_SUITE -e DBAAS_VITEST_WORKERS -e DBAAS_TEMPO_SUITE_MIN -e DBAAS_HNSW_LINHAS -e DBAAS_HNSW_DIM -e DBAAS_VITEST_VERSAO -e DBAAS_PG_BIN \
     -e DBAAS_ALCANCE_MS -e DBAAS_ROTA_DEV \
     -e DBAAS_SAIDA_CONTEINER=/saida -e "DBAAS_RELATORIO_CONTEINER=/saida/$REL_NOME" \
     -e "DBAAS_DONO=$(id -u):$(id -g)" -e "DBAAS_IMAGEM=$IMAGEM" \
