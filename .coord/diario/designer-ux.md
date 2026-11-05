@@ -9,3 +9,7 @@
 2026-11-04 — T-0077 — conferida a correção da tela Pedidos (R1 busca em Todos e Y1-Y10): revisão de UX fechada sem 🔴; ficam para depois do APK Y11, G1-G3 e 2 observações 🟢.
 2026-11-04 — T-0072/T-0071 — condição 4 do push (lote 1): telas do Gestão em 4d08116 revisadas pela primeira vez, sem 🔴, 4 🟡 ao modulo-gestor (R-20261104-213818); 🟡 finais 23a/b/c, 25 e 26 do vendedor em ff9ea98 conferidos e atendidos; veredito: lote 1 sem 🔴
 2026-11-04 — T-0073 — revisão de UX do painel Parâmetros do Início (BKO, Metas e RV): sem 🔴, 7 🟡 ao modulo-core (R-20261104-230412)
+2026-11-04 — T-0072 — revisões de UX publicadas nos PRs da nuvem: #91 promotor, #92 treinamento, #93 pesquisa e #94 core, todos sem 🔴 (só 🟡 de texto e nível de botão); ícones camera e inbox no kit mobile com icon.test.ts; Banner e Chip ficam no kit (§5.1 do guia); caminho dos anexos em docs/design/inicio.md trocado para docs/produto/referencias/
+2026-11-04 — T-0072 — vibração: guia §6 e comentário de movimento.ts alinhados à decisão R-20261104-231036 (com reduzir movimento, não vibra), resposta ao engenheiro-apps
+2026-11-04 — T-0077/T-0072 — condição 4 do lote: acabamento de Pedidos sem 🔴 (3 🟡 ao modulo-vendedor, R-20261104-234710) e vibração 01165dc sem 🔴 (1 🟡 ao engenheiro-apps, R-20261104-234713); entrega R-20261104-234729
+2026-11-05 — T-0072 — condição 4 do lote: correções dos 🟡 de #91 promotor (8/9; ícone camera fica), #92 treinamento (6/6) e #93 pesquisa (5/5, 1 🟡 novo no chip da aba do cliente) conferidas, todas sem 🔴; pendência minha no kit: Loading embutido em Cartao; entrega ao gerente
