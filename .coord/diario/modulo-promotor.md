@@ -9,3 +9,5 @@
 2026-11-02 — T-0056 — repositório SQL do Promotor + pull dos cadastros + preço da Loja iniciados no local; interrompido por duplicação com a sessão da nuvem (R-20261102-190636); testes de banco não rodaram (Docker travado)
 2026-11-02 — T-0056 — alterações locais de modules/promotor devolvidas ao HEAD (api/index.ts, tela-loja.tsx) e arquivos novos apagados, a pedido do gerente, para não conflitar com a sessão da nuvem
 2026-11-05 — T-0072 — Promotor: 9 amarelos do #91 corrigidos em tela-loja.tsx
+2026-11-05 — ajuste de UX — ícone camera nos botões Foto antes/depois da gôndola (tela-loja.tsx)
+2026-11-05 — T-0024 — teste conferirEventosPublicados do Promotor (contracts/eventos-definicoes.test.ts); schemas já no padrão
