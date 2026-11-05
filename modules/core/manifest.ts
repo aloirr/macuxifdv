@@ -15,7 +15,7 @@ export const manifest = defineModule({
   },
   sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_checkout', 'visita_etapa', 'motivo', 'parametro', 'meta', 'indicador_diario', 'notificacao', 'notificacao_leitura', 'produto', 'produto_unidade', 'medida', 'cliente_endereco'],
   publica: ['core.cliente.atualizado@1', 'core.visita.checkin@1', 'core.visita.checkout@1', 'core.usuario.modulos_alterados@1', 'core.notificacao.criada@1', 'core.meta.definida@1'],
-  consome: ['core.notificacao.criada@1', 'core.meta.definida@1', 'vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'treinamento.medalha.conquistada@1', 'integracao.cliente.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.vendedor.atualizado@1', 'integracao.titulo.atualizado@1', 'integracao.nota.atualizado@1', 'integracao.rota.atualizado@1', 'integracao.produto_unidade.atualizado@1', 'integracao.cliente_endereco.atualizado@1'],
+  consome: ['core.notificacao.criada@1', 'core.meta.definida@1', 'vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'vendedor.pedido.aprovacao_solicitada@1', 'treinamento.medalha.conquistada@1', 'integracao.cliente.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.vendedor.atualizado@1', 'integracao.titulo.atualizado@1', 'integracao.nota.atualizado@1', 'integracao.rota.atualizado@1', 'integracao.produto_unidade.atualizado@1', 'integracao.cliente_endereco.atualizado@1', 'pesquisa.resposta.registrada@1'],
   acoes: {
     // Equivalem a canEditRoutes / canManagePeriod / canEditParams da Fase M (web/lib/rules.ts); a API revalida (RN-CORE-04).
     'rota.editar': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Montar e alterar a rota da semana (BKO)' },
@@ -39,10 +39,12 @@ export const manifest = defineModule({
     'inicio.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente'], descricao: 'Ver o Início de boas-vindas: meta do dia, recado do dia, rota e equipe agora; analista e admin não têm Início (RN-CORE-26)' },
     'notificacao.recado_do_dia': { perfis: ['supervisor', 'gerente'], descricao: 'Marcar/desmarcar um recado enviado como recado do dia de hoje para a equipe destinatária do próprio escopo (RN-CORE-26)' },
     'parametro.inicio': { perfis: ['analista', 'admin'], descricao: 'Editar os parâmetros do Início: metas.dias_uteis_semana, inicio.recado_do_dia_padrao e inicio.parado_min (RN-CORE-26)' },
+    'visita.dispensar_etapa': { perfis: ['supervisor', 'admin'], descricao: 'Dispensar à mão, com justificativa, a etapa pendente de uma visita da própria equipe (supervisor) ou do tenant (admin); auditado (RN-CORE-12, T-0039 §2.5a)' },
+    'parametro.checkout_pendencia': { perfis: ['admin'], descricao: 'Editar o prazo do alerta de etapa pendente do checkout, parâmetro checkout_pendencia_alerta_h, 1 a 168 h (padrão 24; RN-CORE-12)' },
     'plano_rv.editar': { perfis: ['analista'], descricao: 'Editar o plano de RV (vigência futura)' },
   },
   // ADR 0019: consulta opcional não cria aresta de dependência (sem ciclo core ↔ vendedor); sem o dono, cai no indicador_diario
-  usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1'],
+  usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1', 'pesquisa.etapas_checkout@1'],
   ofereceConsultas: ['core.cadastro_resumo@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1'],
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });

@@ -7,6 +7,7 @@
  */
 import { z } from 'zod';
 import { PerfilSchema } from './auth';
+import { EtapasPendentesSchema } from './etapas-pendencia';
 import { ModuloIdSchema } from './modulos';
 import { EMBALAGEM_QUANTIDADE_MAX, EMBALAGEM_QUANTIDADE_MIN } from './medida';
 
@@ -271,6 +272,8 @@ export const VisitaSyncSchema = z
     fechada_por: z.enum(['usuario', 'auto']).nullable().optional(),
     /** UUID do comando de checkout já aplicado no servidor (idempotência; a sobreposição da fila o usa). */
     checkout_id: z.string().uuid().nullable().optional(),
+    /** T-0039 §2: etapas obrigatórias de outros módulos pendentes (RN-CORE-12). Aditivo: aparelho antigo ignora. */
+    etapas_pendentes: EtapasPendentesSchema.optional(),
   })
   .strict();
 export type VisitaSync = z.infer<typeof VisitaSyncSchema>;

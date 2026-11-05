@@ -36,8 +36,8 @@ export function sinais(v: Pick<VisitaBko, 'fora_do_raio' | 'sem_gps' | 'sugere_c
 }
 
 /** CSV (ponto e vírgula, Excel pt-BR) das visitas filtradas na tela. */
-export function csvDeVisitas(itens: readonly VisitaBko[], fuso: string): string {
-  const cab = ['Data', 'Vendedor', 'Cliente', 'Check-in', 'Checkout', 'Minutos', 'Resultado', 'Motivo', 'Distância (m)', 'Sinais', 'Justificativa', 'Foto da fachada'];
+export function csvDeVisitas(itens: readonly (VisitaBko & { etapas_pendentes?: number })[], fuso: string): string {
+  const cab = ['Data', 'Vendedor', 'Cliente', 'Check-in', 'Checkout', 'Minutos', 'Resultado', 'Motivo', 'Distância (m)', 'Sinais', 'Justificativa', 'Foto da fachada', 'Etapas pendentes'];
   const linhas = itens.map((v) =>
     [
       v.data_local,
@@ -52,6 +52,7 @@ export function csvDeVisitas(itens: readonly VisitaBko[], fuso: string): string 
       sinais(v).join(', '),
       v.justificativa_fora_raio ?? '',
       v.foto_fachada_id ? 'sim' : '',
+      String(v.etapas_pendentes ?? 0),
     ]
       .map(aspas)
       .join(';'),

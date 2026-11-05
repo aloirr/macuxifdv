@@ -5,11 +5,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePode } from '@macuxi/platform-sdk/react';
 import { ApiRequestError, api, errorMessage } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, LoadingBlock, Notice, Panel } from '@macuxi/ui/web';
-import { ErroParametroInicioSchema, ParametrosInicioSchema, type ErroParametroInicio } from '../../../contracts';
-import { PARADO_MIN_MAX, PARADO_MIN_MIN, RECADO_DO_DIA_PADRAO, RECADO_PADRAO_MAX, validarParametrosInicio } from '../../../domain';
+import {
+  ErroParametroInicioSchema,
+  ParametroCheckoutPendenciaSchema,
+  ParametrosInicioSchema,
+  type ErroParametroInicio,
+} from '../../../contracts';
+import { AJUDA_ALERTA_H, ALERTA_H_PADRAO, validarAlertaH } from '../../lib/etapas-visita';
+import {
+  PARADO_MIN_MAX,
+  PARADO_MIN_MIN,
+  RECADO_DO_DIA_PADRAO,
+  RECADO_PADRAO_MAX,
+  validarParametrosInicio,
+} from '../../../domain';
 
 const CHAVE = ['core', 'parametros', 'inicio'] as const;
 const CAMINHO = '/core/parametros/inicio';
+const CHAVE_PRAZO = ['core', 'parametros', 'checkout-pendencia'] as const;
+const CAMINHO_PRAZO = '/core/parametros/checkout-pendencia';
 const DIAS = [
   [0, 'Dom', 'Domingo'],
   [1, 'Seg', 'Segunda-feira'],
@@ -22,9 +36,13 @@ const DIAS = [
 const CAMPO = 'h-[44px] w-full rounded-xl border bg-surface px-3 text-[14px] font-normal text-ink';
 const PERTO_DO_LIMITE = 120;
 
-type CampoParam = 'dias' | 'recado' | 'parado';
+type CampoParam = 'dias' | 'recado' | 'parado' | 'alerta';
 type ErrosCampo = Partial<Record<CampoParam, string>>;
-const CAMPO_DA_CHAVE: Record<ErroParametroInicio['campo'], CampoParam> = { dias_uteis_semana: 'dias', recado_do_dia_padrao: 'recado', parado_min: 'parado' };
+const CAMPO_DA_CHAVE: Record<ErroParametroInicio['campo'], CampoParam> = {
+  dias_uteis_semana: 'dias',
+  recado_do_dia_padrao: 'recado',
+  parado_min: 'parado',
+};
 
 /** Liga cada erro (local ou 422 da API) ao campo pela CHAVE `campo`; sem campo, vai para o aviso do topo. */
 function mapearErros(erros: readonly ErroParametroInicio[]): { campos: ErrosCampo; soltos: string[] } {
@@ -60,10 +78,29 @@ export function InicioParametrosPanel() {
   const [dias, setDias] = useState<number[]>([]);
   const [recado, setRecado] = useState('');
   const [parado, setParado] = useState('60');
+  const [alertaH, setAlertaH] = useState(String(ALERTA_H_PADRAO));
   const [aviso, setAviso] = useState<string | null>(null);
   const [salvo, setSalvo] = useState(false);
   const [erros, setErros] = useState<ErrosCampo>({});
-  const q = useQuery({ queryKey: CHAVE, enabled: pode, queryFn: async () => ParametrosInicioSchema.parse(await api<unknown>(CAMINHO)) });
+  const q = useQuery({
+    queryKey: CHAVE,
+    enabled: pode,
+    queryFn: async () => ParametrosInicioSchema.parse(await api<unknown>(CAMINHO)),
+  });
+  // Prazo da etapa pendente (T-0039): rota própria, separada do PUT do Início (contrato estrito); só aparece com a permissão dele.
+  const podePrazo = usePode('parametro.checkout_pendencia');
+  const qPrazo = useQuery({
+    queryKey: CHAVE_PRAZO,
+    enabled: pode && podePrazo,
+    retry: false,
+    queryFn: async () =>
+      ParametroCheckoutPendenciaSchema.parse(await api<unknown>(CAMINHO_PRAZO)).checkout_pendencia_alerta_h,
+  });
+  const prazoServidor = qPrazo.data ?? null;
+  const temAlerta = podePrazo && prazoServidor !== null;
+  useEffect(() => {
+    if (prazoServidor !== null) setAlertaH(String(prazoServidor));
+  }, [prazoServidor]);
   useEffect(() => {
     if (!q.data) return;
     setDias(q.data.dias_uteis_semana);
@@ -72,18 +109,33 @@ export function InicioParametrosPanel() {
   }, [q.data]);
 
   const gravar = useMutation({
-    mutationFn: async (corpo: { dias_uteis_semana: number[]; recado_do_dia_padrao: string; parado_min: number }) =>
-      ParametrosInicioSchema.parse(await api<unknown>(CAMINHO, { method: 'PUT', body: corpo })),
+    mutationFn: async (corpo: {
+      dias_uteis_semana: number[];
+      recado_do_dia_padrao: string;
+      parado_min: number;
+      prazo?: number;
+    }) => {
+      const { prazo, ...inicio } = corpo;
+      await api<unknown>(CAMINHO, { method: 'PUT', body: inicio });
+      if (prazo !== undefined && prazo !== prazoServidor)
+        await api<unknown>(CAMINHO_PRAZO, { method: 'PUT', body: { checkout_pendencia_alerta_h: prazo } });
+    },
     onSuccess: async () => {
       setErros({});
       setAviso(null);
       setSalvo(true);
       await qc.invalidateQueries({ queryKey: CHAVE });
+      await qc.invalidateQueries({ queryKey: CHAVE_PRAZO });
     },
     onError: (e) => {
       setSalvo(false);
       const bruto = e instanceof ApiRequestError && e.status === 422 ? e.details?.erros : undefined;
-      const lista = Array.isArray(bruto) ? bruto.flatMap((x) => { const r = ErroParametroInicioSchema.safeParse(x); return r.success ? [r.data] : []; }) : [];
+      const lista = Array.isArray(bruto)
+        ? bruto.flatMap((x) => {
+            const r = ErroParametroInicioSchema.safeParse(x);
+            return r.success ? [r.data] : [];
+          })
+        : [];
       if (lista.length === 0) return setAviso(errorMessage(e));
       const m = mapearErros(lista);
       setErros(m.campos);
@@ -96,18 +148,22 @@ export function InicioParametrosPanel() {
     const corpo = { dias_uteis_semana: dias, recado_do_dia_padrao: recado, parado_min: Number(parado) };
     const v = validarParametrosInicio(corpo);
     setSalvo(false);
-    if (!v.ok) {
-      const m = mapearErros(v.erros);
+    const a = temAlerta ? validarAlertaH(alertaH) : ({ ok: true, valor: ALERTA_H_PADRAO } as const);
+    const m = v.ok ? { campos: {} as ErrosCampo, soltos: [] as string[] } : mapearErros(v.erros);
+    if (!a.ok) m.campos.alerta = a.erro;
+    if (!v.ok || !a.ok) {
       setErros(m.campos);
       return setAviso(m.soltos.length > 0 ? m.soltos.join(' ') : null);
     }
     setErros({});
     setAviso(null);
-    gravar.mutate(v.valores);
+    gravar.mutate({ ...v.valores, ...(temAlerta ? { prazo: a.valor } : {}) });
   };
   const alternar = (d: number) => {
     setSalvo(false);
-    setDias((atual) => (atual.includes(d) ? atual.filter((x) => x !== d) : [...atual, d].sort((a, b) => a - b)));
+    setDias((atual) =>
+      atual.includes(d) ? atual.filter((x) => x !== d) : [...atual, d].sort((a, b) => a - b),
+    );
   };
   const tamanhoRecado = recado.trim().length;
 
@@ -125,7 +181,10 @@ export function InicioParametrosPanel() {
           <>
             <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
               <legend className="text-[14px] font-semibold text-ink">Dias úteis da semana</legend>
-              <span className="text-[13px] text-ink-2">Os dias marcados contam para a meta do dia: a meta que falta no mês é dividida pelos dias úteis que restam.</span>
+              <span className="text-[13px] text-ink-2">
+                Os dias marcados contam para a meta do dia: a meta que falta no mês é dividida pelos dias
+                úteis que restam.
+              </span>
               <MensagemErro id="inicio-params.dias.erro" texto={erros.dias} />
               <div className="flex flex-wrap gap-2">
                 {DIAS.map(([n, rotulo, nomeCompleto]) => (
@@ -148,7 +207,8 @@ export function InicioParametrosPanel() {
             <label className="flex flex-col gap-1 text-[14px] font-semibold text-ink">
               Frase padrão do recado do dia
               <span className="text-[13px] font-normal text-ink-2">
-                Aparece no Início quando o supervisor não marcou um recado para hoje. Até {RECADO_PADRAO_MAX} caracteres. Em branco, vale a frase padrão do sistema.
+                Aparece no Início quando o supervisor não marcou um recado para hoje. Até {RECADO_PADRAO_MAX}{' '}
+                caracteres. Em branco, vale a frase padrão do sistema.
               </span>
               <MensagemErro id="inicio-params.recado.erro" texto={erros.recado} />
               <input
@@ -164,17 +224,23 @@ export function InicioParametrosPanel() {
                 aria-describedby={erros.recado ? 'inicio-params.recado.erro' : undefined}
                 data-testid="inicio-params.recado"
               />
-              <span className={`self-end text-[13px] font-normal tabular-nums ${tamanhoRecado > RECADO_PADRAO_MAX ? 'text-danger' : 'text-ink-2'}`} data-testid="inicio-params.recado.contador">
+              <span
+                className={`self-end text-[13px] font-normal tabular-nums ${tamanhoRecado > RECADO_PADRAO_MAX ? 'text-danger' : 'text-ink-2'}`}
+                data-testid="inicio-params.recado.contador"
+              >
                 {tamanhoRecado}/{RECADO_PADRAO_MAX}
               </span>
               <span className="sr-only" aria-live="polite">
-                {tamanhoRecado >= PERTO_DO_LIMITE ? `${tamanhoRecado} de ${RECADO_PADRAO_MAX} caracteres` : ''}
+                {tamanhoRecado >= PERTO_DO_LIMITE
+                  ? `${tamanhoRecado} de ${RECADO_PADRAO_MAX} caracteres`
+                  : ''}
               </span>
             </label>
             <label className="flex max-w-[260px] flex-col gap-1 text-[14px] font-semibold text-ink">
               Minutos para considerar "parado"
               <span className="text-[13px] font-normal text-ink-2">
-                Sem check-in após o último checkout, com paradas pendentes. De {PARADO_MIN_MIN} a {PARADO_MIN_MAX} minutos.
+                Sem check-in após o último checkout, com paradas pendentes. De {PARADO_MIN_MIN} a{' '}
+                {PARADO_MIN_MAX} minutos.
               </span>
               <MensagemErro id="inicio-params.parado.erro" texto={erros.parado} />
               <span className="relative block">
@@ -190,11 +256,41 @@ export function InicioParametrosPanel() {
                   aria-describedby={erros.parado ? 'inicio-params.parado.erro' : undefined}
                   data-testid="inicio-params.parado"
                 />
-                <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2"
+                >
                   min
                 </span>
               </span>
             </label>
+            {temAlerta && (
+              <label className="flex max-w-[260px] flex-col gap-1 text-[14px] font-semibold text-ink">
+                Prazo para avisar etapa pendente (horas)
+                <span className="text-[13px] font-normal text-ink-2">{AJUDA_ALERTA_H}</span>
+                <MensagemErro id="inicio-params.alerta.erro" texto={erros.alerta} />
+                <span className="relative block">
+                  <input
+                    className={`${CAMPO} pr-12 ${erros.alerta ? 'border-danger' : 'border-field'}`}
+                    inputMode="numeric"
+                    value={alertaH}
+                    onChange={(e) => {
+                      setSalvo(false);
+                      setAlertaH(e.target.value.replace(/\D/g, ''));
+                    }}
+                    aria-invalid={erros.alerta ? true : undefined}
+                    aria-describedby={erros.alerta ? 'inicio-params.alerta.erro' : undefined}
+                    data-testid="inicio-params.alerta"
+                  />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] font-normal text-ink-2"
+                  >
+                    h
+                  </span>
+                </span>
+              </label>
+            )}
             <div className="flex flex-wrap items-center gap-3">
               <Button onClick={salvar} disabled={gravar.isPending} data-testid="inicio-params.salvar">
                 {gravar.isPending ? 'Salvando…' : 'Salvar parâmetros'}

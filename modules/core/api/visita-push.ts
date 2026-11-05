@@ -20,9 +20,10 @@ import {
 } from '@macuxi/platform-sdk';
 import type { CheckinVisita, CheckoutVisita } from '../contracts';
 import { EVENTO_VISITA_CHECKIN, EVENTO_VISITA_CHECKOUT } from '../contracts';
-import { avaliarCheckin, avaliarCheckoutNoServidor, dataLocal, idDoPayloadConfere, RAIO_CHECKIN_PADRAO_M, resolverCheckin } from '../domain';
+import { avaliarCheckin, avaliarCheckoutTolerante, dataLocal, idDoPayloadConfere, RAIO_CHECKIN_PADRAO_M, resolverCheckin } from '../domain';
 
 import { verificadorPorConsulta, type VerificarEtapas } from './etapas-checkout';
+import { gravarEtapasDoCheckout } from './etapas-pendencia';
 
 const aceito = (id: string): ResultadoItemPush => ({ id, status: 'aceito' });
 const rejeitado = (id: string, codigo: string, mensagem: string): ResultadoItemPush => ({ id, status: 'rejeitado', codigo, mensagem });
@@ -190,7 +191,7 @@ export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPu
       ? (await db.query<{ tipo: 'nao_venda' | 'cliente_fechado' | 'fora_do_raio'; codigo: string; ativo: boolean; updated_at: Date; deleted_at: Date | null }>('select tipo, codigo, ativo, updated_at, deleted_at from core.motivo where id = $1', [p.motivo_id])).rows[0]
       : undefined;
     const verificacoes = await verificar({ visita_id: v.id, cliente_id: v.cliente_id, usuario_id: eu, cliente_fechado: p.resultado === 'cliente_fechado' });
-    const aval = avaliarCheckoutNoServidor({
+    const aval = avaliarCheckoutTolerante({
       resultadoInformado: p.resultado,
       vendedorEfetivo,
       motivoId: p.motivo_id ?? null,
@@ -202,7 +203,7 @@ export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPu
       temPedido: Boolean(p.pedido_id),
       verificacoes,
     });
-    if (!aval.pode) {
+    if (aval.decisao === 'recusar') {
       if (aval.codigo === 'MOTIVO_INVALIDO') return rejeitado(item.id, 'MOTIVO_INVALIDO', 'Motivo não encontrado. Atualize os motivos e escolha de novo.');
       return rejeitado(item.id, aval.codigo ?? 'RN-CORE-12', `Checkout incompleto (${aval.pendencias.join(', ')}). Conclua o que falta e envie de novo.`);
     }
@@ -217,21 +218,16 @@ export async function receberCheckouts(ctx: ContextoBase, itens: readonly ItemPu
         where id = $1`,
       [v.id, p.id, checkoutEm, p.lat ?? null, p.lng ?? null, p.resultado, p.motivo_id ?? null, p.motivo_texto?.trim() || null, p.pedido_id ?? null, fechado ? p.foto_fachada_id : null],
     );
-    // etapas gravadas: as verificadas pelo servidor (concluída/dispensada); a referência vem do que o aparelho informou
+    // etapas gravadas: as verificadas pelo servidor (concluída/dispensada/PENDENTE: tolerância, RN-CORE-12 T-0039 §2); a referência vem do que o aparelho informou
     const referencias = new Map(p.etapas.map((x) => [`${x.modulo}|${x.etapa}`, x.referencia_id] as const));
     // etapas sem verificação no servidor (módulo ainda sem a consulta) ficam só como registro informado pelo aparelho; não liberam nada
     const doServidor = new Set(aval.etapasRegistro.map((x) => `${x.modulo}|${x.etapa}`));
-    const informadas = p.etapas.filter((x) => !doServidor.has(`${x.modulo}|${x.etapa}`) && !verificacoes.some((vf) => vf.modulo === x.modulo && vf.etapa === x.etapa));
-    for (const e of [...aval.etapasRegistro, ...informadas]) {
-      const bruta = referencias.get(`${e.modulo}|${e.etapa}`);
-      const ref = bruta && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bruta) ? bruta : null;
-      await db.query(
-        `insert into core.visita_etapa (tenant_id, visita_id, modulo, etapa, situacao, referencia_id)
-         values (plataforma.tenant_atual(), $1, $2, $3, $4, $5)
-         on conflict (tenant_id, visita_id, modulo, etapa) do update set situacao = excluded.situacao, referencia_id = excluded.referencia_id`,
-        [v.id, e.modulo, e.etapa, e.situacao, ref],
-      );
-    }
+    const informadas = p.etapas
+      .filter((x) => !doServidor.has(`${x.modulo}|${x.etapa}`) && !verificacoes.some((vf) => vf.modulo === x.modulo && vf.etapa === x.etapa))
+      .map((x) => ({ modulo: x.modulo, etapa: x.etapa, situacao: x.situacao, rotulo: null }));
+    const registro = [...aval.etapasRegistro, ...informadas].map((e) => ({ ...e, referenciaId: referencias.get(`${e.modulo}|${e.etapa}`) ?? null }));
+    // linha pendente e contagem na MESMA transação (sem rebaixar `concluida`)
+    if (registro.length > 0) await gravarEtapasDoCheckout(db, v.id, registro, ctx.agora());
     const fuso = ctx.fuso();
     await tx.publicar(
       EVENTO_VISITA_CHECKOUT,

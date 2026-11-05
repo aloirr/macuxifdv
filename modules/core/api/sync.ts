@@ -140,7 +140,7 @@ export const TABELAS_SYNC = {
       to_char(checkin_em at time zone 'UTC', ${UTC}) as checkin_em, checkin_lat::float8 as checkin_lat, checkin_lng::float8 as checkin_lng,
       sem_gps, distancia_m, fora_do_raio, justificativa_fora_raio, sugere_coordenada, extra,
       to_char(checkout_em at time zone 'UTC', ${UTC}) as checkout_em, resultado, motivo_id, motivo_texto, pedido_id, foto_fachada_id,
-      fechada_por, checkout_id`,
+      fechada_por, checkout_id, etapas_pendentes`,
     colunaCliente: null,
     colunaUsuario: 'usuario_id',
     janela: 'data_local >= {{hoje}} - 40',

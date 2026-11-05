@@ -21,12 +21,14 @@ interface Cenario {
 
 function montar(c: Cenario = {}) {
   const comandos: string[] = [];
+  const params: unknown[][] = [];
   const db = {
-    query: vi.fn(async (sql: string, params: unknown[] = []) => {
+    query: vi.fn(async (sql: string, params_: unknown[] = []) => {
       comandos.push(sql);
+      params.push(params_);
       if (sql.includes('from core.visita where id = $1 and usuario_id = $2'))
-        return { rows: params[0] === VISITA && params[1] === USUARIO ? [{ id: VISITA, cliente_id: CLIENTE, checkin_em: CHECKIN, checkout_em: null, checkout_id: null, fechada_por: null }] : [] };
-      if (sql.includes('from core.motivo')) return { rows: c.motivos?.[params[0] as string] ? [c.motivos[params[0] as string]] : [] };
+        return { rows: params_[0] === VISITA && params_[1] === USUARIO ? [{ id: VISITA, cliente_id: CLIENTE, checkin_em: CHECKIN, checkout_em: null, checkout_id: null, fechada_por: null }] : [] };
+      if (sql.includes('from core.motivo')) return { rows: c.motivos?.[params_[0] as string] ? [c.motivos[params_[0] as string]] : [] };
       return { rows: [] };
     }),
   } as unknown as ClienteBanco;
@@ -42,7 +44,7 @@ function montar(c: Cenario = {}) {
     return { id, operacao: 'upsert', payload: { id, visita_id: VISITA, checkout_em: '2026-03-10T13:00:00.000Z', resultado: 'sem_pedido', etapas: [], ...payload } } as unknown as ItemPush;
   };
   const gravou = () => comandos.some((s) => s.includes('update core.visita'));
-  return { ctx, tx, item, gravou };
+  return { ctx, tx, item, gravou, comandos, params };
 }
 
 const semEtapas: VerificarEtapas = async () => [];
@@ -72,14 +74,28 @@ describe('RN-CORE-12: push do visita_checkout revalidado na API', () => {
     expect(t.gravou()).toBe(true);
   });
 
-  it('RN-CORE-12: etapa obrigatória de outro módulo pendente é rejeitada, mesmo com a etapa marcada como concluída pelo aparelho', async () => {
+  it('RN-CORE-12 (T-0039 §2): etapa obrigatória de outro módulo pendente NÃO recusa; o checkout é aceito e grava a pendência', async () => {
     const t = montar({ motivos: { [uuid(50)]: { tipo: 'nao_venda', codigo: 'estoque_alto', ativo: true } } });
+    // mesmo com a etapa marcada como concluída pelo aparelho, vale o que o servidor verificou
     const etapas = [{ modulo: 'pesquisa', etapa: 'pesquisa.preco', situacao: 'concluida' }];
     const [r] = await receberCheckouts(t.ctx, [t.item({ motivo_id: uuid(50), etapas })], pesquisaPendente);
-    expect(r).toMatchObject({ status: 'rejeitado', codigo: 'RN-CORE-12' });
-    expect((r as { mensagem?: string }).mensagem).toContain('Pesquisa de preço');
+    expect(r).toMatchObject({ status: 'aceito' });
+    expect(t.gravou()).toBe(true);
+    expect(t.tx.publicar).toHaveBeenCalledTimes(1);
+    const ins = t.comandos.findIndex((s) => s.includes('insert into core.visita_etapa'));
+    expect(ins).toBeGreaterThan(-1);
+    expect(t.params[ins]).toEqual([VISITA, 'pesquisa', 'pesquisa.preco', 'pendente', null, 'Pesquisa de preço', CHECKIN.toISOString()]);
+    // nunca rebaixa uma linha já concluída e recalcula a contagem na mesma transação
+    expect(t.comandos[ins]).toContain("where core.visita_etapa.situacao not in ('concluida', 'dispensada')");
+    expect(t.comandos.some((s) => s.includes('set etapas_pendentes'))).toBe(true);
+  });
+
+  it('RN-CORE-12: regra do Core continua recusando (422) mesmo com a etapa de outro módulo pendente, e nada é gravado', async () => {
+    const t = montar({ motivos: {} });
+    const [r] = await receberCheckouts(t.ctx, [t.item({ motivo_id: uuid(50) })], pesquisaPendente);
+    expect(r).toMatchObject({ status: 'rejeitado', codigo: 'MOTIVO_INVALIDO' });
     expect(t.gravou()).toBe(false);
-    expect(t.tx.publicar).not.toHaveBeenCalled();
+    expect(t.comandos.some((s) => s.includes('insert into core.visita_etapa'))).toBe(false);
   });
 
   it('RN-CORE-12: com a etapa cumprida segundo o servidor, o checkout é aceito e grava a visita', async () => {
@@ -103,5 +119,7 @@ describe('RN-CORE-12: push do visita_checkout revalidado na API', () => {
     const [r] = await receberCheckouts(t.ctx, [t.item({ resultado: 'cliente_fechado', motivo_id: uuid(51), foto_fachada_id: uuid(60) })], pesquisaPendente);
     expect(r).toMatchObject({ status: 'aceito' });
     expect(t.tx.registrarArquivo).toHaveBeenCalledTimes(1);
+    const ins = t.comandos.findIndex((s) => s.includes('insert into core.visita_etapa'));
+    expect(t.params[ins]?.[3]).toBe('dispensada');
   });
 });

@@ -69,3 +69,7 @@
 2026-11-05 — T-0039 — textoAlertaPendencia devolve {titulo, corpo} por destinatário conforme docs/design/checkout-pendencia.md
 2026-11-05 — T-0080 — D-T0080a: fonte das notas ERP do Início vale pela licença do tenant (integracaoNoTenant), teste da rota sem integracao no perfil
 2026-11-05 — T-0039 — checkout-tolerancia.ts importa constante, faixa e tipo de contracts/etapas-pendencia (sem mudar comportamento)
+2026-11-05 — T-0039 — BKO da pendência de etapa (filtro, selo, diálogo com dispensa, CSV, prazo do alerta)
+2026-11-05 — T-0039 — tolerância do checkout ligada na API: consulta da Pesquisa, avaliarCheckoutTolerante, pendência/contagem, baixa por pesquisa.resposta.registrada@1, alertarPendenciasVencidas (sem agendador ainda), dispensa manual, parâmetro do prazo, etapas_pendentes no pull
+2026-11-05 — T-0039 — BKO: prazo da etapa pendente na rota própria checkout-pendencia; diálogo de etapas com erro da API em Notice, autoFocus e contador n/300
+2026-11-05 — T-0039 — revisão da API: ordem de trava visita->etapa (deadlock), tarefa periódica alerta_pendencia_checkout (ADR 0022), 3 🟢

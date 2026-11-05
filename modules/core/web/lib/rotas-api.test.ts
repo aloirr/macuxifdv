@@ -83,7 +83,7 @@ describe('telas Visitas e Carteira: funções puras', () => {
     expect(linhas[1]).toContain('"Auto ""Um"""');
     expect(linhas[1]).toContain('"Fora do raio, Visita extra"');
     expect(linhas[1]).toContain('"31/10/2026');
-    expect(linhas[1]?.endsWith('"sim"')).toBe(true);
+    expect(linhas[1]?.endsWith('"sim";"0"')).toBe(true);
   });
 
   it('carteira: rótulos de frequência/dia e CSV', () => {
