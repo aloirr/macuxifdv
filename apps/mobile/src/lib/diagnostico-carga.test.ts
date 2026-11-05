@@ -152,7 +152,8 @@ const ENTIDADES = [
 ];
 const PEQUENO = { produtos: 1500, clientes: 60, buscasProduto: 30, buscasCliente: 10, pagina: 500 };
 
-describe('diagnóstico de carga: execução no SQLite (node:sqlite, carga pequena)', () => {
+// SQLite real com 1.500 produtos: ~3 s sozinho, passou de 5 s (timeout padrão) com a suíte e outros agentes rodando juntos no PC
+describe('diagnóstico de carga: execução no SQLite (node:sqlite, carga pequena)', { timeout: 30_000 }, () => {
   it('grava, monta o índice, busca e devolve números coerentes', async () => {
     let relogio = 0;
     const fases = new Set<string>();
