@@ -51,4 +51,19 @@ export const migracoesAparelho: { versao: number; sql: string }[] = [
       CREATE INDEX catalogo__produto_atributo_produto ON ent_produto_atributo (json_extract(dados, '$.produto_id'));
     `,
   },
+  {
+    // v2 (T-0052-B4, R-20261105-141833): índices de expressão para `motor.linhasPorCampo` (`json_extract(dados,
+    // '$.<campo>') IN (SELECT value FROM json_each(?))`) — preço, estoque, vínculo do cliente e conteúdo só dos
+    // candidatos da busca (até 400 por consulta). O texto da expressão tem de ser IGUAL ao do SDK para o plano usar o
+    // índice. Preço: (produto_id, tabela_preco_id) — o prefixo serve a leitura por produto; a tabela do cliente filtra
+    // dentro do índice se a consulta passar a levar as duas. Subida sobre aparelho em v1: só cria índices sobre as
+    // linhas que já estão em `ent_*` (nada é apagado nem repuxado). Volume: estoque ~40 mil, preço ~20 mil por tabela.
+    versao: 2,
+    sql: `
+      CREATE INDEX catalogo__estoque_saldo_produto ON ent_estoque_saldo (json_extract(dados, '$.produto_id'));
+      CREATE INDEX catalogo__tabela_preco_item_produto ON ent_tabela_preco_item (json_extract(dados, '$.produto_id'), json_extract(dados, '$.tabela_preco_id'));
+      CREATE INDEX catalogo__cliente_tabela_preco_cliente ON ent_cliente_tabela_preco (json_extract(dados, '$.cliente_id'));
+      CREATE INDEX catalogo__produto_conteudo_produto ON ent_produto_conteudo (json_extract(dados, '$.produto_id'));
+    `,
+  },
 ];

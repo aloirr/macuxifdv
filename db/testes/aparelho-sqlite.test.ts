@@ -4,7 +4,8 @@
  *
  * 1. DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts): dono dos objetos (`verificarDonoDasMigracoes`),
  *    colunas na ordem, tokenizer `unicode61 remove_diacritics 2`, `prefix='2 3'`, content externo, vocabulário e o
- *    índice de expressão usado pelo `porCampo` (EXPLAIN QUERY PLAN).
+ *    índices de expressão usados pelo `porCampo` e pelo `linhasPorCampo` (v2, T-0052-B4) (EXPLAIN QUERY PLAN).
+ *    A subida v1 → v2 real (dados de preço, estoque, vínculo e conteúdo preservados) está na seção 2.
  * 2. Migrações do aparelho: subida por versão (só a nova roda, dados preservados) e downgrade (recria do zero).
  * 3. RN-CORE-02 (doc 03): módulo desativado = dados locais dele apagados (linhas, `mod:<m>:*`, objetos `<m>__*`,
  *    `_esquema`), o resto intacto; reativação recria pelas migrações.
@@ -40,6 +41,8 @@ import { COLUNAS_BUSCA_CATALOGO, migracoesAparelho, TABELAS_BUSCA_CATALOGO } fro
 import { manifest as manifestCatalogo } from '../../modules/catalogo/manifest';
 
 const ENTIDADES_CATALOGO = [...manifestCatalogo.sync];
+/** Versão mais nova do esquema do Catálogo no app (v2 desde a T-0052-B4). */
+const VERSAO_CATALOGO = migracoesAparelho.at(-1)!.versao;
 /** Entidades de outros módulos que o índice lê (ADR 0005: produto é do Core). */
 const ENTIDADES_DE_FORA = ['produto'];
 
@@ -236,7 +239,11 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
       'table catalogo__busca_docsize',
       'table catalogo__busca_idx',
       'table catalogo__busca_vocab',
+      'index catalogo__cliente_tabela_preco_cliente',
+      'index catalogo__estoque_saldo_produto',
       'index catalogo__produto_atributo_produto',
+      'index catalogo__produto_conteudo_produto',
+      'index catalogo__tabela_preco_item_produto',
     ]);
     expect(await nomesDasColunas(d, 'catalogo__busca')).toEqual([...COLUNAS_BUSCA_CATALOGO]);
     expect(Object.keys(PESOS)).toEqual([...COLUNAS_BUSCA_CATALOGO]);
@@ -247,7 +254,7 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
     expect(sql).toContain("tokenize = 'unicode61 remove_diacritics 2'");
     expect(sql).toContain("prefix = '2 3'");
     expect(sql).not.toMatch(/detail\s*=/); // detail=full (padrão): consulta de frase
-    expect(await d.primeira('SELECT dono, versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ dono: 'catalogo', versao: 1 });
+    expect(await d.primeira('SELECT dono, versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ dono: 'catalogo', versao: VERSAO_CATALOGO });
     expect((await d.primeira<{ ok: number }>("SELECT sqlite_compileoption_used('ENABLE_FTS5') AS ok"))!.ok).toBe(1);
   });
 
@@ -297,14 +304,45 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
     );
     expect(plano.map((p) => p.detail).join(' ')).toContain('USING INDEX catalogo__produto_atributo_produto');
   });
+
+  // v2 (T-0052-B4): exatamente o SQL de `linhasPorCampo` em packages/platform-sdk/src/sqlite/armazenamento.ts
+  it.each([
+    ['estoque_saldo', 'produto_id', 'catalogo__estoque_saldo_produto'],
+    ['tabela_preco_item', 'produto_id', 'catalogo__tabela_preco_item_produto'],
+    ['cliente_tabela_preco', 'cliente_id', 'catalogo__cliente_tabela_preco_cliente'],
+    ['produto_conteudo', 'produto_id', 'catalogo__produto_conteudo_produto'],
+    ['produto_atributo', 'produto_id', 'catalogo__produto_atributo_produto'],
+  ])('linhasPorCampo(%s, %s) usa o índice de expressão %s (EXPLAIN QUERY PLAN)', async (entidade, campo, indice) => {
+    const d = await bancoComCatalogo();
+    const plano = await d.todas<{ detail: string }>(
+      `EXPLAIN QUERY PLAN SELECT id, dados FROM ent_${entidade} WHERE json_extract(dados, '$.${campo}') IN (SELECT value FROM json_each(?)) ORDER BY id`,
+      [JSON.stringify(['a', 'b'])],
+    );
+    expect(plano.map((p) => p.detail).join(' ')).toContain(`USING INDEX ${indice}`);
+  });
+
+  it('preço: o índice (produto_id, tabela_preco_id) também serve produto + tabela do cliente', async () => {
+    const d = await bancoComCatalogo();
+    const plano = await d.todas<{ detail: string }>(
+      `EXPLAIN QUERY PLAN SELECT id, dados FROM ent_tabela_preco_item
+        WHERE json_extract(dados, '$.produto_id') IN (SELECT value FROM json_each(?)) AND json_extract(dados, '$.tabela_preco_id') = ?`,
+      [JSON.stringify(['a']), 't'],
+    );
+    // as duas colunas do índice na busca (e não só o prefixo produto_id)
+    expect(plano.map((p) => p.detail).join(' ')).toContain('USING INDEX catalogo__tabela_preco_item_produto (<expr>=? AND <expr>=?)');
+  });
 });
 
 // ---------- 2. Migrações do aparelho: subida e downgrade ----------
 
 describe('aparelho: migrações por versão (subida só para frente; downgrade recria)', () => {
-  const V2_DE_TESTE: MigracaoAparelho = { versao: 2, sql: 'CREATE TABLE catalogo__favorito (produto_id TEXT PRIMARY KEY, criado_em TEXT NOT NULL) WITHOUT ROWID;' };
+  /** Versão seguinte só de teste (a real mais nova é VERSAO_CATALOGO). */
+  const PROXIMA_DE_TESTE: MigracaoAparelho = {
+    versao: VERSAO_CATALOGO + 1,
+    sql: 'CREATE TABLE catalogo__favorito (produto_id TEXT PRIMARY KEY, criado_em TEXT NOT NULL) WITHOUT ROWID;',
+  };
 
-  it('v1 → v2 aplica só a v2 e preserva a busca; app antigo (v1) recria os objetos do Catálogo do zero', async () => {
+  it('vN → vN+1 aplica só a nova e preserva a busca; app antigo (vN) recria os objetos do Catálogo do zero', async () => {
     const arquivo = join(pastaTemporaria(), 'macuxi-u-teste.db');
     let a = abrirArmazenamento(criarDriverNode(arquivo));
     await puxar(a, 'produto', [produto(1), produto(2)]);
@@ -312,24 +350,98 @@ describe('aparelho: migrações por versão (subida só para frente; downgrade r
     expect((await a.busca.buscar('catalogo.produto', { grupos: [['freio']], prefixoNoUltimo: false })).length).toBe(2);
     await a.fechar();
 
-    a = abrirArmazenamento(criarDriverNode(arquivo), [...migracoesAparelho, V2_DE_TESTE]);
+    a = abrirArmazenamento(criarDriverNode(arquivo), [...migracoesAparelho, PROXIMA_DE_TESTE]);
     await a.pronto;
     const d = criarDriverNode(arquivo);
-    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 2 });
+    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: VERSAO_CATALOGO + 1 });
     expect(await d.primeira("SELECT count(*) AS n FROM catalogo__busca_doc")).toEqual({ n: 2 }); // v1 não rodou de novo
     expect((await listarObjetos(d)).some((o) => o.name === 'catalogo__favorito')).toBe(true);
     await d.fechar();
     await a.fechar();
 
-    // downgrade: versão do aparelho (2) > versão do app (1) ⇒ objetos catalogo__* apagados e recriados; ent_* e kv intactos
+    // downgrade: versão do aparelho (N+1) > versão do app (N) ⇒ objetos catalogo__* apagados e recriados; ent_* e kv intactos
     // (repovoar a doc a partir de ent_produto é do SDK: lacuna L-1 em docs/banco/aparelho-sqlite.md §9)
     a = abrirArmazenamento(criarDriverNode(arquivo));
     await a.pronto;
     const d2 = criarDriverNode(arquivo);
-    expect(await d2.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 1 });
+    expect(await d2.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: VERSAO_CATALOGO });
     expect((await listarObjetos(d2)).some((o) => o.name === 'catalogo__favorito')).toBe(false);
     expect(await d2.primeira('SELECT count(*) AS n FROM ent_produto')).toEqual({ n: 2 });
     await d2.fechar();
+    await a.fechar();
+  });
+
+  it('v1 → v2 real (T-0052-B4): só os índices novos; linhas, busca e cursores preservados; linhasPorCampo igual', async () => {
+    const arquivo = join(pastaTemporaria(), 'macuxi-u-v1-v2.db');
+    const V1 = migracoesAparelho.filter((m) => m.versao === 1);
+    const deposito = uuid(5, 1);
+    const tabela = uuid(5, 2);
+    const outraTabela = uuid(5, 3);
+    const linha = (prefixo: number, i: number, dados: Record<string, unknown>): LinhaSync => ({ id: uuid(prefixo, i), updated_at: QUANDO, deleted_at: null, ...dados });
+    const saldos = [1, 2, 3].map((i) => linha(6, i, { produto_id: uuid(1, i), deposito_id: deposito, quantidade: i * 10, atualizado_em: QUANDO }));
+    const precos = [1, 2, 3].flatMap((i) => [
+      linha(7, i * 2, { tabela_preco_id: tabela, produto_id: uuid(1, i), preco_centavos: 1000 * i }),
+      linha(7, i * 2 + 1, { tabela_preco_id: outraTabela, produto_id: uuid(1, i), preco_centavos: 900 * i }),
+    ]);
+    const vinculos = [linha(8, 1, { cliente_id: uuid(3, 1), tabela_preco_id: tabela }), linha(8, 2, { cliente_id: uuid(3, 2), tabela_preco_id: outraTabela })];
+    const conteudos = [1, 2].map((i) => linha(9, i, { produto_id: uuid(1, i), descricao: `Conteúdo ${i}`, argumentos: [], faq: [], campanha: false }));
+
+    // aparelho em v1 com dados
+    let a = abrirArmazenamento(criarDriverNode(arquivo), V1);
+    await puxar(a, 'produto', [produto(1), produto(2), produto(3)]);
+    await puxar(a, 'produto_atributo', [...atributos(1), ...atributos(2), ...atributos(3)]);
+    await puxar(a, 'estoque_saldo', saldos);
+    await puxar(a, 'tabela_preco_item', precos);
+    await puxar(a, 'cliente_tabela_preco', vinculos);
+    await puxar(a, 'produto_conteudo', conteudos);
+    await a.busca.finalizar!();
+    const antesV1 = await a.linhas.porCampo!('tabela_preco_item', 'produto_id', [uuid(1, 1), uuid(1, 3)]);
+    expect(antesV1).toHaveLength(4);
+    await a.fechar();
+    let d = criarDriverNode(arquivo);
+    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 1 });
+    expect((await listarObjetos(d)).some((o) => o.name === 'catalogo__estoque_saldo_produto')).toBe(false);
+    await d.fechar();
+
+    // app novo (v1 + v2): só a v2 roda
+    a = abrirArmazenamento(criarDriverNode(arquivo));
+    await a.pronto;
+    expect(a.modulosIndisponiveis()).toEqual([]);
+    d = criarDriverNode(arquivo);
+    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 2 });
+    const indices = (await listarObjetos(d)).filter((o) => o.type === 'index' && o.name.startsWith('catalogo__')).map((o) => o.name);
+    expect(indices).toEqual([
+      'catalogo__cliente_tabela_preco_cliente',
+      'catalogo__estoque_saldo_produto',
+      'catalogo__produto_atributo_produto',
+      'catalogo__produto_conteudo_produto',
+      'catalogo__tabela_preco_item_produto',
+    ]);
+    const contagens: [string, number][] = [
+      ['ent_produto', 3],
+      ['ent_produto_atributo', 6],
+      ['ent_estoque_saldo', 3],
+      ['ent_tabela_preco_item', 6],
+      ['ent_cliente_tabela_preco', 2],
+      ['ent_produto_conteudo', 2],
+      ['catalogo__busca_doc', 3],
+    ];
+    for (const [t, n] of contagens) expect(await d.primeira(`SELECT count(*) AS n FROM ${t}`)).toEqual({ n });
+    expect(await d.primeira('PRAGMA integrity_check')).toEqual({ integrity_check: 'ok' });
+    await d.fechar();
+    for (const e of ['produto', 'produto_atributo', 'estoque_saldo', 'tabela_preco_item', 'cliente_tabela_preco', 'produto_conteudo'])
+      expect(await a.ler(`sync:cursor:${e}`)).not.toBeNull();
+
+    // mesmas respostas, agora pelo índice
+    expect(await a.linhas.porCampo!('tabela_preco_item', 'produto_id', [uuid(1, 1), uuid(1, 3)])).toEqual(antesV1);
+    expect((await a.linhas.porCampo!<LinhaSync & { quantidade: number }>('estoque_saldo', 'produto_id', [uuid(1, 2)])).map((l) => l.quantidade)).toEqual([20]);
+    expect((await a.linhas.porCampo!('cliente_tabela_preco', 'cliente_id', [uuid(3, 2)])).map((l) => l.id)).toEqual([uuid(8, 2)]);
+    expect((await a.linhas.porCampo!('produto_conteudo', 'produto_id', [uuid(1, 1), uuid(1, 3)])).map((l) => l.id)).toEqual([uuid(9, 1)]);
+    expect((await a.busca.buscar('catalogo.produto', { grupos: [['onix']], prefixoNoUltimo: false })).map((r) => r.chave)).toEqual([uuid(1, 1)]);
+    // pull depois da v2 mantém o índice em dia (linha nova achada por ele)
+    await puxar(a, 'estoque_saldo', [linha(6, 4, { produto_id: uuid(1, 2), deposito_id: uuid(5, 9), quantidade: 7, atualizado_em: QUANDO })]);
+    const saldos2 = await a.linhas.porCampo!<LinhaSync & { quantidade: number }>('estoque_saldo', 'produto_id', [uuid(1, 2)]);
+    expect(saldos2.map((l) => l.quantidade).sort((x, y) => x - y)).toEqual([7, 20]);
     await a.fechar();
   });
 });
@@ -382,7 +494,7 @@ describe('aparelho: RN-CORE-02 (módulo desativado: dados locais dele apagados d
 
     // reativação: a primeira busca recria pelas migrações; o pull desde o início repõe os atributos
     expect(await a.busca.buscar('catalogo.produto', { grupos: [['gol']], prefixoNoUltimo: false })).toEqual([]);
-    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 1 });
+    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: VERSAO_CATALOGO });
     await puxar(a, 'produto_atributo', [...atributos(5)]);
     await a.busca.finalizar!();
     const r = await a.busca.buscar('catalogo.produto', { grupos: [['gol']], prefixoNoUltimo: false });

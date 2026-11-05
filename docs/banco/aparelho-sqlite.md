@@ -124,7 +124,46 @@ Objetos resultantes (todos `catalogo__*`): `catalogo__busca` + sombras `_config`
 - `prefix='2 3'`: índices de prefixo de 2 e 3 caracteres (o último termo digitado com ≥ 2 letras).
 - `catalogo__busca_vocab` (`row`): termos e frequência para a correção de digitação (RF do Catálogo; fora da T-0008).
 - Índices de preço/estoque por produto (`tabela_preco_item`, `estoque_saldo`) **não** entram na v1: só quando o Catálogo
-  declarar a consulta (pedido por recado com a consulta ⇒ nova versão).
+  declarar a consulta (pedido por recado com a consulta ⇒ nova versão). Entraram na v2 (§4.1).
+
+### 4.1 Catálogo, versão 2 — índices para `motor.linhasPorCampo` (T-0052-B4, 2026-11-05)
+
+Pedido: R-20261105-141833 (modulo-catalogo), a partir do R-20261105-141459 (engenheiro-software). O app do Catálogo lê
+preço, estoque, vínculo do cliente e conteúdo **só dos candidatos da busca** (até 400 ids por consulta) com
+`motor.linhasPorCampo`, cujo SQL no SDK é
+`SELECT id, dados FROM ent_<e> WHERE json_extract(dados, '$.<campo>') IN (SELECT value FROM json_each(?)) ORDER BY id`.
+Sem índice, o SQLite varre a tabela inteira (custo quase igual ao de `linhas()`).
+
+```sql
+CREATE INDEX catalogo__estoque_saldo_produto ON ent_estoque_saldo (json_extract(dados, '$.produto_id'));
+CREATE INDEX catalogo__tabela_preco_item_produto ON ent_tabela_preco_item (json_extract(dados, '$.produto_id'), json_extract(dados, '$.tabela_preco_id'));
+CREATE INDEX catalogo__cliente_tabela_preco_cliente ON ent_cliente_tabela_preco (json_extract(dados, '$.cliente_id'));
+CREATE INDEX catalogo__produto_conteudo_produto ON ent_produto_conteudo (json_extract(dados, '$.produto_id'));
+```
+
+| Índice | Consulta servida | Volume esperado |
+|---|---|---|
+| `catalogo__estoque_saldo_produto` | `linhasPorCampo('estoque_saldo', 'produto_id', candidatos)` | até ~40 mil linhas |
+| `catalogo__tabela_preco_item_produto` | `linhasPorCampo('tabela_preco_item', 'produto_id', candidatos)` (prefixo); `produto_id IN (...) AND tabela_preco_id = ?` usa as duas colunas | ~20 mil por tabela |
+| `catalogo__cliente_tabela_preco_cliente` | `linhasPorCampo('cliente_tabela_preco', 'cliente_id', [cliente])` | 1 por cliente da carteira |
+| `catalogo__produto_conteudo_produto` | `linhasPorCampo('produto_conteudo', 'produto_id', candidatos)` | até 1 por produto |
+
+- **Expressão idêntica à do SDK** (`json_extract(dados, '$.<campo>')`, com espaço depois da vírgula): outro texto
+  (`->>`, aspas duplas, sem espaço) não casa e o plano volta a ser `SCAN`. O teste confere o plano
+  (`SEARCH ... USING INDEX`) de cada um com o SQL exato do `linhasPorCampo`.
+- **Preço** em (produto_id, tabela_preco_id): o pedido era só `produto_id`; a segunda coluna atende "produto e tabela"
+  sem um segundo índice (a leitura por produto usa o prefixo; se o SDK passar a filtrar a tabela na consulta, o plano usa
+  as duas colunas). Custo: ~36 bytes a mais por linha do índice. Índice só por `tabela_preco_id` **não** entrou: nenhuma
+  leitura declarada por tabela inteira hoje (pedido por recado ⇒ v3).
+- **Subida v1 → v2**: só os quatro `CREATE INDEX` rodam, na transação exclusiva da versão, sobre as linhas que já estão
+  em `ent_*` (as tabelas são do Catálogo e existem antes das migrações dele). Nada é apagado, repuxado ou reindexado:
+  linhas, cursores `sync:cursor:*`, FTS e fila intactos (teste "v1 → v2 real"). Tempo de criação no aparelho
+  proporcional ao volume (uma passada por tabela; ~40 mil saldos é a maior).
+- **Caminho de volta**: o mesmo da §3 — app com v1 num aparelho em v2 apaga os objetos `catalogo__*` (inclusive estes
+  índices) e reaplica a v1; as linhas `ent_*` ficam. Correção de um índice desta versão = v3 com `DROP INDEX ...;
+  CREATE INDEX ...`.
+- Escrita: cada `INSERT/UPDATE` do pull em `ent_estoque_saldo`/`ent_tabela_preco_item` passa a manter um índice a mais
+  (custo pequeno ante o JSON da linha; o `ent_produto_atributo` já tem o mesmo desde a v1).
 
 ## 5. Clientes (500 por vendedor) — sem FTS
 O Core não usa FTS (desenho T-0016 §8): a carteira (500) é lida de `ent_cliente` e filtrada em memória (normalização
