@@ -17,7 +17,7 @@ const motorExpo: MotorTatil = {
 /** Registra (e troca ao vivo) a vibração do kit conforme o "reduzir movimento" do aparelho. */
 export function useVibracaoDoShell(reduzirMovimento: boolean): void {
   useEffect(() => {
-    definirVibracao(montarVibracao(Platform.OS, reduzirMovimento, motorExpo));
+    definirVibracao(montarVibracao(Platform.OS, reduzirMovimento, motorExpo, Platform.Version));
     return () => definirVibracao(null);
   }, [reduzirMovimento]);
 }

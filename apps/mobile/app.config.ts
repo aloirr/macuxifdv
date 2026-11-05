@@ -36,6 +36,19 @@ const VARIANTES: Record<Variante, DadosVariante> = {
   gestao: { nome: 'Macuxi Gestão', pacote: 'br.com.macuxi.gestao', scheme: 'macuxigestao', ...ICONE_PADRAO },
 };
 
+/**
+ * Pacote instalado no node_modules? (T-0008 P4/P7: o plugin do expo-sqlite só entra quando o engenheiro-software
+ * instalar o pacote; sem ele, o `expo export`/`prebuild` falharia ao resolver o plugin.)
+ */
+function instalado(pacote: string): boolean {
+  try {
+    require.resolve(`${pacote}/package.json`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function variante(): Variante {
   const v = process.env.APP_VARIANT ?? 'campo';
   if (v !== 'campo' && v !== 'gestao') throw new Error(`APP_VARIANT inválida: ${v} (use campo ou gestao)`);
@@ -88,6 +101,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-background-task',
       // RN-CORE-23 item 3 / RF-CORE-09: push visível (abre a tela certa) e silencioso (dispara o motor de sync)
       ['expo-notifications', { icon: './assets/images/android-icon-monochrome.png', color: '#C2540A', defaultChannel: 'avisos' }],
+      // ADR 0003 / T-0008 §3.1: SQLite do aparelho com FTS5 explícito (busca offline do Catálogo; tela de diagnóstico)
+      ...(instalado('expo-sqlite') ? ([['expo-sqlite', { enableFTS: true }]] as [string, unknown][]) : []),
     ],
     experiments: { typedRoutes: true, reactCompiler: true },
     extra: {

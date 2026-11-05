@@ -30,14 +30,17 @@ import {
   type as t,
   useAtualizacaoAutomatica,
 } from '@macuxi/ui/mobile';
+import Constants from 'expo-constants';
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
+import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
 import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
 import { textoDoResultado } from '@/lib/segundo-plano';
+import { perfilBuildAtual } from '@/services/device';
 import { usePlataforma } from '@/state/plataforma';
 
 export default function ProfileScreen() {
@@ -51,6 +54,9 @@ export default function ProfileScreen() {
   const auto = useAtualizacaoAutomatica();
   const falha = app.falhaSync;
   const segundoPlano = app.segundoPlano;
+  // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só nos builds de desenvolvimento e preview)
+  const toques = useRef(criarContadorToques());
+  const comDiagnostico = diagnosticoDisponivel(perfilBuildAtual());
 
   if (!sessao) return <Redirect href="/login" />;
   const tz = me?.tenant.timezone ?? sessao.tenant?.fuso ?? 'America/Manaus';
@@ -309,6 +315,14 @@ export default function ProfileScreen() {
           }}
         />
       </View>
+
+      {comDiagnostico ? (
+        <Pressable testID="versao-app" onPress={() => (toques.current.tocar(Date.now()) ? router.push('/diagnostico-carga') : undefined)} style={styles.versao}>
+          <Text style={t.small}>{`${Constants.expoConfig?.name ?? 'Macuxi'} · versão ${Constants.expoConfig?.version ?? '?'}`}</Text>
+        </Pressable>
+      ) : (
+        <Text testID="versao-app" style={[t.small, styles.versao]}>{`${Constants.expoConfig?.name ?? 'Macuxi'} · versão ${Constants.expoConfig?.version ?? '?'}`}</Text>
+      )}
     </Screen>
   );
 }
@@ -320,6 +334,7 @@ const styles = StyleSheet.create({
   qRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   discard: { height: 44, justifyContent: 'center' },
+  versao: { alignSelf: 'center', paddingVertical: 8 },
   mono: { fontFamily: fonts.mono, fontSize: 12, color: colors.ink2 },
   input: { height: 46, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, paddingHorizontal: 12, fontFamily: fonts.mono, fontSize: 13, color: colors.ink, backgroundColor: colors.surface },
 });
