@@ -100,10 +100,10 @@ const ehEscrita = (c: { sql: string }) => /^\s*(insert into core\.plano_rv|updat
 describe('RN-CORE-30: permissões do plano de RV', () => {
   const permissoes = criarPermissoes([manifest]);
   const quem = (acao: string, modulos: Array<'core'> = ['core']) => PERFIS.filter((perfil) => verificarAcao({ id: 'x', tenant_id: TENANT, perfil, modulos }, permissoes, acao).ok);
-  it('RN-CORE-30: só analista e admin editam; supervisor, gerente, analista e admin veem; assistente, vendedor e promotor não', () => {
+  it('RN-CORE-30: só analista e admin editam; supervisor, gerente, analista e admin veem o plano; a RV, também vendedor e promotor (a própria); o assistente não vê nenhuma', () => {
     expect(quem('plano_rv.editar')).toEqual(['analista', 'admin']);
     expect(quem('plano_rv.ver')).toEqual(['supervisor', 'gerente', 'analista', 'admin']);
-    expect(quem('rv.ver')).toEqual(['supervisor', 'gerente', 'analista', 'admin']);
+    expect(quem('rv.ver')).toEqual(['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'admin']);
   });
   it('RN-CORE-03: sem o módulo core licenciado nenhuma ação do plano de RV vale', () => {
     for (const a of ['plano_rv.editar', 'plano_rv.ver', 'rv.ver']) expect(quem(a, [])).toEqual([]);

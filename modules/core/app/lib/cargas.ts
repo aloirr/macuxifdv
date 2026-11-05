@@ -7,7 +7,7 @@
 import { monthStart } from '@macuxi/ui/mobile/puro';
 import type { EtapaSync } from '@macuxi/platform-sdk';
 
-import { InicioSchema, type SellerGoals } from '../../contracts';
+import { InicioSchema, RvPainelSchema, type RvLocal, type SellerGoals } from '../../contracts';
 import { CHAVES, fusoDe } from './estado';
 import { erroDeCliente, exigirHttp } from './http';
 import { tolerante } from './leitor-tolerante';
@@ -84,6 +84,30 @@ export const etapasCore: readonly EtapaSync[] = [
       }
       const r = tolerante(InicioSchema).safeParse(corpo);
       if (r.success) await ctx.armazenamento.gravar(CHAVES.inicio, r.data);
+    },
+  },
+  {
+    // T-0082: a RV projetada do próprio vendedor (RN-CORE-29), calculada no servidor. Guarda o último cálculo com a hora em que
+    // chegou, para a tela mostrar offline. Falhou ou veio fora do contrato: mantém a cópia anterior. Só vendedor e promotor.
+    id: 'core-rv',
+    rotulo: 'Minha RV',
+    modulo: 'core',
+    async executar(ctx) {
+      const perfil = ctx.usuario()?.perfil;
+      if (perfil && perfil !== 'vendedor' && perfil !== 'promotor') return;
+      const http = exigirHttp(ctx);
+      let corpo: unknown;
+      try {
+        corpo = await http.get<unknown>('/core/rv');
+      } catch (e) {
+        if (erroDeSessao(e)) throw e;
+        return;
+      }
+      const r = tolerante(RvPainelSchema).safeParse(corpo);
+      if (r.success) {
+        const copia: RvLocal = { recebido_em: ctx.agora().toISOString(), painel: r.data };
+        await ctx.armazenamento.gravar(CHAVES.rv, copia);
+      }
     },
   },
 ];

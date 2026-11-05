@@ -76,6 +76,20 @@ export async function fazerCheckin(c: ContextoAcao, customer: CustomerSummary, r
   return { kind: 'created', visit, gps: posicao !== null, foraDoRaio: feito.avaliacao.fora_do_raio, sugereCoordenada: feito.avaliacao.sugere_coordenada };
 }
 
+/** Aviso quando a gravação do check-in no aparelho falha (a folha fecha e o vendedor tenta de novo). */
+export const MSG_FALHA_CHECKIN = 'Não foi possível registrar o check-in neste aparelho. Toque em Check-in para tentar de novo';
+
+export type TentativaCheckin = CheckinResult | { kind: 'erro'; mensagem: string };
+
+/** `fazerCheckin` que não deixa a tela presa: falha de gravação vira `{ kind: 'erro' }` para a tela fechar a folha e avisar. */
+export async function tentarCheckin(c: ContextoAcao, customer: CustomerSummary, routeStopId: string | null, op: OpcoesCheckin = {}): Promise<TentativaCheckin> {
+  try {
+    return await fazerCheckin(c, customer, routeStopId, op);
+  } catch {
+    return { kind: 'erro', mensagem: MSG_FALHA_CHECKIN };
+  }
+}
+
 /**
  * Checkout do atendimento: entra na fila (comando com id novo) e a tela mostra a visita fechada na hora. Cliente
  * fechado (RN-CORE-14): a foto da fachada entra na fila de arquivos DEPOIS do comando que a referencia.

@@ -52,6 +52,8 @@ export const CHAVES = {
   pedidos: 'pedidos',
   /** Cópia de `GET /v1/core/inicio` (etapa `core-inicio`, T-0073); a tela recalcula tudo com `montarInicio`. */
   inicio: 'inicio',
+  /** Cópia da própria RV de `GET /v1/core/rv` (etapa `core-rv`, T-0082). */
+  rv: 'rv',
   carregadoEm: 'carregado_em',
 } as const;
 

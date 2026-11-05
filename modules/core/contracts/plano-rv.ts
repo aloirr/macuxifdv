@@ -92,3 +92,10 @@ export const RvPainelSchema = z.object({
   ),
 });
 export type RvPainel = z.infer<typeof RvPainelSchema>;
+
+/**
+ * Cópia da própria RV no aparelho (T-0082, app Campo): o que a etapa `core-rv` guarda de `GET /v1/core/rv` para a tela mostrar
+ * offline. `recebido_em` é o instante (UTC) em que o servidor respondeu; `painel` já vem recortado para o próprio usuário.
+ */
+export const RvLocalSchema = z.object({ recebido_em: z.string(), painel: RvPainelSchema });
+export type RvLocal = z.infer<typeof RvLocalSchema>;

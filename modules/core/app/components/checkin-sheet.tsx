@@ -26,7 +26,7 @@ export function CheckinSheet({ phase, customerName, onClose, acao, onJustificar 
   // rodapé em texto: o botão principal é o da própria folha (registrar ou ação do slot)
   const rodape = phase?.kind === 'justificar' ? { rotulo: 'Cancelar', onPress: onClose, testID: 'checkin-cancelar' } : phase?.kind === 'done' ? { rotulo: 'Continuar', onPress: onClose, testID: 'checkin-continue' } : undefined;
   return (
-    <Folha visivel={phase !== null} onFechar={localizando ? () => undefined : onClose} rotuloFechar="Fechar" rotuloAcessivel="Check-in" rodape={rodape} testID="checkin-sheet">
+    <Folha visivel={phase !== null} onFechar={localizando ? () => undefined : onClose} rotuloFechar="Fechar" rotuloAcessivel="Check-in" rodape={rodape} evitarTeclado testID="checkin-sheet">
       {phase?.kind === 'locating' ? (
         <View style={{ alignItems: 'center', gap: space.md, paddingVertical: space.xxl }}>
           <ActivityIndicator color={colors.accent} />
@@ -49,6 +49,11 @@ export function CheckinSheet({ phase, customerName, onClose, acao, onJustificar 
             maxLength={500}
             style={styles.input}
           />
+          {texto.trim().length < 3 ? (
+            <Text style={t.small} testID="checkin-justificativa-ajuda">
+              Escreva pelo menos 3 letras
+            </Text>
+          ) : null}
           <Botao testID="checkin-confirmar-justificativa" nivel="principal" rotulo="Registrar check-in" desligado={texto.trim().length < 3} onPress={() => onJustificar?.(texto.trim())} />
         </View>
       ) : phase ? (

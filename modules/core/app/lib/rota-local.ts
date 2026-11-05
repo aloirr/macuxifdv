@@ -145,6 +145,7 @@ function paraLocal(v: VisitaAplicada, nomes: ReadonlyMap<string, string>, motivo
     resultado: v.resultado ?? null,
     motivo_id: v.motivo_id ?? null,
     foto_fachada_id: v.foto_fachada_id ?? null,
+    ...(v.etapas_pendentes ? { etapas_pendentes: v.etapas_pendentes } : {}),
   };
 }
 
@@ -163,6 +164,7 @@ function paraVisit(v: LocalVisit): Visit {
     order_id: v.order_id,
     checkout_at: v.checkout_at,
     closed_by: v.closed_by,
+    ...(v.etapas_pendentes ? { etapas_pendentes: v.etapas_pendentes } : {}),
   };
 }
 

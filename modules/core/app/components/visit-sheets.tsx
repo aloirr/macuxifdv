@@ -131,7 +131,7 @@ export function comVisitas(Tela: ComponentType): ComponentType {
 
 export function BottomSheet({ visible, onClose, label, testID, children, rodape }: { visible: boolean; onClose: () => void; label: string; testID: string; children: ReactNode; rodape?: { rotulo: string; onPress: () => void; testID?: string } }) {
   return (
-    <Folha visivel={visible} onFechar={onClose} rotuloFechar="Fechar" rotuloAcessivel={label} rodape={rodape} testID={testID}>
+    <Folha visivel={visible} onFechar={onClose} rotuloFechar="Fechar" rotuloAcessivel={label} rolavel rodape={rodape} testID={testID}>
       <View style={{ gap: space.md }}>{children}</View>
     </Folha>
   );
@@ -323,7 +323,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
                 accessibilityState={{ checked: on }}
                 onPress={() => setReason(on && !vendedorEfetivo ? null : m.id)}
                 style={[styles.reason, on ? { backgroundColor: colors.ink, borderColor: colors.ink } : null]}>
-                <Text style={[styles.reasonText, on ? { color: '#FFFFFF' } : null]}>{m.descricao}</Text>
+                <Text style={[styles.reasonText, on ? { color: colors.surface } : null]}>{m.descricao}</Text>
               </Pressable>
             );
           })}
@@ -333,7 +333,7 @@ function CheckoutSheet({ visible, onClose, onDone }: { visible: boolean; onClose
         <View testID="checkout-foto-fachada" style={styles.etapa}>
           <Text style={[t.bodyStrong, { flex: 1 }]}>Foto da fachada (obrigatória)</Text>
           <Text style={t.small}>Cliente fechado: as etapas obrigatórias da visita ficam dispensadas.</Text>
-          <Botao testID="checkout-tirar-foto" nivel="secundario" rotulo={fotoFachada ? 'Foto tirada · refazer' : 'Tirar foto da fachada'} onPress={() => void tirarFoto()} />
+          <Botao testID="checkout-tirar-foto" nivel="secundario" icone="camera" rotulo={fotoFachada ? 'Foto tirada · refazer' : 'Tirar foto da fachada'} onPress={() => void tirarFoto()} />
           {erroFoto ? <Text style={styles.pendencia}>{erroFoto}</Text> : null}
         </View>
       ) : null}
@@ -382,6 +382,6 @@ const styles = StyleSheet.create({
   etapa: { borderRadius: radius.cartao, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, padding: 12, gap: 8 },
   etapaTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pendencia: { fontFamily: fonts.semibold, fontSize: 13, color: colors.danger },
-  toast: { position: 'absolute', left: 14, right: 14, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 12, shadowColor: '#16202A', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
-  toastText: { fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5, color: '#FFFFFF' },
+  toast: { position: 'absolute', left: 14, right: 14, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 12, shadowColor: colors.ink, shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
+  toastText: { fontFamily: fonts.body, fontSize: 13, lineHeight: 17.5, color: colors.surface },
 });

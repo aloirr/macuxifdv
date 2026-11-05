@@ -41,8 +41,8 @@ export function OpenVisitBar({ from }: { from: string }) {
         <Text style={styles.hint}>{hint}</Text>
       </View>
       <View style={styles.actions}>
-        <Botao testID="open-visit-checkout" nivel="secundario" rotulo="Fazer checkout" onPress={sheets.askCheckout} style={styles.btn} />
-        <Botao testID="open-visit-view" nivel="neutro" rotulo="Ver cliente" onPress={() => abrirCliente(open.customer_id, from)} style={styles.btn} />
+        <Botao testID="open-visit-checkout" sobreEscuro nivel="secundario" rotulo="Fazer checkout" onPress={sheets.askCheckout} style={styles.btn} />
+        <Botao testID="open-visit-view" sobreEscuro nivel="neutro" rotulo="Ver cliente" onPress={() => abrirCliente(open.customer_id, from)} style={styles.btn} />
       </View>
     </View>
   );
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accentLight, borderWidth: 0, shadowColor: colors.accentLight, shadowOpacity: 0.6, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
   overline: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.9, color: colors.accentLight },
   since: { marginLeft: 'auto', fontFamily: fonts.body, fontSize: 12, color: colors.darkMuted },
-  name: { fontFamily: fonts.displayBold, fontSize: 17, color: '#FFFFFF' },
+  name: { fontFamily: fonts.displayBold, fontSize: 17, color: colors.surface },
   hint: { fontFamily: fonts.body, fontSize: 12, color: colors.darkMuted },
   actions: { flexDirection: 'row', gap: 8 },
   btn: { flex: 1 },

@@ -1,12 +1,11 @@
 /**
- * Metas e RV (Metas.dc.html) a partir de GET /goals/me (cálculo no servidor com @fv/domain).
+ * Metas e RV (Metas.dc.html) - cabeçalho de GET /goals/me; a RV do vendedor vem do cartão `CartaoMinhaRv` (GET /v1/core/rv, T-0082).
  */
-import { formatBRL0, formatPct } from '@macuxi/comum';
-import { Cartao, ChipEstado, colors, dateTimeLabel, EstadoVazio, fonts, Icon, IconTile, monthName, ProgressBar, radius, Screen, type as t } from '@macuxi/ui/mobile';
+import { ChipEstado, colors, dateTimeLabel, Icon, monthName, radius, Screen, type as t } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { KpiResult } from '../../contracts';
 import { dataDoFechamento, dataLocal, situacaoDoPeriodo } from '../../domain';
+import { CartaoMinhaRv } from '../components/cartao-minha-rv';
 import { PainelMetas } from '../components/painel-metas';
 import { abrirClientes } from '../lib/navegacao';
 import { useCore } from '../lib/usar-core';
@@ -18,10 +17,10 @@ export function TelaMetas() {
 
   if (!g) {
     return (
-      <Screen>
+      <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar}>
         <Text style={t.h1}>Metas</Text>
         <PainelMetas />
-        <EstadoVazio testID="metas-vazio" icone="target" titulo="Sem metas no mês" texto="Seu gestor ainda não definiu metas para este perfil." />
+        <CartaoMinhaRv />
       </Screen>
     );
   }
@@ -30,10 +29,6 @@ export function TelaMetas() {
   const hojeLocal = dataLocal(new Date(), tz);
   const fechado = g.frozen || situacaoDoPeriodo(g.period, hojeLocal) === 'fechado';
   const fechamento = dataDoFechamento(g.period).split('-').reverse().join('/');
-  const kpis = g.kpis.filter((k) => !k.is_trigger);
-  const triggers = g.kpis.filter((k) => k.is_trigger);
-  const gapText =
-    g.gap_to_full_cents > 0 ? `Faltam ${formatBRL0(g.gap_to_full_cents)} em faturamento para 100% da meta` : `Meta de faturamento batida · ${Math.round(g.revenue_achievement_pct)}%`;
 
   return (
     <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar} testID="goals">
@@ -49,37 +44,7 @@ export function TelaMetas() {
 
       <PainelMetas />
 
-      <View style={styles.dark}>
-        <Text style={styles.darkLabel}>RV projetada no fechamento</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-          <Text style={styles.darkValue} testID="rv-value">
-            {formatBRL0(g.trigger_blocked ? 0 : g.incentive_cents)}
-          </Text>
-          <Text style={styles.darkLabel}>teto {formatBRL0(g.incentive_max_cents)}</Text>
-        </View>
-        {g.trigger_blocked ? (
-          <Text style={[styles.darkNote, { color: '#F7A59C' }]}>RV zerada pelo gatilho · bruta seria {formatBRL0(g.gross_incentive_cents)}</Text>
-        ) : (
-          <Text style={styles.darkNote}>{gapText}</Text>
-        )}
-      </View>
-
-      <Cartao preenchimento={0}>
-        {kpis.map((k, i) => (
-          <KpiRow key={k.kpi_code} k={k} last={i === kpis.length - 1 && triggers.length === 0} />
-        ))}
-        {triggers.map((k, i) => (
-          <View key={k.kpi_code} style={[styles.trigger, i < triggers.length - 1 && styles.divider]}>
-            <IconTile icon={k.trigger_ok ? 'check' : 'alert'} tone={k.trigger_ok ? 'success' : 'danger'} />
-            <View style={{ flex: 1, gap: 1 }}>
-              <Text style={styles.kpiName}>
-                {k.name} <Text style={styles.weight}>· gatilho</Text>
-              </Text>
-              <Text style={[t.small, !k.trigger_ok && { color: colors.danger }]}>{k.detail || (k.trigger_ok ? 'RV liberada' : 'RV zerada')}</Text>
-            </View>
-          </View>
-        ))}
-      </Cartao>
+      <CartaoMinhaRv />
 
       <Pressable
         testID="goals-idle-link"
@@ -104,36 +69,7 @@ export function TelaMetas() {
   );
 }
 
-function KpiRow({ k, last }: { k: KpiResult; last: boolean }) {
-  const pct = Math.round(k.achievement_pct);
-  return (
-    <View style={[styles.kpi, !last && styles.divider]} testID={`kpi-${k.kpi_code}`}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <Text style={[styles.kpiName, { flex: 1 }]}>
-          {k.name} <Text style={styles.weight}>· peso {formatPct(k.weight_pct, 0)}</Text>
-        </Text>
-        <Text style={styles.kpiPct}>{pct}%</Text>
-      </View>
-      <ProgressBar pct={k.achievement_pct} color={k.payout_pct > 0 ? colors.accent : colors.lineStrong} />
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-        <Text style={[t.small, { flex: 1 }]}>{k.detail}</Text>
-        <Text style={[t.small, { color: colors.ink, fontFamily: fonts.semibold }]}>{formatBRL0(k.incentive_cents)}</Text>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
-  dark: { backgroundColor: colors.ink, borderRadius: radius.secao, padding: 18, gap: 6 },
-  darkLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.darkMuted },
-  darkValue: { fontFamily: fonts.display, fontSize: 34, color: '#FFFFFF', fontVariant: ['tabular-nums'] },
-  darkNote: { fontFamily: fonts.body, fontSize: 13, color: colors.accentLight },
-  kpi: { gap: 8, padding: 14 },
-  kpiName: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
-  weight: { fontFamily: fonts.medium, fontSize: 12, color: colors.ink2 },
-  kpiPct: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
-  divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  trigger: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 },
   idle: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentLine, borderRadius: radius.cartao, minHeight: 48 },
 });

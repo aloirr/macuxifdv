@@ -29,6 +29,8 @@ export interface LocalVisit {
   resultado?: string | null;
   motivo_id?: string | null;
   foto_fachada_id?: string | null;
+  /** T-0039: etapas pendentes da visita (contagem do pull); ausente = 0. */
+  etapas_pendentes?: number;
 }
 
 function toVisit(v: LocalVisit, stopId: string, server: Visit | null): Visit {
@@ -46,6 +48,7 @@ function toVisit(v: LocalVisit, stopId: string, server: Visit | null): Visit {
     order_id: v.order_id ?? server?.order_id ?? null,
     checkout_at: v.checkout_at,
     closed_by: v.closed_by,
+    ...(v.etapas_pendentes ? { etapas_pendentes: v.etapas_pendentes } : server?.etapas_pendentes ? { etapas_pendentes: server.etapas_pendentes } : {}),
   };
 }
 

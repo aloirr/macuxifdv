@@ -45,7 +45,7 @@ export const manifest = defineModule({
     'parametro.checkout_pendencia': { perfis: ['admin'], descricao: 'Editar o prazo do alerta de etapa pendente do checkout, parâmetro checkout_pendencia_alerta_h, 1 a 168 h (padrão 24; RN-CORE-12)' },
     'plano_rv.editar': { perfis: ['analista', 'admin'], descricao: 'Criar, editar e excluir o plano de RV e a vigência; plano que já valeu para mês fechado não muda; auditado (RN-CORE-30, RN-AUD-01)' },
     'plano_rv.ver': { perfis: ['supervisor', 'gerente', 'analista', 'admin'], descricao: 'Ver o plano de RV vigente e as versões (RN-CORE-30)' },
-    'rv.ver': { perfis: ['supervisor', 'gerente', 'analista', 'admin'], descricao: 'Ver a RV calculada por vendedor, recortada pelo escopo: equipe (supervisor), equipes abaixo (gerente), tenant (analista, admin); o assistente não vê (RN-CORE-29/30)' },
+    'rv.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'admin'], descricao: 'Ver a RV calculada, recortada pelo escopo: a própria (vendedor, promotor), equipe (supervisor), equipes abaixo (gerente), tenant (analista, admin); o assistente não vê (RN-CORE-29/30; T-0082 app)' },
   },
   // ADR 0019: consulta opcional não cria aresta de dependência (sem ciclo core ↔ vendedor); sem o dono, cai no indicador_diario
   usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1', 'pesquisa.etapas_checkout@1'],

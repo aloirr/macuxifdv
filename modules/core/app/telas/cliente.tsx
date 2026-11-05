@@ -10,7 +10,7 @@
  */
 import { formatBRL0 } from '@macuxi/comum';
 import { useExtensoes } from '@macuxi/platform-sdk/react';
-import { BackLink, Badge, Button, colors, daysAgoLabel, fonts, formatHHMM, Icon, MONTHS_SHORT, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
+import { BackLink, Badge, Banner, Button, Strong, useSincronizacao, colors, daysAgoLabel, fonts, formatHHMM, Icon, MONTHS_SHORT, radius, SectionHeader, type as t, type IconName } from '@macuxi/ui/mobile';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -22,7 +22,8 @@ import { montarFichaLocal, useClientesLocais } from '../lib/usar-clientes-locais
 import { CheckinSheet, type CheckinPhase } from '../components/checkin-sheet';
 import { OpenVisitBar } from '../components/open-visit-bar';
 import { useVisitSheets } from '../components/visit-sheets';
-import { fazerCheckin } from '../lib/acoes-visita';
+import { tentarCheckin } from '../lib/acoes-visita';
+import { avisoDeEtapaPendente, visitaComEtapaPendente } from '../lib/etapa-pendente';
 import type { PosicaoGps } from '../lib/visita-payload';
 import { mapsUrl, telUrl, whatsappUrl } from '../lib/route';
 import { useCore } from '../lib/usar-core';
@@ -53,6 +54,13 @@ export function TelaCliente() {
   const [phase, setPhase] = useState<CheckinPhase | null>(null);
   const autoStarted = useRef<string | null>(null);
 
+  // T-0039 (checkout-pendencia.md §1.2): etapa obrigatória da visita ainda não chegou ao Macuxi; vem do pull, lida do aparelho
+  const sync = useSincronizacao();
+  const pendente = visitaComEtapaPendente(estado.visitas, id);
+  const avisoPendente = pendente
+    ? avisoDeEtapaPendente({ ...pendente, agora: new Date(), fuso: tz, naFila: sync?.naFila ?? 0, semSinal: sync?.semSinal ?? false })
+    : null;
+
   const contexto: ContextoCliente = { clienteId: id, nomeCliente: customer?.trade_name ?? '', visitaId: openHere && openVisit ? openVisit.id : null, paradaId: stop?.id ?? null };
 
   const posicaoDoToque = useRef<PosicaoGps | null | undefined>(undefined);
@@ -60,8 +68,11 @@ export function TelaCliente() {
     if (!customer || !motor || !armazem) return;
     setPhase({ kind: 'locating' });
     // RN-CORE-13: o GPS é lido uma vez; ao pedir a justificativa reaproveita a posição do 1º toque
-    const res = await fazerCheckin({ motor, armazem, tz, vendedorId: core.vendedorId }, customer, stop?.id ?? null, justificativa === undefined ? {} : { justificativa, posicao: posicaoDoToque.current });
-    if (res.kind === 'justificar') {
+    const res = await tentarCheckin({ motor, armazem, tz, vendedorId: core.vendedorId }, customer, stop?.id ?? null, justificativa === undefined ? {} : { justificativa, posicao: posicaoDoToque.current });
+    if (res.kind === 'erro') {
+      setPhase(null);
+      sheets.toast(res.mensagem, 'warning');
+    } else if (res.kind === 'justificar') {
       posicaoDoToque.current = res.posicao;
       setPhase({ kind: 'justificar', distancia_m: res.distancia_m, raio_m: res.raio_m });
     } else if (res.kind === 'blocked') {
@@ -168,6 +179,14 @@ export function TelaCliente() {
           </View>
           {openHere && openVisit ? <Badge label={`Em atendimento · desde ${formatHHMM(openVisit.checkin_at, tz)}`} tone="accent" style={{ marginTop: 2 }} /> : null}
         </View>
+
+        {avisoPendente ? (
+          <Banner tone="warning" icon="clock" testID="cliente-etapa-pendente">
+            <Strong>{avisoPendente.linha1}</Strong>
+            {'\n'}
+            {avisoPendente.linha2}
+          </Banner>
+        ) : null}
 
         {locked && openVisit ? (
           <View style={styles.lockedBox} testID="checkin-locked">

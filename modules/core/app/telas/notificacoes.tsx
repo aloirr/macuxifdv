@@ -29,7 +29,7 @@ export function TelaNotificacoes() {
         </Text>
       </View>
       {carregado && caixa.length === 0 ? (
-        <EstadoVazio testID="notificacoes.vazio" icone="bell" titulo="Nenhum aviso por enquanto" texto="Puxe a tela para atualizar quando tiver sinal." />
+        <EstadoVazio testID="notificacoes.vazio" icone="inbox" titulo="Nenhum aviso por enquanto" texto="Puxe a tela para atualizar quando tiver sinal." />
       ) : null}
       {caixa.map((n) => (
         <Pressable key={n.id} accessibilityRole="button" accessibilityLabel={`${n.titulo}. ${n.lida_em ? 'Lida' : 'Não lida'}`} onPress={() => abrir(n)} testID={`notificacoes.item.${n.id}`} style={{ minHeight: 56 }}>

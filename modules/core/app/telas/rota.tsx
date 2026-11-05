@@ -13,6 +13,7 @@ import type { RouteStop } from '../../contracts';
 import { visitDuration } from '../../domain';
 import { OpenVisitBar } from '../components/open-visit-bar';
 import { useVisitSheets } from '../components/visit-sheets';
+import { ROTULO_ACESSIVEL_CHIP_ETAPA_PENDENTE, ROTULO_CHIP_ETAPA_PENDENTE } from '../lib/etapa-pendente';
 import { abrirCliente } from '../lib/navegacao';
 import { mapsUrl, projectPoints } from '../lib/route';
 import { useCore } from '../lib/usar-core';
@@ -28,9 +29,9 @@ export function TelaRota() {
 
   if (!route || route.stops.length === 0) {
     return (
-      <Screen>
+      <Screen refreshing={core.sincronizando} onRefresh={core.sincronizar}>
         <Text style={t.h1}>Rota de hoje</Text>
-        <EstadoVazio testID="rota-vazia" icone="map" titulo="Nenhuma rota para hoje" texto="O analista define a rota na web do BKO. Puxe a tela para atualizar quando tiver sinal." />
+        <EstadoVazio testID="rota-vazia" icone="map" titulo="Nenhuma rota para hoje" texto="O escritório define a rota do dia. Puxe a tela para atualizar quando tiver sinal" />
       </Screen>
     );
   }
@@ -69,7 +70,7 @@ export function TelaRota() {
             {stops.length} visitas · {Math.round(route.total_km).toLocaleString('pt-BR')} km · {route.region}
           </Text>
         </View>
-        <ChipEstado texto={`${route.done_count} feitas`} tom="sucesso" />
+        <ChipEstado texto={route.done_count === 1 ? '1 feita' : `${route.done_count} feitas`} tom={route.done_count === 0 ? 'neutro' : 'sucesso'} />
       </View>
 
       <OpenVisitBar from="Rota de hoje" />
@@ -79,11 +80,11 @@ export function TelaRota() {
           if (w > 50) setMapW(w);
         }}>
         <Svg width={mapW} height={MAP_H} viewBox="0 0 350 220" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
-          <Path d="M-10 60 C80 40 140 90 220 70 S330 30 370 50" stroke="#FFFFFF" strokeWidth={10} fill="none" />
-          <Path d="M40 -10 C60 70 30 140 70 230" stroke="#FFFFFF" strokeWidth={8} fill="none" />
-          <Path d="M-10 170 C90 150 180 190 260 160 S340 140 370 150" stroke="#FFFFFF" strokeWidth={8} fill="none" />
-          <Path d="M250 -10 C240 60 280 120 250 230" stroke="#FFFFFF" strokeWidth={6} fill="none" />
-          <Path d="M150 -10 L170 230" stroke="#FFFFFF" strokeWidth={5} fill="none" />
+          <Path d="M-10 60 C80 40 140 90 220 70 S330 30 370 50" stroke={colors.surface} strokeWidth={10} fill="none" />
+          <Path d="M40 -10 C60 70 30 140 70 230" stroke={colors.surface} strokeWidth={8} fill="none" />
+          <Path d="M-10 170 C90 150 180 190 260 160 S340 140 370 150" stroke={colors.surface} strokeWidth={8} fill="none" />
+          <Path d="M250 -10 C240 60 280 120 250 230" stroke={colors.surface} strokeWidth={6} fill="none" />
+          <Path d="M150 -10 L170 230" stroke={colors.surface} strokeWidth={5} fill="none" />
         </Svg>
         <Svg width={mapW} height={MAP_H} style={StyleSheet.absoluteFill}>
           {solid.length > 1 ? <Polyline points={solid.map((p) => `${p.x},${p.y}`).join(' ')} stroke={colors.ink} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" fill="none" /> : null}
@@ -93,8 +94,8 @@ export function TelaRota() {
             if (s.status === 'in_progress') {
               return (
                 <G key={s.id}>
-                  <Circle cx={p.x} cy={p.y} r={16} fill={colors.accent} stroke="#FFFFFF" strokeWidth={3} />
-                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontFamily={fonts.display} fill="#FFFFFF" textAnchor="middle">
+                  <Circle cx={p.x} cy={p.y} r={16} fill={colors.accent} stroke={colors.surface} strokeWidth={3} />
+                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontFamily={fonts.display} fill={colors.surface} textAnchor="middle">
                     {String(s.sequence)}
                   </SvgText>
                 </G>
@@ -103,8 +104,8 @@ export function TelaRota() {
             if (s.status === 'next') {
               return (
                 <G key={s.id}>
-                  <Circle cx={p.x} cy={p.y} r={16} fill={colors.ink} stroke="#FFFFFF" strokeWidth={3} />
-                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontFamily={fonts.display} fill="#FFFFFF" textAnchor="middle">
+                  <Circle cx={p.x} cy={p.y} r={16} fill={colors.ink} stroke={colors.surface} strokeWidth={3} />
+                  <SvgText x={p.x} y={p.y + 5} fontSize={14} fontFamily={fonts.display} fill={colors.surface} textAnchor="middle">
                     {String(s.sequence)}
                   </SvgText>
                 </G>
@@ -113,8 +114,8 @@ export function TelaRota() {
             const done = s.status === 'done';
             return (
               <G key={s.id}>
-                <Circle cx={p.x} cy={p.y} r={done ? 12 : 11} fill={done ? colors.success : '#FFFFFF'} stroke={done ? colors.success : colors.ink} strokeWidth={done ? 0 : 2} />
-                <SvgText x={p.x} y={p.y + 4} fontSize={12} fontFamily={fonts.bold} fill={done ? '#FFFFFF' : colors.ink} textAnchor="middle">
+                <Circle cx={p.x} cy={p.y} r={done ? 12 : 11} fill={done ? colors.success : colors.surface} stroke={done ? colors.success : colors.ink} strokeWidth={done ? 0 : 2} />
+                <SvgText x={p.x} y={p.y + 4} fontSize={12} fontFamily={fonts.bold} fill={done ? colors.surface : colors.ink} textAnchor="middle">
                   {String(s.sequence)}
                 </SvgText>
               </G>
@@ -183,10 +184,10 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
         </View>
       ) : inProgress || isNext ? (
         <View style={[styles.num, { backgroundColor: inProgress ? colors.accent : colors.ink }]}>
-          <Text style={[styles.numText, { color: '#FFFFFF', fontFamily: fonts.display, fontSize: 13 }]}>{stop.sequence}</Text>
+          <Text style={[styles.numText, { color: colors.surface, fontFamily: fonts.display, fontSize: 13 }]}>{stop.sequence}</Text>
         </View>
       ) : (
-        <View style={[styles.num, { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: colors.ink }]}>
+        <View style={[styles.num, { backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink }]}>
           <Text style={styles.numText}>{stop.sequence}</Text>
         </View>
       )}
@@ -207,6 +208,15 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
           icone={locked && !inProgress ? 'lock' : undefined}
           onPress={onAction}
           style={styles.action}
+        />
+      ) : (stop.visit?.etapas_pendentes ?? 0) > 0 ? (
+        <ChipEstado
+          testID={`stop-etapa-pendente-${stop.sequence}`}
+          pequeno
+          tom="aviso"
+          icone="clock"
+          texto={ROTULO_CHIP_ETAPA_PENDENTE}
+          rotuloAcessivel={ROTULO_ACESSIVEL_CHIP_ETAPA_PENDENTE}
         />
       ) : null}
     </View>

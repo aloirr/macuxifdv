@@ -90,3 +90,8 @@
 2026-11-05 — T-0071/T-0073 — consultas-bloqueado.test.ts(47) com ?. (TS2532); comentário do plano-rv.ts atualizado (RV usa licença do tenant); tsc dos 3 tsconfigs limpo
 2026-11-05 — T-0081/T-0082 — 🟢/🟡 abertos das revisões: Farol (mês futuro 422, aviso do mês passado, SQL por faixa e push, teste do desligado), Plano de RV (409 no 23505, plano_id por pessoa, confirmação do 1º plano no passado, confirmação ao sair com o editor sujo), licencaDoTenant compartilhado Início/Farol, teste da licença da RV mais forte
 2026-11-05 — T-0039/T-0072 — app Campo: chip 'Etapa pendente' na Rota e aviso na ficha (Visit.etapas_pendentes opcional no contrato), tentarCheckin trata falha de gravação (🟡 #94), faixa Em atendimento com sobreEscuro, 🟡 de UX baratos (vazio da Rota/Metas, 1 feita, inbox/camera, ajuda do Registrar check-in); falta Ver fila, variante Gestão e selo do BKO §3.3
+2026-11-05 — T-0082 — Minha RV no app Campo (etapa core-rv, montarMinhaRv, cartão em Metas; rv.ver aberto a vendedor/promotor)
+2026-11-05 — T-0082/T-0039 — Minha RV (textos do gatilho do BKO, Sincronizar, projetado, chip) e etapa pendente (mais recente com pendência, 'Elas vão') e evitarTeclado no check-in
+2026-11-05 — T-0082/T-0072 — cartao-minha-rv usa colors.dangerOnDark; folha do checkout com rolavel; cores à mão do app do Core trocadas por colors.surface/ink
+2026-11-05 — T-0082 — Minha RV: Sincronizar sem sinal mostra o aviso padrão (avisoAoSincronizarRv) e não chama o motor; texto do gatilho sem meta mantido no app
+2026-11-05 — T-0082 — lote N 🟡: cópia da RV validada com RvLocalSchema (validarCopiaRv; inválida = sem cálculo) + teste
