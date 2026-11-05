@@ -28,3 +28,4 @@ da própria ADR; em caso de divergência, vale o arquivo da ADR.
 | [0021](0021-geracao-da-base-no-sync.md) | Geração da base do tenant no sync: o aparelho percebe a base recriada ou restaurada | proposta |
 | [0022](0022-tarefas-periodicas-dos-modulos.md) | Tarefas periódicas dos módulos no worker (`ModuloApi.tarefas`, 15 min, por tenant) | proposta |
 | [0023](0023-dependencias-do-app-fora-da-imagem-da-api.md) | Dependências do app fora da imagem da API: `overrides` `drizzle-orm>expo-sqlite: "-"` e imagem com `--prod` (sem `.pnpmfile.cjs`) | proposta |
+| [0024](0024-dbaas-magalu-postgres-producao.md) | PostgreSQL gerenciado (DBaaS) da Magalu Cloud como banco de produção: teste de compatibilidade (`dbaas-teste.yml`) | proposta (resultado a preencher após o run) |
