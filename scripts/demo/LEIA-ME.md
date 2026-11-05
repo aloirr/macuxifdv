@@ -39,6 +39,37 @@
   2. Painel da Cloudflare: o túnel `macuxi-demo-nuvem` está Healthy?
   3. Na VM: `docker compose ... ps` e os `logs` acima.
 
+### Backup e restauração (VM)
+O Postgres da demo vai todo dia para `s3://macuxi-demo-arquivos/backups/` (7 dias). O código é do banco-dados
+(`db/backup/`, LEIA-ME lá); o agendamento é do `preparar-vm.sh` e a cópia dos scripts é do `implantar.sh`.
+- **Quando**: timer `macuxi-backup.timer`, 06:15 UTC (02:15 em Manaus), até 5 min de atraso aleatório. Se a VM estava
+  desligada na hora, roda quando ela volta.
+- **Conferência automática**: a cada deploy, o run do "demo — publicar" mostra um **aviso** (amarelo, não falha) se,
+  depois do primeiro backup, o mais novo tiver 26 h ou mais, ou se a listagem do bucket falhar.
+- **Comandos na VM** (por SSH, em `/opt/macuxi`; `dc` = `docker compose --env-file .env --env-file imagens.env`):
+
+| O quê | Comando |
+|---|---|
+| Próxima e última execução | `systemctl list-timers macuxi-backup.timer` |
+| Log dos backups | `journalctl -u macuxi-backup --since -3d` |
+| Backup agora (e primeiro teste depois do deploy) | `/opt/macuxi/backup/backup-vm.sh` |
+| Listar o que está no bucket | `dc --profile ferramentas run --rm -T backup listar` |
+| Restaurar AO LADO (seguro, não toca no banco em uso) | `/opt/macuxi/backup/restaurar-vm.sh ultimo` |
+| Restaurar e PÔR NO LUGAR | `/opt/macuxi/backup/restaurar-vm.sh ultimo --trocar` |
+
+- **Restaurar, passo a passo**:
+  1. `/opt/macuxi/backup/restaurar-vm.sh ultimo` (ou a chave de `listar`). Ele baixa, confere o sha256, restaura num banco
+     novo `macuxi_restaurado_<UTC>` e compara linhas, políticas de RLS e privilégios com o banco atual. Diferença de linhas
+     é normal se houve uso depois do backup.
+  2. Conferido, rode de novo com `--trocar`: para `api` e `worker`, renomeia `macuxi` para `macuxi_antes_<UTC>` (fica
+     guardado), põe o restaurado no lugar e sobe `api` e `worker`. Se algo falhar, nada muda.
+  3. Confira `curl -s http://127.0.0.1:8100/v1/saude` e o login no app. O banco `macuxi_antes_<UTC>` e os
+     `macuxi_restaurado_*` que sobrarem são apagados à mão, depois de conferir.
+- **VM nova** (volume vazio): publique uma vez pelo workflow (cria `/opt/macuxi`, o `.env`, os papéis com
+  `banco migrar up` e os scripts do backup) e só então restaure com `--trocar`. Os papéis não vão no dump.
+- O serviço `backup` não recebe as senhas do Postgres: o `pg_dump` roda dentro do contêiner `postgres` e o dump chega
+  pelo stdin. Ele só tem a chave do S3 (`segredos.env`).
+
 ### No celular
 1. Abra o app (APK de preview). Não há endereço para digitar.
 2. Código da empresa **`demo`**, senha **`demo-macuxi`**.

@@ -29,3 +29,10 @@ onlyBuiltDependencies:
   - sharp
   - unrs-resolver
   - "@tailwindcss/oxide"
+
+# ADR 0023 (T-0008): o drizzle-orm do @macuxi/db (servidor) declara expo-sqlite como peer OPCIONAL, e o pnpm liga o peer
+# opcional à versão que existir em qualquer ponto do grafo do workspace. Com o expo-sqlite no apps/mobile, o drizzle
+# passaria a levar expo-sqlite -> expo -> react-native para a API. "-" retira só esse peer do drizzle; o app segue com o
+# expo-sqlite dele. Driver novo do drizzle no servidor é peer dele (pg hoje) e não precisa mexer aqui.
+overrides:
+  "drizzle-orm>expo-sqlite": "-"

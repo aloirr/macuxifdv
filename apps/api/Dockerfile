@@ -21,9 +21,11 @@ WORKDIR /app
 FROM base AS deps
 COPY . .
 # Só a API, o @macuxi/db (migrações e seeds) e o que eles importam. --frozen-lockfile: a imagem usa exatamente o lock do commit.
+# --prod (ADR 0023): sem as devDependencies dos módulos (react-native, expo-router, next, vitest... das telas e testes);
+# o tsx, que roda a API, o worker e o banco.ts, é dependência de produção da API.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \
-    pnpm install --frozen-lockfile --filter "api..." --filter "@macuxi/db..."
+    pnpm install --frozen-lockfile --prod --filter "api..." --filter "@macuxi/db..."
 
 FROM node:24-bookworm-slim AS final
 ENV NODE_ENV=production \

@@ -27,3 +27,4 @@ da própria ADR; em caso de divergência, vale o arquivo da ADR.
 | [0020](0020-ambiente-demo-magalu-cloud.md) | Ambiente demo/homologação na Magalu Cloud: VM com Docker Compose, túnel da Cloudflare, imagens no GHCR e fotos em Object Storage S3 | aprovada (04/11/2026, por Alexandre, R-20261104-213539) |
 | [0021](0021-geracao-da-base-no-sync.md) | Geração da base do tenant no sync: o aparelho percebe a base recriada ou restaurada | proposta |
 | [0022](0022-tarefas-periodicas-dos-modulos.md) | Tarefas periódicas dos módulos no worker (`ModuloApi.tarefas`, 15 min, por tenant) | proposta |
+| [0023](0023-dependencias-do-app-fora-da-imagem-da-api.md) | Dependências do app fora da imagem da API: `overrides` `drizzle-orm>expo-sqlite: "-"` e imagem com `--prod` (sem `.pnpmfile.cjs`) | proposta |

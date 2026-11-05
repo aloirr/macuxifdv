@@ -1,0 +1,54 @@
+# Sobreposição do compose da demo para o STACK ISOLADO no GitHub Actions (T-0074; .github/workflows/stack-isolado.yml).
+# NUNCA vai para a VM: o "demo — publicar" só copia scripts/deploy/demo/*. No runner, o job grava este arquivo e o
+# s3-falso.mjs em /opt/macuxi, ao lado do compose.yml da demo, e exporta
+#   COMPOSE_FILE=/opt/macuxi/compose.yml:/opt/macuxi/compose.ci.yml
+# para o implantar.sh, o backup-vm.sh (também pela unidade do systemd, via drop-in) e o restaurar-vm.sh rodarem SEM
+# nenhuma mudança. O que muda em relação à VM é só isto:
+#   1. Object Storage → serviço "s3-falso" (rede borda, assinatura SigV4 conferida com a credencial de TESTE do job);
+#      o host da Magalu aponta para 127.0.0.1 dentro dos contêineres (nenhum pedido sai do runner por engano);
+#   2. cloudflared desligado (perfil que ninguém liga): sem túnel e sem token real.
+# Imagem da API: a do commit, montada no job e publicada num registro LOCAL do runner (MACUXI_IMAGEM_API=localhost:5000/...).
+
+x-sem-magalu: &sem-magalu
+  - 'br-se1.magaluobjects.com:127.0.0.1'
+
+services:
+  s3-falso:
+    image: node:24-alpine
+    restart: unless-stopped
+    command: ['node', '/s3-falso.mjs']
+    env_file:
+      # a credencial de TESTE gerada no job (MACUXI_S3_CHAVE_ID/MACUXI_S3_SEGREDO), a mesma que a api e o backup recebem
+      - path: segredos.env
+    environment:
+      MACUXI_S3_REGIAO: br-se1
+      MACUXI_S3_BUCKET: macuxi-demo-arquivos
+    volumes:
+      - ./s3-falso.mjs:/s3-falso.mjs:ro
+    networks: [borda]
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:9000/saude').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    environment:
+      MACUXI_S3_ENDPOINT: http://s3-falso:9000
+    extra_hosts: *sem-magalu
+    depends_on:
+      s3-falso:
+        condition: service_healthy
+
+  worker:
+    environment:
+      MACUXI_S3_ENDPOINT: http://s3-falso:9000
+    extra_hosts: *sem-magalu
+
+  backup:
+    environment:
+      MACUXI_S3_ENDPOINT: http://s3-falso:9000
+    extra_hosts: *sem-magalu
+
+  cloudflared:
+    profiles: [ci-sem-tunel]
