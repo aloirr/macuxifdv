@@ -18,3 +18,4 @@ export * from './folha';
 export * from './valores';
 export * from './movimento-rn';
 export * from './base';
+export * from './voltar';

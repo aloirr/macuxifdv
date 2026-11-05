@@ -5,12 +5,31 @@
  * Alvos de toque ≥ 48 dp. O botão Voltar do Android fecha (onRequestClose).
  * Movimento (T-0072): a folha sobe de baixo em 280 ms e o fundo escurece junto; ao fechar, desce antes de sumir. Com
  * "reduzir movimento", aparece e some sem deslocamento. O diálogo só esmaece (200 ms; nada com movimento reduzido).
+ * Folha alta e teclado (T-0072, opcionais; sem eles a folha é a mesma de antes):
+ * - `rolavel`: a folha para na altura máxima (a camada menos a área segura do topo e uma faixa de 24 dp do fundo, para ainda
+ *   dar para tocar fora) e o conteúdo rola; alça, título e rodapé ficam fixos;
+ * - `evitarTeclado`: a folha sobe junto com o teclado (o Android do Expo 57 é edge-to-edge e a janela não encolhe), a altura
+ *   máxima desconta o teclado e o campo com foco rola até ficar inteiro à vista. Liga a rolagem junto.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Animated,
+  Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ALVO_TOQUE } from './componentes';
+import { alturaMaximaDaFolha, ALVO_TOQUE, coberturaDoTeclado, rolagemAteCampo } from './componentes';
 import { Icon, type IconName } from './icon';
 import { deslocamentoDaFolha, duracaoMovimento } from './movimento';
 import { curvaPadrao, Pressionavel, useReduzirMovimento } from './movimento-rn';
@@ -37,6 +56,62 @@ function useEntradaSaida(visivel: boolean, duracao: number) {
   return { montado: montado || visivel, progresso };
 }
 
+/**
+ * Teclado sobre a camada da folha: quanto ele cobre (0 fechado) e a rolagem do campo com foco. Só escuta o teclado quando
+ * `ligado`; mede a camada (View em tela cheia) em coordenadas da janela, como o `endCoordinates.screenY` do teclado.
+ */
+function useTecladoNaFolha(ligado: boolean) {
+  const camada = useRef<View | null>(null);
+  const area = useRef<ScrollView | null>(null);
+  /** moldura da área rolável (View): o ScrollView não tem `measureInWindow` nos tipos do RN 0.86 */
+  const moldura = useRef<View | null>(null);
+  const y = useRef(0);
+  const [cobertura, setCobertura] = useState(0);
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    y.current = e.nativeEvent.contentOffset.y;
+  }, []);
+  /** Rola a área até o campo com foco ficar à vista (depois de a folha subir e encolher). */
+  const levarCampo = useCallback(() => {
+    const campo = TextInput.State.currentlyFocusedInput?.();
+    const rolagem = area.current;
+    const caixa = moldura.current;
+    if (!campo || !rolagem || !caixa) return;
+    requestAnimationFrame(() => {
+      caixa.measureInWindow((_ax, areaTopo, _aw, areaAltura) => {
+        campo.measureInWindow((_x, campoTopo, _w, campoAltura) => {
+          const dy = rolagemAteCampo({ campoTopo, campoBaixo: campoTopo + campoAltura, areaTopo, areaBaixo: areaTopo + areaAltura });
+          if (dy !== 0) rolagem.scrollTo({ y: Math.max(0, y.current + dy), animated: true });
+        });
+      });
+    });
+  }, []);
+  useEffect(() => {
+    if (!ligado) {
+      setCobertura(0);
+      return;
+    }
+    const mostrar = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const esconder = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    let prazo: ReturnType<typeof setTimeout> | null = null;
+    const subMostrar = Keyboard.addListener(mostrar, (e) => {
+      const topo = e.endCoordinates.screenY;
+      camada.current?.measureInWindow((_x, cy, _w, ch) => {
+        setCobertura(coberturaDoTeclado(cy + ch, topo));
+        if (prazo) clearTimeout(prazo);
+        // espera a folha subir e encolher antes de medir o campo
+        prazo = setTimeout(levarCampo, 120);
+      });
+    });
+    const subEsconder = Keyboard.addListener(esconder, () => setCobertura(0));
+    return () => {
+      subMostrar.remove();
+      subEsconder.remove();
+      if (prazo) clearTimeout(prazo);
+    };
+  }, [ligado, levarCampo]);
+  return { camada, area, moldura, cobertura, onScroll };
+}
+
 export interface AcaoTexto {
   rotulo: string;
   onPress: () => void;
@@ -50,6 +125,8 @@ export function Folha({
   titulo,
   rotuloAcessivel,
   rodape,
+  rolavel,
+  evitarTeclado,
   children,
   testID = 'folha',
 }: {
@@ -63,6 +140,10 @@ export function Folha({
   rotuloAcessivel?: string;
   /** Ação de texto centralizada no fim (ex.: "Voltar"). */
   rodape?: AcaoTexto;
+  /** Altura máxima com rolagem do conteúdo (lista longa, checkout com muitas etapas). Sem a prop, a folha cresce com o conteúdo. */
+  rolavel?: boolean;
+  /** Folha com campo de texto: sobe com o teclado e leva o campo com foco à vista. Liga `rolavel`. */
+  evitarTeclado?: boolean;
   children?: ReactNode;
   testID?: string;
 }) {
@@ -70,15 +151,29 @@ export function Folha({
   const reduzir = useReduzirMovimento();
   const { montado, progresso } = useEntradaSaida(visivel, duracaoMovimento('folha', reduzir));
   const [altura, setAltura] = useState(600);
-  const desloc = deslocamentoDaFolha(altura, reduzir);
+  const [alturaCamada, setAlturaCamada] = useState(0);
+  const comRolagem = Boolean(rolavel || evitarTeclado);
+  const teclado = useTecladoNaFolha(Boolean(evitarTeclado) && montado);
+  const desloc = deslocamentoDaFolha(altura + teclado.cobertura, reduzir);
+  const maxima = comRolagem && alturaCamada > 0 ? alturaMaximaDaFolha({ alturaCamada, topoSeguro: insets.top, teclado: teclado.cobertura }) : undefined;
+  // com o teclado aberto, ele já cobre a área segura de baixo: o respiro volta ao mínimo
+  const respiroBaixo = teclado.cobertura > 0 ? 12 : 22 + insets.bottom;
   return (
     <Modal visible={montado} transparent animationType="none" onRequestClose={onFechar} statusBarTranslucent>
       <Animated.View style={[s.fundo, { opacity: progresso }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onFechar} accessibilityRole="button" accessibilityLabel={rotuloFechar} testID={`${testID}-fundo`} />
       </Animated.View>
+      {comRolagem ? (
+        // camada de medida (tela cheia, sem toque): dá a altura máxima e a base para medir o teclado
+        <View ref={teclado.camada} pointerEvents="none" collapsable={false} style={StyleSheet.absoluteFill} onLayout={(e: LayoutChangeEvent) => setAlturaCamada(e.nativeEvent.layout.height)} />
+      ) : null}
       <Animated.View
         onLayout={(e: LayoutChangeEvent) => setAltura(e.nativeEvent.layout.height)}
-        style={[s.folha, { paddingBottom: 22 + insets.bottom, transform: [{ translateY: progresso.interpolate({ inputRange: [0, 1], outputRange: [desloc, 0] }) }] }]}
+        style={[
+          s.folha,
+          { paddingBottom: respiroBaixo, bottom: teclado.cobertura, transform: [{ translateY: progresso.interpolate({ inputRange: [0, 1], outputRange: [desloc, 0] }) }] },
+          maxima !== undefined ? { maxHeight: maxima } : null,
+        ]}
         testID={testID}
         accessibilityViewIsModal
         accessibilityLabel={rotuloAcessivel ?? titulo}>
@@ -88,7 +183,22 @@ export function Folha({
             {titulo}
           </Text>
         ) : null}
-        {children}
+        {comRolagem ? (
+          <View ref={teclado.moldura} collapsable={false} style={s.rolagem}>
+            <ScrollView
+              ref={teclado.area}
+              testID={`${testID}-rolagem`}
+              style={s.rolagem}
+              contentContainerStyle={s.rolagemConteudo}
+              keyboardShouldPersistTaps="handled"
+              onScroll={teclado.onScroll}
+              scrollEventThrottle={32}>
+              {children}
+            </ScrollView>
+          </View>
+        ) : (
+          children
+        )}
         {rodape ? (
           <Pressionavel testID={rodape.testID ?? `${testID}-rodape`} accessibilityRole="button" onPress={rodape.onPress} escala={false} style={s.rodape}>
             <Text style={s.rodapeTexto}>{rodape.rotulo}</Text>
@@ -221,6 +331,9 @@ const s = StyleSheet.create({
   /** alça visual no topo (indica que a folha desce) */
   alca: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong, marginBottom: 6 },
   titulo: { fontFamily: fonts.display, fontSize: 19, color: colors.ink, marginBottom: 0 },
+  /** área rolável da folha alta: encolhe até caber na altura máxima; entre os filhos, o mesmo gap da folha (9) */
+  rolagem: { flexGrow: 0, flexShrink: 1 },
+  rolagemConteudo: { gap: 9 },
   rodape: { minHeight: ALVO_TOQUE, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
   rodapeTexto: { fontFamily: fonts.semibold, fontSize: 14, color: colors.ink2 },
   // .opt / .ic

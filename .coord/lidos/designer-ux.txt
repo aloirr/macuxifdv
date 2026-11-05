@@ -60,3 +60,8 @@ R-20261105-090545-modulo-vendedor
 R-20261105-094411-modulo-core
 R-20261105-101645-gerente-projetos
 R-20261105-104349-engenheiro-apps
+R-20261105-114721-modulo-vendedor
+R-20261105-124019-modulo-vendedor
+R-20261105-124324-engenheiro-apps
+R-20261105-132401-engenheiro-apps
+R-20261105-132419-engenheiro-apps

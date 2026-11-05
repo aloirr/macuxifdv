@@ -13,7 +13,19 @@ import {
   transicaoDeFolha,
   vibrarLeve,
 } from './movimento';
-import { ALTURA, BOTAO_DESABILITADO, colors, contraste, estiloDoNivel, NIVEIS_BOTAO, radius, TONS_ESTADO } from './tokens';
+import {
+  ALTURA,
+  BOTAO_DESABILITADO,
+  BOTAO_DESABILITADO_ESCURO,
+  colors,
+  contraste,
+  estiloDoNivel,
+  FUNDO_ESCURO,
+  NIVEIS_BOTAO,
+  NIVEIS_BOTAO_ESCURO,
+  radius,
+  TONS_ESTADO,
+} from './tokens';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 
@@ -77,6 +89,42 @@ describe('botões em níveis (T-0072)', () => {
   it('principal é o único com o laranja cheio', () => {
     const cheios = Object.entries(NIVEIS_BOTAO).filter(([, v]) => v.fundo === colors.accent);
     expect(cheios.map(([n]) => n)).toEqual(['principal']);
+  });
+
+  it('sobre escuro: todo nível (e o desabilitado) com texto ≥ 4,5:1 sobre o próprio fundo ou sobre o grafite', () => {
+    const fundoReal = (f: string) => (f === 'transparent' ? FUNDO_ESCURO : f);
+    expect(FUNDO_ESCURO).toBe(colors.ink);
+    for (const [nivel, v] of Object.entries(NIVEIS_BOTAO_ESCURO)) expect(contraste(v.texto, fundoReal(v.fundo)), nivel).toBeGreaterThanOrEqual(4.5);
+    expect(contraste(BOTAO_DESABILITADO_ESCURO.texto, BOTAO_DESABILITADO_ESCURO.fundo)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('sobre escuro: os níveis se separam do grafite e entre si (faixa "Em atendimento" do #94)', () => {
+    const { principal, secundario, neutro, perigo } = NIVEIS_BOTAO_ESCURO;
+    // o que tem fundo cheio se separa do grafite (≥ 3:1, componente de interface); o neutro, pelo contorno claro
+    for (const v of [principal, secundario, perigo]) expect(contraste(v.fundo, FUNDO_ESCURO)).toBeGreaterThanOrEqual(3);
+    expect(neutro.fundo).toBe('transparent');
+    expect(neutro.borda).not.toBeNull();
+    expect(contraste(neutro.borda ?? '#000000', FUNDO_ESCURO)).toBeGreaterThanOrEqual(3);
+    // secundário (cheio, laranja-claro) × neutro (só contorno): não ficam parecidos
+    expect(secundario.fundo).toBe(colors.accentLight);
+    expect(secundario.texto).toBe(colors.ink);
+    expect(neutro.texto).toBe(colors.surface);
+    // o laranja cheio continua só no principal
+    expect(principal.fundo).toBe(colors.accent);
+    expect(Object.values(NIVEIS_BOTAO_ESCURO).filter((v) => v.fundo === colors.accent)).toHaveLength(1);
+  });
+
+  it('sobre escuro: mesmas alturas, raios e fontes; sem a opção, nada muda', () => {
+    for (const n of ['principal', 'secundario', 'neutro', 'perigo'] as const) {
+      const claro = estiloDoNivel(n, { alto: true });
+      const escuro = estiloDoNivel(n, { alto: true, sobreEscuro: true });
+      expect([escuro.altura, escuro.raio, escuro.tamanhoFonte], n).toEqual([claro.altura, claro.raio, claro.tamanhoFonte]);
+      expect(estiloDoNivel(n), n).toEqual(estiloDoNivel(n, { sobreEscuro: false }));
+      expect(estiloDoNivel(n), n).toEqual({ ...NIVEIS_BOTAO[n], ...(n === 'principal' ? {} : { altura: 44 }) });
+    }
+    const off = estiloDoNivel('secundario', { sobreEscuro: true, desabilitado: true });
+    expect([off.fundo, off.texto, off.larguraBorda]).toEqual([BOTAO_DESABILITADO_ESCURO.fundo, BOTAO_DESABILITADO_ESCURO.texto, 0]);
+    expect(ler('./base.tsx')).toContain('estiloDoNivel(nivel, { alto, desabilitado: Boolean(desligado), sobreEscuro })');
   });
 
   it('secundário alto = 52 (ao lado do principal); desabilitado cinza sem borda', () => {

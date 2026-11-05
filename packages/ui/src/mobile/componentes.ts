@@ -53,3 +53,61 @@ export function layoutCarregando(embutido: boolean): {
   if (embutido) return { minHeight: ALTURA_CARREGANDO_EMBUTIDO, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' };
   return { flex: 1, alignItems: 'center', justifyContent: 'center' };
 }
+
+// ---------- voltar (T-0072, R-20261105-132419) ----------
+
+/** O que o shell informa ao `BackLink` pelo `ProvedorVoltar`: o rótulo de para onde o voltar leva ("Início", "Mais"). */
+export interface VoltarDaTela {
+  readonly rotulo: string;
+}
+
+/**
+ * Rótulo visível e lido do `BackLink`. Com o valor do shell (raiz de uma pilha aberta de fora), vale o rótulo do shell; sem ele
+ * (null, undefined ou rótulo em branco), vale o `label` do módulo, como antes.
+ */
+export function rotuloDoVoltar(label: string, voltar: VoltarDaTela | null | undefined): { visivel: string; acessivel: string } {
+  const doShell = voltar?.rotulo?.trim();
+  const visivel = doShell ? doShell : label;
+  return { visivel, acessivel: `Voltar para ${visivel}` };
+}
+
+// ---------- folha com altura máxima e teclado (T-0072) ----------
+
+/** Faixa do fundo escurecido que fica sempre à vista acima da folha alta (dá para tocar fora e fechar). */
+export const FOLGA_TOPO_FOLHA = 24;
+
+/** Distância entre o campo com foco e a borda de baixo da área visível da folha. */
+export const FOLGA_CAMPO_FOLHA = 8;
+
+/**
+ * Altura máxima da folha `rolavel`: a altura da camada da folha menos a área segura do topo, a faixa de fundo
+ * (`FOLGA_TOPO_FOLHA`) e o que o teclado cobre. Nunca menos que 0.
+ */
+export function alturaMaximaDaFolha({ alturaCamada, topoSeguro = 0, teclado = 0 }: { alturaCamada: number; topoSeguro?: number; teclado?: number }): number {
+  if (!Number.isFinite(alturaCamada) || alturaCamada <= 0) return 0;
+  const t = Number.isFinite(teclado) ? Math.max(0, teclado) : 0;
+  const topo = Number.isFinite(topoSeguro) ? Math.max(0, topoSeguro) : 0;
+  return Math.max(0, Math.round(alturaCamada - topo - FOLGA_TOPO_FOLHA - t));
+}
+
+/**
+ * Quanto o teclado cobre da camada da folha, medido em coordenadas da janela: base da camada (y + altura) menos o topo
+ * do teclado (`endCoordinates.screenY`). Teclado fechado ou abaixo da camada → 0.
+ */
+export function coberturaDoTeclado(baseDaCamada: number, topoDoTeclado: number | null | undefined): number {
+  if (topoDoTeclado === null || topoDoTeclado === undefined || !Number.isFinite(topoDoTeclado) || !Number.isFinite(baseDaCamada)) return 0;
+  return Math.max(0, Math.round(baseDaCamada - topoDoTeclado));
+}
+
+/**
+ * Quanto rolar a área da folha para o campo com foco ficar inteiro à vista (com `FOLGA_CAMPO_FOLHA` embaixo). Positivo
+ * rola para baixo; negativo, para cima (campo escondido em cima); 0 quando já está à vista.
+ */
+export function rolagemAteCampo({ campoTopo, campoBaixo, areaTopo, areaBaixo, folga = FOLGA_CAMPO_FOLHA }: { campoTopo: number; campoBaixo: number; areaTopo: number; areaBaixo: number; folga?: number }): number {
+  if (![campoTopo, campoBaixo, areaTopo, areaBaixo].every(Number.isFinite)) return 0;
+  const abaixo = campoBaixo + folga - areaBaixo;
+  if (abaixo > 0) return Math.ceil(abaixo);
+  const acima = campoTopo - folga - areaTopo;
+  if (acima < 0) return Math.floor(acima);
+  return 0;
+}

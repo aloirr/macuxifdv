@@ -58,7 +58,7 @@ export function Trilha({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={rotuloAcessivel ? rotuloAcessivel(item, atual) : desligado ? `${item.rotulo}, você está aqui` : `Ir para ${item.rotulo}`}
-              accessibilityState={{ disabled: desligado, selected: atual }}
+              accessibilityState={{ disabled: desligado, selected: desligado }}
               disabled={desligado}
               onPress={() => onEscolher(item.id)}
               style={({ pressed }) => [s.passo, compacta && s.passoCompacto, pressed && { opacity: 0.6 }]}

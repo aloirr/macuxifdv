@@ -2,7 +2,7 @@
  * Componentes base do visual novo (T-0072; guia docs/design/referencia-2026-11-03/Componentes.dc.html e
  * especificação docs/design/componentes.md):
  * - `Botao`: níveis principal (52, um só por tela), secundário (44; `alto` = 52 ao lado do principal), neutro e perigo
- *   (44); desabilitado cinza legível; afunda ao toque e o principal vibra leve ao confirmar;
+ *   (44); desabilitado cinza legível; afunda ao toque e o principal vibra leve ao confirmar; `sobreEscuro` sobre o grafite;
  * - `Cartao`: superfície branca com borda (tons destaque, sucesso, escuro e suave), tocável ou não;
  * - `ChipEstado`: estado com cor E texto (Aprovado, Aguardando aprovação, Na fila…);
  * - `AvisoRodape` + `useAvisoRodape`: aviso curto no rodapé ("Pedido enviado") com Desfazer opcional, some em 2,5 s;
@@ -30,6 +30,7 @@ export function Botao({
   desligado,
   ocupado,
   vibrar,
+  sobreEscuro,
   rotuloAcessivel,
   style,
   testID,
@@ -48,12 +49,17 @@ export function Botao({
   ocupado?: boolean;
   /** Vibra leve ao tocar. Padrão: só no principal. */
   vibrar?: boolean;
+  /**
+   * Botão sobre fundo grafite (faixa "Em atendimento", `Cartao tom="escuro"`): secundário em laranja-claro com texto grafite,
+   * neutro só com contorno claro e texto branco. Sem a prop, nada muda.
+   */
+  sobreEscuro?: boolean;
   rotuloAcessivel?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
   const off = Boolean(desligado || ocupado);
-  const v = estiloDoNivel(nivel, { alto, desabilitado: Boolean(desligado) });
+  const v = estiloDoNivel(nivel, { alto, desabilitado: Boolean(desligado), sobreEscuro });
   return (
     <Pressionavel
       testID={testID}

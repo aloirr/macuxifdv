@@ -10,10 +10,11 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DentroDeCartao, useDentroDeCartao } from './base';
-import { layoutCarregando } from './componentes';
+import { layoutCarregando, rotuloDoVoltar } from './componentes';
 import { Icon, type IconName } from './icon';
 import { Pressionavel } from './movimento-rn';
 import { formatHHMM } from './time';
+import { useVoltarDaTela } from './voltar';
 import { BOTAO_DESABILITADO, colors, fonts, radius, toneColors, TOUCH, type as t, type Tone } from './theme';
 
 /** Área rolável da tela com o respiro do mockup (28 no topo, 20 nas laterais). */
@@ -47,17 +48,22 @@ export function Screen({
   );
 }
 
+/**
+ * Voltar da tela ("‹ Pedidos"). O rótulo diz para onde o voltar leva: o shell pode trocá-lo pelo `ProvedorVoltar` (raiz de pilha
+ * aberta pelo Início → "Início"); sem provedor, vale o `label` do módulo (§6.1 de docs/design/componentes.md).
+ */
 export function BackLink({ label, fallback }: { label: string; fallback: string }) {
+  const rotulo = rotuloDoVoltar(label, useVoltarDaTela());
   return (
     <Pressionavel
       accessibilityRole="link"
-      accessibilityLabel={`Voltar para ${label}`}
+      accessibilityLabel={rotulo.acessivel}
       onPress={() => (router.canGoBack() ? router.back() : router.replace(fallback as never))}
       escala={false}
       style={styles.back}>
       <Icon name="back" size={18} color={colors.ink2} />
       <Text style={styles.backText} numberOfLines={1}>
-        {label}
+        {rotulo.visivel}
       </Text>
     </Pressionavel>
   );

@@ -47,6 +47,21 @@ Regras:
 - `Button` mantém todas as props antigas; as variantes viraram níveis (accent = principal, outlineDark = secundário, ghost =
   neutro, danger = perigo). `outline` (borda cinza), `dark`, `success`, `locked` e `muted` continuam para os casos que já existem.
 
+### 3.1 Botão sobre fundo escuro (`<Botao sobreEscuro>`; T-0072, revisão do #94)
+Sobre o grafite (faixa "Em atendimento", `Cartao tom="escuro"`), o secundário claro (branco, borda grafite que some no fundo) e o
+neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda só de cor (altura, raio, fonte e regras iguais):
+| Nível | Visual sobre o grafite | Contraste do texto | Exemplo |
+|---|---|---|---|
+| principal | laranja `#C2540A` cheio, texto branco (igual ao claro) | 4,6:1 | raro: só se a faixa for a tarefa da tela |
+| secundário | laranja-claro `#F59A52` cheio, texto grafite | 7,5:1 | "Fazer checkout" |
+| neutro | só contorno claro `#C9D0D8` 1,5, fundo transparente, texto branco | 16:1 (sobre o grafite) | "Ver cliente" |
+| perigo | rosa com texto vermelho (igual ao claro) | ≥ 4,5:1 | "Rejeitar", "Excluir" |
+| desabilitado | cinza-grafite `#34404D`, texto `#C9D0D8` | 6,8:1 | falta dado |
+- O laranja cheio (`#C2540A`) continua só no principal: a contagem de "um só principal por tela" não muda.
+- Tokens `NIVEIS_BOTAO_ESCURO`, `BOTAO_DESABILITADO_ESCURO`, `FUNDO_ESCURO` e `estiloDoNivel(nivel, { sobreEscuro })`;
+  contraste testado em `tokens.test.ts`. Sem a prop, nada muda.
+- Faixa "Em atendimento": `<Botao rotulo="Fazer checkout" sobreEscuro />` e `<Botao rotulo="Ver cliente" nivel="neutro" sobreEscuro />`.
+
 ## 4. Cartões, chips e listas
 - `Cartao` (`tom`): `padrao` (branco, borda), `destaque` (laranja claro: "Pedidos para aprovar"), `sucesso` (meta batida),
   `escuro` (recado do dia, raio 18), `suave` (dentro de outro cartão). `onPress` deixa o cartão inteiro tocável (afunda ao toque).
@@ -59,6 +74,14 @@ Regras:
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do
   Android fecha. Use para filtros, quantidade, desconto, escolha entre 2–5 opções. Mesmas props da T-0071.
+  Opções novas (T-0072; sem elas, a folha é a mesma de antes):
+  - `rolavel`: altura máxima = tela − área segura do topo − 24 dp (sempre sobra uma faixa do fundo para tocar fora); o
+    conteúdo rola, e alça, título e `rodape` ficam fixos. Use quando o conteúdo pode passar da tela (checkout com muitas
+    etapas, lista de opções longa).
+  - `evitarTeclado`: para folha com campo de texto (justificativa, quantidade, desconto). A folha sobe junto com o teclado, a
+    altura máxima desconta o teclado e o campo com foco rola até ficar inteiro à vista (8 dp de folga). Liga `rolavel`. Um toque
+    num botão da folha com o teclado aberto já vale (não precisa fechar o teclado antes).
+  - Partes puras testadas: `alturaMaximaDaFolha`, `coberturaDoTeclado`, `rolagemAteCampo` (`voltar.test.ts`).
 - **Diálogo** (`Dialogo`): só para confirmar o que não tem volta. Cancelar = neutro; confirmar = laranja ou vermelho (`perigo`).
 - **Aviso no rodapé** (`AvisoRodape` + `useAvisoRodape`): grafite, ícone verde de ok, texto branco, ação laranja-clara à direita.
   Some em **2,5 s** (8 s com TalkBack). Texto no passado e com o objeto: "Pedido 000013 enviado para aprovação", "Item removido".
@@ -91,7 +114,8 @@ Regras:
 ## 6. Movimento (sempre com "reduzir movimento")
 | Movimento | Token | Duração | Com "reduzir movimento" | Quem liga |
 |---|---|---|---|---|
-| Avançar (lista → detalhe entra pela direita; voltar sai pela direita) | `transicaoDeAvancar(reduzir)` | 240 ms | sem animação | engenheiro-apps (pilha do shell) |
+| Avançar (tela nova entra pela direita, ¼ da largura + esmaecer; no voltar, a anterior entra pela esquerda) | `transicaoDeAvancar(reduzir)` · `duracaoMovimento('avancar')` | 240 ms | sem animação | engenheiro-apps (pilha do shell, §6.1) |
+| Troca de aba e toque de novo na aba (volta à raiz) | — | sem deslocamento | sem deslocamento | engenheiro-apps |
 | Folha (de baixo, fundo escurece) | `Folha` · `transicaoDeFolha(reduzir)` | 280 ms | aparece sem deslocamento | kit / shell (modais de rota) |
 | Toque (afunda 0,97) + vibração leve ao confirmar | `Pressionavel` (`Botao`, `Button`, `Cartao`, `RodapeTotal`) | 120 ms | sem escala; opacidade 0,7; sem vibração | kit (vibração: shell) |
 | Aviso no rodapé | `AvisoRodape` | entra em 200 ms, fica 2,5 s | aparece sem deslocamento | kit |
@@ -104,6 +128,32 @@ Regras:
   Vibra o principal, o confirmar do diálogo e o Desfazer. Não vibra em navegação nem em rolagem. **Com "reduzir movimento"
   ligado, não vibra** (o shell registra `null`; decisão de 2026-11-04, R-20261104-231036). No Android segue a opção de retorno
   tátil do sistema.
+
+## 6.1 Navegação entre telas: pilha por aba e voltar (T-0071/T-0072, 2026-11-05, sobre R-20261105-124324)
+O shell guarda uma pilha de telas de módulo por aba (`apps/mobile/src/lib/historico-telas.ts`). Os módulos não precisam saber
+destas regras; elas valem para o voltar do Android e para o `BackLink` do kit (os dois desempilham juntos).
+- **Voltar desempilha antes de sair**: o voltar leva à tela anterior da pilha da aba; na raiz da aba, leva à tela de onde se veio
+  (Início, Mais); no Início, sai do app. Folha, Diálogo e o voltar interno de uma tela (abas do Novo pedido) fecham antes.
+- **Abrir uma tela empilha**; abrir uma tela que já está na pilha volta até ela (sem duplicar) e anima como voltar.
+- **`replace` substitui o topo**: o editor sai da pilha (Salvar orçamento → orçamento; o voltar não reabre o editor). Anima como avançar.
+- **Aberta de fora das abas** (cartão do Início, Perfil, notificação fora da aba Alertas): a tela recomeça a pilha da aba dela, e o
+  voltar na raiz devolve à origem. Ex.: Início › cartão Novo pedido › Salvar orçamento › voltar = Início.
+- **Trocar de aba** (barra ou item do Mais) volta ao topo guardado daquela aba, sem animação. Nada que a pessoa digitou se perde:
+  o rascunho do pedido mora no aparelho.
+- **Tocar de novo na aba em uso** volta à raiz dela, sem animação (regra do Material e do iOS). O rascunho continua guardado.
+  Já na raiz, o toque não faz nada por ora (rolar ao topo fica para depois).
+- **Aba acesa = aba dona da pilha**, não o caminho da tela: no detalhe do pedido (`/m/pedido`) aberto pela aba Pedidos, Pedidos fica
+  acesa; numa pilha aberta por um cartão do Início cuja raiz não é uma aba, o Início fica aceso; numa tela de um item do Mais, o Mais.
+  Feito pelo shell em 2026-11-05 (`abaAcesa`, R-20261105-132401).
+- **O rótulo do `BackLink` diz para onde o voltar leva**. Na raiz de uma pilha aberta pelo Início, o voltar leva ao Início, e o rótulo
+  deve dizer "Início", não o pai fixo da tela ("Pedidos", "Treinar"). Como (combinado em R-20261105-132419):
+  - o kit exporta `ProvedorVoltar` (`value: { rotulo: string } | null`) e `useVoltarDaTela()`; o `BackLink` mostra `value.rotulo`
+    por cima do `label` e é lido "Voltar para <rotulo>". Sem provedor, `null` ou rótulo em branco, vale o `label` do módulo;
+  - o shell envolve a tela de módulo com `<ProvedorVoltar value={useVoltarDoShell(params)}>` já no primeiro quadro (sem piscar
+    "Pedidos" → "Início"): `{ rotulo: 'Início' }` na raiz de pilha aberta pelo Início, `{ rotulo: 'Mais' }` na raiz aberta por um
+    link do Mais, `null` no resto;
+  - os módulos não mudam nada: continuam passando o `label` do pai deles.
+- Sair da sessão ou bloquear o aparelho zera as pilhas; a pilha guarda só caminho e ids, nunca dado de cliente.
 
 ## 7. Textos curtos (pt-BR)
 - Frases curtas, sem jargão de sistema ("sincronizar" sim; "payload", "status 500" não). Sem ponto final em botão, chip e aba.
@@ -141,11 +191,15 @@ Referência: `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.h
 - **Equivalente do desconto em verde** (`colors.success`, `.eq` da referência): "−R$ 0,89", "= 5,3%", "−R$ 3,84". O "+ desconto"
   (ainda sem ajuste) fica em `accentInk`; o equivalente do acréscimo, em `ink2`.
 - **Detalhe do orçamento = tela 5**: selo, um cartão (itens compactos, ajuste do pedido, Total, "CIF · 28 dias"), principal
-  "Transformar em pedido", linha Editar | PDF, depois Duplicar | Cancelar orçamento (neutros) e o Histórico. Sem frase do frete,
-  sem "Desconto efetivo", Filial e Tabela. Vencido: Duplicar vira o principal, ao lado do PDF; nenhuma frase explicando.
+  "Transformar em pedido", linha Editar | PDF, depois Duplicar (`neutro`) | Cancelar orçamento (`perigo`, abre o `Dialogo`;
+  decidido na conferência de 2026-11-05, R-20261105-114721) e o Histórico. Sem frase do frete,
+  sem "Desconto efetivo", Filial e Tabela. Vencido: Duplicar vira o principal, com o PDF (secundário) abaixo; nenhuma frase explicando.
 - **Situação do orçamento**: "Orçamento · até 10/11" (`roxo`), "Vencido", "Cancelado" (`neutro`), "Virou pedido 000015"
   (`sucesso`), iguais na lista e no detalhe. Nunca "Orçamento expirado".
-- **Depois de salvar o orçamento**, abre o orçamento (tela 5); o editor sai da pilha e o voltar leva a Pedidos.
+- **Depois de salvar o orçamento**, abre o orçamento (tela 5); o editor sai da pilha e o voltar leva para onde o pedido começou
+  (Pedidos ou o Início; §6.1). O aviso
+  "Orçamento 000012 salvo" pode vir de um invólucro local do módulo (ex.: `AvisoRapido` do Vendedor), desde que ele só repasse
+  o `AvisoRodape` do kit, sem estilo próprio.
 - **Teclado**: o campo focado fica inteiro acima do teclado; o rodapé Total | Avançar não sobe com o teclado. O que foi digitado
   vale no primeiro toque seguinte (Avançar, aba, Salvar, +/−), sem precisar fechar o teclado.
 
@@ -153,3 +207,4 @@ Referência: `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.h
 1. Um só principal; os demais no nível certo. 2. Alvos ≥ 48 dp. 3. Contraste ≥ 4,5:1 (tokens do kit já passam; cor solta = 🟡).
 4. Chips com texto. 5. Tarefa principal em até 3 toques a partir do Início. 6. Estados vazio, erro, carregando e sem sinal desenhados.
 7. Textos da §7. 8. Sem animação própria fora dos tokens (ou com `useReduzirMovimento`).
+9. Voltar e abas pela §6.1: o voltar nunca sai do app no meio de uma pilha, e o rótulo do `BackLink` diz para onde ele leva.

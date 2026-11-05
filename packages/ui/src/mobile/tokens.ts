@@ -124,12 +124,40 @@ export const NIVEIS_BOTAO: Record<NivelBotao, EstiloNivel> = {
 /** Visual do botão desabilitado (todos os níveis): cinza com texto legível, sem transparência. */
 export const BOTAO_DESABILITADO = { fundo: colors.neutralBg, texto: colors.ink3, borda: null as string | null } as const;
 
-/** Estilo final do nível, com a altura grande (52) para o secundário que acompanha o principal no rodapé. */
-export function estiloDoNivel(nivel: NivelBotao, opcoes: { alto?: boolean; desabilitado?: boolean } = {}): EstiloNivel {
-  const base = NIVEIS_BOTAO[nivel];
+/** Fundo escuro sobre o qual a variante `sobreEscuro` foi medida (faixa "Em atendimento", `Cartao tom="escuro"`). */
+export const FUNDO_ESCURO = colors.ink;
+
+/**
+ * Níveis sobre fundo grafite (`<Botao sobreEscuro>`; T-0072, revisão do #94). No claro, o secundário (branco com borda
+ * grafite) e o neutro (cinza claro) ficam quase iguais sobre o grafite; aqui cada nível tem um peso próprio:
+ * - principal: o mesmo laranja cheio com texto branco (a regra de um só principal por tela não muda);
+ * - secundário: laranja-claro cheio com texto grafite (a ação da faixa: "Fazer checkout");
+ * - neutro: só o contorno claro, fundo transparente e texto branco (a alternativa: "Ver cliente");
+ * - perigo: rosa com texto vermelho (o mesmo do claro, que se destaca do grafite).
+ * `fundo: 'transparent'` = o texto fica sobre o `FUNDO_ESCURO` (o teste de contraste mede assim).
+ */
+export const NIVEIS_BOTAO_ESCURO: Record<NivelBotao, EstiloNivel> = {
+  principal: { ...NIVEIS_BOTAO.principal },
+  secundario: { ...NIVEIS_BOTAO.secundario, fundo: colors.accentLight, texto: colors.ink, borda: null, larguraBorda: 0 },
+  neutro: { ...NIVEIS_BOTAO.neutro, fundo: 'transparent', texto: colors.surface, borda: colors.darkMuted, larguraBorda: 1.5 },
+  perigo: { ...NIVEIS_BOTAO.perigo },
+};
+
+/** Desabilitado sobre o grafite: cinza-grafite com texto claro (o cinza claro do desabilitado comum brilharia mais que a ação). */
+export const BOTAO_DESABILITADO_ESCURO = { fundo: colors.darkTrack, texto: colors.darkMuted, borda: null as string | null } as const;
+
+/**
+ * Estilo final do nível, com a altura grande (52) para o secundário que acompanha o principal no rodapé. `sobreEscuro` troca as
+ * cores pelas de `NIVEIS_BOTAO_ESCURO` (alturas, raios e fontes não mudam).
+ */
+export function estiloDoNivel(nivel: NivelBotao, opcoes: { alto?: boolean; desabilitado?: boolean; sobreEscuro?: boolean } = {}): EstiloNivel {
+  const base = (opcoes.sobreEscuro ? NIVEIS_BOTAO_ESCURO : NIVEIS_BOTAO)[nivel];
   const alto = nivel === 'principal' || Boolean(opcoes.alto);
   const tamanho = alto ? { altura: ALTURA.principal, raio: radius.botao, tamanhoFonte: 16 } : { altura: ALTURA.secundario, raio: radius.botaoMedio, tamanhoFonte: 14 };
-  if (opcoes.desabilitado) return { ...base, ...tamanho, fundo: BOTAO_DESABILITADO.fundo, texto: BOTAO_DESABILITADO.texto, borda: null, larguraBorda: 0 };
+  if (opcoes.desabilitado) {
+    const off = opcoes.sobreEscuro ? BOTAO_DESABILITADO_ESCURO : BOTAO_DESABILITADO;
+    return { ...base, ...tamanho, fundo: off.fundo, texto: off.texto, borda: null, larguraBorda: 0 };
+  }
   return { ...base, ...tamanho };
 }
 
