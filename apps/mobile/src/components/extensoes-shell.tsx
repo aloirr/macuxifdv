@@ -11,12 +11,19 @@ import { router } from 'expo-router';
 import type { ComponentType } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-/** Slot `inicio.cards`: cards dos módulos na tela Início, na ordem do registro. */
+import { ordenarCards } from '@/lib/inicio';
+
+/**
+ * Slot `inicio.cards`: cards dos módulos no Início, em largura total, por `ordem` (menor primeiro; ausente = 100; empate =
+ * ordem do registro). Cards lado a lado (Orçamentos | A faturar) são desenhados pelo próprio módulo dentro de um card.
+ * O shell só monta: os itens já vêm filtrados por módulo efetivo, perfil e ação (ADR 0004). Sem Vendedor, sem Orçamentos
+ * e A faturar; sem Gestor, sem "Pedidos para aprovar"; o promotor não recebe card de pedido (RN-PRO-01).
+ */
 export function CardsDoInicio() {
-  const cards = useExtensoes<CardInicio<ComponentType>>('inicio.cards');
+  const cards = ordenarCards(useExtensoes<CardInicio<ComponentType>>('inicio.cards'));
   if (cards.length === 0) return null;
   return (
-    <View style={{ gap: 10 }} testID="inicio-cards">
+    <View style={{ gap: 12 }} testID="inicio-cards">
       {cards.map(({ modulo, id, payload }) => {
         const Componente = payload.componente;
         return (

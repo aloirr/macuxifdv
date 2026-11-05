@@ -44,6 +44,7 @@ import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
+import { limparHistoricoDoShell } from '@/lib/transicao-modulo';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
 import { observarFalhasDeSync, type FalhaSync } from '@/lib/diagnostico-sync';
@@ -460,6 +461,8 @@ function usePlataformaValor() {
     if (usuarioId) void esquecerRegistroPush(usuarioId);
     sessaoRef.current = null;
     motorRef.current = null;
+    // R-20261104-042956 🟢 3: a 1ª tela do próximo login não anima como "voltar"
+    limparHistoricoDoShell();
     // ADR 0017: sem sessão (logout ou aparelho bloqueado), nada roda em segundo plano
     void desligarSyncEmSegundoPlano();
     setSessao(null);

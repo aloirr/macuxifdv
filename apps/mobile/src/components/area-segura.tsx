@@ -9,7 +9,7 @@
  */
 import { colors } from '@macuxi/ui/mobile';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { Platform, StatusBar, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dividirAreaSegura } from '@/lib/area-segura';
@@ -22,7 +22,8 @@ export function useFaixaSuperior(): number {
 
 export function AreaSeguraSuperior({ children }: { children: ReactNode }) {
   const { top, right, bottom, left } = useSafeAreaInsets();
-  const { faixaSuperior, insetsDasTelas } = useMemo(() => dividirAreaSegura({ top, right, bottom, left }), [top, right, bottom, left]);
+  const barraDeStatus = Platform.OS === 'android' ? StatusBar.currentHeight : null;
+  const { faixaSuperior, insetsDasTelas } = useMemo(() => dividirAreaSegura({ top, right, bottom, left }, barraDeStatus), [top, right, bottom, left, barraDeStatus]);
   return (
     <View testID="area-segura-superior" style={{ flex: 1, paddingTop: faixaSuperior, backgroundColor: colors.ground }}>
       <FaixaSuperiorContext.Provider value={faixaSuperior}>

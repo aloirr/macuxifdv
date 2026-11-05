@@ -76,7 +76,7 @@ export function registrarTelaAberta(chave: string, agora: number = Date.now()): 
   return r.direcao;
 }
 
-/** Só para testes. */
+/** Zera o histórico do shell: no fim da sessão (logout ou aparelho bloqueado), para a 1ª tela do próximo login não animar como "voltar"; e nos testes. */
 export function limparHistoricoDoShell(): void {
   historicoDoShell = [];
   marcaDaAba = null;

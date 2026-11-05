@@ -15,6 +15,8 @@ const APARELHO: Insets = { top: 24, bottom: 48, left: 0, right: 0 };
 
 type Props = { children?: ReactNode; testID?: string; style?: { paddingTop?: number } };
 vi.mock('react-native', () => ({
+  Platform: { OS: 'android' },
+  StatusBar: { currentHeight: 20 },
   View: ({ children, testID, style }: Props) =>
     createElement('div', { 'data-testid': testID, 'data-padding-top': style?.paddingTop ?? '' }, children),
 }));
@@ -47,6 +49,12 @@ describe('dividirAreaSegura', () => {
     expect(dividirAreaSegura(APARELHO)).toEqual({ faixaSuperior: 24, insetsDasTelas: { top: 0, bottom: 48, left: 0, right: 0 } });
     expect(dividirAreaSegura({ ...APARELHO, top: 0 }).faixaSuperior).toBe(0);
     expect(dividirAreaSegura({ ...APARELHO, top: 31.6 }).faixaSuperior).toBe(32);
+  });
+  it('T-0076: inset de cima 0 no Android usa a altura da barra de status como piso (o "Olá" não encosta na barra)', () => {
+    expect(dividirAreaSegura({ ...APARELHO, top: 0 }, 28).faixaSuperior).toBe(28);
+    expect(dividirAreaSegura({ ...APARELHO, top: 0 }, 28).insetsDasTelas.top).toBe(0);
+    expect(dividirAreaSegura(APARELHO, 20).faixaSuperior).toBe(24);
+    expect(dividirAreaSegura(APARELHO, null).faixaSuperior).toBe(24);
   });
 });
 
