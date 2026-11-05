@@ -103,7 +103,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: pull de preço e catalogo.pr
 
   it('RN-CAT-06: preço vem da tabela do cliente, não da outra tabela do tenant', async () => {
     const r = await consultar(A.tenantId, 'vendedor', entrada([P_COM]));
-    expect(r).toEqual({ tabela_preco_id: TAB_ATACADO, itens: [{ produto_id: P_COM, preco_cents: 930, motivo_sem_preco: null }] });
+    expect(r).toEqual({ tabela_preco_id: TAB_ATACADO, tabela_preco_nome: 'T29-ATACADO', itens: [{ produto_id: P_COM, preco_cents: 930, motivo_sem_preco: null }] });
   });
 
   it('RN-CAT-06: produto fora da tabela do cliente = sem preço (não cai no Varejo)', async () => {
@@ -115,12 +115,14 @@ describe.skipIf(semBanco())('Catálogo × Postgres: pull de preço e catalogo.pr
     for (const cliente of [CL3, CL2]) {
       const r = await consultar(A.tenantId, 'vendedor', entrada([P_COM], cliente));
       expect(r).toEqual({ tabela_preco_id: null, itens: [{ produto_id: P_COM, preco_cents: null, motivo_sem_preco: 'Sem preço para este cliente.' }] });
+      expect(r).not.toHaveProperty('tabela_preco_nome');
     }
   });
 
   it('RN-CAT-05: promotor não recebe preço; com o parâmetro ligado recebe', async () => {
     const sem = await consultar(A.tenantId, 'promotor', entrada([P_COM]));
     expect(sem).toEqual({ tabela_preco_id: null, itens: [{ produto_id: P_COM, preco_cents: null, motivo_sem_preco: 'Preço não disponível para o seu perfil.' }] });
+    expect(sem).not.toHaveProperty('tabela_preco_nome');
     const com = await consultar(A.tenantId, 'promotor', entrada([P_COM]), { promotor_ve_preco_estoque: true });
     expect(com.itens[0]!.preco_cents).toBe(930);
   });
