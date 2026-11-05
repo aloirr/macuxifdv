@@ -4,7 +4,7 @@
  * Check-in único: com um atendimento aberto, o check-in das outras paradas fica bloqueado (cadeado).
  */
 import { formatBRL0 } from '@macuxi/comum';
-import { Card, colors, fonts, formatHHMM, Icon, radius, Screen, type as t } from '@macuxi/ui/mobile';
+import { Botao, Cartao, ChipEstado, colors, EstadoVazio, fonts, formatHHMM, Icon, radius, Screen, type as t } from '@macuxi/ui/mobile';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Polyline, Text as SvgText } from 'react-native-svg';
@@ -30,9 +30,7 @@ export function TelaRota() {
     return (
       <Screen>
         <Text style={t.h1}>Rota de hoje</Text>
-        <Card style={{ padding: 14 }}>
-          <Text style={t.sub}>Nenhuma rota definida para hoje. O analista define a rota na web do BKO.</Text>
-        </Card>
+        <EstadoVazio testID="rota-vazia" icone="map" titulo="Nenhuma rota para hoje" texto="O analista define a rota na web do BKO. Puxe a tela para atualizar quando tiver sinal." />
       </Screen>
     );
   }
@@ -71,7 +69,7 @@ export function TelaRota() {
             {stops.length} visitas · {Math.round(route.total_km).toLocaleString('pt-BR')} km · {route.region}
           </Text>
         </View>
-        <Text style={styles.doneCount}>{route.done_count} feitas</Text>
+        <ChipEstado texto={`${route.done_count} feitas`} tom="sucesso" />
       </View>
 
       <OpenVisitBar from="Rota de hoje" />
@@ -124,14 +122,18 @@ export function TelaRota() {
           })}
         </Svg>
         {next ? (
-          <Pressable testID="go-next" accessibilityRole="button" onPress={() => void Linking.openURL(mapsUrl(next.customer.lat, next.customer.lng, next.customer.address))} style={({ pressed }) => [styles.goBtn, pressed && { opacity: 0.8 }]}>
-            <Icon name="navigate" size={16} color="#FFFFFF" />
-            <Text style={styles.goText}>Ir para a parada {next.sequence}</Text>
-          </Pressable>
+          <Botao
+            testID="go-next"
+            nivel="secundario"
+            icone="navigate"
+            rotulo={`Ir para a parada ${next.sequence}`}
+            onPress={() => void Linking.openURL(mapsUrl(next.customer.lat, next.customer.lng, next.customer.address))}
+            style={styles.goBtn}
+          />
         ) : null}
       </View>
 
-      <Card style={{ overflow: 'hidden' }}>
+      <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
         {stops.map((s, i) => (
           <StopRow
             key={s.id}
@@ -143,7 +145,7 @@ export function TelaRota() {
             onAction={() => onAction(s)}
           />
         ))}
-      </Card>
+      </Cartao>
     </Screen>
   );
 }
@@ -197,16 +199,15 @@ function StopRow({ stop, last, tz, locked, onPress, onAction }: { stop: RouteSto
         </Text>
       </Pressable>
       {!done ? (
-        <Pressable
+        <Botao
           testID={`stop-action-${stop.sequence}`}
-          accessibilityRole="button"
-          accessibilityLabel={inProgress ? `Fazer checkout em ${c.trade_name}` : locked ? `Check-in bloqueado em ${c.trade_name}` : `Fazer check-in em ${c.trade_name}`}
+          rotulo={actionLabel}
+          rotuloAcessivel={inProgress ? `Fazer checkout em ${c.trade_name}` : locked ? `Check-in bloqueado em ${c.trade_name}` : `Fazer check-in em ${c.trade_name}`}
+          nivel={locked && !inProgress ? 'neutro' : 'secundario'}
+          icone={locked && !inProgress ? 'lock' : undefined}
           onPress={onAction}
-          hitSlop={4}
-          style={({ pressed }) => [styles.action, { backgroundColor: inProgress ? colors.accent : locked ? colors.lineSoft : colors.ink }, pressed && { opacity: 0.75 }]}>
-          {locked && !inProgress ? <Icon name="lock" size={13} color={colors.ink3} strokeWidth={2.2} /> : null}
-          <Text style={[styles.actionText, { color: locked && !inProgress ? colors.ink3 : '#FFFFFF' }]}>{actionLabel}</Text>
-        </Pressable>
+          style={styles.action}
+        />
       ) : null}
     </View>
   );
@@ -222,13 +223,10 @@ function hint(c: RouteStop['customer']): string {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
-  doneCount: { fontFamily: fonts.semibold, fontSize: 13, color: colors.success },
-  map: { height: MAP_H, borderRadius: radius.xxl, overflow: 'hidden', backgroundColor: colors.mapBg, borderWidth: 1, borderColor: colors.mapBorder },
-  goBtn: { position: 'absolute', left: 12, bottom: 12, height: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  goText: { fontFamily: fonts.semibold, fontSize: 14, color: '#FFFFFF' },
+  map: { height: MAP_H, borderRadius: radius.secao, overflow: 'hidden', backgroundColor: colors.mapBg, borderWidth: 1, borderColor: colors.mapBorder },
+  goBtn: { position: 'absolute', left: 12, bottom: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingLeft: 14, paddingRight: 12, minHeight: 56 },
-  action: { height: 36, paddingHorizontal: 10, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  actionText: { fontFamily: fonts.semibold, fontSize: 12 },
+  action: { paddingHorizontal: 12 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   num: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   numText: { fontFamily: fonts.bold, fontSize: 12, color: colors.ink },

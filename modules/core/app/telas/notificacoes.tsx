@@ -2,7 +2,7 @@
  * Notificações (RF-CORE-09). Caixa lida do aparelho (offline); abrir marca como lida pela fila e, se houver `link`
  * interno, navega. testIDs: docs/modulos/core/test-ids.md. Alvos de toque >= 48 dp.
  */
-import { Badge, Card, colors, Screen, type as t } from '@macuxi/ui/mobile';
+import { Cartao, ChipEstado, colors, EstadoVazio, Screen, type as t } from '@macuxi/ui/mobile';
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
@@ -29,20 +29,19 @@ export function TelaNotificacoes() {
         </Text>
       </View>
       {carregado && caixa.length === 0 ? (
-        <Card style={{ padding: 14 }} testID="notificacoes.vazio">
-          <Text style={t.sub}>Nenhum aviso por enquanto. Puxe a tela para atualizar quando tiver sinal.</Text>
-        </Card>
+        <EstadoVazio testID="notificacoes.vazio" icone="bell" titulo="Nenhum aviso por enquanto" texto="Puxe a tela para atualizar quando tiver sinal." />
       ) : null}
       {caixa.map((n) => (
         <Pressable key={n.id} accessibilityRole="button" accessibilityLabel={`${n.titulo}. ${n.lida_em ? 'Lida' : 'Não lida'}`} onPress={() => abrir(n)} testID={`notificacoes.item.${n.id}`} style={{ minHeight: 56 }}>
-          <Card style={{ padding: 12, gap: 6, borderLeftWidth: n.lida_em ? 0 : 4, borderLeftColor: n.prioridade === 'alta' ? colors.danger : colors.accent }}>
+          <Cartao preenchimento={12} gap={6} style={{ borderLeftWidth: n.lida_em ? 0 : 4, borderLeftColor: n.prioridade === 'alta' ? colors.danger : colors.accent }}>
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Badge tone={n.prioridade === 'alta' ? 'danger' : 'neutral'} label={n.prioridade === 'alta' ? 'Importante' : rotuloDoTipo[n.tipo]} />
-              {n.leituraPendente ? <Badge tone="warning" label="Leitura não enviada" /> : null}
+              <ChipEstado pequeno tom={n.prioridade === 'alta' ? 'erro' : 'neutro'} texto={n.prioridade === 'alta' ? 'Importante' : rotuloDoTipo[n.tipo]} />
+              {n.leituraPendente ? <ChipEstado pequeno tom="aviso" texto="Leitura não enviada" /> : null}
+              {!n.lida_em ? <ChipEstado pequeno tom="destaque" texto="Não lida" /> : null}
             </View>
             <Text style={n.lida_em ? t.body : t.bodyStrong}>{n.titulo}</Text>
             <Text style={t.small}>{n.corpo}</Text>
-          </Card>
+          </Cartao>
         </Pressable>
       ))}
     </Screen>

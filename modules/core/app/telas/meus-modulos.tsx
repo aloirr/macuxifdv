@@ -6,7 +6,7 @@
  */
 import { ehSemConexao, type ModuloId } from '@macuxi/platform-sdk';
 import { useHttp, useMotorSync } from '@macuxi/platform-sdk/react';
-import { Badge, Banner, Button, Card, colors, fonts, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
+import { Banner, Botao, Cartao, ChipEstado, colors, fonts, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -61,7 +61,7 @@ export function TelaMeusModulos() {
       {aviso ? <Banner testID="meus-modulos.aviso">{aviso}</Banner> : null}
       {estado.erro ? <Banner tone="danger">{estado.erro}</Banner> : null}
 
-      <Card style={{ padding: 4 }} testID="meus-modulos.lista">
+      <Cartao preenchimento={4} testID="meus-modulos.lista">
         {linhas.map((l, i) => (
           <View key={l.modulo} style={[styles.linha, i > 0 && styles.divisor]} testID={`meus-modulos.item.${l.modulo}`}>
             <Text style={styles.nome}>{l.modulo}</Text>
@@ -70,7 +70,7 @@ export function TelaMeusModulos() {
             </Text>
           </View>
         ))}
-      </Card>
+      </Cartao>
 
       {soTemOCore(ativos) ? (
         <Text style={t.sub} testID="meus-modulos.vazio">
@@ -78,25 +78,25 @@ export function TelaMeusModulos() {
         </Text>
       ) : null}
 
-      <Button testID="meus-modulos.atualizar" label="Atualizar agora" icon="sync" variant="dark" height={48} loading={estado.sincronizando} onPress={atualizar} />
+      <Botao testID="meus-modulos.atualizar" nivel="principal" rotulo="Atualizar agora" icone="sync" ocupado={estado.sincronizando} onPress={atualizar} />
 
       {naoEnviados.length > 0 || estado.limpezaPendente.length > 0 ? (
         <View style={{ gap: 8 }}>
           <SectionHeader title="Não enviado" />
           {naoEnviados.map((i) => (
-            <Card key={i.id} style={{ padding: 12, gap: 4 }} testID={`sync.item-nao-enviado.${i.id}`}>
+            <Cartao key={i.id} preenchimento={12} gap={4} testID={`sync.item-nao-enviado.${i.id}`}>
               <Text style={t.bodyStrong}>{i.rotulo || i.entidade}</Text>
               {i.detalhe ? <Text style={t.small}>{i.detalhe}</Text> : null}
-              <Badge tone="warning" label={ROTULO_NAO_ENVIADO} />
-            </Card>
+              <ChipEstado pequeno tom="aviso" texto={ROTULO_NAO_ENVIADO} />
+            </Cartao>
           ))}
           {estado.limpezaPendente
             .filter((m) => podeConfirmarLimpeza(m, estado.limpezaPendente, estado.fila))
             .map((m) => (
-              <Card key={m} style={{ padding: 12, gap: 8 }}>
+              <Cartao key={m} preenchimento={12} gap={8}>
                 <Text style={t.sub}>O módulo {m} foi desativado. Os dados dele neste aparelho só são apagados depois que você confirmar que viu o que não foi enviado.</Text>
-                <Button testID={`sync.confirmar-modulo-desativado.${m}`} label="Entendi" variant="outlineDark" height={48} onPress={() => void motor?.confirmarLimpeza(m)} />
-              </Card>
+                <Botao testID={`sync.confirmar-modulo-desativado.${m}`} nivel="secundario" alto rotulo="Entendi" onPress={() => void motor?.confirmarLimpeza(m)} />
+              </Cartao>
             ))}
         </View>
       ) : null}

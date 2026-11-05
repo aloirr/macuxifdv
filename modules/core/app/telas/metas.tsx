@@ -2,7 +2,7 @@
  * Metas e RV (Metas.dc.html) a partir de GET /goals/me (cálculo no servidor com @fv/domain).
  */
 import { formatBRL0, formatPct } from '@macuxi/comum';
-import { Card, colors, dateTimeLabel, fonts, Icon, IconTile, monthName, ProgressBar, radius, Screen, type as t } from '@macuxi/ui/mobile';
+import { Cartao, ChipEstado, colors, dateTimeLabel, EstadoVazio, fonts, Icon, IconTile, monthName, ProgressBar, radius, Screen, type as t } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { KpiResult } from '../../contracts';
@@ -21,9 +21,7 @@ export function TelaMetas() {
       <Screen>
         <Text style={t.h1}>Metas</Text>
         <PainelMetas />
-        <Card style={{ padding: 14 }}>
-          <Text style={t.sub}>Sem metas para este perfil no mês.</Text>
-        </Card>
+        <EstadoVazio testID="metas-vazio" icone="target" titulo="Sem metas no mês" texto="Seu gestor ainda não definiu metas para este perfil." />
       </Screen>
     );
   }
@@ -46,11 +44,7 @@ export function TelaMetas() {
             {fechado ? 'Mês fechado · valores congelados' : `Parcial até o fechamento (${fechamento}) · atualizada ${dateTimeLabel(g.computed_at, new Date(), tz)}`}
           </Text>
         </View>
-        <View style={styles.rank}>
-          <Text style={styles.rankText}>
-            {g.ranking_position}º de {g.ranking_total}
-          </Text>
-        </View>
+        <ChipEstado texto={`${g.ranking_position}º de ${g.ranking_total}`} tom="neutro" />
       </View>
 
       <PainelMetas />
@@ -70,7 +64,7 @@ export function TelaMetas() {
         )}
       </View>
 
-      <Card>
+      <Cartao preenchimento={0}>
         {kpis.map((k, i) => (
           <KpiRow key={k.kpi_code} k={k} last={i === kpis.length - 1 && triggers.length === 0} />
         ))}
@@ -85,7 +79,7 @@ export function TelaMetas() {
             </View>
           </View>
         ))}
-      </Card>
+      </Cartao>
 
       <Pressable
         testID="goals-idle-link"
@@ -131,9 +125,7 @@ function KpiRow({ k, last }: { k: KpiResult; last: boolean }) {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
-  rank: { backgroundColor: colors.neutralBg, borderRadius: radius.sm, paddingHorizontal: 9, paddingVertical: 5 },
-  rankText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.neutralInk },
-  dark: { backgroundColor: colors.ink, borderRadius: radius.xxl, padding: 18, gap: 6 },
+  dark: { backgroundColor: colors.ink, borderRadius: radius.secao, padding: 18, gap: 6 },
   darkLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.darkMuted },
   darkValue: { fontFamily: fonts.display, fontSize: 34, color: '#FFFFFF', fontVariant: ['tabular-nums'] },
   darkNote: { fontFamily: fonts.body, fontSize: 13, color: colors.accentLight },
@@ -143,5 +135,5 @@ const styles = StyleSheet.create({
   kpiPct: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   trigger: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 },
-  idle: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.accentTint, borderRadius: radius.lg },
+  idle: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentLine, borderRadius: radius.cartao, minHeight: 48 },
 });
