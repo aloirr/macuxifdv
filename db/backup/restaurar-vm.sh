@@ -67,6 +67,15 @@ if ! dc exec -T "$SERVICO_PG" sh -c 'pg_restore -U "$POSTGRES_USER" -d "$1" --ex
   exit 1
 fi
 
+# T-0079 (0022): a restauração VOLTA os dados de todos os tenants; gira a geração da base para os aparelhos limparem a
+# cópia local (pedido que só o aparelho tem é reenviado pela fila). Backup anterior à 0022 não tem a função: o
+# "banco migrar up" do deploy cria a coluna com um valor novo por tenant, o que dá no mesmo.
+if [ "$(psql_pg -d "$DESTINO" -c "select to_regprocedure('plataforma.girar_geracao_base(uuid)') is not null")" = "t" ]; then
+  log "geração da base girada em $(psql_pg -d "$DESTINO" -c "select plataforma.girar_geracao_base(null)") tenant(s) de $DESTINO"
+else
+  log "backup anterior à 0022 (sem geracao_base): o migrar up do deploy cria o marcador novo"
+fi
+
 psql_pg -d "$DESTINO" < "$CONTAGEM" > "$tmp/restaurado.txt"
 log "restaurado: $(grep -c '^linhas|' "$tmp/restaurado.txt") tabelas, $(awk -F'|' '/^linhas\|/ {s += $3} END {print s + 0}' "$tmp/restaurado.txt") linhas"
 if [ -n "$(psql_pg -d postgres -c "select 1 from pg_database where datname = '$BANCO'")" ]; then

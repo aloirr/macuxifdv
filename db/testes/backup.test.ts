@@ -362,5 +362,19 @@ describe.skipIf(semBanco())('restauração: base de demo → pg_dump → bucket 
     expect(antes.find((l) => l.startsWith('politicas|'))).toMatch(/\|[1-9]\d*$/);
     expect(antes.some((l) => l.startsWith('privilegios|macuxi_app|'))).toBe(true);
     console.info(`[backup.test] ${ferramentas.descricao}: ${linhas.length} tabelas, ${total} linhas, dump de ${(dump.length / 1024).toFixed(0)} KB restaurado igual`);
+
+    // T-0079 (0022): o restaurar-vm.sh gira a geração da base de TODOS os tenants do restaurado (a função vem no dump);
+    // a origem não muda e a contagem continua igual (só o marcador anda)
+    const geracoes = (banco: string) =>
+      comAdmin(banco, async (c: pg.Client) => (await c.query<{ id: string; g: string }>('select id, geracao_base as g from plataforma.tenant order by id')).rows, lerConfigTestes());
+    const daOrigem = await geracoes(origem.nome);
+    expect(await geracoes(destino.nome)).toEqual(daOrigem);
+    const girados = await comAdmin(destino.nome, async (c: pg.Client) => (await c.query<{ n: number }>('select plataforma.girar_geracao_base(null) as n')).rows[0]!.n, lerConfigTestes());
+    expect(girados).toBe(daOrigem.length);
+    const novas = await geracoes(destino.nome);
+    expect(novas.map((t) => t.id)).toEqual(daOrigem.map((t) => t.id));
+    for (const [i, t] of novas.entries()) expect(t.g).not.toBe(daOrigem[i]!.g);
+    expect(await geracoes(origem.nome)).toEqual(daOrigem);
+    expect(await contagem(destino.nome)).toEqual(antes);
   });
 });

@@ -86,7 +86,7 @@ const sqlUp = migracoes.map((m) => m.up).join('\n');
 function tabelasCriadas(): Map<string, string> {
   const mapa = new Map<string, string>();
   for (const m of /create table ([a-z_]+\.[a-z_]+) \(([\s\S]*?)\n\);/g[Symbol.matchAll](sqlUp)) mapa.set(m[1]!, m[2]!);
-  for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column ([a-z_]+) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
+  for (const m of /^alter table ([a-z_]+\.[a-z_]+) add column (?:if not exists )?([a-z_]+) ([a-z][^;]*);/gm[Symbol.matchAll](sqlUp)) {
     mapa.set(m[1]!, `${mapa.get(m[1]!) ?? ''}\n  ${m[2]!} ${m[3]!}`);
   }
   return mapa;
@@ -117,6 +117,8 @@ describe('migrações (estático)', () => {
     expect(nomes[18]).toBe('0019_core_nota_erp_meta_tipo');
     expect(nomes[19]).toBe('0020_pedido_ajuste_valor_produto_relacao');
     expect(nomes[20]).toBe('0021_core_recado_do_dia'); // T-0073: colunas novas em core.notificacao e core.indicador_diario.clientes_positivados (recado-do-dia.test.ts)
+    expect(nomes[21]).toBe('0022_plataforma_geracao_base'); // T-0079: plataforma.tenant.geracao_base e girar_geracao_base (geracao-base.test.ts)
+    expect(nomes[22]).toBe('0023_core_positivacao_mes'); // positivação acumulada do mês: indicador_diario.clientes_positivados_ids e core.positivacao_do_mes (positivacao-mes.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',

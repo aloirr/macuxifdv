@@ -14,8 +14,13 @@ RLS: política `isolamento_tenant` em todas (ver [rls.md](rls.md)).
 | fuso | text not null | IANA, padrão `America/Sao_Paulo` (exibição no fuso do tenant; dados em UTC) |
 | plano | text not null | padrão `piloto` |
 | status | text not null | `ativo` \| `suspenso` \| `encerrado` |
+| geracao_base | uuid not null | 0022 (T-0079): geração dos dados do tenant, padrão `gen_random_uuid()`. **Gira** em toda operação que apaga ou volta os dados do tenant: seed demo `--recriar`, restauração de backup (`db/backup/restaurar-vm.sh`, todos os tenants) e tenant novo (primeiro seed de servidor novo). **Nunca** no uso normal. Vai no `/me` e no envelope do pull (contrato do engenheiro-software); o aparelho compara com o guardado e, se mudou, reenvia a fila, limpa a cópia local e puxa tudo |
 
 Função `tenant_por_codigo(codigo)` (SECURITY DEFINER) para o login. Aplicação: só `SELECT` (vê o próprio).
+Função `girar_geracao_base(p_tenant uuid default null) → integer` (0022, SECURITY INVOKER, sem EXECUTE para `public`,
+`macuxi_app` ou `macuxi_worker`): troca `geracao_base` do tenant (null = todos) e devolve quantos girou. Só o dono do banco
+(superusuário do seed e do restaurar-vm.sh) roda; a tabela tem FORCE RLS, então papel sem BYPASSRLS gira 0 (o seed trata como erro).
+Caminho de volta: `0022_plataforma_geracao_base.down.sql` (apaga coluna e função; app volta ao comportamento sem marcador).
 
 ## tenant_modulo — módulos do tenant (RN-CORE-01/02)
 | Coluna | Tipo | Regra |
