@@ -11,6 +11,7 @@ import {
   ChipEstado,
   colors,
   EstadoVazio,
+  Loading,
   Screen,
   Strong,
   type as t,
@@ -52,11 +53,11 @@ export default function LicaoScreen() {
     return (
       <Screen testID="treinar-licao">
         <BackLink label="Treinar" fallback={hrefTreinar()} />
-        <EstadoVazio
-          icone="file"
-          titulo={tr.carregado ? 'Lição não encontrada' : 'Carregando'}
-          texto={tr.carregado ? 'Volte e puxe para atualizar.' : undefined}
-        />
+        {tr.carregado ? (
+          <EstadoVazio icone="file" titulo="Lição não encontrada" texto="Volte e puxe para atualizar." />
+        ) : (
+          <Loading />
+        )}
       </Screen>
     );
   }
@@ -101,7 +102,7 @@ export default function LicaoScreen() {
 
       {licao.midia_url ? (
         <Cartao gap={8}>
-          {licao.tipo === 'video' ? <Text style={t.small}>Vídeo: use o Wi-Fi.</Text> : null}
+          {licao.tipo === 'video' ? <Text style={t.small}>Vídeo: prefira o Wi-Fi.</Text> : null}
           <Botao
             testID="treinar-licao-midia"
             rotulo={
@@ -115,7 +116,9 @@ export default function LicaoScreen() {
             nivel="secundario"
             onPress={() => {
               setErroMidia(null);
-              Linking.openURL(licao.midia_url!).catch(() => setErroMidia('Não foi possível abrir o conteúdo. Confira o sinal e tente de novo.'));
+              Linking.openURL(licao.midia_url!).catch(() =>
+                setErroMidia('Não foi possível abrir o conteúdo. Confira o sinal e tente de novo.'),
+              );
             }}
           />
           {erroMidia ? (

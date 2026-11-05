@@ -10,6 +10,7 @@ import {
   ChipEstado,
   colors,
   EstadoVazio,
+  Loading,
   Folha,
   Icon,
   Screen,
@@ -50,11 +51,11 @@ export default function QuizScreen() {
     return (
       <Screen testID="treinar-quiz">
         <BackLink label="Treinar" fallback={hrefTreinar()} />
-        <EstadoVazio
-          icone="clipboard"
-          titulo={tr.carregado ? 'Quiz não encontrado' : 'Carregando'}
-          texto={tr.carregado ? 'Volte e puxe para atualizar.' : undefined}
-        />
+        {tr.carregado ? (
+          <EstadoVazio icone="clipboard" titulo="Quiz não encontrado" texto="Volte e puxe para atualizar." />
+        ) : (
+          <Loading />
+        )}
       </Screen>
     );
   }
@@ -169,14 +170,9 @@ export default function QuizScreen() {
 
       {retorno ? (
         <View style={{ gap: 10 }}>
-          <Cartao
-            testID="treinar-quiz-resultado"
-            tom={retorno.aprovada ? 'sucesso' : 'padrao'}
-            gap={6}
-            style={!retorno.aprovada && { backgroundColor: colors.dangerBg, borderColor: colors.dangerBg }}
-          >
+          <Cartao testID="treinar-quiz-resultado" tom={retorno.aprovada ? 'sucesso' : 'padrao'} gap={6}>
             <ChipEstado
-              texto={retorno.aprovada ? 'Aprovado' : 'Reprovado'}
+              texto={retorno.aprovada ? 'Aprovado' : 'Não passou'}
               tom={retorno.aprovada ? 'sucesso' : 'erro'}
               icone={retorno.aprovada ? 'check' : 'alert'}
             />
@@ -184,11 +180,7 @@ export default function QuizScreen() {
             <Text style={t.body}>
               {retorno.correcao.acertos} de {retorno.correcao.total}{' '}
               {retorno.correcao.total === 1 ? 'certa' : 'certas'}.{' '}
-              {retorno.aprovada
-                ? retorno.licao_concluida
-                  ? 'Lição concluída.'
-                  : ''
-                : 'Revise a lição.'}
+              {retorno.aprovada ? (retorno.licao_concluida ? 'Lição concluída.' : '') : 'Revise a lição.'}
             </Text>
             {retorno.aviso ? <Text style={[t.small, { color: colors.warning }]}>{retorno.aviso}</Text> : null}
           </Cartao>

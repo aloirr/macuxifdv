@@ -11,6 +11,7 @@ import {
   ChipEstado,
   colors,
   EstadoVazio,
+  Loading,
   fonts,
   formatHHMM,
   LinhaChips,
@@ -122,11 +123,15 @@ export default function RankingScreen() {
       ) : null}
       <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
         {!dados || dados.linhas.length === 0 ? (
-          <EstadoVazio
-            icone="target"
-            titulo={carregando ? 'Carregando' : 'Ninguém pontuou ainda'}
-            texto={carregando ? undefined : 'Conclua uma lição para entrar.'}
-          />
+          carregando ? (
+            <Loading />
+          ) : (
+            <EstadoVazio
+              icone="target"
+              titulo="Ninguém pontuou ainda"
+              texto="Conclua uma lição para entrar."
+            />
+          )
         ) : null}
         {dados?.linhas.map((l, i) => (
           <Linha key={l.usuario_id} l={l} ultima={i === dados.linhas.length - 1} />
@@ -134,7 +139,7 @@ export default function RankingScreen() {
       </Cartao>
       {dados ? (
         <Text style={[t.small, { textAlign: 'center' }]}>
-          Atualizado às {formatHHMM(dados.calculado_em, tr.tz)}
+          Atualizado às {formatHHMM(dados.calculado_em, tr.tz)} · empate: quem chegou primeiro ao XP
         </Text>
       ) : null}
     </Screen>

@@ -10,6 +10,7 @@ import {
   ChipEstado,
   colors,
   EstadoVazio,
+  Loading,
   ProgressBar,
   Screen,
   space,
@@ -31,11 +32,7 @@ export default function TreinarScreen() {
   const destaque = tr.listaDeTrilhas.find((x) => x.proxima_licao_id)?.trilha_id ?? null;
 
   return (
-    <Screen
-      testID="treinar"
-      refreshing={tr.auto.puxando}
-      onRefresh={tr.auto.puxar}
-    >
+    <Screen testID="treinar" refreshing={tr.auto.puxando} onRefresh={tr.auto.puxar}>
       <View style={styles.header}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={t.h1}>Treinar</Text>
@@ -134,11 +131,11 @@ export default function TreinarScreen() {
       </View>
       {tr.listaDeTrilhas.length === 0 ? (
         <Cartao>
-          <EstadoVazio
-            icone="file"
-            titulo={tr.carregado ? 'Nenhuma trilha agora' : 'Carregando trilhas'}
-            texto={tr.carregado ? 'Puxe para atualizar com sinal.' : undefined}
-          />
+          {tr.carregado ? (
+            <EstadoVazio icone="file" titulo="Nenhuma trilha agora" texto="Puxe para atualizar com sinal." />
+          ) : (
+            <Loading />
+          )}
         </Cartao>
       ) : (
         <Cartao preenchimento={0} style={{ overflow: 'hidden' }}>
@@ -160,7 +157,15 @@ export default function TreinarScreen() {
   );
 }
 
-function LinhaTrilha({ t: tl, ultima, principal }: { t: TrilhaDaLista; ultima: boolean; principal: boolean }) {
+function LinhaTrilha({
+  t: tl,
+  ultima,
+  principal,
+}: {
+  t: TrilhaDaLista;
+  ultima: boolean;
+  principal: boolean;
+}) {
   const prazo = rotuloDoPrazo(tl);
   return (
     <View style={[styles.trilha, !ultima && styles.divisor]}>
@@ -178,14 +183,19 @@ function LinhaTrilha({ t: tl, ultima, principal }: { t: TrilhaDaLista; ultima: b
           {tl.concluida ? (
             <ChipEstado texto="Concluída" tom="sucesso" pequeno />
           ) : tl.obrigatoria ? (
-            <ChipEstado texto={tl.atrasada ? 'Atrasada' : 'Obrigatória'} tom={tl.atrasada ? 'erro' : 'destaque'} pequeno />
+            <ChipEstado
+              texto={tl.atrasada ? 'Atrasada' : 'Obrigatória'}
+              tom={tl.atrasada ? 'erro' : 'destaque'}
+              pequeno
+            />
           ) : tl.licoes_concluidas > 0 ? (
             <ChipEstado texto="Em andamento" tom="aviso" pequeno />
           ) : null}
         </View>
         <ProgressBar pct={tl.progresso_pct} />
         <Text style={[t.small, tl.atrasada && { color: colors.danger }]}>
-          {tl.licoes_concluidas} de {tl.licoes_total} {tl.licoes_total === 1 ? 'lição' : 'lições'}{prazo ? ` · ${prazo}` : ''}
+          {tl.licoes_concluidas} de {tl.licoes_total} {tl.licoes_total === 1 ? 'lição' : 'lições'}
+          {prazo ? ` · ${prazo}` : ''}
         </Text>
       </Pressable>
       {tl.proxima_licao_id ? (
@@ -197,7 +207,7 @@ function LinhaTrilha({ t: tl, ultima, principal }: { t: TrilhaDaLista; ultima: b
           onPress={() => irParaLicao(tl.proxima_licao_id!)}
         />
       ) : !tl.concluida ? (
-        <ChipEstado texto="Bloqueada" tom="neutro" icone="lock" pequeno />
+        <Text style={t.small}>Abra a trilha para ver o que falta.</Text>
       ) : null}
     </View>
   );

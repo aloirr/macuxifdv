@@ -8,6 +8,7 @@ import {
   ChipEstado,
   colors,
   EstadoVazio,
+  Loading,
   IconTile,
   ProgressBar,
   Screen,
@@ -39,11 +40,11 @@ export default function TrilhaScreen() {
     return (
       <Screen testID="treinar-trilha">
         <BackLink label="Treinar" fallback={hrefTreinar()} />
-        <EstadoVazio
-          icone="file"
-          titulo={tr.carregado ? 'Trilha não encontrada' : 'Carregando'}
-          texto={tr.carregado ? 'Volte e puxe para atualizar.' : undefined}
-        />
+        {tr.carregado ? (
+          <EstadoVazio icone="file" titulo="Trilha não encontrada" texto="Volte e puxe para atualizar." />
+        ) : (
+          <Loading />
+        )}
       </Screen>
     );
   }
@@ -60,14 +61,19 @@ export default function TrilhaScreen() {
         <Cartao gap={8}>
           <View style={styles.linha}>
             <Text style={t.bodyStrong}>
-              {resumo.licoes_concluidas} de {resumo.licoes_total} {resumo.licoes_total === 1 ? 'lição' : 'lições'}
+              {resumo.licoes_concluidas} de {resumo.licoes_total}{' '}
+              {resumo.licoes_total === 1 ? 'lição' : 'lições'}
             </Text>
             {trilha.status === 'arquivada' ? (
               <ChipEstado texto="Arquivada" tom="neutro" pequeno />
             ) : resumo.concluida ? (
               <ChipEstado texto="Concluída" tom="sucesso" pequeno />
             ) : trilha.obrigatoria ? (
-              <ChipEstado texto={resumo.atrasada ? 'Atrasada' : 'Obrigatória'} tom={resumo.atrasada ? 'erro' : 'destaque'} pequeno />
+              <ChipEstado
+                texto={resumo.atrasada ? 'Atrasada' : 'Obrigatória'}
+                tom={resumo.atrasada ? 'erro' : 'destaque'}
+                pequeno
+              />
             ) : resumo.licoes_concluidas > 0 ? (
               <ChipEstado texto="Em andamento" tom="aviso" pequeno />
             ) : null}
@@ -84,8 +90,24 @@ export default function TrilhaScreen() {
               {mi + 1}. {m.titulo}
             </Text>
             <ChipEstado
-              texto={m.status === 'concluido' ? 'Concluído' : m.status === 'liberado' ? 'Em andamento' : 'Bloqueado'}
-              tom={m.status === 'concluido' ? 'sucesso' : m.status === 'liberado' ? 'aviso' : 'neutro'}
+              texto={
+                m.status === 'concluido'
+                  ? 'Concluído'
+                  : m.status === 'liberado'
+                    ? m.licoes.some((l) => l.status === 'concluida')
+                      ? 'Em andamento'
+                      : 'Liberado'
+                    : 'Bloqueado'
+              }
+              tom={
+                m.status === 'concluido'
+                  ? 'sucesso'
+                  : m.status === 'liberado'
+                    ? m.licoes.some((l) => l.status === 'concluida')
+                      ? 'aviso'
+                      : 'destaque'
+                    : 'neutro'
+              }
               pequeno
             />
           </View>
