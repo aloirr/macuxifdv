@@ -16,6 +16,14 @@ describe('catalogo.precos_cliente@1 (domain)', () => {
     expect(precosDoCliente({ ...base, produtoIds: [P1] })).toEqual({ tabela_preco_id: T, itens: [{ produto_id: P1, preco_cents: 1000, motivo_sem_preco: null }] });
   });
 
+  it('RN-CAT-06: o nome da tabela do cliente acompanha o id (aditivo, T-0061) e não vaza sem tabela ou sem direito', () => {
+    expect(precosDoCliente({ ...base, tabelaNome: 'Atacado', produtoIds: [P1] }).tabela_preco_nome).toBe('Atacado');
+    expect(precosDoCliente({ ...base, produtoIds: [P1] })).not.toHaveProperty('tabela_preco_nome');
+    expect(precosDoCliente({ ...base, tabelaId: null, tabelaNome: 'Atacado', produtoIds: [P1] })).not.toHaveProperty('tabela_preco_nome');
+    expect(precosDoCliente({ ...base, verPreco: false, tabelaNome: 'Atacado', produtoIds: [P1] })).not.toHaveProperty('tabela_preco_nome');
+    expect(PrecosClienteSaidaSchema.safeParse(precosDoCliente({ ...base, tabelaNome: 'Atacado', produtoIds: [P1] })).success).toBe(true);
+  });
+
   it('RN-CAT-06: item fora da tabela do cliente = sem preço, sem cair na tabela padrão', () => {
     const r = precosDoCliente({ ...base, produtoIds: [P1, P2], itens: [item(P1, 1000), { price_table_id: null, product_id: P2, price_cents: 500 }] });
     expect(r.itens[1]).toEqual({ produto_id: P2, preco_cents: null, motivo_sem_preco: MENSAGEM_SEM_PRECO_CLIENTE });

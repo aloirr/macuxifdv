@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
-import { combinarNotas, distanciaEdicao, notaFinal, pontuacaoTextual, rankear, type DocBusca } from './ranking';
+import { codigoCompacto, combinarNotas, distanciaEdicao, notaFinal, pontuacaoTextual, rankear, type DocBusca } from './ranking';
 import { expandirSinonimos } from './texto';
 
 const doc = (o: Partial<DocBusca> & { id: string }): DocBusca => ({
@@ -315,5 +315,16 @@ describe('RF-CAT-02: desempenho do ranking com catálogo grande (T-0052-B4; limi
     const { ms, r } = medir(catalogo(2154), 'freio dianteiro');
     expect(r.length).toBeGreaterThan(0);
     expect(ms).toBeLessThan(5000);
+  });
+});
+
+describe('forma compacta do SKU (T-0052, única para ranking e índice)', () => {
+  it('RN-CAT-01: PAS-DIA-150, "pas dia 150" e "Pás/Dia 150" têm a mesma forma compacta; vazio e nulo dão vazio', () => {
+    expect(codigoCompacto('PAS-DIA-150')).toBe('pasdia150');
+    expect(codigoCompacto('pas dia 150')).toBe('pasdia150');
+    expect(codigoCompacto('Pás/Dia 150')).toBe('pasdia150');
+    expect(codigoCompacto('DET-5L')).toBe('det5l');
+    expect(codigoCompacto(null)).toBe('');
+    expect(codigoCompacto('')).toBe('');
   });
 });

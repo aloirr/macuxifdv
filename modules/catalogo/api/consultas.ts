@@ -13,16 +13,19 @@ const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 export const consultaPrecosCliente = implementarConsulta(CONSULTA_PRECOS_CLIENTE, async (entrada, ctx) => {
   const verPreco = verPrecoDoPerfil(ctx.usuario.perfil, ctx.parametros());
   let tabelaId: string | null = null;
+  let tabelaNome: string | null = null;
   let itens: ItemTabelaPreco[] = [];
   if (verPreco) {
     const t = await ctx.db.query(
-      `select ct.tabela_preco_id
+      `select ct.tabela_preco_id, t.nome
          from catalogo.cliente_tabela_preco ct
          join catalogo.tabela_preco t on t.tenant_id = ct.tenant_id and t.id = ct.tabela_preco_id and t.ativo and t.deleted_at is null
         where ct.cliente_id = $1::uuid and ct.deleted_at is null`,
       [entrada.cliente_id],
     );
-    tabelaId = (t.rows[0] as { tabela_preco_id: string } | undefined)?.tabela_preco_id ?? null;
+    const linha = t.rows[0] as { tabela_preco_id: string; nome: string | null } | undefined;
+    tabelaId = linha?.tabela_preco_id ?? null;
+    tabelaNome = linha?.nome ?? null;
     if (tabelaId && entrada.produto_ids.length > 0) {
       const r = await ctx.db.query(
         `select produto_id, preco_cents::float8 as preco_cents,
@@ -44,5 +47,5 @@ export const consultaPrecosCliente = implementarConsulta(CONSULTA_PRECOS_CLIENTE
       }));
     }
   }
-  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco });
+  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco });
 });

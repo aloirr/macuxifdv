@@ -2,7 +2,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { COLUNAS_BUSCA_CATALOGO, TABELAS_BUSCA_CATALOGO } from '../db/aparelho';
-import { compacto, INDICE_BUSCA_CATALOGO, PESOS_BUSCA_CATALOGO } from './indice';
+import { INDICE_BUSCA_CATALOGO, PESOS_BUSCA_CATALOGO } from './indice';
 
 const QUANDO = criarRelogio().iso();
 const P = '00000000-0000-4000-8000-000000000001';
@@ -28,6 +28,5 @@ describe('índice FTS5 do Catálogo no aparelho (T-0008, pedido R-20261031-20543
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler(p))).toEqual({ sku: 'DET-5L', ean: '7891000100103', codigos: 'det5l erp77', nome: 'Detergente 5 L', marca: 'Brilho', categoria: 'Limpeza', atributos: 'Fragrância Neutro Volume 5 L' });
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler({ ...p, ativo: false } as LinhaSync))).toBeNull();
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler(null))).toBeNull();
-    expect(compacto(null)).toBe('');
   });
 });

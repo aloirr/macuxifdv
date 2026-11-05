@@ -33,6 +33,8 @@ export type PrecoClienteItem = z.infer<typeof PrecoClienteItemSchema>;
 export const PrecosClienteSaidaSchema = z.object({
   /** Tabela do cliente usada; nula se o cliente não tem tabela ativa ou o perfil não vê preço. */
   tabela_preco_id: Id.nullable(),
+  /** Nome da tabela usada (aditivo, T-0061: o PDF interno e o detalhe do BKO mostram o nome, não o id). */
+  tabela_preco_nome: z.string().nullable().optional(),
   /** Mesma ordem de `produto_ids` (sem repetidos). */
   itens: z.array(PrecoClienteItemSchema),
 });

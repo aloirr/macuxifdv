@@ -12,13 +12,17 @@ export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULT
   // sem usuário logado não há perfil para liberar o preço (falha fechada)
   const verPreco = perfil !== null && verPrecoDoPerfil(perfil, ctx.parametros());
   let tabelaId: string | null = null;
+  let tabelaNome: string | null = null;
   let itens: ItemTabelaPreco[] = [];
   if (verPreco) {
     const vinculos = (await ctx.linhas<ClienteTabelaPrecoSync>('cliente_tabela_preco')).filter((l) => l.cliente_id === entrada.cliente_id && !l.deleted_at);
     const candidata = vinculos[0]?.tabela_preco_id ?? null;
     if (candidata) {
       const [tabela] = await ctx.linhasPorIds<TabelaPrecoSync>('tabela_preco', [candidata]);
-      if (tabela && tabela.ativo && !tabela.deleted_at) tabelaId = candidata;
+      if (tabela && tabela.ativo && !tabela.deleted_at) {
+        tabelaId = candidata;
+        tabelaNome = tabela.nome ?? null;
+      }
     }
     if (tabelaId) {
       const id = tabelaId;
@@ -28,5 +32,5 @@ export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULT
         .map((l) => ({ price_table_id: id, product_id: l.produto_id, price_cents: l.preco_cents, valid_from: l.vigencia_inicio, valid_to: l.vigencia_fim, unit: l.unidade ?? null }));
     }
   }
-  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco });
+  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco });
 });

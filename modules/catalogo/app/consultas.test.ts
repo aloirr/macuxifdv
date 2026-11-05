@@ -80,7 +80,7 @@ describe('Catálogo no aparelho: catalogo.precos_cliente@1', () => {
 
   it('RN-CAT-06: preço vem da tabela do cliente, offline', async () => {
     const r = await consultar(await motorDo('vendedor'), [P_COM]);
-    expect(r).toEqual({ tabela_preco_id: TAB_ATACADO, itens: [{ produto_id: P_COM, preco_cents: 930, motivo_sem_preco: null }] });
+    expect(r).toEqual({ tabela_preco_id: TAB_ATACADO, tabela_preco_nome: 'Atacado', itens: [{ produto_id: P_COM, preco_cents: 930, motivo_sem_preco: null }] });
   });
 
   it('RN-CAT-06: produto fora da tabela do cliente = sem preço (não cai na outra tabela)', async () => {

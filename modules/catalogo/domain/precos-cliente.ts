@@ -23,6 +23,8 @@ export interface EntradaPrecosCliente {
   produtoIds: readonly string[];
   /** Tabela ativa do cliente; nula = cliente sem tabela (ou tabela inativa/removida). */
   tabelaId: string | null;
+  /** Nome da tabela (opcional, aditivo); só sai na resposta com a tabela do cliente. */
+  tabelaNome?: string | null;
   /** Itens da tabela do cliente (qualquer vigência); os de outras tabelas são ignorados. */
   itens: readonly ItemTabelaPreco[];
   /** Data pedida pelo consumidor e relógio de quem responde (ISO UTC). */
@@ -59,6 +61,7 @@ export function precosDoCliente(e: EntradaPrecosCliente): PrecosClienteSaida {
   const itens = daTabela.filter((i) => i.unit == null);
   return {
     tabela_preco_id: e.tabelaId,
+    ...(e.tabelaNome ? { tabela_preco_nome: e.tabelaNome } : {}),
     itens: ids.map((produto_id) => {
       const p = precoVisivel(produto_id, itens, [], { agora: quando, tabela_cliente_id: e.tabelaId });
       if (p.sellable && p.price_cents !== null) {
