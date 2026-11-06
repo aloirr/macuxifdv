@@ -305,3 +305,11 @@ R-20261105-230858-testes
 R-20261105-232241-designer-ux
 R-20261105-232350-modulo-catalogo
 R-20261105-233639-engenheiro-apps
+R-20261105-234308-engenheiro-software
+R-20261105-234313-engenheiro-software
+R-20261105-234352-engenheiro-software
+R-20261105-234731-designer-ux
+R-20261105-234504-modulo-catalogo
+R-20261105-234239-banco-dados
+R-20261106-000450-modulo-promotor
+R-20261106-000651-engenheiro-apps
