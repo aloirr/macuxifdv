@@ -43,6 +43,8 @@ export interface Rascunho {
   endereco_entrega_id?: string | null;
   /** RN-VEN-35: pedido em nome. Dono (vendedor) escolhido pelo gestor; ausente = pedido do próprio usuário. O autor é o token. */
   vendedor_em_nome_id?: string | null;
+  /** RN-VEN-35: nome do dono, só para o PDF da fila (o servidor devolve o nome certo depois do pull) */
+  vendedor_em_nome_nome?: string | null;
 }
 
 /**
@@ -91,6 +93,8 @@ export interface OrderLineDisplay {
 /** Resumo guardado junto do item da fila (a fila genérica só tem o `CreateOrderRequest`). */
 export interface OrderDisplay {
   customer_name: string;
+  /** RN-VEN-35: nome do vendedor dono, no pedido em nome */
+  seller_name?: string;
   subtotal_cents: number;
   discount_cents: number;
   total_cents: number;
@@ -115,7 +119,7 @@ export interface EntradaPrepararPedido {
   politica: DiscountPolicy;
   eu: Me['seller'];
   /** RN-VEN-35/10: supervisor/gerente digitando pelo vendedor; vale a alçada do gestor e o `eu` não é exigido */
-  emNome?: { vendedor_id: string; perfil_autor: string } | null;
+  emNome?: { vendedor_id: string; perfil_autor: string; nome?: string } | null;
   /** pedidos do cliente ainda na fila (consomem o crédito), sem o pedido em edição */
   filaDoClienteCents: number;
   /** sem uso desde que o crédito saiu da fatia (P-6); mantido para as chamadas existentes */
@@ -195,6 +199,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
   if (v.outcome === 'rejected') throw new Error(v.issues.filter((i) => i.blocking).map((i) => i.message).join(' '));
   const display: OrderDisplay = {
     customer_name: e.cliente.trade_name,
+    ...(e.emNome?.nome ? { seller_name: e.emNome.nome } : {}),
     subtotal_cents: totals.subtotal_cents,
     discount_cents: totals.discount_cents,
     total_cents: totals.total_cents,

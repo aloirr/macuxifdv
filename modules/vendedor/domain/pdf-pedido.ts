@@ -68,6 +68,8 @@ export interface OrderPdfOrder {
   created_at: string;
   customer: { legal_name: string; trade_name: string; cnpj: string; address: string; district: string; city: string; erp_code: string };
   seller_name: string;
+  /** RN-VEN-35: pedido em nome; quem digitou (o gestor). Ausente = pedido do próprio vendedor */
+  made_by?: string;
   payment_terms: string;
   discount_pct: number;
   items: OrderPdfItem[];
@@ -268,7 +270,7 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
     ${place ? `<div class="muted">${escapeHtml(place)}</div>` : ''}
   </div>
   <div class="box kv">
-    <span class="k">Vendedor</span><span class="strong">${escapeHtml(order.seller_name)}</span>
+    <span class="k">Vendedor</span><span class="strong">${escapeHtml(order.seller_name)}</span>${order.made_by ? `<span class="k"></span><span class="muted">feito por ${escapeHtml(order.made_by)}</span>` : ''}
     <span class="k">Prazo</span><span>${escapeHtml(order.payment_terms)}</span>
     <span class="k">Data</span><span>${escapeHtml(pdfDateTime(order.created_at, ctx.tz))}</span>
     ${freteHtml}
@@ -306,7 +308,7 @@ function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   <div class="line muted"><span>${order.items.length} ${order.items.length === 1 ? 'item' : 'itens'} · ${order.items.reduce((s, i) => s + i.quantity, 0)} un.</span><span>Prazo ${escapeHtml(order.payment_terms)}</span></div>
 </div>
 <div class="footer">
-  <div>Vendedor: <span class="strong">${escapeHtml(order.seller_name)}</span> · Prazo de pagamento: ${escapeHtml(order.payment_terms)}</div>
+  <div>Vendedor: <span class="strong">${escapeHtml(order.seller_name)}</span>${order.made_by ? ` (feito por ${escapeHtml(order.made_by)})` : ''} · Prazo de pagamento: ${escapeHtml(order.payment_terms)}</div>
   ${order.freight ? `<div class="strong">${escapeHtml(textoFrete(order.freight))}</div>` : ''}
   ${order.delivery_address ? `<div>Entrega: ${escapeHtml(order.delivery_address)}</div>` : ''}
   <div>Valores sem impostos; impostos calculados no faturamento.</div>

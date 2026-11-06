@@ -55,3 +55,17 @@ export function alcadaDoAutorPct(perfil: string, p: { seller_pct: number; superv
 export function politicaDoAutor(policy: DiscountPolicy, perfil: string): DiscountPolicy {
   return { ...policy, seller_pct: alcadaDoAutorPct(perfil, policy), exceptions: {} };
 }
+
+/** RN-VEN-35: rótulo do voltar do Novo pedido; em nome ele é aberto pela ficha do vendedor (Gestão). */
+export function rotuloVoltarNovoPedido(vendedorId: string | null | undefined): string {
+  return vendedorId ? 'Ficha' : 'Pedidos';
+}
+
+/**
+ * RN-VEN-35: quem aparece como vendedor no PDF. Em nome, é o dono (nunca o gestor) e o gestor sai em "feito por".
+ * Sem o nome do dono no aparelho fica vazio até o pull trazer o pedido do servidor.
+ */
+export function vendedorDoPdf(e: { dono_nome: string; autor_nome: string; em_nome: boolean }): { seller_name: string; made_by?: string } {
+  if (!e.em_nome) return { seller_name: e.autor_nome };
+  return { seller_name: e.dono_nome, ...(e.autor_nome ? { made_by: e.autor_nome } : {}) };
+}
