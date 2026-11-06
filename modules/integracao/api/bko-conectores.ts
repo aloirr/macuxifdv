@@ -43,6 +43,7 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
     metodo: 'GET',
     caminho: 'conectores',
     acao: 'monitor.ver',
+    superAdmin: 'aceita',
     carteira: 'nao_se_aplica',
     executar: async (ctx): Promise<{ itens: ConectorResumo[] }> =>
       ctx.comTenant(async (db) => {
@@ -59,6 +60,7 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
     metodo: 'POST',
     caminho: 'conectores',
     acao: 'conector.gerenciar',
+    superAdmin: 'aceita',
     carteira: 'nao_se_aplica',
     corpo: ConectorCriar,
     status: 201,
