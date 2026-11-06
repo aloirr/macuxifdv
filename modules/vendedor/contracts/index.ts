@@ -89,6 +89,8 @@ export const OrderItem = z.object({
   unit_discount_cents: z.number().int().nonnegative().optional(),
   unit_surcharge_cents: z.number().int().nonnegative().optional(),
   adjust_mode: z.enum(['pct', 'valor']).optional(),
+  /** T-0084 (RN-VEN-19): retrato da aplicação do produto no momento do pedido (até 1.000); ausente/nulo = desmarcada ou sem aplicação */
+  application: z.string().max(1000).nullable().optional(),
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 
@@ -266,6 +268,11 @@ export const PedidoPush = CreateOrderRequest.extend({
    * T-0053 (RF-VEN-03): `orcamento` = pré-venda (não vai para aprovação nem para o ERP, RN-VEN-32). Ausente = `pedido`
    * (a fila dos APKs já instalados continua válida).
    */
+  /**
+   * RN-VEN-35 (pedido em nome): dono do pedido, quando o supervisor/gerente digita pelo vendedor. Ausente ou igual ao autor =
+   * pedido comum. O `autor_id` NUNCA vem do aparelho: é o usuário do token. A API revalida equipe/área e a alçada do gestor.
+   */
+  vendedor_id: z.string().uuid().nullable().optional(),
   tipo: z.enum(TIPOS_DOCUMENTO).optional(),
   /** T-0053: pedido que nasce da conversão de um orçamento (UUID do orçamento). Só em `tipo` pedido. */
   orcamento_origem_id: z.string().uuid().nullable().optional(),
@@ -297,7 +304,7 @@ export const CODIGOS_RECUSA_PEDIDO = [
  * T-0071 (desenho §2.1): edição do orçamento já recebido (precisa de sinal, ação `pedido.criar`). `atualizado_em` é a
  * concorrência otimista: diferente do `updated_at` atual = 409 ORCAMENTO_ALTERADO. Vencido/convertido/cancelado = 422 RN-VEN-18.
  */
-export const EditarOrcamentoRequest = PedidoPush.omit({ id: true, tipo: true, orcamento_origem_id: true, created_offline_at: true })
+export const EditarOrcamentoRequest = PedidoPush.omit({ id: true, tipo: true, orcamento_origem_id: true, created_offline_at: true, vendedor_id: true })
   .extend({ atualizado_em: z.string() })
   .strict();
 export type EditarOrcamentoRequest = z.infer<typeof EditarOrcamentoRequest>;
@@ -413,3 +420,4 @@ export type SyncPushResult = z.infer<typeof SyncPushResult>;
 export const PedidosPage = z.object({ itens: z.array(Order), proximo_cursor: z.string().nullable() });
 export type PedidosPage = z.infer<typeof PedidosPage>;
 export * from './pedidos-da-meta';
+export * from './extensoes';

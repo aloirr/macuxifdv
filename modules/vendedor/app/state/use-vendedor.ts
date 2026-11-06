@@ -9,7 +9,7 @@
  *  - Demonstração (mock-api da Fase M): as cargas REST de `etapas.ts` alimentam o armazenamento do módulo, como antes.
  * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
-import { CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
+import { CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import type { CustomerSummary } from '@macuxi/core/contracts';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
@@ -24,6 +24,7 @@ import { copiaDoDetalhe, copiaDoPayload, rascunhoDaCopia, reconferirDocumento, t
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { embalagensDaConsulta, linhasParaPush } from '../lib/novo-pedido';
+import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
 import {
   aceitosComoPedidos,
@@ -269,7 +270,17 @@ export function useVendedor() {
               itensConsulta.push(it);
             }
           }
-          const items = produtosComPrecos(linhasRef.current, precos);
+          // T-0084 (RN-VEN-19): aplicação do produto pela consulta do Catálogo (offline); falhou = lista sem aplicação, o preço segue
+          const aplicacoes = new Map<string, string>();
+          try {
+            for (let i = 0; i < ativos.length; i += LOTE_PRECOS) {
+              const t = await ambiente.consultar(CONSULTA_TEXTOS_PRODUTO, { produto_ids: ativos.slice(i, i + LOTE_PRECOS).map((p) => p.id) });
+              for (const it of t.itens) if (it.aplicacao) aplicacoes.set(it.produto_id, it.aplicacao);
+            }
+          } catch {
+            aplicacoes.clear();
+          }
+          const items = produtosComPrecos(linhasRef.current, precos, aplicacoes);
           await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora, embalagens: embalagensDaConsulta(itensConsulta) } }));
           await recarregar();
           return items;
@@ -338,7 +349,9 @@ export function useVendedor() {
       if (!pol) throw new Error('Alçadas ainda não estão no aparelho. Sincronize com sinal e tente de novo.');
       const editado = editId ? dadosRef.current.pedidos.find((o) => o.id === editId) ?? null : null;
       const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
-      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens });
+      // RN-VEN-35/10: pedido em nome valida pela alçada do gestor (supervisor/gerente) e dispensa o vendedor logado
+      const emNome = !editId && rascunho.vendedor_em_nome_id && usuario ? { vendedor_id: rascunho.vendedor_em_nome_id, perfil_autor: usuario.perfil ?? '' } : null;
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, emNome, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosRef.current), max: aplicacaoMaxOrcamento(parametrosRef.current) } });
     },
     [v1, usuario],
   );
@@ -413,7 +426,7 @@ export function useVendedor() {
         : det
           ? copiaDoDetalhe(det, { condicaoId: v1 ? (linhaPedido?.condicao_pagamento_id ?? null) : null, observacao: linhaPedido?.observacao ?? null, transportadoras: unidadesTransportadoras() })
           : null;
-      const c = copia ? rascunhoDaCopia(copia, catalogo) : null;
+      const c = copia ? rascunhoDaCopia(copia, catalogo, { manterAplicacao: modo === 'edit' }) : null;
       const r = c ? null : prefillLines(src.lines, catalogo);
       const linhasDoRascunho = c ? c.rascunho.lines : r!.lines;
       const aviso = c ? c.aviso : prefillNotice(r!);

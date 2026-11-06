@@ -7,7 +7,7 @@ import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contr
 import type { Product } from '@macuxi/catalogo/contracts';
 import { validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
 import { toDomainPolicy } from './catalog';
-import { calcularPedido, fretePush, freteValido, linhasParaPush, type Ajuste, type CalculoPedido, type FreteDoRascunho, type UnidadeDaTela } from './novo-pedido';
+import { calcularPedido, fretePush, freteValido, linhasParaPush, politicaParaAutor, type Ajuste, type CalculoPedido, type FreteDoRascunho, type UnidadeDaTela } from './novo-pedido';
 import type { PrefillLine } from './order-prefill';
 
 export interface Rascunho {
@@ -41,6 +41,8 @@ export interface Rascunho {
   frete?: FreteDoRascunho;
   /** RN-VEN-17: ausente = endereço principal do cliente */
   endereco_entrega_id?: string | null;
+  /** RN-VEN-35: pedido em nome. Dono (vendedor) escolhido pelo gestor; ausente = pedido do próprio usuário. O autor é o token. */
+  vendedor_em_nome_id?: string | null;
 }
 
 /**
@@ -82,6 +84,8 @@ export interface OrderLineDisplay {
   /** T-0061: desconto OU acréscimo do ITEM (PDF interno); ausente em itens antigos da fila */
   discount_pct?: number;
   surcharge_pct?: number;
+  /** T-0084 (RN-VEN-19): retrato da aplicação do item; ausente/nulo = sem aplicação */
+  application?: string | null;
 }
 
 /** Resumo guardado junto do item da fila (a fila genérica só tem o `CreateOrderRequest`). */
@@ -110,6 +114,8 @@ export interface EntradaPrepararPedido {
   catalogo: Product[];
   politica: DiscountPolicy;
   eu: Me['seller'];
+  /** RN-VEN-35/10: supervisor/gerente digitando pelo vendedor; vale a alçada do gestor e o `eu` não é exigido */
+  emNome?: { vendedor_id: string; perfil_autor: string } | null;
   /** pedidos do cliente ainda na fila (consomem o crédito), sem o pedido em edição */
   filaDoClienteCents: number;
   /** sem uso desde que o crédito saiu da fatia (P-6); mantido para as chamadas existentes */
@@ -118,6 +124,8 @@ export interface EntradaPrepararPedido {
   unidades?: readonly UnidadeDaTela[];
   /** RN-VEN-15: preço próprio das embalagens (embalagens[] do Catálogo) */
   embalagens?: Record<string, Record<string, number>>;
+  /** T-0084 (RN-VEN-19): `aplicacao_no_orcamento_padrao` e `aplicacao_max_orcamento` do tenant */
+  aplicacao?: { padrao: boolean; max: number };
 }
 
 /** `OrderValidation` com o cálculo do novo pedido (medidas, ajustes, desconto efetivo) anexado. */
@@ -134,7 +142,9 @@ function rotuloDaLinha(sigla: string, fator: number): string {
  * desconto efetivo (RN-VEN-03/10). Frete FOB sem transportadora bloqueia (RN-VEN-16).
  */
 export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido; display: OrderDisplay } {
-  if (!e.eu) throw new Error('Seu usuário não é vendedor com carteira. Peça ao gestor para vinculá-lo a um vendedor.');
+  if (!e.eu && !e.emNome) throw new Error('Seu usuário não é vendedor com carteira. Peça ao gestor para vinculá-lo a um vendedor.');
+  const vendedorId = e.emNome ? e.emNome.vendedor_id : e.eu!.id;
+  const politica = e.emNome ? politicaParaAutor(e.politica, e.emNome.perfil_autor) : e.politica;
   const byId = new Map(e.catalogo.map((p) => [p.id, p]));
   const calculo = calcularPedido({
     lines: e.rascunho.lines,
@@ -147,14 +157,15 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     catalogo: e.catalogo,
     unidades: e.unidades ?? [],
     embalagens: e.embalagens,
-    politica: e.politica,
-    vendedor_id: e.eu.id,
+    aplicacao: e.aplicacao,
+    politica,
+    vendedor_id: vendedorId,
   });
   const validado = validateOrder({
-    seller_id: e.eu.id,
+    seller_id: vendedorId,
     discount_pct: Math.max(0, calculo.desconto_alcada_pct),
     lines: calculo.linhas.map((l) => ({ product_id: l.product_id, quantity: l.quantity, unit_price_cents: l.preco_tabela_cents })),
-    policy: toDomainPolicy(e.politica),
+    policy: toDomainPolicy(politica),
     // P-6 (T-0029): crédito fora da fatia, igual ao servidor — nenhum pedido vai para aprovação por crédito
     credit: null,
   });
@@ -199,6 +210,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
       ...(l.unidade ? { unit_label: rotuloDaLinha(l.unidade_sigla, l.fator) } : {}),
       discount_pct: l.desconto_pct,
       ...(l.acrescimo_pct > 0 ? { surcharge_pct: l.acrescimo_pct } : {}),
+      ...(l.aplicacao ? { application: l.aplicacao } : {}),
     })),
     expected: v.outcome === 'pending_approval' ? 'pending_approval' : 'ok',
     notes: v.issues.map((i) => i.message),
@@ -231,6 +243,8 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     ...(args.rascunho.ajuste_em ? { ajuste_em: args.rascunho.ajuste_em } : {}),
     ...(frete ? { frete } : {}),
     ...(args.rascunho.endereco_entrega_id ? { endereco_entrega_id: args.rascunho.endereco_entrega_id } : {}),
+    // RN-VEN-35: só o dono; o autor_id nunca sai do aparelho (a API usa o token)
+    ...(args.rascunho.vendedor_em_nome_id ? { vendedor_id: args.rascunho.vendedor_em_nome_id } : {}),
   };
 }
 

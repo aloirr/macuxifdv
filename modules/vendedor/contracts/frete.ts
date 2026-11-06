@@ -41,6 +41,8 @@ export const ItemPush = z.object({
   acrescimo_unitario_cents: z.number().int().nonnegative().optional(),
   /** T-0071: o que o vendedor digitou no item (Editar e Duplicar reabrem no mesmo modo). O servidor deriva o modo do campo preenchido; ausente = legado em %. */
   ajuste_em: z.enum(['pct', 'valor']).optional(),
+  /** T-0084 (RN-VEN-19): retrato da aplicação do produto, tirado no aparelho (até 1.000); ausente (APK antigo) ou nulo = sem aplicação. A API corta de novo e nunca troca pelo cadastro. */
+  aplicacao: z.string().max(1000).nullable().optional(),
 });
 export type ItemPush = z.infer<typeof ItemPush>;
 

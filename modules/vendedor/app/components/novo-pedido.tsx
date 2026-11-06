@@ -16,6 +16,7 @@ import {
   alternarUnidade,
   centsParaCampo,
   chaveDaLinha,
+  alternarAplicacao,
   trocarModoDoAjuste,
   unidadesDoProduto,
   type Ajuste,
@@ -251,7 +252,8 @@ function LinhaDoProduto({
             totalLinha={linha?.total_cents ?? null}
             ajuste={ajustes[chave] ?? {}}
             onQtd={(q) => onQtd(chave, q)}
-            onAjuste={(aj) => onAjuste(chave, aj)}
+            onAjuste={(aj) => onAjuste(chave, { ...aj, ...(ajustes[chave]?.aplicacao_marcada !== undefined ? { aplicacao_marcada: ajustes[chave]!.aplicacao_marcada } : {}), ...(ajustes[chave]?.aplicacao_retrato ? { aplicacao_retrato: ajustes[chave]!.aplicacao_retrato } : {}) })}
+            onAplicacao={() => onAjuste(chave, alternarAplicacao(ajustes[chave], Boolean(linha?.aplicacao_marcada)))}
             somenteLeitura={somenteLeitura}
             k={kDe(idx)}
           />
@@ -272,6 +274,7 @@ function MedidaDoItem({
   ajuste,
   onQtd,
   onAjuste,
+  onAplicacao,
   somenteLeitura,
   k,
 }: {
@@ -286,6 +289,8 @@ function MedidaDoItem({
   ajuste: Ajuste;
   onQtd: (q: number) => void;
   onAjuste: (a: Ajuste) => void;
+  /** T-0084 (RN-VEN-19): alterna a caixa "Incluir aplicação no orçamento" deste item */
+  onAplicacao: () => void;
   somenteLeitura?: boolean;
   k: string;
 }) {
@@ -373,6 +378,7 @@ function MedidaDoItem({
               </Text>
             ) : null}
           </View>
+          {p.applications && !somenteLeitura ? <CaixaAplicacao testID={`aplicacao-${k}`} marcada={Boolean(linha?.aplicacao_marcada)} onPress={onAplicacao} nome={nome} /> : null}
           {aberto && !somenteLeitura ? (
             <View style={s.ajuste} testID={`ajuste-painel-${k}`}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -414,6 +420,25 @@ function MedidaDoItem({
   );
 }
 
+/**
+ * T-0084 (RN-VEN-19): caixa por item "Incluir aplicação no orçamento" (alvo de 48 dp). Marcada pelo padrão do tenant; vale
+ * item a item. O texto sai da linha da aplicação mostrada acima (2 linhas).
+ */
+export function CaixaAplicacao({ marcada, onPress, nome, testID }: { marcada: boolean; onPress: () => void; nome: string; testID: string }) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="checkbox"
+      accessibilityLabel={`Incluir aplicação no orçamento: ${nome}`}
+      accessibilityState={{ checked: marcada }}
+      onPress={onPress}
+      style={({ pressed }) => [s.caixaAplicacao, pressed && { opacity: 0.6 }]}>
+      <View style={[s.caixa, marcada && s.caixaMarcada]}>{marcada ? <Icon name="check" size={16} color={colors.surface} strokeWidth={2.6} /> : null}</View>
+      <Text style={t.small}>Incluir aplicação no orçamento</Text>
+    </Pressable>
+  );
+}
+
 /** Aviso do que falta (aparece acima do rodapé quando o botão está desligado por regra). */
 export function PendenciasDoPedido({ erros, freteAviso, onIrPara }: { erros: string[]; freteAviso: string | null; onIrPara: () => void }) {
   if (erros.length === 0 && !freteAviso) return null;
@@ -436,6 +461,9 @@ const s = StyleSheet.create({
   passoDesligado: { backgroundColor: colors.ground, borderColor: colors.line },
   passo: { width: 48, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   qtd: { width: 52, height: 48, textAlign: 'center', fontFamily: fonts.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
+  caixaAplicacao: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  caixa: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  caixaMarcada: { backgroundColor: colors.accentInk, borderColor: colors.accentInk },
   linkAjuste: { minHeight: 48, justifyContent: 'center', paddingRight: 8 },
   ajuste: { gap: 8, padding: 10, borderRadius: radius.md, backgroundColor: colors.ground },
   pctBox: { flex: 1, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },

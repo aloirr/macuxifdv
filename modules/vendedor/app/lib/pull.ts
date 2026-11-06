@@ -144,7 +144,7 @@ export function listaDeClientes(l: LinhasVendedor, vendedor: { id: string; name:
 export const ESTOQUE_NAO_CONTROLADO = 1_000_000;
 
 /** Produto do seletor com o preço da tabela do cliente (`null` = "Sem preço para este cliente", RN-CAT-06). */
-export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldoBase: number | null = null): Product {
+export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldoBase: number | null = null, aplicacao: string | null = null): Product {
   return {
     id: p.id,
     erp_code: p.sku,
@@ -155,7 +155,8 @@ export function produtoComPreco(p: ProdutoSync, precoCents: number | null, saldo
     ean: p.ean,
     active: p.ativo,
     external_id: p.external_id,
-    applications: '',
+    // T-0084: aplicação do produto (descrição 2), de `catalogo.textos_produto@1`; vazio = sem aplicação
+    applications: aplicacao ?? '',
     is_campaign: false,
     price_cents: precoCents,
     stock_total: saldoBase ?? ESTOQUE_NAO_CONTROLADO,
@@ -170,11 +171,11 @@ export function saldoPorProduto(saldos: readonly EstoqueSaldoSync[] | undefined)
   return m;
 }
 
-export function produtosComPrecos(l: LinhasVendedor, precos: ReadonlyMap<string, number | null>): Product[] {
+export function produtosComPrecos(l: LinhasVendedor, precos: ReadonlyMap<string, number | null>, aplicacoes: ReadonlyMap<string, string> = new Map()): Product[] {
   const saldos = saldoPorProduto(l.saldos);
   return l.produtos
     .filter((p) => p.ativo)
-    .map((p) => produtoComPreco(p, precos.get(p.id) ?? null, saldos.get(p.id) ?? null))
+    .map((p) => produtoComPreco(p, precos.get(p.id) ?? null, saldos.get(p.id) ?? null, aplicacoes.get(p.id) ?? null))
     .sort((a, b) => a.description.localeCompare(b.description, 'pt-BR'));
 }
 
@@ -302,6 +303,8 @@ function itemDoPedido(i: PedidoItemSync): OrderItem {
     ...(i.desconto_unitario_cents ? { unit_discount_cents: i.desconto_unitario_cents } : {}),
     ...(i.acrescimo_unitario_cents ? { unit_surcharge_cents: i.acrescimo_unitario_cents } : {}),
     ...(i.ajuste_em ? { adjust_mode: i.ajuste_em } : {}),
+    // T-0084 (RN-VEN-19): retrato da aplicação no momento do pedido
+    ...(i.aplicacao ? { application: i.aplicacao } : {}),
   };
 }
 
