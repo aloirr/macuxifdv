@@ -81,6 +81,10 @@ neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda 
   Tons e textos do pedido: `sucesso` Aprovado · `aviso` Aguardando aprovação (curto: "Aguardando") · `erro` Rejeitado ·
   `neutro` Na fila · `destaque` Orçamento · `roxo` (selo de orçamento do novo pedido). `Badge` antigo virou pílula de 24 dp.
 - Linha de lista: título 15/600, linha de apoio 13 `ink2`, valor em Archivo 16 tabular à direita, chip no alto à direita.
+- `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Ver por linha" no Catálogo). Fundo
+  `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres, verbo no infinitivo), apoio 13
+  `ink2` (até 32); 48 dp, 56 com apoio. Não é botão (não conta como principal) nem chip (não filtra). Uso e regra em
+  `docs/design/catalogo-por-linha.md`. Ícone `arvore` = lista em níveis.
 
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do

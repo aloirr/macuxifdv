@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, proximoPasso, rotuloComContador } from './componentes';
+import { ALVO_TOQUE, folgaDeToque, leituraDoAtalho, lerQuantidade, limitarPasso, proximoPasso, rotuloComContador } from './componentes';
 
 const ler = (arq: string) => readFileSync(new URL(arq, import.meta.url), 'utf8');
 
@@ -54,7 +54,7 @@ describe('componentes genéricos (T-0071, fatia 4): conferência estática', () 
     const indice = ler('./index.ts');
     for (const arq of ['./componentes', './formulario', './folha', './valores', './navegacao', './base', './movimento-rn']) expect(indice).toContain(`export * from '${arq}'`);
     const fonte = ARQUIVOS.map(ler).join('\n') + ler('./navegacao.tsx');
-    for (const nome of ['Abas', 'Segmentado', 'Passo', 'CampoBusca', 'RotuloSecao', 'ChipMedida', 'BotaoIcone', 'Folha', 'OpcaoFolha', 'Dialogo', 'RodapeTotal', 'LinhaValor', 'BlocoTotais', 'Faixa', 'Selo', 'Trilha', 'Botao', 'Cartao', 'ChipEstado', 'AvisoRodape', 'useAvisoRodape', 'BarraAbas', 'EstadoVazio']) {
+    for (const nome of ['Abas', 'Segmentado', 'Passo', 'CampoBusca', 'RotuloSecao', 'ChipMedida', 'BotaoIcone', 'Folha', 'OpcaoFolha', 'Dialogo', 'RodapeTotal', 'LinhaValor', 'BlocoTotais', 'Faixa', 'Selo', 'Trilha', 'LinhaAtalho', 'Botao', 'Cartao', 'ChipEstado', 'AvisoRodape', 'useAvisoRodape', 'BarraAbas', 'EstadoVazio']) {
       expect(fonte, nome).toMatch(new RegExp(`export function ${nome}\\b`));
     }
   });
@@ -88,5 +88,31 @@ describe('componentes genéricos (T-0071, fatia 4): conferência estática', () 
     const ui = ler('./ui.tsx');
     expect(ui).toMatch(/export function Chip\(\{[^}]*rotuloAcessivel[^}]*\}: \{[^}]*rotuloAcessivel\?: string/);
     expect(ui).toContain('accessibilityLabel={rotuloAcessivel ?? label}');
+  });
+});
+
+describe('LinhaAtalho (T-0085, atalho "Ver por linha" do Catálogo)', () => {
+  it('leitura no TalkBack: rótulo, ponto e apoio com o "›" lido como vírgula', () => {
+    expect(leituraDoAtalho('Ver por linha', 'Sistema › grupo › linha')).toBe('Ver por linha. Sistema, grupo, linha');
+    expect(leituraDoAtalho(' Ver por linha ')).toBe('Ver por linha');
+    expect(leituraDoAtalho('Ver por linha', '  ')).toBe('Ver por linha');
+  });
+
+  it('alvo de 48 dp (56 com apoio), toque do kit, sem texto fixo e cores com contraste do guia', () => {
+    const nav = ler('./navegacao.tsx');
+    const bloco = /export function LinhaAtalho[\s\S]*?\n}\n/.exec(nav)?.[0] ?? '';
+    expect(bloco.length).toBeGreaterThan(100);
+    expect(bloco).toContain('<Pressionavel');
+    expect(bloco).toContain('accessibilityRole="button"');
+    expect(bloco).toContain('leituraDoAtalho(rotulo, apoio)');
+    expect(bloco).not.toMatch(/>\s*[A-Za-zÀ-ú][^<>{}\n]*\s*<\//);
+    expect(nav).toMatch(/atalho: \{[^}]*minHeight: ALVO[^}]*backgroundColor: colors\.accentSoft/);
+    expect(nav).toMatch(/atalhoComApoio: \{ minHeight: 56 \}/);
+    expect(nav).toMatch(/atalhoRotulo: \{[^}]*fontSize: 15, color: colors\.ink \}/);
+    expect(nav).toMatch(/atalhoApoio: \{[^}]*fontSize: 13, color: colors\.ink2 \}/);
+  });
+
+  it('ícone "arvore" existe no kit (lista em níveis)', () => {
+    expect(ler('./icon.tsx')).toMatch(/case 'arvore':/);
   });
 });

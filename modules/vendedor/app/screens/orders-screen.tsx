@@ -143,7 +143,7 @@ export default function OrdersScreen() {
     () => (semPeriodo && !buscando ? itens : filtrarLista(itens, { periodo, busca, tz })),
     [itens, periodo, busca, tz, semPeriodo, buscando],
   );
-  const contagem = contarPorSituacao(base);
+  const contagem = useMemo(() => contarPorSituacao(base), [base]);
   // V9: busca por id em Map (era um find dentro do map de cada linha, O(n²))
   const pedidoPorId = useMemo(() => new Map(itens.map((i) => [i.id, i.pedido])), [itens]);
   const aFaturar = useMemo(() => itens.filter(pedidoAFaturar), [itens]);
@@ -160,15 +160,12 @@ export default function OrdersScreen() {
   // Y1: o chip ativo fica na linha mesmo com 0
   const chips = chipsComAtivo(contagem.chips, atual).filter((c) => c.id !== 'orcamentos' || preVendaLigada || atual === 'orcamentos');
 
-  const visiveis =
-    atual === 'decide'
-      ? base.filter((i) => paraDecidir.has(i.id))
-      : atual === 'a_faturar'
-        ? aFaturar
-        : atual === 'orc_abertos'
-          ? orcAbertos
-          : base.filter((i) => itemNaSituacao(i, atual));
-  const resumo = resumoDaSituacao(visiveis, atual === 'orc_abertos' ? 'orcamentos' : atual);
+  // trocar período ou situação só refaz este filtro sobre o que já está na memória (sem reler o SQLite nem sincronizar)
+  const visiveis = useMemo(
+    () => (atual === 'decide' ? base.filter((i) => paraDecidir.has(i.id)) : atual === 'a_faturar' ? aFaturar : atual === 'orc_abertos' ? orcAbertos : base.filter((i) => itemNaSituacao(i, atual))),
+    [atual, base, paraDecidir, aFaturar, orcAbertos],
+  );
+  const resumo = useMemo(() => resumoDaSituacao(visiveis, atual === 'orc_abertos' ? 'orcamentos' : atual), [visiveis, atual]);
   const parcial = !buscando && !semPeriodo && periodoParcialNaJanela(periodo, agora, tz);
   const queued = contagem.na_fila;
   const anos = useMemo(() => {

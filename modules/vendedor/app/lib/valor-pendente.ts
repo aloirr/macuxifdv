@@ -60,6 +60,11 @@ export function quantidadeBaseDoPasso(e: { texto: string; focado: boolean; qtd: 
   return e.focado ? quantidadeAoConfirmar(e.texto) : e.qtd;
 }
 
+/** Quantidade depois de um toque no − (delta -1) ou no + (delta 1): parte da base do passo e nunca fica abaixo de zero. */
+export function quantidadePorPasso(e: { texto: string; focado: boolean; qtd: number }, delta: number): number {
+  return Math.max(0, Math.min(999_999, quantidadeBaseDoPasso(e) + delta));
+}
+
 // Registro do campo em foco: quem confirma a tela (Salvar, Avançar, aba) aplica o valor pendente antes de seguir.
 let pendente: (() => void) | null = null;
 

@@ -57,4 +57,10 @@ export interface BuscaTextoSync {
   buscarComDesfecho?(indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca>;
   /** Fim do sync: reconstrói índices marcados (carga em massa) e otimiza depois de muitas mudanças. */
   finalizar?(): Promise<void>;
+  /**
+   * Gancho de reindexação marcada (T-0084): guarda o fuso do tenant para a indexação e confere `versaoDocumentos` de
+   * cada índice; versão diferente da guardada = índice marcado para reindexar (em segundo plano na busca; esperado no
+   * `finalizar`). O motor chama antes de cada busca e antes do `finalizar`. Barato quando nada mudou; nunca lança.
+   */
+  conferirVersoes?(ctx: { fuso?: string }): Promise<void>;
 }

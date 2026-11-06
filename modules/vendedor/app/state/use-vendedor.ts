@@ -93,9 +93,12 @@ export function useVendedor() {
   const parametrosRef = useRef(parametros);
   parametrosRef.current = parametros;
 
+  const gravacoesDeRascunho = useRef(0);
   const recarregar = useCallback(async () => {
     if (!repo) return;
-    const [novos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
+    const [lidos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
+    // rascunho com gravação em andamento vale o da memória: a leitura pode ter vindo antes do toque no +/− ser gravado
+    const novos = gravacoesDeRascunho.current > 0 ? { ...lidos, rascunhos: dadosRef.current.rascunhos } : lidos;
     dadosRef.current = novos;
     linhasRef.current = ls;
     setDadosRepo(novos);
@@ -327,7 +330,12 @@ export function useVendedor() {
       const proximo = { ...dadosRef.current, rascunhos: { ...dadosRef.current.rascunhos, [chave]: novo } };
       dadosRef.current = proximo;
       setDadosRepo(proximo);
-      await repo.guardarRascunho(chave, novo);
+      gravacoesDeRascunho.current += 1;
+      try {
+        await repo.guardarRascunho(chave, novo);
+      } finally {
+        gravacoesDeRascunho.current -= 1;
+      }
     },
     [repo],
   );

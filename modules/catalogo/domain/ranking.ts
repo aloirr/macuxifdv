@@ -63,6 +63,77 @@ export function codigosDaConsulta(texto: string): string[] {
   return [...achados];
 }
 const NIVEL = { exato: 1, prefixo: 0.7, digitacao: 0.5 } as const;
+
+/** Termos da aplicação para casar por igualdade e prefixo (sem tolerância de digitação: ela fica nos campos curtos). */
+interface TermosAplicacao {
+  conjunto: ReadonlySet<string>;
+  ordenados: readonly string[];
+}
+function termosDaAplicacao(texto: string): TermosAplicacao {
+  const conjunto = new Set(tokensDeBuscaSemMemo(texto));
+  return { conjunto, ordenados: [...conjunto].sort() };
+}
+
+/** Mesmo critério de `nivelDaPalavra` para exato e prefixo (medidas e códigos só exatos), em O(log n) sobre os termos ordenados. */
+function nivelNaAplicacao(q: string, t: TermosAplicacao): number {
+  if (t.conjunto.has(q)) return NIVEL.exato;
+  if (q.length < 3 || /d/.test(q) || MEDIDA_RE.test(q)) return 0;
+  const o = t.ordenados;
+  let a = 0;
+  let b = o.length;
+  while (a < b) {
+    const m = (a + b) >> 1;
+    if (o[m]! < q) a = m + 1;
+    else b = m;
+  }
+  return a < o.length && o[a]!.startsWith(q) ? NIVEL.prefixo : 0;
+}
+
+function melhorNivelAplicacao(alternativa: string, t: TermosAplicacao): number {
+  const palavras = alternativa.split(' ').filter(Boolean);
+  if (palavras.length === 0) return 0;
+  let menor = 1;
+  for (const q of palavras) {
+    menor = Math.min(menor, nivelNaAplicacao(q, t));
+    if (menor === 0) return 0;
+  }
+  return menor;
+}
+
+interface AnaliseAplicacao {
+  anos: number[];
+  todos: TermosAplicacao;
+  segmentos: number;
+  /** Só quando a consulta tem ano e a aplicação tem 2+ trechos com anos (RN-CAT-12, mesmo trecho). */
+  trechos?: { anos: number[]; termos: TermosAplicacao }[];
+}
+/** Memória por texto da aplicação (muda junto com o `updated_at` do produto) e ano: termos e anos de cada produto saem uma vez só (T-0084 §4.5). */
+const MEMO_APLICACAO = new Map<string, AnaliseAplicacao>();
+const LIMITE_MEMO_APLICACAO = 3000;
+export function esquecerMemoriaRanking(): void {
+  MEMO_APLICACAO.clear();
+}
+function analisarAplicacao(aplicacao: string, anoAtual: number, comTrechos: boolean): AnaliseAplicacao {
+  const chave = `${anoAtual}|${aplicacao}`;
+  let a = MEMO_APLICACAO.get(chave);
+  if (!a) {
+    const e = expandirAplicacao(aplicacao, { anoAtual });
+    a = { anos: e.anos, todos: termosDaAplicacao(e.textoIndice), segmentos: aplicacao.split(SEPARADOR_TRECHO).filter((x) => x.trim() !== '').length };
+    if (MEMO_APLICACAO.size >= LIMITE_MEMO_APLICACAO) MEMO_APLICACAO.clear();
+    MEMO_APLICACAO.set(chave, a);
+  }
+  if (comTrechos && !a.trechos && a.segmentos >= 2 && a.anos.length > 0) {
+    a.trechos = aplicacao
+      .split(SEPARADOR_TRECHO)
+      .map((x) => x.trim())
+      .filter((x) => x !== '')
+      .map((seg) => {
+        const e = expandirAplicacao(seg, { anoAtual });
+        return { anos: e.anos, termos: termosDaAplicacao(e.textoIndice) };
+      });
+  }
+  return a;
+}
 const MEDIDA_RE = /^\d+(\.\d+)?(ml|g|cm|mm|un)$/;
 const arred6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
@@ -170,7 +241,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
     return { pontos: arred6(s / grupos.length), casados, total: grupos.length, so_aplicacao: casados > 0 && casadosSoAplicacao === casados, referencia_casada: referenciaCasada(grupos, referencias) };
   };
   /** `termosApl` nulo = sem campo aplicação. `exigirAno`: o ano da consulta tem de cair nos anos desse trecho. */
-  const avaliar = (termosApl: string[] | null, anosApl: number[], exigirAno: boolean): PontuacaoTextual | null => {
+  const avaliar = (termosApl: TermosAplicacao | null, anosApl: number[], exigirAno: boolean): PontuacaoTextual | null => {
     let soma = 0;
     let casados = 0;
     let casadosSoAplicacao = 0;
@@ -181,7 +252,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
       let melhor = melhorOutros;
       if (termosApl) {
         let melhorAplicacao = 0;
-        for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivel(alt, termosApl) * pesoAplicacao);
+        for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivelAplicacao(alt, termosApl) * pesoAplicacao);
         melhor = Math.max(melhor, melhorAplicacao);
         // RN-CAT-12: ano da consulta que a aplicação (com anos) não cobre tira o produto, salvo se casar em outro campo
         const anosDoGrupo = grupo.filter((alt) => ANO_RE.test(alt));
@@ -198,17 +269,13 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   };
 
   if (aplicacao === '') return avaliar(null, [], false)!;
-  const todaExpandida = expandirAplicacao(aplicacao, { anoAtual });
-  const segmentos = aplicacao.split(SEPARADOR_TRECHO).map((x) => x.trim()).filter((x) => x !== '');
-  if (!temAnoNaConsulta || segmentos.length < 2 || todaExpandida.anos.length === 0) {
-    return avaliar(tokensDeBuscaSemMemo(todaExpandida.textoIndice), todaExpandida.anos, todaExpandida.anos.length > 0) ?? SEM_PONTOS(grupos.length);
+  const analise = analisarAplicacao(aplicacao, anoAtual, temAnoNaConsulta);
+  const trechos = analise.trechos;
+  if (!temAnoNaConsulta || !trechos) {
+    return avaliar(analise.todos, analise.anos, analise.anos.length > 0) ?? SEM_PONTOS(grupos.length);
   }
   // RN-CAT-12 (T-0084-A4): com ano na consulta, veículo/modelo e ano têm de casar no MESMO trecho (separado por ";")
-  const trechos = segmentos.map((seg) => {
-    const e = expandirAplicacao(seg, { anoAtual });
-    return { anos: e.anos, termos: tokensDeBuscaSemMemo(e.textoIndice) };
-  });
-  const casaEm = (gi: number, termos: string[]) => grupos[gi]!.some((alt) => melhorNivel(alt, termos) > 0);
+  const casaEm = (gi: number, termos: TermosAplicacao) => grupos[gi]!.some((alt) => melhorNivelAplicacao(alt, termos) > 0);
   let melhorResultado: PontuacaoTextual | null = null;
   for (const t of trechos) {
     // termo que só a aplicação cobre (em algum trecho) tem de estar neste trecho, senão o texto seria montado de trechos diferentes
