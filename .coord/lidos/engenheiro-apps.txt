@@ -120,3 +120,6 @@ R-20261105-164122-engenheiro-software
 R-20261105-184833-modulo-vendedor
 R-20261105-164122-engenheiro-software
 R-20261105-164122-engenheiro-software
+R-20261105-205201-gerente-projetos
+R-20261105-212843-engenheiro-software
+R-20261105-212947-modulo-vendedor
