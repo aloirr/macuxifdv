@@ -331,3 +331,28 @@ describe('forma compacta do SKU (T-0052, única para ranking e índice)', () => 
     expect(codigoCompacto('')).toBe('');
   });
 });
+
+describe('RN-CAT-12: o ano da consulta cai no MESMO trecho da aplicação que o veículo (T-0084-A4)', () => {
+  const APL = 'Fiat Uno 1.0/1.4 2010–2014; Fiat Palio 1.0/1.4 2012–2016';
+  const pastilha = doc({ id: 'pst', nome: 'Pastilha de freio dianteira', aplicacao: APL });
+  const acha = (q: string) => pontuacaoTextual(grupos(q), pastilha, { anoAtual: 2026 });
+
+  it('RN-CAT-12: "pastilha uno 2012" acha (2012 está na faixa do Uno)', () => {
+    expect(acha('pastilha uno 2012').pontos).toBeGreaterThan(0);
+    expect(acha('pastilha uno 2012').casados).toBe(3);
+  });
+
+  it('RN-CAT-12: "pastilha uno 2015" NÃO acha (2015 só existe na faixa do Palio)', () => {
+    expect(acha('pastilha uno 2015').pontos).toBe(0);
+    expect(rankearBase([pastilha], { anoAtual: 2026, filtros: filtros({ text: 'pastilha uno 2015' }), sinonimos: [], parametros: PARAMETROS_PADRAO })).toEqual([]);
+  });
+
+  it('RN-CAT-12: "pastilha palio 2015" acha e "pastilha palio 2011" NÃO acha', () => {
+    expect(acha('pastilha palio 2015').casados).toBe(3);
+    expect(acha('pastilha palio 2011').pontos).toBe(0);
+  });
+
+  it('RN-CAT-12: sem ano na consulta, veículos de trechos diferentes continuam achando', () => {
+    expect(acha('pastilha uno palio').casados).toBe(3);
+  });
+});

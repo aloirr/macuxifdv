@@ -31,3 +31,6 @@
 2026-11-06 — T-0085 — marcas pelo promotor.concorrentes@1 (API, exportação, PUT, consumidor do ERP), oferece junto por código, aplicação memorizada no aparelho (aguarda SDK); marca_nome da 0034 pendente
 2026-11-06 — T-0085 — marca_nome (retrato 0034): gravado no PUT e no consumidor do ERP, no pull e lido no aparelho/enriquecer via nomeMarcaDaReferencia; caso de banco do consumidor de referências; regras.md
 2026-11-06 — T-0085 — CI 42177538694: causa dos 3 db.test RN-CAT-09 é o ProdutoBase do Hub sem os campos (strip); pedido ao modulo-integracao
+2026-11-06 — T-0084 — C9 responde no aparelho com o produto do Core (produtosLocais sem ler o concorrente do Promotor), aplicação (C8) memorizada por versaoLinhas com linhasPorCampo; teste 'pastilha uno 2012/2015'
+2026-11-06 — T-0085 — exportação: marca_nome aditivo nas referências (regra nomeMarcaDaReferencia), teste de rota com e sem Promotor (A1 do testes)
+2026-11-06 — T-0084 — A4: ano da consulta só casa no mesmo trecho (;) da aplicação (ranking), 4 testes RN-CAT-12, anoAtual da C9 via ctx.agora()

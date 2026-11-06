@@ -4,6 +4,7 @@
  * referências saem como o cadastro as guarda (máx. 3, marca ativa, RN-CAT-09) e "oferece junto" com até 5 ids.
  */
 import type { Referencia } from '../contracts';
+import { nomeMarcaDaReferencia, type MapaMarcas } from './marcas';
 import { montarArvore, trilhaDe, type NoCatalogo, type VinculoProdutoNo } from './arvore';
 import type { ProdutoCatalogo } from './vitrine';
 
@@ -18,7 +19,7 @@ export interface ProdutoDaExportacao {
   descricao: string;
   aplicacao: string | null;
   hierarquia: { sistema: string | null; grupo: string | null; linha: string | null };
-  referencias: { marca_id: string; codigo: string }[];
+  referencias: { marca_id: string; marca_nome: string | null; codigo: string }[];
   oferece_junto: string[];
 }
 
@@ -28,6 +29,8 @@ export interface EntradaExportacao {
   vinculos: readonly VinculoProdutoNo[];
   /** produto_id → ids "oferece junto" na ordem do cadastro. */
   ofereceJunto: ReadonlyMap<string, readonly string[]>;
+  /** Marcas do Promotor (RN-CAT-09); vazio/ausente = usa o retrato `marca_nome` da referência. */
+  marcas?: MapaMarcas;
 }
 
 const porCodigo = (a: { codigo: string; id: string }, b: { codigo: string; id: string }) => a.codigo.localeCompare(b.codigo, 'pt-BR') || a.id.localeCompare(b.id);
@@ -53,7 +56,7 @@ export function montarExportacao(e: EntradaExportacao): { produtos: ProdutoDaExp
         descricao: p.nome,
         aplicacao: p.aplicacao?.trim() ? p.aplicacao : null,
         hierarquia: { sistema: t[0]?.nome ?? null, grupo: t[1]?.nome ?? null, linha: t[2]?.nome ?? null },
-        referencias: referencias.slice(0, MAX_REFERENCIAS_EXPORTACAO).map((r) => ({ marca_id: r.marca_id, codigo: r.codigo })),
+        referencias: referencias.slice(0, MAX_REFERENCIAS_EXPORTACAO).map((r) => ({ marca_id: r.marca_id, marca_nome: nomeMarcaDaReferencia(r.marca_id, r.marca_nome, e.marcas ?? new Map()), codigo: r.codigo })),
         oferece_junto: (e.ofereceJunto.get(p.id) ?? []).filter((id) => id !== p.id && ativos.has(id)).slice(0, MAX_OFERECE_JUNTO_EXPORTACAO),
       };
     })

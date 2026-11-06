@@ -56,3 +56,21 @@ describe('referenciasDoRetrato (RN-CAT-09: sem o cadastro do Promotor no aparelh
     expect((await referenciasDoRetrato(quebrado)).size).toBe(0);
   });
 });
+
+describe('aplicacoesDosProdutos com versão e leitura por campo', () => {
+  beforeEach(() => esquecerMemoriaTextos());
+  it('RN-CAT-11: memoriza por versão: pedidos já lidos não voltam ao banco; ids novos leem só os novos; versão nova relê', async () => {
+    let versao = 1;
+    const porCampo = vi.fn(async (_e: string, _c: string, ids: readonly string[]) => LINHAS.filter((l) => ids.includes(l.produto_id)));
+    const { ctx, linhas } = ctxBase({ versaoLinhas: () => versao, linhasPorCampo: porCampo });
+    await aplicacoesDosProdutos(ctx, ['p1']);
+    await aplicacoesDosProdutos(ctx, ['p1']);
+    expect(porCampo).toHaveBeenCalledTimes(1);
+    expect((await aplicacoesDosProdutos(ctx, ['p1', 'p2'])).get('p1')).toBe('Uno 2010');
+    expect(porCampo).toHaveBeenLastCalledWith('produto_conteudo', 'produto_id', ['p2']);
+    versao = 2;
+    await aplicacoesDosProdutos(ctx, ['p1']);
+    expect(porCampo).toHaveBeenCalledTimes(3);
+    expect(linhas).not.toHaveBeenCalled();
+  });
+});

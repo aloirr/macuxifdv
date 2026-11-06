@@ -38,6 +38,8 @@ export interface DocBusca {
 /** `aplicacao` é o padrão de `peso_aplicacao` (RN-CAT-12); o ranking usa o do tenant. */
 const PESO_CAMPO = { nome: 1, codigo: 1, marca: 0.6, categoria: 0.4, atributos: 0.3, aplicacao: 0.5 } as const;
 const ANO_RE = /^(19|20)\d{2}$/;
+/** Separador de trechos da aplicação (igual ao do "Serve em"). */
+const SEPARADOR_TRECHO = /[;|•\r\n]/;
 /** RN-CAT-09: tamanho do código (já compactado) para casar por n-grama. */
 const CODIGO_MIN = 3;
 const CODIGO_MAX = 30;
@@ -153,38 +155,69 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   ];
   // RN-CAT-12: sem aplicação o campo nem entra (resultado e custo iguais aos de antes)
   const aplicacao = doc.aplicacao ?? '';
-  const expandida = aplicacao === '' ? null : expandirAplicacao(aplicacao, { anoAtual: opcoes.anoAtual ?? 0 });
-  const termosAplicacao = expandida ? tokensDeBuscaSemMemo(expandida.textoIndice) : [];
   const pesoAplicacao = opcoes.pesoAplicacao ?? PESO_CAMPO.aplicacao;
-  let soma = 0;
-  let casados = 0;
-  let casadosSoAplicacao = 0;
-  let casouPalavra = false;
-  for (const grupo of grupos) {
-    let melhorOutros = 0;
-    for (const alt of grupo) {
-      for (const c of campos) melhorOutros = Math.max(melhorOutros, melhorNivel(alt, c.termos) * c.peso);
+  const anoAtual = opcoes.anoAtual ?? 0;
+  const temAnoNaConsulta = grupos.some((g) => g.some((alt) => ANO_RE.test(alt)));
+  const outros = grupos.map((g) => {
+    let m = 0;
+    for (const alt of g) for (const c of campos) m = Math.max(m, melhorNivel(alt, c.termos) * c.peso);
+    return m;
+  });
+  const montar = (soma: number, casados: number, casadosSoAplicacao: number, casouPalavra: boolean): PontuacaoTextual => {
+    // número solto ("50") não basta para o produto ser relevante quando a consulta também tem palavras
+    const temPalavra = grupos.some((g) => g.some((alt) => /[a-z]/.test(alt)));
+    const s = temPalavra && !casouPalavra ? 0 : soma;
+    return { pontos: arred6(s / grupos.length), casados, total: grupos.length, so_aplicacao: casados > 0 && casadosSoAplicacao === casados, referencia_casada: referenciaCasada(grupos, referencias) };
+  };
+  /** `termosApl` nulo = sem campo aplicação. `exigirAno`: o ano da consulta tem de cair nos anos desse trecho. */
+  const avaliar = (termosApl: string[] | null, anosApl: number[], exigirAno: boolean): PontuacaoTextual | null => {
+    let soma = 0;
+    let casados = 0;
+    let casadosSoAplicacao = 0;
+    let casouPalavra = false;
+    for (let gi = 0; gi < grupos.length; gi++) {
+      const grupo = grupos[gi]!;
+      const melhorOutros = outros[gi]!;
+      let melhor = melhorOutros;
+      if (termosApl) {
+        let melhorAplicacao = 0;
+        for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivel(alt, termosApl) * pesoAplicacao);
+        melhor = Math.max(melhor, melhorAplicacao);
+        // RN-CAT-12: ano da consulta que a aplicação (com anos) não cobre tira o produto, salvo se casar em outro campo
+        const anosDoGrupo = grupo.filter((alt) => ANO_RE.test(alt));
+        if (exigirAno && melhorOutros === 0 && anosDoGrupo.length > 0 && !anosDoGrupo.some((a) => anosApl.includes(Number(a)))) return null;
+      }
+      if (melhor > 0) {
+        casados++;
+        if (melhorOutros === 0) casadosSoAplicacao++;
+        if (grupo.some((alt) => /[a-z]/.test(alt))) casouPalavra = true;
+      }
+      soma += melhor;
     }
-    let melhor = melhorOutros;
-    if (expandida) {
-      let melhorAplicacao = 0;
-      for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivel(alt, termosAplicacao) * pesoAplicacao);
-      melhor = Math.max(melhor, melhorAplicacao);
-      // RN-CAT-12: ano da consulta que a aplicação (com anos) não cobre tira o produto, salvo se casar em outro campo
-      const anosDoGrupo = grupo.filter((alt) => ANO_RE.test(alt));
-      if (expandida.anos.length > 0 && melhorOutros === 0 && anosDoGrupo.length > 0 && !anosDoGrupo.some((a) => expandida.anos.includes(Number(a)))) return SEM_PONTOS(grupos.length);
-    }
-    if (melhor > 0) {
-      casados++;
-      if (melhorOutros === 0) casadosSoAplicacao++;
-      if (grupo.some((alt) => /[a-z]/.test(alt))) casouPalavra = true;
-    }
-    soma += melhor;
+    return montar(soma, casados, casadosSoAplicacao, casouPalavra);
+  };
+
+  if (aplicacao === '') return avaliar(null, [], false)!;
+  const todaExpandida = expandirAplicacao(aplicacao, { anoAtual });
+  const segmentos = aplicacao.split(SEPARADOR_TRECHO).map((x) => x.trim()).filter((x) => x !== '');
+  if (!temAnoNaConsulta || segmentos.length < 2 || todaExpandida.anos.length === 0) {
+    return avaliar(tokensDeBuscaSemMemo(todaExpandida.textoIndice), todaExpandida.anos, todaExpandida.anos.length > 0) ?? SEM_PONTOS(grupos.length);
   }
-  // número solto ("50") não basta para o produto ser relevante quando a consulta também tem palavras
-  const temPalavra = grupos.some((g) => g.some((alt) => /[a-z]/.test(alt)));
-  if (temPalavra && !casouPalavra) soma = 0;
-  return { pontos: arred6(soma / grupos.length), casados, total: grupos.length, so_aplicacao: casados > 0 && casadosSoAplicacao === casados, referencia_casada: referenciaCasada(grupos, referencias) };
+  // RN-CAT-12 (T-0084-A4): com ano na consulta, veículo/modelo e ano têm de casar no MESMO trecho (separado por ";")
+  const trechos = segmentos.map((seg) => {
+    const e = expandirAplicacao(seg, { anoAtual });
+    return { anos: e.anos, termos: tokensDeBuscaSemMemo(e.textoIndice) };
+  });
+  const casaEm = (gi: number, termos: string[]) => grupos[gi]!.some((alt) => melhorNivel(alt, termos) > 0);
+  let melhorResultado: PontuacaoTextual | null = null;
+  for (const t of trechos) {
+    // termo que só a aplicação cobre (em algum trecho) tem de estar neste trecho, senão o texto seria montado de trechos diferentes
+    const emOutroTrecho = grupos.some((g, gi) => outros[gi] === 0 && !g.some((alt) => ANO_RE.test(alt)) && !casaEm(gi, t.termos) && trechos.some((o) => o !== t && casaEm(gi, o.termos)));
+    if (emOutroTrecho) continue;
+    const r = avaliar(t.termos, t.anos, true);
+    if (r && (melhorResultado === null || r.pontos > melhorResultado.pontos)) melhorResultado = r;
+  }
+  return melhorResultado ?? SEM_PONTOS(grupos.length);
 }
 
 /** Combina a nota textual com a semântica (0..1). Sem nota semântica vale só o texto. */

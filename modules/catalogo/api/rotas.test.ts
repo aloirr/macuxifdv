@@ -567,11 +567,26 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     expect(r.status).toBe(200);
     expect(RespostaExportacao.safeParse(r.corpo).success).toBe(true);
     const p = r.corpo.produtos.find((x) => x.id === FEI)!;
-    expect(p).toMatchObject({ aplicacao: 'Fiat Uno 1.0/1.4 2010–2014', referencias: [{ marca_id: MARCA_A, codigo: 'CB 3401' }], oferece_junto: [CAF] });
+    expect(p).toMatchObject({ aplicacao: 'Fiat Uno 1.0/1.4 2010–2014', referencias: [{ marca_id: MARCA_A, marca_nome: 'Freiomax', codigo: 'CB 3401' }], oferece_junto: [CAF] });
     expect(r.corpo.marcas.map((m) => m.nome)).toEqual(['Freiomax', 'Rodaforte']);
     expect(r.corpo.truncado).toBe(false);
     expect((await chamar(rota('GET', 'exportacao'), usuario('admin'))).status).toBe(200);
     for (const perfil of ['vendedor', 'promotor', 'supervisor'] as const) expect((await chamar(rota('GET', 'exportacao'), usuario(perfil))).status).toBe(403);
+  });
+
+  it('RN-CAT-09: GET exportacao sem a consulta do Promotor usa o retrato marca_nome; sem retrato a referência sai sem marca e sem quebrar', async () => {
+    const { rota } = montar();
+    await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo() });
+    memoria.estado(TENANT_A).dados.marcas = new Map(); // Promotor indisponível
+    const com = await chamar<RespostaExportacao>(rota('GET', 'exportacao'), usuario('analista'));
+    expect(RespostaExportacao.safeParse(com.corpo).success).toBe(true);
+    expect(com.corpo.produtos.find((x) => x.id === FEI)!.referencias).toEqual([{ marca_id: MARCA_A, marca_nome: 'Freiomax', codigo: 'CB 3401' }]);
+    expect(com.corpo.marcas).toEqual([]);
+    const prod = memoria.estado(TENANT_A).dados.produtos.find((x) => x.id === FEI)!;
+    prod.referencias = [{ marca_id: MARCA_A, marca_nome: '', codigo: 'CB 3401' }];
+    const sem = await chamar<RespostaExportacao>(rota('GET', 'exportacao'), usuario('analista'));
+    expect(sem.status).toBe(200);
+    expect(sem.corpo.produtos.find((x) => x.id === FEI)!.referencias).toEqual([{ marca_id: MARCA_A, marca_nome: null, codigo: 'CB 3401' }]);
   });
 
   it('RF-CAT-09: GET exportacao sem a licença do catálogo é 403 e só traz o tenant do usuário', async () => {

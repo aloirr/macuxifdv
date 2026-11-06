@@ -391,7 +391,7 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     async executar(ctx: Ctx): Promise<RespostaExportacao> {
       return comRepo(ctx, async (repo) => {
         const [produtos, extras, marcas] = await Promise.all([repo.produtos(), repo.dadosExportacao(), repo.marcasConcorrentes()]);
-        const r = montarExportacao({ produtos, ...extras });
+        const r = montarExportacao({ produtos, ...extras, marcas });
         const lista = [...marcas.entries()].filter(([, m]) => m.ativo).map(([id, m]) => ({ id, nome: m.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id));
         return { produtos: r.produtos, marcas: lista, truncado: r.truncado };
       });

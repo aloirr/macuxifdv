@@ -198,7 +198,8 @@ export const ProdutoExportacao = z.object({
   descricao: z.string(),
   aplicacao: z.string().nullable(),
   hierarquia: z.object({ sistema: z.string().nullable(), grupo: z.string().nullable(), linha: z.string().nullable() }),
-  referencias: z.array(z.object({ marca_id: Id, codigo: z.string().min(1).max(30) })).max(3),
+  /** `marca_nome` é aditivo (RN-CAT-09): nulo quando não há cadastro do Promotor nem retrato gravado. */
+  referencias: z.array(z.object({ marca_id: Id, marca_nome: z.string().nullable(), codigo: z.string().min(1).max(30) })).max(3),
   oferece_junto: z.array(Id).max(5),
 });
 export type ProdutoExportacao = z.infer<typeof ProdutoExportacao>;

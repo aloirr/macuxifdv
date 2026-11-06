@@ -125,11 +125,14 @@ export async function marcasConcorrentesLocais(leitor: LeitorLocal): Promise<Map
 }
 
 /** Produtos do Core enriquecidos com atributos, aplicação, referências cruzadas e campanha do Catálogo. */
-export function produtosLocais(leitor: LeitorLocal): Promise<ProdutoCatalogo[]> {
-  return lembrar('produtos', leitor, ['produto', 'produto_atributo', 'produto_conteudo', 'produto_referencia', 'concorrente'], () => montarProdutosLocais(leitor));
+export function produtosLocais(leitor: LeitorLocal, opcoes: { lerConcorrente?: boolean } = {}): Promise<ProdutoCatalogo[]> {
+  const lerConcorrente = opcoes.lerConcorrente ?? true;
+  // consulta do aparelho (C9): o contexto não lê o Promotor (lançaria Error); a marca da referência vai pelo retrato `marca_nome`
+  const entidades = ['produto', 'produto_atributo', 'produto_conteudo', 'produto_referencia', ...(lerConcorrente ? ['concorrente'] : [])];
+  return lembrar(lerConcorrente ? 'produtos' : 'produtos-retrato', leitor, entidades, () => montarProdutosLocais(leitor, lerConcorrente));
 }
 
-async function montarProdutosLocais(leitor: LeitorLocal): Promise<ProdutoCatalogo[]> {
+async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean): Promise<ProdutoCatalogo[]> {
   const produtos = vivas(await leitor.linhas<ProdutoSync & LinhaSync>('produto'));
   const atributos = vivas(await leitor.linhas<ProdutoAtributoSync & LinhaSync>('produto_atributo'));
   const conteudos = vivas(await leitor.linhas<ProdutoConteudoSync & LinhaSync>('produto_conteudo'));
@@ -137,7 +140,7 @@ async function montarProdutosLocais(leitor: LeitorLocal): Promise<ProdutoCatalog
   for (const a of atributos) porProduto.set(a.produto_id, [...(porProduto.get(a.produto_id) ?? []), a]);
   const campanha = new Set(conteudos.filter((c) => c.campanha).map((c) => c.produto_id));
   const aplicacoes = new Map(conteudos.filter((c) => c.aplicacao).map((c) => [c.produto_id, c.aplicacao!]));
-  const marcas = await marcasConcorrentesLocais(leitor);
+  const marcas = lerConcorrente ? await marcasConcorrentesLocais(leitor) : new Map<string, { nome: string; ativo: boolean }>();
   const referencias = new Map<string, Referencia[]>();
   for (const x of vivas(await leitor.linhas<ProdutoReferenciaSync & LinhaSync>('produto_referencia')).sort((a, b) => a.ordem - b.ordem)) {
     // concorrente legível: manda (inativa/ausente esconde); vendedor sem o Promotor: retrato marca_nome; sem retrato, sem marca (RN-CAT-09)
