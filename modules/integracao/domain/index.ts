@@ -28,3 +28,4 @@ export * from './cadastro-incompleto';
 export * from './medidas';
 export * from './pedido-versao';
 export * from './carga-arquivo';
+export * from './carga-arquivo-partes';

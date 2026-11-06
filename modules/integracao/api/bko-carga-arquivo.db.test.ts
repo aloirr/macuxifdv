@@ -38,13 +38,14 @@ interface Capturado {
 }
 
 describe('RF-INT-03: ligação no manifesto e no moduloApi', () => {
-  it('as 3 rotas do BKO da carga por arquivo estão no moduloApi, com a ação do manifesto (admin e analista) e a leitura em monitor.ver', () => {
+  it('as 4 rotas do BKO da carga por arquivo estão no moduloApi, com a ação do manifesto (admin e analista) e a leitura (lote, erros e progresso das partes) em monitor.ver', () => {
     const rotas = moduloApi.rotas ?? [];
     const post = rotas.find((r) => r.metodo === 'POST' && r.caminho === 'cargas-arquivo');
     expect(post?.acao).toBe('carga.arquivo');
     expect(manifest.acoes['carga.arquivo']?.perfis).toEqual(['admin', 'analista']);
     expect(rotas.find((r) => r.metodo === 'GET' && r.caminho === 'lotes/:id')?.acao).toBe('monitor.ver');
     expect(rotas.find((r) => r.metodo === 'GET' && r.caminho === 'lotes/:id/erros')?.acao).toBe('monitor.ver');
+    expect(rotas.find((r) => r.metodo === 'GET' && r.caminho === 'cargas-arquivo/sessoes/:sessao_id')?.acao).toBe('monitor.ver');
   });
 });
 
