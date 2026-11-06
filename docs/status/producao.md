@@ -53,6 +53,7 @@ Copie o **token** do túnel.
 | `PROD_SSH_KNOWN_HOSTS` | não | linha `ssh-ed25519` da VM. Sem ele, vale a 1ª conexão (keyscan) |
 | `PROD_ALERTA_WEBHOOK` | não | URL de um tópico do ntfy.sh ou de um webhook do Slack/Discord para os alertas |
 | `PROD_TENANT_ADMIN_SENHA` | para o tenant de teste | senha inicial do admin do tenant de teste |
+| `PROD_SUPERADMIN_CONVITE` | para o portal `config.` | convite do seu 1º acesso de super-admin (ADR 0029). Só você sabe o valor. O workflow passa a ler esse secret depois do seu ok na mudança do `producao-publicar.yml`. Os segredos de sessão e TOTP do portal são gerados pelo `preparar-vm.sh` na VM. |
 
 **7. Avise o gerente** quando terminar. Depois disso, ele só precisa de você para **aprovar** os runs do `PRODUCAO`.
 
