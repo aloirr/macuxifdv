@@ -128,10 +128,10 @@ export interface EstruturaEntidade {
 /** Colunas que o arquivo pode omitir mesmo sendo obrigatórias no contrato: `alterado_em` assume o instante do envio. */
 const COLUNAS_COM_PADRAO = new Set(['alterado_em']);
 
-type Def = { typeName?: string; innerType?: z.ZodTypeAny; schema?: z.ZodTypeAny; type?: z.ZodTypeAny; shape?: () => Record<string, z.ZodTypeAny> };
-const defDe = (t: z.ZodTypeAny): Def => t._def as Def;
+export type Def = { typeName?: string; innerType?: z.ZodTypeAny; schema?: z.ZodTypeAny; type?: z.ZodTypeAny; shape?: () => Record<string, z.ZodTypeAny> };
+export const defDe = (t: z.ZodTypeAny): Def => t._def as Def;
 
-function desembrulhar(t: z.ZodTypeAny): z.ZodTypeAny {
+export function desembrulhar(t: z.ZodTypeAny): z.ZodTypeAny {
   let atual = t;
   for (let i = 0; i < 12; i++) {
     const d = defDe(atual);
@@ -142,24 +142,35 @@ function desembrulhar(t: z.ZodTypeAny): z.ZodTypeAny {
   return atual;
 }
 
-function coletar(shape: Record<string, z.ZodTypeAny>, prefixo: string, paiObrigatorio: boolean, saida: EstruturaEntidade): void {
+function coletar(shape: Record<string, z.ZodTypeAny>, prefixo: string, paiObrigatorio: boolean, saida: EstruturaEntidade, bases?: Map<string, z.ZodTypeAny>): void {
   for (const [nome, campo] of Object.entries(shape)) {
     const caminho = prefixo === '' ? nome : `${prefixo}.${nome}`;
     const base = desembrulhar(campo);
     const tipo = defDe(base).typeName;
     const obrigatoria = paiObrigatorio && !campo.isOptional() && !COLUNAS_COM_PADRAO.has(caminho);
-    if (tipo === 'ZodObject') coletar((defDe(base).shape as () => Record<string, z.ZodTypeAny>)(), caminho, obrigatoria, saida);
+    if (tipo === 'ZodObject') coletar((defDe(base).shape as () => Record<string, z.ZodTypeAny>)(), caminho, obrigatoria, saida, bases);
     else if (tipo === 'ZodArray') saida.listas.push(caminho);
-    else saida.colunas.push({ caminho, tipo: tipo === 'ZodNumber' ? 'numero' : tipo === 'ZodBoolean' ? 'booleano' : 'texto', obrigatoria });
+    else {
+      saida.colunas.push({ caminho, tipo: tipo === 'ZodNumber' ? 'numero' : tipo === 'ZodBoolean' ? 'booleano' : 'texto', obrigatoria });
+      bases?.set(caminho, campo);
+    }
   }
+}
+
+/**
+ * Colunas de QUALQUER schema de registro, com o schema declarado de cada coluna (com optional/nullable/default) em `bases`:
+ * o gerador de modelos CSV (`modelos-csv.ts`) desembrulha e lê daí os limites, formatos e opções.
+ */
+export function estruturaDoSchema(schema: z.ZodTypeAny): { estrutura: EstruturaEntidade; bases: Map<string, z.ZodTypeAny> } {
+  const estrutura: EstruturaEntidade = { colunas: [], listas: [] };
+  const bases = new Map<string, z.ZodTypeAny>();
+  coletar((defDe(desembrulhar(schema)).shape as () => Record<string, z.ZodTypeAny>)(), '', true, estrutura, bases);
+  return { estrutura, bases };
 }
 
 /** As colunas aceitas no CSV de uma entidade, lidas do schema do contrato (a fonte da verdade: mudou lá, muda aqui). */
 export function colunasDaEntidade(entidade: Entidade): EstruturaEntidade {
-  const raiz = desembrulhar(SCHEMA_REGISTRO[entidade]);
-  const saida: EstruturaEntidade = { colunas: [], listas: [] };
-  coletar((defDe(raiz).shape as () => Record<string, z.ZodTypeAny>)(), '', true, saida);
-  return saida;
+  return estruturaDoSchema(SCHEMA_REGISTRO[entidade]).estrutura;
 }
 
 // ---------------------------------------------------------------------------------------------------------------- conversão

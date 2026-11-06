@@ -2,7 +2,7 @@ import { defineModule } from '@macuxi/platform-sdk';
 
 export const manifest = defineModule({
   id: 'integracao',
-  versao: '0.6.0',
+  versao: '0.7.0',
   depende: ['core'],
   perfis: ['admin', 'analista'],
   apps: { web: { menus: ['Integração ERP'] }, conector: {} },
@@ -40,6 +40,7 @@ export const manifest = defineModule({
     'mapeamento.editar': { perfis: ['admin', 'analista'], descricao: 'Editar o de-para de códigos (condição de pagamento, depósito, status)' },
     'conector.gerenciar': { perfis: ['admin'], descricao: 'Cadastrar Conector, gerar/rotacionar/revogar a chave de API e definir a política de versão' },
     'inativacao.decidir': { perfis: ['admin', 'analista'], descricao: 'Confirmar ou recusar a inativação em massa de uma carga completa, com auditoria (RN-INT-06, P-3)' },
+    'modelo.baixar': { perfis: ['admin'], descricao: 'Baixar os modelos CSV da carga por arquivo e o dicionário de campos de cada entidade (RF-INT-03)' },
     'carga.arquivo': { perfis: ['admin', 'analista'], descricao: 'Enviar carga por arquivo CSV (RF-INT-03): vira um lote do Conector tipo arquivo e segue o mesmo pipeline do Hub' },
   },
 });

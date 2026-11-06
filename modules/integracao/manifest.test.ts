@@ -26,6 +26,11 @@ describe('manifesto da integracao', () => {
     expect(manifest.acoes['carga.arquivo']?.perfis).toEqual(['admin', 'analista']);
   });
 
+  it('RF-INT-03: baixar os modelos CSV é ação só do admin (o mais alto perfil do SDK; super-admin ainda não existe)', () => {
+    expect(manifest.versao).toBe('0.7.0');
+    expect(manifest.acoes['modelo.baixar']?.perfis).toEqual(['admin']);
+  });
+
   it('RN-PRO-01: nenhum perfil de campo (vendedor, promotor, supervisor, gerente) toca no Hub', () => {
     const perfis = new Set(Object.values(manifest.acoes).flatMap((a) => a.perfis));
     for (const p of ['vendedor', 'promotor', 'supervisor', 'gerente']) expect(perfis.has(p as never)).toBe(false);
