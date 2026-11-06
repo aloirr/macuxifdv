@@ -42,7 +42,9 @@ import {
   LIMITE_CORPO_ROTA_PADRAO,
   modulosEfetivos,
   problemasApiConector,
+  problemasConteudoRota,
   problemasLimiteCorpo,
+  NOME_ARQUIVO_ROTA_RE,
   promotorBarradoNaRota,
   SaudeRespostaSchema,
   SERVICO_API_MACUXI,
@@ -52,6 +54,7 @@ import {
   verificarCarteira,
   type AcessoBanco,
   type ContextoBase,
+  type EntradaRota,
   type ErroApi,
   type Manifesto,
   type ModuloApi,
@@ -59,6 +62,10 @@ import {
   type RotaModulo,
   type RotaPublica,
   type ServicosCore,
+  type SuperAdminAutenticado,
+  CABECALHO_TENANT_PLATAFORMA,
+  cabecalhosPublicos,
+  type ModoSuperAdmin,
   type UsuarioAutenticado,
   type UsuarioDaRequisicao,
 } from '@macuxi/platform-sdk';
@@ -77,6 +84,7 @@ import { registrarSync } from './sync';
 import { MAX_TENTATIVAS_PADRAO, nomesConsumidos } from './despachante';
 import { avaliarAlertas, comPrazo, criarMetricasApi, type EstadoBanco, type MetricasApi, type ResumoOutbox } from './observabilidade';
 import { respostaMeusModulos } from './me-modulos';
+import { fontePlataformaNoBanco, marcaSuperAdmin, marcarSuperAdmin, prefixoDoIp, registrarRotasPlataforma, type FontePlataforma } from './plataforma';
 import type { Plataforma } from './tipos';
 import { ErroHttp } from './erros';
 
@@ -114,6 +122,10 @@ export interface OpcoesApp {
   licencasTenant?: FonteLicencasTenant;
   /** Contagem de respostas (T-0078; padrão: uma nova por app). O servidor passa a mesma para o log periódico. */
   metricas?: MetricasApi;
+  /** Super-admin de plataforma (ADR 0029; padrão: o do Core; sem ele, nenhuma rota aceita super-admin). */
+  autenticarSuperAdmin?: ServicosCore['autenticarSuperAdmin'];
+  /** Funções do super-admin no banco (0035; padrão: `fontePlataformaNoBanco`). Testes injetam a sua. */
+  plataforma?: FontePlataforma;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -166,6 +178,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     ...modulos.flatMap((m) => problemasApiConector(m.manifesto, m.conector).map((x) => `${m.manifesto.id}: ${x}`)),
     // fixture sem definirModuloApi também passa pelo teto de corpo das rotas
     ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasLimiteCorpo(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
+    // T-0087: tipo de conteúdo e nome de arquivo das rotas de download (lista fechada; nada executável no navegador)
+    ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasConteudoRota(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
   ];
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
@@ -185,6 +199,10 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     op.usuariosVisiveis ??
     core?.servicos?.usuariosVisiveis ??
     (async (u: UsuarioAutenticado) => (escopoDoPerfil(u.perfil) === 'tenant' ? ('tenant' as const) : new Set<string>([u.id])));
+  // ADR 0029: super-admin de plataforma (falha fechada sem o serviço do Core) e as funções dele no banco
+  const autenticarSA = op.autenticarSuperAdmin ?? core?.servicos?.autenticarSuperAdmin ?? (async () => null);
+  const fontePlataforma = op.plataforma ?? fontePlataformaNoBanco;
+  const licencasTenant = op.licencasTenant ?? licencasDoTenantNoBanco;
 
   const app = Fastify({
     logger: op.logger ?? false,
@@ -201,8 +219,29 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
 
   // T-0078: contagem por status (5xx) na janela; o `/v1/saude` e o log periódico do servidor leem daqui
   const metricas = op.metricas ?? criarMetricasApi({ relogio });
-  app.addHook('onResponse', async (_req, reply) => {
+  app.addHook('onResponse', async (req, reply) => {
     metricas.registrar(reply.statusCode);
+    // ADR 0029 §6: toda requisição do super-admin vira uma linha de auditoria da plataforma (também as recusadas)
+    const marca = marcaSuperAdmin(req);
+    if (!marca) return;
+    try {
+      await fontePlataforma.auditar(
+        {
+          super_admin_id: marca.sa.id,
+          sessao_id: marca.sa.sessao_id,
+          tenant_id: marca.tenantId,
+          acao: 'sa.requisicao',
+          metodo: req.method,
+          rota: req.routeOptions.url ?? '(sem rota)',
+          status: reply.statusCode,
+          request_id: req.id,
+          ip_prefixo: prefixoDoIp(req.ip),
+        },
+        acesso,
+      );
+    } catch (erro) {
+      req.log.error({ err: erro, request_id: req.id }, 'falha ao gravar a auditoria da plataforma');
+    }
   });
 
   if (banco) app.addHook('onReady', () => banco.verificar());
@@ -241,12 +280,39 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const cabecalhos = (req: FastifyRequest): Record<string, string | undefined> =>
     Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k.toLowerCase(), Array.isArray(v) ? v[0] : v]));
 
-  const preparar: Plataforma['preparar'] = async (req, modulo) => {
-    const token = await autenticar(cabecalhos(req), acesso);
+  /**
+   * ADR 0029 §5: só nas rotas com `superAdmin`, o token de plataforma vale, com o tenant do cabeçalho `x-macuxi-tenant`. O
+   * usuário vira um `admin` sintético do tenant, com os módulos licenciados AO TENANT; carteira e equipe = `'tenant'`.
+   */
+  const superAdminDaRequisicao = async (req: FastifyRequest, modo: ModoSuperAdmin | undefined): Promise<{ sa: SuperAdminAutenticado; tenantId: string } | null> => {
+    if (!modo) return null;
+    const sa = await autenticarSA(cabecalhos(req), acesso);
+    if (!sa) {
+      if (modo === 'exige') {
+        // usuário do tenant numa rota só do super-admin: 401 se nem login tiver, 403 se tiver
+        if (await autenticar(cabecalhos(req), acesso)) throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
+        throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
+      }
+      return null;
+    }
+    const bruto = cabecalhos(req)[CABECALHO_TENANT_PLATAFORMA];
+    marcarSuperAdmin(req, { sa, tenantId: null });
+    if (!bruto || !UUID.test(bruto)) throw new ErroHttp(400, 'TENANT_OBRIGATORIO', 'Escolha a empresa (cabeçalho x-macuxi-tenant).');
+    const tenantId = bruto.toLowerCase();
+    if (!(await fontePlataforma.tenantAtivo(sa, tenantId, acesso))) throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
+    marcarSuperAdmin(req, { sa, tenantId });
+    return { sa, tenantId };
+  };
+
+  const preparar: Plataforma['preparar'] = async (req, modulo, modoSuperAdmin) => {
+    const doSA = await superAdminDaRequisicao(req, modoSuperAdmin);
+    const token: UsuarioAutenticado | null = doSA ? { id: doSA.sa.id, tenant_id: doSA.tenantId, perfil: 'admin' } : await autenticar(cabecalhos(req), acesso);
     if (!token) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
     if (!UUID.test(token.tenant_id)) throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Sessão inválida. Faça login de novo.');
-    // licença checada a cada requisição (RN-CORE-01/02; nunca congelada no token)
-    const licencas = await fonteLicencas(token, acesso);
+    // licença checada a cada requisição (RN-CORE-01/02; nunca congelada no token). Super-admin: a do tenant (todos os perfis)
+    const licencas = doSA
+      ? await licencasTenant(doSA.tenantId, acesso).then((t) => ({ ...t, doPerfil: t.ativosNoTenant, removidosDoUsuario: [] as ModuloId[] }))
+      : await fonteLicencas(token, acesso);
     const efetivos = modulosEfetivos({ manifestos, ...licencas });
     const usuario: UsuarioDaRequisicao = { id: token.id, tenant_id: token.tenant_id, perfil: token.perfil, modulos: efetivos };
     // ADR 0025: `tx.consultar(..., { licenca: 'tenant' })` só em leitura (GET/HEAD; o pull do sync é GET, o push não):
@@ -284,12 +350,13 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
             }),
           ),
         ),
-      carteira: () => (carteira ??= carteiraDe(token, acesso, { agora: relogio, fuso })),
+      carteira: () => (carteira ??= doSA ? Promise.resolve('tenant' as const) : carteiraDe(token, acesso, { agora: relogio, fuso })),
       // o próprio usuário sempre está no conjunto, mesmo que o serviço o omita
-      usuariosVisiveis: () => (usuariosVisiveis ??= usuariosDe(token, acesso).then((v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])))),
+      usuariosVisiveis: () => (usuariosVisiveis ??= doSA ? Promise.resolve('tenant' as const) : usuariosDe(token, acesso).then((v) => (v === 'tenant' || v.has(token.id) ? v : new Set([...v, token.id])))),
       parametros: () => (m ? parametros(m) : {}),
       fuso: () => fuso,
-      log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id }),
+      log: req.log.child({ tenant_id: usuario.tenant_id, modulo: m ?? 'plataforma', request_id: req.id, ...(doSA ? { super_admin: true } : {}) }),
+      ...(doSA ? { superAdmin: doSA.sa } : {}),
     });
     return { ctx: contexto(modulo), licencas, doModulo: contexto };
   };
@@ -334,6 +401,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   registrarSync(app, plataforma);
   registrarArquivos(app, plataforma, op.arquivos ?? null);
   registrarAuditoria(app, plataforma);
+  // ADR 0029: rotas do portal sem tenant (empresas); a autenticação do super-admin é do Core (`plataforma/auth/*`)
+  registrarRotasPlataforma(app, { manifestos, acesso, fonte: fontePlataforma, autenticar: (req) => autenticarSA(cabecalhos(req), acesso), validar });
 
   // ---------- rotas dos módulos ----------
   for (const m of modulos) {
@@ -374,16 +443,20 @@ function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<
         }
       : {}),
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
-      const { ctx } = await p.preparar(req, modulo);
+      const { ctx } = await p.preparar(req, modulo, rota.superAdmin);
       const u = ctx.usuario;
-      // 1) licença do módulo da rota (403 MODULO_INATIVO)
+      // 1) licença do módulo da rota (403 MODULO_INATIVO); para o super-admin, a licença do tenant
       const lic = verificarAcesso(u, { modulo, perfis: [u.perfil] });
       if (!lic.ok) negar(lic, modulo);
+      // ADR 0029 §5: o super-admin numa rota com `superAdmin` não passa por ação/perfil (a opção da rota é a autorização) e
+      // tem carteira 'tenant'; licença, Zod e RLS valem. Usuário do tenant em rota 'exige' já saiu com 403 no preparar.
+      if (!ctx.superAdmin) {
       // 2) perfil: RN-PRO-01 (escrita de pedido sempre barrada; leitura GET pedido.ver segue o manifesto — O-3),
       //    depois ação do manifesto (ADR 0004) ou lista de perfis
       if (u.perfil === 'promotor' && promotorBarradoNaRota(rota)) throw new ErroHttp(403, 'PERFIL_SEM_ACESSO', 'Seu perfil não tem acesso a esta ação.');
       const perfil = rota.acao ? verificarAcao(u, permissoes, rota.acao) : verificarAcesso(u, { modulo, perfis: rota.perfis ?? manifesto.perfis });
       if (!perfil.ok) negar(perfil, rota.acao ? permissoes.regraDaAcao(rota.acao).modulo : modulo);
+      }
       // 3) entrada validada por Zod
       const params = validar(rota.params, req.params, 'params');
       const query = validar(rota.query, req.query, 'query');
@@ -398,9 +471,27 @@ function montarRota(app: FastifyInstance, p: Plataforma, permissoes: ReturnType<
       const resultado = await rota.executar({ ...ctx, corpo, query, params } as never);
       const status = rota.status ?? 200;
       if (status === 204) return reply.code(204).send();
+      // T-0087: download (CSV, OpenAPI…) com tipo e nome declarados na rota
+      // (tudo conferido antes do 1º cabeçalho: um erro de programação vira o 500 JSON sem cabeçalho de download)
+      const nome = rota.nomeArquivo !== undefined ? nomeDoArquivo(rota, { corpo, query, params }) : null;
+      const bruto = rota.tipoConteudo !== undefined && rota.tipoConteudo !== 'application/json';
+      if (bruto && typeof resultado !== 'string' && !(resultado instanceof Uint8Array))
+        throw new Error(`${rota.metodo} ${url}: tipoConteudo ${String(rota.tipoConteudo)} exige string ou Uint8Array no executar`);
+      if (nome !== null) reply.header('content-disposition', `attachment; filename="${nome}"`);
+      if (bruto) {
+        reply.header('content-type', rota.tipoConteudo).header('x-content-type-options', 'nosniff');
+        return reply.code(status).send(typeof resultado === 'string' ? resultado : Buffer.from(resultado as Uint8Array));
+      }
       return reply.code(status).send(resultado ?? {});
     },
   });
+}
+
+/** Nome do arquivo do `Content-Disposition` (fixo ou calculado da entrada validada); fora do padrão = erro de programação (500). */
+function nomeDoArquivo(rota: RotaModulo, entrada: EntradaRota): string {
+  const nome = typeof rota.nomeArquivo === 'function' ? rota.nomeArquivo(entrada) : rota.nomeArquivo;
+  if (typeof nome !== 'string' || !NOME_ARQUIVO_ROTA_RE.test(nome)) throw new Error(`${rota.metodo} ${rota.caminho}: nomeArquivo calculado fora do padrão`);
+  return nome;
 }
 
 function montarRotaPublica(app: FastifyInstance, acesso: AcessoBanco, relogio: () => Date, rota: RotaPublica): void {
@@ -419,7 +510,8 @@ function montarRotaPublica(app: FastifyInstance, acesso: AcessoBanco, relogio: (
         throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.');
       }
       const log = req.log.child({ modulo: 'core', request_id: req.id });
-      const resultado = await rota.executar({ corpo, query, params, requestId: req.id, ip: req.ip, agora: relogio, banco: acesso, log } as never);
+      // T-0087: só a lista fechada de cabeçalhos (hoje `authorization`), com valores censurados se serializados
+      const resultado = await rota.executar({ corpo, query, params, requestId: req.id, ip: req.ip, agora: relogio, banco: acesso, log, cabecalhos: cabecalhosPublicos(req.headers) } as never);
       const status = rota.status ?? 200;
       if (status === 204) return reply.code(204).send();
       return reply.code(status).send(resultado ?? {});

@@ -30,3 +30,4 @@ export * from './sqlite';
 export * from './saude';
 export * from './fuso';
 export * from './onboarding';
+export * from './plataforma';
