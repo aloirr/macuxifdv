@@ -27,3 +27,4 @@ R-20261103-130003-alexandre
 R-20261103-130240-alexandre
 R-20261105-121909-testes
 R-20261105-160703-designer-ux
+R-20261106-033838-engenheiro-software

@@ -5,7 +5,8 @@
  * 1. DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts): dono dos objetos (`verificarDonoDasMigracoes`),
  *    colunas na ordem, tokenizer `unicode61 remove_diacritics 2`, `prefix='2 3'`, content externo, vocabulário e o
  *    índices de expressão usados pelo `porCampo` e pelo `linhasPorCampo` (v2, T-0052-B4) (EXPLAIN QUERY PLAN).
- *    A subida v1 → v2 real (dados de preço, estoque, vínculo e conteúdo preservados) está na seção 2.
+ *    A subida v1 → v2 real (dados de preço, estoque, vínculo e conteúdo preservados) e a v2 → v3 real (T-0084/T-0085: FTS
+ *    recriada com `aplicacao` e `referencias`, reindexação sozinha a partir de `ent_*`) estão na seção 2.
  * 2. Migrações do aparelho: subida por versão (só a nova roda, dados preservados) e downgrade (recria do zero).
  * 3. RN-CORE-02 (doc 03): módulo desativado = dados locais dele apagados (linhas, `mod:<m>:*`, objetos `<m>__*`,
  *    `_esquema`), o resto intacto; reativação recria pelas migrações.
@@ -41,7 +42,7 @@ import { COLUNAS_BUSCA_CATALOGO, migracoesAparelho, TABELAS_BUSCA_CATALOGO } fro
 import { manifest as manifestCatalogo } from '../../modules/catalogo/manifest';
 
 const ENTIDADES_CATALOGO = [...manifestCatalogo.sync];
-/** Versão mais nova do esquema do Catálogo no app (v2 desde a T-0052-B4). */
+/** Versão mais nova do esquema do Catálogo no app (v2 desde a T-0052-B4; v3 desde a T-0084/T-0085). */
 const VERSAO_CATALOGO = migracoesAparelho.at(-1)!.versao;
 /** Entidades de outros módulos que o índice lê (ADR 0005: produto é do Core). */
 const ENTIDADES_DE_FORA = ['produto'];
@@ -85,7 +86,12 @@ const PESOS: Record<(typeof COLUNAS_BUSCA_CATALOGO)[number], number> = {
   marca: 3,
   categoria: 2,
   atributos: 1,
+  aplicacao: 2,
+  referencias: 8,
 };
+/** Colunas e pesos da FTS até a v2 (para os testes que sobem um aparelho antigo). */
+const COLUNAS_ATE_V2 = ['sku', 'ean', 'codigos', 'nome', 'marca', 'categoria', 'atributos'] as const;
+const PESOS_ATE_V2 = Object.fromEntries(COLUNAS_ATE_V2.map((c) => [c, PESOS[c]])) as Record<(typeof COLUNAS_ATE_V2)[number], number>;
 
 interface Produto extends LinhaSync {
   sku: string;
@@ -100,6 +106,16 @@ interface Atributo extends LinhaSync {
   nome: string;
   valor: string;
 }
+interface Conteudo extends LinhaSync {
+  produto_id: string;
+  aplicacao?: string | null;
+}
+interface Referencia extends LinhaSync {
+  produto_id: string;
+  marca_id: string;
+  codigo: string;
+  ordem: number;
+}
 interface Cliente extends LinhaSync {
   razao_social: string;
   nome_fantasia: string;
@@ -109,7 +125,11 @@ interface Cliente extends LinhaSync {
 
 const compacto = (s: string) => normalizarBusca(s).join('');
 
-/** Réplica de teste da declaração do índice (a real é do modulo-catalogo, modules/catalogo/app). */
+/**
+ * Réplica de teste da declaração do índice (a real é do modulo-catalogo, modules/catalogo/app/indice.ts). v3: fontes
+ * `produto_conteudo` (aplicação) e `produto_referencia` (códigos crus em `referencias`, compactos em `codigos`), chave =
+ * `produto_id` da linha (T-0084 §6). Aqui a aplicação entra crua (a expansão de anos é do domain do Catálogo).
+ */
 const INDICE = definirIndiceBusca({
   id: 'catalogo.produto',
   modulo: 'catalogo',
@@ -117,6 +137,38 @@ const INDICE = definirIndiceBusca({
   tabelaFts: TABELAS_BUSCA_CATALOGO.fts,
   colunaChave: TABELAS_BUSCA_CATALOGO.colunaChave,
   colunas: PESOS,
+  fontes: ['produto', 'produto_atributo', 'produto_conteudo', 'produto_referencia'],
+  chaveDe: (e, l) => (e === 'produto' ? l.id : ((l as Atributo).produto_id ?? null)),
+  async documento(id, ler) {
+    const [p] = await ler.porIds<Produto>('produto', [id]);
+    if (!p) return null;
+    const attrs = await ler.porCampo<Atributo>('produto_atributo', 'produto_id', id);
+    const conteudo = (await ler.porCampo<Conteudo>('produto_conteudo', 'produto_id', id)).find((c) => !c.deleted_at);
+    const refs = (await ler.porCampo<Referencia>('produto_referencia', 'produto_id', id)).filter((r) => !r.deleted_at).sort((x, y) => x.ordem - y.ordem);
+    return {
+      sku: p.sku,
+      ean: p.ean,
+      codigos: [compacto(p.sku), ...refs.map((r) => compacto(r.codigo))].join(' '),
+      nome: p.nome,
+      marca: p.marca,
+      categoria: p.categoria,
+      atributos: attrs
+        .map((a) => `${a.nome} ${a.valor}`)
+        .sort()
+        .join(' '),
+      aplicacao: conteudo?.aplicacao ?? '',
+      referencias: refs.map((r) => r.codigo).join(' '),
+    };
+  },
+});
+/** A mesma declaração com as colunas da v2 (aparelho antigo, antes da v3). */
+const INDICE_ATE_V2 = definirIndiceBusca({
+  id: 'catalogo.produto',
+  modulo: 'catalogo',
+  tabelaDoc: TABELAS_BUSCA_CATALOGO.doc,
+  tabelaFts: TABELAS_BUSCA_CATALOGO.fts,
+  colunaChave: TABELAS_BUSCA_CATALOGO.colunaChave,
+  colunas: PESOS_ATE_V2,
   fontes: ['produto', 'produto_atributo'],
   chaveDe: (e, l) => (e === 'produto' ? l.id : ((l as Atributo).produto_id ?? null)),
   async documento(id, ler) {
@@ -145,10 +197,12 @@ const ENTIDADES_REGISTRO: { nome: string; modulo: ModuloId }[] = [
 ];
 
 function abrirArmazenamento(driver: DriverSqlite, migracoes: readonly MigracaoAparelho[] = migracoesAparelho) {
+  // o app de cada versão declara o índice com as colunas da FTS dela (até a v2: 7 colunas; v3 em diante: 9)
+  const ultima = Math.max(...migracoes.map((m) => m.versao));
   return criarArmazenamentoSqlite(driver, {
     migracoesModulos: { catalogo: migracoes },
     entidades: ENTIDADES_REGISTRO,
-    indicesBusca: [INDICE],
+    indicesBusca: [ultima >= 3 ? INDICE : INDICE_ATE_V2],
     agora: () => new Date('2026-10-31T12:00:00.000Z'),
   });
 }
@@ -243,8 +297,10 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
       'index catalogo__estoque_saldo_produto',
       'index catalogo__produto_atributo_produto',
       'index catalogo__produto_conteudo_produto',
+      'index catalogo__produto_referencia_produto',
       'index catalogo__tabela_preco_item_produto',
     ]);
+    expect([...COLUNAS_BUSCA_CATALOGO]).toEqual(['sku', 'ean', 'codigos', 'nome', 'marca', 'categoria', 'atributos', 'aplicacao', 'referencias']);
     expect(await nomesDasColunas(d, 'catalogo__busca')).toEqual([...COLUNAS_BUSCA_CATALOGO]);
     expect(Object.keys(PESOS)).toEqual([...COLUNAS_BUSCA_CATALOGO]);
     expect(await nomesDasColunas(d, 'catalogo__busca_doc')).toEqual(['rid', 'produto_id', ...COLUNAS_BUSCA_CATALOGO]);
@@ -261,12 +317,12 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
   it('tokenizer: sem acento e sem cedilha, código separado e compacto, prefixo de 2 letras, frase e vocabulário', async () => {
     const d = await bancoComCatalogo();
     const docs = [
-      ['p1', '6203-2RS', null, '62032rs', 'Rolamento ação rápida', 'SKF', 'Transmissão', 'aplicação Gol'],
-      ['p2', 'PF-100', '7891234567895', 'pf100', 'Pastilha de freio cerâmica', 'Fras-le', 'Freios', 'aplicação Onix'],
-      ['p3', 'OL-5W30', null, 'ol5w30', 'Óleo de motor sintético 5W30', 'Mahle', 'Motor', 'medida 1L'],
+      ['p1', '6203-2RS', null, '62032rs', 'Rolamento ação rápida', 'SKF', 'Transmissão', 'aplicação Gol', null, null],
+      ['p2', 'PF-100', '7891234567895', 'pf100 cb3401', 'Pastilha de freio cerâmica', 'Fras-le', 'Freios', 'aplicação Onix', 'Fiat Uno 1.0/1.4 2010–2014 2011 2012 2013', 'CB 3401'],
+      ['p3', 'OL-5W30', null, 'ol5w30 fb0207', 'Óleo de motor sintético 5W30', 'Mahle', 'Motor', 'medida 1L', 'VW Gol G5/G6 1.0/1.6 2009–2016', 'FB-0207'],
     ];
     for (const v of docs)
-      await d.rodar(`INSERT INTO catalogo__busca_doc (produto_id, ${COLUNAS_BUSCA_CATALOGO.join(', ')}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, v);
+      await d.rodar(`INSERT INTO catalogo__busca_doc (produto_id, ${COLUNAS_BUSCA_CATALOGO.join(', ')}) VALUES (${['produto_id', ...COLUNAS_BUSCA_CATALOGO].map(() => '?').join(', ')})`, v);
     await d.rodar("INSERT INTO catalogo__busca (catalogo__busca) VALUES ('rebuild')");
     const achar = async (fts: string) =>
       (
@@ -284,6 +340,15 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
     expect(await achar('"62032rs"*')).toEqual(['p1']); // forma compacta na coluna codigos
     expect(await achar('"7891234567895"')).toEqual(['p2']); // EAN
     expect(await achar('"freio" AND ("ceramica" OR "disco")')).toEqual(['p2']); // sinônimos: AND explícito
+    // v3 (RN-CAT-12): aplicação com o ano expandido; "1.0/1.4" e "G5/G6" são termos, não faixa
+    expect(await achar('"uno" AND "2012"')).toEqual(['p2']);
+    expect(await achar('"gol" AND "g5"')).toEqual(['p3']); // "Gol" também está nos atributos de p1, mas sem "g5"
+    expect(await achar('"aplicacao" : "2012"')).toEqual(['p2']); // filtro de coluna da FTS5
+    // v3 (RN-CAT-09): código do concorrente cru (frase) e compacto (coluna codigos)
+    expect(await achar('"cb 3401"')).toEqual(['p2']);
+    expect(await achar('"cb3401"')).toEqual(['p2']);
+    expect(await achar('"fb 0207"')).toEqual(['p3']);
+    expect(await achar('"referencias" : "fb"*')).toEqual(['p3']);
     const vocab = (await d.todas<{ term: string }>("SELECT term FROM catalogo__busca_vocab WHERE term >= 'ac' AND term < 'ad' ORDER BY term")).map(
       (r) => r.term,
     );
@@ -312,6 +377,7 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
     ['cliente_tabela_preco', 'cliente_id', 'catalogo__cliente_tabela_preco_cliente'],
     ['produto_conteudo', 'produto_id', 'catalogo__produto_conteudo_produto'],
     ['produto_atributo', 'produto_id', 'catalogo__produto_atributo_produto'],
+    ['produto_referencia', 'produto_id', 'catalogo__produto_referencia_produto'],
   ])('linhasPorCampo(%s, %s) usa o índice de expressão %s (EXPLAIN QUERY PLAN)', async (entidade, campo, indice) => {
     const d = await bancoComCatalogo();
     const plano = await d.todas<{ detail: string }>(
@@ -374,6 +440,7 @@ describe('aparelho: migrações por versão (subida só para frente; downgrade r
   it('v1 → v2 real (T-0052-B4): só os índices novos; linhas, busca e cursores preservados; linhasPorCampo igual', async () => {
     const arquivo = join(pastaTemporaria(), 'macuxi-u-v1-v2.db');
     const V1 = migracoesAparelho.filter((m) => m.versao === 1);
+    const ATE_V2 = migracoesAparelho.filter((m) => m.versao <= 2);
     const deposito = uuid(5, 1);
     const tabela = uuid(5, 2);
     const outraTabela = uuid(5, 3);
@@ -404,7 +471,7 @@ describe('aparelho: migrações por versão (subida só para frente; downgrade r
     await d.fechar();
 
     // app novo (v1 + v2): só a v2 roda
-    a = abrirArmazenamento(criarDriverNode(arquivo));
+    a = abrirArmazenamento(criarDriverNode(arquivo), ATE_V2);
     await a.pronto;
     expect(a.modulosIndisponiveis()).toEqual([]);
     d = criarDriverNode(arquivo);
@@ -442,6 +509,73 @@ describe('aparelho: migrações por versão (subida só para frente; downgrade r
     await puxar(a, 'estoque_saldo', [linha(6, 4, { produto_id: uuid(1, 2), deposito_id: uuid(5, 9), quantidade: 7, atualizado_em: QUANDO })]);
     const saldos2 = await a.linhas.porCampo!<LinhaSync & { quantidade: number }>('estoque_saldo', 'produto_id', [uuid(1, 2)]);
     expect(saldos2.map((l) => l.quantidade).sort((x, y) => x - y)).toEqual([7, 20]);
+    await a.fechar();
+  });
+
+  it('v2 → v3 real (T-0084/T-0085): FTS recriada com aplicacao e referencias, reindexação sozinha a partir de ent_*, nada repuxado', async () => {
+    const arquivo = join(pastaTemporaria(), 'macuxi-u-v2-v3.db');
+    const ATE_V2 = migracoesAparelho.filter((m) => m.versao <= 2);
+    const linha = (prefixo: number, i: number, dados: Record<string, unknown>): LinhaSync => ({ id: uuid(prefixo, i), updated_at: QUANDO, deleted_at: null, ...dados });
+    const conteudos = [
+      linha(9, 1, { produto_id: uuid(1, 1), aplicacao: 'Fiat Uno 1.0/1.4 2010–2014 2011 2012 2013; Fiat Palio 1.0/1.4 2012–2016' }),
+      linha(9, 2, { produto_id: uuid(1, 2), aplicacao: 'VW Gol G5/G6 1.0/1.6 2009–2016' }),
+    ];
+    const marca = uuid(10, 1);
+    const referencias = [
+      linha(11, 1, { produto_id: uuid(1, 1), marca_id: marca, codigo: 'CB 3401', ordem: 1 }),
+      linha(11, 2, { produto_id: uuid(1, 2), marca_id: marca, codigo: 'FB-0207', ordem: 1 }),
+      // apagada: sai do índice
+      { ...linha(11, 3, { produto_id: uuid(1, 3), marca_id: marca, codigo: 'XX 9999', ordem: 1 }), deleted_at: QUANDO },
+    ];
+
+    // aparelho em v2 com produtos, atributos, conteúdo e referências em ent_* (no APK real, produto_referencia chega com a
+    // v3 e é puxada do início; aqui já tem linhas para provar que a reindexação lê todas as fontes)
+    let a = abrirArmazenamento(criarDriverNode(arquivo), ATE_V2);
+    await puxar(a, 'produto', [produto(1), produto(2), produto(3)]);
+    await puxar(a, 'produto_atributo', [...atributos(1), ...atributos(2), ...atributos(3)]);
+    await puxar(a, 'produto_conteudo', conteudos);
+    await puxar(a, 'produto_referencia', referencias);
+    await a.busca.finalizar!();
+    expect((await a.busca.buscar('catalogo.produto', { grupos: [['onix']], prefixoNoUltimo: false })).map((r) => r.chave)).toEqual([uuid(1, 1)]);
+    await a.fechar();
+    let d = criarDriverNode(arquivo);
+    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 2 });
+    expect(await nomesDasColunas(d, 'catalogo__busca')).toEqual([...COLUNAS_ATE_V2]);
+    await d.fechar();
+
+    // app novo (v3): recria a FTS (documentos antigos saem), marca a reindexação e reconstrói de ent_* na primeira busca
+    a = abrirArmazenamento(criarDriverNode(arquivo));
+    await a.pronto;
+    expect(a.modulosIndisponiveis()).toEqual([]);
+    d = criarDriverNode(arquivo);
+    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 3 });
+    expect(await nomesDasColunas(d, 'catalogo__busca')).toEqual([...COLUNAS_BUSCA_CATALOGO]);
+    expect(await nomesDasColunas(d, 'catalogo__busca_doc')).toEqual(['rid', 'produto_id', ...COLUNAS_BUSCA_CATALOGO]);
+    expect((await listarObjetos(d)).some((o) => o.name === 'catalogo__produto_referencia_produto')).toBe(true);
+    // a referência apagada não fica em ent_* (o pull remove a linha)
+    for (const [t, n] of [['ent_produto', 3], ['ent_produto_atributo', 6], ['ent_produto_conteudo', 2], ['ent_produto_referencia', 2]] as const)
+      expect(await d.primeira(`SELECT count(*) AS n FROM ${t}`)).toEqual({ n });
+    await d.fechar();
+    for (const e of ['produto', 'produto_atributo', 'produto_conteudo', 'produto_referencia']) expect(await a.ler(`sync:cursor:${e}`)).not.toBeNull();
+
+    const achar = async (grupos: string[][]) => (await a.busca.buscar('catalogo.produto', { grupos, prefixoNoUltimo: false })).map((r) => r.chave);
+    expect(await achar([['onix']])).toEqual([uuid(1, 1)]); // atributo continua (reindexado)
+    expect(await achar([['uno'], ['2012']])).toEqual([uuid(1, 1)]); // aplicação (RN-CAT-12)
+    expect(await achar([['palio']])).toEqual([uuid(1, 1)]);
+    expect(await achar([['g5']])).toEqual([uuid(1, 2)]);
+    expect(await achar([['cb3401']])).toEqual([uuid(1, 1)]); // compacto da referência em `codigos` (RN-CAT-09)
+    expect(await achar([['fb'], ['0207']])).toEqual([uuid(1, 2)]); // código cru em `referencias`
+    expect(await achar([['xx9999']])).toEqual([]); // referência apagada fora do índice
+    d = criarDriverNode(arquivo);
+    expect(await d.primeira('SELECT count(*) AS n FROM catalogo__busca_doc')).toEqual({ n: 3 });
+    expect(await d.primeira('PRAGMA integrity_check')).toEqual({ integrity_check: 'ok' });
+    await d.fechar();
+
+    // pull depois da v3: referência nova entra no índice pelo incremental (chave = produto_id da linha)
+    await puxar(a, 'produto_referencia', [linha(11, 4, { produto_id: uuid(1, 3), marca_id: marca, codigo: 'RF 7788', ordem: 1 })]);
+    await a.busca.finalizar!();
+    expect(await achar([['rf7788']])).toEqual([uuid(1, 3)]);
+    expect((await a.linhas.porCampo!('produto_referencia', 'produto_id', [uuid(1, 1), uuid(1, 3)])).map((l) => l.id).sort()).toEqual([uuid(11, 1), uuid(11, 4)].sort());
     await a.fechar();
   });
 });

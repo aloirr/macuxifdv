@@ -11,11 +11,13 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { limitarDesconto, PASSO_DESCONTO_PCT } from '../../domain/quantidade';
 import { rotuloMedida } from '../../domain/preco-pedido';
+import { partirTrecho, type TrechoServeEm } from '../../domain/busca-seletor';
 import type { Rascunho } from '../lib/pedidos';
 import {
   alternarUnidade,
   centsParaCampo,
   chaveDaLinha,
+  alternarAplicacao,
   trocarModoDoAjuste,
   unidadesDoProduto,
   type Ajuste,
@@ -131,7 +133,7 @@ export interface PropsAbaItens {
   somenteLeitura?: boolean;
 }
 
-export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, somenteLeitura, aoTrocarMedida }: { produtos: readonly Product[]; aoTrocarMedida?: (texto: string, desfazer: () => void) => void } & Omit<PropsAbaItens, 'catalogo' | 'resultados'>) {
+export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, somenteLeitura, aoTrocarMedida, serveEm }: { produtos: readonly Product[]; aoTrocarMedida?: (texto: string, desfazer: () => void) => void; /** T-0084 C9: trecho "Serve em" por produto (busca do Catálogo) */ serveEm?: ReadonlyMap<string, TrechoServeEm> } & Omit<PropsAbaItens, 'catalogo' | 'resultados'>) {
   const ajustes = rascunho.ajustes ?? {};
   const setQtd = (chave: string, q: number) => {
     const n = Math.max(0, Math.trunc(q));
@@ -157,7 +159,7 @@ export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, 
   return (
     <Card>
       {produtos.map((p, i) => (
-        <LinhaDoProduto key={p.id} p={p} medidas={unidadesDoProduto(p.id, unidades, p.unit)} lines={rascunho.lines} ajustes={ajustes} calculo={calculo} ultimo={i === produtos.length - 1} onQtd={setQtd} onAjuste={setAjuste} onTrocarMedida={trocarMedida} somenteLeitura={somenteLeitura} />
+        <LinhaDoProduto key={p.id} p={p} serveEm={serveEm?.get(p.id) ?? null} medidas={unidadesDoProduto(p.id, unidades, p.unit)} lines={rascunho.lines} ajustes={ajustes} calculo={calculo} ultimo={i === produtos.length - 1} onQtd={setQtd} onAjuste={setAjuste} onTrocarMedida={trocarMedida} somenteLeitura={somenteLeitura} />
       ))}
     </Card>
   );
@@ -165,6 +167,7 @@ export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, 
 
 function LinhaDoProduto({
   p,
+  serveEm,
   medidas,
   lines,
   ajustes,
@@ -176,6 +179,7 @@ function LinhaDoProduto({
   somenteLeitura,
 }: {
   p: Product;
+  serveEm?: TrechoServeEm | null;
   medidas: UnidadeDaTela[];
   lines: Record<string, number>;
   ajustes: Record<string, Ajuste>;
@@ -222,7 +226,7 @@ function LinhaDoProduto({
         <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
           <Text style={t.mono}>{p.erp_code}</Text>
           <Text style={t.bodyStrong}>{p.description}</Text>
-          {p.applications ? <Text style={t.small} numberOfLines={2}>{p.applications}</Text> : null}
+          {serveEm ? <ServeEm trecho={serveEm} codigo={p.erp_code} /> : p.applications ? <Text style={t.small} numberOfLines={2}>{p.applications}</Text> : null}
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           {unica !== null ? chipDe(unica, tocavel) : null}
@@ -251,7 +255,8 @@ function LinhaDoProduto({
             totalLinha={linha?.total_cents ?? null}
             ajuste={ajustes[chave] ?? {}}
             onQtd={(q) => onQtd(chave, q)}
-            onAjuste={(aj) => onAjuste(chave, aj)}
+            onAjuste={(aj) => onAjuste(chave, { ...aj, ...(ajustes[chave]?.aplicacao_marcada !== undefined ? { aplicacao_marcada: ajustes[chave]!.aplicacao_marcada } : {}), ...(ajustes[chave]?.aplicacao_retrato ? { aplicacao_retrato: ajustes[chave]!.aplicacao_retrato } : {}) })}
+            onAplicacao={() => onAjuste(chave, alternarAplicacao(ajustes[chave], Boolean(linha?.aplicacao_marcada)))}
             somenteLeitura={somenteLeitura}
             k={kDe(idx)}
           />
@@ -272,6 +277,7 @@ function MedidaDoItem({
   ajuste,
   onQtd,
   onAjuste,
+  onAplicacao,
   somenteLeitura,
   k,
 }: {
@@ -286,6 +292,8 @@ function MedidaDoItem({
   ajuste: Ajuste;
   onQtd: (q: number) => void;
   onAjuste: (a: Ajuste) => void;
+  /** T-0084 (RN-VEN-19): alterna a caixa "Incluir aplicação no orçamento" deste item */
+  onAplicacao: () => void;
   somenteLeitura?: boolean;
   k: string;
 }) {
@@ -373,6 +381,7 @@ function MedidaDoItem({
               </Text>
             ) : null}
           </View>
+          {p.applications && !somenteLeitura ? <CaixaAplicacao testID={`aplicacao-${k}`} marcada={Boolean(linha?.aplicacao_marcada)} onPress={onAplicacao} nome={nome} /> : null}
           {aberto && !somenteLeitura ? (
             <View style={s.ajuste} testID={`ajuste-painel-${k}`}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -414,6 +423,36 @@ function MedidaDoItem({
   );
 }
 
+/**
+ * T-0084 (RN-VEN-19): caixa por item "Incluir aplicação no orçamento" (alvo de 48 dp). Marcada pelo padrão do tenant; vale
+ * item a item. O texto sai da linha da aplicação mostrada acima (2 linhas).
+ */
+/** RN-CAT-12: "Serve em" com os termos da busca marcados e "inclui 2012" quando o ano casou por faixa. */
+function ServeEm({ trecho, codigo }: { trecho: TrechoServeEm; codigo: string }) {
+  const partes = partirTrecho(trecho.texto, trecho.marcas);
+  return (
+    <Text style={t.small} numberOfLines={2} testID={`serve-em-${codigo}`}>
+      Serve em: {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.smallStrong}>{x.texto}</Text> : x.texto))}
+      {trecho.inclui_ano ? ` · inclui ${trecho.inclui_ano}` : ''}
+    </Text>
+  );
+}
+
+export function CaixaAplicacao({ marcada, onPress, nome, testID }: { marcada: boolean; onPress: () => void; nome: string; testID: string }) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="checkbox"
+      accessibilityLabel={`Incluir aplicação no orçamento: ${nome}`}
+      accessibilityState={{ checked: marcada }}
+      onPress={onPress}
+      style={({ pressed }) => [s.caixaAplicacao, pressed && { opacity: 0.6 }]}>
+      <View style={[s.caixa, marcada && s.caixaMarcada]}>{marcada ? <Icon name="check" size={16} color={colors.surface} strokeWidth={2.6} /> : null}</View>
+      <Text style={t.small}>Incluir aplicação no orçamento</Text>
+    </Pressable>
+  );
+}
+
 /** Aviso do que falta (aparece acima do rodapé quando o botão está desligado por regra). */
 export function PendenciasDoPedido({ erros, freteAviso, onIrPara }: { erros: string[]; freteAviso: string | null; onIrPara: () => void }) {
   if (erros.length === 0 && !freteAviso) return null;
@@ -436,6 +475,9 @@ const s = StyleSheet.create({
   passoDesligado: { backgroundColor: colors.ground, borderColor: colors.line },
   passo: { width: 48, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   qtd: { width: 52, height: 48, textAlign: 'center', fontFamily: fonts.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
+  caixaAplicacao: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  caixa: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  caixaMarcada: { backgroundColor: colors.accentInk, borderColor: colors.accentInk },
   linkAjuste: { minHeight: 48, justifyContent: 'center', paddingRight: 8 },
   ajuste: { gap: 8, padding: 10, borderRadius: radius.md, backgroundColor: colors.ground },
   pctBox: { flex: 1, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },

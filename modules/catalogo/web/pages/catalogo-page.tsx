@@ -10,10 +10,11 @@ import { api, downloadBlob, errorMessage, useSession } from '@macuxi/platform-sd
 import { Badge, Button, DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, LoadingBlock, Notice, PageHeader, Panel, SelectField, TableScroll, td, th } from '@macuxi/ui/web';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FichaProduto, FiltrosCatalogo, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, type ItemVitrine, type Sinonimo } from '../../contracts';
+import { FichaProduto, FiltrosCatalogo, ListaMarcasConcorrentes, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, type ItemVitrine, type Sinonimo } from '../../contracts';
 import { ExportacaoCatalogo } from '../exportacao/exportacao-catalogo';
 import { chaveDeTermo } from '../../domain/texto';
-import { buscaDosFiltros, conteudoDoForm, formDaFicha, formDoSinonimo, lerFiltrosBko, produtosParaCsv, sinonimoDoForm, type AbaBko, type FiltrosBko, type FormConteudo, type FormSinonimo } from '../lib/formularios';
+import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
+import { abrirEditores, buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, EDITORES_FECHADOS, fecharEditor, formCadastroDaFicha, formDaFicha, formDoSinonimo, lerFiltrosBko, mapaIdsPorCodigo, produtosParaCsv, sinonimoDoForm, type AbaBko, type EditoresAbertos, type FiltrosBko, type FormCadastroCatalogo, type FormConteudo, type FormSinonimo } from '../lib/formularios';
 
 const POR_PAGINA = 100;
 const BASE = '/catalogo';
@@ -72,7 +73,7 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
   const autenticado = useSession().status === 'authenticated';
   const podeDestaque = usePode('destaque.gerenciar');
   const qc = useQueryClient();
-  const [editando, setEditando] = useState<ItemVitrine | null>(null);
+  const [editores, setEditores] = useState<EditoresAbertos<ItemVitrine>>(EDITORES_FECHADOS);
   const vocab = useQuery({ queryKey: ['catalogo', 'filtros'], queryFn: async () => FiltrosCatalogo.parse(await api<unknown>(`${BASE}/filtros`)), enabled: autenticado });
   const lista = useInfiniteQuery({
     queryKey: ['catalogo', 'produtos', filtros.linha],
@@ -151,7 +152,7 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
                   </td>
                   <td className={`${td} text-right`}>
                     {podeConteudo && (
-                      <Button size="sm" variant="link" onClick={() => setEditando(i)} data-testid={`catalogo.editar.${i.erp_code}`}>
+                      <Button size="sm" variant="link" onClick={() => setEditores(abrirEditores(i))} data-testid={`catalogo.editar.${i.erp_code}`}>
                         Editar conteúdo
                       </Button>
                     )}
@@ -167,7 +168,8 @@ function Produtos({ filtros, mudar, podeConteudo }: { filtros: FiltrosBko; mudar
           Carregar mais
         </Button>
       )}
-      {editando && <EditorConteudo item={editando} fechar={() => setEditando(null)} />}
+      {editores.conteudo && <EditorConteudo key={editores.conteudo.id} item={editores.conteudo} fechar={() => setEditores((e) => fecharEditor(e, 'conteudo'))} />}
+      {editores.catalogo && <EditorCadastroCatalogo key={editores.catalogo.id} item={editores.catalogo} produtos={todos} fechar={() => setEditores((e) => fecharEditor(e, 'catalogo'))} />}
     </Panel>
   );
 }
@@ -219,6 +221,97 @@ function EditorConteudo({ item, fechar }: { item: ItemVitrine; fechar: () => voi
                 if (r.ok) salvar.mutate(r.valor);
               }}>
               Salvar conteúdo
+            </Button>
+            <Button onClick={fechar}>Cancelar</Button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Seção Catálogo do cadastro do produto (T-0085 K9): aplicação (RN-CAT-11), oferece junto e referência cruzada (RN-CAT-09).
+ * Só quem tem `produto.enriquecer` (analista e admin) edita; a proteção real é na API, que audita cada alteração.
+ */
+function EditorCadastroCatalogo({ item, produtos, fechar }: { item: ItemVitrine; produtos: readonly ItemVitrine[]; fechar: () => void }) {
+  const qc = useQueryClient();
+  const ficha = useQuery({ queryKey: ['catalogo', 'ficha', item.id], queryFn: async () => FichaProduto.parse(await api<unknown>(`${BASE}/produtos/${item.id}`)) });
+  const marcas = useQuery({ queryKey: ['catalogo', 'marcas-concorrentes'], queryFn: async () => ListaMarcasConcorrentes.parse(await api<unknown>(`${BASE}/marcas-concorrentes`)).items });
+  const [form, setForm] = useState<FormCadastroCatalogo | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  useEffect(() => {
+    if (ficha.data && form === null) setForm(formCadastroDaFicha(ficha.data));
+  }, [ficha.data, form]);
+  const idsPorCodigo = useMemo(() => mapaIdsPorCodigo(produtos, ficha.data?.catalogo?.oferece_junto), [produtos, ficha.data]);
+  const salvar = useMutation({
+    mutationFn: (corpo: unknown) => api(`${BASE}/produtos/${item.id}/cadastro-catalogo`, { method: 'PUT', body: corpo }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['catalogo'] });
+      fechar();
+    },
+  });
+  const tamanho = form?.aplicacao.length ?? 0;
+  const campoTexto = 'h-[38px] rounded-[10px] border border-field bg-surface px-3 text-[14px] text-ink';
+  return (
+    <section className="mt-4 flex flex-col gap-3 rounded-xl border border-line p-4" aria-label={`Catálogo de ${item.description}`} data-testid="catalogo.cadastro">
+      <h3 className="text-[15px] font-semibold">
+        Catálogo · {item.erp_code} {item.description}
+      </h3>
+      {ficha.isError && <ErrorBlock message={errorMessage(ficha.error)} onRetry={() => void ficha.refetch()} />}
+      {!form && !ficha.isError && <LoadingBlock label="Carregando o cadastro…" />}
+      {form && (
+        <>
+          <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
+            Aplicação
+            <textarea rows={4} className="rounded-[10px] border border-field bg-surface p-2 text-[14px] font-normal text-ink" value={form.aplicacao} onChange={(e) => setForm({ ...form, aplicacao: e.target.value })} data-testid="catalogo.cadastro.aplicacao" />
+            <span className={`font-normal ${tamanho > 2000 ? 'text-danger' : 'text-ink-2'}`} data-testid="catalogo.cadastro.contador">
+              {tamanho.toLocaleString('pt-BR')} / 2.000 · Ex.: "Fiat Uno 1.0/1.4 2010–2014". A busca acha o ano dentro da faixa.
+            </span>
+          </label>
+          <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
+            Oferece junto (até {LIMITES_CADASTRO_CATALOGO.ofereceJunto})
+            <textarea rows={3} className="rounded-[10px] border border-field bg-surface p-2 text-[14px] font-normal text-ink" value={form.ofereceJunto} onChange={(e) => setForm({ ...form, ofereceJunto: e.target.value })} data-testid="catalogo.cadastro.oferece-junto" />
+            <span className="font-normal text-ink-2">Um código do produto por linha, na ordem em que o vendedor vê.</span>
+          </label>
+          <fieldset className="flex flex-col gap-2" data-testid="catalogo.cadastro.referencias">
+            <legend className="text-[12px] font-semibold text-ink-2">Referência cruzada (até {LIMITES_CADASTRO_CATALOGO.referencias}): marca concorrente e código</legend>
+            {marcas.isError && <Notice tone="warning">A lista de marcas concorrentes não carregou. Confira se o módulo Promotor está ativo para este cliente e tente de novo.</Notice>}
+            {marcas.data && marcas.data.length === 0 && <Notice tone="info">Nenhuma marca concorrente ativa. Cadastre as marcas em Concorrentes (módulo Promotor) para usar a referência cruzada.</Notice>}
+            {form.referencias.map((r, i) => (
+              <div key={i} className="flex flex-wrap items-end gap-3">
+                <SelectField label={`Marca ${i + 1}`} value={r.marca_id} onChange={(e) => setForm({ ...form, referencias: form.referencias.map((x, k) => (k === i ? { ...x, marca_id: e.target.value } : x)) })} data-testid={`catalogo.cadastro.marca.${i}`}>
+                  <option value="">Sem marca</option>
+                  {marcas.data?.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome}
+                    </option>
+                  ))}
+                </SelectField>
+                <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
+                  Código {i + 1}
+                  <input className={campoTexto} maxLength={LIMITES_CADASTRO_CATALOGO.codigo} value={r.codigo} onChange={(e) => setForm({ ...form, referencias: form.referencias.map((x, k) => (k === i ? { ...x, codigo: e.target.value } : x)) })} data-testid={`catalogo.cadastro.codigo.${i}`} />
+                </label>
+              </div>
+            ))}
+          </fieldset>
+          <label className="flex flex-col gap-1 text-[12px] font-semibold text-ink-2">
+            Etiquetas (até {LIMITES_CADASTRO_CATALOGO.etiquetas})
+            <input className={campoTexto} value={form.etiquetas} onChange={(e) => setForm({ ...form, etiquetas: e.target.value })} data-testid="catalogo.cadastro.etiquetas" />
+            <span className="font-normal text-ink-2">Separadas por vírgula, até {LIMITES_CADASTRO_CATALOGO.etiqueta} caracteres cada (ex.: Dianteira, Novo).</span>
+          </label>
+          {(erro || salvar.isError) && <Notice tone="danger">{erro ?? errorMessage(salvar.error)}</Notice>}
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              disabled={salvar.isPending}
+              data-testid="catalogo.cadastro.salvar"
+              onClick={() => {
+                const r = cadastroCatalogoDoForm(item.id, form, { idsPorCodigo, aplicacaoMax: 2000, semReferencias: !marcas.data || marcas.data.length === 0 });
+                setErro(r.ok ? null : r.erro);
+                if (r.ok) salvar.mutate(r.valor);
+              }}>
+              Salvar catálogo
             </Button>
             <Button onClick={fechar}>Cancelar</Button>
           </div>

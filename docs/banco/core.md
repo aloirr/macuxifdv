@@ -27,6 +27,7 @@ Escopo: supervisor vê a carteira da equipe de que é responsável; gerente vê 
 | ativo, bloqueado_em, ultimo_login_em | | `bloqueado_em` = bloqueio MANUAL do admin (RF-CORE-01) |
 | tentativas_falhas | smallint not null default 0 | (0004) falhas de senha seguidas, `>= 0`; 5 falhas => `bloqueio_ate` = agora + 15 min; login certo zera (regra no domain do Core) |
 | bloqueio_ate | timestamptz | (0004) bloqueio TEMPORÁRIO por tentativas |
+| telefone | text | (0036) telefone do CSV da Equipe; null ou 1..30 caracteres (CHECK `usuario_telefone_preenchido`; formato no domain do Core). Dado pessoal: a anonimização apaga. Fora do pull |
 
 Login: código da empresa → `plataforma.tenant_por_codigo` → transação com o tenant → `where lower(email) = lower($1)`.
 
@@ -475,3 +476,33 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - RLS: a mesma de `notificacao` (enable/force, `isolamento_tenant`); nenhuma política nova, grants iguais.
 - Caminho de volta: `0030_core_notificacao_subtipo.down.sql` (APAGA a coluna e o CHECK; as notificações ficam). Teste:
   `db/testes/notificacao-subtipo.test.ts`.
+
+## 0036 — convite de 1º acesso e telefone do usuário (`0036_core_usuario_convite`; T-0087 fatia E, RN-CORE-31, desenho docs/modulos/core/equipe-csv.md)
+## usuario_convite — convite de 1º acesso, de uso único, entregue por link (sem e-mail). Fora do sync
+| Coluna | Tipo | Regra |
+|---|---|---|
+| comuns da regra 5 | | `id`, `tenant_id` (FK `plataforma.tenant`), `created_at`, `updated_at` (gatilho `usuario_convite_updated_at`), `deleted_at`, `external_id` |
+| usuario_id | uuid not null | FK composta `usuario_convite_usuario_fk (tenant_id, usuario_id) → core.usuario` |
+| token_hash | text not null | sha256 **hex** (minúsculas) do segredo (CHECK `usuario_convite_token_hash_sha256`); **único por tenant** (`usuario_convite_token_uk (tenant_id, token_hash)`, como o `sessao_token_uk`; regra 5 do S0-023). O admin recebe uma vez o token `<tenant_id>.<segredo>` (32 bytes base64url), como o refresh da `sessao`; o banco nunca vê o segredo |
+| expira_em | timestamptz not null | prazo da API (7 dias, RN-CORE-31); o banco não amarra ao `created_at` |
+| usado_em | timestamptz | aceite (senha definida). Exclusivo com `revogado_em` (CHECK `usuario_convite_usado_ou_revogado`) |
+| revogado_em | timestamptz | renovação (o link anterior deixa de valer) ou anonimização |
+| criado_por_id | uuid | quem gerou, SEM FK: `core.usuario` do tenant ou `plataforma.super_admin` (0035), conforme o tipo (como o `ator_id` da 0035) |
+| criado_por_tipo | text | `usuario` \| `super_admin` (CHECK `usuario_convite_criado_por_tipo_valido`; Drizzle `CRIADO_POR_CONVITE`); com o id, os dois ou nenhum (CHECK `usuario_convite_criado_por_par`; nenhum = carga/seed) |
+- Pendente = `usado_em is null and revogado_em is null and deleted_at is null` (vencido sem uso continua pendente até ser
+  revogado). **No máximo 1 pendente por usuário** (`usuario_convite_pendente_uk`, único parcial `(tenant_id, usuario_id)`):
+  renovar = revogar o pendente e DEPOIS inserir o novo, na mesma transação.
+- Aceite (rota pública `POST /v1/auth/convite/aceitar`): a API tira o tenant do token, abre o contexto do tenant e faz
+  `select … where token_hash = $1 for update` + `update … set usado_em` na mesma transação, sob RLS. **Sem função SECURITY
+  DEFINER** (nada novo em `DEFINER_REVISADAS`).
+- Índices: `usuario_convite_token_uk (tenant_id, token_hash)` único (aceite: o `tenant_id` vem da política RLS), `usuario_convite_pendente_uk` (lista de pendentes, renovação),
+  `usuario_convite_usuario_ix (tenant_id, usuario_id)` (histórico do usuário, FK, revogação). Volume: centenas por tenant.
+- RLS: enable + force, `isolamento_tenant` e `manutencao` (0031); `macuxi_app` com select/insert/update (**sem delete**:
+  convite se revoga); `macuxi_worker` sem acesso. Fora de `TABELAS_SYNC` (`TABELAS_FORA_DO_SYNC`).
+- LGPD: `plataforma.anonimizar_usuario` apaga `usuario.telefone` e revoga os convites pendentes (item `core.usuario_convite`,
+  logo depois de `core.dispositivo`); ver [lgpd.md](lgpd.md).
+- Fixture dois-tenants (grupo de UUID `0x08`, `CONVITES_FIXTURE`): A pendente e revogado do vendedor-2 e usado do promotor;
+  B pendente do vendedor-B (autor super_admin). Demo: sem convites (os usuários da demo já têm senha).
+- `codigo_erp` do CSV = `core.usuario.external_id` (único vivo por tenant); superior = árvore `core.equipe`: nenhuma coluna nova.
+- Caminho de volta: `0036_core_usuario_convite.down.sql` (anonimizar_usuario volta ao corpo da 0024; APAGA a tabela com os
+  convites e a coluna telefone). Teste: `db/testes/usuario-convite.test.ts`.

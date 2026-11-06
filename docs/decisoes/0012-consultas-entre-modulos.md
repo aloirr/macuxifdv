@@ -55,3 +55,9 @@ ser validado na hora do push.
 - **Complemento (ADR 0025, 2026-11-05)**: `tx.consultar(def, entrada, { licenca: 'tenant' })` checa o provedor pela licença do
   tenant, e não pelos módulos de quem consulta. O usuário e o escopo são os mesmos. Vale só para leitura agregada de
   indicador (RN-CORE-27).
+- **Complemento (T-0084, 2026-11-06)**: no aparelho, a implementação da consulta lê, só para leitura, as entidades locais do
+  próprio módulo **e as dos módulos em `depende` do provedor** (ex.: `catalogo.busca_produtos@1` lê o `produto` do Core). Os
+  `opcionais` e os donos de `usaConsultasOpcionais` ficam de fora (erro de programação; para ler, use a consulta deles);
+  dependência inativa para o usuário → `ConsultaIndisponivel`. O `ContextoConsultaAparelho` ganhou `linhasPorCampo` e
+  `versaoLinhas`, as mesmas do motor (ADR 0003, T-0052-B4), com a mesma restrição. Só alarga o canal do aparelho e não muda a
+  regra 1: `depende` já é a aresta que o provedor declara, e no servidor a consulta continua fazendo SQL só no próprio schema.

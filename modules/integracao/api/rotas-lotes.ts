@@ -300,7 +300,7 @@ export async function consultarLote(ctx: Ctx<unknown, ReturnType<typeof QueryCon
 }
 
 /** Situação da inativação no resultado do último lote da sessão (o que o Conector lê; RN-INT-06). */
-async function inativacaoDoLote(db: DbTenant, tenantId: string, l: LinhaLote): Promise<InativacaoLote> {
+export async function inativacaoDoLote(db: DbTenant, tenantId: string, l: { sessao_id: string | null }): Promise<InativacaoLote> {
   const { rows } = await db.query<{ estado: string; candidatos: number; percentual: string }>(
     'select estado, candidatos, percentual from integracao.pendencia_inativacao where tenant_id = $1 and sessao_id = $2',
     [tenantId, l.sessao_id],

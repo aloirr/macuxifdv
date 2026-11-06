@@ -32,6 +32,13 @@ describe('RN-INT-06: sessão de carga completa', () => {
     expect(situacaoSessao(s, t0)).toBe('aberta');
   });
 
+  it('RN-INT-06: prazo do tenant acima de 24 h mantém a sessão aberta além do padrão', () => {
+    const s = registrarParte(base(), { parte: 1, ultimo: false, status: 'concluido' });
+    const t30h = '2026-11-01T16:00:00Z';
+    expect(situacaoSessao(s, t30h)).toBe('expirada');
+    expect(situacaoSessao(s, t30h, { ttlMin: 48 * 60 })).toBe('aberta');
+  });
+
   it('RN-INT-06: sessão sem fechar expira depois do TTL parametrizável (24 h por padrão)', () => {
     const s = registrarParte(base(), { parte: 1, ultimo: false, status: 'concluido' });
     expect(situacaoSessao(s, '2026-11-01T09:59:59Z')).toBe('aberta');

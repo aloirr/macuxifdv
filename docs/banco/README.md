@@ -37,6 +37,32 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > base idempotente do recálculo de `historico_compra`, fora do pull, único vivo por `external_id` e índices por cliente/mês e por mês —
 > e `core.meta.tipo` `pedido | faturamento`, padrão `pedido`, RN-CORE-21); dicionário em [core.md](core.md).
 > **2026-11-03 (T-0071):** `0020_pedido_ajuste_valor_produto_relacao` (aditiva: ajuste em R$ no pedido — `desconto_valor_cents`/`acrescimo_valor_cents`/`ajuste_em` — e no item por unidade da medida vendida — `desconto_unitario_cents`/`acrescimo_unitario_cents`/`ajuste_em` — com CHECKs de exclusividade, sentido coerente com o %, R$ do item <= tabela e preço unitário coerente; índice `pedido_orcamento_aberto_ix`; nova `catalogo.produto_relacao` (complementar/superior/substituto, sem FK para o Core, pull tenant)); dicionário em [vendedor.md](vendedor.md) e [catalogo.md](catalogo.md); base demo com a referência do novo pedido (Mini Box Japiim C5110). **Não aplicada na demo (5432) até o gerente decidir.**
+> **2026-11-05 (T-0084/T-0085):** `0033_catalogo_aplicacao_referencia`. Detalhes no [catalogo.md](catalogo.md) e no [vendedor.md](vendedor.md):
+> - aplicação até 2.000 e `etiquetas` no `produto_conteudo`;
+> - `aplicacao` (peso C) e `referencias` (peso A) no documento de busca do servidor;
+> - nova `catalogo.produto_referencia`: até 3 por produto, `marca_id` = concorrente do Promotor sem FK, `codigo_compacto` gravado pela API e indexado;
+> - `vendedor.pedido_item.aplicacao` (retrato, até 1.000).
+>
+> Nada em `core.*` nem em `promotor.*`, pela correção do gerente: a ADR 0027 não vale.
+>
+> Aparelho **v3**: FTS recriada com `aplicacao` e `referencias` ([aparelho-sqlite.md](aparelho-sqlite.md) §4.2).
+>
+> Seed demo em `db/seeds/demo/catalogo-cadastro.ts`. Os testes de banco rodam no CI (sem Docker no PC).
+>
+> **2026-11-06 (T-0085):** `0034_catalogo_referencia_marca_nome` (aditiva): `catalogo.produto_referencia.marca_nome`, retrato **nulo**
+> do nome da marca do Promotor (1..120), sem backfill (a migração do Catálogo não lê `promotor.*`), sem índice; vai no pull de
+> `produto_referencia`; aparelho continua na v3. Detalhes no [catalogo.md](catalogo.md).
+>
+> **2026-11-06 (T-0087):** `0035_plataforma_super_admin` (aditiva; ADR 0029): super-admin de plataforma **fora dos tenants**
+> (`plataforma.super_admin`, `super_admin_desafio`, `super_admin_sessao`, `auditoria_plataforma` append-only, sem `tenant_id`:
+> exceção à regra 5, `TABELAS_SO_POR_FUNCAO`); RLS forçado sem política nem grant para app/worker; 20 funções `plataforma.sa_*`
+> SECURITY DEFINER só ao `macuxi_app`; `provisionar_tenant` com `sem_admin`, `parametros` e `ator_id`. Nada vai ao aparelho.
+> Detalhes no [plataforma.md](plataforma.md) ("Super-admin de plataforma") e no [rls.md](rls.md).
+>
+> **2026-11-06 (T-0087 fatia E):** `0036_core_usuario_convite` (aditiva; RN-CORE-31): `core.usuario_convite` (convite de 1º acesso
+> por link, só o sha256 do segredo, único por tenant `(tenant_id, token_hash)`, no máximo 1 pendente por usuário, autor `criado_por_id`/`criado_por_tipo` sem FK;
+> fora do sync; app sem DELETE; **sem SECURITY DEFINER**: o tenant vem no token), `core.usuario.telefone` e
+> `anonimizar_usuario` apagando o telefone e revogando os convites. Detalhes no [core.md](core.md) ("0036").
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -257,6 +283,15 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
   `motivoForaDoLocal`. Os dois põem o motivo no título (`comMotivo`, marca `[pulado: ...]`). Com superusuário e Postgres
   local, tudo roda. Teste novo de up/down com dados: passe a versão em que os dados entram (ver
   [dbaas-magalu.md](dbaas-magalu.md#suíte-do-c34-sem-superusuário-3ª-execução)).
+- **Apagar a base efêmera sem superusuário** (T-0075): `apagar()` usa `apagarBancoForcado` (`db/src/apagar-banco.ts`).
+  O `drop database ... with (force)` dá 42501 "permission denied to terminate process" se ainda houver na base uma
+  sessão de papel que o admin não pode sinalizar (o admin tem só SET, sem INHERIT, no `macuxi_app`/`macuxi_worker`, e não
+  tem `pg_signal_backend`) — ex.: o cliente do `macuxi_app` que acabou de dar `end()` e ainda sai do servidor, ou um
+  autovacuum worker. Aí ele faz o DROP comum (o Postgres encerra o autovacuum e espera até 5 s) e repete com espera
+  crescente até 30 s; passado o prazo, o erro sobe com quem segura a base (papel/tipo e quantidade). Não se concede
+  `pg_signal_backend` nem filiação com INHERIT ao admin (as políticas `to macuxi_app` passariam a valer para ele).
+  Regra para teste: feche cliente/pool antes do `apagar()`; DROP DATABASE com FORCE em TS do `@macuxi/db` só por essa
+  função (trava em `db/testes/apagar-banco.test.ts`).
 - **Relógio simulado:** `MACUXI_AGORA=2026-11-04T03:59:00Z pnpm --filter @macuxi/db test` carrega a fixture como se
   fosse esse instante (prova de que nada depende da hora do dia nem da virada de data no fuso). Regra: teste não
   compara instante da fixture com `now()` — use `checkin_em + interval` ou instante fixo (ver fixture-dois-tenants.md).

@@ -15,6 +15,7 @@ import type { OrderEvent } from '../../contracts';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { sellerDiscountLimit } from '../../domain/order';
 import { textoItemFaturado } from '../../domain/retorno-erp';
+import { vendedorDoPdf } from '../../domain/pedido-em-nome';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
@@ -48,6 +49,8 @@ interface Line {
   unit_label?: string;
   discount_pct?: number;
   surcharge_pct?: number;
+  /** T-0084 (RN-VEN-19): retrato da aplicação gravado no pedido */
+  application?: string | null;
 }
 
 export default function OrderDetailScreen() {
@@ -123,7 +126,7 @@ export default function OrderDetailScreen() {
   const number = queued ? null : base!.number;
   const lines: Line[] = queued
     ? (qd?.lines ?? []).map((l) => ({ key: l.product_id + (l.unit_label ?? ''), ...l }))
-    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct }));
+    : (detail?.items ?? []).map((it) => ({ key: it.id, erp_code: it.erp_code, description: it.description, quantity: it.quantity, unit_price_cents: it.unit_price_cents, total_cents: it.total_cents, quantity_invoiced: it.quantity_invoiced, quantity_base: it.quantity_base, unit_label: it.unit_label, discount_pct: it.discount_pct, surcharge_pct: it.surcharge_pct, application: it.application }));
   // T-0054 (RF-VEN-05): resumo do retorno do ERP (pull local, vale offline) e notas do detalhe online, quando vierem
   const situacaoFaturamento = queued ? [] : (base?.situacao_faturamento ?? []);
   const notasFaturamento = queued ? [] : (detail?.faturamento?.notas ?? []);
@@ -290,10 +293,11 @@ export default function OrderDetailScreen() {
         city: cu?.city ?? '',
         erp_code: cu?.erp_code ?? '',
       },
-      seller_name: mine?.name ?? (queued ? (ambiente.usuario()?.nome ?? '') : base!.seller_name),
+      // RN-VEN-35: pedido em nome na fila sai com o vendedor dono (nunca o gestor) e "feito por" o gestor
+      ...(queued ? vendedorDoPdf({ dono_nome: qd?.seller_name ?? '', autor_nome: ambiente.usuario()?.nome ?? '', em_nome: Boolean(queued.payload.vendedor_id) && queued.payload.vendedor_id !== c?.me.seller?.id }) : { seller_name: mine?.name ?? base!.seller_name }),
       payment_terms: terms,
       discount_pct: discountPct,
-      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}) })),
+      items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}), ...(l.application ? { application: l.application } : {}) })),
       subtotal_cents: subtotal,
       discount_cents: discount,
       total_cents: total,
@@ -617,6 +621,7 @@ export default function OrderDetailScreen() {
               <View style={{ flex: 1, gap: 1 }}>
                 <Text style={t.mono}>{l.erp_code}</Text>
                 <Text style={t.bodyStrong}>{l.description}</Text>
+                {l.application ? <Text style={t.small} testID={`aplicacao-${l.erp_code}`}>Aplicação: {l.application}</Text> : null}
                 <Text style={t.small}>
                   {l.quantity} {l.unit_label || 'UN'} × {formatBRL(l.unit_price_cents)}
                   {(l.surcharge_pct ?? 0) > 0 ? ` · acréscimo ${formatPct(l.surcharge_pct!)}` : (l.discount_pct ?? 0) > 0 && effectivePct !== null ? ` · desconto ${formatPct(l.discount_pct!)}` : ''}

@@ -4,7 +4,8 @@
  *
  * - O DONO declara o contrato no próprio `contracts`: `definirConsulta({ nome: 'catalogo.precos_cliente@1', entrada, saida })`,
  *   lista em `ofereceConsultas` do manifesto e implementa na API (`ModuloApi.consultas` com `implementarConsulta`) e, se
- *   valer offline, no aparelho (`ModuloShell.consultas` com `implementarConsultaAparelho`, lendo só as próprias entidades).
+ *   valer offline, no aparelho (`ModuloShell.consultas` com `implementarConsultaAparelho`, lendo só as próprias entidades
+ *   e as dos módulos de `depende` do dono, só leitura; T-0084).
  * - O CONSUMIDOR lista em `usaConsultas` (dono em `depende` ou `opcionais`) ou, sem aresta de dependência (evita ciclo,
  *   ADR 0019), em `usaConsultasOpcionais`, e chama `tx.consultar(def, entrada)` dentro do
  *   próprio `comTenant` (mesma transação, tenant e RLS) ou, no aparelho, `ambiente.consultar(def, entrada)`.
@@ -18,6 +19,7 @@ import type { AmbienteAparelho, AmbienteModulo, UsuarioAmbiente } from './ambien
 import type { DefinicaoConsulta } from './consultas-tipos';
 import { consultasDeclaradas, type Manifesto } from './manifesto';
 import { lerNomeConsulta, type ModuloId } from './nomes';
+import type { ValorCampoLinha } from './motor-sync';
 
 export type { DefinicaoConsulta } from './consultas-tipos';
 
@@ -82,12 +84,33 @@ export async function executarConsulta<E extends z.ZodTypeAny, S extends z.ZodTy
 // ---------- aparelho ----------
 
 /**
- * O que a implementação da consulta no aparelho recebe: leitura SÓ das entidades locais do próprio módulo (linhas do
- * pull), o relógio, o usuário logado e os parâmetros do próprio módulo (última sessão; valem offline).
+ * O que a implementação da consulta no aparelho recebe: leitura das entidades locais (linhas do pull) do próprio módulo
+ * e dos módulos em `depende` do dono (T-0084: `catalogo.busca_produtos@1` lê o `produto` do Core), o relógio, o usuário
+ * logado e os parâmetros do próprio módulo (última sessão; valem offline). Só leitura; nada de fila nem de sobreposição.
+ *
+ * - Entidade de módulo fora de {dono} ∪ `depende` (inclusive `opcionais` e donos de `usaConsultasOpcionais`) ou sem dono
+ *   registrado no shell = erro de programação (`Error`): para ler outro módulo opcional, use a consulta dele.
+ * - Módulo de `depende` inativo para o usuário (não deveria acontecer: a licença ativa as dependências junto, RN-CORE-03)
+ *   = `ConsultaIndisponivel`.
  */
 export interface ContextoConsultaAparelho {
   linhas<L extends { id: string } = { id: string; updated_at: string }>(entidade: string): Promise<L[]>;
   linhasPorIds<L extends { id: string } = { id: string; updated_at: string }>(entidade: string, ids: readonly string[]): Promise<L[]>;
+  /**
+   * Linhas com `<campo>` de primeiro nível igual a um dos `valores` (igual a `motor.linhasPorCampo`, ADR 0003 T-0052-B4):
+   * comparação estrita de tipo, repetidos/`null`/NaN ignorados, sem ordem garantida, campo fora de `[a-z][a-z0-9_]*` = erro.
+   */
+  linhasPorCampo<L extends { id: string } = { id: string; updated_at: string }>(
+    entidade: string,
+    campo: string,
+    valores: readonly ValorCampoLinha[],
+  ): Promise<L[]>;
+  /**
+   * Versão opaca das linhas locais da entidade (igual a `motor.versaoLinhas`): compare só com `===`; única no processo
+   * (troca de usuário, limpeza ou nova geração = outro número), então serve de chave de memória GLOBAL do módulo.
+   * Leia ANTES das linhas e guarde o derivado com ela.
+   */
+  versaoLinhas(entidade: string): number;
   agora(): Date;
   usuario(): UsuarioAmbiente | null;
   parametros(): Readonly<Record<string, unknown>>;
@@ -113,6 +136,8 @@ export interface FontesConsultaAparelho {
   donoDaEntidade(entidade: string): ModuloId | undefined;
   linhas<L extends { id: string }>(entidade: string): Promise<L[]>;
   linhasPorIds<L extends { id: string }>(entidade: string, ids: readonly string[]): Promise<L[]>;
+  linhasPorCampo<L extends { id: string }>(entidade: string, campo: string, valores: readonly ValorCampoLinha[]): Promise<L[]>;
+  versaoLinhas(entidade: string): number;
   agora(): Date;
   usuario(): UsuarioAmbiente | null;
   parametros(modulo: ModuloId): Readonly<Record<string, unknown>>;
@@ -138,6 +163,8 @@ export function criarRegistroConsultasAparelho(
   const problemas: string[] = [];
   const impls = new Map<string, ImplementacaoConsultaAparelho>();
   const usadas = new Set(modulos.flatMap((m) => consultasDeclaradas(m.manifesto)));
+  /** Dono da consulta → módulos cujas entidades a implementação lê: ele e os de `depende` (nunca os `opcionais`). */
+  const legiveis = new Map<ModuloId, readonly ModuloId[]>(modulos.map((m) => [m.manifesto.id, [m.manifesto.id, ...m.manifesto.depende]]));
   for (const m of modulos) {
     const id = m.manifesto.id;
     for (const i of m.consultas ?? []) {
@@ -155,18 +182,30 @@ export function criarRegistroConsultasAparelho(
       const impl = impls.get(def.nome);
       if (!impl || !f.modulosAtivos().includes(def.modulo)) throw new ConsultaIndisponivel(def.nome, def.modulo);
       const dono = def.modulo;
-      const proprias = (entidade: string) => {
-        if (f.donoDaEntidade(entidade) !== dono)
-          throw new Error(`Consulta ${def.nome}: só lê entidades de ${dono} (pediu ${entidade})`);
+      const permitidos = legiveis.get(dono) ?? [dono];
+      /** Só leitura das entidades do dono e dos módulos de `depende` dele que estejam efetivos para o usuário. */
+      const legivel = (entidade: string) => {
+        const de = f.donoDaEntidade(entidade);
+        if (!de || !permitidos.includes(de))
+          throw new Error(`Consulta ${def.nome}: só lê entidades de ${permitidos.join(', ')} (pediu ${entidade}${de ? `, de ${de}` : ''})`);
+        if (de !== dono && !f.modulosAtivos().includes(de)) throw new ConsultaIndisponivel(def.nome, dono);
       };
       const ctx: ContextoConsultaAparelho = {
         linhas: async <L extends { id: string }>(entidade: string) => {
-          proprias(entidade);
+          legivel(entidade);
           return f.linhas<L>(entidade);
         },
         linhasPorIds: async <L extends { id: string }>(entidade: string, ids: readonly string[]) => {
-          proprias(entidade);
+          legivel(entidade);
           return f.linhasPorIds<L>(entidade, ids);
+        },
+        linhasPorCampo: async <L extends { id: string }>(entidade: string, campo: string, valores: readonly ValorCampoLinha[]) => {
+          legivel(entidade);
+          return f.linhasPorCampo<L>(entidade, campo, valores);
+        },
+        versaoLinhas: (entidade: string) => {
+          legivel(entidade);
+          return f.versaoLinhas(entidade);
         },
         agora: () => f.agora(),
         usuario: () => f.usuario(),

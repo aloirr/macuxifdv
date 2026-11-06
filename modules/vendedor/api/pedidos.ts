@@ -107,7 +107,7 @@ async function carregarDetalhe(ctx: ContextoBase, db: ClienteBanco, id: string, 
     await db.query<LinhaItem>(
       `select id, produto_id, produto_sku, produto_nome, quantidade, preco_tabela_cents::float8 as preco_tabela_cents, desconto_pct::float8 as desconto_pct,
               total_cents::float8 as total_cents, unidade, fator, acrescimo_pct::float8 as acrescimo_pct,
-              desconto_unitario_cents::float8 as desconto_unitario_cents, acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, ajuste_em${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
+              desconto_unitario_cents::float8 as desconto_unitario_cents, acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, ajuste_em, aplicacao${FATURAMENTO_LIGADO ? ', quantidade_faturada, quantidade_base' : ''}
          from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
       [id],
     )

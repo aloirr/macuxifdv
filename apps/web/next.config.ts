@@ -13,8 +13,11 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? (DEMO ? 'http://localhost:80
  * `https://<nome>.trycloudflare.com` do modo de reserva. Vale para o `next dev` (allowedDevOrigins) e para a checagem
  * de origem das Server Actions (hoje o BKO não tem nenhuma; fica pronto). Endereço da API: o rewrite `/api-proxy`
  * abaixo (no v1 o navegador só fala com a própria origem; a API não precisa de CORS para o BKO).
+ * Produção (T-0086, ADR 0028): `bko.macuxifdv.com.br` e `config.macuxifdv.com.br` (portal da T-0087, mesmo serviço
+ * `bko:3100` atrás do túnel `macuxi-prod`) entram fixos, então a imagem de produção aceita os dois hosts qualquer que
+ * seja o `MACUXI_BKO_ORIGEM` do build. O roteamento do `config.` para o portal fica no `proxy.ts`.
  */
-export const HOSTS_DO_BKO_PADRAO = ['bko-demo.macuxifdv.com.br'] as const;
+export const HOSTS_DO_BKO_PADRAO = ['bko-demo.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br'] as const;
 
 /** Host (sem esquema, caminho nem porta padrão) de uma origem como `https://bko-demo.macuxifdv.com.br/`; vazio/inválido = null. */
 export function hostDaOrigem(origem: string | undefined | null): string | null {
@@ -26,10 +29,13 @@ export function hostDaOrigem(origem: string | undefined | null): string | null {
   return m[2] && m[2] !== '443' && m[2] !== '80' ? `${host}:${m[2]}` : host;
 }
 
-/** Hosts permitidos: os fixos da demo + o de `MACUXI_BKO_ORIGEM` (sem repetir). */
+/**
+ * Hosts permitidos: os fixos (demo e produção) + os de `MACUXI_BKO_ORIGEM`, sem repetir. A variável aceita uma origem
+ * ou uma lista separada por vírgula (T-0086); item inválido da lista é ignorado.
+ */
 export function hostsDoBko(origem: string | undefined | null): string[] {
-  const extra = hostDaOrigem(origem);
-  return [...new Set<string>([...HOSTS_DO_BKO_PADRAO, ...(extra ? [extra] : [])])];
+  const extras = (origem ?? '').split(',').map(hostDaOrigem).filter((h): h is string => h !== null);
+  return [...new Set<string>([...HOSTS_DO_BKO_PADRAO, ...extras])];
 }
 
 const HOSTS = hostsDoBko(process.env.MACUXI_BKO_ORIGEM);

@@ -64,6 +64,8 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   'headers["x-macuxi-conector-id"]',
   'headers["x-macuxi-conector-versao"]',
   'cabecalhos.authorization',
+  // T-0087: `ctx.cabecalhos` das rotas públicas registrado por engano (o objeto já se serializa censurado; isto é reforço)
+  '*.cabecalhos.authorization',
   'cabecalhos.cookie',
   'cabecalhos["x-macuxi-conector-id"]',
   'req.headers.authorization',
@@ -71,6 +73,21 @@ export const CAMINHOS_REDIGIDOS_LOG: readonly string[] = [
   'req.headers["x-macuxi-conector-id"]',
   'authorization',
   'chave',
+  // ADR 0029 (T-0087): segredos do super-admin, se alguém registrar o corpo por engano (o Core não registra)
+  'senha',
+  'convite',
+  // `codigo` solto fica de fora: é o código de erro dos logs (ex.: `modulo_inativo`); o TOTP só vem no corpo
+  'codigo_recuperacao',
+  'codigos_recuperacao',
+  'segredo_base32',
+  'otpauth_uri',
+  'token',
+  'desafio',
+  'corpo.senha',
+  'corpo.convite',
+  'corpo.codigo',
+  'corpo.codigo_recuperacao',
+  'corpo.desafio',
 ];
 
 export function opcoesLogger(nivel: string) {

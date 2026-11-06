@@ -5,18 +5,20 @@
  * - API real (padrão): código da empresa + e-mail + senha (`POST /v1/auth/login` do Core, contrato
  *   `LoginSenhaRequestSchema`/`SessaoRespostaSchema`). Só entram admin, analista, assistente, supervisor e gerente:
  *   promotor e vendedor recebem o aviso do app certo e a sessão recém-criada é encerrada (doc 03). O código da
- *   empresa fica salvo no navegador. Mensagens: `lib/login.ts`.
+ *   empresa fica salvo no navegador. Mensagens: `lib/login.ts`. Vindo do aceite do convite (`/convite/<token>`), o e-mail chega
+ *   preenchido (uma vez, pelo `sessionStorage`).
  * - Demonstração (`NEXT_PUBLIC_API_MODO=demo`, mock-api da Fase M): escolher um usuário fictício sem senha; o papel
  *   em inglês vira o perfil do doc 03 (`perfilDaFaseM`) e só aparecem perfis do BKO.
  * testIDs do login real: login.tela, login.codigo-empresa, login.email, login.senha, login.entrar, login.erro.
  */
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoginSenhaRequestSchema, SessaoRespostaSchema, type FakeUser, type LoginResponse } from '@macuxi/core/contracts';
 import { mensagemPerfilForaDoApp, PERFIS_DO_APP, ROTULO_PERFIL, type Perfil } from '@macuxi/platform-sdk';
 import { api, errorMessage, MODO_API } from '@macuxi/platform-sdk/web';
 import { Button, ErrorBlock, IconChevronRight, LoadingBlock, Notice } from '@macuxi/ui/web';
+import { CHAVE_EMAIL_DO_CONVITE } from '@/lib/convite';
 import { CHAVE_CODIGO_EMPRESA, mensagemDoLogin, validarCampos, type CamposLogin } from '@/lib/login';
 import { salvarSessao, salvarSessaoReal, usuarioDaFaseM } from '@/lib/session';
 
@@ -62,11 +64,24 @@ function LoginReal() {
   const [erros, setErros] = useState<Partial<Record<keyof CamposLogin, string>>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [entrando, setEntrando] = useState(false);
+  const [vindoDoConvite, setVindoDoConvite] = useState(false);
+  const refs = useRef<Partial<Record<keyof CamposLogin, HTMLInputElement | null>>>({});
+  // vindo do convite, código e e-mail já preenchidos: o foco vai à senha (revisão de UX R-20261106-050553 Y11)
+  useEffect(() => {
+    if (vindoDoConvite) refs.current.senha?.focus();
+  }, [vindoDoConvite]);
 
   useEffect(() => {
     try {
       const salvo = window.localStorage.getItem(CHAVE_CODIGO_EMPRESA);
       if (salvo) setCampos((c) => (c.codigo_empresa ? c : { ...c, codigo_empresa: salvo }));
+      // depois do aceite do convite (T-0087 fatia E): o e-mail vem uma vez pela aba e some
+      const email = window.sessionStorage.getItem(CHAVE_EMAIL_DO_CONVITE);
+      if (email) {
+        window.sessionStorage.removeItem(CHAVE_EMAIL_DO_CONVITE);
+        setCampos((c) => (c.email ? c : { ...c, email }));
+        setVindoDoConvite(true);
+      }
     } catch {
       // navegador sem storage
     }
@@ -80,7 +95,12 @@ function LoginReal() {
     const e = validarCampos(campos);
     setErros(e);
     setErro(null);
-    if (Object.keys(e).length > 0) return;
+    if (Object.keys(e).length > 0) {
+      // foco no primeiro campo com erro (Y10)
+      const primeiro = (['codigo_empresa', 'email', 'senha'] as const).find((n) => e[n]);
+      if (primeiro) refs.current[primeiro]?.focus();
+      return;
+    }
     setEntrando(true);
     try {
       const corpo = LoginSenhaRequestSchema.parse({ codigo_empresa: campos.codigo_empresa.trim(), email: campos.email.trim(), senha: campos.senha });
@@ -115,13 +135,21 @@ function LoginReal() {
       <input
         data-testid={`login.${nome === 'codigo_empresa' ? 'codigo-empresa' : nome}`}
         name={nome}
+        ref={(el) => {
+          refs.current[nome] = el;
+        }}
         value={campos[nome]}
         onChange={mudar(nome)}
         aria-invalid={erros[nome] ? true : undefined}
+        aria-describedby={erros[nome] ? `login-erro-${nome}` : undefined}
         className={campoCss}
         {...props}
       />
-      {erros[nome] && <span className="text-[12px] text-danger">{erros[nome]}</span>}
+      {erros[nome] && (
+        <span id={`login-erro-${nome}`} className="text-[12px] text-danger">
+          {erros[nome]}
+        </span>
+      )}
     </label>
   );
 
@@ -133,6 +161,11 @@ function LoginReal() {
           <h1 className="m-0 font-display text-[28px] font-extrabold">Entrar</h1>
           <span className="text-[13px] text-ink-2">Use o código da sua empresa, o seu e-mail e a sua senha.</span>
         </div>
+        {vindoDoConvite && !erro && (
+          <div data-testid="login.senha-criada">
+            <Notice tone="success">Senha criada. Digite a senha para entrar.</Notice>
+          </div>
+        )}
         {erro && (
           <div data-testid="login.erro">
             <Notice tone="danger">{erro}</Notice>

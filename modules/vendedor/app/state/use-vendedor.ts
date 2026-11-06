@@ -9,9 +9,9 @@
  *  - Demonstração (mock-api da Fase M): as cargas REST de `etapas.ts` alimentam o armazenamento do módulo, como antes.
  * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
-import { CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
+import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import type { CustomerSummary } from '@macuxi/core/contracts';
-import { ehSemConexao } from '@macuxi/platform-sdk';
+import { ehConsultaIndisponivel, ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -24,6 +24,9 @@ import { copiaDoDetalhe, copiaDoPayload, rascunhoDaCopia, reconferirDocumento, t
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { embalagensDaConsulta, linhasParaPush } from '../lib/novo-pedido';
+import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
+import { idsSemTexto } from '../../domain/busca-seletor';
+import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
 import {
   aceitosComoPedidos,
@@ -269,6 +272,7 @@ export function useVendedor() {
               itensConsulta.push(it);
             }
           }
+          // T-0084 §12 (RN-VEN-19): a aplicação NÃO é carregada aqui (tabela inteira); a tela lê só dos itens visíveis (textosDeProdutos)
           const items = produtosComPrecos(linhasRef.current, precos);
           await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora, embalagens: embalagensDaConsulta(itensConsulta) } }));
           await recarregar();
@@ -338,7 +342,9 @@ export function useVendedor() {
       if (!pol) throw new Error('Alçadas ainda não estão no aparelho. Sincronize com sinal e tente de novo.');
       const editado = editId ? dadosRef.current.pedidos.find((o) => o.id === editId) ?? null : null;
       const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
-      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens });
+      // RN-VEN-35/10: pedido em nome valida pela alçada do gestor (supervisor/gerente) e dispensa o vendedor logado
+      const emNome = !editId && rascunho.vendedor_em_nome_id && usuario ? { vendedor_id: rascunho.vendedor_em_nome_id, perfil_autor: usuario.perfil ?? '', ...(rascunho.vendedor_em_nome_nome ? { nome: rascunho.vendedor_em_nome_nome } : {}) } : null;
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, emNome, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosRef.current), max: aplicacaoMaxOrcamento(parametrosRef.current) } });
     },
     [v1, usuario],
   );
@@ -413,7 +419,7 @@ export function useVendedor() {
         : det
           ? copiaDoDetalhe(det, { condicaoId: v1 ? (linhaPedido?.condicao_pagamento_id ?? null) : null, observacao: linhaPedido?.observacao ?? null, transportadoras: unidadesTransportadoras() })
           : null;
-      const c = copia ? rascunhoDaCopia(copia, catalogo) : null;
+      const c = copia ? rascunhoDaCopia(copia, catalogo, { manterAplicacao: modo === 'edit' }) : null;
       const r = c ? null : prefillLines(src.lines, catalogo);
       const linhasDoRascunho = c ? c.rascunho.lines : r!.lines;
       const aviso = c ? c.aviso : prefillNotice(r!);
@@ -661,6 +667,44 @@ export function useVendedor() {
     },
     [v1, ambiente],
   );
+  /**
+   * T-0084 C9 (RN-CAT-12): busca do seletor pelo ranking do Catálogo, com "Serve em". `reserva` = só `ConsultaIndisponivel`
+   * (aparelho sem a leitura liberada pelo SDK): a tela usa a busca local. Qualquer outro erro = `erro` (aparece na tela e vai ao log).
+   */
+  const buscarProdutos = useCallback(
+    async (q: string, produtoIds: string[] | null): Promise<ResultadoBuscaCatalogo> => {
+      if (!v1 || !q.trim()) return { tipo: 'reserva' };
+      return buscarNoCatalogoComReserva(
+        () => ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(produtoIds ? { produto_ids: produtoIds } : {}), limite: 100 }),
+        ehConsultaIndisponivel,
+        (m, extra) => console.warn(m, extra),
+      );
+    },
+    [v1, ambiente],
+  );
+  /** T-0084 §12 (RN-VEN-19): aplicação só dos ids pedidos (≤ 500 por consulta), com cache em memória; falha = sem texto, o preço segue. */
+  const cacheTextos = useRef(new Map<string, string | null>());
+  const textosDeProdutos = useCallback(
+    async (ids: string[]): Promise<Map<string, string>> => {
+      const falta = idsSemTexto(ids, cacheTextos.current);
+      if (v1 && falta.length > 0) {
+        try {
+          const r = await ambiente.consultar(CONSULTA_TEXTOS_PRODUTO, { produto_ids: falta });
+          for (const id of falta) cacheTextos.current.set(id, null);
+          for (const it of r.itens) cacheTextos.current.set(it.produto_id, it.aplicacao ?? null);
+        } catch {
+          // sem aplicação agora; tenta de novo na próxima busca
+        }
+      }
+      const out = new Map<string, string>();
+      for (const id of ids) {
+        const tx = cacheTextos.current.get(id);
+        if (tx) out.set(id, tx);
+      }
+      return out;
+    },
+    [v1, ambiente],
+  );
   const preVendaLigada = v1 && preVendaAtiva(parametros);
 
   const acoesDe = (status: string) => orderActions(status as OrderStatus);
@@ -702,6 +746,8 @@ export function useVendedor() {
     converterOrcamento,
     reconferirOrcamentoLocal,
     sugestoesDoPedido,
+    buscarProdutos,
+    textosDeProdutos,
     preVendaLigada,
     prepararRascunhoDoPedido,
     salvarEdicao,

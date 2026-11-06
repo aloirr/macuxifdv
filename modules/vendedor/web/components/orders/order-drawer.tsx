@@ -217,7 +217,10 @@ export function OrderDrawer({ order, tz, onClose }: { order: Order | null; tz: s
                       {dados.items.map((it) => (
                         <tr key={it.id}>
                           <td className={`${td} font-mono whitespace-nowrap`}>{it.erp_code}</td>
-                          <td className={td}>{it.description}</td>
+                          <td className={td}>
+                            {it.description}
+                            {it.application ? <span className="block text-[12px] text-ink-2" data-testid={`aplicacao-${it.erp_code}`}>Aplicação: {it.application}</span> : null}
+                          </td>
                           <td className={`${td} whitespace-nowrap`}>{it.unit_label || 'UN'}</td>
                           <td className={tdNum}>{it.quantity}</td>
                           <td className={`${tdNum} whitespace-nowrap`}>{formatBRL(it.unit_price_cents)}</td>

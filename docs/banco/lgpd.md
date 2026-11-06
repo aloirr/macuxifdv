@@ -62,7 +62,8 @@ quando, qual tenant). A aplicação não executa estas funções: `macuxi_app` e
 4. **O que cada função faz.** Os ids ficam: pedidos, títulos, notas e históricos continuam ligados ao registro anonimizado.
    O `updated_at` anda e o `deleted_at` é preenchido, então o próximo sync remove o registro do aparelho.
    - usuário: nome "Usuário anonimizado", e-mail fictício único (`anonimizado-<id>@anonimizado.invalid`), sem senha e sem
-     `external_id`, inativo e bloqueado. Revoga todas as sessões. Bloqueia os aparelhos, sem nome (RN-CORE-15: o aparelho
+     `external_id` e sem telefone (0036), inativo e bloqueado. Revoga todas as sessões e os convites de 1º acesso pendentes
+     (0036: item `core.usuario_convite`; o link deixa de valer). Bloqueia os aparelhos, sem nome (RN-CORE-15: o aparelho
      apaga os dados locais). Anula as coordenadas de check-in e checkout das visitas dele;
    - cliente: razão social "Cliente anonimizado". Tira fantasia, CPF/CNPJ, IE, telefone, e-mail, endereço, coordenadas,
      observação e `external_id`. Ficam cidade, UF e segmento, para os números. Anonimiza todos os contatos e endereços dele

@@ -40,6 +40,8 @@ export const manifest = defineModule({
     'produto_atributo',
     'produto_midia',
     'produto_conteudo',
+    // referência cruzada do concorrente (RN-CAT-09, T-0085); a marca vem do cadastro de concorrentes do Promotor
+    'produto_referencia',
     'sinonimo',
     // árvore do catálogo (RF-CAT-04, T-0061; nomes e níveis do ERP)
     'catalogo_no',
@@ -54,9 +56,12 @@ export const manifest = defineModule({
   // T-0076: não contribui mais com 'cliente.acoes' (o "Ver catálogo" saiu do Cliente 360)
   usaExtensoes: [],
   // ADR 0012: o Vendedor lê o preço da tabela do cliente por consulta, nunca pela tabela (T-0029)
-  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1'],
+  // T-0084: textos (aplicação e referências) e busca do seletor do Novo pedido, com o mesmo ranking da vitrine
+  ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1'],
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
   usaConsultas: ['core.cadastro_resumo@1'],
+  // ADR 0027: marcas da referência cruzada pelo cadastro de concorrentes do Promotor; sem o Promotor a consulta fica indisponível
+  usaConsultasOpcionais: ['promotor.concorrentes@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },

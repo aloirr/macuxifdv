@@ -11,15 +11,17 @@
 #     um POST com o texto. O arquivo fica fora do git (chmod 600), como os outros .env da VM.
 # Só leitura: não reinicia nada, não mexe no Postgres.
 #
-# Instalação na VM (uma vez, como root), depois do implantar.sh:
-#   install -m 755 alerta-saude.sh /opt/macuxi/alerta-saude.sh
-#   echo '*/5 * * * * root /opt/macuxi/alerta-saude.sh' > /etc/cron.d/macuxi-alerta
+# Instalação: pelo DEPLOY, não à mão (T-0086; R-20261105-213451-testes). O preparar-vm.sh da demo e o da produção
+# (scripts/deploy/{demo,producao}/preparar-vm.sh) copiam este arquivo para /opt/macuxi/alerta-saude.sh e ligam o timer do
+# systemd macuxi-alerta.timer (a cada 5 min, como o usuário de deploy). Conferir: systemctl list-timers macuxi-alerta.timer.
+# MACUXI_ALERTA_NOME (padrão demo) entra no texto do aviso: "Macuxi <nome>: ..." (a produção usa producao).
 # Teste manual: /opt/macuxi/alerta-saude.sh --mostrar   (imprime o estado e o corpo, sem avisar)
 set -u
 
 URL="${MACUXI_SAUDE_URL:-http://127.0.0.1:8100/v1/saude}"
 ESTADO_ARQ="${MACUXI_ALERTA_ESTADO:-/var/tmp/macuxi-alerta.estado}"
 ENV_ARQ="${MACUXI_ALERTA_ENV:-/opt/macuxi/alerta.env}"
+NOME="${MACUXI_ALERTA_NOME:-demo}"
 
 corpo="$(curl -fsS -m 10 "$URL" 2>/dev/null)"
 if [ -z "$corpo" ]; then
@@ -42,7 +44,7 @@ anterior="$(cat "$ESTADO_ARQ" 2>/dev/null || echo "desconhecido")"
 [ "$estado" = "$anterior" ] && exit 0
 printf '%s' "$estado" > "$ESTADO_ARQ"
 
-texto="Macuxi demo: ${anterior} -> ${estado} (${detalhe}) em $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+texto="Macuxi ${NOME}: ${anterior} -> ${estado} (${detalhe}) em $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 logger -t macuxi-alerta "$texto" 2>/dev/null || echo "$texto" >&2
 
 if [ -f "$ENV_ARQ" ]; then
