@@ -270,3 +270,8 @@
 2026-11-05 — status — status das 20h por recado
 2026-11-05 — T-0071/T-0052 — APKs do 0263f9f (Campo 3a3193bc, Gestão 5ad333d0) enviados ao Alexandre com o roteiro do Adicionar ao pedido
 2026-11-05 — T-0084/T-0085 — abertas a partir de R-20261105-110150, R-20261105-112117 e R-20261105-191229; regras no doc 02/03 (RN-CAT-08 ocupada → Aplicação = RN-CAT-11, busca = RN-CAT-12); selo roxo; job do CI sem superusuário e checagem do trailer autorizados → engenheiro-software; pedido em nome do vendedor → modulo-vendedor; T-0078 → testes valida
+2026-11-05 — T-0084/T-0085 — lote S (coordenação e docs) no main (0263f9f..a78ce03), CI verde no commit exato
+2026-11-05 — T-0084/T-0085 — plano PARALELO por ordem do Alexandre: migração única (banco-dados), fatias A e B locais (até 24h), C e D na nuvem (até 6h de 06/11) com prompts enviados (R abaixo) e travas no quadro; concorrente pelo contrato do Promotor (ADR curta)
+2026-11-05 — T-0084/T-0085 — desenho pronto (R-20261105-213006); ADR 0027 contrariava a ordem do Alexandre (concorrentes no Core) → corrigida: concorrentes ficam no Promotor, o Catálogo lê pelo contrato; doc 06 com aplicação, referências (marca_external_id|marca_nome) e oferece junto; RN-CAT-09 com o limite de 5 do oferece junto; banco-dados na migração única 0033
+2026-11-05 — T-0078 — validada pelo testes (R-20261105-213805): 2, 3, 5 e 6 ✅, 4 ✅ com ressalva (cron do alerta na VM sem prova), 1 🟡 (checklist atrás das provas, comigo); T-0084/T-0085: modulo-catalogo começa domain e contratos de A e B
+2026-11-05 — T-0078 — checklist de segurança atualizado com as provas (C1, G2 ✅; G4 🟡)
