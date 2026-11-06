@@ -1,7 +1,7 @@
 /**
  * 0036 — core.usuario_convite, core.usuario.telefone e anonimizar_usuario com convites (T-0087 fatia E, RN-CORE-31; desenho
  * docs/modulos/core/equipe-csv.md; pedido R-20261106-034446-modulo-core). O que o BANCO garante: só o SHA-256 hex do token
- * (CHECK de formato, único GLOBAL), no máximo 1 convite pendente por usuário, usado e revogado exclusivos, autor coerente
+ * (CHECK de formato, único por tenant), no máximo 1 convite pendente por usuário, usado e revogado exclusivos, autor coerente
  * (id + tipo, sem FK), RLS por tenant com grant select/insert/update ao macuxi_app (sem delete), nada ao macuxi_worker,
  * fora do sync e SEM função SECURITY DEFINER nova (o tenant vem no token). anonimizar_usuario apaga o telefone e revoga os
  * convites pendentes. Down volta exatamente ao catálogo da 0035.
@@ -36,14 +36,14 @@ describe('0036 core.usuario_convite (estático)', () => {
     expect(nomes[nomes.indexOf('0035_plataforma_super_admin') + 1]).toBe('0036_core_usuario_convite');
   });
 
-  it('tabela com FK composta, hash SHA-256, único global do hash e pendente único por usuário', () => {
+  it('tabela com FK composta, hash SHA-256, único (tenant_id, token_hash) e pendente único por usuário', () => {
     const sql = semComentarios(m36.up);
     expect(sql).toContain('constraint usuario_convite_usuario_fk foreign key (tenant_id, usuario_id) references core.usuario (tenant_id, id)');
     expect(sql).toContain("constraint usuario_convite_token_hash_sha256 check (token_hash ~ '^[0-9a-f]{64}$')");
     expect(sql).toContain('constraint usuario_convite_usado_ou_revogado check (usado_em is null or revogado_em is null)');
     expect(sql).toContain("check (criado_por_tipo is null or criado_por_tipo in ('usuario', 'super_admin'))");
     expect(sql).toContain('check ((criado_por_id is null) = (criado_por_tipo is null))');
-    expect(sql).toContain('create unique index usuario_convite_token_uk on core.usuario_convite (token_hash);');
+    expect(sql).toContain('create unique index usuario_convite_token_uk on core.usuario_convite (tenant_id, token_hash);');
     expect(sql).toMatch(/create unique index usuario_convite_pendente_uk on core\.usuario_convite \(tenant_id, usuario_id\)\s+where usado_em is null and revogado_em is null and deleted_at is null;/);
     // sem FK do autor (usuário do tenant OU super-admin de plataforma, como o ator_id da 0035)
     expect(sql).not.toMatch(/criado_por_id\)? references/);
@@ -174,8 +174,11 @@ describe.skipIf(semBanco())('0036 core.usuario_convite (banco, papel de aplicaç
     expect(await erro(A.tenantId, fn)).toMatchObject({ code: '23514', message: expect.stringContaining(restricao) });
   });
 
-  it('hash único GLOBAL (o mesmo hash em outro tenant = 23505) e FK composta (usuário de B em A = 23503)', async () => {
-    expect(await erro(B.tenantId, () => inserir(B.usuarios.admin, C.A.pendente.hash))).toMatchObject({ code: '23505', message: expect.stringContaining('usuario_convite_token_uk') });
+  it('hash único POR TENANT (o mesmo hash no mesmo tenant = 23505; em outro tenant não colide nem revela o alheio) e FK composta (usuário de B em A = 23503)', async () => {
+    expect(await erro(A.tenantId, () => inserir(A.usuarios.gerente, C.A.pendente.hash))).toMatchObject({ code: '23505', message: expect.stringContaining('usuario_convite_token_uk') });
+    await emTransacao(app, B.tenantId, async () => {
+      expect((await inserir(B.usuarios.admin, C.A.pendente.hash)).rowCount).toBe(1);
+    });
     expect(await erro(A.tenantId, () => inserir(B.usuarios.admin, sha('fk')))).toMatchObject({ code: '23503' });
   });
 

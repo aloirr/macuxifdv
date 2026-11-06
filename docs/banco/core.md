@@ -483,7 +483,7 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 |---|---|---|
 | comuns da regra 5 | | `id`, `tenant_id` (FK `plataforma.tenant`), `created_at`, `updated_at` (gatilho `usuario_convite_updated_at`), `deleted_at`, `external_id` |
 | usuario_id | uuid not null | FK composta `usuario_convite_usuario_fk (tenant_id, usuario_id) → core.usuario` |
-| token_hash | text not null | sha256 **hex** (minúsculas) do segredo (CHECK `usuario_convite_token_hash_sha256`); **único global** (`usuario_convite_token_uk`). O admin recebe uma vez o token `<tenant_id>.<segredo>` (32 bytes base64url), como o refresh da `sessao`; o banco nunca vê o segredo |
+| token_hash | text not null | sha256 **hex** (minúsculas) do segredo (CHECK `usuario_convite_token_hash_sha256`); **único por tenant** (`usuario_convite_token_uk (tenant_id, token_hash)`, como o `sessao_token_uk`; regra 5 do S0-023). O admin recebe uma vez o token `<tenant_id>.<segredo>` (32 bytes base64url), como o refresh da `sessao`; o banco nunca vê o segredo |
 | expira_em | timestamptz not null | prazo da API (7 dias, RN-CORE-31); o banco não amarra ao `created_at` |
 | usado_em | timestamptz | aceite (senha definida). Exclusivo com `revogado_em` (CHECK `usuario_convite_usado_ou_revogado`) |
 | revogado_em | timestamptz | renovação (o link anterior deixa de valer) ou anonimização |
@@ -495,7 +495,7 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - Aceite (rota pública `POST /v1/auth/convite/aceitar`): a API tira o tenant do token, abre o contexto do tenant e faz
   `select … where token_hash = $1 for update` + `update … set usado_em` na mesma transação, sob RLS. **Sem função SECURITY
   DEFINER** (nada novo em `DEFINER_REVISADAS`).
-- Índices: `usuario_convite_token_uk` (aceite), `usuario_convite_pendente_uk` (lista de pendentes, renovação),
+- Índices: `usuario_convite_token_uk (tenant_id, token_hash)` único (aceite: o `tenant_id` vem da política RLS), `usuario_convite_pendente_uk` (lista de pendentes, renovação),
   `usuario_convite_usuario_ix (tenant_id, usuario_id)` (histórico do usuário, FK, revogação). Volume: centenas por tenant.
 - RLS: enable + force, `isolamento_tenant` e `manutencao` (0031); `macuxi_app` com select/insert/update (**sem delete**:
   convite se revoga); `macuxi_worker` sem acesso. Fora de `TABELAS_SYNC` (`TABELAS_FORA_DO_SYNC`).

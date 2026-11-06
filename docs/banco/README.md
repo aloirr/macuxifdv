@@ -60,7 +60,7 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > Detalhes no [plataforma.md](plataforma.md) ("Super-admin de plataforma") e no [rls.md](rls.md).
 >
 > **2026-11-06 (T-0087 fatia E):** `0036_core_usuario_convite` (aditiva; RN-CORE-31): `core.usuario_convite` (convite de 1º acesso
-> por link, só o sha256 do segredo, único global, no máximo 1 pendente por usuário, autor `criado_por_id`/`criado_por_tipo` sem FK;
+> por link, só o sha256 do segredo, único por tenant `(tenant_id, token_hash)`, no máximo 1 pendente por usuário, autor `criado_por_id`/`criado_por_tipo` sem FK;
 > fora do sync; app sem DELETE; **sem SECURITY DEFINER**: o tenant vem no token), `core.usuario.telefone` e
 > `anonimizar_usuario` apagando o telefone e revogando os convites. Detalhes no [core.md](core.md) ("0036").
 

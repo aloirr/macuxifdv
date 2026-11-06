@@ -6,8 +6,8 @@
 --
 -- core.usuario_convite: convite de 1º acesso, de USO ÚNICO, entregue por LINK (sem e-mail na plataforma). O token
 --   (`<tenant_id>.<segredo>`, segredo de 32 bytes em base64url, como o refresh da 0004) aparece uma vez na resposta da API ao
---   admin/super-admin; o banco guarda SÓ o SHA-256 hex do segredo (token_hash, CHECK de formato, ÚNICO GLOBAL). O tenant vem no
---   próprio token, então a API localiza o convite DENTRO do contexto do tenant, sob RLS: NENHUMA função SECURITY DEFINER nova.
+--   admin/super-admin; o banco guarda SÓ o SHA-256 hex do segredo (token_hash, CHECK de formato, ÚNICO POR TENANT em
+--   (tenant_id, token_hash), como o sessao_token_uk da 0004 e a regra 5 do S0-023). O tenant vem no próprio token, então a API localiza o convite DENTRO do contexto do tenant, sob RLS: NENHUMA função SECURITY DEFINER nova.
 --   Consumo atômico pela API: `select … for update` + `update … set usado_em` na mesma transação (uso único).
 --   Prazo (7 dias, RN-CORE-31) e renovação são da API: o banco não amarra expira_em nem usado_em ao created_at (o relógio da
 --   API e o simulado dos testes podem divergir do now() do banco). Renovar = revogar o pendente e inserir outro, NESSA ordem:
@@ -20,7 +20,7 @@
 --   RLS: enable + force + isolamento_tenant (macuxi_app) + manutencao (0031). macuxi_app: select, insert, update (SEM delete:
 --   convite não se apaga, se revoga). macuxi_worker: sem acesso.
 --   Volume: centenas por tenant (1 por pessoa da equipe + renovações). Consultas: por token_hash no aceite (rota pública, pouco
---   frequente: usuario_convite_token_uk); pendentes do tenant e por usuário na lista e na renovação
+--   frequente: usuario_convite_token_uk, com o tenant_id da política RLS + token_hash); pendentes do tenant e por usuário na lista e na renovação
 --   (usuario_convite_pendente_uk, usuario_convite_usuario_ix).
 -- core.usuario.telefone (text, null): telefone do CSV da Equipe (dado pessoal; a API valida o formato no domain do Core). CHECK
 --   só de tamanho: null, ou não vazio e até 30 caracteres. Sem índice. Fora do pull do usuário (o Core seleciona as colunas).
@@ -60,7 +60,7 @@ create table core.usuario_convite (
   constraint usuario_convite_criado_por_tipo_valido check (criado_por_tipo is null or criado_por_tipo in ('usuario', 'super_admin')),
   constraint usuario_convite_criado_por_par check ((criado_por_id is null) = (criado_por_tipo is null))
 );
-create unique index usuario_convite_token_uk on core.usuario_convite (token_hash);
+create unique index usuario_convite_token_uk on core.usuario_convite (tenant_id, token_hash);
 create unique index usuario_convite_pendente_uk on core.usuario_convite (tenant_id, usuario_id)
   where usado_em is null and revogado_em is null and deleted_at is null;
 create index usuario_convite_usuario_ix on core.usuario_convite (tenant_id, usuario_id);

@@ -201,7 +201,7 @@ export const CRIADO_POR_CONVITE = ['usuario', 'super_admin'] as const;
 
 /**
  * Convite de 1º acesso (0036, T-0087, RN-CORE-31). Fora do sync. Token `<tenant_id>.<segredo>`: aqui SÓ o SHA-256 hex do
- * segredo (único global, usuario_convite_token_uk). Uso único: no máximo 1 pendente (não usado, não revogado, não apagado) por
+ * segredo (único por tenant, usuario_convite_token_uk em (tenant_id, token_hash)). Uso único: no máximo 1 pendente (não usado, não revogado, não apagado) por
  * usuário (usuario_convite_pendente_uk) — renovar = revogar o pendente e DEPOIS inserir o novo. usado_em e revogado_em se
  * excluem. Prazo de 7 dias definido pela API (o banco não amarra expira_em ao created_at). criado_por_id sem FK (usuário do
  * tenant ou super-admin, conforme criado_por_tipo; os dois nulos = carga). macuxi_app: select, insert, update (sem delete).
