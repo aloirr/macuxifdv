@@ -9,6 +9,10 @@
 - [T-0010](../.coord/tarefas/T-0010.md) — Promotor: domínio de trade marketing (em revisão)
 
 ## Futuro
+- **Kit de UI depois do portal (T-0087, 06/11):** os componentes Tabs (já são 5 cópias), Progress e ButtonLink em `packages/ui` (designer-ux), mais os 🟡 e 🟢 restantes da revisão de UX do portal (R-20261106-023316).
+- **Carga por arquivo, parâmetros do tenant no `aplicar-lote` (T-0087, 06/11):** o prazo da sessão já vem do tenant. Ainda usam o padrão fixo, e não o parâmetro do tenant, o `limitePct` e o `ttlConfirmacao` da inativação (modulo-integracao).
+- **Seletor de clientes do pedido em nome (T-0084, 06/11):** filtrar pela carteira do vendedor dono, sugestão 🟢 do engenheiro-apps. A RN-VEN-35 não diz se é regra, e a decisão fica com o Alexandre.
+- **Referência cruzada sem o Promotor (T-0085, 06/11):** um tenant ou usuário sem o Promotor fica sem marcas (riscos 1 e 2 da ADR 0027). O `marca_nome` da 0034 resolve a exibição. Para cadastrar referências sem o Promotor, a decisão fica com o Alexandre.
 - **Etapa pendente — resto (T-0039, 05/11)**:
   - botão "Ver fila" no aviso da ficha, junto com o "Descartar" da fila (§4.2 de docs/design/checkout-pendencia.md); depende do caminho do shell até a seção Fila do Perfil;
   - aviso no app Gestão (§2.2), que hoje não guarda as visitas da equipe (a notificação do §2.1 já cobre);
