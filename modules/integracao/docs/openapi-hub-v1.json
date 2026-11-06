@@ -1,0 +1,5551 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Macuxi FDV — Hub de Integração (API do Conector)",
+    "version": "v1",
+    "summary": "API do Hub de Integração com o ERP: lotes, cursores, reconciliação, pedidos e sinal de vida.",
+    "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) está em `modules/integracao/docs/guia-api-hub.md`."
+  },
+  "servers": [
+    {
+      "url": "https://{servidor}/integracao/v1",
+      "description": "Hub de Integração (HTTPS obrigatório). A produção (`api.macuxifdv.com.br`) está reservada; hoje vale o ambiente de demonstração.",
+      "variables": {
+        "servidor": {
+          "default": "api-demo.macuxifdv.com.br",
+          "description": "Servidor da API do Macuxi."
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Lotes",
+      "description": "Envio de dados do ERP (lotes completos e delta), consulta do resultado, cursor e reconciliação diária."
+    },
+    {
+      "name": "Pedidos",
+      "description": "Devolução de pedidos aprovados ao ERP e retorno do ERP (número, rejeição, faturamento, cancelamento)."
+    },
+    {
+      "name": "Conector",
+      "description": "Sinal de vida e política de versão."
+    }
+  ],
+  "security": [
+    {
+      "chaveConector": []
+    }
+  ],
+  "paths": {
+    "/lotes": {
+      "post": {
+        "operationId": "enviar_lote",
+        "summary": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.",
+        "description": "Envia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).",
+        "tags": [
+          "Lotes"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoteEnvelope"
+              },
+              "examples": {
+                "vendedor": {
+                  "summary": "Vendedores (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "vendedor",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "V001"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "V001",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "nome": "Vendedor Exemplo",
+                        "email": "vendedor@example.com",
+                        "telefone": "+55 95 3000-0001"
+                      }
+                    ]
+                  }
+                },
+                "cliente": {
+                  "summary": "Clientes (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "cliente",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "C000123"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "C000123",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "razao_social": "Mercado Exemplo Ltda",
+                        "nome_fantasia": "Mercado Exemplo",
+                        "documento": "11222333000181",
+                        "vendedor_external_id": "V001",
+                        "endereco": {
+                          "logradouro": "Rua das Palmeiras",
+                          "numero": "100",
+                          "bairro": "Centro",
+                          "cidade": "Boa Vista",
+                          "uf": "RR",
+                          "cep": "69301000"
+                        },
+                        "latitude": 2.8235,
+                        "longitude": -60.6758,
+                        "telefone": "+55 95 3000-0002",
+                        "email": "compras@example.com",
+                        "limite_credito_cents": 5000000,
+                        "inscricao_estadual": "ISENTO",
+                        "bloqueado": false,
+                        "contatos": [
+                          {
+                            "nome": "Contato Exemplo",
+                            "cargo": "Comprador",
+                            "telefone": "+55 95 3000-0003",
+                            "email": "contato@example.com"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "produto": {
+                  "summary": "Produtos (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "produto",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "P000045"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "P000045",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "sku": "REF-0045",
+                        "ean": "7891234567895",
+                        "nome": "Refrigerante Cola 2 L",
+                        "marca": "Marca Exemplo",
+                        "categoria": "Bebidas",
+                        "unidade": "UN",
+                        "embalagem_medida": "CX",
+                        "embalagem_quantidade": 6,
+                        "catalogo_no_external_id": "N010",
+                        "custo_cents": 450,
+                        "preco_venda_cents": 790,
+                        "desconto_maximo_pct": 5
+                      }
+                    ]
+                  }
+                },
+                "preco": {
+                  "summary": "Preços: um registro por item de tabela (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "preco",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "TAB01:P000045"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "TAB01:P000045",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "tabela_external_id": "TAB01",
+                        "tabela_nome": "Tabela Atacado",
+                        "vigencia_inicio": "2026-11-01",
+                        "vigencia_fim": null,
+                        "produto_external_id": "P000045",
+                        "preco_cents": 790,
+                        "unidade": "UN"
+                      }
+                    ]
+                  }
+                },
+                "estoque": {
+                  "summary": "Estoque: um registro por depósito e produto (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "estoque",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "DEP01:P000045"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "DEP01:P000045",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "deposito_external_id": "DEP01",
+                        "deposito_nome": "Depósito Central",
+                        "produto_external_id": "P000045",
+                        "saldo": 1250
+                      }
+                    ]
+                  }
+                },
+                "titulo": {
+                  "summary": "Títulos financeiros (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "titulo",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "TIT-2026-5531-1"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "TIT-2026-5531-1",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "cliente_external_id": "C000123",
+                        "numero": "5531",
+                        "parcela": 1,
+                        "emissao": "2026-10-20",
+                        "vencimento": "2026-11-20",
+                        "valor_cents": 125000,
+                        "saldo_cents": 125000,
+                        "situacao": "aberto",
+                        "baixado_em": null
+                      }
+                    ]
+                  }
+                },
+                "nota": {
+                  "summary": "Notas fiscais e devoluções (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "nota",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "NF-1-8841"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "NF-1-8841",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "cliente_external_id": "C000123",
+                        "vendedor_external_id": "V001",
+                        "tipo": "faturamento",
+                        "numero": "8841",
+                        "serie": "1",
+                        "emitida_em": "2026-11-05T12:30:00Z",
+                        "total_cents": 125000,
+                        "quantidade_itens": 12,
+                        "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                        "cancelada": false
+                      }
+                    ]
+                  }
+                },
+                "rota": {
+                  "summary": "Rotas com as paradas (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "rota",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "R-SEG-01"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "R-SEG-01",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "nome": "Rota Segunda Centro",
+                        "vendedor_external_id": "V001",
+                        "dia_semana": 1,
+                        "paradas": [
+                          {
+                            "ordem": 1,
+                            "cliente_external_id": "C000123"
+                          },
+                          {
+                            "ordem": 2,
+                            "cliente_external_id": "C000124"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "catalogo_no": {
+                  "summary": "Árvore do catálogo (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "catalogo_no",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "N010"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "N010",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "codigo": "BEB-REF",
+                        "nome": "Refrigerantes",
+                        "pai_external_id": "N001",
+                        "nivel": 2,
+                        "ordem": 1
+                      }
+                    ]
+                  }
+                },
+                "produto_unidade": {
+                  "summary": "Medidas e embalagens do produto (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "produto_unidade",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "P000045:CX"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "P000045:CX",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "produto_external_id": "P000045",
+                        "unidade": "CX",
+                        "fator": 6,
+                        "ean": "17891234567892",
+                        "padrao": false
+                      }
+                    ]
+                  }
+                },
+                "cliente_endereco": {
+                  "summary": "Endereços de entrega e cobrança do cliente (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "cliente_endereco",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "C000123:ENT1"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "C000123:ENT1",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "cliente_external_id": "C000123",
+                        "tipo": "entrega",
+                        "descricao": "Depósito dos fundos",
+                        "logradouro": "Avenida das Flores",
+                        "numero": "250",
+                        "bairro": "Industrial",
+                        "cidade": "Boa Vista",
+                        "uf": "RR",
+                        "cep": "69313000",
+                        "principal": false
+                      }
+                    ]
+                  }
+                },
+                "transportadora": {
+                  "summary": "Transportadoras (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "transportadora",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "T001"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "T001",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "nome": "Transportadora Exemplo",
+                        "documento": "11222333000181",
+                        "telefone": "+55 95 3000-0004"
+                      }
+                    ]
+                  }
+                },
+                "carga_completa_parte_1": {
+                  "summary": "Carga completa, parte 1 de 2 (sessão aberta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "vendedor",
+                    "modo": "completo",
+                    "sessao": {
+                      "id": "c0a8e3d2-5b71-4a96-b4f0-7d19e8a2c635",
+                      "parte": 1,
+                      "ultimo": false
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "V001",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "nome": "Vendedor Exemplo",
+                        "email": "vendedor@example.com",
+                        "telefone": "+55 95 3000-0001"
+                      }
+                    ]
+                  }
+                },
+                "carga_completa_ultima_parte": {
+                  "summary": "Carga completa, última parte (ultimo: true fecha a sessão)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "vendedor",
+                    "modo": "completo",
+                    "sessao": {
+                      "id": "c0a8e3d2-5b71-4a96-b4f0-7d19e8a2c635",
+                      "parte": 2,
+                      "ultimo": true
+                    },
+                    "enviado_em": "2026-11-05T13:47:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "V002",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "nome": "Outro Vendedor Exemplo",
+                        "email": null,
+                        "telefone": null
+                      }
+                    ]
+                  }
+                },
+                "so_linhas_invalidas": {
+                  "summary": "Lote só com linhas que o Conector recusou (aceito, termina com erros)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "cliente",
+                    "modo": "delta",
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [],
+                    "linhas_invalidas": [
+                      {
+                        "external_id": "C000999",
+                        "codigo": "campo_obrigatorio",
+                        "campo": "razao_social",
+                        "mensagem": "razao_social está vazio no ERP."
+                      },
+                      {
+                        "external_id": null,
+                        "codigo": "registro_invalido",
+                        "mensagem": "Linha sem código do cliente; não foi possível identificá-la."
+                      }
+                    ],
+                    "linhas_invalidas_omitidas": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Lote aceito para processamento (ou repetição de um lote já aceito com a mesma Idempotency-Key).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Idempotent-Replay": {
+                "$ref": "#/components/headers/IdempotentReplay"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoteAceito"
+                },
+                "examples": {
+                  "aceito": {
+                    "summary": "Lote recebido (processamento assíncrono)",
+                    "value": {
+                      "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
+                      "status": "recebido",
+                      "entidade": "produto",
+                      "modo": "delta",
+                      "recebidos": 1,
+                      "consulta": "/integracao/v1/lotes/5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1"
+                    }
+                  },
+                  "repetido": {
+                    "summary": "Mesma Idempotency-Key e mesmo conteúdo: o lote que já existia (Idempotent-Replay: true)",
+                    "value": {
+                      "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
+                      "status": "recebido",
+                      "entidade": "produto",
+                      "modo": "delta",
+                      "recebidos": 1,
+                      "repetido": true,
+                      "consulta": "/integracao/v1/lotes/5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Envelope ilegível ou fora do contrato (`envelope_invalido`) ou `Idempotency-Key` ausente/fora do formato (`chave_idempotencia_invalida`). Todos os problemas do envelope voltam juntos em `erros[]`. Nenhum lote é criado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RecusaLote"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErroHub"
+                    }
+                  ]
+                },
+                "examples": {
+                  "envelope_invalido": {
+                    "summary": "Corpo fora do envelope (todos os problemas voltam juntos)",
+                    "value": {
+                      "codigo": "envelope_invalido",
+                      "mensagem": "modo: use \"completo\" ou \"delta\".",
+                      "erros": [
+                        {
+                          "codigo": "envelope_invalido",
+                          "campo": "modo",
+                          "mensagem": "modo: use \"completo\" ou \"delta\"."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  },
+                  "chave_idempotencia_invalida": {
+                    "summary": "Idempotency-Key ausente ou fora do formato",
+                    "value": {
+                      "codigo": "chave_idempotencia_invalida",
+                      "mensagem": "O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). O Conector envia o SHA-256 do lote.",
+                      "erros": [
+                        {
+                          "codigo": "chave_idempotencia_invalida",
+                          "campo": "Idempotency-Key",
+                          "mensagem": "O cabeçalho Idempotency-Key é obrigatório em POST /lotes e deve ter de 16 a 128 caracteres (letras, números, ponto, hífen, sublinhado e dois-pontos). O Conector envia o SHA-256 do lote."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "409": {
+            "description": "`chave_idempotencia_reutilizada`: a `Idempotency-Key` já foi usada com conteúdo diferente. Gere uma chave nova para o conteúdo novo.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "chave_idempotencia_reutilizada": {
+                    "summary": "Mesma Idempotency-Key com conteúdo diferente",
+                    "value": {
+                      "codigo": "chave_idempotencia_reutilizada",
+                      "mensagem": "A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo (o Conector usa o SHA-256 do lote) ou reenvie exatamente o mesmo lote.",
+                      "erros": [
+                        {
+                          "codigo": "chave_idempotencia_reutilizada",
+                          "campo": "Idempotency-Key",
+                          "mensagem": "A Idempotency-Key já foi usada por outro lote com conteúdo diferente. Gere uma chave nova para o conteúdo novo (o Conector usa o SHA-256 do lote) ou reenvie exatamente o mesmo lote."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Corpo acima do limite da rota (8 MiB no lote, 1 MiB nas demais).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RecusaLote"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErroHub"
+                    }
+                  ]
+                },
+                "examples": {
+                  "corpo_grande": {
+                    "summary": "Corpo acima de 8 MiB",
+                    "value": {
+                      "codigo": "corpo_grande",
+                      "mensagem": "O corpo da requisição passa do limite desta rota.",
+                      "detalhes": {
+                        "limite_bytes": 8388608
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Recusa do envelope por regra (versão, entidade, lote vazio, acima do limite, sessão, entidade de outro Conector). Nenhum lote é criado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "lote_vazio": {
+                    "summary": "Sem registros e sem linhas inválidas",
+                    "value": {
+                      "codigo": "lote_vazio",
+                      "mensagem": "O lote não tem registros. Envie ao menos um registro.",
+                      "erros": [
+                        {
+                          "codigo": "lote_vazio",
+                          "campo": "registros",
+                          "mensagem": "O lote não tem registros. Envie ao menos um registro."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  },
+                  "acima_do_limite": {
+                    "summary": "Mais de 5.000 registros",
+                    "value": {
+                      "codigo": "acima_do_limite",
+                      "mensagem": "O lote tem 5200 registros e o limite é 5000. Divida em lotes menores (na carga completa, use partes da mesma sessão).",
+                      "erros": [
+                        {
+                          "codigo": "acima_do_limite",
+                          "campo": "registros",
+                          "mensagem": "O lote tem 5200 registros e o limite é 5000. Divida em lotes menores (na carga completa, use partes da mesma sessão)."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  },
+                  "sessao_ausente": {
+                    "summary": "Carga completa sem sessão",
+                    "value": {
+                      "codigo": "sessao_ausente",
+                      "mensagem": "A carga completa exige \"sessao\" (id, parte e ultimo).",
+                      "erros": [
+                        {
+                          "codigo": "sessao_ausente",
+                          "campo": "sessao",
+                          "mensagem": "A carga completa exige \"sessao\" (id, parte e ultimo)."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  },
+                  "entidade_de_outro_conector": {
+                    "summary": "A entidade é alimentada por outro Conector da empresa",
+                    "value": {
+                      "codigo": "entidade_de_outro_conector",
+                      "mensagem": "A entidade \"cliente\" não está no cadastro deste Conector. Peça ao administrador da empresa para incluí-la no Conector ou use o Conector que já a envia.",
+                      "erros": [
+                        {
+                          "codigo": "entidade_de_outro_conector",
+                          "campo": "entidade",
+                          "mensagem": "A entidade \"cliente\" não está no cadastro deste Conector. Peça ao administrador da empresa para incluí-la no Conector ou use o Conector que já a envia."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Conector abaixo da versão mínima exigida. Atualize o Conector; `detalhes.versao_minima` traz a mínima. Só `POST /sinal` continua liberado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "versao_conector_nao_suportada": {
+                    "summary": "Conector abaixo da versão mínima",
+                    "value": {
+                      "codigo": "versao_conector_nao_suportada",
+                      "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.",
+                      "erros": [
+                        {
+                          "codigo": "versao_conector_nao_suportada",
+                          "campo": null,
+                          "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector."
+                        }
+                      ],
+                      "detalhes": {
+                        "versao_minima": "1.2.1"
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        }
+      }
+    },
+    "/lotes/{id}": {
+      "get": {
+        "operationId": "consultar_lote",
+        "summary": "Resultado do lote com os erros por linha.",
+        "description": "Resultado do lote: status, contagens, erros por linha (as `falha_processamento` primeiro), avisos, cursor e, no último lote de uma carga completa, a situação da inativação.",
+        "tags": [
+          "Lotes"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Identificador do lote (`lote_id` devolvido pelo `POST /lotes`).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1"
+          },
+          {
+            "name": "limite_erros",
+            "in": "query",
+            "required": false,
+            "description": "Quantos erros por linha devolver (as `falha_processamento` vêm primeiro). Padrão 1.000, máximo 5.500.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5500,
+              "default": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado do lote (use `status` para saber se terminou).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoteResultado"
+                },
+                "examples": {
+                  "processando": {
+                    "summary": "Ainda em processamento (consulte de novo em alguns segundos)",
+                    "value": {
+                      "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
+                      "entidade": "produto",
+                      "modo": "delta",
+                      "status": "processando",
+                      "contagens": {
+                        "recebidas": 1,
+                        "duplicadas_no_lote": 0,
+                        "com_erro": 0,
+                        "novas": 0,
+                        "atualizadas": 0,
+                        "inalteradas": 0,
+                        "obsoletas": 0
+                      },
+                      "erros": [],
+                      "avisos": [],
+                      "cursor": null,
+                      "inativadas": 0,
+                      "recebido_em": "2026-11-05T13:46:01Z",
+                      "concluido_em": null
+                    }
+                  },
+                  "concluido": {
+                    "summary": "Concluído sem erros; o cursor avançou",
+                    "value": {
+                      "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
+                      "entidade": "produto",
+                      "modo": "delta",
+                      "status": "concluido",
+                      "contagens": {
+                        "recebidas": 1,
+                        "duplicadas_no_lote": 0,
+                        "com_erro": 0,
+                        "novas": 1,
+                        "atualizadas": 0,
+                        "inalteradas": 0,
+                        "obsoletas": 0
+                      },
+                      "erros": [],
+                      "avisos": [],
+                      "cursor": {
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "external_id": "P000045"
+                      },
+                      "erros_total": 0,
+                      "erros_omitidos": 0,
+                      "inativadas": 0,
+                      "recebido_em": "2026-11-05T13:46:01Z",
+                      "concluido_em": "2026-11-05T13:46:04Z"
+                    }
+                  },
+                  "concluido_com_erros": {
+                    "summary": "Concluído com erros por linha (reprocessavel: true = o Hub tenta de novo pelo BKO)",
+                    "value": {
+                      "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
+                      "entidade": "preco",
+                      "modo": "delta",
+                      "status": "concluido_com_erros",
+                      "contagens": {
+                        "recebidas": 5,
+                        "duplicadas_no_lote": 0,
+                        "com_erro": 2,
+                        "novas": 1,
+                        "atualizadas": 2,
+                        "inalteradas": 0,
+                        "obsoletas": 0
+                      },
+                      "erros": [
+                        {
+                          "indice": 3,
+                          "external_id": "TAB01:P000044",
+                          "codigo": "referencia_ausente",
+                          "campo": "produto_external_id",
+                          "mensagem": "O campo \"produto_external_id\" aponta para um produto que ainda não foi carregado. Envie o produto; o Hub reprocessa a linha.",
+                          "reprocessavel": true,
+                          "origem": "hub"
+                        },
+                        {
+                          "indice": 4,
+                          "external_id": "TAB01:P000046",
+                          "codigo": "valor_fora_da_faixa",
+                          "campo": "preco_cents",
+                          "mensagem": "O campo \"preco_cents\" não pode ser negativo. Corrija no ERP; o registro volta no próximo delta.",
+                          "reprocessavel": false,
+                          "origem": "hub"
+                        }
+                      ],
+                      "avisos": [
+                        {
+                          "indice": 1,
+                          "external_id": "TAB01:P000045",
+                          "codigo": "duplicado_no_lote",
+                          "mensagem": "O external_id aparece mais de uma vez no lote; valeu a última ocorrência."
+                        }
+                      ],
+                      "cursor": {
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "external_id": "TAB01:P000045"
+                      },
+                      "erros_total": 2,
+                      "erros_omitidos": 0,
+                      "inativadas": 0,
+                      "recebido_em": "2026-11-05T13:46:01Z",
+                      "concluido_em": "2026-11-05T13:46:06Z"
+                    }
+                  },
+                  "inativacao_aguardando": {
+                    "summary": "Última parte de uma carga completa: a trava de 30 % segurou a inativação",
+                    "value": {
+                      "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
+                      "entidade": "cliente",
+                      "modo": "completo",
+                      "status": "concluido",
+                      "contagens": {
+                        "recebidas": 600,
+                        "duplicadas_no_lote": 0,
+                        "com_erro": 0,
+                        "novas": 0,
+                        "atualizadas": 12,
+                        "inalteradas": 588,
+                        "obsoletas": 0
+                      },
+                      "erros": [],
+                      "avisos": [],
+                      "cursor": {
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "external_id": "C000899"
+                      },
+                      "inativacao": {
+                        "situacao": "aguardando_confirmacao",
+                        "motivo": "excede_limite_inativacao",
+                        "candidatos": 412,
+                        "percentual": 40.7
+                      },
+                      "inativadas": 0,
+                      "recebido_em": "2026-11-05T13:46:01Z",
+                      "concluido_em": "2026-11-05T13:47:30Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "404": {
+            "description": "`lote_nao_encontrado`: lote inexistente, de outro Conector ou de outra empresa (não se distingue). Reenvie o lote com a mesma `Idempotency-Key`.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroHub"
+                },
+                "examples": {
+                  "lote_nao_encontrado": {
+                    "summary": "Lote inexistente, de outro Conector ou de outra empresa (não se distingue)",
+                    "value": {
+                      "codigo": "lote_nao_encontrado",
+                      "mensagem": "Lote não encontrado para este Conector. Se o envio foi interrompido, reenvie o lote com a mesma Idempotency-Key.",
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Conector abaixo da versão mínima exigida. Atualize o Conector; `detalhes.versao_minima` traz a mínima. Só `POST /sinal` continua liberado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "versao_conector_nao_suportada": {
+                    "summary": "Conector abaixo da versão mínima",
+                    "value": {
+                      "codigo": "versao_conector_nao_suportada",
+                      "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.",
+                      "erros": [
+                        {
+                          "codigo": "versao_conector_nao_suportada",
+                          "campo": null,
+                          "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector."
+                        }
+                      ],
+                      "detalhes": {
+                        "versao_minima": "1.2.1"
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        }
+      }
+    },
+    "/cursores/{entidade}": {
+      "get": {
+        "operationId": "consultar_cursor",
+        "summary": "De onde o Conector continua o delta (cursor nulo = carga inicial completa).",
+        "description": "De onde o Conector continua o delta. `cursor: null` significa que o Hub nunca recebeu a entidade deste Conector: faça a carga inicial completa.",
+        "tags": [
+          "Lotes"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          },
+          {
+            "name": "entidade",
+            "in": "path",
+            "required": true,
+            "description": "Entidade do contrato.",
+            "schema": {
+              "$ref": "#/components/schemas/Entidade"
+            },
+            "example": "produto"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cursor da entidade para este Conector.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorEntidade"
+                },
+                "examples": {
+                  "com_cursor": {
+                    "summary": "Delta: continue a partir do cursor",
+                    "value": {
+                      "entidade": "produto",
+                      "cursor": {
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "external_id": "P000045"
+                      },
+                      "atualizado_em": "2026-11-05T13:46:04Z"
+                    }
+                  },
+                  "sem_cursor": {
+                    "summary": "Cursor nulo: nunca recebeu, faça a carga inicial completa",
+                    "value": {
+                      "entidade": "cliente",
+                      "cursor": null,
+                      "atualizado_em": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "404": {
+            "description": "`entidade_desconhecida`: use uma das entidades do contrato.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroHub"
+                },
+                "examples": {
+                  "entidade_desconhecida": {
+                    "summary": "Entidade fora da lista",
+                    "value": {
+                      "codigo": "entidade_desconhecida",
+                      "mensagem": "Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora.",
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Conector abaixo da versão mínima exigida. Atualize o Conector; `detalhes.versao_minima` traz a mínima. Só `POST /sinal` continua liberado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "versao_conector_nao_suportada": {
+                    "summary": "Conector abaixo da versão mínima",
+                    "value": {
+                      "codigo": "versao_conector_nao_suportada",
+                      "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.",
+                      "erros": [
+                        {
+                          "codigo": "versao_conector_nao_suportada",
+                          "campo": null,
+                          "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector."
+                        }
+                      ],
+                      "detalhes": {
+                        "versao_minima": "1.2.1"
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        }
+      }
+    },
+    "/reconciliacoes": {
+      "post": {
+        "operationId": "enviar_reconciliacao",
+        "summary": "Contagem e soma de controle do dia, por entidade (RN-INT-07).",
+        "description": "Contagem e soma de controle do dia por entidade. Reenviar o mesmo dia substitui o anterior. `data_referencia` aceita de D-7 a D+1.",
+        "tags": [
+          "Lotes"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconciliacaoEnvio"
+              },
+              "examples": {
+                "estoque": {
+                  "summary": "Estoque: contagem e soma de controle (saldo)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "estoque",
+                    "data_referencia": "2026-11-05",
+                    "contagem": 1250,
+                    "soma": 48230500
+                  }
+                },
+                "so_contagem": {
+                  "summary": "Entidade só com contagem (soma nula)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "cliente",
+                    "data_referencia": "2026-11-05",
+                    "contagem": 842,
+                    "soma": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reconciliação recebida (`situacao: pendente` = ainda há lote da entidade em aberto; a comparação definitiva sai quando ele terminar).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespostaReconciliacao"
+                },
+                "examples": {
+                  "comparada": {
+                    "summary": "Contagem e soma batem",
+                    "value": {
+                      "situacao": "comparada",
+                      "entidade": "estoque",
+                      "data_referencia": "2026-11-05",
+                      "divergente": false,
+                      "motivos": [],
+                      "contagem": {
+                        "erp": 1250,
+                        "macuxi": 1250,
+                        "diferenca": 0,
+                        "dentro": true
+                      },
+                      "soma": {
+                        "erp": 48230500,
+                        "macuxi": 48230500,
+                        "diferenca": 0,
+                        "diferenca_pct": 0,
+                        "dentro": true
+                      }
+                    }
+                  },
+                  "divergente": {
+                    "summary": "Divergência de contagem (aparece como alerta no monitor)",
+                    "value": {
+                      "situacao": "comparada",
+                      "entidade": "cliente",
+                      "data_referencia": "2026-11-05",
+                      "divergente": true,
+                      "motivos": [
+                        "contagem_divergente"
+                      ],
+                      "contagem": {
+                        "erp": 842,
+                        "macuxi": 790,
+                        "diferenca": 52,
+                        "dentro": false
+                      },
+                      "soma": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição fora do contrato. Recusa definitiva: corrija e envie de novo (repetir igual dá o mesmo erro).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroHub"
+                },
+                "examples": {
+                  "requisicao_invalida": {
+                    "summary": "Corpo fora do contrato",
+                    "value": {
+                      "codigo": "requisicao_invalida",
+                      "mensagem": "Dados inválidos em corpo.",
+                      "detalhes": {
+                        "problemas": [
+                          {
+                            "caminho": "corpo.data_referencia",
+                            "mensagem": "data deve estar no formato AAAA-MM-DD"
+                          }
+                        ]
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "422": {
+            "description": "`entidade_de_outro_conector`: a entidade é alimentada por outro Conector da empresa.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "entidade_de_outro_conector": {
+                    "summary": "A entidade é alimentada por outro Conector da empresa",
+                    "value": {
+                      "codigo": "entidade_de_outro_conector",
+                      "mensagem": "A entidade \"cliente\" não está no cadastro deste Conector. Peça ao administrador da empresa para incluí-la no Conector ou use o Conector que já a envia.",
+                      "erros": [
+                        {
+                          "codigo": "entidade_de_outro_conector",
+                          "campo": "entidade",
+                          "mensagem": "A entidade \"cliente\" não está no cadastro deste Conector. Peça ao administrador da empresa para incluí-la no Conector ou use o Conector que já a envia."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Conector abaixo da versão mínima exigida. Atualize o Conector; `detalhes.versao_minima` traz a mínima. Só `POST /sinal` continua liberado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "versao_conector_nao_suportada": {
+                    "summary": "Conector abaixo da versão mínima",
+                    "value": {
+                      "codigo": "versao_conector_nao_suportada",
+                      "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.",
+                      "erros": [
+                        {
+                          "codigo": "versao_conector_nao_suportada",
+                          "campo": null,
+                          "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector."
+                        }
+                      ],
+                      "detalhes": {
+                        "versao_minima": "1.2.1"
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        }
+      }
+    },
+    "/pedidos/pendentes": {
+      "get": {
+        "operationId": "pedidos_pendentes",
+        "summary": "Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08).",
+        "description": "Pedidos aprovados no Macuxi para gravar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o pedido volta a `pendente` e sai de novo com `tentativa + 1`. Grave no ERP de forma idempotente pelo `pedido_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).",
+        "tags": [
+          "Pedidos"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "description": "Quantos pedidos devolver por consulta. Padrão 50, máximo 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pedidos para gravar no ERP (a lista vazia é normal).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PedidosPendentes"
+                },
+                "examples": {
+                  "com_pedido": {
+                    "summary": "Um pedido aprovado (o Hub o marca como enviado ao entregar)",
+                    "value": {
+                      "pedidos": [
+                        {
+                          "versao_contrato": "v1",
+                          "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                          "cliente_external_id": "C000123",
+                          "vendedor_external_id": "V001",
+                          "condicao_pagamento_erp": "30DD",
+                          "criado_em": "2026-11-05T13:10:00Z",
+                          "aprovado_em": "2026-11-05T13:40:00Z",
+                          "observacao": "Entregar pela manhã.",
+                          "itens": [
+                            {
+                              "sequencia": 1,
+                              "produto_external_id": "P000045",
+                              "quantidade": 24,
+                              "preco_unitario_cents": 250,
+                              "desconto_cents": 0,
+                              "total_cents": 6000,
+                              "unidade": "CX",
+                              "fator": 6,
+                              "quantidade_venda": 4
+                            },
+                            {
+                              "sequencia": 2,
+                              "produto_external_id": "P000051",
+                              "quantidade": 10,
+                              "preco_unitario_cents": 1990,
+                              "desconto_cents": 900,
+                              "total_cents": 19000
+                            }
+                          ],
+                          "desconto_total_cents": 900,
+                          "total_cents": 25000,
+                          "tentativa": 1,
+                          "frete": {
+                            "modalidade": "FOB",
+                            "transportadora": {
+                              "tipo": "cadastrada",
+                              "id": "8d3c5e7a-1b2f-4c6d-a9e0-4f5a6b7c8d9e",
+                              "external_id": "T001",
+                              "nome": "Transportadora Exemplo",
+                              "cnpj": "11222333000181"
+                            }
+                          },
+                          "endereco_entrega": {
+                            "logradouro": "Avenida das Flores",
+                            "numero": "250",
+                            "bairro": "Industrial",
+                            "cidade": "Boa Vista",
+                            "uf": "RR",
+                            "cep": "69313000",
+                            "principal": false
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "vazio": {
+                    "summary": "Nenhum pedido pendente (normal)",
+                    "value": {
+                      "pedidos": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "426": {
+            "description": "Conector abaixo da versão mínima exigida. Atualize o Conector; `detalhes.versao_minima` traz a mínima. Só `POST /sinal` continua liberado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "versao_conector_nao_suportada": {
+                    "summary": "Conector abaixo da versão mínima",
+                    "value": {
+                      "codigo": "versao_conector_nao_suportada",
+                      "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.",
+                      "erros": [
+                        {
+                          "codigo": "versao_conector_nao_suportada",
+                          "campo": null,
+                          "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector."
+                        }
+                      ],
+                      "detalhes": {
+                        "versao_minima": "1.2.1"
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        }
+      }
+    },
+    "/pedidos/{pedido_uuid}/retorno": {
+      "post": {
+        "operationId": "retorno_pedido",
+        "summary": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).",
+        "description": "Retorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.",
+        "tags": [
+          "Pedidos"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          },
+          {
+            "name": "pedido_uuid",
+            "in": "path",
+            "required": true,
+            "description": "UUID do pedido (`pedido_uuid` de `GET /pedidos/pendentes`).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetornoErp"
+              },
+              "examples": {
+                "integrado": {
+                  "summary": "Pedido gravado no ERP (informe o número)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                    "status": "integrado",
+                    "numero_erp": "PV-004512",
+                    "ocorrido_em": "2026-11-05T14:02:00Z"
+                  }
+                },
+                "rejeitado_erp": {
+                  "summary": "ERP recusou o pedido (o motivo é obrigatório)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                    "status": "rejeitado_erp",
+                    "motivo": "Cliente com bloqueio financeiro no ERP.",
+                    "ocorrido_em": "2026-11-05T14:02:00Z"
+                  }
+                },
+                "faturado_parcial": {
+                  "summary": "Faturamento parcial: nota e itens faturados NESTA nota",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                    "status": "faturado_parcial",
+                    "numero_erp": "PV-004512",
+                    "nota": {
+                      "numero": "8841",
+                      "serie": "1",
+                      "emitida_em": "2026-11-05T16:30:00Z",
+                      "total_cents": 6000
+                    },
+                    "itens_faturados": [
+                      {
+                        "sequencia": 1,
+                        "produto_external_id": "P000045",
+                        "quantidade": 24,
+                        "valor_cents": 6000
+                      }
+                    ],
+                    "ocorrido_em": "2026-11-05T16:31:00Z"
+                  }
+                },
+                "faturado_total": {
+                  "summary": "Faturamento total: última nota do pedido",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                    "status": "faturado_total",
+                    "numero_erp": "PV-004512",
+                    "nota": {
+                      "numero": "8855",
+                      "serie": "1",
+                      "emitida_em": "2026-11-06T10:15:00Z",
+                      "total_cents": 19000
+                    },
+                    "itens_faturados": [
+                      {
+                        "sequencia": 2,
+                        "produto_external_id": "P000051",
+                        "quantidade": 10,
+                        "valor_cents": 19000
+                      }
+                    ],
+                    "ocorrido_em": "2026-11-06T10:16:00Z"
+                  }
+                },
+                "cancelado": {
+                  "summary": "Cancelamento feito no ERP (o Macuxi nunca cancela no ERP)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                    "status": "cancelado",
+                    "motivo": "Cancelado pelo cliente.",
+                    "ocorrido_em": "2026-11-06T11:00:00Z"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retorno aplicado (ou repetido).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetornoAceito"
+                },
+                "examples": {
+                  "integrado": {
+                    "summary": "Retorno aplicado",
+                    "value": {
+                      "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                      "status": "integrado",
+                      "repetido": false
+                    }
+                  },
+                  "repetido": {
+                    "summary": "Mesmo retorno enviado de novo: aceito sem reaplicar (repetido: true)",
+                    "value": {
+                      "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                      "status": "integrado",
+                      "repetido": true
+                    }
+                  },
+                  "itens_descartados": {
+                    "summary": "Faturamento aceito; um item não bate com o pedido enviado e foi descartado (P-4)",
+                    "value": {
+                      "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c",
+                      "status": "faturado_parcial",
+                      "repetido": false,
+                      "itens_descartados": [
+                        {
+                          "indice": 1,
+                          "sequencia": 9,
+                          "produto_external_id": "P000099",
+                          "quantidade": 3,
+                          "codigo": "sequencia_inexistente",
+                          "codigos": [
+                            "sequencia_inexistente"
+                          ],
+                          "campo": "itens_faturados[1].sequencia",
+                          "motivo": "O pedido enviado não tem o item de sequência 9. O item foi ignorado; o status do retorno valeu."
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Corpo fora do contrato, ou `pedido_uuid` do caminho diferente do corpo.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroHub"
+                },
+                "examples": {
+                  "requisicao_invalida": {
+                    "summary": "Corpo fora do contrato (ou pedido_uuid do caminho diferente do corpo)",
+                    "value": {
+                      "codigo": "requisicao_invalida",
+                      "mensagem": "Dados inválidos em corpo.",
+                      "detalhes": {
+                        "problemas": [
+                          {
+                            "caminho": "corpo.numero_erp",
+                            "mensagem": "informe o número do pedido no ERP"
+                          }
+                        ]
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "422": {
+            "description": "Retorno recusado: `pedido_desconhecido`, `pedido_nao_entregue`, `transicao_invalida` ou `numero_erp_divergente`. Definitivo: o retorno não deve ser reenviado igual.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaRetorno"
+                },
+                "examples": {
+                  "pedido_desconhecido": {
+                    "summary": "O Hub não conhece o pedido",
+                    "value": {
+                      "codigo": "pedido_desconhecido",
+                      "mensagem": "O Hub não conhece este pedido. Só pedidos aprovados e entregues ao Conector recebem retorno.",
+                      "erros": [
+                        {
+                          "codigo": "pedido_desconhecido",
+                          "campo": null,
+                          "mensagem": "O Hub não conhece este pedido. Só pedidos aprovados e entregues ao Conector recebem retorno."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  },
+                  "transicao_invalida": {
+                    "summary": "Estado informado não é possível a partir do estado atual",
+                    "value": {
+                      "codigo": "transicao_invalida",
+                      "mensagem": "Transição inválida do pedido: rejeitado_erp → faturado_total. rejeitado_erp é um estado final.",
+                      "erros": [
+                        {
+                          "codigo": "transicao_invalida",
+                          "campo": "status",
+                          "mensagem": "Transição inválida do pedido: rejeitado_erp → faturado_total. rejeitado_erp é um estado final."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  },
+                  "numero_erp_divergente": {
+                    "summary": "O mesmo pedido já tem outro número no ERP",
+                    "value": {
+                      "codigo": "numero_erp_divergente",
+                      "mensagem": "O pedido já tem o número PV-004512 no ERP e o retorno informa outro. Confira no ERP se o pedido foi gravado duas vezes.",
+                      "erros": [
+                        {
+                          "codigo": "numero_erp_divergente",
+                          "campo": "numero_erp",
+                          "mensagem": "O pedido já tem o número PV-004512 no ERP e o retorno informa outro. Confira no ERP se o pedido foi gravado duas vezes."
+                        }
+                      ],
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Conector abaixo da versão mínima exigida. Atualize o Conector; `detalhes.versao_minima` traz a mínima. Só `POST /sinal` continua liberado.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecusaLote"
+                },
+                "examples": {
+                  "versao_conector_nao_suportada": {
+                    "summary": "Conector abaixo da versão mínima",
+                    "value": {
+                      "codigo": "versao_conector_nao_suportada",
+                      "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector.",
+                      "erros": [
+                        {
+                          "codigo": "versao_conector_nao_suportada",
+                          "campo": null,
+                          "mensagem": "A versão do Conector está abaixo da mínima exigida (1.2.1). Atualize o Conector."
+                        }
+                      ],
+                      "detalhes": {
+                        "versao_minima": "1.2.1"
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        }
+      }
+    },
+    "/sinal": {
+      "post": {
+        "operationId": "sinal",
+        "summary": "Sinal de vida (1 min); responde com a política de versão do tenant.",
+        "description": "Sinal de vida (1 por minuto). Responde com a política de versão vigente. É a única rota liberada para o Conector abaixo da versão mínima.",
+        "tags": [
+          "Conector"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConectorId"
+          },
+          {
+            "$ref": "#/components/parameters/ConectorVersao"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SinalConector"
+              },
+              "examples": {
+                "sinal": {
+                  "summary": "Sinal de vida a cada minuto",
+                  "value": {
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "versao_contrato": "v1",
+                    "em": "2026-11-05T14:00:00Z",
+                    "fila": [
+                      {
+                        "estado": "pendente",
+                        "lotes": 1,
+                        "linhas": 320,
+                        "maisAntigo": "2026-11-05T13:59:10Z"
+                      }
+                    ],
+                    "entidades": [
+                      {
+                        "entidade": "produto",
+                        "fase": "delta",
+                        "ultimo_sucesso": "2026-11-05T13:58:00Z",
+                        "bloqueada": false,
+                        "lotes_na_fila": 1
+                      }
+                    ],
+                    "parado_por_versao": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sinal recebido; traz a política de versão.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespostaSinal"
+                },
+                "examples": {
+                  "com_politica": {
+                    "summary": "Política de versão vigente para este Conector",
+                    "value": {
+                      "politica_versao": {
+                        "versao_minima": "1.2.1",
+                        "versao_recomendada": "1.2.1",
+                        "mensagem": "O Conector 1.2.0 ou anterior reenvia itens no fechamento sem nota nova.",
+                        "pacote": null
+                      },
+                      "conector_id": "erp-matriz",
+                      "recebido_em": "2026-11-05T14:00:01Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição fora do contrato. Recusa definitiva: corrija e envie de novo (repetir igual dá o mesmo erro).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroHub"
+                },
+                "examples": {
+                  "requisicao_invalida": {
+                    "summary": "Corpo fora do contrato",
+                    "value": {
+                      "codigo": "requisicao_invalida",
+                      "mensagem": "Dados inválidos em corpo.",
+                      "detalhes": {
+                        "problemas": [
+                          {
+                            "caminho": "corpo.versao_conector",
+                            "mensagem": "versão deve seguir o formato MAIOR.MENOR.PATCH (ex.: 1.1.0)"
+                          }
+                        ]
+                      },
+                      "requisicao_id": "req-7f3a9c2e41d8"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NaoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/AcessoNegado"
+          },
+          "429": {
+            "$ref": "#/components/responses/LimiteDeTaxa"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErroInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicoIndisponivel"
+          }
+        },
+        "x-macuxi-liberada-abaixo-da-versao-minima": true
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "chaveConector": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Chave de API do Conector (mxk_<prefixo>_<chave>)",
+        "description": "Uma chave de API por Conector, emitida pelo administrador da empresa no BKO (mostrada uma única vez; rotacionável sem parar o Conector). Envie `Authorization: Bearer <chave>` e `X-Macuxi-Conector-Id` em TODA chamada. A chave só abre `/integracao/v1`. A empresa (tenant) vem da chave, nunca do corpo, da query nem de cabeçalho."
+      }
+    },
+    "parameters": {
+      "ConectorId": {
+        "name": "X-Macuxi-Conector-Id",
+        "in": "header",
+        "required": true,
+        "description": "Identificador do Conector cadastrado no BKO (letras, números, ponto, hífen e sublinhado). A chave de API só vale com o identificador do Conector dono dela.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "example": "erp-matriz"
+      },
+      "ConectorVersao": {
+        "name": "X-Macuxi-Conector-Versao",
+        "in": "header",
+        "required": false,
+        "description": "Versão do Conector (semver, ex.: 1.2.1). Informativa: ausente ou ilegível nunca bloqueia; só versão legível abaixo da mínima é recusada com 426.",
+        "schema": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "example": "1.2.1"
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "Chave de idempotência do lote (16 a 128 caracteres). O Conector envia o SHA-256 hexadecimal do conteúdo; reenvie a MESMA chave após queda ou resposta perdida.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{16,128}$"
+        },
+        "example": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      }
+    },
+    "headers": {
+      "XRequestId": {
+        "description": "Identificador da requisição nos logs do Hub (também em `requisicao_id` no erro). Informe-o ao suporte.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "req-7f3a9c2e41d8"
+      },
+      "RetryAfter": {
+        "description": "Segundos para esperar antes de repetir.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "example": 30
+      },
+      "IdempotentReplay": {
+        "description": "`true` quando a `Idempotency-Key` já tinha um lote: é a mesma resposta de antes, sem reprocessar.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "true"
+          ]
+        }
+      }
+    },
+    "responses": {
+      "NaoAutenticado": {
+        "description": "Credencial inválida (chave desconhecida, revogada, expirada, fora da convivência ou de outro Conector). A mensagem é genérica de propósito. O Conector pausa e nada se perde: confira a chave.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErroHub"
+            },
+            "examples": {
+              "credencial_invalida": {
+                "summary": "Chave desconhecida, revogada, expirada ou de outro Conector (a mensagem é genérica de propósito)",
+                "value": {
+                  "codigo": "credencial_invalida",
+                  "mensagem": "Credencial inválida. Confira a chave de API e o identificador do Conector.",
+                  "requisicao_id": "req-7f3a9c2e41d8"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AcessoNegado": {
+        "description": "Acesso negado: Conector desativado, IP fora da lista, escopo errado, Conector sem permissão para a rota (`acesso_negado`) ou módulo Integração desligado na empresa (`modulo_inativo`).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErroHub"
+            },
+            "examples": {
+              "acesso_negado": {
+                "summary": "Conector desativado, IP fora da lista ou sem permissão para a rota",
+                "value": {
+                  "codigo": "acesso_negado",
+                  "mensagem": "Acesso negado para este Conector.",
+                  "requisicao_id": "req-7f3a9c2e41d8"
+                }
+              },
+              "modulo_inativo": {
+                "summary": "A empresa não tem o módulo Integração ativo",
+                "value": {
+                  "codigo": "modulo_inativo",
+                  "mensagem": "O módulo Integração não está ativo para esta empresa.",
+                  "requisicao_id": "req-7f3a9c2e41d8"
+                }
+              }
+            }
+          }
+        }
+      },
+      "LimiteDeTaxa": {
+        "description": "Muitas chamadas do Conector (balde de taxa) ou muitas falhas de autenticação do mesmo IP (20 por minuto). Espere `Retry-After` segundos e repita.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErroHub"
+            },
+            "examples": {
+              "limite_de_taxa": {
+                "summary": "Balde de chamadas do Conector vazio: espere Retry-After segundos",
+                "value": {
+                  "codigo": "limite_de_taxa",
+                  "mensagem": "O Conector chamou o Hub mais vezes do que o permitido. Aguarde um instante; o Conector retoma sozinho.",
+                  "requisicao_id": "req-7f3a9c2e41d8"
+                }
+              },
+              "falhas_de_autenticacao": {
+                "summary": "Muitas falhas de autenticação do mesmo IP (20 por minuto)",
+                "value": {
+                  "codigo": "limite_de_taxa",
+                  "mensagem": "Muitas falhas de autenticação deste endereço. Aguarde e confira a chave do Conector.",
+                  "requisicao_id": "req-7f3a9c2e41d8"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErroInterno": {
+        "description": "Erro inesperado no Hub. Repita com backoff; se continuar, informe o `requisicao_id` ao suporte.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErroHub"
+            },
+            "examples": {
+              "erro_interno": {
+                "summary": "Erro inesperado no Hub; informe o requisicao_id ao suporte",
+                "value": {
+                  "codigo": "erro_interno",
+                  "mensagem": "Erro interno no Hub. O Conector tenta de novo; se continuar, avise o suporte.",
+                  "requisicao_id": "req-7f3a9c2e41d8"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ServicoIndisponivel": {
+        "description": "Hub ou banco indisponível (falha fechada). Espere `Retry-After` segundos e repita com backoff.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErroHub"
+            },
+            "examples": {
+              "servico_indisponivel": {
+                "summary": "Banco ou fila indisponível; repita com backoff",
+                "value": {
+                  "codigo": "servico_indisponivel",
+                  "mensagem": "O Hub está indisponível no momento. O Conector tenta de novo sozinho.",
+                  "requisicao_id": "req-7f3a9c2e41d8"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "AvisoLinha": {
+        "type": "object",
+        "properties": {
+          "indice": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "codigo": {
+            "type": "string",
+            "enum": [
+              "duplicado_no_lote",
+              "cadastro_incompleto",
+              "referencia_fraca_ausente"
+            ]
+          },
+          "mensagem": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "indice",
+          "external_id",
+          "codigo",
+          "mensagem"
+        ]
+      },
+      "CatalogoNoPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "pai_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nivel": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "ordem": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "codigo",
+          "nome",
+          "nivel"
+        ]
+      },
+      "ClienteEnderecoPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "cliente_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "principal",
+              "entrega",
+              "cobranca"
+            ],
+            "default": "entrega"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logradouro": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "numero": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "complemento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cidade": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "uf": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "cep": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 9
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "principal": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "cliente_external_id",
+          "logradouro",
+          "cidade",
+          "uf"
+        ]
+      },
+      "ClientePayload": {
+        "description": "`documento` (CNPJ/CPF) é dado pessoal quando CPF: nunca aparece em log nem em mensagem de erro.",
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "razao_social": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "nome_fantasia": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "documento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 18
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendedor_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endereco": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Endereco"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limite_credito_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inscricao_estadual": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observacao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bloqueado": {
+            "type": "boolean",
+            "default": false
+          },
+          "contatos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContatoCliente"
+            },
+            "maxItems": 20,
+            "default": []
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "razao_social"
+        ]
+      },
+      "CodigoErroLinha": {
+        "type": "string",
+        "enum": [
+          "registro_invalido",
+          "external_id_invalido",
+          "campo_obrigatorio",
+          "tipo_invalido",
+          "formato_invalido",
+          "valor_fora_da_faixa",
+          "valor_nao_permitido",
+          "campo_desconhecido",
+          "regra_invalida",
+          "referencia_ausente",
+          "falha_processamento"
+        ]
+      },
+      "CodigoRecusaRetorno": {
+        "type": "string",
+        "enum": [
+          "pedido_desconhecido",
+          "pedido_nao_entregue",
+          "transicao_invalida",
+          "numero_erp_divergente",
+          "itens_faturados_invalidos"
+        ]
+      },
+      "ContagensLote": {
+        "type": "object",
+        "properties": {
+          "recebidas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duplicadas_no_lote": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "com_erro": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "novas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "atualizadas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inalteradas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "obsoletas": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          }
+        },
+        "required": [
+          "recebidas",
+          "duplicadas_no_lote",
+          "com_erro",
+          "novas",
+          "atualizadas",
+          "inalteradas",
+          "obsoletas"
+        ]
+      },
+      "ContatoCliente": {
+        "type": "object",
+        "properties": {
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "cargo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "nome"
+        ]
+      },
+      "Cursor": {
+        "type": "object",
+        "properties": {
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "alterado_em",
+          "external_id"
+        ]
+      },
+      "CursorEntidade": {
+        "type": "object",
+        "properties": {
+          "entidade": {
+            "$ref": "#/components/schemas/Entidade"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "atualizado_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "entidade",
+          "cursor",
+          "atualizado_em"
+        ]
+      },
+      "Endereco": {
+        "type": "object",
+        "properties": {
+          "logradouro": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "numero": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "complemento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cidade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uf": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cep": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 9
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "EnderecoEntregaErp": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logradouro": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "numero": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "complemento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bairro": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cidade": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "uf": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "cep": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 9
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "principal": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "logradouro",
+          "cidade",
+          "uf"
+        ]
+      },
+      "Entidade": {
+        "type": "string",
+        "enum": [
+          "vendedor",
+          "cliente",
+          "produto",
+          "preco",
+          "estoque",
+          "titulo",
+          "nota",
+          "rota",
+          "catalogo_no",
+          "produto_unidade",
+          "cliente_endereco",
+          "transportadora"
+        ]
+      },
+      "ErroHub": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mensagem": {
+            "type": "string",
+            "minLength": 1
+          },
+          "detalhes": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requisicao_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "codigo",
+          "mensagem"
+        ]
+      },
+      "EstadoLote": {
+        "type": "string",
+        "enum": [
+          "recebido",
+          "processando",
+          "concluido",
+          "concluido_com_erros",
+          "falhou"
+        ]
+      },
+      "EstadoPedidoErp": {
+        "type": "string",
+        "enum": [
+          "pendente",
+          "enviado",
+          "integrado",
+          "rejeitado_erp",
+          "faturado_parcial",
+          "faturado_total",
+          "cancelado"
+        ]
+      },
+      "EstoquePayload": {
+        "description": "Um registro por depósito e produto. `saldo` em unidades base.",
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "deposito_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "deposito_nome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "produto_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "saldo": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "deposito_external_id",
+          "produto_external_id",
+          "saldo"
+        ]
+      },
+      "FreteErp": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "modalidade": {
+                "const": "CIF",
+                "type": "string"
+              }
+            },
+            "required": [
+              "modalidade"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "modalidade": {
+                "const": "FOB",
+                "type": "string"
+              },
+              "transportadora": {
+                "$ref": "#/components/schemas/TransportadoraPedido"
+              }
+            },
+            "required": [
+              "modalidade",
+              "transportadora"
+            ]
+          }
+        ]
+      },
+      "InativacaoLote": {
+        "type": "object",
+        "properties": {
+          "situacao": {
+            "type": "string",
+            "enum": [
+              "aplicada",
+              "aguardando_confirmacao",
+              "nao_aplicavel"
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidatos": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "percentual": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "situacao"
+        ]
+      },
+      "ItemFaturado": {
+        "type": "object",
+        "properties": {
+          "sequencia": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "produto_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "quantidade": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "valor_cents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "sequencia",
+          "produto_external_id",
+          "quantidade",
+          "valor_cents"
+        ]
+      },
+      "ItemFaturadoDescartado": {
+        "type": "object",
+        "properties": {
+          "indice": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sequencia": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "produto_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "quantidade": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "codigo": {
+            "type": "string",
+            "enum": [
+              "sequencia_inexistente",
+              "produto_divergente",
+              "quantidade_acima_do_saldo",
+              "sequencia_repetida"
+            ]
+          },
+          "codigos": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "sequencia_inexistente",
+                "produto_divergente",
+                "quantidade_acima_do_saldo",
+                "sequencia_repetida"
+              ]
+            },
+            "minItems": 1
+          },
+          "campo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "motivo": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "indice",
+          "sequencia",
+          "produto_external_id",
+          "quantidade",
+          "codigo",
+          "codigos",
+          "campo",
+          "motivo"
+        ]
+      },
+      "ItemPedidoErp": {
+        "type": "object",
+        "properties": {
+          "sequencia": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "produto_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "quantidade": {
+            "type": "number",
+            "description": "SEMPRE na unidade base: `quantidade = quantidade_venda x fator` quando a venda é por embalagem."
+          },
+          "preco_unitario_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "desconto_cents": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "total_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unidade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z0-9]{1,6}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fator": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quantidade_venda": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preco_tabela_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preco_unitario_venda_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "desconto_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acrescimo_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acrescimo_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sequencia",
+          "produto_external_id",
+          "quantidade",
+          "preco_unitario_cents",
+          "desconto_cents",
+          "total_cents"
+        ]
+      },
+      "LinhaErro": {
+        "type": "object",
+        "properties": {
+          "indice": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "codigo": {
+            "$ref": "#/components/schemas/CodigoErroLinha"
+          },
+          "campo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mensagem": {
+            "type": "string"
+          },
+          "reprocessavel": {
+            "type": "boolean"
+          },
+          "origem": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "hub",
+                  "conector"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "indice",
+          "external_id",
+          "codigo",
+          "campo",
+          "mensagem",
+          "reprocessavel"
+        ]
+      },
+      "LinhaInvalidaConector": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "codigo": {
+            "type": "string",
+            "enum": [
+              "registro_invalido",
+              "campo_obrigatorio",
+              "tipo_invalido",
+              "formato_invalido",
+              "valor_fora_da_faixa",
+              "valor_nao_permitido",
+              "regra_invalida"
+            ]
+          },
+          "campo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mensagem": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "codigo",
+          "mensagem"
+        ]
+      },
+      "LoteAceito": {
+        "type": "object",
+        "properties": {
+          "lote_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "const": "recebido",
+            "type": "string"
+          },
+          "entidade": {
+            "$ref": "#/components/schemas/Entidade"
+          },
+          "modo": {
+            "$ref": "#/components/schemas/ModoCarga"
+          },
+          "recebidos": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "repetido": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consulta": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lote_id",
+          "status",
+          "entidade",
+          "modo",
+          "recebidos",
+          "consulta"
+        ]
+      },
+      "LoteEnvelope": {
+        "description": "Envelope do lote. Uma entidade por lote; o formato de cada item de `registros` depende de `entidade` (ver `x-macuxi-registro-por-entidade`). Campos desconhecidos são ignorados (compatibilidade para frente).",
+        "type": "object",
+        "properties": {
+          "versao_contrato": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Versão do contrato: `v1`."
+          },
+          "entidade": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Entidade do lote: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora."
+          },
+          "modo": {
+            "$ref": "#/components/schemas/ModoCarga",
+            "description": "`completo` = carga completa (exige `sessao`); `delta` = só o que mudou (não leva `sessao`)."
+          },
+          "sessao": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessaoCarga"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Obrigatória no modo completo: `id` (UUID da sessão), `parte` (1, 2, ...) e `ultimo: true` na última parte, que fecha a sessão."
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Maior par (`alterado_em`, `external_id`) do lote. Informativo: o Hub recalcula."
+          },
+          "enviado_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conector_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versao_conector": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "linhas_invalidas": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LinhaInvalidaConector"
+                },
+                "maxItems": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Linhas que o Conector recusou localmente (até 500 detalhadas por lote), sem o valor da linha. Protegem o registro da inativação na carga completa."
+          },
+          "linhas_invalidas_omitidas": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Quantas linhas inválidas passaram do limite e foram só contadas."
+          },
+          "registros": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/VendedorPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/ClientePayload"
+                },
+                {
+                  "$ref": "#/components/schemas/ProdutoPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/PrecoPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/EstoquePayload"
+                },
+                {
+                  "$ref": "#/components/schemas/TituloPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/NotaPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/RotaPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/CatalogoNoPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/ProdutoUnidadePayload"
+                },
+                {
+                  "$ref": "#/components/schemas/ClienteEnderecoPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/TransportadoraPayload"
+                }
+              ]
+            },
+            "description": "Registros da entidade (até 5.000). Pode ser vazio quando o lote traz `linhas_invalidas`."
+          }
+        },
+        "required": [
+          "versao_contrato",
+          "entidade",
+          "modo",
+          "registros"
+        ],
+        "x-macuxi-registro-por-entidade": {
+          "vendedor": {
+            "$ref": "#/components/schemas/VendedorPayload"
+          },
+          "cliente": {
+            "$ref": "#/components/schemas/ClientePayload"
+          },
+          "produto": {
+            "$ref": "#/components/schemas/ProdutoPayload"
+          },
+          "preco": {
+            "$ref": "#/components/schemas/PrecoPayload"
+          },
+          "estoque": {
+            "$ref": "#/components/schemas/EstoquePayload"
+          },
+          "titulo": {
+            "$ref": "#/components/schemas/TituloPayload"
+          },
+          "nota": {
+            "$ref": "#/components/schemas/NotaPayload"
+          },
+          "rota": {
+            "$ref": "#/components/schemas/RotaPayload"
+          },
+          "catalogo_no": {
+            "$ref": "#/components/schemas/CatalogoNoPayload"
+          },
+          "produto_unidade": {
+            "$ref": "#/components/schemas/ProdutoUnidadePayload"
+          },
+          "cliente_endereco": {
+            "$ref": "#/components/schemas/ClienteEnderecoPayload"
+          },
+          "transportadora": {
+            "$ref": "#/components/schemas/TransportadoraPayload"
+          }
+        }
+      },
+      "LoteResultado": {
+        "type": "object",
+        "properties": {
+          "lote_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entidade": {
+            "$ref": "#/components/schemas/Entidade"
+          },
+          "modo": {
+            "$ref": "#/components/schemas/ModoCarga"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EstadoLote"
+          },
+          "contagens": {
+            "$ref": "#/components/schemas/ContagensLote"
+          },
+          "erros": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinhaErro"
+            }
+          },
+          "avisos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvisoLinha"
+            }
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invalidas_omitidas": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "erros_total": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "erros_omitidos": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inativacao": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InativacaoLote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inativadas": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "recebido_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "concluido_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "lote_id",
+          "entidade",
+          "modo",
+          "status",
+          "contagens",
+          "erros",
+          "avisos",
+          "cursor",
+          "inativadas",
+          "recebido_em",
+          "concluido_em"
+        ]
+      },
+      "ModoCarga": {
+        "type": "string",
+        "enum": [
+          "completo",
+          "delta"
+        ]
+      },
+      "NotaPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "cliente_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "vendedor_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoNota"
+          },
+          "numero": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "serie": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emitida_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "total_cents": {
+            "type": "integer"
+          },
+          "quantidade_itens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pedido_uuid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancelada": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "cliente_external_id",
+          "tipo",
+          "numero",
+          "emitida_em",
+          "total_cents"
+        ]
+      },
+      "NotaRetorno": {
+        "type": "object",
+        "properties": {
+          "numero": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "serie": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emitida_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "total_cents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "numero",
+          "emitida_em",
+          "total_cents"
+        ]
+      },
+      "PacoteConector": {
+        "type": "object",
+        "properties": {
+          "versao": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "assinatura": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chave_publica_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "versao",
+          "sha256"
+        ]
+      },
+      "ParadaRota": {
+        "type": "object",
+        "properties": {
+          "ordem": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "cliente_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "ordem",
+          "cliente_external_id"
+        ]
+      },
+      "PedidoParaErp": {
+        "description": "Pedido aprovado para gravar no ERP. Idempotente pelo `pedido_uuid`; `tentativa` > 1 = reenvio por timeout.",
+        "type": "object",
+        "properties": {
+          "versao_contrato": {
+            "const": "v1",
+            "type": "string"
+          },
+          "pedido_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cliente_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "vendedor_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "condicao_pagamento_erp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "criado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "aprovado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "observacao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "itens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemPedidoErp"
+            },
+            "minItems": 1
+          },
+          "desconto_total_cents": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "total_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tentativa": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "default": 1
+          },
+          "desconto_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acrescimo_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "acrescimo_total_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frete": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreteErp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endereco_entrega": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnderecoEntregaErp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "versao_contrato",
+          "pedido_uuid",
+          "cliente_external_id",
+          "vendedor_external_id",
+          "criado_em",
+          "aprovado_em",
+          "itens",
+          "desconto_total_cents",
+          "total_cents",
+          "tentativa"
+        ]
+      },
+      "PedidosPendentes": {
+        "type": "object",
+        "properties": {
+          "pedidos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PedidoParaErp"
+            }
+          }
+        },
+        "required": [
+          "pedidos"
+        ]
+      },
+      "PoliticaVersaoConector": {
+        "type": "object",
+        "properties": {
+          "versao_minima": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+          },
+          "versao_recomendada": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+          },
+          "mensagem": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pacote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PacoteConector"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "versao_minima",
+          "versao_recomendada"
+        ]
+      },
+      "PrecoPayload": {
+        "description": "Um registro por item de tabela. `vigencia_fim` não pode ser anterior a `vigencia_inicio`.",
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "tabela_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "tabela_nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "vigencia_inicio": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "vigencia_fim": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "produto_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "preco_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unidade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 6
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "tabela_external_id",
+          "tabela_nome",
+          "vigencia_inicio",
+          "produto_external_id",
+          "preco_cents"
+        ]
+      },
+      "ProdutoPayload": {
+        "description": "`embalagem_medida` e `embalagem_quantidade` devem ser informadas juntas.",
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "ean": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{8}$|^\\d{12,14}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "marca": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categoria": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unidade": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10
+          },
+          "embalagem_medida": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "embalagem_quantidade": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 9999
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "catalogo_no_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "custo_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preco_venda_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "desconto_maximo_pct": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "sku",
+          "nome",
+          "unidade"
+        ]
+      },
+      "ProdutoUnidadePayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "produto_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "unidade": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,4}$"
+          },
+          "fator": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9999
+          },
+          "ean": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{8}$|^\\d{12,14}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "padrao": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "produto_external_id",
+          "unidade",
+          "fator"
+        ]
+      },
+      "ReconciliacaoEnvio": {
+        "type": "object",
+        "properties": {
+          "versao_contrato": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entidade": {
+            "$ref": "#/components/schemas/Entidade"
+          },
+          "data_referencia": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "contagem": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "soma": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "versao_contrato",
+          "entidade",
+          "data_referencia",
+          "contagem",
+          "soma"
+        ]
+      },
+      "RecusaLote": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mensagem": {
+            "type": "string",
+            "minLength": 1
+          },
+          "erros": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "codigo": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "campo": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mensagem": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "codigo",
+                "campo",
+                "mensagem"
+              ]
+            },
+            "minItems": 1
+          },
+          "detalhes": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requisicao_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "codigo",
+          "mensagem",
+          "erros"
+        ]
+      },
+      "RecusaRetorno": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "$ref": "#/components/schemas/CodigoRecusaRetorno"
+          },
+          "mensagem": {
+            "type": "string",
+            "minLength": 1
+          },
+          "erros": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "codigo": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "campo": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mensagem": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "codigo",
+                "campo",
+                "mensagem"
+              ]
+            },
+            "minItems": 1
+          },
+          "requisicao_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "codigo",
+          "mensagem",
+          "erros"
+        ]
+      },
+      "RespostaReconciliacao": {
+        "type": "object",
+        "properties": {
+          "situacao": {
+            "type": "string",
+            "enum": [
+              "comparada",
+              "pendente"
+            ],
+            "default": "comparada"
+          },
+          "entidade": {
+            "$ref": "#/components/schemas/Entidade"
+          },
+          "data_referencia": {
+            "type": "string"
+          },
+          "divergente": {
+            "type": "boolean"
+          },
+          "motivos": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "contagem_divergente",
+                "soma_divergente",
+                "soma_ausente"
+              ]
+            }
+          },
+          "contagem": {
+            "type": "object",
+            "properties": {
+              "erp": {
+                "type": "number"
+              },
+              "macuxi": {
+                "type": "number"
+              },
+              "diferenca": {
+                "type": "number"
+              },
+              "dentro": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "erp",
+              "macuxi",
+              "diferenca",
+              "dentro"
+            ]
+          },
+          "soma": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "erp": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "macuxi": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "diferenca": {
+                    "type": "number"
+                  },
+                  "diferenca_pct": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "dentro": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "erp",
+                  "macuxi",
+                  "diferenca",
+                  "diferenca_pct",
+                  "dentro"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "situacao",
+          "entidade",
+          "data_referencia",
+          "divergente",
+          "motivos",
+          "contagem",
+          "soma"
+        ]
+      },
+      "RespostaSinal": {
+        "type": "object",
+        "properties": {
+          "politica_versao": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PoliticaVersaoConector"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conector_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recebido_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RetornoAceito": {
+        "type": "object",
+        "properties": {
+          "pedido_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EstadoPedidoErp"
+          },
+          "repetido": {
+            "type": "boolean"
+          },
+          "itens_descartados": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemFaturadoDescartado"
+            }
+          }
+        },
+        "required": [
+          "pedido_uuid",
+          "status",
+          "repetido"
+        ]
+      },
+      "RetornoErp": {
+        "description": "Retorno do ERP para um pedido. Regras: `numero_erp` obrigatório em `integrado`, `faturado_parcial` e `faturado_total`; `motivo` obrigatório em `rejeitado_erp`; `nota` obrigatória em `faturado_*`; `itens_faturados` só em `faturado_*` e nunca vazio.",
+        "type": "object",
+        "properties": {
+          "versao_contrato": {
+            "const": "v1",
+            "type": "string"
+          },
+          "pedido_uuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusRetornoErp"
+          },
+          "numero_erp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nota": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotaRetorno"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "itens_faturados": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ItemFaturado"
+                },
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Itens faturados NESTA nota (o que foi faturado antes não se repete). `sequencia` é a de `PedidoParaErp.itens`."
+          },
+          "ocorrido_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          }
+        },
+        "required": [
+          "versao_contrato",
+          "pedido_uuid",
+          "status",
+          "ocorrido_em"
+        ]
+      },
+      "RotaPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "vendedor_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "dia_semana": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paradas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParadaRota"
+            },
+            "maxItems": 500,
+            "default": []
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "nome",
+          "vendedor_external_id"
+        ]
+      },
+      "SessaoCarga": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parte": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "ultimo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "parte",
+          "ultimo"
+        ]
+      },
+      "SinalConector": {
+        "type": "object",
+        "properties": {
+          "conector_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "versao_conector": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+          },
+          "versao_contrato": {
+            "type": "string",
+            "minLength": 1
+          },
+          "em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "fila": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "estado": {
+                  "type": "string"
+                },
+                "lotes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "linhas": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "maisAntigo": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "Z$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "estado",
+                "lotes",
+                "linhas",
+                "maisAntigo"
+              ]
+            }
+          },
+          "entidades": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entidade": {
+                  "type": "string"
+                },
+                "fase": {
+                  "type": "string"
+                },
+                "ultimo_sucesso": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "Z$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "bloqueada": {
+                  "type": "boolean"
+                },
+                "lotes_na_fila": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "entidade",
+                "fase",
+                "ultimo_sucesso",
+                "bloqueada",
+                "lotes_na_fila"
+              ]
+            }
+          },
+          "parado_por_versao": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "conector_id",
+          "versao_conector",
+          "versao_contrato",
+          "em",
+          "fila",
+          "entidades"
+        ]
+      },
+      "SituacaoTitulo": {
+        "type": "string",
+        "enum": [
+          "aberto",
+          "baixado",
+          "cancelado"
+        ]
+      },
+      "StatusRetornoErp": {
+        "type": "string",
+        "enum": [
+          "integrado",
+          "rejeitado_erp",
+          "faturado_parcial",
+          "faturado_total",
+          "cancelado"
+        ]
+      },
+      "TipoNota": {
+        "type": "string",
+        "enum": [
+          "faturamento",
+          "devolucao"
+        ]
+      },
+      "TituloPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "cliente_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "numero": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "parcela": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emissao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vencimento": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "valor_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "saldo_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "situacao": {
+            "$ref": "#/components/schemas/SituacaoTitulo"
+          },
+          "baixado_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "cliente_external_id",
+          "numero",
+          "vencimento",
+          "valor_cents",
+          "saldo_cents",
+          "situacao"
+        ]
+      },
+      "TransportadoraPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "documento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{14}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inscricao_estadual": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "nome"
+        ]
+      },
+      "TransportadoraPedido": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "tipo": {
+                "const": "cadastrada",
+                "type": "string"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "external_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nome": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "cnpj": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{14}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "telefone": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 30
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "tipo",
+              "id",
+              "nome"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "tipo": {
+                "const": "digitada",
+                "type": "string"
+              },
+              "nome": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "cnpj": {
+                "type": "string",
+                "pattern": "^\\d{14}$"
+              },
+              "telefone": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 30
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "tipo",
+              "nome",
+              "cnpj"
+            ]
+          }
+        ]
+      },
+      "VendedorPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "nome"
+        ]
+      }
+    }
+  }
+}

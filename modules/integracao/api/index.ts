@@ -16,9 +16,12 @@ import { rotaCargaArquivo, rotaErrosLote, rotaLote } from './bko-carga-arquivo';
 import { rotaDecidirInativacao } from './bko-inativacao';
 import { criarRotasConectores } from './bko-conectores';
 import { rotaMonitor } from './bko-monitor';
+import { rotaOpenApi } from './bko-openapi';
 import { rotaGravarPolitica, rotaLerPolitica } from './bko-politica';
 import { consultarCursor, consultarLote, enviarLote, enviarReconciliacao } from './rotas-lotes';
 import { pedidosPendentes, retornoPedido, sinalDeVida } from './rotas-pedidos';
+
+export { gerarOpenApiHub, openApiHub, type DocumentoOpenApi } from './openapi/gerar';
 
 const LIMITE_CORPO_LOTE = 8 * 1024 * 1024;
 const MAX_ELEMENTOS_LOTE = 1_000_000;
@@ -52,7 +55,7 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined }
     manifesto: manifest,
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado],
-    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaCargaArquivo, rotaLote, rotaErrosLote],
+    rotas: [rotaMonitor, rotaOpenApi, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaCargaArquivo, rotaLote, rotaErrosLote],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),
   });
 }
