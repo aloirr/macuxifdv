@@ -7,9 +7,12 @@
  * tabela de preço no tenant (cadastro pelo Core: sku, nome, unidade, ativo; marca, categoria e EAN ainda não vêm na
  * consulta — pedido ao modulo-core).
  */
-import { ErroHttpModulo, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
+import { ehConsultaIndisponivel, ErroHttpModulo, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
+import { CONSULTA_CONCORRENTES } from '@macuxi/promotor/contracts';
 import type { ItemTabelaPreco, MidiaProduto, Referencia, Sinonimo, StockByBranch } from '../contracts';
+import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
+import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { codigoCompacto } from '../domain/ranking';
 import type { ProdutoCatalogo } from '../domain/vitrine';
 import type { FabricaRepositorio, RepositorioCatalogo } from './repositorio';
@@ -43,10 +46,24 @@ async function cadastroDoCore(tx: TransacaoTenant, ids: readonly string[]): Prom
 export type ResolvedorMarcas = (tx: TransacaoTenant) => Promise<Map<string, { nome: string; ativo: boolean }>>;
 
 /**
- * Sem o contrato do Promotor ligado (ou tenant sem a licença dele) não há nome de marca: a referência não aparece. Risco
- * registrado pelo gerente (R-20261105-213304); o resolvedor real entra em `index.ts` quando `promotor.concorrentes@1` existir.
+ * Sem o contrato do Promotor (tenant ou usuário sem a licença dele) não há nome de marca: lista vazia, a referência não aparece
+ * e o PUT a recusa com mensagem clara (risco 1 da ADR 0027). Usado em testes e quando a consulta não existe.
  */
 export const SEM_MARCAS: ResolvedorMarcas = async () => new Map();
+
+/**
+ * Marcas pelo `promotor.concorrentes@1` (ADR 0012/0027): todas, inclusive inativas (para dizer "inativa" em vez de
+ * "desconhecida"; quem lista filtra os ativos). Consulta indisponível → mapa vazio.
+ */
+export const MARCAS_DO_PROMOTOR: ResolvedorMarcas = async (tx) => {
+  try {
+    const r = await tx.consultar(CONSULTA_CONCORRENTES, { incluir_inativos: true });
+    return new Map(r.concorrentes.map((c) => [c.id, { nome: c.nome, ativo: c.ativo }]));
+  } catch (e) {
+    if (ehConsultaIndisponivel(e)) return new Map();
+    throw e;
+  }
+};
 
 /** Atributos, destaque, aplicação, referências cruzadas e miniatura do próprio Catálogo (0013, 0033) sobre o cadastro do Core. */
 async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas: Map<string, { nome: string; ativo: boolean }>): Promise<ProdutoCatalogo[]> {
@@ -60,8 +77,8 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
     `select produto_id, (campanha or destaque) as campanha, aplicacoes as aplicacao from catalogo.produto_conteudo where produto_id = any($1::uuid[]) and deleted_at is null`,
     [ids],
   );
-  const rf = await db.query<{ produto_id: string; marca_id: string; codigo: string }>(
-    `select produto_id, marca_id, codigo from catalogo.produto_referencia where produto_id = any($1::uuid[]) and deleted_at is null order by ordem`,
+  const rf = await db.query<{ produto_id: string; marca_id: string; codigo: string; marca_nome: string | null }>(
+    `select produto_id, marca_id, codigo, marca_nome from catalogo.produto_referencia where produto_id = any($1::uuid[]) and deleted_at is null order by ordem`,
     [ids],
   );
   const mi = await db.query<{ produto_id: string; url: string | null; arquivo_id: string | null }>(
@@ -78,9 +95,10 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
   const aplicacao = new Map(co.rows.map((r) => [r.produto_id, r.aplicacao ?? '']));
   const referencias = new Map<string, Referencia[]>();
   for (const r of rf.rows) {
-    const m = marcas.get(r.marca_id);
-    if (!m || !m.ativo) continue; // marca inativa ou desconhecida: a referência sai da busca e da tela (RN-CAT-09)
-    referencias.set(r.produto_id, [...(referencias.get(r.produto_id) ?? []), { marca_id: r.marca_id, marca_nome: m.nome, codigo: r.codigo }]);
+    // cadastro do Promotor disponível: manda (marca inativa/ausente esconde); indisponível (vendedor): retrato marca_nome (RN-CAT-09, ADR 0027 risco 2)
+    const nome = nomeMarcaDaReferencia(r.marca_id, r.marca_nome, marcas);
+    if (nome === null) continue;
+    referencias.set(r.produto_id, [...(referencias.get(r.produto_id) ?? []), { marca_id: r.marca_id, marca_nome: nome, codigo: r.codigo }]);
   }
   const thumb = new Map(mi.rows.map((r) => [r.produto_id, r.url ?? (r.arquivo_id ? `/v1/arquivos/${r.arquivo_id}` : null)]));
   return produtos.map((p) => ({
@@ -94,7 +112,7 @@ async function enriquecer(db: ClienteBanco, produtos: ProdutoCatalogo[], marcas:
 }
 
 export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } = {}): FabricaRepositorio {
-  const resolverMarcas = opcoes.marcas ?? SEM_MARCAS;
+  const resolverMarcas = opcoes.marcas ?? MARCAS_DO_PROMOTOR;
   return (ctx, db, tx): RepositorioCatalogo => ({
     async produtos() {
       return enriquecer(db, await cadastroDoCore(tx, await idsComPreco(db)), await resolverMarcas(tx));
@@ -105,6 +123,16 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
     },
     async marcasConcorrentes() {
       return resolverMarcas(tx);
+    },
+    async dadosExportacao() {
+      const nos = await db.query<NoCatalogo>(`select id, pai_id, nivel, codigo, nome, ordem, ativo from catalogo.catalogo_no where deleted_at is null`);
+      const vinculos = await db.query<VinculoProdutoNo>(`select produto_id, no_id from catalogo.produto_no where deleted_at is null`);
+      const rel = await db.query<{ produto_id: string; relacionado_id: string }>(
+        `select produto_id, relacionado_id from catalogo.produto_relacao where tipo = 'complementar' and ativo and deleted_at is null order by produto_id, ordem, id`,
+      );
+      const ofereceJunto = new Map<string, string[]>();
+      for (const r of rel.rows) ofereceJunto.set(r.produto_id, [...(ofereceJunto.get(r.produto_id) ?? []), r.relacionado_id]);
+      return { nos: nos.rows, vinculos: vinculos.rows, ofereceJunto };
     },
     async extrasFicha(produtoId) {
       const rel = await db.query<{ relacionado_id: string }>(
@@ -132,11 +160,13 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       // `referencias` ausente = não mexe (B1); lista vazia explícita = apaga todas
       if (c.referencias !== undefined) await db.query(`update catalogo.produto_referencia set deleted_at = now() where produto_id = $1::uuid and deleted_at is null`, [produtoId]);
       let ordem = 1;
+      // retrato do nome da marca (0034): a rota já validou o marca_id contra o mapa do Promotor
+      const marcasDoPromotor = (c.referencias ?? []).length > 0 ? await resolverMarcas(tx) : new Map<string, { nome: string; ativo: boolean }>();
       for (const ref of c.referencias ?? []) {
         await db.query(
-          `insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem)
-           values (plataforma.tenant_atual(), $1::uuid, $2::uuid, $3, $4, $5::int)`,
-          [produtoId, ref.marca_id, ref.codigo.trim(), codigoCompacto(ref.codigo), ordem++],
+          `insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, marca_nome)
+           values (plataforma.tenant_atual(), $1::uuid, $2::uuid, $3, $4, $5::int, $6)`,
+          [produtoId, ref.marca_id, ref.codigo.trim(), codigoCompacto(ref.codigo), ordem++, marcasDoPromotor.get(ref.marca_id)?.nome.trim().slice(0, 120) || null],
         );
       }
       // oferece junto: relação complementar, até 5, na ordem recebida

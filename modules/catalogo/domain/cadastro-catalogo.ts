@@ -40,7 +40,7 @@ export function validarCadastroCatalogo(produtoId: string, c: SalvarCadastroCata
     vistas.add(chave);
   }
 
-  if (c.oferece_junto.length > L.ofereceJunto) erro('RN-CAT-09', 'oferece_junto', `Use até ${L.ofereceJunto} produtos em "Oferece junto". Tire um e salve de novo.`);
+  if (c.oferece_junto.length + (c.oferece_junto_codigos?.length ?? 0) > L.ofereceJunto) erro('RN-CAT-09', 'oferece_junto', `Use até ${L.ofereceJunto} produtos em "Oferece junto". Tire um e salve de novo.`);
   if (c.oferece_junto.includes(produtoId)) erro('RN-CAT-09', 'oferece_junto', 'O produto não pode oferecer ele mesmo. Escolha outro.');
   if (new Set(c.oferece_junto).size !== c.oferece_junto.length) erro('RN-CAT-09', 'oferece_junto', 'Há produto repetido em "Oferece junto". Deixe só um de cada.');
 

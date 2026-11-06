@@ -60,6 +60,8 @@ export const manifest = defineModule({
   ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'catalogo.textos_produto@1', 'catalogo.busca_produtos@1'],
   // T-0052 (ADR 0012): cadastro base do produto (sku, nome, unidade, ativo) para a busca na API, sem ler `core.produto`
   usaConsultas: ['core.cadastro_resumo@1'],
+  // ADR 0027: marcas da referência cruzada pelo cadastro de concorrentes do Promotor; sem o Promotor a consulta fica indisponível
+  usaConsultasOpcionais: ['promotor.concorrentes@1'],
   acoes: {
     // --- consulta (app Macuxi Campo e Gestão; BKO) ---
     'produto.consultar': { perfis: [...PERFIS_CONSULTA], descricao: 'Buscar, navegar, ver a ficha, favoritar e comparar produtos (RF-CAT-01..04, RF-CAT-06)' },

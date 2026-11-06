@@ -37,7 +37,7 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
 
   const resolver: ResolverProdutos = async (_ctx, ids) => new Map(ids.filter((i) => i === 'P-1').map((i) => [i, PROD]));
 
-  async function emTransacao(tenant: string, fn: (t: Teste) => Promise<void>): Promise<void> {
+  async function emTransacao(tenant: string, fn: (t: Teste) => Promise<void>, concorrentes: { id: string; nome: string; ativo: boolean; external_id: string | null }[] = []): Promise<void> {
     const c = await pool.connect();
     try {
       await c.query('begin');
@@ -50,7 +50,7 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
           parametros: () => ({}),
           envelope: { evento_id: 'x', tenant_id: tenant },
           publicar: vi.fn(async () => ({})),
-          consultar: vi.fn(),
+          consultar: vi.fn(async () => ({ concorrentes })),
           log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
         } as unknown as ContextoConsumo;
         await cons.executar(cons.evento.schema.parse(payload), ctx);
@@ -165,5 +165,66 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
     await emTransacao(B.tenantId, async (t) => {
       expect((await t.q("select 1 from catalogo.tabela_preco_item where external_id = 'PR-T66'")).length).toBe(0);
     });
+  });
+
+  // T-0085 / RN-CAT-09: referência cruzada do produto do ERP; a marca vem de promotor.concorrentes@1 (mock por tenant, como o Promotor devolveria sob RLS)
+  const MARCA_A = '0ca00000-0000-4000-8000-0000000000e1';
+  const MARCA_B = '0ca00000-0000-4000-8000-0000000000e2';
+  const concA = [
+    { id: MARCA_A, nome: 'Freiomax', ativo: true, external_id: 'MC-A' },
+    { id: '0ca00000-0000-4000-8000-0000000000e3', nome: 'Velha', ativo: false, external_id: 'MC-VELHA' },
+  ];
+  const concB = [{ id: MARCA_B, nome: 'Marca do B', ativo: true, external_id: 'MC-B' }];
+  const evRefs = (referencias: unknown[]) => env('produto', 'P-1', 'atualizado', { sku: 'SKU-1', nome: 'Produto 1', unidade: 'UN', referencias });
+  const refsVivas = (t: Teste) =>
+    t.q<{ marca_id: string; marca_nome: string | null; codigo: string; ordem: number }>('select marca_id, marca_nome, codigo, ordem from catalogo.produto_referencia where produto_id = $1 and deleted_at is null order by ordem', [PROD]);
+
+  it('RN-CAT-09: referência do ERP com marca conhecida grava o retrato marca_nome; marca desconhecida ou inativa é descartada com aviso', async () => {
+    await emTransacao(
+      A.tenantId,
+      async (t) => {
+        await t.entregar(produtoNo, evRefs([{ marca_external_id: 'MC-A', codigo: 'CB 3401' }, { marca_external_id: 'MC-NAO-EXISTE', codigo: 'ZZ 1' }, { marca_external_id: 'MC-VELHA', codigo: 'OLD 1' }, { marca_nome: 'freiomax', codigo: 'FR-77.2' }]));
+        const r = await refsVivas(t);
+        expect(r.map((x) => [x.marca_id, x.marca_nome, x.codigo, Number(x.ordem)])).toEqual([
+          [MARCA_A, 'Freiomax', 'CB 3401', 1],
+          [MARCA_A, 'Freiomax', 'FR-77.2', 2],
+        ]);
+      },
+      concA,
+    );
+  });
+
+  it('RN-CAT-09: reaplicar o mesmo evento mantém o mesmo conjunto vivo, na ordem 1..N (idempotência)', async () => {
+    await emTransacao(
+      A.tenantId,
+      async (t) => {
+        const ev = evRefs([{ marca_external_id: 'MC-A', codigo: 'CB 3401' }, { marca_external_id: 'MC-A', codigo: 'FR-77.2' }]);
+        await t.entregar(produtoNo, ev);
+        await t.entregar(produtoNo, ev);
+        expect((await refsVivas(t)).map((x) => [x.codigo, x.marca_nome, Number(x.ordem)])).toEqual([['CB 3401', 'Freiomax', 1], ['FR-77.2', 'Freiomax', 2]]);
+      },
+      concA,
+    );
+  });
+
+  it('RN-CAT-09: tenant isolado, a marca do B não resolve no A (descartada) e o retrato gravado no A não aparece no B', async () => {
+    await emTransacao(
+      A.tenantId,
+      async (t) => {
+        await t.entregar(produtoNo, evRefs([{ marca_external_id: 'MC-B', codigo: 'LB 0099' }]));
+        expect((await refsVivas(t)).length).toBe(0);
+        await t.entregar(produtoNo, evRefs([{ marca_external_id: 'MC-A', codigo: 'CB 3401' }]));
+        expect((await refsVivas(t)).length).toBe(1);
+        expect((await t.q("select 1 from catalogo.produto_referencia where marca_id = $1", [MARCA_B])).length).toBe(0);
+      },
+      concA,
+    );
+    await emTransacao(
+      B.tenantId,
+      async (t) => {
+        expect((await t.q("select 1 from catalogo.produto_referencia where marca_nome = 'Freiomax'")).length).toBe(0);
+      },
+      concB,
+    );
   });
 });

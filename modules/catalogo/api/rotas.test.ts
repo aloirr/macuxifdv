@@ -8,6 +8,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import { criarPermissoes, ErroHttpModulo, verificarAcao, verificarAcesso, type ContextoRota, type ModuloId, type Perfil, type RotaModulo } from '@macuxi/platform-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FichaProduto, FiltrosCatalogo, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, RespostaBusca } from '../contracts';
+import { RespostaExportacao } from '../contracts';
 import { AVISO_BUSCA_FALHOU, ErroTempoEsgotadoIa, type PortaInterpretacaoLlm } from '../domain/ia';
 import { MENSAGEM_IA_DESLIGADA, MENSAGEM_LIMITE_ATINGIDO } from '../domain/limite-ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../domain/preco';
@@ -384,7 +385,8 @@ describe('repositório Postgres (0013 ligada)', () => {
       },
       registrarArquivo: async () => ({ criado: false }),
       auditar: async () => {},
-      consultar: async (_def: unknown, entrada: { produto_ids: string[] }) => {
+      consultar: async (def: { nome?: string }, entrada: { produto_ids: string[] }) => {
+        if (def.nome === 'promotor.concorrentes@1') return { concorrentes: [] };
         consultas.push(entrada);
         return { clientes: [], usuarios: [], produtos: entrada.produto_ids.map((id) => ({ id, sku: `S-${id.slice(0, 4)}`, nome: 'Produto', unidade: 'UN', ativo: true, external_id: null })) };
       },
@@ -496,6 +498,26 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     expect(auditoria).toHaveLength(0);
   });
 
+  it('RN-CAT-09: consulta de marcas indisponível (sem o Promotor) recusa a referência com mensagem clara, mas grava o resto sem referências', async () => {
+    memoria = criarRepositorioMemoria({ [TENANT_A]: dadosA(), [TENANT_B]: dadosB() });
+    const { rota } = montar();
+    const put = (c: unknown) => chamar<{ id: string }>(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: c });
+    const r = await put(corpo());
+    expect(r).toMatchObject({ status: 422, codigo: 'RN-CAT-09' });
+    expect((await put(corpo({ referencias: [] }))).status).toBe(200);
+    const lista = await chamar<{ items: unknown[] }>(rota('GET', 'marcas-concorrentes'), usuario('analista'));
+    expect(lista.corpo.items).toEqual([]);
+  });
+
+  it('RN-CAT-09: "oferece junto" por código resolve no servidor sem diferenciar maiúsculas; código inexistente = 422', async () => {
+    const { rota } = montar();
+    const put = (c: unknown) => chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: c });
+    expect((await put(corpo({ oferece_junto: [], oferece_junto_codigos: [' caf-500 '] }))).status).toBe(200);
+    const f = await chamar<FichaProduto>(rota('GET', 'produtos/:id'), usuario('promotor'), { params: { id: FEI } });
+    expect(f.corpo.catalogo?.oferece_junto.map((o) => o.produto_id)).toEqual([CAF]);
+    expect(await put(corpo({ oferece_junto: [], oferece_junto_codigos: ['NAO-EXISTE'] }))).toMatchObject({ status: 422, codigo: 'RN-CAT-09' });
+  });
+
   it('RN-CAT-11: aplicação acima de aplicacao_max_cadastro = 422 RN-CAT-11 (cadastro-catalogo e conteudo)', async () => {
     const { rota } = montar();
     const o = { parametros: { aplicacao_max_cadastro: 100 } };
@@ -536,6 +558,29 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'cb3401', mode: 'basica' } });
     expect(r.corpo.items[0]?.id).toBe(FEI);
     expect(r.corpo.items[0]?.equivale_a).toMatchObject({ marca_nome: 'Freiomax', codigo: 'CB 3401' });
+  });
+
+  it('RF-CAT-09: GET exportacao devolve produtos com aplicação, referências e oferece junto, e as marcas ativas; só analista e admin', async () => {
+    const { rota } = montar();
+    await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo() });
+    const r = await chamar<RespostaExportacao>(rota('GET', 'exportacao'), usuario('analista'));
+    expect(r.status).toBe(200);
+    expect(RespostaExportacao.safeParse(r.corpo).success).toBe(true);
+    const p = r.corpo.produtos.find((x) => x.id === FEI)!;
+    expect(p).toMatchObject({ aplicacao: 'Fiat Uno 1.0/1.4 2010–2014', referencias: [{ marca_id: MARCA_A, codigo: 'CB 3401' }], oferece_junto: [CAF] });
+    expect(r.corpo.marcas.map((m) => m.nome)).toEqual(['Freiomax', 'Rodaforte']);
+    expect(r.corpo.truncado).toBe(false);
+    expect((await chamar(rota('GET', 'exportacao'), usuario('admin'))).status).toBe(200);
+    for (const perfil of ['vendedor', 'promotor', 'supervisor'] as const) expect((await chamar(rota('GET', 'exportacao'), usuario(perfil))).status).toBe(403);
+  });
+
+  it('RF-CAT-09: GET exportacao sem a licença do catálogo é 403 e só traz o tenant do usuário', async () => {
+    const { rota } = montar();
+    const semLicenca = await chamar(rota('GET', 'exportacao'), usuario('analista', { modulos: ['core'] }));
+    expect(semLicenca.status).toBe(403);
+    const b = await chamar<RespostaExportacao>(rota('GET', 'exportacao'), usuario('analista', { tenant_id: TENANT_B }));
+    expect(b.corpo.produtos.map((x) => x.codigo)).toEqual(['B-1']);
+    expect(b.corpo.marcas).toEqual([]);
   });
 
   it('RN-CAT-09: GET marcas-concorrentes lista só as ativas, em ordem de nome, e só para quem enriquece', async () => {

@@ -28,6 +28,7 @@ import { montarArvore, produtosDoNo, produtosVendaveisNaTabela, type Arvore, typ
 import { montarFicha, type ConteudoGuardado } from '../../domain/conteudo';
 import { interpretarConsulta } from '../../domain/consulta';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
+import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
@@ -139,9 +140,10 @@ async function montarProdutosLocais(leitor: LeitorLocal): Promise<ProdutoCatalog
   const marcas = await marcasConcorrentesLocais(leitor);
   const referencias = new Map<string, Referencia[]>();
   for (const x of vivas(await leitor.linhas<ProdutoReferenciaSync & LinhaSync>('produto_referencia')).sort((a, b) => a.ordem - b.ordem)) {
-    const marca = marcas.get(x.marca_id);
-    if (!marca || !marca.ativo) continue; // marca inativa ou desconhecida: a referência sai da busca e da tela (RN-CAT-09)
-    referencias.set(x.produto_id, [...(referencias.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: marca.nome, codigo: x.codigo }]);
+    // concorrente legível: manda (inativa/ausente esconde); vendedor sem o Promotor: retrato marca_nome; sem retrato, sem marca (RN-CAT-09)
+    const nome = nomeMarcaDaReferencia(x.marca_id, x.marca_nome, marcas);
+    if (nome === null) continue;
+    referencias.set(x.produto_id, [...(referencias.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
   }
   return produtos.map((p) => ({
     id: p.id,
