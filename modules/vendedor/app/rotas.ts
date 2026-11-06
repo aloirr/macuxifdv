@@ -22,7 +22,7 @@ export type FiltroDoInicio = 'orcamentos' | 'a_faturar';
 export const hrefPedidosFiltrados = (filtro: FiltroDoInicio) => rota(CAMINHO_PEDIDOS, { filtro });
 export const hrefPedido = (id: string) => rota(CAMINHO_PEDIDO, { id });
 /** `vendedorId`/`autorId`: pedido em nome do vendedor (RN-VEN-35), aberto pelo gestor; o autor da API é sempre o token. */
-export type ParamsNovoPedido = { customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; autorId?: string };
+export type ParamsNovoPedido = { customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; autorId?: string; vendedorNome?: string };
 export const hrefNovoPedido = (params: ParamsNovoPedido = {}) => rota(CAMINHO_NOVO_PEDIDO, params);
 
 /** RF-CAT-04: abre a árvore do Catálogo de dentro do pedido; só entram produtos da tabela do cliente (RN-CAT-06). */

@@ -17,3 +17,4 @@ export * from './filtro-vendedor';
 export * from './base-recriada';
 export * from './pedido-em-nome';
 export * from './aplicacao';
+export * from './busca-seletor';
