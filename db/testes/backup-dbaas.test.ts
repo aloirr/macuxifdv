@@ -167,6 +167,9 @@ describe.skipIf(!comBash)('ponta a ponta com docker falso: backup → bucket →
 
   it('ensaio: IGUAL, código 0, base temporária criada e apagada, lista sem os objetos do provedor', () => {
     expect(rodar(BACKUP).codigo).toBe(0);
+    // o chamadas.log acumula o backup (que conecta, sim, na macuxi: papel, contagem e pg_dump) e o ensaio; só a fatia
+    // do ensaio interessa aqui
+    const antesDoEnsaio = arquivo('chamadas.log').length;
     const r = rodar(ENSAIO, ['ultimo']);
     expect(r.codigo, r.saida).toBe(0);
     expect(r.ultima).toMatch(/^\[ensaio\] resultado: IGUAL \(3 tabelas, 72 linhas, 6 políticas; conferir-rls: 0 problemas; backup backups\/macuxi-\d{8}T\d{6}Z\.dump/);
@@ -174,7 +177,13 @@ describe.skipIf(!comBash)('ponta a ponta com docker falso: backup → bucket →
     expect(bancos).toHaveLength(2);
     expect(bancos[0]).toMatch(/^criou macuxi_ensaio_\d{14}$/);
     expect(bancos[1]).toBe(bancos[0]!.replace('criou', 'apagou'));
-    expect(arquivo('chamadas.log')).not.toMatch(/psql -d macuxi$/m);
+    // o ensaio só conecta em "postgres" (checagem do papel, sobras, CREATE/DROP DATABASE da temporária) e na própria
+    // temporária (vector, pg_restore, contagem, conferir-rls): nunca na macuxi
+    const chamadasEnsaio = arquivo('chamadas.log').slice(antesDoEnsaio);
+    const alvosEnsaio = [...chamadasEnsaio.matchAll(/^psql -d (\S+)$/gm)].map((m) => m[1]!);
+    expect(alvosEnsaio.length).toBeGreaterThan(0);
+    expect(new Set(alvosEnsaio)).toEqual(new Set(['postgres', bancos[0]!.slice('criou '.length)]));
+    expect(chamadasEnsaio).not.toMatch(/ -d macuxi( |$)/m);
     const lista = arquivo('lista-usada.txt');
     expect(lista).toContain('TABLE DATA core usuario');
     expect(lista).not.toMatch(/COMMENT - EXTENSION|EVENT TRIGGER|pgaudit_/);
