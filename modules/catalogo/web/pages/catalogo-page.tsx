@@ -11,6 +11,7 @@ import { Badge, Button, DEFAULT_TZ, ErrorBlock, FilterBar, formatDateTime, Loadi
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FichaProduto, FiltrosCatalogo, ListaSinonimos, ListaTermosSemResultado, PaginaVitrine, type ItemVitrine, type Sinonimo } from '../../contracts';
+import { ExportacaoCatalogo } from '../exportacao/exportacao-catalogo';
 import { chaveDeTermo } from '../../domain/texto';
 import { buscaDosFiltros, conteudoDoForm, formDaFicha, formDoSinonimo, lerFiltrosBko, produtosParaCsv, sinonimoDoForm, type AbaBko, type FiltrosBko, type FormConteudo, type FormSinonimo } from '../lib/formularios';
 
@@ -58,6 +59,7 @@ export function CatalogoPage() {
             </Button>
           ))}
       </nav>
+      <ExportacaoCatalogo />
       {aba === 'produtos' && <Produtos filtros={filtros} mudar={mudar} podeConteudo={podeConteudo} />}
       {aba === 'sinonimos' && <Sinonimos />}
       {aba === 'sem-resultado' && <SemResultado />}
