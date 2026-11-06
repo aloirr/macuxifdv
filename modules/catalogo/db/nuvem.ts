@@ -1,8 +1,10 @@
 /**
  * Schema `catalogo` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0008_catalogo_preco.up.sql (T-0029 §10) e 0013_catalogo_vendedor_prevenda.up.sql (cota de IA, árvore,
- * conteúdo, busca do servidor, estoque e log de busca) e 0020_pedido_ajuste_valor_produto_relacao (produto_relacao, T-0071),
- * para uso INTERNO do módulo Catálogo (modules/catalogo/api).
+ * conteúdo, busca do servidor, estoque e log de busca), 0020_pedido_ajuste_valor_produto_relacao (produto_relacao, T-0071) e
+ * 0033_catalogo_aplicacao_referencia (teto da aplicação, etiquetas, aplicação e referências na busca, produto_referencia;
+ * T-0084/T-0085) e 0034_catalogo_referencia_marca_nome (retrato do nome da marca na referência; T-0085), para uso
+ * INTERNO do módulo Catálogo (modules/catalogo/api).
  * Nenhum outro módulo importa este arquivo: o Vendedor obtém preço pela consulta `catalogo.precos_cliente@1` (ADR 0012).
  *
  * A fonte da verdade é o SQL versionado (FKs compostas, índices, CHECKs, RLS e grants ficam lá). Sem FK para o schema
@@ -100,11 +102,18 @@ export const produtoConteudo = catalogo.table('produto_conteudo', {
   ...comuns(),
   produto_id: uuid('produto_id').notNull(),
   descricao: text('descricao'),
+  /**
+   * A "Aplicação" (descrição 2, RN-CAT-11): até 2.000 caracteres (CHECK produto_conteudo_aplicacoes_tamanho, 0033). Nos
+   * contratos novos (pull, /integracao/v1, rotas) o campo se chama `aplicacao`; o provedor mapeia.
+   */
   aplicacoes: text('aplicacoes'),
   argumentos_venda: text('argumentos_venda'),
   faq: jsonb('faq').$type<FaqProduto[]>().notNull().default([]),
   campanha: boolean('campanha').notNull().default(false),
   destaque: boolean('destaque').notNull().default(false),
+  // --- 0033 (T-0085, RF-CAT-09) ---
+  /** Etiquetas curtas (posição, lado, "novo"): até 4, cada uma não vazia e com até 20 caracteres (CHECK produto_conteudo_etiquetas_validas). */
+  etiquetas: text('etiquetas').array().notNull().default([]),
 });
 
 /** Atributo filtrável (ex.: Cilindrada = "150", valor_num 150, unidade "cc"). (produto, nome) único vivo. */
@@ -158,9 +167,15 @@ export const produtoBusca = catalogo.table('produto_busca', {
   marca: text('marca'),
   categoria: text('categoria'),
   atributos: text('atributos'),
+  /** Descrição e argumentos (peso D). Desde a 0033 NÃO leva a aplicação, que tem coluna própria (peso C). */
   conteudo: text('conteudo'),
   ativo: boolean('ativo').notNull().default(true),
   documento: tsvector('documento').notNull(),
+  // --- 0033 (T-0084/T-0085) ---
+  /** Aplicação já expandida (`expandirAplicacao(...).textoIndice`, RN-CAT-12), peso C junto dos atributos. */
+  aplicacao: text('aplicacao'),
+  /** Códigos das referências cruzadas, crus + compactos (RN-CAT-09), peso A junto de sku/ean/nome. */
+  referencias: text('referencias'),
 });
 
 /** Depósito/filial do estoque (`branch_id`/`branch_name` do contrato). Código único vivo. */
@@ -209,4 +224,27 @@ export const produtoRelacao = catalogo.table('produto_relacao', {
   tipo: text('tipo', { enum: TIPOS_RELACAO_PRODUTO_BANCO }).notNull(),
   ordem: integer('ordem').notNull().default(0),
   ativo: boolean('ativo').notNull().default(true),
+});
+
+// --- 0033 (T-0085, RN-CAT-09; desenho T-0085 §2 e §7): referência cruzada do produto ---
+/**
+ * Referência cruzada ("Equivale a: <marca> <código>"): até 3 vivas por produto (ordem 1..3, único vivo por (tenant, produto,
+ * ordem)). marca_id = id do cadastro `concorrente` do PROMOTOR, lido pelo contrato do Promotor — SEM FK (outro schema,
+ * regra 1); produto_id sem FK (core.produto). codigo = como foi escrito (1..30, não vazio). codigo_compacto = forma
+ * normalizada para a busca, GRAVADA PELA API com `codigoCompacto` do domain (o banco só confere `^[a-z0-9]{1,30}$`);
+ * (tenant, produto, marca, compacto) único vivo. Pull escopo tenant (o aparelho recalcula o compacto; ele não vai no pull).
+ */
+export const produtoReferencia = catalogo.table('produto_referencia', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  marca_id: uuid('marca_id').notNull(),
+  codigo: text('codigo').notNull(),
+  codigo_compacto: text('codigo_compacto').notNull(),
+  ordem: smallint('ordem').notNull(),
+  /**
+   * 0034 (ADR 0027, risco 2): RETRATO do nome da marca no cadastro do Promotor no momento da gravação (nulo ou 1..120). Quem
+   * grava valida a marca por `promotor.concorrentes@1`; vai no pull para o vendedor ver a referência sem o Promotor. Nulo =
+   * linha anterior à 0034 ainda não regravada (a migração não lê o schema promotor): o leitor cai no fallback.
+   */
+  marca_nome: text('marca_nome'),
 });

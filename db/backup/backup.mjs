@@ -5,18 +5,26 @@
  * não tem cliente do Postgres): quem chama passa o dump pelo stdin (db/backup/backup-vm.sh, no host da VM, usa o
  * pg_dump de dentro do contêiner postgres). Ver db/backup/LEIA-ME.md.
  *
- *   node db/backup/backup.mjs enviar [arquivo]           dump custom (-Fc) do arquivo ou do stdin → <prefixo><banco>-<UTC>.dump,
- *                                                        confere tamanho e sha256 no bucket e depois poda os antigos
+ *   node db/backup/backup.mjs enviar [arquivo] [--carimbo AAAAMMDDTHHMMSSZ]
+ *                                                        dump custom (-Fc) do arquivo ou do stdin → <prefixo><banco>-<UTC>.dump
+ *                                                        (UTC de agora ou o --carimbo), confere tamanho e sha256 no bucket e
+ *                                                        depois poda os antigos (e as contagens deles)
+ *   node db/backup/backup.mjs enviar-contagem --carimbo AAAAMMDDTHHMMSSZ [arquivo]
+ *                                                        contagem.sql do momento do dump (texto) → <prefixo><banco>-<UTC>.contagem.txt,
+ *                                                        objeto irmão do dump de mesmo carimbo (T-0086, backup-dbaas.sh)
+ *   node db/backup/backup.mjs resolver <ultimo|chave>    imprime a chave do dump (o mais novo, ou a chave conferida)
  *   node db/backup/backup.mjs baixar <ultimo|chave> [arquivo]   baixa (stdout se sem arquivo) e confere o sha256
+ *   node db/backup/backup.mjs baixar-contagem <chave-do-dump> [arquivo]   contagem gravada junto do dump (sha256 conferido)
  *   node db/backup/backup.mjs listar                     backups no bucket (mais novo por último)
- *   node db/backup/backup.mjs podar [--simular]          apaga os backups com mais de MACUXI_BACKUP_DIAS dias
+ *   node db/backup/backup.mjs podar [--simular]          apaga os backups com mais de MACUXI_BACKUP_DIAS dias (e as contagens)
  *
  * Variáveis (as mesmas do compose da demo; nenhuma é impressa):
  *   MACUXI_S3_ENDPOINT, MACUXI_S3_REGIAO, MACUXI_S3_BUCKET, MACUXI_S3_CHAVE_ID, MACUXI_S3_SEGREDO (obrigatórias),
  *   MACUXI_S3_ESTILO (caminho|virtual, padrão caminho), MACUXI_BACKUP_PREFIXO (padrão backups/; MACUXI_S3_PREFIXO,
  *   o das fotos, é ignorado de propósito), MACUXI_BACKUP_DIAS (padrão 7), MACUXI_PG_BANCO (nome no arquivo, padrão macuxi).
  * Retenção: só apaga objetos com o nome EXATO de backup (<prefixo><banco>-AAAAMMDDTHHMMSSZ.dump) e nunca o mais novo,
- * mesmo vencido (se o backup parar de rodar, o último fica). Fotos (arquivos/) nunca casam com o padrão.
+ * mesmo vencido (se o backup parar de rodar, o último fica). Fotos (arquivos/) nunca casam com o padrão. A contagem
+ * (<...>.contagem.txt) sai junto do dump dela; contagem sem dump (envio do dump falhou) sai quando vence.
  */
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
@@ -76,6 +84,27 @@ export function chaveDoBackup(prefixo, banco, quando) {
   return `${prefixo}${banco}-${carimbo(quando)}.dump`;
 }
 
+/** Sufixo da contagem gravada junto do dump (objeto irmão: mesmo nome, outro sufixo). */
+export const SUFIXO_CONTAGEM = '.contagem.txt';
+/** Contagem maior que isso não é a saída do contagem.sql (uma linha curta por tabela). */
+export const LIMITE_CONTAGEM = 4 * 1024 * 1024;
+
+/** Chave da contagem irmã de um dump (`...Z.dump` → `...Z.contagem.txt`). */
+export function chaveDaContagem(chaveDump) {
+  if (!chaveDump.endsWith('.dump')) throw new Error('[backup] a contagem é irmã de uma chave .dump');
+  return `${chaveDump.slice(0, -'.dump'.length)}${SUFIXO_CONTAGEM}`;
+}
+
+/** AAAAMMDDTHHMMSSZ → Date (UTC), recusando formato ou data impossível. */
+export function lerCarimbo(texto) {
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(String(texto ?? '').trim());
+  if (!m) throw new Error('[backup] --carimbo no formato AAAAMMDDTHHMMSSZ (UTC)');
+  const [, a, me, d, h, mi, s] = m.map(Number);
+  const quando = new Date(Date.UTC(a, me - 1, d, h, mi, s));
+  if (carimbo(quando) !== m[0]) throw new Error('[backup] --carimbo com data impossível');
+  return quando;
+}
+
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Instante (ms) do backup pelo nome, ou null se a chave não for EXATAMENTE de um backup deste prefixo. */
@@ -114,15 +143,86 @@ export function maisNovo(chaves, prefixo) {
 const log = (msg) => process.stderr.write(`[backup] ${msg}\n`);
 const mb = (b) => `${(b / 1024 / 1024).toFixed(1)} MB`;
 
-/** Apaga os vencidos. Devolve as chaves apagadas (ou que seriam, com simular). */
-export async function podar(cliente, cfg, { agora = Date.now(), simular = false, preservar = [] } = {}) {
+/**
+ * Contagens que saem na poda (função pura): a irmã de cada dump que sai e a contagem órfã (sem o dump, porque o envio
+ * dele falhou) já vencida pela mesma regra dos dumps. Nunca a irmã de um dump que fica.
+ */
+export function selecionarContagensExpiradas(chaves, { prefixo, agora, dias, removidos = [] }) {
+  const presentes = new Set(chaves);
+  const saem = new Set(removidos);
+  return chaves.filter((chave) => {
+    if (!chave.endsWith(SUFIXO_CONTAGEM)) return false;
+    const dump = `${chave.slice(0, -SUFIXO_CONTAGEM.length)}.dump`;
+    const ms = instanteDoBackup(dump, prefixo);
+    if (ms === null) return false;
+    if (saem.has(dump)) return true;
+    return !presentes.has(dump) && agora - ms > dias * DIA_MS - FOLGA_MS;
+  });
+}
+
+/**
+ * Apaga os vencidos e as contagens deles. Devolve as chaves dos DUMPS apagados (ou que seriam, com simular); as
+ * contagens apagadas vão em `opcoes.contagens` (lista preenchida aqui), se passada.
+ */
+export async function podar(cliente, cfg, { agora = Date.now(), simular = false, preservar = [], contagens } = {}) {
   const itens = await cliente.listar(cfg.prefixo);
-  const alvos = selecionarExpirados(
-    itens.map((i) => i.chave),
-    { prefixo: cfg.prefixo, agora, dias: cfg.dias },
-  ).filter((c) => !preservar.includes(c));
-  if (!simular) for (const chave of alvos) await cliente.remover(chave);
+  const chaves = itens.map((i) => i.chave);
+  const alvos = selecionarExpirados(chaves, { prefixo: cfg.prefixo, agora, dias: cfg.dias }).filter((c) => !preservar.includes(c));
+  const irmas = selecionarContagensExpiradas(chaves, { prefixo: cfg.prefixo, agora, dias: cfg.dias, removidos: alvos }).filter(
+    (c) => !preservar.some((p) => p.endsWith('.dump') && chaveDaContagem(p) === c),
+  );
+  if (!simular) for (const chave of [...alvos, ...irmas]) await cliente.remover(chave);
+  if (Array.isArray(contagens)) contagens.push(...irmas);
   return alvos;
+}
+
+/**
+ * Grava a contagem do momento do dump (saída do contagem.sql, texto) como objeto irmão do dump de mesmo carimbo, com o
+ * sha256 nos metadados; confere o tamanho (HEAD). Recusa o que não parece a saída do contagem.sql.
+ */
+export async function enviarContagem(cliente, cfg, entrada, { agora }) {
+  if (!(agora instanceof Date)) throw new Error('[backup] enviar-contagem precisa do --carimbo do dump');
+  const partes = [];
+  let bytes = 0;
+  for await (const parte of entrada) {
+    bytes += parte.length;
+    if (bytes > LIMITE_CONTAGEM) throw new Error(`[backup] contagem com mais de ${LIMITE_CONTAGEM} bytes: não é a saída do contagem.sql`);
+    partes.push(Buffer.isBuffer(parte) ? parte : Buffer.from(parte));
+  }
+  const corpo = Buffer.concat(partes);
+  if (!/^linhas\|/m.test(corpo.toString('utf8'))) throw new Error('[backup] a entrada não é a saída do contagem.sql (sem linhas "linhas|"); nada foi enviado');
+  const sha256 = createHash('sha256').update(corpo).digest('hex');
+  const chave = chaveDaContagem(chaveDoBackup(cfg.prefixo, cfg.banco, agora));
+  await cliente.gravar(chave, corpo, { tamanho: corpo.length, hashCorpo: sha256, metadados: { sha256 } });
+  const info = await cliente.info(chave);
+  if (!info || info.tamanho !== corpo.length) throw new Error(`[backup] conferência falhou: o bucket tem ${info?.tamanho ?? 'nada'} bytes em ${chave}, enviados ${corpo.length}`);
+  return { chave, bytes: corpo.length, sha256 };
+}
+
+/** Chave do dump: `ultimo` = o mais novo do prefixo; senão confere que é uma chave de backup deste prefixo. */
+export async function resolverBackup(cliente, cfg, qual) {
+  if (qual === 'ultimo') {
+    const chave = maisNovo((await cliente.listar(cfg.prefixo)).map((i) => i.chave), cfg.prefixo);
+    if (!chave) throw new Error(`[backup] nenhum backup em ${cfg.prefixo}`);
+    return chave;
+  }
+  if (instanteDoBackup(qual, cfg.prefixo) === null) throw new Error(`[backup] chave fora do padrão ${cfg.prefixo}<banco>-AAAAMMDDTHHMMSSZ.dump`);
+  return qual;
+}
+
+/** Baixa a contagem irmã do dump `qual` (`ultimo` ou a chave) para `saida`, conferindo o sha256. Sem contagem = erro. */
+export async function baixarContagem(cliente, cfg, qual, saida) {
+  const chave = chaveDaContagem(await resolverBackup(cliente, cfg, qual));
+  const res = await cliente.ler(chave);
+  if (!res) throw new Error(`[backup] não existe a contagem ${chave} (backup feito sem contagem, como o da demo)`);
+  const esperado = res.headers['x-amz-meta-sha256'];
+  const partes = [];
+  for await (const p of res) partes.push(p);
+  const corpo = Buffer.concat(partes);
+  const sha256 = createHash('sha256').update(corpo).digest('hex');
+  if (esperado && esperado !== sha256) throw new Error(`[backup] sha256 não confere em ${chave}: a contagem baixada está corrompida`);
+  await new Promise((ok, falha) => saida.write(corpo, (e) => (e ? falha(e) : ok())));
+  return { chave, bytes: corpo.length, sha256, conferido: Boolean(esperado) };
 }
 
 /**
@@ -158,8 +258,9 @@ export async function enviarBackup(cliente, cfg, entrada, { agora = new Date() }
     await cliente.gravar(chave, createReadStream(arquivo), { tamanho: bytes, hashCorpo: sha256, metadados: { sha256 } });
     const info = await cliente.info(chave);
     if (!info || info.tamanho !== bytes) throw new Error(`[backup] conferência falhou: o bucket tem ${info?.tamanho ?? 'nada'} bytes em ${chave}, enviados ${bytes}`);
-    const removidos = await podar(cliente, cfg, { agora: agora.getTime(), preservar: [chave] });
-    return { chave, bytes, sha256, removidos };
+    const contagensRemovidas = [];
+    const removidos = await podar(cliente, cfg, { agora: agora.getTime(), preservar: [chave], contagens: contagensRemovidas });
+    return { chave, bytes, sha256, removidos, contagensRemovidas };
   } finally {
     await rm(pasta, { recursive: true, force: true });
   }
@@ -167,13 +268,7 @@ export async function enviarBackup(cliente, cfg, entrada, { agora = new Date() }
 
 /** Baixa um backup (`ultimo` ou a chave) para `saida`, conferindo o sha256 gravado no envio. Devolve { chave, bytes, sha256 }. */
 export async function baixarBackup(cliente, cfg, qual, saida) {
-  let chave = qual;
-  if (qual === 'ultimo') {
-    chave = maisNovo((await cliente.listar(cfg.prefixo)).map((i) => i.chave), cfg.prefixo);
-    if (!chave) throw new Error(`[backup] nenhum backup em ${cfg.prefixo}`);
-  } else if (instanteDoBackup(qual, cfg.prefixo) === null) {
-    throw new Error(`[backup] chave fora do padrão ${cfg.prefixo}<banco>-AAAAMMDDTHHMMSSZ.dump`);
-  }
+  const chave = await resolverBackup(cliente, cfg, qual);
   const res = await cliente.ler(chave);
   if (!res) throw new Error(`[backup] não existe: ${chave}`);
   const esperado = res.headers['x-amz-meta-sha256'];
@@ -193,7 +288,10 @@ export async function baixarBackup(cliente, cfg, qual, saida) {
 }
 
 async function main() {
-  const { positionals, values } = parseArgs({ allowPositionals: true, options: { simular: { type: 'boolean', default: false } } });
+  const { positionals, values } = parseArgs({
+    allowPositionals: true,
+    options: { simular: { type: 'boolean', default: false }, carimbo: { type: 'string' } },
+  });
   const [comando, a1, a2] = positionals;
   const cfg = lerConfigBackup();
   const cliente = criarClienteS3(cfg.s3);
@@ -201,9 +299,30 @@ async function main() {
   switch (comando) {
     case 'enviar': {
       const entrada = a1 && a1 !== '-' ? createReadStream(a1) : process.stdin;
-      const r = await enviarBackup(cliente, cfg, entrada);
+      const r = await enviarBackup(cliente, cfg, entrada, values.carimbo ? { agora: lerCarimbo(values.carimbo) } : {});
       log(`enviado ${r.chave} (${mb(r.bytes)}, sha256 ${r.sha256.slice(0, 12)}…) para ${onde}`);
-      log(`retenção ${cfg.dias} dias: ${r.removidos.length ? `apagados ${r.removidos.join(', ')}` : 'nada a apagar'}`);
+      log(`retenção ${cfg.dias} dias: ${r.removidos.length ? `apagados ${r.removidos.join(', ')}` : 'nada a apagar'}${r.contagensRemovidas.length ? ` (e ${r.contagensRemovidas.length} contagem(ns))` : ''}`);
+      return;
+    }
+    case 'enviar-contagem': {
+      if (!values.carimbo) throw new Error('use: enviar-contagem --carimbo AAAAMMDDTHHMMSSZ [arquivo]');
+      const entrada = a1 && a1 !== '-' ? createReadStream(a1) : process.stdin;
+      const r = await enviarContagem(cliente, cfg, entrada, { agora: lerCarimbo(values.carimbo) });
+      log(`contagem enviada ${r.chave} (${r.bytes} bytes, sha256 ${r.sha256.slice(0, 12)}…) para ${onde}`);
+      return;
+    }
+    case 'resolver': {
+      if (!a1) throw new Error('use: resolver <ultimo|chave>');
+      process.stdout.write(`${await resolverBackup(cliente, cfg, a1)}\n`);
+      return;
+    }
+    case 'baixar-contagem': {
+      if (!a1) throw new Error('use: baixar-contagem <ultimo|chave-do-dump> [arquivo]');
+      const arquivo = a2 && a2 !== '-' ? a2 : null;
+      const saida = arquivo ? createWriteStream(arquivo, { mode: 0o600 }) : process.stdout;
+      const r = await baixarContagem(cliente, cfg, a1, saida);
+      if (arquivo) await new Promise((ok, falha) => saida.end((e) => (e ? falha(e) : ok())));
+      log(`contagem baixada ${r.chave} (${r.bytes} bytes; sha256 ${r.conferido ? 'conferido' : 'sem metadado para conferir'})`);
       return;
     }
     case 'baixar': {
@@ -222,12 +341,15 @@ async function main() {
       return;
     }
     case 'podar': {
-      const r = await podar(cliente, cfg, { simular: values.simular });
-      log(`retenção ${cfg.dias} dias${values.simular ? ' (simulação)' : ''}: ${r.length ? r.join(', ') : 'nada a apagar'}`);
+      const contagens = [];
+      const r = await podar(cliente, cfg, { simular: values.simular, contagens });
+      log(`retenção ${cfg.dias} dias${values.simular ? ' (simulação)' : ''}: ${r.length ? r.join(', ') : 'nada a apagar'}${contagens.length ? ` (e ${contagens.length} contagem(ns))` : ''}`);
       return;
     }
     default:
-      throw new Error('comandos: enviar [arquivo] | baixar <ultimo|chave> [arquivo] | listar | podar [--simular]');
+      throw new Error(
+        'comandos: enviar [arquivo] [--carimbo C] | enviar-contagem --carimbo C [arquivo] | resolver <ultimo|chave> | baixar <ultimo|chave> [arquivo] | baixar-contagem <ultimo|chave> [arquivo] | listar | podar [--simular]',
+      );
   }
 }
 

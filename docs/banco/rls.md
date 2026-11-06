@@ -102,6 +102,7 @@ Nunca "todas as linhas". Coberto por S0-026 em `db/testes/vazamento.test.ts`.
 |---|---|
 | `plataforma.tenant` | o próprio `id` é o tenant; RLS por `id` |
 | `public.macuxi_migracao` | controle do executor de migrações; sem RLS e sem acesso do `macuxi_app` |
+| `plataforma.super_admin`, `super_admin_desafio`, `super_admin_sessao`, `auditoria_plataforma` (0035, ADR 0029) | super-admin de plataforma, fora dos tenants: **só por função** (`TABELAS_SO_POR_FUNCAO`): RLS forçado sem política e sem grant para `macuxi_app`/`macuxi_worker` (42501 direto), só a `manutencao`; acesso pelas 20 `plataforma.sa_*` SECURITY DEFINER (só `macuxi_app`). A auditoria guarda o tenant em `tenant_alvo_id` (sem FK) para sobreviver à `excluir_tenant`. Dicionário: [plataforma.md](plataforma.md) |
 
 Fora do índice de sync `(tenant_id, updated_at, id)` (não são puxadas pelo app): `plataforma.evento`
 (índices próprios: pendentes e por tenant/ocorrido_em), `plataforma.evento_consumo` (único por consumidor/evento)
@@ -160,6 +161,7 @@ e `plataforma.auditoria`.
 | `resumo_outbox`: só agregados de todos os tenants para o `macuxi_app`; worker sem EXECUTE | `db/testes/lgpd-outbox.test.ts` |
 | `tenants_ativos`: worker recebe só os ids dos ativos de todos os tenants (suspenso, encerrado e apagado fora); app 42501 | `db/testes/tenants-ativos.test.ts` |
 | `provisionar_tenant`: app e worker 42501; 2x a mesma entrada = mesmas contagens; só `redefinir_senha` troca o hash | `db/testes/provisionar-tenant.test.ts` |
+| Super-admin (0035): app e worker 42501 direto nas 4 tabelas (e 0 linhas com grant indevido); worker 42501 nas 20 `sa_*`; primeiro acesso 2x (e em paralelo) = 1 linha; sessão falsa após revogar e após o teto; auditoria append-only que sobrevive à `excluir_tenant`; `sa_provisionar_tenant` recusa sessão revogada ou vencida; `sem_admin` + parâmetros idempotente | `db/testes/super-admin.test.ts` + `db/testes/estatico.test.ts` + `db/scripts/conferir-rls.sql` |
 | `core.plano_rv`: A não lê nem grava B; sem contexto = 0; FK do autor no próprio tenant | `db/testes/plano-rv.test.ts` |
 | macuxi_worker: lê A e B, 42501 fora das colunas/tabelas concedidas, só marca 3 colunas, sem BYPASSRLS; app sem contexto = 0 | `db/testes/worker.test.ts` |
 | B1 do DBaaS (0031): política `manutencao` em toda tabela com RLS; tabela nova sem ela é acusada; app e worker não são membros (nem herdam nem assumem); o migrador herda | `db/testes/conformidade.test.ts` + `db/testes/estatico.test.ts` |

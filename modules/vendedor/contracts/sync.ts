@@ -113,6 +113,8 @@ export const PedidoItemSyncSchema = z
     desconto_unitario_cents: z.number().int().nonnegative().nullable().optional(),
     acrescimo_unitario_cents: z.number().int().nonnegative().nullable().optional(),
     ajuste_em: z.enum(['pct', 'valor']).nullable().optional(),
+    /** T-0084 (0033, RN-VEN-19): retrato da aplicação no momento do pedido; nulo = desmarcada, sem aplicação ou anterior à 0033 */
+    aplicacao: z.string().max(1000).nullable().optional(),
   })
   .strict();
 export type PedidoItemSync = z.infer<typeof PedidoItemSyncSchema>;

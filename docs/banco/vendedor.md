@@ -218,3 +218,20 @@ modo digitado e o R$ exato). Testes: `db/testes/ajuste-valor-produto-relacao.tes
 **Base de demo (T-0071)**: cliente **Mini Box Japiim** (`C5110`, Mercadinho, Av. Ajuricaba 1200 + endereço de entrega, sem
 título vencido nem bloqueio, condições À vista/28/28-56) para reproduzir a referência; pedidos recentes do Lucas em 3 mercadinhos
 (clientes parecidos, desenho §4.3); alçada do vendedor 5%. Ver [README.md](README.md), "Base de demo".
+
+### 0033 — aplicação no item (`0033_catalogo_aplicacao_referencia`; T-0084, RN-VEN-19)
+**pedido_item.aplicacao** `text` nulo (nova):
+- é o **retrato** da aplicação do produto no momento do pedido, ou seja, o que o cliente viu no orçamento;
+- a API corta em `aplicacao_max_orcamento` (padrão 300, até 1.000), na última palavra inteira, com "…";
+- nunca é trocada pelo cadastro atual;
+- nulo = o vendedor desmarcou "Incluir aplicação no orçamento", o produto não tem aplicação, ou o item é anterior à 0033 (sem
+  backfill);
+- CHECK `pedido_item_aplicacao_tamanho` (`char_length <= 1000`).
+
+Sai no detalhe do pedido (Campo, Gestão e BKO), nos dois PDFs e no pedido ao ERP (`vendedor.pedido.aprovado@1`, campo aditivo).
+
+**Volta:** o `.down.sql` apaga a coluna com os retratos. O pedido não perde valor nem item.
+
+**Fixture:** item 1 do p1 de A com "Motos 150 cc".
+
+**Testes:** `db/testes/aplicacao-referencia.test.ts`.

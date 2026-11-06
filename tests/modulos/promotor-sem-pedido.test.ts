@@ -142,10 +142,15 @@ describe('C3.3 no app Campo (criarShell do SDK + o que o Vendedor declara no fon
       'cliente.abas/ultimos-pedidos',
       'cliente.acoes/novo-pedido',
       'produto.acoes/adicionar-ao-pedido',
+      // T-0085 (RN-VEN-35): + "Fazer pedido em nome" no slot do próprio Vendedor, só Gestão, acao pedido.criar_em_nome
+      'pedido.criar_em_nome/novo-pedido-em-nome',
       'inicio.cards/pedidos-resumo',
     ]);
-    // toda extensão do Vendedor é só do Campo (a leitura do `apps` funciona e entra no shell abaixo)
-    for (const e of itensVendedorApp.filter((i) => i.tipo === 'extensao')) expect(e.apps, `${e.slot}/${e.id}`).toEqual(['campo']);
+    // toda extensão do Vendedor é só do Campo, menos o pedido em nome, que é só da Gestão (a leitura do `apps` entra no shell abaixo)
+    for (const e of itensVendedorApp.filter((i) => i.tipo === 'extensao'))
+      expect(e.apps, `${e.slot}/${e.id}`).toEqual(e.slot === 'pedido.criar_em_nome' ? ['gestao'] : ['campo']);
+    // T-0085: a página novo-pedido vale no Campo e na Gestão (supervisor/gerente em nome do vendedor), sempre com acao pedido.criar
+    expect(itensVendedorApp.find((i) => i.tipo === 'pagina' && i.id === 'novo-pedido')).toMatchObject({ acao: 'pedido.criar', apps: ['campo', 'gestao'], perfisDoManifesto: true });
   });
 
   it('T-0077 (R-20261104-204823): toda página do Vendedor declara `perfis` = manifest.perfis, que não tem o promotor (RN-PRO-01)', () => {
@@ -303,5 +308,90 @@ describe('T-0052 — "Adicionar ao pedido" (produto.acoes) nunca chega ao promot
       expect(fonte, tela).not.toContain('produto-adicionar');
       expect(fonte, tela).not.toMatch(/@macuxi\/vendedor/);
     }
+  });
+});
+
+/**
+ * T-0085 (RF-GES-05, RN-VEN-35) — pedido em nome do vendedor: a página `novo-pedido` vale também na Gestão (supervisor e
+ * gerente) e o Vendedor registra o slot `pedido.criar_em_nome` (só Gestão, acao pedido.criar_em_nome). Regra 7 / RN-PRO-01
+ * reforçada: em NENHUM app o promotor recebe a página `novo-pedido`, o `pedido.criar_em_nome` nem o "Adicionar ao pedido".
+ */
+describe('T-0085 — pedido em nome: Gestão para supervisor/gerente, nunca para o promotor (regra 7, RN-PRO-01)', () => {
+  const APPS = ['campo', 'gestao'] as const;
+  const ATIVOS_PIOR_CASO = [['core', 'catalogo', 'vendedor', 'promotor'], [...TODOS]] as const;
+  const visao = (app: 'campo' | 'gestao', perfil: Perfil, ativos: readonly ModuloId[] = TODOS) => shellDoApp(app).montar({ perfil, modulosAtivos: [...ativos] });
+  const emNome = itensVendedorApp.find((i) => i.slot === 'pedido.criar_em_nome');
+
+  it('fonte e manifesto: o slot é oferecido pelo Vendedor e usado pelo Gestor; a extensão exige pedido.criar_em_nome (só supervisor e gerente) e é só da Gestão', () => {
+    expect(emNome).toMatchObject({ tipo: 'extensao', slot: 'pedido.criar_em_nome', id: 'novo-pedido-em-nome', acao: 'pedido.criar_em_nome', apps: ['gestao'] });
+    expect(vendedor.ofereceExtensoes).toContain('pedido.criar_em_nome');
+    expect(vendedor.acoes['pedido.criar_em_nome']!.perfis).toEqual(['supervisor', 'gerente']);
+    expect(ehAcaoDeEscritaDePedido('pedido.criar_em_nome')).toBe(true);
+    expect(promotor.usaExtensoes).not.toContain('pedido.criar_em_nome');
+    expect(promotor.ofereceExtensoes).not.toContain('pedido.criar_em_nome');
+  });
+
+  it('pior caso: promotor com o Vendedor (e todos os módulos) na sessão, no Campo E na Gestão → sem novo-pedido, sem pedido em nome, sem "Adicionar ao pedido"', () => {
+    for (const app of APPS)
+      for (const ativos of ATIVOS_PIOR_CASO) {
+        const v = visao(app, 'promotor', ativos);
+        const rotulo = `${app} ${ativos.length} módulos`;
+        expect(v.pagina('novo-pedido'), rotulo).toBeNull();
+        expect(v.extensoes('pedido.criar_em_nome'), rotulo).toEqual([]);
+        expect(v.extensoes('produto.acoes'), rotulo).toEqual([]);
+        expect(v.extensoes('cliente.acoes'), rotulo).toEqual([]);
+        for (const a of ACOES_DE_ESCRITA) expect(v.pode(a), `${rotulo} ${a}`).toBe(false);
+      }
+  });
+
+  it('caso real: com tudo licenciado no tenant o Vendedor não é efetivo para o promotor, em nenhum app', () => {
+    const porId = new Map(MANIFESTOS_INSTALADOS.map((m) => [m.id, m] as const));
+    const ef = modulosEfetivos({ manifestos: MANIFESTOS_INSTALADOS as Manifesto[], ativosNoTenant: [...TODOS], doPerfil: TODOS.filter((id) => porId.get(id)!.perfis.includes('promotor')) });
+    expect(ef).not.toContain('vendedor');
+    for (const app of APPS) {
+      const v = visao(app, 'promotor', ef);
+      expect(v.pagina('novo-pedido'), app).toBeNull();
+      expect(v.extensoes('pedido.criar_em_nome'), app).toEqual([]);
+    }
+  });
+
+  it('mutação controlada: o mesmo item SEM a acao chegaria ao promotor na Gestão — é a acao pedido.criar_em_nome que barra', () => {
+    const semAcao = { slot: 'pedido.criar_em_nome', id: 'novo-pedido-em-nome', apps: ['gestao' as const], payload: { rotulo: 'x' } };
+    const shell = criarShell<string>('gestao', [{ manifesto: core }, { manifesto: catalogo }, { manifesto: vendedor, extensoes: [semAcao] }, { manifesto: promotor }]);
+    expect(shell.montar({ perfil: 'promotor', modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor'] }).extensoes('pedido.criar_em_nome').map((e) => e.id)).toEqual(['novo-pedido-em-nome']);
+    expect(visao('gestao', 'promotor', ['core', 'catalogo', 'vendedor', 'promotor']).extensoes('pedido.criar_em_nome')).toEqual([]);
+  });
+
+  it('controle positivo: supervisor e gerente na Gestão recebem a página novo-pedido e o "Fazer pedido em nome" (e não o "Adicionar ao pedido", que é do Campo)', () => {
+    for (const perfil of ['supervisor', 'gerente'] as const) {
+      const v = visao('gestao', perfil);
+      expect(v.pagina('novo-pedido'), perfil).toMatchObject({ id: 'novo-pedido', acao: 'pedido.criar' });
+      expect(v.extensoes('pedido.criar_em_nome').map((e) => `${e.modulo}/${e.id}`), perfil).toEqual(['vendedor/novo-pedido-em-nome']);
+      expect(v.pode('pedido.criar_em_nome'), perfil).toBe(true);
+      expect(v.extensoes('produto.acoes'), perfil).toEqual([]);
+      // a página não vira aba: o Gestão continua só com a aba Pedidos do Vendedor
+      expect(v.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo), perfil).toEqual(['Pedidos']);
+    }
+  });
+
+  it('o pedido em nome é só de supervisor e gerente na Gestão: nem o vendedor (nem o analista) recebe o item; no Campo ninguém recebe', () => {
+    for (const perfil of ['vendedor', 'analista', 'assistente', 'admin'] as const) expect(visao('gestao', perfil).extensoes('pedido.criar_em_nome'), perfil).toEqual([]);
+    for (const perfil of ['vendedor', 'supervisor', 'gerente', 'promotor'] as const) expect(visao('campo', perfil).extensoes('pedido.criar_em_nome'), perfil).toEqual([]);
+    // o vendedor continua com o novo pedido do Campo
+    expect(visao('campo', 'vendedor').pagina('novo-pedido')).not.toBeNull();
+  });
+
+  it('módulo desativado: sem o Vendedor ativo a Gestão do supervisor não tem novo-pedido nem pedido em nome (RN-CORE-03)', () => {
+    const v = visao('gestao', 'supervisor', ['core', 'catalogo', 'promotor', 'gestor']);
+    expect(v.pagina('novo-pedido')).toBeNull();
+    expect(v.extensoes('pedido.criar_em_nome')).toEqual([]);
+  });
+
+  it('a ficha do Gestor só desenha o pedido em nome a partir do slot (useExtensoes) e não cita ação de pedido própria', () => {
+    const ficha = ler('modules/gestor/app/screens/ficha-screen.tsx');
+    expect(ficha).toMatch(/useExtensoes<AcaoPedidoEmNome>\('pedido\.criar_em_nome'\)/);
+    const semComentarios = ficha.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(semComentarios).not.toMatch(/@macuxi\/vendedor\/app/);
+    expect(semComentarios).not.toMatch(/['"]pedido\.(criar|editar|cancelar|excluir)['"]/);
   });
 });

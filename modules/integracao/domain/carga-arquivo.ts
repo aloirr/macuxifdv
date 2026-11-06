@@ -46,20 +46,36 @@ function detectarSeparador(texto: string): ';' | ',' {
   return v > pv ? ',' : ';';
 }
 
-/** Lê o CSV (RFC 4180 com `;` ou `,`): aspas, aspas escapadas, quebra de linha dentro de aspas; ignora linhas em branco. */
-export function lerCsv(entrada: string): ResultadoCsv {
+export interface LinhaCsvComPosicao extends LinhaCsv {
+  /** Posição (no texto normalizado) do primeiro caractere do registro. */
+  inicio: number;
+  /** Posição logo depois do último caractere do registro (onde está o `\n` que o fecha, ou o fim do texto). */
+  fim: number;
+}
+
+export type ResultadoCsvComPosicoes =
+  | { ok: true; separador: ';' | ','; texto: string; cabecalho: string[]; cabecalhoLinha: LinhaCsvComPosicao; linhas: LinhaCsvComPosicao[] }
+  | { ok: false; codigo: 'arquivo_vazio' | 'csv_invalido'; mensagem: string };
+
+const MSG_ARQUIVO_VAZIO = 'O arquivo está vazio. Salve a planilha como CSV (separado por ponto e vírgula, UTF-8) com o cabeçalho na primeira linha e envie de novo.';
+
+/**
+ * A leitura única do CSV (RFC 4180 com `;` ou `,`): aspas, aspas escapadas, quebra de linha dentro de aspas; ignora linhas em branco.
+ * Além das células, devolve o texto normalizado e a posição (`inicio`/`fim`) de cada registro nele — a divisão em partes corta
+ * exatamente onde esta leitura vê o fim de um registro, então uma quebra de linha entre aspas nunca é cortada.
+ */
+export function lerCsvComPosicoes(entrada: string): ResultadoCsvComPosicoes {
   const texto = normalizarTextoCsv(entrada);
-  if (texto.trim() === '') {
-    return { ok: false, codigo: 'arquivo_vazio', mensagem: 'O arquivo está vazio. Salve a planilha como CSV (separado por ponto e vírgula, UTF-8) com o cabeçalho na primeira linha e envie de novo.' };
-  }
+  if (texto.trim() === '') return { ok: false, codigo: 'arquivo_vazio', mensagem: MSG_ARQUIVO_VAZIO };
   const separador = detectarSeparador(texto);
-  const registros: LinhaCsv[] = [];
+  const registros: LinhaCsvComPosicao[] = [];
   let celulas: string[] = [];
   let atual = '';
   let aspas = false;
   let aspasAbertasNaLinha = 0;
   let linha = 1;
   let inicio = 1;
+  let posInicio = 0;
   let campoComAspas = false;
 
   const fecharCelula = () => {
@@ -67,10 +83,10 @@ export function lerCsv(entrada: string): ResultadoCsv {
     atual = '';
     campoComAspas = false;
   };
-  const fecharRegistro = () => {
+  const fecharRegistro = (fim: number) => {
     fecharCelula();
     // linha em branco ou só de separadores (sobra do Excel) não é registro
-    if (celulas.some((c) => c.trim() !== '')) registros.push({ numero: inicio, celulas });
+    if (celulas.some((c) => c.trim() !== '')) registros.push({ numero: inicio, celulas, inicio: posInicio, fim });
     celulas = [];
   };
 
@@ -94,19 +110,27 @@ export function lerCsv(entrada: string): ResultadoCsv {
       aspasAbertasNaLinha = linha;
     } else if (ch === separador) fecharCelula();
     else if (ch === '\n') {
-      fecharRegistro();
+      fecharRegistro(i);
       linha++;
       inicio = linha;
+      posInicio = i + 1;
     } else atual += ch;
   }
   if (aspas) {
     return { ok: false, codigo: 'csv_invalido', mensagem: `Há aspas abertas na linha ${aspasAbertasNaLinha} sem fechar. Confira essa linha no arquivo (texto com aspas ou ponto e vírgula deve estar entre aspas duplas) e envie de novo.` };
   }
-  fecharRegistro();
+  fecharRegistro(texto.length);
 
   const [cab, ...dados] = registros;
-  if (!cab) return { ok: false, codigo: 'arquivo_vazio', mensagem: 'O arquivo está vazio. Salve a planilha como CSV (separado por ponto e vírgula, UTF-8) com o cabeçalho na primeira linha e envie de novo.' };
-  return { ok: true, separador, cabecalho: cab.celulas, linhas: dados };
+  if (!cab) return { ok: false, codigo: 'arquivo_vazio', mensagem: MSG_ARQUIVO_VAZIO };
+  return { ok: true, separador, texto, cabecalho: cab.celulas, cabecalhoLinha: cab, linhas: dados };
+}
+
+/** Lê o CSV (RFC 4180 com `;` ou `,`): aspas, aspas escapadas, quebra de linha dentro de aspas; ignora linhas em branco. */
+export function lerCsv(entrada: string): ResultadoCsv {
+  const r = lerCsvComPosicoes(entrada);
+  if (!r.ok) return r;
+  return { ok: true, separador: r.separador, cabecalho: r.cabecalho, linhas: r.linhas.map((l) => ({ numero: l.numero, celulas: l.celulas })) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------- colunas do contrato
@@ -219,6 +243,19 @@ export interface OpcoesConversaoCsv {
   sessaoId?: string;
   limiteLinhas?: number;
   limiteBytes?: number;
+  /**
+   * Parte de um arquivo grande enviado em várias partes da MESMA sessão (carga completa). Com `linhaInicial` (linha física, no arquivo
+   * original, do primeiro registro da parte) os erros e `linhasArquivo` citam a linha do arquivo original, não a da parte.
+   */
+  parte?: ParteArquivo;
+}
+
+export interface ParteArquivo {
+  sessaoId: string;
+  /** 1..totalPartes. */
+  parte: number;
+  totalPartes: number;
+  linhaInicial?: number;
 }
 
 const recusa = (codigo: CodigoRecusaArquivo, mensagem: string, classe: 'limite' | 'arquivo_invalido' = 'arquivo_invalido'): ResultadoConversaoCsv => ({ ok: false, codigo, classe, mensagem });
@@ -272,7 +309,7 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
   const limiteLinhas = o.limiteLinhas ?? PARAMETROS_PADRAO.limiteRegistrosLote;
   const bytes = new TextEncoder().encode(o.texto).length;
   if (bytes > limiteBytes) {
-    return recusa('corpo_grande', `O arquivo passa do limite de ${unidadeTamanho(limiteBytes)} por envio. Divida em arquivos menores (na carga completa, use o modo delta para as partes).`, 'limite');
+    return recusa('corpo_grande', `O arquivo passa do limite de ${unidadeTamanho(limiteBytes)} por envio. Envie em partes da mesma sessão (a tela do BKO divide o arquivo sozinha) ou reduza o arquivo.`, 'limite');
   }
 
   const csv = lerCsv(o.texto);
@@ -304,15 +341,17 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
 
   if (csv.linhas.length === 0) return recusa('lote_vazio', 'O arquivo tem só o cabeçalho, sem nenhuma linha de dados. Acrescente ao menos uma linha e envie de novo.');
   if (csv.linhas.length > limiteLinhas) {
-    return recusa('acima_do_limite', `O arquivo tem ${csv.linhas.length} linhas de dados e o limite é ${limiteLinhas} por envio. Divida em arquivos menores (modo delta) e envie um de cada vez.`, 'limite');
+    return recusa('acima_do_limite', `O arquivo tem ${csv.linhas.length} linhas de dados e o limite é ${limiteLinhas} por envio. Envie em partes da mesma sessão (a tela do BKO divide o arquivo sozinha, em partes de até ${limiteLinhas} linhas) ou reduza o arquivo.`, 'limite');
   }
 
+  const deslocamento = o.parte?.linhaInicial !== undefined ? o.parte.linhaInicial - (csv.linhas[0] as LinhaCsv).numero : 0;
   const registros: Record<string, unknown>[] = [];
   const linhasArquivo: number[] = [];
   const invalidas: LinhaInvalidaConector[] = [];
   const idxId = cabecalho.indexOf('external_id');
 
-  for (const linha of csv.linhas) {
+  for (const bruta of csv.linhas) {
+    const linha = deslocamento === 0 ? bruta : { ...bruta, numero: bruta.numero + deslocamento };
     const idBruto = idxId >= 0 ? (linha.celulas[idxId] ?? '').trim() : '';
     const external_id = idBruto !== '' && idBruto.length <= 200 ? idBruto : null;
     // `idConfiavel = false`: linha com colunas a mais está deslocada e a célula do external_id pode ser outro pedaço do texto (RN-INT-06:
@@ -348,7 +387,12 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
     linhasArquivo.push(linha.numero);
   }
   // o primeiro erro de cada linha basta; `tipo_invalido` x `valor_nao_permitido` seguem os códigos de LinhaInvalidaConector
-  const sessao = o.modo === 'completo' ? { id: o.sessaoId ?? sessaoDoArquivo('sem-chave'), parte: 1, ultimo: true } : undefined;
+  const sessao =
+    o.modo === 'completo'
+      ? o.parte
+        ? { id: o.parte.sessaoId, parte: o.parte.parte, ultimo: o.parte.parte === o.parte.totalPartes }
+        : { id: o.sessaoId ?? sessaoDoArquivo('sem-chave'), parte: 1, ultimo: true }
+      : undefined;
   const envelope: LoteEnvelopeValido = {
     versao_contrato: VERSAO_CONTRATO,
     entidade: o.entidade,
@@ -364,8 +408,12 @@ export function converterCsvParaLote(o: OpcoesConversaoCsv): ResultadoConversaoC
 // ---------------------------------------------------------------------------------------------------------------- idempotência e sessão
 
 /** O que identifica o arquivo para a Idempotency-Key (RN-INT-12): entidade, modo e o texto normalizado (BOM, CRLF e linhas em branco no fim não contam). */
-export function conteudoCanonicoArquivo(e: { entidade: string; modo: string; texto: string }): string {
-  return jsonCanonico({ origem: 'arquivo', entidade: e.entidade, modo: e.modo, csv: normalizarTextoCsv(e.texto).replace(/\s+$/, '') });
+export function conteudoCanonicoArquivo(e: { entidade: string; modo: string; texto: string; parte?: ParteArquivo }): string {
+  const csv = normalizarTextoCsv(e.texto).replace(/\s+$/, '');
+  // a parte entra no conteúdo SÓ quando há parte: o hash do envio único não muda
+  const base = { origem: 'arquivo', entidade: e.entidade, modo: e.modo, csv };
+  if (!e.parte) return jsonCanonico(base);
+  return jsonCanonico({ ...base, sessao_id: e.parte.sessaoId, parte: e.parte.parte, total_partes: e.parte.totalPartes, linha_inicial: e.parte.linhaInicial ?? null });
 }
 
 /** UUID estável (formato v4) derivado da chave de idempotência: a mesma chave é a mesma sessão; arquivo igual com chave nova é sessão nova (RN-INT-06). */
@@ -376,7 +424,7 @@ export function sessaoDoArquivo(chave: string): string {
 }
 
 /** Hash do conteúdo do lote do arquivo (o `hash_conteudo` do lote). */
-export const hashConteudoArquivo = (e: { entidade: string; modo: string; texto: string }): string => sha256Hex(conteudoCanonicoArquivo(e));
+export const hashConteudoArquivo = (e: { entidade: string; modo: string; texto: string; parte?: ParteArquivo }): string => sha256Hex(conteudoCanonicoArquivo(e));
 
 // ---------------------------------------------------------------------------------------------------------------- erros com a linha do arquivo
 

@@ -6,7 +6,7 @@ import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { ALTURA, Badge, Button, Card, colors, fonts, type as t, type IconName } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AcaoProduto, ContextoProduto, ItemVitrine } from '../../contracts';
-import { rotuloEstoque, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
+import { partirPorMarcas, rotuloEstoque, rotuloIncluiAno, rotuloPreco, subtituloProduto, textoEquivaleA } from '../lib/apresentacao';
 
 /** Itens do slot `produto.acoes` visíveis ao usuário (módulo efetivo, perfil e ação). */
 export function useAcoesProduto(): { id: string; payload: AcaoProduto }[] {
@@ -42,6 +42,40 @@ export function BotoesAcao({ item, clienteId, compacto = false }: { item: ItemVi
   );
 }
 
+/** Texto com os termos achados em negrito (trecho "Serve em" e "Equivale a"). */
+function TextoMarcado({ texto, marcas, estilo }: { texto: string; marcas: readonly (readonly [number, number])[]; estilo: object }) {
+  return (
+    <Text style={estilo} numberOfLines={2}>
+      {partirPorMarcas(texto, marcas).map((p, i) => (
+        <Text key={`${i}:${p.texto}`} style={p.marcado ? s.marcado : undefined}>
+          {p.texto}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+/** "Serve em: Fiat Uno 1.0/1.4 2010–2014 · inclui 2012" e "Equivale a: Freiomax CB 3401" (RN-CAT-12, RN-CAT-09). */
+function LinhasDaBusca({ item }: { item: ItemVitrine }) {
+  const incluiAno = rotuloIncluiAno(item);
+  const equivale = textoEquivaleA(item);
+  if (!item.serve_em && !equivale) return null;
+  return (
+    <View style={{ gap: 2 }}>
+      {item.serve_em ? (
+        <View testID={`catalogo-serve-em-${item.erp_code}`}>
+          <TextoMarcado texto={`Serve em: ${item.serve_em.texto}${incluiAno ? ` · ${incluiAno}` : ''}`} marcas={item.serve_em.marcas.map(([a, b]) => [a + 10, b + 10] as const)} estilo={t.small} />
+        </View>
+      ) : null}
+      {item.equivale_a && equivale ? (
+        <View testID={`catalogo-equivale-a-${item.erp_code}`}>
+          <TextoMarcado texto={`Equivale a: ${equivale}`} marcas={item.equivale_a.marcas.map(([a, b]) => [a + 12, b + 12] as const)} estilo={t.small} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function CartaoProduto({ item, agora, fuso, clienteId, onPress }: { item: ItemVitrine; agora: string; fuso: string; clienteId: string | null; onPress: () => void }) {
   const preco = rotuloPreco(item);
   const estoque = rotuloEstoque(item, agora, fuso);
@@ -55,6 +89,7 @@ export function CartaoProduto({ item, agora, fuso, clienteId, onPress }: { item:
           {item.is_campaign ? <Badge label="Destaque" tone="accent" /> : null}
         </View>
         <Text style={t.small}>{subtituloProduto(item)}</Text>
+        <LinhasDaBusca item={item} />
         {preco ? (
           <View style={s.linha}>
             <Text style={[preco.vendavel ? s.preco : s.semPreco]} testID={`catalogo-preco-${item.erp_code}`}>
@@ -82,6 +117,7 @@ const s = StyleSheet.create({
   nome: { flex: 1 },
   preco: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink },
   semPreco: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink2 },
+  marcado: { fontFamily: fonts.bold, color: colors.ink },
   riscado: { fontFamily: fonts.body, fontSize: 13, color: colors.ink3, textDecorationLine: 'line-through' },
   acoes: { gap: 8 },
   acoesCompactas: { flexDirection: 'row', flexWrap: 'wrap' },

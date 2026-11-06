@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp } from './erp';
+import { planejarCadastroCatalogoDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp } from './erp';
 
 const preco = (extra: Record<string, unknown> = {}) => ({
   external_id: 'PR-1',
@@ -83,5 +83,35 @@ describe('RF-CAT-04: vínculo produto → nó (campo catalogo_no_external_id de 
   });
   it('RF-CAT-04: evento sem registro e sem ser inativação é ignorado', () => {
     expect(planejarProdutoNoDoErp({ external_id: 'P-1', acao: 'atualizado' })).toEqual({ tipo: 'ignorar' });
+  });
+});
+
+describe('RN-CAT-11 / RN-CAT-09: cadastro do Catálogo vindo do ERP (aplicação, oferece junto, etiquetas)', () => {
+  const evento = (registro: Record<string, unknown> | undefined, acao: 'criado' | 'atualizado' | 'inativado' = 'atualizado') => ({ external_id: 'P1', acao, ...(registro ? { registro } : {}) });
+  const plano = (registro: Record<string, unknown> | undefined, max = 2000, acao: 'criado' | 'atualizado' | 'inativado' = 'atualizado') => planejarCadastroCatalogoDoErp(evento(registro, acao), { aplicacaoMax: max });
+
+  it('RN-CAT-11: campo ausente não altera nada; null ou vazio limpa a aplicação', () => {
+    expect(plano({})).toEqual({});
+    expect(plano({ aplicacao: null })).toEqual({ aplicacao: null });
+    expect(plano({ aplicacao: '   ' })).toEqual({ aplicacao: null });
+  });
+
+  it('RN-CAT-11: corta de novo no aplicacao_max_cadastro do tenant, sem aviso', () => {
+    expect(plano({ aplicacao: 'x'.repeat(300) }, 100).aplicacao).toHaveLength(100);
+    expect(plano({ aplicacao: ' Fiat Uno 2010–2014 ' }).aplicacao).toBe('Fiat Uno 2010–2014');
+  });
+
+  it('RN-CAT-09: oferece junto fica nos 5 primeiros, sem repetir e sem o próprio produto', () => {
+    expect(plano({ oferece_junto: ['A', 'B', 'A', 'P1', 'C', 'D', 'E', 'F', 'G'] }).ofereceJunto).toEqual(['A', 'B', 'C', 'D', 'E']);
+    expect(plano({ oferece_junto: null })).toEqual({ ofereceJunto: [] });
+  });
+
+  it('RN-CAT-09: etiquetas ficam nas 4 primeiras, de até 20 caracteres', () => {
+    expect(plano({ etiquetas: ['Dianteira', 'Novo', 'x'.repeat(25), 'D', 'E'] }).etiquetas).toEqual(['Dianteira', 'Novo', 'x'.repeat(20), 'D']);
+  });
+
+  it('RN-CAT-11: produto inativado ou evento sem registro não altera o cadastro', () => {
+    expect(plano({ aplicacao: 'x' }, 2000, 'inativado')).toEqual({});
+    expect(planejarCadastroCatalogoDoErp(evento(undefined), { aplicacaoMax: 2000 })).toEqual({});
   });
 });

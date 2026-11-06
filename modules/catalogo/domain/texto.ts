@@ -137,6 +137,17 @@ export function tokensDeBusca(texto: string): string[] {
     .map((p) => (MEDIDA_RE.test(p) ? p : singular(p)));
 }
 
+/**
+ * Igual a `tokensDeBusca`, sem a memória de textos já vistos: para textos longos e únicos por produto (aplicação de até
+ * 2.000 caracteres × 20 mil produtos) que não devem encher o `MEMO_NORMALIZADO` (T-0084 §4.5).
+ */
+export function tokensDeBuscaSemMemo(texto: string): string[] {
+  return normalizarSemMemo(String(texto ?? ''))
+    .split(' ')
+    .filter((p) => p !== '' && !STOPWORDS.has(p))
+    .map((p) => (MEDIDA_RE.test(p) ? p : singular(p)));
+}
+
 /** Frase normalizada com cada termo no singular (chave de comparação de sinônimos e vocabulário). */
 export function chaveDeTermo(texto: string): string {
   return normalizarTexto(texto)

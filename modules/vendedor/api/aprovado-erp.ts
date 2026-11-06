@@ -42,9 +42,9 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
     )
   ).rows[0]!;
   const itens = (
-    await db.query<{ produto_id: string; quantidade: number; quantidade_base: number; fator: number; unidade: string | null; preco_tabela_cents: number; desconto_pct: number; acrescimo_pct: number; total_cents: number }>(
+    await db.query<{ produto_id: string; quantidade: number; quantidade_base: number; fator: number; unidade: string | null; preco_tabela_cents: number; desconto_pct: number; acrescimo_pct: number; total_cents: number; aplicacao: string | null }>(
       `select produto_id, quantidade, quantidade_base, fator, unidade, preco_tabela_cents::float8 as preco_tabela_cents, desconto_pct::float8 as desconto_pct,
-              acrescimo_pct::float8 as acrescimo_pct, total_cents::float8 as total_cents
+              acrescimo_pct::float8 as acrescimo_pct, total_cents::float8 as total_cents, aplicacao
          from vendedor.pedido_item where pedido_id = $1 and deleted_at is null order by sequencia`,
       [pedidoId],
     )
@@ -98,6 +98,7 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
       quantidade_venda: Number(i.quantidade),
       desconto_pct: Number(i.desconto_pct),
       acrescimo_pct: Number(i.acrescimo_pct),
+      aplicacao: i.aplicacao,
     })),
   });
 }

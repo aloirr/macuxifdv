@@ -43,6 +43,7 @@ import { basename, dirname, join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { apagarBancoForcado } from '../src/apagar-banco';
 import { HOSTS_LOCAIS, lerConfig, PASTA_DB, PASTA_RAIZ, urlAdmin, urlApp, urlWorker, validarNomeBanco, type ConfigBanco } from '../src/config';
 import { lerMigracoes, listarAplicadas, migrarUp } from '../src/migrador';
 import { diagnosticarPapelApp, PAPEL_MANUTENCAO as PAPEL_MANUTENCAO_0031, senhaDoPapel } from '../src/papeis';
@@ -343,7 +344,8 @@ async function listarBases(cfg: ConfigBanco, bancoManutencao: string): Promise<s
 
 async function apagarBaseDireto(cfg: ConfigBanco, bancoManutencao: string, nome: string): Promise<void> {
   validarNomeBanco(nome);
-  await com(urlAdmin(cfg, bancoManutencao), (c) => c.query(`drop database if exists ${nome} with (force)`));
+  // sem superusuário o FORCE falha (42501) se houver sessão de outro papel saindo: espera e repete (T-0075)
+  await com(urlAdmin(cfg, bancoManutencao), (c) => apagarBancoForcado(c, nome));
 }
 
 /** L1: apaga a base do teste (antes da suíte, para os papéis poderem ser recriados; e de novo no fim, se sobrou). */

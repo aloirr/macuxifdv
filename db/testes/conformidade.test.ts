@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { diagnosticarPapelApp } from '../src/papeis';
-import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
+import { TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
 import { banco, semBanco } from './estado';
 import { comCliente, tabelasDeDominio } from './util';
 
@@ -13,10 +13,15 @@ import { comCliente, tabelasDeDominio } from './util';
 const SQL_CONFERIR_RLS = readFileSync(new URL('../scripts/conferir-rls.sql', import.meta.url), 'utf8');
 
 describe('B1 conferência de RLS (estático)', () => {
-  it('as exceções da consulta são as de db/src/excecoes.ts', () => {
-    expect([...SQL_CONFERIR_RLS.matchAll(/^\s+values \('([a-z_]+\.[a-z_]+)'\)$/gm)].map((m) => m[1])).toEqual(
-      Object.keys(TABELAS_SEM_TENANT_ID).filter((n) => !n.startsWith('public.')),
-    );
+  /** Nomes `('schema.tabela')` de uma CTE `<nome> (nome) as ( values ... )` da consulta. */
+  const valoresDaCte = (cte: string): string[] => {
+    const bloco = new RegExp(`^${cte} \\(nome\\) as \\(\\n([\\s\\S]*?)\\n\\),$`, 'm').exec(SQL_CONFERIR_RLS)?.[1] ?? '';
+    return [...bloco.matchAll(/\('([a-z_]+\.[a-z_]+)'\)/g)].map((m) => m[1]!);
+  };
+
+  it('as exceções da consulta são as de db/src/excecoes.ts (sem tenant_id e, 0035, só por função)', () => {
+    expect(valoresDaCte('sem_tenant_id')).toEqual(Object.keys(TABELAS_SEM_TENANT_ID).filter((n) => !n.startsWith('public.')));
+    expect(valoresDaCte('so_por_funcao')).toEqual([...TABELAS_SO_POR_FUNCAO]);
   });
 });
 

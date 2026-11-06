@@ -8,6 +8,8 @@
 --   aparece como tabela "(papel) <nome>".
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
+-- Super-admin (0035, ADR 0029; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
+-- SECURITY DEFINER); para elas o problema é o contrário: política ou qualquer grant de tabela para o macuxi_app/macuxi_worker.
 -- Prova: db/testes/conformidade.test.ts ("B1 conferência de RLS") roda este arquivo no Postgres de testes do CI.
 -- À mão (só leitura): psql "$URL_ADMIN" -v ON_ERROR_STOP=1 -f db/scripts/conferir-rls.sql
 with tabelas as (
@@ -27,7 +29,17 @@ comuns (coluna, tipo, nao_nulo) as (
          ('external_id', 'text', false)
 ),
 sem_tenant_id (nome) as (
-  values ('plataforma.tenant')
+  values ('plataforma.tenant'),
+         ('plataforma.super_admin'),
+         ('plataforma.super_admin_desafio'),
+         ('plataforma.super_admin_sessao'),
+         ('plataforma.auditoria_plataforma')
+),
+so_por_funcao (nome) as (
+  values ('plataforma.super_admin'),
+         ('plataforma.super_admin_desafio'),
+         ('plataforma.super_admin_sessao'),
+         ('plataforma.auditoria_plataforma')
 ),
 problemas as (
   select t.nome, 'RLS desligado' as problema from tabelas t where not t.rls
@@ -37,9 +49,17 @@ problemas as (
   select t.nome, 'sem política' from tabelas t where not exists (select 1 from pg_policy p where p.polrelid = t.oid)
   union all
   select t.nome, 'sem política para o macuxi_app' from tabelas t
-   where not exists (
+   where t.nome not in (select f.nome from so_por_funcao f)
+     and not exists (
      select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
       where p.polrelid = t.oid and r.rolname = 'macuxi_app')
+  union all
+  select t.nome, 'só por função, mas com política ou grant para o macuxi_app/macuxi_worker' from tabelas t
+   where t.nome in (select f.nome from so_por_funcao f)
+     and (exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
+                   where p.polrelid = t.oid and r.rolname in ('macuxi_app', 'macuxi_worker'))
+          or exists (select 1 from pg_roles r where r.rolname in ('macuxi_app', 'macuxi_worker')
+                       and has_table_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')))
   union all
   select t.nome, 'sem política de manutenção' from tabelas t
    where not exists (

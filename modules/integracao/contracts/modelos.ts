@@ -36,6 +36,8 @@ export const DicionarioModelo = z.object({
   ordem: z.number().int().positive(),
   /** Entidades que devem ser carregadas antes (dependências diretas, RN-INT-04). */
   depende_de: z.array(Entidade),
+  /** Pode ficar para depois (título, nota): a operação do vendedor não depende dela. */
+  opcional: z.boolean(),
   campos: z.array(CampoDicionario),
 });
 export type DicionarioModelo = z.infer<typeof DicionarioModelo>;

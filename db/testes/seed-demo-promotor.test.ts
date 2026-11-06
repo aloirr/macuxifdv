@@ -12,7 +12,7 @@ import {
 } from '../../modules/promotor/contracts/coletas';
 import { carregarDemo, dadosDemo, diasUteisAtras, idClienteDemo, idUsuarioDemo, TENANT_DEMO } from '../seeds/demo/demo';
 import {
-  CARTEIRA_PROMOTOR_DEMO, dadosDemoPromotor, gravarDemoPromotor, MIX_DEMO, ORDEM_DEMO_PROMOTOR, PERFIS_PROMOTOR_DEMO, ROTA_HOJE_PROMOTOR_DEMO,
+  CARTEIRA_PROMOTOR_DEMO, dadosDemoPromotor, gravarDemoPromotor, MARCAS_CONCORRENTES_DEMO, MIX_DEMO, ORDEM_DEMO_PROMOTOR, PERFIS_PROMOTOR_DEMO, ROTA_HOJE_PROMOTOR_DEMO,
   VISITAS_LOJA_DEMO,
 } from '../seeds/demo/promotor';
 import { carregarDoisTenants, DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
@@ -113,7 +113,7 @@ describe('base de demo: Promotor (estático)', () => {
     expect(ORDEM_DEMO_PROMOTOR.flatMap((t) => amanha[t].map((l) => l.id))).toEqual(ORDEM_DEMO_PROMOTOR.flatMap((t) => d[t].map((l) => l.id)));
   });
 
-  it('conteúdo para o BKO de trade: 3 categorias, mix de 5, metas gerais + loja 0, checklist com 5 etapas (2 obrigatórias), 2 concorrentes, 4 produtos (um por categoria), tarefa e ponto extra', () => {
+  it('conteúdo para o BKO de trade: 3 categorias, mix de 5, metas gerais + loja 0, checklist com 5 etapas (2 obrigatórias), 2 concorrentes de trade + 4 marcas de autopeças (T-0085), 4 produtos (um por categoria), tarefa e ponto extra', () => {
     expect(d['promotor.categoria_gondola'].map((c) => c.nome)).toEqual(['Mercearia', 'Bebidas', 'Limpeza']);
     const categoriasDoDemo = new Set(demo['core.produto'].map((p) => p.categoria));
     for (const c of d['promotor.categoria_gondola']) expect(categoriasDoDemo.has(c.nome)).toBe(true);
@@ -124,7 +124,12 @@ describe('base de demo: Promotor (estático)', () => {
     expect(d['promotor.meta_share'].map((m) => m.cliente_id)).toEqual([null, null, null, idClienteDemo(0)]);
     const itens = d['promotor.checklist_loja'][0]!.itens as Array<{ obrigatoria: boolean }>;
     expect([d['promotor.checklist_loja'].length, itens.length, itens.filter((i) => i.obrigatoria).length]).toEqual([1, 5, 2]);
-    expect([d['promotor.concorrente'].length, d['promotor.produto_concorrente'].length, d['promotor.tarefa_trade'].length]).toEqual([2, 4, 1]);
+    expect([d['promotor.concorrente'].length, d['promotor.produto_concorrente'].length, d['promotor.tarefa_trade'].length]).toEqual([6, 4, 1]);
+    // T-0085 (RN-CAT-09): as 4 marcas da referência cruzada do Catálogo, fictícias, sem produto comparado
+    const marcas = d['promotor.concorrente'].filter((m) => Object.values(MARCAS_CONCORRENTES_DEMO).includes(m.nome as never));
+    expect(marcas.map((m) => m.nome)).toEqual(['Freiomax', 'Rodaforte', 'Filtrobom', 'Vialume']);
+    expect(marcas.every((m) => m.ativo === true && String(m.external_id).startsWith('MARCA-'))).toBe(true);
+    expect(d['promotor.produto_concorrente'].some((p) => marcas.some((m) => m.id === p.concorrente_id))).toBe(false);
     expect(new Set(d['promotor.produto_concorrente'].map((p) => p.categoria_gondola_id)).size).toBe(3);
     expect(d['promotor.ponto_extra_negociado']).toEqual([expect.objectContaining({ cliente_id: idClienteDemo(0) })]);
     for (const p of d['promotor.produto_concorrente']) expect(produtosDemo.has(p.produto_id)).toBe(true);

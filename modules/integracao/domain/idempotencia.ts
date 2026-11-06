@@ -5,6 +5,7 @@
  */
 import { SCHEMA_REGISTRO, type AvisoLinha, type Entidade, type LinhaErro } from '../contracts';
 import { classificarErroZod } from './erros';
+import { limitarCatalogoDoProduto } from './catalogo-produto';
 import { sha256Hex } from './sha256';
 
 /** JSON com chaves ordenadas; `null`/`undefined` em objeto equivalem a campo ausente; `-0` vira `0`. */
@@ -95,7 +96,14 @@ export function validarLinhas(entidade: Entidade, registros: readonly unknown[])
   for (const l of linhas) {
     const r = schema.safeParse(l.registro);
     if (r.success) {
-      validas.push({ indice: l.indice, external_id: (r.data as { external_id: string }).external_id, alterado_em: (r.data as { alterado_em: string }).alterado_em, registro: r.data, hash: hashRegistro(r.data) });
+      let dados: unknown = r.data;
+      if (entidade === 'produto') {
+        // T-0084/T-0085: corte com aviso do que passa dos tetos do Catálogo; o hash e o evento levam o registro já cortado
+        const corte = limitarCatalogoDoProduto(r.data as Parameters<typeof limitarCatalogoDoProduto>[0]);
+        dados = corte.registro;
+        avisos.push(...corte.avisos.map((a) => ({ ...a, indice: l.indice })));
+      }
+      validas.push({ indice: l.indice, external_id: (r.data as { external_id: string }).external_id, alterado_em: (r.data as { alterado_em: string }).alterado_em, registro: dados, hash: hashRegistro(dados) });
     } else {
       erros.push(...classificarErroZod(r.error, { indice: l.indice, external_id: l.external_id }));
     }

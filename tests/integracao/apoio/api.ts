@@ -99,6 +99,8 @@ export async function subirApi(
     arquivos?: ArmazenamentoArquivos;
     /** Relógio das rotas (`ctx.agora()`; T-0080). A verificação do JWT segue o relógio real: faça o login com ele no real. */
     relogio?: () => Date;
+    /** Segredos do portal do super-admin (T-0087; ADR 0029). Sem ele, os do ambiente (no teste: ausentes = 503). */
+    plataforma?: Parameters<typeof criarModuloApiCore>[1];
   } = {},
 ): Promise<ApiDeTeste> {
   const banco = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: SENHA }).then(() => undefined) });
@@ -106,7 +108,7 @@ export async function subirApi(
   const admin_ = poolComEncerramento(new pg.Pool({ connectionString: banco.urlAdmin, max: 2 }));
   const pool = app_.pool;
   const admin = admin_.pool;
-  const coreApi = criarModuloApiCore({ segredo: () => SEGREDO_JWT });
+  const coreApi = opcoes.plataforma ? criarModuloApiCore({ segredo: () => SEGREDO_JWT }, opcoes.plataforma) : criarModuloApiCore({ segredo: () => SEGREDO_JWT });
   const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m));
   const app = createApp({ banco: criarBancoApp(pool), modulos, logger: opcoes.logger ?? false, arquivos: opcoes.arquivos ?? null, ...(opcoes.relogio ? { relogio: opcoes.relogio } : {}) });
   await app.ready();

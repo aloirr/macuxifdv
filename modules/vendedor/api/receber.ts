@@ -7,6 +7,8 @@
  * T-0053 (pré-venda): `tipo = orcamento` não passa pela alçada, não publica evento e não vai para o ERP (RN-VEN-32); cliente
  * inativo só aceita orçamento (RN-VEN-13); pedido com `orcamento_origem_id` converte o orçamento uma vez (RF-VEN-03). As
  * colunas da pré-venda vão pelo repositório (`pre-venda.ts`) até a migração 0013.
+ * Pedido em nome (RN-VEN-35, RF-GES-05): `vendedor_id` do payload ≠ usuário do token. O dono é o vendedor (conta na meta e no
+ * ranking), o autor é SEMPRE o token (`autor_id`); a API confere perfil (supervisor/gerente), equipe/área e a alçada do gestor.
  */
 import { createHash } from 'node:crypto';
 import { CONSULTA_PRECOS_CLIENTE } from '@macuxi/catalogo/contracts';
@@ -23,9 +25,12 @@ import {
   conteudoDoEnvio,
   dataDoPreco,
   historicoDoOrcamento,
+  ehPedidoEmNome,
   momentoDaConversao,
+  aplicacaoMaxOrcamento,
   modalidadePadraoDosParametros,
   MSG_RECUSA_FRETE,
+  politicaDoAutor,
   politicaDosParametros,
   precoMinimoBaseCents,
   recusaDePerfil,
@@ -36,6 +41,7 @@ import {
   validadeDoOrcamento,
   validadeOrcamentoDias,
   validarFrete,
+  verificarPedidoEmNome,
   verificarConversao,
   verificarTipoParaCliente,
   type FretePedido,
@@ -101,9 +107,12 @@ export async function calcularDocumento(
 ) {
   const eu = ctx.usuario.id;
   const agora = ctx.agora();
+  // RN-VEN-35: dono do pedido (o vendedor) × autor (o token). Orçamento nunca é em nome.
+  const donoId = tipo === 'pedido' && ehPedidoEmNome(eu, p.vendedor_id) ? p.vendedor_id! : eu;
+  const emNome = donoId !== eu;
   const produtoIds = [...new Set(p.items.map((i) => i.product_id))];
   // 4) cadastro (core.cadastro_resumo@1): cliente e produtos existem e estão ativos
-  const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: [eu], endereco_ids: p.endereco_entrega_id ? [p.endereco_entrega_id] : [] });
+  const cad = await tx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [p.customer_id], produto_ids: produtoIds, usuario_ids: emNome ? [eu, donoId] : [eu], endereco_ids: p.endereco_entrega_id ? [p.endereco_entrega_id] : [] });
   const cliente = cad.clientes.find((c) => c.id === p.customer_id);
   if (!cliente) return rejeitado(itemId, 'RN-VEN-13', 'Cliente inativo ou inexistente: não é possível vender (RN-VEN-13).');
   // RN-VEN-13 (T-0071 §1.4 e): inativo, bloqueado ou cadastro incompleto só faz orçamento (422 com os campos que faltam)
@@ -112,7 +121,13 @@ export async function calcularDocumento(
   const produtos = new Map(cad.produtos.map((x) => [x.id, x]));
   const invalido = produtoIds.filter((id) => !produtos.get(id)?.ativo);
   if (invalido.length > 0) return rejeitado(itemId, 'RN-VEN-01', 'Há produto inativo ou inexistente no pedido. Atualize o catálogo e remova o item.');
-  const vendedor = cad.usuarios.find((u) => u.id === eu);
+  const vendedor = cad.usuarios.find((u) => u.id === donoId);
+  const autor = cad.usuarios.find((u) => u.id === eu);
+  if (emNome) {
+    // RN-VEN-35: equipe do supervisor / área do gerente; dono precisa ser vendedor; o promotor nunca (RN-PRO-01)
+    const nao = verificarPedidoEmNome({ autor: { id: eu, perfil: ctx.usuario.perfil }, vendedor_id: donoId, vendedor: vendedor ? { id: vendedor.id, perfil: vendedor.perfil } : null, visiveis: await ctx.usuariosVisiveis() });
+    if (nao) return recusa(itemId, nao);
+  }
 
   // 4b) medida vendida (RN-VEN-15; o fator vem do Core), frete (RN-VEN-16) e endereço de entrega (RN-VEN-17)
   const medidas = new Map<number, { unidade: string; fator: number }>();
@@ -167,7 +182,8 @@ export async function calcularDocumento(
   // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
   const rv = revalidarPedido({
     perfil: ctx.usuario.perfil,
-    vendedor_id: eu,
+    em_nome: emNome,
+    vendedor_id: donoId,
     cliente_id: p.customer_id,
     carteira: [p.customer_id],
     desconto_pct: p.discount_pct,
@@ -185,11 +201,15 @@ export async function calcularDocumento(
       desconto_unitario_cents: i.desconto_unitario_cents ?? 0,
       acrescimo_unitario_cents: i.acrescimo_unitario_cents ?? 0,
       // RN-VEN-11: mínimo por unidade base = preço de venda × (1 − desconto máximo efetivo), do Core (null = sem preço de venda, sem mínimo)
+      // T-0084 (RN-VEN-19): retrato do aparelho; nulo/ausente = sem aplicação
+      aplicacao: i.aplicacao ?? null,
       preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100 }),
     })),
     precos: mapaPreco,
     precos_embalagem: mapaEmbalagem,
-    policy: politicaDosParametros(ctx.parametros()),
+    aplicacao_max: aplicacaoMaxOrcamento(ctx.parametros()),
+    // RN-VEN-10: o pedido do gestor usa a alçada do gestor
+    policy: emNome ? politicaDoAutor(politicaDosParametros(ctx.parametros()), ctx.usuario.perfil) : politicaDosParametros(ctx.parametros()),
     total_aparelho_cents: p.total_cents,
   });
   if (!rv.ok) return recusa(itemId, rv);
@@ -202,7 +222,7 @@ export async function calcularDocumento(
   const v = validade
     ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validade, ctx.fuso()) }
     : rv;
-  return { cliente, produtos, vendedor, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v, validade, validadeCivil, recebidoEm };
+  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v, validade, validadeCivil, recebidoEm };
 }
 
 /** Tudo que o servidor decide sobre o documento antes de gravar (preço, alçada, medida, frete, endereço, condição). */
@@ -214,7 +234,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   const agora = ctx.agora();
 
   // 1) perfil (a plataforma já barrou o promotor; revalida) e carteira (RN-CORE-04)
-  const perfil = recusaDePerfil(ctx.usuario.perfil);
+  const perfil = recusaDePerfil(ctx.usuario.perfil, ehPedidoEmNome(eu, p.vendedor_id));
   if (perfil) return recusa(item.id, perfil);
 
   // serializa envios simultâneos do mesmo pedido (timeout + retentativa): o segundo espera e cai na idempotência
@@ -222,9 +242,10 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
 
   // 2) idempotência (RN-VEN-33)
   const hash = createHash('sha256').update(conteudoDoEnvio(p as unknown as Record<string, unknown>)).digest('hex');
-  const ja = (await db.query<{ vendedor_id: string; hash_envio: string | null; status: string; numero: string | null }>('select vendedor_id, hash_envio, status, numero from vendedor.pedido where id = $1', [p.id])).rows[0];
+  const ja = (await db.query<{ vendedor_id: string; autor_id: string | null; hash_envio: string | null; status: string; numero: string | null }>('select vendedor_id, autor_id, hash_envio, status, numero from vendedor.pedido where id = $1', [p.id])).rows[0];
   if (ja) {
-    if (ja.vendedor_id !== eu) return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de pedido já pertence a outro registro.');
+    // em nome o pedido é do vendedor e quem enviou é o autor: o id só repete para quem o criou
+    if ((ja.autor_id ?? ja.vendedor_id) !== eu) return rejeitado(item.id, 'ID_EM_USO', 'Este identificador de pedido já pertence a outro registro.');
     if (ja.hash_envio === null || ja.hash_envio === hash) return aceito(item.id, await relogioDoBanco(db));
     return { id: item.id, status: 'conflito', mensagem: 'Este pedido já foi recebido com outro conteúdo. Duplique-o para fazer um novo.', atual: { id: p.id, status: ja.status, numero: ja.numero } };
   }
@@ -241,6 +262,9 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
   // 3b) pré-venda (T-0053): orçamento e conversão só com o repositório da 0013
   const tipo = p.tipo ?? 'pedido';
   const origem = p.orcamento_origem_id ?? null;
+  if (ehPedidoEmNome(eu, p.vendedor_id) && (tipo === 'orcamento' || origem)) {
+    return rejeitado(item.id, 'EM_NOME_SO_PEDIDO', 'Pedido em nome vale só para pedido. Faça o orçamento no nome do próprio vendedor.');
+  }
   const repo = preVenda();
   if ((tipo === 'orcamento' || origem) && !repo.disponivel) {
     return rejeitado(item.id, 'PRE_VENDA_INDISPONIVEL', 'Orçamento ainda não está liberado para a sua empresa. Envie como pedido ou fale com o administrador.');
@@ -253,7 +277,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
 
   const calc = await calcularDocumento(ctx, db, tx, p, tipo, item.id);
   if ('status' in calc) return calc;
-  const { cliente, produtos, vendedor, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v, validade, validadeCivil, recebidoEm } = calc;
+  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v, validade, validadeCivil, recebidoEm } = calc;
 
   // 8) grava (pedido, itens, histórico, auditoria, eventos) na mesma transação
   const numero = (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
@@ -274,17 +298,17 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         acrescimo_pct, desconto_efetivo_pct, frete_modalidade, transportadora_id, transportadora_digitada, transportadora_nome,
         transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
         desconto_valor_cents, acrescimo_valor_cents, ajuste_em)
-     values ($1, plataforma.tenant_atual(), $2, $3, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
+     values ($1, plataforma.tenant_atual(), $2, $3, $38, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
         $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37)
      on conflict (id) do nothing returning id`,
     [
-      p.id, p.customer_id, eu, v.status, condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
+      p.id, p.customer_id, donoId, v.status, condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
       p.observacao ?? null, p.visita_id ?? null, p.route_stop_id ?? null, p.created_offline_at ?? null, recebidoEm, numero, hash,
       JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, vendedor?.nome ?? null,
       precos.tabela_preco_id, condicao?.id ?? null, condicao?.descricao ?? null, v.nivel, v.motivos, v.aprovacao_automatica,
       v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada, transportadora.nome,
       transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(retratoDoEndereco(enderecoRetrato)) : null,
-      v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em,
+      v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
     ],
   );
   // outro tenant com o mesmo id (chave primária global): não revela, só recusa
@@ -294,16 +318,16 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     const prod = produtos.get(it.product_id)!;
     await db.query(
       `insert into vendedor.pedido_item (tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents, preco_unitario_cents, desconto_pct, total_cents,
-          produto_sku, produto_nome, unidade, fator, acrescimo_pct, preco_minimo_cents, desconto_unitario_cents, acrescimo_unitario_cents, ajuste_em)
-       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
-      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents, it.desconto_unitario_cents, it.acrescimo_unitario_cents, it.ajuste_em],
+          produto_sku, produto_nome, unidade, fator, acrescimo_pct, preco_minimo_cents, desconto_unitario_cents, acrescimo_unitario_cents, ajuste_em, aplicacao)
+       values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+      [p.id, idx + 1, it.product_id, it.quantity, it.preco_tabela_cents, it.preco_unitario_cents, it.desconto_pct, it.total_cents, prod.sku, prod.nome, it.unidade ?? prod.unidade, it.fator, it.acrescimo_pct, it.preco_minimo_cents, it.desconto_unitario_cents, it.acrescimo_unitario_cents, it.ajuste_em, it.aplicacao],
     );
   }
   for (const h of v.historico) {
     await db.query(
       `insert into vendedor.pedido_evento (tenant_id, pedido_id, de, para, autor_id, autor_nome, autor_perfil, motivo, nivel, acima_do_nivel, ocorrido_em)
        values (plataforma.tenant_atual(), $1, $2, $3, $4, $5, $6, $7, $8, false, $9)`,
-      [p.id, h.de, h.para, eu, vendedor?.nome ?? null, ctx.usuario.perfil, h.motivo, h.para === 'pending_approval' ? v.nivel : null, recebidoEm],
+      [p.id, h.de, h.para, eu, autor?.nome ?? null, ctx.usuario.perfil, h.motivo, h.para === 'pending_approval' ? v.nivel : null, recebidoEm],
     );
   }
 
@@ -315,7 +339,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     entidade: 'pedido',
     entidade_id: p.id,
     antes: null,
-    depois: { status: v.status, numero, total_cents: v.total_cents, desconto_pct: v.desconto_pct, desconto_efetivo_pct: v.desconto_efetivo_pct, frete: frete.modalidade, nivel: v.nivel, itens: v.itens.length, tipo, ...(origem ? { orcamento_origem_id: origem } : {}) },
+    depois: { ...(emNome ? { em_nome: true, vendedor_id: donoId, autor_id: eu } : {}), status: v.status, numero, total_cents: v.total_cents, desconto_pct: v.desconto_pct, desconto_efetivo_pct: v.desconto_efetivo_pct, frete: frete.modalidade, nivel: v.nivel, itens: v.itens.length, tipo, ...(origem ? { orcamento_origem_id: origem } : {}) },
   });
   // RN-VEN-32: orçamento não publica evento de pedido (metas, Gestor e fila do ERP só veem pedido)
   if (tipo === 'orcamento') return aceito(item.id, await relogioDoBanco(db));
@@ -325,7 +349,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
     EVENTO_PEDIDO_CRIADO,
     {
       pedido_id: p.id,
-      vendedor_id: eu,
+      vendedor_id: donoId,
       autor_id: eu,
       cliente_id: p.customer_id,
       visita_id: p.visita_id ?? null,
@@ -343,7 +367,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       EVENTO_PEDIDO_STATUS_ALTERADO,
       {
         pedido_id: p.id,
-        vendedor_id: eu,
+        vendedor_id: donoId,
         de: h.de ? statusDoContrato(h.de) : null,
         para: statusDoContrato(h.para),
         alterado_em: recebidoEm,
@@ -359,7 +383,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
       EVENTO_PEDIDO_APROVACAO_SOLICITADA,
       {
         pedido_id: p.id,
-        vendedor_id: eu,
+        vendedor_id: donoId,
         cliente_id: p.customer_id,
         solicitada_em: recebidoEm,
         nivel: v.nivel,

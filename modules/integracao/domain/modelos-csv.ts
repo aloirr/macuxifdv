@@ -13,9 +13,9 @@
  * Dica de planilha: formate as colunas de código (documento, CEP, EAN) como Texto para o Excel não cortar zeros nem usar notação científica.
  */
 import { z } from 'zod';
-import { ENTIDADES, SCHEMA_REGISTRO, type CampoDicionario, type DicionarioModelo, type Entidade } from '../contracts';
+import { SCHEMA_REGISTRO, type CampoDicionario, type DicionarioModelo, type Entidade } from '../contracts';
 import { defDe, desembrulhar, estruturaDoSchema } from './carga-arquivo';
-import { DEPENDENCIAS, ordenarCarga } from './ordem';
+import { ordemDeCargaDoPortal } from './portal-carga';
 
 const BOM = String.fromCharCode(0xfeff);
 const CRLF = '\r\n';
@@ -23,10 +23,8 @@ const SEPARADOR = ';';
 
 // ---------------------------------------------------------------------------------------------------------------- ordem de carga
 
-const ordem = ordenarCarga<Entidade>(ENTIDADES);
-if (!ordem.ok) throw new Error(`DEPENDENCIAS tem ciclo: ${ordem.ciclo.join(' → ')}`);
-/** Entidades na ordem em que o Hub deve receber a carga inicial (RN-INT-04): derivada de `DEPENDENCIAS`, sem lista paralela. */
-export const ENTIDADES_ORDEM_CARGA: readonly Entidade[] = ordem.ordem;
+/** Entidades na ordem de carga inicial (RN-INT-04): a MESMA do portal (`ordemDeCargaDoPortal`), sem segunda lista. */
+export const ENTIDADES_ORDEM_CARGA: readonly Entidade[] = ordemDeCargaDoPortal().map((i) => i.entidade);
 
 export interface ResumoModelo {
   entidade: Entidade;
@@ -34,9 +32,10 @@ export interface ResumoModelo {
   /** 1 = primeira a carregar. */
   ordem: number;
   depende_de: Entidade[];
+  opcional: boolean;
 }
 export const nomeArquivoModelo = (entidade: Entidade): string => `${entidade}.csv`;
-export const RESUMO_MODELOS: readonly ResumoModelo[] = ENTIDADES_ORDEM_CARGA.map((entidade, i) => ({ entidade, arquivo: nomeArquivoModelo(entidade), ordem: i + 1, depende_de: [...DEPENDENCIAS[entidade]] }));
+export const RESUMO_MODELOS: readonly ResumoModelo[] = ordemDeCargaDoPortal().map((i) => ({ entidade: i.entidade, arquivo: nomeArquivoModelo(i.entidade), ordem: i.posicao, depende_de: [...i.depende_de], opcional: i.opcional }));
 
 // ---------------------------------------------------------------------------------------------------------------- exemplos
 
@@ -344,5 +343,5 @@ export function gerarModeloCsv(entidade: Entidade, schema: z.ZodTypeAny = SCHEMA
 export function dicionarioDaEntidade(entidade: Entidade, schema: z.ZodTypeAny = SCHEMA_REGISTRO[entidade]): DicionarioModelo {
   const { arquivo, campos } = gerarModeloCsv(entidade, schema);
   const resumo = RESUMO_MODELOS.find((r) => r.entidade === entidade) as ResumoModelo;
-  return { entidade, arquivo, ordem: resumo.ordem, depende_de: resumo.depende_de, campos };
+  return { entidade, arquivo, ordem: resumo.ordem, depende_de: resumo.depende_de, opcional: resumo.opcional, campos };
 }

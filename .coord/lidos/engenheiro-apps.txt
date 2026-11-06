@@ -120,3 +120,16 @@ R-20261105-164122-engenheiro-software
 R-20261105-184833-modulo-vendedor
 R-20261105-164122-engenheiro-software
 R-20261105-164122-engenheiro-software
+R-20261105-205201-gerente-projetos
+R-20261105-212843-engenheiro-software
+R-20261105-212947-modulo-vendedor
+R-20261106-000903-gerente-projetos
+R-20261106-003832-modulo-vendedor
+R-20261106-004033-modulo-catalogo
+R-20261106-011153-modulo-integracao
+R-20261106-012209-modulo-core
+R-20261106-022739-modulo-integracao
+R-20261106-023415-engenheiro-software
+R-20261106-030101-modulo-integracao
+R-20261106-025653-designer-ux
+R-20261106-050553-designer-ux

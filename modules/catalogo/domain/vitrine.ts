@@ -4,13 +4,14 @@
  * paginação. Função pura: a API usa com as linhas do Postgres; o app, com as linhas do SQLite (offline, RF-CAT-02).
  */
 import type { Perfil } from '@macuxi/platform-sdk';
-import type { AtributoProduto, FiltrosInterpretados, ItemTabelaPreco, ItemVitrine, PrecoVisivel, Promocao, StockByBranch } from '../contracts';
+import type { AtributoProduto, EquivaleA, FiltrosInterpretados, ItemTabelaPreco, ItemVitrine, PrecoVisivel, Promocao, Referencia, StockByBranch } from '../contracts';
 import type { VocabularioTenant } from './consulta';
 import { estoqueVisivel } from './estoque';
 import type { ParametrosCatalogo } from './parametros';
 import { MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel } from './preco';
 import { rankear, type DocBusca } from './ranking';
-import { chaveDeTermo, type SinonimoDoTenant } from './texto';
+import { trechoServeEm } from './serve-em';
+import { chaveDeTermo, expandirSinonimos, type SinonimoDoTenant } from './texto';
 import { filtrosParaPerfil, itemVitrineParaPerfil, podeVerPrecoEstoque } from './visibilidade';
 
 /** Produto como o Catálogo o enxerga: cadastro base do Core (por `id`) + enriquecimento do Catálogo. */
@@ -25,6 +26,10 @@ export interface ProdutoCatalogo {
   ativo: boolean;
   /** Atributos técnicos (BKO/ERP); entram na busca com o menor peso. */
   atributos: readonly AtributoProduto[];
+  /** RN-CAT-11: Aplicação (descrição 2); ausente = sem aplicação. */
+  aplicacao?: string | null;
+  /** RN-CAT-09: referências cruzadas ativas (marca inativa já fora); ausente = nenhuma. */
+  referencias?: readonly Referencia[];
   thumbnail_url: string | null;
   /** Produto de campanha/destaque (boost na busca, RN-CAT-08). */
   campanha: boolean;
@@ -101,6 +106,8 @@ export function docDeBusca(p: ProdutoCatalogo, item: ItemVitrine): DocBusca {
     marca: p.marca,
     categoria: p.categoria,
     atributos: p.atributos.map((x) => `${x.name} ${x.value}`).join(' '),
+    aplicacao: p.aplicacao ?? '',
+    referencias: p.referencias ?? [],
     estoque,
     vendas: p.vendas,
     campanha: p.campanha,
@@ -140,6 +147,8 @@ export interface EntradaBuscaProdutos {
   sinonimos: readonly SinonimoDoTenant[];
   /** Nota semântica 0..1 por produto (busca vetorial), quando houver. */
   semantica?: ReadonlyMap<string, number>;
+  /** Ano civil no fuso do tenant (ADR 0015); padrão: ano UTC de `contexto.agora`. Expande as faixas da aplicação. */
+  anoAtual?: number;
   limit: number;
   offset: number;
 }
@@ -169,11 +178,24 @@ export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
     docs.push(docDeBusca(p, item));
   }
   const filtros = filtrosParaPerfil(aplicarChips(e.filtros, e.chips ?? {}), ctx.perfil, ctx.parametros);
-  const ranking = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: ctx.parametros, ...(e.semantica ? { semantica: e.semantica } : {}) }).slice(0, LIMITE_RESULTADOS_BUSCA);
+  const anoAtual = e.anoAtual ?? Number(ctx.agora.slice(0, 4));
+  const ranking = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: ctx.parametros, anoAtual, ...(e.semantica ? { semantica: e.semantica } : {}) }).slice(0, LIMITE_RESULTADOS_BUSCA);
   const limit = Math.max(1, Math.trunc(e.limit));
   const offset = Math.max(0, Math.trunc(e.offset));
-  const pagina = ranking.slice(offset, offset + limit).map((r) => ({ ...itens.get(r.doc.id)!, score: r.nota }));
+  const grupos = expandirSinonimos(filtros.text, e.sinonimos);
+  const pagina = ranking.slice(offset, offset + limit).map((r) => {
+    const serveEm = r.doc.aplicacao === '' ? null : trechoServeEm(r.doc.aplicacao, grupos, { anoAtual });
+    const equivale = r.referencia_casada === null ? null : equivaleA(r.doc.referencias[r.referencia_casada]);
+    return { ...itens.get(r.doc.id)!, score: r.nota, ...(serveEm ? { serve_em: serveEm } : {}), ...(equivale ? { equivale_a: equivale } : {}) };
+  });
   return { items: pagina, total: ranking.length, next_offset: offset + limit < ranking.length ? offset + limit : null };
+}
+
+/** RN-CAT-09: 'Equivale a: <marca> <código>' com o código marcado. */
+export function equivaleA(ref: Referencia | undefined): EquivaleA | null {
+  if (!ref) return null;
+  const ini = ref.marca_nome.length + 1;
+  return { ...ref, marcas: [[ini, ini + ref.codigo.length]] };
 }
 
 const SEM_FILTRO: FiltrosInterpretados = { text: '', brand: null, line: null, min_price_cents: null, max_price_cents: null, stock: null, code: null, measures: [], sort: null };

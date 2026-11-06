@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ENTIDADES, SCHEMA_REGISTRO, Texto, VendedorPayload, type Entidade } from '../contracts';
 import { converterCsvParaLote, lerCsv } from './carga-arquivo';
 import { validarEnvelope } from './envelope';
+import { ordemDeCargaDoPortal } from './portal-carga';
 import { dicionarioDaEntidade, ENTIDADES_ORDEM_CARGA, gerarModeloCsv, RESUMO_MODELOS } from './modelos-csv';
 import { DEPENDENCIAS } from './ordem';
 
@@ -99,14 +100,19 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
     expect(lido.linhas[0]?.celulas[i]).toBe('Zé; "o" Rápido');
   });
 
-  it('RN-INT-04: a ordem de carga começa por vendedor, tem as 12 entidades e toda dependência vem antes', () => {
+  it('RN-INT-04: a ordem de carga é a do portal (vendedor primeiro, 12 entidades, dependências antes, mesmos opcional/depende_de)', () => {
+    const portal = ordemDeCargaDoPortal();
     expect(ENTIDADES_ORDEM_CARGA[0]).toBe('vendedor');
+    expect([...ENTIDADES_ORDEM_CARGA]).toEqual(portal.map((i) => i.entidade));
     expect([...ENTIDADES_ORDEM_CARGA].sort()).toEqual([...ENTIDADES].sort());
     ENTIDADES_ORDEM_CARGA.forEach((e, i) => {
       for (const dep of DEPENDENCIAS[e]) expect(ENTIDADES_ORDEM_CARGA.indexOf(dep)).toBeLessThan(i);
     });
-    expect(RESUMO_MODELOS.map((r) => r.entidade)).toEqual([...ENTIDADES_ORDEM_CARGA]);
-    expect(RESUMO_MODELOS.find((r) => r.entidade === 'cliente')).toEqual({ entidade: 'cliente', arquivo: 'cliente.csv', ordem: 2, depende_de: ['vendedor'] });
+    expect(RESUMO_MODELOS.map((r) => ({ entidade: r.entidade, ordem: r.ordem, depende_de: r.depende_de, opcional: r.opcional }))).toEqual(
+      portal.map((i) => ({ entidade: i.entidade, ordem: i.posicao, depende_de: i.depende_de, opcional: i.opcional })),
+    );
+    const cli = RESUMO_MODELOS.find((r) => r.entidade === 'cliente');
+    expect(cli).toMatchObject({ arquivo: 'cliente.csv', depende_de: ['vendedor'], opcional: false });
   });
 
   it('RF-INT-03: as referências dos exemplos são coerentes com a ordem de carga (VEN-001 existe em vendedor e é usada em cliente)', () => {

@@ -476,6 +476,18 @@ describe('RN-INT-08 (T-0032 🟡): pedido aprovado sem as chaves do ERP fica RET
     if (r.ok) expect(r.snapshot).toMatchObject({ pedido_uuid: UUID, cliente_external_id: 'C1', observacao: null, condicao_pagamento_codigo: null });
   });
 
+  it('RN-VEN-19: a aplicação do item chega à fila e ao pedido pendente com o texto; sem aplicação nada muda', () => {
+    const itens = [{ ...comItem(1, 'SKU1'), aplicacao: 'Gol 1.0 2010-2014' }, { ...comItem(2, 'SKU2'), aplicacao: null }, comItem(3, 'SKU3')];
+    const r = montarSnapshotParaFila(evento({ itens, condicao_pagamento_codigo: null }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.snapshot.itens[0]).toMatchObject({ aplicacao: 'Gol 1.0 2010-2014' });
+    expect(r.snapshot.itens[1]!.aplicacao ?? null).toBeNull();
+    expect('aplicacao' in r.snapshot.itens[2]!).toBe(false);
+    const m = montarPedidoParaErp(r.snapshot, []);
+    expect(m.ok && m.pedido.itens[0]!.aplicacao).toBe('Gol 1.0 2010-2014');
+  });
+
   it('RN-INT-08: cliente, vendedor e produtos sem external_id — a mensagem diz O QUE falta (por sequência) e o que fazer, sem dado do cliente', () => {
     const r = montarSnapshotParaFila(evento({ cliente_external_id: null, vendedor_external_id: ' ', itens: [comItem(1, 'SKU1'), comItem(2, null), comItem(5, '')] }));
     expect(r.ok).toBe(false);
@@ -502,7 +514,7 @@ describe('RN-INT-08 (T-0032 🟡): pedido aprovado sem as chaves do ERP fica RET
 
   it('RN-INT-08: muitas sequências sem chave: lista as primeiras e diz quantas faltam (a mensagem cabe na coluna)', () => {
     const itens = Array.from({ length: 40 }, (_, i) => comItem(i + 1, null));
-    const r = montarSnapshotParaFila(evento({ itens }));
+    const r = montarSnapshotParaFila(evento({ itens, condicao_pagamento_codigo: null }));
     if (r.ok) throw new Error('esperado recusa');
     expect(r.mensagem.length).toBeLessThanOrEqual(1000);
     expect(r.mensagem).toMatch(/e mais \d+/);

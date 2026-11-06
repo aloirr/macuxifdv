@@ -24,3 +24,13 @@
 2026-11-05 — T-0052 — caixa limpa: 6 recados encerrados, tabela_preco_nome em precos_cliente@1 (aditivo), X da busca volta na hora; buscarComDesfecho fica para o lote N
 2026-11-05 — T-0061/T-0052 — precos.db.test: tabela_preco_nome na expectativa + contraprova sem o campo (fix do CI do lote O)
 2026-11-05 — T-0052 — BotoesAcao: vitrine sem laranja (outline), ficha com principal de 52 px (ALTURA.principal); resposta ao R-20261105-183411
+2026-11-05 — T-0084/T-0085 — fatias A e B: expandirAplicacao, trechoServeEm, ranking com aplicação e referência cruzada, contracts aditivos, consultas textos_produto/busca_produtos, FTS v3 (indice.ts), pull produto_referencia, PUT cadastro-catalogo, consumidor do ERP, ficha, "Serve em"/"Equivale a" e seção Catálogo do BKO; pendências: marcas do Promotor no servidor, SDK na consulta do aparelho, lista por linha e exportação (travadas)
+2026-11-05 — T-0085 — fatia B: B1 corrigido, referencias opcional no PUT cadastro-catalogo (ausente mantém, [] apaga), BKO omite sem marcas, testes na API e no BKO
+2026-11-05 — T-0085 — fatia B: 2 🔴 de UX do BKO (editores com abertura independente; oferece_junto da ficha no mapa de ids), com testes
+2026-11-06 — T-0085 — fatia C servidor: GET /v1/catalogo/exportacao ({produtos,marcas,truncado}, teto 20 mil), domain montarExportacao, testes de rota (perfil, licença, tenant)
+2026-11-06 — T-0085 — marcas pelo promotor.concorrentes@1 (API, exportação, PUT, consumidor do ERP), oferece junto por código, aplicação memorizada no aparelho (aguarda SDK); marca_nome da 0034 pendente
+2026-11-06 — T-0085 — marca_nome (retrato 0034): gravado no PUT e no consumidor do ERP, no pull e lido no aparelho/enriquecer via nomeMarcaDaReferencia; caso de banco do consumidor de referências; regras.md
+2026-11-06 — T-0085 — CI 42177538694: causa dos 3 db.test RN-CAT-09 é o ProdutoBase do Hub sem os campos (strip); pedido ao modulo-integracao
+2026-11-06 — T-0084 — C9 responde no aparelho com o produto do Core (produtosLocais sem ler o concorrente do Promotor), aplicação (C8) memorizada por versaoLinhas com linhasPorCampo; teste 'pastilha uno 2012/2015'
+2026-11-06 — T-0085 — exportação: marca_nome aditivo nas referências (regra nomeMarcaDaReferencia), teste de rota com e sem Promotor (A1 do testes)
+2026-11-06 — T-0084 — A4: ano da consulta só casa no mesmo trecho (;) da aplicação (ranking), 4 testes RN-CAT-12, anoAtual da C9 via ctx.agora()

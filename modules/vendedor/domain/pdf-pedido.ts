@@ -40,6 +40,8 @@ export interface OrderPdfItem {
   /** desconto/acréscimo do ITEM (versão interna); ausente = pedido antigo (vale o do pedido) */
   discount_pct?: number;
   surcharge_pct?: number;
+  /** T-0084 (RN-VEN-19): retrato da aplicação, "Aplicação: …" abaixo da descrição nos dois PDFs; ausente/nulo = não sai */
+  application?: string | null;
 }
 
 /** Frete CIF (empresa paga) ou FOB (cliente paga, com transportadora). Sem valor (RN-VEN-13, RN-VEN-16). */
@@ -66,6 +68,8 @@ export interface OrderPdfOrder {
   created_at: string;
   customer: { legal_name: string; trade_name: string; cnpj: string; address: string; district: string; city: string; erp_code: string };
   seller_name: string;
+  /** RN-VEN-35: pedido em nome; quem digitou (o gestor). Ausente = pedido do próprio vendedor */
+  made_by?: string;
   payment_terms: string;
   discount_pct: number;
   items: OrderPdfItem[];
@@ -212,6 +216,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helv
 .row:nth-child(even):not(.head) { background: #F7F8F5; }
 .cols-customer { grid-template-columns: 22mm 1fr 20mm 11mm 25mm 27mm; }
 .cols-bko { grid-template-columns: 18mm 1fr 18mm 9mm 20mm 15mm 20mm 23mm; }
+.apl { display: block; margin-top: 1px; font-size: 8pt; color: #4A5562; overflow-wrap: anywhere; }
 .code { font-family: "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; font-size: 8.5pt; color: #4A5562; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .totals { margin-top: 10px; margin-left: auto; width: 82mm; }
@@ -265,7 +270,7 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
     ${place ? `<div class="muted">${escapeHtml(place)}</div>` : ''}
   </div>
   <div class="box kv">
-    <span class="k">Vendedor</span><span class="strong">${escapeHtml(order.seller_name)}</span>
+    <span class="k">Vendedor</span><span class="strong">${escapeHtml(order.seller_name)}</span>${order.made_by ? `<span class="k"></span><span class="muted">feito por ${escapeHtml(order.made_by)}</span>` : ''}
     <span class="k">Prazo</span><span>${escapeHtml(order.payment_terms)}</span>
     <span class="k">Data</span><span>${escapeHtml(pdfDateTime(order.created_at, ctx.tz))}</span>
     ${freteHtml}
@@ -274,13 +279,19 @@ function header(order: OrderPdfOrder, view: OrderPdfView, ctx: OrderPdfContext):
 </div>`;
 }
 
+/** RN-VEN-19: linha "Aplicação: …" abaixo da descrição do item (texto já cortado no pedido); vazia quando não há retrato. */
+function aplicacaoHtml(it: Pick<OrderPdfItem, 'application'>): string {
+  const texto = it.application?.trim();
+  return texto ? `<span class="apl">Aplicação: ${escapeHtml(texto)}</span>` : '';
+}
+
 function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   const rows = order.items
     .map(
       (it) => `
   <div class="row cols-customer">
     <span class="code">${escapeHtml(it.erp_code)}</span>
-    <span>${escapeHtml(it.description)}</span>
+    <span>${escapeHtml(it.description)}${aplicacaoHtml(it)}</span>
     <span>${escapeHtml(it.unit_label || 'UN')}</span>
     <span class="num">${it.quantity}</span>
     <span class="num">${formatBRL(netUnitCents(it))}</span>
@@ -297,7 +308,7 @@ function customerBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
   <div class="line muted"><span>${order.items.length} ${order.items.length === 1 ? 'item' : 'itens'} · ${order.items.reduce((s, i) => s + i.quantity, 0)} un.</span><span>Prazo ${escapeHtml(order.payment_terms)}</span></div>
 </div>
 <div class="footer">
-  <div>Vendedor: <span class="strong">${escapeHtml(order.seller_name)}</span> · Prazo de pagamento: ${escapeHtml(order.payment_terms)}</div>
+  <div>Vendedor: <span class="strong">${escapeHtml(order.seller_name)}</span>${order.made_by ? ` (feito por ${escapeHtml(order.made_by)})` : ''} · Prazo de pagamento: ${escapeHtml(order.payment_terms)}</div>
   ${order.freight ? `<div class="strong">${escapeHtml(textoFrete(order.freight))}</div>` : ''}
   ${order.delivery_address ? `<div>Entrega: ${escapeHtml(order.delivery_address)}</div>` : ''}
   <div>Valores sem impostos; impostos calculados no faturamento.</div>
@@ -320,7 +331,7 @@ function bkoBody(order: OrderPdfOrder, ctx: OrderPdfContext): string {
       (it) => `
   <div class="row cols-bko">
     <span class="code">${escapeHtml(it.erp_code)}</span>
-    <span>${escapeHtml(it.description)}</span>
+    <span>${escapeHtml(it.description)}${aplicacaoHtml(it)}</span>
     <span>${escapeHtml(it.unit_label || 'UN')}</span>
     <span class="num">${it.quantity}</span>
     <span class="num">${formatBRL(it.unit_price_cents)}</span>
@@ -425,7 +436,7 @@ export interface DetalheParaPdf {
   erp_order_code: string;
   price_table_id: string | null;
   branch_name?: string | null;
-  items: Array<{ erp_code: string; description: string; quantity: number; unit_price_cents: number; total_cents: number; unit_label?: string | null; discount_pct?: number; surcharge_pct?: number }>;
+  items: Array<{ erp_code: string; description: string; quantity: number; unit_price_cents: number; total_cents: number; unit_label?: string | null; discount_pct?: number; surcharge_pct?: number; application?: string | null }>;
   history: OrderPdfEvent[];
   // --- T-0061 (opcionais; detalhe antigo sai igual) ---
   freight?: OrderPdfFreight | null;
@@ -479,6 +490,7 @@ export function pdfDoPedido(d: DetalheParaPdf): OrderPdfOrder {
       unit_label: i.unit_label || 'UN',
       ...(i.discount_pct !== undefined && d.effective_discount_pct != null ? { discount_pct: i.discount_pct } : {}),
       ...(i.surcharge_pct ? { surcharge_pct: i.surcharge_pct } : {}),
+      ...(i.application ? { application: i.application } : {}),
     })),
     subtotal_cents: d.subtotal_cents,
     discount_cents: d.discount_cents,

@@ -15,15 +15,19 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
+import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { opcoesDoSalvar, validadeDoOrcamento, validadeOrcamentoDias } from '../../domain/orcamento';
 import { podeEnviarPedido } from '../../domain/quantidade';
+import { resolverBusca, type TrechoServeEm } from '../../domain/busca-seletor';
+import { rotuloVoltarNovoPedido } from '../../domain/pedido-em-nome';
 import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { ListaDeItens, PendenciasDoPedido } from '../components/novo-pedido';
 import { AbaDetalhes, AbaResumo, CardFreteEPrazo, DialogoDescartar, FolhaSalvar } from '../components/novo-pedido-abas';
-import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
+import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
 import { abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, niveisDaTrilha, nomeDaSugestao, textoBuscaSemResultado, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
+import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
@@ -37,21 +41,23 @@ import { aplicarValorPendente } from '../lib/valor-pendente';
 import { useVendedor } from '../state/use-vendedor';
 
 export default function NewOrderScreen() {
-  const { customerId, editId, visitId, stopId } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string }>();
+  const { customerId, editId, visitId, stopId, vendedorId, vendedorNome } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; vendedorNome?: string }>();
   // desistiu antes de escolher o cliente: o produto pendente não sobra para o próximo pedido
   useEffect(() => () => descartarProdutoPendente(), []);
   const { carregado, dados } = useVendedor();
   if (!carregado) return <Loading />;
-  if (!dados.me || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
+  // RN-VEN-35: o gestor faz o pedido pelo vendedor e não tem carteira de vendedor (`me`) no aparelho
+  if ((!dados.me && !vendedorId) || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
   if (!customerId) return <CustomerPicker />;
-  return <OrderEditor key={`${customerId}:${editId ?? ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} />;
+  return <OrderEditor key={`${customerId}:${editId ?? ''}:${vendedorId ?? ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} vendedorEmNomeId={editId ? null : vendedorId || null} vendedorEmNomeNome={editId ? null : vendedorNome || null} />;
 }
 
 /** Mensagem dentro de Screen (área segura) e com caminho de volta para Pedidos. */
 function AvisoDaTela({ titulo, texto, acao }: { titulo: string; texto?: string; acao?: { rotulo: string; onPress: () => void } }) {
+  const { vendedorId } = useLocalSearchParams<{ vendedorId?: string }>();
   return (
     <Screen testID="new-order-aviso">
-      <BackLink label="Pedidos" fallback={hrefPedidos()} />
+      <BackLink label={rotuloVoltarNovoPedido(vendedorId)} fallback={hrefPedidos()} />
       <EstadoVazio titulo={titulo} texto={texto} acao={acao} />
     </Screen>
   );
@@ -61,6 +67,7 @@ function AvisoDaTela({ titulo, texto, acao }: { titulo: string; texto?: string; 
 
 function CustomerPicker() {
   const { dados } = useVendedor();
+  const { vendedorId } = useLocalSearchParams<{ vendedorId?: string }>();
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
   // lido no render sem reagir: o pendente só muda antes de navegar para cá, nunca com o seletor aberto
@@ -76,7 +83,7 @@ function CustomerPicker() {
   const list = useMemo(() => filterCustomers(dados.clientes, q, []).slice(0, 60), [dados.clientes, q]);
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: Math.max(16, insets.top + 4), paddingHorizontal: 20, paddingBottom: 24, gap: 12 }} keyboardShouldPersistTaps="handled">
-      <BackLink label="Pedidos" fallback={hrefPedidos()} />
+      <BackLink label={rotuloVoltarNovoPedido(vendedorId)} fallback={hrefPedidos()} />
       <Text style={t.h1Small}>Novo pedido</Text>
       <Text style={t.sub}>Para qual cliente?</Text>
       {produtoEmEspera ? <Text style={t.small}>Item: {produtoEmEspera}</Text> : null}
@@ -119,7 +126,7 @@ interface Snapshot {
   rascunho: Draft;
 }
 
-function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null }) {
+function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, vendedorEmNomeNome }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null; vendedorEmNomeId: string | null; vendedorEmNomeNome: string | null }) {
   const app = useVendedor();
   const insets = useSafeAreaInsets();
   const avisoRodape = useAvisoRodape();
@@ -133,9 +140,15 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const condicoes = condicoesDe(customerId);
   const customer = dados.clientes.find((c) => c.id === customerId) ?? null;
   const tableKey = customer?.price_table_id ?? 'default';
-  const catalog = useMemo(() => dados.produtos[tableKey]?.items ?? [], [dados.produtos, tableKey]);
+  const catalogBase = useMemo(() => dados.produtos[tableKey]?.items ?? [], [dados.produtos, tableKey]);
+  // T-0084 §12 (RN-VEN-19): a aplicação vem só dos itens visíveis e do rascunho (cache em memória), não da tabela inteira
+  const [textos, setTextos] = useState<ReadonlyMap<string, string>>(new Map());
+  const catalog = useMemo(() => (textos.size === 0 ? catalogBase : catalogBase.map((p) => (textos.has(p.id) ? { ...p, applications: textos.get(p.id)! } : p))), [catalogBase, textos]);
   const productsAt = dados.produtos[tableKey]?.synced_at ?? dados.sincronizado_em ?? '';
   const [query, setQuery] = useState('');
+  /** T-0084 C9: resposta da busca do Catálogo para esta consulta; `null` = indisponível, vale a busca local (reserva) */
+  const [erroBusca, setErroBusca] = useState(false);
+  const [buscaCatalogo, setBuscaCatalogo] = useState<{ q: string; itens: Array<{ produto_id: string; serve_em: TrechoServeEm | null }> } | null>(null);
   const [sent, setSent] = useState<Sent | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +158,12 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   useEffect(() => {
     if (!editId && (visitId || stopId)) updateDraft(customerId, (d) => ligarRascunho(d, visitId, stopId));
   }, [visitId, stopId, editId, customerId]);
+
+  // RN-VEN-35: o rascunho guarda o dono (vendedor) escolhido pelo gestor; sem o parâmetro, o pedido é do próprio usuário
+  useEffect(() => {
+    if (editId) return;
+    if ((draft.vendedor_em_nome_id ?? null) !== vendedorEmNomeId || (draft.vendedor_em_nome_nome ?? null) !== vendedorEmNomeNome) updateDraft(customerId, (d) => ({ ...d, vendedor_em_nome_id: vendedorEmNomeId, vendedor_em_nome_nome: vendedorEmNomeNome }));
+  }, [vendedorEmNomeId, vendedorEmNomeNome, editId, customerId, draft.vendedor_em_nome_id, draft.vendedor_em_nome_nome]);
 
   useEffect(() => {
     if (customer && catalog.length === 0) void ensureProducts(customer);
@@ -186,7 +205,8 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   }, [v1, condicoes, draft.condicao_pagamento_id, sent, editId]);
 
   const ambiente = useAmbiente();
-  const fretePadrao = modalidadePadraoDosParametros(ambiente.parametros('vendedor'));
+  const parametrosVendedor = ambiente.parametros('vendedor');
+  const fretePadrao = modalidadePadraoDosParametros(parametrosVendedor);
   const [aba, setAba] = useState<AbaNovoPedido>('itens');
   const saveEditRef = useRef<() => Promise<void>>(async () => undefined);
   const [salvarAberto, setSalvarAberto] = useState(false);
@@ -205,14 +225,15 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     }, [aba, sent, salvarAberto, descartarAberto]),
   );
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
-  const politica = dados.politica;
-  const vendedorId = dados.me?.seller?.id ?? '';
+  // RN-VEN-10: em nome, a alçada é a do gestor (supervisor/gerente), como na API
+  const politica = dados.politica && vendedorEmNomeId ? politicaParaAutor(dados.politica, app.perfil) : dados.politica;
+  const vendedorId = vendedorEmNomeId ?? dados.me?.seller?.id ?? '';
   const calculoAtual = useMemo(
     () =>
       politica
-        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, embalagens: dados.produtos[tableKey]?.embalagens, politica, vendedor_id: vendedorId })
+        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, embalagens: dados.produtos[tableKey]?.embalagens, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId })
         : null,
-    [draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
+    [parametrosVendedor, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
   const calculo = sent ? sent.snapshot.calculo : calculoAtual;
   // T-0071 (RF-CAT-03): sugestões da aba Detalhes, calculadas no aparelho (offline) só quando a aba está aberta
@@ -232,6 +253,52 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   const nomes = useMemo(() => new Map<string, string>(sent ? sent.snapshot.nomes : catalog.map((p) => [p.id, p.description] as [string, string])), [sent, catalog]);
   const frete = draft.frete ?? { modalidade: fretePadrao };
   const freteAviso = freteValido(frete);
+
+  // T-0084 C9 (RN-CAT-12): busca do Catálogo com "Serve em"; indisponível (sem leitura no aparelho, sem sinal, falha) = busca local, sem erro
+  const buscarNoCatalogo = app.buscarProdutos;
+  useEffect(() => {
+    const q = query.trim();
+    if (!q || sent) {
+      setBuscaCatalogo(null);
+      setErroBusca(false);
+      return;
+    }
+    let vivo = true;
+    const espera = setTimeout(() => {
+      void buscarNoCatalogo(q, catalogBase.length <= 5000 ? catalogBase.map((p) => p.id) : null).then((r) => {
+        if (!vivo) return;
+        setErroBusca(r.tipo === 'erro');
+        setBuscaCatalogo(r.tipo === 'ok' ? { q, itens: r.itens } : null);
+      });
+    }, 250);
+    return () => {
+      vivo = false;
+      clearTimeout(espera);
+    };
+  }, [query, sent, catalogBase, buscarNoCatalogo]);
+  const resultadosDaBusca = query.trim() ? (buscaCatalogo && buscaCatalogo.q === query.trim() ? resolverBusca(buscaCatalogo.itens, byId, 40) : null) : [];
+  const results = resultadosDaBusca ? resultadosDaBusca.map((r) => r.produto) : query.trim() ? searchProducts(catalog, query, 40) : [];
+  const serveEmPorId = useMemo(() => new Map((resultadosDaBusca ?? []).flatMap((r) => (r.serveEm ? [[r.produto.id, r.serveEm] as const] : []))), [buscaCatalogo, query, byId]);
+  // T-0084 §12 (RN-VEN-19): lê a aplicação só dos itens visíveis (≤ 40) e dos do rascunho
+  const idsComTexto = [...new Set([...results.map((p) => p.id), ...Object.keys(draft.lines).filter((k) => (draft.lines[k] ?? 0) > 0).map((k) => lerChaveDaLinha(k).product_id)])];
+  const chaveDosTextos = idsComTexto.join(',');
+  const lerTextos = app.textosDeProdutos;
+  useEffect(() => {
+    if (idsComTexto.length === 0) return;
+    let vivo = true;
+    void lerTextos(idsComTexto).then((lidos) => {
+      if (!vivo) return;
+      setTextos((antes) => {
+        let mudou = false;
+        const prox = new Map(antes);
+        for (const [id, tx] of lidos) if (prox.get(id) !== tx) { prox.set(id, tx); mudou = true; }
+        return mudou ? prox : antes;
+      });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [chaveDosTextos, lerTextos]);
 
   if (editId && (!dados.rascunhos[draftKey] || !editTarget)) {
     return (
@@ -260,7 +327,6 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     updateDraft(customerId, (d) => ({ ...d, lines, ajustes }));
   };
 
-  const results = query.trim() ? searchProducts(catalog, query, 40) : [];
   const noSignal = offline;
   const limiteVendedor = limiteDoVendedor(politica, vendedorId);
   // edição de pedido já enviado com "modo sem sinal" ligado: precisa de conexão (não enfileira)
@@ -345,7 +411,9 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   };
   const aoSalvar = () => {
     const havia = aplicarValorPendente();
-    if (!editId) setSalvarAberto(true);
+    // RN-VEN-35: pedido em nome vale só como pedido (sem a escolha Orçamento); vai direto
+    if (!editId && vendedorEmNomeId) void send('pedido');
+    else if (!editId) setSalvarAberto(true);
     // com o rascunho atualizado na próxima renderização, a edição salva a versão nova
     else if (havia) setTimeout(() => void saveEditRef.current(), 0);
     else void saveEdit();
@@ -367,6 +435,11 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
         <Text style={t.sub} numberOfLines={1}>
           {customer.trade_name} · cód. {customer.erp_code}
         </Text>
+        {vendedorEmNomeId ? (
+          <Text style={t.sub} testID="order-editor-em-nome">
+            Em nome de {vendedorEmNomeNome ?? 'vendedor'} · alçada de {app.perfil === 'gerente' ? 'gerente' : 'supervisor'}
+          </Text>
+        ) : null}
       </View>
       {!sent ? <Abas abas={abas} valor={aba} onChange={irParaAba} rotuloPendencia="Pendência nesta aba" testID="abas-pedido" /> : null}
 
@@ -404,10 +477,12 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
                 irParaCatalogoDoPedido(customerId);
               }} rotuloAcessivel={(i) => `Abrir o catálogo: ${i.rotulo}`} testID="trilha-catalogo" />
             {query.trim() ? (
-              results.length === 0 ? (
+              erroBusca ? (
+                <EstadoVazio titulo="Busca indisponível" texto={MENSAGEM_ERRO_BUSCA} testID="busca-erro" />
+              ) : results.length === 0 ? (
                 <EstadoVazio titulo={textoBuscaSemResultado(query).titulo} texto={textoBuscaSemResultado(query).texto} testID="busca-sem-resultado" />
               ) : (
-                <ListaDeItens produtos={results} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} aoTrocarMedida={aoTrocarMedida} />
+                <ListaDeItens produtos={results} serveEm={serveEmPorId} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} aoTrocarMedida={aoTrocarMedida} />
               )
             ) : produtosDoRascunho.length > 0 ? (
               <View testID="order-lines">

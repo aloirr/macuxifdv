@@ -16,6 +16,9 @@ import type {
   ProdutoAtributoSync,
   ProdutoConteudoSync,
   ProdutoNoSync,
+  ProdutoRelacaoSync,
+  ProdutoReferenciaSync,
+  Referencia,
   SinonimoSync,
   StockByBranch,
   TabelaPrecoItemSync,
@@ -25,6 +28,7 @@ import { montarArvore, produtosDoNo, produtosVendaveisNaTabela, type Arvore, typ
 import { montarFicha, type ConteudoGuardado } from '../../domain/conteudo';
 import { interpretarConsulta } from '../../domain/consulta';
 import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
+import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { expandirSinonimos, type SinonimoDoTenant } from '../../domain/texto';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
@@ -108,18 +112,42 @@ export interface EntradaLocal {
 
 const vivas = <L extends LinhaSync>(l: L[]) => l.filter((x) => !x.deleted_at);
 
-/** Produtos do Core enriquecidos com atributos e campanha do Catálogo. */
-export function produtosLocais(leitor: LeitorLocal): Promise<ProdutoCatalogo[]> {
-  return lembrar('produtos', leitor, ['produto', 'produto_atributo', 'produto_conteudo'], () => montarProdutosLocais(leitor));
+/**
+ * Marcas concorrentes (cadastro do Promotor, entidade `concorrente`; RN-CAT-09). O Catálogo só lê o contrato que o Promotor
+ * publica. Tenant sem a licença do Promotor não tem a entidade: sem nome de marca a referência não aparece (risco registrado).
+ */
+export async function marcasConcorrentesLocais(leitor: LeitorLocal): Promise<Map<string, { nome: string; ativo: boolean }>> {
+  try {
+    return new Map(vivas(await leitor.linhas<{ nome: string; ativo: boolean } & LinhaSync>('concorrente')).map((c) => [c.id, { nome: c.nome, ativo: c.ativo }]));
+  } catch {
+    return new Map();
+  }
 }
 
-async function montarProdutosLocais(leitor: LeitorLocal): Promise<ProdutoCatalogo[]> {
+/** Produtos do Core enriquecidos com atributos, aplicação, referências cruzadas e campanha do Catálogo. */
+export function produtosLocais(leitor: LeitorLocal, opcoes: { lerConcorrente?: boolean } = {}): Promise<ProdutoCatalogo[]> {
+  const lerConcorrente = opcoes.lerConcorrente ?? true;
+  // consulta do aparelho (C9): o contexto não lê o Promotor (lançaria Error); a marca da referência vai pelo retrato `marca_nome`
+  const entidades = ['produto', 'produto_atributo', 'produto_conteudo', 'produto_referencia', ...(lerConcorrente ? ['concorrente'] : [])];
+  return lembrar(lerConcorrente ? 'produtos' : 'produtos-retrato', leitor, entidades, () => montarProdutosLocais(leitor, lerConcorrente));
+}
+
+async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean): Promise<ProdutoCatalogo[]> {
   const produtos = vivas(await leitor.linhas<ProdutoSync & LinhaSync>('produto'));
   const atributos = vivas(await leitor.linhas<ProdutoAtributoSync & LinhaSync>('produto_atributo'));
   const conteudos = vivas(await leitor.linhas<ProdutoConteudoSync & LinhaSync>('produto_conteudo'));
   const porProduto = new Map<string, ProdutoAtributoSync[]>();
   for (const a of atributos) porProduto.set(a.produto_id, [...(porProduto.get(a.produto_id) ?? []), a]);
   const campanha = new Set(conteudos.filter((c) => c.campanha).map((c) => c.produto_id));
+  const aplicacoes = new Map(conteudos.filter((c) => c.aplicacao).map((c) => [c.produto_id, c.aplicacao!]));
+  const marcas = lerConcorrente ? await marcasConcorrentesLocais(leitor) : new Map<string, { nome: string; ativo: boolean }>();
+  const referencias = new Map<string, Referencia[]>();
+  for (const x of vivas(await leitor.linhas<ProdutoReferenciaSync & LinhaSync>('produto_referencia')).sort((a, b) => a.ordem - b.ordem)) {
+    // concorrente legível: manda (inativa/ausente esconde); vendedor sem o Promotor: retrato marca_nome; sem retrato, sem marca (RN-CAT-09)
+    const nome = nomeMarcaDaReferencia(x.marca_id, x.marca_nome, marcas);
+    if (nome === null) continue;
+    referencias.set(x.produto_id, [...(referencias.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
+  }
   return produtos.map((p) => ({
     id: p.id,
     sku: p.sku,
@@ -130,6 +158,8 @@ async function montarProdutosLocais(leitor: LeitorLocal): Promise<ProdutoCatalog
     unidade: p.unidade,
     ativo: p.ativo,
     atributos: (porProduto.get(p.id) ?? []).sort((a, b) => a.ordem - b.ordem).map((a) => ({ name: a.nome, value: a.valor })),
+    aplicacao: aplicacoes.get(p.id) ?? '',
+    referencias: referencias.get(p.id) ?? [],
     thumbnail_url: null,
     campanha: campanha.has(p.id),
     vendas: 0,
@@ -297,7 +327,16 @@ export async function fichaLocal(leitor: LeitorLocal, e: EntradaLocal & { produt
   const contexto = await contextoLocal(leitor, e, [produto]);
   const c = vivas(await leitor.linhas<ProdutoConteudoSync & LinhaSync>('produto_conteudo')).find((x) => x.produto_id === produto.id);
   const conteudo: ConteudoGuardado | null = c ? { description: c.descricao, selling_points: c.argumentos, faq: c.faq.map((f) => ({ question: f.pergunta, answer: f.resposta })), updated_at: c.updated_at } : null;
-  return montarFicha(produto, itemDaVitrine(produto, contexto), conteudo, []);
+  // T-0085: "oferece junto" = relação complementar viva e ativa (até 5); etiquetas do conteúdo
+  const relacoes = vivas(await leitor.linhas<ProdutoRelacaoSync & LinhaSync>('produto_relacao'))
+    .filter((r) => r.produto_id === produto.id && r.tipo === 'complementar' && r.ativo)
+    .sort((a, b) => a.ordem - b.ordem || a.id.localeCompare(b.id));
+  const todos = await produtosLocais(leitor);
+  const ofereceJunto = relacoes.flatMap((r) => {
+    const o = todos.find((p) => p.id === r.relacionado_id && p.ativo);
+    return o ? [{ produto_id: o.id, erp_code: o.sku, description: o.nome }] : [];
+  });
+  return montarFicha(produto, itemDaVitrine(produto, contexto), conteudo, [], { ofereceJunto, etiquetas: c?.etiquetas ?? [] });
 }
 
 /** Árvore do catálogo no aparelho (RF-CAT-04): nós e vínculos do sync; sem sinal navega igual. */
