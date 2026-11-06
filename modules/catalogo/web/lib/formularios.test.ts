@@ -59,12 +59,16 @@ describe('seção Catálogo do cadastro do produto (T-0085 K9; RN-CAT-09, RN-CAT
     expect(r.ok && 'referencias' in r.valor && r.valor.referencias !== undefined).toBe(false);
   });
 
-  it('RN-CAT-09: linhas vazias ficam de fora; marca sem código, código sem marca e código fora da lista dão erro com a ação seguinte', () => {
+  it('RN-CAT-09: linhas vazias ficam de fora; marca sem código, código sem marca dão erro com a ação seguinte', () => {
     const op = { idsPorCodigo: ids, aplicacaoMax: 2000 };
     expect(cadastroCatalogoDoForm(P, vazio, op)).toEqual({ ok: true, valor: { aplicacao: null, oferece_junto: [], referencias: [], etiquetas: [] } });
     expect(cadastroCatalogoDoForm(P, { ...vazio, referencias: [{ marca_id: MARCA, codigo: '' }, ...vazio.referencias.slice(1)] }, op)).toMatchObject({ ok: false, erro: expect.stringMatching(/Informe o código/) });
     expect(cadastroCatalogoDoForm(P, { ...vazio, referencias: [{ marca_id: '', codigo: 'CB 3401' }, ...vazio.referencias.slice(1)] }, op)).toMatchObject({ ok: false, erro: expect.stringMatching(/escolha a marca/) });
-    expect(cadastroCatalogoDoForm(P, { ...vazio, ofereceJunto: 'NAO-EXISTE' }, op)).toMatchObject({ ok: false, erro: expect.stringMatching(/não está na lista/) });
+  });
+
+  it('RN-CAT-09: código fora da página carregada vai ao servidor em oferece_junto_codigos; o que está na lista casa sem diferenciar maiúsculas', () => {
+    const op = { idsPorCodigo: new Map([['DIS-1', 'id-dis']]), aplicacaoMax: 2000 };
+    expect(cadastroCatalogoDoForm(P, { ...vazio, ofereceJunto: 'dis-1\nLONGE-9' }, op)).toMatchObject({ ok: true, valor: { oferece_junto: ['id-dis'], oferece_junto_codigos: ['LONGE-9'] } });
   });
 
   it('RN-CAT-09: limites do domain valem na tela (6 em oferece junto, etiqueta de 21 caracteres)', () => {

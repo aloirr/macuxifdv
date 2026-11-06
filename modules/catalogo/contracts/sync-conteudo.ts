@@ -54,5 +54,7 @@ export const ProdutoReferenciaSyncSchema = z.object({
   marca_id: z.string().uuid(),
   codigo: z.string().min(1).max(30),
   ordem: z.number().int().min(1).max(3),
+  /** Retrato do nome da marca (0034). Aditivo: ausente/nulo em APK antigo e em linha anterior à 0034 (a marca some só daquela referência). */
+  marca_nome: z.string().nullish(),
 });
 export type ProdutoReferenciaSync = z.infer<typeof ProdutoReferenciaSyncSchema>;

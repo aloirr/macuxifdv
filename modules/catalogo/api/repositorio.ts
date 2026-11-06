@@ -8,6 +8,7 @@
  */
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
 import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, SalvarCadastroCatalogo, SalvarConteudo, SalvarSinonimo, Sinonimo, StockByBranch, TermoSemResultado } from '../contracts';
+import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { agruparTermosSemResultado, type ConteudoGuardado, type RegistroBusca } from '../domain/conteudo';
 import type { UsoIa } from '../domain/limite-ia';
 import type { ProdutoCatalogo } from '../domain/vitrine';
@@ -54,6 +55,8 @@ export interface RepositorioCatalogo {
    * Tenant sem a licença do Promotor: mapa vazio (a referência não é gravada nem aparece).
    */
   marcasConcorrentes(): Promise<Map<string, { nome: string; ativo: boolean }>>;
+  /** T-0085 fatia C: árvore, vínculos e "oferece junto" de todos os produtos, para a exportação do catálogo (RF-CAT-09). */
+  dadosExportacao(): Promise<{ nos: NoCatalogo[]; vinculos: VinculoProdutoNo[]; ofereceJunto: Map<string, string[]> }>;
   /**
    * T-0085 K9: substitui aplicação, referências, "oferece junto" e etiquetas do produto de uma vez (a rota já validou com
    * `validarCadastroCatalogo`). Grava `codigo_compacto` com `codigoCompacto` do domain.
@@ -75,6 +78,9 @@ export interface DadosTenantMemoria {
   ofereceJunto?: Map<string, string[]>;
   etiquetas?: Map<string, string[]>;
   sinonimos?: Sinonimo[];
+  /** Árvore do catálogo e vínculos produto → nó (exportação). */
+  nos?: NoCatalogo[];
+  vinculos?: VinculoProdutoNo[];
   itensPreco?: ItemTabelaPreco[];
   promocoes?: Promocao[];
   /** cliente_id → tabela_preco_id. */
@@ -190,6 +196,9 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
       },
       async marcasConcorrentes() {
         return new Map(d.marcas ?? []);
+      },
+      async dadosExportacao() {
+        return { nos: copia(d.nos ?? []), vinculos: copia(d.vinculos ?? []), ofereceJunto: new Map([...(d.ofereceJunto ?? new Map<string, string[]>()).entries()].map(([k, v]) => [k, [...v]])) };
       },
       async salvarCadastroCatalogo(produtoId, c) {
         const p = d.produtos.find((x) => x.id === produtoId);

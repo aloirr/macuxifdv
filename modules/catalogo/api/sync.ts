@@ -45,8 +45,8 @@ const TABELAS = {
       aplicacoes as aplicacao, etiquetas`,
     colunaCliente: false,
   },
-  // referência cruzada (RN-CAT-09, 0033): marca_id é o id do concorrente do Promotor; o codigo_compacto não vai ao aparelho
-  produto_referencia: { tabela: 'catalogo.produto_referencia', colunas: 'produto_id, marca_id, codigo, ordem::int as ordem', colunaCliente: false },
+  // referência cruzada (RN-CAT-09, 0033): marca_id é o id do concorrente do Promotor; o codigo_compacto não vai ao aparelho; marca_nome é o retrato do nome (0034)
+  produto_referencia: { tabela: 'catalogo.produto_referencia', colunas: 'produto_id, marca_id, codigo, ordem::int as ordem, marca_nome', colunaCliente: false },
 } as const;
 
 const ARVORE: ReadonlySet<string> = new Set(['catalogo_no', 'produto_no', 'produto_relacao', 'sinonimo', 'produto_atributo', 'produto_conteudo', 'produto_referencia']);
