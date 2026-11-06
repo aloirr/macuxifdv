@@ -7,7 +7,9 @@
 import { describe, expect, it } from 'vitest';
 import { interpretarConsulta, type VocabularioTenant } from './consulta';
 import { PARAMETROS_PADRAO } from './parametros';
-import { rankear, type DocBusca } from './ranking';
+import { rankear as rankearBase, type DocBusca, type EntradaRanking } from './ranking';
+
+const rankear = (docs: readonly DocBusca[], e: Omit<EntradaRanking, 'anoAtual'>) => rankearBase(docs, { anoAtual: 2026, ...e });
 
 const d = (id: string, nome: string, marca: string, categoria: string, o: Partial<DocBusca> = {}): DocBusca => ({
   id,
@@ -17,6 +19,8 @@ const d = (id: string, nome: string, marca: string, categoria: string, o: Partia
   marca,
   categoria,
   atributos: '',
+  aplicacao: '',
+  referencias: [],
   estoque: 20,
   vendas: 0,
   campanha: false,

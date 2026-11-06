@@ -24,3 +24,6 @@
 2026-11-05 — T-0052 — caixa limpa: 6 recados encerrados, tabela_preco_nome em precos_cliente@1 (aditivo), X da busca volta na hora; buscarComDesfecho fica para o lote N
 2026-11-05 — T-0061/T-0052 — precos.db.test: tabela_preco_nome na expectativa + contraprova sem o campo (fix do CI do lote O)
 2026-11-05 — T-0052 — BotoesAcao: vitrine sem laranja (outline), ficha com principal de 52 px (ALTURA.principal); resposta ao R-20261105-183411
+2026-11-05 — T-0084/T-0085 — fatias A e B: expandirAplicacao, trechoServeEm, ranking com aplicação e referência cruzada, contracts aditivos, consultas textos_produto/busca_produtos, FTS v3 (indice.ts), pull produto_referencia, PUT cadastro-catalogo, consumidor do ERP, ficha, "Serve em"/"Equivale a" e seção Catálogo do BKO; pendências: marcas do Promotor no servidor, SDK na consulta do aparelho, lista por linha e exportação (travadas)
+2026-11-05 — T-0085 — fatia B: B1 corrigido, referencias opcional no PUT cadastro-catalogo (ausente mantém, [] apaga), BKO omite sem marcas, testes na API e no BKO
+2026-11-05 — T-0085 — fatia B: 2 🔴 de UX do BKO (editores com abertura independente; oferece_junto da ficha no mapa de ids), com testes

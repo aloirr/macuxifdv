@@ -118,3 +118,46 @@ export function planejarProdutoNoDoErp(e: EventoErpBase<RegistroProdutoNoErp>): 
   if (!no || r.ativo === false) return { tipo: 'desvincular', produto_external_id: e.external_id };
   return { tipo: 'vincular', produto_external_id: e.external_id, no_external_id: no, external_id: e.external_id };
 }
+
+// ---------- cadastro do Catálogo vindo do ERP: aplicação, oferece junto e etiquetas (T-0084 C2, T-0085 K11) ----------
+export interface RegistroCadastroCatalogoErp {
+  aplicacao?: string | null | undefined;
+  oferece_junto?: readonly string[] | null | undefined;
+  etiquetas?: readonly string[] | null | undefined;
+}
+
+/** Cada campo ausente (`undefined`) = não altera; `null` ou lista vazia = limpa. */
+export interface PlanoCadastroCatalogoErp {
+  aplicacao?: string | null;
+  /** `external_id` dos produtos de "Oferece junto" (até 5, sem repetir nem o próprio produto). */
+  ofereceJunto?: string[];
+  etiquetas?: string[];
+}
+
+const ETIQUETAS_MAX = 4;
+const ETIQUETA_MAX = 20;
+const OFERECE_JUNTO_MAX = 5;
+
+/**
+ * RN-CAT-11 / RN-CAT-09: o que o Catálogo grava do produto do ERP além do nó da árvore. A aplicação já chega cortada em 2.000
+ * pelo Hub; se o tenant baixou `aplicacao_max_cadastro`, corta de novo (sem aviso). "Oferece junto" fica nos 5 primeiros e
+ * etiquetas nas 4 primeiras (de até 20 caracteres), como o Hub (K11). Produto inativado do ERP não altera o cadastro.
+ */
+export function planejarCadastroCatalogoDoErp(e: EventoErpBase<RegistroCadastroCatalogoErp>, opcoes: { aplicacaoMax: number }): PlanoCadastroCatalogoErp {
+  const r = e.registro;
+  if (e.acao === 'inativado' || !r) return {};
+  const plano: PlanoCadastroCatalogoErp = {};
+  if (r.aplicacao !== undefined) {
+    const t = r.aplicacao === null ? '' : r.aplicacao.trim();
+    plano.aplicacao = t === '' ? null : Array.from(t).slice(0, opcoes.aplicacaoMax).join('').trimEnd();
+  }
+  if (r.oferece_junto !== undefined) {
+    const ids = (r.oferece_junto ?? []).map((x) => x.trim()).filter((x) => x !== '' && x !== e.external_id);
+    plano.ofereceJunto = [...new Set(ids)].slice(0, OFERECE_JUNTO_MAX);
+  }
+  if (r.etiquetas !== undefined) {
+    const et = (r.etiquetas ?? []).map((x) => x.trim()).filter((x) => x !== '').map((x) => Array.from(x).slice(0, ETIQUETA_MAX).join(''));
+    plano.etiquetas = [...new Set(et)].slice(0, ETIQUETAS_MAX);
+  }
+  return plano;
+}

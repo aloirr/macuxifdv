@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buscaDosFiltros, conteudoDoForm, formDaFicha, lerFiltrosBko, produtosParaCsv, sinonimoDoForm } from './formularios';
+import { buscaDosFiltros, cadastroCatalogoDoForm, conteudoDoForm, formCadastroDaFicha, formDaFicha, lerFiltrosBko, mapaIdsPorCodigo, abrirEditores, fecharEditor, EDITORES_FECHADOS, produtosParaCsv, sinonimoDoForm } from './formularios';
 
 describe('formulários do BKO de conteúdo (RF-CAT-07)', () => {
   it('conteúdo: ida e volta entre a ficha e o formulário', () => {
@@ -31,5 +31,70 @@ describe('formulários do BKO de conteúdo (RF-CAT-07)', () => {
     expect(lerFiltrosBko('?aba=sinonimos&q=caf')).toEqual({ aba: 'sinonimos', q: 'caf', linha: '' });
     expect(lerFiltrosBko('?aba=x')).toEqual({ aba: 'produtos', q: '', linha: '' });
     expect(buscaDosFiltros({ aba: 'produtos', q: '', linha: 'Bebidas' })).toBe('?linha=Bebidas');
+  });
+});
+
+describe('seção Catálogo do cadastro do produto (T-0085 K9; RN-CAT-09, RN-CAT-11)', () => {
+  const P = '00000000-0000-4000-8000-000000000001';
+  const OUTRO = '00000000-0000-4000-8000-000000000002';
+  const MARCA = '00000000-0000-4000-8000-0000000000a1';
+  const ids = new Map([['DIS-1', OUTRO]]);
+  const vazio = { aplicacao: '', ofereceJunto: '', referencias: [{ marca_id: '', codigo: '' }, { marca_id: '', codigo: '' }, { marca_id: '', codigo: '' }], etiquetas: '' };
+
+  it('ida e volta: a ficha vira o formulário com 3 linhas de referência', () => {
+    const f = formCadastroDaFicha({ catalogo: { aplicacao: 'Uno 2010–2014', referencias: [{ marca_id: MARCA, marca_nome: 'Freiomax', codigo: 'CB 3401' }], oferece_junto: [{ produto_id: OUTRO, erp_code: 'DIS-1', description: 'Disco' }], etiquetas: ['Novo', 'Dianteira'] } });
+    expect(f.referencias).toHaveLength(3);
+    expect(f.ofereceJunto).toBe('DIS-1');
+    expect(f.etiquetas).toBe('Novo, Dianteira');
+    expect(cadastroCatalogoDoForm(P, f, { idsPorCodigo: ids, aplicacaoMax: 2000 })).toEqual({
+      ok: true,
+      valor: { aplicacao: 'Uno 2010–2014', oferece_junto: [OUTRO], referencias: [{ marca_id: MARCA, codigo: 'CB 3401' }], etiquetas: ['Novo', 'Dianteira'] },
+    });
+    expect(formCadastroDaFicha({})).toMatchObject({ aplicacao: '', ofereceJunto: '' });
+  });
+
+  it('RN-CAT-09: sem marcas carregadas o corpo não leva `referencias` (o servidor mantém as existentes)', () => {
+    const f = { ...vazio, aplicacao: 'Uno', referencias: [{ marca_id: MARCA, codigo: 'CB 3401' }, ...vazio.referencias.slice(1)] };
+    const r = cadastroCatalogoDoForm(P, f, { idsPorCodigo: ids, aplicacaoMax: 2000, semReferencias: true });
+    expect(r.ok && 'referencias' in r.valor && r.valor.referencias !== undefined).toBe(false);
+  });
+
+  it('RN-CAT-09: linhas vazias ficam de fora; marca sem código, código sem marca e código fora da lista dão erro com a ação seguinte', () => {
+    const op = { idsPorCodigo: ids, aplicacaoMax: 2000 };
+    expect(cadastroCatalogoDoForm(P, vazio, op)).toEqual({ ok: true, valor: { aplicacao: null, oferece_junto: [], referencias: [], etiquetas: [] } });
+    expect(cadastroCatalogoDoForm(P, { ...vazio, referencias: [{ marca_id: MARCA, codigo: '' }, ...vazio.referencias.slice(1)] }, op)).toMatchObject({ ok: false, erro: expect.stringMatching(/Informe o código/) });
+    expect(cadastroCatalogoDoForm(P, { ...vazio, referencias: [{ marca_id: '', codigo: 'CB 3401' }, ...vazio.referencias.slice(1)] }, op)).toMatchObject({ ok: false, erro: expect.stringMatching(/escolha a marca/) });
+    expect(cadastroCatalogoDoForm(P, { ...vazio, ofereceJunto: 'NAO-EXISTE' }, op)).toMatchObject({ ok: false, erro: expect.stringMatching(/não está na lista/) });
+  });
+
+  it('RN-CAT-09: limites do domain valem na tela (6 em oferece junto, etiqueta de 21 caracteres)', () => {
+    const muitos = new Map(Array.from({ length: 6 }, (_, i) => [`P${i}`, `00000000-0000-4000-8000-0000000001${String(i).padStart(2, '0')}`]));
+    const op = { idsPorCodigo: muitos, aplicacaoMax: 2000 };
+    expect(cadastroCatalogoDoForm(P, { ...vazio, ofereceJunto: [...muitos.keys()].join('\n') }, op)).toMatchObject({ ok: false });
+    expect(cadastroCatalogoDoForm(P, { ...vazio, etiquetas: 'a'.repeat(21) }, op)).toMatchObject({ ok: false });
+  });
+
+  it('RN-CAT-11: aplicação acima do limite do tenant é recusada na tela', () => {
+    expect(cadastroCatalogoDoForm(P, { ...vazio, aplicacao: 'x'.repeat(101) }, { idsPorCodigo: ids, aplicacaoMax: 100 })).toMatchObject({ ok: false, erro: expect.stringMatching(/passa de 100/) });
+  });
+});
+
+describe('editores do produto e oferece junto (T-0085, BKO)', () => {
+  it('editores: fechar um não fecha o outro (nem some o texto do que segue aberto)', () => {
+    const item = { id: 'a' };
+    const abertos = abrirEditores(item);
+    expect(abertos).toEqual({ conteudo: item, catalogo: item });
+    expect(fecharEditor(abertos, 'conteudo')).toEqual({ conteudo: null, catalogo: item });
+    expect(fecharEditor(abertos, 'catalogo')).toEqual({ conteudo: item, catalogo: null });
+    expect(fecharEditor(fecharEditor(abertos, 'catalogo'), 'conteudo')).toEqual(EDITORES_FECHADOS);
+  });
+
+  it('RN-CAT-09: oferece junto da ficha fora da página carregada entra no mapa e a validação aceita', () => {
+    const mapa = mapaIdsPorCodigo([{ erp_code: 'A1', id: 'id-a1' }], [{ erp_code: 'Z9', produto_id: 'id-z9' }]);
+    expect(mapa.get('Z9')).toBe('id-z9');
+    expect(mapa.get('A1')).toBe('id-a1');
+    const form = { ...formCadastroDaFicha({ catalogo: { aplicacao: null, referencias: [], oferece_junto: [{ produto_id: 'id-z9', erp_code: 'Z9', description: 'Z' }], etiquetas: [] } }) };
+    const r = cadastroCatalogoDoForm('p1', form, { idsPorCodigo: mapa, aplicacaoMax: 2000 });
+    expect(r.ok).toBe(true);
   });
 });

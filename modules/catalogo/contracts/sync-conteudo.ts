@@ -37,5 +37,22 @@ export const ProdutoConteudoSyncSchema = z.object({
   argumentos: z.array(z.string()).default([]),
   faq: z.array(z.object({ pergunta: z.string(), resposta: z.string() })).default([]),
   campanha: z.boolean().default(false),
+  /** RN-CAT-11: Aplicação (descrição 2); o provedor mapeia `aplicacoes → aplicacao`. Ausente = sem aplicação. */
+  aplicacao: z.string().max(2000).nullable().optional(),
+  /** Etiquetas curtas (posição, lado, "novo"): até 4 de até 20 caracteres (T-0085). */
+  etiquetas: z.array(z.string().max(20)).max(4).optional(),
 });
 export type ProdutoConteudoSync = z.infer<typeof ProdutoConteudoSyncSchema>;
+
+/**
+ * Referência cruzada do produto (RN-CAT-09; T-0085 K4): até 3 por produto. `marca_id` é o id do cadastro de concorrentes do
+ * Promotor (sem FK entre schemas). O `codigo_compacto` não vai ao aparelho: ele recalcula com `codigoCompacto`.
+ */
+export const ProdutoReferenciaSyncSchema = z.object({
+  ...Base,
+  produto_id: z.string().uuid(),
+  marca_id: z.string().uuid(),
+  codigo: z.string().min(1).max(30),
+  ordem: z.number().int().min(1).max(3),
+});
+export type ProdutoReferenciaSync = z.infer<typeof ProdutoReferenciaSyncSchema>;

@@ -423,3 +423,125 @@ describe('repositório Postgres (0013 ligada)', () => {
     expect(f.sqls.every((s) => !/\bcore\./.test(s))).toBe(true);
   });
 });
+
+describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09, RN-CAT-11)', () => {
+  const MARCA_A = idDemo('marca:freiomax');
+  const MARCA_B = idDemo('marca:rodaforte');
+  const MARCA_INATIVA = idDemo('marca:inativa');
+  const FEI = idProdutoDemo('FEI-1K');
+  const CAF = idProdutoDemo('CAF-500');
+  const corpo = (o: Record<string, unknown> = {}) => ({ aplicacao: 'Fiat Uno 1.0/1.4 2010–2014', oferece_junto: [CAF], referencias: [{ marca_id: MARCA_A, codigo: 'CB 3401' }], etiquetas: ['Dianteira'], ...o });
+  beforeEach(() => {
+    const dados = dadosA();
+    dados.marcas = new Map([
+      [MARCA_A, { nome: 'Freiomax', ativo: true }],
+      [MARCA_B, { nome: 'Rodaforte', ativo: true }],
+      [MARCA_INATIVA, { nome: 'Velha', ativo: false }],
+    ]);
+    memoria = criarRepositorioMemoria({ [TENANT_A]: dados, [TENANT_B]: dadosB() });
+  });
+
+  it('RN-CAT-09: o analista grava o conjunto e a ficha mostra aplicação, equivalência, oferece junto e etiquetas (até para o promotor)', async () => {
+    const { rota } = montar();
+    const r = await chamar<{ id: string }>(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo() });
+    expect(r.status).toBe(200);
+    const f = await chamar<FichaProduto>(rota('GET', 'produtos/:id'), usuario('promotor'), { params: { id: FEI } });
+    expect(f.corpo.catalogo).toEqual({
+      aplicacao: 'Fiat Uno 1.0/1.4 2010–2014',
+      referencias: [{ marca_id: MARCA_A, marca_nome: 'Freiomax', codigo: 'CB 3401' }],
+      oferece_junto: [expect.objectContaining({ produto_id: CAF })],
+      etiquetas: ['Dianteira'],
+    });
+  });
+
+  it('RN-CAT-09: salvar aplicação e oferece junto sem `referencias` mantém as referências; lista vazia explícita apaga', async () => {
+    const { rota } = montar();
+    const put = (c: unknown) => chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: c });
+    const ficha = async () => (await chamar<FichaProduto>(rota('GET', 'produtos/:id'), usuario('promotor'), { params: { id: FEI } })).corpo.catalogo!;
+    await put(corpo());
+    const { referencias: _omitida, ...semRef } = corpo({ aplicacao: 'Gol G5 2009', oferece_junto: [] });
+    expect((await put(semRef)).status).toBe(200);
+    const mantida = await ficha();
+    expect(mantida.referencias).toEqual([{ marca_id: MARCA_A, marca_nome: 'Freiomax', codigo: 'CB 3401' }]);
+    expect(mantida.aplicacao).toBe('Gol G5 2009');
+    expect((await put(corpo({ referencias: [] }))).status).toBe(200);
+    expect((await ficha()).referencias).toEqual([]);
+  });
+
+  it('RN-CAT-09: a alteração é auditada com antes e depois, sem o texto livre da aplicação', async () => {
+    const { rota } = montar();
+    await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('admin'), { params: { id: FEI }, corpo: corpo() });
+    const a = auditoria[0] as { acao: string; depois: { evento: string; aplicacao_tamanho: number; aplicacao?: string } };
+    expect(a).toMatchObject({ acao: 'produto.enriquecer', depois: { evento: 'catalogo.produto.cadastro_alterado', aplicacao_tamanho: 26 } });
+    expect(a.depois.aplicacao).toBeUndefined();
+  });
+
+  it('RN-CAT-04: só analista e admin gravam (vendedor, promotor e supervisor recebem 403); o módulo precisa estar ativo', async () => {
+    const { rota } = montar();
+    for (const p of ['vendedor', 'promotor', 'supervisor'] as const) {
+      expect((await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario(p), { params: { id: FEI }, corpo: corpo() })).status).toBe(403);
+    }
+    expect((await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista', { modulos: ['core'] }), { params: { id: FEI }, corpo: corpo() })).status).toBe(403);
+  });
+
+  it('RN-CAT-09: 4 referências, o próprio produto, marca inativa ou desconhecida e produto inexistente = 422 com a regra', async () => {
+    const { rota } = montar();
+    const put = (c: unknown) => chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: c });
+    const quatro = ['A1', 'B2', 'C3', 'D4'].map((codigo) => ({ marca_id: MARCA_A, codigo }));
+    expect(await put(corpo({ referencias: quatro }))).toMatchObject({ status: 422, codigo: 'RN-CAT-09' });
+    expect(await put(corpo({ oferece_junto: [FEI] }))).toMatchObject({ status: 422, codigo: 'RN-CAT-09' });
+    expect(await put(corpo({ referencias: [{ marca_id: MARCA_INATIVA, codigo: 'X1' }] }))).toMatchObject({ status: 422, codigo: 'RN-CAT-09' });
+    expect(await put(corpo({ referencias: [{ marca_id: idDemo('marca:nao-existe'), codigo: 'X1' }] }))).toMatchObject({ status: 422, codigo: 'RN-CAT-09' });
+    expect(await put(corpo({ oferece_junto: [idDemo('produto:nao-existe')] }))).toMatchObject({ status: 422, codigo: 'RN-CAT-09' });
+    expect(auditoria).toHaveLength(0);
+  });
+
+  it('RN-CAT-11: aplicação acima de aplicacao_max_cadastro = 422 RN-CAT-11 (cadastro-catalogo e conteudo)', async () => {
+    const { rota } = montar();
+    const o = { parametros: { aplicacao_max_cadastro: 100 } };
+    const longa = 'x'.repeat(101);
+    expect(await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo({ aplicacao: longa }) }, o)).toMatchObject({ status: 422, codigo: 'RN-CAT-11' });
+    const conteudo = { description: null, selling_points: [], faq: [], attributes: [], aplicacao: longa };
+    expect(await chamar(rota('PUT', 'produtos/:id/conteudo'), usuario('analista'), { params: { id: FEI }, corpo: conteudo }, o)).toMatchObject({ status: 422, codigo: 'RN-CAT-11' });
+  });
+
+  it('RN-CAT-11: salvar o conteúdo sem o campo aplicação não apaga a aplicação já cadastrada', async () => {
+    const { rota } = montar();
+    await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo() });
+    await chamar(rota('PUT', 'produtos/:id/conteudo'), usuario('analista'), { params: { id: FEI }, corpo: { description: 'Novo texto', selling_points: [], faq: [], attributes: [] } });
+    const f = await chamar<FichaProduto>(rota('GET', 'produtos/:id'), usuario('vendedor'), { params: { id: FEI } });
+    expect(f.corpo.catalogo?.aplicacao).toBe('Fiat Uno 1.0/1.4 2010–2014');
+  });
+
+  it('RN-CAT-01: a aplicação e as referências de um tenant não aparecem no outro', async () => {
+    const { rota } = montar();
+    await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo() });
+    const outro = await chamar(rota('GET', 'produtos/:id'), usuario('vendedor', { tenant_id: TENANT_B }), { params: { id: FEI } });
+    expect(outro.status).toBe(404);
+  });
+
+  it('RN-CAT-12: a busca da rota acha o produto pela aplicação com "Serve em" e "inclui 2012"; "2015" não traz', async () => {
+    const { rota } = montar();
+    await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo({ aplicacao: 'Feijão carioca tipo 1 safra 2010–2014' }) });
+    const dentro = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'carioca 2012', mode: 'basica' } });
+    expect(dentro.corpo.items.map((i) => i.id)).toContain(FEI);
+    expect(dentro.corpo.items.find((i) => i.id === FEI)?.serve_em).toMatchObject({ inclui_ano: 2012 });
+    const fora = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'carioca 2015', mode: 'basica' } });
+    expect(fora.corpo.items.map((i) => i.id)).not.toContain(FEI);
+  });
+
+  it('RN-CAT-09: a busca pelo código do concorrente mostra "Equivale a"', async () => {
+    const { rota } = montar();
+    await chamar(rota('PUT', 'produtos/:id/cadastro-catalogo'), usuario('analista'), { params: { id: FEI }, corpo: corpo() });
+    const r = await chamar<RespostaBusca>(rota('GET', 'busca'), usuario('vendedor'), { query: { q: 'cb3401', mode: 'basica' } });
+    expect(r.corpo.items[0]?.id).toBe(FEI);
+    expect(r.corpo.items[0]?.equivale_a).toMatchObject({ marca_nome: 'Freiomax', codigo: 'CB 3401' });
+  });
+
+  it('RN-CAT-09: GET marcas-concorrentes lista só as ativas, em ordem de nome, e só para quem enriquece', async () => {
+    const { rota } = montar();
+    const r = await chamar<{ items: { id: string; nome: string }[] }>(rota('GET', 'marcas-concorrentes'), usuario('analista'));
+    expect(r.corpo.items.map((m) => m.nome)).toEqual(['Freiomax', 'Rodaforte']);
+    expect((await chamar(rota('GET', 'marcas-concorrentes'), usuario('vendedor'))).status).toBe(403);
+  });
+});

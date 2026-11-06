@@ -68,3 +68,40 @@ export function rotuloEstoque(item: ItemVitrine, agora: string, fuso: string): R
 export function subtituloProduto(item: Pick<ItemVitrine, 'brand' | 'erp_code'>): string {
   return [item.brand, item.erp_code].filter((s) => s && s.trim()).join(' · ');
 }
+
+// ---------- aplicação e referência cruzada (RN-CAT-12, RN-CAT-09; T-0084/T-0085) ----------
+export interface PedacoMarcado {
+  texto: string;
+  marcado: boolean;
+}
+
+/** Parte o texto nas marcas [início, fim) (já unidas e em ordem); marca fora do texto é ignorada. */
+export function partirPorMarcas(texto: string, marcas: readonly (readonly [number, number])[]): PedacoMarcado[] {
+  const saida: PedacoMarcado[] = [];
+  let cursor = 0;
+  for (const [a, b] of [...marcas].sort((x, y) => x[0] - y[0])) {
+    if (a < cursor || b > texto.length || a >= b) continue;
+    if (a > cursor) saida.push({ texto: texto.slice(cursor, a), marcado: false });
+    saida.push({ texto: texto.slice(a, b), marcado: true });
+    cursor = b;
+  }
+  if (cursor < texto.length) saida.push({ texto: texto.slice(cursor), marcado: false });
+  return saida;
+}
+
+/** "inclui 2012": o ano da consulta casou por faixa (fica fora dos 90 caracteres do trecho). */
+export function rotuloIncluiAno(item: Pick<ItemVitrine, 'serve_em'>): string | null {
+  return item.serve_em?.inclui_ano ? `inclui ${item.serve_em.inclui_ano}` : null;
+}
+
+/** "Freiomax CB 3401": marca + código, com a posição do código marcada em `partirPorMarcas`. */
+export function textoEquivaleA(item: Pick<ItemVitrine, 'equivale_a'>): string | null {
+  return item.equivale_a ? `${item.equivale_a.marca_nome} ${item.equivale_a.codigo}` : null;
+}
+
+/** Ficha: acima de 6 linhas a aplicação vem recolhida com "ver mais" (estimativa por quebra de linha e ~46 caracteres por linha). */
+export const LINHAS_APLICACAO_RECOLHIDA = 6;
+export function aplicacaoPrecisaRecolher(texto: string): boolean {
+  const linhas = texto.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / 46)), 0);
+  return linhas > LINHAS_APLICACAO_RECOLHIDA;
+}

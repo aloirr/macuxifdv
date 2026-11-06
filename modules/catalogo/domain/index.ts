@@ -18,3 +18,7 @@ export * from './conteudo';
 export * from './erp';
 export * from './arvore';
 export * from './sugestoes';
+export * from './aplicacao';
+export * from './serve-em';
+export * from './cadastro-catalogo';
+export * from './busca-consulta';
