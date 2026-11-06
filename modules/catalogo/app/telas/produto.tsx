@@ -8,11 +8,11 @@ import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/r
 import { BackLink, Badge, Card, colors, DEFAULT_TZ, Empty, fonts, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { caminhoCatalogo, type FichaProduto } from '../../contracts';
-import { rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
+import { aplicacaoPrecisaRecolher, LINHAS_APLICACAO_RECOLHIDA, rotuloEstoque, rotuloEstoqueFilial, rotuloPreco, subtituloProduto } from '../lib/apresentacao';
 import { fichaLocal } from '../lib/local';
-import { hrefCatalogo } from '../rotas';
+import { hrefCatalogo, irParaProduto } from '../rotas';
 import { BotoesAcao } from './comum';
 
 type Estado = { fase: 'carregando' } | { fase: 'pronta'; ficha: FichaProduto } | { fase: 'nao_encontrado' };
@@ -27,6 +27,7 @@ export default function TelaProduto() {
   const usuario = ambiente.usuario();
   const fuso = usuario?.fuso ?? DEFAULT_TZ;
   const [estado, setEstado] = useState<Estado>({ fase: 'carregando' });
+  const [aplicacaoAberta, setAplicacaoAberta] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -64,7 +65,9 @@ export default function TelaProduto() {
     );
   }
 
-  const { product: item, attributes, content } = estado.ficha;
+  const { product: item, attributes, content, catalogo } = estado.ficha;
+  const aplicacao = catalogo?.aplicacao ?? null;
+  const recolher = !!aplicacao && !aplicacaoAberta && aplicacaoPrecisaRecolher(aplicacao);
   const preco = rotuloPreco(item);
   const estoque = rotuloEstoque(item, relogioReal().agora().toISOString(), fuso);
   return (
@@ -111,6 +114,51 @@ export default function TelaProduto() {
 
       <BotoesAcao item={item} clienteId={clienteId} />
 
+      {aplicacao ? (
+        <Card style={s.card} testID="produto-aplicacao">
+          <SectionHeader title="Aplicação" />
+          <Text style={t.body} numberOfLines={recolher ? LINHAS_APLICACAO_RECOLHIDA : undefined}>
+            {aplicacao}
+          </Text>
+          {aplicacaoPrecisaRecolher(aplicacao) ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={aplicacaoAberta ? 'Ver menos da aplicação' : 'Ver mais da aplicação'} onPress={() => setAplicacaoAberta((v) => !v)} style={s.verMais}>
+              <Text style={t.bodyStrong}>{aplicacaoAberta ? 'Ver menos' : 'Ver mais'}</Text>
+            </Pressable>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {catalogo && catalogo.referencias.length > 0 ? (
+        <Card style={s.card} testID="produto-equivale-a">
+          <SectionHeader title="Equivale a" />
+          {catalogo.referencias.map((r) => (
+            <Text key={`${r.marca_id}:${r.codigo}`} style={t.body}>
+              {r.marca_nome} <Text style={t.bodyStrong}>{r.codigo}</Text>
+            </Text>
+          ))}
+        </Card>
+      ) : null}
+
+      {catalogo && catalogo.oferece_junto.length > 0 ? (
+        <Card style={s.card} testID="produto-oferece-junto">
+          <SectionHeader title="Oferece junto" />
+          {catalogo.oferece_junto.map((o) => (
+            <Pressable key={o.produto_id} accessibilityRole="button" accessibilityLabel={`Abrir ${o.description}`} onPress={() => irParaProduto(o.produto_id, clienteId)} style={s.ofereceJunto}>
+              <Text style={t.bodyStrong}>{o.description}</Text>
+              <Text style={t.small}>{o.erp_code}</Text>
+            </Pressable>
+          ))}
+        </Card>
+      ) : null}
+
+      {catalogo && catalogo.etiquetas.length > 0 ? (
+        <View style={s.etiquetas} testID="produto-etiquetas">
+          {catalogo.etiquetas.map((e) => (
+            <Badge key={e} label={e} tone="neutral" />
+          ))}
+        </View>
+      ) : null}
+
       {content.description || content.selling_points.length > 0 ? (
         <Card style={s.card}>
           <SectionHeader title="Sobre o produto" />
@@ -156,5 +204,8 @@ const s = StyleSheet.create({
   preco: { fontFamily: fonts.display, fontSize: 24, color: colors.ink },
   semPreco: { fontFamily: fonts.medium, fontSize: 14, color: colors.ink2 },
   riscado: { fontFamily: fonts.body, fontSize: 14, color: colors.ink3, textDecorationLine: 'line-through' },
+  verMais: { minHeight: 48, justifyContent: 'center' },
+  ofereceJunto: { minHeight: 48, justifyContent: 'center', gap: 2, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   atributo: { flexDirection: 'row', gap: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
 });

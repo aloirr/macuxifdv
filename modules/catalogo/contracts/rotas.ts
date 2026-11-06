@@ -6,7 +6,7 @@
  */
 import { z } from 'zod';
 import { Id } from '@macuxi/core/contracts';
-import { ConsultaBusca, InstanteUtc, ItemVitrine, ResultadoBusca, Sinonimo } from './busca';
+import { ConsultaBusca, InstanteUtc, ItemVitrine, Referencia, ResultadoBusca, Sinonimo } from './busca';
 
 /** Booleano vindo da query (`true`/`false`/`1`/`0`); qualquer outro texto é inválido. */
 export const BooleanoQuery = z.preprocess((v) => {
@@ -90,8 +90,26 @@ export const ConteudoProduto = z.object({
   description: z.string().trim().max(4000).nullable().default(null),
   selling_points: z.array(z.string().trim().min(1).max(200).regex(/^[^\r\n]+$/, 'Cada argumento de venda deve ficar em uma linha só.')).max(10).default([]),
   faq: z.array(PerguntaFrequente).max(20).default([]),
+  /**
+   * RN-CAT-11: Aplicação (descrição 2), até 2.000 (a API recusa acima de `aplicacao_max_cadastro`: 422 `RN-CAT-11`).
+   * Ausente no corpo do `PUT conteudo` = não altera; `null` = limpa.
+   */
+  aplicacao: z.string().trim().max(2000).nullable().optional(),
 });
 export type ConteudoProduto = z.infer<typeof ConteudoProduto>;
+
+/** Produto que a ficha oferece junto (RN-CAT-09: até 5; relação `complementar`). */
+export const OfereceJunto = z.object({ produto_id: Id, erp_code: z.string(), description: z.string() });
+export type OfereceJunto = z.infer<typeof OfereceJunto>;
+
+/** Seção Catálogo da ficha (T-0085 K8): promotor vê tudo, só leitura (RN-CAT-05 só esconde preço e estoque). */
+export const CatalogoDaFicha = z.object({
+  aplicacao: z.string().nullable(),
+  referencias: z.array(Referencia).max(3),
+  oferece_junto: z.array(OfereceJunto).max(5),
+  etiquetas: z.array(z.string().max(20)).max(4),
+});
+export type CatalogoDaFicha = z.infer<typeof CatalogoDaFicha>;
 
 /** Ficha rica (RF-CAT-03): o cartão da vitrine + atributos, mídias e conteúdo. Preço/estoque seguem o RN-CAT-05. */
 export const FichaProduto = z.object({
@@ -101,6 +119,8 @@ export const FichaProduto = z.object({
   content: ConteudoProduto,
   /** Instante da última alteração do conteúdo (nulo = nunca enriquecido). */
   content_updated_at: InstanteUtc.nullable(),
+  /** T-0084/T-0085: aplicação, referências, oferece junto e etiquetas (aditivo; ausente = servidor antigo). */
+  catalogo: CatalogoDaFicha.optional(),
 });
 export type FichaProduto = z.infer<typeof FichaProduto>;
 
@@ -127,6 +147,43 @@ export type SalvarDestaque = z.infer<typeof SalvarDestaque>;
 /** Corpo do `PUT /v1/catalogo/produtos/:id/conteudo` (RF-CAT-07): substitui conteúdo e atributos do produto. */
 export const SalvarConteudo = ConteudoProduto.extend({ attributes: z.array(AtributoProduto).max(30).default([]) });
 export type SalvarConteudo = z.infer<typeof SalvarConteudo>;
+
+/**
+ * Corpo do `PUT /v1/catalogo/produtos/:id/cadastro-catalogo` (T-0085 K9; ação `produto.enriquecer`): substitui o conjunto
+ * inteiro. Limites (RN-CAT-09: 3 referências, código até 30, oferece junto até 5) conferidos por `validarCadastroCatalogo`;
+ * a forma aqui é larga de propósito para a API devolver 422 com a regra, não 400.
+ */
+export const SalvarCadastroCatalogo = z.object({
+  aplicacao: z.string().nullable(),
+  oferece_junto: z.array(Id).max(50),
+  referencias: z.array(z.object({ marca_id: Id, codigo: z.string() })).max(20),
+  etiquetas: z.array(z.string()).max(20),
+});
+export type SalvarCadastroCatalogo = z.infer<typeof SalvarCadastroCatalogo>;
+
+/** Marcas concorrentes ativas (cadastro do Promotor) para o seletor da referência cruzada no BKO. */
+export const ListaMarcasConcorrentes = z.object({ items: z.array(z.object({ id: Id, nome: z.string() })) });
+export type ListaMarcasConcorrentes = z.infer<typeof ListaMarcasConcorrentes>;
+
+/** Linha da exportação do catálogo (T-0085 K10): preço fora. */
+export const LinhaExportacao = z.object({
+  sistema: z.string(),
+  grupo: z.string(),
+  linha: z.string(),
+  codigo: z.string(),
+  descricao: z.string(),
+  medida_embalagem: z.string(),
+  aplicacao: z.string(),
+  oferece_junto: z.array(z.string()),
+  equivale_a: z.array(z.string()),
+});
+export type LinhaExportacao = z.infer<typeof LinhaExportacao>;
+
+export const ConsultaExportacaoQuery = z.object({ no_id: Id.optional(), cursor: z.string().max(200).optional() });
+export type ConsultaExportacaoQuery = z.infer<typeof ConsultaExportacaoQuery>;
+
+export const PaginaExportacao = z.object({ itens: z.array(LinhaExportacao).max(1000), proximo_cursor: z.string().nullable() });
+export type PaginaExportacao = z.infer<typeof PaginaExportacao>;
 
 // ---------- BKO: termos buscados sem resultado (GET /v1/catalogo/termos-sem-resultado) ----------
 export const ConsultaTermosQuery = z.object({
@@ -161,6 +218,9 @@ export const ROTAS_CATALOGO = {
   destaque: 'produtos/:id/destaque',
   conteudo: 'produtos/:id/conteudo',
   termosSemResultado: 'termos-sem-resultado',
+  cadastroCatalogo: 'produtos/:id/cadastro-catalogo',
+  marcasConcorrentes: 'marcas-concorrentes',
+  exportacao: 'exportacao',
 } as const;
 
 /** Caminho HTTP completo de uma rota do Catálogo (`/v1/catalogo/...`) com os parâmetros trocados. */

@@ -2,7 +2,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import { describe, expect, it } from 'vitest';
 import type { ItemVitrine } from '../../contracts';
 import { formatBRL } from '@macuxi/comum';
-import { contagem, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloPreco, subtituloProduto } from './apresentacao';
+import { aplicacaoPrecisaRecolher, contagem, partirPorMarcas, rotuloEstoque, rotuloEstoqueFilial, rotuloFaixa, rotuloIncluiAno, rotuloPreco, subtituloProduto, textoEquivaleA } from './apresentacao';
 
 // Relógio fixo (meio-dia em Manaus): a hora da atualização (-5 min) nunca cruza a meia-noite local. Ver o teste da virada do dia.
 const relogio = criarRelogio({ agora: '2026-11-03T16:00:00Z' });
@@ -80,5 +80,35 @@ describe('textos do cartão do catálogo', () => {
   it('subtítulo: marca e código', () => {
     expect(subtituloProduto({ brand: 'Aroma', erp_code: 'CAF-500' })).toBe('Aroma · CAF-500');
     expect(subtituloProduto({ brand: '', erp_code: 'CAF-500' })).toBe('CAF-500');
+  });
+});
+
+describe('RN-CAT-12 / RN-CAT-09: aplicação e equivalência na tela', () => {
+  it('RN-CAT-12: parte o trecho "Serve em" nas marcas', () => {
+    expect(partirPorMarcas('Fiat Uno 1.0/1.4 2010–2014', [[5, 8], [17, 26]])).toEqual([
+      { texto: 'Fiat ', marcado: false },
+      { texto: 'Uno', marcado: true },
+      { texto: ' 1.0/1.4 ', marcado: false },
+      { texto: '2010–2014', marcado: true },
+    ]);
+    expect(partirPorMarcas('abc', [])).toEqual([{ texto: 'abc', marcado: false }]);
+    expect(partirPorMarcas('abc', [[2, 9]])).toEqual([{ texto: 'abc', marcado: false }]);
+  });
+
+  it('RN-CAT-12: "inclui 2012" só quando o ano veio de faixa', () => {
+    expect(rotuloIncluiAno({ serve_em: { texto: 'x', marcas: [], inclui_ano: 2012 } })).toBe('inclui 2012');
+    expect(rotuloIncluiAno({ serve_em: { texto: 'x', marcas: [], inclui_ano: null } })).toBeNull();
+    expect(rotuloIncluiAno({})).toBeNull();
+  });
+
+  it('RN-CAT-09: "Equivale a" mostra marca e código', () => {
+    expect(textoEquivaleA({ equivale_a: { marca_id: 'm', marca_nome: 'Freiomax', codigo: 'CB 3401', marcas: [[9, 16]] } })).toBe('Freiomax CB 3401');
+    expect(textoEquivaleA({})).toBeNull();
+  });
+
+  it('RN-CAT-11: aplicação acima de 6 linhas vem recolhida na ficha', () => {
+    expect(aplicacaoPrecisaRecolher('Fiat Uno 2010–2014')).toBe(false);
+    expect(aplicacaoPrecisaRecolher('x'.repeat(400))).toBe(true);
+    expect(aplicacaoPrecisaRecolher('a\nb\nc\nd\ne\nf\ng')).toBe(true);
   });
 });

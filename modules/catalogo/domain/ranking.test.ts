@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
-import { codigoCompacto, combinarNotas, distanciaEdicao, notaFinal, pontuacaoTextual, rankear, type DocBusca } from './ranking';
+import { codigoCompacto, combinarNotas, distanciaEdicao, notaFinal, pontuacaoTextual, rankear as rankearBase, type DocBusca, type EntradaRanking } from './ranking';
 import { expandirSinonimos } from './texto';
 
+const rankear = (docs: readonly DocBusca[], e: Omit<EntradaRanking, 'anoAtual'>) => rankearBase(docs, { anoAtual: 2026, ...e });
 const doc = (o: Partial<DocBusca> & { id: string }): DocBusca => ({
   sku: o.id.toUpperCase(),
   ean: null,
@@ -11,6 +12,8 @@ const doc = (o: Partial<DocBusca> & { id: string }): DocBusca => ({
   marca: '',
   categoria: '',
   atributos: '',
+  aplicacao: '',
+  referencias: [],
   estoque: 10,
   vendas: 0,
   campanha: false,
@@ -98,7 +101,7 @@ describe('RF-CAT-01 / RF-CAT-02: pontuação textual', () => {
   });
 
   it('consulta sem termos de texto não pontua (só filtros)', () => {
-    expect(pontuacaoTextual([], doc({ id: 'a' }))).toEqual({ pontos: 0, casados: 0, total: 0 });
+    expect(pontuacaoTextual([], doc({ id: 'a' }))).toMatchObject({ pontos: 0, casados: 0, total: 0 });
   });
 
   it('distanciaEdicao conta troca de letras vizinhas como 1', () => {

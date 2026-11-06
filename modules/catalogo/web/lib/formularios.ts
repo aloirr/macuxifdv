@@ -2,7 +2,8 @@
  * Formulários do BKO de conteúdo (RF-CAT-07), puros e testáveis: texto da tela ↔ contrato. A API revalida tudo
  * (Zod + domain); aqui só a conversão com mensagem em português.
  */
-import { SalvarConteudo, SalvarSinonimo, type FichaProduto, type ItemVitrine, type Sinonimo } from '../../contracts';
+import { SalvarCadastroCatalogo, SalvarConteudo, SalvarSinonimo, type FichaProduto, type ItemVitrine, type Sinonimo } from '../../contracts';
+import { LIMITES_CADASTRO_CATALOGO, validarCadastroCatalogo } from '../../domain/cadastro-catalogo';
 
 export interface FormConteudo {
   descricao: string;
@@ -60,6 +61,57 @@ export function conteudoDoForm(f: FormConteudo): ResultadoForm<SalvarConteudo> {
     return { ok: false, erro: `Confira o campo ${i.path.join('.')}: ${i.message}` };
   }
   return { ok: true, valor: r.data };
+}
+
+// ---------- seção Catálogo do cadastro do produto (T-0085 K9; RN-CAT-09, RN-CAT-11) ----------
+export interface FormCadastroCatalogo {
+  aplicacao: string;
+  /** Códigos ERP dos produtos de "Oferece junto", um por linha (até 5). */
+  ofereceJunto: string;
+  /** Uma linha por referência (até 3): marca escolhida da lista + código. */
+  referencias: { marca_id: string; codigo: string }[];
+  /** Separadas por vírgula (até 4, de até 20 caracteres). */
+  etiquetas: string;
+}
+
+/** As 3 linhas de referência sempre aparecem; as sem marca e sem código ficam de fora ao salvar. */
+export function formCadastroDaFicha(f: Pick<FichaProduto, 'catalogo'>): FormCadastroCatalogo {
+  const c = f.catalogo;
+  const refs = (c?.referencias ?? []).map((r) => ({ marca_id: r.marca_id, codigo: r.codigo }));
+  while (refs.length < LIMITES_CADASTRO_CATALOGO.referencias) refs.push({ marca_id: '', codigo: '' });
+  return { aplicacao: c?.aplicacao ?? '', ofereceJunto: (c?.oferece_junto ?? []).map((o) => o.erp_code).join('\n'), referencias: refs, etiquetas: (c?.etiquetas ?? []).join(', ') };
+}
+
+/**
+ * Formulário → corpo do `PUT produtos/:id/cadastro-catalogo`. `idsPorCodigo` traduz o código ERP digitado em "Oferece junto"
+ * para o id do produto (a lista de produtos da tela). A mesma `validarCadastroCatalogo` da API confere os limites.
+ */
+export function cadastroCatalogoDoForm(
+  produtoId: string,
+  f: FormCadastroCatalogo,
+  opcoes: { idsPorCodigo: ReadonlyMap<string, string>; aplicacaoMax: number },
+): ResultadoForm<SalvarCadastroCatalogo> {
+  const oferece: string[] = [];
+  for (const codigo of linhas(f.ofereceJunto)) {
+    const id = opcoes.idsPorCodigo.get(codigo);
+    if (!id) return { ok: false, erro: `Oferece junto: o código "${codigo}" não está na lista de produtos. Confira o código e tente de novo.` };
+    oferece.push(id);
+  }
+  const referencias = f.referencias.filter((r) => r.marca_id !== '' || r.codigo.trim() !== '');
+  for (const r of referencias) {
+    if (r.marca_id === '') return { ok: false, erro: `Referência "${r.codigo.trim()}": escolha a marca concorrente da lista.` };
+    if (r.codigo.trim() === '') return { ok: false, erro: 'Há uma marca sem código. Informe o código do concorrente ou tire a marca.' };
+  }
+  const corpo = SalvarCadastroCatalogo.safeParse({
+    aplicacao: f.aplicacao.trim() === '' ? null : f.aplicacao.trim(),
+    oferece_junto: oferece,
+    referencias: referencias.map((r) => ({ marca_id: r.marca_id, codigo: r.codigo.trim() })),
+    etiquetas: f.etiquetas.split(',').map((e) => e.trim()).filter(Boolean),
+  });
+  if (!corpo.success) return { ok: false, erro: `Confira o campo ${corpo.error.issues[0]!.path.join('.')}: ${corpo.error.issues[0]!.message}` };
+  const erros = validarCadastroCatalogo(produtoId, corpo.data, { aplicacaoMax: opcoes.aplicacaoMax });
+  if (erros.length > 0) return { ok: false, erro: erros[0]!.mensagem };
+  return { ok: true, valor: corpo.data };
 }
 
 export interface FormSinonimo {

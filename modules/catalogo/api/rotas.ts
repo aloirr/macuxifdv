@@ -13,6 +13,8 @@
  * DELETE sinonimos/:id            sinonimo.gerenciar
  * PUT  produtos/:id/destaque      destaque.gerenciar
  * PUT  produtos/:id/conteudo      produto.enriquecer
+ * GET  marcas-concorrentes        produto.enriquecer  marcas ativas do Promotor para o seletor da referência cruzada
+ * PUT  produtos/:id/cadastro-catalogo produto.enriquecer  aplicação, referências, oferece junto e etiquetas (RN-CAT-09, RN-CAT-11)
  * GET  termos-sem-resultado       busca.ver_sem_resultado
  */
 import {
@@ -32,18 +34,21 @@ import {
   ParamsProduto,
   ParamsSinonimo,
   ROTAS_CATALOGO,
+  SalvarCadastroCatalogo,
   SalvarConteudo,
   SalvarDestaque,
   SalvarSinonimo,
   type FichaProduto,
   type FiltrosCatalogo,
   type FiltrosInterpretados,
+  type ListaMarcasConcorrentes,
   type ListaSinonimos,
   type ListaTermosSemResultado,
   type PaginaVitrine,
   type RespostaBusca,
   type RespostaEscrita,
 } from '../contracts';
+import { validarCadastroCatalogo } from '../domain/cadastro-catalogo';
 import { conflitoDeSinonimo, montarFicha, normalizarSinonimo, termoDeBusca } from '../domain/conteudo';
 import { interpretarConsulta, type VocabularioTenant } from '../domain/consulta';
 import { AVISO_BUSCA_FALHOU, type PortaInterpretacaoLlm } from '../domain/ia';
@@ -202,7 +207,8 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
         if (!produto || !produto.ativo) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado no catálogo.');
         const contexto = await contextoVitrine(ctx, repo, p, clienteId, [produto]);
         const { conteudo, midias } = await repo.conteudo(produto.id);
-        return montarFicha(produto, itemDaVitrine(produto, contexto), conteudo, midias);
+        const extras = await repo.extrasFicha(produto.id);
+        return montarFicha(produto, itemDaVitrine(produto, contexto), conteudo, midias, { ofereceJunto: extras.ofereceJunto, etiquetas: extras.etiquetas });
       });
     },
   };
@@ -297,10 +303,68 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
         const repo = dep.repositorio(ctx, db, tx);
         const produto = await repo.produto(ctx.params.id);
         if (!produto) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado no catálogo.');
+        const maxAplicacao = parametrosDoTenant(ctx.parametros()).aplicacao_max_cadastro;
+        if (ctx.corpo.aplicacao && ctx.corpo.aplicacao.length > maxAplicacao) {
+          throw new ErroRegraNegocio('RN-CAT-11', `A aplicação passa de ${maxAplicacao} caracteres. Encurte o texto e salve de novo.`, { campo: 'aplicacao' });
+        }
         const { criado } = await repo.salvarConteudo(produto.id, ctx.corpo, ctx.agora().toISOString());
         await tx.auditar({ acao: 'produto.enriquecer', entidade: 'produto', entidade_id: produto.id, depois: { atributos: ctx.corpo.attributes.length, argumentos: ctx.corpo.selling_points.length, faq: ctx.corpo.faq.length } });
         return { id: produto.id, criado };
       });
+    },
+  };
+
+  // T-0085 K9: o conjunto inteiro (aplicação, referências, oferece junto, etiquetas); a API revalida com a mesma função do BKO
+  const cadastroCatalogo: RotaModulo = {
+    metodo: 'PUT',
+    caminho: ROTAS_CATALOGO.cadastroCatalogo,
+    acao: 'produto.enriquecer',
+    carteira: 'nao_se_aplica',
+    params: ParamsProduto,
+    corpo: SalvarCadastroCatalogo,
+    async executar(ctx: Ctx<SalvarCadastroCatalogo, unknown, ParamsProduto>): Promise<RespostaEscrita> {
+      return ctx.comTenant(async (db, tx) => {
+        const repo = dep.repositorio(ctx, db, tx);
+        const produto = await repo.produto(ctx.params.id);
+        if (!produto) throw new ErroNaoEncontrado('PRODUTO_NAO_ENCONTRADO', 'Produto não encontrado no catálogo.');
+        const corpo: SalvarCadastroCatalogo = { ...ctx.corpo, aplicacao: ctx.corpo.aplicacao?.trim() ? ctx.corpo.aplicacao.trim() : null };
+        const erros = validarCadastroCatalogo(produto.id, corpo, { aplicacaoMax: parametrosDoTenant(ctx.parametros()).aplicacao_max_cadastro });
+        if (erros.length > 0) {
+          const e = erros[0]!;
+          throw new ErroRegraNegocio(e.regra, e.mensagem, { campo: e.campo });
+        }
+        // marcas ativas do cadastro de concorrentes do Promotor (sem a licença dele não há marca: a referência é recusada)
+        const marcas = await repo.marcasConcorrentes();
+        const semMarca = corpo.referencias.find((r) => !marcas.get(r.marca_id)?.ativo);
+        if (semMarca) throw new ErroRegraNegocio('RN-CAT-09', 'Escolha uma marca concorrente ativa da lista. Cadastre ou ative a marca em Concorrentes e tente de novo.', { campo: 'referencias' });
+        for (const id of corpo.oferece_junto) {
+          const outro = await repo.produto(id);
+          if (!outro || !outro.ativo) throw new ErroRegraNegocio('RN-CAT-09', 'Um produto de "Oferece junto" não existe ou está inativo. Tire-o da lista e salve de novo.', { campo: 'oferece_junto' });
+        }
+        const extras = await repo.extrasFicha(produto.id);
+        const antes = { aplicacao_tamanho: (produto.aplicacao ?? '').length, referencias: (produto.referencias ?? []).map((r) => ({ marca_id: r.marca_id, codigo: r.codigo })), oferece_junto: extras.ofereceJunto.map((o) => o.produto_id), etiquetas: extras.etiquetas };
+        const { criado } = await repo.salvarCadastroCatalogo(produto.id, corpo, ctx.agora().toISOString());
+        // auditoria sem dado pessoal: tamanhos, marcas e códigos de concorrente, ids de produto
+        await tx.auditar({
+          acao: 'produto.enriquecer',
+          entidade: 'produto',
+          entidade_id: produto.id,
+          antes,
+          depois: { evento: 'catalogo.produto.cadastro_alterado', aplicacao_tamanho: (corpo.aplicacao ?? '').length, referencias: corpo.referencias.map((r) => ({ marca_id: r.marca_id, codigo: r.codigo.trim() })), oferece_junto: corpo.oferece_junto, etiquetas: corpo.etiquetas },
+        });
+        return { id: produto.id, criado };
+      });
+    },
+  };
+
+  const marcasConcorrentes: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.marcasConcorrentes,
+    acao: 'produto.enriquecer',
+    carteira: 'nao_se_aplica',
+    async executar(ctx: Ctx): Promise<ListaMarcasConcorrentes> {
+      const marcas = await comRepo(ctx, (repo) => repo.marcasConcorrentes());
+      return { items: [...marcas.entries()].filter(([, m]) => m.ativo).map(([id, m]) => ({ id, nome: m.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id)) };
     },
   };
 
@@ -316,5 +380,5 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
-  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, termos];
+  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, cadastroCatalogo, marcasConcorrentes, termos];
 }
