@@ -7,7 +7,28 @@ export const TABELAS_SEM_TENANT_ID = {
   'plataforma.tenant': 'id é o tenant (RLS por id)',
   /** Controle do executor de migrações; sem RLS e sem acesso do papel de aplicação. */
   'public.macuxi_migracao': 'controle de migrações (sem acesso do macuxi_app)',
+  /**
+   * Super-admin de plataforma (0035, T-0087, ADR 0029): identidade FORA dos tenants. Sem tenant_id, sem política e sem grant
+   * para o macuxi_app; acesso só pelas funções SECURITY DEFINER plataforma.sa_* (ver TABELAS_SO_POR_FUNCAO).
+   */
+  'plataforma.super_admin': 'super-admin de plataforma, fora dos tenants (ADR 0029); só por função',
+  'plataforma.super_admin_desafio': 'desafio da 2ª etapa do login do super-admin (ADR 0029); só por função',
+  'plataforma.super_admin_sessao': 'sessão do super-admin (ADR 0029); só por função',
+  /** tenant_alvo_id (nulo fora de tenant, sem FK) no lugar de tenant_id: sobrevive à plataforma.excluir_tenant. */
+  'plataforma.auditoria_plataforma': 'auditoria append-only do super-admin, sobrevive à exclusão do tenant (ADR 0029); só por função',
 } as const;
+
+/**
+ * Tabelas com RLS ligado e FORÇADO e SEM política nem grant para o macuxi_app e o macuxi_worker (0035, ADR 0029): a
+ * aplicação lê 0 linhas (42501 direto, sem grant) e só chega aos dados pelas funções SECURITY DEFINER revisadas. Têm só a
+ * política manutencao (0031). Os testes de conformidade aceitam "sem política para o macuxi_app" SÓ nestas.
+ */
+export const TABELAS_SO_POR_FUNCAO = [
+  'plataforma.super_admin',
+  'plataforma.super_admin_desafio',
+  'plataforma.super_admin_sessao',
+  'plataforma.auditoria_plataforma',
+] as const;
 
 /** Tabelas sem o índice de sync (tenant_id, updated_at, id): não são puxadas pelo app. */
 export const TABELAS_FORA_DO_SYNC = [

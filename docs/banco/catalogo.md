@@ -194,6 +194,10 @@ RLS forçado (`isolamento_tenant` + `manutencao`), gatilho `produto_referencia_u
 - "oferece junto" = `produto_relacao` com `tipo = 'complementar'`; o limite de 5 por produto fica no domain e na API;
 - hierarquia sistema › grupo › linha = `catalogo_no` (níveis 1..8) + `produto_no`, da 0013.
 
+**Base legada (revisão R-20261105-225102, 🟢 1):** nas linhas de `produto_busca` gravadas antes da 0033, o `conteudo` ainda pode
+levar a aplicação (peso D), além da coluna `aplicacao` nova (peso C), até o escritor do Catálogo reescrever o documento. Hoje nada
+grava `produto_busca` fora do seed e da reindexação, então não há efeito; a reindexação do modulo-catalogo limpa.
+
 **Volta:** o `.down.sql` apaga `produto_referencia` com os dados, as etiquetas e as colunas da busca, e devolve o gatilho da 0013
 (recalcula o documento). O corte em 2.000 feito no up não volta.
 
@@ -225,3 +229,37 @@ com dados) e `db/testes/aparelho-sqlite.test.ts` (FTS v3 no aparelho).
   - As marcas próprias do fluido e da câmara passaram a Dotflex e Pneumaq, para não coincidir com as concorrentes.
 - **Etiquetas:** "Dianteira" e "Novo" na pastilha, "Dianteira" no disco, "Traseira" no amortecedor e "Novo" no filtro.
 - O documento de busca do servidor sai com a aplicação expandida e os códigos.
+- Desde a 0034, cada referência leva `marca_nome` = o nome da marca do seed do Promotor (Freiomax, Rodaforte, Filtrobom,
+  Vialume). A recarga do seed (upsert por id) preenche as referências que a base já tinha da 0033.
+
+## 0034 — retrato do nome da marca na referência (`0034_catalogo_referencia_marca_nome`; T-0085)
+ADR 0027 reescrita, seção "Caminho para fechar o risco 2"; aviso R-20261105-225102-engenheiro-software. Migração **aditiva**.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `produto_referencia.marca_nome` | text **nulo** | retrato do nome da marca no cadastro `concorrente` do Promotor **no momento da gravação**. `produto_referencia_marca_nome_preenchida`: nulo, ou `btrim` não vazio e até **120** caracteres (o mesmo teto de `promotor.concorrente.nome`). `marca_id` continua a chave; o nome é só o retrato |
+
+- **Quem grava:** a rota do BKO do Catálogo (cadastro do produto) e o consumidor do ERP, depois de validar a marca por
+  `promotor.concorrentes@1`; o consumidor de `promotor.concorrente.alterado@1` mantém o nome em dia (ADR 0027). Para o vendedor,
+  a referência aparece sem o Promotor no perfil.
+- **Por que nulo, e não `not null`:** preencher as linhas existentes pelo nome atual exigiria ler `promotor.concorrente` numa
+  migração do Catálogo, o que a regra 1 (ADR 0005) proíbe. As linhas anteriores à 0034 ficam **nulas** até a próxima gravação:
+  - base demo: a recarga do seed grava o nome;
+  - fixture: as vivas já levam o nome; a apagada fica nula de propósito;
+  - base de cliente: a rota do BKO, o Hub ou o consumidor do evento reescrevem.
+  O leitor que achar `marca_nome` nulo cai no fallback (consulta do Promotor ou "marca não informada"). O `not null` pode vir numa
+  migração futura, quando todos os escritores gravarem e as nulas forem zero (conferir antes; com nulas, o `ALTER` falha).
+- **Busca:** sem índice e fora do documento de busca. O desenho T-0085 §7 põe em `produto_busca.referencias` (peso A) só os
+  códigos crus + compactos; o achado pelo código usa `produto_referencia_codigo_compacto_ix` (0033). Se o produto quiser achar
+  pela marca, é o escritor do documento (modulo-catalogo) que inclui o nome em `referencias`, sem migração.
+- **Pull:** a entidade `produto_referencia` passa a levar `marca_nome` (aditivo; provedor `modules/catalogo/api/sync.ts` e
+  `ProdutoReferenciaSyncSchema`, do modulo-catalogo). No aparelho o dado fica no JSON de `ent_produto_referencia`: **sem versão
+  nova** do esquema local (continua a v3), e a FTS não muda.
+- RLS, políticas (`isolamento_tenant`, `manutencao`) e grants são os da 0033; nada novo.
+
+**Volta:** o `.down.sql` apaga a coluna e o CHECK com os retratos. As referências ficam intactas, e o nome volta a ser lido pela
+consulta do Promotor.
+
+**Testes:** `db/testes/referencia-marca-nome.test.ts` (estático: coluna, CHECK, nada fora de `catalogo.*`, sem backfill, espelho
+Drizzle, aparelho sem versão nova, fixture; no CI: retrato no pull de A e B, limites 1..120, vazamento entre tenants e up/down
+com dados).

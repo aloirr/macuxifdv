@@ -151,6 +151,8 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
   - A: p1 com "CB 3401" (ordem 1) e "FR-77.2" (ordem 2) vivas, mais "CB-3400" **apagada** na ordem 1;
   - B: p1 com "LB 0099";
   - a marca é o concorrente do Promotor do mesmo tenant (`PROMOTOR_FIXTURE.X.concorrente`), sem FK;
+  - 0034: as vivas levam `marca_nome` = o nome desse concorrente (`MARCA_NOME_FIXTURE`: A "Freios Rivais", B "Lubri Rival");
+    a apagada fica com `marca_nome` nulo (como uma linha anterior à 0034);
   - `codigo_compacto` segue a regra do `codigoCompacto`.
 - **`vendedor.pedido_item`:** o item 1 do p1 de A tem o retrato "Motos 150 cc"; os demais ficam nulos.
 - **Literal de `text[]` com texto livre:** use `arrayDeTextoLivre` (`db/src/gravar.ts`). O `arrayDeTexto` só aceita códigos `[a-z0-9_]`.
