@@ -53,3 +53,12 @@ export function bloqueadoForaDoPortal(host: string | null | undefined, caminho: 
   const c = caminho.toLowerCase();
   return c === ROTA_DO_PORTAL || c.startsWith(`${ROTA_DO_PORTAL}/`);
 }
+
+/** Caminho público do convite de 1º acesso no BKO (T-0087 fatia E; o `caminho` que a API devolve: `/convite/<token>`). */
+export const PREFIXO_CONVITE = '/convite';
+
+/** `/convite` e `/convite/*`: página pública com o token no endereço (o proxy manda `no-referrer`, `no-store` e `noindex`). */
+export function ehPaginaDeConvite(caminho: string): boolean {
+  const c = caminho.toLowerCase();
+  return c === PREFIXO_CONVITE || c.startsWith(`${PREFIXO_CONVITE}/`);
+}

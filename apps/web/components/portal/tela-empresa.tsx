@@ -3,7 +3,8 @@
 /**
  * Página de uma empresa no portal (T-0087 §3 e §6): abas "Bases" (um cartão por base, na ordem de carga do Hub, lida da rota
  * `GET /v1/integracao/ordem-carga`; o portal não tem lista própria), "Integração automática" e "Empresa" (resumo + acrescentar
- * módulos pelo passo Empresa, idempotente). A aba fica no `#` do endereço (o F5 volta nela). testIDs: empresa-pagina.*.
+ * módulos pelo passo Empresa, idempotente). A Equipe por CSV (Core, fatia E) é o primeiro cartão da aba Bases, visível mesmo sem
+ * a Integração. A aba fica no `#` do endereço (o F5 volta nela). testIDs: empresa-pagina.*.
  */
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +17,7 @@ import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { AbaIntegracao } from './aba-integracao';
 import { MolduraPortal } from './base';
 import { CartaoBase } from './cartao-base';
+import { CartaoEquipe } from './cartao-equipe';
 import { mascararCnpj, PassoEmpresa, ROTULO_MODULO } from './passo-empresa';
 import { CHAVE_EMPRESAS, useEmpresas } from './tela-empresas';
 
@@ -26,38 +28,31 @@ const ABAS = [
 ] as const;
 type Aba = (typeof ABAS)[number]['id'];
 
-function CartaoEquipe() {
+/** Bases da empresa: a Equipe (Core) primeiro, sempre visível; depois as bases do Hub na ordem de carga (precisam da Integração). */
+function AbaBases({ tenant, fuso }: { tenant: string; fuso: string }) {
   return (
-    <section data-testid="base-equipe" className="flex flex-col gap-2 rounded-2xl border border-dashed border-field bg-surface p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-2 text-[12px] font-bold text-white">0</span>
-        <h3 className="m-0 font-display text-[17px] font-bold">Equipe</h3>
-        <Badge tone="pending">em breve</Badge>
-      </div>
-      <span className="text-[13px] text-ink-2">
-        Usuários do app e do BKO por CSV (nome, e-mail, perfil, superior, código no ERP), cada um com convite de primeiro acesso. Até a Equipe por CSV chegar, o admin do
-        cliente é criado pela equipe Macuxi com o <code>tenant:criar</code> (mesmo código da empresa); ele entra no BKO e cadastra a equipe.
-      </span>
-    </section>
+    <div data-testid="empresa-pagina.bases" className="flex flex-col gap-3">
+      <span className="text-[13px] text-ink-2">Carregue na ordem: cada base usa as anteriores. Confira sem gravar, corrija pelo "Baixar erros" e importe.</span>
+      <CartaoEquipe tenant={tenant} fuso={fuso} />
+      <BasesDoHub tenant={tenant} />
+    </div>
   );
 }
 
-function AbaBases({ tenant }: { tenant: string }) {
+function BasesDoHub({ tenant }: { tenant: string }) {
   const q = useQuery({ queryKey: ['portal', tenant, 'ordem-carga'], queryFn: () => chamarPortal(ROTAS_PORTAL.ordemCarga, { tenant, schema: OrdemCargaResposta }).then((r) => r.itens) });
   if (q.isPending) return <LoadingBlock label="Buscando a ordem de carga…" />;
   if (q.isError) {
-    if (q.error instanceof ErroPortal && q.error.status === 403) return <Notice tone="warning">A Integração com o ERP não está licenciada para esta empresa. Acrescente o módulo na aba Empresa.</Notice>;
+    if (q.error instanceof ErroPortal && q.error.status === 403) return <Notice tone="warning">A Integração com o ERP não está licenciada para esta empresa. Acrescente o módulo na aba Empresa para carregar as outras bases.</Notice>;
     return <ErrorBlock message={ehRotaAusente(q.error) ? 'A ordem de carga ainda não está disponível neste servidor.' : mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />;
   }
   const itens = [...q.data].sort((a, b) => a.posicao - b.posicao);
   return (
-    <div data-testid="empresa-pagina.bases" className="flex flex-col gap-3">
-      <span className="text-[13px] text-ink-2">Carregue na ordem: cada base usa as anteriores. Confira sem gravar, corrija pelo "Baixar erros" e importe.</span>
-      <CartaoEquipe />
+    <>
       {itens.map((i) => (
         <CartaoBase key={i.entidade} item={i} tenant={tenant} rotuloDepende={i.depende_de.length ? i.depende_de.map((d) => CARTAO_DA_ENTIDADE[d].titulo).join(', ') : null} />
       ))}
-    </div>
+    </>
   );
 }
 
@@ -131,7 +126,7 @@ export function TelaEmpresa({ id }: { id: string }) {
           </div>
           {abertas.has('bases') && (
             <div role="tabpanel" id="empresa-painel-bases" aria-labelledby="empresa-aba-bases" hidden={aba !== 'bases'}>
-              <AbaBases tenant={empresa.id} />
+              <AbaBases tenant={empresa.id} fuso={empresa.fuso} />
             </div>
           )}
           {abertas.has('integracao') && (

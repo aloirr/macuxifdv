@@ -15,6 +15,7 @@ import {
   SessaoPlataformaSchema,
   TotpConfirmarSchema,
   linhasDosParametrosIniciais,
+  type Perfil,
 } from '@macuxi/platform-sdk';
 import {
   CargaArquivoEntrada,
@@ -25,6 +26,8 @@ import {
   type LinhaErro,
   type LoteResultado,
 } from '@macuxi/integracao/contracts';
+
+import { ImportarEquipeRequestSchema, PerfilSchema, RenovarConviteRequestSchema, type ConviteEmitido, type ImportarEquipeResposta } from '@macuxi/core/contracts';
 
 import { ROTAS_PORTAL } from './portal-rotas';
 
@@ -55,9 +58,17 @@ interface Estado {
   empresas: EmpresaFalsa[];
   conectores: Record<string, ConectorResumo[]>;
   lotes: Record<string, LoteFalso>;
+  convites: Record<string, ConviteFalso[]>;
+}
+interface ConviteFalso {
+  usuario_id: string;
+  nome: string;
+  email: string;
+  perfil: Perfil;
+  expira_em: string;
 }
 
-const vazio = (): Estado => ({ admin: null, totp: false, empresas: [], conectores: {}, lotes: {} });
+const vazio = (): Estado => ({ admin: null, totp: false, empresas: [], conectores: {}, lotes: {}, convites: {} });
 
 function ler(): Estado {
   try {
@@ -93,6 +104,8 @@ function lerCorpo<T>(schema: { safeParse(x: unknown): { success: true; data: T }
   if (p.success) return p.data;
   return erro(400, 'VALIDACAO', p.error.issues[0]?.message ?? 'Dados inválidos.');
 }
+
+const NL = String.fromCharCode(10);
 
 /** BOM do UTF-8 (o Excel abre o CSV sem perguntar a codificação). */
 const BOM = String.fromCharCode(0xfeff);
@@ -320,8 +333,64 @@ export async function responderFalso(metodo: string, caminhoComQuery: string, co
     gravar({ ...e, conectores: { ...e.conectores, [tenant]: nova } });
     return json(200, nova.find((x) => x.id === conectorM[1]));
   }
+  // ---------- Equipe por CSV (Core): linha sem e-mail ou com perfil fora da lista vira erro; cada pessoa nova ganha um convite
+  if (rota === `GET ${ROTAS_PORTAL.equipeModeloCsv}`) {
+    const csv = ['nome,email,telefone,perfil,email_superior,codigo_erp,modulos', 'Ana Souza,ana.souza@empresa.com.br,95991112222,supervisor,,,', 'Bruno Dias,bruno.dias@empresa.com.br,,vendedor,ana.souza@empresa.com.br,V0042,vendedor', ''].join(NL);
+    return new Response(csv, { status: 200, headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="modelo-equipe.csv"' } });
+  }
+  if (rota === `POST ${ROTAS_PORTAL.equipeImportacoes}`) {
+    const c = lerCorpo(ImportarEquipeRequestSchema, corpo);
+    if (c instanceof Response) return c;
+    return json(200, importarEquipeFalsa(e, tenant, c.csv, c.modo, c.origem ?? null));
+  }
+  if (rota === `GET ${ROTAS_PORTAL.equipeConvites}`) {
+    return json(200, { itens: (e.convites[tenant] ?? []).map((x) => ({ ...x, vencido: Date.parse(x.expira_em) <= Date.now() })) });
+  }
+  const renovarM = /^\/core\/equipe\/convites\/([^/]+)\/renovar$/.exec(caminho);
+  if (metodo === 'POST' && renovarM) {
+    const c = lerCorpo(RenovarConviteRequestSchema, corpo);
+    if (c instanceof Response) return c;
+    const lista = e.convites[tenant] ?? [];
+    const x = lista.find((y) => y.usuario_id === renovarM[1]);
+    if (!x) return erro(404, 'USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado. Atualize a lista e tente de novo.');
+    const novo = { ...x, expira_em: agoraIso(7 * 24 * 60) };
+    gravar({ ...e, convites: { ...e.convites, [tenant]: lista.map((y) => (y.usuario_id === x.usuario_id ? novo : y)) } });
+    return json(200, conviteEmitido(novo, c.origem ?? null));
+  }
   // N1/N2 (nuvem) ainda não existem: igual à API real antes do merge
   return erro(404, 'NAO_ENCONTRADO', 'Rota não encontrada.');
+}
+
+function conviteEmitido(x: ConviteFalso, origem: string | null): ConviteEmitido {
+  const caminho = `/convite#${'f'.repeat(8)}.${crypto.randomUUID().replace(/-/g, '')}`;
+  return { ...x, caminho, link: origem ? `${origem}${caminho}` : null };
+}
+
+function importarEquipeFalsa(e: Estado, tenant: string, csv: string, modo: 'conferir' | 'gravar', origem: string | null): ImportarEquipeResposta {
+  const [cab = [], ...dados] = linhasDoCsv(csv);
+  const col = (nome: string) => cab.findIndex((x) => x.trim().toLowerCase() === nome);
+  const [iNome, iEmail, iPerfil, iSup] = [col('nome'), col('email'), col('perfil'), col('email_superior')];
+  const existentes = new Set((e.convites[tenant] ?? []).map((x) => x.email));
+  const erros: ImportarEquipeResposta['erros'] = [];
+  const plano: ImportarEquipeResposta['plano'] = [];
+  dados.forEach((cols, i) => {
+    const linha = i + 2;
+    const email = (cols[iEmail] ?? '').trim().toLowerCase();
+    const perfil = PerfilSchema.safeParse((cols[iPerfil] ?? '').trim().toLowerCase());
+    if (!email.includes('@')) erros.push({ linha, coluna: 'email', mensagem: `Linha ${linha}: informe um e-mail válido, como nome@empresa.com.br.` });
+    else if (!perfil.success) erros.push({ linha, coluna: 'perfil', mensagem: `Linha ${linha}: perfil fora da lista (admin, gerente, supervisor, vendedor, promotor...).` });
+    else plano.push({ linha, acao: existentes.has(email) ? 'sem_mudanca' : 'criar', usuario_id: null, email, nome: (cols[iNome] ?? '').trim(), perfil: perfil.data, superior_email: (cols[iSup] ?? '').trim() || null, external_id: null, modulos_removidos: [] });
+  });
+  const comErro = new Set(erros.map((x) => x.linha)).size;
+  const resumo = { total: dados.length, novos: plano.filter((p) => p.acao === 'criar').length, atualizados: 0, sem_mudanca: plano.filter((p) => p.acao === 'sem_mudanca').length, com_erro: comErro };
+  const erros_csv = erros.length ? ['linha,coluna,mensagem', ...erros.map((x) => `${x.linha},${x.coluna},"${x.mensagem.replace(/"/g, '""')}"`)].join(NL) + NL : '';
+  const base = { modo, resumo, erros, avisos: [], plano, erros_csv, convites: [], convites_csv: '' };
+  if (modo === 'conferir' || erros.length) return { ...base, gravado: false };
+  const novos: ConviteFalso[] = plano.filter((p) => p.acao === 'criar').map((p) => ({ usuario_id: crypto.randomUUID(), nome: p.nome, email: p.email, perfil: p.perfil, expira_em: agoraIso(7 * 24 * 60) }));
+  gravar({ ...e, convites: { ...e.convites, [tenant]: [...(e.convites[tenant] ?? []), ...novos] } });
+  const convites = novos.map((x) => conviteEmitido(x, origem));
+  const convites_csv = ['nome,email,perfil,link,expira_em', ...convites.map((x) => [x.nome, x.email, x.perfil, x.link ?? x.caminho, x.expira_em].join(','))].join(NL) + NL;
+  return { ...base, gravado: true, convites, convites_csv };
 }
 
 /** Para os testes e para "recomeçar" o modo falso. */

@@ -7,7 +7,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { bloqueadoForaDoPortal, destinoNoPortal, ehHostDoPortal, hostDaRequisicao } from './lib/portal';
+import { bloqueadoForaDoPortal, destinoNoPortal, ehHostDoPortal, ehPaginaDeConvite, hostDaRequisicao } from './lib/portal';
 
 export function proxy(request: NextRequest) {
   const host = hostDaRequisicao(request.headers.get('host'), request.headers.get('x-forwarded-host'));
@@ -24,6 +24,12 @@ export function proxy(request: NextRequest) {
   }
   // o portal nunca entra em buscador nem em cache compartilhado
   if (ehHostDoPortal(host)) {
+    resposta.headers.set('x-robots-tag', 'noindex, nofollow');
+    resposta.headers.set('cache-control', 'no-store');
+  }
+  // convite de 1º acesso (T-0087 fatia E): o token está no endereço; nada de Referer, cache ou buscador
+  if (ehPaginaDeConvite(caminho)) {
+    resposta.headers.set('referrer-policy', 'no-referrer');
     resposta.headers.set('x-robots-tag', 'noindex, nofollow');
     resposta.headers.set('cache-control', 'no-store');
   }

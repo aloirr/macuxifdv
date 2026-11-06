@@ -44,7 +44,7 @@ export const ROTULO_STATUS_LOTE: Record<EstadoLote, string> = {
 
 export const ROTULO_MODO: Record<ModoCarga, { titulo: string; ajuda: string }> = {
   delta: { titulo: 'Delta', ajuda: 'Grava só as linhas do arquivo; o que não veio continua como está.' },
-  completo: { titulo: 'Completo', ajuda: 'O arquivo é a lista inteira: o que não vier é inativado no fim da última parte.' },
+  completo: { titulo: 'Completo', ajuda: 'O arquivo é a lista inteira: o que não vier é inativado no fim da última parte. Linha com erro conta como enviada e não é inativada.' },
 };
 
 export const ENTIDADES_DO_HUB: readonly Entidade[] = ENTIDADES;

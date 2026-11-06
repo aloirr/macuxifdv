@@ -25,6 +25,11 @@ export const ROTAS_PORTAL = {
   errosLote: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros`,
   errosLoteCsv: (id: string) => `/integracao/lotes/${encodeURIComponent(id)}/erros.csv`,
   conectores: '/integracao/conectores',
+  // Core: Equipe por CSV e convites de 1º acesso (T-0087 fatia E, R-20261106-041540; com `x-macuxi-tenant`)
+  equipeModeloCsv: '/core/equipe/modelo.csv',
+  equipeImportacoes: '/core/equipe/importacoes',
+  equipeConvites: '/core/equipe/convites',
+  equipeRenovarConvite: (usuarioId: string) => `/core/equipe/convites/${encodeURIComponent(usuarioId)}/renovar`,
   // N1 (PR #97, nuvem): até o merge respondem 404 e o portal mostra "em breve"
   modeloCsv: (e: Entidade) => `/integracao/modelos/${e}.csv`,
   dicionario: (e: Entidade) => `/integracao/modelos/${e}.json`,
