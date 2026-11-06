@@ -140,6 +140,21 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
 | cadastros | Freios e Filtros; checklist (1 etapa obrigatória); mix do produto 1; meta 40% em Freios; concorrente + produto; foto de referência; tarefa em c1; ponto extra negociado em c1 | Lubrificantes; checklist; mix; meta 30% em c1; concorrente + produto; foto de referência por segmento; tarefa; display negociado |
 | coletas | 4 fotos (antes, depois, ponto extra, tarefa), checklist, gôndola conforme, share 4/10 = 40% (100%), preço nosso + concorrente em promoção (índice 108), ruptura de gôndola, validade, ponto extra cumprido, ação da concorrência, tarefa | 3 fotos, checklist, gôndola parcial, share 3/12 = 25% (83,33%), preço com anterior, ruptura total, avaria, ponto não encontrado, ação de PDV, tarefa |
 
+### T-0084/T-0085 (migração 0033; aplicação e referência cruzada)
+- **`catalogo.produto_conteudo`:**
+  - A: aplicação "Motos 150 cc" e as etiquetas "Dianteira" e "Novo";
+  - B: aplicação **diferente**, "Carros flex 1.0 a 2.0 2015–2020", sem etiquetas. Serve ao teste de isolamento.
+- **`catalogo.produto_busca`:**
+  - A: `aplicacao` "Motos 150 cc" e `referencias` com "CB 3401", "FR-77.2" e os compactos;
+  - B: `aplicacao` expandida e "LB 0099".
+- **`catalogo.produto_referencia`** (grupo **0x4f**, ids em `REFERENCIAS_FIXTURE`):
+  - A: p1 com "CB 3401" (ordem 1) e "FR-77.2" (ordem 2) vivas, mais "CB-3400" **apagada** na ordem 1;
+  - B: p1 com "LB 0099";
+  - a marca é o concorrente do Promotor do mesmo tenant (`PROMOTOR_FIXTURE.X.concorrente`), sem FK;
+  - `codigo_compacto` segue a regra do `codigoCompacto`.
+- **`vendedor.pedido_item`:** o item 1 do p1 de A tem o retrato "Motos 150 cc"; os demais ficam nulos.
+- **Literal de `text[]` com texto livre:** use `arrayDeTextoLivre` (`db/src/gravar.ts`). O `arrayDeTexto` só aceita códigos `[a-z0-9_]`.
+
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
 (mesmo id da Fase M). IDs determinísticos (UUID v5 de `fase-m:<tipo>:<chave>`).

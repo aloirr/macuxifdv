@@ -1,8 +1,9 @@
 /**
  * Schema `vendedor` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0007_vendedor_pedido.up.sql, 0009_vendedor_pedido_completo.up.sql (T-0029) e 0013_catalogo_vendedor_prevenda
- * (orçamento, frete CIF/FOB, transportadora, endereço de entrega, unidade/fator, acréscimo e faturamento), 0018 (medida do item)
- * e 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071), para uso INTERNO do
+ * (orçamento, frete CIF/FOB, transportadora, endereço de entrega, unidade/fator, acréscimo e faturamento), 0018 (medida do item),
+ * 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071) e 0033_catalogo_aplicacao_referencia
+ * (retrato da aplicação no item, T-0084), para uso INTERNO do
  * módulo Vendedor (modules/vendedor/api). Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs, índices, CHECKs, RLS e grants ficam lá). Sem FK para outros schemas:
@@ -193,6 +194,13 @@ export const pedidoItem = vendedor.table('pedido_item', {
   acrescimo_unitario_cents: bigint('acrescimo_unitario_cents', { mode: 'number' }).notNull().default(0),
   /** O que o vendedor digitou no ajuste do item. */
   ajuste_em: text('ajuste_em', { enum: MODOS_AJUSTE }).notNull().default('pct'),
+  // --- 0033 (T-0084, RN-VEN-19) ---
+  /**
+   * Retrato da aplicação do produto no momento do pedido (o que o cliente viu no orçamento), cortado pela API em
+   * aplicacao_max_orcamento (padrão 300, até 1.000); CHECK <= 1.000. Nulo = desmarcado, produto sem aplicação ou item
+   * anterior à 0033. A API nunca troca pelo cadastro atual.
+   */
+  aplicacao: text('aplicacao'),
 });
 
 /**

@@ -81,6 +81,8 @@ const TABELAS_0019 = ['core.nota_erp'] as const;
 const TABELAS_0020 = ['catalogo.produto_relacao'] as const;
 /** Tabelas novas da 0028 (T-0082, plano de RV; fora de TABELAS_SYNC: o aparelho não recebe o plano). */
 const TABELAS_0028 = ['core.plano_rv'] as const;
+/** Tabelas novas da 0033 (T-0085, referência cruzada do produto; a 0033 também traz a aplicação da T-0084). */
+const TABELAS_0033 = ['catalogo.produto_referencia'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -130,6 +132,7 @@ describe('migrações (estático)', () => {
     expect(nomes[29]).toBe('0030_core_notificacao_subtipo'); // T-0039: core.notificacao.subtipo (text nulo, CHECK de formato, sem índice) e backfill do alerta (notificacao-subtipo.test.ts)
     expect(nomes[30]).toBe('0031_plataforma_manutencao'); // T-0075 B1 (ADR 0024): papel macuxi_manutencao e política manutencao em toda tabela com RLS (conformidade.test.ts)
     expect(nomes[31]).toBe('0032_plataforma_excluir_tenant_ordem_fk'); // T-0075 B2 (ADR 0024): excluir_tenant em ordem de FK, sem session_replication_role (lgpd-outbox.test.ts)
+    expect(nomes[32]).toBe('0033_catalogo_aplicacao_referencia'); // T-0084/T-0085: aplicação (teto 2.000, peso C na busca, retrato no item) e catalogo.produto_referencia (aplicacao-referencia.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -166,6 +169,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0019,
         ...TABELAS_0020,
         ...TABELAS_0028,
+        ...TABELAS_0033,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
