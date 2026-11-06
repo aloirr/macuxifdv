@@ -15,6 +15,7 @@
  * PUT  produtos/:id/conteudo      produto.enriquecer
  * GET  marcas-concorrentes        produto.enriquecer  marcas ativas do Promotor para o seletor da referência cruzada
  * PUT  produtos/:id/cadastro-catalogo produto.enriquecer  aplicação, referências, oferece junto e etiquetas (RN-CAT-09, RN-CAT-11)
+ * GET  exportacao               produto.enriquecer  cadastro do catálogo para PDF/Excel do BKO, página única até 20 mil (RF-CAT-09)
  * GET  termos-sem-resultado       busca.ver_sem_resultado
  */
 import {
@@ -47,8 +48,11 @@ import {
   type PaginaVitrine,
   type RespostaBusca,
   type RespostaEscrita,
+  type RespostaExportacao,
 } from '../contracts';
 import { validarCadastroCatalogo } from '../domain/cadastro-catalogo';
+import { resolverCodigosOfereceJunto, validarMarcasDaReferencia } from '../domain/marcas';
+import { montarExportacao } from '../domain/exportacao';
 import { conflitoDeSinonimo, montarFicha, normalizarSinonimo, termoDeBusca } from '../domain/conteudo';
 import { interpretarConsulta, type VocabularioTenant } from '../domain/consulta';
 import { AVISO_BUSCA_FALHOU, type PortaInterpretacaoLlm } from '../domain/ia';
@@ -333,10 +337,20 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
           const e = erros[0]!;
           throw new ErroRegraNegocio(e.regra, e.mensagem, { campo: e.campo });
         }
-        // marcas ativas do cadastro de concorrentes do Promotor (sem a licença dele não há marca: a referência é recusada)
-        const marcas = await repo.marcasConcorrentes();
-        const semMarca = (corpo.referencias ?? []).find((r) => !marcas.get(r.marca_id)?.ativo);
-        if (semMarca) throw new ErroRegraNegocio('RN-CAT-09', 'Escolha uma marca concorrente ativa da lista. Cadastre ou ative a marca em Concorrentes e tente de novo.', { campo: 'referencias' });
+        // marcas do cadastro de concorrentes do Promotor (promotor.concorrentes@1): marca desconhecida, inativa ou consulta
+        // indisponível (sem a licença do Promotor) é 422 RN-CAT-09 com mensagem clara
+        const errosMarca = validarMarcasDaReferencia(corpo.referencias ?? [], await repo.marcasConcorrentes());
+        if (errosMarca.length > 0) throw new ErroRegraNegocio(errosMarca[0]!.regra, errosMarca[0]!.mensagem, { campo: errosMarca[0]!.campo });
+        // "Oferece junto" digitado por código fora da página do BKO: resolve aqui, sem diferenciar maiúsculas
+        const codigos = (corpo.oferece_junto_codigos ?? []).map((c) => c.trim()).filter((c) => c !== '');
+        if (codigos.length > 0) {
+          const achados = resolverCodigosOfereceJunto(codigos, await repo.produtos());
+          if (achados.naoEncontrados.length > 0) throw new ErroRegraNegocio('RN-CAT-09', `Oferece junto: o código "${achados.naoEncontrados[0]}" não existe ou está inativo. Confira o código e tente de novo.`, { campo: 'oferece_junto' });
+          corpo.oferece_junto = [...new Set([...corpo.oferece_junto, ...achados.ids])];
+          const apos = validarCadastroCatalogo(produto.id, { ...corpo, oferece_junto_codigos: [] }, { aplicacaoMax: parametrosDoTenant(ctx.parametros()).aplicacao_max_cadastro });
+          if (apos.length > 0) throw new ErroRegraNegocio(apos[0]!.regra, apos[0]!.mensagem, { campo: apos[0]!.campo });
+        }
+        delete corpo.oferece_junto_codigos;
         for (const id of corpo.oferece_junto) {
           const outro = await repo.produto(id);
           if (!outro || !outro.ativo) throw new ErroRegraNegocio('RN-CAT-09', 'Um produto de "Oferece junto" não existe ou está inativo. Tire-o da lista e salve de novo.', { campo: 'oferece_junto' });
@@ -368,6 +382,22 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
+  // T-0085 fatia C: página única (teto de 20 mil produtos no domain); só quem enriquece o catálogo (analista e admin)
+  const exportacao: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.exportacao,
+    acao: 'produto.enriquecer',
+    carteira: 'nao_se_aplica',
+    async executar(ctx: Ctx): Promise<RespostaExportacao> {
+      return comRepo(ctx, async (repo) => {
+        const [produtos, extras, marcas] = await Promise.all([repo.produtos(), repo.dadosExportacao(), repo.marcasConcorrentes()]);
+        const r = montarExportacao({ produtos, ...extras });
+        const lista = [...marcas.entries()].filter(([, m]) => m.ativo).map(([id, m]) => ({ id, nome: m.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id));
+        return { produtos: r.produtos, marcas: lista, truncado: r.truncado };
+      });
+    },
+  };
+
   const termos: RotaModulo = {
     metodo: 'GET',
     caminho: ROTAS_CATALOGO.termosSemResultado,
@@ -380,5 +410,5 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
-  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, cadastroCatalogo, marcasConcorrentes, termos];
+  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, cadastroCatalogo, marcasConcorrentes, exportacao, termos];
 }

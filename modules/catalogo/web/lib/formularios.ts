@@ -84,7 +84,9 @@ export function formCadastroDaFicha(f: Pick<FichaProduto, 'catalogo'>): FormCada
 
 /**
  * Formulário → corpo do `PUT produtos/:id/cadastro-catalogo`. `idsPorCodigo` traduz o código ERP digitado em "Oferece junto"
- * para o id do produto (a lista de produtos da tela). A mesma `validarCadastroCatalogo` da API confere os limites.
+ * para o id do produto (a lista de produtos da tela, sem diferenciar maiúsculas). Código que a tela não conhece vai em
+ * `oferece_junto_codigos` e o servidor resolve (produto fora da página carregada; 422 se não existir). A mesma
+ * `validarCadastroCatalogo` da API confere os limites.
  */
 export function cadastroCatalogoDoForm(
   produtoId: string,
@@ -92,10 +94,12 @@ export function cadastroCatalogoDoForm(
   opcoes: { idsPorCodigo: ReadonlyMap<string, string>; aplicacaoMax: number; semReferencias?: boolean },
 ): ResultadoForm<SalvarCadastroCatalogo> {
   const oferece: string[] = [];
+  const codigosNoServidor: string[] = [];
+  const minusculas = new Map([...opcoes.idsPorCodigo].map(([c, id]) => [c.trim().toLowerCase(), id]));
   for (const codigo of linhas(f.ofereceJunto)) {
-    const id = opcoes.idsPorCodigo.get(codigo);
-    if (!id) return { ok: false, erro: `Oferece junto: o código "${codigo}" não está na lista de produtos. Confira o código e tente de novo.` };
-    oferece.push(id);
+    const id = minusculas.get(codigo.trim().toLowerCase());
+    if (id) oferece.push(id);
+    else codigosNoServidor.push(codigo);
   }
   // sem marcas carregadas o servidor não conhece as referências: não manda a lista (ausente = não mexe)
   const referencias = opcoes.semReferencias ? [] : f.referencias.filter((r) => r.marca_id !== '' || r.codigo.trim() !== '');
@@ -106,6 +110,7 @@ export function cadastroCatalogoDoForm(
   const corpo = SalvarCadastroCatalogo.safeParse({
     aplicacao: f.aplicacao.trim() === '' ? null : f.aplicacao.trim(),
     oferece_junto: oferece,
+    ...(codigosNoServidor.length > 0 ? { oferece_junto_codigos: codigosNoServidor } : {}),
     referencias: opcoes.semReferencias ? undefined : referencias.map((r) => ({ marca_id: r.marca_id, codigo: r.codigo.trim() })),
     etiquetas: f.etiquetas.split(',').map((e) => e.trim()).filter(Boolean),
   });

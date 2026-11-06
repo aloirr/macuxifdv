@@ -27,3 +27,6 @@
 2026-11-05 — T-0084/T-0085 — fatias A e B: expandirAplicacao, trechoServeEm, ranking com aplicação e referência cruzada, contracts aditivos, consultas textos_produto/busca_produtos, FTS v3 (indice.ts), pull produto_referencia, PUT cadastro-catalogo, consumidor do ERP, ficha, "Serve em"/"Equivale a" e seção Catálogo do BKO; pendências: marcas do Promotor no servidor, SDK na consulta do aparelho, lista por linha e exportação (travadas)
 2026-11-05 — T-0085 — fatia B: B1 corrigido, referencias opcional no PUT cadastro-catalogo (ausente mantém, [] apaga), BKO omite sem marcas, testes na API e no BKO
 2026-11-05 — T-0085 — fatia B: 2 🔴 de UX do BKO (editores com abertura independente; oferece_junto da ficha no mapa de ids), com testes
+2026-11-06 — T-0085 — fatia C servidor: GET /v1/catalogo/exportacao ({produtos,marcas,truncado}, teto 20 mil), domain montarExportacao, testes de rota (perfil, licença, tenant)
+2026-11-06 — T-0085 — marcas pelo promotor.concorrentes@1 (API, exportação, PUT, consumidor do ERP), oferece junto por código, aplicação memorizada no aparelho (aguarda SDK); marca_nome da 0034 pendente
+2026-11-06 — T-0085 — marca_nome (retrato 0034): gravado no PUT e no consumidor do ERP, no pull e lido no aparelho/enriquecer via nomeMarcaDaReferencia; caso de banco do consumidor de referências; regras.md

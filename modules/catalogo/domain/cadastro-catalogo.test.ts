@@ -80,3 +80,10 @@ describe('validarCadastroCatalogo', () => {
     for (const e of validar({ oferece_junto: [P], etiquetas: ['', 'a', 'b', 'c', 'd'] })) expect(e.mensagem).toMatch(/\.$/);
   });
 });
+
+describe('validarCadastroCatalogo: oferece junto por código', () => {
+  it('RN-CAT-09: ids e códigos digitados somam no limite de 5', () => {
+    expect(validar({ oferece_junto: [11, 12, 13].map(idp), oferece_junto_codigos: ['A', 'B'] })).toEqual([]);
+    expect(regras({ oferece_junto: [11, 12, 13].map(idp), oferece_junto_codigos: ['A', 'B', 'C'] })).toEqual(['RN-CAT-09']);
+  });
+});

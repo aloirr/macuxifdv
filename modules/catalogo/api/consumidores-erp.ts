@@ -9,10 +9,11 @@
  * Os payloads vêm do `contracts` do Integracao (`EVENTO_ERP_*_ATUALIZADO`, leitura tolerante; T-0024), sem cópia local.
  */
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
-import { definirConsumidor, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
+import { CONSULTA_CONCORRENTES, type ConcorrentesSaida } from '@macuxi/promotor/contracts';
+import { definirConsumidor, ehConsultaIndisponivel, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import { CatalogoNoPayload, EstoquePayload, EVENTO_ERP_CATALOGO_NO_ATUALIZADO, EVENTO_ERP_ESTOQUE_ATUALIZADO, EVENTO_ERP_PRECO_ATUALIZADO, EVENTO_ERP_PRODUTO_ATUALIZADO, PrecoPayload, ProdutoPayload } from '../../integracao/contracts';
-import { parametrosDoTenant, planejarCadastroCatalogoDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, type EventoErpBase } from '../domain';
+import { codigoCompacto, parametrosDoTenant, planejarCadastroCatalogoDoErp, resolverReferenciasDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, type EventoErpBase } from '../domain';
 
 export class ReferenciaAusenteErp extends Error {
   constructor(
@@ -43,6 +44,8 @@ const CadastroCatalogoErp = z
     aplicacao: z.string().nullish().transform((v) => (v === null ? null : v)),
     oferece_junto: z.array(z.string()).nullish(),
     etiquetas: z.array(z.string()).nullish(),
+    /** Doc 06: marca pelo `external_id` ou pelo nome do concorrente do Promotor (RN-CAT-09). */
+    referencias: z.array(z.object({ marca_external_id: z.string().nullish(), marca_nome: z.string().nullish(), codigo: z.string() }).passthrough()).nullish(),
   })
   .passthrough();
 
@@ -173,17 +176,45 @@ export function criarConsumidorCatalogoNoDoErp(): ConsumidorEvento {
   });
 }
 
+/** RN-CAT-09: referências cruzadas do ERP (substituem o conjunto atual; ordem 1..3). `marca_nome` é o retrato do nome da marca do Promotor (0034). */
+async function aplicarReferenciasDoErp(ctx: ContextoConsumo, produto: string, externalId: string, entrada: NonNullable<z.infer<typeof CadastroCatalogoErp>['referencias']>): Promise<void> {
+  let marcas: ConcorrentesSaida['concorrentes'] = [];
+  if (entrada.length > 0) {
+    try {
+      marcas = (await ctx.consultar(CONSULTA_CONCORRENTES, { incluir_inativos: true })).concorrentes;
+    } catch (e) {
+      if (!ehConsultaIndisponivel(e)) throw e;
+      ctx.log.warn({ external_id: externalId }, 'referências do produto do ERP ignoradas: o cadastro de concorrentes (Promotor) não está disponível neste tenant');
+      return;
+    }
+  }
+  const r = resolverReferenciasDoErp(entrada.map((x) => ({ marca_external_id: x.marca_external_id, marca_nome: x.marca_nome, codigo: x.codigo })), marcas);
+  if (r.descartadas.length > 0) ctx.log.warn({ external_id: externalId, descartadas: r.descartadas.map((d) => d.motivo) }, 'referências do produto do ERP descartadas (marca desconhecida ou inativa, código inválido, repetida ou acima de 3)');
+  await ctx.db.query(`update catalogo.produto_referencia set deleted_at = now() where produto_id = $1::uuid and deleted_at is null`, [produto]);
+  let ordem = 1;
+  for (const ref of r.referencias) {
+    await ctx.db.query(
+      `insert into catalogo.produto_referencia (tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, marca_nome)
+       values (plataforma.tenant_atual(), $1::uuid, $2::uuid, $3, $4, $5::int, $6)`,
+      [produto, ref.marca_id, ref.codigo, codigoCompacto(ref.codigo), ordem++, ref.marca_nome.trim().slice(0, 120) || null],
+    );
+  }
+}
+
 /**
  * RN-CAT-11 / RN-CAT-09: aplicação, etiquetas e "oferece junto" do produto do ERP (upsert idempotente em `produto_conteudo` e
  * `produto_relacao` 'complementar'). Produto de "oferece junto" que ainda não chegou lança `ReferenciaAusenteErp` (a outbox
- * repete). As referências cruzadas (marca do Promotor) entram quando `promotor.concorrentes@1` existir.
+ * repete). Referências cruzadas: a marca é resolvida por `promotor.concorrentes@1` (doc 06); marca desconhecida ou inativa
+ * descarta a referência, com aviso no log. Sem o Promotor no tenant, as referências do ERP são ignoradas (não apaga as atuais).
  */
 async function aplicarCadastroCatalogoDoErp(p: { external_id: string; acao: 'criado' | 'atualizado' | 'inativado'; registro?: unknown }, ctx: ContextoConsumo, resolver: ResolverProdutos): Promise<void> {
   const lido = p.registro === undefined ? undefined : CadastroCatalogoErp.safeParse(p.registro);
   if (!lido?.success) return;
   const plano = planejarCadastroCatalogoDoErp({ external_id: p.external_id, acao: p.acao, registro: lido.data }, { aplicacaoMax: parametrosDoTenant(ctx.parametros()).aplicacao_max_cadastro });
-  if (plano.aplicacao === undefined && plano.etiquetas === undefined && plano.ofereceJunto === undefined) return;
+  const referenciasDoErp = p.acao === 'inativado' ? undefined : lido.data.referencias;
+  if (plano.aplicacao === undefined && plano.etiquetas === undefined && plano.ofereceJunto === undefined && referenciasDoErp === undefined) return;
   const produto = await produtoId(ctx, resolver, p.external_id);
+  if (referenciasDoErp !== undefined) await aplicarReferenciasDoErp(ctx, produto, p.external_id, referenciasDoErp ?? []);
   if (plano.aplicacao !== undefined || plano.etiquetas !== undefined) {
     await ctx.db.query(
       `insert into catalogo.produto_conteudo (tenant_id, produto_id, aplicacoes, etiquetas)
