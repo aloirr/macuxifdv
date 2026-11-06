@@ -20,7 +20,9 @@
 #   7. backup diário do Postgres (código do banco-dados em db/backup/): pasta /opt/macuxi/backup (os scripts chegam
 #      pelo implantar.sh, tirados da imagem publicada) e o timer do systemd macuxi-backup.timer, todo dia às 06:15 UTC
 #      (02:15 em Manaus), Persistent=true (backup perdido com a VM desligada roda quando ela volta), rodando
-#      /opt/macuxi/backup/backup-vm.sh como o usuário de deploy. Log: journalctl -u macuxi-backup.
+#      /opt/macuxi/backup/backup-vm.sh como o usuário de deploy. Log: journalctl -u macuxi-backup;
+#   8. alerta de saúde (T-0078; instalado pelo deploy desde a T-0086): /opt/macuxi/alerta-saude.sh e o timer
+#      macuxi-alerta.timer a cada 5 min, como o usuário de deploy. Log: journalctl -t macuxi-alerta.
 # Os segredos que vêm do GitHub (S3 e token do túnel) NÃO passam por aqui: o workflow grava /opt/macuxi/segredos.env.
 set -euo pipefail
 
@@ -223,6 +225,69 @@ if ! systemctl is-enabled --quiet macuxi-backup.timer || ! systemctl is-active -
   fi
 elif [ "$mudou_unidade" = 1 ]; then
   systemctl restart macuxi-backup.timer || echo "::warning::backup: restart do macuxi-backup.timer falhou"
+fi
+
+# ---------- 8. alerta de saúde (T-0078), instalado pelo deploy (T-0086; R-20261105-213451-testes) ----------
+# O workflow copia scripts/deploy/demo/* (alerta-saude.sh inclusive) para a pasta deste script. Timer do systemd a cada
+# 5 min, como o usuário de deploy; aviso no journal (journalctl -t macuxi-alerta) e no webhook do alerta.env, se houver.
+# Falha aqui é AVISO: o deploy da demo não depende do alerta.
+ORIGEM_ALERTA="$(cd "$(dirname "$0")" && pwd)/alerta-saude.sh"
+if [ -f "$ORIGEM_ALERTA" ]; then
+  if ! cmp -s "$ORIGEM_ALERTA" "$PASTA/alerta-saude.sh" 2>/dev/null; then
+    install -m 755 -o root -g root "$ORIGEM_ALERTA" "$PASTA/alerta-saude.sh"
+    log "alerta: $PASTA/alerta-saude.sh atualizado"
+  fi
+  # o cron manual do cabeçalho antigo do script, se alguém o criou, sai: o timer substitui (sem aviso em dobro)
+  [ -f /etc/cron.d/macuxi-alerta ] && { rm -f /etc/cron.d/macuxi-alerta; log "alerta: /etc/cron.d/macuxi-alerta removido (o timer substitui)"; }
+  ALERTA_SVC=/etc/systemd/system/macuxi-alerta.service
+  ALERTA_SVC_NOVO="# Gerado por scripts/deploy/demo/preparar-vm.sh (T-0086). Não edite à mão.
+[Unit]
+Description=Macuxi demo: alerta de saude (/v1/saude, T-0078)
+ConditionPathExists=$PASTA/alerta-saude.sh
+
+[Service]
+Type=oneshot
+User=$USUARIO
+Group=$USUARIO
+Environment=MACUXI_ALERTA_NOME=demo
+Environment=MACUXI_ALERTA_ENV=$PASTA/alerta.env
+Environment=MACUXI_ALERTA_ESTADO=$PASTA/.alerta.estado
+ExecStart=$PASTA/alerta-saude.sh
+TimeoutStartSec=60"
+  ALERTA_TMR=/etc/systemd/system/macuxi-alerta.timer
+  ALERTA_TMR_NOVO="# Gerado por scripts/deploy/demo/preparar-vm.sh (T-0086). Não edite à mão.
+[Unit]
+Description=Macuxi demo: alerta de saude a cada 5 minutos
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target"
+  mudou_alerta=0
+  if [ "$(cat "$ALERTA_SVC" 2>/dev/null)" != "$ALERTA_SVC_NOVO" ]; then
+    printf '%s\n' "$ALERTA_SVC_NOVO" > "$ALERTA_SVC"; chmod 644 "$ALERTA_SVC"; mudou_alerta=1
+  fi
+  if [ "$(cat "$ALERTA_TMR" 2>/dev/null)" != "$ALERTA_TMR_NOVO" ]; then
+    printf '%s\n' "$ALERTA_TMR_NOVO" > "$ALERTA_TMR"; chmod 644 "$ALERTA_TMR"; mudou_alerta=1
+  fi
+  if [ "$mudou_alerta" = 1 ]; then
+    systemctl daemon-reload || echo "::warning::alerta: systemctl daemon-reload falhou"
+    log "alerta: unidades macuxi-alerta.service/.timer gravadas"
+  fi
+  if ! systemctl is-enabled --quiet macuxi-alerta.timer || ! systemctl is-active --quiet macuxi-alerta.timer; then
+    if systemctl enable --now macuxi-alerta.timer >/dev/null 2>&1; then
+      log "alerta: timer ligado (a cada 5 min)"
+    else
+      echo "::warning::alerta: não consegui ligar o macuxi-alerta.timer (systemctl status macuxi-alerta.timer)"
+    fi
+  elif [ "$mudou_alerta" = 1 ]; then
+    systemctl restart macuxi-alerta.timer || echo "::warning::alerta: restart do macuxi-alerta.timer falhou"
+  fi
+else
+  echo "::warning::alerta: $ORIGEM_ALERTA ausente; alerta de saúde não instalado"
 fi
 
 log "pronto: docker $(docker --version | awk '{print $3}' | tr -d ,), compose $(docker compose version --short), fuso $(timedatectl show -p Timezone --value)"

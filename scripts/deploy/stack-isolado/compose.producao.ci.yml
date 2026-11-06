@@ -1,0 +1,52 @@
+# Sobreposição do compose de PRODUÇÃO para o stack isolado no GitHub Actions (T-0086; job "stack-producao" do
+# .github/workflows/stack-isolado.yml). NUNCA vai para a VM: o "producao — publicar" só copia scripts/deploy/producao/*
+# (+ o alerta-saude.sh). No runner, o job grava este arquivo e o s3-falso.mjs em /opt/macuxi e exporta
+#   COMPOSE_FILE=/opt/macuxi/compose.yml:/opt/macuxi/compose.ci.yml
+# para o implantar.sh e o banco-dbaas.sh rodarem SEM mudança. Diferenças em relação à VM:
+#   1. Object Storage → "s3-falso" (SigV4 conferida com a credencial de TESTE do job), bucket macuxi-prod;
+#   2. cloudflared desligado (perfil que ninguém liga);
+#   3. o "DBaaS" é um Postgres 16 de teste no próprio runner (fora do compose), com TLS obrigatório (certificado do job,
+#      verify-full) e admin SEM superusuário — os dois vêm do banco.env/admin.env/certs que o job grava, não daqui.
+
+x-sem-magalu: &sem-magalu
+  - 'br-se1.magaluobjects.com:127.0.0.1'
+
+services:
+  s3-falso:
+    image: node:24-alpine
+    restart: unless-stopped
+    command: ['node', '/s3-falso.mjs']
+    env_file:
+      - path: segredos.env
+    environment:
+      MACUXI_S3_REGIAO: br-se1
+      MACUXI_S3_BUCKET: macuxi-prod
+    volumes:
+      - ./s3-falso.mjs:/s3-falso.mjs:ro
+    networks: [macuxi]
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:9000/saude').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    environment:
+      MACUXI_S3_ENDPOINT: http://s3-falso:9000
+    extra_hosts: *sem-magalu
+    depends_on:
+      s3-falso:
+        condition: service_healthy
+
+  worker:
+    environment:
+      MACUXI_S3_ENDPOINT: http://s3-falso:9000
+    extra_hosts: *sem-magalu
+
+  backup:
+    environment:
+      MACUXI_S3_ENDPOINT: http://s3-falso:9000
+    extra_hosts: *sem-magalu
+
+  cloudflared:
+    profiles: [ci-sem-tunel]
