@@ -1,33 +1,22 @@
 /**
- * Formato dos dados da exportação do catálogo (RF-CAT-09, RN-CAT-09, RN-CAT-11; T-0085).
- *
- * PROVISÓRIO: este schema Zod vive aqui até a fatia B publicar o contrato do produto (aplicação, referências,
- * oferece junto, hierarquia) em `../../contracts`; quando chegar, este arquivo passa a só reexportar de lá.
+ * Formato dos dados da exportação do catálogo (RF-CAT-09, RN-CAT-09, RN-CAT-11; T-0085 fatia C): só reexporta o contrato
+ * da rota `GET /v1/catalogo/exportacao` (fatia B) e os limites do domain. A API confere perfil (analista e admin, ação
+ * `produto.enriquecer`), licença do Catálogo e tenant (RLS); o BKO só valida a forma da resposta.
  */
-import { Id } from '@macuxi/core/contracts';
-import { z } from 'zod';
+import { ProdutoExportacao, RespostaExportacao, ROTAS_CATALOGO } from '../../contracts';
+import { LIMITES_CADASTRO_CATALOGO } from '../../domain/cadastro-catalogo';
+import { MAX_OFERECE_JUNTO_EXPORTACAO, MAX_REFERENCIAS_EXPORTACAO } from '../../domain/exportacao';
 
-export const MAX_REFERENCIAS = 3;
-export const MAX_CODIGO_REFERENCIA = 30;
-export const MAX_OFERECE_JUNTO = 5;
+export { ProdutoExportacao, RespostaExportacao };
+/** Resposta da rota de exportação, como o layout a consome. */
+export const DadosExportacao = RespostaExportacao;
+export type DadosExportacao = RespostaExportacao;
+
+export const MAX_REFERENCIAS = MAX_REFERENCIAS_EXPORTACAO;
+export const MAX_CODIGO_REFERENCIA = LIMITES_CADASTRO_CATALOGO.codigo;
+export const MAX_OFERECE_JUNTO = MAX_OFERECE_JUNTO_EXPORTACAO;
+/** RN-CAT-11: `aplicacao_max_cadastro` padrão (2.000); o cadastro e o ERP já cortam, aqui é só a defesa do layout. */
 export const MAX_APLICACAO = 2000;
 
-/** Rota que a fatia B deve expor (somente leitura, escopo do tenant). */
-export const ROTA_EXPORTACAO = '/catalogo/exportacao';
-
-export const ProdutoExportacao = z.object({
-  id: Id,
-  codigo: z.string().min(1),
-  descricao: z.string(),
-  aplicacao: z.string().nullable(),
-  hierarquia: z.object({ sistema: z.string().nullable(), grupo: z.string().nullable(), linha: z.string().nullable() }),
-  referencias: z.array(z.object({ marca_id: Id, codigo: z.string().min(1).max(MAX_CODIGO_REFERENCIA) })).max(MAX_REFERENCIAS),
-  oferece_junto: z.array(Id).max(MAX_OFERECE_JUNTO),
-});
-export type ProdutoExportacao = z.infer<typeof ProdutoExportacao>;
-
-export const MarcaConcorrente = z.object({ id: Id, nome: z.string() });
-export type MarcaConcorrente = z.infer<typeof MarcaConcorrente>;
-
-export const DadosExportacao = z.object({ produtos: z.array(ProdutoExportacao), marcas: z.array(MarcaConcorrente) });
-export type DadosExportacao = z.infer<typeof DadosExportacao>;
+/** Caminho para o `api()` do BKO (a base `/v1` vem do cliente), como o `BASE = '/catalogo'` da página. */
+export const ROTA_EXPORTACAO = `/catalogo/${ROTAS_CATALOGO.exportacao}`;

@@ -51,7 +51,8 @@ export function montarCatalogo(dados: DadosExportacao, opcoes: { sistema?: strin
         .filter((c): c is string => !!c)
         .slice(0, MAX_OFERECE_JUNTO),
       equivale_a: p.referencias.slice(0, MAX_REFERENCIAS).map((r) => {
-        const m = marcas.get(r.marca_id);
+        // marca ativa do cadastro do Promotor; senão o retrato gravado na referência; senão só o código (RN-CAT-09)
+        const m = marcas.get(r.marca_id) ?? r.marca_nome?.trim();
         return m ? `${m} ${r.codigo}` : r.codigo;
       }),
     });

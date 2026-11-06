@@ -2,11 +2,12 @@
 
 /** Painel de exportação do catálogo em PDF e Excel (RF-CAT-09, T-0085). A proteção real é na API. */
 import { useVisaoShell } from '@macuxi/platform-sdk/react';
-import { api, ApiRequestError, downloadBlob, errorMessage, imprimirHtml, useSession } from '@macuxi/platform-sdk/web';
+import { api, downloadBlob, errorMessage, imprimirHtml, useSession } from '@macuxi/platform-sdk/web';
 import { Button, DEFAULT_TZ, ErrorBlock, LoadingBlock, Notice, Panel, SelectField } from '@macuxi/ui/web';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { csvDoCatalogo } from './excel';
+import { LIMITE_EXPORTACAO } from '../../domain/exportacao';
 import { DadosExportacao, ROTA_EXPORTACAO } from './formato';
 import { montarCatalogo, sistemasDisponiveis } from './layout';
 import { htmlDoCatalogo, nomeArquivoCatalogo } from './pdf';
@@ -30,7 +31,6 @@ export function ExportacaoCatalogo() {
   const sistemas = useMemo(() => (dados.data ? sistemasDisponiveis(dados.data) : []), [dados.data]);
   if (!permitido) return null;
 
-  const naoPublicado = dados.error instanceof ApiRequestError && dados.error.status === 404;
   const gerar = (acao: (c: ReturnType<typeof montarCatalogo>, gerado_em: string, nome: string) => void | Promise<void>) => {
     if (!dados.data) return;
     setErro(null);
@@ -41,9 +41,13 @@ export function ExportacaoCatalogo() {
 
   return (
     <Panel label="Exportação" title="Exportar catálogo">
-      {naoPublicado && <Notice tone="info">A exportação fica disponível quando o servidor publicar o cadastro do catálogo (T-0085).</Notice>}
-      {dados.isError && !naoPublicado && <ErrorBlock message={errorMessage(dados.error)} onRetry={() => void dados.refetch()} />}
+      {dados.isError && <ErrorBlock message={errorMessage(dados.error)} onRetry={() => void dados.refetch()} />}
       {dados.isPending && autenticado && <LoadingBlock label="Carregando o cadastro…" />}
+      {dados.data?.truncado && (
+        <Notice tone="warning">
+          O catálogo passa do teto de {LIMITE_EXPORTACAO.toLocaleString('pt-BR')} produtos: a exportação sai só com os primeiros {LIMITE_EXPORTACAO.toLocaleString('pt-BR')}, por código. Exporte um sistema por vez.
+        </Notice>
+      )}
       {dados.data && (
         <div className="flex flex-wrap items-end gap-3">
           <SelectField label="Sistema" value={sistema} onChange={(e) => setSistema(e.target.value)} data-testid="catalogo.exportacao.sistema">

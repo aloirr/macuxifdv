@@ -60,7 +60,7 @@ export function CatalogoPage() {
             </Button>
           ))}
       </nav>
-      <ExportacaoCatalogo />
+      {aba === 'produtos' && <ExportacaoCatalogo />}
       {aba === 'produtos' && <Produtos filtros={filtros} mudar={mudar} podeConteudo={podeConteudo} />}
       {aba === 'sinonimos' && <Sinonimos />}
       {aba === 'sem-resultado' && <SemResultado />}

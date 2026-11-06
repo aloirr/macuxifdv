@@ -7,7 +7,7 @@ import { htmlDoCatalogo, nomeArquivoCatalogo } from './pdf';
 import { podeExportarCatalogo } from './permissao';
 
 const base = DADOS_EXEMPLO.produtos[1]!;
-const com = (p: Partial<typeof base>): Dados => ({ marcas: DADOS_EXEMPLO.marcas, produtos: [{ ...base, ...p }] });
+const com = (p: Partial<typeof base>): Dados => ({ marcas: DADOS_EXEMPLO.marcas, truncado: false, produtos: [{ ...base, ...p }] });
 
 describe('RF-CAT-09: layout do catálogo', () => {
   it('RF-CAT-09: colunas Código · Aplicação · Oferece junto · Equivale a', () => {
@@ -24,6 +24,10 @@ describe('RF-CAT-09: layout do catálogo', () => {
     expect(i.equivale_a).toEqual(['Marca Alfa A-100', 'Z-9']);
     expect(i.aplicacao).toBe('Dianteiro\nLado esquerdo');
   });
+  it('RN-CAT-09: marca fora da lista de ativas usa o retrato marca_nome da referência', () => {
+    const i = montarCatalogo(com({ referencias: [{ marca_id: 'inativa', marca_nome: 'Marca Gama', codigo: 'G-1' }, { marca_id: 'm2', marca_nome: 'Nome antigo', codigo: 'B-2' }] }))[0]!.itens[0]!;
+    expect(i.equivale_a).toEqual(['Marca Gama G-1', 'Marca Beta B-2']);
+  });
   it('RN-CAT-11: aplicação nula vira vazio e texto acima de 2.000 é cortado', () => {
     expect(montarCatalogo(com({ aplicacao: null }))[0]!.itens[0]!.aplicacao).toBe('');
     expect(montarCatalogo(com({ aplicacao: 'a'.repeat(2500) }))[0]!.itens[0]!.aplicacao).toHaveLength(2000);
@@ -32,7 +36,8 @@ describe('RF-CAT-09: layout do catálogo', () => {
     const ids = Array.from({ length: 8 }, (_, n) => ({ ...base, id: `c${n}`, codigo: `C${n}` }));
     const dados: Dados = {
       marcas: DADOS_EXEMPLO.marcas,
-      produtos: [{ ...base, id: 'x', codigo: 'X', oferece_junto: ids.map((p) => p.id), referencias: Array.from({ length: 5 }, (_, n) => ({ marca_id: 'm1', codigo: `R${n}` })) }, ...ids],
+      truncado: false,
+      produtos: [{ ...base, id: 'x', codigo: 'X', oferece_junto: ids.map((p) => p.id), referencias: Array.from({ length: 5 }, (_, n) => ({ marca_id: 'm1', marca_nome: null, codigo: `R${n}` })) }, ...ids],
     };
     const i = montarCatalogo(dados)[0]!.itens.find((it) => it.codigo === 'X')!;
     expect(i.oferece_junto).toHaveLength(5);
@@ -112,17 +117,22 @@ describe('RF-CAT-09: permissão da exportação', () => {
   });
 });
 
-describe('RN-CAT-09: schema provisório', () => {
+describe('RN-CAT-09: contrato da rota (RespostaExportacao)', () => {
+  it('truncado ausente na resposta vira false', () => {
+    const { truncado: _t, ...semTruncado } = DADOS_EXEMPLO;
+    expect(DadosExportacao.parse(semTruncado).truncado).toBe(false);
+    expect(DadosExportacao.parse({ ...DADOS_EXEMPLO, truncado: true }).truncado).toBe(true);
+  });
   it('aceita os dados de exemplo', () => expect(DadosExportacao.safeParse(DADOS_EXEMPLO).success).toBe(true));
   it('rejeita 4 referências', () => {
-    const r = Array.from({ length: 4 }, (_, n) => ({ marca_id: 'm1', codigo: `R${n}` }));
+    const r = Array.from({ length: 4 }, (_, n) => ({ marca_id: 'm1', marca_nome: null, codigo: `R${n}` }));
     expect(ProdutoExportacao.safeParse({ ...base, referencias: r }).success).toBe(false);
   });
   it('rejeita 6 oferece junto', () => {
     expect(ProdutoExportacao.safeParse({ ...base, oferece_junto: ['a', 'b', 'c', 'd', 'e', 'f'] }).success).toBe(false);
   });
   it('rejeita código de referência com 31 caracteres e aceita 30', () => {
-    expect(ProdutoExportacao.safeParse({ ...base, referencias: [{ marca_id: 'm1', codigo: 'a'.repeat(31) }] }).success).toBe(false);
-    expect(ProdutoExportacao.safeParse({ ...base, referencias: [{ marca_id: 'm1', codigo: 'a'.repeat(30) }] }).success).toBe(true);
+    expect(ProdutoExportacao.safeParse({ ...base, referencias: [{ marca_id: 'm1', marca_nome: null, codigo: 'a'.repeat(31) }] }).success).toBe(false);
+    expect(ProdutoExportacao.safeParse({ ...base, referencias: [{ marca_id: 'm1', marca_nome: null, codigo: 'a'.repeat(30) }] }).success).toBe(true);
   });
 });
