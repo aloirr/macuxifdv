@@ -503,3 +503,4 @@ export * from './inicio-parametros';
 export * from './farol';
 export * from './etapas-pendencia';
 export * from './plano-rv';
+export * from './plataforma';

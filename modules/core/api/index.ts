@@ -10,9 +10,10 @@
  * Segredo do JWT: `MACUXI_JWT_SEGREDO` (mín. 32 caracteres); sem ele o login responde 503 e ninguém autentica (falha fechada).
  */
 import { definirModuloApi, definirTarefa, type ModuloApi } from '@macuxi/platform-sdk';
-import { LoginSenhaRequestSchema, LogoutRequestSchema, RefreshRequestSchema } from '../contracts';
+import { DesafioSchema, LoginPlataformaSchema, LoginSenhaRequestSchema, LogoutRequestSchema, PrimeiroAcessoSchema, RefreshRequestSchema, RegerarRecuperacaoSchema, SegundoFatorSchema, TotpConfirmarSchema } from '../contracts';
 import { manifest } from '../manifest';
 import { criarAutenticacao, type DepsAutenticacao } from './autenticacao';
+import { criarSuperAdmin, type DepsSuperAdmin } from './super-admin';
 import { carteiraDoUsuario } from './carteira';
 import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
@@ -38,9 +39,18 @@ import { provedoresSyncCore } from './sync';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
 
 const CINCO_MINUTOS = 5 * 60_000;
+const QUINZE_MINUTOS = 15 * 60_000;
 
-export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
+/** Segredos do portal (ADR 0029), lidos do ambiente a cada uso; sem eles as rotas `plataforma/auth/*` respondem 503. */
+const depsPlataformaDoAmbiente: DepsSuperAdmin = {
+  segredo: () => process.env.MACUXI_JWT_SEGREDO_PLATAFORMA,
+  chaveTotp: () => process.env.MACUXI_CHAVE_TOTP,
+  convite: () => process.env.MACUXI_SUPERADMIN_CONVITE,
+};
+
+export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuperAdmin = depsPlataformaDoAmbiente): ModuloApi {
   const auth = criarAutenticacao(deps);
+  const sa = criarSuperAdmin(plataforma);
   return definirModuloApi({
     manifesto: manifest,
     rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes],
@@ -74,11 +84,21 @@ export function criarModuloApiCore(deps: DepsAutenticacao): ModuloApi {
         corpo: LogoutRequestSchema,
         executar: (ctx) => auth.logout(ctx),
       },
+      // T-0087 / ADR 0029: identidade do super-admin de plataforma (limite por IP: 5/15 min no primeiro acesso, 10/5 min no resto)
+      { metodo: 'POST', caminho: 'plataforma/auth/primeiro-acesso', limite: { max: 5, janelaMs: QUINZE_MINUTOS }, corpo: PrimeiroAcessoSchema, executar: (ctx) => sa.primeiroAcesso(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/login', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: LoginPlataformaSchema, executar: (ctx) => sa.login(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/totp/iniciar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: DesafioSchema, executar: (ctx) => sa.totpIniciar(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/totp/confirmar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: TotpConfirmarSchema, executar: (ctx) => sa.totpConfirmar(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/segundo-fator', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: SegundoFatorSchema, executar: (ctx) => sa.segundoFator(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/renovar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, executar: (ctx) => sa.renovar(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/sair', status: 204, limite: { max: 10, janelaMs: CINCO_MINUTOS }, executar: (ctx) => sa.sair(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/recuperacao/regerar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: RegerarRecuperacaoSchema, executar: (ctx) => sa.regerarRecuperacao(ctx) },
     ],
     servicos: {
       autenticar: (cabecalhos, banco) => auth.autenticar(cabecalhos, banco),
       carteira: (usuario, banco, opcoes) => carteiraDoUsuario(usuario, banco, opcoes),
       usuariosVisiveis: (usuario, banco) => usuariosVisiveisDoUsuario(usuario, banco),
+      autenticarSuperAdmin: (cabecalhos, banco) => sa.autenticarSuperAdmin(cabecalhos, banco),
     },
   });
 }
