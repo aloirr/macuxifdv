@@ -8,6 +8,7 @@ name: CI
 #               docs/produto/**) = roda só ela e o ci-ok; o resto de docs/** não entra (a guarda R4 prova que nenhum
 #               código lê os caminhos de coordenação).
 #   lint · typecheck · testes-pacotes (Postgres) · testes-integracao (tests/, Postgres) · build (BKO + bundle do app)
+#   testes-db-sem-superusuario  suíte do @macuxi/db com admin sem superusuário, como o do DBaaS (T-0075)
 #   ci-ok       agrega todos: é o check a olhar.
 # Matrizes (ADR 0014 §custo; repositório privado no plano gratuito, minuto cobrado por job arredondado para cima):
 #   PR e push ao main          → ENXUTA: typecheck e testes de pacotes em 1 grupo; tests/ em 2 partes.
@@ -298,6 +299,52 @@ jobs:
           done
           exit $falhou
 
+  # T-0075 (R-20261105-111837, autorizado pelo Alexandre em R-20261105-191229): a suíte do @macuxi/db com um admin SEM
+  # superusuário, como o do DBaaS da Magalu (LOGIN, CREATEDB, CREATEROLE, sem SUPERUSER/BYPASSRLS/REPLICATION, membro de
+  # pg_read_all_data e pg_write_all_data). Runner e Postgres próprios: o script exige servidor limpo (sem macuxi_teste_*)
+  # e apaga os papéis da aplicação para o admin recriá-los. MACUXI_PG_ADMIN_SEM_SUPER=1 faz o globalSetup falhar se o
+  # admin ignorar RLS (o modo nunca passa calado com superusuário). Os casos de up/down com dados antes da 0031 pulam
+  # neste modo; o testes-pacotes cobre esses casos com superusuário. Entra em todo escopo completo e no ci-ok.
+  testes-db-sem-superusuario:
+    name: testes do @macuxi/db com admin sem superusuário (simula o DBaaS)
+    needs: governanca
+    if: ${{ !cancelled() && needs.governanca.outputs.escopo == 'completo' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+          TZ: UTC
+          PGTZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar
+
+      # Roda como o superusuário do service (MACUXI_PG_ADMIN_USUARIO=postgres do env global); recusa servidor não local.
+      - name: admin sem superusuário (como o do DBaaS)
+        run: pnpm --filter @macuxi/db admin-sem-superusuario
+
+      # Senha pública do modo (db/scripts/admin-sem-superusuario.ts): só existe no Postgres descartável deste job.
+      - name: testes do @macuxi/db sem superusuário
+        env:
+          MACUXI_PG_ADMIN_USUARIO: macuxi_admin_sem_super
+          MACUXI_PG_ADMIN_SENHA: macuxi_admin_sem_super_ci
+          MACUXI_PG_ADMIN_SEM_SUPER: '1'
+        run: pnpm --filter @macuxi/db test
+
   build:
     name: build do Backoffice Web e bundle do app
     needs: governanca
@@ -340,7 +387,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: ${{ always() }}
-    needs: [governanca, lint, typecheck, testes-pacotes, testes-integracao, build]
+    needs: [governanca, lint, typecheck, testes-pacotes, testes-integracao, testes-db-sem-superusuario, build]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
