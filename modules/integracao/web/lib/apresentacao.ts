@@ -89,6 +89,9 @@ export const ROTULO_AVISO_LINHA: Record<string, string> = {
   duplicado_no_lote: 'Repetido no lote',
   cadastro_incompleto: 'Cadastro incompleto',
   referencia_fraca_ausente: 'Produto sem nó do catálogo',
+  aplicacao_cortada: 'Aplicação cortada em 2.000 caracteres',
+  referencias_cortadas: 'Referências cortadas em 3',
+  oferece_junto_cortado: 'Oferece junto cortado em 5',
 };
 
 export const ROTULO_ALERTA_PEDIDO_AGUARDANDO_CONECTOR = 'Pedido aguardando o Conector';

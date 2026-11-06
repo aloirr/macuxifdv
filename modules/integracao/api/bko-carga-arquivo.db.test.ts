@@ -114,6 +114,8 @@ describe.skipIf(semBanco())('Carga por arquivo × Postgres', () => {
           }) as never,
           log,
           consultar: async () => ({ resultados: [] }),
+          parametros: () => ({}),
+          fuso: () => 'America/Manaus',
         } as unknown as ContextoConsumo,
       ),
     );

@@ -11,12 +11,16 @@
  */
 import { ErroHttpModulo, ErroNaoEncontrado, type ClienteBanco, type ContextoRota, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
-import { CargaArquivoEntrada, Entidade, ErrosLoteQuery, ModoCarga, ParamsLote, ParamsSessaoArquivo, ProgressoSessaoArquivo, QueryConsultaLote, type CargaArquivoAceita, type ErrosLoteResposta, type EstadoLote, type LinhaErro, type LoteResultado } from '../contracts';
+import { CargaArquivoEntrada, ConferenciaArquivo, ConferirArquivoEntrada, Entidade, type OrdemCargaResposta, ErrosLoteQuery, ModoCarga, ParamsLote, ParamsSessaoArquivo, ProgressoSessaoArquivo, QueryConsultaLote, type CargaArquivoAceita, type ErrosLoteResposta, type EstadoLote, type LinhaErro, type LoteResultado } from '../contracts';
 import {
   autorizarAcaoIntegracao,
   chaveDaParte,
   conferirParteDaSessao,
+  conferirRegistrosDoArquivo,
   converterCsvParaLote,
+  errosParaCsv,
+  nomeArquivoErros,
+  ordemDeCargaDoPortal,
   hashConteudoArquivo,
   lerChaveDaParte,
   progressoSessaoArquivo,
@@ -109,6 +113,7 @@ export const rotaCargaArquivo: RotaModulo = {
   metodo: 'POST',
   caminho: 'cargas-arquivo',
   acao: 'carga.arquivo',
+  superAdmin: 'aceita',
   carteira: 'nao_se_aplica',
   corpo: CargaArquivoEntrada,
   status: 202,
@@ -245,6 +250,7 @@ export const rotaProgressoSessaoArquivo: RotaModulo = {
   metodo: 'GET',
   caminho: 'cargas-arquivo/sessoes/:sessao_id',
   acao: 'monitor.ver',
+  superAdmin: 'aceita',
   carteira: 'nao_se_aplica',
   params: ParamsSessaoArquivo,
   executar: async (ctx: ContextoRota<unknown, unknown, z.infer<typeof ParamsSessaoArquivo>>): Promise<ProgressoSessaoArquivo> => {
@@ -309,6 +315,7 @@ export const rotaLote: RotaModulo = {
   metodo: 'GET',
   caminho: 'lotes/:id',
   acao: 'monitor.ver',
+  superAdmin: 'aceita',
   carteira: 'nao_se_aplica',
   params: ParamsLote,
   query: QueryConsultaLote,
@@ -329,6 +336,7 @@ export const rotaErrosLote: RotaModulo = {
   metodo: 'GET',
   caminho: 'lotes/:id/erros',
   acao: 'monitor.ver',
+  superAdmin: 'aceita',
   carteira: 'nao_se_aplica',
   params: ParamsLote,
   query: ErrosLoteQuery,
@@ -351,5 +359,92 @@ export const rotaErrosLote: RotaModulo = {
       );
       return { itens: rows, total: Number(total[0]?.n ?? 0) };
     });
+  },
+};
+
+// ---------------------------------------------------------------------------------------------------------------- portal de implantação (T-0087)
+
+const MSG_LOTE_NAO_ENCONTRADO = 'Lote não encontrado. Atualize a lista em Integração ERP > Lotes.';
+/** Teto de linhas do erros.csv: o lote aceita até `limiteRegistrosLote` linhas, e cada uma gera no máximo um erro. */
+const LIMITE_LINHAS_ERROS_CSV = 100_000;
+
+/** `GET lotes/:id/erros.csv`: todos os erros do lote para corrigir na planilha. O CSV é montado na hora e não fica guardado. */
+export const rotaErrosLoteCsv: RotaModulo = {
+  metodo: 'GET',
+  caminho: 'lotes/:id/erros.csv',
+  acao: 'monitor.ver',
+  superAdmin: 'aceita',
+  carteira: 'nao_se_aplica',
+  params: ParamsLote,
+  tipoConteudo: 'text/csv; charset=utf-8',
+  nomeArquivo: (e) => nomeArquivoErros((e.params as { id: string }).id),
+  executar: async (ctx: ContextoRota<unknown, unknown, z.infer<typeof ParamsLote>>): Promise<string> => {
+    const tenantId = ctx.usuario.tenant_id;
+    return ctx.comTenant(async (db) => {
+      if (!(await loteExiste(db, tenantId, ctx.params.id))) throw new ErroNaoEncontrado('LOTE_NAO_ENCONTRADO', MSG_LOTE_NAO_ENCONTRADO);
+      const { rows } = await db.query<LinhaErro>(
+        `select indice, external_id, codigo, campo, mensagem, reprocessavel, origem from integracao.lote_linha_erro
+          where tenant_id = $1 and lote_id = $2 order by indice, origem limit $3`,
+        [tenantId, ctx.params.id, LIMITE_LINHAS_ERROS_CSV],
+      );
+      ctx.log.info({ lote_id: ctx.params.id, erros: rows.length }, 'erros do lote exportados em csv');
+      return errosParaCsv(rows);
+    });
+  },
+};
+
+/** `GET ordem-carga`: os cartões do portal na ordem de dependência do Hub (RN-INT-04), sem lista própria no front. */
+export const rotaOrdemCarga: RotaModulo = {
+  metodo: 'GET',
+  caminho: 'ordem-carga',
+  acao: 'monitor.ver',
+  superAdmin: 'aceita',
+  carteira: 'nao_se_aplica',
+  executar: async (): Promise<OrdemCargaResposta> => ({ itens: ordemDeCargaDoPortal() }),
+};
+
+/**
+ * `POST cargas-arquivo/conferir` ("Conferir sem gravar"): lê o CSV e valida cada linha com o mesmo schema do lote, sem criar lote,
+ * staging, evento nem auditoria de conteúdo. Não confere referências entre entidades (isso é ao gravar). O log só leva contagens.
+ */
+export const rotaConferirArquivo: RotaModulo = {
+  metodo: 'POST',
+  caminho: 'cargas-arquivo/conferir',
+  acao: 'carga.arquivo',
+  superAdmin: 'aceita',
+  carteira: 'nao_se_aplica',
+  corpo: ConferirArquivoEntrada,
+  status: 200,
+  limiteCorpoBytes: 8 * 1024 * 1024,
+  executar: async (ctx: ContextoRota<ConferirArquivoEntrada>): Promise<ConferenciaArquivo> => {
+    const perm = autorizarAcaoIntegracao('carga.arquivo', ctx.usuario.perfil);
+    if (!perm.ok) throw new ErroHttpModulo(403, 'PERFIL_SEM_ACESSO', perm.mensagem);
+    const c = ctx.corpo;
+    const entidade = Entidade.safeParse(c.entidade);
+    if (!entidade.success) recusar('entidade_desconhecida', `Entidade desconhecida. Use uma de: ${Entidade.options.join(', ')}.`);
+    const modo = ModoCarga.safeParse(c.modo ?? 'delta');
+    if (!modo.success) recusar('modo_invalido', 'Modo inválido. Use "delta" (só o que mudou) ou "completo" (a lista inteira da entidade).');
+    const parametros = lerParametrosHub(ctx.parametros(), ctx.log);
+    const conv = converterCsvParaLote({
+      entidade: entidade.data,
+      modo: modo.data,
+      texto: c.conteudo,
+      agora: ctx.agora().toISOString(),
+      sessaoId: sessaoDoArquivo('conferencia'),
+      ...(c.linha_inicial ? { parte: { sessaoId: sessaoDoArquivo('conferencia'), parte: 1, totalPartes: 1, linhaInicial: c.linha_inicial } } : {}),
+      limiteLinhas: parametros.limiteRegistrosLote,
+      limiteBytes: parametros.limiteCorpoLoteBytes,
+    });
+    if (!conv.ok) return recusar(conv.codigo, conv.mensagem, conv.classe === 'limite' ? { limite: true } : undefined);
+    const r = conferirRegistrosDoArquivo({
+      entidade: entidade.data,
+      registros: conv.registros,
+      linhasArquivo: conv.linhasArquivo,
+      linhasInvalidasLeitura: conv.linhasInvalidas,
+      totalLinhas: conv.totalLinhas,
+      limite: c.limite_erros ?? 200,
+    });
+    ctx.log.info({ entidade: entidade.data, modo: modo.data, linhas: r.linhas_lidas, com_erro: r.linhas_com_erro }, 'arquivo conferido sem gravar');
+    return { entidade: entidade.data, modo: modo.data, ...r };
   },
 };

@@ -43,6 +43,7 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
     metodo: 'GET',
     caminho: 'conectores',
     acao: 'monitor.ver',
+    superAdmin: 'aceita',
     carteira: 'nao_se_aplica',
     executar: async (ctx): Promise<{ itens: ConectorResumo[] }> =>
       ctx.comTenant(async (db) => {
@@ -59,6 +60,7 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
     metodo: 'POST',
     caminho: 'conectores',
     acao: 'conector.gerenciar',
+    superAdmin: 'aceita',
     carteira: 'nao_se_aplica',
     corpo: ConectorCriar,
     status: 201,
@@ -105,6 +107,7 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
     metodo: 'PATCH',
     caminho: 'conectores/:id',
     acao: 'conector.gerenciar',
+    superAdmin: 'aceita',
     carteira: 'nao_se_aplica',
     params: Params,
     corpo: ConectorAtualizar,
@@ -140,7 +143,7 @@ export function criarRotasConectores(o: { pepper: () => string | undefined }): R
           await db.query(
             `update integracao.credencial set revogada_em = $3, revogada_por = $4, motivo_revogacao = 'Conector desativado'
               where tenant_id = $1 and conector_id = $2 and revogada_em is null`,
-            [tenantId, atual.id, agora, ctx.usuario.id],
+            [tenantId, atual.id, agora, ctx.superAdmin ? null : ctx.usuario.id],
           );
         }
         await tx.auditar({
