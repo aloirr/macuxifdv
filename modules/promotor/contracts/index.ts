@@ -10,3 +10,4 @@ export * from './cadastros';
 export * from './entidades';
 export * from './relatorios';
 export * from './cadastros-bko';
+export * from './consultas';

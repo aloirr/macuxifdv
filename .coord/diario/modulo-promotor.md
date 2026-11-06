@@ -11,3 +11,4 @@
 2026-11-05 — T-0072 — Promotor: 9 amarelos do #91 corrigidos em tela-loja.tsx
 2026-11-05 — ajuste de UX — ícone camera nos botões Foto antes/depois da gôndola (tela-loja.tsx)
 2026-11-05 — T-0024 — teste conferirEventosPublicados do Promotor (contracts/eventos-definicoes.test.ts); schemas já no padrão
+2026-11-06 — T-0085 — consulta promotor.concorrentes@1 (contrato, provedor na API, manifest, testes) para o Catálogo ler as marcas; avisos enviados
