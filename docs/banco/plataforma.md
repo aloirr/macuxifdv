@@ -1,6 +1,6 @@
 # Dicionário de dados — schema `plataforma`
 
-Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker` e `0005_plataforma_arquivo` (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
+Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker`, `0005_plataforma_arquivo` e `0035_plataforma_super_admin` (super-admin, sem tenant_id) (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
 Campos comuns em toda tabela (regra 5): `id uuid pk default gen_random_uuid()`, `tenant_id uuid not null → plataforma.tenant`,
 `created_at`, `updated_at` (trigger `definir_updated_at`, cursor do sync), `deleted_at` (exclusão lógica), `external_id text` (código no ERP).
 RLS: política `isolamento_tenant` em todas (ver [rls.md](rls.md)).
@@ -159,6 +159,74 @@ tenant é mantido). As chaves antigas `raio_checkin_m` / `base_apuracao_metas` d
 situacao = 'aguardando'` (monitor de fotos que não chegaram); `(tenant_id, cliente_id)`; único `(tenant_id, id)` (alvo de FK).
 Os bytes NUNCA ficam no banco (porta `ArmazenamentoArquivos`); o down da 0005 deixa os bytes órfãos.
 
+## Super-admin de plataforma (0035, T-0087, ADR 0029) — fora dos tenants, só por função
+Migração `0035_plataforma_super_admin` (volta: `.down.sql`, APAGA as 4 tabelas com a auditoria e devolve a `provisionar_tenant`
+da 0029). Drizzle: `superAdmin`, `superAdminDesafio`, `superAdminSessao`, `auditoriaPlataforma` em `db/esquema/plataforma.ts`
+(só para tipar; a aplicação nunca consulta as tabelas direto).
+
+**Exceção à regra 5 (justificativa).** O super-admin (o operador da Macuxi no portal `config.`) não é usuário de nenhum tenant:
+enxerga todos e cria tenant novo. Por isso as 4 tabelas **não têm `tenant_id`** (como `plataforma.tenant`), estão em
+`TABELAS_SEM_TENANT_ID` e em `TABELAS_SO_POR_FUNCAO` (`db/src/excecoes.ts`). O isolamento é outro: **RLS ligado e forçado SEM
+política e SEM grant de tabela** para `macuxi_app` e `macuxi_worker` (42501 direto; com um grant indevido, 0 linhas), só a política
+`manutencao` (0031) para o migrador; a aplicação chega aos dados **só** pelas funções `SECURITY DEFINER` abaixo (`search_path`
+fixo com `pg_temp` por último, `revoke all from public`, `execute` só ao `macuxi_app`; o worker recebe 42501). Os campos comuns
+(`id`, `created_at`, `updated_at`, `deleted_at`, `external_id`) existem em todas. Nenhum `ALTER ROLE` (plano B do DBaaS).
+
+| Tabela | Colunas principais | Regras |
+|---|---|---|
+| `super_admin` | `email`, `nome`, `senha_hash` (argon2id, CHECK como `core.usuario`), `totp_segredo_cifrado`, `totp_pendente_cifrado` (`v1.<iv>.<tag>.<cifra>`, AES-256-GCM, AAD = id; a chave `MACUXI_CHAVE_TOTP` fica fora do banco), `totp_confirmado_em`, `totp_ultimo_passo bigint`, `recuperacao_hashes text[]` (SHA-256 hex, até 20), `falhas`, `bloqueado_ate`, `ativo` | único `lower(email)` entre os vivos; `totp_confirmado_em` existe se e só se há segredo; os hashes de recuperação nunca saem do banco (as funções devolvem a contagem) |
+| `super_admin_desafio` | `super_admin_id`, `desafio_hash` (SHA-256 hex, único), `etapa` (`segundo_fator` ou `cadastrar_totp`), `expira_em`, `consumido_em` | prazo de até 5 min (CHECK); uso único; abrir um novo invalida o anterior aberto |
+| `super_admin_sessao` | `super_admin_id`, `criada_em`, `ultimo_uso_em`, `expira_em`, `revogada_em` | teto de até 8 h (CHECK); viva = não revogada, `expira_em > now()`, super-admin vivo, ativo e com TOTP confirmado |
+| `auditoria_plataforma` | `super_admin_id` (nulo na falha com e-mail inexistente), `sessao_id`, `tenant_alvo_id` (nulo fora de tenant), `acao`, `metodo`, `rota` (modelo, sem query), `status`, `request_id`, `ip_prefixo` (/24 ou /48), `detalhes jsonb` (objeto de até 4 KB), `ocorrido_em` | **append-only**: gatilho recusa `update`, `delete` e `truncate` para todos (42501), inclusive o dono; sem dado pessoal |
+
+**Retenção (pedido item 6):** o tenant da ação fica em `tenant_alvo_id`, **sem FK** e de propósito **sem o nome `tenant_id`**: a
+`excluir_tenant` (0024/0032) apaga toda tabela com coluna `tenant_id`, e a auditoria da plataforma sobrevive à exclusão (provado em
+`db/testes/super-admin.test.ts`). Sem expurgo por ora (como `plataforma.auditoria`). `super_admin_id` tem FK (super-admin só é
+apagado logicamente); `sessao_id` não tem (a sessão pode ser expurgada no futuro sem tocar a auditoria).
+
+**Funções** (contrato com o modulo-core e a API; todas `SECURITY DEFINER`, só `macuxi_app`):
+
+| Função | Devolve | O que faz |
+|---|---|---|
+| `sa_existe()` | `boolean` | já houve super-admin (qualquer linha, mesmo apagada): o primeiro acesso responde 410 para sempre |
+| `sa_criar_primeiro(p_email text, p_nome text, p_senha_hash text)` | `uuid` ou nulo | trava consultiva; cria só com **zero** linhas, senão nulo; 22023 sem dado pessoal na entrada inválida |
+| `sa_para_login(p_email text)` e `sa_por_id(p_id uuid)` | `table (id, email, nome, senha_hash, ativo, falhas, bloqueado_ate, totp_confirmado_em, totp_segredo_cifrado, totp_pendente_cifrado, totp_ultimo_passo bigint, recuperacao_restantes integer)` | linha viva (0 linhas = não existe). O `bigint` chega como texto no node-pg |
+| `sa_registrar_falha(p_id uuid)` | `table (falhas integer, bloqueado_ate timestamptz)` | +1 falha; a 5ª seguida bloqueia por 15 min e zera; bloqueado = nada muda (devolve o estado) |
+| `sa_registrar_sucesso(p_id uuid)` | `void` | zera falhas e bloqueio vencido; bloqueio vigente não é desfeito |
+| `sa_gravar_totp_pendente(p_id uuid, p_cifrado text)` | `boolean` | só antes do TOTP confirmado (redefinir = comando de administração) |
+| `sa_confirmar_totp(p_id uuid, p_passo bigint, p_recuperacao_hashes text[])` | `boolean` | pendente vira segredo, grava o passo usado e os 1 a 20 hashes distintos, numa só vez |
+| `sa_marcar_passo(p_id uuid, p_passo bigint)` | `boolean` | só avança (mesmo passo ou anterior = falso: sem reuso) |
+| `sa_usar_recuperacao(p_id uuid, p_hash text)` | `integer` ou nulo | remove o hash e devolve quantos restam; inexistente ou já usado = nulo |
+| `sa_regerar_recuperacao(p_id uuid, p_hashes text[])` | `integer` ou nulo | troca todos (exige TOTP confirmado) |
+| `sa_abrir_desafio(p_id uuid, p_desafio_hash text)` | `table (etapa text, expira_em timestamptz)` | 0 linhas se inativo, apagado ou bloqueado; etapa calculada aqui (sem TOTP = `cadastrar_totp`) |
+| `sa_ver_desafio(p_desafio_hash text)` | `table (super_admin_id uuid, etapa text, expira_em timestamptz)` | desafio aberto, no prazo, de super-admin ativo e sem bloqueio; não consome |
+| `sa_abrir_sessao(p_desafio_hash text)` | `table (sessao_id uuid, super_admin_id uuid, expira_em timestamptz)` | **consome** o desafio; abre sessão de 8 h só com TOTP confirmado, ativo e sem bloqueio |
+| `sa_sessao_valida(p_sid uuid)` | `table (super_admin_id uuid, expira_em timestamptz)` | 0 linhas = inválida; atualiza `ultimo_uso_em` (serve também de "renovar") |
+| `sa_revogar(p_sid uuid)` | `boolean` | revoga (2ª vez = falso) |
+| `sa_auditar(p jsonb)` | `uuid` | `{ super_admin_id, sessao_id, tenant_id (vai para tenant_alvo_id), acao, metodo, rota, status, request_id, ip_prefixo, detalhes? }`; a query da rota cai; IP fora do formato de prefixo não é gravado |
+| `sa_listar_tenants(p_sid uuid)` | `jsonb` `{ itens: [{ id, codigo, razao_social, cnpj, fuso, status, criada_em, modulos: [{ modulo, licencas }] }] }` | = `ListaEmpresasSchema`; só módulos vivos, ativos e do contrato (`MODULOS`); sessão inválida = 28000 |
+| `sa_tenant_ativo(p_sid uuid, p_tenant uuid)` | `boolean` | sessão viva **e** tenant `ativo` e vivo |
+| `sa_provisionar_tenant(p_sid uuid, p jsonb)` | `jsonb` (o da `provisionar_tenant`) | sessão viva (senão 28000); recusa `admin` e `redefinir_senha` (22023); chama a `provisionar_tenant` com `sem_admin = true` e `ator_id` = super-admin da sessão |
+
+Fatos gravados **pelo próprio banco** na auditoria (`detalhes.origem = 'banco'`, pela `sa_registrar_auditoria`, interna, sem
+`execute` para ninguém): `sa.primeiro_acesso`, `sa.totp.confirmado`, `sa.bloqueio`, `sa.sessao.aberta`, `sa.sessao.revogada`,
+`sa.recuperacao.usada`, `sa.recuperacao.regerada`, `sa.tenant.provisionar`. O Core grava pelo `sa_auditar` os de login (com o
+prefixo do IP); a API grava `sa.requisicao` de toda requisição do super-admin.
+
+**Limite registrado:** a conferência da senha e do TOTP é no Node (a chave do TOTP fica fora do banco), então quem tiver a
+credencial do `macuxi_app` consegue abrir desafio e sessão pelas funções. Cada sessão aberta fica em `sa.sessao.aberta`, que o
+app não apaga; a barreira é a credencial do `macuxi_app` (só na VM).
+
+**`provisionar_tenant` (0035, aditiva):** chaves novas opcionais `sem_admin` (não cria admin; com ele, `admin` ou
+`redefinir_senha = true` = 22023; sem ele, o admin continua obrigatório), `parametros` (`[{ modulo, chave, valor }]` em
+`plataforma.parametro` com `on conflict do nothing`; o módulo tem de ser do tenant; sem repetição; valor não nulo) e `ator_id`
+(vai para `plataforma.auditoria.usuario_id`). A saída ganha `parametros_gravados` (chaves inseridas nesta chamada) e
+`admin = 'sem_admin'`. 2x a mesma entrada = mesmas linhas.
+
+Volume: 1 a 3 super-admins, poucas sessões e desafios por dia; auditoria na casa dos milhares de linhas por dia de implantação.
+Índices: `super_admin_email_uk`, `super_admin_desafio_hash_uk`, `super_admin_desafio_aberto_ix`, `super_admin_sessao_viva_ix`,
+`auditoria_plataforma_ocorrido_ix`, `auditoria_plataforma_super_admin_ix`, `auditoria_plataforma_tenant_alvo_ix` (parcial).
+
 ## Funções
 - `plataforma.tenant_atual()` (0001): contexto do tenant (falha fechada).
 - `plataforma.tenant_por_codigo(text)` (0001): login, SECURITY DEFINER revisada; `pg_temp` no fim do `search_path` (0012).
@@ -177,3 +245,5 @@ Os bytes NUNCA ficam no banco (porta `ArmazenamentoArquivos`); o down da 0005 de
   `session_replication_role` e com gatilhos ligados: roda sem superusuário, pela política `manutencao` (0031). O down da 0032
   volta ao corpo da 0024 (`session_replication_role = replica`, só superusuário).
 - Papel `macuxi_manutencao` e política `manutencao` (0031, T-0075, B1 do DBaaS): ver [rls.md](rls.md), "Papel de manutenção".
+- Super-admin (0035, T-0087): as 20 funções `sa_*` e a `provisionar_tenant` com `sem_admin`, `parametros` e `ator_id`: seção
+  "Super-admin de plataforma" acima.

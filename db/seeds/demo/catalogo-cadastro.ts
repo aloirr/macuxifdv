@@ -8,7 +8,8 @@
  * os produtos novos (pastilha, disco, filtro de óleo e amortecedor), a árvore sistema › grupo › linha, os sinônimos VW e GM
  * e o "oferece junto" (`produto_relacao` complementar). Aqui, só o que depende da 0033:
  * - referências cruzadas (`catalogo.produto_referencia`, RN-CAT-09): "CB 3401" (Freiomax) na pastilha do Uno, "FB-0207"
- *   (Filtrobom) no filtro do Gol e outras nas autopeças; marca_id = id da marca no cadastro do Promotor (sem FK);
+ *   (Filtrobom) no filtro do Gol e outras nas autopeças; marca_id = id da marca no cadastro do Promotor (sem FK) e, desde a
+ *   0034, marca_nome = o nome dela (retrato; sem a 0034 na base, grava sem a coluna);
  *   codigo_compacto = `codigoCompacto` do domain do Catálogo (a mesma função da API);
  * - etiquetas curtas (`produto_conteudo.etiquetas`): "Dianteira", "Traseira" e "Novo";
  * - documento de busca do servidor (`produto_busca.aplicacao` e `.referencias`): a aplicação já expandida por
@@ -26,7 +27,7 @@ import { exigirBancoDemo, hostDoCliente } from '../../src/config';
 import { arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeterministico } from '../../src/ids';
 import type { DadosDemo } from './demo';
-import { idMarcaConcorrenteDemo, type ChaveMarcaConcorrenteDemo } from './promotor';
+import { idMarcaConcorrenteDemo, MARCAS_CONCORRENTES_DEMO, type ChaveMarcaConcorrenteDemo } from './promotor';
 
 const id = (chave: string) => idDeterministico(`demo:${chave}`);
 const comuns = { deleted_at: null, external_id: null } as const;
@@ -74,6 +75,8 @@ export function dadosDemoCatalogoCadastro(p: { tenantId: string; hoje: string; d
     tenant_id: p.tenantId,
     produto_id: idProduto(sku),
     marca_id: idMarcaConcorrenteDemo(marca),
+    // 0034: retrato do nome da marca do Promotor (o que a rota do BKO grava depois de validar por promotor.concorrentes@1)
+    marca_nome: MARCAS_CONCORRENTES_DEMO[marca],
     codigo,
     codigo_compacto: codigoCompacto(codigo),
     ordem,
@@ -101,7 +104,12 @@ export async function gravarDemoCatalogoCadastro(admin: ClientBase, p: { tenantI
   const existe = await admin.query<{ ok: boolean }>("select to_regclass('catalogo.produto_referencia') is not null as ok");
   if (!existe.rows[0]?.ok) return 0;
   const d = dadosDemoCatalogoCadastro(p);
-  const n = await gravarLinhas(admin, 'catalogo.produto_referencia', d['catalogo.produto_referencia']);
+  // base em 0033 sem a 0034: grava sem o retrato do nome (a coluna não existe ainda)
+  const comNome = await admin.query<{ ok: boolean }>(
+    "select exists (select 1 from information_schema.columns where table_schema = 'catalogo' and table_name = 'produto_referencia' and column_name = 'marca_nome') as ok",
+  );
+  const referencias = comNome.rows[0]?.ok ? d['catalogo.produto_referencia'] : d['catalogo.produto_referencia'].map(({ marca_nome: _semNome, ...r }) => r);
+  const n = await gravarLinhas(admin, 'catalogo.produto_referencia', referencias);
   for (const e of d.etiquetas) {
     await admin.query('update catalogo.produto_conteudo set etiquetas = $3::text[] where tenant_id = $1 and id = $2', [p.tenantId, e.id, arrayDeTextoLivre(e.etiquetas)]);
   }

@@ -198,6 +198,11 @@ CREATE INDEX catalogo__produto_referencia_produto ON ent_produto_referencia (jso
 - Com o índice vazio e as fontes com linhas, o SDK marca a reindexação sozinho (`marcarReindexacaoSeVazio`) e reconstrói a
   partir de `ent_*`, em lotes que cedem o loop.
 - Nada é repuxado: as linhas e os cursores ficam (teste "v2 → v3 real").
+
+**0034 no servidor (T-0085, `produto_referencia.marca_nome`): sem versão nova no aparelho.** O retrato do nome da marca chega no
+JSON de `ent_produto_referencia` (`dados.marca_nome`, nulo nas linhas anteriores à 0034 ainda não regravadas) e a ficha lê de lá,
+sem a entidade `concorrente`. A FTS não muda: `referencias` continua só com os códigos crus (desenho T-0085 §7). Linhas já
+puxadas sem o campo só o ganham quando o servidor as regrava (o `updated_at` avança e o pull reenvia).
 - O tempo da primeira abertura com 20 mil produtos é medido pelo engenheiro-apps na tela de medição.
 
 **Caminho de volta:** o da §3. App com v2 num aparelho em v3 apaga os objetos `catalogo__*` e reaplica v1 e v2; as linhas

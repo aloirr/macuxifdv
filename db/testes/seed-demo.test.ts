@@ -295,6 +295,8 @@ describe('base de demo (estático)', () => {
         expect(r.codigo_compacto).toMatch(/^[a-z0-9]{1,30}$/);
         expect(r.codigo_compacto).toBe(String(r.codigo).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
         expect(nomeDaMarca.has(r.marca_id as string), String(r.codigo)).toBe(true);
+        // 0034: retrato do nome da marca = o nome do concorrente do Promotor
+        expect(r.marca_nome, String(r.codigo)).toBe(nomeDaMarca.get(r.marca_id as string));
       }
       expect(new Set(refs.map((r) => r.id)).size).toBe(refs.length);
     });
@@ -739,8 +741,8 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
   it('T-0084/T-0085 (0033) ligado no carregarDemo: referências pelo código normalizado, aplicação no peso C, etiquetas e marcas do Promotor, pelo papel macuxi_app', async () => {
     const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
       refs: (await c.query<{ n: number }>('select count(*)::int as n from catalogo.produto_referencia where deleted_at is null')).rows[0]!.n,
-      cb3401: (await c.query<{ sku: string; marca: string }>(
-        `select b.sku, m.nome as marca from catalogo.produto_referencia r
+      cb3401: (await c.query<{ sku: string; marca: string; marca_nome: string | null }>(
+        `select b.sku, m.nome as marca, r.marca_nome from catalogo.produto_referencia r
            join catalogo.produto_busca b on b.produto_id = r.produto_id and b.deleted_at is null
            join promotor.concorrente m on m.id = r.marca_id
           where r.codigo_compacto = 'cb3401' and r.deleted_at is null`,
@@ -755,7 +757,7 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
       marcas: (await c.query<{ nome: string }>('select nome from promotor.concorrente where deleted_at is null order by nome')).rows.map((x) => x.nome),
     }));
     expect(r.refs).toBe(REFERENCIAS_DEMO.length);
-    expect(r.cb3401).toEqual([{ sku: 'PST-D01', marca: 'Freiomax' }]);
+    expect(r.cb3401).toEqual([{ sku: 'PST-D01', marca: 'Freiomax', marca_nome: 'Freiomax' }]); // 0034: retrato do nome
     expect(r.unoC).toEqual(['PST-D01']);
     expect(r.golA).toEqual(['FOL-G01']);
     expect(r.etiquetas).toEqual([{ e: ['Dianteira', 'Novo'] }]);

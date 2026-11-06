@@ -48,6 +48,16 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > Aparelho **v3**: FTS recriada com `aplicacao` e `referencias` ([aparelho-sqlite.md](aparelho-sqlite.md) §4.2).
 >
 > Seed demo em `db/seeds/demo/catalogo-cadastro.ts`. Os testes de banco rodam no CI (sem Docker no PC).
+>
+> **2026-11-06 (T-0085):** `0034_catalogo_referencia_marca_nome` (aditiva): `catalogo.produto_referencia.marca_nome`, retrato **nulo**
+> do nome da marca do Promotor (1..120), sem backfill (a migração do Catálogo não lê `promotor.*`), sem índice; vai no pull de
+> `produto_referencia`; aparelho continua na v3. Detalhes no [catalogo.md](catalogo.md).
+>
+> **2026-11-06 (T-0087):** `0035_plataforma_super_admin` (aditiva; ADR 0029): super-admin de plataforma **fora dos tenants**
+> (`plataforma.super_admin`, `super_admin_desafio`, `super_admin_sessao`, `auditoria_plataforma` append-only, sem `tenant_id`:
+> exceção à regra 5, `TABELAS_SO_POR_FUNCAO`); RLS forçado sem política nem grant para app/worker; 20 funções `plataforma.sa_*`
+> SECURITY DEFINER só ao `macuxi_app`; `provisionar_tenant` com `sem_admin`, `parametros` e `ator_id`. Nada vai ao aparelho.
+> Detalhes no [plataforma.md](plataforma.md) ("Super-admin de plataforma") e no [rls.md](rls.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
