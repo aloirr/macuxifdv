@@ -27,3 +27,7 @@
 2026-11-03 — T-0070 — core.medidas@1 em usaConsultas do Hub e import estático de CONSULTA_MEDIDAS (fecha o 🟡 da re-revisão da T-0032); mock do teste removido
 2026-11-05 — T-0024 — 16 definições integracao.* no contracts, consumo tolerante do vendedor.pedido.*, espelho removido
 2026-11-05 — T-0024 — contracts da integração: import do subpath @macuxi/platform-sdk/eventos (2 arquivos do SDK no bundle do Conector) e registro do evento por entidade com tipo próprio (só tipo, @1)
+2026-11-06 — T-0087 — prazo da sessão da carga em partes: aplicar-lote passa a ler ttlSessaoMin do tenant (lerParametrosHub), igual à rota; testes >24 h e padrão
+2026-11-06 — T-0087 — fatia P: superAdmin aceita nas rotas da carga por arquivo, lotes e conectores; erros.csv; ordem-carga; conferir sem gravar; export da divisão para o portal
+2026-11-06 — T-0087 — PATCH conectores/:id com superAdmin aceita (revogada_por nulo p/ super-admin), teste
+2026-11-06 — T-0087 — ctx.parametros ausente no consumidor: leitura defensiva em aplicar-lote.ts + parametros/fuso nos contextos dos testes de banco

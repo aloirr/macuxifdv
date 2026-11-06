@@ -36,4 +36,9 @@ describe('RN-INT-12: parâmetros do tenant sobre os padrões do Hub', () => {
     expect(lerParametrosHub({ versoesSuportadas: [] }).versoesSuportadas).toEqual(PARAMETROS_PADRAO.versoesSuportadas);
     expect(lerParametrosHub({ versoesSuportadas: [1] }).versoesSuportadas).toEqual(PARAMETROS_PADRAO.versoesSuportadas);
   });
+
+  it('RN-INT-06: prazo da sessão do tenant acima de 24 h é o valor efetivo (o mesmo para a rota e o aplicar-lote); sem parâmetro vale o padrão', () => {
+    expect(lerParametrosHub({ ttlSessaoMin: 48 * 60 }).ttlSessaoMin).toBe(48 * 60);
+    expect(lerParametrosHub({}).ttlSessaoMin).toBe(24 * 60);
+  });
 });

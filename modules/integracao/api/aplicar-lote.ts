@@ -46,6 +46,7 @@ import {
 } from '../domain';
 import { inativarElegiveis } from './bko-inativacao';
 import { EVENTO_LOTE_CONCLUIDO, EVENTO_LOTE_RECEBIDO, eventoAtualizado } from './eventos';
+import { lerParametrosHub } from './parametros';
 
 const BLOCO = 500;
 const iso = (v: Date | string): string => (v instanceof Date ? v.toISOString() : new Date(v).toISOString());
@@ -411,7 +412,9 @@ async function fecharSessaoSeCompleta(
   );
   let estado: SessaoCargaEstado = novaSessao(sessaoId, lote.entidade, iso(sessao.iniciada_em));
   for (const x of partes) estado = registrarParte(estado, { parte: x.sessao_parte, ultimo: x.sessao_ultimo === true, status: x.status });
-  const situacao = situacaoSessao(estado, p.agora, { ttlMin: PARAMETROS_PADRAO.ttlSessaoMin });
+  // mesma fonte da rota da carga em partes (bko-carga-arquivo): o parâmetro do tenant, com o padrão só como reserva
+  const parametros = lerParametrosHub(typeof ctx.parametros === 'function' ? ctx.parametros() : {}, ctx.log);
+  const situacao = situacaoSessao(estado, p.agora, { ttlMin: parametros.ttlSessaoMin });
   if (situacao === 'aberta') return;
   const fechar = (nova: 'completa' | 'expirada') => db.query('update integracao.sessao_carga set situacao = $3, fechada_em = now() where tenant_id = $1 and id = $2', [tenantId, sessaoId, nova]);
   if (situacao === 'expirada') {
@@ -436,7 +439,7 @@ async function fecharSessaoSeCompleta(
     linhasSemExternalId: sessao.linhas_sem_identificacao,
     linhasInvalidasOmitidas: sessao.invalidas_omitidas,
     limitePct: PARAMETROS_PADRAO.limiteInativacaoPct,
-    ttlMin: PARAMETROS_PADRAO.ttlSessaoMin,
+    ttlMin: parametros.ttlSessaoMin,
   });
   await fechar('completa');
   if (r.permitido) {
