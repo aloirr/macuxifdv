@@ -37,6 +37,17 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > base idempotente do recálculo de `historico_compra`, fora do pull, único vivo por `external_id` e índices por cliente/mês e por mês —
 > e `core.meta.tipo` `pedido | faturamento`, padrão `pedido`, RN-CORE-21); dicionário em [core.md](core.md).
 > **2026-11-03 (T-0071):** `0020_pedido_ajuste_valor_produto_relacao` (aditiva: ajuste em R$ no pedido — `desconto_valor_cents`/`acrescimo_valor_cents`/`ajuste_em` — e no item por unidade da medida vendida — `desconto_unitario_cents`/`acrescimo_unitario_cents`/`ajuste_em` — com CHECKs de exclusividade, sentido coerente com o %, R$ do item <= tabela e preço unitário coerente; índice `pedido_orcamento_aberto_ix`; nova `catalogo.produto_relacao` (complementar/superior/substituto, sem FK para o Core, pull tenant)); dicionário em [vendedor.md](vendedor.md) e [catalogo.md](catalogo.md); base demo com a referência do novo pedido (Mini Box Japiim C5110). **Não aplicada na demo (5432) até o gerente decidir.**
+> **2026-11-05 (T-0084/T-0085):** `0033_catalogo_aplicacao_referencia`. Detalhes no [catalogo.md](catalogo.md) e no [vendedor.md](vendedor.md):
+> - aplicação até 2.000 e `etiquetas` no `produto_conteudo`;
+> - `aplicacao` (peso C) e `referencias` (peso A) no documento de busca do servidor;
+> - nova `catalogo.produto_referencia`: até 3 por produto, `marca_id` = concorrente do Promotor sem FK, `codigo_compacto` gravado pela API e indexado;
+> - `vendedor.pedido_item.aplicacao` (retrato, até 1.000).
+>
+> Nada em `core.*` nem em `promotor.*`, pela correção do gerente: a ADR 0027 não vale.
+>
+> Aparelho **v3**: FTS recriada com `aplicacao` e `referencias` ([aparelho-sqlite.md](aparelho-sqlite.md) §4.2).
+>
+> Seed demo em `db/seeds/demo/catalogo-cadastro.ts`. Os testes de banco rodam no CI (sem Docker no PC).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

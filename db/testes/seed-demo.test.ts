@@ -15,7 +15,8 @@ import { dadosDemoMedidas, MEDIDAS_ATIVAS_DEMO } from '../seeds/demo/medidas';
 import { dadosGestorDemo, MODULO_GESTOR, PERFIS_GESTOR_DEMO, projecaoDemo } from '../seeds/demo/gestor';
 import { painelDoMes } from '../../modules/gestor/domain/painel';
 import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
-import { PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
+import { dadosDemoPromotor, MARCAS_CONCORRENTES_DEMO, PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
+import { dadosDemoCatalogoCadastro, ETIQUETAS_DEMO, REFERENCIAS_DEMO } from '../seeds/demo/catalogo-cadastro';
 import { MODULO_TREINAMENTO, PERFIS_TREINAMENTO_DEMO, TRILHAS_DEMO } from '../seeds/demo/treinamento';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { comTenant } from '../src/contexto';
@@ -209,6 +210,110 @@ describe('base de demo (estático)', () => {
       }
       expect(d['core.cliente_endereco'].filter((e) => e.principal)).toHaveLength(30);
       expect(d['core.cliente_endereco'].filter((e) => !e.principal).length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('T-0084/T-0085 (0033): aplicação, oferece junto, árvore sistema › grupo › linha, referências cruzadas e etiquetas', () => {
+    const sku = new Map(d['core.produto'].map((p) => [p.id as string, p.sku as string]));
+    const idDe = new Map(d['core.produto'].map((p) => [p.sku as string, p.id as string]));
+    const aplicacao = new Map(d['catalogo.produto_conteudo'].map((c) => [sku.get(c.produto_id as string)!, c.aplicacoes as string | null]));
+    const autopecas = d['core.produto'].filter((p) => p.categoria === 'Automotivo').map((p) => p.sku as string);
+    const cad = dadosDemoCatalogoCadastro({ tenantId: TENANT_DEMO, hoje, dados: d });
+    const marcas = dadosDemoPromotor({ hoje })['promotor.concorrente'];
+
+    it('RN-CAT-11: aplicação em ~40% das autopeças (5 de 12), com os casos do Uno, do Gol, do "a partir de 2018" e do texto > 300 sem separador; o resto sem', () => {
+      expect(autopecas).toHaveLength(12);
+      const com = autopecas.filter((s) => aplicacao.get(s));
+      expect(com.sort()).toEqual(['AMR-T01', 'FOL-G01', 'LAM-H4', 'OLE-4T-1L', 'PST-D01']);
+      expect(com.length / autopecas.length).toBeGreaterThan(0.35);
+      expect(com.length / autopecas.length).toBeLessThan(0.5);
+      expect(aplicacao.get('PST-D01')).toBe('Fiat Uno 1.0/1.4 2010–2014; Fiat Palio 1.0/1.4 2012–2016');
+      expect(aplicacao.get('FOL-G01')).toBe('VW Gol G5/G6 1.0/1.6 2009–2016; VW Voyage 1.0/1.6 2009–2016');
+      expect(aplicacao.get('AMR-T01')).toContain('a partir de 2018');
+      const longa = aplicacao.get('LAM-H4')!;
+      expect(longa.length).toBeGreaterThan(300);
+      expect(longa.length).toBeLessThanOrEqual(2000);
+      expect(longa).not.toMatch(/[;|•\n]/);
+      // controle: fora das autopeças nenhum produto tem aplicação (o texto sairia no orçamento)
+      for (const [s, a] of aplicacao) if (!autopecas.includes(s)) expect(a, s).toBeNull();
+      for (const a of aplicacao.values()) if (a) expect(a.length).toBeLessThanOrEqual(2000);
+    });
+
+    it('RN-CAT-12: sinônimos VW = Volkswagen e GM = Chevrolet; o conteúdo da busca do servidor não leva a aplicação', () => {
+      const sin = new Map(d['catalogo.sinonimo'].map((x) => [x.termo, x.sinonimos]));
+      expect(sin.get('vw')).toBe('{volkswagen}');
+      expect(sin.get('gm')).toBe('{chevrolet}');
+      const busca = d['catalogo.produto_busca'].find((b) => b.produto_id === idDe.get('PST-D01'))!;
+      expect(String(busca.conteudo)).not.toContain('Uno');
+      // documento do servidor (0033): aplicação expandida (anos de dentro da faixa) e referências cruas + compactas
+      const b = cad.busca.find((x) => x.produto_id === idDe.get('PST-D01'))!;
+      expect(b.aplicacao).toContain('Fiat Uno 1.0/1.4 2010–2014');
+      expect(b.aplicacao).toMatch(/ 2011 /);
+      expect(b.aplicacao).toMatch(/2012/);
+      expect(b.referencias).toBe('CB 3401 cb3401 RF-1187 rf1187');
+      expect(cad.busca.find((x) => x.produto_id === idDe.get('CAF-500'))).toEqual({ produto_id: idDe.get('CAF-500'), aplicacao: null, referencias: null });
+    });
+
+    it('RF-CAT-09: oferece junto = complementar (pastilha → disco e fluido; filtro → óleo 5W30), até 5 por produto', () => {
+      const comp = RELACOES_DEMO.filter(([, , tipo]) => tipo === 'complementar');
+      expect(comp.filter(([p]) => p === 'PST-D01').map(([, r]) => r)).toEqual(['DSC-D01', 'FLU-DOT4']);
+      expect(comp.filter(([p]) => p === 'FOL-G01').map(([, r]) => r)).toEqual(['OLE-5W30']);
+      const porProduto = new Map<string, number>();
+      for (const [p] of comp) porProduto.set(p, (porProduto.get(p) ?? 0) + 1);
+      for (const [p, n] of porProduto) expect(n, p).toBeLessThanOrEqual(5);
+    });
+
+    it('RF-CAT-09: árvore sistema › grupo › linha (Freios › Pastilhas › Dianteiras etc.), cada autopeça nova numa folha', () => {
+      const nos = new Map(d['catalogo.catalogo_no'].map((n) => [n.id as string, n]));
+      const trilha = (s: string) => {
+        const pn = d['catalogo.produto_no'].find((x) => x.produto_id === idDe.get(s))!;
+        const out: string[] = [];
+        for (let n = nos.get(pn.no_id as string); n; n = n.pai_id ? nos.get(n.pai_id as string) : undefined) out.unshift(String(n.nome));
+        return out.join(' › ');
+      };
+      expect(trilha('PST-D01')).toBe('Freios › Pastilhas › Dianteiras');
+      expect(trilha('DSC-D01')).toBe('Freios › Discos › Dianteiros');
+      expect(trilha('FOL-G01')).toBe('Filtros › Filtros de óleo › Linha leve');
+      expect(trilha('AMR-T01')).toBe('Suspensão › Amortecedores › Traseiros');
+    });
+
+    it('RN-CAT-09: referências até 3 por produto, "CB 3401" (Freiomax) na pastilha do Uno e "FB-0207" (Filtrobom) no filtro, marca = concorrente do Promotor, compacto da regra do domain', () => {
+      const refs = cad['catalogo.produto_referencia'];
+      expect(refs).toHaveLength(REFERENCIAS_DEMO.length);
+      const nomeDaMarca = new Map(marcas.map((m) => [m.id as string, m.nome as string]));
+      const de = (s: string) => refs.filter((r) => r.produto_id === idDe.get(s)).map((r) => `${nomeDaMarca.get(r.marca_id as string)} ${r.codigo}`);
+      expect(de('PST-D01')).toEqual(['Freiomax CB 3401', 'Rodaforte RF-1187']);
+      expect(de('FOL-G01')).toEqual(['Filtrobom FB-0207']);
+      const porProduto = new Map<string, number[]>();
+      for (const r of refs) porProduto.set(r.produto_id as string, [...(porProduto.get(r.produto_id as string) ?? []), r.ordem as number]);
+      for (const [p, ordens] of porProduto) {
+        expect(ordens.length, p).toBeLessThanOrEqual(3);
+        expect(new Set(ordens).size, p).toBe(ordens.length);
+      }
+      for (const r of refs) {
+        expect(String(r.codigo).length).toBeLessThanOrEqual(30);
+        expect(r.codigo_compacto).toMatch(/^[a-z0-9]{1,30}$/);
+        expect(r.codigo_compacto).toBe(String(r.codigo).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+        expect(nomeDaMarca.has(r.marca_id as string), String(r.codigo)).toBe(true);
+      }
+      expect(new Set(refs.map((r) => r.id)).size).toBe(refs.length);
+    });
+
+    it('marcas concorrentes fictícias no cadastro do Promotor (Freiomax, Rodaforte, Filtrobom, Vialume), diferentes das marcas próprias', () => {
+      expect(marcas.map((m) => m.nome)).toEqual(expect.arrayContaining(Object.values(MARCAS_CONCORRENTES_DEMO)));
+      const proprias = new Set(d['core.produto'].map((p) => String(p.marca).toLowerCase()));
+      for (const m of Object.values(MARCAS_CONCORRENTES_DEMO)) expect(proprias.has(m.toLowerCase()), m).toBe(false);
+    });
+
+    it('etiquetas: "Dianteira" e "Novo" na pastilha; até 4, cada uma com até 20 caracteres; os demais sem', () => {
+      const porSku = new Map(cad.etiquetas.map((e) => [sku.get(d['catalogo.produto_conteudo'].find((c) => c.id === e.id)!.produto_id as string)!, e.etiquetas]));
+      expect(porSku.get('PST-D01')).toEqual(['Dianteira', 'Novo']);
+      expect(porSku.get('CAF-500')).toEqual([]);
+      for (const [s, e] of porSku) {
+        expect(e.length, s).toBeLessThanOrEqual(4);
+        for (const x of e) expect(x.length > 0 && x.length <= 20, `${s}: ${x}`).toBe(true);
+      }
+      expect(Object.keys(ETIQUETAS_DEMO).every((s) => idDe.has(s))).toBe(true);
     });
   });
 
@@ -629,6 +734,32 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect(r.hierarquia.sort((a, b) => a.nome.localeCompare(b.nome))).toEqual(
       [USUARIOS_DEMO.vendedor.nome, USUARIOS_DEMO.vendedor2.nome, USUARIOS_DEMO.promotor.nome].sort().map((nome) => ({ nome, ...chefia })),
     );
+  });
+
+  it('T-0084/T-0085 (0033) ligado no carregarDemo: referências pelo código normalizado, aplicação no peso C, etiquetas e marcas do Promotor, pelo papel macuxi_app', async () => {
+    const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
+      refs: (await c.query<{ n: number }>('select count(*)::int as n from catalogo.produto_referencia where deleted_at is null')).rows[0]!.n,
+      cb3401: (await c.query<{ sku: string; marca: string }>(
+        `select b.sku, m.nome as marca from catalogo.produto_referencia r
+           join catalogo.produto_busca b on b.produto_id = r.produto_id and b.deleted_at is null
+           join promotor.concorrente m on m.id = r.marca_id
+          where r.codigo_compacto = 'cb3401' and r.deleted_at is null`,
+      )).rows,
+      unoC: (await c.query<{ sku: string }>(
+        "select sku from catalogo.produto_busca where ts_filter(documento, '{c}') @@ to_tsquery('portuguese', 'uno & 2012') order by sku",
+      )).rows.map((x) => x.sku),
+      golA: (await c.query<{ sku: string }>("select sku from catalogo.produto_busca where ts_filter(documento, '{a}') @@ to_tsquery('portuguese', 'fb0207')")).rows.map((x) => x.sku),
+      etiquetas: (await c.query<{ e: string[] }>(
+        "select c.etiquetas as e from catalogo.produto_conteudo c join catalogo.produto_busca b on b.produto_id = c.produto_id where b.sku = 'PST-D01'",
+      )).rows,
+      marcas: (await c.query<{ nome: string }>('select nome from promotor.concorrente where deleted_at is null order by nome')).rows.map((x) => x.nome),
+    }));
+    expect(r.refs).toBe(REFERENCIAS_DEMO.length);
+    expect(r.cb3401).toEqual([{ sku: 'PST-D01', marca: 'Freiomax' }]);
+    expect(r.unoC).toEqual(['PST-D01']);
+    expect(r.golA).toEqual(['FOL-G01']);
+    expect(r.etiquetas).toEqual([{ e: ['Dianteira', 'Novo'] }]);
+    expect(r.marcas).toEqual(expect.arrayContaining(Object.values(MARCAS_CONCORRENTES_DEMO)));
   });
 
   it('login: o código "demo" resolve o tenant e as senhas são argon2id que conferem', async () => {

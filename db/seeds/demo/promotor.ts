@@ -10,6 +10,9 @@
  *   categoria + Mercearia específica do Supermercado Bom Preço, loja 0), 1 checklist vigente com 5 etapas (2 obrigatórias,
  *   RN-PRO-06), 2 concorrentes fictícios com 4 produtos comparados (um por categoria, T-0070: o BKO de trade da T-0069 mostra
  *   as 3 categorias), 1 tarefa de campanha e 1 ponto extra negociado na loja 0.
+ * - T-0085 (0033): 4 marcas concorrentes de autopeças, fictícias (Freiomax, Rodaforte, Filtrobom e Vialume; nenhuma real),
+ *   no MESMO cadastro `concorrente` — é a lista de marcas da referência cruzada do Catálogo (RN-CAT-09), lida pelo contrato
+ *   do Promotor (correção do gerente às 21h de 05/11: nada no Core). Sem produto comparado nem coleta nelas.
  * - Histórico da Joana (promotor): as visitas de loja das visitas do Core `v-pr1` (loja 0, 2 dias úteis atrás) e `v-pr2`
  *   (loja 4, 1 dia útil atrás) do demo.ts — mesmo check-in/checkout/coordenada (lidos de `dadosDemo`, função pura) — com
  *   fotos, gôndola (antes/depois), share das 3 categorias calculado pelo domain (calcularShare/atingimentoShare, meta
@@ -82,6 +85,12 @@ const id = (chave: string) => idDeterministico(`demo:promotor:${chave}`);
 /** Mesmo id dos produtos/visitas do demo.ts (`demo:<chave>`). */
 const idDemo = (chave: string) => idDeterministico(`demo:${chave}`);
 const comuns = { deleted_at: null, external_id: null } as const;
+
+/** Marcas concorrentes de autopeças da demo (T-0085, RN-CAT-09): fictícias; a referência cruzada do Catálogo aponta para elas. */
+export const MARCAS_CONCORRENTES_DEMO = { freiomax: 'Freiomax', rodaforte: 'Rodaforte', filtrobom: 'Filtrobom', vialume: 'Vialume' } as const;
+export type ChaveMarcaConcorrenteDemo = keyof typeof MARCAS_CONCORRENTES_DEMO;
+/** Id da marca em promotor.concorrente (o marca_id de catalogo.produto_referencia). */
+export const idMarcaConcorrenteDemo = (chave: ChaveMarcaConcorrenteDemo) => id(`concorrente:${chave}`);
 const mais = (iso: string, minutos: number) => new Date(Date.parse(iso) + minutos * 60_000).toISOString().replace('.000Z', 'Z');
 
 export interface OpcoesDemoPromotor {
@@ -152,6 +161,10 @@ export function dadosDemoPromotor(opcoes: OpcoesDemoPromotor = {}): DadosDemoPro
     'promotor.concorrente': [
       { id: concorrentes.saborReal, tenant_id: t, nome: 'Sabor Real Alimentos', ativo: true, ...comuns },
       { id: concorrentes.limpaMais, tenant_id: t, nome: 'Limpa Mais', ativo: true, ...comuns },
+      // T-0085: marcas de autopeças da referência cruzada (external_id = código da marca no ERP fictício)
+      ...(Object.keys(MARCAS_CONCORRENTES_DEMO) as ChaveMarcaConcorrenteDemo[]).map((k) => ({
+        id: idMarcaConcorrenteDemo(k), tenant_id: t, nome: MARCAS_CONCORRENTES_DEMO[k], ativo: true, deleted_at: null, external_id: `MARCA-${k.toUpperCase()}`,
+      })),
     ],
     'promotor.produto_concorrente': produtosConcorrentes.map((p) => ({
       id: id(`produto_concorrente:${p.chave}`), tenant_id: t, concorrente_id: p.concorrente, nome: p.nome, produto_id: produto(p.sku), categoria_gondola_id: cat(p.categoria), ativo: true, ...comuns,

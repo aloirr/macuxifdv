@@ -165,6 +165,44 @@ CREATE INDEX catalogo__produto_conteudo_produto ON ent_produto_conteudo (json_ex
 - Escrita: cada `INSERT/UPDATE` do pull em `ent_estoque_saldo`/`ent_tabela_preco_item` passa a manter um índice a mais
   (custo pequeno ante o JSON da linha; o `ent_produto_atributo` já tem o mesmo desde a v1).
 
+### 4.2 Catálogo, versão 3 — FTS com `aplicacao` e `referencias` (T-0084/T-0085, 2026-11-05)
+
+Desenhos `docs/desenho/T-0084.md` §6 e `T-0085.md` §7; no servidor, a migração 0033. A FTS5 não aceita coluna nova, então a
+v3 **recria** a tabela de documentos, a FTS e o vocabulário. As colunas ficam nesta ordem: `sku, ean, codigos, nome, marca,
+categoria, atributos, aplicacao, referencias` (= `COLUNAS_BUSCA_CATALOGO`). As opções da v1 continuam: content externo,
+`unicode61 remove_diacritics 2` e `prefix = '2 3'`. Também cria o índice de expressão por produto na entidade nova do Catálogo:
+
+```sql
+CREATE INDEX catalogo__produto_referencia_produto ON ent_produto_referencia (json_extract(dados, '$.produto_id'));
+```
+
+**Colunas novas:**
+
+| Coluna | Conteúdo (gravado pelo `documento()` do índice, modulo-catalogo) | Peso (`PESOS_BUSCA_CATALOGO`) |
+|---|---|---|
+| `aplicacao` | `expandirAplicacao(aplicacao).textoIndice`: o texto da aplicação + os anos de dentro das faixas (RN-CAT-12) | 2 |
+| `referencias` | códigos crus das referências cruzadas ("CB 3401") | 8 |
+| `codigos` (já existia) | passa a levar também o `codigoCompacto` das referências ("cb3401"), junto do SKU e do external_id | 8 |
+
+**Fontes do índice:**
+- `produto`, `produto_atributo`, `produto_conteudo` e `produto_referencia`;
+- nas duas novas, o `chaveDe` é `linha.produto_id`.
+
+**Pré-requisitos no mesmo commit:**
+- A entidade `produto_referencia` no `sync` do manifesto do Catálogo. Sem ela, `ent_produto_referencia` não existe, a v3
+  falha e o Catálogo fica indisponível no aparelho.
+- A declaração do índice (`app/indice.ts`) com as 9 colunas. Com colunas diferentes das da FTS, o SDK desliga o índice.
+
+**Subida v2 → v3:**
+- Os documentos antigos saem com as tabelas.
+- Com o índice vazio e as fontes com linhas, o SDK marca a reindexação sozinho (`marcarReindexacaoSeVazio`) e reconstrói a
+  partir de `ent_*`, em lotes que cedem o loop.
+- Nada é repuxado: as linhas e os cursores ficam (teste "v2 → v3 real").
+- O tempo da primeira abertura com 20 mil produtos é medido pelo engenheiro-apps na tela de medição.
+
+**Caminho de volta:** o da §3. App com v2 num aparelho em v3 apaga os objetos `catalogo__*` e reaplica v1 e v2; as linhas
+ficam.
+
 ## 5. Clientes (500 por vendedor) — sem FTS
 O Core não usa FTS (desenho T-0016 §8): a carteira (500) é lida de `ent_cliente` e filtrada em memória (normalização
 igual à da busca). Medido em §8: p95 bem abaixo de 300 ms no Node. **Gatilho** para um índice próprio

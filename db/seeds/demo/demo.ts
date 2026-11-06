@@ -49,6 +49,17 @@
  *   LIGADO), BIS-400 com CX c/ 20 (R$ 117,80 = UN × fator), açúcar a R$ 4,99 e 3 produtos novos (filtro de papel, leite em pó
  *   e água 1,5 L); relacionados (catalogo.produto_relacao): complementares do café e versão superior da água; o Lucas com
  *   pedidos recentes em 2 mercadinhos (clientes parecidos do Mini Box) — 11 pedidos na base, o próximo número é o 000012.
+ * - T-0084/T-0085 (0033; desenhos T-0084 §10 e T-0085 §7): 4 autopeças novas no FIM da lista (pastilha e disco de freio
+ *   dianteiros, filtro de óleo e amortecedor traseiro) e a árvore sistema › grupo › linha delas (Freios › Pastilhas ›
+ *   Dianteiras, Freios › Discos › Dianteiros, Filtros › Filtros de óleo › Linha leve, Suspensão › Amortecedores ›
+ *   Traseiros). Aplicação (descrição 2, RN-CAT-11) em 5 das 12 autopeças (~40%): "Fiat Uno 1.0/1.4 2010–2014; Fiat Palio
+ *   1.0/1.4 2012–2016" na pastilha, "VW Gol G5/G6 1.0/1.6 2009–2016; VW Voyage 1.0/1.6 2009–2016" no filtro, "a partir de
+ *   2018" no amortecedor, um texto com mais de 300 caracteres SEM separador na lâmpada H4 (corte do orçamento, RN-VEN-19) e
+ *   o óleo 4T; os demais produtos (inclusive os não automotivos) ficam SEM aplicação (controle). Sinônimos VW = Volkswagen e
+ *   GM = Chevrolet. "Oferece junto" (produto_relacao complementar): pastilha → disco e fluido; filtro → óleo 5W30. As
+ *   marcas próprias do fluido e da câmara mudaram (Dotflex e Pneumaq) para não coincidir com as marcas CONCORRENTES
+ *   fictícias da referência cruzada (Freiomax, Rodaforte, Filtrobom e Vialume, no cadastro do Promotor). Referências,
+ *   etiquetas e o documento de busca da 0033: catalogo-cadastro.ts.
  *
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
@@ -64,6 +75,7 @@ import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
 import { idDeChave, idDeterministico, idMotivoPadrao, type CodigoMotivoPadrao } from '../../src/ids';
 import { hashSenha, verificarSenha } from '../../src/senha';
 import { carregarDemoGestor } from './gestor';
+import { gravarDemoCatalogoCadastro } from './catalogo-cadastro';
 import { gravarDemoMedidas } from './medidas';
 import { gravarPesquisaDemo } from './pesquisa';
 import { gravarDemoPlanoRv } from './plano-rv';
@@ -167,16 +179,23 @@ const PRODUTOS: Array<[string, string, string, string, string, number]> = [
   ['OLE-4T-1L', 'Óleo para motor 4T 20W50 1 L (motos 125 a 160 cc)', 'Motorvia', 'Automotivo', 'UN', 3_290],
   ['OLE-4T-SEMI', 'Óleo semissintético 4T 10W40 1 L para motos', 'Motorvia', 'Automotivo', 'UN', 3_890],
   ['OLE-5W30', 'Óleo sintético 5W30 1 L para carros flex', 'Lubrion', 'Automotivo', 'UN', 4_590],
-  ['FLU-DOT4', 'Fluido de freio DOT 4 500 ml', 'Freiomax', 'Automotivo', 'UN', 2_490],
+  // T-0085: marca própria Dotflex (era Freiomax, que virou marca CONCORRENTE fictícia da referência cruzada)
+  ['FLU-DOT4', 'Fluido de freio DOT 4 500 ml', 'Dotflex', 'Automotivo', 'UN', 2_490],
   ['ADI-RAD', 'Aditivo para radiador concentrado 1 L', 'Lubrion', 'Automotivo', 'UN', 1_890],
   ['VEL-150', 'Vela de ignição para moto 150 cc', 'Faísca', 'Automotivo', 'UN', 1_590],
-  ['CAM-18', 'Câmara de ar aro 18 para moto', 'Rodaforte', 'Automotivo', 'UN', 2_990],
+  // T-0085: marca própria Pneumaq (era Rodaforte, que virou marca CONCORRENTE fictícia da referência cruzada)
+  ['CAM-18', 'Câmara de ar aro 18 para moto', 'Pneumaq', 'Automotivo', 'UN', 2_990],
   ['LAM-H4', 'Lâmpada de farol H4 12 V 60/55 W', 'Luzmax', 'Automotivo', 'UN', 2_190],
   // T-0071 (0020): complementares do café e versão superior da água, para as sugestões do novo pedido (desenho §5). No FIM da
   // lista: margem e saldo usam o índice do produto, os anteriores não mudam
   ['FIL-103', 'Filtro de papel 103 c/ 30', 'Aroma da Serra', 'Mercearia', 'UN', 549],
   ['LPO-400', 'Leite em pó integral 400 g', 'Leite Bom', 'Laticínios', 'UN', 1_690],
   ['AGU-1500', 'Água mineral 1,5 L (fardo 6)', 'Fonte Clara', 'Bebidas', 'FD', 1_990],
+  // T-0084/T-0085 (0033): autopeças do Catálogo do cadastro (aplicação, oferece junto, referência cruzada). No FIM da lista
+  ['PST-D01', 'Pastilha de freio dianteira', 'Norfreio', 'Automotivo', 'UN', 8_990],
+  ['DSC-D01', 'Disco de freio dianteiro ventilado', 'Norfreio', 'Automotivo', 'UN', 15_990],
+  ['FOL-G01', 'Filtro de óleo', 'Purifil', 'Automotivo', 'UN', 2_890],
+  ['AMR-T01', 'Amortecedor traseiro', 'Suspentec', 'Automotivo', 'UN', 21_990],
 ];
 const PRECO = new Map(PRODUTOS.map(([sku, , , , , preco]) => [sku, preco]));
 const PRODUTO = new Map(PRODUTOS.map(([sku, nome, , , unidade]) => [sku, { nome, unidade }]));
@@ -239,6 +258,18 @@ const ARVORE: Array<[string, string, string | null]> = [
   ['AUT-PEC', 'Peças e acessórios', 'AUT'],
   ['AUT-PEC-MOT', 'Peças de moto', 'AUT-PEC'],
   ['AUT-PEC-ILU', 'Iluminação', 'AUT-PEC'],
+  // T-0085 (RF-CAT-09): sistema › grupo › linha das autopeças novas (no FIM: a ordem dos nós anteriores não muda)
+  ['FRE', 'Freios', null],
+  ['FRE-PAS', 'Pastilhas', 'FRE'],
+  ['FRE-PAS-DIA', 'Dianteiras', 'FRE-PAS'],
+  ['FRE-DIS', 'Discos', 'FRE'],
+  ['FRE-DIS-DIA', 'Dianteiros', 'FRE-DIS'],
+  ['FIL', 'Filtros', null],
+  ['FIL-OLE', 'Filtros de óleo', 'FIL'],
+  ['FIL-OLE-LEV', 'Linha leve', 'FIL-OLE'],
+  ['SUS', 'Suspensão', null],
+  ['SUS-AMO', 'Amortecedores', 'SUS'],
+  ['SUS-AMO-TRA', 'Traseiros', 'SUS-AMO'],
 ];
 /** Grupo (folha da árvore) de cada produto. */
 const GRUPO: Record<string, string> = {
@@ -248,6 +279,7 @@ const GRUPO: Record<string, string> = {
   'DET-500': 'LIH-LIM-LOU', 'DET-5L': 'LIH-LIM-LOU', 'SAB-1K': 'LIH-LIM-ROU', 'DES-2L': 'LIH-LIM-CAS', 'SBN-90': 'LIH-HIG-PES', 'CRD-90': 'LIH-HIG-PES',
   'PAP-4': 'LIH-HIG-PAP', 'OLE-4T-1L': 'AUT-LUB-MOT', 'OLE-4T-SEMI': 'AUT-LUB-MOT', 'OLE-5W30': 'AUT-LUB-CAR', 'FLU-DOT4': 'AUT-LUB-FLU',
   'ADI-RAD': 'AUT-LUB-FLU', 'VEL-150': 'AUT-PEC-MOT', 'CAM-18': 'AUT-PEC-MOT', 'LAM-H4': 'AUT-PEC-ILU',
+  'PST-D01': 'FRE-PAS-DIA', 'DSC-D01': 'FRE-DIS-DIA', 'FOL-G01': 'FIL-OLE-LEV', 'AMR-T01': 'SUS-AMO-TRA',
 };
 
 /** Atributos filtráveis: sku -> [nome, valor, valor numérico, unidade]. */
@@ -260,6 +292,10 @@ const ATRIBUTOS: Record<string, Array<[string, string, number | null, string | n
   'VEL-150': [['Cilindrada', '150', 150, 'cc'], ['Rosca', '10', 10, 'mm']],
   'CAM-18': [['Aro', '18', 18, 'pol'], ['Veículo', 'moto', null, null]],
   'LAM-H4': [['Tipo', 'H4', null, null], ['Tensão', '12', 12, 'V'], ['Potência', '60/55', 60, 'W']],
+  'PST-D01': [['Posição', 'dianteira', null, null], ['Material', 'semimetálica', null, null]],
+  'DSC-D01': [['Posição', 'dianteira', null, null], ['Tipo', 'ventilado', null, null], ['Diâmetro', '240', 240, 'mm']],
+  'FOL-G01': [['Rosca', '3/4"-16 UNF', null, null], ['Altura', '86', 86, 'mm']],
+  'AMR-T01': [['Posição', 'traseira', null, null], ['Tipo', 'pressurizado a gás', null, null]],
   'DET-5L': [['Fragrância', 'neutro', null, null], ['Volume', '5', 5, 'L']],
   'DET-500': [['Fragrância', 'neutro', null, null], ['Volume', '500', 500, 'ml']],
   'OLE-900': [['Tipo', 'soja', null, null], ['Volume', '900', 900, 'ml']],
@@ -269,8 +305,14 @@ const ATRIBUTOS: Record<string, Array<[string, string, number | null, string | n
   'SUC-1L': [['Sabor', 'cupuaçu', null, null], ['Volume', '1', 1, 'L']],
 };
 
-/** Conteúdo (ficha): sku -> [descrição, aplicações, argumentos de venda, FAQ]. Os demais ganham um texto padrão. */
-const CONTEUDO: Record<string, [string, string, string, Array<{ pergunta: string; resposta: string }>]> = {
+/**
+ * Conteúdo (ficha): sku -> [descrição, aplicação (descrição 2; null = sem), argumentos de venda, FAQ]. Os demais ganham uma
+ * descrição e argumentos padrão, SEM aplicação. T-0084 (RN-CAT-11): aplicação só em 5 das 12 autopeças (~40%), com os
+ * casos do Uno (pastilha), do Gol (filtro), do "a partir de 2018" (amortecedor) e do texto acima de 300 caracteres sem
+ * separador (lâmpada H4, para o corte do orçamento em 300, RN-VEN-19); o resto fica sem, como controle (antes da 0033 todo
+ * produto tinha um texto em `aplicacoes`, que agora sairia no orçamento e no PDF).
+ */
+const CONTEUDO: Record<string, [string, string | null, string, Array<{ pergunta: string; resposta: string }>]> = {
   'OLE-4T-1L': [
     'Óleo mineral para motores 4 tempos de motocicletas, viscosidade SAE 20W50, frasco de 1 litro.',
     'Motos de 125 a 160 cilindradas (125 cc, 150 cc e 160 cc), uso urbano e estrada. Troca a cada 1.000 a 1.500 km.',
@@ -282,19 +324,42 @@ const CONTEUDO: Record<string, [string, string, string, Array<{ pergunta: string
   ],
   'OLE-4T-SEMI': [
     'Óleo semissintético para motores 4 tempos, SAE 10W40, 1 litro.',
-    'Motos de 150 a 300 cilindradas, inclusive com embreagem banhada a óleo.',
+    null,
     'Troca mais espaçada que o mineral; protege na partida a frio.',
     [{ pergunta: 'Posso usar em moto 150?', resposta: 'Pode, se o manual permitir 10W40.' }],
   ],
-  'OLE-5W30': ['Óleo sintético SAE 5W30 para motores de carros flex.', 'Carros flex e a gasolina, motores 1.0 a 2.0.', 'Economia de combustível; padrão das montadoras.', []],
-  'FLU-DOT4': ['Fluido de freio DOT 4, 500 ml.', 'Carros e motos com freio a disco ou tambor que pedem DOT 3 ou DOT 4.', 'Ponto de ebulição alto: mais segurança na descida.', []],
-  'ADI-RAD': ['Aditivo concentrado para o sistema de arrefecimento, 1 litro.', 'Carros e motos refrigerados a água; diluir conforme o rótulo.', 'Evita ferrugem e superaquecimento.', []],
-  'VEL-150': ['Vela de ignição para motos de 150 cc.', 'Motos 150 cc das linhas mais vendidas.', 'Partida fácil e consumo menor.', []],
-  'CAM-18': ['Câmara de ar para pneu de moto aro 18.', 'Roda traseira de motos 125 a 160 cc com aro 18.', 'Borracha reforçada; válvula reta.', []],
-  'LAM-H4': ['Lâmpada halógena H4 12 V 60/55 W para farol.', 'Faróis de carros e motos com encaixe H4.', 'Luz alta e baixa na mesma lâmpada.', []],
-  'DET-5L': ['Detergente líquido neutro em galão de 5 litros.', 'Cozinhas de restaurantes, padarias e lanchonetes; louça e bancadas.', 'Rende mais que o de 500 ml; preço por litro menor.', []],
-  'CAF-500': ['Café torrado e moído, torra média, 500 g.', 'Coado e cafeteira.', 'Campeão de giro na mercearia.', []],
-  'REF-2L': ['Refrigerante de guaraná, garrafa de 2 litros.', 'Mercadinhos, padarias e conveniências.', 'Marca regional com boa saída no fim de semana.', []],
+  'OLE-5W30': ['Óleo sintético SAE 5W30 para motores de carros flex.', null, 'Economia de combustível; padrão das montadoras.', []],
+  'FLU-DOT4': ['Fluido de freio DOT 4, 500 ml.', null, 'Ponto de ebulição alto: mais segurança na descida.', []],
+  'ADI-RAD': ['Aditivo concentrado para o sistema de arrefecimento, 1 litro.', null, 'Evita ferrugem e superaquecimento.', []],
+  'VEL-150': ['Vela de ignição para motos de 150 cc.', null, 'Partida fácil e consumo menor.', []],
+  'CAM-18': ['Câmara de ar para pneu de moto aro 18.', null, 'Borracha reforçada; válvula reta.', []],
+  'LAM-H4': [
+    'Lâmpada halógena H4 12 V 60/55 W para farol.',
+    // T-0084: mais de 300 caracteres e SEM separador (; | • quebra de linha), para o corte na palavra inteira do orçamento
+    'Faróis de carros e motos com encaixe H4 de 12 V, como Fiat Uno Mille, Palio, Siena, Strada e Fiorino, VW Gol, Parati, ' +
+      'Saveiro, Voyage e Fox, Chevrolet Celta, Corsa Classic, Prisma e Onix, Ford Ka, Fiesta e EcoSport, Renault Clio, Sandero e ' +
+      'Logan, Honda CG 125, 150 e 160 Titan, Fan e Start, Yamaha Factor, YBR e Fazer 250 e as demais motos de baixa cilindrada com farol H4 de 60/55 W',
+    'Luz alta e baixa na mesma lâmpada.',
+    [],
+  ],
+  'DET-5L': ['Detergente líquido neutro em galão de 5 litros.', null, 'Rende mais que o de 500 ml; preço por litro menor.', []],
+  'CAF-500': ['Café torrado e moído, torra média, 500 g.', null, 'Campeão de giro na mercearia.', []],
+  'REF-2L': ['Refrigerante de guaraná, garrafa de 2 litros.', null, 'Marca regional com boa saída no fim de semana.', []],
+  // T-0084/T-0085 (0033): os casos do critério 3 da T-0084 (busca "pastilha uno 2012" e "filtro gol 2014")
+  'PST-D01': [
+    'Pastilha de freio dianteira semimetálica, jogo para as duas rodas.',
+    'Fiat Uno 1.0/1.4 2010–2014; Fiat Palio 1.0/1.4 2012–2016',
+    'Baixo ruído e pouco pó; troque junto com o disco quando ele estiver abaixo da espessura mínima.',
+    [{ pergunta: 'Serve no Uno 2012?', resposta: 'Sim. Serve no Fiat Uno 1.0 e 1.4 de 2010 a 2014.' }],
+  ],
+  'DSC-D01': ['Disco de freio dianteiro ventilado de 240 mm, unidade.', null, 'Liga com alto teor de carbono: menos vibração na frenagem.', []],
+  'FOL-G01': [
+    'Filtro de óleo blindado, rosca 3/4"-16 UNF.',
+    'VW Gol G5/G6 1.0/1.6 2009–2016; VW Voyage 1.0/1.6 2009–2016',
+    'Troque a cada troca de óleo; válvula antirretorno.',
+    [],
+  ],
+  'AMR-T01': ['Amortecedor traseiro pressurizado a gás, unidade.', 'Chevrolet Onix 1.0 a partir de 2018', 'Mais estabilidade com o carro carregado.', []],
 };
 
 /** Campanha (is_campaign) e destaque no catálogo. */
@@ -308,6 +373,9 @@ const SINONIMOS: Array<[string, string[]]> = [
   ['refri', ['refrigerante']],
   ['oleo', ['lubrificante']],
   ['galao', ['5l', '5_litros']],
+  // T-0084 (RN-CAT-12): siglas de montadora na aplicação ("filtro volkswagen gol" acha "VW Gol"; vale nos dois sentidos)
+  ['vw', ['volkswagen']],
+  ['gm', ['chevrolet']],
 ];
 
 /**
@@ -321,6 +389,10 @@ export const RELACOES_DEMO: Array<[string, string, 'complementar' | 'superior' |
   ['AGU-500', 'AGU-1500', 'superior', 1],
   // ficha do produto (substituto em ruptura): os dois óleos de moto
   ['OLE-4T-1L', 'OLE-4T-SEMI', 'substituto', 1],
+  // T-0085 (RF-CAT-09): "oferece junto" = complementar (até 5 por produto, domain e API do Catálogo)
+  ['PST-D01', 'DSC-D01', 'complementar', 1],
+  ['PST-D01', 'FLU-DOT4', 'complementar', 2],
+  ['FOL-G01', 'OLE-5W30', 'complementar', 1],
 ];
 
 /** Depósitos e saldo (na unidade base) por produto i: CD Manaus e Loja Centro; alguns zerados (ruptura) e alguns baixos. */
@@ -926,8 +998,9 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     return pai === null ? 1 : 1 + nivelDe(pai);
   };
   const nomeDoNo = new Map(ARVORE.map(([cod, nome]) => [cod, nome]));
-  const conteudoDe = (sku: string, nome: string, categoria: string) =>
-    CONTEUDO[sku] ?? [`${nome}.`, `Revenda no varejo: ${categoria.toLowerCase()}.`, 'Item de giro da distribuidora.', []];
+  // sem aplicação fora das autopeças escolhidas (T-0084): a descrição 2 sai no orçamento e no PDF, então só onde faz sentido
+  const conteudoDe = (sku: string, nome: string, _categoria: string): [string, string | null, string, Array<{ pergunta: string; resposta: string }>] =>
+    CONTEUDO[sku] ?? [`${nome}.`, null, 'Item de giro da distribuidora.', []];
   const atributosTexto = (sku: string) => (ATRIBUTOS[sku] ?? []).map(([nome, valor, , un]) => `${nome} ${valor}${un ? ` ${un}` : ''}`).join('; ');
   const dados0013 = {
     'core.produto_unidade': PRODUTOS.flatMap(([sku, , , , unidade]) => [
@@ -973,11 +1046,13 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
     ),
     'catalogo.sinonimo': SINONIMOS.map(([termo, lista]) => ({ id: id(`sinonimo:${termo}`), tenant_id: T, termo, sinonimos: arrayDeTexto(lista), ativo: true, ...comuns })),
     'catalogo.produto_busca': PRODUTOS.map(([sku, nome, marca, categoria]) => {
-      const [descricao, aplicacoes, argumentos] = conteudoDe(sku, nome, categoria);
+      // 0033 (T-0084 §6): o conteúdo (peso D) não leva mais a aplicação, que vai em produto_busca.aplicacao (peso C,
+      // expandida; gravada por catalogo-cadastro.ts quando a 0033 está aplicada)
+      const [descricao, , argumentos] = conteudoDe(sku, nome, categoria);
       const grupo = GRUPO[sku]!;
       return {
         id: id(`produto_busca:${sku}`), tenant_id: T, produto_id: id(`produto:${sku}`), sku, ean: null, nome, marca, categoria: `${categoria} ${nomeDoNo.get(grupo)}`,
-        atributos: atributosTexto(sku) || null, conteudo: [descricao, aplicacoes, argumentos].join(' '), ativo: true, ...comuns,
+        atributos: atributosTexto(sku) || null, conteudo: [descricao, argumentos].join(' '), ativo: true, ...comuns,
       };
     }),
     'catalogo.deposito': DEPOSITOS.map(([codigo, nome]) => ({ id: id(`deposito:${codigo}`), tenant_id: T, codigo, nome, ativo: true, ...comuns, external_id: codigo })),
@@ -1296,6 +1371,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     }
     // 0015 (T-0056): cadastros de trade e histórico da Joana (visitas de loja v-pr1/v-pr2), licença do Promotor
     await gravarDemoPromotor(admin, { hoje: dados['core.rota'][0]!.data as string });
+    // 0033 (T-0084/T-0085): referências cruzadas (marcas do Promotor), etiquetas e aplicação/referências no documento de busca
+    await gravarDemoCatalogoCadastro(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });
     // 0016 (T-0057): questionários da Pesquisa (exposição do café e satisfação no checkout), 16 respostas, licença
     await gravarPesquisaDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0017 (T-0058): licença do Treinamento (7 perfis), 3 trilhas, jornada de Lucas/Camila/Joana e desafio do mês

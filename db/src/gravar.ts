@@ -16,6 +16,16 @@ export function arrayDeTexto(itens: readonly string[]): string {
   return `{${itens.join(',')}}`;
 }
 
+/**
+ * Literal de array do Postgres para coluna `text[]` com TEXTO LIVRE (acento, espaço, vírgula, aspas; ex.:
+ * `catalogo.produto_conteudo.etiquetas`, 0033): cada item entre aspas duplas, com `\` e `"` escapados. Item nulo não é
+ * aceito (o CHECK da coluna também recusa).
+ */
+export function arrayDeTextoLivre(itens: readonly string[]): string {
+  for (const x of itens) if (typeof x !== 'string') throw new Error('arrayDeTextoLivre: só texto (sem nulo)');
+  return `{${itens.map((x) => `"${x.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
+}
+
 function valor(v: unknown): unknown {
   if (v !== null && typeof v === 'object' && !(v instanceof Date) && !Buffer.isBuffer(v)) return JSON.stringify(v);
   return v;
