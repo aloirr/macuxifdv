@@ -264,3 +264,245 @@ jobs:
           path: /tmp/macuxi-stack
           retention-days: 7
           if-no-files-found: ignore
+
+  # T-0086: o compose de PRODUÇÃO (scripts/deploy/producao) no runner, com um Postgres 16 de teste NO LUGAR DO DBaaS:
+  # TLS obrigatório (pg_hba só hostssl; certificado do job com SAN do IP do runner → verify-full de verdade) e admin SEM
+  # superusuário (LOGIN CREATEDB CREATEROLE, membro de pg_read_all_data/pg_write_all_data: o do DBaaS medido no P3; o
+  # mesmo do db/scripts/admin-sem-superusuario.ts). Caminho: preparar-vm.sh (2x, timers do backup e do alerta, faixas do
+  # Docker) → implantar.sh (banco-dbaas.sh: banco, vector, papéis B0, migrações com o macuxi_manutencao, conferir-rls)
+  # → conexões da API/worker cifradas → 2º deploy (idempotente) → imagem quebrada → VOLTA ATRÁS (código 3) → alerta pelo
+  # timer → tenant:criar (T-0083) → backup de produção, se o script do banco-dados já estiver na imagem.
+  stack-producao:
+    name: compose de produção → DBaaS de teste (TLS, sem superusuário) → volta atrás → alerta → tenant
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      COMPOSE_FILE: /opt/macuxi/compose.yml:/opt/macuxi/compose.ci.yml
+      SAIDA: /tmp/macuxi-stack-prod
+      # o "DBaaS" é o próprio runner (rota pela lo): só aqui a conferência da rota fica desligada
+      MACUXI_CONFERIR_ROTA: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: pré-requisitos do preparar-vm.sh no runner
+        run: |
+          mkdir -p "$SAIDA"
+          sudo apt-get update -q
+          sudo apt-get install -y -q openssh-server
+          if [ ! -s ~/.ssh/authorized_keys ]; then
+            install -d -m 700 ~/.ssh
+            ssh-keygen -q -t ed25519 -N '' -C stack-producao -f "$RUNNER_TEMP/descartavel"
+            cat "$RUNNER_TEMP/descartavel.pub" >> ~/.ssh/authorized_keys
+            chmod 600 ~/.ssh/authorized_keys
+            rm -f "$RUNNER_TEMP/descartavel" "$RUNNER_TEMP/descartavel.pub"
+          fi
+
+      - name: copiar scripts/deploy/producao + alerta-saude.sh (igual ao "producao — publicar")
+        run: |
+          rm -rf ~/macuxi-deploy && mkdir -p ~/macuxi-deploy
+          cp scripts/deploy/producao/* scripts/deploy/demo/alerta-saude.sh ~/macuxi-deploy/
+          ls -l ~/macuxi-deploy
+
+      - name: preparar-vm.sh (2 vezes) — .env, timers e faixas do Docker
+        run: |
+          sudo bash ~/macuxi-deploy/preparar-vm.sh "$(id -un)" 2>&1 | tee "$SAIDA/preparar-1.log"
+          while IFS='=' read -r nome valor; do
+            case "$nome" in *SENHA|*SEGREDO|*PEPPER) echo "::add-mask::$valor" ;; esac
+          done < /opt/macuxi/.env
+          for n in MACUXI_PG_APP_SENHA MACUXI_PG_WORKER_SENHA MACUXI_JWT_SEGREDO MACUXI_HUB_CHAVE_PEPPER; do
+            grep -q "^$n=." /opt/macuxi/.env || { echo "::error::preparar-vm.sh não gerou $n"; exit 1; }
+          done
+          if grep -q '^MACUXI_PG_ADMIN' /opt/macuxi/.env; then echo "::error::a senha do admin não pode nascer no .env da produção"; exit 1; fi
+          antes="$(sha256sum /opt/macuxi/.env)"
+          sudo bash ~/macuxi-deploy/preparar-vm.sh "$(id -un)" 2>&1 | tee "$SAIDA/preparar-2.log"
+          [ "$antes" = "$(sha256sum /opt/macuxi/.env)" ] || { echo "::error::a 2ª execução mexeu no .env"; exit 1; }
+          for t in macuxi-backup.timer macuxi-alerta.timer; do
+            if ! systemctl is-enabled --quiet "$t" || ! systemctl is-active --quiet "$t"; then echo "::error::$t não está habilitado e ativo"; exit 1; fi
+          done
+          test -x /opt/macuxi/alerta-saude.sh || { echo "::error::alerta-saude.sh não instalado pelo preparar-vm.sh"; exit 1; }
+          systemctl list-timers macuxi-backup.timer macuxi-alerta.timer --no-pager
+          jq -e '."default-address-pools"[0].base == "192.168.200.0/21"' /etc/docker/daemon.json > /dev/null || { echo "::error::faixas do Docker não aplicadas"; exit 1; }
+
+      - name: Postgres 16 de teste no lugar do DBaaS (TLS obrigatório, admin sem superusuário)
+        run: |
+          IP="$(hostname -I | awk '{print $1}')"
+          echo "DBAAS_IP=$IP" >> "$GITHUB_ENV"
+          d="$RUNNER_TEMP/dbaas"; mkdir -p "$d"
+          # CA e certificado do servidor com SAN do IP (verify-full de verdade, como com a CA da Magalu)
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj '/CN=macuxi-ci-ca' -keyout "$d/ca.key" -out "$d/ca.pem" 2>/dev/null
+          openssl req -newkey rsa:2048 -nodes -subj "/CN=$IP" -keyout "$d/server.key" -out "$d/server.csr" 2>/dev/null
+          printf 'subjectAltName=IP:%s\n' "$IP" > "$d/san.ext"
+          openssl x509 -req -in "$d/server.csr" -CA "$d/ca.pem" -CAkey "$d/ca.key" -CAcreateserial -days 2 -extfile "$d/san.ext" -out "$d/server.crt" 2>/dev/null
+          printf 'local all all trust\nhostssl all all all scram-sha-256\n' > "$d/pg_hba.conf"
+          chmod 644 "$d"/*
+          super="$(openssl rand -hex 24)"; echo "::add-mask::$super"
+          admin="$(openssl rand -hex 24)"; echo "::add-mask::$admin"
+          echo "ADMIN_SENHA=$admin" >> "$GITHUB_ENV"
+          docker run -d --name dbaas-falso --restart always -p "$IP:5432:5432" \
+            -e POSTGRES_PASSWORD="$super" -e TZ=UTC -v "$d:/certs-src:ro" --entrypoint bash pgvector/pgvector:pg16 \
+            -c 'install -o postgres -g postgres -m 600 /certs-src/server.key /var/lib/postgresql/server.key && install -o postgres -g postgres -m 644 /certs-src/server.crt /certs-src/pg_hba.conf /var/lib/postgresql/ && exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key -c hba_file=/var/lib/postgresql/pg_hba.conf -c timezone=UTC'
+          for i in $(seq 1 60); do
+            if docker exec dbaas-falso psql -U postgres -d postgres -Atc 'select 1' > /dev/null 2>&1 && docker exec dbaas-falso pg_isready -h 127.0.0.1 -U postgres > /dev/null 2>&1; then break; fi
+            [ "$i" = 60 ] && { docker logs dbaas-falso; exit 1; }
+            sleep 2
+          done
+          sleep 3
+          # como o DBaaS: vector já disponível (no DBaaS, pelo pgextwlist; aqui, no template1) e um admin sem SUPERUSER/BYPASSRLS
+          docker exec -i dbaas-falso psql -v ON_ERROR_STOP=1 -U postgres -d template1 -c 'create extension if not exists vector' > /dev/null
+          printf "create role macuxi_admin_sem_super login createdb createrole nosuperuser nobypassrls noreplication password '%s';\ngrant pg_read_all_data, pg_write_all_data to macuxi_admin_sem_super;\n" "$admin" \
+            | docker exec -i dbaas-falso psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres
+          install -m 644 "$d/ca.pem" /opt/macuxi/certs/dbaas-ca.pem
+          rm -f "$d/ca.key"
+
+      - name: registro local (só 127.0.0.1)
+        run: |
+          docker run -d --name registro --restart always -p 127.0.0.1:5000:5000 registry:2
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://127.0.0.1:5000/v2/ && break; [ "$i" = 30 ] && exit 1; sleep 1; done
+
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
+      - name: imagem da API do commit (registro local)
+        id: api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          provenance: false
+          tags: localhost:5000/macuxi-api:${{ github.sha }}
+          cache-from: |
+            type=gha,scope=macuxi-api
+            type=gha,scope=macuxi-api-stack
+          cache-to: type=gha,scope=macuxi-api-stack,mode=max
+
+      - name: segredos de TESTE (nos arquivos que o workflow grava) e compose do CI
+        env:
+          DIGEST: ${{ steps.api.outputs.digest }}
+        run: |
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::digest da imagem inválido"; exit 1; }
+          echo "API_REF=localhost:5000/macuxi-api@$DIGEST" >> "$GITHUB_ENV"
+          umask 077
+          s3="$(openssl rand -hex 32)"; echo "::add-mask::$s3"
+          printf 'MACUXI_PG_HOST=%s\nMACUXI_PG_PORTA=5432\n' "$DBAAS_IP" > /opt/macuxi/banco.env
+          printf 'MACUXI_PG_ADMIN_USUARIO=macuxi_admin_sem_super\nMACUXI_PG_ADMIN_SENHA=%s\n' "$ADMIN_SENHA" > /opt/macuxi/admin.env
+          printf 'MACUXI_S3_CHAVE_ID=ci-%s\nMACUXI_S3_SEGREDO=%s\n' "$(openssl rand -hex 8)" "$s3" > /opt/macuxi/segredos.env
+          printf 'TUNNEL_TOKEN=ci-sem-tunel\n' > /opt/macuxi/tunel.env
+          install -m 644 scripts/deploy/stack-isolado/compose.producao.ci.yml /opt/macuxi/compose.ci.yml
+          install -m 644 scripts/deploy/stack-isolado/s3-falso.mjs /opt/macuxi/
+
+      - name: implantar.sh (1º deploy — banco do zero no "DBaaS")
+        run: |
+          bash ~/macuxi-deploy/implantar.sh --api "$API_REF" --versao v0.0.0-ci1 2>&1 | tee "$SAIDA/implantar-1.log"
+          l="$SAIDA/implantar-1.log"
+          falta() { echo "::error::1º deploy: $1"; exit 1; }
+          grep -q 'banco macuxi criado (primeiro deploy)' "$l" || falta "não criou o banco"
+          grep -q 'certificado conferido' "$l" || falta "TLS sem verify-full (a CA do job estava em certs/)"
+          grep -q 'admin sem SUPERUSER e sem BYPASSRLS' "$l" || falta "o admin do teste não é o do DBaaS"
+          grep -Eq 'extensão vector 0\.[89]' "$l" || falta "sem a extensão vector >= 0.8"
+          grep -q 'papéis: macuxi_app e macuxi_worker com LOGIN' "$l" || falta "papéis"
+          grep -q 'admin herda o macuxi_manutencao' "$l" || falta "0031"
+          grep -q 'conferir-rls.sql = 0' "$l" || falta "conferir-rls.sql"
+          grep -q 'api: /v1/saude ok (banco ok, versão v0.0.0-ci1)' "$l" || falta "saúde"
+          grep -q '\[sonda\] armazenamento ok' "$l" || falta "sonda do S3"
+          grep -q 'publicado: v0.0.0-ci1' "$l" || falta "não terminou"
+
+      - name: API e worker conectados ao "DBaaS" só com TLS; rede fora da faixa da VPC
+        run: |
+          docker exec dbaas-falso psql -U postgres -d postgres -At -F '|' -c \
+            "select a.usename, s.ssl, count(*) from pg_stat_activity a join pg_stat_ssl s using (pid) where a.usename in ('macuxi_app','macuxi_worker') group by 1, 2 order by 1, 2" \
+            | tee "$SAIDA/conexoes.txt"
+          grep -q '^macuxi_app|t|' "$SAIDA/conexoes.txt" && grep -q '^macuxi_worker|t|' "$SAIDA/conexoes.txt" || { echo "::error::api/worker sem conexão cifrada"; exit 1; }
+          if grep -q '|f|' "$SAIDA/conexoes.txt"; then echo "::error::conexão SEM TLS"; exit 1; fi
+          docker network inspect macuxi-prod_macuxi --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' | tee "$SAIDA/rede.txt"
+          grep -Eq '^192\.168\.(20[0-7])\.' "$SAIDA/rede.txt" || { echo "::error::a rede do compose não saiu da faixa 192.168.200.0/21"; exit 1; }
+
+      - name: implantar.sh (2º deploy — idempotente)
+        run: |
+          bash ~/macuxi-deploy/implantar.sh --api "$API_REF" --versao v0.0.0-ci2 2>&1 | tee "$SAIDA/implantar-2.log"
+          grep -q 'banco macuxi já existe' "$SAIDA/implantar-2.log" || { echo "::error::2º deploy recriou o banco?"; exit 1; }
+          grep -q 'up em macuxi: nada pendente' "$SAIDA/implantar-2.log" || { echo "::error::2º deploy aplicou migração"; exit 1; }
+          grep -q 'publicado: v0.0.0-ci2' "$SAIDA/implantar-2.log" || { echo "::error::2º deploy não terminou"; exit 1; }
+
+      - name: imagem quebrada → volta atrás sozinho (código 3)
+        run: |
+          printf 'FROM %s\nCMD ["node", "-e", "process.exit(1)"]\n' "$API_REF" | docker build -q -t localhost:5000/macuxi-api:quebrada - > /dev/null
+          docker push -q localhost:5000/macuxi-api:quebrada > /dev/null
+          ruim="$(docker inspect --format '{{index .RepoDigests 0}}' localhost:5000/macuxi-api:quebrada)"
+          set +e
+          bash ~/macuxi-deploy/implantar.sh --api "$ruim" --versao v0.0.0-ci3 2>&1 | tee "$SAIDA/implantar-3.log"
+          codigo=${PIPESTATUS[0]}
+          set -e
+          [ "$codigo" = 3 ] || { echo "::error::esperado código 3 (voltou atrás), veio $codigo"; exit 1; }
+          grep -q 'produção de volta em v0.0.0-ci2' "$SAIDA/implantar-3.log" || { echo "::error::não voltou para a v0.0.0-ci2"; exit 1; }
+          curl -fsS http://127.0.0.1:8100/v1/saude | grep -q '"versao":"v0.0.0-ci2"' || { echo "::error::a API no ar não é a v0.0.0-ci2"; exit 1; }
+          grep -q '^MACUXI_VERSAO=v0.0.0-ci2$' /opt/macuxi/imagens.env || { echo "::error::imagens.env não voltou"; exit 1; }
+
+      - name: alerta de saúde pelo timer do systemd
+        run: |
+          sudo systemctl start macuxi-alerta.service
+          sleep 2
+          sudo journalctl -t macuxi-alerta --no-pager -o cat | tee "$SAIDA/alerta.log"
+          grep -q '^Macuxi producao: .* -> ok ' "$SAIDA/alerta.log" || { echo "::error::o alerta (macuxi-alerta.service) não registrou o estado ok"; exit 1; }
+          [ "$(systemctl show macuxi-alerta.service -p Result --value)" = success ] || { echo "::error::macuxi-alerta.service falhou"; exit 1; }
+
+      - name: tenant:criar (T-0083) contra o "DBaaS"
+        run: |
+          cd /opt/macuxi
+          MACUXI_TENANT_ADMIN_SENHA="Ci-$(openssl rand -hex 12)"
+          echo "::add-mask::$MACUXI_TENANT_ADMIN_SENHA"
+          export MACUXI_TENANT_ADMIN_SENHA
+          docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T -e MACUXI_TENANT_ADMIN_SENHA tenant \
+            criar --codigo teste-ci --nome "Tenant de teste do CI" --modulos core,catalogo,vendedor,promotor \
+            --admin-email admin@teste-ci.invalid --admin-nome "Admin CI" --confirmar teste-ci 2>&1 | tee "$SAIDA/tenant.log"
+          grep -q '"resultado":"criado"' "$SAIDA/tenant.log" || { echo "::error::tenant:criar não criou o tenant"; exit 1; }
+
+      - name: backup de produção (se o script do banco-dados já estiver na imagem)
+        run: |
+          if [ ! -x /opt/macuxi/backup/backup-dbaas.sh ]; then
+            echo "::notice::db/backup/backup-dbaas.sh ainda não está na imagem (banco-dados, T-0086): backup de produção não ensaiado aqui"
+            exit 0
+          fi
+          sudo install -d /etc/systemd/system/macuxi-backup.service.d
+          printf '[Service]\nEnvironment=COMPOSE_FILE=%s\nEnvironment=MACUXI_CONFERIR_ROTA=0\n' "$COMPOSE_FILE" | sudo tee /etc/systemd/system/macuxi-backup.service.d/ci.conf
+          sudo systemctl daemon-reload
+          sudo systemctl start macuxi-backup.service || true
+          sudo journalctl -u macuxi-backup --no-pager -o cat | tee "$SAIDA/backup.log"
+          [ "$(systemctl show macuxi-backup.service -p Result --value)" = success ] || { echo "::error::macuxi-backup.service falhou"; exit 1; }
+          cd /opt/macuxi
+          docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T backup listar | tee "$SAIDA/listar.txt"
+          grep -Eq 'backups/macuxi-[0-9]{8}T[0-9]{6}Z\.dump' "$SAIDA/listar.txt" || { echo "::error::nenhum dump em backups/"; exit 1; }
+          if [ -x /opt/macuxi/backup/ensaio-restauracao.sh ]; then
+            /opt/macuxi/backup/ensaio-restauracao.sh ultimo 2>&1 | tee "$SAIDA/ensaio.log"
+            grep -q '^\[ensaio\] resultado: IGUAL' "$SAIDA/ensaio.log" || { echo "::error::ensaio de restauração sem 'resultado: IGUAL'"; exit 1; }
+          fi
+
+      - name: estado final e logs (sempre)
+        if: ${{ always() }}
+        run: |
+          cd /opt/macuxi 2>/dev/null || exit 0
+          [ -f imagens.env ] || exit 0
+          dc() { docker compose --env-file .env --env-file imagens.env "$@"; }
+          dc ps --all --format 'table {{.Service}}\t{{.Status}}' || true
+          for s in api worker s3-falso; do dc logs --no-color --tail 200 "$s" > "$SAIDA/log-$s.txt" 2>&1 || true; done
+          docker logs --tail 200 dbaas-falso > "$SAIDA/log-dbaas-falso.txt" 2>&1 || true
+          {
+            echo "### Stack isolado — produção (T-0086)"
+            echo "| etapa | última linha |"
+            echo "|---|---|"
+            for f in preparar-1 preparar-2 implantar-1 implantar-2 implantar-3 alerta tenant backup ensaio; do
+              [ -f "$SAIDA/$f.log" ] && echo "| $f | $(tail -n 1 "$SAIDA/$f.log" | tr '|' '/') |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: artefato com os logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-producao-${{ github.run_id }}
+          path: /tmp/macuxi-stack-prod
+          retention-days: 7
+          if-no-files-found: ignore

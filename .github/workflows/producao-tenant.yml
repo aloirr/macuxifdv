@@ -1,0 +1,115 @@
+name: producao — criar tenant
+
+# T-0086 (critério 7) e T-0083 (RN-CORE-31). `pnpm tenant:criar` contra a PRODUÇÃO, pela VM (o DBaaS só tem IP privado
+# na VPC), com a imagem da API que está no ar (/opt/macuxi/imagens.env) e a conexão de administração (admin.env).
+# Só manual e só no environment PRODUCAO (aprovação do Alexandre). A senha do admin do tenant vem do secret
+# PROD_TENANT_ADMIN_SENHA, pelo stdin do ssh, e chega ao contêiner por `-e MACUXI_TENANT_ADMIN_SENHA` SEM valor no argv.
+# A saída da CLI é uma linha JSON sem senha, hash, nome ou e-mail em claro (e-mail mascarado). "simular" = mesma chamada
+# numa transação desfeita (padrão: true; rode primeiro simulando).
+
+on:
+  workflow_dispatch:
+    inputs:
+      codigo:
+        description: código da empresa (ex. teste-macuxi)
+        required: true
+      nome:
+        description: nome da empresa
+        required: true
+      modulos:
+        description: módulos licenciados (vírgula)
+        default: core,catalogo,vendedor,promotor
+      licencas:
+        description: licenças por módulo (ex. vendedor=5,promotor=2; vazio = sem limite)
+        default: ''
+      fuso:
+        description: fuso IANA
+        default: America/Manaus
+      admin_email:
+        description: e-mail do admin inicial do tenant
+        required: true
+      admin_nome:
+        description: nome do admin inicial
+        required: true
+      simular:
+        description: simular (transação desfeita no fim)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tenant:
+    name: tenant:criar na produção
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: PRODUCAO
+    steps:
+      - name: entradas
+        env:
+          CODIGO: ${{ inputs.codigo }}
+          NOME: ${{ inputs.nome }}
+          MODULOS: ${{ inputs.modulos }}
+          LICENCAS: ${{ inputs.licencas }}
+          FUSO: ${{ inputs.fuso }}
+          EMAIL: ${{ inputs.admin_email }}
+          ADMIN_NOME: ${{ inputs.admin_nome }}
+          SENHA: ${{ secrets.PROD_TENANT_ADMIN_SENHA }}
+        run: |
+          [[ "$CODIGO" =~ ^[a-z0-9][a-z0-9-]{1,39}$ ]] || { echo "::error::código inválido"; exit 1; }
+          [[ "$MODULOS" =~ ^[a-z]+(,[a-z]+)*$ ]] || { echo "::error::módulos inválidos"; exit 1; }
+          [ -z "$LICENCAS" ] || [[ "$LICENCAS" =~ ^[a-z]+=[0-9]+(,[a-z]+=[0-9]+)*$ ]] || { echo "::error::licenças inválidas"; exit 1; }
+          [[ "$FUSO" =~ ^[A-Za-z_]+(/[A-Za-z_+-]+){0,2}$ ]] || { echo "::error::fuso inválido"; exit 1; }
+          [[ "$EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+$ ]] || { echo "::error::e-mail inválido"; exit 1; }
+          [ -n "$NOME" ] && [ -n "$ADMIN_NOME" ] || { echo "::error::nome vazio"; exit 1; }
+          [ -n "$SENHA" ] || { echo "::error::secret PROD_TENANT_ADMIN_SENHA vazio (environment PRODUCAO)"; exit 1; }
+          case "$SENHA" in *$'\n'*|*$'\r'*) echo "::error::PROD_TENANT_ADMIN_SENHA tem quebra de linha"; exit 1;; esac
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.PROD_SSH_KEY }}
+          HOST: ${{ secrets.PROD_HOST }}
+          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
+          chmod 600 ~/.ssh/prod
+          if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
+          else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: tenant:criar
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          SENHA: ${{ secrets.PROD_TENANT_ADMIN_SENHA }}
+          CODIGO: ${{ inputs.codigo }}
+          NOME: ${{ inputs.nome }}
+          MODULOS: ${{ inputs.modulos }}
+          LICENCAS: ${{ inputs.licencas }}
+          FUSO: ${{ inputs.fuso }}
+          EMAIL: ${{ inputs.admin_email }}
+          ADMIN_NOME: ${{ inputs.admin_nome }}
+          SIMULAR: ${{ inputs.simular }}
+        run: |
+          args=(criar --codigo "$CODIGO" --nome "$NOME" --modulos "$MODULOS" --fuso "$FUSO" --admin-email "$EMAIL" --admin-nome "$ADMIN_NOME" --confirmar "$CODIGO")
+          [ -n "$LICENCAS" ] && args+=(--licencas "$LICENCAS")
+          [ "$SIMULAR" = true ] && args+=(--simular)
+          # argumentos escapados com %q para o shell remoto; a senha vai só pela 1ª linha do stdin
+          remoto='set -euo pipefail; IFS= read -r MACUXI_TENANT_ADMIN_SENHA; export MACUXI_TENANT_ADMIN_SENHA; cd /opt/macuxi;'
+          remoto+=' docker compose --env-file .env --env-file imagens.env --profile ferramentas run --rm -T -e MACUXI_TENANT_ADMIN_SENHA tenant'
+          remoto+=" $(printf '%q ' "${args[@]}")"
+          printf '%s\n' "$SENHA" | ssh -l "$USUARIO" prod "$remoto"
+
+      - name: limpar a chave do runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts
