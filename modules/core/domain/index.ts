@@ -38,3 +38,4 @@ export * from './farol';
 export * from './positivacao-notas';
 export * from './checkout-tolerancia';
 export * from './plano-rv';
+export * from './super-admin';
