@@ -264,3 +264,9 @@
 2026-11-05 — T-0026 — 000011 duplicado: seed passa a numerar acima do maior número já emitido (numerarPedidosDemo), em revisão pelo engenheiro-software
 2026-11-05 — T-0026/T-0052 — lote Q (dce8f39: seed sem número repetido, vitrine com um principal, rodapé do kit) no CI 42126286809; Adicionar ao pedido fora até o 🔴 do pedido em edição; guardião bloqueou um comando meu que gravava arquivo e citava o Alexandre num filtro — refeito sem o filtro
 2026-11-05 — T-0026/T-0052 — lote Q no main (158bdec..dce8f39, 6 commits): seed sem número repetido, vitrine com um principal, rodapé do kit sem sinal; CI verde no commit exato, verificar e trailer OK
+2026-11-05 — T-0026/T-0052 — main dce8f39 com CI e demo verdes; lote R vermelho: promotor-sem-pedido conta as extensões do Vendedor (ação nova) → testes; Conector pg com timeout no runner (instabilidade, roda de novo)
+2026-11-05 — T-0071/T-0052 — lote R no main (dce8f39..0263f9f, 5 commits): Adicionar ao pedido a partir do Catálogo, Pedidos com atualização automática, prova da regra 7; CI verde no commit exato (o timeout do Conector não se repetiu), revisões sem 🔴
+2026-11-05 — T-0071/T-0052 — main 0263f9f com CI e demo verdes; build de preview com o engenheiro-apps
+2026-11-05 — status — status das 20h por recado
+2026-11-05 — T-0071/T-0052 — APKs do 0263f9f (Campo 3a3193bc, Gestão 5ad333d0) enviados ao Alexandre com o roteiro do Adicionar ao pedido
+2026-11-05 — T-0084/T-0085 — abertas a partir de R-20261105-110150, R-20261105-112117 e R-20261105-191229; regras no doc 02/03 (RN-CAT-08 ocupada → Aplicação = RN-CAT-11, busca = RN-CAT-12); selo roxo; job do CI sem superusuário e checagem do trailer autorizados → engenheiro-software; pedido em nome do vendedor → modulo-vendedor; T-0078 → testes valida

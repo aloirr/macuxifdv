@@ -92,6 +92,7 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
   - "Enviar pedido" fica bloqueado com FOB sem transportadora: "Informe a transportadora do frete FOB."
 - **RN-VEN-17** Endereço de entrega: padrão = endereço principal do cliente. O vendedor escolhe entre os endereços de entrega do cliente vindos do ERP; não digita endereço novo (endereço novo entra pelo cadastro no ERP).
 - **RN-VEN-18 Orçamento** O vendedor pode salvar o pedido como orçamento: válido por [`validade_orcamento_dias` 7] dias, não reserva estoque, não passa pela alçada, não vai ao ERP e não conta na meta nem no ranking. "Transformar em pedido" reconfere preço, estoque, preço mínimo e alçada no momento da transformação (avisa o que mudou) e segue o fluxo de "Enviar pedido". O vencido só pode ser duplicado. Cliente com cadastro incompleto ou bloqueado (RN-VEN-13) só pode salvar como orçamento. Desconto ou acréscimo em R$ no item é **por unidade**; no pedido, é sobre o total dos itens; a tela mostra sempre o equivalente (% ↔ R$). O pedido gerado por "Transformar" conta na meta pela data de emissão dele (RN-CORE-21), nunca pela data do orçamento. *(Alexandre, R-20261103-123656, R-20261103-130003 e R-20261103-140707; referência visual em `docs/produto/referencias/R-20261103-130003-alexandre-novo-pedido.png` e `.html`, versão enxuta.)*
+- **RN-VEN-19 Aplicação no orçamento e no pedido** Em cada item do Novo pedido, quando o produto tem aplicação, a opção **"Incluir aplicação no orçamento"** vem marcada conforme o parâmetro [`aplicacao_no_orcamento_padrao` = sim] e o vendedor pode desmarcar item a item. O item grava o texto **no momento do pedido** (retrato, como o cliente do pedido), limitado a [`aplicacao_max_orcamento` = 300] caracteres e cortado na última palavra inteira com "…". O texto sai no PDF do cliente e no do BKO, no detalhe do pedido (Campo, Gestão e BKO) e no pedido enviado ao ERP. O parâmetro aceita até 1.000. Na lista de produtos, a aplicação aparece em 2 linhas, com o trecho da busca destacado. *(Decisão do Alexandre, R-20261105-110150; caixa por item, R-20261105-191229; T-0084.)*
 - **RN-VEN-20** Disponível = saldo do ERP − reservas; reserva quando a API aceita o pedido; libera em cancelamento, rejeição ou faturamento. Insuficiente → [permitir com aviso | bloquear | cortar].
 - **RN-VEN-21** Quantidade múltipla do múltiplo de venda; item repetido soma quantidade.
 - **RN-VEN-22** Pedido mínimo [desativado].
@@ -150,6 +151,23 @@ Cada regra mora no `domain` do módulo dono, como função pura testada, e roda 
 - **RN-CAT-06** Item fora da tabela de preço do cliente em contexto aparece como "Sem preço para este cliente" e não é vendável; nunca cai na tabela padrão do tenant.
 - **RN-CAT-07** Estoque: "baixo" de 1 até [10] unidades, número exato visível [sim], "desatualizado" depois de [24 h] sem atualização; a tela sempre mostra "atualizado às hh:mm" (fuso do tenant).
 - **RN-CAT-08** Ranking da busca: pesos [semântico 0,4; estoque 0,10; mais vendido 0,10; campanha 0,05] e cache [10 min, a partir da 2ª repetição] são parâmetros do tenant; serão calibrados no critério de aceite da Sprint 3.
+- **RN-CAT-09 Referência cruzada** Cada produto tem **até 3** referências cruzadas, cada uma com **marca concorrente** (escolhida da tabela de concorrentes do tenant em Parâmetros → Produtos, a mesma usada pelo Promotor) e **código** (até 30 caracteres). O **analista** preenche no BKO; o ERP também pode mandar. A busca (app e BKO, offline) acha o produto pelo código do concorrente, ignorando espaços, hífens, pontos e maiúsculas ("cb3401" acha "CB 3401"), e mostra "Equivale a: <marca> <código>" com o trecho destacado. *(Decisão do Alexandre, R-20261105-112117 e R-20261105-191229; T-0085.)*
+- **RN-CAT-10 O que sai para o cliente** Aplicação no orçamento e no PDF do cliente segue a RN-VEN-19. A referência cruzada **não** sai no PDF do cliente por padrão [`referencia_no_orcamento` = não]; sai no catálogo, no app e no PDF interno. *(Decisão do Alexandre, R-20261105-112117 e R-20261105-191229; T-0085.)*
+- **RN-CAT-11 Aplicação do produto** O produto tem o campo **Aplicação** (descrição 2), texto livre de até [`aplicacao_max_cadastro` = 2.000] caracteres, vindo do ERP ou editado no BKO. Texto maior chega cortado nesse limite, e o monitor de integração mostra um aviso. A aplicação entra na busca de produtos (app e BKO, offline) e aparece na ficha do produto. *(Decisão do Alexandre, R-20261105-110150, que a chamou de RN-CAT-08; o número 08 já era o ranking da busca, por isso ficou 11. T-0084.)*
+- **RN-CAT-12 Busca pela aplicação** (complemento de R-20261105-191229; T-0084)
+  - **Ano dentro de faixa:** uma função pura do domain (`expandirAplicacao`), a mesma no app e na API, faz "pastilha uno 2012" achar "Uno 1.0/1.4 2010–2014".
+    - Faixas de 4 dígitos ("2010–2014", "2010-2014", "2010 a 2014", "2010/2014") geram também os anos do meio.
+    - "2012>", "2012 em diante" e "a partir de 2012" vão até o ano atual + 1.
+    - Faixa invertida ou com mais de 40 anos fica só como texto.
+    - Nunca expande "1.0/1.4" nem "G5/G6".
+    - Ano de 2 dígitos ("10/14") fica fora da v1, atrás de parâmetro desligado.
+  - **Campo próprio no índice:**
+    - servidor: coluna `aplicacao` em `catalogo.produto_busca`, com peso C;
+    - aparelho: coluna na FTS5, com peso 2;
+    - ranking: `PESO_CAMPO.aplicacao` = [`peso_aplicacao` = 0,5] (atributos continuam 0,3); produto que casa pelo nome vem antes de produto que casa só pela aplicação.
+  - **Trecho "Serve em":** quando a aplicação contribuiu para o acerto, o resultado mostra o segmento que casou, com até 90 caracteres, os termos marcados e "inclui 2012" quando o ano veio de faixa.
+  - **Sinônimos e busca online:** os sinônimos do tenant valem na aplicação (VW = Volkswagen, GM = Chevrolet). A busca em linguagem natural online mantém modelo, motor e ano no texto livre.
+  - **Desempenho:** com 20 mil produtos com aplicação longa, a busca offline tem p95 < 300 ms na tela de medição. Tenant sem aplicação mantém resultados e tempos iguais aos de antes.
 
 ## 9. Integração (Hub `/integracao/v1`)
 > Registradas na T-0009 (2026-10-31) a partir das "Regras técnicas" do doc 06. Valores entre colchetes são parâmetros do tenant.

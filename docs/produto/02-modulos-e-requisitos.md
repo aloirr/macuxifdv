@@ -34,6 +34,7 @@ Cada módulo declara: depende de, eventos que **publica** e **consome**, e ponto
 - **RF-CAT-06 (P1)** Comparar até 3 produtos; leitor de código de barras pela câmera.
 - **RF-CAT-07 (P0)** BKO: enriquecer conteúdo (fotos, vídeos curtos, argumentos, sinônimos, FAQ, PDFs técnicos), ver termos buscados sem resultado. 🖥️
 - **RF-CAT-08 (P1)** Pacote de fotos completo só no Wi-Fi; sob demanda no 4G.
+- **RF-CAT-09 (P0) Catálogo do cadastro** O catálogo é gerado do cadastro dos produtos, sem conteúdo à parte. Hierarquia **sistema › grupo › linha** (vinda do ERP ou do BKO). Por item: código, medida e embalagem, descrição, **aplicação**, **oferece junto** (códigos complementares), **equivale a** (referências cruzadas), etiquetas curtas (ex.: posição dianteiro/traseiro, lado, "novo"), foto e preço/estoque no contexto do cliente. App: lista por linha com busca e ficha do produto. BKO: exportação do catálogo em PDF por sistema/linha (sumário com contagem de itens e tabela Código · Aplicação · Oferece junto · Equivale a) e em Excel. *(Decisão do Alexandre, R-20261105-112117 e R-20261105-191229; T-0085.)*
 
 ## VEN — Vendedor (pedido e pré-venda)
 **Depende de**: Core; usa Catálogo se ativo (extensão `produto.acoes`). **Publica**: `vendedor.pedido.criado@1`, `vendedor.pedido.status_alterado@1`, `vendedor.pedido.aprovacao_solicitada@1`. **Consome**: `promotor.ruptura.registrada@1` (opcional), `integracao.pedido.retorno_erp@1`. **Oferece extensão**: `pedido.criar_em_nome` (usada pelo Gestor).
