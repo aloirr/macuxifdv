@@ -87,6 +87,8 @@ export interface LinhaItem {
   desconto_unitario_cents?: number | null;
   acrescimo_unitario_cents?: number | null;
   ajuste_em?: 'pct' | 'valor' | null;
+  /** T-0084 (0033): retrato da aplicação no momento do pedido */
+  aplicacao?: string | null;
 }
 
 export interface LinhaEvento {
@@ -224,6 +226,7 @@ export function paraItem(i: LinhaItem): OrderItem {
     ...(i.unidade ? { unit: i.unidade, factor: num(i.fator ?? 1), unit_label: rotuloMedida(i.unidade, num(i.fator ?? 1)) } : {}),
     ...(i.acrescimo_pct !== undefined && i.acrescimo_pct !== null && num(i.acrescimo_pct) > 0 ? { surcharge_pct: num(i.acrescimo_pct) } : {}),
     ...(i.ajuste_em ? { adjust_mode: i.ajuste_em, unit_discount_cents: num(i.desconto_unitario_cents ?? 0), unit_surcharge_cents: num(i.acrescimo_unitario_cents ?? 0) } : {}),
+    ...(i.aplicacao ? { application: i.aplicacao } : {}),
   };
 }
 

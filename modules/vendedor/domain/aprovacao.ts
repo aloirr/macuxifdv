@@ -3,6 +3,7 @@
  * usam a mesma regra (RN-VEN-10), e a API sempre revalida.
  */
 import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus, type OrderValidation } from './order';
+import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
 import { precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, MSG_DESCONTO_E_ACRESCIMO, type AjusteItem } from './preco-pedido';
 
 // ---------- vocabulário ----------
@@ -162,11 +163,15 @@ export interface ItemRevalidar {
   acrescimo_unitario_cents?: number;
   /** T-0061 (RN-VEN-11): mínimo por unidade base; ausente = sem trava */
   preco_minimo_base_cents?: number | null;
+  /** T-0084 (RN-VEN-19): retrato da aplicação vindo do aparelho; nulo/ausente = sem aplicação. A API corta de novo e nunca troca pelo cadastro */
+  aplicacao?: string | null;
 }
 
 export interface RevalidarEntrada {
   perfil: string;
   vendedor_id: string;
+  /** RN-VEN-35: supervisor/gerente digitando pelo vendedor (a API já conferiu equipe/área); libera o perfil do autor */
+  em_nome?: boolean;
   cliente_id: string;
   carteira: readonly string[];
   /** desconto do pedido (RN-VEN-02) */
@@ -182,6 +187,8 @@ export interface RevalidarEntrada {
   /** T-0071 (RN-VEN-15): preço próprio da embalagem (`produto_id` → `unidade` → centavos da medida); ausente = UN × fator */
   precos_embalagem?: Record<string, Record<string, number> | undefined>;
   policy: DiscountPolicy;
+  /** T-0084 (RN-VEN-19): `aplicacao_max_orcamento` do tenant (padrão 300) para cortar de novo o retrato */
+  aplicacao_max?: number;
   /** informativo; o servidor nunca usa (RN-VEN-02) */
   total_aparelho_cents?: number;
 }
@@ -208,6 +215,8 @@ export interface ItemRevalidado {
   /** total da linha depois do item e do pedido (a soma das linhas = total do pedido) */
   total_cents: number;
   preco_minimo_cents: number | null;
+  /** T-0084 (RN-VEN-19): retrato da aplicação a gravar; null = sem aplicação */
+  aplicacao: string | null;
 }
 
 export type RevalidarResultado =
@@ -243,7 +252,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
   if (e.perfil === 'promotor') {
     return { ok: false, codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não cria nem altera pedido.' };
   }
-  if (!(PERFIS_QUE_CRIAM as readonly string[]).includes(e.perfil)) {
+  if (recusaDePerfil(e.perfil, e.em_nome === true)) {
     return { ok: false, codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não cria pedidos pelo aplicativo.' };
   }
   const acrescimoPedido = e.acrescimo_pct ?? 0;
@@ -365,6 +374,7 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
         ajuste_em: emValor ? ('valor' as const) : ('pct' as const),
         total_cents: total,
         preco_minimo_cents: p.preco_minimo_cents,
+        aplicacao: retratoAplicacao(i.aplicacao, true, e.aplicacao_max ?? APLICACAO_MAX_ORCAMENTO_PADRAO),
       };
     }),
   };
@@ -459,6 +469,8 @@ export interface PedidoAprovadoEntrada {
     quantidade_venda?: number;
     desconto_pct?: number;
     acrescimo_pct?: number;
+    /** T-0084 (RN-VEN-19): retrato da aplicação; nulo/ausente = sem aplicação */
+    aplicacao?: string | null;
   }>;
   /** desconto/acréscimo do pedido */
   desconto_pct?: number;
@@ -482,6 +494,7 @@ export interface PedidoAprovadoPayload extends Omit<PedidoAprovadoEntrada, 'iten
     desconto_pct?: number;
     acrescimo_pct?: number;
     acrescimo_cents?: number;
+    aplicacao?: string | null;
   }>;
   desconto_total_cents: number;
   acrescimo_total_cents?: number;
@@ -517,6 +530,7 @@ export function montarPedidoAprovado(e: PedidoAprovadoEntrada): PedidoAprovadoPa
       ...(i.desconto_pct !== undefined ? { desconto_pct: i.desconto_pct } : {}),
       ...(i.acrescimo_pct !== undefined ? { acrescimo_pct: i.acrescimo_pct } : {}),
       acrescimo_cents: Math.max(0, i.total_cents - tabelaLinha),
+      ...(i.aplicacao ? { aplicacao: i.aplicacao } : {}),
     };
   });
   const { itens: _itens, ...resto } = e;
@@ -533,8 +547,10 @@ export function montarPedidoAprovado(e: PedidoAprovadoEntrada): PedidoAprovadoPa
 
 // ---------- gate de perfil e hash do envio ----------
 /** RN-PRO-01 / matriz §2: quem pode criar pedido pelo aparelho. `null` = pode. A plataforma já barra o promotor; aqui é a revalidação. */
-export function recusaDePerfil(perfil: string): Recusa | null {
+export function recusaDePerfil(perfil: string, emNome = false): Recusa | null {
   if (perfil === 'promotor') return { codigo: 'RN-PRO-01', http: 403, mensagem: 'RN-PRO-01: o promotor não cria nem altera pedido.' };
+  // RN-VEN-35: em nome, o autor é supervisor/gerente (o escopo é conferido por `verificarPedidoEmNome`)
+  if (emNome && (perfil === 'supervisor' || perfil === 'gerente')) return null;
   if (!(PERFIS_QUE_CRIAM as readonly string[]).includes(perfil)) {
     return { codigo: 'PERFIL_SEM_ACESSO', http: 403, mensagem: 'Seu perfil não cria pedidos pelo aplicativo.' };
   }

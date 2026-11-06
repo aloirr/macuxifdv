@@ -21,7 +21,9 @@ export const hrefPedidos = () => rota(CAMINHO_PEDIDOS);
 export type FiltroDoInicio = 'orcamentos' | 'a_faturar';
 export const hrefPedidosFiltrados = (filtro: FiltroDoInicio) => rota(CAMINHO_PEDIDOS, { filtro });
 export const hrefPedido = (id: string) => rota(CAMINHO_PEDIDO, { id });
-export const hrefNovoPedido = (params: { customerId?: string; editId?: string; visitId?: string; stopId?: string } = {}) => rota(CAMINHO_NOVO_PEDIDO, params);
+/** `vendedorId`/`autorId`: pedido em nome do vendedor (RN-VEN-35), aberto pelo gestor; o autor da API é sempre o token. */
+export type ParamsNovoPedido = { customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string; autorId?: string };
+export const hrefNovoPedido = (params: ParamsNovoPedido = {}) => rota(CAMINHO_NOVO_PEDIDO, params);
 
 /** RF-CAT-04: abre a árvore do Catálogo de dentro do pedido; só entram produtos da tabela do cliente (RN-CAT-06). */
 export const hrefCatalogoDoPedido = (clienteId: string) => `/m/catalogo?cliente=${encodeURIComponent(clienteId)}&pedido=1`;
@@ -29,5 +31,5 @@ export const irParaCatalogoDoPedido = (clienteId: string) => router.push(hrefCat
 
 export const irParaPedidos = () => router.navigate(hrefPedidos() as never);
 export const irParaPedido = (id: string) => router.navigate(hrefPedido(id) as never);
-export const irParaNovoPedido = (params: { customerId?: string; editId?: string; visitId?: string; stopId?: string } = {}) => router.push(hrefNovoPedido(params) as never);
+export const irParaNovoPedido = (params: ParamsNovoPedido = {}) => router.push(hrefNovoPedido(params) as never);
 export const irParaPedidosFiltrados = (filtro: FiltroDoInicio) => router.navigate(hrefPedidosFiltrados(filtro) as never);

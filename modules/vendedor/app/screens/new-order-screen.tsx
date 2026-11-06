@@ -15,13 +15,14 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { OrderDetail } from '../../contracts';
+import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { opcoesDoSalvar, validadeDoOrcamento, validadeOrcamentoDias } from '../../domain/orcamento';
 import { podeEnviarPedido } from '../../domain/quantidade';
 import { modalidadePadraoDosParametros } from '../../domain/preco-pedido';
 import { AcimaDoTeclado, useCampoAcimaDoTeclado } from '../components/acima-do-teclado';
 import { ListaDeItens, PendenciasDoPedido } from '../components/novo-pedido';
 import { AbaDetalhes, AbaResumo, CardFreteEPrazo, DialogoDescartar, FolhaSalvar } from '../components/novo-pedido-abas';
-import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
+import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
 import { abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, niveisDaTrilha, nomeDaSugestao, textoBuscaSemResultado, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
@@ -37,14 +38,15 @@ import { aplicarValorPendente } from '../lib/valor-pendente';
 import { useVendedor } from '../state/use-vendedor';
 
 export default function NewOrderScreen() {
-  const { customerId, editId, visitId, stopId } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string }>();
+  const { customerId, editId, visitId, stopId, vendedorId } = useLocalSearchParams<{ customerId?: string; editId?: string; visitId?: string; stopId?: string; vendedorId?: string }>();
   // desistiu antes de escolher o cliente: o produto pendente não sobra para o próximo pedido
   useEffect(() => () => descartarProdutoPendente(), []);
   const { carregado, dados } = useVendedor();
   if (!carregado) return <Loading />;
-  if (!dados.me || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
+  // RN-VEN-35: o gestor faz o pedido pelo vendedor e não tem carteira de vendedor (`me`) no aparelho
+  if ((!dados.me && !vendedorId) || !dados.politica) return <AvisoDaTela titulo="Faltam dados no aparelho" texto="Abra a tela Sincronizar, com sinal, e tente de novo." />;
   if (!customerId) return <CustomerPicker />;
-  return <OrderEditor key={`${customerId}:${editId ?? ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} />;
+  return <OrderEditor key={`${customerId}:${editId ?? ''}:${vendedorId ?? ''}`} customerId={customerId} editId={editId || null} visitId={visitId || null} stopId={stopId || null} vendedorEmNomeId={editId ? null : vendedorId || null} />;
 }
 
 /** Mensagem dentro de Screen (área segura) e com caminho de volta para Pedidos. */
@@ -119,7 +121,7 @@ interface Snapshot {
   rascunho: Draft;
 }
 
-function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null }) {
+function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId }: { customerId: string; editId: string | null; visitId: string | null; stopId: string | null; vendedorEmNomeId: string | null }) {
   const app = useVendedor();
   const insets = useSafeAreaInsets();
   const avisoRodape = useAvisoRodape();
@@ -145,6 +147,12 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   useEffect(() => {
     if (!editId && (visitId || stopId)) updateDraft(customerId, (d) => ligarRascunho(d, visitId, stopId));
   }, [visitId, stopId, editId, customerId]);
+
+  // RN-VEN-35: o rascunho guarda o dono (vendedor) escolhido pelo gestor; sem o parâmetro, o pedido é do próprio usuário
+  useEffect(() => {
+    if (editId) return;
+    if ((draft.vendedor_em_nome_id ?? null) !== vendedorEmNomeId) updateDraft(customerId, (d) => ({ ...d, vendedor_em_nome_id: vendedorEmNomeId }));
+  }, [vendedorEmNomeId, editId, customerId, draft.vendedor_em_nome_id]);
 
   useEffect(() => {
     if (customer && catalog.length === 0) void ensureProducts(customer);
@@ -186,7 +194,8 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   }, [v1, condicoes, draft.condicao_pagamento_id, sent, editId]);
 
   const ambiente = useAmbiente();
-  const fretePadrao = modalidadePadraoDosParametros(ambiente.parametros('vendedor'));
+  const parametrosVendedor = ambiente.parametros('vendedor');
+  const fretePadrao = modalidadePadraoDosParametros(parametrosVendedor);
   const [aba, setAba] = useState<AbaNovoPedido>('itens');
   const saveEditRef = useRef<() => Promise<void>>(async () => undefined);
   const [salvarAberto, setSalvarAberto] = useState(false);
@@ -205,14 +214,15 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
     }, [aba, sent, salvarAberto, descartarAberto]),
   );
   const byId = useMemo(() => new Map(catalog.map((p) => [p.id, p])), [catalog]);
-  const politica = dados.politica;
-  const vendedorId = dados.me?.seller?.id ?? '';
+  // RN-VEN-10: em nome, a alçada é a do gestor (supervisor/gerente), como na API
+  const politica = dados.politica && vendedorEmNomeId ? politicaParaAutor(dados.politica, app.perfil) : dados.politica;
+  const vendedorId = vendedorEmNomeId ?? dados.me?.seller?.id ?? '';
   const calculoAtual = useMemo(
     () =>
       politica
-        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, embalagens: dados.produtos[tableKey]?.embalagens, politica, vendedor_id: vendedorId })
+        ? calcularPedido({ lines: draft.lines, ajustes: draft.ajustes ?? {}, desconto_pct: draft.discount_pct, acrescimo_pct: draft.acrescimo_pct ?? 0, desconto_valor_cents: draft.desconto_valor_cents, acrescimo_valor_cents: draft.acrescimo_valor_cents, ajuste_em: draft.ajuste_em, catalogo: catalog, unidades: app.unidades, embalagens: dados.produtos[tableKey]?.embalagens, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosVendedor), max: aplicacaoMaxOrcamento(parametrosVendedor) }, politica, vendedor_id: vendedorId })
         : null,
-    [draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
+    [parametrosVendedor, draft.lines, draft.ajustes, draft.discount_pct, draft.acrescimo_pct, draft.desconto_valor_cents, draft.acrescimo_valor_cents, draft.ajuste_em, catalog, app.unidades, dados.produtos, tableKey, politica, vendedorId],
   );
   const calculo = sent ? sent.snapshot.calculo : calculoAtual;
   // T-0071 (RF-CAT-03): sugestões da aba Detalhes, calculadas no aparelho (offline) só quando a aba está aberta
@@ -345,7 +355,9 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
   };
   const aoSalvar = () => {
     const havia = aplicarValorPendente();
-    if (!editId) setSalvarAberto(true);
+    // RN-VEN-35: pedido em nome vale só como pedido (sem a escolha Orçamento); vai direto
+    if (!editId && vendedorEmNomeId) void send('pedido');
+    else if (!editId) setSalvarAberto(true);
     // com o rascunho atualizado na próxima renderização, a edição salva a versão nova
     else if (havia) setTimeout(() => void saveEditRef.current(), 0);
     else void saveEdit();
@@ -367,6 +379,11 @@ function OrderEditor({ customerId, editId, visitId, stopId }: { customerId: stri
         <Text style={t.sub} numberOfLines={1}>
           {customer.trade_name} · cód. {customer.erp_code}
         </Text>
+        {vendedorEmNomeId ? (
+          <Text style={t.sub} testID="order-editor-em-nome">
+            Em nome do vendedor · alçada de {app.perfil === 'gerente' ? 'gerente' : 'supervisor'}
+          </Text>
+        ) : null}
       </View>
       {!sent ? <Abas abas={abas} valor={aba} onChange={irParaAba} rotuloPendencia="Pendência nesta aba" testID="abas-pedido" /> : null}
 

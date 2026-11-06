@@ -69,6 +69,7 @@ export function copiaDoDetalhe(d: DetalheParaCopia, extra: ExtraCopia): Orcament
         ...((it.unit_discount_cents ?? 0) > 0 ? { desconto_unitario_cents: it.unit_discount_cents } : {}),
         ...((it.unit_surcharge_cents ?? 0) > 0 ? { acrescimo_unitario_cents: it.unit_surcharge_cents } : {}),
         ...(it.adjust_mode ? { ajuste_em: it.adjust_mode } : {}),
+        ...(it.application ? { aplicacao: it.application } : {}),
       }),
     ),
   };
@@ -104,6 +105,7 @@ export function copiaDoPayload(p: PedidoPush, extra: Pick<ExtraCopia, 'observaca
         ...((it.desconto_unitario_cents ?? 0) > 0 ? { desconto_unitario_cents: it.desconto_unitario_cents } : {}),
         ...((it.acrescimo_unitario_cents ?? 0) > 0 ? { acrescimo_unitario_cents: it.acrescimo_unitario_cents } : {}),
         ...((it.desconto_unitario_cents ?? 0) > 0 || (it.acrescimo_unitario_cents ?? 0) > 0 ? { ajuste_em: 'valor' as const } : {}),
+        ...(it.aplicacao ? { aplicacao: it.aplicacao } : {}),
       }),
     ),
   };
@@ -143,8 +145,10 @@ function ajusteDoRascunho(i: ItemParaCopia): Ajuste | null {
 /**
  * Cópia → campos do rascunho (Duplicar, Editar). Usa o catálogo de hoje: item sem preço ou inativo sai com aviso. O ajuste
  * do item segue a linha (produto + medida); o do pedido, o frete e o endereço vão como estavam.
+ * T-0084 (RN-VEN-19): Editar mantém o retrato da aplicação (`manterAplicacao`; desmarcado fica desmarcado); Duplicar não leva
+ * o retrato: tira um novo, pelo padrão do tenant.
  */
-export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[]): RascunhoDaCopia {
+export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[], opcoes: { manterAplicacao?: boolean } = {}): RascunhoDaCopia {
   const r = prefillLines(
     c.itens.map((i) => ({ product_id: i.product_id, quantity: i.quantity, unidade: i.unidade ?? null })),
     catalogo,
@@ -154,7 +158,8 @@ export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[]): Ra
     const chave = chaveDaLinha(i.product_id, i.unidade ?? null);
     if (!(chave in r.lines) || chave in ajustes) continue;
     const a = ajusteDoRascunho(i);
-    if (a) ajustes[chave] = a;
+    const ap: Ajuste | null = opcoes.manterAplicacao ? (i.aplicacao ? { aplicacao_marcada: true, aplicacao_retrato: i.aplicacao } : { aplicacao_marcada: false }) : null;
+    if (a || ap) ajustes[chave] = { ...(a ?? {}), ...(ap ?? {}) };
   }
   const emValor = c.ajuste_em === 'valor';
   const frete = freteDoRascunho(c.frete);

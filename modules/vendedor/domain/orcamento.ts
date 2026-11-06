@@ -187,6 +187,8 @@ export interface ItemParaCopia {
   desconto_unitario_cents?: number;
   acrescimo_unitario_cents?: number;
   ajuste_em?: 'pct' | 'valor';
+  /** T-0084 (RN-VEN-19): retrato da aplicação do item; vai junto na conversão do orçamento (o cliente viu esse texto) */
+  aplicacao?: string | null;
 }
 export interface FreteParaCopia {
   modalidade: 'CIF' | 'FOB';
@@ -223,6 +225,7 @@ function copiarItens(itens: ReadonlyArray<ItemParaCopia>): ItemParaCopia[] {
       if ((i.desconto_pct ?? 0) > 0) out.desconto_pct = i.desconto_pct;
       else if ((i.acrescimo_pct ?? 0) > 0) out.acrescimo_pct = i.acrescimo_pct;
     }
+    if (i.aplicacao) out.aplicacao = i.aplicacao;
     return out as unknown as ItemParaCopia;
   });
 }

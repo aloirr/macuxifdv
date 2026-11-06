@@ -55,7 +55,7 @@ const COLUNAS_ITEM = `i.id, ${ts('updated_at', 'i.')}, ${ts('deleted_at', 'i.')}
   i.pedido_id, i.sequencia, i.produto_id, i.quantidade, i.preco_tabela_cents::float8 as preco_tabela_cents,
   i.preco_unitario_cents::float8 as preco_unitario_cents, i.desconto_pct::float8 as desconto_pct, i.total_cents::float8 as total_cents,
   i.produto_sku, i.produto_nome, i.unidade,
-  i.desconto_unitario_cents::float8 as desconto_unitario_cents, i.acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, i.ajuste_em`;
+  i.desconto_unitario_cents::float8 as desconto_unitario_cents, i.acrescimo_unitario_cents::float8 as acrescimo_unitario_cents, i.ajuste_em, i.aplicacao`;
 
 const COLUNAS_EVENTO = `e.id, ${ts('updated_at', 'e.')}, ${ts('deleted_at', 'e.')}, e.external_id,
   e.pedido_id, e.de, e.para, e.autor_id, e.autor_nome, e.autor_perfil, e.motivo, e.nivel, e.acima_do_nivel,
