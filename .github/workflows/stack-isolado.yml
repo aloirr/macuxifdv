@@ -251,9 +251,10 @@ jobs:
             echo "| etapa | log |"
             echo "|---|---|"
             for f in preparar-1 preparar-2 implantar-1 backup restaurar-1 restaurar-2 implantar-2; do
-              [ -f "$SAIDA/$f.log" ] && echo "| $f | $(tail -n 1 "$SAIDA/$f.log" | tr '|' '/') |"
+              # if, não &&: com bash -e, um [ -f ] falso no último arquivo dá código 1 ao laço e derruba o passo (T-0086)
+              if [ -f "$SAIDA/$f.log" ]; then echo "| $f | $(tail -n 1 "$SAIDA/$f.log" | tr '|' '/') |"; fi
             done
-            [ -f "$SAIDA/contagem-antes.txt" ] && echo "" && echo "contagem.sql antes do backup: $(grep -c '^linhas|' "$SAIDA/contagem-antes.txt") tabelas, $(awk -F'|' '$1 == "linhas" {s += $3} END {print s + 0}' "$SAIDA/contagem-antes.txt") linhas"
+            if [ -f "$SAIDA/contagem-antes.txt" ]; then echo "" && echo "contagem.sql antes do backup: $(grep -c '^linhas|' "$SAIDA/contagem-antes.txt") tabelas, $(awk -F'|' '$1 == "linhas" {s += $3} END {print s + 0}' "$SAIDA/contagem-antes.txt") linhas"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: artefato com os logs e as contagens
@@ -494,7 +495,8 @@ jobs:
             echo "| etapa | última linha |"
             echo "|---|---|"
             for f in preparar-1 preparar-2 implantar-1 implantar-2 implantar-3 alerta tenant backup ensaio; do
-              [ -f "$SAIDA/$f.log" ] && echo "| $f | $(tail -n 1 "$SAIDA/$f.log" | tr '|' '/') |"
+              # if, não &&: com bash -e, um [ -f ] falso no último arquivo dá código 1 ao laço e derruba o passo (T-0086)
+              if [ -f "$SAIDA/$f.log" ]; then echo "| $f | $(tail -n 1 "$SAIDA/$f.log" | tr '|' '/') |"; fi
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
