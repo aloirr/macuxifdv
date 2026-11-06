@@ -95,3 +95,5 @@
 2026-11-05 — T-0082/T-0072 — cartao-minha-rv usa colors.dangerOnDark; folha do checkout com rolavel; cores à mão do app do Core trocadas por colors.surface/ink
 2026-11-05 — T-0082 — Minha RV: Sincronizar sem sinal mostra o aviso padrão (avisoAoSincronizarRv) e não chama o motor; texto do gatilho sem meta mantido no app
 2026-11-05 — T-0082 — lote N 🟡: cópia da RV validada com RvLocalSchema (validarCopiaRv; inválida = sem cálculo) + teste
+2026-11-06 — T-0087 — fatia P (Core): super-admin de plataforma (domain TOTP/bloqueio/convite, rotas plataforma/auth/*, autenticarSuperAdmin, auditoria sa_auditar) com testes; repositório SQL alinhado à 0035; desenho curto da Equipe por CSV em docs/modulos/core/equipe-csv.md (implementação na tarde)
+2026-11-06 — T-0087 — super-admin: node:crypto fora do domain (primitivas injetadas, wrappers na api), ctx.cabecalhos nas rotas públicas
