@@ -188,3 +188,5 @@ R-20261105-212947-modulo-vendedor
 R-20261106-003920-banco-dados
 R-20261106-010614-engenheiro-apps
 R-20261106-021340-modulo-core
+R-20261106-045630-engenheiro-apps
+R-20261106-044531-testes

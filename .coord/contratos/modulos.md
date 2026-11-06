@@ -25,7 +25,7 @@
 Leitura síncrona com contrato versionado no `contracts` do dono (`definirConsulta`), oferecida em `ofereceConsultas` e usada por
 quem a lista em `usaConsultas` (dono em `depende` ou `opcionais`). Na API: `tx.consultar(def, entrada)` dentro do `comTenant` de
 quem consulta (mesma transação e RLS) ou `ctx.consultar(def, entrada)` no consumidor de evento (T-0060: transação do consumo,
-usuário de sistema `USUARIO_SISTEMA_ID` com perfil admin e os módulos efetivos do tenant); no aparelho: `ambiente.consultar(def, entrada)` sobre as linhas locais do dono. Dono inativo
+usuário de sistema `USUARIO_SISTEMA_ID` com perfil admin e os módulos efetivos do tenant); no aparelho: `ambiente.consultar(def, entrada)` sobre as linhas locais do dono e dos módulos de `depende` dele (só leitura; `ctx.linhas`, `linhasPorIds`, `linhasPorCampo` e `versaoLinhas`; T-0084, complemento da ADR 0012; fora disso = erro de programação, dependência inativa = `ConsultaIndisponivel`). Dono inativo
 ou sem implementação no canal → `ConsultaIndisponivel` (503 `CONSULTA_INDISPONIVEL` se ninguém tratar). Mudança incompatível = `@vN+1`.
 A montagem (`defineModule`, `definirModuloApi`, `validarConjunto`, `criarShell`) recusa o que estiver fora destas regras.
 
