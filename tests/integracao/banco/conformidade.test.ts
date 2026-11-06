@@ -3,7 +3,8 @@
  *
  * - Regra 5 do CLAUDE.md: toda tabela tem id uuid, tenant_id, created_at, updated_at, deleted_at,
  *   external_id e RLS ligado e FORÇADO, com política por tenant para o papel da aplicação; exceções só
- *   as declaradas pelo banco-dados (TABELAS_SEM_TENANT_ID).
+ *   as declaradas pelo banco-dados (TABELAS_SEM_TENANT_ID). As de TABELAS_SO_POR_FUNCAO (super-admin, 0035,
+ *   ADR 0029) não têm política nem grant para o app e o worker: só as SECURITY DEFINER plataforma.sa_* chegam a elas.
  * - S0-028: o papel da API (macuxi_app) não é superusuário, não ignora RLS, não é dono de nada, não
  *   herda papel privilegiado e não tem atalho que dispense a política (TRUNCATE, SET ROLE,
  *   row_security = off, ALTER TABLE, função SECURITY DEFINER fora da lista, view sem security_invoker).
@@ -11,7 +12,7 @@
  * - Perfis: o CHECK do banco aceita exatamente os PERFIS do @macuxi/platform-sdk ("gerente", nunca
  *   "manager" da Fase M) — provado com INSERT real, não lendo o SQL.
  */
-import { DOIS_TENANTS, TABELAS_SEM_TENANT_ID } from '@macuxi/db/teste';
+import { DOIS_TENANTS, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '@macuxi/db/teste';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { PERFIS } from '@macuxi/platform-sdk';
 import type pg from 'pg';
@@ -21,6 +22,9 @@ import { conectar, schemasDeDominio, tabelasDoCatalogo, tentar, type Tabela } fr
 const A = DOIS_TENANTS.A.tenantId;
 const PAPEL = 'macuxi_app';
 const PAPEL_WORKER = 'macuxi_worker';
+/** Tabelas sem política nem grant para o app e o worker (0035): exceção SÓ para estas, lida do @macuxi/db/teste. */
+const SO_POR_FUNCAO: ReadonlySet<string> = new Set(TABELAS_SO_POR_FUNCAO);
+const SA = 'super-admin de plataforma (ADR 0029): confere a sessão/desafio; tabelas só por função';
 
 /**
  * Funções SECURITY DEFINER que o papel da aplicação pode chamar, revisadas pelo agente testes, pela
@@ -33,6 +37,27 @@ const DEFINER_REVISADAS: Record<string, string> = {
   // T-0078 (0024; R-20261105-001055-banco-dados): /v1/saude
   'plataforma.resumo_outbox(p_nomes text[], p_max_tentativas integer)':
     'saúde: só agregados da outbox de todos os tenants (pendentes, parados, segundos do mais antigo); sem id, tenant, payload ou erro',
+  // T-0087 fatia P (0035; ADR 0029; R-20261106-012659-banco-dados): NÃO entram em DEFINER_REVISADAS_WORKER (o worker leva 42501)
+  'plataforma.sa_existe()': `${SA}; só diz se já houve super-admin`,
+  'plataforma.sa_criar_primeiro(p_email text, p_nome text, p_senha_hash text)': `${SA}; cria só com zero linhas (trava consultiva)`,
+  'plataforma.sa_para_login(p_email text)': `${SA}; linha viva para conferir senha/TOTP, sem hashes de recuperação`,
+  'plataforma.sa_por_id(p_id uuid)': `${SA}; linha viva, sem hashes de recuperação`,
+  'plataforma.sa_registrar_falha(p_id uuid)': `${SA}; 5 falhas = bloqueio de 15 min`,
+  'plataforma.sa_registrar_sucesso(p_id uuid)': `${SA}; zera o contador de falhas`,
+  'plataforma.sa_gravar_totp_pendente(p_id uuid, p_cifrado text)': `${SA}; só antes do TOTP confirmado`,
+  'plataforma.sa_confirmar_totp(p_id uuid, p_passo bigint, p_recuperacao_hashes text[])': `${SA}; pendente vira segredo + hashes`,
+  'plataforma.sa_marcar_passo(p_id uuid, p_passo bigint)': `${SA}; passo TOTP só avança (sem reuso)`,
+  'plataforma.sa_usar_recuperacao(p_id uuid, p_hash text)': `${SA}; consome um código de recuperação`,
+  'plataforma.sa_regerar_recuperacao(p_id uuid, p_hashes text[])': `${SA}; troca os códigos de recuperação`,
+  'plataforma.sa_abrir_desafio(p_id uuid, p_desafio_hash text)': `${SA}; desafio da 2ª etapa, 5 min, só o SHA-256`,
+  'plataforma.sa_ver_desafio(p_desafio_hash text)': `${SA}; etapa do desafio vivo`,
+  'plataforma.sa_abrir_sessao(p_desafio_hash text)': `${SA}; consome o desafio; exige TOTP confirmado, ativo e sem bloqueio`,
+  'plataforma.sa_sessao_valida(p_sid uuid)': `${SA}; sessão viva (não revogada, no prazo, ativo, TOTP confirmado)`,
+  'plataforma.sa_revogar(p_sid uuid)': `${SA}; revoga a sessão`,
+  'plataforma.sa_auditar(p jsonb)': `${SA}; 1 linha append-only na auditoria_plataforma`,
+  'plataforma.sa_listar_tenants(p_sid uuid)': `${SA}; confere a sessão antes de listar`,
+  'plataforma.sa_tenant_ativo(p_sid uuid, p_tenant uuid)': `${SA}; confere a sessão`,
+  'plataforma.sa_provisionar_tenant(p_sid uuid, p jsonb)': `${SA}; confere a sessão; sem admin nem redefinir_senha`,
 };
 
 /**
@@ -124,6 +149,42 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       expect(sem.filter((n) => !(n in TABELAS_SEM_TENANT_ID))).toEqual([]);
     });
 
+    it('TABELAS_SO_POR_FUNCAO: só tabelas que existem, sem tenant_id e declaradas em TABELAS_SEM_TENANT_ID (tabela de tenant não se esconde na lista)', () => {
+      const porNome = new Map(tabelas.map((t) => [t.nome, t]));
+      const problemas: string[] = [];
+      for (const n of SO_POR_FUNCAO) {
+        const t = porNome.get(n);
+        if (!t) problemas.push(`${n}: não existe (lista velha)`);
+        else if (t.temTenant) problemas.push(`${n}: tem tenant_id, precisa de política por tenant`);
+        if (!(n in TABELAS_SEM_TENANT_ID)) problemas.push(`${n}: fora de TABELAS_SEM_TENANT_ID`);
+      }
+      expect(problemas).toEqual([]);
+    });
+
+    it('TABELAS_SO_POR_FUNCAO: nenhuma política nem privilégio de tabela para o app, o worker ou PUBLIC', async () => {
+      const problemas: string[] = [];
+      for (const n of SO_POR_FUNCAO) {
+        const pols = await admin.query<{ nome: string; roles: string[] }>(
+          `select policyname as nome, roles::text[] as roles from pg_policies where schemaname || '.' || tablename = $1`,
+          [n],
+        );
+        for (const p of pols.rows) {
+          const abertos = p.roles.filter((r) => r === PAPEL || r === PAPEL_WORKER || r === 'public');
+          if (abertos.length) problemas.push(`${n}: política ${p.nome} para ${abertos.join(', ')}`);
+        }
+        for (const papel of [PAPEL, PAPEL_WORKER]) {
+          for (const priv of ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) {
+            const r = await admin.query<{ tem: boolean }>('select has_table_privilege($1, $2::regclass, $3) as tem', [papel, n, priv]);
+            if (r.rows[0]!.tem) problemas.push(`${n}: ${priv} para ${papel}`);
+          }
+        }
+      }
+      expect(problemas).toEqual([]);
+      // e o app, de fato, não lê (42501 direto, sem grant)
+      const ler = await tentar(app, A, () => app.query('select count(*) from plataforma.super_admin'));
+      expect(ler.ok ? 'leu plataforma.super_admin!' : ler.codigo).toBe('42501');
+    });
+
     it('toda tabela tem os campos comuns com o tipo certo (tenant_id e id NOT NULL)', async () => {
       const faltas: string[] = [];
       for (const t of tabelas) {
@@ -155,7 +216,7 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       expect(r.rows.length).toBe(tabelas.length);
     });
 
-    it('toda tabela tem política para o papel da aplicação, comparando tenant_id (ou id, no tenant) com plataforma.tenant_atual(), no USING e no WITH CHECK', async () => {
+    it('toda tabela (exceto as de TABELAS_SO_POR_FUNCAO) tem política para o papel da aplicação, comparando tenant_id (ou id, no tenant) com plataforma.tenant_atual(), no USING e no WITH CHECK', async () => {
       const r = await admin.query<{ nome: string; roles: string[]; cmd: string; qual: string | null; wc: string | null; permissiva: string }>(
         `select schemaname || '.' || tablename as nome, roles::text[] as roles, cmd, qual, with_check as wc, permissive as permissiva
            from pg_policies where schemaname = any($1)`,
@@ -163,6 +224,8 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       );
       const problemas: string[] = [];
       for (const t of tabelas) {
+        // só as de TABELAS_SO_POR_FUNCAO ficam sem política para o app (provado no caso acima); nenhuma outra
+        if (SO_POR_FUNCAO.has(t.nome) && !t.temTenant) continue;
         const pols = r.rows.filter((p) => p.nome === t.nome && (p.roles.includes(PAPEL) || p.roles.includes('public')));
         const coluna = t.temTenant ? 'tenant_id' : 'id';
         const boa = (txt: string | null) => !!txt && txt.includes(coluna) && txt.includes('tenant_atual()');
