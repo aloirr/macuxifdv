@@ -5,17 +5,15 @@
  * estoque). Preço e estoque vêm do `ItemVitrine` que o domain já filtrou pelo perfil (RN-CAT-05): quem não vê, nem
  * recebe o texto. A leitura do aparelho está em `lista-por-linha-local.ts`.
  */
-import type { ItemVitrine } from '../../contracts';
+import type { ItemVitrine, ProdutoConteudoSync, ProdutoReferenciaSync, ProdutoRelacaoSync, Referencia } from '../../contracts';
+import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { montarArvore, type Arvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
 import { rotuloEstoque, rotuloPreco, type RotuloEstoque, type RotuloPreco } from './apresentacao';
 
-/** RN-CAT-09: no máximo 3 referências cruzadas por produto. */
+/** RN-CAT-09: corte defensivo; o contrato já limita a 3 referências por produto. */
 export const MAXIMO_REFERENCIAS = 3;
-/** RN-CAT-09: no máximo 5 produtos em "oferece junto". */
+/** RN-CAT-09: até 5 em "oferece junto"; o pull não limita (o contrato só valida na ficha), então o corte é aqui. */
 export const MAXIMO_OFERECE_JUNTO = 5;
-/** Etiquetas curtas no item (as demais ficam na ficha). */
-export const MAXIMO_ETIQUETAS = 3;
-const TAMANHO_ETIQUETA = 24;
 /** Id do grupo virtual dos produtos fora da árvore. */
 export const NO_SEM_LINHA = 'sem-linha';
 
@@ -24,42 +22,44 @@ export function rotuloDoNivel(nivel: number): string {
   return nivel === 1 ? 'Sistema' : nivel === 2 ? 'Grupo' : nivel === 3 ? 'Linha' : `Nível ${nivel}`;
 }
 
-// T-0085: ligar quando a fatia B/T-0084 chegar ao contrato (tipos derivados dos schemas Zod do produto)
-export interface ReferenciaEntrada {
-  marca_id?: string | null;
-  marca?: string | null;
-  codigo: string;
-}
-
-// T-0085: ligar quando a fatia B/T-0084 chegar ao contrato (hoje lidos de forma tolerante da linha do pull)
+/** O que a lista mostra além do cadastro, vindo do conteúdo, das referências e das relações do pull (tipos do contrato). */
 export interface ExtrasProduto {
   aplicacao: string | null;
-  referencias: ReferenciaEntrada[];
+  /** Já com o nome da marca resolvido (`marca_nome`, RN-CAT-09). */
+  referencias: Referencia[];
+  /** Ids dos produtos complementares, na ordem do cadastro. */
   oferece_junto: string[];
   etiquetas: string[];
-  foto_url: string | null;
 }
-export const SEM_EXTRAS: ExtrasProduto = { aplicacao: null, referencias: [], oferece_junto: [], etiquetas: [], foto_url: null };
+export const SEM_EXTRAS: ExtrasProduto = { aplicacao: null, referencias: [], oferece_junto: [], etiquetas: [] };
 
-const texto = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
+const vivo = <L extends { deleted_at: string | null }>(l: L) => !l.deleted_at;
 
-/** Lê os campos novos de uma linha do pull sem exigir que existam: campo ausente ou fora do formato vira vazio (nunca lança). */
-export function extrasDaLinha(linha: unknown): ExtrasProduto {
-  if (typeof linha !== 'object' || linha === null) return SEM_EXTRAS;
-  const l = linha as Record<string, unknown>;
-  const lista = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-  const referencias = lista(l.referencias).flatMap((r): ReferenciaEntrada[] => {
-    if (typeof r !== 'object' || r === null) return [];
-    const x = r as Record<string, unknown>;
-    const codigo = texto(x.codigo);
-    return codigo ? [{ marca_id: texto(x.marca_id), marca: texto(x.marca), codigo }] : [];
-  });
+/**
+ * Monta os extras de UM produto a partir das linhas reais do pull (`produto_conteudo`, `produto_referencia`,
+ * `produto_relacao`). Referência sem retrato do nome da marca fica de fora (RN-CAT-09, mesma regra da ficha);
+ * "oferece junto" = relação `complementar` viva e ativa.
+ */
+export function montarExtras(
+  conteudo: Pick<ProdutoConteudoSync, 'aplicacao' | 'etiquetas' | 'deleted_at'> | undefined,
+  referencias: readonly ProdutoReferenciaSync[],
+  relacoes: readonly ProdutoRelacaoSync[],
+): ExtrasProduto {
+  const c = conteudo && vivo(conteudo) ? conteudo : undefined;
   return {
-    aplicacao: texto(l.aplicacao),
-    referencias,
-    oferece_junto: lista(l.oferece_junto).flatMap((v) => (texto(v) ? [texto(v)!] : [])),
-    etiquetas: lista(l.etiquetas).flatMap((v) => (texto(v) ? [texto(v)!] : [])),
-    foto_url: texto(l.foto_url) ?? texto(l.thumbnail_url),
+    aplicacao: c?.aplicacao?.trim() || null,
+    referencias: referencias
+      .filter(vivo)
+      .sort((a, b) => a.ordem - b.ordem)
+      .flatMap((r) => {
+        const marca_nome = nomeMarcaDaReferencia(r.marca_id, r.marca_nome, new Map());
+        return marca_nome === null ? [] : [{ marca_id: r.marca_id, marca_nome, codigo: r.codigo }];
+      }),
+    oferece_junto: relacoes
+      .filter((r) => vivo(r) && r.ativo && r.tipo === 'complementar')
+      .sort((a, b) => a.ordem - b.ordem || a.id.localeCompare(b.id))
+      .map((r) => r.relacionado_id),
+    etiquetas: c?.etiquetas ?? [],
   };
 }
 
@@ -138,23 +138,17 @@ export function medidaEmbalagem(p: Pick<ProdutoLista, 'unidade' | 'embalagem_med
   return [p.unidade, emb].filter(Boolean).join(' · ');
 }
 
-export interface ReferenciaItem {
-  marca: string;
-  codigo: string;
-}
+export type ReferenciaItem = Pick<Referencia, 'marca_nome' | 'codigo'>;
 
-/** RN-CAT-09: até 3 referências, com a marca pelo nome ou, na falta, pelo id (`marcasPorId`); código vazio é descartado. */
-export function referenciasDoItem(refs: readonly ReferenciaEntrada[], marcasPorId: ReadonlyMap<string, string> = new Map()): ReferenciaItem[] {
-  return refs
-    .filter((r) => r.codigo.trim() !== '')
-    .slice(0, MAXIMO_REFERENCIAS)
-    .map((r) => ({ marca: r.marca?.trim() || (r.marca_id ? marcasPorId.get(r.marca_id) : undefined) || '', codigo: r.codigo.trim() }));
+/** RN-CAT-09: referências com a marca pelo `marca_nome`; o contrato já limita a 3 (o corte é só defensivo). */
+export function referenciasDoItem(refs: readonly Referencia[]): ReferenciaItem[] {
+  return refs.slice(0, MAXIMO_REFERENCIAS).map((r) => ({ marca_nome: r.marca_nome, codigo: r.codigo }));
 }
 
 /** "Equivale a: CB 3401" ou, com várias, "Equivale a: Bosch CB 3401 · NGK X9"; sem referência = `null` (a linha some). */
 export function textoEquivale(refs: readonly ReferenciaItem[]): string | null {
   if (refs.length === 0) return null;
-  return `Equivale a: ${refs.map((r) => [r.marca, r.codigo].filter(Boolean).join(' ')).join(' · ')}`;
+  return `Equivale a: ${refs.map((r) => `${r.marca_nome} ${r.codigo}`).join(' · ')}`;
 }
 
 export interface OfereceJuntoItem {
@@ -179,18 +173,10 @@ export function ofereceJuntoDoItem(ids: readonly string[], produtoId: string, no
   return r;
 }
 
-/** Etiquetas curtas: sem repetição (ignora maiúsculas), até 3, e só as de até 24 caracteres. */
+/** Etiquetas sem repetição (ignora maiúsculas); tamanho e quantidade (até 4 de 20) o contrato já valida. */
 export function etiquetasDoItem(etiquetas: readonly string[]): string[] {
   const vistas = new Set<string>();
-  const r: string[] = [];
-  for (const e of etiquetas) {
-    const t = e.trim();
-    if (!t || t.length > TAMANHO_ETIQUETA || vistas.has(t.toLowerCase())) continue;
-    vistas.add(t.toLowerCase());
-    r.push(t);
-    if (r.length === MAXIMO_ETIQUETAS) break;
-  }
-  return r;
+  return etiquetas.map((e) => e.trim()).filter((t) => t !== '' && !vistas.has(t.toLowerCase()) && !!vistas.add(t.toLowerCase()));
 }
 
 export interface ItemLista {
@@ -213,7 +199,6 @@ export interface ContextoItemLista {
   agora: string;
   fuso: string;
   nomesPorId: ReadonlyMap<string, string>;
-  marcasPorId?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -227,10 +212,10 @@ export function montarItemLista(p: ProdutoLista, vitrine: ItemVitrine | null, c:
     descricao: p.nome,
     medidaEmbalagem: medidaEmbalagem(p),
     aplicacao: p.extras.aplicacao,
-    equivale: textoEquivale(referenciasDoItem(p.extras.referencias, c.marcasPorId)),
+    equivale: textoEquivale(referenciasDoItem(p.extras.referencias)),
     ofereceJunto: ofereceJuntoDoItem(p.extras.oferece_junto, p.id, c.nomesPorId),
     etiquetas: etiquetasDoItem(p.extras.etiquetas),
-    fotoUrl: p.extras.foto_url,
+    fotoUrl: vitrine?.thumbnail_url ?? null,
     preco: vitrine ? rotuloPreco(vitrine) : null,
     estoque: vitrine ? rotuloEstoque(vitrine, c.agora, c.fuso) : null,
   };

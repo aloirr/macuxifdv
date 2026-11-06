@@ -5,9 +5,9 @@
 import { criarRelogio } from '@macuxi/comum/relogio';
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import type { ItemVitrine } from '../../contracts';
+import { ProdutoConteudoSyncSchema, ProdutoReferenciaSyncSchema, ProdutoRelacaoSyncSchema, type ItemVitrine } from '../../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../../domain/arvore';
-import { agruparPorLinha, etiquetasDoItem, extrasDaLinha, MAXIMO_ETIQUETAS, MAXIMO_OFERECE_JUNTO, MAXIMO_REFERENCIAS, medidaEmbalagem, montarItemLista, NO_SEM_LINHA, ofereceJuntoDoItem, referenciasDoItem, SEM_EXTRAS, textoEquivale, type ProdutoLista } from './lista-por-linha';
+import { agruparPorLinha, etiquetasDoItem, MAXIMO_OFERECE_JUNTO, MAXIMO_REFERENCIAS, medidaEmbalagem, montarExtras, montarItemLista, NO_SEM_LINHA, ofereceJuntoDoItem, referenciasDoItem, SEM_EXTRAS, textoEquivale, type ProdutoLista } from './lista-por-linha';
 import { listaPorLinhaLocal } from './lista-por-linha-local';
 import type { LeitorLocal } from './local';
 
@@ -54,35 +54,47 @@ describe('RF-CAT-09: agrupa em sistema › grupo › linha', () => {
   });
 });
 
+const MARCA = (n: number) => uuid(700 + n);
+const agora = AGORA;
+const conteudo = (n: number, o: Record<string, unknown> = {}) => ProdutoConteudoSyncSchema.parse({ id: uuid(600 + n), updated_at: agora, deleted_at: null, external_id: null, produto_id: uuid(100 + n), descricao: null, ...o });
+const ref = (n: number, ordem: number, o: Record<string, unknown> = {}) => ProdutoReferenciaSyncSchema.parse({ id: uuid(650 + n * 10 + ordem), updated_at: agora, deleted_at: null, external_id: null, produto_id: uuid(100 + n), marca_id: MARCA(ordem), codigo: `C${ordem}`, ordem, marca_nome: `M${ordem}`, ...o });
+const relacao = (n: number, para: number, o: Record<string, unknown> = {}) => ProdutoRelacaoSyncSchema.parse({ id: uuid(800 + n * 10 + para), updated_at: agora, deleted_at: null, external_id: null, produto_id: uuid(100 + n), relacionado_id: uuid(100 + para), tipo: 'complementar', ordem: para, ativo: true, ...o });
+
 describe('RN-CAT-09: referências cruzadas e oferece junto', () => {
-  it(`RN-CAT-09: no máximo ${MAXIMO_REFERENCIAS} referências; o texto é "Equivale a: <marca> <código>"`, () => {
-    const refs = Array.from({ length: 5 }, (_, i) => ({ marca: `M${i}`, codigo: `C${i}` }));
-    const lidas = referenciasDoItem(refs);
-    expect(lidas).toHaveLength(MAXIMO_REFERENCIAS);
-    expect(textoEquivale(lidas)).toBe('Equivale a: M0 C0 · M1 C1 · M2 C2');
-    expect(textoEquivale(referenciasDoItem([{ marca: 'Bosch', codigo: 'CB 3401' }]))).toBe('Equivale a: Bosch CB 3401');
+  it(`RN-CAT-09: o texto é "Equivale a: <marca_nome> <código>" e o corte defensivo é de ${MAXIMO_REFERENCIAS}`, () => {
+    const extras = montarExtras(undefined, [ref(1, 1, { marca_nome: 'Bosch', codigo: 'CB 3401' })], []);
+    expect(textoEquivale(referenciasDoItem(extras.referencias))).toBe('Equivale a: Bosch CB 3401');
+    const tres = montarExtras(undefined, [ref(1, 1), ref(1, 2), ref(1, 3)], []);
+    expect(textoEquivale(referenciasDoItem(tres.referencias))).toBe('Equivale a: M1 C1 · M2 C2 · M3 C3');
+    const lixo = Array.from({ length: 5 }, (_, i) => ({ marca_id: MARCA(i), marca_nome: `M${i}`, codigo: `C${i}` }));
+    expect(referenciasDoItem(lixo)).toHaveLength(MAXIMO_REFERENCIAS);
   });
-  it('RN-CAT-09: sem referência a linha some; marca pelo id quando o nome não veio; código vazio é descartado', () => {
+  it('RN-CAT-09: sem referência a linha some; referência apagada ou sem retrato de marca fica de fora; ordem do cadastro', () => {
     expect(textoEquivale([])).toBeNull();
-    expect(referenciasDoItem([{ codigo: '  ' }, { marca_id: 'm1', codigo: 'X9' }], new Map([['m1', 'NGK']]))).toEqual([{ marca: 'NGK', codigo: 'X9' }]);
+    const extras = montarExtras(undefined, [ref(1, 3), ref(1, 1, { marca_nome: null }), ref(1, 2, { deleted_at: agora }), ref(1, 1, { id: uuid(1), marca_nome: 'NGK', codigo: 'X9' })], []);
+    expect(extras.referencias).toEqual([{ marca_id: MARCA(1), marca_nome: 'NGK', codigo: 'X9' }, { marca_id: MARCA(3), marca_nome: 'M3', codigo: 'C3' }]);
+  });
+  it('RN-CAT-11: aplicação e etiquetas vêm do conteúdo; conteúdo removido ou ausente = vazio', () => {
+    expect(montarExtras(conteudo(1, { aplicacao: ' Gol G5 ', etiquetas: ['Dianteira', 'Novo'] }), [], [])).toMatchObject({ aplicacao: 'Gol G5', etiquetas: ['Dianteira', 'Novo'] });
+    expect(montarExtras(conteudo(1, { aplicacao: 'x', deleted_at: agora }), [], [])).toEqual(SEM_EXTRAS);
+    expect(montarExtras(undefined, [], [])).toEqual(SEM_EXTRAS);
+  });
+  it('RN-CAT-09: oferece junto = só relação complementar viva e ativa, na ordem do cadastro', () => {
+    const extras = montarExtras(undefined, [], [relacao(1, 4), relacao(1, 2), relacao(1, 3, { tipo: 'substituto' }), relacao(1, 5, { ativo: false }), relacao(1, 6, { deleted_at: agora })]);
+    expect(extras.oferece_junto).toEqual([uuid(102), uuid(104)]);
   });
   it(`RN-CAT-09: oferece junto trunca em ${MAXIMO_OFERECE_JUNTO}, sem repetido, sem o próprio produto e sem o que não está no aparelho`, () => {
     const nomes = new Map(Array.from({ length: 8 }, (_, i) => [uuid(i + 1), `Produto ${i + 1}`]));
     const ids = [uuid(1), uuid(1), uuid(2), uuid(99), uuid(3), uuid(4), uuid(5), uuid(6), uuid(7)];
     expect(ofereceJuntoDoItem(ids, uuid(2), nomes).map((o) => o.rotulo)).toEqual(['Produto 1', 'Produto 3', 'Produto 4', 'Produto 5', 'Produto 6']);
   });
-  it(`etiquetas curtas: até ${MAXIMO_ETIQUETAS}, sem repetir e sem texto longo`, () => {
-    expect(etiquetasDoItem(['Novo', 'novo', 'x'.repeat(40), 'Promo', 'Linha pesada', 'Outra'])).toEqual(['Novo', 'Promo', 'Linha pesada']);
+  it('etiquetas: sem repetir (ignora maiúsculas); tamanho e quantidade ficam com o contrato (até 4 de 20)', () => {
+    expect(etiquetasDoItem(['Novo', 'novo', ' ', 'Promo'])).toEqual(['Novo', 'Promo']);
+    expect(ProdutoConteudoSyncSchema.safeParse({ ...conteudo(1), etiquetas: ['a', 'b', 'c', 'd', 'e'] }).success).toBe(false);
   });
   it('medida e embalagem do cadastro: "UN" ou "UN · CX com 12"', () => {
     expect(medidaEmbalagem({ unidade: 'UN' })).toBe('UN');
     expect(medidaEmbalagem({ unidade: 'UN', embalagem_medida: 'CX', embalagem_quantidade: 12 })).toBe('UN · CX com 12');
-  });
-  it('T-0085: os campos que ainda não chegaram ao contrato são lidos sem lançar, mesmo malformados', () => {
-    expect(extrasDaLinha({ sku: 'A' })).toEqual(SEM_EXTRAS);
-    expect(extrasDaLinha(null)).toEqual(SEM_EXTRAS);
-    const e = extrasDaLinha({ aplicacao: ' Gol G5 ', referencias: [{ marca: 'Bosch', codigo: 'CB 3401' }, 'lixo', { codigo: 3 }], oferece_junto: [uuid(1), 4, ''], etiquetas: 'x', thumbnail_url: 'http://f/1.png' });
-    expect(e).toMatchObject({ aplicacao: 'Gol G5', referencias: [{ marca: 'Bosch', codigo: 'CB 3401' }], oferece_junto: [uuid(1)], etiquetas: [], foto_url: 'http://f/1.png' });
   });
 });
 
@@ -94,7 +106,7 @@ const vitrine = (visivel: boolean): ItemVitrine => ({
 });
 
 describe('RN-CAT-05: item da lista por perfil', () => {
-  const p = prod(1, 'Pastilha', { aplicacao: 'Gol G5 1.6', referencias: [{ marca: 'Bosch', codigo: 'CB 3401' }] });
+  const p = prod(1, 'Pastilha', montarExtras(conteudo(1, { aplicacao: 'Gol G5 1.6' }), [ref(1, 1, { marca_nome: 'Bosch', codigo: 'CB 3401' })], []));
   const c = { agora: AGORA, fuso: 'America/Manaus', nomesPorId: new Map<string, string>() };
   it('RN-CAT-05: quem não vê preço e estoque (promotor) recebe o item sem os dois; o resto continua', () => {
     const i = montarItemLista(p, vitrine(false), c);
@@ -114,7 +126,10 @@ describe('RN-CAT-05: a lista lida do aparelho (motor de sync)', () => {
   const linhas: Record<string, LinhaSync[]> = {
     catalogo_no: NOS.map((n) => base(n.id, { ...n })),
     produto_no: [liga(1, 3), liga(2, 3), liga(3, 5)].map((v, i) => base(uuid(500 + i), { ...v })),
-    produto: [1, 2, 3, 4].map((n) => base(uuid(100 + n), { sku: `P-${n}`, ean: null, nome: `Produto ${n}`, marca: 'X', categoria: 'Y', unidade: 'UN', ativo: true, aplicacao: `Aplicação ${n}`, oferece_junto: [uuid(102)], referencias: [{ marca: 'Bosch', codigo: `CB ${n}` }] })),
+    produto: [1, 2, 3, 4].map((n) => base(uuid(100 + n), { sku: `P-${n}`, ean: null, nome: `Produto ${n}`, marca: 'X', categoria: 'Y', unidade: 'UN', ativo: true })),
+    produto_conteudo: [1, 2, 3, 4].map((n) => conteudo(n, { aplicacao: `Aplicação ${n}`, etiquetas: ['Novo'] })),
+    produto_referencia: [1, 2, 3, 4].map((n) => ref(n, 1, { marca_nome: 'Bosch', codigo: `CB ${n}` })),
+    produto_relacao: [1, 2, 3, 4].map((n) => relacao(n, 2)),
     tabela_preco: [base(uuid(900), { codigo: 'V', nome: 'Varejo', ativo: true })],
     tabela_preco_item: [1, 2, 3].map((n) => base(uuid(910 + n), { tabela_preco_id: uuid(900), produto_id: uuid(100 + n), preco_cents: 1000 * n, vigencia_inicio: null, vigencia_fim: null })),
     cliente_tabela_preco: [base(uuid(920), { cliente_id: uuid(800), tabela_preco_id: uuid(900) })],
@@ -142,7 +157,7 @@ describe('RN-CAT-05: a lista lida do aparelho (motor de sync)', () => {
     const r = await listaPorLinhaLocal(leitor, { ...entrada, noId: uuid(3) });
     expect(r.trilha.map((n) => n.nome)).toEqual(['Freios', 'Pastilhas', 'Cerâmica']);
     expect(r.itens.map((i) => i.codigo)).toEqual(['P-1', 'P-2']);
-    expect(r.itens[0]).toMatchObject({ aplicacao: 'Aplicação 1', equivale: 'Equivale a: Bosch CB 1' });
+    expect(r.itens[0]).toMatchObject({ aplicacao: 'Aplicação 1', equivale: 'Equivale a: Bosch CB 1', etiquetas: ['Novo'] });
     expect(r.itens[0]!.ofereceJunto.map((o) => o.rotulo)).toEqual(['Produto 2']);
     expect(r.itens[0]!.preco?.texto).toContain('10,00');
     expect(lidas).toContain('campo:produto_no.no_id');

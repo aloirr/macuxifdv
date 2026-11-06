@@ -8,11 +8,11 @@
  */
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import type { ProdutoSync } from '@macuxi/core/contracts';
-import type { CatalogoNoSync, ProdutoNoSync } from '../../contracts';
+import type { CatalogoNoSync, ProdutoConteudoSync, ProdutoNoSync, ProdutoReferenciaSync, ProdutoRelacaoSync } from '../../contracts';
 import { descendentesDe, montarArvore, trilhaDe, type Arvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
 import { itemDaVitrine, type ProdutoCatalogo } from '../../domain/vitrine';
 import { contextoLocal, type EntradaLocal, type LeitorLocal } from './local';
-import { agruparPorLinha, coletar, extrasDaLinha, montarItemLista, NO_SEM_LINHA, porNome, rotuloDoNivel, type GrupoLista, type ItemLista, type ProdutoLista } from './lista-por-linha';
+import { agruparPorLinha, coletar, montarExtras, montarItemLista, NO_SEM_LINHA, porNome, rotuloDoNivel, SEM_EXTRAS, type ExtrasProduto, type GrupoLista, type ItemLista, type ProdutoLista } from './lista-por-linha';
 
 /** Itens por tela: o resto fica na busca e nos níveis abaixo (a lista não cresce sem limite). */
 export const MAXIMO_ITENS_LISTA = 100;
@@ -65,10 +65,10 @@ const vivas = <L extends LinhaSync>(l: L[]) => l.filter((x) => !x.deleted_at);
 type LinhaProduto = ProdutoSync & LinhaSync;
 
 function doCatalogo(p: LinhaProduto): ProdutoCatalogo {
-  return { id: p.id, sku: p.sku, ean: p.ean, nome: p.nome, marca: p.marca ?? '', categoria: p.categoria ?? '', unidade: p.unidade, ativo: p.ativo, atributos: [], thumbnail_url: extrasDaLinha(p).foto_url, campanha: false, vendas: 0 };
+  return { id: p.id, sku: p.sku, ean: p.ean, nome: p.nome, marca: p.marca ?? '', categoria: p.categoria ?? '', unidade: p.unidade, ativo: p.ativo, atributos: [], thumbnail_url: null, campanha: false, vendas: 0 };
 }
 function paraLista(p: LinhaProduto): ProdutoLista {
-  return { id: p.id, sku: p.sku, nome: p.nome, unidade: p.unidade, embalagem_medida: p.embalagem_medida, embalagem_quantidade: p.embalagem_quantidade, extras: extrasDaLinha(p) };
+  return { id: p.id, sku: p.sku, nome: p.nome, unidade: p.unidade, embalagem_medida: p.embalagem_medida, embalagem_quantidade: p.embalagem_quantidade, extras: SEM_EXTRAS };
 }
 const ativos = (l: LinhaProduto[]) => vivas(l).filter((p) => p.ativo);
 
@@ -77,6 +77,28 @@ async function produtosPorIds(leitor: LeitorLocal, ids: readonly string[]): Prom
   if (leitor.linhasPorIds) return ativos(await leitor.linhasPorIds<LinhaProduto>('produto', ids));
   const pedidos = new Set(ids);
   return ativos(await leitor.linhas<LinhaProduto>('produto')).filter((p) => pedidos.has(p.id));
+}
+
+/** Linhas de uma entidade do pull por `produto_id` (só dos produtos pedidos). Sem `linhasPorCampo` (leitor dos testes), lê tudo e filtra. */
+async function doProduto<L extends LinhaSync & { produto_id: string }>(leitor: LeitorLocal, entidade: string, ids: readonly string[]): Promise<L[]> {
+  if (ids.length === 0) return [];
+  const pedidos = new Set(ids);
+  const linhas = leitor.linhasPorCampo ? await leitor.linhasPorCampo<L>(entidade, 'produto_id', ids) : await leitor.linhas<L>(entidade);
+  return vivas(linhas).filter((l) => pedidos.has(l.produto_id));
+}
+
+/** Aplicação, referências, oferece junto e etiquetas dos produtos que vão para a tela (conteúdo, referência e relação do pull). */
+async function extrasDosProdutos(leitor: LeitorLocal, ids: readonly string[]): Promise<Map<string, ExtrasProduto>> {
+  const [conteudos, referencias, relacoes] = await Promise.all([
+    doProduto<ProdutoConteudoSync & LinhaSync>(leitor, 'produto_conteudo', ids),
+    doProduto<ProdutoReferenciaSync & LinhaSync>(leitor, 'produto_referencia', ids),
+    doProduto<ProdutoRelacaoSync & LinhaSync>(leitor, 'produto_relacao', ids),
+  ]);
+  const por = <T extends { produto_id: string }>(l: T[]) => l.reduce((m, x) => m.set(x.produto_id, [...(m.get(x.produto_id) ?? []), x]), new Map<string, T[]>());
+  const refs = por(referencias);
+  const rels = por(relacoes);
+  const cont = new Map(conteudos.map((c) => [c.produto_id, c]));
+  return new Map(ids.map((id) => [id, montarExtras(cont.get(id), refs.get(id) ?? [], rels.get(id) ?? [])]));
 }
 
 /** Vínculos dos níveis `nosIds` (e só deles). Sem `linhasPorCampo` (leitor dos testes), lê tudo e filtra. */
@@ -161,7 +183,9 @@ async function finalizar(
   e: EntradaLocal & { fuso: string },
   base: { trilha: NoCatalogo[]; rotuloNivel: string | null; filhos: FilhoLista[]; candidatos: ProdutoLista[]; porId: Map<string, LinhaProduto>; total: number; noInexistente: boolean },
 ): Promise<NivelLista> {
-  const mostrados = [...base.candidatos].sort(porNome).slice(0, MAXIMO_ITENS_LISTA);
+  const ordenados = [...base.candidatos].sort(porNome).slice(0, MAXIMO_ITENS_LISTA);
+  const extras = await extrasDosProdutos(leitor, ordenados.map((p) => p.id));
+  const mostrados = ordenados.map((p) => ({ ...p, extras: extras.get(p.id) ?? SEM_EXTRAS }));
   const linhas = mostrados.map((p) => base.porId.get(p.id)!);
   // "oferece junto": nomes dos produtos citados que não estão na tela (só os que o aparelho tem)
   const nomes = new Map(linhas.map((p) => [p.id, p.nome]));
