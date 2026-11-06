@@ -26,6 +26,7 @@ import { problemasApiConector, type ApiConector } from './conector';
 import type { DefinicaoConsulta } from './consultas-tipos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
+import { MODOS_SUPER_ADMIN, type ModoSuperAdmin, type SuperAdminAutenticado } from './plataforma';
 import {
   ehAcaoDeEscritaDePedido,
   ehAcaoDeLeituraDePedido,
@@ -181,6 +182,12 @@ export interface ContextoBase {
   fuso(): string;
   /** Logger da requisição (já leva tenant_id, modulo e request_id; nunca registre dado pessoal). */
   log: LogRota;
+  /**
+   * ADR 0029 (T-0087): presente só quando quem chama é o super-admin de plataforma, numa rota com `superAdmin`. Aí
+   * `usuario` é um `admin` sintético do tenant do cabeçalho `x-macuxi-tenant`, com `id` = id do super-admin (não existe em
+   * `core.usuario`: não grave em coluna com FK para ele) e os módulos licenciados ao tenant.
+   */
+  superAdmin?: SuperAdminAutenticado;
 }
 
 /**
@@ -264,7 +271,57 @@ export interface RotaModulo<
    * `Authorization` presente (sem ele: 401 sem ler o corpo).
    */
   limiteCorpoBytes?: number;
+  /**
+   * Tipo da resposta de sucesso (T-0087: modelo CSV, erros do lote, OpenAPI). Padrão: JSON. Só os de `TIPOS_CONTEUDO_ROTA`
+   * (nada que o navegador execute: sem HTML, JavaScript ou SVG, porque o BKO e o portal servem a API pela própria origem).
+   * Fora do JSON, o `executar` devolve `string` ou `Uint8Array` e o corpo vai como está, com `x-content-type-options: nosniff`;
+   * devolver outra coisa é erro de programação (500).
+   */
+  tipoConteudo?: TipoConteudoRota;
+  /**
+   * Nome do arquivo para baixar (`Content-Disposition: attachment; filename="..."`). Fixo ou calculado da entrada já
+   * validada (ex.: `(e) => (e.params as { entidade: string }).entidade + '.csv'`). Só `NOME_ARQUIVO_ROTA_RE` (letras sem
+   * acento, dígitos, ponto, `_` e `-`; até 100); nome calculado fora disso = erro de programação (500). Sem dado pessoal.
+   */
+  nomeArquivo?: string | ((e: EntradaRota) => string);
+  /**
+   * ADR 0029 (T-0087): o super-admin de plataforma também pode chamar a rota (`'aceita'`) ou só ele (`'exige'`), com o tenant no
+   * cabeçalho `x-macuxi-tenant`. Licença do módulo NO TENANT, Zod e RLS continuam valendo; ação/perfil e carteira não (esta
+   * opção é a autorização). Ausente = o token de plataforma não vale aqui (401). Ver `ModoSuperAdmin`.
+   */
+  superAdmin?: ModoSuperAdmin;
   executar(ctx: ContextoRota<z.output<C>, z.output<Q>, z.output<P>>): Promise<unknown>;
+}
+
+/**
+ * Tipos de resposta aceitos em `RotaModulo.tipoConteudo` (T-0087). Lista fechada de propósito: a API é servida pela mesma
+ * origem do BKO e do portal (`/api-proxy`), então nenhum tipo que o navegador renderize como página ou script entra.
+ */
+export const TIPOS_CONTEUDO_ROTA = [
+  'application/json',
+  'text/csv; charset=utf-8',
+  'text/plain; charset=utf-8',
+  'text/markdown; charset=utf-8',
+  'application/yaml; charset=utf-8',
+] as const;
+export type TipoConteudoRota = (typeof TIPOS_CONTEUDO_ROTA)[number];
+
+/** Nome de arquivo aceito no `Content-Disposition` (sem aspas, barra, espaço nem acento: nada a escapar no cabeçalho). */
+export const NOME_ARQUIVO_ROTA_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+
+/**
+ * Problemas de `tipoConteudo`/`nomeArquivo` de uma rota de módulo (vazio = ok). Usado por `definirModuloApi` e pela montagem
+ * da API (fixture sem `definirModuloApi` também passa).
+ */
+export function problemasConteudoRota(rotulo: string, r: Pick<RotaModulo, 'tipoConteudo' | 'nomeArquivo'>): string[] {
+  const p: string[] = [];
+  if (r.tipoConteudo !== undefined && !(TIPOS_CONTEUDO_ROTA as readonly string[]).includes(r.tipoConteudo))
+    p.push(`${rotulo}: tipoConteudo ${String(r.tipoConteudo)} fora de ${TIPOS_CONTEUDO_ROTA.join(', ')}`);
+  if (typeof r.nomeArquivo === 'string' && !NOME_ARQUIVO_ROTA_RE.test(r.nomeArquivo))
+    p.push(`${rotulo}: nomeArquivo ${r.nomeArquivo} inválido (letras sem acento, dígitos, ponto, _ e -; até 100)`);
+  if (r.nomeArquivo !== undefined && typeof r.nomeArquivo !== 'string' && typeof r.nomeArquivo !== 'function')
+    p.push(`${rotulo}: nomeArquivo deve ser texto ou função`);
+  return p;
 }
 
 /** Teto de bytes do corpo das rotas sem `limiteCorpoBytes` (o padrão do Fastify: 1 MiB). */
@@ -450,6 +507,38 @@ export interface AcessoBanco {
   semTenant<T>(fn: (db: ClienteBanco) => Promise<T>): Promise<T>;
 }
 
+/**
+ * T-0087 (R-20261106-010602): lista FECHADA de cabeçalhos que a rota pública recebe. Hoje só `authorization` (token de
+ * plataforma em `renovar`/`sair`/`recuperacao/regerar`). Cookie, `x-macuxi-*` e o resto nunca chegam à rota. Acrescentar
+ * um nome aqui é mudança de plataforma (revisão do engenheiro-software), não do módulo.
+ */
+export const CABECALHOS_PUBLICOS = ['authorization'] as const;
+export type CabecalhoPublico = (typeof CABECALHOS_PUBLICOS)[number];
+/** Cabeçalhos da rota pública: só os da lista fechada, nomes em minúsculas, primeiro valor se repetido. */
+export type CabecalhosPublicos = Readonly<Partial<Record<CabecalhoPublico, string>>>;
+
+const CENSURA_CABECALHO = '[omitido]';
+
+/**
+ * Filtra os cabeçalhos brutos da requisição para a lista fechada (`CABECALHOS_PUBLICOS`). O objeto devolvido é congelado
+ * e, serializado (`JSON.stringify`, pino), sai com os valores trocados por `[omitido]`: registrar `ctx.cabecalhos` por
+ * engano nunca vaza o token. A leitura direta (`cabecalhos.authorization`) devolve o valor real.
+ */
+export function cabecalhosPublicos(brutos: Readonly<Record<string, string | readonly string[] | undefined>>): CabecalhosPublicos {
+  const saida: Partial<Record<CabecalhoPublico, string>> = {};
+  for (const [nome, valor] of Object.entries(brutos)) {
+    const n = nome.toLowerCase();
+    if (!(CABECALHOS_PUBLICOS as readonly string[]).includes(n)) continue;
+    const v = Array.isArray(valor) ? (valor as readonly string[])[0] : (valor as string | undefined);
+    if (typeof v === 'string' && saida[n as CabecalhoPublico] === undefined) saida[n as CabecalhoPublico] = v;
+  }
+  Object.defineProperty(saida, 'toJSON', {
+    enumerable: false,
+    value: () => Object.fromEntries(Object.keys(saida).map((k) => [k, CENSURA_CABECALHO])),
+  });
+  return Object.freeze(saida);
+}
+
 export interface ContextoPublico<C = unknown, Q = unknown, P = unknown> {
   corpo: C;
   query: Q;
@@ -459,6 +548,11 @@ export interface ContextoPublico<C = unknown, Q = unknown, P = unknown> {
   agora(): Date;
   banco: AcessoBanco;
   log: LogRota;
+  /**
+   * Cabeçalhos da lista fechada `CABECALHOS_PUBLICOS` (hoje só `authorization`), via `cabecalhosPublicos`. A API real
+   * sempre preenche; é opcional só para os contextos falsos de teste. Nunca registre o valor em log.
+   */
+  cabecalhos?: CabecalhosPublicos;
 }
 
 /**
@@ -506,6 +600,15 @@ export interface ServicosCore {
    * para analista/assistente/admin. Sem o serviço a API falha fechada: só o próprio (ou `'tenant'` nos perfis de escopo tenant).
    */
   usuariosVisiveis?(usuario: UsuarioAutenticado, banco: AcessoBanco): Promise<ReadonlySet<string> | 'tenant'>;
+  /**
+   * ADR 0029 (T-0087): token de PLATAFORMA (segredo e `aud` próprios) → super-admin com sessão viva e 2º fator, conferida no
+   * banco a cada chamada. `null` = não é token de plataforma válido. Token de tenant nunca passa aqui, e o `autenticar` acima
+   * nunca aceita token de plataforma. Sem o serviço, nenhuma rota aceita super-admin (falha fechada).
+   */
+  autenticarSuperAdmin?(
+    cabecalhos: Readonly<Record<string, string | undefined>>,
+    banco: AcessoBanco,
+  ): Promise<SuperAdminAutenticado | null>;
 }
 
 export interface ModuloApi {
@@ -618,11 +721,27 @@ export function dependenciasDosManifestos(
   return Object.freeze(d);
 }
 
-const CAMINHO_RE = /^(?:[a-z0-9_-]+|:[a-z][a-zA-Z0-9_]*)(?:\/(?:[a-z0-9_-]+|:[a-z][a-zA-Z0-9_]*))*$/;
+/**
+ * Segmento do caminho: literal (`[a-z0-9_-]`, com pontos internos: `openapi.json`) ou parâmetro `:nome` com sufixo literal
+ * opcional depois de ponto (`:entidade.csv`, T-0087; o roteador do Fastify termina o parâmetro no ponto). Sem ponto no
+ * início, no fim nem dois seguidos.
+ */
+const SEGMENTO_RE = '(?:[a-z0-9_-]+(?:\\.[a-z0-9_-]+)*|:[a-z][a-zA-Z0-9_]*(?:\\.[a-z0-9_-]+)*)';
+const CAMINHO_RE = new RegExp(`^${SEGMENTO_RE}(?:/${SEGMENTO_RE})*$`);
+/** Nome do parâmetro no caminho, para a chave de rota repetida (`:id.csv` e `:x.csv` são a mesma rota; `.json` não). */
+const PARAMETRO_RE = /:[a-z][a-zA-Z0-9_]*/g;
 
-/** Rota que toca pedido (`pedido`, `pedidos`, `pedido_item`, `pedidos-sugeridos`… em algum segmento do caminho). */
+/** Caminho válido de rota de módulo e de rota pública (sem barra inicial; minúsculas; `:param`, com `.ext` opcional). */
+export function caminhoDeRotaValido(caminho: string): boolean {
+  return CAMINHO_RE.test(caminho);
+}
+
+/**
+ * Rota que toca pedido (`pedido`, `pedidos`, `pedido_item`, `pedidos-sugeridos`… em algum segmento do caminho). O sufixo
+ * depois do ponto não muda nada: `pedidos.csv` também é caminho de pedido (RN-PRO-01).
+ */
 export function ehCaminhoDePedido(caminho: string): boolean {
-  return caminho.split('/').some((s) => /^pedidos?([_-][a-z0-9_-]+)?$/.test(s));
+  return caminho.split('/').some((s) => /^pedidos?([_-][a-z0-9_-]+)?$/.test(s.split('.')[0] ?? ''));
 }
 
 /**
@@ -656,7 +775,7 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     const rotulo = `${r.metodo} /v1/${id}${r.caminho ? `/${r.caminho}` : ''}`;
     if (r.caminho !== '' && !CAMINHO_RE.test(r.caminho))
       problemas.push(`${rotulo}: caminho inválido (sem barra inicial, minúsculas, parâmetros :nome)`);
-    const chave = `${r.metodo} ${r.caminho.replace(/:[^/]+/g, ':')}`;
+    const chave = `${r.metodo} ${r.caminho.replace(PARAMETRO_RE, ':')}`;
     if (vistas.has(chave)) problemas.push(`${rotulo}: rota repetida`);
     vistas.add(chave);
     if (r.metodo !== 'GET' && !r.acao)
@@ -678,6 +797,9 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
       problemas.push(`${rotulo}: ação de leitura ${r.acao} só em GET (RN-PRO-01)`);
     if (r.carteira === undefined) problemas.push(`${rotulo}: declare o escopo de carteira (RN-CORE-04)`);
     problemas.push(...problemasLimiteCorpo(rotulo, r));
+    problemas.push(...problemasConteudoRota(rotulo, r));
+    if (r.superAdmin !== undefined && !(MODOS_SUPER_ADMIN as readonly string[]).includes(r.superAdmin))
+      problemas.push(`${rotulo}: superAdmin ${String(r.superAdmin)} inválido (${MODOS_SUPER_ADMIN.join(', ')})`);
   }
   const entidades = new Set<string>();
   for (const p of m.sync ?? []) {
@@ -727,7 +849,8 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     problemas.push('só o core declara rotas públicas e serviços de plataforma');
   for (const r of m.rotasPublicas ?? []) {
     if (!CAMINHO_RE.test(r.caminho)) problemas.push(`${r.metodo} /v1/${r.caminho}: caminho inválido`);
-    if (/^(sync|saude|me|arquivos)(\/|$)/.test(r.caminho))
+    // `plataforma/*` é da API (portal, ADR 0029); do Core, só a autenticação do super-admin em `plataforma/auth/*`
+    if (/^(sync|saude|me|arquivos)(\/|$)/.test(r.caminho) || (/^plataforma(\/|$)/.test(r.caminho) && !r.caminho.startsWith('plataforma/auth/')))
       problemas.push(`${r.metodo} /v1/${r.caminho}: prefixo reservado à plataforma`);
     if (!(r.limite?.max > 0) || !(r.limite?.janelaMs > 0))
       problemas.push(`${r.metodo} /v1/${r.caminho}: rota pública exige limite de tentativas`);

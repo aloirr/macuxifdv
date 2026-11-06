@@ -185,3 +185,6 @@ R-20261105-221823-modulo-catalogo
 R-20261105-211105-gerente-projetos
 R-20261105-213304-gerente-projetos
 R-20261105-212947-modulo-vendedor
+R-20261106-003920-banco-dados
+R-20261106-010614-engenheiro-apps
+R-20261106-021340-modulo-core

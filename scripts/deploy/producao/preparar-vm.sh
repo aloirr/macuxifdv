@@ -172,6 +172,10 @@ acrescentar MACUXI_PG_APP_SENHA "$(openssl rand -hex 32)"
 acrescentar MACUXI_PG_WORKER_SENHA "$(openssl rand -hex 32)"
 acrescentar MACUXI_JWT_SEGREDO "$(openssl rand -hex 48)"
 acrescentar MACUXI_HUB_CHAVE_PEPPER "$(openssl rand -hex 32)"
+# T-0087/ADR 0029 (super-admin do portal): token de plataforma com segredo próprio e a chave que cifra o segredo TOTP.
+# A chave do TOTP NUNCA pode ser regenerada (o acrescentar não regenera): trocar = o 2º fator cadastrado deixa de abrir.
+acrescentar MACUXI_JWT_SEGREDO_PLATAFORMA "$(openssl rand -hex 48)"
+acrescentar MACUXI_CHAVE_TOTP "$(openssl rand -base64 32)"
 chown "$USUARIO:$USUARIO" "$ENV"
 chmod 600 "$ENV"
 for f in banco.env admin.env segredos.env tunel.env alerta.env; do

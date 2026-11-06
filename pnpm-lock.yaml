@@ -658,6 +658,9 @@ importers:
       '@macuxi/platform-sdk':
         specifier: workspace:*
         version: link:../../packages/platform-sdk
+      '@macuxi/promotor':
+        specifier: workspace:*
+        version: link:../promotor
       '@macuxi/ui':
         specifier: workspace:*
         version: link:../../packages/ui
