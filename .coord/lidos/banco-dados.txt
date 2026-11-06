@@ -62,3 +62,7 @@ R-20261105-110150-alexandre
 R-20261105-112117-alexandre
 R-20261105-205201-gerente-projetos
 R-20261105-213304-gerente-projetos
+R-20261105-225102-engenheiro-software
+R-20261106-004109-engenheiro-software
+R-20261106-004109-engenheiro-software
+R-20261106-013433-engenheiro-software

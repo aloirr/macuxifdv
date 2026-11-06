@@ -41,7 +41,8 @@
  * - T-0084/T-0085 (0033): aplicação no conteúdo de A ("Motos 150 cc") e de B (diferente, para o isolamento), etiquetas em A,
  *   aplicação e referências no documento de busca do servidor, retrato da aplicação no item 1 do p1 de A e referências
  *   cruzadas (catalogo.produto_referencia, grupo 0x4f): A com 2 vivas no p1 (marca = o concorrente do Promotor de A, sem
- *   FK) e 1 apagada na mesma ordem; B com 1 de código diferente (marca = o concorrente do Promotor de B).
+ *   FK) e 1 apagada na mesma ordem; B com 1 de código diferente (marca = o concorrente do Promotor de B). 0034: as vivas
+ *   levam marca_nome (MARCA_NOME_FIXTURE, retrato do nome do concorrente); a apagada fica nula (linha anterior à 0034).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
@@ -463,17 +464,22 @@ export const REFERENCIAS_FIXTURE = {
   A: { cb3401: a('produto_referencia', 1), fr772: a('produto_referencia', 2), apagada: a('produto_referencia', 3) },
   B: { lb0099: b('produto_referencia', 1) },
 } as const;
+/** 0034: retrato do nome da marca nas referências vivas (= nome do concorrente do Promotor de cada tenant na fixture). */
+export const MARCA_NOME_FIXTURE = { A: 'Freios Rivais', B: 'Lubri Rival' } as const;
 function dadosProdutoReferencia(): Linha[] {
   const A = DOIS_TENANTS.A;
   const B = DOIS_TENANTS.B;
   const ref = (id: string, tenant_id: string, produto_id: string, marca_id: string, codigo: string, codigo_compacto: string, ordem: number, extra: Partial<Linha> = {}): Linha => ({
-    id, tenant_id, produto_id, marca_id, codigo, codigo_compacto, ordem, deleted_at: null, external_id: null, ...extra,
+    id, tenant_id, produto_id, marca_id, marca_nome: null, codigo, codigo_compacto, ordem, deleted_at: null, external_id: null, ...extra,
   });
+  // 0034: marca_nome = retrato do nome do concorrente do Promotor do mesmo tenant; a apagada fica NULA (linha anterior à 0034)
+  const nomeA = { marca_nome: MARCA_NOME_FIXTURE.A };
+  const nomeB = { marca_nome: MARCA_NOME_FIXTURE.B };
   return [
-    ref(REFERENCIAS_FIXTURE.A.cb3401, A.tenantId, A.produtos.p1, PROMOTOR_FIXTURE.A.concorrente, 'CB 3401', 'cb3401', 1, { external_id: 'REF-A-1' }),
-    ref(REFERENCIAS_FIXTURE.A.fr772, A.tenantId, A.produtos.p1, PROMOTOR_FIXTURE.A.concorrente, 'FR-77.2', 'fr772', 2),
+    ref(REFERENCIAS_FIXTURE.A.cb3401, A.tenantId, A.produtos.p1, PROMOTOR_FIXTURE.A.concorrente, 'CB 3401', 'cb3401', 1, { external_id: 'REF-A-1', ...nomeA }),
+    ref(REFERENCIAS_FIXTURE.A.fr772, A.tenantId, A.produtos.p1, PROMOTOR_FIXTURE.A.concorrente, 'FR-77.2', 'fr772', 2, nomeA),
     ref(REFERENCIAS_FIXTURE.A.apagada, A.tenantId, A.produtos.p1, PROMOTOR_FIXTURE.A.concorrente, 'CB-3400', 'cb3400', 1, { deleted_at: DATA_FIXA_ACESSO }),
-    ref(REFERENCIAS_FIXTURE.B.lb0099, B.tenantId, b('produto', 1), PROMOTOR_FIXTURE.B.concorrente, 'LB 0099', 'lb0099', 1, { external_id: 'REF-B-1' }),
+    ref(REFERENCIAS_FIXTURE.B.lb0099, B.tenantId, b('produto', 1), PROMOTOR_FIXTURE.B.concorrente, 'LB 0099', 'lb0099', 1, { external_id: 'REF-B-1', ...nomeB }),
   ];
 }
 

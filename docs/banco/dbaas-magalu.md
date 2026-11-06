@@ -62,8 +62,9 @@ o caso do DBaaS); só fica de fora se o servidor registrar comandos de papel **e
   - **Por que `--enable-row-security`.** O admin não tem BYPASSRLS e é dono de tabelas com FORCE RLS. Com o padrão do
     pg_dump (`row_security = off`), o dump aborta. Com a opção, ele lê todos os tenants pela política `manutencao` da
     0031.
-  - **Vale também para o backup de produção** (`db/backup`, ADR 0024 item 9). Hoje ele roda como superusuário no
-    contêiner da demo. No DBaaS, precisa da mesma opção.
+  - **Vale também para o backup de produção** (`db/backup`, ADR 0024 item 9). Na demo, ele roda como superusuário no
+    contêiner do Postgres. Na produção (T-0086), o `db/backup/backup-dbaas.sh` usa a mesma opção pelo `pgcliente`, e o
+    `db/backup/ensaio-restauracao.sh` reusa o filtro do A9 no `pg_restore -L` (ver `db/backup/LEIA-ME.md`).
   - **Binários.** O pg_dump e o pg_restore 16 vêm da imagem (PATH, `/usr/lib/postgresql/16/bin` ou `DBAAS_PG_BIN`).
     A `node:24-bookworm-slim` não traz nenhum dos dois. Nesse caso o A9 sai ❌ com a proposta: `postgresql-client-16`
     do PGDG no alvo `teste-db` do `apps/api/Dockerfile` (engenheiro-software). O cliente do Debian bookworm é o 15, que

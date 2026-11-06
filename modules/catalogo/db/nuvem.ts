@@ -3,7 +3,8 @@
  * db/migrations/0008_catalogo_preco.up.sql (T-0029 §10) e 0013_catalogo_vendedor_prevenda.up.sql (cota de IA, árvore,
  * conteúdo, busca do servidor, estoque e log de busca), 0020_pedido_ajuste_valor_produto_relacao (produto_relacao, T-0071) e
  * 0033_catalogo_aplicacao_referencia (teto da aplicação, etiquetas, aplicação e referências na busca, produto_referencia;
- * T-0084/T-0085), para uso INTERNO do módulo Catálogo (modules/catalogo/api).
+ * T-0084/T-0085) e 0034_catalogo_referencia_marca_nome (retrato do nome da marca na referência; T-0085), para uso
+ * INTERNO do módulo Catálogo (modules/catalogo/api).
  * Nenhum outro módulo importa este arquivo: o Vendedor obtém preço pela consulta `catalogo.precos_cliente@1` (ADR 0012).
  *
  * A fonte da verdade é o SQL versionado (FKs compostas, índices, CHECKs, RLS e grants ficam lá). Sem FK para o schema
@@ -240,4 +241,10 @@ export const produtoReferencia = catalogo.table('produto_referencia', {
   codigo: text('codigo').notNull(),
   codigo_compacto: text('codigo_compacto').notNull(),
   ordem: smallint('ordem').notNull(),
+  /**
+   * 0034 (ADR 0027, risco 2): RETRATO do nome da marca no cadastro do Promotor no momento da gravação (nulo ou 1..120). Quem
+   * grava valida a marca por `promotor.concorrentes@1`; vai no pull para o vendedor ver a referência sem o Promotor. Nulo =
+   * linha anterior à 0034 ainda não regravada (a migração não lê o schema promotor): o leitor cai no fallback.
+   */
+  marca_nome: text('marca_nome'),
 });
