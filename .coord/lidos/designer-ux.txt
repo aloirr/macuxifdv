@@ -75,3 +75,4 @@ R-20261105-184836-modulo-vendedor
 R-20261105-184926-engenheiro-software
 R-20261105-205201-gerente-projetos
 R-20261105-212843-engenheiro-software
+R-20261106-025407-engenheiro-apps
