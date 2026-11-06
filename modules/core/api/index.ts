@@ -10,7 +10,7 @@
  * Segredo do JWT: `MACUXI_JWT_SEGREDO` (mín. 32 caracteres); sem ele o login responde 503 e ninguém autentica (falha fechada).
  */
 import { definirModuloApi, definirTarefa, type ModuloApi } from '@macuxi/platform-sdk';
-import { DesafioSchema, LoginPlataformaSchema, LoginSenhaRequestSchema, LogoutRequestSchema, PrimeiroAcessoSchema, RefreshRequestSchema, RegerarRecuperacaoSchema, SegundoFatorSchema, TotpConfirmarSchema } from '../contracts';
+import { AceitarConviteRequestSchema, DesafioSchema, LoginPlataformaSchema, LoginSenhaRequestSchema, LogoutRequestSchema, PrimeiroAcessoSchema, RefreshRequestSchema, RegerarRecuperacaoSchema, SegundoFatorSchema, TotpConfirmarSchema } from '../contracts';
 import { manifest } from '../manifest';
 import { criarAutenticacao, type DepsAutenticacao } from './autenticacao';
 import { criarSuperAdmin, type DepsSuperAdmin } from './super-admin';
@@ -35,6 +35,8 @@ import { rotasDePromotorPedidos } from './promotor-pedidos';
 import { rotasDeParametrosInicio } from './parametros-inicio';
 import { rotasDeRotasEVisitas } from './rotas';
 import { rotasDeUsuarios } from './usuarios';
+import { rotasDeEquipeCsv } from './equipe-csv';
+import { aceitarConvite } from './convite-aceite';
 import { provedoresSyncCore } from './sync';
 import { usuariosVisiveisDoUsuario } from './usuarios-visiveis';
 
@@ -53,7 +55,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
   const sa = criarSuperAdmin(plataforma);
   return definirModuloApi({
     manifesto: manifest,
-    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes],
+    rotas: [...rotasDeLicencas, ...rotasDeUsuarios, ...rotasDeEquipeCsv, ...rotasDeClientes, ...rotasDeDispositivos, ...rotasDeRotasEVisitas, ...rotasDeMetas, ...rotasDeInicio, ...rotasDeProdutos, ...rotasDeMedidas, ...rotasDePromotorPedidos, ...rotasDeParametrosInicio, ...rotasDeFarol, ...rotasDePlanoRv, ...rotasDePendenciaCheckout, ...rotasDeNotificacoes],
     sync: [...provedoresSyncCore, ...provedoresDeNotificacao],
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
@@ -84,6 +86,8 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
         corpo: LogoutRequestSchema,
         executar: (ctx) => auth.logout(ctx),
       },
+      // T-0087 (fatia E, RN-CORE-31): aceite do convite de 1º acesso; token de uso único no corpo, limite por IP
+      { metodo: 'POST', caminho: 'auth/convite/aceitar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: AceitarConviteRequestSchema, executar: (ctx) => aceitarConvite(ctx) },
       // T-0087 / ADR 0029: identidade do super-admin de plataforma (limite por IP: 5/15 min no primeiro acesso, 10/5 min no resto)
       { metodo: 'POST', caminho: 'plataforma/auth/primeiro-acesso', limite: { max: 5, janelaMs: QUINZE_MINUTOS }, corpo: PrimeiroAcessoSchema, executar: (ctx) => sa.primeiroAcesso(ctx) },
       { metodo: 'POST', caminho: 'plataforma/auth/login', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: LoginPlataformaSchema, executar: (ctx) => sa.login(ctx) },

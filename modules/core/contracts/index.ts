@@ -504,3 +504,4 @@ export * from './farol';
 export * from './etapas-pendencia';
 export * from './plano-rv';
 export * from './plataforma';
+export * from './equipe-importacao';

@@ -24,7 +24,7 @@ export const manifest = defineModule({
     'meta.fechar_periodo': { perfis: ['gerente', 'analista', 'admin'], descricao: 'Fechar/reabrir o mês e exportar para o RH' },
     'modulo.gerir_licencas': { perfis: ['admin'], descricao: 'Ativar/desativar módulos por tenant, perfil e usuário (tela Usuários e módulos)' },
     'usuario.ver': { perfis: ['supervisor', 'gerente', 'admin'], descricao: 'Ver a lista de usuários no BKO, recortada pelo escopo: equipe (supervisor), equipes abaixo (gerente), tenant (admin) (RF-CORE-02, RN-CORE-04)' },
-    'usuario.gerir': { perfis: ['admin'], descricao: 'Criar, editar, ativar/desativar usuários e definir/redefinir senha no BKO; nunca apaga (RF-CORE-02, RN-AUD-01)' },
+    'usuario.gerir': { perfis: ['admin'], descricao: 'Criar, editar, ativar/desativar usuários e definir/redefinir senha no BKO, importar a Equipe por CSV e emitir/renovar convites de 1º acesso; nunca apaga (RF-CORE-02, RN-CORE-31, RN-AUD-01)' },
     'carteira.editar': { perfis: ['analista', 'admin'], descricao: 'Vincular/desvincular clientes a vendedor ou promotor, com vigência e frequência de visita (BKO)' },
     'dispositivo.bloquear': { perfis: ['admin', 'analista'], descricao: 'Bloquear/desbloquear aparelho no BKO; vale para o tenant inteiro (RN-CORE-15)' },
     'motivo.editar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar e ativar/desativar motivos de não venda; motivos de sistema não mudam (RN-CORE-14)' },
