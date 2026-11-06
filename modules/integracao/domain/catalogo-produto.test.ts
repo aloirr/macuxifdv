@@ -14,7 +14,7 @@ describe('produto do ERP: aplicação, referências, oferece junto e etiquetas',
   it('RN-CAT-09: aceita os 4 campos e exige marca_external_id ou marca_nome na referência', () => {
     const ok = ProdutoPayload.safeParse({ ...base, aplicacao: 'Gol 1.0', etiquetas: ['Novo'], oferece_junto: ['P2'], referencias: [{ marca_nome: 'Cobreq', codigo: 'N-1' }] });
     expect(ok.success).toBe(true);
-    expect(ProdutoPayload.safeParse({ ...base, referencias: [{ codigo: 'N-1' }] }).success).toBe(false);
+    expect(ProdutoPayload.safeParse({ ...base, referencias: [{ codigo: 'N-1' }] }).success).toBe(true);
   });
 
   it('RN-CAT-11: aplicação de 2.500 caracteres chega com 2.000 e o aviso aplicacao_cortada, sem recusar a linha', () => {
@@ -69,5 +69,16 @@ describe('produto do ERP: aplicação, referências, oferece junto e etiquetas',
     expect(avisos).toEqual([]);
     expect(registro.aplicacao).toBeNull();
     expect('etiquetas' in registro).toBe(false);
+  });
+
+  it('RN-CAT-09: referência sem marca, com código vazio ou acima de 30 é descartada com aviso e a linha do produto segue', () => {
+    const r = validarLinhas('produto', [
+      { ...base, etiquetas: ['x'.repeat(30), '  '], referencias: [{ codigo: 'N-1' }, { marca_nome: 'Cobreq', codigo: '' }, { marca_nome: 'Cobreq', codigo: 'c'.repeat(31) }, { marca_nome: 'Cobreq', codigo: 'OK-1' }] },
+    ]);
+    expect(r.erros).toEqual([]);
+    const reg = r.validas[0]!.registro as ProdutoPayload;
+    expect(reg.referencias).toEqual([{ marca_nome: 'Cobreq', codigo: 'OK-1' }]);
+    expect(reg.etiquetas).toEqual(['x'.repeat(20)]);
+    expect(r.avisos.map((a) => a.codigo)).toEqual(['referencia_descartada']);
   });
 });

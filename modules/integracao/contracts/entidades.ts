@@ -84,17 +84,13 @@ export const APLICACAO_PROTECAO_MAX = 20_000;
 export const LIMITES_CATALOGO_PRODUTO = { aplicacao: 2000, referencias: 3, ofereceJunto: 5, etiquetas: 4 } as const;
 
 /** Referência cruzada do ERP: a marca vem pelo `external_id` ou pelo nome (o ERP não conhece os ids do Macuxi). */
-export const ReferenciaCruzada = z
-  .object({
-    marca_external_id: ExternalId.nullish(),
-    marca_nome: TextoOpcional(120),
-    codigo: Texto(30),
-  })
-  .superRefine((r, ctx) => {
-    if (!r.marca_external_id && !r.marca_nome) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['marca_external_id'], message: 'informe marca_external_id ou marca_nome' });
-    }
-  });
+export const ReferenciaCruzada = z.object({
+  marca_external_id: z.string().nullish(),
+  marca_nome: z.string().nullish(),
+  codigo: z.string(),
+});
+/** Limites da referência válida; fora deles `limitarCatalogoDoProduto` descarta SÓ a referência, com aviso (a linha do produto segue). */
+export const LIMITES_REFERENCIA = { codigo: 30, marcaNome: 120, etiqueta: 20 } as const;
 export type ReferenciaCruzada = z.infer<typeof ReferenciaCruzada>;
 
 const ProdutoBase = RegistroBase.extend({
@@ -135,7 +131,7 @@ const ProdutoBase = RegistroBase.extend({
   aplicacao: z.string().max(APLICACAO_PROTECAO_MAX, `aplicacao aceita até ${APLICACAO_PROTECAO_MAX} caracteres`).nullish(),
   referencias: z.array(ReferenciaCruzada).max(10, 'referencias aceita até 10 itens').nullish(),
   oferece_junto: z.array(ExternalId).max(20, 'oferece_junto aceita até 20 itens').nullish(),
-  etiquetas: z.array(Texto(20)).max(10, 'etiquetas aceita até 10 itens').nullish(),
+  etiquetas: z.array(z.string()).max(10, 'etiquetas aceita até 10 itens').nullish(),
 });
 export const ProdutoPayload = ProdutoBase.superRefine((r, ctx) => {
   const tem = (v: unknown) => v !== undefined && v !== null && v !== '';

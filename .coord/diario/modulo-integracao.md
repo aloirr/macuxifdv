@@ -33,3 +33,4 @@
 2026-11-06 — T-0087 — ctx.parametros ausente no consumidor: leitura defensiva em aplicar-lote.ts + parametros/fuso nos contextos dos testes de banco
 2026-11-06 — T-0087 — aplicar-lote usa limite/ttl de inativação do tenant; padrão da sessão 24 h conferido; testes em parametros.test.ts
 2026-11-06 — T-0084/T-0085 — ProdutoPayload ganha aplicacao, referencias, oferece_junto e etiquetas (opcionais, @1); Hub corta com aviso (aplicacao_cortada, referencias_cortadas, oferece_junto_cortado); domain/catalogo-produto.ts + testes. Pendente: A7 marca_concorrente_ausente, ItemPedidoErp.aplicacao, Conector (lote 2).
+2026-11-06 — T-0084 — ItemPedidoErp.aplicacao (1000, aditivo v1) repassada pela fila; referência inválida descarta só a referência (aviso referencia_descartada); K11 aviso de marca vai ao backlog
