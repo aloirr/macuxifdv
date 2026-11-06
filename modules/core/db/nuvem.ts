@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -50,6 +50,8 @@ export const usuario = core.table('usuario', {
   tentativas_falhas: smallint('tentativas_falhas').notNull().default(0),
   /** Bloqueio TEMPORÁRIO por tentativas (0004). bloqueado_em é o bloqueio manual do admin. */
   bloqueio_ate: timestamp('bloqueio_ate', { withTimezone: true }),
+  /** Telefone do CSV da Equipe (0036, T-0087): dado pessoal; null ou 1..30 caracteres (formato validado no domain do Core). */
+  telefone: text('telefone'),
 });
 
 /**
@@ -192,6 +194,27 @@ export const sessao = core.table('sessao', {
   expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
   usado_em: timestamp('usado_em', { withTimezone: true }),
   revogado_em: timestamp('revogado_em', { withTimezone: true }),
+});
+
+/** Quem gerou o convite (0036): core.usuario do tenant ou super-admin de plataforma (0035). Espelha o CHECK usuario_convite_criado_por_tipo_valido. */
+export const CRIADO_POR_CONVITE = ['usuario', 'super_admin'] as const;
+
+/**
+ * Convite de 1º acesso (0036, T-0087, RN-CORE-31). Fora do sync. Token `<tenant_id>.<segredo>`: aqui SÓ o SHA-256 hex do
+ * segredo (único global, usuario_convite_token_uk). Uso único: no máximo 1 pendente (não usado, não revogado, não apagado) por
+ * usuário (usuario_convite_pendente_uk) — renovar = revogar o pendente e DEPOIS inserir o novo. usado_em e revogado_em se
+ * excluem. Prazo de 7 dias definido pela API (o banco não amarra expira_em ao created_at). criado_por_id sem FK (usuário do
+ * tenant ou super-admin, conforme criado_por_tipo; os dois nulos = carga). macuxi_app: select, insert, update (sem delete).
+ */
+export const usuarioConvite = core.table('usuario_convite', {
+  ...comuns(),
+  usuario_id: uuid('usuario_id').notNull(),
+  token_hash: text('token_hash').notNull(),
+  expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
+  usado_em: timestamp('usado_em', { withTimezone: true }),
+  revogado_em: timestamp('revogado_em', { withTimezone: true }),
+  criado_por_id: uuid('criado_por_id'),
+  criado_por_tipo: text('criado_por_tipo', { enum: CRIADO_POR_CONVITE }),
 });
 
 // ---------------------------------------------------------------------------------------------

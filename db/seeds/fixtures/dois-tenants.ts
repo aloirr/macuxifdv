@@ -43,6 +43,8 @@
  *   cruzadas (catalogo.produto_referencia, grupo 0x4f): A com 2 vivas no p1 (marca = o concorrente do Promotor de A, sem
  *   FK) e 1 apagada na mesma ordem; B com 1 de código diferente (marca = o concorrente do Promotor de B). 0034: as vivas
  *   levam marca_nome (MARCA_NOME_FIXTURE, retrato do nome do concorrente); a apagada fica nula (linha anterior à 0034).
+ * - T-0087 (0036): convites de 1º acesso (core.usuario_convite, grupo 0x08; CONVITES_FIXTURE): A pendente + revogado do
+ *   vendedor-2 e usado do promotor; B pendente do vendedor-B, gerado por um super-admin (id sem FK).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
@@ -133,6 +135,8 @@ const G = {
   produto_referencia: 0x4f,
   // 0028 (T-0082)
   plano_rv: 0x39,
+  // 0036 (T-0087)
+  usuario_convite: 0x08,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -148,6 +152,23 @@ const refreshFixture = (tenantId: string, segredo: string) => ({
   token: `${tenantId}.${segredo}`,
   hash: createHash('sha256').update(segredo).digest('hex'),
 });
+
+/**
+ * 0036 (T-0087, RN-CORE-31): convites de 1º acesso. Token `<tenant_id>.<segredo>` (como o refresh; segredo fixo só de teste,
+ * 43 caracteres base64url); o banco guarda só o sha256 hex do segredo. A: 1 PENDENTE do vendedor-2 (válido até 2099; o token
+ * entregue é CONVITES_FIXTURE.A.pendente.token), 1 REVOGADO do vendedor-2 (renovado) e 1 USADO do promotor; B: 1 PENDENTE do
+ * vendedor-B. Os usuários da fixture já têm senha: aceitar o pendente troca a senha (teste em transação desfeita).
+ */
+export const CONVITES_FIXTURE = {
+  A: {
+    pendente: { id: a('usuario_convite', 1), ...refreshFixture(a('tenant', 1), 'fixtureConviteAlfaPendenteSomenteTesteT0087a') },
+    revogado: { id: a('usuario_convite', 2), ...refreshFixture(a('tenant', 1), 'fixtureConviteAlfaRevogadoSomenteTesteT0087a') },
+    usado: { id: a('usuario_convite', 3), ...refreshFixture(a('tenant', 1), 'fixtureConviteAlfaUsadoPromotorSomenteT0087a') },
+  },
+  B: {
+    pendente: { id: b('usuario_convite', 1), ...refreshFixture(b('tenant', 1), 'fixtureConviteBetaPendenteSomenteTesteT0087b') },
+  },
+} as const;
 
 /**
  * Chave de API da fixture (T-0032): pepper e chaves SÓ de teste. O banco guarda HMAC-SHA256(pepper, chave) em hex, como a
@@ -370,6 +391,8 @@ export const ORDEM_TABELAS = [
   'core.carteira',
   'core.dispositivo',
   'core.sessao',
+  // 0036 (T-0087): convite de 1º acesso (FK composta -> core.usuario)
+  'core.usuario_convite',
   'plataforma.evento',
   'plataforma.evento_consumo',
   'plataforma.parametro',
@@ -625,6 +648,12 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'core.sessao': [
       sessao(A.sessoes.vendedor1, tA, A.usuarios.vendedor1, A.familias.vendedor1, A.refresh.hash, A.dispositivos.vendedor1),
       sessao(B.sessoes.vendedor, tB, B.usuarios.vendedor, B.familias.vendedor, B.refresh.hash, B.dispositivos.vendedor),
+    ],
+    'core.usuario_convite': [
+      convite(CONVITES_FIXTURE.A.pendente.id, tA, A.usuarios.vendedor2, CONVITES_FIXTURE.A.pendente.hash, { criado_por_id: A.usuarios.admin, criado_por_tipo: 'usuario' }),
+      convite(CONVITES_FIXTURE.A.revogado.id, tA, A.usuarios.vendedor2, CONVITES_FIXTURE.A.revogado.hash, { revogado_em: DATA_FIXA_ACESSO, criado_por_id: A.usuarios.admin, criado_por_tipo: 'usuario' }),
+      convite(CONVITES_FIXTURE.A.usado.id, tA, A.usuarios.promotor, CONVITES_FIXTURE.A.usado.hash, { usado_em: DATA_FIXA_ACESSO }),
+      convite(CONVITES_FIXTURE.B.pendente.id, tB, B.usuarios.vendedor, CONVITES_FIXTURE.B.pendente.hash, { criado_por_id: idFixo('5a5a5a5a', 0x08, 1), criado_por_tipo: 'super_admin' }),
     ],
     'plataforma.evento': [
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
@@ -1237,6 +1266,10 @@ function cliente(id: string, tenant_id: string, documento: string, nome: string,
 
 function sessao(id: string, tenant_id: string, usuario_id: string, familia_id: string, token_hash: string, dispositivo_id: string): Linha {
   return { id, tenant_id, usuario_id, familia_id, token_hash, dispositivo_id, expira_em: VALIDADE_FIXA_REFRESH, usado_em: null, revogado_em: null, external_id: null };
+}
+
+function convite(id: string, tenant_id: string, usuario_id: string, token_hash: string, extra: Partial<Linha> = {}): Linha {
+  return { id, tenant_id, usuario_id, token_hash, expira_em: VALIDADE_FIXA_REFRESH, usado_em: null, revogado_em: null, criado_por_id: null, criado_por_tipo: null, external_id: null, ...extra };
 }
 
 function evento(id: string, tenant_id: string, usuarioId: string): Linha {

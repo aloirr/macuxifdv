@@ -157,6 +157,15 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
 - **`vendedor.pedido_item`:** o item 1 do p1 de A tem o retrato "Motos 150 cc"; os demais ficam nulos.
 - **Literal de `text[]` com texto livre:** use `arrayDeTextoLivre` (`db/src/gravar.ts`). O `arrayDeTexto` só aceita códigos `[a-z0-9_]`.
 
+### T-0087 fatia E (migração 0036; convite de 1º acesso)
+- **`core.usuario_convite`** (grupo **0x08**, ids e tokens em `CONVITES_FIXTURE`, exportado por `@macuxi/db/teste`):
+  - token `<tenant_id>.<segredo>` (segredo fixo, só de teste); o banco guarda só o sha256 hex do segredo (`.hash`);
+  - A: `pendente` do vendedor-2 (válido até 2099, autor = admin de A), `revogado` do vendedor-2 (renovado) e `usado` do
+    promotor (sem autor, como uma carga);
+  - B: `pendente` do vendedor-B, autor `super_admin` (id sem FK);
+  - os usuários da fixture já têm senha: aceitar o pendente troca a senha (teste em transação desfeita).
+- `core.usuario.telefone` fica nulo em todos (o upsert da fixture não mexe na coluna).
+
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
 (mesmo id da Fase M). IDs determinísticos (UUID v5 de `fase-m:<tipo>:<chave>`).

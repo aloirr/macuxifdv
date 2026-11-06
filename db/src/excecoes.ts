@@ -38,6 +38,8 @@ export const TABELAS_FORA_DO_SYNC = [
   /** Autenticação do Core (0004): ficam só na nuvem, nunca vão ao aparelho. */
   'core.sessao',
   'core.dispositivo',
+  /** Convite de 1º acesso (0036, T-0087, RN-CORE-31): só o hash do token; o aceite é na API, nunca vai ao aparelho. */
+  'core.usuario_convite',
   /** Metadados de arquivo (0005, ADR 0010): a foto vai pela fila de arquivos, a linha nunca é puxada. */
   'plataforma.arquivo',
   /** Contador do número legível do pedido (0009, T-0029): uma linha por tenant, só o servidor usa. */

@@ -58,6 +58,11 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > exceção à regra 5, `TABELAS_SO_POR_FUNCAO`); RLS forçado sem política nem grant para app/worker; 20 funções `plataforma.sa_*`
 > SECURITY DEFINER só ao `macuxi_app`; `provisionar_tenant` com `sem_admin`, `parametros` e `ator_id`. Nada vai ao aparelho.
 > Detalhes no [plataforma.md](plataforma.md) ("Super-admin de plataforma") e no [rls.md](rls.md).
+>
+> **2026-11-06 (T-0087 fatia E):** `0036_core_usuario_convite` (aditiva; RN-CORE-31): `core.usuario_convite` (convite de 1º acesso
+> por link, só o sha256 do segredo, único global, no máximo 1 pendente por usuário, autor `criado_por_id`/`criado_por_tipo` sem FK;
+> fora do sync; app sem DELETE; **sem SECURITY DEFINER**: o tenant vem no token), `core.usuario.telefone` e
+> `anonimizar_usuario` apagando o telefone e revogando os convites. Detalhes no [core.md](core.md) ("0036").
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -278,6 +283,15 @@ Todas aceitam `--banco <nome>` (padrão: `MACUXI_PG_BANCO` ou `macuxi`).
   `motivoForaDoLocal`. Os dois põem o motivo no título (`comMotivo`, marca `[pulado: ...]`). Com superusuário e Postgres
   local, tudo roda. Teste novo de up/down com dados: passe a versão em que os dados entram (ver
   [dbaas-magalu.md](dbaas-magalu.md#suíte-do-c34-sem-superusuário-3ª-execução)).
+- **Apagar a base efêmera sem superusuário** (T-0075): `apagar()` usa `apagarBancoForcado` (`db/src/apagar-banco.ts`).
+  O `drop database ... with (force)` dá 42501 "permission denied to terminate process" se ainda houver na base uma
+  sessão de papel que o admin não pode sinalizar (o admin tem só SET, sem INHERIT, no `macuxi_app`/`macuxi_worker`, e não
+  tem `pg_signal_backend`) — ex.: o cliente do `macuxi_app` que acabou de dar `end()` e ainda sai do servidor, ou um
+  autovacuum worker. Aí ele faz o DROP comum (o Postgres encerra o autovacuum e espera até 5 s) e repete com espera
+  crescente até 30 s; passado o prazo, o erro sobe com quem segura a base (papel/tipo e quantidade). Não se concede
+  `pg_signal_backend` nem filiação com INHERIT ao admin (as políticas `to macuxi_app` passariam a valer para ele).
+  Regra para teste: feche cliente/pool antes do `apagar()`; DROP DATABASE com FORCE em TS do `@macuxi/db` só por essa
+  função (trava em `db/testes/apagar-banco.test.ts`).
 - **Relógio simulado:** `MACUXI_AGORA=2026-11-04T03:59:00Z pnpm --filter @macuxi/db test` carrega a fixture como se
   fosse esse instante (prova de que nada depende da hora do dia nem da virada de data no fuso). Regra: teste não
   compara instante da fixture com `now()` — use `checkin_em + interval` ou instante fixo (ver fixture-dois-tenants.md).
