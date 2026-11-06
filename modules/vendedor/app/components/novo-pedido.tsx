@@ -11,6 +11,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { limitarDesconto, PASSO_DESCONTO_PCT } from '../../domain/quantidade';
 import { rotuloMedida } from '../../domain/preco-pedido';
+import { partirTrecho, type TrechoServeEm } from '../../domain/busca-seletor';
 import type { Rascunho } from '../lib/pedidos';
 import {
   alternarUnidade,
@@ -132,7 +133,7 @@ export interface PropsAbaItens {
   somenteLeitura?: boolean;
 }
 
-export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, somenteLeitura, aoTrocarMedida }: { produtos: readonly Product[]; aoTrocarMedida?: (texto: string, desfazer: () => void) => void } & Omit<PropsAbaItens, 'catalogo' | 'resultados'>) {
+export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, somenteLeitura, aoTrocarMedida, serveEm }: { produtos: readonly Product[]; aoTrocarMedida?: (texto: string, desfazer: () => void) => void; /** T-0084 C9: trecho "Serve em" por produto (busca do Catálogo) */ serveEm?: ReadonlyMap<string, TrechoServeEm> } & Omit<PropsAbaItens, 'catalogo' | 'resultados'>) {
   const ajustes = rascunho.ajustes ?? {};
   const setQtd = (chave: string, q: number) => {
     const n = Math.max(0, Math.trunc(q));
@@ -158,7 +159,7 @@ export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, 
   return (
     <Card>
       {produtos.map((p, i) => (
-        <LinhaDoProduto key={p.id} p={p} medidas={unidadesDoProduto(p.id, unidades, p.unit)} lines={rascunho.lines} ajustes={ajustes} calculo={calculo} ultimo={i === produtos.length - 1} onQtd={setQtd} onAjuste={setAjuste} onTrocarMedida={trocarMedida} somenteLeitura={somenteLeitura} />
+        <LinhaDoProduto key={p.id} p={p} serveEm={serveEm?.get(p.id) ?? null} medidas={unidadesDoProduto(p.id, unidades, p.unit)} lines={rascunho.lines} ajustes={ajustes} calculo={calculo} ultimo={i === produtos.length - 1} onQtd={setQtd} onAjuste={setAjuste} onTrocarMedida={trocarMedida} somenteLeitura={somenteLeitura} />
       ))}
     </Card>
   );
@@ -166,6 +167,7 @@ export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, 
 
 function LinhaDoProduto({
   p,
+  serveEm,
   medidas,
   lines,
   ajustes,
@@ -177,6 +179,7 @@ function LinhaDoProduto({
   somenteLeitura,
 }: {
   p: Product;
+  serveEm?: TrechoServeEm | null;
   medidas: UnidadeDaTela[];
   lines: Record<string, number>;
   ajustes: Record<string, Ajuste>;
@@ -223,7 +226,7 @@ function LinhaDoProduto({
         <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
           <Text style={t.mono}>{p.erp_code}</Text>
           <Text style={t.bodyStrong}>{p.description}</Text>
-          {p.applications ? <Text style={t.small} numberOfLines={2}>{p.applications}</Text> : null}
+          {serveEm ? <ServeEm trecho={serveEm} codigo={p.erp_code} /> : p.applications ? <Text style={t.small} numberOfLines={2}>{p.applications}</Text> : null}
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           {unica !== null ? chipDe(unica, tocavel) : null}
@@ -424,6 +427,17 @@ function MedidaDoItem({
  * T-0084 (RN-VEN-19): caixa por item "Incluir aplicação no orçamento" (alvo de 48 dp). Marcada pelo padrão do tenant; vale
  * item a item. O texto sai da linha da aplicação mostrada acima (2 linhas).
  */
+/** RN-CAT-12: "Serve em" com os termos da busca marcados e "inclui 2012" quando o ano casou por faixa. */
+function ServeEm({ trecho, codigo }: { trecho: TrechoServeEm; codigo: string }) {
+  const partes = partirTrecho(trecho.texto, trecho.marcas);
+  return (
+    <Text style={t.small} numberOfLines={2} testID={`serve-em-${codigo}`}>
+      Serve em: {partes.map((x, i) => (x.marcado ? <Text key={i} style={t.smallStrong}>{x.texto}</Text> : x.texto))}
+      {trecho.inclui_ano ? ` · inclui ${trecho.inclui_ano}` : ''}
+    </Text>
+  );
+}
+
 export function CaixaAplicacao({ marcada, onPress, nome, testID }: { marcada: boolean; onPress: () => void; nome: string; testID: string }) {
   return (
     <Pressable

@@ -15,6 +15,7 @@ import type { OrderEvent } from '../../contracts';
 import type { NivelDePreco } from '../../domain/preco-pedido';
 import { sellerDiscountLimit } from '../../domain/order';
 import { textoItemFaturado } from '../../domain/retorno-erp';
+import { vendedorDoPdf } from '../../domain/pedido-em-nome';
 import { AvisoRapido, useAviso } from '../components/aviso';
 import { pegarAvisoPendente } from '../lib/aviso-pendente';
 import { DecisionSheet, DeleteOrderSheet, PdfSheet } from '../components/order-sheets';
@@ -292,7 +293,8 @@ export default function OrderDetailScreen() {
         city: cu?.city ?? '',
         erp_code: cu?.erp_code ?? '',
       },
-      seller_name: mine?.name ?? (queued ? (ambiente.usuario()?.nome ?? '') : base!.seller_name),
+      // RN-VEN-35: pedido em nome na fila sai com o vendedor dono (nunca o gestor) e "feito por" o gestor
+      ...(queued ? vendedorDoPdf({ dono_nome: qd?.seller_name ?? '', autor_nome: ambiente.usuario()?.nome ?? '', em_nome: Boolean(queued.payload.vendedor_id) && queued.payload.vendedor_id !== c?.me.seller?.id }) : { seller_name: mine?.name ?? base!.seller_name }),
       payment_terms: terms,
       discount_pct: discountPct,
       items: lines.map((l) => ({ erp_code: l.erp_code, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, total_cents: l.total_cents, ...(l.unit_label ? { unit_label: l.unit_label } : {}), ...(l.discount_pct !== undefined && (queued || effectivePct !== null) ? { discount_pct: l.discount_pct } : {}), ...(l.surcharge_pct ? { surcharge_pct: l.surcharge_pct } : {}), ...(l.application ? { application: l.application } : {}) })),
