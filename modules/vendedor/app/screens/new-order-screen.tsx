@@ -27,6 +27,7 @@ import { AbaDetalhes, AbaResumo, CardFreteEPrazo, DialogoDescartar, FolhaSalvar 
 import { calcularPedido, enderecosDoCliente, freteValido, lerChaveDaLinha, limiteDoVendedor, politicaParaAutor, textoDoEndereco, type Ajuste, type CalculoPedido } from '../lib/novo-pedido';
 import { abasDoPedido, avisoDoOrcamentoSalvo, avisoSalvoNoAparelho, avisoSugestaoAdicionada, confirmacaoDoEnvio, niveisDaTrilha, nomeDaSugestao, textoBuscaSemResultado, type AbaNovoPedido } from '../lib/textos-pedido';
 import { unidadesDoProduto } from '../lib/novo-pedido';
+import { MENSAGEM_ERRO_BUSCA } from '../lib/busca-catalogo';
 import { filterCustomers, PAYMENT_TERMS, searchProducts } from '../lib/catalog';
 import { errorMessage } from '../lib/erros';
 import { statusBadge } from '../lib/order-status';
@@ -146,6 +147,7 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
   const productsAt = dados.produtos[tableKey]?.synced_at ?? dados.sincronizado_em ?? '';
   const [query, setQuery] = useState('');
   /** T-0084 C9: resposta da busca do Catálogo para esta consulta; `null` = indisponível, vale a busca local (reserva) */
+  const [erroBusca, setErroBusca] = useState(false);
   const [buscaCatalogo, setBuscaCatalogo] = useState<{ q: string; itens: Array<{ produto_id: string; serve_em: TrechoServeEm | null }> } | null>(null);
   const [sent, setSent] = useState<Sent | null>(null);
   const [sending, setSending] = useState(false);
@@ -258,12 +260,15 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
     const q = query.trim();
     if (!q || sent) {
       setBuscaCatalogo(null);
+      setErroBusca(false);
       return;
     }
     let vivo = true;
     const espera = setTimeout(() => {
-      void buscarNoCatalogo(q, catalogBase.length <= 5000 ? catalogBase.map((p) => p.id) : null).then((itens) => {
-        if (vivo) setBuscaCatalogo(itens ? { q, itens } : null);
+      void buscarNoCatalogo(q, catalogBase.length <= 5000 ? catalogBase.map((p) => p.id) : null).then((r) => {
+        if (!vivo) return;
+        setErroBusca(r.tipo === 'erro');
+        setBuscaCatalogo(r.tipo === 'ok' ? { q, itens: r.itens } : null);
       });
     }, 250);
     return () => {
@@ -472,7 +477,9 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
                 irParaCatalogoDoPedido(customerId);
               }} rotuloAcessivel={(i) => `Abrir o catálogo: ${i.rotulo}`} testID="trilha-catalogo" />
             {query.trim() ? (
-              results.length === 0 ? (
+              erroBusca ? (
+                <EstadoVazio titulo="Busca indisponível" texto={MENSAGEM_ERRO_BUSCA} testID="busca-erro" />
+              ) : results.length === 0 ? (
                 <EstadoVazio titulo={textoBuscaSemResultado(query).titulo} texto={textoBuscaSemResultado(query).texto} testID="busca-sem-resultado" />
               ) : (
                 <ListaDeItens produtos={results} serveEm={serveEmPorId} rascunho={draft} unidades={app.unidades} calculo={calculo} onLinhas={setLinhas} aoTrocarMedida={aoTrocarMedida} />

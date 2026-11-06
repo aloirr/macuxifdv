@@ -11,7 +11,7 @@
  */
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
 import type { CustomerSummary } from '@macuxi/core/contracts';
-import { ehSemConexao } from '@macuxi/platform-sdk';
+import { ehConsultaIndisponivel, ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,7 +25,8 @@ import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
 import { embalagensDaConsulta, linhasParaPush } from '../lib/novo-pedido';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
-import { idsSemTexto, type TrechoServeEm } from '../../domain/busca-seletor';
+import { idsSemTexto } from '../../domain/busca-seletor';
+import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
 import {
   aceitosComoPedidos,
@@ -667,18 +668,17 @@ export function useVendedor() {
     [v1, ambiente],
   );
   /**
-   * T-0084 C9 (RN-CAT-12): busca do seletor pelo ranking do Catálogo, com "Serve em". `null` = consulta indisponível
-   * (aparelho sem a leitura liberada pelo SDK, sem sinal, qualquer falha): a tela usa a busca local como reserva, sem erro.
+   * T-0084 C9 (RN-CAT-12): busca do seletor pelo ranking do Catálogo, com "Serve em". `reserva` = só `ConsultaIndisponivel`
+   * (aparelho sem a leitura liberada pelo SDK): a tela usa a busca local. Qualquer outro erro = `erro` (aparece na tela e vai ao log).
    */
   const buscarProdutos = useCallback(
-    async (q: string, produtoIds: string[] | null): Promise<Array<{ produto_id: string; serve_em: TrechoServeEm | null }> | null> => {
-      if (!v1 || !q.trim()) return null;
-      try {
-        const r = await ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(produtoIds ? { produto_ids: produtoIds } : {}), limite: 100 });
-        return r.itens.map((i) => ({ produto_id: i.produto_id, serve_em: i.serve_em }));
-      } catch {
-        return null;
-      }
+    async (q: string, produtoIds: string[] | null): Promise<ResultadoBuscaCatalogo> => {
+      if (!v1 || !q.trim()) return { tipo: 'reserva' };
+      return buscarNoCatalogoComReserva(
+        () => ambiente.consultar(CONSULTA_BUSCA_PRODUTOS, { q: q.trim().slice(0, 200), ...(produtoIds ? { produto_ids: produtoIds } : {}), limite: 100 }),
+        ehConsultaIndisponivel,
+        (m, extra) => console.warn(m, extra),
+      );
     },
     [v1, ambiente],
   );
