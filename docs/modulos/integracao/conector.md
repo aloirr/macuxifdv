@@ -372,3 +372,6 @@ Premissas de comportamento do Hub: partes da sessão podem ser processadas em qu
 - `inativacao` (resultado do último lote da sessão) está no contrato (`LoteResultado.inativacao`, T-0025); o Conector usa o schema do contrato direto desde a v1.2. `itens_faturados` está em `contracts/pedido.ts`.
 - Views-modelo (`db/conector/views-modelo.sql`) são do `banco-dados`.
 - **Pendências da revisão final da T-0023 (T-0048)**: `@types/node` 24 no `package.json` (casando com `engines.node >=24.7`) muda o `pnpm-lock.yaml` do workspace inteiro — fica para o `engenheiro-software` (dono do lock). `fila[].maisAntigo` → `mais_antigo` no `SinalConector` é do contrato do Hub: quando o contrato mudar, o `executor.ts` acompanha (o tipo do contrato quebra o typecheck do Conector até lá). A pausa do `Retry-After` longo fica na memória do processo (reiniciar o serviço a esquece; os lotes e retornos guardam a própria espera).
+
+## Aplicação do item no pedido (T-0084, RN-VEN-19)
+`itens[].aplicacao` (texto até 1.000, nulo ou ausente quando não há) vem em `GET /integracao/v1/pedidos/pendentes`, aditivo na v1. O Conector 1.2.x não o lê e ignora o campo; o mapeamento para a coluna do ERP é do SQL do cliente (a view-modelo de pedidos, do `banco-dados`, pode expô-lo como "descrição 2" do item). Nenhuma mudança no Conector é necessária.

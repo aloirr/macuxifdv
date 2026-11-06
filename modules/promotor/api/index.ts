@@ -14,6 +14,7 @@ import { criarRepositorioMemoria, type RepositorioPromotor } from './repositorio
 import { criarRepositorioSql } from './repositorio-sql';
 import { criarRotasPromotor } from './rotas';
 import { provedoresSyncPromotor } from './sync';
+import { consultaConcorrentes } from './consultas';
 import { provedoresPullCadastros } from './sync-cadastros';
 
 export { criarRecebimento, criarRepositorioMemoria, criarRepositorioSql, criarRotasPromotor, provedoresPullCadastros, provedoresSyncPromotor };
@@ -24,9 +25,9 @@ export { parametrosDoTenant } from './parametros';
 
 /** Monta a API do Promotor sobre um repositório; `null` = só o manifesto (licença, ações e registro de sync valem). */
 export function criarModuloApiPromotor(op: { repositorio: RepositorioPromotor | null }): ModuloApi {
-  if (!op.repositorio) return definirModuloApi({ manifesto: manifest });
+  if (!op.repositorio) return definirModuloApi({ manifesto: manifest, consultas: [consultaConcorrentes] });
   const recebimento = criarRecebimento(op.repositorio);
-  return definirModuloApi({ manifesto: manifest, rotas: criarRotasPromotor(op.repositorio, recebimento), sync: [...provedoresSyncPromotor(recebimento), ...provedoresPullCadastros] });
+  return definirModuloApi({ manifesto: manifest, rotas: criarRotasPromotor(op.repositorio, recebimento), sync: [...provedoresSyncPromotor(recebimento), ...provedoresPullCadastros], consultas: [consultaConcorrentes] });
 }
 
 /** Repositório em memória com a data local do check-in no fuso do tenant (testes e desenvolvimento). */

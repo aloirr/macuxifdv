@@ -2,7 +2,7 @@
  * BKO de conteúdo do Catálogo (RF-CAT-07) e ficha rica (RF-CAT-03): sinônimos do tenant (RF-CAT-02), termos buscados
  * sem resultado e a montagem da ficha. Funções puras; a API revalida tudo antes de gravar.
  */
-import type { AtributoProduto, ConteudoProduto, FichaProduto, ItemVitrine, MidiaProduto, SalvarSinonimo, Sinonimo, TermoSemResultado } from '../contracts';
+import type { AtributoProduto, CatalogoDaFicha, ConteudoProduto, FichaProduto, ItemVitrine, MidiaProduto, OfereceJunto, SalvarSinonimo, Sinonimo, TermoSemResultado } from '../contracts';
 import { chaveDeTermo } from './texto';
 import type { ProdutoCatalogo } from './vitrine';
 
@@ -87,13 +87,25 @@ export interface ConteudoGuardado extends ConteudoProduto {
 const CONTEUDO_VAZIO: ConteudoProduto = { description: null, selling_points: [], faq: [] };
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+/** T-0085: o que a ficha traz além do produto — "oferece junto" (até 5) e etiquetas (até 4). */
+export interface ExtrasFicha {
+  ofereceJunto?: readonly OfereceJunto[];
+  etiquetas?: readonly string[];
+}
+
 /**
  * RF-CAT-03: ficha rica = o cartão (preço/estoque já decididos para o perfil, RN-CAT-05) + atributos (ordem de nome),
  * mídias (ordem cadastrada, depois id) e o conteúdo do BKO (vazio quando nunca enriquecido).
  */
-export function montarFicha(p: ProdutoCatalogo, item: ItemVitrine, conteudo: ConteudoGuardado | null, midias: readonly MidiaProduto[]): FichaProduto {
+export function montarFicha(p: ProdutoCatalogo, item: ItemVitrine, conteudo: ConteudoGuardado | null, midias: readonly MidiaProduto[], extras: ExtrasFicha = {}): FichaProduto {
   const attributes: AtributoProduto[] = [...p.atributos].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR') || cmp(a.value, b.value));
   const media = [...midias].sort((a, b) => a.order - b.order || cmp(a.id, b.id));
   const content: ConteudoProduto = conteudo ? { description: conteudo.description, selling_points: [...conteudo.selling_points], faq: [...conteudo.faq] } : { ...CONTEUDO_VAZIO };
-  return { product: item, attributes, media, content, content_updated_at: conteudo?.updated_at ?? null };
+  const catalogo: CatalogoDaFicha = {
+    aplicacao: p.aplicacao ? p.aplicacao : null,
+    referencias: [...(p.referencias ?? [])].slice(0, 3),
+    oferece_junto: [...(extras.ofereceJunto ?? [])].slice(0, 5),
+    etiquetas: [...(extras.etiquetas ?? [])].slice(0, 4),
+  };
+  return { product: item, attributes, media, content, content_updated_at: conteudo?.updated_at ?? null, catalogo };
 }

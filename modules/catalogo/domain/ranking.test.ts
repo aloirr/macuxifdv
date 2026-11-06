@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
 import { PARAMETROS_PADRAO } from './parametros';
-import { codigoCompacto, combinarNotas, distanciaEdicao, notaFinal, pontuacaoTextual, rankear, type DocBusca } from './ranking';
+import { codigoCompacto, combinarNotas, distanciaEdicao, notaFinal, pontuacaoTextual, rankear as rankearBase, type DocBusca, type EntradaRanking } from './ranking';
 import { expandirSinonimos } from './texto';
 
+const rankear = (docs: readonly DocBusca[], e: Omit<EntradaRanking, 'anoAtual'>) => rankearBase(docs, { anoAtual: 2026, ...e });
 const doc = (o: Partial<DocBusca> & { id: string }): DocBusca => ({
   sku: o.id.toUpperCase(),
   ean: null,
@@ -11,6 +12,8 @@ const doc = (o: Partial<DocBusca> & { id: string }): DocBusca => ({
   marca: '',
   categoria: '',
   atributos: '',
+  aplicacao: '',
+  referencias: [],
   estoque: 10,
   vendas: 0,
   campanha: false,
@@ -98,7 +101,7 @@ describe('RF-CAT-01 / RF-CAT-02: pontuação textual', () => {
   });
 
   it('consulta sem termos de texto não pontua (só filtros)', () => {
-    expect(pontuacaoTextual([], doc({ id: 'a' }))).toEqual({ pontos: 0, casados: 0, total: 0 });
+    expect(pontuacaoTextual([], doc({ id: 'a' }))).toMatchObject({ pontos: 0, casados: 0, total: 0 });
   });
 
   it('distanciaEdicao conta troca de letras vizinhas como 1', () => {
@@ -326,5 +329,30 @@ describe('forma compacta do SKU (T-0052, única para ranking e índice)', () => 
     expect(codigoCompacto('DET-5L')).toBe('det5l');
     expect(codigoCompacto(null)).toBe('');
     expect(codigoCompacto('')).toBe('');
+  });
+});
+
+describe('RN-CAT-12: o ano da consulta cai no MESMO trecho da aplicação que o veículo (T-0084-A4)', () => {
+  const APL = 'Fiat Uno 1.0/1.4 2010–2014; Fiat Palio 1.0/1.4 2012–2016';
+  const pastilha = doc({ id: 'pst', nome: 'Pastilha de freio dianteira', aplicacao: APL });
+  const acha = (q: string) => pontuacaoTextual(grupos(q), pastilha, { anoAtual: 2026 });
+
+  it('RN-CAT-12: "pastilha uno 2012" acha (2012 está na faixa do Uno)', () => {
+    expect(acha('pastilha uno 2012').pontos).toBeGreaterThan(0);
+    expect(acha('pastilha uno 2012').casados).toBe(3);
+  });
+
+  it('RN-CAT-12: "pastilha uno 2015" NÃO acha (2015 só existe na faixa do Palio)', () => {
+    expect(acha('pastilha uno 2015').pontos).toBe(0);
+    expect(rankearBase([pastilha], { anoAtual: 2026, filtros: filtros({ text: 'pastilha uno 2015' }), sinonimos: [], parametros: PARAMETROS_PADRAO })).toEqual([]);
+  });
+
+  it('RN-CAT-12: "pastilha palio 2015" acha e "pastilha palio 2011" NÃO acha', () => {
+    expect(acha('pastilha palio 2015').casados).toBe(3);
+    expect(acha('pastilha palio 2011').pontos).toBe(0);
+  });
+
+  it('RN-CAT-12: sem ano na consulta, veículos de trechos diferentes continuam achando', () => {
+    expect(acha('pastilha uno palio').casados).toBe(3);
   });
 });

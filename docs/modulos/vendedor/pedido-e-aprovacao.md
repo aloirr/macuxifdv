@@ -39,7 +39,7 @@ Promotor: 403 `RN-PRO-01` em toda escrita; leitura só da carteira. Vendedor e a
 Status pelo retorno do ERP, faturado@1, faturado e devolução nas telas: ver `retorno-erp.md`.
 
 ## Fora da fatia (backlog)
-Crédito e título vencido no servidor, estoque, preço mínimo, desconto por item, pedido em nome, edição de pedido aceito, notificação ao vendedor e ao supervisor, edição de alçadas pelo BKO, prazo da aprovação (fila do Gestor).
+Crédito e título vencido no servidor, estoque, edição de pedido aceito, notificação ao vendedor e ao supervisor, edição de alçadas pelo BKO, prazo da aprovação (fila do Gestor).
 
 T-0053: retorno do ERP e orçamento (pré-venda) em `pre-venda-e-erp.md`.
 
@@ -49,3 +49,19 @@ Decisão de 02/11: o promotor lê, só leitura e com escopo de carteira, os pedi
 - Desligada: 403 `RN-PRO-01` na lista e no detalhe (sem consultar o banco) e o pull não entrega pedido, item nem evento.
 - Vendedor, supervisor e demais perfis não mudam.
 - Regra pura: `podeLerPedidos(perfil, opcao)` em `modules/vendedor/domain/leitura-pedido.ts`. Ponto único da leitura da opção: `promotorVePedidos(ctx)` em `modules/vendedor/api/opcao-promotor.ts` (hoje devolve `true`; TODO trocar pela consulta pública do Core quando o modulo-core publicar). Testes injetam a opção com `usarOpcaoPromotorVePedidos`.
+
+## Pedido em nome do vendedor (RF-GES-05, RN-VEN-35, RN-VEN-10)
+O supervisor (equipe) e o gerente (área) fazem o pedido pelo vendedor no app Gestão, pelo slot `pedido.criar_em_nome` (item registrado em `app/index.ts`, contrato em `contracts/extensoes.ts`; abre `/m/novo-pedido?vendedorId=`).
+- **Contrato**: `PedidoPush.vendedor_id` (opcional) = dono. O `autor_id` **nunca** vem do aparelho: é o usuário do token. Ausente ou igual ao autor = pedido comum (a fila antiga segue válida).
+- **API** (`api/receber.ts`, regras em `domain/pedido-em-nome.ts`): `verificarPedidoEmNome` confere promotor (403 `RN-PRO-01`), perfil do autor (403 `PERFIL_SEM_ACESSO`), equipe/área por `ctx.usuariosVisiveis()` (403 `FORA_DA_EQUIPE`) e dono vendedor (422 `VENDEDOR_INVALIDO`). Orçamento e conversão não são em nome (`EM_NOME_SO_PEDIDO`).
+- **Alçada** (RN-VEN-10): vale a do gestor (`politicaDoAutor`: supervisor 10%, gerente 15% por padrão; as exceções individuais do vendedor saem). O aparelho aplica a mesma regra (`politicaParaAutor`).
+- **Gravação**: `vendedor_id` = vendedor, `autor_id` = gestor, `vendedor_nome` = vendedor, histórico e auditoria com o nome e o perfil do gestor (`depois.em_nome`). Eventos `criado@1`, `status_alterado@1` e `aprovacao_solicitada@1` levam `vendedor_id` = vendedor (conta na meta e no ranking, RN-CORE-21) e `autor_id` = gestor.
+- **Idempotência** (RN-VEN-33): o id só se repete para o mesmo autor; outro autor recebe `ID_EM_USO`.
+- Limite conhecido: a carteira conferida é a do gestor (equipe/área), não a carteira individual do vendedor. Notificação ao vendedor: pedido ao Core (consumo de `criado@1` com autor diferente do vendedor).
+- Testes: `domain/pedido-em-nome.test.ts`, `api/pedido-em-nome.test.ts` (banco simulado), `api/pedido-em-nome.db.test.ts` (CI), `app/lib/pedido-em-nome.test.ts`, `app/slot-em-nome.test.ts`.
+
+## Aplicação do produto no item (RN-VEN-19, T-0084)
+- **Domain** `domain/aplicacao.ts`: `retratoAplicacao(texto, incluir, max)` (nulo se desmarcado ou vazio; corta em `max` na última palavra inteira com "…", o "…" conta; palavra única longa vira `max − 1` + "…"; idempotente) e os parâmetros `aplicacao_max_orcamento` (50 a 1.000, padrão 300), `aplicacao_no_orcamento_padrao` (padrão sim) e `referencia_no_orcamento` (padrão não, RN-CAT-10).
+- **App (Novo pedido)**: cada item cujo produto tem aplicação mostra as 2 linhas e a caixa "Incluir aplicação no orçamento" (48 dp), **por item**, marcada pelo padrão do tenant; a escolha fica no `ajustes[chave]` do rascunho (`aplicacao_marcada`, `aplicacao_retrato`). O retrato é tirado ao montar o pedido (`calcularPedido`), offline, a partir de `catalogo.textos_produto@1` (carregado junto com os preços da tabela do cliente). Editar mantém o retrato gravado (e o desmarcado); desmarcar e marcar de novo pega o texto atual; Duplicar tira um novo.
+- **Push**: `ItemPush.aplicacao` (até 1.000; ausente = sem aplicação). **API** (`receber` e `PUT` do orçamento): grava `retratoAplicacao(texto, true, parâmetro atual)` em `pedido_item.aplicacao` (0033), nunca recusa por tamanho e nunca troca pelo cadastro.
+- **Saídas**: `OrderItem.application` no detalhe e no pull (`PedidoItemSync.aplicacao`); "Aplicação: …" abaixo da descrição no detalhe (Campo e BKO) e nos dois PDFs (`domain/pdf-pedido.ts`); `vendedor.pedido.aprovado@1` leva `itens[].aplicacao` (aditivo) para o Hub.

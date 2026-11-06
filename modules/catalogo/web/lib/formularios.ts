@@ -2,7 +2,8 @@
  * Formulários do BKO de conteúdo (RF-CAT-07), puros e testáveis: texto da tela ↔ contrato. A API revalida tudo
  * (Zod + domain); aqui só a conversão com mensagem em português.
  */
-import { SalvarConteudo, SalvarSinonimo, type FichaProduto, type ItemVitrine, type Sinonimo } from '../../contracts';
+import { SalvarCadastroCatalogo, SalvarConteudo, SalvarSinonimo, type FichaProduto, type ItemVitrine, type Sinonimo } from '../../contracts';
+import { LIMITES_CADASTRO_CATALOGO, validarCadastroCatalogo } from '../../domain/cadastro-catalogo';
 
 export interface FormConteudo {
   descricao: string;
@@ -62,6 +63,63 @@ export function conteudoDoForm(f: FormConteudo): ResultadoForm<SalvarConteudo> {
   return { ok: true, valor: r.data };
 }
 
+// ---------- seção Catálogo do cadastro do produto (T-0085 K9; RN-CAT-09, RN-CAT-11) ----------
+export interface FormCadastroCatalogo {
+  aplicacao: string;
+  /** Códigos ERP dos produtos de "Oferece junto", um por linha (até 5). */
+  ofereceJunto: string;
+  /** Uma linha por referência (até 3): marca escolhida da lista + código. */
+  referencias: { marca_id: string; codigo: string }[];
+  /** Separadas por vírgula (até 4, de até 20 caracteres). */
+  etiquetas: string;
+}
+
+/** As 3 linhas de referência sempre aparecem; as sem marca e sem código ficam de fora ao salvar. */
+export function formCadastroDaFicha(f: Pick<FichaProduto, 'catalogo'>): FormCadastroCatalogo {
+  const c = f.catalogo;
+  const refs = (c?.referencias ?? []).map((r) => ({ marca_id: r.marca_id, codigo: r.codigo }));
+  while (refs.length < LIMITES_CADASTRO_CATALOGO.referencias) refs.push({ marca_id: '', codigo: '' });
+  return { aplicacao: c?.aplicacao ?? '', ofereceJunto: (c?.oferece_junto ?? []).map((o) => o.erp_code).join('\n'), referencias: refs, etiquetas: (c?.etiquetas ?? []).join(', ') };
+}
+
+/**
+ * Formulário → corpo do `PUT produtos/:id/cadastro-catalogo`. `idsPorCodigo` traduz o código ERP digitado em "Oferece junto"
+ * para o id do produto (a lista de produtos da tela, sem diferenciar maiúsculas). Código que a tela não conhece vai em
+ * `oferece_junto_codigos` e o servidor resolve (produto fora da página carregada; 422 se não existir). A mesma
+ * `validarCadastroCatalogo` da API confere os limites.
+ */
+export function cadastroCatalogoDoForm(
+  produtoId: string,
+  f: FormCadastroCatalogo,
+  opcoes: { idsPorCodigo: ReadonlyMap<string, string>; aplicacaoMax: number; semReferencias?: boolean },
+): ResultadoForm<SalvarCadastroCatalogo> {
+  const oferece: string[] = [];
+  const codigosNoServidor: string[] = [];
+  const minusculas = new Map([...opcoes.idsPorCodigo].map(([c, id]) => [c.trim().toLowerCase(), id]));
+  for (const codigo of linhas(f.ofereceJunto)) {
+    const id = minusculas.get(codigo.trim().toLowerCase());
+    if (id) oferece.push(id);
+    else codigosNoServidor.push(codigo);
+  }
+  // sem marcas carregadas o servidor não conhece as referências: não manda a lista (ausente = não mexe)
+  const referencias = opcoes.semReferencias ? [] : f.referencias.filter((r) => r.marca_id !== '' || r.codigo.trim() !== '');
+  for (const r of referencias) {
+    if (r.marca_id === '') return { ok: false, erro: `Referência "${r.codigo.trim()}": escolha a marca concorrente da lista.` };
+    if (r.codigo.trim() === '') return { ok: false, erro: 'Há uma marca sem código. Informe o código do concorrente ou tire a marca.' };
+  }
+  const corpo = SalvarCadastroCatalogo.safeParse({
+    aplicacao: f.aplicacao.trim() === '' ? null : f.aplicacao.trim(),
+    oferece_junto: oferece,
+    ...(codigosNoServidor.length > 0 ? { oferece_junto_codigos: codigosNoServidor } : {}),
+    referencias: opcoes.semReferencias ? undefined : referencias.map((r) => ({ marca_id: r.marca_id, codigo: r.codigo.trim() })),
+    etiquetas: f.etiquetas.split(',').map((e) => e.trim()).filter(Boolean),
+  });
+  if (!corpo.success) return { ok: false, erro: `Confira o campo ${corpo.error.issues[0]!.path.join('.')}: ${corpo.error.issues[0]!.message}` };
+  const erros = validarCadastroCatalogo(produtoId, corpo.data, { aplicacaoMax: opcoes.aplicacaoMax });
+  if (erros.length > 0) return { ok: false, erro: erros[0]!.mensagem };
+  return { ok: true, valor: corpo.data };
+}
+
 export interface FormSinonimo {
   termo: string;
   /** Separados por vírgula. */
@@ -114,4 +172,28 @@ export function buscaDosFiltros(f: FiltrosBko): string {
   if (f.linha) p.set('linha', f.linha);
   const s = p.toString();
   return s ? `?${s}` : '';
+}
+
+/**
+ * Mapa código ERP → id para o "Oferece junto" (T-0085): junta as páginas carregadas com os itens que a própria ficha já
+ * oferece, para que um complementar existente fora da página carregada não trave o "Salvar catálogo".
+ */
+export function mapaIdsPorCodigo(produtos: readonly Pick<ItemVitrine, 'erp_code' | 'id'>[], ofereceJunto: readonly { erp_code: string; produto_id: string }[] = []): Map<string, string> {
+  const mapa = new Map<string, string>();
+  for (const o of ofereceJunto) mapa.set(o.erp_code, o.produto_id);
+  for (const p of produtos) mapa.set(p.erp_code, p.id);
+  return mapa;
+}
+
+/** Editores do produto abertos (Conteúdo e Catálogo): cada um abre e fecha sem afetar o outro nem perder o texto não salvo. */
+export interface EditoresAbertos<T> {
+  conteudo: T | null;
+  catalogo: T | null;
+}
+export const EDITORES_FECHADOS: EditoresAbertos<never> = { conteudo: null, catalogo: null };
+export function abrirEditores<T>(item: T): EditoresAbertos<T> {
+  return { conteudo: item, catalogo: item };
+}
+export function fecharEditor<T>(atual: EditoresAbertos<T>, qual: keyof EditoresAbertos<T>): EditoresAbertos<T> {
+  return { ...atual, [qual]: null };
 }

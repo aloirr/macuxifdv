@@ -16,7 +16,8 @@ import { Readable, Writable } from 'node:stream';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  baixarBackup, carimbo, chaveDoBackup, enviarBackup, instanteDoBackup, lerConfigBackup, maisNovo, podar, selecionarExpirados, type ConfigBackup,
+  baixarBackup, baixarContagem, carimbo, chaveDaContagem, chaveDoBackup, enviarBackup, enviarContagem, instanteDoBackup, lerCarimbo, lerConfigBackup, maisNovo, podar,
+  resolverBackup, selecionarContagensExpiradas, selecionarExpirados, type ConfigBackup,
 } from '../backup/backup.mjs';
 import { assinarSigV4, criarClienteS3, queryCanonica, SHA256_VAZIO } from '../backup/s3.mjs';
 import { carregarDemo } from '../seeds/demo/demo';
@@ -260,11 +261,76 @@ describe('enviar → listar → baixar → podar contra o S3 falso (assinatura c
     await expect(baixarBackup(cliente, cfg, 'arquivos/t1/vendedor/2026-11/foto.jpg', coletor().saida)).rejects.toThrow(/fora do padrão/);
   });
 
+  it('contagem: enviar-contagem e enviar com o mesmo carimbo, resolver, baixar-contagem conferindo o sha256, poda junto', async () => {
+    const cliente = criarClienteS3(cfg.s3);
+    const quando = lerCarimbo('20261201T061500Z');
+    const texto = '# contagem.sql de macuxi carimbo=20261201T061500Z estavel=sim\nlinhas|core.usuario|4\npoliticas|6\n';
+    const c1 = await enviarContagem(cliente, cfg, Readable.from([Buffer.from(texto)]), { agora: quando });
+    expect(c1.chave).toBe('backups/macuxi-20261201T061500Z.contagem.txt');
+    const d1 = await enviarBackup(cliente, cfg, Readable.from([dumpFalso(500)]), { agora: quando });
+    expect(chaveDaContagem(d1.chave)).toBe(c1.chave);
+    expect(await resolverBackup(cliente, cfg, 'ultimo')).toBe(d1.chave);
+    await expect(resolverBackup(cliente, cfg, c1.chave)).rejects.toThrow(/fora do padrão/);
+    const c = coletor();
+    expect(await baixarContagem(cliente, cfg, 'ultimo', c.saida)).toMatchObject({ chave: c1.chave, conferido: true });
+    expect(c.bytes().toString('utf8')).toBe(texto);
+    s3.objetos.get(c1.chave)!.corpo = Buffer.from('linhas|core.usuario|5\n');
+    await expect(baixarContagem(cliente, cfg, d1.chave, coletor().saida)).rejects.toThrow(/sha256 não confere/);
+    await expect(enviarContagem(cliente, cfg, Readable.from([Buffer.from('qualquer coisa')]), { agora: quando })).rejects.toThrow(/não é a saída do contagem\.sql/);
+    // dump antigo sem contagem (o da demo): erro claro
+    const semContagem = chaveDoBackup(cfg.prefixo, cfg.banco, lerCarimbo('20261130T061500Z'));
+    s3.objetos.set(semContagem, { corpo: dumpFalso(9), meta: {} });
+    await expect(baixarContagem(cliente, cfg, semContagem, coletor().saida)).rejects.toThrow(/não existe a contagem/);
+    // 40 dias depois (retenção 7 do cfg de teste): o dump sai com a contagem; a do mais novo (d1) fica
+    const apagadas: string[] = [];
+    const d2 = await enviarBackup(cliente, cfg, Readable.from([dumpFalso(600)]), { agora: new Date(quando.getTime() + 40 * DIA) });
+    expect(d2.removidos).toContain(d1.chave);
+    expect(d2.contagensRemovidas).toEqual([c1.chave]);
+    expect(s3.objetos.has(c1.chave)).toBe(false);
+    expect(await podar(cliente, cfg, { agora: quando.getTime() + 40 * DIA, simular: true, contagens: apagadas })).toEqual([]);
+    expect(apagadas).toEqual([]);
+  });
+
   it('segredo errado: o S3 recusa e o erro não traz chave nem segredo', async () => {
     const cliente = criarClienteS3({ ...cfg.s3, segredo: 'outro-segredo-errado' });
     const erro = await enviarBackup(cliente, cfg, Readable.from([dumpFalso(100)])).catch((e: Error) => e);
     expect(String(erro)).toMatch(/S3 gravar: HTTP 403 \(SignatureDoesNotMatch\)/);
     expect(String(erro)).not.toMatch(/outro-segredo-errado|id-teste/);
+  });
+});
+
+describe('contagem gravada junto do dump (T-0086, backup-dbaas.sh): carimbo, chave irmã e poda', () => {
+  const prefixo = 'backups/';
+  const agora = Date.UTC(2026, 11, 20, 6, 20, 0); // hora-fixa-ok: relógio injetado na função pura
+  const diario = (diasAtras: number) => chaveDoBackup(prefixo, 'macuxi', new Date(Date.UTC(2026, 11, 20, 6, 15, 0) - diasAtras * DIA));
+
+  it('carimbo do shell (date -u +%Y%m%dT%H%M%SZ) e a chave irmã', () => {
+    expect(lerCarimbo('20261106T061503Z').toISOString()).toBe('2026-11-06T06:15:03.000Z'); // hora-fixa-ok: formato do nome
+    for (const ruim of ['', '20261106T061503', '2026-11-06T06:15:03Z', '20261306T061503Z', '20261106T256103Z']) {
+      expect(() => lerCarimbo(ruim), ruim).toThrow(/carimbo/);
+    }
+    expect(chaveDaContagem('backups/macuxi-20261106T061503Z.dump')).toBe('backups/macuxi-20261106T061503Z.contagem.txt');
+    expect(() => chaveDaContagem('backups/macuxi-20261106T061503Z.contagem.txt')).toThrow();
+    // a contagem não é backup: não entra na retenção dos dumps nem vira o "ultimo"
+    expect(instanteDoBackup('backups/macuxi-20261106T061503Z.contagem.txt', prefixo)).toBeNull();
+    expect(maisNovo(['backups/macuxi-20261106T061503Z.dump', 'backups/macuxi-20261107T061503Z.contagem.txt'], prefixo)).toBe('backups/macuxi-20261106T061503Z.dump');
+  });
+
+  it('30 dias: a contagem sai junto do dump dela; órfã vencida sai; a do mais novo nunca', () => {
+    const dumps = Array.from({ length: 33 }, (_, i) => diario(i));
+    const contagens = dumps.map(chaveDaContagem);
+    const orfaVelha = chaveDaContagem(diario(40));
+    const orfaNova = chaveDaContagem(chaveDoBackup(prefixo, 'macuxi', new Date(agora - 60_000)));
+    const chaves = [...dumps, ...contagens, orfaVelha, orfaNova, 'backups/LEIA-ME.contagem.txt'];
+    const removidos = selecionarExpirados(chaves, { prefixo, agora, dias: 30 });
+    expect(removidos.sort()).toEqual([diario(30), diario(31), diario(32)].sort());
+    const saem = selecionarContagensExpiradas(chaves, { prefixo, agora, dias: 30, removidos });
+    expect(saem.sort()).toEqual([...removidos.map(chaveDaContagem), orfaVelha].sort());
+    // backup parado há 50 dias: o último dump fica e a contagem dele também
+    const parado = [diario(50), chaveDaContagem(diario(50)), diario(55), chaveDaContagem(diario(55))];
+    const r2 = selecionarExpirados(parado, { prefixo, agora, dias: 30 });
+    expect(r2).toEqual([diario(55)]);
+    expect(selecionarContagensExpiradas(parado, { prefixo, agora, dias: 30, removidos: r2 })).toEqual([chaveDaContagem(diario(55))]);
   });
 });
 

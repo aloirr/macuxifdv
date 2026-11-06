@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { definirConsulta } from '@macuxi/platform-sdk';
 import { Cents, Id } from '@macuxi/core/contracts';
+import { EquivaleA, Referencia, TrechoBusca } from './busca';
 
 export const PrecosClienteEntradaSchema = z.object({
   cliente_id: Id,
@@ -85,4 +86,56 @@ export const CONSULTA_SUGESTOES_PEDIDO = definirConsulta({
   nome: 'catalogo.sugestoes_pedido@1',
   entrada: SugestoesPedidoEntradaSchema,
   saida: SugestoesPedidoSaidaSchema,
+});
+
+/**
+ * `catalogo.textos_produto@1` (T-0084 C8, T-0085 K13): aplicação e referências cruzadas por produto, para o Vendedor
+ * montar a lista, o item, o retrato e os PDFs. Perfil promotor recebe normalmente (RN-CAT-05 só esconde preço e estoque).
+ * Referência de marca inativa fica de fora.
+ */
+export const TextosProdutoEntradaSchema = z.object({ produto_ids: z.array(Id).min(1).max(500) }).strict();
+export type TextosProdutoEntrada = z.infer<typeof TextosProdutoEntradaSchema>;
+
+export const TextosProdutoSaidaSchema = z.object({
+  itens: z.array(z.object({ produto_id: Id, aplicacao: z.string().nullable(), referencias: z.array(Referencia).max(3) })),
+});
+export type TextosProdutoSaida = z.infer<typeof TextosProdutoSaidaSchema>;
+
+export const CONSULTA_TEXTOS_PRODUTO = definirConsulta({
+  nome: 'catalogo.textos_produto@1',
+  entrada: TextosProdutoEntradaSchema,
+  saida: TextosProdutoSaidaSchema,
+});
+
+/**
+ * `catalogo.busca_produtos@1` (T-0084 C9): a busca do seletor do Novo pedido passa a ser a do Catálogo (mesmo ranking,
+ * sinônimos e faixa de anos). `produto_ids` restringe aos produtos do seletor. Sem preço: o preço segue em `precos_cliente@1`.
+ */
+export const BuscaProdutosEntradaSchema = z
+  .object({
+    q: z.string().trim().min(1).max(200),
+    produto_ids: z.array(Id).max(5000).optional(),
+    limite: z.number().int().min(1).max(200).default(100),
+  })
+  .strict();
+export type BuscaProdutosEntrada = z.infer<typeof BuscaProdutosEntradaSchema>;
+
+export const BuscaProdutosSaidaSchema = z.object({
+  /** Na ordem do ranking. */
+  itens: z.array(
+    z.object({
+      produto_id: Id,
+      nota: z.number(),
+      so_aplicacao: z.boolean(),
+      serve_em: TrechoBusca.nullable(),
+      equivale_a: EquivaleA.nullable(),
+    }),
+  ),
+});
+export type BuscaProdutosSaida = z.infer<typeof BuscaProdutosSaidaSchema>;
+
+export const CONSULTA_BUSCA_PRODUTOS = definirConsulta({
+  nome: 'catalogo.busca_produtos@1',
+  entrada: BuscaProdutosEntradaSchema,
+  saida: BuscaProdutosSaidaSchema,
 });

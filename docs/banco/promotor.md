@@ -62,7 +62,7 @@ Alvo (RN-PRO-10): `cliente_id` (uma loja) **ou** `segmento` (lojas do segmento, 
 | checklist_loja | alvo, vigência, nome text, itens jsonb (array de `ChecklistItem`: id, rotulo, tipo, obrigatoria, ordem, categoria_gondola_id) | **uma versão por (alvo, início)** entre vivas (`checklist_loja_versao_uk`, `nulls not distinct`); `(tenant_id, cliente_id)` |
 | mix_obrigatorio | alvo, vigência, produto_id uuid, categoria_gondola_id uuid → categoria (FK composta) | uma versão por (produto, alvo, início) (`mix_obrigatorio_versao_uk`, `nulls not distinct`) |
 | meta_share | alvo, vigência, categoria_gondola_id → categoria, meta_pct numeric(5,2) 0–100 | uma versão por (categoria, alvo, início) (`meta_share_versao_uk`) |
-| concorrente | nome (1–120), ativo | nome único entre vivos |
+| concorrente | nome (1–120), ativo | nome único entre vivos. **Desde a T-0085 (0033)** também é a lista de marcas da referência cruzada do Catálogo (`catalogo.produto_referencia.marca_id`, sem FK, lida pelo contrato do Promotor; a ADR 0027 não vale). Inativar uma marca tira as referências dela da busca e da ficha |
 | produto_concorrente | concorrente_id → concorrente, nome (1–200), produto_id (nosso), categoria_gondola_id → categoria, ativo | nome único por concorrente; `(tenant_id, produto_id)` |
 | foto_referencia | alvo, vigência, categoria_gondola_id → categoria, arquivo_id (sem FK, ADR 0010), descricao (≤ 300) | `(tenant_id, categoria_gondola_id)` |
 | tarefa_trade | alvo, vigência, titulo (1–160), instrucao (≤ 1000), prazo date | `(tenant_id, cliente_id)` |
@@ -156,3 +156,5 @@ Ex.: em Manaus (UTC−4) o dia D vai de `D 04:00Z` a `D+1 04:00Z` (exclusivo): c
 ## Pendências
 - Esquema local `modules/promotor/db/local.ts`, se o app usar (banco-dados local). O espelho Drizzle da nuvem entrou na T-0070.
 - `criarRepositorioSql()` em `modules/promotor/api` com o SQL acima (modulo-promotor).
+
+**Base de demo, T-0085 (0033):** 4 marcas de autopeças fictícias no cadastro `concorrente`: Freiomax, Rodaforte, Filtrobom e Vialume (`external_id` `MARCA-<NOME>`, sem produto comparado nem coleta). São as marcas das referências cruzadas do Catálogo da demo, em `db/seeds/demo/catalogo-cadastro.ts`.

@@ -8,6 +8,8 @@ import { cnpjValido } from '@macuxi/comum';
 import type { DiscountPolicy as AlcadaApi, PedidoPush } from '../../contracts';
 import type { NivelAprovacao } from '../../domain/aprovacao';
 import { checkDiscount, clampPct, type DiscountPolicy } from '../../domain/order';
+import { retratoAplicacao } from '../../domain/aplicacao';
+import { alcadaDoAutorPct } from '../../domain/pedido-em-nome';
 import {
   ajusteDePct,
   ajusteDoPedidoCents,
@@ -76,6 +78,24 @@ export interface Ajuste {
   /** T-0071: R$ POR UNIDADE da medida vendida, em centavos (modo `valor`) */
   desconto_cents?: number;
   acrescimo_cents?: number;
+  /** T-0084 (RN-VEN-19): caixa "Incluir aplicação no orçamento" do item; ausente = o padrão do tenant (marcada) */
+  aplicacao_marcada?: boolean;
+  /** T-0084: retrato já gravado (edição de orçamento); vale enquanto a caixa não for desmarcada e marcada de novo */
+  aplicacao_retrato?: string;
+}
+
+/** RN-VEN-19: a caixa do item (marcada ou não) dado o padrão do tenant. */
+export function aplicacaoMarcada(aj: Pick<Ajuste, 'aplicacao_marcada'> | undefined, padrao: boolean): boolean {
+  return aj?.aplicacao_marcada ?? padrao;
+}
+
+/**
+ * RN-VEN-19: alterna a caixa do item. Desmarcar e marcar de novo descarta o retrato antigo (o próximo pega o texto atual
+ * do cadastro). `marcadaAgora` é o estado atual da caixa (`LinhaDoPedido.aplicacao_marcada`).
+ */
+export function alternarAplicacao(aj: Ajuste | undefined, marcadaAgora: boolean): Ajuste {
+  const { aplicacao_retrato: _antigo, ...resto } = aj ?? {};
+  return { ...resto, aplicacao_marcada: !marcadaAgora };
 }
 
 /**
@@ -112,6 +132,8 @@ export interface EntradaCalculo {
   vendedor_id: string;
   /** preço próprio da embalagem (produto → unidade → centavos da medida), de `catalogo.precos_cliente@1` embalagens[]; ausente = UN × fator */
   embalagens?: Record<string, Record<string, number> | undefined>;
+  /** T-0084 (RN-VEN-19): parâmetros do tenant; ausente = a linha não leva aplicação */
+  aplicacao?: { padrao: boolean; max: number };
 }
 
 export interface LinhaDoPedido {
@@ -140,6 +162,10 @@ export interface LinhaDoPedido {
   total_cents: number;
   /** total depois só do ajuste do item (antes do pedido) */
   total_item_cents: number;
+  /** T-0084 (RN-VEN-19): retrato da aplicação a gravar; null = desmarcada ou produto sem aplicação */
+  aplicacao: string | null;
+  /** T-0084: estado da caixa "Incluir aplicação no orçamento" (false quando o produto não tem aplicação) */
+  aplicacao_marcada: boolean;
 }
 
 export interface CalculoPedido {
@@ -217,6 +243,8 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
       erros.push(`${nome}: o desconto em R$ passa do preço de tabela. Reduza o desconto do item.`);
       continue;
     }
+    // T-0084 (RN-VEN-19): retrato no momento do pedido; o retrato já gravado (edição) vale até a caixa ser refeita
+    const aplicacaoDaLinha = e.aplicacao ? retratoAplicacao(aj.aplicacao_retrato ?? produto.applications, aplicacaoMarcada(aj, e.aplicacao.padrao), e.aplicacao.max) : null;
     const eq = r.ajuste ? equivalenteDoAjuste(preco.preco_tabela_cents, r.ajuste) : null;
     const unitario = r.ajuste && r.ajuste.em === 'valor' ? r.ajuste.cents : 0;
     parcial.push({ preco_tabela_cents: preco.preco_tabela_cents, quantidade: quantity, total_cents: preco.total_cents, desconto_pct, acrescimo_pct, ajuste: r.ajuste });
@@ -238,6 +266,8 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
       preco_tabela_cents: preco.preco_tabela_cents,
       total_cents: preco.total_cents,
       total_item_cents: preco.total_cents,
+      aplicacao: aplicacaoDaLinha,
+      aplicacao_marcada: aplicacaoDaLinha !== null,
     });
   }
   const desconto = pct2(e.desconto_pct);
@@ -299,6 +329,8 @@ export function linhasParaPush(linhas: readonly LinhaDoPedido[]): PedidoPush['it
     ...(l.desconto_unitario_cents > 0 ? { desconto_unitario_cents: l.desconto_unitario_cents } : {}),
     ...(l.acrescimo_unitario_cents > 0 ? { acrescimo_unitario_cents: l.acrescimo_unitario_cents } : {}),
     ...(l.ajuste_em === 'valor' && l.equivalente ? { ajuste_em: 'valor' as const } : {}),
+    // T-0084 (RN-VEN-19): só quando há texto; nulo/ausente = sem aplicação (o payload fica igual ao dos APKs anteriores)
+    ...(l.aplicacao ? { aplicacao: l.aplicacao } : {}),
   }));
 }
 
@@ -388,6 +420,14 @@ export function textoDoEndereco(e: Pick<EnderecoDaTela, 'logradouro' | 'numero' 
   const rua = [e.logradouro, e.numero].filter((x) => x && x.trim() !== '').join(', ');
   const local = e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ''}` : '';
   return [rua, e.bairro, local].filter((x) => x && x.trim() !== '').join(' · ');
+}
+
+/**
+ * RN-VEN-10 (pedido em nome): a alçada do gestor no lugar da do vendedor, sem as exceções individuais. Mesma regra do
+ * servidor (`politicaDoAutor`), aplicada à política no formato da API.
+ */
+export function politicaParaAutor(politica: AlcadaApi, perfilAutor: string): AlcadaApi {
+  return { ...politica, seller_pct: alcadaDoAutorPct(perfilAutor, politica), exceptions: [] };
 }
 
 /** Alçada do vendedor no domínio (exceções por vendedor), para o texto do rodapé. */

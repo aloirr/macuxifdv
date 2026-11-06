@@ -556,6 +556,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         donoDaEntidade: (e) => op.registro.entidade(e)?.modulo,
         linhas: (e) => motor.linhas(e) as never,
         linhasPorIds: (e, ids) => motor.linhasPorIds(e, ids) as never,
+        linhasPorCampo: (e, campo, valores) => motor.linhasPorCampo(e, campo, valores) as never,
+        versaoLinhas: (e) => motor.versaoLinhas(e),
         agora,
         usuario: () => base.usuario(),
         parametros: parametrosDe,

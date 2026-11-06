@@ -114,9 +114,25 @@ describe('T-0028 — abas do app na demo (shell real, páginas do fonte)', () =>
     expect([...abas('gestao', 'supervisor')].sort()).toEqual(esperadas.sort());
   });
 
-  it('D-G01 (T-0029): o Gestão tem a aba Pedidos (manifesto do Vendedor com apps.gestao; páginas pedidos/pedido em [campo, gestao]); novo-pedido só no Campo', () => {
-    expect(abas('gestao', 'supervisor')).toContain('Pedidos');
-    expect(paginasDoFonte('vendedor').find((p) => p.id === 'novo-pedido')?.apps).toEqual(['campo']);
+  it('D-G01 (T-0029, T-0085): o Gestão tem a aba Pedidos (manifesto do Vendedor com apps.gestao; páginas pedidos/pedido em [campo, gestao]); novo-pedido em [campo, gestao] para o pedido em nome, sem virar aba', () => {
+    for (const perfil of ['supervisor', 'gerente'] as const) {
+      expect(abas('gestao', perfil), perfil).toContain('Pedidos');
+      expect(abas('gestao', perfil), perfil).not.toContain('Novo pedido');
+    }
+    const novo = paginasDoFonte('vendedor').find((p) => p.id === 'novo-pedido');
+    // T-0085 (RN-VEN-35): a mesma página serve ao pedido em nome do vendedor no Gestão; continua exigindo pedido.criar e sem navegacao
+    expect(novo).toMatchObject({ apps: ['campo', 'gestao'], acao: 'pedido.criar' });
+    expect(novo?.navegacao).toBeUndefined();
+  });
+
+  // Com as licenças da demo. O pior caso (Vendedor forçado no perfil, páginas com `perfis` do fonte) fica em
+  // tests/modulos/promotor-sem-pedido.test.ts (T-0085) e pedidos-busca-t0077.test.ts: aqui o `paginasDoFonte` não lê `perfis`.
+  it('D-G01b (T-0085, regra 7): na demo o promotor não tem Pedidos nem Novo pedido, no Campo nem na Gestão', () => {
+    for (const variante of ['campo', 'gestao'] as const) {
+      const p = abas(variante, 'promotor');
+      expect(p, variante).not.toContain('Pedidos');
+      expect(p, variante).not.toContain('Novo pedido');
+    }
   });
 
   it('D-G05a (T-0055): com o Gestor ligado (tenant + perfil), o Gestão da supervisora e do gerente tem Equipe, Aprovações e Alertas, Equipe antes de Aprovações; o Campo nunca tem', () => {

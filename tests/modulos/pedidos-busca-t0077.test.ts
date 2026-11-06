@@ -629,15 +629,27 @@ describe('T-0077 critério 4 — promotor não vê a tela Pedidos (RN-PRO-01), p
     expect(v.navegacao.filter((n) => n.modulo === 'vendedor')).toEqual([]);
   });
 
-  it('controle positivo: o vendedor vê Pedidos no Campo; supervisor e gerente veem Pedidos no Gestão (sem Novo pedido)', () => {
+  it('controle positivo: o vendedor vê Pedidos no Campo; supervisor e gerente veem Pedidos no Gestão e (T-0085) a página novo-pedido do pedido em nome, sem aba própria', () => {
     const campo = criarShell('campo', modulos()).montar({ perfil: 'vendedor', modulosAtivos: [...TUDO] });
     expect(campo.pagina('pedidos')).not.toBeNull();
+    expect(campo.pagina('novo-pedido')).not.toBeNull();
     expect(campo.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo)).toEqual(['Pedidos']);
+    expect(paginas.find((p) => p.id === 'novo-pedido')).toMatchObject({ apps: ['campo', 'gestao'], acao: 'pedido.criar' });
     for (const perfil of ['supervisor', 'gerente'] as const) {
       const g = criarShell('gestao', modulos()).montar({ perfil, modulosAtivos: [...TUDO] });
       expect(g.pagina('pedidos'), perfil).not.toBeNull();
-      expect(g.pagina('novo-pedido'), perfil).toBeNull();
+      expect(g.pagina('novo-pedido'), perfil).not.toBeNull();
+      expect(g.navegacao.filter((n) => n.modulo === 'vendedor').map((n) => n.rotulo), perfil).toEqual(['Pedidos']);
     }
+  });
+
+  it('regra 7 (T-0085): o promotor não recebe novo-pedido nem a lista no Gestão, com o Vendedor efetivo', () => {
+    const g = criarShell('gestao', modulos()).montar({ perfil: 'promotor', modulosAtivos: [...TUDO] });
+    expect(g.pagina('novo-pedido')).toBeNull();
+    expect(g.pagina('pedidos')).toBeNull();
+    expect(g.pagina('pedido')).toBeNull();
+    expect(g.pode('pedido.criar')).toBe(false);
+    expect(g.pode('pedido.criar_em_nome')).toBe(false);
   });
 
   it('sem o Vendedor licenciado nem o vendedor vê Pedidos (módulo inativo some do app)', () => {

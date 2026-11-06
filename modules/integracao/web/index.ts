@@ -13,3 +13,6 @@ export const moduloWeb = definirModuloShell<ComponentType>({
     { id: 'monitor', caminho: 'integracao', titulo: 'Integração ERP', navegacao: 'Integração ERP', grupo: 'administracao', ordem: 30, acao: 'monitor.ver', componente: MonitorPage },
   ],
 });
+
+/** T-0087: o portal `config.` divide o CSV grande em partes da mesma sessão no navegador com a MESMA regra da API (RN-INT-06). */
+export { dividirCsvEmPartes, BYTES_MAX_PARTE_ARQUIVO, PARTES_MAX_SESSAO, type ParteDoArquivo, type ResultadoDivisao } from '../domain/carga-arquivo-partes';

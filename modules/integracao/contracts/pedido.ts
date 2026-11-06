@@ -32,6 +32,8 @@ export const ItemPedidoErp = z.object({
   desconto_pct: PercentualOpcional,
   acrescimo_pct: PercentualOpcional,
   acrescimo_cents: CentavosNaoNegativos.nullish(),
+  /** T-0084 (RN-VEN-19; aditivo na v1): retrato da aplicação do produto no pedido (vendedor.pedido_item.aplicacao); nulo/ausente = sem aplicação. O Conector que não o mapeia ignora. */
+  aplicacao: TextoOpcional(1000),
 });
 export type ItemPedidoErp = z.infer<typeof ItemPedidoErp>;
 

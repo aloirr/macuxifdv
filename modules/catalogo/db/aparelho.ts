@@ -12,8 +12,12 @@
  *   todos os objetos `catalogo__*` e a linha de `_esquema`; tudo é reconstruído pelas migrações + pull do início.
  */
 
-/** Colunas da FTS na ordem da DDL (= ordem e chaves de `colunas` em `definirIndiceBusca`, modules/catalogo/app). */
-export const COLUNAS_BUSCA_CATALOGO = ['sku', 'ean', 'codigos', 'nome', 'marca', 'categoria', 'atributos'] as const;
+/**
+ * Colunas da FTS na ordem da DDL (= ordem e chaves de `colunas` em `definirIndiceBusca`, modules/catalogo/app). v3
+ * (T-0084/T-0085): + `aplicacao` (texto expandido de `expandirAplicacao`, RN-CAT-12) e `referencias` (códigos crus das
+ * referências cruzadas, RN-CAT-09); o compacto das referências vai em `codigos`, junto do SKU e do external_id.
+ */
+export const COLUNAS_BUSCA_CATALOGO = ['sku', 'ean', 'codigos', 'nome', 'marca', 'categoria', 'atributos', 'aplicacao', 'referencias'] as const;
 
 /** Nomes dos objetos da busca (para a declaração do índice no app do Catálogo). */
 export const TABELAS_BUSCA_CATALOGO = {
@@ -64,6 +68,43 @@ export const migracoesAparelho: { versao: number; sql: string }[] = [
       CREATE INDEX catalogo__tabela_preco_item_produto ON ent_tabela_preco_item (json_extract(dados, '$.produto_id'), json_extract(dados, '$.tabela_preco_id'));
       CREATE INDEX catalogo__cliente_tabela_preco_cliente ON ent_cliente_tabela_preco (json_extract(dados, '$.cliente_id'));
       CREATE INDEX catalogo__produto_conteudo_produto ON ent_produto_conteudo (json_extract(dados, '$.produto_id'));
+    `,
+  },
+  {
+    // v3 (T-0084 §6 e T-0085 §7; migração 0033 no servidor): FTS5 com `aplicacao` e `referencias`. Coluna de FTS5 não se
+    // acrescenta: a v3 RECRIA a tabela de documentos, a FTS e o vocabulário (nesta ordem de colunas: sku, ean, codigos,
+    // nome, marca, categoria, atributos, aplicacao, referencias). Os documentos antigos saem junto; com o índice vazio e
+    // as fontes com linhas, o SDK marca a reindexação sozinho (`marcarReindexacaoSeVazio`) e reconstrói a partir de
+    // `ent_*` (nada é repuxado). Índice de expressão por produto em `ent_produto_referencia` (entidade do Catálogo, pull
+    // escopo tenant) para o `porCampo`/`linhasPorCampo` do `documento()` e da ficha. Pesos (app/indice.ts, modulo-catalogo):
+    // aplicacao 2 e referencias 8.
+    versao: 3,
+    sql: `
+      DROP TABLE IF EXISTS catalogo__busca_vocab;
+      DROP TABLE IF EXISTS catalogo__busca;
+      DROP TABLE IF EXISTS catalogo__busca_doc;
+      CREATE TABLE catalogo__busca_doc (
+        rid         INTEGER PRIMARY KEY,
+        produto_id  TEXT NOT NULL UNIQUE,
+        sku         TEXT,
+        ean         TEXT,
+        codigos     TEXT,
+        nome        TEXT,
+        marca       TEXT,
+        categoria   TEXT,
+        atributos   TEXT,
+        aplicacao   TEXT,
+        referencias TEXT
+      );
+      CREATE VIRTUAL TABLE catalogo__busca USING fts5(
+        sku, ean, codigos, nome, marca, categoria, atributos, aplicacao, referencias,
+        content = 'catalogo__busca_doc',
+        content_rowid = 'rid',
+        tokenize = 'unicode61 remove_diacritics 2',
+        prefix = '2 3'
+      );
+      CREATE VIRTUAL TABLE catalogo__busca_vocab USING fts5vocab(catalogo__busca, row);
+      CREATE INDEX catalogo__produto_referencia_produto ON ent_produto_referencia (json_extract(dados, '$.produto_id'));
     `,
   },
 ];
