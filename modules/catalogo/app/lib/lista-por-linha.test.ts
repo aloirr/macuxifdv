@@ -7,7 +7,7 @@ import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { ProdutoConteudoSyncSchema, ProdutoReferenciaSyncSchema, ProdutoRelacaoSyncSchema, type ItemVitrine } from '../../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../../domain/arvore';
-import { agruparPorLinha, etiquetasDoItem, MAXIMO_OFERECE_JUNTO, MAXIMO_REFERENCIAS, medidaEmbalagem, montarExtras, montarItemLista, NO_SEM_LINHA, ofereceJuntoDoItem, referenciasDoItem, SEM_EXTRAS, textoEquivale, type ProdutoLista } from './lista-por-linha';
+import { acaoDoVazio, agruparPorLinha, etiquetasDoItem, MAXIMO_OFERECE_JUNTO, MAXIMO_REFERENCIAS, medidaEmbalagem, montarExtras, montarItemLista, NO_SEM_LINHA, ofereceJuntoDoItem, referenciasDoItem, SEM_EXTRAS, textoEquivale, type ProdutoLista } from './lista-por-linha';
 import { listaPorLinhaLocal } from './lista-por-linha-local';
 import type { LeitorLocal } from './local';
 
@@ -174,7 +174,7 @@ describe('RN-CAT-05: a lista lida do aparelho (motor de sync)', () => {
     expect(r.itens[0]!.equivale).toBe('Equivale a: Bosch CB 1');
   });
 
-  it('RF-CAT-09: o grupo mostra os níveis abaixo; "sem linha" lista os soltos; nó que sumiu volta à raiz', async () => {
+  it('RF-CAT-09: o grupo mostra os níveis abaixo; "sem linha" lista os soltos; nó que sumiu vem vazio, com a volta', async () => {
     const grupo = await listaPorLinhaLocal(leitor, { ...entrada, noId: uuid(1) });
     expect(grupo.filhos.map((f) => [f.nome, f.total])).toEqual([['Pastilhas', 2], ['Discos', 1]]);
     expect(grupo.itens).toEqual([]);
@@ -188,5 +188,61 @@ describe('RN-CAT-05: a lista lida do aparelho (motor de sync)', () => {
   it('RF-CAT-09: nível sem produtos fica vazio (a tela mostra o EstadoVazio)', async () => {
     const r = await listaPorLinhaLocal(leitor, { ...entrada, noId: uuid(6) });
     expect(r.vazio).toBe(true);
+  });
+});
+
+describe('RF-CAT-09: "Voltar um nível" no estado vazio (especificação §4)', () => {
+  const base = (id: string, o: Record<string, unknown>): LinhaSync => ({ id, updated_at: AGORA, deleted_at: null, external_id: null, ...o }) as LinhaSync;
+  const noSync = (n: NoCatalogo, deleted_at: string | null = null) => base(n.id, { ...n, deleted_at });
+  const leitorCom = (linhas: Record<string, LinhaSync[]>): LeitorLocal => ({ linhas: async <L extends LinhaSync>(e: string) => (linhas[e] ?? []) as L[] });
+  const produtos = [base(uuid(101), { sku: 'P-1', ean: null, nome: 'Produto 1', marca: 'X', categoria: 'Y', unidade: 'UN', ativo: true })];
+  const vinculo = [base(uuid(500), { ...liga(1, 3) })];
+  const entrada = { perfil: 'vendedor' as const, parametros: {}, agora: AGORA, clienteId: null, fuso: 'America/Manaus' };
+  const abrir = async (linhas: Record<string, LinhaSync[]>, noId: string | null, ultimaTrilha?: string[]) => {
+    const r = await listaPorLinhaLocal(leitorCom(linhas), { ...entrada, noId, ultimaTrilha });
+    return { r, acao: acaoDoVazio(r) };
+  };
+  const completo = { catalogo_no: NOS.map((n) => noSync(n)), produto_no: vinculo, produto: produtos };
+  const semNos = (...ids: number[]) => NOS.filter((n) => !ids.includes(Number(n.codigo.slice(1))));
+
+  it('RF-CAT-09 §4: linha (nível 3) removida volta ao grupo pai, que ainda existe', async () => {
+    const marcado = { ...completo, catalogo_no: NOS.map((n) => noSync(n, n.id === uuid(3) ? AGORA : null)) };
+    const a = await abrir(marcado, uuid(3));
+    expect(a.r).toMatchObject({ noInexistente: true, vazio: true, voltarPara: uuid(2) });
+    expect(a.acao).toEqual({ rotulo: 'Voltar um nível', noId: uuid(2) });
+    // a linha sumiu de vez do aparelho: vale a última trilha conhecida
+    const b = await abrir({ ...completo, catalogo_no: semNos(3).map((n) => noSync(n)) }, uuid(3), [uuid(1), uuid(2), uuid(3)]);
+    expect(b.acao).toEqual({ rotulo: 'Voltar um nível', noId: uuid(2) });
+  });
+
+  it('RF-CAT-09 §4: grupo e linha removidos juntos voltam ao sistema', async () => {
+    const marcado = { ...completo, catalogo_no: NOS.map((n) => noSync(n, n.id === uuid(2) || n.id === uuid(3) ? AGORA : null)) };
+    expect((await abrir(marcado, uuid(3))).acao).toEqual({ rotulo: 'Voltar um nível', noId: uuid(1) });
+    const fisico = await abrir({ ...completo, catalogo_no: semNos(2, 3).map((n) => noSync(n)) }, uuid(3), [uuid(1), uuid(2), uuid(3)]);
+    expect(fisico.acao).toEqual({ rotulo: 'Voltar um nível', noId: uuid(1) });
+  });
+
+  it('RF-CAT-09 §4: sistema logo abaixo da raiz removido volta à raiz, com a ação presente (nunca sem saída)', async () => {
+    const marcado = { ...completo, catalogo_no: NOS.map((n) => noSync(n, n.id === uuid(6) ? AGORA : null)) };
+    expect((await abrir(marcado, uuid(6))).acao).toEqual({ rotulo: 'Voltar um nível', noId: null });
+    const fisico = await abrir({ ...completo, catalogo_no: semNos(6).map((n) => noSync(n)) }, uuid(6), [uuid(6)]);
+    expect(fisico.acao).toEqual({ rotulo: 'Voltar um nível', noId: null });
+    // sem nenhuma pista (nem linha, nem trilha anterior)
+    expect((await abrir({ ...completo, catalogo_no: semNos(6).map((n) => noSync(n)) }, uuid(6))).acao).toEqual({ rotulo: 'Voltar um nível', noId: null });
+  });
+
+  it('RF-CAT-09 §4: nível vazio que existe volta ao pai; no 1º nível, à raiz', async () => {
+    const dados = { catalogo_no: NOS.map((n) => noSync(n)), produto_no: [], produto: [] };
+    const linha = await abrir(dados, uuid(3));
+    expect(linha.r).toMatchObject({ noInexistente: false, vazio: true });
+    expect(linha.acao).toEqual({ rotulo: 'Voltar um nível', noId: uuid(2) });
+    expect((await abrir(dados, uuid(6))).acao).toEqual({ rotulo: 'Voltar um nível', noId: null });
+  });
+
+  it('RF-CAT-09 §4: raiz vazia não tem ação (só sincronizar); nível com conteúdo também não', async () => {
+    const vazia = await abrir({ catalogo_no: [], produto_no: [], produto: [] }, null);
+    expect(vazia.r).toMatchObject({ vazio: true, noInexistente: false });
+    expect(vazia.acao).toBeNull();
+    expect((await abrir(completo, uuid(3))).acao).toBeNull();
   });
 });

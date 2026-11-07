@@ -36,8 +36,10 @@ export interface NivelLista {
   itens: ItemLista[];
   /** Quantos produtos o nível atual tem (os itens podem ser só os primeiros). */
   total: number;
-  /** O nó pedido não existe (mais) na árvore do aparelho: a tela volta à raiz. */
+  /** O nó pedido não existe (mais) na árvore do aparelho: o nível vem vazio e a tela oferece a volta (`voltarPara`). */
   noInexistente: boolean;
+  /** Com `noInexistente`: o ancestral mais próximo que ainda existe (`null` = raiz). Nos demais casos, `null`. */
+  voltarPara: string | null;
   /** Nível sem filhos e sem itens. */
   vazio: boolean;
 }
@@ -131,10 +133,14 @@ function raiz(leitor: LeitorLocal, arvore: Arvore) {
  * Um nível da lista por linha. `noId` nulo = raiz (sistemas); `NO_SEM_LINHA` = produtos fora da árvore. Cliente em
  * contexto = preço da tabela dele (RN-CAT-06); sem permissão para preço e estoque o item sai sem os dois (RN-CAT-05).
  */
-export async function listaPorLinhaLocal(leitor: LeitorLocal, e: EntradaLocal & { noId: string | null; fuso: string }): Promise<NivelLista> {
+export async function listaPorLinhaLocal(leitor: LeitorLocal, e: EntradaLocal & { noId: string | null; fuso: string; ultimaTrilha?: readonly string[] }): Promise<NivelLista> {
   const arvore = await arvoreDoAparelho(leitor);
   const noValido = e.noId === null || e.noId === NO_SEM_LINHA || arvore.nos.has(e.noId);
-  const noId = noValido ? e.noId : null;
+  const noId = e.noId;
+  if (!noValido) {
+    const voltarPara = await ancestralVivo(leitor, arvore, e.noId!, e.ultimaTrilha ?? []);
+    return finalizar(leitor, e, { trilha: [], rotuloNivel: null, filhos: [], candidatos: [], porId: new Map(), total: 0, noInexistente: true, voltarPara });
+  }
 
   let grupo: GrupoLista | null = null;
   let filhos: GrupoLista[] = [];
@@ -151,7 +157,7 @@ export async function listaPorLinhaLocal(leitor: LeitorLocal, e: EntradaLocal & 
       filhos = r.agrupado.sistemas;
       total = new Set(r.agrupado.sistemas.flatMap((g) => [...coletar(g)])).size + r.agrupado.semHierarquia.length;
       if (r.agrupado.semHierarquia.length > 0) {
-        return finalizar(leitor, e, { trilha: [], rotuloNivel: null, filhos: [...filhos.map(filho), semLinha(r.agrupado.semHierarquia.length)], candidatos: [], porId, total, noInexistente: !noValido });
+        return finalizar(leitor, e, { trilha: [], rotuloNivel: null, filhos: [...filhos.map(filho), semLinha(r.agrupado.semHierarquia.length)], candidatos: [], porId, total, noInexistente: false, voltarPara: null });
       }
     } else {
       candidatos = r.agrupado.semHierarquia;
@@ -172,7 +178,25 @@ export async function listaPorLinhaLocal(leitor: LeitorLocal, e: EntradaLocal & 
     // linha (nível 3 em diante) ou nível sem filhos: os itens de tudo abaixo; acima disso, só os ligados direto
     candidatos = !grupo ? [] : grupo.filhos.length === 0 || grupo.no!.nivel >= NIVEL_DA_LINHA ? [...coletar(grupo)].map((id) => paraLista(porId.get(id)!)) : grupo.produtos;
   }
-  return finalizar(leitor, e, { trilha, rotuloNivel, filhos: filhos.map(filho), candidatos, porId, total, noInexistente: !noValido });
+  return finalizar(leitor, e, { trilha, rotuloNivel, filhos: filhos.map(filho), candidatos, porId, total, noInexistente: false, voltarPara: null });
+}
+
+/**
+ * Nó removido no sync: o ancestral mais próximo que ainda está na árvore. Sobe pelo `pai_id` das linhas (a remoção
+ * lógica ainda as traz); se a linha sumiu do aparelho, usa a última trilha conhecida (ids, do sistema ao nível), do
+ * fim para o começo. Nenhum vivo = `null` (raiz).
+ */
+async function ancestralVivo(leitor: LeitorLocal, arvore: Arvore, noId: string, ultimaTrilha: readonly string[]): Promise<string | null> {
+  const porId = new Map((await leitor.linhas<CatalogoNoSync & LinhaSync>('catalogo_no')).map((n) => [n.id, n]));
+  const candidatos: string[] = [];
+  const vistos = new Set<string>([noId]);
+  let pai = porId.get(noId)?.pai_id ?? null;
+  while (pai && !vistos.has(pai)) {
+    vistos.add(pai);
+    candidatos.push(pai);
+    pai = porId.get(pai)?.pai_id ?? null;
+  }
+  return [...candidatos, ...[...ultimaTrilha].reverse()].find((id) => id !== noId && arvore.nos.has(id)) ?? null;
 }
 
 const filho = (g: GrupoLista): FilhoLista => ({ id: g.no!.id, codigo: g.no!.codigo, nome: g.no!.nome, rotuloNivel: g.rotuloNivel, total: g.total });
@@ -181,7 +205,7 @@ const semLinha = (total: number): FilhoLista => ({ id: NO_SEM_LINHA, codigo: NO_
 async function finalizar(
   leitor: LeitorLocal,
   e: EntradaLocal & { fuso: string },
-  base: { trilha: NoCatalogo[]; rotuloNivel: string | null; filhos: FilhoLista[]; candidatos: ProdutoLista[]; porId: Map<string, LinhaProduto>; total: number; noInexistente: boolean },
+  base: { trilha: NoCatalogo[]; rotuloNivel: string | null; filhos: FilhoLista[]; candidatos: ProdutoLista[]; porId: Map<string, LinhaProduto>; total: number; noInexistente: boolean; voltarPara: string | null },
 ): Promise<NivelLista> {
   const ordenados = [...base.candidatos].sort(porNome).slice(0, MAXIMO_ITENS_LISTA);
   const extras = await extrasDosProdutos(leitor, ordenados.map((p) => p.id));
@@ -194,5 +218,5 @@ async function finalizar(
   // preço e estoque só dos itens da tela; sem permissão o contexto vem vazio e o item sai sem os dois (RN-CAT-05)
   const contexto = await contextoLocal(leitor, e, linhas.map(doCatalogo));
   const itens = mostrados.map((p, i) => montarItemLista(p, itemDaVitrine(doCatalogo(linhas[i]!), contexto), { agora: e.agora, fuso: e.fuso, nomesPorId: nomes }));
-  return { trilha: base.trilha, rotuloNivel: base.rotuloNivel, filhos: base.filhos, itens, total: base.total, noInexistente: base.noInexistente, vazio: base.filhos.length === 0 && itens.length === 0 };
+  return { trilha: base.trilha, rotuloNivel: base.rotuloNivel, filhos: base.filhos, itens, total: base.total, noInexistente: base.noInexistente, voltarPara: base.voltarPara, vazio: base.filhos.length === 0 && itens.length === 0 };
 }

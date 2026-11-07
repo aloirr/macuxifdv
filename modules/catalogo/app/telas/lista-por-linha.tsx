@@ -11,10 +11,10 @@ import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Card, colors, DEFAULT_TZ, Empty, EstadoVazio, fonts, Icon, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { contagem } from '../lib/apresentacao';
-import type { ItemLista } from '../lib/lista-por-linha';
+import { acaoDoVazio, type ItemLista } from '../lib/lista-por-linha';
 import { listaPorLinhaLocal, MAXIMO_ITENS_LISTA, type NivelLista } from '../lib/lista-por-linha-local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
 
@@ -34,13 +34,18 @@ export default function TelaListaPorLinha() {
   const [nivel, setNivel] = useState<NivelLista | null>(null);
   const [falhou, setFalhou] = useState(false);
   const auto = useAtualizacaoAutomatica({ tz: fuso });
+  const ultimaTrilha = useRef<string[]>([]); // trilha do último nível que existia: se ele sumir no sync, a volta usa isto
 
   useEffect(() => {
     if (!motor) return;
     let vivo = true;
     setFalhou(false);
-    void listaPorLinhaLocal(motor, { perfil, parametros, agora: relogioReal().agora().toISOString(), clienteId, noId, fuso })
-      .then((r) => vivo && setNivel(r))
+    void listaPorLinhaLocal(motor, { perfil, parametros, agora: relogioReal().agora().toISOString(), clienteId, noId, fuso, ultimaTrilha: ultimaTrilha.current })
+      .then((r) => {
+        if (!vivo) return;
+        if (!r.noInexistente && r.trilha.length > 0) ultimaTrilha.current = r.trilha.map((n) => n.id);
+        setNivel(r);
+      })
       .catch(() => vivo && setFalhou(true));
     return () => {
       vivo = false;
@@ -54,6 +59,8 @@ export default function TelaListaPorLinha() {
 
   const naRaiz = (nivel?.trilha.length ?? 0) === 0; // a trilha só aparece a partir do primeiro nível abaixo da raiz
   const raizVazia = !!nivel && nivel.vazio && naRaiz && !nivel.noInexistente;
+
+  const acaoVazio = nivel ? acaoDoVazio(nivel) : null;
 
   const topo = (
     <>
@@ -122,7 +129,7 @@ export default function TelaListaPorLinha() {
           icone="search"
           titulo={raizVazia ? 'Nenhum produto neste aparelho ainda' : nivel.noInexistente ? 'Este nível não está mais no catálogo' : 'Nenhum produto neste nível'}
           texto={raizVazia ? 'Puxe a tela para sincronizar o catálogo.' : 'Volte um nível ou sincronize o aparelho para atualizar o catálogo.'}
-          acao={!raizVazia ? { rotulo: 'Voltar um nível', onPress: () => setNoId(nivel.trilha.length > 1 ? nivel.trilha[nivel.trilha.length - 2]!.id : null), testID: 'lista-linha-vazio-acao' } : undefined}
+          acao={acaoVazio ? { rotulo: acaoVazio.rotulo, onPress: () => setNoId(acaoVazio.noId), testID: 'lista-linha-vazio-acao' } : undefined}
         />
       ) : null}
       <Text style={t.small} testID="lista-linha-rodape-atualizacao">

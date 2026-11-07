@@ -219,3 +219,24 @@ export function montarItemLista(p: ProdutoLista, vitrine: ItemVitrine | null, c:
     estoque: vitrine ? rotuloEstoque(vitrine, c.agora, c.fuso) : null,
   };
 }
+
+export const ROTULO_VOLTAR_NIVEL = 'Voltar um nível';
+
+export interface AcaoDoVazio {
+  rotulo: string;
+  /** Nível de destino; `null` = raiz (sistemas). */
+  noId: string | null;
+}
+
+/**
+ * Ação do estado vazio da lista por linha (RF-CAT-09, `docs/design/catalogo-por-linha.md` §4). Sem ação: nível com
+ * conteúdo e raiz vazia (só sincronizar). "Voltar um nível" nunca deixa sem saída:
+ * - nível removido no sync: ancestral vivo mais próximo (`voltarPara`), ou raiz se nenhum existir mais;
+ * - nível que existe e está vazio: o pai, ou a raiz no 1º nível.
+ */
+export function acaoDoVazio(n: { vazio: boolean; noInexistente: boolean; trilha: readonly Pick<NoCatalogo, 'id'>[]; voltarPara: string | null }): AcaoDoVazio | null {
+  if (!n.vazio) return null;
+  if (n.noInexistente) return { rotulo: ROTULO_VOLTAR_NIVEL, noId: n.voltarPara };
+  if (n.trilha.length === 0) return null;
+  return { rotulo: ROTULO_VOLTAR_NIVEL, noId: n.trilha.length > 1 ? n.trilha[n.trilha.length - 2]!.id : null };
+}
