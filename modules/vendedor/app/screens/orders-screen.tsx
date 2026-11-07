@@ -39,7 +39,7 @@ import { validadeOrcamentoDias } from '../../domain/orcamento';
 import { pedidoAFaturar } from '../../domain/resumo-inicio';
 import { orcamentosEmAberto } from '../lib/resumo-inicio';
 import { relogioReal } from '@macuxi/comum/relogio';
-import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
+import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
 import { seloDaLinha } from '../lib/selo-lista';
 import { orderNote, statusBadge } from '../lib/order-status';
 import type { PedidoDaLista } from '../lib/pedidos';
@@ -89,6 +89,7 @@ export default function OrdersScreen() {
   const razaoDe = useMemo(() => new Map(dados.clientes.map((c) => [c.id, c.legal_name])), [dados.clientes]);
   const opcoes = useMemo(() => (gestao ? opcoesDeVendedor(orders) : []), [gestao, orders]);
   const vendedorAtivo = gestao && opcoes.some((o) => o.id === vendedorId) ? vendedorId : TODOS_OS_VENDEDORES;
+  const nomeDoVendedor = vendedorAtivo !== TODOS_OS_VENDEDORES ? (opcoes.find((o) => o.id === vendedorAtivo)?.nome ?? 'Vendedor') : null;
   const buscando = normalizarTexto(busca) !== '';
   const fora = !buscando && !semPeriodo && periodoForaDaJanela(periodo, agora, tz);
   const semSinal = offline || !ambiente.online();
@@ -204,6 +205,7 @@ export default function OrdersScreen() {
 
   const escolherPeriodo = (p: Periodo) => {
     setSemPeriodo(false);
+    setSituacao((s) => situacaoAoEscolherPeriodo(s));
     setPeriodo(p);
   };
   const aplicarAtalho = (id: string) => escolherPeriodo(periodoDoAtalho(ehAtalhoDePeriodo(id) ? id : ATALHO_PADRAO, new Date(), tz));
@@ -297,16 +299,23 @@ export default function OrdersScreen() {
       />
 
       {buscando ? (
-        <Text style={t.small} testID="orders-busca-resumo">
-          {visiveis.length} {visiveis.length === 1 ? 'resultado' : 'resultados'} · últimos 90 dias
-        </Text>
+        <>
+          <Text style={t.small} testID="orders-busca-resumo">
+            {resumoDaBusca(visiveis.length, nomeDoVendedor)}
+          </Text>
+          {nomeDoVendedor ? (
+            <View style={styles.etiquetas} testID="orders-etiquetas">
+              <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={nomeDoVendedor} rotuloRemover={rotuloRemoverVendedor(nomeDoVendedor)} onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
+            </View>
+          ) : null}
+        </>
       ) : (
         <>
           {(filtro.contagem > 0 && !semPeriodo) || vendedorAtivo !== TODOS_OS_VENDEDORES ? (
             <View style={styles.etiquetas} testID="orders-etiquetas">
               {filtro.periodoPadrao || semPeriodo ? null : <EtiquetaFiltro testID="orders-etiqueta-periodo" texto={filtro.etiqueta} rotuloRemover={`Remover filtro ${filtro.etiqueta}`} onRemover={removerPeriodo} />}
               {vendedorAtivo !== TODOS_OS_VENDEDORES ? (
-                <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={opcoes.find((o) => o.id === vendedorAtivo)?.nome ?? 'Vendedor'} rotuloRemover="Remover filtro de vendedor" onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
+                <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={nomeDoVendedor ?? 'Vendedor'} rotuloRemover={rotuloRemoverVendedor(nomeDoVendedor ?? 'Vendedor')} onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
               ) : null}
             </View>
           ) : null}
@@ -328,14 +337,10 @@ export default function OrdersScreen() {
           </Text>
           )}
           {parcial && semSinal ? (
-            <Text style={t.small} testID="orders-parcial">
-              Sem sinal: mostrando só o que o aparelho tem deste período.
-            </Text>
+            <Banner testID="orders-parcial" anunciar>Sem sinal: mostrando só o que o aparelho tem deste período.</Banner>
           ) : null}
           {parcial && !semSinal && doServidor?.estado === 'erro' ? (
-            <Text style={t.small} testID="orders-parcial-erro">
-              Não foi possível consultar o servidor: mostrando só o que o aparelho tem deste período. Puxe para baixo para tentar de novo.
-            </Text>
+            <Banner testID="orders-parcial-erro" icon="alert" anunciar>Não foi possível consultar o servidor: mostrando só o que o aparelho tem deste período. Puxe para baixo para tentar de novo.</Banner>
           ) : null}
           {parcial && !semSinal && modoConsulta === 'consultar' && doServidor?.estado !== 'ok' && doServidor?.estado !== 'erro' ? (
             <Text style={t.small} testID="orders-parcial-buscando">
