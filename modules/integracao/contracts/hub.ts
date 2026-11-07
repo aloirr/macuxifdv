@@ -85,6 +85,8 @@ export const RecusaLote = z.object({
   codigo: z.string().min(1),
   mensagem: z.string().min(1),
   erros: z.array(z.object({ codigo: z.string().min(1), campo: z.string().nullable(), mensagem: z.string().min(1) })).min(1),
+  /** Campo opcional novo (compatível com `v1`, RN-INT-09): ex.: `versao_minima` no 426. Nunca leva dado pessoal. */
+  detalhes: z.record(z.unknown()).nullish(),
   requisicao_id: z.string().nullish(),
 });
 export type RecusaLote = z.infer<typeof RecusaLote>;
