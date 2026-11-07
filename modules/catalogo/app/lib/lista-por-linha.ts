@@ -1,8 +1,9 @@
 /**
  * Lista por linha da aba Catálogo (RF-CAT-09, T-0085 fatia D): sistema › grupo › linha. Funções puras (sem React Native,
  * sem motor de sync): agrupam os produtos na árvore do catálogo que já existe (`domain/arvore`, RF-CAT-04) e montam o
- * item da lista (código, medida e embalagem, descrição, aplicação, "Equivale a", oferece junto, etiquetas, foto, preço e
- * estoque). Preço e estoque vêm do `ItemVitrine` que o domain já filtrou pelo perfil (RN-CAT-05): quem não vê, nem
+ * item da lista (código, medida e embalagem, descrição, aplicação, "Equivale a", oferece junto, etiquetas, preço e
+ * estoque). Sem foto: entra quando o contrato do pull tiver miniatura (pedido para depois do piloto, sob demanda,
+ * fora do pacote offline obrigatório). Preço e estoque vêm do `ItemVitrine` que o domain já filtrou pelo perfil (RN-CAT-05): quem não vê, nem
  * recebe o texto. A leitura do aparelho está em `lista-por-linha-local.ts`.
  */
 import type { ItemVitrine, ProdutoConteudoSync, ProdutoReferenciaSync, ProdutoRelacaoSync, Referencia } from '../../contracts';
@@ -188,7 +189,6 @@ export interface ItemLista {
   equivale: string | null;
   ofereceJunto: OfereceJuntoItem[];
   etiquetas: string[];
-  fotoUrl: string | null;
   /** `null` = o perfil não vê preço (RN-CAT-05): nem "sem preço" aparece. */
   preco: RotuloPreco | null;
   /** `null` = o perfil não vê estoque (RN-CAT-05). */
@@ -215,7 +215,6 @@ export function montarItemLista(p: ProdutoLista, vitrine: ItemVitrine | null, c:
     equivale: textoEquivale(referenciasDoItem(p.extras.referencias)),
     ofereceJunto: ofereceJuntoDoItem(p.extras.oferece_junto, p.id, c.nomesPorId),
     etiquetas: etiquetasDoItem(p.extras.etiquetas),
-    fotoUrl: vitrine?.thumbnail_url ?? null,
     preco: vitrine ? rotuloPreco(vitrine) : null,
     estoque: vitrine ? rotuloEstoque(vitrine, c.agora, c.fuso) : null,
   };

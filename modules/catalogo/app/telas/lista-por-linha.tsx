@@ -2,16 +2,17 @@
  * Lista por linha (RF-CAT-09, T-0085 fatia D): sistema › grupo › linha na aba Catálogo. OFFLINE-FIRST: tudo do aparelho
  * (`lib/lista-por-linha-local.ts`). A Trilha do kit (`atualTocavel`) leva de volta a qualquer nível; no nível que tem
  * produtos, cada item traz código, medida e embalagem, descrição, aplicação (2 linhas), "Equivale a", oferece junto,
- * etiquetas, foto e, para quem vê (RN-CAT-05), preço e estoque do cliente em contexto (`?cliente=`, RN-CAT-06). Tocar no
+ * etiquetas e, para quem vê (RN-CAT-05), preço e estoque do cliente em contexto (`?cliente=`, RN-CAT-06). Tocar no
  * item abre a ficha. Tela só de consulta: sem botão principal e sem o slot `produto.acoes` (o promotor nunca vê ação de
- * pedido, regra 7; o "Adicionar ao pedido" do Vendedor fica na ficha e na vitrine).
+ * pedido, regra 7; o "Adicionar ao pedido" do Vendedor fica na ficha e na vitrine). Sem foto: ela entra quando o contrato do
+ * pull tiver miniatura (pedido para depois do piloto, sob demanda, fora do pacote offline obrigatório).
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
 import { BackLink, Badge, Card, colors, DEFAULT_TZ, Empty, EstadoVazio, fonts, Icon, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { contagem } from '../lib/apresentacao';
 import type { ItemLista } from '../lib/lista-por-linha';
 import { listaPorLinhaLocal, MAXIMO_ITENS_LISTA, type NivelLista } from '../lib/lista-por-linha-local';
@@ -132,14 +133,11 @@ function ItemDaLista({ item, onPress, onAbrirJunto }: { item: ItemLista; onPress
   return (
     <Card testID={`lista-linha-item-${item.codigo}`} style={s.card}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Abrir ${item.descricao}`} onPress={onPress} style={({ pressed }) => [s.toque, pressed && { opacity: 0.7 }]}>
-        <View style={s.linha}>
-          {item.fotoUrl ? <Image source={{ uri: item.fotoUrl }} accessibilityLabel={`Foto de ${item.descricao}`} style={s.foto} testID={`lista-linha-foto-${item.codigo}`} /> : <View style={s.foto} />}
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={s.codigo}>{[item.codigo, item.medidaEmbalagem].filter(Boolean).join(' · ')}</Text>
-            <Text style={[t.title16]} numberOfLines={2}>
-              {item.descricao}
-            </Text>
-          </View>
+        <View style={{ gap: 4 }}>
+          <Text style={s.codigo}>{[item.codigo, item.medidaEmbalagem].filter(Boolean).join(' · ')}</Text>
+          <Text style={[t.title16]} numberOfLines={2}>
+            {item.descricao}
+          </Text>
         </View>
         {item.aplicacao ? (
           <Text style={t.small} numberOfLines={2} testID={`lista-linha-aplicacao-${item.codigo}`}>
@@ -198,7 +196,6 @@ const s = StyleSheet.create({
   card: { padding: 14, gap: 8 },
   toque: { gap: 6, minHeight: ALVO },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  foto: { width: 56, height: 56, borderRadius: 8, backgroundColor: colors.lineSoft },
   codigo: { fontFamily: fonts.medium, fontSize: 12, color: colors.ink2 },
   equivale: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
   preco: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink },
