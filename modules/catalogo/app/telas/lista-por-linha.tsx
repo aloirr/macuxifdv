@@ -1,6 +1,6 @@
 /**
  * Lista por linha (RF-CAT-09, T-0085 fatia D): sistema › grupo › linha na aba Catálogo. OFFLINE-FIRST: tudo do aparelho
- * (`lib/lista-por-linha-local.ts`). A Trilha do kit (`atualTocavel`) leva de volta a qualquer nível; no nível que tem
+ * (`lib/lista-por-linha-local.ts`). A Trilha do kit (escondida na raiz; "onde você está", sem `atualTocavel`: o atual não é tocável) leva de volta aos níveis anteriores; no nível que tem
  * produtos, cada item traz código, medida e embalagem, descrição, aplicação (2 linhas), "Equivale a", oferece junto,
  * etiquetas e, para quem vê (RN-CAT-05), preço e estoque do cliente em contexto (`?cliente=`, RN-CAT-06). Tocar no
  * item abre a ficha. Tela só de consulta: sem botão principal e sem o slot `produto.acoes` (o promotor nunca vê ação de
@@ -49,15 +49,18 @@ export default function TelaListaPorLinha() {
 
   const itensTrilha = useMemo(() => {
     const nos = nivel?.trilha ?? [];
-    return [{ id: RAIZ, rotulo: 'Por linha', testID: 'lista-linha-trilha-inicio' }, ...nos.map((n) => ({ id: n.id, rotulo: n.nome, testID: `lista-linha-trilha-${n.codigo}` }))];
+    return [{ id: RAIZ, rotulo: 'Sistemas', testID: 'lista-linha-trilha-inicio' }, ...nos.map((n) => ({ id: n.id, rotulo: n.nome, testID: `lista-linha-trilha-${n.codigo}` }))];
   }, [nivel]);
+
+  const naRaiz = (nivel?.trilha.length ?? 0) === 0; // a trilha só aparece a partir do primeiro nível abaixo da raiz
+  const raizVazia = !!nivel && nivel.vazio && naRaiz && !nivel.noInexistente;
 
   const topo = (
     <>
       <BackLink label="Catálogo" fallback={hrefCatalogo(clienteId)} />
       <View style={s.topo}>
         <View style={{ flex: 1 }}>
-          <Text style={t.h1}>Catálogo por linha</Text>
+          <Text style={t.h1}>Por linha</Text>
           <Text style={t.sub}>{nivel?.rotuloNivel ? `${nivel.rotuloNivel} · ${contagem(nivel.total, 'produto', 'produtos')}` : 'Sistema › grupo › linha'}</Text>
         </View>
         <SyncStamp at={sync.sincronizado_em} offline={!ambiente.online()} tz={fuso} />
@@ -77,7 +80,7 @@ export default function TelaListaPorLinha() {
   return (
     <Screen testID="pagina-catalogo-lista-por-linha" refreshing={auto.puxando} onRefresh={auto.puxar}>
       {topo}
-      <Trilha itens={itensTrilha} atualTocavel onEscolher={(id) => setNoId(id === RAIZ ? null : id)} testID="lista-linha-trilha" />
+      {naRaiz ? null : <Trilha itens={itensTrilha} onEscolher={(id) => setNoId(id === RAIZ ? null : id)} testID="lista-linha-trilha" />}
 
       {falhou ? <Empty text="Não foi possível abrir a lista agora. Puxe a tela para tentar de novo." /> : null}
       {!nivel && !falhou ? <ActivityIndicator color={colors.accent} style={{ paddingVertical: 20 }} /> : null}
@@ -117,9 +120,9 @@ export default function TelaListaPorLinha() {
         <EstadoVazio
           testID="lista-linha-vazio"
           icone="search"
-          titulo={nivel.noInexistente ? 'Este nível não está mais no catálogo' : 'Nenhum produto neste nível'}
-          texto={nivel.trilha.length > 0 ? 'Volte um nível ou sincronize o aparelho para atualizar o catálogo.' : 'Puxe a tela para sincronizar o catálogo deste aparelho.'}
-          acao={nivel.trilha.length > 0 ? { rotulo: 'Voltar um nível', onPress: () => setNoId(nivel.trilha.length > 1 ? nivel.trilha[nivel.trilha.length - 2]!.id : null), testID: 'lista-linha-vazio-acao' } : undefined}
+          titulo={raizVazia ? 'Nenhum produto neste aparelho ainda' : nivel.noInexistente ? 'Este nível não está mais no catálogo' : 'Nenhum produto neste nível'}
+          texto={raizVazia ? 'Puxe a tela para sincronizar o catálogo.' : 'Volte um nível ou sincronize o aparelho para atualizar o catálogo.'}
+          acao={!raizVazia ? { rotulo: 'Voltar um nível', onPress: () => setNoId(nivel.trilha.length > 1 ? nivel.trilha[nivel.trilha.length - 2]!.id : null), testID: 'lista-linha-vazio-acao' } : undefined}
         />
       ) : null}
       <Text style={t.small} testID="lista-linha-rodape-atualizacao">
