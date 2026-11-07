@@ -10,6 +10,7 @@ import type { NivelAprovacao } from '../../domain/aprovacao';
 import { checkDiscount, clampPct, type DiscountPolicy } from '../../domain/order';
 import { retratoAplicacao } from '../../domain/aplicacao';
 import { alcadaDoAutorPct } from '../../domain/pedido-em-nome';
+import { faixasDaConsulta, medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../domain/preco-item';
 import {
   ajusteDePct,
   ajusteDoPedidoCents,
@@ -130,8 +131,8 @@ export interface EntradaCalculo {
   unidades: readonly UnidadeDaTela[];
   politica: AlcadaApi;
   vendedor_id: string;
-  /** preço próprio da embalagem (produto → unidade → centavos da medida), de `catalogo.precos_cliente@1` embalagens[]; ausente = UN × fator */
-  embalagens?: Record<string, Record<string, number> | undefined>;
+  /** RN-VEN-23: faixas vigentes da tabela escalonada por produto (de `catalogo.precos_cliente@1` faixas[]); ausente = sem faixa */
+  faixas?: Record<string, readonly FaixaEscalonada[] | undefined>;
   /** T-0084 (RN-VEN-19): parâmetros do tenant; ausente = a linha não leva aplicação */
   aplicacao?: { padrao: boolean; max: number };
 }
@@ -196,12 +197,12 @@ function pct2(n: number | undefined): number {
   return clampPct(n ?? 0);
 }
 
-/** RN-VEN-15: embalagens[] da consulta de preço do Catálogo → produto → unidade → preço da medida. Item sem embalagens fica de fora. */
-export function embalagensDaConsulta(itens: ReadonlyArray<{ produto_id: string; embalagens?: ReadonlyArray<{ unidade: string; preco_cents: number }> }>): Record<string, Record<string, number>> {
-  const out: Record<string, Record<string, number>> = {};
+/** RN-VEN-23: faixas da consulta de preço do Catálogo → produto → faixas. Item sem faixa fica de fora. */
+export function faixasPorProduto(itens: ReadonlyArray<{ produto_id: string }>): Record<string, FaixaEscalonada[]> {
+  const out: Record<string, FaixaEscalonada[]> = {};
   for (const i of itens) {
-    if (!i.embalagens || i.embalagens.length === 0) continue;
-    out[i.produto_id] = Object.fromEntries(i.embalagens.map((x) => [x.unidade, x.preco_cents]));
+    const f = faixasDaConsulta(i);
+    if (f.length > 0) out[i.produto_id] = f;
   }
   return out;
 }
@@ -235,10 +236,11 @@ export function calcularPedido(e: EntradaCalculo): CalculoPedido {
     }
     const desconto_pct = aj.em === 'valor' ? 0 : pct2(aj.desconto_pct);
     const acrescimo_pct = aj.em === 'valor' ? 0 : pct2(aj.acrescimo_pct);
-    const proprio = medida.fator > 1 && e.embalagens?.[product_id]?.[medida.unidade] !== undefined ? { preco_proprio_unidade_cents: e.embalagens[product_id]![medida.unidade]! } : {};
+    // RN-VEN-15/23: a base é o menor entre a tabela e a faixa da quantidade; a embalagem é sempre UN × fator
+    const base = precoBaseDoItem({ preco_tabela_unidade_cents: produto.price_cents, faixas: e.faixas?.[product_id], medida: medidaDaFaixa(medida.unidade, medida.fator), fator: medida.fator, quantidade: quantity });
     let preco;
     try {
-      preco = precoDoItem({ preco_tabela_unidade_cents: produto.price_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste, ...proprio });
+      preco = precoDoItem({ preco_tabela_unidade_cents: base.base_unidade_cents, quantidade: quantity, fator: medida.fator, desconto_pct, acrescimo_pct, ajuste: r.ajuste });
     } catch {
       erros.push(`${nome}: o desconto em R$ passa do preço de tabela. Reduza o desconto do item.`);
       continue;
@@ -464,4 +466,48 @@ export function trocarModoDoAjuste(aj: Ajuste, para: 'pct' | 'valor', equivalent
   if (!equivalente || (!desconto && !acrescimo)) return { em: para };
   if (para === 'valor') return { em: 'valor', ...(desconto ? { desconto_cents: equivalente.cents } : { acrescimo_cents: equivalente.cents }) };
   return { em: 'pct', ...(desconto ? { desconto_pct: equivalente.pct_exibicao } : { acrescimo_pct: equivalente.pct_exibicao }) };
+}
+
+// ---------- tipo do ajuste do item (T-0089: Desc % · Desc R$ · Acrésc % · Acrésc R$) ----------
+export type TipoDoAjuste = 'desc_pct' | 'desc_reais' | 'acresc_pct' | 'acresc_reais';
+
+/** O tipo que o ajuste do rascunho representa; sem valor (ajuste vazio) lê o modo e fica em desconto. */
+export function tipoDoAjuste(aj: Ajuste): TipoDoAjuste {
+  const reais = aj.em === 'valor';
+  const acrescimo = reais ? (aj.acrescimo_cents ?? 0) > 0 : (aj.acrescimo_pct ?? 0) > 0;
+  return `${acrescimo ? 'acresc' : 'desc'}_${reais ? 'reais' : 'pct'}` as TipoDoAjuste;
+}
+
+/** O número do ajuste: % (como digitado) ou centavos por unidade vendida. */
+export function valorDoAjuste(aj: Ajuste): number {
+  const t = tipoDoAjuste(aj);
+  return t === 'desc_pct' ? (aj.desconto_pct ?? 0) : t === 'acresc_pct' ? (aj.acrescimo_pct ?? 0) : t === 'desc_reais' ? (aj.desconto_cents ?? 0) : (aj.acrescimo_cents ?? 0);
+}
+
+/** O ajuste do rascunho para um tipo e um valor (% ou centavos). Sentido e modo ficam sempre coerentes (RN-VEN-02: nunca os dois juntos). */
+export function ajusteDoTipo(tipo: TipoDoAjuste, valor: number): Ajuste {
+  const v = Math.max(0, valor);
+  switch (tipo) {
+    case 'desc_pct':
+      return { em: 'pct', desconto_pct: v };
+    case 'acresc_pct':
+      return { em: 'pct', acrescimo_pct: v };
+    case 'desc_reais':
+      return { em: 'valor', desconto_cents: Math.round(v) };
+    case 'acresc_reais':
+      return { em: 'valor', acrescimo_cents: Math.round(v) };
+  }
+}
+
+/**
+ * Troca o tipo do ajuste levando o valor: na troca de % para R$ (ou o contrário) vale o equivalente da linha
+ * (`trocarModoDoAjuste`); na troca entre desconto e acréscimo o número fica.
+ */
+export function trocarTipoDoAjuste(aj: Ajuste, novo: TipoDoAjuste, equivalente: { cents: number; pct_exibicao: number } | null): Ajuste {
+  const atual = tipoDoAjuste(aj);
+  if (atual === novo) return aj;
+  const modoNovo = novo.endsWith('reais') ? 'valor' : 'pct';
+  const modoAtual = aj.em === 'valor' ? 'valor' : 'pct';
+  const base = modoAtual === modoNovo ? aj : trocarModoDoAjuste(aj, modoNovo, equivalente);
+  return ajusteDoTipo(novo, valorDoAjuste(base));
 }

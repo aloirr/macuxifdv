@@ -76,11 +76,6 @@ describe('RN-VEN-15: CX × UN pelo fator', () => {
   it('RN-VEN-15: a UN tem fator 1 e quantidade_base igual à quantidade', () => {
     expect(precoDoItem(item({ quantidade: 5 })).quantidade_base).toBe(5);
   });
-  it('RN-VEN-15: preço próprio da embalagem na tabela vale no lugar de UN × fator', () => {
-    const r = precoDoItem(item({ preco_tabela_unidade_cents: 250, fator: 12, preco_proprio_unidade_cents: 2800, quantidade: 1 }));
-    expect(r.preco_tabela_cents).toBe(2800);
-    expect(r.total_cents).toBe(2800);
-  });
   it('RN-VEN-15: desconto na CX incide sobre o preço da CX, com arredondamento no item', () => {
     // 12 × 99 = 1188 ; 5% → 1128,6 → 1129
     expect(precoDoItem(item({ preco_tabela_unidade_cents: 99, fator: 12, desconto_pct: 5 })).total_cents).toBe(1129);

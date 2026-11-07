@@ -52,3 +52,16 @@ export function textoDoVazio(e: EntradaTextoDoVazio): string {
   if (e.situacao === 'todos') return e.gestao ? 'Nenhum pedido da equipe neste período.' : 'Nenhum pedido neste período. Toque em Novo para começar.';
   return 'Nenhum pedido com esta situação neste período.';
 }
+
+/**
+ * T-0090: período que sai em parte da janela do aparelho. Junta o que veio do servidor com o que está no aparelho, sem duplicar por id:
+ * a fila e as edições locais (local=true) têm prioridade sobre o item do servidor; o que só o aparelho tem entra; o resto vem do servidor.
+ */
+export function juntarServidorComAparelho(servidor: readonly PedidoDaLista[], aparelho: readonly PedidoDaLista[]): PedidoDaLista[] {
+  const porId = new Map<string, PedidoDaLista>();
+  for (const s of servidor) porId.set(s.id, s);
+  for (const a of aparelho) {
+    if (a.local || !porId.has(a.id)) porId.set(a.id, a);
+  }
+  return [...porId.values()];
+}

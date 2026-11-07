@@ -3,6 +3,7 @@
  * ajustes do item (% ou R$ por unidade), ajuste do pedido, frete, endereço, condição, observação e visita. Funções puras,
  * offline. O preço NÃO é copiado: vale o da tabela de hoje (RN-VEN-01) e o servidor revalida a alçada (RN-VEN-10).
  */
+import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from '../../domain/preco-item';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { formatBRL } from '@macuxi/comum';
 import type { OrderDetail, PedidoPush } from '../../contracts';
@@ -55,6 +56,7 @@ export function copiaDoDetalhe(d: DetalheParaCopia, extra: ExtraCopia): Orcament
     ...((d.order_surcharge_value_cents ?? 0) > 0 ? { acrescimo_valor_cents: d.order_surcharge_value_cents } : {}),
     ...(d.order_adjust_mode ? { ajuste_em: d.order_adjust_mode } : {}),
     condicao_pagamento_id: extra.condicaoId,
+    ...(d.forma_pagamento_id && d.prazo_pagamento_id ? { forma_pagamento_id: d.forma_pagamento_id, prazo_pagamento_id: d.prazo_pagamento_id } : {}),
     observacao: extra.observacao,
     visita_id: extra.visitaId ?? null,
     ...(frete ? { frete } : {}),
@@ -91,6 +93,7 @@ export function copiaDoPayload(p: PedidoPush, extra: Pick<ExtraCopia, 'observaca
     ...((p.acrescimo_valor_cents ?? 0) > 0 ? { acrescimo_valor_cents: p.acrescimo_valor_cents } : {}),
     ...(p.ajuste_em ? { ajuste_em: p.ajuste_em } : {}),
     condicao_pagamento_id: p.condicao_pagamento_id ?? null,
+    ...(p.forma_pagamento_id && p.prazo_pagamento_id ? { forma_pagamento_id: p.forma_pagamento_id, prazo_pagamento_id: p.prazo_pagamento_id } : {}),
     observacao: p.observacao ?? extra.observacao,
     visita_id: p.visita_id ?? null,
     ...(frete ? { frete } : {}),
@@ -114,7 +117,7 @@ export function copiaDoPayload(p: PedidoPush, extra: Pick<ExtraCopia, 'observaca
 export interface RascunhoDaCopia {
   rascunho: Pick<
     Rascunho,
-    'lines' | 'ajustes' | 'discount_pct' | 'acrescimo_pct' | 'desconto_valor_cents' | 'acrescimo_valor_cents' | 'ajuste_em' | 'frete' | 'endereco_entrega_id' | 'observacao' | 'condicao_pagamento_id'
+    'lines' | 'ajustes' | 'discount_pct' | 'acrescimo_pct' | 'desconto_valor_cents' | 'acrescimo_valor_cents' | 'ajuste_em' | 'frete' | 'endereco_entrega_id' | 'observacao' | 'condicao_pagamento_id' | 'forma_pagamento_id' | 'prazo_pagamento_id'
   >;
   /** itens que saíram (sem preço/inativos) e quantidade acima do estoque, em português */
   aviso: string;
@@ -176,6 +179,7 @@ export function rascunhoDaCopia(c: OrcamentoParaPedido, catalogo: Product[], opc
       ...(c.endereco_entrega_id ? { endereco_entrega_id: c.endereco_entrega_id } : {}),
       ...(c.observacao ? { observacao: c.observacao } : {}),
       condicao_pagamento_id: c.condicao_pagamento_id,
+      ...(c.forma_pagamento_id && c.prazo_pagamento_id ? { forma_pagamento_id: c.forma_pagamento_id, prazo_pagamento_id: c.prazo_pagamento_id } : {}),
     },
     aviso: prefillNotice(r),
     removidos: r.removed.length,
@@ -220,7 +224,8 @@ export function dadosAtuaisDoAparelho(e: {
   detalhe: OrderDetail;
   catalogo: readonly Product[];
   unidades: readonly UnidadeDaTela[];
-  embalagens?: Record<string, Record<string, number> | undefined>;
+  /** RN-VEN-23: faixas vigentes por produto; a reconferência usa a faixa da quantidade do item */
+  faixas?: Record<string, readonly FaixaEscalonada[] | undefined>;
   cliente: SituacaoCliente;
   policy: DadosAtuais['policy'];
   estoque_bloqueia: boolean;
@@ -234,9 +239,8 @@ export function dadosAtuaisDoAparelho(e: {
     const sigla = it.unit && (it.factor ?? 1) > 1 ? it.unit : null;
     const medida = sigla ? medidas.find((m) => m.unidade === sigla) : medidas[0];
     const fator = medida?.fator ?? it.factor ?? 1;
-    const proprio = sigla ? e.embalagens?.[p.id]?.[sigla] : undefined;
     itens[p.id] = {
-      tabela_cents: p.price_cents === null ? null : (proprio ?? p.price_cents * fator),
+      tabela_cents: p.price_cents === null ? null : precoBaseDoItem({ preco_tabela_unidade_cents: p.price_cents, faixas: e.faixas?.[p.id], medida: medidaDaFaixa(medida?.unidade ?? '', fator), fator, quantidade: it.quantity }).base_medida_cents,
       medida_ativa: Boolean(medida),
       estoque_base: Number.isFinite(p.stock_total) ? p.stock_total : null,
       fator,

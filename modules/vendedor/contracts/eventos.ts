@@ -128,7 +128,20 @@ export const PedidoAprovadoEvento = z.object({
   pedido_uuid: Id,
   cliente_external_id: z.string().nullable(),
   vendedor_external_id: z.string().nullable(),
+  /** pedido novo (T-0089): o código do PRAZO; pedido do APK anterior: o código da condição */
   condicao_pagamento_codigo: z.string().nullable(),
+  /** T-0089 (RN-VEN-24, aditivo): forma, prazo e prazo médio; o Hub prefere o `prazo_external_id` */
+  pagamento: z
+    .object({
+      forma_codigo: z.string().min(1).max(20),
+      forma_external_id: z.string().nullable().optional(),
+      prazo_codigo: z.string().min(1).max(20),
+      prazo_external_id: z.string().nullable().optional(),
+      parcelas_dias: z.array(z.number().int().min(0).max(365)).min(1).max(24),
+      prazo_medio_dias: z.number().int().min(0).max(365),
+    })
+    .nullable()
+    .optional(),
   criado_em: IsoDateTime,
   aprovado_em: IsoDateTime,
   observacao: z.string().nullable(),

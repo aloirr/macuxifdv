@@ -8,13 +8,14 @@ import type { CustomerSummary, Me } from '@macuxi/core/contracts';
 import type { DiscountPolicy, Order, OrderDetail } from '../../contracts';
 import type { MixSuggestion, Product } from '@macuxi/catalogo/contracts';
 import { planoBaseRecriada, type ItemDaFila } from '../../domain/base-recriada';
+import type { FaixaEscalonada } from '../../domain/preco-item';
 import type { OrderDisplay, Rascunho } from './pedidos';
 
 export interface TabelaDePrecos {
   items: Product[];
   synced_at: string;
-  /** preço próprio das embalagens (produto → unidade → centavos), de embalagens[] da consulta de preço; ausente = UN × fator */
-  embalagens?: Record<string, Record<string, number>>;
+  /** RN-VEN-23: faixas vigentes da tabela escalonada (produto → faixas), de faixas[] da consulta de preço; ausente = sem faixa */
+  faixas?: Record<string, FaixaEscalonada[]>;
 }
 
 export interface DadosVendedor {
