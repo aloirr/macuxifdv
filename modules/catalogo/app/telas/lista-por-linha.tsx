@@ -4,8 +4,9 @@
  * produtos, cada item traz código, medida e embalagem, descrição, aplicação (2 linhas), "Equivale a", oferece junto,
  * etiquetas e, para quem vê (RN-CAT-05), preço e estoque do cliente em contexto (`?cliente=`, RN-CAT-06). Tocar no
  * item abre a ficha. Tela só de consulta: sem botão principal e sem o slot `produto.acoes` (o promotor nunca vê ação de
- * pedido, regra 7; o "Adicionar ao pedido" do Vendedor fica na ficha e na vitrine). Sem foto: ela entra quando o contrato do
- * pull tiver miniatura (pedido para depois do piloto, sob demanda, fora do pacote offline obrigatório).
+ * pedido, regra 7; o "Adicionar ao pedido" do Vendedor fica na ficha e na vitrine). Foto (T-0097): miniatura de 56 dp do
+ * `produto_conteudo.miniatura` do pull, baixada sob demanda só dos itens visíveis (`telas/miniatura.tsx`); sem sinal ou
+ * sem foto o item segue só com texto.
  */
 import { relogioReal } from '@macuxi/comum/relogio';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
@@ -17,6 +18,8 @@ import { contagem } from '../lib/apresentacao';
 import { acaoDoVazio, anuncioMaisItens, pedirMaisItens, textosMostrarMais, type ItemLista } from '../lib/lista-por-linha';
 import { listaPorLinhaLocal, MAXIMO_ITENS_LISTA, type NivelLista } from '../lib/lista-por-linha-local';
 import { hrefCatalogo, irParaProduto } from '../rotas';
+import { MiniaturaProduto, useMiniaturasDosItens } from './miniatura';
+import type { MiniaturaProduto as Miniatura } from '../../contracts';
 
 const RAIZ = 'raiz';
 const ALVO = 48;
@@ -82,6 +85,9 @@ export default function TelaListaPorLinha() {
       vivo = false;
     };
   }, [motor, noId, limite, clienteId, perfil, parametros, fuso, sync.sincronizado_em]);
+
+  const idsItens = useMemo(() => (nivel?.itens ?? []).map((i) => i.id), [nivel]);
+  const miniaturas = useMiniaturasDosItens(motor, idsItens, sync.sincronizado_em);
 
   const itensTrilha = useMemo(() => {
     const nos = nivel?.trilha ?? [];
@@ -162,7 +168,7 @@ export default function TelaListaPorLinha() {
         </Text>
       ) : null}
       {nivel?.itens.map((item, i) => {
-        const cartao = <ItemDaLista key={item.id} item={item} onPress={() => irParaProduto(item.id, clienteId)} onAbrirJunto={(id) => irParaProduto(id, clienteId)} />;
+        const cartao = <ItemDaLista key={item.id} item={item} miniatura={miniaturas.get(item.id) ?? null} onPress={() => irParaProduto(item.id, clienteId)} onAbrirJunto={(id) => irParaProduto(id, clienteId)} />;
         return i === inicioLote ? (
           <View key={item.id} ref={proximoItem} accessible={false}>
             {cartao}
@@ -198,15 +204,18 @@ export default function TelaListaPorLinha() {
   );
 }
 
-function ItemDaLista({ item, onPress, onAbrirJunto }: { item: ItemLista; onPress: () => void; onAbrirJunto: (id: string) => void }) {
+function ItemDaLista({ item, miniatura, onPress, onAbrirJunto }: { item: ItemLista; miniatura: Miniatura | null; onPress: () => void; onAbrirJunto: (id: string) => void }) {
   return (
     <Card testID={`lista-linha-item-${item.codigo}`} style={s.card}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Abrir ${item.descricao}`} onPress={onPress} style={({ pressed }) => [s.toque, pressed && { opacity: 0.7 }]}>
-        <View style={{ gap: 4 }}>
-          <Text style={s.codigo}>{[item.codigo, item.medidaEmbalagem].filter(Boolean).join(' · ')}</Text>
-          <Text style={[t.title16]} numberOfLines={2}>
-            {item.descricao}
-          </Text>
+        <View style={s.cabeca}>
+          {miniatura ? <MiniaturaProduto produtoId={item.id} miniatura={miniatura} /> : null}
+          <View style={{ gap: 4, flex: 1 }}>
+            <Text style={s.codigo}>{[item.codigo, item.medidaEmbalagem].filter(Boolean).join(' · ')}</Text>
+            <Text style={[t.title16]} numberOfLines={2}>
+              {item.descricao}
+            </Text>
+          </View>
         </View>
         {item.aplicacao ? (
           <Text style={t.small} numberOfLines={2} testID={`lista-linha-aplicacao-${item.codigo}`}>
@@ -265,6 +274,7 @@ const s = StyleSheet.create({
   card: { padding: 14, gap: 8 },
   toque: { gap: 6, minHeight: ALVO },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  cabeca: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   codigo: { fontFamily: fonts.medium, fontSize: 12, color: colors.ink2 },
   equivale: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
   preco: { fontFamily: fonts.displayBold, fontSize: 18, color: colors.ink },

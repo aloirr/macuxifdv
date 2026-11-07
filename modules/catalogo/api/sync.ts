@@ -7,6 +7,7 @@
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
 import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoReferencia, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaEscalonada, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
+import { SQL_MINIATURA_DO_CONTEUDO } from './miniatura';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -48,7 +49,8 @@ const TABELAS = {
     colunas: `produto_id, descricao,
       array(select btrim(x) from unnest(string_to_array(coalesce(argumentos_venda, ''), E'\n')) x where btrim(x) <> '') as argumentos,
       faq, (campanha or destaque) as campanha,
-      aplicacoes as aplicacao, etiquetas`,
+      aplicacoes as aplicacao, etiquetas,
+      ${SQL_MINIATURA_DO_CONTEUDO}`,
     colunaCliente: false,
   },
   // referência cruzada (RN-CAT-09, 0033): marca_id é o id do concorrente do Promotor; o codigo_compacto não vai ao aparelho; marca_nome é o retrato do nome (0034)

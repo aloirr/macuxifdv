@@ -5,8 +5,9 @@
 import { useExtensoes } from '@macuxi/platform-sdk/react';
 import { ALTURA, Badge, Button, Card, colors, fonts, type as t, type IconName } from '@macuxi/ui/mobile';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { AcaoProduto, ContextoProduto, ItemVitrine } from '../../contracts';
+import type { AcaoProduto, ContextoProduto, ItemVitrine, MiniaturaProduto as Miniatura } from '../../contracts';
 import { partirPorMarcas, rotuloEstoque, rotuloIncluiAno, rotuloPreco, subtituloProduto, textoEquivaleA } from '../lib/apresentacao';
+import { MiniaturaProduto } from './miniatura';
 
 /** Itens do slot `produto.acoes` visíveis ao usuário (módulo efetivo, perfil e ação). */
 export function useAcoesProduto(): { id: string; payload: AcaoProduto }[] {
@@ -76,13 +77,14 @@ function LinhasDaBusca({ item }: { item: ItemVitrine }) {
   );
 }
 
-export function CartaoProduto({ item, agora, fuso, clienteId, onPress }: { item: ItemVitrine; agora: string; fuso: string; clienteId: string | null; onPress: () => void }) {
+export function CartaoProduto({ item, agora, fuso, clienteId, miniatura = null, onPress }: { item: ItemVitrine; agora: string; fuso: string; clienteId: string | null; miniatura?: Miniatura | null; onPress: () => void }) {
   const preco = rotuloPreco(item);
   const estoque = rotuloEstoque(item, agora, fuso);
   return (
     <Card testID={`catalogo-item-${item.erp_code}`} style={s.card}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Abrir ${item.description}`} onPress={onPress} style={({ pressed }) => [s.toque, pressed && { opacity: 0.7 }]}>
         <View style={s.linha}>
+          {miniatura ? <MiniaturaProduto produtoId={item.id} miniatura={miniatura} /> : null}
           <Text style={[t.title16, s.nome]} numberOfLines={2}>
             {item.description}
           </Text>
