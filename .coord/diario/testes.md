@@ -87,3 +87,4 @@
 2026-11-06 — T-0089 — S0-025: COERENCIA_DA_FK com pedido_forma_pagamento_fk e pedido_prazo_pagamento_fk (CHECK pedido_pagamento_completo da 0037); R-20261106-220831 encerrado
 2026-11-07 — T-0091 — conformidade da 0038 (sa_* só no macuxi_portal, pelo catálogo), teste de segurança PP-01..04 (app/worker 42501), API em dois pools DP-01..06 (espião de SQL, 503 sem portal) e SA-10d; apoio com bancoPortal
 2026-11-07 — T-0089 — 36 casos de API no CI (RN-VEN-24/25 no push e no orçamento, RN-VEN-13 com limite exato, retrato e aprovado@1 com pagamento, rotas de formas do Core e do Vendedor, permissões, licença, tenant) e 7 de renderização do Cliente 360 do BKO; matriz e roteiro do aparelho em docs/testes/T-0089.md
+2026-11-07 — T-0089 — pagamento-t0089: login do admin de B trocado para admin.b@exemplo.com.br (401 no CI 42348999781); demais logins conferidos na fixture dois-tenants

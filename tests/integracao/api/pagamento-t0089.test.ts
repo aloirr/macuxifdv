@@ -110,7 +110,7 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
     tk.analista = (await api.sessao('analista@exemplo.com.br')).access_token;
     tk.adminA = (await api.sessao('admin@exemplo.com.br')).access_token;
     tk.vendedorB = (await api.sessao('vendedor@exemplo.com.br', B)).access_token;
-    tk.adminB = (await api.sessao('admin@exemplo.com.br', B)).access_token;
+    tk.adminB = (await api.sessao('admin.b@exemplo.com.br', B)).access_token;
     prodA = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'ALFA-001'", [A.tenantId]))[0]!.id;
     prodB = (await q<{ id: string }>("select id from core.produto where tenant_id = $1 and sku = 'BETA-001'", [B.tenantId]))[0]!.id;
     await limpar();
