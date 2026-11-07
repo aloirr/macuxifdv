@@ -97,6 +97,11 @@ Antes de testar, saiba de três coisas:
 - **O APK de produção instala por cima do de preview,** porque os dois têm o mesmo pacote. No mesmo aparelho, não dá para ter a demo e a produção ao mesmo tempo.
 - **Os dados locais são separados por usuário,** então os da demo não se misturam com os da produção.
 
+**Formas de pagamento (T-0089, quando ela estiver no main):**
+- **Forma padrão:** todo tenant nasce com a forma "À vista", código `AVISTA`, prazo de 0 dias.
+- **Tenant que integra ERP:** o ERP precisa mandar as formas e os prazos, ou de-para para `AVISTA`. Sem isso, o pedido com essa forma fica **retido** na fila do ERP.
+- **Tenant que não integra:** cadastre as formas e os prazos no BKO, em Parâmetros → Formas de pagamento e prazos.
+
 **7. Ensaiar a restauração** depois do primeiro backup (06:15 UTC do dia seguinte): Actions → "producao — ensaio de restauração". Precisa do script do banco-dados na imagem publicada.
 
 ## 6. Como voltar atrás
