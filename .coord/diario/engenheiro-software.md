@@ -159,3 +159,4 @@
 2026-11-07 — T-0089 — Revisão final da I2 (modulo-integracao): 1 🔴 (exemplos do Conector sem COLLATE Latin1_General_BIN2/NLSSORT BINARY no desempate do cursor perdem linhas em empate de alterado_em), 2 🟡 (defesa no Conector; snippet no conector.md), resto 🟢; integracao e conector com lint/typecheck/test verdes (R-20261107-111409).
 2026-11-07 — T-0089 — I2: reconferido o 🔴 da colação do cursor (BIN2/NLSSORT/"C" nos exemplos, teste e conector.md); resolvido, fatia liberada; conector verde (260/11).
 2026-11-07 — T-0091 — banco-dbaas.sh: log do super-admin com a frase exata do grep do stack-isolado.yml (nota das internas em 2ª linha); demais greps conferidos; bash -n e funcoes-sa.test verdes.
+2026-11-07 — T-0091 — árvore local: demo-publicar.yml e stack-isolado.yml restaurados do HEAD (eram o inverso exato de ae492496); git status de .github/ vazio (R-20261107-125846).
