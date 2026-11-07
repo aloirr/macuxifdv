@@ -41,7 +41,9 @@ import { normalizeApiUrl } from '@/lib/api-url';
 import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
 import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
+import { textoDaVersao } from '@/lib/nome-build';
 import { textoDoResultado } from '@/lib/segundo-plano';
+import { varianteAtual } from '@/lib/variante';
 import { perfilBuildAtual } from '@/services/device';
 import { usePlataforma } from '@/state/plataforma';
 
@@ -59,6 +61,8 @@ export default function ProfileScreen() {
   // T-0008 P7: 7 toques seguidos na versão abrem o diagnóstico de carga (só nos builds de desenvolvimento e preview)
   const toques = useRef(criarContadorToques());
   const comDiagnostico = diagnosticoDisponivel(perfilBuildAtual());
+  // T-0109: a linha da versão é o nome do build (Campo-Demo-v1.0.0), o mesmo da mensagem do build no EAS e do APK
+  const versaoDoBuild = textoDaVersao(varianteAtual(), perfilBuildAtual(), Constants.expoConfig?.version);
 
   if (!sessao) return <Redirect href="/login" />;
   const tz = me?.tenant.timezone ?? sessao.tenant?.fuso ?? 'America/Manaus';
@@ -324,10 +328,10 @@ export default function ProfileScreen() {
 
       {comDiagnostico ? (
         <Pressable testID="versao-app" onPress={() => (toques.current.tocar(Date.now()) ? router.push('/diagnostico-carga') : undefined)} style={styles.versao}>
-          <Text style={t.small}>{`${Constants.expoConfig?.name ?? 'Macuxi'} · versão ${Constants.expoConfig?.version ?? '?'}`}</Text>
+          <Text style={t.small}>{versaoDoBuild}</Text>
         </Pressable>
       ) : (
-        <Text testID="versao-app" style={[t.small, styles.versao]}>{`${Constants.expoConfig?.name ?? 'Macuxi'} · versão ${Constants.expoConfig?.version ?? '?'}`}</Text>
+        <Text testID="versao-app" style={[t.small, styles.versao]}>{versaoDoBuild}</Text>
       )}
     </Screen>
   );

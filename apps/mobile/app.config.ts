@@ -15,9 +15,15 @@
  * decide se o login tem o campo Servidor (`src/lib/endereco-do-build.ts`). No dev o JS vem do Metro do PC: valem as
  * variáveis de quem roda o `expo start`.
  * Ícone por variante: hoje a mesma arte nas duas (a da Gestão é pendência de design); troca só aqui.
+ * Versão (T-0109): `version` vem de `scripts/eas/versao.json` (fonte única, igual nas duas variantes e em todos os
+ * perfis) e o `android.versionCode` é do EAS (`appVersionSource: remote` + `autoIncrement` no eas.json): sobe a cada
+ * build e nunca repete por pacote. Nome do build (`Campo-Demo-v1.0.0`) em `src/lib/nome-build.ts`.
  * Base copiada do app.json da Fase M.
  */
 import type { ConfigContext, ExpoConfig } from 'expo/config';
+
+// JSON e não import de src/: o Expo carrega este arquivo sem resolver import de .ts relativo
+import versaoDoArquivo from './scripts/eas/versao.json';
 
 type Variante = 'campo' | 'gestao';
 
@@ -41,6 +47,15 @@ const VARIANTES: Record<Variante, DadosVariante> = {
   gestao: { nome: 'Macuxi Gestão', pacote: 'br.com.macuxi.gestao', scheme: 'macuxigestao', ...ICONE_PADRAO },
 };
 
+/** `version` do app (X.Y.Z), de `scripts/eas/versao.json`; mesma regra de `versaoValida` em src/lib/nome-build.ts. */
+function versaoDoApp(): string {
+  const v: unknown = (versaoDoArquivo as { versao?: unknown }).versao;
+  if (typeof v !== 'string' || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(v)) {
+    throw new Error(`versão inválida em scripts/eas/versao.json: ${JSON.stringify(v)} (use X.Y.Z, por exemplo "1.0.0")`);
+  }
+  return v;
+}
+
 function variante(): Variante {
   const v = process.env.APP_VARIANT ?? 'campo';
   if (v !== 'campo' && v !== 'gestao') throw new Error(`APP_VARIANT inválida: ${v} (use campo ou gestao)`);
@@ -50,11 +65,12 @@ function variante(): Variante {
 export default ({ config }: ConfigContext): ExpoConfig => {
   const id = variante();
   const v = VARIANTES[id];
+  const versao = versaoDoApp();
   return {
     ...config,
     name: v.nome,
     slug: 'macuxi-fdv',
-    version: '1.0.0',
+    version: versao,
     orientation: 'portrait',
     icon: v.icone,
     scheme: v.scheme,
