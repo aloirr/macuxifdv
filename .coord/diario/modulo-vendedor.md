@@ -74,3 +74,5 @@
 2026-11-06 — T-0089 — 4 🟡 do designer-ux: largura UN|CX pelo kit, NO PEDIDO com a busca, prazo médio no cabeçalho, pendências antes do Avançar
 2026-11-06 — T-0089 — P5: preço mínimo só trava desconto (itemRespeitaPrecoMinimo) com teste; Leve mais conferido com faixas[]
 2026-11-06 — T-0089 — rótulo de navegação 'Formas de pagamento e prazos' alinhado entre web/index.ts e manifesto (shells voltam a montar)
+2026-11-07 — T-0090 — 5 🟡 da revisão de UX: resumo da busca com vendedor e etiqueta, chips A faturar/Em aberto voltam a Todos ao escolher período, Banner de aviso no sem sinal/erro, vazio sem sinal explicado, 'Remover filtro <nome>'.
+2026-11-07 — T-0090 — Banners de Pedidos: anunciar nos dois avisos e icon=alert no de erro; entrega também cobre os 5 amarelos anteriores; lint/typecheck/test 0
