@@ -51,6 +51,8 @@ export function classificarFalhaIa(erro: unknown): 'erro' | 'tempo_esgotado' {
 
 // ---------- avisos (português, com a ação seguinte) ----------
 export const AVISO_BUSCA_OFFLINE = 'A busca inteligente volta quando houver internet.';
+/** Aviso discreto da aba Catálogo enquanto o aparelho refaz o índice de busca (T-0088); a busca segue por varredura. */
+export const AVISO_CATALOGO_ORGANIZANDO = 'Organizando o catálogo no aparelho…';
 export const AVISO_BUSCA_FALHOU = 'A busca inteligente está indisponível agora. Mostramos a busca simples; tente de novo em instantes.';
 
 // ---------- validação e mesclagem ----------
