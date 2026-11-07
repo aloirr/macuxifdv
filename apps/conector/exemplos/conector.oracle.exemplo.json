@@ -15,29 +15,154 @@
     "paginacao": "offset",
     "timeoutSegundos": 30
   },
-  "segredos": { "provedor": "auto" },
-  "lote": { "maxLinhas": 5000, "maxBytes": 4194304, "maxLinhasInvalidas": 500 },
+  "segredos": {
+    "provedor": "auto"
+  },
+  "lote": {
+    "maxLinhas": 5000,
+    "maxBytes": 4194304,
+    "maxLinhasInvalidas": 500
+  },
   "entidades": {
     "cliente": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT codigo AS external_id, alterado_em, DECODE(ativo, 'S', 1, 0) AS ativo, razao_social, DECODE(bloqueado, 'S', 1, 0) AS bloqueado, limite_credito FROM macuxi.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY alterado_em, codigo",
+      "consulta": "SELECT external_id, alterado_em, ativo, razao_social, limite_credito_cents, bloqueado, prazo_medio_max_dias, formas_pagamento FROM macuxi.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
-        "ativo": { "coluna": "ativo", "transformar": "booleano" },
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
         "razao_social": "razao_social",
-        "bloqueado": { "coluna": "bloqueado", "transformar": "booleano" },
-        "limite_credito_cents": { "coluna": "limite_credito", "transformar": "centavos_de_decimal" }
+        "limite_credito_cents": {
+          "coluna": "limite_credito_cents",
+          "transformar": "inteiro"
+        },
+        "bloqueado": {
+          "coluna": "bloqueado",
+          "transformar": "booleano"
+        },
+        "prazo_medio_max_dias": {
+          "coluna": "prazo_medio_max_dias",
+          "transformar": "inteiro"
+        },
+        "formas_pagamento": {
+          "coluna": "formas_pagamento",
+          "transformar": "json"
+        }
       },
-      "linhasInvalidas": "enviar",
-      "reconciliacao": { "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM macuxi.vw_macuxi_cliente WHERE ativo = 'S'" }
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM macuxi.vw_macuxi_cliente WHERE ativo = 1"
+      }
     },
     "produto": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT codigo AS external_id, alterado_em, sku, nome, unidade FROM macuxi.vw_macuxi_produto WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY alterado_em, codigo",
-      "campos": { "external_id": "external_id", "alterado_em": "alterado_em", "sku": "sku", "nome": "nome", "unidade": "unidade" }
+      "consulta": "SELECT external_id, alterado_em, ativo, sku, nome, unidade FROM macuxi.vw_macuxi_produto WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "sku": "sku",
+        "nome": "nome",
+        "unidade": "unidade"
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM macuxi.vw_macuxi_produto WHERE ativo = 1"
+      }
+    },
+    "forma_pagamento": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT external_id, alterado_em, ativo, codigo, nome, ordem FROM macuxi.vw_macuxi_forma_pagamento WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "codigo": "codigo",
+        "nome": "nome",
+        "ordem": {
+          "coluna": "ordem",
+          "transformar": "inteiro"
+        }
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM macuxi.vw_macuxi_forma_pagamento WHERE ativo = 1"
+      }
+    },
+    "prazo_pagamento": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT external_id, alterado_em, ativo, forma_external_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ordem FROM macuxi.vw_macuxi_prazo_pagamento WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "forma_external_id": "forma_external_id",
+        "codigo": "codigo",
+        "descricao": "descricao",
+        "parcelas_dias": {
+          "coluna": "parcelas_dias",
+          "transformar": "json"
+        },
+        "prazo_medio_dias": {
+          "coluna": "prazo_medio_dias",
+          "transformar": "inteiro"
+        },
+        "ordem": {
+          "coluna": "ordem",
+          "transformar": "inteiro"
+        }
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM macuxi.vw_macuxi_prazo_pagamento WHERE ativo = 1"
+      }
+    },
+    "tabela_escalonada": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT external_id, alterado_em, ativo, produto_external_id, medida, quantidade_minima, preco_unidade_cents, vigencia_inicio, vigencia_fim, tabela_external_id FROM macuxi.vw_macuxi_tabela_escalonada WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND NLSSORT(external_id, 'NLS_SORT=BINARY') > NLSSORT(:cursor_external_id, 'NLS_SORT=BINARY')) ORDER BY alterado_em, NLSSORT(external_id, 'NLS_SORT=BINARY')",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "produto_external_id": "produto_external_id",
+        "medida": "medida",
+        "quantidade_minima": {
+          "coluna": "quantidade_minima",
+          "transformar": "inteiro"
+        },
+        "preco_unidade_cents": {
+          "coluna": "preco_unidade_cents",
+          "transformar": "inteiro"
+        },
+        "vigencia_inicio": {
+          "coluna": "vigencia_inicio",
+          "transformar": "data_civil"
+        },
+        "vigencia_fim": {
+          "coluna": "vigencia_fim",
+          "transformar": "data_civil"
+        },
+        "tabela_external_id": "tabela_external_id"
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM macuxi.vw_macuxi_tabela_escalonada WHERE ativo = 1"
+      }
     }
   },
   "pedidos": {
@@ -53,7 +178,13 @@
     "status": {
       "consulta": "SELECT situacao AS status, TO_CHAR(numero) AS numero_erp, motivo, nota_numero, nota_serie, nota_emitida_em, nota_total_cents, atualizado_em AS ocorrido_em FROM macuxi.vw_macuxi_pedido_status WHERE pedido_uuid = :pedido_uuid",
       "consultaItensNota": "SELECT sequencia, quantidade, valor_cents, produto_codigo AS produto_external_id FROM macuxi.vw_macuxi_nota_item WHERE pedido_uuid = :pedido_uuid AND nota_numero = :nota_numero AND NVL(nota_serie, ' ') = NVL(:nota_serie, ' ')",
-      "mapaStatus": { "I": "integrado", "R": "rejeitado_erp", "P": "faturado_parcial", "F": "faturado_total", "C": "cancelado" }
+      "mapaStatus": {
+        "I": "integrado",
+        "R": "rejeitado_erp",
+        "P": "faturado_parcial",
+        "F": "faturado_total",
+        "C": "cancelado"
+      }
     }
   }
 }

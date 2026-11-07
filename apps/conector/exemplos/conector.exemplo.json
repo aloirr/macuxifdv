@@ -47,7 +47,7 @@
     "vendedor": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT TOP (:limite) codigo AS external_id, alterado_em, ativo, nome, email, telefone FROM dbo.vw_macuxi_vendedor WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY alterado_em, codigo",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, nome, email, telefone FROM dbo.vw_macuxi_vendedor WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -63,10 +63,110 @@
         "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_vendedor WHERE ativo = 1"
       }
     },
+    "catalogo_no": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, codigo, nome, pai_external_id, nivel, ordem FROM dbo.vw_macuxi_catalogo_no WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "codigo": "codigo",
+        "nome": "nome",
+        "pai_external_id": "pai_external_id",
+        "nivel": {
+          "coluna": "nivel",
+          "transformar": "inteiro"
+        },
+        "ordem": {
+          "coluna": "ordem",
+          "transformar": "inteiro"
+        }
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_catalogo_no WHERE ativo = 1"
+      }
+    },
+    "transportadora": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, nome, documento, inscricao_estadual, telefone FROM dbo.vw_macuxi_transportadora WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "nome": "nome",
+        "documento": "documento",
+        "inscricao_estadual": "inscricao_estadual",
+        "telefone": "telefone"
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_transportadora WHERE ativo = 1"
+      }
+    },
+    "forma_pagamento": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, codigo, nome, ordem FROM dbo.vw_macuxi_forma_pagamento WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "codigo": "codigo",
+        "nome": "nome",
+        "ordem": {
+          "coluna": "ordem",
+          "transformar": "inteiro"
+        }
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_forma_pagamento WHERE ativo = 1"
+      }
+    },
+    "prazo_pagamento": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, forma_external_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ordem FROM dbo.vw_macuxi_prazo_pagamento WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "forma_external_id": "forma_external_id",
+        "codigo": "codigo",
+        "descricao": "descricao",
+        "parcelas_dias": {
+          "coluna": "parcelas_dias",
+          "transformar": "json"
+        },
+        "prazo_medio_dias": {
+          "coluna": "prazo_medio_dias",
+          "transformar": "inteiro"
+        },
+        "ordem": {
+          "coluna": "ordem",
+          "transformar": "inteiro"
+        }
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_prazo_pagamento WHERE ativo = 1"
+      }
+    },
     "produto": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT TOP (:limite) codigo AS external_id, alterado_em, ativo, sku, ean, nome, marca, categoria, unidade FROM dbo.vw_macuxi_produto WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY alterado_em, codigo",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, sku, ean, nome, marca, categoria, unidade, embalagem_medida, embalagem_quantidade, catalogo_no_external_id, custo_cents, preco_venda_cents, desconto_maximo_pct, aplicacao, referencias, oferece_junto, etiquetas FROM dbo.vw_macuxi_produto WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -79,16 +179,74 @@
         "nome": "nome",
         "marca": "marca",
         "categoria": "categoria",
-        "unidade": "unidade"
+        "unidade": "unidade",
+        "embalagem_medida": "embalagem_medida",
+        "embalagem_quantidade": {
+          "coluna": "embalagem_quantidade",
+          "transformar": "inteiro"
+        },
+        "catalogo_no_external_id": "catalogo_no_external_id",
+        "custo_cents": {
+          "coluna": "custo_cents",
+          "transformar": "inteiro"
+        },
+        "preco_venda_cents": {
+          "coluna": "preco_venda_cents",
+          "transformar": "inteiro"
+        },
+        "desconto_maximo_pct": {
+          "coluna": "desconto_maximo_pct",
+          "transformar": "numero"
+        },
+        "aplicacao": "aplicacao",
+        "referencias": {
+          "coluna": "referencias",
+          "transformar": "json"
+        },
+        "oferece_junto": {
+          "coluna": "oferece_junto",
+          "transformar": "json"
+        },
+        "etiquetas": {
+          "coluna": "etiquetas",
+          "transformar": "json"
+        }
       },
       "reconciliacao": {
         "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_produto WHERE ativo = 1"
       }
     },
+    "produto_unidade": {
+      "ativa": true,
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, produto_external_id, unidade, fator, ean, padrao FROM dbo.vw_macuxi_produto_unidade WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "produto_external_id": "produto_external_id",
+        "unidade": "unidade",
+        "fator": {
+          "coluna": "fator",
+          "transformar": "inteiro"
+        },
+        "ean": "ean",
+        "padrao": {
+          "coluna": "padrao",
+          "transformar": "booleano"
+        }
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_produto_unidade WHERE ativo = 1"
+      }
+    },
     "cliente": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT TOP (:limite) codigo AS external_id, alterado_em, ativo, razao_social, nome_fantasia, documento, vendedor_codigo, logradouro, numero, bairro, cidade, uf, cep, latitude, longitude, telefone, email, limite_credito, bloqueado, contatos_json FROM dbo.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY alterado_em, codigo",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, razao_social, nome_fantasia, documento, vendedor_external_id, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_uf, endereco_cep, latitude, longitude, telefone, email, limite_credito_cents, inscricao_estadual, observacao, bloqueado, contatos, prazo_medio_max_dias, formas_pagamento FROM dbo.vw_macuxi_cliente WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -99,13 +257,14 @@
         "razao_social": "razao_social",
         "nome_fantasia": "nome_fantasia",
         "documento": "documento",
-        "vendedor_external_id": "vendedor_codigo",
-        "endereco.logradouro": "logradouro",
-        "endereco.numero": "numero",
-        "endereco.bairro": "bairro",
-        "endereco.cidade": "cidade",
-        "endereco.uf": "uf",
-        "endereco.cep": "cep",
+        "vendedor_external_id": "vendedor_external_id",
+        "endereco.logradouro": "endereco_logradouro",
+        "endereco.numero": "endereco_numero",
+        "endereco.complemento": "endereco_complemento",
+        "endereco.bairro": "endereco_bairro",
+        "endereco.cidade": "endereco_cidade",
+        "endereco.uf": "endereco_uf",
+        "endereco.cep": "endereco_cep",
         "latitude": {
           "coluna": "latitude",
           "transformar": "numero"
@@ -117,15 +276,25 @@
         "telefone": "telefone",
         "email": "email",
         "limite_credito_cents": {
-          "coluna": "limite_credito",
-          "transformar": "centavos_de_decimal"
+          "coluna": "limite_credito_cents",
+          "transformar": "inteiro"
         },
+        "inscricao_estadual": "inscricao_estadual",
+        "observacao": "observacao",
         "bloqueado": {
           "coluna": "bloqueado",
           "transformar": "booleano"
         },
         "contatos": {
-          "coluna": "contatos_json",
+          "coluna": "contatos",
+          "transformar": "json"
+        },
+        "prazo_medio_max_dias": {
+          "coluna": "prazo_medio_max_dias",
+          "transformar": "inteiro"
+        },
+        "formas_pagamento": {
+          "coluna": "formas_pagamento",
           "transformar": "json"
         }
       },
@@ -133,10 +302,10 @@
         "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_cliente WHERE ativo = 1"
       }
     },
-    "preco": {
+    "cliente_endereco": {
       "ativa": true,
-      "periodicidadeSegundos": 900,
-      "consulta": "SELECT TOP (:limite) chave AS external_id, alterado_em, ativo, tabela_codigo, tabela_nome, vigencia_inicio, vigencia_fim, produto_codigo, preco FROM dbo.vw_macuxi_preco WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND chave > :cursor_external_id) ORDER BY alterado_em, chave",
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, cliente_external_id, tipo, descricao, logradouro, numero, complemento, bairro, cidade, uf, cep, latitude, longitude, principal FROM dbo.vw_macuxi_cliente_endereco WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -144,7 +313,45 @@
           "coluna": "ativo",
           "transformar": "booleano"
         },
-        "tabela_external_id": "tabela_codigo",
+        "cliente_external_id": "cliente_external_id",
+        "tipo": "tipo",
+        "descricao": "descricao",
+        "logradouro": "logradouro",
+        "numero": "numero",
+        "complemento": "complemento",
+        "bairro": "bairro",
+        "cidade": "cidade",
+        "uf": "uf",
+        "cep": "cep",
+        "latitude": {
+          "coluna": "latitude",
+          "transformar": "numero"
+        },
+        "longitude": {
+          "coluna": "longitude",
+          "transformar": "numero"
+        },
+        "principal": {
+          "coluna": "principal",
+          "transformar": "booleano"
+        }
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_cliente_endereco WHERE ativo = 1"
+      }
+    },
+    "preco": {
+      "ativa": true,
+      "periodicidadeSegundos": 900,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, tabela_external_id, tabela_nome, vigencia_inicio, vigencia_fim, produto_external_id, preco_cents, unidade FROM dbo.vw_macuxi_preco WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "tabela_external_id": "tabela_external_id",
         "tabela_nome": "tabela_nome",
         "vigencia_inicio": {
           "coluna": "vigencia_inicio",
@@ -154,20 +361,21 @@
           "coluna": "vigencia_fim",
           "transformar": "data_civil"
         },
-        "produto_external_id": "produto_codigo",
+        "produto_external_id": "produto_external_id",
         "preco_cents": {
-          "coluna": "preco",
-          "transformar": "centavos_de_decimal"
-        }
+          "coluna": "preco_cents",
+          "transformar": "inteiro"
+        },
+        "unidade": "unidade"
       },
       "reconciliacao": {
-        "consulta": "SELECT COUNT(*) AS contagem, CAST(ROUND(SUM(preco) * 100, 0) AS bigint) AS soma FROM dbo.vw_macuxi_preco WHERE ativo = 1"
+        "consulta": "SELECT COUNT(*) AS contagem, CAST(SUM(preco_cents) AS bigint) AS soma FROM dbo.vw_macuxi_preco WHERE ativo = 1"
       }
     },
-    "estoque": {
+    "tabela_escalonada": {
       "ativa": true,
-      "periodicidadeSegundos": 600,
-      "consulta": "SELECT TOP (:limite) chave AS external_id, alterado_em, ativo, deposito_codigo, deposito_nome, produto_codigo, saldo FROM dbo.vw_macuxi_estoque WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND chave > :cursor_external_id) ORDER BY alterado_em, chave",
+      "periodicidadeSegundos": 3600,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, produto_external_id, medida, quantidade_minima, preco_unidade_cents, vigencia_inicio, vigencia_fim, tabela_external_id FROM dbo.vw_macuxi_tabela_escalonada WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -175,9 +383,44 @@
           "coluna": "ativo",
           "transformar": "booleano"
         },
-        "deposito_external_id": "deposito_codigo",
+        "produto_external_id": "produto_external_id",
+        "medida": "medida",
+        "quantidade_minima": {
+          "coluna": "quantidade_minima",
+          "transformar": "inteiro"
+        },
+        "preco_unidade_cents": {
+          "coluna": "preco_unidade_cents",
+          "transformar": "inteiro"
+        },
+        "vigencia_inicio": {
+          "coluna": "vigencia_inicio",
+          "transformar": "data_civil"
+        },
+        "vigencia_fim": {
+          "coluna": "vigencia_fim",
+          "transformar": "data_civil"
+        },
+        "tabela_external_id": "tabela_external_id"
+      },
+      "reconciliacao": {
+        "consulta": "SELECT COUNT(*) AS contagem, NULL AS soma FROM dbo.vw_macuxi_tabela_escalonada WHERE ativo = 1"
+      }
+    },
+    "estoque": {
+      "ativa": true,
+      "periodicidadeSegundos": 600,
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, deposito_external_id, deposito_nome, produto_external_id, saldo FROM dbo.vw_macuxi_estoque WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
+      "campos": {
+        "external_id": "external_id",
+        "alterado_em": "alterado_em",
+        "ativo": {
+          "coluna": "ativo",
+          "transformar": "booleano"
+        },
+        "deposito_external_id": "deposito_external_id",
         "deposito_nome": "deposito_nome",
-        "produto_external_id": "produto_codigo",
+        "produto_external_id": "produto_external_id",
         "saldo": {
           "coluna": "saldo",
           "transformar": "numero"
@@ -190,7 +433,7 @@
     "rota": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT TOP (:limite) codigo AS external_id, alterado_em, ativo, nome, vendedor_codigo, dia_semana, paradas_json FROM dbo.vw_macuxi_rota WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo > :cursor_external_id) ORDER BY alterado_em, codigo",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, nome, vendedor_external_id, dia_semana, paradas FROM dbo.vw_macuxi_rota WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -199,13 +442,13 @@
           "transformar": "booleano"
         },
         "nome": "nome",
-        "vendedor_external_id": "vendedor_codigo",
+        "vendedor_external_id": "vendedor_external_id",
         "dia_semana": {
           "coluna": "dia_semana",
           "transformar": "inteiro"
         },
         "paradas": {
-          "coluna": "paradas_json",
+          "coluna": "paradas",
           "transformar": "json"
         }
       },
@@ -216,7 +459,7 @@
     "titulo": {
       "ativa": true,
       "periodicidadeSegundos": 3600,
-      "consulta": "SELECT TOP (:limite) chave AS external_id, alterado_em, ativo, cliente_codigo, numero, parcela, emissao, vencimento, valor, saldo, situacao, baixado_em FROM dbo.vw_macuxi_titulo WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND chave > :cursor_external_id) ORDER BY alterado_em, chave",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, cliente_external_id, numero, parcela, emissao, vencimento, valor_cents, saldo_cents, situacao, baixado_em FROM dbo.vw_macuxi_titulo WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -224,7 +467,7 @@
           "coluna": "ativo",
           "transformar": "booleano"
         },
-        "cliente_external_id": "cliente_codigo",
+        "cliente_external_id": "cliente_external_id",
         "numero": "numero",
         "parcela": {
           "coluna": "parcela",
@@ -239,12 +482,12 @@
           "transformar": "data_civil"
         },
         "valor_cents": {
-          "coluna": "valor",
-          "transformar": "centavos_de_decimal"
+          "coluna": "valor_cents",
+          "transformar": "inteiro"
         },
         "saldo_cents": {
-          "coluna": "saldo",
-          "transformar": "centavos_de_decimal"
+          "coluna": "saldo_cents",
+          "transformar": "inteiro"
         },
         "situacao": "situacao",
         "baixado_em": {
@@ -253,13 +496,13 @@
         }
       },
       "reconciliacao": {
-        "consulta": "SELECT COUNT(*) AS contagem, CAST(ROUND(SUM(saldo) * 100, 0) AS bigint) AS soma FROM dbo.vw_macuxi_titulo WHERE ativo = 1"
+        "consulta": "SELECT COUNT(*) AS contagem, CAST(SUM(saldo_cents) AS bigint) AS soma FROM dbo.vw_macuxi_titulo WHERE ativo = 1"
       }
     },
     "nota": {
       "ativa": true,
       "periodicidadeSegundos": 900,
-      "consulta": "SELECT TOP (:limite) chave AS external_id, alterado_em, ativo, cliente_codigo, vendedor_codigo, tipo, numero, serie, emitida_em, total, quantidade_itens, pedido_uuid, cancelada FROM dbo.vw_macuxi_nota WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND chave > :cursor_external_id) ORDER BY alterado_em, chave",
+      "consulta": "SELECT TOP (:limite) external_id, alterado_em, ativo, cliente_external_id, vendedor_external_id, tipo, numero, serie, emitida_em, total_cents, quantidade_itens, pedido_uuid, cancelada FROM dbo.vw_macuxi_nota WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND external_id COLLATE Latin1_General_BIN2 > :cursor_external_id) ORDER BY alterado_em, external_id COLLATE Latin1_General_BIN2",
       "campos": {
         "external_id": "external_id",
         "alterado_em": "alterado_em",
@@ -267,8 +510,8 @@
           "coluna": "ativo",
           "transformar": "booleano"
         },
-        "cliente_external_id": "cliente_codigo",
-        "vendedor_external_id": "vendedor_codigo",
+        "cliente_external_id": "cliente_external_id",
+        "vendedor_external_id": "vendedor_external_id",
         "tipo": "tipo",
         "numero": "numero",
         "serie": "serie",
@@ -277,8 +520,8 @@
           "transformar": "data_hora_utc"
         },
         "total_cents": {
-          "coluna": "total",
-          "transformar": "centavos_de_decimal"
+          "coluna": "total_cents",
+          "transformar": "inteiro"
         },
         "quantidade_itens": {
           "coluna": "quantidade_itens",
@@ -291,7 +534,7 @@
         }
       },
       "reconciliacao": {
-        "consulta": "SELECT COUNT(*) AS contagem, CAST(ROUND(SUM(total) * 100, 0) AS bigint) AS soma FROM dbo.vw_macuxi_nota WHERE ativo = 1"
+        "consulta": "SELECT COUNT(*) AS contagem, CAST(SUM(total_cents) AS bigint) AS soma FROM dbo.vw_macuxi_nota WHERE ativo = 1"
       }
     }
   },

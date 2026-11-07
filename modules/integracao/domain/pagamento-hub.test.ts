@@ -9,7 +9,7 @@ import { validarLinhas } from './idempotencia';
 import { siglasDeMedidaDoRegistro, verificarMedidas } from './medidas';
 import { DEPENDENCIAS, ordenarCarga, referenciasDoRegistro, verificarReferencias } from './ordem';
 import { avisoPrazoMedioDivergente, prazoMedioCalculado } from './pagamento';
-import { montarPedidoParaErp, montarSnapshotParaFila } from './pedido-fila';
+import { decidirEntradaNaFila, montarPedidoParaErp, montarSnapshotParaFila, selecionarPendentes } from './pedido-fila';
 import { exigeConector } from './pedido-versao';
 import { ordemDeCargaDoPortal } from './portal-carga';
 
@@ -168,6 +168,17 @@ describe('RN-INT-08 / RN-VEN-24: pedido novo ao ERP leva forma, prazo e prazo mÃ
     expect(com.ok && com.pedido.pagamento?.prazo_medio_dias).toBe(42);
     const sem = montarPedidoParaErp(origem({ condicao_pagamento_codigo: '28-56', pagamento: semChave }), []);
     expect(sem).toMatchObject({ ok: false, codigo: 'mapeamento_ausente' });
+  });
+
+  it('RN-INT-08: o pedido aprovado entra na fila (criar) com condicao_pagamento_erp e pagamento, e sai em /pedidos/pendentes com os dois', () => {
+    const d = decidirEntradaNaFila({ existente: null, statusPedido: 'aprovado', snapshot: origem({ condicao_pagamento_codigo: '28-56', pagamento }), mapeamentos: [] });
+    expect(d.acao).toBe('criar');
+    if (d.acao !== 'criar') return;
+    expect(d.pedido).toMatchObject({ condicao_pagamento_erp: 'PZ-2856', pagamento: { forma_codigo: 'BOLETO', parcelas_dias: [28, 56], prazo_medio_dias: 42 } });
+    const fila = [{ pedido_uuid: UUID, estado: 'pendente' as const, tentativas: 0, enviado_em: null, removido_em: null, retencao_codigo: null, payload: d.pedido }];
+    const s = selecionarPendentes(fila as unknown as Parameters<typeof selecionarPendentes>[0], T);
+    expect(s.entregar).toHaveLength(1);
+    expect(s.entregar[0]).toMatchObject({ condicao_pagamento_erp: 'PZ-2856', pagamento: { prazo_external_id: 'PZ-2856' } });
   });
 
   it('pedido antigo (sem pagamento) sai sem a chave e com o mesmo payload de antes', () => {

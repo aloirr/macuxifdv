@@ -261,7 +261,7 @@ describe('RN-INT-09: política de versão do Conector e chave por Conector (adit
     const sinal = { conector_id: 'cnx-1', versao_conector: '1.1.0', versao_contrato: 'v1', em: '2026-10-31T10:00:00Z', fila: [], entidades: [] };
     expect(SinalConector.safeParse(sinal).success).toBe(true);
     expect(SinalConector.safeParse({ ...sinal, versao_conector: 'abc' }).success).toBe(false);
-    const chave = { conector_id: 'cnx-1', tenant_id: UUID, escopo: 'integracao.v1', chave: 'x'.repeat(40), prefixo: 'mxk_1234', criada_em: '2026-10-31T10:00:00Z' };
+    const chave = { conector_id: 'cnx-1', tenant_id: UUID, escopo: 'integracao.v1', chave: 'x'.repeat(40), prefixo: 'mxc_1234', criada_em: '2026-10-31T10:00:00Z' };
     expect(ChaveConectorCriada.safeParse(chave).success).toBe(true);
     expect(ChaveConectorCriada.safeParse({ ...chave, escopo: 'api.tudo' }).success).toBe(false);
   });

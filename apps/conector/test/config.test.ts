@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ErroConfig, interpretarConfig } from '../src/config/carregar';
+import { ORDEM_CARGA } from '../src/config/entidades';
 import { parametrosDaConsulta, trocarParametros } from '../src/config/esquema';
 
 const exemplo = join(__dirname, '..', 'exemplos', 'conector.exemplo.json');
@@ -13,9 +14,9 @@ const base = () => JSON.parse(readFileSync(exemplo, 'utf8')) as { erp: Record<st
 const interpretar = (o: unknown) => interpretarConfig(JSON.stringify(o), 'json');
 
 describe('configuração: arquivo de exemplo e validação', () => {
-  it('o exemplo de ERP genérico (SQL Server) é válido e cobre as 8 entidades do contrato', () => {
+  it('o exemplo de ERP genérico (SQL Server) é válido e cobre as 15 entidades do contrato', () => {
     const cfg = interpretar(base());
-    expect(Object.keys(cfg.entidades).sort()).toEqual(['cliente', 'estoque', 'nota', 'preco', 'produto', 'rota', 'titulo', 'vendedor']);
+    expect(Object.keys(cfg.entidades).sort()).toEqual([...ORDEM_CARGA].sort());
     expect(cfg.erp.tipo).toBe('sqlserver');
     expect(cfg.pedidos?.gravacao.numeroErp).toContain(':pedido_uuid');
   });

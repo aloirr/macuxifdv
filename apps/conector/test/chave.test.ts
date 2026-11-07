@@ -10,8 +10,8 @@ import { validarFormatoChave } from '../src/segredos/chave';
 import { ProvedorEnv, Segredos, type ExecutarPowerShell } from '../src/segredos/provedores';
 import { HubFalso } from './suporte/hub-falso';
 
-const CHAVE_ANTIGA = 'mxk_antiga_0123456789abcdef0123';
-const CHAVE_NOVA = 'mxk_nova_ABCDEFGHIJKLMNOP9876543210';
+const CHAVE_ANTIGA = 'mxc_antiga_0123456789abcdef0123';
+const CHAVE_NOVA = 'mxc_nova_ABCDEFGHIJKLMNOP9876543210';
 
 let hub: HubFalso;
 let dir = '';
@@ -98,7 +98,7 @@ describe('conector trocar-chave', () => {
 
   it('o Hub recusa a chave: NADA é gravado, a atual continua valendo e a mensagem diz o que conferir', async () => {
     const arquivo = arquivoConfig();
-    const ruim = 'mxk_chave_que_o_hub_nao_conhece_99';
+    const ruim = 'mxc_chave_que_o_hub_nao_conhece_99';
     const a = es(ruim);
     expect(await executarCli(['trocar-chave', '--config', arquivo], a.io)).toBe(1);
     expect(a.powershell).toHaveLength(0);
