@@ -7,8 +7,8 @@ import { anotarLinhaDoArquivo } from './carga-arquivo';
 import { validarLinhas } from './idempotencia';
 import { DEPENDENCIAS, ordenarCarga } from './ordem';
 
-/** Ordem dos cartões do portal (RN-INT-04): árvore, produtos, unidades, preços, estoque, clientes, endereços, transportadoras, rotas, títulos, notas. */
-const ORDEM_PORTAL: readonly Entidade[] = ['vendedor', 'catalogo_no', 'produto', 'produto_unidade', 'preco', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
+/** Ordem dos cartões do portal (RN-INT-04): árvore, formas, prazos, produtos, unidades, preços, faixas escalonadas, estoque, clientes, endereços, transportadoras, rotas, títulos, notas. */
+const ORDEM_PORTAL: readonly Entidade[] = ['vendedor', 'catalogo_no', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
 
 /** Podem ficar para depois: a operação do vendedor não depende delas. */
 export const ENTIDADES_OPCIONAIS_CARGA: readonly Entidade[] = ['titulo', 'nota'];

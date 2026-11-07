@@ -77,6 +77,20 @@ export const EnderecoEntregaErp = z.object({
 });
 export type EnderecoEntregaErp = z.infer<typeof EnderecoEntregaErp>;
 
+/**
+ * T-0089 (RN-VEN-24, aditivo no v1): forma, prazo e prazo médio do pedido novo. Ausente/nulo nos pedidos antigos (o Conector 1.2.x ignora).
+ * Os `*_external_id` são as chaves do ERP das linhas do próprio Vendedor (podem faltar quando a forma/prazo não veio do ERP).
+ */
+export const PagamentoErp = z.object({
+  forma_codigo: Texto(20),
+  forma_external_id: ExternalId.nullish(),
+  prazo_codigo: Texto(20),
+  prazo_external_id: ExternalId.nullish(),
+  parcelas_dias: z.array(z.number().int().min(0).max(365)).min(1).max(24),
+  prazo_medio_dias: z.number().int().min(0).max(365),
+});
+export type PagamentoErp = z.infer<typeof PagamentoErp>;
+
 /** Campos opcionais do pedido (ADR 0016), comuns ao que o Vendedor publica e ao que o Conector recebe. */
 const CamposPedidoAmpliado = {
   desconto_pct: PercentualOpcional,
@@ -84,6 +98,7 @@ const CamposPedidoAmpliado = {
   acrescimo_total_cents: CentavosNaoNegativos.nullish(),
   frete: FreteErp.nullish(),
   endereco_entrega: EnderecoEntregaErp.nullish(),
+  pagamento: PagamentoErp.nullish(),
 };
 
 /** Pedido aprovado entregue ao Conector; idempotente pelo `pedido_uuid` (RN-INT-08). */

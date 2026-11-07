@@ -86,7 +86,7 @@ describe('RN-INT-04: reprocessar quem dependia de uma entidade', () => {
   it('RN-INT-04: quando vendedor conclui, reprocessam-se as linhas referencia_ausente de cliente, rota e nota; produto, de preço e estoque', () => {
     expect(dependentesDe('vendedor').sort()).toEqual(['cliente', 'nota', 'rota']);
     expect(dependentesDe('cliente').sort()).toEqual(['cliente_endereco', 'nota', 'rota', 'titulo']);
-    expect(dependentesDe('produto').sort()).toEqual(['estoque', 'preco', 'produto_unidade']);
+    expect(dependentesDe('produto').sort()).toEqual(['estoque', 'preco', 'produto_unidade', 'tabela_escalonada']);
     expect(dependentesDe('rota')).toEqual([]);
   });
 });
@@ -94,13 +94,13 @@ describe('RN-INT-04: reprocessar quem dependia de uma entidade', () => {
 describe('RN-INT-04/06: resultado da carga por entidade (monitor)', () => {
   const c = (extra = {}) => ({ recebidas: 10, com_erro: 0, novas: 10, atualizadas: 0, inalteradas: 0, ...extra });
 
-  it('RN-INT-04: devolve as 12 entidades (8 originais + 4 da T-0061) na ordem de dependência, com estado e quem ainda está pendente', () => {
+  it('RN-INT-04: devolve as 15 entidades (8 originais + 4 da T-0061 + 3 da T-0089) na ordem de dependência, com estado e quem ainda está pendente', () => {
     const r = resumirCargaPorEntidade([
       { entidade: 'vendedor', status: 'concluido', contagens: c() },
       { entidade: 'cliente', status: 'processando', contagens: c({ recebidas: 0 }) },
       { entidade: 'rota', status: 'recebido', contagens: c({ recebidas: 0 }) },
     ]);
-    expect(r).toHaveLength(12);
+    expect(r).toHaveLength(15);
     const por = Object.fromEntries(r.map((x) => [x.entidade, x]));
     expect(por.vendedor).toMatchObject({ estado: 'concluida', lotes: 1, recebidas: 10 });
     expect(por.cliente?.estado).toBe('em_andamento');
