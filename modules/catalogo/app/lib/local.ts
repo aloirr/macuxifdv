@@ -283,6 +283,8 @@ export async function contextoLocal(leitor: LeitorLocal, e: EntradaLocal, produt
 export interface ResultadoLocal extends PaginaProdutos {
   /** Aviso discreto (sem sinal: a busca inteligente volta com a internet). */
   aviso: string | null;
+  /** O FTS5 está sendo refeito: a busca varreu o catálogo; a aba mostra `AVISO_CATALOGO_ORGANIZANDO` (a C9 não mostra). */
+  indexando?: boolean;
 }
 
 /** Tamanhos de prefixo tentados quando o termo inteiro não acha nada (erro de digitação perto do fim da palavra). */
@@ -294,20 +296,26 @@ interface Consultado {
   certo: boolean;
 }
 
-async function consultar(leitor: LeitorLocal, consulta: ConsultaTexto): Promise<Consultado> {
+/** Sinal de que o SDK respondeu `indexando` (o índice FTS5 está sendo refeito); a busca varre e a aba avisa (T-0088). */
+export interface SinalIndexacao {
+  indexando: boolean;
+}
+
+async function consultar(leitor: LeitorLocal, consulta: ConsultaTexto, sinal?: SinalIndexacao): Promise<Consultado> {
   if (leitor.buscarComDesfecho) {
     const d = await leitor.buscarComDesfecho(ID_INDICE_BUSCA, consulta);
+    if (!d.buscou && d.motivo === 'indexando' && sinal) sinal.indexando = true;
     return d.buscou ? { lista: d.resultados, certo: true } : { lista: [], certo: false };
   }
   return { lista: (await leitor.buscar!(ID_INDICE_BUSCA, consulta)) ?? [], certo: false };
 }
 
-async function porPrefixo(leitor: LeitorLocal, grupo: readonly string[]): Promise<Consultado> {
+async function porPrefixo(leitor: LeitorLocal, grupo: readonly string[], sinal?: SinalIndexacao): Promise<Consultado> {
   let certo = true;
   for (const n of PREFIXOS_TOLERANTES) {
     const prefixos = [...new Set(grupo.filter((t) => t.length > n).map((t) => t.slice(0, n)))];
     if (prefixos.length === 0) continue;
-    const r = await consultar(leitor, { grupos: [prefixos], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
+    const r = await consultar(leitor, { grupos: [prefixos], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO }, sinal);
     certo &&= r.certo;
     if (r.lista.length > 0) return r;
   }
@@ -326,6 +334,7 @@ export async function preselecionar(
   codigo: string | null,
   sinonimos: readonly SinonimoDoTenant[],
   total: number,
+  sinal?: SinalIndexacao,
 ): Promise<Set<string> | null> {
   if (total <= LIMIAR_PRESELECAO_FTS || !(leitor.buscar || leitor.buscarComDesfecho)) return null;
   const grupos = expandirSinonimos(texto, sinonimos);
@@ -334,17 +343,17 @@ export async function preselecionar(
   // 1º todos os termos juntos (AND, uma consulta só: ~25 ms contra ~36 ms por termo comum); só cai na união termo a termo
   // quando o AND traz menos que o necessário. Quem casa todos os termos já vem primeiro no ranking do domain.
   if (grupos.length > 1) {
-    const juntos = await consultar(leitor, { grupos: grupos.slice(0, 8), prefixoNoUltimo: true, limite: MAXIMO_CANDIDATOS });
+    const juntos = await consultar(leitor, { grupos: grupos.slice(0, 8), prefixoNoUltimo: true, limite: MAXIMO_CANDIDATOS }, sinal);
     if (juntos.lista.length >= CANDIDATOS_POR_TERMO) return new Set(juntos.lista.slice(0, MAXIMO_CANDIDATOS).map((x) => x.chave));
   }
   const achados = new Map<string, { termos: number; melhor: number }>();
   let tudoCerto = true;
   for (const grupo of grupos.slice(0, 8)) {
-    let r = await consultar(leitor, { grupos: [grupo], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO });
+    let r = await consultar(leitor, { grupos: [grupo], prefixoNoUltimo: true, limite: CANDIDATOS_POR_TERMO }, sinal);
     // sem acerto = provável erro de digitação (T-0052, caso lento): o prefixo do termo aproxima a tolerância do domain
     // sem cair na varredura de todo o catálogo
     tudoCerto &&= r.certo;
-    if (r.lista.length === 0) r = await porPrefixo(leitor, grupo);
+    if (r.lista.length === 0) r = await porPrefixo(leitor, grupo, sinal);
     tudoCerto &&= r.certo;
     r.lista.forEach((x, posicao) => {
       const a = achados.get(x.chave);
@@ -364,11 +373,12 @@ export async function buscarLocal(leitor: LeitorLocal, e: EntradaLocal & { q: st
   const produtos = await produtosLocais(leitor);
   const sinonimos = await sinonimosLocais(leitor);
   const filtros = interpretarConsulta(e.q, vocabularioMemorizado(produtos));
-  const candidatos = await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, produtos.length);
+  const sinal: SinalIndexacao = { indexando: false };
+  const candidatos = await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, produtos.length, sinal);
   const universo = await comAplicacao(leitor, candidatos ? produtos.filter((p) => candidatos.has(p.id)) : produtos);
   const contexto = await contextoLocal(leitor, e, universo);
   const pagina = buscarProdutos({ produtos: universo, contexto, filtros, chips: e.chips ?? {}, sinonimos, limit: e.limit, offset: e.offset, ...(e.fuso ? { fuso: e.fuso } : {}) });
-  return { ...pagina, aviso: e.offline && e.q.trim() !== '' ? AVISO_BUSCA_OFFLINE : null };
+  return { ...pagina, aviso: e.offline && e.q.trim() !== '' ? AVISO_BUSCA_OFFLINE : null, indexando: sinal.indexando };
 }
 
 /** Vitrine no aparelho (sem texto). */

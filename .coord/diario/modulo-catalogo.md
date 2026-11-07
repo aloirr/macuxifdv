@@ -39,3 +39,5 @@
 2026-11-06 — T-0084/T-0089 — T-0084 🟡 (sem appendFileSync, comAplicacao em memória, comentário do ranking); T-0089 K1-K3: domain/escalonada, faixas[] em precos_cliente@1 (API e aparelho), tabela_escalonada no sync, consumidor do ERP, rotas e BKO Tabelas de preço; embalagens deixou de ser preenchido; db.test no CI pendente
 2026-11-06 — T-0089 — colisão da faixa do ERP idempotente (substitui/adota, sem loop), PUT não reabre faixa do ERP, produto conferido, CSV protegido, db test da consulta com faixas
 2026-11-06 — T-0089 — CI verificacao/lote-t0089: precos.db.test sem fuso() no contexto e precos-escalonada.db.test com limpeza que não cobria os ids 31+ das faixas (FK); só testes corrigidos
+2026-11-06 — T-0088 — motivo 'indexando': varredura sem erro, aviso 'Organizando o catálogo no aparelho…' só na aba, C9 sem aviso; testes dos dois caminhos
+2026-11-07 — T-0088 — aviso 'Organizando o catálogo' corrigido (avisoDaBusca junta com sem sinal/falha), texto com consequência, Banner anunciar e ícone clock

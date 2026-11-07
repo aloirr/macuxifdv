@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { caminhoCatalogo, type ItemVitrine, type RespostaBusca } from '../../contracts';
 import { contarPorNo, filhosDe, trilhaDe } from '../../domain/arvore';
-import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE } from '../../domain/ia';
+import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca } from '../../domain/ia';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { contagem } from '../lib/apresentacao';
@@ -39,6 +39,12 @@ interface EstadoLista {
   total: number;
   aviso: string | null;
   origem: 'aparelho' | 'servidor';
+}
+
+function iconeDoAviso(aviso: string): 'wifiOff' | 'clock' | 'alert' {
+  if (aviso.startsWith(AVISO_BUSCA_OFFLINE)) return 'wifiOff';
+  if (aviso.startsWith(AVISO_BUSCA_FALHOU)) return 'alert';
+  return 'clock';
 }
 
 export default function TelaCatalogo() {
@@ -117,7 +123,9 @@ export default function TelaCatalogo() {
         ...(dentroDoPedido ? { only_sellable: true } : {}),
       };
       const r = consulta ? await buscarLocal(motor, { ...entrada, fuso, q: consulta, chips, limit: POR_PAGINA, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: POR_PAGINA, offset: 0 });
-      return { itens: r.items, total: r.total, aviso: consulta ? aviso : null, origem: 'aparelho' as const };
+      // índice em reconstrução (T-0088): sem erro; junta com o aviso de sem sinal/falha numa frase só (some quando o índice fica pronto)
+      const organizando = 'indexando' in r && r.indexando === true;
+      return { itens: r.items, total: r.total, aviso: consulta ? avisoDaBusca(aviso, organizando) : null, origem: 'aparelho' as const };
     };
     const carregar = async () => {
       setLista((l) => ({ ...l, carregando: true }));
@@ -205,7 +213,7 @@ export default function TelaCatalogo() {
       </LinhaChips>
 
       {lista.aviso ? (
-        <Banner testID="catalogo-aviso" icon={lista.aviso === AVISO_BUSCA_OFFLINE ? 'wifiOff' : 'alert'}>
+        <Banner testID="catalogo-aviso" anunciar icon={iconeDoAviso(lista.aviso)}>
           {lista.aviso}
         </Banner>
       ) : null}
