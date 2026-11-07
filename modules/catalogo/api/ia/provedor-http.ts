@@ -48,7 +48,8 @@ const padraoCorpo = (e: EntradaInterpretacao): unknown => ({ texto: e.texto, mar
 
 export function criarPortaInterpretacaoHttp(config: ConfigProvedorHttp): PortaInterpretacaoLlm {
   if (!Number.isFinite(config.timeoutMs) || config.timeoutMs <= 0) throw new RangeError('Informe o tempo limite do provedor de IA (use resolverTimeoutIaMs).');
-  const chamar: FetchIa = config.fetch ?? ((url, init) => fetch(url, init));
+  // Dois AbortSignal coexistem no typecheck (lib DOM x undici-types do @types/node); o objeto é o mesmo em execução.
+  const chamar: FetchIa = config.fetch ?? ((url, init) => fetch(url, init as unknown as NonNullable<Parameters<typeof fetch>[1]>));
   const criarSinalTempo = config.criarSinalTempo ?? ((ms: number) => AbortSignal.timeout(ms));
   const montarCorpo = config.montarCorpo ?? padraoCorpo;
   const extrair = config.extrairFiltros ?? ((r: unknown) => r);
