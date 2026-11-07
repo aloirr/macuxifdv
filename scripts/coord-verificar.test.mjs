@@ -12,6 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   classificarMudancas, globParaRegex, normalizarCaminho, agenteDoBranch, agenteDosTrailers, remetenteDoRecado,
   workspaceMudouSoEmBuilds, lockAcompanhaDependencia, pacoteDoPackageJson, mudancasDeGovernanca, carregarDonos,
+  donoDaMudanca, podeAlterar, ehAnexoDeRecado,
 } from './coord-lib.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -1092,4 +1093,112 @@ test('v4 funções puras: workspaceMudouSoEmBuilds, pacoteDoPackageJson, lockAco
     { status: 'A', caminho: 'scripts/coord-novo.mjs' }, { status: 'A', caminho: 'scripts/fronteiras.mjs' }, { status: 'M', caminho: '.github/workflows/ci.yml' },
   ]).map((m) => m.caminho), ['.claude/hooks/x.mjs', '.coord/donos.json', 'scripts/coord-novo.mjs', '.github/workflows/ci.yml']);
   assert.ok(carregarDonos);
+});
+
+// ───────────── anexos de recado (.coord/recados/anexos/**): arquivo comum, dono alexandre ─────────────
+// Antes, o regex de recado casava "anexos" como destino e todo verificar acusava "destino de recado inválido".
+
+const ANEXO_PNG = '.coord/recados/anexos/R-20261106-alexandre-filtro-periodo.png';
+const ANEXO_HTML = '.coord/recados/anexos/R-20261106-alexandre-filtro-periodo.html';
+
+test('anexos: donos.json real tem a regra .coord/recados/anexos/** → alexandre antes de .coord/**', () => {
+  const regras = JSON.parse(DONOS_REAIS).regras.map((r) => r.padrao);
+  const iAnexos = regras.indexOf('.coord/recados/anexos/**');
+  assert.ok(iAnexos >= 0, 'regra dos anexos ausente');
+  assert.equal(JSON.parse(DONOS_REAIS).regras[iAnexos].dono, 'alexandre');
+  assert.ok(iAnexos < regras.indexOf('.coord/**'), 'a regra dos anexos precisa vir antes da genérica de .coord/**');
+});
+
+test('anexos: donoDaMudanca e podeAlterar tratam o anexo como arquivo comum do alexandre; recado normal igual', () => {
+  const regras = carregarDonos(join(AQUI, '..'));
+  assert.deepEqual(donoDaMudanca(ANEXO_PNG, regras), { tipo: 'comum', dono: 'alexandre' });
+  assert.deepEqual(donoDaMudanca('.coord/recados/anexos/sub/pasta/x.html', regras), { tipo: 'comum', dono: 'alexandre' });
+  assert.equal(ehAnexoDeRecado('.coord\\recados\\anexos\\a.png'), true, 'barra invertida');
+  assert.equal(ehAnexoDeRecado('.coord/recados/alexandre/R-1-anexos.md'), false);
+  assert.equal(ehAnexoDeRecado('.coord/recados/anexos'), false, 'a pasta sem arquivo não é anexo');
+  // recado normal: sem mudança
+  assert.deepEqual(donoDaMudanca('.coord/recados/alexandre/R-20261106-1-engenheiro-software.md', regras),
+    { tipo: 'recado', destino: 'alexandre', arquivo: 'R-20261106-1-engenheiro-software.md', dono: 'engenheiro-software' });
+  assert.deepEqual(donoDaMudanca('.coord/recados/fulano/x/y.md', regras), { tipo: 'recado-fora', dono: 'sem-dono' });
+  // guardião (Edit/Write): alexandre cria e altera; os outros recebem a regra comum de arquivo de outro dono
+  const raiz = mkdtempSync(join(tmpdir(), 'coord-anexos-'));
+  temporarios.push(raiz);
+  escrever(raiz, ANEXO_HTML, '<p>anexo</p>\n');
+  for (const ferramenta of ['Write', 'Edit']) {
+    assert.deepEqual(podeAlterar({ agente: 'alexandre', ferramenta, rel: ANEXO_HTML, raiz, regras }), { ok: true, dono: 'alexandre' }, `${ferramenta} do alexandre em anexo existente`);
+    const r = podeAlterar({ agente: 'gerente-projetos', ferramenta, rel: ANEXO_PNG, raiz, regras });
+    assert.equal(r.ok, false);
+    assert.equal(r.dono, 'alexandre');
+    assert.match(r.motivo, /pertence a alexandre\. só o Alexandre altera este arquivo/);
+  }
+  // recado normal no guardião: sem mudança
+  assert.match(podeAlterar({ agente: 'alexandre', ferramenta: 'Write', rel: '.coord/recados/fulano/R-1-alexandre.md', raiz, regras }).motivo, /destino de recado inválido: fulano/);
+  escrever(raiz, '.coord/recados/alexandre/R-1-engenheiro-software.md', RECADO);
+  assert.match(podeAlterar({ agente: 'engenheiro-software', ferramenta: 'Edit', rel: '.coord/recados/alexandre/R-1-engenheiro-software.md', raiz, regras }).motivo, /imutáveis/);
+  assert.deepEqual(podeAlterar({ agente: 'engenheiro-software', ferramenta: 'Write', rel: '.coord/recados/alexandre/R-2-engenheiro-software.md', raiz, regras }), { ok: true });
+});
+
+test('anexos: anexo novo ou alterado pelo alexandre não viola (verificar alexandre, sem agente e branch alexandre/*)', () => {
+  const dir = criarRepoReal();
+  escrever(dir, ANEXO_PNG, 'png\n');
+  escrever(dir, ANEXO_HTML, '<p>v1</p>\n');
+  const sem = rodar(dir, ['verificar']);
+  assert.equal(sem.codigo, 0, sem.tudo);
+  assert.doesNotMatch(sem.tudo, /destino de recado inválido/);
+  const alexandre = rodar(dir, ['verificar', 'alexandre']);
+  assert.equal(alexandre.codigo, 0, alexandre.tudo);
+  assert.deepEqual(secao(alexandre.saida, 'OK').sort(), [`A ${ANEXO_HTML}`, `A ${ANEXO_PNG}`]);
+  git(dir, 'checkout', '-q', '-b', 'alexandre/T-0090-anexos');
+  commitar(dir, 'anexos');
+  writeFileSync(join(dir, ANEXO_HTML), '<p>v2</p>\n'); // anexo não é imutável: o alexandre altera
+  commitar(dir, 'anexo v2');
+  const base = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(base.codigo, 0, base.tudo);
+  assert.deepEqual(secao(base.saida, 'OK').sort(), [`A ${ANEXO_HTML}`, `A ${ANEXO_PNG}`]);
+});
+
+test('anexos: anexo criado ou alterado por outro agente viola (--base e --por-commit); sem --base é "Outros donos"', () => {
+  const dir = criarRepoReal();
+  git(dir, 'checkout', '-q', '-b', 'gerente-projetos/T-0090');
+  escrever(dir, ANEXO_PNG, 'png\n');
+  commitar(dir, 'T-0090: anexo');
+  const r = rodar(dir, ['verificar', '--base', 'main']);
+  assert.equal(r.codigo, 1, r.tudo);
+  const v = secao(r.saida, 'VIOLAÇÃO');
+  assert.equal(v.length, 1, r.saida);
+  assert.match(v[0], /^A \.coord\/recados\/anexos\/R-20261106-alexandre-filtro-periodo\.png → dono: alexandre — fora dos caminhos de gerente-projetos/);
+  assert.doesNotMatch(r.tudo, /destino de recado inválido/);
+
+  const dir2 = criarRepoReal();
+  const inicio = git(dir2, 'rev-parse', 'HEAD').trim();
+  escrever(dir2, ANEXO_HTML, '<p>v1</p>\n');
+  const doAlexandre = commitarComo(dir2, 'alexandre', 'T-0090: anexos do alexandre');
+  writeFileSync(join(dir2, ANEXO_HTML), '<p>editado pelo gerente</p>\n');
+  const doGerente = commitarComo(dir2, 'gerente-projetos', 'T-0090: mexeu no anexo');
+  const pc = rodar(dir2, ['verificar', '--por-commit', `${inicio}..HEAD`]);
+  assert.equal(pc.codigo, 1, pc.tudo);
+  assert.doesNotMatch(blocoDoCommit(pc.saida, doAlexandre), /VIOLAÇÃO/);
+  assert.match(blocoDoCommit(pc.saida, doGerente), /VIOLAÇÃO[\s\S]*M \.coord\/recados\/anexos\/R-20261106-alexandre-filtro-periodo\.html → dono: alexandre/);
+
+  const dir3 = criarRepoReal();
+  escrever(dir3, ANEXO_PNG, 'png\n');
+  const arvore = rodar(dir3, ['verificar', 'engenheiro-software']);
+  assert.equal(arvore.codigo, 0, arvore.tudo);
+  assert.deepEqual(secao(arvore.saida, 'Outros donos'), [`A ${ANEXO_PNG} → alexandre`]);
+});
+
+test('anexos: recado normal continua igual ao lado de um anexo (exceção, destino inválido e imutável)', () => {
+  const dir = criarRepoReal();
+  escrever(dir, ANEXO_PNG, 'png\n');
+  escrever(dir, '.coord/recados/alexandre/R-20261106-090000-engenheiro-software.md', RECADO);
+  escrever(dir, '.coord/recados/fulano/R-20261106-090001-engenheiro-software.md', RECADO);
+  mudar(dir, RECADO_ENG);
+  const r = rodar(dir, ['verificar', 'engenheiro-software']);
+  assert.equal(r.codigo, 1, r.tudo);
+  assert.deepEqual(secao(r.saida, 'Exceções do protocolo'), ['A .coord/recados/alexandre/R-20261106-090000-engenheiro-software.md — recado novo para alexandre']);
+  assert.deepEqual(secao(r.saida, 'Outros donos'), [`A ${ANEXO_PNG} → alexandre`]);
+  const v = secao(r.saida, 'VIOLAÇÃO');
+  assert.equal(v.length, 2, r.saida);
+  assert.ok(v.some((l) => /fulano\/.* — destino de recado inválido: fulano$/.test(l)), v.join('\n'));
+  assert.ok(v.some((l) => l.startsWith(`M ${RECADO_ENG} → dono: ninguém — recados são imutáveis`)), v.join('\n'));
 });
