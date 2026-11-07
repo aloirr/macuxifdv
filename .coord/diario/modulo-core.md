@@ -101,3 +101,5 @@
 2026-11-06 — T-0087 (fatia E) — Equipe por CSV com convite de 1º acesso: domain (15 testes), contratos, rotas equipe/* e auth/convite/aceitar, db.test para o CI, desenho atualizado; pedidos ao engenheiro-apps (telas) e engenheiro-software (revisão)
 2026-11-06 — T-0087 — fatia E: 🔴 aceite de convite (senha definida/revogação/desativar), telefone, troca de superior move equipe, testes de banco e doc
 2026-11-06 — T-0087 (fatia E) — caminhoDoConvite gera /convite#<token> (fragmento); teste e equipe-csv.md ajustados
+2026-11-06 — T-0089 — core.financeiro_cliente@1 (API e aparelho), prazo médio e formas no cliente (pull, resumo, consumidor, BKO), domain RN-VEN-12/13/25 com teste
+2026-11-06 — T-0089 — regras de pedido removidas de domain/pagamento-cliente.ts; rota GET /v1/core/formas-pagamento (vendedor.formas_pagamento@1) ligada no Cliente 360 do BKO

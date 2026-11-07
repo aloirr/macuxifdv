@@ -50,3 +50,7 @@ export const Cliente360Schema = z.object({
   endereco_padrao_id: z.string().uuid().nullable().optional(),
 });
 export type Cliente360 = z.infer<typeof Cliente360Schema>;
+
+/** T-0089 / RN-VEN-24: formas de pagamento ativas para a ficha do cliente (`GET /v1/core/formas-pagamento`). `null` = Vendedor desligado ou ausente: as formas ficam só leitura. */
+export const FormasPagamentoDisponiveisSchema = z.object({ formas: z.array(z.object({ codigo: z.string(), nome: z.string() })).max(200).nullable() });
+export type FormasPagamentoDisponiveis = z.infer<typeof FormasPagamentoDisponiveisSchema>;
