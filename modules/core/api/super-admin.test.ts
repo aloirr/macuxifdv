@@ -414,3 +414,29 @@ describe('ADR 0029 / regra 8: auditoria e log sem dado pessoal, senha, código o
     expect(new Set(mem.auditoria.map((a) => a.acao))).toEqual(new Set(['sa.primeiro_acesso', 'sa.totp.cadastrar', 'sa.login.ok', 'sa.login.falha']));
   });
 });
+
+describe('T-0091/ADR 0029: rotas plataforma/auth/* na conexão do portal', () => {
+  it('RN-CORE-31: as 8 rotas plataforma/auth/* declaram conexao portal e nenhuma outra rota pública a declara', async () => {
+    const { criarModuloApiCore } = await import('./index');
+    const rotas = criarModuloApiCore({ segredo: () => SEGREDO }).rotasPublicas ?? [];
+    const portal = rotas.filter((r) => r.conexao === 'portal').map((r) => r.caminho);
+    const plataforma = rotas.filter((r) => r.caminho.startsWith('plataforma/')).map((r) => r.caminho);
+    expect(plataforma).toHaveLength(8);
+    expect(portal.sort()).toEqual([...plataforma].sort());
+    expect(plataforma.every((c) => c.startsWith('plataforma/auth/'))).toBe(true);
+  });
+
+  it('RN-CORE-31: o repositório SQL só chama funções plataforma.sa_* (nada de tabela de tenant no pool do portal)', async () => {
+    const { fabricaSuperAdminSql } = await import('./super-admin-repositorio');
+    const sqls: string[] = [];
+    const db = { query: async (sql: string) => (sqls.push(sql), { rows: [{ r: null }] }) };
+    const banco = { semTenant: async (fn: (d: typeof db) => unknown) => fn(db) } as never;
+    const repo = fabricaSuperAdminSql(banco);
+    await repo.existe();
+    await repo.paraLogin('a@b.c');
+    await repo.sessaoValida('x');
+    await repo.revogarSessao('x');
+    expect(sqls.length).toBeGreaterThan(0);
+    expect(sqls.every((s) => /plataforma\.sa_\w+\(/.test(s) && !/\b(tenant|usuario|cliente)\b/i.test(s.replace(/plataforma\.sa_\w+/g, '')))).toBe(true);
+  });
+});

@@ -103,3 +103,4 @@
 2026-11-06 — T-0087 (fatia E) — caminhoDoConvite gera /convite#<token> (fragmento); teste e equipe-csv.md ajustados
 2026-11-06 — T-0089 — core.financeiro_cliente@1 (API e aparelho), prazo médio e formas no cliente (pull, resumo, consumidor, BKO), domain RN-VEN-12/13/25 com teste
 2026-11-06 — T-0089 — regras de pedido removidas de domain/pagamento-cliente.ts; rota GET /v1/core/formas-pagamento (vendedor.formas_pagamento@1) ligada no Cliente 360 do BKO
+2026-11-06 — T-0091 — 8 rotas plataforma/auth/* com conexao 'portal'; handlers só usam sa_*; 2 testes novos
