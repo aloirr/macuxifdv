@@ -1,0 +1,1087 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-01-01T00:00:00.000Z",
+  "__export_source": "macuxi.gerar-colecao",
+  "resources": [
+    {
+      "_id": "wrk_macuxi_hub_v1",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "Macuxi FDV — Hub de Integração v1",
+      "description": "Contrato `v1` do Hub `/integracao/v1`, usado pelo Conector Macuxi e por integradores que enviam os dados do ERP direto à API. Autenticação por chave de API emitida por Conector no BKO (a empresa vem da chave, nunca do corpo). Dinheiro em centavos inteiros; datas-hora em UTC com `Z`; datas civis `AAAA-MM-DD`. Campo novo opcional é compatível com `v1`. O guia para o TI do cliente (ordem de carga, delta × completo, idempotência, limites, erros, devolução de pedidos e exemplos curl) está em `modules/integracao/docs/guia-api-hub.md`.\n\nGerado de openapi-hub-v1.json por docs/exemplos/colecao/gerar-colecao.mjs. Não edite à mão.",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_macuxi_hub_v1_base",
+      "_type": "environment",
+      "parentId": "wrk_macuxi_hub_v1",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "https://{{ _.servidor }}/integracao/v1",
+        "lote_id": "5b1d7c42-9a3e-4f68-8c10-2e7a94d3b6f1",
+        "entidade": "produto",
+        "pedido_uuid": "3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c"
+      },
+      "dataPropertyOrder": null,
+      "isPrivate": false
+    },
+    {
+      "_id": "env_macuxi_hub_v1_demo",
+      "_type": "environment",
+      "parentId": "env_macuxi_hub_v1_base",
+      "name": "Demonstração",
+      "data": {
+        "servidor": "api-demo.macuxifdv.com.br",
+        "chave_conector": "mxc_COLE_AQUI_A_CHAVE_DO_CONECTOR",
+        "conector_id": "erp-matriz",
+        "conector_versao": "1.2.1"
+      },
+      "dataPropertyOrder": null,
+      "isPrivate": false
+    },
+    {
+      "_id": "fld_lotes",
+      "_type": "request_group",
+      "parentId": "wrk_macuxi_hub_v1",
+      "name": "Lotes",
+      "description": "Envio de dados do ERP (lotes completos e delta), consulta do resultado, cursor e reconciliação diária."
+    },
+    {
+      "_id": "req_enviar_lote_vendedor",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — vendedor",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `vendedor` (Vendedores (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "16936778e2106ba4b6b25e5c097fb7b8fe51db66b3ec0fbf01079640315dc988"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"vendedor\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"V001\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"V001\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Vendedor Exemplo\",\n      \"email\": \"vendedor@example.com\",\n      \"telefone\": \"+55 95 3000-0001\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_cliente",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — cliente",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `cliente` (Clientes (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "270fa216bb745c7b6b0f549af4ca9bd96414a7d162a3a6ae36637d6e1b99cc86"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"cliente\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"C000123\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"C000123\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"razao_social\": \"Mercado Exemplo Ltda\",\n      \"nome_fantasia\": \"Mercado Exemplo\",\n      \"documento\": \"11222333000181\",\n      \"vendedor_external_id\": \"V001\",\n      \"endereco\": {\n        \"logradouro\": \"Rua das Palmeiras\",\n        \"numero\": \"100\",\n        \"bairro\": \"Centro\",\n        \"cidade\": \"Boa Vista\",\n        \"uf\": \"RR\",\n        \"cep\": \"69301000\"\n      },\n      \"latitude\": 2.8235,\n      \"longitude\": -60.6758,\n      \"telefone\": \"+55 95 3000-0002\",\n      \"email\": \"compras@example.com\",\n      \"limite_credito_cents\": 5000000,\n      \"inscricao_estadual\": \"ISENTO\",\n      \"bloqueado\": false,\n      \"contatos\": [\n        {\n          \"nome\": \"Contato Exemplo\",\n          \"cargo\": \"Comprador\",\n          \"telefone\": \"+55 95 3000-0003\",\n          \"email\": \"contato@example.com\"\n        }\n      ],\n      \"prazo_medio_max_dias\": 60,\n      \"formas_pagamento\": [\n        \"BOL\",\n        \"PIX\"\n      ]\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_produto",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — produto",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `produto` (Produtos (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "3f34f221dbd0e17a6ab33b978798dd324ad1d7b42c81da1cd7bebb779bab292e"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"produto\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"P000045\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"P000045\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"sku\": \"REF-0045\",\n      \"ean\": \"7891234567895\",\n      \"nome\": \"Refrigerante Cola 2 L\",\n      \"marca\": \"Marca Exemplo\",\n      \"categoria\": \"Bebidas\",\n      \"unidade\": \"UN\",\n      \"embalagem_medida\": \"CX\",\n      \"embalagem_quantidade\": 6,\n      \"catalogo_no_external_id\": \"N010\",\n      \"custo_cents\": 450,\n      \"preco_venda_cents\": 790,\n      \"desconto_maximo_pct\": 5\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_preco",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — preco",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `preco` (Preços: um registro por item de tabela (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "f1bda4a6d8ae97fc2532a12f2323711c626e73b65aa1111638b203eb347b9d71"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"preco\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"TAB01:P000045\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"TAB01:P000045\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"tabela_external_id\": \"TAB01\",\n      \"tabela_nome\": \"Tabela Atacado\",\n      \"vigencia_inicio\": \"2026-11-01\",\n      \"vigencia_fim\": null,\n      \"produto_external_id\": \"P000045\",\n      \"preco_cents\": 790,\n      \"unidade\": \"UN\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_estoque",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — estoque",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `estoque` (Estoque: um registro por depósito e produto (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "4451756eabfc4273ea8e7dfe6b7c04009a91e7e5f4383c94d7c5661a64faa937"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"estoque\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"DEP01:P000045\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"DEP01:P000045\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"deposito_external_id\": \"DEP01\",\n      \"deposito_nome\": \"Depósito Central\",\n      \"produto_external_id\": \"P000045\",\n      \"saldo\": 1250\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_titulo",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — titulo",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `titulo` (Títulos financeiros (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "d8f39ac59f4ef104192d93c258fe1697a1c032b610bd5d3c0b9f4861e2e2dfe3"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"titulo\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"TIT-2026-5531-1\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"TIT-2026-5531-1\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"cliente_external_id\": \"C000123\",\n      \"numero\": \"5531\",\n      \"parcela\": 1,\n      \"emissao\": \"2026-10-20\",\n      \"vencimento\": \"2026-11-20\",\n      \"valor_cents\": 125000,\n      \"saldo_cents\": 125000,\n      \"situacao\": \"aberto\",\n      \"baixado_em\": null\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_nota",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — nota",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `nota` (Notas fiscais e devoluções (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "f4dce0d587b49e071a81ef7daf5312226ef3a4cc126f3a01c390ba68426ba207"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"nota\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"NF-1-8841\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"NF-1-8841\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"cliente_external_id\": \"C000123\",\n      \"vendedor_external_id\": \"V001\",\n      \"tipo\": \"faturamento\",\n      \"numero\": \"8841\",\n      \"serie\": \"1\",\n      \"emitida_em\": \"2026-11-05T12:30:00Z\",\n      \"total_cents\": 125000,\n      \"quantidade_itens\": 12,\n      \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n      \"cancelada\": false\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_rota",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — rota",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `rota` (Rotas com as paradas (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "1f4b582a335b471072f430e2a5abbf51cf4f0281010a5c81359e2a9d59850d67"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"rota\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"R-SEG-01\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"R-SEG-01\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Rota Segunda Centro\",\n      \"vendedor_external_id\": \"V001\",\n      \"dia_semana\": 1,\n      \"paradas\": [\n        {\n          \"ordem\": 1,\n          \"cliente_external_id\": \"C000123\"\n        },\n        {\n          \"ordem\": 2,\n          \"cliente_external_id\": \"C000124\"\n        }\n      ]\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_catalogo_no",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — catalogo_no",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `catalogo_no` (Árvore do catálogo (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "d388f8d8be562a555f8a1c41b446cc0e1d97b67c4fe080ffb2603d6d8584d4c7"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"catalogo_no\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"N010\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"N010\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"codigo\": \"BEB-REF\",\n      \"nome\": \"Refrigerantes\",\n      \"pai_external_id\": \"N001\",\n      \"nivel\": 2,\n      \"ordem\": 1\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_produto_unidade",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — produto_unidade",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `produto_unidade` (Medidas e embalagens do produto (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "debe9306e231f32ec0da685e159e7c8db1ff16a122638bb88bc89969a24a9dae"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"produto_unidade\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"P000045:CX\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"P000045:CX\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"produto_external_id\": \"P000045\",\n      \"unidade\": \"CX\",\n      \"fator\": 6,\n      \"ean\": \"17891234567892\",\n      \"padrao\": false\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_cliente_endereco",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — cliente_endereco",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `cliente_endereco` (Endereços de entrega e cobrança do cliente (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "5a06bce359934e1437d87b29e90cd6c934d9a044082e6932590e5160f7ad9fd0"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"cliente_endereco\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"C000123:ENT1\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"C000123:ENT1\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"cliente_external_id\": \"C000123\",\n      \"tipo\": \"entrega\",\n      \"descricao\": \"Depósito dos fundos\",\n      \"logradouro\": \"Avenida das Flores\",\n      \"numero\": \"250\",\n      \"bairro\": \"Industrial\",\n      \"cidade\": \"Boa Vista\",\n      \"uf\": \"RR\",\n      \"cep\": \"69313000\",\n      \"principal\": false\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_transportadora",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — transportadora",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `transportadora` (Transportadoras (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "428321d70ca9ebf8a116b897b8e691871e4515a54520d6914f4e316820cce6cd"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"transportadora\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"T001\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"T001\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Transportadora Exemplo\",\n      \"documento\": \"11222333000181\",\n      \"telefone\": \"+55 95 3000-0004\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_forma_pagamento",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — forma_pagamento",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `forma_pagamento` (Formas de pagamento (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "475b5141d8c3c18b2c8c9abd2efb48058eab09edb68a18ead26944fa8afedd14"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"forma_pagamento\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"FP-BOL\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"FP-BOL\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"codigo\": \"BOL\",\n      \"nome\": \"Boleto\",\n      \"ordem\": 1\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_prazo_pagamento",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — prazo_pagamento",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `prazo_pagamento` (Prazos de pagamento com as parcelas em dias (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "2c3ebca7dd0c14cc57b8268140d96a1797ed9da5f34a64b4c1846193a32348ed"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"prazo_pagamento\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"PZ-30-60-90\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"PZ-30-60-90\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"forma_external_id\": \"FP-BOL\",\n      \"codigo\": \"306090\",\n      \"descricao\": \"30/60/90 dias\",\n      \"parcelas_dias\": [\n        30,\n        60,\n        90\n      ],\n      \"prazo_medio_dias\": 60,\n      \"ordem\": 2\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_tabela_escalonada",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — tabela_escalonada",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `tabela_escalonada` (Tabela escalonada: preço da unidade por quantidade mínima (delta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "afd96a44d72e0dc952af16dd516a1e986d4e3472ef01c768d8fe0134038e805b"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"tabela_escalonada\",\n  \"modo\": \"delta\",\n  \"cursor\": {\n    \"alterado_em\": \"2026-11-05T13:45:10Z\",\n    \"external_id\": \"ESC:P000045:CX:12\"\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"ESC:P000045:CX:12\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"produto_external_id\": \"P000045\",\n      \"medida\": \"CX\",\n      \"quantidade_minima\": 12,\n      \"preco_unidade_cents\": 740,\n      \"vigencia_inicio\": \"2026-11-01\",\n      \"vigencia_fim\": null,\n      \"tabela_external_id\": \"TAB01\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_carga_completa_parte_1",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — carga_completa_parte_1",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `carga_completa_parte_1` (Carga completa, parte 1 de 2 (sessão aberta)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "ce9184833789c04b7af8e781d101d12a5edd616faa90b6a1362c20da41b70c13"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"vendedor\",\n  \"modo\": \"completo\",\n  \"sessao\": {\n    \"id\": \"c0a8e3d2-5b71-4a96-b4f0-7d19e8a2c635\",\n    \"parte\": 1,\n    \"ultimo\": false\n  },\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"V001\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Vendedor Exemplo\",\n      \"email\": \"vendedor@example.com\",\n      \"telefone\": \"+55 95 3000-0001\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_carga_completa_ultima_parte",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — carga_completa_ultima_parte",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `carga_completa_ultima_parte` (Carga completa, última parte (ultimo: true fecha a sessão)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "f2a4da9f7adc775ee9e2f680489a894b3028711c77a34a935aea2db1a2ac06d3"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"vendedor\",\n  \"modo\": \"completo\",\n  \"sessao\": {\n    \"id\": \"c0a8e3d2-5b71-4a96-b4f0-7d19e8a2c635\",\n    \"parte\": 2,\n    \"ultimo\": true\n  },\n  \"enviado_em\": \"2026-11-05T13:47:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [\n    {\n      \"external_id\": \"V002\",\n      \"alterado_em\": \"2026-11-05T13:45:10Z\",\n      \"ativo\": true,\n      \"nome\": \"Outro Vendedor Exemplo\",\n      \"email\": null,\n      \"telefone\": null\n    }\n  ]\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_lote_so_linhas_invalidas",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Envia um lote de uma entidade (completo ou delta); processamento assíncrono — so_linhas_invalidas",
+      "description": "**POST /lotes** — Envia um lote de uma entidade (completo ou delta); processamento assíncrono. Idempotente pela Idempotency-Key.\n\nEnvia um lote de UMA entidade, completo (`modo: completo`, em partes de uma `sessao`) ou delta (`modo: delta`, sem `sessao`). Resposta imediata `202`; a validação por linha e a aplicação rodam em segundo plano: consulte `GET /lotes/{id}` até o status final. Idempotente pela `Idempotency-Key` (16 a 128 caracteres): mesma chave e mesmo conteúdo repete o `202` com `Idempotent-Replay: true`; mesma chave e conteúdo diferente é `409`. Limites: 5.000 registros e 8 MiB por lote. Ordem de carga: vendedor, catalogo_no, transportadora, cliente, produto, rota, titulo, nota, cliente_endereco, produto_unidade, preco, estoque (ver o guia).\n\nExemplo do OpenAPI: `so_linhas_invalidas` (Lote só com linhas que o Conector recusou (aceito, termina com erros)).\n\nA `Idempotency-Key` desta requisição é o SHA-256 do corpo: calculada no gerador e recalculada pelo script de pré-requisição do Postman se você mudar o corpo. Reenviar o MESMO corpo repete a chave e devolve o mesmo `lote_id` (`Idempotent-Replay: true`).\n\nNo Insomnia a chave é fixa (SHA-256 do corpo gerado): se mudar o corpo, troque também a Idempotency-Key.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/lotes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Idempotency-Key",
+          "value": "6a9624ea8ddef7d2d9a806814a0abd209fc981df0172aaa22e155e9080e32b36"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"cliente\",\n  \"modo\": \"delta\",\n  \"enviado_em\": \"2026-11-05T13:46:00Z\",\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"registros\": [],\n  \"linhas_invalidas\": [\n    {\n      \"external_id\": \"C000999\",\n      \"codigo\": \"campo_obrigatorio\",\n      \"campo\": \"razao_social\",\n      \"mensagem\": \"razao_social está vazio no ERP.\"\n    },\n    {\n      \"external_id\": null,\n      \"codigo\": \"registro_invalido\",\n      \"mensagem\": \"Linha sem código do cliente; não foi possível identificá-la.\"\n    }\n  ],\n  \"linhas_invalidas_omitidas\": 0\n}"
+      }
+    },
+    {
+      "_id": "req_consultar_lote",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Resultado do lote com os erros por linha",
+      "description": "**GET /lotes/{id}** — Resultado do lote com os erros por linha.\n\nResultado do lote: status, contagens, erros por linha (as `falha_processamento` primeiro), avisos, cursor e, no último lote de uma carga completa, a situação da inativação.\n\n- `?limite_erros=`: Quantos erros por linha devolver (as `falha_processamento` vêm primeiro). Padrão 1.000, máximo 5.500.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/lotes/{{ _.lote_id }}",
+      "parameters": [
+        {
+          "name": "limite_erros",
+          "value": "1000",
+          "disabled": true,
+          "description": "Quantos erros por linha devolver (as `falha_processamento` vêm primeiro). Padrão 1.000, máximo 5.500."
+        }
+      ],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {}
+    },
+    {
+      "_id": "req_consultar_cursor",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "De onde o Conector continua o delta (cursor nulo = carga inicial completa)",
+      "description": "**GET /cursores/{entidade}** — De onde o Conector continua o delta (cursor nulo = carga inicial completa).\n\nDe onde o Conector continua o delta. `cursor: null` significa que o Hub nunca recebeu a entidade deste Conector: faça a carga inicial completa.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/cursores/{{ _.entidade }}",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {}
+    },
+    {
+      "_id": "req_enviar_reconciliacao_estoque",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Contagem e soma de controle do dia, por entidade (RN-INT-07) — estoque",
+      "description": "**POST /reconciliacoes** — Contagem e soma de controle do dia, por entidade (RN-INT-07).\n\nContagem e soma de controle do dia por entidade. Reenviar o mesmo dia substitui o anterior. `data_referencia` aceita de D-7 a D+1.\n\nExemplo do OpenAPI: `estoque` (Estoque: contagem e soma de controle (saldo)).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/reconciliacoes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"estoque\",\n  \"data_referencia\": \"2026-11-05\",\n  \"contagem\": 1250,\n  \"soma\": 48230500\n}"
+      }
+    },
+    {
+      "_id": "req_enviar_reconciliacao_so_contagem",
+      "_type": "request",
+      "parentId": "fld_lotes",
+      "name": "Contagem e soma de controle do dia, por entidade (RN-INT-07) — so_contagem",
+      "description": "**POST /reconciliacoes** — Contagem e soma de controle do dia, por entidade (RN-INT-07).\n\nContagem e soma de controle do dia por entidade. Reenviar o mesmo dia substitui o anterior. `data_referencia` aceita de D-7 a D+1.\n\nExemplo do OpenAPI: `so_contagem` (Entidade só com contagem (soma nula)).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/reconciliacoes",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"entidade\": \"cliente\",\n  \"data_referencia\": \"2026-11-05\",\n  \"contagem\": 842,\n  \"soma\": null\n}"
+      }
+    },
+    {
+      "_id": "fld_pedidos",
+      "_type": "request_group",
+      "parentId": "wrk_macuxi_hub_v1",
+      "name": "Pedidos",
+      "description": "Devolução de pedidos aprovados ao ERP e retorno do ERP (número, rejeição, faturamento, cancelamento)."
+    },
+    {
+      "_id": "req_pedidos_pendentes",
+      "_type": "request",
+      "parentId": "fld_pedidos",
+      "name": "Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08)",
+      "description": "**GET /pedidos/pendentes** — Pedidos aprovados para gravar no ERP; o Hub marca como enviado o que entrega (RN-INT-08).\n\nPedidos aprovados no Macuxi para gravar no ERP. O Hub marca como `enviado` o que entrega; sem retorno em 10 minutos o pedido volta a `pendente` e sai de novo com `tentativa + 1`. Grave no ERP de forma idempotente pelo `pedido_uuid`. Só o Conector que recebe pedidos usa esta rota (os demais recebem 403).\n\n- `?limite=`: Quantos pedidos devolver por consulta. Padrão 50, máximo 100.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/pedidos/pendentes",
+      "parameters": [
+        {
+          "name": "limite",
+          "value": "50",
+          "disabled": true,
+          "description": "Quantos pedidos devolver por consulta. Padrão 50, máximo 100."
+        }
+      ],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {}
+    },
+    {
+      "_id": "req_retorno_pedido_integrado",
+      "_type": "request",
+      "parentId": "fld_pedidos",
+      "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — integrado",
+      "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `integrado` (Pedido gravado no ERP (informe o número)).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/pedidos/{{ _.pedido_uuid }}/retorno",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"integrado\",\n  \"numero_erp\": \"PV-004512\",\n  \"ocorrido_em\": \"2026-11-05T14:02:00Z\"\n}"
+      }
+    },
+    {
+      "_id": "req_retorno_pedido_rejeitado_erp",
+      "_type": "request",
+      "parentId": "fld_pedidos",
+      "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — rejeitado_erp",
+      "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `rejeitado_erp` (ERP recusou o pedido (o motivo é obrigatório)).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/pedidos/{{ _.pedido_uuid }}/retorno",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"rejeitado_erp\",\n  \"motivo\": \"Cliente com bloqueio financeiro no ERP.\",\n  \"ocorrido_em\": \"2026-11-05T14:02:00Z\"\n}"
+      }
+    },
+    {
+      "_id": "req_retorno_pedido_faturado_parcial",
+      "_type": "request",
+      "parentId": "fld_pedidos",
+      "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — faturado_parcial",
+      "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `faturado_parcial` (Faturamento parcial: nota e itens faturados NESTA nota).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/pedidos/{{ _.pedido_uuid }}/retorno",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_parcial\",\n  \"numero_erp\": \"PV-004512\",\n  \"nota\": {\n    \"numero\": \"8841\",\n    \"serie\": \"1\",\n    \"emitida_em\": \"2026-11-05T16:30:00Z\",\n    \"total_cents\": 6000\n  },\n  \"itens_faturados\": [\n    {\n      \"sequencia\": 1,\n      \"produto_external_id\": \"P000045\",\n      \"quantidade\": 24,\n      \"valor_cents\": 6000\n    }\n  ],\n  \"ocorrido_em\": \"2026-11-05T16:31:00Z\"\n}"
+      }
+    },
+    {
+      "_id": "req_retorno_pedido_faturado_total",
+      "_type": "request",
+      "parentId": "fld_pedidos",
+      "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — faturado_total",
+      "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `faturado_total` (Faturamento total: última nota do pedido).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/pedidos/{{ _.pedido_uuid }}/retorno",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"faturado_total\",\n  \"numero_erp\": \"PV-004512\",\n  \"nota\": {\n    \"numero\": \"8855\",\n    \"serie\": \"1\",\n    \"emitida_em\": \"2026-11-06T10:15:00Z\",\n    \"total_cents\": 19000\n  },\n  \"itens_faturados\": [\n    {\n      \"sequencia\": 2,\n      \"produto_external_id\": \"P000051\",\n      \"quantidade\": 10,\n      \"valor_cents\": 19000\n    }\n  ],\n  \"ocorrido_em\": \"2026-11-06T10:16:00Z\"\n}"
+      }
+    },
+    {
+      "_id": "req_retorno_pedido_cancelado",
+      "_type": "request",
+      "parentId": "fld_pedidos",
+      "name": "Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento — cancelado",
+      "description": "**POST /pedidos/{pedido_uuid}/retorno** — Retorno do ERP: número, rejeição, faturamento (com itens) ou cancelamento. Idempotente (RN-INT-08).\n\nRetorno do ERP para um pedido entregue. `numero_erp` é obrigatório em `integrado` e `faturado_*`; `motivo`, em `rejeitado_erp`; `nota`, em `faturado_*`; `itens_faturados` só vale em `faturado_*`. Idempotente: o mesmo retorno de novo devolve `repetido: true`. Item faturado que não bate com o pedido enviado é descartado e listado em `itens_descartados` (o retorno vale). O Macuxi nunca escreve cancelamento no ERP; `cancelado` só vem do ERP.\n\nExemplo do OpenAPI: `cancelado` (Cancelamento feito no ERP (o Macuxi nunca cancela no ERP)).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/pedidos/{{ _.pedido_uuid }}/retorno",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"versao_contrato\": \"v1\",\n  \"pedido_uuid\": \"3f2b8c1e-7a4d-4e5b-9c6a-1d2e3f4a5b6c\",\n  \"status\": \"cancelado\",\n  \"motivo\": \"Cancelado pelo cliente.\",\n  \"ocorrido_em\": \"2026-11-06T11:00:00Z\"\n}"
+      }
+    },
+    {
+      "_id": "fld_conector",
+      "_type": "request_group",
+      "parentId": "wrk_macuxi_hub_v1",
+      "name": "Conector",
+      "description": "Sinal de vida e política de versão."
+    },
+    {
+      "_id": "req_sinal_sinal",
+      "_type": "request",
+      "parentId": "fld_conector",
+      "name": "Sinal de vida (1 min); responde com a política de versão do tenant — sinal",
+      "description": "**POST /sinal** — Sinal de vida (1 min); responde com a política de versão do tenant.\n\nSinal de vida (1 por minuto). Responde com a política de versão vigente. É a única rota liberada para o Conector abaixo da versão mínima.\n\nExemplo do OpenAPI: `sinal` (Sinal de vida a cada minuto).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/sinal",
+      "parameters": [],
+      "headers": [
+        {
+          "name": "X-Macuxi-Conector-Id",
+          "value": "{{ _.conector_id }}"
+        },
+        {
+          "name": "X-Macuxi-Conector-Versao",
+          "value": "{{ _.conector_versao }}",
+          "disabled": true
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.chave_conector }}"
+      },
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"conector_id\": \"erp-matriz\",\n  \"versao_conector\": \"1.2.1\",\n  \"versao_contrato\": \"v1\",\n  \"em\": \"2026-11-05T14:00:00Z\",\n  \"fila\": [\n    {\n      \"estado\": \"pendente\",\n      \"lotes\": 1,\n      \"linhas\": 320,\n      \"maisAntigo\": \"2026-11-05T13:59:10Z\"\n    }\n  ],\n  \"entidades\": [\n    {\n      \"entidade\": \"produto\",\n      \"fase\": \"delta\",\n      \"ultimo_sucesso\": \"2026-11-05T13:58:00Z\",\n      \"bloqueada\": false,\n      \"lotes_na_fila\": 1\n    }\n  ],\n  \"parado_por_versao\": false\n}"
+      }
+    }
+  ]
+}
