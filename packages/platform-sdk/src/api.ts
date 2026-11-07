@@ -363,6 +363,22 @@ export function problemasLimiteCorpo(rotulo: string, r: Pick<RotaModulo, 'metodo
   return p;
 }
 
+/**
+ * T-0091 (condição da ADR 0029): problemas da `conexao` de uma rota pública (vazio = ok). Usado por `definirModuloApi` e
+ * pela montagem da API. `'portal'` só no manifesto `core` e só em `plataforma/...`; todo `plataforma/...` exige `'portal'`
+ * (a sessão do super-admin nunca roda no `macuxi_app`).
+ */
+export function problemasConexaoRotaPublica(modulo: string, r: Pick<RotaPublica, 'metodo' | 'caminho' | 'conexao'>): string[] {
+  const rotulo = `${r.metodo} /v1/${r.caminho}`;
+  const doPortal = /^plataforma(\/|$)/.test(r.caminho);
+  if (r.conexao !== undefined && r.conexao !== 'portal') return [`${rotulo}: conexao só aceita 'portal'`];
+  const p: string[] = [];
+  if (r.conexao === 'portal' && modulo !== 'core') p.push(`${rotulo}: conexao 'portal' só no manifesto core`);
+  if (r.conexao === 'portal' && !doPortal) p.push(`${rotulo}: conexao 'portal' só em caminho plataforma/...`);
+  if (doPortal && r.conexao !== 'portal') p.push(`${rotulo}: caminho plataforma/... exige conexao 'portal' (T-0091)`);
+  return p;
+}
+
 /** Página do pull pedida ao módulo: linhas com `(updated_at, id)` > `desde` e `updated_at` < `ate`. */
 export interface PedidoPull {
   desde: CursorSync | null;
@@ -573,6 +589,13 @@ export interface RotaPublica<
   query?: Q;
   params?: P;
   status?: number;
+  /**
+   * T-0091 (condição da ADR 0029): `'portal'` = a rota roda na conexão do papel `macuxi_portal` (único com EXECUTE nas
+   * `plataforma.sa_*`), não no `macuxi_app`. Só o manifesto `core` usa, e só em caminhos `plataforma/...`; e todo caminho
+   * `plataforma/...` exige o campo. A API recusa na subida qualquer combinação fora disso (erro de programação). Sem a senha
+   * do portal configurada, a rota responde 503 (falha fechada). O `ctx.banco` dessa rota só abre `semTenant`.
+   */
+  conexao?: 'portal';
   executar(ctx: ContextoPublico<z.output<C>, z.output<Q>, z.output<P>>): Promise<unknown>;
 }
 
@@ -604,6 +627,7 @@ export interface ServicosCore {
    * ADR 0029 (T-0087): token de PLATAFORMA (segredo e `aud` próprios) → super-admin com sessão viva e 2º fator, conferida no
    * banco a cada chamada. `null` = não é token de plataforma válido. Token de tenant nunca passa aqui, e o `autenticar` acima
    * nunca aceita token de plataforma. Sem o serviço, nenhuma rota aceita super-admin (falha fechada).
+   * T-0091: o `banco` recebido é a conexão do portal (papel `macuxi_portal`), que só abre `semTenant` e só executa as `sa_*`.
    */
   autenticarSuperAdmin?(
     cabecalhos: Readonly<Record<string, string | undefined>>,
@@ -854,6 +878,7 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
       problemas.push(`${r.metodo} /v1/${r.caminho}: prefixo reservado à plataforma`);
     if (!(r.limite?.max > 0) || !(r.limite?.janelaMs > 0))
       problemas.push(`${r.metodo} /v1/${r.caminho}: rota pública exige limite de tentativas`);
+    problemas.push(...problemasConexaoRotaPublica(id, r));
   }
   problemas.push(...problemasApiConector(m.manifesto, m.conector));
   if (problemas.length > 0) throw new Error(`API do módulo ${id} inválida: ${problemas.join('; ')}`);

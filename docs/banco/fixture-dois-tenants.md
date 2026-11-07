@@ -166,6 +166,18 @@ Instantes derivados do "hoje" de cada tenant, na janela da visita do Core da fix
   - os usuários da fixture já têm senha: aceitar o pendente troca a senha (teste em transação desfeita).
 - `core.usuario.telefone` fica nulo em todos (o upsert da fixture não mexe na coluna).
 
+### T-0089 (migração 0037; formas, prazos, prazo médio do cliente e tabela escalonada)
+- **Semeadas pelo gatilho** `tenant_semear_pagamento` (fora das listas, como motivos e medidas): em A e em B a forma `AVISTA`
+  "À vista" com o prazo `AVISTA` `{0}` (ids em `PAGAMENTO_FIXTURE.X.semeada`, gêmeos de `uuid_de_chave`).
+- **`vendedor.forma_pagamento`** (grupo **0x37**): A `PIX` (ordem 1) e `BOLETO` (ordem 2, `external_id` `FP-BOL`); B `DINHEIRO`.
+- **`vendedor.prazo_pagamento`** (grupo **0x3a**): A `PIX-AV` `{0}`; `BOL-28-56` `{28,56}` médio 42 (`external_id` `PZ-2856`);
+  `BOL-30-60-90` médio 60; `BOL-28` **inativo**. B `DIN-AV` `{0}`.
+- **`catalogo.tabela_escalonada`** (grupo **0x3b**): A no p1: 10 PC a 95.000 (geral), 2 CX a 90.000 por PC (Padrão Alfa) e uma
+  vencida ontem (5 PC); B no p1: 12 UN a 4.200. Datas civis relativas ao "hoje" de cada tenant.
+- **`core.cliente`**: c1 de A com `prazo_medio_max_dias = 45` e `formas_pagamento = {PIX,BOLETO}`; c1 de B com 30 e nulo; os
+  demais nulos. Nenhum pedido da fixture tem forma e prazo (como os do APK antigo).
+- Ids em `PAGAMENTO_FIXTURE` (exportado por `@macuxi/db/teste`). Literal de `integer[]`: `arrayDeInteiros` (`db/src/gravar.ts`).
+
 ## Seed Fase M (demonstração)
 Tenant `7d0c2f4e-1a2b-4c3d-8e9f-000000000001` "Distribuidora Exemplo", código `exemplo`, America/Manaus
 (mesmo id da Fase M). IDs determinísticos (UUID v5 de `fase-m:<tipo>:<chave>`).

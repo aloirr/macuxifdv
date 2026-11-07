@@ -2,9 +2,10 @@
  * Banco da API (desenho T-0002 §4 e T-0004 §4): a API conecta SÓ com o papel `macuxi_app` e toca dado de
  * tenant SÓ dentro de `comTenant` (@macuxi/db: `set_config('app.tenant_id', $1, true)` por transação).
  * Falha fechada: na subida, recusa conexão com outro papel, superusuário ou papel com BYPASSRLS.
+ * T-0091: a sessão do super-admin (funções `plataforma.sa_*`) vai por um 2º pool, do papel `macuxi_portal` (`criarBancoPortal`).
  * O horizonte do pull (§5) também mora aqui, porque olha as transações abertas no Postgres.
  */
-import { comTenant, PAPEL_APP } from '@macuxi/db';
+import { comTenant, PAPEL_APP, PAPEL_PORTAL } from '@macuxi/db';
 import type { AcessoBanco, ClienteBanco } from '@macuxi/platform-sdk';
 import type pg from 'pg';
 import { resumoDaLinha, type ResumoOutbox } from './observabilidade';
@@ -80,20 +81,7 @@ export function criarBancoApp(pool: pg.Pool, op: OpcoesBanco = {}): BancoApp {
       if (papel.superusuario || papel.ignora_rls) throw new ErroPapelBanco(`${PAPEL_APP} não pode ser superusuário nem ter BYPASSRLS.`);
     },
     comTenant: (tenantId, fn) => comTenant(pool, tenantId, (c) => fn(c as ClienteBanco)),
-    async semTenant(fn) {
-      const c = await pool.connect();
-      try {
-        await c.query('begin');
-        const r = await fn(c as ClienteBanco);
-        await c.query('commit');
-        return r;
-      } catch (e) {
-        await c.query('rollback').catch(() => undefined);
-        throw e;
-      } finally {
-        c.release();
-      }
-    },
+    semTenant: (fn) => transacaoSemTenant(pool, fn),
     async horizonteSync() {
       const r = await pool.query<{ horizonte: Date }>(SQL_HORIZONTE, [margem]);
       return r.rows[0]!.horizonte;
@@ -133,4 +121,58 @@ export function criarBancoApp(pool: pg.Pool, op: OpcoesBanco = {}): BancoApp {
       }
     },
   };
+}
+
+// ---------- T-0091: conexão do portal (papel macuxi_portal; condição da ADR 0029) ----------
+
+/** Papel do portal (T-0091; @macuxi/db): o único com EXECUTE nas `plataforma.sa_*`, sem grant em tabela nenhuma (0038). */
+export { PAPEL_PORTAL };
+
+/** Conexões do pool do portal (`MACUXI_API_POOL_PORTAL`; desenho T-0091 §3 item 3: API 10 + portal 2 + worker 2 + 4 = 18). */
+export const POOL_PORTAL_PADRAO = 2;
+
+/**
+ * Prazo da `sa_provisionar_tenant` no pool do portal (desenho T-0091 §3 item 5). Ela grava `plataforma.parametro` (entidade de
+ * sync do Core) noutro papel, invisível ao `SQL_HORIZONTE` do `macuxi_app`; abaixo da margem do horizonte, a linha nunca fica
+ * atrás do cursor do pull. Teste amarra as duas constantes.
+ */
+export const PRAZO_PROVISIONAR_PORTAL_MS = 1_500;
+
+/** Conexão do super-admin: só `semTenant` (funções `sa_*`); `comTenant` é erro de programação (o portal não lê tenant). */
+export interface BancoPortal extends AcessoBanco {
+  /** Confere o papel da conexão (`macuxi_portal`, sem superusuário/BYPASSRLS); erro = a API não sobe. */
+  verificar(): Promise<void>;
+}
+
+export function criarBancoPortal(pool: pg.Pool): BancoPortal {
+  return {
+    async verificar() {
+      const r = await pool.query<{ usuario: string; superusuario: boolean; ignora_rls: boolean }>(
+        'select current_user as usuario, r.rolsuper as superusuario, r.rolbypassrls as ignora_rls from pg_roles r where r.rolname = current_user',
+      );
+      const papel = r.rows[0];
+      if (!papel) throw new ErroPapelBanco('Não foi possível ler o papel da conexão do portal.');
+      if (papel.usuario !== PAPEL_PORTAL) throw new ErroPapelBanco(`O portal só conecta como ${PAPEL_PORTAL} (conectou como ${papel.usuario}).`);
+      if (papel.superusuario || papel.ignora_rls) throw new ErroPapelBanco(`${PAPEL_PORTAL} não pode ser superusuário nem ter BYPASSRLS.`);
+    },
+    comTenant: async () => {
+      throw new Error('A conexão do portal (macuxi_portal) nunca abre tenant: dado de tenant vai pelo macuxi_app (T-0091).');
+    },
+    semTenant: (fn) => transacaoSemTenant(pool, fn),
+  };
+}
+
+async function transacaoSemTenant<T>(pool: pg.Pool, fn: (c: ClienteBanco) => Promise<T>): Promise<T> {
+  const c = await pool.connect();
+  try {
+    await c.query('begin');
+    const r = await fn(c as ClienteBanco);
+    await c.query('commit');
+    return r;
+  } catch (e) {
+    await c.query('rollback').catch(() => undefined);
+    throw e;
+  } finally {
+    c.release();
+  }
 }

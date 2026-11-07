@@ -13,6 +13,13 @@ describe('RN-INT-04: ordem topológica de carga', () => {
     expect(r.ordem).toHaveLength(ENTIDADES.length);
   });
 
+  it('RN-INT-04: a faixa escalonada vem depois de produto e de preco (a tabela nasce no consumidor do preco)', () => {
+    const r = ordenarCarga([...ENTIDADES].reverse());
+    if (!r.ok) throw new Error('ciclo inesperado');
+    expect(r.ordem.indexOf('tabela_escalonada')).toBeGreaterThan(r.ordem.indexOf('preco'));
+    expect(r.ordem.indexOf('tabela_escalonada')).toBeGreaterThan(r.ordem.indexOf('produto'));
+  });
+
   it('RN-INT-04: ordem estável (preserva a ordem pedida quando não há dependência)', () => {
     const r = ordenarCarga(['estoque', 'preco', 'produto']);
     expect(r).toEqual({ ok: true, ordem: ['produto', 'estoque', 'preco'] });

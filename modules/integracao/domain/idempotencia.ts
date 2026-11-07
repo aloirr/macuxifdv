@@ -6,6 +6,7 @@
 import { SCHEMA_REGISTRO, type AvisoLinha, type Entidade, type LinhaErro } from '../contracts';
 import { classificarErroZod } from './erros';
 import { limitarCatalogoDoProduto } from './catalogo-produto';
+import { avisoPrazoMedioDivergente } from './pagamento';
 import { sha256Hex } from './sha256';
 
 /** JSON com chaves ordenadas; `null`/`undefined` em objeto equivalem a campo ausente; `-0` vira `0`. */
@@ -102,6 +103,11 @@ export function validarLinhas(entidade: Entidade, registros: readonly unknown[])
         const corte = limitarCatalogoDoProduto(r.data as Parameters<typeof limitarCatalogoDoProduto>[0]);
         dados = corte.registro;
         avisos.push(...corte.avisos.map((a) => ({ ...a, indice: l.indice })));
+      }
+      if (entidade === 'prazo_pagamento') {
+        // T-0089: prazo médio informado diferente do calculado = aviso (RN-VEN-24); a linha segue
+        const aviso = avisoPrazoMedioDivergente(r.data as Parameters<typeof avisoPrazoMedioDivergente>[0]);
+        if (aviso) avisos.push({ ...aviso, indice: l.indice });
       }
       validas.push({ indice: l.indice, external_id: (r.data as { external_id: string }).external_id, alterado_em: (r.data as { alterado_em: string }).alterado_em, registro: dados, hash: hashRegistro(dados) });
     } else {

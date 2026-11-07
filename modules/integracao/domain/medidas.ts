@@ -19,9 +19,9 @@ export interface SiglaDoRegistro {
  * (a embalagem é opcional); produto_unidade e preço: `unidade`. Preço sem unidade = unidade base do produto (sem conferência).
  */
 export function siglasDeMedidaDoRegistro(entidade: Entidade, registro: unknown): SiglaDoRegistro[] {
-  if (entidade !== 'produto' && entidade !== 'produto_unidade' && entidade !== 'preco') return [];
+  if (entidade !== 'produto' && entidade !== 'produto_unidade' && entidade !== 'preco' && entidade !== 'tabela_escalonada') return [];
   const r = (registro && typeof registro === 'object' ? registro : {}) as Record<string, unknown>;
-  const campos = entidade === 'produto' ? ['unidade', 'embalagem_medida'] : ['unidade'];
+  const campos = entidade === 'produto' ? ['unidade', 'embalagem_medida'] : entidade === 'tabela_escalonada' ? ['medida'] : ['unidade'];
   const saida: SiglaDoRegistro[] = [];
   for (const campo of campos) {
     const v = r[campo];

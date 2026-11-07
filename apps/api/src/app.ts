@@ -14,6 +14,11 @@
  * `tx.consultar` liga as consultas dos módulos instalados (ADR 0012; `{ licenca: 'tenant' }` só em GET/HEAD, ADR 0025) e
  * `tx.auditar` grava a auditoria (RN-AUD-01).
  *
+ * T-0091 (condição da ADR 0029): a sessão do super-admin vai por um 2º banco (`bancoPortal`, papel `macuxi_portal`, o único com
+ * EXECUTE nas `plataforma.sa_*`): rotas públicas com `conexao: 'portal'`, `/v1/plataforma/*`, a conferência da sessão
+ * (`autenticarSuperAdmin`), o `sa_tenant_ativo` e a auditoria do `onResponse`. Dado de tenant (inclusive nas rotas com
+ * `superAdmin`) segue no `macuxi_app`. Sem `bancoPortal`, o portal responde 503 `PORTAL_INDISPONIVEL` e os tenants seguem.
+ *
  * Rotas de Conector (ADR 0013): `conector.ts` monta `/<modulo>/v1/*` do módulo com `conector` (chave de API, sem JWT).
  *
  * Proteção do Zod (GHSA-mrhx-c7xc-m3w5: o Zod acumula um problema por elemento inválido de array, sem teto): todo corpo
@@ -42,6 +47,7 @@ import {
   LIMITE_CORPO_ROTA_PADRAO,
   modulosEfetivos,
   problemasApiConector,
+  problemasConexaoRotaPublica,
   problemasConteudoRota,
   problemasLimiteCorpo,
   NOME_ARQUIVO_ROTA_RE,
@@ -71,7 +77,7 @@ import {
 } from '@macuxi/platform-sdk';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyServerOptions } from 'fastify';
 import { ZodError, type ZodTypeAny } from 'zod';
-import type { BancoApp } from './banco';
+import type { BancoApp, BancoPortal } from './banco';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
 import { criarLimitador } from './limitador';
 import { registrarConector, ehRotaConector } from './conector';
@@ -126,6 +132,11 @@ export interface OpcoesApp {
   autenticarSuperAdmin?: ServicosCore['autenticarSuperAdmin'];
   /** Funções do super-admin no banco (0035; padrão: `fontePlataformaNoBanco`). Testes injetam a sua. */
   plataforma?: FontePlataforma;
+  /**
+   * T-0091: banco do portal (`criarBancoPortal`, papel `macuxi_portal`). `null`/ausente = o portal (rotas `plataforma/*` e
+   * token de plataforma) responde 503 `PORTAL_INDISPONIVEL`; as rotas dos tenants seguem normais.
+   */
+  bancoPortal?: BancoPortal | null;
 }
 
 /** Cache da sonda de dependências do `/v1/saude` (a rota é pública: não vira amplificador de consultas no banco). */
@@ -145,6 +156,13 @@ function semBanco(): never {
 }
 
 const acessoIndisponivel: AcessoBanco = { comTenant: async () => semBanco(), semTenant: async () => semBanco() };
+
+/** T-0091: sem a senha do `macuxi_portal` (`MACUXI_PG_PORTAL_SENHA`) o portal fica fora do ar; falha fechada. */
+function semPortal(): never {
+  throw new ErroHttp(503, 'PORTAL_INDISPONIVEL', 'O portal de implantação está indisponível neste servidor. Avise o suporte.');
+}
+
+const portalIndisponivel: AcessoBanco = { comTenant: async () => semPortal(), semTenant: async () => semPortal() };
 
 function negar(r: { ok: false; status: 401 | 403; codigo: string; mensagem: string }, modulo: ModuloId): never {
   if (r.codigo === 'MODULO_INATIVO') {
@@ -180,6 +198,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasLimiteCorpo(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
     // T-0087: tipo de conteúdo e nome de arquivo das rotas de download (lista fechada; nada executável no navegador)
     ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasConteudoRota(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
+    // T-0091: sessão do super-admin só na conexão do portal (fixture sem definirModuloApi também passa por aqui)
+    ...modulos.flatMap((m) => (m.rotasPublicas ?? []).flatMap((r) => problemasConexaoRotaPublica(m.manifesto.id, r))),
   ];
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
@@ -189,6 +209,9 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   const core = porId.get('core');
   const banco = op.banco ?? null;
   const acesso: AcessoBanco = banco ?? acessoIndisponivel;
+  // T-0091: o macuxi_portal só serve à sessão do super-admin; nunca entra em ContextoRota, consultas nem handlers de evento
+  const bancoPortal = op.bancoPortal ?? null;
+  const acessoPortal: AcessoBanco = bancoPortal ?? portalIndisponivel;
   const relogio = op.relogio ?? (() => new Date());
   const fonteLicencas = op.licencas ?? licencasDoBanco;
   const autenticar = op.autenticar ?? core?.servicos?.autenticar ?? (async () => null);
@@ -237,7 +260,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
           request_id: req.id,
           ip_prefixo: prefixoDoIp(req.ip),
         },
-        acesso,
+        acessoPortal,
       );
     } catch (erro) {
       req.log.error({ err: erro, request_id: req.id }, 'falha ao gravar a auditoria da plataforma');
@@ -245,6 +268,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   });
 
   if (banco) app.addHook('onReady', () => banco.verificar());
+  if (bancoPortal) app.addHook('onReady', () => bancoPortal.verificar());
 
   // antes de qualquer schema Zod (rotas de módulo, públicas e de sync): corpo com coleções gigantes é recusado.
   // As rotas de Conector (ADR 0013) têm teto próprio por rota e o 413 com o código do Hub (`conector.ts`).
@@ -286,7 +310,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
    */
   const superAdminDaRequisicao = async (req: FastifyRequest, modo: ModoSuperAdmin | undefined): Promise<{ sa: SuperAdminAutenticado; tenantId: string } | null> => {
     if (!modo) return null;
-    const sa = await autenticarSA(cabecalhos(req), acesso);
+    const sa = await autenticarSA(cabecalhos(req), acessoPortal);
     if (!sa) {
       if (modo === 'exige') {
         // usuário do tenant numa rota só do super-admin: 401 se nem login tiver, 403 se tiver
@@ -299,7 +323,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     marcarSuperAdmin(req, { sa, tenantId: null });
     if (!bruto || !UUID.test(bruto)) throw new ErroHttp(400, 'TENANT_OBRIGATORIO', 'Escolha a empresa (cabeçalho x-macuxi-tenant).');
     const tenantId = bruto.toLowerCase();
-    if (!(await fontePlataforma.tenantAtivo(sa, tenantId, acesso))) throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
+    if (!(await fontePlataforma.tenantAtivo(sa, tenantId, acessoPortal))) throw new ErroHttp(404, 'TENANT_NAO_ENCONTRADO', 'Empresa não encontrada ou inativa.');
     marcarSuperAdmin(req, { sa, tenantId });
     return { sa, tenantId };
   };
@@ -310,7 +334,7 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     if (!token) {
       // ADR 0029 §6: token de plataforma válido numa rota SEM a opção também é requisição do super-admin (recusada) e vai à auditoria
       if (!modoSuperAdmin) {
-        const sa = await autenticarSA(cabecalhos(req), acesso);
+        const sa = await autenticarSA(cabecalhos(req), acessoPortal);
         if (sa) marcarSuperAdmin(req, { sa, tenantId: null });
       }
       throw new ErroHttp(401, 'NAO_AUTENTICADO', 'Faça login para continuar.');
@@ -409,12 +433,19 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   registrarArquivos(app, plataforma, op.arquivos ?? null);
   registrarAuditoria(app, plataforma);
   // ADR 0029: rotas do portal sem tenant (empresas); a autenticação do super-admin é do Core (`plataforma/auth/*`)
-  registrarRotasPlataforma(app, { manifestos, acesso, fonte: fontePlataforma, autenticar: (req) => autenticarSA(cabecalhos(req), acesso), validar });
+  // T-0091: tudo do portal na conexão do macuxi_portal; sem ela, 503 antes de olhar o token
+  registrarRotasPlataforma(app, {
+    manifestos,
+    acesso: acessoPortal,
+    fonte: fontePlataforma,
+    autenticar: async (req) => (bancoPortal ? autenticarSA(cabecalhos(req), acessoPortal) : semPortal()),
+    validar,
+  });
 
   // ---------- rotas dos módulos ----------
   for (const m of modulos) {
     for (const rota of m.rotas ?? []) montarRota(app, plataforma, permissoes, m.manifesto, rota);
-    for (const rota of m.rotasPublicas ?? []) montarRotaPublica(app, acesso, relogio, rota);
+    for (const rota of m.rotasPublicas ?? []) montarRotaPublica(app, rota.conexao === 'portal' ? (bancoPortal ?? null) : acesso, relogio, rota);
     // ADR 0013: rotas do Conector em /<modulo>/v1 (chave de API, licença do tenant da chave)
     if (m.conector) registrarConector(app, m, { manifestos, acesso, relogio, licencasTenant: op.licencasTenant ?? licencasDoTenantNoBanco });
   }
@@ -501,12 +532,14 @@ function nomeDoArquivo(rota: RotaModulo, entrada: EntradaRota): string {
   return nome;
 }
 
-function montarRotaPublica(app: FastifyInstance, acesso: AcessoBanco, relogio: () => Date, rota: RotaPublica): void {
+/** `acesso` = `null`: rota do portal (`conexao: 'portal'`) sem o banco do portal → 503 antes de validar ou contar tentativa (T-0091). */
+function montarRotaPublica(app: FastifyInstance, acesso: AcessoBanco | null, relogio: () => Date, rota: RotaPublica): void {
   const limitador = criarLimitador(rota.limite.max, rota.limite.janelaMs, () => relogio().getTime());
   app.route({
     method: rota.metodo,
     url: `/v1/${rota.caminho}`,
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
+      if (!acesso) semPortal();
       const params = validar(rota.params, req.params, 'params');
       const query = validar(rota.query, req.query, 'query');
       const corpo = validar(rota.corpo, req.body, 'corpo');

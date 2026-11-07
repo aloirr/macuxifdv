@@ -6,14 +6,13 @@
  * Ficam aqui para os dois montarem o motor e conferirem módulos e sessão do mesmo jeito.
  */
 import { MeusModulosRespostaSchema, RefreshRespostaSchema } from '@macuxi/core/contracts';
-import { criarMotorSync, type AmbienteAparelho, type EtapaSync, type ModuloId, type MotorSync, type ParametrosModulos, type Perfil } from '@macuxi/platform-sdk';
+import { criarMotorSync, type AmbienteAparelho, type ArmazenamentoSync, type EtapaSync, type ModuloId, type MotorSync, type ParametrosModulos, type Perfil } from '@macuxi/platform-sdk';
 
 import { efetivosSemServidor } from '@/lib/efetivos-locais';
 import type { ModoApi } from '@/lib/modo-api';
 import type { shellDaVariante } from '@/lib/modulos';
 
 import { ApiClient, errorMessage, HttpError } from './api';
-import { armazenamentoDoUsuario } from './armazenamento';
 import { arquivosLocais } from './arquivos';
 import { gravarTokens, lerTokens } from './credenciais';
 import { uuid } from './device';
@@ -51,6 +50,11 @@ type Shell = ReturnType<typeof shellDaVariante>;
 
 export interface OpcoesMotorDoUsuario {
   usuarioId: string;
+  /**
+   * Armazenamento já aberto (T-0088: `abrirArmazenamentoDoUsuario`, SQLite do usuário e tenant ou o AsyncStorage de
+   * reserva), a MESMA instância do lease e da tarefa em segundo plano.
+   */
+  armazenamento: ArmazenamentoSync;
   shell: Shell;
   modo: ModoApi;
   api: () => ApiClient;
@@ -60,11 +64,11 @@ export interface OpcoesMotorDoUsuario {
   etapasExtras?: readonly EtapaSync[];
 }
 
-/** Motor de sync do usuário (armazenamento isolado por usuário), sem `carregar()`. */
+/** Motor de sync do usuário (armazenamento isolado por usuário e tenant, já aberto), sem `carregar()`. */
 export function criarMotorDoUsuario(o: OpcoesMotorDoUsuario): MotorSync {
   return criarMotorSync({
     registro: o.shell.registroSync,
-    armazenamento: armazenamentoDoUsuario(o.usuarioId),
+    armazenamento: o.armazenamento,
     transporte: modoSync(o.modo) === 'v1' ? transporteV1(o.api) : transporteFaseM(o.api),
     online: o.online,
     ambiente: o.ambiente,

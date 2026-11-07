@@ -71,15 +71,35 @@ describe('revalidarPedido: ajuste em R$ (T-0071)', () => {
     expect(revalidarPedido(entrada({ itens }))).toMatchObject({ ok: false, codigo: 'preco_abaixo_minimo' });
     expect(revalidarPedido(entrada({ itens: [{ ...itens[0]!, desconto_unitario_cents: 150 }] })).ok).toBe(true);
   });
-  it('RN-VEN-15: o preço próprio da embalagem vale no lugar de UN × fator', () => {
+  it('RN-VEN-15: a embalagem é sempre UN × fator, sem preço próprio de caixa', () => {
+    const r = revalidarPedido(entrada({ itens: [{ product_id: 'p1', sku: 'A', quantity: 1, unidade: 'CX', fator: 12 }], precos: { p1: 1_890 } }));
+    expect(r.ok && r.itens[0]).toMatchObject({ preco_tabela_cents: 22_680, total_cents: 22_680 });
+  });
+  it('RN-VEN-23: a faixa escalonada vira a base do item (menor entre tabela e faixa)', () => {
     const r = revalidarPedido(
-      entrada({ itens: [{ product_id: 'p1', sku: 'A', quantity: 1, unidade: 'CX', fator: 12 }], precos: { p1: 1_890 }, precos_embalagem: { p1: { CX: 21_546 } } }),
+      entrada({
+        itens: [{ product_id: 'p1', sku: 'A', quantity: 10, unidade: 'CX', fator: 12 }],
+        precos: { p1: 1_890 },
+        faixas: { p1: [{ medida: 'CX', quantidade_minima: 10, preco_unidade_cents: 1_700 }] },
+      }),
     );
-    expect(r.ok && r.itens[0]).toMatchObject({ preco_tabela_cents: 21_546, total_cents: 21_546 });
+    expect(r.ok && r.itens[0]).toMatchObject({ preco_tabela_cents: 20_400, total_cents: 204_000 });
   });
   it('RN-VEN-02: sem R$ nada muda (% legado continua valendo e o modo é pct)', () => {
     const r = revalidarPedido(entrada({ desconto_pct: 5 }));
     expect(r).toMatchObject({ ok: true, ajuste_em: 'pct', desconto_valor_cents: 100 });
     expect(r.ok && r.itens[0]).toMatchObject({ ajuste_em: 'pct', desconto_unitario_cents: 0 });
+  });
+});
+
+describe('revalidarPedido: título vencido (RN-VEN-13, T-0089)', () => {
+  it('RN-VEN-13: título vencido com prazo a prazo manda o pedido dentro da alçada para aprovação (motivo credito)', () => {
+    const r = revalidarPedido(entrada({ titulo_vencido: true }));
+    expect(r).toMatchObject({ ok: true, status: 'pending_approval', nivel: 'supervisor', motivos: ['credito'], aprovacao_automatica: false });
+    expect(r.ok && r.historico.map((h) => h.para)).toEqual(['received', 'pending_approval']);
+  });
+  it('RN-VEN-13: sem título vencido (ou à vista) segue aprovado na hora', () => {
+    expect(revalidarPedido(entrada({ titulo_vencido: false }))).toMatchObject({ ok: true, status: 'approved' });
+    expect(revalidarPedido(entrada())).toMatchObject({ ok: true, status: 'approved' });
   });
 });

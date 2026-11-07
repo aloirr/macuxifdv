@@ -1,11 +1,11 @@
 /**
- * Driver `expo-sqlite` do contrato `DriverSqlite` do platform-sdk (desenho T-0008 §3.1 e §3.3; P4/P7).
+ * Driver `expo-sqlite` do contrato `DriverSqlite` do platform-sdk (desenho T-0008 §3.1 e §3.3; P4/P7) e a pasta dos
+ * bancos do app (T-0088: `SistemaSqlite` do motor do usuário, `services/armazenamento.ts`).
  *
- * O `expo-sqlite` entra pela janela de instalação do engenheiro-software (`~57.0.4`, com o plugin `enableFTS` no
- * `app.config.ts`). Até lá ele é OPCIONAL: carregado com `require` dentro de `try` (o Metro aceita dependência opcional)
- * e só se o módulo nativo `ExpoSQLite` estiver no APK. Sem ele, `expoSqliteDisponivel()` = `false` e a tela de
- * diagnóstico avisa; nada mais do app usa este arquivo por enquanto (o motor segue no AsyncStorage).
- * Tipos mínimos locais da API usada (o pacote ainda não está no node_modules); conferir com o `.d.ts` dele na instalação.
+ * O `expo-sqlite ~57.0.4` está no app e o plugin (`enableFTS`) é obrigatório no `app.config.ts` desde a T-0088. Mesmo
+ * assim o pacote é carregado com `require` dentro de `try` e só com o módulo nativo `ExpoSQLite` no APK: um APK sem ele
+ * (ou o navegador da demonstração) não quebra, `expoSqliteDisponivel()` = `false` e o motor fica no AsyncStorage
+ * (reserva, desenho T-0088 §4). Tipos mínimos locais só da API usada.
  *
  * No expo-sqlite, `withExclusiveTransactionAsync` abre OUTRA conexão: dentro de `transacaoExclusiva` só o `tx` recebido
  * escreve (o adaptador do SDK já serializa as escritas). Por isso o banco é sempre um ARQUIVO (nada de `:memory:`).
@@ -13,6 +13,7 @@
 import { requireOptionalNativeModule } from 'expo';
 
 import type { ComandoPreparado, DriverSqlite, ValorSql } from '@macuxi/platform-sdk';
+import { Directory, Paths } from 'expo-file-system';
 
 interface ComandoExpo {
   executeAsync(params: ValorSql[]): Promise<unknown>;
@@ -32,6 +33,8 @@ interface BancoExpo {
 interface ModExpoSqlite {
   openDatabaseAsync(nome: string): Promise<BancoExpo>;
   deleteDatabaseAsync(nome: string): Promise<void>;
+  /** Pasta dos bancos (no Android, `<files>/SQLite`, caminho sem `file://`). */
+  defaultDatabaseDirectory?: unknown;
 }
 
 function carregar(): ModExpoSqlite | null {
@@ -100,4 +103,30 @@ export async function apagarBancoExpo(nome: string): Promise<void> {
   } catch {
     // arquivo inexistente (primeira vez) ou já apagado
   }
+}
+
+/**
+ * Apaga o banco e os anexos `-wal`/`-shm` (`deleteDatabaseAsync`), LANÇANDO na falha: o bloqueio do aparelho
+ * (RN-CORE-15) registra e segue para o próximo arquivo (`criarSistemaSqlite`). Sem expo-sqlite: nada a apagar.
+ */
+export async function apagarBancoExpoOuLancar(nome: string): Promise<void> {
+  const m = expoSqlite();
+  if (!m) return;
+  await m.deleteDatabaseAsync(nome);
+}
+
+/** Pasta dos bancos do expo-sqlite: a do módulo nativo; sem ela, `<documentos>/SQLite` (o padrão no Android). */
+function pastaDosBancos(m: ModExpoSqlite): Directory {
+  const d = m.defaultDatabaseDirectory;
+  if (typeof d === 'string' && d.length > 0) return new Directory(d.startsWith('file:') ? d : `file://${d}`);
+  return new Directory(Paths.document, 'SQLite');
+}
+
+/** Nomes dos arquivos da pasta dos bancos (com os anexos `-wal`/`-shm`). Sem expo-sqlite ou sem a pasta: nenhum. */
+export function listarBancosExpo(): string[] {
+  const m = expoSqlite();
+  if (!m) return [];
+  const pasta = pastaDosBancos(m);
+  if (!pasta.exists) return [];
+  return pasta.list().map((x) => x.name);
 }

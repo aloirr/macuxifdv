@@ -1,12 +1,12 @@
 /**
- * Provedores de pull de preço e estoque do Catálogo (T-0029; docs/banco/catalogo.md): `tabela_preco`, `tabela_preco_item`
+ * Provedores de pull de preço e estoque do Catálogo (T-0029; docs/banco/catalogo.md): `tabela_preco`, `tabela_preco_item`, `tabela_escalonada`
  * (escopo tenant; restringir às tabelas da carteira fica para depois) e `cliente_tabela_preco` (escopo carteira,
  * RN-CORE-04). Ordem `(updated_at, id)`, `updated_at < ate`, microssegundos, removidos incluídos, dinheiro em
  * centavos como número. RN-CAT-05: perfil sem direito ao preço (promotor com `promotor_ve_preco_estoque = false`)
  * não recebe nenhuma das três — o preço nem chega ao aparelho dele.
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
-import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoReferencia, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
+import { entidadeCatalogoNo, entidadeClienteTabelaPreco, entidadeDeposito, entidadeEstoqueSaldo, entidadeProdutoAtributo, entidadeProdutoConteudo, entidadeProdutoNo, entidadeProdutoReferencia, entidadeProdutoRelacao, entidadeSinonimo, entidadeTabelaEscalonada, entidadeTabelaPreco, entidadeTabelaPrecoItem } from '../contracts';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -18,6 +18,12 @@ const TABELAS = {
   tabela_preco_item: {
     tabela: 'catalogo.tabela_preco_item',
     colunas: `tabela_preco_id, produto_id, preco_cents::float8 as preco_cents, ${ts('vigencia_inicio')}, ${ts('vigencia_fim')}, unidade`,
+    colunaCliente: false,
+  },
+  // faixas por quantidade (RN-VEN-23, migração 0037): preço da unidade base; vigência em data civil (date -> texto AAAA-MM-DD); escopo tenant, só para quem vê preço
+  tabela_escalonada: {
+    tabela: 'catalogo.tabela_escalonada',
+    colunas: 'produto_id, medida, quantidade_minima::int as quantidade_minima, preco_unidade_cents::float8 as preco_unidade_cents, vigencia_inicio::text as vigencia_inicio, vigencia_fim::text as vigencia_fim, tabela_preco_id, ativo',
     colunaCliente: false,
   },
   cliente_tabela_preco: { tabela: 'catalogo.cliente_tabela_preco', colunas: 'cliente_id, tabela_preco_id', colunaCliente: true },
@@ -79,6 +85,7 @@ async function puxar(nome: keyof typeof TABELAS, ctx: ContextoBase, pedido: Pedi
 export const provedoresSyncCatalogo: readonly ProvedorSync[] = [
   { entidade: entidadeTabelaPreco, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_preco', ctx, p) },
   { entidade: entidadeTabelaPrecoItem, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_preco_item', ctx, p) },
+  { entidade: entidadeTabelaEscalonada, escopo: 'tenant', puxar: (ctx, p) => puxar('tabela_escalonada', ctx, p) },
   { entidade: entidadeClienteTabelaPreco, escopo: 'carteira', puxar: (ctx, p) => puxar('cliente_tabela_preco', ctx, p) },
   { entidade: entidadeCatalogoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('catalogo_no', ctx, p) },
   { entidade: entidadeProdutoNo, escopo: 'tenant', puxar: (ctx, p) => puxar('produto_no', ctx, p) },

@@ -4,13 +4,18 @@
  * - tenant do cabeçalho `x-macuxi-tenant` obrigatório e ativo; licença do módulo NO TENANT continua valendo;
  * - toda requisição do super-admin gera uma linha de auditoria da plataforma, inclusive as recusadas;
  * - `POST /v1/plataforma/empresas` (passo Empresa) pelo `planoDeOnboardingSemAdmin`, com core e integracao sempre.
+ * - T-0091 (condição da ADR 0029): sessão, `sa_tenant_ativo`, empresas e auditoria SÓ no banco do portal (`macuxi_portal`);
+ *   licença e dado do tenant seguem no `macuxi_app`; sem o banco do portal, 503 PORTAL_INDISPONIVEL e os tenants seguem.
  */
 import { definirModuloApi, type AcessoBanco, type RotaModulo, type SuperAdminAutenticado } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
+import type pg from 'pg';
 import { createApp } from '../src/app';
+import { criarBancoPortal, ErroPapelBanco, MARGEM_HORIZONTE_PADRAO_MS, PAPEL_PORTAL, PRAZO_PROVISIONAR_PORTAL_MS } from '../src/banco';
 import type { LicencasTenant } from '../src/licencas';
-import { fontePlataformaNoBanco, prefixoDoIp, type EntradaProvisionarPlataforma, type FontePlataforma, type LinhaAuditoriaPlataforma } from '../src/plataforma';
-import { cab, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, TENANT, vendedorApi } from './apoio';
+import { MODULOS_API } from '../src/modulos';
+import { fontePlataformaNoBanco, prefixoDoIp, SQL_PRAZO_PROVISIONAR, type EntradaProvisionarPlataforma, type FontePlataforma, type LinhaAuditoriaPlataforma } from '../src/plataforma';
+import { bancoFalso, bancoPortalFalso, cab, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste, TENANT, vendedorApi } from './apoio';
 
 const SA: SuperAdminAutenticado = { id: '5a000000-0000-4000-8000-000000000001', sessao_id: '5b000000-0000-4000-8000-000000000001' };
 const OUTRO_TENANT = '0a000000-0000-4000-8000-0000000000ff';
@@ -28,28 +33,59 @@ const rota = (caminho: string, superAdmin?: RotaModulo['superAdmin']): RotaModul
   },
 });
 
-function montar(licTenant: Partial<Record<string, LicencasTenant>> = {}) {
+/** Rota de módulo com `superAdmin` que lê dado do tenant: tem de ir pelo `comTenant` do macuxi_app (T-0091). */
+const rotaDados: RotaModulo = { metodo: 'GET', caminho: 'sa/dados', carteira: 'nao_se_aplica', superAdmin: 'aceita', executar: async (ctx) => ctx.comTenant(async () => ({ ok: true })) };
+
+function montar(licTenant: Partial<Record<string, LicencasTenant>> = {}, op: { semPortal?: boolean } = {}) {
   const auditoria: LinhaAuditoriaPlataforma[] = [];
   const provisionados: { entrada: EntradaProvisionarPlataforma; simular: boolean }[] = [];
+  const app_ = bancoFalso();
+  const portal = bancoPortalFalso();
+  // cada fonte falsa abre uma transação no banco recebido, como a real: sem o banco do portal, dá 503
+  const usos: { onde: string; banco: AcessoBanco }[] = [];
+  const usar = async (onde: string, banco: AcessoBanco) => {
+    usos.push({ onde, banco });
+    await banco.semTenant(async () => undefined);
+  };
   const fonte: FontePlataforma = {
-    tenantAtivo: async (_sa, t) => t === TENANT,
-    listarEmpresas: async () => ({ itens: [] }),
-    provisionar: async (_sa, entrada, simular) => {
+    tenantAtivo: async (_sa, t, b) => {
+      await usar('tenantAtivo', b);
+      return t === TENANT;
+    },
+    listarEmpresas: async (_sa, b) => {
+      await usar('listarEmpresas', b);
+      return { itens: [] };
+    },
+    provisionar: async (_sa, entrada, simular, b) => {
+      await usar('provisionar', b);
       provisionados.push({ entrada, simular });
       return { tenant_id: simular ? null : '0a000000-0000-4000-8000-0000000000aa', resultado: 'criado', modulos_adicionados: entrada.modulos.map((m) => m.modulo), parametros_gravados: entrada.parametros.map((p) => p.chave), avisos: [] };
     },
-    auditar: async (l) => void auditoria.push(l),
+    auditar: async (l, b) => {
+      await usar('auditar', b);
+      auditoria.push(l);
+    },
   };
-  const vendedor = definirModuloApi({ ...vendedorApi, rotas: [...(vendedorApi.rotas ?? []), rota('sa/normal'), rota('sa/aceita', 'aceita'), rota('sa/exige', 'exige')] });
+  const vendedor = definirModuloApi({ ...vendedorApi, rotas: [...(vendedorApi.rotas ?? []), rota('sa/normal'), rota('sa/aceita', 'aceita'), rota('sa/exige', 'exige'), rotaDados] });
   const app = createApp(
     opcoesDeTeste(LICENCAS_PADRAO, {
       modulos: modulosDeTeste({ vendedor }),
-      autenticarSuperAdmin: async (h) => (h['x-teste-sa'] === '1' ? SA : null),
+      banco: app_.banco,
+      bancoPortal: op.semPortal ? null : portal.banco,
+      // como o do Core: só um token de plataforma válido chega ao banco (sessão viva)
+      autenticarSuperAdmin: async (h, b) => {
+        if (h['x-teste-sa'] !== '1') return null;
+        await usar('autenticarSuperAdmin', b);
+        return SA;
+      },
       plataforma: fonte,
-      licencasTenant: async (t) => licTenant[t] ?? { ativosNoTenant: ['core', 'catalogo', 'vendedor', 'integracao'], parametros: {}, fuso: 'America/Manaus' },
+      licencasTenant: async (t, b) => {
+        usos.push({ onde: 'licencasTenant', banco: b });
+        return licTenant[t] ?? { ativosNoTenant: ['core', 'catalogo', 'vendedor', 'integracao'], parametros: {}, fuso: 'America/Manaus' };
+      },
     }),
   );
-  return { app, auditoria, provisionados };
+  return { app, auditoria, provisionados, usos, bancoApp: app_, portal };
 }
 
 describe('rota de módulo com superAdmin (ADR 0029 §5)', () => {
@@ -166,5 +202,86 @@ describe('sessão revogada no meio da requisição (0035: erro 28000)', () => {
 
   it('outro erro do banco segue igual', async () => {
     await expect(fontePlataformaNoBanco.listarEmpresas(SA, bancoQueLanca('22023'))).rejects.toMatchObject({ code: '22023' });
+  });
+});
+
+describe('T-0091: sessão do super-admin no papel macuxi_portal (condição da ADR 0029)', () => {
+  const corpo = { codigo: 'distribuidora-x', razao_social: 'Distribuidora X Ltda', cnpj: '11.222.333/0001-81', modulos: [{ modulo: 'catalogo' }, { modulo: 'vendedor' }] };
+
+  it('sessão, tenant ativo, empresas e auditoria só no banco do portal; licença e dado do tenant no macuxi_app', async () => {
+    const { app, usos, bancoApp, portal } = montar();
+    expect((await app.inject({ method: 'GET', url: '/v1/vendedor/sa/dados', headers: comSA() })).json()).toEqual({ ok: true });
+    expect((await app.inject({ method: 'GET', url: '/v1/plataforma/empresas', headers: comSA(null) })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comSA(null), payload: corpo })).statusCode).toBe(201);
+    const doPortal = ['autenticarSuperAdmin', 'tenantAtivo', 'listarEmpresas', 'provisionar', 'auditar'];
+    expect(new Set(usos.map((u) => u.onde))).toEqual(new Set([...doPortal, 'licencasTenant']));
+    for (const u of usos) expect([u.onde, u.banco === (doPortal.includes(u.onde) ? portal.banco : bancoApp.banco)]).toEqual([u.onde, true]);
+    // o dado do tenant foi lido pelo comTenant do macuxi_app (RLS), com o tenant do cabeçalho
+    expect(bancoApp.tenants).toEqual([TENANT]);
+  });
+
+  it('usuário do tenant nunca toca o banco do portal', async () => {
+    const { app, portal } = montar();
+    expect((await app.inject({ method: 'GET', url: '/v1/vendedor/sa/aceita', headers: cab('vendedor') })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/v1/vendedor/pedidos', headers: cab('vendedor') })).statusCode).toBe(200);
+    expect(portal.transacoes()).toBe(0);
+  });
+
+  it('sem o banco do portal: /v1/plataforma/* e o token de plataforma dão 503 PORTAL_INDISPONIVEL; os tenants seguem', async () => {
+    const { app, auditoria } = montar({}, { semPortal: true });
+    const respostas = [
+      await app.inject({ method: 'GET', url: '/v1/plataforma/empresas', headers: comSA(null) }),
+      await app.inject({ method: 'GET', url: '/v1/plataforma/empresas' }),
+      await app.inject({ method: 'POST', url: '/v1/plataforma/empresas', headers: comSA(null), payload: corpo }),
+      await app.inject({ method: 'GET', url: '/v1/vendedor/sa/aceita', headers: comSA() }),
+    ];
+    for (const r of respostas) expect([r.statusCode, r.json().codigo]).toEqual([503, 'PORTAL_INDISPONIVEL']);
+    expect((await app.inject({ method: 'GET', url: '/v1/vendedor/sa/aceita', headers: cab('vendedor') })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/v1/vendedor/sa/exige' })).statusCode).toBe(401);
+    expect(auditoria).toEqual([]);
+  });
+
+  it('a API não sobe com rota do portal fora do lugar (erro de programação), nem com o portal noutro papel', async () => {
+    const core = MODULOS_API.find((m) => m.manifesto.id === 'core')!;
+    const publica = { metodo: 'POST' as const, caminho: 'plataforma/auth/login', limite: { max: 5, janelaMs: 60_000 }, executar: async () => ({}) };
+    // montadas sem definirModuloApi: a checagem da subida é a última barreira
+    const com = (extra: Parameters<typeof modulosDeTeste>[0]) => () => createApp(opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste(extra) }));
+    expect(com({ core: { ...core, rotasPublicas: [publica] } })).toThrow(/exige conexao 'portal'/);
+    expect(com({ core: { ...core, rotasPublicas: [{ ...publica, caminho: 'auth/x', conexao: 'portal' }] } })).toThrow(/só em caminho plataforma/);
+    expect(com({ vendedor: { ...vendedorApi, rotasPublicas: [{ ...publica, conexao: 'portal' }] } })).toThrow(/só no manifesto core/);
+    const portal = bancoPortalFalso();
+    const app = createApp({ ...opcoesDeTeste(), banco: bancoFalso().banco, bancoPortal: { ...portal.banco, verificar: async () => Promise.reject(new ErroPapelBanco('papel errado')) } });
+    await expect(app.ready()).rejects.toThrow(/papel errado/);
+  });
+});
+
+describe('criarBancoPortal (T-0091)', () => {
+  const poolCom = (linha: { usuario: string; superusuario: boolean; ignora_rls: boolean } | undefined) => ({ query: async () => ({ rows: linha ? [linha] : [] }) }) as unknown as pg.Pool;
+
+  it('na subida só aceita macuxi_portal, sem superusuário nem BYPASSRLS', async () => {
+    await expect(criarBancoPortal(poolCom({ usuario: PAPEL_PORTAL, superusuario: false, ignora_rls: false })).verificar()).resolves.toBeUndefined();
+    await expect(criarBancoPortal(poolCom({ usuario: 'macuxi_app', superusuario: false, ignora_rls: false })).verificar()).rejects.toThrow(/só conecta como macuxi_portal/);
+    await expect(criarBancoPortal(poolCom({ usuario: PAPEL_PORTAL, superusuario: false, ignora_rls: true })).verificar()).rejects.toBeInstanceOf(ErroPapelBanco);
+    await expect(criarBancoPortal(poolCom(undefined)).verificar()).rejects.toBeInstanceOf(ErroPapelBanco);
+  });
+
+  it('nunca abre tenant', async () => {
+    await expect(criarBancoPortal(poolCom(undefined)).comTenant(TENANT, async () => 1)).rejects.toThrow(/nunca abre tenant/);
+  });
+});
+
+describe('horizonte do pull × provisionar no papel do portal (desenho T-0091 §3 item 5)', () => {
+  it('o prazo da sa_provisionar_tenant fica abaixo da margem do horizonte', () => {
+    expect(PRAZO_PROVISIONAR_PORTAL_MS).toBeLessThan(MARGEM_HORIZONTE_PADRAO_MS);
+    expect(SQL_PRAZO_PROVISIONAR).toBe(`set local statement_timeout = '${PRAZO_PROVISIONAR_PORTAL_MS}ms'`);
+  });
+
+  it('o set local do prazo vem antes da chamada, na mesma transação (de verdade e simulando)', async () => {
+    for (const simular of [false, true]) {
+      const portal = bancoPortalFalso();
+      await fontePlataformaNoBanco.provisionar(SA, {} as EntradaProvisionarPlataforma, simular, portal.banco);
+      expect(portal.transacoes()).toBe(1);
+      expect(portal.consultas).toEqual([SQL_PRAZO_PROVISIONAR, 'select plataforma.sa_provisionar_tenant($1, $2::jsonb) as r']);
+    }
   });
 });

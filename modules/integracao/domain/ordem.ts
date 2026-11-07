@@ -13,7 +13,11 @@ export const DEPENDENCIAS: Readonly<Record<Entidade, readonly Entidade[]>> = {
   // produto -> nó do catálogo é referência FRACA (aviso), mas o nó vai antes para o produto já entrar ligado
   produto: ['catalogo_no'],
   produto_unidade: ['produto'],
-  cliente: ['vendedor'],
+  // T-0089: forma antes de prazo; produto antes da faixa; cliente depois das formas (referência por código, sem recusar a linha)
+  forma_pagamento: [],
+  prazo_pagamento: ['forma_pagamento'],
+  tabela_escalonada: ['produto', 'preco'],
+  cliente: ['vendedor', 'forma_pagamento'],
   cliente_endereco: ['cliente'],
   rota: ['vendedor', 'cliente'],
   titulo: ['cliente'],
@@ -79,8 +83,11 @@ export function referenciasDoRegistro(entidade: Entidade, registro: unknown): Re
       return ref('cliente', 'cliente_external_id', r);
     case 'nota':
       return [...ref('cliente', 'cliente_external_id', r), ...ref('vendedor', 'vendedor_external_id', r)];
+    case 'prazo_pagamento':
+      return ref('forma_pagamento', 'forma_external_id', r);
     case 'preco':
     case 'estoque':
+    case 'tabela_escalonada':
     case 'produto_unidade':
       return ref('produto', 'produto_external_id', r);
     case 'cliente_endereco':

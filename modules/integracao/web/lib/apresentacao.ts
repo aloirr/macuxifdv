@@ -83,6 +83,9 @@ export const ROTULO_ENTIDADE: Record<Entidade, string> = {
   produto_unidade: 'Unidades do produto',
   cliente_endereco: 'Endereços de clientes',
   transportadora: 'Transportadoras',
+  forma_pagamento: 'Formas de pagamento',
+  prazo_pagamento: 'Prazos de pagamento',
+  tabela_escalonada: 'Tabela escalonada',
 };
 
 export const ROTULO_AVISO_LINHA: Record<string, string> = {
@@ -93,6 +96,7 @@ export const ROTULO_AVISO_LINHA: Record<string, string> = {
   referencias_cortadas: 'Referências cortadas em 3',
   referencia_descartada: 'Referência sem marca ou com código inválido descartada',
   oferece_junto_cortado: 'Oferece junto cortado em 5',
+  prazo_medio_divergente: 'Prazo médio diferente do calculado',
 };
 
 export const ROTULO_ALERTA_PEDIDO_AGUARDANDO_CONECTOR = 'Pedido aguardando o Conector';

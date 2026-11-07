@@ -38,6 +38,15 @@ const COERENCIA_DA_FK: Record<string, string> = {
   // marcado, e o dia só em recado (tipo 'recado'); a fixture não marca recado do dia, então o único parcial
   // notificacao_recado_do_dia_uk não colide
   notificacao_recado_do_dia_por_fk: "tipo = 'recado', recado_do_dia = date '2026-01-01'",
+  // 0037 (T-0089) pedido_pagamento_completo: forma, prazo e os 6 retratos do pagamento vêm juntos ou nenhum (num_nulls in (0, 8));
+  // a fixture não leva pagamento em pedido, então completa-se a linha com o prazo/forma de A (a subconsulta roda como
+  // macuxi_app no contexto de A: RLS só devolve linha de A) e o retrato "À vista" [0] (médio 0 passa em
+  // pedido_prazo_parcelas_validas e pedido_prazo_medio_coerente). A outra FK aponta para A e passa; a da coluna testada,
+  // para B, e é ela que recusa (23503). Não repete a coluna da própria FK (o UPDATE já faz set "<coluna>" = $2).
+  pedido_forma_pagamento_fk:
+    "prazo_pagamento_id = coalesce(prazo_pagamento_id, (select p.id from vendedor.prazo_pagamento p order by p.id limit 1)), forma_pagamento_codigo = coalesce(forma_pagamento_codigo, 'AVISTA'), forma_pagamento_nome = coalesce(forma_pagamento_nome, 'À vista'), prazo_codigo = coalesce(prazo_codigo, 'AVISTA'), prazo_descricao = coalesce(prazo_descricao, 'À vista'), prazo_parcelas_dias = coalesce(prazo_parcelas_dias, '{0}'::int[]), prazo_medio_dias = coalesce(prazo_medio_dias, 0)",
+  pedido_prazo_pagamento_fk:
+    "forma_pagamento_id = coalesce(forma_pagamento_id, (select f.id from vendedor.forma_pagamento f order by f.id limit 1)), forma_pagamento_codigo = coalesce(forma_pagamento_codigo, 'AVISTA'), forma_pagamento_nome = coalesce(forma_pagamento_nome, 'À vista'), prazo_codigo = coalesce(prazo_codigo, 'AVISTA'), prazo_descricao = coalesce(prazo_descricao, 'À vista'), prazo_parcelas_dias = coalesce(prazo_parcelas_dias, '{0}'::int[]), prazo_medio_dias = coalesce(prazo_medio_dias, 0)",
 };
 
 interface Fk {

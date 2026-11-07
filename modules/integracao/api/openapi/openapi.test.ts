@@ -184,8 +184,8 @@ describe('OpenAPI do Hub: cobertura das rotas do contrato', () => {
     }
   });
 
-  it('o registro de cada entidade tem componente próprio e o envelope aponta para os 12', () => {
-    expect(ENTIDADES).toHaveLength(12);
+  it('o registro de cada entidade tem componente próprio e o envelope aponta para todas (15 desde a T-0089)', () => {
+    expect(ENTIDADES).toHaveLength(15);
     const env = doc.components.schemas.LoteEnvelope as Json;
     const mapa = env['x-macuxi-registro-por-entidade'] as Record<string, { $ref: string }>;
     expect(Object.keys(mapa).sort()).toEqual([...ENTIDADES].sort());

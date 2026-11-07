@@ -63,17 +63,19 @@ Um registro que aponta para outro (por exemplo, um cliente que cita o vendedor) 
 
 | Entidade | Depende de |
 |---|---|
-| `vendedor`, `catalogo_no`, `transportadora` | nada |
+| `vendedor`, `catalogo_no`, `transportadora`, `forma_pagamento` | nada |
 | `produto` | `catalogo_no` (referência **fraca**: nó ausente só gera aviso `referencia_fraca_ausente` e o produto entra sem o vínculo) |
-| `cliente` | `vendedor` |
+| `prazo_pagamento` | `forma_pagamento` (pelo `forma_external_id`) |
+| `cliente` | `vendedor` e `forma_pagamento` (as `formas_pagamento` do cliente vão pelo **código** da forma; forma ainda não carregada não recusa a linha, mas carregue as formas antes) |
 | `rota` | `vendedor` e `cliente` (inclusive o cliente de cada parada) |
 | `titulo` | `cliente` |
 | `nota` | `cliente` e `vendedor` |
 | `cliente_endereco` | `cliente` |
 | `produto_unidade` | `produto` |
 | `preco`, `estoque` | `produto` |
+| `tabela_escalonada` | `produto` e `preco` |
 
-Sequência segura para a primeira carga: **vendedor, catalogo_no, transportadora → cliente, produto → rota, titulo, nota, cliente_endereco, produto_unidade → preco, estoque.** (RN-INT-04: vendedor → cliente → rota/título/nota; produto → preço/estoque.)
+Sequência segura para a primeira carga: **vendedor, catalogo_no, transportadora, forma_pagamento → cliente, produto, prazo_pagamento → rota, titulo, nota, cliente_endereco, produto_unidade → preco, estoque → tabela_escalonada.** (RN-INT-04: vendedor → cliente → rota/título/nota; produto → preço/estoque.)
 
 O Hub também ajuda: um lote espera por lotes ainda em aberto das entidades de que depende (até 30 minutos); passado esse tempo ele é aplicado e as linhas sem alvo viram `referencia_ausente`. Quando o lote da dependência termina, o Hub reprocessa essas linhas sozinho.
 
@@ -266,7 +268,7 @@ Corpo de erro padrão: `{ "codigo", "mensagem", "detalhes"?, "requisicao_id" }`.
 | 403 | `acesso_negado` | Conector desativado, IP fora da lista, rota não permitida ao Conector (ex.: pedidos em Conector sem `recebe_pedidos`) | Falar com o administrador da empresa |
 | 403 | `modulo_inativo` | módulo Integração desligado na empresa | Falar com o administrador / comercial |
 | 404 | `lote_nao_encontrado` | lote inexistente, de outro Conector ou de outra empresa | Reenviar o lote com a **mesma** `Idempotency-Key` |
-| 404 | `entidade_desconhecida` | entidade fora da lista em `/cursores/{entidade}` | Usar uma das 12 entidades |
+| 404 | `entidade_desconhecida` | entidade fora da lista em `/cursores/{entidade}` | Usar uma das 15 entidades |
 | 409 | `chave_idempotencia_reutilizada` | mesma `Idempotency-Key` com conteúdo diferente | Gerar chave nova para o conteúdo novo |
 | 413 | `corpo_grande` | corpo acima do limite da rota | Dividir em lotes menores |
 | 422 | `versao_nao_suportada`, `entidade_desconhecida`, `lote_vazio`, `acima_do_limite`, `sessao_ausente`, `sessao_nao_se_aplica`, `entidade_de_outro_conector` | recusa do envelope por regra; **nenhum lote é criado** | Corrigir o envelope e enviar de novo |

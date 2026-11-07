@@ -133,3 +133,7 @@ R-20261106-023415-engenheiro-software
 R-20261106-030101-modulo-integracao
 R-20261106-025653-designer-ux
 R-20261106-050553-designer-ux
+R-20261106-052535-designer-ux
+R-20261106-182532-modulo-vendedor
+R-20261106-200042-modulo-vendedor
+R-20261106-234003-engenheiro-software

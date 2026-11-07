@@ -47,7 +47,7 @@ describe('T-0053: manifesto e ligação do consumidor', () => {
   it('RN-INT-08: o Vendedor consome integracao.pedido.retorno_erp@1 e publica faturado@1 (o despachante só entrega o que está em consome)', () => {
     expect(manifest.consome).toContain('integracao.pedido.retorno_erp@1');
     expect(manifest.publica).toContain('vendedor.pedido.faturado@1');
-    expect(apiVendedor.consumidores?.map((c) => c.evento.nome)).toEqual(['integracao.pedido.retorno_erp@1']);
+    expect(apiVendedor.consumidores?.map((c) => c.evento.nome)).toEqual(['integracao.pedido.retorno_erp@1', 'integracao.forma_pagamento.atualizado@1', 'integracao.prazo_pagamento.atualizado@1']);
   });
 });
 

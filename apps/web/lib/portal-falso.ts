@@ -32,7 +32,7 @@ import { ImportarEquipeRequestSchema, PerfilSchema, RenovarConviteRequestSchema,
 import { ROTAS_PORTAL } from './portal-rotas';
 
 const CHAVE = 'macuxi.portal.falso';
-const ORDEM: Entidade[] = ['vendedor', 'catalogo_no', 'produto', 'produto_unidade', 'preco', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
+const ORDEM: Entidade[] = ['vendedor', 'catalogo_no', 'forma_pagamento', 'prazo_pagamento', 'produto', 'produto_unidade', 'preco', 'tabela_escalonada', 'estoque', 'cliente', 'cliente_endereco', 'transportadora', 'rota', 'titulo', 'nota'];
 
 interface EmpresaFalsa {
   id: string;

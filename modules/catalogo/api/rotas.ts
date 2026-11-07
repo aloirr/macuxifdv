@@ -8,6 +8,7 @@
  * GET  produtos                   produto.consultar   vitrine paginada com chips (RF-CAT-01)
  * GET  produtos/:id               produto.consultar   ficha rica (RF-CAT-03)
  * GET  filtros                    produto.consultar   marcas e categorias do tenant (chips)
+ * GET  tabelas-preco, tabelas-preco/:id/precos, escalonada; PUT/DELETE escalonada/:id   tabela_preco.gerenciar  (T-0089, RN-VEN-23)
  * GET  sinonimos                  sinonimo.gerenciar  (RF-CAT-07)
  * PUT  sinonimos/:id              sinonimo.gerenciar  idempotente pelo id
  * DELETE sinonimos/:id            sinonimo.gerenciar
@@ -37,8 +38,17 @@ import {
   ROTAS_CATALOGO,
   SalvarCadastroCatalogo,
   SalvarConteudo,
+  ConsultaEscalonadaQuery,
+  ConsultaPrecosTabelaQuery,
+  ParamsFaixa,
+  ParamsTabelaPreco,
   SalvarDestaque,
+  SalvarFaixa,
   SalvarSinonimo,
+  type FaixaCadastrada,
+  type ListaTabelasPreco,
+  type PaginaEscalonada,
+  type PaginaPrecosTabela,
   type FichaProduto,
   type FiltrosCatalogo,
   type FiltrosInterpretados,
@@ -53,12 +63,13 @@ import {
 import { validarCadastroCatalogo } from '../domain/cadastro-catalogo';
 import { resolverCodigosOfereceJunto, validarMarcasDaReferencia } from '../domain/marcas';
 import { montarExportacao } from '../domain/exportacao';
+import { conflitoDeFaixa, dataCivilNoFuso, faixaMaisCaraQueATabela, faixaVigente, validarFaixa } from '../domain/escalonada';
 import { conflitoDeSinonimo, montarFicha, normalizarSinonimo, termoDeBusca } from '../domain/conteudo';
 import { interpretarConsulta, type VocabularioTenant } from '../domain/consulta';
 import { AVISO_BUSCA_FALHOU, type PortaInterpretacaoLlm } from '../domain/ia';
 import { diaDoTenant, verificarConsultaIa } from '../domain/limite-ia';
 import { parametrosDoTenant, timeoutIaDoTenant, type ParametrosCatalogo } from '../domain/parametros';
-import type { SinonimoDoTenant } from '../domain/texto';
+import { chaveDeTermo, type SinonimoDoTenant } from '../domain/texto';
 import { podeVerPrecoEstoque } from '../domain/visibilidade';
 import { buscarProdutos, itemDaVitrine, listarVitrine, vocabularioDe, type ContextoVitrine, type ProdutoCatalogo } from '../domain/vitrine';
 import { interpretarComMedicao } from './ia/buscar';
@@ -398,6 +409,138 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
+  // ---------- BKO: Tabelas de preço (só o preço da UN) e Escalonada (RN-VEN-23; T-0089): analista e admin ----------
+  const tabelasPreco: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.tabelasPreco,
+    acao: 'tabela_preco.gerenciar',
+    carteira: 'nao_se_aplica',
+    async executar(ctx: Ctx): Promise<ListaTabelasPreco> {
+      return { items: await comRepo(ctx, (repo) => repo.tabelasPreco()) };
+    },
+  };
+
+  const precosTabela: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.precosTabela,
+    acao: 'tabela_preco.gerenciar',
+    carteira: 'nao_se_aplica',
+    params: ParamsTabelaPreco,
+    query: ConsultaPrecosTabelaQuery,
+    async executar(ctx: Ctx<unknown, ConsultaPrecosTabelaQuery, ParamsTabelaPreco>): Promise<PaginaPrecosTabela> {
+      const { q, limit, offset } = ctx.query;
+      return comRepo(ctx, async (repo) => {
+        const [precos, produtos] = await Promise.all([repo.precosUnidade(ctx.params.id), repo.produtos()]);
+        const porId = new Map(produtos.map((p) => [p.id, p]));
+        const termo = q ? chaveDeTermo(q) : '';
+        const linhas = precos
+          .map((p) => ({ produto_id: p.produto_id, sku: porId.get(p.produto_id)?.sku ?? '', nome: porId.get(p.produto_id)?.nome ?? '', preco_cents: p.preco_cents, vigencia_inicio: p.vigencia_inicio, vigencia_fim: p.vigencia_fim }))
+          .filter((l) => termo === '' || chaveDeTermo(`${l.sku} ${l.nome}`).includes(termo))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.produto_id.localeCompare(b.produto_id));
+        const items = linhas.slice(offset, offset + limit);
+        return { items, total: linhas.length, next_offset: offset + limit < linhas.length ? offset + limit : null };
+      });
+    },
+  };
+
+  const listarEscalonada: RotaModulo = {
+    metodo: 'GET',
+    caminho: ROTAS_CATALOGO.escalonada,
+    acao: 'tabela_preco.gerenciar',
+    carteira: 'nao_se_aplica',
+    query: ConsultaEscalonadaQuery,
+    async executar(ctx: Ctx<unknown, ConsultaEscalonadaQuery>): Promise<PaginaEscalonada> {
+      const { q, tabela_preco_id, vigente, limit, offset } = ctx.query;
+      const hoje = dataCivilNoFuso(ctx.agora(), ctx.fuso());
+      return comRepo(ctx, async (repo) => {
+        const [faixas, tabelas, produtos] = await Promise.all([repo.faixas(), repo.tabelasPreco(), repo.produtos()]);
+        const porId = new Map(produtos.map((p) => [p.id, p]));
+        const nomeTabela = new Map(tabelas.map((t) => [t.id, t.nome]));
+        // P4: compara com o preço da UN na tabela (só das tabelas citadas pelas faixas; a geral compara com a menor tabela)
+        const precoDaTabela = new Map<string, number>();
+        for (const t of new Set(faixas.map((f) => f.tabela_preco_id).filter((x): x is string => x !== null))) for (const p of await repo.precosUnidade(t)) precoDaTabela.set(`${t}|${p.produto_id}`, p.preco_cents);
+        const termo = q ? chaveDeTermo(q) : '';
+        const linhas: FaixaCadastrada[] = faixas
+          .filter((f) => !tabela_preco_id || f.tabela_preco_id === tabela_preco_id)
+          .map((f) => {
+            const p = porId.get(f.produto_id);
+            const precoTabela = f.tabela_preco_id ? (precoDaTabela.get(`${f.tabela_preco_id}|${f.produto_id}`) ?? null) : null;
+            return {
+              id: f.id,
+              produto_id: f.produto_id,
+              sku: p?.sku ?? '',
+              nome: p?.nome ?? '',
+              medida: f.medida,
+              quantidade_minima: f.quantidade_minima,
+              preco_unidade_cents: f.preco_unidade_cents,
+              vigencia_inicio: f.vigencia_inicio,
+              vigencia_fim: f.vigencia_fim,
+              tabela_preco_id: f.tabela_preco_id,
+              tabela_preco_nome: f.tabela_preco_id ? (nomeTabela.get(f.tabela_preco_id) ?? null) : null,
+              ativo: f.ativo,
+              origem: f.external_id ? ('erp' as const) : ('manual' as const),
+              mais_cara_que_a_tabela: faixaMaisCaraQueATabela(f.preco_unidade_cents, precoTabela),
+              vigente: faixaVigente(f, hoje),
+            };
+          })
+          .filter((l) => (vigente === undefined || l.vigente === vigente) && (termo === '' || chaveDeTermo(`${l.sku} ${l.nome}`).includes(termo)))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || (a.medida ?? '').localeCompare(b.medida ?? '') || a.quantidade_minima - b.quantidade_minima || a.id.localeCompare(b.id));
+        const items = linhas.slice(offset, offset + limit);
+        return { items, total: linhas.length, next_offset: offset + limit < linhas.length ? offset + limit : null };
+      });
+    },
+  };
+
+  const salvarFaixa: RotaModulo = {
+    metodo: 'PUT',
+    caminho: ROTAS_CATALOGO.faixa,
+    acao: 'tabela_preco.gerenciar',
+    carteira: 'nao_se_aplica',
+    params: ParamsFaixa,
+    corpo: SalvarFaixa,
+    async executar(ctx: Ctx<SalvarFaixa, unknown, ParamsFaixa>): Promise<RespostaEscrita> {
+      // RN-VEN-23: a API revalida o que o BKO validou
+      const v = validarFaixa(ctx.corpo);
+      if (!v.ok) throw new ErroRegraNegocio('RN-VEN-23', v.mensagem);
+      return ctx.comTenant(async (db, tx) => {
+        const repo = dep.repositorio(ctx, db, tx);
+        const existentes = await repo.faixas();
+        const atual = existentes.find((f) => f.id === ctx.params.id);
+        if (atual?.external_id) throw new ErroHttpModulo(409, 'FAIXA_DO_ERP', 'Esta faixa vem do ERP e é alterada lá. Cadastre outra faixa aqui se precisar de uma exceção.');
+        if (!(await repo.produtos()).some((p) => p.id === ctx.corpo.produto_id)) throw new ErroHttpModulo(422, 'PRODUTO_INEXISTENTE', 'O produto escolhido não existe mais no catálogo. Atualize a lista e escolha outro.');
+        const conflito = conflitoDeFaixa(ctx.params.id, ctx.corpo, existentes);
+        if (conflito) throw new ErroHttpModulo(409, 'FAIXA_EM_CONFLITO', conflito);
+        const { criado } = await repo.salvarFaixa(ctx.params.id, ctx.corpo);
+        await tx.auditar({
+          acao: 'tabela_preco.gerenciar',
+          entidade: 'tabela_escalonada',
+          entidade_id: ctx.params.id,
+          ...(atual ? { antes: { quantidade_minima: atual.quantidade_minima, preco_unidade_cents: atual.preco_unidade_cents, ativo: atual.ativo } } : {}),
+          depois: { produto_id: ctx.corpo.produto_id, medida: ctx.corpo.medida, quantidade_minima: ctx.corpo.quantidade_minima, preco_unidade_cents: ctx.corpo.preco_unidade_cents, ativo: ctx.corpo.ativo },
+        });
+        return { id: ctx.params.id, criado };
+      });
+    },
+  };
+
+  const removerFaixa: RotaModulo = {
+    metodo: 'DELETE',
+    caminho: ROTAS_CATALOGO.faixa,
+    acao: 'tabela_preco.gerenciar',
+    carteira: 'nao_se_aplica',
+    params: ParamsFaixa,
+    status: 204,
+    async executar(ctx: Ctx<unknown, unknown, ParamsFaixa>): Promise<void> {
+      await ctx.comTenant(async (db, tx) => {
+        const repo = dep.repositorio(ctx, db, tx);
+        const atual = (await repo.faixas()).find((f) => f.id === ctx.params.id);
+        if (atual?.external_id) throw new ErroHttpModulo(409, 'FAIXA_DO_ERP', 'Esta faixa vem do ERP e é alterada lá. Para tirá-la de uso, inative-a no ERP.');
+        // idempotente: remover o que já não existe também é 204
+        if (await repo.removerFaixa(ctx.params.id)) await tx.auditar({ acao: 'tabela_preco.gerenciar', entidade: 'tabela_escalonada', entidade_id: ctx.params.id, antes: { id: ctx.params.id } });
+      });
+    },
+  };
+
   const termos: RotaModulo = {
     metodo: 'GET',
     caminho: ROTAS_CATALOGO.termosSemResultado,
@@ -410,5 +553,5 @@ export function criarRotasCatalogo(dep: DependenciasRotas): RotaModulo[] {
     },
   };
 
-  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, cadastroCatalogo, marcasConcorrentes, exportacao, termos];
+  return [busca, vitrine, ficha, filtros, listarSinonimos, salvarSinonimo, removerSinonimo, destaque, conteudo, cadastroCatalogo, marcasConcorrentes, exportacao, termos, tabelasPreco, precosTabela, listarEscalonada, salvarFaixa, removerFaixa];
 }

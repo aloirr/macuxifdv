@@ -73,7 +73,7 @@ describe('AreaSeguraSuperior', () => {
     const fim = src.indexOf('</AreaSeguraSuperior>');
     expect(ini).toBeGreaterThan(0);
     const dentro = src.slice(ini, fim);
-    expect(dentro).toContain('<Stack ');
+    expect(dentro).toMatch(/<Stack[\s>]/);
     expect(dentro).toContain('</Stack>');
   });
 

@@ -9,7 +9,7 @@ import type { ConsumidorEvento, ContextoConsumo } from '@macuxi/platform-sdk';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { manifest } from '../manifest';
-import { criarConsumidorCatalogoNoDoErp, criarConsumidorEstoqueDoErp, criarConsumidorPrecoDoErp, criarConsumidorProdutoNoDoErp, ReferenciaAusenteErp, type ResolverProdutos } from './consumidores-erp';
+import { criarConsumidorTabelaEscalonadaDoErp, criarConsumidorCatalogoNoDoErp, criarConsumidorEstoqueDoErp, criarConsumidorPrecoDoErp, criarConsumidorProdutoNoDoErp, ReferenciaAusenteErp, type ResolverProdutos } from './consumidores-erp';
 import { moduloApi } from './index';
 
 const A = DOIS_TENANTS.A;
@@ -100,6 +100,37 @@ describe.skipIf(semBanco())('Catálogo T-0066 × Postgres: consumidores de preç
       await t.entregar(preco, { lote_id: '11111111-1111-4111-8111-111111111111', entidade: 'preco', external_id: 'PR-T66', acao: 'inativado', hash: 'h2', ocorrido_em: '2026-11-04T11:00:00Z' });
       expect((await itens(t)).length).toBe(0);
       expect((await t.q("select 1 from catalogo.tabela_preco_item where external_id = 'PR-T66'")).length).toBe(1);
+    });
+  });
+
+  it('RN-VEN-23: faixa do ERP que colide na chave com outra faixa viva não repete em loop: manual é adotada, a do ERP antigo sai e a nova vale', async () => {
+    const esc = criarConsumidorTabelaEscalonadaDoErp(resolver);
+    const evEsc = (external_id: string, extra: Record<string, unknown> = {}) =>
+      env('tabela_escalonada', external_id, 'criado', { produto_external_id: 'P-1', medida: 'FD', quantidade_minima: 10, preco_unidade_cents: 900, vigencia_inicio: '2026-11-01', vigencia_fim: null, ...extra });
+    const vivas = (t: Teste) => t.q<{ external_id: string | null; preco: string }>("select external_id, preco_unidade_cents::text as preco from catalogo.tabela_escalonada where produto_id = $1 and deleted_at is null order by external_id", [PROD]);
+    await emTransacao(A.tenantId, async (t) => {
+      // 1) faixa manual na mesma chave: adotada (uma linha viva, com o external_id do ERP)
+      await t.q("insert into catalogo.tabela_escalonada (tenant_id, produto_id, medida, quantidade_minima, preco_unidade_cents, vigencia_inicio) values ($1, $2, 'FD', 10, 800, '2026-11-01')", [A.tenantId, PROD]);
+      await t.entregar(esc, evEsc('ESC-A'));
+      expect(await vivas(t)).toEqual([{ external_id: 'ESC-A', preco: '900' }]);
+      // 2) outro external_id do ERP na mesma chave: antes era 23505 em loop; agora o novo vale e o antigo sai (soft delete)
+      await t.entregar(esc, evEsc('ESC-B', { preco_unidade_cents: 850 }));
+      expect(await vivas(t)).toEqual([{ external_id: 'ESC-B', preco: '850' }]);
+      // 3) reentrega é idempotente
+      await t.entregar(esc, evEsc('ESC-B', { preco_unidade_cents: 850 }));
+      expect(await vivas(t)).toHaveLength(1);
+      // 4) o ERP muda a chave de ESC-C (mínimo 20 -> 10) para a de ESC-B, ainda viva: ESC-B sai e ESC-C vale
+      await t.entregar(esc, evEsc('ESC-C', { quantidade_minima: 20 }));
+      await t.entregar(esc, evEsc('ESC-C', { quantidade_minima: 10, preco_unidade_cents: 700 }));
+      expect(await vivas(t)).toEqual([{ external_id: 'ESC-C', preco: '700' }]);
+    });
+  });
+
+  it('RN-VEN-23: faixa do ERP entra só no tenant do evento (o outro tenant não a vê)', async () => {
+    const esc = criarConsumidorTabelaEscalonadaDoErp(resolver);
+    await emTransacao(A.tenantId, async (t) => {
+      await t.entregar(esc, env('tabela_escalonada', 'ESC-ISO', 'criado', { produto_external_id: 'P-1', medida: null, quantidade_minima: 3, preco_unidade_cents: 500, vigencia_inicio: '2026-11-01', vigencia_fim: null }));
+      expect((await t.q("select 1 from catalogo.tabela_escalonada where external_id = 'ESC-ISO' and tenant_id = $1", [B.tenantId])).length).toBe(0);
     });
   });
 

@@ -65,6 +65,10 @@ async function montar() {
   let aviso: string | null = null;
   const fontes: FontesAparelhoBloqueado = {
     motor: () => motorAberto,
+    apagarBancos: async () => {
+      // T-0088: depois da limpeza do motor (o motor ainda está aberto) e antes da varredura das chaves
+      passos.push(motorAberto && disco.dados.size > 0 ? 'bancos' : 'bancos?');
+    },
     chavesLocais: async () => [...disco.dados.keys()],
     removerChaves: async (ks) => {
       for (const k of ks) disco.dados.delete(k);
@@ -106,7 +110,7 @@ describe('aparelho bloqueado no shell (RN-CORE-15)', () => {
     });
     expect(t.fotos.size).toBe(0);
     expect(t.estado()).toEqual({ tokens: null, aviso: AVISO_APARELHO_LIMPO, motorAberto: null });
-    expect(t.passos).toEqual(['fotos', 'tokens', 'sessao', 'aviso', 'login']);
+    expect(t.passos).toEqual(['bancos', 'fotos', 'tokens', 'sessao', 'aviso', 'login']);
   });
 
   it('no login (sem motor aberto) também varre os dados de todos os usuários do aparelho', async () => {
@@ -114,6 +118,8 @@ describe('aparelho bloqueado no shell (RN-CORE-15)', () => {
     const tratar = criarTratadorAparelhoBloqueado({ ...t.fontes, motor: () => null }, tratarAparelhoBloqueado, ehAparelhoBloqueado);
     expect(await tratar({ codigo: CODIGO_DISPOSITIVO_BLOQUEADO })).toBe(true);
     expect([...t.disco.dados.keys()].sort()).toEqual(['fv:codigo_empresa', 'fv:dispositivo', 'fv:settings']);
+    // sem motor, os bancos SQLite de todos os usuários saem do mesmo jeito (desenho T-0088 §3)
+    expect(t.passos.filter((p) => p.startsWith('bancos'))).toHaveLength(1);
     expect(t.passos.at(-1)).toBe('login');
   });
 

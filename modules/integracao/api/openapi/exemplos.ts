@@ -66,6 +66,8 @@ export const EXEMPLO_REGISTRO: RegistroEntrada = {
     inscricao_estadual: 'ISENTO',
     bloqueado: false,
     contatos: [{ nome: 'Contato Exemplo', cargo: 'Comprador', telefone: '+55 95 3000-0003', email: 'contato@example.com' }],
+    prazo_medio_max_dias: 60,
+    formas_pagamento: ['BOL', 'PIX'],
   },
   produto: {
     external_id: 'P000045',
@@ -164,6 +166,30 @@ export const EXEMPLO_REGISTRO: RegistroEntrada = {
     principal: false,
   },
   transportadora: { external_id: 'T001', alterado_em: ALTERADO_EM, ativo: true, nome: 'Transportadora Exemplo', documento: '11222333000181', telefone: '+55 95 3000-0004' },
+  forma_pagamento: { external_id: 'FP-BOL', alterado_em: ALTERADO_EM, ativo: true, codigo: 'BOL', nome: 'Boleto', ordem: 1 },
+  prazo_pagamento: {
+    external_id: 'PZ-30-60-90',
+    alterado_em: ALTERADO_EM,
+    ativo: true,
+    forma_external_id: 'FP-BOL',
+    codigo: '306090',
+    descricao: '30/60/90 dias',
+    parcelas_dias: [30, 60, 90],
+    prazo_medio_dias: 60,
+    ordem: 2,
+  },
+  tabela_escalonada: {
+    external_id: 'ESC:P000045:CX:12',
+    alterado_em: ALTERADO_EM,
+    ativo: true,
+    produto_external_id: 'P000045',
+    medida: 'CX',
+    quantidade_minima: 12,
+    preco_unidade_cents: 740,
+    vigencia_inicio: '2026-11-01',
+    vigencia_fim: null,
+    tabela_external_id: 'TAB01',
+  },
 };
 
 const RESUMO_ENTIDADE: Record<Entidade, string> = {
@@ -179,6 +205,9 @@ const RESUMO_ENTIDADE: Record<Entidade, string> = {
   produto_unidade: 'Medidas e embalagens do produto (delta)',
   cliente_endereco: 'Endereços de entrega e cobrança do cliente (delta)',
   transportadora: 'Transportadoras (delta)',
+  forma_pagamento: 'Formas de pagamento (delta)',
+  prazo_pagamento: 'Prazos de pagamento com as parcelas em dias (delta)',
+  tabela_escalonada: 'Tabela escalonada: preço da unidade por quantidade mínima (delta)',
 };
 
 const loteDelta = (entidade: Entidade): z.input<typeof LoteEnvelope> => ({
@@ -192,7 +221,7 @@ const loteDelta = (entidade: Entidade): z.input<typeof LoteEnvelope> => ({
   registros: [EXEMPLO_REGISTRO[entidade]],
 });
 
-const ORDEM_ENTIDADES: readonly Entidade[] = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora'];
+const ORDEM_ENTIDADES: readonly Entidade[] = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'];
 
 /** `POST /lotes`: um exemplo por entidade, carga completa em partes (sessão) e lote só com linhas inválidas. */
 export const EXEMPLOS_LOTE: readonly Exemplo<z.input<typeof LoteEnvelope>>[] = [
@@ -544,7 +573,7 @@ export const EXEMPLOS_ERRO_ROTA: Record<string, Record<number, readonly Exemplo[
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
   },
   consultar_cursor: {
-    404: [ex('entidade_desconhecida', 'Entidade fora da lista', erro('entidade_desconhecida', 'Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora.'))],
+    404: [ex('entidade_desconhecida', 'Entidade fora da lista', erro('entidade_desconhecida', 'Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada.'))],
     426: [ex('versao_conector_nao_suportada', 'Conector abaixo da versão mínima', ERRO_426)],
   },
   enviar_reconciliacao: {

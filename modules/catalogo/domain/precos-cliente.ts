@@ -1,10 +1,11 @@
 /**
  * Preços de uma lista de produtos na tabela do cliente (`catalogo.precos_cliente@1`, ADR 0012). Função pura: a API
  * (SQL) e o aparelho (linhas locais) só carregam os dados e chamam esta função, então decidem igual.
- * RN-CAT-06 (fora da tabela do cliente = sem preço, nunca a tabela padrão), RN-CAT-05 (promotor sem preço),
+ * RN-CAT-06 (fora da tabela do cliente = sem preço, nunca a tabela padrão), RN-CAT-05 (promotor sem preço), RN-VEN-23 (faixas vigentes),
  * P-4 (preço pela data do pedido, até 7 dias para trás e nunca no futuro).
  */
 import { DIAS_RETROATIVO_PRECO, type ItemTabelaPreco, type PrecosClienteSaida } from '../contracts';
+import { dataCivilNoFuso, faixasDoProduto, type LinhaEscalonada } from './escalonada';
 import { MENSAGEM_SEM_PRECO_CLIENTE, precoVisivel } from './preco';
 
 /** RN-CAT-05: o perfil não tem direito ao preço. */
@@ -32,18 +33,10 @@ export interface EntradaPrecosCliente {
   agora: string;
   /** `podeVerPrecoEstoque(perfil, parametros)` (RN-CAT-05). */
   verPreco: boolean;
-}
-
-/** RN-VEN-15: preço próprio por medida (linhas com unidade), vigente em `quando`; uma entrada por unidade, na ordem de aparição. */
-function embalagensDoProduto(produtoId: string, daTabela: readonly ItemTabelaPreco[], tabelaId: string, quando: string): Array<{ unidade: string; preco_cents: number }> {
-  const unidades = [...new Set(daTabela.filter((i) => i.product_id === produtoId && i.unit != null).map((i) => i.unit as string))];
-  const saida: Array<{ unidade: string; preco_cents: number }> = [];
-  for (const unidade of unidades) {
-    const linhas = daTabela.filter((i) => i.unit === unidade).map((i) => ({ ...i, unit: null }));
-    const p = precoVisivel(produtoId, linhas, [], { agora: quando, tabela_cliente_id: tabelaId });
-    if (p.sellable && p.price_cents !== null) saida.push({ unidade, preco_cents: p.price_cents });
-  }
-  return saida;
+  /** Linhas da tabela escalonada dos produtos pedidos (RN-VEN-23; qualquer vigência, o domain filtra). Ausente = sem faixas. */
+  faixas?: readonly LinhaEscalonada[];
+  /** Fuso do tenant: a vigência das faixas é em data civil nele (padrão America/Manaus). */
+  fuso?: string | null;
 }
 
 export function precosDoCliente(e: EntradaPrecosCliente): PrecosClienteSaida {
@@ -56,19 +49,18 @@ export function precosDoCliente(e: EntradaPrecosCliente): PrecosClienteSaida {
   }
   const tabelaId = e.tabelaId;
   const quando = dataDoPreco(e.em, e.agora);
-  const daTabela = e.itens.filter((i) => i.price_table_id === e.tabelaId);
-  // RN-VEN-15: preco_cents é só da unidade base (unit nula); a linha de embalagem (ex.: CX) nunca vira o preço da UN
-  const itens = daTabela.filter((i) => i.unit == null);
+  // RN-VEN-15 (nova): preco_cents é só da unidade base (unit nula); a linha de embalagem do ERP (ex.: CX) é ignorada, a embalagem vale UN × quantidade
+  const itens = e.itens.filter((i) => i.price_table_id === e.tabelaId && i.unit == null);
+  const hoje = dataCivilNoFuso(quando, e.fuso);
   return {
     tabela_preco_id: e.tabelaId,
     ...(e.tabelaNome ? { tabela_preco_nome: e.tabelaNome } : {}),
     itens: ids.map((produto_id) => {
       const p = precoVisivel(produto_id, itens, [], { agora: quando, tabela_cliente_id: e.tabelaId });
       if (p.sellable && p.price_cents !== null) {
-        const embalagens = embalagensDoProduto(produto_id, daTabela, tabelaId, quando);
-        return embalagens.length > 0
-          ? { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null, embalagens }
-          : { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null };
+        // RN-VEN-23: só item vendável leva faixas, e só as vigentes (tabela do cliente vence a geral)
+        const faixas = faixasDoProduto(e.faixas ?? [], { produtoId: produto_id, tabelaId, hoje });
+        return faixas.length > 0 ? { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null, faixas } : { produto_id, preco_cents: p.price_cents, motivo_sem_preco: null };
       }
       return { produto_id, preco_cents: null, motivo_sem_preco: p.notice ?? MENSAGEM_SEM_PRECO_CLIENTE };
     }),

@@ -42,6 +42,9 @@ export const ClienteSyncSchema = z
     observacao: z.string().nullable().optional(),
     cadastro_incompleto: z.boolean().optional(),
     cadastro_campos_faltantes: z.array(z.string()).optional(),
+    /** T-0089 / RN-VEN-25 (aditivo): prazo médio máximo em dias (nulo = sem teto) e códigos das formas permitidas (nulo ou vazio = todas). */
+    prazo_medio_max_dias: z.number().int().min(0).max(365).nullable().optional(),
+    formas_pagamento: z.array(z.string().min(1).max(20)).max(20).nullable().optional(),
   })
   .strict();
 export type ClienteSync = z.infer<typeof ClienteSyncSchema>;

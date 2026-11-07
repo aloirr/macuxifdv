@@ -27,7 +27,7 @@ describe('guia da API do Hub (docs/guia-api-hub.md)', () => {
     expect(guia).toContain(`PEDIDO="${PEDIDO_UUID_EXEMPLO}"`);
   });
 
-  it('cita as 7 rotas do contrato, as 12 entidades, os cabeçalhos e o Retry-After', () => {
+  it('cita as 7 rotas do contrato, todas as entidades, os cabeçalhos e o Retry-After', () => {
     for (const r of ROTAS_HUB) {
       expect(guia, `${r.metodo} ${r.caminho}`).toContain(r.caminho);
     }

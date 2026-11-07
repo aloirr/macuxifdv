@@ -4,8 +4,10 @@
 --   DBaaS, T-0075: `manutencao` for all to macuxi_manutencao using (true) with check (true), que toda migração com tabela
 --   nova cria junto da isolamento_tenant), coluna comum ausente ou com outro tipo (id uuid, tenant_id uuid not null,
 --   created_at/updated_at/deleted_at timestamptz, external_id text).
--- E os papéis da aplicação: macuxi_app ou macuxi_worker membro (direto ou indireto) do macuxi_manutencao ignoraria a RLS;
---   aparece como tabela "(papel) <nome>".
+-- E os papéis da aplicação: macuxi_app, macuxi_worker ou macuxi_portal membro (direto ou indireto) do macuxi_manutencao
+--   ignoraria a RLS; aparece como tabela "(papel) <nome>".
+-- Portal do super-admin (0038, T-0091, ADR 0029): o macuxi_portal só executa as plataforma.sa_*; política ou qualquer grant de
+--   tabela para ele (em qualquer tabela, direto ou via PUBLIC) aparece como problema.
 -- Resultado esperado: ZERO linhas. Exceções (iguais a db/src/excecoes.ts, TABELAS_SEM_TENANT_ID): plataforma.tenant não tem
 -- tenant_id (o id é o tenant; RLS por id) e public.macuxi_migracao fica fora (schema public, sem acesso do macuxi_app).
 -- Super-admin (0035, ADR 0029; TABELAS_SO_POR_FUNCAO): sem tenant_id e SEM política para o macuxi_app (só por função
@@ -68,9 +70,15 @@ problemas as (
         and p.polcmd = '*' and p.polpermissive
         and pg_get_expr(p.polqual, p.polrelid) = 'true' and pg_get_expr(p.polwithcheck, p.polrelid) = 'true')
   union all
+  select t.nome, 'política ou grant de tabela para o macuxi_portal (0038: ele só executa as sa_*)' from tabelas t
+   where exists (select 1 from pg_policy p join pg_roles r on r.oid = any (p.polroles)
+                  where p.polrelid = t.oid and r.rolname = 'macuxi_portal')
+      or exists (select 1 from pg_roles r where r.rolname = 'macuxi_portal'
+                  and has_table_privilege(r.oid, t.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'))
+  union all
   select '(papel) ' || a.rolname, 'membro de macuxi_manutencao (ignoraria a RLS)'
     from pg_roles a join pg_roles m on m.rolname = 'macuxi_manutencao'
-   where a.rolname in ('macuxi_app', 'macuxi_worker') and pg_has_role(a.oid, m.oid, 'MEMBER')
+   where a.rolname in ('macuxi_app', 'macuxi_worker', 'macuxi_portal') and pg_has_role(a.oid, m.oid, 'MEMBER')
   union all
   select t.nome, 'coluna ' || k.coluna || ' ausente, de outro tipo ou anulável' from tabelas t cross join comuns k
    where not (k.coluna = 'tenant_id' and t.nome in (select s.nome from sem_tenant_id s))

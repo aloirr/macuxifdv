@@ -51,6 +51,25 @@ export function classificarFalhaIa(erro: unknown): 'erro' | 'tempo_esgotado' {
 
 // ---------- avisos (português, com a ação seguinte) ----------
 export const AVISO_BUSCA_OFFLINE = 'A busca inteligente volta quando houver internet.';
+/** Aviso discreto da aba Catálogo enquanto o aparelho refaz o índice de busca (T-0088); a busca segue por varredura. */
+export const AVISO_CATALOGO_ORGANIZANDO = 'Organizando o catálogo no aparelho. A busca pode demorar um pouco por alguns instantes.';
+const FRASE_ORGANIZANDO_JUNTO = 'Organizando o catálogo no aparelho; a busca pode demorar um pouco.';
+
+/**
+ * Aviso final da busca (T-0088): junta numa frase só o aviso de sem sinal/falha com o de índice sendo refeito. Sem
+ * `indexando` devolve o aviso como veio (some quando o índice fica pronto). Antes o "organizando" só valia com aviso nulo,
+ * caso que a aba nunca produz com termo de busca (código morto).
+ */
+export function avisoDaBusca(aviso: string | null, indexando: boolean): string | null {
+  if (!indexando) return aviso;
+  return aviso ? `${aviso} ${FRASE_ORGANIZANDO_JUNTO}` : AVISO_CATALOGO_ORGANIZANDO;
+}
+/** Ícone do aviso da aba: relógio só no 'organizando'; sem sinal = wifiOff; qualquer outro (erro) = alert. */
+export function iconeDoAviso(aviso: string): 'wifiOff' | 'clock' | 'alert' {
+  if (aviso.startsWith(AVISO_BUSCA_OFFLINE)) return 'wifiOff';
+  if (aviso === AVISO_CATALOGO_ORGANIZANDO) return 'clock';
+  return 'alert';
+}
 export const AVISO_BUSCA_FALHOU = 'A busca inteligente está indisponível agora. Mostramos a busca simples; tente de novo em instantes.';
 
 // ---------- validação e mesclagem ----------

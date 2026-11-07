@@ -26,6 +26,15 @@ export function arrayDeTextoLivre(itens: readonly string[]): string {
   return `{${itens.map((x) => `"${x.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
 }
 
+/**
+ * Literal de array do Postgres para coluna `integer[]` (ex.: `vendedor.prazo_pagamento.parcelas_dias`, 0037). Só inteiros
+ * (sem nulo): `[28, 56]` -> `{28,56}`.
+ */
+export function arrayDeInteiros(itens: readonly number[]): string {
+  for (const x of itens) if (!Number.isInteger(x)) throw new Error(`arrayDeInteiros: valor não suportado: ${String(x)}`);
+  return `{${itens.join(',')}}`;
+}
+
 function valor(v: unknown): unknown {
   if (v !== null && typeof v === 'object' && !(v instanceof Date) && !Buffer.isBuffer(v)) return JSON.stringify(v);
   return v;

@@ -8,6 +8,9 @@
  * assim a senha pública nunca é gravada no papel da API (garantirPapelApp) de um banco compartilhado.
  * O papel do worker da outbox (macuxi_worker, ADR 0007) usa MACUXI_PG_WORKER_SENHA: fora do local ela é
  * opcional (sem ela o papel fica NOLOGIN e workerSenha = ''), mas a senha pública local é recusada.
+ * O papel do portal do super-admin (macuxi_portal, 0038, T-0091, ADR 0029) usa MACUXI_PG_PORTAL_SENHA com a mesma regra do
+ * worker: opcional fora do local (sem ela, NOLOGIN e portalSenha = ''; urlPortal lança e a API responde 503 no portal), senha
+ * pública local recusada. Só a API e o passo de papéis recebem essa senha (portal.env da VM), nunca o worker.
  * API e worker usam lerConfigApp: fora do local não exigem MACUXI_PG_ADMIN_SENHA (o contêiner não recebe a senha do
  * admin; urlAdmin falha se for chamada). Migrações, papéis e seeds seguem com lerConfig (admin obrigatório).
  * Seed da base de DEMONSTRAÇÃO num servidor (VM da demo, ADR 0020 §5): só com MACUXI_AMBIENTE=demo (exigirBancoDemo).
@@ -26,6 +29,12 @@ export const PAPEL_APP = 'macuxi_app';
 /** Papel do despachante da outbox (ADR 0007): sem BYPASSRLS, só lê/marca plataforma.evento de todos os tenants. */
 export const PAPEL_WORKER = 'macuxi_worker';
 
+/**
+ * Papel do portal do super-admin (0038, T-0091, ADR 0029): o ÚNICO com EXECUTE nas plataforma.sa_*; sem grant de tabela, sem
+ * filiação, sem SUPERUSER/BYPASSRLS. Só o 2º pool da API (rotas plataforma/*, sessão e auditoria do super-admin) conecta com ele.
+ */
+export const PAPEL_PORTAL = 'macuxi_portal';
+
 export interface ConfigBanco {
   host: string;
   porta: number;
@@ -38,6 +47,8 @@ export interface ConfigBanco {
   appSenha: string;
   /** Senha do papel macuxi_worker ('' = não configurada; o papel fica NOLOGIN). */
   workerSenha: string;
+  /** Senha do papel macuxi_portal ('' = não configurada; o papel fica NOLOGIN e urlPortal lança). */
+  portalSenha: string;
   /**
    * Serviço do db/docker-compose.yml que atende este endereço (o globalSetup sobe só ele se estiver parado):
    * 'postgres' (demo/dev, 5432) ou 'postgres-testes' (testes, 5434). Ausente = não subir nada pelo compose.
@@ -54,6 +65,7 @@ export const PORTA_TESTES_PADRAO = 5434;
 export const SENHA_ADMIN_LOCAL = 'postgres';
 export const SENHA_APP_LOCAL = 'macuxi_app_local';
 export const SENHA_WORKER_LOCAL = 'macuxi_worker_local';
+export const SENHA_PORTAL_LOCAL = 'macuxi_portal_local';
 
 /**
  * Hosts do Postgres local de desenvolvimento: a máquina do dev e o nome do container do
@@ -140,7 +152,12 @@ function lerConfigInterno(env: NodeJS.ProcessEnv, exigirAdmin: boolean): ConfigB
           'As senhas padrão só valem para o Postgres local do db/docker-compose.yml.',
       );
     }
-    if (env.MACUXI_PG_ADMIN_SENHA === SENHA_ADMIN_LOCAL || env.MACUXI_PG_APP_SENHA === SENHA_APP_LOCAL || env.MACUXI_PG_WORKER_SENHA === SENHA_WORKER_LOCAL) {
+    if (
+      env.MACUXI_PG_ADMIN_SENHA === SENHA_ADMIN_LOCAL ||
+      env.MACUXI_PG_APP_SENHA === SENHA_APP_LOCAL ||
+      env.MACUXI_PG_WORKER_SENHA === SENHA_WORKER_LOCAL ||
+      env.MACUXI_PG_PORTAL_SENHA === SENHA_PORTAL_LOCAL
+    ) {
       throw new Error(`[db] Banco fora do ambiente local (${onde}): a senha pública do Postgres local não pode ser usada.`);
     }
   }
@@ -152,6 +169,7 @@ function lerConfigInterno(env: NodeJS.ProcessEnv, exigirAdmin: boolean): ConfigB
     banco: env.MACUXI_PG_BANCO || 'macuxi',
     appSenha: env.MACUXI_PG_APP_SENHA || SENHA_APP_LOCAL,
     workerSenha: env.MACUXI_PG_WORKER_SENHA || (local ? SENHA_WORKER_LOCAL : ''),
+    portalSenha: env.MACUXI_PG_PORTAL_SENHA || (local ? SENHA_PORTAL_LOCAL : ''),
   };
 }
 
@@ -221,6 +239,17 @@ export function urlApp(cfg: ConfigBanco, banco = cfg.banco): string {
 export function urlWorker(cfg: ConfigBanco, banco = cfg.banco): string {
   if (!cfg.workerSenha) throw new Error('[db] MACUXI_PG_WORKER_SENHA não definida: o papel macuxi_worker não tem login neste ambiente.');
   return url(PAPEL_WORKER, cfg.workerSenha, cfg, banco);
+}
+
+/**
+ * URL do papel do portal do super-admin (macuxi_portal, 0038, T-0091): o 2º pool da API. Exige MACUXI_PG_PORTAL_SENHA fora do
+ * local; sem ela lança (a API sobe sem o pool e o portal responde 503: falha fechada).
+ */
+export function urlPortal(cfg: ConfigBanco, banco = cfg.banco): string {
+  if (!cfg.portalSenha) {
+    throw new Error('[db] MACUXI_PG_PORTAL_SENHA não definida: o papel macuxi_portal não tem login neste ambiente (portal do super-admin indisponível).');
+  }
+  return url(PAPEL_PORTAL, cfg.portalSenha, cfg, banco);
 }
 
 /** Nome de banco válido e seguro para interpolar em DDL (CREATE/DROP DATABASE). */

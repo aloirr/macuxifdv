@@ -22,9 +22,12 @@ import { downloadBlob } from '@macuxi/platform-sdk/web';
 export const CARTAO_DA_ENTIDADE: Record<Entidade, { titulo: string; descricao: string }> = {
   vendedor: { titulo: 'Vendedores do ERP', descricao: 'Código e nome de cada vendedor no ERP. A carteira dos clientes aponta para eles.' },
   catalogo_no: { titulo: 'Árvore do catálogo', descricao: 'Departamentos, grupos e subgrupos em que os produtos aparecem no app.' },
+  forma_pagamento: { titulo: 'Formas de pagamento', descricao: 'Formas que o vendedor oferece no pedido (boleto, PIX, cartão). O cliente aponta para elas.' },
+  prazo_pagamento: { titulo: 'Prazos de pagamento', descricao: 'Parcelas em dias de cada forma (à vista, 28/56). O prazo médio é calculado pelo Macuxi.' },
   produto: { titulo: 'Produtos', descricao: 'Cadastro dos produtos, com aplicação e referências.' },
   produto_unidade: { titulo: 'Unidades', descricao: 'Embalagens de venda de cada produto (caixa, fardo) e o fator.' },
   preco: { titulo: 'Tabelas de preço', descricao: 'Preço de cada produto em cada tabela, em reais.' },
+  tabela_escalonada: { titulo: 'Tabela escalonada', descricao: 'Preço da unidade por faixa de quantidade, com vigência. Vem depois dos produtos e preços.' },
   estoque: { titulo: 'Estoque', descricao: 'Saldo disponível de cada produto.' },
   cliente: { titulo: 'Clientes', descricao: 'Cadastro dos clientes e o vendedor responsável por cada um.' },
   cliente_endereco: { titulo: 'Endereços', descricao: 'Endereços de entrega e cobrança dos clientes.' },

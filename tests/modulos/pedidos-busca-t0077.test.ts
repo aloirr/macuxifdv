@@ -354,7 +354,12 @@ describe('T-0077 critério 3 — janela do aparelho (90 dias) e "Disponível com
     // o texto do vazio vem de textoDoVazio com o `fora` e o `modoConsulta` da tela e aparece no <Empty>
     expect(TELA).toMatch(/const fora = !buscando && !semPeriodo && periodoForaDaJanela\(periodo, agora, tz\)/);
     expect(TELA).toMatch(/const semSinal = offline \|\| !ambiente\.online\(\)/);
-    expect(TELA).toMatch(/const modoConsulta = estadoDaConsulta\(\{ fora, offline: semSinal \}\)/);
+    // T-0090: o período em parte fora da janela também consulta o servidor, mas SÓ com sinal (`parcial && !semSinal`);
+    // sem sinal vale estadoDaConsulta (fora inteiro → "Disponível com conexão", nunca 'consultar')
+    expect(TELA).toMatch(/const parcial = !buscando && !semPeriodo && periodoParcialNaJanela\(periodo, agora, tz\)/);
+    expect(TELA).toMatch(/const modoConsulta = parcial && !semSinal \? 'consultar' : estadoDaConsulta\(\{ fora, offline: semSinal \}\)/);
+    expect(estadoDaConsulta({ fora: true, offline: true })).not.toBe('consultar');
+    expect(estadoDaConsulta({ fora: false, offline: true })).not.toBe('consultar');
     expect(TELA).toMatch(/const vazio = textoDoVazio\(\{ fora, modoConsulta,/);
     // o <Empty text={vazio}> aparece quando `visiveis` está vazia: na lista virtualizada (V9) é o ListEmptyComponent da
     // FlatList com data={visiveis}; na forma antiga, o ternário explícito. O texto já é decidido pela função pura
@@ -564,18 +569,27 @@ describe('T-0077 critério 4 — filtro por vendedor no Gestão (RN-CORE-04, RN-
     for (const id of opcoes.slice(1)) expect(vendedoresNoAparelho.has(id)).toBe(true);
   });
 
-  it('no Campo o seletor não existe: opções e filtro só com `gestao`, o botão "orders-vendedor" só no ramo do Gestão', () => {
+  it('no Campo o seletor não existe: opções e filtro só com `gestao`, a lista "orders-vendedor" (folha Período) só no ramo do Gestão', () => {
     expect(TELA).toMatch(/const gestao = useVisaoShell\(\)\.app === 'gestao'/);
     expect(TELA).toMatch(/const opcoes = useMemo\(\(\) => \(gestao \? opcoesDeVendedor\(orders\) : \[\]\)/);
-    // a fonte é a mesma nos dois ramos (aparelho ou, fora dos 90 dias, a consulta ao servidor); só o Gestão filtra
+    // a fonte é a mesma nos dois ramos (aparelho ou, fora dos 90 dias, a consulta ao servidor; T-0090: em parte fora =
+    // servidor + aparelho); só o Gestão filtra
     const doVendedor = /const doVendedor = useMemo\(\(\) => \(gestao \? filtrarPorVendedor\((\w+), vendedorAtivo\) : (\w+)\)/.exec(TELA);
     expect(doVendedor, 'doVendedor filtrado só no ramo do Gestão').not.toBeNull();
     expect(doVendedor![1]).toBe(doVendedor![2]);
-    expect(TELA).toMatch(new RegExp(`const ${doVendedor![1]} = doServidor\\?\\.estado === 'ok' \\? doServidor\\.itens : orders`));
-    expect(TELA).toMatch(/\{gestao \? \(\s*<Folha [^\n]{0,300}testID="orders-vendedor-folha"/);
+    expect(TELA).toMatch(
+      new RegExp(
+        `const ${doVendedor![1]} = useMemo\\(\\s*\\(\\) => \\(doServidor\\?\\.estado === 'ok' \\? \\(fora \\? doServidor\\.itens : juntarServidorComAparelho\\(doServidor\\.itens, orders\\)\\) : orders\\)`,
+      ),
+    );
     expect((TELA.match(/filtrarPorVendedor\(/g) ?? []).length).toBe(1);
     expect((TELA.match(/opcoesDeVendedor\(/g) ?? []).length).toBe(1);
-    expect(TELA).toMatch(/\{gestao \? \(\s*<Pressable\s+testID="orders-vendedor"/);
+    // T-0090: o seletor de vendedor saiu do botão próprio e virou a lista suspensa dentro da folha Período (`extra`), só no
+    // ramo do Gestão; no Campo a folha não tem `extra` de vendedor e a etiqueta de vendedor nunca aparece (vendedorAtivo
+    // fica em TODOS_OS_VENDEDORES sem `gestao`, conferido acima)
+    expect(TELA).toMatch(/extra=\{\s*gestao \? \(\s*<ListaSuspensa\s+testID="orders-vendedor"/);
+    expect(TELA).not.toMatch(/testID="orders-vendedor-folha"/);
+    expect(TELA).toMatch(/\{vendedorAtivo !== TODOS_OS_VENDEDORES \? \(\s*<EtiquetaFiltro testID="orders-etiqueta-vendedor"/);
     // o filtro vale antes da busca, do período, dos chips e do resumo: os itens nascem de `doVendedor`
     expect(TELA).toMatch(/doVendedor\.map\(/);
     expect((TELA.match(/testID="orders-vendedor"/g) ?? []).length).toBe(1);

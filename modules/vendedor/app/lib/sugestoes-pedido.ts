@@ -45,7 +45,6 @@ export interface EntradaSugestoes {
   lines: Readonly<Record<string, number>>;
   catalogo: readonly Product[];
   unidades: readonly UnidadeDaTela[];
-  embalagens?: Record<string, Record<string, number> | undefined>;
   cliente_id: string;
   clientes: ReadonlyArray<{ id: string; segmento: string | null }>;
   pedidos: ReadonlyArray<{ cliente_id: string; tipo: string; status: string; criado_em: string; produto_ids: readonly string[] }>;
@@ -64,8 +63,7 @@ export function montarSugestoes(e: EntradaSugestoes): SugestoesDaTela {
   for (const p of e.catalogo) {
     vendaveis[p.id] = { preco_cents: p.price_cents, estoque_base: Number.isFinite(p.stock_total) ? p.stock_total : null };
     if (p.price_cents === null) continue;
-    const proprio = e.embalagens?.[p.id];
-    precos[p.id] = { base_cents: p.price_cents, ...(proprio ? { embalagens: Object.entries(proprio).map(([unidade, preco_cents]) => ({ unidade, preco_cents: preco_cents as number })) } : {}) };
+    precos[p.id] = { base_cents: p.price_cents };
     estoque[p.id] = Number.isFinite(p.stock_total) ? p.stock_total : 0;
     unidadesPorProduto[p.id] = unidadesDoProduto(p.id, e.unidades, p.unit).map((m) => ({ unidade: m.unidade, fator: m.fator, ativo: true }));
   }

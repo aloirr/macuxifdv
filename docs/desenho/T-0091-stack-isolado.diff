@@ -1,0 +1,95 @@
+T-0091 (condição da ADR 0029) — proposta de mudança no .github/workflows/stack-isolado.yml (GOVERNANÇA)
+Preparado pelo engenheiro-software em 2026-11-06; o .github NÃO foi editado. Aplicar só com o ok do dono do produto:
+  git apply docs/desenho/T-0091-stack-isolado.diff
+O CI passa SEM este diff (o preparar-vm.sh do repositório já gera o portal.env e o banco-dbaas.sh mantém o começo da
+linha de log que o job procura); o diff só acrescenta as conferências do critério 6 da tarefa:
+  - portal.env 600, com MACUXI_PG_PORTAL_SENHA, mascarada no log, fora do .env, e intacto na 2ª execução do preparar-vm;
+  - pelo compose config: só api e banco recebem a senha; worker, seed-demo e backup nunca (demo); na produção, o worker
+    não tem a variável e a api tem (docker compose exec);
+  - o portal responde 401 NAO_AUTENTICADO (pool do macuxi_portal no ar), nunca 503 PORTAL_INDISPONIVEL;
+  - produção: o banco-dbaas.sh confere que as plataforma.sa_* só executam pelo macuxi_portal e que ele não tem grant em tabela.
+Linhas citadas no desenho (95 e 315) = as listas de variáveis geradas; a senha nova não entra nelas porque mora no portal.env.
+
+--- a/.github/workflows/stack-isolado.yml
++++ b/.github/workflows/stack-isolado.yml
+@@ -96,6 +96,12 @@
+             grep -q "^$n=." /opt/macuxi/.env || { echo "::error::preparar-vm.sh não gerou $n"; exit 1; }
+           done
+           sha256sum /opt/macuxi/.env | cut -d' ' -f1 > "$RUNNER_TEMP/env.sha"
++          # T-0091 (condição da ADR 0029): a senha do macuxi_portal nasce num arquivo PRÓPRIO (só api e banco leem), nunca no .env
++          while IFS='=' read -r nome valor; do case "$nome" in *SENHA) echo "::add-mask::$valor" ;; esac; done < /opt/macuxi/portal.env
++          test "$(stat -c '%a %U' /opt/macuxi/portal.env)" = "600 $(id -un)" || { echo "::error::/opt/macuxi/portal.env sem modo 600 do usuário de deploy"; exit 1; }
++          grep -q '^MACUXI_PG_PORTAL_SENHA=.' /opt/macuxi/portal.env || { echo "::error::preparar-vm.sh não gerou MACUXI_PG_PORTAL_SENHA"; exit 1; }
++          if grep -q '^MACUXI_PG_PORTAL_SENHA=' /opt/macuxi/.env; then echo "::error::a senha do macuxi_portal não pode ficar no .env (o worker lê o .env)"; exit 1; fi
++          sha256sum /opt/macuxi/portal.env | cut -d' ' -f1 > "$RUNNER_TEMP/portal.sha"
+ 
+       - name: preparar-vm.sh (2ª vez, idempotente) e timer do backup
+         run: |
+@@ -103,6 +109,7 @@
+           if grep -q '\[preparar-vm\] gerado ' "$SAIDA/preparar-2.log" || [ "$(sha256sum /opt/macuxi/.env | cut -d' ' -f1)" != "$(cat "$RUNNER_TEMP/env.sha")" ]; then
+             echo "::error::a 2ª execução do preparar-vm.sh mexeu no /opt/macuxi/.env (deveria só acrescentar o que falta)"; exit 1
+           fi
++          [ "$(sha256sum /opt/macuxi/portal.env | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/portal.sha")" ] || { echo "::error::a 2ª execução do preparar-vm.sh mexeu no portal.env"; exit 1; }
+           systemctl is-enabled --quiet macuxi-backup.timer || { echo "::error::macuxi-backup.timer não está habilitado"; exit 1; }
+           systemctl is-active --quiet macuxi-backup.timer || { echo "::error::macuxi-backup.timer não está ativo"; exit 1; }
+           test "$(stat -c '%a %U' /opt/macuxi/backup)" = "700 $(id -un)" || { echo "::error::/opt/macuxi/backup sem modo 700 do usuário de deploy"; exit 1; }
+@@ -158,6 +165,13 @@
+             e="$(jq -r --arg s "$s" '.services[$s].environment.MACUXI_S3_ENDPOINT' "$RUNNER_TEMP/config.json")"
+             [ "$e" = "http://s3-falso:9000" ] || { echo "::error::$s com MACUXI_S3_ENDPOINT=$e (esperado o S3 falso)"; exit 1; }
+           done
++          # T-0091: a senha do macuxi_portal chega SÓ à api e ao passo de papéis (banco); worker, seed e backup nunca
++          for s in api banco; do
++            jq -e --arg s "$s" '(.services[$s].environment.MACUXI_PG_PORTAL_SENHA // "") != ""' "$RUNNER_TEMP/config.json" > /dev/null || { echo "::error::$s sem MACUXI_PG_PORTAL_SENHA"; exit 1; }
++          done
++          for s in worker seed-demo backup; do
++            jq -e --arg s "$s" '(.services[$s].environment.MACUXI_PG_PORTAL_SENHA // null) == null' "$RUNNER_TEMP/config.json" > /dev/null || { echo "::error::$s recebeu MACUXI_PG_PORTAL_SENHA"; exit 1; }
++          done
+           # fora do modelo (perfil inativo) ou presente só com o perfil ci-sem-tunel, que ninguém liga
+           jq -e '(.services.cloudflared // null) == null or ((.services.cloudflared.profiles // []) | index("ci-sem-tunel") != null)' "$RUNNER_TEMP/config.json" > /dev/null \
+             || { echo "::error::cloudflared ligado no CI"; exit 1; }
+@@ -173,6 +187,9 @@
+           grep -q '\[sonda\] armazenamento ok' "$l" || falta "sonda do S3 não passou"
+           grep -q 'backup: scripts em /opt/macuxi/backup' "$l" || falta "scripts do backup não saíram da imagem"
+           grep -q 'backup: nenhum ainda' "$l" || falta "conferência do backup não disse 'nenhum ainda'"
++          # T-0091: portal no ar pelo pool do macuxi_portal (sem token: 401, nunca 503 PORTAL_INDISPONIVEL)
++          corpo="$(curl -sS http://127.0.0.1:8100/v1/plataforma/empresas)"
++          printf '%s' "$corpo" | grep -q '"codigo":"NAO_AUTENTICADO"' || falta "portal sem o pool do macuxi_portal: $corpo"
+           ! grep -q '::warning::' "$l" || falta "houve aviso (veja as linhas ::warning:: acima)"
+           test "$(stat -c '%a' /opt/macuxi/backup/backup-vm.sh) $(stat -c '%a' /opt/macuxi/backup/restaurar-vm.sh) $(stat -c '%a' /opt/macuxi/backup/contagem.sql)" = "700 700 600" \
+             || falta "modos dos scripts do backup (esperado 700 700 600)"
+@@ -316,9 +333,14 @@
+             grep -q "^$n=." /opt/macuxi/.env || { echo "::error::preparar-vm.sh não gerou $n"; exit 1; }
+           done
+           if grep -q '^MACUXI_PG_ADMIN' /opt/macuxi/.env; then echo "::error::a senha do admin não pode nascer no .env da produção"; exit 1; fi
+-          antes="$(sha256sum /opt/macuxi/.env)"
++          # T-0091 (condição da ADR 0029): a senha do macuxi_portal nasce num arquivo PRÓPRIO (só api e banco leem), nunca no .env
++          while IFS='=' read -r nome valor; do case "$nome" in *SENHA) echo "::add-mask::$valor" ;; esac; done < /opt/macuxi/portal.env
++          test "$(stat -c '%a %U' /opt/macuxi/portal.env)" = "600 $(id -un)" || { echo "::error::/opt/macuxi/portal.env sem modo 600 do usuário de deploy"; exit 1; }
++          grep -q '^MACUXI_PG_PORTAL_SENHA=.' /opt/macuxi/portal.env || { echo "::error::preparar-vm.sh não gerou MACUXI_PG_PORTAL_SENHA"; exit 1; }
++          if grep -q '^MACUXI_PG_PORTAL_SENHA=' /opt/macuxi/.env; then echo "::error::a senha do macuxi_portal não pode ficar no .env (o worker lê o .env)"; exit 1; fi
++          antes="$(sha256sum /opt/macuxi/.env /opt/macuxi/portal.env)"
+           sudo bash ~/macuxi-deploy/preparar-vm.sh "$(id -un)" 2>&1 | tee "$SAIDA/preparar-2.log"
+-          [ "$antes" = "$(sha256sum /opt/macuxi/.env)" ] || { echo "::error::a 2ª execução mexeu no .env"; exit 1; }
++          [ "$antes" = "$(sha256sum /opt/macuxi/.env /opt/macuxi/portal.env)" ] || { echo "::error::a 2ª execução mexeu no .env ou no portal.env"; exit 1; }
+           for t in macuxi-backup.timer macuxi-alerta.timer; do
+             if ! systemctl is-enabled --quiet "$t" || ! systemctl is-active --quiet "$t"; then echo "::error::$t não está habilitado e ativo"; exit 1; fi
+           done
+@@ -406,10 +428,18 @@
+           grep -Eq 'extensão vector 0\.[89]' "$l" || falta "sem a extensão vector >= 0.8"
+           grep -q 'papéis: macuxi_app e macuxi_worker com LOGIN' "$l" || falta "papéis"
+           grep -q 'admin herda o macuxi_manutencao' "$l" || falta "0031"
++          grep -q 'super-admin: plataforma.sa_\* só pelo macuxi_portal, sem grant em tabela' "$l" || falta "T-0091: sa_* fora do macuxi_portal"
+           grep -q 'conferir-rls.sql = 0' "$l" || falta "conferir-rls.sql"
+           grep -q 'api: /v1/saude ok (banco ok, versão v0.0.0-ci1)' "$l" || falta "saúde"
+           grep -q '\[sonda\] armazenamento ok' "$l" || falta "sonda do S3"
+           grep -q 'publicado: v0.0.0-ci1' "$l" || falta "não terminou"
++          # T-0091: portal no ar pelo pool do macuxi_portal (sem token: 401, nunca 503 PORTAL_INDISPONIVEL)
++          corpo="$(curl -sS http://127.0.0.1:8100/v1/plataforma/empresas)"
++          printf '%s' "$corpo" | grep -q '"codigo":"NAO_AUTENTICADO"' || falta "portal sem o pool do macuxi_portal: $corpo"
++          # T-0091: o worker nunca recebe a senha do macuxi_portal; a api recebe
++          cd /opt/macuxi
++          if docker compose --env-file .env --env-file imagens.env exec -T worker printenv MACUXI_PG_PORTAL_SENHA > /dev/null; then falta "o worker recebeu MACUXI_PG_PORTAL_SENHA"; fi
++          docker compose --env-file .env --env-file imagens.env exec -T api sh -c 'test -n "$MACUXI_PG_PORTAL_SENHA"' || falta "a api sem MACUXI_PG_PORTAL_SENHA"
+ 
+       - name: API e worker conectados ao "DBaaS" só com TLS; rede fora da faixa da VPC
+         run: |

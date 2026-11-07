@@ -134,6 +134,11 @@
                             "telefone": "+55 95 3000-0003",
                             "email": "contato@example.com"
                           }
+                        ],
+                        "prazo_medio_max_dias": 60,
+                        "formas_pagamento": [
+                          "BOL",
+                          "PIX"
                         ]
                       }
                     ]
@@ -433,6 +438,92 @@
                         "nome": "Transportadora Exemplo",
                         "documento": "11222333000181",
                         "telefone": "+55 95 3000-0004"
+                      }
+                    ]
+                  }
+                },
+                "forma_pagamento": {
+                  "summary": "Formas de pagamento (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "forma_pagamento",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "FP-BOL"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "FP-BOL",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "codigo": "BOL",
+                        "nome": "Boleto",
+                        "ordem": 1
+                      }
+                    ]
+                  }
+                },
+                "prazo_pagamento": {
+                  "summary": "Prazos de pagamento com as parcelas em dias (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "prazo_pagamento",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "PZ-30-60-90"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "PZ-30-60-90",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "forma_external_id": "FP-BOL",
+                        "codigo": "306090",
+                        "descricao": "30/60/90 dias",
+                        "parcelas_dias": [
+                          30,
+                          60,
+                          90
+                        ],
+                        "prazo_medio_dias": 60,
+                        "ordem": 2
+                      }
+                    ]
+                  }
+                },
+                "tabela_escalonada": {
+                  "summary": "Tabela escalonada: preço da unidade por quantidade mínima (delta)",
+                  "value": {
+                    "versao_contrato": "v1",
+                    "entidade": "tabela_escalonada",
+                    "modo": "delta",
+                    "cursor": {
+                      "alterado_em": "2026-11-05T13:45:10Z",
+                      "external_id": "ESC:P000045:CX:12"
+                    },
+                    "enviado_em": "2026-11-05T13:46:00Z",
+                    "conector_id": "erp-matriz",
+                    "versao_conector": "1.2.1",
+                    "registros": [
+                      {
+                        "external_id": "ESC:P000045:CX:12",
+                        "alterado_em": "2026-11-05T13:45:10Z",
+                        "ativo": true,
+                        "produto_external_id": "P000045",
+                        "medida": "CX",
+                        "quantidade_minima": 12,
+                        "preco_unidade_cents": 740,
+                        "vigencia_inicio": "2026-11-01",
+                        "vigencia_fim": null,
+                        "tabela_external_id": "TAB01"
                       }
                     ]
                   }
@@ -1176,7 +1267,7 @@
                     "summary": "Entidade fora da lista",
                     "value": {
                       "codigo": "entidade_desconhecida",
-                      "mensagem": "Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora.",
+                      "mensagem": "Entidade desconhecida. Use uma de: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada.",
                       "requisicao_id": "req-7f3a9c2e41d8"
                     }
                   }
@@ -2323,7 +2414,8 @@
               "aplicacao_cortada",
               "referencias_cortadas",
               "referencia_descartada",
-              "oferece_junto_cortado"
+              "oferece_junto_cortado",
+              "prazo_medio_divergente"
             ]
           },
           "mensagem": {
@@ -2690,6 +2782,34 @@
             },
             "maxItems": 20,
             "default": []
+          },
+          "prazo_medio_max_dias": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 365
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "formas_pagamento": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3053,7 +3173,10 @@
           "catalogo_no",
           "produto_unidade",
           "cliente_endereco",
-          "transportadora"
+          "transportadora",
+          "forma_pagamento",
+          "prazo_pagamento",
+          "tabela_escalonada"
         ]
       },
       "ErroHub": {
@@ -3165,6 +3288,45 @@
           "deposito_external_id",
           "produto_external_id",
           "saldo"
+        ]
+      },
+      "FormaPagamentoPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "nome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "ordem": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "codigo",
+          "nome"
         ]
       },
       "FreteErp": {
@@ -3641,7 +3803,7 @@
           "entidade": {
             "type": "string",
             "minLength": 1,
-            "description": "Entidade do lote: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora."
+            "description": "Entidade do lote: vendedor, cliente, produto, preco, estoque, titulo, nota, rota, catalogo_no, produto_unidade, cliente_endereco, transportadora, forma_pagamento, prazo_pagamento, tabela_escalonada."
           },
           "modo": {
             "$ref": "#/components/schemas/ModoCarga",
@@ -3771,6 +3933,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/TransportadoraPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/FormaPagamentoPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/PrazoPagamentoPayload"
+                },
+                {
+                  "$ref": "#/components/schemas/TabelaEscalonadaPayload"
                 }
               ]
             },
@@ -3819,6 +3990,15 @@
           },
           "transportadora": {
             "$ref": "#/components/schemas/TransportadoraPayload"
+          },
+          "forma_pagamento": {
+            "$ref": "#/components/schemas/FormaPagamentoPayload"
+          },
+          "prazo_pagamento": {
+            "$ref": "#/components/schemas/PrazoPagamentoPayload"
+          },
+          "tabela_escalonada": {
+            "$ref": "#/components/schemas/TabelaEscalonadaPayload"
           }
         }
       },
@@ -4134,6 +4314,66 @@
           "sha256"
         ]
       },
+      "PagamentoErp": {
+        "type": "object",
+        "properties": {
+          "forma_codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "forma_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prazo_codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "prazo_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parcelas_dias": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 365
+            },
+            "minItems": 1,
+            "maxItems": 24
+          },
+          "prazo_medio_dias": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          }
+        },
+        "required": [
+          "forma_codigo",
+          "prazo_codigo",
+          "parcelas_dias",
+          "prazo_medio_dias"
+        ]
+      },
       "ParadaRota": {
         "type": "object",
         "properties": {
@@ -4281,6 +4521,16 @@
                 "type": "null"
               }
             ]
+          },
+          "pagamento": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PagamentoErp"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4346,6 +4596,79 @@
         "required": [
           "versao_minima",
           "versao_recomendada"
+        ]
+      },
+      "PrazoPagamentoPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "forma_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "codigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parcelas_dias": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 365
+            },
+            "minItems": 1,
+            "maxItems": 24
+          },
+          "prazo_medio_dias": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 365
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ordem": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "forma_external_id",
+          "codigo",
+          "parcelas_dias"
         ]
       },
       "PrecoPayload": {
@@ -5344,6 +5667,84 @@
           "faturado_parcial",
           "faturado_total",
           "cancelado"
+        ]
+      },
+      "TabelaEscalonadaPayload": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "alterado_em": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "ativo": {
+            "type": "boolean",
+            "default": true
+          },
+          "produto_external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "medida": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{1,4}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quantidade_minima": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "preco_unidade_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "vigencia_inicio": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "vigencia_fim": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tabela_external_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "external_id",
+          "alterado_em",
+          "produto_external_id",
+          "quantidade_minima",
+          "preco_unidade_cents",
+          "vigencia_inicio"
         ]
       },
       "TipoNota": {
