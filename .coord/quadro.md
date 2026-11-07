@@ -10,6 +10,8 @@
 > 5. com as correções dos bugs do teste do e9a65286 que chegarem antes.
 >
 > Ao sair, o recado "BUILD PRONTO <sha>" leva os links e o roteiro. Se até as 18h de 07/11 as condições não se fecharem, mando recado com o que falta. Nenhum build intermediário.
+>
+> **Saiu em 07/11 13h45: BUILD PRONTO d1e0d2a** (R-20261107-124025). O próximo build espera os resultados do teste do dono do produto.
 
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
@@ -126,7 +128,7 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0088](tarefas/T-0088.md) | SQLite no motor de sync do app (Campo e Gestão), para a busca offline com 20 mil produtos (critério 5 da T-0084) — Sprint 9 | engenheiro-software, engenheiro-apps, banco-dados, modulo-catalogo, testes | local | em_teste (07/11 0h54: no main em e9a65286, CI verde e demo publicada; APK de preview em build; falta a conferência e a medição no aparelho) |
 | [T-0089](tarefas/T-0089.md) | Novo pedido: aba Itens revisada; formas de pagamento e prazos com prazo médio; tabela escalonada; crédito do cliente em Detalhes; bug do + — Sprint 9 | engenheiro-software, banco-dados, modulo-vendedor, modulo-core, modulo-integracao, engenheiro-apps, designer-ux, testes | local | em_teste (07/11 11h: B2, as views-modelo do Conector, no main em 638faa69 com revisão sem 🔴; 06/11 22h31: no main em 5a1848a9, com CI e stack verdes e revisões sem 🔴; falta a conferência do dono do produto no APK e a base demo recriada) |
 | [T-0090](tarefas/T-0090.md) | Pedidos: filtro de período num botão só (modelo A) e troca sem atraso (< 100 ms) — Sprint 9 | modulo-vendedor, designer-ux, engenheiro-apps, testes | local | em_teste (07/11 11h: 🟡 de UX no main em 638faa69, reconferência sem 🔴; falta a conferência no APK do próximo build único) |
-| [T-0091](tarefas/T-0091.md) | Super-admin em papel de banco próprio (condição da ADR 0029, antes do 1º cliente real) — Sprint 10 | engenheiro-software, banco-dados, modulo-core, testes | local | em_teste (07/11 11h: diff do stack-isolado corrigido e diff do portal na demo prontos para o ok do dono do produto; scripts da demo no main em 638faa69; apps/web com config-demo no próximo lote; falta o secret DEMO_SUPERADMIN_CONVITE e a rota no túnel, ambos do dono do produto) |
+| [T-0091](tarefas/T-0091.md) | Super-admin em papel de banco próprio (condição da ADR 0029, antes do 1º cliente real) — Sprint 10 | engenheiro-software, banco-dados, modulo-core, testes | local | em_teste (07/11 13h30: diffs aprovados e aplicados, main d1e0d2ad com CI e stack verdes; portal da demo responde 401 pelo macuxi_portal; falta o secret e a rota config-demo, do dono do produto, e o 1º acesso) |
 | [T-0092](tarefas/T-0092.md) | Hub: openapi.json público, ajv/ajv-formats devDependency, hub-api.md §15 (pendências do #99) — Sprint 10 | engenheiro-software, modulo-integracao | local | em_revisao (07/11 11h: no main em 638faa69, revisão final sem 🔴, matriz em docs/testes/T-0092.md; fecha com o CI do main verde e o botão do portal no lote seguinte) |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | concluida (demo das 15h no ar em ca61571 · APKs do ac4ca3b · demo-no-ar 41 OK) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | concluida (consumidor de nota 96a567f; 🟡 da guarda de ordem no backlog, antes do 1º tenant real) |
