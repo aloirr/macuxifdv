@@ -5,6 +5,7 @@
  * - fonte de dados do super-admin (funções `SECURITY DEFINER` da 0035, banco-dados) e a auditoria de toda requisição
  *   feita com o token de plataforma (`plataforma.auditoria_plataforma`, no fim da resposta, também quando recusada).
  * Sem dado pessoal no log nem na auditoria: ids, modelo da rota, status, `request_id` e o prefixo do IP.
+ * T-0091: o `banco` que chega aqui é o do portal (papel `macuxi_portal`, só EXECUTE nas `sa_*`), nunca o `macuxi_app`.
  */
 import {
   CriarEmpresaRespostaSchema,
@@ -19,6 +20,7 @@ import {
 } from '@macuxi/platform-sdk';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { PRAZO_PROVISIONAR_PORTAL_MS } from './banco';
 import { ErroHttp } from './erros';
 
 /** Linha de `plataforma.auditoria_plataforma` gravada pela API (a do login é do Core). */
@@ -91,10 +93,19 @@ export const fontePlataformaNoBanco: FontePlataforma = {
     }),
 };
 
-/** `sa_provisionar_tenant`; com `simular`, a mesma chamada numa transação desfeita (o resultado sai pelo `Desfazer`). */
+/** `set local` do prazo da `sa_provisionar_tenant` (desenho T-0091 §3 item 5; o valor é constante, não entrada). */
+export const SQL_PRAZO_PROVISIONAR = `set local statement_timeout = '${PRAZO_PROVISIONAR_PORTAL_MS}ms'`;
+
+/**
+ * `sa_provisionar_tenant`; com `simular`, a mesma chamada numa transação desfeita (o resultado sai pelo `Desfazer`).
+ * T-0091: roda no papel `macuxi_portal`, invisível ao horizonte do pull do `macuxi_app`, e grava `plataforma.parametro`
+ * (entidade de sync): o prazo curto da transação (abaixo da margem do horizonte) garante que a linha nunca fique atrás do cursor.
+ */
 async function provisionarNoBanco(sa: SuperAdminAutenticado, entrada: EntradaProvisionarPlataforma, simular: boolean, banco: AcessoBanco): Promise<unknown> {
-  const chamar = async (db: Parameters<Parameters<AcessoBanco['semTenant']>[0]>[0]) =>
-    (await db.query<{ r: unknown }>('select plataforma.sa_provisionar_tenant($1, $2::jsonb) as r', [sa.sessao_id, JSON.stringify(entrada)])).rows[0]?.r;
+  const chamar = async (db: Parameters<Parameters<AcessoBanco['semTenant']>[0]>[0]) => {
+    await db.query(SQL_PRAZO_PROVISIONAR);
+    return (await db.query<{ r: unknown }>('select plataforma.sa_provisionar_tenant($1, $2::jsonb) as r', [sa.sessao_id, JSON.stringify(entrada)])).rows[0]?.r;
+  };
   if (!simular) return banco.semTenant(chamar);
   try {
     await banco.semTenant(async (db) => {

@@ -48,3 +48,15 @@ export type ClienteListaItem = z.infer<typeof ClienteListaItemSchema>;
 /** Paginação por deslocamento opaco (`proximo_cursor` = próximo deslocamento; `null` = acabou). */
 export const ClienteListaRespostaSchema = z.object({ itens: z.array(ClienteListaItemSchema), proximo_cursor: z.string().nullable() }).strict();
 export type ClienteListaResposta = z.infer<typeof ClienteListaRespostaSchema>;
+
+/**
+ * Pagamento permitido ao cliente no BKO (T-0089, RN-VEN-25): `PUT /v1/core/clientes/:id/pagamento`. Os dois campos vêm sempre
+ * (a tela envia o estado inteiro). `prazo_medio_max_dias` nulo = sem teto; `formas_pagamento` nulo ou vazio = todas as ativas.
+ */
+export const ClientePagamentoPutSchema = z
+  .object({
+    prazo_medio_max_dias: z.number().int().min(0).max(365).nullable(),
+    formas_pagamento: z.array(z.string().trim().toUpperCase().min(1).max(20)).max(20).nullable(),
+  })
+  .strict();
+export type ClientePagamentoPut = z.infer<typeof ClientePagamentoPutSchema>;

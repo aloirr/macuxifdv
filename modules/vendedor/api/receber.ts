@@ -24,6 +24,7 @@ import {
 import {
   conteudoDoEnvio,
   dataDoPreco,
+  faixasDaConsulta,
   historicoDoOrcamento,
   ehPedidoEmNome,
   momentoDaConversao,
@@ -44,10 +45,12 @@ import {
   verificarPedidoEmNome,
   verificarConversao,
   verificarTipoParaCliente,
+  type FaixaEscalonada,
   type FretePedido,
   type Recusa,
 } from '../domain';
 import { payloadAprovado } from './aprovado-erp';
+import { resolverPagamento, valoresPagamento } from './pagamento';
 import { preVenda } from './pre-venda';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -164,19 +167,27 @@ export async function calcularDocumento(
   const em = dataDoPreco(p.created_offline_at, agora);
   const precos = await tx.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: p.customer_id, produto_ids: produtoIds, em });
   const mapaPreco: Record<string, number | null> = {};
-  const mapaEmbalagem: Record<string, Record<string, number>> = {};
+  const mapaFaixas: Record<string, FaixaEscalonada[]> = {};
   for (const i of precos.itens) {
     mapaPreco[i.produto_id] = i.preco_cents;
-    // RN-VEN-15 (T-0071 §1.4 f): preço próprio da embalagem na tabela do cliente
-    if (i.embalagens && i.embalagens.length > 0) mapaEmbalagem[i.produto_id] = Object.fromEntries(i.embalagens.map((x) => [x.unidade, x.preco_cents]));
+    // RN-VEN-15 (nova, T-0089): a embalagem é sempre UN × fator; `embalagens[]` do Catálogo é ignorado.
+    // RN-VEN-23: faixas vigentes da tabela escalonada (o Catálogo publica `faixas?`; ausente = sem faixa)
+    const faixas = faixasDaConsulta(i);
+    if (faixas.length > 0) mapaFaixas[i.produto_id] = faixas;
   }
 
-  // 6) condição de pagamento (RN-VEN-14)
-  const { permitidas, padrao } = await condicoesPermitidas(db, p.customer_id);
-  let condicao: CondicaoLinha | null = padrao;
-  if (p.condicao_pagamento_id) {
-    condicao = permitidas.find((c) => c.id === p.condicao_pagamento_id) ?? null;
-    if (!condicao) return rejeitado(itemId, 'RN-VEN-14', 'Condição de pagamento não permitida para este cliente. Escolha outra.');
+  // 6) pagamento: forma + prazo (RN-VEN-24/25, T-0089) ou, no APK anterior, a condição de pagamento (RN-VEN-14 legado)
+  const pg = await resolverPagamento(ctx, db, tx, p, cliente, tipo);
+  if (!pg.ok) return rejeitado(itemId, pg.codigo, pg.mensagem);
+  const pagamento = pg.pagamento;
+  let condicao: CondicaoLinha | null = null;
+  if (!pagamento) {
+    const { permitidas, padrao } = await condicoesPermitidas(db, p.customer_id);
+    condicao = padrao;
+    if (p.condicao_pagamento_id) {
+      condicao = permitidas.find((c) => c.id === p.condicao_pagamento_id) ?? null;
+      if (!condicao) return rejeitado(itemId, 'RN-VEN-14', 'Condição de pagamento não permitida para este cliente. Escolha outra.');
+    }
   }
 
   // 7) alçada de desconto (RN-VEN-10), preço e totais do servidor (RN-VEN-02)
@@ -206,7 +217,8 @@ export async function calcularDocumento(
       preco_minimo_base_cents: precoMinimoBaseCents({ preco_venda_cents: produtos.get(i.product_id)?.preco_venda_cents ?? null, desconto_maximo_pct: produtos.get(i.product_id)?.desconto_maximo_pct ?? 100 }),
     })),
     precos: mapaPreco,
-    precos_embalagem: mapaEmbalagem,
+    faixas: mapaFaixas,
+    titulo_vencido: pg.titulo_vencido,
     aplicacao_max: aplicacaoMaxOrcamento(ctx.parametros()),
     // RN-VEN-10: o pedido do gestor usa a alçada do gestor
     policy: emNome ? politicaDoAutor(politicaDosParametros(ctx.parametros()), ctx.usuario.perfil) : politicaDosParametros(ctx.parametros()),
@@ -222,7 +234,7 @@ export async function calcularDocumento(
   const v = validade
     ? { ...rv, status: 'received' as const, nivel: null, motivos: [], aprovacao_automatica: false, pending_reason: '', historico: historicoDoOrcamento(validade, ctx.fuso()) }
     : rv;
-  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v, validade, validadeCivil, recebidoEm };
+  return { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm };
 }
 
 /** Tudo que o servidor decide sobre o documento antes de gravar (preço, alçada, medida, frete, endereço, condição). */
@@ -277,7 +289,7 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
 
   const calc = await calcularDocumento(ctx, db, tx, p, tipo, item.id);
   if ('status' in calc) return calc;
-  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v, validade, validadeCivil, recebidoEm } = calc;
+  const { cliente, produtos, vendedor, autor, donoId, emNome, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v, validade, validadeCivil, recebidoEm } = calc;
 
   // 8) grava (pedido, itens, histórico, auditoria, eventos) na mesma transação
   const numero = (await db.query<{ n: string }>('select vendedor.proximo_numero_pedido() as n')).rows[0]!.n;
@@ -297,18 +309,21 @@ async function receberUm(ctx: ContextoBase, db: ClienteBanco, tx: TransacaoTenan
         tabela_preco_id, condicao_pagamento_id, condicao_pagamento_descricao, nivel_aprovacao, motivos_aprovacao, aprovacao_automatica,
         acrescimo_pct, desconto_efetivo_pct, frete_modalidade, transportadora_id, transportadora_digitada, transportadora_nome,
         transportadora_documento, transportadora_telefone, endereco_entrega_id, endereco_entrega,
-        desconto_valor_cents, acrescimo_valor_cents, ajuste_em)
+        desconto_valor_cents, acrescimo_valor_cents, ajuste_em,
+        forma_pagamento_id, prazo_pagamento_id, forma_pagamento_codigo, forma_pagamento_nome, prazo_codigo, prazo_descricao, prazo_parcelas_dias, prazo_medio_dias)
      values ($1, plataforma.tenant_atual(), $2, $3, $38, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22, $23::text[], $24,
-        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37)
+        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36, $37,
+        $39, $40, $41, $42, $43, $44, $45::int[], $46)
      on conflict (id) do nothing returning id`,
     [
-      p.id, p.customer_id, donoId, v.status, condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
+      p.id, p.customer_id, donoId, v.status, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents,
       p.observacao ?? null, p.visita_id ?? null, p.route_stop_id ?? null, p.created_offline_at ?? null, recebidoEm, numero, hash,
       JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, vendedor?.nome ?? null,
-      precos.tabela_preco_id, condicao?.id ?? null, condicao?.descricao ?? null, v.nivel, v.motivos, v.aprovacao_automatica,
+      precos.tabela_preco_id, condicao?.id ?? null, pagamento?.texto ?? condicao?.descricao ?? null, v.nivel, v.motivos, v.aprovacao_automatica,
       v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada, transportadora.nome,
       transportadora.documento, transportadora.telefone, alvo.endereco_id, enderecoRetrato ? JSON.stringify(retratoDoEndereco(enderecoRetrato)) : null,
       v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, eu,
+      ...valoresPagamento(pagamento),
     ],
   );
   // outro tenant com o mesmo id (chave primária global): não revela, só recusa

@@ -36,6 +36,9 @@ export const CadastroResumoSaidaSchema = z.object({
       cadastro_campos_faltantes: z.array(z.string()).optional(),
       /** T-0073 / RN-VEN-13 (aditivo): cliente bloqueado no financeiro (`cliente_financeiro.bloqueado`); só o Vendedor decide o que fazer (pedido vira orçamento). Ausente = não informado. */
       bloqueado: z.boolean().optional(),
+      /** T-0089 / RN-VEN-25 (aditivo): prazo médio máximo (nulo = sem teto) e formas permitidas por código (nulo ou vazio = todas). Ausente = emissor antigo. */
+      prazo_medio_max_dias: z.number().int().min(0).nullable().optional(),
+      formas_pagamento: z.array(z.string()).nullable().optional(),
     }),
   ),
   produtos: z.array(
@@ -154,3 +157,30 @@ export const UsuariosResumoSaidaSchema = z.object({
 export type UsuariosResumoSaida = z.infer<typeof UsuariosResumoSaidaSchema>;
 
 export const CONSULTA_USUARIOS_RESUMO = definirConsulta({ nome: 'core.usuarios_resumo@1', entrada: UsuariosResumoEntradaSchema, saida: UsuariosResumoSaidaSchema });
+
+/**
+ * `core.financeiro_cliente@1` (T-0089, RN-VEN-12/13): crédito e títulos vencidos de UM cliente, na API e no aparelho (offline,
+ * lendo o `cliente_financeiro` e o `titulo` do pull). O "hoje" é a data no fuso do tenant. `financeiro: null` = cliente sem
+ * linha financeira. O disponível (RN-VEN-12, com os pedidos ainda não faturados) é do Vendedor: aqui vai o do ERP, se vier.
+ */
+export const FinanceiroClienteEntradaSchema = z.object({ cliente_id: z.string().uuid() }).strict();
+export type FinanceiroClienteEntrada = z.infer<typeof FinanceiroClienteEntradaSchema>;
+export const FinanceiroClienteSaidaSchema = z.object({
+  financeiro: z
+    .object({
+      limite_cents: z.number().int(),
+      saldo_aberto_cents: z.number().int(),
+      /** Do ERP; nulo = o ERP não mandou (o Vendedor calcula limite − saldo, RN-VEN-12). */
+      credito_disponivel_erp_cents: z.number().int().nullable(),
+      bloqueado: z.boolean(),
+      motivo_bloqueio: z.string().nullable(),
+      vencidos_qtd: z.number().int().nonnegative(),
+      vencidos_cents: z.number().int().nonnegative(),
+      /** Dias de atraso do título vencido mais antigo; 0 sem vencido (RN-VEN-13). */
+      maior_atraso_dias: z.number().int().nonnegative(),
+      atualizado_erp_em: z.string().datetime().nullable(),
+    })
+    .nullable(),
+});
+export type FinanceiroClienteSaida = z.infer<typeof FinanceiroClienteSaidaSchema>;
+export const CONSULTA_FINANCEIRO_CLIENTE = definirConsulta({ nome: 'core.financeiro_cliente@1', entrada: FinanceiroClienteEntradaSchema, saida: FinanceiroClienteSaidaSchema });

@@ -8,11 +8,13 @@
  */
 import { implementarConsultaAparelho, type ContextoConsultaAparelho } from '@macuxi/platform-sdk';
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_TEXTOS_PRODUTO, type ProdutoConteudoSync, type ProdutoReferenciaSync, type Referencia } from '../contracts';
+import { interpretarConsulta } from '../domain/consulta';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { buscarParaConsulta, textosParaConsulta } from '../domain/busca-consulta';
+import { anoCivilNoFuso } from '../domain/ano-civil';
 import { parametrosDoTenant } from '../domain/parametros';
 import type { ProdutoCatalogo } from '../domain/vitrine';
-import { produtosLocais, sinonimosLocais, type LeitorLocal } from './lib/local';
+import { comAplicacao, preselecionar, produtosLocais, sinonimosLocais, vocabularioMemorizado, type LeitorLocal } from './lib/local';
 
 const vivas = <L extends { deleted_at: string | null }>(l: L[]) => l.filter((x) => !x.deleted_at);
 
@@ -90,17 +92,24 @@ export const consultaTextosProdutoAparelho = implementarConsultaAparelho(CONSULT
 
 export const consultaBuscaProdutosAparelho = implementarConsultaAparelho(CONSULTA_BUSCA_PRODUTOS, async (entrada, ctx) => {
   // dependência inativa lança ConsultaIndisponivel (o Vendedor cai no plano B do seletor); Error de programação sobe
-  const leitor = ctx as unknown as LeitorLocal;
-  const produtos = await produtosLocais(leitor, { lerConcorrente: false });
+  const leitor: LeitorLocal = ctx;
+  const todos = await produtosLocais(leitor, { lerConcorrente: false });
   const sinonimos = await sinonimosLocais(leitor);
+  // mesma pré-seleção da aba (FTS5, ≤ 400 candidatos); sem SQLite (`sem_busca`) ou catálogo pequeno = varredura, sem erro
+  const vocabulario = vocabularioMemorizado(todos);
+  const filtros = interpretarConsulta(entrada.q, vocabulario);
+  const candidatos = entrada.produto_ids ? null : await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, todos.length);
+  const idsPedidos = entrada.produto_ids ? new Set(entrada.produto_ids) : null;
+  const produtos = await comAplicacao(leitor, candidatos ? todos.filter((p) => candidatos.has(p.id)) : idsPedidos ? todos.filter((p) => idsPedidos.has(p.id)) : todos);
   const itens = buscarParaConsulta({
     produtos,
     q: entrada.q,
     produtoIds: entrada.produto_ids,
     limite: entrada.limite,
     sinonimos,
+    vocabulario,
     parametros: parametrosDoTenant(ctx.parametros()),
-    anoAtual: Number(ctx.agora().toISOString().slice(0, 4)),
+    anoAtual: anoCivilNoFuso(ctx.agora(), ctx.usuario()?.fuso),
   });
   return { itens };
 });

@@ -7,6 +7,7 @@
  * última falha (etapa e mensagem) e as entidades ainda sem provedor ficam na área "Diagnóstico", fechada por padrão.
  * RN-CORE-23 (T-0065): botão Sincronizar do kit (última sincronização · N na fila, proteção de 30 s) e puxar para baixo.
  * ADR 0017: o Diagnóstico mostra também a "Última sincronização em segundo plano" (resultado, duração e mensagem).
+ * T-0088: e o armazenamento ativo (SQLite do usuário e tenant com o marcador da passagem, ou AsyncStorage de reserva).
  */
 import { ROTULO_PERFIL, rotuloDoArquivo, rotuloDoItem } from '@macuxi/platform-sdk';
 import { useMotorSync } from '@macuxi/platform-sdk/react';
@@ -37,6 +38,7 @@ import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-nati
 
 import { ItensDoMenu } from '@/components/extensoes-shell';
 import { normalizeApiUrl } from '@/lib/api-url';
+import { linhasDoArmazenamento } from '@/lib/armazenamento-aparelho';
 import { criarContadorToques, diagnosticoDisponivel } from '@/lib/diagnostico-carga';
 import { mensagemDeErroDaCarga } from '@/lib/frases-carga';
 import { textoDoResultado } from '@/lib/segundo-plano';
@@ -288,6 +290,10 @@ export default function ProfileScreen() {
                 Sem provedor no servidor: {estado.avisos.map((a) => a.entidade).join(', ')}
               </Text>
             ) : null}
+            {/* T-0088 (desenho §4): SQLite (arquivo e marcador da passagem) ou AsyncStorage (reserva) e o motivo */}
+            <Text selectable style={styles.mono} testID="diagnostico-armazenamento">
+              {linhasDoArmazenamento(app.armazenamento, (iso) => dateTimeLabel(iso, new Date(), tz)).join('\n')}
+            </Text>
             <Text selectable style={styles.mono}>
               Módulos ativos: {estado.modulosAtivos.join(', ') || 'nenhum'}
             </Text>

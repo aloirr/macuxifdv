@@ -1,6 +1,7 @@
 /**
  * T-0087 fatia P — critérios 3 e 4 sem a tela (ADR 0029; desenho docs/desenho/T-0087.md §2 a §6; RN-CORE-31).
- * API real (`createApp` + Core + 8 módulos + Postgres como macuxi_app, banco efêmero do arquivo com a 0035), logger real
+ * API real (`createApp` + Core + 8 módulos + Postgres como macuxi_app e, desde a T-0091, o super-admin no 2º pool, do
+ * macuxi_portal; banco efêmero do arquivo com a 0035 e a 0038), logger real
  * (`opcoesLogger('trace')`). Prova, pela rota e pelo banco:
  *  - SA-01..05  só o super-admin com 2º fator chega a `/v1/plataforma/*`: convite errado, senha sem código, desafio usado
  *               como token, token forjado (segredo do tenant, sessão inexistente) e sessão encerrada = 401;
@@ -407,6 +408,21 @@ describe.skipIf(semBanco())('T-0087 critérios 3 e 4: portal só para o super-ad
         'sa.requisicao',
       ])
         expect(acoes, a).toContain(a);
+    });
+
+    it('SA-10d (T-0091) com dois pools, cada sessão aberta tem a sua linha sa.sessao.aberta, e o macuxi_portal não lê nem altera a auditoria', async () => {
+      expect(api.poolPortal, 'o apoio subiu sem o pool do portal').not.toBeNull();
+      const sessoes = await api.admin.query<{ id: string }>('select id::text as id from plataforma.super_admin_sessao order by 1');
+      const abertas = await api.admin.query<{ id: string }>("select sessao_id::text as id from plataforma.auditoria_plataforma where acao = 'sa.sessao.aberta' order by 1");
+      expect(sessoes.rows.length).toBeGreaterThanOrEqual(3);
+      expect(abertas.rows.map((x) => x.id)).toEqual(sessoes.rows.map((x) => x.id));
+      const c = await api.poolPortal!.connect();
+      try {
+        for (const sql of ['select 1 from plataforma.auditoria_plataforma limit 1', "update plataforma.auditoria_plataforma set acao = 'sa.apagada'", 'delete from plataforma.auditoria_plataforma'])
+          await expect(c.query(sql), sql).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        c.release();
+      }
     });
 
     it('SA-10c a auditoria é append-only: o app não lê nem escreve na tabela, e nem o admin altera ou apaga', async () => {

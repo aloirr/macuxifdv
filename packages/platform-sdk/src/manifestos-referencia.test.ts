@@ -35,13 +35,15 @@ export const REFERENCIA: ManifestoEntrada[] = [
     sync: ['cliente', 'cliente_contato', 'carteira', 'cliente_financeiro', 'titulo', 'historico_compra', 'rota', 'rota_parada', 'visita', 'visita_etapa', 'motivo', 'meta', 'indicador_diario', 'notificacao'],
     publica: ['core.cliente.atualizado@1', 'core.visita.checkin@1', 'core.visita.checkout@1', 'core.usuario.modulos_alterados@1'],
     // T-0029 (ADR 0012): retrato do cliente, do produto e do usuário para o pedido (só API nesta fatia)
-    // em dia com modules/core/manifest.ts em 2026-11-04 (T-0071, R-20261104-001250)
-    ofereceConsultas: ['core.cadastro_resumo@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1'],
+    // em dia com modules/core/manifest.ts em 2026-11-06 (T-0089, R-20261106-192109: + core.financeiro_cliente@1, API e aparelho)
+    ofereceConsultas: ['core.cadastro_resumo@1', 'core.financeiro_cliente@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1'],
     consome: ['vendedor.pedido.criado@1', 'vendedor.pedido.status_alterado@1', 'treinamento.medalha.conquistada@1', 'integracao.cliente.atualizado@1', 'integracao.produto.atualizado@1'],
     acoes: {
       'rota.editar': { perfis: ['gerente', 'analista', 'admin'] },
       'meta.fechar_periodo': { perfis: ['gerente', 'analista', 'admin'] },
       'plano_rv.editar': { perfis: ['analista'] },
+      // T-0089 (RN-VEN-25): prazo médio máximo e formas permitidas do cliente no BKO
+      'cliente.pagamento_editar': { perfis: ['analista', 'admin'] },
     },
     ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
   },
@@ -54,13 +56,15 @@ export const REFERENCIA: ManifestoEntrada[] = [
     versao: '0.1.0',
     depende: ['core'],
     perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
-    apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo'] } },
-    sync: ['tabela_preco', 'tabela_preco_item', 'cliente_tabela_preco', 'deposito', 'estoque_saldo', 'categoria', 'marca', 'produto_atributo', 'produto_midia', 'produto_conteudo', 'sinonimo'],
+    // T-0089 (K3): menu 'Tabelas de preço' no BKO (preço da UN e aba Escalonada)
+    apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo', 'Tabelas de preço'] } },
+    // T-0089 (RN-VEN-23): tabela_escalonada no sync e do ERP; as faixas vigentes saem em precos_cliente@1
+    sync: ['tabela_preco', 'tabela_preco_item', 'tabela_escalonada', 'cliente_tabela_preco', 'deposito', 'estoque_saldo', 'categoria', 'marca', 'produto_atributo', 'produto_midia', 'produto_conteudo', 'sinonimo'],
     // T-0029 (ADR 0012): preço da tabela do cliente (RN-CAT-06) na API e no aparelho
     // T-0071: sugestões do novo pedido ("Combina com o pedido" e "Leve mais"), no aparelho e na API
     ofereceConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1'],
     publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
-    consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'catalogo.busca.realizada@1'],
+    consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.tabela_escalonada.atualizado@1', 'catalogo.busca.realizada@1'],
     ofereceExtensoes: ['produto.acoes'],
     acoes: {
       'produto.consultar': { perfis: [...CONSULTA_CATALOGO] },
@@ -69,6 +73,8 @@ export const REFERENCIA: ManifestoEntrada[] = [
       'produto.enriquecer': { perfis: [...CADASTRO] },
       'sinonimo.gerenciar': { perfis: [...CADASTRO] },
       'destaque.gerenciar': { perfis: [...CADASTRO] },
+      // T-0089 (K3, RN-VEN-23): tabelas de preço e escalonada no BKO; mesmos perfis do cadastro de conteúdo
+      'tabela_preco.gerenciar': { perfis: [...CADASTRO] },
       'busca.ver_sem_resultado': { perfis: [...CADASTRO] },
     },
   },
@@ -82,8 +88,10 @@ export const REFERENCIA: ManifestoEntrada[] = [
     versao: '0.1.0',
     depende: ['core', 'catalogo'],
     perfis: ['vendedor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
-    apps: { campo: { abas: ['Pedidos'] }, gestao: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas'] } },
-    sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'alerta_ruptura'],
+    // em dia com modules/vendedor/manifest.ts v0.5.0 em 2026-11-06 (T-0089, R-20261106-201034): formas e prazos de pagamento
+    // (RN-VEN-24) no sync, no BKO e do ERP; condicao_pagamento e cliente_condicao ficam só para o APK anterior
+    apps: { campo: { abas: ['Pedidos'] }, gestao: { abas: ['Pedidos'] }, web: { menus: ['Pedidos', 'Alçadas', 'Transportadoras', 'Formas de pagamento e prazos'] } },
+    sync: ['pedido', 'pedido_item', 'pedido_evento', 'condicao_pagamento', 'cliente_condicao', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'alerta_ruptura'],
     publica: [
       'vendedor.pedido.criado@1',
       'vendedor.pedido.status_alterado@1',
@@ -91,9 +99,11 @@ export const REFERENCIA: ManifestoEntrada[] = [
       'vendedor.pedido.aprovado@1',
       'vendedor.pedido.faturado@1',
     ],
-    consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1'],
+    consome: ['promotor.ruptura.registrada@1', 'integracao.pedido.retorno_erp@1', 'integracao.forma_pagamento.atualizado@1', 'integracao.prazo_pagamento.atualizado@1'],
+    // T-0089 (ADR 0019): a ficha do cliente do Core lista as formas pela consulta opcional
+    ofereceConsultas: ['vendedor.pedidos_da_meta@1', 'vendedor.formas_pagamento@1'],
     // T-0071 (R-20261104-001250): sugestões do Catálogo no novo pedido e a opção do perfil do promotor (O-3)
-    usaConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'core.cadastro_resumo@1', 'core.promotor_ve_pedidos@1'],
+    usaConsultas: ['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'core.cadastro_resumo@1', 'core.promotor_ve_pedidos@1', 'core.financeiro_cliente@1'],
     acoes: {
       'pedido.ver': { perfis: [...PEDIDO, 'admin', 'promotor'] },
       'pedido.criar': { perfis: [...PEDIDO] },
@@ -102,6 +112,11 @@ export const REFERENCIA: ManifestoEntrada[] = [
       'pedido.excluir': { perfis: [...PEDIDO] },
       'pedido.aprovar': { perfis: ['supervisor', 'gerente', 'analista'] },
       'pedido.criar_em_nome': { perfis: ['supervisor', 'gerente'] },
+      // T-0061 (RN-VEN-16) e T-0089 (RN-VEN-24): cadastros do BKO; promotor nunca (regra 7)
+      'transportadora.ver': { perfis: ['admin', 'analista', 'gerente', 'supervisor', 'assistente'] },
+      'transportadora.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },
+      'forma_pagamento.ver': { perfis: ['admin', 'analista', 'gerente'] },
+      'forma_pagamento.gerenciar': { perfis: ['admin', 'analista', 'gerente'] },
     },
     ofereceExtensoes: ['pedido.criar_em_nome'],
     usaExtensoes: ['produto.acoes', 'cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards'],
@@ -238,6 +253,10 @@ export const REFERENCIA: ManifestoEntrada[] = [
       'integracao.titulo.atualizado@1',
       'integracao.nota.atualizado@1',
       'integracao.rota.atualizado@1',
+      // T-0089: formas e prazos (dono: vendedor) e faixa escalonada (dono: catalogo)
+      'integracao.forma_pagamento.atualizado@1',
+      'integracao.prazo_pagamento.atualizado@1',
+      'integracao.tabela_escalonada.atualizado@1',
       'integracao.pedido.retorno_erp@1',
       'integracao.lote.concluido@1',
       'integracao.reconciliacao.divergente@1',
@@ -278,7 +297,7 @@ describe('manifestos de referência dos 8 módulos (desenho T-0001)', () => {
         expect(dono, `${m.id} usa ${c}`).toBeDefined();
         expect([...m.depende, ...m.opcionais], `${m.id} usa ${c}`).toContain(dono);
       }
-    expect(manifestos.find((m) => m.id === 'vendedor')!.usaConsultas).toEqual(['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'core.cadastro_resumo@1', 'core.promotor_ve_pedidos@1']);
+    expect(manifestos.find((m) => m.id === 'vendedor')!.usaConsultas).toEqual(['catalogo.precos_cliente@1', 'catalogo.sugestoes_pedido@1', 'core.cadastro_resumo@1', 'core.promotor_ve_pedidos@1', 'core.financeiro_cliente@1']);
   });
 
   it('T-0029 §7: o Vendedor aparece no Gestão para supervisor e gerente; o promotor continua fora (RN-PRO-01)', () => {
@@ -288,6 +307,22 @@ describe('manifestos de referência dos 8 módulos (desenho T-0001)', () => {
     expect(v.perfis).not.toContain('promotor');
     expect(v.acoes['pedido.aprovar']!.perfis).toEqual(['supervisor', 'gerente', 'analista']);
     expect(v.publica).toContain('vendedor.pedido.aprovado@1');
+  });
+
+  it('T-0089 (RN-VEN-24, regra 7): formas e prazos são do Vendedor; o promotor não vê nem gerencia; o ERP as publica', () => {
+    const porId = new Map(manifestos.map((m) => [m.id, m]));
+    const v = porId.get('vendedor')!;
+    expect(v.sync).toEqual(expect.arrayContaining(['forma_pagamento', 'prazo_pagamento']));
+    expect(v.ofereceConsultas).toContain('vendedor.formas_pagamento@1');
+    for (const a of ['forma_pagamento.ver', 'forma_pagamento.gerenciar']) expect(v.acoes[a]!.perfis).not.toContain('promotor');
+    for (const e of ['integracao.forma_pagamento.atualizado@1', 'integracao.prazo_pagamento.atualizado@1']) {
+      expect(v.consome).toContain(e);
+      expect(porId.get('integracao')!.publica).toContain(e);
+    }
+    expect(porId.get('catalogo')!.consome).toContain('integracao.tabela_escalonada.atualizado@1');
+    // K3: a escalonada e o preço da UN no BKO só para analista e admin; o promotor nunca mexe em preço (RN-CAT-05)
+    expect(porId.get('catalogo')!.acoes['tabela_preco.gerenciar']!.perfis).toEqual(['analista', 'admin']);
+    expect(porId.get('catalogo')!.apps.web?.menus).toContain('Tabelas de preço');
   });
 
   it('vendedor.pedido.faturado@1: o Vendedor publica a partir do retorno do ERP e o Treinamento consome (desenho T-0011)', () => {

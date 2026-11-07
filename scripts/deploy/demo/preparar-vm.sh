@@ -16,7 +16,8 @@
 #   6. /opt/macuxi (dono: usuário de deploy) e /opt/macuxi/.env (modo 600) com os segredos GERADOS AQUI, na VM
 #      (openssl rand): senhas do Postgres (admin, macuxi_app, macuxi_worker), MACUXI_JWT_SEGREDO e
 #      MACUXI_HUB_CHAVE_PEPPER. Nunca saem da VM, nunca são impressos e nunca são regenerados (só acrescenta o que falta;
-#      trocar a senha do admin depois do primeiro "up" exigiria ALTER ROLE);
+#      trocar a senha do admin depois do primeiro "up" exigiria ALTER ROLE). A senha do macuxi_portal (T-0091) fica à
+#      parte, em /opt/macuxi/portal.env (600), que só a api e o passo de papéis leem (o worker nunca);
 #   7. backup diário do Postgres (código do banco-dados em db/backup/): pasta /opt/macuxi/backup (os scripts chegam
 #      pelo implantar.sh, tirados da imagem publicada) e o timer do systemd macuxi-backup.timer, todo dia às 06:15 UTC
 #      (02:15 em Manaus), Persistent=true (backup perdido com a VM desligada roda quando ela volta), rodando
@@ -170,6 +171,14 @@ acrescentar MACUXI_JWT_SEGREDO "$(openssl rand -hex 48)"
 acrescentar MACUXI_HUB_CHAVE_PEPPER "$(openssl rand -hex 32)"
 chown "$USUARIO:$USUARIO" "$ENV"
 chmod 600 "$ENV"
+# T-0091 (condição da ADR 0029): senha do papel macuxi_portal (o único com EXECUTE nas plataforma.sa_*) num arquivo
+# PRÓPRIO, fora do .env: o worker lê o .env e nunca pode abrir sessão de super-admin. Só o contêiner api e o passo de
+# papéis (serviço banco) recebem o portal.env (compose.yml). Gerada uma vez, nunca regenerada, nunca impressa.
+PORTAL_ENV="$PASTA/portal.env"
+[ -f "$PORTAL_ENV" ] || : > "$PORTAL_ENV"
+grep -q '^MACUXI_PG_PORTAL_SENHA=' "$PORTAL_ENV" || { printf 'MACUXI_PG_PORTAL_SENHA=%s\n' "$(openssl rand -hex 32)" >> "$PORTAL_ENV"; log "gerado MACUXI_PG_PORTAL_SENHA (portal.env)"; }
+chown "$USUARIO:$USUARIO" "$PORTAL_ENV"
+chmod 600 "$PORTAL_ENV"
 [ -f "$PASTA/segredos.env" ] && { chown "$USUARIO:$USUARIO" "$PASTA/segredos.env"; chmod 600 "$PASTA/segredos.env"; }
 
 # ---------- 7. backup diário (timer do systemd) ----------

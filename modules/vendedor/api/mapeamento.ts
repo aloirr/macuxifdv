@@ -50,6 +50,13 @@ export interface LinhaPedido {
   desconto_valor_cents?: number | null;
   acrescimo_valor_cents?: number | null;
   ajuste_em?: 'pct' | 'valor' | null;
+  // T-0089 (0037): retrato da forma e do prazo (juntos ou nenhum)
+  forma_pagamento_id?: string | null;
+  forma_pagamento_nome?: string | null;
+  prazo_pagamento_id?: string | null;
+  prazo_descricao?: string | null;
+  prazo_parcelas_dias?: number[] | null;
+  prazo_medio_dias?: number | null;
 }
 
 /** T-0054: nota de faturamento e de devolução do pedido (detalhe). */
@@ -174,6 +181,16 @@ export function paraOrder(l: LinhaPedido, parametros: Readonly<Record<string, un
     ...(l.desconto_efetivo_pct !== undefined && l.desconto_efetivo_pct !== null ? { effective_discount_pct: num(l.desconto_efetivo_pct) } : {}),
     ...(l.frete_modalidade ? { freight: freteDoPedido(l) } : {}),
     ...(l.endereco_entrega ? { delivery_address: enderecoDoPedido(l) } : {}),
+    ...(l.forma_pagamento_id
+      ? {
+          forma_pagamento_id: l.forma_pagamento_id,
+          forma_pagamento_nome: l.forma_pagamento_nome ?? null,
+          prazo_pagamento_id: l.prazo_pagamento_id ?? null,
+          prazo_descricao: l.prazo_descricao ?? null,
+          prazo_parcelas_dias: l.prazo_parcelas_dias ?? null,
+          prazo_medio_dias: l.prazo_medio_dias ?? null,
+        }
+      : {}),
     ...(l.ajuste_em ? { order_adjust_mode: l.ajuste_em, order_discount_value_cents: num(l.desconto_valor_cents ?? 0), order_surcharge_value_cents: num(l.acrescimo_valor_cents ?? 0) } : {}),
   };
 }

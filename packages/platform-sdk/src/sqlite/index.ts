@@ -5,3 +5,6 @@
 export * from './driver';
 export * from './esquema';
 export * from './armazenamento';
+export * from './arquivo';
+export * from './passagem';
+export * from './aparelho';

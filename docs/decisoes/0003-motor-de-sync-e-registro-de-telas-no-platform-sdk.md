@@ -175,3 +175,23 @@ critérios continuam valendo) e não reescreve nada acima.
   ao Catálogo (é do Core): produto se lê por `linhasPorIds` e o derivado da lista inteira fica memorizado por `versaoLinhas`.
   Medição no `node:sqlite` (máquina carregada, 400 candidatos): estoque de 40 mil linhas 930 ms (`listar`) → 31 ms (`porCampo`
   com índice); preço de 20 mil 360 ms → 15 ms; `porIds` de 400 produtos 23 ms; `contarLinhas` 0,1 ms.
+
+## Adendo de 2026-11-06 — T-0088: o app passa a usar o SQLite no motor (P4 e P8 da T-0008)
+Detalhes em [docs/desenho/T-0088.md](../desenho/T-0088.md). Este adendo refina o item 2 e o item 6 do adendo "T-0008, desenho"
+e não reescreve nada acima. Nenhum contrato, rota ou dependência muda (`expo-sqlite ~57.0.4` já está no app desde a T-0008).
+- **Arquivo por usuário e tenant**: `macuxi-u-<usuarioId>-t-<tenantId|demo>.db`, com o id no formato de UUID em
+  minúsculas (refinado na revisão de 2026-11-07: id fora do formato, como na demonstração, vira `h` + 32 hex do SHA-256 do id; o
+  SQLite vale para qualquer id de usuário não vazio). O nome e a regex (`ARQUIVO_DE_USUARIO_RE`) vêm de uma função do SDK, usada pelo shell e pelo teste do banco. O tenant entra porque uma base
+  recriada pode repetir o UUID do usuário num tenant novo. Assim, a fila de um tenant nunca cai no arquivo de outro.
+- **Uma instância do adaptador por arquivo no processo**: o motor do app, a tarefa em segundo plano (ADR 0017) e o lease
+  compartilham a mesma instância (uma só fila de escrita, sem `database is locked`).
+- **Passagem com três grupos**: fila, aceitos, arquivos e `mod:*` (rascunhos) primeiro, conferidos. Se algo divergir, a sessão
+  continua no AsyncStorage e a passagem tenta de novo na próxima abertura. As linhas de pull e os cursores vêm depois: se falharem,
+  o motor **refaz o pull** sem tocar na fila. Depois de `concluida`, um espelho no AsyncStorage (`fv:u:<id>:armazenamento`) impede
+  que o AsyncStorage volte a ser fonte daquele usuário. Não há passagem inversa. A volta atrás é um APK novo.
+- **Busca sem esperar a reindexação L-1** (opção `buscaSemEsperarIndexacao` do adaptador, ligada no app): a busca responde
+  `{ buscou: false, motivo: 'indexando' }`, um motivo novo e aditivo do `MotivoSemBusca`, e quem chama varre como já faz para
+  qualquer `buscou: false`.
+- **Alternativas recusadas**: copiar só a fila e sempre refazer o pull (o vendedor que abre sem sinal ficaria sem carteira); voltar
+  ao AsyncStorage quando o SQLite falha depois da passagem (reenviaria uma fila velha); arquivo só por usuário (T-0008), pelo
+  motivo acima.

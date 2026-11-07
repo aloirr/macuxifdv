@@ -371,6 +371,35 @@ describe('FTS5 no adaptador SQLite', () => {
       expect((await driver.primeira<{ n: number }>('SELECT count(*) AS n FROM catalogo__teste_doc'))!.n).toBe(1100);
     });
 
+    it('T-0088 §5: com buscaSemEsperarIndexacao, a busca não espera o L-1 (responde indexando) e reindexa em segundo plano', async () => {
+      const driver = criarDriverNode(':memory:');
+      const semCatalogo = criarArmazenamentoSqlite(driver, { entidades: ENTIDADES });
+      await semCatalogo.linhas.aplicar('produto', MUITOS, 'k');
+      const erros: string[] = [];
+      const app = criarArmazenamentoSqlite(driver, { ...opcoes, buscaSemEsperarIndexacao: true, registrarErro: (m) => erros.push(m) });
+      await app.pronto;
+      expect(await app.ler('_busca:catalogo.teste:reindexar')).toBe(true);
+      const consulta = { grupos: [['peca']], prefixoNoUltimo: false, limite: 500 };
+      expect(await app.busca.buscarComDesfecho(INDICE.id, consulta)).toEqual({ buscou: false, motivo: 'indexando' });
+      // a 2ª busca durante a mesma reindexação também não espera (e não dispara outra)
+      expect(await app.busca.buscarComDesfecho(INDICE.id, consulta)).toEqual({ buscou: false, motivo: 'indexando' });
+      await app.busca.finalizar!(); // espera a reindexação em curso e faz o rebuild
+      expect(await app.ler('_busca:catalogo.teste:reindexar')).toBeNull();
+      const pronta = await app.busca.buscarComDesfecho(INDICE.id, consulta);
+      expect(pronta.buscou && pronta.resultados.length).toBe(500);
+      expect((await driver.primeira<{ n: number }>('SELECT count(*) AS n FROM catalogo__teste_doc'))!.n).toBe(1100);
+      expect(erros).toEqual([]);
+    });
+
+    it('sem a opção, a 1ª busca continua esperando o L-1 e já responde com os documentos (comportamento anterior)', async () => {
+      const driver = criarDriverNode(':memory:');
+      const semCatalogo = criarArmazenamentoSqlite(driver, { entidades: ENTIDADES });
+      await semCatalogo.linhas.aplicar('produto', MUITOS, 'k');
+      const b = criarArmazenamentoSqlite(driver, opcoes);
+      const d = await b.busca.buscarComDesfecho(INDICE.id, { grupos: [['peca']], prefixoNoUltimo: false, limite: 500 });
+      expect(d.buscou && d.resultados.length).toBe(500);
+    });
+
     it('primeira carga normal (índice e fontes vazios na abertura) não marca reindexação', async () => {
       const driver = criarDriverNode(':memory:');
       const a = criarArmazenamentoSqlite(driver, opcoes);

@@ -34,3 +34,6 @@
 2026-11-06 — T-0087 — aplicar-lote usa limite/ttl de inativação do tenant; padrão da sessão 24 h conferido; testes em parametros.test.ts
 2026-11-06 — T-0084/T-0085 — ProdutoPayload ganha aplicacao, referencias, oferece_junto e etiquetas (opcionais, @1); Hub corta com aviso (aplicacao_cortada, referencias_cortadas, oferece_junto_cortado); domain/catalogo-produto.ts + testes. Pendente: A7 marca_concorrente_ausente, ItemPedidoErp.aplicacao, Conector (lote 2).
 2026-11-06 — T-0084 — ItemPedidoErp.aplicacao (1000, aditivo v1) repassada pela fila; referência inválida descarta só a referência (aviso referencia_descartada); K11 aviso de marca vai ao backlog
+2026-11-06 — T-0089 — I1/I2: forma_pagamento, prazo_pagamento e tabela_escalonada no Hub v1 (contratos, ordem de carga, CSV com listas por barra, aviso prazo_medio_divergente), cliente com prazo_medio_max_dias e formas_pagamento, pagamento no pedido ao ERP com condição pelo prazo_external_id; docs hub-api §19, conector, carga-arquivo
+2026-11-06 — T-0089 — conferência da 0037: medida da tabela_escalonada passa a exigir sigla 1..4 letras; demais nomes batiam; AVISTA é do consumidor do Vendedor
+2026-11-06 — T-0089 — ordem de carga: tabela_escalonada depois de preco (Conector e DEPENDENCIAS), com testes

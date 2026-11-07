@@ -9,6 +9,7 @@
  *   normalização e mesma semântica (AND dos grupos, OR das alternativas, frase, prefixo só no último grupo). O CONJUNTO
  *   de resultados é igual; a ordem pode diferir.
  */
+import { FUSO_PADRAO_TENANT, fusoDoTenantOuPadrao } from './fuso';
 import { MODULOS, type ModuloId } from './nomes';
 import { ENTIDADE_SYNC_RE } from './nomes';
 import type { ArmazenamentoSync } from './motor-sync';
@@ -111,6 +112,16 @@ export interface LeitorLinhas {
 
 export type DocumentoBusca<C extends string = string> = Readonly<Record<C, string | null>>;
 
+/**
+ * Contexto da indexação (T-0084, faixas abertas como "2018 em diante"): o relógio do armazenamento e o fuso IANA do
+ * tenant (o do login; sem ele, `FUSO_PADRAO_TENANT`). O motor informa o fuso antes de buscar e no fim do sync
+ * (`BuscaTextoSync.conferirVersoes`). Use o MESMO contexto em `versaoDocumentos` e em `documento`.
+ */
+export interface ContextoIndice {
+  readonly agora: Date;
+  readonly fuso: string;
+}
+
 export interface IndiceBusca<C extends string = string> {
   /** `<modulo>.<nome>` (ex.: `catalogo.produto`). */
   id: string;
@@ -126,8 +137,21 @@ export interface IndiceBusca<C extends string = string> {
   fontes: readonly string[];
   /** Chave do documento afetado por uma linha da fonte (`null` = nenhuma). Recebe também a linha antiga/removida. */
   chaveDe(entidade: string, linha: LinhaSync): string | null;
-  /** Documento da chave ou `null` (= sai do índice). */
-  documento(chave: string, ler: LeitorLinhas): Promise<DocumentoBusca<C> | null>;
+  /**
+   * Documento da chave ou `null` (= sai do índice). `ctx`: relógio e fuso da indexação (ex.: ano das faixas abertas). O
+   * SDK SEMPRE passa o `ctx`; é opcional só para chamadas diretas (testes do módulo) seguirem compilando — sem ele, use
+   * o mesmo padrão de `versaoDocumentos` (relógio atual, `FUSO_PADRAO_TENANT`).
+   */
+  documento(chave: string, ler: LeitorLinhas, ctx?: ContextoIndice): Promise<DocumentoBusca<C> | null>;
+  /**
+   * Gancho de reindexação marcada (T-0084): versão opaca dos documentos, calculada SÓ do `ctx` (ex.: `v3:2026`, o
+   * formato do documento + o ano civil no fuso do tenant). Quando muda em relação à guardada (virada de ano, app novo
+   * com outro formato), o SDK marca o índice e o reindexa inteiro das linhas locais EM SEGUNDO PLANO: as buscas seguem
+   * respondendo com os documentos antigos até o fim (o fim do sync espera a reindexação). Função pura e barata (roda a
+   * cada busca); sem o campo, o índice só se reindexa pelo pull. Índice sem versão guardada e com documentos (app
+   * atualizado) = reindexado uma vez.
+   */
+  versaoDocumentos?(ctx: ContextoIndice): string;
 }
 
 const NOME_SQL_RE = /^[a-z][a-z0-9_]*$/;
@@ -147,6 +171,7 @@ export function definirIndiceBusca<C extends string>(i: IndiceBusca<C>): IndiceB
     const peso = i.colunas[c as C];
     if (!(typeof peso === 'number' && peso > 0 && Number.isFinite(peso))) throw erro(`peso da coluna ${c} precisa ser > 0`);
   }
+  if (i.versaoDocumentos !== undefined && typeof i.versaoDocumentos !== 'function') throw erro('versaoDocumentos precisa ser função');
   if (i.fontes.length === 0) throw erro('declare ao menos uma fonte');
   for (const f of i.fontes) if (!ENTIDADE_SYNC_RE.test(f)) throw erro(`fonte inválida: ${f}`);
   return i;
@@ -216,7 +241,12 @@ export function leitorSobre(base: ArmazenamentoSync): LeitorLinhas {
  */
 export function comBuscaEmJs(base: ArmazenamentoSync, indices: readonly IndiceBusca[]): ArmazenamentoSync {
   const porId = new Map(indices.map((i) => [i.id, i] as const));
-  const busca: Required<Pick<BuscaTextoSync, 'buscar' | 'buscarComDesfecho'>> = {
+  let fuso = FUSO_PADRAO_TENANT;
+  const busca: Required<Pick<BuscaTextoSync, 'buscar' | 'buscarComDesfecho' | 'conferirVersoes'>> = {
+    // documentos montados na hora: não há o que reindexar, só o fuso da próxima montagem
+    async conferirVersoes(c) {
+      fuso = fusoDoTenantOuPadrao(c.fuso);
+    },
     async buscar(id, consulta) {
       const d = await busca.buscarComDesfecho(id, consulta);
       return d.buscou ? d.resultados : [];
@@ -235,8 +265,9 @@ export function comBuscaEmJs(base: ArmazenamentoSync, indices: readonly IndiceBu
         }
       const pesos = Object.entries(indice.colunas) as [string, number][];
       const achados: ResultadoBusca[] = [];
+      const ctx: ContextoIndice = { agora: new Date(), fuso };
       for (const chave of chaves) {
-        const doc = await indice.documento(chave, ler);
+        const doc = await indice.documento(chave, ler, ctx);
         if (!doc) continue;
         const cols = pesos.map(([c, p]) => [p, normalizarBusca(doc[c] ?? '')] as const);
         const pontuacao = pontuarDocumento(grupos, cols);

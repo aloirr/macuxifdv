@@ -1,7 +1,8 @@
 /**
  * T-0061 (PR #72) — roteiro de 5 passos do novo pedido em 3 abas pela API REAL (createApp × Postgres × fixture
  * dois-tenants), na ordem que o dono do produto vai testar:
- *   1) novo pedido com item em CX (RN-VEN-15: CX = UN × fator; quantidade base no banco e no aprovado@1);
+ *   1) novo pedido com item em CX (RN-VEN-15: CX = UN × fator; quantidade base no banco e no aprovado@1); 1b) 2 CX na
+ *      faixa da tabela escalonada da fixture (RN-VEN-23: preço da faixa por UN × fator);
  *   2) 30% no item e 5% no pedido (RN-VEN-02/03/10: alçada pelo desconto EFETIVO, sem frete);
  *   3) FOB com transportadora digitada (RN-VEN-16: nome + CNPJ válido; fica só no pedido e aparece para o BKO cadastrar);
  *   4) escolher o endereço de entrega e enviar (RN-VEN-17; endereço de outro cliente é recusado);
@@ -27,7 +28,7 @@ import { A, B, subirApi, type ApiDeTeste } from '../apoio/api';
 
 
 const id = (n: number) => `0f610000-0000-4000-8000-a${String(n).padStart(11, '0')}`;
-const PED = { lixo1: id(90), lixo2: id(91), cx: id(1), efetivo5: id(2), item30pedido5: id(3), fobDigitada: id(4), fobRuim: id(5), endereco: id(6), enderecoRuim: id(7), promotor: id(8) };
+const PED = { lixo1: id(90), lixo2: id(91), cx: id(1), efetivo5: id(2), item30pedido5: id(3), fobDigitada: id(4), fobRuim: id(5), endereco: id(6), enderecoRuim: id(7), promotor: id(8), cxFaixa: id(9) };
 const CNPJ_DIGITADA = '55566677000183';
 const CNPJ_RUIM = '55566677000184';
 const NOME_DIGITADA = 'T0061 Fluvial Teste';
@@ -116,19 +117,36 @@ describe.skipIf(semBanco())('T-0061 — roteiro de 5 passos do novo pedido em 3 
     await api.fechar();
   });
 
-  it('passo 1 — item em CX (RN-VEN-15): preço = UN × 10, quantidade base 20 no banco e no aprovado@1/pedido; FD/PCT recusados (unidade_invalida)', async () => {
-    const [r] = await push(tk.vendedor, [pedido(PED.cx, { items: [{ product_id: prod1, quantity: 2, unidade: 'CX' }] })]);
+  it('passo 1 — item em CX (RN-VEN-15): preço = UN × 10, quantidade base 10 no banco e no aprovado@1/pedido; FD/PCT recusados (unidade_invalida)', async () => {
+    // 1 CX: abaixo do mínimo da faixa de CX da fixture (2 CX, RN-VEN-23), então vale só a RN-VEN-15 (UN 100.000 × 10)
+    const [r] = await push(tk.vendedor, [pedido(PED.cx, { items: [{ product_id: prod1, quantity: 1, unidade: 'CX' }] })]);
     expect(r, JSON.stringify(r)).toMatchObject({ status: 'aceito' });
     const { p, it } = await noBanco(PED.cx);
-    expect(it[0]).toMatchObject({ unidade: 'CX', fator: 10, quantidade: 2, quantidade_base: 20 });
+    expect(it[0]).toMatchObject({ unidade: 'CX', fator: 10, quantidade: 1, quantidade_base: 10 });
     expect(Number(it[0]!.preco_tabela_cents)).toBe(1_000_000);
-    expect(Number(p!.total_cents)).toBe(2_000_000);
+    expect(Number(p!.total_cents)).toBe(1_000_000);
     const [ruim] = await push(tk.vendedor, [pedido(PED.lixo1, { items: [{ product_id: prod1, quantity: 1, unidade: 'PCT' }] })]);
     expect(ruim).toMatchObject({ status: 'rejeitado', codigo: 'unidade_invalida' });
     const ev = (await eventos(PED.cx)).map((e) => e.nome);
     expect(ev).toContain('vendedor.pedido.criado@1');
     if (p!.status === 'approved') {
       const ap = (await eventos(PED.cx)).find((e) => e.nome === 'vendedor.pedido.aprovado@1')!.payload as { itens: Array<Record<string, unknown>> };
+      expect(ap.itens[0]).toMatchObject({ quantidade: 10, unidade: 'CX', fator: 10, quantidade_venda: 1 });
+    }
+  });
+
+  it('passo 1b — 2 CX atinge a faixa da tabela escalonada (RN-VEN-23 × RN-VEN-15): R$ 900,00 por UN × 10 = 900.000 por CX, quantidade base 20', async () => {
+    // fixture (PAGAMENTO_FIXTURE.A.faixas.cx2): ALFA-001, medida CX, mínimo 2, R$ 900,00 por unidade base, só na tabela Padrão
+    // Alfa (a do c1). A faixa conta como preço de tabela (não entra na alçada) e a embalagem continua UN × fator
+    const [r] = await push(tk.vendedor, [pedido(PED.cxFaixa, { items: [{ product_id: prod1, quantity: 2, unidade: 'CX' }] })]);
+    expect(r, JSON.stringify(r)).toMatchObject({ status: 'aceito' });
+    const { p, it } = await noBanco(PED.cxFaixa);
+    expect(it[0]).toMatchObject({ unidade: 'CX', fator: 10, quantidade: 2, quantidade_base: 20 });
+    expect(Number(it[0]!.preco_tabela_cents)).toBe(90_000 * 10);
+    expect(Number(p!.total_cents)).toBe(1_800_000);
+    expect(p!.status, 'preço da faixa com 0% de desconto não sobe de nível de alçada').not.toBe('rejected');
+    if (p!.status === 'approved') {
+      const ap = (await eventos(PED.cxFaixa)).find((e) => e.nome === 'vendedor.pedido.aprovado@1')!.payload as { itens: Array<Record<string, unknown>> };
       expect(ap.itens[0]).toMatchObject({ quantidade: 20, unidade: 'CX', fator: 10, quantidade_venda: 2 });
     }
   });

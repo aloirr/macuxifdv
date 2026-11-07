@@ -1,7 +1,7 @@
 /** Contratos do portal de implantação (T-0087; ADR 0029). */
 import { describe, expect, it } from 'vitest';
 import { defineModule } from './manifesto';
-import { definirModuloApi, type RotaModulo } from './api';
+import { definirModuloApi, problemasConexaoRotaPublica, type RotaModulo, type RotaPublica } from './api';
 import {
   CodigoRecuperacaoSchema,
   CriarEmpresaSchema,
@@ -57,8 +57,28 @@ describe('RotaModulo.superAdmin e prefixo plataforma (ADR 0029 §5)', () => {
     expect(() => definirModuloApi({ manifesto: core, rotas: [rota({ superAdmin: 'sempre' as never })] })).toThrow(/superAdmin/);
   });
   it('rota pública do Core só em plataforma/auth/*; o resto de plataforma/* é da API', () => {
-    const publica = (caminho: string) => ({ metodo: 'POST' as const, caminho, limite: { max: 5, janelaMs: 60_000 }, executar: ok });
+    const publica = (caminho: string): RotaPublica => ({ metodo: 'POST' as const, caminho, conexao: 'portal', limite: { max: 5, janelaMs: 60_000 }, executar: ok });
     expect(definirModuloApi({ manifesto: core, rotasPublicas: [publica('plataforma/auth/login')] }).rotasPublicas).toHaveLength(1);
     expect(() => definirModuloApi({ manifesto: core, rotasPublicas: [publica('plataforma/empresas')] })).toThrow(/reservado/);
+  });
+});
+
+describe('RotaPublica.conexao portal (T-0091; condição da ADR 0029)', () => {
+  const core = defineModule({ id: 'core', versao: '1.0.0', perfis: ['admin'] });
+  const ok = async () => ({});
+  const publica = (caminho: string, conexao?: 'portal'): RotaPublica => ({ metodo: 'POST', caminho, ...(conexao ? { conexao } : {}), limite: { max: 5, janelaMs: 60_000 }, executar: ok });
+
+  it('plataforma/auth/* com conexao portal passa; sem ela, a sessão do super-admin cairia no macuxi_app e é recusada', () => {
+    expect(problemasConexaoRotaPublica('core', publica('plataforma/auth/login', 'portal'))).toEqual([]);
+    expect(problemasConexaoRotaPublica('core', publica('plataforma/auth/login'))).toEqual([expect.stringMatching(/exige conexao 'portal'/)]);
+    expect(() => definirModuloApi({ manifesto: core, rotasPublicas: [publica('plataforma/auth/sair')] })).toThrow(/exige conexao 'portal'/);
+  });
+
+  it('conexao portal só no core e só em plataforma/...; rota de tenant segue sem o campo', () => {
+    expect(problemasConexaoRotaPublica('core', publica('auth/login'))).toEqual([]);
+    expect(problemasConexaoRotaPublica('core', publica('auth/login', 'portal'))).toEqual([expect.stringMatching(/só em caminho plataforma/)]);
+    expect(problemasConexaoRotaPublica('vendedor', publica('plataforma/auth/login', 'portal'))).toEqual([expect.stringMatching(/só no manifesto core/)]);
+    expect(problemasConexaoRotaPublica('core', { ...publica('plataforma/auth/login'), conexao: 'app' as never })).toEqual([expect.stringMatching(/só aceita 'portal'/)]);
+    expect(() => definirModuloApi({ manifesto: core, rotasPublicas: [publica('auth/entrar', 'portal')] })).toThrow(/só em caminho plataforma/);
   });
 });

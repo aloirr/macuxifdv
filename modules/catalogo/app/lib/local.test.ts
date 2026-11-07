@@ -8,7 +8,7 @@ import { AVISO_BUSCA_OFFLINE } from '../../domain/ia';
 import { MENSAGEM_SEM_PRECO_CLIENTE } from '../../domain/preco';
 import { MENSAGEM_ESCOLHA_CLIENTE } from '../../domain/vitrine';
 import { FILIAL_DEMO, idDemo, idProdutoDemo, ITENS_PRECO_DEMO, PRODUTOS_SEED_DEMO, TABELA_ATACADO_DEMO, TABELA_VAREJO_DEMO } from '../../fixtures/base-demo';
-import { arvoreLocal, buscarLocal, esquecerMemoriaLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, LIMIAR_SEM_VARREDURA, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
+import { arvoreLocal, buscarLocal, esquecerMemoriaLocal, fichaLocal, filtrosLocais, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, LIMIAR_SEM_VARREDURA, preselecionar, produtosDaNavegacao, vitrineLocal, type LeitorLocal } from './local';
 
 const relogio = criarRelogio();
 const QUANDO = relogio.relativo({ horas: -3 }).toISOString();
@@ -110,7 +110,7 @@ describe('pré-seleção do FTS5 em catálogo grande (T-0052-B2/B4)', () => {
       return g === 'cafe' ? [{ chave: idProdutoDemo('CAF-500'), pontuacao: -2 }] : [{ chave: idProdutoDemo('ACU-1K'), pontuacao: -1 }];
     };
     const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'café açúcar', limit: 20, offset: 0, offline: true });
-    expect(chamadas).toEqual(['[["cafe"]]', '[["acucar"]]']);
+    expect(chamadas).toEqual(['[["cafe"],["acucar"]]', '[["cafe"]]', '[["acucar"]]']); // 1º o AND, que traz só 1 (< CANDIDATOS_POR_TERMO): cai na união termo a termo
     expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['ACU-1K', 'CAF-500']);
   });
 
@@ -176,10 +176,28 @@ describe('consulta sem acerto em catálogo grande (T-0052, R-20261105-142853)', 
     expect(chamadas).toEqual(['xyzwkqpl', 'xyzw', 'xyz']);
   });
 
-  it.each<MotivoSemBusca>(['modulo_indisponivel', 'erro_busca', 'indice_invalido'])('RF-CAT-02: acima de 5.000 produtos, um termo que não conseguiu buscar (%s) mantém a varredura', async (motivo) => {
+  it.each<MotivoSemBusca>(['modulo_indisponivel', 'erro_busca', 'indice_invalido', 'indexando'])('RF-CAT-02: acima de 5.000 produtos, um termo que não conseguiu buscar (%s) mantém a varredura', async (motivo) => {
     const { l } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA), (g) => (g === 'cafee' ? semBusca(motivo) : nada));
     const r = await busca(l, 'cafee');
     expect(r.items.map((i) => sku(i.id))).toContain('CAF-500');
+  });
+
+  it('RF-CAT-02: com o índice sendo refeito (indexando) a busca varre, sinaliza a aba e, pronto o índice, volta a usar o FTS5', async () => {
+    let pronto = false;
+    const { l, chamadas } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA), (g) => (pronto ? { buscou: true, resultados: g === 'cafee' ? [{ chave: idProdutoDemo('CAF-500'), pontuacao: -1 }] : [] } : semBusca('indexando')));
+    const durante = await busca(l, 'cafee');
+    expect(durante.items.map((i) => sku(i.id))).toContain('CAF-500');
+    expect(durante.indexando).toBe(true);
+    pronto = true;
+    chamadas.length = 0;
+    const depois = await busca(l, 'cafee');
+    expect(depois.indexando).toBe(false);
+    expect(depois.items.map((i) => sku(i.id))).toEqual(['CAF-500']);
+  });
+
+  it('RF-CAT-02: a C9 (preselecionar) varre com indexando sem aviso e sem erro', async () => {
+    const { l } = comDesfecho(comProdutos(LIMIAR_SEM_VARREDURA), () => semBusca('indexando'));
+    expect(await preselecionar(l, 'cafee', null, [], LIMIAR_SEM_VARREDURA + 20)).toBeNull();
   });
 
   it('RF-CAT-02: o prefixo que não conseguiu buscar também mantém a varredura', async () => {

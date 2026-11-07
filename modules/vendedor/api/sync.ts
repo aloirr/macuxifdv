@@ -9,13 +9,22 @@
  * removidos incluídos. Item e evento: mesmo escopo e janela do pedido pai (join).
  */
 import type { ContextoBase, LinhaSync, PedidoPull, ProvedorSync } from '@macuxi/platform-sdk';
-import { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem, entidadeTransportadora } from '../contracts/entidades';
+import {
+  entidadeClienteCondicao,
+  entidadeCondicaoPagamento,
+  entidadeFormaPagamento,
+  entidadePedido,
+  entidadePedidoEvento,
+  entidadePedidoItem,
+  entidadePrazoPagamento,
+  entidadeTransportadora,
+} from '../contracts/entidades';
 import { ORDER_STATUSES_FINAIS } from '../domain/order';
 import { leituraDePedidosLiberada } from './opcao-promotor';
 import { receberPedidos } from './receber';
 import { FATURAMENTO_LIGADO } from './retorno-erp';
 
-export { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem, entidadeTransportadora };
+export { entidadeClienteCondicao, entidadeCondicaoPagamento, entidadeFormaPagamento, entidadePedido, entidadePedidoEvento, entidadePedidoItem, entidadePrazoPagamento, entidadeTransportadora };
 
 const UTC = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 const ts = (c: string, pre: string) => `to_char(${pre}${c} at time zone 'UTC', ${UTC}) as ${c}`;
@@ -34,7 +43,9 @@ const COLUNAS_PEDIDO = `p.id, ${ts('updated_at', 'p.')}, ${ts('deleted_at', 'p.'
        else to_char(((p.orcamento_validade + 1)::timestamp at time zone $8) at time zone 'UTC', ${UTC}) end as validade_ate,
   p.orcamento_id as orcamento_origem_id,
   (select c.id from vendedor.pedido c where c.tenant_id = p.tenant_id and c.orcamento_id = p.id and c.deleted_at is null limit 1) as convertido_pedido_id,
-  p.desconto_valor_cents::float8 as desconto_valor_cents, p.acrescimo_valor_cents::float8 as acrescimo_valor_cents, p.ajuste_em`;
+  p.desconto_valor_cents::float8 as desconto_valor_cents, p.acrescimo_valor_cents::float8 as acrescimo_valor_cents, p.ajuste_em,
+  p.forma_pagamento_id, p.prazo_pagamento_id, p.forma_pagamento_codigo, p.forma_pagamento_nome, p.prazo_codigo, p.prazo_descricao,
+  p.prazo_parcelas_dias, p.prazo_medio_dias`;
 
 /**
  * T-0054: resumo do retorno do ERP no pedido e no item (0013, `FATURAMENTO_LIGADO`). `faturado_cents` = total faturado;
@@ -166,6 +177,28 @@ export function sqlTransportadora(pedido: PedidoPull): { sql: string; valores: u
   return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite] };
 }
 
+/** T-0089 (RN-VEN-24, 0037): formas de pagamento do tenant (o app lista só as ativas). */
+export function sqlFormaPagamento(pedido: PedidoPull): { sql: string; valores: unknown[] } {
+  const sql = `select ${BASE}, codigo, nome, ativo, ordem
+    from vendedor.forma_pagamento
+   where updated_at < $1::timestamptz
+     and ($2::timestamptz is null or (updated_at, id) > ($2::timestamptz, $3::uuid))
+   order by updated_at, id
+   limit $4`;
+  return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite] };
+}
+
+/** T-0089 (RN-VEN-24, 0037): prazos do tenant, com `parcelas_dias` e o prazo médio já calculado. */
+export function sqlPrazoPagamento(pedido: PedidoPull): { sql: string; valores: unknown[] } {
+  const sql = `select ${BASE}, forma_pagamento_id, codigo, descricao, parcelas_dias, prazo_medio_dias, ativo, ordem
+    from vendedor.prazo_pagamento
+   where updated_at < $1::timestamptz
+     and ($2::timestamptz is null or (updated_at, id) > ($2::timestamptz, $3::uuid))
+   order by updated_at, id
+   limit $4`;
+  return { sql, valores: [pedido.ate, pedido.desde?.updated_at ?? null, pedido.desde?.id ?? null, pedido.limite] };
+}
+
 export const provedoresSyncVendedor: readonly ProvedorSync[] = [
   { entidade: entidadePedido, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e, f) => sqlPedido(x, e, FATURAMENTO_LIGADO, f), ctx, p), receber: receberPedidos },
   { entidade: entidadePedidoItem, escopo: ['usuarios', 'carteira'], puxar: (ctx, p) => puxarDe((x, e, f) => sqlPedidoItem(x, e, FATURAMENTO_LIGADO, f), ctx, p) },
@@ -192,6 +225,22 @@ export const provedoresSyncVendedor: readonly ProvedorSync[] = [
     escopo: 'tenant',
     puxar: async (ctx, p) => {
       const { sql, valores: v } = sqlTransportadora(p);
+      return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
+    },
+  },
+  {
+    entidade: entidadeFormaPagamento,
+    escopo: 'tenant',
+    puxar: async (ctx, p) => {
+      const { sql, valores: v } = sqlFormaPagamento(p);
+      return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
+    },
+  },
+  {
+    entidade: entidadePrazoPagamento,
+    escopo: 'tenant',
+    puxar: async (ctx, p) => {
+      const { sql, valores: v } = sqlPrazoPagamento(p);
       return ctx.comTenant(async (db) => (await db.query(sql, v)).rows as unknown as LinhaSync[]);
     },
   },

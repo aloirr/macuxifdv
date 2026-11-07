@@ -1,12 +1,13 @@
 /** Entidades de sync do Catálogo (só pull; o servidor vence). Usadas pela API e pelo shell do aparelho. */
 import { definirEntidadeSync } from '@macuxi/platform-sdk';
-import { CatalogoNoSyncSchema, ClienteTabelaPrecoSyncSchema, ProdutoNoSyncSchema, ProdutoRelacaoSyncSchema, TabelaPrecoItemSyncSchema, TabelaPrecoSyncSchema } from './sync';
+import { CatalogoNoSyncSchema, ClienteTabelaPrecoSyncSchema, ProdutoNoSyncSchema, ProdutoRelacaoSyncSchema, TabelaEscalonadaSyncSchema, TabelaPrecoItemSyncSchema, TabelaPrecoSyncSchema } from './sync';
 import { DepositoSyncSchema, EstoqueSaldoSyncSchema, ProdutoAtributoSyncSchema, ProdutoConteudoSyncSchema, ProdutoReferenciaSyncSchema, SinonimoSyncSchema } from './sync-conteudo';
 
 export const entidadeTabelaPreco = definirEntidadeSync({ nome: 'tabela_preco', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: TabelaPrecoSyncSchema });
 export const entidadeTabelaPrecoItem = definirEntidadeSync({ nome: 'tabela_preco_item', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: TabelaPrecoItemSyncSchema });
 export const entidadeClienteTabelaPreco = definirEntidadeSync({ nome: 'cliente_tabela_preco', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ClienteTabelaPrecoSyncSchema });
-export const ENTIDADES_PRECO = [entidadeTabelaPreco, entidadeTabelaPrecoItem, entidadeClienteTabelaPreco] as const;
+export const entidadeTabelaEscalonada = definirEntidadeSync({ nome: 'tabela_escalonada', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: TabelaEscalonadaSyncSchema });
+export const ENTIDADES_PRECO = [entidadeTabelaPreco, entidadeTabelaPrecoItem, entidadeClienteTabelaPreco, entidadeTabelaEscalonada] as const;
 
 // T-0052: conteúdo e estoque para a busca offline e a ficha sem sinal (provedores na API depois da migração 0013)
 export const entidadeProdutoAtributo = definirEntidadeSync({ nome: 'produto_atributo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: ProdutoAtributoSyncSchema });

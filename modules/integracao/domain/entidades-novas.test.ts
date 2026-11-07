@@ -15,8 +15,8 @@ const T = '2026-11-02T12:00:00Z';
 const base = { alterado_em: T };
 
 describe('RN-INT-02: entidades novas do contrato canônico', () => {
-  it('RN-INT-09: as 4 entidades entram aditivas no v1 (12 no total) e cada uma tem evento atualizado@1', () => {
-    expect(ENTIDADES).toHaveLength(12);
+  it('RN-INT-09: as 4 entidades entram aditivas no v1 (a T-0089 leva a 15) e cada uma tem evento atualizado@1', () => {
+    expect(ENTIDADES).toHaveLength(15);
     for (const e of ['catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora'] as const) {
       expect(ENTIDADES).toContain(e);
       expect(EVENTOS_ATUALIZADO[e]).toBeDefined();

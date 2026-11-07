@@ -8,8 +8,8 @@
  *   derrubar [--limpar]           para o container (--limpar também apaga o volume de dados)
  *   recriar                       derrubar --limpar + subir (banco de dev do zero, migrado e vazio)
  *   status                        conexão, bancos de teste esquecidos e migrações aplicadas
- *   papeis                        cria/corrige os papéis macuxi_app e macuxi_worker (LOGIN, sem SUPERUSER/BYPASSRLS)
- *   migrar up [--ate NNNN]        aplica migrações pendentes
+ *   papeis                        cria/corrige os papéis macuxi_app, macuxi_worker e macuxi_portal (LOGIN, sem SUPERUSER/BYPASSRLS)
+ *   migrar up [--ate NNNN]        aplica migrações pendentes (antes, os papéis: criarBanco, db/src/banco-teste.ts)
  *   migrar down [--passos N|--tudo]  desfaz migrações (padrão: a última)
  *   seed fase-m                   carrega o seed de demonstração da Fase M
  *   seed demo [--recriar] [--hoje AAAA-MM-DD]  base de demo (tenant "demo"); --recriar apaga o tenant demo e recarrega
@@ -26,7 +26,7 @@ import { lerConfig, lerConfigTestes, type ConfigBanco } from '../src/config';
 import { compose } from '../src/docker';
 import { apagarBanco, comAdmin, criarBanco, criarBancoDeTeste, listarBancosDeTeste, postgresDisponivel } from '../src/banco-teste';
 import { listarAplicadas, migrarDown, migrarUp } from '../src/migrador';
-import { garantirPapelApp, garantirPapelWorker } from '../src/papeis';
+import { garantirPapelApp, garantirPapelPortal, garantirPapelWorker } from '../src/papeis';
 import { carregarDoisTenants } from '../seeds/fixtures/dois-tenants';
 import { carregarFaseM } from '../seeds/fase-m/fase-m';
 import { carregarDemo, type ResultadoDemo } from '../seeds/demo/demo';
@@ -40,6 +40,10 @@ function imprimirDemo(r: ResultadoDemo, banco: string, recriada: boolean): void 
   // T-0026: número de pedido que a carga trocou (repetido consertado); só id e números
   for (const t of r.numerosTrocados) console.log(`[banco] número do pedido ${t.id} (${t.origem}): ${t.de ?? '(sem número)'} -> ${t.para}`);
 }
+
+/** Sem MACUXI_PG_PORTAL_SENHA (portal.env da VM): o papel fica NOLOGIN e o portal do super-admin responde 503 (T-0091). */
+export const AVISO_PORTAL_SEM_SENHA =
+  '[banco] MACUXI_PG_PORTAL_SENHA não definida: macuxi_portal fica NOLOGIN (o portal do super-admin responde 503 até a senha existir).';
 
 function docker(args: string[]): void {
   compose(args, { herdarSaida: true });
@@ -124,10 +128,18 @@ export async function executar(argv: string[]): Promise<void> {
       } else {
         console.log('[banco] MACUXI_PG_WORKER_SENHA não definida: macuxi_worker fica NOLOGIN.');
       }
+      if (cfg.portalSenha) {
+        await comAdmin('postgres', (c) => garantirPapelPortal(c, cfg.portalSenha), cfg);
+        console.log('[banco] papel macuxi_portal pronto (LOGIN, NOSUPERUSER, NOBYPASSRLS).');
+      } else {
+        console.log(AVISO_PORTAL_SEM_SENHA);
+      }
       return;
     case 'migrar': {
       await exigir();
+      // criarBanco garante macuxi_app, macuxi_worker (com senha) e macuxi_portal (0038; com senha = LOGIN pelo B0, sem = NOLOGIN)
       await criarBanco(banco, cfg);
+      if (!cfg.portalSenha) console.log(AVISO_PORTAL_SEM_SENHA);
       if (sub === 'up') {
         const r = await comAdmin(banco, (c) => migrarUp(c, values.ate ? { ate: values.ate } : {}), cfg);
         console.log(`[banco] up em ${banco}: ${r.aplicadas.join(', ') || 'nada pendente'}`);

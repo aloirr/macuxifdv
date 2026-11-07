@@ -18,7 +18,8 @@
 #   6. /opt/macuxi (dono: usuário de deploy), /opt/macuxi/certs e /opt/macuxi/.env (modo 600) com os segredos GERADOS
 #      AQUI (openssl rand): senhas de macuxi_app e macuxi_worker, MACUXI_JWT_SEGREDO e MACUXI_HUB_CHAVE_PEPPER. Nunca
 #      saem da VM, nunca são impressos e nunca são regenerados. A senha do ADMIN do DBaaS não fica aqui: vem do secret
-#      PROD_PG_ADMIN_SENHA para o admin.env, gravado pelo workflow;
+#      PROD_PG_ADMIN_SENHA para o admin.env, gravado pelo workflow. A senha do macuxi_portal (T-0091) fica à parte, em
+#      /opt/macuxi/portal.env (600), que só a api e o passo de papéis leem (o worker nunca);
 #   7. backup diário (código do banco-dados em db/backup/; os scripts chegam pelo implantar.sh, tirados da imagem):
 #      timer macuxi-backup.timer às 06:15 UTC (02:15 em Manaus), Persistent=true, rodando /opt/macuxi/backup/backup-dbaas.sh
 #      como o usuário de deploy. Enquanto o script não existe, a unidade é pulada sem erro (ConditionPathExists);
@@ -178,6 +179,14 @@ acrescentar MACUXI_JWT_SEGREDO_PLATAFORMA "$(openssl rand -hex 48)"
 acrescentar MACUXI_CHAVE_TOTP "$(openssl rand -base64 32)"
 chown "$USUARIO:$USUARIO" "$ENV"
 chmod 600 "$ENV"
+# T-0091 (condição da ADR 0029): senha do papel macuxi_portal (o único com EXECUTE nas plataforma.sa_*) num arquivo
+# PRÓPRIO, fora do .env: o worker lê o .env e nunca pode abrir sessão de super-admin. Só o contêiner api e o passo de
+# papéis (serviço banco) recebem o portal.env (compose.yml). Gerada uma vez, nunca regenerada, nunca impressa.
+PORTAL_ENV="$PASTA/portal.env"
+[ -f "$PORTAL_ENV" ] || : > "$PORTAL_ENV"
+grep -q '^MACUXI_PG_PORTAL_SENHA=' "$PORTAL_ENV" || { printf 'MACUXI_PG_PORTAL_SENHA=%s\n' "$(openssl rand -hex 32)" >> "$PORTAL_ENV"; log "gerado MACUXI_PG_PORTAL_SENHA (portal.env)"; }
+chown "$USUARIO:$USUARIO" "$PORTAL_ENV"
+chmod 600 "$PORTAL_ENV"
 for f in banco.env admin.env segredos.env tunel.env alerta.env; do
   [ -f "$PASTA/$f" ] && { chown "$USUARIO:$USUARIO" "$PASTA/$f"; chmod 600 "$PASTA/$f"; }
 done

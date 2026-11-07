@@ -506,3 +506,14 @@ houver despachante (T-0021). `venda_apurada` (lote B) continua só especificada.
 - `codigo_erp` do CSV = `core.usuario.external_id` (único vivo por tenant); superior = árvore `core.equipe`: nenhuma coluna nova.
 - Caminho de volta: `0036_core_usuario_convite.down.sql` (anonimizar_usuario volta ao corpo da 0024; APAGA a tabela com os
   convites e a coluna telefone). Teste: `db/testes/usuario-convite.test.ts`.
+
+## 0037 — prazo médio máximo e formas de pagamento do cliente (`0037_forma_prazo_escalonada`; T-0089, RN-VEN-25, desenho docs/desenho/T-0089.md §3 e §8)
+**cliente** (novas, nulas, sem padrão e sem índice; lidas junto do cliente no pull e no `core.cadastro_resumo@1`):
+| Coluna | Tipo | Regra |
+|---|---|---|
+| prazo_medio_max_dias | integer | 0..365 (`cliente_prazo_medio_max_faixa`). Nulo = **sem teto** (P1): todos os prazos ativos habilitados |
+| formas_pagamento | text[] | **códigos** de `vendedor.forma_pagamento.codigo`, **sem FK** (a forma é do Vendedor; regra 1, ADR 0027). `core.codigos_forma_validos`: até 20, 1 dimensão, cada um 1..20 caracteres, não vazio, sem repetir. Nulo ou `{}` = **todas as ativas** (P1); código sem forma = ignorado pelo Vendedor |
+
+Vêm do ERP no `integracao.cliente.atualizado@1` (ausente = não altera; nulo/`[]` = limpa) e da ficha do cliente no BKO. Volta: o
+down da 0037 apaga as duas colunas com os valores. Base de demo: 45 dias em todos, 30 na Panificadora Pão Dourado, Conveniência
+Rota 10 sem boleto (`PIX`, `DINHEIRO`, `CARTAO`). Fixture: c1 de A com 45 e `{PIX,BOLETO}`; c1 de B com 30 e nulo.

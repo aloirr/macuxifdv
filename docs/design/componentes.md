@@ -27,6 +27,9 @@ Tipografia (`type`): `saudacao` 26/800 · `titulo` 19/800 (folha, diálogo) · `
 - `radius`: botão 52 → **14**; botão 44 → **12**; cartão **14**; seção (recado) **18**; folha **22**; chip de estado **pílula**.
 - `shadow`: o app separa por **borda** (`colors.line`), não por sombra. Sombra só no que flutua: `shadow.folha`, `shadow.aviso`.
 - Alvo de toque mínimo **48 dp** (`TOUCH`, `ALTURA.toque`). Visual menor (chip 36, passo 40, Desfazer 36) ganha `hitSlop`.
+- **Linha densa (T-0089):** no Android o toque fora da borda do **pai** não chega ao filho, então `hitSlop` não vale quando o
+  contêiner tem a altura do visual. Nas peças compactas (`Passo compacto`, `Segmentado compacto`, `CampoAjuste`, `EtiquetaFiltro`)
+  o alvo é o próprio botão (≥ 44 × 44 dp) e o visual (30–32 dp) fica desenhado dentro. Peça nova nunca depende de folga.
 
 ## 3. Botões em níveis — **um só principal por tela**
 | Nível | Componente | Altura | Visual | Quando |
@@ -81,6 +84,34 @@ neutro (cinza claro) ficam quase iguais. Com `sobreEscuro`, o mesmo nível muda 
   Tons e textos do pedido: `sucesso` Aprovado · `aviso` Aguardando aprovação (curto: "Aguardando") · `erro` Rejeitado ·
   `neutro` Na fila · `destaque` Orçamento · `roxo` (selo de orçamento do novo pedido). `Badge` antigo virou pílula de 24 dp.
 - Linha de lista: título 15/600, linha de apoio 13 `ink2`, valor em Archivo 16 tabular à direita, chip no alto à direita.
+- `LinhaAtalho` (T-0085): linha tocável que leva a **outra vista da mesma aba** ("Ver por linha" no Catálogo). Fundo
+  `accentSoft` sem borda, raio 12, ícone e seta `accentInk`, rótulo 15/600 (até 24 caracteres, verbo no infinitivo), apoio 13
+  `ink2` (até 32); 48 dp, 56 com apoio. Não é botão (não conta como principal) nem chip (não filtra). Uso e regra em
+  `docs/design/catalogo-por-linha.md`. Ícone `arvore` = lista em níveis.
+
+### 4.1 Escolha e valores do Novo pedido (T-0089; spec `docs/design/novo-pedido-itens.md`)
+- `ListaSuspensa`: rótulo 11/700 em maiúsculas em cima, campo de 48 dp (borda `lineStrong`, texto 15/600, seta ⌄), menu ancorado
+  logo abaixo (acima se faltar espaço), opções de 48 dp, ✓ na marcada, rola acima de 5. **Opção desabilitada**: texto
+  `inkDisabled` com cadeado, sem toque, e o `motivo` só no TalkBack (a lista mostra só o rótulo, "28/56 dias"). `erro` = borda
+  vermelha; `desligado` = fundo `lineSoft`. Para Forma de pagamento, Prazo e filtros de 3 a 12 opções; 2 opções = `Segmentado`.
+- `CampoAjuste`: desconto ou acréscimo **sempre aberto**, com o tipo ao lado (`TIPOS_AJUSTE`: Desc %, Desc R$, Acrésc %,
+  Acrésc R$) num menu do mesmo tipo e o valor digitável à direita. Moldura de 30 dp, alvo de 44 dp.
+- `Passo compacto`: caixa "− n +" de 100 × 30 dp num contêiner de 124 × 44 dp (− e + com 44 × 44 dp). Cada toque lê o número
+  do momento (o "+" com o teclado aberto, bug do R-20261106-064754). `desligadoAumentar` tira só o "+".
+- `Segmentado compacto`: 30 dp de visual (o visual não estica até o alvo), 44 × 44 dp de alvo por opção e 6 dp entre elas; largura mínima
+  `larguraSegmentadoCompacto(n)` (2 → 94, 3 → 144). UN | CX da linha 3 do item; Dia | Mês | Ano da folha. Num pai com `flex: 1`,
+  a linha passa a ter 44 dp de altura de layout (o alvo entra no layout, não é folga).
+- `CartaoCredito`: limite total e disponível (Archivo 18), alerta vermelho `Faixa tom="erro"` com o texto de
+  `textoInadimplencia`, e a data da sincronização (`textoAtualizacao`). `CartaoLeveMais`: uma linha tocável (≥ 56 dp) por item com
+  a próxima faixa (`textosLeveMais`); sem item, não aparece.
+- Token novo: `colors.inkDisabled` `#8A949C` (3:1 no branco) só para texto de opção desabilitada, **sempre** com outro sinal
+  (cadeado, sem toque); nunca para texto que precisa ser lido.
+
+### 4.2 Filtro da lista (T-0090; spec `docs/design/pedidos-filtro-periodo.md`)
+- `BotaoFiltro`: funil de 48 dp ao lado da busca, com selo laranja do número de filtros fora do padrão.
+- `EtiquetaFiltro`: pílula `accentSoft` de 32 dp ("Ontem ✕") num alvo de 44 dp; tocar remove o filtro.
+- `FolhaPeriodo`: atalhos (aplica e fecha), "Escolher dia, mês ou ano ›" com Dia/Mês/Ano e "Limpar" (volta ao padrão).
+  Comportamento puro em `eventoDaFolha` (`periodo.ts`). Ícones novos: `filtro`, `abaixo` (seta do campo), `subir` (Leve mais).
 
 ## 5. Folha, diálogo, aviso, abas, estados
 - **Folha** (`Folha`, `OpcaoFolha`): sobe de baixo, fundo escurece (`colors.scrim`), alça no topo, raio 22. Toque fora ou Voltar do

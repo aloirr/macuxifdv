@@ -10,7 +10,7 @@
 import { ehConsultaIndisponivel, ErroHttpModulo, type ClienteBanco, type TransacaoTenant } from '@macuxi/platform-sdk';
 import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { CONSULTA_CONCORRENTES } from '@macuxi/promotor/contracts';
-import type { ItemTabelaPreco, MidiaProduto, Referencia, Sinonimo, StockByBranch } from '../contracts';
+import type { ItemTabelaPreco, MidiaProduto, Referencia, SalvarFaixa, Sinonimo, StockByBranch } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { nomeMarcaDaReferencia } from '../domain/marcas';
 import { codigoCompacto } from '../domain/ranking';
@@ -146,6 +146,59 @@ export function criarRepositorioPostgres(opcoes: { marcas?: ResolvedorMarcas } =
       });
       const et = await db.query<{ etiquetas: string[] }>(`select etiquetas from catalogo.produto_conteudo where produto_id = $1::uuid and deleted_at is null`, [produtoId]);
       return { ofereceJunto, etiquetas: et.rows[0]?.etiquetas ?? [] };
+    },
+    async tabelasPreco() {
+      const r = await db.query<{ id: string; codigo: string; nome: string; ativo: boolean; itens: string }>(
+        `select t.id, t.codigo, t.nome, t.ativo,
+                (select count(*) from catalogo.tabela_preco_item i where i.tabela_preco_id = t.id and i.unidade is null and i.deleted_at is null) as itens
+           from catalogo.tabela_preco t where t.deleted_at is null order by lower(t.nome), t.id`,
+      );
+      return r.rows.map((x) => ({ id: x.id, codigo: x.codigo, nome: x.nome, ativo: x.ativo, itens: Number(x.itens) }));
+    },
+    async precosUnidade(tabelaId) {
+      // RN-VEN-15 (nova): só o preço da unidade base; a linha de embalagem antiga (unidade não nula) não aparece
+      const r = await db.query<{ produto_id: string; preco_cents: number; vigencia_inicio: string | null; vigencia_fim: string | null }>(
+        `select produto_id, preco_cents::float8 as preco_cents,
+                to_char(vigencia_inicio at time zone 'UTC', ${UTC}) as vigencia_inicio, to_char(vigencia_fim at time zone 'UTC', ${UTC}) as vigencia_fim
+           from catalogo.tabela_preco_item where tabela_preco_id = $1::uuid and unidade is null and deleted_at is null order by produto_id`,
+        [tabelaId],
+      );
+      return r.rows;
+    },
+    async faixas() {
+      const r = await db.query<{ id: string; external_id: string | null; produto_id: string; medida: string | null; quantidade_minima: number; preco_unidade_cents: number; vigencia_inicio: string; vigencia_fim: string | null; tabela_preco_id: string | null; ativo: boolean }>(
+        `select id, external_id, produto_id, medida, quantidade_minima::int as quantidade_minima, preco_unidade_cents::float8 as preco_unidade_cents,
+                vigencia_inicio::text as vigencia_inicio, vigencia_fim::text as vigencia_fim, tabela_preco_id, ativo
+           from catalogo.tabela_escalonada where deleted_at is null order by produto_id, medida nulls first, quantidade_minima, vigencia_inicio, id`,
+      );
+      return r.rows;
+    },
+    async salvarFaixa(id: string, f: SalvarFaixa) {
+      const r = await db
+        .query<{ criado: boolean }>(
+          `insert into catalogo.tabela_escalonada (id, tenant_id, produto_id, medida, quantidade_minima, preco_unidade_cents, vigencia_inicio, vigencia_fim, tabela_preco_id, ativo)
+           values ($1::uuid, plataforma.tenant_atual(), $2::uuid, $3, $4::int, $5::bigint, $6::date, $7::date, $8::uuid, $9)
+           on conflict (id) do update set produto_id = excluded.produto_id, medida = excluded.medida, quantidade_minima = excluded.quantidade_minima,
+             preco_unidade_cents = excluded.preco_unidade_cents, vigencia_inicio = excluded.vigencia_inicio, vigencia_fim = excluded.vigencia_fim,
+             tabela_preco_id = excluded.tabela_preco_id, ativo = excluded.ativo, deleted_at = null
+             where catalogo.tabela_escalonada.external_id is null
+           returning (xmax = 0) as criado`,
+          [id, f.produto_id, f.medida, f.quantidade_minima, f.preco_unidade_cents, f.vigencia_inicio, f.vigencia_fim, f.tabela_preco_id, f.ativo],
+        )
+        .catch((e: unknown) => {
+          const err = e as { code?: string; constraint?: string };
+          // a rota checa antes; a corrida cai aqui (tabela_escalonada_faixa_uk) e a tabela inexistente na FK
+          if (err.code === '23505' && err.constraint === 'tabela_escalonada_faixa_uk') throw new ErroHttpModulo(409, 'FAIXA_EM_CONFLITO', 'Já existe uma faixa para este produto, medida, quantidade mínima, tabela e início de vigência.');
+          if (err.code === '23503') throw new ErroHttpModulo(422, 'TABELA_PRECO_INEXISTENTE', 'A tabela de preço escolhida não existe mais. Atualize a lista e escolha outra.');
+          throw e;
+        });
+      // nada devolvido = o id é de uma faixa do ERP (viva ou apagada): não reabre
+      if (r.rows.length === 0) throw new ErroHttpModulo(409, 'FAIXA_DO_ERP', 'Esta faixa vem do ERP e é alterada lá. Cadastre outra faixa aqui se precisar de uma exceção.');
+      return { criado: r.rows[0]?.criado ?? false };
+    },
+    async removerFaixa(id: string) {
+      const r = await db.query(`update catalogo.tabela_escalonada set deleted_at = now() where id = $1::uuid and deleted_at is null`, [id]);
+      return (r.rowCount ?? 0) > 0;
     },
     async salvarCadastroCatalogo(produtoId, c, em) {
       const r = await db.query<{ criado: boolean }>(

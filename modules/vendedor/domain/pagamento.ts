@@ -1,0 +1,154 @@
+/**
+ * Forma de pagamento e prazo do pedido (T-0089; RN-VEN-24 e RN-VEN-25), título vencido (RN-VEN-13) e crédito do cliente
+ * (RN-VEN-12). Funções puras: o app e a API usam as mesmas, e a API sempre revalida.
+ */
+
+export interface FormaDePagamento {
+  id: string;
+  codigo: string;
+  nome: string;
+  ativo: boolean;
+  ordem: number;
+}
+
+export interface PrazoDePagamento {
+  id: string;
+  forma_pagamento_id: string;
+  codigo: string;
+  descricao: string;
+  /** dias de cada parcela, sem decrescer; `[0]` = à vista */
+  parcelas_dias: readonly number[];
+  prazo_medio_dias: number;
+  ordem: number;
+  ativo: boolean;
+}
+
+/** O que o cadastro do cliente (Core) limita (RN-VEN-25). Nulo = sem restrição (premissa P1). */
+export interface LimitePagamentoDoCliente {
+  prazo_medio_max_dias: number | null | undefined;
+  formas_pagamento: readonly string[] | null | undefined;
+}
+
+export type MotivoPrazoDesabilitado = 'acima_prazo_medio_cliente';
+
+/** RN-VEN-24: média das parcelas, arredondada PARA CIMA (28/56 = 42; 30/45 = 38; premissa P2). Lista vazia é erro de programação. */
+export function prazoMedioDias(parcelas: readonly number[]): number {
+  if (parcelas.length === 0) throw new Error('RN-VEN-24: o prazo precisa de ao menos uma parcela.');
+  const soma = parcelas.reduce((a, b) => a + b, 0);
+  return Math.ceil(soma / parcelas.length);
+}
+
+/** RN-VEN-24: o texto da lista mostra só o prazo ("28/56 dias"), nunca o prazo médio; `[0]` = "À vista". */
+export function descricaoPrazo(parcelas: readonly number[]): string {
+  if (parcelas.length === 1 && parcelas[0] === 0) return 'À vista';
+  return `${parcelas.join('/')} dias`;
+}
+
+function porOrdem<T extends { ordem: number; codigo: string }>(a: T, b: T): number {
+  return a.ordem - b.ordem || a.codigo.localeCompare(b.codigo);
+}
+
+/** RN-VEN-25: as formas ativas que o cliente aceita, por ordem. Lista do cliente nula ou vazia = todas as ativas; código sem forma é ignorado. */
+export function formasDoCliente(formas: readonly FormaDePagamento[], codigosDoCliente: readonly string[] | null | undefined): FormaDePagamento[] {
+  const todas = formas.filter((f) => f.ativo).sort(porOrdem);
+  if (!codigosDoCliente || codigosDoCliente.length === 0) return todas;
+  const permitidos = new Set(codigosDoCliente);
+  return todas.filter((f) => permitidos.has(f.codigo));
+}
+
+export interface PrazoDaForma {
+  prazo: PrazoDePagamento;
+  habilitado: boolean;
+  motivo?: MotivoPrazoDesabilitado;
+}
+
+/**
+ * RN-VEN-24/25: os prazos ativos da forma, por ordem. Prazo com `prazo_medio_dias` acima do máximo do cliente aparece
+ * desabilitado; máximo nulo = todos habilitados (P1). Igual ao máximo é permitido.
+ */
+export function prazosDaForma(prazos: readonly PrazoDePagamento[], formaId: string, prazoMedioMaxCliente: number | null | undefined): PrazoDaForma[] {
+  return prazos
+    .filter((p) => p.ativo && p.forma_pagamento_id === formaId)
+    .sort(porOrdem)
+    .map((prazo) =>
+      prazoMedioMaxCliente != null && prazo.prazo_medio_dias > prazoMedioMaxCliente
+        ? { prazo, habilitado: false, motivo: 'acima_prazo_medio_cliente' as const }
+        : { prazo, habilitado: true },
+    );
+}
+
+/** RN-VEN-24: a primeira forma permitida que tenha um prazo habilitado, com o primeiro prazo habilitado dela; ou `null`. */
+export function pagamentoPadrao(
+  formasPermitidas: readonly FormaDePagamento[],
+  prazos: readonly PrazoDePagamento[],
+  prazoMedioMaxCliente: number | null | undefined,
+): { forma: FormaDePagamento; prazo: PrazoDePagamento } | null {
+  for (const forma of formasPermitidas) {
+    const prazo = prazosDaForma(prazos, forma.id, prazoMedioMaxCliente).find((x) => x.habilitado);
+    if (prazo) return { forma, prazo: prazo.prazo };
+  }
+  return null;
+}
+
+export type CodigoRecusaPagamento = 'RN-VEN-24' | 'RN-VEN-25';
+export type ResultadoPagamento = { ok: true } | { ok: false; codigo: CodigoRecusaPagamento; mensagem: string };
+
+/** RN-VEN-24 (forma/prazo existem, ativos, prazo da forma) e RN-VEN-25 (forma aceita pelo cliente e prazo médio dentro do máximo). */
+export function validarPagamento(i: {
+  forma: FormaDePagamento | undefined | null;
+  prazo: PrazoDePagamento | undefined | null;
+  cliente: LimitePagamentoDoCliente;
+}): ResultadoPagamento {
+  const { forma, prazo, cliente } = i;
+  if (!forma || !forma.ativo) return { ok: false, codigo: 'RN-VEN-24', mensagem: 'Forma de pagamento indisponível. Escolha outra forma na lista.' };
+  if (!prazo || !prazo.ativo || prazo.forma_pagamento_id !== forma.id) {
+    return { ok: false, codigo: 'RN-VEN-24', mensagem: 'Prazo indisponível para esta forma. Escolha outro prazo na lista.' };
+  }
+  const lista = cliente.formas_pagamento;
+  if (lista && lista.length > 0 && !lista.includes(forma.codigo)) {
+    return { ok: false, codigo: 'RN-VEN-25', mensagem: 'Este cliente não aceita esta forma de pagamento. Escolha outra forma.' };
+  }
+  const max = cliente.prazo_medio_max_dias;
+  if (max != null && prazo.prazo_medio_dias > max) {
+    return { ok: false, codigo: 'RN-VEN-25', mensagem: 'Prazo acima do prazo médio permitido ao cliente. Escolha um prazo menor.' };
+  }
+  return { ok: true };
+}
+
+/** RN-VEN-13: título vencido há mais que o limite e prazo a prazo (prazo médio > 0) → aprovação. À vista segue sem aprovação. */
+export function exigeAprovacaoPorVencido(i: { maior_atraso_dias: number; prazo_medio_dias: number; limite_dias: number }): boolean {
+  return i.maior_atraso_dias > i.limite_dias && i.prazo_medio_dias > 0;
+}
+
+/** Parâmetro `titulo_vencido_dias` do Vendedor (padrão 5; nenhum parâmetro do Vendedor é semeado por migração). */
+export const TITULO_VENCIDO_DIAS_PADRAO = 5;
+
+/** `titulo_vencido_dias` do tenant (inteiro 0..365; ausente ou inválido = 5). */
+export function tituloVencidoDias(parametros: Readonly<Record<string, unknown>>): number {
+  const bruto = parametros['titulo_vencido_dias'];
+  const n = typeof bruto === 'number' ? bruto : typeof bruto === 'string' && bruto.trim() !== '' ? Number(bruto) : NaN;
+  return Number.isInteger(n) && n >= 0 && n <= 365 ? n : TITULO_VENCIDO_DIAS_PADRAO;
+}
+
+/** Retrato do pagamento no evento `vendedor.pedido.aprovado@1` (T-0089). */
+export interface PagamentoEvento {
+  forma_codigo: string;
+  forma_external_id?: string | null;
+  prazo_codigo: string;
+  prazo_external_id?: string | null;
+  parcelas_dias: number[];
+  prazo_medio_dias: number;
+}
+
+/**
+ * RN-VEN-12: limite e disponível do cartão. Disponível = (valor do ERP ?? limite − saldo) − pedidos aprovados ainda não
+ * faturados. Com o valor do ERP só descontam os não integrados (o ERP já descontou os integrados). Pode ficar negativo.
+ */
+export function creditoDoCartao(
+  f: { limite_cents: number; saldo_aberto_cents: number; credito_disponivel_erp_cents: number | null },
+  pedidosAprovados: readonly { total_cents: number; integrado: boolean }[],
+): { limite_cents: number; disponivel_cents: number } {
+  const base = f.credito_disponivel_erp_cents ?? f.limite_cents - f.saldo_aberto_cents;
+  const descontar = pedidosAprovados.filter((p) => f.credito_disponivel_erp_cents == null || !p.integrado).reduce((s, p) => s + p.total_cents, 0);
+  return { limite_cents: f.limite_cents, disponivel_cents: base - descontar };
+}

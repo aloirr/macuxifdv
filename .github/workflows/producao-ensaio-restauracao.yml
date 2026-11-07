@@ -1,0 +1,80 @@
+name: producao — ensaio de restauração
+
+# T-0086 (critério 4). Só manual. Na VM de produção, restaura um backup do bucket macuxi-prod (backups/, 30 dias) numa
+# base TEMPORÁRIA do DBaaS e confere as contagens; a base temporária é apagada no fim, com sucesso ou falha. O banco em uso
+# (macuxi) NUNCA é tocado. O script é do banco-dados (db/backup/ensaio-restauracao.sh), copiado da imagem publicada para
+# /opt/macuxi/backup pelo implantar.sh. Interface combinada (recado da T-0086 ao banco-dados):
+#   uso      /opt/macuxi/backup/ensaio-restauracao.sh [ultimo|<chave>]
+#   faz      baixa (sha256 conferido) → pg_restore numa base macuxi_ensaio_<UTC> (pgcliente, TLS, admin com o macuxi_manutencao)
+#            → contagem.sql na restaurada × a contagem gravada junto do dump (no momento do backup) → apaga a base
+#   saída    linha "[ensaio] resultado: IGUAL ..." ou "[ensaio] resultado: DIFERENTE ..." e o código 0 (igual) / != 0
+#   segredo  nenhum: só lê os .env pelo compose
+# Environment PRODUCAO (aprovação do Alexandre): o ensaio usa a conexão de administração da produção.
+
+on:
+  workflow_dispatch:
+    inputs:
+      qual:
+        description: backup a restaurar (ultimo ou a chave backups/macuxi-AAAAMMDDTHHMMSSZ.dump)
+        default: ultimo
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ensaio:
+    name: restaurar numa base temporária e conferir as contagens
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: PRODUCAO
+    steps:
+      - name: entrada
+        env:
+          QUAL: ${{ inputs.qual }}
+        run: |
+          [[ "$QUAL" == ultimo || "$QUAL" =~ ^backups/macuxi-[0-9]{8}T[0-9]{6}Z\.dump$ ]] || { echo "::error::backup inválido: use ultimo ou a chave"; exit 1; }
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.PROD_SSH_KEY }}
+          HOST: ${{ secrets.PROD_HOST }}
+          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
+          chmod 600 ~/.ssh/prod
+          if [ -n "$CONHECIDOS" ]; then printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
+          else ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null; fi
+          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n  ServerAliveInterval 30\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: ensaio na VM
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          QUAL: ${{ inputs.qual }}
+        run: |
+          set +e
+          ssh -l "$USUARIO" prod "test -x /opt/macuxi/backup/ensaio-restauracao.sh || { echo 'ensaio-restauracao.sh ainda não está na imagem publicada (banco-dados, T-0086)' >&2; exit 90; }
+            cd /opt/macuxi && timeout -k 2m 50m /opt/macuxi/backup/ensaio-restauracao.sh '$QUAL'" 2>&1 | tee "$RUNNER_TEMP/ensaio.log"
+          codigo=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "## Ensaio de restauração da produção (T-0086)"
+            echo
+            echo "- backup: \`$QUAL\` · código: \`$codigo\`"
+            grep -E '^\[ensaio\] (resultado|restaurado|backup|base)' "$RUNNER_TEMP/ensaio.log" | sed 's/^/- /' || true
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$codigo" = 0 ] || { echo "::error::ensaio de restauração falhou (código $codigo): veja o log"; exit 1; }
+          grep -q '^\[ensaio\] resultado: IGUAL' "$RUNNER_TEMP/ensaio.log" || { echo "::error::o script terminou sem 'resultado: IGUAL'"; exit 1; }
+
+      - name: limpar a chave do runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts "$RUNNER_TEMP/ensaio.log"

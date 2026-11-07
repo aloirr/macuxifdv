@@ -1,15 +1,15 @@
 /**
  * Banco de teste efêmero (dono: banco-dados). Cria `macuxi_teste_<sufixo>` no Postgres DOS TESTES (lerConfigTestes:
  * container macuxi-postgres-testes, 5434, ou MACUXI_PG_TESTES_URL; no CI, o service do workflow) — nunca no da demo,
- * garante os papéis macuxi_app e macuxi_worker, aplica as migrações e (opcional) carrega uma fixture. `apagar()` remove.
+ * garante os papéis macuxi_app, macuxi_worker e macuxi_portal (0038), aplica as migrações e (opcional) carrega uma fixture. `apagar()` remove.
  * Usado pelos testes de db/ e pelo agente `testes` (via `@macuxi/db/teste`).
  */
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { apagarBancoForcado } from './apagar-banco';
-import { lerConfigTestes, urlAdmin, urlApp, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
+import { lerConfigTestes, PAPEL_PORTAL, urlAdmin, urlApp, urlPortal, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
 import { migrarUp } from './migrador';
-import { garantirPapelApp, garantirPapelManutencao, garantirPapelWorker } from './papeis';
+import { garantirPapelApp, garantirPapelManutencao, garantirPapelPortal, garantirPapelSemLogin, garantirPapelWorker } from './papeis';
 
 export interface BancoDeTeste {
   nome: string;
@@ -19,6 +19,11 @@ export interface BancoDeTeste {
   urlApp: string;
   /** Conexão do papel macuxi_worker (despacho da outbox, ADR 0007); null se MACUXI_PG_WORKER_SENHA não existir. */
   urlWorker: string | null;
+  /**
+   * Conexão do papel macuxi_portal (0038, T-0091): o 2º pool da API (rotas plataforma/*, sessão e auditoria do super-admin),
+   * o único com EXECUTE nas plataforma.sa_*. null se MACUXI_PG_PORTAL_SENHA não existir (fora do local).
+   */
+  urlPortal: string | null;
   apagar(): Promise<void>;
 }
 
@@ -65,6 +70,10 @@ export async function criarBanco(nome: string, cfg: ConfigBanco = lerConfigTeste
     await garantirPapelApp(c, cfg.appSenha);
     // Antes da migração 0003: com o papel já criado (e com LOGIN), o "create role" da migração não corre em paralelo.
     if (cfg.workerSenha) await garantirPapelWorker(c, cfg.workerSenha);
+    // Idem para a 0038 (T-0091): macuxi_portal com LOGIN (e o SET do admin sem superusuário) antes das migrações paralelas;
+    // sem a senha, só o papel NOLOGIN, com o mesmo lock (a 0038 o encontra pronto e não grava em pg_authid).
+    if (cfg.portalSenha) await garantirPapelPortal(c, cfg.portalSenha);
+    else await garantirPapelSemLogin(c, PAPEL_PORTAL);
     // Idem para a 0031 (B1, T-0075): papel macuxi_manutencao e a filiação do admin prontos antes das migrações paralelas.
     await garantirPapelManutencao(c);
     const existe = await c.query('select 1 from pg_database where datname = $1', [nome]);
@@ -115,6 +124,7 @@ export async function criarBancoDeTeste(opcoes: OpcoesBancoDeTeste = {}): Promis
     urlAdmin: urlAdmin(cfg, nome),
     urlApp: urlApp(cfg, nome),
     urlWorker: cfg.workerSenha ? urlWorker(cfg, nome) : null,
+    urlPortal: cfg.portalSenha ? urlPortal(cfg, nome) : null,
     apagar: () => apagarBanco(nome, cfg),
   };
 }

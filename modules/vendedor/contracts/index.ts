@@ -21,6 +21,7 @@ import { MOTIVOS_APROVACAO, NIVEIS_APROVACAO } from '../domain/aprovacao';
 import { SITUACOES_ORCAMENTO, TIPOS_DOCUMENTO } from '../domain/orcamento';
 import { ORDER_STATUSES } from '../domain/order';
 import { EnderecoRetrato, Frete, FreteDoPedido, ItemPush } from './frete';
+export * from './formas-pagamento';
 
 /** T-0054 (RN-VEN-37, proposta): situação da devolução do pedido. */
 export const SITUACOES_DEVOLUCAO = ['nenhuma', 'parcial', 'total'] as const;
@@ -162,6 +163,13 @@ export const Order = z.object({
   order_adjust_mode: z.enum(['pct', 'valor']).optional(),
   order_discount_value_cents: z.number().int().nonnegative().optional(),
   order_surcharge_value_cents: z.number().int().nonnegative().optional(),
+  // --- T-0089 (RN-VEN-24): retrato da forma e do prazo; opcionais (pedido anterior mostra `payment_terms`) ---
+  forma_pagamento_id: Id.nullable().optional(),
+  forma_pagamento_nome: z.string().nullable().optional(),
+  prazo_pagamento_id: Id.nullable().optional(),
+  prazo_descricao: z.string().nullable().optional(),
+  prazo_parcelas_dias: z.array(z.number().int().min(0).max(365)).nullable().optional(),
+  prazo_medio_dias: z.number().int().min(0).max(365).nullable().optional(),
 });
 export type Order = z.infer<typeof Order>;
 
@@ -262,6 +270,12 @@ export type CreateOrderRequest = z.infer<typeof CreateOrderRequest>;
 export const PedidoPush = CreateOrderRequest.extend({
   items: z.array(ItemPush).min(1).max(200),
   condicao_pagamento_id: z.string().uuid().nullable().optional(),
+  /**
+   * T-0089 (RN-VEN-24/25, aditivo): forma e prazo do pedido. Vêm os dois ou nenhum (só um = 422 `RN-VEN-24`, conferido na API).
+   * Sem nenhum dos dois vale o caminho legado do `condicao_pagamento_id` (APK anterior).
+   */
+  forma_pagamento_id: z.string().uuid().nullable().optional(),
+  prazo_pagamento_id: z.string().uuid().nullable().optional(),
   observacao: z.string().max(500).nullable().optional(),
   visita_id: z.string().uuid().nullable().optional(),
   /**
@@ -298,6 +312,8 @@ export const CODIGOS_RECUSA_PEDIDO = [
   'unidade_invalida', 'endereco_invalido', 'transportadora_obrigatoria', 'transportadora_invalida', 'desconto_e_acrescimo', 'preco_abaixo_minimo',
   // T-0071: orçamento vencido/convertido/cancelado (RN-VEN-18), ajuste em % e R$ juntos ou acima do limite, edição concorrente
   'RN-VEN-18', 'ajuste_invalido', 'ORCAMENTO_ALTERADO',
+  // T-0089: forma/prazo inexistente, inativo ou de outra forma (RN-VEN-24); forma não permitida ou prazo acima do prazo médio do cliente (RN-VEN-25)
+  'RN-VEN-24', 'RN-VEN-25',
 ] as const;
 
 /**

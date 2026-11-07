@@ -15,6 +15,7 @@ import { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
 import { preVendaSql, usarPreVenda } from './pre-venda';
 import { consumidoresVendedor } from './retorno-erp';
 import { rotasTransportadoras } from './transportadoras';
+import { consultaFormasPagamento, rotasFormasPagamento } from './formas-pagamento';
 import { provedoresSyncVendedor } from './sync';
 
 export { aplicarRetornoErp, consumidorRetornoErp } from './retorno-erp';
@@ -22,6 +23,7 @@ export { criarPreVendaEmMemoria, preVenda, preVendaIndisponivel, preVendaSql, us
 export { consultaPedidosDaMeta } from './consulta-pedidos-da-meta';
 export { rotaCancelarOrcamento, rotaEditarOrcamento } from './orcamentos';
 export { rotasTransportadoras } from './transportadoras';
+export { consultaFormasPagamento, rotasFormasPagamento } from './formas-pagamento';
 export { rotaAlcadas, rotaAprovarPedido, rotaCancelarPedido, rotaListarPedidos, rotaRejeitarPedido, rotaVerPedido };
 
 // T-0071 §1.4 a: a 0013 está no banco; produção usa o repositório SQL da pré-venda (testes trocam por `usarPreVenda`)
@@ -29,10 +31,10 @@ usarPreVenda(preVendaSql);
 
 export const apiVendedor: ModuloApi = definirModuloApi({
   manifesto: manifest,
-  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido, rotaEditarOrcamento, rotaCancelarOrcamento, ...rotasTransportadoras],
+  rotas: [rotaListarPedidos, rotaVerPedido, rotaAlcadas, rotaAprovarPedido, rotaRejeitarPedido, rotaCancelarPedido, rotaEditarOrcamento, rotaCancelarOrcamento, ...rotasTransportadoras, ...rotasFormasPagamento],
   sync: provedoresSyncVendedor,
   consumidores: consumidoresVendedor,
-  consultas: [consultaPedidosDaMeta],
+  consultas: [consultaPedidosDaMeta, consultaFormasPagamento],
 });
 /** Convenção do desenho T-0004 §3; o `default` também é aceito pela API. */
 export const moduloApi = apiVendedor;

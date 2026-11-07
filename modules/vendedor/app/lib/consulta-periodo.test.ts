@@ -1,7 +1,7 @@
 /** T-0077 item 6: consulta ao servidor fora da janela de 90 dias do aparelho (RF-VEN-05). Funções puras. */
 import { describe, expect, it } from 'vitest';
 import type { Order } from '../../contracts';
-import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, mensagemForaDaJanela, pedidosDaConsulta, textoDoVazio } from './consulta-periodo';
+import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, mensagemForaDaJanela, pedidosDaConsulta, textoDoVazio } from './consulta-periodo';
 
 describe('RF-VEN-05: consulta por período ao servidor', () => {
   it('monta o caminho com from/to, emitido OU mudou de status, pedidos e orçamentos', () => {
@@ -46,5 +46,31 @@ describe('textoDoVazio (T-0077)', () => {
     expect(textoDoVazio({ ...b, gestao: true })).toBe('Nenhum pedido da equipe neste período.');
     expect(textoDoVazio(b)).toMatch(/Toque em Novo/);
     expect(textoDoVazio({ ...b, situacao: 'queued' })).toBe('Nenhum pedido com esta situação neste período.');
+  });
+});
+
+describe('RN-CORE-23 / T-0090: junção do servidor com o aparelho no período parcial', () => {
+  const p = (id: string, local: boolean, status = 'sent') => ({ id, number: id, status, local, local_error: '' }) as never as import('./pedidos').PedidoDaLista;
+  it('pedido na fila do aparelho aparece mesmo sem estar no servidor', () => {
+    const r = juntarServidorComAparelho([p('a', false)], [p('f', true)]);
+    expect(r.map((x) => x.id).sort()).toEqual(['a', 'f']);
+    expect(r.filter((x) => x.local)).toHaveLength(1);
+  });
+  it('a edição local tem prioridade sobre o item do servidor, sem duplicar por id', () => {
+    const r = juntarServidorComAparelho([p('a', false, 'sent')], [p('a', true, 'draft')]);
+    expect(r).toHaveLength(1);
+    expect(r[0]!.status).toBe('draft');
+  });
+  it('item já enviado vem do servidor; o que só o aparelho tem entra', () => {
+    const r = juntarServidorComAparelho([p('a', false, 'invoiced')], [p('a', false, 'sent'), p('b', false)]);
+    expect(r.find((x) => x.id === 'a')!.status).toBe('invoiced');
+    expect(r.map((x) => x.id).sort()).toEqual(['a', 'b']);
+  });
+  it('500 pedidos juntam em menos de 100 ms', () => {
+    const s = Array.from({ length: 500 }, (_, i) => p(`s${i}`, false));
+    const a = Array.from({ length: 500 }, (_, i) => p(`s${i}`, i % 10 === 0));
+    const t0 = performance.now();
+    juntarServidorComAparelho(s, a);
+    expect(performance.now() - t0).toBeLessThan(100);
   });
 });
