@@ -71,11 +71,15 @@ import { LINHAS_VAZIAS as LINHAS_VAZIAS_T, lerLinhas, listaDeClientes, listaDePe
 import { ENTIDADES_VENDEDOR } from '../../modules/vendedor/contracts/entidades';
 import { periodoParcialNaJanela, resumoDaSituacao, situacaoEfetiva } from '../../modules/vendedor/domain/busca-periodo';
 import { filtrarPorVendedor, opcoesDeVendedor, TODOS_OS_VENDEDORES } from '../../modules/vendedor/domain/filtro-vendedor';
-import { estadoDaConsulta, mensagemForaDaJanela, textoDoVazio } from '../../modules/vendedor/app/lib/consulta-periodo';
+import { estadoDaConsulta, mensagemForaDaJanela, resumoDaBusca, rotuloRemoverVendedor, situacaoAoEscolherPeriodo, textoDoVazio } from '../../modules/vendedor/app/lib/consulta-periodo';
 
 const RAIZ = join(__dirname, '..', '..');
 const ler = (p: string) => readFileSync(join(RAIZ, p), 'utf8');
 const TELA = ler('modules/vendedor/app/screens/orders-screen.tsx');
+/** O fonte sem comentários (bloco, linha e JSX): o texto antigo pode sobrar num comentário sem chegar à tela. */
+const semComentarios = (fonte: string) => fonte.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
+/** T-0090 UX4 (R-20261107-083941-modulo-vendedor): o vazio do período fora da janela, sem sinal. */
+const SEM_SINAL_VAZIO = 'Sem sinal: este período não está no aparelho. Os pedidos aparecem quando o sinal voltar.';
 
 /**
  * O vazio da lista mostra `vazio` quando não há linha visível, em qualquer das duas formas da tela:
@@ -302,7 +306,7 @@ describe('T-0077 critérios 3 e 4 da referência — linha de situações e resu
   });
 });
 
-describe('T-0077 critério 3 — janela do aparelho (90 dias) e "Disponível com conexão"', () => {
+describe('T-0077 critério 3 — janela do aparelho (90 dias) e o vazio sem sinal (texto da T-0090 UX4)', () => {
   it('limite da janela no fuso do tenant: 04/11 → começa em 06/08', () => {
     expect(JANELA_DIAS).toBe(90);
     expect(periodoForaDaJanela(mes('2026-07'), AGORA, MANAUS)).toBe(true);
@@ -322,40 +326,46 @@ describe('T-0077 critério 3 — janela do aparelho (90 dias) e "Disponível com
     expect(periodoForaDaJanela(dia('2026-08-05'), quase, SP)).toBe(true);
   });
 
-  it('a tela: fora da janela e sem sinal mostra "Disponível com conexão"; com texto na busca não vale a janela', () => {
+  it('a tela: fora da janela e sem sinal mostra o vazio sem sinal (T-0090 UX4); com texto na busca não vale a janela', () => {
+    // T-0090 UX4 (R-20261107-083941-modulo-vendedor): "Disponível com conexão" virou a frase que explica e promete
+    expect(SEM_SINAL_VAZIO).toMatch(/^Sem sinal: /);
+    expect(SEM_SINAL_VAZIO).not.toMatch(/Disponível com conexão/);
     // a decisão (função pura de app/lib/consulta-periodo, a mesma que a tela chama)
     expect(estadoDaConsulta({ fora: true, offline: true })).toBe('disponivel_com_conexao');
     expect(estadoDaConsulta({ fora: true, offline: false })).toBe('consultar');
     expect(estadoDaConsulta({ fora: false, offline: true })).toBe('local');
     expect(estadoDaConsulta({ fora: false, offline: false })).toBe('local');
-    expect(mensagemForaDaJanela('disponivel_com_conexao')).toBe('Disponível com conexão');
-    expect(mensagemForaDaJanela('carregando')).not.toBe('Disponível com conexão');
-    expect(mensagemForaDaJanela('erro')).not.toBe('Disponível com conexão');
+    expect(mensagemForaDaJanela('disponivel_com_conexao')).toBe(SEM_SINAL_VAZIO);
+    expect(mensagemForaDaJanela('carregando')).not.toBe(SEM_SINAL_VAZIO);
+    expect(mensagemForaDaJanela('erro')).not.toBe(SEM_SINAL_VAZIO);
     // o que a tela calcula, com as mesmas peças: julho/2026 fica fora da janela; com texto na busca a janela não vale
     const foraNaTela = (buscando: boolean, p: Periodo) => !buscando && periodoForaDaJanela(p, AGORA, MANAUS);
     expect(estadoDaConsulta({ fora: foraNaTela(false, mes('2026-07')), offline: true })).toBe('disponivel_com_conexao');
     expect(estadoDaConsulta({ fora: foraNaTela(true, mes('2026-07')), offline: true })).toBe('local');
     expect(estadoDaConsulta({ fora: foraNaTela(false, mes('2026-11')), offline: true })).toBe('local');
-    // o texto do vazio (função pura textoDoVazio, a mesma que a tela chama): fora da janela e sem sinal → "Disponível com
-    // conexão"; com texto na busca `fora` é falso e vale o texto da busca, nunca o da janela
+    // o texto do vazio (função pura textoDoVazio, a mesma que a tela chama): fora da janela e sem sinal → o vazio sem
+    // sinal; com texto na busca `fora` é falso e vale o texto da busca, nunca o da janela
     const vazioDe = (buscando: boolean, p: Periodo, semSinal: boolean) => {
       const fora = foraNaTela(buscando, p);
       return textoDoVazio({ fora, modoConsulta: estadoDaConsulta({ fora, offline: semSinal }), estadoDoServidor: null, buscando, situacao: 'todos', gestao: false });
     };
-    expect(textoDoVazio({ fora: true, modoConsulta: 'disponivel_com_conexao', estadoDoServidor: null, buscando: false, situacao: 'todos', gestao: false })).toBe('Disponível com conexão');
-    expect(vazioDe(false, mes('2026-07'), true)).toBe('Disponível com conexão');
-    expect(vazioDe(true, mes('2026-07'), true)).not.toBe('Disponível com conexão');
+    expect(textoDoVazio({ fora: true, modoConsulta: 'disponivel_com_conexao', estadoDoServidor: null, buscando: false, situacao: 'todos', gestao: false })).toBe(SEM_SINAL_VAZIO);
+    expect(vazioDe(false, mes('2026-07'), true)).toBe(SEM_SINAL_VAZIO);
+    expect(vazioDe(true, mes('2026-07'), true)).not.toBe(SEM_SINAL_VAZIO);
     expect(vazioDe(true, mes('2026-07'), true)).toBe(textoDoVazio({ fora: false, modoConsulta: 'local', estadoDoServidor: null, buscando: true, situacao: 'todos', gestao: false }));
-    expect(vazioDe(false, mes('2026-11'), true)).not.toBe('Disponível com conexão');
-    // com sinal, fora da janela: enquanto consulta não é "Disponível com conexão"; com a resposta 'ok' vazia, o texto do período
-    expect(textoDoVazio({ fora: true, modoConsulta: 'consultar', estadoDoServidor: null, buscando: false, situacao: 'todos', gestao: false })).not.toBe('Disponível com conexão');
-    expect(textoDoVazio({ fora: true, modoConsulta: 'consultar', estadoDoServidor: 'ok', buscando: false, situacao: 'todos', gestao: false })).not.toBe('Disponível com conexão');
+    expect(vazioDe(false, mes('2026-11'), true)).not.toBe(SEM_SINAL_VAZIO);
+    // com sinal, fora da janela: enquanto consulta não é o vazio sem sinal; com a resposta 'ok' vazia, o texto do período
+    expect(textoDoVazio({ fora: true, modoConsulta: 'consultar', estadoDoServidor: null, buscando: false, situacao: 'todos', gestao: false })).not.toBe(SEM_SINAL_VAZIO);
+    expect(textoDoVazio({ fora: true, modoConsulta: 'consultar', estadoDoServidor: 'ok', buscando: false, situacao: 'todos', gestao: false })).not.toBe(SEM_SINAL_VAZIO);
+    // e o texto antigo não sobra em nenhum estado (nem na lib nem na tela)
+    for (const e of ['disponivel_com_conexao', 'carregando', 'erro'] as const) expect(mensagemForaDaJanela(e)).not.toMatch(/Disponível com conexão/);
+    expect(semComentarios(TELA)).not.toMatch(/Disponível com conexão/);
     // a fiação na tela (nomes estáveis): `fora` exige busca vazia; sem sinal = offline do sync OU ambiente sem rede;
     // o texto do vazio vem de textoDoVazio com o `fora` e o `modoConsulta` da tela e aparece no <Empty>
     expect(TELA).toMatch(/const fora = !buscando && !semPeriodo && periodoForaDaJanela\(periodo, agora, tz\)/);
     expect(TELA).toMatch(/const semSinal = offline \|\| !ambiente\.online\(\)/);
     // T-0090: o período em parte fora da janela também consulta o servidor, mas SÓ com sinal (`parcial && !semSinal`);
-    // sem sinal vale estadoDaConsulta (fora inteiro → "Disponível com conexão", nunca 'consultar')
+    // sem sinal vale estadoDaConsulta (fora inteiro → o vazio sem sinal, nunca 'consultar')
     expect(TELA).toMatch(/const parcial = !buscando && !semPeriodo && periodoParcialNaJanela\(periodo, agora, tz\)/);
     expect(TELA).toMatch(/const modoConsulta = parcial && !semSinal \? 'consultar' : estadoDaConsulta\(\{ fora, offline: semSinal \}\)/);
     expect(estadoDaConsulta({ fora: true, offline: true })).not.toBe('consultar');
@@ -593,6 +603,91 @@ describe('T-0077 critério 4 — filtro por vendedor no Gestão (RN-CORE-04, RN-
     // o filtro vale antes da busca, do período, dos chips e do resumo: os itens nascem de `doVendedor`
     expect(TELA).toMatch(/doVendedor\.map\(/);
     expect((TELA.match(/testID="orders-vendedor"/g) ?? []).length).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// T-0090 — revisão de UX (R-20261106-200329): 🟡1 resumo da busca com o vendedor, 🟡2 período sai de A faturar/Em aberto,
+// 🟡5 "Remover filtro <nome>". Funções puras de app/lib/consulta-periodo + a fiação no fonte da tela (React Native não roda no Node).
+// ---------------------------------------------------------------------------------------------------------------------
+describe('T-0090 UX1 — com busca, o resumo e a etiqueta dizem qual vendedor está filtrando (Gestão)', () => {
+  const pedidos = [
+    { id: 'a', seller_id: VEND.lucas, seller_name: 'Lucas Andrade' },
+    { id: 'b', seller_id: VEND.maria, seller_name: 'Maria Souza' },
+    { id: 'c', seller_id: VEND.lucas, seller_name: 'Lucas Andrade' },
+  ];
+
+  it('resumo: "N resultados · <vendedor> · últimos 90 dias", singular/plural, e sem vendedor o formato antigo', () => {
+    expect(resumoDaBusca(0, null)).toBe('0 resultados · últimos 90 dias');
+    expect(resumoDaBusca(1, null)).toBe('1 resultado · últimos 90 dias');
+    expect(resumoDaBusca(2, 'Lucas Andrade')).toBe('2 resultados · Lucas Andrade · últimos 90 dias');
+    expect(resumoDaBusca(1, 'Maria Souza')).toBe('1 resultado · Maria Souza · últimos 90 dias');
+    // o "0 resultados" com vendedor escolhido diz o motivo (o caso que a revisão apontou)
+    expect(resumoDaBusca(0, 'Maria Souza')).toBe('0 resultados · Maria Souza · últimos 90 dias');
+  });
+
+  it('com as peças do domain: o nome no resumo é o da opção escolhida e a contagem é a do filtro desse vendedor', () => {
+    const opcoes = opcoesDeVendedor(pedidos);
+    const nome = (id: string) => (id !== TODOS_OS_VENDEDORES ? (opcoes.find((o) => o.id === id)?.nome ?? 'Vendedor') : null);
+    expect(resumoDaBusca(filtrarPorVendedor(pedidos, VEND.lucas).length, nome(VEND.lucas))).toBe('2 resultados · Lucas Andrade · últimos 90 dias');
+    expect(resumoDaBusca(filtrarPorVendedor(pedidos, TODOS_OS_VENDEDORES).length, nome(TODOS_OS_VENDEDORES))).toBe('3 resultados · últimos 90 dias');
+  });
+
+  it('a tela: no ramo da busca o resumo vem de resumoDaBusca(visiveis.length, nomeDoVendedor) e a etiqueta do vendedor aparece só com vendedor escolhido', () => {
+    // nomeDoVendedor nasce de vendedorAtivo, que no Campo é sempre Todos (critério 4): no Campo o resumo nunca tem vendedor
+    expect(TELA).toMatch(/const nomeDoVendedor = vendedorAtivo !== TODOS_OS_VENDEDORES \? \(opcoes\.find\(\(o\) => o\.id === vendedorAtivo\)\?\.nome \?\? 'Vendedor'\) : null/);
+    const ramoBusca = /\{buscando \? \(([\s\S]*?)\) : \(/.exec(TELA)?.[1] ?? '';
+    expect(ramoBusca, 'orders-screen.tsx: ramo `buscando ? (...) : (...)` não encontrado').not.toBe('');
+    expect(ramoBusca).toMatch(/testID="orders-busca-resumo"[\s\S]*?\{resumoDaBusca\(visiveis\.length, nomeDoVendedor\)\}/);
+    expect(ramoBusca).toMatch(/\{nomeDoVendedor \? \(\s*<View[^>]*testID="orders-etiquetas"[^>]*>\s*<EtiquetaFiltro testID="orders-etiqueta-vendedor" texto=\{nomeDoVendedor\}/);
+    // com busca a etiqueta de período não aparece (a busca ignora o período, R1 da T-0077)
+    expect(ramoBusca).not.toMatch(/orders-etiqueta-periodo/);
+    // o ✕ da etiqueta do vendedor, no ramo da busca, volta a Todos
+    expect(ramoBusca).toMatch(/testID="orders-etiqueta-vendedor"[^\n]*onRemover=\{\(\) => setVendedorId\(TODOS_OS_VENDEDORES\)\}/);
+    // o resumo não é mais montado à mão na tela
+    expect(semComentarios(TELA)).not.toMatch(/'resultados'\} · últimos 90 dias/);
+  });
+});
+
+describe('T-0090 UX2 — escolher um período sai dos chips A faturar e Em aberto (vindos do Início)', () => {
+  it('situacaoAoEscolherPeriodo: A faturar e Em aberto → Todos; as demais situações e o "nenhuma escolhida" ficam', () => {
+    expect(situacaoAoEscolherPeriodo('a_faturar')).toBe('todos');
+    expect(situacaoAoEscolherPeriodo('orc_abertos')).toBe('todos');
+    for (const s of ['todos', 'aguardando', 'aprovados', 'rejeitados', 'orcamentos', 'na_fila', 'decide'] as const) expect(situacaoAoEscolherPeriodo(s)).toBe(s);
+    expect(situacaoAoEscolherPeriodo(null)).toBeNull();
+  });
+
+  it('a tela: todo caminho que escolhe período passa por escolherPeriodo, que tira o semPeriodo e a situação do Início', () => {
+    const corpo = /const escolherPeriodo = \(p: Periodo\) => \{([\s\S]*?)\n\s*\};/.exec(TELA)?.[1] ?? '';
+    expect(corpo, 'orders-screen.tsx: escolherPeriodo não encontrado').not.toBe('');
+    expect(corpo).toMatch(/setSemPeriodo\(false\)/);
+    expect(corpo).toMatch(/setSituacao\(\(s\) => situacaoAoEscolherPeriodo\(s\)\)/);
+    expect(corpo).toMatch(/setPeriodo\(p\)/);
+    // setPeriodo só é chamado dentro de escolherPeriodo: atalho, "Escolher dia, mês ou ano", ✕ da etiqueta e Limpar passam por ele
+    expect((semComentarios(TELA).match(/\bsetPeriodo\(/g) ?? []).length).toBe(1);
+    expect(TELA).toMatch(/const aplicarAtalho = \(id: string\) => escolherPeriodo\(/);
+    expect(TELA).toMatch(/onEscolher=\{\(e\) => escolherPeriodo\(periodoDaEscolha\(e\)\)\}/);
+    expect(TELA).toMatch(/onAtalho=\{aplicarAtalho\}/);
+    expect(TELA).toMatch(/const removerPeriodo = \(\) => aplicarAtalho\(ATALHO_PADRAO\)/);
+    // os chips A faturar e Em aberto só aparecem enquanto são a situação atual: saindo deles, somem da linha
+    expect(TELA).toMatch(/\{atual === 'a_faturar' \? <Chip testID="chip-a-faturar"/);
+    expect(TELA).toMatch(/\{atual === 'orc_abertos' \? <Chip testID="chip-orc-abertos"/);
+  });
+});
+
+describe('T-0090 UX5 — a leitura da etiqueta do vendedor é "Remover filtro <nome>", como a do período', () => {
+  it('rotuloRemoverVendedor segue o padrão da etiqueta de período', () => {
+    expect(rotuloRemoverVendedor('Maria Souza')).toBe('Remover filtro Maria Souza');
+    const periodo = 'Este mês';
+    expect(rotuloRemoverVendedor(periodo)).toBe(`Remover filtro ${periodo}`);
+  });
+
+  it('a tela: as duas etiquetas de vendedor (com e sem busca) usam rotuloRemoverVendedor; "Remover filtro de vendedor" saiu', () => {
+    const etiquetas = TELA.match(/<EtiquetaFiltro testID="orders-etiqueta-vendedor"[^\n]*/g) ?? [];
+    expect(etiquetas).toHaveLength(2);
+    for (const e of etiquetas) expect(e).toMatch(/rotuloRemover=\{rotuloRemoverVendedor\(nomeDoVendedor( \?\? 'Vendedor')?\)\}/);
+    expect(semComentarios(TELA)).not.toMatch(/Remover filtro de vendedor/);
+    expect(TELA).toMatch(/testID="orders-etiqueta-periodo"[^\n]*rotuloRemover=\{`Remover filtro \$\{filtro\.etiqueta\}`\}/);
   });
 });
 
