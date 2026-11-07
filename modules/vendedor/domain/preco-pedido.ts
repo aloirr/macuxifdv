@@ -122,8 +122,6 @@ export interface ItemParaPreco {
   quantidade: number;
   /** quantidade de unidades base por unidade vendida (UN = 1, CX c/ 12 = 12) */
   fator: number;
-  /** preço próprio da embalagem na tabela (RN-VEN-15; fila de corte); null = UN × fator */
-  preco_proprio_unidade_cents?: number | null;
   desconto_pct: number;
   acrescimo_pct: number;
   /** T-0071: ajuste em % ou R$ por unidade vendida; quando presente vale no lugar de desconto_pct/acrescimo_pct */
@@ -147,10 +145,10 @@ function exigirFator(fator: number): void {
   if (!Number.isInteger(fator) || fator < 1) throw new Error('RN-VEN-15: fator da unidade inválido.');
 }
 
-/** Preço de tabela da unidade vendida (RN-VEN-15). */
-export function precoTabelaDaUnidade(i: Pick<ItemParaPreco, 'preco_tabela_unidade_cents' | 'fator' | 'preco_proprio_unidade_cents'>): number {
+/** Preço de tabela da unidade vendida (RN-VEN-15 nova, T-0089): sempre preço da unidade × quantidade da embalagem, sem preço de caixa. */
+export function precoTabelaDaUnidade(i: Pick<ItemParaPreco, 'preco_tabela_unidade_cents' | 'fator'>): number {
   exigirFator(i.fator);
-  return i.preco_proprio_unidade_cents ?? i.preco_tabela_unidade_cents * i.fator;
+  return i.preco_tabela_unidade_cents * i.fator;
 }
 
 /** RN-VEN-02 (v2): o preço UNITÁRIO é arredondado e o total da linha é unitário × quantidade. */

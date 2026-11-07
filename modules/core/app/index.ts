@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { definirModuloShell } from '@macuxi/platform-sdk';
 import { manifest } from '../manifest';
 import { comVisitas } from './components/visit-sheets';
+import { consultaFinanceiroClienteAparelho } from './consultas';
 import { etapasCore } from './lib/cargas';
 import { entidadesCliente } from './lib/entidades-cliente';
 import { entidadesMeta } from './lib/entidades-meta';
@@ -52,6 +53,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
   // O card antigo de notificações saiu do slot `inicio.cards` (T-0073): o Início novo mostra as 3 últimas pelo `useInicio()`.
   extensoes: [],
   etapasSync: etapasCore,
+  consultas: [consultaFinanceiroClienteAparelho],
 });
 
 export { TelaLogin, type PropsTelaLogin } from './components/tela-login';

@@ -18,6 +18,9 @@ import { MODULO_PESQUISA, PERFIS_PESQUISA_DEMO } from '../seeds/demo/pesquisa';
 import { dadosDemoPromotor, MARCAS_CONCORRENTES_DEMO, PERFIS_PROMOTOR_DEMO } from '../seeds/demo/promotor';
 import { dadosDemoCatalogoCadastro, ETIQUETAS_DEMO, REFERENCIAS_DEMO } from '../seeds/demo/catalogo-cadastro';
 import { MODULO_TREINAMENTO, PERFIS_TREINAMENTO_DEMO, TRILHAS_DEMO } from '../seeds/demo/treinamento';
+import {
+  CLIENTE_PRAZO_30_DEMO, CLIENTE_SEM_BOLETO_DEMO, dadosDemoPagamento, FAIXAS_DEMO, FORMAS_DEMO, FORMAS_SEM_BOLETO_DEMO, idsPagamentoPadrao, PRAZO_MEDIO_MAX_DEMO,
+} from '../seeds/demo/pagamento';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
 import { comTenant } from '../src/contexto';
 import { anoMes, hojeNoFuso, somarDias } from '../src/datas';
@@ -584,6 +587,71 @@ describe('base de demo (estático)', () => {
   });
 });
 
+describe('base de demo T-0089 (0037): formas e prazos, prazo médio do cliente, tabela escalonada e título vencido (estático)', () => {
+  const hoje = '2026-11-06'; // hora-fixa-ok: dados estáticos (funções puras), nunca comparados ao relógio
+  const d = dadosDemo(HASH_FALSO, { hoje });
+  const p = dadosDemoPagamento({ tenantId: TENANT_DEMO, hoje, dados: d });
+  const parcelas = (s: unknown) => String(s).replace(/[{}]/g, '').split(',').map(Number);
+
+  it('RN-VEN-24: 4 formas na ordem (Pix, Dinheiro, Cartão, Boleto) com os prazos da ficha, só o prazo na descrição e o prazo médio arredondado para cima', () => {
+    expect(p.formas.map((f) => [f.codigo, f.nome, f.ordem, f.ativo])).toEqual([
+      ['PIX', 'Pix', 1, true], ['DINHEIRO', 'Dinheiro', 2, true], ['CARTAO', 'Cartão', 3, true], ['BOLETO', 'Boleto', 4, true],
+    ]);
+    const nomeDaForma = new Map(p.formas.map((f) => [f.id, f.codigo]));
+    expect(p.prazos.map((z) => [nomeDaForma.get(z.forma_pagamento_id), z.codigo, z.descricao, parcelas(z.parcelas_dias), z.prazo_medio_dias])).toEqual([
+      ['PIX', 'PIX-AV', 'À vista', [0], 0],
+      ['DINHEIRO', 'DIN-AV', 'À vista', [0], 0],
+      ['CARTAO', 'CAR-30', '30 dias', [30], 30],
+      ['CARTAO', 'CAR-30-60', '30/60 dias', [30, 60], 45],
+      ['BOLETO', 'BOL-28', '28 dias', [28], 28],
+      ['BOLETO', 'BOL-28-56', '28/56 dias', [28, 56], 42],
+      ['BOLETO', 'BOL-30-60-90', '30/60/90 dias', [30, 60, 90], 60],
+    ]);
+    expect(new Set(p.prazos.map((z) => z.codigo)).size).toBe(p.prazos.length);
+    expect(p.formas.some((f) => f.codigo === 'AVISTA') || p.prazos.some((z) => z.codigo === 'AVISTA')).toBe(false);
+    expect(FORMAS_DEMO.flatMap((f) => f.prazos).length).toBe(7);
+  });
+
+  it('RN-VEN-25: prazo médio 45 em todos os clientes, 30 na Panificadora Pão Dourado; Conveniência Rota 10 sem boleto; os demais com todas as formas', () => {
+    expect(p.clientes).toHaveLength(30);
+    expect(p.clientes.map((c) => c.id)).toEqual(d['core.cliente'].map((c) => c.id));
+    expect(d['core.cliente'][CLIENTE_PRAZO_30_DEMO]!.nome_fantasia).toBe('Panificadora Pão Dourado');
+    expect(d['core.cliente'][CLIENTE_SEM_BOLETO_DEMO]!.nome_fantasia).toBe('Conveniência Rota 10');
+    expect(p.clientes.filter((c) => c.prazo_medio_max_dias !== PRAZO_MEDIO_MAX_DEMO).map((c) => [c.id, c.prazo_medio_max_dias])).toEqual([[p.clientes[CLIENTE_PRAZO_30_DEMO]!.id, 30]]);
+    expect(PRAZO_MEDIO_MAX_DEMO).toBe(45);
+    expect(p.clientes.filter((c) => c.formas_pagamento !== null).map((c) => c.formas_pagamento)).toEqual([[...FORMAS_SEM_BOLETO_DEMO]]);
+    // com 45: só o Boleto 30/60/90 (60) passa do teto; com 30: também o Cartão 30/60 (45) e o Boleto 28/56 (42)
+    const acima = (max: number) => p.prazos.filter((z) => Number(z.prazo_medio_dias) > max).map((z) => z.codigo);
+    expect(acima(45)).toEqual(['BOL-30-60-90']);
+    expect(acima(30)).toEqual(['CAR-30-60', 'BOL-28-56', 'BOL-30-60-90']);
+  });
+
+  it('RN-VEN-23: 3 faixas no BIS-400 (50 UN, 10 CX e 20 CX), preço da unidade base abaixo do Varejo e decrescente, todas as tabelas, vigentes desde o 1º do mês anterior', () => {
+    const bis = d['core.produto'].find((x) => x.sku === 'BIS-400')!;
+    const caixa = d['core.produto_unidade'].find((u) => u.produto_id === bis.id && u.unidade === 'CX')!;
+    expect(caixa.fator).toBe(20);
+    expect(p.faixas.map((f) => [f.produto_id, f.medida, f.quantidade_minima, f.preco_unidade_cents, f.tabela_preco_id, f.vigencia_inicio, f.vigencia_fim, f.ativo])).toEqual([
+      [bis.id, null, 50, 569, null, '2026-10-01', null, true],
+      [bis.id, 'CX', 10, 549, null, '2026-10-01', null, true],
+      [bis.id, 'CX', 20, 529, null, '2026-10-01', null, true],
+    ]);
+    expect(FAIXAS_DEMO).toHaveLength(3);
+    const varejo = d['catalogo.tabela_preco_item'].find((i) => i.produto_id === bis.id && i.unidade === null && i.tabela_preco_id === d['catalogo.tabela_preco'].find((t) => t.codigo === 'VAREJO')!.id);
+    expect(varejo?.preco_cents).toBe(589);
+    for (const f of p.faixas) expect(Number(f.preco_unidade_cents)).toBeLessThan(589);
+  });
+
+  it('RN-VEN-13: pelo menos um cliente com título aberto vencido há mais de 5 dias (titulo_vencido_dias padrão)', () => {
+    const vencidos = d['core.titulo'].filter((t) => t.situacao === 'aberto' && String(t.vencimento) < somarDias(hoje, -5));
+    expect(new Set(vencidos.map((t) => t.cliente_id)).size).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a forma padrão da 0037 tem o id gêmeo do SQL (apagada na demo) e as condições antigas continuam (APK antigo)', () => {
+    expect(idsPagamentoPadrao(TENANT_DEMO).forma).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(d['vendedor.condicao_pagamento'].map((c) => c.codigo)).toEqual(['AVISTA', '28D', '28-56', '30-60-90']);
+  });
+});
+
 describe.skipIf(semBanco())('base de demo (Postgres)', () => {
   let b: BancoDeTeste;
   let pool: pg.Pool;
@@ -762,6 +830,31 @@ describe.skipIf(semBanco())('base de demo (Postgres)', () => {
     expect(r.golA).toEqual(['FOL-G01']);
     expect(r.etiquetas).toEqual([{ e: ['Dianteira', 'Novo'] }]);
     expect(r.marcas).toEqual(expect.arrayContaining(Object.values(MARCAS_CONCORRENTES_DEMO)));
+  });
+
+  it('T-0089 (0037) ligado no carregarDemo: 4 formas e 7 prazos vivos (a "À vista" padrão apagada), clientes com prazo médio, 3 faixas, pelo papel macuxi_app', async () => {
+    const r = await comTenant(pool, TENANT_DEMO, async (c) => ({
+      formas: (await c.query<{ codigo: string }>('select codigo from vendedor.forma_pagamento where deleted_at is null and ativo order by ordem')).rows.map((x) => x.codigo),
+      prazos: (await c.query<{ n: number }>('select count(*)::int as n from vendedor.prazo_pagamento where deleted_at is null and ativo')).rows[0]!.n,
+      padrao: (await c.query<{ codigo: string; apagada: boolean }>('select codigo, deleted_at is not null as apagada from vendedor.forma_pagamento where id = $1', [
+        idsPagamentoPadrao(TENANT_DEMO).forma,
+      ])).rows,
+      boleto2856: (await c.query('select parcelas_dias, prazo_medio_dias from vendedor.prazo_pagamento where codigo = $1 and deleted_at is null', ['BOL-28-56'])).rows,
+      clientes: (await c.query<{ prazo: number; formas: string[] | null; n: number }>(
+        'select prazo_medio_max_dias as prazo, formas_pagamento as formas, count(*)::int as n from core.cliente group by 1, 2 order by 1, 2',
+      )).rows,
+      faixas: (await c.query<{ n: number }>('select count(*)::int as n from catalogo.tabela_escalonada where deleted_at is null and ativo')).rows[0]!.n,
+    }));
+    expect(r.formas).toEqual(['PIX', 'DINHEIRO', 'CARTAO', 'BOLETO']);
+    expect(r.prazos).toBe(7);
+    expect(r.padrao).toEqual([{ codigo: 'AVISTA', apagada: true }]);
+    expect(r.boleto2856).toEqual([{ parcelas_dias: [28, 56], prazo_medio_dias: 42 }]);
+    expect(r.clientes).toEqual([
+      { prazo: 30, formas: null, n: 1 },
+      { prazo: 45, formas: [...FORMAS_SEM_BOLETO_DEMO], n: 1 },
+      { prazo: 45, formas: null, n: 28 },
+    ]);
+    expect(r.faixas).toBe(3);
   });
 
   it('login: o código "demo" resolve o tenant e as senhas são argon2id que conferem', async () => {

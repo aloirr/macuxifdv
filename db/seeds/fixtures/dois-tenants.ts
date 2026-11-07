@@ -45,11 +45,19 @@
  *   levam marca_nome (MARCA_NOME_FIXTURE, retrato do nome do concorrente); a apagada fica nula (linha anterior à 0034).
  * - T-0087 (0036): convites de 1º acesso (core.usuario_convite, grupo 0x08; CONVITES_FIXTURE): A pendente + revogado do
  *   vendedor-2 e usado do promotor; B pendente do vendedor-B, gerado por um super-admin (id sem FK).
+ * - T-0089 (0037; PAGAMENTO_FIXTURE): o gatilho tenant_semear_pagamento cria em A e em B a forma "À vista" (AVISTA) com o
+ *   prazo "À vista" [0] (fora das listas, como os motivos e as medidas; ids em PAGAMENTO_FIXTURE.X.semeada). Nas listas
+ *   (grupos 0x37 e 0x3a): A com as formas PIX (prazo PIX-AV [0]) e BOLETO (external_id FP-BOL; prazos BOL-28-56 [28,56]
+ *   médio 42 com external_id PZ-2856, BOL-30-60-90 [30,60,90] médio 60 e BOL-28 INATIVO) e B com DINHEIRO (DIN-AV [0]); c1
+ *   de A com prazo médio máximo 45 e só PIX e BOLETO; c1 de B com prazo médio máximo 30 e todas as formas (nulo); os demais
+ *   clientes sem nada (nulo). Tabela escalonada (grupo 0x3b): A no p1 com 10 PC a R$ 950,00 (todas as tabelas), 2 CX a
+ *   R$ 900,00 por PC (só a Padrão Alfa) e uma vencida ontem (5 PC); B no p1 com 12 UN a R$ 42,00 (aberta). Nenhum pedido da
+ *   fixture leva forma e prazo (como os do APK antigo; o teste da 0037 grava um em transação desfeita).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
-import { arrayDeTexto, arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
-import { idFixo, idMedida, idMotivoPadrao } from '../../src/ids';
+import { arrayDeInteiros, arrayDeTexto, arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
+import { idDeChave, idFixo, idMedida, idMotivoPadrao } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
 import { dadosGestor, ORDEM_GESTOR } from './gestor';
@@ -137,6 +145,10 @@ const G = {
   plano_rv: 0x39,
   // 0036 (T-0087)
   usuario_convite: 0x08,
+  // 0037 (T-0089)
+  forma_pagamento: 0x37,
+  prazo_pagamento: 0x3a,
+  tabela_escalonada: 0x3b,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -169,6 +181,64 @@ export const CONVITES_FIXTURE = {
     pendente: { id: b('usuario_convite', 1), ...refreshFixture(b('tenant', 1), 'fixtureConviteBetaPendenteSomenteTesteT0087b') },
   },
 } as const;
+
+/**
+ * 0037 (T-0089, RN-VEN-23/24/25): formas, prazos e faixas da fixture. `semeada` = a forma e o prazo "À vista" que o gatilho
+ * tenant_semear_pagamento cria em todo tenant (ids determinísticos, iguais aos da função vendedor.semear_pagamento).
+ */
+export const PAGAMENTO_FIXTURE = {
+  A: {
+    semeada: { forma: idDeChave(`${a('tenant', 1)}:vendedor.forma_pagamento:AVISTA`), prazo: idDeChave(`${a('tenant', 1)}:vendedor.prazo_pagamento:AVISTA`) },
+    formas: { pix: a('forma_pagamento', 1), boleto: a('forma_pagamento', 2) },
+    prazos: { pixAvista: a('prazo_pagamento', 1), bol2856: a('prazo_pagamento', 2), bol306090: a('prazo_pagamento', 3), bol28Inativo: a('prazo_pagamento', 4) },
+    faixas: { un10: a('tabela_escalonada', 1), cx2: a('tabela_escalonada', 2), vencida: a('tabela_escalonada', 3) },
+  },
+  B: {
+    semeada: { forma: idDeChave(`${b('tenant', 1)}:vendedor.forma_pagamento:AVISTA`), prazo: idDeChave(`${b('tenant', 1)}:vendedor.prazo_pagamento:AVISTA`) },
+    formas: { dinheiro: b('forma_pagamento', 1) },
+    prazos: { dinAvista: b('prazo_pagamento', 1) },
+    faixas: { un12: b('tabela_escalonada', 1) },
+  },
+} as const;
+
+function dadosPagamento(hojeA: string, hojeB: string): Pick<DadosFixture, 'vendedor.forma_pagamento' | 'vendedor.prazo_pagamento' | 'catalogo.tabela_escalonada'> {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const PA = PAGAMENTO_FIXTURE.A;
+  const PB = PAGAMENTO_FIXTURE.B;
+  const forma = (id: string, tenant_id: string, codigo: string, nome: string, ordem: number, extra: Partial<Linha> = {}): Linha => ({
+    id, tenant_id, codigo, nome, ativo: true, ordem, deleted_at: null, external_id: null, ...extra,
+  });
+  const prazo = (id: string, tenant_id: string, forma_pagamento_id: string, codigo: string, descricao: string, parcelas: number[], medio: number, ordem: number, extra: Partial<Linha> = {}): Linha => ({
+    id, tenant_id, forma_pagamento_id, codigo, descricao, parcelas_dias: arrayDeInteiros(parcelas), prazo_medio_dias: medio, ativo: true, ordem,
+    deleted_at: null, external_id: null, ...extra,
+  });
+  const faixa = (id: string, tenant_id: string, produto_id: string, medida: string | null, quantidade_minima: number, preco_unidade_cents: number, inicio: string, fim: string | null, tabela_preco_id: string | null): Linha => ({
+    id, tenant_id, produto_id, medida, quantidade_minima, preco_unidade_cents, vigencia_inicio: inicio, vigencia_fim: fim, tabela_preco_id, ativo: true,
+    deleted_at: null, external_id: null,
+  });
+  return {
+    'vendedor.forma_pagamento': [
+      forma(PA.formas.pix, A.tenantId, 'PIX', 'Pix', 1),
+      forma(PA.formas.boleto, A.tenantId, 'BOLETO', 'Boleto', 2, { external_id: 'FP-BOL' }),
+      forma(PB.formas.dinheiro, B.tenantId, 'DINHEIRO', 'Dinheiro', 1),
+    ],
+    'vendedor.prazo_pagamento': [
+      prazo(PA.prazos.pixAvista, A.tenantId, PA.formas.pix, 'PIX-AV', 'À vista', [0], 0, 1),
+      prazo(PA.prazos.bol2856, A.tenantId, PA.formas.boleto, 'BOL-28-56', '28/56 dias', [28, 56], 42, 2, { external_id: 'PZ-2856' }),
+      prazo(PA.prazos.bol306090, A.tenantId, PA.formas.boleto, 'BOL-30-60-90', '30/60/90 dias', [30, 60, 90], 60, 3),
+      prazo(PA.prazos.bol28Inativo, A.tenantId, PA.formas.boleto, 'BOL-28', '28 dias', [28], 28, 1, { ativo: false }),
+      prazo(PB.prazos.dinAvista, B.tenantId, PB.formas.dinheiro, 'DIN-AV', 'À vista', [0], 0, 1),
+    ],
+    // datas civis relativas ao "hoje" de cada tenant (vigência fechada nas duas pontas)
+    'catalogo.tabela_escalonada': [
+      faixa(PA.faixas.un10, A.tenantId, A.produtos.p1, null, 10, 95_000, somarDias(hojeA, -30), null, null),
+      faixa(PA.faixas.cx2, A.tenantId, A.produtos.p1, 'CX', 2, 90_000, somarDias(hojeA, -30), null, A.tabelasPreco.padrao),
+      faixa(PA.faixas.vencida, A.tenantId, A.produtos.p1, null, 5, 97_000, somarDias(hojeA, -60), somarDias(hojeA, -1), null),
+      faixa(PB.faixas.un12, B.tenantId, b('produto', 1), null, 12, 4_200, somarDias(hojeB, -30), null, null),
+    ],
+  };
+}
 
 /**
  * Chave de API da fixture (T-0032): pepper e chaves SÓ de teste. O banco guarda HMAC-SHA256(pepper, chave) em hex, como a
@@ -409,6 +479,10 @@ export const ORDEM_TABELAS = [
   'catalogo.produto_relacao',
   // 0033 (T-0085): referências cruzadas (sem FK para core.produto nem para promotor.concorrente)
   'catalogo.produto_referencia',
+  // 0037 (T-0089): formas e prazos (FK do prazo -> forma) e a tabela escalonada (FK -> catalogo.tabela_preco)
+  'vendedor.forma_pagamento',
+  'vendedor.prazo_pagamento',
+  'catalogo.tabela_escalonada',
   // 0028 (T-0082): plano de RV (FK atualizado_por -> core.usuario)
   'core.plano_rv',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
@@ -627,11 +701,12 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       { id: b('produto', 1), tenant_id: tB, sku: 'BETA-001', ean: '7890000000028', nome: 'Óleo 5W30 1 L', marca: 'Lubrion', categoria: 'Lubrificantes', unidade: 'UN', ativo: true, external_id: 'ERP-B-001' },
     ],
     'core.cliente': [
-      cliente(A.clientes.c1, tA, '33333333000191', 'Auto Peças Um', 'Manaus', 'AM', COORDENADAS.a1),
+      // 0037 (RN-VEN-25): c1 de A com prazo médio máximo 45 e só PIX e BOLETO; c1 de B com 30 e todas as formas
+      cliente(A.clientes.c1, tA, '33333333000191', 'Auto Peças Um', 'Manaus', 'AM', COORDENADAS.a1, { prazo_medio_max_dias: 45, formas_pagamento: arrayDeTextoLivre(['PIX', 'BOLETO']) }),
       cliente(A.clientes.c2, tA, '44444444000191', 'Auto Peças Dois', 'Manaus', 'AM', COORDENADAS.a2),
       // c3 SEM coordenada: o 1º check-in sugere a coordenada ao BKO (RN-CORE-10)
       cliente(A.clientes.c3, tA, '55555555000191', 'Auto Peças Três', 'Manacapuru', 'AM', null),
-      cliente(B.clientes.c1, tB, '66666666000191', 'Mecânica Beta', 'São Paulo', 'SP', COORDENADAS.b1),
+      cliente(B.clientes.c1, tB, '66666666000191', 'Mecânica Beta', 'São Paulo', 'SP', COORDENADAS.b1, { prazo_medio_max_dias: 30 }),
     ],
     'core.carteira': [
       { id: a('carteira', 1), tenant_id: tA, cliente_id: A.clientes.c1, usuario_id: A.usuarios.vendedor1, papel: 'vendedor', inicio: null, fim: null, external_id: null },
@@ -681,6 +756,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     'core.nota_erp': dadosNotaErp(hojeA, hojeB),
     'catalogo.produto_relacao': dadosProdutoRelacao(),
     'catalogo.produto_referencia': dadosProdutoReferencia(),
+    ...dadosPagamento(hojeA, hojeB),
     'core.plano_rv': dadosPlanoRv(hojeA, hojeB),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
@@ -1256,11 +1332,13 @@ function dadosT0013(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaT001
   };
 }
 
-function cliente(id: string, tenant_id: string, documento: string, nome: string, cidade: string, uf: string, coord: readonly [number, number] | null): Linha {
+function cliente(id: string, tenant_id: string, documento: string, nome: string, cidade: string, uf: string, coord: readonly [number, number] | null, extra: Partial<Linha> = {}): Linha {
   return {
     id, tenant_id, documento, razao_social: `${nome} Ltda`, nome_fantasia: nome, segmento: 'Linha leve', telefone: null, email: null,
     logradouro: null, numero: null, bairro: null, cidade, uf, cep: null, latitude: coord?.[0] ?? null, longitude: coord?.[1] ?? null,
     ativo: true, external_id: null,
+    // 0037 (T-0089, RN-VEN-25): nulo = sem teto e todas as formas (§8 P1)
+    prazo_medio_max_dias: null, formas_pagamento: null, ...extra,
   };
 }
 

@@ -9,6 +9,7 @@ import { formatBRL } from '@macuxi/comum';
 import { Badge, ErrorBlock, EtiquetaCadastroIncompleto, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
 import { Cliente360Schema } from '../../../contracts';
 import { dataLocal, listarEnderecosDoCliente, linksDeContato, observacaoComCadastro, situacaoTitulo } from '../../../domain';
+import { PagamentoCliente } from './pagamento-cliente';
 import { useMe } from '../../lib/queries';
 import { quando, rotuloResultado, sinais } from '../../lib/visitas';
 
@@ -102,6 +103,8 @@ function Cliente360Conteudo() {
           ))}
         </ul>
       </Panel>
+
+      <PagamentoCliente key={cliente.id} clienteId={cliente.id} prazoMedioMaxDias={cliente.prazo_medio_max_dias ?? null} formas={cliente.formas_pagamento ?? []} formasDisponiveis={null} />
 
       {/* RN-CORE-17: linha automática no topo, texto do ERP intacto abaixo */}
       <ObservacoesCliente automatica={observacaoComCadastro(null, cliente.cadastro_campos_faltantes ?? [])} texto={cliente.observacao ?? null} />

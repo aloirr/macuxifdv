@@ -5,7 +5,15 @@
 import { definirEntidadeSync } from '@macuxi/platform-sdk';
 import { PedidoPush } from './index';
 import { TransportadoraSyncSchema } from './frete';
-import { ClienteCondicaoSyncSchema, CondicaoPagamentoSyncSchema, PedidoEventoSyncSchema, PedidoItemSyncSchema, PedidoSyncSchema } from './sync';
+import {
+  ClienteCondicaoSyncSchema,
+  CondicaoPagamentoSyncSchema,
+  FormaPagamentoSyncSchema,
+  PedidoEventoSyncSchema,
+  PedidoItemSyncSchema,
+  PedidoSyncSchema,
+  PrazoPagamentoSyncSchema,
+} from './sync';
 
 export const entidadePedido = definirEntidadeSync({
   nome: 'pedido',
@@ -21,4 +29,16 @@ export const entidadeCondicaoPagamento = definirEntidadeSync({ nome: 'condicao_p
 export const entidadeClienteCondicao = definirEntidadeSync({ nome: 'cliente_condicao', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: ClienteCondicaoSyncSchema });
 /** T-0061 (RN-VEN-16): lista de transportadoras do tenant; o app lista só as ativas. */
 export const entidadeTransportadora = definirEntidadeSync({ nome: 'transportadora', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: TransportadoraSyncSchema });
-export const ENTIDADES_VENDEDOR = [entidadePedido, entidadePedidoItem, entidadePedidoEvento, entidadeCondicaoPagamento, entidadeClienteCondicao, entidadeTransportadora] as const;
+/** T-0089 (RN-VEN-24): formas de pagamento e seus prazos (escopo tenant); o app novo usa estas no lugar da condição. */
+export const entidadeFormaPagamento = definirEntidadeSync({ nome: 'forma_pagamento', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: FormaPagamentoSyncSchema });
+export const entidadePrazoPagamento = definirEntidadeSync({ nome: 'prazo_pagamento', modulo: 'vendedor', direcao: 'pull', conflito: 'servidor_vence', schema: PrazoPagamentoSyncSchema });
+export const ENTIDADES_VENDEDOR = [
+  entidadePedido,
+  entidadePedidoItem,
+  entidadePedidoEvento,
+  entidadeCondicaoPagamento,
+  entidadeClienteCondicao,
+  entidadeTransportadora,
+  entidadeFormaPagamento,
+  entidadePrazoPagamento,
+] as const;

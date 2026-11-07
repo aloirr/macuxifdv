@@ -263,3 +263,26 @@ consulta do Promotor.
 **Testes:** `db/testes/referencia-marca-nome.test.ts` (estático: coluna, CHECK, nada fora de `catalogo.*`, sem backfill, espelho
 Drizzle, aparelho sem versão nova, fixture; no CI: retrato no pull de A e B, limites 1..120, vazamento entre tenants e up/down
 com dados).
+
+## 0037 — tabela escalonada (`0037_forma_prazo_escalonada`; T-0089, RN-VEN-23, RN-VEN-15 nova; desenho docs/desenho/T-0089.md §3, §6 e §8)
+### tabela_escalonada — faixa de preço por quantidade. Pull escopo tenant
+| Coluna | Tipo | Regra |
+|---|---|---|
+| produto_id | uuid not null | **sem FK** (core.produto; regra 1, como a `tabela_preco_item`) |
+| medida | text | sigla `^[A-Z]{1,4}$` da medida em que a faixa vale; **nulo = unidade base**. A faixa vale só na medida dela (P3: a de 10 FD não vale para 120 UN) |
+| quantidade_minima | integer not null | > 0, na medida da faixa |
+| preco_unidade_cents | bigint not null | > 0; preço da **unidade base** (o da medida = × a quantidade da embalagem, RN-VEN-15). Faixa acima da tabela não sobe o preço (P4: o domain usa o menor) |
+| vigencia_inicio | date not null | data civil no fuso do tenant (como o Hub manda, `DataCivil`) |
+| vigencia_fim | date | nulo = aberta; **fechada** nas duas pontas: vale de `inicio` a `fim` inclusive (`tabela_escalonada_vigencia_valida`: fim >= início) |
+| tabela_preco_id | uuid | nulo = **todas as tabelas**; FK composta `(tenant_id, tabela_preco_id)` → `tabela_preco` (`tabela_escalonada_tabela_ix`) |
+| ativo | boolean not null | padrão `true` |
+
+Único vivo **`tabela_escalonada_faixa_uk`** `(tenant_id, produto_id, medida, quantidade_minima, tabela_preco_id, vigencia_inicio)
+nulls not distinct where deleted_at is null` — também é o índice da consulta `catalogo.precos_cliente@1` (tenant + `produto_id =
+any(...)`, EXPLAIN no teste). Sem grupo de clientes (P6). Quem escolhe a faixa é o domain do Vendedor (`faixaAplicavel`); o Catálogo
+entrega as vigentes da tabela do cliente e as gerais (a da tabela do cliente vence a geral na mesma medida e quantidade).
+`tabela_escalonada_sync_ix`, `tabela_escalonada_external_uk`. RLS forçado + `manutencao`; `macuxi_app` CRUD. Volume: dezenas por
+produto com faixa (milhares por tenant). Aparelho: sem versão nova do SQLite (a faixa viaja no JSON de `ent_tabela_escalonada`; um
+índice de expressão por produto entra numa v4 quando o modulo-catalogo declarar a entidade, se a leitura pedir).
+Base de demo: BIS-400 com 50 UN a R$ 5,69, 10 CX a R$ 5,49 e 20 CX a R$ 5,29 por UN (todas as tabelas, desde o 1º do mês anterior).
+Fixture: A no p1 com 10 PC (geral), 2 CX (Padrão Alfa) e uma vencida ontem; B no p1 com 12 UN. Volta: o down da 0037 apaga a tabela.

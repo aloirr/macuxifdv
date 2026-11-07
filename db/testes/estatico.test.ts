@@ -88,6 +88,8 @@ const TABELAS_0033 = ['catalogo.produto_referencia'] as const;
 const TABELAS_0035 = [...TABELAS_SO_POR_FUNCAO];
 /** Tabelas novas da 0036 (T-0087 fatia E, convite de 1º acesso; fora do sync; usuario-convite.test.ts). */
 const TABELAS_0036 = ['core.usuario_convite'] as const;
+/** Tabelas novas da 0037 (T-0089, formas e prazos do Vendedor e tabela escalonada do Catálogo; forma-prazo-escalonada.test.ts). */
+const TABELAS_0037 = ['vendedor.forma_pagamento', 'vendedor.prazo_pagamento', 'catalogo.tabela_escalonada'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -140,6 +142,7 @@ describe('migrações (estático)', () => {
     expect(nomes[32]).toBe('0033_catalogo_aplicacao_referencia'); // T-0084/T-0085: aplicação (teto 2.000, peso C na busca, retrato no item) e catalogo.produto_referencia (aplicacao-referencia.test.ts)
     expect(nomes[33]).toBe('0034_catalogo_referencia_marca_nome'); // T-0085 (ADR 0027, risco 2): produto_referencia.marca_nome, retrato nulo do nome da marca, CHECK 1..120, sem backfill (referencia-marca-nome.test.ts)
     expect(nomes[34]).toBe('0035_plataforma_super_admin'); // T-0087 (ADR 0029): super-admin fora dos tenants, funções sa_*, auditoria append-only, provisionar_tenant sem admin e com parâmetros (super-admin.test.ts)
+    expect(nomes[36]).toBe('0037_forma_prazo_escalonada'); // T-0089: forma_pagamento e prazo_pagamento (Vendedor), pagamento do pedido, formas e prazo médio do cliente (Core), tabela_escalonada (Catálogo) e a forma "À vista" semeada (forma-prazo-escalonada.test.ts)
     expect(nomes[35]).toBe('0036_core_usuario_convite'); // T-0087 fatia E (RN-CORE-31): core.usuario_convite (só o hash do token, uso único, sem DEFINER), core.usuario.telefone e anonimizar_usuario com convites (usuario-convite.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
@@ -180,6 +183,7 @@ describe('migrações (estático)', () => {
         ...TABELAS_0033,
         ...TABELAS_0035,
         ...TABELAS_0036,
+        ...TABELAS_0037,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,

@@ -558,6 +558,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         linhasPorIds: (e, ids) => motor.linhasPorIds(e, ids) as never,
         linhasPorCampo: (e, campo, valores) => motor.linhasPorCampo(e, campo, valores) as never,
         versaoLinhas: (e) => motor.versaoLinhas(e),
+        buscarComDesfecho: (indice, consulta) => motor.buscarComDesfecho(indice, consulta),
         agora,
         usuario: () => base.usuario(),
         parametros: parametrosDe,
@@ -565,6 +566,20 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     },
     parametros: parametrosDe,
   });
+  /**
+   * Gancho de reindexação marcada (T-0084): o fuso do tenant (login; sem ele, o padrão) vai para a indexação e cada
+   * índice com `versaoDocumentos` é conferido (virada de ano no fuso do tenant, formato novo). Antes de toda busca, de
+   * cada pull de entidade e do `finalizar`; barato quando nada mudou. Falha aqui nunca impede a busca nem o sync.
+   */
+  const conferirVersoesBusca = async () => {
+    const busca = op.armazenamento.busca;
+    if (!busca?.conferirVersoes) return;
+    try {
+      await busca.conferirVersoes({ fuso: base.usuario()?.fuso });
+    } catch {
+      // o armazenamento do SDK nunca lança aqui; o de fora pode: a busca segue com o índice que tem
+    }
+  };
   const msg = op.mensagemDeErro ?? ((e: unknown) => (e instanceof Error ? e.message : String(e)));
   const ouvintes = new Set<(e: EstadoMotorSync) => void>();
 
@@ -1028,6 +1043,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     aoGravarPagina?: () => void,
   ): Promise<'ok' | 'indisponivel'> => {
     const a = op.armazenamento;
+    // T-0084: o fuso do tenant vale para os documentos de busca montados nesta página (e a versão é conferida)
+    await conferirVersoesBusca();
     const inicio = agora().toISOString();
     /** Menor horizonte entre as páginas: a passada inteira trouxe toda linha com `updated_at` abaixo dele (D-3). */
     let horizonte: string | null = null;
@@ -1209,7 +1226,8 @@ export function criarMotorSync(op: OpcoesMotorSync) {
         await concluir(chaveEtapa(e.id));
         mudar({ carga: carga({ concluidas: feito - 1 }) });
       }
-      // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3)
+      // carga em massa da busca: `rebuild` uma vez no fim (desenho T-0008 §2.3); antes, a versão dos índices (T-0084)
+      await conferirVersoesBusca();
       await op.armazenamento.busca?.finalizar?.();
       await liberarAceitos(coberturas);
       const quando = agora().toISOString();
@@ -1501,7 +1519,10 @@ export function criarMotorSync(op: OpcoesMotorSync) {
             if ((await puxarEntidade(e, coberturas)) === 'indisponivel')
               avisos.push({ entidade: e, codigo: SYNC_NAO_IMPLEMENTADO, mensagem: MENSAGEM_PULL_INDISPONIVEL });
           }
-          if (alvo.length > 0) await op.armazenamento.busca?.finalizar?.();
+          if (alvo.length > 0) {
+            await conferirVersoesBusca();
+            await op.armazenamento.busca?.finalizar?.();
+          }
           await liberarAceitos(coberturas);
           // só agora: se um pull falhar, a próxima consulta repete as mesmas entidades (nada se perde)
           if (cursorNovo) await op.armazenamento.gravar(CHAVE.novidades, cursorNovo);
@@ -1689,7 +1710,9 @@ export function criarMotorSync(op: OpcoesMotorSync) {
      * capacidade no armazenamento, `null` (a tela filtra em memória como antes). Entrada hostil nunca lança.
      */
     async buscar(indice: string, consulta: ConsultaTexto): Promise<ResultadoBusca[] | null> {
-      return op.armazenamento.busca ? op.armazenamento.busca.buscar(indice, consulta) : null;
+      if (!op.armazenamento.busca) return null;
+      await conferirVersoesBusca();
+      return op.armazenamento.busca.buscar(indice, consulta);
     },
 
     /**
@@ -1701,6 +1724,7 @@ export function criarMotorSync(op: OpcoesMotorSync) {
     async buscarComDesfecho(indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca> {
       const busca = op.armazenamento.busca;
       if (!busca) return { buscou: false, motivo: 'sem_busca' };
+      await conferirVersoesBusca();
       if (busca.buscarComDesfecho) return busca.buscarComDesfecho(indice, consulta);
       const resultados = await busca.buscar(indice, consulta);
       return resultados.length > 0 ? { buscou: true, resultados } : { buscou: false, motivo: 'indeterminado' };

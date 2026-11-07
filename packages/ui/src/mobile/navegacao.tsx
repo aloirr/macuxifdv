@@ -3,13 +3,17 @@
  * - `Trilha`: trilha clicável (breadcrumb). Itens anteriores são botões; o último é o lugar atual (não clicável, lido
  *   pelo leitor de tela como "atual"; com `atualTocavel` também vira botão). Quebra de linha quando não cabe; alvo de toque de 48 dp.
  * - `LinhaChips`: uma linha de chips com rolagem horizontal (não empurra a lista para baixo quando há muitos filtros).
+ * - `LinhaAtalho` (T-0085): linha tocável que leva a outra vista da mesma aba ("Ver por linha" no Catálogo). Fundo laranja
+ *   claro para não ser confundida com as linhas brancas da lista; ícone, rótulo, apoio e seta. Ver docs/design/catalogo-por-linha.md.
  * Só apresentação: quem decide o que entra na trilha ou nos chips é a tela/domain do módulo.
  */
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Icon } from './icon';
-import { colors, fonts } from './theme';
+import { leituraDoAtalho } from './componentes';
+import { Icon, type IconName } from './icon';
+import { Pressionavel } from './movimento-rn';
+import { colors, fonts, radius } from './theme';
 
 /** Alvo de toque mínimo destas peças (48 dp, Material). */
 const ALVO = 48;
@@ -90,6 +94,47 @@ export function LinhaChips({ children, sangria = 20, testID }: { children: React
   );
 }
 
+/**
+ * Atalho para outra vista da mesma aba (T-0085; padrão em docs/design/catalogo-por-linha.md). Sem regra: a tela decide
+ * quando mostrar e para onde vai. Alvo de 48 dp (56 com apoio), afunda 0,97 ao toque (só esmaece com "reduzir movimento").
+ * Texto cresce com a fonte do sistema (sem altura fixa): rótulo e apoio quebram em até 2 linhas.
+ */
+export function LinhaAtalho({
+  rotulo,
+  apoio,
+  icone,
+  onPress,
+  rotuloAcessivel,
+  testID = 'linha-atalho',
+}: {
+  /** Ação no infinitivo, curta (até 24 caracteres): "Ver por linha". */
+  rotulo: string;
+  /** Uma linha que diz o que a vista mostra (até 32 caracteres): "Sistema › grupo › linha". */
+  apoio?: string;
+  icone?: IconName;
+  onPress: () => void;
+  /** Sem ela, "rótulo. apoio" com o "›" lido como vírgula (`leituraDoAtalho`). */
+  rotuloAcessivel?: string;
+  testID?: string;
+}) {
+  return (
+    <Pressionavel accessibilityRole="button" accessibilityLabel={rotuloAcessivel ?? leituraDoAtalho(rotulo, apoio)} onPress={onPress} style={[s.atalho, apoio ? s.atalhoComApoio : null]} testID={testID}>
+      {icone ? <Icon name={icone} size={20} color={colors.accentInk} /> : null}
+      <View style={s.atalhoTexto}>
+        <Text style={s.atalhoRotulo} numberOfLines={2}>
+          {rotulo}
+        </Text>
+        {apoio ? (
+          <Text style={s.atalhoApoio} numberOfLines={2}>
+            {apoio}
+          </Text>
+        ) : null}
+      </View>
+      <Icon name="chevron" size={16} color={colors.accentInk} />
+    </Pressionavel>
+  );
+}
+
 const s = StyleSheet.create({
   trilha: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   item: { flexDirection: 'row', alignItems: 'center' },
@@ -101,4 +146,10 @@ const s = StyleSheet.create({
   passoCompacto: { paddingHorizontal: 4 },
   linkCompacto: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
   atualCompacto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.accentInk },
+  // LinhaAtalho: accentSoft com ink 13,9:1, ink2 6,4:1 e accentInk 6,3:1 (todos ≥ 4,5:1)
+  atalho: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: ALVO, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.accentSoft, borderRadius: radius.md },
+  atalhoComApoio: { minHeight: 56 },
+  atalhoTexto: { flex: 1, gap: 2 },
+  atalhoRotulo: { fontFamily: fonts.semibold, fontSize: 15, color: colors.ink },
+  atalhoApoio: { fontFamily: fonts.body, fontSize: 13, color: colors.ink2 },
 });

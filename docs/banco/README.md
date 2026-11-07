@@ -63,6 +63,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > por link, só o sha256 do segredo, único por tenant `(tenant_id, token_hash)`, no máximo 1 pendente por usuário, autor `criado_por_id`/`criado_por_tipo` sem FK;
 > fora do sync; app sem DELETE; **sem SECURITY DEFINER**: o tenant vem no token), `core.usuario.telefone` e
 > `anonimizar_usuario` apagando o telefone e revogando os convites. Detalhes no [core.md](core.md) ("0036").
+>
+> **2026-11-06 (T-0089):** `0037_forma_prazo_escalonada` (aditiva; RN-VEN-23/24/25): `vendedor.forma_pagamento` e
+> `vendedor.prazo_pagamento` (parcelas `int[]` e prazo médio gravado pela API), forma/prazo e retrato do pagamento em
+> `vendedor.pedido` (8 colunas juntas ou nenhuma), `core.cliente.prazo_medio_max_dias` e `formas_pagamento` (códigos, sem FK),
+> `catalogo.tabela_escalonada` (preço da unidade base, vigência em data civil, tabela opcional) e a forma **"À vista"** semeada em
+> todo tenant (backfill + gatilho `tenant_semear_pagamento`). A condição antiga fica como legado. Detalhes no
+> [vendedor.md](vendedor.md), [core.md](core.md) e [catalogo.md](catalogo.md) ("0037").
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:

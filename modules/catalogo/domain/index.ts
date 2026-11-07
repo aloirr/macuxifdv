@@ -20,6 +20,7 @@ export * from './arvore';
 export * from './exportacao';
 export * from './sugestoes';
 export * from './aplicacao';
+export * from './ano-civil';
 export * from './serve-em';
 export * from './cadastro-catalogo';
 export * from './busca-consulta';

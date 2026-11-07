@@ -50,6 +50,35 @@ decidida pela licença do tenant (RN-CORE-27: Início, painel de metas, RV, Faro
 | `pesquisa.etapas_checkout@1` | pesquisa | sim | não (o Campo usa a extensão `visita.etapas_checkout`) | core (`visita_checkout`, baixa por `pesquisa.resposta.registrada@1` e alerta, T-0039 §2) em `usaConsultasOpcionais` (ADR 0019); sem a Pesquisa = sem etapa | ligada no Core em 2026-11-05 (`modules/core/api/etapas-checkout.ts`) |
 | `vendedor.pedidos_da_meta@1` | vendedor | sim | não | core (painel de metas, RN-CORE-21) em `usaConsultasOpcionais` (ADR 0019); sem o Vendedor, cai no `indicador_diario` | oferecida pelo Vendedor; Core religa pelo campo novo (2026-11-03) |
 
+## T-0089 (desenho 06/11): pagamento por forma e prazo, escalonada e crédito no Novo pedido
+
+Tudo aditivo na mesma versão. Detalhes em `docs/desenho/T-0089.md`.
+
+**Consultas:**
+
+| Consulta | Dono | API | Aparelho | Usada por | Situação |
+|---|---|---|---|---|---|
+| `core.financeiro_cliente@1` (nova; era a "próxima prevista" abaixo) | core | sim (RN-VEN-13 no receber) | sim (linhas locais `cliente_financeiro` e `titulo`, `resumoFinanceiro`) | vendedor (`usaConsultas`) | desenho 06/11 (C1/C2) |
+| `vendedor.formas_pagamento@1` (nova) | vendedor | sim | não | core (`usaConsultasOpcionais`, ADR 0019; ficha do cliente no BKO) | desenho 06/11 (V1/V3) |
+| `catalogo.precos_cliente@1` | catalogo | sim | sim | vendedor | **aditivo:** o item ganha `faixas?: { medida \| null, quantidade_minima, preco_unidade_cents }[]` (vigentes em `em`, a faixa da tabela do cliente vence a geral, sem faixas quando o preço não é visível pela RN-CAT-05). `embalagens` deixa de ser preenchido (RN-VEN-15 nova) |
+| `core.cadastro_resumo@1` | core | sim | não | vendedor, catalogo | **aditivo:** o cliente ganha `prazo_medio_max_dias?: int \| null` e `formas_pagamento?: string[] \| null` |
+
+**Entidades de sync:**
+
+| Entidade | Dono | Direção e escopo | O que entra |
+|---|---|---|---|
+| `forma_pagamento` (nova) | vendedor | pull, tenant, servidor vence | `codigo`, `nome`, `ativo`, `ordem` |
+| `prazo_pagamento` (nova) | vendedor | pull, tenant, servidor vence | `forma_pagamento_id`, `codigo` (único no tenant), `descricao`, `parcelas_dias int[]`, `prazo_medio_dias` (média arredondada para cima), `ativo`, `ordem` |
+| `tabela_escalonada` (nova) | catalogo | pull, tenant, servidor vence | `produto_id`, `medida \| null`, `quantidade_minima`, `preco_unidade_cents` (unidade base), vigência, `tabela_preco_id \| null`, `ativo` |
+| `cliente` | core | pull, carteira | `prazo_medio_max_dias?`, `formas_pagamento?` (códigos; nulo ou vazio = todas) |
+| `PedidoPush`, `PedidoSyncSchema`, `Order` | vendedor | push e pull | `forma_pagamento_id?` e `prazo_pagamento_id?` (os dois juntos) e o retrato (`forma_pagamento_nome`, `prazo_descricao`, `prazo_parcelas_dias`, `prazo_medio_dias`). Recusas novas: `RN-VEN-24` e `RN-VEN-25`. Sem os dois, vale o caminho legado da `condicao_pagamento` (APK antigo) |
+| `condicao_pagamento` e `cliente_condicao` | vendedor | pull | **legado**: só para leitura, para o APK antigo; saem numa limpeza futura, com ADR |
+
+**Hub v1:**
+- O `ENTIDADES` ganha `forma_pagamento`, `prazo_pagamento` e `tabela_escalonada` (eventos em `eventos.md`).
+- O `ClientePayload` ganha `prazo_medio_max_dias` e `formas_pagamento`.
+- O `PedidoParaErp` e o `PedidoAprovadoParaFila` ganham `pagamento?`.
+
 ## Entidades de sync e campos aditivos (T-0071)
 
 Mudança só aditiva no @1: o aparelho não valida a linha do pull com `schemaLinha` em tempo de execução (só o teste do provedor), então
@@ -86,6 +115,8 @@ Contrato do `MotorSync` (`@macuxi/platform-sdk`) para os módulos no app. Só ac
 | `LinhasSync.porCampo?` | extensão opcional do armazenamento | SQLite implementa; sem ela o motor filtra `listar` em JS |
 | `motor.buscarComDesfecho(indice, consulta)` (T-0052, 2026-11-05) | `DesfechoBusca`: `{ buscou: true, resultados }` ou `{ buscou: false, motivo }` | Separa "busquei e não achei" (`buscou: true`, `resultados: []`) de "não consegui buscar". `MotivoSemBusca`: `consulta_vazia` (vazia, só símbolos, 1 letra no prefixo), `modulo_indisponivel`, `indice_invalido`, `erro_busca` (FTS recusou), `sem_busca` (armazenamento sem `busca`), `indeterminado` (busca de fora do SDK só com `buscar` e lista vazia). Só `buscou: true` autoriza concluir "nenhum resultado"; `buscou: false` = caminho de reserva (varredura). `resultados` = mesmo conteúdo e ordem de `motor.buscar` |
 | `BuscaTextoSync.buscarComDesfecho?` | extensão opcional da `busca` do armazenamento | SQLite (`BuscaSqlite`, obrigatória) e `comBuscaEmJs` implementam. `buscar`/`motor.buscar` NÃO mudaram (`[]` nos dois casos; `null` sem a capacidade). Testes: `packages/platform-sdk/src/busca.test.ts` (desfecho nos 3 armazenamentos + falhas do SQLite) |
+| `ContextoConsultaAparelho.buscarComDesfecho(indice, consulta)` (T-0084, 2026-11-06) | `DesfechoBusca`, o mesmo do `motor.buscarComDesfecho` | Só nos índices do **próprio** módulo dono da consulta (`<dono>.*`); índice de outro módulo, inclusive de `depende` = `Error` (programação). Até `consulta.limite` (padrão 200, teto 500). `FontesConsultaAparelho.buscarComDesfecho?` ausente = `{ buscou: false, motivo: 'sem_busca' }`: o módulo varre como a aba. Testes: `packages/platform-sdk/src/consultas-busca.test.ts` |
+| `IndiceBusca.versaoDocumentos?(ctx)` e `documento(chave, ler, ctx?)` (T-0084, 2026-11-06) | versão opaca (`string`) calculada só de `ctx = { agora, fuso }` | Versão diferente da guardada (virada de ano no fuso do tenant, formato novo do documento) = o SQLite marca o índice e o reindexa das linhas locais **em segundo plano**: a busca responde com os documentos antigos; o fim do sync espera. App atualizado com índice cheio e sem versão = reindexa uma vez. A marca do L-1 (índice vazio) continua bloqueando a busca. `BuscaTextoSync.conferirVersoes?({ fuso })` é chamado pelo motor antes de cada busca, de cada pull de entidade e do `finalizar`; nunca lança. O SDK sempre passa o `ctx` ao `documento` (opcional só para testes diretos). Testes: `consultas-busca.test.ts` (virada de ano no fuso, segundo plano, app atualizado, marca L-1, motor, busca em JS) |
 
 ## Fila do aparelho: memória segue o disco (SDK, D-T0039d, 2026-11-05)
 

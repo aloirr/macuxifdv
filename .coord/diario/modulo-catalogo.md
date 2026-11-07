@@ -34,3 +34,5 @@
 2026-11-06 — T-0084 — C9 responde no aparelho com o produto do Core (produtosLocais sem ler o concorrente do Promotor), aplicação (C8) memorizada por versaoLinhas com linhasPorCampo; teste 'pastilha uno 2012/2015'
 2026-11-06 — T-0085 — exportação: marca_nome aditivo nas referências (regra nomeMarcaDaReferencia), teste de rota com e sem Promotor (A1 do testes)
 2026-11-06 — T-0084 — A4: ano da consulta só casa no mesmo trecho (;) da aplicação (ranking), 4 testes RN-CAT-12, anoAtual da C9 via ctx.agora()
+2026-11-06 — T-0084 — critério 5: C9 com pré-seleção da aba, ranking com memória por produto/trecho, aplicação só dos candidatos, AND primeiro, versaoDocumentos (virada do ano); tmp-micro removido; p95 de 300 ms não confirmado neste PC (carga), fica para CI/aparelho
+2026-11-06 — T-0084 — critério 5: prefixo da aplicação (/\d/), memória do ranking 800 LRU por produto+ano (< 20 MB, teste), 20 mil só com MACUXI_DESEMPENHO=1, ano no fuso do tenant no ranking, atalho sem mudar o ranking

@@ -60,6 +60,10 @@
  *   marcas próprias do fluido e da câmara mudaram (Dotflex e Pneumaq) para não coincidir com as marcas CONCORRENTES
  *   fictícias da referência cruzada (Freiomax, Rodaforte, Filtrobom e Vialume, no cadastro do Promotor). Referências,
  *   etiquetas e o documento de busca da 0033: catalogo-cadastro.ts.
+ * - T-0089 (0037; desenho T-0089 §7, B4): formas de pagamento e prazos (Pix e Dinheiro à vista; Cartão 30 e 30/60; Boleto
+ *   28, 28/56 e 30/60/90), prazo médio máximo 45 nos clientes (30 na Panificadora Pão Dourado), formas restritas na
+ *   Conveniência Rota 10 (sem boleto), 3 faixas escalonadas no BIS-400 e a forma padrão "À vista" da 0037 apagada:
+ *   pagamento.ts. As condições antigas (acima) continuam, para o APK antigo; o título vencido já está nos 8 clientes.
  *
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
@@ -77,6 +81,7 @@ import { hashSenha, verificarSenha } from '../../src/senha';
 import { carregarDemoGestor } from './gestor';
 import { gravarDemoCatalogoCadastro } from './catalogo-cadastro';
 import { gravarDemoMedidas } from './medidas';
+import { gravarDemoPagamento } from './pagamento';
 import { gravarPesquisaDemo } from './pesquisa';
 import { gravarDemoPlanoRv } from './plano-rv';
 import { gravarDemoPromotor } from './promotor';
@@ -1379,6 +1384,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     await gravarTreinamentoDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0028 (T-0082): plano de RV do vendedor vigente desde o mês do primeiro seed (plano-rv.ts; banco sem a 0028 = nada)
     await gravarDemoPlanoRv(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, atualizadoPor: idUsuarioDemo('analista') });
+    // 0037 (T-0089): formas e prazos, prazo médio e formas do cliente, tabela escalonada; apaga a forma padrão da 0037 (pagamento.ts)
+    await gravarDemoPagamento(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });
     // 0014 (T-0055): licença do Gestor (supervisor, gerente, analista, admin) e projeção montada pelo domain do Gestor
     await carregarDemoGestor(admin, dados);
     // 0022 (T-0079): o --recriar apagou e regravou o tenant; gira a geração da base para o aparelho limpar a cópia local

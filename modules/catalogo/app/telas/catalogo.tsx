@@ -116,7 +116,7 @@ export default function TelaCatalogo() {
         ...(ids ? { only_product_ids: ids } : {}),
         ...(dentroDoPedido ? { only_sellable: true } : {}),
       };
-      const r = consulta ? await buscarLocal(motor, { ...entrada, q: consulta, chips, limit: POR_PAGINA, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: POR_PAGINA, offset: 0 });
+      const r = consulta ? await buscarLocal(motor, { ...entrada, fuso, q: consulta, chips, limit: POR_PAGINA, offset: 0, offline: aviso === AVISO_BUSCA_OFFLINE }) : await vitrineLocal(motor, { ...entrada, chips, limit: POR_PAGINA, offset: 0 });
       return { itens: r.items, total: r.total, aviso: consulta ? aviso : null, origem: 'aparelho' as const };
     };
     const carregar = async () => {

@@ -16,6 +16,7 @@
 import type { z } from 'zod';
 import { ErroHttpModulo } from './api';
 import type { AmbienteAparelho, AmbienteModulo, UsuarioAmbiente } from './ambiente';
+import type { ConsultaTexto, DesfechoBusca } from './busca-tipos';
 import type { DefinicaoConsulta } from './consultas-tipos';
 import { consultasDeclaradas, type Manifesto } from './manifesto';
 import { lerNomeConsulta, type ModuloId } from './nomes';
@@ -111,6 +112,14 @@ export interface ContextoConsultaAparelho {
    * Leia ANTES das linhas e guarde o derivado com ela.
    */
   versaoLinhas(entidade: string): number;
+  /**
+   * Busca textual nos índices do PRÓPRIO módulo (`definirModuloShell({ indicesBusca })`; T-0084): a mesma do
+   * `motor.buscarComDesfecho` que a aba usa (FTS5 no SQLite, `bm25` com os pesos do índice, `MATCH ?` por parâmetro,
+   * até `consulta.limite` resultados, padrão 200 e teto 500 de `LIMITES_CONSULTA`), para a pré-seleção de candidatos
+   * antes do ranking do domain. `buscou: false` (sem SQLite, consulta vazia, índice inválido, erro do FTS) = não
+   * conclua "nenhum produto": varra como a aba. Índice de outro módulo (inclusive de `depende`) = erro de programação.
+   */
+  buscarComDesfecho(indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca>;
   agora(): Date;
   usuario(): UsuarioAmbiente | null;
   parametros(): Readonly<Record<string, unknown>>;
@@ -138,6 +147,8 @@ export interface FontesConsultaAparelho {
   linhasPorIds<L extends { id: string }>(entidade: string, ids: readonly string[]): Promise<L[]>;
   linhasPorCampo<L extends { id: string }>(entidade: string, campo: string, valores: readonly ValorCampoLinha[]): Promise<L[]>;
   versaoLinhas(entidade: string): number;
+  /** Busca do motor (`motor.buscarComDesfecho`). Ausente = `{ buscou: false, motivo: 'sem_busca' }`. */
+  buscarComDesfecho?(indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca>;
   agora(): Date;
   usuario(): UsuarioAmbiente | null;
   parametros(modulo: ModuloId): Readonly<Record<string, unknown>>;
@@ -206,6 +217,11 @@ export function criarRegistroConsultasAparelho(
         versaoLinhas: (entidade: string) => {
           legivel(entidade);
           return f.versaoLinhas(entidade);
+        },
+        buscarComDesfecho: async (indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca> => {
+          // ids de índice são `<modulo>.<nome>` (definirIndiceBusca): só os do dono da consulta
+          if (!indice.startsWith(`${dono}.`)) throw new Error(`Consulta ${def.nome}: só busca nos índices de ${dono} (pediu ${indice})`);
+          return f.buscarComDesfecho ? f.buscarComDesfecho(indice, consulta) : { buscou: false, motivo: 'sem_busca' };
         },
         agora: () => f.agora(),
         usuario: () => f.usuario(),

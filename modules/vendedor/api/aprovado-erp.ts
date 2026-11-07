@@ -25,6 +25,12 @@ interface LinhaAprovado {
   endereco_entrega: Record<string, unknown> | null;
   codigo: string | null;
   criado_em: string;
+  forma_pagamento_codigo: string | null;
+  prazo_codigo: string | null;
+  prazo_parcelas_dias: number[] | null;
+  prazo_medio_dias: number | null;
+  forma_external_id: string | null;
+  prazo_external_id: string | null;
 }
 
 const texto = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v : null);
@@ -36,6 +42,9 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
               p.frete_modalidade, p.transportadora_id, p.transportadora_digitada, p.transportadora_nome, p.transportadora_documento,
               p.transportadora_telefone, p.endereco_entrega,
               (select codigo from vendedor.condicao_pagamento c where c.id = p.condicao_pagamento_id) as codigo,
+              p.forma_pagamento_codigo, p.prazo_codigo, p.prazo_parcelas_dias, p.prazo_medio_dias,
+              (select external_id from vendedor.forma_pagamento f where f.id = p.forma_pagamento_id) as forma_external_id,
+              (select external_id from vendedor.prazo_pagamento z where z.id = p.prazo_pagamento_id) as prazo_external_id,
               coalesce(to_char(p.criado_no_aparelho_em at time zone 'UTC', ${UTC}), to_char(p.recebido_em at time zone 'UTC', ${UTC})) as criado_em
          from vendedor.pedido p where p.id = $1`,
       [pedidoId],
@@ -80,7 +89,19 @@ export async function payloadAprovado(db: ClienteBanco, tx: TransacaoTenant, ped
     pedido_uuid: pedidoId,
     cliente_external_id: cad.clientes[0]?.external_id ?? null,
     vendedor_external_id: cad.usuarios.find((u) => u.id === p.vendedor_id)?.external_id ?? null,
-    condicao_pagamento_codigo: p.codigo,
+    // T-0089: pedido novo leva o código do PRAZO (o de-para do Hub continua valendo); o antigo, o da condição
+    condicao_pagamento_codigo: p.prazo_codigo ?? p.codigo,
+    pagamento:
+      p.forma_pagamento_codigo && p.prazo_codigo && p.prazo_parcelas_dias && p.prazo_medio_dias !== null
+        ? {
+            forma_codigo: p.forma_pagamento_codigo,
+            forma_external_id: p.forma_external_id,
+            prazo_codigo: p.prazo_codigo,
+            prazo_external_id: p.prazo_external_id,
+            parcelas_dias: p.prazo_parcelas_dias.map(Number),
+            prazo_medio_dias: Number(p.prazo_medio_dias),
+          }
+        : null,
     criado_em: p.criado_em,
     aprovado_em: aprovadoEm,
     observacao: p.observacao,

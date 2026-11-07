@@ -5,7 +5,11 @@ import { politicaApi } from './pull';
 import {
   alternarUnidade,
   calcularPedido,
-  embalagensDaConsulta,
+  ajusteDoTipo,
+  faixasPorProduto,
+  tipoDoAjuste,
+  trocarTipoDoAjuste,
+  valorDoAjuste,
   chaveDaLinha,
   enderecosDoCliente,
   freteValido,
@@ -140,25 +144,22 @@ describe('RN-VEN-17: endereço de entrega', () => {
   });
 });
 
-describe('embalagens[] do catalogo.precos_cliente@1 (RN-VEN-15 / RN-CAT-06)', () => {
-  it('RN-VEN-15: a caixa usa o preço próprio da embalagem quando a consulta traz; a UN continua pelo preço da unidade', () => {
-    // CX de 12 a R$ 100,00 (preço próprio) em vez de 12 × R$ 10,00 = R$ 120,00
-    const c = calcularPedido(entrada({ lines: { 'a@CX': 2, b: 1 }, embalagens: { a: { CX: 10_000 } } }));
-    expect(c.linhas.find((l) => l.chave === 'a@CX')!.total_cents).toBe(20_000);
+describe('RN-VEN-15 e RN-VEN-23: embalagem = UN x fator e faixa escalonada no aparelho', () => {
+  it('RN-VEN-15: a caixa é sempre unidade × fator, sem preço próprio de caixa', () => {
+    const c = calcularPedido(entrada({ lines: { 'a@CX': 2, b: 1 } }));
+    expect(c.linhas.find((l) => l.chave === 'a@CX')!.total_cents).toBe(24_000);
     expect(c.linhas.find((l) => l.chave === 'b')!.total_cents).toBe(5000);
   });
-  it('RN-VEN-15: sem embalagens[] na consulta, a caixa é unidade × fator (como antes)', () => {
-    const c = calcularPedido(entrada({ lines: { 'a@CX': 2 } }));
-    expect(c.linhas[0]!.total_cents).toBe(24_000);
+  it('RN-VEN-23: a faixa entra ao atingir a quantidade e sai ao reduzir', () => {
+    const faixas = { a: [{ medida: 'CX', quantidade_minima: 10, preco_unidade_cents: 900 }] };
+    // a: R$ 10,00 a unidade, CX de 12 = 12.000; na faixa, 12 x 900 = 10.800 por CX
+    expect(calcularPedido(entrada({ lines: { 'a@CX': 10 }, faixas })).linhas[0]!.preco_tabela_cents).toBe(10_800);
+    expect(calcularPedido(entrada({ lines: { 'a@CX': 9 }, faixas })).linhas[0]!.preco_tabela_cents).toBe(12_000);
   });
-  it('RN-VEN-15: embalagensDaConsulta indexa por produto e unidade e ignora item sem embalagens', () => {
-    expect(
-      embalagensDaConsulta([
-        { produto_id: 'a', embalagens: [{ unidade: 'CX', preco_cents: 10_000 }] },
-        { produto_id: 'b' },
-        { produto_id: 'c', embalagens: [] },
-      ]),
-    ).toEqual({ a: { CX: 10_000 } });
+  it('RN-VEN-23: faixasPorProduto indexa por produto e ignora item sem faixa', () => {
+    expect(faixasPorProduto([{ produto_id: 'a', faixas: [{ medida: 'CX', quantidade_minima: 10, preco_unidade_cents: 900 }] } as never, { produto_id: 'b' }])).toEqual({
+      a: [{ medida: 'CX', quantidade_minima: 10, preco_unidade_cents: 900 }],
+    });
   });
 });
 
@@ -222,5 +223,23 @@ describe('T-0071: preço v2 no app (RN-VEN-02/03/10) com ajuste em % ou R$', () 
     const c = calcularPedido(entrada({ lines: { 'a@CX': 2 }, ajustes: { 'a@CX': { em: 'valor', desconto_cents: 500, desconto_pct: 7 } } }));
     expect(c.linhas[0]).toMatchObject({ preco_unitario_cents: 11_500, total_cents: 23_000 });
     expect(linhasParaPush(c.linhas)).toEqual([{ product_id: 'a', quantity: 2, unidade: 'CX', desconto_unitario_cents: 500, ajuste_em: 'valor' }]);
+  });
+});
+
+describe('T-0089: tipo do ajuste do item (Desc % · Desc R$ · Acrésc % · Acrésc R$)', () => {
+  it('RN-VEN-02: o tipo e o valor saem do ajuste do rascunho', () => {
+    expect(tipoDoAjuste({})).toBe('desc_pct');
+    expect(tipoDoAjuste({ em: 'pct', acrescimo_pct: 3 })).toBe('acresc_pct');
+    expect(tipoDoAjuste({ em: 'valor', desconto_cents: 89 })).toBe('desc_reais');
+    expect(valorDoAjuste({ em: 'valor', acrescimo_cents: 120 })).toBe(120);
+  });
+  it('RN-VEN-02: ajusteDoTipo nunca grava desconto e acréscimo juntos', () => {
+    expect(ajusteDoTipo('acresc_pct', 5)).toEqual({ em: 'pct', acrescimo_pct: 5 });
+    expect(ajusteDoTipo('desc_reais', 89)).toEqual({ em: 'valor', desconto_cents: 89 });
+  });
+  it('RN-VEN-02: trocar de desconto para acréscimo mantém o número; de % para R$ usa o equivalente da linha', () => {
+    expect(trocarTipoDoAjuste({ em: 'pct', desconto_pct: 5 }, 'acresc_pct', null)).toEqual({ em: 'pct', acrescimo_pct: 5 });
+    expect(trocarTipoDoAjuste({ em: 'pct', desconto_pct: 5 }, 'desc_reais', { cents: 89, pct_exibicao: 5 })).toEqual({ em: 'valor', desconto_cents: 89 });
+    expect(trocarTipoDoAjuste({ em: 'valor', desconto_cents: 100 }, 'acresc_pct', { cents: 100, pct_exibicao: 5.3 })).toEqual({ em: 'pct', acrescimo_pct: 5.3 });
   });
 });
