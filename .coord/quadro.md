@@ -2,6 +2,15 @@
 
 > Dono: gerente-projetos. Status: aberta → em_andamento → em_teste → em_revisao → concluida (ou bloqueada).
 
+> **Próximo build de preview (R-20261107-092152, dono do produto):** um build só, de Campo e Gestão juntos. Ele sai quando todas as condições valerem:
+> 1. #95, #96 e #97 integrados ao main ou devolvidos com o motivo;
+> 2. o atalho "Ver por linha" no main;
+> 3. CI verde e demo publicada no commit exato;
+> 4. nenhum lote ou tarefa em andamento mexendo em `apps/mobile` ou `modules/*/app`;
+> 5. com as correções dos bugs do teste do e9a65286 que chegarem antes.
+>
+> Ao sair, o recado "BUILD PRONTO <sha>" leva os links e o roteiro. Se até as 18h de 07/11 as condições não se fecharem, mando recado com o que falta. Nenhum build intermediário.
+
 | Tarefa | Título | Responsável | Onde | Status |
 |---|---|---|---|---|
 | [T-0001](tarefas/T-0001.md) | Reestruturar o monorepo em modules/ + platform-sdk | engenheiro-software | local | concluida (277/277 da Fase M · Fase M intacta · fronteiras ✅ · revisão sem 🔴) |
@@ -117,8 +126,8 @@ Ordem (ondas do desenho, docs/desenho/T-0016.md §9): onda 1 banco lote A + core
 | [T-0088](tarefas/T-0088.md) | SQLite no motor de sync do app (Campo e Gestão), para a busca offline com 20 mil produtos (critério 5 da T-0084) — Sprint 9 | engenheiro-software, engenheiro-apps, banco-dados, modulo-catalogo, testes | local | em_teste (07/11 0h54: no main em e9a65286, CI verde e demo publicada; APK de preview em build; falta a conferência e a medição no aparelho) |
 | [T-0089](tarefas/T-0089.md) | Novo pedido: aba Itens revisada; formas de pagamento e prazos com prazo médio; tabela escalonada; crédito do cliente em Detalhes; bug do + — Sprint 9 | engenheiro-software, banco-dados, modulo-vendedor, modulo-core, modulo-integracao, engenheiro-apps, designer-ux, testes | local | em_teste (06/11 22h31: no main em 5a1848a9, com CI e stack verdes e revisões sem 🔴; falta a conferência do dono do produto no APK e a base demo recriada) |
 | [T-0090](tarefas/T-0090.md) | Pedidos: filtro de período num botão só (modelo A) e troca sem atraso (< 100 ms) — Sprint 9 | modulo-vendedor, designer-ux, engenheiro-apps, testes | local | em_teste (06/11 22h31: no main em 5a1848a9; falta a conferência no APK) |
-| [T-0091](tarefas/T-0091.md) | Super-admin em papel de banco próprio (condição da ADR 0029, antes do 1º cliente real) — Sprint 10 | engenheiro-software, banco-dados, modulo-core, testes | local | em_teste (07/11 0h54: no main em e9a65286, CI e stack verdes; falta o ok no ajuste do stack-isolado.yml e a senha do portal na VM) |
-| [T-0092](tarefas/T-0092.md) | Hub: openapi.json público, ajv/ajv-formats devDependency, hub-api.md §15 (pendências do #99) — Sprint 10 | engenheiro-software, modulo-integracao | local | aberta (06/11 23h: depois do merge do #99) |
+| [T-0091](tarefas/T-0091.md) | Super-admin em papel de banco próprio (condição da ADR 0029, antes do 1º cliente real) — Sprint 10 | engenheiro-software, banco-dados, modulo-core, testes | local | em_teste (07/11 8h: no main; engenheiro-software corrige a sonda do diff do stack-isolado.yml (R-20261107-080049); depois, ok do dono do produto; demo sem as chaves do portal, por configuração) |
+| [T-0092](tarefas/T-0092.md) | Hub: openapi.json público, ajv/ajv-formats devDependency, hub-api.md §15 (pendências do #99) — Sprint 10 | engenheiro-software, modulo-integracao | local | em_andamento (07/11 7h55: #99 no main em d27f7903; modulo-integracao e engenheiro-software trabalhando) |
 | [T-0070](tarefas/T-0070.md) | Pendências locais antes da demo das 15h (seed, espelhos, Hub, revisão do Treinamento, testes) | gerente-projetos | local | concluida (demo das 15h no ar em ca61571 · APKs do ac4ca3b · demo-no-ar 41 OK) |
 | [T-0066](tarefas/T-0066.md) | Consumidores dos eventos da Integração nos módulos donos (ciclo ERP → Macuxi) — Sprint 2 | modulo-core | local | concluida (consumidor de nota 96a567f; 🟡 da guarda de ordem no backlog, antes do 1º tenant real) |
 | [T-0065](tarefas/T-0065.md) | Apuração da meta pelo tipo e atualização automática de 3–5 min — Sprint 4 | modulo-core | local + nuvem | concluida no escopo da demo (apuração por tipo, push, Sincronizar, banco de testes 5434); falta o passo pnpm timers no CI (ci.yml de governança, aguarda autorização) |
