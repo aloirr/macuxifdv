@@ -208,6 +208,41 @@ puxadas sem o campo só o ganham quando o servidor as regrava (o `updated_at` av
 **Caminho de volta:** o da §3. App com v2 num aparelho em v3 apaga os objetos `catalogo__*` e reaplica v1 e v2; as linhas
 ficam.
 
+### 4.3 Catálogo, versão 4 — índices da lista por linha (T-0085, 2026-11-07)
+
+Origem: 🟡 de desempenho da revisão R-20261107-111809 (engenheiro-apps) sobre a lista por linha (sistema › grupo › linha,
+#95), que lê o SQLite do aparelho em `modules/catalogo/app/lib/lista-por-linha-local.ts`. Duas leituras por
+`linhasPorCampo` ainda varriam a tabela inteira:
+
+```sql
+CREATE INDEX catalogo__produto_no_no ON ent_produto_no (json_extract(dados, '$.no_id'));
+CREATE INDEX catalogo__produto_relacao_produto ON ent_produto_relacao (json_extract(dados, '$.produto_id'));
+```
+
+| Índice | Consulta servida | Volume esperado |
+|---|---|---|
+| `catalogo__produto_no_no` | `linhasPorCampo('produto_no', 'no_id', nós do nível aberto e descendentes)` | ~1 vínculo por produto (20 mil) |
+| `catalogo__produto_relacao_produto` | `linhasPorCampo('produto_relacao', 'produto_id', itens da tela)` (até 100) | até ~1,5 por produto |
+
+- Mesma expressão do SDK (§4.1); o teste confere `SEARCH ... USING INDEX` com o SQL exato do `linhasPorCampo`, com a
+  tabela vazia e com dados (teste "v3 → v4 real").
+- Medição no PC (`node:sqlite`, 20 mil vínculos em 400 linhas, 30 mil relações; mediana de 20 leituras):
+
+  | Leitura | Sem índice | Com índice |
+  |---|---|---|
+  | vínculos de 1 linha (~50) | 144 ms | 0,7 ms |
+  | vínculos de 1 sistema com 40 linhas (~2 mil) | 194 ms | 45 ms |
+  | relações de 100 produtos | 202 ms | 2,4 ms |
+
+- **Fora do alcance de índice:** a raiz da lista (`raiz()` no mesmo arquivo) lê `linhas('produto_no')` e
+  `linhas('produto')` inteiras (20 mil JSON cada) e ordena em memória; isso fica com o modulo-catalogo (ordenação e
+  forma da consulta). Também leem a tabela inteira de `produto_relacao`: `app/lib/local.ts` (ficha) e `app/sugestoes.ts`;
+  com o índice, podem passar a `linhasPorCampo('produto_relacao', 'produto_id', ids)`.
+- **Subida v3 → v4:** só os dois `CREATE INDEX`, na transação da versão, sobre as linhas já em `ent_*`. Nada é apagado,
+  repuxado nem reindexado: FTS (mesmos `rid`), linhas e cursores intactos (teste "v3 → v4 real").
+- **Caminho de volta:** o da §3. App com v3 num aparelho em v4 apaga os objetos `catalogo__*` e reaplica v1 a v3; as
+  linhas ficam.
+
 ## 5. Clientes (500 por vendedor) — sem FTS
 O Core não usa FTS (desenho T-0016 §8): a carteira (500) é lida de `ent_cliente` e filtrada em memória (normalização
 igual à da busca). Medido em §8: p95 bem abaixo de 300 ms no Node. **Gatilho** para um índice próprio

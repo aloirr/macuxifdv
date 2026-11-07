@@ -61,8 +61,10 @@ describe('0034 produto_referencia.marca_nome (estático)', () => {
     expect(col?.hasDefault).toBe(false);
   });
 
-  it('aparelho: sem versão nova (o retrato viaja no JSON de ent_produto_referencia); a última continua a v3', () => {
-    expect(migracoesAparelho.map((m) => m.versao)).toEqual([1, 2, 3]);
+  it('aparelho: sem versão nova (o retrato viaja no JSON de ent_produto_referencia); a v4 (T-0085) só traz índices da lista por linha', () => {
+    // até a v3 nada mudou por causa desta migração; a v4 é só de índices (produto_no e produto_relacao)
+    expect(migracoesAparelho.map((m) => m.versao).slice(0, 3)).toEqual([1, 2, 3]);
+    expect(migracoesAparelho.some((m) => m.sql.includes('marca_nome'))).toBe(false);
   });
 
   it('fixture: vivas com o nome do concorrente do Promotor do mesmo tenant (1..120); a apagada nula', () => {

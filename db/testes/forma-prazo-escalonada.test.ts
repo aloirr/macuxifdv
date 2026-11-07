@@ -209,8 +209,10 @@ describe('0037 formas, prazos e tabela escalonada (estático)', () => {
     expect(col(nuvemCatalogo.tabelaEscalonada, 'tabela_preco_id').notNull).toBe(false);
   });
 
-  it('aparelho: sem versão nova (a faixa viaja no JSON de ent_tabela_escalonada); a última continua a v3', () => {
-    expect(migracoesAparelho.map((m) => m.versao)).toEqual([1, 2, 3]);
+  it('aparelho: sem versão nova (a faixa viaja no JSON de ent_tabela_escalonada); a v4 (T-0085) só traz índices da lista por linha', () => {
+    // até a v3 nada mudou por causa desta migração; a v4 é só de índices (produto_no e produto_relacao)
+    expect(migracoesAparelho.map((m) => m.versao).slice(0, 3)).toEqual([1, 2, 3]);
+    expect(migracoesAparelho.some((m) => m.sql.includes('tabela_escalonada'))).toBe(false);
   });
 
   it('fixture: forma semeada com id gêmeo do SQL; prazo médio = média arredondada para cima; códigos únicos no tenant; c1 de A com 45 e PIX/BOLETO', () => {

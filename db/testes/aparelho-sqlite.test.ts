@@ -297,7 +297,9 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
       'index catalogo__estoque_saldo_produto',
       'index catalogo__produto_atributo_produto',
       'index catalogo__produto_conteudo_produto',
+      'index catalogo__produto_no_no',
       'index catalogo__produto_referencia_produto',
+      'index catalogo__produto_relacao_produto',
       'index catalogo__tabela_preco_item_produto',
     ]);
     expect([...COLUNAS_BUSCA_CATALOGO]).toEqual(['sku', 'ean', 'codigos', 'nome', 'marca', 'categoria', 'atributos', 'aplicacao', 'referencias']);
@@ -378,6 +380,9 @@ describe('aparelho: DDL da busca do Catálogo (modules/catalogo/db/aparelho.ts)'
     ['produto_conteudo', 'produto_id', 'catalogo__produto_conteudo_produto'],
     ['produto_atributo', 'produto_id', 'catalogo__produto_atributo_produto'],
     ['produto_referencia', 'produto_id', 'catalogo__produto_referencia_produto'],
+    // v4 (T-0085): lista por linha (vínculos do nível aberto e "oferece junto" dos itens da tela)
+    ['produto_no', 'no_id', 'catalogo__produto_no_no'],
+    ['produto_relacao', 'produto_id', 'catalogo__produto_relacao_produto'],
   ])('linhasPorCampo(%s, %s) usa o índice de expressão %s (EXPLAIN QUERY PLAN)', async (entidade, campo, indice) => {
     const d = await bancoComCatalogo();
     const plano = await d.todas<{ detail: string }>(
@@ -544,7 +549,7 @@ describe('aparelho: migrações por versão (subida só para frente; downgrade r
     await d.fechar();
 
     // app novo (v3): recria a FTS (documentos antigos saem), marca a reindexação e reconstrói de ent_* na primeira busca
-    a = abrirArmazenamento(criarDriverNode(arquivo));
+    a = abrirArmazenamento(criarDriverNode(arquivo), migracoesAparelho.filter((m) => m.versao <= 3));
     await a.pronto;
     expect(a.modulosIndisponiveis()).toEqual([]);
     d = criarDriverNode(arquivo);
@@ -576,6 +581,76 @@ describe('aparelho: migrações por versão (subida só para frente; downgrade r
     await a.busca.finalizar!();
     expect(await achar([['rf7788']])).toEqual([uuid(1, 3)]);
     expect((await a.linhas.porCampo!('produto_referencia', 'produto_id', [uuid(1, 1), uuid(1, 3)])).map((l) => l.id).sort()).toEqual([uuid(11, 1), uuid(11, 4)].sort());
+    await a.fechar();
+  });
+
+  it('v3 → v4 real (T-0085, lista por linha): só os 2 índices novos; linhas, FTS e cursores preservados; linhasPorCampo igual', async () => {
+    const arquivo = join(pastaTemporaria(), 'macuxi-u-v3-v4.db');
+    const ATE_V3 = migracoesAparelho.filter((m) => m.versao <= 3);
+    const linha = (prefixo: number, i: number, dados: Record<string, unknown>): LinhaSync => ({ id: uuid(prefixo, i), updated_at: QUANDO, deleted_at: null, ...dados });
+    // árvore sistema › grupo › linha (2 linhas) e 4 produtos: 1 e 2 na linha A, 3 na linha B, 4 sem linha
+    const sistema = linha(12, 1, { pai_id: null, nivel: 1, codigo: 'S1', nome: 'Freios', ordem: 1, ativo: true });
+    const grupo = linha(12, 2, { pai_id: sistema.id, nivel: 2, codigo: 'G1', nome: 'Pastilhas', ordem: 1, ativo: true });
+    const linhaA = linha(12, 3, { pai_id: grupo.id, nivel: 3, codigo: 'L1', nome: 'Leves', ordem: 1, ativo: true });
+    const linhaB = linha(12, 4, { pai_id: grupo.id, nivel: 3, codigo: 'L2', nome: 'Pesados', ordem: 2, ativo: true });
+    const vinculos = [linha(13, 1, { produto_id: uuid(1, 1), no_id: linhaA.id }), linha(13, 2, { produto_id: uuid(1, 2), no_id: linhaA.id }), linha(13, 3, { produto_id: uuid(1, 3), no_id: linhaB.id })];
+    const relacoes = [
+      linha(14, 1, { produto_id: uuid(1, 1), relacionado_id: uuid(1, 2), tipo: 'complementar', ordem: 1, ativo: true }),
+      linha(14, 2, { produto_id: uuid(1, 1), relacionado_id: uuid(1, 4), tipo: 'complementar', ordem: 2, ativo: true }),
+      linha(14, 3, { produto_id: uuid(1, 3), relacionado_id: uuid(1, 1), tipo: 'substituto', ordem: 1, ativo: true }),
+    ];
+
+    // aparelho em v3 com árvore, vínculos e relações
+    let a = abrirArmazenamento(criarDriverNode(arquivo), ATE_V3);
+    await puxar(a, 'produto', [1, 2, 3, 4].map(produto));
+    await puxar(a, 'catalogo_no', [sistema, grupo, linhaA, linhaB]);
+    await puxar(a, 'produto_no', vinculos);
+    await puxar(a, 'produto_relacao', relacoes);
+    await a.busca.finalizar!();
+    const vinculosAntes = await a.linhas.porCampo!('produto_no', 'no_id', [linhaA.id, linhaB.id]);
+    const relacoesAntes = await a.linhas.porCampo!('produto_relacao', 'produto_id', [uuid(1, 1), uuid(1, 3)]);
+    expect(vinculosAntes).toHaveLength(3);
+    expect(relacoesAntes).toHaveLength(3);
+    await a.fechar();
+    let d = criarDriverNode(arquivo);
+    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 3 });
+    expect((await listarObjetos(d)).some((o) => o.name === 'catalogo__produto_no_no')).toBe(false);
+    const docsAntes = await d.todas('SELECT rid, produto_id FROM catalogo__busca_doc ORDER BY rid');
+    await d.fechar();
+
+    // app novo (v4): só a v4 roda
+    a = abrirArmazenamento(criarDriverNode(arquivo));
+    await a.pronto;
+    expect(a.modulosIndisponiveis()).toEqual([]);
+    d = criarDriverNode(arquivo);
+    expect(await d.primeira('SELECT versao FROM _esquema WHERE dono = ?', ['catalogo'])).toEqual({ versao: 4 });
+    const indices = (await listarObjetos(d)).filter((o) => o.type === 'index' && o.name.startsWith('catalogo__')).map((o) => o.name);
+    expect(indices).toEqual(expect.arrayContaining(['catalogo__produto_no_no', 'catalogo__produto_relacao_produto']));
+    for (const [t, n] of [['ent_produto', 4], ['ent_catalogo_no', 4], ['ent_produto_no', 3], ['ent_produto_relacao', 3]] as const)
+      expect(await d.primeira(`SELECT count(*) AS n FROM ${t}`)).toEqual({ n });
+    // FTS não foi recriada nem reindexada (mesmos documentos, mesmos rid)
+    expect(await d.todas('SELECT rid, produto_id FROM catalogo__busca_doc ORDER BY rid')).toEqual(docsAntes);
+    expect(await d.primeira('PRAGMA integrity_check')).toEqual({ integrity_check: 'ok' });
+    // com dados, o plano continua no índice (o SQL exato do `linhasPorCampo` do SDK)
+    for (const [t, campo, indice] of [['ent_produto_no', 'no_id', 'catalogo__produto_no_no'], ['ent_produto_relacao', 'produto_id', 'catalogo__produto_relacao_produto']] as const) {
+      const plano = await d.todas<{ detail: string }>(
+        `EXPLAIN QUERY PLAN SELECT id, dados FROM ${t} WHERE json_extract(dados, '$.${campo}') IN (SELECT value FROM json_each(?)) ORDER BY id`,
+        [JSON.stringify(['a'])],
+      );
+      expect(plano.map((p) => p.detail).join(' ')).toContain(`USING INDEX ${indice}`);
+    }
+    await d.fechar();
+    for (const e of ['produto', 'catalogo_no', 'produto_no', 'produto_relacao']) expect(await a.ler(`sync:cursor:${e}`)).not.toBeNull();
+
+    // mesmas respostas, agora pelo índice
+    expect(await a.linhas.porCampo!('produto_no', 'no_id', [linhaA.id, linhaB.id])).toEqual(vinculosAntes);
+    expect(await a.linhas.porCampo!('produto_relacao', 'produto_id', [uuid(1, 1), uuid(1, 3)])).toEqual(relacoesAntes);
+    expect((await a.linhas.porCampo!('produto_no', 'no_id', [linhaB.id])).map((l) => l.id)).toEqual([uuid(13, 3)]);
+    expect(await a.linhas.porCampo!('produto_no', 'no_id', [grupo.id])).toEqual([]); // o grupo não tem vínculo direto
+    expect((await a.busca.buscar('catalogo.produto', { grupos: [['freio']], prefixoNoUltimo: false })).map((r) => r.chave).sort()).toEqual([uuid(1, 1), uuid(1, 2)]);
+    // pull depois da v4: vínculo novo achado pelo índice; vínculo apagado sai
+    await puxar(a, 'produto_no', [linha(13, 4, { produto_id: uuid(1, 4), no_id: linhaB.id }), { ...vinculos[2]!, updated_at: '2026-10-02T00:00:00.000Z', deleted_at: '2026-10-02T00:00:00.000Z' }]);
+    expect((await a.linhas.porCampo!('produto_no', 'no_id', [linhaB.id])).map((l) => l.id)).toEqual([uuid(13, 4)]);
     await a.fechar();
   });
 });

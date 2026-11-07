@@ -107,4 +107,16 @@ export const migracoesAparelho: { versao: number; sql: string }[] = [
       CREATE INDEX catalogo__produto_referencia_produto ON ent_produto_referencia (json_extract(dados, '$.produto_id'));
     `,
   },
+  {
+    // v4 (T-0085, 🟡 de desempenho da lista por linha, R-20261107-111809): índices de expressão para os dois
+    // `linhasPorCampo` da lista por linha (modules/catalogo/app/lib/lista-por-linha-local.ts) que ainda varriam a tabela:
+    // vínculos do nível aberto (`produto_no` por `no_id`, até ~20 mil vínculos) e "oferece junto" dos itens da tela
+    // (`produto_relacao` por `produto_id`, até 100 por tela). Mesma expressão do SDK. Subida v3 → v4: só os dois
+    // `CREATE INDEX` sobre as linhas já em `ent_*` (nada apagado, repuxado nem reindexado).
+    versao: 4,
+    sql: `
+      CREATE INDEX catalogo__produto_no_no ON ent_produto_no (json_extract(dados, '$.no_id'));
+      CREATE INDEX catalogo__produto_relacao_produto ON ent_produto_relacao (json_extract(dados, '$.produto_id'));
+    `,
+  },
 ];
