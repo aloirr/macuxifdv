@@ -8,6 +8,7 @@ import { consultaBuscaProdutosAparelho, consultaTextosProdutoAparelho } from './
 import { INDICE_BUSCA_CATALOGO } from './indice';
 import { consultaSugestoesPedidoAparelho } from './sugestoes';
 import TelaCatalogo from './telas/catalogo';
+import TelaListaPorLinha from './telas/lista-por-linha';
 import TelaProduto from './telas/produto';
 
 /**
@@ -21,6 +22,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
   manifesto: manifest,
   paginas: [
     { id: 'catalogo', caminho: 'catalogo', titulo: 'Catálogo', navegacao: 'Catálogo', icone: 'search', ordem: 60, acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaCatalogo },
+    { id: 'lista-por-linha', caminho: 'lista-por-linha', titulo: 'Catálogo por linha', acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaListaPorLinha },
     { id: 'produto', caminho: 'produto', titulo: 'Produto', acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaProduto },
   ],
   entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO, ...ENTIDADES_ARVORE, entidadeProdutoRelacao],
