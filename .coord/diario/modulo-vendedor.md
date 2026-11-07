@@ -68,3 +68,8 @@
 2026-11-06 — T-0084 — A3: reserva local da busca do seletor só em ConsultaIndisponivel; outro erro aparece na tela e vai ao log sem dado pessoal; teste dos dois caminhos
 2026-11-06 — T-0089/T-0090 — +/− com hitSlop, passo sobre a última quantidade, recarregar sem sobrescrever rascunho; Pedidos: cache da data civil (1309 ms -> <100 ms/500) e useMemo; falta validar no aparelho
 2026-11-06 — T-0089/T-0090 — R1 do + (geração de rascunhos, rascunhosAposLeitura), alvo 44x48 dp, 2º toque com foco, troca de medida por ultimo.current
+2026-11-06 — T-0090 — Pedidos no modelo A: BotaoFiltro com selo, EtiquetaFiltro, FolhaPeriodo (atalhos + Dia/Mês/Ano) e vendedor na folha (Gestão); domain filtro-periodo (+tipo semana); aviso dos 90 dias só fora da janela, com consulta ao servidor; seletor antigo removido; testes de domain e da folha
+2026-11-06 — T-0090 — tela Pedidos: junção servidor+aparelho no período parcial (fila não some), aviso de erro, 'Buscando o restante', etiqueta do vendedor sem período
+2026-11-06 — T-0089 — domain preco-item e pagamento (RN-VEN-15/23/24/25/13/12), contratos e API de formas e prazos, retrato no pedido e aprovado@1, BKO de formas, app: Itens em 3 linhas, pagamento no topo, Detalhes com crédito e Leve mais (escondido até o Catálogo publicar faixas); consumidor do Hub pronto, sem registro
+2026-11-06 — T-0089 — 4 🟡 do designer-ux: largura UN|CX pelo kit, NO PEDIDO com a busca, prazo médio no cabeçalho, pendências antes do Avançar
+2026-11-06 — T-0089 — P5: preço mínimo só trava desconto (itemRespeitaPrecoMinimo) com teste; Leve mais conferido com faixas[]

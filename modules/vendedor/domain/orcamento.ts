@@ -204,6 +204,9 @@ export interface OrcamentoParaPedido {
   acrescimo_valor_cents?: number;
   ajuste_em?: 'pct' | 'valor';
   condicao_pagamento_id: string | null;
+  /** T-0089 (RN-VEN-24): forma e prazo do documento de origem; os dois juntos ou nenhum */
+  forma_pagamento_id?: string | null;
+  prazo_pagamento_id?: string | null;
   observacao: string | null;
   visita_id: string | null;
   frete?: FreteParaCopia | null;
@@ -260,6 +263,7 @@ export function pedidoDoOrcamento(o: OrcamentoParaPedido, novoId: string, criado
     customer_id: o.cliente_id,
     ...copiarCabecalho(o),
     condicao_pagamento_id: o.condicao_pagamento_id,
+    ...(o.forma_pagamento_id && o.prazo_pagamento_id ? { forma_pagamento_id: o.forma_pagamento_id, prazo_pagamento_id: o.prazo_pagamento_id } : {}),
     observacao: o.observacao,
     visita_id: o.visita_id,
     created_offline_at: criadoEm,
