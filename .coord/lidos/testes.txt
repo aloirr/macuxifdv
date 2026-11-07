@@ -152,3 +152,4 @@ R-20261106-035535-modulo-catalogo
 R-20261106-040948-modulo-integracao
 R-20261106-050227-modulo-catalogo
 R-20261106-050318-modulo-vendedor
+R-20261106-071158-gerente-projetos

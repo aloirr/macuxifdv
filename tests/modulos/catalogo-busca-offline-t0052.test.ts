@@ -190,8 +190,13 @@ describe('T-0052 — busca offline do Catálogo no aparelho com o FTS5 real (mot
       const sapata = await busca(ap.leitor, 'sapata dianteira');
       expect(skus(sapata), 'sapata → pastilha').toEqual(['PAS-DIA-150']);
       expect(sapata.aviso).toBe(AVISO_BUSCA_OFFLINE);
-      // a pré-seleção levou ao FTS5 os grupos da frase com o sinônimo expandido (numa consulta ou numa por termo, B4)
-      expect(ap.consultasFts.flatMap((c) => c.grupos), 'grupos de "sapata dianteira" no FTS5').toEqual([['sapata', 'pastilha'], ['dianteira']]);
+      // a pré-seleção levou ao FTS5 os grupos da frase com o sinônimo expandido, e só eles. A forma das consultas é do
+      // Catálogo (B4; T-0089: 1º o AND de todos os grupos numa consulta, e só se ele trouxer pouco, a união termo a termo),
+      // por isso aqui vale o conjunto de grupos, não quantas consultas foram feitas
+      const gruposFts = ap.consultasFts.flatMap((c) => c.grupos);
+      const distintos = [...new Map(gruposFts.map((g) => [JSON.stringify(g), g])).values()];
+      expect(distintos, 'grupos de "sapata dianteira" no FTS5').toEqual([['sapata', 'pastilha'], ['dianteira']]);
+      for (const c of ap.consultasFts) expect(c.grupos.length === 1 || c.grupos.length === distintos.length, 'consulta = um termo ou a frase inteira').toBe(true);
       const porBusca = [ap.consultasFts.length];
       expect(skus(await busca(ap.leitor, 'lubrificante motocicleta')), 'lubrificante motocicleta → óleo de moto').toContain('OLE-4T-1L');
       porBusca.push(ap.consultasFts.length);
