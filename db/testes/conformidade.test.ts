@@ -123,16 +123,17 @@ describe.skipIf(semBanco())('conformidade do banco migrado', () => {
     });
   });
 
-  it('B1 do DBaaS (0031): macuxi_app e macuxi_worker NÃO são membros do macuxi_manutencao (nem herdam nem assumem); o migrador herda', async () => {
+  it('B1 do DBaaS (0031): macuxi_app, macuxi_worker e macuxi_portal (0038) NÃO são membros do macuxi_manutencao (nem herdam nem assumem); o migrador herda', async () => {
     await comCliente(banco().urlAdmin, async (admin) => {
       const r = await admin.query<{ papel: string; membro: boolean; herda: boolean; assume: boolean }>(
         `select a.rolname as papel, pg_has_role(a.oid, m.oid, 'MEMBER') as membro, pg_has_role(a.oid, m.oid, 'USAGE') as herda,
                 pg_has_role(a.oid, m.oid, 'SET') as assume
            from pg_roles a join pg_roles m on m.rolname = 'macuxi_manutencao'
-          where a.rolname in ('macuxi_app', 'macuxi_worker') order by 1`,
+          where a.rolname in ('macuxi_app', 'macuxi_worker', 'macuxi_portal') order by 1`,
       );
       expect(r.rows).toEqual([
         { papel: 'macuxi_app', membro: false, herda: false, assume: false },
+        { papel: 'macuxi_portal', membro: false, herda: false, assume: false },
         { papel: 'macuxi_worker', membro: false, herda: false, assume: false },
       ]);
       const papel = await admin.query<{ rolcanlogin: boolean; rolsuper: boolean; rolbypassrls: boolean }>(
@@ -167,6 +168,29 @@ describe.skipIf(semBanco())('conformidade do banco migrado', () => {
       ),
     );
     expect(r.rows).toEqual([]);
+  });
+
+  it('0038 (T-0091): conferir-rls acusa política ou grant de tabela para o macuxi_portal (ele só executa as sa_*)', async () => {
+    await comCliente(banco().urlAdmin, async (admin) => {
+      await admin.query('begin');
+      try {
+        await admin.query('grant select on core.usuario to macuxi_portal');
+        await admin.query('create policy portal_indevida on plataforma.super_admin for select to macuxi_portal using (true)');
+        const c = await admin.query<{ tabela: string; problema: string }>(SQL_CONFERIR_RLS);
+        expect(c.rows).toEqual(expect.arrayContaining([
+          { tabela: 'core.usuario', problema: 'política ou grant de tabela para o macuxi_portal (0038: ele só executa as sa_*)' },
+          { tabela: 'plataforma.super_admin', problema: 'política ou grant de tabela para o macuxi_portal (0038: ele só executa as sa_*)' },
+        ]));
+        expect(c.rows).toHaveLength(2);
+      } finally {
+        await admin.query('rollback');
+      }
+    });
+  });
+
+  it('S0-028 papel do portal (0038): sem SUPERUSER, sem BYPASSRLS, fora do macuxi_manutencao e não é dono de nenhuma tabela', async () => {
+    const d = await comCliente(banco().urlAdmin, (admin) => diagnosticarPapelApp(admin, 'macuxi_portal'));
+    expect(d).toEqual({ superusuario: false, ignoraRls: false, tabelasDeQueEDono: [] });
   });
 
   it('S0-028 papel de aplicação: sem SUPERUSER, sem BYPASSRLS e não é dono de nenhuma tabela', async () => {

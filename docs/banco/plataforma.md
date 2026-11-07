@@ -1,6 +1,6 @@
 # Dicionário de dados — schema `plataforma`
 
-Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker`, `0005_plataforma_arquivo` e `0035_plataforma_super_admin` (super-admin, sem tenant_id) (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
+Migrações `db/migrations/0001_plataforma.up.sql`, `0003_plataforma_worker`, `0005_plataforma_arquivo` e `0035_plataforma_super_admin` (super-admin, sem tenant_id) e `0038_plataforma_papel_portal` (papel `macuxi_portal` das `sa_*`) (volta: `.down.sql` de cada uma). Drizzle: `db/esquema/plataforma.ts`.
 Campos comuns em toda tabela (regra 5): `id uuid pk default gen_random_uuid()`, `tenant_id uuid not null → plataforma.tenant`,
 `created_at`, `updated_at` (trigger `definir_updated_at`, cursor do sync), `deleted_at` (exclusão lógica), `external_id text` (código no ERP).
 RLS: política `isolamento_tenant` em todas (ver [rls.md](rls.md)).
@@ -169,7 +169,8 @@ enxerga todos e cria tenant novo. Por isso as 4 tabelas **não têm `tenant_id`*
 `TABELAS_SEM_TENANT_ID` e em `TABELAS_SO_POR_FUNCAO` (`db/src/excecoes.ts`). O isolamento é outro: **RLS ligado e forçado SEM
 política e SEM grant de tabela** para `macuxi_app` e `macuxi_worker` (42501 direto; com um grant indevido, 0 linhas), só a política
 `manutencao` (0031) para o migrador; a aplicação chega aos dados **só** pelas funções `SECURITY DEFINER` abaixo (`search_path`
-fixo com `pg_temp` por último, `revoke all from public`, `execute` só ao `macuxi_app`; o worker recebe 42501). Os campos comuns
+fixo com `pg_temp` por último, `revoke all from public`, `execute` só ao **`macuxi_portal`** desde a 0038, T-0091 — na 0035 era o
+`macuxi_app`; app e worker recebem 42501). Os campos comuns
 (`id`, `created_at`, `updated_at`, `deleted_at`, `external_id`) existem em todas. Nenhum `ALTER ROLE` (plano B do DBaaS).
 
 | Tabela | Colunas principais | Regras |
@@ -184,7 +185,7 @@ fixo com `pg_temp` por último, `revoke all from public`, `execute` só ao `macu
 `db/testes/super-admin.test.ts`). Sem expurgo por ora (como `plataforma.auditoria`). `super_admin_id` tem FK (super-admin só é
 apagado logicamente); `sessao_id` não tem (a sessão pode ser expurgada no futuro sem tocar a auditoria).
 
-**Funções** (contrato com o modulo-core e a API; todas `SECURITY DEFINER`, só `macuxi_app`):
+**Funções** (contrato com o modulo-core e a API; todas `SECURITY DEFINER`, `execute` só ao `macuxi_portal` desde a 0038):
 
 | Função | Devolve | O que faz |
 |---|---|---|
@@ -213,9 +214,32 @@ Fatos gravados **pelo próprio banco** na auditoria (`detalhes.origem = 'banco'`
 `sa.recuperacao.usada`, `sa.recuperacao.regerada`, `sa.tenant.provisionar`. O Core grava pelo `sa_auditar` os de login (com o
 prefixo do IP); a API grava `sa.requisicao` de toda requisição do super-admin.
 
+**Papel `macuxi_portal` (0038, T-0091; condição do aceite da ADR 0029, R-20261106-182000 item 3; desenho
+`docs/desenho/T-0091.md` §2).** Só o 2º pool da API (rotas `plataforma/*`, sessão viva a cada requisição, `sa_tenant_ativo` e a
+auditoria `sa.requisicao`) conecta com ele; o dado do tenant segue no `macuxi_app` com RLS.
+- Atributos: `LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION`; não é membro de papel nenhum (a 0038 aborta
+  com 42501 se for), não é dono de nada, **nenhum grant de tabela/coluna/sequência**; só `USAGE` no schema `plataforma` e
+  `EXECUTE` nas 20 `sa_*`. Direto em qualquer tabela (as 4 do super-admin, `tenant`, `parametro`, `core.*`) = 42501.
+- `macuxi_app`, `macuxi_worker` e `PUBLIC` **sem** `EXECUTE` em nenhuma `sa_*` (a 0038 confere pelo catálogo e aborta se sobrar).
+  `sa_registrar_auditoria` (interna) e `provisionar_tenant` (só a conexão de administração) seguem sem `EXECUTE` para ninguém.
+- Nasce pela 0038 (`NOLOGIN`, só se falta) ou antes, pelo passo de papéis: `garantirPapelPortal` (`@macuxi/db`, B0 do plano B do
+  DBaaS, ADR 0024: papel novo = `CREATE ROLE` com os atributos; existente = só `ALTER ROLE ... LOGIN PASSWORD <verificador SCRAM>`,
+  atributos conferidos em `pg_roles`), com `MACUXI_PG_PORTAL_SENHA` (local: `macuxi_portal_local`, recusada fora do local; fora do
+  local é opcional: sem ela o papel fica `NOLOGIN`, `urlPortal(cfg)` lança e o portal responde 503). `banco migrar up` e `banco
+  papeis` (`db/scripts/banco.ts`) rodam o passo antes das migrações. A senha fica no `portal.env` da VM, só no contêiner `api` e no
+  serviço de ferramenta `banco`, nunca no worker.
+- **Regra para migrações novas:** toda função `plataforma.sa_*` nasce com `revoke all ... from public` e `EXECUTE` **só** ao
+  `macuxi_portal` (nunca ao `macuxi_app` nem ao `macuxi_worker`). `db/testes/papel-portal.test.ts` e
+  `tests/integracao/banco/conformidade.test.ts` conferem pelo catálogo (toda `sa_*` do `pg_proc`), não por lista fixa.
+- **Horizonte do pull (risco do desenho §3.5):** a `sa_provisionar_tenant` grava `plataforma.parametro` (entidade de sync) numa
+  sessão que o cálculo do horizonte (`pg_stat_activity` do `macuxi_app`) não enxerga. A API roda essa chamada com `set local
+  statement_timeout = '1500ms'` (abaixo da margem de 2 s), numa transação de um comando; as demais `sa_*` não gravam tabela de sync.
+- Down da 0038: `EXECUTE` de volta ao `macuxi_app` (estado da 0035), o portal perde `EXECUTE` e `USAGE`; o papel fica (do cluster).
+
 **Limite registrado:** a conferência da senha e do TOTP é no Node (a chave do TOTP fica fora do banco), então quem tiver a
-credencial do `macuxi_app` consegue abrir desafio e sessão pelas funções. Cada sessão aberta fica em `sa.sessao.aberta`, que o
-app não apaga; a barreira é a credencial do `macuxi_app` (só na VM).
+credencial do `macuxi_portal` consegue abrir desafio e sessão pelas funções (até a 0037, a do `macuxi_app`, presente também no
+worker e nas ferramentas). Cada sessão aberta fica em `sa.sessao.aberta`, que ninguém apaga; a barreira é a credencial do
+`macuxi_portal` (só no `portal.env` da VM).
 
 **`provisionar_tenant` (0035, aditiva):** chaves novas opcionais `sem_admin` (não cria admin; com ele, `admin` ou
 `redefinir_senha = true` = 22023; sem ele, o admin continua obrigatório), `parametros` (`[{ modulo, chave, valor }]` em
@@ -245,5 +269,5 @@ Volume: 1 a 3 super-admins, poucas sessões e desafios por dia; auditoria na cas
   `session_replication_role` e com gatilhos ligados: roda sem superusuário, pela política `manutencao` (0031). O down da 0032
   volta ao corpo da 0024 (`session_replication_role = replica`, só superusuário).
 - Papel `macuxi_manutencao` e política `manutencao` (0031, T-0075, B1 do DBaaS): ver [rls.md](rls.md), "Papel de manutenção".
-- Super-admin (0035, T-0087): as 20 funções `sa_*` e a `provisionar_tenant` com `sem_admin`, `parametros` e `ator_id`: seção
-  "Super-admin de plataforma" acima.
+- Super-admin (0035, T-0087): as 20 funções `sa_*` (EXECUTE só ao `macuxi_portal` desde a 0038, T-0091) e a `provisionar_tenant`
+  com `sem_admin`, `parametros` e `ator_id`: seção "Super-admin de plataforma" acima.

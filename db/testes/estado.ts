@@ -13,6 +13,8 @@ export type EstadoBanco =
       urlAdmin: string;
       urlApp: string;
       urlWorker: string | null;
+      /** Conexão do papel macuxi_portal (0038, T-0091): o 2º pool da API; null sem MACUXI_PG_PORTAL_SENHA. */
+      urlPortal: string | null;
       agora: string;
       /**
        * O admin dos testes ignora RLS por atributo (SUPERUSER ou BYPASSRLS)? false no DBaaS da Magalu e no modo do CI

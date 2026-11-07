@@ -70,6 +70,12 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > `catalogo.tabela_escalonada` (preço da unidade base, vigência em data civil, tabela opcional) e a forma **"À vista"** semeada em
 > todo tenant (backfill + gatilho `tenant_semear_pagamento`). A condição antiga fica como legado. Detalhes no
 > [vendedor.md](vendedor.md), [core.md](core.md) e [catalogo.md](catalogo.md) ("0037").
+>
+> **2026-11-06 (T-0091):** `0038_plataforma_papel_portal` (aditiva; ADR 0029, condição do aceite): papel **`macuxi_portal`**
+> (NOLOGIN pela migração, LOGIN pelo `garantirPapelPortal` com `MACUXI_PG_PORTAL_SENHA`; sem grant de tabela, sem filiação), o
+> **único** com EXECUTE nas 20 `plataforma.sa_*`; `macuxi_app` e `macuxi_worker` perdem o EXECUTE (42501). `@macuxi/db` exporta
+> `PAPEL_PORTAL`, `urlPortal` e `garantirPapelPortal`; o banco dos testes traz `urlPortal` (`banco().urlPortal`). A migração
+> sozinha deixa o portal em 42501: vai junto da API com o 2º pool. Detalhes no [plataforma.md](plataforma.md) e no [rls.md](rls.md).
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -233,7 +239,7 @@ diferente de `production`. Fora disso:
   também com `NODE_ENV=production`. Ela não libera a senha pública dos papéis, o seed da Fase M nem a fixture dos testes.
   Na VM, a senha dos logins da demo é `MACUXI_SENHA_DEMO`, se definida, ou a padrão da seção "Base de demo".
 - **API e worker usam `lerConfigApp`**: fora do local, exige só `MACUXI_PG_APP_SENHA` (e `MACUXI_PG_WORKER_SENHA` para o
-  worker); `MACUXI_PG_ADMIN_SENHA` é opcional e, sem ela, `urlAdmin` lança. Migrações, papéis e seeds seguem com
+  worker; `MACUXI_PG_PORTAL_SENHA`, opcional, para o 2º pool da API do portal do super-admin, 0038, `urlPortal`); `MACUXI_PG_ADMIN_SENHA` é opcional e, sem ela, `urlAdmin` lança. Migrações, papéis e seeds seguem com
   `lerConfig` (admin obrigatório).
 - `garantirPapel` (papéis `macuxi_app`/`macuxi_worker`) desliga o log de comando na própria transação
   (`log_min_duration_statement=-1`, `log_statement=none`, só se o admin for superusuário): a senha do `ALTER ROLE` não
@@ -321,7 +327,7 @@ test: {
 }
 ```
 E no teste: `import { banco, semBanco } from '@macuxi/db/teste/estado'` +
-`describe.skipIf(semBanco())(...)`; `banco().urlApp` (papel `macuxi_app`, RLS) e `banco().urlAdmin`.
+`describe.skipIf(semBanco())(...)`; `banco().urlApp` (papel `macuxi_app`, RLS), `banco().urlPortal` (papel `macuxi_portal`, só as `plataforma.sa_*`, 0038) e `banco().urlAdmin`.
 **Relógio da fixture** (T-0042): `agoraDaFixture()` e `hojeDaFixture(fuso)` (de `@macuxi/db/teste` ou `.../estado`) dão o
 instante e o "hoje" com que o globalSetup carregou a fixture; use-os no lugar de `new Date()` para o dia/mês da fixture
 ([fixture-dois-tenants.md](fixture-dois-tenants.md)).

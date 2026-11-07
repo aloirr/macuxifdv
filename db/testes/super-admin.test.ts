@@ -3,15 +3,16 @@
  * desenho T-0087 §6). O que o BANCO garante:
  * - 4 tabelas sem tenant_id, RLS forçado SEM política e SEM grant para macuxi_app/macuxi_worker (42501 direto; com um grant
  *   indevido, 0 linhas); só a política manutencao (0031);
- * - 20 funções SECURITY DEFINER com search_path fixo (pg_temp por último), sem EXECUTE para PUBLIC, só ao macuxi_app (o
- *   macuxi_worker recebe 42501 em todas);
+ * - 20 funções SECURITY DEFINER com search_path fixo (pg_temp por último), sem EXECUTE para PUBLIC; na 0035 só ao macuxi_app,
+ *   desde a 0038 (T-0091) só ao macuxi_portal: macuxi_app e macuxi_worker recebem 42501 em todas (papel-portal.test.ts tem o resto);
  * - primeiro acesso só com ZERO super-admins (2x = 1 linha; em paralelo também, pela trava consultiva);
  * - desafio de uso único com prazo; sessão com teto de 8 h, revogável, conferida a cada chamada; TOTP sem reuso de passo;
  *   códigos de recuperação de uso único; 5 falhas = bloqueio de 15 min;
  * - auditoria append-only (update/delete/truncate recusados para todos), sem dado pessoal, que sobrevive à exclusão do tenant;
  * - sa_provisionar_tenant recusa sessão revogada/vencida; provisionar_tenant com sem_admin e parametros é idempotente.
- * Banco: fixture dois-tenants, sempre com ROLLBACK (admin, com SET ROLE para o papel testado); up/down e a corrida do primeiro
- * acesso num banco efêmero. Nada roda em base real.
+ * Banco: fixture dois-tenants (migrada até a última: as sa_* rodam como macuxi_portal), sempre com ROLLBACK (admin, com SET
+ * ROLE para o papel testado); up/down e a corrida do primeiro acesso num banco efêmero parado na 0035 (lá, como macuxi_app).
+ * Nada roda em base real.
  */
 import { createHash } from 'node:crypto';
 import { ListaEmpresasSchema, MODULOS } from '@macuxi/platform-sdk';
@@ -138,16 +139,17 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
       throw e;
     }
   }
-  const app = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_app', sql, params);
-  const um = async <T>(sql: string, params: unknown[] = []): Promise<T> => ((await app<{ r: T }>(`select ${sql} as r`, params))[0]!).r;
+  /** Como o portal do super-admin: desde a 0038 (T-0091) o único papel com EXECUTE nas sa_*. */
+  const portal = <T extends pg.QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []) => como<T>('macuxi_portal', sql, params);
+  const um = async <T>(sql: string, params: unknown[] = []): Promise<T> => ((await portal<{ r: T }>(`select ${sql} as r`, params))[0]!).r;
 
   /** Super-admin com TOTP confirmado e uma sessão aberta, tudo pelas funções, como o Core fará. */
   async function prontoComSessao(): Promise<{ id: string; sid: string; expira: Date }> {
     const id = await um<string>('plataforma.sa_criar_primeiro($1, $2, $3)', [EMAIL, NOME, H1]);
-    await app('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d-cadastro')]);
+    await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d-cadastro')]);
     expect(await um<boolean>('plataforma.sa_gravar_totp_pendente($1, $2)', [id, CIFRADO])).toBe(true);
     expect(await um<boolean>('plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, RECUPERACAO])).toBe(true);
-    const [s] = await app<{ sessao_id: string; super_admin_id: string; expira_em: Date }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d-cadastro')]);
+    const [s] = await portal<{ sessao_id: string; super_admin_id: string; expira_em: Date }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d-cadastro')]);
     expect(s?.super_admin_id).toBe(id);
     return { id, sid: s!.sessao_id, expira: s!.expira_em };
   }
@@ -168,14 +170,15 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
       expect((await admin.query('select count(*)::int as n from plataforma.super_admin')).rows[0].n).toBe(1);
       for (const t of TABELAS_SO_POR_FUNCAO) {
         await admin.query(`grant select on ${t} to macuxi_app`);
-        expect(await app(`select * from ${t}`), t).toEqual([]);
+        expect(await como('macuxi_app', `select * from ${t}`), t).toEqual([]);
       }
     });
   });
 
-  it('catálogo: as 20 funções são SECURITY DEFINER, search_path fixo, sem PUBLIC, EXECUTE do macuxi_app e não do macuxi_worker', async () => {
-    const r = await admin.query<{ f: string; definer: boolean; config: string[]; app: boolean; worker: boolean; publico: boolean }>(
+  it('catálogo: as 20 funções são SECURITY DEFINER, search_path fixo, sem PUBLIC, EXECUTE só do macuxi_portal (0038), nem app nem worker', async () => {
+    const r = await admin.query<{ f: string; definer: boolean; config: string[]; portal: boolean; app: boolean; worker: boolean; publico: boolean }>(
       `select f, p.prosecdef as definer, p.proconfig as config,
+              has_function_privilege('macuxi_portal', p.oid, 'execute') as portal,
               has_function_privilege('macuxi_app', p.oid, 'execute') as app,
               has_function_privilege('macuxi_worker', p.oid, 'execute') as worker,
               coalesce((select bool_or(a.grantee = 0) from aclexplode(p.proacl) a where a.privilege_type = 'EXECUTE'), false) as publico
@@ -184,22 +187,25 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
     );
     expect(r.rows).toHaveLength(FUNCOES_SA.length);
     for (const { f, ...resto } of r.rows) {
-      expect(resto, f).toEqual({ definer: true, config: ['search_path=pg_catalog, plataforma, pg_temp'], app: true, worker: false, publico: false });
+      expect(resto, f).toEqual({ definer: true, config: ['search_path=pg_catalog, plataforma, pg_temp'], portal: true, app: false, worker: false, publico: false });
     }
     const internas = await admin.query<{ app: boolean; definer: boolean }>(
-      `select has_function_privilege('macuxi_app', p.oid, 'execute') as app, p.prosecdef as definer from pg_proc p
+      `select has_function_privilege('macuxi_app', p.oid, 'execute') or has_function_privilege('macuxi_portal', p.oid, 'execute') as app,
+              p.prosecdef as definer from pg_proc p
         where p.oid in ('plataforma.sa_registrar_auditoria(uuid, uuid, uuid, text, jsonb)'::regprocedure, 'plataforma.provisionar_tenant(jsonb)'::regprocedure)`,
     );
     expect(internas.rows).toEqual([{ app: false, definer: false }, { app: false, definer: false }]);
   });
 
-  it('macuxi_worker recebe 42501 em TODAS as funções sa_*', async () => {
+  it('macuxi_app (desde a 0038, T-0091) e macuxi_worker recebem 42501 em TODAS as funções sa_*', async () => {
     await emTransacao(admin, null, async () => {
-      for (const f of FUNCOES_SA) {
-        const nome = f.slice(0, f.indexOf('('));
-        const tipos = f.slice(f.indexOf('(') + 1, -1).split(', ').filter(Boolean);
-        const erro = await erroDe(como('macuxi_worker', `select ${nome}(${tipos.map((t) => `null::${t}`).join(', ')})`));
-        expect(erro?.code, f).toBe('42501');
+      for (const papel of ['macuxi_app', 'macuxi_worker']) {
+        for (const f of FUNCOES_SA) {
+          const nome = f.slice(0, f.indexOf('('));
+          const tipos = f.slice(f.indexOf('(') + 1, -1).split(', ').filter(Boolean);
+          const erro = await erroDe(como(papel, `select ${nome}(${tipos.map((t) => `null::${t}`).join(', ')})`));
+          expect(erro?.code, `${papel} ${f}`).toBe('42501');
+        }
       }
     });
   });
@@ -208,7 +214,7 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
     await emTransacao(admin, null, async () => {
       expect(await um<boolean>('plataforma.sa_existe()')).toBe(false);
       for (const [email, nome, hash] of [['sem-arroba', NOME, H1], [EMAIL, '  ', H1], [EMAIL, NOME, 'senha-em-claro-123']]) {
-        const erro = await erroDe(app('select plataforma.sa_criar_primeiro($1, $2, $3)', [email, nome, hash]));
+        const erro = await erroDe(portal('select plataforma.sa_criar_primeiro($1, $2, $3)', [email, nome, hash]));
         expect(erro?.code).toBe('22023');
         for (const segredo of [EMAIL, 'senha-em-claro-123', H1]) expect(erro!.message).not.toContain(segredo);
       }
@@ -227,41 +233,41 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
   it('login: sem TOTP o desafio é cadastrar_totp e não abre sessão (e é consumido); com TOTP abre sessão de 8 h; desafio de uso único', async () => {
     await emTransacao(admin, null, async () => {
       const id = await um<string>('plataforma.sa_criar_primeiro($1, $2, $3)', [EMAIL, NOME, H1]);
-      const [linha] = await app('select * from plataforma.sa_para_login($1)', [EMAIL.toUpperCase()]);
+      const [linha] = await portal('select * from plataforma.sa_para_login($1)', [EMAIL.toUpperCase()]);
       expect(linha).toMatchObject({ id, email: EMAIL, nome: NOME, senha_hash: H1, ativo: true, falhas: 0, bloqueado_ate: null, totp_confirmado_em: null,
         totp_segredo_cifrado: null, totp_pendente_cifrado: null, totp_ultimo_passo: null, recuperacao_restantes: 0 });
       expect(Object.keys(linha!)).not.toContain('recuperacao_hashes');
-      expect(await app('select * from plataforma.sa_para_login($1)', ['ninguem@macuxi.exemplo'])).toEqual([]);
-      expect((await app('select * from plataforma.sa_por_id($1)', [id]))[0]).toEqual(linha);
-      expect((await erroDe(app('select * from plataforma.sa_abrir_desafio($1, $2)', [id, 'nao-e-hash'])))?.code).toBe('22023');
+      expect(await portal('select * from plataforma.sa_para_login($1)', ['ninguem@macuxi.exemplo'])).toEqual([]);
+      expect((await portal('select * from plataforma.sa_por_id($1)', [id]))[0]).toEqual(linha);
+      expect((await erroDe(portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, 'nao-e-hash'])))?.code).toBe('22023');
 
-      expect(await app('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d1')])).toEqual([{ etapa: 'cadastrar_totp', expira_em: expect.any(Date) }]);
-      expect(await app('select super_admin_id, etapa from plataforma.sa_ver_desafio($1)', [sha('d1')])).toEqual([{ super_admin_id: id, etapa: 'cadastrar_totp' }]);
-      expect(await app('select * from plataforma.sa_abrir_sessao($1)', [sha('d1')])).toEqual([]);
-      expect(await app('select * from plataforma.sa_ver_desafio($1)', [sha('d1')])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d1')])).toEqual([{ etapa: 'cadastrar_totp', expira_em: expect.any(Date) }]);
+      expect(await portal('select super_admin_id, etapa from plataforma.sa_ver_desafio($1)', [sha('d1')])).toEqual([{ super_admin_id: id, etapa: 'cadastrar_totp' }]);
+      expect(await portal('select * from plataforma.sa_abrir_sessao($1)', [sha('d1')])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_ver_desafio($1)', [sha('d1')])).toEqual([]);
 
-      await app('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d2')]);
-      expect((await erroDe(app('select plataforma.sa_gravar_totp_pendente($1, $2)', [id, 'segredo-em-claro'])))?.code).toBe('22023');
+      await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d2')]);
+      expect((await erroDe(portal('select plataforma.sa_gravar_totp_pendente($1, $2)', [id, 'segredo-em-claro'])))?.code).toBe('22023');
       expect(await um<boolean>('plataforma.sa_gravar_totp_pendente($1, $2)', [id, CIFRADO])).toBe(true);
-      expect((await erroDe(app('select plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, ['x']])))?.code).toBe('22023');
-      expect((await erroDe(app('select plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, [RECUPERACAO[0], RECUPERACAO[0]]])))?.code).toBe('22023');
+      expect((await erroDe(portal('select plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, ['x']])))?.code).toBe('22023');
+      expect((await erroDe(portal('select plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, [RECUPERACAO[0], RECUPERACAO[0]]])))?.code).toBe('22023');
       expect(await um<boolean>('plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1000, RECUPERACAO])).toBe(true);
       expect(await um<boolean>('plataforma.sa_confirmar_totp($1, $2, $3)', [id, 1001, RECUPERACAO])).toBe(false);
       // redefinir o 2º fator não é pelo portal (comando de administração, ADR 0029 §2)
       expect(await um<boolean>('plataforma.sa_gravar_totp_pendente($1, $2)', [id, CIFRADO])).toBe(false);
-      const [depois] = await app('select * from plataforma.sa_por_id($1)', [id]);
+      const [depois] = await portal('select * from plataforma.sa_por_id($1)', [id]);
       expect(depois).toMatchObject({ totp_segredo_cifrado: CIFRADO, totp_pendente_cifrado: null, totp_ultimo_passo: '1000', recuperacao_restantes: 10 }); // bigint chega como texto no node-pg
 
-      const [s] = await app<{ sessao_id: string; super_admin_id: string; expira_em: Date }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d2')]);
+      const [s] = await portal<{ sessao_id: string; super_admin_id: string; expira_em: Date }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d2')]);
       expect(s?.super_admin_id).toBe(id);
       const agora = (await admin.query<{ t: Date }>('select now() as t')).rows[0]!.t;
       expect(s!.expira_em.getTime() - agora.getTime()).toBe(8 * 3600 * 1000);
-      expect(await app('select * from plataforma.sa_abrir_sessao($1)', [sha('d2')])).toEqual([]);
-      expect(await app('select super_admin_id from plataforma.sa_sessao_valida($1)', [s!.sessao_id])).toEqual([{ super_admin_id: id }]);
+      expect(await portal('select * from plataforma.sa_abrir_sessao($1)', [sha('d2')])).toEqual([]);
+      expect(await portal('select super_admin_id from plataforma.sa_sessao_valida($1)', [s!.sessao_id])).toEqual([{ super_admin_id: id }]);
       // um desafio novo invalida o anterior ainda aberto
-      await app('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d3')]);
-      expect(await app('select etapa from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d4')])).toEqual([{ etapa: 'segundo_fator' }]);
-      expect(await app('select * from plataforma.sa_ver_desafio($1)', [sha('d3')])).toEqual([]);
+      await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d3')]);
+      expect(await portal('select etapa from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d4')])).toEqual([{ etapa: 'segundo_fator' }]);
+      expect(await portal('select * from plataforma.sa_ver_desafio($1)', [sha('d3')])).toEqual([]);
     });
   });
 
@@ -269,7 +275,7 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
     await emTransacao(admin, null, async () => {
       const { id, sid } = await prontoComSessao();
       expect(await um<boolean>('plataforma.sa_revogar($1)', [sid])).toBe(true);
-      expect(await app('select * from plataforma.sa_sessao_valida($1)', [sid])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_sessao_valida($1)', [sid])).toEqual([]);
       expect(await um<boolean>('plataforma.sa_revogar($1)', [sid])).toBe(false);
 
       const vencida = (await admin.query<{ id: string }>(
@@ -277,18 +283,18 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
          values ($1, now() - interval '8 hours 1 minute', now() - interval '8 hours 1 minute', now() - interval '1 minute') returning id`,
         [id],
       )).rows[0]!.id;
-      expect(await app('select * from plataforma.sa_sessao_valida($1)', [vencida])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_sessao_valida($1)', [vencida])).toEqual([]);
       const erro = await erroDe(admin.query('savepoint teto').then(() => admin.query(
         "insert into plataforma.super_admin_sessao (super_admin_id, expira_em) values ($1, now() + interval '9 hours')", [id])));
       expect(erro?.code).toBe('23514');
       await admin.query('rollback to savepoint teto');
 
-      const [s2] = await app<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao($1)', [sha('x')]);
+      const [s2] = await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao($1)', [sha('x')]);
       expect(s2).toBeUndefined();
-      await app('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d-viva')]);
-      const [viva] = await app<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d-viva')]);
+      await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('d-viva')]);
+      const [viva] = await portal<{ sessao_id: string }>('select * from plataforma.sa_abrir_sessao($1)', [sha('d-viva')]);
       await admin.query('update plataforma.super_admin set ativo = false where id = $1', [id]);
-      expect(await app('select * from plataforma.sa_sessao_valida($1)', [viva!.sessao_id])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_sessao_valida($1)', [viva!.sessao_id])).toEqual([]);
       expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [viva!.sessao_id, DOIS_TENANTS.A.tenantId])).toBe(false);
     });
   });
@@ -301,8 +307,8 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
          values ($1, $2, 'segundo_fator', now() - interval '1 minute', now() - interval '6 minutes')`,
         [id, sha('vencido')],
       );
-      expect(await app('select * from plataforma.sa_ver_desafio($1)', [sha('vencido')])).toEqual([]);
-      expect(await app('select * from plataforma.sa_abrir_sessao($1)', [sha('vencido')])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_ver_desafio($1)', [sha('vencido')])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_abrir_sessao($1)', [sha('vencido')])).toEqual([]);
 
       expect(await um<boolean>('plataforma.sa_marcar_passo($1, $2)', [id, 1000])).toBe(false);
       expect(await um<boolean>('plataforma.sa_marcar_passo($1, $2)', [id, 999])).toBe(false);
@@ -323,25 +329,25 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
   it('5 falhas seguidas = bloqueio de 15 min (sem desafio, sem sessão nova); sucesso não desbloqueia; bloqueio vencido limpa', async () => {
     await emTransacao(admin, null, async () => {
       const { id } = await prontoComSessao();
-      await app('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('antes-do-bloqueio')]);
+      await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('antes-do-bloqueio')]);
       for (let i = 1; i <= 4; i++) {
-        expect(await app('select * from plataforma.sa_registrar_falha($1)', [id])).toEqual([{ falhas: i, bloqueado_ate: null }]);
+        expect(await portal('select * from plataforma.sa_registrar_falha($1)', [id])).toEqual([{ falhas: i, bloqueado_ate: null }]);
       }
-      const [bloq] = await app<{ falhas: number; bloqueado_ate: Date }>('select * from plataforma.sa_registrar_falha($1)', [id]);
+      const [bloq] = await portal<{ falhas: number; bloqueado_ate: Date }>('select * from plataforma.sa_registrar_falha($1)', [id]);
       const agora = (await admin.query<{ t: Date }>('select now() as t')).rows[0]!.t;
       expect(bloq!.falhas).toBe(0);
       expect(bloq!.bloqueado_ate.getTime() - agora.getTime()).toBe(15 * 60 * 1000);
       // bloqueado: falha não estende, desafio não abre, o aberto não vale, sucesso não desbloqueia
-      expect(await app('select * from plataforma.sa_registrar_falha($1)', [id])).toEqual([bloq]);
-      expect(await app('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('durante')])).toEqual([]);
-      expect(await app('select * from plataforma.sa_ver_desafio($1)', [sha('antes-do-bloqueio')])).toEqual([]);
-      expect(await app('select * from plataforma.sa_abrir_sessao($1)', [sha('antes-do-bloqueio')])).toEqual([]);
-      await app('select plataforma.sa_registrar_sucesso($1)', [id]);
-      expect((await app('select bloqueado_ate from plataforma.sa_por_id($1)', [id]))[0]).toEqual({ bloqueado_ate: bloq!.bloqueado_ate });
+      expect(await portal('select * from plataforma.sa_registrar_falha($1)', [id])).toEqual([bloq]);
+      expect(await portal('select * from plataforma.sa_abrir_desafio($1, $2)', [id, sha('durante')])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_ver_desafio($1)', [sha('antes-do-bloqueio')])).toEqual([]);
+      expect(await portal('select * from plataforma.sa_abrir_sessao($1)', [sha('antes-do-bloqueio')])).toEqual([]);
+      await portal('select plataforma.sa_registrar_sucesso($1)', [id]);
+      expect((await portal('select bloqueado_ate from plataforma.sa_por_id($1)', [id]))[0]).toEqual({ bloqueado_ate: bloq!.bloqueado_ate });
       await admin.query("update plataforma.super_admin set bloqueado_ate = now() - interval '1 second' where id = $1", [id]);
-      await app('select plataforma.sa_registrar_sucesso($1)', [id]);
-      expect((await app('select falhas, bloqueado_ate from plataforma.sa_por_id($1)', [id]))[0]).toEqual({ falhas: 0, bloqueado_ate: null });
-      expect(await app('select etapa from plataforma.sa_abrir_desafio($1, $2)', [id, sha('depois')])).toEqual([{ etapa: 'segundo_fator' }]);
+      await portal('select plataforma.sa_registrar_sucesso($1)', [id]);
+      expect((await portal('select falhas, bloqueado_ate from plataforma.sa_por_id($1)', [id]))[0]).toEqual({ falhas: 0, bloqueado_ate: null });
+      expect(await portal('select etapa from plataforma.sa_abrir_desafio($1, $2)', [id, sha('depois')])).toEqual([{ etapa: 'segundo_fator' }]);
       expect((await auditoria()).filter((a) => a.acao === 'sa.bloqueio')).toHaveLength(1);
     });
   });
@@ -361,10 +367,10 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
         .toEqual([{ super_admin_id: null, ip_prefixo: null, tenant_alvo_id: null }]);
       expect((await um<string>('plataforma.sa_auditar($1::jsonb)', [JSON.stringify({ acao: 'sa.x', ip_prefixo: '2001:db8:0::/48' })]))).toBeTruthy();
       for (const ruim of [{ acao: 'Login Falhou' }, { acao: 'sa.x', detalhes: [1] }, { acao: 'sa.x', metodo: 'get /x' }, { acao: 'sa.x', detalhes: { t: 'x'.repeat(5000) } }]) {
-        expect((await erroDe(app('select plataforma.sa_auditar($1::jsonb)', [JSON.stringify(ruim)])))?.code, JSON.stringify(ruim).slice(0, 40)).toBe('22023');
+        expect((await erroDe(portal('select plataforma.sa_auditar($1::jsonb)', [JSON.stringify(ruim)])))?.code, JSON.stringify(ruim).slice(0, 40)).toBe('22023');
       }
       // append-only: o app não tem grant; o dono esbarra no gatilho
-      expect((await erroDe(app('update plataforma.auditoria_plataforma set acao = acao')))?.code).toBe('42501');
+      expect((await erroDe(portal('update plataforma.auditoria_plataforma set acao = acao')))?.code).toBe('42501');
       for (const sql of ['update plataforma.auditoria_plataforma set acao = acao', 'delete from plataforma.auditoria_plataforma', 'truncate plataforma.auditoria_plataforma']) {
         await admin.query('savepoint ap');
         const erro = await erroDe(admin.query(sql));
@@ -392,9 +398,9 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
       expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [sid, '00000000-0000-4000-8000-000000000000'])).toBe(false);
       await admin.query("update plataforma.tenant set status = 'suspenso' where id = $1", [DOIS_TENANTS.B.tenantId]);
       expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [sid, DOIS_TENANTS.B.tenantId])).toBe(false);
-      await app('select plataforma.sa_revogar($1)', [sid]);
+      await portal('select plataforma.sa_revogar($1)', [sid]);
       expect(await um<boolean>('plataforma.sa_tenant_ativo($1, $2)', [sid, DOIS_TENANTS.A.tenantId])).toBe(false);
-      expect((await erroDe(app('select plataforma.sa_listar_tenants($1)', [sid])))?.code).toBe('28000');
+      expect((await erroDe(portal('select plataforma.sa_listar_tenants($1)', [sid])))?.code).toBe('28000');
     });
   });
 
@@ -430,14 +436,14 @@ describe.skipIf(semBanco())('0035 super-admin (banco, fixture dois-tenants)', ()
       expect((await auditoria()).filter((a) => a.acao === 'sa.tenant.provisionar').map((a) => a.tenant_alvo_id)).toEqual([tenant, tenant]);
 
       for (const extra of [{ admin: { email: 'a@b.com', nome: 'A', senha_hash: H1 } }, { redefinir_senha: true }]) {
-        expect((await erroDe(app('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-adm', extra))])))?.code).toBe('22023');
+        expect((await erroDe(portal('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-adm', extra))])))?.code).toBe('22023');
       }
-      await app('select plataforma.sa_revogar($1)', [sid]);
-      expect((await erroDe(app('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-revogada'))])))?.code).toBe('28000');
+      await portal('select plataforma.sa_revogar($1)', [sid]);
+      expect((await erroDe(portal('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [sid, JSON.stringify(entradaPortal('t87-revogada'))])))?.code).toBe('28000');
       const vencida = (await admin.query<{ id: string }>(
         `insert into plataforma.super_admin_sessao (super_admin_id, criada_em, ultimo_uso_em, expira_em)
          values ($1, now() - interval '8 hours', now() - interval '8 hours', now()) returning id`, [id])).rows[0]!.id;
-      expect((await erroDe(app('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [vencida, JSON.stringify(entradaPortal('t87-vencida'))])))?.code).toBe('28000');
+      expect((await erroDe(portal('select plataforma.sa_provisionar_tenant($1, $2::jsonb)', [vencida, JSON.stringify(entradaPortal('t87-vencida'))])))?.code).toBe('28000');
       expect((await admin.query("select count(*)::int as n from plataforma.tenant where codigo in ('t87-adm', 't87-revogada', 't87-vencida')")).rows[0].n).toBe(0);
     });
   });
@@ -512,6 +518,7 @@ describe.skipIf(semBanco())('0035 up/down e corrida do primeiro acesso (banco ef
     });
   });
 
+  // o banco deste bloco fica na 0035 (o caso acima termina com up até a 0035): lá o EXECUTE ainda é do macuxi_app
   it('dois primeiros acessos ao mesmo tempo: um cria, o outro recebe nulo (trava consultiva); 1 linha', async () => {
     await comAdmin(b.nome, async (c1) => {
       await comAdmin(b.nome, async (c2) => {

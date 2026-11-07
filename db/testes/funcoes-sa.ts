@@ -1,6 +1,7 @@
 /**
- * Funções SECURITY DEFINER do super-admin de plataforma (0035, T-0087, ADR 0029), na forma do regprocedure. Todas com
- * EXECUTE só ao macuxi_app (nunca PUBLIC nem o macuxi_worker). Usadas por estatico.test.ts e super-admin.test.ts.
+ * Funções SECURITY DEFINER do super-admin de plataforma (0035, T-0087, ADR 0029), na forma do regprocedure. Na 0035, EXECUTE só
+ * ao macuxi_app; desde a 0038 (T-0091), só ao macuxi_portal (nunca PUBLIC, o macuxi_app nem o macuxi_worker). Usadas por
+ * estatico.test.ts, super-admin.test.ts e papel-portal.test.ts (que confere também pelo catálogo: nenhuma sa_* fora da lista).
  */
 export const FUNCOES_SA = [
   'plataforma.sa_existe()',

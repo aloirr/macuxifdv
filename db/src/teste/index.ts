@@ -5,7 +5,7 @@
  */
 export { criarBancoDeTeste, postgresDisponivel, apagarBanco, listarBancosDeTeste, type BancoDeTeste } from '../banco-teste';
 export { comTenant, definirTenant } from '../contexto';
-export { lerConfig, PAPEL_APP, PAPEL_WORKER } from '../config';
+export { lerConfig, PAPEL_APP, PAPEL_WORKER, PAPEL_PORTAL } from '../config';
 export { carregarDoisTenants, dadosDoisTenants, CONVITES_FIXTURE, DOIS_TENANTS, ORDEM_TABELAS, PAGAMENTO_FIXTURE, PEPPER_HUB_FIXTURE } from '../../seeds/fixtures/dois-tenants';
 export { carregarFaseM, dadosFaseM, TENANT_FASE_M } from '../../seeds/fase-m/fase-m';
 export { carregarDemo, dadosDemo, TENANT_DEMO, CODIGO_DEMO, USUARIOS_DEMO } from '../../seeds/demo/demo';

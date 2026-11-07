@@ -11,9 +11,9 @@
  * DBAAS_TEMPO_SUITE_MIN (16), DBAAS_HNSW_LINHAS (5000), DBAAS_HNSW_DIM (1536), DBAAS_SAIDA_CONTEINER (/saida),
  * DBAAS_RELATORIO_CONTEINER (/saida/relatorio.md), DBAAS_DONO (uid:gid dos arquivos de saída), DBAAS_IMAGEM (só para o
  * relatório). Senha do admin: 1ª linha do stdin com DBAAS_SENHA_STDIN=1 (o .sh usa assim) ou DBAAS_SENHA.
- * As senhas de macuxi_app e macuxi_worker são geradas aqui, só na memória, e vão ao servidor como verificador SCRAM.
+ * As senhas de macuxi_app, macuxi_worker e macuxi_portal (0038) são geradas aqui, só na memória, e vão ao servidor como verificador SCRAM.
  * DBAAS_SUITE=forcar roda a suíte mesmo com o servidor registrando comandos de papel e sem scram-sha-256 (aí o
- * db/src/papeis.ts mandaria a senha do papel em texto); DBAAS_MANTER_PAPEIS=1 não apaga macuxi_app/macuxi_worker/
+ * db/src/papeis.ts mandaria a senha do papel em texto); DBAAS_MANTER_PAPEIS=1 não apaga macuxi_app/macuxi_worker/macuxi_portal/
  * macuxi_manutencao no fim.
  *
  * 3ª versão (B0, B1 e B2 no código, ADR 0024): com as migrações 0031 (política manutencao) e 0032 (excluir_tenant em ordem
@@ -29,7 +29,7 @@
  * num conjunto fixo); A12 collation e ctype (ordem de nomes com acento, ILIKE, sem_acento, FTS) contra o esperado do CI.
  * A11 e A12 usam db/dbaas/referencias.ts, o mesmo código do db/testes/dbaas-referencia.test.ts no CI.
  * Limpeza (sempre, no finally e no --so-limpar): bases macuxi_dbaas_* / macuxi_teste_* criadas (a do teste, a restaurada
- * do A9 e as da suíte) e papéis macuxi_dbaas_*, macuxi_app, macuxi_worker e macuxi_manutencao (0031).
+ * do A9 e as da suíte) e papéis macuxi_dbaas_*, macuxi_app, macuxi_worker, macuxi_portal (0038) e macuxi_manutencao (0031).
  *
  * Saída: linhas ✅/❌ no stdout, relatório Markdown no DBAAS_RELATORIO_CONTEINER e, na mesma pasta, suite.json e
  * suite.log (mascarados). Nunca imprime senha nem URL com senha (mascarar) nem dado pessoal (só dados fictícios da demo,
@@ -108,8 +108,8 @@ const PARAMETROS = [
   'createrole_self_grant',
   'extwlist.extensions',
 ];
-/** Papéis de login da aplicação (criados pelo teste; apagados no fim, salvo DBAAS_MANTER_PAPEIS=1). */
-const PAPEIS_APLICACAO = ['macuxi_app', 'macuxi_worker'] as const;
+/** Papéis de login da aplicação (criados pelo teste; apagados no fim, salvo DBAAS_MANTER_PAPEIS=1). macuxi_portal: 0038, T-0091. */
+const PAPEIS_APLICACAO = ['macuxi_app', 'macuxi_worker', 'macuxi_portal'] as const;
 /** Papéis que a limpeza apaga junto com os da aplicação: os de login e o de manutenção da 0031 (B1). */
 const PAPEIS_DO_TESTE = [...PAPEIS_APLICACAO, PAPEL_MANUTENCAO_0031] as const;
 /**
@@ -217,7 +217,7 @@ async function garantirPapelDbaas(c: pg.Client, papel: string, senha: string): P
 }
 
 /**
- * Papéis que a limpeza apaga: macuxi_dbaas_* sempre; macuxi_app/macuxi_worker/macuxi_manutencao salvo DBAAS_MANTER_PAPEIS=1
+ * Papéis que a limpeza apaga: macuxi_dbaas_* sempre; macuxi_app/macuxi_worker/macuxi_portal/macuxi_manutencao salvo DBAAS_MANTER_PAPEIS=1
  * (depois das bases: o macuxi_manutencao só sai quando nenhuma base tem política para ele).
  */
 async function apagarPapeisDeTeste(cfg: ConfigBanco, bancoManutencao: string, incluirAplicacao: boolean): Promise<{ apagados: string[]; falhas: string[] }> {
@@ -323,7 +323,7 @@ function lerConfiguracao(): { cfg: Config | null; erros: string[] } {
 }
 
 /** Prepara o ambiente do @macuxi/db apontado para o DBaaS (lerConfig) e devolve a configuração. */
-function configurarBanco(c: Config, senhaAdmin: string, appSenha: string, workerSenha: string): ConfigBanco {
+function configurarBanco(c: Config, senhaAdmin: string, appSenha: string, workerSenha: string, portalSenha: string): ConfigBanco {
   for (const k of Object.keys(env)) if (k.startsWith('MACUXI_PG_')) delete env[k];
   Object.assign(env, {
     MACUXI_PG_HOST: c.host,
@@ -332,6 +332,7 @@ function configurarBanco(c: Config, senhaAdmin: string, appSenha: string, worker
     MACUXI_PG_ADMIN_SENHA: senhaAdmin,
     MACUXI_PG_APP_SENHA: appSenha,
     MACUXI_PG_WORKER_SENHA: workerSenha,
+    MACUXI_PG_PORTAL_SENHA: portalSenha,
     // seed da base de DEMONSTRAÇÃO (dados fictícios) fora do local: só com a marca explícita (exigirBancoDemo)
     MACUXI_AMBIENTE: 'demo',
   });
@@ -374,11 +375,11 @@ async function limpar(cfg: ConfigBanco, bancoManutencao: string, base: string | 
     return { ok: falhas.length === 0, detalhe: `${alvos.length - falhas.length} de ${alvos.length} apagadas`, subitens: falhas };
   });
   const manter = env.DBAAS_MANTER_PAPEIS === '1';
-  await passo('limpeza', 'L3', `Papéis de teste apagados (macuxi_dbaas_*${manter ? '' : ', macuxi_app, macuxi_worker, macuxi_manutencao'})`, async () => {
+  await passo('limpeza', 'L3', `Papéis de teste apagados (macuxi_dbaas_*${manter ? '' : ', macuxi_app, macuxi_worker, macuxi_portal, macuxi_manutencao'})`, async () => {
     const r = await apagarPapeisDeTeste(cfg, bancoManutencao, !manter);
     return {
       ok: r.falhas.length === 0,
-      detalhe: `${r.apagados.length} apagado(s): ${r.apagados.join(', ') || 'nenhum'}${manter ? ' · DBAAS_MANTER_PAPEIS=1: macuxi_app, macuxi_worker e macuxi_manutencao ficam' : ''}`,
+      detalhe: `${r.apagados.length} apagado(s): ${r.apagados.join(', ') || 'nenhum'}${manter ? ' · DBAAS_MANTER_PAPEIS=1: macuxi_app, macuxi_worker, macuxi_portal e macuxi_manutencao ficam' : ''}`,
       subitens: r.falhas,
     };
   });
@@ -571,7 +572,7 @@ select 'fn ' || p.oid::regprocedure::text || ' definer=' || p.prosecdef::text ||
 union all
 select 'acl ' || c.oid::regclass::text || ' ' || pg_get_userbyid(a.grantee) || ' ' || a.privilege_type
   from pg_class c join ns on ns.oid = c.relnamespace cross join lateral aclexplode(c.relacl) a
- where c.relacl is not null and a.grantee in (select oid from pg_roles where rolname in ('macuxi_app', 'macuxi_worker', 'macuxi_manutencao'))
+ where c.relacl is not null and a.grantee in (select oid from pg_roles where rolname in ('macuxi_app', 'macuxi_worker', 'macuxi_portal', 'macuxi_manutencao'))
 union all
 select 'ext ' || e.extname || ' ' || e.extversion from pg_extension e`;
 
@@ -675,8 +676,9 @@ async function principal(): Promise<number> {
   }
   const appSenha = randomBytes(24).toString('hex');
   const workerSenha = randomBytes(24).toString('hex');
-  segredos = [senhaAdmin, appSenha, workerSenha];
-  const cfg = configurarBanco(conf, senhaAdmin, appSenha, workerSenha);
+  const portalSenha = randomBytes(24).toString('hex');
+  segredos = [senhaAdmin, appSenha, workerSenha, portalSenha];
+  const cfg = configurarBanco(conf, senhaAdmin, appSenha, workerSenha, portalSenha);
   const saida = env.DBAAS_SAIDA_CONTEINER || '/saida';
   const arqRelatorio = env.DBAAS_RELATORIO_CONTEINER || join(saida, 'relatorio.md');
   const versoes: string[] = [`Node ${process.version}`];
@@ -946,18 +948,20 @@ async function principal(): Promise<number> {
 
     // ---------------- critério 2: papéis, base, migrações ----------------
     st.antes = new Set(await listarBases(cfg, conf.bancoManutencao));
-    const papeisOk = await passo('c2', 'C2.1', 'Papéis macuxi_app e macuxi_worker (LOGIN, sem SUPERUSER/BYPASSRLS; sem ALTER de atributo, senha como verificador SCRAM)', async () => {
+    const papeisOk = await passo('c2', 'C2.1', 'Papéis macuxi_app, macuxi_worker e macuxi_portal (LOGIN, sem SUPERUSER/BYPASSRLS; sem ALTER de atributo, senha como verificador SCRAM)', async () => {
       const como = await com(urlAdmin(cfg, conf.bancoManutencao), async (c) => {
         const app = await garantirPapelDbaas(c, 'macuxi_app', appSenha);
         const worker = await garantirPapelDbaas(c, 'macuxi_worker', workerSenha);
-        return `macuxi_app ${app} · macuxi_worker ${worker}`;
+        const portal = await garantirPapelDbaas(c, 'macuxi_portal', portalSenha);
+        return `macuxi_app ${app} · macuxi_worker ${worker} · macuxi_portal ${portal}`;
       });
       const r = await com(urlAdmin(cfg, conf.bancoManutencao), (c) =>
         c.query<{ rolname: string; rolcanlogin: boolean; rolsuper: boolean; rolbypassrls: boolean }>(
-          "select rolname, rolcanlogin, rolsuper, rolbypassrls from pg_roles where rolname in ('macuxi_app', 'macuxi_worker') order by 1",
+          'select rolname, rolcanlogin, rolsuper, rolbypassrls from pg_roles where rolname = any($1::text[]) order by 1',
+          [[...PAPEIS_APLICACAO]],
         ),
       );
-      const ok = r.rows.length === 2 && r.rows.every((x) => x.rolcanlogin && !x.rolsuper && !x.rolbypassrls);
+      const ok = r.rows.length === PAPEIS_APLICACAO.length && r.rows.every((x) => x.rolcanlogin && !x.rolsuper && !x.rolbypassrls);
       return {
         ok,
         detalhe: r.rows.map((x) => `${x.rolname}: LOGIN ${x.rolcanlogin ? 'sim' : 'não'}, SUPERUSER ${x.rolsuper ? 'sim' : 'não'}, BYPASSRLS ${x.rolbypassrls ? 'sim' : 'não'}`).join(' · '),
@@ -1559,7 +1563,7 @@ async function principal(): Promise<number> {
           }
           return falhas;
         });
-        return { ok: r.length === 0, detalhe: r.length === 0 ? 'macuxi_app e macuxi_worker apagados' : 'algum papel ficou (o globalSetup vai cair no ALTER ROLE)', subitens: r };
+        return { ok: r.length === 0, detalhe: r.length === 0 ? `${PAPEIS_APLICACAO.join(', ')} apagados` : 'algum papel ficou (o globalSetup vai cair no ALTER ROLE)', subitens: r };
       });
       let vitest = '';
       const instalou = await passo('c3', 'C3.3', 'Vitest da imagem macuxi-api-teste (alvo teste-db, versão do pnpm-lock; nada instalado na VM)', async () => {
