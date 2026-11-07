@@ -9,10 +9,14 @@
  *   herda papel privilegiado e não tem atalho que dispense a política (TRUNCATE, SET ROLE,
  *   row_security = off, ALTER TABLE, função SECURITY DEFINER fora da lista, view sem security_invoker).
  *   O worker (macuxi_worker) também só executa as SECURITY DEFINER revisadas para ele.
+ * - T-0091 (0038, condição da ADR 0029): as plataforma.sa_* têm EXECUTE só para o dono e o macuxi_portal (conferido pelo
+ *   catálogo, não por lista fixa); o macuxi_portal não tem grant de tabela, não herda papel, não é dono de nada e só tem
+ *   USAGE no schema plataforma.
  * - Perfis: o CHECK do banco aceita exatamente os PERFIS do @macuxi/platform-sdk ("gerente", nunca
  *   "manager" da Fase M) — provado com INSERT real, não lendo o SQL.
  */
-import { DOIS_TENANTS, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '@macuxi/db/teste';
+import { DOIS_TENANTS, PAPEL_PORTAL, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '@macuxi/db/teste';
+import { diagnosticarPapelApp } from '@macuxi/db';
 import { banco, semBanco } from '@macuxi/db/teste/estado';
 import { PERFIS } from '@macuxi/platform-sdk';
 import type pg from 'pg';
@@ -22,6 +26,8 @@ import { conectar, schemasDeDominio, tabelasDoCatalogo, tentar, type Tabela } fr
 const A = DOIS_TENANTS.A.tenantId;
 const PAPEL = 'macuxi_app';
 const PAPEL_WORKER = 'macuxi_worker';
+/** Função interna da 0035: só o dono executa (as sa_* públicas a chamam por dentro). */
+const SA_INTERNAS: ReadonlySet<string> = new Set(['sa_registrar_auditoria']);
 /** Tabelas sem política nem grant para o app e o worker (0035): exceção SÓ para estas, lida do @macuxi/db/teste. */
 const SO_POR_FUNCAO: ReadonlySet<string> = new Set(TABELAS_SO_POR_FUNCAO);
 const SA = 'super-admin de plataforma (ADR 0029): confere a sessão/desafio; tabelas só por função';
@@ -37,7 +43,14 @@ const DEFINER_REVISADAS: Record<string, string> = {
   // T-0078 (0024; R-20261105-001055-banco-dados): /v1/saude
   'plataforma.resumo_outbox(p_nomes text[], p_max_tentativas integer)':
     'saúde: só agregados da outbox de todos os tenants (pendentes, parados, segundos do mais antigo); sem id, tenant, payload ou erro',
-  // T-0087 fatia P (0035; ADR 0029; R-20261106-012659-banco-dados): NÃO entram em DEFINER_REVISADAS_WORKER (o worker leva 42501)
+};
+
+/**
+ * Funções SECURITY DEFINER que o papel do portal (macuxi_portal, 0038, T-0091, condição da ADR 0029) pode chamar: as 20
+ * plataforma.sa_* da 0035 (§10) e NADA mais. Saíram de DEFINER_REVISADAS na 0038 (R-20261106-234527-banco-dados): se o
+ * macuxi_app ou o macuxi_worker voltar a executar alguma, o caso do papel deles reprova (igualdade exata).
+ */
+const DEFINER_REVISADAS_PORTAL: Record<string, string> = {
   'plataforma.sa_existe()': `${SA}; só diz se já houve super-admin`,
   'plataforma.sa_criar_primeiro(p_email text, p_nome text, p_senha_hash text)': `${SA}; cria só com zero linhas (trava consultiva)`,
   'plataforma.sa_para_login(p_email text)': `${SA}; linha viva para conferir senha/TOTP, sem hashes de recuperação`,
@@ -338,6 +351,35 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       conferirDefiner(await definerExecutaveis(admin, PAPEL_WORKER, schemas), DEFINER_REVISADAS_WORKER);
     });
 
+    it('T-0091 funções SECURITY DEFINER executáveis pelo portal (macuxi_portal): só as sa_* revisadas, com search_path fixo e sem EXECUTE para PUBLIC', async () => {
+      conferirDefiner(await definerExecutaveis(admin, PAPEL_PORTAL, schemas), DEFINER_REVISADAS_PORTAL);
+    });
+
+    it('T-0091 pelo catálogo: toda plataforma.sa_* tem EXECUTE só para o dono e o macuxi_portal (nem PUBLIC, nem app, nem worker); a interna, só o dono', async () => {
+      const r = await admin.query<{ nome: string; assinatura: string; dono: string; grantees: string[] }>(
+        `select p.proname as nome, p.oid::regprocedure::text as assinatura, pg_get_userbyid(p.proowner) as dono,
+                coalesce((select array_agg(distinct case when a.grantee = 0 then 'PUBLIC' else pg_get_userbyid(a.grantee) end)
+                            from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where a.privilege_type = 'EXECUTE'), '{}')::text[] as grantees
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'plataforma' and starts_with(p.proname, 'sa_')
+          order by 2`,
+      );
+      // o catálogo e a lista revisada têm o mesmo tamanho (sa_* nova sem revisão reprova aqui e no caso acima)
+      expect(r.rows.filter((f) => !SA_INTERNAS.has(f.nome)).length).toBe(Object.keys(DEFINER_REVISADAS_PORTAL).length);
+      const problemas: string[] = [];
+      for (const f of r.rows) {
+        const interna = SA_INTERNAS.has(f.nome);
+        const esperados = interna ? [f.dono] : [f.dono, PAPEL_PORTAL].sort();
+        if (JSON.stringify([...f.grantees].sort()) !== JSON.stringify(esperados)) problemas.push(`${f.assinatura}: EXECUTE para ${f.grantees.join(', ')}`);
+        for (const papel of [PAPEL, PAPEL_WORKER, PAPEL_PORTAL]) {
+          const t = await admin.query<{ tem: boolean }>(`select has_function_privilege($1, $2::regprocedure, 'EXECUTE') as tem`, [papel, f.assinatura]);
+          const deve = papel === PAPEL_PORTAL && !interna;
+          if (t.rows[0]!.tem !== deve) problemas.push(`${f.assinatura}: ${papel} ${deve ? 'não executa' : 'executa'}`);
+        }
+      }
+      expect(problemas).toEqual([]);
+    });
+
     it('views legíveis pelo papel usam security_invoker (senão rodam como o dono e ignoram RLS); matviews não são legíveis', async () => {
       const r = await admin.query<{ nome: string; tipo: string; opcoes: string[] | null }>(
         `select n.nspname || '.' || c.relname as nome, c.relkind::text as tipo, c.reloptions as opcoes
@@ -347,6 +389,75 @@ describe.skipIf(semBanco())('S0-023/S0-028 conformidade do banco para o isolamen
       );
       const inseguras = r.rows.filter((v) => v.tipo === 'm' || !(v.opcoes ?? []).some((o) => /^security_invoker=(true|on|1)$/i.test(o)));
       expect(inseguras.map((v) => v.nome)).toEqual([]);
+    });
+  });
+
+  describe('T-0091 o papel do portal (macuxi_portal) só chega às sa_*', () => {
+    it('atributos: sem SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB, REPLICATION', async () => {
+      const r = await admin.query('select rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolreplication from pg_roles where rolname = $1', [PAPEL_PORTAL]);
+      expect(r.rows).toHaveLength(1);
+      expect(r.rows[0]).toMatchObject({ rolsuper: false, rolbypassrls: false, rolcreaterole: false, rolcreatedb: false, rolreplication: false });
+    });
+
+    it('não é membro de papel nenhum (nem do macuxi_manutencao, nem do macuxi_app)', async () => {
+      const r = await admin.query<{ rolname: string }>(
+        `select r.rolname from pg_auth_members m join pg_roles r on r.oid = m.roleid where m.member = (select oid from pg_roles where rolname = $1)`,
+        [PAPEL_PORTAL],
+      );
+      expect(r.rows.map((x) => x.rolname)).toEqual([]);
+    });
+
+    it('não é dono de schema, tabela, view, sequência, função ou tipo', async () => {
+      const r = await admin.query<{ objeto: string }>(
+        `select 'schema ' || nspname as objeto from pg_namespace where nspowner = (select oid from pg_roles where rolname = $1)
+         union all select 'rel ' || c.oid::regclass::text from pg_class c where c.relowner = (select oid from pg_roles where rolname = $1)
+         union all select 'fn ' || p.oid::regprocedure::text from pg_proc p where p.proowner = (select oid from pg_roles where rolname = $1)
+         union all select 'tipo ' || t.oid::regtype::text from pg_type t where t.typowner = (select oid from pg_roles where rolname = $1)`,
+        [PAPEL_PORTAL],
+      );
+      expect(r.rows.map((x) => x.objeto)).toEqual([]);
+    });
+
+    it('nenhum grant de tabela, view, sequência ou coluna (catálogo e information_schema); nenhum privilégio efetivo em tabela', async () => {
+      const acl = await admin.query<{ objeto: string }>(
+        `select c.oid::regclass::text || ' ' || a.privilege_type as objeto
+           from pg_class c cross join lateral aclexplode(c.relacl) a
+          where a.grantee = (select oid from pg_roles where rolname = $1)
+         union all
+         select c.oid::regclass::text || '.' || t.attname || ' ' || a.privilege_type
+           from pg_attribute t join pg_class c on c.oid = t.attrelid cross join lateral aclexplode(t.attacl) a
+          where a.grantee = (select oid from pg_roles where rolname = $1)`,
+        [PAPEL_PORTAL],
+      );
+      expect(acl.rows.map((x) => x.objeto)).toEqual([]);
+      const rtg = await admin.query<{ n: number }>('select count(*)::int as n from information_schema.role_table_grants where grantee = $1', [PAPEL_PORTAL]);
+      expect(rtg.rows[0]!.n).toBe(0);
+      const efetivos: string[] = [];
+      for (const t of tabelas) {
+        const r = await admin.query<{ tem: boolean }>(
+          `select has_table_privilege($1, $2, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') as tem`,
+          [PAPEL_PORTAL, t.sql],
+        );
+        if (r.rows[0]!.tem) efetivos.push(t.nome);
+      }
+      expect(efetivos).toEqual([]);
+    });
+
+    it('schemas: só USAGE no plataforma; nenhum CREATE (nem no public)', async () => {
+      const problemas: string[] = [];
+      for (const s of [...schemas, 'public']) {
+        const r = await admin.query<{ uso: boolean; criar: boolean }>(
+          `select has_schema_privilege($1, $2, 'USAGE') as uso, has_schema_privilege($1, $2, 'CREATE') as criar`,
+          [PAPEL_PORTAL, s],
+        );
+        if (r.rows[0]!.criar) problemas.push(`CREATE no schema ${s}`);
+        if (s !== 'public' && r.rows[0]!.uso !== (s === 'plataforma')) problemas.push(`USAGE no schema ${s}: ${r.rows[0]!.uso}`);
+      }
+      expect(problemas).toEqual([]);
+    });
+
+    it('diagnóstico S0-028 do @macuxi/db também aprova o papel (sem superusuário, sem ignorar RLS, sem tabela própria)', async () => {
+      expect(await diagnosticarPapelApp(admin, PAPEL_PORTAL)).toEqual({ superusuario: false, ignoraRls: false, tabelasDeQueEDono: [] });
     });
   });
 
