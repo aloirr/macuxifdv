@@ -106,6 +106,7 @@ function pararSePreciso() {
 }
 function observar(chave: string, o: Observado) {
   pendentes.set(chave, o);
+  // timer-permitido: observador de visibilidade da miniatura na tela (T-0097), só com itens pendentes e parado sem nenhum; não sincroniza
   if (!temporizador) temporizador = setInterval(medir, INTERVALO_MEDICAO_MS);
   setTimeout(medir, 0); // primeira medição sem esperar o intervalo
 }
