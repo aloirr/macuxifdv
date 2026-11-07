@@ -6,6 +6,17 @@ import type { NextConfig } from 'next';
 const DEMO = process.env.NEXT_PUBLIC_API_MODO?.trim().toLowerCase() === 'demo';
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? (DEMO ? 'http://localhost:8000/v1' : 'http://localhost:8100/v1')).replace(/\/$/, '');
 
+/** Origem da API sem o `/v1` (rotas públicas de módulo ficam em `/<modulo>/v1/...`, fora do `/v1`; T-0092). */
+export function origemDaApi(apiUrl: string): string {
+  return apiUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
+}
+
+/**
+ * Documento público do Hub (T-0092, ADR 0030): `GET /integracao/v1/openapi.json`, sem token. O portal baixa por este caminho
+ * same-origin (dentro de `/api-proxy`, que o `proxy.ts` não reescreve); só este arquivo, não o espaço `/<modulo>/v1` inteiro.
+ */
+export const PROXY_OPENAPI_HUB = '/api-proxy/_publico/integracao/v1/openapi.json';
+
 /**
  * Hosts em que o BKO roda atrás de proxy/túnel (T-0038; doc 04, "Domínio e endereços"). O BKO da demo fica em
  * `bko-demo.macuxifdv.com.br` (túnel nomeado `macuxi-demo` → `next start` na 127.0.0.1:3100, scripts/demo).
@@ -16,8 +27,10 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? (DEMO ? 'http://localhost:80
  * Produção (T-0086, ADR 0028): `bko.macuxifdv.com.br` e `config.macuxifdv.com.br` (portal da T-0087, mesmo serviço
  * `bko:3100` atrás do túnel `macuxi-prod`) entram fixos, então a imagem de produção aceita os dois hosts qualquer que
  * seja o `MACUXI_BKO_ORIGEM` do build. O roteamento do `config.` para o portal fica no `proxy.ts`.
+ * Demo (T-0091 §9): o portal da demo fica em `config-demo.macuxifdv.com.br` (mesmo serviço `bko:3100`, túnel `macuxi-demo-nuvem`).
+ * Só hosts explícitos, sem curinga.
  */
-export const HOSTS_DO_BKO_PADRAO = ['bko-demo.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br'] as const;
+export const HOSTS_DO_BKO_PADRAO = ['bko-demo.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br', 'config-demo.macuxifdv.com.br'] as const;
 
 /** Host (sem esquema, caminho nem porta padrão) de uma origem como `https://bko-demo.macuxifdv.com.br/`; vazio/inválido = null. */
 export function hostDaOrigem(origem: string | undefined | null): string | null {
@@ -75,7 +88,11 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   /** Proxy same-origin: todas as chamadas da API real e os métodos que o CORS da demo não libere (baseDaChamada). */
   async rewrites() {
-    return [{ source: '/api-proxy/:path*', destination: `${API_URL}/:path*` }];
+    return [
+      // o específico antes do geral: a 1ª regra que casa vale
+      { source: PROXY_OPENAPI_HUB, destination: `${origemDaApi(API_URL)}/integracao/v1/openapi.json` },
+      { source: '/api-proxy/:path*', destination: `${API_URL}/:path*` },
+    ];
   },
 };
 

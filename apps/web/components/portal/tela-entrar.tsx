@@ -7,16 +7,26 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
 import { CodigoRecuperacaoSchema, EtapaLoginSchema, SessaoPlataformaSchema } from '@macuxi/platform-sdk';
 import { Button, Notice } from '@macuxi/ui/web';
 
-import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
+import {
+  chamarPortal,
+  ErroPortal,
+  MENSAGEM_PORTAL_SEM_SEGREDOS,
+  MENSAGEM_RECUPERACAO_INCORRETA,
+  MENSAGEM_SESSAO_TERMINOU,
+  MENSAGEM_TOTP_INCORRETO,
+  mensagemDoErro,
+} from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
-import { estadoDaSessao, lerSessaoPortal, salvarSessaoPortal } from '@/lib/portal-sessao';
+import { apagarRetornoPortal, estadoDaSessao, lerRetornoPortal, lerSessaoPortal, salvarSessaoPortal } from '@/lib/portal-sessao';
 import { Campo, MolduraEstreita } from './base';
 import { apenasDigitos, CadastroTotp } from './cadastro-totp';
 
 type Etapa = ReturnType<typeof EtapaLoginSchema.parse>;
+
 
 /** Frase da 1ª etapa pelo código da API (mesma resposta para e-mail inexistente e senha errada). */
 export function mensagemDoLoginPortal(x: unknown): string {
@@ -24,9 +34,17 @@ export function mensagemDoLoginPortal(x: unknown): string {
     if (x.status === 401) return 'E-mail ou senha incorretos.';
     if (x.status === 423) return x.message || 'Acesso bloqueado por 15 minutos depois de 5 tentativas. Espere e tente de novo.';
     if (x.status === 429) return 'Muitas tentativas deste endereço. Espere alguns minutos e tente de novo.';
-    if (x.status === 503) return 'O portal ainda não está configurado neste servidor. Avise o engenheiro de plantão.';
+    if (x.status === 503) return MENSAGEM_PORTAL_SEM_SEGREDOS;
   }
   return mensagemDoErro(x);
+}
+
+/** Frase da 2ª etapa (código do aplicativo ou de recuperação). O 423 (bloqueio) usa a frase da 1ª etapa. */
+export function mensagemDoCodigoPortal(x: unknown, recuperacao: boolean): string {
+  if (x instanceof ErroPortal && x.status === 423) return mensagemDoLoginPortal(x);
+  if (x instanceof ErroPortal && x.status === 401 && x.codigo === CODIGOS_PORTAL.codigoInvalido) return recuperacao ? MENSAGEM_RECUPERACAO_INCORRETA : MENSAGEM_TOTP_INCORRETO;
+  if (x instanceof ErroPortal && x.status === 503) return MENSAGEM_PORTAL_SEM_SEGREDOS;
+  return mensagemDoErro(x, recuperacao ? MENSAGEM_RECUPERACAO_INCORRETA : MENSAGEM_TOTP_INCORRETO);
 }
 
 export function TelaEntrar() {
@@ -39,9 +57,21 @@ export function TelaEntrar() {
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // página de onde a guarda mandou para cá (volta para ela depois do login, com o #aba; R-20261106-023316 🟡 10)
+  const [destino, setDestino] = useState('/empresas');
 
   useEffect(() => {
-    if (estadoDaSessao(lerSessaoPortal(), Date.now()) === 'valida') router.replace('/empresas');
+    const e = estadoDaSessao(lerSessaoPortal(), Date.now());
+    if (e === 'valida' || e === 'renovar') {
+      apagarRetornoPortal();
+      router.replace('/empresas');
+      return;
+    }
+    // lê sem apagar: um F5 aqui mantém a página de origem e o aviso; apaga só depois do login (R-20261107-093612 🟢 4)
+    const r = lerRetornoPortal();
+    if (!r) return;
+    if (r.caminho) setDestino(r.caminho);
+    if (r.sessaoTerminou) setAviso(MENSAGEM_SESSAO_TERMINOU);
   }, [router]);
 
   const recomecar = useCallback((msg: string) => {
@@ -50,6 +80,10 @@ export function TelaEntrar() {
     setSenha('');
     setAviso(msg);
   }, []);
+  const irParaDestino = useCallback(() => {
+    apagarRetornoPortal();
+    router.replace(destino);
+  }, [router, destino]);
   const desafioVencido = useCallback(() => recomecar('O tempo para o 2º passo acabou (5 minutos). Entre de novo.'), [recomecar]);
 
   const entrar = async (ev: FormEvent) => {
@@ -86,10 +120,10 @@ export function TelaEntrar() {
     try {
       const s = await chamarPortal(ROTAS_PORTAL.segundoFator, { metodo: 'POST', corpo, schema: SessaoPlataformaSchema });
       salvarSessaoPortal(s);
-      router.replace('/empresas');
+      irParaDestino();
     } catch (x) {
       if (x instanceof ErroPortal && x.status === 401 && /DESAFIO/i.test(x.codigo)) return desafioVencido();
-      setErro(x instanceof ErroPortal && x.status === 423 ? mensagemDoLoginPortal(x) : mensagemDoErro(x, 'Código incorreto. Confira e tente de novo.'));
+      setErro(mensagemDoCodigoPortal(x, recuperacao));
       setCodigo('');
     } finally {
       setEnviando(false);
@@ -99,7 +133,7 @@ export function TelaEntrar() {
   if (etapa?.etapa === 'cadastrar_totp') {
     return (
       <MolduraEstreita testId="entrar.tela">
-        <CadastroTotp desafio={etapa.desafio} aoTerminar={() => router.replace('/empresas')} aoDesafioVencido={desafioVencido} />
+        <CadastroTotp desafio={etapa.desafio} aoTerminar={irParaDestino} aoDesafioVencido={desafioVencido} />
       </MolduraEstreita>
     );
   }

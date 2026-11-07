@@ -22,6 +22,11 @@ describe('link do convite aponta para o BKO', () => {
     expect(origemDoBko('https://config.macuxifdv.com.br')).toBe('https://bko.macuxifdv.com.br');
     expect(origemDoBko('http://config.localhost:3000')).toBe('http://bko.localhost:3000');
   });
+  it('T-0091: na demo troca config-demo. por bko-demo. (o link não cai no portal)', () => {
+    expect(origemDoBko('https://config-demo.macuxifdv.com.br')).toBe('https://bko-demo.macuxifdv.com.br');
+    expect(origemDoBko('http://config-demo.localhost:3000')).toBe('http://bko-demo.localhost:3000');
+    expect(origemDoBko('https://configx.macuxifdv.com.br')).toBe('https://configx.macuxifdv.com.br');
+  });
   it('no próprio BKO usa a origem em uso', () => {
     expect(origemDoBko('https://bko-demo.macuxifdv.com.br')).toBe('https://bko-demo.macuxifdv.com.br');
     expect(origemDoBko('http://localhost:3000')).toBe('http://localhost:3000');

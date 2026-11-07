@@ -5,9 +5,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import nextConfig, { hostDaOrigem, hostsDoBko } from '../next.config';
+import nextConfig, { hostDaOrigem, hostsDoBko, origemDaApi, PROXY_OPENAPI_HUB } from '../next.config';
+import { OPENAPI_HUB } from './portal-rotas';
 
-const FIXOS = ['bko-demo.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br'];
+const FIXOS = ['bko-demo.macuxifdv.com.br', 'bko.macuxifdv.com.br', 'config.macuxifdv.com.br', 'config-demo.macuxifdv.com.br'];
 
 describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
   it('demo e produção (bko. e config.) sempre permitidos', () => {
@@ -33,7 +34,20 @@ describe('hosts do BKO atrás do túnel (T-0038, T-0086)', () => {
       expect(nextConfig.experimental?.serverActions?.allowedOrigins).toContain(h);
     }
     const rewrites = await (nextConfig.rewrites as () => Promise<{ source: string; destination: string }[]>)();
-    expect(rewrites[0]?.source).toBe('/api-proxy/:path*');
-    expect(rewrites[0]?.destination).toMatch(/\/v1\/:path\*$/);
+    const geral = rewrites.find((r) => r.source === '/api-proxy/:path*');
+    expect(geral?.destination).toMatch(/\/v1\/:path\*$/);
+    // T-0092: o OpenAPI público do Hub fica fora do /v1; a regra dele vem antes da geral
+    const doc = rewrites.findIndex((r) => r.source === PROXY_OPENAPI_HUB);
+    expect(doc).toBeGreaterThanOrEqual(0);
+    expect(doc).toBeLessThan(rewrites.findIndex((r) => r.source === '/api-proxy/:path*'));
+    expect(rewrites[doc]?.destination).toMatch(/:\d+\/integracao\/v1\/openapi\.json$/);
+    // o botão do portal (aba Integração) usa o mesmo caminho
+    expect(OPENAPI_HUB.viaProxy).toBe(PROXY_OPENAPI_HUB);
+    expect(rewrites[doc]?.destination.endsWith(OPENAPI_HUB.rotaNaApi)).toBe(true);
+  });
+  it('origem da API sem o /v1 (rotas públicas de módulo)', () => {
+    expect(origemDaApi('http://api:8100/v1')).toBe('http://api:8100');
+    expect(origemDaApi('http://127.0.0.1:8100/v1/')).toBe('http://127.0.0.1:8100');
+    expect(origemDaApi('https://api.exemplo.com.br')).toBe('https://api.exemplo.com.br');
   });
 });

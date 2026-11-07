@@ -1,7 +1,7 @@
 /** T-0086: roteamento do host `config.` para o portal de implantação (conteúdo na T-0087). */
 import { describe, expect, it } from 'vitest';
 
-import { bloqueadoForaDoPortal, destinoNoPortal, ehHostDoPortal, ENTRADA_DO_PORTAL, hostDaRequisicao, ROTA_DO_PORTAL } from './portal';
+import { bloqueadoForaDoPortal, destinoNoPortal, ehHostDoPortal, ENTRADA_DO_PORTAL, hostDaRequisicao, prefixoDoPortal, ROTA_DO_PORTAL } from './portal';
 
 describe('host do portal (T-0086)', () => {
   it('lê o host da requisição: x-forwarded-host primeiro, sem porta, minúsculo', () => {
@@ -20,6 +20,41 @@ describe('host do portal (T-0086)', () => {
     expect(ehHostDoPortal('config.')).toBe(false);
     expect(ehHostDoPortal('meuconfig.macuxifdv.com.br')).toBe(false);
     expect(ehHostDoPortal(null)).toBe(false);
+  });
+  it('T-0091: config-demo. também é portal (lista explícita, sem curinga)', () => {
+    expect(ehHostDoPortal('config-demo.macuxifdv.com.br')).toBe(true);
+    expect(ehHostDoPortal('config-demo.localhost')).toBe(true);
+    expect(ehHostDoPortal(hostDaRequisicao('bko:3100', 'Config-Demo.MacuxiFDV.com.br'))).toBe(true);
+    expect(prefixoDoPortal('config-demo.macuxifdv.com.br')).toBe('config-demo.');
+    expect(prefixoDoPortal('config.macuxifdv.com.br')).toBe('config.');
+    // bko-demo continua BKO; parecidos não viram portal
+    for (const h of ['bko-demo.macuxifdv.com.br', 'configx.macuxifdv.com.br', 'config-demox.macuxifdv.com.br', 'config-dev.macuxifdv.com.br', 'config-demo.', 'meuconfig-demo.macuxifdv.com.br', 'configdemo.macuxifdv.com.br']) {
+      expect(ehHostDoPortal(h), h).toBe(false);
+    }
+    expect(prefixoDoPortal('bko-demo.macuxifdv.com.br')).toBeNull();
+  });
+});
+
+describe('T-0091: portal na demo (config-demo.macuxifdv.com.br)', () => {
+  const demo = 'config-demo.macuxifdv.com.br';
+  it('reescreve como o config.: raiz, /entrar, /empresas e o /login do BKO', () => {
+    expect(destinoNoPortal(demo, '/')).toBe(ROTA_DO_PORTAL);
+    expect(destinoNoPortal(demo, '/entrar')).toBe('/config/entrar');
+    expect(destinoNoPortal(demo, '/primeiro-acesso')).toBe('/config/primeiro-acesso');
+    expect(destinoNoPortal(demo, '/empresas/abc')).toBe('/config/empresas/abc');
+    expect(destinoNoPortal(demo, '/login')).toBe(ENTRADA_DO_PORTAL);
+  });
+  it('não reescreve arquivos do Next, o proxy da API (inclusive o openapi.json do Hub) nem o próprio /config', () => {
+    for (const c of ['/_next/static/chunks/a.js', '/api-proxy/plataforma/auth/login', '/api-proxy/_publico/integracao/v1/openapi.json', '/config/entrar', '/favicon.ico']) {
+      expect(destinoNoPortal(demo, c), c).toBeNull();
+    }
+  });
+  it('no config-demo. /config não é bloqueado; no bko-demo. continua 404 e nada é reescrito', () => {
+    expect(bloqueadoForaDoPortal(demo, '/config/entrar')).toBe(false);
+    expect(bloqueadoForaDoPortal('config-demo.localhost', '/config')).toBe(false);
+    expect(bloqueadoForaDoPortal('bko-demo.macuxifdv.com.br', '/config/entrar')).toBe(true);
+    expect(destinoNoPortal('bko-demo.macuxifdv.com.br', '/')).toBeNull();
+    expect(destinoNoPortal('bko-demo.macuxifdv.com.br', '/login')).toBeNull();
   });
 });
 

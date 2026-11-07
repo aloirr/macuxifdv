@@ -4,11 +4,14 @@ import { ENTIDADES } from '@macuxi/integracao/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
 import { entidadesLivres } from '@/components/portal/aba-integracao';
+import { textoCodigosRestantes } from '@/components/portal/base';
 import { apenasDigitos } from '@/components/portal/cadastro-totp';
-import { corpoDaEmpresa, errosDaEmpresa, mascararCnpj, sugerirCodigo } from '@/components/portal/passo-empresa';
+import { resumoDoArquivo, TEXTO_COMPLETO_COM_ERROS } from '@/components/portal/cartao-base';
+import { corpoDaEmpresa, errosDaEmpresa, mascararCnpj, rotuloDoFuso, sugerirCodigo } from '@/components/portal/passo-empresa';
+import { rotuloDoStatus } from '@/components/portal/tela-empresas';
 import { validarPrimeiroAcesso } from '@/components/portal/tela-primeiro-acesso';
-import { mensagemDoLoginPortal } from '@/components/portal/tela-entrar';
-import { ErroPortal } from './portal-api';
+import { mensagemDoCodigoPortal, mensagemDoLoginPortal } from '@/components/portal/tela-entrar';
+import { AJUDA_CONVITE_SUPER_ADMIN, ErroPortal, MENSAGEM_CONVITE_SUPER_ADMIN_INCORRETO, MENSAGEM_PORTAL_SEM_SEGREDOS, MENSAGEM_RECUPERACAO_INCORRETA, MENSAGEM_TOTP_INCORRETO } from './portal-api';
 
 const form = {
   codigo: 'distribuidora-norte',
@@ -68,7 +71,44 @@ describe('primeiro acesso e entrada', () => {
   });
   it('mensagem do login: mesma frase para e-mail inexistente e senha errada', () => {
     expect(mensagemDoLoginPortal(new ErroPortal(401, 'CREDENCIAIS_INVALIDAS', 'qualquer'))).toBe('E-mail ou senha incorretos.');
-    expect(mensagemDoLoginPortal(new ErroPortal(503, 'PORTAL_INDISPONIVEL', 'x'))).toMatch(/não está configurado/);
+    expect(mensagemDoLoginPortal(new ErroPortal(503, 'PORTAL_INDISPONIVEL', 'x'))).toBe(MENSAGEM_PORTAL_SEM_SEGREDOS);
+  });
+  it('mensagem do 2º passo: recuperação fala do código usado; TOTP fala da hora do celular (R-20261106-023316 🟡 3)', () => {
+    const errado = new ErroPortal(401, 'CODIGO_INVALIDO', 'Código incorreto. Confira o aplicativo autenticador e tente de novo.');
+    expect(mensagemDoCodigoPortal(errado, true)).toBe(MENSAGEM_RECUPERACAO_INCORRETA);
+    expect(mensagemDoCodigoPortal(errado, false)).toBe(MENSAGEM_TOTP_INCORRETO);
+    expect(MENSAGEM_TOTP_INCORRETO).toMatch(/hora do celular/);
+    expect(mensagemDoCodigoPortal(new ErroPortal(423, 'BLOQUEADO', 'Acesso bloqueado.'), true)).toBe('Acesso bloqueado.');
+    expect(mensagemDoCodigoPortal(new ErroPortal(503, 'PORTAL_INDISPONIVEL', 'x'), false)).toBe(MENSAGEM_PORTAL_SEM_SEGREDOS);
+  });
+  it('T-0091: textos do convite e dos segredos valem na produção e na demo (nomes dos secrets, nunca valor)', () => {
+    expect(AJUDA_CONVITE_SUPER_ADMIN).toMatch(/PROD_SUPERADMIN_CONVITE na produção/);
+    expect(AJUDA_CONVITE_SUPER_ADMIN).toMatch(/DEMO_SUPERADMIN_CONVITE na demo/);
+    for (const t of [MENSAGEM_CONVITE_SUPER_ADMIN_INCORRETO, MENSAGEM_PORTAL_SEM_SEGREDOS]) {
+      expect(t).not.toMatch(/PRODUCAO|PROD_|DEMO_/);
+    }
+  });
+});
+
+describe('textos do portal (revisão de UX R-20261106-023316)', () => {
+  it('selo dos códigos de recuperação restantes', () => {
+    expect(textoCodigosRestantes(3)).toBe('Restam 3 códigos de recuperação');
+    expect(textoCodigosRestantes(1)).toBe('Resta 1 código de recuperação');
+    expect(textoCodigosRestantes(0)).toBe('Nenhum código de recuperação');
+  });
+  it('fuso e situação da empresa em rótulo', () => {
+    expect(rotuloDoFuso('America/Manaus')).toBe('Manaus (AM, RR, RO) — UTC−4');
+    expect(rotuloDoFuso('Europe/Lisbon')).toBe('Europe/Lisbon');
+    expect(rotuloDoStatus('ativo')).toBe('Ativa');
+    expect(rotuloDoStatus('suspenso')).toBe('Suspensa');
+    expect(rotuloDoStatus('encerrado')).toBe('Encerrada');
+    expect(rotuloDoStatus('novo')).toBe('Novo');
+  });
+  it('modo completo: arquivo e tamanho no diálogo; linhas com erro não inativam (RN-INT-06, R-20261106-030101)', () => {
+    expect(resumoDoArquivo('produtos.csv', 20000, 4)).toBe('produtos.csv, 20.000 linhas em 4 partes');
+    expect(resumoDoArquivo('rotas.csv', 1, 1)).toBe('rotas.csv, 1 linha');
+    expect(resumoDoArquivo(null, 30, 1)).toBe('30 linhas');
+    expect(TEXTO_COMPLETO_COM_ERROS).toMatch(/nada é inativado/);
   });
 });
 

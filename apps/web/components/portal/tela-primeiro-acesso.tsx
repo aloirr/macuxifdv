@@ -11,10 +11,10 @@ import { useCallback, useState, type FormEvent } from 'react';
 import { EtapaLoginSchema, PrimeiroAcessoSchema, SENHA_SUPER_ADMIN_MIN } from '@macuxi/platform-sdk';
 import { Button, Notice } from '@macuxi/ui/web';
 
-import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
+import { AJUDA_CONVITE_SUPER_ADMIN, chamarPortal, ErroPortal, MENSAGEM_CONVITE_SUPER_ADMIN_INCORRETO, MENSAGEM_PORTAL_SEM_SEGREDOS, mensagemDoErro } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { Campo, LinkBotao, MolduraEstreita } from './base';
-import { CadastroTotp } from './cadastro-totp';
+import { CadastroTotp, Passos } from './cadastro-totp';
 
 type Campos = { email: string; nome: string; senha: string; confirmacao: string; convite: string };
 type Erros = Partial<Record<keyof Campos, string>>;
@@ -68,8 +68,8 @@ export function TelaPrimeiroAcesso() {
       if (x instanceof ErroPortal && x.status === 410) {
         setEncerrado(true);
         setErro('O primeiro acesso já foi feito. Entre com o seu e-mail e a sua senha.');
-      } else if (x instanceof ErroPortal && (x.status === 401 || x.status === 403)) setErro('Código de convite incorreto. Confira com quem fez o deploy.');
-      else if (x instanceof ErroPortal && x.status === 503) setErro('O portal ainda não está configurado neste servidor (falta o convite ou a chave do 2º fator). Avise o engenheiro de plantão.');
+      } else if (x instanceof ErroPortal && (x.status === 401 || x.status === 403)) setErro(MENSAGEM_CONVITE_SUPER_ADMIN_INCORRETO);
+      else if (x instanceof ErroPortal && x.status === 503) setErro(MENSAGEM_PORTAL_SEM_SEGREDOS);
       else setErro(mensagemDoErro(x));
       setC((x2) => ({ ...x2, senha: '', confirmacao: '' }));
     } finally {
@@ -80,7 +80,7 @@ export function TelaPrimeiroAcesso() {
   if (desafio) {
     return (
       <MolduraEstreita testId="primeiro-acesso.tela">
-        <CadastroTotp desafio={desafio} aoTerminar={() => router.replace('/empresas')} aoDesafioVencido={desafioVencido} />
+        <CadastroTotp desafio={desafio} aoTerminar={() => router.replace('/empresas')} aoDesafioVencido={desafioVencido} comPassos />
       </MolduraEstreita>
     );
   }
@@ -89,6 +89,7 @@ export function TelaPrimeiroAcesso() {
     <MolduraEstreita testId="primeiro-acesso.tela">
       <form onSubmit={(e) => void enviar(e)} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
+          {!encerrado && <Passos atual={1} />}
           <h1 className="m-0 font-display text-[28px] font-extrabold">Primeiro acesso</h1>
           <span className="text-[13px] text-ink-2">Crie o acesso do super-admin com o código de convite do deploy. Depois deste cadastro, o primeiro acesso se fecha.</span>
         </div>
@@ -107,7 +108,7 @@ export function TelaPrimeiroAcesso() {
             <Campo rotulo="Nome" testId="primeiro-acesso.nome" autoComplete="name" value={c.nome} onChange={mudar('nome')} erro={erros.nome} />
             <Campo rotulo="Senha" testId="primeiro-acesso.senha" type="password" autoComplete="new-password" value={c.senha} onChange={mudar('senha')} erro={erros.senha} ajuda={`${SENHA_SUPER_ADMIN_MIN} caracteres ou mais. Use um gerenciador de senhas.`} />
             <Campo rotulo="Repita a senha" testId="primeiro-acesso.confirmacao" type="password" autoComplete="new-password" value={c.confirmacao} onChange={mudar('confirmacao')} erro={erros.confirmacao} />
-            <Campo rotulo="Código de convite" testId="primeiro-acesso.convite" type="password" autoComplete="off" spellCheck={false} value={c.convite} onChange={mudar('convite')} erro={erros.convite} ajuda="O segredo PROD_SUPERADMIN_CONVITE do deploy." />
+            <Campo rotulo="Código de convite" testId="primeiro-acesso.convite" type="password" autoComplete="off" spellCheck={false} value={c.convite} onChange={mudar('convite')} erro={erros.convite} ajuda={AJUDA_CONVITE_SUPER_ADMIN} />
             <Button data-testid="primeiro-acesso.criar" type="submit" variant="primary" disabled={enviando}>
               {enviando ? 'Criando…' : 'Criar acesso e cadastrar o 2º fator'}
             </Button>

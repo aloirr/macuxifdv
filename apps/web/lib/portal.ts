@@ -6,6 +6,9 @@
  * `/config` do apps/web. O endereço no navegador não muda (`config.macuxifdv.com.br/` mostra `/config`).
  * Ficam de fora: os arquivos do Next (`/_next/*`), o proxy da API (`/api-proxy/*`), o favicon e o próprio `/config`.
  *
+ * T-0091 §9: na demo o portal fica em `config-demo.macuxifdv.com.br` (mesmo serviço `bko:3100`, túnel `macuxi-demo-nuvem`) e
+ * vale tudo o que vale para o `config.` (`PREFIXOS_DO_PORTAL`).
+ *
  * T-0087 (ADR 0029 §7): o portal só existe no host `config.`. Nos outros hosts (bko., bko-demo., localhost, a sonda
  * `127.0.0.1:3100/login`) `/config` e `/config/*` respondem 404 (`bloqueadoForaDoPortal`). No host `config.` o `/login` do BKO
  * não serve: vai para a entrada do portal (`/config/entrar`). No PC, abra `http://config.localhost:3000/`.
@@ -13,8 +16,22 @@
 
 export const ROTA_DO_PORTAL = '/config';
 
-/** Primeiro rótulo do host que identifica o portal: `config.macuxifdv.com.br`; no PC, `config.localhost:3000`. */
-const PREFIXO_DO_HOST = 'config.';
+/**
+ * Primeiro rótulo do host que identifica o portal, com o do BKO correspondente (o link do convite troca um pelo outro). Lista
+ * explícita, sem curinga: `config.macuxifdv.com.br` (produção) e `config-demo.macuxifdv.com.br` (demo, T-0091 §9: um nível de
+ * subdomínio, como `bko-demo.`, porque o certificado universal da Cloudflare não cobre `config.demo.`); no PC,
+ * `config.localhost:3000` e `config-demo.localhost:3000`. `configx.`, `meuconfig.` e `bko-demo.` não são portal.
+ */
+export const PREFIXOS_DO_PORTAL = { 'config.': 'bko.', 'config-demo.': 'bko-demo.' } as const;
+
+/** Prefixo do portal que o host usa (`config.` ou `config-demo.`), ou `null`. O host vem em minúsculas (`hostDaRequisicao`). */
+export function prefixoDoPortal(host: string | null | undefined): keyof typeof PREFIXOS_DO_PORTAL | null {
+  if (!host) return null;
+  for (const p of Object.keys(PREFIXOS_DO_PORTAL) as (keyof typeof PREFIXOS_DO_PORTAL)[]) {
+    if (host.startsWith(p) && host.length > p.length) return p;
+  }
+  return null;
+}
 
 const CAMINHOS_DE_FORA = ['/_next', '/api-proxy', ROTA_DO_PORTAL] as const;
 
@@ -29,7 +46,7 @@ export function hostDaRequisicao(host: string | null | undefined, hostEncaminhad
 }
 
 export function ehHostDoPortal(host: string | null | undefined): boolean {
-  return !!host && host.startsWith(PREFIXO_DO_HOST) && host.length > PREFIXO_DO_HOST.length;
+  return prefixoDoPortal(host) !== null;
 }
 
 function caminhoDeFora(caminho: string): boolean {

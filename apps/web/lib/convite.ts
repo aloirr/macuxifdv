@@ -3,7 +3,8 @@
  *
  * - O link do convite aponta para o BKO, nunca para o portal: no host `config.` o caminho seria do portal e o `/login` vai para
  *   a entrada do super-admin. `origemDoBko` troca o `config.` por `bko.` (produção:
- *   `config.macuxifdv.com.br` → `bko.macuxifdv.com.br`; no PC: `config.localhost:3000` → `bko.localhost:3000`).
+ *   `config.macuxifdv.com.br` → `bko.macuxifdv.com.br`; no PC: `config.localhost:3000` → `bko.localhost:3000`) e, na demo
+ *   (T-0091), o `config-demo.` por `bko-demo.`.
  * - Formato do link (R-20261106-044125): `/convite#<token>` (o fragmento não sai do navegador: nem log do túnel, nem do Next); a
  *   página lê o `#`, guarda o token só na aba (`sessionStorage`, para o F5) e limpa o endereço. `/convite/<token>` continua aceito.
  * - A página `/convite` nunca manda o token a terceiros: `Referrer-Policy: no-referrer`, `no-store` e `noindex` (proxy.ts),
@@ -12,6 +13,8 @@
  *   confirmação; o 422 traz o motivo na `mensagem`.
  */
 import { CODIGOS_EQUIPE_CSV, MAX_CSV_EQUIPE_BYTES } from '@macuxi/core/contracts';
+
+import { PREFIXOS_DO_PORTAL, prefixoDoPortal } from './portal';
 
 export { ehPaginaDeConvite, PREFIXO_CONVITE } from './portal';
 
@@ -26,7 +29,7 @@ export const MENSAGEM_CONVITE_INVALIDO =
   'Este convite não vale mais: ele já foi usado, venceu ou o link chegou incompleto. Abra o link inteiro que você recebeu ou peça um convite novo ao administrador da sua empresa.';
 export const REGRA_DA_SENHA = 'Pelo menos 8 caracteres, com letras e números, e diferente do seu e-mail.';
 
-/** Origem do BKO a partir da origem em uso (portal `config.` → `bko.`; BKO → ela mesma). Inválida = `null` (a API devolve só o caminho). */
+/** Origem do BKO a partir da origem em uso (portal `config.` → `bko.`, `config-demo.` → `bko-demo.`; BKO → ela mesma). Inválida = `null` (a API devolve só o caminho). */
 export function origemDoBko(origem: string | null | undefined): string | null {
   let u: URL;
   try {
@@ -36,7 +39,8 @@ export function origemDoBko(origem: string | null | undefined): string | null {
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
   const host = u.hostname.toLowerCase();
-  const novoHost = host.startsWith('config.') && host.length > 'config.'.length ? `bko.${host.slice('config.'.length)}` : host;
+  const p = prefixoDoPortal(host);
+  const novoHost = p ? `${PREFIXOS_DO_PORTAL[p]}${host.slice(p.length)}` : host;
   return `${u.protocol}//${novoHost}${u.port ? `:${u.port}` : ''}`;
 }
 

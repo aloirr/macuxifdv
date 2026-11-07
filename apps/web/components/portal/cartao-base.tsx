@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ErrosLoteResposta, type ConferenciaArquivo, type Entidade, type ItemOrdemCarga, type LinhaErro, type ModoCarga } from '@macuxi/integracao/contracts';
-import { Badge, Bar, Button, Dialog, IconDownload, Notice, useToast } from '@macuxi/ui/web';
+import { Badge, Bar, Button, Dialog, ErrorBlock, IconDownload, Notice, useToast } from '@macuxi/ui/web';
 
 import { baixarDoPortal, chamarPortal, ehRotaAusente, mensagemDoErro } from '@/lib/portal-api';
 import { baixarTexto, CARTAO_DA_ENTIDADE, conferirArquivo, errosDaConferenciaCsv, formatarLinhas, importarArquivo, novaChaveDeCarga, planejarEnvio, ROTULO_MODO, ROTULO_STATUS_LOTE, type PlanoDeEnvio, type ProgressoCarga, type ResultadoCarga } from '@/lib/portal-carga';
@@ -17,6 +17,19 @@ import { criarPortaCarga } from '@/lib/portal-carga-rede';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 
 type Plano = Extract<PlanoDeEnvio, { ok: true }>;
+
+/**
+ * Linhas com erro no modo completo (RN-INT-06; confirmado pelo modulo-integracao em R-20261106-030101): a linha com erro conta
+ * como vista e o registro dela nunca é inativado; linha com erro sem código (`external_id`) bloqueia toda a inativação da carga.
+ */
+export const TEXTO_COMPLETO_COM_ERROS =
+  'O registro de uma linha com erro continua como está, sem ser inativado. Se alguma linha com erro vier sem código, nada é inativado nesta carga.';
+
+/** "produtos.csv, 20.000 linhas em 4 partes" (diálogo do modo completo; R-20261106-023316 🟡 7). */
+export function resumoDoArquivo(nome: string | null, totalLinhas: number, partes: number): string {
+  const linhas = `${formatarLinhas(totalLinhas)}${partes > 1 ? ` em ${partes} partes` : ''}`;
+  return nome ? `${nome}, ${linhas}` : linhas;
+}
 
 /** "Baixar modelo" e "Dicionário": rota da N1 (nuvem); 404 = ainda não chegou ao servidor. */
 function LinksDoModelo({ entidade, tenant }: { entidade: Entidade; tenant: string }) {
@@ -70,7 +83,10 @@ function ErrosDoLote({ tenant, loteId, entidade }: { tenant: string; loteId: str
       toast('danger', ehRotaAusente(x) ? '"Baixar erros" chega em breve neste servidor.' : mensagemDoErro(x));
     }
   };
-  if (q.isPending || q.isError || q.data.total === 0) return null;
+  if (q.isPending) return null;
+  // erro ao buscar a lista: o cartão diz "Concluído com erros", então a falha aparece com "Tentar de novo" (🟡 11)
+  if (q.isError) return <ErrorBlock message={ehRotaAusente(q.error) ? 'A lista de erros deste lote ainda não está disponível neste servidor.' : mensagemDoErro(q.error)} onRetry={() => void q.refetch()} />;
+  if (q.data.total === 0) return null;
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -223,7 +239,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
           <div className="flex gap-3">
             {(['delta', 'completo'] as const).map((m) => (
               <label key={m} className="flex items-center gap-1.5 text-[14px]" title={ROTULO_MODO[m].ajuda}>
-                <input type="radio" name={`modo-${entidade}`} data-testid={`base-${entidade}.modo-${m}`} className="accent-[#c2540a]" checked={modo === m} disabled={ocupado === 'importando'} onChange={() => {
+                <input type="radio" name={`modo-${entidade}`} data-testid={`base-${entidade}.modo-${m}`} className="accent-accent" checked={modo === m} disabled={ocupado === 'importando'} onChange={() => {
                     setModo(m);
                     setConferencia(null);
                     novoEnvio();
@@ -264,7 +280,7 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
           <Notice tone={conferencia.pode_gravar ? 'success' : 'warning'}>
             {conferencia.pode_gravar
               ? `Conferido, nada gravado: ${formatarLinhas(conferencia.linhas_lidas)} sem erro de formato. As referências entre bases são conferidas ao gravar.`
-              : `Conferido, nada gravado: ${formatarLinhas(conferencia.linhas_com_erro)} com erro de ${formatarLinhas(conferencia.linhas_lidas)}. Corrija o arquivo e confira de novo, ou importe assim: as linhas com erro ficam de fora.`}
+              : `Conferido, nada gravado: ${formatarLinhas(conferencia.linhas_com_erro)} com erro de ${formatarLinhas(conferencia.linhas_lidas)}. Corrija o arquivo e confira de novo, ou importe assim: as linhas com erro ficam de fora.${modo === 'completo' ? ` ${TEXTO_COMPLETO_COM_ERROS}` : ''}`}
           </Notice>
           {conferencia.erros.length > 0 && (
             <div>
@@ -320,13 +336,15 @@ export function CartaoBase({ item, tenant, rotuloDepende }: { item: ItemOrdemCar
         footer={
           <>
             <Button onClick={() => setConfirmarCompleto(false)}>Cancelar</Button>
-            <Button variant="primary" data-testid={`base-${entidade}.confirmar-completo`} onClick={() => void importar()}>
+            <Button variant="danger" data-testid={`base-${entidade}.confirmar-completo`} onClick={() => void importar()}>
               Importar completo
             </Button>
           </>
         }
       >
+        {plano && <strong className="mb-1 block">{resumoDoArquivo(nomeArquivo, plano.totalLinhas, plano.partes.length)}.</strong>}
         O arquivo vira a lista inteira de {cartao.titulo.toLowerCase()}: o que já existe e não vier nele será inativado no fim da última parte.
+        {conferencia && conferencia.linhas_com_erro > 0 && ` A conferência achou ${formatarLinhas(conferencia.linhas_com_erro)} com erro. ${TEXTO_COMPLETO_COM_ERROS}`}
       </Dialog>
     </section>
   );
