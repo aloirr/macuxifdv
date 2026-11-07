@@ -1,8 +1,22 @@
 # Produção — roteiro de ligar (T-0086)
 
-Fonte: docs/desenho/T-0086.md §4–§6 (engenheiro-software). Atualizado pelo gerente em 05/11 23h.
+Fonte: docs/desenho/T-0086.md §4–§6 (engenheiro-software). Atualizado pelo gerente em 07/11 8h.
 
-## 4. Às 8h de 06/11: o que o Alexandre faz
+**Estado em 07/11 8h:** tudo do lado do código está no `main`. Nada é ligado até o recado do Alexandre dizendo que criou os recursos (R-20261106-182000).
+
+## O que mudou desde 06/11
+- **Workflows no `main`, com o ok do Alexandre** (R-20261106-182000, itens 1 e 2): `producao-publicar.yml` (já lê o `PROD_SUPERADMIN_CONVITE`), `producao-tenant.yml`, `producao-ensaio-restauracao.yml` e o job `stack-producao` do CI.
+- **Migrações novas que o 1º deploy aplica:**
+  - `0037_forma_prazo_escalonada`: formas de pagamento, prazos e tabela escalonada da T-0089. Cada tenant ganha a forma `AVISTA`.
+  - `0038_plataforma_papel_portal`: o papel `macuxi_portal` da T-0091, o único que executa as funções de super-admin.
+  - As duas são aditivas.
+- **Senha do portal (T-0091):** o `preparar-vm.sh` gera a senha do `macuxi_portal` na VM, num arquivo próprio (`/opt/macuxi/portal.env`, modo 600). Só a `api` e o passo de papéis leem esse arquivo. **Não há secret novo para o Alexandre.** Sem o arquivo, o `implantar.sh` para antes de subir.
+- **App com SQLite (T-0088):** o APK de produção sai de um commit igual ou mais novo que o `e9a65286`, que já inclui a correção do "+" (`56b89a1`, item 7 do R-20261106-182000).
+  - Na 1ª abertura, o app passa os dados do armazenamento antigo para o banco do aparelho, com a tela "Preparando o aparelho". Num aparelho novo, isso é instantâneo.
+  - A T-0088 não tem atualização pelo ar (OTA): toda mudança dela exige um APK novo.
+- **Pendência antes do 1º cliente real:** a T-0091 está no `main`. Falta o ok do Alexandre nas conferências extras do `stack-isolado.yml` (`docs/desenho/T-0091-stack-isolado.diff`), que estão em ajuste com o engenheiro-software.
+
+## 4. O que o Alexandre faz (quando for ligar)
 
 **1. VM `macuxi-prod-se1`**
 - Ubuntu 24.04, br-se1, na **mesma VPC do DBaaS** e com disco de 40 GB ou mais.
@@ -53,7 +67,7 @@ Copie o **token** do túnel.
 | `PROD_SSH_KNOWN_HOSTS` | não | linha `ssh-ed25519` da VM. Sem ele, vale a 1ª conexão (keyscan) |
 | `PROD_ALERTA_WEBHOOK` | não | URL de um tópico do ntfy.sh ou de um webhook do Slack/Discord para os alertas |
 | `PROD_TENANT_ADMIN_SENHA` | para o tenant de teste | senha inicial do admin do tenant de teste |
-| `PROD_SUPERADMIN_CONVITE` | para o portal `config.` | convite do seu 1º acesso de super-admin (ADR 0029). Só você sabe o valor. O workflow passa a ler esse secret depois do seu ok na mudança do `producao-publicar.yml`. Os segredos de sessão e TOTP do portal são gerados pelo `preparar-vm.sh` na VM. |
+| `PROD_SUPERADMIN_CONVITE` | para o portal `config.` | convite do seu 1º acesso de super-admin (ADR 0029). Só você sabe o valor. O workflow já lê esse secret (ok dado em 06/11). Os segredos de sessão e TOTP do portal são gerados pelo `preparar-vm.sh` na VM. |
 
 **7. Avise o gerente** quando terminar. Depois disso, ele só precisa de você para **aprovar** os runs do `PRODUCAO`.
 
@@ -76,6 +90,7 @@ git push origin v1.0.0
 - o resumo do run termina com `publicado: v1.0.0`, `api.macuxifdv.com.br: v1.0.0 no ar` e `bko.macuxifdv.com.br: ok`;
 - `https://api.macuxifdv.com.br/v1/saude` mostra `"versao":"v1.0.0"`, `"banco":"ok"` e `"alertas":[]`;
 - `https://bko.macuxifdv.com.br/login` e `https://config.macuxifdv.com.br` abrem;
+- o portal está no ar com o papel próprio: um login de super-admin com credencial errada responde **401**, nunca 503 `PORTAL_INDISPONIVEL`. O 503 indica que faltam na VM o `portal.env` ou os segredos de sessão e TOTP do portal;
 - os avisos (`::warning::`) do log merecem atenção: TLS sem CA, sonda do S3 e backup ainda sem script.
 
 **5. Criar o tenant de teste:** Actions → "producao — criar tenant" → Run workflow. Precisa da aprovação do Alexandre.
@@ -97,7 +112,7 @@ Antes de testar, saiba de três coisas:
 - **O APK de produção instala por cima do de preview,** porque os dois têm o mesmo pacote. No mesmo aparelho, não dá para ter a demo e a produção ao mesmo tempo.
 - **Os dados locais são separados por usuário,** então os da demo não se misturam com os da produção.
 
-**Formas de pagamento (T-0089, quando ela estiver no main):**
+**Formas de pagamento (T-0089, no `main` desde o `5a1848a9`):**
 - **Forma padrão:** todo tenant nasce com a forma "À vista", código `AVISTA`, prazo de 0 dias.
 - **Tenant que integra ERP:** o ERP precisa mandar as formas e os prazos, ou de-para para `AVISTA`. Sem isso, o pedido com essa forma fica **retido** na fila do ERP.
 - **Tenant que não integra:** cadastre as formas e os prazos no BKO, em Parâmetros → Formas de pagamento e prazos.

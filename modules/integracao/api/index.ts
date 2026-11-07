@@ -22,6 +22,7 @@ import { consultarCursor, consultarLote, enviarLote, enviarReconciliacao } from 
 import { pedidosPendentes, retornoPedido, sinalDeVida } from './rotas-pedidos';
 
 export { gerarOpenApiHub, openApiHub, type DocumentoOpenApi } from './openapi/gerar';
+export { CACHE_CONTROL_OPENAPI, respostaOpenApiPublica, type RespostaOpenApiPublica } from './openapi/publico';
 
 const LIMITE_CORPO_LOTE = 8 * 1024 * 1024;
 const MAX_ELEMENTOS_LOTE = 1_000_000;
