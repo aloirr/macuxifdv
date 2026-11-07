@@ -16,7 +16,7 @@ import {
 } from '@macuxi/platform-sdk';
 import { z } from 'zod';
 import type { OpcoesApp } from '../src/app';
-import type { BancoApp } from '../src/banco';
+import type { BancoApp, BancoPortal } from '../src/banco';
 import type { LicencasUsuario } from '../src/licencas';
 import { MODULOS_API } from '../src/modulos';
 
@@ -132,6 +132,32 @@ export function bancoFalso(horizonte: () => Date = () => new Date(Date.now() - 2
     instanteSync: async () => new Date(),
   };
   return { banco, tenants };
+}
+
+/**
+ * T-0091: banco falso do portal (papel `macuxi_portal`). Registra cada `semTenant` e cada SQL; `current_user` devolve
+ * `macuxi_portal` (o `bancoFalso` devolve 0 linhas: os testes distinguem as duas conexões). `comTenant` lança, como o real.
+ */
+export function bancoPortalFalso() {
+  const consultas: string[] = [];
+  let transacoes = 0;
+  const cliente: ClienteBanco = {
+    query: async <R>(sql: string) => {
+      consultas.push(sql);
+      return { rows: (/current_user/.test(sql) ? [{ papel: 'macuxi_portal' }] : []) as R[], rowCount: 0 };
+    },
+  };
+  const banco: BancoPortal = {
+    verificar: async () => undefined,
+    comTenant: async () => {
+      throw new Error('A conexão do portal nunca abre tenant (T-0091).');
+    },
+    semTenant: async (fn) => {
+      transacoes++;
+      return fn(cliente);
+    },
+  };
+  return { banco, consultas, transacoes: () => transacoes };
 }
 
 export function opcoesDeTeste(l: Licencas = LICENCAS_PADRAO, extra: Partial<OpcoesApp> = {}): OpcoesApp {

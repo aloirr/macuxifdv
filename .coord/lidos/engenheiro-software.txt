@@ -195,3 +195,5 @@ R-20261106-195511-modulo-catalogo
 R-20261106-211634-banco-dados
 R-20261106-211632-modulo-core
 R-20261106-211648-modulo-core
+R-20261106-232225-modulo-core
+R-20261107-000226-testes

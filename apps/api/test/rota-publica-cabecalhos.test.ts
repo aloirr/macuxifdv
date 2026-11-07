@@ -1,6 +1,7 @@
 /**
  * T-0087 (R-20261106-010602): a rota pública recebe `ctx.cabecalhos` só com a lista fechada do SDK (hoje `authorization`),
  * e o valor nunca vai para o log, mesmo que a rota registre `ctx.cabecalhos` por engano.
+ * T-0091: as rotas `plataforma/auth/*` (`conexao: 'portal'`) recebem o banco do portal; sem ele, 503 PORTAL_INDISPONIVEL.
  */
 import { Writable } from 'node:stream';
 import { definirModuloApi, ErroHttpModulo } from '@macuxi/platform-sdk';
@@ -9,7 +10,7 @@ import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { opcoesLogger } from '../src/config';
-import { LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste } from './apoio';
+import { bancoFalso, bancoPortalFalso, LICENCAS_PADRAO, modulosDeTeste, opcoesDeTeste } from './apoio';
 
 const TOKEN = 'Bearer eyJ.token-de-plataforma.segredo';
 
@@ -19,6 +20,7 @@ const coreDeTeste = definirModuloApi({
     {
       metodo: 'POST',
       caminho: 'plataforma/auth/sair',
+      conexao: 'portal',
       limite: { max: 50, janelaMs: 60_000 },
       corpo: z.object({}),
       status: 204,
@@ -32,14 +34,22 @@ const coreDeTeste = definirModuloApi({
     {
       metodo: 'POST',
       caminho: 'plataforma/auth/eco-nomes',
+      conexao: 'portal',
       limite: { max: 50, janelaMs: 60_000 },
       corpo: z.object({}),
       executar: async (ctx) => ({ nomes: Object.keys(ctx.cabecalhos ?? {}).sort(), tem: ctx.cabecalhos?.authorization === TOKEN }),
     },
+    {
+      metodo: 'POST',
+      caminho: 'plataforma/auth/qual-banco',
+      conexao: 'portal',
+      limite: { max: 50, janelaMs: 60_000 },
+      executar: async (ctx) => ctx.banco.semTenant(async (db) => (await db.query<{ papel: string }>('select current_user as papel')).rows[0] ?? {}),
+    },
   ],
 });
 
-function montar() {
+function montar(comPortal = true) {
   const linhas: string[] = [];
   const stream = new Writable({
     write(c: Buffer, _e, cb) {
@@ -47,7 +57,12 @@ function montar() {
       cb();
     },
   });
-  const app = createApp({ ...opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ core: coreDeTeste }) }), logger: { ...opcoesLogger('trace'), stream } });
+  const app = createApp({
+    ...opcoesDeTeste(LICENCAS_PADRAO, { modulos: modulosDeTeste({ core: coreDeTeste }) }),
+    banco: bancoFalso().banco,
+    bancoPortal: comPortal ? bancoPortalFalso().banco : null,
+    logger: { ...opcoesLogger('trace'), stream },
+  });
   return { app, log: () => linhas.join('') };
 }
 
@@ -79,5 +94,23 @@ describe('rota pública: ctx.cabecalhos (T-0087)', () => {
     expect(texto).toContain('cabeçalhos da rota pública');
     expect(texto).toContain('[omitido]');
     expect(texto).not.toContain('token-de-plataforma');
+  });
+});
+
+describe('rota pública do portal (T-0091; conexao portal)', () => {
+  it('roda no banco do portal, nunca no do macuxi_app', async () => {
+    const { app } = montar();
+    const r = await app.inject({ method: 'POST', url: '/v1/plataforma/auth/qual-banco' });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json()).toEqual({ papel: 'macuxi_portal' });
+  });
+
+  it('sem o banco do portal (MACUXI_PG_PORTAL_SENHA ausente): 503 PORTAL_INDISPONIVEL antes da rota; o resto da API segue', async () => {
+    const { app } = montar(false);
+    for (const url of ['/v1/plataforma/auth/sair', '/v1/plataforma/auth/qual-banco']) {
+      const r = await app.inject({ method: 'POST', url, payload: {}, headers: { authorization: TOKEN } });
+      expect([r.statusCode, r.json().codigo]).toEqual([503, 'PORTAL_INDISPONIVEL']);
+    }
+    expect((await app.inject({ method: 'GET', url: '/v1/saude' })).statusCode).toBe(200);
   });
 });

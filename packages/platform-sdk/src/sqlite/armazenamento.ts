@@ -3,8 +3,8 @@
  * código roda no aparelho (expo-sqlite, P4) e nos testes (node:sqlite). Implementa a interface base do
  * `ArmazenamentoSync` e as extensões `linhas`, `emTransacao`, `removerModulo` e `busca`.
  *
- * - Base chave→JSON na tabela `kv`; `sync:fila` gravada com `synchronous=FULL` (pedido na fila não some com queda de
- *   energia). Compatibilidade da chave `ent:<e>` (lenta por natureza; nunca é o caminho do pull).
+ * - Base chave→JSON na tabela `kv`; `sync:fila` (e o marcador da passagem do AsyncStorage, T-0088) gravados com
+ *   `synchronous=FULL` (pedido na fila não some com queda de energia). Compatibilidade da chave `ent:<e>` (lenta por natureza; nunca é o caminho do pull).
  * - Pull por linha em `ent_<e>`, em lotes de 500 por transação, cursor na transação do último lote, cedendo o loop
  *   entre lotes (a tela desenha). Reaplicar a mesma página é inofensivo (upsert por `id`).
  * - Escritas SERIALIZADAS numa fila interna (no expo-sqlite a transação exclusiva é outra conexão: escrita de fora dela
@@ -17,7 +17,8 @@
  *   lotes cedendo o loop) antes do `rebuild`, na consulta ou no fim do sync.
  * - Reindexação marcada (T-0084): `versaoDocumentos` do índice diferente da guardada (`_busca:<i>:versao`) = marca
  *   `_busca:<i>:reindexar` = `'versao'`; a busca dispara a reindexação EM SEGUNDO PLANO e responde com os documentos
- *   antigos; o `finalizar` espera. A marca do L-1 (`true`, índice vazio) continua bloqueando a busca até reindexar.
+ *   antigos; o `finalizar` espera. A marca do L-1 (`true`, índice vazio) bloqueia a busca até reindexar, salvo com
+ *   `buscaSemEsperarIndexacao` (T-0088): a busca dispara a reindexação em segundo plano e responde `indexando`.
  * - Busca (FTS5, content externo): manutenção na mesma transação do lote — incremental (`'delete'` com os valores
  *   antigos + insert) ou, na carga em massa (índice vazio ou > 2.000 chaves numa página), só a tabela de documentos e
  *   `'rebuild'` no fim do sync (`busca.finalizar`) ou na primeira consulta.
@@ -58,6 +59,11 @@ export const LIMITE_INCREMENTAL_BUSCA = 2000;
 export const MUDANCAS_ATE_OTIMIZAR = 5000;
 
 const CHAVE_FILA = 'sync:fila';
+/**
+ * Chaves gravadas com `synchronous=FULL` fora de transação: a fila e o marcador da passagem do AsyncStorage (T-0088 §2;
+ * `concluida` perdido numa queda de energia com o espelho já gravado faria a passagem recomeçar à toa).
+ */
+const CHAVES_DURAVEIS: ReadonlySet<string> = new Set([CHAVE_FILA, '_migracao:asyncstorage']);
 const PREFIXO_ENT = 'ent:';
 const cursorDe = (e: string) => `sync:cursor:${e}`;
 /** Índice marcado para `rebuild` (sobrevive a reinício: a carga pode cair no meio). */
@@ -93,6 +99,12 @@ export interface OpcoesArmazenamentoSqlite {
   agora?: () => Date;
   /** Erros que não derrubam o fluxo (módulo indisponível, consulta FTS recusada). Sem texto digitado nem dado pessoal. */
   registrarErro?: (mensagem: string) => void;
+  /**
+   * T-0088 §5: com o índice vazio e as linhas já no aparelho (L-1), a busca NÃO espera a reindexação inteira (segundos
+   * com 20 mil produtos): dispara em segundo plano e responde `{ buscou: false, motivo: 'indexando' }`. Ligada no app;
+   * sem ela (padrão), a busca espera, como antes.
+   */
+  buscaSemEsperarIndexacao?: boolean;
 }
 
 /** A busca do SQLite sempre separa "não achou" de "não buscou" (`buscarComDesfecho` obrigatório; T-0052). */
@@ -101,6 +113,8 @@ export type BuscaSqlite = BuscaTextoSync & Required<Pick<BuscaTextoSync, 'buscar
 export interface ArmazenamentoSqlite extends ArmazenamentoSync {
   linhas: LinhasSync;
   busca: BuscaSqlite;
+  /** Sempre presente no SQLite (a passagem do AsyncStorage, T-0088, conta com ela). */
+  emTransacao: NonNullable<ArmazenamentoSync['emTransacao']>;
   /** Abertura concluída (PRAGMAs e migrações). Toda operação já espera por ela. */
   pronto: Promise<void>;
   /** Módulos cujas migrações locais falharam nesta abertura. */
@@ -530,7 +544,7 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
       async gravar(chave, valor) {
         if (valor === null || valor === undefined) return base.remover(chave);
         if (chave.startsWith(PREFIXO_ENT)) return gravarEnt(entidadeDaChave(chave), valor as Record<string, LinhaSync>);
-        if (chave === CHAVE_FILA && !naTransacao) {
+        if (CHAVES_DURAVEIS.has(chave) && !naTransacao) {
           // a fila sobrevive a queda de energia: troca de PRAGMA fora de transação, na fila de escrita
           await aberto();
           await serializar(async () => {
@@ -654,10 +668,18 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
       const valido = (indicesValidos.get(i.id) === true && !removidos.has(i.modulo)) || (await serializar(() => indiceValido(driver, i)));
       if (!valido) return { buscou: false, motivo: 'indice_invalido' };
       const marca = await lerKv<MarcaReindexar>(driver, chaveReindexar(i.id));
-      if (marca === true) await reindexarSeMarcado(i);
-      else if (marca === 'versao')
-        // T-0084: os documentos antigos ainda respondem; a reindexação segue sem prender a tela
+      const emSegundoPlano = () =>
         void reindexarSeMarcado(i).catch((e: unknown) => registrarErro(`reindexação do índice ${i.id} falhou: ${(e as Error).message}`));
+      if (marca === true) {
+        if (opcoes.buscaSemEsperarIndexacao) {
+          // T-0088 §5: a tela não espera o L-1; quem chama varre até a marca sair
+          emSegundoPlano();
+          return { buscou: false, motivo: 'indexando' };
+        }
+        await reindexarSeMarcado(i);
+      } else if (marca === 'versao')
+        // T-0084: os documentos antigos ainda respondem; a reindexação segue sem prender a tela
+        emSegundoPlano();
       if ((await lerKv<boolean>(driver, chaveSujo(i.id))) === true)
         await serializar(() => transacao((tx) => reconstruir(tx, i)));
       const pesos = Object.values(i.colunas).join(', ');
