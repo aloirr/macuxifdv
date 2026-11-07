@@ -11,6 +11,8 @@ export const colors = {
   ink: '#16202A',
   ink2: '#4A5562',
   ink3: '#5B6673',
+  /** texto de opção desabilitada (lista suspensa, dia futuro): 3:1 no branco, sempre com outro sinal (cadeado, sem toque) */
+  inkDisabled: '#8A949C',
   line: '#E1E4DE',
   lineSoft: '#ECEEE9',
   lineStrong: '#C9CEC6',
