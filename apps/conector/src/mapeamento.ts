@@ -4,7 +4,9 @@
  * - `campos` do arquivo de configuração: `campo` (aceita caminho com ponto, ex. `endereco.cidade`) → coluna | {coluna, transformar} | {valor}.
  * - `alterado_em` aceita Date, texto ISO, número (milissegundos desde 1970) ou bigint; é sempre enviado em ISO UTC com milissegundos (RN-INT-05).
  * - Validação com `SCHEMA_REGISTRO[entidade]` do contrato. As mensagens de erro locais NUNCA carregam o valor da linha.
- * - Valores nulos são omitidos (equivale a campo ausente no Hub).
+ * - Valores nulos são omitidos (equivale a campo ausente no Hub: não altera o que o Macuxi tem). Opt-in por campo (T-0099):
+ *   `{ coluna, nulo: "limpa" }` envia `null` quando a coluna vem NULL, e o Hub limpa o campo. Coluna inexistente na linha continua
+ *   omitida (não é um NULL da view).
  */
 import { EXTERNAL_ID_MAX, LIMITE_REGISTROS_LOTE, SCHEMA_REGISTRO, type Cursor, type Entidade, type LinhaInvalidaConector } from '@macuxi/integracao/contracts';
 import type { ColunaConfig, EntidadeConfig, Transformacao } from './config/esquema';
@@ -126,7 +128,9 @@ function definir(obj: Record<string, unknown>, caminho: string, valor: unknown):
 function lerColuna(linha: Linha, spec: ColunaConfig, campo: string): unknown {
   if (typeof spec === 'string') return transformar(achar(linha, spec), undefined, campo);
   if ('valor' in spec) return spec.valor;
-  return transformar(achar(linha, spec.coluna), spec.transformar, campo);
+  const bruto = achar(linha, spec.coluna);
+  if (bruto === null && spec.nulo === 'limpa') return null;
+  return transformar(bruto, spec.transformar, campo);
 }
 
 /** Nome de coluna sem diferenciar maiúsculas (SQL Server e PostgreSQL divergem no caixa dos aliases). */

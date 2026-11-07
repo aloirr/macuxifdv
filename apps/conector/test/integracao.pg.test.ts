@@ -12,11 +12,12 @@ import { PedidoParaErp } from '@macuxi/integracao/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Armazenamento } from '../src/armazenamento/armazenamento';
 import { executarCli } from '../src/comandos';
-import { ConfigConector } from '../src/config/esquema';
+import { ConfigConector, type EntidadeConfig } from '../src/config/esquema';
 import type { Contexto } from '../src/contexto';
 import { criarConexaoPostgres } from '../src/erp/postgres';
 import { ClienteHub } from '../src/hub/cliente';
 import { criarLogger } from '../src/log/logger';
+import { conferirOrdemExternalId } from '../src/ordem';
 import { cicloPedidos } from '../src/pedidos';
 import { reconciliarEntidade } from '../src/reconciliacao';
 import { processarFila } from '../src/remetente';
@@ -419,5 +420,16 @@ describe.skipIf(motivoSemPg !== null)('Conector × ERP PostgreSQL de exemplo × 
     expect(tudo).not.toContain(hub.token);
     expect(tudo).not.toContain(cfgPg.password === 'postgres' ? 'MACUXI_CONECTOR_ERP_SENHA=' : cfgPg.password);
     expect(tudo).not.toMatch(/Mercadinho/);
+  });
+
+  it('T-0099: conferência da ordem do external_id num PostgreSQL real — COLLATE "C" ok; colação ICU linguística diverge', async () => {
+    await admin.query(`CREATE TABLE erp_colacao(codigo text PRIMARY KEY, alterado_em timestamptz NOT NULL)`);
+    await admin.query(`INSERT INTO erp_colacao VALUES ('abc', '2026-05-01T10:00:00Z'), ('abd', '2026-05-01T10:00:00Z'), ('B1', '2026-05-01T10:00:00Z')`);
+    const consulta = (colacao: string) =>
+      `SELECT codigo AS external_id, alterado_em FROM erp_colacao WHERE alterado_em > :cursor_alterado_em OR (alterado_em = :cursor_alterado_em AND codigo COLLATE "${colacao}" > :cursor_external_id) ORDER BY alterado_em, codigo COLLATE "${colacao}" LIMIT :limite`;
+    const ent = (colacao: string) => ({ ...(cfg.entidades.vendedor as EntidadeConfig), consulta: consulta(colacao) });
+    expect(await conferirOrdemExternalId(erp, ent('C'))).toMatchObject({ situacao: 'ok' });
+    const icu = await conferirOrdemExternalId(erp, ent('und-x-icu'));
+    expect(icu.situacao, JSON.stringify(icu)).toBe('divergente');
   });
 });

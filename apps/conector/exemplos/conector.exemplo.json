@@ -291,11 +291,13 @@
         },
         "prazo_medio_max_dias": {
           "coluna": "prazo_medio_max_dias",
-          "transformar": "inteiro"
+          "transformar": "inteiro",
+          "nulo": "limpa"
         },
         "formas_pagamento": {
           "coluna": "formas_pagamento",
-          "transformar": "json"
+          "transformar": "json",
+          "nulo": "limpa"
         }
       },
       "reconciliacao": {

@@ -9,6 +9,7 @@ import { Executor } from './executor';
 import { abrirContexto, fecharContexto, prepararAmbiente } from './iniciar';
 import { avisoTransporteErp } from './erp/transporte';
 import { mapearEValidar } from './mapeamento';
+import { avisoOrdemDivergente, conferirOrdemExternalId } from './ordem';
 import { validarFormatoChave } from './segredos/chave';
 import { criarProvedor, type ExecutarPowerShell, nomeVariavel, NOMES_SEGREDO, type NomeSegredo } from './segredos/provedores';
 import { registrarSegredo } from './log/mascara';
@@ -41,7 +42,7 @@ export const AJUDA = `Macuxi Conector ${VERSAO_CONECTOR}
 Uso: conector <comando> [opções]      (--config <arquivo> ou MACUXI_CONECTOR_CONFIG; padrão ./conector.json)
 
   validar-config                    confere o arquivo de configuração (sem conectar a nada)
-  testar-conexao                    testa segredos, banco do ERP (consultas e mapeamento) e Hub
+  testar-conexao                    testa segredos, banco do ERP (consultas, mapeamento e ordem do external_id) e Hub
   status [--json]                   fila local, último sucesso por entidade, bloqueios e erros
   rodar [--uma-vez]                 executa o laço (é o que o serviço roda); --uma-vez faz uma passada e sai
   carga-completa <entidade|todas>   refaz a carga completa (nova sessão)
@@ -328,6 +329,11 @@ async function testarConexao(caminhoConfig: string, io: ES): Promise<number> {
             const campos = [...new Set(m.problemas.map((p) => `${p.campo} (${p.mensagem})`))].slice(0, 5);
             io.saida(`        atenção: ${campos.join('; ')}`);
           } else ok(`${resumo}.`);
+          // T-0099: a ordem do external_id no banco precisa ser a do Conector (binária); divergência perde linhas sem avisar
+          const ordem = await conferirOrdemExternalId(erp, cfg, linhas);
+          if (ordem.situacao === 'divergente') io.saida(`[aviso] ${avisoOrdemDivergente(nome, amb.config.erp.tipo, ordem.exemplo)}`);
+          else if (ordem.situacao === 'ok') ok(`${nome}: ordem do external_id igual à do Conector (binária; ${ordem.sondas} sonda(s)).`);
+          else io.saida(`        ${nome}: ordem do external_id não conferida (${ordem.motivo}).`);
         } catch (e) {
           falha(`${nome}: a consulta falhou: ${mascararTexto(resumoErro(e))}`);
         }
