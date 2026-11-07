@@ -5,11 +5,14 @@
  * para o Início. Abre com 7 toques na versão, no fim do Perfil.
  *
  * Usa um banco SEPARADO e temporário (`macuxi-diagnostico-carga.db`), nunca o do usuário: apagado antes de começar, ao
- * terminar e ao sair da tela. Migrações e índice de busca são os do shell desta variante (Catálogo pelo `moduloApp`).
+ * terminar e ao sair da tela (o nome fica fora da `ARQUIVO_DE_USUARIO_RE`: o bloqueio do aparelho não o confunde).
+ * T-0088: mede pelo CAMINHO REAL do motor do usuário: o mesmo driver (`abrirDriverExpo`, o `SistemaSqlite` do app) e as
+ * mesmas opções do adaptador (`opcoesDoAdaptador`: migrações, entidades, índices do shell desta variante e a busca que
+ * não espera o L-1).
  * A regra (gerador, consultas, percentis, texto) está em `@/lib/diagnostico-carga`; aqui ficam o driver, o medidor de
  * quadros (`requestAnimationFrame` da thread JS) e o compartilhar (o Android oferece "Copiar" na folha).
  */
-import { FUSO_PADRAO_TENANT, MODULOS } from '@macuxi/platform-sdk';
+import { FUSO_PADRAO_TENANT } from '@macuxi/platform-sdk';
 import { BackLink, Button, Card, ChipEstado, colors, fonts, ProgressBar, Screen, SectionHeader, type as t } from '@macuxi/ui/mobile';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
@@ -34,6 +37,7 @@ import {
   type ResultadoQuadros,
   type Veredito,
 } from '@/lib/diagnostico-carga';
+import { opcoesDoAdaptador } from '@/lib/armazenamento-aparelho';
 import { shellDaVariante } from '@/lib/modulos';
 import { varianteAtual } from '@/lib/variante';
 import { perfilBuildAtual } from '@/services/device';
@@ -93,15 +97,17 @@ function Diagnostico({ perfil }: { perfil: ReturnType<typeof perfilBuildAtual> }
         await apagarBancoExpo(BANCO_TESTE);
         const driver = await abrirDriverExpo(BANCO_TESTE);
         const shell = shellDaVariante(varianteAtual());
+        const op = opcoesDoAdaptador(shell, (m) => console.warn(`[diagnóstico de carga] ${m}`));
         const resultado = await rodarDiagnosticoCarga(
           {
             driver,
             // a reindexação completa reabre o MESMO arquivo temporário (apagado no fim, como antes)
             reabrir: () => abrirDriverExpo(BANCO_TESTE),
             consultas: shell.consultas,
-            migracoesModulos: shell.migracoesAparelho,
-            entidades: shell.registroSync.entidadesAtivas(MODULOS).map((e) => ({ nome: e.nome, modulo: e.modulo })),
-            indicesBusca: shell.indicesBusca,
+            migracoesModulos: op.migracoesModulos ?? {},
+            entidades: op.entidades ?? [],
+            indicesBusca: op.indicesBusca ?? [],
+            opcoesAdaptador: { buscaSemEsperarIndexacao: op.buscaSemEsperarIndexacao, registrarErro: op.registrarErro },
             agora: () => performance.now(),
             cancelado: () => cancelado.current,
             aoProgresso: (progresso) => {

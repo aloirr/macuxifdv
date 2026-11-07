@@ -11,6 +11,9 @@
  *   migrações e o índice de busca REAIS do shell (os do Catálogo vêm de `shell.migracoesAparelho`/`indicesBusca`).
  * - Reindexação completa pelo caminho real (T-0084: índice v3 recriado vazio com as linhas já no aparelho): esvazia o
  *   índice, reabre o banco (as migrações marcam o L-1) e mede o `finalizar` (documentos das linhas locais + `rebuild`).
+ *   T-0088: com as opções do adaptador do APP (`opcoesDoAdaptador`, `buscaSemEsperarIndexacao`), a 1ª busca logo depois
+ *   da reabertura responde `indexando` sem esperar (a tela varre) e a reindexação segue em segundo plano, como no motor
+ *   do usuário; o tempo dessa 1ª busca e o motivo entram no relatório.
  * - ~200 buscas de produto (FTS5 + leitura dos 50 primeiros, o que a tela mostra), 60 buscas do Novo pedido pela
  *   consulta `catalogo.busca_produtos@1` (C9) de ponta a ponta (registro de consultas do shell, mesma implementação do
  *   aparelho, sobre este banco) e 100 de cliente (lista + filtro em memória, desenho T-0016 §8), com p50/p95/máximo.
@@ -29,6 +32,7 @@ import {
   type LinhaSync,
   type MigracaoAparelho,
   type ModuloId,
+  type OpcoesArmazenamentoSqlite,
   type RegistroConsultasAparelho,
 } from '@macuxi/platform-sdk';
 import type { ClienteSync, ProdutoSync } from '@macuxi/core/contracts';
@@ -455,6 +459,11 @@ export interface DependenciasDiagnostico {
   migracoesModulos: Partial<Record<ModuloId, readonly MigracaoAparelho[]>>;
   entidades: ReadonlyArray<{ nome: string; modulo: ModuloId }>;
   indicesBusca: readonly IndiceBusca[];
+  /**
+   * T-0088: as opções do adaptador do motor do usuário (`opcoesDoAdaptador` do shell): a medição pelo caminho real.
+   * Ausente = o adaptador sem elas (a 1ª busca depois da reabertura espera a reindexação).
+   */
+  opcoesAdaptador?: Pick<OpcoesArmazenamentoSqlite, 'buscaSemEsperarIndexacao' | 'registrarErro'>;
   /** `shell.consultas` (a C9 do aparelho). Ausente = a busca do Novo pedido não é medida. */
   consultas?: RegistroConsultasAparelho;
   /** Relógio de alta resolução (`performance.now`). */
@@ -493,8 +502,11 @@ export interface ResultadoDiagnostico {
     clientesMs: number;
     totalMs: number;
     indiceMs: number;
-    /** Reabrir o banco com as migrações (marca o L-1) e reindexar tudo das linhas locais; `null` = não medida. */
-    reindexacao: { reaberturaMs: number; reindexMs: number } | null;
+    /**
+     * Reabrir o banco com as migrações (marca o L-1) e reindexar tudo das linhas locais; `null` = não medida.
+     * `primeiraBusca`: a busca feita logo depois da reabertura (T-0088: `indexando` sem esperar, com as opções do app).
+     */
+    reindexacao: { reaberturaMs: number; reindexMs: number; primeiraBusca: { buscou: boolean; motivo: string | null; ms: number } } | null;
   };
   buscaProduto: ResumoTempos & { comResultado: number; p95PorTipo: Record<TipoBuscaProduto, number> };
   /** `null` = sem o registro de consultas do shell. */
@@ -558,7 +570,7 @@ export async function rodarDiagnosticoCarga(dep: DependenciasDiagnostico, config
   };
   const indice = dep.indicesBusca.find((i) => i.modulo === 'catalogo' && i.fontes.includes('produto'));
   if (!indice) throw new Error('Índice de busca do Catálogo não registrado no shell');
-  const opcoes = { migracoesModulos: dep.migracoesModulos, entidades: dep.entidades, indicesBusca: dep.indicesBusca };
+  const opcoes: OpcoesArmazenamentoSqlite = { ...dep.opcoesAdaptador, migracoesModulos: dep.migracoesModulos, entidades: dep.entidades, indicesBusca: dep.indicesBusca };
 
   aviso({ fase: 'abrindo', feito: 0, total: 1 });
   let driver = dep.driver;
@@ -631,8 +643,11 @@ export async function rodarDiagnosticoCarga(dep: DependenciasDiagnostico, config
       await a.pronto;
       const reaberturaMs = agora() - t2;
       const t3 = agora();
+      // a 1ª busca do usuário logo depois da abertura (Catálogo ou Novo pedido): no app ela não espera o L-1 (T-0088 §5)
+      const d = await a.busca.buscarComDesfecho(indice.id, { grupos: [['filtro']], prefixoNoUltimo: true });
+      const primeiraBusca = { buscou: d.buscou, motivo: d.buscou ? null : d.motivo, ms: agora() - t3 };
       await a.busca.finalizar?.();
-      reindexacao = { reaberturaMs, reindexMs: agora() - t3 };
+      reindexacao = { reaberturaMs, reindexMs: agora() - t3, primeiraBusca };
       aviso({ fase: 'reindexacao', feito: 1, total: 1 });
       await ceder();
     }
@@ -858,6 +873,11 @@ export function textoDoRelatorio(r: ResultadoDiagnostico, q: ResultadoQuadros, c
     ri
       ? `  reindexação completa (índice v3 vazio, das linhas locais): ${formatarMs(ri.reindexMs)} · reabertura ${formatarMs(ri.reaberturaMs)}`
       : '  reindexação completa: não medida (banco em memória)',
+    ...(ri
+      ? [
+          `  1ª busca durante a reindexação: ${ri.primeiraBusca.buscou ? 'esperou o índice' : `respondeu ${ri.primeiraBusca.motivo ?? '?'} (a tela varre)`} em ${formatarMs(ri.primeiraBusca.ms)}`,
+        ]
+      : []),
     `Tela durante o teste: ${milhar(q.quadros)} quadros · maior ${formatarMs(q.maiorMs)} · acima de ${LIMITE_QUADRO_MS} ms: ${q.acimaDoLimite}`,
     '',
     `Busca de produto (${r.buscaProduto.n}): p50 ${formatarMs(r.buscaProduto.p50)} · p95 ${formatarMs(r.buscaProduto.p95)} · máx ${formatarMs(r.buscaProduto.max)} · com resultado ${r.buscaProduto.comResultado}`,

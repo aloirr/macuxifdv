@@ -299,6 +299,8 @@ describe('diagnóstico de carga: execução no SQLite (node:sqlite, carga pequen
     // a reindexação pelo caminho real refez o índice: o SKU exato continua em 1º depois dela (conferido abaixo)
     expect(r.carga.reindexacao).not.toBeNull();
     expect(r.carga.reindexacao!.reindexMs).toBeGreaterThan(0);
+    // sem as opções do app, a 1ª busca depois da reabertura espera a reindexação (comportamento antigo do adaptador)
+    expect(r.carga.reindexacao!.primeiraBusca.buscou).toBe(true);
     expect(r.buscaC9).toBeNull();
     expect(r.sqlite.fts5).toBe(true);
     expect(r.buscaProduto.n).toBe(30);
@@ -312,6 +314,7 @@ describe('diagnóstico de carga: execução no SQLite (node:sqlite, carga pequen
 
   it('depois de esvaziar o índice e reabrir o banco, a C9 volta a achar pela aplicação (reindexação das linhas locais)', async () => {
     const caminho = arquivoTemporario();
+    const erros: string[] = [];
     const r = await rodarDiagnosticoCarga(
       {
         driver: await driverNode(caminho),
@@ -319,12 +322,16 @@ describe('diagnóstico de carga: execução no SQLite (node:sqlite, carga pequen
         migracoesModulos: { catalogo: MIGRACOES },
         entidades: ENTIDADES,
         indicesBusca: [INDICE],
+        // T-0088: as opções do motor do usuário (caminho real): a 1ª busca do L-1 não espera e a tela varre
+        opcoesAdaptador: { buscaSemEsperarIndexacao: true, registrarErro: (m) => erros.push(m) },
         consultas: REGISTRO.registro,
         agora: () => 0,
         ceder: async () => {},
       },
       { ...PEQUENO, buscasProduto: 6, buscasCliente: 1, buscasC9: 12 },
     );
+    expect(r.carga.reindexacao!.primeiraBusca).toMatchObject({ buscou: false, motivo: 'indexando' });
+    expect(erros).toEqual([]);
     const c9 = r.buscaC9!;
     expect(c9.n).toBe(12);
     expect(c9.planejadas).toBe(12);
@@ -434,7 +441,7 @@ describe('diagnóstico de carga: relatório para colar no recado', () => {
       clientesMs: 400,
       totalMs: 41_230,
       indiceMs: 3200,
-      reindexacao: { reaberturaMs: 120, reindexMs: 61_500 },
+      reindexacao: { reaberturaMs: 120, reindexMs: 61_500, primeiraBusca: { buscou: false, motivo: 'indexando', ms: 4 } },
     },
     buscaProduto: {
       n: 200,
@@ -484,6 +491,7 @@ describe('diagnóstico de carga: relatório para colar no recado', () => {
     expect(texto).toContain('20.000 aplicações + 16.667 referências');
     expect(texto).toContain('aplicação média: 1.785 caracteres');
     expect(texto).toContain('reindexação completa (índice v3 vazio, das linhas locais): 61,5 s · reabertura 120 ms');
+    expect(texto).toContain('1ª busca durante a reindexação: respondeu indexando (a tela varre) em 4,0 ms');
     expect(texto).toContain('Busca do Novo pedido (C9, 60 de 60): p50 80 ms · p95 210 ms · máx 900 ms · 1ª (fria) 900 ms · com resultado 58');
     expect(texto).toContain('p95 por tipo: veiculo_ano 210 ms · veiculo 190 ms · referencia 40 ms · sku 30 ms · nome 150 ms · com_ids 250 ms');
     expect(texto).toContain('produto esperado achado: 39 de 40');
