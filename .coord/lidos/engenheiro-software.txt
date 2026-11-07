@@ -190,3 +190,8 @@ R-20261106-010614-engenheiro-apps
 R-20261106-021340-modulo-core
 R-20261106-045630-engenheiro-apps
 R-20261106-044531-testes
+R-20261106-191335-modulo-catalogo
+R-20261106-195511-modulo-catalogo
+R-20261106-211634-banco-dados
+R-20261106-211632-modulo-core
+R-20261106-211648-modulo-core
