@@ -9,4 +9,6 @@ export * from './atualizacao';
 export * from './componentes';
 export * from './tokens';
 export * from './movimento';
+export * from './selecao';
+export * from './periodo';
 export * from '../comum/cadastro';
