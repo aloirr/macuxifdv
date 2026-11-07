@@ -17,6 +17,13 @@ export const PrecosClienteEntradaSchema = z.object({
 });
 export type PrecosClienteEntrada = z.infer<typeof PrecosClienteEntradaSchema>;
 
+export const FaixaEscalonadaSchema = z.object({
+  medida: z.string().nullable(),
+  quantidade_minima: z.number().int().positive(),
+  preco_unidade_cents: Cents,
+});
+export type FaixaEscalonada = z.infer<typeof FaixaEscalonadaSchema>;
+
 export const PrecoClienteItemSchema = z.object({
   produto_id: Id,
   /** Nulo = sem preço (não vendável) ou perfil sem direito a ver preço. */
@@ -24,10 +31,19 @@ export const PrecoClienteItemSchema = z.object({
   /** Texto para o usuário quando `preco_cents` é nulo. */
   motivo_sem_preco: z.string().nullable(),
   /**
-   * Preço próprio por medida (`tabela_preco_item.unidade` não nula, vigente em `em`; RN-VEN-15). Aditivo na mesma versão:
-   * o consumidor antigo ignora. Ausente = a embalagem vale UN × fator.
+   * Preço próprio por medida (RN-VEN-15 ANTIGA). Fica no schema, opcional, só para o consumidor antigo ler; desde a T-0089
+   * o Catálogo NÃO o preenche mais: a embalagem é sempre unidade base × quantidade da embalagem (RN-VEN-15 nova).
    */
   embalagens: z.array(z.object({ unidade: z.string(), preco_cents: Cents })).optional(),
+  /**
+   * Tabela escalonada (RN-VEN-23; T-0089, aditivo na mesma versão): só as faixas vigentes em `em` (data civil no fuso do
+   * tenant, fechada nas duas pontas), da tabela do cliente ou gerais; na mesma (medida, quantidade_minima) a da tabela do
+   * cliente vence a geral. `medida` nula = unidade base; `preco_unidade_cents` é sempre o da UNIDADE BASE (o da medida é
+   * × a quantidade da embalagem). Ordenadas por medida (base primeiro) e quantidade mínima. Ausente quando o preço não é
+   * visível (RN-CAT-05), o item não tem preço (RN-CAT-06) ou não há faixa vigente. Quem aplica é o Vendedor (faixa mais
+   * cara que a tabela não sobe o preço, P4).
+   */
+  faixas: z.array(FaixaEscalonadaSchema).optional(),
 });
 export type PrecoClienteItem = z.infer<typeof PrecoClienteItemSchema>;
 

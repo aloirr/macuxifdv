@@ -92,6 +92,10 @@ export async function subirApiDemo(op: OpcoesApiDemo = {}): Promise<ApiDemo> {
     app,
     pool,
     admin,
+    // a matriz da demo não usa o portal do super-admin: sobe sem o pool do macuxi_portal (portal = 503, T-0091)
+    poolPortal: null,
+    sqlApp: [],
+    sqlPortal: [],
     banco,
     modulos,
     hoje,

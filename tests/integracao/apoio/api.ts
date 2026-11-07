@@ -5,6 +5,9 @@
  * pelo papel `macuxi_app` (RLS), num banco efêmero PRÓPRIO do arquivo (dois-tenants), para que ligar e desligar
  * licenças não interfira nos testes de vazamento que leem o banco compartilhado do globalSetup.
  * Nada aqui é simulado: login (argon2id), licenças lidas a cada requisição, outbox e auditoria no Postgres.
+ * T-0091 (condição da ADR 0029): a API sobe com o 2º pool, do papel `macuxi_portal` (`criarBancoPortal`), como em produção;
+ * `semPortal: true` sobe sem ele (o portal responde 503 e os tenants seguem). `sqlApp`/`sqlPortal` guardam o texto de cada
+ * comando de cada pool (só o SQL, nunca os parâmetros), para provar qual conexão cada rota usou.
  */
 import { MeusModulosRespostaSchema, SessaoRespostaSchema, type MeusModulosResposta, type SessaoResposta } from '@macuxi/core/contracts';
 import { criarModuloApiCore } from '@macuxi/core/api';
@@ -14,7 +17,7 @@ import type { FastifyInstance, FastifyServerOptions, InjectOptions, LightMyReque
 import pg from 'pg';
 import { createApp } from '../../../apps/api/src/app';
 import type { ArmazenamentoArquivos } from '../../../apps/api/src/arquivos';
-import { criarBancoApp } from '../../../apps/api/src/banco';
+import { criarBancoApp, criarBancoPortal } from '../../../apps/api/src/banco';
 import { MODULOS_API } from '../../../apps/api/src/modulos';
 
 export const A = DOIS_TENANTS.A;
@@ -29,6 +32,11 @@ export interface ApiDeTeste {
   app: FastifyInstance;
   pool: pg.Pool;
   admin: pg.Pool;
+  /** Pool do macuxi_portal (T-0091) ou null com `semPortal` / sem a senha do papel no ambiente. */
+  poolPortal: pg.Pool | null;
+  /** SQL de cada comando do pool do macuxi_app / do macuxi_portal, na ordem (sem parâmetros); só com `espiarSql`. */
+  sqlApp: string[];
+  sqlPortal: string[];
   banco: BancoDeTeste;
   modulos: readonly ModuloApi[];
   /** POST /v1/auth/login (cada chamada vem de um IP próprio, para não esbarrar no limite de 5/5 min). */
@@ -63,6 +71,25 @@ export function erroDe(r: { json(): unknown }): ErroApi {
  * o erro continua subindo como antes (nada é engolido enquanto os casos rodam).
  */
 const QUEDA_DO_TEARDOWN = new Set(['57P01', '57P02', '57P03']);
+
+/**
+ * Registra o texto de cada comando dos clientes do pool (T-0091: qual conexão a rota usou). Só o SQL, nunca os parâmetros
+ * (não leva dado pessoal nem segredo para a memória do teste). Cada cliente é embrulhado uma vez, no 1º `acquire`.
+ */
+const ESPIADO = Symbol('espiado');
+export function espiarPool(pool: pg.Pool, destino: string[]): void {
+  pool.on('acquire', (cliente) => {
+    const c = cliente as unknown as { query: (...a: unknown[]) => unknown; [ESPIADO]?: true };
+    if (c[ESPIADO]) return;
+    c[ESPIADO] = true;
+    const original = c.query.bind(c);
+    c.query = (...a: unknown[]) => {
+      const x = a[0];
+      destino.push(typeof x === 'string' ? x : typeof (x as { text?: unknown } | null)?.text === 'string' ? (x as { text: string }).text : '');
+      return original(...a);
+    };
+  });
+}
 export function poolComEncerramento(pool: pg.Pool): { pool: pg.Pool; encerrar(ms?: number): Promise<void> } {
   let encerrando = false;
   let vivos = 0;
@@ -101,16 +128,35 @@ export async function subirApi(
     relogio?: () => Date;
     /** Segredos do portal do super-admin (T-0087; ADR 0029). Sem ele, os do ambiente (no teste: ausentes = 503). */
     plataforma?: Parameters<typeof criarModuloApiCore>[1];
+    /** T-0091: sobe SEM o pool do macuxi_portal (como o servidor sem MACUXI_PG_PORTAL_SENHA): portal = 503. */
+    semPortal?: boolean;
+    /** T-0091: guarda o SQL de cada pool em `sqlApp`/`sqlPortal` (desligado por padrão: a carga não acumula memória). */
+    espiarSql?: boolean;
   } = {},
 ): Promise<ApiDeTeste> {
   const banco = await criarBancoDeTeste({ preparar: (c) => carregarDoisTenants(c, { senha: SENHA }).then(() => undefined) });
   const app_ = poolComEncerramento(new pg.Pool({ connectionString: banco.urlApp, max: opcoes.poolMax ?? 6 }));
   const admin_ = poolComEncerramento(new pg.Pool({ connectionString: banco.urlAdmin, max: 2 }));
+  // T-0091: o 2º pool, do macuxi_portal (o único com EXECUTE nas plataforma.sa_*); max 2, como o padrão do servidor
+  const portal_ = !opcoes.semPortal && banco.urlPortal ? poolComEncerramento(new pg.Pool({ connectionString: banco.urlPortal, max: 2 })) : null;
   const pool = app_.pool;
   const admin = admin_.pool;
+  const sqlApp: string[] = [];
+  const sqlPortal: string[] = [];
+  if (opcoes.espiarSql) {
+    espiarPool(pool, sqlApp);
+    if (portal_) espiarPool(portal_.pool, sqlPortal);
+  }
   const coreApi = opcoes.plataforma ? criarModuloApiCore({ segredo: () => SEGREDO_JWT }, opcoes.plataforma) : criarModuloApiCore({ segredo: () => SEGREDO_JWT });
   const modulos = MODULOS_API.map((m) => (m.manifesto.id === 'core' ? coreApi : m));
-  const app = createApp({ banco: criarBancoApp(pool), modulos, logger: opcoes.logger ?? false, arquivos: opcoes.arquivos ?? null, ...(opcoes.relogio ? { relogio: opcoes.relogio } : {}) });
+  const app = createApp({
+    banco: criarBancoApp(pool),
+    bancoPortal: portal_ ? criarBancoPortal(portal_.pool) : null,
+    modulos,
+    logger: opcoes.logger ?? false,
+    arquivos: opcoes.arquivos ?? null,
+    ...(opcoes.relogio ? { relogio: opcoes.relogio } : {}),
+  });
   await app.ready();
 
   const entrar: ApiDeTeste['entrar'] = (email, o = {}) =>
@@ -125,6 +171,9 @@ export async function subirApi(
     app,
     pool,
     admin,
+    poolPortal: portal_?.pool ?? null,
+    sqlApp,
+    sqlPortal,
     banco,
     modulos,
     entrar,
@@ -143,6 +192,7 @@ export async function subirApi(
       await app.close().catch(() => undefined);
       // os dois pools fecham de fato (sockets encerrados) antes do drop com force
       await app_.encerrar();
+      await portal_?.encerrar();
       await admin_.encerrar();
       await banco.apagar().catch(() => undefined);
     },

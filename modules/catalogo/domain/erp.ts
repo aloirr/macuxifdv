@@ -15,6 +15,8 @@ export interface RegistroPrecoErp {
   vigencia_fim?: string | null | undefined;
   produto_external_id: string;
   preco_cents: number;
+  /** Sigla da medida do preço; ausente = unidade base (RN-VEN-15 nova: só a base vira preço). */
+  unidade?: string | null | undefined;
 }
 export interface RegistroEstoqueErp {
   deposito_external_id: string;
@@ -28,7 +30,7 @@ export type PlanoPrecoErp =
   | { tipo: 'inativar'; external_id: string }
   | {
       tipo: 'upsert';
-      linha: { external_id: string; tabela_external_id: string; tabela_nome: string; produto_external_id: string; preco_cents: number; vigencia_inicio: string; vigencia_fim: string | null };
+      linha: { external_id: string; tabela_external_id: string; tabela_nome: string; produto_external_id: string; preco_cents: number; vigencia_inicio: string; vigencia_fim: string | null; unidade?: string };
     };
 
 export function planejarPrecoDoErp(e: EventoErpBase<RegistroPrecoErp>): PlanoPrecoErp {
@@ -47,6 +49,68 @@ export function planejarPrecoDoErp(e: EventoErpBase<RegistroPrecoErp>): PlanoPre
       preco_cents: Math.round(r.preco_cents),
       vigencia_inicio: r.vigencia_inicio,
       vigencia_fim: r.vigencia_fim ?? null,
+      ...(r.unidade?.trim() ? { unidade: r.unidade.trim() } : {}),
+    },
+  };
+}
+
+/**
+ * RN-VEN-15 (nova, T-0089): o preço do ERP só vira o preço da UN quando a unidade ausente ou igual à base do produto; preço de
+ * outra medida (ex.: CX) o consumidor ignora com aviso no monitor, sem recusar a linha (a embalagem vale UN × quantidade).
+ */
+export function precoDoErpEhDaBase(unidade: string | null | undefined, unidadeBase: string | null): boolean {
+  const u = unidade?.trim();
+  if (!u) return true;
+  return unidadeBase !== null && u.toUpperCase() === unidadeBase.trim().toUpperCase();
+}
+
+export interface RegistroEscalonadaErp {
+  produto_external_id: string;
+  medida?: string | null | undefined;
+  quantidade_minima: number;
+  preco_unidade_cents: number;
+  vigencia_inicio: string;
+  vigencia_fim?: string | null | undefined;
+  tabela_external_id?: string | null | undefined;
+}
+export type PlanoEscalonadaErp =
+  | { tipo: 'ignorar' }
+  | { tipo: 'inativar'; external_id: string }
+  | {
+      tipo: 'upsert';
+      linha: {
+        external_id: string;
+        produto_external_id: string;
+        medida: string | null;
+        quantidade_minima: number;
+        preco_unidade_cents: number;
+        vigencia_inicio: string;
+        vigencia_fim: string | null;
+        tabela_external_id: string | null;
+      };
+    };
+
+/**
+ * RN-VEN-23: `integracao.tabela_escalonada.atualizado@1` -> faixa do Catálogo. Inativação do ERP nunca apaga. Faixa que o
+ * Catálogo não aceita (preço ou mínimo não positivo, fim antes do início) sai de cena em vez de gravar lixo.
+ */
+export function planejarEscalonadaDoErp(e: EventoErpBase<RegistroEscalonadaErp>): PlanoEscalonadaErp {
+  if (e.acao === 'inativado') return { tipo: 'inativar', external_id: e.external_id };
+  const r = e.registro;
+  if (!r) return { tipo: 'ignorar' };
+  const fim = r.vigencia_fim ?? null;
+  if (r.ativo === false || !(r.preco_unidade_cents > 0) || !(r.quantidade_minima >= 1) || (fim !== null && fim < r.vigencia_inicio)) return { tipo: 'inativar', external_id: e.external_id };
+  return {
+    tipo: 'upsert',
+    linha: {
+      external_id: e.external_id,
+      produto_external_id: r.produto_external_id,
+      medida: r.medida?.trim() ? r.medida.trim().toUpperCase() : null,
+      quantidade_minima: Math.round(r.quantidade_minima),
+      preco_unidade_cents: Math.round(r.preco_unidade_cents),
+      vigencia_inicio: r.vigencia_inicio,
+      vigencia_fim: fim,
+      tabela_external_id: r.tabela_external_id?.trim() ? r.tabela_external_id : null,
     },
   };
 }
@@ -160,4 +224,15 @@ export function planejarCadastroCatalogoDoErp(e: EventoErpBase<RegistroCadastroC
     plano.etiquetas = [...new Set(et)].slice(0, ETIQUETAS_MAX);
   }
   return plano;
+}
+
+/**
+ * RN-VEN-23: o que fazer quando a faixa do ERP bate na chave do índice único (produto, medida, mínimo, tabela, início) com OUTRA linha viva.
+ * `adotar` = a linha é manual (sem external_id): vira a do ERP; `substituir` = é de outro registro do ERP: a antiga sai (soft delete) e vale
+ * a nova, que é a última informação do ERP; `nenhuma` = a mesma linha (ou sem colisão). Nunca recusa, para a outbox não repetir sem fim.
+ */
+export function decidirColisaoEscalonada(outraExternalId: string | null | undefined, externalIdDoEvento: string, existe: boolean): 'nenhuma' | 'adotar' | 'substituir' {
+  if (!existe) return 'nenhuma';
+  if (outraExternalId === externalIdDoEvento) return 'nenhuma';
+  return outraExternalId ? 'substituir' : 'adotar';
 }

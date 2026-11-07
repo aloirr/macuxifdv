@@ -10,7 +10,7 @@
  * Decidir pedido (aprovar/rejeitar) e cancelar pedido já aceito exigem internet: o estado pode ter mudado no servidor.
  */
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_PRECOS_CLIENTE, CONSULTA_SUGESTOES_PEDIDO, CONSULTA_TEXTOS_PRODUTO, type Product, type SugestoesPedidoSaida } from '@macuxi/catalogo/contracts';
-import type { CustomerSummary } from '@macuxi/core/contracts';
+import { CONSULTA_FINANCEIRO_CLIENTE, type CustomerSummary } from '@macuxi/core/contracts';
 import { ehConsultaIndisponivel, ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync } from '@macuxi/platform-sdk/react';
 import { DEFAULT_TZ, monthStart } from '@macuxi/ui/mobile/puro';
@@ -23,11 +23,12 @@ import { prefillLines, prefillNotice } from '../lib/order-prefill';
 import { copiaDoDetalhe, copiaDoPayload, rascunhoDaCopia, reconferirDocumento, textoDaMudanca } from '../lib/documento';
 import { toDomainPolicy } from '../lib/catalog';
 import { montarSugestoes, SUGESTOES_VAZIAS, type SugestoesDaTela } from '../lib/sugestoes-pedido';
-import { embalagensDaConsulta, linhasParaPush } from '../lib/novo-pedido';
+import { faixasPorProduto, linhasParaPush } from '../lib/novo-pedido';
 import { aplicacaoMaxOrcamento, aplicacaoNoOrcamentoPadrao } from '../../domain/aplicacao';
 import { idsSemTexto } from '../../domain/busca-seletor';
 import { buscarNoCatalogoComReserva, type ResultadoBuscaCatalogo } from '../lib/busca-catalogo';
 import { situacaoDoClienteSync } from '../lib/textos-pedido';
+import { modeloDoCredito, type ModeloDoCredito } from '../lib/credito-cliente';
 import {
   aceitosComoPedidos,
   draftKeyFor,
@@ -52,6 +53,8 @@ import {
   listaDePedidos,
   meDoAparelho,
   enderecosDaTela,
+  formasDaTela,
+  prazosDaTela,
   paraAprovar,
   politicaApi,
   transportadorasDaTela,
@@ -62,6 +65,7 @@ import {
 } from '../lib/pull';
 import { criarRepositorio, DADOS_VAZIOS, type DadosVendedor } from '../lib/repositorio';
 import { relogioReal } from '@macuxi/comum/relogio';
+import { rascunhosAposLeitura } from '../lib/rascunhos-apos-leitura';
 import { podeSincronizarManual } from '../lib/sincronizar';
 import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 
@@ -93,9 +97,16 @@ export function useVendedor() {
   const parametrosRef = useRef(parametros);
   parametrosRef.current = parametros;
 
+  const gravacoesDeRascunho = useRef(0);
+  /** geração dos rascunhos: sobe a cada toque/descarte, antes de gravar (R1: a leitura iniciada antes não sobrescreve) */
+  const versaoRascunhos = useRef(0);
   const recarregar = useCallback(async () => {
     if (!repo) return;
-    const [novos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
+    const geracaoAntes = versaoRascunhos.current;
+    const [lidos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
+    // rascunho com gravação em andamento vale o da memória: a leitura pode ter vindo antes do toque no +/− ser gravado
+    // (se a geração mudou durante a leitura ou há gravação em andamento, valem os da memória)
+    const novos = { ...lidos, rascunhos: rascunhosAposLeitura({ lidos: lidos.rascunhos, memoria: dadosRef.current.rascunhos, geracaoAntes, geracaoAgora: versaoRascunhos.current, emAndamento: gravacoesDeRascunho.current }) };
     dadosRef.current = novos;
     linhasRef.current = ls;
     setDadosRepo(novos);
@@ -263,7 +274,7 @@ export function useVendedor() {
         try {
           const ativos = linhasRef.current.produtos.filter((p) => p.ativo);
           const precos = new Map<string, number | null>();
-          const itensConsulta: Array<{ produto_id: string; embalagens?: Array<{ unidade: string; preco_cents: number }> }> = [];
+          const itensConsulta: Array<{ produto_id: string }> = [];
           const agora = new Date().toISOString();
           for (let i = 0; i < ativos.length; i += LOTE_PRECOS) {
             const r = await ambiente.consultar(CONSULTA_PRECOS_CLIENTE, { cliente_id: cliente.id, produto_ids: ativos.slice(i, i + LOTE_PRECOS).map((p) => p.id), em: agora });
@@ -274,7 +285,7 @@ export function useVendedor() {
           }
           // T-0084 §12 (RN-VEN-19): a aplicação NÃO é carregada aqui (tabela inteira); a tela lê só dos itens visíveis (textosDeProdutos)
           const items = produtosComPrecos(linhasRef.current, precos);
-          await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora, embalagens: embalagensDaConsulta(itensConsulta) } }));
+          await repo.alterar('produtos', (p) => ({ ...p, [chave]: { items, synced_at: agora, faixas: faixasPorProduto(itensConsulta) } }));
           await recarregar();
           return items;
         } catch {
@@ -301,6 +312,33 @@ export function useVendedor() {
   const unidades = useMemo(() => (v1 ? unidadesDaTela(linhas) : []), [v1, linhas]);
   const enderecos = useMemo(() => (v1 ? enderecosDaTela(linhas) : []), [v1, linhas]);
   const transportadoras = useMemo(() => (v1 ? transportadorasDaTela(linhas) : []), [v1, linhas]);
+  /** T-0089 (RN-VEN-24): formas e prazos do aparelho; vazios antes do primeiro sync com a 0037 (vale a condição legada). */
+  const formas = useMemo(() => (v1 ? formasDaTela(linhas) : []), [v1, linhas]);
+  const prazos = useMemo(() => (v1 ? prazosDaTela(linhas) : []), [v1, linhas]);
+  /** Limites do cadastro do cliente (RN-VEN-25), do pull do Core: nulo = sem teto / todas as formas. */
+  const limitesDe = useCallback(
+    (clienteId: string) => {
+      const c = linhas.clientes.find((x) => x.id === clienteId);
+      return { prazo_medio_max_dias: c?.prazo_medio_max_dias ?? null, formas_pagamento: c?.formas_pagamento ?? null };
+    },
+    [linhas.clientes],
+  );
+  /**
+   * Cartão "Crédito do cliente" (RN-VEN-12/13): `core.financeiro_cliente@1` no aparelho (linhas locais do Core, vale offline) mais
+   * os pedidos do cliente que ainda pesam. `null` = consulta indisponível (Core fora do app): o cartão não aparece.
+   */
+  const creditoDoCliente = useCallback(
+    async (clienteId: string): Promise<ModeloDoCredito | null> => {
+      try {
+        const r = await ambiente.consultar(CONSULTA_FINANCEIRO_CLIENTE, { cliente_id: clienteId });
+        return modeloDoCredito(r.financeiro, linhasRef.current.pedidos.filter((p) => p.cliente_id === clienteId && (p.tipo ?? 'pedido') === 'pedido'));
+      } catch (e) {
+        if (ehConsultaIndisponivel(e)) return null;
+        throw e;
+      }
+    },
+    [ambiente],
+  );
 
   /** Condições de pagamento permitidas ao cliente (RN-VEN-14), das linhas do aparelho. */
   const condicoesDe = useCallback((clienteId: string): CondicaoDaTela[] => (v1 ? condicoesDoCliente(linhasRef.current, clienteId) : []), [v1, linhas]);
@@ -312,6 +350,7 @@ export function useVendedor() {
   const descartarRascunho = useCallback(
     async (chave: string) => {
       if (!repo) return;
+      versaoRascunhos.current += 1;
       await repo.limparRascunho(chave);
       await recarregar();
     },
@@ -327,7 +366,13 @@ export function useVendedor() {
       const proximo = { ...dadosRef.current, rascunhos: { ...dadosRef.current.rascunhos, [chave]: novo } };
       dadosRef.current = proximo;
       setDadosRepo(proximo);
-      await repo.guardarRascunho(chave, novo);
+      versaoRascunhos.current += 1;
+      gravacoesDeRascunho.current += 1;
+      try {
+        await repo.guardarRascunho(chave, novo);
+      } finally {
+        gravacoesDeRascunho.current -= 1;
+      }
     },
     [repo],
   );
@@ -344,7 +389,7 @@ export function useVendedor() {
       const eu = v1 && usuario?.perfil === 'vendedor' ? meDoAparelho({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, fuso: usuario.fuso }, parametrosRef.current, new Date()).seller : dadosRef.current.me?.seller ?? null;
       // RN-VEN-35/10: pedido em nome valida pela alçada do gestor (supervisor/gerente) e dispensa o vendedor logado
       const emNome = !editId && rascunho.vendedor_em_nome_id && usuario ? { vendedor_id: rascunho.vendedor_em_nome_id, perfil_autor: usuario.perfil ?? '', ...(rascunho.vendedor_em_nome_nome ? { nome: rascunho.vendedor_em_nome_nome } : {}) } : null;
-      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, emNome, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosRef.current), max: aplicacaoMaxOrcamento(parametrosRef.current) } });
+      return prepararPedido({ rascunho, cliente, catalogo, politica: pol, eu, emNome, filaDoClienteCents: custoDaFilaDoCliente(cliente.id, editId), pedidoEditado: editado, unidades: unidadesDaTela(linhasRef.current), faixas: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.faixas, aplicacao: { padrao: aplicacaoNoOrcamentoPadrao(parametrosRef.current), max: aplicacaoMaxOrcamento(parametrosRef.current) } });
     },
     [v1, usuario],
   );
@@ -626,7 +671,7 @@ export function useVendedor() {
         detalhe: d,
         catalogo,
         unidades: unidadesDaTela(linhasRef.current),
-        embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens,
+        faixas: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.faixas,
         cliente: situacaoDoClienteSync(linhasRef.current.clientes.find((c) => c.id === cliente.id), (linhasRef.current.financeiros ?? []).find((f) => f.cliente_id === cliente.id)),
         policy: toDomainPolicy(politicaApi(parametrosRef.current)),
         estoque_bloqueia: false,
@@ -658,7 +703,6 @@ export function useVendedor() {
         lines,
         catalogo,
         unidades: unidadesDaTela(l),
-        embalagens: dadosRef.current.produtos[cliente.price_table_id ?? 'default']?.embalagens,
         cliente_id: cliente.id,
         clientes: l.clientes.map((c) => ({ id: c.id, segmento: c.segmento ?? null })),
         pedidos: l.pedidos.map((p) => ({ cliente_id: p.cliente_id, tipo: p.tipo ?? 'pedido', status: p.status, criado_em: p.recebido_em ?? p.created_at, produto_ids: (itens.get(p.id) ?? []).map((i) => i.produto_id) })),
@@ -737,6 +781,11 @@ export function useVendedor() {
     situacaoDoCliente,
     enderecos,
     transportadoras,
+    formas,
+    prazos,
+    limitesDe,
+    creditoDoCliente,
+    sincronizadoEm: estado.sincronizado_em ?? dadosRepo.sincronizado_em ?? null,
     tabelaDe,
     rascunhoDe,
     atualizarRascunho,

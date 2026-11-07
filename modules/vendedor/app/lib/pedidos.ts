@@ -6,6 +6,7 @@ import type { CustomerSummary, Me } from '@macuxi/core/contracts';
 import type { DiscountPolicy, Order, OrderDetail, PedidoPush } from '../../contracts';
 import type { Product } from '@macuxi/catalogo/contracts';
 import { validateOrder, type OrderIssue, type OrderTotals, type OrderValidation } from '../../domain/order';
+import type { FaixaEscalonada } from '../../domain/preco-item';
 import { toDomainPolicy } from './catalog';
 import { calcularPedido, fretePush, freteValido, linhasParaPush, politicaParaAutor, type Ajuste, type CalculoPedido, type FreteDoRascunho, type UnidadeDaTela } from './novo-pedido';
 import type { PrefillLine } from './order-prefill';
@@ -18,6 +19,9 @@ export interface Rascunho {
   payment_terms: string;
   /** condição de pagamento escolhida entre as permitidas ao cliente (RN-VEN-14); ausente = padrão do tenant */
   condicao_pagamento_id?: string | null;
+  /** T-0089 (RN-VEN-24/25): forma e prazo escolhidos; os dois juntos ou nenhum (rascunho anterior segue pela condição) */
+  forma_pagamento_id?: string | null;
+  prazo_pagamento_id?: string | null;
   observacao?: string;
   visit_id: string | null;
   route_stop_id: string | null;
@@ -126,8 +130,8 @@ export interface EntradaPrepararPedido {
   pedidoEditado?: Pick<Order, 'status' | 'total_cents'> | null;
   /** T-0061: embalagens dos produtos (UN/CX), das linhas `produto_unidade` do aparelho */
   unidades?: readonly UnidadeDaTela[];
-  /** RN-VEN-15: preço próprio das embalagens (embalagens[] do Catálogo) */
-  embalagens?: Record<string, Record<string, number>>;
+  /** RN-VEN-23: faixas vigentes da tabela escalonada (faixas[] do Catálogo) */
+  faixas?: Record<string, readonly FaixaEscalonada[]>;
   /** T-0084 (RN-VEN-19): `aplicacao_no_orcamento_padrao` e `aplicacao_max_orcamento` do tenant */
   aplicacao?: { padrao: boolean; max: number };
 }
@@ -160,7 +164,7 @@ export function prepararPedido(e: EntradaPrepararPedido): { v: ValidacaoDoPedido
     ajuste_em: e.rascunho.ajuste_em,
     catalogo: e.catalogo,
     unidades: e.unidades ?? [],
-    embalagens: e.embalagens,
+    faixas: e.faixas,
     aplicacao: e.aplicacao,
     politica,
     vendedor_id: vendedorId,
@@ -236,7 +240,9 @@ export function montarPedido(args: { id: string; cliente: CustomerSummary; rascu
     route_stop_id: args.rascunho.route_stop_id,
     total_cents: args.v.totals.total_cents,
     items: calculo ? linhasParaPush(calculo.linhas) : args.v.totals.lines.map((l) => ({ product_id: l.product_id, quantity: l.quantity })),
-    condicao_pagamento_id: args.rascunho.condicao_pagamento_id ?? null,
+    // T-0089: com forma e prazo, a condição legada fica nula; sem eles (APK anterior, tenant sem formas) vale a condição
+    condicao_pagamento_id: args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? null : (args.rascunho.condicao_pagamento_id ?? null),
+    ...(args.rascunho.forma_pagamento_id && args.rascunho.prazo_pagamento_id ? { forma_pagamento_id: args.rascunho.forma_pagamento_id, prazo_pagamento_id: args.rascunho.prazo_pagamento_id } : {}),
     observacao: args.rascunho.observacao?.trim() ? args.rascunho.observacao.trim() : null,
     visita_id: args.rascunho.visit_id ?? null,
     // T-0053: só o orçamento leva `tipo` (o payload do pedido fica igual ao dos APKs anteriores)

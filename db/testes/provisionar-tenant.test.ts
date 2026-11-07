@@ -1,8 +1,9 @@
 /**
  * 0029 — plataforma.provisionar_tenant(jsonb) (T-0083, RN-CORE-31; pedido R-20261105-060454-engenheiro-software; desenho
  * T-0083 §5). O que o BANCO garante:
- * - cria, numa chamada, tenant + licenças + perfis por módulo + admin inicial; os gatilhos da 0006/0018 semeiam motivos,
- *   parâmetros de sempre e medidas como em qualquer tenant (a função não grava parâmetro nenhum);
+ * - cria, numa chamada, tenant + licenças + perfis por módulo + admin inicial; os gatilhos da 0006/0018/0037 semeiam motivos,
+ *   parâmetros de sempre, medidas e a forma e o prazo "À vista" (P7 da T-0089) como em qualquer tenant (a função não grava
+ *   parâmetro nenhum);
  * - idempotente pelo código: 2x a mesma entrada = mesmas contagens em TODAS as tabelas com tenant_id; tenant existente não
  *   muda (aviso); só módulos que faltam entram, com os perfis; perfis de módulo existente não são tocados;
  * - redefinir_senha troca SÓ o senha_hash; sem ela a senha fica;
@@ -15,6 +16,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DOIS_TENANTS } from '../seeds/fixtures/dois-tenants';
 import { comAdmin, criarBancoDeTeste, type BancoDeTeste } from '../src/banco-teste';
+import { idDeChave } from '../src/ids';
 import { lerMigracoes, migrarDown, migrarUp } from '../src/migrador';
 import { banco, semBanco } from './estado';
 import { emTransacao, erroDe, retratoDoCatalogo, tabelasComTenant } from './util';
@@ -118,16 +120,39 @@ describe.skipIf(semBanco())('0029 provisionar_tenant (banco, fixture dois-tenant
       const u = await admin.query('select nome, email, perfil, equipe_id, ativo, bloqueado_em, senha_hash from core.usuario where tenant_id = $1', [r.tenant_id]);
       expect(u.rows).toEqual([{ nome: NOME_ADMIN, email: EMAIL, perfil: 'admin', equipe_id: null, ativo: true, bloqueado_em: null, senha_hash: H1 }]);
 
-      // controle: tenant inserido direto (só os gatilhos) tem os mesmos motivos, parâmetros e medidas
+      // controle: tenant inserido direto (só os gatilhos) tem os mesmos motivos, parâmetros, medidas, formas e prazos
       const controle = (await admin.query<{ id: string }>("insert into plataforma.tenant (codigo, nome) values ('t29-controle', 'Controle') returning id")).rows[0]!.id;
+      // ids determinísticos por tenant (0037: uuid_de_chave('<tenant>:vendedor.forma_pagamento:<codigo>')): compara o "id gêmeo"
+      const gemeo = (tenant: string, tabela: string, codigo: string, id: string) => id === idDeChave(`${tenant}:vendedor.${tabela}:${codigo}`);
       const semeado = async (tenant: string) => ({
         motivos: (await admin.query('select tipo, codigo from core.motivo where tenant_id = $1 order by 1, 2', [tenant])).rows,
         parametros: (await admin.query('select modulo, chave, valor from plataforma.parametro where tenant_id = $1 order by 1, 2', [tenant])).rows,
         medidas: (await admin.query('select sigla from core.medida where tenant_id = $1 order by 1', [tenant])).rows,
+        formas: (
+          await admin.query<{ id: string; codigo: string }>(
+            'select id, codigo, nome, ativo, ordem, external_id, deleted_at from vendedor.forma_pagamento where tenant_id = $1 order by codigo',
+            [tenant],
+          )
+        ).rows.map((f) => ({ ...f, id: gemeo(tenant, 'forma_pagamento', f.codigo, f.id) })),
+        prazos: (
+          await admin.query<{ id: string; codigo: string; forma_codigo: string; forma_pagamento_id: string }>(
+            `select p.id, p.codigo, p.descricao, p.parcelas_dias, p.prazo_medio_dias, p.ativo, p.ordem, p.external_id, p.deleted_at, f.codigo as forma_codigo,
+                    p.forma_pagamento_id
+               from vendedor.prazo_pagamento p join vendedor.forma_pagamento f on f.tenant_id = p.tenant_id and f.id = p.forma_pagamento_id
+              where p.tenant_id = $1 order by p.codigo`,
+            [tenant],
+          )
+        ).rows.map((p) => ({ ...p, id: gemeo(tenant, 'prazo_pagamento', p.codigo, p.id), forma_pagamento_id: gemeo(tenant, 'forma_pagamento', p.forma_codigo, p.forma_pagamento_id) })),
       });
       const doProvisionado = await semeado(r.tenant_id);
       expect(doProvisionado.motivos.length).toBeGreaterThan(0);
       expect(doProvisionado.medidas.length).toBeGreaterThan(0);
+      // P7 (T-0089): o tenant de tenant:criar / passo Empresa nasce podendo tirar pedido — forma e prazo "À vista"
+      expect(doProvisionado.formas).toEqual([{ id: true, codigo: 'AVISTA', nome: 'À vista', ativo: true, ordem: 0, external_id: null, deleted_at: null }]);
+      expect(doProvisionado.prazos).toEqual([
+        { id: true, codigo: 'AVISTA', descricao: 'À vista', parcelas_dias: [0], prazo_medio_dias: 0, ativo: true, ordem: 0, external_id: null, deleted_at: null,
+          forma_codigo: 'AVISTA', forma_pagamento_id: true },
+      ]);
       expect(doProvisionado).toEqual(await semeado(controle));
 
       const aud = await admin.query<{ usuario_id: string | null; modulo: string; entidade: string; entidade_id: string; antes: unknown; depois: unknown }>(

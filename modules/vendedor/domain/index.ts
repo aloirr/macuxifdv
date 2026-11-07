@@ -18,3 +18,5 @@ export * from './base-recriada';
 export * from './pedido-em-nome';
 export * from './aplicacao';
 export * from './busca-seletor';
+export * from './preco-item';
+export * from './pagamento';

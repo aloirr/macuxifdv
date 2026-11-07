@@ -4,6 +4,8 @@
  */
 import { validateOrder, type DiscountPolicy, type DiscountRole, type OrderStatus, type OrderValidation } from './order';
 import { APLICACAO_MAX_ORCAMENTO_PADRAO, retratoAplicacao } from './aplicacao';
+import type { PagamentoEvento } from './pagamento';
+import { medidaDaFaixa, precoBaseDoItem, type FaixaEscalonada } from './preco-item';
 import { precoDoItem, totaisDoPedido, validarAcrescimoOuDesconto, itemRespeitaPrecoMinimo, MSG_DESCONTO_E_ACRESCIMO, type AjusteItem } from './preco-pedido';
 
 // ---------- vocabulário ----------
@@ -99,6 +101,30 @@ export interface EventoHistorico {
   motivo: string;
 }
 
+/** Texto da pendência por título vencido (RN-VEN-13). */
+export const MOTIVO_TITULO_VENCIDO = 'Cliente com título vencido: só à vista ou com aprovação (RN-VEN-13).';
+
+type RecebimentoAceito = Extract<ResultadoRecebimento, { aceito: true }>;
+
+/** RN-VEN-13: título vencido com prazo a prazo manda para aprovação (nível supervisor) ou soma o motivo `credito` a uma aprovação por desconto. */
+export function comTituloVencido(r: Omit<RecebimentoAceito, 'aceito'>): Omit<RecebimentoAceito, 'aceito'> {
+  if (r.status === 'pending_approval') {
+    return r.motivos.includes('credito')
+      ? r
+      : { ...r, motivos: [...r.motivos, 'credito'], pending_reason: `${r.pending_reason} ${MOTIVO_TITULO_VENCIDO}`.trim() };
+  }
+  const entrada = r.historico.filter((h) => h.para !== 'approved');
+  return {
+    ...r,
+    status: 'pending_approval',
+    nivel: 'supervisor',
+    motivos: ['credito'],
+    aprovacao_automatica: false,
+    pending_reason: MOTIVO_TITULO_VENCIDO,
+    historico: [...entrada, { de: 'received', para: 'pending_approval', motivo: MOTIVO_TITULO_VENCIDO }],
+  };
+}
+
 export type ResultadoRecebimento =
   | {
       aceito: true;
@@ -184,13 +210,19 @@ export interface RevalidarEntrada {
   itens: ItemRevalidar[];
   /** preço da UNIDADE BASE na tabela do cliente na data do pedido (centavos); `null`/ausente = sem preço (RN-CAT-06) */
   precos: Record<string, number | null | undefined>;
-  /** T-0071 (RN-VEN-15): preço próprio da embalagem (`produto_id` → `unidade` → centavos da medida); ausente = UN × fator */
-  precos_embalagem?: Record<string, Record<string, number> | undefined>;
+  /** T-0089 (RN-VEN-23): faixas vigentes da tabela escalonada por produto (do Catálogo); ausente = sem faixa. A faixa vira a base do item e NÃO entra na alçada. */
+  faixas?: Record<string, readonly FaixaEscalonada[] | undefined>;
   policy: DiscountPolicy;
   /** T-0084 (RN-VEN-19): `aplicacao_max_orcamento` do tenant (padrão 300) para cortar de novo o retrato */
   aplicacao_max?: number;
   /** informativo; o servidor nunca usa (RN-VEN-02) */
   total_aparelho_cents?: number;
+  /**
+   * T-0089 (RN-VEN-13): `true` quando o cliente tem título vencido há mais que `titulo_vencido_dias` e o prazo escolhido é a prazo
+   * (`exigeAprovacaoPorVencido`). O pedido que sairia aprovado vai para aprovação com o motivo `credito` (a coluna só aceita os
+   * motivos da 0009; o texto diz "título vencido"). Ausente = sem restrição (consulta indisponível não bloqueia).
+   */
+  titulo_vencido?: boolean;
 }
 
 export interface ItemRevalidado {
@@ -300,10 +332,15 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
         : { sentido: 'acrescimo', em: 'valor', cents: i.acrescimo_unitario_cents! }
       : undefined;
     return {
-      preco_tabela_unidade_cents: e.precos[i.product_id] as number,
+      preco_tabela_unidade_cents: precoBaseDoItem({
+        preco_tabela_unidade_cents: e.precos[i.product_id] as number,
+        faixas: e.faixas?.[i.product_id],
+        medida: medidaDaFaixa(i.unidade ?? '', i.fator ?? 1),
+        fator: i.fator ?? 1,
+        quantidade: i.quantity,
+      }).base_unidade_cents,
       quantidade: i.quantity,
       fator: i.fator ?? 1,
-      preco_proprio_unidade_cents: (i.unidade ? e.precos_embalagem?.[i.product_id]?.[i.unidade] : undefined) ?? null,
       desconto_pct: pct2(i.desconto_pct ?? 0),
       acrescimo_pct: pct2(i.acrescimo_pct ?? 0),
       ...(ajuste ? { ajuste } : {}),
@@ -338,10 +375,11 @@ export function revalidarPedido(e: RevalidarEntrada): RevalidarResultado {
     policy: e.policy,
     credit: null,
   });
-  const r = resultadoDoRecebimento(validacao);
-  if (!r.aceito) return { ok: false, codigo: r.codigo, http: r.http, mensagem: r.mensagem };
-  const { aceito: _aceito, ...resto } = r;
+  const r0 = resultadoDoRecebimento(validacao);
+  if (!r0.aceito) return { ok: false, codigo: r0.codigo, http: r0.http, mensagem: r0.mensagem };
+  const { aceito: _aceito, ...resto0 } = r0;
   void _aceito;
+  const resto = e.titulo_vencido ? comTituloVencido(resto0) : resto0;
   return {
     ok: true,
     ...resto,
@@ -453,7 +491,10 @@ export interface PedidoAprovadoEntrada {
   pedido_uuid: string;
   cliente_external_id: string | null;
   vendedor_external_id: string | null;
+  /** pedido novo: o código do prazo; pedido do APK anterior: o código da condição (T-0089) */
   condicao_pagamento_codigo: string | null;
+  /** T-0089 (aditivo): forma, prazo e prazo médio; o Hub prefere o external_id do prazo */
+  pagamento?: PagamentoEvento | null;
   criado_em: string;
   aprovado_em: string;
   observacao: string | null;

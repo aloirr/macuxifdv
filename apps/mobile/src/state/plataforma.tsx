@@ -15,18 +15,31 @@
  * os tokens ficam no armazenamento seguro (`services/credenciais.ts`), um 401 troca o acesso pelo refresh e o
  * perfil precisa ser da variante (Campo: vendedor/promotor; Gestão: supervisor/gerente). Na demonstração
  * (`EXPO_PUBLIC_API_MODO=demo`, mock-api) segue o login fake da Fase M (`loginDemo`).
+ *
+ * Armazenamento (T-0088, desenho docs/desenho/T-0088.md): o motor roda sobre o SQLite do usuário e tenant da sessão
+ * (`services/armazenamento.ts`), aberto ANTES do motor (passagem do AsyncStorage na 1ª abertura, com a tela de preparo);
+ * o lease e a tarefa em segundo plano usam a mesma instância; sair fecha sem apagar; aparelho bloqueado apaga os bancos
+ * de todos os usuários.
  */
-import { ehAparelhoBloqueado, entrarComSenha, tratarAparelhoBloqueado, type CamposLogin } from '@macuxi/core/app';
+import {
+  ehAparelhoBloqueado,
+  entrarComSenha,
+  tratarAparelhoBloqueado,
+  type CamposLogin,
+} from '@macuxi/core/app';
 import type { FakeUser, Me } from '@macuxi/core/contracts';
 import {
   ErroHttp,
   mensagemPerfilForaDoApp,
   perfilDaFaseM,
+  type AberturaArmazenamento,
   type AmbienteAparelho,
+  type ArmazenamentoSync,
   type EtapaSync,
   type ModuloId,
   type MotorSync,
   type Perfil,
+  type ProgressoPassagem,
   type VisaoShell,
 } from '@macuxi/platform-sdk';
 import {
@@ -37,13 +50,28 @@ import {
   type EstadoAgendadorSync,
   type MotivoSync as MotivoAgendador,
 } from '@macuxi/ui/mobile';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import { router } from 'expo-router';
 import { AppState } from 'react-native';
 
 import { criarTratadorAparelhoBloqueado } from '@/lib/aparelho-bloqueado';
+import {
+  agendarSemPressa,
+  ESPERA_TELA_PREPARO_MS,
+  resumoDaAbertura,
+  type ResumoArmazenamento,
+} from '@/lib/armazenamento-aparelho';
 import { limparHistoricoDoShell } from '@/lib/historico-telas';
 import { deveSincronizar, type MotivoSync } from '@/lib/carga';
 import { proximaEsperaFila } from '@/lib/fila-reenvio';
@@ -54,14 +82,29 @@ import { varianteAtual } from '@/lib/variante';
 import { normalizeApiUrl } from '@/lib/api-url';
 import { enderecoSalvoValido, erroDaVerificacao, servidorEditavel } from '@/lib/endereco-do-build';
 import { rotaDeSaude, type ModoApi } from '@/lib/modo-api';
-import { CHAVE_LEASE, DONO_APP, leaseOcupado, type LeaseSync, type ResultadoSegundoPlano } from '@/lib/segundo-plano';
+import {
+  CHAVE_LEASE,
+  DONO_APP,
+  leaseOcupado,
+  type LeaseSync,
+  type ResultadoSegundoPlano,
+} from '@/lib/segundo-plano';
 import { testarServidor } from '@/lib/servidor';
 import { criarAmbienteDoAparelho, traduzirErro } from '@/services/ambiente';
 import { ApiClient, HttpError, NetworkError } from '@/services/api';
-import { armazenamentoDoUsuario } from '@/services/armazenamento';
+import {
+  abrirArmazenamentoDoUsuario,
+  apagarBancosDoAparelho,
+  fecharArmazenamentoDoUsuario,
+} from '@/services/armazenamento';
 import { gravarSaidasPendentes, gravarTokens, lerSaidasPendentes, lerTokens } from '@/services/credenciais';
 import { modoApi, perfilBuildAtual, platformDefaultApiUrl } from '@/services/device';
-import { consultarModulosEfetivos, criarMotorDoUsuario, dispositivoId, trocarRefresh } from '@/services/motor-do-usuario';
+import {
+  consultarModulosEfetivos,
+  criarMotorDoUsuario,
+  dispositivoId,
+  trocarRefresh,
+} from '@/services/motor-do-usuario';
 import {
   desligarSyncEmSegundoPlano,
   ligarSyncEmSegundoPlano,
@@ -115,7 +158,8 @@ async function resultadoDe(p: Promise<unknown>): Promise<ResultadoChamada> {
     return 'ok';
   } catch (e) {
     if (e instanceof NetworkError) return 'sem_sinal';
-    if (e instanceof HttpError) return e.status >= 500 || e.status === 408 || e.status === 429 ? 'sem_sinal' : 'recusado';
+    if (e instanceof HttpError)
+      return e.status >= 500 || e.status === 408 || e.status === 429 ? 'sem_sinal' : 'recusado';
     return 'sem_sinal';
   }
 }
@@ -125,7 +169,12 @@ async function reenviarSaidasPendentes(url: string): Promise<void> {
   const fila = filaDeSaidas(await lerSaidasPendentes(), Date.now());
   if (!fila.length) return;
   const restam = await reenviarSaidas(fila, (x) =>
-    resultadoDe(new ApiClient(url, null).request('POST', '/auth/logout', { body: { refresh_token: x.refresh }, timeoutMs: 5000 })),
+    resultadoDe(
+      new ApiClient(url, null).request('POST', '/auth/logout', {
+        body: { refresh_token: x.refresh },
+        timeoutMs: 5000,
+      }),
+    ),
   );
   await gravarSaidasPendentes(restam);
 }
@@ -172,7 +221,34 @@ function usePlataformaValor() {
   const [segundoPlano, setSegundoPlano] = useState<ResultadoSegundoPlano | null>(null);
   /** RN-CORE-23: agendador único do app (abrir, voltar depois de 30 min, `sync_auto_min`, push, puxar/botão). */
   const [agendador, setAgendador] = useState<AgendadorSync | null>(null);
-  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({ puxando: false, recente: false });
+  const [estadoAgendador, setEstadoAgendador] = useState<EstadoAgendadorSync>({
+    puxando: false,
+    recente: false,
+  });
+  /**
+   * T-0088: armazenamento aberto da sessão (SQLite do usuário e tenant ou o AsyncStorage de reserva). O motor, o lease e a
+   * tarefa em segundo plano usam a MESMA instância; o logout fecha sem apagar.
+   */
+  const armazenamentoRef = useRef<{
+    usuarioId: string;
+    arquivo: string | null;
+    armazenamento: ArmazenamentoSync;
+  } | null>(null);
+  /** Diagnóstico do Perfil: SQLite (arquivo e marcador da passagem) ou AsyncStorage (reserva) e o motivo. */
+  const [armazenamento, setArmazenamento] = useState<ResumoArmazenamento | null>(null);
+  /** Tela "Atualizando os dados do aparelho…" (passagem do AsyncStorage na 1ª abertura depois da atualização). */
+  const [preparo, setPreparo] = useState<{ progresso: ProgressoPassagem | null } | null>(null);
+  /**
+   * Dados já no SQLite e o arquivo não abriu: tela de erro com "Tentar de novo" (nunca volta ao AsyncStorage).
+   * `falhouDeNovo`: a nova tentativa também falhou (a tela mostra "Ainda não abriu…").
+   */
+  const [erroArmazenamento, setErroArmazenamento] = useState<{
+    detalhe: string;
+    falhouDeNovo: boolean;
+  } | null>(null);
+  /** "Tentar de novo" em andamento: a tela de erro fica, com o botão carregando (sem toque duplo). */
+  const [tentandoAbrir, setTentandoAbrir] = useState(false);
+  const tentandoAbrirRef = useRef(false);
 
   const api = useCallback(
     () =>
@@ -197,7 +273,12 @@ function usePlataformaValor() {
           const u = s?.user;
           if (!u) return null;
           // fuso do tenant do login v1 (RN-CORE-11: virada do dia); a demonstração não tem
-          return { id: u.id, nome: u.name, perfil: u.perfil, ...(s?.tenant?.fuso ? { fuso: s.tenant.fuso } : {}) };
+          return {
+            id: u.id,
+            nome: u.name,
+            perfil: u.perfil,
+            ...(s?.tenant?.fuso ? { fuso: s.tenant.fuso } : {}),
+          };
         },
       }),
     [api],
@@ -219,9 +300,57 @@ function usePlataformaValor() {
   );
 
   const abrirMotor = useCallback(
-    async (s: Sessao, opcoes: { abertura?: boolean } = {}) => {
+    async (s: Sessao, opcoes: { abertura?: boolean; novaTentativa?: boolean } = {}) => {
+      // na nova tentativa a tela de erro fica até o resultado (revisão de UX da T-0088, 🟡 5): o erro só sai no sucesso
+      if (!opcoes.novaTentativa) setErroArmazenamento(null);
+      // T-0088: o armazenamento abre ANTES do motor (escolha, passagem do AsyncStorage, espelho). A tela de preparo só
+      // aparece se a abertura demorar (passagem com dados): quem já passou, ou a instalação nova, não vê a tela piscar
+      let ultimo: ProgressoPassagem | null = null;
+      let mostrando = false;
+      const espera = setTimeout(() => {
+        mostrando = true;
+        setPreparo({ progresso: ultimo });
+      }, ESPERA_TELA_PREPARO_MS);
+      let abertura: AberturaArmazenamento;
+      try {
+        abertura = await abrirArmazenamentoDoUsuario({
+          usuarioId: s.user.id,
+          tenantId: s.tenant?.id ?? null,
+          ...(s.tenant?.fuso ? { fuso: s.tenant.fuso } : {}),
+          aoProgredir: (p) => {
+            ultimo = p;
+            if (mostrando) setPreparo({ progresso: p });
+          },
+        });
+      } catch (e) {
+        abertura = { tipo: 'erro', arquivo: null, detalhe: e instanceof Error ? e.message : String(e) };
+      } finally {
+        clearTimeout(espera);
+        setPreparo(null);
+      }
+      // saiu (ou trocou de usuário ou de tenant) enquanto abria: não monta o motor de quem saiu e fecha o arquivo aberto
+      // agora (ainda fora do armazenamentoRef, o logout não o fecharia); o `fechar` esquece a instância na hora
+      const atual = sessaoRef.current;
+      if (atual?.user.id !== s.user.id || (atual.tenant?.id ?? null) !== (s.tenant?.id ?? null)) {
+        if (abertura.tipo === 'sqlite')
+          void fecharArmazenamentoDoUsuario(abertura.arquivo).catch(() => undefined);
+        return;
+      }
+      setArmazenamento(resumoDaAbertura(abertura));
+      if (abertura.tipo === 'erro') {
+        console.warn(`[armazenamento] o banco local não abriu: ${abertura.detalhe}`);
+        setErroArmazenamento({ detalhe: abertura.detalhe, falhouDeNovo: Boolean(opcoes.novaTentativa) });
+        return;
+      }
+      setErroArmazenamento(null);
+      armazenamentoRef.current = {
+        usuarioId: s.user.id,
+        arquivo: abertura.tipo === 'sqlite' ? abertura.arquivo : null,
+        armazenamento: abertura.armazenamento,
+      };
       const m = criarMotorDoUsuario({
         usuarioId: s.user.id,
+        armazenamento: abertura.armazenamento,
         shell,
         modo,
         api,
@@ -236,7 +365,9 @@ function usePlataformaValor() {
       // T-0034: sem resposta de /me/modulos guardada, na API real só o Core (nenhuma aba sem licença)
       setModulosAtivos(ativos.length > 0 ? ativos : efetivosSemServidor(modo, s.user.perfil));
       desassinarRef.current?.();
-      const semModulos = m.assinar((e) => setModulosAtivos(e.modulosAtivos.length > 0 ? e.modulosAtivos : ['core']));
+      const semModulos = m.assinar((e) =>
+        setModulosAtivos(e.modulosAtivos.length > 0 ? e.modulosAtivos : ['core']),
+      );
       // T-0059: o detalhe técnico da falha vai para o log e para o Diagnóstico do Perfil, nunca para a tela de carga
       const semFalhas = m.assinar(
         observarFalhasDeSync((f) => {
@@ -252,6 +383,16 @@ function usePlataformaValor() {
       motorRef.current = m;
       sincronizarAoAbrirRef.current = Boolean(opcoes.abertura && m.estado().sincronizado_em);
       setMotor(m);
+      // desenho T-0088 §5: o `rebuild` e a reindexação pendentes (L-1, versão) andam quando a tela fica livre, antes da 1ª
+      // busca, sem segurar a 1ª tela (até lá a busca responde `indexando` e o Catálogo varre)
+      if (abertura.tipo === 'sqlite') {
+        const busca = abertura.armazenamento.busca;
+        agendarSemPressa(() => {
+          void Promise.resolve(busca.finalizar?.()).catch((e: unknown) =>
+            console.warn(`[armazenamento] índice de busca: ${e instanceof Error ? e.message : String(e)}`),
+          );
+        });
+      }
     },
     [shell, api, ambiente, etapaMe, modo],
   );
@@ -274,7 +415,8 @@ function usePlataformaValor() {
       setSegundoPlano(ultimoSegundoPlano);
       // sessão de outro modo (build demo x real) não vale; a sessão antiga da demo trazia o token junto
       const token = tokens?.access ?? (modo === 'demo' ? guardada?.token : undefined);
-      const sess: Sessao | null = guardada && token && (guardada.modo ?? 'demo') === modo ? { ...guardada, token, modo } : null;
+      const sess: Sessao | null =
+        guardada && token && (guardada.modo ?? 'demo') === modo ? { ...guardada, token, modo } : null;
       // endereço salvo por versão antiga do app: ignorado nos builds de endereço fixo (T-0038)
       const salvo = enderecoSalvoValido(perfilBuild, settings?.apiUrl);
       if (salvo) {
@@ -312,41 +454,47 @@ function usePlataformaValor() {
    * Sincronização completa. Uma por vez (T-0059): quem chama durante uma em curso recebe a mesma promessa, sem
    * consultar os módulos de novo nem reiniciar a carga. Telas navegam pelo ESTADO do motor, não por esta promessa.
    */
-  const executarSync = useCallback((leve: { entidades?: readonly string[] } | null): Promise<boolean> => {
-    const m = motorRef.current;
-    if (!m) return Promise.resolve(false);
-    if (syncEmCursoRef.current) return syncEmCursoRef.current;
-    ultimoInicioRef.current = Date.now();
-    const p: Promise<boolean> = (async () => {
-      // ADR 0017: a tarefa em segundo plano está sincronizando com outro motor (app reaberto durante a tarefa): espera
-      // ela terminar e relê o que ela gravou; sem a passada neste processo, o lease vence em 2 min e a próxima segue
-      const s = sessaoRef.current;
-      if (s) {
-        const lease = await armazenamentoDoUsuario(s.user.id).ler<LeaseSync>(CHAVE_LEASE);
-        if (leaseOcupado(lease, DONO_APP, Date.now())) {
-          const tarefa = passadaEmSegundoPlano();
-          if (!tarefa) return false;
-          await tarefa.catch(() => undefined);
-          if (motorRef.current !== m) return false;
-          await m.carregar();
+  const executarSync = useCallback(
+    (leve: { entidades?: readonly string[] } | null): Promise<boolean> => {
+      const m = motorRef.current;
+      if (!m) return Promise.resolve(false);
+      if (syncEmCursoRef.current) return syncEmCursoRef.current;
+      ultimoInicioRef.current = Date.now();
+      const p: Promise<boolean> = (async () => {
+        // ADR 0017: a tarefa em segundo plano está sincronizando com outro motor (app reaberto durante a tarefa): espera
+        // ela terminar e relê o que ela gravou; sem a passada neste processo, o lease vence em 2 min e a próxima segue
+        const s = sessaoRef.current;
+        const aberto = armazenamentoRef.current;
+        // T-0088: o lease é lido na MESMA instância do motor e da tarefa (uma fila de escrita só no arquivo)
+        if (s && aberto?.usuarioId === s.user.id) {
+          const lease = await aberto.armazenamento.ler<LeaseSync>(CHAVE_LEASE);
+          if (leaseOcupado(lease, DONO_APP, Date.now())) {
+            const tarefa = passadaEmSegundoPlano();
+            if (!tarefa) return false;
+            await tarefa.catch(() => undefined);
+            if (motorRef.current !== m) return false;
+            await m.carregar();
+          }
         }
-      }
-      if (offlineRef.current) return m.sincronizar();
-      // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)
-      // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
-      if (leve && modo === 'v1') return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
-      try {
-        await atualizarModulos();
-      } catch {
-        // sem rede: o motor registra o erro na sincronização abaixo
-      }
-      return m.sincronizar();
-    })().finally(() => {
-      if (syncEmCursoRef.current === p) syncEmCursoRef.current = null;
-    });
-    syncEmCursoRef.current = p;
-    return p;
-  }, [atualizarModulos, modo]);
+        if (offlineRef.current) return m.sincronizar();
+        // leve com o motor novo: a própria chamada de novidades traz os módulos efetivos (1 requisição sem mudança)
+        // (T-0065: `motor.sincronizarNovidades` + `transporteV1.novidades`). Demonstração (Fase M, sem novidades): completa
+        if (leve && modo === 'v1')
+          return m.sincronizarNovidades(leve.entidades ? { entidades: leve.entidades } : {});
+        try {
+          await atualizarModulos();
+        } catch {
+          // sem rede: o motor registra o erro na sincronização abaixo
+        }
+        return m.sincronizar();
+      })().finally(() => {
+        if (syncEmCursoRef.current === p) syncEmCursoRef.current = null;
+      });
+      syncEmCursoRef.current = p;
+      return p;
+    },
+    [atualizarModulos, modo],
+  );
 
   /** Sincronização completa (botão Sincronizar, puxar para baixo, tela de carga): envia a fila e puxa na hora. */
   const sincronizar = useCallback((): Promise<boolean> => executarSync(null), [executarSync]);
@@ -358,13 +506,21 @@ function usePlataformaValor() {
       if (!m) return null;
       // sem sinal: só a tela de carga tenta (o motor registra o erro e a tela oferece desligar o modo sem sinal)
       if (offlineRef.current && motivo !== 'tela-carga') return null;
-      const ok = deveSincronizar(motivo, { estado: m.estado(), emCurso: syncEmCursoRef.current !== null, ultimoInicio: ultimoInicioRef.current, agora: Date.now() });
+      const ok = deveSincronizar(motivo, {
+        estado: m.estado(),
+        emCurso: syncEmCursoRef.current !== null,
+        ultimoInicio: ultimoInicioRef.current,
+        agora: Date.now(),
+      });
       return ok ? sincronizar() : syncEmCursoRef.current;
     },
     [sincronizar],
   );
 
-  const enviarFila = useCallback((opcoes: { incluirFalhos?: boolean } = {}) => motorRef.current?.enviar(opcoes) ?? Promise.resolve([]), []);
+  const enviarFila = useCallback(
+    (opcoes: { incluirFalhos?: boolean } = {}) => motorRef.current?.enviar(opcoes) ?? Promise.resolve([]),
+    [],
+  );
 
   // ---------- sessão ----------
   const abrirSessao = useCallback(
@@ -444,7 +600,12 @@ function usePlataformaValor() {
         await post('/auth/logout', { refresh_token: r.refresh_token }).catch(() => undefined);
         throw new ErroHttp(403, 'PERFIL_FORA_DO_APP', fora);
       }
-      const user: UsuarioSessao = { id: r.usuario.id, name: r.usuario.nome, email: r.usuario.email, perfil: r.usuario.perfil };
+      const user: UsuarioSessao = {
+        id: r.usuario.id,
+        name: r.usuario.nome,
+        email: r.usuario.email,
+        perfil: r.usuario.perfil,
+      };
       await abrirSessao({ token: r.access_token, user, tenant: r.tenant, modo: 'v1' }, r.refresh_token);
     },
     [abrirSessao, garantirServidorMacuxi, variante],
@@ -461,6 +622,8 @@ function usePlataformaValor() {
     if (usuarioId) void esquecerRegistroPush(usuarioId);
     sessaoRef.current = null;
     motorRef.current = null;
+    // T-0088: quem fecha o arquivo é o logout (sem apagar) ou o bloqueio do aparelho (apaga os de todos)
+    armazenamentoRef.current = null;
     // R-20261104-042956 🟢 3: a 1ª tela do próximo login não anima como "voltar"
     limparHistoricoDoShell();
     // ADR 0017: sem sessão (logout ou aparelho bloqueado), nada roda em segundo plano
@@ -469,6 +632,8 @@ function usePlataformaValor() {
     setMotor(null);
     setMe(null);
     setModulosAtivos(['core']);
+    setArmazenamento(null);
+    setErroArmazenamento(null);
   }, []);
 
   const logout = useCallback(async () => {
@@ -480,8 +645,20 @@ function usePlataformaValor() {
       const id = await dispositivoId();
       const url = apiUrlRef.current;
       const r = await sairNoServidor({
-        apagarPush: () => resultadoDe(new ApiClient(url, tokens.access).request('DELETE', '/dispositivos/atual/push', { query: { dispositivo_id: id }, timeoutMs: 5000 })),
-        revogar: () => resultadoDe(new ApiClient(url, null).request('POST', '/auth/logout', { body: { refresh_token: refresh }, timeoutMs: 5000 })),
+        apagarPush: () =>
+          resultadoDe(
+            new ApiClient(url, tokens.access).request('DELETE', '/dispositivos/atual/push', {
+              query: { dispositivo_id: id },
+              timeoutMs: 5000,
+            }),
+          ),
+        revogar: () =>
+          resultadoDe(
+            new ApiClient(url, null).request('POST', '/auth/logout', {
+              body: { refresh_token: refresh },
+              timeoutMs: 5000,
+            }),
+          ),
       });
       if (r === 'pendente') {
         const nova = { refresh, dispositivo_id: id, em: new Date().toISOString() };
@@ -489,9 +666,27 @@ function usePlataformaValor() {
       }
     }
     await gravarTokens(null);
+    const aberto = armazenamentoRef.current;
     fecharSessaoLocal();
     await writeJson(keys.session, null);
+    // T-0088 (desenho §3): sair NÃO apaga os dados do usuário; o arquivo fecha (espera as escritas da fila do adaptador)
+    // e o próximo login do mesmo usuário e tenant reabre o mesmo arquivo, com a fila offline que ficou
+    await fecharArmazenamentoDoUsuario(aberto?.arquivo ?? null).catch(() => undefined);
   }, [modo, fecharSessaoLocal]);
+
+  /** T-0088: "Tentar de novo" da tela de erro do armazenamento (arquivo do SQLite que não abriu). */
+  const tentarAbrirDeNovo = useCallback(async () => {
+    const s = sessaoRef.current;
+    if (!s || tentandoAbrirRef.current) return;
+    tentandoAbrirRef.current = true;
+    setTentandoAbrir(true);
+    try {
+      await abrirMotor(s, { abertura: true, novaTentativa: true });
+    } finally {
+      tentandoAbrirRef.current = false;
+      setTentandoAbrir(false);
+    }
+  }, [abrirMotor]);
 
   /**
    * RN-CORE-15: 423 `DISPOSITIVO_BLOQUEADO` no login, no refresh ou em qualquer chamada. O Core decide a ordem
@@ -501,6 +696,8 @@ function usePlataformaValor() {
   aparelhoBloqueadoRef.current ??= criarTratadorAparelhoBloqueado(
     {
       motor: () => motorRef.current,
+      // T-0088: os bancos SQLite de TODOS os usuários do aparelho (fecha as instâncias abertas antes)
+      apagarBancos: apagarBancosDoAparelho,
       chavesLocais: async () => [...(await AsyncStorage.getAllKeys())],
       removerChaves: async (chaves) => {
         await Promise.all(chaves.map((k) => writeJson(k, null)));
@@ -549,20 +746,27 @@ function usePlataformaValor() {
     return renovando.current;
   };
 
-  const setApiUrl = useCallback(async (url: string | null) => {
-    // endereço fixo (T-0038): não há o que trocar; nada é salvo
-    if (!editavel) return;
-    const v = url && url.trim() ? url.trim() : null;
-    setApiOverride(v);
-    apiUrlRef.current = v || platformDefaultApiUrl();
-    await writeJson(keys.settings, { apiUrl: v });
-  }, [editavel]);
+  const setApiUrl = useCallback(
+    async (url: string | null) => {
+      // endereço fixo (T-0038): não há o que trocar; nada é salvo
+      if (!editavel) return;
+      const v = url && url.trim() ? url.trim() : null;
+      setApiOverride(v);
+      apiUrlRef.current = v || platformDefaultApiUrl();
+      await writeJson(keys.settings, { apiUrl: v });
+    },
+    [editavel],
+  );
 
   /** Testa o endereço como digitado (só sem espaços nas pontas): só um servidor Macuxi passa; a mensagem diz o endereço testado. */
   const testApiUrl = useCallback(
     async (url: string) => {
       const endereco = normalizeApiUrl(url);
-      const r = await testarServidor(endereco, { rota: rotaDeSaude(modo), exigirHttps: EXIGIR_HTTPS, buscar: (u, init) => fetch(u, init) });
+      const r = await testarServidor(endereco, {
+        rota: rotaDeSaude(modo),
+        exigirHttps: EXIGIR_HTTPS,
+        buscar: (u, init) => fetch(u, init),
+      });
       if (r.ok) servidorAprovadoRef.current = endereco;
       return { ok: r.ok, message: r.mensagem, testado: r.testado };
     },
@@ -596,7 +800,11 @@ function usePlataformaValor() {
         return Number.isFinite(ms) ? ms : null;
       },
       // automática só depois da carga inicial (antes dela, quem sincroniza é a tela de carga), com sessão e sinal
-      podeSincronizar: () => !offlineRef.current && sessaoRef.current !== null && motorRef.current === m && m.estado().sincronizado_em !== null,
+      podeSincronizar: () =>
+        !offlineRef.current &&
+        sessaoRef.current !== null &&
+        motorRef.current === m &&
+        m.estado().sincronizado_em !== null,
       // abriu o app já com carga: o Início aparece na hora e a atualização leve roda sem prender a tela (R-20261102-091336)
       sincronizarAoAbrir: sincronizarAoAbrirRef.current,
       aoMudar: setEstadoAgendador,
@@ -615,7 +823,9 @@ function usePlataformaValor() {
     // RN-CORE-23 item 2 (exceção à regra dos 15 min): reenvio da FILA só com item pendente, espera crescente, sem pull
     let tentativasFila = 0;
     let timerFila: ReturnType<typeof setTimeout> | null = null;
-    const pendente = () => m.estado().fila.some((i) => i.situacao === 'pendente') || m.estado().arquivos.some((a) => a.situacao === 'pendente');
+    const pendente = () =>
+      m.estado().fila.some((i) => i.situacao === 'pendente') ||
+      m.estado().arquivos.some((a) => a.situacao === 'pendente');
     const armarFila = () => {
       if (timerFila !== null) clearTimeout(timerFila);
       timerFila = null;
@@ -702,7 +912,10 @@ function usePlataformaValor() {
   }, [motor, executarSync]);
 
   const perfil = sessao?.user.perfil ?? null;
-  const visao: VisaoShell<ComponenteTela> = useMemo(() => shell.montar({ perfil, modulosAtivos }), [shell, perfil, modulosAtivos]);
+  const visao: VisaoShell<ComponenteTela> = useMemo(
+    () => shell.montar({ perfil, modulosAtivos }),
+    [shell, perfil, modulosAtivos],
+  );
   /** Mesmo ambiente com identidade nova quando sinal/sessão mudam: telas que leem `online()` re-renderizam. */
   // `offline` e `sessao` entram só nas dependências, para trocar a identidade (as funções leem por ref)
   const ambienteTela = useMemo<AmbienteAparelho>(() => ({ ...ambiente }), [ambiente, offline, sessao]);
@@ -739,6 +952,11 @@ function usePlataformaValor() {
     falhaSync,
     segundoPlano,
     enviarFila,
+    armazenamento,
+    preparo,
+    erroArmazenamento,
+    tentandoAbrir,
+    tentarAbrirDeNovo,
   };
 }
 

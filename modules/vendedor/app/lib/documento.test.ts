@@ -220,14 +220,14 @@ describe('RF-CAT-03 (T-0071): sugestões da aba Detalhes', () => {
     ],
     superiores: [],
   };
-  const base = { consulta, lines: { [CAFE]: 12 }, catalogo, unidades, embalagens: { [CAFE]: { CX: 20_000 } }, cliente_id: U(100), clientes: [], pedidos: [], agora: new Date('2026-11-04T12:00:00.000Z') };
+  const base = { consulta, lines: { [CAFE]: 12 }, catalogo, unidades, cliente_id: U(100), clientes: [], pedidos: [], agora: new Date('2026-11-04T12:00:00.000Z') };
   it('RN-CAT-06: "Combina" só traz produto vendável (com preço e estoque) que não está no pedido', () => {
     expect(montarSugestoes(base).combina.map((s) => s.produto_id)).toEqual([U(4)]);
   });
-  it('RN-VEN-15: "Leve mais" oferece a próxima embalagem com o selo de economia (12 UN a R$ 18,90 → CX a R$ 200,00 = 12 × 18,90 − 12%)', () => {
+  it('RN-VEN-15 (nova): "Leve mais" oferece a próxima embalagem sem preço de caixa (CX = 12 × R$ 18,90 = R$ 226,80, sem economia)', () => {
     const r = montarSugestoes(base).leve_mais;
     expect(r).toHaveLength(1);
-    expect(r[0]).toMatchObject({ origem: 'embalagem_maior', produto_id: CAFE, para_unidade: 'CX', para_fator: 12, preco_cents: 20_000 });
+    expect(r[0]).toMatchObject({ origem: 'embalagem_maior', produto_id: CAFE, para_unidade: 'CX', para_fator: 12, preco_cents: 22_680, economia_pct: 0 });
   });
   it('sem itens no pedido, sem sugestão; consulta indisponível, só o que é local', () => {
     expect(montarSugestoes({ ...base, lines: {} })).toEqual({ combina: [], leve_mais: [] });

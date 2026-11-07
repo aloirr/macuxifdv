@@ -111,3 +111,13 @@ export function rolagemAteCampo({ campoTopo, campoBaixo, areaTopo, areaBaixo, fo
   if (acima < 0) return Math.floor(acima);
   return 0;
 }
+
+/**
+ * Leitura do `LinhaAtalho` no leitor de tela (T-0085): "Ver por linha" + "Sistema › grupo › linha" →
+ * "Ver por linha. Sistema, grupo, linha". O "›" vira vírgula (o TalkBack lê o sinal como "maior que" ou o pula).
+ */
+export function leituraDoAtalho(rotulo: string, apoio?: string | null): string {
+  const r = rotulo.trim();
+  const a = (apoio ?? '').replace(/\s*›\s*/g, ', ').trim();
+  return a ? `${r}. ${a}` : r;
+}

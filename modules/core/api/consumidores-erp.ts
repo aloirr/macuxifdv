@@ -9,7 +9,7 @@
 import { definirConsumidor, eventoTolerante, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { EVENTO_CLIENTE_ATUALIZADO, PARAMETRO_CAMPOS_OBRIGATORIOS } from '../contracts';
 import { EVENTO_ERP_CLIENTE_ATUALIZADO } from '../../integracao/contracts';
-import { camposExigidos, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
+import { camposExigidos, pagamentoDoClienteDoErp, planejarClienteDoErp, type EventoClienteAtualizado } from '../domain';
 import { aplicarCarteiraDoErp, aplicarContatosDoErp, aplicarFinanceiroDoErp } from './consumidores-erp-cliente-extras';
 import { consumidorClienteEnderecoDoErp } from './consumidores-erp-cliente-endereco';
 import { consumidorProdutoDoErp } from './consumidores-erp-produto';
@@ -70,6 +70,7 @@ export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
     if (bruto) {
       await aplicarCarteiraDoErp(ctx.db, id, l.external_id, bruto.vendedor_external_id?.trim() || null, ctx.agora());
       await aplicarContatosDoErp(ctx.db, id, l.external_id, bruto.contatos ?? [], ctx.agora());
+      await aplicarPagamentoDoErp(ctx.db, id, bruto as Parameters<typeof pagamentoDoClienteDoErp>[0]);
       await aplicarFinanceiroDoErp(ctx.db, id, l.external_id, bruto.limite_credito_cents, bruto.bloqueado, bruto.alterado_em);
     }
     await ctx.publicar(
@@ -86,6 +87,17 @@ export const consumidorClienteDoErp: ConsumidorEvento = definirConsumidor({
     );
   },
 });
+
+/** T-0089 / RN-VEN-25: grava só o que o Hub mandou (ausente = não altera; `null`/`[]` = limpa). Sem colunas novas no payload, não faz nada. */
+async function aplicarPagamentoDoErp(db: ContextoConsumo['db'], clienteId: string, registro: Parameters<typeof pagamentoDoClienteDoErp>[0]): Promise<void> {
+  const p = pagamentoDoClienteDoErp(registro);
+  const sets: string[] = [];
+  const valores: unknown[] = [clienteId];
+  if ('prazo_medio_max_dias' in p) sets.push(`prazo_medio_max_dias = $${valores.push(p.prazo_medio_max_dias)}`);
+  if ('formas_pagamento' in p) sets.push(`formas_pagamento = $${valores.push(p.formas_pagamento)}::text[]`);
+  if (sets.length === 0) return;
+  await db.query(`update core.cliente set ${sets.join(', ')} where id = $1`, valores);
+}
 
 /** Todos os consumidores do ERP no Core (T-0066), na ordem de dependência (RN-INT-04); o `index.ts` só repassa. */
 export const consumidoresDoErp: ConsumidorEvento[] = [

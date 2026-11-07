@@ -15,6 +15,7 @@
  * BASE, desenho T-0061 §2.1). `DEVOLUCAO_LIGADA` (desligada): a tabela `pedido_devolucao` ainda não existe (pedida ao
  * banco-dados); até lá o consumidor da nota não é registrado e o devolvido fica 0 (docs/modulos/vendedor/retorno-erp.md).
  */
+import { criarConsumidorFormaPagamentoDoErp, criarConsumidorPrazoPagamentoDoErp } from './formas-erp';
 import { definirConsumidor, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo, type LogRota } from '@macuxi/platform-sdk';
 import { EVENTO_PEDIDO_FATURADO, EVENTO_PEDIDO_STATUS_ALTERADO } from '../contracts';
 import {
@@ -410,4 +411,4 @@ export function criarConsumidorNotaDevolucao(fabrica: FabricaRepositorio = (db) 
 export const consumidorRetornoErp: ConsumidorEvento = criarConsumidorRetornoErp();
 
 /** Consumidores registrados no `apiVendedor`: o retorno sempre; a nota de devolução só com a tabela da devolução. */
-export const consumidoresVendedor: readonly ConsumidorEvento[] = DEVOLUCAO_LIGADA ? [consumidorRetornoErp, criarConsumidorNotaDevolucao()] : [consumidorRetornoErp];
+export const consumidoresVendedor: readonly ConsumidorEvento[] = [...(DEVOLUCAO_LIGADA ? [consumidorRetornoErp, criarConsumidorNotaDevolucao()] : [consumidorRetornoErp]), criarConsumidorFormaPagamentoDoErp(), criarConsumidorPrazoPagamentoDoErp()];

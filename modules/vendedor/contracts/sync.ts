@@ -82,6 +82,15 @@ export const PedidoSyncSchema = z
     desconto_valor_cents: z.number().int().nonnegative().nullable().optional(),
     acrescimo_valor_cents: z.number().int().nonnegative().nullable().optional(),
     ajuste_em: z.enum(['pct', 'valor']).nullable().optional(),
+    // --- T-0089 (0037): retrato da forma e do prazo, juntos ou nenhum; opcionais (APK anterior ignora) ---
+    forma_pagamento_id: z.string().uuid().nullable().optional(),
+    prazo_pagamento_id: z.string().uuid().nullable().optional(),
+    forma_pagamento_codigo: z.string().nullable().optional(),
+    forma_pagamento_nome: z.string().nullable().optional(),
+    prazo_codigo: z.string().nullable().optional(),
+    prazo_descricao: z.string().nullable().optional(),
+    prazo_parcelas_dias: z.array(z.number().int()).nullable().optional(),
+    prazo_medio_dias: z.number().int().nullable().optional(),
   })
   .strict();
 export type PedidoSync = z.infer<typeof PedidoSyncSchema>;
@@ -149,3 +158,24 @@ export const ClienteCondicaoSyncSchema = z
   .object({ ...Base, cliente_id: z.string().uuid(), condicao_pagamento_id: z.string().uuid() })
   .strict();
 export type ClienteCondicaoSync = z.infer<typeof ClienteCondicaoSyncSchema>;
+
+/** T-0089 (RN-VEN-24, 0037): linha do pull de forma_pagamento (escopo tenant). O app lista só as ativas. */
+export const FormaPagamentoSyncSchema = z
+  .object({ ...Base, codigo: z.string().min(1).max(20), nome: z.string().min(1).max(60), ativo: z.boolean(), ordem: z.number().int() })
+  .strict();
+export type FormaPagamentoSync = z.infer<typeof FormaPagamentoSyncSchema>;
+
+/** T-0089 (RN-VEN-24, 0037): linha do pull de prazo_pagamento (escopo tenant). `prazo_medio_dias` é calculado e gravado pela API. */
+export const PrazoPagamentoSyncSchema = z
+  .object({
+    ...Base,
+    forma_pagamento_id: z.string().uuid(),
+    codigo: z.string().min(1).max(20),
+    descricao: z.string().min(1).max(60),
+    parcelas_dias: z.array(z.number().int().min(0).max(365)).min(1).max(24),
+    prazo_medio_dias: z.number().int().min(0).max(365),
+    ativo: z.boolean(),
+    ordem: z.number().int(),
+  })
+  .strict();
+export type PrazoPagamentoSync = z.infer<typeof PrazoPagamentoSyncSchema>;

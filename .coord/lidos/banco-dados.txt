@@ -66,3 +66,5 @@ R-20261105-225102-engenheiro-software
 R-20261106-004109-engenheiro-software
 R-20261106-004109-engenheiro-software
 R-20261106-013433-engenheiro-software
+R-20261106-074250-gerente-projetos
+R-20261106-071158-gerente-projetos

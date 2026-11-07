@@ -605,3 +605,115 @@ describe('PUT produtos/:id/cadastro-catalogo e a ficha (T-0084/T-0085; RN-CAT-09
     expect((await chamar(rota('GET', 'marcas-concorrentes'), usuario('vendedor'))).status).toBe(403);
   });
 });
+
+describe('BKO Tabelas de preço e Escalonada (RN-VEN-23, RN-VEN-15; T-0089: analista e admin)', () => {
+  const FAIXA = idDemo('faixa:1');
+  const FAIXA_ERP = idDemo('faixa:erp');
+  const produto = PRODUTOS_DEMO[0]!;
+  const corpo = (extra: Record<string, unknown> = {}) => ({ produto_id: produto.id, medida: null, quantidade_minima: 10, preco_unidade_cents: 900, vigencia_inicio: '2026-01-01', vigencia_fim: null, tabela_preco_id: null, ativo: true, ...extra });
+  const semear = () => {
+    const d = memoria.estado(TENANT_A).dados;
+    d.tabelas = [{ id: TABELA_ATACADO_DEMO, codigo: 'ATACADO', nome: 'Atacado', ativo: true }];
+    d.faixas = [{ id: FAIXA_ERP, external_id: 'ESC-1', produto_id: produto.id, medida: 'FD', quantidade_minima: 5, preco_unidade_cents: 950, vigencia_inicio: '2026-01-01', vigencia_fim: null, tabela_preco_id: TABELA_ATACADO_DEMO, ativo: true }];
+  };
+
+  it('RN-CAT-04: vendedor, promotor, supervisor, gerente e assistente recebem 403 nas rotas de tabela de preço', async () => {
+    const { rota } = montar();
+    const rotasBko = [rota('GET', 'tabelas-preco'), rota('GET', 'tabelas-preco/:id/precos'), rota('GET', 'escalonada'), rota('PUT', 'escalonada/:id'), rota('DELETE', 'escalonada/:id')];
+    for (const perfil of ['vendedor', 'promotor', 'supervisor', 'gerente', 'assistente'] as const) {
+      for (const r of rotasBko) expect((await chamar(r, usuario(perfil))).codigo, `${perfil} ${r.metodo} ${r.caminho}`).toBe('PERFIL_SEM_ACESSO');
+    }
+  });
+
+  it('RN-VEN-15: a lista de preços da tabela mostra só o preço da unidade (a linha de embalagem não aparece)', async () => {
+    semear();
+    memoria.estado(TENANT_A).dados.itensPreco = [
+      { price_table_id: TABELA_ATACADO_DEMO, product_id: produto.id, price_cents: 1890 },
+      { price_table_id: TABELA_ATACADO_DEMO, product_id: produto.id, price_cents: 21546, unit: 'CX' },
+    ];
+    const { rota } = montar();
+    const tabelas = await chamar<{ items: { id: string; itens: number }[] }>(rota('GET', 'tabelas-preco'), usuario('analista'));
+    expect(tabelas.corpo.items).toEqual([expect.objectContaining({ id: TABELA_ATACADO_DEMO, itens: 1 })]);
+    const r = await chamar<{ items: { preco_cents: number; sku: string }[]; total: number }>(rota('GET', 'tabelas-preco/:id/precos'), usuario('admin'), { params: { id: TABELA_ATACADO_DEMO } });
+    expect(r.corpo.items).toEqual([expect.objectContaining({ preco_cents: 1890, sku: produto.sku })]);
+    expect(r.corpo.total).toBe(1);
+  });
+
+  it('RN-VEN-23: PUT cria a faixa, repete sem duplicar (idempotente), audita e a lista a mostra como vigente e cadastrada aqui', async () => {
+    semear();
+    const { rota } = montar();
+    const r1 = await chamar(rota('PUT', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA }, corpo: corpo() });
+    const r2 = await chamar(rota('PUT', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA }, corpo: corpo({ preco_unidade_cents: 880 }) });
+    expect([r1.corpo, r2.corpo]).toEqual([{ id: FAIXA, criado: true }, { id: FAIXA, criado: false }]);
+    expect(auditoria).toHaveLength(2);
+    const lista = await chamar<{ items: Array<{ id: string; preco_unidade_cents: number; vigente: boolean; origem: string }> }>(rota('GET', 'escalonada'), usuario('admin'));
+    expect(lista.corpo.items.find((f) => f.id === FAIXA)).toMatchObject({ preco_unidade_cents: 880, vigente: true, origem: 'manual' });
+  });
+
+  it('RN-VEN-23: a API revalida a faixa (quantidade zero, fim antes do início) com 422 RN-VEN-23', async () => {
+    semear();
+    const { rota } = montar();
+    for (const ruim of [corpo({ quantidade_minima: 0 }), corpo({ vigencia_fim: '2025-12-31' }), corpo({ preco_unidade_cents: 0 })]) {
+      const r = await chamar(rota('PUT', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA }, corpo: ruim });
+      expect(r.status).toBe(422);
+    }
+  });
+
+  it('RN-VEN-23: produto que não existe no tenant é 422 PRODUTO_INEXISTENTE (sem faixa órfã)', async () => {
+    semear();
+    const { rota } = montar();
+    const r = await chamar(rota('PUT', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA }, corpo: corpo({ produto_id: idDemo('produto:fantasma') }) });
+    expect(r).toMatchObject({ status: 422, codigo: 'PRODUTO_INEXISTENTE' });
+  });
+
+  it('RN-VEN-23: faixa com a mesma chave de outra viva é 409 FAIXA_EM_CONFLITO', async () => {
+    semear();
+    const { rota } = montar();
+    await chamar(rota('PUT', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA }, corpo: corpo() });
+    const r = await chamar(rota('PUT', 'escalonada/:id'), usuario('analista'), { params: { id: idDemo('faixa:2') }, corpo: corpo() });
+    expect(r).toMatchObject({ status: 409, codigo: 'FAIXA_EM_CONFLITO' });
+  });
+
+  it('RN-INT-02: faixa que veio do ERP é só leitura no BKO (409 FAIXA_DO_ERP ao editar ou remover)', async () => {
+    semear();
+    const { rota } = montar();
+    expect(await chamar(rota('PUT', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA_ERP }, corpo: corpo({ medida: 'FD', quantidade_minima: 5 }) })).toMatchObject({ status: 409, codigo: 'FAIXA_DO_ERP' });
+    expect(await chamar(rota('DELETE', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA_ERP } })).toMatchObject({ status: 409, codigo: 'FAIXA_DO_ERP' });
+  });
+
+  it('DELETE remove a faixa cadastrada aqui e é idempotente (204 também quando já não existe)', async () => {
+    semear();
+    const { rota } = montar();
+    await chamar(rota('PUT', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA }, corpo: corpo() });
+    expect((await chamar(rota('DELETE', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA } })).status).toBe(204);
+    expect((await chamar(rota('DELETE', 'escalonada/:id'), usuario('analista'), { params: { id: FAIXA } })).status).toBe(204);
+    expect(auditoria).toHaveLength(2);
+    const lista = await chamar<{ items: { id: string }[] }>(rota('GET', 'escalonada'), usuario('analista'));
+    expect(lista.corpo.items.map((f) => f.id)).toEqual([FAIXA_ERP]);
+  });
+
+  it('RN-VEN-23: filtros da lista (só vigentes, tabela, busca) e aviso P4 de faixa acima do preço da tabela', async () => {
+    semear();
+    const d = memoria.estado(TENANT_A).dados;
+    d.itensPreco = [{ price_table_id: TABELA_ATACADO_DEMO, product_id: produto.id, price_cents: 900 }];
+    d.faixas!.push({ id: FAIXA, external_id: null, produto_id: produto.id, medida: null, quantidade_minima: 10, preco_unidade_cents: 800, vigencia_inicio: '2099-01-01', vigencia_fim: null, tabela_preco_id: null, ativo: true });
+    const { rota } = montar();
+    const todas = await chamar<{ items: Array<{ id: string; mais_cara_que_a_tabela: boolean; vigente: boolean }>; total: number }>(rota('GET', 'escalonada'), usuario('analista'));
+    expect(todas.corpo.total).toBe(2);
+    expect(todas.corpo.items.find((f) => f.id === FAIXA_ERP)).toMatchObject({ mais_cara_que_a_tabela: true, vigente: true });
+    expect(todas.corpo.items.find((f) => f.id === FAIXA)).toMatchObject({ vigente: false });
+    const vigentes = await chamar<{ items: { id: string }[] }>(rota('GET', 'escalonada'), usuario('analista'), { query: { vigente: 'true' } });
+    expect(vigentes.corpo.items.map((f) => f.id)).toEqual([FAIXA_ERP]);
+    const outraTabela = await chamar<{ total: number }>(rota('GET', 'escalonada'), usuario('analista'), { query: { tabela_preco_id: idDemo('tabela:inexistente') } });
+    expect(outraTabela.corpo.total).toBe(0);
+    const porNome = await chamar<{ total: number }>(rota('GET', 'escalonada'), usuario('analista'), { query: { q: 'zzzz-nada' } });
+    expect(porNome.corpo.total).toBe(0);
+  });
+
+  it('RN-CAT-01: o outro tenant não vê nem altera as faixas', async () => {
+    semear();
+    const { rota } = montar();
+    const lista = await chamar<{ total: number }>(rota('GET', 'escalonada'), usuario('analista', { tenant_id: TENANT_B }));
+    expect(lista.corpo.total).toBe(0);
+  });
+});

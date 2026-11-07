@@ -3,6 +3,8 @@ import { implementarConsulta } from '@macuxi/platform-sdk';
 import {
   CONSULTA_CADASTRO_CLIENTE,
   CONSULTA_CADASTRO_RESUMO,
+  CONSULTA_FINANCEIRO_CLIENTE,
+  type FinanceiroClienteSaida,
   CONSULTA_PROMOTOR_VE_PEDIDOS,
   CONSULTA_USUARIOS_RESUMO,
   type UsuariosResumoSaida,
@@ -11,6 +13,8 @@ import {
   type CadastroResumoSaida,
 } from '../contracts';
 import { cadastroCompleto, camposExigidos } from '../domain/cadastro';
+import { dataLocal } from '../domain/checkin';
+import { financeiroDoCliente } from '../domain/pagamento-cliente';
 import { descontoMaximoAplicavel } from '../domain/produto-preco';
 import { padraoDeDesconto } from './produtos';
 import { lerPromotorVePedidos } from './promotor-pedidos';
@@ -21,7 +25,7 @@ export const consultaCadastroResumo = implementarConsulta(CONSULTA_CADASTRO_RESU
   const clientes = await lista(
     entrada.cliente_ids,
     // bloqueado (T-0073 / RN-VEN-13): `cliente_financeiro.bloqueado` do próprio Core; sem linha financeira = não bloqueado
-    `select c.id, c.razao_social, c.nome_fantasia, c.documento, c.logradouro, c.numero, c.bairro, c.cidade, c.uf, c.ativo, c.external_id, c.inscricao_estadual, c.cep, c.cadastro_incompleto, c.cadastro_campos_faltantes,
+    `select c.id, c.razao_social, c.nome_fantasia, c.documento, c.logradouro, c.numero, c.bairro, c.cidade, c.uf, c.ativo, c.external_id, c.inscricao_estadual, c.cep, c.cadastro_incompleto, c.cadastro_campos_faltantes, c.prazo_medio_max_dias, c.formas_pagamento,
             coalesce(f.bloqueado, false) as bloqueado
        from core.cliente c left join core.cliente_financeiro f on f.cliente_id = c.id and f.deleted_at is null
       where c.deleted_at is null and c.id = any($1::uuid[]) order by c.id`,
@@ -106,4 +110,25 @@ export const consultaUsuariosResumo = implementarConsulta(CONSULTA_USUARIOS_RESU
   const temMais = !porIds && rows.length > limite;
   const usuarios = temMais ? rows.slice(0, limite) : rows;
   return { usuarios, proximo_cursor: temMais ? usuarios[usuarios.length - 1]!.id : null };
+});
+
+/** T-0089 / RN-VEN-12/13: lê só `cliente_financeiro` e `titulo` do Core; o "hoje" é a data no fuso do tenant. */
+export const consultaFinanceiroCliente = implementarConsulta(CONSULTA_FINANCEIRO_CLIENTE, async (entrada, ctx): Promise<FinanceiroClienteSaida> => {
+  const fin = (
+    await ctx.db.query(
+      `select limite_cents::float8 as limite_cents, saldo_aberto_cents::float8 as saldo_aberto_cents, credito_disponivel_cents::float8 as credito_disponivel_cents,
+              bloqueado, motivo_bloqueio, to_char(atualizado_erp_em at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as atualizado_erp_em
+         from core.cliente_financeiro where deleted_at is null and cliente_id = $1`,
+      [entrada.cliente_id],
+    )
+  ).rows[0] as Parameters<typeof financeiroDoCliente>[0] | undefined;
+  if (!fin) return { financeiro: null };
+  const titulos = (
+    await ctx.db.query(
+      `select to_char(vencimento, 'YYYY-MM-DD') as vencimento, saldo_cents::float8 as saldo_cents, situacao
+         from core.titulo where deleted_at is null and cliente_id = $1 and situacao = 'aberto'`,
+      [entrada.cliente_id],
+    )
+  ).rows as Array<{ vencimento: string; saldo_cents: number; situacao: 'aberto' }>;
+  return { financeiro: financeiroDoCliente(fin, titulos, dataLocal(ctx.agora(), ctx.fuso())) };
 });

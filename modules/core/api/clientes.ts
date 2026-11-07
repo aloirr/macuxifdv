@@ -3,11 +3,14 @@
  * hierarquia da equipe. Todas por `ctx.comTenant` (RLS) e filtradas pelo escopo do usuário; cliente fora do escopo é
  * 404 (nunca 403: não revela que existe). A licença do módulo e o perfil são checados pela plataforma (`definirModuloApi`).
  */
-import { ErroNaoEncontrado, ErroRegraNegocio, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
+import { ConsultaIndisponivel, ErroNaoEncontrado, ErroRegraNegocio, type ContextoBase, type RotaModulo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
+import { CONSULTA_FORMAS_PAGAMENTO } from '../../vendedor/contracts';
 import {
   Cliente360Schema,
+  EVENTO_CLIENTE_ATUALIZADO,
   CarteiraItemPutSchema,
+  ClientePagamentoPutSchema,
   ClienteListaQuerySchema,
   type Cliente360,
   type ClienteEnderecoSync,
@@ -136,6 +139,43 @@ export const rotasDeClientes: readonly RotaModulo[] = [
     carteira: 'filtrar_no_dominio',
     params: IdParam,
     executar: (ctx) => cliente360(ctx, ctx.params.id),
+  },
+  {
+    // T-0089 / RN-VEN-24: formas ativas do Vendedor (consulta opcional, ADR 0019/0012); Vendedor desligado = null (só leitura)
+    metodo: 'GET',
+    caminho: 'formas-pagamento',
+    acao: 'cliente.pagamento_editar',
+    carteira: 'nao_se_aplica',
+    executar: (ctx) =>
+      ctx.comTenant(async (_db, tx) => {
+        try {
+          const r = await tx.consultar(CONSULTA_FORMAS_PAGAMENTO, {}, { licenca: 'tenant' });
+          return { formas: r.formas.filter((f) => f.ativo).map((f) => ({ codigo: f.codigo, nome: f.nome })) };
+        } catch (e) {
+          if (e instanceof ConsultaIndisponivel) return { formas: null };
+          throw e;
+        }
+      }),
+  },
+  {
+    // T-0089 / RN-VEN-25: formas permitidas (códigos) e prazo médio máximo do cliente
+    metodo: 'PUT',
+    caminho: 'clientes/:id/pagamento',
+    acao: 'cliente.pagamento_editar',
+    carteira: 'nao_se_aplica',
+    params: IdParam,
+    corpo: ClientePagamentoPutSchema,
+    executar: (ctx) =>
+      ctx.comTenant(async (db, tx) => {
+        const c = ctx.corpo;
+        const formas = c.formas_pagamento && c.formas_pagamento.length > 0 ? [...new Set(c.formas_pagamento)] : null;
+        const antes = (await db.query('select prazo_medio_max_dias, formas_pagamento from core.cliente where id = $1 and deleted_at is null', [ctx.params.id])).rows[0];
+        if (!antes) throw naoEncontrado();
+        await db.query('update core.cliente set prazo_medio_max_dias = $2, formas_pagamento = $3::text[] where id = $1', [ctx.params.id, c.prazo_medio_max_dias, formas]);
+        await auditar(db, ctx, { acao: 'cliente.pagamento_editar', entidade: 'cliente', entidadeId: ctx.params.id, antes, depois: { prazo_medio_max_dias: c.prazo_medio_max_dias, formas_pagamento: formas } });
+        await tx.publicar(EVENTO_CLIENTE_ATUALIZADO, { cliente_id: ctx.params.id, campos: ['prazo_medio_max_dias', 'formas_pagamento'], origem: 'bko' }, ctx.params.id);
+        return { prazo_medio_max_dias: c.prazo_medio_max_dias, formas_pagamento: formas };
+      }),
   },
   {
     metodo: 'GET',

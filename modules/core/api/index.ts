@@ -18,7 +18,7 @@ import { carteiraDoUsuario } from './carteira';
 import { rotasDeClientes } from './clientes';
 import { rotasDeDispositivos } from './dispositivos';
 import { provedoresDeNotificacao, rotasDeNotificacoes } from './notificacoes';
-import { consultaCadastroCliente, consultaCadastroResumo, consultaPromotorVePedidos, consultaUsuariosResumo } from './consultas';
+import { consultaCadastroCliente, consultaCadastroResumo, consultaFinanceiroCliente, consultaPromotorVePedidos, consultaUsuariosResumo } from './consultas';
 import { consumidorPushNotificacao } from './consumidores';
 import { consumidoresDoErp } from './consumidores-erp';
 import { consumidoresDePedido } from './consumidores-pedido';
@@ -60,7 +60,7 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
     consumidores: [consumidorPushNotificacao, ...consumidoresDePedido, consumidorBaixaPorResposta, consumidorMetaDefinida, ...consumidoresDoErp],
     // ADR 0022: varredura do alerta de pendência de etapa do checkout (RN-CORE-12); período múltiplo de 15 min (RN-CORE-23).
     tarefas: [definirTarefa({ nome: 'alerta_pendencia_checkout', cadaMin: 60, executar: (ctx) => alertarPendenciasVencidas(ctx) })],
-    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaMedidas, consultaPromotorVePedidos, consultaUsuariosResumo],
+    consultas: [consultaCadastroResumo, consultaCadastroCliente, consultaFinanceiroCliente, consultaMedidas, consultaPromotorVePedidos, consultaUsuariosResumo],
     rotasPublicas: [
       {
         metodo: 'POST',
@@ -89,14 +89,14 @@ export function criarModuloApiCore(deps: DepsAutenticacao, plataforma: DepsSuper
       // T-0087 (fatia E, RN-CORE-31): aceite do convite de 1º acesso; token de uso único no corpo, limite por IP
       { metodo: 'POST', caminho: 'auth/convite/aceitar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: AceitarConviteRequestSchema, executar: (ctx) => aceitarConvite(ctx) },
       // T-0087 / ADR 0029: identidade do super-admin de plataforma (limite por IP: 5/15 min no primeiro acesso, 10/5 min no resto)
-      { metodo: 'POST', caminho: 'plataforma/auth/primeiro-acesso', limite: { max: 5, janelaMs: QUINZE_MINUTOS }, corpo: PrimeiroAcessoSchema, executar: (ctx) => sa.primeiroAcesso(ctx) },
-      { metodo: 'POST', caminho: 'plataforma/auth/login', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: LoginPlataformaSchema, executar: (ctx) => sa.login(ctx) },
-      { metodo: 'POST', caminho: 'plataforma/auth/totp/iniciar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: DesafioSchema, executar: (ctx) => sa.totpIniciar(ctx) },
-      { metodo: 'POST', caminho: 'plataforma/auth/totp/confirmar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: TotpConfirmarSchema, executar: (ctx) => sa.totpConfirmar(ctx) },
-      { metodo: 'POST', caminho: 'plataforma/auth/segundo-fator', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: SegundoFatorSchema, executar: (ctx) => sa.segundoFator(ctx) },
-      { metodo: 'POST', caminho: 'plataforma/auth/renovar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, executar: (ctx) => sa.renovar(ctx) },
-      { metodo: 'POST', caminho: 'plataforma/auth/sair', status: 204, limite: { max: 10, janelaMs: CINCO_MINUTOS }, executar: (ctx) => sa.sair(ctx) },
-      { metodo: 'POST', caminho: 'plataforma/auth/recuperacao/regerar', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: RegerarRecuperacaoSchema, executar: (ctx) => sa.regerarRecuperacao(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/primeiro-acesso', conexao: 'portal', limite: { max: 5, janelaMs: QUINZE_MINUTOS }, corpo: PrimeiroAcessoSchema, executar: (ctx) => sa.primeiroAcesso(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/login', conexao: 'portal', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: LoginPlataformaSchema, executar: (ctx) => sa.login(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/totp/iniciar', conexao: 'portal', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: DesafioSchema, executar: (ctx) => sa.totpIniciar(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/totp/confirmar', conexao: 'portal', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: TotpConfirmarSchema, executar: (ctx) => sa.totpConfirmar(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/segundo-fator', conexao: 'portal', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: SegundoFatorSchema, executar: (ctx) => sa.segundoFator(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/renovar', conexao: 'portal', limite: { max: 10, janelaMs: CINCO_MINUTOS }, executar: (ctx) => sa.renovar(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/sair', conexao: 'portal', status: 204, limite: { max: 10, janelaMs: CINCO_MINUTOS }, executar: (ctx) => sa.sair(ctx) },
+      { metodo: 'POST', caminho: 'plataforma/auth/recuperacao/regerar', conexao: 'portal', limite: { max: 10, janelaMs: CINCO_MINUTOS }, corpo: RegerarRecuperacaoSchema, executar: (ctx) => sa.regerarRecuperacao(ctx) },
     ],
     servicos: {
       autenticar: (cabecalhos, banco) => auth.autenticar(cabecalhos, banco),

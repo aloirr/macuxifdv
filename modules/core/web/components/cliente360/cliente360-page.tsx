@@ -7,8 +7,9 @@ import { useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '@macuxi/platform-sdk/web';
 import { formatBRL } from '@macuxi/comum';
 import { Badge, ErrorBlock, EtiquetaCadastroIncompleto, KpiCard, KpiGrid, LoadingBlock, Notice, ObservacoesCliente, PageHeader, Panel, td, th, tdNum, thNum, TableScroll } from '@macuxi/ui/web';
-import { Cliente360Schema } from '../../../contracts';
+import { Cliente360Schema, FormasPagamentoDisponiveisSchema } from '../../../contracts';
 import { dataLocal, listarEnderecosDoCliente, linksDeContato, observacaoComCadastro, situacaoTitulo } from '../../../domain';
+import { PagamentoCliente } from './pagamento-cliente';
 import { useMe } from '../../lib/queries';
 import { quando, rotuloResultado, sinais } from '../../lib/visitas';
 
@@ -24,6 +25,14 @@ function Cliente360Conteudo() {
     queryKey: ['core', 'cliente360', id],
     queryFn: async () => Cliente360Schema.parse(await api<unknown>(`/core/clientes/${id}`)),
     enabled: Boolean(id),
+  });
+  // T-0089: lista das formas ativas do Vendedor; sem ela (Vendedor desligado, erro) as formas ficam só leitura
+  const formasQ = useQuery({
+    queryKey: ['core', 'formas-pagamento'],
+    queryFn: async () => FormasPagamentoDisponiveisSchema.parse(await api<unknown>('/core/formas-pagamento')),
+    enabled: Boolean(id),
+    retry: false,
+    staleTime: 5 * 60_000,
   });
   if (!id) return <Notice tone="info">Abra um cliente pela Carteira ou pela lista de clientes.</Notice>;
   if (q.isPending) return <LoadingBlock label="Carregando o cliente…" />;
@@ -102,6 +111,8 @@ function Cliente360Conteudo() {
           ))}
         </ul>
       </Panel>
+
+      <PagamentoCliente key={cliente.id} clienteId={cliente.id} prazoMedioMaxDias={cliente.prazo_medio_max_dias ?? null} formas={cliente.formas_pagamento ?? []} formasDisponiveis={formasQ.data?.formas ?? null} />
 
       {/* RN-CORE-17: linha automática no topo, texto do ERP intacto abaixo */}
       <ObservacoesCliente automatica={observacaoComCadastro(null, cliente.cadastro_campos_faltantes ?? [])} texto={cliente.observacao ?? null} />

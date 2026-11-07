@@ -240,11 +240,16 @@ jobs:
           S3_SEGREDO: ${{ secrets.PROD_S3_SECRET }}
           TUNEL: ${{ secrets.PROD_CLOUDFLARE_TUNNEL_TOKEN }}
           WEBHOOK: ${{ secrets.PROD_ALERTA_WEBHOOK }}
+          # T-0087/ADR 0029: convite do 1º acesso do super-admin (opcional; sem ele o primeiro acesso do portal responde 503)
+          SA_CONVITE: ${{ secrets.PROD_SUPERADMIN_CONVITE }}
         run: |
           grava() { ssh -l "$USUARIO" prod "umask 077; cat > '/opt/macuxi/$1.tmp' && mv -f '/opt/macuxi/$1.tmp' '/opt/macuxi/$1'"; }
           printf 'MACUXI_PG_HOST=%s\nMACUXI_PG_PORTA=%s\n' "$PG_HOST" "${PG_PORTA:-5432}" | grava banco.env
           printf 'MACUXI_PG_ADMIN_USUARIO=%s\nMACUXI_PG_ADMIN_SENHA=%s\n' "$PG_ADMIN" "$PG_ADMIN_SENHA" | grava admin.env
-          printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO" | grava segredos.env
+          {
+            printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO"
+            if [ -n "$SA_CONVITE" ]; then printf 'MACUXI_SUPERADMIN_CONVITE=%s\n' "$SA_CONVITE"; fi
+          } | grava segredos.env
           printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" | grava tunel.env
           if [ -n "$WEBHOOK" ]; then
             printf 'MACUXI_ALERTA_WEBHOOK=%s\n' "$WEBHOOK" | grava alerta.env

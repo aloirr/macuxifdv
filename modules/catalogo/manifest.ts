@@ -24,11 +24,13 @@ export const manifest = defineModule({
   versao: '0.1.0',
   depende: ['core'],
   perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'assistente', 'admin'],
-  apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo'] } },
+  apps: { campo: { abas: ['Catálogo'] }, gestao: { abas: ['Catálogo'] }, web: { menus: ['Catálogo', 'Tabelas de preço'] } },
   sync: [
     // preço
     'tabela_preco',
     'tabela_preco_item',
+    // faixas de preço por quantidade (RN-VEN-23, T-0089); o Vendedor as aplica pelas faixas[] de precos_cliente@1
+    'tabela_escalonada',
     // tabela de preço do cliente (T-0029; pull por carteira; RN-CAT-06)
     'cliente_tabela_preco',
     // estoque por filial/depósito
@@ -51,7 +53,7 @@ export const manifest = defineModule({
   ],
   publica: ['catalogo.produto.visualizado@1', 'catalogo.busca.realizada@1'],
   // produto: só o catalogo_no_external_id, para gravar produto_no; o cadastro do produto é do Core
-  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'catalogo.busca.realizada@1'],
+  consome: ['integracao.estoque.atualizado@1', 'integracao.preco.atualizado@1', 'integracao.catalogo_no.atualizado@1', 'integracao.produto.atualizado@1', 'integracao.tabela_escalonada.atualizado@1', 'catalogo.busca.realizada@1'],
   ofereceExtensoes: ['produto.acoes'],
   // T-0076: não contribui mais com 'cliente.acoes' (o "Ver catálogo" saiu do Cliente 360)
   usaExtensoes: [],
@@ -74,6 +76,7 @@ export const manifest = defineModule({
     'produto.enriquecer': { perfis: [...PERFIS_CONTEUDO], descricao: 'Enriquecer conteúdo: fotos, vídeos, argumentos, FAQ e PDFs técnicos (RF-CAT-07)' },
     'sinonimo.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Cadastrar sinônimos do tenant para a busca (RF-CAT-02, RF-CAT-07)' },
     'destaque.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Marcar produtos de campanha e destaques que ganham boost na busca (RF-CAT-01)' },
+    'tabela_preco.gerenciar': { perfis: [...PERFIS_CONTEUDO], descricao: 'Tabelas de preço no BKO: ver o preço da unidade e cadastrar a tabela escalonada (faixas por quantidade; RN-VEN-23)' },
     'busca.ver_sem_resultado': { perfis: [...PERFIS_CONTEUDO], descricao: 'Ver os termos buscados sem resultado (RF-CAT-07)' },
   },
 });

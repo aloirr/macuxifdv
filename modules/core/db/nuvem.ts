@@ -1,7 +1,7 @@
 /**
  * Schema `core` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0002_core.up.sql (0004: sessao, dispositivo, tentativas de login; 0006: lote A da Sprint 1; 0013: cadastro mínimo do cliente, custo
- * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone), para uso
+ * e preço do produto, produto_unidade e cliente_endereco; 0018: medida e embalagem do produto; 0019: nota_erp e meta.tipo; 0021: recado do dia em notificacao; 0025: vendedor da nota_erp; 0028: plano_rv; 0030: notificacao.subtipo; 0036: usuario_convite e usuario.telefone; 0037: prazo médio máximo e formas de pagamento do cliente), para uso
  * INTERNO do módulo Core (modules/core/api).
  * Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
@@ -114,6 +114,14 @@ export const cliente = core.table('cliente', {
   /** CHECK: cadastro_incompleto = (cadastro_campos_faltantes não vazio). Calculado pelo domain do Core. */
   cadastro_incompleto: boolean('cadastro_incompleto').notNull().default(false),
   cadastro_campos_faltantes: text('cadastro_campos_faltantes').array().notNull().default([]),
+  // --- 0037 (T-0089, RN-VEN-25; desenho T-0089 §3) ---
+  /** Prazo médio máximo do cliente em dias (0..365). Nulo = sem teto (§8 P1): todos os prazos ativos ficam habilitados. */
+  prazo_medio_max_dias: integer('prazo_medio_max_dias'),
+  /**
+   * CÓDIGOS das formas de pagamento permitidas (vendedor.forma_pagamento.codigo), SEM FK: a forma é do Vendedor (regra 1,
+   * ADR 0027). Nulo ou vazio = todas as ativas (§8 P1). Até 20 códigos de 1..20 caracteres, sem repetir (CHECK).
+   */
+  formas_pagamento: text('formas_pagamento').array(),
 });
 
 /**

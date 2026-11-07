@@ -26,6 +26,8 @@ export interface ResultadoBusca {
  * - `erro_busca`: o mecanismo recusou a consulta (erro do FTS5; o log leva só o tamanho, nunca o texto).
  * - `sem_busca`: o armazenamento não tem a extensão `busca` (só pelo motor).
  * - `indeterminado`: armazenamento de fora do SDK só com `buscar` devolveu lista vazia (não distingue os casos).
+ * - `indexando`: o índice está sendo (re)montado a partir das linhas locais (L-1) em segundo plano; só com a opção
+ *   `buscaSemEsperarIndexacao` do adaptador SQLite (T-0088, aditivo). Quem chama varre até o índice ficar pronto.
  */
 export type MotivoSemBusca =
   | 'consulta_vazia'
@@ -33,7 +35,8 @@ export type MotivoSemBusca =
   | 'indice_invalido'
   | 'erro_busca'
   | 'sem_busca'
-  | 'indeterminado';
+  | 'indeterminado'
+  | 'indexando';
 
 /**
  * Desfecho da busca (T-0052, R-20261105-145745): `buscou: true` com `resultados: []` = "busquei e não achei" (dá para
@@ -57,4 +60,10 @@ export interface BuscaTextoSync {
   buscarComDesfecho?(indice: string, consulta: ConsultaTexto): Promise<DesfechoBusca>;
   /** Fim do sync: reconstrói índices marcados (carga em massa) e otimiza depois de muitas mudanças. */
   finalizar?(): Promise<void>;
+  /**
+   * Gancho de reindexação marcada (T-0084): guarda o fuso do tenant para a indexação e confere `versaoDocumentos` de
+   * cada índice; versão diferente da guardada = índice marcado para reindexar (em segundo plano na busca; esperado no
+   * `finalizar`). O motor chama antes de cada busca e antes do `finalizar`. Barato quando nada mudou; nunca lança.
+   */
+  conferirVersoes?(ctx: { fuso?: string }): Promise<void>;
 }

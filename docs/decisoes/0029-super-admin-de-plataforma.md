@@ -1,7 +1,9 @@
 # ADR 0029 — Super-admin de plataforma: identidade fora dos tenants, 2º fator TOTP, sessão curta e auditoria total
 
-- **Status**: proposta (vira aceita quando o Alexandre aceitar, pedido no status das 2h de 06/11, com as revisões da T-0087 sem 🔴;
-  até lá o portal pode ir à verificação e ao deploy, porque a decisão é reversível pelo down da 0035)
+- **Status**: **aceita com condição** em 2026-11-06 pelo Alexandre (R-20261106-182000, item 3). Condição: **antes do 1º cliente
+  real**, as funções `plataforma.sa_*` passam para um papel de banco próprio (`macuxi_portal`), usado só pela API do portal, e o
+  `macuxi_app` deixa de conseguir abrir sessão de super-admin (Decisão §8). Caminho: T-0091 (desenho
+  [docs/desenho/T-0091.md](../desenho/T-0091.md)). Até lá, a produção liga só com o tenant de teste.
 - **Data**: 2026-11-06
 - **Tarefa**: T-0087 (desenho: [docs/desenho/T-0087.md](../desenho/T-0087.md))
 - **Autor**: engenheiro-software
@@ -16,7 +18,7 @@ usa o portal não é usuário de nenhum tenant: precisa enxergar todos e criar t
 ## Decisão
 1. **Identidade própria, fora dos tenants**: `plataforma.super_admin` (sem `tenant_id`, como `plataforma.tenant`; exceção à regra 5
    registrada aqui). RLS ligado e forçado **sem política** para `macuxi_app`; todo acesso por funções `SECURITY DEFINER` pequenas, com
-   `search_path` fixo, grant só ao `macuxi_app` (nunca ao `macuxi_worker`). `PERFIS` não muda: o super-admin não é perfil de tenant.
+   `search_path` fixo, grant só ao `macuxi_app` (nunca ao `macuxi_worker`) na 0035; **com a T-0091, só ao `macuxi_portal`** (§8). `PERFIS` não muda: o super-admin não é perfil de tenant.
 2. **Primeiro acesso por convite secreto**: só com **zero** super-admins e com o `MACUXI_SUPERADMIN_CONVITE` (≥ 32 caracteres, secret do
    environment `PRODUCAO`), conferido em tempo constante. Depois do primeiro, a rota responde 410 para sempre. Novos super-admins e a
    redefinição do 2º fator ficam para um comando com a conexão de administração (fora da T-0087).
@@ -35,6 +37,15 @@ usa o portal não é usuário de nenhum tenant: precisa enxergar todos e criar t
    contagens, `request_id`, prefixo do IP. O fato no tenant vai também à `plataforma.auditoria` dele (`usuario_id` = id do super-admin).
 7. **Só no host `config.`**: o apps/web responde 404 para `/config/*` nos outros hosts. Recomendado (sem código, decisão do Alexandre):
    Cloudflare Access no host `config.` com o e-mail dele, como uma 3ª barreira.
+8. **Papel de banco próprio do portal** (condição do aceite; T-0091, antes do 1º cliente real):
+   - `macuxi_portal`: LOGIN, sem SUPERUSER/BYPASSRLS/CREATEDB/CREATEROLE/REPLICATION, sem grant em tabela e sem filiação; só `USAGE`
+     no schema `plataforma` e `EXECUTE` nas funções `plataforma.sa_*`. `macuxi_app` e `macuxi_worker` perdem o EXECUTE (42501).
+   - A API abre um 2º pool com ele, usado só nas rotas `plataforma/auth/*` (Core, marcadas no SDK), em `/v1/plataforma/*`, na
+     conferência da sessão, no `sa_tenant_ativo` e na auditoria. O dado do tenant continua no `macuxi_app`, com RLS.
+   - Plano B do DBaaS (ADR 0024) mantido: `CREATE ROLE` com os atributos pelo admin com CREATEROLE; papel existente só recebe `LOGIN
+     PASSWORD` com verificador SCRAM (B0); nenhum superusuário, nenhum ALTER de atributo, nenhum BYPASSRLS.
+   - A senha nasce na VM (`portal.env`, modo 600), lida só pelo contêiner `api` e pelo passo de papéis do deploy; o worker nunca a recebe.
+   - Toda função `sa_*` nova tem EXECUTE só ao `macuxi_portal` (o teste de conformidade cobra).
 
 ## Alternativas
 - **Super-admin como perfil `admin` de um tenant "Macuxi"** com poderes extras: mistura o RLS dos tenants com um acesso que atravessa
@@ -44,17 +55,25 @@ usa o portal não é usuário de nenhum tenant: precisa enxergar todos e criar t
 - **WebAuthn/passkey**: mais forte, mas mais código no navegador e no servidor do que cabe até 12h de 06/11. Pode substituir o TOTP depois.
 - **Papel de banco próprio para o portal** (outra conexão): isolaria melhor, mas exige outro pool e outro segredo na VM no dia do deploy.
   As funções `SECURITY DEFINER` que conferem a sessão dão o mesmo efeito prático agora; revisitar quando houver mais de um operador.
+  **Adotada como condição do aceite** (Decisão §8, T-0091).
 
 ## Consequências
 - Três segredos novos no `.env`/`PRODUCAO`: `MACUXI_SUPERADMIN_CONVITE`, `MACUXI_CHAVE_TOTP`, `MACUXI_JWT_SEGREDO_PLATAFORMA`. Sem eles as
   rotas do portal respondem 503 (falha fechada).
 - Perder o celular **e** os códigos de recuperação exige o comando de administração (procedimento a escrever com o T-0086).
 - Quem marca uma rota com `superAdmin` responde por não gravar o id do super-admin em FK para `core.usuario`.
-- O `macuxi_app` ganha poder de criar tenant, mas só por função que exige sessão de super-admin viva. **Limite**: a senha e o TOTP são
+- **Até a T-0091** (0035 como está): o `macuxi_app` ganha poder de criar tenant, mas só por função que exige sessão de super-admin viva. **Limite**: a senha e o TOTP são
   conferidos no Node (a chave do TOTP fica fora do banco), então o banco não distingue o Core de quem tenha a **credencial do
   `macuxi_app`**: com ela, dá para abrir desafio e sessão de super-admin pelas funções `sa_*` sem senha nem TOTP. A proteção contra
   isso é a própria credencial (só no `.env` da VM e no secret `PRODUCAO`, nunca em log) e a trilha: toda sessão aberta grava
   `sa.sessao.aberta` (e todo tenant provisionado, `sa.tenant.provisionar`) na `plataforma.auditoria_plataforma` **pelo próprio banco**,
   append-only, que o app não altera nem apaga. Quem vazar a credencial do app já lê e grava os dados de todos os tenants pelo RLS
   (`app.tenant_id` é do app), então o portal não amplia o dano de dados; amplia a criação de tenant, que fica auditada. Fechar o
-  limite pede o papel de banco próprio do portal (ver Alternativas). Limite aceito e registrado (docs/banco/plataforma.md).
+  limite pede o papel de banco próprio do portal (§8). Limite aceito só até a T-0091 e só com o tenant de teste (docs/banco/plataforma.md).
+- **Depois da T-0091**: o `macuxi_app` (e uma injeção de SQL em qualquer rota de tenant, que roda com ele) não chama nenhuma `sa_*`.
+  O limite passa para a senha do `macuxi_portal`, que só existe no contêiner `api` e no passo de papéis do deploy: com ela ainda se
+  abre sessão sem senha nem TOTP, e a sessão continua auditada pelo banco. Fechar isso de vez pediria conferir o 2º fator dentro do
+  banco (chave do TOTP no banco), o que não fazemos.
+- Mais um pool na API (2 conexões; ADR 0024 item 8) e mais um segredo na VM; sem ele, o portal responde 503 e os tenants seguem.
+- A `sa_provisionar_tenant` grava `plataforma.parametro` (entidade de sync) num papel que o horizonte do pull não enxerga: roda com
+  `statement_timeout` abaixo da margem do horizonte (desenho T-0091 §3 item 5).

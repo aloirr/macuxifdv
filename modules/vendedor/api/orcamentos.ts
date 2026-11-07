@@ -14,6 +14,7 @@ import { ErroHttpModulo, ErroNaoEncontrado, type ClienteBanco, type RotaModulo }
 import { CancelarOrcamentoRequest, EditarOrcamentoRequest, PedidoPush } from '../contracts';
 import { acoesDoOrcamento, conteudoDoEnvio, situacaoDoOrcamento } from '../domain';
 import { calcularDocumento } from './receber';
+import { valoresPagamento } from './pagamento';
 import { preVenda } from './pre-venda';
 
 const ParamsOrcamento = z.object({ id: z.string().uuid() });
@@ -93,7 +94,7 @@ export const rotaEditarOrcamento: RotaModulo = {
         const mensagem = calc.status === 'rejeitado' ? calc.mensagem : 'Orçamento recusado.';
         throw new ErroHttpModulo(codigo === 'FORA_DA_CARTEIRA' || codigo === 'RN-PRO-01' ? 403 : 422, codigo, mensagem);
       }
-      const { cliente, produtos, frete, transportadora, alvo, enderecoRetrato, precos, condicao, v } = calc;
+      const { cliente, produtos, frete, transportadora, alvo, enderecoRetrato, precos, condicao, pagamento, v } = calc;
       const resumo = {
         razao_social: cliente.razao_social,
         nome_fantasia: cliente.nome_fantasia ?? '',
@@ -109,17 +110,20 @@ export const rotaEditarOrcamento: RotaModulo = {
             cliente_resumo = $8::jsonb, cliente_nome = $9, tabela_preco_id = $10, condicao_pagamento_id = $11, condicao_pagamento_descricao = $12,
             acrescimo_pct = $13, desconto_efetivo_pct = $14, frete_modalidade = $15, transportadora_id = $16, transportadora_digitada = $17,
             transportadora_nome = $18, transportadora_documento = $19, transportadora_telefone = $20, endereco_entrega_id = $21, endereco_entrega = $22::jsonb,
-            desconto_valor_cents = $23, acrescimo_valor_cents = $24, ajuste_em = $25, hash_envio = $26
+            desconto_valor_cents = $23, acrescimo_valor_cents = $24, ajuste_em = $25, hash_envio = $26,
+            forma_pagamento_id = $27, prazo_pagamento_id = $28, forma_pagamento_codigo = $29, forma_pagamento_nome = $30, prazo_codigo = $31,
+            prazo_descricao = $32, prazo_parcelas_dias = $33::int[], prazo_medio_dias = $34
           where id = $1`,
         [
-          id, condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents, p.observacao ?? null, p.visita_id ?? null,
-          JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, precos.tabela_preco_id, condicao?.id ?? null, condicao?.descricao ?? null,
+          id, pagamento?.texto ?? condicao?.descricao ?? null, v.desconto_pct, v.total_tabela_cents, v.total_cents, p.observacao ?? null, p.visita_id ?? null,
+          JSON.stringify(resumo), cliente.nome_fantasia || cliente.razao_social, precos.tabela_preco_id, condicao?.id ?? null, pagamento?.texto ?? condicao?.descricao ?? null,
           v.acrescimo_pct, v.desconto_efetivo_pct, frete.modalidade, transportadora.id, transportadora.digitada,
           transportadora.nome, transportadora.documento, transportadora.telefone, alvo.endereco_id,
           enderecoRetrato
             ? JSON.stringify({ id: enderecoRetrato.id, external_id: enderecoRetrato.external_id, tipo: enderecoRetrato.tipo, logradouro: enderecoRetrato.logradouro, numero: enderecoRetrato.numero, complemento: enderecoRetrato.complemento, bairro: enderecoRetrato.bairro, cidade: enderecoRetrato.cidade, uf: enderecoRetrato.uf, cep: enderecoRetrato.cep, principal: enderecoRetrato.principal, descricao: null })
             : null,
           v.desconto_valor_cents, v.acrescimo_valor_cents, v.ajuste_em, hash,
+          ...valoresPagamento(pagamento),
         ],
       );
       // itens: os antigos saem por exclusão lógica (o pull leva a remoção) e os novos entram com sequência depois da última

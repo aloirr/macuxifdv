@@ -314,3 +314,9 @@ R-20261105-234239-banco-dados
 R-20261106-000450-modulo-promotor
 R-20261106-000651-engenheiro-apps
 R-20261106-022032-engenheiro-apps
+R-20261106-064752-alexandre
+R-20261106-064754-alexandre
+R-20261106-064756-alexandre
+R-20261106-064758-alexandre
+R-20261106-064043-engenheiro-apps
+R-20261106-065737-engenheiro-software

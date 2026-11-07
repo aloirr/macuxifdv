@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planejarCadastroCatalogoDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp } from './erp';
+import { decidirColisaoEscalonada, planejarCadastroCatalogoDoErp, planejarEscalonadaDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, precoDoErpEhDaBase } from './erp';
 
 const preco = (extra: Record<string, unknown> = {}) => ({
   external_id: 'PR-1',
@@ -113,5 +113,66 @@ describe('RN-CAT-11 / RN-CAT-09: cadastro do Catálogo vindo do ERP (aplicação
   it('RN-CAT-11: produto inativado ou evento sem registro não altera o cadastro', () => {
     expect(plano({ aplicacao: 'x' }, 2000, 'inativado')).toEqual({});
     expect(planejarCadastroCatalogoDoErp(evento(undefined), { aplicacaoMax: 2000 })).toEqual({});
+  });
+});
+
+describe('RN-VEN-15 (nova): preço do ERP com unidade diferente da base não vira preço da UN', () => {
+  it('RN-VEN-15: a linha com unidade segue no plano com a sigla, para o consumidor conferir com a base do produto e avisar', () => {
+    const p = planejarPrecoDoErp(preco({ unidade: ' CX ' }));
+    expect(p.tipo === 'upsert' && p.linha.unidade).toBe('CX');
+  });
+  it('RN-VEN-15: unidade vazia ou ausente = unidade base (sem o campo na linha)', () => {
+    for (const u of [undefined, null, '  ']) expect(planejarPrecoDoErp(preco({ unidade: u }))).toMatchObject({ tipo: 'upsert' });
+    const p = planejarPrecoDoErp(preco({ unidade: '  ' }));
+    expect(p.tipo === 'upsert' && 'unidade' in p.linha).toBe(false);
+  });
+  it('RN-VEN-15: só vale como preço da UN a unidade igual à base do produto (sem diferenciar maiúsculas)', () => {
+    expect(precoDoErpEhDaBase('UN', 'un')).toBe(true);
+    expect(precoDoErpEhDaBase(undefined, 'UN')).toBe(true);
+    expect(precoDoErpEhDaBase('CX', 'UN')).toBe(false);
+    expect(precoDoErpEhDaBase('CX', null)).toBe(false);
+  });
+});
+
+const escalonada = (extra: Record<string, unknown> = {}) => ({
+  external_id: 'ESC-1',
+  acao: 'criado' as const,
+  registro: { produto_external_id: 'P-1', medida: 'FD', quantidade_minima: 10, preco_unidade_cents: 900, vigencia_inicio: '2026-11-01', vigencia_fim: null, tabela_external_id: null, ...extra },
+});
+
+describe('RN-VEN-23: tabela escalonada do ERP vira faixa do Catálogo', () => {
+  it('RN-VEN-23: faixa válida vira upsert com produto, medida, mínimo, preço da unidade base, vigência e tabela', () => {
+    expect(planejarEscalonadaDoErp(escalonada({ tabela_external_id: 'T1' }))).toEqual({
+      tipo: 'upsert',
+      linha: { external_id: 'ESC-1', produto_external_id: 'P-1', medida: 'FD', quantidade_minima: 10, preco_unidade_cents: 900, vigencia_inicio: '2026-11-01', vigencia_fim: null, tabela_external_id: 'T1' },
+    });
+  });
+  it('RN-VEN-23: medida e tabela ausentes = unidade base e todas as tabelas', () => {
+    const p = planejarEscalonadaDoErp(escalonada({ medida: undefined, tabela_external_id: undefined }));
+    expect(p.tipo === 'upsert' && [p.linha.medida, p.linha.tabela_external_id]).toEqual([null, null]);
+  });
+  it('RN-VEN-23: ação inativado ou registro inativo inativam a faixa (nunca apagam)', () => {
+    expect(planejarEscalonadaDoErp({ external_id: 'ESC-1', acao: 'inativado' })).toEqual({ tipo: 'inativar', external_id: 'ESC-1' });
+    expect(planejarEscalonadaDoErp(escalonada({ ativo: false }))).toEqual({ tipo: 'inativar', external_id: 'ESC-1' });
+  });
+  it('RN-VEN-23: faixa inválida para o Catálogo (preço zero, fim antes do início) inativa em vez de gravar', () => {
+    expect(planejarEscalonadaDoErp(escalonada({ preco_unidade_cents: 0 }))).toEqual({ tipo: 'inativar', external_id: 'ESC-1' });
+    expect(planejarEscalonadaDoErp(escalonada({ vigencia_fim: '2026-10-31' }))).toEqual({ tipo: 'inativar', external_id: 'ESC-1' });
+  });
+  it('RN-VEN-23: evento sem registro e sem ser inativação é ignorado', () => {
+    expect(planejarEscalonadaDoErp({ external_id: 'ESC-1', acao: 'atualizado' })).toEqual({ tipo: 'ignorar' });
+  });
+});
+
+describe('RN-VEN-23: colisão da faixa do ERP na chave do índice único', () => {
+  it('RN-VEN-23: sem colisão ou a mesma linha = nenhuma ação', () => {
+    expect(decidirColisaoEscalonada(null, 'ESC-1', false)).toBe('nenhuma');
+    expect(decidirColisaoEscalonada('ESC-1', 'ESC-1', true)).toBe('nenhuma');
+  });
+  it('RN-VEN-23: faixa manual na mesma chave é adotada pelo ERP', () => {
+    expect(decidirColisaoEscalonada(null, 'ESC-1', true)).toBe('adotar');
+  });
+  it('RN-VEN-23: faixa de outro registro do ERP na mesma chave é substituída pela nova (nunca recusa nem repete)', () => {
+    expect(decidirColisaoEscalonada('ESC-0', 'ESC-1', true)).toBe('substituir');
   });
 });
