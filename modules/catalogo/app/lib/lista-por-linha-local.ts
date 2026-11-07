@@ -18,6 +18,8 @@ import { agruparPorLinha, coletar, contarSistemas, montarExtras, montarItemLista
 export const MAXIMO_ITENS_LISTA = 100;
 /** A partir deste nível (linha) a tela mostra os itens, mesmo que ainda haja níveis abaixo. */
 const NIVEL_DA_LINHA = 3;
+/** Nós de nível memorizados por leitor (LRU): abrir os 440 nós da árvore não retém tudo na memória. */
+export const MAXIMO_NOS_MEMORIZADOS = 40;
 
 export interface FilhoLista {
   id: string;
@@ -36,6 +38,8 @@ export interface NivelLista {
   itens: ItemLista[];
   /** Quantos produtos o nível atual tem (os itens podem ser só os primeiros). */
   total: number;
+  /** Itens que ainda não vieram na tela ("Mostrar mais" traz mais `MAXIMO_ITENS_LISTA`). */
+  restantes: number;
   /** O nó pedido não existe (mais) na árvore do aparelho: o nível vem vazio e a tela oferece a volta (`voltarPara`). */
   noInexistente: boolean;
   /** Com `noInexistente`: o ancestral mais próximo que ainda existe (`null` = raiz). Nos demais casos, `null`. */
@@ -48,6 +52,7 @@ interface Registro<T> {
   chave: string;
   valor: T;
 }
+const PREFIXO_NO = 'lista-no:';
 const memorias = new WeakMap<object, Map<string, Registro<unknown>>>();
 
 /** Memoriza pelo `versaoLinhas` das entidades (versão lida ANTES das linhas); sem `versaoLinhas`, não memoriza. */
@@ -57,9 +62,18 @@ async function lembrar<T>(leitor: LeitorLocal, nome: string, entidades: readonly
   let m = memorias.get(leitor);
   if (!m) memorias.set(leitor, (m = new Map()));
   const guardado = m.get(nome) as Registro<T> | undefined;
-  if (guardado && guardado.chave === chave) return guardado.valor;
+  if (guardado && guardado.chave === chave) {
+    m.delete(nome); // reinsere: o mais recente fica no fim (LRU)
+    m.set(nome, guardado);
+    return guardado.valor;
+  }
   const valor = await calcular();
+  m.delete(nome);
   m.set(nome, { chave, valor });
+  if (nome.startsWith(PREFIXO_NO)) {
+    const nos = [...m.keys()].filter((k) => k.startsWith(PREFIXO_NO));
+    for (const k of nos.slice(0, Math.max(0, nos.length - MAXIMO_NOS_MEMORIZADOS))) m.delete(k);
+  }
   return valor;
 }
 
@@ -139,7 +153,7 @@ interface NivelLido {
 
 /** Um sistema/grupo/linha: lê só os vínculos e os produtos da subárvore; memorizado por nó até o próximo sync. */
 function lerNivel(leitor: LeitorLocal, arvore: Arvore, noId: string): Promise<NivelLido> {
-  return lembrar(leitor, `lista-no:${noId}`, ['catalogo_no', 'produto_no', 'produto'], async () => {
+  return lembrar(leitor, `${PREFIXO_NO}${noId}`, ['catalogo_no', 'produto_no', 'produto'], async () => {
     const vinculos = await vinculosDosNos(leitor, descendentesDe(arvore, noId));
     const ids = [...new Set(vinculos.map((v) => v.produto_id))];
     const produtos = await produtosPorIds(leitor, ids);
@@ -151,7 +165,7 @@ function lerNivel(leitor: LeitorLocal, arvore: Arvore, noId: string): Promise<Ni
  * Um nível da lista por linha. `noId` nulo = raiz (sistemas); `NO_SEM_LINHA` = produtos fora da árvore. Cliente em
  * contexto = preço da tabela dele (RN-CAT-06); sem permissão para preço e estoque o item sai sem os dois (RN-CAT-05).
  */
-export async function listaPorLinhaLocal(leitor: LeitorLocal, e: EntradaLocal & { noId: string | null; fuso: string; ultimaTrilha?: readonly string[] }): Promise<NivelLista> {
+export async function listaPorLinhaLocal(leitor: LeitorLocal, e: EntradaLocal & { noId: string | null; fuso: string; ultimaTrilha?: readonly string[]; limite?: number }): Promise<NivelLista> {
   const arvore = await arvoreDoAparelho(leitor);
   const noValido = e.noId === null || e.noId === NO_SEM_LINHA || arvore.nos.has(e.noId);
   const noId = e.noId;
@@ -220,10 +234,11 @@ const semLinha = (total: number): FilhoLista => ({ id: NO_SEM_LINHA, codigo: NO_
 
 async function finalizar(
   leitor: LeitorLocal,
-  e: EntradaLocal & { fuso: string },
+  e: EntradaLocal & { fuso: string; limite?: number },
   base: { trilha: NoCatalogo[]; rotuloNivel: string | null; filhos: FilhoLista[]; candidatos: ProdutoLista[]; porId: Map<string, LinhaProduto>; total: number; noInexistente: boolean; voltarPara: string | null },
 ): Promise<NivelLista> {
-  const ordenados = ordenarPorNome(base.candidatos).slice(0, MAXIMO_ITENS_LISTA);
+  const todos = ordenarPorNome(base.candidatos);
+  const ordenados = todos.slice(0, Math.max(MAXIMO_ITENS_LISTA, e.limite ?? MAXIMO_ITENS_LISTA));
   const extras = await extrasDosProdutos(leitor, ordenados.map((p) => p.id));
   const mostrados = ordenados.map((p) => ({ ...p, extras: extras.get(p.id) ?? SEM_EXTRAS }));
   const linhas = mostrados.map((p) => base.porId.get(p.id)!);
@@ -234,5 +249,5 @@ async function finalizar(
   // preço e estoque só dos itens da tela; sem permissão o contexto vem vazio e o item sai sem os dois (RN-CAT-05)
   const contexto = await contextoLocal(leitor, e, linhas.map(doCatalogo));
   const itens = mostrados.map((p, i) => montarItemLista(p, itemDaVitrine(doCatalogo(linhas[i]!), contexto), { agora: e.agora, fuso: e.fuso, nomesPorId: nomes }));
-  return { trilha: base.trilha, rotuloNivel: base.rotuloNivel, filhos: base.filhos, itens, total: base.total, noInexistente: base.noInexistente, voltarPara: base.voltarPara, vazio: base.filhos.length === 0 && itens.length === 0 };
+  return { trilha: base.trilha, rotuloNivel: base.rotuloNivel, filhos: base.filhos, itens, total: base.total, restantes: todos.length - itens.length, noInexistente: base.noInexistente, voltarPara: base.voltarPara, vazio: base.filhos.length === 0 && itens.length === 0 };
 }

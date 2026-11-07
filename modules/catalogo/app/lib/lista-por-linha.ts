@@ -9,7 +9,7 @@
 import type { ItemVitrine, ProdutoConteudoSync, ProdutoReferenciaSync, ProdutoRelacaoSync, Referencia } from '../../contracts';
 import { nomeMarcaDaReferencia } from '../../domain/marcas';
 import { montarArvore, type Arvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
-import { rotuloEstoque, rotuloPreco, type RotuloEstoque, type RotuloPreco } from './apresentacao';
+import { contagem, rotuloEstoque, rotuloPreco, type RotuloEstoque, type RotuloPreco } from './apresentacao';
 
 /** RN-CAT-09: corte defensivo; o contrato já limita a 3 referências por produto. */
 export const MAXIMO_REFERENCIAS = 3;
@@ -99,9 +99,6 @@ export function chaveDeOrdem(texto: string): string {
   return texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 const menor = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-/** Ordem estável dos produtos: nome, depois código, depois id. */
-export const porNome = (a: ProdutoLista, b: ProdutoLista) => menor(chaveDeOrdem(a.nome), chaveDeOrdem(b.nome)) || menor(chaveDeOrdem(a.sku), chaveDeOrdem(b.sku)) || menor(a.id, b.id);
-
 /** Ordena por nome, código e id calculando as chaves uma vez por produto (não altera a lista recebida). */
 export function ordenarPorNome<T extends Pick<ProdutoLista, 'id' | 'nome' | 'sku'>>(produtos: readonly T[]): T[] {
   return produtos
@@ -291,4 +288,26 @@ export function acaoDoVazio(n: { vazio: boolean; noInexistente: boolean; trilha:
   if (n.noInexistente) return { rotulo: ROTULO_VOLTAR_NIVEL, noId: n.voltarPara };
   if (n.trilha.length === 0) return null;
   return { rotulo: ROTULO_VOLTAR_NIVEL, noId: n.trilha.length > 1 ? n.trilha[n.trilha.length - 2]!.id : null };
+}
+
+/** Textos do botão "Mostrar mais" (RF-CAT-09): número com separador de milhar e plural certo. */
+export function textosMostrarMais(restantes: number): { rotulo: string; rotuloAcessivel: string } {
+  const r = contagem(restantes, 'restante', 'restantes');
+  return { rotulo: `Mostrar mais (${r})`, rotuloAcessivel: `Mostrar mais produtos, ${r}` };
+}
+
+/** Anúncio do leitor de tela depois de carregar o lote: "Mais 100 itens" / "Mais 1 item"; `null` se nada entrou. */
+export function anuncioMaisItens(antes: number, depois: number): string | null {
+  const n = depois - antes;
+  return n > 0 ? `Mais ${contagem(n, 'item', 'itens')}` : null;
+}
+
+export interface PedidoMais {
+  limite: number;
+  carregando: boolean;
+}
+
+/** Toque no "Mostrar mais": enquanto o lote anterior carrega, o 2º toque é ignorado (soma 100, nunca 200). */
+export function pedirMaisItens(atual: PedidoMais, passo: number): PedidoMais {
+  return atual.carregando ? atual : { limite: atual.limite + passo, carregando: true };
 }

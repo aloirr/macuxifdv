@@ -7,7 +7,7 @@ import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { ProdutoConteudoSyncSchema, ProdutoReferenciaSyncSchema, ProdutoRelacaoSyncSchema, type ItemVitrine } from '../../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../../domain/arvore';
-import { acaoDoVazio, agruparPorLinha, etiquetasDoItem, MAXIMO_OFERECE_JUNTO, MAXIMO_REFERENCIAS, medidaEmbalagem, montarExtras, montarItemLista, NO_SEM_LINHA, ofereceJuntoDoItem, referenciasDoItem, SEM_EXTRAS, textoEquivale, type ProdutoLista } from './lista-por-linha';
+import { acaoDoVazio, agruparPorLinha, anuncioMaisItens, pedirMaisItens, textosMostrarMais, chaveDeOrdem, etiquetasDoItem, MAXIMO_OFERECE_JUNTO, MAXIMO_REFERENCIAS, medidaEmbalagem, montarExtras, montarItemLista, NO_SEM_LINHA, ofereceJuntoDoItem, ordenarPorNome, referenciasDoItem, SEM_EXTRAS, textoEquivale, type ProdutoLista } from './lista-por-linha';
 import { listaPorLinhaLocal } from './lista-por-linha-local';
 import type { LeitorLocal } from './local';
 
@@ -118,6 +118,19 @@ describe('RN-CAT-05: item da lista por perfil', () => {
     const i = montarItemLista(p, vitrine(true), c);
     expect(i.preco?.vendavel).toBe(true);
     expect(i.estoque?.texto).toContain('Disponível');
+  });
+});
+
+describe('RF-CAT-09: ordem por nome sem acento', () => {
+  const p = (id: string, nome: string, sku = 'X') => ({ id, nome, sku });
+  it('RF-CAT-09: acento e maiúscula não mudam a ordem (Á/a, Ç/C, Ó/o)', () => {
+    const nomes = ['Óleo', 'Zinco', 'Ação', 'agulha', 'Çapata', 'Capa', 'Ônibus', 'oleo'];
+    expect(ordenarPorNome(nomes.map((n, i) => p(String(i), n))).map((x) => x.nome)).toEqual(['Ação', 'agulha', 'Capa', 'Çapata', 'Óleo', 'oleo', 'Ônibus', 'Zinco']);
+  });
+  it('RF-CAT-09: empate "Água" × "agua" desempata por código e depois por id, de forma estável', () => {
+    expect(chaveDeOrdem('Água')).toBe(chaveDeOrdem('agua'));
+    expect(ordenarPorNome([p('b', 'agua', 'A-2'), p('a', 'Água', 'A-1')]).map((x) => x.id)).toEqual(['a', 'b']);
+    expect(ordenarPorNome([p('b', 'agua', 'A-1'), p('a', 'Água', 'A-1')]).map((x) => x.id)).toEqual(['a', 'b']);
   });
 });
 
@@ -244,5 +257,27 @@ describe('RF-CAT-09: "Voltar um nível" no estado vazio (especificação §4)', 
     expect(vazia.r).toMatchObject({ vazio: true, noInexistente: false });
     expect(vazia.acao).toBeNull();
     expect((await abrir(completo, uuid(3))).acao).toBeNull();
+  });
+});
+
+describe('RF-CAT-09: "Mostrar mais" (toque duplo, milhar, anúncio)', () => {
+  it('RF-CAT-09: toque duplo com o lote carregando soma 100, não 200', () => {
+    const a = pedirMaisItens({ limite: 100, carregando: false }, 100);
+    const b = pedirMaisItens(a, 100);
+    expect(a).toEqual({ limite: 200, carregando: true });
+    expect(b.limite).toBe(200);
+    expect(pedirMaisItens({ limite: 200, carregando: false }, 100).limite).toBe(300);
+  });
+
+  it('RF-CAT-09: o botão usa separador de milhar e plural certo', () => {
+    expect(textosMostrarMais(1134)).toEqual({ rotulo: 'Mostrar mais (1.134 restantes)', rotuloAcessivel: 'Mostrar mais produtos, 1.134 restantes' });
+    expect(textosMostrarMais(1).rotulo).toBe('Mostrar mais (1 restante)');
+  });
+
+  it('RF-CAT-09: o leitor de tela anuncia "Mais N itens" depois do lote', () => {
+    expect(anuncioMaisItens(100, 200)).toBe('Mais 100 itens');
+    expect(anuncioMaisItens(100, 101)).toBe('Mais 1 item');
+    expect(anuncioMaisItens(1100, 2200)).toBe('Mais 1.100 itens');
+    expect(anuncioMaisItens(100, 100)).toBeNull();
   });
 });

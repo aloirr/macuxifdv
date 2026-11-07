@@ -6,7 +6,7 @@
  */
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
-import { listaPorLinhaLocal } from './lista-por-linha-local';
+import { listaPorLinhaLocal, MAXIMO_NOS_MEMORIZADOS } from './lista-por-linha-local';
 import type { LeitorLocal } from './local';
 
 const N = Number(process.env['MACUXI_N'] ?? 20000);
@@ -96,6 +96,32 @@ describe('RF-CAT-09: desempenho da lista por linha com 20 mil produtos', () => {
     const ms = await melhorDe('linha de 500 (fria)', 3, async (l) => (r = await listaPorLinhaLocal(l, { ...entrada, noId: b.linhaGrande })));
     expect(r.total).toBeGreaterThanOrEqual(500);
     expect(r.itens.length).toBe(100);
+    expect(r.restantes).toBe(r.total - 100);
     expect(ms).toBeLessThan(750);
+  });
+
+  it('RF-CAT-09: "Mostrar mais" traz os 100 seguintes da linha, sem repetir item, em < 750 ms', async () => {
+    const l = leitor();
+    const primeira = await listaPorLinhaLocal(l, { ...entrada, noId: b.linhaGrande });
+    const t = performance.now();
+    const segunda = await listaPorLinhaLocal(l, { ...entrada, noId: b.linhaGrande, limite: 200 });
+    expect(performance.now() - t).toBeLessThan(750);
+    expect(segunda.itens).toHaveLength(200);
+    expect(segunda.itens.slice(0, 100).map((i) => i.id)).toEqual(primeira.itens.map((i) => i.id));
+    expect(new Set(segunda.itens.map((i) => i.id)).size).toBe(200);
+    expect(segunda.restantes).toBe(segunda.total - 200);
+  });
+
+  it(`RF-CAT-09: o cache por nó é limitado (LRU): passados ${MAXIMO_NOS_MEMORIZADOS} nós, o mais antigo é relido; o recente não`, async () => {
+    let lidas = 0;
+    const base = leitor();
+    const l: LeitorLocal = { ...base, linhasPorCampo: async (...a: Parameters<NonNullable<LeitorLocal['linhasPorCampo']>>) => (a[0] === 'produto_no' && lidas++, base.linhasPorCampo!(...a)) };
+    const ids = b.nos.map((n) => n.id).slice(0, MAXIMO_NOS_MEMORIZADOS + 5);
+    for (const id of ids) await listaPorLinhaLocal(l, { ...entrada, noId: id });
+    lidas = 0;
+    await listaPorLinhaLocal(l, { ...entrada, noId: ids[ids.length - 1]! });
+    expect(lidas).toBe(0); // o último continua na memória
+    await listaPorLinhaLocal(l, { ...entrada, noId: ids[0]! });
+    expect(lidas).toBeGreaterThan(0); // o primeiro saiu
   });
 });
