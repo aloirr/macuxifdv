@@ -78,7 +78,8 @@ export function destacarTrecho(texto: string, busca: string): TrechoDoTexto[] {
 
 // ---------- período ----------
 
-export type TipoPeriodo = 'dia' | 'mes' | 'ano';
+/** `semana`: atalho "Esta semana" (T-0090); `valor` é o domingo que a abre e ela vai até o sábado. */
+export type TipoPeriodo = 'dia' | 'semana' | 'mes' | 'ano';
 /** `valor`: AAAA-MM-DD (dia), AAAA-MM (mês) ou AAAA (ano), sempre data civil no fuso do tenant. */
 export interface Periodo {
   tipo: TipoPeriodo;
@@ -87,15 +88,23 @@ export interface Periodo {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** Data civil ± n dias. */
+export function somarDias(dia: string, n: number): string {
+  const [a, m, d] = dia.split('-').map(Number) as [number, number, number];
+  return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
 /** O período que contém o instante `agora`, no fuso do tenant (padrão da tela: `periodoDe('mes', agora, tz)`). */
 export function periodoDe(tipo: TipoPeriodo, agora: string | Date, tz: string): Periodo {
   const dia = localIsoDate(agora, tz);
+  if (tipo === 'semana') return { tipo, valor: somarDias(dia, -new Date(`${dia}T00:00:00Z`).getUTCDay()) };
   return { tipo, valor: tipo === 'dia' ? dia : tipo === 'mes' ? dia.slice(0, 7) : dia.slice(0, 4) };
 }
 
 /** Passo do ‹ › (±1 dia, mês ou ano), na data civil. */
 export function deslocarPeriodo(p: Periodo, passo: number): Periodo {
   if (p.tipo === 'ano') return { tipo: 'ano', valor: String(Number(p.valor) + passo) };
+  if (p.tipo === 'semana') return { tipo: 'semana', valor: somarDias(p.valor, 7 * passo) };
   if (p.tipo === 'mes') {
     const [a, m] = p.valor.split('-').map(Number) as [number, number];
     const d = new Date(Date.UTC(a, m - 1 + passo, 1));
@@ -115,6 +124,7 @@ export function nomeDoMes(mes: number): string {
 
 /** "Seg, 02/11/2026" · "Novembro 2026" · "2026". */
 export function rotuloDoPeriodo(p: Periodo): string {
+  if (p.tipo === 'semana') return `Semana de ${p.valor.slice(8, 10)}/${p.valor.slice(5, 7)}/${p.valor.slice(0, 4)}`;
   if (p.tipo === 'ano') return p.valor;
   if (p.tipo === 'mes') {
     const [a, m] = p.valor.split('-').map(Number) as [number, number];
@@ -130,14 +140,23 @@ export function mesesDoPeriodo(ano: string): string[] {
 }
 
 /** Datas civis (no fuso) em que o item "aconteceu": emissão e última mudança de status. */
+const datasEmCache = new WeakMap<object, { tz: string; emitido: string; alterado: string | null; datas: string[] }>();
 function datasDoItem(i: ItemDaBusca, tz: string): string[] {
+  // a data civil (Intl, caro) é calculada uma vez por pedido: trocar Dia/Mês/Ano ou a situação reaproveita a conta
+  const c = datasEmCache.get(i);
+  if (c && c.tz === tz && c.emitido === i.emitido_em && c.alterado === (i.status_alterado_em ?? null)) return c.datas;
   const out = [localIsoDate(i.emitido_em, tz)];
   if (i.status_alterado_em) out.push(localIsoDate(i.status_alterado_em, tz));
+  datasEmCache.set(i, { tz, emitido: i.emitido_em, alterado: i.status_alterado_em ?? null, datas: out });
   return out;
 }
 
 /** RF-VEN-05: entra se foi emitido no período OU mudou de status nele. */
 export function itemNoPeriodo(i: ItemDaBusca, p: Periodo, tz: string): boolean {
+  if (p.tipo === 'semana') {
+    const fim = ultimoDia(p);
+    return datasDoItem(i, tz).some((d) => d >= p.valor && d <= fim);
+  }
   return datasDoItem(i, tz).some((d) => d.startsWith(p.valor));
 }
 
@@ -211,9 +230,15 @@ export function resumoDaLista(itens: readonly ItemDaBusca[]): { quantidade: numb
 /** Janela de pedidos que o aparelho guarda (dias). */
 export const JANELA_DIAS = 90;
 
+/** Primeiro dia (AAAA-MM-DD) do período. */
+function primeiroDia(p: Periodo): string {
+  return p.tipo === 'dia' || p.tipo === 'semana' ? p.valor : p.tipo === 'mes' ? `${p.valor}-01` : `${p.valor}-01-01`;
+}
+
 /** Último dia (AAAA-MM-DD) do período. */
 function ultimoDia(p: Periodo): string {
   if (p.tipo === 'dia') return p.valor;
+  if (p.tipo === 'semana') return somarDias(p.valor, 6);
   if (p.tipo === 'ano') return `${p.valor}-12-31`;
   const [a, m] = p.valor.split('-').map(Number) as [number, number];
   return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
@@ -236,8 +261,7 @@ export function periodoParcialNaJanela(p: Periodo, agora: string | Date, tz: str
   if (periodoForaDaJanela(p, agora, tz, dias)) return false;
   const t = typeof agora === 'string' ? new Date(agora).getTime() : agora.getTime();
   const limite = localIsoDate(new Date(t - dias * 86_400_000), tz);
-  const primeiro = p.tipo === 'dia' ? p.valor : p.tipo === 'mes' ? `${p.valor}-01` : `${p.valor}-01-01`;
-  return primeiro < limite;
+  return primeiroDia(p) < limite;
 }
 
 /** Situação da lista que a tela escolhida (chip, card do Início) vale: com texto na busca vale sempre Todos. */
@@ -278,6 +302,5 @@ export function ultimaMudancaDeStatus(eventos: ReadonlyArray<{ de: string | null
 
 /** Primeiro e último dia (AAAA-MM-DD) do período: o `from`/`to` da consulta ao servidor (T-0077 item 6). */
 export function intervaloDoPeriodo(p: Periodo): { from: string; to: string } {
-  const from = p.tipo === 'dia' ? p.valor : p.tipo === 'mes' ? `${p.valor}-01` : `${p.valor}-01-01`;
-  return { from, to: ultimoDia(p) };
+  return { from: primeiroDia(p), to: ultimoDia(p) };
 }

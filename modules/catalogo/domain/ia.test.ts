@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FiltrosInterpretados } from '../contracts';
-import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, ErroTempoEsgotadoIa, interpretarBusca, mesclarFiltros, resumoDaInterpretacao, validarFiltrosLlm, type EntradaInterpretacao, type PortaInterpretacaoLlm } from './ia';
+import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, AVISO_CATALOGO_ORGANIZANDO, avisoDaBusca, iconeDoAviso, ErroTempoEsgotadoIa, interpretarBusca, mesclarFiltros, resumoDaInterpretacao, validarFiltrosLlm, type EntradaInterpretacao, type PortaInterpretacaoLlm } from './ia';
 import { interpretarConsulta, type VocabularioTenant } from './consulta';
 import { MENSAGEM_LIMITE_ATINGIDO, registrarDesfechoIa, verificarConsultaIa } from './limite-ia';
 import { PARAMETROS_PADRAO } from './parametros';
@@ -172,5 +172,26 @@ describe('RN-CAT-03: cancelamento e resumo para o contrato da busca', () => {
   it('RN-CAT-03: com o provedor respondendo a busca não é degradada', async () => {
     const r = await interpretarBusca({ ...base, porta: new LlmFalso(llm({ brand: 'Limpex' })), texto: 'detergente' });
     expect(resumoDaInterpretacao(r)).toEqual({ interpreted_by: 'llm', degraded: false, notice: null });
+  });
+});
+
+describe('T-0088: aviso do índice sendo organizado', () => {
+  it('RF-CAT-02: com indexando o aviso aparece (sozinho ou junto do de sem sinal/falha) e some quando o índice fica pronto', () => {
+    expect(avisoDaBusca(null, true)).toBe(AVISO_CATALOGO_ORGANIZANDO);
+    expect(AVISO_CATALOGO_ORGANIZANDO).toContain('A busca pode demorar um pouco');
+    expect(avisoDaBusca(AVISO_BUSCA_OFFLINE, true)).toBe(`${AVISO_BUSCA_OFFLINE} Organizando o catálogo no aparelho; a busca pode demorar um pouco.`);
+    expect(avisoDaBusca(AVISO_BUSCA_FALHOU, true)).toContain('Organizando o catálogo');
+    expect(avisoDaBusca(AVISO_BUSCA_OFFLINE, false)).toBe(AVISO_BUSCA_OFFLINE);
+    expect(avisoDaBusca(null, false)).toBeNull();
+  });
+});
+
+describe('iconeDoAviso (T-0088)', () => {
+  it('RF-CAT-03: relógio só no organizando; sem sinal wifiOff; erro alert', () => {
+    expect(iconeDoAviso(AVISO_CATALOGO_ORGANIZANDO)).toBe('clock');
+    expect(iconeDoAviso(AVISO_BUSCA_OFFLINE)).toBe('wifiOff');
+    expect(iconeDoAviso(avisoDaBusca(AVISO_BUSCA_OFFLINE, true) as string)).toBe('wifiOff');
+    expect(iconeDoAviso(AVISO_BUSCA_FALHOU)).toBe('alert');
+    expect(iconeDoAviso('Não foi possível abrir o catálogo agora. Puxe a tela para tentar de novo.')).toBe('alert');
   });
 });

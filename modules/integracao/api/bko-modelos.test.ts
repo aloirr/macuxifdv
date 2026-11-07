@@ -10,9 +10,9 @@ const ctx = (entidade: string, superAdmin: boolean, perfil = 'admin') =>
 const falha = async (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e as { status: number; codigo: string; message: string });
 
 describe('RF-INT-03: rotas dos modelos CSV (só super-admin, ADR 0029)', () => {
-  it('RF-INT-03: as rotas declaram superAdmin "exige", caminho com .csv, tipo CSV e nome do arquivo pela entidade', () => {
-    expect(rotaModeloCsv).toMatchObject({ metodo: 'GET', caminho: 'modelos/:entidade.csv', superAdmin: 'exige', tipoConteudo: 'text/csv; charset=utf-8', carteira: 'nao_se_aplica' });
-    expect(rotaModeloDicionario).toMatchObject({ metodo: 'GET', caminho: 'modelos/:entidade/dicionario', superAdmin: 'exige' });
+  it('RF-INT-03: as rotas declaram superAdmin "aceita" + perfis ["admin"], caminho com .csv, tipo CSV e nome do arquivo pela entidade', () => {
+    expect(rotaModeloCsv).toMatchObject({ metodo: 'GET', caminho: 'modelos/:entidade.csv', superAdmin: 'aceita', perfis: ['admin'], tipoConteudo: 'text/csv; charset=utf-8', carteira: 'nao_se_aplica' });
+    expect(rotaModeloDicionario).toMatchObject({ metodo: 'GET', caminho: 'modelos/:entidade/dicionario', superAdmin: 'aceita', perfis: ['admin'] });
     expect(rotaModeloCsv.acao).toBeUndefined();
     expect(rotaModeloDicionario.acao).toBeUndefined();
     const nome = rotaModeloCsv.nomeArquivo as (e: unknown) => string;
@@ -30,7 +30,7 @@ describe('RF-INT-03: rotas dos modelos CSV (só super-admin, ADR 0029)', () => {
     expect(csv).toContain(d.campos.map((c) => c.campo).join(';'));
   });
 
-  it.each(['admin', 'analista'])('RF-INT-03: usuário do tenant (%s) sem superAdmin recebe 403 PERFIL_SEM_ACESSO', async (perfil) => {
+  it.each(['admin', 'analista'])('RF-INT-03: usuário do tenant (%s) sem superAdmin recebe 403 PERFIL_SEM_ACESSO no handler (na plataforma, só o admin chega aqui)', async (perfil) => {
     for (const rota of [rotaModeloCsv, rotaModeloDicionario]) {
       expect(await falha(rota.executar(ctx('cliente', false, perfil) as never))).toMatchObject({ status: 403, codigo: 'PERFIL_SEM_ACESSO' });
     }

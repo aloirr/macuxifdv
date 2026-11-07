@@ -100,11 +100,12 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
     expect(lido.linhas[0]?.celulas[i]).toBe('Zé; "o" Rápido');
   });
 
-  it('RN-INT-04: a ordem de carga é a do portal (vendedor primeiro, 12 entidades, dependências antes, mesmos opcional/depende_de)', () => {
+  it('RN-INT-04: a ordem de carga é a do portal (vendedor primeiro, todas as ENTIDADES, dependências antes, mesmos opcional/depende_de)', () => {
     const portal = ordemDeCargaDoPortal();
     expect(ENTIDADES_ORDEM_CARGA[0]).toBe('vendedor');
     expect([...ENTIDADES_ORDEM_CARGA]).toEqual(portal.map((i) => i.entidade));
     expect([...ENTIDADES_ORDEM_CARGA].sort()).toEqual([...ENTIDADES].sort());
+    expect(ENTIDADES_ORDEM_CARGA).toHaveLength(ENTIDADES.length);
     ENTIDADES_ORDEM_CARGA.forEach((e, i) => {
       for (const dep of DEPENDENCIAS[e]) expect(ENTIDADES_ORDEM_CARGA.indexOf(dep)).toBeLessThan(i);
     });
@@ -112,7 +113,7 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
       portal.map((i) => ({ entidade: i.entidade, ordem: i.posicao, depende_de: i.depende_de, opcional: i.opcional })),
     );
     const cli = RESUMO_MODELOS.find((r) => r.entidade === 'cliente');
-    expect(cli).toMatchObject({ arquivo: 'cliente.csv', depende_de: ['vendedor'], opcional: false });
+    expect(cli).toMatchObject({ arquivo: 'cliente.csv', depende_de: ['vendedor', 'forma_pagamento'], opcional: false });
   });
 
   it('RF-INT-03: as referências dos exemplos são coerentes com a ordem de carga (VEN-001 existe em vendedor e é usada em cliente)', () => {
@@ -120,5 +121,39 @@ describe('RF-INT-03: modelos CSV gerados do contrato', () => {
     expect(idsDe('vendedor')).toContain('VEN-001');
     const { csv } = gerarModeloCsv('cliente');
     expect(csv).toContain('VEN-001');
+  });
+
+  it('RF-INT-03: colunas de lista numa célula (parcelas_dias, formas_pagamento) entram no CSV e no dicionário com o tipo e o formato certos', () => {
+    const prazo = gerarModeloCsv('prazo_pagamento');
+    const p = Object.fromEntries(prazo.campos.map((c) => [c.campo, c]));
+    expect(p.parcelas_dias).toMatchObject({ obrigatorio: true, tipo: 'lista de números', exemplo: '30/60/90' });
+    expect(p.parcelas_dias?.formato).toContain('separados por /');
+    expect(p.parcelas_dias?.formato).toContain('de 0 a 365');
+    expect(prazo.csv).toContain('30/60/90');
+    const cliente = gerarModeloCsv('cliente');
+    const c = Object.fromEntries(cliente.campos.map((x) => [x.campo, x]));
+    expect(c.formas_pagamento).toMatchObject({ obrigatorio: false, tipo: 'lista de textos', exemplo: 'PIX/BOLETO' });
+    expect(c.formas_pagamento?.formato).toContain('separados por /');
+    expect(c.prazo_medio_max_dias?.tipo).toBe('número');
+    expect(cliente.csv).toContain('PIX/BOLETO');
+    // listas de objetos e as não liberadas seguem de fora
+    for (const e of ENTIDADES) {
+      const nomes = gerarModeloCsv(e).campos.map((x) => x.campo);
+      for (const fora of ['contatos', 'paradas', 'oferece_junto']) expect(nomes).not.toContain(fora);
+    }
+  });
+
+  it('RF-INT-03: o exemplo de prazo_pagamento aponta para a forma do modelo forma_pagamento e a tabela_escalonada tem faixas crescentes', () => {
+    const col = (e: Entidade, campo: string) => {
+      const lido = lerCsv(gerarModeloCsv(e).csv) as { ok: true; cabecalho: string[]; linhas: { celulas: string[] }[] };
+      const i = lido.cabecalho.indexOf(campo);
+      return lido.linhas.map((l) => l.celulas[i]);
+    };
+    const formas = col('forma_pagamento', 'external_id');
+    for (const ref of col('prazo_pagamento', 'forma_external_id')) expect(formas).toContain(ref);
+    const qtd = col('tabela_escalonada', 'quantidade_minima').map(Number);
+    const preco = col('tabela_escalonada', 'preco_unidade_cents').map(Number);
+    expect(qtd[1]).toBeGreaterThan(qtd[0] as number);
+    expect(preco[1]).toBeLessThanOrEqual(preco[0] as number);
   });
 });

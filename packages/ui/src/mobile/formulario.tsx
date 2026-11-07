@@ -8,14 +8,16 @@
  * - `RotuloSecao`: rótulo de seção em maiúsculas, com ação opcional à direita ("Entrega · Trocar");
  * - `ChipMedida`: chip da medida ("FD c/ 12"), tocável para trocar;
  * - `BotaoIcone`: botão quadrado só com ícone (+, ⇄).
- * Regras: alvo de toque ≥ 48 dp (visual menor ganha `hitSlop`); nenhum texto fixo (tudo chega por props, inclusive os
+ * Regras: alvo de toque ≥ 48 dp (visual menor ganha `hitSlop`; nas linhas densas, o modo `compacto` tem alvo de 44 dp
+ * dentro do próprio botão, porque no Android a folga não passa da borda do pai); nenhum texto fixo (tudo chega por props, inclusive os
  * rótulos do leitor de tela); sem regra de negócio (quem decide valores e limites é o domain do módulo).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, proximoPasso, rotuloComContador } from './componentes';
+import { ALVO_TOQUE, folgaDeToque, lerQuantidade, limitarPasso, rotuloComContador } from './componentes';
 import { Icon, type IconName } from './icon';
+import { PASSO_COMPACTO, passoComTexto, SEGMENTADO_COMPACTO } from './selecao';
 import { colors, fonts, radius } from './theme';
 
 function folga(visual: number) {
@@ -99,7 +101,7 @@ export function Segmentado<T extends string>({
   onChange: (id: T) => void;
   /** Nome do grupo para o leitor de tela (ex.: "Frete"). */
   rotuloAcessivel?: string;
-  /** Visual baixo (36 dp, alvo de 48 dp por hitSlop), para linhas densas como o ajuste do item. */
+  /** Visual baixo (30 dp) com alvo de 44 × 44 dp dentro do próprio botão, para linhas densas (UN | CX na linha 3 do item). */
   compacto?: boolean;
   desligado?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -119,11 +121,21 @@ export function Segmentado<T extends string>({
             accessibilityState={{ checked: on, disabled: off }}
             disabled={off}
             onPress={() => onChange(o.id)}
-            hitSlop={compacto ? { top: folgaDeToque(ALTURA_SEG_COMPACTO), bottom: folgaDeToque(ALTURA_SEG_COMPACTO) } : undefined}
-            style={({ pressed }) => [s.segItem, compacto && s.segItemCompacto, on && s.segOn, off && s.desligado, pressed && s.pressionado]}>
-            <Text style={[s.segTexto, compacto && s.segTextoCompacto, on && s.segTextoOn]} numberOfLines={1}>
-              {o.rotulo}
-            </Text>
+            style={({ pressed }) => (compacto ? s.segAlvoCompacto : [s.segItem, on && s.segOn, off && s.desligado, pressed && s.pressionado])}>
+            {({ pressed }) =>
+              compacto ? (
+                // visual de 30 dp dentro de um alvo de 44 dp do próprio botão (no Android a folga não passa da borda do pai)
+                <View style={[s.segItem, s.segItemCompacto, on && s.segOn, off && s.desligado, pressed && s.pressionado]}>
+                  <Text style={[s.segTexto, s.segTextoCompacto, on && s.segTextoOn]} numberOfLines={1}>
+                    {o.rotulo}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[s.segTexto, on && s.segTextoOn]} numberOfLines={1}>
+                  {o.rotulo}
+                </Text>
+              )
+            }
           </Pressable>
         );
       })}
@@ -131,7 +143,9 @@ export function Segmentado<T extends string>({
   );
 }
 
-const ALTURA_SEG_COMPACTO = 36;
+/** Segmentado compacto: visual de 30 dp (o mesmo do passo e do ajuste da linha 3 do item) e alvo de 44 dp. */
+const ALTURA_SEG_COMPACTO = SEGMENTADO_COMPACTO.altura;
+const ALVO_SEG_COMPACTO = SEGMENTADO_COMPACTO.alvo;
 
 // ---------- Passo (stepper) ----------
 export function Passo({
@@ -145,6 +159,8 @@ export function Passo({
   passo = 1,
   editavel,
   desligado,
+  desligadoAumentar,
+  compacto,
   testID = 'passo',
 }: {
   valor: number;
@@ -160,61 +176,139 @@ export function Passo({
   /** Permite digitar o número (teclado numérico). */
   editavel?: boolean;
   desligado?: boolean;
+  /** Só o + sem toque (ex.: produto sem preço). */
+  desligadoAumentar?: boolean;
+  /**
+   * Caixa única "− n +" da linha 3 do item (T-0089): visual de 30 dp de altura (botões de 32 dp), alvo de 44 × 44 dp
+   * dentro do próprio contêiner (124 × 44 dp), sem hitSlop. Sem a prop, os botões de 40 dp de antes.
+   */
+  compacto?: boolean;
   testID?: string;
 }) {
   const [texto, setTexto] = useState(String(valor));
-  useEffect(() => setTexto(String(valor)), [valor]);
+  // refs: o toque no − / + com o teclado aberto lê o texto e o valor do momento (sem closure velha) — T-0089, bug do "+"
+  const vivo = useRef({ texto: String(valor), valor, focado: false });
+  vivo.current.valor = valor;
+  useEffect(() => {
+    vivo.current.texto = String(valor);
+    setTexto(String(valor));
+  }, [valor]);
+  const mudarTexto = (t: string) => {
+    vivo.current.texto = t;
+    setTexto(t);
+  };
   const aplicar = (n: number) => {
     const novo = limitarPasso(n, min, max);
-    if (novo !== valor) onChange(novo);
-    else setTexto(String(valor));
+    vivo.current.texto = String(novo);
+    if (novo !== vivo.current.valor) {
+      vivo.current.valor = novo;
+      onChange(novo);
+    }
+    setTexto(String(novo));
   };
   const confirmarTexto = () => {
-    const lido = lerQuantidade(texto);
-    if (lido === null) setTexto(String(valor));
+    vivo.current.focado = false;
+    const lido = lerQuantidade(vivo.current.texto);
+    if (lido === null) mudarTexto(String(vivo.current.valor));
     else aplicar(lido);
   };
+  const tocar = (direcao: -1 | 1) => aplicar(passoComTexto(vivo.current, direcao, passo, min, max));
   const podeDiminuir = !desligado && valor > min;
-  const podeAumentar = !desligado && (max === undefined || valor < max);
+  const podeAumentar = !desligado && !desligadoAumentar && (max === undefined || valor < max);
+  const C = PASSO_COMPACTO;
+  const valorTela =
+    editavel && !desligado ? (
+      <TextInput
+        testID={`${testID}-valor`}
+        value={texto}
+        onChangeText={mudarTexto}
+        onFocus={() => {
+          vivo.current.focado = true;
+        }}
+        onBlur={confirmarTexto}
+        onSubmitEditing={confirmarTexto}
+        keyboardType="number-pad"
+        selectTextOnFocus
+        accessibilityLabel={rotulo}
+        style={compacto ? [s.passoValor, s.passoValorCompacto] : [s.passoValor, s.passoInput]}
+      />
+    ) : (
+      <Text
+        testID={`${testID}-valor`}
+        style={compacto ? [s.passoValor, s.passoValorCompacto, { lineHeight: C.alvo }] : s.passoValor}
+        accessibilityRole="adjustable"
+        accessibilityLabel={rotulo}
+        accessibilityValue={{ now: valor, min, max }}
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={(e) => {
+          if (desligado) return;
+          if (e.nativeEvent.actionName === 'increment' && podeAumentar) tocar(1);
+          if (e.nativeEvent.actionName === 'decrement') tocar(-1);
+        }}>
+        {valor}
+      </Text>
+    );
+  if (compacto) {
+    // Caixa "− n +" de 30 dp desenhada atrás (moldura); os botões de 44 × 44 dp ficam DENTRO do contêiner (no Android o
+    // hitSlop não passa da borda do pai, então o alvo não depende de folga).
+    return (
+      <View style={s.passoCompacto} testID={testID}>
+        <View style={s.passoMoldura} pointerEvents="none">
+          <View style={s.passoMolduraValor} />
+        </View>
+        <BotaoPasso icone="minus" rotulo={rotuloDiminuir} desligado={!podeDiminuir} onPress={() => tocar(-1)} compacto lado="esquerda" testID={`${testID}-menos`} />
+        {valorTela}
+        <BotaoPasso icone="plus" rotulo={rotuloAumentar} desligado={!podeAumentar} onPress={() => tocar(1)} compacto lado="direita" testID={`${testID}-mais`} />
+      </View>
+    );
+  }
   return (
     <View style={s.passo} testID={testID}>
-      <BotaoPasso icone="minus" rotulo={rotuloDiminuir} desligado={!podeDiminuir} onPress={() => aplicar(proximoPasso(valor, -1, passo, min, max))} testID={`${testID}-menos`} />
-      {editavel && !desligado ? (
-        <TextInput
-          testID={`${testID}-valor`}
-          value={texto}
-          onChangeText={setTexto}
-          onBlur={confirmarTexto}
-          onSubmitEditing={confirmarTexto}
-          keyboardType="number-pad"
-          selectTextOnFocus
-          accessibilityLabel={rotulo}
-          style={[s.passoValor, s.passoInput]}
-        />
-      ) : (
-        <Text
-          testID={`${testID}-valor`}
-          style={s.passoValor}
-          accessibilityRole="adjustable"
-          accessibilityLabel={rotulo}
-          accessibilityValue={{ now: valor, min, max }}
-          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-          onAccessibilityAction={(e) => {
-            if (desligado) return;
-            if (e.nativeEvent.actionName === 'increment') aplicar(proximoPasso(valor, 1, passo, min, max));
-            if (e.nativeEvent.actionName === 'decrement') aplicar(proximoPasso(valor, -1, passo, min, max));
-          }}>
-          {valor}
-        </Text>
-      )}
-      <BotaoPasso icone="plus" rotulo={rotuloAumentar} desligado={!podeAumentar} onPress={() => aplicar(proximoPasso(valor, 1, passo, min, max))} testID={`${testID}-mais`} />
+      <BotaoPasso icone="minus" rotulo={rotuloDiminuir} desligado={!podeDiminuir} onPress={() => tocar(-1)} lado="esquerda" testID={`${testID}-menos`} />
+      {valorTela}
+      <BotaoPasso icone="plus" rotulo={rotuloAumentar} desligado={!podeAumentar} onPress={() => tocar(1)} lado="direita" testID={`${testID}-mais`} />
     </View>
   );
 }
 
 const LADO_PASSO = 40;
 
-function BotaoPasso({ icone, rotulo, desligado, onPress, testID }: { icone: 'plus' | 'minus'; rotulo: string; desligado: boolean; onPress: () => void; testID: string }) {
+function BotaoPasso({
+  icone,
+  rotulo,
+  desligado,
+  onPress,
+  compacto,
+  lado,
+  testID,
+}: {
+  icone: 'plus' | 'minus';
+  rotulo: string;
+  desligado: boolean;
+  onPress: () => void;
+  compacto?: boolean;
+  lado: 'esquerda' | 'direita';
+  testID: string;
+}) {
+  if (compacto) {
+    // alvo de 44 × 44 dp no próprio Pressable; o visual de 32 × 30 dp encosta no número (lado de dentro)
+    return (
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={rotulo}
+        accessibilityState={{ disabled: desligado }}
+        disabled={desligado}
+        onPress={onPress}
+        style={[s.passoAlvoCompacto, lado === 'esquerda' ? s.passoAlvoEsquerda : s.passoAlvoDireita]}>
+        {({ pressed }) => (
+          <View style={[s.passoBotaoCompacto, lado === 'esquerda' ? s.passoBotaoEsquerda : s.passoBotaoDireita, desligado && s.desligado, pressed && s.passoBotaoCompactoPressionado]}>
+            <Icon name={icone} size={15} color={colors.ink} strokeWidth={2.4} />
+          </View>
+        )}
+      </Pressable>
+    );
+  }
   return (
     <Pressable
       testID={testID}
@@ -401,9 +495,11 @@ const s = StyleSheet.create({
   abaTextoOn: { fontFamily: fonts.bold, color: colors.ink },
   ponto: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   // .seg / .seg span / .seg.sm span
-  seg: { flexDirection: 'row', gap: 6 },
+  seg: { flexDirection: 'row', gap: SEGMENTADO_COMPACTO.vao },
   segItem: { flex: 1, minWidth: ALVO_TOQUE, height: ALVO_TOQUE, paddingHorizontal: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  segItemCompacto: { height: ALTURA_SEG_COMPACTO, borderRadius: 7, paddingHorizontal: 6 },
+  segAlvoCompacto: { flex: 1, minWidth: ALVO_SEG_COMPACTO, height: ALVO_SEG_COMPACTO, justifyContent: 'center' },
+  // flex: 0 anula o flex: 1 do segItem: dentro do alvo (coluna) ele virava flexBasis 0 + grow e o visual esticava até 44 dp
+  segItemCompacto: { flex: 0, minWidth: 0, height: ALTURA_SEG_COMPACTO, borderRadius: 7, paddingHorizontal: 6 },
   segOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   segTexto: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
   segTextoCompacto: { fontSize: 12 },
@@ -413,6 +509,30 @@ const s = StyleSheet.create({
   passoBotao: { width: LADO_PASSO, height: LADO_PASSO, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   passoValor: { minWidth: 32, textAlign: 'center', fontFamily: fonts.bold, fontSize: 15, color: colors.ink, fontVariant: ['tabular-nums'] },
   passoInput: { height: LADO_PASSO, minWidth: 44, padding: 0, borderBottomWidth: 1, borderBottomColor: colors.lineStrong },
+  // caixa "− n +" (T-0089, .qty da referência das 7h03): contêiner de 44 dp de altura com os alvos dentro; moldura de 30 dp atrás
+  passoCompacto: { flexDirection: 'row', alignItems: 'center', height: PASSO_COMPACTO.alvo, width: PASSO_COMPACTO.largura },
+  passoMoldura: {
+    position: 'absolute',
+    left: PASSO_COMPACTO.recuo,
+    right: PASSO_COMPACTO.recuo,
+    top: (PASSO_COMPACTO.alvo - PASSO_COMPACTO.altura) / 2,
+    height: PASSO_COMPACTO.altura,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.surface,
+  },
+  passoMolduraValor: { width: PASSO_COMPACTO.valor, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.line },
+  passoAlvoCompacto: { width: PASSO_COMPACTO.alvo, height: PASSO_COMPACTO.alvo, justifyContent: 'center' },
+  passoAlvoEsquerda: { alignItems: 'flex-end' },
+  passoAlvoDireita: { alignItems: 'flex-start' },
+  passoBotaoCompacto: { width: PASSO_COMPACTO.botao, height: PASSO_COMPACTO.altura - 2, alignItems: 'center', justifyContent: 'center' },
+  passoBotaoEsquerda: { borderTopLeftRadius: radius.sm - 1, borderBottomLeftRadius: radius.sm - 1 },
+  passoBotaoDireita: { borderTopRightRadius: radius.sm - 1, borderBottomRightRadius: radius.sm - 1 },
+  passoBotaoCompactoPressionado: { backgroundColor: colors.lineSoft },
+  passoValorCompacto: { width: PASSO_COMPACTO.valor, minWidth: PASSO_COMPACTO.valor, height: PASSO_COMPACTO.alvo, padding: 0, fontSize: 15, textAlignVertical: 'center' },
   // .search
   busca: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: ALVO_TOQUE, paddingLeft: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   buscaInput: { flex: 1, minWidth: 0, height: ALVO_TOQUE - 2, padding: 0, fontFamily: fonts.body, fontSize: 14, color: colors.ink },

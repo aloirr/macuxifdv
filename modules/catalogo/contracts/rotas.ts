@@ -5,7 +5,7 @@
  * As rotas GET recebem tudo como texto na query: os schemas `*Query` convertem número e booleano.
  */
 import { z } from 'zod';
-import { Id } from '@macuxi/core/contracts';
+import { Cents, Id } from '@macuxi/core/contracts';
 import { ConsultaBusca, InstanteUtc, ItemVitrine, Referencia, ResultadoBusca, Sinonimo } from './busca';
 
 /** Booleano vindo da query (`true`/`false`/`1`/`0`); qualquer outro texto é inválido. */
@@ -248,6 +248,10 @@ export const ROTAS_CATALOGO = {
   cadastroCatalogo: 'produtos/:id/cadastro-catalogo',
   marcasConcorrentes: 'marcas-concorrentes',
   exportacao: 'exportacao',
+  tabelasPreco: 'tabelas-preco',
+  precosTabela: 'tabelas-preco/:id/precos',
+  escalonada: 'escalonada',
+  faixa: 'escalonada/:id',
 } as const;
 
 /** Caminho HTTP completo de uma rota do Catálogo (`/v1/catalogo/...`) com os parâmetros trocados. */
@@ -255,3 +259,83 @@ export function caminhoCatalogo(rota: keyof typeof ROTAS_CATALOGO, params: Recor
   const rel = ROTAS_CATALOGO[rota].replace(/:([a-z_]+)/g, (_m, k: string) => encodeURIComponent(params[k] ?? ''));
   return `/v1/catalogo/${rel}`;
 }
+
+// ---------- BKO: tabelas de preço (preço da UN) e tabela escalonada (RN-VEN-23; T-0089) ----------
+export const TabelaPrecoResumo = z.object({ id: Id, codigo: z.string(), nome: z.string(), ativo: z.boolean(), itens: z.number().int().min(0) });
+export type TabelaPrecoResumo = z.infer<typeof TabelaPrecoResumo>;
+export const ListaTabelasPreco = z.object({ items: z.array(TabelaPrecoResumo) });
+export type ListaTabelasPreco = z.infer<typeof ListaTabelasPreco>;
+
+export const ParamsTabelaPreco = z.object({ id: Id });
+export type ParamsTabelaPreco = z.infer<typeof ParamsTabelaPreco>;
+
+/** Preço da UNIDADE BASE do produto numa tabela (RN-VEN-15 nova: não há preço de caixa; a embalagem é UN × quantidade). */
+export const PrecoUnidadeLinha = z.object({
+  produto_id: Id,
+  sku: z.string(),
+  nome: z.string(),
+  preco_cents: Cents,
+  vigencia_inicio: InstanteUtc.nullable(),
+  vigencia_fim: InstanteUtc.nullable(),
+});
+export type PrecoUnidadeLinha = z.infer<typeof PrecoUnidadeLinha>;
+
+export const ConsultaPrecosTabelaQuery = z.object({
+  q: z.string().trim().max(80).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type ConsultaPrecosTabelaQuery = z.infer<typeof ConsultaPrecosTabelaQuery>;
+
+export const PaginaPrecosTabela = z.object({ items: z.array(PrecoUnidadeLinha), total: z.number().int().min(0), next_offset: z.number().int().min(0).nullable() });
+export type PaginaPrecosTabela = z.infer<typeof PaginaPrecosTabela>;
+
+/** Faixa cadastrada. `origem`: 'erp' (veio do Hub; só leitura no BKO) ou 'manual' (cadastrada aqui). */
+export const FaixaCadastrada = z.object({
+  id: Id,
+  produto_id: Id,
+  sku: z.string(),
+  nome: z.string(),
+  medida: z.string().nullable(),
+  quantidade_minima: z.number().int().positive(),
+  preco_unidade_cents: Cents,
+  vigencia_inicio: z.string(),
+  vigencia_fim: z.string().nullable(),
+  tabela_preco_id: Id.nullable(),
+  tabela_preco_nome: z.string().nullable(),
+  ativo: z.boolean(),
+  origem: z.enum(['erp', 'manual']),
+  /** Verdadeiro quando a faixa é mais cara que o preço da UN na tabela (P4: não sobe o preço no pedido). */
+  mais_cara_que_a_tabela: z.boolean(),
+  /** Vigente hoje (data civil no fuso do tenant). */
+  vigente: z.boolean(),
+});
+export type FaixaCadastrada = z.infer<typeof FaixaCadastrada>;
+
+export const ConsultaEscalonadaQuery = z.object({
+  q: z.string().trim().max(80).optional(),
+  tabela_preco_id: Id.optional(),
+  vigente: BooleanoQuery.optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type ConsultaEscalonadaQuery = z.infer<typeof ConsultaEscalonadaQuery>;
+
+export const PaginaEscalonada = z.object({ items: z.array(FaixaCadastrada), total: z.number().int().min(0), next_offset: z.number().int().min(0).nullable() });
+export type PaginaEscalonada = z.infer<typeof PaginaEscalonada>;
+
+export const ParamsFaixa = z.object({ id: Id });
+export type ParamsFaixa = z.infer<typeof ParamsFaixa>;
+
+/** Corpo do `PUT /v1/catalogo/escalonada/:id` (idempotente pelo id). A API revalida com `validarFaixa` do domain. */
+export const SalvarFaixa = z.object({
+  produto_id: Id,
+  medida: z.string().trim().min(1).nullable().default(null),
+  quantidade_minima: z.number().int(),
+  preco_unidade_cents: z.number().int(),
+  vigencia_inicio: z.string(),
+  vigencia_fim: z.string().nullable().default(null),
+  tabela_preco_id: Id.nullable().default(null),
+  ativo: z.boolean().default(true),
+});
+export type SalvarFaixa = z.infer<typeof SalvarFaixa>;

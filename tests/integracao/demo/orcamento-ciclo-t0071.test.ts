@@ -33,7 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { toDomainPolicy } from '../../../modules/vendedor/app/lib/catalog';
 import { copiaDoDetalhe, reconferirDocumento } from '../../../modules/vendedor/app/lib/documento';
 import { porTipo } from '../../../modules/vendedor/app/lib/lista-pedidos';
-import { embalagensDaConsulta } from '../../../modules/vendedor/app/lib/novo-pedido';
+import { faixasPorProduto } from '../../../modules/vendedor/app/lib/novo-pedido';
 import { acoesNaTela, pedidoDaConversao, rotuloDoDocumento, situacaoNaTela } from '../../../modules/vendedor/app/lib/pre-venda';
 import { detalheDoPedido, lerLinhas, listaDePedidos, paraAprovar, politicaApi, produtosComPrecos, transportadorasDaTela, unidadesDaTela, type LinhasVendedor } from '../../../modules/vendedor/app/lib/pull';
 import { seloDoOrcamento, situacaoDoClienteSync } from '../../../modules/vendedor/app/lib/textos-pedido';
@@ -152,7 +152,9 @@ describe.skipIf(semBanco())('T-0071 — ciclo do orçamento pelo caminho do app:
       detalhe: det,
       catalogo,
       unidades: unidadesDaTela(l),
-      embalagens: embalagensDaConsulta(precos.itens),
+      // RN-VEN-15 nova (06/11): a embalagem é sempre UN × fator (sem preço próprio); o que vem da consulta são as faixas da
+      // tabela escalonada (RN-VEN-23), como no `garantirProdutos` do use-vendedor.ts
+      faixas: faixasPorProduto(precos.itens),
       cliente: situacaoDoClienteSync(l.clientes.find((c) => c.id === det.customer_id), (l.financeiros ?? []).find((f) => f.cliente_id === det.customer_id)),
       policy: toDomainPolicy(politicaApi(params)),
       estoque_bloqueia: false,

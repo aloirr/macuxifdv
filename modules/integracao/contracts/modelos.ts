@@ -9,7 +9,7 @@ import { Entidade } from './entidades';
 export const ParamsModelo = z.object({ entidade: z.string().trim().min(1).max(60) });
 export type ParamsModelo = z.infer<typeof ParamsModelo>;
 
-export const TIPOS_CAMPO_DICIONARIO = ['texto', 'número', 'sim/não', 'data', 'data-hora', 'centavos', 'enum'] as const;
+export const TIPOS_CAMPO_DICIONARIO = ['texto', 'número', 'sim/não', 'data', 'data-hora', 'centavos', 'enum', 'lista de números', 'lista de textos'] as const;
 
 export const CampoDicionario = z.object({
   /** Nome da coluna no cabeçalho (`external_id`, `endereco.cidade`…). */

@@ -73,8 +73,12 @@ export function montarPedidoParaErp(origem: PedidoAprovadoParaFila, mapeamentos:
     return { ok: false, codigo: 'sequencia_repetida', mensagem: 'Há itens com a mesma sequência no pedido. A sequência identifica a linha no retorno do faturamento e precisa ser única.' };
   }
   let condicaoErp: string | null = null;
+  // T-0089 (desenho §4.3): 1) a chave do prazo no ERP; 2) o de-para pelo código; 3) retido
+  const prazoErp = origem.pagamento?.prazo_external_id?.trim();
   const codigo = origem.condicao_pagamento_codigo?.trim();
-  if (codigo) {
+  if (prazoErp) {
+    condicaoErp = prazoErp;
+  } else if (codigo) {
     const achados = mapeamentos.filter((m) => m.tipo === 'condicao_pagamento' && m.ativo && m.codigo_macuxi === codigo);
     const distintos = new Set(achados.map((m) => m.codigo_erp));
     if (distintos.size === 0) {
@@ -106,6 +110,8 @@ export function montarPedidoParaErp(origem: PedidoAprovadoParaFila, mapeamentos:
       ...(origem.acrescimo_total_cents != null ? { acrescimo_total_cents: origem.acrescimo_total_cents } : {}),
       ...(origem.frete != null ? { frete: origem.frete } : {}),
       ...(origem.endereco_entrega != null ? { endereco_entrega: origem.endereco_entrega } : {}),
+      // T-0089: forma, prazo e prazo médio só no pedido novo (o antigo segue com o mesmo payload e hash)
+      ...(origem.pagamento != null ? { pagamento: origem.pagamento } : {}),
     },
   };
 }

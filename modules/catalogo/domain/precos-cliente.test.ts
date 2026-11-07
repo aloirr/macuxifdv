@@ -66,11 +66,11 @@ describe('catalogo.precos_cliente@1 (domain)', () => {
   });
 });
 
-describe('catalogo.precos_cliente@1: embalagens[] (RN-VEN-15, T-0071)', () => {
-  it('RN-VEN-15: preco_cents vem só da linha sem unidade; a linha CX vai para embalagens[]', () => {
+describe('catalogo.precos_cliente@1: a linha de embalagem não vira preço (RN-VEN-15 nova, T-0089)', () => {
+  it('RN-VEN-15: preco_cents vem só da linha sem unidade; a linha CX do ERP é ignorada (embalagens deixou de ser preenchido)', () => {
     const itens = [item(P1, 1890, { unit: null }), item(P1, 21546, { unit: 'CX' })];
     const r = precosDoCliente({ ...base, itens, produtoIds: [P1] });
-    expect(r.itens[0]).toEqual({ produto_id: P1, preco_cents: 1890, motivo_sem_preco: null, embalagens: [{ unidade: 'CX', preco_cents: 21546 }] });
+    expect(r.itens[0]).toEqual({ produto_id: P1, preco_cents: 1890, motivo_sem_preco: null });
   });
 
   it('RN-VEN-15: linha CX mais cara ou mais nova não vira o preço da UN (correção da 🟡)', () => {
@@ -83,7 +83,7 @@ describe('catalogo.precos_cliente@1: embalagens[] (RN-VEN-15, T-0071)', () => {
     expect(r.itens[0]).toEqual({ produto_id: P1, preco_cents: null, motivo_sem_preco: MENSAGEM_SEM_PRECO_CLIENTE });
   });
 
-  it('RN-VEN-15: embalagem respeita a vigência em `em`', () => {
+  it('RN-VEN-15: embalagem de vigência futura também não aparece', () => {
     const itens = [item(P1, 1890), item(P1, 21546, { unit: 'CX', valid_from: '2026-12-01T00:00:00.000Z' })];
     expect(precosDoCliente({ ...base, itens, produtoIds: [P1] }).itens[0]).not.toHaveProperty('embalagens');
   });
@@ -94,10 +94,10 @@ describe('catalogo.precos_cliente@1: embalagens[] (RN-VEN-15, T-0071)', () => {
     expect(PrecosClienteSaidaSchema.parse(r)).toEqual(r);
   });
 
-  it('compatibilidade: o consumidor antigo (schema sem embalagens) ainda lê a saída nova', () => {
+  it('compatibilidade: o consumidor antigo (schema sem embalagens e sem faixas) ainda lê a saída nova', () => {
     const antigo = z.object({ tabela_preco_id: z.string().nullable(), itens: z.array(z.object({ produto_id: z.string(), preco_cents: z.number().nullable(), motivo_sem_preco: z.string().nullable() })) });
     const r = precosDoCliente({ ...base, itens: [item(P1, 1890), item(P1, 21546, { unit: 'CX' })], produtoIds: [P1] });
     expect(antigo.parse(r).itens[0]).toEqual({ produto_id: P1, preco_cents: 1890, motivo_sem_preco: null });
-    expect(PrecosClienteSaidaSchema.parse(r).itens[0]!.embalagens).toEqual([{ unidade: 'CX', preco_cents: 21546 }]);
+    expect(PrecosClienteSaidaSchema.parse(r).itens[0]).not.toHaveProperty('embalagens');
   });
 });

@@ -3,6 +3,7 @@
  * cliente + estoque das filiais do usuário), aplica quem vê o quê (RN-CAT-05) e roda o ranking (`rankear`) com
  * paginação. Função pura: a API usa com as linhas do Postgres; o app, com as linhas do SQLite (offline, RF-CAT-02).
  */
+import { anoCivilNoFuso } from './ano-civil';
 import type { Perfil } from '@macuxi/platform-sdk';
 import type { AtributoProduto, EquivaleA, FiltrosInterpretados, ItemTabelaPreco, ItemVitrine, PrecoVisivel, Promocao, Referencia, StockByBranch } from '../contracts';
 import type { VocabularioTenant } from './consulta';
@@ -149,6 +150,8 @@ export interface EntradaBuscaProdutos {
   semantica?: ReadonlyMap<string, number>;
   /** Ano civil no fuso do tenant (ADR 0015); padrão: ano UTC de `contexto.agora`. Expande as faixas da aplicação. */
   anoAtual?: number;
+  /** Fuso do tenant: com ele o ano padrão é o civil nesse fuso (e não o UTC). */
+  fuso?: string;
   limit: number;
   offset: number;
 }
@@ -178,7 +181,7 @@ export function buscarProdutos(e: EntradaBuscaProdutos): PaginaProdutos {
     docs.push(docDeBusca(p, item));
   }
   const filtros = filtrosParaPerfil(aplicarChips(e.filtros, e.chips ?? {}), ctx.perfil, ctx.parametros);
-  const anoAtual = e.anoAtual ?? Number(ctx.agora.slice(0, 4));
+  const anoAtual = e.anoAtual ?? anoCivilNoFuso(ctx.agora, e.fuso);
   const ranking = rankear(docs, { filtros, sinonimos: e.sinonimos, parametros: ctx.parametros, anoAtual, ...(e.semantica ? { semantica: e.semantica } : {}) }).slice(0, LIMITE_RESULTADOS_BUSCA);
   const limit = Math.max(1, Math.trunc(e.limit));
   const offset = Math.max(0, Math.trunc(e.offset));

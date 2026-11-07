@@ -27,6 +27,24 @@ export const TabelaPrecoItemSyncSchema = z.object({
 });
 export type TabelaPrecoItemSync = z.infer<typeof TabelaPrecoItemSyncSchema>;
 
+/**
+ * Faixa de preço por quantidade (RN-VEN-23; T-0089, migração 0037). `preco_unidade_cents` é o preço da UNIDADE BASE (P3);
+ * `medida` nula = unidade base; vigência em data civil AAAA-MM-DD do fuso do tenant, fechada nas duas pontas; fim nulo =
+ * aberta; `tabela_preco_id` nulo = vale para todas as tabelas. Escopo tenant; quem não vê preço (RN-CAT-05) não a recebe.
+ */
+export const TabelaEscalonadaSyncSchema = z.object({
+  ...Base,
+  produto_id: z.string().uuid(),
+  medida: z.string().nullable(),
+  quantidade_minima: z.number().int().positive(),
+  preco_unidade_cents: z.number().int().positive(),
+  vigencia_inicio: z.string(),
+  vigencia_fim: z.string().nullable(),
+  tabela_preco_id: z.string().uuid().nullable(),
+  ativo: z.boolean(),
+});
+export type TabelaEscalonadaSync = z.infer<typeof TabelaEscalonadaSyncSchema>;
+
 export const ClienteTabelaPrecoSyncSchema = z.object({ ...Base, cliente_id: z.string().uuid(), tabela_preco_id: z.string().uuid() });
 export type ClienteTabelaPrecoSync = z.infer<typeof ClienteTabelaPrecoSyncSchema>;
 

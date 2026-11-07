@@ -41,6 +41,7 @@ describe.skipIf(semBanco())('Catálogo × Postgres: pull de preço e catalogo.pr
         db: c as unknown as ClienteBanco,
         usuario: { perfil },
         agora: () => AGORA,
+        fuso: () => 'America/Manaus',
         parametros: () => parametros,
       } as unknown as ContextoConsulta),
     ) as Promise<{ tabela_preco_id: string | null; itens: Array<{ produto_id: string; preco_cents: number | null; motivo_sem_preco: string | null }> }>;

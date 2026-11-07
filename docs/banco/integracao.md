@@ -270,7 +270,41 @@ EXPLAIN com volume (20 mil SKUs, 1 milhão de preços, lote de 5.000) fica para 
 ## 0013 — entidades novas e versão mínima do Conector (R-20261102-100400; desenho T-0061 §6; ADR 0016)
 - Os CHECKs de entidade (`sessao_carga`, `lote`, `registro_atual`, `pendencia_inativacao`, `inativacao_auditoria`,
   `cursor_entidade`, `reconciliacao`) e o de `conector.entidades` aceitam 12: as 8 originais + `catalogo_no`,
-  `produto_unidade`, `cliente_endereco`, `transportadora` (`ENTIDADES_BANCO` em modules/integracao/db/nuvem.ts). O PADRÃO
+  `produto_unidade`, `cliente_endereco`, `transportadora` (`ENTIDADES_0013` em modules/integracao/db/nuvem.ts). O PADRÃO
   de `conector.entidades` continua as 8 originais (`ENTIDADES_ORIGINAIS`).
 - `pedido_fila_erp.exige_conector` text nulo: versão mínima do Conector para levar o pedido (semver `1.3.0`); nulo = qualquer.
 - Down: apaga as linhas das 4 entidades novas no schema integracao, tira-as das listas dos Conectores e volta os CHECKs às 8.
+
+## 0037 — forma_pagamento, prazo_pagamento e tabela_escalonada no Hub (T-0089; R-20261106-203005)
+- Na mesma 0037 das tabelas (`vendedor.forma_pagamento`, `vendedor.prazo_pagamento`, `catalogo.tabela_escalonada`): os 7
+  CHECKs de entidade e o de `conector.entidades` aceitam 15 — as 12 da 0013 + `forma_pagamento`, `prazo_pagamento`,
+  `tabela_escalonada` (`ENTIDADES_BANCO` = `ENTIDADES` do contrato). O PADRÃO de `conector.entidades` continua as 8
+  originais (SQL da 0010 e Drizzle): o admin liga as novas no Conector pelo BKO.
+- Medida da faixa: a sigla do Hub (`SIGLA_MEDIDA_FORMATO`, `^[A-Z]{1,4}$`, a mesma do Core, RN-CORE-19). O Hub trata vazio
+  como ausente; o consumidor grava NULO (= unidade base), nunca `''` (o CHECK `tabela_escalonada_medida_formato` recusa).
+- Down: apaga o que o Hub recebeu das 3 (sessões e recebidos, lotes com staging e erros, registro_atual, cursores,
+  reconciliações, pendências e a auditoria delas), tira-as das listas dos Conectores (lista vazia volta às 8) e volta os
+  CHECKs às 12 da 0013.
+- Testes: `db/testes/forma-prazo-escalonada.test.ts` (listas do up e do down, padrão do Conector, ordem do down; no CI, lote,
+  staging, registro_atual e cursor das 3 gravando e entidade desconhecida = 23514); `estatico.test.ts` (ENTIDADES ⊆
+  ENTIDADES_BANCO; a 0013 com as 12).
+
+## Views-modelo do Conector (`db/conector/views-modelo.sql`) — formato esperado
+O arquivo **ainda não existe** no repositório (citado em docs/produto/06-integracao-erp.md e em
+docs/modulos/integracao/conector.md §3). Não foi criado na T-0089 sem desenho (dialeto: SQL Server, Oracle, PostgreSQL ou
+Firebird; uma view por entidade ou um arquivo por ERP). Até lá, este é o contrato que toda view-modelo segue, e o que o
+técnico do cliente monta no `SELECT` da entidade no `conector.json`:
+- Colunas comuns (RegistroBase): `external_id` (chave interna do ERP, nunca CPF/CNPJ, até 200), `alterado_em` (UTC, ms,
+  nunca nulo; `date_trunc('milliseconds', ...)` também no `WHERE`/`ORDER BY`), `ativo` (0/1; inativar, não apagar).
+- Filtro do delta: `WHERE (alterado_em, external_id) > (:cursor_alterado_em, :cursor_external_id) ORDER BY alterado_em,
+  external_id` com colação binária, e o `:limite` (conector.md §5).
+- Listas (`parcelas_dias`, `formas_pagamento`) saem como **texto JSON** e o campo usa `transformar: "json"` (ex.: `'[28,56]'`,
+  `'["PIX","BOLETO"]'`). Coluna NULA = campo ausente = o Macuxi não altera; para LIMPAR a lista do cliente a view devolve
+  `'[]'` (e `prazo_medio_max_dias` nulo não limpa: o Conector omite nulos).
+
+| Entidade (ordem de carga) | Colunas da view além das comuns | Observações |
+|---|---|---|
+| `forma_pagamento` | `codigo` (1..20, único no tenant), `nome` (1..60), `ordem` (inteiro, opcional) | antes do prazo e do cliente |
+| `prazo_pagamento` | `forma_external_id`, `codigo` (1..20, único no tenant entre todas as formas), `descricao` (até 60, opcional: o Macuxi gera "28/56 dias"), `parcelas_dias` (JSON, 1..24 itens, 0..365, sem decrescer; `[0]` = à vista), `prazo_medio_dias` (opcional, informativo) | o Macuxi calcula o prazo médio (RN-VEN-24); divergente = aviso `prazo_medio_divergente` |
+| `tabela_escalonada` | `produto_external_id`, `medida` (sigla 1 a 4 letras; nula/vazia = unidade base), `quantidade_minima` (inteiro > 0, na medida), `preco_unidade_cents` (> 0, preço da UNIDADE BASE; `centavos_de_decimal` se o ERP guarda reais), `vigencia_inicio` e `vigencia_fim` (data civil `AAAA-MM-DD` no fuso do tenant, `transformar: "data_civil"`; fim nulo = aberta, fim >= início), `tabela_external_id` (nulo = todas as tabelas) | depois do produto (RN-VEN-23) |
+| `cliente` (campos novos) | `prazo_medio_max_dias` (0..365), `formas_pagamento` (JSON com os CÓDIGOS das formas, até 20, sem repetir) | depois das formas; código sem FK no banco (core.cliente) |

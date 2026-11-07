@@ -3,7 +3,8 @@
  * `cliente_tabela_preco`, `tabela_preco` e `tabela_preco_item`) e decide com o mesmo domain da API.
  */
 import { implementarConsultaAparelho } from '@macuxi/platform-sdk';
-import { CONSULTA_PRECOS_CLIENTE, type ClienteTabelaPrecoSync, type ItemTabelaPreco, type TabelaPrecoItemSync, type TabelaPrecoSync } from '../contracts';
+import { CONSULTA_PRECOS_CLIENTE, type ClienteTabelaPrecoSync, type ItemTabelaPreco, type TabelaEscalonadaSync, type TabelaPrecoItemSync, type TabelaPrecoSync } from '../contracts';
+import type { LinhaEscalonada } from '../domain/escalonada';
 import { precosDoCliente } from '../domain/precos-cliente';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
@@ -14,6 +15,7 @@ export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULT
   let tabelaId: string | null = null;
   let tabelaNome: string | null = null;
   let itens: ItemTabelaPreco[] = [];
+  let faixas: LinhaEscalonada[] = [];
   if (verPreco) {
     const vinculos = (await ctx.linhas<ClienteTabelaPrecoSync>('cliente_tabela_preco')).filter((l) => l.cliente_id === entrada.cliente_id && !l.deleted_at);
     const candidata = vinculos[0]?.tabela_preco_id ?? null;
@@ -30,7 +32,9 @@ export const consultaPrecosClienteAparelho = implementarConsultaAparelho(CONSULT
       itens = (await ctx.linhas<TabelaPrecoItemSync>('tabela_preco_item'))
         .filter((l) => l.tabela_preco_id === id && pedidos.has(l.produto_id) && !l.deleted_at)
         .map((l) => ({ price_table_id: id, product_id: l.produto_id, price_cents: l.preco_cents, valid_from: l.vigencia_inicio, valid_to: l.vigencia_fim, unit: l.unidade ?? null }));
+      // RN-VEN-23: faixas dos produtos pedidos, da tabela do cliente ou gerais (a vigência e o desempate são do domain)
+      faixas = (await ctx.linhas<TabelaEscalonadaSync>('tabela_escalonada')).filter((l) => !l.deleted_at && l.ativo && pedidos.has(l.produto_id) && (l.tabela_preco_id === null || l.tabela_preco_id === id));
     }
   }
-  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco });
+  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco, faixas, fuso: ctx.usuario()?.fuso });
 });

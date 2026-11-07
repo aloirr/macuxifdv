@@ -8,7 +8,8 @@ import type { LinhaSync } from '@macuxi/platform-sdk';
 import type { ClienteEnderecoSync, ClienteFinanceiroSync, ClienteSync, CustomerSummary, Me, ProdutoSync, ProdutoUnidadeSync } from '@macuxi/core/contracts';
 import type { ClienteTabelaPrecoSync, EstoqueSaldoSync, Product, TabelaPrecoSync } from '@macuxi/catalogo/contracts';
 import type { DiscountPolicy as AlcadaApi, Order, OrderDetail, OrderItem } from '../../contracts';
-import type { CondicaoPagamentoSync, ClienteCondicaoSync, PedidoEventoSync, PedidoItemSync, PedidoSync } from '../../contracts/sync';
+import type { CondicaoPagamentoSync, ClienteCondicaoSync, FormaPagamentoSync, PedidoEventoSync, PedidoItemSync, PedidoSync, PrazoPagamentoSync } from '../../contracts/sync';
+import type { FormaDePagamento, PrazoDePagamento } from '../../domain/pagamento';
 import type { TransportadoraSync } from '../../contracts/frete';
 import { rotuloMedida } from '../../domain/preco-pedido';
 import type { EnderecoDaTela, TransportadoraDaTela, UnidadeDaTela } from './novo-pedido';
@@ -34,9 +35,12 @@ export interface LinhasVendedor {
   financeiros?: ClienteFinanceiroSync[];
   /** RN-VEN-20: saldo por depósito (catálogo); produto sem linha = estoque não controlado */
   saldos?: EstoqueSaldoSync[];
+  /** T-0089 (RN-VEN-24): formas de pagamento e prazos do tenant; ausentes antes do primeiro sync com a 0037 */
+  formas?: FormaPagamentoSync[];
+  prazos?: PrazoPagamentoSync[];
 }
 
-export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [], financeiros: [], saldos: [] };
+export const LINHAS_VAZIAS: LinhasVendedor = { pedidos: [], itens: [], eventos: [], clientes: [], produtos: [], tabelasDoCliente: [], condicoes: [], condicoesDoCliente: [], unidades: [], enderecos: [], transportadoras: [], tabelasPreco: [], financeiros: [], saldos: [], formas: [], prazos: [] };
 
 /** O que o motor oferece para ler as linhas locais (subconjunto estrutural de `MotorSync`). */
 export interface LeitorDeLinhas {
@@ -47,7 +51,7 @@ const vivas = <T extends { deleted_at: string | null }>(l: T[]): T[] => l.filter
 
 export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> {
   const ler = async <T extends LinhaSync>(e: string): Promise<T[]> => vivas(await motor.linhas<T>(e));
-  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos] = await Promise.all([
+  const [pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, formas, prazos] = await Promise.all([
     ler<PedidoSync>('pedido'),
     ler<PedidoItemSync>('pedido_item'),
     ler<PedidoEventoSync>('pedido_evento'),
@@ -62,8 +66,10 @@ export async function lerLinhas(motor: LeitorDeLinhas): Promise<LinhasVendedor> 
     ler<TabelaPrecoSync>('tabela_preco'),
     ler<ClienteFinanceiroSync>('cliente_financeiro'),
     ler<EstoqueSaldoSync>('estoque_saldo'),
+    ler<FormaPagamentoSync>('forma_pagamento'),
+    ler<PrazoPagamentoSync>('prazo_pagamento'),
   ]);
-  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos };
+  return { pedidos, itens, eventos, clientes, produtos, tabelasDoCliente, condicoes, condicoesDoCliente, unidades, enderecos, transportadoras, tabelasPreco, financeiros, saldos, formas, prazos };
 }
 
 // ---------- alçada e usuário ----------
@@ -194,6 +200,15 @@ export function condicoesDoCliente(l: LinhasVendedor, clienteId: string): Condic
   return lista.sort((a, b) => Number(b.padrao) - Number(a.padrao) || a.descricao.localeCompare(b.descricao, 'pt-BR'));
 }
 
+// ---------- formas de pagamento e prazos (T-0089; RN-VEN-24) ----------
+/** Formas do aparelho (todas, ativas e inativas; o domain filtra por cliente e por situação). */
+export function formasDaTela(l: LinhasVendedor): FormaDePagamento[] {
+  return (l.formas ?? []).map((f) => ({ id: f.id, codigo: f.codigo, nome: f.nome, ativo: f.ativo, ordem: f.ordem }));
+}
+export function prazosDaTela(l: LinhasVendedor): PrazoDePagamento[] {
+  return (l.prazos ?? []).map((p) => ({ id: p.id, forma_pagamento_id: p.forma_pagamento_id, codigo: p.codigo, descricao: p.descricao, parcelas_dias: p.parcelas_dias, prazo_medio_dias: p.prazo_medio_dias, ordem: p.ordem, ativo: p.ativo }));
+}
+
 // ---------- medidas, endereços e transportadoras (T-0061) ----------
 export function unidadesDaTela(l: LinhasVendedor): UnidadeDaTela[] {
   return l.unidades.filter((u) => u.ativo).map((u) => ({ produto_id: u.produto_id, unidade: u.unidade, fator: u.fator, padrao: u.padrao }));
@@ -269,6 +284,10 @@ export function ordemDoPedido(p: PedidoSync, itens: readonly PedidoItemSync[], p
     ...(p.desconto_valor_cents ? { order_discount_value_cents: p.desconto_valor_cents } : {}),
     ...(p.acrescimo_valor_cents ? { order_surcharge_value_cents: p.acrescimo_valor_cents } : {}),
     ...(p.desconto_efetivo_pct !== undefined && p.desconto_efetivo_pct !== null ? { effective_discount_pct: p.desconto_efetivo_pct } : {}),
+    // T-0089 (0037): retrato da forma e do prazo (pedido anterior fica igual)
+    ...(p.forma_pagamento_id
+      ? { forma_pagamento_id: p.forma_pagamento_id, forma_pagamento_nome: p.forma_pagamento_nome ?? null, prazo_pagamento_id: p.prazo_pagamento_id ?? null, prazo_descricao: p.prazo_descricao ?? null, prazo_parcelas_dias: p.prazo_parcelas_dias ?? null, prazo_medio_dias: p.prazo_medio_dias ?? null }
+      : {}),
     ...(p.frete_modalidade ? { freight: freteDaLinha(p) } : {}),
     ...(p.endereco_entrega ? { delivery_address: enderecoDaLinha(p) } : {}),
     ...(p.tabela_preco_id ? { price_table_name: tabelasPreco.find((t) => t.id === p.tabela_preco_id)?.nome ?? null } : {}),

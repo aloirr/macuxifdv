@@ -1,15 +1,17 @@
 /**
- * Pedidos (Pedidos.dc.html; T-0077; V9 da T-0071: lista virtualizada): busca (fantasia, razão social ou nº), período Dia | Mês | Ano e uma linha de situações,
- * incluindo os pedidos na fila do aparelho. A busca ignora o período e procura em toda a janela de 90 dias do aparelho.
+ * Pedidos (Pedidos.dc.html; T-0077; V9 da T-0071: lista virtualizada): busca (fantasia, razão social ou nº) e o botão de filtro na
+ * mesma linha (T-0090, modelo A: selo com o número de filtros, etiqueta removível e folha Período; Gestão: vendedor na mesma folha),
+ * depois uma linha de situações, incluindo os pedidos na fila do aparelho. A busca ignora o período e procura em toda a janela
+ * de 90 dias do aparelho. O período fora dessa janela (inteiro ou em parte) consulta o servidor, com sinal.
  * RN-CORE-23 (T-0054): sem consulta periódica própria. Ao abrir a tela só relê o aparelho; o pull vem do motor de sync da
  * plataforma (a cada `sync_auto_min`, ao abrir o app e ao voltar ao primeiro plano depois de 30 min); puxar = Sincronizar.
  */
 import { formatBRL, formatBRL0 } from '@macuxi/comum';
 import { SePode, useAmbiente, useVisaoShell } from '@macuxi/platform-sdk/react';
-import { Badge, Banner, Button, Card, Chip, colors, Empty, Folha, fonts, radius, relativeWhen, Selo, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Badge, Banner, BotaoFiltro, Button, CampoBusca, Card, Chip, colors, Empty, EtiquetaFiltro, fonts, FolhaPeriodo, ListaSuspensa, radius, relativeWhen, Selo, Strong, type as t, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -17,6 +19,7 @@ import {
   chipsComAtivo,
   contarPorSituacao,
   destacarTrecho,
+  deslocarPeriodo,
   diasComPedido,
   filtrarLista,
   itemNaSituacao,
@@ -30,13 +33,13 @@ import {
   type Periodo,
   type SituacaoDaLista,
 } from '../../domain/busca-periodo';
+import { ajudaDaJanela, ATALHO_PADRAO, ATALHOS_DE_PERIODO, atalhoEmVigor, contarFiltros, ehAtalhoDePeriodo, escolhaEmVigor, periodoDaEscolha, periodoDoAtalho, textoDaEtiquetaDoPeriodo } from '../../domain/filtro-periodo';
 import { filtrarPorVendedor, opcoesDeVendedor, TODOS_OS_VENDEDORES } from '../../domain/filtro-vendedor';
 import { validadeOrcamentoDias } from '../../domain/orcamento';
 import { pedidoAFaturar } from '../../domain/resumo-inicio';
 import { orcamentosEmAberto } from '../lib/resumo-inicio';
 import { relogioReal } from '@macuxi/comum/relogio';
-import { SeletorDePeriodo } from '../components/seletor-periodo';
-import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, pedidosDaConsulta, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
+import { caminhoDaConsultaPorPeriodo, estadoDaConsulta, juntarServidorComAparelho, pedidosDaConsulta, textoDoVazio, PAGINAS_MAXIMAS_DA_CONSULTA } from '../lib/consulta-periodo';
 import { seloDaLinha } from '../lib/selo-lista';
 import { orderNote, statusBadge } from '../lib/order-status';
 import type { PedidoDaLista } from '../lib/pedidos';
@@ -58,7 +61,7 @@ export default function OrdersScreen() {
   const [busca, setBusca] = useState('');
   // T-0077: seletor de vendedor só no Gestão; o filtro vale antes da busca, do período, dos chips e do resumo
   const [vendedorId, setVendedorId] = useState(TODOS_OS_VENDEDORES);
-  const [seletorAberto, setSeletorAberto] = useState(false);
+  const [folhaAberta, setFolhaAberta] = useState(false);
   const [periodo, setPeriodo] = useState<Periodo>(() => periodoDe('mes', new Date(), tz));
   // T-0076: os cards do Início abrem a lista já filtrada (`?filtro=orcamentos|a_faturar`), sem período, na janela toda do aparelho
   const { filtro: filtroDoInicio } = useLocalSearchParams<{ filtro?: string }>();
@@ -89,7 +92,9 @@ export default function OrdersScreen() {
   const buscando = normalizarTexto(busca) !== '';
   const fora = !buscando && !semPeriodo && periodoForaDaJanela(periodo, agora, tz);
   const semSinal = offline || !ambiente.online();
-  const modoConsulta = estadoDaConsulta({ fora, offline: semSinal });
+  // T-0090: período que sai da janela do aparelho (inteiro ou em parte) consulta o servidor, com sinal; sem sinal, a parte parcial mostra o que o aparelho tem
+  const parcial = !buscando && !semPeriodo && periodoParcialNaJanela(periodo, agora, tz);
+  const modoConsulta = parcial && !semSinal ? 'consultar' : estadoDaConsulta({ fora, offline: semSinal });
   const chaveConsulta = `${periodo.tipo}:${periodo.valor}`;
   useEffect(() => {
     if (modoConsulta !== 'consultar') return;
@@ -117,7 +122,11 @@ export default function OrdersScreen() {
     };
   }, [modoConsulta, chaveConsulta, tentativa]);
   const doServidor = modoConsulta === 'consultar' && consulta?.chave === chaveConsulta ? consulta : null;
-  const fonte = doServidor?.estado === 'ok' ? doServidor.itens : orders;
+  // T-0090: fora inteiro = só o servidor; em parte = servidor + aparelho (a fila e as edições locais têm prioridade, sem duplicar por id)
+  const fonte = useMemo(
+    () => (doServidor?.estado === 'ok' ? (fora ? doServidor.itens : juntarServidorComAparelho(doServidor.itens, orders)) : orders),
+    [doServidor, fora, orders],
+  );
   const doVendedor = useMemo(() => (gestao ? filtrarPorVendedor(fonte, vendedorAtivo) : fonte), [gestao, fonte, vendedorAtivo]);
   const itens = useMemo(
     () =>
@@ -143,7 +152,7 @@ export default function OrdersScreen() {
     () => (semPeriodo && !buscando ? itens : filtrarLista(itens, { periodo, busca, tz })),
     [itens, periodo, busca, tz, semPeriodo, buscando],
   );
-  const contagem = contarPorSituacao(base);
+  const contagem = useMemo(() => contarPorSituacao(base), [base]);
   // V9: busca por id em Map (era um find dentro do map de cada linha, O(n²))
   const pedidoPorId = useMemo(() => new Map(itens.map((i) => [i.id, i.pedido])), [itens]);
   const aFaturar = useMemo(() => itens.filter(pedidoAFaturar), [itens]);
@@ -160,25 +169,48 @@ export default function OrdersScreen() {
   // Y1: o chip ativo fica na linha mesmo com 0
   const chips = chipsComAtivo(contagem.chips, atual).filter((c) => c.id !== 'orcamentos' || preVendaLigada || atual === 'orcamentos');
 
-  const visiveis =
-    atual === 'decide'
-      ? base.filter((i) => paraDecidir.has(i.id))
-      : atual === 'a_faturar'
-        ? aFaturar
-        : atual === 'orc_abertos'
-          ? orcAbertos
-          : base.filter((i) => itemNaSituacao(i, atual));
-  const resumo = resumoDaSituacao(visiveis, atual === 'orc_abertos' ? 'orcamentos' : atual);
-  const parcial = !buscando && !semPeriodo && periodoParcialNaJanela(periodo, agora, tz);
+  // trocar período ou situação só refaz este filtro sobre o que já está na memória (sem reler o SQLite nem sincronizar)
+  const visiveis = useMemo(
+    () => (atual === 'decide' ? base.filter((i) => paraDecidir.has(i.id)) : atual === 'a_faturar' ? aFaturar : atual === 'orc_abertos' ? orcAbertos : base.filter((i) => itemNaSituacao(i, atual))),
+    [atual, base, paraDecidir, aFaturar, orcAbertos],
+  );
+  const resumo = useMemo(() => resumoDaSituacao(visiveis, atual === 'orc_abertos' ? 'orcamentos' : atual), [visiveis, atual]);
   const queued = contagem.na_fila;
-  const anos = useMemo(() => {
-    const ano = Number(periodoDe('ano', agora, tz).valor);
-    return [ano - 3, ano - 2, ano - 1, ano].map(String);
-  }, [tz, periodo]);
+  // T-0090: a folha Período e a etiqueta; tudo derivado do período em vigor (cálculo barato, refeito só quando ele muda)
+  const hojeDia = periodoDe('dia', new Date(), tz).valor;
+  const filtro = useMemo(() => {
+    const em = new Date();
+    return {
+      hoje: hojeDia,
+      atalho: atalhoEmVigor(periodo, em, tz),
+      escolha: escolhaEmVigor(periodo, em, tz),
+      etiqueta: textoDaEtiquetaDoPeriodo(periodo, em, tz),
+      ajuda: ajudaDaJanela(periodo, em, tz),
+      contagem: contarFiltros({ periodo, agora: em, tz, vendedorEscolhido: vendedorAtivo !== TODOS_OS_VENDEDORES }),
+      periodoPadrao: contarFiltros({ periodo, agora: em, tz, vendedorEscolhido: false }) === 0,
+    };
+  }, [periodo, tz, vendedorAtivo, hojeDia]);
+  // pontos do calendário: só calculados com a folha aberta (a janela do aparelho tem 3 meses)
+  const diasMarcados = useMemo(() => {
+    if (!folhaAberta) return [];
+    let mes = filtro.hoje.slice(0, 7);
+    const dias: string[] = [];
+    for (let k = 0; k < 4; k++) {
+      dias.push(...diasComPedido(itens, mes, tz));
+      mes = deslocarPeriodo({ tipo: 'mes', valor: mes }, -1).valor;
+    }
+    return dias;
+  }, [folhaAberta, itens, tz, filtro.hoje]);
 
   const escolherPeriodo = (p: Periodo) => {
     setSemPeriodo(false);
     setPeriodo(p);
+  };
+  const aplicarAtalho = (id: string) => escolherPeriodo(periodoDoAtalho(ehAtalhoDePeriodo(id) ? id : ATALHO_PADRAO, new Date(), tz));
+  const removerPeriodo = () => aplicarAtalho(ATALHO_PADRAO);
+  const limparFiltros = () => {
+    removerPeriodo();
+    setVendedorId(TODOS_OS_VENDEDORES);
   };
   // Y12: fora dos 90 dias sem resposta do servidor, "0 pedidos" seria falso; o cartão mostra o estado
   const semResposta = fora && doServidor?.estado !== 'ok';
@@ -220,62 +252,49 @@ export default function OrdersScreen() {
       </View>
 
       <View style={styles.linhaBusca}>
-      <View style={[styles.busca, { flex: 1 }, busca ? { borderColor: colors.ink } : null]}>
-        <Text style={{ fontSize: 16 }}>🔍</Text>
-        <TextInput
-          testID="orders-busca"
-          value={busca}
-          onChangeText={setBusca}
-          placeholder={gestao ? 'Cliente ou nº' : 'Nome fantasia, razão social ou nº'}
-          placeholderTextColor={colors.ink3}
-          accessibilityLabel="Buscar pedido por nome fantasia, razão social ou número"
-          autoCorrect={false}
-          returnKeyType="search"
-          style={styles.buscaTexto}
-        />
-        {busca ? (
-          <Pressable testID="orders-busca-limpar" accessibilityRole="button" accessibilityLabel="Limpar a busca" onPress={() => setBusca('')} style={styles.limpar}>
-            <Text style={t.bodyStrong}>✕</Text>
-          </Pressable>
-        ) : null}
+        <View style={{ flex: 1 }}>
+          <CampoBusca
+            testID="orders-busca"
+            valor={busca}
+            onChange={setBusca}
+            placeholder={gestao ? 'Cliente ou nº' : 'Nome fantasia, razão social ou nº'}
+            rotuloAcessivel="Buscar pedido por nome fantasia, razão social ou número"
+            onLimpar={() => setBusca('')}
+            rotuloLimpar="Limpar a busca"
+          />
+        </View>
+        <BotaoFiltro testID="orders-filtro" contagem={filtro.contagem} rotulo="Filtrar" onPress={() => setFolhaAberta(true)} />
       </View>
-      {gestao ? (
-        <Pressable
-          testID="orders-vendedor"
-          accessibilityRole="button"
-          accessibilityLabel={`Filtrar por vendedor. Atual: ${opcoes.find((o) => o.id === vendedorAtivo)?.nome ?? 'Todos os vendedores'}`}
-          onPress={() => setSeletorAberto((a) => !a)}
-          style={[styles.vendedor, vendedorAtivo !== TODOS_OS_VENDEDORES && styles.vendedorAtivo]}>
-          <Text style={[t.bodyStrong, { flexShrink: 1 }]} numberOfLines={1}>
-            {vendedorAtivo === TODOS_OS_VENDEDORES ? 'Vendedor' : primeiroNome(opcoes.find((o) => o.id === vendedorAtivo)?.nome ?? 'Vendedor')}
-          </Text>
-          <Text style={t.bodyStrong}>▾</Text>
-        </Pressable>
-      ) : null}
-      </View>
-      {gestao ? (
-        <Folha visivel={seletorAberto} onFechar={() => setSeletorAberto(false)} rotuloFechar="Fechar o filtro de vendedor" titulo="Filtrar por vendedor" testID="orders-vendedor-folha">
-          <ScrollView style={{ maxHeight: 420 }} testID="orders-vendedor-opcoes">
-            {opcoes.map((o, k) => (
-              <Pressable
-                key={o.id}
-                testID={`orders-vendedor-${o.id}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected: o.id === vendedorAtivo }}
-                onPress={() => {
-                  setVendedorId(o.id);
-                  setSeletorAberto(false);
-                }}
-                style={[styles.opcao, k < opcoes.length - 1 && styles.divider]}>
-                <Text style={[o.id === vendedorAtivo ? t.bodyStrong : t.body, { flex: 1 }]} numberOfLines={1}>
-                  {o.nome}
-                </Text>
-                {o.id === vendedorAtivo ? <Text style={[t.bodyStrong, { color: colors.accentInk }]}>✓</Text> : null}
-              </Pressable>
-            ))}
-          </ScrollView>
-        </Folha>
-      ) : null}
+      <FolhaPeriodo
+        testID="periodo"
+        visivel={folhaAberta}
+        onFechar={() => setFolhaAberta(false)}
+        textos={TEXTOS_DA_FOLHA}
+        atalhos={ATALHOS_DE_PERIODO}
+        atalhoAtivo={semPeriodo ? null : filtro.atalho}
+        onAtalho={aplicarAtalho}
+        escolha={semPeriodo ? null : filtro.escolha}
+        onEscolher={(e) => escolherPeriodo(periodoDaEscolha(e))}
+        onLimpar={limparFiltros}
+        limparDesligado={filtro.contagem === 0 && !semPeriodo}
+        hoje={filtro.hoje}
+        diasMarcados={diasMarcados}
+        ajuda={filtro.ajuda}
+        extra={
+          gestao ? (
+            <ListaSuspensa
+              testID="orders-vendedor"
+              rotulo="Vendedor"
+              rotuloAcessivel="Filtrar por vendedor"
+              opcoes={opcoes.map((o) => ({ id: o.id, rotulo: o.nome }))}
+              valor={vendedorAtivo}
+              onChange={setVendedorId}
+              placeholder="Todos os vendedores"
+              rotuloFechar="Fechar a lista"
+            />
+          ) : null
+        }
+      />
 
       {buscando ? (
         <Text style={t.small} testID="orders-busca-resumo">
@@ -283,7 +302,14 @@ export default function OrdersScreen() {
         </Text>
       ) : (
         <>
-          <SeletorDePeriodo periodo={periodo} onChange={escolherPeriodo} hoje={{ agora, tz }} diasComPedido={(mes) => diasComPedido(itens, mes, tz)} anosDisponiveis={anos} />
+          {(filtro.contagem > 0 && !semPeriodo) || vendedorAtivo !== TODOS_OS_VENDEDORES ? (
+            <View style={styles.etiquetas} testID="orders-etiquetas">
+              {filtro.periodoPadrao || semPeriodo ? null : <EtiquetaFiltro testID="orders-etiqueta-periodo" texto={filtro.etiqueta} rotuloRemover={`Remover filtro ${filtro.etiqueta}`} onRemover={removerPeriodo} />}
+              {vendedorAtivo !== TODOS_OS_VENDEDORES ? (
+                <EtiquetaFiltro testID="orders-etiqueta-vendedor" texto={opcoes.find((o) => o.id === vendedorAtivo)?.nome ?? 'Vendedor'} rotuloRemover="Remover filtro de vendedor" onRemover={() => setVendedorId(TODOS_OS_VENDEDORES)} />
+              ) : null}
+            </View>
+          ) : null}
 
           {semResposta ? null : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingHorizontal: 20 }}>
@@ -301,9 +327,19 @@ export default function OrdersScreen() {
             {resumo.quantidade} {resumo.orcamentos ? (resumo.quantidade === 1 ? 'orçamento' : 'orçamentos') : resumo.quantidade === 1 ? 'pedido' : 'pedidos'} · {formatBRL0(resumo.total_cents)}
           </Text>
           )}
-          {parcial ? (
+          {parcial && semSinal ? (
             <Text style={t.small} testID="orders-parcial">
-              Só os últimos 90 dias do aparelho
+              Sem sinal: mostrando só o que o aparelho tem deste período.
+            </Text>
+          ) : null}
+          {parcial && !semSinal && doServidor?.estado === 'erro' ? (
+            <Text style={t.small} testID="orders-parcial-erro">
+              Não foi possível consultar o servidor: mostrando só o que o aparelho tem deste período. Puxe para baixo para tentar de novo.
+            </Text>
+          ) : null}
+          {parcial && !semSinal && modoConsulta === 'consultar' && doServidor?.estado !== 'ok' && doServidor?.estado !== 'erro' ? (
+            <Text style={t.small} testID="orders-parcial-buscando">
+              Buscando o restante no servidor…
             </Text>
           ) : null}
           {doServidor?.estado === 'ok' && doServidor.cortada ? (
@@ -353,10 +389,21 @@ function Destacado({ texto, busca, style }: { texto: string; busca: string; styl
   );
 }
 
-/** Só o primeiro nome cabe no botão ao lado da busca; o nome inteiro fica na lista e no rótulo acessível. */
-function primeiroNome(nome: string): string {
-  return nome.trim().split(/\s+/)[0] ?? nome;
-}
+const TEXTOS_DA_FOLHA = {
+  titulo: 'Período',
+  fechar: 'Fechar o filtro',
+  escolher: 'Escolher dia, mês ou ano',
+  voltar: 'Atalhos',
+  dia: 'Dia',
+  mes: 'Mês',
+  ano: 'Ano',
+  mesAnterior: 'Mês anterior',
+  proximoMes: 'Próximo mês',
+  anoAnterior: 'Ano anterior',
+  proximoAno: 'Próximo ano',
+  limpar: 'Limpar',
+  diaComPedido: 'tem pedido',
+};
 
 const OrderRow = memo(function OrderRow({ o, razao, busca, primeiro, last, tz, mostrarVendedor, diasValidade, numeroDoPedido }: { o: PedidoDaLista; razao: string; busca: string; primeiro: boolean; last: boolean; tz: string; mostrarVendedor: boolean; diasValidade: number; numeroDoPedido: (id: string) => string | null }) {
   const b = statusBadge(o.status);
@@ -409,12 +456,7 @@ const styles = StyleSheet.create({
   linhaUltima: { borderBottomWidth: 1, borderBottomLeftRadius: radius.cartao, borderBottomRightRadius: radius.cartao, overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   linhaBusca: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  vendedor: { minHeight: 52, maxWidth: 150, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.lineStrong },
-  vendedorAtivo: { borderColor: colors.accent, backgroundColor: colors.accentTint },
-  opcao: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14 },
-  busca: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, paddingHorizontal: 14, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.lineStrong },
-  buscaTexto: { flex: 1, minHeight: 48, fontSize: 16, color: colors.ink },
-  limpar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  etiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: -6 },
   destaque: { backgroundColor: colors.accentSoft },
   row: { gap: 3, paddingVertical: 11, paddingHorizontal: 14 },
   divider: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },

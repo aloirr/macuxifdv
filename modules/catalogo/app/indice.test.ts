@@ -2,7 +2,7 @@ import { criarRelogio } from '@macuxi/comum/relogio';
 import type { LinhaSync } from '@macuxi/platform-sdk';
 import { describe, expect, it } from 'vitest';
 import { COLUNAS_BUSCA_CATALOGO, TABELAS_BUSCA_CATALOGO } from '../db/aparelho';
-import { INDICE_BUSCA_CATALOGO, PESOS_BUSCA_CATALOGO } from './indice';
+import { anoDe, INDICE_BUSCA_CATALOGO, PESOS_BUSCA_CATALOGO } from './indice';
 
 const QUANDO = criarRelogio().iso();
 const P = '00000000-0000-4000-8000-000000000001';
@@ -34,5 +34,21 @@ describe('índice FTS5 do Catálogo no aparelho (T-0008, pedido R-20261031-20543
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler(p))).toEqual({ sku: 'DET-5L', ean: '7891000100103', codigos: 'det5l erp77 cb3401 fb0207', nome: 'Detergente 5 L', marca: 'Brilho', categoria: 'Limpeza', atributos: 'Fragrância Neutro Volume 5 L', aplicacao: `${aplicacao} 2011 2012 2013`, referencias: 'CB 3401 FB-0207' });
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler({ ...p, ativo: false } as LinhaSync))).toBeNull();
     expect(await INDICE_BUSCA_CATALOGO.documento(P, ler(null))).toBeNull();
+  });
+
+  it('RN-CAT-12: "civic 2028" acha "2018 em diante" depois da virada do ano (versaoDocumentos muda; fuso do tenant)', async () => {
+    const ler = (produto: LinhaSync) => ({
+      porIds: async <L extends LinhaSync>() => [produto] as L[],
+      porCampo: async <L extends LinhaSync>(entidade: string) => (entidade === 'produto_conteudo' ? [linha({ id: 'c1', aplicacao: 'Honda Civic 2018 em diante' })] : []) as L[],
+    });
+    const p = linha({ sku: 'X', ean: null, nome: 'Filtro', marca: 'M', categoria: 'C', unidade: 'UN', ativo: true });
+    const em = (iso: string) => ({ agora: new Date(iso), fuso: 'America/Manaus' }) as never;
+    const antes = await INDICE_BUSCA_CATALOGO.documento(P, ler(p), em('2026-12-31T12:00:00Z'));
+    const depois = await INDICE_BUSCA_CATALOGO.documento(P, ler(p), em('2027-01-01T12:00:00Z'));
+    expect(antes?.aplicacao).not.toContain('2028');
+    expect(depois?.aplicacao).toContain('2028');
+    expect(INDICE_BUSCA_CATALOGO.versaoDocumentos?.(em('2026-12-31T12:00:00Z'))).not.toBe(INDICE_BUSCA_CATALOGO.versaoDocumentos?.(em('2027-01-01T12:00:00Z')));
+    // 01/01 02:00 UTC ainda é 31/12 em Manaus (UTC-4)
+    expect(anoDe({ agora: new Date('2027-01-01T02:00:00Z'), fuso: 'America/Manaus' } as never)).toBe(2026);
   });
 });

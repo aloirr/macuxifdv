@@ -13,15 +13,17 @@ import { IBMPlexSans_500Medium } from '@expo-google-fonts/ibm-plex-sans/500Mediu
 import { IBMPlexSans_600SemiBold } from '@expo-google-fonts/ibm-plex-sans/600SemiBold';
 import { IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans/700Bold';
 import { useFonts } from 'expo-font';
-import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, router, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { View } from 'react-native';
 
 import { ShellProvider } from '@macuxi/platform-sdk/react';
 import type { VisaoShell } from '@macuxi/platform-sdk';
 import { colors, transicaoDeAvancar, useReduzirMovimento } from '@macuxi/ui/mobile';
 import { AreaSeguraSuperior } from '@/components/area-segura';
+import { TelaErroArmazenamento, TelaPreparoAparelho } from '@/components/preparo-aparelho';
 import { SincronizacaoDoShell } from '@/components/sincronizacao-do-shell';
 import { registrarCameraNosModulos } from '@/services/camera';
 import { useVibracaoDoShell } from '@/services/vibracao';
@@ -31,7 +33,17 @@ void SplashScreen.preventAutoHideAsync().catch(() => {});
 // câmera do aparelho para a foto da fachada do cliente fechado (RN-CORE-14): o Core só recebe a referência
 registrarCameraNosModulos();
 
-const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.ground, card: colors.surface, primary: colors.accent, text: colors.ink, border: colors.line } };
+const theme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: colors.ground,
+    card: colors.surface,
+    primary: colors.accent,
+    text: colors.ink,
+    border: colors.line,
+  },
+};
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -55,32 +67,81 @@ export default function RootLayout() {
   );
 }
 
-/** Só renderiza as rotas depois de carregar fontes, sessão e fila do aparelho. */
+/**
+ * Só renderiza as rotas depois de carregar fontes, sessão e fila do aparelho. T-0088: a tela de preparo (passagem do
+ * AsyncStorage para o SQLite) e a de erro do armazenamento ficam POR CIMA, sem desmontar o roteador (o login que está
+ * esperando a abertura continua montado); na abertura do app com sessão, aparecem no lugar da tela de abertura.
+ */
 function Gate({ fontsReady }: { fontsReady: boolean }) {
-  const { ready, visao, motor, ambiente } = usePlataforma();
+  const {
+    ready,
+    visao,
+    motor,
+    ambiente,
+    preparo,
+    erroArmazenamento,
+    tentandoAbrir,
+    tentarAbrirDeNovo,
+    logout,
+  } = usePlataforma();
   // T-0072: avançar lateral em 240 ms; com "reduzir movimento", troca instantânea (docs/design/componentes.md §6)
   const reduzir = useReduzirMovimento();
   // T-0072: vibração leve do kit (principal, confirmar e Desfazer); desligada com "reduzir movimento" (R-20261104-231036)
   useVibracaoDoShell(reduzir);
   const show = fontsReady && ready;
+  const sobre = !fontsReady ? null : preparo ? (
+    <TelaPreparoAparelho progresso={preparo.progresso} />
+  ) : erroArmazenamento ? (
+    <TelaErroArmazenamento
+      detalhe={erroArmazenamento.detalhe}
+      falhouDeNovo={erroArmazenamento.falhouDeNovo}
+      tentando={tentandoAbrir}
+      onTentar={() => void tentarAbrirDeNovo()}
+      onSair={() => {
+        void logout().then(() => {
+          try {
+            router.replace('/login');
+          } catch {
+            // roteador ainda não montado: sem sessão, as abas já levam ao login
+          }
+        });
+      }}
+    />
+  ) : null;
+  const visivel = show || sobre !== null;
   useEffect(() => {
-    if (show) void SplashScreen.hideAsync().catch(() => {});
-  }, [show]);
-  if (!show) return null;
+    if (visivel) void SplashScreen.hideAsync().catch(() => {});
+  }, [visivel]);
+  if (!show) return sobre;
   return (
     <ShellProvider visao={visao as VisaoShell<unknown>} motor={motor} ambiente={ambiente}>
       {/* área segura superior para todas as telas, abas e empilhadas (R-20261102-111044, T-0064) */}
       {/* RN-CORE-23: botão Sincronizar, puxar para baixo e push usam o agendador único do app */}
       <SincronizacaoDoShell>
-        <AreaSeguraSuperior>
-          {/* login, carga e abas trocam sem deslizar (não é "avançar"); o perfil entra pela direita */}
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ground }, ...transicaoDeAvancar(reduzir) }}>
-            <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
-            <Stack.Screen name="login" options={{ animation: 'none' }} />
-            <Stack.Screen name="sync" options={{ animation: 'none' }} />
-            <Stack.Screen name="profile" />
-          </Stack>
-        </AreaSeguraSuperior>
+        {/* T-0088: com a tela de preparo ou de erro por cima, o TalkBack não alcança o login nem as abas por baixo
+            (`accessibilityViewIsModal` da tela só vale no iOS) */}
+        <View
+          style={{ flex: 1 }}
+          importantForAccessibility={sobre ? 'no-hide-descendants' : 'auto'}
+          accessibilityElementsHidden={sobre !== null}
+        >
+          <AreaSeguraSuperior>
+            {/* login, carga e abas trocam sem deslizar (não é "avançar"); o perfil entra pela direita */}
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.ground },
+                ...transicaoDeAvancar(reduzir),
+              }}
+            >
+              <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
+              <Stack.Screen name="login" options={{ animation: 'none' }} />
+              <Stack.Screen name="sync" options={{ animation: 'none' }} />
+              <Stack.Screen name="profile" />
+            </Stack>
+          </AreaSeguraSuperior>
+        </View>
+        {sobre}
       </SincronizacaoDoShell>
     </ShellProvider>
   );

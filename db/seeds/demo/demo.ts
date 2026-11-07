@@ -45,8 +45,8 @@
  *   core.meta.tipo da 0019 e catalogo.produto_relacao da 0020).
  * - T-0071 (0020, referência do novo pedido R-20261103-130003): Mini Box Japiim vira o cliente da referência (cód. C5110,
  *   Mercadinho, Av. Ajuricaba 1200 + endereço de entrega, sem título vencido nem bloqueio — o vencido/bloqueado passou para a
- *   Mercearia do Porto); AGU-500 FD R$ 17,90, CAF-500 UN R$ 18,90 com CX c/ 12 de preço próprio R$ 215,46 (preço próprio da CX
- *   LIGADO), BIS-400 com CX c/ 20 (R$ 117,80 = UN × fator), açúcar a R$ 4,99 e 3 produtos novos (filtro de papel, leite em pó
+ *   Mercearia do Porto); AGU-500 FD R$ 17,90, CAF-500 UN R$ 18,90 com CX c/ 12 (o preço próprio de R$ 215,46 saiu na
+ *   T-0089 pela RN-VEN-15: CX = UN × fator, R$ 226,80), BIS-400 com CX c/ 20 (R$ 117,80 = UN × fator), açúcar a R$ 4,99 e 3 produtos novos (filtro de papel, leite em pó
  *   e água 1,5 L); relacionados (catalogo.produto_relacao): complementares do café e versão superior da água; o Lucas com
  *   pedidos recentes em 2 mercadinhos (clientes parecidos do Mini Box) — 11 pedidos na base, o próximo número é o 000012.
  * - T-0084/T-0085 (0033; desenhos T-0084 §10 e T-0085 §7): 4 autopeças novas no FIM da lista (pastilha e disco de freio
@@ -60,6 +60,10 @@
  *   marcas próprias do fluido e da câmara mudaram (Dotflex e Pneumaq) para não coincidir com as marcas CONCORRENTES
  *   fictícias da referência cruzada (Freiomax, Rodaforte, Filtrobom e Vialume, no cadastro do Promotor). Referências,
  *   etiquetas e o documento de busca da 0033: catalogo-cadastro.ts.
+ * - T-0089 (0037; desenho T-0089 §7, B4): formas de pagamento e prazos (Pix e Dinheiro à vista; Cartão 30 e 30/60; Boleto
+ *   28, 28/56 e 30/60/90), prazo médio máximo 45 nos clientes (30 na Panificadora Pão Dourado), formas restritas na
+ *   Conveniência Rota 10 (sem boleto), 3 faixas escalonadas no BIS-400 e a forma padrão "À vista" da 0037 apagada:
+ *   pagamento.ts. As condições antigas (acima) continuam, para o APK antigo; o título vencido já está nos 8 clientes.
  *
  * Idempotente: upsert por id determinístico (`idDeterministico('demo:<chave>')`). Rodar de novo no mesmo dia não
  * duplica nada; em outro dia cria a rota do novo dia (as anteriores ficam como histórico) e move as datas relativas.
@@ -77,6 +81,7 @@ import { hashSenha, verificarSenha } from '../../src/senha';
 import { carregarDemoGestor } from './gestor';
 import { gravarDemoCatalogoCadastro } from './catalogo-cadastro';
 import { gravarDemoMedidas } from './medidas';
+import { gravarDemoPagamento } from './pagamento';
 import { gravarPesquisaDemo } from './pesquisa';
 import { gravarDemoPlanoRv } from './plano-rv';
 import { gravarDemoPromotor } from './promotor';
@@ -209,16 +214,16 @@ export const DESCONTO_MAXIMO_PROPRIO_DEMO: Record<string, number> = { 'OLE-4T-1L
 const margemDemo = (i: number) => 20 + ((i * 7) % 21);
 
 /**
- * Liga as linhas de preço próprio da CX na tabela Varejo (ver o comentário no uso). Ligado na T-0071 (café CX c/ 12 a R$ 215,46
- * da referência): exige a correção de precosDoCliente do Catálogo (preço base só das linhas com unidade nula; as com unidade
- * vão para embalagens[] de catalogo.precos_cliente@1), entregue na mesma T-0071.
+ * DESLIGADO na T-0089 (RN-VEN-15, redação de 2026-11-06, R-20261106-064758): não existe preço próprio da embalagem; o preço da
+ * CX é sempre o da UN × fator. A base demo não cria linhas de catalogo.tabela_preco_item com unidade não nula (a API e o APK
+ * novo as ignoram). Linhas antigas numa base já carregada não são apagadas pelo seed; o plano B demo-recriar-base recria sem elas.
  */
-export const PRECO_PROPRIO_CX_LIGADO = true;
-/** Caixas de embarque (RN-VEN-15): [sku, fator, preço próprio da CX no Varejo em % do preço da UN × fator (ou null)]. */
-const CAIXAS: Array<[string, number, number | null]> = [
-  // T-0071: café CX c/ 12 com preço próprio −5% (18,90 × 12 × 0,95 = R$ 215,46) e biscoito cream cracker CX c/ 20 (UN × fator)
-  ['CAF-500', 12, 0.95], ['BIS-400', 20, null], ['ARR-5K', 6, null], ['FEI-1K', 10, null], ['OLE-900', 20, 0.96], ['LEI-1L', 12, 0.95], ['DET-500', 24, null],
-  ['BIS-140', 24, null], ['OLE-4T-1L', 12, 0.94], ['DET-5L', 4, null],
+export const PRECO_PROPRIO_CX_LIGADO = false;
+/** Caixas de embarque (RN-VEN-15): [sku, fator]. O preço da CX é o da UN × fator. */
+const CAIXAS: Array<[string, number]> = [
+  // T-0071: café CX c/ 12 (18,90 × 12 = R$ 226,80) e biscoito cream cracker CX c/ 20 (R$ 117,80)
+  ['CAF-500', 12], ['BIS-400', 20], ['ARR-5K', 6], ['FEI-1K', 10], ['OLE-900', 20], ['LEI-1L', 12], ['DET-500', 24],
+  ['BIS-140', 24], ['OLE-4T-1L', 12], ['DET-5L', 4],
 ];
 
 /** Árvore do catálogo (3 níveis: Categoria › Família › Grupo): [código, nome, código do pai]. */
@@ -835,15 +840,7 @@ export function dadosDemo(senhaHash: string | ((u: ChaveUsuario) => string), opc
         : [{ id: id(`tabela_preco_item:${t}:${sku}`), tenant_id: T, tabela_preco_id: idTabela(t), produto_id: id(`produto:${sku}`), preco_cents: preco, vigencia_inicio: inicioVigencia, vigencia_fim: null, unidade: null, ...comuns }];
     }),
   );
-  // 0013 (RN-VEN-15): preço próprio da CX no Varejo para alguns produtos (sem linha = UN × fator). DESLIGADO até a consulta
-  // catalogo.precos_cliente@1 filtrar a unidade (hoje ela lê todas as linhas do produto e a da CX seria lida como preço da UN).
-  for (const [sku, fator, fracao] of CAIXAS) {
-    if (fracao === null || !PRECO_PROPRIO_CX_LIGADO) continue;
-    itensTabela.push({
-      id: id(`tabela_preco_item:varejo:${sku}:CX`), tenant_id: T, tabela_preco_id: idTabela('varejo'), produto_id: id(`produto:${sku}`),
-      preco_cents: Math.round(PRECO.get(sku)! * fator * fracao), vigencia_inicio: inicioVigencia, vigencia_fim: null, unidade: 'CX', ...comuns,
-    });
-  }
+  // RN-VEN-15 (T-0089): só o preço da UN (unidade nula); a CX vale UN × fator, sem linha própria
   const clienteTabela: Linha[] = CLIENTES.map((_, n) => ({ id: id(`cliente_tabela_preco:${n}`), tenant_id: T, cliente_id: c(n), tabela_preco_id: idTabela(tabelaDoCliente(n)), ...comuns }));
   /** RN-VEN-14: com título vencido só À vista e 28 dias; os demais 3 ou 4 condições. */
   const condicoesDoCliente = (n: number): CodigoCondicao[] =>
@@ -1379,6 +1376,8 @@ export async function carregarDemo(admin: ClientBase, opcoes: { senha?: string; 
     await gravarTreinamentoDemo(admin, { hoje: dados['core.rota'][0]!.data as string });
     // 0028 (T-0082): plano de RV do vendedor vigente desde o mês do primeiro seed (plano-rv.ts; banco sem a 0028 = nada)
     await gravarDemoPlanoRv(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, atualizadoPor: idUsuarioDemo('analista') });
+    // 0037 (T-0089): formas e prazos, prazo médio e formas do cliente, tabela escalonada; apaga a forma padrão da 0037 (pagamento.ts)
+    await gravarDemoPagamento(admin, { tenantId: T, hoje: dados['core.rota'][0]!.data as string, dados });
     // 0014 (T-0055): licença do Gestor (supervisor, gerente, analista, admin) e projeção montada pelo domain do Gestor
     await carregarDemoGestor(admin, dados);
     // 0022 (T-0079): o --recriar apagou e regravou o tenant; gira a geração da base para o aparelho limpar a cópia local

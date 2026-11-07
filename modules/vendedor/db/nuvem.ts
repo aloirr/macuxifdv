@@ -2,8 +2,9 @@
  * Schema `vendedor` na nuvem em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas por
  * db/migrations/0007_vendedor_pedido.up.sql, 0009_vendedor_pedido_completo.up.sql (T-0029) e 0013_catalogo_vendedor_prevenda
  * (orçamento, frete CIF/FOB, transportadora, endereço de entrega, unidade/fator, acréscimo e faturamento), 0018 (medida do item),
- * 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071) e 0033_catalogo_aplicacao_referencia
- * (retrato da aplicação no item, T-0084), para uso INTERNO do
+ * 0020_pedido_ajuste_valor_produto_relacao (ajuste em R$ no pedido e no item, T-0071), 0033_catalogo_aplicacao_referencia
+ * (retrato da aplicação no item, T-0084) e 0037_forma_prazo_escalonada (forma_pagamento, prazo_pagamento e o pagamento do
+ * pedido, T-0089), para uso INTERNO do
  * módulo Vendedor (modules/vendedor/api). Nenhum outro módulo importa este arquivo (fronteira: só contracts).
  *
  * A fonte da verdade é o SQL versionado (FKs, índices, CHECKs, RLS e grants ficam lá). Sem FK para outros schemas:
@@ -146,6 +147,21 @@ export const pedido = vendedor.table('pedido', {
   acrescimo_valor_cents: bigint('acrescimo_valor_cents', { mode: 'number' }).notNull().default(0),
   /** O que o vendedor digitou no ajuste do pedido (Editar/Duplicar reabrem no mesmo modo). */
   ajuste_em: text('ajuste_em', { enum: MODOS_AJUSTE }).notNull().default('pct'),
+  // --- 0037 (T-0089, RN-VEN-24/25): forma, prazo e o RETRATO do pagamento no aceite. Os 8 vêm juntos ou nenhum (CHECK
+  // pedido_pagamento_completo); nulos no pedido antigo e no do APK antigo (que segue com condicao_pagamento_id). ---
+  /** FK composta para forma_pagamento (mesmo schema). */
+  forma_pagamento_id: uuid('forma_pagamento_id'),
+  /** FK composta para prazo_pagamento (mesmo schema). Que o prazo é da forma é a API que garante (validarPagamento). */
+  prazo_pagamento_id: uuid('prazo_pagamento_id'),
+  forma_pagamento_codigo: text('forma_pagamento_codigo'),
+  forma_pagamento_nome: text('forma_pagamento_nome'),
+  /** Código do prazo: também vai no condicao_pagamento_codigo do vendedor.pedido.aprovado@1 (de-para do Hub, §4.3). */
+  prazo_codigo: text('prazo_codigo'),
+  prazo_descricao: text('prazo_descricao'),
+  /** Parcelas em dias (vendedor.parcelas_validas: 1..24 itens, 0..365, sem decrescer). */
+  prazo_parcelas_dias: integer('prazo_parcelas_dias').array(),
+  /** Prazo médio do prazo no aceite (entre a menor e a maior parcela). */
+  prazo_medio_dias: integer('prazo_medio_dias'),
 });
 
 /** Item do pedido; sequencia única por pedido (desenho T-0011 §3). quantidade > 0. */
@@ -221,7 +237,7 @@ export const pedidoEvento = vendedor.table('pedido_evento', {
   ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Condição de pagamento do tenant; código único vivo; no máximo uma `padrao` viva (e ativa). */
+/** Condição de pagamento do tenant (LEGADO desde a 0037: só leitura, para o APK antigo); código único vivo; no máximo uma `padrao` viva (e ativa). */
 export const condicaoPagamento = vendedor.table('condicao_pagamento', {
   ...comuns(),
   codigo: text('codigo').notNull(),
@@ -235,6 +251,36 @@ export const clienteCondicao = vendedor.table('cliente_condicao', {
   ...comuns(),
   cliente_id: uuid('cliente_id').notNull(),
   condicao_pagamento_id: uuid('condicao_pagamento_id').notNull(),
+});
+
+/**
+ * Forma de pagamento do tenant (0037, T-0089, RN-VEN-24): Pix, Dinheiro, Cartão, Boleto... codigo 1..20 único vivo no
+ * tenant; nome 1..60. Todo tenant nasce com a forma "À vista" (codigo AVISTA, external_id nulo; gatilho
+ * tenant_semear_pagamento e backfill da 0037). Pull escopo tenant.
+ */
+export const formaPagamento = vendedor.table('forma_pagamento', {
+  ...comuns(),
+  codigo: text('codigo').notNull(),
+  nome: text('nome').notNull(),
+  ativo: boolean('ativo').notNull().default(true),
+  ordem: integer('ordem').notNull().default(0),
+});
+
+/**
+ * Prazo da forma (0037, T-0089, RN-VEN-24/25). forma_pagamento_id = FK composta; codigo 1..20 único vivo NO TENANT (não só
+ * na forma); descricao 1..60 ("28/56 dias", "À vista"); parcelas_dias = 1..24 itens de 0..365, sem decrescer ([0] = à vista);
+ * prazo_medio_dias GRAVADO pela API/consumidor com o prazoMedioDias do domain (o banco não recalcula; só confere que fica
+ * entre a menor e a maior parcela). Pull escopo tenant.
+ */
+export const prazoPagamento = vendedor.table('prazo_pagamento', {
+  ...comuns(),
+  forma_pagamento_id: uuid('forma_pagamento_id').notNull(),
+  codigo: text('codigo').notNull(),
+  descricao: text('descricao').notNull(),
+  parcelas_dias: integer('parcelas_dias').array().notNull(),
+  prazo_medio_dias: integer('prazo_medio_dias').notNull(),
+  ativo: boolean('ativo').notNull().default(true),
+  ordem: integer('ordem').notNull().default(0),
 });
 
 /** Contador do número legível (uma linha por tenant; use a função vendedor.proximo_numero_pedido()). Fora do sync. */

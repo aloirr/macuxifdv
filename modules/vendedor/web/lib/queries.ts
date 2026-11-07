@@ -9,7 +9,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { AuditoriaRespostaSchema, ROTA_AUDITORIA } from '@macuxi/platform-sdk';
 import { api, useSession } from '@macuxi/platform-sdk/web';
 import { DEFAULT_TZ } from '@macuxi/ui/web';
-import { DiscountPolicy, FreteParametros, PedidosPage, Transportadora } from '../../contracts';
+import { DiscountPolicy, FormasEPrazosResposta, FreteParametros, PedidosPage, Transportadora } from '../../contracts';
 import { z } from 'zod';
 import { type FiltrosTransportadoras, queryDosFiltrosTransportadoras } from './transportadoras';
 import { type FiltrosPedidos, paraQuery } from './filtros-url';
@@ -29,6 +29,7 @@ export const qk = {
   transportadoras: (f: FiltrosTransportadoras) => ['vendedor', 'transportadoras', f] as const,
   digitadas: ['vendedor', 'transportadoras', 'digitadas'] as const,
   frete: ['vendedor', 'frete', 'parametros'] as const,
+  formasEPrazos: ['vendedor', 'formas-pagamento'] as const,
 };
 
 const ListaTransportadoras = z.object({ itens: z.array(Transportadora) });
@@ -120,4 +121,10 @@ export function useTransportadorasDigitadas() {
 export function useFreteParametros() {
   const enabled = useAuthed();
   return useQuery({ queryKey: qk.frete, queryFn: async ({ signal }) => FreteParametros.parse(await api<unknown>('/vendedor/frete/parametros', { signal })), enabled });
+}
+
+/** Formas de pagamento e prazos do tenant (RN-VEN-24, T-0089), ativos e inativos. */
+export function useFormasEPrazos() {
+  const enabled = useAuthed();
+  return useQuery({ queryKey: qk.formasEPrazos, queryFn: async ({ signal }) => FormasEPrazosResposta.parse(await api<unknown>('/vendedor/formas-pagamento', { signal })), enabled });
 }

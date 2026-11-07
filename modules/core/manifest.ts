@@ -25,6 +25,7 @@ export const manifest = defineModule({
     'modulo.gerir_licencas': { perfis: ['admin'], descricao: 'Ativar/desativar módulos por tenant, perfil e usuário (tela Usuários e módulos)' },
     'usuario.ver': { perfis: ['supervisor', 'gerente', 'admin'], descricao: 'Ver a lista de usuários no BKO, recortada pelo escopo: equipe (supervisor), equipes abaixo (gerente), tenant (admin) (RF-CORE-02, RN-CORE-04)' },
     'usuario.gerir': { perfis: ['admin'], descricao: 'Criar, editar, ativar/desativar usuários e definir/redefinir senha no BKO, importar a Equipe por CSV e emitir/renovar convites de 1º acesso; nunca apaga (RF-CORE-02, RN-CORE-31, RN-AUD-01)' },
+    'cliente.pagamento_editar': { perfis: ['analista', 'admin'], descricao: 'Editar no cliente o prazo médio máximo e as formas de pagamento permitidas (RN-VEN-25); auditado (BKO)' },
     'carteira.editar': { perfis: ['analista', 'admin'], descricao: 'Vincular/desvincular clientes a vendedor ou promotor, com vigência e frequência de visita (BKO)' },
     'dispositivo.bloquear': { perfis: ['admin', 'analista'], descricao: 'Bloquear/desbloquear aparelho no BKO; vale para o tenant inteiro (RN-CORE-15)' },
     'motivo.editar': { perfis: ['analista', 'admin'], descricao: 'Cadastrar e ativar/desativar motivos de não venda; motivos de sistema não mudam (RN-CORE-14)' },
@@ -48,7 +49,7 @@ export const manifest = defineModule({
     'rv.ver': { perfis: ['vendedor', 'promotor', 'supervisor', 'gerente', 'analista', 'admin'], descricao: 'Ver a RV calculada, recortada pelo escopo: a própria (vendedor, promotor), equipe (supervisor), equipes abaixo (gerente), tenant (analista, admin); o assistente não vê (RN-CORE-29/30; T-0082 app)' },
   },
   // ADR 0019: consulta opcional não cria aresta de dependência (sem ciclo core ↔ vendedor); sem o dono, cai no indicador_diario
-  usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1', 'pesquisa.etapas_checkout@1'],
-  ofereceConsultas: ['core.cadastro_resumo@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1'],
+  usaConsultasOpcionais: ['vendedor.pedidos_da_meta@1', 'pesquisa.etapas_checkout@1', 'vendedor.formas_pagamento@1'],
+  ofereceConsultas: ['core.cadastro_resumo@1', 'core.financeiro_cliente@1', 'core.cadastro_cliente@1', 'core.medidas@1', 'core.promotor_ve_pedidos@1', 'core.usuarios_resumo@1'],
   ofereceExtensoes: ['cliente.abas', 'cliente.acoes', 'visita.etapas_checkout', 'inicio.cards', 'menu.itens'],
 });

@@ -1,7 +1,8 @@
 /**
  * RN-CORE-15 no shell: aparelho bloqueado vale para o tenant inteiro. Quando o login, o refresh ou qualquer chamada
  * recebe 423 `DISPOSITIVO_BLOQUEADO`, o shell entrega ao Core (`tratarAparelhoBloqueado`, `@macuxi/core/app`) as ações
- * deste aparelho: apagar os dados locais (motor + chaves de usuário + fotos), encerrar a sessão, avisar e ir ao login.
+ * deste aparelho: apagar os dados locais (motor + bancos SQLite de todos os usuários + chaves de usuário + fotos),
+ * encerrar a sessão, avisar e ir ao login.
  *
  * Puro (sem React Native): as fontes de disco, sessão e navegação são injetadas por `state/plataforma.tsx`.
  * O que NÃO é apagado: o id do aparelho (`fv:dispositivo` — com um id novo o bloqueio seria contornado), o endereço do
@@ -22,6 +23,11 @@ export function chavesDoAparelhoBloqueado(todas: readonly string[]): string[] {
 export interface FontesAparelhoBloqueado {
   /** Motor aberto da sessão atual (ou `null`, ex.: no login). */
   motor(): { limparAparelho(): Promise<void> } | null;
+  /**
+   * T-0088 (desenho §3): fecha e apaga os bancos SQLite de TODOS os usuários que entraram no aparelho
+   * (`ARQUIVO_DE_USUARIO_RE` do SDK), depois da limpeza do motor.
+   */
+  apagarBancos(): Promise<unknown>;
   chavesLocais(): Promise<readonly string[]>;
   removerChaves(chaves: readonly string[]): Promise<void>;
   /** Apaga a pasta das fotos tiradas no aparelho (inclusive as ainda não enfileiradas). */
@@ -37,8 +43,10 @@ export interface FontesAparelhoBloqueado {
 export function acoesDoAparelhoBloqueado(f: FontesAparelhoBloqueado): AcoesAparelhoBloqueado {
   return {
     async apagarDadosLocais() {
-      // 1º o motor (fila, linhas, cursores e o estado em memória numa transação quando o adaptador sabe); depois a varredura
+      // 1º o motor (fila, linhas, cursores e o estado em memória numa transação quando o adaptador sabe); depois os bancos
+      // de todos os usuários e a varredura das chaves (leva o espelho `fv:u:<id>:armazenamento`)
       await f.motor()?.limparAparelho();
+      await f.apagarBancos();
       await f.removerChaves(chavesDoAparelhoBloqueado(await f.chavesLocais()));
       await f.apagarFotos();
     },

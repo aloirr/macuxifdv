@@ -7,7 +7,7 @@
  *  - UTF-8 com BOM (o Excel pt-BR só reconhece acentos assim) e separador `;` (o `,` é o decimal do Excel pt-BR);
  *  - quebras CRLF: é o que o Excel/Bloco de Notas do Windows (o ambiente de quem prepara a planilha) grava, e o RFC 4180; o parser normaliza
  *    CRLF e LF igual, então a escolha só afeta quem abre o arquivo;
- *  - obrigatórios primeiro (ordem do contrato), depois opcionais; listas (`contatos`, `paradas`) ficam de fora (vêm pelo Conector);
+ *  - obrigatórios primeiro (ordem do contrato), depois opcionais; listas de objetos (`contatos`, `paradas`) ficam de fora; listas simples liberadas (`parcelas_dias`, `formas_pagamento`) vão numa célula, itens separados por `/` (vêm pelo Conector);
  *  - dinheiro em centavos inteiros; números sem separador de milhar (evita `NUMERO_AMBIGUO`); decimais com vírgula; datas `AAAA-MM-DD`;
  *    datas-hora ISO UTC com `Z`; booleanos `sim`/`não`; aspas duplas quando a célula tem `;`, aspas ou quebra de linha.
  * Dica de planilha: formate as colunas de código (documento, CEP, EAN) como Texto para o Excel não cortar zeros nem usar notação científica.
@@ -126,6 +126,26 @@ const EXEMPLOS: Record<string, Exemplo> = {
   'cliente_endereco.external_id': ['END-001', 'END-002'],
   'cliente_endereco.descricao': ['Matriz', 'Depósito'],
   'cliente_endereco.principal': ['sim', 'não'],
+  'forma_pagamento.external_id': ['FPG-001', 'FPG-002'],
+  'forma_pagamento.codigo': ['PIX', 'BOLETO'],
+  'forma_pagamento.nome': ['PIX', 'Boleto bancário'],
+  'forma_pagamento.ordem': ['1', '2'],
+  'prazo_pagamento.external_id': ['PRZ-001', 'PRZ-002'],
+  'prazo_pagamento.forma_external_id': ['FPG-002', 'FPG-002'],
+  'prazo_pagamento.codigo': ['30-60-90', '28-56'],
+  'prazo_pagamento.descricao': ['30/60/90 dias', '28/56 dias'],
+  'prazo_pagamento.parcelas_dias': ['30/60/90', '28/56'],
+  'prazo_pagamento.prazo_medio_dias': ['60', '42'],
+  'prazo_pagamento.ordem': ['1', '2'],
+  'cliente.prazo_medio_max_dias': ['60', ''],
+  'cliente.formas_pagamento': ['PIX/BOLETO', 'PIX'],
+  'tabela_escalonada.external_id': ['ESC-001', 'ESC-002'],
+  'tabela_escalonada.medida': ['UN', 'UN'],
+  'tabela_escalonada.quantidade_minima': ['10', '50'],
+  'tabela_escalonada.preco_unidade_cents': ['1200', '1100'],
+  'tabela_escalonada.vigencia_inicio': ['2026-11-01', '2026-11-01'],
+  'tabela_escalonada.vigencia_fim': ['', '2026-12-31'],
+  'tabela_escalonada.tabela_external_id': ['TAB-01', 'TAB-01'],
   'transportadora.external_id': ['TRA-001', 'TRA-002'],
   'transportadora.nome': ['Transportes Norte Ltda', 'Rápido Roraima'],
   'transportadora.documento': ['12345678000195', '98765432000110'],
@@ -145,6 +165,13 @@ const OBSERVACOES: Record<string, string> = {
   'produto.embalagem_quantidade': 'Informe junto com embalagem_medida (as duas preenchidas ou as duas vazias).',
   'preco.vigencia_fim': 'Não pode ser anterior a vigencia_inicio. Vazio = sem data de fim.',
   alterado_em: 'Pode ficar de fora ou vazia: vale o instante do envio.',
+  'cliente.formas_pagamento': 'Códigos das formas de pagamento permitidas (as do modelo forma_pagamento), separados por /. Vazio = não altera.',
+  'cliente.prazo_medio_max_dias': 'Prazo médio máximo aceito pelo cliente, em dias. Vazio = não altera.',
+  'prazo_pagamento.parcelas_dias': 'Dias de cada parcela, em ordem crescente (0 = à vista): 30/60/90 vale, 60/30 não.',
+  'prazo_pagamento.forma_external_id': 'external_id de uma forma do modelo forma_pagamento (carregue a forma antes).',
+  'prazo_pagamento.prazo_medio_dias': 'Informativo: o Macuxi calcula o prazo médio; valor diferente gera aviso.',
+  'tabela_escalonada.preco_unidade_cents': 'Preço da unidade base na faixa. Faixas do mesmo produto: quantidade_minima maior, preço igual ou menor.',
+  'tabela_escalonada.tabela_external_id': 'Vazio = vale para todas as tabelas de preço.',
   external_id: 'Código do registro no ERP; é a chave da carga (repetir atualiza, não duplica).',
 };
 
@@ -186,6 +213,8 @@ interface Folha {
   maximo: number | null;
   exatos: number | null;
   uuid: boolean;
+  /** Lista numa célula (itens separados por /): `lista_numeros` / `lista_textos`. */
+  lista: 'numeros' | 'textos' | null;
 }
 
 function faixa(checks: Check[], inteiro: boolean): { minimo: number | null; maximo: number | null; exclusivo: boolean } {
@@ -208,7 +237,20 @@ function faixa(checks: Check[], inteiro: boolean): { minimo: number | null; maxi
 function lerFolha(caminho: string, campo: z.ZodTypeAny): Folha {
   const base = desembrulhar(campo);
   const nome = defDe(base).typeName;
-  const vazio: Folha = { tipo: 'texto', tamanhoMax: null, formato: null, opcoes: [], inteiro: false, minimo: null, maximo: null, exatos: null, uuid: false };
+  const vazio: Folha = { tipo: 'texto', tamanhoMax: null, formato: null, opcoes: [], inteiro: false, minimo: null, maximo: null, exatos: null, uuid: false, lista: null };
+  if (nome === 'ZodArray') {
+    const d = base._def as { type?: z.ZodTypeAny; minLength?: { value: number } | null; maxLength?: { value: number } | null };
+    const item = d.type ? desembrulhar(d.type) : undefined;
+    const itens = [d.minLength ? `no mínimo ${d.minLength.value}` : null, d.maxLength ? `até ${d.maxLength.value}` : null].filter((x) => x !== null).join(' e ');
+    const qtd = itens === '' ? '' : `, ${itens} ${(d.maxLength?.value ?? d.minLength?.value) === 1 ? 'item' : 'itens'}`;
+    if (item && defDe(item).typeName === 'ZodNumber') {
+      const { minimo, maximo } = faixa(checksDe(item), true);
+      const cada = minimo !== null && maximo !== null ? `, cada um de ${minimo} a ${maximo}` : '';
+      return { ...vazio, tipo: 'lista de números', lista: 'numeros', formato: `lista de números inteiros separados por / (ex.: 30/60/90)${cada}${qtd}` };
+    }
+    const max = item ? checksDe(item).find((c) => c.kind === 'max')?.value : undefined;
+    return { ...vazio, tipo: 'lista de textos', lista: 'textos', formato: `lista de códigos separados por / (ex.: PIX/BOLETO)${max !== undefined ? `, cada um com até ${max} caracteres` : ''}${qtd}` };
+  }
   if (nome === 'ZodBoolean') return { ...vazio, tipo: 'sim/não', formato: 'sim ou não' };
   if (nome === 'ZodEnum') {
     const opcoes = ((base._def as { values: string[] }).values ?? []).map(String);
@@ -257,6 +299,10 @@ function exemploGerado(f: Folha, linha: 0 | 1): string {
   switch (f.tipo) {
     case 'sim/não':
       return linha === 0 ? 'sim' : 'não';
+    case 'lista de números':
+      return linha === 0 ? '30/60/90' : '28/56';
+    case 'lista de textos':
+      return linha === 0 ? 'PIX/BOLETO' : 'PIX';
     case 'enum':
       return f.opcoes[Math.min(linha, f.opcoes.length - 1)] ?? '';
     case 'data':

@@ -36,6 +36,7 @@ PASTA=/opt/macuxi
 log() { echo "[implantar] $(date -u +%H:%M:%S) $*"; }
 
 [ -f "$PASTA/.env" ] || { echo "[implantar] $PASTA/.env ausente: rode antes sudo bash preparar-vm.sh" >&2; exit 1; }
+[ -s "$PASTA/portal.env" ] || { echo "[implantar] $PASTA/portal.env ausente (T-0091): rode antes sudo bash preparar-vm.sh" >&2; exit 1; }
 [ -f "$PASTA/tunel.env" ] || { echo "[implantar] $PASTA/tunel.env ausente (TUNNEL_TOKEN): o workflow grava antes" >&2; exit 1; }
 
 install -m 644 "$ORIGEM/compose.yml" "$PASTA/compose.yml"

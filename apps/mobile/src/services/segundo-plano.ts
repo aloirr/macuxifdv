@@ -9,7 +9,7 @@
  * Só Android na v1 (§4). Build sem o módulo nativo (APK anterior a esta dependência): tudo vira no-op, sem quebrar o app.
  */
 import { ehAparelhoBloqueado, tratarAparelhoBloqueado } from '@macuxi/core/app';
-import type { Perfil } from '@macuxi/platform-sdk';
+import type { ArmazenamentoSync, Perfil } from '@macuxi/platform-sdk';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
@@ -30,7 +30,7 @@ import { varianteAtual } from '@/lib/variante';
 
 import { criarAmbienteDoAparelho } from './ambiente';
 import { ApiClient, HttpError, NetworkError } from './api';
-import { armazenamentoDoUsuario } from './armazenamento';
+import { abrirArmazenamentoDoUsuario, apagarBancosDoAparelho } from './armazenamento';
 import { apagarFotosLocais } from './arquivos';
 import { gravarTokens, lerTokens } from './credenciais';
 import { modoApi, perfilBuildAtual, platformDefaultApiUrl } from './device';
@@ -83,7 +83,7 @@ export function lerUltimoSegundoPlano(): Promise<ResultadoSegundoPlano | null> {
 // ---------- motor sem interface (app fechado) ----------
 interface SessaoGuardada {
   user?: { id?: string; name?: string; perfil?: Perfil | null };
-  tenant?: { fuso?: string } | null;
+  tenant?: { id?: string; fuso?: string } | null;
   modo?: string;
 }
 
@@ -94,7 +94,19 @@ async function usuarioDaSessao(): Promise<string | null> {
   return s.user.id;
 }
 
-async function abrirMotorSemInterface(usuarioId: string): Promise<MotorSegundoPlano> {
+/**
+ * T-0088: o armazenamento do usuário e tenant da sessão guardada, pela MESMA abertura do app (uma instância por arquivo no
+ * processo; a passagem do AsyncStorage roda uma vez só, aqui mesmo se o app ainda não abriu depois da atualização).
+ * Com o espelho gravado e o arquivo sem abrir (`erro`), a tarefa desiste: o app mostra "Tentar de novo".
+ */
+async function armazenamentoSemInterface(usuarioId: string): Promise<ArmazenamentoSync> {
+  const s = await readJson<SessaoGuardada>(keys.session);
+  const r = await abrirArmazenamentoDoUsuario({ usuarioId, tenantId: s?.tenant?.id ?? null, ...(s?.tenant?.fuso ? { fuso: s.tenant.fuso } : {}) });
+  if (r.tipo === 'erro') throw new Error(`banco local do usuário não abriu: ${r.detalhe}`);
+  return r.armazenamento;
+}
+
+async function abrirMotorSemInterface(usuarioId: string, armazenamento: Promise<ArmazenamentoSync>): Promise<MotorSegundoPlano> {
   const modo = modoApi();
   const [s, settings] = await Promise.all([readJson<SessaoGuardada>(keys.session), readJson<{ apiUrl?: string | null }>(keys.settings)]);
   const apiUrl = enderecoSalvoValido(perfilBuildAtual(), settings?.apiUrl) ?? platformDefaultApiUrl();
@@ -107,6 +119,7 @@ async function abrirMotorSemInterface(usuarioId: string): Promise<MotorSegundoPl
   const tratarBloqueio = criarTratadorAparelhoBloqueado(
     {
       motor: () => motorRef.m,
+      apagarBancos: apagarBancosDoAparelho,
       chavesLocais: async () => [...(await AsyncStorage.getAllKeys())],
       removerChaves: async (chaves) => {
         await Promise.all(chaves.map((k) => writeJson(k, null)));
@@ -148,7 +161,15 @@ async function abrirMotorSemInterface(usuarioId: string): Promise<MotorSegundoPl
       ...(s?.tenant?.fuso ? { fuso: s.tenant.fuso } : {}),
     }),
   });
-  const m = criarMotorDoUsuario({ usuarioId, shell: shellDaVariante(varianteAtual()), modo, api, online: () => !bloqueado && !sessaoInvalida, ambiente });
+  const m = criarMotorDoUsuario({
+    usuarioId,
+    armazenamento: await armazenamento,
+    shell: shellDaVariante(varianteAtual()),
+    modo,
+    api,
+    online: () => !bloqueado && !sessaoInvalida,
+    ambiente,
+  });
   motorRef.m = m;
   await m.carregar();
 
@@ -182,16 +203,30 @@ async function abrirMotorSemInterface(usuarioId: string): Promise<MotorSegundoPl
 /** Uma passada (chamada pelo sistema). Nunca duas ao mesmo tempo neste processo. */
 export function rodarPassadaEmSegundoPlano(): Promise<ResultadoSegundoPlano> {
   passada ??= (async () => {
+    // lease e motor na mesma abertura (o reserva no AsyncStorage não fica guardado no SDK: uma tentativa por passada)
+    const abertos = new Map<string, Promise<ArmazenamentoSync>>();
+    const armazenamentoDe = (usuarioId: string) => {
+      let a = abertos.get(usuarioId);
+      if (!a) {
+        a = armazenamentoSemInterface(usuarioId);
+        abertos.set(usuarioId, a);
+      }
+      return a;
+    };
     const r = await executarTarefaSegundoPlano({
       agora: () => Date.now(),
       modoSemSinal: async () => Boolean(await readJson<boolean>(keys.offline)),
       motorDoApp: () => appAberto?.motor ?? null,
       usuarioDaSessao,
       lease: (usuarioId) => {
-        const a = armazenamentoDoUsuario(usuarioId);
-        return { ler: () => a.ler<LeaseSync>(CHAVE_LEASE), gravar: (l) => a.gravar(CHAVE_LEASE, l), remover: () => a.remover(CHAVE_LEASE) };
+        const a = armazenamentoDe(usuarioId);
+        return {
+          ler: async () => (await a).ler<LeaseSync>(CHAVE_LEASE),
+          gravar: async (l) => (await a).gravar(CHAVE_LEASE, l),
+          remover: async () => (await a).remover(CHAVE_LEASE),
+        };
       },
-      abrirMotor: abrirMotorSemInterface,
+      abrirMotor: (usuarioId) => abrirMotorSemInterface(usuarioId, armazenamentoDe(usuarioId)),
     });
     await writeJson(CHAVE_ULTIMO_SEGUNDO_PLANO, r);
     if (r.resultado === 'falhou' || r.resultado === 'parcial') console.warn(`[sync segundo plano] ${r.resultado}: ${r.mensagem ?? ''}`);

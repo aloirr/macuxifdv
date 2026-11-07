@@ -42,7 +42,11 @@ export type IconName =
   | 'sun'
   | 'map'
   | 'camera'
-  | 'inbox';
+  | 'inbox'
+  | 'arvore'
+  | 'filtro'
+  | 'abaixo'
+  | 'subir';
 
 interface Props {
   name: IconName;
@@ -128,6 +132,12 @@ function render(name: IconName, c: Common) {
       );
     case 'back':
       return <Path d="m15 6-6 6 6 6" {...c} />;
+    case 'abaixo':
+      return <Path d="m6 9 6 6 6-6" {...c} />;
+    case 'filtro':
+      return <Path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" {...c} />;
+    case 'subir':
+      return <Path d="M12 20V6M6 11l6-6 6 6M5 3h14" {...c} />;
     case 'chevron':
       return <Path d="m9 6 6 6-6 6" {...c} />;
     case 'phone':
@@ -240,5 +250,8 @@ function render(name: IconName, c: Common) {
           <Path d="M3 13h5l1.5 3h5l1.5-3h5" {...c} />
         </>
       );
+    case 'arvore':
+      // lista em níveis (sistema › grupo › linha; atalho "Ver por linha" do Catálogo, T-0085)
+      return <Path d="M21 6H8M21 12h-8M21 18h-8M4 6v4a2 2 0 0 0 2 2h3M4 10v6a2 2 0 0 0 2 2h3" {...c} />;
   }
 }
