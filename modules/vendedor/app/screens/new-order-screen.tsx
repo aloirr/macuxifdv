@@ -592,10 +592,11 @@ function OrderEditor({ customerId, editId, visitId, stopId, vendedorEmNomeId, ve
             podeSalvar={!sent && canSend}
             rotuloSalvar={editId ? rotuloEdicao : 'Salvar'}
             somenteLeitura={Boolean(sent)}
+            pendencias={<PendenciasDoPedido erros={pagamentoAviso ? [...calculo.erros, pagamentoAviso] : calculo.erros} freteAviso={freteAviso} onIrPara={() => setAba('detalhes')} />}
           />
         ) : null}
 
-        {!sent ? <PendenciasDoPedido erros={pagamentoAviso ? [...calculo.erros, pagamentoAviso] : calculo.erros} freteAviso={freteAviso} onIrPara={() => setAba('detalhes')} /> : null}
+        {!sent && !noResumo ? <PendenciasDoPedido erros={pagamentoAviso ? [...calculo.erros, pagamentoAviso] : calculo.erros} freteAviso={freteAviso} onIrPara={() => setAba('detalhes')} /> : null}
 
         {!sent && !noResumo ? (
           <Botao testID="avancar" nivel="principal" rotulo="Avançar" onPress={() => irParaAba(aba === 'itens' ? 'detalhes' : 'resumo')} />

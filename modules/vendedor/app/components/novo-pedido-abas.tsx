@@ -385,6 +385,7 @@ export function AbaResumo({
   podeSalvar,
   rotuloSalvar,
   somenteLeitura,
+  pendencias,
 }: {
   rascunho: Rascunho;
   calculo: CalculoPedido;
@@ -400,6 +401,7 @@ export function AbaResumo({
   podeSalvar: boolean;
   rotuloSalvar: string;
   somenteLeitura: boolean;
+  pendencias?: ReactNode;
 }) {
   const frete = r.frete ?? { modalidade: fretePadrao };
   // T-0071 (RN-VEN-02): o ajuste do pedido é em % ou em R$ sobre o total dos itens
@@ -482,6 +484,7 @@ export function AbaResumo({
           {TEXTO_SEM_ITEM_NO_RESUMO}
         </Text>
       ) : null}
+      {somenteLeitura ? null : pendencias}
       {somenteLeitura ? null : (
         <View style={s.botoes}>
           <Button testID="cancelar-pedido" label="Cancelar" variant="outline" height={52} style={{ flex: 1 }} onPress={onCancelar} />
