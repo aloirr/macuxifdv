@@ -10,6 +10,7 @@
 import { implementarConsulta } from '@macuxi/platform-sdk';
 import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_TEXTOS_PRODUTO } from '../contracts';
 import { buscarParaConsulta, textosParaConsulta } from '../domain/busca-consulta';
+import { anoCivilNoFuso } from '../domain/ano-civil';
 import { parametrosDoTenant } from '../domain/parametros';
 import type { ProdutoCatalogo } from '../domain/vitrine';
 
@@ -65,7 +66,7 @@ export const consultaBuscaProdutos = implementarConsulta(CONSULTA_BUSCA_PRODUTOS
       limite: entrada.limite,
       sinonimos,
       parametros: parametrosDoTenant(ctx.parametros()),
-      anoAtual: Number(ctx.agora().toISOString().slice(0, 4)),
+      anoAtual: anoCivilNoFuso(ctx.agora(), ctx.fuso?.()),
     }),
   };
 });

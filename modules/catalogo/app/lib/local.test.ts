@@ -110,7 +110,7 @@ describe('pré-seleção do FTS5 em catálogo grande (T-0052-B2/B4)', () => {
       return g === 'cafe' ? [{ chave: idProdutoDemo('CAF-500'), pontuacao: -2 }] : [{ chave: idProdutoDemo('ACU-1K'), pontuacao: -1 }];
     };
     const r = await buscarLocal(leitor(grande(), fts), { ...entrada, q: 'café açúcar', limit: 20, offset: 0, offline: true });
-    expect(chamadas).toEqual(['[["cafe"]]', '[["acucar"]]']);
+    expect(chamadas).toEqual(['[["cafe"],["acucar"]]', '[["cafe"]]', '[["acucar"]]']); // 1º o AND, que traz só 1 (< CANDIDATOS_POR_TERMO): cai na união termo a termo
     expect(r.items.map((i) => sku(i.id)).sort()).toEqual(['ACU-1K', 'CAF-500']);
   });
 

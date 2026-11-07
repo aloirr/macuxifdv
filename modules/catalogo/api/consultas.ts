@@ -5,6 +5,7 @@
  */
 import { implementarConsulta } from '@macuxi/platform-sdk';
 import { CONSULTA_PRECOS_CLIENTE, type ItemTabelaPreco } from '../contracts';
+import type { LinhaEscalonada } from '../domain/escalonada';
 import { precosDoCliente } from '../domain/precos-cliente';
 import { verPrecoDoPerfil } from '../domain/visibilidade';
 
@@ -15,6 +16,7 @@ export const consultaPrecosCliente = implementarConsulta(CONSULTA_PRECOS_CLIENTE
   let tabelaId: string | null = null;
   let tabelaNome: string | null = null;
   let itens: ItemTabelaPreco[] = [];
+  let faixas: LinhaEscalonada[] = [];
   if (verPreco) {
     const t = await ctx.db.query(
       `select ct.tabela_preco_id, t.nome
@@ -47,5 +49,16 @@ export const consultaPrecosCliente = implementarConsulta(CONSULTA_PRECOS_CLIENTE
       }));
     }
   }
-  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco });
+  // RN-VEN-23: faixas dos produtos pedidos (da tabela do cliente ou gerais); só quem vê preço e só com tabela (RN-CAT-05/06). A vigência é decidida no domain.
+  if (verPreco && tabelaId && entrada.produto_ids.length > 0) {
+    const f = await ctx.db.query(
+      `select produto_id, medida, quantidade_minima::int as quantidade_minima, preco_unidade_cents::float8 as preco_unidade_cents,
+              vigencia_inicio::text as vigencia_inicio, vigencia_fim::text as vigencia_fim, tabela_preco_id, ativo
+         from catalogo.tabela_escalonada
+        where produto_id = any($1::uuid[]) and deleted_at is null and ativo and (tabela_preco_id is null or tabela_preco_id = $2::uuid)`,
+      [entrada.produto_ids, tabelaId],
+    );
+    faixas = f.rows as unknown as LinhaEscalonada[];
+  }
+  return precosDoCliente({ produtoIds: entrada.produto_ids, tabelaId, tabelaNome, itens, em: entrada.em, agora: ctx.agora().toISOString(), verPreco, faixas, fuso: ctx.fuso() });
 });

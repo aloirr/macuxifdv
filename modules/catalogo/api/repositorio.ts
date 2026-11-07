@@ -7,9 +7,10 @@
  * transação da requisição.
  */
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
-import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, SalvarCadastroCatalogo, SalvarConteudo, SalvarSinonimo, Sinonimo, StockByBranch, TermoSemResultado } from '../contracts';
+import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, SalvarCadastroCatalogo, SalvarConteudo, SalvarFaixa, SalvarSinonimo, Sinonimo, StockByBranch, TermoSemResultado } from '../contracts';
 import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { agruparTermosSemResultado, type ConteudoGuardado, type RegistroBusca } from '../domain/conteudo';
+import type { LinhaEscalonada } from '../domain/escalonada';
 import type { UsoIa } from '../domain/limite-ia';
 import type { ProdutoCatalogo } from '../domain/vitrine';
 
@@ -62,6 +63,31 @@ export interface RepositorioCatalogo {
    * `validarCadastroCatalogo`). Grava `codigo_compacto` com `codigoCompacto` do domain.
    */
   salvarCadastroCatalogo(produtoId: string, c: SalvarCadastroCatalogo, em: string): Promise<{ criado: boolean }>;
+  /** T-0089 (BKO Tabelas de preço): tabelas vivas com a contagem de itens da unidade base. */
+  tabelasPreco(): Promise<TabelaPrecoBko[]>;
+  /** Preço da UNIDADE BASE (item sem unidade) de cada produto da tabela (RN-VEN-15 nova). */
+  precosUnidade(tabelaId: string): Promise<PrecoUnidadeGuardado[]>;
+  /** RN-VEN-23: todas as faixas vivas (qualquer vigência, ativas ou não). */
+  faixas(): Promise<FaixaGuardada[]>;
+  salvarFaixa(id: string, f: SalvarFaixa): Promise<{ criado: boolean }>;
+  /** Remove (soft delete); falso se não existia. */
+  removerFaixa(id: string): Promise<boolean>;
+}
+
+/** Faixa guardada: a linha do domain + id e `external_id` (nulo = cadastrada à mão no BKO). */
+export type FaixaGuardada = LinhaEscalonada & { id: string; external_id: string | null };
+export interface TabelaPrecoBko {
+  id: string;
+  codigo: string;
+  nome: string;
+  ativo: boolean;
+  itens: number;
+}
+export interface PrecoUnidadeGuardado {
+  produto_id: string;
+  preco_cents: number;
+  vigencia_inicio: string | null;
+  vigencia_fim: string | null;
 }
 
 /** Fábrica por requisição (dentro de `ctx.comTenant`). */
@@ -78,6 +104,9 @@ export interface DadosTenantMemoria {
   ofereceJunto?: Map<string, string[]>;
   etiquetas?: Map<string, string[]>;
   sinonimos?: Sinonimo[];
+  /** T-0089: tabelas de preço (BKO) e tabela escalonada. */
+  tabelas?: { id: string; codigo: string; nome: string; ativo: boolean }[];
+  faixas?: FaixaGuardada[];
   /** Árvore do catálogo e vínculos produto → nó (exportação). */
   nos?: NoCatalogo[];
   vinculos?: VinculoProdutoNo[];
@@ -199,6 +228,31 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
       },
       async dadosExportacao() {
         return { nos: copia(d.nos ?? []), vinculos: copia(d.vinculos ?? []), ofereceJunto: new Map([...(d.ofereceJunto ?? new Map<string, string[]>()).entries()].map(([k, v]) => [k, [...v]])) };
+      },
+      async tabelasPreco() {
+        return (d.tabelas ?? []).map((t) => ({ ...t, itens: (d.itensPreco ?? []).filter((i) => i.price_table_id === t.id && i.unit == null).length }));
+      },
+      async precosUnidade(tabelaId) {
+        return (d.itensPreco ?? [])
+          .filter((i) => i.price_table_id === tabelaId && i.unit == null)
+          .map((i) => ({ produto_id: i.product_id, preco_cents: i.price_cents, vigencia_inicio: i.valid_from ?? null, vigencia_fim: i.valid_to ?? null }));
+      },
+      async faixas() {
+        return copia(d.faixas ?? []);
+      },
+      async salvarFaixa(id, f) {
+        const lista = (d.faixas ??= []);
+        const i = lista.findIndex((x) => x.id === id);
+        const nova: FaixaGuardada = { id, external_id: i >= 0 ? lista[i]!.external_id : null, produto_id: f.produto_id, medida: f.medida, quantidade_minima: f.quantidade_minima, preco_unidade_cents: f.preco_unidade_cents, vigencia_inicio: f.vigencia_inicio, vigencia_fim: f.vigencia_fim, tabela_preco_id: f.tabela_preco_id, ativo: f.ativo };
+        if (i >= 0) lista[i] = nova;
+        else lista.push(nova);
+        return { criado: i < 0 };
+      },
+      async removerFaixa(id) {
+        const lista = d.faixas ?? [];
+        const i = lista.findIndex((x) => x.id === id);
+        if (i >= 0) lista.splice(i, 1);
+        return i >= 0;
       },
       async salvarCadastroCatalogo(produtoId, c) {
         const p = d.produtos.find((x) => x.id === produtoId);

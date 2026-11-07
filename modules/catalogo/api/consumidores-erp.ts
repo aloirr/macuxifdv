@@ -12,8 +12,8 @@ import { CONSULTA_CADASTRO_RESUMO } from '@macuxi/core/contracts';
 import { CONSULTA_CONCORRENTES, type ConcorrentesSaida } from '@macuxi/promotor/contracts';
 import { definirConsumidor, ehConsultaIndisponivel, eventoTolerante, type ClienteBanco, type ConsumidorEvento, type ContextoConsumo } from '@macuxi/platform-sdk';
 import { z } from 'zod';
-import { CatalogoNoPayload, EstoquePayload, EVENTO_ERP_CATALOGO_NO_ATUALIZADO, EVENTO_ERP_ESTOQUE_ATUALIZADO, EVENTO_ERP_PRECO_ATUALIZADO, EVENTO_ERP_PRODUTO_ATUALIZADO, PrecoPayload, ProdutoPayload } from '../../integracao/contracts';
-import { codigoCompacto, parametrosDoTenant, planejarCadastroCatalogoDoErp, resolverReferenciasDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, type EventoErpBase } from '../domain';
+import { CatalogoNoPayload, EstoquePayload, EVENTO_ERP_CATALOGO_NO_ATUALIZADO, EVENTO_ERP_ESTOQUE_ATUALIZADO, EVENTO_ERP_PRECO_ATUALIZADO, EVENTO_ERP_PRODUTO_ATUALIZADO, EVENTO_ERP_TABELA_ESCALONADA_ATUALIZADO, PrecoPayload, ProdutoPayload, TabelaEscalonadaPayload } from '../../integracao/contracts';
+import { codigoCompacto, decidirColisaoEscalonada, parametrosDoTenant, planejarCadastroCatalogoDoErp, resolverReferenciasDoErp, planejarEscalonadaDoErp, planejarEstoqueDoErp, planejarNoDoErp, planejarPrecoDoErp, planejarProdutoNoDoErp, precoDoErpEhDaBase, type EventoErpBase } from '../domain';
 
 export class ReferenciaAusenteErp extends Error {
   constructor(
@@ -35,6 +35,14 @@ export const resolverProdutosPelaConsulta: ResolverProdutos = async (ctx, extern
   return mapa;
 };
 
+/** Unidade base (sigla) do produto do ERP, pela consulta do Core; nula se o produto não chegou. Injetável nos testes. */
+export type ResolverUnidadeBase = (ctx: ContextoConsumo, externalId: string) => Promise<string | null>;
+
+export const resolverUnidadeBasePelaConsulta: ResolverUnidadeBase = async (ctx, externalId) => {
+  const saida = await ctx.consultar(CONSULTA_CADASTRO_RESUMO, { cliente_ids: [], usuario_ids: [], produto_ids: [], produto_external_ids: [externalId] });
+  return saida.produtos.find((p) => p.external_id === externalId)?.unidade ?? null;
+};
+
 /**
  * Campos do produto do ERP que o Catálogo lê além do nó (T-0084 C1/C2, T-0085 K11). Leitura tolerante e local: o contrato do
  * Hub (`ProdutoPayload`) ganha os campos no lote do modulo-integracao; aqui só se confere a forma do que interessa.
@@ -50,6 +58,7 @@ const CadastroCatalogoErp = z
   .passthrough();
 
 export const EventoIntegracaoPrecoAtualizado = eventoTolerante(EVENTO_ERP_PRECO_ATUALIZADO);
+export const EventoIntegracaoTabelaEscalonadaAtualizado = eventoTolerante(EVENTO_ERP_TABELA_ESCALONADA_ATUALIZADO);
 export const EventoIntegracaoEstoqueAtualizado = eventoTolerante(EVENTO_ERP_ESTOQUE_ATUALIZADO);
 export const EventoIntegracaoCatalogoNoAtualizado = eventoTolerante(EVENTO_ERP_CATALOGO_NO_ATUALIZADO);
 /** Do produto do ERP o Catálogo lê só o nó da árvore; o cadastro do produto é do Core (que consome o mesmo evento). */
@@ -89,7 +98,7 @@ async function tabelaId(db: ClienteBanco, externalId: string, nome: string): Pro
   return nova.rows[0]!.id;
 }
 
-export function criarConsumidorPrecoDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta): ConsumidorEvento {
+export function criarConsumidorPrecoDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta, unidadeBase: ResolverUnidadeBase = resolverUnidadeBasePelaConsulta): ConsumidorEvento {
   return definirConsumidor({
     evento: EventoIntegracaoPrecoAtualizado,
     async executar(p, ctx: ContextoConsumo) {
@@ -101,6 +110,13 @@ export function criarConsumidorPrecoDoErp(resolver: ResolverProdutos = resolverP
       }
       const l = plano.linha;
       const produto = await produtoId(ctx, resolver, l.produto_external_id);
+      // RN-VEN-15 (nova, T-0089): preço de outra medida (ex.: CX) não vira o preço da UN. Aviso no monitor (log), sem recusar a linha;
+      // a embalagem vale UN × quantidade. Se já havia uma linha desse external_id, ela deixa de valer (soft delete).
+      if (l.unidade && !precoDoErpEhDaBase(l.unidade, await unidadeBase(ctx, l.produto_external_id))) {
+        ctx.log.warn({ external_id: l.external_id, unidade: l.unidade }, 'preço do ERP com unidade diferente da base do produto ignorado (a embalagem vale unidade base × quantidade, RN-VEN-15)');
+        await ctx.db.query('update catalogo.tabela_preco_item set deleted_at = now() where external_id = $1 and deleted_at is null', [l.external_id]);
+        return;
+      }
       const tabela = await tabelaId(ctx.db, l.tabela_external_id, l.tabela_nome);
       // Fim da vigência do ERP é inclusivo (data civil); no Catálogo o fim é exclusivo: dia seguinte à meia-noite UTC.
       await ctx.db.query(
@@ -268,7 +284,65 @@ export function criarConsumidorProdutoNoDoErp(resolver: ResolverProdutos = resol
   });
 }
 
+/**
+ * RN-VEN-23: `integracao.tabela_escalonada.atualizado@1` -> `catalogo.tabela_escalonada`. Upsert por `external_id`; faixa já cadastrada
+ * à mão no BKO com a mesma chave (produto, medida, mínimo, tabela, início) é adotada (grava o external_id) em vez de bater no
+ * índice único e deixar o evento em loop. Produto ou tabela que ainda não chegaram = `referencia_ausente` (repete, RN-INT-04).
+ * Inativação do ERP = soft delete (a faixa sai das consultas, nunca se apaga de verdade).
+ */
+export function criarConsumidorTabelaEscalonadaDoErp(resolver: ResolverProdutos = resolverProdutosPelaConsulta): ConsumidorEvento {
+  return definirConsumidor({
+    evento: EventoIntegracaoTabelaEscalonadaAtualizado,
+    async executar(p, ctx: ContextoConsumo) {
+      const plano = planejarEscalonadaDoErp(comRegistro(p, TabelaEscalonadaPayload));
+      if (plano.tipo === 'ignorar') return;
+      if (plano.tipo === 'inativar') {
+        await ctx.db.query('update catalogo.tabela_escalonada set deleted_at = now() where external_id = $1 and deleted_at is null', [plano.external_id]);
+        return;
+      }
+      const l = plano.linha;
+      const produto = await produtoId(ctx, resolver, l.produto_external_id);
+      let tabela: string | null = null;
+      if (l.tabela_external_id) {
+        tabela = (await ctx.db.query<{ id: string }>('select id from catalogo.tabela_preco where external_id = $1 and deleted_at is null', [l.tabela_external_id])).rows[0]?.id ?? null;
+        if (!tabela) throw new ReferenciaAusenteErp('tabela_preco');
+      }
+      const chave = [produto, l.medida, l.quantidade_minima, tabela, l.vigencia_inicio];
+      await ctx.db.query(
+        `update catalogo.tabela_escalonada set external_id = $6
+          where external_id is null and deleted_at is null and produto_id = $1::uuid and medida is not distinct from $2::text
+            and quantidade_minima = $3::int and tabela_preco_id is not distinct from $4::uuid and vigencia_inicio = $5::date
+            and not exists (select 1 from catalogo.tabela_escalonada o where o.external_id = $6 and o.deleted_at is null)`,
+        [...chave, l.external_id],
+      );
+      // colisão com OUTRA linha viva na mesma chave (outro external_id do ERP, ou manual que a adoção não pôde assumir): a do ERP vale,
+      // a outra sai por soft delete e o aviso vai ao log. Sem isso o 23505 repetiria na outbox sem fim.
+      const outras = await ctx.db.query<{ id: string; external_id: string | null }>(
+        `select id, external_id from catalogo.tabela_escalonada
+          where deleted_at is null and external_id is distinct from $6 and produto_id = $1::uuid and medida is not distinct from $2::text
+            and quantidade_minima = $3::int and tabela_preco_id is not distinct from $4::uuid and vigencia_inicio = $5::date`,
+        [...chave, l.external_id],
+      );
+      for (const o of outras.rows) {
+        if (decidirColisaoEscalonada(o.external_id, l.external_id, true) === 'nenhuma') continue;
+        await ctx.db.query('update catalogo.tabela_escalonada set deleted_at = now() where id = $1::uuid', [o.id]);
+        ctx.log.warn({ external_id: l.external_id, substituida: o.external_id ? 'erp' : 'manual' }, 'faixa escalonada do ERP colidiu com outra faixa viva na mesma chave: a do ERP vale e a anterior foi inativada');
+      }
+      await ctx.db.query(
+        `insert into catalogo.tabela_escalonada (tenant_id, produto_id, medida, quantidade_minima, preco_unidade_cents, vigencia_inicio, vigencia_fim, tabela_preco_id, ativo, external_id)
+         values (plataforma.tenant_atual(), $1::uuid, $2, $3::int, $4::bigint, $5::date, $6::date, $7::uuid, true, $8)
+         on conflict (tenant_id, external_id) where external_id is not null and deleted_at is null
+         do update set produto_id = excluded.produto_id, medida = excluded.medida, quantidade_minima = excluded.quantidade_minima,
+                       preco_unidade_cents = excluded.preco_unidade_cents, vigencia_inicio = excluded.vigencia_inicio,
+                       vigencia_fim = excluded.vigencia_fim, tabela_preco_id = excluded.tabela_preco_id, ativo = true`,
+        [produto, l.medida, l.quantidade_minima, l.preco_unidade_cents, l.vigencia_inicio, l.vigencia_fim, tabela, l.external_id],
+      );
+    },
+  });
+}
+
 export const consumidoresDoErp: ConsumidorEvento[] = [
+  criarConsumidorTabelaEscalonadaDoErp(),
   criarConsumidorPrecoDoErp(),
   criarConsumidorEstoqueDoErp(),
   criarConsumidorCatalogoNoDoErp(),

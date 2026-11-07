@@ -63,6 +63,139 @@ export function codigosDaConsulta(texto: string): string[] {
   return [...achados];
 }
 const NIVEL = { exato: 1, prefixo: 0.7, digitacao: 0.5 } as const;
+
+/** Termos da aplicação para casar por igualdade e prefixo (sem tolerância de digitação: ela fica nos campos curtos). */
+interface TermosAplicacao {
+  /** Ordenados e sem repetição; as cadeias vêm do vocabulário compartilhado (cada termo existe uma vez só na memória). */
+  ordenados: readonly string[];
+}
+/** Vocabulário compartilhado: "dianteiro" de 20 mil aplicações é uma cadeia só (a memória guarda ponteiros, não cópias). */
+const VOCABULARIO = new Map<string, string>();
+const LIMITE_VOCABULARIO = 50_000;
+function internar(t: string): string {
+  const v = VOCABULARIO.get(t);
+  if (v !== undefined) return v;
+  if (VOCABULARIO.size >= LIMITE_VOCABULARIO) VOCABULARIO.clear();
+  VOCABULARIO.set(t, t);
+  return t;
+}
+function termosDaAplicacao(texto: string): TermosAplicacao {
+  return { ordenados: [...new Set(tokensDeBuscaSemMemo(texto))].map(internar).sort() };
+}
+
+/** Posição do primeiro termo >= q (busca binária). */
+function primeiroNaoMenor(o: readonly string[], q: string): number {
+  let a = 0;
+  let b = o.length;
+  while (a < b) {
+    const m = (a + b) >> 1;
+    if (o[m]! < q) a = m + 1;
+    else b = m;
+  }
+  return a;
+}
+
+/** Mesmo critério de `nivelDaPalavra` para exato e prefixo (medidas e códigos só exatos), em O(log n) sobre os termos ordenados. */
+function nivelNaAplicacao(q: string, t: TermosAplicacao): number {
+  const o = t.ordenados;
+  const i = primeiroNaoMenor(o, q);
+  if (i < o.length && o[i] === q) return NIVEL.exato;
+  if (q.length < 3 || /\d/.test(q) || MEDIDA_RE.test(q)) return 0;
+  // o primeiro termo >= q é o único candidato a prefixo (um termo maior que q e que começa com q fica logo depois de q)
+  return i < o.length && o[i]!.startsWith(q) ? NIVEL.prefixo : 0;
+}
+
+function melhorNivelAplicacao(alternativa: string, t: TermosAplicacao): number {
+  const palavras = alternativa.split(' ').filter(Boolean);
+  if (palavras.length === 0) return 0;
+  let menor = 1;
+  for (const q of palavras) {
+    menor = Math.min(menor, nivelNaAplicacao(q, t));
+    if (menor === 0) return 0;
+  }
+  return menor;
+}
+
+interface AnaliseAplicacao {
+  /** Texto de origem: a entrada só vale enquanto o cadastro não muda (mesma função de `updated_at` do produto, sem depender dele). */
+  texto: string;
+  anos: number[];
+  /** Termos do texto inteiro: só calculados quando a busca não precisa casar por trecho. */
+  todos?: TermosAplicacao;
+  segmentos: number;
+  /** Só quando a consulta tem ano e a aplicação tem 2+ trechos com anos (RN-CAT-12, mesmo trecho). */
+  trechos?: { anos: number[]; termos: TermosAplicacao }[];
+}
+type Trecho = { anos: number[]; termos: TermosAplicacao };
+/**
+ * Memória da análise por produto: chave curta `produto_id|ano` (T-0084 §4.5), validada pelo texto da aplicação (que só muda
+ * quando o `updated_at` do produto muda). Teto de 800 entradas (2 × 400 candidatos) com LRU: sai o menos usado, nunca tudo de uma vez.
+ * A chave pelo texto inteiro, com 3.000 entradas, mediu 90 MB.
+ */
+const MEMO_APLICACAO = new Map<string, AnaliseAplicacao>();
+export const LIMITE_MEMO_APLICACAO = 800;
+/** Trechos iguais se repetem entre produtos ("Fiat Uno 1.0 2010–2014"): a análise de cada trecho sai uma vez só. */
+const MEMO_TRECHOS = new Map<string, Trecho>();
+export const LIMITE_MEMO_TRECHOS = 2000;
+export function esquecerMemoriaRanking(): void {
+  MEMO_APLICACAO.clear();
+  MEMO_TRECHOS.clear();
+  VOCABULARIO.clear();
+}
+
+const bytesDeTermos = (t: TermosAplicacao | undefined) => (t ? 48 + 8 * t.ordenados.length : 0); // ponteiros: as cadeias são do vocabulário
+/** Estimativa determinística (bytes) da memória do ranking: cadeias a 2 bytes/caractere, sobrecarga fixa por termo e por entrada. */
+export function estimarMemoriaRanking(): { entradas: number; trechos: number; bytes: number } {
+  let bytes = 0;
+  const vistos = new Set<Trecho>();
+  for (const [k, a] of MEMO_APLICACAO) {
+    bytes += 200 + k.length * 2 + a.texto.length * 2 + 8 * a.anos.length + bytesDeTermos(a.todos);
+    for (const t of a.trechos ?? []) if (!vistos.has(t)) { vistos.add(t); bytes += 64 + 8 * t.anos.length + bytesDeTermos(t.termos); }
+  }
+  for (const [k, t] of MEMO_TRECHOS) if (!vistos.has(t)) bytes += 200 + k.length * 2 + 8 * t.anos.length + bytesDeTermos(t.termos);
+  for (const v of VOCABULARIO.keys()) bytes += 40 + v.length * 2;
+  return { entradas: MEMO_APLICACAO.size, trechos: MEMO_TRECHOS.size, bytes };
+}
+
+function analisarTrecho(seg: string, anoAtual: number): Trecho {
+  const chave = `${anoAtual}|${seg}`;
+  let t = MEMO_TRECHOS.get(chave);
+  if (!t) {
+    const e = expandirAplicacao(seg, { anoAtual });
+    t = { anos: e.anos, termos: termosDaAplicacao(e.textoIndice) };
+    if (MEMO_TRECHOS.size >= LIMITE_MEMO_TRECHOS) MEMO_TRECHOS.delete(MEMO_TRECHOS.keys().next().value!);
+    MEMO_TRECHOS.set(chave, t);
+  }
+  return t;
+}
+function analisarAplicacao(id: string, aplicacao: string, anoAtual: number, comTrechos: boolean): AnaliseAplicacao & { todos: TermosAplicacao } {
+  const chave = `${id}|${anoAtual}`;
+  let novo: ReturnType<typeof expandirAplicacao> | undefined;
+  let a = MEMO_APLICACAO.get(chave);
+  if (a && a.texto !== aplicacao) a = undefined; // cadastro mudou
+  if (a) {
+    MEMO_APLICACAO.delete(chave); // LRU: o usado agora vira o mais novo
+    MEMO_APLICACAO.set(chave, a);
+  } else {
+    const e = expandirAplicacao(aplicacao, { anoAtual });
+    novo = e;
+    a = { texto: aplicacao, anos: e.anos, segmentos: aplicacao.split(SEPARADOR_TRECHO).filter((x) => x.trim() !== '').length };
+    MEMO_APLICACAO.delete(chave);
+    if (MEMO_APLICACAO.size >= LIMITE_MEMO_APLICACAO) MEMO_APLICACAO.delete(MEMO_APLICACAO.keys().next().value!);
+    MEMO_APLICACAO.set(chave, a);
+  }
+  const porTrecho = comTrechos && a.segmentos >= 2 && a.anos.length > 0;
+  if (porTrecho && !a.trechos) {
+    a.trechos = aplicacao
+      .split(SEPARADOR_TRECHO)
+      .map((x) => x.trim())
+      .filter((x) => x !== '')
+      .map((seg) => analisarTrecho(seg, anoAtual));
+  }
+  // o texto expandido não fica na memória (só os termos): reexpandir custa pouco perto de guardar ~2× o cadastro
+  if (!porTrecho && !a.todos) a.todos = termosDaAplicacao(novo?.textoIndice ?? expandirAplicacao(aplicacao, { anoAtual }).textoIndice);
+  return a as AnaliseAplicacao & { todos: TermosAplicacao };
+}
 const MEDIDA_RE = /^\d+(\.\d+)?(ml|g|cm|mm|un)$/;
 const arred6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
@@ -163,14 +296,16 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
     for (const alt of g) for (const c of campos) m = Math.max(m, melhorNivel(alt, c.termos) * c.peso);
     return m;
   });
+  let refMemo: number | null | undefined;
+  const refCasada = () => (refMemo === undefined ? (refMemo = referenciaCasada(grupos, referencias)) : refMemo);
   const montar = (soma: number, casados: number, casadosSoAplicacao: number, casouPalavra: boolean): PontuacaoTextual => {
     // número solto ("50") não basta para o produto ser relevante quando a consulta também tem palavras
     const temPalavra = grupos.some((g) => g.some((alt) => /[a-z]/.test(alt)));
     const s = temPalavra && !casouPalavra ? 0 : soma;
-    return { pontos: arred6(s / grupos.length), casados, total: grupos.length, so_aplicacao: casados > 0 && casadosSoAplicacao === casados, referencia_casada: referenciaCasada(grupos, referencias) };
+    return { pontos: arred6(s / grupos.length), casados, total: grupos.length, so_aplicacao: casados > 0 && casadosSoAplicacao === casados, referencia_casada: refCasada() };
   };
   /** `termosApl` nulo = sem campo aplicação. `exigirAno`: o ano da consulta tem de cair nos anos desse trecho. */
-  const avaliar = (termosApl: string[] | null, anosApl: number[], exigirAno: boolean): PontuacaoTextual | null => {
+  const avaliar = (termosApl: TermosAplicacao | null, anosApl: number[], exigirAno: boolean): PontuacaoTextual | null => {
     let soma = 0;
     let casados = 0;
     let casadosSoAplicacao = 0;
@@ -181,7 +316,7 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
       let melhor = melhorOutros;
       if (termosApl) {
         let melhorAplicacao = 0;
-        for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivel(alt, termosApl) * pesoAplicacao);
+        for (const alt of grupo) melhorAplicacao = Math.max(melhorAplicacao, melhorNivelAplicacao(alt, termosApl) * pesoAplicacao);
         melhor = Math.max(melhor, melhorAplicacao);
         // RN-CAT-12: ano da consulta que a aplicação (com anos) não cobre tira o produto, salvo se casar em outro campo
         const anosDoGrupo = grupo.filter((alt) => ANO_RE.test(alt));
@@ -198,22 +333,24 @@ export function pontuacaoTextual(grupos: readonly (readonly string[])[], doc: Do
   };
 
   if (aplicacao === '') return avaliar(null, [], false)!;
-  const todaExpandida = expandirAplicacao(aplicacao, { anoAtual });
-  const segmentos = aplicacao.split(SEPARADOR_TRECHO).map((x) => x.trim()).filter((x) => x !== '');
-  if (!temAnoNaConsulta || segmentos.length < 2 || todaExpandida.anos.length === 0) {
-    return avaliar(tokensDeBuscaSemMemo(todaExpandida.textoIndice), todaExpandida.anos, todaExpandida.anos.length > 0) ?? SEM_PONTOS(grupos.length);
+  // atalho: se todo termo já casa nos outros campos com nota >= à máxima possível da aplicação (o peso), ela não muda nada
+  // (nem a nota, nem `so_aplicacao`, nem o filtro de ano, que só vale onde os outros campos zeram): mesmo resultado, sem analisar
+  if (outros.every((o) => o > 0 && o >= pesoAplicacao)) return avaliar(null, [], false)!;
+  const analise = analisarAplicacao(doc.id, aplicacao, anoAtual, temAnoNaConsulta);
+  const trechos = temAnoNaConsulta ? analise.trechos : undefined;
+  if (!trechos) {
+    return avaliar(analise.todos, analise.anos, analise.anos.length > 0) ?? SEM_PONTOS(grupos.length);
   }
   // RN-CAT-12 (T-0084-A4): com ano na consulta, veículo/modelo e ano têm de casar no MESMO trecho (separado por ";")
-  const trechos = segmentos.map((seg) => {
-    const e = expandirAplicacao(seg, { anoAtual });
-    return { anos: e.anos, termos: tokensDeBuscaSemMemo(e.textoIndice) };
-  });
-  const casaEm = (gi: number, termos: string[]) => grupos[gi]!.some((alt) => melhorNivel(alt, termos) > 0);
+  // quais grupos cada trecho cobre: calculado uma vez (antes era refeito para cada trecho × cada outro trecho)
+  const soAplicacao = grupos.map((g, gi) => outros[gi] === 0 && !g.some((alt) => ANO_RE.test(alt)));
+  const casa = trechos.map((t) => grupos.map((g, gi) => soAplicacao[gi]! && g.some((alt) => melhorNivelAplicacao(alt, t.termos) > 0)));
+  const emAlgumTrecho = grupos.map((_, gi) => casa.some((c) => c[gi]));
   let melhorResultado: PontuacaoTextual | null = null;
-  for (const t of trechos) {
+  for (let ti = 0; ti < trechos.length; ti++) {
+    const t = trechos[ti]!;
     // termo que só a aplicação cobre (em algum trecho) tem de estar neste trecho, senão o texto seria montado de trechos diferentes
-    const emOutroTrecho = grupos.some((g, gi) => outros[gi] === 0 && !g.some((alt) => ANO_RE.test(alt)) && !casaEm(gi, t.termos) && trechos.some((o) => o !== t && casaEm(gi, o.termos)));
-    if (emOutroTrecho) continue;
+    if (grupos.some((_, gi) => soAplicacao[gi]! && !casa[ti]![gi]! && emAlgumTrecho[gi])) continue;
     const r = avaliar(t.termos, t.anos, true);
     if (r && (melhorResultado === null || r.pontos > melhorResultado.pontos)) melhorResultado = r;
   }
