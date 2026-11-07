@@ -13,6 +13,7 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
+    "openapi": "tsx api/openapi/gravar.ts",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
