@@ -2178,7 +2178,7 @@
       "chaveConector": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "Chave de API do Conector (mxk_<prefixo>_<chave>)",
+        "bearerFormat": "Chave de API do Conector (mxc_ + 43 caracteres base64url)",
         "description": "Uma chave de API por Conector, emitida pelo administrador da empresa no BKO (mostrada uma única vez; rotacionável sem parar o Conector). Envie `Authorization: Bearer <chave>` e `X-Macuxi-Conector-Id` em TODA chamada. A chave só abre `/integracao/v1`. A empresa (tenant) vem da chave, nunca do corpo, da query nem de cabeçalho."
       }
     },

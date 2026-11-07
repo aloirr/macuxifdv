@@ -33,7 +33,7 @@ Em **toda** chamada:
 
 | Cabeçalho | Valor |
 |---|---|
-| `Authorization` | `Bearer <chave de API>` (formato `mxk_<prefixo>_<chave>`; trate como senha) |
+| `Authorization` | `Bearer <chave de API>` (formato `mxc_` seguido de 43 caracteres base64url; trate como senha) |
 | `X-Macuxi-Conector-Id` | o identificador do Conector cadastrado no BKO (letras, números, `.`, `-`, `_`; até 100) |
 | `X-Macuxi-Conector-Versao` | opcional e informativo: versão do seu software (semver, ex.: `1.2.1`) |
 | `Content-Type` | `application/json` nos `POST` |

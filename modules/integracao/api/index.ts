@@ -16,12 +16,13 @@ import { rotaCargaArquivo, rotaConferirArquivo, rotaErrosLote, rotaErrosLoteCsv,
 import { rotaDecidirInativacao } from './bko-inativacao';
 import { criarRotasConectores } from './bko-conectores';
 import { rotaMonitor } from './bko-monitor';
-import { rotaOpenApi } from './bko-openapi';
+import { documentoOpenApiPublico } from './openapi/publico';
 import { rotaGravarPolitica, rotaLerPolitica } from './bko-politica';
 import { consultarCursor, consultarLote, enviarLote, enviarReconciliacao } from './rotas-lotes';
 import { pedidosPendentes, retornoPedido, sinalDeVida } from './rotas-pedidos';
 
 export { gerarOpenApiHub, openApiHub, type DocumentoOpenApi } from './openapi/gerar';
+export { documentoOpenApiPublico } from './openapi/publico';
 
 const LIMITE_CORPO_LOTE = 8 * 1024 * 1024;
 const MAX_ELEMENTOS_LOTE = 1_000_000;
@@ -55,7 +56,9 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined }
     manifesto: manifest,
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado],
-    rotas: [rotaMonitor, rotaOpenApi, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo],
+    rotas: [rotaMonitor, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo],
+    // T-0092: especificação pública (sem token); ETag, 304 e Cache-Control são da plataforma
+    rotasPublicas: [{ metodo: 'GET', caminho: 'openapi.json', limite: { max: 60, janelaMs: 60_000 }, cache: { maxAgeSegundos: 3600 }, executar: async () => documentoOpenApiPublico() }],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),
   });
 }
