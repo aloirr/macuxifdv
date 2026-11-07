@@ -15,6 +15,9 @@
  *   (inclusive a FTS), `_esquema` sem o módulo e `PRAGMA incremental_vacuum` fora da transação.
  * - L-1: índice (re)criado vazio com fonte já sincronizada é reindexado das linhas locais (marca `_busca:<i>:reindexar`,
  *   lotes cedendo o loop) antes do `rebuild`, na consulta ou no fim do sync.
+ * - Reindexação marcada (T-0084): `versaoDocumentos` do índice diferente da guardada (`_busca:<i>:versao`) = marca
+ *   `_busca:<i>:reindexar` = `'versao'`; a busca dispara a reindexação EM SEGUNDO PLANO e responde com os documentos
+ *   antigos; o `finalizar` espera. A marca do L-1 (`true`, índice vazio) continua bloqueando a busca até reindexar.
  * - Busca (FTS5, content externo): manutenção na mesma transação do lote — incremental (`'delete'` com os valores
  *   antigos + insert) ou, na carga em massa (índice vazio ou > 2.000 chaves numa página), só a tabela de documentos e
  *   `'rebuild'` no fim do sync (`busca.finalizar`) ou na primeira consulta.
@@ -24,12 +27,14 @@ import {
   montarConsultaFts,
   type BuscaTextoSync,
   type ConsultaTexto,
+  type ContextoIndice,
   type DesfechoBusca,
   type IndiceBusca,
   type LeitorLinhas,
   type ResultadoBusca,
 } from '../busca';
 import { validarCampoLinha, valoresDeCampo, type ArmazenamentoSync, type LinhasSync, type ValorCampoLinha } from '../motor-sync';
+import { FUSO_PADRAO_TENANT, fusoDoTenantOuPadrao } from '../fuso';
 import { MODULOS, type ModuloId } from '../nomes';
 import type { LinhaSync } from '../sync';
 import type { DriverSqlite, ValorSql } from './driver';
@@ -63,6 +68,13 @@ const chaveSujo = (indice: string) => `_busca:${indice}:sujo`;
  * repovoa: reindexação completa a partir das linhas locais. Persistida (a reindexação pode cair no meio).
  */
 const chaveReindexar = (indice: string) => `_busca:${indice}:reindexar`;
+/**
+ * Marca de reindexação: `true` = L-1 (índice vazio; a busca espera); `'versao'` = `versaoDocumentos` mudou (T-0084;
+ * os documentos antigos ainda servem, a busca não espera).
+ */
+type MarcaReindexar = true | 'versao';
+/** Última `versaoDocumentos` com que o índice foi (ou está sendo) indexado (T-0084). */
+const chaveVersao = (indice: string) => `_busca:${indice}:versao`;
 const CAMPO_RE = /^[a-z][a-z0-9_]*$/;
 /** Maior caractere do BMP: limite superior da faixa de `chaves(prefixo)` (sem LIKE, sem escapar `%`/`_`). */
 const FIM_FAIXA = '￿';
@@ -118,6 +130,12 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
   const removidos = new Set<ModuloId>();
   let mudancasIncrementais = 0;
   let vacuumPendente = false;
+  /** Fuso do tenant para a indexação (`busca.conferirVersoes`, chamado pelo motor); até lá, o padrão. */
+  let fusoIndice = FUSO_PADRAO_TENANT;
+  let fusoInformado: string | undefined;
+  const contextoIndice = (): ContextoIndice => ({ agora: agora(), fuso: fusoIndice });
+  /** Índice → última versão conferida contra o disco nesta sessão (conferir de novo só quando mudar). */
+  const versaoConferida = new Map<string, string>();
 
   // ---------- fila de escrita ----------
   let cauda: Promise<unknown> = Promise.resolve();
@@ -292,8 +310,9 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
     const vazio = (await d.primeira<{ n: number }>(`SELECT count(*) AS n FROM ${i.tabelaDoc}`))!.n === 0;
     const massa = sujo || vazio || chaves.size > LIMITE_INCREMENTAL_BUSCA;
     const ler = leitor(d);
+    const ctx = contextoIndice();
     for (const chave of chaves) {
-      const doc = await i.documento(chave, ler);
+      const doc = await i.documento(chave, ler, ctx);
       const antigo = await d.primeira<DocAntigo>(`SELECT rid, ${listaCols} FROM ${i.tabelaDoc} WHERE ${i.colunaChave} = ?`, [chave]);
       const valores = doc ? cols.map((c) => doc[c] ?? null) : [];
       if (!massa && antigo)
@@ -356,7 +375,7 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
     const emCurso = reindexando.get(i.id);
     if (emCurso) return emCurso;
     const p = (async () => {
-      if ((await lerKv<boolean>(driver, chaveReindexar(i.id))) !== true) return;
+      if ((await lerKv<MarcaReindexar>(driver, chaveReindexar(i.id))) === null) return;
       if (!(await serializar(() => indiceValido(driver, i)))) return;
       const chaves = new Set<string>();
       for (const f of i.fontes) {
@@ -598,6 +617,8 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
       if (i.modulo === m) {
         await removerKv(tx, chaveSujo(i.id));
         await removerKv(tx, chaveReindexar(i.id));
+        await removerKv(tx, chaveVersao(i.id));
+        versaoConferida.delete(i.id);
       }
     await soltarObjetosDoModulo(tx, m);
     marcarRemovido(m);
@@ -629,17 +650,28 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
       if (!fts) return { buscou: false, motivo: 'consulta_vazia' };
       if (indisponiveis.has(i.modulo) && !(await serializar(() => garantirModulo(driver, i.modulo))))
         return { buscou: false, motivo: 'modulo_indisponivel' };
-      if (!(await serializar(() => indiceValido(driver, i)))) return { buscou: false, motivo: 'indice_invalido' };
-      await reindexarSeMarcado(i);
+      // já validado nesta sessão: sem entrar na fila de escrita (a reindexação por versão pode estar com um lote aberto)
+      const valido = (indicesValidos.get(i.id) === true && !removidos.has(i.modulo)) || (await serializar(() => indiceValido(driver, i)));
+      if (!valido) return { buscou: false, motivo: 'indice_invalido' };
+      const marca = await lerKv<MarcaReindexar>(driver, chaveReindexar(i.id));
+      if (marca === true) await reindexarSeMarcado(i);
+      else if (marca === 'versao')
+        // T-0084: os documentos antigos ainda respondem; a reindexação segue sem prender a tela
+        void reindexarSeMarcado(i).catch((e: unknown) => registrarErro(`reindexação do índice ${i.id} falhou: ${(e as Error).message}`));
       if ((await lerKv<boolean>(driver, chaveSujo(i.id))) === true)
         await serializar(() => transacao((tx) => reconstruir(tx, i)));
       const pesos = Object.values(i.colunas).join(', ');
       try {
+        // T-0084: os `limite` melhores saem do FTS ANTES de ler a tabela de documentos (com aplicação longa, ler a linha
+        // de cada acerto custava ~1/3 da consulta em 20 mil produtos). Empate exato no corte: o menor `rid` fica.
         const rs = await driver.todas<{ chave: string; pontuacao: number }>(
-          `SELECT d.${i.colunaChave} AS chave, bm25(${i.tabelaFts}, ${pesos}) AS pontuacao
-             FROM ${i.tabelaFts} JOIN ${i.tabelaDoc} d ON d.rid = ${i.tabelaFts}.rowid
-            WHERE ${i.tabelaFts} MATCH ?
-            ORDER BY pontuacao, chave LIMIT ?`,
+          `SELECT d.${i.colunaChave} AS chave, m.pontuacao
+             FROM (SELECT rowid AS rid, bm25(${i.tabelaFts}, ${pesos}) AS pontuacao
+                     FROM ${i.tabelaFts}
+                    WHERE ${i.tabelaFts} MATCH ?
+                    ORDER BY pontuacao, rowid LIMIT ?) m
+             JOIN ${i.tabelaDoc} d ON d.rid = m.rid
+            ORDER BY m.pontuacao, chave`,
           [fts, limiteDaConsulta(consulta)],
         );
         return { buscou: true, resultados: rs.map((r) => ({ chave: r.chave, pontuacao: r.pontuacao })) };
@@ -647,6 +679,43 @@ export function criarArmazenamentoSqlite(driver: DriverSqlite, opcoes: OpcoesArm
         // erro do FTS = não buscou (em `buscar`, lista vazia); o log leva só o tamanho e o índice (nunca o texto digitado)
         registrarErro(`busca ${i.id} recusada pelo FTS (consulta de ${fts.length} caracteres): ${(e as Error).message}`);
         return { buscou: false, motivo: 'erro_busca' };
+      }
+    },
+    async conferirVersoes(c) {
+      await aberto();
+      // `fusoDoTenantOuPadrao` cria um `Intl.DateTimeFormat`: só quando o fuso informado muda (roda a cada busca)
+      if (c.fuso !== fusoInformado) {
+        fusoInformado = c.fuso;
+        fusoIndice = fusoDoTenantOuPadrao(c.fuso);
+      }
+      const ctx = contextoIndice();
+      for (const i of indices) {
+        if (!i.versaoDocumentos || indisponiveis.has(i.modulo) || removidos.has(i.modulo)) continue;
+        let versao: string;
+        try {
+          versao = String(i.versaoDocumentos(ctx));
+        } catch (e) {
+          registrarErro(`índice de busca ${i.id}: versaoDocumentos falhou: ${(e as Error).message}`);
+          continue;
+        }
+        if (versaoConferida.get(i.id) === versao) continue;
+        try {
+          await serializar(() =>
+            transacao(async (tx) => {
+              if (!(await existeTabela(tx, i.tabelaDoc))) return;
+              if ((await lerKv<string>(tx, chaveVersao(i.id))) === versao) return;
+              const temDocumento = (await tx.primeira<{ n: number }>(`SELECT EXISTS (SELECT 1 FROM ${i.tabelaDoc}) AS n`))!.n > 0;
+              // a marca do L-1 (`true`) é mais forte: não rebaixa para `'versao'`
+              if (temDocumento && (await lerKv<MarcaReindexar>(tx, chaveReindexar(i.id))) !== true)
+                await gravarKv(tx, chaveReindexar(i.id), 'versao' satisfies MarcaReindexar);
+              await gravarKv(tx, chaveVersao(i.id), versao);
+            }),
+          );
+          versaoConferida.set(i.id, versao);
+        } catch (e) {
+          // a próxima conferência tenta de novo (a busca segue com os documentos que tem)
+          registrarErro(`índice de busca ${i.id}: conferência da versão falhou: ${(e as Error).message}`);
+        }
       }
     },
     async finalizar() {

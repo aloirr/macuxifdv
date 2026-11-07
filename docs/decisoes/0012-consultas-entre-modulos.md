@@ -61,3 +61,8 @@ ser validado na hora do push.
   dependência inativa para o usuário → `ConsultaIndisponivel`. O `ContextoConsultaAparelho` ganhou `linhasPorCampo` e
   `versaoLinhas`, as mesmas do motor (ADR 0003, T-0052-B4), com a mesma restrição. Só alarga o canal do aparelho e não muda a
   regra 1: `depende` já é a aresta que o provedor declara, e no servidor a consulta continua fazendo SQL só no próprio schema.
+- **Complemento (T-0084, 2026-11-06, busca)**: o `ContextoConsultaAparelho` ganhou `buscarComDesfecho(indice, consulta)`, a
+  mesma busca FTS5 do `motor.buscarComDesfecho`, só nos índices do **próprio** módulo dono da consulta (índice de outro módulo,
+  inclusive de `depende`, é erro de programação). Serve para pré-selecionar candidatos antes do ranking do domain. `buscou:
+  false` = o módulo varre como a aba. O índice também pode declarar `versaoDocumentos(ctx)`: o SQLite reindexa em segundo plano
+  quando ela muda (ex.: virada do ano no fuso do tenant). Registro: `.coord/contratos/modulos.md` (Leituras do motor).

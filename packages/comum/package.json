@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Utilitários transversais puros: dinheiro em centavos, calendário de dias úteis (ADR 0002), datas no fuso do tenant (/fuso), relógio injetável de teste (/relogio) e CNPJ/CPF (/documento).",
+  "description": "Utilitários transversais puros: dinheiro em centavos, calendário de dias úteis (ADR 0002), datas no fuso do tenant (/fuso), relógio injetável de teste (/relogio), CNPJ/CPF (/documento) e CSV para o Excel com proteção de fórmula (/csv).",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -12,7 +12,8 @@
     "./calendar": "./src/calendar.ts",
     "./fuso": "./src/fuso.ts",
     "./relogio": "./src/relogio.ts",
-    "./documento": "./src/documento.ts"
+    "./documento": "./src/documento.ts",
+    "./csv": "./src/csv.ts"
   },
   "scripts": {
     "lint": "eslint src",
