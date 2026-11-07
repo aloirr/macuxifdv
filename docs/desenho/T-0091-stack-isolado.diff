@@ -1,18 +1,35 @@
-T-0091 (condição da ADR 0029) — proposta de mudança no .github/workflows/stack-isolado.yml (GOVERNANÇA)
-Preparado pelo engenheiro-software em 2026-11-06; o .github NÃO foi editado. Aplicar só com o ok do dono do produto:
+T-0091 (condição da ADR 0029) — proposta de mudança no .github/workflows/stack-isolado.yml (GOVERNANÇA) e no
+scripts/deploy/demo/preparar-vm.sh. Preparado pelo engenheiro-software em 2026-11-06, corrigido em 2026-11-07
+(R-20261107-080049). O .github NÃO foi editado. Aplicar os dois arquivos juntos, só com o ok do dono do produto:
   git apply docs/desenho/T-0091-stack-isolado.diff
-O CI passa SEM este diff (o preparar-vm.sh do repositório já gera o portal.env e o banco-dbaas.sh mantém o começo da
-linha de log que o job procura); o diff só acrescenta as conferências do critério 6 da tarefa:
-  - portal.env 600, com MACUXI_PG_PORTAL_SENHA, mascarada no log, fora do .env, e intacto na 2ª execução do preparar-vm;
-  - pelo compose config: só api e banco recebem a senha; worker, seed-demo e backup nunca (demo); na produção, o worker
+O CI passa SEM este diff. O diff acrescenta as conferências do critério 6 da tarefa:
+  - portal.env 600, com MACUXI_PG_PORTAL_SENHA, mascarada no log, fora do .env e intacto na 2ª execução do preparar-vm;
+  - pelo compose config: só api e banco recebem a senha; worker, seed-demo e backup nunca (demo). Na produção, o worker
     não tem a variável e a api tem (docker compose exec);
-  - o portal responde 401 NAO_AUTENTICADO (pool do macuxi_portal no ar), nunca 503 PORTAL_INDISPONIVEL;
-  - produção: o banco-dbaas.sh confere que as plataforma.sa_* só executam pelo macuxi_portal e que ele não tem grant em tabela.
-Linhas citadas no desenho (95 e 315) = as listas de variáveis geradas; a senha nova não entra nelas porque mora no portal.env.
+  - sonda do portal (corrigida em 07/11): POST /v1/plataforma/auth/login com credencial falsa tem de dar 401
+    CREDENCIAIS_INVALIDAS. Esse 401 só sai depois de conferir as chaves da plataforma e de chamar as plataforma.sa_* pelo
+    pool do macuxi_portal. Qualquer 503 reprova: PORTAL_INDISPONIVEL (chave ausente) ou banco indisponível. A sonda
+    antiga (GET /v1/plataforma/empresas sem token = 401) respondia antes de tocar o banco e não provava o pool;
+  - produção: o banco-dbaas.sh confere que as plataforma.sa_* só executam pelo macuxi_portal e que ele não tem grant em tabela;
+  - MACUXI_JWT_SEGREDO_PLATAFORMA e MACUXI_CHAVE_TOTP entram nas listas de variáveis geradas (linhas 95 e 315) e na
+    máscara do log. O padrão antigo, *SEGREDO, não pega *_SEGREDO_PLATAFORMA nem *_CHAVE_TOTP.
+Demo: o preparar-vm.sh da demo passa a gerar as duas chaves da plataforma, como o da produção já faz. Sem elas, o login
+do portal na demo dá 503 PORTAL_INDISPONIVEL (super-admin.ts, config()), e a sonda da demo reprovaria. O 1º acesso do
+super-admin também exige MACUXI_SUPERADMIN_CONVITE (≥ 32 caracteres), que este diff não cria (ver o recado de resposta).
+A sonda grava 1 linha de auditoria sa.login.falha (sem e-mail; ip_prefixo do runner) no banco efêmero do CI.
 
 --- a/.github/workflows/stack-isolado.yml
 +++ b/.github/workflows/stack-isolado.yml
-@@ -96,6 +96,12 @@
+@@ -89,13 +89,19 @@
+           sudo bash ~/macuxi-deploy/preparar-vm.sh "$(id -un)" 2>&1 | tee "$SAIDA/preparar-1.log"
+           # segredos gerados NO RUNNER (openssl rand): mascarados no log, nunca impressos
+           while IFS='=' read -r nome valor; do
+-            case "$nome" in *SENHA|*SEGREDO|*PEPPER) echo "::add-mask::$valor" ;; esac
++            case "$nome" in *SENHA|*SEGREDO|*PEPPER|*SEGREDO_PLATAFORMA|*CHAVE_TOTP) echo "::add-mask::$valor" ;; esac
+           done < /opt/macuxi/.env
+           test "$(stat -c '%a %U' /opt/macuxi/.env)" = "600 $(id -un)" || { echo "::error::/opt/macuxi/.env sem modo 600 do usuário de deploy"; exit 1; }
+-          for n in MACUXI_PG_ADMIN_USUARIO MACUXI_PG_ADMIN_SENHA MACUXI_PG_APP_SENHA MACUXI_PG_WORKER_SENHA MACUXI_JWT_SEGREDO MACUXI_HUB_CHAVE_PEPPER; do
++          for n in MACUXI_PG_ADMIN_USUARIO MACUXI_PG_ADMIN_SENHA MACUXI_PG_APP_SENHA MACUXI_PG_WORKER_SENHA MACUXI_JWT_SEGREDO MACUXI_HUB_CHAVE_PEPPER MACUXI_JWT_SEGREDO_PLATAFORMA MACUXI_CHAVE_TOTP; do
              grep -q "^$n=." /opt/macuxi/.env || { echo "::error::preparar-vm.sh não gerou $n"; exit 1; }
            done
            sha256sum /opt/macuxi/.env | cut -d' ' -f1 > "$RUNNER_TEMP/env.sha"
@@ -47,17 +64,28 @@ Linhas citadas no desenho (95 e 315) = as listas de variáveis geradas; a senha 
            # fora do modelo (perfil inativo) ou presente só com o perfil ci-sem-tunel, que ninguém liga
            jq -e '(.services.cloudflared // null) == null or ((.services.cloudflared.profiles // []) | index("ci-sem-tunel") != null)' "$RUNNER_TEMP/config.json" > /dev/null \
              || { echo "::error::cloudflared ligado no CI"; exit 1; }
-@@ -173,6 +187,9 @@
+@@ -173,6 +187,12 @@
            grep -q '\[sonda\] armazenamento ok' "$l" || falta "sonda do S3 não passou"
            grep -q 'backup: scripts em /opt/macuxi/backup' "$l" || falta "scripts do backup não saíram da imagem"
            grep -q 'backup: nenhum ainda' "$l" || falta "conferência do backup não disse 'nenhum ainda'"
-+          # T-0091: portal no ar pelo pool do macuxi_portal (sem token: 401, nunca 503 PORTAL_INDISPONIVEL)
-+          corpo="$(curl -sS http://127.0.0.1:8100/v1/plataforma/empresas)"
-+          printf '%s' "$corpo" | grep -q '"codigo":"NAO_AUTENTICADO"' || falta "portal sem o pool do macuxi_portal: $corpo"
++          # T-0091: o portal abre o pool do macuxi_portal. Login com credencial falsa passa pelas chaves da plataforma e pelas
++          # plataforma.sa_* (só o macuxi_portal executa) e responde 401 CREDENCIAIS_INVALIDAS; 503 de qualquer tipo (chave
++          # ausente = PORTAL_INDISPONIVEL, pool fora = BANCO_INDISPONIVEL) reprova. A rota sem token (401 antes do banco) não prova o pool.
++          st="$(curl -sS -o "$RUNNER_TEMP/portal.json" -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{"email":"sonda-ci@example.com","senha":"sonda-ci-sem-conta"}' http://127.0.0.1:8100/v1/plataforma/auth/login)"
++          corpo="$(cat "$RUNNER_TEMP/portal.json")"
++          { [ "$st" = 401 ] && printf '%s' "$corpo" | grep -q '"codigo":"CREDENCIAIS_INVALIDAS"'; } || falta "portal sem o pool do macuxi_portal (HTTP $st): $corpo"
            ! grep -q '::warning::' "$l" || falta "houve aviso (veja as linhas ::warning:: acima)"
            test "$(stat -c '%a' /opt/macuxi/backup/backup-vm.sh) $(stat -c '%a' /opt/macuxi/backup/restaurar-vm.sh) $(stat -c '%a' /opt/macuxi/backup/contagem.sql)" = "700 700 600" \
              || falta "modos dos scripts do backup (esperado 700 700 600)"
-@@ -316,9 +333,14 @@
+@@ -310,15 +330,20 @@
+         run: |
+           sudo bash ~/macuxi-deploy/preparar-vm.sh "$(id -un)" 2>&1 | tee "$SAIDA/preparar-1.log"
+           while IFS='=' read -r nome valor; do
+-            case "$nome" in *SENHA|*SEGREDO|*PEPPER) echo "::add-mask::$valor" ;; esac
++            case "$nome" in *SENHA|*SEGREDO|*PEPPER|*SEGREDO_PLATAFORMA|*CHAVE_TOTP) echo "::add-mask::$valor" ;; esac
+           done < /opt/macuxi/.env
+-          for n in MACUXI_PG_APP_SENHA MACUXI_PG_WORKER_SENHA MACUXI_JWT_SEGREDO MACUXI_HUB_CHAVE_PEPPER; do
++          for n in MACUXI_PG_APP_SENHA MACUXI_PG_WORKER_SENHA MACUXI_JWT_SEGREDO MACUXI_HUB_CHAVE_PEPPER MACUXI_JWT_SEGREDO_PLATAFORMA MACUXI_CHAVE_TOTP; do
              grep -q "^$n=." /opt/macuxi/.env || { echo "::error::preparar-vm.sh não gerou $n"; exit 1; }
            done
            if grep -q '^MACUXI_PG_ADMIN' /opt/macuxi/.env; then echo "::error::a senha do admin não pode nascer no .env da produção"; exit 1; fi
@@ -74,7 +102,7 @@ Linhas citadas no desenho (95 e 315) = as listas de variáveis geradas; a senha 
            for t in macuxi-backup.timer macuxi-alerta.timer; do
              if ! systemctl is-enabled --quiet "$t" || ! systemctl is-active --quiet "$t"; then echo "::error::$t não está habilitado e ativo"; exit 1; fi
            done
-@@ -406,10 +428,18 @@
+@@ -406,10 +431,21 @@
            grep -Eq 'extensão vector 0\.[89]' "$l" || falta "sem a extensão vector >= 0.8"
            grep -q 'papéis: macuxi_app e macuxi_worker com LOGIN' "$l" || falta "papéis"
            grep -q 'admin herda o macuxi_manutencao' "$l" || falta "0031"
@@ -83,9 +111,12 @@ Linhas citadas no desenho (95 e 315) = as listas de variáveis geradas; a senha 
            grep -q 'api: /v1/saude ok (banco ok, versão v0.0.0-ci1)' "$l" || falta "saúde"
            grep -q '\[sonda\] armazenamento ok' "$l" || falta "sonda do S3"
            grep -q 'publicado: v0.0.0-ci1' "$l" || falta "não terminou"
-+          # T-0091: portal no ar pelo pool do macuxi_portal (sem token: 401, nunca 503 PORTAL_INDISPONIVEL)
-+          corpo="$(curl -sS http://127.0.0.1:8100/v1/plataforma/empresas)"
-+          printf '%s' "$corpo" | grep -q '"codigo":"NAO_AUTENTICADO"' || falta "portal sem o pool do macuxi_portal: $corpo"
++          # T-0091: o portal abre o pool do macuxi_portal. Login com credencial falsa passa pelas chaves da plataforma e pelas
++          # plataforma.sa_* (só o macuxi_portal executa) e responde 401 CREDENCIAIS_INVALIDAS; 503 de qualquer tipo (chave
++          # ausente = PORTAL_INDISPONIVEL, pool fora = BANCO_INDISPONIVEL) reprova. A rota sem token (401 antes do banco) não prova o pool.
++          st="$(curl -sS -o "$RUNNER_TEMP/portal.json" -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{"email":"sonda-ci@example.com","senha":"sonda-ci-sem-conta"}' http://127.0.0.1:8100/v1/plataforma/auth/login)"
++          corpo="$(cat "$RUNNER_TEMP/portal.json")"
++          { [ "$st" = 401 ] && printf '%s' "$corpo" | grep -q '"codigo":"CREDENCIAIS_INVALIDAS"'; } || falta "portal sem o pool do macuxi_portal (HTTP $st): $corpo"
 +          # T-0091: o worker nunca recebe a senha do macuxi_portal; a api recebe
 +          cd /opt/macuxi
 +          if docker compose --env-file .env --env-file imagens.env exec -T worker printenv MACUXI_PG_PORTAL_SENHA > /dev/null; then falta "o worker recebeu MACUXI_PG_PORTAL_SENHA"; fi
@@ -93,3 +124,16 @@ Linhas citadas no desenho (95 e 315) = as listas de variáveis geradas; a senha 
  
        - name: API e worker conectados ao "DBaaS" só com TLS; rede fora da faixa da VPC
          run: |
+--- a/scripts/deploy/demo/preparar-vm.sh
++++ b/scripts/deploy/demo/preparar-vm.sh
+@@ -169,6 +169,10 @@
+ acrescentar MACUXI_PG_WORKER_SENHA "$(openssl rand -hex 32)"
+ acrescentar MACUXI_JWT_SEGREDO "$(openssl rand -hex 48)"
+ acrescentar MACUXI_HUB_CHAVE_PEPPER "$(openssl rand -hex 32)"
++# T-0087/ADR 0029 (portal do super-admin), igual à produção: token de plataforma com segredo próprio e a chave que cifra o
++# segredo TOTP. A chave do TOTP NUNCA pode ser regenerada (o acrescentar não regenera): trocar = o 2º fator cadastrado deixa de abrir.
++acrescentar MACUXI_JWT_SEGREDO_PLATAFORMA "$(openssl rand -hex 48)"
++acrescentar MACUXI_CHAVE_TOTP "$(openssl rand -base64 32)"
+ chown "$USUARIO:$USUARIO" "$ENV"
+ chmod 600 "$ENV"
+ # T-0091 (condição da ADR 0029): senha do papel macuxi_portal (o único com EXECUTE nas plataforma.sa_*) num arquivo

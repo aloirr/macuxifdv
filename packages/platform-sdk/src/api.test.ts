@@ -133,9 +133,9 @@ describe('definirModuloApi (desenho T-0004 §3)', () => {
     expect(ehCaminhoDePedido('gondolas')).toBe(false);
   });
 
-  it('T-0002 §6 item 4: rota pública só no core e sempre com limite de tentativas', () => {
+  it('T-0002 §6 item 4: rota pública de login só no core (fora dele, só documento com cache, T-0092) e sempre com limite de tentativas', () => {
     const publica = { metodo: 'POST' as const, caminho: 'auth/login', limite: { max: 5, janelaMs: 60_000 }, executar: ok };
-    expect(() => definirModuloApi({ manifesto: vendedor, rotasPublicas: [publica] })).toThrow(/só o core/);
+    expect(() => definirModuloApi({ manifesto: vendedor, rotasPublicas: [publica] })).toThrow(/fora do core só serve documento com cache/);
     const core = defineModule({ id: 'core', versao: '1.0.0', perfis: ['admin'] });
     expect(definirModuloApi({ manifesto: core, rotasPublicas: [publica] }).rotasPublicas).toHaveLength(1);
     expect(() => definirModuloApi({ manifesto: core, rotasPublicas: [{ ...publica, limite: { max: 0, janelaMs: 1 } }] })).toThrow(/limite de tentativas/);

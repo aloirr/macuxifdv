@@ -47,7 +47,8 @@ import {
   LIMITE_CORPO_ROTA_PADRAO,
   modulosEfetivos,
   problemasApiConector,
-  problemasConexaoRotaPublica,
+  caminhoDaRotaPublica,
+  problemasRotaPublica,
   problemasConteudoRota,
   problemasLimiteCorpo,
   NOME_ARQUIVO_ROTA_RE,
@@ -79,6 +80,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, 
 import { ZodError, type ZodTypeAny } from 'zod';
 import type { BancoApp, BancoPortal } from './banco';
 import { excedeElementos, MAX_PROBLEMAS_RESPOSTA } from './corpo';
+import { corpoDoDocumento, criarMemoEtag, ifNoneMatchAtende, TIPO_DOCUMENTO_PUBLICO } from './cache-publico';
 import { criarLimitador } from './limitador';
 import { registrarConector, ehRotaConector } from './conector';
 import { licencasDoBanco, licencasDoTenantNoBanco, type FonteLicencas, type FonteLicencasTenant } from './licencas';
@@ -198,8 +200,9 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
     ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasLimiteCorpo(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
     // T-0087: tipo de conteúdo e nome de arquivo das rotas de download (lista fechada; nada executável no navegador)
     ...modulos.flatMap((m) => (m.rotas ?? []).flatMap((r) => problemasConteudoRota(`${r.metodo} /v1/${m.manifesto.id}/${r.caminho}`, r))),
-    // T-0091: sessão do super-admin só na conexão do portal (fixture sem definirModuloApi também passa por aqui)
-    ...modulos.flatMap((m) => (m.rotasPublicas ?? []).flatMap((r) => problemasConexaoRotaPublica(m.manifesto.id, r))),
+    // T-0091: sessão do super-admin só na conexão do portal; T-0092: rota pública fora do core só documento com cache
+    // (fixture sem definirModuloApi também passa por aqui)
+    ...modulos.flatMap((m) => (m.rotasPublicas ?? []).flatMap((r) => problemasRotaPublica(m.manifesto.id, r))),
   ];
   if (problemas.length > 0) throw new Error(`Módulos instalados inconsistentes: ${problemas.join('; ')}`);
   const permissoes = criarPermissoes(manifestos);
@@ -445,7 +448,8 @@ export function createApp(op: OpcoesApp = {}): FastifyInstance {
   // ---------- rotas dos módulos ----------
   for (const m of modulos) {
     for (const rota of m.rotas ?? []) montarRota(app, plataforma, permissoes, m.manifesto, rota);
-    for (const rota of m.rotasPublicas ?? []) montarRotaPublica(app, rota.conexao === 'portal' ? (bancoPortal ?? null) : acesso, relogio, rota);
+    for (const rota of m.rotasPublicas ?? [])
+      montarRotaPublica(app, m.manifesto.id, rota.conexao === 'portal' ? (bancoPortal ?? null) : acesso, relogio, rota);
     // ADR 0013: rotas do Conector em /<modulo>/v1 (chave de API, licença do tenant da chave)
     if (m.conector) registrarConector(app, m, { manifestos, acesso, relogio, licencasTenant: op.licencasTenant ?? licencasDoTenantNoBanco });
   }
@@ -532,12 +536,35 @@ function nomeDoArquivo(rota: RotaModulo, entrada: EntradaRota): string {
   return nome;
 }
 
-/** `acesso` = `null`: rota do portal (`conexao: 'portal'`) sem o banco do portal → 503 antes de validar ou contar tentativa (T-0091). */
-function montarRotaPublica(app: FastifyInstance, acesso: AcessoBanco | null, relogio: () => Date, rota: RotaPublica): void {
+/**
+ * T-0092: banco da rota pública com `cache` (documento público): a conexão padrão, mas `comTenant` lança (erro de programação,
+ * 500). A resposta vai para cache compartilhado e nunca pode depender de tenant.
+ */
+function acessoSemTenant(acesso: AcessoBanco, rotulo: string): AcessoBanco {
+  return {
+    comTenant: async () => {
+      throw new Error(`${rotulo}: rota pública com cache não abre sessão de tenant`);
+    },
+    semTenant: (fn) => acesso.semTenant(fn),
+  };
+}
+
+const SEM_CABECALHOS = Object.freeze({});
+
+/**
+ * Rota pública do `modulo` (core em `/v1`, outro em `/<modulo>/v1`; T-0092).
+ * `acesso` = `null`: rota do portal (`conexao: 'portal'`) sem o banco do portal → 503 antes de validar ou contar tentativa (T-0091).
+ * Com `cache` (T-0092): sem cabeçalhos para a rota, banco sem tenant, `Cache-Control` público, ETag e 304 por `If-None-Match`.
+ */
+function montarRotaPublica(app: FastifyInstance, modulo: ModuloId, acesso: AcessoBanco | null, relogio: () => Date, rota: RotaPublica): void {
   const limitador = criarLimitador(rota.limite.max, rota.limite.janelaMs, () => relogio().getTime());
+  const url = caminhoDaRotaPublica(modulo, rota.caminho);
+  const cache = rota.cache;
+  const etagDe = criarMemoEtag();
+  const banco = cache && acesso ? acessoSemTenant(acesso, `${rota.metodo} ${url}`) : acesso;
   app.route({
     method: rota.metodo,
-    url: `/v1/${rota.caminho}`,
+    url,
     handler: async (req: FastifyRequest, reply: FastifyReply) => {
       if (!acesso) semPortal();
       const params = validar(rota.params, req.params, 'params');
@@ -549,9 +576,18 @@ function montarRotaPublica(app: FastifyInstance, acesso: AcessoBanco | null, rel
         reply.header('retry-after', String(limitador.esperaSegundos(chave)));
         throw new ErroHttp(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde um pouco e tente de novo.');
       }
-      const log = req.log.child({ modulo: 'core', request_id: req.id });
-      // T-0087: só a lista fechada de cabeçalhos (hoje `authorization`), com valores censurados se serializados
-      const resultado = await rota.executar({ corpo, query, params, requestId: req.id, ip: req.ip, agora: relogio, banco: acesso, log, cabecalhos: cabecalhosPublicos(req.headers) } as never);
+      const log = req.log.child({ modulo, request_id: req.id });
+      // T-0087: só a lista fechada de cabeçalhos (hoje `authorization`), com valores censurados se serializados; com cache, nenhum
+      const cabecalhosRota = cache ? SEM_CABECALHOS : cabecalhosPublicos(req.headers);
+      const resultado = await rota.executar({ corpo, query, params, requestId: req.id, ip: req.ip, agora: relogio, banco, log, cabecalhos: cabecalhosRota } as never);
+      if (cache) {
+        const documento = corpoDoDocumento(resultado);
+        const etag = etagDe(documento);
+        reply.header('cache-control', `public, max-age=${cache.maxAgeSegundos}`).header('etag', etag);
+        if (ifNoneMatchAtende(req.headers['if-none-match'], etag)) return reply.code(304).send();
+        reply.header('content-type', TIPO_DOCUMENTO_PUBLICO).header('x-content-type-options', 'nosniff');
+        return reply.code(200).send(documento);
+      }
       const status = rota.status ?? 200;
       if (status === 204) return reply.code(204).send();
       return reply.code(status).send(resultado ?? {});
