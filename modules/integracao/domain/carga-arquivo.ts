@@ -135,7 +135,8 @@ export function lerCsv(entrada: string): ResultadoCsv {
 
 // ---------------------------------------------------------------------------------------------------------------- colunas do contrato
 
-export type TipoColuna = 'texto' | 'numero' | 'booleano';
+/** `lista_numeros` / `lista_textos`: lista simples numa célula, itens separados por barra (`28/56`, `PIX/BOLETO`); T-0089 (parcelas_dias, formas_pagamento). */
+export type TipoColuna = 'texto' | 'numero' | 'booleano' | 'lista_numeros' | 'lista_textos';
 export interface ColunaContrato {
   /** Caminho com ponto para campo aninhado (`endereco.cidade`). */
   caminho: string;
@@ -151,6 +152,9 @@ export interface EstruturaEntidade {
 
 /** Colunas que o arquivo pode omitir mesmo sendo obrigatórias no contrato: `alterado_em` assume o instante do envio. */
 const COLUNAS_COM_PADRAO = new Set(['alterado_em']);
+
+/** Listas simples que cabem numa célula do CSV (itens separados por barra). */
+const LISTAS_EM_CELULA = new Set(['parcelas_dias', 'formas_pagamento']);
 
 type Def = { typeName?: string; innerType?: z.ZodTypeAny; schema?: z.ZodTypeAny; type?: z.ZodTypeAny; shape?: () => Record<string, z.ZodTypeAny> };
 const defDe = (t: z.ZodTypeAny): Def => t._def as Def;
@@ -173,7 +177,14 @@ function coletar(shape: Record<string, z.ZodTypeAny>, prefixo: string, paiObriga
     const tipo = defDe(base).typeName;
     const obrigatoria = paiObrigatorio && !campo.isOptional() && !COLUNAS_COM_PADRAO.has(caminho);
     if (tipo === 'ZodObject') coletar((defDe(base).shape as () => Record<string, z.ZodTypeAny>)(), caminho, obrigatoria, saida);
-    else if (tipo === 'ZodArray') saida.listas.push(caminho);
+    else if (tipo === 'ZodArray') {
+      const item = defDe(desembrulhar(base)) as Def & { type?: z.ZodTypeAny };
+      // só as listas de escalares liberadas (T-0089); as demais (oferece_junto, etiquetas, contatos, paradas…) seguem só pelo Conector
+      const tipoItem = LISTAS_EM_CELULA.has(caminho) && item.type ? defDe(desembrulhar(item.type)).typeName : undefined;
+      if (tipoItem === 'ZodNumber') saida.colunas.push({ caminho, tipo: 'lista_numeros', obrigatoria });
+      else if (tipoItem === 'ZodString') saida.colunas.push({ caminho, tipo: 'lista_textos', obrigatoria });
+      else saida.listas.push(caminho);
+    }
     else saida.colunas.push({ caminho, tipo: tipo === 'ZodNumber' ? 'numero' : tipo === 'ZodBoolean' ? 'booleano' : 'texto', obrigatoria });
   }
 }
@@ -256,10 +267,15 @@ const NUMERO = /^[+-]?\d+(?:[.,]\d+)?$/;
 const NUMERO_AMBIGUO = /^[+-]?\d{1,3}[.,]\d{3}$/;
 const VERDADEIRO = new Set(['true', 'verdadeiro', 'sim', 's', '1', 'yes', 'y']);
 const FALSO = new Set(['false', 'falso', 'nao', 'não', 'n', '0', 'no']);
-const ROTULO_TIPO: Record<TipoColuna, string> = { texto: 'texto', numero: 'número (ex.: 1500 ou 12,5)', booleano: 'sim/não' };
+const ROTULO_TIPO: Record<TipoColuna, string> = { texto: 'texto', numero: 'número (ex.: 1500 ou 12,5)', booleano: 'sim/não', lista_numeros: 'lista de números separados por barra (ex.: 28/56)', lista_textos: 'lista de códigos separados por barra (ex.: PIX/BOLETO)' };
 
 function converterCelula(valor: string, tipo: TipoColuna): { ok: true; valor: unknown } | { ok: false; ambiguo?: boolean } {
   if (tipo === 'texto') return { ok: true, valor };
+  if (tipo === 'lista_textos') return { ok: true, valor: valor.split('/').map((x) => x.trim()).filter((x) => x !== '') };
+  if (tipo === 'lista_numeros') {
+    const itens = valor.split('/').map((x) => x.trim());
+    return itens.every((x) => /^\d+$/.test(x)) ? { ok: true, valor: itens.map(Number) } : { ok: false };
+  }
   if (tipo === 'numero') {
     if (NUMERO_AMBIGUO.test(valor)) return { ok: false, ambiguo: true };
     return NUMERO.test(valor) ? { ok: true, valor: Number(valor.replace(',', '.')) } : { ok: false };

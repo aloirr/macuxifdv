@@ -16,7 +16,7 @@ Fora desta entrega (backlog): Excel nativo (`.xlsx`), SFTP, arquivo com mais de 
 | Entidade | Obrigatórias | Opcionais (além de `alterado_em` e `ativo`) |
 |---|---|---|
 | `vendedor` | external_id, nome | email, telefone |
-| `cliente` | external_id, razao_social | nome_fantasia, documento, vendedor_external_id, endereco.{logradouro, numero, complemento, bairro, cidade, uf, cep}, latitude, longitude, telefone, email, limite_credito_cents, inscricao_estadual, observacao, bloqueado (`contatos`: só pelo Conector) |
+| `cliente` | external_id, razao_social | prazo_medio_max_dias, formas_pagamento (códigos separados por barra: `PIX/BOLETO`), nome_fantasia, documento, vendedor_external_id, endereco.{logradouro, numero, complemento, bairro, cidade, uf, cep}, latitude, longitude, telefone, email, limite_credito_cents, inscricao_estadual, observacao, bloqueado (`contatos`: só pelo Conector) |
 | `produto` | external_id, sku, nome, unidade | ean, marca, categoria, catalogo_no_external_id, custo_cents, preco_venda_cents, desconto_maximo_pct |
 | `preco` | external_id, tabela_external_id, tabela_nome, vigencia_inicio, produto_external_id, preco_cents | vigencia_fim, unidade |
 | `estoque` | external_id, deposito_external_id, produto_external_id, saldo | deposito_nome |
@@ -27,6 +27,9 @@ Fora desta entrega (backlog): Excel nativo (`.xlsx`), SFTP, arquivo com mais de 
 | `produto_unidade` | external_id, produto_external_id, unidade, fator | ean, padrao |
 | `cliente_endereco` | external_id, cliente_external_id, logradouro, cidade, uf | tipo, descricao, numero, complemento, bairro, cep, latitude, longitude, principal |
 | `transportadora` | external_id, nome | documento, inscricao_estadual, telefone |
+| `forma_pagamento` | external_id, codigo, nome | ordem |
+| `prazo_pagamento` | external_id, forma_external_id, codigo, parcelas_dias (dias separados por barra: `28/56`; `0` = à vista, sem decrescer) | descricao, prazo_medio_dias (informativo; o Macuxi calcula), ordem |
+| `tabela_escalonada` | external_id, produto_external_id, quantidade_minima, preco_unidade_cents, vigencia_inicio | medida (ausente = unidade base), vigencia_fim, tabela_external_id (ausente = todas as tabelas) |
 
 Exemplo (`transportadora`):
 ```

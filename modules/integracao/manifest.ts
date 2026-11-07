@@ -2,7 +2,7 @@ import { defineModule } from '@macuxi/platform-sdk';
 
 export const manifest = defineModule({
   id: 'integracao',
-  versao: '0.6.0',
+  versao: '0.7.0',
   depende: ['core'],
   perfis: ['admin', 'analista'],
   apps: { web: { menus: ['Integração ERP'] }, conector: {} },
@@ -20,6 +20,10 @@ export const manifest = defineModule({
     'integracao.produto_unidade.atualizado@1',
     'integracao.cliente_endereco.atualizado@1',
     'integracao.transportadora.atualizado@1',
+    // T-0089: formas e prazos (dono: vendedor), faixa escalonada (dono: catalogo); o cliente ganha prazo_medio_max_dias e formas_pagamento (dono: core)
+    'integracao.forma_pagamento.atualizado@1',
+    'integracao.prazo_pagamento.atualizado@1',
+    'integracao.tabela_escalonada.atualizado@1',
     'integracao.pedido.retorno_erp@1',
     'integracao.lote.concluido@1',
     'integracao.reconciliacao.divergente@1',

@@ -18,8 +18,11 @@ import {
   TextoOpcional,
 } from './base';
 
-/** As 8 primeiras são as originais; as 4 últimas entraram aditivas no v1 (ADR 0016, desenho T-0061 §4.4). */
-export const ENTIDADES = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora'] as const;
+/**
+ * As 8 primeiras são as originais; as 4 seguintes entraram aditivas no v1 (ADR 0016, desenho T-0061 §4.4) e as 3 últimas na T-0089
+ * (forma de pagamento, prazo e tabela escalonada; desenho T-0089 §4.2). No Hub o nome fica no singular, como nas demais.
+ */
+export const ENTIDADES = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota', 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora', 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const;
 export const Entidade = z.enum(ENTIDADES, { errorMap: () => ({ message: 'entidade desconhecida' }) });
 export type Entidade = z.infer<typeof Entidade>;
 
@@ -69,6 +72,13 @@ export const ClientePayload = RegistroBase.extend({
   observacao: TextoOpcional(1000),
   bloqueado: z.boolean().default(false),
   contatos: z.array(ContatoCliente).max(CONTATOS_MAX).default([]),
+  /**
+   * T-0089 (RN-VEN-25, aditivos e opcionais no v1): prazo médio máximo que o cliente aceita (dias) e códigos das formas de pagamento
+   * permitidas. Ausente = não altera; `null` (ou `[]` nas formas) = limpa (sem teto / todas as formas ativas).
+   * O Core guarda; a forma é referenciada pelo CÓDIGO, sem exigir que ela já exista (a ordem de carga põe a forma antes do cliente).
+   */
+  prazo_medio_max_dias: z.number().int('prazo_medio_max_dias deve ser inteiro').min(0).max(365).nullish(),
+  formas_pagamento: z.array(Texto(20)).max(20, 'formas_pagamento aceita até 20 itens').nullish(),
 });
 export type ClientePayload = z.infer<typeof ClientePayload>;
 
@@ -284,6 +294,63 @@ export const TransportadoraPayload = RegistroBase.extend({
 });
 export type TransportadoraPayload = z.infer<typeof TransportadoraPayload>;
 
+// ---------- forma de pagamento (T-0089; dono do dado: Vendedor) ----------
+export const FormaPagamentoPayload = RegistroBase.extend({
+  codigo: Texto(20),
+  nome: Texto(60),
+  ordem: z.number().int().default(0),
+});
+export type FormaPagamentoPayload = z.infer<typeof FormaPagamentoPayload>;
+
+/** Parcelas em dias (0 = à vista), sem decrescer: 30/60/90 vale, 60/30 não (RN-VEN-24). */
+export const ParcelasDias = z
+  .array(z.number().int('cada parcela deve ser um número inteiro de dias').min(0, 'parcela não pode ser negativa').max(365, 'parcela aceita até 365 dias'))
+  .min(1, 'informe ao menos uma parcela')
+  .max(24, 'parcelas_dias aceita até 24 itens');
+
+// ---------- prazo de pagamento (T-0089; dono do dado: Vendedor) ----------
+export const PrazoPagamentoPayload = RegistroBase.extend({
+  /** Referência à forma (RN-INT-04): forma ausente = `referencia_ausente`, reprocessável. */
+  forma_external_id: ExternalId,
+  codigo: Texto(20),
+  /** Ausente = gerada pelo Macuxi ("28/56 dias"; [0] = "À vista"). */
+  descricao: TextoOpcional(60),
+  parcelas_dias: ParcelasDias,
+  /** Informativo: o Macuxi CALCULA o prazo médio (RN-VEN-24); valor divergente vira o aviso `prazo_medio_divergente`. */
+  prazo_medio_dias: z.number().int().min(0).max(365).nullish(),
+  ordem: z.number().int().default(0),
+}).superRefine((r, ctx) => {
+  for (let i = 1; i < r.parcelas_dias.length; i++) {
+    if ((r.parcelas_dias[i] ?? 0) < (r.parcelas_dias[i - 1] ?? 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['parcelas_dias'], message: 'parcelas_dias não pode decrescer (use 30/60/90, não 60/30)' });
+      break;
+    }
+  }
+});
+export type PrazoPagamentoPayload = z.infer<typeof PrazoPagamentoPayload>;
+
+// ---------- tabela escalonada (T-0089; dono do dado: Catálogo; RN-VEN-23) ----------
+export const TabelaEscalonadaPayload = RegistroBase.extend({
+  produto_external_id: ExternalId,
+  /** Ausente = unidade base; a sigla é conferida com `core.medidas@1` (RN-CORE-19). */
+  medida: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.string().trim().toUpperCase().regex(SIGLA_MEDIDA_FORMATO, 'medida deve ter de 1 a 4 letras').nullish(),
+  ),
+  quantidade_minima: z.number().int('quantidade_minima deve ser inteira').positive('quantidade_minima deve ser maior que zero'),
+  /** Preço da UNIDADE BASE na faixa (RN-VEN-15: não existe preço de caixa). */
+  preco_unidade_cents: CentavosNaoNegativos.refine((v) => v > 0, 'preco_unidade_cents deve ser maior que zero'),
+  vigencia_inicio: DataCivil,
+  vigencia_fim: DataCivil.nullish(),
+  /** Ausente = vale para todas as tabelas de preço. */
+  tabela_external_id: ExternalId.nullish(),
+}).superRefine((r, ctx) => {
+  if (r.vigencia_fim && r.vigencia_fim < r.vigencia_inicio) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['vigencia_fim'], message: 'fim da vigência anterior ao início' });
+  }
+});
+export type TabelaEscalonadaPayload = z.infer<typeof TabelaEscalonadaPayload>;
+
 /** Schema do registro de cada entidade (validação linha a linha, RN-INT-03). */
 export const SCHEMA_REGISTRO = {
   vendedor: VendedorPayload,
@@ -298,6 +365,9 @@ export const SCHEMA_REGISTRO = {
   produto_unidade: ProdutoUnidadePayload,
   cliente_endereco: ClienteEnderecoPayload,
   transportadora: TransportadoraPayload,
+  forma_pagamento: FormaPagamentoPayload,
+  prazo_pagamento: PrazoPagamentoPayload,
+  tabela_escalonada: TabelaEscalonadaPayload,
 } as const satisfies Record<Entidade, z.ZodTypeAny>;
 
 export type RegistroDe<E extends Entidade> = z.infer<(typeof SCHEMA_REGISTRO)[E]>;
@@ -316,4 +386,7 @@ export const CAMPO_SOMA_CONTROLE: Record<Entidade, string | null> = {
   produto_unidade: null,
   cliente_endereco: null,
   transportadora: null,
+  forma_pagamento: null,
+  prazo_pagamento: null,
+  tabela_escalonada: 'preco_unidade_cents',
 };
