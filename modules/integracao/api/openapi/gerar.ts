@@ -3,7 +3,7 @@
  * Fontes: `ROTAS_HUB` (rotas, cabeçalhos, params, query, corpo, sucesso e status de erro), os schemas dos contratos
  * (convertidos por `zod-json-schema.ts`) e os exemplos testados de `exemplos.ts`.
  * O documento é publicado em `docs/openapi-hub-v1.json` (regerar: `pnpm --filter @macuxi/integracao openapi`) e em
- * `GET /v1/integracao/openapi` (`api/bko-openapi.ts`). Mudou `ROTAS_HUB` ou um exemplo: o teste de deriva avisa.
+ * `GET /integracao/v1/openapi.json` (`api/openapi/publico.ts`). Mudou `ROTAS_HUB` ou um exemplo: o teste de deriva avisa.
  */
 import { z } from 'zod';
 import * as base from '../../contracts/base';
@@ -400,7 +400,7 @@ export function gerarOpenApiHub(): DocumentoOpenApi {
         chaveConector: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'Chave de API do Conector (mxk_<prefixo>_<chave>)',
+          bearerFormat: 'Chave de API do Conector (mxc_ + 43 caracteres base64url)',
           description:
             'Uma chave de API por Conector, emitida pelo administrador da empresa no BKO (mostrada uma única vez; rotacionável sem parar o Conector). ' +
             'Envie `Authorization: Bearer <chave>` e `X-Macuxi-Conector-Id` em TODA chamada. A chave só abre `/integracao/v1`. ' +
@@ -420,7 +420,7 @@ export function gerarOpenApiHub(): DocumentoOpenApi {
 }
 
 let memo: DocumentoOpenApi | undefined;
-/** Documento gerado uma vez por processo (a rota `GET /v1/integracao/openapi` serve este). */
+/** Documento gerado uma vez por processo (a rota pública serve este). */
 export function openApiHub(): DocumentoOpenApi {
   memo ??= gerarOpenApiHub();
   return memo;

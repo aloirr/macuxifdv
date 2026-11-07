@@ -62,7 +62,7 @@ Regra do HTTP no envelope: qualquer `envelope_invalido` ⇒ **400**; só erros d
 **Decisão do Alexandre (2026-10-31)**: uma chave por Conector (não por tenant), rotacionável no BKO, escopo só `/integracao/v1`. Aqui o desenho completo.
 
 ### 3.1 A chave
-- Formato `mxk_<prefixo de 8>_<43 caracteres base64url>` (256 bits aleatórios do CSPRNG), 56 caracteres. O **prefixo** não é segredo: aparece no BKO e nos logs para identificar a chave. O Conector aceita 16–512 caracteres sem espaço (`trocar-chave`), então o formato pode evoluir sem quebrar.
+- Formato `mxc_<43 caracteres base64url>` (256 bits aleatórios do CSPRNG), 47 caracteres. O **prefixo** (os 8 primeiros, `mxc_` mais 4) não é segredo: aparece no BKO e nos logs para identificar a chave. O Conector aceita 16–512 caracteres sem espaço (`trocar-chave`), então o formato pode evoluir sem quebrar.
 - **Guardada só como hash**: `HMAC-SHA256(pepper, chave)` em hexadecimal, onde o pepper vem do `.env` do servidor (`MACUXI_HUB_CHAVE_PEPPER`, nunca no banco nem no repositório). A chave tem entropia alta: não precisa de hash lento, e o hash indexado dá a busca em p95 < 50 ms. Comparação final em tempo constante (`timingSafeEqual`).
 - **Mostrada uma única vez** (`ChaveConectorCriada.chave`) na criação e na rotação. Perdeu? Rotaciona.
 - O identificador do Conector (`conector_id`, letras/números/`.`/`-`/`_`, ≤ 100) **não é segredo**: vai em `X-Macuxi-Conector-Id` e no arquivo do Conector (`hub.conectorId`). A chave só vale com o identificador do Conector dono dela.
@@ -340,9 +340,17 @@ Permissões na UI espelham as ações do manifesto (a proteção real é na API)
 - **Retenção**: lote e chaves 12 meses; `lote_linha_erro.payload` (linha original, acesso restrito) expurgado em 30 dias; `lote_staging.corpo` anulado 7 dias depois de `concluido`/`concluido_com_erros` e mantido 30 dias em `falhou`. `registro_atual.payload` (pode ter CPF/CNPJ, e-mail, telefone) fica guardado para o comparador e para republicar a módulo recém-licenciado; o `payload` de inativados é anulado após 30 dias, o registro entra no fluxo de anonimização LGPD do Core (evento) e nunca é logado.
 - **TLS** sempre; o Conector não tem opção de ignorar certificado.
 
-## 15. OpenAPI
+## 15. OpenAPI e guia do TI do cliente
 
-O OpenAPI do `/integracao/v1` é gerado dos schemas Zod de `contracts/hub.ts` (`ROTAS_HUB`: método, caminho, cabeçalhos, params, query, corpo, sucesso e erros, com `ErroHub`/`RecusaLote`/`RecusaRetorno`), publicado em `GET /integracao/v1/openapi.json` (sem autenticação, sem dado de tenant) e usado nos testes de contrato do Conector. A ferramenta (`zod-to-openapi` ou equivalente) é escolha do engenheiro-software. O teste `contracts/hub.test.ts` garante que este documento cita as mesmas 7 rotas de `ROTAS_HUB`.
+- **O que é**: especificação OpenAPI 3.1 das 7 rotas do `/integracao/v1`, gerada dos contratos Zod (`modules/integracao/contracts`, `ROTAS_HUB`). Nasce do mesmo código que valida as chamadas, então não diverge da API real. Serve para gerar cliente, importar no Postman ou testar o ERP contra o Hub.
+- **Garantia**: o teste `contracts/hub.test.ts` garante que este documento cita as mesmas 7 rotas de `ROTAS_HUB`.
+- **Como baixar**: `GET https://<servidor>/integracao/v1/openapi.json`, sem autenticação e sem chave (T-0092, no ar). Pública de propósito: só traz os contratos v1, sem dado de tenant.
+  - Limite: 60 requisições por minuto por IP; acima disso, 429 `MUITAS_TENTATIVAS` com `Retry-After`, no formato de erro da API (`{ codigo, mensagem }`), não no do Hub.
+  - Cache: `Cache-Control: public, max-age=3600` e `ETag` (muda a cada versão nova do Hub). Com `If-None-Match` igual, responde 304 sem corpo.
+- **Versão**: descreve o v1 (`info.version`). Mudança compatível (campo opcional novo) fica no v1; incompatível vira `/v2` e ADR (regra 3 do CLAUDE.md). Arquivo de referência versionado: `modules/integracao/docs/openapi-hub-v1.json`.
+- **Manutenção**: `pnpm --filter @macuxi/integracao openapi` regrava o arquivo e os exemplos do guia. Um teste compara o arquivo com o que os contratos geram e falha no CI se um contrato mudar sem regravar.
+- **Fora da especificação**: rotas do BKO (`/v1/integracao/*`, JWT) e do portal; regras que o JSON Schema não expressa (como a regra cruzada de `numero_erp`, motivo e nota no retorno do ERP), descritas em texto e validadas só pelo Hub. Sem dado de tenant, chave de API ou exemplo com dado real.
+- **Guia**: passo a passo para o TI (autenticar com a chave do Conector, enviar lote, consultar, retorno de pedido, erros e limites) em `modules/integracao/docs/guia-api-hub.md`, com exemplos gerados do mesmo OpenAPI.
 
 ## 16. Compatibilidade com o Conector (`apps/conector/src/hub`)
 
