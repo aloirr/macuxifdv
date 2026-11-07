@@ -289,22 +289,51 @@ EXPLAIN com volume (20 mil SKUs, 1 milhão de preços, lote de 5.000) fica para 
   staging, registro_atual e cursor das 3 gravando e entidade desconhecida = 23514); `estatico.test.ts` (ENTIDADES ⊆
   ENTIDADES_BANCO; a 0013 com as 12).
 
-## Views-modelo do Conector (`db/conector/views-modelo.sql`) — formato esperado
-O arquivo **ainda não existe** no repositório (citado em docs/produto/06-integracao-erp.md e em
-docs/modulos/integracao/conector.md §3). Não foi criado na T-0089 sem desenho (dialeto: SQL Server, Oracle, PostgreSQL ou
-Firebird; uma view por entidade ou um arquivo por ERP). Até lá, este é o contrato que toda view-modelo segue, e o que o
-técnico do cliente monta no `SELECT` da entidade no `conector.json`:
+## Views-modelo do Conector (`db/conector/views-modelo.sql`)
+Criado na T-0089 (fatia B2), com as 15 entidades do Hub (citado em docs/produto/06-integracao-erp.md e em
+docs/modulos/integracao/conector.md §3). É um **modelo**: as tabelas de origem (`erp_*`) são fictícias e o técnico do cliente
+troca pelas do ERP dele. Formato:
+- **Uma view `vw_macuxi_<entidade>` por entidade**, na ordem de carga do Conector (`ORDEM_CARGA` em
+  `apps/conector/src/config/entidades.ts`): vendedor, catalogo_no, transportadora, forma_pagamento, prazo_pagamento, produto,
+  produto_unidade, cliente, cliente_endereco, preco, tabela_escalonada, estoque, rota, titulo, nota.
+- **Coluna = nome do campo do contrato** (`SCHEMA_REGISTRO`), todas as obrigatórias e as opcionais; objeto aninhado vira
+  `<objeto>_<campo>` (`endereco_cidade` → `"endereco.cidade"` no `conector.json`); lista vira uma coluna JSON com o nome do
+  campo. A consulta do Conector fica `SELECT * FROM vw_macuxi_<entidade> WHERE ... ORDER BY alterado_em, external_id`.
+- **Dialeto**: o corpo ativo é SQL Server (2017+); cada ponto que diverge traz a forma Oracle (12.2+) comentada
+  (`-- [Oracle]`) logo acima da linha marcada `-- [SQL Server]`. Divergem: `alterado_em`/`baixado_em`/`emitida_em`
+  (`AT TIME ZONE ... AT TIME ZONE 'UTC'` em `DATETIME2(3)` × `SYS_EXTRACT_UTC(FROM_TZ(...))` em `TIMESTAMP(3)`), data civil (`CONVERT(CHAR(10), x, 23)` × `TO_CHAR(x, 'YYYY-MM-DD')`), concatenação (`CONCAT` × `||`) e
+  listas JSON (`STRING_AGG`/`FOR JSON PATH` × `LISTAGG`/`JSON_ARRAYAGG`). Dinheiro (`CAST(ROUND(x * 100, 0) AS DECIMAL(19,0))`),
+  booleanos (`CASE ... THEN 1 ELSE 0`) e `external_id` (`CAST(... AS VARCHAR(200))`) são iguais nos dois.
+- **Fuso (premissa única nos dois dialetos)**: as colunas de data/hora do ERP estão na **hora local do tenant**, sem fuso, e
+  a view converte para UTC — SQL Server `CAST(x AT TIME ZONE 'SA Western Standard Time' AT TIME ZONE 'UTC' AS DATETIME2(3))`,
+  Oracle `CAST(SYS_EXTRACT_UTC(FROM_TZ(CAST(x AS TIMESTAMP), 'America/Manaus')) AS TIMESTAMP(3))`. O exemplo é Manaus;
+  Brasília = `E. South America Standard Time` / `America/Sao_Paulo`. ERP que já grava em UTC usa a variante comentada no
+  cabeçalho (`CAST(x AS DATETIME2(3))` / `CAST(x AS TIMESTAMP(3))`) em todas as views. O Conector lê o valor como UTC.
+- **Teste sem banco** `db/testes/views-modelo-conector.test.ts` (PC e CI): uma view por entidade, na ordem de carga.
+  **Falha** com campo obrigatório do contrato sem coluna na view, com coluna fora do contrato (rename/remoção, que já são
+  v2) e com coluna repetida; `external_id` sem CPF/CNPJ; os aliases das alternativas comentadas existem na view. Campo
+  **opcional** do contrato sem coluna **não falha** (o contrato v1 cresce de forma aditiva e é do `modulo-integracao`): vira
+  `console.warn` com a lista. Campo novo no contrato da integração = recado ao `banco-dados` para a view acompanhar.
+
+Regras que toda view-modelo segue (e que o técnico do cliente mantém ao adaptar):
 - Colunas comuns (RegistroBase): `external_id` (chave interna do ERP, nunca CPF/CNPJ, até 200), `alterado_em` (UTC, ms,
-  nunca nulo; `date_trunc('milliseconds', ...)` também no `WHERE`/`ORDER BY`), `ativo` (0/1; inativar, não apagar).
-- Filtro do delta: `WHERE (alterado_em, external_id) > (:cursor_alterado_em, :cursor_external_id) ORDER BY alterado_em,
-  external_id` com colação binária, e o `:limite` (conector.md §5).
-- Listas (`parcelas_dias`, `formas_pagamento`) saem como **texto JSON** e o campo usa `transformar: "json"` (ex.: `'[28,56]'`,
-  `'["PIX","BOLETO"]'`). Coluna NULA = campo ausente = o Macuxi não altera; para LIMPAR a lista do cliente a view devolve
-  `'[]'` (e `prazo_medio_max_dias` nulo não limpa: o Conector omite nulos).
+  nunca nulo: `COALESCE` com a data de inclusão; numa view sobre PostgreSQL, `date_trunc('milliseconds', ...)` também no
+  `WHERE`/`ORDER BY`), `ativo` (0/1; inativar, não apagar).
+- Filtro do delta (SQL Server e Oracle não têm comparação de linha): `WHERE alterado_em > :cursor_alterado_em OR
+  (alterado_em = :cursor_alterado_em AND external_id > :cursor_external_id) ORDER BY alterado_em, external_id`, com
+  colação binária no `external_id` (`COLLATE Latin1_General_BIN2` / `NLSSORT(..., 'NLS_SORT=BINARY')`, cabeçalho do `.sql`)
+  e o `:limite` (conector.md §5).
+- Listas (`parcelas_dias`, `formas_pagamento`, `referencias`, `oferece_junto`) saem como **texto JSON** e o campo usa
+  `transformar: "json"` (ex.: `'[28,56]'`, `'["PIX","BOLETO"]'`). Coluna NULA = campo ausente = o Macuxi não altera (o
+  Conector omite nulos). Lista que o ERP controla sai com `COALESCE(..., '[]')`, para LIMPAR quando o ERP apaga o último
+  item (`formas_pagamento`, `referencias`, `oferece_junto`); lista que o ERP não controla (`etiquetas`) sai NULA.
+- `prazo_medio_max_dias` sai `COALESCE(teto, 365)` nos dois dialetos: **365 = sem teto na v1** (cada parcela vai até 365
+  dias, então nenhum prazo é barrado, RN-VEN-25; o BKO mostra "365 dias"). ERP que não controla o teto: `CAST(NULL AS INT)`
+  (vale o do BKO). Quando o Conector ganhar o opt-in de nulo por campo (I2, modulo-integracao), o modelo troca o 365 por NULL.
 
 | Entidade (ordem de carga) | Colunas da view além das comuns | Observações |
 |---|---|---|
 | `forma_pagamento` | `codigo` (1..20, único no tenant), `nome` (1..60), `ordem` (inteiro, opcional) | antes do prazo e do cliente |
 | `prazo_pagamento` | `forma_external_id`, `codigo` (1..20, único no tenant entre todas as formas), `descricao` (até 60, opcional: o Macuxi gera "28/56 dias"), `parcelas_dias` (JSON, 1..24 itens, 0..365, sem decrescer; `[0]` = à vista), `prazo_medio_dias` (opcional, informativo) | o Macuxi calcula o prazo médio (RN-VEN-24); divergente = aviso `prazo_medio_divergente` |
 | `tabela_escalonada` | `produto_external_id`, `medida` (sigla 1 a 4 letras; nula/vazia = unidade base), `quantidade_minima` (inteiro > 0, na medida), `preco_unidade_cents` (> 0, preço da UNIDADE BASE; `centavos_de_decimal` se o ERP guarda reais), `vigencia_inicio` e `vigencia_fim` (data civil `AAAA-MM-DD` no fuso do tenant, `transformar: "data_civil"`; fim nulo = aberta, fim >= início), `tabela_external_id` (nulo = todas as tabelas) | depois do produto (RN-VEN-23) |
-| `cliente` (campos novos) | `prazo_medio_max_dias` (0..365), `formas_pagamento` (JSON com os CÓDIGOS das formas, até 20, sem repetir) | depois das formas; código sem FK no banco (core.cliente) |
+| `cliente` (campos novos) | `prazo_medio_max_dias` (0..365; `COALESCE(teto, 365)`, 365 = sem teto na v1), `formas_pagamento` (JSON com os CÓDIGOS das formas, até 20, sem repetir; `SELECT DISTINCT`; sem linha = `'[]'`) | depois das formas; código sem FK no banco (core.cliente) |
