@@ -17,6 +17,7 @@
 - **Portal, 🟢 14 e 15 (T-0087 P):**
   - os cartões das bases recolhidos, com a última carga lida do servidor, precisam de uma rota de lotes por entidade;
   - Tabs, Progress e ButtonLink no kit ficam com o designer-ux.
+- **Conector, aviso de ordem divergente (T-0089 I2, revisão R-20261107-111409):** o `conector testar` deve avisar quando a ordem do banco do ERP para `external_id` diverge da do Conector, ou seja, quando a colação não é binária.
 - **Conector, limpar campo pela view (T-0089 B2 e I2):** hoje o Conector omite nulos, e na v1 vale "365 = sem teto" e `'[]'` para limpar lista. Recomendação do engenheiro-software: um opt-in por campo no `conector.json` ("nulo: limpa").
 - **Miniatura do produto no pull (pós-piloto, R-20261106-182000):** um campo de miniatura no contrato do pull do Catálogo, baixado sob demanda e fora do pacote offline obrigatório. Até lá, a lista por linha (T-0085 D) não reserva espaço para foto.
 - **Modelos CSV e dicionário para o admin da empresa (R-20261106-182000):** na v1, ficam só para o super-admin, porque a implantação é assistida. Liberar ao admin da empresa quando o BKO tiver carga self-service: basta trocar para `superAdmin: 'aceita'` e declarar uma ação no manifesto.
