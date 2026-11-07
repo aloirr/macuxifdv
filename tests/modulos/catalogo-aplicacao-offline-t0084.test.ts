@@ -30,7 +30,7 @@
  * Convenção: `it` = vale hoje; `it.fails` = defeito/divergência aberta (fica vermelho quando resolver e vira `it`).
  */
 import { criarRelogio } from '@macuxi/comum/relogio';
-import { CONSULTA_BUSCA_PRODUTOS, ENTIDADES_CONTEUDO, ENTIDADES_PRECO, entidadeProdutoRelacao } from '@macuxi/catalogo/contracts';
+import { CONSULTA_BUSCA_PRODUTOS } from '@macuxi/catalogo/contracts';
 import { manifest as manifestoCatalogo } from '@macuxi/catalogo/manifest';
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import { manifest as manifestoPromotor } from '@macuxi/promotor/manifest';
@@ -44,6 +44,7 @@ import { consultaBuscaProdutosAparelho, esquecerMemoriaTextos } from '../../modu
 import { migracoesAparelho, TABELAS_BUSCA_CATALOGO } from '../../modules/catalogo/db/aparelho';
 import { entidadesProduto } from '../../modules/core/app/lib/entidades-produto';
 import { entidadeConcorrente } from '../../modules/promotor/contracts/entidades';
+import { entidadesSyncCatalogo } from './apoio/entidades-catalogo';
 
 const relogio = criarRelogio();
 const CARGA = relogio.relativo({ horas: -3 }).toISOString();
@@ -146,7 +147,8 @@ interface Aparelho {
 async function aparelho(o: OpcoesBase & { promotor?: boolean } = {}): Promise<Aparelho> {
   const comPromotor = o.promotor ?? false;
   const manifestos = comPromotor ? [manifestoCore, manifestoCatalogo, manifestoPromotor] : [manifestoCore, manifestoCatalogo];
-  const entidades = [...entidadesProduto, ...ENTIDADES_CONTEUDO, ...ENTIDADES_PRECO, entidadeProdutoRelacao, ...(comPromotor ? [entidadeConcorrente] : [])];
+  // Catálogo como o shell real monta (`modules/catalogo/app/index.ts`): a migração do aparelho exige as tabelas de todas elas
+  const entidades = [...entidadesProduto, ...entidadesSyncCatalogo(), ...(comPromotor ? [entidadeConcorrente] : [])];
   const registro = criarRegistroSync(manifestos);
   for (const e of entidades) registro.registrar(e);
   const modulos: ModuloId[] = comPromotor ? ['core', 'catalogo', 'promotor'] : ['core', 'catalogo'];

@@ -29,7 +29,6 @@
  * Matriz: docs/testes/T-0052.md (B-O1..B-O6).
  */
 import { criarRelogio } from '@macuxi/comum/relogio';
-import { ENTIDADES_CONTEUDO, ENTIDADES_PRECO } from '@macuxi/catalogo/contracts';
 import { manifest as manifestoCatalogo } from '@macuxi/catalogo/manifest';
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import {
@@ -51,6 +50,7 @@ import { INDICE_BUSCA_CATALOGO } from '../../modules/catalogo/app/indice';
 import { buscarLocal, ID_INDICE_BUSCA, LIMIAR_PRESELECAO_FTS, type LeitorLocal } from '../../modules/catalogo/app/lib/local';
 import { AVISO_BUSCA_OFFLINE } from '../../modules/catalogo/domain/ia';
 import { entidadesProduto } from '../../modules/core/app/lib/entidades-produto';
+import { entidadesSyncCatalogo } from './apoio/entidades-catalogo';
 
 const relogio = criarRelogio();
 /** Carga inicial 3 h atrás; mudanças do servidor 1 h atrás (cursor do pull anda para frente). */
@@ -114,7 +114,8 @@ function baseServidor(): Record<string, LinhaSync[]> {
 // ---------- aparelho: motor real + SQLite com a migração e o índice reais do Catálogo ----------
 
 const MANIFESTOS = [manifestoCore, manifestoCatalogo];
-const ENTIDADES_APARELHO = [...entidadesProduto, ...ENTIDADES_CONTEUDO, ...ENTIDADES_PRECO];
+/** Core: `produto`; Catálogo: o `entidadesSync` do shell real (`modules/catalogo/app/index.ts`), com as tabelas que a migração exige (v4: `produto_no` e `produto_relacao`). */
+const ENTIDADES_APARELHO = [...entidadesProduto, ...entidadesSyncCatalogo()];
 
 interface Aparelho {
   motor: MotorSync;

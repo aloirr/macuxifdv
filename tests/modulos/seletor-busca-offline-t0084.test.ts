@@ -28,14 +28,7 @@
  *       recebe ação de pedido (`pedido.criar`, página novo-pedido, `produto.acoes`); controle positivo no vendedor.
  */
 import { criarRelogio } from '@macuxi/comum/relogio';
-import {
-  CONSULTA_BUSCA_PRODUTOS,
-  CONSULTA_TEXTOS_PRODUTO,
-  ENTIDADES_ARVORE,
-  ENTIDADES_CONTEUDO,
-  ENTIDADES_PRECO,
-  entidadeProdutoRelacao,
-} from '@macuxi/catalogo/contracts';
+import { CONSULTA_BUSCA_PRODUTOS, CONSULTA_TEXTOS_PRODUTO } from '@macuxi/catalogo/contracts';
 import { manifest as manifestoCatalogo } from '@macuxi/catalogo/manifest';
 import { manifest as manifestoCore } from '@macuxi/core/manifest';
 import { manifest as manifestoPromotor } from '@macuxi/promotor/manifest';
@@ -69,6 +62,7 @@ import { entidadesProduto } from '../../modules/core/app/lib/entidades-produto';
 import { entidadeConcorrente } from '../../modules/promotor/contracts/entidades';
 import { buscarNoCatalogoComReserva } from '../../modules/vendedor/app/lib/busca-catalogo';
 import { partirTrecho, resolverBusca, type TrechoServeEm } from '../../modules/vendedor/domain/busca-seletor';
+import { entidadesSyncCatalogo } from './apoio/entidades-catalogo';
 
 const relogio = criarRelogio();
 const CARGA = relogio.relativo({ horas: -3 }).toISOString();
@@ -127,13 +121,13 @@ function baseServidor(): Record<string, LinhaSync[]> {
 /** "Adicionar ao pedido" como o Vendedor registra (o fonte é conferido em tests/modulos/promotor-sem-pedido.test.ts). */
 const ADICIONAR_AO_PEDIDO = { slot: 'produto.acoes', id: 'adicionar-ao-pedido', acao: 'pedido.criar', apps: ['campo' as const], payload: { rotulo: 'Adicionar ao pedido' } };
 
-/** Shell do app Campo com os manifestos reais e o Catálogo montado como em modules/catalogo/app/index.ts (sem as telas). */
+/** Shell do app Campo com os manifestos reais e o Catálogo montado como em modules/catalogo/app/index.ts (sem as telas; entidades lidas do fonte). */
 function shellCampo() {
   return criarShell<string>('campo', [
     { manifesto: manifestoCore, entidadesSync: entidadesProduto },
     {
       manifesto: manifestoCatalogo,
-      entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO, ...ENTIDADES_ARVORE, entidadeProdutoRelacao],
+      entidadesSync: entidadesSyncCatalogo(),
       consultas: [consultaPrecosClienteAparelho, consultaSugestoesPedidoAparelho, consultaTextosProdutoAparelho, consultaBuscaProdutosAparelho],
       migracoesAparelho,
       indicesBusca: [INDICE_BUSCA_CATALOGO],
