@@ -14,8 +14,9 @@
 #      pacote pedir; o compose volta sozinho com restart: unless-stopped);
 #   5. rotação de log do Docker (10 MB x 3 por contêiner), para o disco de 40 GB não encher;
 #   6. /opt/macuxi (dono: usuário de deploy) e /opt/macuxi/.env (modo 600) com os segredos GERADOS AQUI, na VM
-#      (openssl rand): senhas do Postgres (admin, macuxi_app, macuxi_worker), MACUXI_JWT_SEGREDO e
-#      MACUXI_HUB_CHAVE_PEPPER. Nunca saem da VM, nunca são impressos e nunca são regenerados (só acrescenta o que falta;
+#      (openssl rand): senhas do Postgres (admin, macuxi_app, macuxi_worker), MACUXI_JWT_SEGREDO,
+#      MACUXI_HUB_CHAVE_PEPPER e, para o portal do super-admin (T-0087/T-0091), MACUXI_JWT_SEGREDO_PLATAFORMA e
+#      MACUXI_CHAVE_TOTP. Nunca saem da VM, nunca são impressos e nunca são regenerados (só acrescenta o que falta;
 #      trocar a senha do admin depois do primeiro "up" exigiria ALTER ROLE). A senha do macuxi_portal (T-0091) fica à
 #      parte, em /opt/macuxi/portal.env (600), que só a api e o passo de papéis leem (o worker nunca);
 #   7. backup diário do Postgres (código do banco-dados em db/backup/): pasta /opt/macuxi/backup (os scripts chegam
@@ -24,7 +25,8 @@
 #      /opt/macuxi/backup/backup-vm.sh como o usuário de deploy. Log: journalctl -u macuxi-backup;
 #   8. alerta de saúde (T-0078; instalado pelo deploy desde a T-0086): /opt/macuxi/alerta-saude.sh e o timer
 #      macuxi-alerta.timer a cada 5 min, como o usuário de deploy. Log: journalctl -t macuxi-alerta.
-# Os segredos que vêm do GitHub (S3 e token do túnel) NÃO passam por aqui: o workflow grava /opt/macuxi/segredos.env.
+# Os segredos que vêm do GitHub (S3, convite do 1º acesso do super-admin e token do túnel) NÃO passam por aqui: o
+# workflow grava /opt/macuxi/segredos.env e /opt/macuxi/tunel.env.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -169,6 +171,13 @@ acrescentar MACUXI_PG_APP_SENHA "$(openssl rand -hex 32)"
 acrescentar MACUXI_PG_WORKER_SENHA "$(openssl rand -hex 32)"
 acrescentar MACUXI_JWT_SEGREDO "$(openssl rand -hex 48)"
 acrescentar MACUXI_HUB_CHAVE_PEPPER "$(openssl rand -hex 32)"
+# T-0087/ADR 0029 (portal do super-admin), igual à produção (R-20261107-103434: o portal funciona na demo para ensaiar a
+# implantação): token de plataforma com segredo próprio e a chave que cifra o segredo TOTP (32 bytes em base64). Ficam no
+# .env, como na produção. A chave do TOTP NUNCA pode ser regenerada (o acrescentar não regenera): trocar = o 2º fator
+# cadastrado deixa de abrir. O convite do 1º acesso (MACUXI_SUPERADMIN_CONVITE) NÃO nasce aqui: vem do secret
+# DEMO_SUPERADMIN_CONVITE, que o workflow grava no segredos.env.
+acrescentar MACUXI_JWT_SEGREDO_PLATAFORMA "$(openssl rand -hex 48)"
+acrescentar MACUXI_CHAVE_TOTP "$(openssl rand -base64 32)"
 chown "$USUARIO:$USUARIO" "$ENV"
 chmod 600 "$ENV"
 # T-0091 (condição da ADR 0029): senha do papel macuxi_portal (o único com EXECUTE nas plataforma.sa_*) num arquivo
