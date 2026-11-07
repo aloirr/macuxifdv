@@ -12,7 +12,7 @@
 import { relogioReal } from '@macuxi/comum/relogio';
 import { ehSemConexao } from '@macuxi/platform-sdk';
 import { useAmbiente, useMotorSync, useParametros } from '@macuxi/platform-sdk/react';
-import { Banner, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, fonts, Icon, LinhaChips, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
+import { Banner, Chip, colors, DEFAULT_TZ, Empty, EstadoVazio, fonts, Icon, LinhaAtalho, LinhaChips, Screen, SyncStamp, type as t, Trilha, useAtualizacaoAutomatica } from '@macuxi/ui/mobile';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -24,7 +24,8 @@ import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { contagem } from '../lib/apresentacao';
 import { vazioDaBusca } from '../lib/vazio-busca';
 import { arvoreLocal, buscarLocal, filtrosLocais, produtosDaNavegacao, vitrineLocal } from '../lib/local';
-import { irParaProduto } from '../rotas';
+import { irParaListaPorLinha, irParaProduto } from '../rotas';
+import { ATALHO_POR_LINHA, mostrarAtalhoPorLinha } from '../lib/atalho-por-linha';
 import { NiveisArvore, type NoComContagem } from './arvore';
 import { CartaoProduto } from './comum';
 import type { NoCatalogo } from '../../domain/arvore';
@@ -193,6 +194,9 @@ export default function TelaCatalogo() {
         ) : null}
       </View>
 
+      {mostrarAtalhoPorLinha({ consulta, dentroDoPedido, niveis: niveis.length, trilha: trilha.length }) ? (
+        <LinhaAtalho icone="arvore" rotulo={ATALHO_POR_LINHA.rotulo} apoio={ATALHO_POR_LINHA.apoio} onPress={() => irParaListaPorLinha(clienteId, noId)} testID={ATALHO_POR_LINHA.testID} />
+      ) : null}
       {!consulta ? <Trilha itens={itensTrilha} onEscolher={(id) => setNoId(id === RAIZ ? null : id)} testID="catalogo-trilha" /> : null}
       {!consulta ? <NiveisArvore filhos={niveis} onEscolher={setNoId} /> : null}
 

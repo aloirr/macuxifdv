@@ -42,3 +42,4 @@
 2026-11-06 — T-0088 — motivo 'indexando': varredura sem erro, aviso 'Organizando o catálogo no aparelho…' só na aba, C9 sem aviso; testes dos dois caminhos
 2026-11-07 — T-0088 — aviso 'Organizando o catálogo' corrigido (avisoDaBusca junta com sem sinal/falha), texto com consequência, Banner anunciar e ícone clock
 2026-11-07 — T-0088 — ícone do aviso: relógio só no organizando, erro alert, offline wifiOff (iconeDoAviso no domain, com teste)
+2026-11-07 — T-0085 — atalho 'Ver por linha' (LinhaAtalho) na aba Catálogo + lib/atalho-por-linha.ts e teste; textos 'Por linha'/'Sistemas' já estavam na tela do #95
