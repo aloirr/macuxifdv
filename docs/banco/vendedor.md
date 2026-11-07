@@ -235,3 +235,49 @@ Sai no detalhe do pedido (Campo, Gestão e BKO), nos dois PDFs e no pedido ao ER
 **Fixture:** item 1 do p1 de A com "Motos 150 cc".
 
 **Testes:** `db/testes/aplicacao-referencia.test.ts`.
+
+## 0037 — formas de pagamento e prazos, pagamento do pedido (`0037_forma_prazo_escalonada`; T-0089, RN-VEN-24/25)
+Desenho `docs/desenho/T-0089.md` §2, §4.1, §6 e §8 (P7 ajustada pelo gerente, R-20261106-074250). **Aditiva**: a condição antiga
+(`condicao_pagamento`, `cliente_condicao`, `pedido.condicao_pagamento*`) fica como **legado** só de leitura para o APK antigo; nada
+é apagado nem convertido. A mesma migração traz `core.cliente.prazo_medio_max_dias`/`formas_pagamento` (core.md) e
+`catalogo.tabela_escalonada` (catalogo.md).
+
+### forma_pagamento
+| Coluna | Tipo | Regra |
+|---|---|---|
+| codigo | text not null | 1..20, não vazio; **único vivo por tenant** (`forma_pagamento_codigo_uk`) — é o código que `core.cliente.formas_pagamento` guarda |
+| nome | text not null | 1..60, não vazio ("Pix", "Cartão") |
+| ativo | boolean not null | padrão `true` |
+| ordem | integer not null | padrão 0; ordem da lista |
+
+Único `(tenant_id, id)` (alvo das FKs). Pull escopo tenant (`forma_pagamento_sync_ix`); `forma_pagamento_external_uk`. Volume: dezenas.
+**Forma padrão (P7)**: todo tenant tem a forma **"À vista"** (`codigo = 'AVISTA'`, ordem 0, ativa, `external_id` nulo, id
+`uuid_de_chave('<tenant>:vendedor.forma_pagamento:AVISTA'`) com o prazo "À vista". Existentes: backfill da 0037. Novos: gatilho
+`tenant_semear_pagamento` (AFTER INSERT em `plataforma.tenant`, como a 0006 e a 0018), então o `provisionar_tenant` (tenant:criar e o
+passo Empresa do portal), os seeds e as fixtures já recebem. `vendedor.semear_pagamento(tenant)` só semeia se o tenant **não tem
+nenhuma forma** (viva ou apagada): quem apagou a padrão não a recebe de volta. Sem EXECUTE para ninguém além do dono.
+
+### prazo_pagamento
+| Coluna | Tipo | Regra |
+|---|---|---|
+| forma_pagamento_id | uuid not null | FK composta `(tenant_id, forma_pagamento_id)` → `forma_pagamento` (`prazo_pagamento_forma_ix`) |
+| codigo | text not null | 1..20; **único vivo NO TENANT** (não só na forma): vai no `condicao_pagamento_codigo` do `vendedor.pedido.aprovado@1` e no de-para do Hub |
+| descricao | text not null | 1..60 ("28/56 dias", "À vista"): só o prazo, sem o prazo médio |
+| parcelas_dias | integer[] not null | `vendedor.parcelas_validas`: 1 dimensão, 1..24 itens, cada um 0..365 e não nulo, **sem decrescer**; `{0}` = à vista |
+| prazo_medio_dias | integer not null | **gravado** pela API/consumidor com o `prazoMedioDias` do domain (média arredondada para cima, P2: 28/56 = 42). O banco NÃO recalcula; `vendedor.prazo_medio_coerente` só confere que fica entre a menor e a maior parcela |
+| ativo, ordem | | como na forma |
+
+Pull escopo tenant; `prazo_pagamento_sync_ix`, `prazo_pagamento_external_uk`. Volume: dezenas.
+
+### pedido (novas, nulas; pedido antigo e do APK antigo ficam nulos)
+`forma_pagamento_id` e `prazo_pagamento_id` (FKs compostas no schema: `pedido_forma_pagamento_fk`, `pedido_prazo_pagamento_fk`) e o
+**retrato** no aceite: `forma_pagamento_codigo`, `forma_pagamento_nome`, `prazo_codigo`, `prazo_descricao`, `prazo_parcelas_dias`
+integer[] e `prazo_medio_dias`. CHECK **`pedido_pagamento_completo`**: as 8 juntas ou nenhuma; `pedido_prazo_parcelas_validas` e
+`pedido_prazo_medio_coerente` (mesmas regras do prazo). Prazo da forma, ativos, permitidos ao cliente e dentro do prazo médio dele
+(RN-VEN-24/25) e a RN-VEN-13 (título vencido) são da API (`validarPagamento`). Parâmetro `titulo_vencido_dias` (5): padrão no código
+do Vendedor (nenhuma migração semeia parâmetro do Vendedor).
+
+**Base de demo (T-0089)**: Pix e Dinheiro à vista; Cartão 30 e 30/60; Boleto 28, 28/56 e 30/60/90 (médios 0, 0, 30, 45, 28, 42,
+60); a "À vista" padrão apagada; as 4 condições antigas mantidas (`db/seeds/demo/pagamento.ts`).
+**Volta** (`.down.sql`): apaga gatilho e funções, as colunas do pedido (o pedido novo perde forma e prazo), as tabelas e as colunas
+do cliente. Testes: `db/testes/forma-prazo-escalonada.test.ts` (estático, CHECKs, únicos, FKs, semeadura, RLS, up/down).

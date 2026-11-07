@@ -3,7 +3,8 @@
  * db/migrations/0008_catalogo_preco.up.sql (T-0029 §10) e 0013_catalogo_vendedor_prevenda.up.sql (cota de IA, árvore,
  * conteúdo, busca do servidor, estoque e log de busca), 0020_pedido_ajuste_valor_produto_relacao (produto_relacao, T-0071) e
  * 0033_catalogo_aplicacao_referencia (teto da aplicação, etiquetas, aplicação e referências na busca, produto_referencia;
- * T-0084/T-0085) e 0034_catalogo_referencia_marca_nome (retrato do nome da marca na referência; T-0085), para uso
+ * T-0084/T-0085), 0034_catalogo_referencia_marca_nome (retrato do nome da marca na referência; T-0085) e
+ * 0037_forma_prazo_escalonada (tabela_escalonada, RN-VEN-23; T-0089), para uso
  * INTERNO do módulo Catálogo (modules/catalogo/api).
  * Nenhum outro módulo importa este arquivo: o Vendedor obtém preço pela consulta `catalogo.precos_cliente@1` (ADR 0012).
  *
@@ -247,4 +248,26 @@ export const produtoReferencia = catalogo.table('produto_referencia', {
    * linha anterior à 0034 ainda não regravada (a migração não lê o schema promotor): o leitor cai no fallback.
    */
   marca_nome: text('marca_nome'),
+});
+
+// --- 0037 (T-0089, RN-VEN-23; desenho T-0089 §3, §6 e §8 P3/P4/P6): tabela escalonada ---
+/**
+ * Faixa de preço por quantidade. produto_id sem FK (core.produto). medida = sigla (^[A-Z]{1,4}$) da medida em que a faixa
+ * vale; nulo = unidade base (a faixa vale só na medida dela, P3). quantidade_minima > 0, na medida. preco_unidade_cents > 0 =
+ * preço da UNIDADE BASE (o da medida é × a quantidade da embalagem, RN-VEN-15). Vigência em DATA CIVIL do fuso do tenant,
+ * fechada nas duas pontas [início, fim]; fim nulo = aberta; fim >= início. tabela_preco_id nulo = todas as tabelas (FK
+ * composta para tabela_preco). Única viva por (produto, medida, quantidade_minima, tabela, início) com NULLS NOT DISTINCT.
+ * Sem grupo de clientes (P6). Pull escopo tenant. Quem escolhe a faixa é o domain do Vendedor (faixaAplicavel).
+ */
+export const tabelaEscalonada = catalogo.table('tabela_escalonada', {
+  ...comuns(),
+  produto_id: uuid('produto_id').notNull(),
+  medida: text('medida'),
+  quantidade_minima: integer('quantidade_minima').notNull(),
+  preco_unidade_cents: bigint('preco_unidade_cents', { mode: 'number' }).notNull(),
+  /** AAAA-MM-DD (data civil no fuso do tenant). */
+  vigencia_inicio: date('vigencia_inicio').notNull(),
+  vigencia_fim: date('vigencia_fim'),
+  tabela_preco_id: uuid('tabela_preco_id'),
+  ativo: boolean('ativo').notNull().default(true),
 });

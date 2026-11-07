@@ -84,7 +84,7 @@ campos comuns, RLS forçado, `updated_at` por gatilho e FKs compostas só dentro
 | `estoque_saldo` | deposito_id (FK), produto_id, quantidade numeric(14,3) na unidade base, atualizado_erp_em | (tenant, depósito, produto) vivo; (tenant, produto) | tenant |
 | `busca_log` | usuario_id, termo NORMALIZADO (1..200), origem llm/regras/cache/offline, resultados, duracao_ms, ocorrido_em | (tenant, ocorrido_em desc); parcial `resultados = 0` | fora; só select/insert |
 
-`tabela_preco_item.unidade` (nova): nulo = unidade base; `CX` = preço próprio da caixa (RN-VEN-15). O único vivo virou
+`tabela_preco_item.unidade` (nova): nulo = unidade base; `CX` = preço próprio da caixa (RN-VEN-15 de 02/11; **revogado em 06/11**: a API ignora essas linhas e a base demo não as cria desde a T-0089). O único vivo virou
 `tabela_preco_item_unidade_vigencia_uk (tenant_id, tabela_preco_id, produto_id, unidade, vigencia_inicio) nulls not distinct`.
 
 ### Funções
@@ -108,10 +108,10 @@ campos comuns, RLS forçado, `updated_at` por gatilho e FKs compostas só dentro
 ### Base de demo (0013)
 33 produtos (linha automotiva + detergente 5 L para a busca em linguagem natural: "óleo para moto 150 cilindradas" acha
 `OLE-4T-1L`), árvore de 3 níveis (Alimentos, Bebidas, Limpeza e higiene, Automotivo), conteúdo, atributos, 5 sinônimos,
-documento de busca, 2 depósitos (CD Manaus, Loja Centro) com rupturas e saldos baixos, CX em 9 produtos. O preço
-próprio da CX (3 produtos no Varejo; o café entrou na T-0071) estava pronto no seed mas DESLIGADO — **ligado na T-0071**, ver "produto_relacao" abaixo — (`PRECO_PROPRIO_CX_LIGADO = false`) até a consulta
-`catalogo.precos_cliente@1` filtrar `unidade is null` para o preço base: hoje ela lê todas as linhas do produto e leria a
-da CX como preço da UN.
+documento de busca, 2 depósitos (CD Manaus, Loja Centro) com rupturas e saldos baixos, CX em 10 produtos, sempre a UN × fator. O preço próprio da CX (ligado na T-0071) foi **desligado na T-0089**
+(`PRECO_PROPRIO_CX_LIGADO = false`; RN-VEN-15, redação de 2026-11-06): o seed não cria linha de `tabela_preco_item` com
+`unidade` não nula. Linhas antigas numa base já carregada não são apagadas pelo seed (a API e o APK novo as ignoram); o plano
+B `demo-recriar-base` recria a base sem elas.
 
 ## produto_relacao (0020, `0020_pedido_ajuste_valor_produto_relacao`; T-0071, RF-CAT-03)
 Relacionados do produto, base das sugestões do novo pedido (consulta `catalogo.sugestoes_pedido@1`, desenho
@@ -136,10 +136,8 @@ Testes: `db/testes/ajuste-valor-produto-relacao.test.ts` (RLS, checks, únicos, 
 Produtos novos (Varejo e Atacado, com estoque): `FIL-103` Filtro de papel 103 c/ 30 (R$ 5,49), `LPO-400` Leite em pó integral
 400 g (R$ 16,90) e `AGU-1500` Água mineral 1,5 L (fardo 6) (R$ 19,90). `ACU-1K` Açúcar cristal 1 kg passa a R$ 4,99.
 Relações: `CAF-500` → `ACU-1K`, `FIL-103`, `LPO-400` (complementar, ordem 1..3); `AGU-500` → `AGU-1500` (superior). Embalagens
-da referência: `CAF-500` CX c/ 12 com **preço próprio** no Varejo (R$ 215,46 = 18,90 × 12 × 0,95) e `BIS-400` CX c/ 20 sem preço
-próprio (UN × fator = R$ 117,80). O preço próprio da CX ficou **ligado** (`PRECO_PROPRIO_CX_LIGADO = true`): depende da correção
-de `precosDoCliente` (só `unidade is null` no preço base; linhas com unidade em `embalagens[]`), entregue pelo modulo-catalogo na
-mesma T-0071 — carregar esta base na demo só depois dela.
+da referência: `CAF-500` CX c/ 12 e `BIS-400` CX c/ 20, ambas UN × fator (R$ 226,80 e R$ 117,80). O preço próprio do café
+(R$ 215,46) saiu na T-0089 (RN-VEN-15: não existe preço próprio da embalagem; `PRECO_PROPRIO_CX_LIGADO = false`).
 
 ## 0033 — aplicação, etiquetas, referência cruzada e busca (`0033_catalogo_aplicacao_referencia`; T-0084 e T-0085)
 Desenhos `docs/desenho/T-0084.md` §6 e `T-0085.md` §7; regras RN-CAT-09 (referência cruzada), RN-CAT-11 (aplicação), RN-CAT-12
@@ -263,3 +261,26 @@ consulta do Promotor.
 **Testes:** `db/testes/referencia-marca-nome.test.ts` (estático: coluna, CHECK, nada fora de `catalogo.*`, sem backfill, espelho
 Drizzle, aparelho sem versão nova, fixture; no CI: retrato no pull de A e B, limites 1..120, vazamento entre tenants e up/down
 com dados).
+
+## 0037 — tabela escalonada (`0037_forma_prazo_escalonada`; T-0089, RN-VEN-23, RN-VEN-15 nova; desenho docs/desenho/T-0089.md §3, §6 e §8)
+### tabela_escalonada — faixa de preço por quantidade. Pull escopo tenant
+| Coluna | Tipo | Regra |
+|---|---|---|
+| produto_id | uuid not null | **sem FK** (core.produto; regra 1, como a `tabela_preco_item`) |
+| medida | text | sigla `^[A-Z]{1,4}$` da medida em que a faixa vale (a mesma do Hub, `SIGLA_MEDIDA_FORMATO`, e do Core, RN-CORE-19); **nulo = unidade base**: o vazio do Hub chega ausente e é gravado NULO, nunca `''` (o CHECK recusa). A faixa vale só na medida dela (P3: a de 10 FD não vale para 120 UN) |
+| quantidade_minima | integer not null | > 0, na medida da faixa |
+| preco_unidade_cents | bigint not null | > 0; preço da **unidade base** (o da medida = × a quantidade da embalagem, RN-VEN-15). Faixa acima da tabela não sobe o preço (P4: o domain usa o menor) |
+| vigencia_inicio | date not null | data civil no fuso do tenant (como o Hub manda, `DataCivil`) |
+| vigencia_fim | date | nulo = aberta; **fechada** nas duas pontas: vale de `inicio` a `fim` inclusive (`tabela_escalonada_vigencia_valida`: fim >= início). Vigente: `vigencia_inicio <= hoje and (vigencia_fim is null or vigencia_fim >= hoje)`, com `hoje` = data civil no fuso do tenant (nunca `current_date` do servidor nem a data UTC) |
+| tabela_preco_id | uuid | nulo = **todas as tabelas**; FK composta `(tenant_id, tabela_preco_id)` → `tabela_preco` (`tabela_escalonada_tabela_ix`) |
+| ativo | boolean not null | padrão `true` |
+
+Único vivo **`tabela_escalonada_faixa_uk`** `(tenant_id, produto_id, medida, quantidade_minima, tabela_preco_id, vigencia_inicio)
+nulls not distinct where deleted_at is null` — também é o índice da consulta `catalogo.precos_cliente@1` (tenant + `produto_id =
+any(...)`, EXPLAIN no teste). Sem grupo de clientes (P6). Quem escolhe a faixa é o domain do Vendedor (`faixaAplicavel`); o Catálogo
+entrega as vigentes da tabela do cliente e as gerais (a da tabela do cliente vence a geral na mesma medida e quantidade).
+`tabela_escalonada_sync_ix`, `tabela_escalonada_external_uk`. RLS forçado + `manutencao`; `macuxi_app` CRUD. Volume: dezenas por
+produto com faixa (milhares por tenant). Aparelho: sem versão nova do SQLite (a faixa viaja no JSON de `ent_tabela_escalonada`; um
+índice de expressão por produto entra numa v4 quando o modulo-catalogo declarar a entidade, se a leitura pedir).
+Base de demo: BIS-400 com 50 UN a R$ 5,69, 10 CX a R$ 5,49 e 20 CX a R$ 5,29 por UN (todas as tabelas, desde o 1º do mês anterior).
+Fixture: A no p1 com 10 PC (geral), 2 CX (Padrão Alfa) e uma vencida ontem; B no p1 com 12 UN. Volta: o down da 0037 apaga a tabela.

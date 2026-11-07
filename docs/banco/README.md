@@ -63,6 +63,13 @@ Dono: `banco-dados`. Pacote `@macuxi/db` em `db/`. Postgres 16 + pgvector via Do
 > por link, só o sha256 do segredo, único por tenant `(tenant_id, token_hash)`, no máximo 1 pendente por usuário, autor `criado_por_id`/`criado_por_tipo` sem FK;
 > fora do sync; app sem DELETE; **sem SECURITY DEFINER**: o tenant vem no token), `core.usuario.telefone` e
 > `anonimizar_usuario` apagando o telefone e revogando os convites. Detalhes no [core.md](core.md) ("0036").
+>
+> **2026-11-06 (T-0089):** `0037_forma_prazo_escalonada` (aditiva; RN-VEN-23/24/25): `vendedor.forma_pagamento` e
+> `vendedor.prazo_pagamento` (parcelas `int[]` e prazo médio gravado pela API), forma/prazo e retrato do pagamento em
+> `vendedor.pedido` (8 colunas juntas ou nenhuma), `core.cliente.prazo_medio_max_dias` e `formas_pagamento` (códigos, sem FK),
+> `catalogo.tabela_escalonada` (preço da unidade base, vigência em data civil, tabela opcional) e a forma **"À vista"** semeada em
+> todo tenant (backfill + gatilho `tenant_semear_pagamento`). A condição antiga fica como legado. Detalhes no
+> [vendedor.md](vendedor.md), [core.md](core.md) e [catalogo.md](catalogo.md) ("0037").
 
 ## Windows: subir, derrubar e recriar o banco de teste (5 passos)
 1. **Abra o Docker Desktop** e espere "Engine running". No Git Bash, se `docker` não for encontrado:
@@ -184,7 +191,7 @@ Conteúdo (tenant `dd000000-0000-4000-8000-000000000001`, "Distribuidora Exemplo
   (`cadastro_incompleto`, falta `cep`: pedido dele só como orçamento, RN-VEN-13); pedidos com o CNPJ no retrato (o
   `000010` abre no BKO), frete (FOB com transportadora em 4 clientes, CIF no resto; sem valor de frete, R-20261102-105040) e endereço de entrega
   principal; custo com margem de 20% a 40%, desconto máximo próprio em `OLE-4T-1L` 25%, `VEL-150` 5% e `DET-5L` 10%
-  (padrão 15% sem linha de parâmetro); UN e CX em 10 produtos (preço próprio da CX ligado na T-0071: café, óleo de soja, leite e óleo 4T); árvore do catálogo de 3 níveis; conteúdo, atributos,
+  (padrão 15% sem linha de parâmetro); UN e CX em 10 produtos (CX = UN × fator; o preço próprio da CX ligado na T-0071 foi desligado na T-0089, RN-VEN-15); árvore do catálogo de 3 níveis; conteúdo, atributos,
   sinônimos e documento de busca ("óleo para moto 150 cilindradas" acha `OLE-4T-1L`); 2 depósitos com rupturas e
   saldos baixos; 2 transportadoras; endereço de entrega extra em 5 clientes.
 - **Condições de pagamento** ([vendedor.md](vendedor.md)): À vista (padrão), 28 dias, 28/56 e 30/60/90; os 8 clientes com título
