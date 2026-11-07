@@ -1,5 +1,6 @@
 /** T-0087: partes puras das telas do portal (passo Empresa, primeiro acesso, aba Integração). */
 import { describe, expect, it } from 'vitest';
+import { ENTIDADES } from '@macuxi/integracao/contracts';
 import { CriarEmpresaSchema } from '@macuxi/platform-sdk';
 
 import { entidadesLivres } from '@/components/portal/aba-integracao';
@@ -79,8 +80,13 @@ describe('aba Integração', () => {
     ].map((c) => ({ ...c, entidades: [...c.entidades] }));
     const livres = entidadesLivres(conectores);
     expect(livres).not.toContain('vendedor');
+    expect(livres).not.toContain('cliente');
     expect(livres).toContain('produto');
-    expect(livres).toHaveLength(10);
-    expect(entidadesLivres(conectores, 'implantacao-csv')).toHaveLength(12);
+    // T-0089: as bases de pagamento e a escalonada também ficam livres para o Conector do ERP
+    for (const e of ['forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const) expect(livres).toContain(e);
+    expect(livres).toEqual(ENTIDADES.filter((e) => e !== 'vendedor' && e !== 'cliente'));
+    expect(livres).toHaveLength(13);
+    expect(entidadesLivres(conectores, 'implantacao-csv')).toEqual([...ENTIDADES]);
+    expect(entidadesLivres(conectores, 'implantacao-csv')).toHaveLength(15);
   });
 });
