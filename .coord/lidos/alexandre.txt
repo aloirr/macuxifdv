@@ -252,3 +252,6 @@ R-20261106-224344-gerente-projetos
 R-20261106-230430-engenheiro-apps
 R-20261107-012839-engenheiro-apps
 R-20261107-080420-gerente-projetos
+R-20261107-102804-gerente-projetos
+R-20261107-120258-gerente-projetos
+R-20261107-124025-engenheiro-apps
