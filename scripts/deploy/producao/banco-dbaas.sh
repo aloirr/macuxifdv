@@ -132,7 +132,9 @@ sa_fora="$(psqlc -d "$BANCO" -c "with sa as (
 [ -z "$sa_fora" ] || erro 1 "funções plataforma.sa_* fora da regra do T-0091: $sa_fora"
 grants_portal="$(psqlc -d "$BANCO" -c "select count(*) from pg_class c, aclexplode(c.relacl) a where a.grantee = 'macuxi_portal'::regrole")"
 [ "$grants_portal" = 0 ] || erro 1 "macuxi_portal com grant em tabela ($grants_portal): ele só executa as plataforma.sa_*"
-log "super-admin: plataforma.sa_* só pelo macuxi_portal (internas só pelo dono), sem grant em tabela"
+# (a 1ª linha é a frase exata que o stack-isolado.yml procura: não mudar)
+log "super-admin: plataforma.sa_* só pelo macuxi_portal, sem grant em tabela"
+log "super-admin: as internas ($SA_INTERNAS) só pelo dono"
 [ "$(psqlc -d "$BANCO" -c "select pg_has_role(current_user, 'macuxi_manutencao', 'USAGE')")" = t ] \
   || erro 1 "o admin não herda o macuxi_manutencao (0031): seed, DEFINER entre tenants e backup com RLS veriam 0 linhas"
 log "admin herda o macuxi_manutencao (0031, B1)"
