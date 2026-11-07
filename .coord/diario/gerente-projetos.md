@@ -398,3 +398,4 @@
 2026-11-07 — T-0085/T-0087/T-0089 — 12h20: #96, #95 (ordem do dono do produto) e #97 integrados; atalho Ver por linha revisado sem 🔴 (UX e técnica, bundles verdes); I2 com 🔴 de colação devolvida ao modulo-integracao; lote do build com os diffs da T-0091 aprovados (R-20261107-120927)
 2026-11-07 — T-0085/T-0089/T-0091 — 12h50: lote 4c0bf458 vermelho (TS2769 antigo no provedor-http do Catálogo; frase do log do banco-dbaas diferente da do stack-isolado); corrigidos pelos donos; lote refeito com a I2 em cima do 4c0bf458
 2026-11-07 — T-0085/T-0089/T-0090/T-0091 — 13h45: BUILD PRONTO d1e0d2a (Campo e Gestão, R-20261107-124025) com as 5 condições do R-20261107-092152; em seguida, o desempenho da lista por linha (modulo-catalogo e índices v4 do banco-dados) em reconferência e ajuste de testes, para o próximo build
+2026-11-07 — T-0085 — 14h30: lista por linha com Mostrar mais, LRU e acento; revisões sem 🔴; lote em verificação
