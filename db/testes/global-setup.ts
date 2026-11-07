@@ -103,6 +103,7 @@ export default async function setup(project: TestProject): Promise<(() => Promis
     urlAdmin: t.urlAdmin,
     urlApp: t.urlApp,
     urlWorker: t.urlWorker,
+    urlPortal: t.urlPortal,
     agora: agora.toISOString(),
     adminIgnoraRls,
     local: ehBancoLocal(cfg.host),

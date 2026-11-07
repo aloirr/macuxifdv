@@ -144,6 +144,7 @@ describe('migrações (estático)', () => {
     expect(nomes[34]).toBe('0035_plataforma_super_admin'); // T-0087 (ADR 0029): super-admin fora dos tenants, funções sa_*, auditoria append-only, provisionar_tenant sem admin e com parâmetros (super-admin.test.ts)
     expect(nomes[36]).toBe('0037_forma_prazo_escalonada'); // T-0089: forma_pagamento e prazo_pagamento (Vendedor), pagamento do pedido, formas e prazo médio do cliente (Core), tabela_escalonada (Catálogo) e a forma "À vista" semeada (forma-prazo-escalonada.test.ts)
     expect(nomes[35]).toBe('0036_core_usuario_convite'); // T-0087 fatia E (RN-CORE-31): core.usuario_convite (só o hash do token, uso único, sem DEFINER), core.usuario.telefone e anonimizar_usuario com convites (usuario-convite.test.ts)
+    expect(nomes[37]).toBe('0038_plataforma_papel_portal'); // T-0091 (ADR 0029): papel macuxi_portal, EXECUTE das 20 sa_* só a ele, macuxi_app e macuxi_worker sem (papel-portal.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',

@@ -8,12 +8,14 @@
  *   tabelas têm FORCE ROW LEVEL SECURITY. É o único papel com que a API conecta.
  * - macuxi_worker: despachante da outbox (ADR 0007). LOGIN, NOSUPERUSER, NOBYPASSRLS; só lê e marca
  *   plataforma.evento (todos os tenants, por política própria). Handlers de evento usam o macuxi_app.
+ * - macuxi_portal: portal do super-admin (0038, T-0091, ADR 0029). LOGIN, NOSUPERUSER, NOBYPASSRLS, sem grant de tabela e sem
+ *   filiação; o ÚNICO com EXECUTE nas plataforma.sa_*. Só o 2º pool da API conecta com ele (senha no portal.env da VM).
  * - garantirPapelDeLogin (B0 do plano B do DBaaS, T-0075): CREATE com os atributos; papel existente só recebe LOGIN e a
  *   senha (atributos conferidos em pg_roles, nunca citados no ALTER ROLE); senha como verificador SCRAM quando o servidor
  *   usa scram-sha-256. Dicionário: docs/banco/rls.md (papéis).
  */
 import type { ClientBase } from 'pg';
-import { exigirBancoLocal, hostDoCliente, PAPEL_APP, PAPEL_WORKER, SENHA_APP_LOCAL, SENHA_WORKER_LOCAL } from './config';
+import { exigirBancoLocal, hostDoCliente, PAPEL_APP, PAPEL_PORTAL, PAPEL_WORKER, SENHA_APP_LOCAL, SENHA_PORTAL_LOCAL, SENHA_WORKER_LOCAL } from './config';
 import { senhaAceitaPeloScramLocal, verificadorScram } from './scram';
 
 /** Chave do advisory lock que serializa CREATE/ALTER ROLE (diferente da chave do migrador). */
@@ -197,6 +199,47 @@ export async function garantirPapelWorker(admin: ClientBase, senha: string): Pro
   if (!senha) throw new Error('Senha do papel do worker vazia (MACUXI_PG_WORKER_SENHA).');
   if (senha === SENHA_WORKER_LOCAL) exigirBancoLocal(hostDoCliente(admin), 'Gravar a senha pública local no papel macuxi_worker');
   await garantirPapelDeLogin(admin, PAPEL_WORKER, senha);
+}
+
+/**
+ * Papel do portal do super-admin macuxi_portal (0038, T-0091, ADR 0029): LOGIN, sem SUPERUSER/BYPASSRLS, pelo B0 (CREATE com
+ * os atributos; existente só LOGIN e a senha, como verificador SCRAM). Os privilégios (USAGE em plataforma e EXECUTE só nas
+ * plataforma.sa_*) vêm da migração 0038; aqui nada é concedido além do SET do admin sem superusuário (garantirPapelDeLogin).
+ */
+export async function garantirPapelPortal(admin: ClientBase, senha: string): Promise<void> {
+  if (!senha) throw new Error('Senha do papel do portal vazia (MACUXI_PG_PORTAL_SENHA).');
+  if (senha === SENHA_PORTAL_LOCAL) exigirBancoLocal(hostDoCliente(admin), 'Gravar a senha pública local no papel macuxi_portal');
+  await garantirPapelDeLogin(admin, PAPEL_PORTAL, senha);
+}
+
+/**
+ * Cria um papel SEM LOGIN (nologin nosuperuser nobypassrls nocreatedb nocreaterole noreplication) se ele falta; existente não
+ * muda, mas tem os atributos CONFERIDOS (SUPERUSER, BYPASSRLS, CREATEDB, CREATEROLE ou REPLICATION = erro claro, como no B0). O mesmo que o "create role ... if not exists" das migrações 0003/0038, mas antes delas e com o advisory lock dos papéis:
+ * bancos de teste migrando em paralelo não disputam pg_authid. Usado quando a senha do papel não está configurada (o papel
+ * fica NOLOGIN, como a migração o deixaria). Chame conectado ao banco "postgres". Idempotente.
+ */
+export async function garantirPapelSemLogin(admin: ClientBase, papel: string): Promise<'criado' | 'já existia'> {
+  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(papel)) throw new Error(`Nome de papel inválido: ${papel}`);
+  await admin.query('begin');
+  try {
+    await admin.query('select pg_advisory_xact_lock($1)', [CHAVE_LOCK_PAPEL]);
+    const atual = await admin.query<AtributosPapel>(
+      'select rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolreplication from pg_roles where rolname = $1',
+      [papel],
+    );
+    const existente = atual.rows[0];
+    if (existente) {
+      const indevidos = atributosIndevidos(existente);
+      if (indevidos.length) throw new Error(mensagemAtributosIndevidos(papel, indevidos));
+    } else {
+      await admin.query(`create role ${papel} nologin nosuperuser nobypassrls nocreatedb nocreaterole noreplication`);
+    }
+    await admin.query('commit');
+    return existente ? 'já existia' : 'criado';
+  } catch (e) {
+    await admin.query('rollback').catch(() => undefined);
+    throw e;
+  }
 }
 
 export interface DiagnosticoPapel {
