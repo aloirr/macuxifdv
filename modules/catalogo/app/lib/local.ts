@@ -90,10 +90,12 @@ const lembrar = <T>(nome: string, leitor: LeitorLocal, entidades: readonly strin
 /** Só para testes: esquece o que foi memorizado. */
 export function esquecerMemoriaLocal(): void {
   memoria.clear();
+  aplicacoesLidas.clear();
+  versaoAplicacoesLidas = '';
   vocabularios = new WeakMap();
 }
 let vocabularios = new WeakMap<readonly ProdutoCatalogo[], ReturnType<typeof vocabularioDe>>();
-const vocabularioMemorizado = (produtos: readonly ProdutoCatalogo[]) => {
+export const vocabularioMemorizado = (produtos: readonly ProdutoCatalogo[]) => {
   let v = vocabularios.get(produtos);
   if (!v) {
     v = vocabularioDe(produtos);
@@ -108,6 +110,8 @@ export interface EntradaLocal {
   parametros: Readonly<Record<string, unknown>>;
   agora: string;
   clienteId: string | null;
+  /** Fuso do tenant (ano civil das faixas abertas da aplicação); padrão America/Manaus. */
+  fuso?: string;
 }
 
 const vivas = <L extends LinhaSync>(l: L[]) => l.filter((x) => !x.deleted_at);
@@ -139,7 +143,9 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
   const porProduto = new Map<string, ProdutoAtributoSync[]>();
   for (const a of atributos) porProduto.set(a.produto_id, [...(porProduto.get(a.produto_id) ?? []), a]);
   const campanha = new Set(conteudos.filter((c) => c.campanha).map((c) => c.produto_id));
-  const aplicacoes = new Map(conteudos.filter((c) => c.aplicacao).map((c) => [c.produto_id, c.aplicacao!]));
+  // catálogo grande com leitura por campo: a aplicação (até 2.000 caracteres × 20 mil) não fica na memória; entra só dos candidatos (`comAplicacao`)
+  const sobDemanda = !!leitor.linhasPorCampo && produtos.length > LIMIAR_PRESELECAO_FTS;
+  const aplicacoes = sobDemanda ? new Map<string, string>() : new Map(conteudos.filter((c) => c.aplicacao).map((c) => [c.produto_id, c.aplicacao!]));
   const marcas = lerConcorrente ? await marcasConcorrentesLocais(leitor) : new Map<string, { nome: string; ativo: boolean }>();
   const referencias = new Map<string, Referencia[]>();
   for (const x of vivas(await leitor.linhas<ProdutoReferenciaSync & LinhaSync>('produto_referencia')).sort((a, b) => a.ordem - b.ordem)) {
@@ -148,7 +154,7 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
     if (nome === null) continue;
     referencias.set(x.produto_id, [...(referencias.get(x.produto_id) ?? []), { marca_id: x.marca_id, marca_nome: nome, codigo: x.codigo }]);
   }
-  return produtos.map((p) => ({
+  const montados = produtos.map((p) => ({
     id: p.id,
     sku: p.sku,
     ean: p.ean,
@@ -164,6 +170,58 @@ async function montarProdutosLocais(leitor: LeitorLocal, lerConcorrente: boolean
     campanha: campanha.has(p.id),
     vendas: 0,
   }));
+  if (sobDemanda) for (const m of montados) semAplicacaoCarregada.add(m);
+  return montados;
+}
+
+/** Produtos montados sem a aplicação (catálogo grande); `comAplicacao` completa só os que o ranking vai ler. */
+const semAplicacaoCarregada = new WeakSet<ProdutoCatalogo>();
+
+/**
+ * Aplicações já lidas dos candidatos (`produto_id` -> texto), válidas enquanto a versão de `produto_conteudo` não muda.
+ * Teto de 800 com LRU (~2.000 caracteres cada, ~1,6 MB): a busca seguinte, que repete boa parte dos candidatos, não relê o SQLite.
+ */
+export const LIMITE_MEMO_APLICACOES_LIDAS = 800;
+const aplicacoesLidas = new Map<string, string>();
+let versaoAplicacoesLidas = '';
+
+/** Completa a aplicação dos produtos dados (os candidatos da pré-seleção), lendo `produto_conteudo` por `produto_id`. */
+export async function comAplicacao(leitor: LeitorLocal, produtos: readonly ProdutoCatalogo[]): Promise<ProdutoCatalogo[]> {
+  const faltam = produtos.filter((p) => semAplicacaoCarregada.has(p));
+  if (faltam.length === 0) return [...produtos];
+  // a versão é lida ANTES das linhas (como em `memorizar`): sync durante a leitura = a próxima busca relê
+  const versao = leitor.versaoLinhas ? String(leitor.versaoLinhas('produto_conteudo')) : null;
+  if (versao === null || versao !== versaoAplicacoesLidas) {
+    aplicacoesLidas.clear();
+    versaoAplicacoesLidas = versao ?? '';
+  }
+  const aplicacoes = new Map<string, string>();
+  const ids: string[] = [];
+  for (const p of faltam) {
+    const guardada = versao === null ? undefined : aplicacoesLidas.get(p.id);
+    if (guardada === undefined) ids.push(p.id);
+    else {
+      aplicacoes.set(p.id, guardada);
+      aplicacoesLidas.delete(p.id);
+      aplicacoesLidas.set(p.id, guardada); // reinserção: o mais usado sai por último
+    }
+  }
+  if (ids.length > 0) {
+    const linhas =
+      leitor.linhasPorCampo && ids.length <= MAXIMO_POR_CAMPO
+        ? await leitor.linhasPorCampo<ProdutoConteudoSync & LinhaSync>('produto_conteudo', 'produto_id', ids)
+        : await leitor.linhas<ProdutoConteudoSync & LinhaSync>('produto_conteudo');
+    const lidas = new Map(vivas(linhas).filter((c) => c.aplicacao).map((c) => [c.produto_id, c.aplicacao!]));
+    for (const id of ids) {
+      const texto = lidas.get(id) ?? '';
+      aplicacoes.set(id, texto);
+      if (versao !== null) {
+        aplicacoesLidas.set(id, texto);
+        if (aplicacoesLidas.size > LIMITE_MEMO_APLICACOES_LIDAS) aplicacoesLidas.delete(aplicacoesLidas.keys().next().value!);
+      }
+    }
+  }
+  return produtos.map((p) => (semAplicacaoCarregada.has(p) ? { ...p, aplicacao: aplicacoes.get(p.id) ?? '' } : p));
 }
 
 export function sinonimosLocais(leitor: LeitorLocal): Promise<SinonimoDoTenant[]> {
@@ -273,6 +331,12 @@ export async function preselecionar(
   const grupos = expandirSinonimos(texto, sinonimos);
   if (codigo) grupos.push([codigo]);
   if (grupos.length === 0) return null;
+  // 1º todos os termos juntos (AND, uma consulta só: ~25 ms contra ~36 ms por termo comum); só cai na união termo a termo
+  // quando o AND traz menos que o necessário. Quem casa todos os termos já vem primeiro no ranking do domain.
+  if (grupos.length > 1) {
+    const juntos = await consultar(leitor, { grupos: grupos.slice(0, 8), prefixoNoUltimo: true, limite: MAXIMO_CANDIDATOS });
+    if (juntos.lista.length >= CANDIDATOS_POR_TERMO) return new Set(juntos.lista.slice(0, MAXIMO_CANDIDATOS).map((x) => x.chave));
+  }
   const achados = new Map<string, { termos: number; melhor: number }>();
   let tudoCerto = true;
   for (const grupo of grupos.slice(0, 8)) {
@@ -301,9 +365,9 @@ export async function buscarLocal(leitor: LeitorLocal, e: EntradaLocal & { q: st
   const sinonimos = await sinonimosLocais(leitor);
   const filtros = interpretarConsulta(e.q, vocabularioMemorizado(produtos));
   const candidatos = await preselecionar(leitor, filtros.text, filtros.code?.value ?? null, sinonimos, produtos.length);
-  const universo = candidatos ? produtos.filter((p) => candidatos.has(p.id)) : produtos;
+  const universo = await comAplicacao(leitor, candidatos ? produtos.filter((p) => candidatos.has(p.id)) : produtos);
   const contexto = await contextoLocal(leitor, e, universo);
-  const pagina = buscarProdutos({ produtos: universo, contexto, filtros, chips: e.chips ?? {}, sinonimos, limit: e.limit, offset: e.offset });
+  const pagina = buscarProdutos({ produtos: universo, contexto, filtros, chips: e.chips ?? {}, sinonimos, limit: e.limit, offset: e.offset, ...(e.fuso ? { fuso: e.fuso } : {}) });
   return { ...pagina, aviso: e.offline && e.q.trim() !== '' ? AVISO_BUSCA_OFFLINE : null };
 }
 
@@ -322,7 +386,9 @@ export async function filtrosLocais(leitor: LeitorLocal): Promise<{ marcas: stri
 
 /** Ficha no aparelho (RF-CAT-03): o produto inativo ou que não está no aparelho = `null` ("produto não encontrado"). */
 export async function fichaLocal(leitor: LeitorLocal, e: EntradaLocal & { produtoId: string }): Promise<FichaProduto | null> {
-  const produto = (await produtosLocais(leitor)).find((p) => p.id === e.produtoId && p.ativo);
+  const achado = (await produtosLocais(leitor)).find((p) => p.id === e.produtoId && p.ativo);
+  if (!achado) return null;
+  const [produto] = await comAplicacao(leitor, [achado]);
   if (!produto) return null;
   const contexto = await contextoLocal(leitor, e, [produto]);
   const c = vivas(await leitor.linhas<ProdutoConteudoSync & LinhaSync>('produto_conteudo')).find((x) => x.produto_id === produto.id);

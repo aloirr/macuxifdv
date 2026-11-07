@@ -21,13 +21,15 @@ export interface EntradaBuscaConsulta {
   sinonimos: readonly SinonimoDoTenant[];
   parametros: ParametrosCatalogo;
   anoAtual: number;
+  /** Vocabulário (marcas/linhas) do catálogo inteiro, quando `produtos` já é só o conjunto de candidatos da pré-seleção. */
+  vocabulario?: ReturnType<typeof vocabularioDe> | undefined;
 }
 
 /** RN-CAT-12 / RN-CAT-09: ranking da vitrine sobre o texto, com o trecho "Serve em" e o "Equivale a" de cada item. */
 export function buscarParaConsulta(e: EntradaBuscaConsulta): BuscaProdutosSaida['itens'] {
   const ids = e.produtoIds ? new Set(e.produtoIds) : null;
   const universo = e.produtos.filter((p) => p.ativo && (!ids || ids.has(p.id)));
-  const interpretado = interpretarConsulta(e.q, vocabularioDe(universo));
+  const interpretado = interpretarConsulta(e.q, e.vocabulario ?? vocabularioDe(universo));
   // sem preço nem estoque nesta consulta: só o que é texto, marca, linha e código
   const filtros = { ...interpretado, min_price_cents: null, max_price_cents: null, stock: null, sort: null };
   const docs = universo.map((p) => ({
