@@ -38,12 +38,14 @@ export const integracao = pgSchema('integracao');
  */
 export const CODIGOS_ITEM_DESCARTADO_BANCO = ['sequencia_inexistente', 'produto_divergente', 'quantidade_acima_do_saldo', 'sequencia_repetida'] as const;
 /**
- * Entidades aceitas pelos CHECKs do banco desde a 0013 (aditivo no v1, desenho T-0061 §6): as 8 originais + catalogo_no,
- * produto_unidade, cliente_endereco, transportadora. O padrão de conector.entidades continua as 8 ORIGINAIS.
- * ENTIDADES (contrato) ⊆ ENTIDADES_BANCO; db/testes/estatico.test.ts confere.
+ * Entidades aceitas pelos CHECKs do banco (aditivo no v1): as 8 originais da 0010; a 0013 (desenho T-0061 §6) somou
+ * catalogo_no, produto_unidade, cliente_endereco e transportadora (ENTIDADES_0013, 12); a 0037 (T-0089,
+ * R-20261106-203005) somou forma_pagamento, prazo_pagamento e tabela_escalonada (ENTIDADES_BANCO, 15). O padrão de
+ * conector.entidades continua as 8 ORIGINAIS. ENTIDADES (contrato) ⊆ ENTIDADES_BANCO; db/testes/estatico.test.ts confere.
  */
 export const ENTIDADES_ORIGINAIS = ['vendedor', 'cliente', 'produto', 'preco', 'estoque', 'titulo', 'nota', 'rota'] as const;
-export const ENTIDADES_BANCO = [...ENTIDADES_ORIGINAIS, 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora'] as const;
+export const ENTIDADES_0013 = [...ENTIDADES_ORIGINAIS, 'catalogo_no', 'produto_unidade', 'cliente_endereco', 'transportadora'] as const;
+export const ENTIDADES_BANCO = [...ENTIDADES_0013, 'forma_pagamento', 'prazo_pagamento', 'tabela_escalonada'] as const;
 /** Retenção do pedido na fila (montarPedidoParaErp / decidirEntradaNaFila em domain/pedido-fila.ts). */
 export const RETENCOES_PEDIDO_ERP = ['mapeamento_ausente', 'mapeamento_ambiguo', 'sequencia_repetida'] as const;
 export const PERFIS_DECISAO_INATIVACAO = ['admin', 'analista'] as const;
@@ -76,7 +78,8 @@ export const conector = integracao.table('conector', {
   tipo: text('tipo', { enum: TIPOS_CONECTOR }).notNull().default('conector'),
   ativo: boolean('ativo').notNull().default(true),
   recebe_pedidos: boolean('recebe_pedidos').notNull().default(true),
-  entidades: text('entidades', { enum: ENTIDADES }).array().notNull().default([...ENTIDADES]),
+  /** Padrão do SQL = as 8 ORIGINAIS (Conector antigo não recebe entidade que não conhece); o admin liga as demais. */
+  entidades: text('entidades', { enum: ENTIDADES }).array().notNull().default([...ENTIDADES_ORIGINAIS]),
   /** IP ou CIDR (inet); vazio = qualquer IP com chave válida. Até 20. */
   ips_permitidos: inet('ips_permitidos').array().notNull().default([]),
   versao_conector: text('versao_conector'),
