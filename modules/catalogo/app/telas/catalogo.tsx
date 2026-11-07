@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { caminhoCatalogo, type ItemVitrine, type RespostaBusca } from '../../contracts';
 import { contarPorNo, filhosDe, trilhaDe } from '../../domain/arvore';
-import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca } from '../../domain/ia';
+import { AVISO_BUSCA_FALHOU, AVISO_BUSCA_OFFLINE, avisoDaBusca, iconeDoAviso } from '../../domain/ia';
 import { parametrosDoTenant } from '../../domain/parametros';
 import { podeVerPrecoEstoque } from '../../domain/visibilidade';
 import { contagem } from '../lib/apresentacao';
@@ -39,12 +39,6 @@ interface EstadoLista {
   total: number;
   aviso: string | null;
   origem: 'aparelho' | 'servidor';
-}
-
-function iconeDoAviso(aviso: string): 'wifiOff' | 'clock' | 'alert' {
-  if (aviso.startsWith(AVISO_BUSCA_OFFLINE)) return 'wifiOff';
-  if (aviso.startsWith(AVISO_BUSCA_FALHOU)) return 'alert';
-  return 'clock';
 }
 
 export default function TelaCatalogo() {

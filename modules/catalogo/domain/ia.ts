@@ -64,6 +64,12 @@ export function avisoDaBusca(aviso: string | null, indexando: boolean): string |
   if (!indexando) return aviso;
   return aviso ? `${aviso} ${FRASE_ORGANIZANDO_JUNTO}` : AVISO_CATALOGO_ORGANIZANDO;
 }
+/** Ícone do aviso da aba: relógio só no 'organizando'; sem sinal = wifiOff; qualquer outro (erro) = alert. */
+export function iconeDoAviso(aviso: string): 'wifiOff' | 'clock' | 'alert' {
+  if (aviso.startsWith(AVISO_BUSCA_OFFLINE)) return 'wifiOff';
+  if (aviso === AVISO_CATALOGO_ORGANIZANDO) return 'clock';
+  return 'alert';
+}
 export const AVISO_BUSCA_FALHOU = 'A busca inteligente está indisponível agora. Mostramos a busca simples; tente de novo em instantes.';
 
 // ---------- validação e mesclagem ----------
