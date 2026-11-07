@@ -1,0 +1,60 @@
+T-0091 — portal de implantação NA DEMO (R-20261107-103434, item 2: ensaiar a implantação antes da produção). Proposta de
+mudança no .github/workflows/demo-publicar.yml (GOVERNANÇA). Preparado pelo engenheiro-software em 2026-11-07. O .github NÃO
+foi editado. Aplicar só com o ok do dono do produto:
+  git apply docs/desenho/T-0091-demo-portal.diff
+Independente do docs/desenho/T-0091-stack-isolado.diff (arquivos diferentes; os dois passam no git apply --check sozinhos).
+
+O que muda:
+  - passo "segredos do GitHub na VM": lê o secret DEMO_SUPERADMIN_CONVITE (environment DEMO_SSH_KEY, o mesmo do job de
+    deploy e dos DEMO_S3_*) e, SE existir, grava MACUXI_SUPERADMIN_CONVITE no /opt/macuxi/segredos.env (600, pelo stdin do
+    ssh, nunca na linha de comando), exatamente como o producao-publicar.yml faz com o PROD_SUPERADMIN_CONVITE. Sem o secret,
+    só um ::notice:: (o 1º acesso responde 503; o login e o resto da demo seguem);
+  - passo "conferir pelo domínio": com o BKO publicado, GET https://config-demo.macuxifdv.com.br/entrar (só o host do portal
+    reescreve /entrar para /config/entrar; no bko-demo. daria 404). Falha = ::warning::, nunca reprova a publicação.
+Já aplicado direto nos scripts (caminhos do engenheiro-software, sem governança):
+  - scripts/deploy/demo/preparar-vm.sh gera MACUXI_JWT_SEGREDO_PLATAFORMA e MACUXI_CHAVE_TOTP no .env (uma vez só, nunca
+    regenera, nunca imprime, 600), como o da produção;
+  - scripts/deploy/demo/compose.yml: a api já recebe o .env e o segredos.env (comentários atualizados, rota config-demo.);
+  - scripts/deploy/demo/implantar.sh confere que as chaves existem e o tamanho do convite (≥ 32), sem ler o valor.
+Depende também do apps/web reconhecer o host config-demo. como portal (pedido ao engenheiro-apps; hoje só "config.").
+
+diff --git a/.github/workflows/demo-publicar.yml b/.github/workflows/demo-publicar.yml
+index 2d73cf2..cb1a0c3 100644
+--- a/.github/workflows/demo-publicar.yml
++++ b/.github/workflows/demo-publicar.yml
+@@ -9,6 +9,9 @@ name: demo — publicar
+ #      e sai do GHCR.
+ # Gatilho: o CI terminar VERDE num push ao main (workflow_run), ou manual (Actions → "demo — publicar" → Run workflow).
+ # Nenhum segredo vai para log: os secrets chegam por variável de ambiente e por stdin do ssh, nunca na linha de comando.
++# Portal de implantação na demo (T-0091; R-20261107-103434): as chaves da plataforma nascem na VM (preparar-vm.sh); o
++# convite do 1º acesso do super-admin vem do secret DEMO_SUPERADMIN_CONVITE (environment DEMO_SSH_KEY, opcional, ≥ 32
++# caracteres), gravado no segredos.env como a produção faz com o PROD_SUPERADMIN_CONVITE.
+ 
+ on:
+   workflow_run:
+@@ -132,9 +135,14 @@ jobs:
+           S3_ID: ${{ secrets.DEMO_S3_KEY_ID }}
+           S3_SEGREDO: ${{ secrets.DEMO_S3_SECRET }}
+           TUNEL: ${{ secrets.DEMO_CLOUDFLARE_TUNNEL_TOKEN }}
++          # T-0091/ADR 0029: convite do 1º acesso do super-admin (opcional; sem ele o primeiro acesso do portal responde 503)
++          SA_CONVITE: ${{ secrets.DEMO_SUPERADMIN_CONVITE }}
+         run: |
+-          printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO" \
+-            | ssh -l "$USUARIO" demo 'umask 077; cat > /opt/macuxi/segredos.env'
++          {
++            printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO"
++            if [ -n "$SA_CONVITE" ]; then printf 'MACUXI_SUPERADMIN_CONVITE=%s\n' "$SA_CONVITE"; fi
++          } | ssh -l "$USUARIO" demo 'umask 077; cat > /opt/macuxi/segredos.env'
++          [ -n "$SA_CONVITE" ] || echo "::notice::sem DEMO_SUPERADMIN_CONVITE: o 1º acesso do portal na demo (config-demo.macuxifdv.com.br) responde 503 até o secret existir"
+           printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" \
+             | ssh -l "$USUARIO" demo 'umask 077; cat > /opt/macuxi/tunel.env'
+ 
+@@ -166,6 +174,8 @@ jobs:
+           done
+           if [ "$BKO" = "1" ]; then
+             curl -fsS -o /dev/null https://bko-demo.macuxifdv.com.br/login && echo "bko-demo: ok" || echo "::warning::bko-demo.macuxifdv.com.br/login não respondeu"
++            # T-0091: portal de implantação na demo (rota config-demo. → http://bko:3100 no túnel macuxi-demo-nuvem, criada pelo dono do produto)
++            curl -fsS -o /dev/null https://config-demo.macuxifdv.com.br/entrar && echo "config-demo: ok (portal)" || echo "::warning::config-demo.macuxifdv.com.br/entrar não respondeu (rota config-demo. → http://bko:3100 no túnel; portal da T-0087)"
+           fi
+ 
+       - name: limpar a chave do runner

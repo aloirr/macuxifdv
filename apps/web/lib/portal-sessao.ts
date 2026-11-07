@@ -58,6 +58,8 @@ export function lerSessaoPortal(st: Storage | null = armazenamento()): SessaoPor
 
 const ouvintes = new Set<() => void>();
 let versao = 0;
+/** "Sair" pedido pelo usuário (ver `marcarSaidaPedida`); declarado aqui porque o `salvarSessaoPortal` o zera. */
+let saidaPedida = false;
 
 function avisar() {
   versao++;
@@ -65,6 +67,9 @@ function avisar() {
 }
 
 export function salvarSessaoPortal(s: SessaoPortal, st: Storage | null = armazenamento()) {
+  // sessão nova: um "Sair" antigo que a guarda não consumiu (ex.: clicado com a sessão já nula, no Dialog de links por baixar)
+  // não pode esconder o aviso nem a volta da próxima expiração real (R-20261107-093612 🟢 5; R-20261107-094706 🟢 4)
+  saidaPedida = false;
   try {
     st?.setItem(CHAVE_SESSAO_PORTAL, JSON.stringify(SessaoPlataformaSchema.parse(s)));
   } catch {
@@ -92,4 +97,71 @@ export function assinarSessaoPortal(ouvinte: () => void): () => void {
 
 export function versaoDaSessaoPortal(): number {
   return versao;
+}
+
+// ---------------------------------------------------------------------------------------------------------------- retorno
+
+/**
+ * Volta depois do login (revisão de UX R-20261106-023316 🟡 10): quando a guarda manda para `/entrar`, guarda a página de origem
+ * (com o `#aba`) e se a sessão terminou (para o aviso "Sua sessão terminou"). Só caminhos do próprio portal (`/empresas...`):
+ * nada de outro host, `//` ou query, para o retorno não virar redirecionamento aberto.
+ */
+export const CHAVE_RETORNO_PORTAL = 'macuxi.portal.retorno';
+
+export type RetornoPortal = { caminho: string | null; sessaoTerminou: boolean };
+
+/** Caminho interno aceito para voltar depois do login, ou `null`. */
+export function caminhoDeRetornoSeguro(c: unknown): string | null {
+  if (typeof c !== 'string' || c.length > 120) return null;
+  return /^\/empresas(\/[A-Za-z0-9-]{1,64})?(#[a-z]{1,20})?$/.test(c) ? c : null;
+}
+
+export function guardarRetornoPortal(r: RetornoPortal, st: Storage | null = armazenamento()) {
+  try {
+    st?.setItem(CHAVE_RETORNO_PORTAL, JSON.stringify({ caminho: caminhoDeRetornoSeguro(r.caminho), sessaoTerminou: r.sessaoTerminou === true }));
+  } catch {
+    // sem storage: o login volta para a lista de empresas
+  }
+}
+
+/**
+ * Lê sem apagar: a entrada lê ao montar e só apaga depois do login (`apagarRetornoPortal`), para um F5 na entrada não perder a
+ * página de origem nem o aviso (R-20261107-093612 🟢 4). O caminho é revalidado na leitura.
+ */
+export function lerRetornoPortal(st: Storage | null = armazenamento()): RetornoPortal | null {
+  if (!st) return null;
+  try {
+    const bruto = st.getItem(CHAVE_RETORNO_PORTAL);
+    if (!bruto) return null;
+    const x = JSON.parse(bruto) as { caminho?: unknown; sessaoTerminou?: unknown };
+    return { caminho: caminhoDeRetornoSeguro(x.caminho), sessaoTerminou: x.sessaoTerminou === true };
+  } catch {
+    return null;
+  }
+}
+
+export function apagarRetornoPortal(st: Storage | null = armazenamento()) {
+  try {
+    st?.removeItem(CHAVE_RETORNO_PORTAL);
+  } catch {
+    // sem storage
+  }
+}
+
+/** Lê e apaga (vale uma vez). */
+export function consumirRetornoPortal(st: Storage | null = armazenamento()): RetornoPortal | null {
+  const r = lerRetornoPortal(st);
+  apagarRetornoPortal(st);
+  return r;
+}
+
+/** "Sair" pedido pelo usuário: a guarda não mostra "Sua sessão terminou" nem guarda a página de origem. Zera ao salvar sessão. */
+export function marcarSaidaPedida() {
+  saidaPedida = true;
+}
+/** Lê e zera a marca de "Sair". */
+export function retirarSaidaPedida(): boolean {
+  const s = saidaPedida;
+  saidaPedida = false;
+  return s;
 }

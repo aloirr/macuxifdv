@@ -22,7 +22,7 @@ import type { z } from 'zod';
 import type { ErroApi } from './acesso';
 import type { MetodoHttp } from './ambiente';
 import type { NovoArquivo } from './arquivos';
-import { problemasApiConector, type ApiConector } from './conector';
+import { caminhoConectorParaRoteador, problemasApiConector, type ApiConector } from './conector';
 import type { DefinicaoConsulta } from './consultas-tipos';
 import type { DefinicaoEvento, EnvelopeEvento } from './eventos';
 import type { Manifesto } from './manifesto';
@@ -572,9 +572,26 @@ export interface ContextoPublico<C = unknown, Q = unknown, P = unknown> {
 }
 
 /**
- * Rota SEM token (login, refresh) — só o Core declara (RN da T-0002 §6 item 4):
- * limite de tentativas por IP + chave (ex.: código da empresa) obrigatório; 429 `MUITAS_TENTATIVAS`.
- * Nunca devolva dado do tenant (nome, fuso) antes de validar a senha.
+ * T-0092: cache HTTP de rota pública que serve um DOCUMENTO público (ex.: OpenAPI do Hub). A API responde com
+ * `Cache-Control: public, max-age=<maxAgeSegundos>` e `ETag` forte (hash do corpo), e `If-None-Match` igual responde 304
+ * sem corpo. Só `GET`, sem corpo e com status 200; a rota nunca abre sessão de tenant (`ctx.banco.comTenant` lança) e não
+ * recebe cabeçalhos (`ctx.cabecalhos` vazio): a resposta é a mesma para qualquer chamador, porque qualquer proxy pode guardá-la.
+ */
+export interface CacheRotaPublica {
+  /** Inteiro de 1 a `CACHE_ROTA_PUBLICA_MAX_SEGUNDOS` (ex.: 3600 = 1 h). */
+  maxAgeSegundos: number;
+}
+
+/** Teto do `max-age` da rota pública com cache (1 dia): documento novo chega aos clientes no mesmo dia. */
+export const CACHE_ROTA_PUBLICA_MAX_SEGUNDOS = 86_400;
+
+/**
+ * Rota SEM token. Duas formas:
+ * - Core (login, refresh; RN da T-0002 §6 item 4): montada em `/v1/<caminho>`. Nunca devolva dado do tenant (nome, fuso)
+ *   antes de validar a senha.
+ * - Outro módulo (T-0092): só documento público com `cache` (`GET`, sem corpo), montado em `/<modulo>/v1/<caminho>` (o
+ *   espaço do Hub/Conector do módulo, ex.: `GET /integracao/v1/openapi.json`). Sem licença nem token: nada de dado de tenant.
+ * Em todas: limite de tentativas por IP + chave (ex.: código da empresa) obrigatório; 429 `MUITAS_TENTATIVAS`.
  */
 export interface RotaPublica<
   C extends z.ZodTypeAny = z.ZodTypeAny,
@@ -582,7 +599,7 @@ export interface RotaPublica<
   P extends z.ZodTypeAny = z.ZodTypeAny,
 > {
   metodo: MetodoHttp;
-  /** Montada em `/v1/<caminho>` (ex.: `auth/login`). */
+  /** Core: montada em `/v1/<caminho>` (ex.: `auth/login`); outro módulo: em `/<modulo>/v1/<caminho>` (`caminhoDaRotaPublica`). */
   caminho: string;
   limite: { max: number; janelaMs: number; chave?: (e: EntradaRota) => string | null | undefined };
   corpo?: C;
@@ -596,7 +613,42 @@ export interface RotaPublica<
    * do portal configurada, a rota responde 503 (falha fechada). O `ctx.banco` dessa rota só abre `semTenant`.
    */
   conexao?: 'portal';
+  /**
+   * T-0092: documento público com cache HTTP e ETag (ver `CacheRotaPublica`). Obrigatório em rota pública de módulo que não
+   * é o core. Com `cache`, `executar` devolve o documento: `string` (enviada como está, ex.: JSON já formatado) ou objeto
+   * (serializado com `JSON.stringify`); o tipo é sempre `application/json; charset=utf-8`.
+   */
+  cache?: CacheRotaPublica;
   executar(ctx: ContextoPublico<z.output<C>, z.output<Q>, z.output<P>>): Promise<unknown>;
+}
+
+/** URL da rota pública: core em `/v1/<caminho>`; outro módulo em `/<modulo>/v1/<caminho>` (T-0092). */
+export function caminhoDaRotaPublica(modulo: string, caminho: string): string {
+  return modulo === 'core' ? `/v1/${caminho}` : `/${modulo}/v1/${caminho}`;
+}
+
+/**
+ * Problemas de uma rota pública (vazio = ok), além do caminho e do limite que `definirModuloApi` confere: a `conexao`
+ * (T-0091) e o `cache` (T-0092). Usado por `definirModuloApi` e pela montagem da API (fixture sem `definirModuloApi`).
+ * Regras do `cache`: só `GET`, sem `corpo`, status 200, sem `conexao`, `maxAgeSegundos` inteiro de 1 a 1 dia. Fora do core,
+ * rota pública só existe com `cache` (documento público), sem prefixo reservado a checar: o espaço `/<modulo>/v1` é do módulo.
+ */
+export function problemasRotaPublica(
+  modulo: string,
+  r: Pick<RotaPublica, 'metodo' | 'caminho' | 'conexao' | 'cache' | 'corpo' | 'status'>,
+): string[] {
+  const rotulo = `${r.metodo} ${caminhoDaRotaPublica(modulo, r.caminho)}`;
+  const p = problemasConexaoRotaPublica(modulo, r);
+  if (modulo !== 'core' && r.cache === undefined) p.push(`${rotulo}: rota pública fora do core só serve documento com cache (T-0092)`);
+  if (r.cache === undefined) return p;
+  const s = r.cache?.maxAgeSegundos;
+  if (!(Number.isInteger(s) && s > 0 && s <= CACHE_ROTA_PUBLICA_MAX_SEGUNDOS))
+    p.push(`${rotulo}: cache.maxAgeSegundos inteiro entre 1 e ${CACHE_ROTA_PUBLICA_MAX_SEGUNDOS}`);
+  if (r.metodo !== 'GET') p.push(`${rotulo}: cache só em GET`);
+  if (r.corpo !== undefined) p.push(`${rotulo}: rota com cache não recebe corpo`);
+  if (r.status !== undefined && r.status !== 200) p.push(`${rotulo}: rota com cache responde 200 (ou 304)`);
+  if (r.conexao !== undefined) p.push(`${rotulo}: rota com cache não usa a conexão do portal`);
+  return p;
 }
 
 /** Serviços de plataforma que só o Core fornece (T-0003 Fase 2). Sem eles a API falha fechada (401 / carteira vazia). */
@@ -639,7 +691,10 @@ export interface ModuloApi {
   manifesto: Manifesto;
   rotas?: readonly RotaModulo[];
   sync?: readonly ProvedorSync[];
-  /** Só core: rotas sem token, montadas em `/v1/<caminho>`. */
+  /**
+   * Rotas sem token (`RotaPublica`): no core, em `/v1/<caminho>`; nos outros módulos, só documento público com `cache`, em
+   * `/<modulo>/v1/<caminho>` (T-0092).
+   */
   rotasPublicas?: readonly RotaPublica[];
   /** Só core: autenticação e escopo de carteira. */
   servicos?: ServicosCore;
@@ -869,16 +924,22 @@ export function definirModuloApi(m: ModuloApi): ModuloApi {
     if (tarefas.has(t.nome)) problemas.push(`tarefa ${t.nome}: repetida`);
     tarefas.add(t.nome);
   }
-  if (id !== 'core' && (m.rotasPublicas?.length || m.servicos))
-    problemas.push('só o core declara rotas públicas e serviços de plataforma');
+  if (id !== 'core' && m.servicos) problemas.push('só o core declara serviços de plataforma');
+  const publicas = new Set<string>();
   for (const r of m.rotasPublicas ?? []) {
-    if (!CAMINHO_RE.test(r.caminho)) problemas.push(`${r.metodo} /v1/${r.caminho}: caminho inválido`);
+    const rotulo = `${r.metodo} ${caminhoDaRotaPublica(id, r.caminho)}`;
+    if (!CAMINHO_RE.test(r.caminho)) problemas.push(`${rotulo}: caminho inválido`);
     // `plataforma/*` é da API (portal, ADR 0029); do Core, só a autenticação do super-admin em `plataforma/auth/*`
-    if (/^(sync|saude|me|arquivos)(\/|$)/.test(r.caminho) || (/^plataforma(\/|$)/.test(r.caminho) && !r.caminho.startsWith('plataforma/auth/')))
-      problemas.push(`${r.metodo} /v1/${r.caminho}: prefixo reservado à plataforma`);
+    if (id === 'core' && (/^(sync|saude|me|arquivos)(\/|$)/.test(r.caminho) || (/^plataforma(\/|$)/.test(r.caminho) && !r.caminho.startsWith('plataforma/auth/'))))
+      problemas.push(`${rotulo}: prefixo reservado à plataforma`);
     if (!(r.limite?.max > 0) || !(r.limite?.janelaMs > 0))
-      problemas.push(`${r.metodo} /v1/${r.caminho}: rota pública exige limite de tentativas`);
-    problemas.push(...problemasConexaoRotaPublica(id, r));
+      problemas.push(`${rotulo}: rota pública exige limite de tentativas`);
+    problemas.push(...problemasRotaPublica(id, r));
+    // fora do core a rota divide `/<modulo>/v1` com as rotas de Conector (ADR 0013): mesmo método e caminho = conflito
+    if (id !== 'core' && m.conector?.rotas.some((c) => c.metodo === r.metodo && caminhoConectorParaRoteador(c.caminho) === `/${r.caminho}`))
+      problemas.push(`${rotulo}: já é rota de Conector do módulo`);
+    if (publicas.has(rotulo)) problemas.push(`${rotulo}: rota pública repetida`);
+    publicas.add(rotulo);
   }
   problemas.push(...problemasApiConector(m.manifesto, m.conector));
   if (problemas.length > 0) throw new Error(`API do módulo ${id} inválida: ${problemas.join('; ')}`);

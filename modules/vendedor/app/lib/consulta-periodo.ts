@@ -1,7 +1,7 @@
 /**
  * Consulta ao servidor quando o período escolhido está fora da janela de 90 dias do aparelho (T-0077 item 6, RF-VEN-05).
  * Usa a listagem `GET /v1/vendedor/pedidos` (escopo de carteira/equipe, licença e `promotor_ve_pedidos` valem no servidor).
- * Sem sinal não há consulta: a tela diz "Disponível com conexão". Funções puras.
+ * Sem sinal não há consulta: a tela diz que o período não está no aparelho e volta com o sinal. Funções puras.
  */
 import { intervaloDoPeriodo, type Periodo } from '../../domain/busca-periodo';
 import type { Order } from '../../contracts';
@@ -22,7 +22,7 @@ export function estadoDaConsulta(o: { fora: boolean; offline: boolean }): Estado
 }
 
 export function mensagemForaDaJanela(e: 'disponivel_com_conexao' | 'carregando' | 'erro'): string {
-  if (e === 'disponivel_com_conexao') return 'Disponível com conexão';
+  if (e === 'disponivel_com_conexao') return 'Sem sinal: este período não está no aparelho. Os pedidos aparecem quando o sinal voltar.';
   if (e === 'carregando') return 'Buscando no servidor…';
   return 'Não foi possível consultar o servidor. Puxe para baixo para tentar de novo.';
 }
@@ -64,4 +64,20 @@ export function juntarServidorComAparelho(servidor: readonly PedidoDaLista[], ap
     if (a.local || !porId.has(a.id)) porId.set(a.id, a);
   }
   return [...porId.values()];
+}
+
+/** T-0090 UX1: resumo da busca; com vendedor escolhido (Gestão) o nome entra, para o "0 resultados" não ficar sem motivo. */
+export function resumoDaBusca(quantidade: number, vendedor: string | null): string {
+  const n = `${quantidade} ${quantidade === 1 ? 'resultado' : 'resultados'}`;
+  return vendedor ? `${n} · ${vendedor} · últimos 90 dias` : `${n} · últimos 90 dias`;
+}
+
+/** T-0090 UX2: os chips A faturar e Em aberto (do Início) ignoram o período; escolher um período volta para Todos, para a etiqueta não mentir. */
+export function situacaoAoEscolherPeriodo<S extends string>(situacao: S | null): S | 'todos' | null {
+  return situacao === 'a_faturar' || situacao === 'orc_abertos' ? 'todos' : situacao;
+}
+
+/** T-0090 UX5: mesmo padrão da etiqueta de período. */
+export function rotuloRemoverVendedor(nome: string): string {
+  return `Remover filtro ${nome}`;
 }

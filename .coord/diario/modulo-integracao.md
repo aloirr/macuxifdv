@@ -37,3 +37,8 @@
 2026-11-06 — T-0089 — I1/I2: forma_pagamento, prazo_pagamento e tabela_escalonada no Hub v1 (contratos, ordem de carga, CSV com listas por barra, aviso prazo_medio_divergente), cliente com prazo_medio_max_dias e formas_pagamento, pagamento no pedido ao ERP com condição pelo prazo_external_id; docs hub-api §19, conector, carga-arquivo
 2026-11-06 — T-0089 — conferência da 0037: medida da tabela_escalonada passa a exigir sigla 1..4 letras; demais nomes batiam; AVISTA é do consumidor do Vendedor
 2026-11-06 — T-0089 — ordem de carga: tabela_escalonada depois de preco (Conector e DEPENDENCIAS), com testes
+2026-11-07 — T-0092 — ajv, ajv-formats e tsx como devDependency (lock pedido ao engenheiro-software); respostaOpenApiPublica (200/304, ETag, cache 1 h) pronta para a rota pública; texto da §15 enviado ao gerente
+2026-11-07 — T-0092 — §15 do hub-api.md (OpenAPI e guia do TI) aplicada; §4b do carga-arquivo aguarda #97
+2026-11-07 — T-0092 — rota pública GET openapi.json declarada no módulo (60/min, cache 1 h), publico.ts simplificado, rota BKO openapi removida, nota da §15 atualizada
+2026-11-07 — T-0092 — comentário do ajv no openapi.test.ts corrigido (devDependencies); §15 do hub-api.md enxuta sem perda de informação
+2026-11-07 — T-0092 — chave mxk_ corrigida para mxc_ no OpenAPI/guia/hub-api.md; regex do publico.test.ts apertada

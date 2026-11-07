@@ -18,8 +18,8 @@ import { AbaIntegracao } from './aba-integracao';
 import { MolduraPortal } from './base';
 import { CartaoBase } from './cartao-base';
 import { CartaoEquipe } from './cartao-equipe';
-import { mascararCnpj, PassoEmpresa, ROTULO_MODULO } from './passo-empresa';
-import { CHAVE_EMPRESAS, useEmpresas } from './tela-empresas';
+import { mascararCnpj, PassoEmpresa, ROTULO_MODULO, rotuloDoFuso } from './passo-empresa';
+import { CHAVE_EMPRESAS, rotuloDoStatus, useEmpresas } from './tela-empresas';
 
 const ABAS = [
   { id: 'bases', rotulo: 'Bases' },
@@ -90,10 +90,10 @@ export function TelaEmpresa({ id }: { id: string }) {
             title={empresa.razao_social}
             subtitle={
               <span>
-                <span className="font-mono">{empresa.codigo}</span> · CNPJ {empresa.cnpj ? mascararCnpj(empresa.cnpj) : '—'} · fuso {empresa.fuso}
+                <span className="font-mono">{empresa.codigo}</span> · CNPJ {empresa.cnpj ? mascararCnpj(empresa.cnpj) : '—'} · fuso {rotuloDoFuso(empresa.fuso)}
               </span>
             }
-            badge={<Badge tone={empresa.status === 'ativo' ? 'success' : 'neutral'}>{empresa.status === 'ativo' ? 'Ativa' : empresa.status}</Badge>}
+            badge={<Badge tone={empresa.status === 'ativo' ? 'success' : empresa.status === 'suspenso' ? 'warning' : 'neutral'}>{rotuloDoStatus(empresa.status)}</Badge>}
           />
         ) : undefined
       }

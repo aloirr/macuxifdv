@@ -7,7 +7,7 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useId, useMemo, useState, useSyncExternalStore, type InputHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type InputHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 import { Badge, Button, cx, Dialog, LoadingBlock } from '@macuxi/ui/web';
 
 import { houveUsoRecente, MODO_PORTAL_FALSO, registrarUso, renovarSessaoPortal, sairDoPortal } from '@/lib/portal-api';
@@ -22,7 +22,16 @@ import {
   type AvisoDeFim,
   type SaidaPendente,
 } from '@/lib/portal-saida';
-import { assinarSessaoPortal, estadoDaSessao, lerSessaoPortal, limparSessaoPortal, versaoDaSessaoPortal, type SessaoPortal } from '@/lib/portal-sessao';
+import {
+  assinarSessaoPortal,
+  estadoDaSessao,
+  guardarRetornoPortal,
+  lerSessaoPortal,
+  limparSessaoPortal,
+  retirarSaidaPedida,
+  versaoDaSessaoPortal,
+  type SessaoPortal,
+} from '@/lib/portal-sessao';
 
 export const campoCss =
   'h-11 w-full rounded-xl border border-field bg-surface px-3 text-[15px] text-ink outline-none focus-visible:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-[invalid=true]:border-danger disabled:bg-ground disabled:text-ink-2';
@@ -73,7 +82,8 @@ export function MolduraEstreita({ children, testId }: { children: ReactNode; tes
       <div data-testid={testId} className="flex flex-col items-center px-4 py-10 sm:py-16">
         <div className="flex w-full max-w-[440px] flex-col gap-5">
           <Marca />
-          {children}
+          {/* cartão branco: hierarquia e contraste dos links (accent sobre o fundo dá 4,2:1; sobre branco, 4,6:1; R-20261106-023316 🟡 9) */}
+          <div className="rounded-2xl border border-line bg-surface p-5">{children}</div>
         </div>
       </div>
     </div>
@@ -147,10 +157,17 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
   const [aviso, setAviso] = useState<AvisoAberto | null>(null);
   const [dispensado, setDispensado] = useState<string | null>(null);
   const vencida = sessao !== undefined && (!sessao || estadoDaSessao(sessao, Date.now()) === 'expirada');
+  // houve sessão nesta página: se ela some (token vencido, 401 da API), a entrada explica "Sua sessão terminou"
+  const teveSessao = useRef(false);
+  useEffect(() => {
+    if (sessao) teveSessao.current = true;
+  }, [sessao]);
 
   useEffect(() => {
     if (sessao === undefined) return;
     if (!sessao || estadoDaSessao(sessao, Date.now()) === 'expirada') {
+      // "Sair" não guarda volta nem aviso; o resto volta para esta página (com o #aba) depois do login (R-20261106-023316 🟡 10)
+      if (!retirarSaidaPedida()) guardarRetornoPortal({ caminho: `${window.location.pathname}${window.location.hash}`, sessaoTerminou: teveSessao.current || sessao !== null });
       if (sessao) limparSessaoPortal();
       // com links por baixar, o Dialog "Sua sessão terminou" segura a tela até baixar ou desistir
       if (!segurando) router.replace('/entrar');
@@ -262,6 +279,12 @@ export function GuardaPortal({ children }: { children: ReactNode }) {
   );
 }
 
+/** Selo do cabeçalho quando restam poucos códigos de recuperação (R-20261106-023316 🟡 12). */
+export function textoCodigosRestantes(n: number): string {
+  if (n <= 0) return 'Nenhum código de recuperação';
+  return n === 1 ? 'Resta 1 código de recuperação' : `Restam ${n} códigos de recuperação`;
+}
+
 /** Hora local (fuso do navegador do operador; o portal não é de um tenant). */
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -312,10 +335,13 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
               {sessao && (
                 <span data-testid="portal.sessao-ate">
                   Sessão até {hora(sessao.sessao_expira_em)}
+                  <span className="hidden sm:inline"> · encerra após 15 min sem uso</span>
                   {sessao.recuperacao_restantes <= 3 && (
-                    <Badge tone="warning" className="ml-2">
-                      {sessao.recuperacao_restantes} códigos de recuperação
-                    </Badge>
+                    <span title="Gere novos códigos com o suporte técnico.">
+                      <Badge tone="warning" className="ml-2">
+                        {textoCodigosRestantes(sessao.recuperacao_restantes)}
+                      </Badge>
+                    </span>
                   )}
                 </span>
               )}
@@ -331,7 +357,7 @@ export function MolduraPortal({ children, titulo, voltar }: { children: ReactNod
               href={voltar.href}
               data-testid="portal.voltar"
               onClick={navegar(voltar.href)}
-              className="text-[13px] font-semibold text-accent no-underline hover:text-accent-ink"
+              className="text-[13px] font-semibold text-accent-ink no-underline hover:underline"
             >
               ← {voltar.rotulo}
             </Link>

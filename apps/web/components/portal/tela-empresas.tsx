@@ -21,6 +21,12 @@ export function useEmpresas() {
 
 const data = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
 
+/** Situação do tenant (`ativo` | `suspenso` | `encerrado`, check da 0001) em rótulo; outro valor aparece com a 1ª letra maiúscula. */
+export function rotuloDoStatus(status: string): string {
+  const r: Record<string, string> = { ativo: 'Ativa', suspenso: 'Suspensa', encerrado: 'Encerrada' };
+  return r[status] ?? (status ? status.charAt(0).toUpperCase() + status.slice(1) : '—');
+}
+
 export function TelaEmpresas() {
   return (
     <MolduraPortal titulo={<PageHeader title="Empresas" subtitle="Cada empresa cliente é um tenant. Crie a empresa e carregue as bases dela, na ordem dos cartões." actions={<LinkBotao href="/empresas/nova" testId="empresas.nova" primario>Nova empresa</LinkBotao>} />}>
@@ -72,7 +78,7 @@ function ListaEmpresas() {
                 <td className={`${td} tabular-nums`}>{e.cnpj ? mascararCnpj(e.cnpj) : '—'}</td>
                 <td className={td}>{e.modulos.map((m) => ROTULO_MODULO[m.modulo].nome).join(', ')}</td>
                 <td className={td}>
-                  <Badge tone={e.status === 'ativo' ? 'success' : 'neutral'}>{e.status === 'ativo' ? 'Ativa' : e.status}</Badge>
+                  <Badge tone={e.status === 'ativo' ? 'success' : e.status === 'suspenso' ? 'warning' : 'neutral'}>{rotuloDoStatus(e.status)}</Badge>
                 </td>
                 <td className={`${td} tabular-nums`}>{data(e.criada_em)}</td>
               </tr>

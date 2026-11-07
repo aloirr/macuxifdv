@@ -2,7 +2,23 @@
 import { describe, expect, it } from 'vitest';
 
 import { ehRotaAusente, ErroPortal, lerErroDaApi, mensagemDoErro, MENSAGEM_PADRAO } from './portal-api';
-import { CHAVE_SESSAO_PORTAL, estadoDaSessao, lerSessaoPortal, limparSessaoPortal, minutosAteOTeto, salvarSessaoPortal, type SessaoPortal } from './portal-sessao';
+import {
+  caminhoDeRetornoSeguro,
+  CHAVE_RETORNO_PORTAL,
+  CHAVE_SESSAO_PORTAL,
+  apagarRetornoPortal,
+  consumirRetornoPortal,
+  estadoDaSessao,
+  guardarRetornoPortal,
+  lerRetornoPortal,
+  lerSessaoPortal,
+  limparSessaoPortal,
+  marcarSaidaPedida,
+  minutosAteOTeto,
+  retirarSaidaPedida,
+  salvarSessaoPortal,
+  type SessaoPortal,
+} from './portal-sessao';
 
 const T0 = Date.parse('2026-11-06T10:00:00Z');
 const sessao = (tokenMin: number, tetoMin: number): SessaoPortal => ({
@@ -84,5 +100,77 @@ describe('erros do cliente do portal', () => {
     expect(ehRotaAusente(new ErroPortal(404, 'NAO_ENCONTRADO', 'Rota não encontrada.'))).toBe(true);
     expect(ehRotaAusente(new ErroPortal(404, 'LOTE_NAO_ENCONTRADO', 'Lote não encontrado.'))).toBe(false);
     expect(ehRotaAusente(new ErroPortal(403, 'MODULO_INATIVO', 'x'))).toBe(false);
+  });
+});
+
+describe('volta depois do login (R-20261106-023316 🟡 10)', () => {
+  it('só caminhos do portal: /empresas, /empresas/<id> e o #aba', () => {
+    expect(caminhoDeRetornoSeguro('/empresas')).toBe('/empresas');
+    expect(caminhoDeRetornoSeguro('/empresas/0b6f2a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b#integracao')).toBe('/empresas/0b6f2a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b#integracao');
+    expect(caminhoDeRetornoSeguro('/empresas/nova')).toBe('/empresas/nova');
+    for (const ruim of ['//mal.com/empresas', 'https://mal.com', '/empresas/../entrar', '/empresas?x=1', '/entrar', '/empresas/a/b', '', 42, null]) expect(caminhoDeRetornoSeguro(ruim)).toBeNull();
+  });
+  it('trava a lista branca contra afrouxamento (R-20261107-094706 🟢 1)', () => {
+    const ruins = [
+      '/\\mal.com',
+      '%2F%2Fmal.com',
+      '/empresas/%2F%2Fmal.com',
+      '/empresas/%2e%2e',
+      '/empresas/..',
+      'javascript:alert(1)',
+      '/empresas\n',
+      '/empresas/abc\n',
+      '/empresas\\mal.com',
+      '/empresas/abc/',
+      '/empresas@mal.com',
+      '/empresas#a/../b',
+      '/empresas#ABA',
+      '/empresas/abc#',
+      '/EMPRESAS',
+      ' /empresas',
+      '/empresas ',
+      'http:/empresas',
+      `/empresas/${'a'.repeat(65)}`,
+      `/empresas/abc#${'a'.repeat(21)}`,
+      `/empresas/${'a'.repeat(64)}#${'a'.repeat(20)}x`,
+      undefined,
+      {},
+      ['/empresas'],
+    ];
+    for (const ruim of ruins) expect(caminhoDeRetornoSeguro(ruim), JSON.stringify(ruim)).toBeNull();
+    // o limite de 64 do id e de 20 do #aba ainda passa
+    const noLimite = `/empresas/${'a'.repeat(64)}#${'a'.repeat(20)}`;
+    expect(caminhoDeRetornoSeguro(noLimite)).toBe(noLimite);
+  });
+  it('guarda, lê uma vez e apaga; caminho estranho vira null', () => {
+    const st = new Memoria();
+    guardarRetornoPortal({ caminho: '/empresas/abc#bases', sessaoTerminou: true }, st);
+    expect(consumirRetornoPortal(st)).toEqual({ caminho: '/empresas/abc#bases', sessaoTerminou: true });
+    expect(consumirRetornoPortal(st)).toBeNull();
+    guardarRetornoPortal({ caminho: '//mal.com', sessaoTerminou: false }, st);
+    expect(consumirRetornoPortal(st)).toEqual({ caminho: null, sessaoTerminou: false });
+    st.setItem(CHAVE_RETORNO_PORTAL, '{"caminho":"https://mal.com","sessaoTerminou":"sim"}');
+    expect(consumirRetornoPortal(st)).toEqual({ caminho: null, sessaoTerminou: false });
+  });
+  it('"Sair" pedido vale uma vez', () => {
+    expect(retirarSaidaPedida()).toBe(false);
+    marcarSaidaPedida();
+    expect(retirarSaidaPedida()).toBe(true);
+    expect(retirarSaidaPedida()).toBe(false);
+  });
+  it('lerRetornoPortal não apaga (F5 na entrada); apagarRetornoPortal apaga depois do login (R-20261107-093612 🟢 4)', () => {
+    const st = new Memoria();
+    guardarRetornoPortal({ caminho: '/empresas/abc#equipe', sessaoTerminou: true }, st);
+    expect(lerRetornoPortal(st)).toEqual({ caminho: '/empresas/abc#equipe', sessaoTerminou: true });
+    expect(lerRetornoPortal(st)).toEqual({ caminho: '/empresas/abc#equipe', sessaoTerminou: true });
+    apagarRetornoPortal(st);
+    expect(lerRetornoPortal(st)).toBeNull();
+    st.setItem(CHAVE_RETORNO_PORTAL, '{"caminho":"//mal.com","sessaoTerminou":true}');
+    expect(lerRetornoPortal(st)).toEqual({ caminho: null, sessaoTerminou: true });
+  });
+  it('sessão nova zera um "Sair" que a guarda não consumiu (R-20261107-093612 🟢 5)', () => {
+    marcarSaidaPedida();
+    salvarSessaoPortal(sessao(15, 480), new Memoria());
+    expect(retirarSaidaPedida()).toBe(false);
   });
 });

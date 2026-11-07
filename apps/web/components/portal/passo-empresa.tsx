@@ -55,6 +55,11 @@ export const FUSOS_BRASIL = [
   ['America/Noronha', 'Fernando de Noronha — UTC−2'],
 ] as const;
 
+/** Rótulo do fuso ("Manaus (AM, RR, RO) — UTC−4"); fuso fora da lista aparece como veio. */
+export function rotuloDoFuso(fuso: string): string {
+  return FUSOS_BRASIL.find(([v]) => v === fuso)?.[1] ?? fuso;
+}
+
 interface Form {
   codigo: string;
   razao_social: string;
@@ -260,7 +265,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
                   <input
                     type="checkbox"
                     data-testid={`empresa.modulo-${m}`}
-                    className="mt-1 h-4 w-4 accent-[#c2540a]"
+                    className="mt-1 h-4 w-4 accent-accent"
                     checked={sempre || !!v?.marcado}
                     disabled={sempre || ja}
                     onChange={(e) => setModulo(m, { marcado: e.target.checked })}
@@ -301,7 +306,7 @@ export function PassoEmpresa({ existente, aoGravar }: { existente?: EmpresaExist
             <Campo rotulo="Alçada do gerente (%)" testId="empresa.alcada-gerente" inputMode="decimal" value={f.alcada_gerente_pct} onChange={(e) => set('alcada_gerente_pct', e.target.value)} erro={erros['parametros.alcada_gerente_pct']} />
             <Campo rotulo="Validade do orçamento (dias)" testId="empresa.validade-orcamento" inputMode="numeric" value={f.validade_orcamento_dias} onChange={(e) => set('validade_orcamento_dias', e.target.value.replace(/\D/g, '').slice(0, 2))} erro={erros['parametros.validade_orcamento_dias']} />
             <label className="flex items-center gap-2.5 self-end pb-2.5 text-[14px] sm:col-span-2">
-              <input type="checkbox" data-testid="empresa.aplicacao-orcamento" className="h-4 w-4 accent-[#c2540a]" checked={f.aplicacao_no_orcamento_padrao} onChange={(e) => set('aplicacao_no_orcamento_padrao', e.target.checked)} />
+              <input type="checkbox" data-testid="empresa.aplicacao-orcamento" className="h-4 w-4 accent-accent" checked={f.aplicacao_no_orcamento_padrao} onChange={(e) => set('aplicacao_no_orcamento_padrao', e.target.checked)} />
               Mostrar a aplicação do produto no orçamento (padrão)
             </label>
           </div>

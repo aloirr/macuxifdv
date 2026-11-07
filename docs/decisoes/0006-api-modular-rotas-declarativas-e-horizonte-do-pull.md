@@ -23,6 +23,7 @@ longa confirma linhas "atrás" de um cursor já entregue.
    gravados na outbox **na mesma transação** (`tx.publicar`).
 4. **Core é o único com rotas públicas** (login/refresh, limite de tentativas obrigatório) e com os serviços `autenticar` e
    `carteira`; `/v1/me/modulos` e `/v1/sync/*` são da plataforma.
+   *Exceção (ADR 0030, T-0092): outro módulo pode servir documento público com `cache` (só `GET`, em `/<modulo>/v1`).*
 5. **Horizonte seguro do pull**: `least(now() − 2 s, início da transação aberta mais antiga)`; o módulo só devolve linhas abaixo
    dele e a plataforma corta de novo. Transação longa atrasa o pull, nunca faz perder linha.
 

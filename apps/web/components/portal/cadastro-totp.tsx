@@ -7,10 +7,11 @@
  * confirmação antes de recarregar ou fechar enquanto eles estão na tela.
  */
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { CODIGOS_PORTAL } from '@macuxi/core/contracts';
 import { TotpConfirmadoSchema, TotpInicioSchema } from '@macuxi/platform-sdk';
 import { Button, ErrorBlock, IconDownload, LoadingBlock, Notice } from '@macuxi/ui/web';
 
-import { chamarPortal, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
+import { chamarPortal, ErroPortal, MENSAGEM_TOTP_INCORRETO, mensagemDoErro } from '@/lib/portal-api';
 import { ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { salvarSessaoPortal } from '@/lib/portal-sessao';
 import { caminhoSvgDoQr, gerarQr } from '@/lib/qr';
@@ -36,7 +37,22 @@ export function apenasDigitos(s: string, max = 6): string {
   return s.replace(/\D/g, '').slice(0, max);
 }
 
-export function CadastroTotp({ desafio, aoTerminar, aoDesafioVencido }: { desafio: string; aoTerminar: () => void; aoDesafioVencido: () => void }) {
+const NOMES_DOS_PASSOS = ['Acesso', 'Aplicativo', 'Códigos'] as const;
+
+/**
+ * "Passo N de 3" do primeiro acesso (R-20261106-023316 🟢 20). A trilha com setas fica só para quem vê; o leitor de tela ouve
+ * "Passo N de 3: <nome>", sem "seta para a direita" (R-20261107-093612 🟢 3).
+ */
+export function Passos({ atual }: { atual: 1 | 2 | 3 }) {
+  return (
+    <span data-testid="primeiro-acesso.passo" className="text-[12px] font-semibold text-ink-2">
+      Passo {atual} de 3<span className="sr-only">: {NOMES_DOS_PASSOS[atual - 1]}</span>
+      <span aria-hidden="true"> · {NOMES_DOS_PASSOS.join(' → ')}</span>
+    </span>
+  );
+}
+
+export function CadastroTotp({ desafio, aoTerminar, aoDesafioVencido, comPassos }: { desafio: string; aoTerminar: () => void; aoDesafioVencido: () => void; comPassos?: boolean }) {
   const [inicio, setInicio] = useState<Inicio | null>(null);
   const [erroInicio, setErroInicio] = useState<string | null>(null);
   const [codigo, setCodigo] = useState('');
@@ -47,6 +63,7 @@ export function CadastroTotp({ desafio, aoTerminar, aoDesafioVencido }: { desafi
   const [copiou, setCopiou] = useState(false);
   const [anotou, setAnotou] = useState(false);
   const [erroCopia, setErroCopia] = useState(false);
+  const [chaveCopiada, setChaveCopiada] = useState<boolean | null>(null);
   const guardou = baixou || copiou || anotou;
   const [tentativa, setTentativa] = useState(0);
 
@@ -78,7 +95,7 @@ export function CadastroTotp({ desafio, aoTerminar, aoDesafioVencido }: { desafi
     } catch (x) {
       // DESAFIO_INVALIDO (vencido ou usado): volta ao e-mail e senha
       if (x instanceof ErroPortal && x.status === 401 && /DESAFIO/i.test(x.codigo)) return aoDesafioVencido();
-      setErro(mensagemDoErro(x));
+      setErro(x instanceof ErroPortal && x.status === 401 && x.codigo === CODIGOS_PORTAL.codigoInvalido ? MENSAGEM_TOTP_INCORRETO : mensagemDoErro(x));
       setCodigo('');
     } finally {
       setEnviando(false);
@@ -107,6 +124,16 @@ export function CadastroTotp({ desafio, aoTerminar, aoDesafioVencido }: { desafi
     }
   };
 
+  const copiarChave = async () => {
+    if (!inicio) return;
+    try {
+      await navigator.clipboard.writeText(inicio.segredo_base32);
+      setChaveCopiada(true);
+    } catch {
+      setChaveCopiada(false);
+    }
+  };
+
   const baixar = () => {
     if (!codigos) return;
     const texto = ['Macuxi FDV — códigos de recuperação do portal de implantação', 'Cada código vale uma vez. Guarde fora do celular.', '', ...codigos, ''].join('\r\n');
@@ -125,6 +152,7 @@ export function CadastroTotp({ desafio, aoTerminar, aoDesafioVencido }: { desafi
     return (
       <section data-testid="totp.codigos" className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
+          {comPassos && <Passos atual={3} />}
           <h1 className="m-0 font-display text-[24px] font-extrabold">Guarde os códigos de recuperação</h1>
           <span className="text-[13px] text-ink-2">Se perder o celular, cada código abaixo entra uma vez no lugar do código do aplicativo.</span>
         </div>
@@ -162,6 +190,7 @@ export function CadastroTotp({ desafio, aoTerminar, aoDesafioVencido }: { desafi
   return (
     <section data-testid="totp.cadastro" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
+        {comPassos && <Passos atual={2} />}
         <h1 className="m-0 font-display text-[24px] font-extrabold">Cadastre o 2º fator</h1>
         <span className="text-[13px] text-ink-2">Abra um aplicativo autenticador (Google Authenticator, Microsoft Authenticator, 1Password) e leia o QR Code.</span>
       </div>
@@ -176,6 +205,12 @@ export function CadastroTotp({ desafio, aoTerminar, aoDesafioVencido }: { desafi
               <code data-testid="totp.chave" className="font-mono text-[14px] font-semibold tracking-wide break-all text-ink select-all">
                 {emGrupos(inicio.segredo_base32)}
               </code>
+              <div>
+                <Button size="sm" data-testid="totp.copiar-chave" onClick={() => void copiarChave()}>
+                  {chaveCopiada ? 'Chave copiada' : 'Copiar chave'}
+                </Button>
+              </div>
+              {chaveCopiada === false && <span className="text-[12px] text-ink-2">Não deu para copiar: selecione a chave e copie com Ctrl+C.</span>}
             </div>
           </div>
           <form onSubmit={(e) => void confirmar(e)} noValidate className="flex flex-col gap-3">

@@ -11,9 +11,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ConectorCriado, ConectorResumo, ENTIDADES, type Entidade } from '@macuxi/integracao/contracts';
 import { Badge, Button, Dialog, ErrorBlock, IconDownload, LoadingBlock, Notice, Panel, TableScroll, td, th, useToast } from '@macuxi/ui/web';
 
-import { baixarDoPortal, chamarPortal, ehRotaAusente, mensagemDoErro } from '@/lib/portal-api';
+import { baixarDocumentoPublico, chamarPortal, ehRotaAusente, ErroPortal, mensagemDoErro } from '@/lib/portal-api';
 import { CARTAO_DA_ENTIDADE } from '@/lib/portal-carga';
-import { CONECTOR_ARQUIVO_PORTAL, LINK_DOWNLOAD_CONECTOR, ROTAS_PORTAL } from '@/lib/portal-rotas';
+import { CONECTOR_ARQUIVO_PORTAL, LINK_DOWNLOAD_CONECTOR, OPENAPI_HUB, ROTAS_PORTAL } from '@/lib/portal-rotas';
 import { Campo } from './base';
 
 type Criado = ReturnType<typeof ConectorCriado.parse>;
@@ -101,9 +101,11 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
 
   const baixarOpenapi = async () => {
     try {
-      await baixarDoPortal(ROTAS_PORTAL.openapi, { tenant, nomePadrao: 'macuxi-openapi.json' });
+      // documento público do Hub (T-0092): sem token e sem tenant
+      await baixarDocumentoPublico(OPENAPI_HUB.viaProxy, 'macuxi-openapi-hub-v1.json');
     } catch (x) {
       if (ehRotaAusente(x)) setDocEmBreve(true);
+      else if (x instanceof ErroPortal && x.status === 429) toast('warning', 'Muitos downloads seguidos deste endereço. Espere um minuto e tente de novo.');
       else toast('danger', mensagemDoErro(x));
     }
   };
@@ -163,7 +165,7 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
               <Campo rotulo="Nome" testId="integracao.nome" value={nome} onChange={(e) => setNome(e.target.value)} />
             </div>
             <label className="flex items-center gap-2.5 text-[14px]">
-              <input type="checkbox" data-testid="integracao.recebe-pedidos" className="h-4 w-4 accent-[#c2540a]" checked={recebePedidos} onChange={(e) => setRecebePedidos(e.target.checked)} />
+              <input type="checkbox" data-testid="integracao.recebe-pedidos" className="h-4 w-4 accent-accent" checked={recebePedidos} onChange={(e) => setRecebePedidos(e.target.checked)} />
               Este Conector leva os pedidos aprovados ao ERP
             </label>
             {erro && (
@@ -197,7 +199,9 @@ export function AbaIntegracao({ tenant }: { tenant: string }) {
             </Button>
             {docEmBreve && <span className="text-[12px] text-ink-2">A documentação chega em breve neste servidor.</span>}
           </div>
-          <span className="text-[12px] text-ink-2">Autenticação, delta e cursor, idempotência, ordem de carga, limites e erros estão no guia da API, junto do OpenAPI.</span>
+          <span data-testid="integracao.guia" className="text-[12px] text-ink-2">
+            O guia da API (autenticação, delta e cursor, idempotência, ordem de carga, limites e erros) chega em breve neste servidor.
+          </span>
         </div>
       </Panel>
 

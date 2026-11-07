@@ -3,8 +3,7 @@
  * (todo exemplo passa no Zod E no JSON Schema gerado), (c) igual ao arquivo publicado em `docs/openapi-hub-v1.json`.
  *
  * Schema oficial: https://spec.openapis.org/oas/3.1/schema/2022-10-07 (vendorizado em `oas-3.1-schema.json`, sem alteração).
- * `ajv` e `ajv-formats` NÃO estão no package.json do módulo: são dependência transitiva do fastify, içada para a raiz do
- * workspace. Declarar como devDependency é proposta ao engenheiro-software (muda o pnpm-lock.yaml).
+ * `ajv` e `ajv-formats` são devDependencies do módulo (package.json).
  * Regerar o arquivo publicado: `pnpm --filter @macuxi/integracao openapi` (ou `ATUALIZAR_OPENAPI=1 pnpm test`).
  */
 import { readFileSync, writeFileSync } from 'node:fs';

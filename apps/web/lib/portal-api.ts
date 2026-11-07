@@ -12,7 +12,7 @@ import { CABECALHO_TENANT_PLATAFORMA, SessaoPlataformaSchema } from '@macuxi/pla
 import { downloadBlob, filenameFromDisposition } from '@macuxi/platform-sdk/web';
 
 import { ROTAS_PORTAL, ROTAS_PUBLICAS_PORTAL } from './portal-rotas';
-import { estadoDaSessao, lerSessaoPortal, limparSessaoPortal, salvarSessaoPortal, USO_RECENTE_MS, type SessaoPortal } from './portal-sessao';
+import { estadoDaSessao, lerSessaoPortal, limparSessaoPortal, marcarSaidaPedida, salvarSessaoPortal, USO_RECENTE_MS, type SessaoPortal } from './portal-sessao';
 
 export const MODO_PORTAL_FALSO = process.env.NEXT_PUBLIC_PORTAL_FALSO === '1' && process.env.NODE_ENV !== 'production';
 
@@ -20,6 +20,18 @@ export const MENSAGEM_SEM_CONEXAO = 'Sem conexão com o servidor. Confira a inte
 export const MENSAGEM_SESSAO_TERMINOU = 'Sua sessão terminou. Entre de novo para continuar.';
 export const MENSAGEM_FORMATO = 'A resposta do servidor veio num formato inesperado. Atualize a página; se continuar, avise o suporte.';
 export const MENSAGEM_PADRAO = 'Algo deu errado. Tente de novo; se continuar, avise o suporte.';
+/** 503 do portal: faltam os segredos no servidor (quem resolve é o próprio super-admin, no deploy; R-20261106-023316 🟡 3). */
+export const MENSAGEM_PORTAL_SEM_SEGREDOS = 'Faltam os segredos do portal neste servidor. Confira as chaves da plataforma no deploy deste ambiente.';
+/**
+ * Código de convite do 1º acesso (T-0091): texto neutro, vale na produção e na demo, sem expor valor. Nomes dos secrets no
+ * GitHub: `PROD_SUPERADMIN_CONVITE` (environment PRODUCAO) e `DEMO_SUPERADMIN_CONVITE` (environment DEMO_SSH_KEY).
+ */
+export const AJUDA_CONVITE_SUPER_ADMIN =
+  'O convite de super-admin configurado no servidor: o valor do secret PROD_SUPERADMIN_CONVITE na produção ou DEMO_SUPERADMIN_CONVITE na demo.';
+export const MENSAGEM_CONVITE_SUPER_ADMIN_INCORRETO = 'Código de convite incorreto. Confira o convite de super-admin configurado no servidor deste ambiente.';
+/** Código do aplicativo errado (login e cadastro do 2º fator): a causa mais comum é a hora do celular fora do automático. */
+export const MENSAGEM_TOTP_INCORRETO = 'Código incorreto. Confira se a hora do celular está no automático e digite o código que aparece agora.';
+export const MENSAGEM_RECUPERACAO_INCORRETA = 'Código de recuperação incorreto ou já usado. Cada código vale uma vez.';
 
 export class ErroPortal extends Error {
   constructor(
@@ -131,6 +143,8 @@ async function tokenDaSessao(): Promise<string> {
 /** Sai: revoga a sessão no servidor (melhor esforço) e limpa a aba. */
 export async function sairDoPortal(): Promise<void> {
   const s = lerSessaoPortal();
+  // saída pedida: a guarda não mostra "Sua sessão terminou" nem guarda a página para voltar
+  marcarSaidaPedida();
   limparSessaoPortal();
   if (!s) return;
   try {
@@ -199,6 +213,30 @@ export async function baixarDoPortal(caminho: string, o: { tenant?: string; nome
   const res = await enviar(caminho, { metodo: 'GET', tenant: o.tenant });
   const blob = await res.blob();
   downloadBlob(blob, filenameFromDisposition(res.headers.get('content-disposition'), o.nomePadrao));
+}
+
+/**
+ * Baixa um documento público (sem token nem tenant), pelo caminho same-origin do `next.config.ts`. Hoje só o OpenAPI do Hub
+ * (`OPENAPI_HUB`). No modo falso não há API: responde como rota ausente ("em breve").
+ */
+export async function baixarDocumentoPublico(viaProxy: string, nomePadrao: string): Promise<void> {
+  if (MODO_PORTAL_FALSO) throw new ErroPortal(404, 'http_404', 'Documento ausente no modo falso.');
+  let res: Response;
+  try {
+    res = await fetch(viaProxy, { method: 'GET', cache: 'no-store', credentials: 'omit' });
+  } catch {
+    throw new ErroPortal(0, 'sem_conexao', MENSAGEM_SEM_CONEXAO);
+  }
+  if (!res.ok) {
+    let corpo: unknown = null;
+    try {
+      corpo = await res.json();
+    } catch {
+      // corpo não é JSON
+    }
+    throw lerErroDaApi(res.status, corpo);
+  }
+  downloadBlob(await res.blob(), filenameFromDisposition(res.headers.get('content-disposition'), nomePadrao));
 }
 
 /**
