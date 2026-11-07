@@ -12,7 +12,7 @@ import { CabecalhosConector, ParamsLote, ParamsPedido, QueryConsultaLote, QueryP
 import { consumidorLoteRecebido } from './aplicar-lote';
 import { consumidorPedidoAprovado, consumidorPedidoStatusAlterado } from './consumidores-pedido';
 import { criarAutenticacaoHub, type ConectorHub } from './autenticacao';
-import { rotaCargaArquivo, rotaErrosLote, rotaLote } from './bko-carga-arquivo';
+import { rotaCargaArquivo, rotaConferirArquivo, rotaErrosLote, rotaErrosLoteCsv, rotaLote, rotaOrdemCarga, rotaProgressoSessaoArquivo } from './bko-carga-arquivo';
 import { rotaDecidirInativacao } from './bko-inativacao';
 import { criarRotasConectores } from './bko-conectores';
 import { rotaMonitor } from './bko-monitor';
@@ -55,7 +55,7 @@ export function criarModuloApiIntegracao(o: { pepper: () => string | undefined }
     manifesto: manifest,
     // A7 (aplica o lote recebido) e A8 (pedido aprovado entra na fila do ERP; saída de aprovado a retira): ADR 0007, hub-api.md §7/§11
     consumidores: [consumidorLoteRecebido, consumidorPedidoAprovado, consumidorPedidoStatusAlterado],
-    rotas: [rotaMonitor, rotaOpenApi, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaCargaArquivo, rotaLote, rotaErrosLote],
+    rotas: [rotaMonitor, rotaOpenApi, ...criarRotasConectores(o), rotaLerPolitica, rotaGravarPolitica, rotaDecidirInativacao, rotaCargaArquivo, rotaProgressoSessaoArquivo, rotaLote, rotaErrosLote, rotaErrosLoteCsv, rotaOrdemCarga, rotaConferirArquivo],
     conector: definirApiConector<ConectorHub>({ autenticar: auth.autenticar, antes: auth.antes, rotas: rotasConector }),
   });
 }

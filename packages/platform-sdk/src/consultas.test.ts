@@ -20,6 +20,7 @@ import { consultasDeclaradas, defineModule, ordenarPorDependencia, validarConjun
 import { criarArmazenamentoEmMemoria, criarMotorSync } from './motor-sync';
 import { criarShell, definirModuloShell } from './shell';
 import { definirEntidadeSync, type LinhaSync } from './sync';
+import { criarServidorSyncSimulado } from './sync-simulado';
 
 /** Contrato de exemplo no formato do `catalogo.precos_cliente@1` (desenho §3.5). */
 const PRECOS = definirConsulta({
@@ -195,6 +196,130 @@ describe('E1 — aparelho (criarShell + motor: ambiente.consultar)', () => {
     })();
     expect(erro).toContain('catalogo: consulta catalogo.precos_cliente@1 não está em ofereceConsultas do manifesto');
     expect(erro).toContain('vendedor usa a consulta catalogo.precos_cliente@1, que catalogo não oferece');
+  });
+});
+
+describe('T-0084 — consulta do aparelho lê as entidades de depende (só leitura, módulos efetivos)', () => {
+  /** No formato de `catalogo.busca_produtos@1`: o Catálogo responde lendo o `produto` do Core (que está em `depende`). */
+  const BUSCA = definirConsulta({
+    nome: 'catalogo.busca_produtos@1',
+    entrada: z.object({ q: z.string() }),
+    saida: z.object({ itens: z.array(z.object({ produto_id: z.string(), aplicacao: z.string() })) }),
+  });
+  const PRODUTO = definirEntidadeSync({ nome: 'produto', modulo: 'core', direcao: 'pull', conflito: 'servidor_vence', schema: z.object({ nome: z.string() }) });
+  const CONTEUDO = definirEntidadeSync({ nome: 'produto_conteudo', modulo: 'catalogo', direcao: 'pull', conflito: 'servidor_vence', schema: z.object({ produto_id: z.string() }) });
+  const PEDIDO = definirEntidadeSync({ nome: 'pedido', modulo: 'vendedor', direcao: 'ambos', conflito: 'servidor_vence', schema: z.object({}) });
+  const CONCORRENTE = definirEntidadeSync({ nome: 'concorrente', modulo: 'promotor', direcao: 'pull', conflito: 'servidor_vence', schema: z.object({}) });
+  type Produto = LinhaSync & { nome: string; deleted_at: string | null };
+  type Conteudo = LinhaSync & { produto_id: string; aplicacao: string };
+  type Exec = (e: z.output<typeof BUSCA.entrada>, ctx: ContextoConsultaAparelho) => Promise<z.input<typeof BUSCA.saida>>;
+
+  /** Implementação de referência: produto do Core + aplicação só dos candidatos (linhasPorCampo) + memória pela versão. */
+  const lidas: string[] = [];
+  let memoria: { chave: number; nomes: Map<string, string> } | null = null;
+  const buscaPadrao: Exec = async (e, ctx) => {
+    const chave = ctx.versaoLinhas('produto');
+    if (memoria?.chave !== chave) {
+      lidas.push('produto');
+      const produtos = await ctx.linhas<Produto>('produto');
+      memoria = { chave, nomes: new Map(produtos.filter((p) => !p.deleted_at).map((p) => [p.id, p.nome.toLowerCase()])) };
+    }
+    const candidatos = [...memoria.nomes].filter(([, nome]) => nome.includes(e.q.toLowerCase())).map(([id]) => id);
+    const conteudos = await ctx.linhasPorCampo<Conteudo>('produto_conteudo', 'produto_id', candidatos);
+    const aplicacao = new Map(conteudos.map((c) => [c.produto_id, c.aplicacao]));
+    return { itens: candidatos.sort().map((id) => ({ produto_id: id, aplicacao: aplicacao.get(id) ?? '' })) };
+  };
+
+  function montar(executar: Exec, extraCatalogo: Partial<ManifestoEntrada>) {
+    const catalogo = definirModuloShell({
+      manifesto: mCatalogo({ sync: ['produto_conteudo'], ofereceConsultas: ['catalogo.busca_produtos@1'], ...extraCatalogo }),
+      entidadesSync: [CONTEUDO],
+      consultas: [implementarConsultaAparelho(BUSCA, executar)],
+    });
+    const promotor = defineModule({ id: 'promotor', versao: '1.0.0', depende: ['core'], perfis: ['vendedor'], apps: { campo: { abas: [] } }, sync: ['concorrente'] });
+    const shell = criarShell('campo', [
+      definirModuloShell({ manifesto: mCore({ sync: ['produto'] }), entidadesSync: [PRODUTO] }),
+      catalogo,
+      definirModuloShell({ manifesto: mVendedor({ usaConsultas: ['catalogo.busca_produtos@1'] }), entidadesSync: [PEDIDO] }),
+      definirModuloShell({ manifesto: promotor, entidadesSync: [CONCORRENTE] }),
+    ]);
+    const servidor = criarServidorSyncSimulado(shell.registroSync, { modulosAtivos: ['core', 'catalogo', 'vendedor', 'promotor'] });
+    servidor.linhas.produto = [
+      { id: 'p1', updated_at: '2026-11-06T10:00:00.000Z', deleted_at: null, nome: 'Pastilha Uno 2012' } as LinhaSync,
+      { id: 'p2', updated_at: '2026-11-06T10:01:00.000Z', deleted_at: null, nome: 'Filtro Gol' } as LinhaSync,
+    ];
+    servidor.linhas.produto_conteudo = [
+      { id: 'c1', updated_at: '2026-11-06T10:00:00.000Z', deleted_at: null, produto_id: 'p1', aplicacao: 'Uno 2010-2014' } as LinhaSync,
+    ];
+    const motor = criarMotorSync({ registro: shell.registroSync, armazenamento: criarArmazenamentoEmMemoria(), transporte: servidor, consultas: shell.consultas });
+    return { motor, servidor };
+  }
+  async function sincronizado(executar: Exec = buscaPadrao, extra: Partial<ManifestoEntrada> = {}) {
+    lidas.length = 0;
+    memoria = null;
+    const m = montar(executar, extra);
+    await m.motor.aplicarModulosAtivos(['core', 'catalogo', 'vendedor', 'promotor']);
+    expect(await m.motor.sincronizar()).toBe(true);
+    return m;
+  }
+  /** Executa a consulta com uma leitura qualquer e devolve o erro (ou null). */
+  async function erroAoLer(ler: (ctx: ContextoConsultaAparelho) => Promise<unknown>, extra?: Partial<ManifestoEntrada>) {
+    const { motor } = await sincronizado(async (_e, ctx) => {
+      await ler(ctx);
+      return { itens: [] };
+    }, extra);
+    return motor.ambiente.consultar(BUSCA, { q: 'x' }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+  }
+
+  it('lê o produto do Core (depende) e a aplicação só dos candidatos: responde offline, sem a API', async () => {
+    const { motor, servidor } = await sincronizado();
+    servidor.online = false;
+    await expect(motor.ambiente.consultar(BUSCA, { q: 'uno' })).resolves.toEqual({ itens: [{ produto_id: 'p1', aplicacao: 'Uno 2010-2014' }] });
+    await expect(motor.ambiente.consultar(BUSCA, { q: 'gol' })).resolves.toEqual({ itens: [{ produto_id: 'p2', aplicacao: '' }] });
+  });
+
+  it('versaoLinhas: memória estável entre consultas; muda quando o pull grava a entidade (a do Core também)', async () => {
+    const { motor, servidor } = await sincronizado();
+    await motor.ambiente.consultar(BUSCA, { q: 'uno' });
+    await motor.ambiente.consultar(BUSCA, { q: 'gol' });
+    expect(lidas).toEqual(['produto']);
+    servidor.linhas.produto!.push({ id: 'p3', updated_at: '2026-11-06T11:00:00.000Z', deleted_at: null, nome: 'Pastilha Uno 2015' } as LinhaSync);
+    expect(await motor.sincronizar()).toBe(true);
+    expect((await motor.ambiente.consultar(BUSCA, { q: 'pastilha' })).itens.map((i) => i.produto_id)).toEqual(['p1', 'p3']);
+    expect(lidas).toEqual(['produto', 'produto']);
+  });
+
+  it('versaoLinhas e linhasPorCampo do contexto são as do motor (mesmo número, mesmas linhas)', async () => {
+    let visto: { versao: number; conteudo: string[] } | null = null;
+    const { motor } = await sincronizado(async (_e, ctx) => {
+      visto = { versao: ctx.versaoLinhas('produto_conteudo'), conteudo: (await ctx.linhasPorCampo('produto_conteudo', 'produto_id', ['p1', 'x'])).map((l) => l.id) };
+      return { itens: [] };
+    });
+    await motor.ambiente.consultar(BUSCA, { q: 'x' });
+    expect(visto).toEqual({ versao: motor.versaoLinhas('produto_conteudo'), conteudo: ['c1'] });
+  });
+
+  it('fora de {dono} ∪ depende = erro de programação: módulo que não é dependência, opcional ativo, entidade sem dono', async () => {
+    const pedido = await erroAoLer((ctx) => ctx.linhas('pedido'));
+    expect(ehConsultaIndisponivel(pedido)).toBe(false);
+    expect(pedido?.message).toContain('só lê entidades de catalogo, core (pediu pedido, de vendedor)');
+    // opcional instalado e ativo continua fora: para ler outro módulo opcional, use a consulta dele
+    const opcional = await erroAoLer((ctx) => ctx.linhasPorIds('concorrente', ['m1']), { opcionais: ['promotor'] });
+    expect(opcional?.message).toContain('só lê entidades de catalogo, core (pediu concorrente, de promotor)');
+    expect((await erroAoLer((ctx) => ctx.linhasPorCampo('pedido', 'cliente_id', ['c1'])))?.message).toContain('(pediu pedido, de vendedor)');
+    expect((await erroAoLer(async (ctx) => ctx.versaoLinhas('pedido')))?.message).toContain('(pediu pedido, de vendedor)');
+    expect((await erroAoLer((ctx) => ctx.linhas('nao_registrada')))?.message).toContain('(pediu nao_registrada)');
+  });
+
+  it('dependência inativa para o usuário = ConsultaIndisponivel', async () => {
+    const { motor } = await sincronizado();
+    await motor.aplicarModulosAtivos(['catalogo', 'vendedor']);
+    const e = await motor.ambiente.consultar(BUSCA, { q: 'uno' }).catch((x: unknown) => x);
+    expect(ehConsultaIndisponivel(e)).toBe(true);
+    expect(e).toMatchObject({ detalhes: { consulta: 'catalogo.busca_produtos@1', modulo: 'catalogo' } });
   });
 });
 

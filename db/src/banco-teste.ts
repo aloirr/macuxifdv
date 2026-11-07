@@ -6,6 +6,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
+import { apagarBancoForcado } from './apagar-banco';
 import { lerConfigTestes, urlAdmin, urlApp, urlWorker, validarNomeBanco, type ConfigBanco } from './config';
 import { migrarUp } from './migrador';
 import { garantirPapelApp, garantirPapelManutencao, garantirPapelWorker } from './papeis';
@@ -71,9 +72,13 @@ export async function criarBanco(nome: string, cfg: ConfigBanco = lerConfigTeste
   }, cfg);
 }
 
+/**
+ * Apaga o banco com FORCE; sem superusuário (DBaaS e job do CI que o simula), espera as sessões de outros papéis que
+ * estão saindo em vez de falhar com 42501 (db/src/apagar-banco.ts, T-0075).
+ */
 export async function apagarBanco(nome: string, cfg: ConfigBanco = lerConfigTestes()): Promise<void> {
   validarNomeBanco(nome);
-  await comAdmin('postgres', (c) => c.query(`drop database if exists ${nome} with (force)`), cfg);
+  await comAdmin('postgres', (c) => apagarBancoForcado(c, nome), cfg);
 }
 
 /** Bancos de teste esquecidos (execução interrompida). */

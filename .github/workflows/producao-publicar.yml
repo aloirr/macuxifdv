@@ -1,0 +1,297 @@
+name: producao — publicar
+
+# T-0086 (ADR 0028; ADR 0024 plano B). Publica a PRODUÇÃO na VM macuxi-prod-se1 (Magalu Cloud), banco no DBaaS
+# macuxi-prod-db. Caminho de governança autorizado pelo dono do produto (mensagem de 05/11, 21h50: "workflow producao —
+# publicar (só por tag + aprovação)"). Roteiro de ligar e de voltar atrás: docs/desenho/T-0086.md (→ docs/status/producao.md).
+#   1. conferir (sem segredo): a tag v* aponta para um commit do main com o CI VERDE (push no main) e a imagem
+#      ghcr.io/<dono>/macuxi-api:<sha> existe (publicada pelo "demo — publicar" depois daquele CI). Fixa o DIGEST: a
+#      produção roda exatamente a imagem que passou no CI e já roda na demo;
+#   2. bko (sem segredo): monta o BKO DE PRODUÇÃO do mesmo commit (a origem https://bko.macuxifdv.com.br fica gravada no
+#      next build, por isso não dá para reaproveitar a imagem da demo) → ghcr.io/<dono>/macuxi-bko-prod:<sha>, por digest;
+#   3. deploy (environment PRODUCAO: espera a APROVAÇÃO do Alexandre): SSH da VM pelos secrets do environment, copia
+#      scripts/deploy/producao (+ o alerta-saude.sh da demo), roda o preparar-vm.sh (idempotente; timers do backup e do
+#      alerta), grava os segredos em /opt/macuxi (modo 600, pelo stdin do ssh), faz login no GHCR NA VM com o token deste
+#      run, roda o implantar.sh (pull, banco-dbaas.sh: papéis B0, vector, migrações com o admin herdando o
+#      macuxi_manutencao da 0031; up; /v1/saude com banco ok e a versão da tag; VOLTA ATRÁS sozinho se falhar), sai do
+#      GHCR e confere pelo domínio.
+# Gatilho: SÓ push de tag v* (sem workflow_dispatch, sem branch). Voltar a uma versão anterior = "Re-run all jobs" no run
+# da tag anterior (mesma aprovação). Nenhum segredo vai para log: secrets só em variável de ambiente e no stdin do ssh,
+# nunca na linha de comando; nenhum set -x.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+# uma publicação por vez na VM de produção; a nova espera a anterior (nunca dois compose up ao mesmo tempo)
+concurrency:
+  group: producao-vm
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  conferir:
+    name: tag no main, CI verde e imagem da API do commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    outputs:
+      sha: ${{ steps.alvo.outputs.sha }}
+      versao: ${{ steps.alvo.outputs.versao }}
+      dono: ${{ steps.alvo.outputs.dono }}
+      api: ${{ steps.imagem.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: tag e commit
+        id: alvo
+        env:
+          TAG: ${{ github.ref_name }}
+          DONO: ${{ github.repository_owner }}
+        run: |
+          [[ "$GITHUB_REF" == refs/tags/v* ]] || { echo "::error::só tag v* publica produção"; exit 1; }
+          [[ "$TAG" =~ ^v[0-9A-Za-z._-]{1,64}$ ]] || { echo "::error::tag inválida: $TAG"; exit 1; }
+          sha="$(git rev-parse "$GITHUB_SHA^{commit}")"
+          # fetch-depth: 0 já trouxe refs/remotes/origin/main (sem credencial guardada, não dá para fazer fetch de novo)
+          git rev-parse --verify -q origin/main > /dev/null || { echo "::error::origin/main ausente no checkout"; exit 1; }
+          git merge-base --is-ancestor "$sha" origin/main || { echo "::error::a tag $TAG aponta para $sha, que não está no main"; exit 1; }
+          { echo "sha=$sha"; echo "versao=$TAG"; echo "dono=${DONO,,}"; } >> "$GITHUB_OUTPUT"
+          echo "tag $TAG → commit $sha (no main)"
+
+      - name: CI verde do commit (push no main)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.alvo.outputs.sha }}
+        run: |
+          n="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+                 -f head_sha="$SHA" -f event=push -f branch=main -f status=success --jq '.total_count')"
+          [ "${n:-0}" -ge 1 ] || { echo "::error::o commit $SHA não tem CI verde de push no main: publique só um commit que passou no CI"; exit 1; }
+          echo "CI verde: $n execução(ões) com sucesso para $SHA"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: digest da imagem da API do commit
+        id: imagem
+        env:
+          IMG: ghcr.io/${{ steps.alvo.outputs.dono }}/macuxi-api:${{ steps.alvo.outputs.sha }}
+        run: |
+          digest="$(docker buildx imagetools inspect "$IMG" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::$IMG não está no GHCR (o \"demo — publicar\" desse commit rodou verde?)"; exit 1; }
+          echo "api=${IMG%:*}@$digest" >> "$GITHUB_OUTPUT"
+          echo "API: ${IMG%:*}@$digest"
+
+  bko:
+    name: BKO de produção do mesmo commit
+    needs: conferir
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      bko: ${{ steps.ref.outputs.bko }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.conferir.outputs.sha }}
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: imagem macuxi-bko-prod
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          provenance: false
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://api:8100/v1
+            MACUXI_BKO_ORIGEM=https://bko.macuxifdv.com.br
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          tags: |
+            ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod:${{ needs.conferir.outputs.sha }}
+            ghcr.io/${{ needs.conferir.outputs.dono }}/macuxi-bko-prod:${{ needs.conferir.outputs.versao }}
+          # camadas do install vêm do cache do BKO da demo (mesmo lock); o next build é o do argumento de produção
+          cache-from: |
+            type=gha,scope=macuxi-bko
+            type=gha,scope=macuxi-bko-prod
+          cache-to: type=gha,scope=macuxi-bko-prod,mode=max
+
+      - name: referência por digest
+        id: ref
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          DONO: ${{ needs.conferir.outputs.dono }}
+        run: |
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::digest do BKO inválido"; exit 1; }
+          echo "bko=ghcr.io/$DONO/macuxi-bko-prod@$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "BKO: ghcr.io/$DONO/macuxi-bko-prod@$DIGEST"
+
+  deploy:
+    name: deploy na VM de produção (aprovação no environment PRODUCAO)
+    needs: [conferir, bko]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment:
+      name: PRODUCAO
+      url: https://bko.macuxifdv.com.br
+    permissions:
+      contents: read
+      packages: read
+    env:
+      VERSAO: ${{ needs.conferir.outputs.versao }}
+      API: ${{ needs.conferir.outputs.api }}
+      BKO: ${{ needs.bko.outputs.bko }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.conferir.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/deploy/producao
+            scripts/deploy/demo
+
+      - name: secrets do environment presentes (só os nomes)
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_PG_HOST: ${{ secrets.PROD_PG_HOST }}
+          PROD_PG_ADMIN_USUARIO: ${{ secrets.PROD_PG_ADMIN_USUARIO }}
+          PROD_PG_ADMIN_SENHA: ${{ secrets.PROD_PG_ADMIN_SENHA }}
+          PROD_S3_KEY_ID: ${{ secrets.PROD_S3_KEY_ID }}
+          PROD_S3_SECRET: ${{ secrets.PROD_S3_SECRET }}
+          PROD_CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.PROD_CLOUDFLARE_TUNNEL_TOKEN }}
+          PROD_PG_PORTA: ${{ secrets.PROD_PG_PORTA }}
+        run: |
+          falta=()
+          for n in PROD_SSH_KEY PROD_HOST PROD_USER PROD_PG_HOST PROD_PG_ADMIN_USUARIO PROD_PG_ADMIN_SENHA PROD_S3_KEY_ID PROD_S3_SECRET PROD_CLOUDFLARE_TUNNEL_TOKEN; do
+            [ -n "${!n}" ] || falta+=("$n")
+          done
+          [ ${#falta[@]} -eq 0 ] || { echo "::error::faltam secrets no environment PRODUCAO: ${falta[*]}"; exit 1; }
+          # valores de uma linha só (colados com quebra estragariam os .env); a chave SSH é a exceção
+          for n in PROD_HOST PROD_USER PROD_PG_HOST PROD_PG_ADMIN_USUARIO PROD_PG_ADMIN_SENHA PROD_S3_KEY_ID PROD_S3_SECRET PROD_CLOUDFLARE_TUNNEL_TOKEN PROD_PG_PORTA; do
+            v="$(printf '%s' "${!n}" | tr -d '\r')"
+            case "$v" in *$'\n'*) echo "::error::$n tem quebra de linha"; exit 1;; esac
+          done
+          [[ "$PROD_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "::error::PROD_USER inválido"; exit 1; }
+          [[ "$PROD_PG_ADMIN_USUARIO" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || { echo "::error::PROD_PG_ADMIN_USUARIO inválido"; exit 1; }
+          [ -z "$PROD_PG_PORTA" ] || [[ "$PROD_PG_PORTA" =~ ^[0-9]{1,5}$ ]] || { echo "::error::PROD_PG_PORTA inválida"; exit 1; }
+          echo "secrets obrigatórios presentes"
+
+      - name: chave SSH
+        env:
+          CHAVE: ${{ secrets.PROD_SSH_KEY }}
+          HOST: ${{ secrets.PROD_HOST }}
+          CONHECIDOS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CHAVE" | tr -d '\r' > ~/.ssh/prod
+          chmod 600 ~/.ssh/prod
+          if [ -n "$CONHECIDOS" ]; then
+            printf '%s\n' "$CONHECIDOS" | tr -d '\r' > ~/.ssh/known_hosts
+          else
+            echo "::warning::sem PROD_SSH_KNOWN_HOSTS: a chave do host vem do ssh-keyscan (primeira conexão)"
+            ssh-keyscan -T 15 -t ed25519 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          printf 'Host prod\n  HostName %s\n  IdentityFile ~/.ssh/prod\n  IdentitiesOnly yes\n  BatchMode yes\n  StrictHostKeyChecking yes\n  ServerAliveInterval 30\n' "$HOST" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: copiar scripts e preparar a VM (idempotente)
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -l "$USUARIO" prod 'rm -rf ~/macuxi-deploy && mkdir -p ~/macuxi-deploy'
+          scp -q -o User="$USUARIO" scripts/deploy/producao/* scripts/deploy/demo/alerta-saude.sh prod:macuxi-deploy/
+          ssh -l "$USUARIO" prod 'sudo bash ~/macuxi-deploy/preparar-vm.sh "$USER"'
+
+      - name: segredos do GitHub na VM (modo 600, pelo stdin)
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          PG_HOST: ${{ secrets.PROD_PG_HOST }}
+          PG_PORTA: ${{ secrets.PROD_PG_PORTA }}
+          PG_ADMIN: ${{ secrets.PROD_PG_ADMIN_USUARIO }}
+          PG_ADMIN_SENHA: ${{ secrets.PROD_PG_ADMIN_SENHA }}
+          PG_CA: ${{ secrets.PROD_PG_CA_CERT }}
+          S3_ID: ${{ secrets.PROD_S3_KEY_ID }}
+          S3_SEGREDO: ${{ secrets.PROD_S3_SECRET }}
+          TUNEL: ${{ secrets.PROD_CLOUDFLARE_TUNNEL_TOKEN }}
+          WEBHOOK: ${{ secrets.PROD_ALERTA_WEBHOOK }}
+        run: |
+          grava() { ssh -l "$USUARIO" prod "umask 077; cat > '/opt/macuxi/$1.tmp' && mv -f '/opt/macuxi/$1.tmp' '/opt/macuxi/$1'"; }
+          printf 'MACUXI_PG_HOST=%s\nMACUXI_PG_PORTA=%s\n' "$PG_HOST" "${PG_PORTA:-5432}" | grava banco.env
+          printf 'MACUXI_PG_ADMIN_USUARIO=%s\nMACUXI_PG_ADMIN_SENHA=%s\n' "$PG_ADMIN" "$PG_ADMIN_SENHA" | grava admin.env
+          printf 'MACUXI_S3_CHAVE_ID=%s\nMACUXI_S3_SEGREDO=%s\n' "$S3_ID" "$S3_SEGREDO" | grava segredos.env
+          printf 'TUNNEL_TOKEN=%s\n' "$TUNEL" | grava tunel.env
+          if [ -n "$WEBHOOK" ]; then
+            printf 'MACUXI_ALERTA_WEBHOOK=%s\n' "$WEBHOOK" | grava alerta.env
+          else
+            echo "::notice::sem PROD_ALERTA_WEBHOOK: o alerta de saúde avisa só no journal da VM (journalctl -t macuxi-alerta)"
+          fi
+          if [ -n "$PG_CA" ]; then
+            printf '%s\n' "$PG_CA" | tr -d '\r' | grava certs/dbaas-ca.pem
+            # a CA não é segredo: 644, para o usuário node dos contêineres ler pelo volume ./certs
+            ssh -l "$USUARIO" prod 'chmod 644 /opt/macuxi/certs/dbaas-ca.pem'
+            echo "CA do DBaaS gravada: TLS verify-full"
+          else
+            ssh -l "$USUARIO" prod 'rm -f /opt/macuxi/certs/dbaas-ca.pem'
+          fi
+
+      - name: publicar (login no GHCR na VM, banco, compose up, conferência, volta atrás se falhar)
+        env:
+          USUARIO: ${{ secrets.PROD_USER }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$TOKEN" | ssh -l "$USUARIO" prod "docker login ghcr.io -u '$ATOR' --password-stdin >/dev/null"
+          set +e
+          ssh -l "$USUARIO" prod "bash ~/macuxi-deploy/implantar.sh --api '$API' --bko '$BKO' --versao '$VERSAO'"
+          saida=$?
+          ssh -l "$USUARIO" prod 'docker logout ghcr.io >/dev/null 2>&1 || true'
+          case "$saida" in
+            0) echo "publicado: $VERSAO" ;;
+            3) echo "::error::$VERSAO falhou na conferência e a produção VOLTOU para a versão anterior (log acima)" ;;
+            *) echo "::error::publicação de $VERSAO falhou antes de trocar a aplicação (código $saida; log acima)" ;;
+          esac
+          exit $saida
+
+      - name: conferir pelo domínio
+        run: |
+          ok=0
+          for i in $(seq 1 20); do
+            corpo="$(curl -fsS -m 10 https://api.macuxifdv.com.br/v1/saude 2>/dev/null || true)"
+            if printf '%s' "$corpo" | grep -q "\"versao\":\"$VERSAO\""; then ok=1; echo "api.macuxifdv.com.br: $VERSAO no ar"; break; fi
+            sleep 6
+          done
+          [ "$ok" = 1 ] || { echo "::error::api.macuxifdv.com.br/v1/saude não devolveu $VERSAO (túnel macuxi-prod e rota api. no painel da Cloudflare)"; exit 1; }
+          curl -fsS -m 10 -o /dev/null https://bko.macuxifdv.com.br/login && echo "bko.macuxifdv.com.br: ok" \
+            || { echo "::error::bko.macuxifdv.com.br/login não respondeu (rota bko. → http://bko:3100 no túnel)"; exit 1; }
+          if curl -fsS -m 10 -o /dev/null https://config.macuxifdv.com.br/login; then echo "config.macuxifdv.com.br: ok"
+          else echo "::warning::config.macuxifdv.com.br não respondeu (rota config. → http://bko:3100 no túnel; portal da T-0087)"; fi
+
+      - name: limpar a chave do runner
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/prod ~/.ssh/config ~/.ssh/known_hosts

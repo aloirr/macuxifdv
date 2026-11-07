@@ -66,6 +66,8 @@ describe.skipIf(semBanco())('Integração A7/A8 × Postgres', () => {
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
         // o despachante sempre entrega `consultar`; por padrão o Core não aponta nada incompleto
         consultar: async () => ({ resultados: [] }),
+        parametros: () => ({}),
+        fuso: () => 'America/Manaus',
         ...extra,
       } as unknown as ContextoConsumo),
     );

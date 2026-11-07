@@ -4,6 +4,7 @@ import { ENTIDADES_ARVORE, ENTIDADES_CONTEUDO, ENTIDADES_PRECO, entidadeProdutoR
 import { migracoesAparelho } from '../db/aparelho';
 import { manifest } from '../manifest';
 import { consultaPrecosClienteAparelho } from './consultas';
+import { consultaBuscaProdutosAparelho, consultaTextosProdutoAparelho } from './texto-consultas';
 import { INDICE_BUSCA_CATALOGO } from './indice';
 import { consultaSugestoesPedidoAparelho } from './sugestoes';
 import TelaCatalogo from './telas/catalogo';
@@ -23,7 +24,7 @@ export const moduloApp = definirModuloShell<ComponentType>({
     { id: 'produto', caminho: 'produto', titulo: 'Produto', acao: 'produto.consultar', apps: ['campo', 'gestao'], componente: TelaProduto },
   ],
   entidadesSync: [...ENTIDADES_PRECO, ...ENTIDADES_CONTEUDO, ...ENTIDADES_ARVORE, entidadeProdutoRelacao],
-  consultas: [consultaPrecosClienteAparelho, consultaSugestoesPedidoAparelho],
+  consultas: [consultaPrecosClienteAparelho, consultaSugestoesPedidoAparelho, consultaTextosProdutoAparelho, consultaBuscaProdutosAparelho],
   migracoesAparelho,
   indicesBusca: [INDICE_BUSCA_CATALOGO],
 });

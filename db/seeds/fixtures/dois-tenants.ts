@@ -38,15 +38,22 @@
  *   tenants NÃO mudaram (a licença 'integracao' não está na fixture).
  * - T-0071 (0020): relacionados do produto (catalogo.produto_relacao, grupo 0x4e) em A (ativa, inativa e apagada) e em B;
  *   os pedidos da fixture seguem com ajuste em % (colunas de R$ no padrão 0/0/'pct').
+ * - T-0084/T-0085 (0033): aplicação no conteúdo de A ("Motos 150 cc") e de B (diferente, para o isolamento), etiquetas em A,
+ *   aplicação e referências no documento de busca do servidor, retrato da aplicação no item 1 do p1 de A e referências
+ *   cruzadas (catalogo.produto_referencia, grupo 0x4f): A com 2 vivas no p1 (marca = o concorrente do Promotor de A, sem
+ *   FK) e 1 apagada na mesma ordem; B com 1 de código diferente (marca = o concorrente do Promotor de B). 0034: as vivas
+ *   levam marca_nome (MARCA_NOME_FIXTURE, retrato do nome do concorrente); a apagada fica nula (linha anterior à 0034).
+ * - T-0087 (0036): convites de 1º acesso (core.usuario_convite, grupo 0x08; CONVITES_FIXTURE): A pendente + revogado do
+ *   vendedor-2 e usado do promotor; B pendente do vendedor-B, gerado por um super-admin (id sem FK).
  */
 import { createHash, createHmac } from 'node:crypto';
 import type { ClientBase } from 'pg';
-import { arrayDeTexto, gravarLinhas, type Linha } from '../../src/gravar';
+import { arrayDeTexto, arrayDeTextoLivre, gravarLinhas, type Linha } from '../../src/gravar';
 import { idFixo, idMedida, idMotivoPadrao } from '../../src/ids';
 import { anoMes, hojeNoFuso, instante, menorData, somarDias } from '../../src/datas';
 import { hashSenha } from '../../src/senha';
 import { dadosGestor, ORDEM_GESTOR } from './gestor';
-import { dadosPromotorFixture, ORDEM_PROMOTOR } from './promotor';
+import { dadosPromotorFixture, ORDEM_PROMOTOR, PROMOTOR_FIXTURE } from './promotor';
 import { dadosPesquisaFixture, ORDEM_PESQUISA } from './pesquisa';
 
 const G = {
@@ -124,8 +131,12 @@ const G = {
   nota_erp: 0x2f,
   // 0020 (T-0071)
   produto_relacao: 0x4e,
+  // 0033 (T-0085)
+  produto_referencia: 0x4f,
   // 0028 (T-0082)
   plano_rv: 0x39,
+  // 0036 (T-0087)
+  usuario_convite: 0x08,
 } as const;
 
 const a = (grupo: keyof typeof G, seq: number) => idFixo('aaaaaaaa', G[grupo], seq);
@@ -141,6 +152,23 @@ const refreshFixture = (tenantId: string, segredo: string) => ({
   token: `${tenantId}.${segredo}`,
   hash: createHash('sha256').update(segredo).digest('hex'),
 });
+
+/**
+ * 0036 (T-0087, RN-CORE-31): convites de 1º acesso. Token `<tenant_id>.<segredo>` (como o refresh; segredo fixo só de teste,
+ * 43 caracteres base64url); o banco guarda só o sha256 hex do segredo. A: 1 PENDENTE do vendedor-2 (válido até 2099; o token
+ * entregue é CONVITES_FIXTURE.A.pendente.token), 1 REVOGADO do vendedor-2 (renovado) e 1 USADO do promotor; B: 1 PENDENTE do
+ * vendedor-B. Os usuários da fixture já têm senha: aceitar o pendente troca a senha (teste em transação desfeita).
+ */
+export const CONVITES_FIXTURE = {
+  A: {
+    pendente: { id: a('usuario_convite', 1), ...refreshFixture(a('tenant', 1), 'fixtureConviteAlfaPendenteSomenteTesteT0087a') },
+    revogado: { id: a('usuario_convite', 2), ...refreshFixture(a('tenant', 1), 'fixtureConviteAlfaRevogadoSomenteTesteT0087a') },
+    usado: { id: a('usuario_convite', 3), ...refreshFixture(a('tenant', 1), 'fixtureConviteAlfaUsadoPromotorSomenteT0087a') },
+  },
+  B: {
+    pendente: { id: b('usuario_convite', 1), ...refreshFixture(b('tenant', 1), 'fixtureConviteBetaPendenteSomenteTesteT0087b') },
+  },
+} as const;
 
 /**
  * Chave de API da fixture (T-0032): pepper e chaves SÓ de teste. O banco guarda HMAC-SHA256(pepper, chave) em hex, como a
@@ -363,6 +391,8 @@ export const ORDEM_TABELAS = [
   'core.carteira',
   'core.dispositivo',
   'core.sessao',
+  // 0036 (T-0087): convite de 1º acesso (FK composta -> core.usuario)
+  'core.usuario_convite',
   'plataforma.evento',
   'plataforma.evento_consumo',
   'plataforma.parametro',
@@ -377,6 +407,8 @@ export const ORDEM_TABELAS = [
   'core.nota_erp',
   // 0020 (T-0071): relacionados do produto (sem FK para core.produto)
   'catalogo.produto_relacao',
+  // 0033 (T-0085): referências cruzadas (sem FK para core.produto nem para promotor.concorrente)
+  'catalogo.produto_referencia',
   // 0028 (T-0082): plano de RV (FK atualizado_por -> core.usuario)
   'core.plano_rv',
   // T-0055 (0014, schema gestor): seeds/fixtures/gestor.ts
@@ -443,6 +475,34 @@ function dadosProdutoRelacao(): Linha[] {
     rel(a('produto_relacao', 3), A.tenantId, A.produtos.p1, A.produtos.p2, 'superior', { ordem: 2, ativo: false }),
     rel(a('produto_relacao', 4), A.tenantId, A.produtos.p2, A.produtos.p1, 'complementar', { deleted_at: DATA_FIXA_ACESSO }),
     rel(b('produto_relacao', 1), B.tenantId, b('produto', 1), b('produto', 2), 'superior', { external_id: 'REL-B-1' }),
+  ];
+}
+
+/**
+ * 0033 (T-0085, RN-CAT-09): referências cruzadas. A: o p1 (pastilha) equivale a "CB 3401" e a "FR-77.2" do concorrente
+ * do Promotor de A (ordem 1 e 2), mais uma APAGADA na ordem 1 (o único vivo deixa); B: o p1 com "LB 0099" do concorrente
+ * do Promotor de B. codigo_compacto = codigoCompacto do domain do Catálogo (sem acento, minúsculas, só [a-z0-9]).
+ */
+export const REFERENCIAS_FIXTURE = {
+  A: { cb3401: a('produto_referencia', 1), fr772: a('produto_referencia', 2), apagada: a('produto_referencia', 3) },
+  B: { lb0099: b('produto_referencia', 1) },
+} as const;
+/** 0034: retrato do nome da marca nas referências vivas (= nome do concorrente do Promotor de cada tenant na fixture). */
+export const MARCA_NOME_FIXTURE = { A: 'Freios Rivais', B: 'Lubri Rival' } as const;
+function dadosProdutoReferencia(): Linha[] {
+  const A = DOIS_TENANTS.A;
+  const B = DOIS_TENANTS.B;
+  const ref = (id: string, tenant_id: string, produto_id: string, marca_id: string, codigo: string, codigo_compacto: string, ordem: number, extra: Partial<Linha> = {}): Linha => ({
+    id, tenant_id, produto_id, marca_id, marca_nome: null, codigo, codigo_compacto, ordem, deleted_at: null, external_id: null, ...extra,
+  });
+  // 0034: marca_nome = retrato do nome do concorrente do Promotor do mesmo tenant; a apagada fica NULA (linha anterior à 0034)
+  const nomeA = { marca_nome: MARCA_NOME_FIXTURE.A };
+  const nomeB = { marca_nome: MARCA_NOME_FIXTURE.B };
+  return [
+    ref(REFERENCIAS_FIXTURE.A.cb3401, A.tenantId, A.produtos.p1, PROMOTOR_FIXTURE.A.concorrente, 'CB 3401', 'cb3401', 1, { external_id: 'REF-A-1', ...nomeA }),
+    ref(REFERENCIAS_FIXTURE.A.fr772, A.tenantId, A.produtos.p1, PROMOTOR_FIXTURE.A.concorrente, 'FR-77.2', 'fr772', 2, nomeA),
+    ref(REFERENCIAS_FIXTURE.A.apagada, A.tenantId, A.produtos.p1, PROMOTOR_FIXTURE.A.concorrente, 'CB-3400', 'cb3400', 1, { deleted_at: DATA_FIXA_ACESSO }),
+    ref(REFERENCIAS_FIXTURE.B.lb0099, B.tenantId, b('produto', 1), PROMOTOR_FIXTURE.B.concorrente, 'LB 0099', 'lb0099', 1, { external_id: 'REF-B-1', ...nomeB }),
   ];
 }
 
@@ -589,6 +649,12 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
       sessao(A.sessoes.vendedor1, tA, A.usuarios.vendedor1, A.familias.vendedor1, A.refresh.hash, A.dispositivos.vendedor1),
       sessao(B.sessoes.vendedor, tB, B.usuarios.vendedor, B.familias.vendedor, B.refresh.hash, B.dispositivos.vendedor),
     ],
+    'core.usuario_convite': [
+      convite(CONVITES_FIXTURE.A.pendente.id, tA, A.usuarios.vendedor2, CONVITES_FIXTURE.A.pendente.hash, { criado_por_id: A.usuarios.admin, criado_por_tipo: 'usuario' }),
+      convite(CONVITES_FIXTURE.A.revogado.id, tA, A.usuarios.vendedor2, CONVITES_FIXTURE.A.revogado.hash, { revogado_em: DATA_FIXA_ACESSO, criado_por_id: A.usuarios.admin, criado_por_tipo: 'usuario' }),
+      convite(CONVITES_FIXTURE.A.usado.id, tA, A.usuarios.promotor, CONVITES_FIXTURE.A.usado.hash, { usado_em: DATA_FIXA_ACESSO }),
+      convite(CONVITES_FIXTURE.B.pendente.id, tB, B.usuarios.vendedor, CONVITES_FIXTURE.B.pendente.hash, { criado_por_id: idFixo('5a5a5a5a', 0x08, 1), criado_por_tipo: 'super_admin' }),
+    ],
     'plataforma.evento': [
       evento(a('evento', 1), tA, A.usuarios.vendedor2),
       evento(b('evento', 1), tB, B.usuarios.admin),
@@ -614,6 +680,7 @@ export function dadosDoisTenants(senhaHash: string, opcoes: OpcoesDadosFixture =
     ...dadosT0013(hojeA, hojeB),
     'core.nota_erp': dadosNotaErp(hojeA, hojeB),
     'catalogo.produto_relacao': dadosProdutoRelacao(),
+    'catalogo.produto_referencia': dadosProdutoReferencia(),
     'core.plano_rv': dadosPlanoRv(hojeA, hojeB),
     ...dadosGestor({ tenant: tA, vendedor: A.usuarios.vendedor1, cliente: A.clientes.c1 }, { tenant: tB, vendedor: B.usuarios.vendedor, cliente: B.clientes.c1 }),
     ...dadosPromotorFixture(
@@ -692,11 +759,11 @@ function dadosSprint1(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaSp
     condicao_pagamento_descricao: null, nivel_aprovacao: null, motivos_aprovacao: arrayDeTexto([]), aprovacao_automatica: false, decidido_por_id: null, decidido_em: null,
     motivo_rejeicao: null, ...comuns, ...p,
   });
-  const item = (id: string, tenant_id: string, pedido_id: string, sequencia: number, produto_id: string, quantidade: number, tabela: number, desconto: number): Linha => {
+  const item = (id: string, tenant_id: string, pedido_id: string, sequencia: number, produto_id: string, quantidade: number, tabela: number, desconto: number, aplicacao: string | null = null): Linha => {
     const unitario = Math.round((tabela * (100 - desconto)) / 100);
     return {
       id, tenant_id, pedido_id, sequencia, produto_id, quantidade, preco_tabela_cents: tabela, preco_unitario_cents: unitario, desconto_pct: desconto,
-      total_cents: unitario * quantidade, produto_sku: null, produto_nome: null, unidade: null, ...comuns,
+      total_cents: unitario * quantidade, produto_sku: null, produto_nome: null, unidade: null, aplicacao, ...comuns,
     };
   };
 
@@ -858,7 +925,8 @@ function dadosSprint1(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaSp
       }),
     ],
     'vendedor.pedido_item': [
-      item(a('pedido_item', 1), tA, A.pedidos.p1, 1, a('produto', 1), 2, 100_000, 5),
+      // 0033 (RN-VEN-19): retrato da aplicação do p1 (pastilha) no item 1; os demais sem (nulo)
+      item(a('pedido_item', 1), tA, A.pedidos.p1, 1, a('produto', 1), 2, 100_000, 5, 'Motos 150 cc'),
       item(a('pedido_item', 2), tA, A.pedidos.p1, 2, a('produto', 2), 1, 100_000, 5),
       item(a('pedido_item', 3), tA, A.pedidos.p2, 1, a('produto', 1), 5, 100_000, 12),
       item(a('pedido_item', 4), tA, A.pedidos.p3, 1, a('produto', 2), 3, 50_000, 0),
@@ -1107,8 +1175,8 @@ function dadosT0013(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaT001
   const no = (id: string, tenant_id: string, pai_id: string | null, nivel: number, codigo: string, nome: string): Linha => ({
     id, tenant_id, pai_id, nivel, codigo, nome, ordem: 1, ativo: true, ...comuns,
   });
-  const busca = (id: string, tenant_id: string, produto_id: string, sku: string, nome: string, marca: string, categoria: string, atributos: string): Linha => ({
-    id, tenant_id, produto_id, sku, ean: null, nome, marca, categoria, atributos, conteudo: null, ativo: true, ...comuns,
+  const busca = (id: string, tenant_id: string, produto_id: string, sku: string, nome: string, marca: string, categoria: string, atributos: string, aplicacao: string | null, referencias: string | null): Linha => ({
+    id, tenant_id, produto_id, sku, ean: null, nome, marca, categoria, atributos, conteudo: null, ativo: true, aplicacao, referencias, ...comuns,
   });
   const faturamento = (id: string, tenant_id: string, pedido_id: string, evento_id: string, parcial: boolean, numero_erp: string, produto_id: string, quantidade: number, total: number, em: string): Linha => ({
     id, tenant_id, pedido_id, evento_id, parcial, numero_erp, nota_numero: '1001', nota_serie: '1', nota_emitida_em: em, nota_total_cents: total,
@@ -1141,9 +1209,13 @@ function dadosT0013(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaT001
     'catalogo.produto_conteudo': [
       {
         id: a('produto_conteudo', 1), tenant_id: tA, produto_id: a('produto', 1), descricao: 'Pastilha cerâmica para eixo dianteiro.', aplicacoes: 'Motos 150 cc',
-        argumentos_venda: 'Menos ruído e pó', faq: [{ pergunta: 'Serve em moto 150?', resposta: 'Sim, nas linhas 150 cc.' }], campanha: true, destaque: false, ...comuns,
+        argumentos_venda: 'Menos ruído e pó', faq: [{ pergunta: 'Serve em moto 150?', resposta: 'Sim, nas linhas 150 cc.' }], campanha: true, destaque: false,
+        etiquetas: arrayDeTextoLivre(['Dianteira', 'Novo']), ...comuns,
       },
-      { id: b('produto_conteudo', 1), tenant_id: tB, produto_id: b('produto', 1), descricao: 'Óleo sintético 5W30.', aplicacoes: null, argumentos_venda: null, faq: [], campanha: false, destaque: true, ...comuns },
+      {
+        id: b('produto_conteudo', 1), tenant_id: tB, produto_id: b('produto', 1), descricao: 'Óleo sintético 5W30.', aplicacoes: 'Carros flex 1.0 a 2.0 2015–2020', argumentos_venda: null, faq: [],
+        campanha: false, destaque: true, etiquetas: arrayDeTextoLivre([]), ...comuns,
+      },
     ],
     'catalogo.produto_atributo': [
       { id: a('produto_atributo', 1), tenant_id: tA, produto_id: a('produto', 1), nome: 'Cilindrada', valor: '150', valor_num: 150, unidade: 'cc', ordem: 1, ...comuns },
@@ -1158,8 +1230,8 @@ function dadosT0013(hojeA: string, hojeB: string): Pick<DadosFixture, TabelaT001
       { id: b('sinonimo', 1), tenant_id: tB, termo: 'oleo', sinonimos: arrayDeTexto(['lubrificante']), ativo: true, ...comuns },
     ],
     'catalogo.produto_busca': [
-      busca(a('produto_busca', 1), tA, a('produto', 1), 'ALFA-001', 'Pastilha de freio dianteira', 'Norfreio', 'Freios', 'Cilindrada 150 cc'),
-      busca(b('produto_busca', 1), tB, b('produto', 1), 'BETA-001', 'Óleo 5W30 1 L', 'Lubrion', 'Lubrificantes', 'Viscosidade 5W30'),
+      busca(a('produto_busca', 1), tA, a('produto', 1), 'ALFA-001', 'Pastilha de freio dianteira', 'Norfreio', 'Freios', 'Cilindrada 150 cc', 'Motos 150 cc', 'CB 3401 cb3401 FR-77.2 fr772'),
+      busca(b('produto_busca', 1), tB, b('produto', 1), 'BETA-001', 'Óleo 5W30 1 L', 'Lubrion', 'Lubrificantes', 'Viscosidade 5W30', 'Carros flex 1.0 a 2.0 2015–2020 2016 2017 2018 2019', 'LB 0099 lb0099'),
     ],
     'catalogo.deposito': [
       { id: a('deposito', 1), tenant_id: tA, codigo: 'CD1', nome: 'CD Manaus', ativo: true, ...comuns },
@@ -1194,6 +1266,10 @@ function cliente(id: string, tenant_id: string, documento: string, nome: string,
 
 function sessao(id: string, tenant_id: string, usuario_id: string, familia_id: string, token_hash: string, dispositivo_id: string): Linha {
   return { id, tenant_id, usuario_id, familia_id, token_hash, dispositivo_id, expira_em: VALIDADE_FIXA_REFRESH, usado_em: null, revogado_em: null, external_id: null };
+}
+
+function convite(id: string, tenant_id: string, usuario_id: string, token_hash: string, extra: Partial<Linha> = {}): Linha {
+  return { id, tenant_id, usuario_id, token_hash, expira_em: VALIDADE_FIXA_REFRESH, usado_em: null, revogado_em: null, criado_por_id: null, criado_por_tipo: null, external_id: null, ...extra };
 }
 
 function evento(id: string, tenant_id: string, usuarioId: string): Linha {

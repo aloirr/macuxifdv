@@ -7,7 +7,8 @@
  * transação da requisição.
  */
 import type { ClienteBanco, ContextoBase, TransacaoTenant } from '@macuxi/platform-sdk';
-import type { ItemTabelaPreco, MidiaProduto, Promocao, SalvarConteudo, SalvarSinonimo, Sinonimo, StockByBranch, TermoSemResultado } from '../contracts';
+import type { ItemTabelaPreco, MidiaProduto, OfereceJunto, Promocao, SalvarCadastroCatalogo, SalvarConteudo, SalvarSinonimo, Sinonimo, StockByBranch, TermoSemResultado } from '../contracts';
+import type { NoCatalogo, VinculoProdutoNo } from '../domain/arvore';
 import { agruparTermosSemResultado, type ConteudoGuardado, type RegistroBusca } from '../domain/conteudo';
 import type { UsoIa } from '../domain/limite-ia';
 import type { ProdutoCatalogo } from '../domain/vitrine';
@@ -47,6 +48,20 @@ export interface RepositorioCatalogo {
   removerSinonimo(id: string): Promise<boolean>;
   marcarDestaque(produtoId: string, destaque: boolean): Promise<void>;
   salvarConteudo(produtoId: string, c: SalvarConteudo, em: string): Promise<{ criado: boolean }>;
+  /** T-0085: "oferece junto" (até 5, relação complementar viva e ativa) e etiquetas do produto, para a ficha. */
+  extrasFicha(produtoId: string): Promise<{ ofereceJunto: OfereceJunto[]; etiquetas: string[] }>;
+  /**
+   * RN-CAT-09: marcas concorrentes do tenant, do cadastro do Promotor (contrato do Promotor; sem ler a tabela dele).
+   * Tenant sem a licença do Promotor: mapa vazio (a referência não é gravada nem aparece).
+   */
+  marcasConcorrentes(): Promise<Map<string, { nome: string; ativo: boolean }>>;
+  /** T-0085 fatia C: árvore, vínculos e "oferece junto" de todos os produtos, para a exportação do catálogo (RF-CAT-09). */
+  dadosExportacao(): Promise<{ nos: NoCatalogo[]; vinculos: VinculoProdutoNo[]; ofereceJunto: Map<string, string[]> }>;
+  /**
+   * T-0085 K9: substitui aplicação, referências, "oferece junto" e etiquetas do produto de uma vez (a rota já validou com
+   * `validarCadastroCatalogo`). Grava `codigo_compacto` com `codigoCompacto` do domain.
+   */
+  salvarCadastroCatalogo(produtoId: string, c: SalvarCadastroCatalogo, em: string): Promise<{ criado: boolean }>;
 }
 
 /** Fábrica por requisição (dentro de `ctx.comTenant`). */
@@ -57,7 +72,15 @@ export type FabricaRepositorio = (ctx: ContextoBase, db: ClienteBanco, tx: Trans
 
 export interface DadosTenantMemoria {
   produtos: ProdutoCatalogo[];
+  /** Marcas concorrentes do Promotor (id → nome e ativo); ausente = tenant sem o Promotor. */
+  marcas?: Map<string, { nome: string; ativo: boolean }>;
+  /** "Oferece junto" por produto (ids na ordem) e etiquetas por produto. */
+  ofereceJunto?: Map<string, string[]>;
+  etiquetas?: Map<string, string[]>;
   sinonimos?: Sinonimo[];
+  /** Árvore do catálogo e vínculos produto → nó (exportação). */
+  nos?: NoCatalogo[];
+  vinculos?: VinculoProdutoNo[];
   itensPreco?: ItemTabelaPreco[];
   promocoes?: Promocao[];
   /** cliente_id → tabela_preco_id. */
@@ -163,11 +186,43 @@ export function criarRepositorioMemoria(porTenant: Record<string, DadosTenantMem
         const p = d.produtos.find((x) => x.id === produtoId);
         if (p) p.campanha = destaque;
       },
+      async extrasFicha(produtoId) {
+        const ids = d.ofereceJunto?.get(produtoId) ?? [];
+        const ofereceJunto = ids.flatMap((id) => {
+          const p = d.produtos.find((x) => x.id === id);
+          return p ? [{ produto_id: p.id, erp_code: p.sku, description: p.nome }] : [];
+        });
+        return { ofereceJunto, etiquetas: [...(d.etiquetas?.get(produtoId) ?? [])] };
+      },
+      async marcasConcorrentes() {
+        return new Map(d.marcas ?? []);
+      },
+      async dadosExportacao() {
+        return { nos: copia(d.nos ?? []), vinculos: copia(d.vinculos ?? []), ofereceJunto: new Map([...(d.ofereceJunto ?? new Map<string, string[]>()).entries()].map(([k, v]) => [k, [...v]])) };
+      },
+      async salvarCadastroCatalogo(produtoId, c) {
+        const p = d.produtos.find((x) => x.id === produtoId);
+        const criado = !!p && !p.aplicacao && (p.referencias ?? []).length === 0;
+        const marcas = d.marcas ?? new Map();
+        if (p) {
+          p.aplicacao = c.aplicacao?.trim() ?? '';
+          if (c.referencias !== undefined) {
+            p.referencias = c.referencias.flatMap((r) => {
+              const m = marcas.get(r.marca_id);
+              return m ? [{ marca_id: r.marca_id, marca_nome: m.nome, codigo: r.codigo.trim() }] : [];
+            });
+          }
+        }
+        (d.ofereceJunto ??= new Map()).set(produtoId, [...c.oferece_junto]);
+        (d.etiquetas ??= new Map()).set(produtoId, c.etiquetas.map((e) => e.trim()));
+        return { criado };
+      },
       async salvarConteudo(produtoId, c, em) {
         const conteudos = (d.conteudos ??= new Map());
         const criado = !conteudos.has(produtoId);
         conteudos.set(produtoId, { description: c.description, selling_points: [...c.selling_points], faq: c.faq.map((f) => ({ ...f })), updated_at: em });
         const p = d.produtos.find((x) => x.id === produtoId);
+        if (p && c.aplicacao !== undefined) p.aplicacao = c.aplicacao?.trim() ?? '';
         if (p) p.atributos = c.attributes.map((a) => ({ ...a }));
         return { criado };
       },

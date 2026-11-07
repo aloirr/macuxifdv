@@ -140,3 +140,126 @@ da referência: `CAF-500` CX c/ 12 com **preço próprio** no Varejo (R$ 215,46 
 próprio (UN × fator = R$ 117,80). O preço próprio da CX ficou **ligado** (`PRECO_PROPRIO_CX_LIGADO = true`): depende da correção
 de `precosDoCliente` (só `unidade is null` no preço base; linhas com unidade em `embalagens[]`), entregue pelo modulo-catalogo na
 mesma T-0071 — carregar esta base na demo só depois dela.
+
+## 0033 — aplicação, etiquetas, referência cruzada e busca (`0033_catalogo_aplicacao_referencia`; T-0084 e T-0085)
+Desenhos `docs/desenho/T-0084.md` §6 e `T-0085.md` §7; regras RN-CAT-09 (referência cruzada), RN-CAT-11 (aplicação), RN-CAT-12
+(busca pela aplicação) e RF-CAT-09 (Catálogo do cadastro). **Correção do gerente (05/11, 21h, ordem do Alexandre):** as marcas
+concorrentes NÃO vão para o Core (a ADR 0027 não vale). O Catálogo lê as marcas pelo contrato que o **Promotor** já publica (cadastro
+`concorrente`). A 0033 não toca em `core.*` nem em `promotor.*`.
+
+**`produto_conteudo`**
+- `aplicacoes` (a "Aplicação" / descrição 2; o nome da coluna não muda; nos contratos novos o campo é `aplicacao`): até
+  **2.000** caracteres (`produto_conteudo_aplicacoes_tamanho`). O up corta em 2.000 (sem espaço no fim) o que estiver acima,
+  antes do CHECK; demo e fixtures não tinham nenhum texto acima.
+- `etiquetas text[] not null default '{}'` (nova): etiquetas curtas (posição, lado, "novo"). Até 4, cada uma não nula, não vazia
+  e com até 20 caracteres (`produto_conteudo_etiquetas_validas`, pela função imutável `catalogo.etiquetas_validas(text[])`,
+  porque CHECK não aceita subconsulta).
+
+**`produto_busca`** (documento do servidor)
+- Colunas novas:
+  - `aplicacao text`: a API grava o `textoIndice` de `expandirAplicacao`, com os anos de dentro das faixas;
+  - `referencias text`: códigos crus + compactos das referências.
+- Gatilho `produto_busca_documento`:
+  - **A** = sku, ean, nome e referencias;
+  - **B** = marca e categoria;
+  - **C** = atributos e aplicacao;
+  - **D** = conteudo (que deixa de levar a aplicação).
+- Backfill na migração: `aplicacao = produto_conteudo.aplicacoes`, em texto cru. A API reescreve expandido na próxima gravação
+  ou pela reindexação do modulo-catalogo.
+
+**`produto_referencia`** (nova): referência cruzada, "Equivale a: <marca> <código>" (RN-CAT-09). Pull escopo **tenant**
+(entidade `produto_referencia`). Volume: até 3 × produtos (60 mil linhas com 20 mil produtos).
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `produto_id` | uuid not null | core.produto, **sem FK** (fronteira; a API valida) |
+| `marca_id` | uuid not null | id da marca no cadastro `concorrente` do **Promotor**, lido pelo contrato do Promotor, **sem FK** (regra 1). Marca inativa: a referência sai da busca e da tela (filtro na leitura) |
+| `codigo` | text not null | como foi escrito ("CB 3401"); `produto_referencia_codigo_preenchido`: `btrim` não vazio e até 30 caracteres |
+| `codigo_compacto` | text not null | forma normalizada para a busca (sem acento, minúsculas, só `[a-z0-9]`: "CB 3401", "cb-3401" e "C.B.3401" = `cb3401`). **Gravada pela API** com o `codigoCompacto` do domain do Catálogo (uma implementação só; não é coluna gerada). O banco só confere `^[a-z0-9]{1,30}$` (`produto_referencia_codigo_compacto_formato`). Não vai ao aparelho (ele recalcula) |
+| `ordem` | smallint not null | 1..3 (`produto_referencia_ordem_faixa`) |
+
+Únicos e índices:
+- `produto_referencia_ordem_uk (tenant_id, produto_id, ordem)` vivo: dá **no máximo 3 vivas por produto** e serve a leitura por
+  produto (ficha, `catalogo.textos_produto@1`);
+- `produto_referencia_codigo_uk (tenant_id, produto_id, marca_id, codigo_compacto)` vivo: a mesma marca não repete o código, nem
+  com outra grafia;
+- `produto_referencia_codigo_compacto_ix (tenant_id, codigo_compacto text_pattern_ops)` vivo: busca pelo código do concorrente
+  por igualdade e por prefixo (`like 'cb34%'`);
+- `produto_referencia_sync_ix (tenant_id, updated_at, id)` e `produto_referencia_external_uk`.
+
+RLS forçado (`isolamento_tenant` + `manutencao`), gatilho `produto_referencia_updated_at`, grant select/insert/update/delete ao
+`macuxi_app`.
+
+**Sem mudança de schema:**
+- "oferece junto" = `produto_relacao` com `tipo = 'complementar'`; o limite de 5 por produto fica no domain e na API;
+- hierarquia sistema › grupo › linha = `catalogo_no` (níveis 1..8) + `produto_no`, da 0013.
+
+**Base legada (revisão R-20261105-225102, 🟢 1):** nas linhas de `produto_busca` gravadas antes da 0033, o `conteudo` ainda pode
+levar a aplicação (peso D), além da coluna `aplicacao` nova (peso C), até o escritor do Catálogo reescrever o documento. Hoje nada
+grava `produto_busca` fora do seed e da reindexação, então não há efeito; a reindexação do modulo-catalogo limpa.
+
+**Volta:** o `.down.sql` apaga `produto_referencia` com os dados, as etiquetas e as colunas da busca, e devolve o gatilho da 0013
+(recalcula o documento). O corte em 2.000 feito no up não volta.
+
+**Testes:** `db/testes/aplicacao-referencia.test.ts` (estático; no CI: checks, peso C, RLS, únicos, sem FK, índice e up/down
+com dados) e `db/testes/aparelho-sqlite.test.ts` (FTS v3 no aparelho).
+
+### Base de demo (T-0084/T-0085)
+- **4 autopeças novas** no fim da lista:
+  - `PST-D01` Pastilha de freio dianteira (R$ 89,90);
+  - `DSC-D01` Disco de freio dianteiro ventilado (R$ 159,90);
+  - `FOL-G01` Filtro de óleo (R$ 28,90);
+  - `AMR-T01` Amortecedor traseiro (R$ 219,90).
+- **Árvore:** Freios › Pastilhas › Dianteiras, Freios › Discos › Dianteiros, Filtros › Filtros de óleo › Linha leve e Suspensão ›
+  Amortecedores › Traseiros.
+- **Aplicação** em 5 das 12 autopeças:
+  - pastilha: "Fiat Uno 1.0/1.4 2010–2014; Fiat Palio 1.0/1.4 2012–2016";
+  - filtro: "VW Gol G5/G6 1.0/1.6 2009–2016; VW Voyage 1.0/1.6 2009–2016";
+  - amortecedor: "… a partir de 2018";
+  - lâmpada H4: texto com mais de 300 caracteres e sem separador;
+  - óleo 4T.
+  - Os demais produtos ficam **sem** aplicação. Antes, todo produto tinha um texto padrão, que agora sairia no orçamento.
+- **Sinônimos:** `vw` = volkswagen e `gm` = chevrolet.
+- **Oferece junto:** pastilha → disco e fluido; filtro → óleo 5W30.
+- **Referências** (`db/seeds/demo/catalogo-cadastro.ts`):
+  - "CB 3401" (Freiomax) e "RF-1187" (Rodaforte) na pastilha;
+  - "FB-0207" (Filtrobom) no filtro;
+  - outras no disco, no amortecedor e na lâmpada ("VL H4.6055", Vialume).
+  - As marcas são **fictícias**, cadastradas em `promotor.concorrente` (seed do Promotor).
+  - As marcas próprias do fluido e da câmara passaram a Dotflex e Pneumaq, para não coincidir com as concorrentes.
+- **Etiquetas:** "Dianteira" e "Novo" na pastilha, "Dianteira" no disco, "Traseira" no amortecedor e "Novo" no filtro.
+- O documento de busca do servidor sai com a aplicação expandida e os códigos.
+- Desde a 0034, cada referência leva `marca_nome` = o nome da marca do seed do Promotor (Freiomax, Rodaforte, Filtrobom,
+  Vialume). A recarga do seed (upsert por id) preenche as referências que a base já tinha da 0033.
+
+## 0034 — retrato do nome da marca na referência (`0034_catalogo_referencia_marca_nome`; T-0085)
+ADR 0027 reescrita, seção "Caminho para fechar o risco 2"; aviso R-20261105-225102-engenheiro-software. Migração **aditiva**.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `produto_referencia.marca_nome` | text **nulo** | retrato do nome da marca no cadastro `concorrente` do Promotor **no momento da gravação**. `produto_referencia_marca_nome_preenchida`: nulo, ou `btrim` não vazio e até **120** caracteres (o mesmo teto de `promotor.concorrente.nome`). `marca_id` continua a chave; o nome é só o retrato |
+
+- **Quem grava:** a rota do BKO do Catálogo (cadastro do produto) e o consumidor do ERP, depois de validar a marca por
+  `promotor.concorrentes@1`; o consumidor de `promotor.concorrente.alterado@1` mantém o nome em dia (ADR 0027). Para o vendedor,
+  a referência aparece sem o Promotor no perfil.
+- **Por que nulo, e não `not null`:** preencher as linhas existentes pelo nome atual exigiria ler `promotor.concorrente` numa
+  migração do Catálogo, o que a regra 1 (ADR 0005) proíbe. As linhas anteriores à 0034 ficam **nulas** até a próxima gravação:
+  - base demo: a recarga do seed grava o nome;
+  - fixture: as vivas já levam o nome; a apagada fica nula de propósito;
+  - base de cliente: a rota do BKO, o Hub ou o consumidor do evento reescrevem.
+  O leitor que achar `marca_nome` nulo cai no fallback (consulta do Promotor ou "marca não informada"). O `not null` pode vir numa
+  migração futura, quando todos os escritores gravarem e as nulas forem zero (conferir antes; com nulas, o `ALTER` falha).
+- **Busca:** sem índice e fora do documento de busca. O desenho T-0085 §7 põe em `produto_busca.referencias` (peso A) só os
+  códigos crus + compactos; o achado pelo código usa `produto_referencia_codigo_compacto_ix` (0033). Se o produto quiser achar
+  pela marca, é o escritor do documento (modulo-catalogo) que inclui o nome em `referencias`, sem migração.
+- **Pull:** a entidade `produto_referencia` passa a levar `marca_nome` (aditivo; provedor `modules/catalogo/api/sync.ts` e
+  `ProdutoReferenciaSyncSchema`, do modulo-catalogo). No aparelho o dado fica no JSON de `ent_produto_referencia`: **sem versão
+  nova** do esquema local (continua a v3), e a FTS não muda.
+- RLS, políticas (`isolamento_tenant`, `manutencao`) e grants são os da 0033; nada novo.
+
+**Volta:** o `.down.sql` apaga a coluna e o CHECK com os retratos. As referências ficam intactas, e o nome volta a ser lido pela
+consulta do Promotor.
+
+**Testes:** `db/testes/referencia-marca-nome.test.ts` (estático: coluna, CHECK, nada fora de `catalogo.*`, sem backfill, espelho
+Drizzle, aparelho sem versão nova, fixture; no CI: retrato no pull de A e B, limites 1..120, vazamento entre tenants e up/down
+com dados).

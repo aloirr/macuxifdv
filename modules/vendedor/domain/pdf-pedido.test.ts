@@ -201,3 +201,17 @@ describe('PDF do novo pedido de distribuidora (T-0061)', () => {
     }
   });
 });
+
+describe('RN-VEN-35: PDF do pedido feito em nome', () => {
+  it('RN-VEN-35: sai com o vendedor dono e "feito por" o gestor, nas duas versões', () => {
+    for (const v of ['customer', 'bko'] as const) {
+      const ped = { ...pdfDoPedido(detalhe()), seller_name: 'Carlos Dono', made_by: 'Marta Gestora' };
+      const html = buildOrderPdfHtml(ped, v, ctx);
+      expect(html).toContain('Carlos Dono');
+      expect(html).toContain('feito por Marta Gestora');
+    }
+  });
+  it('RN-VEN-35: pedido comum não traz "feito por"', () => {
+    expect(buildOrderPdfHtml(pdfDoPedido(detalhe()), 'customer', ctx)).not.toContain('feito por');
+  });
+});

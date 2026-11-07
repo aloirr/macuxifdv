@@ -78,6 +78,21 @@ export const SIGLA_MEDIDA_FORMATO = /^[A-Z]{1,4}$/;
 export const EMBALAGEM_QUANTIDADE_MAX = 9999;
 
 // ---------- produto (cadastro base do Core, ADR-0005) ----------
+/** Teto de proteção da aplicação no contrato; o teto de negócio (2.000) é aplicado por corte com aviso (RN-CAT-11). */
+export const APLICACAO_PROTECAO_MAX = 20_000;
+/** Tetos de negócio do Catálogo (RN-CAT-09/11): acima disso o Hub corta e avisa. */
+export const LIMITES_CATALOGO_PRODUTO = { aplicacao: 2000, referencias: 3, ofereceJunto: 5, etiquetas: 4 } as const;
+
+/** Referência cruzada do ERP: a marca vem pelo `external_id` ou pelo nome (o ERP não conhece os ids do Macuxi). */
+export const ReferenciaCruzada = z.object({
+  marca_external_id: z.string().nullish(),
+  marca_nome: z.string().nullish(),
+  codigo: z.string(),
+});
+/** Limites da referência válida; fora deles `limitarCatalogoDoProduto` descarta SÓ a referência, com aviso (a linha do produto segue). */
+export const LIMITES_REFERENCIA = { codigo: 30, marcaNome: 120, etiqueta: 20 } as const;
+export type ReferenciaCruzada = z.infer<typeof ReferenciaCruzada>;
+
 const ProdutoBase = RegistroBase.extend({
   sku: Texto(60),
   ean: z
@@ -108,6 +123,15 @@ const ProdutoBase = RegistroBase.extend({
   custo_cents: CentavosNaoNegativos.nullish(),
   preco_venda_cents: CentavosNaoNegativos.nullish(),
   desconto_maximo_pct: z.number().min(0).max(100).nullish(),
+  /**
+   * T-0084/T-0085 (aditivos e opcionais no v1; ausente = não altera, `null`/`[]` = limpa). Os limites do contrato são de proteção:
+   * o que passa dos tetos do Catálogo (aplicação 2.000, referências 3, oferece junto 5, etiquetas 4) é CORTADO pelo Hub, com aviso
+   * no monitor, sem recusar a linha (`limitarCatalogoDoProduto`, RN-CAT-11/RN-CAT-09).
+   */
+  aplicacao: z.string().max(APLICACAO_PROTECAO_MAX, `aplicacao aceita até ${APLICACAO_PROTECAO_MAX} caracteres`).nullish(),
+  referencias: z.array(ReferenciaCruzada).max(10, 'referencias aceita até 10 itens').nullish(),
+  oferece_junto: z.array(ExternalId).max(20, 'oferece_junto aceita até 20 itens').nullish(),
+  etiquetas: z.array(z.string()).max(10, 'etiquetas aceita até 10 itens').nullish(),
 });
 export const ProdutoPayload = ProdutoBase.superRefine((r, ctx) => {
   const tem = (v: unknown) => v !== undefined && v !== null && v !== '';

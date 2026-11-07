@@ -40,6 +40,10 @@ export const ParametrosCatalogo = z
     pergunte_max_fontes: z.number().int().min(1).default(6),
     /** RN-CAT-02: orçamento de caracteres do contexto enviado ao LLM. */
     pergunte_max_caracteres: z.number().int().min(200).default(6000),
+    /** RN-CAT-12: peso do campo Aplicação no ranking (0..1, [0,5]); os atributos seguem com 0,3 (constante). */
+    peso_aplicacao: z.number().min(0).max(1).default(0.5),
+    /** RN-CAT-11: máximo de caracteres da Aplicação no cadastro (100..2.000, [2.000]). */
+    aplicacao_max_cadastro: z.number().int().min(100).max(2000).default(2000),
   })
   .strict();
 export type ParametrosCatalogo = z.infer<typeof ParametrosCatalogo>;
@@ -105,6 +109,29 @@ export const EstoqueVisivel = z.object({
 });
 export type EstoqueVisivel = z.infer<typeof EstoqueVisivel>;
 
+// ---------- trecho "Serve em" e referência cruzada (RN-CAT-12, RN-CAT-09; T-0084 C7, T-0085 K5/K6) ----------
+/** Par [início, fim) em posições do `texto` (fim exclusivo). */
+const Marca = z.tuple([z.number().int().min(0), z.number().int().min(0)]);
+
+/** Trecho da aplicação que casou com a consulta (até 90 caracteres), com os termos marcados. */
+export const TrechoBusca = z
+  .object({
+    texto: z.string().max(90),
+    marcas: z.array(Marca).max(20),
+    /** Preenchido quando o ano da consulta casou por faixa ("inclui 2012"). */
+    inclui_ano: z.number().int().min(1900).max(2100).nullable(),
+  })
+  .strict();
+export type TrechoBusca = z.infer<typeof TrechoBusca>;
+
+/** Referência cruzada do produto: marca concorrente (id do cadastro do Promotor, sem FK) + código (até 30). */
+export const Referencia = z.object({ marca_id: Id, marca_nome: z.string().min(1), codigo: z.string().min(1).max(30) }).strict();
+export type Referencia = z.infer<typeof Referencia>;
+
+/** "Equivale a: <marca> <código>"; `marcas` em posições de `<marca_nome> <codigo>`. */
+export const EquivaleA = Referencia.extend({ marcas: z.array(Marca).max(20) }).strict();
+export type EquivaleA = z.infer<typeof EquivaleA>;
+
 // ---------- vitrine ----------
 /**
  * Cartão de produto na vitrine/lista/resultado de busca: cadastro base do Core + preço e estoque visíveis.
@@ -121,6 +148,10 @@ export const ItemVitrine = ProductBase.pick({ id: true, erp_code: true, descript
     price_stock_visible: z.boolean().default(true),
     /** Nota final do ranking (0..~1,3); só na busca. */
     score: z.number().optional(),
+    /** RN-CAT-12: trecho "Serve em"; só na busca; nulo/ausente = a aplicação não contribuiu. */
+    serve_em: TrechoBusca.nullable().optional(),
+    /** RN-CAT-09: referência cruzada que casou com a consulta; só na busca. */
+    equivale_a: EquivaleA.nullable().optional(),
   })
   .refine((i) => (i.price_stock_visible ? i.price !== null && i.availability !== null : i.price === null && i.availability === null), {
     message: 'Com preço e estoque visíveis, o item traz os dois; sem, não traz nenhum.',

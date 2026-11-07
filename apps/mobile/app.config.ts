@@ -4,7 +4,12 @@
  *  - APP_VARIANT=gestao → "Macuxi Gestão" (supervisor/gerente)
  * Mesmo código e mesmo projeto EAS; nome, pacote Android e scheme diferentes para conviverem no aparelho.
  * Perfis de build em eas.json (desenho T-0004 §7): `campo`/`gestao` = build de desenvolvimento (APK com
- * expo-dev-client, JS servido pelo `expo start`); `*-preview` = APK interno sem Metro; `*-producao` = AAB.
+ * expo-dev-client, JS servido pelo `expo start`); `*-preview` = APK interno sem Metro, apontando para a demo;
+ * `campo-producao`/`gestao-producao` (T-0086, environment `production` da EAS) = APK de distribuição direta, assinado com
+ * a chave gerenciada pela EAS (`credentialsSource: remote`, nenhuma keystore no repositório), versionCode pela EAS
+ * (`autoIncrement`) e API `https://api.macuxifdv.com.br/v1`. O Google Play (AAB) fica para depois.
+ * Nome e ícone são os mesmos em todos os perfis ("Macuxi Campo"/"Macuxi Gestão", sem "Preview"): o pacote é um só por
+ * variante, então o APK de produção instala por cima do de preview (a sessão e a base local são por usuário).
  * Endereço da API por perfil (T-0038, doc 04 "Domínio e endereços"): `EXPO_PUBLIC_API_URL` (api-demo no dev e no
  * preview; api.macuxifdv.com.br no producao) e `EXPO_PUBLIC_PERFIL_BUILD` (desenvolvimento|preview|producao), que
  * decide se o login tem o campo Servidor (`src/lib/endereco-do-build.ts`). No dev o JS vem do Metro do PC: valem as

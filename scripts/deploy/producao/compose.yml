@@ -1,0 +1,205 @@
+# Produção na Magalu Cloud (T-0086; ADR 0028, ADR 0024 plano B, ADR 0020 como padrão). Roda na VM macuxi-prod-se1 em
+# /opt/macuxi/compose.yml (copiado pelo implantar.sh). SEM Postgres local: o banco é o DBaaS macuxi-prod-db, por IP
+# privado na VPC, sempre com TLS. Arquivos ao lado, todos fora do git, todos modo 600 (nomes em env.modelo):
+#   .env          GERADO NA VM pelo preparar-vm.sh: senhas de macuxi_app/macuxi_worker, JWT e pepper do Hub. Nunca sai da VM.
+#   banco.env     MACUXI_PG_HOST/MACUXI_PG_PORTA do DBaaS (secrets PROD_PG_HOST/PROD_PG_PORTA), gravado pelo workflow.
+#   admin.env     MACUXI_PG_ADMIN_USUARIO/MACUXI_PG_ADMIN_SENHA (secrets PROD_PG_ADMIN_*), gravado pelo workflow; SÓ os
+#                 serviços de ferramenta (banco, pgcliente, tenant) leem. api e worker nunca recebem a senha do admin.
+#   segredos.env  S3 (PROD_S3_KEY_ID/PROD_S3_SECRET → MACUXI_S3_CHAVE_ID/MACUXI_S3_SEGREDO), gravado pelo workflow.
+#   tunel.env     TUNNEL_TOKEN (PROD_CLOUDFLARE_TUNNEL_TOKEN), gravado pelo workflow; só o cloudflared lê.
+#   alerta.env    MACUXI_ALERTA_WEBHOOK (PROD_ALERTA_WEBHOOK, opcional), lido só pelo alerta-saude.sh no host.
+#   certs/dbaas-ca.pem  CA do DBaaS (PROD_PG_CA_CERT, opcional): com ela o TLS confere o certificado (verify-full).
+#   imagens.env   referências das imagens POR DIGEST, versão (tag v*), perfis e modo do TLS; gravado pelo implantar.sh.
+#
+# Rotas do túnel macuxi-prod (painel da Cloudflare, criadas pelo Alexandre):
+#   api.macuxifdv.com.br → http://api:8100 · bko.macuxifdv.com.br → http://bko:3100 · config.macuxifdv.com.br → http://bko:3100
+# (config. é o portal de implantação da T-0087, uma rota do apps/web: o mesmo serviço bko, separado pelo Host.)
+# Nenhuma porta abre para a internet: o grupo de segurança só libera a 22 e o túnel é conexão de SAÍDA. As portas em
+# 127.0.0.1 servem só para a conferência local do implantar.sh e do alerta-saude.sh.
+#
+# Comandos (na VM, em /opt/macuxi; dc = docker compose --env-file .env --env-file imagens.env):
+#   dc up -d · dc ps · dc logs --tail 100 api
+#   bash ~/macuxi-deploy/banco-dbaas.sh                     (papéis, banco, extensão vector, migrações e conferências)
+#   dc --profile ferramentas run --rm -T pgcliente psql -d macuxi -c 'select 1'   (psql 16 no DBaaS, como admin)
+#   dc --profile ferramentas run --rm tenant criar ...       (pnpm tenant:criar da T-0083; ver producao-tenant.yml)
+name: macuxi-prod
+
+x-imagem-api: &imagem-api
+  image: ${MACUXI_IMAGEM_API:?rode o implantar.sh (grava imagens.env)}
+  restart: unless-stopped
+
+# api e worker: o .env (papéis da aplicação, JWT, pepper), o banco.env (endereço do DBaaS) e o S3. NUNCA o admin.env.
+x-env-app: &env-app
+  - path: .env
+  - path: banco.env
+  - path: segredos.env
+    required: false
+
+x-ambiente-api: &ambiente-api
+  NODE_ENV: production
+  TZ: UTC
+  MACUXI_PG_BANCO: macuxi
+  # TLS sempre (o DBaaS aceita TLS 1.3): o node-postgres lê o PGSSLMODE quando a URL não traz sslmode.
+  #   verify-full = confere a cadeia (CA em NODE_EXTRA_CA_CERTS) e o nome/IP; no-verify = cifra sem conferir o certificado.
+  # O implantar.sh escolhe: verify-full se houver certs/dbaas-ca.pem, senão no-verify (com aviso). Nunca "disable".
+  PGSSLMODE: ${MACUXI_PG_SSL_NODE:-no-verify}
+  NODE_EXTRA_CA_CERTS: /certs/dbaas-ca.pem
+  MACUXI_API_LOG: info
+  MACUXI_VERSAO: ${MACUXI_VERSAO:-}
+  # fotos (ADR 0010 + complemento na 0020): Object Storage da Magalu (br-se1), bucket de produção, prefixo arquivos/
+  MACUXI_ARQUIVOS_DRIVER: s3
+  MACUXI_S3_ENDPOINT: https://br-se1.magaluobjects.com
+  MACUXI_S3_REGIAO: br-se1
+  MACUXI_S3_BUCKET: macuxi-prod
+  MACUXI_S3_PREFIXO: arquivos/
+  MACUXI_ARQUIVOS_DIR: /dados/arquivos
+
+services:
+  api:
+    <<: *imagem-api
+    env_file: *env-app
+    environment:
+      <<: *ambiente-api
+      MACUXI_API_HOST: 0.0.0.0
+      MACUXI_API_PORTA: '8100'
+      # pool: API 10 + worker 2 + 4 = 16 conexões, longe do max_connections=100 do DBaaS (ADR 0024, item 8)
+      MACUXI_API_POOL: '10'
+      MACUXI_TRUST_PROXY: uniquelocal
+    ports:
+      - '127.0.0.1:8100:8100'
+    volumes:
+      - ./certs:/certs:ro
+    networks: [macuxi]
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8100/v1/saude').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 180s
+
+  worker:
+    <<: *imagem-api
+    command: ['node', '--import', 'tsx', 'apps/api/src/worker.ts']
+    env_file: *env-app
+    environment:
+      <<: *ambiente-api
+      MACUXI_DESPACHANTE_POOL: '4'
+    volumes:
+      - ./certs:/certs:ro
+    networks: [macuxi]
+
+  # Imagem de PRODUÇÃO do BKO (macuxi-bko-prod): a origem pública (https://bko.macuxifdv.com.br) fica gravada no next build
+  # (apps/web/Dockerfile), por isso não é a mesma imagem da demo. Montada pelo producao-publicar.yml do commit da tag.
+  bko:
+    image: ${MACUXI_IMAGEM_BKO:-ghcr.io/aloirr/macuxi-bko-prod:ausente}
+    profiles: [bko]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      TZ: UTC
+      NEXT_TELEMETRY_DISABLED: '1'
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:3100:3100'
+    networks: [macuxi]
+
+  cloudflared:
+    # mesma imagem da demo (latest), que já roda o túnel macuxi-demo-nuvem; o pull do deploy a atualiza
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: ['tunnel', '--no-autoupdate', 'run']
+    env_file: [tunel.env]
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [macuxi]
+
+  # ---------- ferramentas (docker compose --profile ferramentas run --rm ...) ----------
+  # Migrações e papéis (db/scripts/banco.ts) com o admin do DBaaS: ele herda o macuxi_manutencao (0031, plano B, B1) e
+  # cria macuxi_app/macuxi_worker sem ALTER de atributo (B0). Recebe .env (senhas dos papéis) + banco.env + admin.env.
+  banco:
+    <<: *imagem-api
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint: ['node', '--import', 'tsx', 'db/scripts/banco.ts']
+    env_file:
+      - path: .env
+      - path: banco.env
+      - path: admin.env
+    environment:
+      <<: *ambiente-api
+    volumes:
+      - ./certs:/certs:ro
+    networks: [macuxi]
+
+  # Onboarding de tenant (pnpm tenant:criar, T-0083) pela conexão de administração. A senha do admin do tenant entra por
+  # MACUXI_TENANT_ADMIN_SENHA (stdin do workflow → -e sem valor no argv) ou digitada com eco desligado.
+  tenant:
+    <<: *imagem-api
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint: ['node', '--import', 'tsx', 'apps/api/src/cli/tenant.ts']
+    env_file:
+      - path: .env
+      - path: banco.env
+      - path: admin.env
+    environment:
+      <<: *ambiente-api
+    volumes:
+      - ./certs:/certs:ro
+    networks: [macuxi]
+
+  # psql/pg_dump/pg_restore 16 (o mesmo pgvector/pgvector:pg16 do CI) contra o DBaaS, como o admin. Sem servidor: só cliente.
+  # libpq: PGSSLMODE require (cifra) ou verify-full (com PGSSLROOTCERT). A senha vai pelo ambiente do contêiner
+  # (env_file), nunca no argv. Usado pelo banco-dbaas.sh (extensão vector, conferências) e pelo backup de produção.
+  pgcliente:
+    image: pgvector/pgvector:pg16
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint:
+      - sh
+      - -c
+      - 'export PGHOST="$$MACUXI_PG_HOST" PGPORT="$${MACUXI_PG_PORTA:-5432}" PGUSER="$$MACUXI_PG_ADMIN_USUARIO" PGPASSWORD="$$MACUXI_PG_ADMIN_SENHA"; unset MACUXI_PG_ADMIN_SENHA; exec "$$@"'
+      - pgcliente
+    command: ['psql', '--version']
+    env_file:
+      - path: banco.env
+      - path: admin.env
+    environment:
+      TZ: UTC
+      PGTZ: UTC
+      PGDATABASE: macuxi
+      PGSSLMODE: ${MACUXI_PG_SSL_LIBPQ:-require}
+      PGSSLROOTCERT: /certs/dbaas-ca.pem
+      PGCONNECT_TIMEOUT: '10'
+      PGAPPNAME: macuxi-pgcliente
+    volumes:
+      - ./certs:/certs:ro
+    networks: [macuxi]
+
+  # Envio/listagem/poda/download dos backups no bucket (db/backup/backup.mjs, dono banco-dados): o dump chega pelo stdin.
+  # Sem senha do banco: só o S3. Retenção de 30 dias (leitura da G1, ficha T-0086).
+  backup:
+    image: ${MACUXI_IMAGEM_API:?rode o implantar.sh (grava imagens.env)}
+    profiles: [ferramentas]
+    restart: 'no'
+    entrypoint: ['node', 'db/backup/backup.mjs']
+    env_file:
+      - path: segredos.env
+        required: false
+    environment:
+      TZ: UTC
+      MACUXI_S3_ENDPOINT: https://br-se1.magaluobjects.com
+      MACUXI_S3_REGIAO: br-se1
+      MACUXI_S3_BUCKET: macuxi-prod
+      MACUXI_BACKUP_PREFIXO: backups/
+      MACUXI_BACKUP_DIAS: '30'
+    networks: [macuxi]
+
+networks:
+  # Uma rede só, com saída: api/worker falam com o DBaaS (IP privado da VPC, via NAT do host) e com o Object Storage;
+  # o cloudflared, com a Cloudflare. A faixa vem do default-address-pools do Docker (preparar-vm.sh, 192.168.200.0/21):
+  # as faixas padrão 172.17-31.x colidem com a VPC (o DBaaS de teste era 172.18.3.212) e quebrariam a rota até o banco.
+  macuxi: {}

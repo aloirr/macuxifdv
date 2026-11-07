@@ -25,22 +25,23 @@ ERP local ◄──tabela de entrada/API do ERP── Conector ◄──GET /int
 ## Contrato canônico (entidades e frequência sugerida)
 | Entidade | Direção | Frequência | Observação |
 |---|---|---|---|
-| Clientes, contatos, carteira | ERP → Macuxi | 1 h | carteira pode ser mantida no Macuxi se o ERP não tiver; cliente sem campo obrigatório entra com `cadastro_incompleto` (RN-INT-14) |
+| Clientes, contatos, carteira | ERP → Macuxi | 1 h | carteira pode ser mantida no Macuxi se o ERP não tiver; cliente sem campo obrigatório entra com `cadastro_incompleto` (RN-INT-14); o cliente traz as **formas de pagamento permitidas** e o **prazo médio máximo** (RN-VEN-25, 06/11) |
 | Produtos, categorias, marcas | ERP → Macuxi | 1 h | conteúdo rico (fotos, argumentos) é do Macuxi |
 | Árvore do catálogo (nós e produto → nó) | ERP → Macuxi | diário | níveis e nomes do ERP (RF-CAT-04) |
 | Unidades de venda do produto | ERP → Macuxi | 1 h | medida da unidade e embalagem (sigla + quantidade) pelas **siglas cadastradas** no tenant (sigla desconhecida = `referencia_ausente`, RN-CORE-19); EAN; preço próprio da embalagem opcional na tabela (RN-VEN-15) |
 | Custo e preço de venda do produto | ERP → Macuxi | 1 h | `custo_cents`, `preco_venda_cents`, `desconto_maximo_pct` opcional; o custo nunca vai ao app (RN-CORE-18) |
 | Aplicação do produto (descrição 2) | ERP → Macuxi | 1 h | `aplicacao`, texto até 2.000; texto maior chega cortado em 2.000, com aviso no monitor de integração (RN-CAT-11, T-0084) |
-| Referência cruzada do produto | ERP → Macuxi | 1 h | `referencias: [{ marca_external_id \| marca_nome, codigo }]`, até 3, código até 30. O ERP não conhece os ids do Macuxi, por isso manda a marca pelo `external_id` ou pelo nome da marca concorrente cadastrada no Promotor; marca desconhecida descarta a referência, com aviso no monitor (RN-CAT-09, T-0085) |
+| Referência cruzada do produto | ERP → Macuxi | 1 h | `referencias: [{ marca_external_id \| marca_nome, codigo }]`, até 3, código até 30. O ERP não conhece os ids do Macuxi, por isso manda a marca pelo `external_id` ou pelo nome da marca concorrente cadastrada no Promotor; marca desconhecida ou inativa descarta só a referência, com registro no log do consumidor do Catálogo (sem dado pessoal); o aviso no monitor da integração fica para depois (backlog). Passou de 3, o Hub corta com aviso `referencias_cortadas` (RN-CAT-09, T-0085) |
 | Oferece junto do produto | ERP → Macuxi | 1 h | `oferece_junto: [produto_external_id]`, até 5 (RF-CAT-09, T-0085) |
 | Endereços de entrega do cliente | ERP → Macuxi | 1 h | principal + outros (RN-VEN-17) |
 | Transportadoras | ERP → Macuxi | diário | opcional; o BKO também cadastra (RF-VEN-13) |
-| Tabelas de preço | ERP → Macuxi | 15 min | vigência |
+| Tabelas de preço | ERP → Macuxi | 15 min | vigência; **só o preço da unidade** (RN-VEN-15, 06/11): o preço da embalagem é calculado, sem preço de caixa digitado |
+| Tabela escalonada | ERP → Macuxi | 15 min | `tabela_escalonada`: produto, embalagem (UN ou a do produto), quantidade mínima, preço por unidade de medida em centavos, vigência e, opcional, a tabela de preço ou o grupo de clientes (RN-VEN-23, 06/11). O BKO também cadastra |
 | Estoque por depósito | ERP → Macuxi | 5–15 min | só saldo; reservas são do Macuxi |
 | Financeiro (limite, saldo) e títulos | ERP → Macuxi | 1 h | títulos abertos + baixados recentes |
-| Condições de pagamento | ERP → Macuxi | diário | |
+| Formas de pagamento e prazos | ERP → Macuxi | diário | `forma_pagamento` (código, nome, ativo) e `prazo_pagamento` (forma, código, descrição, parcelas em dias, prazo médio em dias). Substituem as "condições de pagamento" (RN-VEN-24, 06/11). O BKO também cadastra |
 | Faturamento / devoluções | ERP → Macuxi | 15 min | alimenta metas e status |
-| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID; cada item leva `aplicacao` (retrato gravado no pedido, até 1.000, nulo quando o vendedor desmarcou; RN-VEN-19, T-0084); leva endereço de entrega, frete (modalidade e, no FOB, transportadora cadastrada ou digitada; sem valor), medida, quantidade da embalagem e quantidade em unidades por item, descontos e acréscimos do item e do pedido (RN-INT-08) |
+| Pedidos aprovados | Macuxi → ERP | contínuo (poll 1–2 min) | idempotente por UUID; cada item leva `aplicacao` (retrato gravado no pedido, até 1.000, nulo quando o vendedor desmarcou; RN-VEN-19, T-0084); leva endereço de entrega, frete (modalidade e, no FOB, transportadora cadastrada ou digitada; sem valor), medida, quantidade da embalagem e quantidade em unidades por item, descontos e acréscimos do item e do pedido (RN-INT-08); o pedido leva a forma de pagamento, o prazo e o prazo médio (RN-VEN-24, 06/11) |
 | Retorno do pedido (nº ERP, status, nota) | ERP → Macuxi | contínuo | |
 
 ### Bloco `frete` do pedido devolvido ao ERP (RN-VEN-16, R-20261102-105040)

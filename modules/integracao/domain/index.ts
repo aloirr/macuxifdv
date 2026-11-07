@@ -26,5 +26,8 @@ export * from './topologia';
 export * from './permissoes';
 export * from './cadastro-incompleto';
 export * from './medidas';
+export * from './catalogo-produto';
 export * from './pedido-versao';
 export * from './carga-arquivo';
+export * from './carga-arquivo-partes';
+export * from './portal-carga';

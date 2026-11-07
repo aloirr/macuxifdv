@@ -35,7 +35,8 @@ import { ALCADAS_DEMO, dadosDemo } from '../seeds/demo/demo';
 import { dadosFaseM, TENANT_FASE_M } from '../seeds/fase-m/fase-m';
 import { dadosDoisTenants, DOIS_TENANTS, ORDEM_TABELAS, PEPPER_HUB_FIXTURE } from '../seeds/fixtures/dois-tenants';
 import { dadosTreinamento, ORDEM_TREINAMENTO } from './fixture-treinamento';
-import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID } from '../src/excecoes';
+import { COLUNAS_SEM_ESPELHO_DRIZZLE, TABELAS_FORA_DO_SYNC, TABELAS_SEM_TENANT_ID, TABELAS_SO_POR_FUNCAO } from '../src/excecoes';
+import { FUNCOES_SA } from './funcoes-sa';
 import { idDeChave, idDeterministico, idFixo, idMedida } from '../src/ids';
 import { lerMigracoes } from '../src/migrador';
 import { hashSenha, verificarSenha } from '../src/senha';
@@ -81,6 +82,12 @@ const TABELAS_0019 = ['core.nota_erp'] as const;
 const TABELAS_0020 = ['catalogo.produto_relacao'] as const;
 /** Tabelas novas da 0028 (T-0082, plano de RV; fora de TABELAS_SYNC: o aparelho não recebe o plano). */
 const TABELAS_0028 = ['core.plano_rv'] as const;
+/** Tabelas novas da 0033 (T-0085, referência cruzada do produto; a 0033 também traz a aplicação da T-0084). */
+const TABELAS_0033 = ['catalogo.produto_referencia'] as const;
+/** Tabelas novas da 0035 (T-0087, super-admin de plataforma, ADR 0029): sem tenant_id, só por função (super-admin.test.ts). */
+const TABELAS_0035 = [...TABELAS_SO_POR_FUNCAO];
+/** Tabelas novas da 0036 (T-0087 fatia E, convite de 1º acesso; fora do sync; usuario-convite.test.ts). */
+const TABELAS_0036 = ['core.usuario_convite'] as const;
 const migracoes = lerMigracoes();
 const sqlUp = migracoes.map((m) => m.up).join('\n');
 
@@ -130,6 +137,10 @@ describe('migrações (estático)', () => {
     expect(nomes[29]).toBe('0030_core_notificacao_subtipo'); // T-0039: core.notificacao.subtipo (text nulo, CHECK de formato, sem índice) e backfill do alerta (notificacao-subtipo.test.ts)
     expect(nomes[30]).toBe('0031_plataforma_manutencao'); // T-0075 B1 (ADR 0024): papel macuxi_manutencao e política manutencao em toda tabela com RLS (conformidade.test.ts)
     expect(nomes[31]).toBe('0032_plataforma_excluir_tenant_ordem_fk'); // T-0075 B2 (ADR 0024): excluir_tenant em ordem de FK, sem session_replication_role (lgpd-outbox.test.ts)
+    expect(nomes[32]).toBe('0033_catalogo_aplicacao_referencia'); // T-0084/T-0085: aplicação (teto 2.000, peso C na busca, retrato no item) e catalogo.produto_referencia (aplicacao-referencia.test.ts)
+    expect(nomes[33]).toBe('0034_catalogo_referencia_marca_nome'); // T-0085 (ADR 0027, risco 2): produto_referencia.marca_nome, retrato nulo do nome da marca, CHECK 1..120, sem backfill (referencia-marca-nome.test.ts)
+    expect(nomes[34]).toBe('0035_plataforma_super_admin'); // T-0087 (ADR 0029): super-admin fora dos tenants, funções sa_*, auditoria append-only, provisionar_tenant sem admin e com parâmetros (super-admin.test.ts)
+    expect(nomes[35]).toBe('0036_core_usuario_convite'); // T-0087 fatia E (RN-CORE-31): core.usuario_convite (só o hash do token, uso único, sem DEFINER), core.usuario.telefone e anonimizar_usuario com convites (usuario-convite.test.ts)
     expect(nomes.slice(0, 13)).toEqual([
       '0001_plataforma', '0002_core', '0003_plataforma_worker', '0004_core_sessao', '0005_plataforma_arquivo', '0006_core_lote_a', '0007_vendedor_pedido',
       '0008_catalogo_preco', '0009_vendedor_pedido_completo', '0010_integracao', '0011_plataforma_outbox_retencao',
@@ -166,6 +177,9 @@ describe('migrações (estático)', () => {
         ...TABELAS_0019,
         ...TABELAS_0020,
         ...TABELAS_0028,
+        ...TABELAS_0033,
+        ...TABELAS_0035,
+        ...TABELAS_0036,
         ...TABELAS_PROMOTOR,
         ...TABELAS_PESQUISA,
         ...TABELAS_TREINAMENTO,
@@ -177,6 +191,18 @@ describe('migrações (estático)', () => {
     it(`S0-023 ${tabela}: campos comuns, RLS ligado e forçado, política, grant e índice de sync`, () => {
       for (const col of COMUNS) expect(corpo, `${tabela}.${col}`).toMatch(new RegExp(`^\\s+${col}\\s`, 'm'));
       expect(corpo).toMatch(/^\s+id\s+uuid primary key/m);
+      if ((TABELAS_SO_POR_FUNCAO as readonly string[]).includes(tabela)) {
+        // 0035 (ADR 0029): sem tenant_id, sem política e sem grant para app/worker; só a manutencao e as funções sa_*
+        expect(tabela in TABELAS_SEM_TENANT_ID).toBe(true);
+        expect(corpo).not.toMatch(/^\s+tenant_id\s/m);
+        expect(sqlUp).not.toMatch(new RegExp(`create policy [a-z_]+ on ${escapar(tabela)} for [a-z]+ to macuxi_(app|worker)`));
+        expect(sqlUp).not.toMatch(new RegExp(`grant [a-z, ()_]+ on ${escapar(tabela)} to`));
+        expect(sqlUp).toContain(`revoke all on ${tabela} from public, macuxi_app, macuxi_worker;`);
+        expect(sqlUp).toContain(`create policy manutencao on ${tabela} for all to macuxi_manutencao using (true) with check (true);`);
+        expect(sqlUp).toContain(`alter table ${tabela} enable row level security;`);
+        expect(sqlUp).toContain(`alter table ${tabela} force row level security;`);
+        return;
+      }
       if (!(tabela in TABELAS_SEM_TENANT_ID)) {
         expect(corpo).toMatch(/^\s+tenant_id\s+uuid not null references plataforma\.tenant \(id\)/m);
         expect(sqlUp).toMatch(new RegExp(`create policy isolamento_tenant on ${escapar(tabela)} for all to macuxi_app\\s+using \\(tenant_id = plataforma\\.tenant_atual\\(\\)\\)\\s+with check \\(tenant_id = plataforma\\.tenant_atual\\(\\)\\)`));
@@ -661,7 +687,10 @@ describe('T-0032: 0010 schema integracao e 0011 retenção da outbox (estático,
     const depois = migracoes.filter((m) => m.versao > '0012');
     const novas = depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer\s+set search_path = ([^\n]+)/g)]);
     // 0024 (T-0078): só agregados da outbox; 0027 (T-0039, ADR 0022): só ids dos tenants ativos, ao worker
-    expect(novas.map((x) => x[1]).sort()).toEqual(['plataforma.resumo_outbox', 'plataforma.tenants_ativos']);
+    // 0035 (T-0087, ADR 0029): as 20 funções do super-admin (super-admin.test.ts confere grant e search_path no banco)
+    expect(novas.map((x) => x[1]).sort()).toEqual(
+      ['plataforma.resumo_outbox', 'plataforma.tenants_ativos', ...FUNCOES_SA.map((f) => f.slice(0, f.indexOf('(')))].sort(),
+    );
     for (const x of novas) expect(x[2], `${x[1]}: pg_temp por último`).toMatch(/, pg_temp$/);
     expect(depois.flatMap((m) => [...m.up.matchAll(/create function ([a-z_]+\.[a-z_]+)\([^)]*\)[^;]*?security definer/g)]).length).toBe(novas.length);
   });
@@ -826,7 +855,9 @@ describe('fixture dois-tenants (estático)', () => {
   it('cobre toda tabela com tenant_id, com pelo menos 1 linha em CADA tenant', () => {
     // pesquisa.resposta_item e pesquisa.resposta_foto: o gatilho da resposta as preenche (fora de ORDEM_TABELAS e de dados)
     // treinamento (0017): fixture própria, carregada logo depois da dois-tenants (testes/fixture-treinamento.ts)
-    expect([...ORDEM_TABELAS, ...TABELAS_PESQUISA_DO_GATILHO, ...ORDEM_TREINAMENTO].sort()).toEqual([...tabelasCriadas().keys()].sort());
+    // super-admin (0035, ADR 0029): fora dos tenants e só por função; não é dado de tenant (super-admin.test.ts cria as linhas)
+    const deTenant = [...tabelasCriadas().keys()].filter((t) => !(TABELAS_SO_POR_FUNCAO as readonly string[]).includes(t));
+    expect([...ORDEM_TABELAS, ...TABELAS_PESQUISA_DO_GATILHO, ...ORDEM_TREINAMENTO].sort()).toEqual(deTenant.sort());
     for (const t of comTenant.filter((x) => !(TABELAS_PESQUISA_DO_GATILHO as readonly string[]).includes(x))) {
       const linhas = dados[t as keyof typeof dados];
       expect(linhas.filter((l) => l.tenant_id === A).length, `${t} em A`).toBeGreaterThan(0);

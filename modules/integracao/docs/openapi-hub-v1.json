@@ -2319,7 +2319,11 @@
             "enum": [
               "duplicado_no_lote",
               "cadastro_incompleto",
-              "referencia_fraca_ausente"
+              "referencia_fraca_ausente",
+              "aplicacao_cortada",
+              "referencias_cortadas",
+              "referencia_descartada",
+              "oferece_junto_cortado"
             ]
           },
           "mensagem": {
@@ -3450,6 +3454,17 @@
                 "type": "null"
               }
             ]
+          },
+          "aplicacao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4541,6 +4556,61 @@
                 "type": "null"
               }
             ]
+          },
+          "aplicacao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "referencias": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReferenciaCruzada"
+                },
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oferece_junto": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "etiquetas": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4771,6 +4841,37 @@
           "codigo",
           "mensagem",
           "erros"
+        ]
+      },
+      "ReferenciaCruzada": {
+        "type": "object",
+        "properties": {
+          "marca_external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "marca_nome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "codigo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo"
         ]
       },
       "RespostaReconciliacao": {

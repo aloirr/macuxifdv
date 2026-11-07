@@ -140,3 +140,20 @@ export function planoDeOnboarding(e: EntradaOnboarding, manifestos: readonly Man
     plano: { tenant: { codigo, nome, documento, fuso, plano }, modulos, admin: { email: adminEmail, nome: adminNome, perfil: 'admin' } },
   };
 }
+
+/** Entrada do passo Empresa do portal (T-0087; ADR 0029): igual à do comando, sem o admin inicial. */
+export type EntradaOnboardingSemAdmin = Omit<EntradaOnboarding, 'admin'>;
+export type PlanoOnboardingSemAdmin = Omit<PlanoOnboarding, 'admin'>;
+export type ResultadoOnboardingSemAdmin = { ok: true; plano: PlanoOnboardingSemAdmin } | { ok: false; erros: ErroOnboarding[] };
+
+/**
+ * RN-CORE-31 no portal de implantação: as mesmas regras do `planoDeOnboarding` (código, nome, fuso, módulos, dependências,
+ * RN-PRO-01, licenças), sem o admin inicial — no portal, o admin do cliente vem na Equipe, com convite (desenho T-0087 §5.1).
+ */
+export function planoDeOnboardingSemAdmin(e: EntradaOnboardingSemAdmin, manifestos: readonly Manifesto[]): ResultadoOnboardingSemAdmin {
+  // admin de preenchimento: só para reusar a validação; as regras dele não valem aqui e o plano sai sem ele
+  const r = planoDeOnboarding({ ...e, admin: { email: 'sem-admin', nome: 'sem-admin' } }, manifestos);
+  if (!r.ok) return { ok: false, erros: r.erros.filter((x) => x.codigo !== 'ADMIN_INVALIDO') };
+  const { admin: _semAdmin, ...plano } = r.plano;
+  return { ok: true, plano };
+}

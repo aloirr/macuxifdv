@@ -1,13 +1,15 @@
 /**
  * Schema `plataforma` em Drizzle (dono: banco-dados) — espelho TIPADO das tabelas criadas pela
- * migrações db/migrations/0001_plataforma.up.sql, 0003_plataforma_worker.up.sql, 0005_plataforma_arquivo.up.sql e 0022_plataforma_geracao_base.up.sql, para consultas da API.
+ * migrações db/migrations/0001_plataforma.up.sql, 0003_plataforma_worker.up.sql, 0005_plataforma_arquivo.up.sql, 0022_plataforma_geracao_base.up.sql
+ * e 0035_plataforma_super_admin.up.sql (super-admin, só por função), para consultas da API.
  *
  * A fonte da verdade é o SQL versionado (constraints, índices, RLS, grants e funções ficam lá);
  * aqui ficam só colunas e chave primária. O teste db/testes/drizzle-x-banco.test.ts confere que as
  * colunas daqui batem com o banco migrado. Perfis vêm de @macuxi/platform-sdk (fonte única); o CHECK
  * do SQL é comparado com eles em db/testes/estatico.test.ts.
  */
-import { boolean, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { bigint, boolean, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { PERFIS } from '@macuxi/platform-sdk';
 
 export const plataforma = pgSchema('plataforma');
@@ -138,4 +140,73 @@ export const arquivo = plataforma.table('arquivo', {
   situacao: text('situacao', { enum: ['aguardando', 'recebido'] }).notNull().default('aguardando'),
   recebido_em: timestamp('recebido_em', { withTimezone: true }),
   chave_armazenamento: text('chave_armazenamento'),
+});
+
+/**
+ * Super-admin de plataforma (0035, T-0087, ADR 0029): FORA dos tenants, sem tenant_id (exceção à regra 5 em
+ * db/src/excecoes.ts). RLS forçado SEM política e SEM grant para macuxi_app/macuxi_worker: a aplicação NUNCA consulta estas
+ * tabelas direto (42501); usa as funções SECURITY DEFINER plataforma.sa_* (docs/banco/plataforma.md). O espelho existe só
+ * para tipar o que as funções devolvem e para o teste Drizzle x banco.
+ */
+export const superAdmin = plataforma.table('super_admin', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull(),
+  nome: text('nome').notNull(),
+  /** argon2id (formato PHC), nunca a senha. */
+  senha_hash: text('senha_hash').notNull(),
+  /** AES-256-GCM `v1.<iv>.<tag>.<cifra>` (AAD = id); chave MACUXI_CHAVE_TOTP fora do banco. */
+  totp_segredo_cifrado: text('totp_segredo_cifrado'),
+  totp_pendente_cifrado: text('totp_pendente_cifrado'),
+  totp_confirmado_em: timestamp('totp_confirmado_em', { withTimezone: true }),
+  /** Último passo de 30 s aceito (sem reuso). */
+  totp_ultimo_passo: bigint('totp_ultimo_passo', { mode: 'number' }),
+  /** SHA-256 hex dos códigos de recuperação ainda não usados; nunca sai do banco (as funções devolvem só a contagem). */
+  recuperacao_hashes: text('recuperacao_hashes').array().notNull().default(sql`'{}'::text[]`),
+  falhas: integer('falhas').notNull().default(0),
+  bloqueado_ate: timestamp('bloqueado_ate', { withTimezone: true }),
+  ativo: boolean('ativo').notNull().default(true),
+  ...auditaveis(),
+});
+
+/** 2ª etapa do login (0035): só o SHA-256 do desafio; 5 min; uso único (consumido_em). */
+export const superAdminDesafio = plataforma.table('super_admin_desafio', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  super_admin_id: uuid('super_admin_id').notNull(),
+  desafio_hash: text('desafio_hash').notNull(),
+  etapa: text('etapa', { enum: ['segundo_fator', 'cadastrar_totp'] }).notNull(),
+  expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
+  consumido_em: timestamp('consumido_em', { withTimezone: true }),
+  ...auditaveis(),
+});
+
+/** Sessão do super-admin (0035): teto de 8 h, revogável, conferida a cada requisição (sa_sessao_valida). */
+export const superAdminSessao = plataforma.table('super_admin_sessao', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  super_admin_id: uuid('super_admin_id').notNull(),
+  criada_em: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
+  ultimo_uso_em: timestamp('ultimo_uso_em', { withTimezone: true }).notNull().defaultNow(),
+  expira_em: timestamp('expira_em', { withTimezone: true }).notNull(),
+  revogada_em: timestamp('revogada_em', { withTimezone: true }),
+  ...auditaveis(),
+});
+
+/**
+ * Auditoria da plataforma (0035): APPEND-ONLY (gatilho recusa update/delete/truncate para todos). tenant_alvo_id e não
+ * tenant_id de propósito: a exclusão de tenant (plataforma.excluir_tenant) apaga toda tabela com tenant_id, e esta sobrevive.
+ * Sem dado pessoal: ids, modelo da rota (sem query), status, request_id e prefixo do IP (/24 ou /48).
+ */
+export const auditoriaPlataforma = plataforma.table('auditoria_plataforma', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  super_admin_id: uuid('super_admin_id'),
+  sessao_id: uuid('sessao_id'),
+  tenant_alvo_id: uuid('tenant_alvo_id'),
+  acao: text('acao').notNull(),
+  metodo: text('metodo'),
+  rota: text('rota'),
+  status: integer('status'),
+  request_id: text('request_id'),
+  ip_prefixo: text('ip_prefixo'),
+  detalhes: jsonb('detalhes').$type<Record<string, unknown>>().notNull().default({}),
+  ocorrido_em: timestamp('ocorrido_em', { withTimezone: true }).notNull().defaultNow(),
+  ...auditaveis(),
 });

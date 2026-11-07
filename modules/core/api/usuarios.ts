@@ -312,6 +312,7 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
         if (!ativo) {
           // o acesso já cai na próxima requisição (autenticar confere `ativo`); aqui também mata o refresh e o push
           await db.query('update core.sessao set revogado_em = now() where usuario_id = $1 and revogado_em is null', [antes.id]);
+          await db.query('update core.usuario_convite set revogado_em = now() where usuario_id = $1 and usado_em is null and revogado_em is null', [antes.id]);
           await db.query('update core.dispositivo set push_token = null, push_plataforma = null where usuario_id = $1', [antes.id]);
         }
         await auditar(db, ctx, {
@@ -340,6 +341,8 @@ export const rotasDeUsuarios: readonly RotaModulo[] = [
         // zera a contagem de falhas e o bloqueio temporário; a senha antiga não vale mais em nenhuma sessão
         await db.query('update core.usuario set senha_hash = $2, tentativas_falhas = 0, bloqueio_ate = null where id = $1', [alvo.id, senhaHash]);
         await db.query('update core.sessao set revogado_em = now() where usuario_id = $1 and revogado_em is null', [alvo.id]);
+        // o link de 1º acesso antigo não pode mais trocar a senha que o admin definiu (RN-CORE-31)
+        await db.query('update core.usuario_convite set revogado_em = now() where usuario_id = $1 and usado_em is null and revogado_em is null', [alvo.id]);
         await auditar(db, ctx, { acao: 'usuario.senha_redefinir', entidade: 'usuario', entidadeId: alvo.id, antes: null, depois: { senha_alterada: true, sessoes_revogadas: true } });
         return { ok: true };
       }),

@@ -149,6 +149,8 @@ export const PedidoAprovadoEvento = z.object({
         desconto_pct: z.number().min(0).max(100).optional(),
         acrescimo_pct: z.number().min(0).max(100).optional(),
         acrescimo_cents: CentsNaoNeg.optional(),
+        /** T-0084 (RN-VEN-19, aditivo): retrato da aplicação; o Hub repassa ao ERP */
+        aplicacao: z.string().max(1000).nullable().optional(),
       }),
     )
     .min(1),
