@@ -8,6 +8,8 @@
  * há 10 dias (padrão `titulo_vencido_dias` = 5). Formas de A: AVISTA (semeada, ordem 0), PIX (PIX-AV, [0]) e BOLETO
  * (external_id FP-BOL; BOL-28-56 = 42 com external_id PZ-2856, BOL-30-60-90 = 60, BOL-28 inativo). B: AVISTA e DINHEIRO
  * (DIN-AV); B.c1 com prazo médio máximo 30, todas as formas; o admin de B tem o Vendedor removido no nível do usuário.
+ * Licença por perfil na fixture: o admin de A só tem o core (convenção de licencas.test.ts); analista e gerente de A têm
+ * catálogo e vendedor. Por isso as rotas do Vendedor no BKO usam analista/gerente, e o admin de A prova o MODULO_INATIVO.
  *
  * Rotas: push do sync (recusa por item com o código), PUT /v1/vendedor/orcamentos/:id (422), GET/PUT
  * /v1/vendedor/formas-pagamento e /prazos-pagamento (forma_pagamento.ver/gerenciar: admin, analista, gerente),
@@ -317,7 +319,7 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
 
     it('C3. forma inativada no Vendedor some da lista do Core; reativada, volta', async () => {
       const salvarPix = (ativo: boolean) =>
-        api.chamar(tk.adminA, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${PA.formas.pix}`, payload: { id: PA.formas.pix, codigo: 'PIX', nome: 'Pix', ativo, ordem: 1 } });
+        api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${PA.formas.pix}`, payload: { id: PA.formas.pix, codigo: 'PIX', nome: 'Pix', ativo, ordem: 1 } });
       const codigos = async () => ((await api.chamar(tk.analista, { method: 'GET', url: '/v1/core/formas-pagamento' })).json() as { formas: Array<{ codigo: string }> }).formas.map((f) => f.codigo);
       expect((await salvarPix(false)).statusCode).toBe(200);
       try {
@@ -428,6 +430,8 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
     });
 
     it('F2. promotor com o Vendedor licenciado ao perfil continua 403 (ação forma_pagamento.*, regra 7), e não por MODULO_INATIVO', async () => {
+      // o Vendedor depende do Catálogo (RN-CORE-03): sem o Catálogo no perfil, o Vendedor sai em cascata e o 403 seria de licença
+      expect((await licenca(api, tk.adminA, 'perfil', 'catalogo', true, 'promotor')).statusCode).toBe(200);
       expect((await licenca(api, tk.adminA, 'perfil', 'vendedor', true, 'promotor')).statusCode).toBe(200);
       try {
         const g = await api.chamar(tk.promotor, { method: 'GET', url: '/v1/vendedor/formas-pagamento' });
@@ -438,13 +442,17 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
         expect(erroDe(p).codigo).not.toBe('MODULO_INATIVO');
       } finally {
         expect((await licenca(api, tk.adminA, 'perfil', 'vendedor', false, 'promotor')).statusCode).toBe(200);
+        expect((await licenca(api, tk.adminA, 'perfil', 'catalogo', false, 'promotor')).statusCode).toBe(200);
       }
     });
 
-    it('F3. GET (admin, analista, gerente de A): formas e prazos de A (inclui inativos), nada de B', async () => {
-      for (const token of [tk.adminA, tk.analista, tk.gerente]) {
+    it('F3. GET (analista e gerente de A): formas e prazos de A (inclui inativos), nada de B; o admin de A, só com o core na fixture, recebe MODULO_INATIVO', async () => {
+      const semVendedor = await api.chamar(tk.adminA, { method: 'GET', url: '/v1/vendedor/formas-pagamento' });
+      cod403(semVendedor);
+      expect(erroDe(semVendedor).codigo).toBe('MODULO_INATIVO');
+      for (const [quem, token] of Object.entries({ analista: tk.analista, gerente: tk.gerente })) {
         const r = await api.chamar(token, { method: 'GET', url: '/v1/vendedor/formas-pagamento' });
-        expect(r.statusCode, r.body).toBe(200);
+        expect(r.statusCode, `${quem}: ${r.body}`).toBe(200);
         const b = r.json() as { formas: Array<{ id: string }>; prazos: Array<{ id: string }> };
         expect(b.formas.map((f) => f.id)).toEqual(expect.arrayContaining([PA.semeada.forma, PA.formas.pix, PA.formas.boleto]));
         expect(b.prazos.map((p) => p.id)).toEqual(expect.arrayContaining([PA.semeada.prazo, PA.prazos.pixAvista, PA.prazos.bol2856, PA.prazos.bol306090, PA.prazos.bol28Inativo]));
@@ -480,16 +488,16 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
     });
 
     it('F6. validações: código de forma repetido → 422 FORMA_DUPLICADA; parcelas decrescentes → 400/422; id do corpo diferente do endereço → 422', async () => {
-      cod422(await api.chamar(tk.adminA, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${NOVAS.formaB}`, payload: { id: NOVAS.formaB, codigo: 'BOLETO', nome: 'Outro boleto' } }), 'FORMA_DUPLICADA');
-      const dec = await api.chamar(tk.adminA, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${NOVAS.prazoB}`, payload: { id: NOVAS.prazoB, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-60-30', parcelas_dias: [60, 30] } });
+      cod422(await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${NOVAS.formaB}`, payload: { id: NOVAS.formaB, codigo: 'BOLETO', nome: 'Outro boleto' } }), 'FORMA_DUPLICADA');
+      const dec = await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${NOVAS.prazoB}`, payload: { id: NOVAS.prazoB, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-60-30', parcelas_dias: [60, 30] } });
       expect([400, 422], dec.body).toContain(dec.statusCode);
-      cod422(await api.chamar(tk.adminA, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${NOVAS.formaB}`, payload: { id: NOVAS.forma, codigo: 'XX', nome: 'X' } }), 'PAYLOAD_INVALIDO');
+      cod422(await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/formas-pagamento/${NOVAS.formaB}`, payload: { id: NOVAS.forma, codigo: 'XX', nome: 'X' } }), 'PAYLOAD_INVALIDO');
       expect(await q('select 1 from vendedor.forma_pagamento where id = $1', [NOVAS.formaB])).toEqual([]);
       expect(await q('select 1 from vendedor.prazo_pagamento where id = $1', [NOVAS.prazoB])).toEqual([]);
     });
 
     it('F7. prazo vindo do ERP (PZ-2856): mudar as parcelas → 422 PRAZO_DO_ERP; parcelas no banco intactas', async () => {
-      const r = await api.chamar(tk.adminA, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${PA.prazos.bol2856}`, payload: { id: PA.prazos.bol2856, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-28-56', parcelas_dias: [28, 56, 84] } });
+      const r = await api.chamar(tk.analista, { method: 'PUT', url: `/v1/vendedor/prazos-pagamento/${PA.prazos.bol2856}`, payload: { id: PA.prazos.bol2856, forma_pagamento_id: PA.formas.boleto, codigo: 'BOL-28-56', parcelas_dias: [28, 56, 84] } });
       cod422(r, 'PRAZO_DO_ERP');
       const [z] = await q<{ parcelas_dias: number[]; prazo_medio_dias: number }>('select parcelas_dias, prazo_medio_dias from vendedor.prazo_pagamento where id = $1', [PA.prazos.bol2856]);
       expect(z!.parcelas_dias.map(Number)).toEqual([28, 56]);
@@ -541,13 +549,15 @@ describe.skipIf(semBanco())('T-0089 — forma e prazo do pedido, pagamento do cl
     it('F10. Vendedor desligado no tenant A: as rotas de formas e prazos → 403 MODULO_INATIVO; religado, 200', async () => {
       expect((await licenca(api, tk.adminA, 'tenant', 'vendedor', false)).statusCode).toBe(200);
       try {
-        const r = await api.chamar(tk.adminA, { method: 'GET', url: '/v1/vendedor/formas-pagamento' });
+        // o analista tem o Vendedor no perfil: o 403 aqui só pode vir do tenant
+        const r = await api.chamar(tk.analista, { method: 'GET', url: '/v1/vendedor/formas-pagamento' });
         cod403(r);
         expect(erroDe(r).codigo).toBe('MODULO_INATIVO');
       } finally {
         expect((await licenca(api, tk.adminA, 'tenant', 'vendedor', true)).statusCode).toBe(200);
       }
-      expect((await api.chamar(tk.adminA, { method: 'GET', url: '/v1/vendedor/formas-pagamento' })).statusCode).toBe(200);
+      const volta = await api.chamar(tk.analista, { method: 'GET', url: '/v1/vendedor/formas-pagamento' });
+      expect(volta.statusCode, volta.body).toBe(200);
     });
   });
 });
