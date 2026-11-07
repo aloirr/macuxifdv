@@ -44,3 +44,4 @@
 2026-11-07 — T-0088 — ícone do aviso: relógio só no organizando, erro alert, offline wifiOff (iconeDoAviso no domain, com teste)
 2026-11-07 — T-0085 — atalho 'Ver por linha' (LinhaAtalho) na aba Catálogo + lib/atalho-por-linha.ts e teste; textos 'Por linha'/'Sistemas' já estavam na tela do #95
 2026-11-07 — T-0092 — TS2769 em api/ia/provedor-http.ts:51 corrigido (tipo do init do fetch); typecheck/lint/test verdes
+2026-11-07 — T-0085 — lista por linha com 20 mil produtos: raiz só conta (sem ordenar/carregar itens), chave de ordenação única, memória por nível, teste de desempenho; raiz de cerca de 1,4 s (0,2-0,5 s no código antigo) para 0,06-0,12 s

@@ -12,7 +12,7 @@ import type { CatalogoNoSync, ProdutoConteudoSync, ProdutoNoSync, ProdutoReferen
 import { descendentesDe, montarArvore, trilhaDe, type Arvore, type NoCatalogo, type VinculoProdutoNo } from '../../domain/arvore';
 import { itemDaVitrine, type ProdutoCatalogo } from '../../domain/vitrine';
 import { contextoLocal, type EntradaLocal, type LeitorLocal } from './local';
-import { agruparPorLinha, coletar, montarExtras, montarItemLista, NO_SEM_LINHA, porNome, rotuloDoNivel, SEM_EXTRAS, type ExtrasProduto, type GrupoLista, type ItemLista, type ProdutoLista } from './lista-por-linha';
+import { agruparPorLinha, coletar, contarSistemas, montarExtras, montarItemLista, NO_SEM_LINHA, ordenarPorNome, rotuloDoNivel, SEM_EXTRAS, type ExtrasProduto, type GrupoLista, type ItemLista, type ProdutoLista } from './lista-por-linha';
 
 /** Itens por tela: o resto fica na busca e nos níveis abaixo (a lista não cresce sem limite). */
 export const MAXIMO_ITENS_LISTA = 100;
@@ -120,12 +120,30 @@ function acharGrupo(sistemas: readonly GrupoLista[], noId: string): GrupoLista |
 
 const arvoreDoAparelho = (leitor: LeitorLocal) => lembrar<Arvore>(leitor, 'lista-arvore', ['catalogo_no'], async () => montarArvore(await leitor.linhas<CatalogoNoSync & LinhaSync>('catalogo_no')));
 
-/** Tudo da raiz (sistemas, contagens e produtos sem linha): lido uma vez por sync. */
+/**
+ * Raiz: só as contagens dos sistemas, o total e os ids sem linha, lidos uma vez por sync. Não cria itens da lista, não
+ * ordena e não guarda produtos (os sem linha são lidos por id quando o grupo "Sem linha" é aberto).
+ */
 function raiz(leitor: LeitorLocal, arvore: Arvore) {
   return lembrar(leitor, 'lista-raiz', ['catalogo_no', 'produto_no', 'produto'], async () => {
     const vinculos = vivas(await leitor.linhas<ProdutoNoSync & LinhaSync>('produto_no'));
-    const produtos = ativos(await leitor.linhas<LinhaProduto>('produto'));
-    return { agrupado: agruparPorLinha(arvore, vinculos, produtos.map(paraLista)), porId: new Map(produtos.map((p) => [p.id, p])) };
+    const ativosIds = new Set(ativos(await leitor.linhas<LinhaProduto>('produto')).map((p) => p.id));
+    return contarSistemas(arvore, vinculos, ativosIds);
+  });
+}
+
+interface NivelLido {
+  grupo: GrupoLista | null;
+  porId: Map<string, LinhaProduto>;
+}
+
+/** Um sistema/grupo/linha: lê só os vínculos e os produtos da subárvore; memorizado por nó até o próximo sync. */
+function lerNivel(leitor: LeitorLocal, arvore: Arvore, noId: string): Promise<NivelLido> {
+  return lembrar(leitor, `lista-no:${noId}`, ['catalogo_no', 'produto_no', 'produto'], async () => {
+    const vinculos = await vinculosDosNos(leitor, descendentesDe(arvore, noId));
+    const ids = [...new Set(vinculos.map((v) => v.produto_id))];
+    const produtos = await produtosPorIds(leitor, ids);
+    return { grupo: acharGrupo(agruparPorLinha(arvore, vinculos, produtos.map(paraLista), false).sistemas, noId), porId: new Map(produtos.map((p) => [p.id, p])) };
   });
 }
 
@@ -152,25 +170,23 @@ export async function listaPorLinhaLocal(leitor: LeitorLocal, e: EntradaLocal & 
 
   if (noId === null || noId === NO_SEM_LINHA) {
     const r = await raiz(leitor, arvore);
-    porId = r.porId;
     if (noId === null) {
-      filhos = r.agrupado.sistemas;
-      total = new Set(r.agrupado.sistemas.flatMap((g) => [...coletar(g)])).size + r.agrupado.semHierarquia.length;
-      if (r.agrupado.semHierarquia.length > 0) {
-        return finalizar(leitor, e, { trilha: [], rotuloNivel: null, filhos: [...filhos.map(filho), semLinha(r.agrupado.semHierarquia.length)], candidatos: [], porId, total, noInexistente: false, voltarPara: null });
+      filhos = r.sistemas.map((n) => ({ no: n.no, rotuloNivel: n.rotuloNivel, total: n.total, produtos: [], filhos: [] }));
+      total = r.total;
+      if (r.semLinhaIds.length > 0) {
+        return finalizar(leitor, e, { trilha: [], rotuloNivel: null, filhos: [...filhos.map(filho), semLinha(r.semLinhaIds.length)], candidatos: [], porId, total, noInexistente: false, voltarPara: null });
       }
     } else {
-      candidatos = r.agrupado.semHierarquia;
+      const soltos = await produtosPorIds(leitor, r.semLinhaIds);
+      porId = new Map(soltos.map((p) => [p.id, p]));
+      candidatos = soltos.map(paraLista);
       total = candidatos.length;
       rotuloNivel = 'Sem linha';
     }
   } else {
-    const nos = descendentesDe(arvore, noId);
-    const vinculos = await vinculosDosNos(leitor, nos);
-    const ids = [...new Set(vinculos.map((v) => v.produto_id))];
-    const produtos = await produtosPorIds(leitor, ids);
-    porId = new Map(produtos.map((p) => [p.id, p]));
-    grupo = acharGrupo(agruparPorLinha(arvore, vinculos, produtos.map(paraLista)).sistemas, noId);
+    const lido = await lerNivel(leitor, arvore, noId);
+    porId = lido.porId;
+    grupo = lido.grupo;
     trilha = trilhaDe(arvore, noId);
     rotuloNivel = grupo?.rotuloNivel ?? rotuloDoNivel(trilha.length);
     filhos = grupo?.filhos ?? [];
@@ -207,7 +223,7 @@ async function finalizar(
   e: EntradaLocal & { fuso: string },
   base: { trilha: NoCatalogo[]; rotuloNivel: string | null; filhos: FilhoLista[]; candidatos: ProdutoLista[]; porId: Map<string, LinhaProduto>; total: number; noInexistente: boolean; voltarPara: string | null },
 ): Promise<NivelLista> {
-  const ordenados = [...base.candidatos].sort(porNome).slice(0, MAXIMO_ITENS_LISTA);
+  const ordenados = ordenarPorNome(base.candidatos).slice(0, MAXIMO_ITENS_LISTA);
   const extras = await extrasDosProdutos(leitor, ordenados.map((p) => p.id));
   const mostrados = ordenados.map((p) => ({ ...p, extras: extras.get(p.id) ?? SEM_EXTRAS }));
   const linhas = mostrados.map((p) => base.porId.get(p.id)!);

@@ -94,16 +94,29 @@ export interface ListaAgrupada {
   semHierarquia: ProdutoLista[];
 }
 
-const emPtBr = new Intl.Collator('pt-BR');
+/** Chave de ordenação: minúsculas e sem acento, calculada uma vez por texto (o `Intl.Collator` por comparação é lento no Hermes). */
+export function chaveDeOrdem(texto: string): string {
+  return texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+const menor = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 /** Ordem estável dos produtos: nome, depois código, depois id. */
-export const porNome = (a: ProdutoLista, b: ProdutoLista) => emPtBr.compare(a.nome, b.nome) || emPtBr.compare(a.sku, b.sku) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+export const porNome = (a: ProdutoLista, b: ProdutoLista) => menor(chaveDeOrdem(a.nome), chaveDeOrdem(b.nome)) || menor(chaveDeOrdem(a.sku), chaveDeOrdem(b.sku)) || menor(a.id, b.id);
+
+/** Ordena por nome, código e id calculando as chaves uma vez por produto (não altera a lista recebida). */
+export function ordenarPorNome<T extends Pick<ProdutoLista, 'id' | 'nome' | 'sku'>>(produtos: readonly T[]): T[] {
+  return produtos
+    .map((p) => ({ p, n: chaveDeOrdem(p.nome), s: chaveDeOrdem(p.sku) }))
+    .sort((a, b) => menor(a.n, b.n) || menor(a.s, b.s) || menor(a.p.id, b.p.id))
+    .map((x) => x.p);
+}
 
 /**
  * RF-CAT-09: agrupa os produtos em sistema › grupo › linha com a contagem de cada nível. Reaproveita a árvore do
  * RF-CAT-04 (nó inativo, removido ou sem caminho até a raiz some e leva os filhos). Produto sem vínculo vivo, inativo
  * fica de fora; produto ligado a mais de um nó aparece em cada um e conta uma vez no nível acima.
+ * `ordenar: false` deixa os produtos na ordem de leitura (quem ordena é quem mostra, só os que vão para a tela).
  */
-export function agruparPorLinha(arvoreOuNos: Arvore | readonly NoCatalogo[], vinculos: readonly VinculoProdutoNo[], produtos: readonly ProdutoLista[]): ListaAgrupada {
+export function agruparPorLinha(arvoreOuNos: Arvore | readonly NoCatalogo[], vinculos: readonly VinculoProdutoNo[], produtos: readonly ProdutoLista[], ordenar = true): ListaAgrupada {
   const arvore = Array.isArray(arvoreOuNos) ? montarArvore(arvoreOuNos as readonly NoCatalogo[]) : (arvoreOuNos as Arvore);
   const porId = new Map(produtos.map((p) => [p.id, p]));
   const doNo = new Map<string, Set<string>>();
@@ -113,17 +126,56 @@ export function agruparPorLinha(arvoreOuNos: Arvore | readonly NoCatalogo[], vin
     doNo.set(v.no_id, (doNo.get(v.no_id) ?? new Set()).add(v.produto_id));
     vinculados.add(v.produto_id);
   }
-  const montar = (no: NoCatalogo): GrupoLista => {
+  // de baixo para cima: cada nível devolve o conjunto de ids uma vez só (sem recoletar a subárvore)
+  const montar = (no: NoCatalogo): { grupo: GrupoLista; ids: Set<string> } => {
     const filhos = (arvore.filhos.get(no.id) ?? []).map(montar);
-    const diretos = [...(doNo.get(no.id) ?? [])].map((id) => porId.get(id)!).sort(porNome);
-    const todos = new Set<string>(diretos.map((p) => p.id));
-    for (const f of filhos) for (const p of coletar(f)) todos.add(p);
-    return { no, rotuloNivel: rotuloDoNivel(no.nivel), total: todos.size, produtos: diretos, filhos };
+    const ids = new Set<string>(doNo.get(no.id) ?? []);
+    const diretosOrdem = [...ids].map((id) => porId.get(id)!);
+    for (const f of filhos) for (const id of f.ids) ids.add(id);
+    return { grupo: { no, rotuloNivel: rotuloDoNivel(no.nivel), total: ids.size, produtos: ordenar ? ordenarPorNome(diretosOrdem) : diretosOrdem, filhos: filhos.map((f) => f.grupo) }, ids };
   };
+  const sem = produtos.filter((p) => !vinculados.has(p.id));
   return {
-    sistemas: (arvore.filhos.get(null) ?? []).map(montar),
-    semHierarquia: produtos.filter((p) => !vinculados.has(p.id)).sort(porNome),
+    sistemas: (arvore.filhos.get(null) ?? []).map((n) => montar(n).grupo),
+    semHierarquia: ordenar ? ordenarPorNome(sem) : sem,
   };
+}
+
+/** Um nível só com a contagem (sem produtos): é o que a raiz precisa. */
+export interface NoContado {
+  no: NoCatalogo;
+  rotuloNivel: string;
+  total: number;
+}
+
+/**
+ * RF-CAT-09: só as contagens dos sistemas (produtos distintos de cada um e de tudo abaixo), o total geral e os ids sem
+ * linha. Não cria `ProdutoLista`, não ordena e não guarda os conjuntos: serve a raiz com 20 mil produtos.
+ */
+export function contarSistemas(arvoreOuNos: Arvore | readonly NoCatalogo[], vinculos: readonly VinculoProdutoNo[], idsAtivos: ReadonlySet<string>): { sistemas: NoContado[]; total: number; semLinhaIds: string[] } {
+  const arvore = Array.isArray(arvoreOuNos) ? montarArvore(arvoreOuNos as readonly NoCatalogo[]) : (arvoreOuNos as Arvore);
+  // cada nó aponta para o seu sistema; um conjunto de ids por sistema (8, não um por nó) e um para o total
+  const sistemaDe = new Map<string, Set<string>>();
+  const sistemasNos = arvore.filhos.get(null) ?? [];
+  const marcar = (no: NoCatalogo, conjunto: Set<string>) => {
+    sistemaDe.set(no.id, conjunto);
+    for (const f of arvore.filhos.get(no.id) ?? []) marcar(f, conjunto);
+  };
+  const conjuntos = sistemasNos.map((no) => {
+    const c = new Set<string>();
+    marcar(no, c);
+    return c;
+  });
+  const vinculados = new Set<string>();
+  for (const v of vinculos) {
+    const c = sistemaDe.get(v.no_id);
+    if (v.deleted_at || !c || !idsAtivos.has(v.produto_id)) continue;
+    c.add(v.produto_id);
+    vinculados.add(v.produto_id);
+  }
+  const sistemas = sistemasNos.map((no, i) => ({ no, rotuloNivel: rotuloDoNivel(no.nivel), total: conjuntos[i]!.size }));
+  const semLinhaIds = [...idsAtivos].filter((id) => !vinculados.has(id));
+  return { sistemas, total: vinculados.size + semLinhaIds.length, semLinhaIds };
 }
 
 /** Ids de todos os produtos de um grupo e dos níveis abaixo. */
