@@ -37,8 +37,8 @@ ORIGEM="$(cd "$(dirname "$0")" && pwd)"
 PASTA=/opt/macuxi
 log() { echo "[implantar] $(date -u +%H:%M:%S) $*"; }
 
-for f in .env banco.env admin.env tunel.env; do
-  [ -s "$PASTA/$f" ] || { echo "[implantar] $PASTA/$f ausente: preparar-vm.sh (.env) e workflow (banco/admin/tunel.env) gravam antes" >&2; exit 1; }
+for f in .env portal.env banco.env admin.env tunel.env; do
+  [ -s "$PASTA/$f" ] || { echo "[implantar] $PASTA/$f ausente: preparar-vm.sh (.env, portal.env) e workflow (banco/admin/tunel.env) gravam antes" >&2; exit 1; }
 done
 
 cd "$PASTA"

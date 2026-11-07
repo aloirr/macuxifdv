@@ -10,12 +10,16 @@
  * Atrás de proxy/túnel: `MACUXI_TRUST_PROXY` (`config.ts`, `lerTrustProxy`) para o IP real valer nos limites por IP.
  * T-0078: a cada `MACUXI_METRICAS_INTERVALO_MS` (padrão 5 min; 0 desliga) registra no log a linha `tipo: metricas` do
  * `/v1/saude` (5xx da janela, outbox, alertas), em `warn` quando há alerta. Cada linha de requisição já leva `request_id`.
+ * T-0091 (condição da ADR 0029): com `MACUXI_PG_PORTAL_SENHA`, abre o 2º pool (papel `macuxi_portal`, `MACUXI_API_POOL_PORTAL`
+ * conexões, padrão 2) só para a sessão do super-admin; conferido na subida (`criarBancoPortal().verificar`). Sem a senha, a API
+ * sobe com aviso, o portal responde 503 `PORTAL_INDISPONIVEL` e os tenants seguem normais. Na VM a senha vem do `portal.env`
+ * (só o contêiner `api` e o passo de papéis do `banco` recebem; o worker nunca).
  */
-import { lerConfigApp, urlApp } from '@macuxi/db';
+import { lerConfigApp, urlApp, urlPortal } from '@macuxi/db';
 import pg from 'pg';
 import { createApp } from './app';
 import { lerArmazenamentoDoAmbiente } from './armazenamento-s3';
-import { criarBancoApp } from './banco';
+import { criarBancoApp, criarBancoPortal, POOL_PORTAL_PADRAO } from './banco';
 import { conferirSegredoJwt, lerTrustProxy, opcoesLogger } from './config';
 import { registrarMetricasApi } from './observabilidade';
 
@@ -39,8 +43,18 @@ const pool = new pg.Pool({
   options: '-c idle_in_transaction_session_timeout=60000 -c statement_timeout=30000',
 });
 
+// T-0091: sessão do super-admin num papel próprio; transação curta (o portal só chama funções `sa_*`)
+const poolPortal = cfg.portalSenha
+  ? new pg.Pool({
+      connectionString: urlPortal(cfg),
+      max: Number(process.env.MACUXI_API_POOL_PORTAL ?? POOL_PORTAL_PADRAO),
+      options: '-c idle_in_transaction_session_timeout=10000 -c statement_timeout=10000',
+    })
+  : null;
+
 const app = createApp({
   banco: criarBancoApp(pool),
+  bancoPortal: poolPortal ? criarBancoPortal(poolPortal) : null,
   arquivos: arquivos.armazenamento,
   trustProxy: lerTrustProxy(process.env),
   // sem dado pessoal em log (CLAUDE.md regra 8): nada de cabeçalhos, IP, query string ou corpo; chave do Conector redigida
@@ -48,6 +62,7 @@ const app = createApp({
 });
 
 if (!segredoJwt.ok) app.log.warn(segredoJwt.mensagem);
+if (!poolPortal) app.log.warn('MACUXI_PG_PORTAL_SENHA não definida: o portal de implantação responde 503; os tenants seguem normais (T-0091).');
 app.log.info({ armazenamento: arquivos.descricao }, 'armazenamento de arquivos');
 
 const porta = Number(process.env.MACUXI_API_PORTA ?? 8100);
@@ -63,6 +78,7 @@ const encerrar = async () => {
   if (timerMetricas) clearInterval(timerMetricas);
   await app.close();
   await pool.end();
+  await poolPortal?.end();
   process.exit(0);
 };
 process.on('SIGINT', encerrar);
@@ -71,5 +87,6 @@ process.on('SIGTERM', encerrar);
 app.listen({ port: porta, host }).catch(async (e: unknown) => {
   app.log.error({ err: e }, 'a API não subiu');
   await pool.end().catch(() => undefined);
+  await poolPortal?.end().catch(() => undefined);
   process.exit(1);
 });

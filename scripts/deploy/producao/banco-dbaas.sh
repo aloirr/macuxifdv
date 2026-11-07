@@ -12,10 +12,11 @@
 #      SUPERUSER/BYPASSRLS só informados (no DBaaS são "não": vale o plano B);
 #   3. banco "macuxi": criado se falta (CREATE DATABASE pelo admin, C2.2 da ADR 0024);
 #   4. extensão vector (create extension if not exists, pelo admin: o DBaaS libera pelo pgextwlist, C1.2) e versão >= 0.8;
-#   5. "banco migrar up" (db/scripts/banco.ts, dono banco-dados): papéis macuxi_app e macuxi_worker pelo B0 (CREATE com os
+#   5. "banco migrar up" (db/scripts/banco.ts, dono banco-dados): papéis macuxi_app, macuxi_worker e macuxi_portal (T-0091) pelo B0 (CREATE com os
 #      atributos ou só LOGIN PASSWORD com verificador SCRAM; nunca ALTER de atributo, senha nunca em texto), o papel de
 #      manutenção macuxi_manutencao com a filiação INHERIT do admin (0031, B1) e as migrações pendentes. 3 tentativas;
-#   6. conferências (só leitura): macuxi_app/macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS e fora do macuxi_manutencao;
+#   6. conferências (só leitura): macuxi_app/macuxi_worker/macuxi_portal com LOGIN, sem SUPERUSER/BYPASSRLS e fora do
+#      macuxi_manutencao; macuxi_portal sem grant em tabela e o único (com o dono) que executa as plataforma.sa_* (T-0091);
 #      admin herdando o macuxi_manutencao; db/scripts/conferir-rls.sql com ZERO linhas; última migração aplicada.
 # Nenhum segredo é impresso: as senhas só chegam aos contêineres pelos env_file do compose.
 set -euo pipefail
@@ -93,10 +94,21 @@ done
 
 # ---------- 6. conferências ----------
 papeis="$(psqlc -d "$BANCO" -c "select rolname, rolcanlogin, rolsuper, rolbypassrls, pg_has_role(rolname, 'macuxi_manutencao', 'MEMBER')
-                                   from pg_roles where rolname in ('macuxi_app', 'macuxi_worker') order by 1")"
-esperado=$'macuxi_app|t|f|f|f\nmacuxi_worker|t|f|f|f'
+                                   from pg_roles where rolname in ('macuxi_app', 'macuxi_portal', 'macuxi_worker') order by 1")"
+esperado=$'macuxi_app|t|f|f|f\nmacuxi_portal|t|f|f|f\nmacuxi_worker|t|f|f|f'
 [ "$papeis" = "$esperado" ] || erro 1 "papéis da aplicação fora do esperado (LOGIN, sem SUPERUSER/BYPASSRLS, fora do macuxi_manutencao): $(printf '%s' "$papeis" | tr '\n' ' ')"
-log "papéis: macuxi_app e macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS, fora do macuxi_manutencao"
+# (o começo da linha é o que o stack-isolado.yml procura: não mudar)
+log "papéis: macuxi_app e macuxi_worker com LOGIN, sem SUPERUSER/BYPASSRLS, fora do macuxi_manutencao; macuxi_portal também (T-0091)"
+# T-0091 (condição da ADR 0029): a sessão do super-admin só abre pelo macuxi_portal, e ele não lê tabela nenhuma
+sa_fora="$(psqlc -d "$BANCO" -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                                  where n.nspname = 'plataforma' and p.proname like 'sa\_%'
+                                    and (has_function_privilege('macuxi_app', p.oid, 'EXECUTE')
+                                         or has_function_privilege('macuxi_worker', p.oid, 'EXECUTE')
+                                         or not has_function_privilege('macuxi_portal', p.oid, 'EXECUTE'))")"
+[ "$sa_fora" = 0 ] || erro 1 "funções plataforma.sa_* com EXECUTE fora do macuxi_portal (ou sem ele): $sa_fora"
+grants_portal="$(psqlc -d "$BANCO" -c "select count(*) from pg_class c, aclexplode(c.relacl) a where a.grantee = 'macuxi_portal'::regrole")"
+[ "$grants_portal" = 0 ] || erro 1 "macuxi_portal com grant em tabela ($grants_portal): ele só executa as plataforma.sa_*"
+log "super-admin: plataforma.sa_* só pelo macuxi_portal, sem grant em tabela"
 [ "$(psqlc -d "$BANCO" -c "select pg_has_role(current_user, 'macuxi_manutencao', 'USAGE')")" = t ] \
   || erro 1 "o admin não herda o macuxi_manutencao (0031): seed, DEFINER entre tenants e backup com RLS veriam 0 linhas"
 log "admin herda o macuxi_manutencao (0031, B1)"

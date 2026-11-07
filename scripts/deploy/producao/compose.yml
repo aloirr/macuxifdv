@@ -2,6 +2,9 @@
 # /opt/macuxi/compose.yml (copiado pelo implantar.sh). SEM Postgres local: o banco é o DBaaS macuxi-prod-db, por IP
 # privado na VPC, sempre com TLS. Arquivos ao lado, todos fora do git, todos modo 600 (nomes em env.modelo):
 #   .env          GERADO NA VM pelo preparar-vm.sh: senhas de macuxi_app/macuxi_worker, JWT e pepper do Hub. Nunca sai da VM.
+#   portal.env    GERADO NA VM pelo preparar-vm.sh (T-0091): MACUXI_PG_PORTAL_SENHA do papel macuxi_portal, o único com EXECUTE
+#                 nas plataforma.sa_* (super-admin). SÓ a api e o passo de papéis (banco) leem; worker, tenant, bko e
+#                 cloudflared nunca recebem. Nunca sai da VM.
 #   banco.env     MACUXI_PG_HOST/MACUXI_PG_PORTA do DBaaS (secrets PROD_PG_HOST/PROD_PG_PORTA), gravado pelo workflow.
 #   admin.env     MACUXI_PG_ADMIN_USUARIO/MACUXI_PG_ADMIN_SENHA (secrets PROD_PG_ADMIN_*), gravado pelo workflow; SÓ os
 #                 serviços de ferramenta (banco, pgcliente, tenant) leem. api e worker nunca recebem a senha do admin.
@@ -29,6 +32,7 @@ x-imagem-api: &imagem-api
   restart: unless-stopped
 
 # api e worker: o .env (papéis da aplicação, JWT, pepper), o banco.env (endereço do DBaaS) e o S3. NUNCA o admin.env.
+# O portal.env (T-0091) entra só na api, abaixo: o worker nunca abre sessão de super-admin.
 x-env-app: &env-app
   - path: .env
   - path: banco.env
@@ -57,13 +61,20 @@ x-ambiente-api: &ambiente-api
 services:
   api:
     <<: *imagem-api
-    env_file: *env-app
+    env_file:
+      - path: .env
+      - path: banco.env
+      - path: segredos.env
+        required: false
+      # T-0091: senha do macuxi_portal (2º pool da API, só a sessão do super-admin)
+      - path: portal.env
     environment:
       <<: *ambiente-api
       MACUXI_API_HOST: 0.0.0.0
       MACUXI_API_PORTA: '8100'
-      # pool: API 10 + worker 2 + 4 = 16 conexões, longe do max_connections=100 do DBaaS (ADR 0024, item 8)
+      # pool: API 10 + portal 2 (T-0091) + worker 2 + 4 = 18 conexões, longe do max_connections=100 do DBaaS (ADR 0024, item 8)
       MACUXI_API_POOL: '10'
+      MACUXI_API_POOL_PORTAL: '2'
       MACUXI_TRUST_PROXY: uniquelocal
     ports:
       - '127.0.0.1:8100:8100'
@@ -118,7 +129,8 @@ services:
 
   # ---------- ferramentas (docker compose --profile ferramentas run --rm ...) ----------
   # Migrações e papéis (db/scripts/banco.ts) com o admin do DBaaS: ele herda o macuxi_manutencao (0031, plano B, B1) e
-  # cria macuxi_app/macuxi_worker sem ALTER de atributo (B0). Recebe .env (senhas dos papéis) + banco.env + admin.env.
+  # cria macuxi_app/macuxi_worker/macuxi_portal sem ALTER de atributo (B0). Recebe .env (senhas dos papéis) + portal.env
+  # (senha do macuxi_portal, T-0091) + banco.env + admin.env.
   banco:
     <<: *imagem-api
     profiles: [ferramentas]
@@ -126,6 +138,7 @@ services:
     entrypoint: ['node', '--import', 'tsx', 'db/scripts/banco.ts']
     env_file:
       - path: .env
+      - path: portal.env
       - path: banco.env
       - path: admin.env
     environment:

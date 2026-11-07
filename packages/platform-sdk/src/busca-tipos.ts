@@ -26,6 +26,8 @@ export interface ResultadoBusca {
  * - `erro_busca`: o mecanismo recusou a consulta (erro do FTS5; o log leva só o tamanho, nunca o texto).
  * - `sem_busca`: o armazenamento não tem a extensão `busca` (só pelo motor).
  * - `indeterminado`: armazenamento de fora do SDK só com `buscar` devolveu lista vazia (não distingue os casos).
+ * - `indexando`: o índice está sendo (re)montado a partir das linhas locais (L-1) em segundo plano; só com a opção
+ *   `buscaSemEsperarIndexacao` do adaptador SQLite (T-0088, aditivo). Quem chama varre até o índice ficar pronto.
  */
 export type MotivoSemBusca =
   | 'consulta_vazia'
@@ -33,7 +35,8 @@ export type MotivoSemBusca =
   | 'indice_invalido'
   | 'erro_busca'
   | 'sem_busca'
-  | 'indeterminado';
+  | 'indeterminado'
+  | 'indexando';
 
 /**
  * Desfecho da busca (T-0052, R-20261105-145745): `buscou: true` com `resultados: []` = "busquei e não achei" (dá para
