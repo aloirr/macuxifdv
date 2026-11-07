@@ -387,3 +387,7 @@
 2026-11-07 — T-0088 — SDK: nome do banco aceita qualquer id (UUID ou hash SHA-256), demo no SQLite; revisão do shell sem 🔴 (desvios aceitos); teste do app vermelho pela mudança + 🟡 técnicos e 6 🟡 de UX → engenheiro-apps; regex no doc/teste do banco → banco-dados
 2026-11-07 — T-0091 — decisão do gerente: sa_registrar_auditoria segue interna (só o dono executa; menor privilégio); a 0038 não muda; as conferências do engenheiro-software (portal.banco.test.ts:49 e banco-dbaas.sh:102-108) passam a ignorar as sa_* internas, com lista explícita
 2026-11-07 — T-0091/T-0088 — conferências das sa_* com listas explícitas (20 do portal + 1 interna, teste que falha com sa_* nova fora das listas); aviso de indexação do Catálogo corrigido (avisoDaBusca); revisão C1 → engenheiro-software
+2026-11-07 — T-0088/T-0091 — lote verificacao/lote-t0088-t0091 (e9a65286: SQLite no motor do app com passagem e demo incluída, papel macuxi_portal e 2º pool da API, aviso de indexação do Catálogo, testes de segurança) no CI e no stack; revisões sem 🔴
+2026-11-07 — T-0088/T-0091 — lote no main (e9a65286; CI e stack verdes no commit exato, revisões sem 🔴)
+2026-11-07 — T-0088/T-0091 — CI do main verde e demo publicada com o e9a65286 (0038 aplicada; portal sem senha responde 503, tenants normais); APK de preview em build
+2026-11-07 — T-0088/T-0084 — APKs de preview do e9a65286 prontos (Campo dff66d39, Gestão 0558dbc9), links e roteiro §6 ao dono do produto no R-20261107-012839
