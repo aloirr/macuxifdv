@@ -66,3 +66,5 @@
 2026-11-05 — T-0084 (fatia A, RN-VEN-19) — domain `retratoAplicacao` + parâmetros (testes primeiro), caixa por item no Novo pedido (offline), API grava/corta de novo `pedido_item.aplicacao`, `application` no detalhe/pull/PDFs/BKO e `aplicacao` no `aprovado@1`; pendente: seletor pela `busca_produtos@1` (lote 2 do engenheiro) e revisão do designer-ux.
 2026-11-06 — T-0084 — seletor do Novo pedido pela busca do Catálogo (catalogo.busca_produtos@1, Serve em, reserva local), aplicação só dos itens visíveis (cache), voltar 'Ficha' no pedido em nome e PDF com vendedor dono + 'feito por' (domain busca-seletor, pedido-em-nome, pdf-pedido)
 2026-11-06 — T-0084 — A3: reserva local da busca do seletor só em ConsultaIndisponivel; outro erro aparece na tela e vai ao log sem dado pessoal; teste dos dois caminhos
+2026-11-06 — T-0089/T-0090 — +/− com hitSlop, passo sobre a última quantidade, recarregar sem sobrescrever rascunho; Pedidos: cache da data civil (1309 ms -> <100 ms/500) e useMemo; falta validar no aparelho
+2026-11-06 — T-0089/T-0090 — R1 do + (geração de rascunhos, rascunhosAposLeitura), alvo 44x48 dp, 2º toque com foco, troca de medida por ultimo.current

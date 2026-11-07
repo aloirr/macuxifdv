@@ -62,6 +62,7 @@ import {
 } from '../lib/pull';
 import { criarRepositorio, DADOS_VAZIOS, type DadosVendedor } from '../lib/repositorio';
 import { relogioReal } from '@macuxi/comum/relogio';
+import { rascunhosAposLeitura } from '../lib/rascunhos-apos-leitura';
 import { podeSincronizarManual } from '../lib/sincronizar';
 import { pedidoDaConversao, preVendaAtiva } from '../lib/pre-venda';
 
@@ -93,9 +94,16 @@ export function useVendedor() {
   const parametrosRef = useRef(parametros);
   parametrosRef.current = parametros;
 
+  const gravacoesDeRascunho = useRef(0);
+  /** geração dos rascunhos: sobe a cada toque/descarte, antes de gravar (R1: a leitura iniciada antes não sobrescreve) */
+  const versaoRascunhos = useRef(0);
   const recarregar = useCallback(async () => {
     if (!repo) return;
-    const [novos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
+    const geracaoAntes = versaoRascunhos.current;
+    const [lidos, ls] = await Promise.all([repo.carregar(), v1 && motor ? lerLinhas(motor) : Promise.resolve(LINHAS_VAZIAS)]);
+    // rascunho com gravação em andamento vale o da memória: a leitura pode ter vindo antes do toque no +/− ser gravado
+    // (se a geração mudou durante a leitura ou há gravação em andamento, valem os da memória)
+    const novos = { ...lidos, rascunhos: rascunhosAposLeitura({ lidos: lidos.rascunhos, memoria: dadosRef.current.rascunhos, geracaoAntes, geracaoAgora: versaoRascunhos.current, emAndamento: gravacoesDeRascunho.current }) };
     dadosRef.current = novos;
     linhasRef.current = ls;
     setDadosRepo(novos);
@@ -312,6 +320,7 @@ export function useVendedor() {
   const descartarRascunho = useCallback(
     async (chave: string) => {
       if (!repo) return;
+      versaoRascunhos.current += 1;
       await repo.limparRascunho(chave);
       await recarregar();
     },
@@ -327,7 +336,13 @@ export function useVendedor() {
       const proximo = { ...dadosRef.current, rascunhos: { ...dadosRef.current.rascunhos, [chave]: novo } };
       dadosRef.current = proximo;
       setDadosRepo(proximo);
-      await repo.guardarRascunho(chave, novo);
+      versaoRascunhos.current += 1;
+      gravacoesDeRascunho.current += 1;
+      try {
+        await repo.guardarRascunho(chave, novo);
+      } finally {
+        gravacoesDeRascunho.current -= 1;
+      }
     },
     [repo],
   );

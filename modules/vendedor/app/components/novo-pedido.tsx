@@ -26,13 +26,17 @@ import {
 } from '../lib/novo-pedido';
 import { medidasVisiveis, proximaMedida, trocarMedidaDaLinha } from '../lib/medida-do-item';
 import { textoEquivalente, textoPrecoDaLinha } from '../lib/textos-pedido';
-import { quantidadeAoConfirmar, quantidadeAoDigitar, quantidadeBaseDoPasso, registrarValorPendente, textoAposMudancaDoValor, valorPendentePct, valorPendenteQuantidade, valorPendenteReais } from '../lib/valor-pendente';
+import { quantidadeAoConfirmar, quantidadeAoDigitar, quantidadePorPasso, registrarValorPendente, textoAposMudancaDoValor, valorPendentePct, valorPendenteQuantidade, valorPendenteReais } from '../lib/valor-pendente';
 
 // ---------- campos ----------
+/** Alvo de toque do −/+: botão visual de 32 dp com 8 dp de folga em cima/embaixo e 6 dp dos lados (44 × 48 dp, ≥ 44 dp). */
+
 function Passo({ icone, rotulo, onPress, desligado, testID }: { icone: 'plus' | 'minus'; rotulo: string; onPress: () => void; desligado?: boolean; testID?: string }) {
   return (
-    <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={rotulo} accessibilityState={{ disabled: Boolean(desligado) }} disabled={desligado} onPress={onPress} style={({ pressed }) => [s.passo, desligado && s.passoDesligado, pressed && { opacity: 0.6 }]}>
+    <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={rotulo} accessibilityState={{ disabled: Boolean(desligado) }} disabled={desligado} onPress={onPress} style={({ pressed }) => [s.passoAlvo, pressed && { opacity: 0.6 }]}>
+      <View style={[s.passo, desligado && s.passoDesligado]}>
       <Icon name={icone} size={16} color={desligado ? colors.ink3 : colors.ink} strokeWidth={2.2} />
+      </View>
     </Pressable>
   );
 }
@@ -135,24 +139,32 @@ export interface PropsAbaItens {
 
 export function ListaDeItens({ produtos, rascunho, unidades, calculo, onLinhas, somenteLeitura, aoTrocarMedida, serveEm }: { produtos: readonly Product[]; aoTrocarMedida?: (texto: string, desfazer: () => void) => void; /** T-0084 C9: trecho "Serve em" por produto (busca do Catálogo) */ serveEm?: ReadonlyMap<string, TrechoServeEm> } & Omit<PropsAbaItens, 'catalogo' | 'resultados'>) {
   const ajustes = rascunho.ajustes ?? {};
+  // último estado pedido (não só o renderizado): dois toques antes do redesenho somam em vez de um apagar o outro
+  const ultimo = useRef({ lines: rascunho.lines, ajustes });
+  ultimo.current = { lines: rascunho.lines, ajustes };
+  const emitir = (lines: Record<string, number>, aj: Record<string, Ajuste>) => {
+    ultimo.current = { lines, ajustes: aj };
+    onLinhas(lines, aj);
+  };
   const setQtd = (chave: string, q: number) => {
     const n = Math.max(0, Math.trunc(q));
-    if ((rascunho.lines[chave] ?? 0) === n) return;
-    const lines = { ...rascunho.lines };
+    const atual = ultimo.current;
+    if ((atual.lines[chave] ?? 0) === n) return;
+    const lines = { ...atual.lines };
     if (n > 0) lines[chave] = n;
     else delete lines[chave];
-    const novos = { ...ajustes };
+    const novos = { ...atual.ajustes };
     if (n === 0) delete novos[chave];
-    onLinhas(lines, novos);
+    emitir(lines, novos);
   };
-  const setAjuste = (chave: string, aj: Ajuste) => onLinhas(rascunho.lines, { ...ajustes, [chave]: aj });
+  const setAjuste = (chave: string, aj: Ajuste) => emitir(ultimo.current.lines, { ...ultimo.current.ajustes, [chave]: aj });
   // V4: a troca da medida leva a quantidade para a outra linha do produto; o aviso do rodapé desfaz
   const trocarMedida = (tr: { de: string; para: string; rotuloPara: string; voltar: () => void }) => {
-    const antes = { lines: rascunho.lines, ajustes };
-    const r = trocarMedidaDaLinha(rascunho.lines, ajustes, tr.de, tr.para);
-    onLinhas(r.lines, r.ajustes);
+    const antes = ultimo.current;
+    const r = trocarMedidaDaLinha(antes.lines, antes.ajustes, tr.de, tr.para);
+    emitir(r.lines, r.ajustes);
     aoTrocarMedida?.(`Medida trocada para ${tr.rotuloPara}`, () => {
-      onLinhas(antes.lines, antes.ajustes);
+      emitir(antes.lines, antes.ajustes);
       tr.voltar();
     });
   };
@@ -304,6 +316,16 @@ function MedidaDoItem({
   vivo.current = { texto, qtd, onQtd };
   const desregistrar = useRef<(() => void) | null>(null);
   useEffect(() => () => desregistrar.current?.(), []);
+  // toques seguidos somam mesmo antes da tela redesenhar: o passo parte da última quantidade pedida, não da renderizada
+  const passo = (delta: number) => {
+    const n = quantidadePorPasso({ texto: vivo.current.texto, focado: focado.current, qtd: vivo.current.qtd }, delta);
+    vivo.current.qtd = n;
+    if (focado.current) {
+      vivo.current.texto = String(n);
+      setTexto(String(n));
+    }
+    vivo.current.onQtd(n);
+  };
   const modo: 'pct' | 'valor' = ajuste.em === 'valor' ? 'valor' : 'pct';
   const sentido: 'desconto' | 'acrescimo' = modo === 'valor' ? ((ajuste.acrescimo_cents ?? 0) > 0 ? 'acrescimo' : 'desconto') : (ajuste.acrescimo_pct ?? 0) > 0 ? 'acrescimo' : 'desconto';
   const valorPct = sentido === 'acrescimo' ? (ajuste.acrescimo_pct ?? 0) : (ajuste.desconto_pct ?? 0);
@@ -329,7 +351,7 @@ function MedidaDoItem({
           <Text style={[t.bodyStrong, { fontFamily: fonts.bold }]}>{qtd}</Text>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Passo icone="minus" rotulo={`Diminuir ${nome}`} desligado={qtd <= 0} onPress={() => onQtd(quantidadeBaseDoPasso({ texto, focado: focado.current, qtd }) - 1)} testID={`dec-${k}`} />
+            <Passo icone="minus" rotulo={`Diminuir ${nome}`} desligado={qtd <= 0} onPress={() => passo(-1)} testID={`dec-${k}`} />
             <TextInput
               testID={`qty-${k}`}
               value={texto}
@@ -359,7 +381,7 @@ function MedidaDoItem({
               accessibilityLabel={`Quantidade de ${nome}`}
               style={s.qtd}
             />
-            <Passo icone="plus" rotulo={`Aumentar ${nome}`} desligado={preco === null} onPress={() => onQtd(quantidadeBaseDoPasso({ texto, focado: focado.current, qtd }) + 1)} testID={`inc-${k}`} />
+            <Passo icone="plus" rotulo={`Aumentar ${nome}`} desligado={preco === null} onPress={() => passo(1)} testID={`inc-${k}`} />
           </View>
         )}
       </View>
@@ -473,7 +495,9 @@ const s = StyleSheet.create({
   divisor: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   produto: { gap: 8, paddingVertical: 12, paddingHorizontal: 14 },
   passoDesligado: { backgroundColor: colors.ground, borderColor: colors.line },
-  passo: { width: 48, height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  /** alvo de toque 44 × 48 dp dentro do pai (no Android o hitSlop não passa dos limites do pai); o visual de 32 dp fica por dentro */
+  passoAlvo: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
+  passo: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   qtd: { width: 52, height: 48, textAlign: 'center', fontFamily: fonts.bold, fontSize: 16, color: colors.ink, fontVariant: ['tabular-nums'], padding: 0 },
   caixaAplicacao: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
   caixa: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: colors.lineStrong, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },

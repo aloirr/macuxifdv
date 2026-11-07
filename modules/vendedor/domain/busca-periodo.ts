@@ -130,9 +130,14 @@ export function mesesDoPeriodo(ano: string): string[] {
 }
 
 /** Datas civis (no fuso) em que o item "aconteceu": emissão e última mudança de status. */
+const datasEmCache = new WeakMap<object, { tz: string; emitido: string; alterado: string | null; datas: string[] }>();
 function datasDoItem(i: ItemDaBusca, tz: string): string[] {
+  // a data civil (Intl, caro) é calculada uma vez por pedido: trocar Dia/Mês/Ano ou a situação reaproveita a conta
+  const c = datasEmCache.get(i);
+  if (c && c.tz === tz && c.emitido === i.emitido_em && c.alterado === (i.status_alterado_em ?? null)) return c.datas;
   const out = [localIsoDate(i.emitido_em, tz)];
   if (i.status_alterado_em) out.push(localIsoDate(i.status_alterado_em, tz));
+  datasEmCache.set(i, { tz, emitido: i.emitido_em, alterado: i.status_alterado_em ?? null, datas: out });
   return out;
 }
 
